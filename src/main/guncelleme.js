@@ -114,8 +114,10 @@ export function guncellemeKur({ app, ipcMain, autoUpdater, pencereyeGonder, ayar
   autoUpdater.on('error', (e) => {
     const indiriyordu = durum.indiriliyor;
     durum.denetleniyor = false; durum.indiriliyor = false;
-    // Otomatik denetimdeki ağ hatalarıyla kullanıcıyı rahatsız etme; elle denetim ve indirme hataları bildirilir.
-    if (durum.sonIstekElle || indiriyordu) pencereyeGonder('guncelleme:hata', { mesaj: hataMetni(e) });
+    // electron-updater hatayı hem 'error' olayıyla verir hem de checkForUpdates/downloadUpdate sözünü reddeder.
+    // Denetim hataları denetle() üzerinden (sonuç nesnesiyle) döner; otomatik denetimdeki ağ hataları kullanıcıya
+    // gösterilmez. Yalnızca indirme sırasındaki hatalar buradan tek bir 'guncelleme:hata' olayıyla bildirilir.
+    if (indiriyordu) pencereyeGonder('guncelleme:hata', { mesaj: hataMetni(e) });
   });
 
   // ---- denetim
@@ -153,8 +155,9 @@ export function guncellemeKur({ app, ipcMain, autoUpdater, pencereyeGonder, ayar
       await autoUpdater.downloadUpdate();
       return true;
     } catch (e) {
+      // 'error' olay dinleyicisi (yukarıda) hatayı zaten renderer'a gönderdi; burada yalnızca durum sıfırlanır.
       durum.indiriliyor = false;
-      pencereyeGonder('guncelleme:hata', { mesaj: hataMetni(e) });
+      console.error('[güncelleme] indirme:', hataMetni(e));
       return false;
     }
   }

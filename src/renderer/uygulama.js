@@ -284,7 +284,7 @@ async function belgeKaydet(b, farkli = false, sessiz = false) {
     return true;
   } catch (e) {
     durum.mesajYaz('');
-    const kilitli = /açık olabilir|yazılamadı|Permission/i.test(e.message || '');
+    const kilitli = /açık olabilir|yazılamadı|okunamadı|Failed to open|Permission|EBUSY|EPERM/i.test(e.message || '');
     const { secim } = await mesajKutusu({ tur: 'error', mesaj: 'Belge kaydedilemedi', ayrinti: (kilitli ? 'Dosya başka bir programda (örneğin bir PDF okuyucu) açık olabilir. Onu kapatıp yeniden deneyin ya da farklı bir adla kaydedin.\n\n' : '') + hataMetni(e), dugmeler: kilitli ? ['Farklı kaydet…', 'Vazgeç'] : ['Tamam'], iptal: kilitli ? 1 : 0 });
     if (kilitli && secim === 0) { b.kaydediliyor = false; return belgeKaydet(b, true); }
     return false;
@@ -747,7 +747,7 @@ async function paylas() {
 
 // ---------------------------------------------------------------- diyaloglar
 function mesajKutusu(secenek) {
-  if (window.__pdefeOtoYanit) { console.warn('[test] mesaj kutusu otomatik yanıtlandı:', secenek.mesaj); return Promise.resolve({ secim: window.__pdefeOtoYanit.secim ?? 0, onay: false }); }
+  if (window.__pdefeOtoYanit) { const o = window.__pdefeOtoYanit; o.son = secenek; console.warn('[test] mesaj kutusu otomatik yanıtlandı:', secenek.mesaj); return Promise.resolve({ secim: o.secim ?? 0, onay: !!o.onay }); }
   return pdefe.cagir('mesaj:kutu', secenek);
 }
 
@@ -826,7 +826,7 @@ export function bildir(metin, sure = 3000) {
 }
 function dosyaAdi(yol) { return yol.split(/[\\/]/).pop(); }
 function yolAyni(a, b) { return a.replace(/\//g, '\\').toLowerCase() === b.replace(/\//g, '\\').toLowerCase(); }
-function hataMetni(e) { return (e && (e.message || String(e))) || 'Bilinmeyen hata'; }
+function hataMetni(e) { return ((e && (e.message || String(e))) || 'Bilinmeyen hata').replace(/^Error invoking remote method '[^']+': (Error: )?/, ''); }
 function kacis(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
 // Bağlantılar dış tarayıcıda

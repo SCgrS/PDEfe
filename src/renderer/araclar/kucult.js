@@ -5,11 +5,12 @@ import {
   bosAdBul, dosyaBoyutu, zamanDamgasi, degisiklikleriSor, geciktir, oge,
 } from './ortak.js';
 
-/** Hazır seviyeler: çekirdek 'seviye' adını ya da dpi/kalite çiftini kullanabilir. */
+/** Hazır seviyeler. dpi/kalite değerleri yalnızca bilgi amaçlıdır; çekirdek (core/islemler/araclar.py SEVIYELER)
+ *  adlandırılmış seviyelerde kendi değerlerini kullanır, bu tablo onunla aynı tutulur. */
 export const SEVIYELER = {
-  asiri: { ad: 'Aşırı sıkıştırma', aciklama: 'En küçük dosya; görseller belirgin biçimde bulanıklaşır. E-posta ve arşiv için.', dpi: 72, kalite: 40 },
-  onerilen: { ad: 'Önerilen sıkıştırma', aciklama: 'İyi kalite, iyi sıkıştırma. Ekranda okuma ve paylaşım için uygundur.', dpi: 150, kalite: 75 },
-  dusuk: { ad: 'Düşük sıkıştırma', aciklama: 'Yüksek kalite; yalnızca gereksiz veriler atılır, görseller hafifçe sıkıştırılır.', dpi: 220, kalite: 90 },
+  asiri: { ad: 'Aşırı sıkıştırma', aciklama: 'En küçük dosya; görseller belirgin biçimde bulanıklaşır. E-posta ve arşiv için.', dpi: 96, kalite: 45 },
+  onerilen: { ad: 'Önerilen sıkıştırma', aciklama: 'İyi kalite, iyi sıkıştırma. Ekranda okuma ve paylaşım için uygundur.', dpi: 150, kalite: 72 },
+  dusuk: { ad: 'Düşük sıkıştırma', aciklama: 'Yüksek kalite; yalnızca gereksiz veriler atılır, görseller hafifçe sıkıştırılır.', dpi: 220, kalite: 88 },
 };
 
 export class KucultPenceresi {
@@ -19,6 +20,8 @@ export class KucultPenceresi {
     this.seviye = 'onerilen';
     this.ozel = { dpi: 120, kalite: 70 };
     this.tahminler = {};
+    this.ornekleme = false;          // çekirdek büyük belgede ilk sayfaları örnekleyerek tahmin etti
+    this.ozelTahminDestegi = null;   // null: bilinmiyor, false: çekirdek özel seviye tahmini vermiyor
     this.uzerineYaz = false;
     this.ilerleme = new IslemIlerleme();
     this.ozelTahminGeciktir = geciktir(() => this.ozelTahminAl(), 700);
@@ -31,6 +34,7 @@ export class KucultPenceresi {
     const govde = oge(`<div class="kucult-govde">
       <div class="kucult-boyut"><div class="deger sayi">${boyutMetni(b.boyut)}</div><div class="etiket">${kacis(b.ad)} · ${b.gorunum?.sayfaSayisi || '?'} sayfa · mevcut boyut</div></div>
       <div class="kucult-kartlar" role="radiogroup"></div>
+      <div class="arac-aciklama kucult-not" hidden></div>
       <div class="arac-alan kucult-cikti">
         <div class="arac-satir"><span class="arac-etiket" style="margin:0">Çıktı</span></div>
         <div class="arac-satir"><span class="soluk kucult-cikti-yol" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span></div>
@@ -44,6 +48,7 @@ export class KucultPenceresi {
     this.kartlar.append(this._ozelKart());
     govde.querySelector('.kucult-cikti').append(this.ilerleme.el);
     this.ciktiYolEl = govde.querySelector('.kucult-cikti-yol');
+    this.notEl = govde.querySelector('.kucult-not');
     this.uzerineEl = govde.querySelector('.kucult-uzerine');
     this.uzerineEl.addEventListener('change', () => { this.uzerineYaz = this.uzerineEl.checked; this.ciktiYoluYaz(); });
     this.sonucEl = govde.querySelector('.kucult-sonuc');
@@ -109,35 +114,47 @@ export class KucultPenceresi {
     if (id === 'ozel' && this.tahminler.ozel === undefined) { this._tahminYaz('ozel', null, 'hesaplanıyor…'); this.ozelTahminGeciktir(); }
   }
 
-  _tahminYaz(id, boyut, mesaj, hata) {
+  /** Kart altındaki tahmin metni. boyut null + mesaj: bekleme/bilgi; hata: kırmızı; soluk: bilgi notu. */
+  _tahminYaz(id, boyut, mesaj, hata, soluk = false) {
     const el = this.kartlar.querySelector(`.kucult-kart[data-seviye="${id}"] .tahmin`);
     if (!el) return;
     el.classList.remove('bekliyor', 'hata', 'soluk');
     if (hata) { el.classList.add('hata'); el.textContent = hata; return; }
-    if (boyut == null) { el.classList.add('bekliyor'); el.textContent = mesaj || 'hesaplanıyor…'; return; }
-    el.innerHTML = `<b>${kacis(boyutMetni(boyut))}</b> · ${kacis(farkMetni(this.belge.boyut, boyut))}`;
+    if (boyut == null) { el.classList.add(soluk ? 'soluk' : 'bekliyor'); el.textContent = mesaj || 'hesaplanıyor…'; return; }
+    el.innerHTML = `<b>${kacis(boyutMetni(boyut))}</b> · ${kacis(farkMetni(this.belge.boyut, boyut))}${this.ornekleme ? ' <span class="soluk" title="Büyük belge: ilk sayfalar örneklenerek tahmin edildi">≈</span>' : ''}`;
   }
 
-  /** kucult_tahmin sonucunu esnek okur: {seviyeler:{asiri:{boyut}}} | {asiri: 123} | {boyut} */
+  /**
+   * kucult_tahmin sonucunu okur. Çekirdek biçimi: {mevcut, seviyeler:{asiri|onerilen|dusuk:{boyut, yuzde, dpi, kalite}}, tahmin:bool, sure}.
+   * Esneklik için {seviyeler:{id: sayı}} ve {id: sayı|{boyut}} de kabul edilir. Bulunamazsa null.
+   */
   static tahminOku(sonuc, id) {
-    if (!sonuc) return null;
-    const kaynak = sonuc.seviyeler?.[id] ?? sonuc.tahminler?.[id] ?? sonuc[id] ?? (id === 'ozel' ? (sonuc.boyut ?? sonuc.tahmin) : null);
+    if (!sonuc || typeof sonuc !== 'object') return null;
+    const kaynak = sonuc.seviyeler?.[id] ?? sonuc.tahminler?.[id] ?? sonuc[id];
     if (kaynak == null) return null;
-    if (typeof kaynak === 'number') return kaynak;
-    if (typeof kaynak === 'object') return kaynak.boyut ?? kaynak.tahmin ?? null;
+    if (typeof kaynak === 'number') return Number.isFinite(kaynak) ? kaynak : null;
+    if (typeof kaynak === 'object') { const b = kaynak.boyut; return typeof b === 'number' && Number.isFinite(b) ? b : null; }
     return null;
   }
 
   async tahminleriAl() {
     try {
+      // seviyeler parametresi çekirdeğin şimdiki sürümünde yok sayılır (kendi tablosunu kullanır); ileride eşleşmesi için gönderilir
       const sonuc = await this.baglam.cekirdek('kucult_tahmin', { yol: this.belge.yol, seviyeler: Object.fromEntries(Object.entries(SEVIYELER).map(([k, v]) => [k, { dpi: v.dpi, kalite: v.kalite }])) });
       if (this.pencere.kapali) return;
+      this.ornekleme = sonuc?.tahmin === true;
+      let eksik = 0;
       for (const id of Object.keys(SEVIYELER)) {
         const b = KucultPenceresi.tahminOku(sonuc, id);
         this.tahminler[id] = b;
-        if (b == null) this._tahminYaz(id, null, null, 'tahmin alınamadı');
+        if (b == null) { eksik++; this._tahminYaz(id, null, null, 'tahmin alınamadı'); }
         else this._tahminYaz(id, b);
       }
+      const notlar = [];
+      if (this.ornekleme) notlar.push('Büyük belge: tahminler ilk sayfalar örneklenerek hesaplandı (≈); gerçek sonuç biraz farklı olabilir.');
+      if (eksik) notlar.push('Bazı seviyeler için tahmin alınamadı; küçültme yine de yapılabilir.');
+      this.notEl.hidden = !notlar.length;
+      this.notEl.textContent = notlar.join(' ');
     } catch (e) {
       if (this.pencere.kapali) return;
       for (const id of Object.keys(SEVIYELER)) this._tahminYaz(id, null, null, 'tahmin alınamadı');
@@ -145,19 +162,31 @@ export class KucultPenceresi {
     }
   }
 
+  /**
+   * Özel seviye tahmini. Çekirdeğin şimdiki sürümü yalnızca üç hazır seviyeyi ölçer; seviyeler:{ozel:{dpi,kalite}}
+   * gönderilir, yanıtta seviyeler.ozel yoksa "tahmin yok" notu gösterilir (çekirdek desteklerse kendiliğinden çalışır).
+   */
   async ozelTahminAl() {
+    if (this.ozelTahminDestegi === false) { this._ozelTahminYok(); return; }
     const sayac = ++this.ozelTahminSayac;
     const { dpi, kalite } = this.ozel;
     try {
       const sonuc = await this.baglam.cekirdek('kucult_tahmin', { yol: this.belge.yol, dpi, kalite, seviyeler: { ozel: { dpi, kalite } } });
       if (this.pencere.kapali || sayac !== this.ozelTahminSayac) return;
       const b = KucultPenceresi.tahminOku(sonuc, 'ozel');
+      if (b == null) { this.ozelTahminDestegi = false; this._ozelTahminYok(); return; }
+      this.ozelTahminDestegi = true;
       this.tahminler.ozel = b;
-      if (b == null) this._tahminYaz('ozel', null, null, 'tahmin alınamadı'); else this._tahminYaz('ozel', b);
+      this._tahminYaz('ozel', b);
     } catch (e) {
       if (this.pencere.kapali || sayac !== this.ozelTahminSayac) return;
       this._tahminYaz('ozel', null, null, 'tahmin alınamadı: ' + hataMetni(e));
     }
+  }
+
+  _ozelTahminYok() {
+    this.tahminler.ozel = null;
+    this._tahminYaz('ozel', null, 'Özel ayar için önceden tahmin yapılmaz; sonuç boyutu küçültme bitince gösterilir.', null, true);
   }
 
   async ciktiYoluHazirla() {
@@ -214,11 +243,11 @@ export class KucultPenceresi {
         baglam.bildir('Yedek alındı: ' + yedek, 5000);
       }
       const p = this.secilenParametreler();
-      // Üzerine yazmada çekirdek geçici dosyaya yazıp yer değiştirmeli; hedef=yol olduğunu bilsin
-      const sonuc = await this.ilerleme.calistir(baglam, 'kucult', { yol: belge.yol, hedef, ...p, uzerineYaz: this.uzerineYaz }, { baslangicMesaji: 'Küçültülüyor…' });
+      // Çekirdek (kucult): geçici dosyaya yazıp os.replace ile hedefe taşır; hedef == yol (üzerine yazma) desteklenir.
+      // Sonuç: {boyut, oncekiBoyut, yuzde, uyari, dpi, kalite}
+      const sonuc = await this.ilerleme.calistir(baglam, 'kucult', { yol: belge.yol, hedef, ...p }, { baslangicMesaji: 'Küçültülüyor…' });
       const yeniBoyut = sonuc?.boyut ?? await dosyaBoyutu(baglam.pdefe, hedef);
-      const sonucYolu = sonuc?.yol || hedef;
-      await this.sonucGoster(sonucYolu, yeniBoyut, yedek);
+      await this.sonucGoster(hedef, yeniBoyut, yedek);
     } catch (e) {
       if (e.iptal) {
         this.ilerleme.gizle();

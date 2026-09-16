@@ -2,25 +2,32 @@
 ; (electron-builder.yml → nsis.include: build/installer.nsh)
 ;
 ; Bu dosya electron-builder'ın ürettiği betiğin BAŞINA eklenir; buradaki makrolar
-; app-builder-lib/templates/nsis içindeki şu kancalarda genişletilir:
-;   customInit               → .onInit (installer.nsi)
+; app-builder-lib/templates/nsis içindeki şu kancalarda genişletilir (26.15.3 kaynağından doğrulandı):
+;   customInit               → .onInit, initMultiUser'dan sonra (installer.nsi)
 ;   customPageAfterChangeDir → klasör sayfasından sonra, kurulumdan önce (assistedInstaller.nsh)
 ;   customInstall            → dosyalar kopyalanıp kısayollar ve .pdf ilişkisi yazıldıktan sonra (installSection.nsh)
 ;   customFinishPage         → MUI bitiş sayfasının yerine geçer (assistedInstaller.nsh)
-;   customUnInstall          → kaldırma bölümünün başında (uninstaller.nsh)
+;   customUnInstall          → kaldırma bölümünün başında, unregisterFileAssociations'tan önce (uninstaller.nsh)
 ;
 ; Yaptıkları:
 ;   1. "Ek görevler" sayfası: "Masaüstünde kısayol oluştur" onay kutusu. electron-builder masaüstü kısayolunu
-;      her zaman oluşturur; kutu işaretli değilse customInstall içinde kısayol silinir.
+;      her zaman oluşturur; kutu işaretli değilse customInstall içinde kısayol silinir. Güncelleme kurulumunda
+;      sayfa atlanır; electron-builder keepShortcuts ile önceki tercihi korur (kısayol yeniden oluşturulmaz).
 ;   2. Windows "Varsayılan Programlar" kaydı (SHELL_CONTEXT = kullanıcı kurulumunda HKCU):
 ;        Software\PDEfe\Capabilities                       ApplicationName, ApplicationDescription, ApplicationIcon
 ;        Software\PDEfe\Capabilities\FileAssociations      .pdf = PDEfe.pdf   (ProgId'yi electron-builder yazar:
-;                                                          fileAssociations.name = "PDEfe.pdf")
+;                                                          fileAssociations.name = "PDEfe.pdf"; NsisTarget.js
+;                                                          APP_ASSOCIATE çağrısında FILECLASS = item.name || ext)
 ;        Software\RegisteredApplications                   PDEfe = Software\PDEfe\Capabilities
 ;      Böylece ms-settings:defaultapps?registeredAppUser=PDEfe sayfası PDEfe'yi listeler.
-;   3. Bitiş sayfası: "PDEfe'yi başlat" (varsayılan davranış) + "PDEfe'yi varsayılan PDF görüntüleyici yap"
-;      onay kutusu (MUI_FINISHPAGE_SHOWREADME_FUNCTION ile Windows Ayarlar > Varsayılan uygulamalar açılır).
-;   4. Kaldırırken 2'deki kayıtlar silinir.
+;   3. electron-builder'ın APP_ASSOCIATE makrosu HKCU\Software\Classes\.pdf varsayılan değerini de "PDEfe.pdf"
+;      yapar. Windows 10/11'de varsayılan uygulama UserChoice ile seçilir; yine de başka bir uygulamanın
+;      kullanıcı kaydı üzerine yazılmasın diye eski değer .onInit'te okunur ve kurulumdan sonra geri konur
+;      (OpenWithProgids girdisi kalır: "Birlikte aç" ve Varsayılan uygulamalar sayfası için yeterlidir).
+;   4. Bitiş sayfası: "PDEfe'yi başlat" (electron-builder'ın varsayılan davranışı korunur) +
+;      "PDEfe'yi varsayılan PDF görüntüleyici yap" onay kutusu (MUI_FINISHPAGE_SHOWREADME_FUNCTION ile
+;      Windows Ayarlar > Varsayılan uygulamalar > PDEfe sayfası açılır; Windows kuralı gereği seçimi kullanıcı yapar).
+;   5. Kaldırırken 2'deki kayıtlar ve .pdf varsayılan değerinde kalan "PDEfe.pdf" silinir.
 ;
 ; Kodlama: UTF-8 (electron-builder makensis'i -INPUTCHARSET UTF8 ile çağırır).
 
@@ -29,9 +36,16 @@
 !define PDEFE_VARSAYILAN_URL "ms-settings:defaultapps?registeredAppUser=PDEfe"
 
 ; ---------------------------------------------------------------- .onInit
+; Değişkenler customPageAfterChangeDir içinde bildirilir (assistedInstaller.nsh, .onInit'ten önce derlenir).
 !macro customInit
   ; Ek görevler sayfası atlanırsa (sessiz kurulum, güncelleme) varsayılan: masaüstü kısayolu oluştur.
   StrCpy $pdefeMasaustuKisayolu "1"
+  ; .pdf için kullanıcının önceki varsayılan dosya sınıfı (APP_ASSOCIATE üzerine yazmadan önce)
+  ClearErrors
+  ReadRegStr $pdefeEskiPdfSinifi SHELL_CONTEXT "Software\Classes\.pdf" ""
+  ${If} ${Errors}
+    StrCpy $pdefeEskiPdfSinifi ""
+  ${EndIf}
 !macroend
 
 ; ---------------------------------------------------------------- "Ek görevler" sayfası
@@ -39,6 +53,7 @@
   !include "nsDialogs.nsh"
 
   Var pdefeMasaustuKisayolu
+  Var pdefeEskiPdfSinifi
   Var pdefeEkGorevlerSayfa
   Var pdefeMasaustuKutusu
 
@@ -101,6 +116,12 @@
   WriteRegStr SHELL_CONTEXT "Software\Classes\Applications\${APP_EXECUTABLE_FILENAME}\SupportedTypes" ".pdf" ""
   WriteRegStr SHELL_CONTEXT "Software\Classes\Applications\${APP_EXECUTABLE_FILENAME}\shell\open\command" "" "$\"$INSTDIR\${APP_EXECUTABLE_FILENAME}$\" $\"%1$\""
 
+  ; .pdf varsayılan sınıfı: kullanıcının önceki kaydı varsa geri koy (bkz. başlık, madde 3)
+  ${If} $pdefeEskiPdfSinifi != ""
+  ${AndIf} $pdefeEskiPdfSinifi != "${PDEFE_PROGID}"
+    WriteRegStr SHELL_CONTEXT "Software\Classes\.pdf" "" "$pdefeEskiPdfSinifi"
+  ${EndIf}
+
   ; Masaüstü kısayolu istenmediyse electron-builder'ın oluşturduğunu kaldır
   ${If} $pdefeMasaustuKisayolu == "0"
     ${If} ${FileExists} "$newDesktopLink"
@@ -150,6 +171,13 @@
   DeleteRegValue SHELL_CONTEXT "Software\RegisteredApplications" "PDEfe"
   DeleteRegKey SHELL_CONTEXT "${PDEFE_KAYIT_KOKU}"
   DeleteRegKey SHELL_CONTEXT "Software\Classes\Applications\${APP_EXECUTABLE_FILENAME}"
-  ; ProgId ve .pdf\OpenWithProgids kaydını electron-builder'ın unregisterFileAssociations makrosu siler.
+  ; ProgId (Software\Classes\PDEfe.pdf) ve .pdf\OpenWithProgids girdisini electron-builder'ın
+  ; unregisterFileAssociations makrosu siler; .pdf varsayılan değerinde PDEfe.pdf kaldıysa onu da kaldır.
+  ClearErrors
+  ReadRegStr $0 SHELL_CONTEXT "Software\Classes\.pdf" ""
+  ${IfNot} ${Errors}
+  ${AndIf} $0 == "${PDEFE_PROGID}"
+    DeleteRegValue SHELL_CONTEXT "Software\Classes\.pdf" ""
+  ${EndIf}
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
 !macroend

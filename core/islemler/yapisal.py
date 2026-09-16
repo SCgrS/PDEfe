@@ -105,7 +105,10 @@ def y_yapisal_kaydet(p):
     if any(_ayni_yol(k, yol) for k in kaynak_yollari):
         os.makedirs(anlik_klasor, exist_ok=True)
         anlik = os.path.join(anlik_klasor, uuid.uuid4().hex + ".pdf")
-        shutil.copy2(yol, anlik)
+        try:
+            shutil.copy2(yol, anlik)
+        except OSError as e:
+            raise PermissionError("Dosya okunamadı; başka bir programda (örneğin bir PDF okuyucu) açık olabilir. (%s)" % e)
         for e in tarif:
             if e.get("kaynak") and _ayni_yol(e["kaynak"]["yol"], yol):
                 e["kaynak"] = dict(e["kaynak"], yol=anlik)
@@ -118,7 +121,7 @@ def y_yapisal_kaydet(p):
     def belge_al(y):
         k = os.path.normcase(os.path.abspath(y))
         if k not in acik:
-            acik[k] = pymupdf.open(y)
+            acik[k] = notlar.belge_ac_yazmak_icin(y)
         return acik[k]
 
     try:

@@ -1,19 +1,21 @@
 // Görüntü / PDF belgeleri birleştirerek PDF oluştur. birlestir.js aynı sınıfı "yalnızca PDF" kipinde kullanır.
 // Girdi: Dosya ekle düğmesi, sürükle-bırak (pdefe.dosyaYolu), Ctrl+V (pano:dosyalar → pano:gorsel → pano_gorsel_kaydet).
-// Çekirdek: gorsel_bilgi {yol, genislik} → {tur:'pdf'|'gorsel', sayfa, boyut, genislik, yukseklik, png(base64), bicim}
-//           boyut_tahmini {ogeler:[{yol, kalite, sayfaBoyutu, kenar, dondurme}]} → {ogeler:[{boyut}|sayı], toplam}
-//           birlestir {ogeler:[...], hedef, kalite} (ilerlemeli) → {yol, boyut, sayfa}
-//           pano_gorsel_kaydet {png(base64), klasor} → {yol}
+// Çekirdek (core/islemler/araclar.py):
+//   gorsel_bilgi {yol} → {tur:'pdf'|'gorsel', sayfa, boyut, genislik, yukseklik, png(base64, 220 px), bicim (görselde)}
+//   boyut_tahmini {oge:{yol, tur, kalite, sayfaBoyutu, kenar, dondurme}, genelKalite} → {boyut, tahmin}   (öğe başına bir çağrı)
+//   birlestir {ogeler:[{yol, tur, kalite, sayfaBoyutu, kenar, dondurme}], hedef, genelKalite} (ilerlemeli) → {boyut, sayfa}
+//   pano_gorsel_kaydet {png(base64)} → {yol, boyut}   (Temp/PDEfe altına PNG yazar)
 import {
   pencereAc, pencereAcikMi, IslemIlerleme, ciktiSecici, boyutMetni, sayiMetni, kacis, hataMetni, dosyaAdi, klasorAdi, uzanti,
-  adGovdesi, bosAdBul, suruklemeSiralama, suruklemeKalintisi, geciktir, oge,
+  adGovdesi, bosAdBul, yolAyni, suruklemeSiralama, suruklemeKalintisi, geciktir, oge,
 } from './ortak.js';
 
+/** Kalite seviyeleri; DPI/JPEG değerleri çekirdekteki GORSEL_KALITE tablosuyla aynıdır (yalnızca bilgi için). */
 export const KALITELER = [
   { id: 'orijinal', ad: 'Orijinal', aciklama: 'Görseller yeniden sıkıştırılmaz' },
-  { id: 'yuksek', ad: 'Yüksek', aciklama: '200 DPI, JPEG %90' },
-  { id: 'orta', ad: 'Orta', aciklama: '150 DPI, JPEG %75' },
-  { id: 'dusuk', ad: 'Düşük', aciklama: '96 DPI, JPEG %55' },
+  { id: 'yuksek', ad: 'Yüksek', aciklama: '300 DPI, JPEG %90' },
+  { id: 'orta', ad: 'Orta', aciklama: '200 DPI, JPEG %75' },
+  { id: 'dusuk', ad: 'Düşük', aciklama: '120 DPI, JPEG %55' },
 ];
 export const GORSEL_UZANTILAR = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'tif', 'tiff', 'webp', 'heic', 'heif'];
 const DOSYA_FILTRELERI = [
@@ -38,6 +40,7 @@ export class BirlestirmePenceresi {
     this.genelKalite = 'orijinal';
     this.ciktiElleDegisti = false;
     this.tahminSayac = 0;
+    this.tahminOnbellek = new Map();   // JSON(öğe parametresi) → bayt; değişmeyen öğe yeniden sorulmaz
     this.tahminGeciktir = geciktir(() => this.tahminAl(), 600);
     this.ilerleme = new IslemIlerleme();
     this._kur(baslik || (yalnizPdf ? 'PDF birleştir' : 'Görüntü / PDF belgeleri birleştirerek PDF oluştur'));
@@ -224,11 +227,11 @@ export class BirlestirmePenceresi {
       if (uygun.length) { this.dosyaEkle(uygun); return; }
       const png = await baglam.pdefe.cagir('pano:gorsel');
       if (!png) { baglam.bildir('Panoda dosya ya da görsel yok.'); return; }
-      const klasor = await baglam.pdefe.cagir('uygulama:geciciKlasor');
-      const r = await baglam.cekirdek('pano_gorsel_kaydet', { png, klasor, ad: `pano_${Date.now()}.png` });
-      if (!r?.yol) throw new Error('Pano görseli kaydedilemedi.');
+      // Çekirdek görseli Temp/PDEfe altına benzersiz bir PNG olarak yazar
+      const r = await baglam.cekirdek('pano_gorsel_kaydet', { png });
+      if (!r?.yol || this.pencere.kapali) { if (!r?.yol) throw new Error('Pano görseli kaydedilemedi.'); return; }
       this.dosyaEkle([r.yol]);
-      baglam.bildir('Panodaki görsel eklendi.');
+      baglam.bildir('Panodaki görsel eklendi (geçici dosya: ' + dosyaAdi(r.yol) + ').');
     } catch (e) {
       this.pencere.hataGoster('Panodan eklenemedi: ' + hataMetni(e));
     }
@@ -404,8 +407,21 @@ export class BirlestirmePenceresi {
     const el = this.liste.querySelector(`.birlestir-oge[data-kimlik="${o.kimlik}"] .tahmin`);
     if (!el) return;
     el.classList.toggle('ozel', !!o.kalite);
-    if (o.hata) { el.textContent = ''; return; }
+    el.title = '';
+    if (o.hata || o.yukleniyor) { el.textContent = ''; return; }
+    if (o.tahminHata) { el.textContent = 'tahmin alınamadı'; el.title = o.tahminHata; return; }
     el.textContent = o.tahmin == null ? 'tahmin: hesaplanıyor…' : `tahmin: ${boyutMetni(o.tahmin)}`;
+  }
+
+  _toplamYaz(ogeler, bekliyor) {
+    if (!this.toplamEl || this.yalnizPdf) return;
+    this.toplamEl.classList.toggle('bekliyor', !!bekliyor);
+    if (!ogeler.length) { this.toplamEl.innerHTML = 'Toplam tahmini boyut: <b>—</b>'; return; }
+    const bilinen = ogeler.filter((o) => o.tahmin != null);
+    const toplam = bilinen.reduce((t, o) => t + o.tahmin, 0);
+    if (bekliyor) this.toplamEl.innerHTML = `Toplam tahmini boyut: <b>${bilinen.length ? '≥ ' + kacis(boyutMetni(toplam)) + ' · ' : ''}hesaplanıyor…</b>`;
+    else if (bilinen.length === ogeler.length) this.toplamEl.innerHTML = `Toplam tahmini boyut: <b>${kacis(boyutMetni(toplam))}</b>`;
+    else this.toplamEl.innerHTML = `Toplam tahmini boyut: <b>≥ ${kacis(boyutMetni(toplam))}</b> <span class="soluk">(${ogeler.length - bilinen.length} öğe için tahmin alınamadı)</span>`;
   }
 
   _ozetYaz() {

@@ -30,6 +30,9 @@ files:
   - "!node_modules/pdfjs-dist/image_decoders/**"
   - "!node_modules/pdfjs-dist/webpack.mjs"
   - "!node_modules/pdfjs-dist/build/pdf.sandbox*"
+  # pdfjs-dist'in isteğe bağlı bağımlılığı: yalnızca Node ortamında (sunucu tarafı çizim) yüklenir; PDEfe sayfaları
+  # sandbox'lı renderer'da tarayıcı canvas'ıyla çizer. 37 MB'lık yerel kütüphane pakete girmesin.
+  - "!node_modules/@napi-rs/**"
   - "!**/{CHANGELOG.md,README.md,CODE_OF_CONDUCT.md,.github,.editorconfig,.eslintrc*,tsconfig.json}"
 
 # Python çekirdeği: cekirdek.js paketliyken process.resourcesPath/pdefe-core.exe bekler.

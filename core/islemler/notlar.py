@@ -318,6 +318,16 @@ def not_sil(doc, page, xref):
     page.delete_annot(a)
 
 
+def belge_ac_yazmak_icin(yol):
+    """Dosyayı açar; açılamıyorsa (başka programda kilitli vb.) Türkçe PermissionError verir."""
+    try:
+        return pymupdf.open(yol)
+    except Exception as e:
+        if os.path.exists(yol):
+            raise PermissionError("Dosya açılamadı; başka bir programda (örneğin bir PDF okuyucu) açık olabilir. (%s)" % e)
+        raise FileNotFoundError("Dosya bulunamadı: %s" % yol)
+
+
 def y_notlar_kaydet(p):
     """Değişiklik listesini uygular ve kaydeder.
     p: {yol, hedef, islemler: [{islem:'ekle'|'guncelle'|'sil', id, not:{...}}], artimli}
@@ -327,7 +337,7 @@ def y_notlar_kaydet(p):
     islemler = p.get("islemler") or []
     artimli = bool(p.get("artimli", True)) and os.path.abspath(hedef) == os.path.abspath(yol)
     onbellek.birak(yol)
-    doc = pymupdf.open(yol)
+    doc = belge_ac_yazmak_icin(yol)
     if doc.is_encrypted:
         raise PermissionError("Belge şifreli; kaydedilemiyor.")
     xrefler = {}

@@ -1,6 +1,6 @@
 // Döndür ve kaydet: Tüm sayfalar / Geçerli sayfa / Sayfa aralığı × 90° saat yönü / 90° tersi / 180°.
 // Tarif üretir → baglam.sayfaTarifiUygula(belge, tarif, 'Sayfaları döndür') → baglam.kaydet(belge).
-import { pencereAc, pencereAcikMi, sayfaListesiCoz, belgeTarifi, hataMetni, oge } from './ortak.js';
+import { pencereAc, pencereAcikMi, sayfaListesiCoz, belgeTarifi, tarifDisari, hataMetni, oge } from './ortak.js';
 
 export class DondurPenceresi {
   constructor(baglam, belge) {
@@ -86,11 +86,11 @@ export class DondurPenceresi {
     if (!this.dogrula()) return;
     const { sayfalar } = this.secilenSayfalar();
     const secili = new Set(sayfalar);
-    // Tarif: yalnızca seçilen sayfalar dondurme alır; diğerleri 0 (dosyadaki döndürmeye ek)
-    const tarif = belgeTarifi(belge).map((t, i) => {
-      const { pt, ...temiz } = t;
-      return { ...temiz, dondurme: secili.has(i + 1) ? this.derece : 0 };
-    });
+    // Tarif: yalnızca seçilen sayfaların ek döndürmesine (dosyadaki /Rotate'e ek) derece eklenir; diğerleri olduğu gibi kalır
+    // (sekmede uygulanmış ama kaydedilmemiş bir döndürme varsa o korunur).
+    const tarif = tarifDisari(belgeTarifi(belge).map((t, i) => (secili.has(i + 1)
+      ? { ...t, dondurme: (((t.dondurme || 0) + this.derece) % 360 + 360) % 360 }
+      : t)));
     this.pencere.dugmeAyarla('uygula', { devre: true, etiket: 'Döndürülüyor…' });
     this.pencere.hataGoster('');
     try {

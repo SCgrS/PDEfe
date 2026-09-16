@@ -3,7 +3,7 @@
 // Çekirdek: kucuk_resim {yol, sayfa, genislik} (var), sayfa_boyutlari {yol} → {sayfalar:[{no, genislik, yukseklik}]}
 // (yoksa belge_bilgi ile sayfa sayısı alınır, boyut A4 varsayılır).
 import {
-  pencereAc, pencereAcikMi, kacis, hataMetni, dosyaAdi, yolAyni, belgeTarifi, suruklemeSiralama, suruklemeKalintisi, oge,
+  pencereAc, pencereAcikMi, kacis, hataMetni, dosyaAdi, belgeTarifi, tarifDisari, anaKaynakMi, suruklemeSiralama, suruklemeKalintisi, oge,
 } from './ortak.js';
 
 const KUCUK_RESIM_GENISLIK = 160;
@@ -292,7 +292,7 @@ export class SayfalarPenceresi {
     for (const yol of yollar) {
       try {
         const sayfalar = await this._sayfaBoyutlari(yol);
-        for (const s of sayfalar) yeniKartlar.push({ kimlik: ++this.kimlikSayac, kaynak: yol, sayfa: s.no, dondurme: 0, genislik: s.genislik, yukseklik: s.yukseklik, bos: false, yeni: !yolAyni(yol, this.belge.yol) });
+        for (const s of sayfalar) yeniKartlar.push({ kimlik: ++this.kimlikSayac, kaynak: yol, sayfa: s.no, dondurme: 0, genislik: s.genislik, yukseklik: s.yukseklik, bos: false, yeni: !anaKaynakMi(this.belge, yol) });
       } catch (e) {
         this.pencere.hataGoster(`"${dosyaAdi(yol)}" okunamadı: ${hataMetni(e)}`);
       }
@@ -376,7 +376,7 @@ export class SayfalarPenceresi {
     rozet.textContent = k.dondurme ? `${k.dondurme}°` : '';
     el.querySelector('.rozet.yeni').hidden = !k.yeni || k.bos;
     const kaynak = el.querySelector('.kaynak');
-    const farkli = k.kaynak && !yolAyni(k.kaynak, this.belge.yol);
+    const farkli = k.kaynak && !anaKaynakMi(this.belge, k.kaynak);
     kaynak.hidden = !farkli && !k.bos;
     kaynak.textContent = k.bos ? `boş · ${Math.round(k.genislik)}×${Math.round(k.yukseklik)} pt` : (farkli ? `${dosyaAdi(k.kaynak)} · s. ${k.sayfa}` : '');
     kaynak.title = farkli ? k.kaynak : '';
@@ -440,10 +440,11 @@ export class SayfalarPenceresi {
   }
 
   // ---------------------------------------------------------------- uygula
+  /** baglam.sayfaTarifiUygula biçiminde tarif: [{kaynak:{yol,sayfa}, dondurme} | {kaynak:null, genislik, yukseklik, dondurme}] */
   tarif() {
-    return this.kartlar.map((k) => (k.bos
-      ? { kaynak: null, genislik: k.genislik, yukseklik: k.yukseklik }
-      : { kaynak: k.kaynak, sayfa: k.sayfa, dondurme: k.dondurme }));
+    return tarifDisari(this.kartlar.map((k) => (k.bos
+      ? { kaynak: null, sayfa: null, genislik: k.genislik, yukseklik: k.yukseklik, dondurme: k.dondurme || 0 }
+      : { kaynak: k.kaynak, sayfa: k.sayfa, dondurme: k.dondurme })));
   }
 
   async uygula() {

@@ -51,13 +51,24 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
+          # "cache: pip" kullanılmıyor: requirements.txt / pyproject.toml olmadığından adım hata verir.
 
-      - name: Python bağımlılıkları
+      # Paketler hem sistem Python'una (PDEFE_PYTHON=python yolu için) hem de proje içi .venv'e kurulur:
+      # build/cekirdek-derle.mjs .venv\Scripts\pyinstaller.exe'yi arar; PDEFE_PYTHON desteği eklenene kadar
+      # .venv yedeği derlemenin CI'da da çalışmasını sağlar.
+      - name: Python bağımlılıkları (sistem + .venv)
+        shell: pwsh
         run: |
+          $paketler = @("pymupdf==1.28.2", "fonttools==4.65.0", "pillow==12.3.0", "pyinstaller==6.22.3")
           python -m pip install --upgrade pip
-          python -m pip install "pymupdf==1.28.2" "fonttools==4.65.0" "pillow==12.3.0" "pyinstaller==6.22.3"
-          python -c "import pymupdf, fontTools, PIL, PyInstaller; print('PyMuPDF', pymupdf.pymupdf_version, '| MuPDF', pymupdf.mupdf_version, '| PyInstaller', PyInstaller.__version__)"
+          python -m pip install @paketler
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          python -m venv .venv
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          .\.venv\Scripts\python.exe -m pip install --upgrade pip
+          .\.venv\Scripts\python.exe -m pip install @paketler
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          .\.venv\Scripts\python.exe -c "import pymupdf, fontTools, PIL, PyInstaller; print('PyMuPDF', pymupdf.pymupdf_version, '| MuPDF', pymupdf.mupdf_version, '| PyInstaller', PyInstaller.__version__)"
 
       - name: Etiket ile package.json sürümü uyuşmalı
         if: startsWith(github.ref, 'refs/tags/')

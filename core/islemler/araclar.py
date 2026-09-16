@@ -84,10 +84,22 @@ def _onbellekten_birak(yol):
 
 
 def _ilerleme(p):
+    """İlerleme bildirimi; ayrıca params["_iptal"] (çağrılabilir, True dönerse iptal) verilmişse her
+    ilerleme adımında denetlenir ve InterruptedError fırlatılır. Çekirdek döngüsü şimdilik tek
+    iş parçacıklı olduğundan _iptal'i ancak döngü okuyucu iş parçacığı kazanınca sağlayabilir;
+    yoksa yalnızca ilerleme bildirilir."""
     f = p.get("_ilerleme")
-    if callable(f):
+    iptal = p.get("_iptal")
+    if not callable(f):
+        f = lambda yuzde, mesaj="": None   # noqa: E731
+    if not callable(iptal):
         return f
-    return lambda yuzde, mesaj="": None
+
+    def bildir(yuzde, mesaj=""):
+        if iptal():
+            raise InterruptedError("İşlem iptal edildi.")
+        f(yuzde, mesaj)
+    return bildir
 
 
 def _mutlak(yol, ad="yol"):
@@ -327,12 +339,35 @@ def _seviye_cozumle(seviye, dpi=None, kalite=None):
 
 
 # ---------------------------------------------------------------- 1) kucult_tahmin
+def _tahmin_seviyeleri(p):
+    """Ölçülecek seviyeler: varsayılan üçlü ya da çağıranın verdiği {ad: {dpi, kalite}} sözlüğü
+    (renderer 'ozel' için yalnızca kendi dpi/kalitesini gönderir). dpi+kalite verilip seviyeler
+    verilmemişse üçlüye 'ozel' eklenir."""
+    verilen = p.get("seviyeler")
+    if isinstance(verilen, dict) and verilen:
+        sonuc = {}
+        for ad, deger in verilen.items():
+            if ad in SEVIYELER and not isinstance(deger, dict):
+                sonuc[ad] = SEVIYELER[ad]
+                continue
+            if not isinstance(deger, dict):
+                raise ValueError("Seviye tanımı geçersiz: %r" % (ad,))
+            sonuc[str(ad)] = _seviye_cozumle("ozel", deger.get("dpi"), deger.get("kalite"))
+        return sonuc
+    sonuc = dict(SEVIYELER)
+    if p.get("dpi") is not None and p.get("kalite") is not None:
+        sonuc["ozel"] = _seviye_cozumle("ozel", p.get("dpi"), p.get("kalite"))
+    return sonuc
+
+
 def y_kucult_tahmin(p):
-    """{yol} → {mevcut, seviyeler:{asiri|onerilen|dusuk:{boyut, yuzde}}, tahmin, sure}
+    """{yol, seviyeler?: {ad: {dpi, kalite}}, dpi?, kalite?}
+    → {mevcut, seviyeler:{asiri|onerilen|dusuk|...:{boyut, yuzde, dpi, kalite}}, tahmin, sure}
     Büyük belgelerde (>40 MB ya da >250 sayfa) ilk 20 sayfa örneklenir, oran ölçeklenir."""
     ilerleme = _ilerleme(p)
     yol = _mutlak(p.get("yol"))
     _dosya_var(yol)
+    seviyeler_tanim = _tahmin_seviyeleri(p)
     baslangic = time.time()
     mevcut = os.path.getsize(yol)
     doc = _pdf_ac(yol)
@@ -353,9 +388,9 @@ def y_kucult_tahmin(p):
         _kapat(doc)
     ilerleme(25, "Örnek hazırlandı")
     seviyeler = {}
-    adlar = list(SEVIYELER)
+    adlar = list(seviyeler_tanim)
     for i, ad in enumerate(adlar):
-        dpi, kalite = SEVIYELER[ad]
+        dpi, kalite = seviyeler_tanim[ad]
         d = pymupdf.open("pdf", kaynak_bayt)
         try:
             _gorselleri_yeniden_yaz(d, dpi, kalite)
@@ -375,7 +410,8 @@ def y_kucult_tahmin(p):
 
 # ---------------------------------------------------------------- 2) kucult
 def y_kucult(p):
-    """{yol, hedef, seviye, dpi?, kalite?} → {boyut, oncekiBoyut, yuzde, uyari}"""
+    """{yol, hedef, seviye, dpi?, kalite?} → {boyut, oncekiBoyut, yuzde, uyari, yol, dpi, kalite}
+    (uzerineYaz gibi ek alanlar yok sayılır; hedef == yol ise geçici dosya + os.replace)"""
     ilerleme = _ilerleme(p)
     yol = _mutlak(p.get("yol"))
     hedef = _mutlak(p.get("hedef") or yol, "hedef")
@@ -395,7 +431,7 @@ def y_kucult(p):
         _kapat(doc)
     ilerleme(100, "Tamamlandı")
     return {"boyut": boyut, "oncekiBoyut": onceki, "yuzde": round(100.0 * boyut / max(onceki, 1), 1),
-            "uyari": boyut >= onceki, "dpi": dpi, "kalite": kalite}
+            "uyari": boyut >= onceki, "dpi": dpi, "kalite": kalite, "yol": hedef}
 
 
 # ---------------------------------------------------------------- 3) sayfalar_uygula
@@ -560,11 +596,15 @@ def _parca_yaz(kaynak, gruplar, hedef_yol, toc):
 
 
 def y_ayir(p):
-    """{yol, hedefKlasor, mod:'aralik'|'herN'|'secili'|'tek', araliklar, n, sayfalar} → {dosyalar}"""
+    """{yol, hedefKlasor|klasor, mod:'aralik'|'herN'|'secili'|'tek', araliklar, n, sayfalar}
+    → {dosyalar: [yol...], ayrintilar: [{yol, boyut, sayfa}]}
+    Dosya adları: <ad>_1-3.pdf, <ad>_sayfa_5.pdf, <ad>_bolum_1.pdf; var olanın üzerine yazılmaz, (2) eklenir.
+    Alternatif (renderer): {yol, klasor, parcalar: [{ad: 'dosya.pdf', sayfalar: [1,2,3]}], uzerineYaz?}
+    → adlar çağırandan gelir; uzerineYaz varsayılan True (renderer kullanıcıya önceden sorar)."""
     ilerleme = _ilerleme(p)
     yol = _mutlak(p.get("yol"))
     _dosya_var(yol)
-    klasor = _mutlak(p.get("hedefKlasor") or os.path.dirname(yol), "hedefKlasor")
+    klasor = _mutlak(p.get("hedefKlasor") or p.get("klasor") or os.path.dirname(yol), "hedefKlasor")
     if not os.path.isdir(klasor):
         os.makedirs(klasor, exist_ok=True)
     mod = p.get("mod") or "aralik"
@@ -577,6 +617,29 @@ def y_ayir(p):
 
     # Yazılacak parçalar: [(etiket, [(bas,son)...])]
     parcalar = []
+    verilen_parcalar = p.get("parcalar")
+    if isinstance(verilen_parcalar, list) and verilen_parcalar:
+        uzerine_yaz = p.get("uzerineYaz", True)
+        for i, parca in enumerate(verilen_parcalar):
+            if not isinstance(parca, dict) or not isinstance(parca.get("sayfalar"), list) or not parca["sayfalar"]:
+                raise ValueError("Parça %d geçersiz: sayfa listesi gerekli." % (i + 1))
+            sayfalar = [_sayfa_no(s, n_sayfa) for s in parca["sayfalar"]]
+            dosya_adi = _guvenli_ad(os.path.splitext(str(parca.get("ad") or "").strip())[0]) if parca.get("ad") else None
+            if not dosya_adi or dosya_adi == "belge":
+                dosya_adi = "%s_%s" % (ad, _aralik_etiketi(_sayfa_listesini_gruplara(sayfalar)))
+            parcalar.append((dosya_adi, _sayfa_listesini_gruplara(sayfalar)))
+        dosyalar, ayrintilar = [], []
+        toplam = len(parcalar)
+        for i, (dosya_adi, gruplar) in enumerate(parcalar):
+            hedef = os.path.join(klasor, dosya_adi + ".pdf") if uzerine_yaz else _benzersiz_yol(klasor, dosya_adi)
+            if uzerine_yaz and os.path.exists(hedef):
+                _onbellekten_birak(hedef)
+            _parca_yaz(doc, gruplar, hedef, toc)
+            dosyalar.append(hedef)
+            ayrintilar.append({"yol": hedef, "boyut": os.path.getsize(hedef),
+                               "sayfa": sum(s - b + 1 for b, s in gruplar)})
+            ilerleme(int(100 * (i + 1) / toplam), "%d/%d dosya yazıldı" % (i + 1, toplam))
+        return {"dosyalar": dosyalar, "ayrintilar": ayrintilar}
     if mod == "aralik":
         for bas, son in araliklari_ayristir(p.get("araliklar"), n_sayfa):
             etiket = "sayfa_%d" % bas if bas == son else "%d-%d" % (bas, son)
@@ -612,14 +675,16 @@ def y_ayir(p):
     else:
         raise ValueError("Bilinmeyen ayırma modu: %r" % (mod,))
 
-    dosyalar = []
+    dosyalar, ayrintilar = [], []
     toplam = len(parcalar)
     for i, (etiket, gruplar) in enumerate(parcalar):
         hedef = _benzersiz_yol(klasor, "%s_%s" % (ad, etiket))
         _parca_yaz(doc, gruplar, hedef, toc)
         dosyalar.append(hedef)
+        ayrintilar.append({"yol": hedef, "boyut": os.path.getsize(hedef),
+                           "sayfa": sum(s - b + 1 for b, s in gruplar)})
         ilerleme(int(100 * (i + 1) / toplam), "%d/%d dosya yazıldı" % (i + 1, toplam))
-    return {"dosyalar": dosyalar}
+    return {"dosyalar": dosyalar, "ayrintilar": ayrintilar}
 
 
 # ---------------------------------------------------------------- görsel yardımcıları (Pillow)
@@ -827,13 +892,14 @@ def _pdf_ogesi_hazirla(oge, genel_kalite=None):
 
 # ---------------------------------------------------------------- 5) birlestir
 def y_birlestir(p):
-    """{ogeler:[{yol, tur, kalite, sayfaBoyutu, kenar, dondurme}], hedef, genelKalite?} → {boyut, sayfa}"""
+    """{ogeler:[{yol, tur, kalite, sayfaBoyutu, kenar, dondurme}], hedef, genelKalite?|kalite?}
+    → {boyut, sayfa, yol}"""
     ilerleme = _ilerleme(p)
     ogeler = p.get("ogeler")
     if not isinstance(ogeler, list) or not ogeler:
         raise ValueError("Birleştirilecek öğe yok.")
     hedef = _mutlak(p.get("hedef"), "hedef")
-    genel = p.get("genelKalite") or None
+    genel = p.get("genelKalite") or p.get("kalite") or None
     yeni = pymupdf.open()
     toc_toplam = []
     ilk_pdf = None
@@ -879,23 +945,29 @@ def y_birlestir(p):
     finally:
         _kapat(yeni)
     ilerleme(100, "Tamamlandı")
-    return {"boyut": boyut, "sayfa": sayfa}
+    return {"boyut": boyut, "sayfa": sayfa, "yol": hedef}
 
 
 # ---------------------------------------------------------------- 6) gorsel_bilgi
 def y_gorsel_bilgi(p):
-    """{yol} → {tur, genislik, yukseklik, boyut, sayfa?, png (220 px küçük resim, base64)}"""
+    """{yol, genislik?=220} → {tur, genislik, yukseklik, boyut, sayfa?, png (küçük resim, base64),
+    pngGenislik, pngYukseklik}"""
     yol = _mutlak(p.get("yol"))
     _dosya_var(yol)
     boyut = os.path.getsize(yol)
     tur = _oge_turu({"yol": yol, "tur": p.get("tur")})
+    try:
+        kucuk_g = int(p.get("genislik") or 220)
+    except (TypeError, ValueError):
+        kucuk_g = 220
+    kucuk_g = max(16, min(kucuk_g, 1024))
     if tur == "pdf":
         doc = _onbellek().al(yol)
         if doc.needs_pass:
             raise PermissionError("Belge parolayla korunuyor: %s" % os.path.basename(yol))
         pg = doc[0]
         r = pg.rect
-        olcek = 220.0 / max(r.width, 1)
+        olcek = float(kucuk_g) / max(r.width, 1)
         pix = pg.get_pixmap(matrix=pymupdf.Matrix(olcek, olcek), annots=True, alpha=False)
         return {"tur": "pdf", "genislik": r.width, "yukseklik": r.height, "boyut": boyut,
                 "sayfa": doc.page_count, "png": base64.b64encode(pix.tobytes("png")).decode("ascii"),
@@ -906,9 +978,9 @@ def y_gorsel_bilgi(p):
     duz = _duzlestir(im)
     genislik, yukseklik = duz.width, duz.height
     kucuk = duz.convert("RGB") if duz.mode != "RGB" else duz.copy()
-    oran = 220.0 / max(kucuk.width, 1)
+    oran = float(kucuk_g) / max(kucuk.width, 1)
     if oran < 1:
-        kucuk = kucuk.resize((220, max(1, int(round(kucuk.height * oran)))), Image.LANCZOS)
+        kucuk = kucuk.resize((kucuk_g, max(1, int(round(kucuk.height * oran)))), Image.LANCZOS)
     buf = io.BytesIO()
     kucuk.save(buf, format="PNG", optimize=True)
     return {"tur": "gorsel", "genislik": genislik, "yukseklik": yukseklik, "boyut": boyut, "sayfa": sayfa,
@@ -918,11 +990,33 @@ def y_gorsel_bilgi(p):
 
 # ---------------------------------------------------------------- 7) boyut_tahmini
 def y_boyut_tahmini(p):
-    """{oge, genelKalite?} → {boyut}: öğenin verilen kaliteyle çıktı boyutunun hızlı tahmini."""
+    """{oge, genelKalite?} → {boyut, tahmin}: öğenin verilen kaliteyle çıktı boyutunun hızlı tahmini.
+    Çoğul biçim (renderer): {ogeler: [oge...], genelKalite?|kalite?} → {ogeler: [{boyut, tahmin}|{hata}], toplam}
+    (bir öğe açılamazsa yalnızca o öğe hata alır, diğerleri hesaplanır)."""
+    ilerleme = _ilerleme(p)
+    genel = p.get("genelKalite") or p.get("kalite") or None
+    ogeler = p.get("ogeler")
+    if isinstance(ogeler, list):
+        sonuclar = []
+        toplam = 0
+        for i, oge in enumerate(ogeler):
+            try:
+                if not isinstance(oge, dict):
+                    raise ValueError("Öğe %d geçersiz." % (i + 1))
+                r = _oge_boyut_tahmini(oge, genel)
+                toplam += r["boyut"]
+                sonuclar.append(r)
+            except Exception as e:
+                sonuclar.append({"boyut": None, "tahmin": False, "hata": str(e)})
+            ilerleme(int(100 * (i + 1) / max(len(ogeler), 1)), "%d/%d öğe ölçüldü" % (i + 1, len(ogeler)))
+        return {"ogeler": sonuclar, "toplam": toplam}
     oge = p.get("oge")
     if not isinstance(oge, dict):
         raise ValueError("Öğe verilmedi.")
-    genel = p.get("genelKalite") or None
+    return _oge_boyut_tahmini(oge, genel)
+
+
+def _oge_boyut_tahmini(oge, genel):
     tur = _oge_turu(oge)
     kalite = oge.get("kalite") or genel or "orijinal"
     yol = _mutlak(oge.get("yol"))
@@ -985,7 +1079,9 @@ def y_dondur_kaydet(p):
 
 # ---------------------------------------------------------------- 9) pano_gorsel_kaydet
 def y_pano_gorsel_kaydet(p):
-    """{png: base64} → {yol}: panodaki görseli geçici klasöre (Temp/PDEfe) benzersiz PNG olarak yazar."""
+    """{png: base64, klasor?, ad?} → {yol, boyut}: panodaki görseli geçici klasöre (varsayılan
+    Temp/PDEfe) benzersiz PNG olarak yazar. klasor verilirse oraya; ad verilirse o ad temel alınır
+    (var olanın üzerine yazılmaz, (2) eklenir)."""
     veri = p.get("png")
     if not veri or not isinstance(veri, str):
         raise ValueError("Pano görseli boş.")
@@ -1006,11 +1102,21 @@ def y_pano_gorsel_kaydet(p):
             bayt = buf.getvalue()
         except Exception as e:
             raise ValueError("Pano görseli tanınmadı: %s" % e)
-    klasor = os.path.join(tempfile.gettempdir(), "PDEfe")
-    os.makedirs(klasor, exist_ok=True)
-    fd, yol = tempfile.mkstemp(prefix="pano_%s_" % time.strftime("%Y%m%d_%H%M%S"), suffix=".png", dir=klasor)
-    with os.fdopen(fd, "wb") as f:
-        f.write(bayt)
+    klasor = p.get("klasor")
+    klasor = _mutlak(klasor, "klasor") if klasor else os.path.join(tempfile.gettempdir(), "PDEfe")
+    try:
+        os.makedirs(klasor, exist_ok=True)
+    except OSError as e:
+        raise OSError("Geçici klasör oluşturulamadı: %s (%s)" % (klasor, e))
+    ad = p.get("ad")
+    if ad and isinstance(ad, str) and ad.strip():
+        yol = _benzersiz_yol(klasor, os.path.splitext(ad.strip())[0], ".png")
+        with open(yol, "wb") as f:
+            f.write(bayt)
+    else:
+        fd, yol = tempfile.mkstemp(prefix="pano_%s_" % time.strftime("%Y%m%d_%H%M%S"), suffix=".png", dir=klasor)
+        with os.fdopen(fd, "wb") as f:
+            f.write(bayt)
     return {"yol": yol, "boyut": len(bayt)}
 
 

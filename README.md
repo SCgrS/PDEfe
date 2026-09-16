@@ -20,12 +20,19 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   görünen metinde hem aramada düzeltilir.
 - **referans okuyucu uyumlu notlar.** Vurgu, yapışkan not, yanıt ve serbest yazı ekleme; taşıma, düzenleme, silme.
   Yazılar Türkçe karakterli Windows fontuyla (Segoe UI, Arial, Times, Calibri) belgeye gömülür; referans okuyucuda ve UYAP'ta aynı görünür. Kaydetme artımlıdır: belgenin geri kalanına dokunulmaz.
-- **Geri al / yinele.** Her not işlemi `Ctrl+Z` / `Ctrl+Y` ile geri alınır; kayıttan sonra bile.
-- **Araçlar** (sonraki sürümlerde): PDF küçült, sayfaları düzenle, ayır, birleştir, görüntü → PDF, döndür ve kaydet.
+- **Geri al / yinele.** Her not ve sayfa işlemi `Ctrl+Z` / `Ctrl+Y` ile geri alınır; kayıttan sonra bile.
+- **Araçlar** (Araçlar menüsü): **PDF küçült** (üç hazır seviye ya da özel DPI / JPEG kalitesi, boyut tahmini),
+  **Sayfaları düzenle** (küçük resim ızgarasında sürükleyerek sıralama, silme, döndürme, boş sayfa ya da başka
+  PDF'ten sayfa ekleme), **PDF ayır** (sayfa aralığı, her N sayfada bir, seçili sayfalar, her sayfa ayrı dosya),
+  **PDF birleştir**, **Görüntü / PDF belgelerinden PDF oluştur** (sürükle-bırak ve `Ctrl+V` ile), **Döndür ve
+  kaydet**. Uzun işlerde ilerleme çubuğu ve iptal.
+- **Yazdır** (`Ctrl+P`): sayfa aralığı, kâğıt boyutu, sayfaya sığdırma; sayfalar görüntü olarak basıldığından
+  notlar ve Türkçe karakterler ekrandaki gibi çıkar.
 - **Paylaş.** Belgeyi dosya olarak panoya kopyalar; UYAP'a, e-postaya ya da Gezgin'e `Ctrl+V` ile yapıştırılır.
 - **Koyu mod.** Sistem temasını izler; istenirse sayfa da koyulaştırılır (görseller korunur).
 - Sayfa düzenleri (tek, sürekli, iki sayfa, kapak ayrı), %6400'e kadar yakınlaştırma, döndürme, okuma modu,
-  tam ekran, sol panelde küçük resimler / İçindekiler / Yorumlar, parola korumalı belgeler, sürükle-bırak.
+  tam ekran, sol panelde küçük resimler / İçindekiler / Yorumlar, belge içi ve dış bağlantılar, form alanlarının
+  görünümü, parola korumalı belgeler, sürükle-bırak, ayarlar penceresi (`Ctrl+,`).
 
 ## Ekran görüntüleri
 
@@ -85,6 +92,7 @@ silinmez; isterseniz o klasörü elle silebilirsiniz. Kurulum sistem klasörleri
 | `Ctrl+F` | Bul |
 | `F3` / `Shift+F3` | Sonraki / önceki eşleşme |
 | `Ctrl+G` | Sayfaya git |
+| `Ctrl+,` | Ayarlar |
 | `Ctrl+Z` / `Ctrl+Y` | Geri al / yinele |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Sonraki / önceki sekme (basılı tutunca seçici açılır) |
 | `Ctrl+1` … `Ctrl+9` | Sekme seç (`9`: son sekme) |

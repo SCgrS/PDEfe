@@ -148,19 +148,24 @@ export class SekmeCubugu extends EventTarget {
         a.querySelector('.bos')?.replaceWith(img);
       });
     });
-    this.secici.hidden = false;
+    // Kısa basışta (Ctrl hemen bırakılırsa) seçici hiç görünmesin
+    this.secici.hidden = true;
+    clearTimeout(this._seciciZaman);
+    this._seciciZaman = setTimeout(() => { if (this.seciciAcik) this.secici.hidden = false; }, 220);
   }
 
   seciciIlerle(yon) {
     const adaylar = [...this.secici.querySelectorAll('.aday')];
     if (!adaylar.length) return;
     this.seciciIdx = (this.seciciIdx + yon + adaylar.length) % adaylar.length;
+    this.secici.hidden = false;   // ikinci basışta hemen göster
     adaylar.forEach((a, k) => a.classList.toggle('secili', k === this.seciciIdx));
     adaylar[this.seciciIdx].scrollIntoView({ inline: 'nearest' });
   }
 
   seciciKapat(secilenId = null) {
     if (!this.seciciAcik) return;
+    clearTimeout(this._seciciZaman);
     const adaylar = [...this.secici.querySelectorAll('.aday')];
     const id = secilenId ?? adaylar[this.seciciIdx]?.dataset.id;
     this.seciciAcik = false;

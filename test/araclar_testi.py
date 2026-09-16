@@ -184,6 +184,22 @@ def test_kucult_tahmin(c):
                         sv["onerilen"]["yuzde"], mb(sv["dusuk"]["boyut"]), sv["dusuk"]["yuzde"], r["tahmin"], sure, len(il)))
 
 
+def test_kucult_tahmin_seviyeler(c):
+    # Renderer biçimi: yalnızca 'ozel' seviyesi, kendi dpi/kalitesiyle
+    r, _ = c.cagir("kucult_tahmin", {"yol": GORSELLI, "dpi": 120, "kalite": 60, "seviyeler": {"ozel": {"dpi": 120, "kalite": 60}}})
+    sv = r["seviyeler"]
+    kaydet_sonuc("kucult_tahmin/ozel", "fdsafsd.pdf dpi=120 q=60", list(sv) == ["ozel"] and 0 < sv["ozel"]["boyut"] < r["mevcut"],
+                 "ozel %s (%%%s) anahtarlar=%s" % (mb(sv["ozel"]["boyut"]), sv["ozel"]["yuzde"], list(sv)))
+    # dpi+kalite verilip seviyeler verilmezse üçlüye 'ozel' eklenir
+    r, _ = c.cagir("kucult_tahmin", {"yol": NOTLU, "dpi": 72, "kalite": 40})
+    kaydet_sonuc("kucult_tahmin/+ozel", "DENEME PDF (2) dpi=72", set(r["seviyeler"]) == {"asiri", "onerilen", "dusuk", "ozel"}, sorted(r["seviyeler"]))
+    try:
+        c.cagir("kucult_tahmin", {"yol": NOTLU, "seviyeler": {"ozel": {"dpi": 5000, "kalite": 60}}})
+        kaydet_sonuc("kucult_tahmin/hata", "dpi=5000", False, "hata beklenirdi")
+    except Exception as e:
+        kaydet_sonuc("kucult_tahmin/hata", "dpi=5000", "30-600" in str(e), str(e).splitlines()[0])
+
+
 def test_kucult(c):
     for yol, seviye in ((GORSELLI, "asiri"), (GORSELLI, "onerilen"), (GORSELLI, "dusuk"), (NOTLU, "onerilen"),
                         (TBK, "onerilen"), (YERIMLI, "onerilen"), (TTK, "asiri")):
@@ -301,6 +317,18 @@ def test_ayir(c):
     # tek
     r, _ = c.cagir("ayir", {"yol": YATAY, "hedefKlasor": klasor, "mod": "tek"})
     kaydet_sonuc("ayir/tek", "2099_83_EK-1", len(r["dosyalar"]) == 3, [os.path.basename(x) for x in r["dosyalar"]])
+    # Renderer biçimi: parcalar [{ad, sayfalar}] + klasor; adlar çağırandan, üzerine yazma varsayılan
+    parcalar = [{"ad": "tbk_s1-3.pdf", "sayfalar": [1, 2, 3]}, {"ad": "tbk_secili.pdf", "sayfalar": [5, 2, 9]}]
+    r, _ = c.cagir("ayir", {"yol": YERIMLI, "klasor": klasor, "parcalar": parcalar, "mod": "aralik"})
+    r2, _ = c.cagir("ayir", {"yol": YERIMLI, "klasor": klasor, "parcalar": parcalar, "mod": "aralik"})   # üzerine yazar
+    r3, _ = c.cagir("ayir", {"yol": YERIMLI, "klasor": klasor, "parcalar": parcalar[:1], "uzerineYaz": False})
+    adlar = [os.path.basename(x) for x in r["dosyalar"]]
+    oz = belge_ozet(r["dosyalar"][1])
+    ok = (adlar == ["tbk_s1-3.pdf", "tbk_secili.pdf"] and oz["sayfa"] == 3 and r["ayrintilar"][1]["sayfa"] == 3
+          and r2["dosyalar"] == r["dosyalar"] and os.path.basename(r3["dosyalar"][0]) == "tbk_s1-3 (2).pdf"
+          and r["ayrintilar"][0]["boyut"] == os.path.getsize(r["dosyalar"][0]))
+    kaydet_sonuc("ayir/parcalar", "renderer biçimi", ok, "%s, secili sayfa=%d, yeniden=%s, uzerineYaz=False → %s"
+                 % (adlar, oz["sayfa"], [os.path.basename(x) for x in r2["dosyalar"]] == adlar, os.path.basename(r3["dosyalar"][0])))
     # hatalı aralıklar
     for ifade in ("0-3", "1-99", "abc", "", "3-x"):
         try:
@@ -318,6 +346,9 @@ def test_gorsel_bilgi(c, g):
     kaydet_sonuc("gorsel_bilgi", "coklu.tif", r["sayfa"] == 3, "kare=%d %dx%d" % (r["sayfa"], r["genislik"], r["yukseklik"]))
     r, _ = c.cagir("gorsel_bilgi", {"yol": YATAY})
     kaydet_sonuc("gorsel_bilgi", "2099_83_EK-1_pdf.pdf", r["tur"] == "pdf" and r["sayfa"] == 3 and r["pngGenislik"] == 220, "sayfa=%d %dx%d pt" % (r["sayfa"], r["genislik"], r["yukseklik"]))
+    r, _ = c.cagir("gorsel_bilgi", {"yol": YATAY, "genislik": 144})
+    r2, _ = c.cagir("gorsel_bilgi", {"yol": g["bmp"], "genislik": 144})
+    kaydet_sonuc("gorsel_bilgi/genislik", "144 px (pdf + bmp)", r["pngGenislik"] == 144 and r2["pngGenislik"] == 144, "pdf %dx%d, bmp %dx%d" % (r["pngGenislik"], r["pngYukseklik"], r2["pngGenislik"], r2["pngYukseklik"]))
 
 
 def test_boyut_tahmini(c, g):
@@ -326,6 +357,15 @@ def test_boyut_tahmini(c, g):
         kaydet_sonuc("boyut_tahmini", "jpeg %s" % kalite, r["boyut"] > 0, mb(r["boyut"]))
     r, _ = c.cagir("boyut_tahmini", {"oge": {"yol": GORSELLI, "tur": "pdf", "kalite": "dusuk"}})
     kaydet_sonuc("boyut_tahmini", "fdsafsd.pdf dusuk", 0 < r["boyut"] < os.path.getsize(GORSELLI), mb(r["boyut"]))
+    # Renderer biçimi: çoğul ogeler + genel 'kalite'; bozuk öğe yalnızca kendi hatasını alır
+    ogeler = [{"yol": g["jpeg_exif"], "tur": "gorsel", "sayfaBoyutu": "a4"}, {"yol": GORSELLI, "tur": "pdf"},
+              {"yol": g["webp"], "tur": "gorsel", "kalite": "orijinal"}, {"yol": os.path.join(CIKTI, "yok.png"), "tur": "gorsel"}]
+    r, il = c.cagir("boyut_tahmini", {"ogeler": ogeler, "kalite": "dusuk", "istek": 7})
+    L = r["ogeler"]
+    ok = (len(L) == 4 and 0 < L[0]["boyut"] < 100000 and 0 < L[1]["boyut"] < os.path.getsize(GORSELLI)
+          and L[2]["boyut"] > 0 and L[3]["boyut"] is None and "bulunamadı" in L[3]["hata"]
+          and r["toplam"] == sum(x["boyut"] for x in L[:3]))
+    kaydet_sonuc("boyut_tahmini/ogeler", "4 öğe (biri yok)", ok, "boyutlar=%s toplam=%s ilerleme=%d" % ([mb(x["boyut"]) if x["boyut"] else x.get("hata", "")[:30] for x in L], mb(r["toplam"]), len(il)))
 
 
 def test_birlestir(c, g):
@@ -370,10 +410,11 @@ def test_birlestir(c, g):
                     round(s_webp.width), round(s_webp.height), len(toc), toc_min, yer_rot, mb(oz["boyut"]), time.time() - t))
     # Yalnızca PDF'ler orijinal: metin + notlar + Türkçe korunuyor mu
     hedef2 = os.path.join(CIKTI, "birlestir_pdf.pdf")
-    r, _ = c.cagir("birlestir", {"ogeler": [{"yol": TBK, "tur": "pdf"}, {"yol": NOTLU, "tur": "pdf"}], "hedef": hedef2})
+    r, _ = c.cagir("birlestir", {"ogeler": [{"yol": TBK, "tur": "pdf"}, {"yol": NOTLU, "tur": "pdf"}], "hedef": hedef2, "kalite": "orijinal"})
     oz = belge_ozet(hedef2)
     tbk = belge_ozet(TBK)
-    ok = oz["sayfa"] == tbk["sayfa"] + n_notlu["sayfa"] and oz["not"] == n_notlu["not"] and oz["metin"] == tbk["metin"] and oz["turkce"]
+    ok = (oz["sayfa"] == tbk["sayfa"] + n_notlu["sayfa"] and oz["not"] == n_notlu["not"] and oz["metin"] == tbk["metin"]
+          and oz["turkce"] and r["yol"] == hedef2)
     kaydet_sonuc("birlestir", "TBK + notlu (orijinal)", ok, "sayfa=%d not=%d metin_ayni=%s tr=%s %s"
                  % (oz["sayfa"], oz["not"], oz["metin"] == tbk["metin"], oz["turkce"], mb(oz["boyut"])))
     # HEIC hatası anlaşılır mı
@@ -415,7 +456,13 @@ def test_pano(c, g):
     kaydet_sonuc("pano_gorsel_kaydet", "320x200 png", ok, r["yol"])
     r2, _ = c.cagir("pano_gorsel_kaydet", {"png": "data:image/png;base64," + g["pano_b64"]})
     kaydet_sonuc("pano_gorsel_kaydet", "data: öneki", r2["yol"] != r["yol"] and os.path.isfile(r2["yol"]), os.path.basename(r2["yol"]))
-    for y in (r["yol"], r2["yol"]):
+    # Renderer biçimi: klasor + ad; ikinci kez aynı ad → (2)
+    klasor = os.path.join(CIKTI, "pano")
+    r3, _ = c.cagir("pano_gorsel_kaydet", {"png": g["pano_b64"], "klasor": klasor, "ad": "pano_123.png"})
+    r4, _ = c.cagir("pano_gorsel_kaydet", {"png": g["pano_b64"], "klasor": klasor, "ad": "pano_123.png"})
+    ok = r3["yol"] == os.path.join(klasor, "pano_123.png") and os.path.basename(r4["yol"]) == "pano_123 (2).png" and os.path.getsize(r4["yol"]) == r4["boyut"]
+    kaydet_sonuc("pano_gorsel_kaydet", "klasor + ad", ok, "%s, %s" % (os.path.basename(r3["yol"]), os.path.basename(r4["yol"])))
+    for y in (r["yol"], r2["yol"], r3["yol"], r4["yol"]):
         os.remove(y)
 
 
@@ -441,6 +488,7 @@ def main():
     testler = [
         ("sayfa_boyutlari", lambda: test_sayfa_boyutlari(c)),
         ("kucult_tahmin", lambda: test_kucult_tahmin(c)),
+        ("kucult_tahmin/seviyeler", lambda: test_kucult_tahmin_seviyeler(c)),
         ("kucult", lambda: test_kucult(c)),
         ("sayfalar_uygula", lambda: test_sayfalar_uygula(c)),
         ("ayir", lambda: test_ayir(c)),

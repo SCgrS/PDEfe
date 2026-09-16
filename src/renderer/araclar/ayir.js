@@ -1,9 +1,75 @@
-// PDF ayır: sayfa aralıklarına göre / her N sayfada bir / seçili sayfaları çıkart / her sayfa ayrı dosya.
-// Parçalar JS'de hesaplanır; çekirdek: ayir {yol, klasor, parcalar:[{ad, sayfalar:[...]}]} (ilerlemeli) → {dosyalar:[{yol, boyut, sayfa}|yol]}.
+// PDF ayır: sayfa aralıklarına göre / her N sayfada bir / seçili sayfaları çıkart / her sayfayı ayrı dosyaya.
+// Çekirdek (core/islemler/araclar.py y_ayir):
+//   ayir {yol, hedefKlasor, mod:'aralik'|'herN'|'secili'|'tek', araliklar:"1-3, 5", n, sayfalar:[...]} (ilerlemeli)
+//   → {dosyalar:[yol, ...]}
+// Dosya adlarını çekirdek belirler: <ad>_<etiket>.pdf; var olan ad üzerine yazılmaz, "(2)", "(3)" eklenir.
+// Bu pencere aynı adlandırma kuralını (ayirParcalari) önizleme için burada da uygular.
 import {
   pencereAc, pencereAcikMi, IslemIlerleme, boyutMetni, kacis, hataMetni, dosyaAdi, klasorAdi, adGovdesi, yolBirlestir,
   guvenliAd, sayfaListesiCoz, sayfaAraliklariCoz, degisiklikleriSor, oge,
 } from './ortak.js';
+
+/** [1,2,3,5] → [[1,3],[5,5]] (sıralı, tekrarsız). Çekirdekteki _sayfa_listesini_gruplara ile aynı. */
+export function sayfaGruplari(sayfalar) {
+  const gruplar = [];
+  for (const s of [...new Set(sayfalar)].sort((a, b) => a - b)) {
+    if (gruplar.length && s === gruplar[gruplar.length - 1][1] + 1) gruplar[gruplar.length - 1][1] = s;
+    else gruplar.push([s, s]);
+  }
+  return gruplar;
+}
+
+/** Çekirdekteki _aralik_etiketi: en çok 4 grup "1-3_5_8-9", fazlası "secili_<n>sayfa". */
+function aralikEtiketi(gruplar) {
+  const parcalar = gruplar.map(([a, b]) => (a === b ? String(a) : `${a}-${b}`));
+  if (parcalar.length > 4) return `secili_${gruplar.reduce((t, [a, b]) => t + (b - a + 1), 0)}sayfa`;
+  return parcalar.join('_');
+}
+
+/**
+ * Seçilen moda göre oluşacak parçaları ve çekirdeğe gidecek parametreleri hesaplar.
+ * @param {{mod:string, aralikMetni?:string, n?:number|string, seciliMetni?:string}} girdi
+ * @param {number} toplam belgedeki sayfa sayısı
+ * @param {string} govde dosya adı gövdesi (uzantısız)
+ * @returns {{parcalar:Array<{ad:string, sayfalar:number[]}>, params:object|null, hata:string|null}}
+ */
+export function ayirParcalari(girdi, toplam, govde) {
+  const ad = guvenliAd(govde);
+  const dosyaAd = (etiket) => guvenliAd(`${ad}_${etiket}`) + '.pdf';
+  if (!(toplam >= 1)) return { parcalar: [], params: null, hata: 'Belgenin sayfa sayısı bilinmiyor.' };
+  const mod = girdi.mod;
+  if (mod === 'aralik') {
+    const { araliklar, hata } = sayfaAraliklariCoz(girdi.aralikMetni, toplam);
+    if (hata) return { parcalar: [], params: null, hata };
+    const parcalar = araliklar.map((a) => ({ ad: dosyaAd(a.bas === a.son ? `sayfa_${a.bas}` : `${a.bas}-${a.son}`), sayfalar: a.sayfalar }));
+    return { parcalar, params: { mod: 'aralik', araliklar: String(girdi.aralikMetni || '').trim() }, hata: null };
+  }
+  if (mod === 'herN') {
+    const n = parseInt(girdi.n, 10);
+    if (!(n >= 1)) return { parcalar: [], params: null, hata: 'Bölüm uzunluğu en az 1 olmalı.' };
+    if (n >= toplam) return { parcalar: [], params: null, hata: `Belgede ${toplam} sayfa var; her ${n} sayfada bir ayırmak tek dosya üretir. Daha küçük bir sayı girin.` };
+    const parcalar = [];
+    for (let bas = 1, k = 1; bas <= toplam; bas += n, k++) {
+      const sayfalar = [];
+      for (let s = bas; s <= Math.min(bas + n - 1, toplam); s++) sayfalar.push(s);
+      parcalar.push({ ad: dosyaAd(`bolum_${k}`), sayfalar });
+    }
+    return { parcalar, params: { mod: 'herN', n }, hata: null };
+  }
+  if (mod === 'secili') {
+    const { sayfalar, hata } = sayfaListesiCoz(girdi.seciliMetni, toplam);
+    if (hata) return { parcalar: [], params: null, hata };
+    const gruplar = sayfaGruplari(sayfalar);
+    const etiket = gruplar.length === 1 && gruplar[0][0] === gruplar[0][1] ? `sayfa_${gruplar[0][0]}` : aralikEtiketi(gruplar);
+    return { parcalar: [{ ad: dosyaAd(etiket), sayfalar }], params: { mod: 'secili', sayfalar }, hata: null };
+  }
+  if (mod === 'tek') {
+    const parcalar = [];
+    for (let s = 1; s <= toplam; s++) parcalar.push({ ad: dosyaAd(`sayfa_${s}`), sayfalar: [s] });
+    return { parcalar, params: { mod: 'tek' }, hata: null };
+  }
+  return { parcalar: [], params: null, hata: 'Bilinmeyen ayırma modu.' };
+}
 
 export class AyirPenceresi {
   constructor(baglam, belge) {
@@ -25,18 +91,18 @@ export class AyirPenceresi {
         <span class="arac-etiket" style="margin:0">Nasıl ayrılsın?</span>
         <div class="arac-secenek-liste">
           <label><input type="radio" name="ayir-mod" value="aralik" checked> Sayfa aralıklarına göre <span class="soluk">(her aralık ayrı dosya)</span></label>
-          <div class="ic"><input type="text" class="arac-girdi ayir-aralik" placeholder="örn. 1-3, 4-10, 11" style="width:260px" data-ilk-odak></div>
-          <label><input type="radio" name="ayir-mod" value="herN"> Her <input type="number" class="arac-girdi kucuk ayir-n" min="1" max="${Math.max(1, this.toplam)}" value="${Math.min(10, Math.max(1, this.toplam))}" disabled> sayfada bir yeni dosya</label>
+          <div class="ic"><input type="text" class="arac-girdi ayir-aralik" placeholder="örn. 1-3, 4-10, 11" style="width:260px" data-ilk-odak><span class="arac-aciklama">"-3" baştan 3'e, "8-" 8'den sona</span></div>
+          <label><input type="radio" name="ayir-mod" value="herN"> Her <input type="number" class="arac-girdi kucuk ayir-n" min="1" max="${Math.max(1, this.toplam - 1)}" value="${Math.min(10, Math.max(1, this.toplam - 1))}" disabled> sayfada bir yeni dosya</label>
           <label><input type="radio" name="ayir-mod" value="secili"> Seçili sayfaları çıkart <span class="soluk">(tek dosya)</span></label>
           <div class="ic"><input type="text" class="arac-girdi ayir-secili" placeholder="örn. 2, 5, 7-9" style="width:260px" disabled></div>
-          <label><input type="radio" name="ayir-mod" value="hersayfa"> Her sayfayı ayrı dosyaya kaydet <span class="soluk">(${this.toplam} dosya)</span></label>
+          <label><input type="radio" name="ayir-mod" value="tek"> Her sayfayı ayrı dosyaya kaydet <span class="soluk">(${this.toplam} dosya)</span></label>
         </div>
       </div>
-      <div class="arac-alan">
+      <div class="arac-alan ayir-cikti-alani">
         <label class="arac-etiket" style="margin:0">Çıktı</label>
         <div class="arac-satir"><span style="width:80px">Klasör</span><div class="ayir-klasor" style="flex:1"><span class="yol ayir-klasor-yol"></span><button class="ikincil ayir-klasor-sec">Seç…</button></div></div>
-        <div class="arac-satir"><span style="width:80px">Ad öneki</span><input type="text" class="arac-girdi ayir-onek" style="flex:1" spellcheck="false"></div>
         <div class="ayir-onizleme"></div>
+        <div class="arac-aciklama">Dosya adları <b>${kacis(adGovdesi(b.yol))}_…pdf</b> biçiminde verilir; var olan dosyaların üzerine yazılmaz, ada "(2)" eklenir.</div>
       </div>
       <div class="ayir-sonuc" hidden></div>
     </div>`);
@@ -44,13 +110,11 @@ export class AyirPenceresi {
     this.aralikEl = govde.querySelector('.ayir-aralik');
     this.nEl = govde.querySelector('.ayir-n');
     this.seciliEl = govde.querySelector('.ayir-secili');
-    this.onekEl = govde.querySelector('.ayir-onek');
     this.onizleme = govde.querySelector('.ayir-onizleme');
     this.sonucEl = govde.querySelector('.ayir-sonuc');
     this.klasorYol = govde.querySelector('.ayir-klasor-yol');
-    this.onekEl.value = adGovdesi(b.yol);
     this.klasorYaz();
-    govde.querySelector('.arac-alan:last-of-type').append(this.ilerleme.el);
+    govde.querySelector('.ayir-cikti-alani').append(this.ilerleme.el);
 
     for (const r of govde.querySelectorAll('input[name="ayir-mod"]')) {
       r.addEventListener('change', () => {
@@ -63,13 +127,13 @@ export class AyirPenceresi {
         this.onizle();
       });
     }
-    for (const g of [this.aralikEl, this.nEl, this.seciliEl, this.onekEl]) {
+    for (const g of [this.aralikEl, this.nEl, this.seciliEl]) {
       g.addEventListener('input', () => this.onizle());
       g.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.ayir(); } });
     }
     govde.querySelector('.ayir-klasor-sec').addEventListener('click', async () => {
       const k = await this.baglam.pdefe.cagir('dosya:klasorSec', { baslik: 'Çıktı klasörü', varsayilan: this.klasor });
-      if (k) { this.klasor = k; this.klasorYaz(); this.onizle(); }
+      if (k && !this.pencere.kapali) { this.klasor = k; this.klasorYaz(); this.onizle(); }
     });
     govde.addEventListener('keydown', (e) => { if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && e.target.type === 'radio') e.stopPropagation(); });
 
@@ -95,41 +159,9 @@ export class AyirPenceresi {
 
   klasorYaz() { this.klasorYol.textContent = this.klasor; this.klasorYol.title = this.klasor; }
 
-  /** Seçilen moda göre parçaları hesaplar: {parcalar:[{ad, sayfalar}], hata} */
+  /** Seçilen moda göre parçaları hesaplar: {parcalar:[{ad, sayfalar}], params, hata} */
   parcalariHesapla() {
-    const toplam = this.toplam;
-    const onek = guvenliAd(this.onekEl.value.trim() || adGovdesi(this.belge.yol));
-    if (!toplam) return { parcalar: [], hata: 'Belgenin sayfa sayısı bilinmiyor.' };
-    const pad = (n, gen) => String(n).padStart(gen, '0');
-    if (this.mod === 'aralik') {
-      const { araliklar, hata } = sayfaAraliklariCoz(this.aralikEl.value, toplam);
-      if (hata) return { parcalar: [], hata };
-      return { parcalar: araliklar.map((a) => ({ ad: `${onek}_s${a.bas}${a.son !== a.bas ? '-' + a.son : ''}.pdf`, sayfalar: a.sayfalar })), hata: null };
-    }
-    if (this.mod === 'herN') {
-      const n = parseInt(this.nEl.value, 10);
-      if (!(n >= 1)) return { parcalar: [], hata: 'Sayfa sayısı en az 1 olmalı.' };
-      if (n >= toplam) return { parcalar: [], hata: `Belgede ${toplam} sayfa var; her ${n} sayfada bir ayırmak tek dosya üretir.` };
-      const parcalar = [];
-      const adet = Math.ceil(toplam / n);
-      const gen = String(adet).length;
-      for (let i = 0, k = 1; i < toplam; i += n, k++) {
-        const sayfalar = [];
-        for (let s = i + 1; s <= Math.min(i + n, toplam); s++) sayfalar.push(s);
-        parcalar.push({ ad: `${onek}_${pad(k, gen)}.pdf`, sayfalar });
-      }
-      return { parcalar, hata: null };
-    }
-    if (this.mod === 'secili') {
-      const { sayfalar, hata } = sayfaListesiCoz(this.seciliEl.value, toplam);
-      if (hata) return { parcalar: [], hata };
-      return { parcalar: [{ ad: `${onek}_secili.pdf`, sayfalar }], hata: null };
-    }
-    // her sayfa ayrı
-    const gen = String(toplam).length;
-    const parcalar = [];
-    for (let s = 1; s <= toplam; s++) parcalar.push({ ad: `${onek}_s${pad(s, gen)}.pdf`, sayfalar: [s] });
-    return { parcalar, hata: null };
+    return ayirParcalari({ mod: this.mod, aralikMetni: this.aralikEl.value, n: this.nEl.value, seciliMetni: this.seciliEl.value }, this.toplam, adGovdesi(this.belge.yol));
   }
 
   onizle() {
@@ -138,7 +170,7 @@ export class AyirPenceresi {
     for (const g of [this.aralikEl, this.seciliEl, this.nEl]) g.classList.remove('hatali');
     if (hata) {
       girdi?.classList.add('hatali');
-      this.onizleme.innerHTML = `<span style="color:#d13438">${kacis(hata)}</span>`;
+      this.onizleme.innerHTML = `<span class="hata-metin">${kacis(hata)}</span>`;
       this.pencere?.dugmeAyarla('ayir', { devre: true });
       return;
     }
@@ -152,24 +184,30 @@ export class AyirPenceresi {
   async ayir() {
     const { baglam, belge } = this;
     if (this.ilerleme.calisiyor) return;
-    const { parcalar, hata } = this.parcalariHesapla();
-    if (hata) { this.onizle(); return; }
+    const { parcalar, params, hata } = this.parcalariHesapla();
+    if (hata || !params) { this.onizle(); return; }
     this.pencere.hataGoster('');
     this.sonucEl.hidden = true;
     if ((await degisiklikleriSor(baglam, belge, 'Ayırma')) === 'vazgec') return;
     if (this.pencere.kapali) return;
-    // Var olan dosyalar
+    if (!this.klasor) {
+      const k = await baglam.pdefe.cagir('dosya:klasorSec', { baslik: 'Çıktı klasörü' });
+      if (!k || this.pencere.kapali) return;
+      this.klasor = k; this.klasorYaz();
+    }
+    // Aynı adlı dosya varsa çekirdek "(2)" ekler; kullanıcı bilsin
     const varOlanlar = [];
-    for (const p of parcalar) { if (await baglam.pdefe.cagir('dosya:varMi', yolBirlestir(this.klasor, p.ad))) varOlanlar.push(p.ad); }
+    for (const p of parcalar.slice(0, 200)) { if (await baglam.pdefe.cagir('dosya:varMi', yolBirlestir(this.klasor, p.ad))) varOlanlar.push(p.ad); }
+    if (this.pencere.kapali) return;
     if (varOlanlar.length) {
-      const { secim } = await baglam.mesajKutusu({ mesaj: `${varOlanlar.length} dosya zaten var.`, ayrinti: varOlanlar.slice(0, 8).join('\n') + (varOlanlar.length > 8 ? '\n…' : '') + '\n\nÜzerine yazılsın mı?', dugmeler: ['Üzerine yaz', 'Vazgeç'], varsayilan: 1, iptal: 1 });
-      if (secim !== 0) return;
+      const { secim } = await baglam.mesajKutusu({ mesaj: `${varOlanlar.length} dosya zaten var.`, ayrinti: varOlanlar.slice(0, 8).join('\n') + (varOlanlar.length > 8 ? '\n…' : '') + '\n\nVar olanlar korunur; yeni dosyaların adına "(2)" eklenir. Devam edilsin mi?', dugmeler: ['Devam et', 'Vazgeç'], varsayilan: 0, iptal: 1 });
+      if (secim !== 0 || this.pencere.kapali) return;
     }
     this.pencere.el.classList.add('mesgul');
     this.pencere.dugmeAyarla('ayir', { devre: true });
     this.pencere.dugmeAyarla('kapat', { devre: true });
     try {
-      const sonuc = await this.ilerleme.calistir(baglam, 'ayir', { yol: belge.yol, klasor: this.klasor, parcalar, mod: this.mod }, { baslangicMesaji: 'Ayrılıyor…' });
+      const sonuc = await this.ilerleme.calistir(baglam, 'ayir', { yol: belge.yol, hedefKlasor: this.klasor, ...params }, { baslangicMesaji: 'Ayrılıyor…' });
       await this.sonucGoster(this.dosyalariOku(sonuc, parcalar));
     } catch (e) {
       this.ilerleme.gizle();
@@ -178,16 +216,20 @@ export class AyirPenceresi {
         if (e.sonuc) await this.sonucGoster(this.dosyalariOku(e.sonuc, parcalar));
       } else this.pencere.hataGoster('Ayırma başarısız: ' + hataMetni(e));
     } finally {
-      this.pencere.el.classList.remove('mesgul');
-      this.pencere.dugmeAyarla('ayir', { devre: false });
-      this.pencere.dugmeAyarla('kapat', { devre: false });
+      if (!this.pencere.kapali) {
+        this.pencere.el.classList.remove('mesgul');
+        this.pencere.dugmeAyarla('ayir', { devre: false });
+        this.pencere.dugmeAyarla('kapat', { devre: false });
+      }
     }
   }
 
-  /** Çekirdek sonucunu {yol, boyut, sayfa} listesine çevirir (dize listesi de kabul edilir). */
+  /** Çekirdek sonucunu {yol, boyut, sayfa} listesine çevirir (dize listesi ya da nesne listesi). */
   dosyalariOku(sonuc, parcalar) {
-    const ham = sonuc?.dosyalar || sonuc?.sonuclar || [];
-    return ham.map((d, i) => (typeof d === 'string' ? { yol: d, boyut: null, sayfa: parcalar[i]?.sayfalar.length } : { yol: d.yol, boyut: d.boyut ?? null, sayfa: d.sayfa ?? parcalar[i]?.sayfalar.length }));
+    const ham = Array.isArray(sonuc?.dosyalar) ? sonuc.dosyalar : [];
+    return ham.map((d, i) => (typeof d === 'string'
+      ? { yol: d, boyut: null, sayfa: parcalar[i]?.sayfalar.length }
+      : { yol: d.yol, boyut: d.boyut ?? null, sayfa: d.sayfa ?? parcalar[i]?.sayfalar.length }));
   }
 
   async sonucGoster(dosyalar) {
@@ -196,8 +238,9 @@ export class AyirPenceresi {
     this.sonucEl.hidden = false;
     this.sonucEl.className = 'ayir-sonuc arac-basari arac-sonuc-liste';
     if (!dosyalar.length) { this.sonucEl.className = 'ayir-sonuc arac-uyari'; this.sonucEl.textContent = 'Hiç dosya oluşmadı.'; return; }
-    // Boyutu gelmeyenleri sor
+    // Boyutu gelmeyenleri dosya sisteminden sor
     for (const d of dosyalar) if (d.boyut == null) { try { const b = await baglam.pdefe.cagir('dosya:bilgi', d.yol); if (b?.var) d.boyut = b.boyut; } catch { /* yok say */ } }
+    if (this.pencere.kapali) return;
     const toplam = dosyalar.reduce((t, d) => t + (d.boyut || 0), 0);
     this.sonucEl.innerHTML = `<div><b>${dosyalar.length} dosya oluşturuldu</b> · toplam ${kacis(boyutMetni(toplam))}</div>
       <ul>${dosyalar.map((d, i) => `<li><a data-i="${i}" title="Yeni sekmede aç">${kacis(dosyaAdi(d.yol))}</a><span class="soluk">${d.sayfa ? d.sayfa + ' sayfa' : ''}</span><span class="boyut">${kacis(boyutMetni(d.boyut))}</span></li>`).join('')}</ul>
@@ -220,14 +263,7 @@ export class AyirPenceresi {
 
 function kisaListe(sayfalar) {
   // 1,2,3,5,6 → "1-3, 5-6"
-  const p = [];
-  let bas = sayfalar[0], son = sayfalar[0];
-  for (let i = 1; i <= sayfalar.length; i++) {
-    if (i < sayfalar.length && sayfalar[i] === son + 1) { son = sayfalar[i]; continue; }
-    p.push(bas === son ? String(bas) : `${bas}-${son}`);
-    bas = son = sayfalar[i];
-  }
-  return p.join(', ');
+  return sayfaGruplari(sayfalar).map(([a, b]) => (a === b ? String(a) : `${a}-${b}`)).join(', ');
 }
 
 export function ayirAc(baglam) {
