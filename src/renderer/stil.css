@@ -182,7 +182,10 @@ html[data-tema="koyu"] #dugme-tema .gunes { display: block; }
   content: ''; position: absolute; inset: 0; background:
     linear-gradient(90deg, transparent, rgba(0,0,0,0.04), transparent);
 }
-html[data-tema="koyu"] .sayfa.koyu-sayfa canvas.ana { filter: invert(0.92) hue-rotate(180deg); }
+.sayfa .baglanti-katmani { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.sayfa .baglanti { position: absolute; display: block; pointer-events: auto; cursor: pointer; border-radius: 2px; }
+.sayfa .baglanti:hover { background: rgba(0,103,192,0.12); outline: 1px solid rgba(0,103,192,0.5); }
+.sayfa img.form-katmani { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
 
 /* PDF.js metin katmanı (pdf_viewer.css'ten uyarlandı) */
 .textLayer {
@@ -381,3 +384,6 @@ button.ikon.kucuk svg { width: 16px; height: 16px; }
 /* Yorumlar paneli ek */
 .yorum .ust .renk { width: 9px; height: 9px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0,0,0,.25); flex-shrink: 0; align-self: center; }
 .yorum .yanit-sayisi { font-size: 11px; color: var(--vurgu); margin-top: 2px; }
+
+.kucuk-resim .donuk { display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: var(--sayfa-golge); background: #fff; }
+.kucuk-resim .bos.bos-sayfa { background: #fff; }

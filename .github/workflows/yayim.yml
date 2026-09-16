@@ -1,0 +1,162 @@
+# PDEfe — Windows kurulum paketini derler ve GitHub Releases'e yayımlar.
+#
+# Sürüm akışı:
+#   1. package.json "version" alanını yükselt, CHANGELOG.md'ye "## x.y.z — YYYY-AA-GG" bölümü ekle, commit et.
+#   2. git tag vx.y.z && git push origin vx.y.z
+#   3. Bu iş akışı PDEfe-Setup.exe, PDEfe-Setup.exe.blockmap ve latest.yml dosyalarını "vx.y.z" sürümüne yükler;
+#      sürüm gövdesini Türkçe (SmartScreen notu + CHANGELOG bölümü) yazar. electron-updater latest.yml'i okur.
+#   workflow_dispatch ile elle çalıştırılırsa yalnızca derler, paketi iş akışı çıktısı (artifact) olarak saklar.
+
+name: Derle ve yayımla
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: yayim-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Windows kurulum paketi
+    runs-on: windows-latest
+    env:
+      # build/cekirdek-derle.mjs bu değişkenle .venv yerine sistem Python'unu (ve onun PyInstaller'ını) kullanır.
+      PDEFE_PYTHON: python
+      # Kod imzalama sertifikası yok; electron-builder sertifika aramasın.
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      ELECTRON_BUILDER_CACHE: ${{ github.workspace }}\.cache\electron-builder
+      npm_config_fund: "false"
+      npm_config_audit: "false"
+
+    steps:
+      - name: Kaynağı al
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Node bağımlılıkları
+        run: npm ci
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Python bağımlılıkları
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pymupdf==1.28.2" "fonttools==4.65.0" "pillow==12.3.0" "pyinstaller==6.22.3"
+          python -c "import pymupdf, fontTools, PIL, PyInstaller; print('PyMuPDF', pymupdf.pymupdf_version, '| MuPDF', pymupdf.mupdf_version, '| PyInstaller', PyInstaller.__version__)"
+
+      - name: Etiket ile package.json sürümü uyuşmalı
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $surum = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $etiket = "${{ github.ref_name }}"
+          if ($etiket -ne "v$surum") {
+            Write-Error "Etiket '$etiket' ile package.json sürümü 'v$surum' uyuşmuyor. Önce package.json'daki version alanını yükseltin."
+            exit 1
+          }
+          Write-Host "Sürüm: $surum (etiket $etiket)"
+
+      - name: electron-builder önbelleği (NSIS, winCodeSign)
+        uses: actions/cache@v4
+        with:
+          path: .cache\electron-builder
+          key: electron-builder-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: electron-builder-${{ runner.os }}-
+
+      - name: Çekirdeği derle (PyInstaller → core/dist/pdefe-core.exe)
+        run: npm run cekirdek:derle
+
+      - name: Çekirdeği sına (ping)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "core\dist\pdefe-core.exe")) { Write-Error "core\dist\pdefe-core.exe üretilmedi."; exit 1 }
+          $boyut = [math]::Round((Get-Item "core\dist\pdefe-core.exe").Length / 1MB, 1)
+          Write-Host "pdefe-core.exe: $boyut MB"
+          $yanit = '{"id":1,"method":"ping","params":{}}' | & "core\dist\pdefe-core.exe"
+          Write-Host "Yanıt: $yanit"
+          if (-not ($yanit -match '"result"')) { Write-Error "Çekirdek ping yanıtı vermedi."; exit 1 }
+
+      - name: Paketle ve yayımla (etiket)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --publish always
+
+      - name: Paketle (elle çalıştırma, yayımlamadan)
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        run: npx electron-builder --win --publish never
+
+      - name: Çıktıları listele
+        shell: pwsh
+        run: Get-ChildItem release -File | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,1)}} | Format-Table -AutoSize
+
+      - name: Sürüm gövdesini yaz (Türkçe, SmartScreen notu + CHANGELOG)
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $etiket = "${{ github.ref_name }}"
+          $surum = $etiket.TrimStart("v")
+          $sha = (Get-FileHash -Algorithm SHA256 "release\PDEfe-Setup.exe").Hash.ToLower()
+          $boyut = [math]::Round((Get-Item "release\PDEfe-Setup.exe").Length / 1MB, 1)
+
+          # CHANGELOG.md içinden bu sürümün bölümü
+          $notlar = ""
+          if (Test-Path CHANGELOG.md) {
+            $satirlar = Get-Content CHANGELOG.md -Encoding utf8
+            $al = $false
+            foreach ($s in $satirlar) {
+              if ($s -match '^## ') { if ($al) { break }; if ($s -match [regex]::Escape($surum)) { $al = $true; continue } }
+              elseif ($al) { $notlar += $s + "`n" }
+            }
+          }
+          if (-not $notlar.Trim()) { $notlar = "Bu sürümün ayrıntıları için CHANGELOG.md dosyasına bakın.`n" }
+
+          $govde = @"
+### [⬇ PDEfe-Setup.exe indir](https://github.com/${{ github.repository }}/releases/download/$etiket/PDEfe-Setup.exe)
+
+Windows 10/11, 64 bit. Yönetici hakkı gerekmez; kurulum sihirbazı Türkçedir.
+
+**Kod imzalama sertifikası yok.** Windows SmartScreen uyarı gösterirse **Daha fazla bilgi → Yine de çalıştır** deyin.
+Kurulu PDEfe yeni sürümü kendisi bulur ve tek tıkla günceller.
+
+## Bu sürümde
+
+$notlar
+---
+PDEfe-Setup.exe: $boyut MB · SHA-256 ``$sha``
+``latest.yml`` ve ``PDEfe-Setup.exe.blockmap`` otomatik güncelleme içindir; elle indirmeniz gerekmez.
+"@
+          $dosya = Join-Path $env:RUNNER_TEMP "surum-notlari.md"
+          [System.IO.File]::WriteAllText($dosya, $govde, (New-Object System.Text.UTF8Encoding $false))
+
+          # electron-builder sürümü zaten oluşturdu (releaseType: release); ad ve gövdeyi düzenle.
+          gh release edit $etiket --title "PDEfe $surum" --notes-file $dosya --latest
+          if ($LASTEXITCODE -ne 0) { Write-Error "Sürüm gövdesi yazılamadı."; exit 1 }
+
+      - name: Paketi iş akışı çıktısı olarak sakla
+        uses: actions/upload-artifact@v4
+        with:
+          name: PDEfe-Setup
+          path: |
+            release/PDEfe-Setup.exe
+            release/PDEfe-Setup.exe.blockmap
+            release/latest.yml
+          if-no-files-found: error
+          retention-days: 14

@@ -1,12 +1,12 @@
 // PDEfe arayüz girişi: sekmeler, komutlar, kısayollar, ayarlar, sürükle-bırak.
-import { Goruntuleyici } from './goruntuleyici.js';
+import { Goruntuleyici, yolAnahtari } from './goruntuleyici.js';
 import { SekmeCubugu } from './sekmeler.js';
 import { SolPanel } from './panel.js';
 import { DurumCubugu, boyutMetni } from './durum.js';
 import { Arama } from './arama.js';
 import { temizMetin, hamMetin, secimDikdortgenleri, satirlaraBirlestir, paragrafSec, secimHamMetni, secimYapiliMetni } from './metin.js';
 import { NotYoneticisi, VURGU_RENKLERI } from './notlar.js';
-import { KomutYigini } from './komutlar.js';
+import { KomutYigini, Komut } from './komutlar.js';
 
 const $ = (s) => document.querySelector(s);
 const pdefe = window.pdefe;
@@ -82,7 +82,7 @@ async function dosyaAc(yol, secenek = {}) {
   el.className = 'gorunum';
   el.hidden = true;
   $('#gorunumler').append(el);
-  const gorunum = new Goruntuleyici(el);
+  const gorunum = new Goruntuleyici(el, { dosyaOku: async (y) => (await pdefe.cagir('dosya:oku', y)).veri, cekirdek });
   const belge = { id, yol, ad, el, gorunum, degisti: false, boyut: 0, bilgi: null, sorma: false };
   belgeler.set(id, belge);
   sekmeler.ekle({ id, ad, yol });
@@ -92,6 +92,8 @@ async function dosyaAc(yol, secenek = {}) {
   gorunum.addEventListener('sayfa', (e) => { if (aktifId === id) { sayfaGoster(belge); } sayfaKonumuKaydet(belge); });
   gorunum.addEventListener('zoom', (e) => { if (aktifId === id) zoomGoster(belge); });
   gorunum.addEventListener('metinKatmani', (e) => arama.katmanCizildi(gorunum, e.detail.sayfa));
+  gorunum.addEventListener('sayfalar', () => { arama.belgeUnut(gorunum); if (aktifId === id) { sayfaGoster(belge); panel.belgeAyarla(belge); } kirliGuncelle(belge); oturumKaydet(); });
+  gorunum.addEventListener('baglanti', (e) => baglantiyaGit(belge, e.detail));
   metinOlaylariBagla(belge);
   belge.yigin = new KomutYigini();
   belge.notlar = new NotYoneticisi({ belge, cekirdek, ayar: () => ayar, yigin: belge.yigin, alan: $('#belge-alani') });
@@ -108,7 +110,7 @@ async function dosyaAc(yol, secenek = {}) {
     const olcek = zoom === 'son' ? (ayar.sonZoom || 100) / 100 : (typeof zoom === 'number' ? zoom / 100 : 1);
     gorunum.koyuSayfa = koyuMu() && ayar.sayfayiKoyulastir;
     await gorunum.yukle(veri, {
-      duzen: ayar.varsayilanDuzen || 'surekli', kapakAyri: !!ayar.kapakAyri, zoomModu, olcek,
+      yol, duzen: ayar.varsayilanDuzen || 'surekli', kapakAyri: !!ayar.kapakAyri, zoomModu, olcek,
       sayfa: secenek.sayfa || sonSayfa || 1,
       parolaIste: (neden) => parolaSor(ad, neden),
     });
@@ -161,7 +163,7 @@ async function sekmeSec(id, secenek = {}) {
 }
 
 function kirliGuncelle(b) {
-  b.degisti = !!(b.yigin?.kirli || b.notlar?.kirli);
+  b.degisti = !!(b.yigin?.kirli || b.gorunum.yapisalKirli() || (!b.gorunum.anlik && b.notlar?.kirli));
   sekmeler.guncelle(b.id, { degisti: b.degisti });
   if (aktifId === b.id) { durum.degisiklikYaz(b.degisti); geriAlDugmeleriniGuncelle(b); }
   $('#arac-cubugu [data-komut="dosya.kaydet"]').disabled = !aktif()?.degisti;
@@ -197,6 +199,7 @@ async function belgeKapat(id, secenek = {}) {
   b.gorunum.yokEt();
   b.el.remove();
   cekirdek('belge_birak', { yol: b.yol }).catch(() => {});
+  if (b.gorunum.anlik) cekirdek('anlik_sil', { yol: b.gorunum.anlik }).catch(() => {});
   if (aktifId === id) {
     aktifId = null;
     const sonraki = sekmeler.mru[0] || sekmeler.sekmeler[0]?.id;
@@ -226,13 +229,26 @@ async function belgeKaydet(b, farkli = false, sessiz = false) {
     if (!hedef) return false;
   } else if (!b.degisti) { if (!sessiz) bildir('Kaydedilecek değişiklik yok.'); return true; }
   const islemler = b.notlar ? b.notlar.fark() : [];
+  const g = b.gorunum;
+  const yapisal = g.yapisalKirli() || !!g.anlik;
   b.kaydediliyor = true;
   durum.mesajYaz('Kaydediliyor…', 0);
   try {
-    const r = await cekirdek('notlar_kaydet', { yol: b.yol, hedef, islemler, artimli: true });
-    b.notlar?.kaydedildi(r.xrefler);
-    b.yigin?.kaydedildi();
-    b.boyut = r.boyut;
+    let r;
+    if (yapisal) {
+      const anlikKlasor = (await pdefe.cagir('uygulama:veriKlasoru')) + '\\anlik';
+      r = await cekirdek('yapisal_kaydet', { yol: b.yol, hedef, tarif: g.tarif(), anlikKlasor, anlik: g.anlik, islemler }, (i) => durum.mesajYaz(`Kaydediliyor… %${i.yuzde} ${i.mesaj || ''}`, 0));
+      if (r.anlik && !g.anlik) { g.anlik = r.anlik; g.kaynakYeniden(b.yol, r.anlik); b.notlar?.kaynakYeniden(b.yol, r.anlik); }
+      // Yapısal modda notların kayıtlı temeli anlık kopyadaki durumdur; yalnızca konumlar güncellenir
+      g.yapisalKaydedildi();
+      b.yigin?.kaydedildi();
+      b.boyut = r.boyut;
+    } else {
+      r = await cekirdek('notlar_kaydet', { yol: b.yol, hedef, islemler, artimli: true });
+      b.notlar?.kaydedildi(r.xrefler);
+      b.yigin?.kaydedildi();
+      b.boyut = r.boyut;
+    }
     if (farkli && !yolAyni(hedef, b.yol)) {
       b.yol = hedef; b.ad = dosyaAdi(hedef);
       sekmeler.guncelle(b.id, { ad: b.ad });
@@ -243,6 +259,7 @@ async function belgeKaydet(b, farkli = false, sessiz = false) {
     kirliGuncelle(b);
     if (aktifId === b.id) durum.boyutYaz(b.boyut);
     durum.mesajYaz(sessiz ? 'Otomatik kaydedildi' : 'Kaydedildi' + (r.artimli ? '' : ' (tam yazım)'));
+    cekirdek('belge_birak', { yol: b.yol }).catch(() => {});
     panel.yorumlariYenile();
     return true;
   } catch (e) {
@@ -317,6 +334,35 @@ function sayfaKonumuKaydet(b, hemen = false) {
   };
   clearTimeout(_konumZaman);
   if (hemen) yaz(); else _konumZaman = setTimeout(yaz, 1000);
+}
+
+// ---------------------------------------------------------------- sayfa düzeni komutları
+/** Tarifi geri alınabilir bir komut olarak uygular. tarif: [{kaynak:{yol,sayfa}, dondurme} | {kaynak:null, genislik, yukseklik}] */
+async function sayfaTarifiUygula(b, tarif, ad = 'Sayfa düzenini uygula') {
+  const g = b.gorunum;
+  b.notlar?.duzenleyiciBitir(true);
+  const eski = [...g.sayfalar];
+  const yeni = await g.tarifHazirla(tarif);
+  // Yeni kaynak dosyaların notlarını yükle
+  for (const t of tarif) if (t.kaynak && t.kaynak.yol && yolAnahtari(t.kaynak.yol) !== yolAnahtari(b.yol) && (!g.anlik || yolAnahtari(t.kaynak.yol) !== yolAnahtari(g.anlik))) await b.notlar?.kaynakYukle(t.kaynak.yol);
+  b.yigin.calistir(new Komut(ad, () => g.sayfalariAyarla(yeni), () => g.sayfalariAyarla(eski)));
+}
+
+/** Tek sayfa ya da tüm sayfaları kalıcı döndürme komutu. */
+function sayfalariDondur(b, sayfalar, derece, ad = 'Sayfaları döndür') {
+  const tarif = b.gorunum.tarif().map((t, i) => (!sayfalar || sayfalar.includes(i + 1) ? { ...t, dondurme: ((t.dondurme || 0) + derece + 360) % 360 } : t));
+  return sayfaTarifiUygula(b, tarif, ad);
+}
+
+function baglantiyaGit(b, l) {
+  const g = b.gorunum;
+  if (l.uri) { pdefe.cagir('kabuk:disAc', l.uri); return; }
+  if (l.sayfa) {
+    // Bağlantının hedefi kaynak dosyadaki sayfa; geçerli konumunu bul
+    const i = g.sayfalar.findIndex((s) => !s.bos && yolAnahtari(s.kaynak.yol) === yolAnahtari(l.kaynakYol) && s.kaynak.sayfa === l.sayfa);
+    if (i >= 0) { g.sayfayaGit(i + 1, { y: l.y != null ? l.y : undefined }); g.kaydirici.focus(); }
+    else bildir('Bağlantının hedef sayfası bu belgede yok.');
+  }
 }
 
 // ---------------------------------------------------------------- komutlar
@@ -652,7 +698,10 @@ async function paylas() {
 }
 
 // ---------------------------------------------------------------- diyaloglar
-function mesajKutusu(secenek) { return pdefe.cagir('mesaj:kutu', secenek); }
+function mesajKutusu(secenek) {
+  if (window.__pdefeOtoYanit) { console.warn('[test] mesaj kutusu otomatik yanıtlandı:', secenek.mesaj); return Promise.resolve({ secim: window.__pdefeOtoYanit.secim ?? 0, onay: false }); }
+  return pdefe.cagir('mesaj:kutu', secenek);
+}
 
 async function parolaSor(ad, neden) {
   return new Promise((coz, reddet) => {
@@ -752,5 +801,5 @@ document.addEventListener('click', (e) => {
     if (aktifYol) { const b = [...belgeler.values()].find((x) => yolAyni(x.yol, aktifYol)); if (b) sekmeSec(b.id); }
   }
   pdefe.gonder('uygulama:hazir');
-  window.__pdefe = { belgeler, aktif, dosyaAc, belgeKapat, sekmeSec, komutCalistir, ayar: () => ayar, panel, sekmeler, arama, temizMetin };
+  window.__pdefe = { belgeler, aktif, dosyaAc, belgeKapat, sekmeSec, komutCalistir, ayar: () => ayar, panel, sekmeler, arama, temizMetin, sayfaTarifiUygula, sayfalariDondur, belgeKaydet };
 })();

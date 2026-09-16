@@ -1,7 +1,7 @@
 // Notlar: okuma (referans okuyucu notları dahil), çizim katmanı, etkileşim (seç/taşı/sil/düzenle),
 // araçlar (yapışkan not, vurgu, yazı), açılır balon (yazar, tarih, içerik, yanıtlar),
 // komut deseniyle geri al/yinele ve kaydetme farkı (diff).
-import { CSS_BIRIM } from './goruntuleyici.js';
+import { CSS_BIRIM, yolAnahtari } from './goruntuleyici.js';
 import { Komut } from './komutlar.js';
 import { secimDikdortgenleri, satirlaraBirlestir } from './metin.js';
 import { turAdi, tarihBicimle } from './panel.js';
@@ -42,6 +42,7 @@ export class NotYoneticisi extends EventTarget {
     this.yuklendi = false;
 
     this.g.addEventListener('sayfaCizildi', (e) => this.cizSayfa(e.detail.sayfa));
+    this.g.addEventListener('sayfalar', () => this.sayfalarDegisti());
     this.g.addEventListener('yerlesim', () => { this.hepsiniCiz(); this.balonKonumla(); this.duzenleyiciKonumla(); });
     this.g.alan.addEventListener('pointerdown', (e) => this.pointerDown(e));
     this.g.alan.addEventListener('dblclick', (e) => this.ciftTik(e));
@@ -53,27 +54,62 @@ export class NotYoneticisi extends EventTarget {
 
   // ------------------------------------------------------------ yükleme ve model
   async yukle() {
-    let liste = [];
-    try { liste = (await this.cekirdek('notlar', { yol: this.belge.yol })).notlar; } catch (e) { console.warn('Notlar okunamadı', e); }
     this.notlar.clear();
-    const xrefIndex = new Map();
-    for (const n of liste) {
-      if (n.gizli || n.tur === 'Popup' || n.tur === 'Link' || n.tur === 'Widget') continue;
-      const not = { ...n, id: yeniId(), yeni: false, silindi: false, yanitlar: [], ustId: null };
-      this.notlar.set(not.id, not);
-      xrefIndex.set(not.xref, not);
-    }
-    for (const not of this.notlar.values()) {
-      if (not.yanitXref && xrefIndex.has(not.yanitXref)) { const ust = xrefIndex.get(not.yanitXref); ust.yanitlar.push(not.id); not.ustId = ust.id; }
-    }
+    await this.kaynakYukle(this.belge.yol);
     this.kayitliAnlikGoruntu();
     this.yuklendi = true;
     this.hepsiniCiz();
     this.dispatchEvent(new CustomEvent('yuklendi'));
   }
 
+  /** Bir kaynak dosyanın notlarını modele ekler (başka PDF'ten sayfa eklenince de çağrılır). */
+  async kaynakYukle(yol) {
+    const k = yolAnahtari(yol);
+    if (this.yuklenenKaynaklar?.has(k)) return;
+    (this.yuklenenKaynaklar ||= new Set()).add(k);
+    let liste = [];
+    try { liste = (await this.cekirdek('notlar', { yol })).notlar; } catch (e) { console.warn('Notlar okunamadı', yol, e); return; }
+    const xrefIndex = new Map();
+    for (const n of liste) {
+      if (n.gizli || n.tur === 'Popup' || n.tur === 'Link' || n.tur === 'Widget') continue;
+      const not = { ...n, id: yeniId(), yeni: false, silindi: false, yanitlar: [], ustId: null, kaynak: { yol, sayfa: n.sayfa } };
+      this.notlar.set(not.id, not);
+      xrefIndex.set(not.xref, not);
+    }
+    for (const not of xrefIndex.values()) {
+      if (not.yanitXref && xrefIndex.has(not.yanitXref)) { const ust = xrefIndex.get(not.yanitXref); ust.yanitlar.push(not.id); not.ustId = ust.id; }
+    }
+    this.sayfalarDegisti(false);
+    if (this.yuklendi) { this.kayitliEkle(xrefIndex.values()); this.hepsiniCiz(); }
+  }
+
+  kayitliEkle(notlar) { for (const n of notlar) if (!n.silindi) this.kayitli.set(n.id, this.anlik(n)); }
+
+  /** Sayfa listesi değişince (silme/sıralama/ekleme) notların konumlarını yeniden eşler. */
+  sayfalarDegisti(ciz = true) {
+    const konum = new Map();
+    this.g.sayfalar.forEach((s, i) => { if (!s.bos) { const k = yolAnahtari(s.kaynak.yol) + '#' + s.kaynak.sayfa; if (!konum.has(k)) konum.set(k, i + 1); } });
+    for (const n of this.notlar.values()) {
+      if (!n.kaynak || n.kaynak.bos) continue;   // boş sayfaya eklenen notlar sayfa nesnesini izler (kaynakGirdi)
+      const yeniSayfa = konum.get(yolAnahtari(n.kaynak.yol) + '#' + n.kaynak.sayfa);
+      n.sayfaYok = !yeniSayfa;
+      if (yeniSayfa) n.sayfa = yeniSayfa;
+    }
+    for (const n of this.notlar.values()) {
+      if (n.kaynakGirdi) { const i = this.g.sayfalar.indexOf(n.kaynakGirdi); n.sayfaYok = i < 0; if (i >= 0) n.sayfa = i + 1; }
+    }
+    if (ciz) { this.balonKapat(); this.hepsiniCiz(); this.degisti(); }
+  }
+
+  /** Özgün dosya anlık kopyaya taşındığında not kaynaklarını yeniden adlandırır. */
+  kaynakYeniden(eskiYol, yeniYol) {
+    const ek = yolAnahtari(eskiYol);
+    for (const n of this.notlar.values()) if (n.kaynak && n.kaynak.yol && yolAnahtari(n.kaynak.yol) === ek) n.kaynak = { ...n.kaynak, yol: yeniYol };
+    if (this.yuklenenKaynaklar?.has(ek)) { this.yuklenenKaynaklar.delete(ek); this.yuklenenKaynaklar.add(yolAnahtari(yeniYol)); }
+  }
+
   anlik(not) {
-    const { id, yeni, silindi, yanitlar, ustId, ...gerisi } = not;
+    const { id, yeni, silindi, yanitlar, ustId, kaynak, kaynakGirdi, sayfaYok, sayfa, ...gerisi } = not;
     return JSON.stringify(gerisi);
   }
 
@@ -84,7 +120,7 @@ export class NotYoneticisi extends EventTarget {
 
   /** Üst düzey (yanıt olmayan), silinmemiş notlar; sayfa ve konuma göre sıralı. */
   liste() {
-    return [...this.notlar.values()].filter((n) => !n.silindi && !n.ustId).sort((a, b) => a.sayfa - b.sayfa || a.rect[1] - b.rect[1] || a.rect[0] - b.rect[0]);
+    return [...this.notlar.values()].filter((n) => !n.silindi && !n.ustId && !n.sayfaYok).sort((a, b) => a.sayfa - b.sayfa || a.rect[1] - b.rect[1] || a.rect[0] - b.rect[0]);
   }
   sayfaNotlari(sayfa) { return this.liste().filter((n) => n.sayfa === sayfa); }
   yanitlari(not) { return (not.yanitlar || []).map((id) => this.notlar.get(id)).filter((y) => y && !y.silindi).sort((a, b) => (a.olusturma || '').localeCompare(b.olusturma || '')); }
@@ -96,9 +132,10 @@ export class NotYoneticisi extends EventTarget {
     for (const n of sirali) {
       const kay = this.kayitli.get(n.id);
       const not = this.disaAktar(n);
-      if (!kay && !n.silindi) ops.push({ islem: 'ekle', id: n.id, not });
-      else if (kay && n.silindi) ops.push({ islem: 'sil', id: n.id, not: { xref: n.xref, sayfa: n.sayfa } });
-      else if (kay && this.anlik(n) !== kay) ops.push({ islem: 'guncelle', id: n.id, not });
+      const kaynak = n.kaynak && n.kaynak.yol ? { yol: n.kaynak.yol, sayfa: n.kaynak.sayfa } : null;
+      if (!kay && !n.silindi) { if (!n.sayfaYok) ops.push({ islem: 'ekle', id: n.id, not }); }
+      else if (kay && n.silindi) ops.push({ islem: 'sil', id: n.id, xref: n.xref, kaynak, not: { xref: n.xref, sayfa: n.sayfa } });
+      else if (kay && this.anlik(n) !== kay) { if (!n.sayfaYok) ops.push({ islem: 'guncelle', id: n.id, xref: n.xref, kaynak, not }); }
     }
     return ops;
   }
@@ -108,7 +145,7 @@ export class NotYoneticisi extends EventTarget {
     if (n.tur === 'Highlight') d.quads = n.quadKutular || quadKutulari(n.quads);
     if (n.tur === 'Text') d.simge = n.simge || 'Comment';
     if (n.tur === 'FreeText') d.yazi = n.yazi;
-    if (n.ustId) { const ust = this.notlar.get(n.ustId); if (ust) { if (ust.xref) d.yanitXref = ust.xref; d.yanitId = ust.id; } }
+    if (n.ustId) { const ust = this.notlar.get(n.ustId); if (ust) { if (ust.xref) d.yanitXref = ust.xref; d.yanitId = ust.id; if (ust.kaynak && ust.kaynak.yol) d.yanitKaynak = { yol: ust.kaynak.yol, sayfa: ust.kaynak.sayfa }; } }
     return d;
   }
 
@@ -214,7 +251,8 @@ export class NotYoneticisi extends EventTarget {
     let src = this.pixmapOnbellek.get(anahtar);
     if (!src) {
       try {
-        const r = await this.cekirdek('not_gorunum', { yol: this.belge.yol, sayfa: n.sayfa, xref: n.xref, olcek });
+        if (!n.kaynak || !n.kaynak.yol) { el.classList.add('not-bilinmeyen'); return; }
+        const r = await this.cekirdek('not_gorunum', { yol: n.kaynak.yol, sayfa: n.kaynak.sayfa, xref: n.xref, olcek });
         src = 'data:image/png;base64,' + r.png;
         this.pixmapOnbellek.set(anahtar, src);
       } catch (e) { el.classList.add('not-bilinmeyen'); return; }
@@ -285,6 +323,7 @@ export class NotYoneticisi extends EventTarget {
 
   ekle(not) {
     not.id = not.id || yeniId(); not.yeni = true; not.silindi = false; not.yanitlar = not.yanitlar || []; not.ustId = not.ustId || null;
+    if (!not.kaynak) { const s = this.g.sayfalar[not.sayfa - 1]; if (s) { not.kaynak = s.bos ? { bos: true } : { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa }; not.kaynakGirdi = s; } }
     not.olusturma = not.olusturma || simdiPdfTarih(); not.degisim = not.olusturma;
     this.calistir(`${turAdi(not.tur)} ekle`,
       () => { this.notlar.set(not.id, not); not.silindi = false; if (not.ustId) { const u = this.notlar.get(not.ustId); if (u && !u.yanitlar.includes(not.id)) u.yanitlar.push(not.id); } this.cizSayfa(not.sayfa); },
@@ -596,7 +635,7 @@ export class NotYoneticisi extends EventTarget {
   async yaziDuzenle(n) {
     if (n.kilitli) return;
     if (!n.yazi) {
-      try { const r = await this.cekirdek('freetext_stil', { yol: this.belge.yol, sayfa: n.sayfa, xref: n.xref }); n.yazi = r.stil; if (!n.icerik) n.icerik = r.icerik; }
+      try { const r = await this.cekirdek('freetext_stil', { yol: n.kaynak.yol, sayfa: n.kaynak.sayfa, xref: n.xref }); n.yazi = r.stil; if (!n.icerik) n.icerik = r.icerik; }
       catch { n.yazi = this.varsayilanYazi(); }
     }
     this.duzenleyiciAc(n, false);

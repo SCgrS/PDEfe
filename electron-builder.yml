@@ -1,0 +1,85 @@
+# PDEfe — electron-builder yapılandırması (Windows, NSIS kurulum sihirbazı, GitHub Releases yayımı)
+# package.json'da "build" alanı YOK; electron-builder bu dosyayı okur (npm run dist / electron-builder --win).
+
+appId: com.cgrshn.pdefe
+productName: PDEfe
+copyright: "Geliştirici: x.com/CgrShn"
+
+directories:
+  output: release
+  buildResources: build
+
+# Uygulama dosyaları asar arşivine konur. pdefe-core.exe asar dışında, resources/ altında durur.
+asar: true
+compression: normal
+npmRebuild: false
+nodeGypRebuild: false
+
+# Uygulamaya girecek dosyalar. package.json otomatik eklenir; üretim bağımlılıkları (dependencies)
+# node_modules'dan otomatik toplanır (pdfjs-dist'in cmaps, standard_fonts, wasm, iccs, build klasörleri dahil).
+# Aşağıdaki "!" desenleri yalnızca gereksiz parçaları çıkarır.
+files:
+  - "src/**/*"
+  - "build/icon.*"
+  - "package.json"
+  - "THIRD_PARTY.md"
+  - "!**/*.map"
+  - "!node_modules/pdfjs-dist/legacy/**"
+  - "!node_modules/pdfjs-dist/types/**"
+  - "!node_modules/pdfjs-dist/web/**"
+  - "!node_modules/pdfjs-dist/image_decoders/**"
+  - "!node_modules/pdfjs-dist/webpack.mjs"
+  - "!node_modules/pdfjs-dist/build/pdf.sandbox*"
+  - "!**/{CHANGELOG.md,README.md,CODE_OF_CONDUCT.md,.github,.editorconfig,.eslintrc*,tsconfig.json}"
+
+# Python çekirdeği: cekirdek.js paketliyken process.resourcesPath/pdefe-core.exe bekler.
+# core/dist/pdefe-core.exe "npm run cekirdek:derle" (build/cekirdek-derle.mjs, PyInstaller) ile üretilir.
+extraResources:
+  - from: core/dist/pdefe-core.exe
+    to: pdefe-core.exe
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+  artifactName: "PDEfe-Setup.${ext}"
+  requestedExecutionLevel: asInvoker
+  # .pdf ilişkilendirmesi. DİKKAT (app-builder-lib/out/targets/nsis/NsisTarget.js, APP_ASSOCIATE çağrısı):
+  # "name" alanı kayıt defterindeki ProgId (dosya sınıfı) olur, "description" Gezgin'de görünen türdür.
+  # ProgId: PDEfe.pdf  →  HKCU\Software\Classes\PDEfe.pdf ve HKCU\Software\Classes\.pdf\OpenWithProgids
+  fileAssociations:
+    - ext: pdf
+      name: PDEfe.pdf
+      description: PDF belgesi
+      role: Viewer
+      icon: build/icon.ico
+  publish:
+    provider: github
+    owner: CgrShn
+    repo: PDEfe
+    releaseType: release
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  # electron-builder'ın kendi sihirbazında masaüstü kısayolu için onay kutusu yoktur; kısayol her zaman
+  # oluşturulur. build/installer.nsh "Ek görevler" sayfasıyla seçilebilir hale getirir (bkz. customPageAfterChangeDir).
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: PDEfe
+  installerLanguages:
+    - tr_TR
+  language: "1055"
+  license: LICENSE
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+  include: build/installer.nsh
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  uninstallDisplayName: PDEfe
+  artifactName: "PDEfe-Setup.${ext}"
+  differentialPackage: true

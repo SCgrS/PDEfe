@@ -16,6 +16,11 @@ import traceback
 
 import pymupdf
 
+# Betik doğrudan çalıştırıldığında modül adı __main__ olur; alt modüller "from pdefe_core import onbellek"
+# dediğinde ikinci bir kopya yüklenmesin diye kendimizi pdefe_core adıyla da kaydediyoruz.
+if __name__ == "__main__":
+    sys.modules["pdefe_core"] = sys.modules[__name__]
+
 SURUM = "0.1.0"
 
 # ---------------------------------------------------------------- belge önbelleği

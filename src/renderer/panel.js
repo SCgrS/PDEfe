@@ -95,7 +95,10 @@ export class SolPanel extends EventTarget {
       const el = document.createElement('div');
       el.className = 'kucuk-resim' + (no === b.gorunum.gecerli ? ' gecerli' : '');
       el.dataset.sayfa = String(no);
-      el.innerHTML = `<div class="bos" style="width:${genislik}px;height:${Math.round(genislik * oran)}px"></div><span class="no">${no}</span>`;
+      const d = ((s.dondurme || 0) % 360 + 360) % 360;
+      const gw = d % 180 === 0 ? genislik : Math.round(genislik / oran), gh = d % 180 === 0 ? Math.round(genislik * oran) : genislik;
+      el.innerHTML = `<div class="bos" style="width:${gw}px;height:${gh}px"></div><span class="no">${no}</span>`;
+      el.dataset.dondurme = String(d);
       el.addEventListener('click', () => this.dispatchEvent(new CustomEvent('sayfayaGit', { detail: { sayfa: no } })));
       alan.append(el);
       this._gozlemci.observe(el);
@@ -105,16 +108,23 @@ export class SolPanel extends EventTarget {
 
   async kucukResimYukle(b, no, genislik, el, onbellek) {
     try {
-      let src = onbellek.get(no);
+      const s = b.gorunum.sayfalar[no - 1];
+      if (!s) return;
+      if (s.bos) { el.querySelector('.bos')?.classList.add('bos-sayfa'); return; }
+      const anahtar = (s.kaynak.yol + '#' + s.kaynak.sayfa).toLowerCase();
+      let src = onbellek.get(anahtar);
       if (!src) {
-        const r = await this.cekirdek('kucuk_resim', { yol: b.yol, sayfa: no, genislik: genislik * Math.min(2, window.devicePixelRatio || 1) });
+        const r = await this.cekirdek('kucuk_resim', { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa, genislik: genislik * Math.min(2, window.devicePixelRatio || 1) });
         src = 'data:image/png;base64,' + r.png;
-        onbellek.set(no, src);
+        onbellek.set(anahtar, src);
       }
       if (!el.isConnected) return;
+      const d = +el.dataset.dondurme || 0;
       const img = document.createElement('img');
-      img.width = genislik; img.src = src; img.draggable = false;
-      el.querySelector('.bos')?.replaceWith(img);
+      img.src = src; img.draggable = false;
+      if (d % 180 === 0) img.style.width = genislik + 'px'; else img.style.height = genislik + 'px';
+      if (d) { img.style.transform = `rotate(${d}deg)`; const sarmal = document.createElement('div'); sarmal.className = 'donuk'; sarmal.style.width = el.querySelector('.bos').style.width; sarmal.style.height = el.querySelector('.bos').style.height; sarmal.append(img); el.querySelector('.bos')?.replaceWith(sarmal); }
+      else el.querySelector('.bos')?.replaceWith(img);
     } catch (e) { console.warn('Küçük resim alınamadı', no, e.message); }
   }
 
