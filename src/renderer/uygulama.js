@@ -7,12 +7,15 @@ import { Arama } from './arama.js';
 import { temizMetin, hamMetin, secimDikdortgenleri, satirlaraBirlestir, paragrafSec, secimHamMetni, secimYapiliMetni } from './metin.js';
 import { NotYoneticisi, VURGU_RENKLERI } from './notlar.js';
 import { KomutYigini, Komut } from './komutlar.js';
+import { ayarlarPenceresiAc } from './ayarlarPenceresi.js';
+import { yazdir } from './yazdir.js';
 
 const $ = (s) => document.querySelector(s);
 const pdefe = window.pdefe;
 
 // ---------------------------------------------------------------- durum
 let ayar = {};
+let varsayilanlar = {};
 const belgeler = new Map();     // id → Belge
 let aktifId = null;
 let sayac = 0;
@@ -51,6 +54,7 @@ arama.addEventListener('notaGit', (e) => { const b = e.detail.belge; const n = [
 // ---------------------------------------------------------------- ayarlar ve tema
 async function ayarlariYukle() {
   ayar = await pdefe.cagir('ayar:al');
+  varsayilanlar = await pdefe.cagir('ayar:varsayilanlar').catch(() => ({}));
   sistemKoyu = await pdefe.cagir('tema:sistemKoyu');
   temaUygula();
   panel.genislikAyarla(ayar.solPanelGenislik || 240);
@@ -68,6 +72,17 @@ function temaUygula() {
 }
 
 pdefe.dinle('tema:sistem', (koyu) => { sistemKoyu = koyu; temaUygula(); });
+
+/** Ayarlar penceresinden gelen değişiklikleri canlı uygular. */
+function ayarUygula(anahtar, deger) {
+  switch (anahtar) {
+    case 'tema': case 'sayfayiKoyulastir': temaUygula(); break;
+    case 'vurguRengi': secimCubuguYenile(); break;
+    case 'otomatikKaydet': if (deger) for (const b of belgeler.values()) if (b.degisti) kirliGuncelle(b); break;
+    case 'varsayilanDuzen': { const b = aktif(); if (b && deger) b.gorunum.duzenAyarla(deger); break; }
+    default: break;   // yazarAdi, yazı tipi, temizMetin vb. ayar nesnesinden okunur; anında etkili
+  }
+}
 
 // ---------------------------------------------------------------- belge açma / kapatma
 async function dosyaAc(yol, secenek = {}) {
@@ -375,7 +390,7 @@ const komutlar = {
   'not.arac': (arac) => { const b = aktif(); if (b) b.notlar.aracSec(arac); },
   'not.sil': () => aktif()?.notlar.silSecili(),
   'dosya.klasordeGoster': () => { const b = aktif(); if (b) pdefe.cagir('kabuk:klasordeGoster', b.yol); },
-  'dosya.yazdir': () => bildir('Yazdırma bir sonraki aşamada eklenecek.'),
+  'dosya.yazdir': () => { const b = aktif(); if (!b) { bildir('Yazdırılacak belge yok.'); return; } return yazdir({ cekirdek, pdefe, mesajKutusu, bildir, kaydet: (belge) => belgeKaydet(belge) }, b); },
   'sekme.kapat': () => { if (aktifId) belgeKapat(aktifId); else pdefe.cagir('pencere:kapat'); },
   'duzen.geriAl': () => { const b = aktif(); if (!b) return; if (girdideMi()) { document.execCommand('undo'); return; } const k = b.yigin.geriAl(); if (k) durum.mesajYaz('Geri alındı: ' + k.ad); },
   'duzen.yinele': () => { const b = aktif(); if (!b) return; if (girdideMi()) { document.execCommand('redo'); return; } const k = b.yigin.yinele(); if (k) durum.mesajYaz('Yinelendi: ' + k.ad); },
@@ -383,7 +398,7 @@ const komutlar = {
   'duzen.bul': (metin) => { if (aktif()) arama.ac(typeof metin === 'string' ? metin : (secimHamMetni().trim().split('\n')[0] || '')); },
   'duzen.bulSonraki': () => arama.git(1), 'duzen.bulOnceki': () => arama.git(-1),
   'duzen.sayfayaGit': () => { const k = $('#sayfa-kutusu'); k.focus(); k.select(); },
-  'duzen.ayarlar': () => bildir('Ayarlar penceresi bir sonraki aşamada eklenecek.'),
+  'duzen.ayarlar': () => ayarlarPenceresiAc({ ayar: () => ayar, ayarKoy, uygula: ayarUygula, pdefe, varsayilanlar, cekirdek }),
   'gorunum.yakinlastir': () => aktif()?.gorunum.yakinlastir(1),
   'gorunum.uzaklastir': () => aktif()?.gorunum.yakinlastir(-1),
   'gorunum.zoom': (mod) => { const b = aktif(); if (!b) return; if (mod === 'gercek') b.gorunum.zoomAyarla(1, null, 'serbest'); else b.gorunum.zoomModuAyarla(mod); },
@@ -405,7 +420,7 @@ const komutlar = {
   'arac.dondurKaydet': () => bildir('Döndür ve kaydet sonraki aşamada.'),
   'yardim.kisayollar': () => kisayollarGoster(),
   'yardim.guncelle': () => bildir('Güncelleme denetimi sonraki aşamada.'),
-  'yardim.hakkinda': () => hakkindaGoster(),
+  'yardim.hakkinda': () => ayarlarPenceresiAc({ ayar: () => ayar, ayarKoy, uygula: ayarUygula, pdefe, varsayilanlar, cekirdek }, { bolum: 'hakkinda' }),
 };
 
 function komutCalistir(id, veri) {

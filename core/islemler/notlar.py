@@ -423,7 +423,7 @@ def y_form_gorunum(p):
     mat = pymupdf.Matrix(olcek, olcek)
     irect = (page.rect * mat).irect
     pix = pymupdf.Pixmap(pymupdf.csRGB, irect, True)
-    pix.clear_with(0)
+    mupdf.fz_clear_pixmap(pix.this)          # saydam siyah (clear_with alfayı 255 yapıyor)
     dev = mupdf.fz_new_draw_device(mupdf.FzMatrix(), pix.this)
     try:
         mupdf.fz_run_page_widgets(page.this, dev, mupdf.FzMatrix(olcek, 0, 0, olcek, 0, 0), mupdf.FzCookie())

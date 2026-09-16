@@ -1,0 +1,157 @@
+# PDEfe
+
+### [⬇ PDEfe-Setup.exe indir](https://github.com/CgrShn/PDEfe/releases/latest/download/PDEfe-Setup.exe)
+
+Windows 11 (ve Windows 10) için Türkçe, sekmeli **PDF görüntüleyici ve düzenleyici**. Hukukçuların ve
+her gün onlarca PDF açan herkesin işini görmek için yazıldı: belgeler sekmelerde açılır, metin kopyalandığında
+satır sonları ve tireler temizlenir, arama Türkçe karakterleri doğru tanır, eklenen notlar referans okuyucuda aynen görünür.
+
+Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
+
+## Ne yapar
+
+- **Sekmeler.** Birden çok PDF tek pencerede; sekmeler sürüklenerek sıralanır. `Ctrl+Tab` basılı tutulunca
+  son kullanılan sırayla sekme seçici açılır; `Ctrl+1…9` ile doğrudan sekmeye gidilir. Açık sekmeler ve
+  kalınan sayfa bir sonraki açılışta geri gelir.
+- **Temiz kopyalama.** Seçilen metin panoya yapıştırıldığında satır sonlarındaki tireler birleştirilir,
+  girintiler ve paragraflar korunur, bozuk glifler düzeltilir. İstenirse ham kopyalama.
+- **Türkçe arama.** `Ctrl+F` ile bul: İ/ı ve I/ı ayrımı doğru, tam sözcük seçeneği, yer imlerinde ve
+  yorumlarda arama, tüm açık sekmelerde arama. Word 2010'un bozuk Türkçe kodlaması (Ġ→İ, ġ→Ş, Ģ→ş) hem
+  görünen metinde hem aramada düzeltilir.
+- **referans okuyucu uyumlu notlar.** Vurgu, yapışkan not, yanıt ve serbest yazı ekleme; taşıma, düzenleme, silme.
+  Yazılar Türkçe karakterli Windows fontuyla (Segoe UI, Arial, Times, Calibri) belgeye gömülür; referans okuyucuda ve UYAP'ta aynı görünür. Kaydetme artımlıdır: belgenin geri kalanına dokunulmaz.
+- **Geri al / yinele.** Her not işlemi `Ctrl+Z` / `Ctrl+Y` ile geri alınır; kayıttan sonra bile.
+- **Araçlar** (sonraki sürümlerde): PDF küçült, sayfaları düzenle, ayır, birleştir, görüntü → PDF, döndür ve kaydet.
+- **Paylaş.** Belgeyi dosya olarak panoya kopyalar; UYAP'a, e-postaya ya da Gezgin'e `Ctrl+V` ile yapıştırılır.
+- **Koyu mod.** Sistem temasını izler; istenirse sayfa da koyulaştırılır (görseller korunur).
+- Sayfa düzenleri (tek, sürekli, iki sayfa, kapak ayrı), %6400'e kadar yakınlaştırma, döndürme, okuma modu,
+  tam ekran, sol panelde küçük resimler / İçindekiler / Yorumlar, parola korumalı belgeler, sürükle-bırak.
+
+## Ekran görüntüleri
+
+![Ana pencere: sekmeler, sol panel ve notlar](docs/ekran-ana.png)
+
+![Temiz kopyalama ve arama](docs/ekran-arama.png)
+
+![Not ekleme ve referans okuyucuda görünümü](docs/ekran-notlar.png)
+
+## Kurulum
+
+1. Yukarıdaki bağlantıdan `PDEfe-Setup.exe` dosyasını indirin (Windows 10/11, 64 bit; yönetici hakkı gerekmez).
+2. Dosyaya **çift tıklayın**.
+3. Dosya imzalı olmadığı için Windows SmartScreen uyarı gösterebilir: **Daha fazla bilgi** yazısına, sonra
+   **Yine de çalıştır** düğmesine basın. Bu uyarı kod imzalama sertifikası olmadığından çıkar; her yeni
+   sürümde tekrarlanabilir.
+4. Sihirbaz Türkçedir: lisans, kurulum klasörü (varsayılan `%LOCALAPPDATA%\Programs\PDEfe`), **Ek görevler**
+   sayfasında masaüstü kısayolu seçeneği. Başlat menüsüne **PDEfe** kısayolu eklenir ve `.pdf` dosyaları
+   "Birlikte aç" menüsünde PDEfe ile görünür.
+5. Son sayfada **PDEfe'yi başlat** ve **PDEfe'yi varsayılan PDF görüntüleyici yap** seçenekleri vardır.
+
+### Varsayılan PDF görüntüleyici yapma
+
+Windows 11'de varsayılan uygulamayı yalnızca kullanıcı seçebilir; kurulum bunu kendiliğinden değiştiremez.
+İki yol:
+
+- Kurulumun son sayfasında **PDEfe'yi varsayılan PDF görüntüleyici yap** kutusunu işaretleyin: Windows
+  Ayarlar'ın **Varsayılan uygulamalar › PDEfe** sayfası açılır; `.pdf` satırında **PDEfe**'yi seçin.
+- Daha sonra: **Ayarlar › Uygulamalar › Varsayılan uygulamalar › PDEfe** ya da PDEfe içinde
+  **Ayarlar › Varsayılan PDF görüntüleyici yap**. Bir `.pdf` dosyasına sağ tıklayıp **Birlikte aç › Başka bir
+  uygulama seç › PDEfe › Her zaman** de olur.
+
+### Güncelleme
+
+PDEfe açıldıktan kısa süre sonra ve günde bir kez GitHub'dan yeni sürüm olup olmadığına bakar. Yeni sürüm
+varsa pencerenin üstünde bir şerit çıkar: **Güncellemeyi yükle** paketi indirir (yalnızca değişen kısımlar,
+ilerleme çubuğuyla), sonra **Şimdi yeniden başlat ve kur** ile uygulama kapanıp yeni sürümle açılır;
+ayarlarınıza ve açık sekmelerinize dokunulmaz. Şeridi **×** ile kapatırsanız o oturumda bir daha görünmez.
+İstediğiniz an **Yardım › Güncellemeleri denetle** ile elle de bakabilirsiniz; otomatik denetim
+**Ayarlar › Güncelleme** altından kapatılır.
+
+Sürüm notları: [CHANGELOG.md](CHANGELOG.md) ve [Sürümler sayfası](https://github.com/CgrShn/PDEfe/releases).
+
+### Kaldırma
+
+**Ayarlar › Uygulamalar › Yüklü uygulamalar › PDEfe › Kaldır**. Ayarlarınız (`%APPDATA%\PDEfe\ayarlar.json`)
+silinmez; isterseniz o klasörü elle silebilirsiniz. Kurulum sistem klasörlerine ve HKLM'ye yazmaz.
+
+## Klavye kısayolları
+
+| Kısayol | İşlev |
+| --- | --- |
+| `Ctrl+O` | PDF aç |
+| `Ctrl+S` / `Ctrl+Shift+S` | Kaydet / Farklı kaydet |
+| `Ctrl+W` | Sekmeyi kapat |
+| `Ctrl+P` | Yazdır |
+| `Ctrl+F` | Bul |
+| `F3` / `Shift+F3` | Sonraki / önceki eşleşme |
+| `Ctrl+G` | Sayfaya git |
+| `Ctrl+Z` / `Ctrl+Y` | Geri al / yinele |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Sonraki / önceki sekme (basılı tutunca seçici açılır) |
+| `Ctrl+1` … `Ctrl+9` | Sekme seç (`9`: son sekme) |
+| `Ctrl+fare tekerleği`, `Ctrl++` / `Ctrl+−` | Yakınlaştır / uzaklaştır |
+| `Ctrl+0` | Gerçek boyut |
+| `Ctrl+Shift++` / `Ctrl+Shift+−` | Görünümü döndür |
+| `F4` | Sol panel |
+| `Ctrl+H` | Okuma modu |
+| `F11` | Tam ekran |
+| `←` `→`, `PageUp` `PageDown` | Önceki / sonraki sayfa |
+| `Home` / `End` | İlk / son sayfa |
+| `Ctrl+Home` / `Ctrl+End` | Belge başı / sonu |
+| `Delete` | Seçili notu sil |
+| `Esc` | Kapat / vazgeç |
+| `F1` | Kısayol listesi |
+
+## Verileriniz
+
+Bütün işlemler yereldir; belgeleriniz hiçbir yere gönderilmez, telemetri yoktur. Ağa yalnızca sürüm
+denetiminde (`github.com`) çıkılır. Ayarlar `%APPDATA%\PDEfe\ayarlar.json` dosyasındadır.
+
+## Geliştirme
+
+Gereksinimler: Node.js 22, Python 3.12 (proje içi `.venv`), Git. Windows'ta geliştirilir ve paketlenir.
+
+```bash
+git clone https://github.com/CgrShn/PDEfe.git
+cd PDEfe
+npm install
+
+# Python çekirdeği için sanal ortam (uv ile; pip de olur)
+uv venv .venv --python 3.12
+uv pip install --python .venv/Scripts/python.exe pymupdf fonttools pillow pyinstaller
+
+npm start                 # geliştirme: Electron + core/pdefe_core.py (.venv ile)
+npm run cekirdek:derle    # PyInstaller → core/dist/pdefe-core.exe
+npm run dist              # electron-builder → release/PDEfe-Setup.exe
+```
+
+- Arayüz `src/renderer` altında derleme adımı olmayan ES modülleridir; ana süreç `src/main` (Node ESM).
+- `core/pdefe_core.py` PyMuPDF tabanlı yardımcı süreçtir; ana süreçle stdio üzerinden satır başına bir JSON
+  (JSON-RPC benzeri) konuşur. Uzun işler `progress` mesajları gönderir.
+- Paketleme yapılandırması `electron-builder.yml`, kurulum sihirbazı eklemeleri `build/installer.nsh`.
+- Sürüm çıkarma: `package.json` sürümünü yükselt, `CHANGELOG.md`'ye bölüm ekle, `git tag vX.Y.Z` ve push;
+  `.github/workflows/yayim.yml` paketi derleyip GitHub Releases'e yükler (`PDEfe-Setup.exe`, `.blockmap`, `latest.yml`).
+- Mimari ve kararlar: [PLAN.md](PLAN.md).
+
+## Üçüncü taraf projeler
+
+PDEfe şu açık kaynak projelerin üzerine kuruludur (sürümler ve lisanslar için [THIRD_PARTY.md](THIRD_PARTY.md)):
+
+- **Electron** (MIT) — Chromium (BSD) ve Node.js (MIT) ile birlikte uygulama çatısı.
+- **PDF.js / pdfjs-dist** (Apache-2.0, Mozilla) — sayfa çizimi, metin katmanı, yer imleri.
+- **PyMuPDF** ve **MuPDF** (AGPL-3.0, Artifex) — belge işleme çekirdeği: notlar, kaydetme, küçük resimler.
+- **Python** (PSF), **fontTools** (MIT), **Pillow** (MIT-CMU), **PyInstaller** (GPL-2.0, önyükleyici istisnası).
+- **electron-builder / electron-updater** (MIT), **electron-store** (MIT), **pdf-lib** (MIT), **NSIS** (zlib).
+
+<!-- TEŞEKKÜR: kullanıcı onayı bekliyor — aşağıdaki bölüm proje sahibi onaylayınca yayımlanacak.
+## Teşekkür
+
+Bu uygulama, yukarıdaki projelerin geliştiricilerinin emeği üzerine kuruludur; her biri kendi lisansıyla
+kullanıldı. Özellikle Mozilla'nın PDF.js ekibine ve Artifex'in MuPDF ekibine teşekkürler.
+-->
+
+## Lisans
+
+PDEfe, **GNU Affero General Public License v3.0 (AGPL-3.0)** ile dağıtılır; tam metin [LICENSE](LICENSE)
+dosyasındadır. PDF motoru olarak kullanılan MuPDF ve PyMuPDF AGPL-3.0 lisanslı olduğundan PDEfe de aynı
+lisansı taşır: yazılımı kullanabilir, değiştirebilir ve dağıtabilirsiniz; değiştirilmiş sürümleri
+dağıtırken (ağ üzerinden sunmak dahil) kaynak kodunu aynı lisansla açmanız gerekir.

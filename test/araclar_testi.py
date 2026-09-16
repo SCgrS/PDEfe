@@ -408,7 +408,10 @@ def test_pano(c, g):
 def main():
     exe = None
     if "--exe" in sys.argv:
-        exe = sys.argv[sys.argv.index("--exe") + 1]
+        exe = os.path.abspath(sys.argv[sys.argv.index("--exe") + 1])
+        if not os.path.isfile(exe):
+            print("exe bulunamadı:", exe)
+            return 2
     os.makedirs(CIKTI, exist_ok=True)
     for yol in (TBK, NOTLU, GORSELLI, YATAY, YERIMLI, BUYUK, TTK):
         if not os.path.isfile(yol):

@@ -61,6 +61,7 @@ export function ayarlarPenceresiAc(baglam, secenek = {}) {
   for (const b of BOLUMLER) {
     const btn = document.createElement('button');
     btn.dataset.bolum = b.id;
+    btn.setAttribute('aria-label', b.ad);
     btn.innerHTML = `<svg viewBox="0 0 20 20"><path d="${b.simge}" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span></span>`;
     btn.querySelector('span').textContent = b.ad;
     btn.addEventListener('click', () => bolumSec(b.id));

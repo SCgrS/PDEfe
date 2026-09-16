@@ -18,6 +18,7 @@ gizli = [
     "islemler",
     "islemler.notlar",
     "islemler.araclar",
+    "islemler.yapisal",
     "fontTools.subset",
     "fontTools.ttLib",
     "PIL",

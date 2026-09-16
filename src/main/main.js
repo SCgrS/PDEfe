@@ -5,10 +5,11 @@ import fs from 'node:fs';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-import { ayarlar, ayarKoy, ayarAl } from './ayarlar.js';
+import { ayarlar, ayarKoy, ayarAl, VARSAYILANLAR } from './ayarlar.js';
 import { menuKur } from './menu.js';
 import { Cekirdek } from './cekirdek.js';
 import { panoyaDosyaKopyala } from './pano.js';
+import { yazdirmaKur } from './yazdir.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const KOK = app.getAppPath();                   // package.json'un bulunduğu kök
@@ -271,6 +272,8 @@ function ipcKur() {
   ipcMain.handle('cekirdek:cagir', (_e, yontem, params, istekId) =>
     cekirdek.cagir(yontem, params, (ilerleme) => pencereyeGonder('cekirdek:ilerleme', istekId, ilerleme)));
   ipcMain.handle('cekirdek:iptal', (_e, istekId) => cekirdek.iptal(istekId));
+  ipcMain.handle('ayar:varsayilanlar', () => VARSAYILANLAR);
+  yazdirmaKur({ ipcMain, BrowserWindow, pencereAl: () => pencere });
 }
 
 // ---------- Yaşam döngüsü ----------

@@ -128,21 +128,25 @@ jobs:
           }
           if (-not $notlar.Trim()) { $notlar = "Bu sürümün ayrıntıları için CHANGELOG.md dosyasına bakın.`n" }
 
-          $govde = @"
-### [⬇ PDEfe-Setup.exe indir](https://github.com/${{ github.repository }}/releases/download/$etiket/PDEfe-Setup.exe)
-
-Windows 10/11, 64 bit. Yönetici hakkı gerekmez; kurulum sihirbazı Türkçedir.
-
-**Kod imzalama sertifikası yok.** Windows SmartScreen uyarı gösterirse **Daha fazla bilgi → Yine de çalıştır** deyin.
-Kurulu PDEfe yeni sürümü kendisi bulur ve tek tıkla günceller.
-
-## Bu sürümde
-
-$notlar
----
-PDEfe-Setup.exe: $boyut MB · SHA-256 ``$sha``
-``latest.yml`` ve ``PDEfe-Setup.exe.blockmap`` otomatik güncelleme içindir; elle indirmeniz gerekmez.
-"@
+          # YAML blok içinde PowerShell here-string kullanılamaz (kapanış "@ sütun 0'da olmalı); satır listesi birleştirilir.
+          $k = [char]96   # ters tırnak (Markdown kod işareti)
+          $satirlar = @(
+            "### [⬇ PDEfe-Setup.exe indir](https://github.com/${{ github.repository }}/releases/download/$etiket/PDEfe-Setup.exe)",
+            "",
+            "Windows 10/11, 64 bit. Yönetici hakkı gerekmez; kurulum sihirbazı Türkçedir.",
+            "",
+            "**Kod imzalama sertifikası yok.** Windows SmartScreen uyarı gösterirse **Daha fazla bilgi → Yine de çalıştır** deyin.",
+            "Kurulu PDEfe yeni sürümü kendisi bulur ve tek tıkla günceller.",
+            "",
+            "## Bu sürümde",
+            "",
+            $notlar.TrimEnd(),
+            "",
+            "---",
+            "PDEfe-Setup.exe: $boyut MB · SHA-256 $k$sha$k",
+            "$($k)latest.yml$k ve $($k)PDEfe-Setup.exe.blockmap$k otomatik güncelleme içindir; elle indirmeniz gerekmez."
+          )
+          $govde = ($satirlar -join "`n") + "`n"
           $dosya = Join-Path $env:RUNNER_TEMP "surum-notlari.md"
           [System.IO.File]::WriteAllText($dosya, $govde, (New-Object System.Text.UTF8Encoding $false))
 
