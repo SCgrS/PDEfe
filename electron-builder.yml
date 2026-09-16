@@ -66,7 +66,7 @@ win:
     provider: github
     owner: SCgrS
     repo: PDEfe
-    releaseType: release
+    releaseType: draft
 
 nsis:
   oneClick: false
