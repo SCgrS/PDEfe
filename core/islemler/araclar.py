@@ -65,6 +65,24 @@ def _onbellek():
     return _cekirdek().onbellek
 
 
+def _onbellekten_birak(yol):
+    """Aynı dosyaya işaret eden BÜTÜN önbellek girdilerini kapatır. Önbellek anahtarı, renderer'ın
+    gönderdiği ham yoldur; aynı dosya 'c:\\PROJELER\\a.pdf' ve 'C:\\projeler\\a.pdf' gibi farklı
+    yazımlarla anahtarlanmış olabilir. Windows'ta açık tanıtıcı varken os.replace başarısız olduğundan
+    yazmadan önce hepsi bırakılmalı."""
+    onb = _onbellek()
+    hedef = os.path.normcase(os.path.abspath(yol))
+    for anahtar in list(onb.belgeler):
+        ayni = os.path.normcase(os.path.abspath(anahtar)) == hedef
+        if not ayni:
+            try:
+                ayni = os.path.samefile(anahtar, yol)
+            except OSError:
+                ayni = False
+        if ayni:
+            onb.birak(anahtar)
+
+
 def _ilerleme(p):
     f = p.get("_ilerleme")
     if callable(f):
@@ -364,9 +382,9 @@ def y_kucult(p):
     dpi, kalite = _seviye_cozumle(p.get("seviye", "onerilen"), p.get("dpi"), p.get("kalite"))
     _dosya_var(yol)
     onceki = os.path.getsize(yol)
-    onb = _onbellek()
-    onb.birak(yol)
-    onb.birak(hedef)
+    _onbellekten_birak(yol)
+    if os.path.exists(hedef):
+        _onbellekten_birak(hedef)
     ilerleme(2, "Belge açılıyor…")
     doc = _pdf_ac(yol)
     try:
@@ -461,11 +479,10 @@ def y_sayfalar_uygula(p):
             _meta_kopyala(ana, yeni)
             _yerimi_yaz(yeni, _yerimi_esle(ana_toc, esleme))
         ilerleme(85, "Kaydediliyor…")
-        # Hedef, kaynaklardan biri olabilir: yazmadan önce bırak
-        onb.birak(hedef)
-        for anahtar in kaynaklar:
-            if _ayni_dosya(anahtar, hedef):
-                onb.birak(anahtar)
+        # Hedef, kaynaklardan biri olabilir: yazmadan önce aynı dosyaya işaret eden her girdiyi bırak
+        # (insert_pdf nesneleri kopyaladığından kaynak belgelerin kapanması sonucu etkilemez)
+        if os.path.exists(hedef):
+            _onbellekten_birak(hedef)
         sayfa = yeni.page_count
         boyut = _kaydet(yeni, hedef, **YAPISAL_KAYIT)
     finally:
@@ -817,7 +834,6 @@ def y_birlestir(p):
         raise ValueError("Birleştirilecek öğe yok.")
     hedef = _mutlak(p.get("hedef"), "hedef")
     genel = p.get("genelKalite") or None
-    onb = _onbellek()
     yeni = pymupdf.open()
     toc_toplam = []
     ilk_pdf = None
@@ -856,7 +872,8 @@ def y_birlestir(p):
             pass
         _yerimi_yaz(yeni, toc_toplam)
         ilerleme(92, "Kaydediliyor…")
-        onb.birak(hedef)
+        if os.path.exists(hedef):
+            _onbellekten_birak(hedef)
         sayfa = yeni.page_count
         boyut = _kaydet(yeni, hedef, **KAYIT_SECENEKLERI)
     finally:
@@ -935,9 +952,9 @@ def y_dondur_kaydet(p):
     if derece == 0:
         raise ValueError("Döndürme derecesi 0; yapılacak bir şey yok.")
     _dosya_var(yol)
-    onb = _onbellek()
-    onb.birak(yol)
-    onb.birak(hedef)
+    _onbellekten_birak(yol)
+    if os.path.exists(hedef):
+        _onbellekten_birak(hedef)
     doc = _pdf_ac(yol)
     try:
         sayfalar = p.get("sayfalar")

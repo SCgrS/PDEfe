@@ -7,7 +7,9 @@ import { Arama } from './arama.js';
 import { temizMetin, hamMetin, secimDikdortgenleri, satirlaraBirlestir, paragrafSec, secimHamMetni, secimYapiliMetni } from './metin.js';
 import { NotYoneticisi, VURGU_RENKLERI } from './notlar.js';
 import { KomutYigini, Komut } from './komutlar.js';
-import { ayarlarPenceresiAc } from './ayarlarPenceresi.js';
+import { ayarlarPenceresiAc, ayarlarPenceresiKapat } from './ayarlarPenceresi.js';
+import { aracKomutlari } from './araclar/index.js';
+import { guncellemeSeridiKur } from './guncelleme.js';
 import { yazdir } from './yazdir.js';
 
 const $ = (s) => document.querySelector(s);
@@ -26,7 +28,10 @@ let ilerlemeSayac = 0;
 const cekirdek = (yontem, params, ilerleme) => {
   const istekId = ++ilerlemeSayac;
   if (ilerleme) ilerlemeDinleyiciler.set(istekId, ilerleme);
-  return pdefe.cagir('cekirdek:cagir', yontem, params, istekId).finally(() => ilerlemeDinleyiciler.delete(istekId));
+  const soz = pdefe.cagir('cekirdek:cagir', yontem, params, istekId).finally(() => ilerlemeDinleyiciler.delete(istekId));
+  soz.istekId = istekId;                                   // araç pencereleri iptal için kullanır
+  soz.iptal = () => pdefe.cagir('cekirdek:iptal', istekId);
+  return soz;
 };
 const ilerlemeDinleyiciler = new Map();
 pdefe.dinle('cekirdek:ilerleme', (istekId, ilerleme) => ilerlemeDinleyiciler.get(istekId)?.(ilerleme));
@@ -329,6 +334,13 @@ function sonDosyalariListele() {
 }
 
 let _oturumZaman = null;
+/** Oturumu (açık sekmeler + sayfa konumları) beklemeden yazar; güncelleme kurulumu ve kapatma öncesi. */
+function oturumKaydetHemen() {
+  clearTimeout(_oturumZaman);
+  for (const b of belgeler.values()) sayfaKonumuKaydet(b, true);
+  const liste = sekmeler.sekmeler.map((s) => belgeler.get(s.id)).filter(Boolean).map((b) => ({ yol: b.yol, sayfa: b.gorunum.gecerli, aktif: b.id === aktifId }));
+  return ayarKoy('acikSekmeler', liste);
+}
 function oturumKaydet() {
   clearTimeout(_oturumZaman);
   _oturumZaman = setTimeout(() => {
@@ -423,6 +435,25 @@ const komutlar = {
   'yardim.hakkinda': () => ayarlarPenceresiAc({ ayar: () => ayar, ayarKoy, uygula: ayarUygula, pdefe, varsayilanlar, cekirdek }, { bolum: 'hakkinda' }),
 };
 
+// Araç pencereleri (küçült, sayfaları düzenle, ayır, birleştir, görüntü/PDF birleştir, döndür ve kaydet)
+try {
+  Object.assign(komutlar, aracKomutlari({
+    aktif, cekirdek,
+    iptal: (istekId) => pdefe.cagir('cekirdek:iptal', istekId),
+    dosyaAc, kaydet: (b) => belgeKaydet(b), mesajKutusu, bildir, pdefe,
+    ayar: () => ayar, ayarKoy,
+    sayfaTarifiUygula: (b, tarif, ad) => sayfaTarifiUygula(b, tarif, ad),
+    dosyaYolu: (f) => pdefe.dosyaYolu(f),
+  }));
+} catch (e) { console.error('Araç komutları bağlanamadı', e); }
+
+// Güncelleme şeridi
+let guncelleme = null;
+try {
+  guncelleme = guncellemeSeridiKur({ pdefe, serit: $('#guncelleme-seridi'), bildir, kapatmadanOnce: () => oturumKaydetHemen() });
+  komutlar['yardim.guncelle'] = () => guncelleme.denetle();
+} catch (e) { console.error('Güncelleme şeridi kurulamadı', e); }
+
 function komutCalistir(id, veri) {
   const f = komutlar[id];
   if (!f) { console.warn('Bilinmeyen komut', id); return; }
@@ -441,7 +472,7 @@ pdefe.dinle('pencere:kapatIstegi', async () => {
     if (secim === 2) return;
     if (secim === 0 && !(await belgeKaydet(b))) return;
   }
-  for (const b of belgeler.values()) sayfaKonumuKaydet(b, true);
+  await oturumKaydetHemen();
   await pdefe.cagir('pencere:kapatOnayla');
 });
 
@@ -562,6 +593,8 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.key === 'Escape') {
     if (!$('#belge-listesi').hidden) { sekmeler.belgeListesiKapat(); return; }
+    if (document.querySelector('.ayarlar-ortusu')) { ayarlarPenceresiKapat(); return; }
+    if (document.querySelector('.arac-pencere, .diyalog-ortusu')) return;   // pencere kendi Esc'ini işler
     const n = aktif()?.notlar;
     if (n?.duzenleyici) { n.duzenleyiciBitir(false); return; }
     if (girdideMi()) { document.activeElement.blur(); aktif()?.gorunum.kaydirici.focus(); return; }

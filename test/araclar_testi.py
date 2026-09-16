@@ -206,6 +206,20 @@ def test_kucult(c):
     sonra = belge_ozet(kopya)
     ok = sonra["metin"] == once["metin"] and sonra["sayfa"] == once["sayfa"] and r["boyut"] == sonra["boyut"] and not os.path.exists(kopya + ".pdefe-tmp")
     kaydet_sonuc("kucult/ozel yerinde", "fdsafsd.pdf", ok, "%s → %s dpi=120 q=60" % (mb(r["oncekiBoyut"]), mb(r["boyut"])))
+    # Önbellekte FARKLI harf düzeniyle açıkken yerinde yazma (renderer ham yolu gönderir;
+    # 'c:\PROJELER\..' ile 'C:\projeler\..' aynı dosyadır; bırakılmazsa os.replace WinError 5 verir)
+    kopya2 = os.path.join(CIKTI, "kucult_onbellek_fdsafsd.pdf")
+    shutil.copy(GORSELLI, kopya2)
+    farkli = kopya2[0].swapcase() + kopya2[1:].replace("projeler", "PROJELER")
+    c.cagir("sayfa_boyutlari", {"yol": farkli})      # önbelleğe farklı anahtarla al
+    try:
+        r, _ = c.cagir("kucult", {"yol": kopya2, "hedef": kopya2, "seviye": "asiri"})
+        r2, _ = c.cagir("sayfalar_uygula", {"yol": kopya2, "hedef": kopya2,
+                                            "tarif": [{"kaynak": farkli, "sayfa": 1, "dondurme": 0}]})
+        kaydet_sonuc("kucult/onbellek", "farklı harf düzeniyle açıkken", r2["sayfa"] == 1 and r["boyut"] > 0,
+                     "kucult %s → %s, sonra sayfalar_uygula sayfa=%d" % (mb(r["oncekiBoyut"]), mb(r["boyut"]), r2["sayfa"]))
+    except Exception as e:
+        kaydet_sonuc("kucult/onbellek", "farklı harf düzeniyle açıkken", False, str(e).splitlines()[0])
     # hatalı seviye
     try:
         c.cagir("kucult", {"yol": GORSELLI, "hedef": kopya, "seviye": "yok"})

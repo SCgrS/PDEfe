@@ -12,6 +12,7 @@ export class Cekirdek {
     this.surec = null;
     this.sayac = 0;
     this.bekleyen = new Map();     // id → {coz, reddet, ilerleme}
+    this.istekEslemesi = new Map(); // renderer istek kimliği → çekirdek kimliği
     this.hazirSozu = null;
     this.kapaniyor = false;
   }
@@ -69,21 +70,28 @@ export class Cekirdek {
     else b.coz(m.result);
   }
 
-  gonder(yontem, params, ilerleme) {
+  gonder(yontem, params, ilerleme, istekId = null) {
     return new Promise((coz, reddet) => {
       if (!this.surec) { reddet(new Error('Çekirdek çalışmıyor.')); return; }
       const id = ++this.sayac;
       this.bekleyen.set(id, { coz, reddet, ilerleme });
+      if (istekId != null) this.istekEslemesi.set(istekId, id);
       this.surec.stdin.write(JSON.stringify({ id, method: yontem, params: params || {} }) + '\n');
     });
   }
 
-  async cagir(yontem, params, ilerleme) {
+  async cagir(yontem, params, ilerleme, istekId = null) {
     await this.baslat();
-    return this.gonder(yontem, params, ilerleme);
+    try { return await this.gonder(yontem, params, ilerleme, istekId); }
+    finally { if (istekId != null) this.istekEslemesi.delete(istekId); }
   }
 
-  iptal(istekId) { return this.gonder('iptal', { id: istekId }).catch(() => false); }
+  /** Renderer istek kimliğine karşılık gelen çalışan işi iptal eder. */
+  iptal(istekId) {
+    const id = this.istekEslemesi.get(istekId);
+    if (id == null) return Promise.resolve(false);
+    return this.gonder('iptal', { id }).then(() => true).catch(() => false);
+  }
 
   durdur() {
     this.kapaniyor = true;

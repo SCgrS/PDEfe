@@ -10,6 +10,9 @@ import { menuKur } from './menu.js';
 import { Cekirdek } from './cekirdek.js';
 import { panoyaDosyaKopyala } from './pano.js';
 import { yazdirmaKur } from './yazdir.js';
+import { guncellemeKur } from './guncelleme.js';
+import electronUpdater from 'electron-updater';
+const { autoUpdater } = electronUpdater;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const KOK = app.getAppPath();                   // package.json'un bulunduğu kök
@@ -270,7 +273,7 @@ function ipcKur() {
 
   // Çekirdek (PyMuPDF) çağrıları
   ipcMain.handle('cekirdek:cagir', (_e, yontem, params, istekId) =>
-    cekirdek.cagir(yontem, params, (ilerleme) => pencereyeGonder('cekirdek:ilerleme', istekId, ilerleme)));
+    cekirdek.cagir(yontem, params, (ilerleme) => pencereyeGonder('cekirdek:ilerleme', istekId, ilerleme), istekId));
   ipcMain.handle('cekirdek:iptal', (_e, istekId) => cekirdek.iptal(istekId));
   ipcMain.handle('ayar:varsayilanlar', () => VARSAYILANLAR);
   yazdirmaKur({ ipcMain, BrowserWindow, pencereAl: () => pencere });
@@ -280,6 +283,9 @@ function ipcKur() {
 app.whenReady().then(() => {
   protokolKur();
   ipcKur();
+  try {
+    guncellemeKur({ app, ipcMain, autoUpdater, pencereyeGonder, ayarAl, ayarKoy, kapatmayaHazirla: () => { kapatOnayli = true; } });
+  } catch (e) { console.error('[güncelleme] kurulamadı:', e); }
   bekleyenDosyalar.push(...argvdenPdfler(process.argv, process.cwd()));
   pencereOlustur();
   cekirdek.baslat().catch((e) => console.error('[çekirdek] başlatılamadı:', e));

@@ -13,6 +13,8 @@ import json
 import base64
 import time
 import traceback
+import threading
+import queue
 
 import pymupdf
 
@@ -286,7 +288,22 @@ def y_belge_birak(p):
     return {"ok": True}
 
 
+class IptalEdildi(Exception):
+    """Kullanıcı işlemi iptal etti (ilerleme noktasında fark edilir)."""
+
+
+_iptal_bayraklari = set()
+_iptal_kilidi = threading.Lock()
+
+
 def y_iptal(p):
+    """Verilen istek kimliği için iptal bayrağı koyar (ana iş parçacığında, kuyruğu beklemeden işlenir)."""
+    try:
+        hedef = int(p.get("id"))
+    except (TypeError, ValueError):
+        return {"ok": False}
+    with _iptal_kilidi:
+        _iptal_bayraklari.add(hedef)
     return {"ok": True}
 
 
@@ -317,15 +334,59 @@ def yaz(obj):
     sys.stdout.flush()
 
 
+_yaz_kilidi = threading.Lock()
+
+
+def yaz_guvenli(obj):
+    with _yaz_kilidi:
+        yaz(obj)
+
+
 def ilerleme_yap(istek_id):
     def f(yuzde, mesaj=""):
-        yaz({"id": istek_id, "progress": {"yuzde": yuzde, "mesaj": mesaj}})
+        with _iptal_kilidi:
+            iptal = istek_id in _iptal_bayraklari
+        if iptal:
+            raise IptalEdildi()
+        yaz_guvenli({"id": istek_id, "progress": {"yuzde": yuzde, "mesaj": mesaj}})
     return f
+
+
+def _istek_isle(istek):
+    istek_id = istek.get("id")
+    yontem = istek.get("method")
+    params = istek.get("params") or {}
+    f = YONTEMLER.get(yontem)
+    if not f:
+        yaz_guvenli({"id": istek_id, "error": {"code": -32601, "message": "Bilinmeyen yöntem: %s" % yontem}})
+        return
+    try:
+        params["_ilerleme"] = ilerleme_yap(istek_id)
+        sonuc = f(params)
+        yaz_guvenli({"id": istek_id, "result": sonuc})
+    except IptalEdildi:
+        yaz_guvenli({"id": istek_id, "error": {"code": -32800, "message": "İşlem iptal edildi."}})
+    except Exception as e:
+        yaz_guvenli({"id": istek_id, "error": {"code": -32000, "message": str(e), "data": traceback.format_exc()}})
+    finally:
+        with _iptal_kilidi:
+            _iptal_bayraklari.discard(istek_id)
+
+
+def _isci(kuyruk):
+    while True:
+        istek = kuyruk.get()
+        if istek is None:
+            return
+        _istek_isle(istek)
 
 
 def main():
     sys.stdin.reconfigure(encoding="utf-8", errors="replace")
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    kuyruk = queue.Queue()
+    isci = threading.Thread(target=_isci, args=(kuyruk,), daemon=True)
+    isci.start()
     for satir in sys.stdin:
         satir = satir.strip()
         if not satir:
@@ -333,21 +394,15 @@ def main():
         try:
             istek = json.loads(satir)
         except Exception as e:
-            yaz({"id": None, "error": {"code": -32700, "message": "Bozuk JSON: %s" % e}})
+            yaz_guvenli({"id": None, "error": {"code": -32700, "message": "Bozuk JSON: %s" % e}})
             continue
-        istek_id = istek.get("id")
-        yontem = istek.get("method")
-        params = istek.get("params") or {}
-        f = YONTEMLER.get(yontem)
-        if not f:
-            yaz({"id": istek_id, "error": {"code": -32601, "message": "Bilinmeyen yöntem: %s" % yontem}})
+        if istek.get("method") == "iptal":
+            # Kuyruğu beklemeden, çalışan işe bayrak koy
+            yaz_guvenli({"id": istek.get("id"), "result": y_iptal(istek.get("params") or {})})
             continue
-        try:
-            params["_ilerleme"] = ilerleme_yap(istek_id)
-            sonuc = f(params)
-            yaz({"id": istek_id, "result": sonuc})
-        except Exception as e:
-            yaz({"id": istek_id, "error": {"code": -32000, "message": str(e), "data": traceback.format_exc()}})
+        kuyruk.put(istek)
+    kuyruk.put(None)
+    isci.join(timeout=5)
 
 
 if __name__ == "__main__":

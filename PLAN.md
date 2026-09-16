@@ -65,11 +65,11 @@ notlar_kaydet, freetext_stil, baglantilar, form_gorunum (+ araçlar).
 - **Arama**: PDF.js metin öğelerinden dizin, `toLocaleLowerCase('tr')` ile İ/ı doğru; bozuk glif düzeltmesi dizine de uygulanır.
 
 ## Durum (2026-09-16)
-- [x] Açma/sekme/görüntüleme, düzenler, zoom, döndürme, sol panel, koyu tema, oturum/son dosya, Ctrl+Tab seçici
-- [x] Metin seçme, temiz kopyalama, arama
-- [x] Notlar: referans okuyucu notlarını gösterme, vurgu/yapışkan not/yanıt/yazı ekleme, taşıma, silme, geri al/yinele, kaydetme
-- [ ] Araçlar: küçült, sayfaları düzenle, ayır, birleştir, görüntü/PDF birleştir, döndür ve kaydet
-- [ ] Sayfa düzeni komutları (tarif) ve yapısal kaydetme; koyu sayfa (görselleri koru); bağlantılar; form alanları
-- [ ] Ayarlar penceresi, yazdırma
-- [ ] Güncelleme, kurulum (NSIS, .pdf ilişkilendirme), GitHub Actions, README/CHANGELOG/THIRD_PARTY/LICENSE
-- [ ] Kullanıcı doğrulaması: PDEfe notlarının referans okuyucuda görünmesi
+- [x] Açma/sekme/görüntüleme, düzenler, zoom (görünür alana sığdır dahil), döndürme, sol panel, koyu tema (sayfayı koyulaştır, görselleri koru), oturum/son dosya, Ctrl+Tab seçici
+- [x] Metin seçme, temiz kopyalama, arama; bağlantılar (iç/dış), form alanları (görüntü)
+- [x] Notlar: referans okuyucu notlarını gösterme, vurgu/yapışkan not/yanıt/yazı ekleme, taşıma, silme, geri al/yinele, artımlı kaydetme
+- [x] Sayfa tarifi komutları (sil/sırala/döndür/boş sayfa/başka PDF'ten sayfa) ve yapısal kaydetme (anlık kopya), kayıttan sonra geri al
+- [x] Ayarlar penceresi, yazdırma (çekirdek görüntüleriyle, Windows diyaloğu)
+- [~] Araçlar (küçült, sayfaları düzenle, ayır, birleştir, görüntü/PDF birleştir, döndür ve kaydet): çekirdek ve pencereler yazıldı, bütünleştirme/doğrulama sürüyor
+- [~] Güncelleme, kurulum (NSIS, .pdf ilişkilendirme), GitHub Actions, README/CHANGELOG/THIRD_PARTY/LICENSE: dosyalar yazıldı, doğrulama sürüyor
+- [ ] Kullanıcı doğrulaması: PDEfe notlarının referans okuyucuda görünmesi; GitHub deposu (hesap: SCgrS, spec: CgrShn) ve README teşekkür bölümü için onay
