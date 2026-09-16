@@ -41,7 +41,8 @@ src/renderer/           arayüz (ES modülleri; derleme adımı yok, pdefe://app
 core/                   Python 3.12 (proje içi .venv, uv ile kurulu; PyInstaller ile pdefe-core.exe)
   pdefe_core.py         JSON-RPC döngüsü, belge önbelleği, temel yöntemler
   islemler/notlar.py    not yazma: Highlight/Text/FreeText (gömülü Türkçe font alt kümesi), yanıt, kaydet
-  islemler/araclar.py   küçült, sayfa düzenle, ayır, birleştir, görüntü→PDF, döndür (planlanan)
+  islemler/araclar.py   küçült, sayfa düzenle, ayır, birleştir, görüntü→PDF, döndür
+  islemler/yapisal.py   sayfa tarifinden belge kurma, anlık kopya, konumsal not eşleme, içerik kutusu
 test/                   surucu.mjs (CDP ile uygulamayı sürer), senaryo*.mjs, incele.py, not_testi.py
 build/                  simge, NSIS, derleme betikleri
 ```
@@ -67,9 +68,10 @@ notlar_kaydet, freetext_stil, baglantilar, form_gorunum (+ araçlar).
 ## Durum (2026-09-16)
 - [x] Açma/sekme/görüntüleme, düzenler, zoom (görünür alana sığdır dahil), döndürme, sol panel, koyu tema (sayfayı koyulaştır, görselleri koru), oturum/son dosya, Ctrl+Tab seçici
 - [x] Metin seçme, temiz kopyalama, arama; bağlantılar (iç/dış), form alanları (görüntü)
-- [x] Notlar: referans okuyucu notlarını gösterme, vurgu/yapışkan not/yanıt/yazı ekleme, taşıma, silme, geri al/yinele, artımlı kaydetme
+- [x] Notlar: referans okuyucu notlarını gösterme, vurgu/yapışkan not/yanıt/yazı ekleme, taşıma, silme, geri al/yinele, artımlı kaydetme; döndürülmüş sayfada dik yazı
 - [x] Sayfa tarifi komutları (sil/sırala/döndür/boş sayfa/başka PDF'ten sayfa) ve yapısal kaydetme (anlık kopya), kayıttan sonra geri al
-- [x] Ayarlar penceresi, yazdırma (çekirdek görüntüleriyle, Windows diyaloğu)
-- [~] Araçlar (küçült, sayfaları düzenle, ayır, birleştir, görüntü/PDF birleştir, döndür ve kaydet): çekirdek ve pencereler yazıldı, bütünleştirme/doğrulama sürüyor
-- [~] Güncelleme, kurulum (NSIS, .pdf ilişkilendirme), GitHub Actions, README/CHANGELOG/THIRD_PARTY/LICENSE: dosyalar yazıldı, doğrulama sürüyor
-- [ ] Kullanıcı doğrulaması: PDEfe notlarının referans okuyucuda görünmesi; GitHub deposu (hesap: SCgrS, spec: CgrShn) ve README teşekkür bölümü için onay
+- [x] Ayarlar penceresi, yazdırma (sayfa başına görüntü dosyası, Windows diyaloğu, iptal)
+- [x] Araçlar: küçült (tahminli), sayfaları düzenle, ayır, birleştir, görüntü/PDF birleştir (pano dahil), döndür ve kaydet; çekirdekte işbirlikçi iptal
+- [x] Güncelleme (electron-updater şeridi), kurulum (NSIS, Türkçe, .pdf ilişkilendirme, Varsayılan Programlar kaydı), GitHub Actions, README/CHANGELOG/THIRD_PARTY/LICENSE; paket derlendi ve paketli uygulama çalıştırıldı
+- [ ] Kullanıcı doğrulaması (docs/DOGRULAMA.md): referans okuyucuda notlar, kurulum sihirbazı, gerçek yazıcı, Gezgin çift tık
+- [ ] Karar bekleyen: GitHub deposu sahibi (oturum: SCgrS; spec: CgrShn), README teşekkür bölümü
