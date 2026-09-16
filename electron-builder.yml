@@ -11,7 +11,7 @@ directories:
 
 # Uygulama dosyaları asar arşivine konur. pdefe-core.exe asar dışında, resources/ altında durur.
 asar: true
-compression: normal
+compression: maximum   # LZMA; kurulum dosyası belirgin küçülür, derleme daha uzun sürer
 npmRebuild: false
 nodeGypRebuild: false
 

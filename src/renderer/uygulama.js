@@ -431,7 +431,6 @@ const komutlar = {
   'arac.gorselBirlestir': () => bildir('Görüntü/PDF birleştirme aracı sonraki aşamada.'),
   'arac.dondurKaydet': () => bildir('Döndür ve kaydet sonraki aşamada.'),
   'yardim.kisayollar': () => kisayollarGoster(),
-  'yardim.guncelle': () => bildir('Güncelleme denetimi sonraki aşamada.'),
   'yardim.hakkinda': () => ayarlarPenceresiAc({ ayar: () => ayar, ayarKoy, uygula: ayarUygula, pdefe, varsayilanlar, cekirdek }, { bolum: 'hakkinda' }),
 };
 

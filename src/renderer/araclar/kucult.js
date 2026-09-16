@@ -139,8 +139,9 @@ export class KucultPenceresi {
 
   async tahminleriAl() {
     try {
-      // seviyeler parametresi çekirdeğin şimdiki sürümünde yok sayılır (kendi tablosunu kullanır); ileride eşleşmesi için gönderilir
-      const sonuc = await this.baglam.cekirdek('kucult_tahmin', { yol: this.belge.yol, seviyeler: Object.fromEntries(Object.entries(SEVIYELER).map(([k, v]) => [k, { dpi: v.dpi, kalite: v.kalite }])) });
+      // Adlandırılmış seviyeler için çekirdek kendi dpi/kalite tablosunu kullanır (seviyeler:{ad:true});
+      // yanıttaki dpi/kalite kart açıklamasına yazılır, böylece arayüz çekirdekle uyumlu kalır.
+      const sonuc = await this.baglam.cekirdek('kucult_tahmin', { yol: this.belge.yol, seviyeler: Object.fromEntries(Object.keys(SEVIYELER).map((k) => [k, true])) });
       if (this.pencere.kapali) return;
       this.ornekleme = sonuc?.tahmin === true;
       let eksik = 0;
@@ -149,6 +150,11 @@ export class KucultPenceresi {
         this.tahminler[id] = b;
         if (b == null) { eksik++; this._tahminYaz(id, null, null, 'tahmin alınamadı'); }
         else this._tahminYaz(id, b);
+        const s = sonuc?.seviyeler?.[id];
+        if (s && typeof s === 'object' && s.dpi && s.kalite) {
+          const ac = this.kartlar.querySelector(`.kucult-kart[data-seviye="${id}"] .aciklama`);
+          if (ac) ac.textContent = `${SEVIYELER[id].aciklama} (${s.dpi} DPI, JPEG %${s.kalite})`;
+        }
       }
       const notlar = [];
       if (this.ornekleme) notlar.push('Büyük belge: tahminler ilk sayfalar örneklenerek hesaplandı (≈); gerçek sonuç biraz farklı olabilir.');

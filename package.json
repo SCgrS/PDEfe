@@ -12,7 +12,10 @@
   "scripts": {
     "start": "electron .",
     "cekirdek:derle": "node build/cekirdek-derle.mjs",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder --win",
+    "yayim:hazirla": "npm run cekirdek:derle && npm run dist",
+    "dist:yayimla": "electron-builder --win --publish always",
+    "test:araclar": "node build/cekirdek-derle.mjs --atla-derleme && .venv\\Scripts\\python.exe test/araclar_testi.py"
   },
   "dependencies": {
     "electron-store": "^11.0.2",

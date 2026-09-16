@@ -11,7 +11,10 @@ import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
 const KOK = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PYINSTALLER = path.join(KOK, '.venv', 'Scripts', 'pyinstaller.exe');
+// PDEFE_PYTHON verilirse (CI) o yorumlayıcının PyInstaller modülü, yoksa proje içi .venv kullanılır
+const PDEFE_PYTHON = process.env.PDEFE_PYTHON || '';
+const PYINSTALLER = PDEFE_PYTHON ? PDEFE_PYTHON : path.join(KOK, '.venv', 'Scripts', 'pyinstaller.exe');
+const PYINSTALLER_ON_ARGS = PDEFE_PYTHON ? ['-m', 'PyInstaller'] : [];
 const SPEC = path.join(KOK, 'core', 'pdefe-core.spec');
 const DIST = path.join(KOK, 'core', 'dist');
 const WORK = path.join(KOK, 'build', 'pyinstaller-work');
@@ -32,7 +35,7 @@ function calistir(cmd, args, secenekler = {}) {
 }
 
 async function derle() {
-  if (!fs.existsSync(PYINSTALLER)) {
+  if (!PDEFE_PYTHON && !fs.existsSync(PYINSTALLER)) {
     throw new Error(`PyInstaller bulunamadı: ${PYINSTALLER}\n.venv içine kurun: .venv\\Scripts\\python.exe -m pip install pyinstaller pyinstaller-hooks-contrib`);
   }
   if (!fs.existsSync(SPEC)) throw new Error(`Spec dosyası yok: ${SPEC}`);
@@ -43,7 +46,7 @@ async function derle() {
   args.push(SPEC);
   console.log(`[derle] ${PYINSTALLER} ${args.join(' ')}`);
   const t0 = Date.now();
-  await calistir(PYINSTALLER, args, { cwd: KOK, env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' } });
+  await calistir(PYINSTALLER, [...PYINSTALLER_ON_ARGS, ...args], { cwd: KOK, env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' } });
   console.log(`[derle] tamamlandı: ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   if (!fs.existsSync(EXE)) throw new Error(`Derleme bitti ama exe yok: ${EXE}`);
 }

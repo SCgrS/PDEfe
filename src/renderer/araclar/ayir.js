@@ -224,9 +224,9 @@ export class AyirPenceresi {
     }
   }
 
-  /** Çekirdek sonucunu {yol, boyut, sayfa} listesine çevirir (dize listesi ya da nesne listesi). */
+  /** Çekirdek sonucunu {yol, boyut, sayfa} listesine çevirir: ayrintilar:[{yol,boyut,sayfa}] varsa o, yoksa dosyalar:[yol]. */
   dosyalariOku(sonuc, parcalar) {
-    const ham = Array.isArray(sonuc?.dosyalar) ? sonuc.dosyalar : [];
+    const ham = Array.isArray(sonuc?.ayrintilar) && sonuc.ayrintilar.length ? sonuc.ayrintilar : (Array.isArray(sonuc?.dosyalar) ? sonuc.dosyalar : []);
     return ham.map((d, i) => (typeof d === 'string'
       ? { yol: d, boyut: null, sayfa: parcalar[i]?.sayfalar.length }
       : { yol: d.yol, boyut: d.boyut ?? null, sayfa: d.sayfa ?? parcalar[i]?.sayfalar.length }));
