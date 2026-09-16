@@ -11,6 +11,10 @@ directories:
 
 # Uygulama dosyaları asar arşivine konur. pdefe-core.exe asar dışında, resources/ altında durur.
 asar: true
+# Yalnızca Türkçe ve İngilizce Chromium yerelleştirme dosyaları paketlensin (~8 MB tasarruf)
+electronLanguages:
+  - tr
+  - en-US
 compression: maximum   # LZMA; kurulum dosyası belirgin küçülür, derleme daha uzun sürer
 npmRebuild: false
 nodeGypRebuild: false
