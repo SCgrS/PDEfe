@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "PDEfe — Windows 11 için PDF görüntüleyici ve düzenleyici",
   "author": "Geliştirici: x.com/CgrShn",
-  "homepage": "https://github.com/CgrShn/PDEfe",
+  "homepage": "https://github.com/SCgrS/PDEfe",
   "license": "AGPL-3.0",
   "private": true,
   "type": "module",

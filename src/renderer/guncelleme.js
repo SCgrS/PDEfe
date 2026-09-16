@@ -10,7 +10,7 @@
 //       'guncelleme:hazir' → "[Şimdi yeniden başlat ve kur]" → kapatmadanOnce() → 'guncelleme:kur'
 //       × → bu oturumda bir daha gösterilmez (elle denetim yine gösterir). Hata → bildir().
 
-const SURUMLER_URL = 'https://github.com/CgrShn/PDEfe/releases';
+const SURUMLER_URL = 'https://github.com/SCgrS/PDEfe/releases';
 
 const STIL = `
 #guncelleme-seridi { flex-wrap: wrap; font-size: 13px; }

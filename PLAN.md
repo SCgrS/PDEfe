@@ -74,4 +74,5 @@ notlar_kaydet, freetext_stil, baglantilar, form_gorunum (+ araçlar).
 - [x] Araçlar: küçült (tahminli), sayfaları düzenle, ayır, birleştir, görüntü/PDF birleştir (pano dahil), döndür ve kaydet; çekirdekte işbirlikçi iptal
 - [x] Güncelleme (electron-updater şeridi), kurulum (NSIS, Türkçe, .pdf ilişkilendirme, Varsayılan Programlar kaydı), GitHub Actions, README/CHANGELOG/THIRD_PARTY/LICENSE; paket derlendi ve paketli uygulama çalıştırıldı
 - [ ] Kullanıcı doğrulaması (docs/DOGRULAMA.md): referans okuyucuda notlar, kurulum sihirbazı, gerçek yazıcı, Gezgin çift tık
-- [ ] Karar bekleyen: GitHub deposu sahibi (oturum: SCgrS; spec: CgrShn), README teşekkür bölümü
+- [x] GitHub deposu: SCgrS/PDEfe (özel)
+- [ ] Karar bekleyen: README teşekkür bölümü

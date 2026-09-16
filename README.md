@@ -1,6 +1,6 @@
 # PDEfe
 
-### [⬇ PDEfe-Setup.exe indir](https://github.com/CgrShn/PDEfe/releases/latest/download/PDEfe-Setup.exe)
+### [⬇ PDEfe-Setup.exe indir](https://github.com/SCgrS/PDEfe/releases/latest/download/PDEfe-Setup.exe)
 
 Windows 11 (ve Windows 10) için Türkçe, sekmeli **PDF görüntüleyici ve düzenleyici**. Hukukçuların ve
 her gün onlarca PDF açan herkesin işini görmek için yazıldı: belgeler sekmelerde açılır, metin kopyalandığında
@@ -74,7 +74,7 @@ ayarlarınıza ve açık sekmelerinize dokunulmaz. Şeridi **×** ile kapatırsa
 İstediğiniz an **Yardım › Güncellemeleri denetle** ile elle de bakabilirsiniz; otomatik denetim
 **Ayarlar › Güncelleme** altından kapatılır.
 
-Sürüm notları: [CHANGELOG.md](CHANGELOG.md) ve [Sürümler sayfası](https://github.com/CgrShn/PDEfe/releases).
+Sürüm notları: [CHANGELOG.md](CHANGELOG.md) ve [Sürümler sayfası](https://github.com/SCgrS/PDEfe/releases).
 
 ### Kaldırma
 
@@ -119,7 +119,7 @@ denetiminde (`github.com`) çıkılır. Ayarlar `%APPDATA%\PDEfe\ayarlar.json` d
 Gereksinimler: Node.js 22, Python 3.12 (proje içi `.venv`), Git. Windows'ta geliştirilir ve paketlenir.
 
 ```bash
-git clone https://github.com/CgrShn/PDEfe.git
+git clone https://github.com/SCgrS/PDEfe.git
 cd PDEfe
 npm install
 

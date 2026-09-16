@@ -1,4 +1,4 @@
-// Otomatik güncelleme (electron-updater, GitHub Releases: CgrShn/PDEfe → latest.yml + PDEfe-Setup.exe).
+// Otomatik güncelleme (electron-updater, GitHub Releases: SCgrS/PDEfe → latest.yml + PDEfe-Setup.exe).
 //
 // Kullanım (main.js):
 //   import electronUpdater from 'electron-updater';            // CJS paket: varsayılan içe aktarma güvenli
