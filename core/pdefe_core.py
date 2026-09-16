@@ -178,6 +178,18 @@ def y_kucuk_resim(p):
     return {"png": png_base64(pix), "genislik": pix.width, "yukseklik": pix.height}
 
 
+def y_sayfa_goruntu(p):
+    """Bir sayfanın tam çözünürlüklü görüntüsü (yazdırma için). notlar=False ise notsuz."""
+    doc = onbellek.al(p["yol"])
+    pg = doc[int(p["sayfa"]) - 1]
+    dpi = int(p.get("dpi", 200))
+    pix = pg.get_pixmap(dpi=dpi, annots=bool(p.get("notlar", True)), alpha=False)
+    bicim = p.get("bicim", "png")
+    veri = pix.tobytes("jpeg", jpg_quality=int(p.get("kalite", 90))) if bicim == "jpeg" else pix.tobytes("png")
+    return {"veri": base64.b64encode(veri).decode("ascii"), "bicim": bicim, "genislik": pix.width, "yukseklik": pix.height,
+            "genislikPt": pg.rect.width, "yukseklikPt": pg.rect.height}
+
+
 def y_notlar(p):
     """Belgedeki bütün notlar (isteğe bağlı tek sayfa)."""
     doc = onbellek.al(p["yol"])
@@ -278,6 +290,7 @@ YONTEMLER = {
     "belge_bilgi": y_belge_bilgi,
     "kucuk_resim": y_kucuk_resim,
     "notlar": y_notlar,
+    "sayfa_goruntu": y_sayfa_goruntu,
     "not_gorunum": y_not_gorunum,
     "gorsel_kutulari": y_gorsel_kutulari,
     "metin_sec": y_metin_sec,

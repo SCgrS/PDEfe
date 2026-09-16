@@ -3,6 +3,8 @@ import { app, BrowserWindow, protocol, net, ipcMain, dialog, Menu, shell, native
 import path from 'node:path';
 import fs from 'node:fs';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 import { ayarlar, ayarKoy, ayarAl } from './ayarlar.js';
 import { menuKur } from './menu.js';
 import { Cekirdek } from './cekirdek.js';
@@ -162,22 +164,47 @@ function ipcKur() {
   ipcMain.handle('ayar:koy', (_e, anahtar, deger) => { ayarKoy(anahtar, deger); return true; });
   ipcMain.handle('tema:sistemKoyu', () => nativeTheme.shouldUseDarkColors);
 
-  ipcMain.handle('dosya:acDiyalog', async () => {
+  // secenek: {baslik, filtreler:[{name, extensions}], coklu, varsayilan}
+  ipcMain.handle('dosya:acDiyalog', async (_e, secenek) => {
     const s = await dialog.showOpenDialog(pencere, {
-      title: 'PDF aç', filters: [{ name: 'PDF belgeleri', extensions: ['pdf'] }, { name: 'Tüm dosyalar', extensions: ['*'] }],
-      properties: ['openFile', 'multiSelections'],
+      title: secenek?.baslik || 'PDF aç',
+      defaultPath: secenek?.varsayilan,
+      filters: secenek?.filtreler || [{ name: 'PDF belgeleri', extensions: ['pdf'] }, { name: 'Tüm dosyalar', extensions: ['*'] }],
+      properties: ['openFile', ...(secenek?.coklu === false ? [] : ['multiSelections'])],
     });
     return s.canceled ? [] : s.filePaths;
+  });
+
+  ipcMain.handle('dosya:klasorSec', async (_e, secenek) => {
+    const s = await dialog.showOpenDialog(pencere, { title: secenek?.baslik || 'Klasör seç', defaultPath: secenek?.varsayilan, properties: ['openDirectory', 'createDirectory'] });
+    return s.canceled ? null : s.filePaths[0];
   });
 
   ipcMain.handle('dosya:kaydetDiyalog', async (_e, secenek) => {
     const s = await dialog.showSaveDialog(pencere, {
       title: secenek?.baslik || 'Farklı kaydet',
       defaultPath: secenek?.varsayilan,
-      filters: [{ name: 'PDF belgesi', extensions: ['pdf'] }],
+      filters: secenek?.filtreler || [{ name: 'PDF belgesi', extensions: ['pdf'] }],
     });
     return s.canceled ? null : s.filePath;
   });
+
+  ipcMain.handle('dosya:sil', async (_e, yol) => { try { await shell.trashItem(yol); return true; } catch { try { await fs.promises.unlink(yol); return true; } catch { return false; } } });
+  ipcMain.handle('dosya:kopyala', async (_e, kaynak, hedef) => { await fs.promises.mkdir(path.dirname(hedef), { recursive: true }); await fs.promises.copyFile(kaynak, hedef); return true; });
+  ipcMain.handle('uygulama:veriKlasoru', () => app.getPath('userData'));
+  ipcMain.handle('uygulama:geciciKlasor', () => { const k = path.join(app.getPath('temp'), 'PDEfe'); fs.mkdirSync(k, { recursive: true }); return k; });
+  ipcMain.handle('uygulama:ucuncuTaraf', async () => { try { return await fs.promises.readFile(path.join(KOK, 'THIRD_PARTY.md'), 'utf8'); } catch { return ''; } });
+  ipcMain.handle('kabuk:varsayilanUygulamalar', () => shell.openExternal('ms-settings:defaultapps?registeredAppUser=PDEfe'));
+  // Panodaki dosyalar (Gezgin'den kopyalanan) ve görsel
+  ipcMain.handle('pano:dosyalar', () => new Promise((coz) => {
+    const { spawn } = require('node:child_process');
+    const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-STA', '-WindowStyle', 'Hidden', '-Command', 'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Clipboard]::GetFileDropList() | ForEach-Object { $_ }'], { windowsHide: true });
+    let out = '';
+    p.stdout.setEncoding('utf8'); p.stdout.on('data', (d) => { out += d; });
+    p.on('exit', () => coz(out.split(/\r?\n/).map((x) => x.trim()).filter(Boolean)));
+    p.on('error', () => coz([]));
+  }));
+  ipcMain.handle('pano:gorsel', () => { const img = clipboard.readImage(); return img.isEmpty() ? null : img.toPNG().toString('base64'); });
 
   ipcMain.handle('dosya:oku', async (_e, yol) => {
     const veri = await fs.promises.readFile(yol);
