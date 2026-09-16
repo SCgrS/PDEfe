@@ -100,8 +100,9 @@
 .kucult-kartlar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .kucult-kart {
   border: 1px solid var(--kenar); border-radius: 8px; padding: 10px 12px; cursor: default; display: flex; flex-direction: column; gap: 4px;
-  background: var(--arka);
+  background: var(--arka); position: relative;
 }
+.kucult-kart:focus-within { outline: 1px dashed var(--vurgu); outline-offset: 1px; }
 .kucult-kart:hover { background: var(--hover); }
 .kucult-kart.secili { border-color: var(--vurgu); box-shadow: 0 0 0 1px var(--vurgu) inset; }
 .kucult-kart input[type="radio"] { position: absolute; opacity: 0; pointer-events: none; }
@@ -111,6 +112,8 @@
 .kucult-kart .tahmin b { font-size: 14px; }
 .kucult-kart .tahmin.bekliyor { color: var(--metin-soluk); font-style: italic; }
 .kucult-kart .tahmin.hata { color: #d13438; font-size: 12px; }
+.kucult-kart .tahmin.soluk { color: var(--metin-soluk); font-size: 12px; }
+.arac-pencere .hata-metin { color: #d13438; }
 .kucult-ozel { grid-column: 1 / -1; }
 .kucult-ozel .surguler { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 10px; align-items: center; margin-top: 6px; }
 .kucult-ozel .surguler .deger { width: 64px; text-align: right; font-variant-numeric: tabular-nums; }

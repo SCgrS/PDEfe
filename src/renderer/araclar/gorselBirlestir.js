@@ -435,33 +435,48 @@ export class BirlestirmePenceresi {
   }
 
   // ---------------------------------------------------------------- tahmin
+  /**
+   * Her öğe için boyut_tahmini {oge, genelKalite} → {boyut} çağrısı yapar (sırayla; çekirdek tek işlik).
+   * Gecikmeli (600 ms) çağrılır; arada yeni bir istek gelirse (sayac değişir) eski sonuçlar yok sayılır.
+   * Aynı parametreyle daha önce alınan tahmin önbellekten gelir; yalnızca değişen öğeler sorulur.
+   */
   async tahminAl() {
     if (this.yalnizPdf || this.pencere.kapali) return;
     const sayac = ++this.tahminSayac;
     const ogeler = this.ogeler.filter((o) => !o.yukleniyor && !o.hata);
-    if (!ogeler.length) { this.toplamEl.innerHTML = 'Toplam tahmini boyut: <b>—</b>'; this.toplamEl.classList.remove('bekliyor'); return; }
-    this.toplamEl.classList.add('bekliyor');
-    this.toplamEl.innerHTML = 'Toplam tahmini boyut: <b>hesaplanıyor…</b>';
-    for (const o of ogeler) { o.tahmin = null; this._tahminYaz(o); }
-    try {
-      const r = await this.baglam.cekirdek('boyut_tahmini', { ogeler: ogeler.map((o) => this._ogeParametresi(o)), istek: sayac });
-      if (sayac !== this.tahminSayac || this.pencere.kapali) return;   // eskimiş sonuç
-      const liste = r?.ogeler || r?.tahminler || [];
-      let toplam = 0;
-      ogeler.forEach((o, i) => { const t = liste[i]; o.tahmin = typeof t === 'number' ? t : (t?.boyut ?? null); if (o.tahmin != null) toplam += o.tahmin; this._tahminYaz(o); });
-      const genel = r?.toplam ?? toplam;
-      this.toplamEl.classList.remove('bekliyor');
-      this.toplamEl.innerHTML = `Toplam tahmini boyut: <b>${kacis(boyutMetni(genel))}</b>`;
-    } catch (e) {
-      if (sayac !== this.tahminSayac || this.pencere.kapali) return;
-      this.toplamEl.classList.remove('bekliyor');
-      this.toplamEl.innerHTML = `Toplam tahmini boyut: <b title="${kacis(hataMetni(e))}">alınamadı</b>`;
-      for (const o of ogeler) { const el = this.liste.querySelector(`.birlestir-oge[data-kimlik="${o.kimlik}"] .tahmin`); if (el) el.textContent = ''; }
+    const bekleyen = [];
+    for (const o of ogeler) {
+      const anahtar = JSON.stringify(this._ogeParametresi(o));
+      o.tahminHata = null;
+      if (this.tahminOnbellek.has(anahtar)) o.tahmin = this.tahminOnbellek.get(anahtar);
+      else { o.tahmin = null; bekleyen.push({ o, anahtar }); }
+      this._tahminYaz(o);
     }
+    this._toplamYaz(ogeler, bekleyen.length > 0);
+    for (let i = 0; i < bekleyen.length; i++) {
+      const { o, anahtar } = bekleyen[i];
+      if (sayac !== this.tahminSayac || this.pencere.kapali) return;   // eskimiş istek: kalanları sorma
+      try {
+        const r = await this.baglam.cekirdek('boyut_tahmini', { oge: this._ogeParametresi(o), genelKalite: this.genelKalite });
+        if (sayac !== this.tahminSayac || this.pencere.kapali) return;
+        const b = typeof r === 'number' ? r : r?.boyut;
+        if (typeof b === 'number' && Number.isFinite(b)) { o.tahmin = b; this.tahminOnbellek.set(anahtar, b); }
+        else o.tahminHata = 'Çekirdek boyut vermedi.';
+      } catch (e) {
+        if (sayac !== this.tahminSayac || this.pencere.kapali) return;
+        o.tahminHata = hataMetni(e);
+      }
+      this._tahminYaz(o);
+      this._toplamYaz(ogeler, i < bekleyen.length - 1);
+    }
+    if (this.tahminOnbellek.size > 500) this.tahminOnbellek.clear();
   }
 
+  /** Çekirdeğin birlestir/boyut_tahmini öğe biçimi. kalite: etkin kalite (öğeye özel ya da genel). */
   _ogeParametresi(o) {
-    return { yol: o.yol, tur: o.tur, dondurme: o.dondurme, kalite: this.etkinKalite(o), sayfaBoyutu: o.tur === 'gorsel' ? o.sayfaBoyutu : undefined, kenar: o.tur === 'gorsel' ? o.kenar : undefined };
+    const p = { yol: o.yol, tur: o.tur, dondurme: o.dondurme, kalite: this.etkinKalite(o) };
+    if (o.tur === 'gorsel') { p.sayfaBoyutu = o.sayfaBoyutu; p.kenar = o.kenar; }
+    return p;
   }
 
   // ---------------------------------------------------------------- birleştir
@@ -481,7 +496,7 @@ export class BirlestirmePenceresi {
       this.cikti.ayarla(k, null);
     }
     const hedef = this.cikti.yol();
-    if (ogeler.some((o) => o.tur === 'pdf' && o.yol.replace(/\//g, '\\').toLowerCase() === hedef.replace(/\//g, '\\').toLowerCase())) {
+    if (ogeler.some((o) => yolAyni(o.yol, hedef))) {
       baglam.bildir('Çıktı dosyası, girdi dosyalarından biriyle aynı olamaz.'); return;
     }
     if (await baglam.pdefe.cagir('dosya:varMi', hedef)) {
@@ -493,10 +508,11 @@ export class BirlestirmePenceresi {
     this.pencere.dugmeAyarla('birlestir', { devre: true });
     this.pencere.dugmeAyarla('kapat', { devre: true });
     try {
+      // Çekirdek sonucu: {boyut, sayfa}
       const sonuc = await this.ilerleme.calistir(baglam, 'birlestir', {
-        ogeler: ogeler.map((o) => this._ogeParametresi(o)), hedef, kalite: this.genelKalite,
+        ogeler: ogeler.map((o) => this._ogeParametresi(o)), hedef, genelKalite: this.genelKalite,
       }, { baslangicMesaji: 'Birleştiriliyor…' });
-      const yol = sonuc?.yol || hedef;
+      const yol = hedef;
       const boyut = sonuc?.boyut ?? (await baglam.pdefe.cagir('dosya:bilgi', yol).catch(() => null))?.boyut;
       this.ilerleme.gizle();
       await this.pencere.kapat('tamam');

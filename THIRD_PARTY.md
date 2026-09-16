@@ -24,7 +24,7 @@ kullanılan MuPDF / PyMuPDF'in AGPL-3.0 olmasıdır; bu bileşenler için Artife
 | electron-updater | 6.8.9 | MIT | Otomatik güncelleme (`latest.yml`, blockmap fark indirmesi) | https://github.com/electron-userland/electron-builder/tree/master/packages/electron-updater |
 | electron-store | 11.0.2 | MIT | Ayarların JSON olarak saklanması | https://github.com/sindresorhus/electron-store |
 | pdf-lib | 1.17.1 | MIT | Yardımcı PDF işlemleri (JavaScript tarafı) | https://github.com/Hopding/pdf-lib |
-| NSIS | 3.x (electron-builder'ın getirdiği sürüm) | zlib/libpng | Kurulum sihirbazı (`PDEfe-Setup.exe`) | https://nsis.sourceforge.io/ |
+| NSIS | 3.0.4.1 (electron-builder'ın getirdiği sürüm) | zlib/libpng | Kurulum sihirbazı (`PDEfe-Setup.exe`) | https://nsis.sourceforge.io/ |
 
 ## Fontlar
 

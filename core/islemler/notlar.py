@@ -165,7 +165,13 @@ def freetext_gorunum_yaz(doc, page, annot, metin, stil):
     font, _, _ = _font_yukle(aile, kalin)
     fxref = _font_xref_al(doc, page, aile, kalin)
     r = annot.rect
-    w, h = max(r.width, 1), max(r.height, 1)
+    # Sayfa döndürülmüşse (/Rotate), görünüm akışını ters yönde döndürerek metni ekranda dik tut
+    rot = int(getattr(page, "rotation", 0) or 0) % 360
+    if rot in (90, 270):
+        w, h = max(r.height, 1), max(r.width, 1)
+    else:
+        w, h = max(r.width, 1), max(r.height, 1)
+    matris = {0: "[1 0 0 1 0 0]", 90: "[0 1 -1 0 0 0]", 180: "[-1 0 0 -1 0 0]", 270: "[0 -1 1 0 0 0]"}[rot]
     pad = 2.0
     satirlar = _satirlara_bol(metin, font, boyut, w - 2 * pad)
     satir_yuk = boyut * 1.2
@@ -191,7 +197,7 @@ def freetext_gorunum_yaz(doc, page, annot, metin, stil):
     icerik = "\n".join(ops).encode("latin-1")
     # Form XObject
     ap_xref = doc.get_new_xref()
-    doc.update_object(ap_xref, "<</Type/XObject/Subtype/Form/FormType 1/BBox[0 0 %.2f %.2f]/Resources<</Font<</F1 %d 0 R>>/ProcSet[/PDF/Text]>>>>" % (w, h, fxref))
+    doc.update_object(ap_xref, "<</Type/XObject/Subtype/Form/FormType 1/BBox[0 0 %.2f %.2f]/Matrix %s/Resources<</Font<</F1 %d 0 R>>/ProcSet[/PDF/Text]>>>>" % (w, h, matris, fxref))
     doc.update_stream(ap_xref, icerik)
     doc.xref_set_key(annot.xref, "AP", "<</N %d 0 R>>" % ap_xref)
     # Referans okuyucu için varsayılan görünüm bilgileri
@@ -265,6 +271,7 @@ def not_ekle(doc, page, n):
         a = page.add_text_annot((r[0], r[1]), n.get("icerik") or "", icon=n.get("simge") or "Comment")
         a.set_colors(stroke=renk or (1, 0.82, 0))
         _ortak_bilgi(a, dict(n, konu=n.get("konu") or "Yapışkan Not"))
+        a.set_flags(pymupdf.PDF_ANNOT_IS_PRINT | pymupdf.PDF_ANNOT_IS_NO_ZOOM | pymupdf.PDF_ANNOT_IS_NO_ROTATE)
         a.update()
         if n.get("yanitXref"):
             a.set_irt_xref(int(n["yanitXref"]))
