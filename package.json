@@ -1,0 +1,27 @@
+{
+  "name": "pdefe",
+  "productName": "PDEfe",
+  "version": "0.1.0",
+  "description": "PDEfe — Windows 11 için PDF görüntüleyici ve düzenleyici",
+  "author": "Geliştirici: x.com/CgrShn",
+  "homepage": "https://github.com/CgrShn/PDEfe",
+  "license": "AGPL-3.0",
+  "private": true,
+  "type": "module",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "cekirdek:derle": "node build/cekirdek-derle.mjs",
+    "dist": "electron-builder --win"
+  },
+  "dependencies": {
+    "electron-store": "^11.0.2",
+    "electron-updater": "^6.8.9",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.3.289"
+  },
+  "devDependencies": {
+    "electron": "^44.4.0",
+    "electron-builder": "^26.15.3"
+  }
+}

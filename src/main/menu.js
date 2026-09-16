@@ -1,0 +1,108 @@
+// Türkçe uygulama menüsü. Her öğe renderer'a bir komut kimliği gönderir; mantık orada.
+import { Menu } from 'electron';
+import path from 'node:path';
+
+export function menuKur({ komut, sonDosyalar }) {
+  const k = (id, veri) => () => komut(id, veri);
+  const son = (sonDosyalar() || []).slice(0, 10);
+
+  const sablon = [
+    {
+      label: '&Dosya',
+      submenu: [
+        { label: 'Aç…', accelerator: 'Ctrl+O', click: k('dosya.ac') },
+        {
+          label: 'Son açılanlar',
+          submenu: son.length
+            ? [...son.map((y) => ({ label: path.basename(y), sublabel: path.dirname(y), click: k('dosya.acYol', y) })),
+               { type: 'separator' }, { label: 'Listeyi temizle', click: k('dosya.sonTemizle') }]
+            : [{ label: '(boş)', enabled: false }],
+        },
+        { type: 'separator' },
+        { label: 'Kaydet', accelerator: 'Ctrl+S', click: k('dosya.kaydet') },
+        { label: 'Farklı kaydet…', accelerator: 'Ctrl+Shift+S', click: k('dosya.farkliKaydet') },
+        { type: 'separator' },
+        { label: 'Sekmeyi kapat', accelerator: 'Ctrl+W', click: k('sekme.kapat') },
+        { label: 'Klasörde göster', click: k('dosya.klasordeGoster') },
+        { type: 'separator' },
+        { label: 'Yazdır…', accelerator: 'Ctrl+P', click: k('dosya.yazdir') },
+        { type: 'separator' },
+        { label: 'Çıkış', accelerator: 'Alt+F4', role: 'quit' },
+      ],
+    },
+    {
+      label: 'Dü&zen',
+      submenu: [
+        { label: 'Geri al', accelerator: 'Ctrl+Z', registerAccelerator: false, click: k('duzen.geriAl') },
+        { label: 'Yinele', accelerator: 'Ctrl+Y', registerAccelerator: false, click: k('duzen.yinele') },
+        { type: 'separator' },
+        { label: 'Kopyala', accelerator: 'Ctrl+C', role: 'copy' },
+        { label: 'Tümünü seç', accelerator: 'Ctrl+A', registerAccelerator: false, click: k('duzen.tumunuSec') },
+        { type: 'separator' },
+        { label: 'Yapışkan not', click: k('not.arac', 'not') },
+        { label: 'Vurgu', click: k('not.arac', 'vurgu') },
+        { label: 'Yazı', click: k('not.arac', 'yazi') },
+        { label: 'Seçili notu sil', accelerator: 'Delete', registerAccelerator: false, click: k('not.sil') },
+        { type: 'separator' },
+        { label: 'Bul…', accelerator: 'Ctrl+F', click: k('duzen.bul') },
+        { label: 'Sonrakini bul', accelerator: 'F3', click: k('duzen.bulSonraki') },
+        { label: 'Öncekini bul', accelerator: 'Shift+F3', click: k('duzen.bulOnceki') },
+        { label: 'Sayfaya git…', accelerator: 'Ctrl+G', click: k('duzen.sayfayaGit') },
+        { type: 'separator' },
+        { label: 'Ayarlar…', accelerator: 'Ctrl+,', click: k('duzen.ayarlar') },
+      ],
+    },
+    {
+      label: '&Görünüm',
+      submenu: [
+        { label: 'Yakınlaştır', accelerator: 'Ctrl+=', click: k('gorunum.yakinlastir') },
+        { label: 'Uzaklaştır', accelerator: 'Ctrl+-', click: k('gorunum.uzaklastir') },
+        { label: 'Gerçek boyut (%100)', accelerator: 'Ctrl+0', click: k('gorunum.zoom', 'gercek') },
+        { label: 'Sayfayı sığdır', click: k('gorunum.zoom', 'sayfa') },
+        { label: 'Genişliğe sığdır', click: k('gorunum.zoom', 'genislik') },
+        { label: 'Görünür alana sığdır', click: k('gorunum.zoom', 'gorunur') },
+        { type: 'separator' },
+        { label: 'Tek sayfa', click: k('gorunum.duzen', 'tek') },
+        { label: 'Kaydırmayı etkinleştir', click: k('gorunum.duzen', 'surekli') },
+        { label: 'İki sayfa', click: k('gorunum.duzen', 'iki') },
+        { label: 'İki sayfa kaydırma', click: k('gorunum.duzen', 'ikiSurekli') },
+        { label: 'İki sayfalı görünümde kapak sayfasını ayrı göster', click: k('gorunum.kapakAyri') },
+        { type: 'separator' },
+        { label: 'Saat yönünde döndür', accelerator: 'Ctrl+Shift+=', click: k('gorunum.dondur', 90) },
+        { label: 'Saat yönünün tersine döndür', accelerator: 'Ctrl+Shift+-', click: k('gorunum.dondur', -90) },
+        { type: 'separator' },
+        { label: 'Sol panel', accelerator: 'F4', click: k('gorunum.solPanel') },
+        { label: 'Koyu / açık tema', click: k('gorunum.tema') },
+        { type: 'separator' },
+        { label: 'Okuma modu', accelerator: 'Ctrl+H', click: k('gorunum.okumaModu') },
+        { label: 'Tam ekran', accelerator: 'F11', click: k('gorunum.tamEkran') },
+      ],
+    },
+    {
+      label: '&Araçlar',
+      submenu: [
+        { label: 'PDF küçült…', click: k('arac.kucult') },
+        { label: 'Sayfaları düzenle…', click: k('arac.sayfalar') },
+        { label: 'PDF ayır…', click: k('arac.ayir') },
+        { label: 'PDF birleştir…', click: k('arac.birlestir') },
+        { label: 'Görüntü / PDF belgeleri birleştirerek PDF oluştur…', click: k('arac.gorselBirlestir') },
+        { type: 'separator' },
+        { label: 'Döndür ve kaydet…', click: k('arac.dondurKaydet') },
+        { type: 'separator' },
+        { label: 'Paylaş (dosyayı panoya kopyala)', click: k('arac.paylas') },
+      ],
+    },
+    {
+      label: '&Yardım',
+      submenu: [
+        { label: 'Klavye kısayolları', accelerator: 'F1', click: k('yardim.kisayollar') },
+        { label: 'Güncellemeleri denetle', click: k('yardim.guncelle') },
+        { type: 'separator' },
+        { label: 'Geliştirici araçları', accelerator: 'Ctrl+Shift+I', role: 'toggleDevTools' },
+        { type: 'separator' },
+        { label: 'PDEfe hakkında', click: k('yardim.hakkinda') },
+      ],
+    },
+  ];
+  return Menu.buildFromTemplate(sablon);
+}
