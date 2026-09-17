@@ -882,8 +882,11 @@ function keskinGorsel(ctx, ozgun, img, sx, sy, sw, sh, dx, dy, dw, dh, grafik, e
   const k0 = Math.max(0, v0 - dy), k1 = Math.min(dh, v1 - dy);
   if (j1 <= j0 || k1 <= k0) return true;                    // görünür değil: çizilecek bir şey yok
   const cikti = (j1 - j0) * (k1 - k0);
-  // Fotoğraf/taranmış sayfa büyütülürken (yakınlaştırma) hedef büyük olur: JS yavaşlar, fark da azalır → Chromium yumuşatması
-  if (cikti > EN_FAZLA_CIKTI || (!grafik && (dw > sw || dh > sh) && cikti > EN_FAZLA_BUYUTME_CIKTISI)) return false;
+  // Fotoğraf/taranmış sayfa büyütülürken (yakınlaştırma) hedef büyük olur: JS yavaşlar, fark da azalır → Chromium yumuşatması.
+  // Kırpılmış görsel maskesinde (maskeKirpmaKur) büyütme kararı bütün maskenin dolgu boyutuyla verilir: iki renkli maske ara
+  // büyütmede (×2–4) basamaklı görünmesin, kırpılmadan önceki gibi yumuşak çizilsin.
+  const buyutmeCiktisi = ctx.__maskeDolgusu || cikti;
+  if (cikti > EN_FAZLA_CIKTI || (!grafik && (dw > sw || dh > sh) && buyutmeCiktisi > EN_FAZLA_BUYUTME_CIKTISI)) return false;
   const tw = tuvalMi(img) ? 0 : genislikAl(img) * yukseklikAl(img);
   if (tw > KUCUK_GORSEL || (tw && ertele)) {
     if (okunamaz.has(img) || tw > EN_FAZLA_ISCI_PIKSELI) return false;
@@ -1103,6 +1106,7 @@ function maskeKirpmaKur(G) {
         if (++n !== 2 || Math.abs(w - gw) > 1 || Math.abs(h - gh) > 1) return fab.create(w, h);
         const e = fab.create(i1 - i0, k1 - k0);
         e.context.translate = function (x, y) { delete this.translate; return this.translate(x - i0, y - k0); };
+        if (e.context.__keskin) e.context.__maskeDolgusu = gw * gh;   // örnekleme kararı için bütün dolgunun boyutu (keskinGorsel)
         kaydirma = [i0, k0];
         return e;
       },
