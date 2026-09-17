@@ -412,7 +412,8 @@ function zoomGoster(b) {
   const o = b.gorunum.olcek;
   durum.zoomYaz(o);
   if (document.activeElement !== $('#zoom-kutusu')) zoomKutusuYaz(o);   // kullanıcı kutuda yazarken üzerine yazılmaz
-  if (ayar.varsayilanZoom === 'son') { ayar.sonZoom = Math.round(o * 100); zoomKaydetGecikmeli(); }
+  // Yüklenmemiş görünümün ölçeği (yeni sekme seçilirken %100) son kullanılan sayılmaz: belge onunla açılırdı
+  if (ayar.varsayilanZoom === 'son' && b.gorunum.belge) { ayar.sonZoom = Math.round(o * 100); zoomKaydetGecikmeli(); }
 }
 /** Yakınlaştırma kutusuna ölçeği Türkçe yüzde biçiminde ('%150') yazar. */
 function zoomKutusuYaz(olcek) { $('#zoom-kutusu').value = '%' + Math.round(olcek * 100); }
