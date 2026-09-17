@@ -674,42 +674,43 @@ function boslukKonumu(model, p, capa, kapsayan) {
     adaylar = birimler.filter((B) => dx(B) <= en + model.hTip);
   }
   const sira = (oge) => model.indeks.get(oge.span);
-  /** Birimde farenin üstündeki son öğe ve altındaki ilk öğe (okuma sırasında), dikey uzaklıklarıyla: [{oge, m, B} | null, ...] */
+  /**
+   * Birimde farenin üstündeki son öğe ve altındaki ilk öğe (okuma sırasında): [{oge, B, dik, iki} | null, ...]; dik: o yöndeki öğelere
+   * en küçük dikey uzaklık, iki: en küçük uzaklık (yatay dahil: geniş birimin uzaktaki kısa satırı, farenin üstündeki bloğun önüne geçmesin)
+   */
   const uclar = (B) => {
     let u = null, a = null;
     for (const oge of B.ogeler) {
       if (oge.bosluk) continue;
-      if ((oge.o.ust + oge.o.alt) / 2 < p.ust) {
-        const m = p.ust - oge.o.alt;
-        if (!u) u = { oge, m, B };
-        else { if (sira(oge) > sira(u.oge)) u.oge = oge; u.m = Math.min(u.m, m); }
-      } else {
-        const m = oge.o.ust - p.ust;
-        if (!a) a = { oge, m, B };
-        else { if (sira(oge) < sira(a.oge)) a.oge = oge; a.m = Math.min(a.m, m); }
-      }
+      const ustte = (oge.o.ust + oge.o.alt) / 2 < p.ust, dik = ustte ? p.ust - oge.o.alt : oge.o.ust - p.ust;
+      const iki = Math.hypot(Math.max(0, oge.o.bas - p.bas, p.bas - oge.o.son), Math.max(0, dik));
+      const c = ustte ? u : a;
+      if (!c) { if (ustte) u = { oge, B, dik, iki }; else a = { oge, B, dik, iki }; continue; }
+      if (ustte ? sira(oge) > sira(c.oge) : sira(oge) < sira(c.oge)) c.oge = oge;
+      c.dik = Math.min(c.dik, dik); c.iki = Math.min(c.iki, iki);
     }
     return [u, a];
   };
   let ust = null, alt = null;
   for (const B of adaylar) {
     const [u, a] = uclar(B);
-    if (u && (!ust || u.m < ust.m)) ust = u;
-    if (a && (!alt || a.m < alt.m)) alt = a;
+    if (u && (!ust || u.iki < ust.iki)) ust = u;
+    if (a && (!alt || a.iki < alt.iki)) alt = a;
   }
+  // Aday birimle fare arasında üst üste duran birim dikeyde yakınsa (fare onun hizasında olmasa da üstünden geçmiştir)
   const pay = model.hTip * 0.3, ortusur = (U, V) => Math.min(U.son, V.son) - Math.max(U.bas, V.bas) > 1;
   for (const V of birimler) {
     if (ust && V !== ust.B && ortusur(V, ust.B) && V.ust >= ust.B.alt - pay && V.ust <= p.ust) {
       const [u] = uclar(V);
-      if (u && u.m < ust.m) ust = u;
+      if (u && u.dik < ust.dik) ust = u;
     }
     if (alt && V !== alt.B && ortusur(V, alt.B) && V.alt <= alt.B.ust + pay && V.alt >= p.ust) {
       const [, a] = uclar(V);
-      if (a && a.m < alt.m) alt = a;
+      if (a && a.dik < alt.dik) alt = a;
     }
   }
   const yon = capa?.yon || 0;
-  const secilen = yon > 0 ? ust || alt : yon < 0 ? alt || ust : ust && alt ? (alt.m < ust.m ? alt : ust) : ust || alt;
+  const secilen = yon > 0 ? ust || alt : yon < 0 ? alt || ust : ust && alt ? (alt.iki < ust.iki ? alt : ust) : ust || alt;
   if (!secilen) return null;
   return secilen === ust ? { span: ust.oge.span, ofset: ust.oge.span.textContent.length } : { span: alt.oge.span, ofset: 0 };
 }
