@@ -152,8 +152,9 @@ function gorselSatirlar() {
       const bilgi = oge && gorsel.ogeler.get(oge);
       if (sayfaEl !== sonSayfa) { if (cur) satirlar.push(cur); cur = null; if (sonSayfa) satirlar.push({ bos: true }); sonSayfa = sayfaEl; }
       if (bilgi && cur && cur.anahtar && cur.anahtar !== bilgi.anahtar) { satirlar.push(cur); cur = null; }
-      if (!cur) cur = { anahtar: null, parcalar: [], sol: 0, onceki: null };
-      if (bilgi && !cur.anahtar) { cur.anahtar = bilgi.anahtar; cur.sol = satirSolu(oge, sayfaEl); }
+      if (!cur) cur = { anahtar: null, parcalar: [], sol: 0, solVar: false, onceki: null };
+      if (bilgi && !cur.anahtar) cur.anahtar = bilgi.anahtar;
+      if (bilgi && !cur.solVar && metin.trim()) { cur.sol = satirSolu(oge, sayfaEl); cur.solVar = true; }   // girinti ilk sözcükten (baştaki boşluk öğesinden değil)
       if (bilgi && cur.onceki && cur.onceki !== bilgi && bilgi.bas - cur.onceki.son > cur.onceki.kalin * 0.15
         && !/\s$/.test(cur.parcalar.at(-1) || '') && !/^\s/.test(metin)) cur.parcalar.push(' ');
       cur.parcalar.push(metin);
@@ -393,15 +394,17 @@ function sayfaModeli(sayfaEl, k, onbellek) {
   if (!katman) return null;
   const onceki = onbellek.get(sayfaEl);
   if (onceki && onceki.katman === katman && Math.abs(onceki.w - k.width) < 0.5 && Math.abs(onceki.h - k.height) < 0.5 && onceki.n === katman.childElementCount) return onceki;
-  const ogeler = [], agirlik = new Map();
+  const ogeler = [], bosluklar = [], agirlik = new Map();
   katmanOgeleri(katman).forEach((span) => {
     const metin = span.textContent;
-    if (!metin.trim()) return;
+    if (!metin) return;
     const r = span.getBoundingClientRect();
     if (r.width <= 0 && r.height <= 0) return;
     const donme = metinDonmesi(span);
     const rr = { left: r.left - k.left, right: r.right - k.left, top: r.top - k.top, bottom: r.bottom - k.top };
-    ogeler.push({ span, donme, rr, o: okumaKutusu(rr, donme) });
+    const oge = { span, donme, rr, o: okumaKutusu(rr, donme) };
+    if (!metin.trim()) { bosluklar.push(oge); return; }   // yalnızca boşluk: konum aranmaz, seçimde bulunduğu satıra katılır
+    ogeler.push(oge);
     agirlik.set(donme, (agirlik.get(donme) || 0) + metin.length);
   });
   let ana = 0, enCok = -1;
@@ -421,8 +424,16 @@ function sayfaModeli(sayfaEl, k, onbellek) {
   satirlar.sort((a, b) => a.ust - b.ust);
   const yanlar = ogeler.filter((x) => x.donme !== ana);
   // Okuma sırası (seçim bu sırayla kurulur; içerik sırası farklı olabilir: Word ve UYAP'ta alt bilgi içerikte gövdeden önce gelir):
-  // satırlar üstten alta, satırda baştan sona; başka yönde yazılmış öğe, ana yöndeki başlangıcına göre tek başına bir satırdır
-  const siraSatirlari = [...satirlar, ...yanlar.map((oge) => ({ ust: okumaKutusu(oge.rr, ana).ust, ogeler: [oge] }))].sort((a, b) => a.ust - b.ust);
+  // satırlar üstten alta, satırda baştan sona; başka yönde yazılmış öğe, ana yöndeki başlangıcına göre tek başına bir satırdır.
+  // Boşluk öğeleri ortası içinde kaldığı satıra katılır (sözcükler arası boşluk seçimde boyanır ve kopyalanır; satırın ölçülerine girmez)
+  const tum = new Map(satirlar.map((L) => [L, [...L.ogeler]]));
+  for (const b of bosluklar) {
+    if (b.donme !== ana) continue;
+    const orta = (b.o.ust + b.o.alt) / 2, L = satirlar.find((x) => orta > x.ust && orta < x.alt);
+    if (L) tum.get(L).push(b);
+  }
+  const siraSatirlari = [...satirlar.map((L) => ({ ust: L.ust, ogeler: tum.get(L).sort((a, b) => a.o.bas - b.o.bas) })),
+    ...yanlar.map((oge) => ({ ust: okumaKutusu(oge.rr, ana).ust, ogeler: [oge] }))].sort((a, b) => a.ust - b.ust);
   const sira = [], indeks = new Map();
   siraSatirlari.forEach((S, si) => { for (const oge of S.ogeler) { oge.satir = si; indeks.set(oge.span, sira.length); sira.push(oge); } });
   const model = { katman, w: k.width, h: k.height, n: katman.childElementCount, ana, satirlar, yanlar, sira, indeks };
@@ -521,9 +532,10 @@ function konumOgesi(konum) {
 // ---------------------------------------------------------------- okuma sırasındaki seçim
 // Sürükleme, çift ve üç tıklamayla kurulan seçim içerik (DOM) sırasıyla değil okuma sırasıyla (sayfaModeli.sira) kurulur: metin
 // katmanında öğeler içerik sırasındadır ve Word/UYAP belgelerinde sayfanın altındaki alt bilgi içerikte gövdeden önce gelir; tek bir
-// DOM aralığı farenin geçmediği satırları da kapsardı. Seçilen öğe parçaları, DOM'da ardışık olanlar birleştirilerek aralıklara bölünür
-// ve CSS vurgusu (::highlight) olarak boyanır. Tarayıcı seçimi bu aralıkları kapsayan tek aralıktır (seçim var mı, kopyala olayı,
-// katmanın tutulması için); boyanmaz. Seçimi okuyan işlevler (metin, kutular) geçerliyken aralıkları kullanır.
+// DOM aralığı farenin geçmediği satırları da kapsardı. Seçilen öğe parçaları, DOM'da ardışık olanlar birleştirilerek aralıklara bölünür.
+// Tarayıcı seçimi bu aralıkları kapsayan tek aralıktır (seçim var mı, kopyala olayı, katmanın tutulması için). Tek aralıksa (okuma ve
+// içerik sırası aynı: çoğu seçim) tarayıcı seçimi olduğu gibi boyanır; birden çok aralıkta tarayıcı seçimi boyanmaz, aralıklar CSS
+// vurgusu (::highlight) olarak boyanır. Seçimi okuyan işlevler (metin, kutular) geçerliyken aralıkları kullanır.
 
 const SECIM_VURGUSU = 'pdefe-secim';
 let gorsel = null;   // {gorunum, araliklar: Range[] okuma sırasıyla, ogeler: Map span → {anahtar, bas, son, kalin}, capa, odak, kapsam: [sc, so, ec, eo], imza}
@@ -652,9 +664,13 @@ function secimKur(gorunum, onbellek, bas, odak) {
   }
   if (!ayni) sec.setBaseAndExtent(an, ao, fn, fo);
   gorsel = { gorunum, araliklar, ogeler, capa: { ...bas }, odak: { ...odak }, kapsam, imza };
-  if (window.CSS?.highlights && typeof Highlight === 'function') {
+  // Tarayıcı seçim boyası sözcük aralarını ve satır sonunu da doldurur (::highlight doldurmaz): kapsayan aralık tam seçimse o kullanılır
+  if (araliklar.length > 1 && window.CSS?.highlights && typeof Highlight === 'function') {
     CSS.highlights.set(SECIM_VURGUSU, new Highlight(...araliklar));
     document.documentElement.classList.add('gorsel-secim');
+  } else {
+    try { CSS.highlights?.delete(SECIM_VURGUSU); } catch { /* yok say */ }
+    document.documentElement.classList.remove('gorsel-secim');
   }
   return true;
 }

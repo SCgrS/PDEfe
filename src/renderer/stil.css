@@ -230,7 +230,7 @@ html[data-tema="koyu"] #dugme-tema .gunes { display: block; }
 .textLayer ::selection { background: rgba(0, 103, 192, 0.35); color: transparent; }
 /* Satır sonu br'leri mutlak konumlu ve konumsuzdur: katmanın sol üst köşesinde üst üste durur; seçilince orada kesik mavi şerit boyanıyordu */
 .textLayer br::selection { background: transparent; }
-/* Okuma sırasındaki seçim (metin.js secimKur): tarayıcı seçimi içerik sırasında kapsayan aralıktır, boyanmaz; seçilen parçalar vurgudur */
+/* Okuma sırasındaki seçim (metin.js secimKur) içerik sırasıyla uyuşmayınca: tarayıcı seçimi yalnızca kapsayan aralıktır, boyanmaz; seçilen parçalar vurgudur */
 html.gorsel-secim .textLayer ::selection { background: transparent; }
 .textLayer ::highlight(pdefe-secim) { background-color: rgba(0, 103, 192, 0.35); color: transparent; }
 .textLayer br::highlight(pdefe-secim) { background-color: transparent; }
