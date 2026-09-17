@@ -281,6 +281,23 @@ export class NotYoneticisi extends EventTarget {
   }
   ptPx() { return this.g.olcek * CSS_BIRIM; }
 
+  /** Sayfanın ekrandaki açısı (0 / 90 / 180 / 270; /Rotate ve kaydedilmemiş döndürme dahil). */
+  sayfaAcisi(i) { const vp = this.vp(i); return vp ? ((Math.round(vp.rotation / 90) * 90) % 360 + 360) % 360 : 0; }
+
+  /**
+   * Yazının ekrandaki eğimi (saat yönünde derece): sayfa açısından metin yönü (yazi.donus) çıkarılır. Referans okuyucu yazının görünümünü
+   * dosyadaki gibi çizip sayfanın /Rotate'ini üstüne uygular: 0.1.1'in döndürülmüş sayfaya yazdığı (/Matrix'siz) yazı sayfayla
+   * birlikte yan döner, sayfa sonradan döndürülünce yazı da onunla döner. Yeni yazı ekrandaki sayfa açısıyla (dik) oluşturulur.
+   */
+  yaziEgimi(i, yazi) { return ((this.sayfaAcisi(i) - (+yazi?.donus || 0)) % 360 + 360) % 360; }
+
+  /** Yazı öğesini (yerli çizim ya da düzenleyici) sayfa içi px kutusu r'ye koyar: eğik yazıda öğe yazının kendi yönündeki boyutlarıyla
+   *  kutunun ortasına yerleşip döndürülür (ekrandaki kutusu yine r). */
+  yaziYerlestir(el, r, egim) {
+    const yan = egim === 90 || egim === 270, w = yan ? r.h : r.w, h = yan ? r.w : r.h;
+    Object.assign(el.style, { left: (r.x + (r.w - w) / 2) + 'px', top: (r.y + (r.h - h) / 2) + 'px', width: w + 'px', height: h + 'px', transform: egim ? `rotate(${egim}deg)` : '' });
+  }
+
   // ------------------------------------------------------------ çizim
   hepsiniCiz() { for (const s of this.g.sayfalar) if (s.canvas) this.cizSayfa(s.no); }
 
@@ -389,6 +406,8 @@ export class NotYoneticisi extends EventTarget {
     }
     el.style.cssText = `left:${r.x}px;top:${r.y}px;width:${Math.max(r.w, 4)}px;height:${Math.max(r.h, 4)}px`;
     if (n.tur === 'FreeText' && (n.yeni || n.yazi || !n.ap)) {
+      const egim = this.yaziEgimi(i, n.yazi);
+      if (egim) this.yaziYerlestir(el, r, egim);
       this.freeTextDoldur(el, n);
       return el;
     }
@@ -1166,7 +1185,7 @@ export class NotYoneticisi extends EventTarget {
       if (cizildi) { x = parseFloat(kutu.style.left); y = parseFloat(kutu.style.top); w = Math.max(40 * ptpx, parseFloat(kutu.style.width)); h = Math.max(20 * ptpx, parseFloat(kutu.style.height)); }
       const rect = this.pxRectToPdf(i, x, y, w, h);
       const a = this.ayar();
-      const not = { id: yeniId(), tur: 'FreeText', sayfa: i + 1, rect, icerik: '', yazar: a.yazarAdi, renk: null, opaklik: 1, yazi: this.varsayilanYazi(), yeni: true, silindi: false, yanitlar: [], ustId: null, konu: 'Yazı' };
+      const not = { id: yeniId(), tur: 'FreeText', sayfa: i + 1, rect, icerik: '', yazar: a.yazarAdi, renk: null, opaklik: 1, yazi: yaziKanonik({ ...this.varsayilanYazi(), donus: this.sayfaAcisi(i) }, ''), yeni: true, silindi: false, yanitlar: [], ustId: null, konu: 'Yazı' };
       this.aracSec(null);
       this.duzenleyiciAc(not, true);
     };
@@ -1268,8 +1287,9 @@ export class NotYoneticisi extends EventTarget {
     const r = this.rectToPx(i, d.rect);
     const k = this.ptPx();
     const y = d.yazi;
+    const egim = this.yaziEgimi(i, y);
+    this.yaziYerlestir(d.el, r, egim);
     Object.assign(d.el.style, {
-      left: r.x + 'px', top: r.y + 'px', width: r.w + 'px', height: r.h + 'px',
       fontFamily: `'${y.tip}'`, fontSize: (y.boyut * k) + 'px', color: y.renk, background: y.arka || 'rgba(255,255,255,0.01)',
       textAlign: HIZA_CSS[y.hiza] || 'left',
       // Kenarlıksızken kesik çizgili işaret outline ile (kutunun içine): kenarlık gibi yer kaplayıp içeriği yerli çizimden ve kaydedilen
@@ -1281,7 +1301,7 @@ export class NotYoneticisi extends EventTarget {
     if (d.bt) Object.assign(d.bt.style, { left: (r.x + r.w - 5) + 'px', top: (r.y + r.h - 5) + 'px' });
     this.duzenleyiciCubukKonumla(r);
     // Satır kırılımı değişmiş olabilir (genişlik, yakınlaştırma, yazı tipi, boyut, kenarlık): satır sonu boşluklarının çizgisi yeniden belirlenir
-    const dizilim = [r.w, y.boyut * k, y.tip, y.kenarlik].join('|');
+    const dizilim = [d.el.style.width, y.boyut * k, y.tip, y.kenarlik].join('|');
     if (d.dizilim !== dizilim && !d.birlesim) { d.dizilim = dizilim; if (d.parcalar.some((p) => p.alti || p.ustu)) this.duzenleyiciDomCiz(); }
   }
 
@@ -1322,9 +1342,12 @@ export class NotYoneticisi extends EventTarget {
     const d = this.duzenleyici; if (!d) return;
     const ta = d.el;
     if (ta.scrollHeight > ta.clientHeight + 1) {
-      // Ekranda aşağı doğru büyür (döndürülmüş sayfada PDF'in başka kenarı)
-      const i = d.not.sayfa - 1, r = this.rectToPx(i, d.rect);
-      d.rect = this.pxRectToPdf(i, r.x, r.y, r.w, r.h + (ta.scrollHeight - ta.clientHeight) + 2 * this.ptPx());
+      // Yazının aşağı yönünde büyür: ekranda aşağı, eğik yazıda sola / yukarı / sağa (döndürülmüş sayfada PDF'in başka kenarı)
+      const i = d.not.sayfa - 1, r = this.rectToPx(i, d.rect), ek = (ta.scrollHeight - ta.clientHeight) + 2 * this.ptPx();
+      const egim = this.yaziEgimi(i, d.yazi);
+      const [x, y, w, h] = egim === 90 ? [r.x - ek, r.y, r.w + ek, r.h] : egim === 180 ? [r.x, r.y - ek, r.w, r.h + ek]
+        : egim === 270 ? [r.x, r.y, r.w + ek, r.h] : [r.x, r.y, r.w, r.h + ek];
+      d.rect = this.pxRectToPdf(i, x, y, w, h);
       this.duzenleyiciKonumla();
     }
   }

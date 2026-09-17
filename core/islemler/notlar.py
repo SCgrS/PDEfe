@@ -11,6 +11,7 @@
 import hashlib
 import io
 import json
+import math
 import os
 import re
 import time
@@ -220,7 +221,8 @@ def _parcalari_uydur(parcalar, metin, varsayilan_renk=None):
 
 def freetext_stil_kanonik(stil, metin):
     """Yazı biçiminin kanonik biçimi (renderer'daki yaziKanonik ile aynı anahtarlar ve sıra):
-    {tip, boyut, renk, arka, kenarlik, [kenarlikRengi], [hiza], parcalar}. Parçası olmayan eski (0.1.1) kayıtta kutu
+    {tip, boyut, renk, arka, kenarlik, [kenarlikRengi], [hiza], [donus], parcalar}. donus: metin yönü (0 değilse; bkz.
+    freetext_donus). Parçası olmayan eski (0.1.1) kayıtta kutu
     düzeyindeki kalin / italik / altiCizili bayrakları tek parçaya çevrilir; parçalar metinle uyuşmuyorsa uydurulur."""
     s = stil if isinstance(stil, dict) else {}
     metin = _duz(metin)
@@ -235,8 +237,36 @@ def freetext_stil_kanonik(stil, metin):
         k["kenarlikRengi"] = _hex(_renk(s.get("kenarlikRengi")))
     if s.get("hiza") in ("orta", "sag"):
         k["hiza"] = s["hiza"]
+    donus = _donus_kanonik(s.get("donus"))
+    if donus:
+        k["donus"] = donus
     k["parcalar"] = parcalar
     return k
+
+
+def _donus_kanonik(aci):
+    """Açıyı 0 / 90 / 180 / 270'e yuvarlar (geçersizse 0)."""
+    try:
+        return int(round(float(aci or 0) / 90.0)) * 90 % 360
+    except (TypeError, ValueError):
+        return 0
+
+
+def freetext_donus(doc, xref):
+    """Yazının dosyadaki metin yönü (kullanıcı uzayında, saat yönünün tersine derece): görünüm akışının /Matrix dönüşü; görünüm
+    yoksa /Rotate. Referans okuyucu görünümü dosyadaki gibi çizip sayfanın /Rotate'ini üstüne uygular: 0.1.1'in döndürülmüş sayfaya
+    /Matrix'siz yazdığı yazı sayfayla birlikte yan döner, sonradan döndürülen sayfadaki yazı da sayfayla döner."""
+    try:
+        if doc.xref_get_key(xref, "AP/N")[0] in ("xref", "dict", "stream"):
+            t, v = doc.xref_get_key(xref, "AP/N/Matrix")
+            if t != "array":
+                return 0
+            a, b = (float(x) for x in v.strip("[] ").split()[:2])
+            return _donus_kanonik(math.degrees(math.atan2(b, a))) if abs(a) + abs(b) > 1e-9 else 0
+        t, v = doc.xref_get_key(xref, "Rotate")
+        return _donus_kanonik(v) if t in ("int", "float") else 0
+    except Exception:
+        return 0
 
 
 # Sözcük içinde satır kırılabilen yerler; renderer'daki Chromium dizilimiyle yoklanarak belirlendi (tireler, soru işareti,
@@ -586,8 +616,9 @@ def freetext_gorunum_yaz(doc, page, annot, metin, stil):
         kaynak[yuz] = ("F%d" % (i + 1), font, olcu, _font_xref_al(doc, page, aile, *yuz))
     duz_olcu = kaynak[(False, False)][2]
     r = annot.rect
-    # Sayfa döndürülmüşse (/Rotate), görünüm akışını ters yönde döndürerek metni ekranda dik tut
-    rot = int(getattr(page, "rotation", 0) or 0) % 360
+    # Metin yönü (stil donus): görünüm akışı bu açıyla döndürülür. Yeni yazıda renderer ekrandaki sayfa açısını verir (metin dik
+    # durur); var olan yazıda dosyadaki yön korunur (freetext_donus): düzenleyip kaydetmek yazının referans okuyucudaki yönünü değiştirmez
+    rot = k.get("donus", 0)
     if rot in (90, 270):
         w, h = max(r.height, 1), max(r.width, 1)
     else:
@@ -676,7 +707,7 @@ def freetext_gorunum_yaz(doc, page, annot, metin, stil):
         doc.xref_set_key(annot.xref, "IC", "null")
     doc.xref_set_key(annot.xref, "BS", "<</Type/Border/W %d/S/S>>" % (1 if kenarlik else 0))
     doc.xref_set_key(annot.xref, "Q", str(HIZA_Q.get(hiza, 0)))
-    # Döndürülmüş sayfada referans okuyucu görünümü yeniden üretirse metin yine dik dursun (referans okuyucu da sayfa açısını /Rotate'e yazar)
+    # Referans okuyucu görünümü yeniden üretirse metin aynı yönde dursun (referans okuyucu da döndürülmüş sayfadaki yazının açısını /Rotate'e yazar)
     if rot or doc.xref_get_key(annot.xref, "Rotate")[0] != "null":
         doc.xref_set_key(annot.xref, "Rotate", str(rot) if rot else "null")
     # PyMuPDF her yazıya anlamsız bir çağrı çizgisi (/CL) ekliyor; çağrı çizgili (callout) olmayan yazıda kaldırılır
@@ -727,6 +758,7 @@ def pdefe_stil_oku(doc, xref):
             pass
     if isinstance(parcalar, list):
         stil["parcalar"] = parcalar
+    stil["donus"] = freetext_donus(doc, xref)
     return freetext_stil_kanonik(stil, metin)
 
 
@@ -779,6 +811,7 @@ def freetext_stil_al(doc, annot):
     # /DS, /RC yoksa (başka yazıcılar) /DA rengi yazı rengidir, kenarlık da o renkte kalır.
     if da_renk and da_renk != _hex(_renk(stil["renk"])):
         stil["kenarlikRengi"] = da_renk
+    stil["donus"] = freetext_donus(doc, a.xref)
     return freetext_stil_kanonik(stil, icerik), icerik
 
 
