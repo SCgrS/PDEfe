@@ -664,8 +664,15 @@ function kapatmayaIzinAl() {
 }
 
 document.querySelectorAll('[data-komut]').forEach((el) => el.addEventListener('click', () => komutCalistir(el.dataset.komut, el.dataset.veri)));
-// Yazı düzenlenirken Geri al / Yinele düğmesine basmak odağı ve seçimi düzenleyicide bırakır
-for (const d of [$('#dugme-geri-al'), $('#dugme-yinele')]) d.addEventListener('mousedown', (e) => { if (aktif()?.notlar?.duzenleyici) e.preventDefault(); });
+// Yazı düzenlenirken Geri al / Yinele düğmesine basmak odağı ve seçimi düzenleyicide bırakır. Pasif düğmede mousedown gelmez ve odak
+// gövdeye geçer: basılınca odak düzenleyicideyse hemen geri verilir (imleç kaybolup yazılanlar başka yere gitmesin)
+for (const d of [$('#dugme-geri-al'), $('#dugme-yinele')]) {
+  d.addEventListener('mousedown', (e) => { if (aktif()?.notlar?.duzenleyici) e.preventDefault(); });
+  d.addEventListener('pointerdown', () => {
+    const n = aktif()?.notlar, ed = n?.duzenleyici;
+    if (ed && document.activeElement === ed.el) setTimeout(() => { if (n.duzenleyici === ed) n.duzenleyiciOdakla(); }, 0);
+  });
+}
 // Araçlar düğmesi (fare ya da klavyeyle açma) açık yazı düzenlemesini uygular; pencere kendi dinleyicisinden önce (yakalama evresi)
 $('#dugme-araclar').addEventListener('pointerdown', (e) => { if (e.button === 0) aktif()?.notlar?.duzenleyiciBitir(true); }, true);
 $('#dugme-araclar').addEventListener('keydown', (e) => { if (['Enter', ' ', 'ArrowDown'].includes(e.key)) aktif()?.notlar?.duzenleyiciBitir(true); }, true);
