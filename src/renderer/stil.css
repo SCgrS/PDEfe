@@ -230,6 +230,10 @@ html[data-tema="koyu"] #dugme-tema .gunes { display: block; }
 .textLayer ::selection { background: rgba(0, 103, 192, 0.35); color: transparent; }
 /* Satır sonu br'leri mutlak konumlu ve konumsuzdur: katmanın sol üst köşesinde üst üste durur; seçilince orada kesik mavi şerit boyanıyordu */
 .textLayer br::selection { background: transparent; }
+/* Okuma sırasındaki seçim (metin.js secimKur): tarayıcı seçimi içerik sırasında kapsayan aralıktır, boyanmaz; seçilen parçalar vurgudur */
+html.gorsel-secim .textLayer ::selection { background: transparent; }
+.textLayer ::highlight(pdefe-secim) { background-color: rgba(0, 103, 192, 0.35); color: transparent; }
+.textLayer br::highlight(pdefe-secim) { background-color: transparent; }
 /* Sürükleyerek seçim sürerken (metin.js surukleSecimiBagla) boşluk ve sayfa dışında da metin imleci */
 html.metin-seciliyor, html.metin-seciliyor * { cursor: text !important; }
 .textLayer .endOfContent { display: block; position: absolute; inset: 100% 0 0; z-index: 0; cursor: default; user-select: none; }
@@ -244,6 +248,8 @@ html.metin-seciliyor, html.metin-seciliyor * { cursor: text !important; }
 .koyu-sayfa .sayfa .textLayer { mix-blend-mode: screen; }
 .koyu-sayfa .textLayer ::selection { background: rgba(60, 150, 255, 0.45); }
 .koyu-sayfa .textLayer br::selection { background: transparent; }
+.koyu-sayfa .textLayer ::highlight(pdefe-secim) { background-color: rgba(60, 150, 255, 0.45); }
+.koyu-sayfa .textLayer br::highlight(pdefe-secim) { background-color: transparent; }
 .koyu-sayfa .textLayer .highlight { background: #6b5500; }
 .koyu-sayfa .textLayer .highlight.selected { background: #b35400; }
 

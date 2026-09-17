@@ -77,6 +77,7 @@ export function temizMetin(ham) {
 export function secimYapiliMetni() {
   const sec = window.getSelection();
   if (!sec || sec.rangeCount === 0 || sec.isCollapsed) return '';
+  if (gorselGecerli()) return girintiliBirlestir(gorselSatirlar());
   const range = sec.getRangeAt(0);
   let kok = range.commonAncestorContainer;
   if (kok.nodeType !== 1) kok = kok.parentElement;
@@ -107,10 +108,60 @@ export function secimYapiliMetni() {
     cur.parcalar.push(metin);
   }
   yeniSatir();
-  if (!satirlar.length) return '';
+  return girintiliBirlestir(satirlar);
+}
+
+/** Satırları ({parcalar, sol} ya da sayfa arası {bos}) metne çevirir: en soldakinden 8 pt'den fazla içeride başlayan satır girintili. */
+function girintiliBirlestir(satirlar) {
+  if (!satirlar.some((s) => !s.bos)) return '';
   const sollar = satirlar.filter((s) => !s.bos).map((s) => s.sol);
   const enSol = Math.min(...sollar);
   return satirlar.map((s) => (s.bos ? '' : ((s.sol - enSol > 8 ? '    ' : '') + s.parcalar.join('')))).join('\n');
+}
+
+/** Satır başının sayfa kenarına uzaklığı (pt), yazı yönünde (secimYapiliMetni ile aynı ölçü). */
+function satirSolu(oge, sayfaEl) {
+  const donme = metinDonmesi(oge);
+  const sol = okumaKutusu(oge.getBoundingClientRect(), donme).bas - okumaKutusu(sayfaEl.getBoundingClientRect(), donme).bas;
+  return sol / (parseFloat(getComputedStyle(sayfaEl).getPropertyValue('--total-scale-factor')) || 1);
+}
+
+/**
+ * Okuma sırasındaki seçimin satırları: [{parcalar, sol} | {bos}] (sayfa değişiminde bos). Satır, seçimi kurarken öğeye yazılan okuma
+ * satırıdır (içerikteki satır sonu değil); boşluk öğeleri bulundukları satıra katılır. Aynı satırdaki iki öğe arasında görünür aralık
+ * varsa ama metinde boşluk yoksa (PDF'te boşluk karakteri yazılmamış) bir boşluk eklenir.
+ */
+function gorselSatirlar() {
+  const satirlar = [];
+  let cur = null, sonSayfa = null;
+  for (const range of gorsel.araliklar) {
+    let kok = range.commonAncestorContainer;
+    if (kok.nodeType !== 1) kok = kok.parentElement;
+    const yuruyucu = document.createTreeWalker(kok, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => (range.intersectsNode(n) && n.parentElement?.closest('.textLayer') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP),
+    });
+    for (let n; (n = yuruyucu.nextNode());) {
+      let metin = n.data;
+      if (n === range.endContainer) metin = metin.slice(0, range.endOffset);
+      if (n === range.startContainer) metin = metin.slice(range.startOffset);
+      if (!metin) continue;
+      const sayfaEl = n.parentElement.closest('.sayfa');
+      if (!sayfaEl) continue;
+      let oge = n.parentElement;
+      while (oge && !gorsel.ogeler.has(oge) && !oge.classList.contains('textLayer')) oge = oge.parentElement;
+      const bilgi = oge && gorsel.ogeler.get(oge);
+      if (sayfaEl !== sonSayfa) { if (cur) satirlar.push(cur); cur = null; if (sonSayfa) satirlar.push({ bos: true }); sonSayfa = sayfaEl; }
+      if (bilgi && cur && cur.anahtar && cur.anahtar !== bilgi.anahtar) { satirlar.push(cur); cur = null; }
+      if (!cur) cur = { anahtar: null, parcalar: [], sol: 0, onceki: null };
+      if (bilgi && !cur.anahtar) { cur.anahtar = bilgi.anahtar; cur.sol = satirSolu(oge, sayfaEl); }
+      if (bilgi && cur.onceki && cur.onceki !== bilgi && bilgi.bas - cur.onceki.son > cur.onceki.kalin * 0.15
+        && !/\s$/.test(cur.parcalar.at(-1) || '') && !/^\s/.test(metin)) cur.parcalar.push(' ');
+      cur.parcalar.push(metin);
+      if (bilgi) cur.onceki = bilgi;
+    }
+  }
+  if (cur) satirlar.push(cur);
+  return satirlar.filter((s) => s.bos || s.parcalar.join('').trim());
 }
 
 /** Ham modda yalnızca temel düzeltme: NFC, bozuk glif, Windows satır sonu. */
@@ -166,12 +217,9 @@ export function sayfaNumarasi(sayfaEl) {
  * da verdiği için her metin düğümünün yalnızca seçimle kesişen alt aralığı ölçülür; yalnızca boşluktan oluşan parçalar atlanır.
  */
 export function secimMetinKutulari() {
-  const sec = window.getSelection();
-  if (!sec || sec.rangeCount === 0 || sec.isCollapsed) return [];
   const sonuc = [];
   const alt = document.createRange();
-  for (let r = 0; r < sec.rangeCount; r++) {
-    const range = sec.getRangeAt(r);
+  for (const range of secimAraliklari()) {   // okuma sırasındaki seçimde yalnızca seçilen parçalar
     let kok = range.commonAncestorContainer;
     if (kok.nodeType !== 1) kok = kok.parentNode;
     if (!kok) continue;
@@ -239,46 +287,68 @@ export function satirlaraBirlestir(dikler) {
 
 // ---------------------------------------------------------------- üç tıkla paragraf
 /**
- * Tıklanan metin öğesinin bulunduğu paragrafı (satırlar arası aralığı dar satır dizisi) seçer. Geometri okuma çerçevesinde
- * (okumaKutusu) karşılaştırılır: döndürülmüş sayfada satırlar ekranda dikey şerit ya da ters sıralı olabilir.
- * Yalnızca tıklanan öğeyle aynı yönde yazılmış öğeler dikkate alınır (kenar şeridi gibi dik metin paragrafa katılmaz).
+ * Tıklanan metin öğesinin bulunduğu paragrafı okuma sırasıyla seçer (bkz. secimKur): sayfa modelinin (sayfaModeli) üstten alta
+ * satırlarından, tıklanan satırın çevresinde paragrafSatirlari'nin birlikte saydıkları. İçerikte araya giren üst/alt bilgi ya da
+ * önceki başlık seçime girmez. Geometri okuma çerçevesindedir (döndürülmüş sayfa); başka yönde yazılmış öğeye (kenar şeridi)
+ * tıklanınca yalnızca o öğe seçilir.
  */
 export function paragrafSec(hedef) {
   const katman = hedef?.closest?.('.textLayer');
-  if (!katman) return false;
+  const sayfaEl = katman?.closest('.sayfa');
+  if (!sayfaEl) return false;
   const hedefSpan = hedef.closest('span:not(.highlight)');   // arama vurgusuna tıklandıysa metin öğesi
   if (!hedefSpan || !katman.contains(hedefSpan)) return false;
-  const donme = metinDonmesi(hedefSpan);
-  const spanlar = [...katman.querySelectorAll(':scope > span, :scope .markedContent > span')]
-    .filter((s) => !s.classList.contains('markedContent') && s.textContent.trim() && metinDonmesi(s) === donme);
-  const kutular = new Map();
-  const kut = (s) => { let k = kutular.get(s); if (!k) kutular.set(s, (k = okumaKutusu(s.getBoundingClientRect(), donme))); return k; };
-  // Satırlara grupla
-  const satirlar = [];
-  for (const s of spanlar) {
-    const k = kut(s); const orta = (k.ust + k.alt) / 2;
-    const sat = satirlar.find((x) => orta > x.ust && orta < x.alt);
-    if (sat) { sat.spanlar.push(s); sat.ust = Math.min(sat.ust, k.ust); sat.alt = Math.max(sat.alt, k.alt); }
-    else satirlar.push({ ust: k.ust, alt: k.alt, spanlar: [s] });
+  const onbellek = new Map();
+  const model = sayfaModeli(sayfaEl, sayfaEl.getBoundingClientRect(), onbellek);
+  if (!model) return false;
+  const oge = (span, ofset) => ({ girdi: { el: sayfaEl }, span, ofset });
+  const yan = model.yanlar.find((x) => x.span === hedefSpan);
+  if (yan) return secimKur(null, onbellek, oge(yan.span, 0), oge(yan.span, yan.span.textContent.length));
+  let idx = model.satirlar.findIndex((L) => L.ogeler.some((x) => x.span === hedefSpan));
+  if (idx < 0) {   // modelde olmayan (boşluk) öğe: ortası içinde kaldığı satır
+    const r = hedefSpan.getBoundingClientRect(), k = sayfaEl.getBoundingClientRect();
+    const o = okumaKutusu({ left: r.left - k.left, right: r.right - k.left, top: r.top - k.top, bottom: r.bottom - k.top }, model.ana);
+    idx = model.satirlar.findIndex((L) => (o.ust + o.alt) / 2 > L.ust && (o.ust + o.alt) / 2 < L.alt);
   }
-  satirlar.sort((a, b) => a.ust - b.ust);
-  const idx = satirlar.findIndex((x) => x.spanlar.includes(hedefSpan));
   if (idx < 0) return false;
-  const yukseklik = satirlar[idx].alt - satirlar[idx].ust;
+  const [bas, son] = paragrafSatirlari(model.satirlar, idx);
+  const sonOge = model.satirlar[son].ogeler.at(-1);
+  return secimKur(null, onbellek, oge(model.satirlar[bas].ogeler[0].span, 0), oge(sonOge.span, sonOge.span.textContent.length));
+}
+
+/**
+ * Üstten alta sıralı satırlarda (okuma çerçevesi) idx. satırın paragrafı: [ilk, son] satır indeksleri. Komşu satır aynı paragraftadır:
+ * aradaki boşluk satır kalınlığının 0,8'inden az, kalınlığı benzer (yazı boyu), satır aralığı (üstten üste) paragrafınkiyle tutarlı
+ * (başlık/üst bilgi daha sık ya da seyrek durur), alttaki satır girintili değil (girinti yeni paragraf başlatır) ve üstteki satır
+ * kısa değil (paragrafın son satırı: iki yana yaslı sayfada tam satırların bittiği kenardan bir satır kalınlığından fazla önce biter;
+ * yaslı değilse genişliğin üçte birinden fazla kısadır).
+ */
+function paragrafSatirlari(satirlar, idx) {
+  const kalin = (L) => L.alt - L.ust;
+  const h = kalin(satirlar[idx]);
+  const sonlar = satirlar.map((L) => L.son).sort((a, b) => b - a);
+  const genislik = sonlar[0] - Math.min(...satirlar.map((L) => L.bas));
+  // Tam satırların bittiği kenar: en çok satır sonunun toplandığı dar bant
+  let kenar = sonlar[0], enCok = 0;
+  for (let i = 0, j = 0; i < sonlar.length; i++) {
+    while (sonlar[j] < sonlar[i] - h / 4) j++;   // azalan sırada [j..i] bandı: sonlar[j] - sonlar[i] ≤ h/4
+    if (i - j + 1 > enCok) { enCok = i - j + 1; kenar = sonlar[j]; }
+  }
+  const yasli = enCok >= Math.max(3, satirlar.length * 0.4);
+  const kisa = (L) => (yasli ? L.son < kenar - h : L.son < sonlar[0] - genislik / 3);
+  let adim = null;   // paragrafın satır aralığı
+  const birlikte = (U, A) => {
+    if (A.ust - U.alt >= h * 0.8 || Math.abs(kalin(A) - kalin(U)) > Math.max(kalin(A), kalin(U)) * 0.12) return false;
+    if (kisa(U) || A.bas - U.bas > h) return false;
+    const a = A.ust - U.ust;
+    if (adim !== null && Math.abs(a - adim) > Math.max(2, adim * 0.15)) return false;
+    if (adim === null) adim = a;
+    return true;
+  };
   let bas = idx, son = idx;
-  while (bas > 0 && satirlar[bas].ust - satirlar[bas - 1].alt < yukseklik * 0.8) bas--;
-  while (son < satirlar.length - 1 && satirlar[son + 1].ust - satirlar[son].alt < yukseklik * 0.8) son++;
-  let ilk = satirlar[bas].spanlar.reduce((a, b) => (kut(a).bas <= kut(b).bas ? a : b));
-  let sonSpan = satirlar[son].spanlar.reduce((a, b) => (kut(a).son >= kut(b).son ? a : b));
-  // DOM sırası okuma sırasına ters düşerse aralık çökmesin
-  if (ilk !== sonSpan && ilk.compareDocumentPosition(sonSpan) & Node.DOCUMENT_POSITION_PRECEDING) [ilk, sonSpan] = [sonSpan, ilk];
-  const sec = window.getSelection();
-  const r = document.createRange();
-  r.setStart(ilk.firstChild || ilk, 0);
-  const sonDugum = sonSpan.firstChild || sonSpan;
-  r.setEnd(sonDugum, sonDugum.nodeType === 3 ? sonDugum.length : sonDugum.childNodes.length);
-  sec.removeAllRanges(); sec.addRange(r);
-  return true;
+  while (son + 1 < satirlar.length && birlikte(satirlar[son], satirlar[son + 1])) son++;
+  while (bas > 0 && birlikte(satirlar[bas - 1], satirlar[bas])) bas--;
+  return [bas, son];
 }
 
 // ---------------------------------------------------------------- sürükleyerek seçim
@@ -330,7 +400,8 @@ function sayfaModeli(sayfaEl, k, onbellek) {
     const r = span.getBoundingClientRect();
     if (r.width <= 0 && r.height <= 0) return;
     const donme = metinDonmesi(span);
-    ogeler.push({ span, donme, o: okumaKutusu({ left: r.left - k.left, right: r.right - k.left, top: r.top - k.top, bottom: r.bottom - k.top }, donme) });
+    const rr = { left: r.left - k.left, right: r.right - k.left, top: r.top - k.top, bottom: r.bottom - k.top };
+    ogeler.push({ span, donme, rr, o: okumaKutusu(rr, donme) });
     agirlik.set(donme, (agirlik.get(donme) || 0) + metin.length);
   });
   let ana = 0, enCok = -1;
@@ -347,7 +418,14 @@ function sayfaModeli(sayfaEl, k, onbellek) {
     else satirlar.push({ ust: o.ust, alt: o.alt, orta, bas: o.bas, son: o.son, ogeler: [oge] });
   }
   for (const L of satirlar) L.ogeler.sort((a, b) => a.o.bas - b.o.bas);
-  const model = { katman, w: k.width, h: k.height, n: katman.childElementCount, ana, satirlar, yanlar: ogeler.filter((x) => x.donme !== ana) };
+  satirlar.sort((a, b) => a.ust - b.ust);
+  const yanlar = ogeler.filter((x) => x.donme !== ana);
+  // Okuma sırası (seçim bu sırayla kurulur; içerik sırası farklı olabilir: Word ve UYAP'ta alt bilgi içerikte gövdeden önce gelir):
+  // satırlar üstten alta, satırda baştan sona; başka yönde yazılmış öğe, ana yöndeki başlangıcına göre tek başına bir satırdır
+  const siraSatirlari = [...satirlar, ...yanlar.map((oge) => ({ ust: okumaKutusu(oge.rr, ana).ust, ogeler: [oge] }))].sort((a, b) => a.ust - b.ust);
+  const sira = [], indeks = new Map();
+  siraSatirlari.forEach((S, si) => { for (const oge of S.ogeler) { oge.satir = si; indeks.set(oge.span, sira.length); sira.push(oge); } });
+  const model = { katman, w: k.width, h: k.height, n: katman.childElementCount, ana, satirlar, yanlar, sira, indeks };
   onbellek.set(sayfaEl, model);
   return model;
 }
@@ -407,6 +485,15 @@ function enYakinKonum(gorunum, x, y, onbellek) {
       const a = [d, d ? 0 : Math.abs(p.ust - (L.ust + L.alt) / 2), Math.max(0, L.bas - p.bas, p.bas - L.son)];
       if (!enIyiA || a[0] < enIyiA[0] || (a[0] === enIyiA[0] && (a[1] < enIyiA[1] || (a[1] === enIyiA[1] && a[2] < enIyiA[2])))) { enIyi = L; enIyiA = a; }
     }
+    // Satırlardan uzak boşluk (paragraf arası, sayfanın üstü/altı): konum okuma sırasında boşluğun yeridir, altındaki satırın başı
+    // (altında satır yoksa sayfa metninin sonu). Aşağı sürüklemede seçim üstteki son satırın sonunda, yukarı sürüklemede alttaki
+    // ilk satırın başında biter; farenin henüz ulaşmadığı en yakın satır (ör. sayfa altındaki alt bilgi) seçime girmez
+    if (enIyiA[0] > (enIyi.alt - enIyi.ust) / 2) {
+      const alti = model.satirlar.find((L) => (L.ust + L.alt) / 2 > p.ust);
+      if (alti) return { girdi: s, span: alti.ogeler[0].span, ofset: 0 };
+      const son = model.sira[model.sira.length - 1];
+      return { girdi: s, span: son.span, ofset: son.span.textContent.length };
+    }
     const og = enIyi.ogeler;
     if (p.bas <= og[0].o.bas) return { girdi: s, span: og[0].span, ofset: 0 };
     for (let i = 0; i < og.length; i++) {
@@ -431,15 +518,132 @@ function konumOgesi(konum) {
   return yeni && yeni.tagName === 'SPAN' ? (konum.span = yeni) : null;
 }
 
-/** Seçimi bas → odak olarak kurar (odak basın önünde olabilir: geriye doğru seçim). Aynı konumdaysa seçimi kaldırır. */
-function secimKur(bas, odak) {
+// ---------------------------------------------------------------- okuma sırasındaki seçim
+// Sürükleme, çift ve üç tıklamayla kurulan seçim içerik (DOM) sırasıyla değil okuma sırasıyla (sayfaModeli.sira) kurulur: metin
+// katmanında öğeler içerik sırasındadır ve Word/UYAP belgelerinde sayfanın altındaki alt bilgi içerikte gövdeden önce gelir; tek bir
+// DOM aralığı farenin geçmediği satırları da kapsardı. Seçilen öğe parçaları, DOM'da ardışık olanlar birleştirilerek aralıklara bölünür
+// ve CSS vurgusu (::highlight) olarak boyanır. Tarayıcı seçimi bu aralıkları kapsayan tek aralıktır (seçim var mı, kopyala olayı,
+// katmanın tutulması için); boyanmaz. Seçimi okuyan işlevler (metin, kutular) geçerliyken aralıkları kullanır.
+
+const SECIM_VURGUSU = 'pdefe-secim';
+let gorsel = null;   // {araliklar: Range[] okuma sırasıyla, ogeler: Map span → {anahtar, bas, son, kalin}, capa, kapsam: [sc, so, ec, eo]}
+
+/** Okuma sırasındaki seçimi ve boyamasını kaldırır (tarayıcı seçimine dokunmaz). */
+function gorselTemizle() {
+  gorsel = null;
+  try { CSS.highlights?.delete(SECIM_VURGUSU); } catch { /* yok say */ }
+  document.documentElement.classList.remove('gorsel-secim');
+}
+
+/** Okuma sırasındaki seçim hâlâ tarayıcı seçimiyle aynı mı (başka bir yol seçimi değiştirdiyse ya da kaldırdıysa temizlenir). */
+function gorselGecerli() {
+  if (!gorsel) return false;
   const sec = window.getSelection();
-  const bs = konumOgesi(bas), os = konumOgesi(odak);
-  if (!bs || !os) return;
-  if (bs === os && bas.ofset === odak.ofset) { if (sec.rangeCount) sec.removeAllRanges(); return; }
-  const [an, ao] = dugumKonumu(bs, bas.ofset), [fn, fo] = dugumKonumu(os, odak.ofset);
-  if (sec.rangeCount && sec.anchorNode === an && sec.anchorOffset === ao && sec.focusNode === fn && sec.focusOffset === fo) return;
-  sec.setBaseAndExtent(an, ao, fn, fo);
+  if (sec && sec.rangeCount === 1 && !sec.isCollapsed) {
+    const r = sec.getRangeAt(0), [sc, so, ec, eo] = gorsel.kapsam;
+    if (r.startContainer === sc && r.startOffset === so && r.endContainer === ec && r.endOffset === eo && sc.isConnected && ec.isConnected) return true;
+  }
+  gorselTemizle();
+  return false;
+}
+document.addEventListener('selectionchange', () => { if (gorsel) gorselGecerli(); });
+
+/** Seçimi (okuma sırasındaki dahil) hemen kaldırır. */
+function secimiKaldir() {
+  gorselTemizle();
+  const sec = window.getSelection();
+  if (sec?.rangeCount) sec.removeAllRanges();
+}
+
+/** Seçimin metin aralıkları: okuma sırasındaki seçim geçerliyse onun aralıkları, değilse tarayıcı seçiminin aralıkları. */
+function secimAraliklari() {
+  const sec = window.getSelection();
+  if (!sec || sec.rangeCount === 0 || sec.isCollapsed) return [];
+  if (gorselGecerli()) return gorsel.araliklar;
+  const l = [];
+  for (let i = 0; i < sec.rangeCount; i++) l.push(sec.getRangeAt(i));
+  return l;
+}
+
+/**
+ * Konumun okuma sırasındaki yeri: {p: sayfa sırası, i: sayfa modelinde öğe sırası (model.sira), o: ofset, model} ya da null.
+ * Modelde olmayan öğe (yalnızca boşluk) içerikte ardından gelen öğenin başı sayılır. gorunum yoksa (tek sayfa) p 0'dır.
+ */
+function siraKonumu(gorunum, onbellek, konum) {
+  const span = konum && konumOgesi(konum);
+  if (!span) return null;
+  const sayfaEl = span.closest('.sayfa');
+  const model = sayfaEl && sayfaModeli(sayfaEl, sayfaEl.getBoundingClientRect(), onbellek);
+  if (!model || !model.sira.length) return null;
+  let i = model.indeks.get(span), o = konum.ofset;
+  if (i === undefined) {
+    for (let e = span.nextElementSibling; e && i === undefined; e = e.nextElementSibling) { i = model.indeks.get(e); o = 0; }
+    if (i === undefined) { i = model.sira.length - 1; o = model.sira[i].span.textContent.length; }
+  }
+  const p = gorunum ? gorunum.sayfalar.findIndex((s) => s.el === sayfaEl) : 0;
+  return p < 0 ? null : { p, i, o, model };
+}
+const siraKarsilastir = (a, b) => a.p - b.p || a.i - b.i || a.o - b.o;
+
+/** a öğesinden b öğesine (içerikte ardından gelen) arada yalnızca boşluk, satır sonu ya da boş öğe mi var. */
+function arasiBos(a, b) {
+  if (!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)) return false;
+  const r = document.createRange();
+  r.setStartAfter(a); r.setEndBefore(b);
+  return !r.toString().trim();
+}
+
+/**
+ * Seçimi bas → odak olarak okuma sırasıyla kurar (odak basın önünde olabilir: geriye doğru seçim); aradaki sayfaların (metin katmanı
+ * olanların) bütün metni dahildir. Aynı konumdaysa seçimi kaldırır. Döner: seçim kuruldu mu.
+ */
+function secimKur(gorunum, onbellek, bas, odak) {
+  const a = siraKonumu(gorunum, onbellek, bas), b = siraKonumu(gorunum, onbellek, odak);
+  if (!a || !b) return false;
+  const yon = siraKarsilastir(a, b);
+  if (!yon) { secimiKaldir(); return false; }
+  const [ilk, son] = yon < 0 ? [a, b] : [b, a];
+  const araliklar = [], ogeler = new Map();
+  let aralik = null, onceki = null;
+  for (let p = ilk.p; p <= son.p; p++) {
+    let model = p === ilk.p ? ilk.model : p === son.p ? son.model : null;
+    if (!model) { const el = gorunum?.sayfalar[p]?.el; model = el && sayfaModeli(el, el.getBoundingClientRect(), onbellek); }
+    if (!model) continue;
+    const i1 = p === son.p ? son.i : model.sira.length - 1;
+    for (let i = p === ilk.p ? ilk.i : 0; i <= i1; i++) {
+      const oge = model.sira[i], uzunluk = oge.span.textContent.length;
+      const b0 = p === ilk.p && i === ilk.i ? ilk.o : 0, b1 = p === son.p && i === son.i ? son.o : uzunluk;
+      if (b1 <= b0) continue;
+      ogeler.set(oge.span, { anahtar: `${p}:${oge.satir}`, bas: oge.o.bas, son: oge.o.son, kalin: oge.o.alt - oge.o.ust });
+      // İçerikte de ardışık olan parçalar tek aralıkta (aradaki boşluk öğeleri ve satır sonları da içinde)
+      if (aralik && onceki.son === onceki.span.textContent.length && b0 === 0 && arasiBos(onceki.span, oge.span)) aralik.setEnd(...dugumKonumu(oge.span, b1));
+      else {
+        aralik = document.createRange();
+        aralik.setStart(...dugumKonumu(oge.span, b0)); aralik.setEnd(...dugumKonumu(oge.span, b1));
+        araliklar.push(aralik);
+      }
+      onceki = { span: oge.span, son: b1 };
+    }
+  }
+  if (!araliklar.length) { secimiKaldir(); return false; }
+  let ilkA = araliklar[0], sonA = araliklar[0];
+  for (const r of araliklar) {
+    if (r.compareBoundaryPoints(Range.START_TO_START, ilkA) < 0) ilkA = r;
+    if (r.compareBoundaryPoints(Range.END_TO_END, sonA) > 0) sonA = r;
+  }
+  const kapsam = [ilkA.startContainer, ilkA.startOffset, sonA.endContainer, sonA.endOffset];
+  const [an, ao, fn, fo] = yon < 0 ? kapsam : [kapsam[2], kapsam[3], kapsam[0], kapsam[1]];
+  const sec = window.getSelection();
+  const imza = araliklar.map((r) => [r.startContainer, r.startOffset, r.endContainer, r.endOffset]).flat();
+  const ayni = sec.rangeCount === 1 && sec.anchorNode === an && sec.anchorOffset === ao && sec.focusNode === fn && sec.focusOffset === fo;
+  if (ayni && gorselGecerli() && gorsel.imza.length === imza.length && gorsel.imza.every((v, j) => v === imza[j])) { gorsel.capa = { ...bas }; return true; }   // değişmedi: yeniden boyanmaz
+  if (!ayni) sec.setBaseAndExtent(an, ao, fn, fo);
+  gorsel = { araliklar, ogeler, capa: { ...bas }, kapsam, imza };
+  if (window.CSS?.highlights && typeof Highlight === 'function') {
+    CSS.highlights.set(SECIM_VURGUSU, new Highlight(...araliklar));
+    document.documentElement.classList.add('gorsel-secim');
+  }
+  return true;
 }
 
 /** Konuma öğenin katmandaki sırasını ekler (katman yeniden kurulursa öğe sırayla bulunur). */
@@ -490,18 +694,16 @@ function sozcukUcu(konum, ileri, x, y) {
   return { ...konum, ofset: ileri ? p.index + p.segment.length : p.index };
 }
 
-/** a konumu belge sırasında b'den önce mi. */
-function onceMi(a, b) {
-  const [an, ao] = dugumKonumu(a.span, a.ofset), [bn, bo] = dugumKonumu(b.span, b.ofset);
-  const r = document.createRange();
-  r.setStart(bn, bo);
-  return r.comparePoint(an, ao) < 0;
-}
-
 /** Var olan seçimin çapası bu görüntüleyicinin metin katmanındaysa konumu (Shift+tıkla genişletme için). */
 function secimCapasi(gorunum) {
   const sec = window.getSelection();
   if (!sec || !sec.rangeCount || sec.isCollapsed) return null;
+  if (gorselGecerli()) {   // okuma sırasındaki seçimin çapası (tarayıcı seçiminin ucu kapsayan aralığın ucudur)
+    const span = konumOgesi(gorsel.capa);
+    if (!span || !gorunum.alan.contains(span)) return null;
+    const girdi = gorunum.sayfalar.find((s) => s.el.contains(span));
+    return siraEkle({ ...gorsel.capa, girdi, span });
+  }
   const el = sec.anchorNode?.nodeType === 1 ? sec.anchorNode : sec.anchorNode?.parentElement;
   const katman = el?.closest('.textLayer');
   if (!katman || !gorunum.alan.contains(katman)) return null;
@@ -547,13 +749,15 @@ export function surukleSecimiBagla(gorunum, { aracAl = () => null } = {}) {
     }
     const odak = siraEkle(enYakinKonum(gorunum, d.x, d.y, d.onbellek));
     if (!odak) return;
-    if (!d.sozcuk) { secimKur(d.bas, odak); return; }
+    const { onbellek } = d;
+    if (!d.sozcuk) { secimKur(gorunum, onbellek, d.bas, odak); return; }
     // Sözcük kipi (harfte çift tıklayıp sürükleme): seçim sözcük sözcük genişler, çift tıklanan sözcük hep içinde kalır
     const [sb, ss] = d.sozcuk;
-    if (!konumOgesi(sb) || !konumOgesi(ss)) return;
-    if (onceMi(odak, sb)) secimKur(ss, sozcukUcu(odak, false, d.x, d.y));
-    else if (onceMi(ss, odak)) secimKur(sb, sozcukUcu(odak, true, d.x, d.y));
-    else secimKur(sb, ss);
+    const ko = siraKonumu(gorunum, onbellek, odak), kb = siraKonumu(gorunum, onbellek, sb), ks = siraKonumu(gorunum, onbellek, ss);
+    if (!ko || !kb || !ks) return;
+    if (siraKarsilastir(ko, kb) < 0) secimKur(gorunum, onbellek, ss, sozcukUcu(odak, false, d.x, d.y));
+    else if (siraKarsilastir(ks, ko) < 0) secimKur(gorunum, onbellek, sb, sozcukUcu(odak, true, d.x, d.y));
+    else secimKur(gorunum, onbellek, sb, ss);
   };
 
   const kaydir = () => {
@@ -616,10 +820,10 @@ export function surukleSecimiBagla(gorunum, { aracAl = () => null } = {}) {
     e.preventDefault();   // tarayıcının kendi seçimi (ve seçili metni sürükle-bırak) başlamasın
     bitir();
     if (!kaydirici.contains(document.activeElement)) kaydirici.focus({ preventScroll: true });   // tarayıcı basışta kaydırıcıya odaklanırdı (klavye kısayolları)
-    if (!capa) window.getSelection().removeAllRanges();   // boş yere tek tıklama seçimi kaldırır
+    if (!capa) secimiKaldir();   // boş yere tek tıklama seçimi kaldırır
     d = { bas, sozcuk, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, basladi: !!capa, onbellek, kare: 0 };
     if (capa) guncelle();
-    if (sozcuk) secimKur(sozcuk[0], sozcuk[1]);
+    if (sozcuk) secimKur(gorunum, onbellek, sozcuk[0], sozcuk[1]);
     document.addEventListener('mousemove', hareket, true);
     document.addEventListener('mouseup', bitir, true);
     window.addEventListener('blur', bitir);
@@ -630,5 +834,6 @@ export function surukleSecimiBagla(gorunum, { aracAl = () => null } = {}) {
 /** Seçili metnin içindeki paragraf/satır yapısını (DOM'dan) döndürür. */
 export function secimHamMetni() {
   const sec = window.getSelection();
+  if (gorselGecerli()) return gorselSatirlar().filter((s) => !s.bos).map((s) => s.parcalar.join('')).join('\n');
   return sec ? sec.toString() : '';
 }
