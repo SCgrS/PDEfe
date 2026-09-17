@@ -114,7 +114,7 @@ async function dosyaAc(yol, secenek = {}) {
   if (!secenek.arkaPlanda || !aktifId) sekmeSec(id);
   $('#baslangic').hidden = true;
 
-  gorunum.addEventListener('sayfa', (e) => { if (aktifId === id) { sayfaGoster(belge); } sayfaKonumuKaydet(belge); });
+  gorunum.addEventListener('sayfa', (e) => { if (aktifId === id) { sayfaGoster(belge); } sayfaKonumuKaydet(belge); gizlenenNotuBirak(belge); });
   gorunum.addEventListener('zoom', (e) => { if (aktifId === id) zoomGoster(belge); });
   gorunum.addEventListener('metinKatmani', (e) => arama.katmanCizildi(gorunum, e.detail.sayfa));
   gorunum.addEventListener('sayfalar', () => { arama.belgeUnut(gorunum); if (aktifId === id) { sayfaGoster(belge); panel.belgeAyarla(belge); } kirliGuncelle(belge); });
@@ -183,6 +183,17 @@ function kirliGuncelle(b) {
   if (aktifId === b.id) { durum.degisiklikYaz(b.degisti); geriAlDugmeleriniGuncelle(b); }
   $('#arac-cubugu [data-komut="dosya.kaydet"]').disabled = !aktif()?.degisti;
   if (ayar.otomatikKaydet && b.degisti) { clearTimeout(b._otoKayit); b._otoKayit = setTimeout(() => { if (b.degisti && belgeler.has(b.id)) belgeKaydet(b, false, true); }, 1500); }
+}
+
+/** Kaydırmasız (tek/iki) düzende sayfa çevrilince artık gösterilmeyen sayfadaki not bırakılır: açık yazı düzenleyicisi kaydedilip
+ *  kapanır, balon kapanır, seçim kalkar (Delete görünmeyen notu silmesin). Gösterilen satırdaki sayfaların yerleşimi vardır. */
+function gizlenenNotuBirak(b) {
+  const g = b.gorunum, n = b.notlar;
+  if (!n || g.surekli()) return;
+  const gizli = (sayfa) => !g.yerlesim[sayfa - 1];
+  if (n.duzenleyici && gizli(n.duzenleyici.not.sayfa)) n.duzenleyiciBitir(true);
+  if (n.balon && gizli(n.notlar.get(n.balonNotId)?.sayfa)) n.balonKapat();
+  if (n.secili && gizli(n.notlar.get(n.secili)?.sayfa)) n.sec(null);
 }
 
 function geriAlDugmeleriniGuncelle(b) {
@@ -452,8 +463,12 @@ function gorunenKapak() { const g = aktif()?.gorunum; return g?.belge ? !!g.kapa
 function duzenEsitle(b) {
   if (!b || !b.gorunum.belge) return;
   const d = genelDuzen(), kapak = !!ayar.kapakAyri;
-  if (b.gorunum.duzen !== d || b.gorunum.kapakAyri !== kapak) b.gorunum.duzenAyarla(d, kapak);
+  if (b.gorunum.duzen !== d || b.gorunum.kapakAyri !== kapak) b.gorunum.duzenAyarla(d, kapak, tekSayfaZoomu());
 }
+
+/** İki sayfalıdan tek sayfalıya geçişte yakınlaştırma: Başlangıç'taki varsayılan yakınlaştırma bir sığdırma seçeneğiyse o (belge
+ *  açılışıyla tutarlı), değilse (son kullanılan, gerçek boyut, yüzde) genişliğe sığdır. */
+function tekSayfaZoomu() { return ['genislik', 'sayfa', 'gorunur'].includes(ayar.varsayilanZoom) ? ayar.varsayilanZoom : 'genislik'; }
 
 /** Genel düzeni kaydeder; etkin sekmeye hemen, diğerlerine seçildiklerinde uygulanır. */
 function duzenDegistir(duzen, kapakAyri = !!ayar.kapakAyri) {
@@ -489,11 +504,12 @@ function dondurulebilir(b) {
   return true;
 }
 
-/** Döndürme komutu: kapsamı ayardan alır ya da sorar; belgeyi geri alınabilir biçimde döndürür (belge kirlenir, kapatırken kaydetme sorulur). */
+/** Döndürme komutu: kapsamı ayardan alır ya da sorar; belgeyi geri alınabilir biçimde döndürür (belge kirlenir, kapatırken kaydetme sorulur).
+ *  Tek sayfalık belgede geçerli sayfa ile tüm PDF aynıdır: sorulmaz, sayfa hemen döner (ayar değişmez). */
 async function dondur(derece) {
   const b = aktif(); if (!b || !dondurulebilir(b)) return;
   let kapsam = ayar.dondurmeKapsami;
-  if (kapsam !== 'sayfa' && kapsam !== 'tum') {
+  if (kapsam !== 'sayfa' && kapsam !== 'tum' && b.gorunum.sayfaSayisi > 1) {
     const { secim, onay } = await mesajKutusu({ mesaj: 'Neyi döndürmek istiyorsunuz?', dugmeler: ['Geçerli sayfa', 'Tüm PDF', 'Vazgeç'], varsayilan: 0, iptal: 2, onayKutusu: 'Seçeneğimi hatırla' });
     if (secim !== 0 && secim !== 1) return;
     kapsam = secim === 1 ? 'tum' : 'sayfa';
@@ -755,6 +771,9 @@ document.addEventListener('keydown', (e) => {
   if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'y' || e.key === 'Y')) { if (!girdideMi()) { e.preventDefault(); komutCalistir('duzen.yinele'); } return; }
   if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'a' || e.key === 'A')) { if (!girdideMi()) { e.preventDefault(); tumunuSec(); } return; }
   if (girdideMi()) return;
+  // Açık diyalog / araç penceresi (odak pencerenin dışında kalmış olsa da), açılır liste ya da açık belgeler listesi varken belge
+  // sayfa çevirmesin, not silinmesin
+  if (document.querySelector('.diyalog-ortusu, .arac-ortusu') || !$('#belge-listesi').hidden || document.activeElement?.tagName === 'SELECT') return;
   const b = aktif();
   if (!b) return;
   if (e.key === 'Delete' || e.key === 'Backspace') { if (b.notlar?.silSecili()) { e.preventDefault(); return; } }
@@ -763,8 +782,8 @@ document.addEventListener('keydown', (e) => {
   switch (e.key) {
     case 'ArrowDown': e.preventDefault(); g.dikeyKaydir(satir); break;
     case 'ArrowUp': e.preventDefault(); g.dikeyKaydir(-satir); break;
-    case 'ArrowRight': if (!e.ctrlKey) { e.preventDefault(); g.sonrakiSayfa(); } break;
-    case 'ArrowLeft': if (!e.ctrlKey) { e.preventDefault(); g.oncekiSayfa(); } break;
+    case 'ArrowRight': if (!e.ctrlKey) { e.preventDefault(); g.yatayOk(1, satir); } break;
+    case 'ArrowLeft': if (!e.ctrlKey) { e.preventDefault(); g.yatayOk(-1, satir); } break;
     case 'PageDown': e.preventDefault(); if (g.surekli()) g.sonrakiSayfa(); else g.dikeyKaydir(g.kaydirici.clientHeight - 40); break;
     case 'PageUp': e.preventDefault(); if (g.surekli()) g.oncekiSayfa(); else g.dikeyKaydir(-(g.kaydirici.clientHeight - 40)); break;
     case 'Home': e.preventDefault(); if (e.ctrlKey) g.belgeBasi(); else g.sayfayaGit(1); break;
@@ -968,7 +987,8 @@ function kisayollarGoster() {
     ['Ctrl+Tab / Ctrl+Shift+Tab', 'Sekme değiştir (basılı tutunca seçici açılır)'], ['Ctrl+1 – Ctrl+9', 'Sekme seç (9: son sekme)'],
     ['Ctrl+Fare tekerleği, Ctrl++ / Ctrl+−', 'Yakınlaştır / uzaklaştır'], ['Ctrl+0', 'Gerçek boyut'],
     ['Ctrl+Shift++ / Ctrl+Shift+−', 'Döndür'], ['F4', 'Sol panel'], ['Ctrl+H', 'Okuma modu'], ['F11', 'Tam ekran'],
-    ['← → / PageUp PageDown', 'Önceki / sonraki sayfa'], ['↑ ↓', 'Kaydır'], ['Home / End', 'İlk / son sayfa'], ['Ctrl+Home / Ctrl+End', 'Belge başı / sonu'],
+    ['← →', 'Önceki / sonraki sayfa (elle yakınlaştırılmışsa önce yana kaydırır)'], ['PageUp / PageDown', 'Önceki / sonraki sayfa (kaydırma kapalıyken önce bir ekran kaydırır)'],
+    ['↑ ↓', 'Kaydır (kaydırma kapalıyken sayfa sonunda sayfayı çevirir)'], ['Home / End', 'İlk / son sayfa'], ['Ctrl+Home / Ctrl+End', 'Belge başı / sonu'],
     ['Shift+Fare tekerleği', 'Yatay kaydırma'], ['Ctrl+A', 'Sayfadaki tüm metni seç'], ['Delete', 'Seçili notu sil'], ['Esc', 'Kapat / vazgeç'],
   ];
   diyalogAc({

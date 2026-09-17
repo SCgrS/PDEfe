@@ -837,6 +837,8 @@ export class NotYoneticisi extends EventTarget {
     ta.addEventListener('keydown', (e) => {
       e.stopPropagation();
       if (e.key === 'Escape') { e.preventDefault(); this.duzenleyiciBitir(false); }
+      // Kutu içeriğe göre büyür, kendi içinde kaymaz: PageUp/PageDown'u tarayıcı belgeyi kaydırmaya çevirip düzenleyiciyi görünümden çıkarmasın
+      if (e.key === 'PageDown' || e.key === 'PageUp') e.preventDefault();
     });
     ta.addEventListener('input', () => this.duzenleyiciOtoBoyut());
     // Taşıma (kenar) ve boyutlandırma (sağ alt köşe) tutamaçları

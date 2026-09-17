@@ -91,6 +91,7 @@ export class Goruntuleyici extends EventTarget {
     this.kapakAyri = false;
     this.gorunumDondurme = 0;
     this.gecerli = 1;
+    this._istenen = null;        // son sayfayaGit hedefi ve o anki kaydırma konumu {no, st, sl} (kaydirmaIsle)
     this.koyuSayfa = false;
     this.yok = false;
     this._cizimZamanlayici = null;
@@ -419,6 +420,14 @@ export class Goruntuleyici extends EventTarget {
     return 0;
   }
 
+  /**
+   * İkili düzende tek sayfalık satır yarım çift mi: ayrı kapak (tek sayfalık belgede de) ya da çok sayfalı belgede tek kalan son
+   * sayfa. Yarım satır çiftle aynı ölçekte çizilir; kapak sağ, son sayfa sol sütuna oturur (referans okuyucu gibi).
+   */
+  yarimSatirMi(idxler) {
+    return this.ikili() && idxler.length === 1 && ((this.kapakAyri && idxler[0] === 0) || this.sayfalar.length > 1);
+  }
+
   /** Düzenin satırları: tek sütunlu (tek/surekli) → [[0],[1],…], ikili (iki/ikiSurekli) → ciftler(). */
   satirlar() {
     if (this.ikili()) return this.ciftler();
@@ -436,7 +445,8 @@ export class Goruntuleyici extends EventTarget {
       genis = c.reduce((t, i) => t + this.sayfaBoyutu(i, 1).w, 0);
       bosluk = (c.length - 1) * BOSLUK;
       yuksek = Math.max(...c.map((i) => this.sayfaBoyutu(i, 1).h));
-      if (c.length === 1 && this.kapakAyri) { genis *= 2; bosluk = BOSLUK; }
+      // Tek sayfalık satır (ayrı kapak ya da tek kalan son sayfa) yarım çift yer kaplar: çiftlerle aynı ölçekte kalsın (son sayfada yakınlaştırma sıçramasın)
+      if (this.yarimSatirMi(c)) { genis *= 2; bosluk = BOSLUK; }
     } else {
       ({ w: genis, h: yuksek } = this.sayfaBoyutu(idx, 1));
     }
@@ -469,7 +479,8 @@ export class Goruntuleyici extends EventTarget {
     let toplamW = 0, y = KENAR;
     const olculer = satirlar.map((idxler) => {
       const boyutlar = idxler.map((i) => { const b = this.sayfaBoyutu(i, olcek); return { w: izgaraya(b.w, dpr), h: izgaraya(b.h, dpr) }; });
-      const satirW = boyutlar.reduce((t, b) => t + b.w, 0) + (idxler.length - 1) * BOSLUK;
+      // Yarım satır (bkz. yarimSatirMi) bir çift genişliğinde yer kaplar: sayfa bu yerin sağ (kapak) ya da sol (son sayfa) yarısındadır
+      const satirW = this.yarimSatirMi(idxler) ? 2 * boyutlar[0].w + BOSLUK : boyutlar.reduce((t, b) => t + b.w, 0) + (idxler.length - 1) * BOSLUK;
       const satirH = Math.max(...boyutlar.map((b) => b.h));
       toplamW = Math.max(toplamW, satirW + 2 * KENAR);
       const r = { idxler, boyutlar, satirW, y: izgaraya(y, dpr) };
@@ -484,7 +495,7 @@ export class Goruntuleyici extends EventTarget {
     const yerler = [];
     for (const r of olculer) {
       let x = (alanW - r.satirW) / 2;
-      // Kapak ayrıysa tek sayfalık ilk satırı sağ tarafa hizala (referans okuyucu gibi)
+      // Kapak ayrıysa tek sayfalık ilk satırı sağ tarafa hizala (referans okuyucu gibi); tek kalan son sayfa sol yarıda kalır
       if (this.ikili() && this.kapakAyri && r.idxler.length === 1 && r.idxler[0] === 0) x = alanW / 2 + BOSLUK / 2;
       r.idxler.forEach((i, k) => {
         const b = r.boyutlar[k];
@@ -580,7 +591,10 @@ export class Goruntuleyici extends EventTarget {
     if (!vw || !vh) return;                                 // gizli sekme: çizme, geçerli sayfayı bozma
     const ustSinir = vt - vh, altSinir = vt + 2 * vh;     // ön yükleme bandı
     const uzakUst = vt - 3 * vh, uzakAlt = vt + 4 * vh;    // bunun dışındakiler boşaltılır
-    let enIyi = -1, enIyiAlan = -1;
+    // sayfayaGit'in istediği sayfa: görünüm o andan beri kımıldamadıysa geçerli olabilir (ardından gelen kaydırma olayı da aynı sonucu versin)
+    const ist = this._istenen && Math.abs(this._istenen.st - vt) < 1 && Math.abs(this._istenen.sl - vl) < 1 ? this._istenen.no - 1 : -1;
+    if (ist < 0) this._istenen = null;
+    let enIyi = -1, enIyiAlan = -1, gecerliAlan = -1, istenenAlan = -1, istenenTam = false;
     const gorunurler = [], bant = [], uzaklar = [];
     for (let i = 0; i < this.sayfalar.length; i++) {
       const yer = this.yerlesim[i];
@@ -594,7 +608,16 @@ export class Goruntuleyici extends EventTarget {
       const gx = Math.max(0, Math.min(yer.x + yer.w, vl + vw) - Math.max(yer.x, vl));
       const a = gx * gy;
       if (a > enIyiAlan) { enIyiAlan = a; enIyi = i; }
+      if (i === this.gecerli - 1) gecerliAlan = a;
+      if (i === ist) { istenenAlan = a; istenenTam = a >= yer.w * yer.h - 1; }
     }
+    // Aynı satırdaki (iki sayfa düzeninde çiftteki) sayfa en görünürle eşit görünüyorsa geçerli sayfa korunur: çift içinde kaydırınca
+    // sayfa kutusu sağ sayfadan sola atlamasın
+    const gecerliYer = this.yerlesim[this.gecerli - 1];
+    if (enIyi >= 0 && gecerliYer && gecerliAlan > 0 && gecerliAlan >= enIyiAlan - 0.5 && Math.abs(gecerliYer.y - this.yerlesim[enIyi].y) < 1) enIyi = this.gecerli - 1;
+    // Gidilen sayfa tam ya da en çok görünenle eşit görünüyorsa geçerli odur: belge sonunda kaydırma sınırı hedef satırı en üste
+    // getiremez; yoksa End, sayfa kutusuna yazılan son sayfa ya da son satıra ileri ok önceki satırın sayfasını gösterir (ok "çalışmaz")
+    if (enIyi >= 0 && ist >= 0 && istenenAlan > 0 && (istenenTam || istenenAlan >= enIyiAlan - 0.5)) enIyi = ist;
     if (enIyi >= 0 && enIyi + 1 !== this.gecerli) {
       this.gecerli = enIyi + 1;
       if (olayGonder) this.dispatchEvent(new CustomEvent('sayfa', { detail: { sayfa: this.gecerli } }));
@@ -957,7 +980,7 @@ export class Goruntuleyici extends EventTarget {
 
   // ------------------------------------------------------------ yakınlaştırma
   tekerlek(e) {
-    if (!e.ctrlKey) return;
+    if (!e.ctrlKey) { this.tekerlekleCevir(e); return; }
     e.preventDefault();
     const kut = this.kaydirici.getBoundingClientRect();
     const sabit = { x: e.clientX - kut.left, y: e.clientY - kut.top };
@@ -1030,12 +1053,15 @@ export class Goruntuleyici extends EventTarget {
   }
 
   // ------------------------------------------------------------ düzen ve döndürme
-  duzenAyarla(duzen, kapakAyri = this.kapakAyri) {
+  duzenAyarla(duzen, kapakAyri = this.kapakAyri, tekZoomModu = 'genislik') {
     const sayfa = this.gecerli, oran = this.sayfaIciOran();
     // Tek sayfalıdan iki sayfalıya geçiş: elle seçilmiş yakınlaştırma ("Gerçek boyut" dahil) çift pencereye sığmaz → sayfayı sığdır.
     // Sığdırma modları (genislik/sayfa/gorunur) yeni düzene kendiliğinden uyar.
     const ikiliyeGecis = !this.ikili() && (duzen === 'iki' || duzen === 'ikiSurekli');
     if (ikiliyeGecis && (this.zoomModu === 'serbest' || this.zoomModu === 'gercek')) this.zoomModu = 'sayfa';
+    // İki sayfalıdan tek sayfalıya (kaydırmalı ya da kaydırmasız) geçiş: yakınlaştırma ne olursa olsun tek sayfanın varsayılan
+    // sığdırması (tekZoomModu; varsayılanı genişliğe sığdır)
+    if (this.ikili() && (duzen === 'tek' || duzen === 'surekli')) this.zoomModu = tekZoomModu;
     this.duzen = duzen; this.kapakAyri = kapakAyri;
     this.yerlesimHesapla();
     this.sayfayaGit(sayfa, { oran: this.surekli() ? oran : 0, aninda: true });
@@ -1072,12 +1098,15 @@ export class Goruntuleyici extends EventTarget {
     this.kaydirici.scrollTop = Math.max(0, ust);
     if (secenek.x != null) this.kaydirici.scrollLeft = yer.x + secenek.x * this.olcek * CSS_BIRIM - 16;
     this.gecerli = no;
+    this._istenen = { no, st: this.kaydirici.scrollTop, sl: this.kaydirici.scrollLeft };   // kaydırma sınırına dayanılmış olsa da (bkz. kaydirmaIsle)
     this.kaydirmaIsle(false);          // gecerli'yi en görünür sayfaya düzeltebilir; olayı aşağıda tek sefer gönder
     sayfaOlayi();
   }
 
+  // İki sayfa düzeninde (kaydırmalı da) önceki/sonraki çifte gidilir. Kaydırmalı düzende gecerli+1 çoğu zaman aynı satırdaki sağ
+  // sayfadır: satır zaten görünür olduğu için görünüm kımıldamaz ve geçerli sayfa yeniden sol sayfaya döner (ileri ok çalışmıyordu).
   oncekiSayfa() {
-    if (this.ikili() && !this.surekli()) {
+    if (this.ikili()) {
       const k = this.ciftBul(this.gecerli - 1);
       if (k > 0) this.sayfayaGit(this.ciftler()[k - 1][0] + 1);
       return;
@@ -1086,12 +1115,65 @@ export class Goruntuleyici extends EventTarget {
   }
 
   sonrakiSayfa() {
-    if (this.ikili() && !this.surekli()) {
+    if (this.ikili()) {
       const c = this.ciftler(); const k = this.ciftBul(this.gecerli - 1);
       if (k < c.length - 1) this.sayfayaGit(c[k + 1][0] + 1);
       return;
     }
     this.sayfayaGit(this.gecerli + 1);
+  }
+
+  /**
+   * Sağ/sol ok (yon: 1 | -1). Elle yakınlaştırılmış (serbest/gercek) görünümde görünen sayfalar o yönde pencereden taşıyorsa önce yatay
+   * kaydırır; sayfa kenarı görününce sonraki/önceki sayfaya (iki sayfa düzeninde çifte) geçer. Sığdırma modlarında her zaman sayfa
+   * çevrilir: oradaki taşma (Görünür alana sığdır'ın kestiği kenar boşluğu, belgedeki daha geniş başka bir sayfa) çevirmeyi engellemesin.
+   */
+  yatayOk(yon, miktar) {
+    const k = this.kaydirici;
+    const elle = this.zoomModu === 'serbest' || this.zoomModu === 'gercek';
+    if (elle) {
+      let sol = Infinity, sag = -Infinity;
+      for (const no of this.gorunurSayfalar()) { const y = this.yerlesim[no - 1]; sol = Math.min(sol, y.x); sag = Math.max(sag, y.x + y.w); }
+      const pay = yon > 0 ? sag - (k.scrollLeft + k.clientWidth) : k.scrollLeft - sol;
+      if (pay >= 1) { k.scrollLeft += yon * Math.min(miktar, pay + KENAR); return; }
+    }
+    const onceki = this.gecerli;
+    if (yon > 0) this.sonrakiSayfa(); else this.oncekiSayfa();
+    if (!elle || this.gecerli === onceki) return;
+    // Çevrilen sayfa (çift) okuma yönündeki kenarından başlar: ileride sol, geride sağ kenar. Yoksa yatay konum eski kenarda kalır,
+    // sonraki her ok yeni sayfanın yalnız o kenarını gösterip hemen bir sayfa daha çevirir.
+    let sol = Infinity, sag = -Infinity;
+    for (const i of this.ikili() ? this.ciftler()[this.ciftBul(this.gecerli - 1)] : [this.gecerli - 1]) {
+      const y = this.yerlesim[i]; if (y) { sol = Math.min(sol, y.x); sag = Math.max(sag, y.x + y.w); }
+    }
+    if (sol === Infinity) return;
+    k.scrollLeft = yon > 0 ? sol - KENAR : sag - k.clientWidth + KENAR;
+    if (this._istenen?.no === this.gecerli) this._istenen.sl = k.scrollLeft;   // gidilen sayfa geçerli kalsın (bkz. kaydirmaIsle)
+  }
+
+  /**
+   * Kaydırmasız (tek/iki) düzende fare tekerleği: görünüm o yönde kenara dayanmışsa sayfa (çift) çevrilir; ileride yeni sayfanın üstü,
+   * geride altı görünür (referans okuyucu gibi). Dayanmamışsa tarayıcı kaydırır. Bir tekerlek hareketi (arasında 150 ms'den uzun boşluk olmayan
+   * olaylar; dokunmatik yüzeyde momentum dahil) en çok bir sayfa çevirir; kenara o hareketle kaydırarak gelindiyse çevirmez (yeni hareket gerekir).
+   */
+  tekerlekleCevir(e) {
+    if (this.surekli() || !this.belge || e.shiftKey || !e.deltaY || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    // Yazı düzenleyicisi açıkken ya da sayfadaki bir girdiye yazılırken çevirme (klavyedeki girdideMi gibi): düzenleyici gizlenen
+    // sayfada sahipsiz kalır, yazılanlar gider
+    const odak = document.activeElement;
+    if (this.kaydirici.querySelector('.yazi-duzenleyici') || (this.kaydirici.contains(odak) && (odak.isContentEditable || odak.tagName === 'INPUT' || odak.tagName === 'TEXTAREA'))) return;
+    const k = this.kaydirici, yon = e.deltaY > 0 ? 1 : -1, simdi = performance.now();
+    const t = this._tekerlek || (this._tekerlek = { son: -Infinity, yon: 0, kaydirdi: false, cevirdi: false, birikim: 0 });
+    if (simdi - t.son > 150 || yon !== t.yon) { t.kaydirdi = false; t.cevirdi = false; t.birikim = 0; }   // yeni hareket
+    t.son = simdi; t.yon = yon;
+    if (t.cevirdi) { e.preventDefault(); return; }       // bu hareket zaten çevirdi: kalanı yeni sayfayı kaydırmasın
+    if (yon > 0 ? k.scrollTop < k.scrollHeight - k.clientHeight - 1 : k.scrollTop > 0) { t.kaydirdi = true; return; }
+    e.preventDefault();
+    if (t.kaydirdi) return;
+    t.birikim += Math.abs(e.deltaMode === 1 ? e.deltaY * 40 : e.deltaMode === 2 ? e.deltaY * k.clientHeight : e.deltaY);
+    if (t.birikim < 60) return;
+    t.cevirdi = true;
+    this.dikeyKaydir(yon);   // kenarda: sonraki/önceki sayfaya (çifte) geçer
   }
 
   /** Ok tuşuyla dikey kaydırma; tek sayfa düzeninde sayfa sonunda sonraki sayfaya geçer. */
