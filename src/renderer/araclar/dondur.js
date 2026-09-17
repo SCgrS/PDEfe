@@ -3,7 +3,8 @@
 //  - Üzerine yaz: tarif üretir → baglam.sayfaTarifiUygula(belge, tarif, 'Sayfaları döndür') → baglam.kaydet(belge) (Ctrl+S ile aynı
 //    kayıt yolu: yalnızca döndürme değiştiyse artımlı yazılır, e-imzalı baytlar korunur; yedek alınmaz). Döndürme geri alma yığınına
 //    girer (Ctrl+Z ile geri alınıp yeniden kaydedilebilir); sekme yeniden açılmaz, geri alma geçmişi ve sekme sırası korunur. Dosya
-//    başka programda kilitliyse ya da salt okunursa önceden sorulur, sekmeye dokunulmaz.
+//    başka programda kilitliyse ya da salt okunursa önceden sorulur, sekmeye dokunulmaz. Sekmede kaydedilmemiş başka değişiklik
+//    varsa (kayıt onları da dosyaya yazacağından) Yeni belge ve PDF küçült'teki gibi önce sorulur.
 //  - Yeni belge: çekirdek dondur_kaydet {yol, hedef, sayfalar, derece} özgün dosyanın hedef klasördeki geçici kopyasına artımlı yazar
 //    (e-imzalı baytlar, ekler, belge bilgileri korunur), sonra atomik olarak hedefe koyar; özgün dosya ve sekme değişmez.
 import {
@@ -161,13 +162,25 @@ export class DondurPenceresi {
   }
 
   /**
-   * Üzerine yaz: döndürme sekmedeki belgeye geri alınabilir komut olarak uygulanır ve belge kaydedilir (Ctrl+S ile aynı yol; sekmedeki
-   * öteki kaydedilmemiş değişiklikler de kaydedilir). Kayıt başarısız olursa belgeKaydet kendi sorusunu gösterir; döndürme sekmede kalır.
+   * Üzerine yaz: döndürme sekmedeki belgeye geri alınabilir komut olarak uygulanır ve belge kaydedilir (Ctrl+S ile aynı yol).
+   * Sekmede kaydedilmemiş başka değişiklik (ör. sayfa silme/sıralama) varsa Yeni belge ve PDF küçült'teki gibi önce sorulur
+   * (ortak degisiklikleriSor: Kaydet ve devam et | Vazgeç); sormadan dosyaya yazılmaz. Kayıt başarısız olursa belgeKaydet kendi
+   * sorusunu gösterir; döndürme sekmede kalır.
    */
   async _sekmedeUygula(sayfalar, yon, adet) {
     const { baglam, belge } = this;
     if (belge.kaydediliyor) { baglam.bildir('Kaydediliyor, lütfen bekleyin.'); return false; }
     if (!belge.gorunum?.sayfaSayisi || (belge.el && !belge.el.isConnected)) { this.pencere.hataGoster('Belge açık değil ya da henüz yüklenmedi.'); return false; }
+    if ((await degisiklikleriSor(baglam, belge, 'Döndürme', {
+      yalnizKaydet: true,
+      aciklama: 'Üzerine yazarken döndürme belgeye uygulanır ve belge kaydedilir; bu değişiklikler de dosyaya yazılır.',
+    })) === 'vazgec') return false;
+    if (this.pencere.kapali) return false;
+    // "Kaydet ve devam et" belgeyi yeniden yüklemiş olabilir: sayfa sayısı ve seçim yeniden denetlenir
+    if (!belge.gorunum?.sayfaSayisi || (belge.el && !belge.el.isConnected)) { this.pencere.hataGoster('Belge açık değil ya da henüz yüklenmedi.'); return false; }
+    if (!this.dogrula()) return false;
+    ({ sayfalar } = this.secilenSayfalar());
+    adet = `${sayiMetni(sayfalar.length)} sayfa`;
     const secili = new Set(sayfalar);
     // Tarif: yalnızca seçilen sayfaların ek döndürmesine (dosyadaki /Rotate'e ek) derece eklenir; diğerleri olduğu gibi kalır
     // (sekmede uygulanmış ama kaydedilmemiş bir döndürme varsa o korunur).

@@ -1017,12 +1017,13 @@ export function anaKaynakMi(belge, yol) {
 /**
  * Kaydedilmemiş değişiklik varsa kullanıcıya sorar. Dönüş: 'devam' | 'vazgec'.
  * yalnizKaydet: kaydetmeden devam edilemez (örn. sekmedeki sayfa sırası değişti; sayfa numaraları dosyadakiyle uyuşmaz).
+ * aciklama: "<işlem> dosyadaki kayıtlı sürüm üzerinde çalışır." cümlesinin yerine (işlem sekmedeki belgeye uygulanıp kaydediliyorsa).
  */
-export async function degisiklikleriSor(baglam, belge, islemAdi, { yalnizKaydet = false, neden = '' } = {}) {
+export async function degisiklikleriSor(baglam, belge, islemAdi, { yalnizKaydet = false, neden = '', aciklama = '' } = {}) {
   if (!belge?.degisti) return 'devam';
   const { secim } = await baglam.mesajKutusu({
     mesaj: `"${belge.ad}" belgesinde kaydedilmemiş değişiklikler var.`,
-    ayrinti: `${islemAdi} dosyadaki kayıtlı sürüm üzerinde çalışır. ${neden ? neden + ' ' : ''}Önce kaydetmek ister misiniz?`,
+    ayrinti: `${aciklama || `${islemAdi} dosyadaki kayıtlı sürüm üzerinde çalışır.`} ${neden ? neden + ' ' : ''}Önce kaydetmek ister misiniz?`,
     dugmeler: yalnizKaydet ? ['Kaydet ve devam et', 'Vazgeç'] : ['Kaydet ve devam et', 'Kaydetmeden devam et', 'Vazgeç'],
     varsayilan: 0, iptal: yalnizKaydet ? 1 : 2,
   });

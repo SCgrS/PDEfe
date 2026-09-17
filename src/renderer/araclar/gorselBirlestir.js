@@ -4,8 +4,9 @@
 // ana süreçte Electron pano API'siyle okunur, görsel %TEMP%\PDEfe altına PNG olarak yazılır).
 // Çekirdek (core/islemler/araclar.py):
 //   gorsel_bilgi {yol} → {tur:'pdf'|'gorsel', sayfa, boyut, genislik, yukseklik, png(base64, küçük resim), bicim (görselde)}
-//   boyut_tahmini {oge:{yol, tur, kalite, sayfaBoyutu, kenar, dondurme}} → {boyut, tahmin}   (öğe × kalite başına bir çağrı;
-//     çekirdek sonucu ve çözülmüş görseli önbellekte tutar)
+//   boyut_tahmini {oge:{yol, tur, kalite, sayfaBoyutu, kenar, dondurme}} → {boyut, tahmin, ozet, tekrar}   (öğe × kalite başına
+//     bir çağrı; çekirdek sonucu ve çözülmüş görseli önbellekte tutar). Aynı ozet'li öğeler (aynı dosya birden çok kez ya da
+//     kopyası) çıktıda bir kez saklanır: toplamlarda ilki boyut, sonrakiler yalnızca tekrar kadar sayılır.
 //   birlestir {ogeler:[{yol, tur, kalite, sayfaBoyutu, kenar, dondurme}], hedef, genelKalite} (ilerlemeli) → {boyut, sayfa}
 import {
   pencereAc, pencereAcikMi, IslemIlerleme, ciktiSecici, boyutMetni, sayiMetni, kacis, hataMetni, dosyaAdi, uzanti,
@@ -55,7 +56,7 @@ export class BirlestirmePenceresi {
     this.seciliKimlik = null;
     this.genelKalite = 'orijinal';
     this.tahminSayac = 0;
-    this.tahminler = new Map();       // öğe anahtarı (kalite hariç parametre) → {boyut:{kalite: bayt}, hata:{kalite: ileti}}
+    this.tahminler = new Map();       // öğe anahtarı (kalite hariç parametre) → {boyut:{kalite: bayt}, ozet:{kalite: içerik özeti}, tekrar:{kalite: bayt}, hata:{kalite: ileti}}
     this.tahminSurenler = new Map();  // "anahtar|kalite" → Promise; aynı tahmin iki kez sorulmaz
     this.tahminGeciktir = geciktir(() => this.tahminAl(), 150);
     this.ilerleme = new IslemIlerleme();
@@ -491,12 +492,14 @@ export class BirlestirmePenceresi {
     const param = this._ogeParametresi(o, kalite);
     const soz = (async () => {
       let t = this.tahminler.get(anahtar);
-      if (!t) { t = { boyut: {}, hata: {} }; this.tahminler.set(anahtar, t); }
+      if (!t) { t = { boyut: {}, ozet: {}, tekrar: {}, hata: {} }; this.tahminler.set(anahtar, t); }
       try {
         const r = await this.baglam.cekirdek('boyut_tahmini', { oge: param });
         const b = typeof r === 'number' ? r : r?.boyut;
-        if (typeof b === 'number' && Number.isFinite(b)) t.boyut[kalite] = b;
-        else t.hata[kalite] = 'Çekirdek boyut vermedi.';
+        if (typeof b === 'number' && Number.isFinite(b)) {
+          t.boyut[kalite] = b;
+          if (r?.ozet) { t.ozet[kalite] = r.ozet; t.tekrar[kalite] = Number.isFinite(r.tekrar) ? r.tekrar : 0; }
+        } else t.hata[kalite] = 'Çekirdek boyut vermedi.';
       } catch (e) {
         t.hata[kalite] = hataMetni(e);
       } finally {
@@ -507,6 +510,23 @@ export class BirlestirmePenceresi {
     return soz;
   }
 
+  /** Öğenin verilen kalitedeki içerik özeti (çekirdek vermediyse null): aynı özetli öğeler çıktıda bir kez saklanır. */
+  _tahminOzeti(o, kalite) {
+    return this.tahminler.get(this._tahminAnahtari(o))?.ozet[kalite] || null;
+  }
+
+  /** Listede bu öğeden önce, etkin kalitede aynı içeriği taşıyan ilk öğe (yoksa null). */
+  _oncekiAyni(o) {
+    if (o.hata || o.yukleniyor) return null;
+    const ozet = this._tahminOzeti(o, this.etkinKalite(o));
+    if (!ozet) return null;
+    for (const x of this.ogeler) {
+      if (x === o) return null;
+      if (!x.hata && !x.yukleniyor && this._tahminOzeti(x, this.etkinKalite(x)) === ozet) return x;
+    }
+    return null;
+  }
+
   _ogeTahminYaz(o, el = this.liste.querySelector(`.birlestir-oge[data-kimlik="${o.kimlik}"]`)) {
     const t = el?.querySelector('.tahmin');
     if (!t) return;
@@ -515,7 +535,12 @@ export class BirlestirmePenceresi {
     if (o.hata || o.yukleniyor) { t.textContent = ''; return; }
     const b = this._tahmin(o, this.etkinKalite(o));
     if (b === null) { t.textContent = 'tahmin alınamadı'; t.title = this.tahminler.get(this._tahminAnahtari(o))?.hata[this.etkinKalite(o)] || ''; return; }
-    t.textContent = b === undefined ? 'tahmin: hesaplanıyor…' : `tahmin: ${boyutMetni(b)}`;
+    if (b === undefined) { t.textContent = 'tahmin: hesaplanıyor…'; return; }
+    // Aynı içerik listede daha önce varsa PDF'te bir kez saklanır: toplam bu satır kadar büyümez
+    const ayni = this._oncekiAyni(o);
+    const n = ayni ? this.ogeler.indexOf(ayni) + 1 : 0;
+    t.textContent = `tahmin: ${boyutMetni(b)}${ayni ? ` · ${n}. satırla aynı içerik` : ''}`;
+    if (ayni) t.title = `${t.title ? t.title + '\n' : ''}Aynı içerik ${n}. satırda da var. PDF'te bir kez saklanır; bu satır toplam boyutu çok az artırır.`;
   }
 
   /** Öğe tahminleri, kalite düğmelerindeki toplamlar ve (öğelere özel kalite varsa) gerçek toplam. */
@@ -525,12 +550,18 @@ export class BirlestirmePenceresi {
     const gecerli = this.ogeler.filter((o) => !o.hata);
     const toplam = (kaliteAl) => {
       let bayt = 0, eksik = false, hatali = 0;
+      const gorulen = new Set();   // içerik özetleri: aynı içerik ikinci kez yalnızca kendi sayfa nesneleri kadar yer tutar
       for (const o of gecerli) {
         if (o.yukleniyor) { eksik = true; continue; }
-        const b = this._tahmin(o, kaliteAl(o));
+        const kalite = kaliteAl(o);
+        const b = this._tahmin(o, kalite);
         if (b === undefined) eksik = true;
         else if (b === null) hatali++;
-        else bayt += b;
+        else {
+          const ozet = this._tahminOzeti(o, kalite);
+          if (ozet && gorulen.has(ozet)) bayt += this.tahminler.get(this._tahminAnahtari(o))?.tekrar[kalite] || 0;
+          else { if (ozet) gorulen.add(ozet); bayt += b; }
+        }
       }
       return { bayt, eksik, hatali };
     };
