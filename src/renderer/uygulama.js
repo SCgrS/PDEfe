@@ -75,7 +75,7 @@ function koyuMu() { return ayar.tema === 'sistem' ? sistemKoyu : ayar.tema === '
 
 function temaUygula() {
   document.documentElement.dataset.tema = koyuMu() ? 'koyu' : 'acik';
-  for (const b of belgeler.values()) b.gorunum.koyuSayfaAyarla(koyuMu() && ayar.sayfayiKoyulastir);
+  for (const b of belgeler.values()) { b.gorunum.koyuSayfaAyarla(koyuMu() && ayar.sayfayiKoyulastir); b.notlar?.hepsiniCiz(); }   // vurgu karışımı koyu sayfaya göre
 }
 
 pdefe.dinle('tema:sistem', (koyu) => { sistemKoyu = koyu; temaUygula(); });
@@ -973,6 +973,7 @@ document.addEventListener('click', (e) => {
 // ---------------------------------------------------------------- başlat
 (async function baslat() {
   await ayarlariYukle();
+  secimCubuguYenile();   // seçim mini çubuğunda kayıtlı vurgu rengi seçili görünsün (çubuk ayarlar yüklenmeden kuruluyor)
   sonDosyalariListele();
   pdefe.gonder('uygulama:hazir');
   window.__pdefe = { belgeler, aktif, dosyaAc, belgeKapat, sekmeSec, komutCalistir, ayar: () => ayar, panel, sekmeler, arama, temizMetin, sayfaTarifiUygula, sayfalariDondur, belgeKaydet };

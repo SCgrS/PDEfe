@@ -336,13 +336,28 @@ body.okuma-modu.ust-goster #arac-cubugu { display: flex; position: absolute; top
 .sayfa .not-katmani { position: absolute; inset: 0; z-index: 3; pointer-events: none; overflow: visible; }
 .not-isaretler { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .not-isaretler g { pointer-events: auto; cursor: pointer; }
-.not-isaretler .not-highlight rect { mix-blend-mode: multiply; }
+/* Vurgular referans okuyucu gibi çarpma (multiply) karışımıyla çizilir: yazı rengi değişmez, yalnızca zemin renklenir. Karışım sayfanın tuvaliyle
+   yapılsın diye not katmanı yığın bağlamı oluşturmaz (öğeleri z-index 3 ile metin katmanının üstünde) ve .sayfa yalıtılmış gruptur.
+   Koyulaştırılmış sayfada (ters çevrilmiş tuval) çarpmanın karşılığı ekran (screen) karışımıdır: açık yazı aynı kalır, zemin renklenir. */
+.sayfa { isolation: isolate; }
+.sayfa .not-katmani { z-index: auto; }
+.sayfa .not-katmani > * { z-index: 3; }
+.not-isaretler.not-vurgular { mix-blend-mode: multiply; }
+.not-isaretler.not-vurgular.koyu-sayfa { mix-blend-mode: screen; }
+/* Seçili vurgu: gölge yarı saydam dolgunun altına da düşüp rengi değiştirirdi (mavi × sarı = yeşil); satır kutularına kenar çizilir */
+.not-isaretler.not-vurgular g.not-secili { filter: none; }
+.not-isaretler.not-vurgular g.not-secili rect { stroke: var(--vurgu); stroke-width: 1.5px; }
 .not-isaretler g.not-secili rect, .not-isaretler g.not-secili path { outline: none; }
 .not-isaretler g.not-secili { filter: drop-shadow(0 0 2px var(--vurgu)) drop-shadow(0 0 1px var(--vurgu)); }
 .not-oge { position: absolute; pointer-events: auto; cursor: pointer; box-sizing: border-box; }
 .not-oge img { width: 100%; height: 100%; display: block; pointer-events: none; }
 .not-text svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,0.35)); }
 .not-oge.not-secili { outline: 2px solid var(--vurgu); outline-offset: 2px; border-radius: 2px; }
+/* Notlu vurgu/işaret simgesi (yalnızca ekranda): not renginde dolgu, koyu kenar; açık hale koyu sayfada da seçilir */
+.not-simge { position: absolute; pointer-events: auto; cursor: pointer; }
+.not-simge svg { width: 100%; height: 100%; display: block; overflow: visible; filter: drop-shadow(0 0 1px rgba(255,255,255,0.85)) drop-shadow(0 1px 1.5px rgba(0,0,0,0.35)); transition: transform 80ms; }
+.not-simge:hover svg { transform: scale(1.12); }
+.not-simge.not-secili svg { filter: drop-shadow(0 0 1.5px var(--vurgu)) drop-shadow(0 0 1px var(--vurgu)); }
 .not-freetext-yerli { white-space: pre-wrap; word-wrap: break-word; overflow: hidden; cursor: default; user-select: none; }
 .not-bilinmeyen { border: 1px dashed rgba(128,128,128,0.6); font-size: 10px; color: var(--metin-soluk); display: flex; align-items: center; justify-content: center; }
 .arac-not .sayfa, .arac-yazi .sayfa { cursor: crosshair; }
@@ -385,10 +400,6 @@ button.ikon.kucuk svg { width: 16px; height: 16px; }
 .not-balonu .yanit::before { content: ''; position: absolute; left: 9px; top: 10px; bottom: 8px; width: 2px; background: var(--kenar); border-radius: 1px; }
 .not-balonu .yanit .ust { padding: 0 0 3px; background: transparent; border: none; }
 .not-balonu .yanit .metin { white-space: pre-wrap; word-break: break-word; }
-.not-balonu .yanit-kutusu { display: flex; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--kenar); }
-.not-balonu .yanit-girdi { flex: 1; height: 26px; border: 1px solid var(--kenar); border-radius: 4px; background: var(--arka); color: var(--metin); padding: 0 6px; outline: none; font: inherit; }
-.not-balonu .yanit-girdi:focus { border-color: var(--vurgu); }
-.not-balonu button.ikincil { padding: 3px 10px; }
 
 /* Seçim mini çubuğu */
 #secim-cubugu {

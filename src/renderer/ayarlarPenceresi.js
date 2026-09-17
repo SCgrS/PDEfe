@@ -13,7 +13,7 @@
 export const DURUM_ANAHTARLARI = new Set(['sonDosyalar', 'sayfaKonumlari', 'pencere', 'solPanelGenislik', 'solPanelAcik', 'solPanelSekme', 'sonZoom']);
 
 const VURGU_RENKLERI = [
-  { ad: 'Sarı', hex: '#ffeb3b' }, { ad: 'Kırmızı', hex: '#ff6e6e' }, { ad: 'Turuncu', hex: '#ffb74d' },
+  { ad: 'Sarı', hex: '#ffd100' }, { ad: 'Kırmızı', hex: '#ff6e6e' }, { ad: 'Turuncu', hex: '#ffb74d' },
   { ad: 'Yeşil', hex: '#7ee787' }, { ad: 'Mavi', hex: '#7cc4ff' }, { ad: 'Pembe', hex: '#ff9ad5' },
 ];
 const YAZI_TIPLERI = ['Segoe UI', 'Arial', 'Times New Roman', 'Calibri'];
@@ -197,7 +197,7 @@ function bolumBaslangic(k) {
 function bolumNotlar(k) {
   const a = ayarlar();
   k.append(kart({
-    baslik: 'Yazar adı', aciklama: 'Yeni notlara ve yanıtlara yazılır.',
+    baslik: 'Yazar adı', aciklama: 'Yeni notlara yazılır.',
     kontrol: metinKutusu(a.yazarAdi ?? '', (v) => degistir('yazarAdi', v.trim() || (acik?.baglam.varsayilanlar?.yazarAdi ?? 'Kullanıcı')), { genislik: 220, yerTutucu: 'Ad Soyad' }),
   }));
   // Vurgu rengi

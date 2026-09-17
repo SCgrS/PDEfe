@@ -20,7 +20,7 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   yorumlarda arama, tüm açık sekmelerde arama. Açık belgeler listesindeki **Tüm belgelerde ara** kutusu her
   belgedeki eşleşme sayısını gösterir. Word 2010'un bozuk Türkçe kodlaması (Ġ→İ, ġ→Ş, Ģ→ş) hem
   görünen metinde hem aramada düzeltilir.
-- **referans okuyucu uyumlu notlar.** Vurgu, yapışkan not, yanıt ve serbest yazı ekleme; taşıma, düzenleme, silme.
+- **referans okuyucu uyumlu notlar.** Vurgu (yazının rengi değişmez), seçili metne not, yapışkan not ve serbest yazı ekleme; taşıma, düzenleme, silme.
   Yazılar Türkçe karakterli Windows fontuyla (Segoe UI, Arial, Times, Calibri) belgeye gömülür; referans okuyucuda ve UYAP'ta aynı görünür. Kaydetme artımlıdır: belgenin geri kalanına dokunulmaz.
 - **Geri al / yinele.** Her not ve sayfa işlemi `Ctrl+Z` / `Ctrl+Y` ile geri alınır; kayıttan sonra bile.
 - **Araçlar** (Araçlar menüsü): **PDF küçült** (üç hazır seviye, boyut tahmini; üzerine yazarken özgün dosya

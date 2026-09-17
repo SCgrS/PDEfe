@@ -1,16 +1,21 @@
 // Notlar: okuma (referans okuyucu notları dahil), çizim katmanı, etkileşim (seç/taşı/sil/düzenle),
-// araçlar (yapışkan not, vurgu, yazı), açılır balon (yazar, tarih, içerik, yanıtlar),
+// araçlar (yapışkan not, vurgu, metinle ilgili not, yazı), açılır balon (yazar, tarih, içerik; var olan yanıtlar salt okunur),
 // komut deseniyle geri al/yinele ve kaydetme farkı (diff).
 import { CSS_BIRIM, yolAnahtari } from './goruntuleyici.js';
 import { Komut } from './komutlar.js';
 import { secimDikdortgenleri, secimMetinKutulari, satirlaraBirlestir } from './metin.js';
 import { turAdi, tarihBicimle } from './panel.js';
 
+// İlk renk referans okuyucunun varsayılan vurgu rengi: /C [1 .819611 0]
 export const VURGU_RENKLERI = [
-  { ad: 'Sarı', hex: '#ffeb3b' }, { ad: 'Kırmızı', hex: '#ff6e6e' }, { ad: 'Turuncu', hex: '#ffb74d' },
+  { ad: 'Sarı', hex: '#ffd100' }, { ad: 'Kırmızı', hex: '#ff6e6e' }, { ad: 'Turuncu', hex: '#ffb74d' },
   { ad: 'Yeşil', hex: '#7ee787' }, { ad: 'Mavi', hex: '#7cc4ff' }, { ad: 'Pembe', hex: '#ff9ad5' },
 ];
 export const YAZI_TIPLERI = ['Segoe UI', 'Arial', 'Times New Roman', 'Calibri'];
+const NOT_RENGI = '#ffd100';                        // yapışkan not ve renksiz not için referans okuyucu varsayılanı
+const METINLE_NOT_KONUSU = 'Metinle İlgili Yorum Yap';   // referans okuyucunun (Türkçe) notlu vurgu konusu; /IT /HighlightNote ile yazılır
+const BALON_GOSTER_MS = 120;                        // üzerine gelince notun gösterilme gecikmesi
+const BALON_GIZLE_MS = 250;                         // hedeften ve balondan çıkınca gizleme gecikmesi
 const TASINABILIR = new Set(['Text', 'FreeText', 'Stamp', 'Square', 'Circle', 'Line', 'Ink', 'Polygon', 'PolyLine', 'FileAttachment', 'Caret']);
 const ISARET = new Set(['Highlight', 'Underline', 'StrikeOut', 'Squiggly']);
 // Çekirdeğin (not_ekle) yeniden oluşturabildiği türler: dosyadan kalkmış başka türde bir not (ör. kayıttan sonra silmesi geri alınan
@@ -47,13 +52,20 @@ export class NotYoneticisi extends EventTarget {
     this.balonGecici = false;
     this.pixmapOnbellek = new Map();
     this.duzenleyici = null;     // {not, el, kutu, yeniMi, eskiDurum}
-    this._hoverZaman = null;
+    this._hoverZaman = null;     // balonu gösterme zamanlayıcısı
+    this._gosterilecekId = null; // gösterimi planlanmış notun kimliği
+    this._gizleZaman = null;     // geçici balonu gizleme zamanlayıcısı
+    this._hoverId = null;        // fare altındaki notun kimliği (vurgu, not simgesi, yapışkan not)
+    this._balonUstunde = false;  // fare balonun üzerinde
+    this._canliIcerik = null;    // {id, metin}: balonda yazılan, henüz kaydedilmemiş not metni (not simgesi anında görünsün)
+    this._metinKutulari = new WeakMap();   // .textLayer → öğelerin sayfaya oranla kutuları (not simgesini metnin dışına koymak için)
     this._surukle = null;
     this._fareBekleniyor = false; // metin üzerinde basıldı, bırakılması bekleniyor (seçim çubuğu)
     this._cubukOnbellek = null;   // {anahtar, liste}: seçimin sayfa yerel kutuları (kaydırmada yeniden ölçülmez)
     this.yuklendi = false;
 
     this.g.addEventListener('sayfaCizildi', (e) => { this.cizSayfa(e.detail.sayfa); this._cubukOnbellek = null; this.secimCubuguKonumla(); });
+    this.g.addEventListener('metinKatmani', (e) => { this.simgeleriKonumla(e.detail.sayfa); if (this.balon) this.balonKonumla(); });
     this.g.addEventListener('sayfalar', () => this.sayfalarDegisti());
     this.g.addEventListener('yerlesim', () => { this.hepsiniCiz(); this.balonKonumla(); this.duzenleyiciKonumla(); this._cubukOnbellek = null; this.secimCubuguKonumla(); });
     this.g.alan.addEventListener('pointerdown', (e) => this.pointerDown(e));
@@ -173,7 +185,7 @@ export class NotYoneticisi extends EventTarget {
 
   disaAktar(n) {
     const d = { xref: n.xref, tur: n.tur, sayfa: n.sayfa, rect: n.rect, icerik: n.icerik, yazar: n.yazar, renk: n.renk, opaklik: n.opaklik, konu: n.konu };
-    if (n.tur === 'Highlight') d.quads = n.quadKutular || quadKutulari(n.quads);
+    if (n.tur === 'Highlight') { d.quads = n.quadKutular || quadKutulari(n.quads); if (n.it) d.it = n.it; }
     if (n.tur === 'Text') d.simge = n.simge || 'Comment';
     if (n.tur === 'FreeText') d.yazi = n.yazi;
     if (n.ustId) { const ust = this.notlar.get(n.ustId); if (ust) { if (ust.xref) d.yanitXref = ust.xref; d.yanitId = ust.id; if (ust.kaynak && ust.kaynak.yol) d.yanitKaynak = { yol: ust.kaynak.yol, sayfa: ust.kaynak.sayfa }; } }
@@ -256,33 +268,60 @@ export class NotYoneticisi extends EventTarget {
   // ------------------------------------------------------------ çizim
   hepsiniCiz() { for (const s of this.g.sayfalar) if (s.canvas) this.cizSayfa(s.no); }
 
+  /**
+   * Sayfanın not katmanını yeniden kurar. Sıra (alttan üste): vurgular, diğer metin işaretleri, not öğeleri, not simgeleri.
+   * Vurgular referans okuyucu gibi çarpma (multiply) karışımıyla ayrı bir SVG'de çizilir: yazı siyah kalır, yalnızca beyaz zemin renklenir
+   * (katman yığın bağlamı oluşturmaz, karışım .sayfa içindeki tuvalle yapılır; stil.css). Koyulaştırılmış sayfada (ters çevrilmiş
+   * tuval) karışım ekran (screen) olur: çarpmanın tersine çevrilmiş sayfadaki karşılığıdır, açık renkli yazı olduğu gibi kalır,
+   * koyu zemin vurgu rengine döner.
+   */
   cizSayfa(sayfa) {
     const s = this.g.sayfalar[sayfa - 1];
     if (!s || !s.pdfSayfa || !s.canvas || !this.yuklendi) return;
     const katman = s.notKatmani;
     katman.innerHTML = '';
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('class', 'not-isaretler');
-    katman.append(svg);
-    for (const n of this.sayfaNotlari(sayfa)) {
-      const el = this.notElemani(n, sayfa - 1, svg);
-      if (el && el !== svg) katman.append(el);
+    const notlar = this.sayfaNotlari(sayfa);
+    const svgOlustur = (sinif) => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', sinif);
+      katman.append(svg);
+      return svg;
+    };
+    const vurgular = notlar.some((n) => n.tur === 'Highlight') ? svgOlustur('not-isaretler not-vurgular' + (this.g.koyuSayfa ? ' koyu-sayfa' : '')) : null;
+    const isaretler = notlar.some((n) => ISARET.has(n.tur) && n.tur !== 'Highlight') ? svgOlustur('not-isaretler') : null;
+    for (const n of notlar) {
+      if (ISARET.has(n.tur)) { this.isaretCiz(n, sayfa - 1, n.tur === 'Highlight' ? vurgular : isaretler); continue; }
+      const el = this.notElemani(n, sayfa - 1);
+      if (el) katman.append(el);
     }
+    const dolu = [];
+    for (const n of notlar) if (ISARET.has(n.tur) && this.notMetni(n)) katman.append(this.notSimgesi(n, sayfa - 1, dolu));
     this.seciliIsaretle();
   }
 
   simgeBoyutu() { return Math.max(24, Math.min(44, 22 * this.g.olcek)); }
 
-  notElemani(n, i, svg) {
-    if (ISARET.has(n.tur)) { this.isaretCiz(n, i, svg); return svg; }
+  /** Notun gösterilecek metni (balonda yazılmakta olan metin önceliklidir); boşluktan ibaretse ''. */
+  notMetni(n) {
+    const m = this._canliIcerik && this._canliIcerik.id === n.id ? this._canliIcerik.metin : n.icerik;
+    return String(m || '').trim() ? m : '';
+  }
+
+  /** Üzerine gelince balon açılır mı: yapışkan not her zaman; diğerleri metni ya da yanıtı varsa (boş vurgu okurken balon açmasın). */
+  balonluMu(n) {
+    if (!n || n.tur === 'FreeText') return false;
+    return n.tur === 'Text' || !!this.notMetni(n) || this.yanitlari(n).length > 0;
+  }
+
+  notElemani(n, i) {
     const r = this.rectToPx(i, n.rect);
     const el = document.createElement('div');
     el.dataset.id = n.id;
     el.className = 'not-oge not-' + n.tur.toLowerCase();
-    el.title = (n.yazar ? n.yazar + ': ' : '') + (n.icerik || turAdi(n.tur));
+    if (!this.balonluMu(n)) el.title = (n.yazar ? n.yazar + ': ' : '') + (n.icerik || turAdi(n.tur));   // balonlu notta ipucu balonla çakışırdı
     if (n.tur === 'Text') {
       const b = this.simgeBoyutu();
-      el.style.cssText = `left:${r.x}px;top:${r.y}px;width:${b}px;height:${b}px;--not-renk:${n.renk || '#ffd000'}`;
+      el.style.cssText = `left:${r.x}px;top:${r.y}px;width:${b}px;height:${b}px;--not-renk:${n.renk || NOT_RENGI}`;
       el.innerHTML = `<svg viewBox="0 0 24 24"><path d="M3 4.5A2.5 2.5 0 0 1 5.5 2h13A2.5 2.5 0 0 1 21 4.5v10a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4h-.5A2.5 2.5 0 0 1 3 14.5z" fill="var(--not-renk)" stroke="rgba(0,0,0,.55)" stroke-width="1.2"/><path d="M7 7.5h10M7 11h7" stroke="rgba(0,0,0,.6)" stroke-width="1.4" stroke-linecap="round"/></svg>`;
       return el;
     }
@@ -336,7 +375,7 @@ export class NotYoneticisi extends EventTarget {
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.dataset.id = n.id;
     g.setAttribute('class', 'not-isaret not-' + n.tur.toLowerCase());
-    const renk = n.renk || '#ffeb3b';
+    const renk = n.renk || VURGU_RENKLERI[0].hex;
     const kutular = n.quadKutular || quadKutulari(n.quads);
     for (const q of kutular.length ? kutular : [n.rect]) {
       const r = this.rectToPx(i, q);
@@ -365,10 +404,147 @@ export class NotYoneticisi extends EventTarget {
         g.append(hit);
       }
     }
-    const t = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-    t.textContent = (n.yazar ? n.yazar + ': ' : '') + (n.icerik || turAdi(n.tur));
-    g.append(t);
+    if (!this.balonluMu(n)) {   // balonlu notta ipucu balonla çakışırdı
+      const t = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      t.textContent = (n.yazar ? n.yazar + ': ' : '') + (n.icerik || turAdi(n.tur));
+      g.append(t);
+    }
     svg.append(g);
+  }
+
+  // ------------------------------------------------------------ not simgesi (metin işaretindeki not)
+  /**
+   * Notlu vurgu ailesi için küçük konuşma balonu simgesi (yalnızca PDEfe'de gösterilir, dosyaya yazılmaz). Konumu simgeKonumu:
+   * ilk satırın sonunda, metnin dışında. data-id taşır: üzerine gelince not gösterilir, tıklanınca düzenlemek için açılır.
+   */
+  notSimgesi(n, i, dolu = []) {
+    const el = document.createElement('div');
+    el.className = 'not-simge';
+    el.dataset.id = n.id;
+    el.setAttribute('aria-label', 'Not');
+    el.style.setProperty('--not-renk', n.renk || NOT_RENGI);
+    el.innerHTML = '<svg viewBox="0 0 20 20"><path d="M2.5 4.2A2.2 2.2 0 0 1 4.7 2h10.6a2.2 2.2 0 0 1 2.2 2.2v7.6a2.2 2.2 0 0 1-2.2 2.2H9.2L5.4 17.6V14h-.7a2.2 2.2 0 0 1-2.2-2.2z" fill="var(--not-renk)" stroke="#1f1f1f" stroke-width="1.5" stroke-linejoin="round"/><path d="M6 6.6h8M6 9.6h5.5" stroke="#1f1f1f" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    this.simgeYerlestir(el, n, i, dolu);
+    return el;
+  }
+
+  /** dolu: aynı sayfada önceden yerleştirilmiş simgelerin kutuları ({x, y, b}); yerleştirilen simge eklenir. */
+  simgeYerlestir(el, n, i, dolu = []) {
+    const k = this.simgeKonumu(n, i, dolu);
+    if (!k) { el.hidden = true; return; }
+    el.hidden = false;
+    dolu.push(k);
+    Object.assign(el.style, { left: k.x + 'px', top: k.y + 'px', width: k.b + 'px', height: k.b + 'px' });
+  }
+
+  /** Metin katmanı çizilince (ya da yeniden kurulunca) sayfadaki not simgeleri metnin gerçek satır sonuna göre yeniden konumlanır. */
+  simgeleriKonumla(sayfa) {
+    const s = this.g.sayfalar[sayfa - 1];
+    if (!s || !this.yuklendi) return;
+    const dolu = [];
+    for (const el of s.notKatmani.querySelectorAll('.not-simge')) {
+      const n = this.notlar.get(el.dataset.id);
+      if (n) this.simgeYerlestir(el, n, sayfa - 1, dolu);
+    }
+  }
+
+  /** Balonda yazılırken ya da not silinince/boşalınca tek notun simgesini ekler/kaldırır (sayfanın tamamını yeniden çizmeden). */
+  notSimgesiYenile(n) {
+    if (!ISARET.has(n.tur)) return;
+    const s = this.g.sayfalar[n.sayfa - 1];
+    if (!s || !s.canvas || !this.yuklendi) return;
+    const eski = s.notKatmani.querySelector(`.not-simge[data-id="${n.id}"]`);
+    const gerekli = !n.silindi && !n.sayfaYok && !!this.notMetni(n);
+    if (eski && !gerekli) eski.remove();
+    else if (!eski && gerekli) {
+      const dolu = [...s.notKatmani.querySelectorAll('.not-simge:not([hidden])')].map((d) => ({ x: parseFloat(d.style.left), y: parseFloat(d.style.top), b: parseFloat(d.style.width) }));
+      s.notKatmani.append(this.notSimgesi(n, n.sayfa - 1, dolu));
+      this.seciliIsaretle();
+    }
+  }
+
+  /**
+   * Metin katmanındaki öğelerin sayfa kutusuna oranla kutuları [x0,y0,x1,y1] (0..1). Oran kullanıldığı için yakınlaştırma sürerken
+   * (katman eski ölçekteyken) de geçerlidir; katman yeniden kurulunca (döndürme) önbellek kendiliğinden düşer.
+   */
+  metinKutulari(i) {
+    const katman = this.g.sayfalar[i]?.el.querySelector('.textLayer');
+    if (!katman || !katman.querySelector('.endOfContent')) return null;   // katman henüz çizilmedi
+    const onceki = this._metinKutulari.get(katman);
+    if (onceki && onceki.n === katman.childElementCount) return onceki.kutular;
+    const kr = katman.getBoundingClientRect();
+    if (!kr.width || !kr.height) return null;
+    const kutular = [];
+    for (const sp of katman.querySelectorAll('span:not(.markedContent):not(.highlight)')) {
+      if (!sp.textContent.trim()) continue;
+      const r = sp.getBoundingClientRect();
+      if (r.width < 0.5 || r.height < 0.5) continue;
+      kutular.push([(r.left - kr.left) / kr.width, (r.top - kr.top) / kr.height, (r.right - kr.left) / kr.width, (r.bottom - kr.top) / kr.height]);
+    }
+    this._metinKutulari.set(katman, { n: katman.childElementCount, kutular });
+    return kutular;
+  }
+
+  /**
+   * Not simgesinin sayfa içi konumu {x, y, b} (px). İlk satırın okuma yönündeki sonuna, metnin dışına konur: satır vurgunun bittiği
+   * yerden sonra da sürüyorsa (bitişik metin öğeleri) satırın gerçek sonuna kaydırılır, böylece simge hiçbir yazının üstüne binmez.
+   * Satır kalınlığıyla ölçeklenir (15–30 px). Döndürülmüş sayfada okuma yönü viewport açısından alınır; simge dik kalır.
+   */
+  simgeKonumu(n, i, dolu = []) {
+    const vp = this.vp(i), s = this.g.sayfalar[i];
+    if (!vp || !s) return null;
+    const kutular = n.quadKutular || quadKutulari(n.quads);
+    const r = this.rectToPx(i, kutular[0] || n.rect);
+    const W = s.el.clientWidth || vp.width, H = s.el.clientHeight || vp.height;
+    const aci = ((Math.round(vp.rotation / 90) * 90) % 360 + 360) % 360;
+    const yatay = aci === 0 || aci === 180;
+    // Okuma ekseni (a) ve çapraz eksen (c): yazı yönünde artan koordinat
+    const kalinlik = yatay ? r.h : r.w;
+    const b = Math.round(Math.max(15, Math.min(30, kalinlik * 1.05)));
+    const bosluk = Math.max(3, kalinlik * 0.15);
+    const eksen = (x0, y0, x1, y1) => {
+      if (aci === 0) return { a0: x0, a1: x1, c0: y0, c1: y1 };
+      if (aci === 90) return { a0: y0, a1: y1, c0: x0, c1: x1 };
+      if (aci === 180) return { a0: -x1, a1: -x0, c0: y0, c1: y1 };
+      return { a0: -y1, a1: -y0, c0: x0, c1: x1 };
+    };
+    const satir = eksen(r.x, r.y, r.x + r.w, r.y + r.h);
+    let son = satir.a1;
+    const oranlar = this.metinKutulari(i);
+    const metin = oranlar ? oranlar.map((o) => eksen(o[0] * W, o[1] * H, o[2] * W, o[3] * H)) : [];
+    const ayniSatir = metin.filter((m) => Math.min(m.c1, satir.c1) - Math.max(m.c0, satir.c0) >= 0.5 * Math.min(m.c1 - m.c0, kalinlik))
+      .sort((p, q) => p.a0 - q.a0);
+    for (let degisti = true; degisti;) {
+      degisti = false;
+      for (const m of ayniSatir) if (m.a0 <= son + kalinlik && m.a1 > son + 0.5) { son = m.a1; degisti = true; }
+    }
+    // Ekran koordinatına: simgenin sol-üst köşesi. Önce satırın üst kenarından biraz yukarıda (üst sağ köşe), metne değiyorsa satıra ortalı.
+    // Aynı yere düşen önceki simgeler (dolu: komşu satırlardaki notlar) varsa okuma yönünde yana kaydırılır.
+    const ust = (k, d) => Math.min(k.x + k.b, d.x + d.b) - Math.max(k.x, d.x) > 1 && Math.min(k.y + k.b, d.y + d.b) - Math.max(k.y, d.y) > 1;
+    const yerlestir = (yukari) => {
+      let k;
+      for (let kay = 0; kay < 6; kay++) {
+        k = yerlestirKaydir(yukari, kay * (b + 2));
+        if (!dolu.some((d) => ust(k, d))) break;
+      }
+      return k;
+    };
+    const yerlestirKaydir = (yukari, kaydir) => {
+      const a = son + bosluk + kaydir, c = aci === 90 || aci === 180 ? satir.c1 - b + yukari : satir.c0 - yukari;   // "üst" yön: 0° -y, 90° +x, 180° +y, 270° -x
+      let x, y;
+      if (aci === 0) { x = a; y = c; }
+      else if (aci === 90) { x = c; y = a; }
+      else if (aci === 180) { x = -a - b; y = c; }
+      else { x = c; y = -a - b; }
+      return { x: Math.max(0, Math.min(W - b, x)), y: Math.max(0, Math.min(H - b, y)), b };
+    };
+    const carpar = (k) => metin.length && oranlar.some((o) => {
+      const x0 = o[0] * W, y0 = o[1] * H, x1 = o[2] * W, y1 = o[3] * H;
+      return Math.min(x1, k.x + k.b) - Math.max(x0, k.x) > 1 && Math.min(y1, k.y + k.b) - Math.max(y0, k.y) > 1;
+    });
+    const ustte = yerlestir(b * 0.35);
+    if (!carpar(ustte)) return ustte;
+    return yerlestir((b - kalinlik) / 2);   // satıra ortalı
   }
 
   seciliIsaretle() {
@@ -390,14 +566,14 @@ export class NotYoneticisi extends EventTarget {
     return k;
   }
 
-  ekle(not) {
+  ekle(not, ad = null) {
     not.id = not.id || yeniId(); not.yeni = true; not.silindi = false; not.yanitlar = not.yanitlar || []; not.ustId = not.ustId || null;
     if (!not.kaynak) { const s = this.g.sayfalar[not.sayfa - 1]; if (s) { not.kaynak = s.bos ? { bos: true } : { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa }; not.kaynakGirdi = s; } }
     not.olusturma = not.olusturma || simdiPdfTarih(); not.degisim = not.olusturma;
     // Yinele: eklenip kaydedilen, geri alınıp (silinerek) yeniden kaydedilen not modelden çıkmıştır; geri konur ve yeniden eklenir.
     // Kayıtlıyken geri alınırsa silindi işaretlenir, sonraki kayıtta 'sil' yazılır.
-    this.calistir(`${turAdi(not.tur)} ekle`,
-      () => { this.modeleGeriKoy(not); if (not.ustId) { const u = this.notlar.get(not.ustId); if (u && !u.yanitlar.includes(not.id)) u.yanitlar.push(not.id); } this.cizSayfa(not.sayfa); },
+    this.calistir(ad || `${turAdi(not.tur)} ekle`,
+      () => { this.modeleGeriKoy(not); this.cizSayfa(not.sayfa); },
       () => { not.silindi = true; if (this.secili === not.id) this.sec(null); this.balonKapat(); this.cizSayfa(not.sayfa); });
     return not;
   }
@@ -455,6 +631,7 @@ export class NotYoneticisi extends EventTarget {
     if (!hedef && !aracTiki && e.target.closest('.textLayer span:not([role="img"])')) this.secimBaslat();
     else this.secimTemizle();
     if (this.duzenleyici && !hedef) { this.duzenleyiciBitir(true); }
+    if (!hedef) this.gosterimIptal();   // basılıyken (metin seçerken) balon açılmasın
     if (this.arac === 'not' && !hedef && i >= 0) { e.preventDefault(); this.yapiskanNotKoy(i, e); return; }
     if (this.arac === 'yazi' && !hedef && i >= 0) { e.preventDefault(); this.yaziBaslat(i, e); return; }
     if (hedef) {
@@ -463,11 +640,13 @@ export class NotYoneticisi extends EventTarget {
       if (!n) return;
       this.sec(id);
       e.preventDefault();
+      // Not simgesine tıklama: notu düzenlemek için açar (geçici balon kalıcı olur, metin kutusuna odaklanılır)
+      if (hedef.classList.contains('not-simge')) { this.gosterimIptal(); this.balonAc(n, { odak: !n.kilitli }); return; }
       if (TASINABILIR.has(n.tur) && !n.kilitli) this.surukleBaslat(n, hedef, e);
       return;
     }
     if (this.secili) this.sec(null);
-    if (!this.balonGecici) this.balonKapat();
+    this.balonKapat();
   }
 
   surukleBaslat(n, el, e) {
@@ -501,25 +680,51 @@ export class NotYoneticisi extends EventTarget {
     else this.balonAc(n, { odak: true });
   }
 
+  /**
+   * Üzerine gelince hızlı gösterim: notun hedefine (vurgu, not simgesi, yapışkan not) girince BALON_GOSTER_MS sonra geçici balon açılır.
+   * Balon, fare hedefte ya da balonun üzerinde kaldıkça açık kalır; ikisinden de çıkınca BALON_GIZLE_MS sonra kapanır. Aynı notun
+   * parçaları arasında (çok satırlı vurgunun satır aralıkları, vurgu → simge) geçiş kapatmayı iptal eder: titreme olmaz.
+   * Fare düğmesi basılıyken (metin seçerken sürükleme) balon açılmaz.
+   */
   pointerOver(e) {
     const hedef = e.target.closest('[data-id]');
-    if (!hedef || this._surukle) return;
-    const n = this.notlar.get(hedef.dataset.id);
-    if (!n || n.tur === 'FreeText' && (n.yeni || n.yazi)) return;
-    clearTimeout(this._hoverZaman);
-    this._hoverZaman = setTimeout(() => { if (!this.balon || this.balonGecici) this.balonAc(n, { gecici: true }); }, 450);
+    if (!hedef) return;
+    const id = hedef.dataset.id;
+    this._hoverId = id;
+    clearTimeout(this._gizleZaman);
+    if (this.balon && this.balonNotId === id) { this.gosterimIptal(); return; }   // zaten bu notun balonu açık
+    if (this._surukle || this._fareBekleniyor || e.buttons) return;
+    const n = this.notlar.get(id);
+    if (!this.balonluMu(n)) { this.gosterimIptal(); if (this.balonGecici) this.gizlemeyiPlanla(); return; }
+    if (this._gosterilecekId === id) return;   // gösterim zaten planlı (aynı notun parçaları arasında gezinirken ertelenmesin)
+    this.gosterimIptal();
+    this._gosterilecekId = id;
+    this._hoverZaman = setTimeout(() => {
+      this._gosterilecekId = null;
+      if (this._hoverId !== id || this._fareBekleniyor || this.duzenleyici || !this.g.kaydirici.clientWidth) return;   // sekme gizlendiyse açma
+      if (!this.balon || this.balonGecici) this.balonAc(n, { gecici: true });
+    }, BALON_GOSTER_MS);
   }
 
   pointerOut(e) {
     const hedef = e.target.closest('[data-id]');
     if (!hedef) return;
-    clearTimeout(this._hoverZaman);
-    if (this.balonGecici) {
-      // Balona geçiliyorsa kapatma
-      const iliskili = e.relatedTarget;
-      if (iliskili && iliskili.closest && iliskili.closest('.not-balonu')) return;
-      setTimeout(() => { if (this.balonGecici && !this.balon?.matches(':hover')) this.balonKapat(); }, 250);
-    }
+    const id = hedef.dataset.id;
+    if (e.relatedTarget?.closest?.(`[data-id="${id}"]`)) return;   // aynı notun başka parçasına geçiş
+    if (this._hoverId === id) this._hoverId = null;
+    if (this._gosterilecekId === id) this.gosterimIptal();
+    if (this.balonGecici) this.gizlemeyiPlanla();
+  }
+
+  gosterimIptal() { clearTimeout(this._hoverZaman); this._gosterilecekId = null; }
+
+  /** Geçici balon: fare ne hedef notta ne balonda kaldıysa kısa gecikmeyle kapatır. */
+  gizlemeyiPlanla() {
+    clearTimeout(this._gizleZaman);
+    this._gizleZaman = setTimeout(() => {
+      if (!this.balonGecici || this._balonUstunde || (this._hoverId && this._hoverId === this.balonNotId)) return;
+      this.balonKapat();
+    }, BALON_GIZLE_MS);
   }
 
   // ------------------------------------------------------------ balon
@@ -528,19 +733,23 @@ export class NotYoneticisi extends EventTarget {
     const b = document.createElement('div');
     b.className = 'not-balonu' + (gecici ? ' gecici' : '');
     b.dataset.notId = n.id;
+    b.style.width = '300px';   // metin kutusu yüksekliği bu genişlikte ölçülür (balonKonumla)
     this.balon = b; this.balonNotId = n.id; this.balonGecici = gecici;
     this.alan.append(b);
     this.balonYenile();
     this.balonKonumla();
-    b.addEventListener('mouseleave', () => { if (this.balonGecici) this.balonKapat(); });
+    // Fare balondayken açık kalır; çıkınca (hedef notun üzerine dönmediyse) kısa gecikmeyle kapanır
+    b.addEventListener('pointerenter', () => { if (this.balon !== b) return; this._balonUstunde = true; clearTimeout(this._gizleZaman); });
+    b.addEventListener('pointerleave', () => { if (this.balon !== b) return; this._balonUstunde = false; if (this.balonGecici) this.gizlemeyiPlanla(); });
     b.addEventListener('mousedown', () => { if (this.balonGecici) { this.balonGecici = false; b.classList.remove('gecici'); } });
-    if (odak) { const ta = b.querySelector('textarea.icerik'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }
+    if (odak) { const ta = b.querySelector('textarea.icerik'); if (ta && !ta.readOnly) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }
   }
 
   balonYenile() {
     const b = this.balon; if (!b) return;
     const n = this.notlar.get(this.balonNotId); if (!n || n.silindi) { this.balonKapat(); return; }
-    const renk = n.renk || (n.tur === 'FreeText' ? (n.yazi?.renk || '#888') : '#ffd000');
+    const renk = n.renk || (n.tur === 'FreeText' ? (n.yazi?.renk || '#888') : NOT_RENGI);
+    // Yanıt eklenemez; dosyada (ör. Referans okuyucuda) yazılmış yanıtlar bilgi kaybolmasın diye salt okunur gösterilir
     const yanitlar = this.yanitlari(n);
     b.innerHTML = `
       <div class="ust" style="--not-renk:${kacis(renk)}">
@@ -552,56 +761,88 @@ export class NotYoneticisi extends EventTarget {
         <button class="ikon kucuk sil" title="Notu sil (Delete)"><svg viewBox="0 0 20 20"><path d="M5 6h10M8 6V4h4v2M6 6l1 10h6l1-10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
         <button class="ikon kucuk kapat" title="Kapat"><svg viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.5"/></svg></button>
       </div>
-      <textarea class="icerik" placeholder="Not yazın…" ${n.kilitli ? 'readonly' : ''}>${kacis(n.icerik || '')}</textarea>
-      <div class="yanitlar">${yanitlar.map((y) => `
-        <div class="yanit" data-yanit="${y.id}">
-          <div class="ust"><span class="yazar">${kacis(y.yazar || '')}</span><span class="esnek"></span><span class="tarih">${kacis(tarihBicimle(y.degisim || y.olusturma))}</span><button class="ikon kucuk yanit-sil" title="Yanıtı sil"><svg viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.4"/></svg></button></div>
+      <textarea class="icerik" placeholder="Not yazın" ${n.kilitli ? 'readonly' : ''}>${kacis(n.icerik || '')}</textarea>
+      ${yanitlar.length ? `<div class="yanitlar">${yanitlar.map((y) => `
+        <div class="yanit">
+          <div class="ust"><span class="yazar">${kacis(y.yazar || '')}</span><span class="esnek"></span><span class="tarih">${kacis(tarihBicimle(y.degisim || y.olusturma))}</span></div>
           <div class="metin">${kacis(y.icerik || '')}</div>
-        </div>`).join('')}</div>
-      <div class="yanit-kutusu"><input type="text" class="yanit-girdi" placeholder="Yanıt yazın… (Enter)"><button class="ikincil yanitla">Yanıtla</button></div>`;
+        </div>`).join('')}</div>` : ''}`;
     const ta = b.querySelector('textarea.icerik');
     let eskiDeger = ta.value;
-    const kaydet = () => { if (ta.value !== eskiDeger) { const yeni = ta.value; eskiDeger = yeni; this.guncelle(n, { icerik: yeni }, 'Not metnini düzenle'); } };
-    ta.addEventListener('blur', kaydet);
-    ta.addEventListener('keydown', (e) => { if (e.key === 'Escape') { ta.blur(); } e.stopPropagation(); });
-    b.querySelector('.sil').addEventListener('click', () => this.sil(n));
-    b.querySelector('.kapat').addEventListener('click', () => this.balonKapat());
-    const yg = b.querySelector('.yanit-girdi');
-    const yanitla = () => {
-      const metin = yg.value.trim(); if (!metin) return;
-      const yanit = { tur: 'Text', sayfa: n.sayfa, rect: [...n.rect], icerik: metin, yazar: this.ayar().yazarAdi, renk: n.renk || '#ffd000', opaklik: 1, ustId: n.id, simge: 'Comment', konu: 'Yanıt' };
-      this.ekle(yanit);
-      yg.value = '';
-      this.balonYenile();
-      this.balon.querySelector('.yanit-girdi')?.focus();
+    const kaydet = () => {
+      if (this._canliIcerik?.id === n.id) this._canliIcerik = null;
+      if (ta.value !== eskiDeger) { const yeni = ta.value; eskiDeger = yeni; this.guncelle(n, { icerik: yeni }, 'Not metnini düzenle'); }
     };
-    yg.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') yanitla(); if (e.key === 'Escape') this.balonKapat(); });
-    b.querySelector('.yanitla').addEventListener('click', yanitla);
-    b.querySelectorAll('.yanit-sil').forEach((btn) => btn.addEventListener('click', () => { const y = this.notlar.get(btn.closest('.yanit').dataset.yanit); if (y) { this.sil(y); this.balonYenile(); } }));
+    ta.addEventListener('blur', kaydet);
+    // Uzun not kaydırmadan okunsun: metin kutusu içeriğe göre uzar (stil.css'teki en az/en çok yükseklik arasında)
+    const boyutla = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 2 + 'px'; };
+    boyutla();
+    // Yazarken not simgesi hemen görünür/kaybolur (kayıt yine odaktan çıkınca tek komutla yapılır)
+    ta.addEventListener('input', () => { this._canliIcerik = { id: n.id, metin: ta.value }; this.notSimgesiYenile(n); boyutla(); });
+    ta.addEventListener('keydown', (e) => { if (e.key === 'Escape') { ta.blur(); } e.stopPropagation(); });
+    // Düğmeye basış metin kutusunun odağını almasın: odaktan çıkış kaydı balonu yeniden kurar, tıklama kaybolurdu
+    for (const btn of b.querySelectorAll('.ust button')) btn.addEventListener('mousedown', (e) => e.preventDefault());
+    b.querySelector('.sil').addEventListener('click', () => { if (document.activeElement === ta) ta.blur(); if (!n.silindi) this.sil(n); });
+    b.querySelector('.kapat').addEventListener('click', () => this.balonKapat());
     b.addEventListener('keydown', (e) => e.stopPropagation());
   }
 
+  /**
+   * Balonu notun yanına koyar; notun kendisini (vurgunun hiçbir satırını, not simgesini) örtmeyen ve görünür alana sığan ilk yer seçilir:
+   * sağında (simgenin sağı) → altında → üstünde → solunda. Hiçbiri olmazsa sağda, alana kırpılarak.
+   */
   balonKonumla() {
     const b = this.balon; if (!b) return;
     const n = this.notlar.get(this.balonNotId); if (!n) return;
-    const s = this.g.sayfalar[n.sayfa - 1];
+    const i = n.sayfa - 1, s = this.g.sayfalar[i];
     if (!s || !s.pdfSayfa) return;
-    const r = this.rectToPx(n.sayfa - 1, ISARET.has(n.tur) ? (n.quadKutular || quadKutulari(n.quads))[0] || n.rect : n.rect);
     const sayfaK = s.el.getBoundingClientRect(), alanK = this.alan.getBoundingClientRect();
-    const genis = 300;
-    let x = sayfaK.left - alanK.left + r.x + (n.tur === 'Text' ? this.simgeBoyutu() : r.w) + 8;
-    let y = sayfaK.top - alanK.top + r.y;
-    if (x + genis > alanK.width - 8) x = Math.max(8, sayfaK.left - alanK.left + r.x - genis - 8);
-    if (x + genis > alanK.width - 8) x = alanK.width - genis - 8;
+    const ox = sayfaK.left - alanK.left, oy = sayfaK.top - alanK.top;
+    const P = 8, genis = 300;
+    b.style.width = genis + 'px';
     const yuk = b.offsetHeight || 200;
-    if (y + yuk > alanK.height - 8) y = Math.max(8, alanK.height - yuk - 8);
-    if (y < 8) y = 8;
-    b.style.left = x + 'px'; b.style.top = y + 'px'; b.style.width = genis + 'px';
+    const kutu = (r) => ({ l: ox + r.x, t: oy + r.y, r: ox + r.x + r.w, b: oy + r.y + r.h });
+    let kutular, sag;
+    if (ISARET.has(n.tur)) {
+      const q = n.quadKutular || quadKutulari(n.quads);
+      kutular = (q.length ? q : [n.rect]).map((x) => kutu(this.rectToPx(i, x)));
+      sag = kutular[0].r;
+      // Simge yoksa da yeri ayrılır: yazmaya başlayınca simge çıkınca balon kaymasın
+      const el = s.notKatmani.querySelector(`.not-simge[data-id="${n.id}"]:not([hidden])`);
+      const k = el ? { x: parseFloat(el.style.left), y: parseFloat(el.style.top), b: parseFloat(el.style.width) } : this.simgeKonumu(n, i);
+      if (k) { kutular.push({ l: ox + k.x, t: oy + k.y, r: ox + k.x + k.b, b: oy + k.y + k.b }); sag = Math.max(sag, ox + k.x + k.b); }
+    } else {
+      const r = this.rectToPx(i, n.rect);
+      const k = kutu(n.tur === 'Text' ? { x: r.x, y: r.y, w: this.simgeBoyutu(), h: this.simgeBoyutu() } : r);
+      kutular = [k]; sag = k.r;
+    }
+    const ilk = kutular[0];
+    const ust = Math.min(...kutular.map((k) => k.t)), alt = Math.max(...kutular.map((k) => k.b));
+    const W = alanK.width, H = alanK.height;
+    const yatayKirp = (x) => Math.max(P, Math.min(W - genis - P, x));
+    const dikeyKirp = (y) => Math.max(P, Math.min(H - yuk - P, y));
+    const adaylar = [
+      { x: sag + P, y: dikeyKirp(ilk.t) },
+      { x: yatayKirp(sag - genis), y: alt + 6 },
+      { x: yatayKirp(sag - genis), y: ust - 6 - yuk },
+      { x: ilk.l - P - genis, y: dikeyKirp(ilk.t) },
+    ];
+    const uygun = (a) => a.x >= P && a.x + genis <= W - P && a.y >= P && a.y + yuk <= H - P
+      && !kutular.some((k) => Math.min(k.r, a.x + genis) > Math.max(k.l, a.x) && Math.min(k.b, a.y + yuk) > Math.max(k.t, a.y));
+    const yer = adaylar.find(uygun) || { x: yatayKirp(sag + P), y: dikeyKirp(ilk.t) };
+    b.style.left = yer.x + 'px'; b.style.top = yer.y + 'px';
   }
 
   balonKapat() {
-    if (this.balon) { const ta = this.balon.querySelector('textarea.icerik'); if (ta && document.activeElement === ta) ta.blur(); this.balon.remove(); }
-    this.balon = null; this.balonNotId = null; this.balonGecici = false;
+    const b = this.balon;
+    clearTimeout(this._gizleZaman);
+    this.gosterimIptal();
+    // Odaktan çıkış notu kaydeder (guncelle → balonYenile); o sırada balon kapanmış/değişmiş olabilir
+    if (b) { const ta = b.querySelector('textarea.icerik'); if (ta && document.activeElement === ta) ta.blur(); b.remove(); }
+    if (this.balon === b) { this.balon = null; this.balonNotId = null; this.balonGecici = false; }
+    this._balonUstunde = false;
+    const canli = this._canliIcerik;
+    if (canli) { this._canliIcerik = null; const n = this.notlar.get(canli.id); if (n) this.notSimgesiYenile(n); }
   }
 
   /** Yorumlar panelinden: nota git, seç ve balonu aç. */
@@ -615,6 +856,8 @@ export class NotYoneticisi extends EventTarget {
 
   // ------------------------------------------------------------ araçlar
   aracSec(arac) {
+    // Metin seçiliyken Yapışkan not aracı (düğme ya da menü) seçimi notlu vurguya çevirir; araç açılmaz
+    if (arac === 'not' && this.arac !== 'not' && this.secimKatmani() && this.secimeNotKoy()) return;
     this.arac = this.arac === arac ? null : arac;
     this.g.alan.classList.toggle('arac-not', this.arac === 'not');
     this.g.alan.classList.toggle('arac-yazi', this.arac === 'yazi');
@@ -629,7 +872,7 @@ export class NotYoneticisi extends EventTarget {
     const k = sayfaEl.getBoundingClientRect();
     const [x, y] = this.pxToPdf(i, e.clientX - k.left, e.clientY - k.top);
     const a = this.ayar();
-    const not = { tur: 'Text', sayfa: i + 1, rect: [x, y, x + 20, y + 20], icerik: '', yazar: a.yazarAdi, renk: '#ffd000', opaklik: 1, simge: 'Comment', konu: 'Yapışkan Not' };
+    const not = { tur: 'Text', sayfa: i + 1, rect: [x, y, x + 20, y + 20], icerik: '', yazar: a.yazarAdi, renk: NOT_RENGI, opaklik: 1, simge: 'Comment', konu: 'Yapışkan Not' };
     this.ekle(not);
     this.aracSec(null);
     this.sec(not.id);
@@ -641,38 +884,43 @@ export class NotYoneticisi extends EventTarget {
   sayfaGecerli(sayfa) { return Number.isInteger(sayfa) && sayfa >= 1 && !!this.vp(sayfa - 1); }
 
   /** Metin seçiminden vurgu oluşturur (sayfa başına bir not). Geçersiz sayfalar atlanır; istisna fırlatmaz. */
-  vurguUygula(renk) {
+  vurguUygula(renk) { return this.secimdenVurgular(renk).length > 0; }
+
+  /**
+   * Seçimdeki metnin üzerine sayfa başına bir vurgu ekler, eklenen notları (okuma sırasıyla) döndürür; seçim kaldırılır.
+   * notlu: referans okuyucunun "Metinle ilgili yorum yap"ı gibi ilk sayfadaki vurgu not taşır (/IT /HighlightNote, konu METINLE_NOT_KONUSU).
+   */
+  secimdenVurgular(renk, { notlu = false } = {}) {
     let sayfalar;
-    try { sayfalar = satirlaraBirlestir(secimDikdortgenleri()); } catch (e) { console.warn('Seçim okunamadı', e); return false; }
+    try { sayfalar = satirlaraBirlestir(secimDikdortgenleri()); } catch (e) { console.warn('Seçim okunamadı', e); return []; }
     const a = this.ayar();
-    let eklenen = 0;
+    const eklenenler = [];
     for (const [sayfa, satirlar] of sayfalar) {
       if (!this.sayfaGecerli(sayfa) || !satirlar.length) continue;
       const i = sayfa - 1;
       try {
         const kutular = satirlar.map((l) => this.pxRectToPdf(i, l.x0, l.y, l.x1 - l.x0, l.h));
         const rect = [Math.min(...kutular.map((q) => q[0])), Math.min(...kutular.map((q) => q[1])), Math.max(...kutular.map((q) => q[2])), Math.max(...kutular.map((q) => q[3]))];
-        this.ekle({ tur: 'Highlight', sayfa, rect, quadKutular: kutular, quads: null, icerik: '', yazar: a.yazarAdi, renk, opaklik: a.vurguOpaklik ?? 0.4, konu: 'Vurgu' });
-        eklenen++;
+        const not = { tur: 'Highlight', sayfa, rect, quadKutular: kutular, quads: null, icerik: '', yazar: a.yazarAdi, renk, opaklik: a.vurguOpaklik ?? 0.4, konu: 'Vurgu' };
+        if (notlu && !eklenenler.length) Object.assign(not, { konu: METINLE_NOT_KONUSU, it: 'HighlightNote' });
+        this.ekle(not, notlu && !eklenenler.length ? 'Not ekle' : null);
+        eklenenler.push(not);
       } catch (e) { console.warn('Vurgu eklenemedi', sayfa, e); }
     }
-    if (!eklenen) return false;
+    if (!eklenenler.length) return eklenenler;
     window.getSelection()?.removeAllRanges();
     this.secimCubuguGizle();
-    return true;
+    return eklenenler;
   }
 
-  /** Seçimin başlangıcına yapışkan not koyar (sağ tık → Not ekle). */
+  /**
+   * Seçili metne not: seçim notlu vurguya dönüşür (ayrı yapışkan not simgesi konmaz) ve notun düzenleyicisi hemen açılır.
+   * Seçim mini çubuğu, sağ tık "Not ekle" ve metin seçiliyken Yapışkan not aracı buraya gelir. Seçim yoksa false.
+   */
   secimeNotKoy() {
-    const d = secimDikdortgenleri().find((x) => this.sayfaGecerli(x.sayfa));
-    if (!d) return false;
-    const i = d.sayfa - 1;
-    const [x, y] = this.pxToPdf(i, d.x, d.y);
     const a = this.ayar();
-    const not = { tur: 'Text', sayfa: d.sayfa, rect: [x - 22, y, x - 2, y + 20], icerik: '', yazar: a.yazarAdi, renk: '#ffd000', opaklik: 1, simge: 'Comment', konu: 'Yapışkan Not' };
-    this.ekle(not);
-    window.getSelection()?.removeAllRanges();
-    this.secimCubuguGizle();
+    const [not] = this.secimdenVurgular(a.vurguRengi || VURGU_RENKLERI[0].hex, { notlu: true });
+    if (!not) return false;
     this.sec(not.id);
     this.balonAc(not, { odak: true });
     return true;
@@ -950,7 +1198,7 @@ export class NotYoneticisi extends EventTarget {
     else this.cizSayfa(n.sayfa);
   }
 
-  yokEt() { this.balonKapat(); this.duzenleyiciBitir(false); if (cubukSahibi === this) this.secimCubuguGizle(); }
+  yokEt() { this.gosterimIptal(); this.balonKapat(); this.duzenleyiciBitir(false); if (cubukSahibi === this) this.secimCubuguGizle(); }
 }
 
 /** PyMuPDF vertices (8 nokta/quad: x,y çiftleri, 4 nokta bir quad) → satır kutuları [x0,y0,x1,y1] */
