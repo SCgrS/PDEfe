@@ -1,7 +1,7 @@
 // Belge görüntüleyici: PDF.js ile tembel (lazy) sayfa çizimi, yakınlaştırma, sayfa düzenleri.
 // Her sekmenin kendi Goruntuleyici örneği vardır.
 import * as pdfjs from '../../node_modules/pdfjs-dist/build/pdf.min.mjs';
-import { keskinBaglam, KeskinTuvalFabrikasi, ETKILESIM_MS, etkilesimBildir, etkilesimBitir, keskinErtelenir, ertelenenSayisi, keskinHazirDinle, okumaSuruyor } from './keskinlik.js';
+import { keskinBaglam, KeskinTuvalFabrikasi, cizimGoreviHazirla, ETKILESIM_MS, etkilesimBildir, etkilesimBitir, keskinErtelenir, ertelenenSayisi, keskinHazirDinle, okumaSuruyor } from './keskinlik.js';
 
 const KAYNAK = new URL('../../node_modules/pdfjs-dist/', import.meta.url).href;
 pdfjs.GlobalWorkerOptions.workerSrc = KAYNAK + 'build/pdf.worker.min.mjs';
@@ -814,11 +814,11 @@ export class Goruntuleyici extends EventTarget {
     canvas.height = Math.max(1, Math.round(b.h * oran));
     const viewport = pdfSayfa.getViewport({ scale: olcek * CSS_BIRIM * oran, rotation: dondurme });
     const ertelenenOnce = ertelenenSayisi();
-    const gorev = pdfSayfa.render({
+    const gorev = cizimGoreviHazirla(pdfSayfa.render({
       canvasContext: keskinBaglam(canvas.getContext('2d', { alpha: koyu })), viewport,
       transform: [1, 0, 0, 1, -px, -py],
       annotationMode: pdfjs.AnnotationMode.DISABLE,
-    });
+    }));   // görsel maskesi bölgesel tuvale kırpılır (keskinlik.js)
     s.gorev = gorev;
     try {
       await gorev.promise;
