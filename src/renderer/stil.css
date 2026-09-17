@@ -89,9 +89,10 @@ button.ikon.metinli[aria-expanded="true"] { background: var(--basili); }
 #arac-cubugu.sikisik-3 .kutu { width: 44px; }
 #arac-cubugu.sikisik-3 #zoom-kutusu { width: 54px; }
 #arac-cubugu.sikisik-4 [data-komut="arac.paylas"] { display: none; }
-#dugme-tema .gunes { display: none; }
-html[data-tema="koyu"] #dugme-tema .ay { display: none; }
-html[data-tema="koyu"] #dugme-tema .gunes { display: block; }
+/* Tema düğmesi şu anki temayı gösterir: açık temada güneş, koyu temada ay */
+#dugme-tema .ay { display: none; }
+html[data-tema="koyu"] #dugme-tema .gunes { display: none; }
+html[data-tema="koyu"] #dugme-tema .ay { display: block; }
 .kutu {
   width: 52px; height: 26px; border: 1px solid var(--kenar); border-radius: 4px;
   background: var(--arka-yukseltilmis); text-align: center; padding: 0 4px; outline: none;
@@ -354,6 +355,8 @@ body.okuma-modu.ust-goster #arac-cubugu { display: flex; position: absolute; top
 .diyalog table { border-collapse: collapse; }
 .diyalog td { padding: 3px 10px 3px 0; vertical-align: top; }
 .diyalog kbd { font-family: inherit; background: var(--arka); border: 1px solid var(--kenar); border-radius: 4px; padding: 1px 6px; font-size: 12px; }
+.kisayollar .bolum th { text-align: left; font-size: 12px; font-weight: 600; color: var(--metin-soluk); padding: 10px 0 3px; }
+.kisayollar tr.bolum:first-child th { padding-top: 0; }
 
 /* Kaydırma çubukları */
 ::-webkit-scrollbar { width: 12px; height: 12px; }
@@ -454,4 +457,5 @@ button.ikon.kucuk svg { width: 16px; height: 16px; }
 .yorum .yanit-sayisi { font-size: 11px; color: var(--vurgu); margin-top: 2px; }
 
 .kucuk-resim .donuk { display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: var(--sayfa-golge); background: #fff; }
+.kucuk-resim .donuk img { flex: none; box-shadow: none; }   /* döndürülmeden önceki boyutu kutudan büyük olabilir: esneyip ezilmesin */
 .kucuk-resim .bos.bos-sayfa { background: #fff; }

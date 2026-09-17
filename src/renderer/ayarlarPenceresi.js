@@ -175,7 +175,7 @@ function bolumBaslangic(k) {
     ['son', 'Son kullanılan'], ['genislik', 'Genişliğe sığdır'], ['sayfa', 'Sayfayı sığdır'], ['gercek', 'Gerçek boyut'], ['gorunur', 'Görünür alana sığdır'], ['yuzde', 'Yüzde'],
   ], (v) => { yuzde.hidden = v !== 'yuzde'; if (v === 'yuzde') { yuzdeYaz(); yuzde.focus(); yuzde.select(); } else degistir('varsayilanZoom', v); });
   k.append(kart({
-    baslik: 'Varsayılan yakınlaştırma', aciklama: 'Belge açıldığında uygulanacak yakınlaştırma. İki sayfadan tek sayfaya geçerken de kullanılır; Son kullanılan, Gerçek boyut ya da yüzde seçiliyse tek sayfa genişliğe sığdırılır.',
+    baslik: 'Varsayılan yakınlaştırma', aciklama: 'Tek sayfa düzeninde belge açıldığında uygulanacak yakınlaştırma. İki sayfadan tek sayfaya geçerken de kullanılır; Son kullanılan, Gerçek boyut ya da yüzde seçiliyse tek sayfa genişliğe sığdırılır. İki sayfa düzeninde her zaman Sayfayı sığdır kullanılır.',
     kontrol: el('div', { class: 'ayar-yanyana' }, [zoomSecim, yuzde]),
   }));
   // Sayfa düzeni: iki kontrol tek bir varsayilanDuzen değerine yazar; diğerinin güncel değeri ayarlardan okunur

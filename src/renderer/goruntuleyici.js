@@ -1152,10 +1152,10 @@ export class Goruntuleyici extends EventTarget {
   // ------------------------------------------------------------ düzen ve döndürme
   duzenAyarla(duzen, kapakAyri = this.kapakAyri, tekZoomModu = 'genislik') {
     const sayfa = this.gecerli, oran = this.sayfaIciOran();
-    // Tek sayfalıdan iki sayfalıya geçiş: elle seçilmiş yakınlaştırma ("Gerçek boyut" dahil) çift pencereye sığmaz → sayfayı sığdır.
-    // Sığdırma modları (genislik/sayfa/gorunur) yeni düzene kendiliğinden uyar.
+    // Tek sayfalıdan iki sayfalıya geçiş: yakınlaştırma ne olursa olsun sayfayı sığdır. Elle seçilmiş yakınlaştırma ("Gerçek boyut"
+    // dahil) çift pencereye sığmaz; genişliğe sığdırılmış iki sayfa da geniş (ekranı kaplayan) pencerede yukarıdan aşağı sığmaz.
     const ikiliyeGecis = !this.ikili() && (duzen === 'iki' || duzen === 'ikiSurekli');
-    if (ikiliyeGecis && (this.zoomModu === 'serbest' || this.zoomModu === 'gercek')) this.zoomModu = 'sayfa';
+    if (ikiliyeGecis) this.zoomModu = 'sayfa';
     // İki sayfalıdan tek sayfalıya (kaydırmalı ya da kaydırmasız) geçiş: yakınlaştırma ne olursa olsun tek sayfanın varsayılan
     // sığdırması (tekZoomModu; varsayılanı genişliğe sığdır)
     if (this.ikili() && (duzen === 'tek' || duzen === 'surekli')) this.zoomModu = tekZoomModu;
