@@ -1,7 +1,7 @@
 // Belge görüntüleyici: PDF.js ile tembel (lazy) sayfa çizimi, yakınlaştırma, sayfa düzenleri.
 // Her sekmenin kendi Goruntuleyici örneği vardır.
 import * as pdfjs from '../../node_modules/pdfjs-dist/build/pdf.min.mjs';
-import { keskinBaglam, KeskinTuvalFabrikasi, ETKILESIM_MS, etkilesimBildir, keskinErtelenir, ertelenenSayisi } from './keskinlik.js';
+import { keskinBaglam, KeskinTuvalFabrikasi, ETKILESIM_MS, etkilesimBildir, etkilesimBitir, keskinErtelenir, ertelenenSayisi, keskinHazirDinle, okumaSuruyor } from './keskinlik.js';
 
 const KAYNAK = new URL('../../node_modules/pdfjs-dist/', import.meta.url).href;
 pdfjs.GlobalWorkerOptions.workerSrc = KAYNAK + 'build/pdf.worker.min.mjs';
@@ -16,6 +16,8 @@ const ONIZLEME_ESIGI = 6e6;               // bundan büyük (cihaz pikseli) ilk 
 const ONIZLEME_PIKSEL = 1.5e6;            // önizleme tuvalinin en fazla piksel sayısı
 const KOYU_YER_TUTUCU = '#000';            // beyazın invert(1) karşılığı: koyu sayfada henüz çizilmemiş sayfanın ve tuvalin kaplamadığı alanın rengi
 const ZOOM_ADIMLARI = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
+const KAYDIRMA_TUSLARI = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' ']);
+const GIRDI_MS = 300;                     // kullanıcı girdisinden (tekerlek, tuş) sonra bu süredeki kaydırma olayları etkileşimdir (yumuşak kaydırma kuyruğu dahil)
 
 export { pdfjs };
 
@@ -91,6 +93,21 @@ export class Goruntuleyici extends EventTarget {
 
     this.kaydirici.addEventListener('scroll', () => { this.etkilesimIzle(); this.kaydirmaIsle(); }, { passive: true });
     this.kaydirici.addEventListener('wheel', (e) => this.tekerlek(e), { passive: false });
+    // Kaydırma etkileşimi yalnızca kullanıcı girdisinden sayılır (etkilesimIzle): tekerlek (Ctrl'siz), dokunma, kaydırma çubuğu, tuşlar
+    this._girdiZamani = -Infinity; this._cubukTutuluyor = false;
+    this.kaydirici.addEventListener('wheel', (e) => {
+      if (e.ctrlKey) { this._girdiZamani = -Infinity; etkilesimBitir(); } else this._girdiZamani = performance.now();
+    }, { passive: true });
+    this.kaydirici.addEventListener('touchmove', () => { this._girdiZamani = performance.now(); }, { passive: true });
+    this.kaydirici.addEventListener('pointerdown', (e) => {
+      if (e.target === this.kaydirici && (e.offsetX >= this.kaydirici.clientWidth || e.offsetY >= this.kaydirici.clientHeight)) this._cubukTutuluyor = true;
+    });
+    this._cubukBirak = () => { this._cubukTutuluyor = false; };
+    this._tusGirdisi = (e) => { if (KAYDIRMA_TUSLARI.has(e.key)) this._girdiZamani = performance.now(); };
+    window.addEventListener('pointerup', this._cubukBirak);
+    document.addEventListener('keydown', this._tusGirdisi, true);
+    // Arka planda okunan görseller hazır: hızlı çizilmiş görünür sayfalar keskin yeniden çizilir (yeterliMi)
+    this._keskinHazirBirak = keskinHazirDinle(() => this.keskinHazir());
     this._gozlemci = new ResizeObserver(() => this.boyutDegisti());
     this._gozlemci.observe(this.kaydirici);
     // Metin seçimi bitince katmanların 'selecting' sınıfını kaldır (katman başına belge dinleyicisi eklemek sızıntı yapıyordu)
@@ -604,14 +621,33 @@ export class Goruntuleyici extends EventTarget {
   }
 
   /**
-   * Art arda gelen kaydırma olayları (tekerlek, kaydırma çubuğu, ok tuşları) etkileşimdir: bu sırada büyük görsellerin keskin
-   * örneklemesi ertelenir (keskinlik.js). Kaydırma durunca hızlı çizilmiş görünür sayfalar keskin yeniden çizilir. Tek olay
-   * (sayfaya git, yakınlaştırma sonrası konumlama) etkileşim sayılmaz.
+   * Kullanıcı girdisiyle (tekerlek, dokunma, kaydırma çubuğu, kaydırma tuşları) art arda gelen kaydırma olayları etkileşimdir: bu
+   * sırada büyük görsellerin keskin örneklemesi ertelenir (keskinlik.js). Kaydırma durunca hızlı çizilmiş görünür sayfalar keskin
+   * yeniden çizilir. Programatik kaydırma (yakınlaştırmanın konumlaması, boyut değişince sayfaya gitme) girdisiz olduğu için sayılmaz:
+   * yakınlaştırma 60–70 ms arayla iki kaydırma olayı üretiyor ve bunlar etkileşim sayılınca sayfa önce yumuşak çiziliyordu.
    */
   etkilesimIzle() {
     const simdi = performance.now();
-    if (simdi - (this._sonKaydirmaOlayi ?? -Infinity) < 100) { etkilesimBildir(); this.keskinlestirPlanla(); }
+    const girdi = this._cubukTutuluyor || simdi - this._girdiZamani < GIRDI_MS;
+    if (girdi && simdi - (this._sonKaydirmaOlayi ?? -Infinity) < 100) { etkilesimBildir(); this.keskinlestirPlanla(); }
     this._sonKaydirmaOlayi = simdi;
+  }
+
+  /**
+   * İşçi örneklemeleri bitti (ya da hızlı çizim sırasında zaten bitmişti): hızlı çizilmiş ya da çizimi örneklemeyi bekleyen görünür
+   * sayfalar (yalnızca tek sayfa verilirse o) gecikmesiz yeniden çizilir; görseller artık önbellekten keskin çizilir.
+   */
+  keskinHazir(tek = null) {
+    if (this.yok || !this.belge || !this.kaydirici.clientWidth) return;   // gizli sekme: gösterilince kaydirmaIsle çizer
+    if (keskinErtelenir()) { this.keskinlestirPlanla(); return; }
+    for (const s of tek ? [tek] : this._gorunurKume) {
+      if (!s._okumaBekliyor && !s.cizim?.hizli) continue;
+      s._okumaBekliyor = null;
+      const i = this.idx(s);
+      if (i < 0 || !this._gorunurKume.has(s) || !this.cizimGerekliMi(i)) continue;
+      clearTimeout(s._zaman); s._planli = false;
+      this.sayfaCiz(i);
+    }
   }
 
   /** Etkileşim bitince (ETKILESIM_MS sonra) görünür sayfaların hızlı çizimini keskin çizimle değiştirmek için yeniden planlar. */
@@ -711,8 +747,8 @@ export class Goruntuleyici extends EventTarget {
   yeterliMi(i, c, yer) {
     const s = this.sayfalar[i];
     if (!c || !s || c.onizleme) return false;
-    // Kaydırırken hızlı çizilmiş (görsel örneklemesi ertelenmiş) sayfa, kaydırma bitince görünüyorsa yeterli değil
-    if (c.hizli && !keskinErtelenir() && this._gorunurKume.has(s)) return false;
+    // Hızlı çizilmiş (görsel örneklemesi ertelenmiş) sayfa, kaydırma ve arka plan okuması bitince görünüyorsa yeterli değil
+    if (c.hizli && !keskinErtelenir() && !okumaSuruyor() && this._gorunurKume.has(s)) return false;
     if (c.olcek !== yer.olcek || c.dondurme !== this.toplamDondurme(s) || c.dpr !== pikselOrani()) return false;
     if (!!c.koyu !== !!this.koyuSayfa) return false;        // metin yumuşatması sayfa koyuluğuna göre (tuvalCiz)
     if (Math.abs(c.w - yer.w) > 1e-3 || Math.abs(c.h - yer.h) > 1e-3) return false;
@@ -786,9 +822,12 @@ export class Goruntuleyici extends EventTarget {
       if (!yer) return;
       if (!this.cizimGerekliMi(i)) { this.gereksizCizimiBirak(s, i, yer); return; }
       if (s.hedef && this.yeterliMi(i, s.hedef, yer)) return;          // süren çizim zaten yeterli
-      if (s.gorev) { try { s.gorev.cancel(); } catch {} s.gorev = null; }
       const dpr = pikselOrani();
       const bolge = this.bolgeHesapla(i, yer);
+      // Aynı çizim görsellerin işçide örneklenmesini bekliyor: bitince keskinHazir çizer (beklerken gizli çizim tekrarlanmasın)
+      const bekleme = `${yer.olcek}|${this.toplamDondurme(s)}|${!!this.koyuSayfa}|${dpr}|${bolge.x},${bolge.y},${bolge.w},${bolge.h}`;
+      if (s._okumaBekliyor === bekleme && okumaSuruyor()) return;
+      if (s.gorev) { try { s.gorev.cancel(); } catch {} s.gorev = null; }
       // dondurme mutlaktır (taban dahil). Sayfa nesnesi henüz yüklenmemişse taban 0 varsayılır ve yüklenince düzeltilir; beklerken
       // görünüm döndürmesi değişirse girdiBosalt hedefi zaten düşürür (girdinin kendi döndürmesi değişmez)
       hedef = { olcek: yer.olcek, dondurme: this.toplamDondurme(s), dpr, oran: dpr, w: yer.w, h: yer.h, tam: bolge.tam, onizleme: false, bolge, koyu: !!this.koyuSayfa };
@@ -812,10 +851,21 @@ export class Goruntuleyici extends EventTarget {
       const son = await this.tuvalCiz(s, pdfSayfa, hedef.olcek, dondurme, dpr, bolge, hedef.koyu);
       if (!son) return;
       if (!gecerliMi()) { tuvalBirak(son.canvas); return; }   // çizerken boyut/ölçek değişti: yanlış boyutlu tuvali gösterme
+      s._okumaBekliyor = null;
+      if (son.hizli && !keskinErtelenir()) {
+        // Görseller işçide örneklendiği için hızlı çizildi. Sayfada tam ve keskin bir çizim varsa (yakınlaştırma, koyu sayfa geçişi)
+        // yumuşak ara çizim gösterilmez: örnekleme bitince keskin çizilir (0.1.1 sonrası ilk sürümde yakınlaştırınca önce yumuşak görünüyordu)
+        if (s.canvas && s.cizim && s.cizim.tam && !s.cizim.onizleme && !s.cizim.hizli) {
+          tuvalBirak(son.canvas);
+          s._okumaBekliyor = bekleme;
+          if (!okumaSuruyor()) setTimeout(() => this.keskinHazir(s), 0);
+          return;
+        }
+      }
       const c = son.canvas;
       // CSS kutusu tuvalin cihaz pikseli boyutundan türetilir: 1 tuval pikseli = 1 cihaz pikseli
       this.cizimUygula(s, c, { ...hedef, hizli: son.hizli, px: son.px, py: son.py, bolge: { x: son.px / dpr, y: son.py / dpr, w: c.width / dpr, h: c.height / dpr } });
-      if (son.hizli) this.keskinlestirPlanla();
+      if (son.hizli) { if (keskinErtelenir()) this.keskinlestirPlanla(); else if (!okumaSuruyor()) setTimeout(() => this.keskinHazir(s), 0); }
       s.el.classList.remove('yukleniyor');
       const j = this.idx(s);
       if (!s.bos) {
@@ -1161,6 +1211,8 @@ export class Goruntuleyici extends EventTarget {
     clearTimeout(this._boyutZamanlayici); clearTimeout(this._keskinZaman);
     this._dprSorgu?.removeEventListener('change', this._dprIsle); this._dprSorgu = null;
     document.removeEventListener('mouseup', this._fareBirak);
+    window.removeEventListener('pointerup', this._cubukBirak); document.removeEventListener('keydown', this._tusGirdisi, true);
+    this._keskinHazirBirak?.();
     this._gorunurKume = new Set(); this._onKuyruk = [];
     for (let i = 0; i < this.sayfalar.length; i++) this.sayfaBosalt(i);
     for (const k of this.belgeler.values()) { try { k.gorev.destroy().catch(() => {}); } catch {} }

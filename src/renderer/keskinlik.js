@@ -11,26 +11,32 @@
 // ölçeğindeyiz, ekrandaki pikseller tuvalle birebir aynı (yeniden örnekleme yok) ve PDF.js'in ClearType metni referans okuyucudan en fazla
 // birkaç gri düzeyi farklı (biraz daha koyu). "Harfler bulanık" algısını yapan, iki satıra yayılan gri alt çizgi ve kenarlıklardı (2).
 // Yalnızca keskinBaglam() ile sarılmış bağlamlar (sayfa tuvali ve PDF.js'in ara tuvalleri) etkilenir. Bellek görsel boyutundan
-// bağımsız (BANT), işlemci süresi sınırlı (EN_FAZLA_*), kaydırırken büyük görsellerin örneklemesi ertelenir.
+// bağımsız (BANT, sınırlı önbellek), işlemci süresi sınırlı (EN_FAZLA_*).
+// Ana iş parçacığı GPU'dan eşzamanlı piksel okumaz: JPEG (VideoFrame) ve PDF.js'in çözdüğü görseller (ImageBitmap) bir işçide okunur
+// ve büyükse orada örneklenir; o sırada Chromium ile hızlı çizilir ve örnekleme bitince görünür sayfa keskin yeniden çizilir.
+// Taranmış sayfanın metin maskesi gibi PDF.js ara tuvalleri (maske, yarıya indirme) görselin kendisinden örneklenir: ara tuvalin
+// çizim kaydı işlemcide oynatılmaz (0.1.1 sonrası ilk sürümde kaydırma bitince 300 ms'lik blokajın asıl nedeni buydu).
 
 const INCE = 4;                 // cihaz pikselinde bu kalınlıktan ince çizgi/dikdörtgen ızgaraya oturtulur
 const KESKIN_BUYUTME = 2;       // bu orana kadar büyütmede saf alan filtresi (referans okuyucu gibi keskin)
 const YUMUSAK_BUYUTME = 4;      // bu oran ve üstünde Chromium yumuşatması (taranmış sayfa yakınlaştırınca pikselli olmasın)
-const EN_FAZLA_CIKTI = 16e6;    // JS ile örneklenecek en fazla hedef pikseli; üstünde Chromium yumuşatması (işlemci süresi sınırı)
+const EN_FAZLA_CIKTI = 8e6;     // JS ile örneklenecek en fazla hedef pikseli; üstünde Chromium yumuşatması (süre ve sonuç belleği sınırı)
 const EN_FAZLA_BUYUTME_CIKTISI = 3e6;   // büyütülen fotoğraf/taranmış sayfada JS ile örneklenecek en fazla hedef pikseli
-const EN_FAZLA_KAYNAK = 20e6;   // örneklenecek en fazla kaynak pikseli (işlemci süresi sınırı; bellek BANT ile sınırlı)
+const EN_FAZLA_KAYNAK = 12e6;   // ana iş parçacığında (ara tuval, küçük görsel) örneklenecek en fazla kaynak pikseli (süre sınırı)
 const BANT = 1 << 20;           // bir seferde okunan ya da üretilen en fazla piksel (≈4 MB RGBA): bellek görsel boyutundan bağımsız
 const EPS = 1e-6;
 
 // ------------------------------------------------------------ etkileşim sırasında erteleme
-// Büyük görselin JS örneklemesi ana iş parçacığını 50–70 ms bloke eder (taranmış sayfa): sürekli kaydırırken her yeni sayfada
-// takılma olmasın diye bu sırada Chromium ile hızlı çizilir, sayılır; görüntüleyici kaydırma durunca görünür sayfaları keskin
-// yeniden çizer (goruntuleyici.js etkilesimIzle / yeterliMi).
+// Kullanıcı kaydırırken (goruntuleyici.js etkilesimIzle: yalnızca gerçek girdi) örnekleme sonucu önbellekte olmayan büyük görsel ve
+// ara tuval Chromium ile hızlı çizilir, sayılır; görüntüleyici kaydırma durunca (ve işçi örneklemesi bitince) görünür sayfaları keskin
+// yeniden çizer (yeterliMi, keskinHazir). Sonucu önbellekte olan görsel kaydırırken de keskin çizilir (1:1 kopya).
 export const ETKILESIM_MS = 250;
 const ERTELEME_ESIGI = 512 * 512;       // bundan küçük görseller (karekod, simge) erteleme olmadan hep keskin
 let sonEtkilesim = -Infinity, ertelenen = 0;
 /** Kullanıcı sürekli kaydırıyor: ETKILESIM_MS boyunca büyük görsellerin keskin örneklemesi ertelenir. */
 export function etkilesimBildir() { sonEtkilesim = performance.now(); }
+/** Kaydırma dışı bir işlem (yakınlaştırma) başladı: süren erteleme hemen biter. */
+export function etkilesimBitir() { sonEtkilesim = -Infinity; }
 /** Etkileşim sürüyor mu (keskin örnekleme erteleniyor mu)? */
 export function keskinErtelenir() { return performance.now() - sonEtkilesim < ETKILESIM_MS; }
 /** Şimdiye kadar ertelenen görsel çizimi sayısı: bir çizimin öncesi ve sonrası karşılaştırılarak hızlı çizildiği anlaşılır. */
@@ -47,6 +53,8 @@ const EN_FAZLA_NOKTA = 128;       // tek yolda (tablo kenarlıkları birkaç nok
 const KAYIT_BUTCESI = 1 << 20;    // yaşayan bütün kayıtlarda en fazla nokta (≈16 MB)
 let kayitliNokta = 0;
 const kayitSilici = typeof FinalizationRegistry === 'function' ? new FinalizationRegistry((k) => { kayitliNokta -= k.nokta; }) : null;
+// Path2D'nin özgün (kaydetmeyen) yöntemleri: keskinlik.js'in kendi kurduğu yollar kayda ve bütçeye girmez, sarma yükü taşımaz
+let yolYontemi = globalThis.Path2D?.prototype.__keskinKayit || null;
 
 function kayitAl(yol) {
   let k = yolKaydi.get(yol);
@@ -67,7 +75,8 @@ function kayitBirak(k) {
 function yolKaydiKur() {
   const P = globalThis.Path2D?.prototype;
   if (!P || P.__keskinKayit) return;
-  Object.defineProperty(P, '__keskinKayit', { value: true });
+  yolYontemi = { moveTo: P.moveTo, lineTo: P.lineTo, closePath: P.closePath };
+  Object.defineProperty(P, '__keskinKayit', { value: yolYontemi });
   const sar = (ad, kaydet) => {
     const ozgun = P[ad];
     if (typeof ozgun !== 'function') return;
@@ -151,10 +160,12 @@ function cihazaCevir(kayit, m) {
 /**
  * Eksene paralel doğru parçalarından oluşan ince çizgiyi cihaz pikseline oturtur. Genişlik tam piksele yuvarlanır (en az 1);
  * çizginin ekseni tek genişlikte piksel ortasına, çift genişlikte piksel sınırına gelir. Uç noktalar, dik bir parçaya
- * bağlıysa onun eksenine, değilse (düz uç) dışa doğru tam piksele genişletilir: köşeler boşluksuz birleşir.
- * Döner: { yol, genislik, olcek } ya da null (uygun değil).
+ * bağlıysa onun eksenine, değilse (düz uç) dışa doğru tam piksele genişletilir: köşeler boşluksuz birleşir. Kesikli çizgide
+ * uçlar içe doğru tam piksele çekilir (desenin sonunda özgünde olmayan kesik parçası çıkmasın) ve başlangıcın kayması desen
+ * kaymasıyla telafi edilir (kayma: yeni lineDashOffset = özgün − kayma; alt yolların kayması farklıysa null).
+ * Döner: { yol, genislik, olcek, kayma } ya da null (uygun değil).
  */
-function inceCizgi(ctx, kayit) {
+function inceCizgi(ctx, kayit, kesikli = false) {
   const m = ctx.getTransform();
   const ex = eksen(m);
   if (ex < 0 || !kayit.alt.length) return null;
@@ -164,8 +175,10 @@ function inceCizgi(ctx, kayit) {
   if (!(w > 0) || w >= INCE) return null;
   const wr = Math.max(1, Math.round(w));
   const ortala = wr % 2 ? (v) => Math.floor(v) + 0.5 : (v) => Math.round(v);
-  const duz = ctx.lineCap === 'butt';
+  const duz = ctx.lineCap === 'butt' && !kesikli;
+  const { moveTo, lineTo, closePath } = yolYontemi || Path2D.prototype;
   const yol = new Path2D();
+  let kayma = null;
   for (const alt of cihazaCevir(kayit, m)) {
     const n = alt.n, k = n.length / 2;
     if (k < 1) continue;
@@ -186,16 +199,26 @@ function inceCizgi(ctx, kayit) {
         if (dy > 0) { yAlt[i] = 1; yUst[j] = 1; } else { yUst[i] = 1; yAlt[j] = 1; }
       } else return null;                 // çapraz parça: dokunma
     }
-    const uc = (v, alt_, ust) => (duz ? (alt_ && !ust ? Math.floor(v) : ust && !alt_ ? Math.ceil(v) : Math.round(v)) : Math.round(v));
+    // Düz uç dışa, kesikli çizginin ucu içe tam piksele (desen özgünde olmayan parça eklemesin); ikisi de değilse yuvarlanır
+    const uc = (v, alt_, ust) => (duz ? (alt_ && !ust ? Math.floor(v) : ust && !alt_ ? Math.ceil(v) : Math.round(v))
+      : kesikli ? (alt_ && !ust ? Math.ceil(v) : ust && !alt_ ? Math.floor(v) : Math.round(v)) : Math.round(v));
+    let bx = 0, by = 0;
     for (let i = 0; i < k; i++) {
       const x = dikey[i] ? ortala(n[2 * i]) : uc(n[2 * i], xAlt[i], xUst[i]);
       const y = yatay[i] ? ortala(n[2 * i + 1]) : uc(n[2 * i + 1], yAlt[i], yUst[i]);
-      if (i === 0) yol.moveTo(x, y); else yol.lineTo(x, y);
+      if (i === 0) { moveTo.call(yol, x, y); bx = x; by = y; } else lineTo.call(yol, x, y);
     }
-    if (k === 1) yol.lineTo(ortala(n[0]), ortala(n[1]));
-    if (alt.kapali) yol.closePath();
+    if (k === 1) lineTo.call(yol, ortala(n[0]), ortala(n[1]));
+    if (alt.kapali) closePath.call(yol);
+    if (kesikli && k > 1) {
+      // Desen alt yolun ilk noktasından başlar: başlangıç ilk parça boyunca e kadar geri alındıysa desen de e kadar geri kayar
+      const dx = n[2] - n[0], dy = n[3] - n[1];
+      const e = Math.abs(dy) < 1e-3 ? Math.sign(dx) * (n[0] - bx) : Math.sign(dy) * (n[1] - by);
+      if (kayma === null) kayma = e;
+      else if (Math.abs(kayma - e) > 1e-3) return null;
+    }
   }
-  return { yol, genislik: wr, olcek: sx };
+  return { yol, genislik: wr, olcek: sx, kayma: kayma || 0 };
 }
 
 /**
@@ -205,6 +228,7 @@ function inceCizgi(ctx, kayit) {
  */
 function inceDikdortgenler(m, kayit) {
   if (eksen(m) < 0 || !kayit.alt.length) return null;
+  const { moveTo, lineTo, closePath } = yolYontemi || Path2D.prototype;
   const yol = new Path2D();
   let degisti = false;
   for (const alt of cihazaCevir(kayit, m)) {
@@ -234,9 +258,9 @@ function inceDikdortgenler(m, kayit) {
     const esle = (v, a, A, B) => (Math.abs(v - a) < 1e-3 ? A : B);
     for (let i = 0; i < 4; i++) {
       const x = esle(n[2 * i], x0, X0, X1), y = esle(n[2 * i + 1], y0, Y0, Y1);
-      if (i === 0) yol.moveTo(x, y); else yol.lineTo(x, y);
+      if (i === 0) moveTo.call(yol, x, y); else lineTo.call(yol, x, y);
     }
-    yol.closePath();
+    closePath.call(yol);
   }
   return degisti ? yol : null;
 }
@@ -282,84 +306,112 @@ function eksenAgirliklari(n, m, j0, j1, grafik) {
   return { ilk, son, bas, sayi, agirlik, adim, kucuk };
 }
 
-// Kaynak pikselleri. PDF.js'in çözdüğü görsel nesneleri (ImageBitmap, VideoFrame) sayfa temizlenene kadar aynı kalır: yakınlaştırınca
-// yeniden okumamak için orta boy görsellerin tamamı sınırlı bir önbellekte tutulur (en son eklenenler, toplam EN_FAZLA_ONBELLEK bayt).
-// Diğerleri (büyük görsel, içeriği değişebilen ara tuval) BANT piksellik satır parçaları hâlinde okunur.
-const EN_FAZLA_ONBELLEK = 32 * 1024 * 1024;
-const pikselOnbellek = new WeakMap();   // görsel → Uint8ClampedArray (tam görsel, RGBA)
-let onbellekSirasi = [];                // [{ ref: WeakRef(görsel), bayt }] eskiden yeniye
-let okumaTuvali = null, bantTuvali = null;
+// ------------------------------------------------------------ kaynak pikselleri
+// Görseller (JPEG sayfası VideoFrame, PDF.js'in çözdüğü ImageBitmap) ana iş parçacığında GPU'dan okunmaz: eşzamanlı okuma sayfa başına
+// 30–90 ms, büyük görselin örneklemesi 20–30 ms bloke ediyordu (taranmış belgede kaydırma bitince 300 ms'lik görev). Büyük görseli
+// bir işçi okur, pikselleri kendinde tutar ve istenen geometri için örnekler; ana iş parçacığı sonucu önbellekten 1:1 çizer. Küçük
+// görseli (karekod, simge) işçi okuyup piksellerini gönderir; piksel önbelleğinde tutulur ve burada örneklenir (az renkli mi
+// bakılabilsin, yakınlaştırınca hemen keskin çizilsin). İçeriği değişebilen ara tuvaller önbelleğe alınmaz, BANT piksellik
+// şeritlerle okunur. Önbellek biçimi görsele göre küçültülür:
+// 'gri' (opak, r=g=b: taranmış sayfa), 'alfa' (siyah/saydam maske: taramanın metin maskesi), 'rgb' (opak renkli), 'rgba'.
+const EN_FAZLA_ONBELLEK = 16 * 1024 * 1024;         // ana iş parçacığındaki küçük görsel pikselleri
+const EN_FAZLA_ISCI_KAYNAGI = 32 * 1024 * 1024;     // işçide tutulan görsel pikselleri
+const EN_FAZLA_CIKTI_ONBELLEGI = 32 * 1024 * 1024;  // işçinin örneklediği sonuçlar (görünür sayfaların görselleri)
+const EN_FAZLA_ISCI_PIKSELI = 16e6;                 // işçide okunacak en büyük görsel (okuma anında RGBA ≈ 64 MB)
+const KANAL = { rgba: 4, rgb: 3, gri: 1, alfa: 1 };
+const BEKLE = 'bekle';                  // görsel işçide örnekleniyor: şimdilik hızlı çizilir
+const TAZE_MS = 2000;                   // bu kadar süre içinde kullanılmış giriş yer açmak için düşürülmez
+const SIGMADI_MS = 5000;                // yer açılamayan küçük görsel bu süre yeniden okunmaz (Chromium ile çizilir)
+const pikselOnbellek = new WeakMap();   // küçük görsel → { veri, tur, bayt, zaman (son kullanım) }
+let onbellekSirasi = [];                // [{ ref: WeakRef(görsel), e: giriş }]
+const sigmadi = new WeakMap();          // görsel → zaman
+let bantTuvali = null;
 
 const tuvalMi = (img) => img instanceof HTMLCanvasElement || (typeof OffscreenCanvas !== 'undefined' && img instanceof OffscreenCanvas);
 const genislikAl = (img) => img.displayWidth || img.width;
 const yukseklikAl = (img) => img.displayHeight || img.height;
 
-/** Görselin [x,y,w,h] bölgesini RGBA okur: ara tuvalden doğrudan, diğerlerinden okuma tuvaline 1:1 çizerek. */
+/** Ara tuvalin [x,y,w,h] bölgesini RGBA okur (PDF.js ara tuvalleri willReadFrequently: işlemcide). */
 function bolgeOku(img, x, y, w, h) {
-  if (tuvalMi(img)) {
-    const c = img.getContext('2d', { willReadFrequently: true });   // PDF.js ara tuvali (CPU'da): doğrudan okunur
-    if (c) return c.getImageData(x, y, w, h).data;
-  }
-  if (typeof VideoFrame !== 'undefined' && img instanceof VideoFrame) {
-    // JPEG'ler PDF.js'ten (ImageDecoder) VideoFrame gelir. İşlemci tuvaline çizilince Chromium her karenin RGB dönüşümünü kare
-    // yaşadıkça paylaşımlı bellekte tutuyordu (40 sayfalık taramada kaydırırken ~650 MB); GPU tuvalinde dönüşüm ekrandaki çizimde
-    // olduğu gibi GPU'da kalır. Her okuma yeni tuvalle: sık okunan tuvali Chromium işlemciye geçirir.
-    const t = document.createElement('canvas');
-    t.width = w; t.height = h;
-    const c = t.getContext('2d');
-    c.drawImage(img, x, y, w, h, 0, 0, w, h);
-    try { return c.getImageData(0, 0, w, h).data; } finally { t.width = 0; t.height = 0; }
-  }
-  // ImageBitmap: OffscreenCanvas + willReadFrequently (işlemcide, belge tuvalinden hızlı)
-  okumaTuvali ||= typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(1, 1) : document.createElement('canvas');
-  if (okumaTuvali.width !== w || okumaTuvali.height !== h) { okumaTuvali.width = w; okumaTuvali.height = h; }
-  const c = okumaTuvali.getContext('2d', { willReadFrequently: true });
-  c.clearRect(0, 0, w, h);
-  c.drawImage(img, x, y, w, h, 0, 0, w, h);
-  return c.getImageData(0, 0, w, h).data;
+  return img.getContext('2d', { willReadFrequently: true }).getImageData(x, y, w, h).data;
 }
 
-/** Okuma ve şerit tuvallerinin belleğini bırakır (bir görselin örneklemesi bitince). */
+/** Şerit tuvalinin belleğini bırakır (bir görselin örneklemesi bitince). */
 function tuvalleriBirak() {
-  if (okumaTuvali) { okumaTuvali.width = 1; okumaTuvali.height = 1; }
   if (bantTuvali) { bantTuvali.width = 0; bantTuvali.height = 0; }
 }
 
-/** Görselin önbellekteki tam pikselleri; yoksa ve okunan pencere görselin en az dörtte biriyse (yüksek yakınlaştırmada küçük bölge
- *  için bütün taranmış sayfa okunmasın) ve sığıyorsa şimdi parça parça okunup önbelleğe alınır. Ara tuval ve büyük görsel: null. */
-function tamGorsel(img, w, h) {
-  if (tuvalMi(img)) return null;                        // ara tuvalin içeriği değişebilir
-  let veri = pikselOnbellek.get(img);
-  if (veri) return veri;
-  const tw = genislikAl(img), th = yukseklikAl(img);
-  if (tw * th * 4 > EN_FAZLA_ONBELLEK || 4 * w * h < tw * th) return null;
-  veri = new Uint8ClampedArray(tw * th * 4);
-  const parca = Math.max(1, Math.floor(BANT / tw));
-  for (let y = 0; y < th; y += parca) veri.set(bolgeOku(img, 0, y, tw, Math.min(parca, th - y)), y * tw * 4);
-  pikselOnbellek.set(img, veri);
-  onbellekSirasi = onbellekSirasi.filter((e) => e.ref.deref());   // toplanmış görsellerin pikselleri de gitti
-  onbellekSirasi.push({ ref: new WeakRef(img), bayt: veri.byteLength });
-  let toplam = onbellekSirasi.reduce((t, e) => t + e.bayt, 0);
-  while (toplam > EN_FAZLA_ONBELLEK && onbellekSirasi.length > 1) {
-    const e = onbellekSirasi.shift();
-    const o = e.ref.deref();
-    if (o) pikselOnbellek.delete(o);
-    toplam -= e.bayt;
+/** RGBA pikselleri önbellek biçimine çevirir: { tur, veri }. İşçide de aynı kod çalışır. */
+function sikistir(v) {
+  let opak = true, gri = true, alfa = true;
+  for (let p = 0, n = v.length; p < n; p += 4) {
+    const r = v[p], g = v[p + 1], b = v[p + 2], a = v[p + 3];
+    if (a !== 255) opak = false;
+    if (r !== g || g !== b) gri = false;
+    if (a !== 0 && (r | g | b) !== 0) alfa = false;
+    if (!opak && !alfa) break;
   }
-  return veri;
+  const n = v.length >> 2;
+  if (opak && gri) { const d = new Uint8Array(n); for (let i = 0, p = 0; i < n; i++, p += 4) d[i] = v[p]; return { tur: 'gri', veri: d }; }
+  if (opak) {
+    const d = new Uint8Array(n * 3);
+    for (let p = 0, q = 0; q < d.length; p += 4, q += 3) { d[q] = v[p]; d[q + 1] = v[p + 1]; d[q + 2] = v[p + 2]; }
+    return { tur: 'rgb', veri: d };
+  }
+  if (alfa) { const d = new Uint8Array(n); for (let i = 0, p = 3; i < n; i++, p += 4) d[i] = v[p]; return { tur: 'alfa', veri: d }; }
+  return { tur: 'rgba', veri: v };
+}
+
+/** Önbellekteki girişi verir ve son kullanım zamanını işaretler. */
+function onbellektenAl(img) {
+  const e = pikselOnbellek.get(img);
+  if (e) e.zaman = performance.now();
+  return e || null;
 }
 
 /**
- * Görselin (x, y, w, h) penceresini satır satır okuyan nesne: satir(r) pencerenin r. satırının RGBA başlangıcını verir; veri satir
- * çağrısından sonra okunur (parça değişebilir). Satırlar artan sırada istenir; önbellekte olmayan görsel BANT piksellik parçalarla okunur.
+ * Küçük görselin piksellerini önbelleğe koyar; yer açmak için en uzun süredir kullanılmayan girişler düşer. Son TAZE_MS içinde
+ * kullanılmış girişler düşürülmez (birbirini düşürüp sonsuz yeniden çizime girmesinler); yer açılamazsa görsel önbelleğe alınmaz
+ * ve SIGMADI_MS boyunca Chromium ile çizilir. Döner: giriş ya da null.
+ */
+function onbellegeKoy(img, tur, veri) {
+  const simdi = performance.now(), bayt = veri.byteLength;
+  onbellekSirasi = onbellekSirasi.filter((o) => o.ref.deref());   // toplanmış görsellerin pikselleri de gitti
+  let toplam = onbellekSirasi.reduce((t, o) => t + o.e.bayt, 0);
+  const adaylar = onbellekSirasi.filter((o) => simdi - o.e.zaman > TAZE_MS).sort((p, q) => p.e.zaman - q.e.zaman);
+  if (toplam - adaylar.reduce((t, o) => t + o.e.bayt, 0) + bayt > EN_FAZLA_ONBELLEK) { sigmadi.set(img, simdi); return null; }
+  while (toplam + bayt > EN_FAZLA_ONBELLEK && adaylar.length) {
+    const o = adaylar.shift();
+    onbellekSirasi.splice(onbellekSirasi.indexOf(o), 1);
+    const g = o.ref.deref();
+    if (g) pikselOnbellek.delete(g);
+    toplam -= o.e.bayt;
+  }
+  const e = { veri, tur, bayt, zaman: simdi };
+  pikselOnbellek.set(img, e);
+  onbellekSirasi.push({ ref: new WeakRef(img), e });
+  return e;
+}
+
+/**
+ * Görselin (x, y, w, h) penceresini satır satır okuyan nesne: satir(r) pencerenin r. satırının veri içindeki başlangıcını verir,
+ * tur piksel düzenini (KANAL). veri satir çağrısından sonra okunur (parça değişebilir); satırlar artan sırada istenir.
+ * Görsel (tuval olmayan) yalnızca küçükse önbellekten okunur; önbellekte yoksa işçiden istenir (GPU'dan eşzamanlı okuma, GPU meşgulken
+ * küçük görselde bile 30–55 ms bekletiyordu). Döner: kaynak | BEKLE (işçide okunuyor) | null (okunamaz).
  */
 function kaynakAc(img, x, y, w, h) {
-  const tam = tamGorsel(img, w, h);
-  if (tam) {
-    const tw = genislikAl(img);
-    return { veri: tam, satir: (r) => ((y + r) * tw + x) * 4 };
+  if (!tuvalMi(img)) {
+    const e = onbellektenAl(img);
+    if (!e) {
+      if (okunamaz.has(img) || performance.now() - (sigmadi.get(img) ?? -Infinity) < SIGMADI_MS) return null;
+      if (genislikAl(img) * yukseklikAl(img) > KUCUK_GORSEL) return null;
+      iste(img, 'oku', null);
+      return BEKLE;
+    }
+    const kanal = KANAL[e.tur], tw = genislikAl(img);
+    return { veri: e.veri, tur: e.tur, satir: (r) => ((y + r) * tw + x) * kanal };
   }
-  const k = { veri: null, p0: 0, p1: 0 };
+  const k = { veri: null, tur: 'rgba', p0: 0, p1: 0 };
   const parca = Math.max(1, Math.floor(BANT / w));
   k.satir = (r) => {
     if (r < k.p0 || r >= k.p1) {
@@ -372,10 +424,269 @@ function kaynakAc(img, x, y, w, h) {
   return k;
 }
 
-const KUCUK_GORSEL = 512 * 512;       // az renkli (grafik) sayılabilecek en büyük görsel
+/** Sıkıştırılmış biçimli kaynağın satırlarını RGBA'ya açar (genel ayrılabilir örnekleme RGBA okur). w: pencere genişliği. */
+function rgbaKaynagi(k, w) {
+  if (k.tur === 'rgba') return k;
+  const t = new Uint8ClampedArray(w * 4), tur = k.tur;
+  return {
+    veri: t, tur: 'rgba',
+    satir: (r) => {
+      const p0 = k.satir(r), v = k.veri;
+      if (tur === 'rgb') for (let q = 0, p = p0; q < t.length; q += 4, p += 3) { t[q] = v[p]; t[q + 1] = v[p + 1]; t[q + 2] = v[p + 2]; t[q + 3] = 255; }
+      else if (tur === 'gri') for (let q = 0, p = p0; q < t.length; q += 4, p++) { t[q] = t[q + 1] = t[q + 2] = v[p]; t[q + 3] = 255; }
+      else for (let q = 0, p = p0; q < t.length; q += 4, p++) { t[q] = t[q + 1] = t[q + 2] = 0; t[q + 3] = v[p]; }
+      return 0;
+    },
+  };
+}
+
+// ------------------------------------------------------------ işçide örnekleme
+// İstek: görsel + geometri (kaynak penceresi, hedef boyutu, görünür hedef aralığı) ya da yalnızca görsel (küçük görselin pikselleri
+// geri gönderilir). İşçi görselin piksellerini ilk istekte okur
+// (VideoFrame kopyası ya da ImageBitmap kopyası aktarılır) ve tutar (en fazla EN_FAZLA_ISCI_KAYNAGI; ana iş parçacığı en uzun
+// süredir kullanılmayanları sildirir), aynı örnekleme kodunu (toString) çalıştırıp sonucu aktarır. Sonuçlar ana iş parçacığında
+// görsel ve geometri anahtarıyla önbelleğe alınır. Kuyrukta en yeni istek önce işlenir (kaydırırken görünür sayfa); kuyruk
+// boşalınca dinleyiciler (görüntüleyiciler) hızlı çizilmiş görünür sayfaları keskin yeniden çizer.
+const EN_FAZLA_KUYRUK = 12;
+const ISCI_BOSTA_MS = 10000;              // bu kadar süre istek gelmezse işçi kapatılır: tuttuğu pikseller ve yığını bırakılır
+const kuyruk = [];                        // [{ ref: WeakRef(görsel), anahtar, geo, w, h }] en yeni sonda
+const istenen = new WeakMap();            // görsel → Set(anahtar): kuyrukta ya da işçide
+const okunamaz = new WeakSet();           // okunamadı: Chromium ile çizilir
+const iscide = new WeakMap();             // görsel → { id, nesil, bayt, zaman }
+let iscideSirasi = [];                    // [{ ref: WeakRef(görsel), k: giriş }]
+const ciktiOnbellek = new WeakMap();      // görsel → Map(anahtar → { goruntu: ImageData, bayt, zaman })
+let ciktiSirasi = [];                     // [{ ref: WeakRef(görsel), anahtar, c }]
+const hazirDinleyiciler = new Set();
+let isci = null, isciNesli = 0, isciKimligi = 0, isciMesgul = false, isciBitir = null, isciBostaZamani = null;
+const isciSilici = typeof FinalizationRegistry === 'function' ? new FinalizationRegistry((id) => isci?.postMessage({ sil: id })) : null;
+
+/** İşçi örneklemeleri bitince (kuyruk boşalınca) çağrılacak işlevi ekler; döner: dinlemeyi bırakan işlev. */
+export function keskinHazirDinle(fn) { hazirDinleyiciler.add(fn); return () => hazirDinleyiciler.delete(fn); }
+/** İşçide örneklenen ya da sırada bekleyen görsel var mı (hızlı çizilmiş sayfa şimdi yeniden çizilirse yine hızlı çizilir)? */
+export function okumaSuruyor() { return isciMesgul || kuyruk.length > 0; }
+
+function isciKur() {
+  const kod = [
+    `const KANAL = ${JSON.stringify(KANAL)}, KESKIN_BUYUTME = ${KESKIN_BUYUTME}, BANT = ${BANT};`,
+    ...[sikistir, eksenAgirliklari, ornekle, kutuSatiri, kutuTek, kutuRgb, kutuRgba, ayrikSatir, rgbaKaynagi].map(String),
+    `const kaynaklar = new Map();
+self.onmessage = ({ data: m }) => {
+  if (m.sil !== undefined) { kaynaklar.delete(m.sil); return; }
+  let k = kaynaklar.get(m.id) || null, yeni = false;
+  if (!k && !m.kaynak) { self.postMessage({ no: m.no, kaynakYok: true }); return; }
+  try {
+    if (!k) {
+      const t = new OffscreenCanvas(m.w, m.h), c = t.getContext('2d');
+      c.drawImage(m.kaynak, 0, 0, m.w, m.h);
+      k = { ...sikistir(c.getImageData(0, 0, m.w, m.h).data), w: m.w };
+      t.width = 0; t.height = 0;
+      if (m.geo) { kaynaklar.set(m.id, k); yeni = true; }
+    }
+  } catch { k = null; }
+  if (m.kaynak) try { m.kaynak.close(); } catch {}
+  if (!k) { self.postMessage({ no: m.no, hata: true }); return; }
+  if (!m.geo) { self.postMessage({ no: m.no, tur: k.tur, veri: k.veri }, [k.veri.buffer]); return; }
+  const g = m.geo;
+  const ax = eksenAgirliklari(g.sw, g.dw, g.j0, g.j1, g.grafik), ay = eksenAgirliklari(g.sh, g.dh, g.k0, g.k1, g.grafik);
+  const kanal = KANAL[k.tur], x = g.sx + ax.ilk, y = g.sy + ay.ilk, ow = g.j1 - g.j0, oh = g.k1 - g.k0;
+  const kaynak = { veri: k.veri, tur: k.tur, satir: (r) => ((y + r) * k.w + x) * kanal };
+  const cikti = new Uint8ClampedArray(ow * oh * 4);
+  ornekle(kaynak, ax, ay, (bant, r0, n) => cikti.set(n === bant.height ? bant.data : bant.data.subarray(0, n * ow * 4), r0 * ow * 4));
+  self.postMessage({ no: m.no, cikti, ow, oh, bayt: yeni ? k.veri.byteLength : -1 }, [cikti.buffer]);
+};`,
+  ].join('\n');
+  const url = URL.createObjectURL(new Blob([kod], { type: 'text/javascript' }));
+  const w = new Worker(url);
+  URL.revokeObjectURL(url);
+  w.onmessage = ({ data }) => { const f = isciBitir; isciBitir = null; f?.(data); };
+  w.onerror = (e) => {
+    console.warn('Keskin çizim işçisi', e.message);
+    isci = null; iscideSirasi = []; isciNesli++;     // yeni işçide hiçbir görsel yok: eski nesildeki kayıtlar geçersiz
+    try { w.terminate(); } catch {}
+    const f = isciBitir; isciBitir = null; f?.({ hata: true });
+  };
+  return w;
+}
+
+/** Görselin geometri anahtarlı örnekleme sonucu (varsa). */
+function ciktiAl(img, anahtar) {
+  const c = ciktiOnbellek.get(img)?.get(anahtar);
+  if (c) c.zaman = performance.now();
+  return c || null;
+}
+
+function ciktiKoy(img, anahtar, goruntu) {
+  const simdi = performance.now(), bayt = goruntu.data.byteLength;
+  ciktiSirasi = ciktiSirasi.filter((o) => o.ref.deref() && ciktiOnbellek.get(o.ref.deref())?.get(o.anahtar) === o.c);
+  let toplam = ciktiSirasi.reduce((t, o) => t + o.c.bayt, 0);
+  // Taze sonuçlar (görünür sayfalar) düşürülmez; sınır geçici olarak aşılabilir (yeni sonuç her zaman tutulur: sonsuz döngü olmasın)
+  const adaylar = ciktiSirasi.filter((o) => simdi - o.c.zaman > TAZE_MS).sort((p, q) => p.c.zaman - q.c.zaman);
+  while (toplam + bayt > EN_FAZLA_CIKTI_ONBELLEGI && adaylar.length) {
+    const o = adaylar.shift();
+    ciktiSirasi.splice(ciktiSirasi.indexOf(o), 1);
+    ciktiOnbellek.get(o.ref.deref())?.delete(o.anahtar);
+    toplam -= o.c.bayt;
+  }
+  const c = { goruntu, bayt, zaman: simdi };
+  let harita = ciktiOnbellek.get(img);
+  if (!harita) ciktiOnbellek.set(img, (harita = new Map()));
+  harita.set(anahtar, c);
+  ciktiSirasi.push({ ref: new WeakRef(img), anahtar, c });
+}
+
+/** Boştaki işçiyi kapatır (sonraki istekte yeniden kurulur, görseller yeniden gönderilir). */
+function isciKapat() {
+  if (isciMesgul || !isci) return;
+  try { isci.terminate(); } catch {}
+  isci = null; iscideSirasi = []; isciNesli++;
+}
+
+/** İşçinin tuttuğu görseli kaydeder; sınır aşılırsa en uzun süredir kullanılmayanları işçiye sildirir (en yenisi hep kalır). */
+function iscideKaydet(img, id, bayt) {
+  const simdi = performance.now();
+  const k = { id, nesil: isciNesli, bayt, zaman: simdi };
+  iscide.set(img, k);
+  isciSilici?.register(img, id);
+  iscideSirasi = iscideSirasi.filter((o) => o.ref.deref() && iscide.get(o.ref.deref()) === o.k);
+  iscideSirasi.push({ ref: new WeakRef(img), k });
+  let toplam = iscideSirasi.reduce((t, o) => t + o.k.bayt, 0);
+  const adaylar = iscideSirasi.filter((o) => o.k !== k).sort((p, q) => p.k.zaman - q.k.zaman);
+  while (toplam > EN_FAZLA_ISCI_KAYNAGI && adaylar.length) {
+    const o = adaylar.shift();
+    iscideSirasi.splice(iscideSirasi.indexOf(o), 1);
+    const g = o.ref.deref();
+    if (g) iscide.delete(g);
+    isci?.postMessage({ sil: o.k.id });
+    toplam -= o.k.bayt;
+  }
+}
+
+/**
+ * İşçiden ister: geo verilirse görselin bu geometrideki örneklemesini (anahtar: geometri), verilmezse küçük görselin piksellerini
+ * (anahtar 'oku'). Aynı istek sırada ya da işçideyse yeniden eklenmez.
+ */
+function iste(img, anahtar, geo) {
+  let set = istenen.get(img);
+  if (set?.has(anahtar)) return;
+  if (!set) istenen.set(img, (set = new Set()));
+  set.add(anahtar);
+  kuyruk.push({ ref: new WeakRef(img), anahtar, geo, w: genislikAl(img), h: yukseklikAl(img) });
+  while (kuyruk.length > EN_FAZLA_KUYRUK) { const o = kuyruk.shift(); istenen.get(o.ref.deref())?.delete(o.anahtar); }
+  sonrakiniIsle();
+}
+
+async function sonrakiniIsle() {
+  if (isciMesgul) return;
+  let is = null, img = null;
+  while (kuyruk.length && !img) {
+    is = kuyruk.pop();
+    img = is.ref.deref() || null;
+    if (img && (okunamaz.has(img) || (is.geo ? ciktiAl(img, is.anahtar) : pikselOnbellek.has(img)))) { istenen.get(img)?.delete(is.anahtar); img = null; }
+  }
+  if (!img) {
+    clearTimeout(isciBostaZamani);
+    isciBostaZamani = setTimeout(isciKapat, ISCI_BOSTA_MS);
+    for (const f of [...hazirDinleyiciler]) { try { f(); } catch (e) { console.warn('Keskin çizim bildirimi', e); } }
+    return;
+  }
+  clearTimeout(isciBostaZamani);
+  isciMesgul = true;
+  const bitir = (sonuc) => {
+    isciMesgul = false;
+    if (sonuc.kaynakYok) { iscide.delete(img); kuyruk.push(is); sonrakiniIsle(); return; }   // işçi silmiş: kaynakla yeniden
+    istenen.get(img)?.delete(is.anahtar);
+    if (sonuc.hata) okunamaz.add(img);
+    else if (!is.geo) onbellegeKoy(img, sonuc.tur, sonuc.veri);
+    else {
+      if (sonuc.bayt >= 0) iscideKaydet(img, is.id, sonuc.bayt);
+      else { const k = iscide.get(img); if (k) k.zaman = performance.now(); }
+      ciktiKoy(img, is.anahtar, new ImageData(sonuc.cikti, sonuc.ow, sonuc.oh));
+    }
+    sonrakiniIsle();
+  };
+  try {
+    isci ||= isciKur();
+    const kayit = iscide.get(img);
+    let kopya = null;
+    if (is.geo && kayit && kayit.nesil === isciNesli) is.id = kayit.id;
+    else {
+      kopya = typeof VideoFrame !== 'undefined' && img instanceof VideoFrame ? img.clone() : await createImageBitmap(img);
+      is.id = ++isciKimligi;
+    }
+    isciBitir = bitir;
+    isci.postMessage({ no: is.id, id: is.id, kaynak: kopya, w: is.w, h: is.h, geo: is.geo }, kopya ? [kopya] : []);
+  } catch { isciBitir = null; bitir({ hata: true }); }
+}
+
+/** İşçinin örneklediği sonucu (görünür hedef bölgesi) tuvale 1:1 çizer. */
+function ciktiCiz(ctx, ozgun, c, x, y) {
+  const { width: w, height: h } = c.goruntu;
+  bantTuvali ||= document.createElement('canvas');
+  bantTuvali.width = w; bantTuvali.height = h;
+  bantTuvali.getContext('2d', { willReadFrequently: true }).putImageData(c.goruntu, 0, 0);
+  ozgun.call(ctx, bantTuvali, 0, 0, w, h, x, y, w, h);
+  bantTuvali.width = 0; bantTuvali.height = 0;
+}
+
+// ------------------------------------------------------------ ara tuvalin kökü
+// PDF.js büyük küçültmede görseli önce ara tuvallere yarıya indirir (_scaleImage), maskeyi önce bir tuvale koyar (_createMaskCanvas).
+// Chromium bu çizimleri kaydedip ertelediği için ara tuvali okumak, kaydı işlemcide oynatmak demektir (taranmış sayfanın 1904×3136
+// metin maskesinde 30–90 ms). Fabrikanın yeni kurduğu (boş) tuvale bir görselin ya da kökü bilinen tuvalin tamamı, birim dönüşüm,
+// tam opaklık, süzgeçsiz ve kaynak-üstü birleştirmeyle tuvalin tamamına kopyalanır ya da yarıya indirilirse tuvalin kökü o görseldir:
+// son çizim kökten örneklenir. Kopya da çizilmez (tembel): ImageBitmap'i işlemci tuvaline çizmek bile GPU'dan okuma demekti (maske
+// başına 8–15 ms). Tembel tuvale başka bir şey çizilir, okunur ya da desen yapılırsa önce kökten çizilir (somutlastir). Tuvale
+// başka her çizim kökü siler.
+function tazeIsaretle(canvas, ctx) { canvas.__taze = true; canvas.__kok = null; canvas.__tembel = false; ctx.__koklu = true; }
+function kokSil(ctx) {
+  const t = ctx.canvas;
+  if (t.__tembel) somutlastir(t);
+  t.__taze = false; t.__kok = null; ctx.__koklu = false;
+}
+
+/** Tembel ara tuvalin içeriğini kökünden çizer (yarıya indirilmiş zincirin yerine tek adımda, mip-map'li). */
+function somutlastir(t) {
+  if (!t.__tembel) return;
+  t.__tembel = false;
+  const kok = t.__kok, ctx = t.getContext('2d');
+  if (!kok || !ctx?.__ozgunCiz) return;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'medium';
+  ctx.__ozgunCiz.call(ctx, kok, 0, 0, genislikAl(kok), yukseklikAl(kok), 0, 0, t.width, t.height);
+  ctx.restore();
+}
+
+/** Döner: true → çizim yapılmamalı (tuval tembel kopya oldu). */
+function kokGuncelle(ctx, img, a, yari = false) {
+  if (!ctx.__koklu) return false;
+  const t = ctx.canvas, bos = t.__taze;
+  kokSil(ctx);
+  if (!bos || !img) return false;
+  const tw = genislikAl(img), th = yukseklikAl(img);
+  const tam = a.length === 2
+    ? a[0] === 0 && a[1] === 0 && tw === t.width && th === t.height
+    : a.length === 8 && a[0] === 0 && a[1] === 0 && a[2] === tw && a[3] === th && a[4] === 0 && a[5] === 0
+      && a[6] === t.width && a[7] === t.height && (yari || (a[6] === tw && a[7] === th));
+  if (!tam || !ctx.getTransform().isIdentity || ctx.globalAlpha !== 1 || ctx.globalCompositeOperation !== 'source-over'
+    || (ctx.filter && ctx.filter !== 'none')) return false;
+  const kok = tuvalMi(img) ? img.__kok : img;
+  if (!kok) return false;
+  t.__kok = kok; t.__tembel = true; ctx.__koklu = true;
+  return true;
+}
+
+/** Kaynak penceresi kökü bilinen ara tuvalin tamamıysa [kök, 0, 0, genişlik, yükseklik]; değilse null (tembelse önce çizilir). */
+function kokBul(img, sx, sy, sw, sh) {
+  const kok = tuvalMi(img) ? img.__kok : null;
+  if (!kok || sx !== 0 || sy !== 0 || sw !== img.width || sh !== img.height) { if (img.__tembel) somutlastir(img); return null; }
+  return [kok, 0, 0, genislikAl(kok), yukseklikAl(kok)];
+}
+
+const KUCUK_GORSEL = 512 * 512;       // az renkli (grafik) sayılabilecek ve hemen okunabilecek en büyük görsel
 const AZ_RENK = 16;
 const grafikOnbellek = new WeakMap(); // ImageBitmap/VideoFrame → az renkli mi (ara tuvallerin içeriği değişebildiği için onlarda tutulmaz)
-/** Küçük ve en fazla 16 farklı renkli görsel mi (karekod, barkod, simge)? Fotoğraf ve taranmış sayfa değildir. */
+/** Küçük ve en fazla 16 farklı renkli görsel mi (karekod, barkod, simge)? Fotoğraf ve taranmış sayfa değildir. BEKLE: okunuyor. */
 function azRenkli(img, sx, sy, sw, sh) {
   if (sw * sh > KUCUK_GORSEL) return false;
   const onbellekli = !tuvalMi(img);
@@ -383,11 +694,15 @@ function azRenkli(img, sx, sy, sw, sh) {
   let sonuc = true;
   try {
     const k = kaynakAc(img, sx, sy, sw, sh);
+    if (k === BEKLE) return BEKLE;
+    if (!k) sonuc = false;
+    const kanal = k ? KANAL[k.tur] : 4;
     const renkler = new Set();
     for (let y = 0; y < sh && sonuc; y++) {
       const p0 = k.satir(y), v = k.veri;
-      for (let p = p0, son = p0 + sw * 4; p < son; p += 4) {
-        const renk = v[p] * 16777216 + ((v[p + 1] << 16) | (v[p + 2] << 8) | v[p + 3]);
+      for (let p = p0, son = p0 + sw * kanal; p < son; p += kanal) {
+        const renk = kanal === 4 ? v[p] * 16777216 + ((v[p + 1] << 16) | (v[p + 2] << 8) | v[p + 3])
+          : kanal === 3 ? (v[p] << 16) | (v[p + 1] << 8) | v[p + 2] : v[p];
         if (renkler.has(renk)) continue;
         renkler.add(renk);
         if (renkler.size > AZ_RENK) { sonuc = false; break; }
@@ -406,7 +721,7 @@ function ornekle(kaynak, ax, ay, bantCiz) {
   const ow = ax.bas.length, oh = ay.bas.length, n4 = ow * 4;
   const bantSatir = Math.max(1, Math.min(oh, Math.floor(BANT / ow)));
   const bant = new ImageData(ow, bantSatir);
-  const satirYaz = ax.kucuk && ay.kucuk ? kutuSatiri(kaynak, ax, ay, bant.data) : ayrikSatir(kaynak, ax, ay, bant.data);
+  const satirYaz = ax.kucuk && ay.kucuk ? kutuSatiri(kaynak, ax, ay, bant.data) : ayrikSatir(rgbaKaynagi(kaynak, ax.son - ax.ilk), ax, ay, bant.data);
   for (let r0 = 0; r0 < oh; r0 += bantSatir) {
     const n = Math.min(bantSatir, oh - r0);
     for (let k = 0; k < n; k++) satirYaz(r0 + k, k * n4);
@@ -416,29 +731,76 @@ function ornekle(kaynak, ax, ay, bantCiz) {
 
 /**
  * İki eksende de küçültme (en sık durum: sayfa genişliğinde taranmış sayfa, fotoğraf). Nokta örneklemeli kutuda her kaynak
- * satırı/sütunu tek bir hedef pikseline düşer ve ağırlıklar eşittir: tek geçişte toplanır (genel ayrılabilir yoldan ~2 kat hızlı).
+ * sütunu tek bir hedef pikseline düşer ve ağırlıklar eşittir: her kaynak pikseli tek toplama eklenir, biçime özel döngüyle
+ * (gri/alfa tek kanal, rgb ağırlıksız, rgba alfa ağırlıklı). Sonuç ağırlıklı ortalamayla birebir aynı.
  * Döner: satirYaz(hedefSatiri, d içindeki başlangıç)
  */
 function kutuSatiri(kaynak, ax, ay, d) {
-  const ow = ax.bas.length, axBas = ax.bas, axSayi = ax.sayi;
-  const top = new Float64Array(ow * 4);   // hedef pikseli başına Σ renk·alfa, Σ alfa
+  const ow = ax.bas.length, kw = ax.son - ax.ilk, tek = KANAL[kaynak.tur] === 1;
+  const hedef = new Int32Array(kw);                 // kaynak sütunu → toplam dizisindeki yeri
+  for (let j = 0; j < ow; j++) for (let t = 0, i = ax.bas[j]; t < ax.sayi[j]; t++, i++) hedef[i] = tek ? j : j * 4;
+  // Biçime özel ayrı işlevler: tek döngü farklı dizi türleri görünce (Int32/Float64, Uint8/Uint8Clamped) V8 onu yavaşlatıyordu
+  const yap = kaynak.tur === 'rgba' ? kutuRgba : kaynak.tur === 'rgb' ? kutuRgb : kutuTek;
+  return yap(kaynak, hedef, ax.sayi, ay, d, kaynak.tur === 'alfa');
+}
+
+/** Tek kanallı (gri: opak gri, alfa: siyah maske) kutu toplamı. */
+function kutuTek(kaynak, hedef, sayiX, ay, d, alfa) {
+  const ow = sayiX.length, kw = hedef.length;
+  const top = new Int32Array(ow), yuvarla = new Uint8ClampedArray(1);
+  const du = new Uint8Array(d.buffer, d.byteOffset, d.length);   // yuvarlanmış tam sayılar kırpmasız yazılır
   return (k2, cik) => {
     const b = ay.bas[k2], sn = ay.sayi[k2];
     top.fill(0);
     for (let y = b; y < b + sn; y++) {
-      const sat = kaynak.satir(y), veri = kaynak.veri;
-      for (let j = 0, u = 0; j < ow; j++, u += 4) {
-        let r = 0, g = 0, bl = 0, a = 0;
-        for (let p = sat + axBas[j] * 4, son = p + axSayi[j] * 4; p < son; p += 4) {
-          const al = veri[p + 3];
-          r += veri[p] * al; g += veri[p + 1] * al; bl += veri[p + 2] * al; a += al;
-        }
-        top[u] += r; top[u + 1] += g; top[u + 2] += bl; top[u + 3] += a;
+      const p0 = kaynak.satir(y), v = kaynak.veri;
+      for (let i = 0, p = p0; i < kw; i++, p++) top[hedef[i]] += v[p];
+    }
+    for (let j = 0, q = cik; j < ow; j++, q += 4) {
+      yuvarla[0] = top[j] / (sayiX[j] * sn);          // Uint8ClampedArray atamada yuvarlar (çifte yuvarlama)
+      const g = yuvarla[0];
+      if (alfa) { du[q] = du[q + 1] = du[q + 2] = 0; du[q + 3] = g; } else { du[q] = du[q + 1] = du[q + 2] = g; du[q + 3] = 255; }
+    }
+  };
+}
+
+/** Opak renkli kutu toplamı. */
+function kutuRgb(kaynak, hedef, sayiX, ay, d) {
+  const ow = sayiX.length, kw = hedef.length;
+  const top = new Int32Array(ow * 4);
+  return (k2, cik) => {
+    const b = ay.bas[k2], sn = ay.sayi[k2];
+    top.fill(0);
+    for (let y = b; y < b + sn; y++) {
+      const p0 = kaynak.satir(y), v = kaynak.veri;
+      for (let i = 0, p = p0; i < kw; i++, p += 3) { const u = hedef[i]; top[u] += v[p]; top[u + 1] += v[p + 1]; top[u + 2] += v[p + 2]; }
+    }
+    for (let j = 0, u = 0, q = cik; j < ow; j++, u += 4, q += 4) {
+      const n = sayiX[j] * sn;
+      d[q] = top[u] / n; d[q + 1] = top[u + 1] / n; d[q + 2] = top[u + 2] / n; d[q + 3] = 255;
+    }
+  };
+}
+
+/** Saydamlıklı kutu toplamı (alfa ağırlıklı: ön çarpımlı ortalama). */
+function kutuRgba(kaynak, hedef, sayiX, ay, d) {
+  const ow = sayiX.length, kw = hedef.length;
+  const top = new Float64Array(ow * 4);             // Σ renk·alfa, Σ alfa
+  return (k2, cik) => {
+    const b = ay.bas[k2], sn = ay.sayi[k2];
+    top.fill(0);
+    for (let y = b; y < b + sn; y++) {
+      const p0 = kaynak.satir(y), v = kaynak.veri;
+      for (let i = 0, p = p0; i < kw; i++, p += 4) {
+        const al = v[p + 3];
+        if (al === 0) continue;
+        const u = hedef[i];
+        top[u] += v[p] * al; top[u + 1] += v[p + 1] * al; top[u + 2] += v[p + 2] * al; top[u + 3] += al;
       }
     }
-    for (let j = 0, u = 0; j < ow; j++, u += 4) {
-      const a = top[u + 3], q = cik + u;
-      if (a > 0) { d[q] = top[u] / a; d[q + 1] = top[u + 1] / a; d[q + 2] = top[u + 2] / a; d[q + 3] = a / (axSayi[j] * sn); }
+    for (let j = 0, u = 0, q = cik; j < ow; j++, u += 4, q += 4) {
+      const a = top[u + 3];
+      if (a > 0) { d[q] = top[u] / a; d[q + 1] = top[u + 1] / a; d[q + 2] = top[u + 2] / a; d[q + 3] = a / (sayiX[j] * sn); }
       else d[q] = d[q + 1] = d[q + 2] = d[q + 3] = 0;
     }
   };
@@ -494,10 +856,12 @@ function ayrikSatir(kaynak, ax, ay, d) {
 /**
  * drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh) keskin sürümü. PDF.js görselleri drawImageAtIntegerCoords ile ±1 ölçekli,
  * tam sayı ötelemeli dönüşümde tam sayı hedef boyutuna çizer: bu durumda görünür hedef bölgesi JS'de örneklenip şerit şerit 1:1
- * çizilir (şeritler tam piksel sınırında birleşir). Döner: true (çizildi ya da görünür değil) / false (bu yol uygun değil ya da
- * kaynak okunamadı: Chromium yumuşatmasıyla çizilmeli).
+ * çizilir (şeritler tam piksel sınırında birleşir). Büyük görsel (ve kaydırırken her görsel) işçide örneklenir: sonucu önbellekte
+ * yoksa istenir. ertele: kullanıcı kaydırıyor, önbellekte sonucu olmayan büyük görsel/ara tuval hızlı çizilsin.
+ * Döner: true (çizildi ya da görünür değil) / BEKLE (işçide örnekleniyor ya da ertelendi: hızlı çizilmeli) / false (bu yol uygun
+ * değil ya da kaynak okunamadı: Chromium yumuşatmasıyla çizilmeli).
  */
-function keskinGorsel(ctx, ozgun, img, sx, sy, sw, sh, dx, dy, dw, dh, grafik) {
+function keskinGorsel(ctx, ozgun, img, sx, sy, sw, sh, dx, dy, dw, dh, grafik, ertele = false) {
   const m = ctx.getTransform();
   const ex = eksen(m);
   if (ex < 0) return false;
@@ -520,13 +884,25 @@ function keskinGorsel(ctx, ozgun, img, sx, sy, sw, sh, dx, dy, dw, dh, grafik) {
   const cikti = (j1 - j0) * (k1 - k0);
   // Fotoğraf/taranmış sayfa büyütülürken (yakınlaştırma) hedef büyük olur: JS yavaşlar, fark da azalır → Chromium yumuşatması
   if (cikti > EN_FAZLA_CIKTI || (!grafik && (dw > sw || dh > sh) && cikti > EN_FAZLA_BUYUTME_CIKTISI)) return false;
+  const tw = tuvalMi(img) ? 0 : genislikAl(img) * yukseklikAl(img);
+  if (tw > KUCUK_GORSEL || (tw && ertele)) {
+    if (okunamaz.has(img) || tw > EN_FAZLA_ISCI_PIKSELI) return false;
+    const geo = { sx, sy, sw, sh, dw, dh, j0, j1, k0, k1, grafik: !!grafik };
+    const anahtar = `${sx},${sy},${sw},${sh},${dw},${dh},${j0},${j1},${k0},${k1},${geo.grafik ? 1 : 0}`;
+    const c = ciktiAl(img, anahtar);
+    if (c) { ciktiCiz(ctx, ozgun, c, dx + j0, dy + k0); return true; }
+    iste(img, anahtar, geo);
+    return BEKLE;
+  }
+  if (ertele) return BEKLE;                                 // ara tuval: kaydırma durunca şeritlerle okunur
   const ax = eksenAgirliklari(sw, dw, j0, j1, grafik), ay = eksenAgirliklari(sh, dh, k0, k1, grafik);
   const kw = ax.son - ax.ilk, kh = ay.son - ay.ilk, ow = j1 - j0;
   if (kw * kh > EN_FAZLA_KAYNAK) return false;
+  const kaynak = kaynakAc(img, sx + ax.ilk, sy + ay.ilk, kw, kh);
+  if (!kaynak || kaynak === BEKLE) return kaynak || false;
   let cizildi = false;
   try {
-    const kaynak = kaynakAc(img, sx + ax.ilk, sy + ay.ilk, kw, kh);
-    kaynak.satir(0);                                        // okunamayan kaynak hiçbir şey çizilmeden burada düşer
+    kaynak.satir(0);                                        // okunamayan ara tuval hiçbir şey çizilmeden burada düşer
     bantTuvali ||= document.createElement('canvas');
     const bc = bantTuvali.getContext('2d', { willReadFrequently: true });
     ornekle(kaynak, ax, ay, (bant, r0, n) => {
@@ -551,12 +927,20 @@ export function keskinBaglam(ctx) {
   if (!ctx || ctx.__keskin) return ctx;
   Object.defineProperty(ctx, '__keskin', { value: true });
   const ozgunCiz = ctx.drawImage, ozgunCizgi = ctx.stroke, ozgunDoldur = ctx.fill, ozgunDikdortgen = ctx.fillRect;
+  const ozgunKoy = ctx.putImageData, ozgunTemizle = ctx.clearRect, ozgunOku = ctx.getImageData, ozgunDesen = ctx.createPattern;
+  ctx.__ozgunCiz = ozgunCiz;
 
   const yumusak = (bag, arg, kalite = 'high') => {
     bag.save();
     bag.imageSmoothingEnabled = true; bag.imageSmoothingQuality = kalite;
     ozgunCiz.apply(bag, arg);
     bag.restore();
+  };
+  // Görsel işçide örnekleniyor ya da kullanıcı kaydırıyor: hızlı çiz (küçültmede iki doğrusal, mip-map'li 'high' kadar bulanık
+  // değil) ve say; görüntüleyici sonra keskin yeniden çizer
+  const hizli = (bag, arg) => {
+    ertelenen++;
+    yumusak(bag, arg, arg[7] < arg[3] && arg[8] < arg[4] ? 'low' : 'high');
   };
   // Dönüşüm ±1 ölçekli ve tam sayı ötelemeli mi (piksel kopyası: örnekleme yok)?
   const birim = (m) => {
@@ -569,44 +953,57 @@ export function keskinBaglam(ctx) {
     // PDF.js endGroup'ta yumuşatmayı kapatıyor, eğik/döndürülmüş görseli de (drawImageAtIntegerCoords 3. dalı) birebir boyutla
     // dönüşüme bırakıyor: yumuşatma kapalı kalırsa yakınlaştırınca pikselli çizilirdi.
     if (a.length !== 8) {
+      if (kokGuncelle(this, img, a)) return;
+      if (img?.__tembel) somutlastir(img);
       const esit = a.length === 2 || (a[2] === (img.displayWidth || img.width) && a[3] === (img.displayHeight || img.height));
       if (esit && birim(this.getTransform()) && Number.isInteger(a[0]) && Number.isInteger(a[1])) return ozgunCiz.call(this, img, ...a);
       return yumusak(this, [img, ...a]);
     }
     const [sx, sy, sw, sh, , , dw, dh] = a;
     if (dw === sw && dh === sh) {
+      if (kokGuncelle(this, img, a)) return;
+      if (img.__tembel && !kokBul(img, sx, sy, sw, sh)) somutlastir(img);
+      if (img.__tembel) { const k = kokBul(img, sx, sy, sw, sh); return yumusak(this, [k[0], k[1], k[2], k[3], k[4], a[4], a[5], dw, dh]); }
       if (birim(this.getTransform())) return ozgunCiz.call(this, img, ...a);
       return yumusak(this, [img, ...a]);
     }
     // PDF.js'in yarıya indirme adımları (_scaleImage): tam yarıda iki doğrusal örnekleme 2×2 kutu ortalamasıdır
     const yari = (d, s) => d === s || d === Math.ceil(s / 2);
     if (yari(dw, sw) && yari(dh, sh) && sw > 1 && sh > 1 && (dw !== sw || dh !== sh) && this.getTransform().isIdentity) {
+      if (kokGuncelle(this, img, a, true)) return;
+      if (img.__tembel) somutlastir(img);
       this.save(); this.imageSmoothingEnabled = true; this.imageSmoothingQuality = 'low';
       ozgunCiz.call(this, img, ...a);
       this.restore();
       return;
     }
+    kokGuncelle(this, img, a);
+    // Ara tuval bir görselin tamamının kopyası ya da yarıya indirilmişiyse doğrudan o görselden örneklenir (ara tuval okunmaz)
+    const [g, gx, gy, gw, gh] = kokBul(img, sx, sy, sw, sh) || [img, sx, sy, sw, sh];
+    const arg = [g, gx, gy, gw, gh, a[4], a[5], dw, dh];   // hızlı/yumuşak çizim de kökten (tembel ara tuval boş)
     // Büyütmede az renkli küçük görseller (karekod, barkod) hep alan filtresiyle keskin; fotoğraf ve taranmış sayfa ×4'ten sonra yumuşak
-    const grafik = dw > sw && dh > sh && azRenkli(img, sx, sy, sw, sh);
-    if (!grafik && dw / sw >= YUMUSAK_BUYUTME && dh / sh >= YUMUSAK_BUYUTME) return yumusak(this, [img, ...a]);
-    if (!grafik && sw * sh > ERTELEME_ESIGI && keskinErtelenir()) {
-      // Kaydırma sürüyor: hızlı çiz (küçültmede iki doğrusal, mip-map'li 'high' kadar bulanık değil), sonra keskin yeniden çizilir
-      ertelenen++;
-      return yumusak(this, [img, ...a], dw < sw && dh < sh ? 'low' : 'high');
-    }
-    if (!keskinGorsel(this, ozgunCiz, img, ...a, grafik)) yumusak(this, [img, ...a]);
+    const grafik = dw > gw && dh > gh ? azRenkli(g, gx, gy, gw, gh) : false;
+    if (grafik === BEKLE) return hizli(this, arg);
+    if (!grafik && dw / gw >= YUMUSAK_BUYUTME && dh / gh >= YUMUSAK_BUYUTME) return yumusak(this, arg);
+    // Kaydırma sürüyor: sonucu önbellekte olmayan büyük görsel (işçide örneklenmeye başlar) ve ara tuval hızlı çizilir
+    const ertele = !grafik && gw * gh > ERTELEME_ESIGI && keskinErtelenir();
+    const sonuc = keskinGorsel(this, ozgunCiz, g, gx, gy, gw, gh, a[4], a[5], dw, dh, grafik, ertele);
+    if (sonuc === BEKLE) hizli(this, arg);
+    else if (!sonuc) yumusak(this, arg);
   };
 
   ctx.stroke = function (yol) {
+    if (this.__koklu) kokSil(this);
     if (arguments.length === 1 && yol && typeof this.strokeStyle === 'string') {
       const kayit = yolKaydi.get(yol);
-      const s = kayit && !kayit.karmasik ? inceCizgi(this, kayit) : null;
+      const kesik = kayit && !kayit.karmasik ? this.getLineDash() : null;
+      const s = kesik ? inceCizgi(this, kayit, kesik.length > 0) : null;
       if (s) {
-        const kesik = this.getLineDash(), kayma = this.lineDashOffset;
+        const kayma = this.lineDashOffset;
         this.save();
         this.setTransform(1, 0, 0, 1, 0, 0);
         this.lineWidth = s.genislik;
-        if (kesik.length) { this.setLineDash(kesik.map((v) => v * s.olcek)); this.lineDashOffset = kayma * s.olcek; }
+        if (kesik.length) { this.setLineDash(kesik.map((v) => v * s.olcek)); this.lineDashOffset = kayma * s.olcek - s.kayma; }
         ozgunCizgi.call(this, s.yol);
         this.restore();
         return;
@@ -616,6 +1013,7 @@ export function keskinBaglam(ctx) {
   };
 
   ctx.fill = function (yol, kural) {
+    if (this.__koklu) kokSil(this);
     if (yol && typeof yol === 'object' && typeof this.fillStyle === 'string') {
       const kayit = yolKaydi.get(yol);
       const d = kayit && !kayit.karmasik ? inceDikdortgenler(this.getTransform(), kayit) : null;
@@ -632,6 +1030,7 @@ export function keskinBaglam(ctx) {
 
   // Tek renkli görsel maskesi (paintSolidColorImageMask) birim kareyi dönüşümle doldurur: ince çizgi olarak da kullanılır
   ctx.fillRect = function (x, y, w, h) {
+    if (this.__koklu) kokSil(this);
     if (arguments.length === 4 && typeof this.fillStyle === 'string') {
       const kayit = { alt: [{ n: [x, y, x + w, y, x + w, y + h, x, y + h], kapali: true }], karmasik: false };
       const d = inceDikdortgenler(this.getTransform(), kayit);
@@ -645,6 +1044,12 @@ export function keskinBaglam(ctx) {
     }
     return ozgunDikdortgen.apply(this, arguments);
   };
+
+  // Tuvalin içeriğini değiştiren diğer işlemler kökü siler (ara tuvalin kökü: kokGuncelle)
+  ctx.putImageData = function () { if (this.__koklu) kokSil(this); return ozgunKoy.apply(this, arguments); };
+  ctx.getImageData = function () { if (this.canvas.__tembel) somutlastir(this.canvas); return ozgunOku.apply(this, arguments); };
+  ctx.createPattern = function (img) { if (img?.__tembel) somutlastir(img); return ozgunDesen.apply(this, arguments); };
+  ctx.clearRect = function () { if (this.__koklu && this.canvas.__kok) kokSil(this); return ozgunTemizle.apply(this, arguments); };
   return ctx;
 }
 
@@ -659,16 +1064,20 @@ export class KeskinTuvalFabrikasi {
     if (width <= 0 || height <= 0) throw new Error('Invalid canvas size');
     const canvas = this._document.createElement('canvas');
     canvas.width = width; canvas.height = height;
-    return { canvas, context: keskinBaglam(canvas.getContext('2d', { willReadFrequently: !this.#hwa })) };
+    const context = keskinBaglam(canvas.getContext('2d', { willReadFrequently: !this.#hwa }));
+    tazeIsaretle(canvas, context);
+    return { canvas, context };
   }
   reset(entry, width, height) {
     if (!entry.canvas) throw new Error('Canvas is not specified');
     if (width <= 0 || height <= 0) throw new Error('Invalid canvas size');
     entry.canvas.width = width; entry.canvas.height = height;
+    if (entry.context) tazeIsaretle(entry.canvas, entry.context);
   }
   destroy(entry) {
     if (!entry.canvas) throw new Error('Canvas is not specified');
     entry.canvas.width = entry.canvas.height = 0;
+    entry.canvas.__kok = null; entry.canvas.__tembel = false;
     entry.canvas = null; entry.context = null;
   }
 }
