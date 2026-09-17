@@ -676,6 +676,14 @@ for (const d of [$('#dugme-geri-al'), $('#dugme-yinele')]) {
 // Araçlar düğmesi (fare ya da klavyeyle açma) açık yazı düzenlemesini uygular; pencere kendi dinleyicisinden önce (yakalama evresi)
 $('#dugme-araclar').addEventListener('pointerdown', (e) => { if (e.button === 0) aktif()?.notlar?.duzenleyiciBitir(true); }, true);
 $('#dugme-araclar').addEventListener('keydown', (e) => { if (['Enter', ' ', 'ArrowDown'].includes(e.key)) aktif()?.notlar?.duzenleyiciBitir(true); }, true);
+// Yazı düzenlenirken düzenleyici ve biçim çubuğu dışındaki bir girdiye geçmek (sayfa / yakınlaştırma kutusu, Bul, panel) düzenlemeyi
+// uygular (referans okuyucuda başka yere gitmek düzenlemeyi bitirir): o girdide basılan Esc yazıyı sessizce atmasın, Geri al düğmesi ve menüsü
+// girdideyken düzenleyicinin geçmişini gösterip girdinin metnini geri almasın
+document.addEventListener('focusin', (e) => {
+  const n = aktif()?.notlar, d = n?.duzenleyici, t = e.target;
+  if (!d || d.el.contains(t) || d.bicim.contains(t)) return;
+  if (girdideMi(t) || t.tagName === 'SELECT') n.duzenleyiciBitir(true);
+});
 document.querySelectorAll('#not-araclari [data-arac]').forEach((el) => {
   el.addEventListener('click', () => komutCalistir('not.arac', el.dataset.arac));
   if (el.dataset.arac === 'vurgu') el.addEventListener('contextmenu', async (e) => {
@@ -769,8 +777,7 @@ panel.addEventListener('sekme', (e) => ayarKoy('solPanelSekme', e.detail.sekme))
 panel.addEventListener('durum', () => aktif()?.gorunum.boyutDegisti());
 
 // ---------------------------------------------------------------- klavye
-function girdideMi() {
-  const a = document.activeElement;
+function girdideMi(a = document.activeElement) {
   return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable);
 }
 
@@ -796,7 +803,8 @@ document.addEventListener('keydown', (e) => {
     if (document.querySelector('.ayarlar-ortusu')) { ayarlarPenceresiKapat(); return; }
     if (document.querySelector('.arac-pencere, .diyalog-ortusu')) return;   // pencere kendi Esc'ini işler
     const n = aktif()?.notlar;
-    if (n?.duzenleyici) { n.duzenleyiciBitir(false); return; }
+    // Başka bir girdideki Esc (Bul, sayfa kutusu) o girdinindir, yazıyı atmaz (odak girdiye geçerken düzenleme zaten uygulanır)
+    if (n?.duzenleyici && !(girdideMi(e.target) && !n.duzenleyici.el.contains(e.target))) { n.duzenleyiciBitir(false); return; }
     if (girdideMi()) { document.activeElement.blur(); aktif()?.gorunum.kaydirici.focus(); return; }
     if (n?.arac) { n.aracSec(null); return; }
     if (n?.balon) { n.balonKapat(); return; }
