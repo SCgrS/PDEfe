@@ -2,10 +2,10 @@
 // Çekirdek: kucult_tahmin {yol, seviyeler} ve kucult {yol, hedef, seviye, dpi, kalite, kuculmezseYazma} (ilerlemeli).
 // "Üzerine yaz": yedek alınmaz. Çekirdek sonucu özgün dosyanın klasöründe geçici dosyaya yazıp atomik olarak yerine koyar;
 // sonuç özgünden küçük değilse özgün dosyaya dokunmaz (yedek olmadığından büyüyen sonuç geri alınamazdı). Dosya başka
-// programda kilitliyse özgün dosya değişmez ve "Yeni belge olarak kaydet" önerilir (ortak.js uzerineYazmaHatasi).
+// programda kilitliyse ya da salt okunursa özgün dosya değişmez ve "Yeni belge olarak kaydet" önerilir (ortak.js kayitSecimi.hataSor).
 import {
-  pencereAc, pencereAcikMi, IslemIlerleme, boyutMetni, farkMetni, kacis, hataMetni, dosyaAdi, yolAyni, dosyaBoyutu,
-  degisiklikleriSor, oge, kayitSecimi, varOlanaYazmaSor, uzerineYazmaHatasi, yazilabilirMi, kilitliHataMi, sekmeyiYenile,
+  pencereAc, pencereAcikMi, IslemIlerleme, boyutMetni, farkMetni, kacis, hataMetni, dosyaAdi, dosyaBoyutu,
+  degisiklikleriSor, oge, kayitSecimi, kilitliHataMi, sekmeyiYenile, ciktiyiAc,
 } from './ortak.js';
 
 /** Hazır seviyeler. dpi/kalite değerleri yalnızca bilgi amaçlıdır; çekirdek (core/islemler/araclar.py SEVIYELER)
@@ -181,19 +181,12 @@ export class KucultPenceresi {
     if (!this.sekmeBayat && (await degisiklikleriSor(baglam, belge, 'Küçültme')) === 'vazgec') return false;
     if (this.pencere.kapali) return false;
 
-    await this.kayit.hazir;
+    // Uzun işlemden önce: ad, var olan dosya sorusu; yazılacak dosya başka programda kilitliyse ya da salt okunursa şimdi söyle
+    const denetim = await this.kayit.denetle();
+    if (this.pencere.kapali || denetim === 'vazgec') return false;
+    if (denetim instanceof Error) return this.kayit.hataSor(denetim);
     const hedef = this.kayit.hedef();
-    // Değiştir ile özgün dosyanın kendisi seçildiyse de üzerine yazmadır
-    const uzerine = this.kayit.kip() === 'uzerine' || yolAyni(hedef, belge.yol);
-    if (uzerine) {
-      // Uzun işlemden önce: başka program dosyayı kilitlemişse şimdi söyle
-      const erisim = await yazilabilirMi(baglam, belge.yol);
-      if (!erisim.okunur || !erisim.yazilir) return this._kilitSorusu(new Error(erisim.okunur ? 'yazılamadı' : 'okunamadı'));
-    } else {
-      if (!this.kayit.cikti.ad()) { baglam.bildir('Dosya adı girin.'); this.kayit.cikti.odakla(); return false; }
-      if (!(await varOlanaYazmaSor(baglam, this.kayit.cikti, hedef))) return false;
-    }
-    if (this.pencere.kapali) return false;
+    const uzerine = this.kayit.uzerineMi();   // Değiştir ile özgün dosyanın kendisi seçildiyse de üzerine yazmadır
 
     this.pencere.el.classList.add('mesgul');
     this.pencere.dugmeAyarla('kucult', { devre: true });
@@ -230,15 +223,8 @@ export class KucultPenceresi {
       this.pencere.el.classList.remove('mesgul');
       this.pencere.dugmeAyarla('kucult', { devre: false });
     }
-    return yeniden && !this.pencere.kapali ? this._kilitSorusu(this._sonHata) : false;
-  }
-
-  /** Kilitli dosya sorusu; "Yeni belge olarak kaydet" kaydetme seçimini değiştirir. Yeniden denenecekse true. */
-  async _kilitSorusu(e) {
-    const secim = await uzerineYazmaHatasi(this.baglam, this.belge, e);
-    if (this.pencere.kapali || secim === 'vazgec') return false;
-    if (secim === 'yeni') { this.kayit.kipAyarla('yeni'); await this.kayit.adYenile(); }
-    return true;
+    // Kilit/salt okunur sorusu yazılamayan dosyayı (özgün ya da yeni belge) adıyla söyler; seçime göre kaydetme seçimini değiştirir
+    return yeniden && !this.pencere.kapali ? this.kayit.hataSor(this._sonHata) : false;
   }
 
   async sonucGoster(yol, yeniBoyut, uzerine, yazilmadi = false) {
@@ -290,7 +276,8 @@ export class KucultPenceresi {
         return;
       }
       await this.pencere.kapat('tamam');
-      await baglam.dosyaAc(yol, { arkaPlanda: false });
+      // Var olan (bir sekmede açık) dosyanın üzerine yazıldıysa o sekme yeni haliyle yeniden açılır
+      await ciktiyiAc(baglam, yol, { cikti: this.kayit.cikti, soruAyrintisi: 'Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.' });
       baglam.bildir(`Küçültüldü · ${ozet}`, 5000);
     };
     this.sonucEl.querySelector('.kucult-ac')?.addEventListener('click', ac);

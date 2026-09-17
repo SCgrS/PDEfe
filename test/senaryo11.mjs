@@ -65,11 +65,12 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   await bekle(2500);
   console.log('  sayfa sayısı:', await evalJs(`({ sayfa: window.__pdefe.aktif().gorunum.sayfaSayisi, kirli: window.__pdefe.aktif().gorunum.yapisalKirli(), geriAl: document.querySelector('#dugme-geri-al').title })`));
 
-  // 5) Döndür ve kaydet (tüm sayfalar 90°, varsayılan "Üzerine yaz") → önce kaydedilmemiş sayfa silme kaydettirilir, sonra dosyaya yazılır, sekme yenilenir
+  // 5) Döndür ve kaydet (tüm sayfalar 90°, "Üzerine yaz") → döndürme sekmeye geri alınabilir komut olarak uygulanır ve belge (sayfa silmeyle birlikte) kaydedilir
   await evalJs(`window.__pdefe.komutCalistir('arac.dondurKaydet')`); await bekle(1500);
+  await evalJs(`[...document.querySelectorAll('.arac-pencere')].pop()?.querySelector('.arac-kayit-secim button[data-id="uzerine"]')?.click()`);
   console.log('döndür:', await evalJs(dugmeTikla('/^Döndür ve kaydet$/')));
   await bekle(6000);
-  console.log('  durum:', await evalJs(`({ degisti: window.__pdefe.aktif().degisti, sayfa: window.__pdefe.aktif().gorunum.sayfaSayisi })`));
+  console.log('  durum:', await evalJs(`({ dondurme: window.__pdefe.aktif().gorunum.sayfalar[0].dondurme, degisti: window.__pdefe.aktif().degisti, sayfa: window.__pdefe.aktif().gorunum.sayfaSayisi, geriAl: document.querySelector('#dugme-geri-al').title })`));
   const py = 'C:/Projeler/PDEfe/.venv/Scripts/python.exe';
   console.log(execFileSync(py, ['-c', `import pymupdf,sys; sys.stdout.reconfigure(encoding='utf-8'); d=pymupdf.open(r'${KOPYA}'); print('dosya: sayfa', d.page_count, 'rot', [p.rotation for p in d][:5])`], { encoding: 'utf8' }));
   await ekranGoruntusu('test/png/s11-05-son.png');

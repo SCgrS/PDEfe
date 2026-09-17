@@ -10,7 +10,7 @@
 import {
   pencereAc, pencereAcikMi, IslemIlerleme, ciktiSecici, boyutMetni, sayiMetni, kacis, hataMetni, dosyaAdi, uzanti,
   bosAdBul, yolAyni, suruklemeSiralama, suruklemeKalintisi, geciktir, oge, segmentliSecim, varsayilanCiktiKlasoru,
-  varOlanaYazmaSor, kilitliHataMi,
+  varOlanaYazmaSor, kilitliHataMi, ciktiyiAc,
 } from './ortak.js';
 
 /** Kalite seviyeleri (çekirdekteki GORSEL_KALITE ile aynı kimlikler). Açıklamalar teknik ayrıntı (çözünürlük, sıkıştırma türü) içermez. */
@@ -29,6 +29,13 @@ const DOSYA_FILTRELERI = [
   { name: 'Tüm dosyalar', extensions: ['*'] },
 ];
 const KUCUK_RESIM = 144;
+
+/** Satırda görünen dosya türü: kullanıcının tanıdığı uzantı ("JPG", "PNG"; çekirdeğin bicim'i "JPEG" gibi teknik ad olabilir). */
+function bicimEtiketi(o) {
+  if (o.tur === 'pdf') return 'PDF';
+  const u = (uzanti(o.yol) || o.bicim || '').toUpperCase();
+  return u === 'JPEG' || u === 'JPE' || u === 'JFIF' ? 'JPG' : u === 'TIFF' ? 'TIF' : u === 'HEIF' ? 'HEIC' : (u || 'Görüntü');
+}
 const SVG = {
   ekle: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
   pano: '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4.5" y="4" width="11" height="13.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M7.5 4V3.2c0-.4.3-.7.7-.7h3.6c.4 0 .7.3.7.7V4" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M7.5 9h5M7.5 12h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
@@ -399,11 +406,11 @@ export class BirlestirmePenceresi {
       const img = document.createElement('img'); img.src = 'data:image/png;base64,' + o.png; img.alt = o.ad; img.draggable = false;
       resim.append(img);
     } else if (!o.png && !o.yukleniyor) {
-      resim.innerHTML = `<div class="yer">${o.tur === 'pdf' ? 'PDF' : kacis((o.bicim || uzanti(o.yol)).toUpperCase())}</div>`;
+      resim.innerHTML = `<div class="yer">${kacis(bicimEtiketi(o))}</div>`;
     }
     const img = resim.querySelector('img');
     if (img) img.style.transform = o.dondurme ? `rotate(${o.dondurme}deg)` : '';
-    const parcalar = [`<span class="tur">${o.tur === 'pdf' ? 'PDF' : kacis((o.bicim || uzanti(o.yol)).toUpperCase())}</span>`];
+    const parcalar = [`<span class="tur">${kacis(bicimEtiketi(o))}</span>`];
     if (o.yukleniyor) parcalar.push('okunuyor…');
     else {
       if (o.tur === 'pdf' && o.sayfa != null) parcalar.push(`${sayiMetni(o.sayfa)} sayfa`);
@@ -587,14 +594,17 @@ export class BirlestirmePenceresi {
       this.ilerleme.gizle();
       await this.pencere.kapat('tamam');
       baglam.bildir(`Birleştirildi: ${dosyaAdi(hedef)}${boyut != null ? ' · ' + boyutMetni(boyut) : ''}${sonuc?.sayfa ? ' · ' + sonuc.sayfa + ' sayfa' : ''}`, 4000);
-      await baglam.dosyaAc(hedef, { arkaPlanda: false });
+      // Var olan (bir sekmede açık) dosyanın üzerine yazıldıysa o sekme yeni haliyle yeniden açılır, yoksa yeni sekmede açılır
+      await ciktiyiAc(baglam, hedef, { cikti: this.cikti, soruAyrintisi: 'Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.' });
     } catch (e) {
       this.ilerleme.gizle();
       if (e.iptal) {
         baglam.bildir('Birleştirme iptal edildi.');
         if (e.sonuc) { try { await baglam.pdefe.cagir('dosya:sil', hedef); } catch { /* yok say */ } }
       } else if (kilitliHataMi(e)) {
-        this.pencere.hataGoster(`"${dosyaAdi(hedef)}" kaydedilemedi: dosya başka bir programda açık olabilir. Programı kapatıp yeniden deneyin ya da başka bir ad seçin.`);
+        this.pencere.hataGoster(/salt okunur/i.test(e?.message || '')
+          ? `"${dosyaAdi(hedef)}" kaydedilemedi: aynı adlı var olan dosya salt okunur. Başka bir ad seçin.`
+          : `"${dosyaAdi(hedef)}" kaydedilemedi: dosya başka bir programda açık olabilir. Programı kapatıp yeniden deneyin ya da başka bir ad seçin.`);
       } else this.pencere.hataGoster('Birleştirme başarısız: ' + hataMetni(e));
     } finally {
       if (!this.pencere.kapali) {

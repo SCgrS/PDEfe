@@ -7,12 +7,10 @@ Türkçe metnin korunduğunu doğrular; sonunda sonuç tablosunu yazdırır.
 --exe verilirse yöntemler doğrudan değil, paketlenmiş exe üzerinden JSON-RPC ile çağrılır.
 """
 import os
-import io
 import sys
 import json
 import time
 import shutil
-import base64
 import subprocess
 import traceback
 
@@ -153,10 +151,6 @@ def test_gorselleri_uret():
         cz.line((200, y, 2280, y), fill=0, width=6)
     yollar["bitonal"] = os.path.join(klasor, "tarama_1bit.png")
     im.save(yollar["bitonal"])
-    # 8) Pano görseli (base64 PNG)
-    buf = io.BytesIO()
-    Image.new("RGB", (320, 200), (255, 128, 0)).save(buf, format="PNG")
-    yollar["pano_b64"] = base64.b64encode(buf.getvalue()).decode("ascii")
     return yollar
 
 
@@ -450,22 +444,6 @@ def test_dondur_kaydet(c):
     os.remove(kopya)
 
 
-def test_pano(c, g):
-    r, _ = c.cagir("pano_gorsel_kaydet", {"png": g["pano_b64"]})
-    ok = os.path.isfile(r["yol"]) and r["yol"].lower().endswith(".png") and "PDEfe" in r["yol"]
-    kaydet_sonuc("pano_gorsel_kaydet", "320x200 png", ok, r["yol"])
-    r2, _ = c.cagir("pano_gorsel_kaydet", {"png": "data:image/png;base64," + g["pano_b64"]})
-    kaydet_sonuc("pano_gorsel_kaydet", "data: öneki", r2["yol"] != r["yol"] and os.path.isfile(r2["yol"]), os.path.basename(r2["yol"]))
-    # Renderer biçimi: klasor + ad; ikinci kez aynı ad → (2)
-    klasor = os.path.join(CIKTI, "pano")
-    r3, _ = c.cagir("pano_gorsel_kaydet", {"png": g["pano_b64"], "klasor": klasor, "ad": "pano_123.png"})
-    r4, _ = c.cagir("pano_gorsel_kaydet", {"png": g["pano_b64"], "klasor": klasor, "ad": "pano_123.png"})
-    ok = r3["yol"] == os.path.join(klasor, "pano_123.png") and os.path.basename(r4["yol"]) == "pano_123 (2).png" and os.path.getsize(r4["yol"]) == r4["boyut"]
-    kaydet_sonuc("pano_gorsel_kaydet", "klasor + ad", ok, "%s, %s" % (os.path.basename(r3["yol"]), os.path.basename(r4["yol"])))
-    for y in (r["yol"], r2["yol"], r3["yol"], r4["yol"]):
-        os.remove(y)
-
-
 def main():
     exe = None
     if "--exe" in sys.argv:
@@ -496,7 +474,6 @@ def main():
         ("boyut_tahmini", lambda: test_boyut_tahmini(c, g)),
         ("birlestir", lambda: test_birlestir(c, g)),
         ("dondur_kaydet", lambda: test_dondur_kaydet(c)),
-        ("pano_gorsel_kaydet", lambda: test_pano(c, g)),
     ]
     for ad, f in testler:
         print("\n== %s" % ad)

@@ -7,19 +7,19 @@ hata durumunda exception fırlatır (ana döngü bunu JSON-RPC error'a çevirir)
 (aksi halde Windows'ta os.replace açık tanıtıcı yüzünden başarısız olur).
 
 Kayıt: kaydol(yontemler) → kucult_tahmin, kucult, sayfalar_uygula, ayir, birlestir, gorsel_bilgi,
-boyut_tahmini, dondur_kaydet, pano_gorsel_kaydet, sayfa_boyutlari, dosya_erisim.
+boyut_tahmini, dondur_kaydet, sayfa_boyutlari, dosya_erisim.
 
 Üzerine yazma: yedek alınmaz; sonuç hedefin klasöründe geçici dosyaya yazılır ve os.replace ile atomik olarak yerine konur.
-Hedef başka bir programda kilitliyse özgün dosya değişmez ve hata iletisi KILITLI_METNI'ni içerir.
+Hedef başka bir programda kilitliyse özgün dosya değişmez ve hata iletisi KILITLI_METNI'ni, salt okunursa SALT_OKUNUR_METNI'ni içerir.
 """
 import io
 import os
 import re
 import shutil
+import stat
 import sys
 import time
 import base64
-import tempfile
 
 import pymupdf
 
@@ -123,6 +123,19 @@ def _ayni_dosya(a, b):
 
 
 KILITLI_METNI = "başka bir programda açık olabilir"   # renderer bu ifadeyle kilitli dosya hatasını tanır
+SALT_OKUNUR_METNI = "salt okunur"                       # renderer bu ifadeyle salt okunur dosya hatasını tanır (kilitten ayrı ileti)
+
+
+def _salt_okunur_mu(yol):
+    """Dosyanın salt okunur özniteliği (Windows FILE_ATTRIBUTE_READONLY; başka sistemlerde yazma izni yok) açık mı?"""
+    try:
+        st = os.stat(yol)
+    except OSError:
+        return False
+    oznitelik = getattr(st, "st_file_attributes", None)
+    if oznitelik is not None:
+        return bool(oznitelik & stat.FILE_ATTRIBUTE_READONLY)
+    return not (st.st_mode & stat.S_IWUSR)
 
 
 def _kilitli_mi(yol):
@@ -181,6 +194,9 @@ def _yerine_koy(gecici, hedef):
     try:
         os.replace(gecici, hedef)
     except PermissionError as e:
+        # Salt okunur hedefe os.replace de erişim hatası verir; ileti kilitten ayrılır (dosyayı açık tutan program yok)
+        if _salt_okunur_mu(hedef):
+            raise PermissionError("Dosya yazılamadı; %s: %s" % (SALT_OKUNUR_METNI, os.path.basename(hedef)))
         raise PermissionError("Dosya yazılamadı; %s: %s (%s)" % (KILITLI_METNI, os.path.basename(hedef), e))
 
 
@@ -1201,49 +1217,6 @@ def y_dondur_kaydet(p):
     return {"boyut": boyut, "artimli": artimli, "sayfa": sayfa, "yol": hedef}
 
 
-# ---------------------------------------------------------------- 9) pano_gorsel_kaydet
-def y_pano_gorsel_kaydet(p):
-    """{png: base64, klasor?, ad?} → {yol, boyut}: panodaki görseli geçici klasöre (varsayılan
-    Temp/PDEfe) benzersiz PNG olarak yazar. klasor verilirse oraya; ad verilirse o ad temel alınır
-    (var olanın üzerine yazılmaz, (2) eklenir)."""
-    veri = p.get("png")
-    if not veri or not isinstance(veri, str):
-        raise ValueError("Pano görseli boş.")
-    if veri.startswith("data:"):
-        veri = veri.split(",", 1)[1] if "," in veri else ""
-    try:
-        bayt = base64.b64decode(veri, validate=False)
-    except Exception as e:
-        raise ValueError("Pano görseli çözülemedi: %s" % e)
-    if not bayt.startswith(b"\x89PNG\r\n\x1a\n"):
-        # PNG değilse Pillow ile PNG'ye çevir
-        Image, _, _ = _pillow()
-        try:
-            im = Image.open(io.BytesIO(bayt))
-            im.load()
-            buf = io.BytesIO()
-            _duzlestir(im).save(buf, format="PNG")
-            bayt = buf.getvalue()
-        except Exception as e:
-            raise ValueError("Pano görseli tanınmadı: %s" % e)
-    klasor = p.get("klasor")
-    klasor = _mutlak(klasor, "klasor") if klasor else os.path.join(tempfile.gettempdir(), "PDEfe")
-    try:
-        os.makedirs(klasor, exist_ok=True)
-    except OSError as e:
-        raise OSError("Geçici klasör oluşturulamadı: %s (%s)" % (klasor, e))
-    ad = p.get("ad")
-    if ad and isinstance(ad, str) and ad.strip():
-        yol = _benzersiz_yol(klasor, os.path.splitext(ad.strip())[0], ".png")
-        with open(yol, "wb") as f:
-            f.write(bayt)
-    else:
-        fd, yol = tempfile.mkstemp(prefix="pano_%s_" % time.strftime("%Y%m%d_%H%M%S"), suffix=".png", dir=klasor)
-        with os.fdopen(fd, "wb") as f:
-            f.write(bayt)
-    return {"yol": yol, "boyut": len(bayt)}
-
-
 # ---------------------------------------------------------------- 10) sayfa_boyutlari
 def y_sayfa_boyutlari(p):
     """{yol} → {sayfalar:[{genislik, yukseklik, dondurme}]} (genişlik/yükseklik görünen, yani
@@ -1259,19 +1232,21 @@ def y_sayfa_boyutlari(p):
 
 # ---------------------------------------------------------------- 11) dosya_erisim
 def y_dosya_erisim(p):
-    """{yol} → {var, okunur, yazilir}: üzerine yazmadan ÖNCE dosyanın başka bir programda kilitli olup olmadığına
-    bakılır (uzun işlem bittikten sonra hata vermemek için). Dosyaya yazılmaz; 'r+b' açılıp kapatılır.
-    Çekirdeğin kendi önbelleğindeki tanıtıcı paylaşımlı açıldığından sonucu etkilemez."""
+    """{yol} → {var, okunur, yazilir, saltOkunur}: üzerine yazmadan ÖNCE dosyanın başka bir programda kilitli ya da
+    salt okunur olup olmadığına bakılır (uzun işlem bittikten sonra hata vermemek için). Dosyaya yazılmaz; 'r+b' açılıp
+    kapatılır. Çekirdeğin kendi önbelleğindeki tanıtıcı paylaşımlı açıldığından sonucu etkilemez. saltOkunur: yazılamamanın
+    nedeni dosyanın salt okunur özniteliği (renderer kilit yerine bunu söyler)."""
     yol = _mutlak(p.get("yol"))
     if not os.path.isfile(yol):
-        return {"var": False, "okunur": False, "yazilir": False}
+        return {"var": False, "okunur": False, "yazilir": False, "saltOkunur": False}
     okunur = not _kilitli_mi(yol)
     try:
         with open(yol, "r+b"):
             yazilir = True
     except OSError:
         yazilir = False
-    return {"var": True, "okunur": okunur, "yazilir": yazilir}
+    salt_okunur = not yazilir and _salt_okunur_mu(yol)
+    return {"var": True, "okunur": okunur, "yazilir": yazilir, "saltOkunur": salt_okunur}
 
 
 # ---------------------------------------------------------------- kayıt
@@ -1284,6 +1259,5 @@ def kaydol(yontemler):
     yontemler["gorsel_bilgi"] = y_gorsel_bilgi
     yontemler["boyut_tahmini"] = y_boyut_tahmini
     yontemler["dondur_kaydet"] = y_dondur_kaydet
-    yontemler["pano_gorsel_kaydet"] = y_pano_gorsel_kaydet
     yontemler["sayfa_boyutlari"] = y_sayfa_boyutlari
     yontemler["dosya_erisim"] = y_dosya_erisim

@@ -567,6 +567,7 @@ try {
     iptal: (istekId) => pdefe.cagir('cekirdek:iptal', istekId),
     dosyaAc, kaydet: (b) => belgeKaydet(b), mesajKutusu, bildir, pdefe,
     belgeKapat: (id, secenek) => belgeKapat(id, secenek),   // küçült "üzerine yaz" sonrası sekmeyi kapatıp yeniden açmak için
+    belgeler: () => [...belgeler.values()],                // araç çıktısı açık bir sekmenin dosyasına yazıldıysa o sekmeyi yenilemek için
     ayar: () => ayar, ayarKoy,
     sayfaTarifiUygula: (b, tarif, ad) => sayfaTarifiUygula(b, tarif, ad),
     dosyaYolu: (f) => pdefe.dosyaYolu(f),

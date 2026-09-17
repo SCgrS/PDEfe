@@ -14,6 +14,7 @@
 //   ayar: () => ayarlar, ayarKoy(anahtar, deger),
 //   sayfaTarifiUygula(belge, tarif, komutAdi) → Promise<void>,   // proje sahibi sağlar
 //   belgeKapat?: (id, {zorla}) → Promise<bool>,     // isteğe bağlı; "üzerine yaz" sonrası sekmeyi yenilemek için
+//   belgeler?: () => belge[],                      // isteğe bağlı; yeni belge çıktısı açık bir sekmenin dosyasına yazılınca o sekme yenilenir
 // }
 // PDF birleştir aracı kaldırıldı: Görüntü / PDF birleştir aynı işi (PDF'leri de) yapar.
 import { kucultAc } from './kucult.js';

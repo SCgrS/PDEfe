@@ -40,9 +40,10 @@ export function hataMetni(e) {
   return (m.split('\n').filter(Boolean).pop() || 'Bilinmeyen hata').replace(/^Error invoking remote method '[^']+': (\w*Error: )?/, '');
 }
 
-/** Dosya başka bir programda (örn. bir PDF okuyucu) açık olduğu için okunamadı ya da yazılamadı mı? (çekirdek: KILITLI_METNI) */
+/** Dosya başka bir programda (örn. bir PDF okuyucu) açık olduğu ya da salt okunur olduğu için okunamadı / yazılamadı mı?
+ *  (çekirdek: KILITLI_METNI, SALT_OKUNUR_METNI) */
 export function kilitliHataMi(e) {
-  return /başka bir programda açık|EBUSY|EPERM|EACCES|being used by another process/i.test((e && (e.message || String(e))) || '');
+  return /başka bir programda açık|salt okunur|EBUSY|EPERM|EACCES|being used by another process/i.test((e && (e.message || String(e))) || '');
 }
 
 // ---------------------------------------------------------------- yol yardımcıları
@@ -633,8 +634,10 @@ function klasorCipi() {
  * Yeni dosya çıktısı satırı: kısa dosya adı kutusu + klasör çipi (Masaüstü; tam yol ipucunda) + Değiştir.
  * Değiştir, Windows'un Farklı kaydet diyaloğunu açar (klasör ve ad birlikte seçilir; var olan dosyanın üzerine yazma
  * sorusunu Windows sorar, dolayısıyla o yol için araç ayrıca sormaz: onayli()).
+ * onayla/onaylandi: aracın kendi "zaten var" sorusunda üzerine yazma onaylanan hedef ("Yeniden dene"de yeniden sorulmaz);
+ * ad ya da klasör değişince ikisi de sıfırlanır.
  * @returns {{el:HTMLElement, yol:()=>string, klasor:()=>string, ad:()=>string, ayarla:(klasor:string|null, ad:string|null, s?:{elle?:boolean})=>void,
- *   onDegisti:(cb)=>void, elleDegisti:()=>boolean, onayli:(yol:string)=>boolean}}
+ *   onDegisti:(cb)=>void, elleDegisti:()=>boolean, onayli:(yol:string)=>boolean, onayla:(yol:string)=>void, onaylandi:(yol:string)=>boolean}}
  */
 export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasligi = 'Farklı kaydet' }) {
   const el = oge(`<div class="arac-cikti">
@@ -649,11 +652,12 @@ export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasl
   let mevcutKlasor = klasor || '';
   let elle = false;             // kullanıcı adı ya da klasörü kendisi değiştirdi (varsayılan ad artık önerilmez)
   let onayliYol = null;         // Farklı kaydet diyaloğunda seçilen (Windows üzerine yazmayı sordu)
+  let aracOnayi = null;         // araç "zaten var" sorusunda onaylanan hedef
   const bildir = () => dinleyiciler.forEach((f) => f());
   const yaz = () => { cip.yaz(mevcutKlasor, pdefe); };
   adEl.value = ad || '';
   yaz();
-  adEl.addEventListener('input', () => { elle = true; onayliYol = null; bildir(); });
+  adEl.addEventListener('input', () => { elle = true; onayliYol = null; aracOnayi = null; bildir(); });
   adEl.addEventListener('blur', () => {
     let v = guvenliAd(adEl.value);
     if (uz && !new RegExp('\\.' + uz + '$', 'i').test(v)) v += '.' + uz;
@@ -667,7 +671,7 @@ export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasl
     if (!secilen) return;
     mevcutKlasor = klasorAdi(secilen);
     adEl.value = dosyaAdi(secilen);
-    elle = true; onayliYol = secilen;
+    elle = true; onayliYol = secilen; aracOnayi = null;
     yaz(); bildir();
   });
   return {
@@ -675,10 +679,12 @@ export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasl
     yol: () => yolBirlestir(mevcutKlasor, adEl.value.trim()),
     klasor: () => mevcutKlasor,
     ad: () => adEl.value.trim(),
-    ayarla: (k, a, { elle: e = false } = {}) => { if (k != null) mevcutKlasor = k; if (a != null) adEl.value = a; if (e) elle = true; onayliYol = null; yaz(); bildir(); },
+    ayarla: (k, a, { elle: e = false } = {}) => { if (k != null) mevcutKlasor = k; if (a != null) adEl.value = a; if (e) elle = true; onayliYol = null; aracOnayi = null; yaz(); bildir(); },
     onDegisti: (cb) => dinleyiciler.push(cb),
     elleDegisti: () => elle,
     onayli: (yol) => !!onayliYol && yolAyni(onayliYol, yol),
+    onayla: (yol) => { aracOnayi = yol; },
+    onaylandi: (yol) => !!aracOnayi && yolAyni(aracOnayi, yol),
     odakla: () => { adEl.focus(); adEl.select(); },
   };
 }
@@ -742,20 +748,23 @@ export function segmentliSecim({ secenekler, deger, etiket = '', sinif = '', deg
 
 /**
  * Standart kaydetme seçimi: "Yeni belge olarak kaydet" | "Üzerine yaz". Açık belgenin değiştirilmiş sürümünü üreten her araç
- * (PDF küçült, Döndür ve kaydet) aynı biçimde kullanır.
+ * (PDF küçült, Döndür ve kaydet) aynı biçimde ve aynı varsayılanla ("Yeni belge olarak kaydet") kullanır.
  *  - Yeni belge: dosya adı + klasör çipi + Değiştir; varsayılan klasör varsayilanCiktiKlasoru (Masaüstü), varsayılan ad
  *    "<ad> (<ek>).pdf" (klasörde varsa "(2)"…).
  *  - Üzerine yaz: özgün dosyanın üzerine doğrudan yazılır, yedek alınmaz. Çekirdek önce aynı klasörde geçici dosyaya yazar,
- *    sonra atomik olarak yerine koyar; dosya kilitliyse özgün dosya değişmez (bkz. uzerineYazmaHatasi).
+ *    sonra atomik olarak yerine koyar; dosya kilitli ya da salt okunursa özgün dosya değişmez (bkz. hataSor).
+ * denetle() işlemden önce, hataSor(e) kilit/salt okunur hatasında çağrılır; ikisi de hedefe göre (özgün dosya ya da yeni belge) konuşur.
  * @param {object} s
  * @param {object} s.baglam
  * @param {object} s.belge   {yol, ad}
  * @param {string} s.ek      varsayılan ad eki, örn. 'küçültülmüş'
  * @param {'yeni'|'uzerine'} [s.kip]
- * @returns {{el:HTMLElement, kip:()=>string, kipAyarla:(k:string)=>void, hedef:()=>string, cikti:object, hazir:Promise<void>,
- *   adYenile:()=>Promise<void>, onDegisti:(cb)=>void}}
+ * @param {string} [s.uzerineMetni]  "Üzerine yaz" seçiliyken gösterilen açıklama (varsayılan: yedeksiz doğrudan kayıt)
+ * @returns {{el:HTMLElement, kip:()=>string, kipAyarla:(k:string)=>void, hedef:()=>string, uzerineMi:()=>boolean, cikti:object,
+ *   hazir:Promise<void>, adYenile:()=>Promise<void>, denetle:()=>Promise<'devam'|'vazgec'|Error>, hataSor:(e:Error)=>Promise<boolean>,
+ *   onDegisti:(cb)=>void}}
  */
-export function kayitSecimi({ baglam, belge, ek, kip = 'yeni', diyalogBasligi = 'Yeni belge olarak kaydet' }) {
+export function kayitSecimi({ baglam, belge, ek, kip = 'yeni', diyalogBasligi = 'Yeni belge olarak kaydet', uzerineMetni }) {
   const el = oge(`<div class="arac-kayit">
       <div class="arac-kayit-kip"></div>
       <div class="arac-kayit-yeni"></div>
@@ -772,7 +781,7 @@ export function kayitSecimi({ baglam, belge, ek, kip = 'yeni', diyalogBasligi = 
   cikti.onDegisti(bildir);
   el.querySelector('.arac-kayit-yeni').append(cikti.el);
   const uzerineMetin = el.querySelector('.arac-kayit-uzerine .metin');
-  uzerineMetin.textContent = `Değişiklik doğrudan "${ozgunAd}" dosyasına kaydedilir; yedek alınmaz.`;
+  uzerineMetin.textContent = uzerineMetni || `Değişiklik doğrudan "${ozgunAd}" dosyasına kaydedilir; yedek alınmaz.`;
   el.querySelector('.arac-kayit-uzerine').title = belge.yol;
   const secim = segmentliSecim({
     etiket: 'Kaydetme biçimi', deger: kip, sinif: 'arac-kayit-secim',
@@ -789,6 +798,9 @@ export function kayitSecimi({ baglam, belge, ek, kip = 'yeni', diyalogBasligi = 
     el.querySelector('.arac-kayit-uzerine').hidden = !uzerine;
   }
   goster();
+  const kipAyarla = (k) => { secim.sec(k); goster(); bildir(); };
+  /** Değiştir ile özgün dosyanın kendisi seçildiyse de üzerine yazmadır. */
+  const uzerineMi = () => secim.deger() === 'uzerine' || yolAyni(cikti.yol(), belge.yol);
   /** Varsayılan klasör ve boş ad (kullanıcı elle değiştirmediyse). */
   async function adYenile() {
     if (cikti.elleDegisti()) return;
@@ -798,61 +810,131 @@ export function kayitSecimi({ baglam, belge, ek, kip = 'yeni', diyalogBasligi = 
     if (!cikti.elleDegisti()) cikti.ayarla(klasor, ad);
   }
   const hazir = adYenile();
+  /** Yeni belge adını aynı klasörde boş bir ada çevirir ("… (2).pdf"); elle yazılmış ad da değiştirilir. */
+  async function baskaAdSec(temel) {
+    const klasor = cikti.klasor() || await varsayilanCiktiKlasoru(baglam);
+    const ad = temel || cikti.ad() || oneriAd();
+    let bos = ad;
+    try { bos = await bosAdBul(baglam.pdefe, klasor, ad); } catch { /* ad olduğu gibi */ }
+    cikti.ayarla(klasor, bos);
+  }
+
+  /**
+   * İşlemden önce: yeni belgede ad boş mu, hedef zaten var mı (sorulur); yazılacak dosya (üzerine yazmada özgün dosya, yeni belgede
+   * var olan hedef) başka bir programda kilitli ya da salt okunur mu (uzun işlem bittikten sonra hata vermemek için).
+   * Döner: 'devam' | 'vazgec' | Error (hataSor'a verilir).
+   */
+  async function denetle() {
+    await hazir;
+    const uzerine = uzerineMi();
+    if (!uzerine) {
+      if (!cikti.ad()) { baglam.bildir('Dosya adı girin.'); cikti.odakla(); return 'vazgec'; }
+      if (!(await varOlanaYazmaSor(baglam, cikti, cikti.yol()))) return 'vazgec';
+      if (!(await baglam.pdefe.cagir('dosya:varMi', cikti.yol()).catch(() => false))) return 'devam';
+    }
+    const erisim = await yazilabilirMi(baglam, uzerine ? belge.yol : cikti.yol());
+    if (erisim.okunur && erisim.yazilir) return 'devam';
+    // Yeni belgede var olan hedefin okunamaması da yazılamamasıdır ("okunamadı" yalnızca özgün dosya için kullanılır)
+    return new Error(erisim.saltOkunur ? 'Dosya salt okunur' : !erisim.okunur && uzerine ? 'Dosya okunamadı' : 'Dosya yazılamadı');
+  }
+
+  /**
+   * Kayıt dosya kilidi ya da salt okunur öznitelik yüzünden olmayınca (işlem öncesi denetimde ya da çekirdekte) sorar; hiçbir dosya
+   * değişmemiştir. İleti yazılamayan dosyayı adıyla söyler: üzerine yazmada özgün dosya, yeni belgede hedef dosya. Özgün dosya
+   * okunamadıysa (yeni belge de üretilemez) yalnızca Yeniden dene / Vazgeç. "Yeni belge olarak kaydet" kaydetme seçimini değiştirir,
+   * "Başka adla kaydet" hedefi aynı klasörde boş bir ada çevirir. Döner: true (yeniden denensin) | false (vazgeçildi).
+   */
+  async function hataSor(e) {
+    const m = e?.message || String(e || '');
+    const uzerine = uzerineMi();
+    const okunamadi = /okunamadı/i.test(m);
+    const saltOkunur = /salt okunur/i.test(m);
+    const hedefAd = dosyaAdi(uzerine ? belge.yol : cikti.yol());
+    const programda = 'başka bir programda (örneğin bir PDF okuyucu) açık olabilir';
+    let mesaj, ayrinti, dugmeler, yanitlar;
+    if (okunamadi) {
+      mesaj = `"${ozgunAd}" okunamadı.`;
+      ayrinti = `Dosya ${programda}. Hiçbir dosya değiştirilmedi.\n\nDosyayı kullanan programı kapatıp yeniden deneyin.`;
+      dugmeler = ['Yeniden dene', 'Vazgeç']; yanitlar = ['tekrar', 'vazgec'];
+    } else if (uzerine) {
+      mesaj = saltOkunur ? `"${hedefAd}" salt okunur olduğu için üzerine yazılamadı.` : `"${hedefAd}" dosyasının üzerine yazılamadı.`;
+      ayrinti = saltOkunur
+        ? 'Dosyanın Salt okunur özniteliği açık. Özgün dosya değiştirilmedi.\n\nDosya Gezgini\'nde dosyanın Özellikler penceresinden Salt okunur işaretini kaldırıp yeniden deneyebilir ya da sonucu yeni bir belge olarak kaydedebilirsiniz.'
+        : `Dosya ${programda}. Özgün dosya değiştirilmedi.\n\nDosyayı kullanan programı kapatıp yeniden deneyebilir ya da sonucu yeni bir belge olarak kaydedebilirsiniz.`;
+      dugmeler = ['Yeni belge olarak kaydet', 'Yeniden dene', 'Vazgeç']; yanitlar = ['yeni', 'tekrar', 'vazgec'];
+    } else {
+      mesaj = saltOkunur ? `"${hedefAd}" salt okunur olduğu için kaydedilemedi.` : `"${hedefAd}" kaydedilemedi.`;
+      ayrinti = saltOkunur
+        ? 'Aynı adlı var olan dosyanın Salt okunur özniteliği açık; o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da Salt okunur işaretini kaldırıp yeniden deneyebilirsiniz.'
+        : `Aynı adlı var olan dosya ${programda}; o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da dosyayı kullanan programı kapatıp yeniden deneyebilirsiniz.`;
+      dugmeler = ['Başka adla kaydet', 'Yeniden dene', 'Vazgeç']; yanitlar = ['baskaAd', 'tekrar', 'vazgec'];
+    }
+    const { secim: yanit } = await baglam.mesajKutusu({ tur: 'warning', mesaj, ayrinti, dugmeler, varsayilan: 0, iptal: dugmeler.length - 1 });
+    const sonuc = yanitlar[yanit] || 'vazgec';
+    if (sonuc === 'vazgec') return false;
+    if (sonuc === 'yeni') {
+      kipAyarla('yeni');
+      if (!cikti.elleDegisti()) await adYenile();
+      else if (yolAyni(cikti.yol(), belge.yol)) await baskaAdSec(oneriAd());   // elle seçilen ad özgün dosyanın kendisiydi
+    } else if (sonuc === 'baskaAd') await baskaAdSec();
+    return true;
+  }
+
   return {
-    el, cikti, hazir, adYenile,
+    el, cikti, hazir, adYenile, kipAyarla, uzerineMi, denetle, hataSor,
     kip: () => secim.deger(),
-    kipAyarla: (k) => { secim.sec(k); goster(); bildir(); },
     hedef: () => (secim.deger() === 'uzerine' ? belge.yol : cikti.yol()),
     onDegisti: (cb) => dinleyiciler.push(cb),
   };
 }
 
+/** Yolu bir sekmede açık olan belge (yoksa null). baglam.belgeler() sekmelerin belgelerini verir. */
+export function acikBelge(baglam, yol) {
+  const liste = typeof baglam.belgeler === 'function' ? baglam.belgeler() : [];
+  return liste.find((b) => yolAyni(b.yol, yol)) || null;
+}
+
 /**
- * Yeni belge çıktısı başka bir dosyanın üzerine gelecekse sorar (Farklı kaydet diyaloğunda Windows zaten sorduysa sormaz).
+ * Yeni belge çıktısı var olan bir dosyanın üzerine gelecekse sorar. Farklı kaydet diyaloğunda Windows zaten sorduysa ya da bu hedef
+ * araçta onaylandıysa ("Yeniden dene") yeniden sormaz; hedef PDEfe'de kaydedilmemiş değişiklikli bir sekmede açıksa Windows sormuş
+ * olsa da sorar (kayıttan sonra sekme yeni haliyle yeniden açılır, o değişiklikler atılır). Onaylanınca cikti.onayla(hedef).
  * Döner: true (devam) | false (vazgeç).
  */
 export async function varOlanaYazmaSor(baglam, cikti, hedef) {
-  if (cikti?.onayli?.(hedef)) return true;
+  if (cikti?.onaylandi?.(hedef)) return true;
+  const acik = acikBelge(baglam, hedef);
+  if (cikti?.onayli?.(hedef) && !acik?.degisti) return true;
   if (!(await baglam.pdefe.cagir('dosya:varMi', hedef))) return true;
-  const { secim } = await baglam.mesajKutusu({ tur: 'warning', mesaj: `"${dosyaAdi(hedef)}" zaten var.`, ayrinti: `${hedef}\n\nVar olan dosyanın yerine kaydedilsin mi?`, dugmeler: ['Üzerine yaz', 'Vazgeç'], varsayilan: 1, iptal: 1 });
-  return secim === 0;
+  const sekme = !acik ? ''
+    : acik.degisti ? '\n\nDosya PDEfe\'de açık ve kaydedilmemiş değişiklikleri var: kayıttan sonra sekmesi yeni haliyle yeniden açılır, bu değişiklikler atılır.'
+      : '\n\nDosya PDEfe\'de açık; kayıttan sonra sekmesi yeni haliyle yeniden açılır.';
+  const { secim } = await baglam.mesajKutusu({ tur: 'warning', mesaj: `"${dosyaAdi(hedef)}" zaten var.`, ayrinti: `${hedef}\n\nVar olan dosyanın yerine kaydedilsin mi?${sekme}`, dugmeler: ['Üzerine yaz', 'Vazgeç'], varsayilan: 1, iptal: 1 });
+  if (secim !== 0) return false;
+  cikti?.onayla?.(hedef);
+  return true;
 }
 
 /**
- * Üzerine yazma (ya da okuma) dosya kilidi yüzünden başarısız olunca sorar. Özgün dosya değişmemiştir.
- * okunamadi: dosya okunamıyor bile (yeni belge de üretilemez) → yalnızca Yeniden dene / Vazgeç.
- * Döner: 'yeni' (Yeni belge olarak kaydet) | 'tekrar' | 'vazgec'.
+ * Dosya yazılabilir mi (başka program kilitlemiş mi, salt okunur mu)? Çekirdek yanıt veremezse yazılabilir sayılır.
+ * Döner: {okunur, yazilir, saltOkunur}
  */
-export async function uzerineYazmaHatasi(baglam, belge, e) {
-  const okunamadi = /okunamadı/i.test(e?.message || '');
-  const ad = belge?.ad || dosyaAdi(belge?.yol);
-  const dugmeler = okunamadi ? ['Yeniden dene', 'Vazgeç'] : ['Yeni belge olarak kaydet', 'Yeniden dene', 'Vazgeç'];
-  const { secim } = await baglam.mesajKutusu({
-    tur: 'warning',
-    mesaj: okunamadi ? `"${ad}" okunamadı.` : `"${ad}" dosyasının üzerine yazılamadı.`,
-    ayrinti: `Dosya başka bir programda (örneğin bir PDF okuyucu) açık olabilir. Özgün dosya değiştirilmedi.\n\n`
-      + (okunamadi ? 'Dosyayı kullanan programı kapatıp yeniden deneyin.' : 'Dosyayı kullanan programı kapatıp yeniden deneyebilir ya da sonucu yeni bir belge olarak kaydedebilirsiniz.'),
-    dugmeler, varsayilan: 0, iptal: dugmeler.length - 1,
-  });
-  if (okunamadi) return secim === 0 ? 'tekrar' : 'vazgec';
-  return ['yeni', 'tekrar', 'vazgec'][secim] || 'vazgec';
-}
-
-/** Üzerine yazmadan önce: dosya yazılabilir mi (başka program kilitlemiş mi)? Çekirdek yanıt veremezse true sayılır. */
 export async function yazilabilirMi(baglam, yol) {
-  try { const r = await baglam.cekirdek('dosya_erisim', { yol }); return r ? { okunur: r.okunur !== false, yazilir: r.yazilir !== false } : { okunur: true, yazilir: true }; }
-  catch { return { okunur: true, yazilir: true }; }
+  try {
+    const r = await baglam.cekirdek('dosya_erisim', { yol });
+    return r ? { okunur: r.okunur !== false, yazilir: r.yazilir !== false, saltOkunur: r.saltOkunur === true } : { okunur: true, yazilir: true, saltOkunur: false };
+  } catch { return { okunur: true, yazilir: true, saltOkunur: false }; }
 }
 
 /**
  * Üzerine yazılan dosyanın açık sekmesini diskteki güncel haliyle yeniden açar (aynı sayfada). Sekmede kaydedilmemiş değişiklik
- * varsa önce sorar. Döner: 'yenilendi' | 'yok' (sekme zaten kapalı) | false (vazgeçildi ya da kapatılamadı).
- * @param {{soruAyrintisi?:string, ac?:boolean}} [s] ac=false: yalnızca kapatır (çağıran açar)
+ * varsa önce sorar (sormadan: kullanıcı yazmadan önce onayladı). Döner: 'yenilendi' | 'yok' (sekme zaten kapalı) | false (vazgeçildi
+ * ya da kapatılamadı).
+ * @param {{soruAyrintisi?:string, ac?:boolean, sormadan?:boolean}} [s] ac=false: yalnızca kapatır (çağıran açar)
  */
-export async function sekmeyiYenile(baglam, belge, { soruAyrintisi, ac = true } = {}) {
+export async function sekmeyiYenile(baglam, belge, { soruAyrintisi, ac = true, sormadan = false } = {}) {
   if (!belge || (belge.el && !belge.el.isConnected)) return 'yok';
   if (typeof baglam.belgeKapat !== 'function') return false;
-  if (belge.degisti) {
+  if (belge.degisti && !sormadan) {
     const { secim } = await baglam.mesajKutusu({ tur: 'warning', mesaj: `"${belge.ad}" belgesinde kaydedilmemiş değişiklikler var.`, ayrinti: soruAyrintisi || 'Belge diskteki güncel haliyle yeniden açılırsa bu değişiklikler atılır.', dugmeler: ['Değişiklikleri at ve yeniden aç', 'Vazgeç'], varsayilan: 1, iptal: 1 });
     if (secim !== 0) return false;
   }
@@ -860,6 +942,21 @@ export async function sekmeyiYenile(baglam, belge, { soruAyrintisi, ac = true } 
   if (!(await baglam.belgeKapat(belge.id, { zorla: true }))) return false;
   if (ac) await baglam.dosyaAc(belge.yol, { arkaPlanda: false, sayfa });
   return 'yenilendi';
+}
+
+/**
+ * Yeni belge çıktısını gösterir. Hedef bir sekmede zaten açıksa (var olan dosyanın üzerine yazıldı) o sekme diskteki yeni haliyle
+ * yeniden açılır: yoksa sekme eski xref'leri tutan bayat içeriği gösterir ve sonraki kaydı bozar (0.1.1 bayat sekme mantığı;
+ * kaydedilmemiş değişiklik varsa varOlanaYazmaSor'da onaylanmadıysa sorulur). Değilse yeni sekmede açılır.
+ * Döner: true | false (sekme dosyanın önceki halini gösteriyor; kullanıcıya bildirildi).
+ */
+export async function ciktiyiAc(baglam, hedef, { cikti, soruAyrintisi } = {}) {
+  const acik = acikBelge(baglam, hedef);
+  const r = acik ? await sekmeyiYenile(baglam, acik, { soruAyrintisi, sormadan: !!cikti?.onaylandi?.(hedef) }).catch(() => false) : 'yok';
+  if (r === 'yok') { await baglam.dosyaAc(hedef, { arkaPlanda: false }); return true; }
+  if (r) return true;
+  baglam.bildir(`"${acik.ad}" sekmesi dosyanın önceki halini gösteriyor; notlarda değişiklik yapmadan önce sekmeyi kapatıp yeniden açın.`, 8000);
+  return false;
 }
 
 // ---------------------------------------------------------------- belge yardımcıları

@@ -1,11 +1,14 @@
 // Döndür ve kaydet: Tüm sayfalar / Geçerli sayfa / Sayfa aralığı × 90° saat yönü / 90° tersi / 180°; standart kaydetme seçimi
-// ("Yeni belge olarak kaydet" | "Üzerine yaz", ortak.js kayitSecimi).
-// Çekirdek dondur_kaydet {yol, hedef, sayfalar, derece}: özgün dosyanın hedef klasördeki geçici kopyasına artımlı yazar (e-imzalı
-// baytlar, ekler, belge bilgileri korunur), sonra atomik olarak hedefe koyar; yedek alınmaz. Dosya kilitliyse özgün dosya
-// değişmez. Üzerine yazılınca açık sekme aynı sayfada yeniden açılır (kaydedilmemiş değişiklik varsa önce sorulur).
+// ("Yeni belge olarak kaydet" | "Üzerine yaz", ortak.js kayitSecimi; varsayılan her araçta "Yeni belge olarak kaydet").
+//  - Üzerine yaz: tarif üretir → baglam.sayfaTarifiUygula(belge, tarif, 'Sayfaları döndür') → baglam.kaydet(belge) (Ctrl+S ile aynı
+//    kayıt yolu: yalnızca döndürme değiştiyse artımlı yazılır, e-imzalı baytlar korunur; yedek alınmaz). Döndürme geri alma yığınına
+//    girer (Ctrl+Z ile geri alınıp yeniden kaydedilebilir); sekme yeniden açılmaz, geri alma geçmişi ve sekme sırası korunur. Dosya
+//    başka programda kilitliyse ya da salt okunursa önceden sorulur, sekmeye dokunulmaz.
+//  - Yeni belge: çekirdek dondur_kaydet {yol, hedef, sayfalar, derece} özgün dosyanın hedef klasördeki geçici kopyasına artımlı yazar
+//    (e-imzalı baytlar, ekler, belge bilgileri korunur), sonra atomik olarak hedefe koyar; özgün dosya ve sekme değişmez.
 import {
-  pencereAc, pencereAcikMi, IslemIlerleme, sayfaListesiCoz, belgeTarifi, anaKaynakMi, hataMetni, oge, dosyaAdi, yolAyni, sayiMetni,
-  degisiklikleriSor, kayitSecimi, varOlanaYazmaSor, uzerineYazmaHatasi, yazilabilirMi, kilitliHataMi, sekmeyiYenile,
+  pencereAc, pencereAcikMi, IslemIlerleme, sayfaListesiCoz, belgeTarifi, tarifDisari, anaKaynakMi, hataMetni, oge, dosyaAdi, sayiMetni,
+  degisiklikleriSor, kayitSecimi, kilitliHataMi, ciktiyiAc,
 } from './ortak.js';
 
 export class DondurPenceresi {
@@ -63,8 +66,10 @@ export class DondurPenceresi {
         for (const o of govde.querySelectorAll('.dondur-yon')) o.classList.toggle('secili', o === y);
       });
     }
-    // Döndürme eskiden sekmedeki belgeye uygulanıp kaydediliyordu: varsayılan "Üzerine yaz"
-    this.kayit = kayitSecimi({ baglam: this.baglam, belge: this.belge, ek: 'döndürülmüş', kip: 'uzerine', diyalogBasligi: 'Döndürülmüş PDF' });
+    this.kayit = kayitSecimi({
+      baglam: this.baglam, belge: this.belge, ek: 'döndürülmüş', diyalogBasligi: 'Döndürülmüş PDF',
+      uzerineMetni: `Döndürme "${dosyaAdi(this.belge.yol)}" belgesine uygulanıp doğrudan kaydedilir; yedek alınmaz, Ctrl+Z ile geri alınabilir.`,
+    });
     govde.querySelector('.dondur-kayit').append(this.kayit.el);
     this.pencere = pencereAc({
       baslik: 'Döndür ve kaydet', govde, genislik: 540, anahtar: 'dondur', sinif: 'dondur-pencere',
@@ -110,31 +115,25 @@ export class DondurPenceresi {
     } finally { this._suruyor = false; }
   }
 
-  /** Bir deneme; kilitli dosya sorusunda yeniden denenecekse true döner. */
+  /** Bir deneme; kilitli / salt okunur dosya sorusunda yeniden denenecekse true döner. */
   async _uygulaBir() {
     const { baglam, belge } = this;
     if (!this.dogrula()) return false;
     this.pencere.hataGoster('');
+    // Önce kaydetme seçiminin denetimi: yazılacak dosya kilitli ya da salt okunursa sekmeye de dosyaya da dokunulmadan sorulur
+    const denetim = await this.kayit.denetle();
+    if (this.pencere.kapali || denetim === 'vazgec') return false;
+    if (denetim instanceof Error) return this.kayit.hataSor(denetim);
+    const { sayfalar, hata } = this.secilenSayfalar();
+    if (hata || !sayfalar.length) { this.dogrula(); return false; }
+    const yon = this.derece === 90 ? '90° saat yönünde' : this.derece === 270 ? '90° saat yönünün tersine' : '180°';
+    const adet = `${sayiMetni(sayfalar.length)} sayfa`;
+    if (this.kayit.uzerineMi()) return this._sekmedeUygula(sayfalar, yon, adet);
+
     const numaralarAyni = this._numaralarDosyaylaAyni();
     if ((await degisiklikleriSor(baglam, belge, 'Döndürme', numaralarAyni ? {} : { yalnizKaydet: true, neden: 'Sayfa düzeninde kaydedilmemiş değişiklik olduğundan sayfa numaraları dosyadakiyle uyuşmuyor.' })) === 'vazgec') return false;
     if (this.pencere.kapali) return false;
-    const { sayfalar, hata } = this.secilenSayfalar();
-    if (hata || !sayfalar.length) { this.dogrula(); return false; }
-
-    await this.kayit.hazir;
     const hedef = this.kayit.hedef();
-    const uzerine = this.kayit.kip() === 'uzerine' || yolAyni(hedef, belge.yol);
-    if (uzerine) {
-      const erisim = await yazilabilirMi(baglam, belge.yol);
-      if (!erisim.okunur || !erisim.yazilir) return this._kilitSorusu(new Error(erisim.okunur ? 'yazılamadı' : 'okunamadı'));
-    } else {
-      if (!this.kayit.cikti.ad()) { baglam.bildir('Dosya adı girin.'); this.kayit.cikti.odakla(); return false; }
-      if (!(await varOlanaYazmaSor(baglam, this.kayit.cikti, hedef))) return false;
-    }
-    if (this.pencere.kapali) return false;
-
-    const yon = this.derece === 90 ? '90° saat yönünde' : this.derece === 270 ? '90° saat yönünün tersine' : '180°';
-    const adet = `${sayiMetni(sayfalar.length)} sayfa`;
     this.pencere.el.classList.add('mesgul');
     this.pencere.dugmeAyarla('uygula', { devre: true });
     let kilit = null;
@@ -144,31 +143,55 @@ export class DondurPenceresi {
       }, { baslangicMesaji: 'Döndürülüyor…' });
       this.ilerleme.gizle();
       await this.pencere.kapat('tamam');
-      if (uzerine) {
-        const r = await sekmeyiYenile(baglam, belge, { soruAyrintisi: 'Belge diskteki döndürülmüş haliyle yeniden açılırsa bu değişiklikler atılır.' }).catch(() => false);
-        baglam.bildir(r ? `${adet} ${yon} döndürüldü ve kaydedildi.` : `${adet} ${yon} döndürüldü ve kaydedildi. Açık sekme dosyanın önceki halini gösteriyor; güncel hali için sekmeyi kapatıp yeniden açın.`, r ? 3500 : 8000);
-      } else {
-        await baglam.dosyaAc(hedef, { arkaPlanda: false });
-        baglam.bildir(`${adet} ${yon} döndürüldü: ${dosyaAdi(hedef)}`, 4000);
-      }
+      // Var olan (bir sekmede açık) dosyanın üzerine yazıldıysa o sekme yeni haliyle yeniden açılır, yoksa yeni sekmede açılır
+      await ciktiyiAc(baglam, hedef, { cikti: this.kayit.cikti, soruAyrintisi: 'Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.' });
+      baglam.bildir(`${adet} ${yon} döndürüldü: ${dosyaAdi(hedef)}`, 4000);
     } catch (e) {
       this.ilerleme.gizle();
       if (kilitliHataMi(e)) kilit = e;
-      else this.pencere.hataGoster('Döndürme başarısız: ' + hataMetni(e) + (uzerine ? '\nÖzgün dosya değiştirilmedi.' : ''));
+      else this.pencere.hataGoster('Döndürme başarısız: ' + hataMetni(e));
     } finally {
       if (!this.pencere.kapali) {
         this.pencere.el.classList.remove('mesgul');
         this.dogrula();
       }
     }
-    return kilit && !this.pencere.kapali ? this._kilitSorusu(kilit) : false;
+    // Soru yazılamayan dosyayı (özgün dosya okunamadı ya da yeni belge hedefi kilitli) adıyla söyler
+    return kilit && !this.pencere.kapali ? this.kayit.hataSor(kilit) : false;
   }
 
-  async _kilitSorusu(e) {
-    const secim = await uzerineYazmaHatasi(this.baglam, this.belge, e);
-    if (this.pencere.kapali || secim === 'vazgec') return false;
-    if (secim === 'yeni') { this.kayit.kipAyarla('yeni'); await this.kayit.adYenile(); }
-    return true;
+  /**
+   * Üzerine yaz: döndürme sekmedeki belgeye geri alınabilir komut olarak uygulanır ve belge kaydedilir (Ctrl+S ile aynı yol; sekmedeki
+   * öteki kaydedilmemiş değişiklikler de kaydedilir). Kayıt başarısız olursa belgeKaydet kendi sorusunu gösterir; döndürme sekmede kalır.
+   */
+  async _sekmedeUygula(sayfalar, yon, adet) {
+    const { baglam, belge } = this;
+    if (belge.kaydediliyor) { baglam.bildir('Kaydediliyor, lütfen bekleyin.'); return false; }
+    if (!belge.gorunum?.sayfaSayisi || (belge.el && !belge.el.isConnected)) { this.pencere.hataGoster('Belge açık değil ya da henüz yüklenmedi.'); return false; }
+    const secili = new Set(sayfalar);
+    // Tarif: yalnızca seçilen sayfaların ek döndürmesine (dosyadaki /Rotate'e ek) derece eklenir; diğerleri olduğu gibi kalır
+    // (sekmede uygulanmış ama kaydedilmemiş bir döndürme varsa o korunur).
+    const tarif = tarifDisari(belgeTarifi(belge).map((t, i) => (secili.has(i + 1)
+      ? { ...t, dondurme: (((t.dondurme || 0) + this.derece) % 360 + 360) % 360 }
+      : t)));
+    this.pencere.el.classList.add('mesgul');
+    this.pencere.dugmeAyarla('uygula', { devre: true });
+    try {
+      if (typeof baglam.sayfaTarifiUygula !== 'function') throw new Error('Sayfa düzeni komutu (sayfaTarifiUygula) bağlanmamış.');
+      await baglam.sayfaTarifiUygula(belge, tarif, this.kapsam === 'tum' ? 'Tüm sayfaları döndür' : sayfalar.length === 1 ? 'Sayfayı döndür' : 'Sayfaları döndür');
+    } catch (e) {
+      this.pencere.hataGoster('Döndürme başarısız: ' + hataMetni(e));
+      return false;
+    } finally {
+      if (!this.pencere.kapali) {
+        this.pencere.el.classList.remove('mesgul');
+        this.dogrula();
+      }
+    }
+    await this.pencere.kapat('tamam');
+    const kaydedildi = await baglam.kaydet(belge);
+    baglam.bildir(kaydedildi ? `${adet} ${yon} döndürüldü ve kaydedildi.` : `${adet} ${yon} döndürüldü; kaydedilmedi.`, kaydedildi ? 3500 : 6000);
+    return false;
   }
 }
 
