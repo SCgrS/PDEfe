@@ -308,7 +308,9 @@ def not_ekle(doc, page, n):
         raise ValueError("desteklenmeyen not türü: %s" % tur)
     # Tarihler
     doc.xref_set_key(a.xref, "M", _pdf_metin(_pdf_tarih()))
-    doc.xref_set_key(a.xref, "CreationDate", _pdf_metin(_pdf_tarih()))
+    # Oluşturma tarihi modelden (silmesi geri alınıp yeniden yazılan not ilk tarihini korur)
+    olusturma = n.get("olusturma")
+    doc.xref_set_key(a.xref, "CreationDate", _pdf_metin(olusturma if isinstance(olusturma, str) and olusturma.startswith("D:") else _pdf_tarih()))
     # Benzersiz ad (referans okuyucu gibi UUID); PyMuPDF'in "fitz-A0" adı her belgede yinelenir. n["ad"] kullanılmaz: çekirdeğin notlar
     # yanıtındaki "ad" /NM değil /Name'dir (yapışkan not simgesi, ör. "Comment")
     doc.xref_set_key(a.xref, "NM", _pdf_metin(str(uuid.uuid4())))
