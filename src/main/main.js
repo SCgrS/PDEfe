@@ -1,5 +1,6 @@
 // PDEfe ana süreç: pencere, tek örnek, pdefe:// protokolü, menü, IPC köprüsü.
 import { app, BrowserWindow, protocol, net, ipcMain, dialog, Menu, shell, nativeTheme, clipboard, screen } from 'electron';
+import { TEST } from './gelistirme.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -96,12 +97,12 @@ function pencereOlustur() {
   const koyu = temaKoyuMu();
   const kayitli = ayarAl('pencere') || {};
   const ekran = screen.getPrimaryDisplay().workAreaSize;
-  const genislik = Math.min(kayitli.genislik || 1280, ekran.width);
-  const yukseklik = Math.min(kayitli.yukseklik || 860, ekran.height);
+  const genislik = TEST.boyut.length === 2 ? TEST.boyut[0] : Math.min(kayitli.genislik || 1280, ekran.width);
+  const yukseklik = TEST.boyut.length === 2 ? TEST.boyut[1] : Math.min(kayitli.yukseklik || 860, ekran.height);
 
   pencere = new BrowserWindow({
     width: genislik, height: yukseklik,
-    x: kayitli.x, y: kayitli.y,
+    x: TEST.konum.length === 2 ? TEST.konum[0] : kayitli.x, y: TEST.konum.length === 2 ? TEST.konum[1] : kayitli.y,
     minWidth: 720, minHeight: 480,
     show: false,
     title: 'PDEfe',
@@ -120,8 +121,8 @@ function pencereOlustur() {
 
   pencere.loadURL('pdefe://app/src/renderer/index.html');
   pencere.once('ready-to-show', () => {
-    if (kayitli.buyutulmus) pencere.maximize();
-    pencere.show();
+    if (kayitli.buyutulmus && TEST.konum.length !== 2) pencere.maximize();
+    if (TEST.konum.length === 2) pencere.showInactive(); else pencere.show();
   });
   pencere.on('close', (e) => {
     if (!pencere) return;
