@@ -39,6 +39,8 @@ const izgaraya = (v, dpr) => Math.round(v * dpr) / dpr;
 const tuvalBirak = (c) => { c.width = 0; c.height = 0; };
 /** Açıyı 0..359'a indirger. */
 const aciyaIndir = (d) => ((d % 360) + 360) % 360;
+/** Eleman (metin katmanı) belgedeki boş olmayan seçimle kesişiyor mu. */
+const secimdeMi = (el) => { const sec = window.getSelection(); return !!el && !!sec && sec.rangeCount > 0 && !sec.isCollapsed && sec.getRangeAt(0).intersectsNode(el); };
 /** PDF.js sayfa nesnesinin taban döndürmesi (sayfa sözlüğündeki /Rotate, 0/90/180/270); sayfa nesnesi yoksa 0. */
 const tabanAl = (pdfSayfa) => aciyaIndir(pdfSayfa?.rotate || 0);
 
@@ -327,9 +329,11 @@ export class Goruntuleyici extends EventTarget {
     if (s.canvas) { tuvalBirak(s.canvas); s.canvas.remove(); s.canvas = null; }
     if (s.hamCanvas) { tuvalBirak(s.hamCanvas); s.hamCanvas = null; }
     s.cizim = null;
-    if (s.textLayer) { s.textLayer.cancel(); s.textLayer = null; }
-    if (katmanVar) for (const k of s.el.querySelectorAll('.textLayer, .baglanti-katmani, .form-katmani')) k.remove();
-    s.metinOlcek = 0;
+    // Seçimin uğradığı sayfanın metin katmanı tutulur: çok sayfalı seçimde çapanın katmanı boşaltılırsa seçim bozulur, arada kalanlar kopyada eksik kalırdı
+    const metinKalir = !!s.textLayer && s.el.isConnected && secimdeMi(s.el.querySelector(':scope > .textLayer'));
+    if (s.textLayer && !metinKalir) { s.textLayer.cancel(); s.textLayer = null; }
+    if (katmanVar) for (const k of s.el.querySelectorAll(metinKalir ? '.baglanti-katmani, .form-katmani' : '.textLayer, .baglanti-katmani, .form-katmani')) k.remove();
+    if (!metinKalir) s.metinOlcek = 0;
     s.el.classList.remove('yukleniyor');
     // PDF.js sayfa nesnelerini (işlem listesi, çözülmüş görseller, ImageBitmap) bırakır; yoksa taranmış belgede kaydırdıkça bellek
     // sınırsız büyür. Süren çizim varsa (kopyalar pdfSayfa'yı paylaşır) PDF.js bitince temizler, yeni render() bekleyeni iptal eder.
@@ -948,6 +952,8 @@ export class Goruntuleyici extends EventTarget {
       return;
     }
     if (s.textLayer) { s.textLayer.cancel(); s.textLayer = null; }
+    // Seçim ve arama vurgusunun sayfayla karışımı (stil.css): koyulaştırılmış sayfada screen. koyuSayfa yüklemeden önce doğrudan atanabildiği için burada da eşitlenir
+    this.kok.classList.toggle('koyu-sayfa', this.koyuSayfa);
     const eski = s.el.querySelector('.textLayer');
     if (eski) eski.remove();
     const katman = document.createElement('div');
@@ -966,6 +972,22 @@ export class Goruntuleyici extends EventTarget {
     this.dispatchEvent(new CustomEvent('metinKatmani', { detail: { sayfa: i + 1 } }));
   }
 
+  /**
+   * Sayfanın metin katmanını tuvalini çizmeden kurar (yoksa): sürükleyerek seçimde çapa ile odak arasında kalıp hızlı kaydırmada
+   * hiç çizilmemiş sayfalar seçime (ve kopyaya) girsin. Döner: kuruldu mu.
+   */
+  async metinKatmaniHazirla(i) {
+    const s = this.sayfalar[i];
+    if (!s || s.bos || s.textLayer || s._metinHazirlik || !this.yerlesim[i] || this.yok) return false;
+    s._metinHazirlik = true;
+    try {
+      const p = await this.sayfaAl(i);
+      if (this.yok || this.sayfalar[i] !== s || s.textLayer || !this.yerlesim[i]) return false;
+      await this.metinKatmaniCiz(i, p, this.olcek, this.toplamDondurme(s, tabanAl(p)));
+      return !!s.textLayer;
+    } finally { s._metinHazirlik = false; }
+  }
+
   sayfaBosalt(i) { const s = this.sayfalar[i]; if (s) this.girdiBosalt(s); }
 
   hepsiniYenidenCiz() {
@@ -975,6 +997,7 @@ export class Goruntuleyici extends EventTarget {
 
   koyuSayfaAyarla(deger) {
     this.koyuSayfa = !!deger;
+    this.kok.classList.toggle('koyu-sayfa', this.koyuSayfa);   // metin katmanı karışımı (stil.css)
     for (const s of this.sayfalar) { this.yerTutucuRengi(s); if (s.hamCanvas && s.cizim) this.tuvalGoster(s); }
   }
 

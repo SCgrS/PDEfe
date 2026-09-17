@@ -3,7 +3,7 @@
 // komut deseniyle geri al/yinele ve kaydetme farkı (diff).
 import { CSS_BIRIM, yolAnahtari } from './goruntuleyici.js';
 import { Komut } from './komutlar.js';
-import { secimDikdortgenleri, secimMetinKutulari, satirlaraBirlestir } from './metin.js';
+import { secimDikdortgenleri, secimMetinKutulari, satirlaraBirlestir, secimBaslangicSayfasi } from './metin.js';
 import { turAdi, tarihBicimle } from './panel.js';
 
 export const VURGU_RENKLERI = [
@@ -450,9 +450,10 @@ export class NotYoneticisi extends EventTarget {
     if (e.target.closest('.yazi-duzenleyici, .yazi-bicim, .yazi-tutamac, .yazi-boyut, .not-balonu, #secim-cubugu')) return;
     const hedef = e.target.closest('[data-id]');
     const i = this.sayfaIdx(e.target);
-    // Metin seçimi: metin üzerine basış yeni seçim başlatır (çubuk bırakılana dek gizli); başka her yere basış seçimi kaldırır
+    // Metin seçimi: metni olan sayfanın metnine ya da boş yerine basış yeni seçim başlatır (çubuk bırakılana dek gizli; bkz. metin.js
+    // surukleSecimiBagla); başka her yere basış seçimi kaldırır
     const aracTiki = !hedef && i >= 0 && (this.arac === 'not' || this.arac === 'yazi');
-    if (!hedef && !aracTiki && e.target.closest('.textLayer span:not([role="img"])')) this.secimBaslat();
+    if (!hedef && !aracTiki && secimBaslangicSayfasi(e.target)) this.secimBaslat();
     else this.secimTemizle();
     if (this.duzenleyici && !hedef) { this.duzenleyiciBitir(true); }
     if (this.arac === 'not' && !hedef && i >= 0) { e.preventDefault(); this.yapiskanNotKoy(i, e); return; }
@@ -503,7 +504,7 @@ export class NotYoneticisi extends EventTarget {
 
   pointerOver(e) {
     const hedef = e.target.closest('[data-id]');
-    if (!hedef || this._surukle) return;
+    if (!hedef || this._surukle || this._fareBekleniyor) return;   // sürükleyerek metin seçerken notun üstünden geçmek balon açmaz
     const n = this.notlar.get(hedef.dataset.id);
     if (!n || n.tur === 'FreeText' && (n.yeni || n.yazi)) return;
     clearTimeout(this._hoverZaman);
