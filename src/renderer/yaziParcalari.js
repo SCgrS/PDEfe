@@ -61,6 +61,18 @@ export function hepsindeMi(parcalar, a, b, anahtar) {
   return true;
 }
 
+/**
+ * Biçim kararı için [a, b) aralığı: boşluk olmayan karakter içeriyorsa baştaki ve sondaki boşluklar (satır sonu dahil) dışarıda kalır
+ * (Word gibi; Windows'ta çift tık sözcüğü sondaki boşlukla seçer). Yalnızca boşluksa aralık olduğu gibi döner.
+ */
+export function bicimAraligi(parcalar, a, b) {
+  const metin = duzMetin(parcalar);
+  let x = Math.max(0, a), y = Math.min(b, metin.length);
+  while (x < y && /\s/.test(metin[x])) x++;
+  while (y > x && /\s/.test(metin[y - 1])) y--;
+  return x < y ? [x, y] : [a, b];
+}
+
 /** [a, b) aralığında biçimi açar / kapatır; anahtar 'renk' ise deger renk ya da null. */
 export function stilDegistir(parcalar, a, b, anahtar, deger) {
   const { metin, stiller } = ac(parcalar);
@@ -122,7 +134,7 @@ export function uzlastir(parcalar, yeniMetin, varsayilanRenk = null) {
 
 /**
  * Yazı biçiminin kanonik biçimi (karşılaştırma ve kayıt için sabit anahtar sırası):
- * { tip, boyut, renk, arka, kenarlik, [kenarlikRengi], [hiza], parcalar }. Parçası olmayan eski (0.1.1) kaydın kutu düzeyindeki
+ * { tip, boyut, renk, arka, kenarlik, [kenarlikRengi], [hiza], [donus], parcalar }. Parçası olmayan eski (0.1.1) kaydın kutu düzeyindeki
  * kalin / italik / altiCizili bayrakları tek parçaya çevrilir; parçalar metinle uyuşmuyorsa (ör. içerik balondan değişti) uydurulur.
  */
 export function yaziKanonik(yazi, icerik) {
@@ -133,6 +145,9 @@ export function yaziKanonik(yazi, icerik) {
   const k = { tip: y.tip || 'Segoe UI', boyut: +y.boyut || 12, renk, arka: y.arka ? String(y.arka).toLowerCase() : null, kenarlik: !!y.kenarlik };
   if (y.kenarlikRengi) k.kenarlikRengi = String(y.kenarlikRengi).toLowerCase();
   if (y.hiza === 'orta' || y.hiza === 'sag') k.hiza = y.hiza;
+  // Metin yönü (kullanıcı uzayında, saat yönünün tersine derece; dosyada görünüm akışının /Matrix'i): 0 değilse
+  const donus = ((Math.round((+y.donus || 0) / 90) * 90) % 360 + 360) % 360;
+  if (donus) k.donus = donus;
   k.parcalar = uzlastir(kaynak, metin, renk);
   return k;
 }
@@ -177,6 +192,9 @@ export function sonBosluklariCizgisizYap(el) {
     return q.length ? q[ilk ? 0 : q.length - 1] : null;
   };
   const esik = (parseFloat(getComputedStyle(el).fontSize) || 12) * 0.6;   // yarım satır (satır yüksekliği 1.2)
+  // Eğik (döndürülmüş) yazıda satırlar ekranda başka yönde ilerler: ölçüm döndürmesiz yapılır (dönüşüm dizilimi değiştirmez)
+  const donusum = el.style.transform;
+  if (donusum) el.style.transform = 'none';
   const araliklar = [];
   for (let g = 0; g < metin.length; g++) {
     if (metin[g] !== ' ') continue;
@@ -195,6 +213,7 @@ export function sonBosluklariCizgisizYap(el) {
     }
     g = e;
   }
+  if (donusum) el.style.transform = donusum;
   if (!araliklar.length) return;
   for (const { t, bas } of dugumler) {
     const span = t.parentElement;

@@ -125,6 +125,8 @@ async function dosyaAc(yol, secenek = {}) {
   belge.yigin.addEventListener('degisti', () => kirliGuncelle(belge));
   belge.notlar.addEventListener('degisti', () => { kirliGuncelle(belge); if (aktifId === id) panel.yorumlariYenile(); });
   belge.notlar.addEventListener('arac', (e) => { if (aktifId === id) aracDugmeleriniGuncelle(e.detail.arac); });
+  // Yazı düzenleyicisi açılınca, kapanınca ve geçmişi değişince Geri al / Yinele düğmeleri; kapanınca beklettiği otomatik kayıt yeniden kurulur
+  belge.notlar.addEventListener('duzenleyici', () => { if (!belge.notlar.duzenleyici && belge.degisti) kirliGuncelle(belge); else if (aktifId === id) geriAlDugmeleriniGuncelle(belge); });
   belge.notlar.addEventListener('uyari', (e) => { if (aktifId === id) bildir(e.detail.metin, 6000); });
 
   try {
@@ -196,7 +198,9 @@ function kirliGuncelle(b) {
   sekmeler.guncelle(b.id, { degisti: b.degisti });
   if (aktifId === b.id) { durum.degisiklikYaz(b.degisti); geriAlDugmeleriniGuncelle(b); }
   $('#arac-cubugu [data-komut="dosya.kaydet"]').disabled = !aktif()?.degisti;
-  if (ayar.otomatikKaydet && b.degisti) { clearTimeout(b._otoKayit); b._otoKayit = setTimeout(() => { if (b.degisti && belgeler.has(b.id)) belgeKaydet(b, false, true); }, 1500); }
+  // Yazı düzenlenirken otomatik kayıt beklenir (kayıt düzenlemeyi uygulayıp kutuyu yazarken kapatırdı); düzenleme bitince not
+  // değişikliği kirliGuncelle'yi yeniden çağırır
+  if (ayar.otomatikKaydet && b.degisti) { clearTimeout(b._otoKayit); b._otoKayit = setTimeout(() => { if (b.degisti && belgeler.has(b.id) && !b.notlar?.duzenleyici) belgeKaydet(b, false, true); }, 1500); }
 }
 
 /** Kaydırmasız (tek/iki) düzende sayfa çevrilince artık gösterilmeyen sayfadaki not bırakılır: açık yazı düzenleyicisi kaydedilip
@@ -212,10 +216,12 @@ function gizlenenNotuBirak(b) {
 
 function geriAlDugmeleriniGuncelle(b) {
   const g = $('#dugme-geri-al'), y = $('#dugme-yinele');
-  const ga = b?.yigin?.geriAlinacak, yi = b?.yigin?.yinelenecek;
+  // Yazı düzenlenirken düğmeler düzenleyicinin kendi geçmişini gösterir (komut da ona gider; bkz. geriAlYinele)
+  const dg = b?.notlar?.duzenleyiciGecmisi();
+  const ga = dg ? dg.geri : b?.yigin?.geriAlinacak?.ad, yi = dg ? dg.ileri : b?.yigin?.yinelenecek?.ad;
   g.disabled = !ga; y.disabled = !yi;
-  g.title = ga ? `Geri al: ${ga.ad} (Ctrl+Z)` : 'Geri al (Ctrl+Z)';
-  y.title = yi ? `Yinele: ${yi.ad} (Ctrl+Y)` : 'Yinele (Ctrl+Y)';
+  g.title = ga ? `Geri al: ${ga} (Ctrl+Z)` : 'Geri al (Ctrl+Z)';
+  y.title = yi ? `Yinele: ${yi} (Ctrl+Y)` : 'Yinele (Ctrl+Y)';
 }
 
 function aracDugmeleriniGuncelle(arac) {
@@ -225,6 +231,7 @@ function aracDugmeleriniGuncelle(arac) {
 async function belgeKapat(id, secenek = {}) {
   const b = belgeler.get(id);
   if (!b) return true;
+  b.notlar?.duzenleyiciBitir(true);   // açık yazı düzenlemesi uygulanır: yazılan metin kaydetme sorusunda sayılsın
   // Süren kayıt yarıda kesilmesin (anlık kopya silinir, 'Kaydet' kaydediliyor koruması yüzünden sessizce false dönerdi); bitince degisti yeniden değerlendirilir
   await kayitBitmesiniBekle(b);
   if (!belgeler.has(id)) return true;   // beklerken başka yoldan kapatılmış
@@ -551,6 +558,17 @@ function baglantiyaGit(b, l) {
   }
 }
 
+/** Geri al (geri=true) / yinele: yazı düzenlenirken düzenleyicinin metnini (araç çubuğu düğmesi odağı alsa da, Düzen menüsünden de),
+ *  başka bir girdi kutusundaysa onun metnini, yoksa belgeyi. */
+function geriAlYinele(geri) {
+  const b = aktif(); if (!b) return;
+  const n = b.notlar, d = n?.duzenleyici, odak = document.activeElement;
+  if (girdideMi() && !(d && (odak === d.el || d.bicim.contains(odak)))) { document.execCommand(geri ? 'undo' : 'redo'); return; }
+  if (d) { if (geri) n.duzenleyiciGeriAl(); else n.duzenleyiciYinele(); return; }
+  const k = geri ? b.yigin.geriAl() : b.yigin.yinele();
+  if (k) durum.mesajYaz((geri ? 'Geri alındı: ' : 'Yinelendi: ') + k.ad);
+}
+
 // ---------------------------------------------------------------- komutlar
 const komutlar = {
   'dosya.ac': async () => { const yollar = await pdefe.cagir('dosya:acDiyalog'); for (const y of yollar) await dosyaAc(y); },
@@ -563,8 +581,8 @@ const komutlar = {
   'dosya.klasordeGoster': () => { const b = aktif(); if (b) pdefe.cagir('kabuk:klasordeGoster', b.yol); },
   'dosya.yazdir': () => { const b = aktif(); if (!b) { bildir('Yazdırılacak belge yok.'); return; } return yazdir({ cekirdek, pdefe, mesajKutusu, bildir, kaydet: (belge) => belgeKaydet(belge) }, b); },
   'sekme.kapat': () => { if (aktifId) belgeKapat(aktifId); else pdefe.cagir('pencere:kapat'); },
-  'duzen.geriAl': () => { const b = aktif(); if (!b) return; if (girdideMi()) { document.execCommand('undo'); return; } const k = b.yigin.geriAl(); if (k) durum.mesajYaz('Geri alındı: ' + k.ad); },
-  'duzen.yinele': () => { const b = aktif(); if (!b) return; if (girdideMi()) { document.execCommand('redo'); return; } const k = b.yigin.yinele(); if (k) durum.mesajYaz('Yinelendi: ' + k.ad); },
+  'duzen.geriAl': () => geriAlYinele(true),
+  'duzen.yinele': () => geriAlYinele(false),
   'duzen.tumunuSec': () => tumunuSec(),
   'duzen.bul': (metin) => { if (aktif()) arama.ac(typeof metin === 'string' ? metin : (secimHamMetni().trim().split('\n')[0] || '')); },
   'duzen.bulSonraki': () => arama.git(1), 'duzen.bulOnceki': () => arama.git(-1),
@@ -616,9 +634,14 @@ try {
   komutlar['yardim.guncelle'] = () => guncelleme.denetle();
 } catch (e) { console.error('Güncelleme şeridi kurulamadı', e); }
 
+// Bu komutlar önce açık yazı düzenlemesini uygular (referans okuyucuda araç çubuğuna / menüye gitmek düzenlemeyi bitirir): araç, paylaş, yazdır
+// ve kaydet dosyadaki eski hâlle değil yazılan metinle çalışsın, belge değişmiş sayılsın; araç kapanınca basılan Esc metni atmasın.
+const DUZENLEMEYI_UYGULAYAN = /^(arac\.|dosya\.(kaydet|farkliKaydet|yazdir)$|sekme\.kapat$)/;
+
 function komutCalistir(id, veri) {
   const f = komutlar[id];
   if (!f) { console.warn('Bilinmeyen komut', id); return; }
+  if (DUZENLEMEYI_UYGULAYAN.test(id)) aktif()?.notlar?.duzenleyiciBitir(true);
   try { const r = f(veri); if (r && r.catch) r.catch((e) => { console.error(e); bildir('Hata: ' + hataMetni(e)); }); }
   catch (e) { console.error(e); bildir('Hata: ' + hataMetni(e)); }
 }
@@ -637,6 +660,7 @@ let _kapatmaIzni = null;
  *  Sürerken gelen ikinci istek (ör. ikinci kapatma isteği) aynı sonucu bekler; sorular iki kez açılmaz. */
 function kapatmayaIzinAl() {
   if (!_kapatmaIzni) _kapatmaIzni = (async () => {
+    for (const b of belgeler.values()) b.notlar?.duzenleyiciBitir(true);   // açık yazı düzenlemesi kaydetme sorusunda sayılsın
     for (const b of [...belgeler.values()]) {
       if (!belgeler.has(b.id)) continue;
       await kayitBitmesiniBekle(b);
@@ -657,6 +681,26 @@ function kapatmayaIzinAl() {
 }
 
 document.querySelectorAll('[data-komut]').forEach((el) => el.addEventListener('click', () => komutCalistir(el.dataset.komut, el.dataset.veri)));
+// Yazı düzenlenirken Geri al / Yinele düğmesine basmak odağı ve seçimi düzenleyicide bırakır. Pasif düğmede mousedown gelmez ve odak
+// gövdeye geçer: basılınca odak düzenleyicideyse hemen geri verilir (imleç kaybolup yazılanlar başka yere gitmesin)
+for (const d of [$('#dugme-geri-al'), $('#dugme-yinele')]) {
+  d.addEventListener('mousedown', (e) => { if (aktif()?.notlar?.duzenleyici) e.preventDefault(); });
+  d.addEventListener('pointerdown', () => {
+    const n = aktif()?.notlar, ed = n?.duzenleyici;
+    if (ed && document.activeElement === ed.el) setTimeout(() => { if (n.duzenleyici === ed) n.duzenleyiciOdakla(); }, 0);
+  });
+}
+// Araçlar düğmesi (fare ya da klavyeyle açma) açık yazı düzenlemesini uygular; pencere kendi dinleyicisinden önce (yakalama evresi)
+$('#dugme-araclar').addEventListener('pointerdown', (e) => { if (e.button === 0) aktif()?.notlar?.duzenleyiciBitir(true); }, true);
+$('#dugme-araclar').addEventListener('keydown', (e) => { if (['Enter', ' ', 'ArrowDown'].includes(e.key)) aktif()?.notlar?.duzenleyiciBitir(true); }, true);
+// Yazı düzenlenirken düzenleyici ve biçim çubuğu dışındaki bir girdiye geçmek (sayfa / yakınlaştırma kutusu, Bul, panel) düzenlemeyi
+// uygular (referans okuyucuda başka yere gitmek düzenlemeyi bitirir): o girdide basılan Esc yazıyı sessizce atmasın, Geri al düğmesi ve menüsü
+// girdideyken düzenleyicinin geçmişini gösterip girdinin metnini geri almasın
+document.addEventListener('focusin', (e) => {
+  const n = aktif()?.notlar, d = n?.duzenleyici, t = e.target;
+  if (!d || d.el.contains(t) || d.bicim.contains(t)) return;
+  if (girdideMi(t) || t.tagName === 'SELECT') n.duzenleyiciBitir(true);
+});
 document.querySelectorAll('#not-araclari [data-arac]').forEach((el) => {
   el.addEventListener('click', () => komutCalistir('not.arac', el.dataset.arac));
   if (el.dataset.arac === 'vurgu') el.addEventListener('contextmenu', async (e) => {
@@ -752,8 +796,7 @@ panel.addEventListener('sekme', (e) => ayarKoy('solPanelSekme', e.detail.sekme))
 panel.addEventListener('durum', () => aktif()?.gorunum.boyutDegisti());
 
 // ---------------------------------------------------------------- klavye
-function girdideMi() {
-  const a = document.activeElement;
+function girdideMi(a = document.activeElement) {
   return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable);
 }
 
@@ -779,7 +822,8 @@ document.addEventListener('keydown', (e) => {
     if (document.querySelector('.ayarlar-ortusu')) { ayarlarPenceresiKapat(); return; }
     if (document.querySelector('.arac-pencere, .diyalog-ortusu')) return;   // pencere kendi Esc'ini işler
     const n = aktif()?.notlar;
-    if (n?.duzenleyici) { n.duzenleyiciBitir(false); return; }
+    // Başka bir girdideki Esc (Bul, sayfa kutusu) o girdinindir, yazıyı atmaz (odak girdiye geçerken düzenleme zaten uygulanır)
+    if (n?.duzenleyici && !(girdideMi(e.target) && !n.duzenleyici.el.contains(e.target))) { n.duzenleyiciBitir(false); return; }
     if (girdideMi()) { document.activeElement.blur(); aktif()?.gorunum.kaydirici.focus(); return; }
     if (n?.arac) { n.aracSec(null); return; }
     if (n?.balon) { n.balonKapat(); return; }

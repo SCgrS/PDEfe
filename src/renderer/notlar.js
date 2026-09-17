@@ -7,7 +7,7 @@ import { secimDikdortgenleri, secimMetinKutulari, satirlaraBirlestir, secimBasla
 import { turAdi, notTurAdi, tarihBicimle } from './panel.js';
 import {
   yaziKanonik, parcalariCiz, duzMetin, stilAl, stilKonumda, hepsindeMi, stilDegistir, metinDegistir, uzlastir, domdanOku, ofsetAl, secimAl, secimKoy,
-  HIZA_CSS, sirala, sonBosluklariCizgisizYap,
+  HIZA_CSS, sirala, sonBosluklariCizgisizYap, bicimAraligi,
 } from './yaziParcalari.js';
 
 // İlk renk referans okuyucunun varsayılan vurgu rengi: /C [1 .819611 0]
@@ -16,6 +16,11 @@ export const VURGU_RENKLERI = [
   { ad: 'Yeşil', hex: '#7ee787' }, { ad: 'Mavi', hex: '#7cc4ff' }, { ad: 'Pembe', hex: '#ff9ad5' },
 ];
 export const YAZI_TIPLERI = ['Segoe UI', 'Arial', 'Times New Roman', 'Calibri'];
+// Yazı düzenleyicisindeki geri al / yinele adımlarının adları (araç çubuğu Geri al / Yinele ipuçları, ör. "Geri al: Yazma")
+const DUZENLEYICI_ADIMLARI = {
+  yaz: 'Yazma', sil: 'Silme', kalin: 'Kalın', italik: 'İtalik', alti: 'Altı çizili', renk: 'Yazı rengi', arka: 'Dolgu rengi',
+  tip: 'Yazı tipi', boyut: 'Boyut', dolgusuz: 'Dolgusuz', kenarlik: 'Kenarlık',
+};
 const NOT_RENGI = '#ffd100';                        // yapışkan not ve renksiz not için referans okuyucu varsayılanı
 const METINLE_NOT_KONUSU = 'Metinle İlgili Yorum Yap';   // referans okuyucunun (Türkçe) notlu vurgu konusu; /IT /HighlightNote ile yazılır
 const BALON_GOSTER_MS = 120;                        // üzerine gelince notun gösterilme gecikmesi
@@ -89,7 +94,7 @@ export class NotYoneticisi extends EventTarget {
     this.g.alan.addEventListener('pointerover', (e) => this.pointerOver(e));
     this.g.alan.addEventListener('pointerout', (e) => this.pointerOut(e));
     // Seçim bitişi: metin üzerindeki basıştan sonra belge düzeyinde pointerup izlenir (secimBaslat)
-    this.g.kaydirici.addEventListener('scroll', () => { this.balonKonumla(); this.secimCubuguKonumla(); }, { passive: true });
+    this.g.kaydirici.addEventListener('scroll', () => { this.balonKonumla(); this.secimCubuguKonumla(); this.duzenleyiciCubukKonumla(); }, { passive: true });
   }
 
   // ------------------------------------------------------------ yükleme ve model
@@ -275,6 +280,23 @@ export class NotYoneticisi extends EventTarget {
   }
   ptPx() { return this.g.olcek * CSS_BIRIM; }
 
+  /** Sayfanın ekrandaki açısı (0 / 90 / 180 / 270; /Rotate ve kaydedilmemiş döndürme dahil). */
+  sayfaAcisi(i) { const vp = this.vp(i); return vp ? ((Math.round(vp.rotation / 90) * 90) % 360 + 360) % 360 : 0; }
+
+  /**
+   * Yazının ekrandaki eğimi (saat yönünde derece): sayfa açısından metin yönü (yazi.donus) çıkarılır. Referans okuyucu yazının görünümünü
+   * dosyadaki gibi çizip sayfanın /Rotate'ini üstüne uygular: 0.1.1'in döndürülmüş sayfaya yazdığı (/Matrix'siz) yazı sayfayla
+   * birlikte yan döner, sayfa sonradan döndürülünce yazı da onunla döner. Yeni yazı ekrandaki sayfa açısıyla (dik) oluşturulur.
+   */
+  yaziEgimi(i, yazi) { return ((this.sayfaAcisi(i) - (+yazi?.donus || 0)) % 360 + 360) % 360; }
+
+  /** Yazı öğesini (yerli çizim ya da düzenleyici) sayfa içi px kutusu r'ye koyar: eğik yazıda öğe yazının kendi yönündeki boyutlarıyla
+   *  kutunun ortasına yerleşip döndürülür (ekrandaki kutusu yine r). */
+  yaziYerlestir(el, r, egim) {
+    const yan = egim === 90 || egim === 270, w = yan ? r.h : r.w, h = yan ? r.w : r.h;
+    Object.assign(el.style, { left: (r.x + (r.w - w) / 2) + 'px', top: (r.y + (r.h - h) / 2) + 'px', width: w + 'px', height: h + 'px', transform: egim ? `rotate(${egim}deg)` : '' });
+  }
+
   // ------------------------------------------------------------ çizim
   hepsiniCiz() { for (const s of this.g.sayfalar) if (s.canvas) this.cizSayfa(s.no); }
 
@@ -383,6 +405,8 @@ export class NotYoneticisi extends EventTarget {
     }
     el.style.cssText = `left:${r.x}px;top:${r.y}px;width:${Math.max(r.w, 4)}px;height:${Math.max(r.h, 4)}px`;
     if (n.tur === 'FreeText' && (n.yeni || n.yazi || !n.ap)) {
+      const egim = this.yaziEgimi(i, n.yazi);
+      if (egim) this.yaziYerlestir(el, r, egim);
       this.freeTextDoldur(el, n);
       return el;
     }
@@ -612,6 +636,9 @@ export class NotYoneticisi extends EventTarget {
     if (!this.secili) return false;
     const n = this.notlar.get(this.secili);
     if (!n) return false;
+    // Açık yazı düzenlemesi önce uygulanır (odak düzenleyicide değilken Delete ya da menüden sil): silinen nota sonradan yazılan
+    // düzenleme, silme geri alınınca da gelmezdi
+    this.duzenleyiciBitir(true);
     this.sil(n);
     return true;
   }
@@ -772,6 +799,7 @@ export class NotYoneticisi extends EventTarget {
   // ------------------------------------------------------------ balon
   /** capa: 'simge' ise balon not simgesinin yanına, değilse notun kendisine (vurgunun ilk satırına) göre konur. */
   balonAc(n, { gecici = false, odak = false, capa = null } = {}) {
+    this.duzenleyiciBitir(true);   // açık yazı düzenlemesi uygulanır (balondan aynı yazı silinebilir ya da metni değiştirilebilirdi)
     this.balonKapat();
     const b = document.createElement('div');
     b.className = 'not-balonu' + (gecici ? ' gecici' : '');
@@ -1121,7 +1149,7 @@ export class NotYoneticisi extends EventTarget {
       if (cizildi) { x = parseFloat(kutu.style.left); y = parseFloat(kutu.style.top); w = Math.max(40 * ptpx, parseFloat(kutu.style.width)); h = Math.max(20 * ptpx, parseFloat(kutu.style.height)); }
       const rect = this.pxRectToPdf(i, x, y, w, h);
       const a = this.ayar();
-      const not = { id: yeniId(), tur: 'FreeText', sayfa: i + 1, rect, icerik: '', yazar: a.yazarAdi, renk: null, opaklik: 1, yazi: this.varsayilanYazi(), yeni: true, silindi: false, yanitlar: [], ustId: null, konu: 'Yazı' };
+      const not = { id: yeniId(), tur: 'FreeText', sayfa: i + 1, rect, icerik: '', yazar: a.yazarAdi, renk: null, opaklik: 1, yazi: yaziKanonik({ ...this.varsayilanYazi(), donus: this.sayfaAcisi(i) }, ''), yeni: true, silindi: false, yanitlar: [], ustId: null, konu: 'Yazı' };
       this.aracSec(null);
       this.duzenleyiciAc(not, true);
     };
@@ -1176,6 +1204,7 @@ export class NotYoneticisi extends EventTarget {
     for (const el of sayfaEl.querySelectorAll(`.not-oge[data-id="${n.id}"]`)) el.style.visibility = 'hidden';
     this.duzenleyiciBicimYenile();
     this.duzenleyiciKonumla();
+    this.duzenleyiciGecmisBildir();
     ed.addEventListener('keydown', (e) => this.duzenleyiciTus(e));
     ed.addEventListener('beforeinput', (e) => this.duzenleyiciGirdi(e));
     ed.addEventListener('input', (e) => { if (!e.isComposing) this.duzenleyiciDomdanOku(); });
@@ -1222,8 +1251,9 @@ export class NotYoneticisi extends EventTarget {
     const r = this.rectToPx(i, d.rect);
     const k = this.ptPx();
     const y = d.yazi;
+    const egim = this.yaziEgimi(i, y);
+    this.yaziYerlestir(d.el, r, egim);
     Object.assign(d.el.style, {
-      left: r.x + 'px', top: r.y + 'px', width: r.w + 'px', height: r.h + 'px',
       fontFamily: `'${y.tip}'`, fontSize: (y.boyut * k) + 'px', color: y.renk, background: y.arka || 'rgba(255,255,255,0.01)',
       textAlign: HIZA_CSS[y.hiza] || 'left',
       // Kenarlıksızken kesik çizgili işaret outline ile (kutunun içine): kenarlık gibi yer kaplayıp içeriği yerli çizimden ve kaydedilen
@@ -1233,15 +1263,35 @@ export class NotYoneticisi extends EventTarget {
     });
     if (d.tut) Object.assign(d.tut.style, { left: (r.x - 6) + 'px', top: (r.y - 6) + 'px' });
     if (d.bt) Object.assign(d.bt.style, { left: (r.x + r.w - 5) + 'px', top: (r.y + r.h - 5) + 'px' });
-    // Biçim çubuğu: kutunun üstünde
-    const sayfaK = this.g.sayfalar[i].el.getBoundingClientRect(), alanK = this.alan.getBoundingClientRect();
-    let bx = sayfaK.left - alanK.left + r.x, by = sayfaK.top - alanK.top + r.y - d.bicim.offsetHeight - 8;
-    if (by < 4) by = sayfaK.top - alanK.top + r.y + r.h + 8;
-    bx = Math.max(4, Math.min(alanK.width - d.bicim.offsetWidth - 4, bx));
-    d.bicim.style.left = bx + 'px'; d.bicim.style.top = by + 'px';
+    this.duzenleyiciCubukKonumla(r);
     // Satır kırılımı değişmiş olabilir (genişlik, yakınlaştırma, yazı tipi, boyut, kenarlık): satır sonu boşluklarının çizgisi yeniden belirlenir
-    const dizilim = [r.w, y.boyut * k, y.tip, y.kenarlik].join('|');
+    const dizilim = [d.el.style.width, y.boyut * k, y.tip, y.kenarlik].join('|');
     if (d.dizilim !== dizilim && !d.birlesim) { d.dizilim = dizilim; if (d.parcalar.some((p) => p.alti || p.ustu)) this.duzenleyiciDomCiz(); }
+  }
+
+  /**
+   * Biçim çubuğu (kaydırılmayan belge alanında): kutunun üstünde, yer yoksa altında; ikisine de sığmıyorsa (kutu görünür alandan uzun)
+   * görünür alanın üst kenarında. Kaydırmada kutuyu izler; kutu görünür alanın dışına çıkınca gizlenir (sayfa metninin üstünde asılı
+   * kalmasın). r: kutunun sayfa içi px dikdörtgeni (verilmezse hesaplanır).
+   */
+  duzenleyiciCubukKonumla(r = null) {
+    const d = this.duzenleyici; if (!d) return;
+    const i = d.not.sayfa - 1, s = this.g.sayfalar[i]; if (!s) return;
+    r ||= this.rectToPx(i, d.rect);
+    const b = d.bicim, k = this.g.kaydirici;
+    const sayfaK = s.el.getBoundingClientRect(), alanK = this.alan.getBoundingClientRect(), kK = k.getBoundingClientRect();
+    // Görünür alan (kaydırma çubukları hariç) ve kutu, belge alanının koordinatında
+    const ust = kK.top + k.clientTop - alanK.top, alt = ust + k.clientHeight;
+    const sol = kK.left + k.clientLeft - alanK.left, sag = sol + k.clientWidth;
+    const kx = sayfaK.left - alanK.left + r.x, ky = sayfaK.top - alanK.top + r.y;
+    const gorunur = !!k.clientHeight && ky + r.h > ust && ky < alt && kx + r.w > sol && kx < sag;
+    b.style.visibility = gorunur ? '' : 'hidden';
+    if (!gorunur) return;
+    const h = b.offsetHeight, w = b.offsetWidth;
+    let by = ky - h - 8;
+    if (by < ust + 4) { by = ky + r.h + 8; if (by + h > alt - 4) by = ust + 4; }
+    const bx = Math.max(sol + 4, Math.min(sag - w - 4, kx));
+    b.style.left = bx + 'px'; b.style.top = by + 'px';
   }
 
   /** Modeli düzenleyicinin DOM'una çizer (satır sonu boşlukları çizgisiz, kaydedilen görünüm gibi); odaktaysa seçimi geri koyar. */
@@ -1256,9 +1306,12 @@ export class NotYoneticisi extends EventTarget {
     const d = this.duzenleyici; if (!d) return;
     const ta = d.el;
     if (ta.scrollHeight > ta.clientHeight + 1) {
-      // Ekranda aşağı doğru büyür (döndürülmüş sayfada PDF'in başka kenarı)
-      const i = d.not.sayfa - 1, r = this.rectToPx(i, d.rect);
-      d.rect = this.pxRectToPdf(i, r.x, r.y, r.w, r.h + (ta.scrollHeight - ta.clientHeight) + 2 * this.ptPx());
+      // Yazının aşağı yönünde büyür: ekranda aşağı, eğik yazıda sola / yukarı / sağa (döndürülmüş sayfada PDF'in başka kenarı)
+      const i = d.not.sayfa - 1, r = this.rectToPx(i, d.rect), ek = (ta.scrollHeight - ta.clientHeight) + 2 * this.ptPx();
+      const egim = this.yaziEgimi(i, d.yazi);
+      const [x, y, w, h] = egim === 90 ? [r.x - ek, r.y, r.w + ek, r.h] : egim === 180 ? [r.x, r.y - ek, r.w, r.h + ek]
+        : egim === 270 ? [r.x, r.y, r.w + ek, r.h] : [r.x, r.y, r.w, r.h + ek];
+      d.rect = this.pxRectToPdf(i, x, y, w, h);
       this.duzenleyiciKonumla();
     }
   }
@@ -1320,14 +1373,15 @@ export class NotYoneticisi extends EventTarget {
     deger('select.tip', d.yazi.tip); deger('input.boyut', d.yazi.boyut);
   }
 
-  /** İmleçteki (yazılacak) ya da seçimin tamamındaki biçim. */
+  /** İmleçteki (yazılacak) ya da seçimin tamamındaki biçim; seçimin baş ve sonundaki boşluklar sayılmaz (bkz. bicimAraligi). */
   duzenleyiciEtkinStil() {
     const d = this.duzenleyici;
     const [a, b] = sirala(d.secim);
     if (a === b) return d.bekleyen && d.bekleyen.ofset === a ? d.bekleyen.stil : stilKonumda(d.parcalar, a);
+    const [x, y] = bicimAraligi(d.parcalar, a, b);
     const st = {};
-    for (const k of ['kalin', 'italik', 'alti', 'ustu']) if (hepsindeMi(d.parcalar, a, b, k)) st[k] = true;
-    const renk = stilKonumda(d.parcalar, a, false).renk;
+    for (const k of ['kalin', 'italik', 'alti', 'ustu']) if (hepsindeMi(d.parcalar, x, y, k)) st[k] = true;
+    const renk = stilKonumda(d.parcalar, x, false).renk;
     if (renk) st.renk = renk;
     return st;
   }
@@ -1417,7 +1471,12 @@ export class NotYoneticisi extends EventTarget {
     this.duzenleyiciDurum();
   }
 
-  /** Kalın / italik / altı çizili: seçimde Word gibi (hepsinde varsa kaldırır, yoksa ekler); imleçte sonra yazılacak metne. */
+  /**
+   * Kalın / italik / altı çizili: seçimde Word gibi (hepsinde varsa kaldırır, yoksa ekler); imleçte sonra yazılacak metne.
+   * Karar ve ekleme seçimin baş ve sonundaki boşluklar olmadan verilir: Windows'ta çift tık sözcüğü sondaki boşlukla seçer; biçimli
+   * sözcükte ilk basış biçimi kaldırsın, alt çizgi boşluğa uzamasın. Kaldırma seçimin tamamından (sözcükle komşusu arasındaki boşlukta
+   * biçim kalmasın).
+   */
   duzenleyiciBicim(anahtar) {
     const d = this.duzenleyici; if (!d) return;
     const [a, b] = this.duzenleyiciSecim();
@@ -1426,8 +1485,10 @@ export class NotYoneticisi extends EventTarget {
       if (stil[anahtar]) delete stil[anahtar]; else stil[anahtar] = true;
       d.bekleyen = { ofset: a, stil };
     } else {
-      this.duzenleyiciKayit('bicim');
-      d.parcalar = stilDegistir(d.parcalar, a, b, anahtar, !hepsindeMi(d.parcalar, a, b, anahtar));
+      const [x, y] = bicimAraligi(d.parcalar, a, b);
+      const ekle = !hepsindeMi(d.parcalar, x, y, anahtar);
+      this.duzenleyiciKayit('bicim', false, DUZENLEYICI_ADIMLARI[anahtar]);
+      d.parcalar = ekle ? stilDegistir(d.parcalar, x, y, anahtar, true) : stilDegistir(d.parcalar, a, b, anahtar, false);
       this.duzenleyiciCiz();
     }
     this.duzenleyiciOdakla();
@@ -1462,7 +1523,8 @@ export class NotYoneticisi extends EventTarget {
   duzenleyiciKutu(degisim, tur = 'kutu') {
     const d = this.duzenleyici; if (!d) return;
     if (Object.entries(degisim).some(([k, v]) => d.yazi[k] !== v)) {
-      this.duzenleyiciKayit(tur);
+      const anahtar = Object.keys(degisim)[0];
+      this.duzenleyiciKayit(tur, false, DUZENLEYICI_ADIMLARI[anahtar === 'arka' && !degisim.arka ? 'dolgusuz' : anahtar]);
       Object.assign(d.yazi, degisim);
       this.duzenleyiciKonumla();
       this.duzenleyiciOtoBoyut();
@@ -1486,34 +1548,50 @@ export class NotYoneticisi extends EventTarget {
   }
 
   // Düzenleyici içi geri al / yinele: anlık görüntü yığını. Ardışık yazma / silme (1 sn içinde, boşluktan sonra yeni sözcüğe kadar) ve
-  // renk sürüklemesi tek adımdır.
-  duzenleyiciKayit(tur, bosluk = false) {
+  // renk sürüklemesi tek adımdır. Her kayıt adımın adını taşır (ad: bu durumdan sonraki değişiklik; araç çubuğu ipuçları).
+  duzenleyiciKayit(tur, bosluk = false, ad = null) {
     const d = this.duzenleyici; if (!d) return;
     const simdi = Date.now(), s = d.sonKayit;
     const birlesir = ['yaz', 'sil', 'renk', 'arka'].includes(tur) && s?.tur === tur && simdi - s.zaman < 1000 && !(tur === 'yaz' && s.bosluk && !bosluk);
     d.sonKayit = { tur, zaman: simdi, bosluk };
     if (birlesir) return;
-    d.geri.push({ parcalar: structuredClone(d.parcalar), yazi: structuredClone(d.yazi), secim: [...d.secim] });
+    d.geri.push({ parcalar: structuredClone(d.parcalar), yazi: structuredClone(d.yazi), secim: [...d.secim], ad: ad || DUZENLEYICI_ADIMLARI[tur] || 'Yazma' });
     if (d.geri.length > 500) d.geri.shift();
     d.ileri.length = 0;
+    this.duzenleyiciGecmisBildir();
   }
 
   duzenleyiciGeriAl() { this._duzenleyiciGecmis('geri', 'ileri'); }
   duzenleyiciYinele() { this._duzenleyiciGecmis('ileri', 'geri'); }
   _duzenleyiciGecmis(kaynak, hedef) {
     const d = this.duzenleyici; if (!d || !d[kaynak].length) return;
-    d[hedef].push({ parcalar: structuredClone(d.parcalar), yazi: structuredClone(d.yazi), secim: [...d.secim] });
     const a = d[kaynak].pop();
+    d[hedef].push({ parcalar: structuredClone(d.parcalar), yazi: structuredClone(d.yazi), secim: [...d.secim], ad: a.ad });
     d.parcalar = a.parcalar; d.yazi = a.yazi; d.secim = a.secim; d.bekleyen = null; d.sonKayit = null;
     this.duzenleyiciKonumla();
     this.duzenleyiciCiz();
     this.duzenleyiciOdakla();
     this.duzenleyiciDurum();
+    this.duzenleyiciGecmisBildir();
   }
+
+  /**
+   * Açık düzenleyicinin geri al / yinele durumu: { geri, ileri } (adımın adı ya da null); düzenleyici yoksa null. Düzenleyici açıkken
+   * araç çubuğu ve Düzen menüsündeki Geri al / Yinele belgeyi değil düzenleyicinin metnini geri alır (referans okuyucu gibi; belge geri alınsaydı
+   * son komut "Yazı ekle" olduğunda yazı kurtarılamadan kaybolurdu).
+   */
+  duzenleyiciGecmisi() {
+    const d = this.duzenleyici; if (!d) return null;
+    return { geri: d.geri.at(-1)?.ad || null, ileri: d.ileri.at(-1)?.ad || null };
+  }
+
+  /** Düzenleyici açıldı, kapandı ya da geçmişi değişti ('duzenleyici' olayı: uygulama Geri al / Yinele düğmelerini günceller). */
+  duzenleyiciGecmisBildir() { this.dispatchEvent(new CustomEvent('duzenleyici')); }
 
   duzenleyiciBitir(kaydet) {
     const d = this.duzenleyici; if (!d) return;
     this.duzenleyici = null;
+    this.duzenleyiciGecmisBildir();
     document.removeEventListener('selectionchange', d.secimDinle);
     const n = d.not;
     const metin = duzMetin(d.parcalar);
