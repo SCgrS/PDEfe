@@ -4,9 +4,10 @@
 //   → {dosyalar:[yol, ...]}
 // Dosya adlarını çekirdek belirler: <ad>_<etiket>.pdf; var olan ad üzerine yazılmaz, "(2)", "(3)" eklenir.
 // Bu pencere aynı adlandırma kuralını (ayirParcalari) önizleme için burada da uygular.
+// Birden çok dosya ürettiğinden kaydetme seçimi yalnızca klasör satırıdır (varsayılan: Ayarlar'daki çıktı klasörü, yoksa Masaüstü).
 import {
-  pencereAc, pencereAcikMi, IslemIlerleme, boyutMetni, kacis, hataMetni, dosyaAdi, klasorAdi, adGovdesi, yolBirlestir,
-  guvenliAd, sayfaListesiCoz, sayfaAraliklariCoz, degisiklikleriSor, oge,
+  pencereAc, pencereAcikMi, IslemIlerleme, boyutMetni, kacis, hataMetni, dosyaAdi, adGovdesi, yolBirlestir,
+  guvenliAd, sayfaListesiCoz, sayfaAraliklariCoz, degisiklikleriSor, oge, klasorSecici, varsayilanCiktiKlasoru, sayiMetni,
 } from './ortak.js';
 
 /** [1,2,3,5] → [[1,3],[5,5]] (sıralı, tekrarsız). Çekirdekteki _sayfa_listesini_gruplara ile aynı. */
@@ -77,32 +78,32 @@ export class AyirPenceresi {
     this.belge = belge;
     this.toplam = belge.gorunum?.sayfaSayisi || belge.bilgi?.sayfa || 0;
     this.mod = 'aralik';
-    const ayar = baglam.ayar?.() || {};
-    this.klasor = ayar.ciktiKlasoru || klasorAdi(belge.yol);
     this.ilerleme = new IslemIlerleme();
     this._kur();
   }
 
+  get klasor() { return this.klasorSatiri.klasor(); }
+
   _kur() {
     const b = this.belge;
     const govde = oge(`<div class="ayir-govde">
-      <div class="arac-bilgi"><b>${kacis(b.ad)}</b> · ${this.toplam} sayfa · ${kacis(boyutMetni(b.boyut))}</div>
-      <div class="arac-alan">
-        <span class="arac-etiket" style="margin:0">Nasıl ayrılsın?</span>
+      <div class="arac-bilgi"><b>${kacis(b.ad)}</b> · ${sayiMetni(this.toplam)} sayfa · ${kacis(boyutMetni(b.boyut))}</div>
+      <div class="arac-bolum">
+        <div class="arac-bolum-baslik">Nasıl ayrılsın?</div>
         <div class="arac-secenek-liste">
           <label><input type="radio" name="ayir-mod" value="aralik" checked> Sayfa aralıklarına göre <span class="soluk">(her aralık ayrı dosya)</span></label>
-          <div class="ic"><input type="text" class="arac-girdi ayir-aralik" placeholder="örn. 1-3, 4-10, 11" style="width:260px" data-ilk-odak><span class="arac-aciklama">"-3" baştan 3'e, "8-" 8'den sona</span></div>
+          <div class="ic"><input type="text" class="arac-girdi ayir-aralik" placeholder="örn. 1-3, 4-10, 11" style="width:260px" spellcheck="false" data-ilk-odak><span class="arac-aciklama">"-3" baştan 3'e, "8-" 8'den sona</span></div>
           <label><input type="radio" name="ayir-mod" value="herN"> Her <input type="number" class="arac-girdi kucuk ayir-n" min="1" max="${Math.max(1, this.toplam - 1)}" value="${Math.min(10, Math.max(1, this.toplam - 1))}" disabled> sayfada bir yeni dosya</label>
           <label><input type="radio" name="ayir-mod" value="secili"> Seçili sayfaları çıkart <span class="soluk">(tek dosya)</span></label>
-          <div class="ic"><input type="text" class="arac-girdi ayir-secili" placeholder="örn. 2, 5, 7-9" style="width:260px" disabled></div>
-          <label><input type="radio" name="ayir-mod" value="tek"> Her sayfayı ayrı dosyaya kaydet <span class="soluk">(${this.toplam} dosya)</span></label>
+          <div class="ic"><input type="text" class="arac-girdi ayir-secili" placeholder="örn. 2, 5, 7-9" style="width:260px" spellcheck="false" disabled></div>
+          <label><input type="radio" name="ayir-mod" value="tek"> Her sayfayı ayrı dosyaya kaydet <span class="soluk">(${sayiMetni(this.toplam)} dosya)</span></label>
         </div>
       </div>
-      <div class="arac-alan ayir-cikti-alani">
-        <label class="arac-etiket" style="margin:0">Çıktı</label>
-        <div class="arac-satir"><span style="width:80px">Klasör</span><div class="ayir-klasor" style="flex:1"><span class="yol ayir-klasor-yol"></span><button class="ikincil ayir-klasor-sec">Seç…</button></div></div>
+      <div class="arac-bolum ayir-cikti-alani">
+        <div class="arac-bolum-baslik">Kaydedilecek klasör</div>
+        <div class="ayir-klasor-yer"></div>
         <div class="ayir-onizleme"></div>
-        <div class="arac-aciklama">Dosya adları <b>${kacis(adGovdesi(b.yol))}_…pdf</b> biçiminde verilir; var olan dosyaların üzerine yazılmaz, ada "(2)" eklenir.</div>
+        <div class="arac-aciklama">Dosya adları <b>${kacis(adGovdesi(b.yol))}_1-3.pdf</b> biçiminde verilir; var olan dosyaların üzerine yazılmaz, ada "(2)" eklenir.</div>
       </div>
       <div class="ayir-sonuc" hidden></div>
     </div>`);
@@ -112,9 +113,10 @@ export class AyirPenceresi {
     this.seciliEl = govde.querySelector('.ayir-secili');
     this.onizleme = govde.querySelector('.ayir-onizleme');
     this.sonucEl = govde.querySelector('.ayir-sonuc');
-    this.klasorYol = govde.querySelector('.ayir-klasor-yol');
-    this.klasorYaz();
-    govde.querySelector('.ayir-cikti-alani').append(this.ilerleme.el);
+    this.klasorSatiri = klasorSecici({ pdefe: this.baglam.pdefe, klasor: '', diyalogBasligi: 'Ayrılan dosyaların kaydedileceği klasör' });
+    govde.querySelector('.ayir-klasor-yer').replaceWith(this.klasorSatiri.el);
+    this.klasorSatiri.onDegisti(() => this.onizle());
+    this.klasorHazir = varsayilanCiktiKlasoru(this.baglam).then((k) => { if (!this.klasorSatiri.klasor()) this.klasorSatiri.ayarla(k); }).catch(() => {});
 
     for (const r of govde.querySelectorAll('input[name="ayir-mod"]')) {
       r.addEventListener('change', () => {
@@ -131,20 +133,14 @@ export class AyirPenceresi {
       g.addEventListener('input', () => this.onizle());
       g.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.ayir(); } });
     }
-    govde.querySelector('.ayir-klasor-sec').addEventListener('click', async () => {
-      const k = await this.baglam.pdefe.cagir('dosya:klasorSec', { baslik: 'Çıktı klasörü', varsayilan: this.klasor });
-      if (k && !this.pencere.kapali) { this.klasor = k; this.klasorYaz(); this.onizle(); }
-    });
     govde.addEventListener('keydown', (e) => { if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && e.target.type === 'radio') e.stopPropagation(); });
 
     this.pencere = pencereAc({
       baslik: 'PDF ayır', govde, genislik: 660, anahtar: 'ayir', sinif: 'ayir-pencere',
-      dugmeler: [
-        { id: 'ayir', etiket: 'Ayır', birincil: true, tiklama: () => this.ayir() },
-        { id: 'kapat', etiket: 'Kapat' },
-      ],
+      dugmeler: [{ id: 'ayir', etiket: 'Ayır', birincil: true, tiklama: () => this.ayir() }],
       kapatmadanOnce: () => this._kapatmaIzni(),
     });
+    this.pencere.govde.append(this.ilerleme.el);   // gövdenin doğrudan çocuğu: meşgulken soluklaşmaz, İptal tıklanabilir
     this.pencere.el.addEventListener('esc', (e) => { if (this.ilerleme.calisiyor) { e.preventDefault(); this.ilerleme.iptalIste(); } });
     this.onizle();
   }
@@ -157,8 +153,6 @@ export class AyirPenceresi {
     return true;
   }
 
-  klasorYaz() { this.klasorYol.textContent = this.klasor; this.klasorYol.title = this.klasor; }
-
   /** Seçilen moda göre parçaları hesaplar: {parcalar:[{ad, sayfalar}], params, hata} */
   parcalariHesapla() {
     return ayirParcalari({ mod: this.mod, aralikMetni: this.aralikEl.value, n: this.nEl.value, seciliMetni: this.seciliEl.value }, this.toplam, adGovdesi(this.belge.yol));
@@ -169,14 +163,16 @@ export class AyirPenceresi {
     const girdi = { aralik: this.aralikEl, secili: this.seciliEl, herN: this.nEl }[this.mod];
     for (const g of [this.aralikEl, this.seciliEl, this.nEl]) g.classList.remove('hatali');
     if (hata) {
-      girdi?.classList.add('hatali');
-      this.onizleme.innerHTML = `<span class="hata-metin">${kacis(hata)}</span>`;
+      // Henüz bir şey yazılmamış kutu hata sayılmaz: yalnızca yol gösterilir
+      const bos = girdi && girdi !== this.nEl && !girdi.value.trim();
+      girdi?.classList.toggle('hatali', !bos);
+      this.onizleme.innerHTML = bos ? `<span>${kacis(hata)}</span>` : `<span class="hata-metin">${kacis(hata)}</span>`;
       this.pencere?.dugmeAyarla('ayir', { devre: true });
       return;
     }
     const enFazla = 12;
     const satirlar = parcalar.slice(0, enFazla).map((p) => `<li>${kacis(p.ad)} <span class="soluk">(${p.sayfalar.length} sayfa${p.sayfalar.length <= 12 ? ': ' + kacis(kisaListe(p.sayfalar)) : ''})</span></li>`);
-    if (parcalar.length > enFazla) satirlar.push(`<li>… ve ${parcalar.length - enFazla} dosya daha</li>`);
+    if (parcalar.length > enFazla) satirlar.push(`<li>ve ${sayiMetni(parcalar.length - enFazla)} dosya daha</li>`);
     this.onizleme.innerHTML = `<b>${parcalar.length} dosya</b> oluşturulacak:<ul>${satirlar.join('')}</ul>`;
     this.pencere?.dugmeAyarla('ayir', { devre: false });
   }
@@ -190,22 +186,22 @@ export class AyirPenceresi {
     this.sonucEl.hidden = true;
     if ((await degisiklikleriSor(baglam, belge, 'Ayırma')) === 'vazgec') return;
     if (this.pencere.kapali) return;
+    await this.klasorHazir;
     if (!this.klasor) {
-      const k = await baglam.pdefe.cagir('dosya:klasorSec', { baslik: 'Çıktı klasörü' });
+      const k = await baglam.pdefe.cagir('dosya:klasorSec', { baslik: 'Ayrılan dosyaların kaydedileceği klasör' });
       if (!k || this.pencere.kapali) return;
-      this.klasor = k; this.klasorYaz();
+      this.klasorSatiri.ayarla(k);
     }
     // Aynı adlı dosya varsa çekirdek "(2)" ekler; kullanıcı bilsin
     const varOlanlar = [];
     for (const p of parcalar.slice(0, 200)) { if (await baglam.pdefe.cagir('dosya:varMi', yolBirlestir(this.klasor, p.ad))) varOlanlar.push(p.ad); }
     if (this.pencere.kapali) return;
     if (varOlanlar.length) {
-      const { secim } = await baglam.mesajKutusu({ mesaj: `${varOlanlar.length} dosya zaten var.`, ayrinti: varOlanlar.slice(0, 8).join('\n') + (varOlanlar.length > 8 ? '\n…' : '') + '\n\nVar olanlar korunur; yeni dosyaların adına "(2)" eklenir. Devam edilsin mi?', dugmeler: ['Devam et', 'Vazgeç'], varsayilan: 0, iptal: 1 });
+      const { secim } = await baglam.mesajKutusu({ mesaj: `${varOlanlar.length} dosya zaten var.`, ayrinti: varOlanlar.slice(0, 8).join('\n') + (varOlanlar.length > 8 ? `\nve ${varOlanlar.length - 8} dosya daha` : '') + '\n\nVar olanlar korunur; yeni dosyaların adına "(2)" eklenir. Devam edilsin mi?', dugmeler: ['Devam et', 'Vazgeç'], varsayilan: 0, iptal: 1 });
       if (secim !== 0 || this.pencere.kapali) return;
     }
     this.pencere.el.classList.add('mesgul');
     this.pencere.dugmeAyarla('ayir', { devre: true });
-    this.pencere.dugmeAyarla('kapat', { devre: true });
     try {
       const sonuc = await this.ilerleme.calistir(baglam, 'ayir', { yol: belge.yol, hedefKlasor: this.klasor, ...params }, { baslangicMesaji: 'Ayrılıyor…' });
       await this.sonucGoster(this.dosyalariOku(sonuc, parcalar));
@@ -219,7 +215,6 @@ export class AyirPenceresi {
       if (!this.pencere.kapali) {
         this.pencere.el.classList.remove('mesgul');
         this.pencere.dugmeAyarla('ayir', { devre: false });
-        this.pencere.dugmeAyarla('kapat', { devre: false });
       }
     }
   }
@@ -242,7 +237,7 @@ export class AyirPenceresi {
     for (const d of dosyalar) if (d.boyut == null) { try { const b = await baglam.pdefe.cagir('dosya:bilgi', d.yol); if (b?.var) d.boyut = b.boyut; } catch { /* yok say */ } }
     if (this.pencere.kapali) return;
     const toplam = dosyalar.reduce((t, d) => t + (d.boyut || 0), 0);
-    this.sonucEl.innerHTML = `<div><b>${dosyalar.length} dosya oluşturuldu</b> · toplam ${kacis(boyutMetni(toplam))}</div>
+    this.sonucEl.innerHTML = `<div title="${kacis(this.klasor)}"><b>${dosyalar.length} dosya oluşturuldu</b> · toplam ${kacis(boyutMetni(toplam))}</div>
       <ul>${dosyalar.map((d, i) => `<li><a data-i="${i}" title="Yeni sekmede aç">${kacis(dosyaAdi(d.yol))}</a><span class="soluk">${d.sayfa ? d.sayfa + ' sayfa' : ''}</span><span class="boyut">${kacis(boyutMetni(d.boyut))}</span></li>`).join('')}</ul>
       <div class="arac-satir" style="margin-top:6px">
         <button class="ikincil ayir-goster">Klasörde göster</button>

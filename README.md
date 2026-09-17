@@ -23,11 +23,11 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 - **referans okuyucu uyumlu notlar.** Vurgu, yapışkan not, yanıt ve serbest yazı ekleme; taşıma, düzenleme, silme.
   Yazılar Türkçe karakterli Windows fontuyla (Segoe UI, Arial, Times, Calibri) belgeye gömülür; referans okuyucuda ve UYAP'ta aynı görünür. Kaydetme artımlıdır: belgenin geri kalanına dokunulmaz.
 - **Geri al / yinele.** Her not ve sayfa işlemi `Ctrl+Z` / `Ctrl+Y` ile geri alınır; kayıttan sonra bile.
-- **Araçlar** (Araçlar menüsü): **PDF küçült** (üç hazır seviye, boyut tahmini; üzerine yazarken özgün dosya
-  aynı klasöre `<ad> (yedek).pdf` olarak yedeklenir), **Sayfaları düzenle** (küçük resim ızgarasında sürükleyerek sıralama, silme, döndürme, boş sayfa ya da başka
+- **Araçlar** (Araçlar menüsü): **PDF küçült** (üç hazır seviye, boyut tahmini), **Sayfaları düzenle** (küçük resim ızgarasında sürükleyerek sıralama, silme, döndürme, boş sayfa ya da başka
   PDF'ten sayfa ekleme), **PDF ayır** (sayfa aralığı, her N sayfada bir, seçili sayfalar, her sayfa ayrı dosya),
-  **PDF birleştir**, **Görüntü / PDF belgelerinden PDF oluştur** (sürükle-bırak ve `Ctrl+V` ile), **Döndür ve
-  kaydet**. Uzun işlerde ilerleme çubuğu ve iptal.
+  **Görüntü / PDF belgelerinden PDF oluştur** (sürükle-bırak, `Ctrl+V` ya da sağ tık Yapıştır ile; seviye başına tahmini
+  boyut), **Döndür ve kaydet**. Küçült ve Döndür'de "Yeni belge olarak kaydet" (varsayılan klasör Masaüstü) ya da
+  "Üzerine yaz" (yedeksiz, güvenli yer değiştirme) seçilir. Uzun işlerde ilerleme çubuğu ve iptal.
 - **Yazdır** (`Ctrl+P`): sayfa aralığı, kâğıt boyutu, sayfaya sığdırma; sayfalar görüntü olarak basıldığından
   Türkçe karakterler ekrandaki gibi çıkar. Notlar istenirse basılır ("Notları yazdır" varsayılan olarak kapalı).
 - **Paylaş.** Belgeyi dosya olarak panoya kopyalar; UYAP'a, e-postaya ya da Gezgin'e `Ctrl+V` ile yapıştırılır.

@@ -89,7 +89,7 @@ export class SayfalarPenceresi {
         ${dugme('sil', 'Seçilenleri sil (Delete)', '<path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11" fill="none" stroke="currentColor" stroke-width="1.4"/>')}
         <span class="ayrac"></span>
         <button class="ikincil" data-komut="bosEkle" title="Seçili sayfanın arkasına boş sayfa ekler (boyut: önceki sayfa)">Boş sayfa ekle</button>
-        <button class="ikincil" data-komut="pdfEkle" title="Başka bir PDF'in sayfalarını seçili sayfanın arkasına ekler">PDF'ten sayfa ekle…</button>
+        <button class="ikincil" data-komut="pdfEkle" title="Başka bir PDF'in sayfalarını seçili sayfanın arkasına ekler">PDF'ten sayfa ekle</button>
         <span class="sayac"></span>
       </div>
       <div class="sayfalar-izgara" tabindex="0" role="listbox" aria-multiselectable="true"></div>
@@ -102,16 +102,11 @@ export class SayfalarPenceresi {
 
     this.pencere = pencereAc({
       baslik: `Sayfaları düzenle — ${this.belge.ad}`, govde, anahtar: 'sayfalar', sinif: 'sayfalar-pencere',
-      dugmeler: [
-        { id: 'kisayol', etiket: '', sol: true },
-        { id: 'uygula', etiket: 'Uygula', birincil: true, tiklama: () => this.uygula() },
-        { id: 'vazgec', etiket: 'Vazgeç' },
-      ],
+      dugmeler: [{ id: 'uygula', etiket: 'Uygula', birincil: true, baslik: 'Sayfa düzenini sekmedeki belgeye uygular (geri alınabilir; kaydetmek için Ctrl+S)', tiklama: () => this.uygula() }],
       kapatmadanOnce: (_p, sonuc) => this._kapatmaIzni(sonuc),
     });
-    const k = this.pencere.dugme('kisayol');
-    k.className = 'kisayollar'; k.disabled = true; k.style.border = 'none'; k.style.background = 'transparent';
-    k.textContent = 'Tıkla: seç · Ctrl/Shift: çoklu seç · Sürükle: sırala · Delete: sil · Ctrl+Z/Y: geri al/yinele';
+    // Her "tuş: iş" çifti bölünmeden satır atlasın (bölünemez boşluk); ayırıcı nokta önceki çiftin sonunda kalır
+    this.pencere.altMetinAyarla(['Tıkla: seç', 'Ctrl/Shift: çoklu seç', 'Sürükle: sırala', 'Delete: sil', 'Ctrl+Z/Y: geri al/yinele'].map((s) => s.replace(/ /g, '\u00a0')).join('\u00a0· '));
 
     // Görünürlük gözlemcisi: küçük resimleri tembel yükle
     this.gozlemci = new IntersectionObserver((girdiler) => {
@@ -451,7 +446,7 @@ export class SayfalarPenceresi {
     const { baglam, belge } = this;
     if (!this.degisti) { this.pencere.kapat('tamam'); return; }
     if (!this.kartlar.length) { baglam.bildir('En az bir sayfa kalmalı.'); return; }
-    this.pencere.dugmeAyarla('uygula', { devre: true, etiket: 'Uygulanıyor…' });
+    this.pencere.dugmeAyarla('uygula', { devre: true });
     this.pencere.hataGoster('');
     try {
       if (typeof baglam.sayfaTarifiUygula !== 'function') throw new Error('Sayfa düzeni komutu (sayfaTarifiUygula) henüz bağlanmamış.');
@@ -459,7 +454,7 @@ export class SayfalarPenceresi {
       await this.pencere.kapat('tamam');
       baglam.bildir(`Sayfa düzeni uygulandı: ${this.kartlar.length} sayfa. Kaydetmeyi unutmayın (Ctrl+S).`, 4000);
     } catch (e) {
-      this.pencere.dugmeAyarla('uygula', { devre: false, etiket: 'Uygula' });
+      this.pencere.dugmeAyarla('uygula', { devre: false });
       this.pencere.hataGoster('Sayfa düzeni uygulanamadı: ' + hataMetni(e));
     }
   }

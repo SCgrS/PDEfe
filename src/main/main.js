@@ -4,8 +4,6 @@ import { TEST } from './gelistirme.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { pathToFileURL, fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
 import { ayarlar, ayarKoy, ayarAl, VARSAYILANLAR } from './ayarlar.js';
 import { menuKur } from './menu.js';
 import { Cekirdek } from './cekirdek.js';
@@ -164,6 +162,67 @@ function temaKoyuMu() {
 
 nativeTheme.on('updated', () => pencereyeGonder('tema:sistem', nativeTheme.shouldUseDarkColors));
 
+// ---------- Pano okuma (araçlar) ----------
+async function panoOgeleri() { try { return await clipboard.read(); } catch { return []; } }
+
+/** Pano öğesinden verilen MIME türünün Blob'u (yoksa null). */
+async function panoTuru(ogeler, tur) {
+  for (const o of ogeler) if (o.types.includes(tur)) { try { return await o.getType(tur); } catch { /* sonrakine bak */ } }
+  return null;
+}
+
+/** Gezgin'den kopyalanan dosyaların yolları (text/uri-list içindeki file:/// URI'leri; Türkçe ve boşluklu yollar dahil). */
+async function panoDosyalari(ogeler) {
+  const b = await panoTuru(ogeler, 'text/uri-list');
+  if (!b) return [];
+  const yollar = [];
+  for (const satir of (await b.text()).split(/\r?\n/)) {
+    const u = satir.trim();
+    if (!/^file:/i.test(u)) continue;
+    try { yollar.push(fileURLToPath(u)); } catch { /* geçersiz URI */ }
+  }
+  return yollar;
+}
+
+async function panoGorseli(ogeler) {
+  const b = await panoTuru(ogeler, 'image/png');
+  return b && b.size ? Buffer.from(await b.arrayBuffer()) : null;
+}
+
+async function panoMetni(ogeler) { const b = await panoTuru(ogeler, 'text/plain'); return b ? b.text() : ''; }
+
+/** Metin olarak kopyalanmış dosya yolları (Gezgin "Yol olarak kopyala": tırnaklı). Yalnızca var olan dosyalar. */
+function metindekiYollar(metin) {
+  const satirlar = String(metin || '').split(/\r?\n/).map((s) => s.trim().replace(/^"(.*)"$/, '$1')).filter(Boolean);
+  if (!satirlar.length || satirlar.length > 200) return [];
+  const yollar = [];
+  for (const s of satirlar) {
+    if (s.length > 1024 || !path.win32.isAbsolute(s)) return [];
+    try { if (!fs.statSync(s).isFile()) return []; } catch { return []; }
+    yollar.push(s);
+  }
+  return yollar;
+}
+
+/** Pano görselini %TEMP%\PDEfe altına "Pano görüntüsü <tarih saat>.png" olarak yazar; bir günden eski pano görüntülerini siler. */
+async function panoGorseliniYaz(png) {
+  const klasor = path.join(app.getPath('temp'), 'PDEfe');
+  await fs.promises.mkdir(klasor, { recursive: true });
+  const t = new Date(), p2 = (n) => String(n).padStart(2, '0');
+  const govde = `Pano görüntüsü ${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())} ${p2(t.getHours())}.${p2(t.getMinutes())}.${p2(t.getSeconds())}`;
+  let yol = path.join(klasor, govde + '.png');
+  for (let i = 2; fs.existsSync(yol); i++) yol = path.join(klasor, `${govde} (${i}).png`);
+  await fs.promises.writeFile(yol, png, { flag: 'wx' });
+  fs.promises.readdir(klasor).then((adlar) => {
+    for (const ad of adlar) {
+      if (!/^Pano görüntüsü .*\.png$/i.test(ad)) continue;
+      const y = path.join(klasor, ad);
+      fs.promises.stat(y).then((st) => { if (Date.now() - st.mtimeMs > 24 * 3600 * 1000) fs.promises.unlink(y).catch(() => {}); }).catch(() => {});
+    }
+  }).catch(() => {});
+  return { yol, boyut: png.length };
+}
+
 // ---------- IPC ----------
 function ipcKur() {
   ipcMain.on('uygulama:hazir', () => {
@@ -205,35 +264,26 @@ function ipcKur() {
   ipcMain.handle('uygulama:veriKlasoru', () => app.getPath('userData'));
   ipcMain.handle('uygulama:geciciKlasor', () => { const k = path.join(app.getPath('temp'), 'PDEfe'); fs.mkdirSync(k, { recursive: true }); return k; });
   ipcMain.handle('kabuk:varsayilanUygulamalar', () => shell.openExternal('ms-settings:defaultapps?registeredAppUser=PDEfe'));
-  // Panodaki dosyalar (Gezgin'den kopyalanan) ve görsel
-  ipcMain.handle('pano:dosyalar', () => new Promise((coz) => {
-    const { spawn } = require('node:child_process');
-    const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-STA', '-WindowStyle', 'Hidden', '-Command', 'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Clipboard]::GetFileDropList() | ForEach-Object { $_ }'], { windowsHide: true });
-    let out = '';
-    p.stdout.setEncoding('utf8'); p.stdout.on('data', (d) => { out += d; });
-    p.on('exit', () => coz(out.split(/\r?\n/).map((x) => x.trim()).filter(Boolean)));
-    p.on('error', () => coz([]));
-  }));
-  ipcMain.handle('pano:gorsel', () => new Promise((coz) => {
-    // Electron 44'te clipboard.readImage yok; panodaki görseli .NET ile geçici PNG'ye yazıp base64 döndür
-    const { spawn } = require('node:child_process');
-    const hedef = path.join(app.getPath('temp'), 'PDEfe', `pano-${Date.now()}.png`);
-    fs.mkdirSync(path.dirname(hedef), { recursive: true });
-    const betik = `
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
-if (-not [System.Windows.Forms.Clipboard]::ContainsImage()) { exit 3 }
-$img = [System.Windows.Forms.Clipboard]::GetImage()
-if ($img -eq $null) { exit 3 }
-$img.Save($env:PDEFE_HEDEF, [System.Drawing.Imaging.ImageFormat]::Png)
-exit 0`;
-    const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-STA', '-WindowStyle', 'Hidden', '-Command', betik], { windowsHide: true, env: { ...process.env, PDEFE_HEDEF: hedef } });
-    p.on('exit', (kod) => {
-      if (kod !== 0) { coz(null); return; }
-      fs.promises.readFile(hedef).then((b) => { fs.promises.unlink(hedef).catch(() => {}); coz(b.toString('base64')); }).catch(() => coz(null));
-    });
-    p.on('error', () => coz(null));
-  }));
+  // Panodaki dosyalar (Gezgin'den kopyalanan) ve görsel. Electron'un pano API'siyle ana süreçte okunur: önceki PowerShell
+  // yolu (pano:dosyalar / pano:gorsel, kaldırıldı) her çağrıda süreç başlattığı için saniyeler sürüyor, Türkçe karakterli yolları da bozuyordu.
+  // Electron 44'te clipboard yalnızca has/read/readText/write/writeText/clear sunar (readImage/readBuffer yok):
+  // Gezgin'in CF_HDROP listesi 'text/uri-list' (file:/// URI'leri), bit eşlem (ekran görüntüsü, tarayıcıdan kopyalanan görsel) 'image/png' gelir.
+  // Görüntü / PDF birleştir'in Ctrl+V / Yapıştır'ı: tek çağrıda dosyalar, yoksa görsel (geçici PNG'ye yazılır), yoksa metindeki dosya yolları
+  ipcMain.handle('pano:icerik', async () => {
+    const ogeler = await panoOgeleri();
+    const dosyalar = await panoDosyalari(ogeler);
+    if (dosyalar.length) return { tur: 'dosyalar', dosyalar };
+    const png = await panoGorseli(ogeler);
+    if (png) return { tur: 'gorsel', ...(await panoGorseliniYaz(png)) };
+    const metin = await panoMetni(ogeler);
+    const yollar = metindekiYollar(metin);
+    if (yollar.length) return { tur: 'dosyalar', dosyalar: yollar, metinden: true };
+    return { tur: metin.trim() ? 'metin' : 'bos' };
+  });
+  ipcMain.handle('uygulama:klasorler', () => {
+    const al = (ad) => { try { return app.getPath(ad); } catch { return ''; } };
+    return { masaustu: al('desktop'), belgeler: al('documents'), indirilenler: al('downloads'), ev: al('home') };
+  });
 
   ipcMain.handle('dosya:oku', async (_e, yol) => {
     const veri = await fs.promises.readFile(yol);

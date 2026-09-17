@@ -27,7 +27,7 @@ export const VARSAYILANLAR = {
   // Güncelleme
   otoGuncelle: true,
   // Dosya
-  ciktiKlasoru: '',
+  ciktiKlasoru: '',               // araçların yeni belge çıktıları; boşsa Masaüstü (app.getPath('desktop'))
   // Durum
   sonDosyalar: [],
   sayfaKonumlari: {},
