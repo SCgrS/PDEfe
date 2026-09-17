@@ -766,6 +766,13 @@ export function surukleSecimiBagla(gorunum, { aracAl = () => null } = {}) {
     return en;
   };
 
+  /** Aradaki sayfanın metin katmanı kuruldu: sürükleme sürüyorsa seçim güncellenir; bittiyse bu görüntüleyicideki seçim o sayfayı da alsın. */
+  const katmanKuruldu = (kuruldu) => {
+    if (!kuruldu) return;
+    if (d) guncelle();
+    else if (gorselGecerli() && gorsel.gorunum === gorunum) secimKur(gorunum, new Map(), gorsel.capa, gorsel.odak);
+  };
+
   const guncelle = () => {
     if (!d || !d.basladi) return;
     // Çapa ile farenin sayfası arasında metin katmanı olmayan (hızlı kaydırmada çizilmemiş) sayfalar için katman kurulur
@@ -773,7 +780,7 @@ export function surukleSecimiBagla(gorunum, { aracAl = () => null } = {}) {
     if (i0 >= 0 && i1 >= 0 && d.aralik !== `${i0}:${i1}`) {
       d.aralik = `${i0}:${i1}`;
       for (let i = Math.min(i0, i1); i <= Math.max(i0, i1); i++) {
-        if (!gorunum.sayfalar[i].textLayer) gorunum.metinKatmaniHazirla(i).then((kuruldu) => { if (kuruldu) guncelle(); }, () => {});
+        if (!gorunum.sayfalar[i].textLayer) gorunum.metinKatmaniHazirla(i).then(katmanKuruldu, () => {});
       }
     }
     const odak = siraEkle(enYakinKonum(gorunum, d.x, d.y, d.onbellek));
