@@ -19,6 +19,7 @@ export class Arama extends EventTarget {
     this.kaliciKapsam = null;        // ac() geçici kapsam verdiyse kullanıcının seçtiği tumSekmeler değeri (kapanınca geri yüklenir)
     this.metinOnbellek = new WeakMap();   // gorunum → Map(sayfa → {metin, items})
     this.acik = false;
+    this.konumlar = new Map();       // belgeId → {sorgu, sayfa, bas}: sekmeden çıkarken o belgedeki geçerli eşleşme (dönünce geri gelir)
     this._kur();
   }
 
@@ -81,7 +82,8 @@ export class Arama extends EventTarget {
     // Yalnızca kapsam verilerek açılınca ("Açık belgeler" listesi): seçilen belge geçerli sonucun/aramanın belgesi değilse yeniden ara.
     // Seçeneksiz açılış (sade Ctrl+F) yalnızca kapsam ya da sorgu değişince arar; sekme değiştirmez, odağı girdide bırakır.
     const aktifId = this.belgeAl()?.id ?? null, gs = this.sonuclar[this.gecerli];
-    const belgeDegisti = secenek.tumSekmeler != null && this.sorgu !== '' && (gs ? gs.belgeId !== aktifId : this.aramaBelgeId !== aktifId);
+    // Gidilmiş eşleşme yoksa (sekme değişiminde gitmeden bulundu, bkz. sekmeDegisti) listeden gelen istek ilk eşleşmeye gitsin
+    const belgeDegisti = secenek.tumSekmeler != null && this.sorgu !== '' && (gs ? gs.belgeId !== aktifId : this.aramaBelgeId !== aktifId || this.sonuclar.length > 0);
     if (this.girdi.value && (kapsamDegisti || belgeDegisti || this.girdi.value !== this.sorgu)) this.ara(this.girdi.value, true);
   }
 
@@ -89,10 +91,32 @@ export class Arama extends EventTarget {
     this.kutu.hidden = true;
     this.acik = false;
     if (this.kaliciKapsam != null) { this.ayar.tumSekmeler = this.kaliciKapsam; this.kaliciKapsam = null; this.kapsamEsitle(); }   // geçici kapsamdan dön (bkz. ac)
+    this.aramaSayac++;   // süren arama sonradan sayaca yazmasın
     this.vurgulariTemizle();
-    this.sonuclar = []; this.gecerli = -1; this.sorgu = '';
-    this.sayac.textContent = '';
+    this.sonuclar = []; this.gecerli = -1; this.sorgu = ''; this.konumlar.clear();
+    this.sayac.textContent = ''; this.sayac.classList.remove('yok');
     this.belgeAl()?.gorunum.kaydirici.focus();
+  }
+
+  /** Etkin sekme değişti (sekmeye geçildi, sekme kapandı, yeni belge açıldı). Kutu açık ve sorgu varken sonuçlar etkin belge için
+   *  yeniden bulunur; sayaç önceki belgenin sonuçlarında kalmaz. Görünüm kaydırılmaz (sekmeye dönen kullanıcı yerini kaybetmez):
+   *  sayaç 'N sonuç' der, Enter / F3 geçerli sayfadaki ya da sonraki eşleşmeye gider. Belgede daha önce bir eşleşmeye gidilmişse
+   *  (referans okuyucudaki gibi) o eşleşme yeniden geçerli olur ('3 / 12'), yine kaydırılmaz. Arama başka sekmedeki eşleşmeye giderken
+   *  (tüm sekmelerde arama) geçerli eşleşme zaten o sekmededir; yeniden aranmaz. Belge henüz yüklenmediyse sonuçlar temizlenir,
+   *  yüklenince yeniden çağrılır. */
+  sekmeDegisti() {
+    if (!this.acik || !this.girdi.value) return;
+    const aktif = this.belgeAl(), aktifId = aktif?.id ?? null, gs = this.sonuclar[this.gecerli];
+    if (gs ? gs.belgeId === aktifId : this.aramaBelgeId === aktifId && this.girdi.value === this.sorgu) return;
+    if (gs?.tur === 'metin') this.konumlar.set(gs.belgeId, { sorgu: this.sorgu, sayfa: gs.sayfa, bas: gs.bas });
+    if (!aktif?.gorunum.belge) {
+      this.aramaSayac++; this.vurgulariTemizle();
+      this.sonuclar = []; this.gecerli = -1; this.aramaBelgeId = null; this.sorgu = '';
+      this.sayac.textContent = ''; this.sayac.classList.remove('yok');
+      return;
+    }
+    const k = this.konumlar.get(aktifId);
+    this.ara(this.girdi.value, true, { gitme: true, hedef: k?.sorgu === this.girdi.value ? { belgeId: aktifId, ...k } : null });
   }
 
   // ------------------------------------------------------------ metin dizini
@@ -153,7 +177,9 @@ export class Arama extends EventTarget {
   }
 
   // ------------------------------------------------------------ arama
-  async ara(sorgu, yeniden = false) {
+  /** gitme: eşleşmeleri bulup vurgular ama hiçbirine gitmez (görünüm kaymaz; bkz. sekmeDegisti). hedef {belgeId, sayfa, bas}: arama
+   *  bitince bu eşleşme (hâlâ varsa ve bu arada başka eşleşmeye gidilmediyse) kaydırmadan geçerli yapılır. */
+  async ara(sorgu, yeniden = false, { gitme = false, hedef = null } = {}) {
     sorgu = sorgu || '';
     if (!yeniden && sorgu === this.sorgu) return;
     this.sorgu = sorgu;
@@ -163,7 +189,7 @@ export class Arama extends EventTarget {
     this.sonuclar = []; this.gecerli = -1;
     if (!sorgu.trim()) { this.sayac.textContent = ''; this.sayac.classList.remove('yok'); return; }
     const aktif = this.belgeAl();
-    if (!aktif) return;
+    if (!aktif) { this.sayac.textContent = ''; this.sayac.classList.remove('yok'); return; }
     const belgeler = this.ayar.tumSekmeler ? [aktif, ...[...this.belgeler.values()].filter((b) => b !== aktif)] : [aktif];
     this.sayac.textContent = 'aranıyor…'; this.sayac.classList.remove('yok');
     let ilkGidildi = false;
@@ -187,7 +213,7 @@ export class Arama extends EventTarget {
           const yeni = esl.map(([bas2, son]) => ({ belgeId: b.id, tur: 'metin', sayfa, bas: bas2, son }));
           this.sonucEkle(yeni, b === aktif);
           this.sayfayiVurgula(g, sayfa);
-          if (!ilkGidildi) { ilkGidildi = true; this.gecerli = this.sonuclar.indexOf(yeni[0]); this.gecerliyeGit(); }
+          if (!ilkGidildi) { ilkGidildi = true; if (!gitme) { this.gecerli = this.sonuclar.indexOf(yeni[0]); this.gecerliyeGit(); } }
           else if (this._yenidenNumarala) { this._yenidenNumarala = false; for (const s2 of g.sayfalar) if (s2.textLayer) this.sayfayiVurgula(g, s2.no); }
           this.sayacYaz(true);
         }
@@ -214,29 +240,41 @@ export class Arama extends EventTarget {
       if (sayac !== this.aramaSayac) return;
     }
     if (sayac !== this.aramaSayac) return;
+    if (hedef && this.gecerli < 0) {
+      const i = this.sonuclar.findIndex((s) => s.tur === 'metin' && s.belgeId === hedef.belgeId && s.sayfa === hedef.sayfa && s.bas === hedef.bas);
+      const b = this.belgeler.get(hedef.belgeId);
+      if (i >= 0 && b) { this.gecerli = i; for (const s2 of b.gorunum.sayfalar) if (s2.textLayer) this.sayfayiVurgula(b.gorunum, s2.no); }
+    }
     this.sayacYaz(false);
-    if (this.sonuclar.length && this.gecerli < 0) { this.gecerli = 0; this.gecerliyeGit(); }
+    if (this.sonuclar.length && this.gecerli < 0 && !gitme) { this.gecerli = 0; this.gecerliyeGit(); }
   }
 
   sonucEkle(yeni, sirala) {
-    const gecerliNesne = this.sonuclar[this.gecerli] || null;
+    const gecerliNesne = this.sonuclar[this.gecerli] || null, oncekiVar = this.sonuclar.length > 0;
     this.sonuclar.push(...yeni);
     if (sirala) this.sonuclar.sort((a, b) => (a.sayfa || 0) - (b.sayfa || 0) || (a.bas || 0) - (b.bas || 0));
     if (gecerliNesne) this.gecerli = this.sonuclar.indexOf(gecerliNesne);
-    // Vurgu numaraları kaydıysa çizili sayfaların vurgularını yenile
-    if (sirala && gecerliNesne) this._yenidenNumarala = true;
+    // Vurgu numaraları kaydıysa çizili sayfaların vurgularını yenile (gidilmemiş aramada da: bkz. ara gitme)
+    if (sirala && oncekiVar) this._yenidenNumarala = true;
   }
 
   sayacYaz(devam) {
     const n = this.sonuclar.length;
     if (!n) { this.sayac.textContent = devam ? 'aranıyor…' : 'Bulunamadı'; this.sayac.classList.toggle('yok', !devam); return; }
     this.sayac.classList.remove('yok');
-    this.sayac.textContent = `${this.gecerli + 1} / ${n}${devam ? '…' : ''}`;
+    // Henüz bir eşleşmeye gidilmediyse (sekme değişiminde yeniden bulundu) yalnızca sayı
+    this.sayac.textContent = (this.gecerli < 0 ? `${n} sonuç` : `${this.gecerli + 1} / ${n}`) + (devam ? '…' : '');
   }
 
   git(yon) {
     if (!this.sonuclar.length) return;
-    this.gecerli = (this.gecerli + yon + this.sonuclar.length) % this.sonuclar.length;
+    if (this.gecerli < 0) {
+      // Gidilmiş eşleşme yok: etkin belgede geçerli sayfadaki ya da ondan sonraki (geri: önceki) ilk eşleşme; yoksa baştaki / sondaki
+      const b = this.belgeAl(), no = b?.gorunum.gecerli || 1;
+      const uygun = (s) => s.belgeId === b?.id && s.tur === 'metin';
+      const i = yon > 0 ? this.sonuclar.findIndex((s) => uygun(s) && s.sayfa >= no) : this.sonuclar.findLastIndex((s) => uygun(s) && s.sayfa <= no);
+      this.gecerli = i >= 0 ? i : (yon > 0 ? 0 : this.sonuclar.length - 1);
+    } else this.gecerli = (this.gecerli + yon + this.sonuclar.length) % this.sonuclar.length;
     this.gecerliyeGit();
     this.sayacYaz(false);
   }

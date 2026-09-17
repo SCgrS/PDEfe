@@ -1,4 +1,16 @@
 // Sol panel: Sayfalar (küçük resimler), İçindekiler (yer imleri), Yorumlar (notlar).
+import { yolAnahtari } from './goruntuleyici.js';
+
+const aciyaIndir = (d) => ((d % 360) + 360) % 360;
+
+/** Sayfanın kaynak dosyasına artımlı kayıtla işlenmiş göreli döndürme (uygulama.js belge.diskDondurme). Kaynak görünümün yüklendiği
+ *  dosya ya da onun anlık kopyasıysa diskteki /Rotate, PDF.js'in yüklediği tabandan bu kadar farklıdır; başka kaynakta 0. */
+function diskDondurmesi(b, s) {
+  const d = b.diskDondurme?.[s.kaynak.sayfa];
+  if (!d) return 0;
+  const g = b.gorunum, k = yolAnahtari(s.kaynak.yol);
+  return (g.yol && yolAnahtari(g.yol) === k) || (g.anlik && yolAnahtari(g.anlik) === k) ? d : 0;
+}
 
 export class SolPanel extends EventTarget {
   constructor({ panel, tutamac, sayfalar, icindekiler, yorumlar, sekmeler, cekirdek }) {
@@ -91,14 +103,14 @@ export class SolPanel extends EventTarget {
     const n = b.gorunum.sayfaSayisi;
     for (let no = 1; no <= n; no++) {
       const s = b.gorunum.sayfalar[no - 1];
-      const oran = s.pt.h / s.pt.w;
       const el = document.createElement('div');
       el.className = 'kucuk-resim' + (no === b.gorunum.gecerli ? ' gecerli' : '');
       el.dataset.sayfa = String(no);
-      const d = ((s.dondurme || 0) % 360 + 360) % 360;
-      const gw = d % 180 === 0 ? genislik : Math.round(genislik / oran), gh = d % 180 === 0 ? Math.round(genislik * oran) : genislik;
-      el.innerHTML = `<div class="bos" style="width:${gw}px;height:${gh}px"></div><span class="no">${no}</span>`;
-      el.dataset.dondurme = String(d);
+      // Yer tutucu ekrandaki yönde (taban /Rotate s.pt'de, üstüne göreli ve görünüm döndürmesi) ve her zaman panel genişliğinde;
+      // boyutu henüz öğrenilmemiş sayfada resim gelince resmin kendi oranıyla düzeltilir
+      const d = aciyaIndir((s.dondurme || 0) + (b.gorunum.gorunumDondurme || 0));
+      const oran = d % 180 === 0 ? s.pt.h / s.pt.w : s.pt.w / s.pt.h;
+      el.innerHTML = `<div class="bos" style="width:${genislik}px;height:${Math.round(genislik * oran)}px"></div><span class="no">${no}</span>`;
       el.addEventListener('click', () => this.dispatchEvent(new CustomEvent('sayfayaGit', { detail: { sayfa: no } })));
       alan.append(el);
       this._gozlemci.observe(el);
@@ -111,7 +123,9 @@ export class SolPanel extends EventTarget {
       const s = b.gorunum.sayfalar[no - 1];
       if (!s) return;
       if (s.bos) { el.querySelector('.bos')?.classList.add('bos-sayfa'); return; }
-      const anahtar = (s.kaynak.yol + '#' + s.kaynak.sayfa).toLowerCase();
+      // Çekirdek sayfayı diskteki /Rotate ile çizer: kayıtla diske işlenmiş döndürme resimde vardır, anahtar ona göre ayrılır
+      const disk = diskDondurmesi(b, s);
+      const anahtar = (s.kaynak.yol + '#' + s.kaynak.sayfa).toLowerCase() + '#' + disk;
       let src = onbellek.get(anahtar);
       if (!src) {
         const r = await this.cekirdek('kucuk_resim', { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa, genislik: genislik * Math.min(2, window.devicePixelRatio || 1) });
@@ -119,12 +133,25 @@ export class SolPanel extends EventTarget {
         onbellek.set(anahtar, src);
       }
       if (!el.isConnected) return;
-      const d = +el.dataset.dondurme || 0;
       const img = document.createElement('img');
       img.src = src; img.draggable = false;
-      if (d % 180 === 0) img.style.width = genislik + 'px'; else img.style.height = genislik + 'px';
-      if (d) { img.style.transform = `rotate(${d}deg)`; const sarmal = document.createElement('div'); sarmal.className = 'donuk'; sarmal.style.width = el.querySelector('.bos').style.width; sarmal.style.height = el.querySelector('.bos').style.height; sarmal.append(img); el.querySelector('.bos')?.replaceWith(sarmal); }
-      else el.querySelector('.bos')?.replaceWith(img);
+      await img.decode().catch(() => {});
+      if (!el.isConnected || !img.naturalWidth) return;   // panel bu arada yeniden kuruldu ya da resim çözülemedi (yer tutucu kalır)
+      // Resmin ekranda ayrıca döndürüleceği açı: ekrandaki yön (göreli + görünüm döndürmesi) eksi diske işlenmiş olan
+      const d = aciyaIndir((s.dondurme || 0) + (b.gorunum.gorunumDondurme || 0) - disk);
+      const oran = img.naturalHeight / img.naturalWidth;
+      if (!d) { img.style.width = genislik + 'px'; el.querySelector('.bos')?.replaceWith(img); return; }
+      // Döndürülen resim, ekrandaki (döndürülmüş) boyutta ve panel genişliğindeki kutunun ortasında döner; 90/270'te resmin
+      // yüksekliği ekranda genişlik, genişliği yükseklik olur
+      const yan = d % 180 !== 0;
+      const sarmal = document.createElement('div');
+      sarmal.className = 'donuk';
+      sarmal.style.width = genislik + 'px';
+      sarmal.style.height = Math.round(yan ? genislik / oran : genislik * oran) + 'px';
+      if (yan) { img.style.height = genislik + 'px'; img.style.width = Math.round(genislik / oran) + 'px'; } else img.style.width = genislik + 'px';
+      img.style.transform = `rotate(${d}deg)`;
+      sarmal.append(img);
+      el.querySelector('.bos')?.replaceWith(sarmal);
     } catch (e) { console.warn('Küçük resim alınamadı', no, e.message); }
   }
 

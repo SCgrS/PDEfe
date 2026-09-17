@@ -76,7 +76,7 @@ function koyuMu() { return ayar.tema === 'sistem' ? sistemKoyu : ayar.tema === '
 
 function temaUygula() {
   document.documentElement.dataset.tema = koyuMu() ? 'koyu' : 'acik';
-  $('#dugme-tema').title = koyuMu() ? 'Açık temaya geç' : 'Koyu temaya geç';   // düğme geçilecek temanın simgesini gösterir (ay / güneş)
+  $('#dugme-tema').title = koyuMu() ? 'Koyu tema açık — açık temaya geç' : 'Açık tema açık — koyu temaya geç';   // düğme şu anki temanın simgesini gösterir (koyu: ay, açık: güneş)
   for (const b of belgeler.values()) { b.gorunum.koyuSayfaAyarla(koyuMu() && ayar.sayfayiKoyulastir); b.notlar?.hepsiniCiz(); }   // vurgu karışımı koyu sayfaya göre
 }
 
@@ -132,7 +132,8 @@ async function dosyaAc(yol, secenek = {}) {
     belge.boyut = boyut;
     const sonSayfa = ayar.kaldigimSayfadanAc ? (ayar.sayfaKonumlari || {})[yol] : null;
     const zoom = ayar.varsayilanZoom;
-    const zoomModu = ['genislik', 'sayfa', 'gercek', 'gorunur'].includes(zoom) ? zoom : 'serbest';
+    // İki sayfa düzeninde belge her zaman sayfaya sığdırılarak açılır (bkz. Goruntuleyici.duzenAyarla)
+    const zoomModu = duzenIkiMi(genelDuzen()) ? 'sayfa' : ['genislik', 'sayfa', 'gercek', 'gorunur'].includes(zoom) ? zoom : 'serbest';
     const olcek = zoom === 'son' ? (ayar.sonZoom || 100) / 100 : (typeof zoom === 'number' ? zoom / 100 : 1);
     gorunum.koyuSayfa = koyuMu() && ayar.sayfayiKoyulastir;
     await gorunum.yukle(veri, {
@@ -148,7 +149,7 @@ async function dosyaAc(yol, secenek = {}) {
     await mesajKutusu({ tur: 'error', mesaj: 'PDF açılamadı', ayrinti: `${ad}\n\n${hataMetni(e)}` });
     return null;
   }
-  if (aktifId === id) { duzenEsitle(belge); sayfaGoster(belge); zoomGoster(belge); durum.boyutYaz(belge.boyut); panel.belgeAyarla(belge); }
+  if (aktifId === id) { duzenEsitle(belge); sayfaGoster(belge); zoomGoster(belge); durum.boyutYaz(belge.boyut); panel.belgeAyarla(belge); arama.sekmeDegisti(); }
   sonDosyalaraEkle(yol);
   return belge;
 }
@@ -167,14 +168,27 @@ async function sekmeSec(id) {
   b.el.hidden = false;
   duzenEsitle(b);   // genel düzen/kapak bu sekme arka plandayken değiştiyse şimdi uygula
   sekmeler.aktifYap(id);
-  sayfaGoster(b); zoomGoster(b);
-  durum.boyutYaz(b.boyut); durum.degisiklikYaz(b.degisti);
-  geriAlDugmeleriniGuncelle(b);
-  aracDugmeleriniGuncelle(b.notlar?.arac || null);
+  belgeDurumuYaz(b);
   pdefe.cagir('pencere:baslik', b.ad);
   panel.belgeAyarla(b);
   b.gorunum.boyutDegisti();
   b.gorunum.kaydirici.focus({ preventScroll: true });
+  arama.sekmeDegisti();   // Bul kutusu açıksa sayaç önceki belgenin sonuçlarında kalmasın
+}
+
+/** Araç çubuğunda ve durum çubuğunda belgeye bağlı her şeyi (sayfa kutusu ve toplam, yakınlaştırma, boyut, kaydedilmemiş değişiklik,
+ *  Kaydet, Geri al / Yinele ve ipuçları, not araçları) etkin sekmeye göre yazar; b yoksa (başlangıç ekranı) ilk duruma döndürür. */
+function belgeDurumuYaz(b) {
+  if (b) { sayfaGoster(b); zoomGoster(b); }
+  else {
+    durum.sayfa(0, 0); durum.zoomYaz(1);
+    sayfaKutusuYaz($('#sayfa-kutusu'), ''); $('#sayfa-toplam').textContent = '/ 0';
+    zoomKutusuYaz(1);
+  }
+  durum.boyutYaz(b ? b.boyut : null); durum.degisiklikYaz(!!b?.degisti);
+  $('#arac-cubugu [data-komut="dosya.kaydet"]').disabled = !b?.degisti;
+  geriAlDugmeleriniGuncelle(b);
+  aracDugmeleriniGuncelle(b?.notlar?.arac || null);
 }
 
 function kirliGuncelle(b) {
@@ -242,8 +256,8 @@ async function belgeKapat(id, secenek = {}) {
 
 function baslangicGoster() {
   $('#baslangic').hidden = false;
-  durum.sayfa(0, 0); durum.zoomYaz(1); durum.boyutYaz(null); durum.degisiklikYaz(false);
-  sayfaKutusuYaz($('#sayfa-kutusu'), ''); $('#sayfa-toplam').textContent = '/ 0';
+  belgeDurumuYaz(null);
+  if (arama.acik) arama.kapat();   // aranacak belge kalmadı
   pdefe.cagir('pencere:baslik', '');
   panel.belgeAyarla(null);
   sonDosyalariListele();
@@ -397,9 +411,12 @@ function sayfaGoster(b) {
 function zoomGoster(b) {
   const o = b.gorunum.olcek;
   durum.zoomYaz(o);
-  if (document.activeElement !== $('#zoom-kutusu')) $('#zoom-kutusu').value = '%' + Math.round(o * 100);
-  if (ayar.varsayilanZoom === 'son') { ayar.sonZoom = Math.round(o * 100); zoomKaydetGecikmeli(); }
+  if (document.activeElement !== $('#zoom-kutusu')) zoomKutusuYaz(o);   // kullanıcı kutuda yazarken üzerine yazılmaz
+  // Yüklenmemiş görünümün ölçeği (yeni sekme seçilirken %100) son kullanılan sayılmaz: belge onunla açılırdı
+  if (ayar.varsayilanZoom === 'son' && b.gorunum.belge) { ayar.sonZoom = Math.round(o * 100); zoomKaydetGecikmeli(); }
 }
+/** Yakınlaştırma kutusuna ölçeği Türkçe yüzde biçiminde ('%150') yazar. */
+function zoomKutusuYaz(olcek) { $('#zoom-kutusu').value = '%' + Math.round(olcek * 100); }
 let _zoomZaman = null;
 function zoomKaydetGecikmeli() { clearTimeout(_zoomZaman); _zoomZaman = setTimeout(() => ayarKoy('sonZoom', ayar.sonZoom), 800); }
 
@@ -675,6 +692,8 @@ $('#zoom-kutusu').addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { e.target.blur(); aktif()?.gorunum.kaydirici.focus(); }
 });
 $('#zoom-kutusu').addEventListener('focus', (e) => e.target.select());
+// Odak çıkınca (Enter, Esc, başka yere tıklama, sekme değişimi) kutu etkin belgenin ölçeğini '%N' olarak gösterir: yazılan '150' ya da geçersiz metin kalmaz
+$('#zoom-kutusu').addEventListener('blur', () => zoomKutusuYaz(aktif()?.gorunum.olcek ?? 1));
 $('#dugme-zoom-secenek').addEventListener('click', async () => {
   const b = aktif(); if (!b) return;
   const mod = b.gorunum.zoomModu;
@@ -982,20 +1001,35 @@ function diyalogAc({ baslik, govde, dugmeler, onSecim, genislik }) {
 }
 
 function kisayollarGoster() {
-  const satirlar = [
-    ['Ctrl+O', 'Aç'], ['Ctrl+S', 'Kaydet'], ['Ctrl+Shift+S', 'Farklı kaydet'], ['Ctrl+W', 'Sekmeyi kapat'], ['Ctrl+P', 'Yazdır'],
-    ['Ctrl+F', 'Bul'], ['F3 / Shift+F3', 'Sonraki / önceki eşleşme'], ['Ctrl+G', 'Sayfaya git'], ['Ctrl+Z / Ctrl+Y', 'Geri al / yinele'],
+  // İki sütun (dar pencerede alt alta): bölüm başlığı tek öğeli dizi; birden çok tuş dizi olarak verilir (tuş kutuları arasında satır kırılabilir)
+  const sutunlar = [[
+    ['Dosya ve sekmeler'],
+    ['Ctrl+O', 'Aç'], ['Ctrl+S', 'Kaydet'], ['Ctrl+Shift+S', 'Farklı kaydet'], ['Ctrl+P', 'Yazdır'], ['Ctrl+W', 'Sekmeyi kapat'],
     ['Ctrl+Tab / Ctrl+Shift+Tab', 'Sekme değiştir (basılı tutunca seçici açılır)'], ['Ctrl+1 – Ctrl+9', 'Sekme seç (9: son sekme)'],
-    ['Ctrl+Fare tekerleği, Ctrl++ / Ctrl+−', 'Yakınlaştır / uzaklaştır'], ['Ctrl+0', 'Gerçek boyut'],
+    ['Düzen'],
+    ['Ctrl+Z / Ctrl+Y', 'Geri al / yinele'], ['Ctrl+F', 'Bul'], ['F3 / Shift+F3', 'Sonraki / önceki eşleşme'],
+    ['Ctrl+A', 'Sayfadaki tüm metni seç'], ['Delete', 'Seçili notu sil'], ['Ctrl+,', 'Ayarlar'],
+    ['Yazı kutusu'],
+    ['Ctrl+B / Ctrl+I / Ctrl+U', 'Kalın / italik / altı çizili'],
+    ['Genel'],
+    ['F1', 'Klavye kısayolları'], ['Esc', 'Kapat / vazgeç'],
+  ], [
+    ['Gezinme'],
+    ['Ctrl+G', 'Sayfaya git'], ['← →', 'Önceki / sonraki sayfa (elle yakınlaştırılmışsa önce yana kaydırır)'],
+    ['PageUp / PageDown', 'Önceki / sonraki sayfa (kaydırma kapalıyken önce bir ekran kaydırır)'],
+    ['↑ ↓', 'Kaydır (kaydırma kapalıyken sayfa sonunda sayfayı çevirir)'], ['Boşluk / Shift+Boşluk', 'Bir ekran aşağı / yukarı kaydır'],
+    ['Home / End', 'İlk / son sayfa'], ['Ctrl+Home / Ctrl+End', 'Belge başı / sonu'], ['Shift+Fare tekerleği', 'Yatay kaydırma'],
+    ['Görünüm'],
+    [['Ctrl+Fare tekerleği', 'Ctrl++ / Ctrl+−'], 'Yakınlaştır / uzaklaştır'], ['Ctrl+0', 'Gerçek boyut'],
     ['Ctrl+Shift++ / Ctrl+Shift+−', 'Döndür'], ['F4', 'Sol panel'], ['Ctrl+H', 'Okuma modu'], ['F11', 'Tam ekran'],
-    ['← →', 'Önceki / sonraki sayfa (elle yakınlaştırılmışsa önce yana kaydırır)'], ['PageUp / PageDown', 'Önceki / sonraki sayfa (kaydırma kapalıyken önce bir ekran kaydırır)'],
-    ['↑ ↓', 'Kaydır (kaydırma kapalıyken sayfa sonunda sayfayı çevirir)'], ['Home / End', 'İlk / son sayfa'], ['Ctrl+Home / Ctrl+End', 'Belge başı / sonu'],
-    ['Shift+Fare tekerleği', 'Yatay kaydırma'], ['Ctrl+A', 'Sayfadaki tüm metni seç'], ['Delete', 'Seçili notu sil'], ['Esc', 'Kapat / vazgeç'],
-  ];
+  ]];
+  const satir = ([k, a]) => (a == null ? `<tr class="bolum"><th colspan="2">${k}</th></tr>`
+    : `<tr><td>${[].concat(k).map((t) => `<kbd>${t}</kbd>`).join(' ')}</td><td>${a}</td></tr>`);
   diyalogAc({
     baslik: 'Klavye kısayolları',
-    govde: '<table>' + satirlar.map(([k, a]) => `<tr><td><kbd>${k}</kbd></td><td>${a}</td></tr>`).join('') + '</table>',
+    govde: '<div class="kisayol-sutunlar">' + sutunlar.map((s) => '<table class="kisayollar">' + s.map(satir).join('') + '</table>').join('') + '</div>',
     dugmeler: [{ id: 'tamam', etiket: 'Tamam', birincil: true }],
+    genislik: 880,
   });
 }
 
