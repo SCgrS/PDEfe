@@ -456,18 +456,20 @@ function ogelerKutusu(ogeler, kutu = (x) => x.o) {
 }
 
 const KOSU_SINIRI = 60;   // bundan çok koşuya bölünen sayfada (içerik sırası dağınık) birimler aranmaz, sıra tümüyle geometrik
+const BLOK_ARASI = 3;     // satır kalınlığı: koşuda arada başka satırlar bulunan bundan büyük dikey boşluk yeni koşu başlatır
 
 /**
  * Sayfanın okuma sırası (seçim bu sırayla kurulur). İçerik (DOM) sırası çoğu belgede okuma sırasıdır ve sütunları, yan yana blokları
  * (UYAP tebligat formu ile muhatap bloğu, imza blokları) doğru dizer; ama Word ve UYAP'ta sayfanın altındaki alt bilgi içerikte
  * gövdeden önce gelir. İçerik sırası bu yüzden geometriyle denetlenir:
- * - Koşu: içerikte ardışık, aynı satırda ya da satırdan satıra aşağı ilerleyen öğeler. Yukarı dönüş ya da arada başka öğeler bulunan
- *   satırların üstünden aşağı atlayış yeni koşu başlatır.
+ * - Koşu: içerikte ardışık, aynı satırda ya da satırdan satıra aşağı ilerleyen öğeler. Yukarı dönüş, arada yatayda örtüşen öğeler
+ *   bulunan satırların üstünden aşağı atlayış ya da yanında başka satırlar bulunan büyük dikey boşluk (BLOK_ARASI) yeni koşu başlatır.
  * - Birim: dikeyde örtüşen iki koşu, örtüştükleri bantta yatayda ayrıksa yan yanadır (sütun, blok, etiket ile değeri; bantta tek
  *   satırı olan için komşu satırlar da ayrık olmalı); değilse iç içedir (satırın içine sonradan yazılmış sözcük) ve aynı birime
  *   katılır. Birim içinde sıra satırlar üstten alta, satırda baştan sona.
- * - Birimlerin sırası: yan yanadan soldaki önce; yatayda örtüşen birimlerden tümüyle üstte olan önce (alt bilgi gövdeden sonra, üst
- *   bilgi önce); aralarında bağ olmayanlar içerik sırasıyla.
+ * - Birimlerin sırası: hiçbir birimin dikeyde kesmediği yatay boşlukla ayrılan bantlarda üstteki bant önce; bantta yan yanadan
+ *   soldaki önce, yatayda örtüşen birimlerden tümüyle üstte olan önce (alt bilgi gövdeden sonra, üst bilgi önce); aralarında bağ
+ *   olmayanlar içerik sırasıyla.
  * Başka yönde yazılmış her öğe kendi birimidir. Boşluk öğeleri içerikte komşu oldukları (aynı satırdaki) sözcüğün birimine katılır.
  * Öğelere okuma satırı (satir: birimde satır) ve birim indeksi yazılır. Döner: {sira, birimler: [{ust, alt, bas, son, rakipler: Set}], hTip}
  * (hTip: sayfada tipik satır kalınlığı).
@@ -483,6 +485,8 @@ function okumaSirasi(anaOgeler, bosluklar, satirlar, yanlar, ana) {
     if (!yeni && oge.si > a.si + 1) {
       const x0 = Math.min(a.o.bas, oge.o.bas), x1 = Math.max(a.o.son, oge.o.son);
       for (let s = a.si + 1; s < oge.si && !yeni; s++) yeni = satirlar[s].ogeler.some((x) => x.o.son > x0 && x.o.bas < x1);
+      // Yanındaki satırların hizasından birkaç satır aşağı atlayış (tebligat formunda muhatap bloğu ile duruşma bilgileri): ayrı blok
+      if (!yeni) yeni = oge.o.ust - a.o.alt > hTip * BLOK_ARASI;
     }
     if (yeni) kosular.push((kosu = { ogeler: [] }));
     kosu.ogeler.push(oge);
@@ -559,14 +563,24 @@ function okumaSirasi(anaOgeler, bosluklar, satirlar, yanlar, ana) {
   for (const [i, j] of ustte) {
     for (const r of birimler[i].rakipler) if (r !== j && !birimler[r].rakipler.has(j) && birimler[r].alt <= birimler[j].ust + hTip * 0.3) birimler[r].sonra.add(j);
   }
+  // Bantlar: hiçbir birimin dikeyde kesmediği yatay boşluklar sayfayı bantlara böler (tebligatın iki nüshası, katlama çizgisi);
+  // üstteki bandın birimleri alttakilerden önce gelir (içerikte ikinci nüshanın başlığı birinci nüshanın son satırından önce olabilir)
+  const bant = [];
+  let b = -1, bantAlti = -Infinity;
+  for (const i of [...birimler.keys()].sort((x, y) => birimler[x].ust - birimler[y].ust)) {
+    if (birimler[i].ust >= bantAlti - hTip * 0.3) b++;
+    bant[i] = b;
+    bantAlti = Math.max(bantAlti, birimler[i].alt);
+  }
+  const once = (i, j) => bant[i] < bant[j] || (bant[i] === bant[j] && birimler[i].dom < birimler[j].dom);
   const girdi = birimler.map(() => 0);
   for (const U of birimler) for (const j of U.sonra) girdi[j]++;
   const kalan = new Set(birimler.keys()), sira = [];
   let satir = -1;
   while (kalan.size) {
     let sec = -1;
-    for (const i of kalan) if (!girdi[i] && (sec < 0 || birimler[i].dom < birimler[sec].dom)) sec = i;
-    if (sec < 0) for (const i of kalan) if (sec < 0 || birimler[i].dom < birimler[sec].dom) sec = i;
+    for (const i of kalan) if (!girdi[i] && (sec < 0 || once(i, sec))) sec = i;
+    if (sec < 0) for (const i of kalan) if (sec < 0 || once(i, sec)) sec = i;
     kalan.delete(sec);
     for (const j of birimler[sec].sonra) girdi[j]--;
     const B = birimler[sec];
@@ -624,11 +638,89 @@ function ogeIciOfset(oge, pb, k) {
 }
 
 /**
+ * Sürüklemenin çapası fareye göre nerede: {yon: 1 fare çapanın altında (sonraki sayfada), -1 üstünde (önceki sayfada), 0 aynı satır
+ * yüksekliğinde; birim: çapanın bu sayfadaki birimi ya da null}.
+ */
+function capaYeri(gorunum, model, s, k, capa, p) {
+  const span = konumOgesi(capa);
+  if (!span) return null;
+  if (!s.el.contains(span)) {
+    const i = gorunum.sayfalar.findIndex((x) => x.el.contains(span)), j = gorunum.sayfalar.indexOf(s);
+    return i < 0 || j < 0 ? null : { yon: Math.sign(j - i), birim: null };
+  }
+  const r = span.getBoundingClientRect();
+  const o = okumaKutusu({ left: r.left - k.left, right: r.right - k.left, top: r.top - k.top, bottom: r.bottom - k.top }, model.ana);
+  const i = model.indeks.get(span);
+  return { yon: p.ust > o.alt ? 1 : p.ust < o.ust ? -1 : 0, birim: i === undefined ? null : model.birimler[model.sira[i].birim] };
+}
+
+/**
+ * Satırlardan uzak boşluktaki p noktasının (sayfa yerel, okuma çerçevesi) okuma sırasındaki konumu: {span, ofset} ya da null.
+ * Referans okuyucudaki gibi konum farenin altındaki düzen biriminde (blok, sütun) aranır: kapsayan (yatayda farenin hizasındaki birimlerin
+ * indeksleri), yoksa çapanın birimi, o da yoksa yatayda en yakın birimler. Her birimde farenin üstündeki son satırın sonu ve altındaki
+ * ilk satırın başı adaydır; aday birimle fare arasında üst üste duran birim (gövdenin altındaki alt bilgi, üstündeki üst bilgi) fare
+ * hizasında olmasa da farenin geçtiği yerdir ve öne geçer. Aşağı sürüklemede (fare çapanın altında) en yakın üst aday: bloğun altındaki
+ * boşluğa inen seçim o bloğun son satırında biter; yukarı sürüklemede en yakın alt aday: bloğun üstüne çıkan seçim ilk satırından
+ * başlar (aday yoksa öteki yön). Çapa yoksa ya da fare aynı yükseklikteyse en yakın aday. Farenin gelmediği satırlar (gövdenin altındaki
+ * alt bilgi, yan yana bloğun ya da ikinci nüshanın satırları) seçime girmez; farenin geçtiği komşu sütundaki konuma kadar okuma
+ * sırasıyla seçilir.
+ */
+function boslukKonumu(model, p, capa, kapsayan) {
+  const birimler = model.birimler.filter((B) => !B.yan);
+  let adaylar = kapsayan.map((i) => model.birimler[i]);
+  if (!adaylar.length && capa?.birim && !capa.birim.yan) adaylar = [capa.birim];
+  if (!adaylar.length) {
+    const dx = (B) => Math.max(0, B.bas - p.bas, p.bas - B.son), en = Math.min(...birimler.map(dx));
+    adaylar = birimler.filter((B) => dx(B) <= en + model.hTip);
+  }
+  const sira = (oge) => model.indeks.get(oge.span);
+  /** Birimde farenin üstündeki son öğe ve altındaki ilk öğe (okuma sırasında), dikey uzaklıklarıyla: [{oge, m, B} | null, ...] */
+  const uclar = (B) => {
+    let u = null, a = null;
+    for (const oge of B.ogeler) {
+      if (oge.bosluk) continue;
+      if ((oge.o.ust + oge.o.alt) / 2 < p.ust) {
+        const m = p.ust - oge.o.alt;
+        if (!u) u = { oge, m, B };
+        else { if (sira(oge) > sira(u.oge)) u.oge = oge; u.m = Math.min(u.m, m); }
+      } else {
+        const m = oge.o.ust - p.ust;
+        if (!a) a = { oge, m, B };
+        else { if (sira(oge) < sira(a.oge)) a.oge = oge; a.m = Math.min(a.m, m); }
+      }
+    }
+    return [u, a];
+  };
+  let ust = null, alt = null;
+  for (const B of adaylar) {
+    const [u, a] = uclar(B);
+    if (u && (!ust || u.m < ust.m)) ust = u;
+    if (a && (!alt || a.m < alt.m)) alt = a;
+  }
+  const pay = model.hTip * 0.3, ortusur = (U, V) => Math.min(U.son, V.son) - Math.max(U.bas, V.bas) > 1;
+  for (const V of birimler) {
+    if (ust && V !== ust.B && ortusur(V, ust.B) && V.ust >= ust.B.alt - pay && V.ust <= p.ust) {
+      const [u] = uclar(V);
+      if (u && u.m < ust.m) ust = u;
+    }
+    if (alt && V !== alt.B && ortusur(V, alt.B) && V.alt <= alt.B.ust + pay && V.alt >= p.ust) {
+      const [, a] = uclar(V);
+      if (a && a.m < alt.m) alt = a;
+    }
+  }
+  const yon = capa?.yon || 0;
+  const secilen = yon > 0 ? ust || alt : yon < 0 ? alt || ust : ust && alt ? (alt.m < ust.m ? alt : ust) : ust || alt;
+  if (!secilen) return null;
+  return secilen === ust ? { span: ust.oge.span, ofset: ust.oge.span.textContent.length } : { span: alt.oge.span, ofset: 0 };
+}
+
+/**
  * İstemci noktasına en yakın metin konumu: {span, ofset} ya da null. Nokta bir sayfanın üstünde değilse en yakın (metni olan) sayfa
  * alınır. Sayfada önce dikeyde (okuma çerçevesinde satırdan satıra) en yakın satır, eşitlikte yatayda yakın olan; satırda yatay
  * konuma göre öğe ve karakter sınırı. Satır başının solu satır başı, sonunun sağı satır sonudur; iki öğe arasındaki boşlukta yakın olan kenar.
+ * Satırlardan uzak boşlukta konum boslukKonumu'dur; capa (sürüklemenin başladığı konum) yönü ve birimi verir.
  */
-function enYakinKonum(gorunum, x, y, onbellek) {
+function enYakinKonum(gorunum, x, y, onbellek, capa = null) {
   const adaylar = [];
   for (const s of gorunum.sayfalar) {
     if (!s.textLayer) continue;
@@ -660,25 +752,48 @@ function enYakinKonum(gorunum, x, y, onbellek) {
       }
     }
     const satirlar = yakin && p.ust >= yakin.ust - model.hTip && p.ust <= yakin.alt + model.hTip ? birimSatirlari(model, model.birimler.indexOf(yakin)) : model.satirlar;
-    const sira = (oge) => model.indeks.get(oge.span);
     // Karşılaştırma: satır bandına uzaklık; bantlar örtüşüyorsa (sık satır aralığı) bant ortasına uzaklık; sonra yatay uzaklık
-    let enIyi = null, enIyiA = null;
-    for (const L of satirlar) {
-      const d = Math.max(0, L.ust - p.ust, p.ust - L.alt);
-      const a = [d, d ? 0 : Math.abs(p.ust - (L.ust + L.alt) / 2), Math.max(0, L.bas - p.bas, p.bas - L.son)];
-      if (!enIyiA || a[0] < enIyiA[0] || (a[0] === enIyiA[0] && (a[1] < enIyiA[1] || (a[1] === enIyiA[1] && a[2] < enIyiA[2])))) { enIyi = L; enIyiA = a; }
+    const enYakinSatir = (liste) => {
+      let enIyi = null, enIyiA = null;
+      for (const L of liste) {
+        const d = Math.max(0, L.ust - p.ust, p.ust - L.alt);
+        const a = [d, d ? 0 : Math.abs(p.ust - (L.ust + L.alt) / 2), Math.max(0, L.bas - p.bas, p.bas - L.son)];
+        if (!enIyiA || a[0] < enIyiA[0] || (a[0] === enIyiA[0] && (a[1] < enIyiA[1] || (a[1] === enIyiA[1] && a[2] < enIyiA[2])))) { enIyi = L; enIyiA = a; }
+      }
+      return enIyi && { L: enIyi, d: enIyiA[0] };
+    };
+    let en = enYakinSatir(satirlar);
+    // Farenin yatay hizasındaki birimler (blok, sütun; bir satır kalınlığı payla). Hiçbiri en yakın satırda değilse ve metinleri farenin
+    // bu satıra yatay uzaklığından yakınsa satır yan yana başka bir bloğundur (sol formun satırı hizasında sağ sütunun boşluğu):
+    // yalnızca o birimlerin satırlarına bakılır
+    const kapsayan = [];
+    model.birimler.forEach((B, i) => { if (!B.yan && p.bas >= B.bas - model.hTip && p.bas <= B.son + model.hTip) kapsayan.push(i); });
+    let yanBlok = en && kapsayan.length && !en.L.ogeler.some((o) => kapsayan.includes(o.birim));
+    if (yanBlok) {
+      const satirUzak = Math.max(0, en.L.bas - p.bas, p.bas - en.L.son);
+      let blokUzak = Infinity;
+      for (const i of kapsayan) {
+        for (const { o, bosluk } of model.birimler[i].ogeler) {
+          if (!bosluk) blokUzak = Math.min(blokUzak, Math.hypot(Math.max(0, o.bas - p.bas, p.bas - o.son), Math.max(0, o.ust - p.ust, p.ust - o.alt)));
+        }
+      }
+      yanBlok = blokUzak < satirUzak;
     }
-    // Satırlardan uzak boşluk (paragraf arası, sayfanın üstü/altı): konum okuma sırasında boşluğun yeridir, altındaki satırın başı
-    // (altında satır yoksa sayfa metninin sonu). Aşağı sürüklemede seçim üstteki son satırın sonunda, yukarı sürüklemede alttaki
-    // ilk satırın başında biter; farenin henüz ulaşmadığı en yakın satır (ör. sayfa altındaki alt bilgi) seçime girmez. Satırın okuma
-    // sırasında ilk öğesi (satırda yan yana birimler olabilir); altında satır yoksa aranan satırların okuma sırasında son öğesinin sonu
-    if (enIyiA[0] > (enIyi.alt - enIyi.ust) / 2) {
-      const alti = satirlar.find((L) => (L.ust + L.alt) / 2 > p.ust);
-      if (alti) return { girdi: s, span: alti.ogeler.reduce((a, b) => (sira(b) < sira(a) ? b : a)).span, ofset: 0 };
-      let son = null;
-      for (const L of satirlar) for (const o of L.ogeler) if (!son || sira(o) > sira(son)) son = o;
-      return { girdi: s, span: son.span, ofset: son.span.textContent.length };
+    if (yanBlok) {
+      const liste = [];
+      for (const L of model.satirlar) {
+        const ogeler = L.ogeler.filter((o) => kapsayan.includes(o.birim));
+        if (ogeler.length) liste.push({ ...ogelerKutusu(ogeler), ogeler });
+      }
+      en = enYakinSatir(liste);
     }
+    // Satırlardan uzak boşluk (paragraf arası, bloğun altı, sayfanın üstü/altı): bkz. boslukKonumu
+    if (!en || en.d > (en.L.alt - en.L.ust) / 2) {
+      const k2 = boslukKonumu(model, p, capa && capaYeri(gorunum, model, s, k, capa, p), kapsayan);
+      if (k2) return { girdi: s, ...k2 };
+      if (!en) continue;
+    }
+    const enIyi = en.L;
     const og = enIyi.ogeler;
     if (p.bas <= og[0].o.bas) return { girdi: s, span: og[0].span, ofset: 0 };
     for (let i = 0; i < og.length; i++) {
@@ -957,7 +1072,7 @@ export function surukleSecimiBagla(gorunum, { aracAl = () => null } = {}) {
         if (!gorunum.sayfalar[i].textLayer) gorunum.metinKatmaniHazirla(i).then(katmanKuruldu, () => {});
       }
     }
-    const odak = siraEkle(enYakinKonum(gorunum, d.x, d.y, d.onbellek));
+    const odak = siraEkle(enYakinKonum(gorunum, d.x, d.y, d.onbellek, d.bas));
     if (!odak) return;
     const { onbellek } = d;
     if (!d.sozcuk) { secimKur(gorunum, onbellek, d.bas, odak); return; }
