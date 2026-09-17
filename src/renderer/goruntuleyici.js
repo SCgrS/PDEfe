@@ -696,6 +696,10 @@ export class Goruntuleyici extends EventTarget {
   onYuklemeIsle() {
     if (this.yok || !this.belge) return;
     for (const s of this._gorunurKume) if (s._planli || s.hedef) return;   // görünür çizim bitince sayfaCiz yeniden çağırır
+    // Görünür sayfa görsellerinin işçide örneklenmesini bekliyor (hızlı çizildi): ön çizimler şimdi başlarsa onların istekleri
+    // işçide öne geçer (son istek önce işlenir), keskin çizim de kuyruk boşalınca yapıldığından gecikir (taranmış belgenin ilk
+    // açılışında ~0,3 sn). Okuma bitince keskinHazir görünür sayfayı çizer, onun sayfaCiz'i buraya yeniden gelir.
+    if (!keskinErtelenir() && okumaSuruyor()) for (const s of this._gorunurKume) if (s.cizim?.hizli || s._okumaBekliyor) return;
     for (const i of this._onKuyruk) if (i >= 0 && i < this.sayfalar.length) this.sayfaCizPlanla(i);
   }
 
