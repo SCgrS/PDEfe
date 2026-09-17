@@ -1,6 +1,7 @@
 // Belge görüntüleyici: PDF.js ile tembel (lazy) sayfa çizimi, yakınlaştırma, sayfa düzenleri.
 // Her sekmenin kendi Goruntuleyici örneği vardır.
 import * as pdfjs from '../../node_modules/pdfjs-dist/build/pdf.min.mjs';
+import { keskinBaglam, KeskinTuvalFabrikasi, ETKILESIM_MS, etkilesimBildir, keskinErtelenir, ertelenenSayisi } from './keskinlik.js';
 
 const KAYNAK = new URL('../../node_modules/pdfjs-dist/', import.meta.url).href;
 pdfjs.GlobalWorkerOptions.workerSrc = KAYNAK + 'build/pdf.worker.min.mjs';
@@ -13,23 +14,15 @@ const EN_FAZLA_PIKSEL = 24e6;             // tek tuvalde en fazla piksel; üstü
 const BOLGE_PAYI = 0.25;                  // bölgesel çizimde görünür alanın her yanına eklenen pay (görünür boyutun oranı)
 const ONIZLEME_ESIGI = 6e6;               // bundan büyük (cihaz pikseli) ilk çizimlerde önce önizleme
 const ONIZLEME_PIKSEL = 1.5e6;            // önizleme tuvalinin en fazla piksel sayısı
-const KOYU_YER_TUTUCU = 'rgb(20, 20, 20)'; // beyazın invert(0.92) karşılığı: koyu sayfada henüz çizilmemiş sayfanın rengi
+const KOYU_YER_TUTUCU = '#000';            // beyazın invert(1) karşılığı: koyu sayfada henüz çizilmemiş sayfanın ve tuvalin kaplamadığı alanın rengi
 const ZOOM_ADIMLARI = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
 
 export { pdfjs };
 
-// Görsel kalitesi: PDF.js (pdf.mjs getImageSmoothingEnabled) bir görsel pixelRatio*96/72 katından fazla büyütülerek
-// çizildiğinde bağlamın imageSmoothingEnabled özelliğini false yapıyor (endGroup'ta da false atıyor). Sonuç: yakınlaştırınca
-// ya da düşük çözünürlüklü taranmış belgelerde fotoğraflar en yakın komşu örneklemesiyle pikselli görünür. PDF.js bu
-// özelliği yalnızca atamayla kullandığı için (pdf.min.mjs'te 3 atama) prototipteki ayarlayıcıyı değiştiriyoruz: her atamada
-// yumuşatma açık kalır ve kalite 'high' olur. Okuyucu özgündür; aynı süreçteki bütün 2B tuvalleri etkiler.
-const ozgunYumusatma = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'imageSmoothingEnabled');
-if (ozgunYumusatma?.configurable && ozgunYumusatma.get && ozgunYumusatma.set) {
-  Object.defineProperty(CanvasRenderingContext2D.prototype, 'imageSmoothingEnabled', {
-    configurable: true, enumerable: ozgunYumusatma.enumerable, get: ozgunYumusatma.get,
-    set(_deger) { ozgunYumusatma.set.call(this, true); this.imageSmoothingQuality = 'high'; },
-  });
-}
+// Görsel ve çizgi kalitesi keskinlik.js'te: sayfa tuvali ve PDF.js'in ara tuvalleri (KeskinTuvalFabrikasi) sarılır; görseller
+// Referans okuyucu gibi alan ortalamasıyla örneklenir, ince çizgiler piksel ızgarasına oturur. 0.1.1'deki prototip yaması (her görsele
+// yüksek kaliteli yumuşatma) kaldırıldı: küçültmede mip-map karışımıyla, küçük görsellerin (karekod) büyütülmesinde kübik
+// yumuşatmayla bulanıklaştırıyordu.
 
 /** Cihaz piksel oranı (CSS px başına cihaz pikseli). */
 const pikselOrani = () => window.devicePixelRatio || 1;
@@ -96,7 +89,7 @@ export class Goruntuleyici extends EventTarget {
     this._cizimZamanlayici = null;
     this._boyutZamanlayici = null;
 
-    this.kaydirici.addEventListener('scroll', () => this.kaydirmaIsle(), { passive: true });
+    this.kaydirici.addEventListener('scroll', () => { this.etkilesimIzle(); this.kaydirmaIsle(); }, { passive: true });
     this.kaydirici.addEventListener('wheel', (e) => this.tekerlek(e), { passive: false });
     this._gozlemci = new ResizeObserver(() => this.boyutDegisti());
     this._gozlemci.observe(this.kaydirici);
@@ -123,6 +116,7 @@ export class Goruntuleyici extends EventTarget {
       standardFontDataUrl: KAYNAK + 'standard_fonts/',
       wasmUrl: KAYNAK + 'wasm/', iccUrl: KAYNAK + 'iccs/',
       enableXfa: false, isEvalSupported: false,
+      CanvasFactory: KeskinTuvalFabrikasi,       // PDF.js ara tuvalleri de keskin çizsin (keskinlik.js)
       password: secenek.parola,
     });
     if (secenek.parolaIste) gorev.onPassword = (cb, neden) => secenek.parolaIste(neden).then((p) => cb(p), () => cb(new Error('vazgeçildi')));
@@ -230,7 +224,7 @@ export class Goruntuleyici extends EventTarget {
     if (this.belgeler.has(k)) return this.belgeler.get(k).belge;
     if (!this.dosyaOku) throw new Error('Dosya okuyucu tanımlı değil');
     const veri = await this.dosyaOku(yol);
-    const gorev = pdfjs.getDocument({ data: veri, cMapUrl: KAYNAK + 'cmaps/', cMapPacked: true, standardFontDataUrl: KAYNAK + 'standard_fonts/', wasmUrl: KAYNAK + 'wasm/', iccUrl: KAYNAK + 'iccs/', enableXfa: false, isEvalSupported: false });
+    const gorev = pdfjs.getDocument({ data: veri, cMapUrl: KAYNAK + 'cmaps/', cMapPacked: true, standardFontDataUrl: KAYNAK + 'standard_fonts/', wasmUrl: KAYNAK + 'wasm/', iccUrl: KAYNAK + 'iccs/', enableXfa: false, isEvalSupported: false, CanvasFactory: KeskinTuvalFabrikasi });
     const belge = await gorev.promise;
     this.belgeler.set(k, { yol, belge, gorev });
     return belge;
@@ -609,6 +603,23 @@ export class Goruntuleyici extends EventTarget {
     this.onYuklemeIsle();
   }
 
+  /**
+   * Art arda gelen kaydırma olayları (tekerlek, kaydırma çubuğu, ok tuşları) etkileşimdir: bu sırada büyük görsellerin keskin
+   * örneklemesi ertelenir (keskinlik.js). Kaydırma durunca hızlı çizilmiş görünür sayfalar keskin yeniden çizilir. Tek olay
+   * (sayfaya git, yakınlaştırma sonrası konumlama) etkileşim sayılmaz.
+   */
+  etkilesimIzle() {
+    const simdi = performance.now();
+    if (simdi - (this._sonKaydirmaOlayi ?? -Infinity) < 100) { etkilesimBildir(); this.keskinlestirPlanla(); }
+    this._sonKaydirmaOlayi = simdi;
+  }
+
+  /** Etkileşim bitince (ETKILESIM_MS sonra) görünür sayfaların hızlı çizimini keskin çizimle değiştirmek için yeniden planlar. */
+  keskinlestirPlanla() {
+    clearTimeout(this._keskinZaman);
+    this._keskinZaman = setTimeout(() => { if (!this.yok && !keskinErtelenir()) this.kaydirmaIsle(); else if (!this.yok) this.keskinlestirPlanla(); }, ETKILESIM_MS + 50);
+  }
+
   /** Geçerli sayfanın komşuları (ön çizilir, uzakta olsa da boşaltılmaz). */
   komsuSayfalar() {
     if (!this.surekli()) return this._onIdx;                // tek/iki: önceki/sonraki satır (sanal yerleşimli)
@@ -700,6 +711,8 @@ export class Goruntuleyici extends EventTarget {
   yeterliMi(i, c, yer) {
     const s = this.sayfalar[i];
     if (!c || !s || c.onizleme) return false;
+    // Kaydırırken hızlı çizilmiş (görsel örneklemesi ertelenmiş) sayfa, kaydırma bitince görünüyorsa yeterli değil
+    if (c.hizli && !keskinErtelenir() && this._gorunurKume.has(s)) return false;
     if (c.olcek !== yer.olcek || c.dondurme !== this.toplamDondurme(s) || c.dpr !== pikselOrani()) return false;
     if (Math.abs(c.w - yer.w) > 1e-3 || Math.abs(c.h - yer.h) > 1e-3) return false;
     if (c.tam) return true;
@@ -731,15 +744,17 @@ export class Goruntuleyici extends EventTarget {
     canvas.width = Math.max(1, Math.round(b.w * oran));
     canvas.height = Math.max(1, Math.round(b.h * oran));
     const viewport = pdfSayfa.getViewport({ scale: olcek * CSS_BIRIM * oran, rotation: dondurme });
+    const ertelenenOnce = ertelenenSayisi();
     const gorev = pdfSayfa.render({
-      canvasContext: canvas.getContext('2d', { alpha: false }), viewport,
+      canvasContext: keskinBaglam(canvas.getContext('2d', { alpha: false })), viewport,
       transform: [1, 0, 0, 1, -px, -py],
       annotationMode: pdfjs.AnnotationMode.DISABLE,
     });
     s.gorev = gorev;
     try {
       await gorev.promise;
-      return { canvas, px, py };
+      // hizli: çizim sürerken (bu ya da eşzamanlı başka sayfada) görsel örneklemesi ertelendi; kaydırma bitince yeniden çizilir
+      return { canvas, px, py, hizli: ertelenenSayisi() !== ertelenenOnce };
     } catch (e) {
       tuvalBirak(canvas);
       if (!(e instanceof pdfjs.RenderingCancelledException)) console.error('Sayfa çizilemedi', s.no, e);
@@ -793,7 +808,8 @@ export class Goruntuleyici extends EventTarget {
       if (!gecerliMi()) { tuvalBirak(son.canvas); return; }   // çizerken boyut/ölçek değişti: yanlış boyutlu tuvali gösterme
       const c = son.canvas;
       // CSS kutusu tuvalin cihaz pikseli boyutundan türetilir: 1 tuval pikseli = 1 cihaz pikseli
-      this.cizimUygula(s, c, { ...hedef, px: son.px, py: son.py, bolge: { x: son.px / dpr, y: son.py / dpr, w: c.width / dpr, h: c.height / dpr } });
+      this.cizimUygula(s, c, { ...hedef, hizli: son.hizli, px: son.px, py: son.py, bolge: { x: son.px / dpr, y: son.py / dpr, w: c.width / dpr, h: c.height / dpr } });
+      if (son.hizli) this.keskinlestirPlanla();
       s.el.classList.remove('yukleniyor');
       const j = this.idx(s);
       if (!s.bos) {
@@ -842,7 +858,7 @@ export class Goruntuleyici extends EventTarget {
       goster = document.createElement('canvas');
       goster.width = ham.width; goster.height = ham.height;     // kopya ham tuvalle aynı piksel boyutunda ve konumda
       const ctx = goster.getContext('2d', { alpha: false });
-      ctx.filter = 'invert(0.92) hue-rotate(180deg)';
+      ctx.filter = 'invert(1) hue-rotate(180deg)';     // beyaz sayfa tam siyah, siyah metin beyaz; renkler tonunu korur
       ctx.drawImage(ham, 0, 0);
       ctx.filter = 'none';
       // Görselleri özgün renginde geri çiz
@@ -1134,7 +1150,7 @@ export class Goruntuleyici extends EventTarget {
   yokEt() {
     this.yok = true;
     this._gozlemci.disconnect();
-    clearTimeout(this._boyutZamanlayici);
+    clearTimeout(this._boyutZamanlayici); clearTimeout(this._keskinZaman);
     this._dprSorgu?.removeEventListener('change', this._dprIsle); this._dprSorgu = null;
     document.removeEventListener('mouseup', this._fareBirak);
     this._gorunurKume = new Set(); this._onKuyruk = [];
