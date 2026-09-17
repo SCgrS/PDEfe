@@ -1053,14 +1053,15 @@ export class Goruntuleyici extends EventTarget {
   }
 
   // ------------------------------------------------------------ düzen ve döndürme
-  duzenAyarla(duzen, kapakAyri = this.kapakAyri) {
+  duzenAyarla(duzen, kapakAyri = this.kapakAyri, tekZoomModu = 'genislik') {
     const sayfa = this.gecerli, oran = this.sayfaIciOran();
     // Tek sayfalıdan iki sayfalıya geçiş: elle seçilmiş yakınlaştırma ("Gerçek boyut" dahil) çift pencereye sığmaz → sayfayı sığdır.
     // Sığdırma modları (genislik/sayfa/gorunur) yeni düzene kendiliğinden uyar.
     const ikiliyeGecis = !this.ikili() && (duzen === 'iki' || duzen === 'ikiSurekli');
     if (ikiliyeGecis && (this.zoomModu === 'serbest' || this.zoomModu === 'gercek')) this.zoomModu = 'sayfa';
-    // İki sayfalıdan tek sayfalıya (kaydırmalı ya da kaydırmasız) geçiş: yakınlaştırma ne olursa olsun genişliğe sığdır
-    if (this.ikili() && (duzen === 'tek' || duzen === 'surekli')) this.zoomModu = 'genislik';
+    // İki sayfalıdan tek sayfalıya (kaydırmalı ya da kaydırmasız) geçiş: yakınlaştırma ne olursa olsun tek sayfanın varsayılan
+    // sığdırması (tekZoomModu; varsayılanı genişliğe sığdır)
+    if (this.ikili() && (duzen === 'tek' || duzen === 'surekli')) this.zoomModu = tekZoomModu;
     this.duzen = duzen; this.kapakAyri = kapakAyri;
     this.yerlesimHesapla();
     this.sayfayaGit(sayfa, { oran: this.surekli() ? oran : 0, aninda: true });
@@ -1129,13 +1130,25 @@ export class Goruntuleyici extends EventTarget {
    */
   yatayOk(yon, miktar) {
     const k = this.kaydirici;
-    if (this.zoomModu === 'serbest' || this.zoomModu === 'gercek') {
+    const elle = this.zoomModu === 'serbest' || this.zoomModu === 'gercek';
+    if (elle) {
       let sol = Infinity, sag = -Infinity;
       for (const no of this.gorunurSayfalar()) { const y = this.yerlesim[no - 1]; sol = Math.min(sol, y.x); sag = Math.max(sag, y.x + y.w); }
       const pay = yon > 0 ? sag - (k.scrollLeft + k.clientWidth) : k.scrollLeft - sol;
       if (pay >= 1) { k.scrollLeft += yon * Math.min(miktar, pay + KENAR); return; }
     }
+    const onceki = this.gecerli;
     if (yon > 0) this.sonrakiSayfa(); else this.oncekiSayfa();
+    if (!elle || this.gecerli === onceki) return;
+    // Çevrilen sayfa (çift) okuma yönündeki kenarından başlar: ileride sol, geride sağ kenar. Yoksa yatay konum eski kenarda kalır,
+    // sonraki her ok yeni sayfanın yalnız o kenarını gösterip hemen bir sayfa daha çevirir.
+    let sol = Infinity, sag = -Infinity;
+    for (const i of this.ikili() ? this.ciftler()[this.ciftBul(this.gecerli - 1)] : [this.gecerli - 1]) {
+      const y = this.yerlesim[i]; if (y) { sol = Math.min(sol, y.x); sag = Math.max(sag, y.x + y.w); }
+    }
+    if (sol === Infinity) return;
+    k.scrollLeft = yon > 0 ? sol - KENAR : sag - k.clientWidth + KENAR;
+    if (this._istenen?.no === this.gecerli) this._istenen.sl = k.scrollLeft;   // gidilen sayfa geçerli kalsın (bkz. kaydirmaIsle)
   }
 
   /**
@@ -1145,6 +1158,10 @@ export class Goruntuleyici extends EventTarget {
    */
   tekerlekleCevir(e) {
     if (this.surekli() || !this.belge || e.shiftKey || !e.deltaY || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    // Yazı düzenleyicisi açıkken ya da sayfadaki bir girdiye yazılırken çevirme (klavyedeki girdideMi gibi): düzenleyici gizlenen
+    // sayfada sahipsiz kalır, yazılanlar gider
+    const odak = document.activeElement;
+    if (this.kaydirici.querySelector('.yazi-duzenleyici') || (this.kaydirici.contains(odak) && (odak.isContentEditable || odak.tagName === 'INPUT' || odak.tagName === 'TEXTAREA'))) return;
     const k = this.kaydirici, yon = e.deltaY > 0 ? 1 : -1, simdi = performance.now();
     const t = this._tekerlek || (this._tekerlek = { son: -Infinity, yon: 0, kaydirdi: false, cevirdi: false, birikim: 0 });
     if (simdi - t.son > 150 || yon !== t.yon) { t.kaydirdi = false; t.cevirdi = false; t.birikim = 0; }   // yeni hareket
