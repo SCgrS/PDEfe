@@ -487,11 +487,12 @@ function dondurulebilir(b) {
   return true;
 }
 
-/** Döndürme komutu: kapsamı ayardan alır ya da sorar; belgeyi geri alınabilir biçimde döndürür (belge kirlenir, kapatırken kaydetme sorulur). */
+/** Döndürme komutu: kapsamı ayardan alır ya da sorar; belgeyi geri alınabilir biçimde döndürür (belge kirlenir, kapatırken kaydetme sorulur).
+ *  Tek sayfalık belgede geçerli sayfa ile tüm PDF aynıdır: sorulmaz, sayfa hemen döner (ayar değişmez). */
 async function dondur(derece) {
   const b = aktif(); if (!b || !dondurulebilir(b)) return;
   let kapsam = ayar.dondurmeKapsami;
-  if (kapsam !== 'sayfa' && kapsam !== 'tum') {
+  if (kapsam !== 'sayfa' && kapsam !== 'tum' && b.gorunum.sayfaSayisi > 1) {
     const { secim, onay } = await mesajKutusu({ mesaj: 'Neyi döndürmek istiyorsunuz?', dugmeler: ['Geçerli sayfa', 'Tüm PDF', 'Vazgeç'], varsayilan: 0, iptal: 2, onayKutusu: 'Seçeneğimi hatırla' });
     if (secim !== 0 && secim !== 1) return;
     kapsam = secim === 1 ? 'tum' : 'sayfa';
@@ -750,6 +751,9 @@ document.addEventListener('keydown', (e) => {
   if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'y' || e.key === 'Y')) { if (!girdideMi()) { e.preventDefault(); komutCalistir('duzen.yinele'); } return; }
   if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'a' || e.key === 'A')) { if (!girdideMi()) { e.preventDefault(); tumunuSec(); } return; }
   if (girdideMi()) return;
+  // Açık diyalog / araç penceresi (odak pencerenin dışında kalmış olsa da), açılır liste ya da açık belgeler listesi varken belge
+  // sayfa çevirmesin, not silinmesin
+  if (document.querySelector('.diyalog-ortusu, .arac-ortusu') || !$('#belge-listesi').hidden || document.activeElement?.tagName === 'SELECT') return;
   const b = aktif();
   if (!b) return;
   if (e.key === 'Delete' || e.key === 'Backspace') { if (b.notlar?.silSecili()) { e.preventDefault(); return; } }
@@ -758,8 +762,8 @@ document.addEventListener('keydown', (e) => {
   switch (e.key) {
     case 'ArrowDown': e.preventDefault(); g.dikeyKaydir(satir); break;
     case 'ArrowUp': e.preventDefault(); g.dikeyKaydir(-satir); break;
-    case 'ArrowRight': if (!e.ctrlKey) { e.preventDefault(); g.sonrakiSayfa(); } break;
-    case 'ArrowLeft': if (!e.ctrlKey) { e.preventDefault(); g.oncekiSayfa(); } break;
+    case 'ArrowRight': if (!e.ctrlKey) { e.preventDefault(); g.yatayOk(1, satir); } break;
+    case 'ArrowLeft': if (!e.ctrlKey) { e.preventDefault(); g.yatayOk(-1, satir); } break;
     case 'PageDown': e.preventDefault(); if (g.surekli()) g.sonrakiSayfa(); else g.dikeyKaydir(g.kaydirici.clientHeight - 40); break;
     case 'PageUp': e.preventDefault(); if (g.surekli()) g.oncekiSayfa(); else g.dikeyKaydir(-(g.kaydirici.clientHeight - 40)); break;
     case 'Home': e.preventDefault(); if (e.ctrlKey) g.belgeBasi(); else g.sayfayaGit(1); break;
