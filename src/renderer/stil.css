@@ -355,8 +355,12 @@ body.okuma-modu.ust-goster #arac-cubugu { display: flex; position: absolute; top
 .diyalog table { border-collapse: collapse; }
 .diyalog td { padding: 3px 10px 3px 0; vertical-align: top; }
 .diyalog kbd { font-family: inherit; background: var(--arka); border: 1px solid var(--kenar); border-radius: 4px; padding: 1px 6px; font-size: 12px; }
+/* F1 Klavye kısayolları: iki sütun, dar pencerede alt alta; tuş sütunu en geniş tek tuş kutusu kadar */
+.kisayol-sutunlar { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); column-gap: 28px; align-items: start; }
 .kisayollar .bolum th { text-align: left; font-size: 12px; font-weight: 600; color: var(--metin-soluk); padding: 10px 0 3px; }
 .kisayollar tr.bolum:first-child th { padding-top: 0; }
+.kisayollar td:first-child { width: 1%; }
+.kisayollar kbd { display: inline-block; white-space: nowrap; margin-bottom: 2px; }
 
 /* Kaydırma çubukları */
 ::-webkit-scrollbar { width: 12px; height: 12px; }

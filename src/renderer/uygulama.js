@@ -1001,8 +1001,8 @@ function diyalogAc({ baslik, govde, dugmeler, onSecim, genislik }) {
 }
 
 function kisayollarGoster() {
-  // Bölüm başlığı: tek öğeli dizi
-  const satirlar = [
+  // İki sütun (dar pencerede alt alta): bölüm başlığı tek öğeli dizi; birden çok tuş dizi olarak verilir (tuş kutuları arasında satır kırılabilir)
+  const sutunlar = [[
     ['Dosya ve sekmeler'],
     ['Ctrl+O', 'Aç'], ['Ctrl+S', 'Kaydet'], ['Ctrl+Shift+S', 'Farklı kaydet'], ['Ctrl+P', 'Yazdır'], ['Ctrl+W', 'Sekmeyi kapat'],
     ['Ctrl+Tab / Ctrl+Shift+Tab', 'Sekme değiştir (basılı tutunca seçici açılır)'], ['Ctrl+1 – Ctrl+9', 'Sekme seç (9: son sekme)'],
@@ -1011,21 +1011,25 @@ function kisayollarGoster() {
     ['Ctrl+A', 'Sayfadaki tüm metni seç'], ['Delete', 'Seçili notu sil'], ['Ctrl+,', 'Ayarlar'],
     ['Yazı kutusu'],
     ['Ctrl+B / Ctrl+I / Ctrl+U', 'Kalın / italik / altı çizili'],
+    ['Genel'],
+    ['F1', 'Klavye kısayolları'], ['Esc', 'Kapat / vazgeç'],
+  ], [
     ['Gezinme'],
     ['Ctrl+G', 'Sayfaya git'], ['← →', 'Önceki / sonraki sayfa (elle yakınlaştırılmışsa önce yana kaydırır)'],
     ['PageUp / PageDown', 'Önceki / sonraki sayfa (kaydırma kapalıyken önce bir ekran kaydırır)'],
     ['↑ ↓', 'Kaydır (kaydırma kapalıyken sayfa sonunda sayfayı çevirir)'], ['Boşluk / Shift+Boşluk', 'Bir ekran aşağı / yukarı kaydır'],
     ['Home / End', 'İlk / son sayfa'], ['Ctrl+Home / Ctrl+End', 'Belge başı / sonu'], ['Shift+Fare tekerleği', 'Yatay kaydırma'],
     ['Görünüm'],
-    ['Ctrl+Fare tekerleği, Ctrl++ / Ctrl+−', 'Yakınlaştır / uzaklaştır'], ['Ctrl+0', 'Gerçek boyut'],
+    [['Ctrl+Fare tekerleği', 'Ctrl++ / Ctrl+−'], 'Yakınlaştır / uzaklaştır'], ['Ctrl+0', 'Gerçek boyut'],
     ['Ctrl+Shift++ / Ctrl+Shift+−', 'Döndür'], ['F4', 'Sol panel'], ['Ctrl+H', 'Okuma modu'], ['F11', 'Tam ekran'],
-    ['Genel'],
-    ['F1', 'Klavye kısayolları'], ['Esc', 'Kapat / vazgeç'],
-  ];
+  ]];
+  const satir = ([k, a]) => (a == null ? `<tr class="bolum"><th colspan="2">${k}</th></tr>`
+    : `<tr><td>${[].concat(k).map((t) => `<kbd>${t}</kbd>`).join(' ')}</td><td>${a}</td></tr>`);
   diyalogAc({
     baslik: 'Klavye kısayolları',
-    govde: '<table class="kisayollar">' + satirlar.map(([k, a]) => (a == null ? `<tr class="bolum"><th colspan="2">${k}</th></tr>` : `<tr><td><kbd>${k}</kbd></td><td>${a}</td></tr>`)).join('') + '</table>',
+    govde: '<div class="kisayol-sutunlar">' + sutunlar.map((s) => '<table class="kisayollar">' + s.map(satir).join('') + '</table>').join('') + '</div>',
     dugmeler: [{ id: 'tamam', etiket: 'Tamam', birincil: true }],
+    genislik: 880,
   });
 }
 
