@@ -7,11 +7,15 @@ hata durumunda exception fırlatır (ana döngü bunu JSON-RPC error'a çevirir)
 (aksi halde Windows'ta os.replace açık tanıtıcı yüzünden başarısız olur).
 
 Kayıt: kaydol(yontemler) → kucult_tahmin, kucult, sayfalar_uygula, ayir, birlestir, gorsel_bilgi,
-boyut_tahmini, dondur_kaydet, pano_gorsel_kaydet, sayfa_boyutlari.
+boyut_tahmini, dondur_kaydet, pano_gorsel_kaydet, sayfa_boyutlari, dosya_erisim.
+
+Üzerine yazma: yedek alınmaz; sonuç hedefin klasöründe geçici dosyaya yazılır ve os.replace ile atomik olarak yerine konur.
+Hedef başka bir programda kilitliyse özgün dosya değişmez ve hata iletisi KILITLI_METNI'ni içerir.
 """
 import io
 import os
 import re
+import shutil
 import sys
 import time
 import base64
@@ -118,12 +122,28 @@ def _ayni_dosya(a, b):
     return os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))
 
 
+KILITLI_METNI = "başka bir programda açık olabilir"   # renderer bu ifadeyle kilitli dosya hatasını tanır
+
+
+def _kilitli_mi(yol):
+    """Dosya okunmak üzere açılamıyorsa (başka program özel kilitle tutuyorsa) True."""
+    try:
+        with open(yol, "rb"):
+            return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+
+
 def _pdf_ac(yol):
     """Belgeyi diskten TAZE açar (önbellekteki nesneyi değiştirmemek için)."""
     _dosya_var(yol)
     try:
         doc = pymupdf.open(yol)
     except Exception as e:
+        if _kilitli_mi(yol):
+            raise PermissionError("Dosya okunamadı; %s: %s" % (KILITLI_METNI, os.path.basename(yol)))
         raise ValueError("PDF açılamadı (%s): %s" % (os.path.basename(yol), e))
     if not doc.is_pdf:
         doc.close()
@@ -142,33 +162,55 @@ def _kapat(doc):
         pass
 
 
-def _kaydet(doc, hedef, **secenekler):
-    """Belgeyi önce geçici dosyaya yazar, belgeyi KAPATIR, sonra os.replace ile hedefe taşır
-    (hedef kaynağın kendisi olabilir; MuPDF dosya tanıtıcısını açık tuttuğundan kapatmadan
-    üzerine yazılamaz; yarım dosya bırakmaz). Çağıran, bu işlevden sonra doc'u kullanmamalı."""
-    hedef = _mutlak(hedef, "hedef")
+def _gecici_yol(hedef):
+    """Hedefle AYNI klasörde geçici dosya yolu (os.replace aynı birimde atomik olsun)."""
+    return "%s.%d.pdefe-tmp" % (hedef, os.getpid())
+
+
+def _hedef_klasoru_hazirla(hedef):
     klasor = os.path.dirname(hedef)
     if klasor and not os.path.isdir(klasor):
         try:
             os.makedirs(klasor, exist_ok=True)
         except OSError as e:
             raise OSError("Hedef klasör oluşturulamadı: %s (%s)" % (klasor, e))
-    gecici = "%s.%d.pdefe-tmp" % (hedef, os.getpid())
+
+
+def _yerine_koy(gecici, hedef):
+    """Geçici dosyayı hedefin yerine atomik olarak koyar. Hedef kilitliyse özgün dosya olduğu gibi kalır."""
+    try:
+        os.replace(gecici, hedef)
+    except PermissionError as e:
+        raise PermissionError("Dosya yazılamadı; %s: %s (%s)" % (KILITLI_METNI, os.path.basename(hedef), e))
+
+
+def _kaydet_sinirli(doc, hedef, en_fazla=None, **secenekler):
+    """Belgeyi önce hedefin klasöründe geçici dosyaya yazar, belgeyi KAPATIR, sonra os.replace ile hedefe
+    taşır (hedef kaynağın kendisi olabilir; MuPDF dosya tanıtıcısını açık tuttuğundan kapatmadan üzerine
+    yazılamaz; yarım dosya bırakmaz, yedek almaz). en_fazla verilir ve geçici dosya bu bayttan küçük değilse
+    hedefe dokunulmaz. Döner: (boyut, yazildi). Çağıran, bu işlevden sonra doc'u kullanmamalı."""
+    hedef = _mutlak(hedef, "hedef")
+    _hedef_klasoru_hazirla(hedef)
+    gecici = _gecici_yol(hedef)
     try:
         doc.save(gecici, **secenekler)
         _kapat(doc)
-        try:
-            os.replace(gecici, hedef)
-        except PermissionError as e:
-            raise PermissionError("Dosya yazılamadı; başka bir programda açık olabilir: %s (%s)"
-                                  % (os.path.basename(hedef), e))
+        boyut = os.path.getsize(gecici)
+        if en_fazla is not None and boyut >= en_fazla:
+            return boyut, False
+        _yerine_koy(gecici, hedef)
     finally:
         if os.path.exists(gecici):
             try:
                 os.remove(gecici)
             except OSError:
                 pass
-    return os.path.getsize(hedef)
+    return os.path.getsize(hedef), True
+
+
+def _kaydet(doc, hedef, **secenekler):
+    """_kaydet_sinirli'nin sınırsız hali: geçici dosya + os.replace; yeni boyutu döner."""
+    return _kaydet_sinirli(doc, hedef, **secenekler)[0]
 
 
 def _benzersiz_yol(klasor, ad, uzanti=".pdf"):
@@ -410,8 +452,10 @@ def y_kucult_tahmin(p):
 
 # ---------------------------------------------------------------- 2) kucult
 def y_kucult(p):
-    """{yol, hedef, seviye, dpi?, kalite?} → {boyut, oncekiBoyut, yuzde, uyari, yol, dpi, kalite}
-    (uzerineYaz gibi ek alanlar yok sayılır; hedef == yol ise geçici dosya + os.replace)"""
+    """{yol, hedef, seviye, dpi?, kalite?, kuculmezseYazma?} → {boyut, oncekiBoyut, yuzde, uyari, yol, dpi, kalite, yazilmadi}
+    Hedefin klasöründe geçici dosyaya yazılır, os.replace ile hedefe konur (hedef == yol: üzerine yazma, yedek
+    alınmaz). kuculmezseYazma: sonuç özgünden küçük değilse hedefe dokunulmaz (yazilmadi=True; boyut, ulaşılan
+    boyuttur)."""
     ilerleme = _ilerleme(p)
     yol = _mutlak(p.get("yol"))
     hedef = _mutlak(p.get("hedef") or yol, "hedef")
@@ -426,12 +470,15 @@ def y_kucult(p):
     try:
         _kucult_uygula(doc, dpi, kalite, ilerleme, taban=5, aralik=80)
         ilerleme(88, "Kaydediliyor…")
-        boyut = _kaydet(doc, hedef, **KAYIT_SECENEKLERI)
+        # Küçülmediyse (üzerine yazmada) özgün dosyaya hiç dokunulmaz: yedek olmadığından büyüyen sonuç geri alınamazdı
+        boyut, yazildi = _kaydet_sinirli(doc, hedef, en_fazla=onceki if p.get("kuculmezseYazma") else None,
+                                         **KAYIT_SECENEKLERI)
+        yazilmadi = not yazildi
     finally:
         _kapat(doc)
     ilerleme(100, "Tamamlandı")
     return {"boyut": boyut, "oncekiBoyut": onceki, "yuzde": round(100.0 * boyut / max(onceki, 1), 1),
-            "uyari": boyut >= onceki, "dpi": dpi, "kalite": kalite, "yol": hedef}
+            "uyari": boyut >= onceki, "dpi": dpi, "kalite": kalite, "yol": hedef, "yazilmadi": yazilmadi}
 
 
 # ---------------------------------------------------------------- 3) sayfalar_uygula
@@ -815,7 +862,35 @@ def _gorsel_sayfa_olcusu(gen_px, yuk_px, sayfa_boyutu, kenar, dondurme, dpi_bilg
     return sayfa_g, sayfa_y, pymupdf.Rect(x0, y0, x0 + g_pt, y0 + y_pt)
 
 
-def _gorsel_hazirla(oge, genel_kalite=None):
+_cozulmus_gorseller = {}   # (yol, mtime, boyut) → (bicim, exif_yon, [(kare_kipi, duz)]); yalnızca tahminde, en çok 2 görsel
+
+
+def _gorsel_kareleri(yol, onbellekli=False):
+    """Görseli açıp düzleştirilmiş karelerini verir: (bicim, exif_yon, [(kare_kipi, duz)]).
+    onbellekli: aynı görselin her kalite seviyesi için yeniden çözülmemesi için son iki görsel bellekte tutulur."""
+    anahtar = None
+    if onbellekli:
+        st = os.stat(yol)
+        anahtar = (os.path.normcase(yol), st.st_mtime, st.st_size)
+        if anahtar in _cozulmus_gorseller:
+            return _cozulmus_gorseller[anahtar]
+    im = _gorsel_ac(yol)
+    bicim = (im.format or "").upper()
+    exif_yon = 1
+    try:
+        exif_yon = int(im.getexif().get(0x0112, 1) or 1)
+    except Exception:
+        pass
+    kareler = [(kare.mode, _duzlestir(kare)) for kare in _kareler(im)]
+    sonuc = (bicim, exif_yon, kareler)
+    if anahtar is not None:
+        while len(_cozulmus_gorseller) >= 2:
+            _cozulmus_gorseller.pop(next(iter(_cozulmus_gorseller)))
+        _cozulmus_gorseller[anahtar] = sonuc
+    return sonuc
+
+
+def _gorsel_hazirla(oge, genel_kalite=None, onbellekli=False):
     """Bir görsel öğesini PDF'e gömülecek karelere çevirir.
     Döner: [(bayt, sayfa_g, sayfa_y, rect, dondurme)]"""
     yol = _mutlak(oge.get("yol"))
@@ -827,18 +902,11 @@ def _gorsel_hazirla(oge, genel_kalite=None):
         raise ValueError("Bilinmeyen sayfa boyutu: %r" % (sayfa_boyutu,))
     kenar = float(oge.get("kenar") or 0)
     dondurme = _dondurme(oge.get("dondurme"))
-    im = _gorsel_ac(yol)
-    bicim = (im.format or "").upper()
-    exif_yon = 1
-    try:
-        exif_yon = int(im.getexif().get(0x0112, 1) or 1)
-    except Exception:
-        pass
+    bicim, exif_yon, kareler = _gorsel_kareleri(yol, onbellekli)
     sonuc = []
-    for kare in _kareler(im):
-        duz = _duzlestir(kare)
+    for kare_kipi, duz in kareler:
         orijinal_bayt = None
-        if kalite == "orijinal" and bicim == "JPEG" and exif_yon == 1 and len(sonuc) == 0 and duz.mode == kare.mode:
+        if kalite == "orijinal" and bicim == "JPEG" and exif_yon == 1 and len(sonuc) == 0 and duz.mode == kare_kipi:
             with open(yol, "rb") as f:
                 orijinal_bayt = f.read()
         sayfa_g, sayfa_y, rect = _gorsel_sayfa_olcusu(duz.width, duz.height, sayfa_boyutu, kenar, dondurme)
@@ -1016,29 +1084,63 @@ def y_boyut_tahmini(p):
     return _oge_boyut_tahmini(oge, genel)
 
 
+_tahmin_onbellegi = {}       # (yol, mtime, boyut, tür, kalite, sayfaBoyutu, kenar, dondurme) → sonuç
+_gorselsiz_pdf_boyutu = {}   # (yol, mtime, boyut) → görsel içermeyen PDF'in yeniden yazılmış boyutu (seviyeden bağımsız)
+
+
 def _oge_boyut_tahmini(oge, genel):
+    """Öğenin verilen kaliteyle çıktı boyutu. Renderer her öğe için dört seviyeyi ayrı ayrı sorar; aynı öğe/seviye
+    yeniden hesaplanmaz, görsel her seviye için yeniden çözülmez, görselsiz PDF bir kez yazılır."""
     tur = _oge_turu(oge)
     kalite = oge.get("kalite") or genel or "orijinal"
     yol = _mutlak(oge.get("yol"))
     _dosya_var(yol)
+    st = os.stat(yol)
+    dosya = (os.path.normcase(yol), st.st_mtime, st.st_size)
+    anahtar = dosya + (tur, kalite) + ((oge.get("sayfaBoyutu") or "a4", float(oge.get("kenar") or 0),
+                                         _dondurme(oge.get("dondurme"))) if tur == "gorsel" else ())
+    if anahtar in _tahmin_onbellegi:
+        return dict(_tahmin_onbellegi[anahtar])
     if tur == "pdf":
         if kalite == "orijinal":
-            return {"boyut": os.path.getsize(yol), "tahmin": False}
-        kaynak, _ = _pdf_ogesi_hazirla(dict(oge, dondurme=0), genel)
-        try:
-            return {"boyut": len(kaynak.tobytes(**KAYIT_SECENEKLERI)), "tahmin": True}
-        finally:
-            kaynak.close()
-    toplam = 0
-    for bayt, *_ in _gorsel_hazirla(oge, genel):
-        toplam += len(bayt) + 600      # sayfa nesnesi + görsel sözlüğü yaklaşık payı
-    return {"boyut": toplam, "tahmin": True}
+            return {"boyut": st.st_size, "tahmin": False}
+        if kalite not in GORSEL_KALITE:
+            raise ValueError("Bilinmeyen kalite: %r" % (kalite,))
+        if dosya in _gorselsiz_pdf_boyutu:
+            sonuc = {"boyut": _gorselsiz_pdf_boyutu[dosya], "tahmin": True}
+        else:
+            kaynak = _pdf_ac(yol)
+            try:
+                gorselsiz = not any(pg.get_images(full=False) for pg in kaynak)
+                if not gorselsiz:
+                    dpi, q = GORSEL_KALITE[kalite]
+                    _gorselleri_yeniden_yaz(kaynak, dpi, q)
+                sonuc = {"boyut": len(kaynak.tobytes(**KAYIT_SECENEKLERI)), "tahmin": True}
+            finally:
+                kaynak.close()
+            if gorselsiz:
+                # Görsel yoksa bütün seviyeler aynı sonucu verir: diğer seviyeler yeniden yazılmaz
+                if len(_gorselsiz_pdf_boyutu) > 200:
+                    _gorselsiz_pdf_boyutu.clear()
+                _gorselsiz_pdf_boyutu[dosya] = sonuc["boyut"]
+    else:
+        toplam = 0
+        for bayt, *_ in _gorsel_hazirla(oge, genel, onbellekli=True):
+            toplam += len(bayt) + 600      # sayfa nesnesi + görsel sözlüğü yaklaşık payı
+        sonuc = {"boyut": toplam, "tahmin": True}
+    if len(_tahmin_onbellegi) > 400:
+        _tahmin_onbellegi.clear()
+    _tahmin_onbellegi[anahtar] = dict(sonuc)
+    return sonuc
 
 
 # ---------------------------------------------------------------- 8) dondur_kaydet
 def y_dondur_kaydet(p):
-    """{yol, hedef, sayfalar:[1-tabanlı]|null, derece} → {boyut}. hedef == yol ise artımlı
-    kaydetmeyi dener (büyük dosyada hızlı), olmazsa tam yazım."""
+    """{yol, hedef, sayfalar:[1-tabanlı]|null, derece} → {boyut, artimli, sayfa, yol}.
+    Özgün dosya hedefin klasöründe geçici bir kopyaya alınır, döndürme o kopyaya ARTIMLI yazılır (e-imzalı
+    baytlar, ekler, belge bilgileri korunur; büyük dosyada hızlı), olmazsa tam yazım; ardından geçici dosya
+    os.replace ile hedefe konur. hedef == yol (üzerine yazma) dahil hiçbir durumda yarım dosya ya da yedek
+    kalmaz; hedef başka programda kilitliyse özgün dosya değişmez."""
     ilerleme = _ilerleme(p)
     yol = _mutlak(p.get("yol"))
     hedef = _mutlak(p.get("hedef") or yol, "hedef")
@@ -1046,35 +1148,57 @@ def y_dondur_kaydet(p):
     if derece == 0:
         raise ValueError("Döndürme derecesi 0; yapılacak bir şey yok.")
     _dosya_var(yol)
+    if _kilitli_mi(yol):
+        raise PermissionError("Dosya okunamadı; %s: %s" % (KILITLI_METNI, os.path.basename(yol)))
     _onbellekten_birak(yol)
     if os.path.exists(hedef):
         _onbellekten_birak(hedef)
-    doc = _pdf_ac(yol)
+    _hedef_klasoru_hazirla(hedef)
+    gecici = _gecici_yol(hedef)
+    gecici_tam = gecici + ".tam"
+    doc = None
     try:
+        ilerleme(2, "Belge hazırlanıyor…")
+        shutil.copyfile(yol, gecici)
+        try:
+            doc = _pdf_ac(gecici)
+        except (ValueError, PermissionError) as e:
+            raise type(e)(str(e).replace(os.path.basename(gecici), os.path.basename(yol)))
         sayfalar = p.get("sayfalar")
         if isinstance(sayfalar, list) and sayfalar:
             indeksler = sorted(set(_sayfa_no(s, doc.page_count) - 1 for s in sayfalar))
         else:
             indeksler = list(range(doc.page_count))
+        sayfa = doc.page_count
         for k, i in enumerate(indeksler):
             pg = doc[i]
             pg.set_rotation((pg.rotation + derece) % 360)
             if k % 50 == 0:
-                ilerleme(int(80 * (k + 1) / len(indeksler)), "Sayfa %d döndürüldü" % (i + 1))
+                ilerleme(5 + int(75 * (k + 1) / len(indeksler)), "Sayfa %d döndürüldü" % (i + 1))
         ilerleme(85, "Kaydediliyor…")
-        artimli = _ayni_dosya(yol, hedef) and not doc.is_encrypted
-        if artimli:
-            try:
-                doc.save(yol, incremental=True, encryption=pymupdf.PDF_ENCRYPT_KEEP)
-                boyut = os.path.getsize(yol)
-            except (ValueError, RuntimeError):
-                artimli = False
-        if not artimli:
-            boyut = _kaydet(doc, hedef, **YAPISAL_KAYIT)
+        artimli = True
+        try:
+            doc.save(gecici, incremental=True, encryption=pymupdf.PDF_ENCRYPT_KEEP)
+            _kapat(doc)
+            hazir = gecici
+        except Exception:   # ValueError / RuntimeError / mupdf FzError*
+            # Onarılmış/bozuk xref'li belgelerde artımlı yazım yapılamaz: tam yazım (ayrı geçici dosyaya)
+            artimli = False
+            doc.save(gecici_tam, **YAPISAL_KAYIT)
+            _kapat(doc)
+            hazir = gecici_tam
+        _yerine_koy(hazir, hedef)
+        boyut = os.path.getsize(hedef)
     finally:
         _kapat(doc)
+        for g in (gecici, gecici_tam):
+            if os.path.exists(g):
+                try:
+                    os.remove(g)
+                except OSError:
+                    pass
     ilerleme(100, "Tamamlandı")
-    return {"boyut": boyut, "artimli": artimli}
+    return {"boyut": boyut, "artimli": artimli, "sayfa": sayfa, "yol": hedef}
 
 
 # ---------------------------------------------------------------- 9) pano_gorsel_kaydet
@@ -1133,6 +1257,23 @@ def y_sayfa_boyutlari(p):
     return {"sayfalar": sayfalar, "sayfa": doc.page_count}
 
 
+# ---------------------------------------------------------------- 11) dosya_erisim
+def y_dosya_erisim(p):
+    """{yol} → {var, okunur, yazilir}: üzerine yazmadan ÖNCE dosyanın başka bir programda kilitli olup olmadığına
+    bakılır (uzun işlem bittikten sonra hata vermemek için). Dosyaya yazılmaz; 'r+b' açılıp kapatılır.
+    Çekirdeğin kendi önbelleğindeki tanıtıcı paylaşımlı açıldığından sonucu etkilemez."""
+    yol = _mutlak(p.get("yol"))
+    if not os.path.isfile(yol):
+        return {"var": False, "okunur": False, "yazilir": False}
+    okunur = not _kilitli_mi(yol)
+    try:
+        with open(yol, "r+b"):
+            yazilir = True
+    except OSError:
+        yazilir = False
+    return {"var": True, "okunur": okunur, "yazilir": yazilir}
+
+
 # ---------------------------------------------------------------- kayıt
 def kaydol(yontemler):
     yontemler["kucult_tahmin"] = y_kucult_tahmin
@@ -1145,3 +1286,4 @@ def kaydol(yontemler):
     yontemler["dondur_kaydet"] = y_dondur_kaydet
     yontemler["pano_gorsel_kaydet"] = y_pano_gorsel_kaydet
     yontemler["sayfa_boyutlari"] = y_sayfa_boyutlari
+    yontemler["dosya_erisim"] = y_dosya_erisim

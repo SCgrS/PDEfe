@@ -285,7 +285,7 @@ function bolumDosya(k) {
     baslik: 'Varsayılan PDF görüntüleyici', aciklama: 'Windows "Varsayılan Uygulamalar" sayfası açılır; .pdf satırında PDEfe\'yi seçin. Kurulumsuz (geliştirme) çalıştırmada PDEfe listede görünmeyebilir.',
     kontrol: varsayilanDugme,
   }));
-  const yolEl = el('div', { class: 'ayar-yol' }, a.ciktiKlasoru || 'Belgenin bulunduğu klasör');
+  const yolEl = el('div', { class: 'ayar-yol' }, a.ciktiKlasoru || 'Masaüstü');
   yolEl.classList.toggle('soluk', !a.ciktiKlasoru);
   const sec = el('button', { class: 'ikincil', type: 'button' }, 'Seç…');
   const temizle = el('button', { class: 'ikincil', type: 'button' }, 'Temizle');
@@ -295,9 +295,9 @@ function bolumDosya(k) {
     if (!yol || !acik) return;
     degistir('ciktiKlasoru', yol); yolEl.textContent = yol; yolEl.classList.remove('soluk'); temizle.disabled = false;
   });
-  temizle.addEventListener('click', () => { degistir('ciktiKlasoru', ''); yolEl.textContent = 'Belgenin bulunduğu klasör'; yolEl.classList.add('soluk'); temizle.disabled = true; });
+  temizle.addEventListener('click', () => { degistir('ciktiKlasoru', ''); yolEl.textContent = 'Masaüstü'; yolEl.classList.add('soluk'); temizle.disabled = true; });
   k.append(kart({
-    baslik: 'Çıktı klasörü', aciklama: 'Araçların (küçült, ayır, birleştir…) ürettiği dosyalar buraya yazılır. Boşsa belgenin klasörü kullanılır.',
+    baslik: 'Çıktı klasörü', aciklama: 'Araçların (küçült, ayır, birleştir, döndür) yeni belge olarak kaydettiği dosyaların varsayılan klasörü. Boşsa Masaüstü kullanılır.',
     kontrol: el('div', { class: 'ayar-yanyana' }, [sec, temizle]), alt: yolEl,
   }));
 }

@@ -1,6 +1,7 @@
 // Araç pencereleri için ortak parçalar: pencere iskeleti, ilerleme çubuğu, boyut biçimleme,
-// yol yardımcıları, sürükleyerek sıralama, çıktı yolu seçici.
-// Bütün araçlar (kucult, sayfalar, ayir, birlestir, gorselBirlestir, dondur) bu modülü kullanır.
+// yol yardımcıları, sürükleyerek sıralama, çıktı satırı (ad + klasör çipi), standart kaydetme seçimi
+// ("Yeni belge olarak kaydet" | "Üzerine yaz"), üzerine yazılan sekmeyi yenileme.
+// Bütün araçlar (kucult, sayfalar, ayir, gorselBirlestir, dondur) bu modülü kullanır.
 
 // ---------------------------------------------------------------- metin ve biçim
 const TR_SAYI_2 = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -35,8 +36,13 @@ export function kacis(s) {
 export function hataMetni(e) {
   if (!e) return 'Bilinmeyen hata';
   const m = e.message || String(e);
-  // Çekirdekten gelen Python hatalarında yalnızca son satır anlamlıdır
-  return m.split('\n').filter(Boolean).pop() || 'Bilinmeyen hata';
+  // Çekirdekten gelen Python hatalarında yalnızca son satır anlamlıdır; IPC'nin eklediği önek kullanıcıya gösterilmez
+  return (m.split('\n').filter(Boolean).pop() || 'Bilinmeyen hata').replace(/^Error invoking remote method '[^']+': (\w*Error: )?/, '');
+}
+
+/** Dosya başka bir programda (örn. bir PDF okuyucu) açık olduğu için okunamadı ya da yazılamadı mı? (çekirdek: KILITLI_METNI) */
+export function kilitliHataMi(e) {
+  return /başka bir programda açık|EBUSY|EPERM|EACCES|being used by another process/i.test((e && (e.message || String(e))) || '');
 }
 
 // ---------------------------------------------------------------- yol yardımcıları
@@ -143,12 +149,15 @@ const acikPencereler = new Map();   // anahtar → Pencere
 
 /**
  * Araç penceresi açar. Var olan diyalog görünümünü (.diyalog-ortusu/.diyalog) taklit eden daha geniş bir
- * iskelet: başlık + kapat düğmesi, gövde, düğme şeridi. Esc kapatır; klavye odağı pencere içinde kalır.
+ * iskelet: başlık + kapat (X) düğmesi, gövde, alt şerit. Kapatma yalnızca X ve Esc ile (Kapat/Vazgeç düğmesi yok);
+ * birincil düğme alt şeridin ortasındadır. Metinler fareyle seçilip kopyalanabilir (sağ tık: Kopyala).
+ * Klavye odağı pencere içinde kalır.
  *
  * @param {object} s
  * @param {string} s.baslik
  * @param {string|HTMLElement} [s.govde] HTML metni ya da öğe
  * @param {Array<{id:string, etiket:string, birincil?:boolean, devre?:boolean, sol?:boolean, tiklama?:(p:Pencere)=>void}>} [s.dugmeler]
+ *   birincil: ortada; sol: sol köşede (ipucu vb.); diğerleri sağ köşede
  * @param {number} [s.genislik] px
  * @param {string} [s.anahtar] aynı anahtarla ikinci pencere açılmaz; var olan öne gelir
  * @param {string} [s.sinif] ek CSS sınıfı
@@ -187,9 +196,9 @@ export class Pencere {
     ortu.className = 'arac-ortusu';
     ortu.innerHTML = `
       <div class="arac-pencere ${sinif || ''}" role="dialog" aria-modal="true" tabindex="-1" ${genislik ? `style="width:${genislik}px"` : ''}>
-        <div class="arac-baslik"><span class="arac-baslik-metin"></span><button class="ikon arac-kapat" title="Kapat (Esc)"><svg viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.6"/></svg></button></div>
+        <div class="arac-baslik"><span class="arac-baslik-metin"></span><button class="ikon arac-kapat" title="Kapat (Esc)" aria-label="Kapat"><svg viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.6"/></svg></button></div>
         <div class="arac-govde"></div>
-        <div class="arac-dugmeler"><div class="arac-dugmeler-sol"></div><div class="arac-dugmeler-sag"></div></div>
+        <div class="arac-dugmeler"><div class="arac-dugmeler-sol"></div><div class="arac-dugmeler-orta"></div><div class="arac-dugmeler-sag"></div></div>
       </div>`;
     this.ortu = ortu;
     this.el = ortu.querySelector('.arac-pencere');
@@ -213,8 +222,40 @@ export class Pencere {
     for (const t of ['dragenter', 'dragover', 'dragleave', 'drop']) {
       ortu.addEventListener(t, (e) => { e.stopPropagation(); if (t === 'dragover' || t === 'drop') e.preventDefault(); if (t === 'drop') this.el.dispatchEvent(new CustomEvent('dosyaBirakildi', { detail: e })); });
     }
+    // Sağ tık: seçili metin varsa Kopyala; araç baglamMenusuEkle ile kendi öğelerini ekler (örn. Yapıştır)
+    this.menuSaglayicilar = [];
+    this.el.addEventListener('contextmenu', (e) => this._baglamMenusu(e));
     document.body.append(ortu);
     this.odakla();
+  }
+
+  /**
+   * Sağ tık menüsüne öğe sağlayıcı ekler: f(e) → [{id, etiket, devre?, ayirici?, calistir?}] | null.
+   * Sağlayıcıların öğeleri sırayla, aralarına ayırıcı konarak gösterilir.
+   */
+  baglamMenusuEkle(f) { this.menuSaglayicilar.push(f); }
+
+  /** Pencere içinde seçili metin (girdi kutuları hariç). */
+  seciliMetin() {
+    const s = window.getSelection();
+    if (!s || s.isCollapsed || !s.anchorNode || !this.el.contains(s.anchorNode)) return '';
+    return s.toString();
+  }
+
+  async _baglamMenusu(e) {
+    if (e.target.closest('input, textarea, select')) return;   // girdilerin kendi davranışı
+    const gruplar = [];
+    if (this.seciliMetin().trim()) gruplar.push([{ id: 'kopyala', etiket: 'Kopyala', calistir: () => document.execCommand('copy') }]);
+    for (const f of this.menuSaglayicilar) { try { const o = f(e); if (o?.length) gruplar.push(o); } catch (h) { console.warn('[araçlar] menü', h); } }
+    if (!gruplar.length) return;
+    e.preventDefault();
+    const ogeler = gruplar.flatMap((g, i) => (i ? [{ ayirici: true }, ...g] : g));
+    const sade = ogeler.map(({ calistir, ...o }) => o);
+    // Test kancası (uygulama.js __pdefeOtoYanit gibi): yerel menü açılmadan verilen öğe seçilmiş sayılır
+    const kanca = window.__pdefeMenuYaniti;
+    const secilen = kanca ? (kanca.son = sade, kanca.secim) : await window.pdefe.cagir('menu:popup', sade);
+    const oge = ogeler.find((o) => o.id && o.id === secilen);
+    if (oge?.calistir && !this.kapali) oge.calistir();
   }
 
   /** Düğme ekler: {id, etiket, birincil, devre, sol, tiklama} */
@@ -226,9 +267,17 @@ export class Pencere {
     if (baslik) btn.title = baslik;
     btn.disabled = !!devre;
     btn.addEventListener('click', () => { if (tiklama) tiklama(this); else this.kapat(id); });
-    this.dugmeAlani.querySelector(sol ? '.arac-dugmeler-sol' : '.arac-dugmeler-sag').append(btn);
+    this.dugmeAlani.querySelector(birincil ? '.arac-dugmeler-orta' : sol ? '.arac-dugmeler-sol' : '.arac-dugmeler-sag').append(btn);
     this.dugmeler.set(id, btn);
     return btn;
+  }
+
+  /** Alt şeridin sol köşesine küçük açıklama metni (örn. kısayollar) koyar. */
+  altMetinAyarla(metin) {
+    const sol = this.dugmeAlani.querySelector('.arac-dugmeler-sol');
+    let s = sol.querySelector('.arac-alt-metin');
+    if (!s) { s = document.createElement('span'); s.className = 'arac-alt-metin'; sol.append(s); }
+    s.textContent = metin || '';
   }
 
   dugme(id) { return this.dugmeler.get(id); }
@@ -249,10 +298,17 @@ export class Pencere {
 
   _odaklanabilirler() {
     return [...this.el.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"]):not(:disabled)')]
-      .filter((e) => !e.hidden && e.offsetParent !== null);
+      .filter((e) => !e.hidden && e.offsetParent !== null && e.tabIndex >= 0);   // bölümlü seçimde yalnızca seçili düğme sekmeyle gezilir
   }
 
   _tusIsle(e) {
+    // Ctrl+A girdi dışında pencerenin metnini seçer (arkadaki belgenin bütün metnini değil); araç kendi Ctrl+A'sını işlediyse dokunma
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'a' || e.key === 'A') && !e.defaultPrevented && !e.target.closest('input, textarea, select')) {
+      e.preventDefault();
+      const s = window.getSelection(); const r = document.createRange();
+      r.selectNodeContents(this.govde); s.removeAllRanges(); s.addRange(r);
+      return;
+    }
     if (e.key === 'Escape') {
       e.preventDefault();
       // Araç, 'esc' olayında preventDefault() çağırırsa (örn. işlem sürüyor → iptal) pencere kapanmaz
@@ -341,8 +397,7 @@ export class IslemIlerleme {
   iptalIste() {
     if (!this.calisiyor || this.iptalIstendi) return;
     this.iptalIstendi = true;
-    this.iptalDugmesi.disabled = true;
-    this.iptalDugmesi.textContent = 'İptal ediliyor…';
+    this.iptalDugmesi.disabled = true;   // düğme etiketi değişmez; durum iletide
     this.mesajEl.textContent = 'İptal ediliyor… (süren adım bitince durur)';
     this.el.classList.add('iptal');
     try { this._iptalCb?.(); } catch { /* yok say */ }
@@ -357,16 +412,19 @@ export class IslemIlerleme {
     this.calisiyor = true;
     this.goster(baslangicMesaji || 'Başlıyor…');
     let istekIptal = false;
+    let soz = null;
     this._iptalCb = () => {
       istekIptal = true;
-      // Çekirdeğe iptal isteği: baglam.iptal varsa onunla, yoksa doğrudan 'iptal' yöntemi
+      // Çekirdeğe iptal isteği: çağrının kendi iptal'i (uygulama.js cekirdek() sözüne ekler; istek kimliğini bilir), yoksa
+      // baglam.iptal(istekId). Kimliksiz baglam.iptal() hiçbir işi bulamadığından iptal önceden hiç ulaşmıyordu.
       try {
-        if (typeof baglam.iptal === 'function') baglam.iptal();
-        else baglam.cekirdek('iptal', {}).catch(() => {});
+        if (typeof soz?.iptal === 'function') soz.iptal();
+        else if (typeof baglam.iptal === 'function') baglam.iptal(soz?.istekId);
       } catch { /* yok say */ }
     };
     try {
-      const sonuc = await baglam.cekirdek(yontem, params, (p) => this.ayarla(p?.yuzde, p?.mesaj));
+      soz = baglam.cekirdek(yontem, params, (p) => this.ayarla(p?.yuzde, p?.mesaj));
+      const sonuc = await soz;
       if (istekIptal) { const e = new Error('İşlem iptal edildi.'); e.iptal = true; e.sonuc = sonuc; throw e; }
       this.ayarla(100, 'Tamamlandı');
       return sonuc;
@@ -394,9 +452,10 @@ export function ilerlemeCubugu(secenek) { return new IslemIlerleme(secenek); }
  * @param {(el:HTMLElement)=>HTMLElement[]} [s.grupAl] sürüklenen öğeyle birlikte taşınacak öğeler (çoklu seçim)
  * @param {(tasinan:HTMLElement[], hedefIdx:number)=>void} s.onBirak  hedefIdx: taşınanlar çıkarıldıktan sonraki ekleme konumu
  * @param {boolean} [s.izgara] true: iki boyutlu ızgara (kartlar), false: dikey liste
+ * @param {string} [s.metinSecici] bu öğelerden başlayan sürükleme sıralama değil metin seçimidir (ad, boyut gibi kopyalanabilir metinler)
  * @returns {() => void} bağı kaldırma işlevi
  */
-export function suruklemeSiralama(kap, { ogeSecici, tutamacSecici, grupAl, onBirak, izgara = false }) {
+export function suruklemeSiralama(kap, { ogeSecici, tutamacSecici, grupAl, onBirak, izgara = false, metinSecici }) {
   let basla = null;         // {x, y, el}
   let surukleme = null;     // {ogeler, hayalet, isaret}
   const ESIK = 6;
@@ -449,6 +508,7 @@ export function suruklemeSiralama(kap, { ogeSecici, tutamacSecici, grupAl, onBir
     const el = e.target.closest(ogeSecici);
     if (!el || el.parentElement !== kap) return;
     if (e.target.closest('button, input, select, textarea, a')) return;
+    if (metinSecici && e.target.closest(metinSecici)) return;
     if (tutamacSecici && !e.target.closest(tutamacSecici)) return;
     basla = { x: e.clientX, y: e.clientY, el, pointerId: e.pointerId };
   }
@@ -470,6 +530,7 @@ export function suruklemeSiralama(kap, { ogeSecici, tutamacSecici, grupAl, onBir
       document.body.append(hayalet);
       for (const o of liste) o.classList.add('surukleniyor');
       kap.classList.add('surukleme-aktif');
+      try { window.getSelection()?.removeAllRanges(); } catch { /* yok say */ }
       try { kap.setPointerCapture(basla.pointerId); } catch { /* yok say */ }
       surukleme = { ogeler: liste, hayalet, isaret, hedef: null };
     }
@@ -526,30 +587,73 @@ export function suruklemeSiralama(kap, { ogeSecici, tutamacSecici, grupAl, onBir
 /** Sürükleme az önce bittiyse (tıklama olayı sürüklemenin kalıntısıysa) true. */
 export function suruklemeKalintisi(kap) { return kap.__suruklemeBitti && Date.now() - kap.__suruklemeBitti < 150; }
 
-// ---------------------------------------------------------------- çıktı yolu seçici
+// ---------------------------------------------------------------- çıktı klasörü, çıktı satırı, kaydetme seçimi
+let _klasorlerSozu = null;
+/** Bilinen klasörler (ana süreç app.getPath): {masaustu, belgeler, indirilenler, ev}. Bir kez sorulur. */
+export function bilinenKlasorler(pdefe) {
+  if (!_klasorlerSozu) _klasorlerSozu = pdefe.cagir('uygulama:klasorler').catch(() => ({}));
+  return _klasorlerSozu;
+}
+
 /**
- * "Çıktı: <klasör>\<ad>  [Değiştir…]" satırı. Ad düzenlenebilir; Değiştir kaydet diyaloğunu açar.
- * @returns {{el:HTMLElement, yol:()=>string, klasor:()=>string, ad:()=>string, ayarla:(klasor:string, ad:string)=>void, onDegisti:(cb)=>void}}
+ * Araçların yeni belge çıktıları için varsayılan klasör: Ayarlar › Dosya "Çıktı klasörü" doluysa ve varsa o,
+ * yoksa kullanıcının Masaüstü.
  */
-export function ciktiSecici({ pdefe, klasor, ad, etiket = 'Çıktı dosyası', uzanti: uz = 'pdf', diyalogBasligi = 'Çıktı dosyası' }) {
-  const el = document.createElement('div');
-  el.className = 'arac-cikti';
-  el.innerHTML = `
-    <label class="arac-etiket">${kacis(etiket)}</label>
-    <div class="arac-cikti-satir">
-      <span class="arac-cikti-klasor" title=""></span>
-      <input type="text" class="arac-girdi arac-cikti-ad" spellcheck="false">
-      <button class="ikincil arac-cikti-degistir">Değiştir…</button>
-    </div>`;
-  const klasorEl = el.querySelector('.arac-cikti-klasor');
+export async function varsayilanCiktiKlasoru(baglam) {
+  const ayarKlasoru = baglam.ayar?.()?.ciktiKlasoru;
+  if (ayarKlasoru) { try { if (await baglam.pdefe.cagir('dosya:varMi', ayarKlasoru)) return ayarKlasoru; } catch { /* Masaüstü */ } }
+  return (await bilinenKlasorler(baglam.pdefe)).masaustu || '';
+}
+
+/** Çipte gösterilecek kısa klasör adı: Masaüstü / Belgeler / İndirilenler ya da klasörün kendi adı. */
+export function klasorEtiketi(klasor, bilinen = {}) {
+  if (!klasor) return 'Klasör seçilmedi';
+  if (bilinen.masaustu && yolAyni(klasor, bilinen.masaustu)) return 'Masaüstü';
+  if (bilinen.belgeler && yolAyni(klasor, bilinen.belgeler)) return 'Belgeler';
+  if (bilinen.indirilenler && yolAyni(klasor, bilinen.indirilenler)) return 'İndirilenler';
+  const temiz = String(klasor).replace(/[\\/]+$/, '');
+  return dosyaAdi(temiz) || temiz;
+}
+
+const KLASOR_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h3.6l1.6 1.6H16a1.5 1.5 0 0 1 1.5 1.5v7.4A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>';
+
+/** Klasör çipi: kısa ad (Masaüstü…), tam yol ipucunda. */
+function klasorCipi() {
+  const el = oge(`<span class="arac-klasor-cip">${KLASOR_SVG}<span class="ad"></span></span>`);
+  return {
+    el,
+    yaz: async (klasor, pdefe) => {
+      el.title = klasor || '';
+      el.querySelector('.ad').textContent = klasorEtiketi(klasor, await bilinenKlasorler(pdefe));
+    },
+  };
+}
+
+/**
+ * Yeni dosya çıktısı satırı: kısa dosya adı kutusu + klasör çipi (Masaüstü; tam yol ipucunda) + Değiştir.
+ * Değiştir, Windows'un Farklı kaydet diyaloğunu açar (klasör ve ad birlikte seçilir; var olan dosyanın üzerine yazma
+ * sorusunu Windows sorar, dolayısıyla o yol için araç ayrıca sormaz: onayli()).
+ * @returns {{el:HTMLElement, yol:()=>string, klasor:()=>string, ad:()=>string, ayarla:(klasor:string|null, ad:string|null, s?:{elle?:boolean})=>void,
+ *   onDegisti:(cb)=>void, elleDegisti:()=>boolean, onayli:(yol:string)=>boolean}}
+ */
+export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasligi = 'Farklı kaydet' }) {
+  const el = oge(`<div class="arac-cikti">
+      <input type="text" class="arac-girdi arac-cikti-ad" spellcheck="false" aria-label="Dosya adı" title="Dosya adı">
+      <span class="arac-cikti-konum">konum</span>
+      <button type="button" class="ikincil arac-cikti-degistir" title="Kaydedilecek klasörü ve dosya adını seçin">Değiştir</button>
+    </div>`);
+  const cip = klasorCipi();
+  el.querySelector('.arac-cikti-konum').replaceWith(cip.el);
   const adEl = el.querySelector('.arac-cikti-ad');
   const dinleyiciler = [];
   let mevcutKlasor = klasor || '';
+  let elle = false;             // kullanıcı adı ya da klasörü kendisi değiştirdi (varsayılan ad artık önerilmez)
+  let onayliYol = null;         // Farklı kaydet diyaloğunda seçilen (Windows üzerine yazmayı sordu)
   const bildir = () => dinleyiciler.forEach((f) => f());
-  const yaz = () => { klasorEl.textContent = mevcutKlasor ? mevcutKlasor.replace(/[\\/]+$/, '') + '\\' : ''; klasorEl.title = mevcutKlasor; };
+  const yaz = () => { cip.yaz(mevcutKlasor, pdefe); };
   adEl.value = ad || '';
   yaz();
-  adEl.addEventListener('input', bildir);
+  adEl.addEventListener('input', () => { elle = true; onayliYol = null; bildir(); });
   adEl.addEventListener('blur', () => {
     let v = guvenliAd(adEl.value);
     if (uz && !new RegExp('\\.' + uz + '$', 'i').test(v)) v += '.' + uz;
@@ -563,6 +667,7 @@ export function ciktiSecici({ pdefe, klasor, ad, etiket = 'Çıktı dosyası', u
     if (!secilen) return;
     mevcutKlasor = klasorAdi(secilen);
     adEl.value = dosyaAdi(secilen);
+    elle = true; onayliYol = secilen;
     yaz(); bildir();
   });
   return {
@@ -570,9 +675,191 @@ export function ciktiSecici({ pdefe, klasor, ad, etiket = 'Çıktı dosyası', u
     yol: () => yolBirlestir(mevcutKlasor, adEl.value.trim()),
     klasor: () => mevcutKlasor,
     ad: () => adEl.value.trim(),
-    ayarla: (k, a) => { if (k != null) mevcutKlasor = k; if (a != null) adEl.value = a; yaz(); bildir(); },
+    ayarla: (k, a, { elle: e = false } = {}) => { if (k != null) mevcutKlasor = k; if (a != null) adEl.value = a; if (e) elle = true; onayliYol = null; yaz(); bildir(); },
+    onDegisti: (cb) => dinleyiciler.push(cb),
+    elleDegisti: () => elle,
+    onayli: (yol) => !!onayliYol && yolAyni(onayliYol, yol),
+    odakla: () => { adEl.focus(); adEl.select(); },
+  };
+}
+
+/**
+ * Yalnızca klasör satırı (birden çok dosya üreten araçlar, örn. PDF ayır): klasör çipi + Değiştir (klasör seçme diyaloğu).
+ * @returns {{el:HTMLElement, klasor:()=>string, ayarla:(k:string)=>void, onDegisti:(cb)=>void}}
+ */
+export function klasorSecici({ pdefe, klasor, diyalogBasligi = 'Kaydedilecek klasör' }) {
+  const el = oge(`<div class="arac-cikti"><span class="arac-cikti-konum"></span><button type="button" class="ikincil arac-cikti-degistir" title="Dosyaların kaydedileceği klasörü seçin">Değiştir</button></div>`);
+  const cip = klasorCipi();
+  el.querySelector('.arac-cikti-konum').replaceWith(cip.el);
+  const dinleyiciler = [];
+  let mevcut = klasor || '';
+  const ayarla = (k) => { mevcut = k || ''; cip.yaz(mevcut, pdefe); dinleyiciler.forEach((f) => f()); };
+  cip.yaz(mevcut, pdefe);
+  el.querySelector('.arac-cikti-degistir').addEventListener('click', async () => {
+    const k = await pdefe.cagir('dosya:klasorSec', { baslik: diyalogBasligi, varsayilan: mevcut || undefined });
+    if (k) ayarla(k);
+  });
+  return { el, klasor: () => mevcut, ayarla, onDegisti: (cb) => dinleyiciler.push(cb) };
+}
+
+/** İki (ya da daha çok) seçenekli bölümlü düğme grubu. secenekler: [{id, etiket, baslik?}] */
+export function segmentliSecim({ secenekler, deger, etiket = '', sinif = '', degisti }) {
+  const el = oge(`<div class="arac-segmentli ${sinif}" role="radiogroup" aria-label="${kacis(etiket)}"></div>`);
+  let mevcut = deger;
+  const dugmeler = secenekler.map((s) => {
+    const b = oge(`<button type="button" role="radio" data-id="${kacis(s.id)}"></button>`);
+    b.innerHTML = s.html ?? kacis(s.etiket);
+    if (s.baslik) b.title = s.baslik;
+    b.addEventListener('click', () => sec(s.id, true));
+    el.append(b);
+    return b;
+  });
+  function sec(id, kullanici = false) {
+    if (!secenekler.some((s) => s.id === id)) return;
+    const degisti_ = id !== mevcut;
+    mevcut = id;
+    for (const b of dugmeler) {
+      const secili = b.dataset.id === id;
+      b.classList.toggle('secili', secili);
+      b.setAttribute('aria-checked', secili ? 'true' : 'false');
+      b.tabIndex = secili ? 0 : -1;
+    }
+    if (kullanici && degisti_) degisti?.(id);
+  }
+  // Ok tuşlarıyla seçenekler arasında gezinme (radyo grubu davranışı)
+  el.addEventListener('keydown', (e) => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) return;
+    e.preventDefault();
+    const i = secenekler.findIndex((s) => s.id === mevcut);
+    const n = secenekler.length;
+    const j = e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : (i + (e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1) + n) % n;
+    sec(secenekler[j].id, true);
+    dugmeler[j].focus();
+  });
+  sec(deger);
+  return { el, deger: () => mevcut, sec: (id) => sec(id), dugme: (id) => dugmeler.find((b) => b.dataset.id === id) };
+}
+
+/**
+ * Standart kaydetme seçimi: "Yeni belge olarak kaydet" | "Üzerine yaz". Açık belgenin değiştirilmiş sürümünü üreten her araç
+ * (PDF küçült, Döndür ve kaydet) aynı biçimde kullanır.
+ *  - Yeni belge: dosya adı + klasör çipi + Değiştir; varsayılan klasör varsayilanCiktiKlasoru (Masaüstü), varsayılan ad
+ *    "<ad> (<ek>).pdf" (klasörde varsa "(2)"…).
+ *  - Üzerine yaz: özgün dosyanın üzerine doğrudan yazılır, yedek alınmaz. Çekirdek önce aynı klasörde geçici dosyaya yazar,
+ *    sonra atomik olarak yerine koyar; dosya kilitliyse özgün dosya değişmez (bkz. uzerineYazmaHatasi).
+ * @param {object} s
+ * @param {object} s.baglam
+ * @param {object} s.belge   {yol, ad}
+ * @param {string} s.ek      varsayılan ad eki, örn. 'küçültülmüş'
+ * @param {'yeni'|'uzerine'} [s.kip]
+ * @returns {{el:HTMLElement, kip:()=>string, kipAyarla:(k:string)=>void, hedef:()=>string, cikti:object, hazir:Promise<void>,
+ *   adYenile:()=>Promise<void>, onDegisti:(cb)=>void}}
+ */
+export function kayitSecimi({ baglam, belge, ek, kip = 'yeni', diyalogBasligi = 'Yeni belge olarak kaydet' }) {
+  const el = oge(`<div class="arac-kayit">
+      <div class="arac-kayit-kip"></div>
+      <div class="arac-kayit-yeni"></div>
+      <div class="arac-kayit-uzerine arac-not-satiri" hidden>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3 18 17H2z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M10 8v4.5M10 14.6v.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span class="metin"></span>
+      </div>
+    </div>`);
+  const dinleyiciler = [];
+  const bildir = () => dinleyiciler.forEach((f) => f());
+  const ozgunAd = dosyaAdi(belge.yol);
+  const oneriAd = () => `${adGovdesi(belge.yol)} (${ek}).pdf`;
+  const cikti = ciktiSecici({ pdefe: baglam.pdefe, klasor: '', ad: oneriAd(), diyalogBasligi });
+  cikti.onDegisti(bildir);
+  el.querySelector('.arac-kayit-yeni').append(cikti.el);
+  const uzerineMetin = el.querySelector('.arac-kayit-uzerine .metin');
+  uzerineMetin.textContent = `Değişiklik doğrudan "${ozgunAd}" dosyasına kaydedilir; yedek alınmaz.`;
+  el.querySelector('.arac-kayit-uzerine').title = belge.yol;
+  const secim = segmentliSecim({
+    etiket: 'Kaydetme biçimi', deger: kip, sinif: 'arac-kayit-secim',
+    secenekler: [
+      { id: 'yeni', etiket: 'Yeni belge olarak kaydet', baslik: 'Sonuç ayrı bir PDF dosyası olarak kaydedilir; özgün dosya değişmez' },
+      { id: 'uzerine', etiket: 'Üzerine yaz', baslik: `Sonuç "${ozgunAd}" dosyasının yerine kaydedilir` },
+    ],
+    degisti: () => { goster(); bildir(); },
+  });
+  el.querySelector('.arac-kayit-kip').replaceWith(secim.el);
+  function goster() {
+    const uzerine = secim.deger() === 'uzerine';
+    el.querySelector('.arac-kayit-yeni').hidden = uzerine;
+    el.querySelector('.arac-kayit-uzerine').hidden = !uzerine;
+  }
+  goster();
+  /** Varsayılan klasör ve boş ad (kullanıcı elle değiştirmediyse). */
+  async function adYenile() {
+    if (cikti.elleDegisti()) return;
+    const klasor = cikti.klasor() || await varsayilanCiktiKlasoru(baglam);
+    let ad = oneriAd();
+    try { ad = await bosAdBul(baglam.pdefe, klasor, ad); } catch { /* varsayılan ad */ }
+    if (!cikti.elleDegisti()) cikti.ayarla(klasor, ad);
+  }
+  const hazir = adYenile();
+  return {
+    el, cikti, hazir, adYenile,
+    kip: () => secim.deger(),
+    kipAyarla: (k) => { secim.sec(k); goster(); bildir(); },
+    hedef: () => (secim.deger() === 'uzerine' ? belge.yol : cikti.yol()),
     onDegisti: (cb) => dinleyiciler.push(cb),
   };
+}
+
+/**
+ * Yeni belge çıktısı başka bir dosyanın üzerine gelecekse sorar (Farklı kaydet diyaloğunda Windows zaten sorduysa sormaz).
+ * Döner: true (devam) | false (vazgeç).
+ */
+export async function varOlanaYazmaSor(baglam, cikti, hedef) {
+  if (cikti?.onayli?.(hedef)) return true;
+  if (!(await baglam.pdefe.cagir('dosya:varMi', hedef))) return true;
+  const { secim } = await baglam.mesajKutusu({ tur: 'warning', mesaj: `"${dosyaAdi(hedef)}" zaten var.`, ayrinti: `${hedef}\n\nVar olan dosyanın yerine kaydedilsin mi?`, dugmeler: ['Üzerine yaz', 'Vazgeç'], varsayilan: 1, iptal: 1 });
+  return secim === 0;
+}
+
+/**
+ * Üzerine yazma (ya da okuma) dosya kilidi yüzünden başarısız olunca sorar. Özgün dosya değişmemiştir.
+ * okunamadi: dosya okunamıyor bile (yeni belge de üretilemez) → yalnızca Yeniden dene / Vazgeç.
+ * Döner: 'yeni' (Yeni belge olarak kaydet) | 'tekrar' | 'vazgec'.
+ */
+export async function uzerineYazmaHatasi(baglam, belge, e) {
+  const okunamadi = /okunamadı/i.test(e?.message || '');
+  const ad = belge?.ad || dosyaAdi(belge?.yol);
+  const dugmeler = okunamadi ? ['Yeniden dene', 'Vazgeç'] : ['Yeni belge olarak kaydet', 'Yeniden dene', 'Vazgeç'];
+  const { secim } = await baglam.mesajKutusu({
+    tur: 'warning',
+    mesaj: okunamadi ? `"${ad}" okunamadı.` : `"${ad}" dosyasının üzerine yazılamadı.`,
+    ayrinti: `Dosya başka bir programda (örneğin bir PDF okuyucu) açık olabilir. Özgün dosya değiştirilmedi.\n\n`
+      + (okunamadi ? 'Dosyayı kullanan programı kapatıp yeniden deneyin.' : 'Dosyayı kullanan programı kapatıp yeniden deneyebilir ya da sonucu yeni bir belge olarak kaydedebilirsiniz.'),
+    dugmeler, varsayilan: 0, iptal: dugmeler.length - 1,
+  });
+  if (okunamadi) return secim === 0 ? 'tekrar' : 'vazgec';
+  return ['yeni', 'tekrar', 'vazgec'][secim] || 'vazgec';
+}
+
+/** Üzerine yazmadan önce: dosya yazılabilir mi (başka program kilitlemiş mi)? Çekirdek yanıt veremezse true sayılır. */
+export async function yazilabilirMi(baglam, yol) {
+  try { const r = await baglam.cekirdek('dosya_erisim', { yol }); return r ? { okunur: r.okunur !== false, yazilir: r.yazilir !== false } : { okunur: true, yazilir: true }; }
+  catch { return { okunur: true, yazilir: true }; }
+}
+
+/**
+ * Üzerine yazılan dosyanın açık sekmesini diskteki güncel haliyle yeniden açar (aynı sayfada). Sekmede kaydedilmemiş değişiklik
+ * varsa önce sorar. Döner: 'yenilendi' | 'yok' (sekme zaten kapalı) | false (vazgeçildi ya da kapatılamadı).
+ * @param {{soruAyrintisi?:string, ac?:boolean}} [s] ac=false: yalnızca kapatır (çağıran açar)
+ */
+export async function sekmeyiYenile(baglam, belge, { soruAyrintisi, ac = true } = {}) {
+  if (!belge || (belge.el && !belge.el.isConnected)) return 'yok';
+  if (typeof baglam.belgeKapat !== 'function') return false;
+  if (belge.degisti) {
+    const { secim } = await baglam.mesajKutusu({ tur: 'warning', mesaj: `"${belge.ad}" belgesinde kaydedilmemiş değişiklikler var.`, ayrinti: soruAyrintisi || 'Belge diskteki güncel haliyle yeniden açılırsa bu değişiklikler atılır.', dugmeler: ['Değişiklikleri at ve yeniden aç', 'Vazgeç'], varsayilan: 1, iptal: 1 });
+    if (secim !== 0) return false;
+  }
+  const sayfa = belge.gorunum?.gecerli || 1;
+  if (!(await baglam.belgeKapat(belge.id, { zorla: true }))) return false;
+  if (ac) await baglam.dosyaAc(belge.yol, { arkaPlanda: false, sayfa });
+  return 'yenilendi';
 }
 
 // ---------------------------------------------------------------- belge yardımcıları
@@ -630,15 +917,19 @@ export function anaKaynakMi(belge, yol) {
   return !!anlik && yolAyni(yol, anlik);
 }
 
-/** Kaydedilmemiş değişiklik varsa kullanıcıya sorar. Dönüş: 'devam' | 'vazgec'. */
-export async function degisiklikleriSor(baglam, belge, islemAdi) {
+/**
+ * Kaydedilmemiş değişiklik varsa kullanıcıya sorar. Dönüş: 'devam' | 'vazgec'.
+ * yalnizKaydet: kaydetmeden devam edilemez (örn. sekmedeki sayfa sırası değişti; sayfa numaraları dosyadakiyle uyuşmaz).
+ */
+export async function degisiklikleriSor(baglam, belge, islemAdi, { yalnizKaydet = false, neden = '' } = {}) {
   if (!belge?.degisti) return 'devam';
   const { secim } = await baglam.mesajKutusu({
     mesaj: `"${belge.ad}" belgesinde kaydedilmemiş değişiklikler var.`,
-    ayrinti: `${islemAdi} dosyadaki kayıtlı sürüm üzerinde çalışır. Önce kaydetmek ister misiniz?`,
-    dugmeler: ['Kaydet ve devam et', 'Kaydetmeden devam et', 'Vazgeç'], varsayilan: 0, iptal: 2,
+    ayrinti: `${islemAdi} dosyadaki kayıtlı sürüm üzerinde çalışır. ${neden ? neden + ' ' : ''}Önce kaydetmek ister misiniz?`,
+    dugmeler: yalnizKaydet ? ['Kaydet ve devam et', 'Vazgeç'] : ['Kaydet ve devam et', 'Kaydetmeden devam et', 'Vazgeç'],
+    varsayilan: 0, iptal: yalnizKaydet ? 1 : 2,
   });
-  if (secim === 2) return 'vazgec';
+  if (secim === (yalnizKaydet ? 1 : 2)) return 'vazgec';
   if (secim === 0) { const ok = await baglam.kaydet(belge); if (!ok) return 'vazgec'; }
   return 'devam';
 }

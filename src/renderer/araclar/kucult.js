@@ -1,10 +1,11 @@
-// PDF küçült: mevcut boyut, üç hazır seviye (aşırı / ideal / düşük), tahminler, ilerleme, sonuç.
-// Çekirdek: kucult_tahmin {yol, seviyeler} ve kucult {yol, hedef, seviye, dpi, kalite} (ilerlemeli).
-// "Üzerine yaz": özgün dosya önce AYNI KLASÖRE "<ad gövdesi> (yedek).pdf" adıyla kopyalanır (ad doluysa
-// "… (yedek) (2).pdf"); yedek alınamaz ya da doğrulanamazsa üzerine yazılmaz.
+// PDF küçült: mevcut boyut, üç hazır seviye (aşırı / ideal / düşük), tahminler, standart kaydetme seçimi, ilerleme, sonuç.
+// Çekirdek: kucult_tahmin {yol, seviyeler} ve kucult {yol, hedef, seviye, dpi, kalite, kuculmezseYazma} (ilerlemeli).
+// "Üzerine yaz": yedek alınmaz. Çekirdek sonucu özgün dosyanın klasöründe geçici dosyaya yazıp atomik olarak yerine koyar;
+// sonuç özgünden küçük değilse özgün dosyaya dokunmaz (yedek olmadığından büyüyen sonuç geri alınamazdı). Dosya başka
+// programda kilitliyse özgün dosya değişmez ve "Yeni belge olarak kaydet" önerilir (ortak.js uzerineYazmaHatasi).
 import {
-  pencereAc, pencereAcikMi, IslemIlerleme, boyutMetni, farkMetni, kacis, hataMetni, dosyaAdi, klasorAdi, adGovdesi, yolBirlestir,
-  bosAdBul, dosyaBoyutu, degisiklikleriSor, oge,
+  pencereAc, pencereAcikMi, IslemIlerleme, boyutMetni, farkMetni, kacis, hataMetni, dosyaAdi, yolAyni, dosyaBoyutu,
+  degisiklikleriSor, oge, kayitSecimi, varOlanaYazmaSor, uzerineYazmaHatasi, yazilabilirMi, kilitliHataMi, sekmeyiYenile,
 } from './ortak.js';
 
 /** Hazır seviyeler. dpi/kalite değerleri yalnızca bilgi amaçlıdır; çekirdek (core/islemler/araclar.py SEVIYELER)
@@ -24,7 +25,6 @@ export class KucultPenceresi {
     this.tahminler = {};
     this.ornekleme = false;          // çekirdek büyük belgede ilk sayfaları örnekleyerek tahmin etti
     this.tahminlerEski = false;      // üzerine yazmadan sonra tahminler eski boyuta göre; seviye seçilince yeniden hesaplanır
-    this.uzerineYaz = false;
     this.sekmeBayat = false;         // üzerine yazıldı, açık sekme dosyanın önceki halini (eski xref'leri) tutuyor: pencere kapanınca yenilenir
     this.ilerleme = new IslemIlerleme();
     this._kur();
@@ -34,62 +34,40 @@ export class KucultPenceresi {
     const b = this.belge;
     const govde = oge(`<div class="kucult-govde">
       <div class="kucult-boyut"><div class="deger sayi">${boyutMetni(b.boyut)}</div><div class="etiket">${kacis(b.ad)} · ${b.gorunum?.sayfaSayisi || '?'} sayfa · mevcut boyut</div></div>
-      <div class="kucult-kartlar" role="radiogroup"></div>
-      <div class="arac-aciklama kucult-not" hidden></div>
-      <div class="arac-alan kucult-cikti">
-        <div class="arac-satir"><span class="arac-etiket" style="margin:0">Çıktı</span></div>
-        <div class="arac-satir"><span class="soluk kucult-cikti-yol" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span></div>
-        <label><input type="checkbox" class="kucult-uzerine"> Üzerine yaz (özgün dosya aynı klasöre yedeklenir)</label>
+      <div class="arac-bolum">
+        <div class="arac-bolum-baslik">Sıkıştırma</div>
+        <div class="kucult-kartlar" role="radiogroup" aria-label="Sıkıştırma"></div>
+        <div class="arac-aciklama kucult-not" hidden></div>
       </div>
+      <div class="arac-bolum kucult-kayit"><div class="arac-bolum-baslik">Kaydetme</div></div>
       <div class="kucult-sonuc" hidden></div>
     </div>`);
     this.govde = govde;
     this.boyutEl = govde.querySelector('.kucult-boyut .deger');
     this.kartlar = govde.querySelector('.kucult-kartlar');
     for (const [id, s] of Object.entries(SEVIYELER)) this.kartlar.append(this._kart(id, s.ad, s.aciklama));
-    govde.querySelector('.kucult-cikti').append(this.ilerleme.el);
-    this.ciktiYolEl = govde.querySelector('.kucult-cikti-yol');
     this.notEl = govde.querySelector('.kucult-not');
-    this.uzerineEl = govde.querySelector('.kucult-uzerine');
-    this.uzerineEl.addEventListener('change', () => { this.uzerineYaz = this.uzerineEl.checked; this.ciktiYoluYaz(); });
+    this.kayit = kayitSecimi({ baglam: this.baglam, belge: b, ek: 'küçültülmüş', kip: 'yeni', diyalogBasligi: 'Küçültülmüş PDF' });
+    govde.querySelector('.kucult-kayit').append(this.kayit.el);
     this.sonucEl = govde.querySelector('.kucult-sonuc');
 
     this.pencere = pencereAc({
-      baslik: 'PDF küçült', govde, genislik: 680, anahtar: 'kucult', sinif: 'kucult-pencere',
-      dugmeler: [
-        { id: 'kucult', etiket: 'Küçült', birincil: true, tiklama: () => this.kucult() },
-        { id: 'kapat', etiket: 'Kapat' },
-      ],
+      baslik: 'PDF küçült', govde, genislik: 700, anahtar: 'kucult', sinif: 'kucult-pencere',
+      dugmeler: [{ id: 'kucult', etiket: 'Küçült', birincil: true, tiklama: () => this.kucult() }],
       kapatmadanOnce: () => this._kapatmaIzni(),
     });
+    this.pencere.govde.append(this.ilerleme.el);   // gövdenin doğrudan çocuğu: meşgulken soluklaşmaz, İptal tıklanabilir
     this.pencere.el.addEventListener('esc', (e) => { if (this.ilerleme.calisiyor) { e.preventDefault(); this.ilerleme.iptalIste(); } });
-    // Bayat sekme (sonraki kayıt eski xref'lerle hata verir ya da başka notu değiştirir) pencere nasıl kapanırsa kapansın (Kapat, X, Esc)
+    // Bayat sekme (sonraki kayıt eski xref'lerle hata verir ya da başka notu değiştirir) pencere nasıl kapanırsa kapansın (X, Esc)
     // diskteki haliyle yeniden açılır; 'kapandi' kapatmadanOnce izin verdikten sonra gelir
     this.pencere.el.addEventListener('kapandi', async () => {
       if (!this.sekmeBayat) return;
-      const sonuc = await this._bayatSekmeyiKapat().catch(() => false);
-      if (sonuc === 'kapatildi') await this.baglam.dosyaAc(this.belge.yol, { arkaPlanda: false });
-      else if (!sonuc) this.baglam.bildir('Açık sekme dosyanın küçültülmeden önceki halini gösteriyor; notlarda değişiklik yapmadan önce sekmeyi kapatıp yeniden açın.', 8000);
+      const sonuc = await sekmeyiYenile(this.baglam, this.belge, { soruAyrintisi: 'Belge diskteki küçültülmüş haliyle yeniden açılırsa bu değişiklikler atılır.' }).catch(() => false);
+      if (sonuc) this.sekmeBayat = false;
+      else this.baglam.bildir('Açık sekme dosyanın küçültülmeden önceki halini gösteriyor; notlarda değişiklik yapmadan önce sekmeyi kapatıp yeniden açın.', 8000);
     });
     this.seviyeSec('onerilen');
-    this.ciktiYoluHazirla();
     this.tahminleriAl();
-  }
-
-  /**
-   * Üzerine yazılan dosyanın bayat sekmesini kapatır; kaydedilmemiş değişiklik varsa sorar. Döner: 'kapatildi', 'yok' (sekme zaten
-   * kapatılmış) ya da false (vazgeçildi/kapatılamadı). Sekme kapanınca ya da yoksa sekmeBayat temizlenir.
-   */
-  async _bayatSekmeyiKapat() {
-    const { baglam, belge } = this;
-    if (belge.el && !belge.el.isConnected) { this.sekmeBayat = false; return 'yok'; }
-    if (belge.degisti) {
-      const { secim } = await baglam.mesajKutusu({ tur: 'warning', mesaj: `"${belge.ad}" belgesinde kaydedilmemiş değişiklikler var.`, ayrinti: 'Belge diskteki küçültülmüş haliyle yeniden açılırsa bu değişiklikler atılır.', dugmeler: ['Değişiklikleri at ve yeniden aç', 'Vazgeç'], varsayilan: 1, iptal: 1 });
-      if (secim !== 0) return false;
-    }
-    if (!(await baglam.belgeKapat(belge.id, { zorla: true }))) return false;
-    this.sekmeBayat = false;
-    return 'kapatildi';
   }
 
   async _kapatmaIzni() {
@@ -180,139 +158,106 @@ export class KucultPenceresi {
     }
   }
 
-  async ciktiYoluHazirla() {
-    const klasor = klasorAdi(this.belge.yol);
-    let ad = adGovdesi(this.belge.yol) + '_kucuk.pdf';
-    try { ad = await bosAdBul(this.baglam.pdefe, klasor, ad); } catch { /* varsayılan ad */ }
-    this.ciktiKlasor = klasor;
-    this.ciktiAd = ad;
-    this.ciktiYoluYaz();
-  }
-
-  ciktiYoluYaz() {
-    if (this.uzerineYaz) { this.ciktiYolEl.textContent = this.belge.yol; this.ciktiYolEl.title = `Özgün dosyanın üzerine yazılır; önce aynı klasöre "${adGovdesi(this.belge.yol)} (yedek).pdf" adıyla yedeği alınır`; }
-    else { this.ciktiYolEl.textContent = yolBirlestir(this.ciktiKlasor || '', this.ciktiAd || '…'); this.ciktiYolEl.title = this.ciktiYolEl.textContent; }
-  }
-
   secilenParametreler() {
     const s = SEVIYELER[this.seviye] || SEVIYELER.onerilen;
     return { seviye: SEVIYELER[this.seviye] ? this.seviye : 'onerilen', dpi: s.dpi, kalite: s.kalite };
   }
 
-  /** Özgün dosyanın klasöründe boş bir yedek yolu: "<ad gövdesi> (yedek).pdf", doluysa "… (yedek) (2).pdf" … */
-  async yedekYoluBul() {
-    const klasor = klasorAdi(this.belge.yol);
-    const ad = await bosAdBul(this.baglam.pdefe, klasor, `${adGovdesi(this.belge.yol)} (yedek).pdf`);
-    return yolBirlestir(klasor, ad);
-  }
-
-  /** Özgün dosyayı aynı klasöre kopyalar ve boyutunu doğrular; yedek yolunu döner. Başarısızsa e.yedekHatasi = true fırlatır. */
-  async yedekAl() {
-    const { pdefe } = this.baglam;
-    let yedek = null;
-    try {
-      yedek = await this.yedekYoluBul();   // onaydan bu yana ad alınmış olabilir: yeniden bak
-      await pdefe.cagir('dosya:kopyala', this.belge.yol, yedek);
-      const [ozgunBoyut, yedekBoyut] = await Promise.all([dosyaBoyutu(pdefe, this.belge.yol), dosyaBoyutu(pdefe, yedek)]);
-      if (yedekBoyut == null) throw new Error('yedek dosyası oluşmadı');
-      if (ozgunBoyut != null && ozgunBoyut !== yedekBoyut) {
-        try { await pdefe.cagir('dosya:sil', yedek); } catch { /* yok say */ }
-        throw new Error('yedek dosyası eksik yazıldı');
-      }
-      return yedek;
-    } catch (e) {
-      const h = new Error(`Yedek alınamadığı için dosyanın üzerine yazılmadı: ${hataMetni(e)}${yedek ? `\n(${yedek})` : ''}`);
-      h.yedekHatasi = true;
-      throw h;
-    }
-  }
-
+  /** Küçültür; kilitli dosya sorusunda "Yeniden dene" ya da "Yeni belge olarak kaydet" seçilirse yeniden çalışır. */
   async kucult() {
+    if (this.ilerleme.calisiyor || this._suruyor) return;
+    this._suruyor = true;
+    try {
+      while (!this.pencere.kapali && await this._kucultBir());
+    } finally { this._suruyor = false; }
+  }
+
+  /** Bir küçültme denemesi. Yeniden denenecekse true döner. */
+  async _kucultBir() {
     const { baglam, belge } = this;
-    if (this.ilerleme.calisiyor) return;
     this.pencere.hataGoster('');
     this.sonucEl.hidden = true;
     // Bayat sekmenin değişiklikleri kaydettirilmez: eski xref'lerle küçültülmüş dosyaya yazılırdı (pencere kapanınca atılıp atılmayacağı sorulur)
-    if (!this.sekmeBayat && (await degisiklikleriSor(baglam, belge, 'Küçültme')) === 'vazgec') return;
-    if (this.pencere.kapali) return;
+    if (!this.sekmeBayat && (await degisiklikleriSor(baglam, belge, 'Küçültme')) === 'vazgec') return false;
+    if (this.pencere.kapali) return false;
 
-    const uzerine = this.uzerineYaz;
-    let hedef;
+    await this.kayit.hazir;
+    const hedef = this.kayit.hedef();
+    // Değiştir ile özgün dosyanın kendisi seçildiyse de üzerine yazmadır
+    const uzerine = this.kayit.kip() === 'uzerine' || yolAyni(hedef, belge.yol);
     if (uzerine) {
-      let yedekAday;
-      try { yedekAday = await this.yedekYoluBul(); } catch (e) { this.pencere.hataGoster('Yedek adı belirlenemediği için dosyanın üzerine yazılmadı: ' + hataMetni(e)); return; }
-      const { secim } = await baglam.mesajKutusu({ tur: 'warning', mesaj: 'Özgün dosyanın üzerine yazılacak.', ayrinti: `${belge.yol}\n\nÖnce aynı klasöre yedek alınır: ${dosyaAdi(yedekAday)}. Devam edilsin mi?`, dugmeler: ['Üzerine yaz', 'Vazgeç'], varsayilan: 0, iptal: 1 });
-      if (secim !== 0 || this.pencere.kapali) return;
-      hedef = belge.yol;
+      // Uzun işlemden önce: başka program dosyayı kilitlemişse şimdi söyle
+      const erisim = await yazilabilirMi(baglam, belge.yol);
+      if (!erisim.okunur || !erisim.yazilir) return this._kilitSorusu(new Error(erisim.okunur ? 'yazılamadı' : 'okunamadı'));
     } else {
-      if (!this.ciktiAd) await this.ciktiYoluHazirla();
-      hedef = yolBirlestir(this.ciktiKlasor, this.ciktiAd);
-      if (await baglam.pdefe.cagir('dosya:varMi', hedef)) {
-        const { secim } = await baglam.mesajKutusu({ mesaj: `"${this.ciktiAd}" zaten var.`, ayrinti: 'Üzerine yazılsın mı?', dugmeler: ['Üzerine yaz', 'Vazgeç'], varsayilan: 1, iptal: 1 });
-        if (secim !== 0) return;
-      }
+      if (!this.kayit.cikti.ad()) { baglam.bildir('Dosya adı girin.'); this.kayit.cikti.odakla(); return false; }
+      if (!(await varOlanaYazmaSor(baglam, this.kayit.cikti, hedef))) return false;
     }
+    if (this.pencere.kapali) return false;
 
     this.pencere.el.classList.add('mesgul');
     this.pencere.dugmeAyarla('kucult', { devre: true });
-    this.pencere.dugmeAyarla('kapat', { devre: true });
-    let yedek = null, hedefOnce = null;
+    let hedefOnce = null;
+    let yeniden = false;
     try {
-      if (uzerine) {
-        yedek = await this.yedekAl();   // hata fırlatırsa küçültme hiç başlamaz
-        baglam.bildir('Yedek alındı: ' + yedek, 8000);
-      }
       // Hedefin işlem öncesi durumu: iptal geç ulaşırsa dosyanın yazılıp yazılmadığı buna bakılarak anlaşılır
       hedefOnce = await baglam.pdefe.cagir('dosya:bilgi', hedef).catch(() => null);
       const p = this.secilenParametreler();
-      // Çekirdek (kucult): geçici dosyaya yazıp os.replace ile hedefe taşır; hedef == yol (üzerine yazma) desteklenir.
-      // Sonuç: {boyut, oncekiBoyut, yuzde, uyari, dpi, kalite}
-      const sonuc = await this.ilerleme.calistir(baglam, 'kucult', { yol: belge.yol, hedef, ...p }, { baslangicMesaji: 'Küçültülüyor…' });
-      const yeniBoyut = sonuc?.boyut ?? await dosyaBoyutu(baglam.pdefe, hedef);
-      await this.sonucGoster(hedef, yeniBoyut, yedek, uzerine);
+      // Sonuç: {boyut, oncekiBoyut, yuzde, uyari, dpi, kalite, yazilmadi}
+      const sonuc = await this.ilerleme.calistir(baglam, 'kucult', { yol: belge.yol, hedef, ...p, kuculmezseYazma: uzerine }, { baslangicMesaji: 'Küçültülüyor…' });
+      await this.sonucGoster(hedef, sonuc?.boyut ?? await dosyaBoyutu(baglam.pdefe, hedef), uzerine, !!sonuc?.yazilmadi);
     } catch (e) {
       this.ilerleme.gizle();
       // Çekirdek kaydettikten (os.replace) sonra iptal ya da hata fırlatmış olabilir; sonuç gelmez: diske bak.
-      // degismedi yalnızca diskte doğrulanınca true olur (bilgi alınamazsa hedef değişmiş sayılır, yedek korunur).
       let simdi = null;
       if (hedefOnce && !e.sonuc) simdi = await baglam.pdefe.cagir('dosya:bilgi', hedef).catch(() => null);
       const degismedi = !!simdi && simdi.var === hedefOnce.var && (!simdi.var || (simdi.degisim === hedefOnce.degisim && simdi.boyut === hedefOnce.boyut));
       if (e.iptal && simdi?.var && !degismedi) e.sonuc = { boyut: simdi.boyut };
-      // Üzerine yazılmadıysa (özgün dosya değişmedi) yedek gereksiz: çöp kutusuna gönder. Dosya değiştiyse (e.sonuc) yedek kalır.
-      let yedekSilindi = false;
-      if (uzerine && yedek && !e.sonuc && degismedi) {
-        yedekSilindi = await baglam.pdefe.cagir('dosya:sil', yedek).catch(() => false) === true;
-        if (yedekSilindi) yedek = null;
-      }
-      const yedekNotu = yedekSilindi ? 'Özgün dosya değişmedi; alınan yedek çöp kutusuna gönderildi.' : '';
-      if (e.iptal && uzerine && e.sonuc) {
-        // İptal geç ulaştı ve dosyanın üzerine yazıldı: sonucu yedekle birlikte göster
-        await this.sonucGoster(hedef, e.sonuc.boyut ?? await dosyaBoyutu(baglam.pdefe, hedef), yedek, uzerine);
+      if (e.iptal && uzerine && e.sonuc && !e.sonuc.yazilmadi) {
+        // İptal geç ulaştı ve dosyanın üzerine yazıldı (yedek yok, geri alınamaz): sonucu göster
+        await this.sonucGoster(hedef, e.sonuc.boyut ?? await dosyaBoyutu(baglam.pdefe, hedef), uzerine, false);
       } else if (e.iptal) {
         // İş yine de bittiyse (iptal geç ulaştı) ve yeni dosya oluştuysa çöp kutusuna gönder
         if (!uzerine && e.sonuc) { try { await baglam.pdefe.cagir('dosya:sil', hedef); } catch { /* yok say */ } }
-        baglam.bildir('Küçültme iptal edildi.' + (yedekNotu ? ' ' + yedekNotu : yedek ? ' Yedek: ' + yedek : ''), yedek || yedekNotu ? 8000 : 3000);
-      } else if (e.yedekHatasi) {
-        this.pencere.hataGoster(e.message);
+        baglam.bildir('Küçültme iptal edildi.' + (uzerine ? ' Özgün dosya değiştirilmedi.' : ''));
+      } else if (kilitliHataMi(e)) {
+        yeniden = true;   // soru finally'den sonra (düğmeler yeniden etkin) sorulur
+        this._sonHata = e;
       } else {
-        this.pencere.hataGoster('Küçültme başarısız: ' + hataMetni(e) + (yedek ? `\nÖzgün dosyanın yedeği: ${yedek}` : yedekNotu ? `\n${yedekNotu}` : ''));
+        this.pencere.hataGoster('Küçültme başarısız: ' + hataMetni(e) + (uzerine ? '\nÖzgün dosya değiştirilmedi.' : ''));
       }
     } finally {
       this.pencere.el.classList.remove('mesgul');
       this.pencere.dugmeAyarla('kucult', { devre: false });
-      this.pencere.dugmeAyarla('kapat', { devre: false });
     }
+    return yeniden && !this.pencere.kapali ? this._kilitSorusu(this._sonHata) : false;
   }
 
-  async sonucGoster(yol, yeniBoyut, yedek, uzerine = this.uzerineYaz) {
-    const { baglam, belge } = this;
+  /** Kilitli dosya sorusu; "Yeni belge olarak kaydet" kaydetme seçimini değiştirir. Yeniden denenecekse true. */
+  async _kilitSorusu(e) {
+    const secim = await uzerineYazmaHatasi(this.baglam, this.belge, e);
+    if (this.pencere.kapali || secim === 'vazgec') return false;
+    if (secim === 'yeni') { this.kayit.kipAyarla('yeni'); await this.kayit.adYenile(); }
+    return true;
+  }
+
+  async sonucGoster(yol, yeniBoyut, uzerine, yazilmadi = false) {
+    const { baglam } = this;
     const eski = this.mevcutBoyut;
-    const buyuk = yeniBoyut != null && eski && yeniBoyut >= eski;
-    // Üzerine yazmada açık sekme eski veriyi tutuyor: kapatıp yeniden açmak için proje sahibinin belgeKapat vermesi gerekir
-    const yenidenAcilabilir = uzerine && typeof baglam.belgeKapat === 'function';
+    const buyuk = yazilmadi || (yeniBoyut != null && eski && yeniBoyut >= eski);
+    const fark = `${kacis(boyutMetni(eski))} → <b>${kacis(boyutMetni(yeniBoyut))}</b> (${kacis(farkMetni(eski, yeniBoyut))})`;
+    this.ilerleme.gizle();
+    this.sonucEl.hidden = false;
+    this.sonucEl.className = 'kucult-sonuc ' + (buyuk ? 'arac-uyari' : 'arac-basari');
+    if (uzerine && yazilmadi) {
+      // Çekirdek küçülmeyen sonucu yazmadı: özgün dosya olduğu gibi duruyor, sekme bayat değil
+      this.sonucEl.innerHTML = `<div><b>Dosya küçülmedi; özgün dosya değiştirilmedi.</b></div>
+        <div>Bu seviyeyle ulaşılan boyut: ${fark}. Belge zaten sıkıştırılmış olabilir ya da görsel içermiyor olabilir; daha güçlü bir seviye deneyebilirsiniz.</div>`;
+      return;
+    }
     if (uzerine) {
-      this.sekmeBayat = yenidenAcilabilir;
-      // Diskteki dosya değişti; pencere açık kaldığından sonraki küçültmenin kıyası yeni boyuta göre yapılsın. Tahminler hemen
+      this.sekmeBayat = typeof baglam.belgeKapat === 'function';
+      // Diskteki dosya değişti; pencere açık kalırsa sonraki küçültmenin kıyası yeni boyuta göre yapılsın. Tahminler hemen
       // yeniden hesaplanmaz (çekirdeği uzun süre meşgul eder, çoğu kez gereksiz): kullanıcı yeniden seviye seçerse hesaplanır.
       this.mevcutBoyut = yeniBoyut;
       this.boyutEl.textContent = boyutMetni(yeniBoyut);
@@ -321,42 +266,43 @@ export class KucultPenceresi {
       this.notEl.hidden = false;
       this.notEl.textContent = 'Dosya küçültüldü; tahminler önceki boyuta göreydi. Yeniden küçültmek isterseniz bir seviye seçtiğinizde yeni boyuta göre hesaplanır.';
     }
-    this.sonucEl.hidden = false;
-    this.sonucEl.className = 'kucult-sonuc ' + (buyuk ? 'arac-uyari' : 'arac-basari');
-    this.sonucEl.innerHTML = `<div><b>${buyuk ? 'Dosya küçülmedi.' : 'Küçültme tamamlandı.'}</b> ${kacis(boyutMetni(eski))} → <b>${kacis(boyutMetni(yeniBoyut))}</b> (${kacis(farkMetni(eski, yeniBoyut))})</div>
+    this.sonucEl.innerHTML = `<div><b>${buyuk ? 'Dosya küçülmedi.' : 'Küçültme tamamlandı.'}</b> ${fark}</div>
       <div class="soluk kucult-sonuc-yol" title="${kacis(yol)}">${kacis(yol)}</div>
       ${buyuk ? '<div>Belge zaten sıkıştırılmış olabilir ya da görsel içermiyor olabilir. Daha güçlü bir seviye deneyebilir ya da sonucu silebilirsiniz.</div>' : ''}
-      ${yedek ? `<div class="kucult-yedek">Özgün dosyanın yedeği: <span class="kucult-yedek-yol">${kacis(yedek)}</span></div>` : ''}
-      ${uzerine ? `<div class="soluk">Açık sekme dosyanın önceki halini gösteriyor; ${yenidenAcilabilir ? 'pencere kapanınca güncel haliyle yeniden açılır.' : 'güncel hali için sekmeyi kapatıp yeniden açın.'}</div>` : ''}
-      <div class="arac-satir" style="margin-top:4px">
-        ${!uzerine ? '<button class="ikincil kucult-ac">Yeni sekmede aç</button>' : yenidenAcilabilir ? '<button class="ikincil kucult-ac">Belgeyi yeniden aç</button>' : ''}
+      ${uzerine ? `<div class="soluk">Açık sekme dosyanın önceki halini gösteriyor; ${this.sekmeBayat ? 'pencere kapanınca güncel haliyle yeniden açılır.' : 'güncel hali için sekmeyi kapatıp yeniden açın.'}</div>` : ''}
+      <div class="arac-satir kucult-sonuc-dugmeler">
+        ${!uzerine ? '<button class="ikincil kucult-ac">Yeni sekmede aç</button>' : this.sekmeBayat ? '<button class="ikincil kucult-ac">Belgeyi yeniden aç</button>' : ''}
         <button class="ikincil kucult-goster">Klasörde göster</button>
-        ${yedek ? '<button class="ikincil kucult-yedek-goster">Yedeği klasörde göster</button>' : ''}
         ${buyuk && !uzerine ? '<button class="ikincil kucult-sil">Sonucu sil</button>' : ''}
       </div>`;
-    this.ilerleme.gizle();
+    const ozet = `${dosyaAdi(yol)}: ${boyutMetni(eski)} → ${boyutMetni(yeniBoyut)} (${farkMetni(eski, yeniBoyut)})`;
     const ac = async () => {
-      // Üzerine yazmada bayat sekme önce kapatılır (kirliyse sorulur); sekmeBayat temizlendiği için pencerenin kapanışı yeniden açmaz
-      if (uzerine && (!yenidenAcilabilir || !(await this._bayatSekmeyiKapat()))) return;
+      if (uzerine) {
+        // Bayat sekme önce kapatılıp aynı sayfada yeniden açılır (kirliyse sorulur); sekmeBayat temizlendiği için pencerenin kapanışı yeniden açmaz
+        if (!this.sekmeBayat) return;
+        const sayfa = this.belge.gorunum?.gecerli || 1;
+        const r = await sekmeyiYenile(baglam, this.belge, { ac: false, soruAyrintisi: 'Belge diskteki küçültülmüş haliyle yeniden açılırsa bu değişiklikler atılır.' });
+        if (!r) return;
+        this.sekmeBayat = false;
+        await this.pencere.kapat('tamam');
+        await baglam.dosyaAc(yol, { arkaPlanda: false, sayfa });
+        baglam.bildir(`Küçültüldü ve kaydedildi · ${ozet}`, 5000);
+        return;
+      }
       await this.pencere.kapat('tamam');
       await baglam.dosyaAc(yol, { arkaPlanda: false });
+      baglam.bildir(`Küçültüldü · ${ozet}`, 5000);
     };
     this.sonucEl.querySelector('.kucult-ac')?.addEventListener('click', ac);
     this.sonucEl.querySelector('.kucult-goster').addEventListener('click', () => baglam.pdefe.cagir('kabuk:klasordeGoster', yol));
-    this.sonucEl.querySelector('.kucult-yedek-goster')?.addEventListener('click', () => baglam.pdefe.cagir('kabuk:klasordeGoster', yedek));
     this.sonucEl.querySelector('.kucult-sil')?.addEventListener('click', async () => {
       await baglam.pdefe.cagir('dosya:sil', yol);
       baglam.bildir('Sonuç dosyası çöp kutusuna gönderildi.');
       this.sonucEl.hidden = true;
+      this.kayit.adYenile();
     });
-    if (yedek) {
-      // Yedeğin yeri görünür kalsın: pencere kendiliğinden kapanmaz, bildirimde de yol yazılır
-      baglam.bildir(`${buyuk ? 'Dosya küçülmedi' : 'Küçültme tamamlandı'}. Özgün dosyanın yedeği: ${yedek}${uzerine ? (yenidenAcilabilir ? '. Açık sekme pencere kapanınca güncel haliyle yeniden açılır.' : '. Güncel hali için sekmeyi kapatıp yeniden açın.') : ''}`, 8000);
-      this.sonucEl.querySelector('.kucult-yedek-goster')?.focus();
-    } else if (!buyuk) {
-      // Başarılı sonuçta doğrudan yeni sekmede aç
-      await ac();
-    }
+    // Başarılı sonuçta doğrudan açılır: yeni belge yeni sekmede, üzerine yazılan belge kendi sekmesinde
+    if (!buyuk) await ac();
   }
 }
 

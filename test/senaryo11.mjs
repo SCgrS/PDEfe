@@ -1,4 +1,4 @@
-// Senaryo 11: araç pencereleri uçtan uca — küçült, ayır, PDF birleştir, görüntü/PDF birleştir (panodan), sayfaları düzenle (sil+Uygula), döndür ve kaydet.
+// Senaryo 11: araç pencereleri uçtan uca — küçült, ayır, görüntü/PDF birleştir (panodan), sayfaları düzenle (sil+Uygula), döndür ve kaydet.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 const D = 'C:/Users/Kullanici/Desktop/PDF DENEME/';
@@ -19,19 +19,18 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   console.log('küçült:', await evalJs(dugmeTikla('/^Küçült$/')));
   await bekle(8000);
   console.log('  sekmeler:', await sekmeler(), 'çıktılar:', fs.readdirSync(K));
-  // Açık kalan araç pencerelerini Kapat düğmesiyle kapat (yalnızca DOM'dan silmek pencere kaydını bırakır, aynı araç yeniden açılmaz)
-  const pencereleriKapat = () => evalJs(`(async () => { for (const w of [...document.querySelectorAll('.arac-pencere')]) { [...w.querySelectorAll('button')].find(x => x.textContent.trim() === 'Kapat')?.click(); } await new Promise(r => setTimeout(r, 300)); document.querySelectorAll('.arac-pencere').forEach(e => e.remove()); return true; })()`);
+  // Açık kalan araç pencerelerini X ile kapat (Kapat düğmesi yok; yalnızca DOM'dan silmek pencere kaydını bırakır, aynı araç yeniden açılmaz)
+  const pencereleriKapat = () => evalJs(`(async () => { for (const w of [...document.querySelectorAll('.arac-pencere')]) w.querySelector('.arac-kapat')?.click(); await new Promise(r => setTimeout(r, 300)); document.querySelectorAll('.arac-pencere').forEach(e => e.remove()); return true; })()`);
   await pencereleriKapat();
 
-  // 1b) Küçült "Üzerine yaz": yedek özgün dosyanın klasörüne "<ad> (yedek).pdf" olarak alınmalı (veri klasörüne değil)
+  // 1b) Küçült "Üzerine yaz" (standart kaydetme seçimi): yedek alınmaz, dosya doğrudan (geçici dosya + atomik yer değiştirme) güncellenir
   const ozgunBoyut = fs.statSync(KOPYA).size;
   await evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find(x => x.ad === 'arac-test.pdf'); await p.sekmeSec(b.id); window.__pdefeOtoYanit = { secim: 0, son: null }; p.komutCalistir('arac.kucult'); return true; })()`); await bekle(4000);
-  console.log('üzerine yaz kutusu:', await evalJs(`(() => { const w = [...document.querySelectorAll('.arac-pencere')].pop(); const k = w?.querySelector('.kucult-uzerine'); if (!k) return 'kutu yok'; k.checked = true; k.dispatchEvent(new Event('change', { bubbles: true })); return { etiket: k.parentElement.textContent.trim(), cikti: w.querySelector('.kucult-cikti-yol')?.textContent }; })()`));
+  console.log('üzerine yaz seçimi:', await evalJs(`(() => { const w = [...document.querySelectorAll('.arac-pencere')].pop(); const d = w?.querySelector('.arac-kayit-secim button[data-id="uzerine"]'); if (!d) return 'seçim yok'; d.click(); return w.querySelector('.arac-kayit-uzerine').textContent.trim(); })()`));
   console.log('küçült (üzerine yaz):', await evalJs(dugmeTikla('/^Küçült$/')));
   await bekle(9000);
-  const yedekler = fs.readdirSync(K).filter(f => /\(yedek/i.test(f));
-  console.log('  yedek:', { yedekler, beklenen: 'arac-test (yedek).pdf', ozgunBoyut, yedekBoyut: yedekler[0] ? fs.statSync(K + '/' + yedekler[0]).size : null, yeniBoyut: fs.statSync(KOPYA).size },
-    '| soru:', await evalJs(`window.__pdefeOtoYanit.son?.ayrinti?.replace(/\\s+/g, ' ').slice(0, 200)`), '| sekmeler:', await sekmeler());
+  const yedekler = fs.readdirSync(K).filter(f => /\(yedek|pdefe-tmp/i.test(f));
+  console.log('  üzerine yazma:', { yedekVeGeciciDosyalar: yedekler, beklenen: [], ozgunBoyut, yeniBoyut: fs.statSync(KOPYA).size }, '| sekmeler:', await sekmeler());
   await ekranGoruntusu('test/png/s11-01b-kucult-uzerine-yaz.png');
   await pencereleriKapat();
   await evalJs(`(() => { window.__pdefeOtoYanit = { secim: 0 }; return true; })()`);
@@ -66,11 +65,11 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   await bekle(2500);
   console.log('  sayfa sayısı:', await evalJs(`({ sayfa: window.__pdefe.aktif().gorunum.sayfaSayisi, kirli: window.__pdefe.aktif().gorunum.yapisalKirli(), geriAl: document.querySelector('#dugme-geri-al').title })`));
 
-  // 5) Döndür ve kaydet (tüm sayfalar 90°) → dosyaya yazılmalı
+  // 5) Döndür ve kaydet (tüm sayfalar 90°, varsayılan "Üzerine yaz") → önce kaydedilmemiş sayfa silme kaydettirilir, sonra dosyaya yazılır, sekme yenilenir
   await evalJs(`window.__pdefe.komutCalistir('arac.dondurKaydet')`); await bekle(1500);
   console.log('döndür:', await evalJs(dugmeTikla('/^Döndür ve kaydet$/')));
   await bekle(6000);
-  console.log('  durum:', await evalJs(`({ dondurme: window.__pdefe.aktif().gorunum.sayfalar[0].dondurme, degisti: window.__pdefe.aktif().degisti, sayfa: window.__pdefe.aktif().gorunum.sayfaSayisi })`));
+  console.log('  durum:', await evalJs(`({ degisti: window.__pdefe.aktif().degisti, sayfa: window.__pdefe.aktif().gorunum.sayfaSayisi })`));
   const py = 'C:/Projeler/PDEfe/.venv/Scripts/python.exe';
   console.log(execFileSync(py, ['-c', `import pymupdf,sys; sys.stdout.reconfigure(encoding='utf-8'); d=pymupdf.open(r'${KOPYA}'); print('dosya: sayfa', d.page_count, 'rot', [p.rotation for p in d][:5])`], { encoding: 'utf8' }));
   await ekranGoruntusu('test/png/s11-05-son.png');
