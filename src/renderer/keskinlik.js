@@ -882,8 +882,11 @@ function keskinGorsel(ctx, ozgun, img, sx, sy, sw, sh, dx, dy, dw, dh, grafik, e
   const k0 = Math.max(0, v0 - dy), k1 = Math.min(dh, v1 - dy);
   if (j1 <= j0 || k1 <= k0) return true;                    // görünür değil: çizilecek bir şey yok
   const cikti = (j1 - j0) * (k1 - k0);
-  // Fotoğraf/taranmış sayfa büyütülürken (yakınlaştırma) hedef büyük olur: JS yavaşlar, fark da azalır → Chromium yumuşatması
-  if (cikti > EN_FAZLA_CIKTI || (!grafik && (dw > sw || dh > sh) && cikti > EN_FAZLA_BUYUTME_CIKTISI)) return false;
+  // Fotoğraf/taranmış sayfa büyütülürken (yakınlaştırma) hedef büyük olur: JS yavaşlar, fark da azalır → Chromium yumuşatması.
+  // Kırpılmış görsel maskesinde (maskeKirpmaKur) büyütme kararı bütün maskenin dolgu boyutuyla verilir: iki renkli maske ara
+  // büyütmede (×2–4) basamaklı görünmesin, kırpılmadan önceki gibi yumuşak çizilsin.
+  const buyutmeCiktisi = ctx.__maskeDolgusu || cikti;
+  if (cikti > EN_FAZLA_CIKTI || (!grafik && (dw > sw || dh > sh) && buyutmeCiktisi > EN_FAZLA_BUYUTME_CIKTISI)) return false;
   const tw = tuvalMi(img) ? 0 : genislikAl(img) * yukseklikAl(img);
   if (tw > KUCUK_GORSEL || (tw && ertele)) {
     if (okunamaz.has(img) || tw > EN_FAZLA_ISCI_PIKSELI) return false;
@@ -1051,6 +1054,93 @@ export function keskinBaglam(ctx) {
   ctx.createPattern = function (img) { if (img?.__tembel) somutlastir(img); return ozgunDesen.apply(this, arguments); };
   ctx.clearRect = function () { if (this.__koklu && this.canvas.__kok) kokSil(this); return ozgunTemizle.apply(this, arguments); };
   return ctx;
+}
+
+// ------------------------------------------------------------ görsel maskesinin kırpılması
+// PDF.js görsel maskesini (MRC taramanın metin maskesi: CCITT, dolgu rengiyle çizilir) önce maskenin cihazdaki tam boyutunda bir
+// dolgu tuvaline boyar (_createMaskCanvas), sonra hedef tuvale kopyalar. Bölgesel çizimde (yüksek yakınlaştırma) hedef tuval görünen
+// bölge kadardır ama dolgu tuvali bütün maske kadar kalıyordu: Canon taramasında %1600'de 9707×15790 (153 MP, 0,6–3 sn, GPU belleği
+// GB'larca büyüyüp geri verilmiyordu), %2000'de 6 sn, %2400 ve üstünde Chromium'un tuval sınırını aşıp metin hiç çizilmiyordu.
+// Tek konumda çizilen maskenin (paintImageMaskXObject) dolgu tuvali hedef tuvalle kesişimi kadar kurulur ve çizim o kadar kaydırılır;
+// maskenin örneklenmesi ve dolgu rengi PDF.js'in kendi kodunda aynen kalır. Tamamı görünen maske (sayfa genişliği, tam sayfa
+// çizimi) ile tekrarlı/desenli maske eskisi gibi çizilir. PDF.js sınıfları dışa açık olmadığı için prototip ilk çizim görevinden bulunur.
+const MASKE_PAYI = 2;   // kırpılan kenarda yuvarlama farkına karşı pay (cihaz pikseli; hedef tuvalin dışında kalır)
+
+/** CanvasGraphics prototipinde tek konumlu görsel maskesini hedef tuvale kırpar (bir kez). */
+function maskeKirpmaKur(G) {
+  if (!G || Object.prototype.hasOwnProperty.call(G, '__keskinMaske')) return;
+  Object.defineProperty(G, '__keskinMaske', { value: true });
+  const ozgunMaske = G._createMaskCanvas, ozgunBoya = G.paintImageMaskXObject;
+  if (typeof ozgunMaske !== 'function' || typeof ozgunBoya !== 'function') return;
+  // Tekrarlı maske (paintImageMaskXObjectRepeat) aynı tuvali birçok konuma çizer: yalnızca tek konumlu çizimde kırpılır. PDF.js
+  // işlemleri numarasıyla (OPS) çağırır: prototipte aynı işlevi taşıyan numaralı anahtar da değiştirilir.
+  const boya = function (...a) {
+    this.__maskeKirp = true;
+    try { return ozgunBoya.apply(this, a); } finally { this.__maskeKirp = false; }
+  };
+  for (const k of Object.getOwnPropertyNames(G)) if (Object.getOwnPropertyDescriptor(G, k).value === ozgunBoya) G[k] = boya;
+  G._createMaskCanvas = function (opIdx, img) {
+    const kirp = this.__maskeKirp;
+    this.__maskeKirp = false;
+    const ctx = this.ctx, t = ctx?.canvas, fab = this.canvasFactory;
+    if (!kirp || !t || !fab || this.dependencyTracker || this.current?.patternFill || !(img?.width > 0 && img?.height > 0)) return ozgunMaske.call(this, opIdx, img);
+    // Maskenin cihazdaki kutusu (PDF.js'teki gibi: birim karenin dönüşümü) ve dolgu tuvalinin hedefte görünen kısmı [i0,i1)×[k0,k1)
+    const m = ctx.getTransform();
+    const xs = [m.e, m.a + m.e, m.c + m.e, m.a + m.c + m.e], ys = [m.f, m.b + m.f, m.d + m.f, m.b + m.d + m.f];
+    const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+    if (![x0, y0, x1, y1].every(Number.isFinite)) return ozgunMaske.call(this, opIdx, img);
+    const gw = Math.round(x1 - x0) || 1, gh = Math.round(y1 - y0) || 1, ox = Math.round(x0), oy = Math.round(y0);
+    const i0 = Math.max(0, -ox - MASKE_PAYI), i1 = Math.min(gw, t.width - ox + MASKE_PAYI);
+    const k0 = Math.max(0, -oy - MASKE_PAYI), k1 = Math.min(gh, t.height - oy + MASKE_PAYI);
+    if (i0 === 0 && k0 === 0 && i1 === gw && k1 === gh) return ozgunMaske.call(this, opIdx, img);
+    if (i1 <= i0 || k1 <= k0) {                             // hiç görünmüyor: maske çözülmeden boş tuval
+      const bos = fab.create(1, 1);
+      return { canvas: bos.canvas, canvasEntry: bos, offsetX: ox, offsetY: oy };
+    }
+    // PDF.js önce maskeyi kendi boyutunda (1.), sonra dolgu tuvalini (2.) kurar; dolgu tuvali kesişim kadar kurulur ve ilk ötelemesi
+    // (cihaz uzayında) kesişimin başına kaydırılır. Önbellek (aynı maske birden çok kez: count > 1) kapalı: kırpılmış tuval başka
+    // konumda kullanılamaz, kurulan tuvallerin sırası da böylece sabit kalır.
+    let n = 0, kaydirma = null;
+    this.canvasFactory = {
+      create: (w, h) => {
+        if (++n !== 2 || Math.abs(w - gw) > 1 || Math.abs(h - gh) > 1) return fab.create(w, h);
+        const e = fab.create(i1 - i0, k1 - k0);
+        e.context.translate = function (x, y) { delete this.translate; return this.translate(x - i0, y - k0); };
+        if (e.context.__keskin) e.context.__maskeDolgusu = gw * gh;   // örnekleme kararı için bütün dolgunun boyutu (keskinGorsel)
+        kaydirma = [i0, k0];
+        return e;
+      },
+      reset: (...a) => fab.reset(...a),
+      destroy: (...a) => fab.destroy(...a),
+    };
+    const sayi = img.count;
+    img.count = 1;
+    try {
+      const r = ozgunMaske.call(this, opIdx, img);
+      if (r && kaydirma) { r.offsetX += kaydirma[0]; r.offsetY += kaydirma[1]; }
+      return r;
+    } finally {
+      this.canvasFactory = fab;
+      img.count = sayi;
+    }
+  };
+}
+
+/**
+ * page.render() görevini alır: PDF.js'in çizim sınıfını ilk çizimden önce bulup görsel maskesi kırpmasını kurar (bir kez; ilk
+ * görevin çizimi de kırpılır). PDF.js iç yapısı değişirse hiçbir şey yapmaz. Döner: görev.
+ */
+export function cizimGoreviHazirla(gorev) {
+  const P = gorev?._internalRenderTask && Object.getPrototypeOf(gorev._internalRenderTask);
+  if (!P || Object.prototype.hasOwnProperty.call(P, '__keskinGorev') || typeof P.initializeGraphics !== 'function') return gorev;
+  Object.defineProperty(P, '__keskinGorev', { value: true });
+  const ozgun = P.initializeGraphics;
+  P.initializeGraphics = function (...a) {
+    const r = ozgun.apply(this, a);
+    if (this.gfx) maskeKirpmaKur(Object.getPrototypeOf(this.gfx));
+    return r;
+  };
+  return gorev;
 }
 
 /** PDF.js getDocument({ CanvasFactory }) için: ara tuvallerin (grup, maske, desen, küçültme) bağlamları da keskin sarılır. */
