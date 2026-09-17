@@ -108,16 +108,14 @@
 .kucult-kart input[type="radio"] { position: absolute; opacity: 0; pointer-events: none; }
 .kucult-kart .ad { font-weight: 600; }
 .kucult-kart .aciklama { font-size: 12px; color: var(--metin-soluk); min-height: 2.6em; }
-.kucult-kart .tahmin { font-variant-numeric: tabular-nums; margin-top: 4px; }
+.kucult-kart .tahmin { font-variant-numeric: tabular-nums; margin-top: auto; padding-top: 4px; }   /* açıklamalar farklı uzunlukta: tahminler kart altında hizalı */
 .kucult-kart .tahmin b { font-size: 14px; }
 .kucult-kart .tahmin.bekliyor { color: var(--metin-soluk); font-style: italic; }
 .kucult-kart .tahmin.hata { color: #d13438; font-size: 12px; }
-.kucult-kart .tahmin.soluk { color: var(--metin-soluk); font-size: 12px; }
 .arac-pencere .hata-metin { color: #d13438; }
-.kucult-ozel { grid-column: 1 / -1; }
-.kucult-ozel .surguler { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 10px; align-items: center; margin-top: 6px; }
-.kucult-ozel .surguler .deger { width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
 .kucult-sonuc { display: flex; flex-direction: column; gap: 4px; }
+.kucult-sonuc-yol { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: text; }
+.kucult-yedek-yol { word-break: break-all; user-select: text; }
 
 /* ---------- Sayfaları düzenle ---------- */
 .sayfalar-pencere { width: 980px; height: 88vh; }

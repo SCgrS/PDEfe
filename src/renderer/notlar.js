@@ -3,7 +3,7 @@
 // komut deseniyle geri al/yinele ve kaydetme farkı (diff).
 import { CSS_BIRIM, yolAnahtari } from './goruntuleyici.js';
 import { Komut } from './komutlar.js';
-import { secimDikdortgenleri, satirlaraBirlestir } from './metin.js';
+import { secimDikdortgenleri, secimMetinKutulari, satirlaraBirlestir } from './metin.js';
 import { turAdi, tarihBicimle } from './panel.js';
 
 export const VURGU_RENKLERI = [
@@ -13,11 +13,20 @@ export const VURGU_RENKLERI = [
 export const YAZI_TIPLERI = ['Segoe UI', 'Arial', 'Times New Roman', 'Calibri'];
 const TASINABILIR = new Set(['Text', 'FreeText', 'Stamp', 'Square', 'Circle', 'Line', 'Ink', 'Polygon', 'PolyLine', 'FileAttachment', 'Caret']);
 const ISARET = new Set(['Highlight', 'Underline', 'StrikeOut', 'Squiggly']);
+// Çekirdeğin (not_ekle) yeniden oluşturabildiği türler: dosyadan kalkmış başka türde bir not (ör. kayıttan sonra silmesi geri alınan
+// Referans okuyucu damgası) 'ekle' olarak gönderilirse kayıt bütünüyle hata verir; böyle not oturumda görünür ama dosyaya yazılamaz.
+const EKLENEBILIR = new Set(['Highlight', 'Text', 'FreeText']);
 
 let sayac = 0;
 const yeniId = () => 'n' + Date.now().toString(36) + '_' + (++sayac);
 const kacis = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const simdiPdfTarih = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); const o = -d.getTimezoneOffset(); const s = o >= 0 ? '+' : '-'; return `D:${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}${s}${p(Math.floor(Math.abs(o) / 60))}'${p(Math.abs(o) % 60)}'`; };
+
+// #secim-cubugu bütün belgelerce paylaşılır: seçimi izleyen (çubuğu açan) tek yönetici. Başka yöneticilerin kaydırma/yerleşim/
+// çizim olayları konumu sahibine hesaplatır: sekme değişip sahibin görünümü gizlenince çubuk gizlenir (izleme sürer, sahip
+// yeniden görününce 'yerlesim' ile geri gelir). Seçim klavyeyle ya da başka yoldan değişirse çubuk yeniden konumlanır/gizlenir.
+let cubukSahibi = null;
+document.addEventListener('selectionchange', () => cubukSahibi?.secimCubuguKonumla());
 
 export class NotYoneticisi extends EventTarget {
   constructor({ belge, cekirdek, ayar, yigin, alan }) {
@@ -29,6 +38,7 @@ export class NotYoneticisi extends EventTarget {
     this.yigin = yigin;
     this.alan = alan;            // #belge-alani (balon ve çubuklar için)
     this.notlar = new Map();
+    this._cikanlar = new Set();  // kayıtta modelden çıkarılan notların WeakRef'leri (geri al yığınında durabilirler; kaynakYeniden bunları da çevirir)
     this.kayitli = new Map();    // id → JSON anlık görüntü (dosyadaki durum)
     this.secili = null;
     this.arac = null;
@@ -39,17 +49,25 @@ export class NotYoneticisi extends EventTarget {
     this.duzenleyici = null;     // {not, el, kutu, yeniMi, eskiDurum}
     this._hoverZaman = null;
     this._surukle = null;
+    this._fareBekleniyor = false; // metin üzerinde basıldı, bırakılması bekleniyor (seçim çubuğu)
+    this._cubukOnbellek = null;   // {anahtar, liste}: seçimin sayfa yerel kutuları (kaydırmada yeniden ölçülmez)
     this.yuklendi = false;
 
-    this.g.addEventListener('sayfaCizildi', (e) => this.cizSayfa(e.detail.sayfa));
+    this.g.addEventListener('sayfaCizildi', (e) => { this.cizSayfa(e.detail.sayfa); this._cubukOnbellek = null; this.secimCubuguKonumla(); });
     this.g.addEventListener('sayfalar', () => this.sayfalarDegisti());
-    this.g.addEventListener('yerlesim', () => { this.hepsiniCiz(); this.balonKonumla(); this.duzenleyiciKonumla(); });
+    this.g.addEventListener('yerlesim', () => { this.hepsiniCiz(); this.balonKonumla(); this.duzenleyiciKonumla(); this._cubukOnbellek = null; this.secimCubuguKonumla(); });
     this.g.alan.addEventListener('pointerdown', (e) => this.pointerDown(e));
+    // Kısa belgede tuval alanının altında kalan boş kaydırıcı alanına basış da "başka yere tıklama"dır (kaydırma çubukları hariç)
+    this.g.kaydirici.addEventListener('pointerdown', (e) => {
+      const k = this.g.kaydirici; if (e.target !== k) return;
+      const r = k.getBoundingClientRect();
+      if (e.clientX - r.left - k.clientLeft < k.clientWidth && e.clientY - r.top - k.clientTop < k.clientHeight) this.pointerDown(e);
+    });
     this.g.alan.addEventListener('dblclick', (e) => this.ciftTik(e));
     this.g.alan.addEventListener('pointerover', (e) => this.pointerOver(e));
     this.g.alan.addEventListener('pointerout', (e) => this.pointerOut(e));
-    this.g.alan.addEventListener('mouseup', (e) => setTimeout(() => this.secimCubuguGuncelle(e), 0));
-    this.g.kaydirici.addEventListener('scroll', () => { this.balonKonumla(); this.secimCubuguGizle(); }, { passive: true });
+    // Seçim bitişi: metin üzerindeki basıştan sonra belge düzeyinde pointerup izlenir (secimBaslat)
+    this.g.kaydirici.addEventListener('scroll', () => { this.balonKonumla(); this.secimCubuguKonumla(); }, { passive: true });
   }
 
   // ------------------------------------------------------------ yükleme ve model
@@ -95,16 +113,22 @@ export class NotYoneticisi extends EventTarget {
       n.sayfaYok = !yeniSayfa;
       if (yeniSayfa) n.sayfa = yeniSayfa;
     }
+    // Bu oturumda eklenen notlar girdiyi nesneyle değil kalıcı kimlikle izler: döndürme girdinin kopyasını koyar (girdiKopyala), not kaybolmasın.
+    // Bir listede aynı kimlik iki kez olamaz (tarifHazirla her girdiyi bir kez kullanır, çoğaltılan sayfa yeni kimlik alır).
+    const sira = new Map(this.g.sayfalar.map((s, i) => [s.kimlik, i]));
     for (const n of this.notlar.values()) {
-      if (n.kaynakGirdi) { const i = this.g.sayfalar.indexOf(n.kaynakGirdi); n.sayfaYok = i < 0; if (i >= 0) n.sayfa = i + 1; }
+      if (n.kaynakGirdi) { const i = sira.get(n.kaynakGirdi.kimlik) ?? -1; n.sayfaYok = i < 0; if (i >= 0) n.sayfa = i + 1; }
     }
     if (ciz) { this.balonKapat(); this.hepsiniCiz(); this.degisti(); }
   }
 
-  /** Özgün dosya anlık kopyaya taşındığında not kaynaklarını yeniden adlandırır. */
+  /** Kaynak dosyanın içeriği başka yola geçince (anlık kopya, yapısal olmayan Farklı kaydet) not kaynaklarını yeniden adlandırır. */
   kaynakYeniden(eskiYol, yeniYol) {
     const ek = yolAnahtari(eskiYol);
-    for (const n of this.notlar.values()) if (n.kaynak && n.kaynak.yol && yolAnahtari(n.kaynak.yol) === ek) n.kaynak = { ...n.kaynak, yol: yeniYol };
+    const cevir = (n) => { if (n.kaynak && n.kaynak.yol && yolAnahtari(n.kaynak.yol) === ek) n.kaynak = { ...n.kaynak, yol: yeniYol }; };
+    for (const n of this.notlar.values()) cevir(n);
+    // Kayıtta modelden çıkmış, geri al yığınında duran notlar da (geri alınınca modeleGeriKoy eski yolla koyardı; sayfası bulunamazdı)
+    for (const r of this._cikanlar) { const n = r.deref(); if (!n) this._cikanlar.delete(r); else cevir(n); }
     if (this.yuklenenKaynaklar?.has(ek)) { this.yuklenenKaynaklar.delete(ek); this.yuklenenKaynaklar.add(yolAnahtari(yeniYol)); }
   }
 
@@ -125,17 +149,24 @@ export class NotYoneticisi extends EventTarget {
   sayfaNotlari(sayfa) { return this.liste().filter((n) => n.sayfa === sayfa); }
   yanitlari(not) { return (not.yanitlar || []).map((id) => this.notlar.get(id)).filter((y) => y && !y.silindi).sort((a, b) => (a.olusturma || '').localeCompare(b.olusturma || '')); }
 
+  /** Dosyada olmayan not kayıtta eklenebilir mi (sayfası duruyor ve çekirdek bu türü oluşturabiliyor). */
+  eklenebilir(n) { return !n.sayfaYok && EKLENEBILIR.has(n.tur); }
+
   /** Kaydetme farkı: dosyadaki duruma göre ekle / güncelle / sil işlemleri. */
   fark() {
     const ops = [];
     const sirali = [...this.notlar.values()].sort((a, b) => (a.ustId ? 1 : 0) - (b.ustId ? 1 : 0));   // önce üstler, sonra yanıtlar
     for (const n of sirali) {
       const kay = this.kayitli.get(n.id);
-      const not = this.disaAktar(n);
       const kaynak = n.kaynak && n.kaynak.yol ? { yol: n.kaynak.yol, sayfa: n.kaynak.sayfa } : null;
-      if (!kay && !n.silindi) { if (!n.sayfaYok) ops.push({ islem: 'ekle', id: n.id, not }); }
-      else if (kay && n.silindi) ops.push({ islem: 'sil', id: n.id, xref: n.xref, kaynak, not: { xref: n.xref, sayfa: n.sayfa } });
-      else if (kay && this.anlik(n) !== kay) { if (!n.sayfaYok) ops.push({ islem: 'guncelle', id: n.id, xref: n.xref, kaynak, not }); }
+      if (!kay && !n.silindi) { if (this.eklenebilir(n)) ops.push({ islem: 'ekle', id: n.id, not: this.disaAktar(n) }); }
+      else if (kay && n.silindi) {
+        // Üstüyle birlikte silinen yanıt ayrıca silinmez: çekirdek not_sil yanıtları (IRT) da siler, ikinci 'sil' notu bulamayıp
+        // kaydı bütünüyle düşürürdü (yapısal kayıtta sıra kayması başka notu silebilirdi)
+        const ust = n.ustId && this.notlar.get(n.ustId);
+        if (!(ust && ust.silindi && this.kayitli.has(ust.id))) ops.push({ islem: 'sil', id: n.id, xref: n.xref, kaynak, not: { xref: n.xref, sayfa: n.sayfa } });
+      }
+      else if (kay && this.anlik(n) !== kay) { if (!n.sayfaYok) ops.push({ islem: 'guncelle', id: n.id, xref: n.xref, kaynak, not: this.disaAktar(n) }); }
     }
     return ops;
   }
@@ -151,18 +182,56 @@ export class NotYoneticisi extends EventTarget {
 
   get kirli() { return this.fark().length > 0; }
 
-  kaydedildi(xrefler) {
+  /**
+   * Kayıt başında alınır: id → dosyaya gönderilen durumun anlık görüntüsü; kayıttan sonra dosyada olmayacaksa null (silinmiş ya da
+   * dosyada olmayıp eklenemeyen not: fark() göndermez, kaydedilmiş sayılmamalı). kaydedildi'ye verilir.
+   */
+  kayitAnligi() {
+    const m = new Map();
+    for (const [id, n] of this.notlar) m.set(id, n.silindi || (!this.kayitli.has(id) && !this.eklenebilir(n)) ? null : this.anlik(n));
+    return m;
+  }
+
+  /** anlik (kayitAnligi) verilirse yalnızca gönderilen durum kaydedilmiş sayılır; kayıt sürerken eklenen/değiştirilen/silinen notlar kirli kalır. */
+  kaydedildi(xrefler, anlik) {
+    anlik ||= this.kayitAnligi();   // verilmezse kayıt şimdiki durumla yapılmış sayılır
+    // Kayıt sürerken değişmeyen notlar: xref ataması anlık görüntüyü değiştirdiğinden önce belirlenir
+    const ayni = new Set();
+    for (const [id, a] of anlik) { const n = this.notlar.get(id); if (n && a != null && !n.silindi && this.anlik(n) === a) ayni.add(id); }
     for (const [id, xref] of Object.entries(xrefler || {})) { const n = this.notlar.get(id); if (n) { n.xref = xref; n.yeni = false; } }
-    for (const [id, n] of [...this.notlar]) if (n.silindi) this.notlar.delete(id);
-    this.kayitliAnlikGoruntu();
+    // Modelden yalnızca kayıtta silinmiş olanlar çıkar; kayıt sürerken silinenler sonraki kayıtta dosyadan silinir
+    for (const [id, n] of [...this.notlar]) if (n.silindi && anlik.get(id) === null) { this.notlar.delete(id); this._cikanlar.add(new WeakRef(n)); }
+    for (const [id, a] of anlik) {
+      const n = this.notlar.get(id);
+      if (!n || a == null) {
+        this.kayitli.delete(id);                        // dosyada yok
+        if (n) this.dosyadanKalkti(n);                  // kayıt sürerken geri getirilen not: eski xref geçersiz, sonraki kayıtta yeniden eklenir
+      } else this.kayitli.set(id, ayni.has(id) ? this.anlik(n) : a);
+    }
     this.pixmapOnbellek.clear();
     this.degisti();
+  }
+
+  /** Dosyada karşılığı kalmamış (kayıtlı olmayan) not: eski xref'i başka nesneye ait olabilir; görünümü yeni not gibi yerli çizilir. */
+  dosyadanKalkti(n) {
+    if (this.kayitli.has(n.id)) return;
+    delete n.xref; n.yeni = true;
+  }
+
+  /**
+   * Silinmiş notu modele geri koyar (kayıt dosyadan silip modelden çıkarmış olabilir; kayıtlı değilse sonraki kayıtta 'ekle' yazılır).
+   * Sayfa numarası yeniden eşlenmez: yığın doğrusal olduğundan geri alma anında sayfa düzeni silme anındakiyle aynıdır.
+   */
+  modeleGeriKoy(n) {
+    this.notlar.set(n.id, n);
+    n.silindi = false;
+    this.dosyadanKalkti(n);
   }
 
   degisti() { this.dispatchEvent(new CustomEvent('degisti')); }
 
   // ------------------------------------------------------------ koordinatlar
-  vp(i) { return this.g.viewportAl(i); }
+  vp(i) { return this.g.sayfalar[i] ? this.g.viewportAl(i) : null; }
   pdfToPx(i, x, y) {
     const vp = this.vp(i); if (!vp) return [0, 0];
     const view = this.g.sayfalar[i].pdfSayfa.view;
@@ -325,25 +394,37 @@ export class NotYoneticisi extends EventTarget {
     not.id = not.id || yeniId(); not.yeni = true; not.silindi = false; not.yanitlar = not.yanitlar || []; not.ustId = not.ustId || null;
     if (!not.kaynak) { const s = this.g.sayfalar[not.sayfa - 1]; if (s) { not.kaynak = s.bos ? { bos: true } : { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa }; not.kaynakGirdi = s; } }
     not.olusturma = not.olusturma || simdiPdfTarih(); not.degisim = not.olusturma;
+    // Yinele: eklenip kaydedilen, geri alınıp (silinerek) yeniden kaydedilen not modelden çıkmıştır; geri konur ve yeniden eklenir.
+    // Kayıtlıyken geri alınırsa silindi işaretlenir, sonraki kayıtta 'sil' yazılır.
     this.calistir(`${turAdi(not.tur)} ekle`,
-      () => { this.notlar.set(not.id, not); not.silindi = false; if (not.ustId) { const u = this.notlar.get(not.ustId); if (u && !u.yanitlar.includes(not.id)) u.yanitlar.push(not.id); } this.cizSayfa(not.sayfa); },
+      () => { this.modeleGeriKoy(not); if (not.ustId) { const u = this.notlar.get(not.ustId); if (u && !u.yanitlar.includes(not.id)) u.yanitlar.push(not.id); } this.cizSayfa(not.sayfa); },
       () => { not.silindi = true; if (this.secili === not.id) this.sec(null); this.balonKapat(); this.cizSayfa(not.sayfa); });
     return not;
   }
 
   sil(not) {
     const yanitlar = this.yanitlari(not);
+    // Geri al: kayıt silinen notu ve yanıtlarını modelden çıkarmış olabilir; modele geri konur (dosyada yoksa sonraki kayıtta eklenir)
     this.calistir(`${turAdi(not.tur)} sil`,
       () => { not.silindi = true; for (const y of yanitlar) y.silindi = true; if (this.secili === not.id) this.sec(null); this.balonKapat(); this.cizSayfa(not.sayfa); },
-      () => { not.silindi = false; for (const y of yanitlar) y.silindi = false; this.cizSayfa(not.sayfa); });
+      () => {
+        // Kayıt notu dosyadan silmiş ve çekirdek bu türü yeniden oluşturamıyorsa (EKLENEBILIR dışı: ek, damga, şekil) geri konmaz: ekranda
+        // görünür ama kayıtta yazılmaz, belge temiz sayılırdı. Yanıtlar da konmaz (üstsüz kalıp bağımsız yapışkan not olarak yazılırlardı).
+        if (!this.kayitli.has(not.id) && !EKLENEBILIR.has(not.tur)) {
+          this.dispatchEvent(new CustomEvent('uyari', { detail: { metin: `${turAdi(not.tur)} kaydedilirken dosyadan silindi; bu tür not dosyaya geri yazılamadığı için silme geri alınamaz.` } }));
+          return;
+        }
+        this.modeleGeriKoy(not); for (const y of yanitlar) this.modeleGeriKoy(y); this.cizSayfa(not.sayfa);
+      });
   }
 
   guncelle(not, yeni, ad = null) {
-    const eski = {};
+    const eski = { degisim: not.degisim };   // geri alınınca değişim tarihi de döner (yoksa anlık farkı belgeyi kirli bırakır)
     for (const k of Object.keys(yeni)) eski[k] = structuredClone(not[k]);
     const eskiSayfa = not.sayfa;
+    let degisim = null;                      // yinelemede ilk uygulamadaki tarih: kaydedilmiş duruma dönülünce belge temiz görünür
     this.calistir(ad || `${turAdi(not.tur)} düzenle`,
-      () => { Object.assign(not, structuredClone(yeni)); not.degisim = simdiPdfTarih(); this.pixmapOnbellek.clear(); this.cizSayfa(not.sayfa); if (this.balonNotId === not.id) this.balonYenile(); },
+      () => { Object.assign(not, structuredClone(yeni)); not.degisim = degisim ||= simdiPdfTarih(); this.pixmapOnbellek.clear(); this.cizSayfa(not.sayfa); if (this.balonNotId === not.id) this.balonYenile(); },
       () => { Object.assign(not, structuredClone(eski)); this.pixmapOnbellek.clear(); this.cizSayfa(eskiSayfa); if (this.balonNotId === not.id) this.balonYenile(); });
   }
 
@@ -356,13 +437,23 @@ export class NotYoneticisi extends EventTarget {
   }
 
   // ------------------------------------------------------------ etkileşim
-  sayfaIdx(el) { const s = el.closest?.('.sayfa'); return s ? +s.dataset.sayfa - 1 : -1; }
+  /** Elemanın bulunduğu sayfanın sırası (0 tabanlı) ya da -1. data-sayfa yoksa/tutmuyorsa sayfa elemanı listede aranır. */
+  sayfaIdx(el) {
+    const s = el?.closest?.('.sayfa'); if (!s) return -1;
+    const n = parseInt(s.dataset.sayfa, 10);
+    if (n > 0 && this.g.sayfalar[n - 1]?.el === s) return n - 1;
+    return this.g.sayfalar.findIndex((x) => x.el === s);
+  }
 
   pointerDown(e) {
     if (e.button !== 0) return;
-    if (e.target.closest('.yazi-duzenleyici, .yazi-bicim')) return;
+    if (e.target.closest('.yazi-duzenleyici, .yazi-bicim, .yazi-tutamac, .yazi-boyut, .not-balonu, #secim-cubugu')) return;
     const hedef = e.target.closest('[data-id]');
     const i = this.sayfaIdx(e.target);
+    // Metin seçimi: metin üzerine basış yeni seçim başlatır (çubuk bırakılana dek gizli); başka her yere basış seçimi kaldırır
+    const aracTiki = !hedef && i >= 0 && (this.arac === 'not' || this.arac === 'yazi');
+    if (!hedef && !aracTiki && e.target.closest('.textLayer span:not([role="img"])')) this.secimBaslat();
+    else this.secimTemizle();
     if (this.duzenleyici && !hedef) { this.duzenleyiciBitir(true); }
     if (this.arac === 'not' && !hedef && i >= 0) { e.preventDefault(); this.yapiskanNotKoy(i, e); return; }
     if (this.arac === 'yazi' && !hedef && i >= 0) { e.preventDefault(); this.yaziBaslat(i, e); return; }
@@ -375,7 +466,8 @@ export class NotYoneticisi extends EventTarget {
       if (TASINABILIR.has(n.tur) && !n.kilitli) this.surukleBaslat(n, hedef, e);
       return;
     }
-    if (!e.target.closest('.not-balonu, #secim-cubugu')) { if (this.secili) this.sec(null); if (!this.balonGecici) this.balonKapat(); }
+    if (this.secili) this.sec(null);
+    if (!this.balonGecici) this.balonKapat();
   }
 
   surukleBaslat(n, el, e) {
@@ -531,6 +623,8 @@ export class NotYoneticisi extends EventTarget {
   }
 
   yapiskanNotKoy(i, e) {
+    if (!this.g.sayfalar[i] && e?.target) i = this.sayfaIdx(e.target);   // sayfa numarası geçersizse tıklanan sayfadan bul
+    if (!this.vp(i)) return false;
     const sayfaEl = this.g.sayfalar[i].el;
     const k = sayfaEl.getBoundingClientRect();
     const [x, y] = this.pxToPdf(i, e.clientX - k.left, e.clientY - k.top);
@@ -540,19 +634,29 @@ export class NotYoneticisi extends EventTarget {
     this.aracSec(null);
     this.sec(not.id);
     this.balonAc(not, { odak: true });
+    return true;
   }
 
-  /** Metin seçiminden vurgu oluşturur (sayfa başına bir not). */
+  /** Sayfa numarası (1 tabanlı) geçerli ve sayfa nesnesi yüklü mü (koordinat dönüşümü yapılabilir mi). */
+  sayfaGecerli(sayfa) { return Number.isInteger(sayfa) && sayfa >= 1 && !!this.vp(sayfa - 1); }
+
+  /** Metin seçiminden vurgu oluşturur (sayfa başına bir not). Geçersiz sayfalar atlanır; istisna fırlatmaz. */
   vurguUygula(renk) {
-    const sayfalar = satirlaraBirlestir(secimDikdortgenleri());
-    if (!sayfalar.size) return false;
+    let sayfalar;
+    try { sayfalar = satirlaraBirlestir(secimDikdortgenleri()); } catch (e) { console.warn('Seçim okunamadı', e); return false; }
     const a = this.ayar();
+    let eklenen = 0;
     for (const [sayfa, satirlar] of sayfalar) {
+      if (!this.sayfaGecerli(sayfa) || !satirlar.length) continue;
       const i = sayfa - 1;
-      const kutular = satirlar.map((l) => this.pxRectToPdf(i, l.x0, l.y, l.x1 - l.x0, l.h));
-      const rect = [Math.min(...kutular.map((q) => q[0])), Math.min(...kutular.map((q) => q[1])), Math.max(...kutular.map((q) => q[2])), Math.max(...kutular.map((q) => q[3]))];
-      this.ekle({ tur: 'Highlight', sayfa, rect, quadKutular: kutular, quads: null, icerik: '', yazar: a.yazarAdi, renk, opaklik: a.vurguOpaklik ?? 0.4, konu: 'Vurgu' });
+      try {
+        const kutular = satirlar.map((l) => this.pxRectToPdf(i, l.x0, l.y, l.x1 - l.x0, l.h));
+        const rect = [Math.min(...kutular.map((q) => q[0])), Math.min(...kutular.map((q) => q[1])), Math.max(...kutular.map((q) => q[2])), Math.max(...kutular.map((q) => q[3]))];
+        this.ekle({ tur: 'Highlight', sayfa, rect, quadKutular: kutular, quads: null, icerik: '', yazar: a.yazarAdi, renk, opaklik: a.vurguOpaklik ?? 0.4, konu: 'Vurgu' });
+        eklenen++;
+      } catch (e) { console.warn('Vurgu eklenemedi', sayfa, e); }
     }
+    if (!eklenen) return false;
     window.getSelection()?.removeAllRanges();
     this.secimCubuguGizle();
     return true;
@@ -560,9 +664,8 @@ export class NotYoneticisi extends EventTarget {
 
   /** Seçimin başlangıcına yapışkan not koyar (sağ tık → Not ekle). */
   secimeNotKoy() {
-    const dik = secimDikdortgenleri();
-    if (!dik.length) return false;
-    const d = dik[0];
+    const d = secimDikdortgenleri().find((x) => this.sayfaGecerli(x.sayfa));
+    if (!d) return false;
     const i = d.sayfa - 1;
     const [x, y] = this.pxToPdf(i, d.x, d.y);
     const a = this.ayar();
@@ -575,25 +678,96 @@ export class NotYoneticisi extends EventTarget {
     return true;
   }
 
-  secimCubuguGuncelle(e) {
+  // ------------------------------------------------------------ seçim çubuğu
+  cubuk() { return this.alan.querySelector('#secim-cubugu'); }
+
+  /** Seçim bu belgenin bir metin katmanındaysa o katman, değilse null. */
+  secimKatmani() {
     const sec = window.getSelection();
-    const cubuk = this.alan.querySelector('#secim-cubugu');
-    if (!cubuk) return;
-    if (!sec || sec.isCollapsed || !sec.anchorNode) { this.secimCubuguGizle(); return; }
-    const katman = (sec.anchorNode.nodeType === 1 ? sec.anchorNode : sec.anchorNode.parentElement)?.closest('.textLayer');
-    if (!katman || !this.g.alan.contains(katman)) { this.secimCubuguGizle(); return; }
-    if (this.arac === 'vurgu') { this.vurguUygula(this.ayar().vurguRengi || VURGU_RENKLERI[0].hex); return; }
-    const r = sec.getRangeAt(0).getBoundingClientRect();
-    const alanK = this.alan.getBoundingClientRect();
-    cubuk.hidden = false;
-    let x = (e ? e.clientX : r.right) - alanK.left - cubuk.offsetWidth / 2;
-    let y = r.bottom - alanK.top + 8;
-    x = Math.max(8, Math.min(alanK.width - cubuk.offsetWidth - 8, x));
-    if (y + cubuk.offsetHeight > alanK.height - 8) y = r.top - alanK.top - cubuk.offsetHeight - 8;
-    cubuk.style.left = x + 'px'; cubuk.style.top = y + 'px';
+    if (!sec || sec.rangeCount === 0 || sec.isCollapsed) return null;
+    for (const d of [sec.anchorNode, sec.focusNode]) {
+      const k = (d?.nodeType === 1 ? d : d?.parentElement)?.closest('.textLayer');
+      if (k && this.g.alan.contains(k)) return k;
+    }
+    return null;
   }
 
-  secimCubuguGizle() { const c = this.alan.querySelector('#secim-cubugu'); if (c) c.hidden = true; }
+  /** Metin üzerine basıldı: çubuk bırakılana dek gizli; bırakınca (sayfa dışında bile) seçime göre güncellenir. */
+  secimBaslat() {
+    this.secimCubuguGizle();
+    if (this._fareBekleniyor) return;
+    this._fareBekleniyor = true;
+    const bitti = () => {
+      document.removeEventListener('pointerup', bitti, true); document.removeEventListener('pointercancel', bitti, true);
+      this._fareBekleniyor = false;
+      setTimeout(() => this.secimCubuguGuncelle(), 0);
+    };
+    document.addEventListener('pointerup', bitti, true); document.addEventListener('pointercancel', bitti, true);
+  }
+
+  /** Sayfa alanında metin dışına basıldı: seçimi kaldırır, çubuğu gizler. */
+  secimTemizle() {
+    const sec = window.getSelection();
+    if (sec && sec.rangeCount && !sec.isCollapsed) sec.removeAllRanges();
+    this.secimCubuguGizle();
+  }
+
+  /** Seçim bittiğinde: vurgu aracı açıksa uygular, değilse çubuğu açar ve seçimi izlemeye başlar. */
+  secimCubuguGuncelle() {
+    if (!this.cubuk()) return;
+    if (!this.secimKatmani()) { this.secimCubuguGizle(); return; }
+    if (this.arac === 'vurgu') { this.vurguUygula(this.ayar().vurguRengi || VURGU_RENKLERI[0].hex); return; }
+    cubukSahibi = this; this._cubukOnbellek = null;
+    this.secimCubuguKonumla();
+  }
+
+  /** Seçimin görünür metin kutuları (istemci px: l,t,r,b). Sayfa yerel kutular seçim değişene ya da yerleşim/çizim yenilenene dek önbellekte. */
+  secimKutulari() {
+    if (!this.secimKatmani()) { this._cubukOnbellek = null; return []; }
+    const r = window.getSelection().getRangeAt(0);
+    const anahtar = [r.startContainer, r.startOffset, r.endContainer, r.endOffset];
+    const kutu = (m, el) => { if (!m.has(el)) m.set(el, el.getBoundingClientRect()); return m.get(el); };
+    let o = this._cubukOnbellek;
+    if (!o || o.anahtar.some((v, k) => v !== anahtar[k])) {
+      const m = new Map();
+      o = this._cubukOnbellek = { anahtar, liste: secimMetinKutulari().map(({ sayfaEl, rect }) => { const k = kutu(m, sayfaEl); return { sayfaEl, x: rect.left - k.left, y: rect.top - k.top, w: rect.width, h: rect.height }; }) };
+    }
+    const m = new Map();
+    return o.liste.filter((d) => d.sayfaEl.isConnected).map((d) => { const k = kutu(m, d.sayfaEl); return { l: k.left + d.x, t: k.top + d.y, r: k.left + d.x + d.w, b: k.top + d.y + d.h }; });
+  }
+
+  /**
+   * Çubuğun tek konum hesabı: seçimin görünür metin kutularının birleşimi → yatayda ortası, dikeyde altının 8px altı
+   * (yer yoksa üstü); görünür belge alanına kırpılır. Seçim yoksa ya da görünür alanın dışındaysa gizler (izleme sürer).
+   */
+  secimCubuguKonumla() {
+    if (cubukSahibi !== this) return cubukSahibi ? cubukSahibi.secimCubuguKonumla() : false;   // başka sekmenin olayı: sahibi ölçer
+    const cubuk = this.cubuk();
+    if (!cubuk) return false;
+    if (!this.secimKatmani()) { this.secimCubuguGizle(); return false; }   // seçim kalktı: izleme biter
+    const P = 8;
+    const kay = this.g.kaydirici;
+    if (!kay.clientWidth || !kay.clientHeight) { cubuk.hidden = true; return false; }   // sahibin sekmesi gizli (ölçüm önbelleğe alınmaz)
+    const kk = kay.getBoundingClientRect(), alanK = this.alan.getBoundingClientRect();
+    const gl = kk.left, gt = kk.top, gr = kk.left + kay.clientWidth, gb = kk.top + kay.clientHeight;   // kaydırma çubukları hariç
+    let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+    for (const d of this.secimKutulari()) {
+      const x0 = Math.max(d.l, gl), x1 = Math.min(d.r, gr), y0 = Math.max(d.t, gt), y1 = Math.min(d.b, gb);
+      if (x1 > x0 && y1 > y0) { l = Math.min(l, x0); r = Math.max(r, x1); t = Math.min(t, y0); b = Math.max(b, y1); }
+    }
+    if (!(r > l)) { cubuk.hidden = true; return false; }
+    cubuk.hidden = false;
+    const w = cubuk.offsetWidth, h = cubuk.offsetHeight;
+    const sol = Math.max(0, gl - alanK.left), sag = Math.min(alanK.width, gr - alanK.left), ust = Math.max(0, gt - alanK.top), alt = Math.min(alanK.height, gb - alanK.top);
+    let y = b - alanK.top + P;
+    if (y + h > alt - P) y = t - alanK.top - h - P;                     // altta yer yok → üstüne
+    y = Math.max(ust + P, Math.min(alt - h - P, y));
+    const x = Math.max(sol + P, Math.min(sag - w - P, (l + r) / 2 - alanK.left - w / 2));
+    cubuk.style.left = x + 'px'; cubuk.style.top = y + 'px';
+    return true;
+  }
+
+  secimCubuguGizle() { cubukSahibi = null; this._cubukOnbellek = null; const c = this.cubuk(); if (c) c.hidden = true; }
 
   // ------------------------------------------------------------ yazı (FreeText)
   varsayilanYazi() {
@@ -776,7 +950,7 @@ export class NotYoneticisi extends EventTarget {
     else this.cizSayfa(n.sayfa);
   }
 
-  yokEt() { this.balonKapat(); this.duzenleyiciBitir(false); }
+  yokEt() { this.balonKapat(); this.duzenleyiciBitir(false); if (cubukSahibi === this) this.secimCubuguGizle(); }
 }
 
 /** PyMuPDF vertices (8 nokta/quad: x,y çiftleri, 4 nokta bir quad) → satır kutuları [x0,y0,x1,y1] */

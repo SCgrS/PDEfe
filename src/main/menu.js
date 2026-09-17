@@ -2,9 +2,13 @@
 import { Menu } from 'electron';
 import path from 'node:path';
 
-export function menuKur({ komut, sonDosyalar }) {
+export function menuKur({ komut, sonDosyalar, duzen }) {
   const k = (id, veri) => () => komut(id, veri);
   const son = (sonDosyalar() || []).slice(0, 10);
+  // Sayfa düzeni işaretleri (araç çubuğundaki düzen menüsüyle aynı): ayar değişince menü yeniden kurulur (main.js uygulamaMenusuKur)
+  const dz = duzen?.() || {};
+  const d = ['tek', 'surekli', 'iki', 'ikiSurekli'].includes(dz.duzen) ? dz.duzen : 'surekli';
+  const iki = d === 'iki' || d === 'ikiSurekli', kaydirma = d === 'surekli' || d === 'ikiSurekli';
 
   const sablon = [
     {
@@ -62,14 +66,13 @@ export function menuKur({ komut, sonDosyalar }) {
         { label: 'Genişliğe sığdır', click: k('gorunum.zoom', 'genislik') },
         { label: 'Görünür alana sığdır', click: k('gorunum.zoom', 'gorunur') },
         { type: 'separator' },
-        { label: 'Tek sayfa', click: k('gorunum.duzen', 'tek') },
-        { label: 'Kaydırmayı etkinleştir', click: k('gorunum.duzen', 'surekli') },
-        { label: 'İki sayfa', click: k('gorunum.duzen', 'iki') },
-        { label: 'İki sayfa kaydırma', click: k('gorunum.duzen', 'ikiSurekli') },
-        { label: 'İki sayfalı görünümde kapak sayfasını ayrı göster', click: k('gorunum.kapakAyri') },
+        { label: 'Tek sayfa', type: 'radio', checked: !iki, click: k('gorunum.duzen', 'tek') },
+        { label: 'İki sayfa', type: 'radio', checked: iki, click: k('gorunum.duzen', 'iki') },
+        { label: 'Kaydırmayı etkinleştir', type: 'checkbox', checked: kaydirma, click: k('gorunum.kaydirma') },
+        { label: 'İki sayfalı görünümde kapak sayfasını ayrı göster', type: 'checkbox', checked: !!dz.kapakAyri, click: k('gorunum.kapakAyri') },
         { type: 'separator' },
-        { label: 'Saat yönünde döndür', accelerator: 'Ctrl+Shift+=', click: k('gorunum.dondur', 90) },
-        { label: 'Saat yönünün tersine döndür', accelerator: 'Ctrl+Shift+-', click: k('gorunum.dondur', -90) },
+        { label: 'Saat yönünde döndür…', accelerator: 'Ctrl+Shift+=', click: k('gorunum.dondur', 90) },
+        { label: 'Saat yönünün tersine döndür…', accelerator: 'Ctrl+Shift+-', click: k('gorunum.dondur', -90) },
         { type: 'separator' },
         { label: 'Sol panel', accelerator: 'F4', click: k('gorunum.solPanel') },
         { label: 'Koyu / açık tema', click: k('gorunum.tema') },

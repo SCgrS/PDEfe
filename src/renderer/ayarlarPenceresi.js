@@ -1,14 +1,16 @@
 // Ayarlar penceresi: solda bölüm listesi, sağda içerik (Windows 11 Ayarlar havası).
 // Her değişiklik anında kaydedilir (baglam.ayarKoy) ve canlı uygulanır (baglam.uygula).
+// Sayfa düzeni iki kontrolle (Tek/İki sayfa + Kaydırma) tek bir varsayilanDuzen değerine yazılır:
+// 'tek' | 'surekli' | 'iki' | 'ikiSurekli'. Hakkında bölümü yalnızca sürümü ve geliştiriciyi gösterir.
 //
 // Dışa verilen API:
 //   ayarlarPenceresiAc(baglam, secenek?)  → pencere kök öğesi (HTMLElement); zaten açıksa öne getirir.
-//     baglam = { ayar: () => ayarlar, ayarKoy(anahtar, deger), uygula(anahtar, deger), pdefe, varsayilanlar, cekirdek }
+//     baglam = { ayar: () => ayarlar, ayarKoy(anahtar, deger), uygula(anahtar, deger), pdefe, varsayilanlar }
 //     secenek = { bolum?: 'gorunum'|'baslangic'|'notlar'|'kopyalama'|'guncelleme'|'dosya'|'hakkinda' }
 //   ayarlarPenceresiKapat()               → açık pencereyi kapatır.
 //   DURUM_ANAHTARLARI                     → "Varsayılanlara dön" ile sıfırlanmayan durum alanları.
 
-export const DURUM_ANAHTARLARI = new Set(['sonDosyalar', 'acikSekmeler', 'sayfaKonumlari', 'pencere', 'solPanelGenislik', 'solPanelAcik', 'solPanelSekme', 'sonZoom']);
+export const DURUM_ANAHTARLARI = new Set(['sonDosyalar', 'sayfaKonumlari', 'pencere', 'solPanelGenislik', 'solPanelAcik', 'solPanelSekme', 'sonZoom']);
 
 const VURGU_RENKLERI = [
   { ad: 'Sarı', hex: '#ffeb3b' }, { ad: 'Kırmızı', hex: '#ff6e6e' }, { ad: 'Turuncu', hex: '#ffb74d' },
@@ -128,7 +130,7 @@ async function varsayilanlaraDon() {
   if (!varsayilanlar || typeof varsayilanlar !== 'object') { await pdefe.cagir('mesaj:kutu', { tur: 'warning', mesaj: 'Varsayılan değerler bulunamadı.' }); return; }
   const { secim } = await pdefe.cagir('mesaj:kutu', {
     mesaj: 'Bütün ayarlar varsayılan değerlere döndürülsün mü?',
-    ayrinti: 'Son açılan dosyalar, açık sekmeler, sayfa konumları ve pencere yerleşimi korunur.',
+    ayrinti: 'Son açılan dosyalar, sayfa konumları ve pencere yerleşimi korunur.',
     dugmeler: ['Varsayılanlara dön', 'Vazgeç'], varsayilan: 1, iptal: 1,
   });
   if (secim !== 0 || !acik) return;
@@ -150,7 +152,15 @@ function bolumGorunum(k) {
     baslik: 'Sayfayı da koyulaştır', aciklama: 'Koyu temada belge sayfaları da koyulaştırılır; görseller olduğu gibi kalır. Yazdırma ve kaydetme etkilenmez.',
     kontrol: anahtar(!!a.sayfayiKoyulastir, (v) => degistir('sayfayiKoyulastir', v)),
   }));
+  k.append(kart({
+    baslik: 'Döndür düğmesi', aciklama: 'Araç çubuğundaki Döndür düğmesinin neyi döndüreceği. Döndürürken "Seçeneğimi hatırla" ile kaydedilen tercih burada değiştirilir.',
+    kontrol: secimKutusu(a.dondurmeKapsami ?? 'sor', [['sor', 'Her seferinde sor'], ['sayfa', 'Geçerli sayfa'], ['tum', 'Tüm PDF']], (v) => degistir('dondurmeKapsami', v)),
+  }));
 }
+
+/** Birleşik düzen değeri ↔ (iki sayfa, kaydırma) çifti. Bilinmeyen değer 'surekli' sayılır. */
+function duzenCoz(d) { return { iki: d === 'iki' || d === 'ikiSurekli', kaydir: d !== 'tek' && d !== 'iki' }; }
+function duzenBirlestir(iki, kaydir) { return iki ? (kaydir ? 'ikiSurekli' : 'iki') : (kaydir ? 'surekli' : 'tek'); }
 
 function bolumBaslangic(k) {
   const a = ayarlar();
@@ -168,21 +178,19 @@ function bolumBaslangic(k) {
     baslik: 'Varsayılan yakınlaştırma', aciklama: 'Belge açıldığında uygulanacak yakınlaştırma.',
     kontrol: el('div', { class: 'ayar-yanyana' }, [zoomSecim, yuzde]),
   }));
+  // Sayfa düzeni: iki kontrol tek bir varsayilanDuzen değerine yazar; diğerinin güncel değeri ayarlardan okunur
+  const duzen = duzenCoz(a.varsayilanDuzen ?? 'surekli');
   k.append(kart({
-    baslik: 'Varsayılan sayfa düzeni', aciklama: 'Belge açıldığında kullanılacak düzen.',
-    kontrol: secimKutusu(a.varsayilanDuzen ?? 'surekli', [['tek', 'Tek sayfa'], ['surekli', 'Kaydırmayı etkinleştir'], ['iki', 'İki sayfa'], ['ikiSurekli', 'İki sayfa kaydırma']], (v) => degistir('varsayilanDuzen', v)),
+    baslik: 'Sayfa düzeni', aciklama: 'Bütün sekmelerde kullanılır; araç çubuğundan da değiştirilebilir.',
+    kontrol: secimKutusu(duzen.iki ? 'iki' : 'tek', [['tek', 'Tek sayfa'], ['iki', 'İki sayfa']], (v) => degistir('varsayilanDuzen', duzenBirlestir(v === 'iki', duzenCoz(ayarlar().varsayilanDuzen ?? 'surekli').kaydir))),
   }));
   k.append(kart({
-    baslik: 'Kapatırken açık sekmeleri hatırla, açılışta geri getir',
-    kontrol: anahtar(a.sekmeleriHatirla !== false, (v) => degistir('sekmeleriHatirla', v)),
+    baslik: 'Kaydırmayı etkinleştir', aciklama: 'Sayfalar alt alta kesintisiz kaydırılır; kapalıysa sayfa sayfa çevrilir. Bütün sekmelerde kullanılır; araç çubuğundan da değiştirilebilir.',
+    kontrol: anahtar(duzen.kaydir, (v) => degistir('varsayilanDuzen', duzenBirlestir(duzenCoz(ayarlar().varsayilanDuzen ?? 'surekli').iki, v))),
   }));
   k.append(kart({
     baslik: 'Her belgeyi kaldığım sayfadan aç', aciklama: 'Son bakılan sayfa dosya yoluna göre hatırlanır.',
     kontrol: anahtar(a.kaldigimSayfadanAc !== false, (v) => degistir('kaldigimSayfadanAc', v)),
-  }));
-  k.append(kart({
-    baslik: 'Sekme değiştirirken kaydedilmemiş değişiklikleri sor', aciklama: 'Kapalıysa değişiklikler sekmede kalır; kapatırken ya da çıkarken yine sorulur.',
-    kontrol: anahtar(a.sekmeDegisimindeSor !== false, (v) => degistir('sekmeDegisimindeSor', v)),
   }));
 }
 
@@ -295,48 +303,17 @@ function bolumDosya(k) {
 }
 
 function bolumHakkinda(k) {
-  const { pdefe, cekirdek } = acik.baglam;
+  const { pdefe } = acik.baglam;
   const surumEl = el('span', {}, '…');
-  const bilesenEl = el('div', { class: 'soluk ayar-bilesenler' }, 'Sürüm bilgileri alınıyor…');
   const gelistirici = el('a', { href: 'https://x.com/CgrShn' }, 'x.com/CgrShn');
   gelistirici.addEventListener('click', (e) => { e.preventDefault(); pdefe.cagir('kabuk:disAc', 'https://x.com/CgrShn').catch(() => {}); });
   k.append(el('div', { class: 'ayar-hakkinda' }, [
-    el('div', { class: 'ayar-logo' }, 'PDEfe'),
-    el('div', {}, [el('div', { class: 'ayar-hakkinda-satir' }, ['Sürüm ', surumEl]), el('div', { class: 'ayar-hakkinda-satir' }, ['Geliştirici: ', gelistirici]), bilesenEl]),
+    el('div', { class: 'ayar-hakkinda-satir' }, ['Sürüm ', surumEl]),
+    el('div', { class: 'ayar-hakkinda-satir' }, ['Geliştirici: ', gelistirici]),
   ]));
-  (async () => {
-    let b = null, cek = null;
-    try { b = await pdefe.cagir('uygulama:bilgi'); } catch (e) { console.warn(e); }
-    try { cek = await cekirdek('ping', {}); } catch { cek = null; }
-    if (!acik) return;
-    surumEl.textContent = b?.surum || '?';
-    bilesenEl.textContent = [
-      b ? `Electron ${b.electron}` : null, b ? `Chromium ${b.chrome}` : null, b ? `Node ${b.node}` : null,
-      cek ? `PyMuPDF ${cek.pymupdf}` : 'PyMuPDF (çekirdek çalışmıyor)',
-      b ? (b.paketli ? 'Kurulu sürüm' : 'Geliştirme sürümü') : null,
-    ].filter(Boolean).join(' · ');
-  })();
-
-  k.append(kart({
-    baslik: 'Lisans', aciklama: 'PDEfe, GNU Affero Genel Kamu Lisansı 3.0 (AGPL-3.0) ile dağıtılan özgür bir yazılımdır. Kaynak kodunu inceleyebilir, değiştirebilir ve aynı lisansla paylaşabilirsiniz.',
-    kontrol: bagDugme('AGPL-3.0 metni', 'https://www.gnu.org/licenses/agpl-3.0.html'),
-  }));
-
-  // Üçüncü taraf lisanslar: düğmeye basınca kaydırılabilir kutuda
-  const kutu = el('pre', { class: 'ayar-lisans-kutu' }, '');
-  kutu.hidden = true;
-  const goster = el('button', { class: 'ikincil', type: 'button' }, 'Göster');
-  goster.addEventListener('click', async () => {
-    if (!kutu.hidden) { kutu.hidden = true; goster.textContent = 'Göster'; return; }
-    goster.disabled = true;
-    try {
-      const metin = await pdefe.cagir('uygulama:ucuncuTaraf');
-      kutu.textContent = (metin && metin.trim()) ? metin : 'THIRD_PARTY.md bulunamadı. PDEfe; PDF.js (Mozilla, Apache-2.0), PyMuPDF ve MuPDF (Artifex, AGPL-3.0), Electron (MIT), Pillow (HPND), fontTools (MIT), electron-store ve electron-updater (MIT) kullanır.';
-      kutu.hidden = false; goster.textContent = 'Gizle';
-    } catch (e) { kutu.textContent = 'Okunamadı: ' + hataMetni(e); kutu.hidden = false; }
-    finally { goster.disabled = false; }
-  });
-  k.append(kart({ baslik: 'Üçüncü taraf lisanslar', aciklama: 'PDF.js, PyMuPDF/MuPDF, Electron ve diğer bileşenlerin lisans metinleri.', kontrol: goster, alt: kutu }));
+  pdefe.cagir('uygulama:bilgi')
+    .then((b) => { surumEl.textContent = b?.surum || '?'; })
+    .catch((e) => { console.warn(e); surumEl.textContent = '?'; });
 }
 
 // ---------------------------------------------------------------- kontrol yapıcılar
@@ -401,12 +378,6 @@ function radyoKartlari(ad, secili, secenekler, onDegis) {
     grup.append(lbl);
   }
   return grup;
-}
-
-function bagDugme(etiket, url) {
-  const b = el('button', { class: 'ikincil', type: 'button' }, etiket);
-  b.addEventListener('click', () => acik?.baglam.pdefe.cagir('kabuk:disAc', url).catch(() => {}));
-  return b;
 }
 
 // ---------------------------------------------------------------- yardımcılar

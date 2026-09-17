@@ -2,7 +2,7 @@
 import { Goruntuleyici, yolAnahtari } from './goruntuleyici.js';
 import { SekmeCubugu } from './sekmeler.js';
 import { SolPanel } from './panel.js';
-import { DurumCubugu, boyutMetni } from './durum.js';
+import { DurumCubugu, boyutMetni, sayfaKutusuBagla, sayfaKutusuYaz } from './durum.js';
 import { Arama } from './arama.js';
 import { temizMetin, hamMetin, secimDikdortgenleri, satirlaraBirlestir, paragrafSec, secimHamMetni, secimYapiliMetni } from './metin.js';
 import { NotYoneticisi, VURGU_RENKLERI } from './notlar.js';
@@ -40,6 +40,7 @@ pdefe.dinle('cekirdek:ilerleme', (istekId, ilerleme) => ilerlemeDinleyiciler.get
 const sekmeler = new SekmeCubugu({
   cubuk: $('#sekme-cubugu'), liste: $('#sekme-liste'), onceki: $('#sekme-onceki'), sonraki: $('#sekme-sonraki'),
   acilir: $('#sekme-acilir'), secici: $('#sekme-secici'), belgeListesi: $('#belge-listesi'),
+  aramaSay: (id, sorgu, secenek) => arama.belgedeSay(belgeler.get(id), sorgu, secenek),   // arama aşağıda kurulur; çağrı anında hazırdır. secenek: { iptal }
 });
 const panel = new SolPanel({
   panel: $('#sol-panel'), tutamac: $('#panel-tutamac'), sayfalar: $('#panel-sayfalar'), icindekiler: $('#panel-icindekiler'),
@@ -48,6 +49,7 @@ const panel = new SolPanel({
 const durum = new DurumCubugu({
   sayfaKutusu: $('#durum-sayfa-kutusu'), sayfaToplam: $('#durum-sayfa-toplam'), zoom: $('#durum-zoom'), boyut: $('#durum-boyut'),
   degisiklik: $('#durum-degisiklik'), mesaj: $('#durum-mesaj'), onSayfayaGit: (no) => aktif()?.gorunum.sayfayaGit(no),
+  onBirak: () => aktif()?.gorunum.kaydirici.focus(),
 });
 
 function aktif() { return aktifId ? belgeler.get(aktifId) : null; }
@@ -84,7 +86,7 @@ function ayarUygula(anahtar, deger) {
     case 'tema': case 'sayfayiKoyulastir': temaUygula(); break;
     case 'vurguRengi': secimCubuguYenile(); break;
     case 'otomatikKaydet': if (deger) for (const b of belgeler.values()) if (b.degisti) kirliGuncelle(b); break;
-    case 'varsayilanDuzen': { const b = aktif(); if (b && deger) b.gorunum.duzenAyarla(deger); break; }
+    case 'varsayilanDuzen': case 'kapakAyri': duzenEsitle(aktif()); break;   // diğer sekmeler seçildiklerinde eşitlenir
     default: break;   // yazarAdi, yazı tipi, temizMetin vb. ayar nesnesinden okunur; anında etkili
   }
 }
@@ -103,7 +105,8 @@ async function dosyaAc(yol, secenek = {}) {
   el.hidden = true;
   $('#gorunumler').append(el);
   const gorunum = new Goruntuleyici(el, { dosyaOku: async (y) => (await pdefe.cagir('dosya:oku', y)).veri, cekirdek });
-  const belge = { id, yol, ad, el, gorunum, degisti: false, boyut: 0, bilgi: null, sorma: false };
+  // diskDondurme: yüklenen dosyaya (gorunum.yol) artımlı kayıtla işlenmiş göreli döndürmeler, kaynak sayfa no → açı (bkz. yapisalTarif)
+  const belge = { id, yol, ad, el, gorunum, degisti: false, boyut: 0, bilgi: null, diskDondurme: {} };
   belgeler.set(id, belge);
   sekmeler.ekle({ id, ad, yol });
   if (!secenek.arkaPlanda || !aktifId) sekmeSec(id);
@@ -112,7 +115,7 @@ async function dosyaAc(yol, secenek = {}) {
   gorunum.addEventListener('sayfa', (e) => { if (aktifId === id) { sayfaGoster(belge); } sayfaKonumuKaydet(belge); });
   gorunum.addEventListener('zoom', (e) => { if (aktifId === id) zoomGoster(belge); });
   gorunum.addEventListener('metinKatmani', (e) => arama.katmanCizildi(gorunum, e.detail.sayfa));
-  gorunum.addEventListener('sayfalar', () => { arama.belgeUnut(gorunum); if (aktifId === id) { sayfaGoster(belge); panel.belgeAyarla(belge); } kirliGuncelle(belge); oturumKaydet(); });
+  gorunum.addEventListener('sayfalar', () => { arama.belgeUnut(gorunum); if (aktifId === id) { sayfaGoster(belge); panel.belgeAyarla(belge); } kirliGuncelle(belge); });
   gorunum.addEventListener('baglanti', (e) => baglantiyaGit(belge, e.detail));
   metinOlaylariBagla(belge);
   belge.yigin = new KomutYigini();
@@ -120,6 +123,7 @@ async function dosyaAc(yol, secenek = {}) {
   belge.yigin.addEventListener('degisti', () => kirliGuncelle(belge));
   belge.notlar.addEventListener('degisti', () => { kirliGuncelle(belge); if (aktifId === id) panel.yorumlariYenile(); });
   belge.notlar.addEventListener('arac', (e) => { if (aktifId === id) aracDugmeleriniGuncelle(e.detail.arac); });
+  belge.notlar.addEventListener('uyari', (e) => { if (aktifId === id) bildir(e.detail.metin, 6000); });
 
   try {
     const { veri, boyut } = await pdefe.cagir('dosya:oku', yol);
@@ -130,7 +134,7 @@ async function dosyaAc(yol, secenek = {}) {
     const olcek = zoom === 'son' ? (ayar.sonZoom || 100) / 100 : (typeof zoom === 'number' ? zoom / 100 : 1);
     gorunum.koyuSayfa = koyuMu() && ayar.sayfayiKoyulastir;
     await gorunum.yukle(veri, {
-      yol, duzen: ayar.varsayilanDuzen || 'surekli', kapakAyri: !!ayar.kapakAyri, zoomModu, olcek,
+      yol, duzen: genelDuzen(), kapakAyri: !!ayar.kapakAyri, zoomModu, olcek,
       sayfa: secenek.sayfa || sonSayfa || 1,
       parolaIste: (neden) => parolaSor(ad, neden),
     });
@@ -142,34 +146,24 @@ async function dosyaAc(yol, secenek = {}) {
     await mesajKutusu({ tur: 'error', mesaj: 'PDF açılamadı', ayrinti: `${ad}\n\n${hataMetni(e)}` });
     return null;
   }
-  if (aktifId === id) { sayfaGoster(belge); zoomGoster(belge); durum.boyutYaz(belge.boyut); panel.belgeAyarla(belge); }
+  if (aktifId === id) { duzenEsitle(belge); sayfaGoster(belge); zoomGoster(belge); durum.boyutYaz(belge.boyut); panel.belgeAyarla(belge); }
   sonDosyalaraEkle(yol);
-  oturumKaydet();
   return belge;
 }
 
-let sekmeSoruAcik = false;
-async function sekmeSec(id, secenek = {}) {
+async function sekmeSec(id) {
   const b = belgeler.get(id);
-  if (!b || sekmeSoruAcik) return;
+  if (!b) return;
   if (aktifId && aktifId !== id) {
     const eski = belgeler.get(aktifId);
     if (eski) {
-      // Ayrılınan sekmede kaydedilmemiş değişiklik varsa sor (ayar açıksa ve bu belge için susturulmadıysa)
-      if (eski.degisti && ayar.sekmeDegisimindeSor !== false && !eski.sorma && !secenek.sorma) {
-        sekmeSoruAcik = true;
-        const { secim, onay } = await mesajKutusu({ mesaj: `"${eski.ad}" belgesinde kaydedilmemiş değişiklikler var.`, ayrinti: 'Değişiklikleri kaydetmek ister misiniz? "Kaydetme" seçerseniz değişiklikler sekmede kalır, yalnızca dosyaya yazılmaz.', dugmeler: ['Kaydet', 'Kaydetme', 'Vazgeç'], varsayilan: 0, iptal: 2, onayKutusu: 'Bu belge için bir daha sorma' });
-        sekmeSoruAcik = false;
-        if (onay) eski.sorma = true;
-        if (secim === 2) return;
-        if (secim === 0) await belgeKaydet(eski);
-      }
       eski.notlar?.balonKapat(); eski.notlar?.duzenleyiciBitir(true);
       eski.el.hidden = true;
     }
   }
   aktifId = id;
   b.el.hidden = false;
+  duzenEsitle(b);   // genel düzen/kapak bu sekme arka plandayken değiştiyse şimdi uygula
   sekmeler.aktifYap(id);
   sayfaGoster(b); zoomGoster(b);
   durum.boyutYaz(b.boyut); durum.degisiklikYaz(b.degisti);
@@ -179,7 +173,6 @@ async function sekmeSec(id, secenek = {}) {
   panel.belgeAyarla(b);
   b.gorunum.boyutDegisti();
   b.gorunum.kaydirici.focus({ preventScroll: true });
-  oturumKaydet();
 }
 
 function kirliGuncelle(b) {
@@ -205,10 +198,15 @@ function aracDugmeleriniGuncelle(arac) {
 async function belgeKapat(id, secenek = {}) {
   const b = belgeler.get(id);
   if (!b) return true;
+  // Süren kayıt yarıda kesilmesin (anlık kopya silinir, 'Kaydet' kaydediliyor koruması yüzünden sessizce false dönerdi); bitince degisti yeniden değerlendirilir
+  await kayitBitmesiniBekle(b);
+  if (!belgeler.has(id)) return true;   // beklerken başka yoldan kapatılmış
   if (b.degisti && !secenek.zorla) {
     const { secim } = await mesajKutusu({ mesaj: `"${b.ad}" belgesinde kaydedilmemiş değişiklikler var.`, ayrinti: 'Kapatmadan önce kaydetmek ister misiniz?', dugmeler: ['Kaydet', 'Kaydetme', 'Vazgeç'], varsayilan: 0, iptal: 2 });
-    if (secim === 2) return false;
-    if (secim === 0) { const tamam = await belgeKaydet(b); if (!tamam) return false; }
+    if (secim === 2) { if (belgeler.has(id)) kirliGuncelle(b); return false; }   // kapatılmadı: otomatik kayıt zamanlayıcısı yeniden kurulsun
+    if (secim === 0 && !(await kapatirkenKaydet(b))) return false;
+    await kayitBitmesiniBekle(b);   // soru açıkken başlamış olabilecek (otomatik) kayıt
+    if (!belgeler.has(id)) return true;
   }
   sayfaKonumuKaydet(b, true);
   b.notlar?.yokEt();
@@ -226,22 +224,41 @@ async function belgeKapat(id, secenek = {}) {
     if (sonraki) sekmeSec(sonraki);
     else { baslangicGoster(); }
   }
-  oturumKaydet();
   return true;
 }
 
 function baslangicGoster() {
   $('#baslangic').hidden = false;
   durum.sayfa(0, 0); durum.zoomYaz(1); durum.boyutYaz(null); durum.degisiklikYaz(false);
-  $('#sayfa-kutusu').value = ''; $('#sayfa-toplam').textContent = '/ 0';
+  sayfaKutusuYaz($('#sayfa-kutusu'), ''); $('#sayfa-toplam').textContent = '/ 0';
   pdefe.cagir('pencere:baslik', '');
   panel.belgeAyarla(null);
   sonDosyalariListele();
 }
 
-/** Belgeyi kaydeder. farkli=true ise yeni yol sorar. Başarılıysa true döner. */
+/** Belgeyi kaydeder. farkli=true ise yeni yol sorar. Başarılıysa true döner.
+ *  Çağrı sürdükçe (Farklı kaydet diyaloğu ve hata sorusu dahil) b.kaydediliyor true'dur ve b.kayitSozu çağrı bitince çözülür
+ *  (hiç reddedilmez); kapatma akışları onu bekler (kayitBitmesiniBekle). Bu arada gelen ikinci kaydetme false döner. */
 async function belgeKaydet(b, farkli = false, sessiz = false) {
   if (!b || b.kaydediliyor) return false;
+  let bitti;
+  b.kaydediliyor = true;
+  b.kayitSozu = new Promise((coz) => { bitti = coz; });
+  try {
+    for (;;) {
+      try { return await kayitYaz(b, farkli, sessiz); } catch (e) {
+        durum.mesajYaz('');
+        const kilitli = /açık olabilir|yazılamadı|okunamadı|Failed to open|Permission|EBUSY|EPERM/i.test(e.message || '');
+        const { secim } = await mesajKutusu({ tur: 'error', mesaj: 'Belge kaydedilemedi', ayrinti: (kilitli ? 'Dosya başka bir programda (örneğin bir PDF okuyucu) açık olabilir. Onu kapatıp yeniden deneyin ya da farklı bir adla kaydedin.\n\n' : '') + hataMetni(e), dugmeler: kilitli ? ['Farklı kaydet…', 'Vazgeç'] : ['Tamam'], iptal: kilitli ? 1 : 0 });
+        if (!kilitli || secim !== 0) return false;
+        farkli = true; sessiz = false;   // 'Farklı kaydet…' aynı kaydın içinde: bekleyen kapatma akışı araya girmez
+      }
+    }
+  } finally { b.kaydediliyor = false; bitti(); }
+}
+
+/** belgeKaydet'in yazma adımı; hata fırlatır. Vazgeçilirse false, yazılırsa (ya da yazılacak değişiklik yoksa) true. */
+async function kayitYaz(b, farkli, sessiz) {
   b.notlar?.duzenleyiciBitir(true);
   let hedef = b.yol;
   if (farkli) {
@@ -249,52 +266,117 @@ async function belgeKaydet(b, farkli = false, sessiz = false) {
     if (!hedef) return false;
   } else if (!b.degisti) { if (!sessiz) bildir('Kaydedilecek değişiklik yok.'); return true; }
   const islemler = b.notlar ? b.notlar.fark() : [];
+  // Gönderilen durum şimdi saptanır: kayıt sürerken yapılan değişiklikler (ör. yeni not) kayıt bitince kaydedilmiş sayılmasın
+  const yiginKonumu = b.yigin?.konum, yiginKomutu = b.yigin?.geriAlinacak, notAnligi = b.notlar?.kayitAnligi();
   const g = b.gorunum;
+  const tarif = g.tarif(), tarifAnligi = g.tarifJson();
   const yapisal = g.yapisalKirli() || !!g.anlik;
-  b.kaydediliyor = true;
+  // Yalnızca döndürme değiştiyse belge baştan kurulmaz (yapısal kayıt e-imzayı geçersiz kılar; ekler, sayfa etiketleri, açılış eylemi kaybolur)
+  const yalnizDondurme = yapisal && dondurmeYalnizMi(b, tarif);
   durum.mesajYaz('Kaydediliyor…', 0);
-  try {
-    let r;
-    if (yapisal) {
-      const anlikKlasor = (await pdefe.cagir('uygulama:veriKlasoru')) + '\\anlik';
-      r = await cekirdek('yapisal_kaydet', { yol: b.yol, hedef, tarif: g.tarif(), anlikKlasor, anlik: g.anlik, islemler }, (i) => durum.mesajYaz(`Kaydediliyor… %${i.yuzde} ${i.mesaj || ''}`, 0));
-      if (r.anlik && !g.anlik) { g.anlik = r.anlik; g.kaynakYeniden(b.yol, r.anlik); b.notlar?.kaynakYeniden(b.yol, r.anlik); }
-      // Yapısal modda notların kayıtlı temeli anlık kopyadaki durumdur; yalnızca konumlar güncellenir
+  let r;
+  if (yapisal && !yalnizDondurme) {
+    const anlikKlasor = (await pdefe.cagir('uygulama:veriKlasoru')) + '\\anlik';
+    r = await cekirdek('yapisal_kaydet', { yol: b.yol, hedef, tarif: yapisalTarif(b, tarif), anlikKlasor, anlik: g.anlik, islemler }, (i) => durum.mesajYaz(`Kaydediliyor… %${i.yuzde} ${i.mesaj || ''}`, 0));
+    if (r.anlik && !g.anlik) { g.anlik = r.anlik; g.kaynakYeniden(b.yol, r.anlik); b.notlar?.kaynakYeniden(b.yol, r.anlik); }
+    // Yapısal modda notların kayıtlı temeli anlık kopyadaki durumdur; yalnızca konumlar güncellenir
+    g.yapisalKaydedildi();
+    b.yigin?.kaydedildi(yiginKonumu, yiginKomutu);
+    b.boyut = r.boyut;
+  } else {
+    // Döndürmesi son kayıttakinden farklı sayfaların mutlak açıları notlardan önce uygulanır; aynı dosyaya artımlı yazılır
+    const sayfaDondurmeleri = yalnizDondurme ? await sayfaDondurmeleriHesapla(g, tarif, tarifAnligi) : null;
+    r = await cekirdek('notlar_kaydet', { yol: b.yol, hedef, islemler, artimli: true, ...(sayfaDondurmeleri ? { sayfaDondurmeleri } : {}) });
+    if (yalnizDondurme) {
       g.yapisalKaydedildi();
-      b.yigin?.kaydedildi();
-      b.boyut = r.boyut;
-    } else {
-      r = await cekirdek('notlar_kaydet', { yol: b.yol, hedef, islemler, artimli: true });
-      b.notlar?.kaydedildi(r.xrefler);
-      b.yigin?.kaydedildi();
-      b.boyut = r.boyut;
+      if (g.tarifJson() !== tarifAnligi) g.kayitliTarif = tarifAnligi;   // kayıt sürerken yapılan sayfa değişikliği kirli kalsın
     }
-    if (farkli && !yolAyni(hedef, b.yol)) {
-      b.yol = hedef; b.ad = dosyaAdi(hedef);
-      sekmeler.guncelle(b.id, { ad: b.ad });
-      sekmeler.bul(b.id).yol = hedef; sekmeler.bul(b.id).el.title = hedef;
-      pdefe.cagir('pencere:baslik', b.ad);
-      sonDosyalaraEkle(hedef);
+    // Yüklenen dosyaya yazıldıysa diskteki /Rotate artık taban + gönderilen tarifteki göreli açı
+    if (g.yol && yolAyni(hedef, g.yol)) {
+      for (const t of tarif) if (t.kaynak && yolAyni(t.kaynak.yol, g.yol)) b.diskDondurme[t.kaynak.sayfa] = t.dondurme || 0;
+    } else if (g.yol && g.kayitliTarif != null && yolAyni(b.yol, g.yol) && dondurmeYalnizMi(b, tarif)) {
+      // Farklı kaydet yüklenen dosyanın sayfalarını aynı sırayla başka dosyaya yazdı: görünüm ve notlar yeni dosyaya bağlanır. Yoksa sonraki
+      // yapısal kayıt hedefi eski dosyadan anlık kopyasız kurar ve kaydedilmiş sayılan notları siler. garbage=1 xref'leri korur; yeni dosyada
+      // /Rotate = taban + tarifteki göreli açı. Sayfa yapısı yüklenen dosyanınkinden farklıysa (yapısal Farklı kaydet'ten sonra) eşlenmez.
+      const eski = g.yol, kayitli = JSON.parse(g.kayitliTarif), ek = yolAnahtari(eski) + '#', yk = yolAnahtari(hedef) + '#';
+      b.diskDondurme = {};
+      for (const t of tarif) if (t.kaynak && yolAyni(t.kaynak.yol, eski)) b.diskDondurme[t.kaynak.sayfa] = t.dondurme || 0;
+      g.kaynakYeniden(eski, hedef); b.notlar?.kaynakYeniden(eski, hedef); g.yol = hedef;
+      // kaynakYeniden kayitliTarif'e şimdiki tarifi yazar; kayıt sürerken yapılan sayfa değişikliği kirli kalsın
+      g.kayitliTarif = JSON.stringify(kayitli.map(([k, d]) => [typeof k === 'string' && k.startsWith(ek) ? yk + k.slice(ek.length) : k, d]));
     }
-    kirliGuncelle(b);
-    if (aktifId === b.id) durum.boyutYaz(b.boyut);
-    durum.mesajYaz(sessiz ? 'Otomatik kaydedildi' : 'Kaydedildi' + (r.artimli ? '' : ' (tam yazım)'));
-    cekirdek('belge_birak', { yol: b.yol }).catch(() => {});
-    panel.yorumlariYenile();
-    return true;
-  } catch (e) {
-    durum.mesajYaz('');
-    const kilitli = /açık olabilir|yazılamadı|okunamadı|Failed to open|Permission|EBUSY|EPERM/i.test(e.message || '');
-    const { secim } = await mesajKutusu({ tur: 'error', mesaj: 'Belge kaydedilemedi', ayrinti: (kilitli ? 'Dosya başka bir programda (örneğin bir PDF okuyucu) açık olabilir. Onu kapatıp yeniden deneyin ya da farklı bir adla kaydedin.\n\n' : '') + hataMetni(e), dugmeler: kilitli ? ['Farklı kaydet…', 'Vazgeç'] : ['Tamam'], iptal: kilitli ? 1 : 0 });
-    if (kilitli && secim === 0) { b.kaydediliyor = false; return belgeKaydet(b, true); }
-    return false;
-  } finally { b.kaydediliyor = false; }
+    b.notlar?.kaydedildi(r.xrefler, notAnligi);
+    b.yigin?.kaydedildi(yiginKonumu, yiginKomutu);
+    b.boyut = r.boyut;
+  }
+  if (farkli && !yolAyni(hedef, b.yol)) {
+    b.yol = hedef; b.ad = dosyaAdi(hedef);
+    sekmeler.guncelle(b.id, { ad: b.ad });
+    sekmeler.bul(b.id).yol = hedef; sekmeler.bul(b.id).el.title = hedef;
+    pdefe.cagir('pencere:baslik', b.ad);
+    sonDosyalaraEkle(hedef);
+  }
+  kirliGuncelle(b);
+  if (aktifId === b.id) durum.boyutYaz(b.boyut);
+  durum.mesajYaz(sessiz ? 'Otomatik kaydedildi' : 'Kaydedildi' + (r.artimli ? '' : ' (tam yazım)'));
+  cekirdek('belge_birak', { yol: b.yol }).catch(() => {});
+  panel.yorumlariYenile();
+  return true;
+}
+
+/** Kaydedilmemiş sayfa değişikliği yalnızca döndürme mi: anlık kopya yok; sayfalar sekmenin dosyasının sayfaları, eksiksiz,
+ *  özgün sırada ve boş sayfa eklenmemiş. */
+function dondurmeYalnizMi(b, tarif) {
+  const g = b.gorunum, anahtar = yolAnahtari(b.yol);
+  return !g.anlik && !!g.belge && tarif.length === g.belge.numPages
+    && tarif.every((t, i) => !!t.kaynak && yolAnahtari(t.kaynak.yol) === anahtar && t.kaynak.sayfa === i + 1);
+}
+
+/** notlar_kaydet için { '<1-tabanlı sayfa>': mutlak açı }: yalnızca döndürmesi son kayıttakinden (g.kayitliTarif) farklı sayfalar.
+ *  Mutlak açı = belgenin yüklendiği andaki /Rotate (tabanDondurme) + görünümdeki göreli döndürme. */
+async function sayfaDondurmeleriHesapla(g, tarif, tarifAnligi) {
+  let kayitli = [];
+  try { kayitli = JSON.parse(g.kayitliTarif || '[]'); } catch { /* bütün sayfalar değişmiş sayılır */ }
+  const guncel = JSON.parse(tarifAnligi), sonuc = {};
+  await Promise.all(tarif.map(async (t, i) => {
+    const k = kayitli[i];
+    if (Array.isArray(k) && k[0] === guncel[i][0] && (k[1] || 0) === (guncel[i][1] || 0)) return;
+    sonuc[i + 1] = (((await g.tabanDondurme(i)) + (t.dondurme || 0)) % 360 + 360) % 360;
+  }));
+  return sonuc;
+}
+
+/** Yapısal kayda gönderilen tarif. Çekirdek tarifteki açıyı kaynak sayfanın diskteki /Rotate'ine EKLER; yüklenen dosyaya daha önce
+ *  artımlı kayıtla işlenmiş döndürme (b.diskDondurme) o dosyadan ya da onun anlık kopyasından gelen sayfalarda iki kez sayılmasın. */
+function yapisalTarif(b, tarif) {
+  const d = b.diskDondurme, g = b.gorunum;
+  if (!d || !Object.keys(d).length) return tarif;
+  const anahtarlar = new Set([yolAnahtari(g.yol), g.anlik ? yolAnahtari(g.anlik) : null]);
+  return tarif.map((t) => (t.kaynak && d[t.kaynak.sayfa] && anahtarlar.has(yolAnahtari(t.kaynak.yol))
+    ? { ...t, dondurme: (((t.dondurme || 0) - d[t.kaynak.sayfa]) % 360 + 360) % 360 } : t));
+}
+
+/** Belgede süren kaydın bitmesini bekler (beklerken durum çubuğunda 'Kaydediliyor…') ve bekleyen otomatik kaydı iptal eder.
+ *  Kapatma akışları kullanır: kayıt yarıda kesilmez, bittikten sonra degisti yeniden değerlendirilir. */
+async function kayitBitmesiniBekle(b) {
+  clearTimeout(b._otoKayit); b._otoKayit = null;
+  if (!b.kaydediliyor) return;
+  while (b.kaydediliyor) { durum.mesajYaz('Kaydediliyor…', 0); await b.kayitSozu; }
+  if (durum.mesaj?.textContent === 'Kaydediliyor…') durum.mesajYaz('');   // kayıt kendi sonucunu yazmadıysa (ör. Farklı kaydet'ten vazgeçildi)
+  if (belgeler.has(b.id)) kirliGuncelle(b);
+  clearTimeout(b._otoKayit); b._otoKayit = null;   // kirliGuncelle otomatik kaydı yeniden kurmuş olabilir
+}
+
+/** Kapatma sorusunda 'Kaydet': araya giren kaydı bekler; belge hâlâ kirliyse kaydeder. Başarılıysa true. */
+async function kapatirkenKaydet(b) {
+  await kayitBitmesiniBekle(b);
+  return !b.degisti || belgeKaydet(b);
 }
 
 function sayfaGoster(b) {
   const g = b.gorunum;
   durum.sayfa(g.gecerli, g.sayfaSayisi);
-  if (document.activeElement !== $('#sayfa-kutusu')) $('#sayfa-kutusu').value = String(g.gecerli);
+  sayfaKutusuYaz($('#sayfa-kutusu'), String(g.gecerli));
   $('#sayfa-toplam').textContent = '/ ' + g.sayfaSayisi;
   panel.gecerliSayfaIsaretle(g.gecerli);
 }
@@ -333,34 +415,50 @@ function sonDosyalariListele() {
   if (!ul.children.length) ul.innerHTML = '<li class="soluk">Henüz yok.</li>';
 }
 
-let _oturumZaman = null;
-/** Oturumu (açık sekmeler + sayfa konumları) beklemeden yazar; güncelleme kurulumu ve kapatma öncesi. */
-function oturumKaydetHemen() {
-  clearTimeout(_oturumZaman);
-  for (const b of belgeler.values()) sayfaKonumuKaydet(b, true);
-  const liste = sekmeler.sekmeler.map((s) => belgeler.get(s.id)).filter(Boolean).map((b) => ({ yol: b.yol, sayfa: b.gorunum.gecerli, aktif: b.id === aktifId }));
-  return ayarKoy('acikSekmeler', liste);
+let _konumZaman = null;
+/** Verilen belgelerin sayfa konumlarını tek yazımda kaydeder (en fazla 300 dosya; en eskiler düşer). */
+function konumlariYaz(liste) {
+  const k = ayar.sayfaKonumlari || {};
+  for (const b of liste) { delete k[b.yol]; k[b.yol] = b.gorunum.gecerli; }
+  const anahtarlar = Object.keys(k);
+  if (anahtarlar.length > 300) for (const a of anahtarlar.slice(0, anahtarlar.length - 300)) delete k[a];
+  return ayarKoy('sayfaKonumlari', k);
 }
-function oturumKaydet() {
-  clearTimeout(_oturumZaman);
-  _oturumZaman = setTimeout(() => {
-    const liste = sekmeler.sekmeler.map((s) => belgeler.get(s.id)).filter(Boolean).map((b) => ({ yol: b.yol, sayfa: b.gorunum.gecerli, aktif: b.id === aktifId }));
-    ayarKoy('acikSekmeler', liste);
-  }, 300);
+function sayfaKonumuKaydet(b, hemen = false) {
+  clearTimeout(_konumZaman);
+  if (hemen) return konumlariYaz([b]);
+  _konumZaman = setTimeout(() => konumlariYaz([b]), 1000);
+}
+/** Açık belgelerin sayfa konumlarını beklemeden yazar; güncelleme kurulumu ve pencere kapatma öncesi. */
+function konumlariKaydetHemen() {
+  clearTimeout(_konumZaman);
+  return konumlariYaz([...belgeler.values()]);
 }
 
-let _konumZaman = null;
-function sayfaKonumuKaydet(b, hemen = false) {
-  const yaz = () => {
-    const k = ayar.sayfaKonumlari || {};
-    delete k[b.yol];
-    k[b.yol] = b.gorunum.gecerli;
-    const anahtarlar = Object.keys(k);
-    if (anahtarlar.length > 300) for (const a of anahtarlar.slice(0, anahtarlar.length - 300)) delete k[a];
-    ayarKoy('sayfaKonumlari', k);
-  };
-  clearTimeout(_konumZaman);
-  if (hemen) yaz(); else _konumZaman = setTimeout(yaz, 1000);
+// ---------------------------------------------------------------- genel düzen
+// Düzen = sayfa sayısı ('tek'|'iki') × kaydırma (açık/kapalı). Uyumluluk için ayarda ve görüntüleyicide eski dört değerle saklanır.
+const DUZENLER = ['tek', 'surekli', 'iki', 'ikiSurekli'];
+const duzenIkiMi = (d) => d === 'iki' || d === 'ikiSurekli';
+const duzenKaydirmaMi = (d) => d === 'surekli' || d === 'ikiSurekli';
+const duzenAdi = (iki, kaydirma) => (iki ? (kaydirma ? 'ikiSurekli' : 'iki') : (kaydirma ? 'surekli' : 'tek'));
+function genelDuzen() { return DUZENLER.includes(ayar.varsayilanDuzen) ? ayar.varsayilanDuzen : 'surekli'; }
+/** Şu an görünen düzen ve kapak: etkin (yüklenmiş) belgeninki, yoksa ayardaki. */
+function gorunenDuzen() { const g = aktif()?.gorunum; return g?.belge ? g.duzen : genelDuzen(); }
+function gorunenKapak() { const g = aktif()?.gorunum; return g?.belge ? !!g.kapakAyri : !!ayar.kapakAyri; }
+
+/** Belgenin düzenini/kapak ayarını genel ayara eşitler (yüklenmemiş belgeye dokunmaz; yükleme ayarı kendisi alır). */
+function duzenEsitle(b) {
+  if (!b || !b.gorunum.belge) return;
+  const d = genelDuzen(), kapak = !!ayar.kapakAyri;
+  if (b.gorunum.duzen !== d || b.gorunum.kapakAyri !== kapak) b.gorunum.duzenAyarla(d, kapak);
+}
+
+/** Genel düzeni kaydeder; etkin sekmeye hemen, diğerlerine seçildiklerinde uygulanır. */
+function duzenDegistir(duzen, kapakAyri = !!ayar.kapakAyri) {
+  if (!DUZENLER.includes(duzen)) return;
+  if (ayar.varsayilanDuzen !== duzen) ayarKoy('varsayilanDuzen', duzen);
+  if (!!ayar.kapakAyri !== kapakAyri) ayarKoy('kapakAyri', kapakAyri);
+  duzenEsitle(aktif());
 }
 
 // ---------------------------------------------------------------- sayfa düzeni komutları
@@ -379,6 +477,32 @@ async function sayfaTarifiUygula(b, tarif, ad = 'Sayfa düzenini uygula') {
 function sayfalariDondur(b, sayfalar, derece, ad = 'Sayfaları döndür') {
   const tarif = b.gorunum.tarif().map((t, i) => (!sayfalar || sayfalar.includes(i + 1) ? { ...t, dondurme: ((t.dondurme || 0) + derece + 360) % 360 } : t));
   return sayfaTarifiUygula(b, tarif, ad);
+}
+
+/** Belge döndürülebilir mi: sekme açık, belge yüklenmiş (yoksa tarif boştur ve geri al bütün sayfaları siler) ve kayıt sürmüyor
+ *  (kayıt bitince o anki durum kaydedilmiş sayılır; arada yapılan döndürme kaybolurdu). */
+function dondurulebilir(b) {
+  if (!belgeler.has(b.id) || !b.gorunum.belge || !b.gorunum.sayfaSayisi) return false;
+  if (b.kaydediliyor) { bildir('Kaydediliyor, lütfen bekleyin.'); return false; }
+  return true;
+}
+
+/** Döndürme komutu: kapsamı ayardan alır ya da sorar; belgeyi geri alınabilir biçimde döndürür (belge kirlenir, kapatırken kaydetme sorulur). */
+async function dondur(derece) {
+  const b = aktif(); if (!b || !dondurulebilir(b)) return;
+  let kapsam = ayar.dondurmeKapsami;
+  if (kapsam !== 'sayfa' && kapsam !== 'tum') {
+    const { secim, onay } = await mesajKutusu({ mesaj: 'Neyi döndürmek istiyorsunuz?', dugmeler: ['Geçerli sayfa', 'Tüm PDF', 'Vazgeç'], varsayilan: 0, iptal: 2, onayKutusu: 'Seçeneğimi hatırla' });
+    if (secim !== 0 && secim !== 1) return;
+    kapsam = secim === 1 ? 'tum' : 'sayfa';
+    if (onay) ayarKoy('dondurmeKapsami', kapsam);
+  }
+  // Hızlı art arda basışlarda her döndürme bir öncekinin tarifi üzerine kurulsun; sıra gelince yeniden denetle (soru açıkken sekme kapatılmış ya da kayıt başlamış olabilir)
+  const is = (b._dondurme || Promise.resolve()).catch(() => {}).then(() => (!dondurulebilir(b) ? undefined : kapsam === 'tum'
+    ? sayfalariDondur(b, null, derece, 'Tüm sayfaları döndür')
+    : sayfalariDondur(b, [b.gorunum.gecerli], derece, 'Sayfayı döndür')));
+  b._dondurme = is;
+  return is;
 }
 
 function baglantiyaGit(b, l) {
@@ -414,9 +538,11 @@ const komutlar = {
   'gorunum.yakinlastir': () => aktif()?.gorunum.yakinlastir(1),
   'gorunum.uzaklastir': () => aktif()?.gorunum.yakinlastir(-1),
   'gorunum.zoom': (mod) => { const b = aktif(); if (!b) return; if (mod === 'gercek') b.gorunum.zoomAyarla(1, null, 'serbest'); else b.gorunum.zoomModuAyarla(mod); },
-  'gorunum.duzen': (d) => { const b = aktif(); if (b) { b.gorunum.duzenAyarla(d); } },
-  'gorunum.kapakAyri': () => { const b = aktif(); if (b) b.gorunum.duzenAyarla(b.gorunum.duzen, !b.gorunum.kapakAyri); },
-  'gorunum.dondur': (derece) => aktif()?.gorunum.dondur(+derece || 90),
+  // 'tek'/'iki' kaydırma durumunu korur; eski dört değer ('surekli', 'ikiSurekli' dahil) olduğu gibi uygulanır
+  'gorunum.duzen': (d) => duzenDegistir(d === 'tek' || d === 'iki' ? duzenAdi(d === 'iki', duzenKaydirmaMi(gorunenDuzen())) : d, gorunenKapak()),
+  'gorunum.kaydirma': () => { const d = gorunenDuzen(); duzenDegistir(duzenAdi(duzenIkiMi(d), !duzenKaydirmaMi(d)), gorunenKapak()); },
+  'gorunum.kapakAyri': () => duzenDegistir(gorunenDuzen(), !gorunenKapak()),
+  'gorunum.dondur': (derece) => dondur(+derece || 90),
   'gorunum.oncekiSayfa': () => aktif()?.gorunum.oncekiSayfa(),
   'gorunum.sonrakiSayfa': () => aktif()?.gorunum.sonrakiSayfa(),
   'gorunum.solPanel': () => { panel.acKapa(); ayarKoy('solPanelAcik', panel.acik); },
@@ -440,6 +566,7 @@ try {
     aktif, cekirdek,
     iptal: (istekId) => pdefe.cagir('cekirdek:iptal', istekId),
     dosyaAc, kaydet: (b) => belgeKaydet(b), mesajKutusu, bildir, pdefe,
+    belgeKapat: (id, secenek) => belgeKapat(id, secenek),   // küçült "üzerine yaz" sonrası sekmeyi kapatıp yeniden açmak için
     ayar: () => ayar, ayarKoy,
     sayfaTarifiUygula: (b, tarif, ad) => sayfaTarifiUygula(b, tarif, ad),
     dosyaYolu: (f) => pdefe.dosyaYolu(f),
@@ -449,7 +576,8 @@ try {
 // Güncelleme şeridi
 let guncelleme = null;
 try {
-  guncelleme = guncellemeSeridiKur({ pdefe, serit: $('#guncelleme-seridi'), bildir, kapatmadanOnce: () => oturumKaydetHemen() });
+  // Kurulum uygulamayı kapatır: kaydedilmemiş değişiklikler pencere kapatmadaki gibi sorulur; false kurulumu iptal eder
+  guncelleme = guncellemeSeridiKur({ pdefe, serit: $('#guncelleme-seridi'), bildir, kapatmadanOnce: () => kapatmayaIzinAl() });
   komutlar['yardim.guncelle'] = () => guncelleme.denetle();
 } catch (e) { console.error('Güncelleme şeridi kurulamadı', e); }
 
@@ -463,17 +591,32 @@ function komutCalistir(id, veri) {
 pdefe.dinle('menu:komut', (id, veri) => komutCalistir(id, veri));
 pdefe.dinle('dosya:ac', async (yollar) => { for (const y of yollar) await dosyaAc(y); });
 pdefe.dinle('pencere:tamEkran', (acik) => document.body.classList.toggle('tam-ekran', acik));
-pdefe.dinle('pencere:kapatIstegi', async () => {
-  for (const b of [...belgeler.values()]) {
-    if (!b.degisti) continue;
-    sekmeSec(b.id, { sorma: true });
-    const { secim } = await mesajKutusu({ mesaj: `"${b.ad}" belgesinde kaydedilmemiş değişiklikler var.`, ayrinti: 'Çıkmadan önce kaydetmek ister misiniz?', dugmeler: ['Kaydet', 'Kaydetme', 'Vazgeç'], varsayilan: 0, iptal: 2 });
-    if (secim === 2) return;
-    if (secim === 0 && !(await belgeKaydet(b))) return;
-  }
-  await oturumKaydetHemen();
-  await pdefe.cagir('pencere:kapatOnayla');
-});
+pdefe.dinle('pencere:kapatIstegi', async () => { if (await kapatmayaIzinAl()) await pdefe.cagir('pencere:kapatOnayla'); });
+
+let _kapatmaIzni = null;
+/** Uygulama kapanmadan önce (pencere kapatma, güncelleme kurulumu): süren kayıtları bekler, kaydedilmemiş her belge için
+ *  Kaydet / Kaydetme / Vazgeç sorar, sonunda sayfa konumlarını yazar. Vazgeç ya da başarısız kayıtta false döner.
+ *  Sürerken gelen ikinci istek (ör. ikinci kapatma isteği) aynı sonucu bekler; sorular iki kez açılmaz. */
+function kapatmayaIzinAl() {
+  if (!_kapatmaIzni) _kapatmaIzni = (async () => {
+    for (const b of [...belgeler.values()]) {
+      if (!belgeler.has(b.id)) continue;
+      await kayitBitmesiniBekle(b);
+      if (!b.degisti) continue;
+      sekmeSec(b.id);   // hangi belge için sorulduğu görünsün
+      const { secim } = await mesajKutusu({ mesaj: `"${b.ad}" belgesinde kaydedilmemiş değişiklikler var.`, ayrinti: 'Çıkmadan önce kaydetmek ister misiniz?', dugmeler: ['Kaydet', 'Kaydetme', 'Vazgeç'], varsayilan: 0, iptal: 2 });
+      if (secim === 2 || (secim === 0 && !(await kapatirkenKaydet(b)))) {
+        for (const x of belgeler.values()) if (x.degisti) kirliGuncelle(x);   // kapanmıyor: iptal edilen otomatik kayıtlar yeniden kurulsun
+        return false;
+      }
+    }
+    // Sorular açıkken başlamış olabilecek kayıtlar da bitsin: kapanışta çekirdek durdurulur, yazma yarıda kalmasın
+    for (const b of [...belgeler.values()]) await kayitBitmesiniBekle(b);
+    await konumlariKaydetHemen().catch((e) => console.warn('Sayfa konumları yazılamadı', e));   // kapanmayı engellemesin
+    return true;
+  })().finally(() => { _kapatmaIzni = null; });
+  return _kapatmaIzni;
+}
 
 document.querySelectorAll('[data-komut]').forEach((el) => el.addEventListener('click', () => komutCalistir(el.dataset.komut, el.dataset.veri)));
 document.querySelectorAll('#not-araclari [data-arac]').forEach((el) => {
@@ -497,11 +640,11 @@ function secimCubuguYenile() {
 secimCubuguYenile();
 
 // Araç çubuğu kutuları
-$('#sayfa-kutusu').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') { aktif()?.gorunum.sayfayaGit(parseInt(e.target.value, 10)); e.target.blur(); aktif()?.gorunum.kaydirici.focus(); }
-  if (e.key === 'Escape') { e.target.blur(); aktif()?.gorunum.kaydirici.focus(); }
+sayfaKutusuBagla($('#sayfa-kutusu'), {
+  gecerli: () => { const b = aktif(); return b ? String(b.gorunum.gecerli) : ''; },
+  git: (no) => aktif()?.gorunum.sayfayaGit(no),
+  birak: () => aktif()?.gorunum.kaydirici.focus(),
 });
-$('#sayfa-kutusu').addEventListener('focus', (e) => e.target.select());
 $('#zoom-kutusu').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     const v = parseFloat(String(e.target.value).replace('%', '').replace(',', '.'));
@@ -528,24 +671,25 @@ $('#dugme-zoom-secenek').addEventListener('click', async () => {
 });
 $('#dugme-duzen').addEventListener('click', async () => {
   const b = aktif(); if (!b) return;
-  const d = b.gorunum.duzen;
+  const d = gorunenDuzen();
   const secim = await pdefe.cagir('menu:popup', [
-    { id: 'tek', etiket: 'Tek sayfa', isaretli: d === 'tek' },
-    { id: 'surekli', etiket: 'Kaydırmayı etkinleştir', isaretli: d === 'surekli' },
-    { id: 'iki', etiket: 'İki sayfa', isaretli: d === 'iki' },
-    { id: 'ikiSurekli', etiket: 'İki sayfa kaydırma', isaretli: d === 'ikiSurekli' },
+    { id: 'tek', etiket: 'Tek sayfa', isaretli: !duzenIkiMi(d) },
+    { id: 'iki', etiket: 'İki sayfa', isaretli: duzenIkiMi(d) },
     { ayirici: true },
-    { id: 'kapak', etiket: 'İki sayfalı görünümde kapak sayfasını ayrı göster', isaretli: b.gorunum.kapakAyri },
+    { id: 'kaydirma', etiket: 'Kaydırmayı etkinleştir', isaretli: duzenKaydirmaMi(d) },
+    { ayirici: true },
+    { id: 'kapak', etiket: 'İki sayfalı görünümde kapak sayfasını ayrı göster', isaretli: gorunenKapak() },
   ]);
   if (!secim) return;
   if (secim === 'kapak') komutCalistir('gorunum.kapakAyri');
-  else { komutCalistir('gorunum.duzen', secim); ayarKoy('varsayilanDuzen', secim); }
+  else if (secim === 'kaydirma') komutCalistir('gorunum.kaydirma');
+  else komutCalistir('gorunum.duzen', secim);
 });
 
 // Sekme olayları
 sekmeler.addEventListener('sec', (e) => sekmeSec(e.detail.id));
 sekmeler.addEventListener('kapat', (e) => belgeKapat(e.detail.id));
-sekmeler.addEventListener('siralandi', () => oturumKaydet());
+sekmeler.addEventListener('belgedeAra', async (e) => { await sekmeSec(e.detail.id); arama.ac(e.detail.sorgu, { tumSekmeler: true }); });
 sekmeler.addEventListener('sagTik', async (e) => {
   const id = e.detail.id; const b = belgeler.get(id); if (!b) return;
   const secim = await pdefe.cagir('menu:popup', [
@@ -695,15 +839,20 @@ document.addEventListener('copy', (e) => {
     const parcalar = [];
     for (const [sayfa, liste] of [...satirlar.entries()].sort((a, b2) => a[0] - b2[0])) {
       const g = b.gorunum;
+      const s = g.sayfalar[sayfa - 1];
+      if (!s || s.bos) continue;   // boş sayfanın metni yok
+      // PyMuPDF sözcükleri döndürülmemiş, görünür kutunun (view) üst-sol kökenli koordinatındadır. pt.h taban /Rotate'i içerir
+      // (90/270'te genişlikle yer değiştirir), kullanılmaz: view[0]/view[3] (notlar.js pxToPdf gibi)
+      const view = (await g.sayfaAl(sayfa - 1)).view;
       const kutular = [];
       for (const l of liste) {
         const [x0, y0] = await g.pikselToPdf(sayfa - 1, l.x0, l.y);
         const [x1, y1] = await g.pikselToPdf(sayfa - 1, l.x1, l.y + l.h);
-        // PDF koordinatı alt-sol kökenli; PyMuPDF üst-sol ister
-        const yuk = g.sayfalar[sayfa - 1].pt.h;
-        kutular.push([Math.min(x0, x1) - 1, yuk - Math.max(y0, y1) - 1, Math.max(x0, x1) + 1, yuk - Math.min(y0, y1) + 1]);
+        kutular.push([Math.min(x0, x1) - view[0] - 1, view[3] - Math.max(y0, y1) - 1, Math.max(x0, x1) - view[0] + 1, view[3] - Math.min(y0, y1) + 1]);
       }
-      const r = await cekirdek('metin_sec', { yol: b.yol, sayfa, kutular });
+      // Ekrandaki sıra değil girdinin kaynağı: sayfa silinmiş/sıralanmış/eklenmişse b.yol'un aynı numaralı sayfası başka sayfadır.
+      // Kaynak istek anında okunur (kayıt kaynakYeniden ile anlık kopyaya çevirmiş olabilir)
+      const r = await cekirdek('metin_sec', { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa, kutular });
       if (r.metin.trim()) parcalar.push(r.metin);
     }
     const cekirdekMetin = temizMetin(parcalar.join('\n'));
@@ -791,26 +940,13 @@ function kisayollarGoster() {
     ['Ctrl+F', 'Bul'], ['F3 / Shift+F3', 'Sonraki / önceki eşleşme'], ['Ctrl+G', 'Sayfaya git'], ['Ctrl+Z / Ctrl+Y', 'Geri al / yinele'],
     ['Ctrl+Tab / Ctrl+Shift+Tab', 'Sekme değiştir (basılı tutunca seçici açılır)'], ['Ctrl+1…9', 'Sekme seç (9: son sekme)'],
     ['Ctrl+Fare tekerleği, Ctrl++ / Ctrl+−', 'Yakınlaştır / uzaklaştır'], ['Ctrl+0', 'Gerçek boyut'],
-    ['Ctrl+Shift++ / Ctrl+Shift+−', 'Görünümü döndür'], ['F4', 'Sol panel'], ['Ctrl+H', 'Okuma modu'], ['F11', 'Tam ekran'],
+    ['Ctrl+Shift++ / Ctrl+Shift+−', 'Döndür'], ['F4', 'Sol panel'], ['Ctrl+H', 'Okuma modu'], ['F11', 'Tam ekran'],
     ['← → / PageUp PageDown', 'Önceki / sonraki sayfa'], ['↑ ↓', 'Kaydır'], ['Home / End', 'İlk / son sayfa'], ['Ctrl+Home / Ctrl+End', 'Belge başı / sonu'],
     ['Shift+Fare tekerleği', 'Yatay kaydırma'], ['Ctrl+A', 'Sayfadaki tüm metni seç'], ['Delete', 'Seçili notu sil'], ['Esc', 'Kapat / vazgeç'],
   ];
   diyalogAc({
     baslik: 'Klavye kısayolları',
     govde: '<table>' + satirlar.map(([k, a]) => `<tr><td><kbd>${k}</kbd></td><td>${a}</td></tr>`).join('') + '</table>',
-    dugmeler: [{ id: 'tamam', etiket: 'Tamam', birincil: true }],
-  });
-}
-
-async function hakkindaGoster() {
-  const b = await pdefe.cagir('uygulama:bilgi');
-  let cek = '';
-  try { const p = await cekirdek('ping', {}); cek = `PyMuPDF ${p.pymupdf}`; } catch { cek = 'çekirdek çalışmıyor'; }
-  diyalogAc({
-    baslik: 'PDEfe hakkında',
-    govde: `<p><b>PDEfe</b> — sürüm ${b.surum}</p><p>Geliştirici: <a href="https://x.com/CgrShn" target="_blank">x.com/CgrShn</a></p>
-      <p class="soluk">Electron ${b.electron} · Chromium ${b.chrome} · ${cek}</p>
-      <p class="soluk">Bu yazılım AGPL-3.0 lisansıyla dağıtılır. PDF.js (Mozilla), PyMuPDF/MuPDF (Artifex) ve diğer açık kaynak projeleri kullanır.</p>`,
     dugmeler: [{ id: 'tamam', etiket: 'Tamam', birincil: true }],
   });
 }
@@ -838,15 +974,6 @@ document.addEventListener('click', (e) => {
 (async function baslat() {
   await ayarlariYukle();
   sonDosyalariListele();
-  // Önceki oturumu geri getir
-  if (ayar.sekmeleriHatirla && Array.isArray(ayar.acikSekmeler) && ayar.acikSekmeler.length) {
-    let aktifYol = null;
-    for (const s of ayar.acikSekmeler) {
-      if (s.aktif) aktifYol = s.yol;
-      await dosyaAc(s.yol, { arkaPlanda: true, sayfa: s.sayfa });
-    }
-    if (aktifYol) { const b = [...belgeler.values()].find((x) => yolAyni(x.yol, aktifYol)); if (b) sekmeSec(b.id); }
-  }
   pdefe.gonder('uygulama:hazir');
   window.__pdefe = { belgeler, aktif, dosyaAc, belgeKapat, sekmeSec, komutCalistir, ayar: () => ayar, panel, sekmeler, arama, temizMetin, sayfaTarifiUygula, sayfalariDondur, belgeKaydet };
 })();

@@ -2,8 +2,10 @@
 // ayrı IPC iletisiyle ana sürece ('yazdir:sayfaEkle') → küçük HTML iskeleti ('yazdir:baslat')
 // → Windows yazdırma diyaloğu.
 //
-// Sayfalar görüntü olarak basıldığından Türkçe karakterler, gömülü olmayan fontlar ve notlar
-// ekranda göründüğü gibi çıkar; yazıcı sürücüsünün font eşlemesine bağımlılık yoktur.
+// Sayfalar görüntü olarak basıldığından Türkçe karakterler ve gömülü olmayan fontlar ekranda
+// göründüğü gibi çıkar; yazıcı sürücüsünün font eşlemesine bağımlılık yoktur. "Notları yazdır"
+// varsayılan kapalıdır; kapalıyken çekirdek sayfayı get_pixmap(annots=False) ile yalnızca içerikten
+// çizer, bu yüzden notlar, damgalar ve form alanları (widget) da basılmaz.
 //
 // Görüntüler tek bir HTML dizesinde toplanmaz: her sayfa ana süreçte geçici iş klasörüne dosya
 // olarak yazılır ve HTML yalnızca <img src="s0001.jpg"> satırlarından oluşur. Böylece 756 sayfalık
@@ -37,7 +39,7 @@ const GEZINME_TUSLARI = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRigh
 const ODAKLANABILIR = 'button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
 
 /** Oturum boyunca hatırlanan son seçenekler. */
-let sonSecenek = { aralik: 'tumu', aralikMetni: '', olcek: 'sigdir', ciftTarafli: 'tek', notlar: true };
+let sonSecenek = { aralik: 'tumu', aralikMetni: '', olcek: 'sigdir', ciftTarafli: 'tek', notlar: false };
 let acikPencere = null;
 
 // ---------------------------------------------------------------- ana akış
@@ -366,7 +368,7 @@ function secenekPenceresi(belge, { toplam, gecerli, uyari, gecerliDevre }) {
       <label><input type="radio" name="ciftTarafli" value="kisa"> Çift taraflı (kısa kenardan çevir)</label>
     </fieldset>
     <label class="yazdir-notlar"><input type="checkbox" name="notlar"> Notları yazdır</label>
-    <p class="soluk yazdir-aciklama">Yazıcı, kopya sayısı ve kâğıt kaynağı bir sonraki adımda Windows yazdırma penceresinden seçilir; orada yapılan kâğıt ve çift taraflı seçimi buradakinin yerine geçer. Sayfalar görüntü olarak basılır; Türkçe karakterler ve notlar ekranda göründüğü gibi çıkar.</p>
+    <p class="soluk yazdir-aciklama">Yazıcı, kopya sayısı ve kâğıt kaynağı bir sonraki adımda Windows yazdırma penceresinden seçilir; orada yapılan kâğıt ve çift taraflı seçimi buradakinin yerine geçer. Sayfalar görüntü olarak basılır; Türkçe karakterler ekranda göründüğü gibi çıkar. "Notları yazdır" kapalıyken notlar, damgalar ve form alanları basılmaz.</p>
   </div>
   <div class="dugmeler"><button class="birincil" data-id="yazdir">Yazdır…</button><button class="ikincil" data-id="iptal">Vazgeç</button></div>
 </div>`;
@@ -381,7 +383,7 @@ function secenekPenceresi(belge, { toplam, gecerli, uyari, gecerliDevre }) {
     radyoKoy('aralik', sonSecenek.aralik);
     radyoKoy('olcek', sonSecenek.olcek);
     radyoKoy('ciftTarafli', sonSecenek.ciftTarafli);
-    sec('notlar').checked = sonSecenek.notlar !== false;
+    sec('notlar').checked = sonSecenek.notlar === true;   // varsayılan kapalı; oturumda açılırsa hatırlanır
     const aralikGirdi = sec('aralikMetni');
     aralikGirdi.value = sonSecenek.aralikMetni || '';
     const hataEl = ortu.querySelector('.yazdir-hata');

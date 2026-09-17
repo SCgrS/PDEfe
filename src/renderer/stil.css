@@ -196,6 +196,12 @@ html[data-tema="koyu"] #dugme-tema .gunes { display: block; }
   --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
   --min-font-size-inv: calc(1 / var(--min-font-size));
 }
+/* Döndürülmüş sayfa: TextLayer genişlik/yüksekliği ve span konumlarını döndürülmemiş boyuta göre verir, döndürmeyi bu kurallara
+   bırakır (pdf_viewer.css [data-main-rotation]). Değer viewport.rotation'dır; PDF.js normalize etmez, görünüm + sayfa (+ taban
+   /Rotate) toplamı 360'ı aşabildiği için eşdeğer değerler de karşılanır. */
+.textLayer:is([data-main-rotation="90"], [data-main-rotation="450"], [data-main-rotation="810"]) { transform: rotate(90deg) translateY(-100%); }
+.textLayer:is([data-main-rotation="180"], [data-main-rotation="540"]) { transform: rotate(180deg) translate(-100%, -100%); }
+.textLayer:is([data-main-rotation="270"], [data-main-rotation="630"]) { transform: rotate(270deg) translateX(-100%); }
 .textLayer :is(span, br) {
   color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; user-select: text;
 }
@@ -208,7 +214,8 @@ html[data-tema="koyu"] #dugme-tema .gunes { display: block; }
 .textLayer ::selection { background: rgba(0, 103, 192, 0.35); color: transparent; }
 .textLayer .endOfContent { display: block; position: absolute; inset: 100% 0 0; z-index: 0; cursor: default; user-select: none; }
 .textLayer.selecting .endOfContent { top: 0; }
-.textLayer .highlight { background: rgba(255, 190, 0, 0.35); border-radius: 2px; margin: -1px; padding: 1px; }
+/* Arama vurgusu span içinde satır içi kalır (pdf_viewer.css .highlight.appended): mutlak konumlanırsa ardındaki metin sola kayar */
+.textLayer .highlight { position: initial; background: rgba(255, 190, 0, 0.35); border-radius: 2px; margin: -1px; padding: 1px; }
 .textLayer .highlight.selected { background: rgba(255, 120, 0, 0.55); }
 
 /* Başlangıç ekranı */
@@ -276,12 +283,24 @@ button.ikincil:hover { background: var(--hover); }
   background: var(--arka-yukseltilmis); border: 1px solid var(--kenar); border-radius: 8px; box-shadow: var(--golge);
   width: 340px; max-height: 60vh; display: flex; flex-direction: column;
 }
-#belge-listesi input { margin: 8px; height: 28px; border: 1px solid var(--kenar); border-radius: 4px; padding: 0 8px; background: var(--arka); outline: none; }
+#belge-listesi input { margin: 8px; height: 28px; border: 1px solid var(--kenar); border-radius: 4px; padding: 0 8px; background: var(--arka); outline: none; flex-shrink: 0; }
+#belge-listesi input:focus { border-color: var(--vurgu); }
 #belge-listesi ul { list-style: none; margin: 0; padding: 4px; overflow: auto; }
-#belge-listesi li { padding: 6px 8px; border-radius: 6px; display: flex; flex-direction: column; }
+#belge-listesi li { padding: 6px 8px; border-radius: 6px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
 #belge-listesi li:hover, #belge-listesi li.secili { background: var(--hover); }
 #belge-listesi li.aktif .ad { color: var(--vurgu); font-weight: 600; }
-#belge-listesi li .yol { font-size: 11px; color: var(--metin-soluk); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#belge-listesi li .ad { grid-column: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#belge-listesi li .yol { grid-column: 1; font-size: 11px; color: var(--metin-soluk); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Eşleşme sayısı rozeti (tüm belgelerde arama) */
+#belge-listesi li .rozet {
+  grid-column: 2; grid-row: 1 / span 2; margin-left: 8px; padding: 1px 8px; border-radius: 10px; white-space: nowrap;
+  font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums;
+  color: var(--vurgu); background: color-mix(in srgb, var(--vurgu) 14%, transparent);
+}
+#belge-listesi li .rozet.sayiliyor { color: var(--metin-soluk); background: transparent; font-weight: 400; font-style: italic; }
+#belge-listesi li.eslesmesiz { opacity: 0.55; }
+#belge-listesi li.eslesmesiz .rozet { color: var(--metin-soluk); background: var(--hover); font-weight: 400; }
+#belge-listesi li.eslesmesiz:hover, #belge-listesi li.eslesmesiz.secili { opacity: 0.8; }
 
 /* Bildirim */
 #bildirim {

@@ -11,28 +11,33 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 ## Ne yapar
 
 - **Sekmeler.** Birden çok PDF tek pencerede; sekmeler sürüklenerek sıralanır. `Ctrl+Tab` basılı tutulunca
-  son kullanılan sırayla sekme seçici açılır; `Ctrl+1…9` ile doğrudan sekmeye gidilir. Açık sekmeler ve
-  kalınan sayfa bir sonraki açılışta geri gelir.
+  son kullanılan sırayla sekme seçici açılır; `Ctrl+1…9` ile doğrudan sekmeye gidilir. Bir belge yeniden
+  açıldığında kalınan sayfadan devam edilir. Kaydedilmemiş değişiklik sorusu sekme ya da pencere kapatılırken çıkar.
 - **Temiz kopyalama.** Seçilen metin panoya yapıştırıldığında satır sonlarındaki tireler birleştirilir,
-  girintiler ve paragraflar korunur, bozuk glifler düzeltilir. İstenirse ham kopyalama.
+  girintiler korunur, paragraflar tek satır sonuyla ayrılır (UYAP Doküman Editörü'nde ve Word'de boş paragraf
+  oluşmaz), bozuk glifler düzeltilir. İstenirse ham kopyalama.
 - **Türkçe arama.** `Ctrl+F` ile bul: İ/ı ve I/ı ayrımı doğru, tam sözcük seçeneği, yer imlerinde ve
-  yorumlarda arama, tüm açık sekmelerde arama. Word 2010'un bozuk Türkçe kodlaması (Ġ→İ, ġ→Ş, Ģ→ş) hem
+  yorumlarda arama, tüm açık sekmelerde arama. Açık belgeler listesindeki **Tüm belgelerde ara** kutusu her
+  belgedeki eşleşme sayısını gösterir. Word 2010'un bozuk Türkçe kodlaması (Ġ→İ, ġ→Ş, Ģ→ş) hem
   görünen metinde hem aramada düzeltilir.
 - **referans okuyucu uyumlu notlar.** Vurgu, yapışkan not, yanıt ve serbest yazı ekleme; taşıma, düzenleme, silme.
   Yazılar Türkçe karakterli Windows fontuyla (Segoe UI, Arial, Times, Calibri) belgeye gömülür; referans okuyucuda ve UYAP'ta aynı görünür. Kaydetme artımlıdır: belgenin geri kalanına dokunulmaz.
 - **Geri al / yinele.** Her not ve sayfa işlemi `Ctrl+Z` / `Ctrl+Y` ile geri alınır; kayıttan sonra bile.
-- **Araçlar** (Araçlar menüsü): **PDF küçült** (üç hazır seviye ya da özel DPI / JPEG kalitesi, boyut tahmini),
-  **Sayfaları düzenle** (küçük resim ızgarasında sürükleyerek sıralama, silme, döndürme, boş sayfa ya da başka
+- **Araçlar** (Araçlar menüsü): **PDF küçült** (üç hazır seviye, boyut tahmini; üzerine yazarken özgün dosya
+  aynı klasöre `<ad> (yedek).pdf` olarak yedeklenir), **Sayfaları düzenle** (küçük resim ızgarasında sürükleyerek sıralama, silme, döndürme, boş sayfa ya da başka
   PDF'ten sayfa ekleme), **PDF ayır** (sayfa aralığı, her N sayfada bir, seçili sayfalar, her sayfa ayrı dosya),
   **PDF birleştir**, **Görüntü / PDF belgelerinden PDF oluştur** (sürükle-bırak ve `Ctrl+V` ile), **Döndür ve
   kaydet**. Uzun işlerde ilerleme çubuğu ve iptal.
 - **Yazdır** (`Ctrl+P`): sayfa aralığı, kâğıt boyutu, sayfaya sığdırma; sayfalar görüntü olarak basıldığından
-  notlar ve Türkçe karakterler ekrandaki gibi çıkar.
+  Türkçe karakterler ekrandaki gibi çıkar. Notlar istenirse basılır ("Notları yazdır" varsayılan olarak kapalı).
 - **Paylaş.** Belgeyi dosya olarak panoya kopyalar; UYAP'a, e-postaya ya da Gezgin'e `Ctrl+V` ile yapıştırılır.
 - **Koyu mod.** Sistem temasını izler; istenirse sayfa da koyulaştırılır (görseller korunur).
-- Sayfa düzenleri (tek, sürekli, iki sayfa, kapak ayrı), %6400'e kadar yakınlaştırma, döndürme, okuma modu,
-  tam ekran, sol panelde küçük resimler / İçindekiler / Yorumlar, belge içi ve dış bağlantılar, form alanlarının
-  görünümü, parola korumalı belgeler, sürükle-bırak, ayarlar penceresi (`Ctrl+,`).
+- **Döndür.** Döndür düğmesi ve `Ctrl+Shift++` / `Ctrl+Shift+−` belgeyi döndürür: geçerli sayfa ya da tüm PDF
+  sorulur ("Seçeneğimi hatırla" ile bir daha sorulmaz; Ayarlar › Görünüm'den değiştirilir). Geri alınabilir;
+  kaydedince dosyaya yazılır.
+- Sayfa düzeni (tek sayfa / iki sayfa, kaydırma aç/kapa, kapak ayrı; bütün sekmelere uygulanır), %6400'e kadar
+  yakınlaştırma, okuma modu, tam ekran, sol panelde küçük resimler / İçindekiler / Yorumlar, belge içi ve dış
+  bağlantılar, form alanlarının görünümü, parola korumalı belgeler, sürükle-bırak, ayarlar penceresi (`Ctrl+,`).
 
 ## Ekran görüntüleri
 
@@ -70,7 +75,7 @@ Windows 11'de varsayılan uygulamayı yalnızca kullanıcı seçebilir; kurulum 
 PDEfe açıldıktan kısa süre sonra ve günde bir kez GitHub'dan yeni sürüm olup olmadığına bakar. Yeni sürüm
 varsa pencerenin üstünde bir şerit çıkar: **Güncellemeyi yükle** paketi indirir (yalnızca değişen kısımlar,
 ilerleme çubuğuyla), sonra **Şimdi yeniden başlat ve kur** ile uygulama kapanıp yeni sürümle açılır;
-ayarlarınıza ve açık sekmelerinize dokunulmaz. Şeridi **×** ile kapatırsanız o oturumda bir daha görünmez.
+ayarlarınıza dokunulmaz (önceki sekmeler yeniden açılmaz). Şeridi **×** ile kapatırsanız o oturumda bir daha görünmez.
 İstediğiniz an **Yardım › Güncellemeleri denetle** ile elle de bakabilirsiniz; otomatik denetim
 **Ayarlar › Güncelleme** altından kapatılır.
 
@@ -98,7 +103,7 @@ silinmez; isterseniz o klasörü elle silebilirsiniz. Kurulum sistem klasörleri
 | `Ctrl+1` … `Ctrl+9` | Sekme seç (`9`: son sekme) |
 | `Ctrl+fare tekerleği`, `Ctrl++` / `Ctrl+−` | Yakınlaştır / uzaklaştır |
 | `Ctrl+0` | Gerçek boyut |
-| `Ctrl+Shift++` / `Ctrl+Shift+−` | Görünümü döndür |
+| `Ctrl+Shift++` / `Ctrl+Shift+−` | Belgeyi döndür (geçerli sayfa ya da tüm PDF; geri alınabilir) |
 | `F4` | Sol panel |
 | `Ctrl+H` | Okuma modu |
 | `F11` | Tam ekran |

@@ -335,49 +335,112 @@ def belge_ac_yazmak_icin(yol):
         raise FileNotFoundError("Dosya bulunamadı: %s" % yol)
 
 
+def sayfa_dondurmeleri_dogrula(doc, dondurmeler):
+    """{"<1-tabanlı sayfa no>": 0|90|180|270} sözlüğünü denetler (anahtar ve açı metin olabilir).
+    Döner: [(sayfa_indeksi, aci)] sayfa sırasıyla. Geçersiz girdide Türkçe ValueError."""
+    if dondurmeler is None:
+        return []
+    if not isinstance(dondurmeler, dict):
+        raise ValueError("Sayfa döndürmeleri geçersiz: sayfa numarası → açı sözlüğü bekleniyor.")
+    sonuc = {}
+    for anahtar, deger in dondurmeler.items():
+        try:
+            if isinstance(anahtar, bool):
+                raise ValueError
+            no = int(str(anahtar).strip())
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError("Sayfa döndürmesi geçersiz: \"%s\" bir sayfa numarası değil." % anahtar)
+        if no < 1 or no > doc.page_count:
+            raise ValueError("Sayfa döndürmesi geçersiz: %d. sayfa yok (belgede %d sayfa var)." % (no, doc.page_count))
+        try:
+            if isinstance(deger, bool):
+                raise ValueError
+            aci = float(str(deger).strip())
+            if aci != int(aci):
+                raise ValueError
+            aci = int(aci)
+        except (TypeError, ValueError, OverflowError):
+            aci = None
+        if aci not in (0, 90, 180, 270):
+            raise ValueError("Sayfa döndürmesi geçersiz: %d. sayfa için açı %s; yalnızca 0, 90, 180 ya da 270 olabilir." % (no, deger))
+        if no - 1 in sonuc and sonuc[no - 1] != aci:
+            raise ValueError("Sayfa döndürmesi geçersiz: %d. sayfa için birden çok açı verildi." % no)
+        sonuc[no - 1] = aci
+    return sorted(sonuc.items())
+
+
+def sayfa_dondurmeleri_uygula(doc, dondurmeler):
+    """Mutlak /Rotate açılarını uygular (önce hepsini doğrular; hata varsa hiçbirine dokunmaz).
+    Açısı zaten istenen değerde olan sayfa yazılmaz (artımlı kayıtta gereksiz nesne eklenmesin).
+    Döner: açısı değiştirilen sayfa sayısı."""
+    degisen = 0
+    for idx, aci in sayfa_dondurmeleri_dogrula(doc, dondurmeler):
+        page = doc[idx]
+        if int(page.rotation or 0) % 360 != aci:
+            page.set_rotation(aci)
+            degisen += 1
+    return degisen
+
+
 def y_notlar_kaydet(p):
     """Değişiklik listesini uygular ve kaydeder.
-    p: {yol, hedef, islemler: [{islem:'ekle'|'guncelle'|'sil', id, not:{...}}], artimli}
-    Döner: {xrefler: {id: xref}, boyut}"""
+    p: {yol, hedef, islemler: [{islem:'ekle'|'guncelle'|'sil', id, not:{...}}], artimli,
+        sayfaDondurmeleri: {"<1-tabanlı sayfa no>": 0|90|180|270} (isteğe bağlı, mutlak açı)}
+    Döndürmeler not işlemlerinden önce uygulanır (FreeText görünümü yeni açıya göre üretilir).
+    Döner: {xrefler: {id: xref}, boyut, artimli, dondurmeler (yalnızca sayfaDondurmeleri verildiyse:
+    açısı değişen sayfa sayısı)}"""
     from pdefe_core import onbellek  # döngüsel içe aktarma yerine çalışma zamanında
     yol, hedef = p["yol"], p.get("hedef") or p["yol"]
     islemler = p.get("islemler") or []
+    sayfa_dondurmeleri = p.get("sayfaDondurmeleri")
     artimli = bool(p.get("artimli", True)) and os.path.abspath(hedef) == os.path.abspath(yol)
     onbellek.birak(yol)
     doc = belge_ac_yazmak_icin(yol)
-    if doc.is_encrypted:
-        raise PermissionError("Belge şifreli; kaydedilemiyor.")
-    xrefler = {}
-    for op in islemler:
-        n = op.get("not") or {}
-        page = doc[int(n.get("sayfa", op.get("sayfa", 1))) - 1]
-        if op["islem"] == "ekle":
-            if n.get("yanitId") and n["yanitId"] in xrefler:
-                n["yanitXref"] = xrefler[n["yanitId"]]
-            xrefler[op["id"]] = not_ekle(doc, page, n)
-        elif op["islem"] == "guncelle":
-            not_guncelle(doc, page, n)
-            xrefler[op["id"]] = int(n["xref"])
-        elif op["islem"] == "sil":
-            not_sil(doc, page, n.get("xref") or op.get("xref"))
+    gecici = None
     try:
-        if artimli:
-            try:
-                doc.save(yol, incremental=True, encryption=pymupdf.PDF_ENCRYPT_KEEP, deflate=True)
-            except (ValueError, RuntimeError):
-                artimli = False
-        if not artimli:
-            gecici = hedef + ".pdefe-tmp"
-            doc.save(gecici, garbage=1, deflate=True)
-            doc.close()
-            doc = None
-            os.replace(gecici, hedef)
-    except PermissionError as e:
-        raise PermissionError("Dosya yazılamadı; başka bir programda açık olabilir. (%s)" % e)
+        if doc.is_encrypted:
+            raise PermissionError("Belge şifreli; kaydedilemiyor.")
+        dondurmeler = sayfa_dondurmeleri_uygula(doc, sayfa_dondurmeleri)
+        xrefler = {}
+        for op in islemler:
+            n = op.get("not") or {}
+            page = doc[int(n.get("sayfa", op.get("sayfa", 1))) - 1]
+            if op["islem"] == "ekle":
+                if n.get("yanitId") and n["yanitId"] in xrefler:
+                    n["yanitXref"] = xrefler[n["yanitId"]]
+                xrefler[op["id"]] = not_ekle(doc, page, n)
+            elif op["islem"] == "guncelle":
+                not_guncelle(doc, page, n)
+                xrefler[op["id"]] = int(n["xref"])
+            elif op["islem"] == "sil":
+                not_sil(doc, page, n.get("xref") or op.get("xref"))
+        try:
+            if artimli:
+                try:
+                    doc.save(yol, incremental=True, encryption=pymupdf.PDF_ENCRYPT_KEEP, deflate=True)
+                except (ValueError, RuntimeError):
+                    artimli = False
+            if not artimli:
+                gecici = hedef + ".pdefe-tmp"
+                doc.save(gecici, garbage=1, deflate=True)
+                doc.close()
+                doc = None
+                os.replace(gecici, hedef)
+                gecici = None
+        except PermissionError as e:
+            raise PermissionError("Dosya yazılamadı; başka bir programda açık olabilir. (%s)" % e)
     finally:
         if doc is not None:
             doc.close()
-    return {"xrefler": xrefler, "boyut": os.path.getsize(hedef), "artimli": artimli}
+        if gecici and os.path.exists(gecici):      # tam yazım yarıda kaldıysa geçici dosya kalmasın
+            try:
+                os.remove(gecici)
+            except OSError:
+                pass
+    sonuc = {"xrefler": xrefler, "boyut": os.path.getsize(hedef), "artimli": artimli}
+    if sayfa_dondurmeleri is not None:
+        sonuc["dondurmeler"] = dondurmeler
+    return sonuc
 
 
 def y_freetext_stil(p):
@@ -437,16 +500,16 @@ def y_form_gorunum(p):
         return {"png": None}
     olcek = float(p.get("olcek", 1.0))
     from pymupdf import mupdf
-    mat = pymupdf.Matrix(olcek, olcek)
-    irect = (page.rect * mat).irect
+    # dondurme: ekrandaki mutlak açı. fz_run_page_widgets diskteki /Rotate'i zaten uygular, yalnızca fark eklenir (aynı dosyaya
+    # kayıttan sonra disk taban+göreli açıyı taşır; görüntüleyicinin PDF.js tabanı bayattır). Verilmezse fark 0: eski davranış.
+    fark = (int(p.get("dondurme", page.rotation)) - page.rotation) % 360
+    mat = pymupdf.Matrix(olcek, olcek) * pymupdf.Matrix(fark)
+    irect = (page.rect * mat).irect          # döndürmede başlangıç noktası negatif olabilir; pixmap bunu taşır
     pix = pymupdf.Pixmap(pymupdf.csRGB, irect, True)
     mupdf.fz_clear_pixmap(pix.this)          # saydam siyah (clear_with alfayı 255 yapıyor)
     dev = mupdf.fz_new_draw_device(mupdf.FzMatrix(), pix.this)
-    try:
-        mupdf.fz_run_page_widgets(page.this, dev, mupdf.FzMatrix(olcek, 0, 0, olcek, 0, 0), mupdf.FzCookie())
-        mupdf.fz_close_device(dev)
-    finally:
-        pass
+    mupdf.fz_run_page_widgets(page.this, dev, mupdf.FzMatrix(mat.a, mat.b, mat.c, mat.d, mat.e, mat.f), mupdf.FzCookie())
+    mupdf.fz_close_device(dev)
     return {"png": png_base64(pix), "genislik": pix.width, "yukseklik": pix.height}
 
 

@@ -2,9 +2,13 @@
 // "Açık belgeler" listesi ve Ctrl+Tab son-kullanım sırasına göre sekme seçici.
 
 export class SekmeCubugu extends EventTarget {
-  constructor({ cubuk, liste, onceki, sonraki, acilir, secici, belgeListesi }) {
+  constructor({ cubuk, liste, onceki, sonraki, acilir, secici, belgeListesi, aramaSay = null }) {
     super();
     this.cubuk = cubuk; this.liste = liste; this.secici = secici; this.belgeListesi = belgeListesi;
+    // (id, sorgu, { iptal }) => Promise<number>: "Açık belgeler" listesinde belge içi eşleşme sayısı; verilmezse liste ada göre süzülür
+    this.aramaSay = typeof aramaSay === 'function' ? aramaSay : null;
+    this.listeNo = 0;         // açık listenin/sorgunun kimliği; geç gelen eski sayımları ayıklar
+    this.listeZaman = null;
     this.sekmeler = [];       // {id, ad, yol, el, degisti}
     this.aktifId = null;
     this.mru = [];            // son kullanım sırası (id'ler; en yeni başta)
@@ -33,12 +37,14 @@ export class SekmeCubugu extends EventTarget {
     }, { passive: false });
 
     document.addEventListener('mousedown', (e) => {
-      if (!this.belgeListesi.hidden && !this.belgeListesi.contains(e.target)) this.belgeListesiKapat();
+      // Açılır düğme hariç: yoksa mousedown kapatır, ardından gelen click listeyi yeniden açar
+      if (!this.belgeListesi.hidden && !this.belgeListesi.contains(e.target) && !acilir.contains(e.target)) this.belgeListesiKapat();
     });
   }
 
   // ------------------------------------------------------------ temel işlemler
   ekle({ id, ad, yol }) {
+    if (!this.belgeListesi.hidden) this.belgeListesiKapat();   // açık liste sekme kümesini bir kez kurar; bayat kalmasın
     const el = document.createElement('div');
     el.className = 'sekme';
     el.title = yol;
@@ -88,6 +94,8 @@ export class SekmeCubugu extends EventTarget {
   kaldir(id) {
     const i = this.sekmeler.findIndex((s) => s.id === id);
     if (i < 0) return;
+    // Liste açıkken (ör. Ctrl+W) kapanan belgenin satırı kalmasın; kapatma listeNo'yu artırıp süren sayımları da iptal eder
+    if (!this.belgeListesi.hidden) this.belgeListesiKapat();
     this.sekmeler[i].el.remove();
     this.sekmeler.splice(i, 1);
     this.mru = this.mru.filter((x) => x !== id);
@@ -177,48 +185,109 @@ export class SekmeCubugu extends EventTarget {
   // ------------------------------------------------------------ Açık belgeler listesi
   belgeListesiAcKapa() { if (this.belgeListesi.hidden) this.belgeListesiAc(); else this.belgeListesiKapat(); }
 
+  /** Açık belgeler listesi. aramaSay verildiyse kutu tüm belgelerde metin arar: her satırda eşleşme sayısı, eşleşmeliler üstte;
+   *  sorgu varken seçim 'belgedeAra' {id, sorgu} (0 eşleşmeli satırda 'sec'), yokken 'sec' {id} gönderir. aramaSay yoksa kutu ada/yola göre süzer. */
   belgeListesiAc() {
     const kut = this.belgeListesi;
+    clearTimeout(this.listeZaman);
+    this.listeNo++;
     kut.innerHTML = '';
-    let arama = null;
-    if (this.sekmeler.length > 6) {
-      arama = document.createElement('input');
-      arama.placeholder = 'Belge ara…';
-      kut.append(arama);
-    }
+    const sayarak = !!this.aramaSay;
+    const girdi = document.createElement('input');
+    girdi.type = 'text'; girdi.spellcheck = false;
+    girdi.placeholder = sayarak ? 'Tüm belgelerde ara…' : 'Belge ara…';
+    kut.append(girdi);
     const ul = document.createElement('ul');
     kut.append(ul);
-    const doldur = (filtre = '') => {
-      ul.innerHTML = '';
-      const f = filtre.toLocaleLowerCase('tr');
-      for (const s of this.sekmeler) {
-        if (f && !s.ad.toLocaleLowerCase('tr').includes(f) && !s.yol.toLocaleLowerCase('tr').includes(f)) continue;
-        const li = document.createElement('li');
-        li.className = s.id === this.aktifId ? 'aktif' : '';
-        li.innerHTML = '<span class="ad"></span><span class="yol"></span>';
-        li.querySelector('.ad').textContent = (s.degisti ? '• ' : '') + s.ad;
-        li.querySelector('.yol').textContent = s.yol;
-        li.addEventListener('click', () => { this.belgeListesiKapat(); this.dispatchEvent(new CustomEvent('sec', { detail: { id: s.id } })); });
-        ul.append(li);
-      }
+    const sorguVar = () => sayarak && girdi.value.trim() !== '';
+    const sec = (r) => {
+      // "0 eşleşme" satırı yalnızca sekmeye geçer: tüm sekmelerde arama ilk eşleşmeyi başka belgede bulup oraya atlardı
+      const sorgu = girdi.value, ara = sorguVar() && r.sayi !== 0;
+      this.belgeListesiKapat();
+      if (ara) this.dispatchEvent(new CustomEvent('belgedeAra', { detail: { id: r.s.id, sorgu } }));
+      else this.dispatchEvent(new CustomEvent('sec', { detail: { id: r.s.id } }));
     };
-    doldur();
-    if (arama) {
-      arama.addEventListener('input', () => doldur(arama.value));
-      arama.addEventListener('keydown', (e) => {
-        const ogeler = [...ul.children];
-        let i = ogeler.findIndex((li) => li.classList.contains('secili'));
-        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-          e.preventDefault();
-          i = e.key === 'ArrowDown' ? Math.min(ogeler.length - 1, i + 1) : Math.max(0, i - 1);
-          ogeler.forEach((li, k) => li.classList.toggle('secili', k === i));
-        } else if (e.key === 'Enter') { (ogeler[i] || ogeler[0])?.click(); }
-        else if (e.key === 'Escape') this.belgeListesiKapat();
-      });
-    }
+    // Satırlar bir kez kurulur; sorgu değişince yalnızca rozet, görünürlük ve sıra güncellenir (seçili satır korunur)
+    const satirlar = this.sekmeler.map((s) => {
+      const li = document.createElement('li');
+      if (s.id === this.aktifId) li.classList.add('aktif');
+      li.innerHTML = '<span class="ad"></span><span class="rozet" hidden></span><span class="yol"></span>';
+      li.querySelector('.ad').textContent = (s.degisti ? '• ' : '') + s.ad;
+      li.querySelector('.yol').textContent = s.yol;
+      const r = { s, li, rozet: li.querySelector('.rozet'), sayi: null, sonSayi: null };   // sayi null: sayılıyor; sonSayi: sıralama için son bilinen
+      li.addEventListener('click', () => sec(r));
+      ul.append(li);
+      return r;
+    });
+    const satirOf = (li) => satirlar.find((r) => r.li === li);
+
+    const duzenle = () => {
+      if (!sayarak) {   // geri uyum: ada/yola göre süz
+        const f = girdi.value.toLocaleLowerCase('tr');
+        for (const r of satirlar) {
+          r.li.hidden = !!f && !r.s.ad.toLocaleLowerCase('tr').includes(f) && !r.s.yol.toLocaleLowerCase('tr').includes(f);
+          if (r.li.hidden) r.li.classList.remove('secili');
+        }
+        return;
+      }
+      const sorgulu = sorguVar();
+      for (const r of satirlar) {
+        const sayiliyor = sorgulu && r.sayi == null;
+        r.rozet.hidden = !sorgulu;
+        r.rozet.textContent = !sorgulu ? '' : sayiliyor ? 'aranıyor…' : `${r.sayi.toLocaleString('tr')} eşleşme`;
+        r.rozet.classList.toggle('sayiliyor', sayiliyor);
+        r.li.classList.toggle('eslesmeli', sorgulu && r.sayi > 0);
+        r.li.classList.toggle('eslesmesiz', sorgulu && r.sayi === 0);
+      }
+      // Eşleşmeliler üstte, sayılmakta olanlar ortada, eşleşmesizler altta; grup içinde sekme sırası.
+      // Yeniden sayılırken son bilinen sayıya göre yerinde kalır (satırlar her tuşta zıplamasın).
+      const grup = (r) => { const n = r.sayi ?? r.sonSayi; return !sorgulu || n == null ? 1 : n > 0 ? 0 : 2; };
+      const sirali = satirlar.map((r, i) => [grup(r), i, r]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map((x) => x[2]);
+      sirali.forEach((r, i) => { if (ul.children[i] !== r.li) ul.insertBefore(r.li, ul.children[i] || null); });
+    };
+
+    girdi.addEventListener('input', () => {
+      if (!sayarak) { duzenle(); return; }
+      clearTimeout(this.listeZaman);
+      const no = ++this.listeNo;   // eski sorgunun geç gelen sonuçları yok sayılır
+      const sorgu = girdi.value;
+      if (!sorgu.trim()) { for (const r of satirlar) r.sayi = r.sonSayi = null; duzenle(); return; }
+      for (const r of satirlar) r.sayi = null;
+      duzenle();
+      this.listeZaman = setTimeout(() => {
+        const iptal = () => no !== this.listeNo;
+        for (const r of satirlar) {
+          Promise.resolve().then(() => this.aramaSay(r.s.id, sorgu, { iptal })).then((n) => Math.max(0, +n || 0), () => 0).then((n) => {
+            if (iptal()) return;
+            r.sayi = r.sonSayi = n;
+            duzenle();
+          });
+        }
+      }, 250);
+    });
+    girdi.addEventListener('keydown', (e) => {
+      const ogeler = [...ul.children].filter((li) => !li.hidden);
+      let i = ogeler.findIndex((li) => li.classList.contains('secili'));
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        i = e.key === 'ArrowDown' ? Math.min(ogeler.length - 1, i + 1) : Math.max(0, i - 1);
+        for (const r of satirlar) r.li.classList.toggle('secili', r.li === ogeler[i]);
+        ogeler[i]?.scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter') {
+        e.preventDefault(); e.stopPropagation();
+        let hedef = ogeler[i];
+        // Sorgu varken seçili yoksa ilk eşleşmeli belge; sayım bitmediyse ya da hiç eşleşme yoksa aktif belge
+        if (!hedef && sorguVar()) hedef = ogeler.find((li) => satirOf(li).sayi > 0) || ogeler.find((li) => satirOf(li).s.id === this.aktifId);
+        hedef = hedef || ogeler[0];
+        if (hedef) sec(satirOf(hedef));
+      } else if (e.key === 'Escape') {
+        e.preventDefault(); e.stopPropagation();   // genel Esc işleyicisi (araç bırakma vb.) ayrıca çalışmasın
+        this.belgeListesiKapat();
+      }
+    });
     kut.hidden = false;
-    if (arama) arama.focus();
+    girdi.focus();
   }
 
-  belgeListesiKapat() { this.belgeListesi.hidden = true; this.belgeListesi.innerHTML = ''; }
+  belgeListesiKapat() { clearTimeout(this.listeZaman); this.listeNo++; this.belgeListesi.hidden = true; this.belgeListesi.innerHTML = ''; }
 }

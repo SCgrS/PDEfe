@@ -2,7 +2,7 @@
 const D = 'C:/Users/Kullanici/Desktop/PDF DENEME/';
 
 export default async function ({ evalJs, ekranGoruntusu, bekle }) {
-  await evalJs(`(() => { window.__pdefeOtoYanit = { secim: 1 }; window.__pdefe.ayar().sekmeDegisimindeSor = false; return true; })()`);
+  await evalJs(`(() => { window.__pdefeOtoYanit = { secim: 1 }; return true; })()`);
   await evalJs(`(async () => { const p = window.__pdefe; await p.dosyaAc(${JSON.stringify(D + '1.5.6098.pdf')}); await p.dosyaAc(${JSON.stringify(D + 'fdsafsd.pdf')}); await new Promise(r => setTimeout(r, 800)); return true; })()`);
   // İki sayfa kaydırma + kapak ayrı
   await evalJs(`(() => { const p = window.__pdefe; p.komutCalistir('gorunum.duzen', 'ikiSurekli'); const b = p.aktif(); if (!b.gorunum.kapakAyri) p.komutCalistir('gorunum.kapakAyri'); p.komutCalistir('gorunum.zoom', 'sayfa'); })()`);

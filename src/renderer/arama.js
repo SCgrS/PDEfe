@@ -15,6 +15,8 @@ export class Arama extends EventTarget {
     this.sonuclar = [];              // {belgeId, tur:'metin'|'yerimi'|'yorum', sayfa, bas, son, ...}
     this.gecerli = -1;
     this.aramaSayac = 0;
+    this.aramaBelgeId = null;        // son aramanın başladığı (o an aktif) belge
+    this.kaliciKapsam = null;        // ac() geçici kapsam verdiyse kullanıcının seçtiği tumSekmeler değeri (kapanınca geri yüklenir)
     this.metinOnbellek = new WeakMap();   // gorunum → Map(sayfa → {metin, items})
     this.acik = false;
     this._kur();
@@ -26,7 +28,7 @@ export class Arama extends EventTarget {
       <span class="sayac" id="bul-sayac"></span>
       <button class="ikon" id="bul-onceki" title="Önceki (Shift+Enter, Shift+F3)"><svg viewBox="0 0 20 20"><path d="m5 12 5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
       <button class="ikon" id="bul-sonraki" title="Sonraki (Enter, F3)"><svg viewBox="0 0 20 20"><path d="m5 8 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
-      <button class="ikon" id="bul-ayar" title="Arama seçenekleri"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4" stroke="currentColor" stroke-width="1.4"/></svg></button>
+      <button class="ikon" id="bul-ayar" title="Arama seçenekleri"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M9.14 4.87L9.17 2.14A7.9 7.9 0 0 1 10.83 2.14L10.86 4.87A5.2 5.2 0 0 1 13.02 5.77L14.97 3.86A7.9 7.9 0 0 1 16.14 5.03L14.23 6.98A5.2 5.2 0 0 1 15.13 9.14L17.86 9.17A7.9 7.9 0 0 1 17.86 10.83L15.13 10.86A5.2 5.2 0 0 1 14.23 13.02L16.14 14.97A7.9 7.9 0 0 1 14.97 16.14L13.02 14.23A5.2 5.2 0 0 1 10.86 15.13L10.83 17.86A7.9 7.9 0 0 1 9.17 17.86L9.14 15.13A5.2 5.2 0 0 1 6.98 14.23L5.03 16.14A7.9 7.9 0 0 1 3.86 14.97L5.77 13.02A5.2 5.2 0 0 1 4.87 10.86L2.14 10.83A7.9 7.9 0 0 1 2.14 9.17L4.87 9.14A5.2 5.2 0 0 1 5.77 6.98L3.86 5.03A7.9 7.9 0 0 1 5.03 3.86L6.98 5.77A5.2 5.2 0 0 1 9.14 4.87Z"/><circle cx="10" cy="10" r="2.4"/></svg></button>
       <button class="ikon" id="bul-kapat" title="Kapat (Esc)"><svg viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.6"/></svg></button>
       <div class="ayar-menu" id="bul-ayar-menu" hidden>
         <label><input type="checkbox" data-ayar="tamSozcuk"> Yalnızca tam sözcükler</label>
@@ -50,24 +52,43 @@ export class Arama extends EventTarget {
     this.kutu.querySelector('#bul-onceki').addEventListener('click', () => this.git(-1));
     this.kutu.querySelector('#bul-sonraki').addEventListener('click', () => this.git(1));
     this.kutu.querySelector('#bul-kapat').addEventListener('click', () => this.kapat());
-    const menu = this.kutu.querySelector('#bul-ayar-menu');
-    this.kutu.querySelector('#bul-ayar').addEventListener('click', (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; });
-    document.addEventListener('mousedown', (e) => { if (!menu.hidden && !menu.contains(e.target) && e.target.id !== 'bul-ayar') menu.hidden = true; });
+    const menu = this.kutu.querySelector('#bul-ayar-menu'), ayarDugme = this.kutu.querySelector('#bul-ayar');
+    ayarDugme.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; });
+    // Düğme (içindeki svg/path dahil) hariç: yoksa mousedown kapatır, ardından gelen click menüyü yeniden açar
+    document.addEventListener('mousedown', (e) => { if (!menu.hidden && !menu.contains(e.target) && !ayarDugme.contains(e.target)) menu.hidden = true; });
     menu.querySelectorAll('input[data-ayar]').forEach((c) => c.addEventListener('change', () => { this.ayar[c.dataset.ayar] = c.checked; this.ara(this.girdi.value, true); }));
-    menu.querySelectorAll('input[data-kapsam]').forEach((c) => c.addEventListener('change', () => { this.ayar.tumSekmeler = menu.querySelector('input[data-kapsam="tum"]').checked; this.ara(this.girdi.value, true); }));
+    menu.querySelectorAll('input[data-kapsam]').forEach((c) => c.addEventListener('change', () => { this.ayar.tumSekmeler = menu.querySelector('input[data-kapsam="tum"]').checked; this.kaliciKapsam = null; this.ara(this.girdi.value, true); }));
   }
 
-  ac(onSorgu) {
+  /** Seçenek menüsündeki kapsam radyo düğmelerini this.ayar.tumSekmeler'e eşitler. */
+  kapsamEsitle() {
+    this.kutu.querySelector('input[data-kapsam="tum"]').checked = !!this.ayar.tumSekmeler;
+    this.kutu.querySelector('input[data-kapsam="belge"]').checked = !this.ayar.tumSekmeler;
+  }
+
+  /** Bul kutusunu açar. secenek.tumSekmeler verilirse arama kapsamı yalnızca bu arama için ayarlanır (ör. "Açık belgeler" listesinden gelince):
+   *  kutu kapanınca ya da seçeneksiz yeniden açılınca (sade Ctrl+F) kullanıcının seçtiği kapsama dönülür. Seçenek menüsündeki seçim kalıcıdır. */
+  ac(onSorgu, secenek = {}) {
     this.kutu.hidden = false;
     this.acik = true;
+    let tum = this.ayar.tumSekmeler;
+    if (secenek.tumSekmeler != null) { if (this.kaliciKapsam == null) this.kaliciKapsam = this.ayar.tumSekmeler; tum = !!secenek.tumSekmeler; }
+    else if (this.kaliciKapsam != null) { tum = this.kaliciKapsam; this.kaliciKapsam = null; }
+    const kapsamDegisti = tum !== this.ayar.tumSekmeler;
+    if (kapsamDegisti) { this.ayar.tumSekmeler = tum; this.kapsamEsitle(); }
     if (onSorgu) this.girdi.value = onSorgu;
     this.girdi.focus(); this.girdi.select();
-    if (this.girdi.value && this.girdi.value !== this.sorgu) this.ara(this.girdi.value);
+    // Yalnızca kapsam verilerek açılınca ("Açık belgeler" listesi): seçilen belge geçerli sonucun/aramanın belgesi değilse yeniden ara.
+    // Seçeneksiz açılış (sade Ctrl+F) yalnızca kapsam ya da sorgu değişince arar; sekme değiştirmez, odağı girdide bırakır.
+    const aktifId = this.belgeAl()?.id ?? null, gs = this.sonuclar[this.gecerli];
+    const belgeDegisti = secenek.tumSekmeler != null && this.sorgu !== '' && (gs ? gs.belgeId !== aktifId : this.aramaBelgeId !== aktifId);
+    if (this.girdi.value && (kapsamDegisti || belgeDegisti || this.girdi.value !== this.sorgu)) this.ara(this.girdi.value, true);
   }
 
   kapat() {
     this.kutu.hidden = true;
     this.acik = false;
+    if (this.kaliciKapsam != null) { this.ayar.tumSekmeler = this.kaliciKapsam; this.kaliciKapsam = null; this.kapsamEsitle(); }   // geçici kapsamdan dön (bkz. ac)
     this.vurgulariTemizle();
     this.sonuclar = []; this.gecerli = -1; this.sorgu = '';
     this.sayac.textContent = '';
@@ -111,11 +132,32 @@ export class Arama extends EventTarget {
     return sonuc;
   }
 
+  /** Belgenin bütün sayfalarındaki metin eşleşmesi sayısı (Bul ile aynı normalleştirme ve seçenekler; vurgulamaz, gezinmez).
+   *  "Açık belgeler" listesi kullanır. iptal: () => boolean (ya da AbortSignal); true olunca o ana kadarki sayıyla erken döner. */
+  async belgedeSay(belge, sorgu, { iptal } = {}) {
+    const g = belge?.gorunum;
+    sorgu = sorgu || '';
+    if (!g || !sorgu.trim()) return 0;
+    const iptalMi = () => (typeof iptal === 'function' ? !!iptal() : !!iptal?.aborted);
+    let toplam = 0, mola = performance.now();
+    for (let sayfa = 1; sayfa <= g.sayfaSayisi; sayfa++) {   // sayfa sayısı her turda yeniden okunur (belge kapanır/değişirse)
+      // Görüntüleyici yok edildiyse dur: okunmamış sayfa, PDF'i dosyadan yeniden açıp hiç kapatılmayan bir belge bırakırdı
+      if (iptalMi() || g.yok) return toplam;
+      let kayit;
+      try { kayit = await this.sayfaMetni(g, sayfa); } catch { continue; }
+      toplam += this.eslesmeleriBul(kayit.metin, sorgu).length;
+      // Büyük belgede arayüz donmasın: önbellekten gelen sayfalar da ~15 ms'de bir olay döngüsüne bırakılır
+      if (performance.now() - mola > 15) { await new Promise((r) => setTimeout(r, 0)); mola = performance.now(); }
+    }
+    return toplam;
+  }
+
   // ------------------------------------------------------------ arama
   async ara(sorgu, yeniden = false) {
     sorgu = sorgu || '';
     if (!yeniden && sorgu === this.sorgu) return;
     this.sorgu = sorgu;
+    this.aramaBelgeId = this.belgeAl()?.id ?? null;
     const sayac = ++this.aramaSayac;
     this.vurgulariTemizle();
     this.sonuclar = []; this.gecerli = -1;
@@ -135,9 +177,11 @@ export class Arama extends EventTarget {
       for (let s = 1; s < bas; s++) sira.push(s);
       for (const sayfa of sira) {
         if (sayac !== this.aramaSayac) return;
+        if (g.yok) break;   // arama sürerken belge kapandı (bkz. belgedeSay)
         let kayit;
         try { kayit = await this.sayfaMetni(g, sayfa); } catch { continue; }
         if (sayac !== this.aramaSayac) return;
+        if (g.yok) break;
         const esl = this.eslesmeleriBul(kayit.metin, sorgu);
         if (esl.length) {
           const yeni = esl.map(([bas2, son]) => ({ belgeId: b.id, tur: 'metin', sayfa, bas: bas2, son }));
@@ -149,6 +193,7 @@ export class Arama extends EventTarget {
         }
         if (n > 40 && sayfa % 10 === 0) await new Promise((r) => setTimeout(r, 0));
       }
+      if (g.yok) continue;   // kapanan belgenin yer imi/yorumuna bakılmaz
       // Yer imleri
       if (this.ayar.yerimi) {
         try {

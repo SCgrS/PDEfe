@@ -91,16 +91,10 @@ html[data-tema="koyu"] .ayar-sonuc-hata { color: #ff8c8c; }
 .ayar-radyo-kart.secili { border-color: var(--vurgu); }
 
 /* Hakkında */
-.ayar-hakkinda { display: flex; align-items: center; gap: 18px; padding: 8px 4px 18px; }
-.ayar-logo { width: 64px; height: 64px; border-radius: 14px; background: var(--vurgu); color: var(--vurgu-metin); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; flex-shrink: 0; }
-.ayar-hakkinda-satir { font-size: 14px; margin-bottom: 2px; }
+.ayar-hakkinda { display: flex; flex-direction: column; gap: 6px; padding: 8px 4px 18px; }
+.ayar-hakkinda-satir { font-size: 14px; user-select: text; }
 .ayar-hakkinda a { color: var(--vurgu); text-decoration: none; }
 .ayar-hakkinda a:hover { text-decoration: underline; }
-.ayar-bilesenler { font-size: 12px; margin-top: 4px; user-select: text; }
-.ayar-lisans-kutu {
-  max-height: 260px; overflow: auto; margin: 0; padding: 10px 12px; font: 12px/1.45 Consolas, 'Cascadia Mono', monospace;
-  white-space: pre-wrap; word-break: break-word; background: var(--arka); border: 1px solid var(--kenar); border-radius: 6px; user-select: text; color: var(--metin);
-}
 
 /* ---------- Yazdırma diyaloğu ---------- */
 .yazdir-diyalog { width: 460px; }

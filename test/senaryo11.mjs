@@ -10,15 +10,31 @@ const dugmeTikla = (desen) => `(() => { const w = [...document.querySelectorAll(
 export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   fs.rmSync(K, { recursive: true, force: true }); fs.mkdirSync(K, { recursive: true });
   fs.copyFileSync(D + 'fdsafsd.pdf', KOPYA);
-  await evalJs(`(async () => { const p = window.__pdefe; window.__pdefeOtoYanit = { secim: 0 }; const a = p.ayar(); a.sekmeDegisimindeSor = false; a.otomatikKaydet = false; a.ciktiKlasoru = ${JSON.stringify(K.replace(/\//g, '\\\\'))}; document.querySelectorAll('.arac-pencere').forEach(e => e.remove()); for (const s of [...p.sekmeler.sekmeler]) await p.belgeKapat(s.id, { zorla: true }); await p.dosyaAc(${JSON.stringify(KOPYA)}); await new Promise(r => setTimeout(r, 1000)); return true; })()`);
+  await evalJs(`(async () => { const p = window.__pdefe; window.__pdefeOtoYanit = { secim: 0 }; const a = p.ayar(); a.otomatikKaydet = false; a.ciktiKlasoru = ${JSON.stringify(K.replace(/\//g, '\\\\'))}; document.querySelectorAll('.arac-pencere').forEach(e => e.remove()); for (const s of [...p.sekmeler.sekmeler]) await p.belgeKapat(s.id, { zorla: true }); await p.dosyaAc(${JSON.stringify(KOPYA)}); await new Promise(r => setTimeout(r, 1000)); return true; })()`);
   const sekmeler = () => evalJs(`window.__pdefe.sekmeler.sekmeler.map(s => s.ad)`);
 
-  // 1) Küçült (önerilen) → yeni sekme
+  // 1) Küçült (varsayılan seviye: İdeal sıkıştırma; "Özel" kartı olmamalı) → yeni sekme
   await evalJs(`window.__pdefe.komutCalistir('arac.kucult')`); await bekle(4000);
+  console.log('küçült kartları:', await evalJs(`[...document.querySelectorAll('.arac-pencere .kucult-kart')].map(k => (k.classList.contains('secili') ? '*' : '') + (k.querySelector('.ad')?.textContent || k.dataset.seviye))`));
   console.log('küçült:', await evalJs(dugmeTikla('/^Küçült$/')));
   await bekle(8000);
   console.log('  sekmeler:', await sekmeler(), 'çıktılar:', fs.readdirSync(K));
-  await evalJs(`document.querySelectorAll('.arac-pencere').forEach(e => e.remove())`);
+  // Açık kalan araç pencerelerini Kapat düğmesiyle kapat (yalnızca DOM'dan silmek pencere kaydını bırakır, aynı araç yeniden açılmaz)
+  const pencereleriKapat = () => evalJs(`(async () => { for (const w of [...document.querySelectorAll('.arac-pencere')]) { [...w.querySelectorAll('button')].find(x => x.textContent.trim() === 'Kapat')?.click(); } await new Promise(r => setTimeout(r, 300)); document.querySelectorAll('.arac-pencere').forEach(e => e.remove()); return true; })()`);
+  await pencereleriKapat();
+
+  // 1b) Küçült "Üzerine yaz": yedek özgün dosyanın klasörüne "<ad> (yedek).pdf" olarak alınmalı (veri klasörüne değil)
+  const ozgunBoyut = fs.statSync(KOPYA).size;
+  await evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find(x => x.ad === 'arac-test.pdf'); await p.sekmeSec(b.id); window.__pdefeOtoYanit = { secim: 0, son: null }; p.komutCalistir('arac.kucult'); return true; })()`); await bekle(4000);
+  console.log('üzerine yaz kutusu:', await evalJs(`(() => { const w = [...document.querySelectorAll('.arac-pencere')].pop(); const k = w?.querySelector('.kucult-uzerine'); if (!k) return 'kutu yok'; k.checked = true; k.dispatchEvent(new Event('change', { bubbles: true })); return { etiket: k.parentElement.textContent.trim(), cikti: w.querySelector('.kucult-cikti-yol')?.textContent }; })()`));
+  console.log('küçült (üzerine yaz):', await evalJs(dugmeTikla('/^Küçült$/')));
+  await bekle(9000);
+  const yedekler = fs.readdirSync(K).filter(f => /\(yedek/i.test(f));
+  console.log('  yedek:', { yedekler, beklenen: 'arac-test (yedek).pdf', ozgunBoyut, yedekBoyut: yedekler[0] ? fs.statSync(K + '/' + yedekler[0]).size : null, yeniBoyut: fs.statSync(KOPYA).size },
+    '| soru:', await evalJs(`window.__pdefeOtoYanit.son?.ayrinti?.replace(/\\s+/g, ' ').slice(0, 200)`), '| sekmeler:', await sekmeler());
+  await ekranGoruntusu('test/png/s11-01b-kucult-uzerine-yaz.png');
+  await pencereleriKapat();
+  await evalJs(`(() => { window.__pdefeOtoYanit = { secim: 0 }; return true; })()`);
 
   // 2) Ayır: her N sayfada bir (varsayılan mod ne ise) → çıktı klasörüne
   await evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find(x => x.ad === 'arac-test.pdf'); await p.sekmeSec(b.id); p.komutCalistir('arac.ayir'); })()`); await bekle(2000);

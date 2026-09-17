@@ -7,7 +7,7 @@ const EK = 'C:/Projeler/PDEfe/test/cikti/deneme-notlu.pdf';   // senaryo4'ün ü
 
 export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   fs.copyFileSync(D + 'fdsafsd.pdf', KOPYA);    // 13 sayfa, görselli
-  await evalJs(`(() => { window.__pdefeOtoYanit = { secim: 0 }; const a = window.__pdefe.ayar(); a.sekmeDegisimindeSor = false; a.otomatikKaydet = false; return true; })()`);
+  await evalJs(`(() => { window.__pdefeOtoYanit = { secim: 0 }; const a = window.__pdefe.ayar(); a.otomatikKaydet = false; return true; })()`);
   await evalJs(`(async () => { const p = window.__pdefe; for (const s of [...p.sekmeler.sekmeler]) await p.belgeKapat(s.id, { zorla: true }); return true; })()`);
   console.log('aç:', await evalJs(`(async () => { const b = await window.__pdefe.dosyaAc(${JSON.stringify(KOPYA)}); await new Promise(r => setTimeout(r, 1200)); return { ad: b.ad, sayfa: b.gorunum.sayfaSayisi, notlar: b.notlar.notlar.size }; })()`));
 
@@ -60,6 +60,27 @@ print('ilk sayfa metin var:', len(d[0].get_text()) > 50, '| 2. sayfa boş:', len
   console.log(dogrula());
   console.log('yinele ×2 + kaydet:', await evalJs(`(async () => { const p = window.__pdefe; const b = p.aktif(); b.yigin.yinele(); b.yigin.yinele(); const ok = await p.belgeKaydet(b); return { ok, degisti: b.degisti, dondurme: b.gorunum.sayfalar[0].dondurme, notlar: b.notlar.liste().length }; })()`));
   console.log(dogrula());
+
+  // Döndür düğmesi (gorunum.dondur): "Geçerli sayfa / Tüm PDF / Vazgeç" sorusu, "Seçeneğimi hatırla" (dondurmeKapsami),
+  // belgeyi geri alınabilir biçimde döndürür ve belge değişmiş sayılır. Her deneme kendi değişikliğini geri alır.
+  // kapsam: denemeden önce atanacak dondurmeKapsami (null: dokunma).
+  const dondurDene = (secim, onay, kapsam) => evalJs(`(async () => {
+    const p = window.__pdefe; const b = p.aktif(); const g = b.gorunum;
+    if (${JSON.stringify(kapsam)} !== null) p.ayar().dondurmeKapsami = ${JSON.stringify(kapsam)};
+    window.__pdefeOtoYanit = { secim: ${secim}, onay: ${onay}, son: null };
+    const once = g.sayfalar.map(s => s.dondurme || 0); const konum = b.yigin.konum; const gecerli = g.gecerli;
+    p.komutCalistir('gorunum.dondur', 90); await new Promise(r => setTimeout(r, 1500));
+    const s = window.__pdefeOtoYanit.son; const degisen = g.sayfalar.map((x, i) => (x.dondurme || 0) !== once[i] ? i + 1 : 0).filter(Boolean);
+    const sonuc = { soruldu: !!s, dugmeler: s?.dugmeler, onayKutusu: s?.onayKutusu, gecerli, degisen: degisen.length > 5 ? degisen.length + ' sayfa' : degisen, degisti: b.degisti, geriAl: document.querySelector('#dugme-geri-al').title, kapsam: p.ayar().dondurmeKapsami };
+    if (b.yigin.konum !== konum) { b.yigin.geriAl(); await new Promise(r => setTimeout(r, 800)); sonuc.geriAlSonrasi = { ayni: g.sayfalar.every((x, i) => (x.dondurme || 0) === once[i]), degisti: b.degisti }; }
+    return sonuc;
+  })()`);
+  console.log('döndür → Geçerli sayfa:', await dondurDene(0, false, 'sor'));    // beklenen: soruldu, degisen=[gecerli], degisti=true; geri alınca ayni=true, degisti=false
+  console.log('döndür → Tüm PDF:', await dondurDene(1, false, 'sor'));          // beklenen: bütün sayfalar
+  console.log('döndür → Vazgeç:', await dondurDene(2, false, 'sor'));           // beklenen: soruldu, degisen=[], geriAlSonrasi yok
+  console.log('döndür → hatırla (Geçerli sayfa):', await dondurDene(0, true, 'sor'));   // beklenen: kapsam='sayfa'
+  console.log('döndür → hatırlanan seçim:', await dondurDene(2, false, null));  // beklenen: soruldu=false, degisen=[gecerli]
+  await evalJs(`(async () => { window.__pdefe.ayar().dondurmeKapsami = 'sor'; await window.pdefe.cagir('ayar:koy', 'dondurmeKapsami', 'sor'); window.__pdefeOtoYanit = { secim: 0 }; return true; })()`);
   // Koyu sayfa modu
   await evalJs(`(() => { const p = window.__pdefe; p.ayar().sayfayiKoyulastir = true; if (document.documentElement.dataset.tema !== 'koyu') p.komutCalistir('gorunum.tema'); p.aktif().gorunum.koyuSayfaAyarla(true); p.aktif().gorunum.sayfayaGit(4); })()`);
   await bekle(2000);

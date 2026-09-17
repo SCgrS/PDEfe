@@ -6,12 +6,12 @@ export const VARSAYILANLAR = {
   // Görünüm
   tema: 'sistem',                 // 'acik' | 'koyu' | 'sistem'
   sayfayiKoyulastir: false,       // koyu modda sayfayı da koyulaştır (görselleri koru)
+  dondurmeKapsami: 'sor',         // 'sor' | 'sayfa' | 'tum'; araç çubuğundaki Döndür düğmesinin kapsamı
   // Başlangıç
   varsayilanZoom: 'genislik',     // 'son' | 'genislik' | 'sayfa' | 'gercek' | sayı (yüzde)
   sonZoom: 100,
   varsayilanDuzen: 'surekli',     // 'tek' | 'surekli' | 'iki' | 'ikiSurekli'
   kapakAyri: false,
-  sekmeleriHatirla: true,
   kaldigimSayfadanAc: true,
   // Notlar
   yazarAdi: os.userInfo().username || 'Kullanıcı',
@@ -22,7 +22,6 @@ export const VARSAYILANLAR = {
   yaziRengi: '#000000',
   yaziArka: null,
   otomatikKaydet: false,
-  sekmeDegisimindeSor: true,
   // Kopyalama
   temizMetin: true,
   // Güncelleme
@@ -31,7 +30,6 @@ export const VARSAYILANLAR = {
   ciktiKlasoru: '',
   // Durum
   sonDosyalar: [],
-  acikSekmeler: [],
   sayfaKonumlari: {},
   solPanelGenislik: 240,
   solPanelAcik: false,
@@ -39,7 +37,11 @@ export const VARSAYILANLAR = {
   pencere: {},
 };
 
+/** Kaldırılmış ayarlar: eski sürümlerin yapılandırma dosyalarından silinir. */
+const KALDIRILAN_ANAHTARLAR = ['sekmeleriHatirla', 'acikSekmeler', 'sekmeDegisimindeSor'];
+
 export const ayarlar = new Store({ name: 'ayarlar', defaults: VARSAYILANLAR, clearInvalidConfig: true });
+for (const anahtar of KALDIRILAN_ANAHTARLAR) { try { if (ayarlar.has(anahtar)) ayarlar.delete(anahtar); } catch (e) { console.warn('Eski ayar silinemedi', anahtar, e); } }
 
 export function ayarAl(anahtar) { return ayarlar.get(anahtar); }
 export function ayarKoy(anahtar, deger) { ayarlar.set(anahtar, deger); }

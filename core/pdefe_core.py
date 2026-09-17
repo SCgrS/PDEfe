@@ -23,7 +23,7 @@ import pymupdf
 if __name__ == "__main__":
     sys.modules["pdefe_core"] = sys.modules[__name__]
 
-SURUM = "0.1.0"
+SURUM = "0.1.1"
 
 # ---------------------------------------------------------------- belge önbelleği
 class BelgeOnbellek:

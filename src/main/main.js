@@ -143,9 +143,15 @@ function pencereOlustur() {
     return { action: 'deny' };
   });
 
+  uygulamaMenusuKur();
+}
+
+/** Uygulama menüsünü (yeniden) kurar: son dosyalar ve Görünüm menüsündeki düzen işaretleri ayardan okunur. */
+function uygulamaMenusuKur() {
   Menu.setApplicationMenu(menuKur({
     komut: (id, veri) => pencereyeGonder('menu:komut', id, veri),
     sonDosyalar: () => ayarAl('sonDosyalar') || [],
+    duzen: () => ({ duzen: ayarAl('varsayilanDuzen'), kapakAyri: !!ayarAl('kapakAyri') }),
   }));
 }
 
@@ -165,7 +171,7 @@ function ipcKur() {
   });
 
   ipcMain.handle('ayar:al', (_e, anahtar) => (anahtar ? ayarAl(anahtar) : ayarlar.store));
-  ipcMain.handle('ayar:koy', (_e, anahtar, deger) => { ayarKoy(anahtar, deger); return true; });
+  ipcMain.handle('ayar:koy', (_e, anahtar, deger) => { ayarKoy(anahtar, deger); if (anahtar === 'varsayilanDuzen' || anahtar === 'kapakAyri') uygulamaMenusuKur(); return true; });
   ipcMain.handle('tema:sistemKoyu', () => nativeTheme.shouldUseDarkColors);
 
   // secenek: {baslik, filtreler:[{name, extensions}], coklu, varsayilan}
@@ -197,7 +203,6 @@ function ipcKur() {
   ipcMain.handle('dosya:kopyala', async (_e, kaynak, hedef) => { await fs.promises.mkdir(path.dirname(hedef), { recursive: true }); await fs.promises.copyFile(kaynak, hedef); return true; });
   ipcMain.handle('uygulama:veriKlasoru', () => app.getPath('userData'));
   ipcMain.handle('uygulama:geciciKlasor', () => { const k = path.join(app.getPath('temp'), 'PDEfe'); fs.mkdirSync(k, { recursive: true }); return k; });
-  ipcMain.handle('uygulama:ucuncuTaraf', async () => { try { return await fs.promises.readFile(path.join(KOK, 'THIRD_PARTY.md'), 'utf8'); } catch { return ''; } });
   ipcMain.handle('kabuk:varsayilanUygulamalar', () => shell.openExternal('ms-settings:defaultapps?registeredAppUser=PDEfe'));
   // Panodaki dosyalar (Gezgin'den kopyalanan) ve görsel
   ipcMain.handle('pano:dosyalar', () => new Promise((coz) => {
@@ -286,7 +291,7 @@ exit 0`;
   ipcMain.handle('uygulama:bilgi', () => ({ surum: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome, node: process.versions.node, paketli: PAKETLI, kok: KOK }));
   ipcMain.handle('uygulama:sonDosyalar', (_e, liste) => {
     ayarKoy('sonDosyalar', liste);
-    Menu.setApplicationMenu(menuKur({ komut: (id, veri) => pencereyeGonder('menu:komut', id, veri), sonDosyalar: () => liste }));
+    uygulamaMenusuKur();
     return true;
   });
 
@@ -300,6 +305,9 @@ exit 0`;
 
 // ---------- Yaşam döngüsü ----------
 app.whenReady().then(() => {
+  // Önceki oturumlardan kalan anlık kopyalar (yapısal kayıtta özgün dosyanın kopyası; sekme kapanınca silinir, pencere kapatma ya da
+  // çökmede kalır). Tek örnek kilidi bizdeyse başka örnek bunları kullanmıyordur: çekirdek başlamadan ve pencere açılmadan sil.
+  if (kilit) { try { fs.rmSync(path.join(app.getPath('userData'), 'anlik'), { recursive: true, force: true }); } catch { /* yok say */ } }
   protokolKur();
   ipcKur();
   try {

@@ -87,8 +87,10 @@ def _yerimlerini_tasi(yeni, esleme, ana_yol, belge_al):
 
 def y_yapisal_kaydet(p):
     """Sayfa tarifini ve not işlemlerini uygulayıp kaydeder.
-    p: {yol, hedef, tarif, anlikKlasor, islemler:[{islem, id, not:{...}, kaynak:{yol,sayfa}, xref}]}
+    p: {yol, hedef, tarif, anlikKlasor, anlik, islemler:[{islem, id, not:{...}, kaynak:{yol,sayfa}, xref}]}
     Notlar: 'ekle' → not.sayfa yeni belgedeki konum; 'guncelle'/'sil' → kaynak sayfa + kaynak xref (konumsal eşleme).
+    Bu çağrıda oluşturulan anlık kopya (ve yarım geçici dosya) hedef yazılmadan önce hata/iptal olursa silinir;
+    p["anlik"] (önceden var olan kopya) ve başarılı yolda oluşan kopya korunur.
     Döner: {anlik, boyut, sayfa, xrefler}"""
     from pdefe_core import onbellek
     yol, hedef = p["yol"], p.get("hedef") or p["yol"]
@@ -98,115 +100,128 @@ def y_yapisal_kaydet(p):
     ilerleme = p.get("_ilerleme") or (lambda *a: None)
     onbellek.hepsini_birak()
 
-    # 1) Özgün dosya tarifte kaynak olarak geçiyorsa anlık kopya al (kaynak değişmeden kalsın)
     anlik = p.get("anlik")
-    kaynak_yollari = {e["kaynak"]["yol"] for e in tarif if e.get("kaynak")}
-    kaynak_yollari |= {op["kaynak"]["yol"] for op in islemler if op.get("kaynak") and op["kaynak"].get("yol")}
-    if any(_ayni_yol(k, yol) for k in kaynak_yollari):
-        os.makedirs(anlik_klasor, exist_ok=True)
-        anlik = os.path.join(anlik_klasor, uuid.uuid4().hex + ".pdf")
-        try:
-            shutil.copy2(yol, anlik)
-        except OSError as e:
-            raise PermissionError("Dosya okunamadı; başka bir programda (örneğin bir PDF okuyucu) açık olabilir. (%s)" % e)
-        for e in tarif:
-            if e.get("kaynak") and _ayni_yol(e["kaynak"]["yol"], yol):
-                e["kaynak"] = dict(e["kaynak"], yol=anlik)
-        for op in islemler:
-            if op.get("kaynak") and op["kaynak"].get("yol") and _ayni_yol(op["kaynak"]["yol"], yol):
-                op["kaynak"] = dict(op["kaynak"], yol=anlik)
-    ilerleme(10, "Sayfalar düzenleniyor")
-
-    acik = {}
-    def belge_al(y):
-        k = os.path.normcase(os.path.abspath(y))
-        if k not in acik:
-            acik[k] = notlar.belge_ac_yazmak_icin(y)
-        return acik[k]
-
+    yeni_anlik = None      # bu çağrıda oluşturulan anlık kopya
+    gecici = None
     try:
-        yeni, esleme = tarif_belgesi(tarif, belge_al)
-        ana = anlik or yol
-        _yerimlerini_tasi(yeni, esleme, ana, belge_al)
-        try:
-            yeni.set_metadata(belge_al(ana).metadata or {})
-        except Exception:
-            pass
-        ilerleme(50, "Notlar taşınıyor")
-
-        # 2) Not işlemleri
-        xrefler = {}
-        konum = {}   # (yol_normal, sayfa) → yeni belgede ilk konum (0-tabanlı)
-        for i, e in enumerate(esleme):
-            if e:
-                k = (os.path.normcase(os.path.abspath(e[0])), e[1])
-                konum.setdefault(k, i)
-
-        def hedef_annot(op):
-            k = op.get("kaynak") or {}
-            if not k.get("yol"):
-                return None
-            anahtar = (os.path.normcase(os.path.abspath(k["yol"])), int(k["sayfa"]))
-            if anahtar not in konum:
-                return None                       # sayfa silinmiş; işlem gereksiz
-            src_page = belge_al(k["yol"])[int(k["sayfa"]) - 1]
-            src_xrefs = [a.xref for a in src_page.annots()]
-            xref = int(op.get("xref") or (op.get("not") or {}).get("xref") or 0)
-            if xref not in src_xrefs:
-                return None
-            idx = src_xrefs.index(xref)
-            yeni_page = yeni[konum[anahtar]]
-            hedefler = list(yeni_page.annots())
-            if idx >= len(hedefler):
-                return None
-            return yeni_page, hedefler[idx]
-
-        for op in islemler:
-            n = dict(op.get("not") or {})
-            if op["islem"] == "ekle":
-                sayfa = int(n.get("sayfa") or 1)
-                if sayfa < 1 or sayfa > len(yeni):
-                    continue
-                if n.get("yanitId") and n["yanitId"] in xrefler:
-                    n["yanitXref"] = xrefler[n["yanitId"]]
-                elif n.get("yanitKaynak"):
-                    ha = hedef_annot({"kaynak": n["yanitKaynak"], "xref": n.get("yanitXref")})
-                    if ha:
-                        n["yanitXref"] = ha[1].xref
-                    else:
-                        n.pop("yanitXref", None)
-                xrefler[op["id"]] = notlar.not_ekle(yeni, yeni[sayfa - 1], n)
-            elif op["islem"] in ("guncelle", "sil"):
-                ha = hedef_annot(op)
-                if not ha:
-                    continue
-                page, annot = ha
-                if op["islem"] == "sil":
-                    notlar.not_sil(yeni, page, annot.xref)
-                else:
-                    n["xref"] = annot.xref
-                    n.pop("rect", None) if n.get("rectDegismedi") else None
-                    notlar.not_guncelle(yeni, page, n)
-                    xrefler[op["id"]] = annot.xref
-        ilerleme(80, "Kaydediliyor")
-
-        # 3) Kaydet
-        gecici = hedef + ".pdefe-tmp"
-        yeni.save(gecici, garbage=3, deflate=True)
-        yeni.close()
-        for d in acik.values():
-            d.close()
-        acik.clear()
-        onbellek.hepsini_birak()
-        _degistir(gecici, hedef)
-    finally:
-        for d in acik.values():
+        # 1) Özgün dosya tarifte kaynak olarak geçiyorsa anlık kopya al (kaynak değişmeden kalsın)
+        kaynak_yollari = {e["kaynak"]["yol"] for e in tarif if e.get("kaynak")}
+        kaynak_yollari |= {op["kaynak"]["yol"] for op in islemler if op.get("kaynak") and op["kaynak"].get("yol")}
+        if any(_ayni_yol(k, yol) for k in kaynak_yollari):
+            os.makedirs(anlik_klasor, exist_ok=True)
+            anlik = yeni_anlik = os.path.join(anlik_klasor, uuid.uuid4().hex + ".pdf")
             try:
-                d.close()
+                shutil.copy2(yol, anlik)
+            except OSError as e:           # yarım kopya dış blokta silinir
+                raise PermissionError("Dosya okunamadı; başka bir programda (örneğin bir PDF okuyucu) açık olabilir. (%s)" % e)
+            for e in tarif:
+                if e.get("kaynak") and _ayni_yol(e["kaynak"]["yol"], yol):
+                    e["kaynak"] = dict(e["kaynak"], yol=anlik)
+            for op in islemler:
+                if op.get("kaynak") and op["kaynak"].get("yol") and _ayni_yol(op["kaynak"]["yol"], yol):
+                    op["kaynak"] = dict(op["kaynak"], yol=anlik)
+        ilerleme(10, "Sayfalar düzenleniyor")
+
+        acik = {}
+        def belge_al(y):
+            k = os.path.normcase(os.path.abspath(y))
+            if k not in acik:
+                acik[k] = notlar.belge_ac_yazmak_icin(y)
+            return acik[k]
+
+        try:
+            yeni, esleme = tarif_belgesi(tarif, belge_al)
+            ana = anlik or yol
+            _yerimlerini_tasi(yeni, esleme, ana, belge_al)
+            try:
+                yeni.set_metadata(belge_al(ana).metadata or {})
             except Exception:
                 pass
-    ilerleme(100, "Bitti")
-    return {"anlik": anlik, "boyut": os.path.getsize(hedef), "sayfa": len(tarif), "xrefler": xrefler}
+            ilerleme(50, "Notlar taşınıyor")
+
+            # 2) Not işlemleri
+            xrefler = {}
+            konum = {}   # (yol_normal, sayfa) → yeni belgede ilk konum (0-tabanlı)
+            for i, e in enumerate(esleme):
+                if e:
+                    k = (os.path.normcase(os.path.abspath(e[0])), e[1])
+                    konum.setdefault(k, i)
+
+            def hedef_annot(op):
+                k = op.get("kaynak") or {}
+                if not k.get("yol"):
+                    return None
+                anahtar = (os.path.normcase(os.path.abspath(k["yol"])), int(k["sayfa"]))
+                if anahtar not in konum:
+                    return None                       # sayfa silinmiş; işlem gereksiz
+                src_page = belge_al(k["yol"])[int(k["sayfa"]) - 1]
+                src_xrefs = [a.xref for a in src_page.annots()]
+                xref = int(op.get("xref") or (op.get("not") or {}).get("xref") or 0)
+                if xref not in src_xrefs:
+                    return None
+                idx = src_xrefs.index(xref)
+                yeni_page = yeni[konum[anahtar]]
+                hedefler = list(yeni_page.annots())
+                if idx >= len(hedefler):
+                    return None
+                return yeni_page, hedefler[idx]
+
+            for op in islemler:
+                n = dict(op.get("not") or {})
+                if op["islem"] == "ekle":
+                    sayfa = int(n.get("sayfa") or 1)
+                    if sayfa < 1 or sayfa > len(yeni):
+                        continue
+                    if n.get("yanitId") and n["yanitId"] in xrefler:
+                        n["yanitXref"] = xrefler[n["yanitId"]]
+                    elif n.get("yanitKaynak"):
+                        ha = hedef_annot({"kaynak": n["yanitKaynak"], "xref": n.get("yanitXref")})
+                        if ha:
+                            n["yanitXref"] = ha[1].xref
+                        else:
+                            n.pop("yanitXref", None)
+                    xrefler[op["id"]] = notlar.not_ekle(yeni, yeni[sayfa - 1], n)
+                elif op["islem"] in ("guncelle", "sil"):
+                    ha = hedef_annot(op)
+                    if not ha:
+                        continue
+                    page, annot = ha
+                    if op["islem"] == "sil":
+                        notlar.not_sil(yeni, page, annot.xref)
+                    else:
+                        n["xref"] = annot.xref
+                        n.pop("rect", None) if n.get("rectDegismedi") else None
+                        notlar.not_guncelle(yeni, page, n)
+                        xrefler[op["id"]] = annot.xref
+            ilerleme(80, "Kaydediliyor")
+
+            # 3) Kaydet
+            gecici = hedef + ".pdefe-tmp"
+            yeni.save(gecici, garbage=3, deflate=True)
+            yeni.close()
+            for d in acik.values():
+                d.close()
+            acik.clear()
+            onbellek.hepsini_birak()
+            _degistir(gecici, hedef)
+            gecici, yeni_anlik = None, None     # hedef yazıldı: anlık kopya artık özgün içeriğin tek kopyası olabilir, korunur
+        finally:
+            for d in acik.values():
+                try:
+                    d.close()
+                except Exception:
+                    pass
+        ilerleme(100, "Bitti")
+        return {"anlik": anlik, "boyut": os.path.getsize(hedef), "sayfa": len(tarif), "xrefler": xrefler}
+    except BaseException:
+        # Hata/iptal: bu çağrının bıraktığı artıkları temizle (önceden var olan p["anlik"] kopyasına dokunulmaz)
+        for artik in (gecici, yeni_anlik):
+            if artik and os.path.exists(artik):
+                try:
+                    os.remove(artik)
+                except OSError:
+                    pass
+        raise
 
 
 def _degistir(gecici, hedef, deneme=6):

@@ -9,7 +9,7 @@ const dugmeTikla = (desen) => `(() => { const w = [...document.querySelectorAll(
 export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   fs.mkdirSync(K, { recursive: true });
   if (!fs.existsSync(KOPYA)) fs.copyFileSync(D + 'fdsafsd.pdf', KOPYA);
-  await evalJs(`(async () => { const p = window.__pdefe; window.__pdefeOtoYanit = { secim: 0 }; const a = p.ayar(); a.sekmeDegisimindeSor = false; a.ciktiKlasoru = ${JSON.stringify(K.replace(/\//g, '\\\\'))}; document.querySelectorAll('.arac-pencere').forEach(e => e.remove()); const b = [...p.belgeler.values()].find(x => x.ad === 'arac-test.pdf') || await p.dosyaAc(${JSON.stringify(KOPYA)}); await p.sekmeSec(b.id); await new Promise(r => setTimeout(r, 800)); return true; })()`);
+  await evalJs(`(async () => { const p = window.__pdefe; window.__pdefeOtoYanit = { secim: 0 }; const a = p.ayar(); a.ciktiKlasoru = ${JSON.stringify(K.replace(/\//g, '\\\\'))}; document.querySelectorAll('.arac-pencere').forEach(e => e.remove()); const b = [...p.belgeler.values()].find(x => x.ad === 'arac-test.pdf') || await p.dosyaAc(${JSON.stringify(KOPYA)}); await p.sekmeSec(b.id); await new Promise(r => setTimeout(r, 800)); return true; })()`);
 
   // Ayır: aralık gir
   await evalJs(`window.__pdefe.komutCalistir('arac.ayir')`); await bekle(1500);

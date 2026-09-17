@@ -7,10 +7,11 @@ const KOPYA = 'C:/Projeler/PDEfe/test/cikti/deneme-notlu.pdf';
 export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   fs.mkdirSync('test/cikti', { recursive: true });
   fs.copyFileSync(D + 'DENEME PDF (2).pdf', KOPYA);
-  await evalJs(`(() => { const a = window.__pdefe.ayar(); a.sekmeDegisimindeSor = false; a.otomatikKaydet = false; return true; })()`);
+  await evalJs(`(() => { const a = window.__pdefe.ayar(); a.otomatikKaydet = false; return true; })()`);
   // Diğer sekmeleri kapat, kopyayı aç
   await evalJs(`(async () => { const p = window.__pdefe; for (const s of [...p.sekmeler.sekmeler]) await p.belgeKapat(s.id, { zorla: true }); return p.sekmeler.sekmeler.length; })()`);
-  console.log('aç:', await evalJs(`(async () => { const b = await window.__pdefe.dosyaAc(${JSON.stringify(KOPYA)}); await new Promise(r => setTimeout(r, 1500)); return { ad: b.ad, notSayisi: b.notlar.notlar.size, cizili: b.gorunum.sayfalar.filter(s => s.canvas).length, svgGrup: document.querySelectorAll('.not-isaretler g').length }; })()`));
+  // dataSayfa: ilk yüklemede her .sayfa elemanında data-sayfa olmalı (yoksa vurgu, yapışkan not ve yazı aracı NaN sayfaya düşer)
+  console.log('aç:', await evalJs(`(async () => { const b = await window.__pdefe.dosyaAc(${JSON.stringify(KOPYA)}); await new Promise(r => setTimeout(r, 1500)); return { ad: b.ad, notSayisi: b.notlar.notlar.size, cizili: b.gorunum.sayfalar.filter(s => s.canvas).length, svgGrup: document.querySelectorAll('.not-isaretler g').length, dataSayfa: b.gorunum.sayfalar.every((s, i) => s.el.dataset.sayfa === String(i + 1)) }; })()`));
   await ekranGoruntusu('test/png/s4-01-dis-notlar.png');
 
   // Referans okuyucu vurgusunun balonunu aç
@@ -28,7 +29,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
     const sec = window.getSelection(); sec.removeAllRanges(); sec.addRange(r);
     const ok = b.notlar.vurguUygula('#7cc4ff');
     const n = b.notlar.liste().find(x => x.yeni);
-    return { ok, quads: n?.quadKutular?.length, rect: n?.rect?.map(v => +v.toFixed(1)), degisti: b.degisti, geriAl: document.querySelector('#dugme-geri-al').title };
+    return { ok, sayfa: n?.sayfa, quads: n?.quadKutular?.length, rect: n?.rect?.map(v => +v.toFixed(1)), degisti: b.degisti, geriAl: document.querySelector('#dugme-geri-al').title };
   })()`);
   console.log('vurgu:', vurgu);
 

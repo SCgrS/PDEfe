@@ -33,7 +33,8 @@ const BASLIK = /^(MADDE\s+\d+|GEÇİCİ MADDE|BİRİNCİ|İKİNCİ|ÜÇÜNCÜ|D�
 /**
  * Ham (satır satır) metni temiz paragraf metnine çevirir:
  * satır sonu tirelerini birleştirir, aynı paragraftaki satırları birleştirir, boşlukları sadeleştirir,
- * NFC normalizasyonu ve bozuk glif düzeltmesi yapar.
+ * NFC normalizasyonu ve bozuk glif düzeltmesi yapar. Paragraflar tek satır sonuyla ayrılır: UDF/UYAP
+ * editörü her satır sonunu paragraf yapar, çift satır sonu araya boş paragraf bırakıyordu.
  */
 export function temizMetin(ham) {
   if (!ham) return '';
@@ -66,7 +67,7 @@ export function temizMetin(ham) {
     else if (BASLIK.test(satir) && kisa && !noktali && !/^[a-zçğıöşü]/.test(sonraki)) bitir();
   }
   bitir();
-  return paragraflar.map((p) => p.replace(/ {2,}/g, ' ').replace(/ ([,.;:!?])/g, '$1')).join('\n\n');
+  return paragraflar.map((p) => p.replace(/ {2,}/g, ' ').replace(/ ([,.;:!?])/g, '$1')).join('\n');
 }
 
 /**
@@ -98,7 +99,9 @@ export function secimYapiliMetni() {
     if (n === range.endContainer) metin = metin.slice(0, range.endOffset);
     if (n === range.startContainer) metin = metin.slice(range.startOffset);
     if (!metin) continue;
-    const sol = span.getBoundingClientRect().left - sayfaEl.getBoundingClientRect().left;
+    // Girinti: satır başının sayfa kenarına uzaklığı, yazı yönünde (döndürülmüş sayfada sol kenar değil); arama vurgusu değil metin öğesi ölçülür
+    const oge = span.closest('span:not(.highlight)') || span, donme = metinDonmesi(oge);
+    const sol = okumaKutusu(oge.getBoundingClientRect(), donme).bas - okumaKutusu(sayfaEl.getBoundingClientRect(), donme).bas;
     const olcek = parseFloat(getComputedStyle(sayfaEl).getPropertyValue('--total-scale-factor')) || 1;
     if (!cur) cur = { parcalar: [], sol: sol / olcek };
     cur.parcalar.push(metin);
@@ -115,64 +118,160 @@ export function hamMetin(ham) {
   return glifDuzelt((ham || '').normalize('NFC')).replace(/\r\n?/g, '\n');
 }
 
+// ---------------------------------------------------------------- döndürme
+/** Açıyı 0/90/180/270'e indirger (en yakın dik açı). */
+export const donmeYuvarla = (d) => ((Math.round((+d || 0) / 90) * 90) % 360 + 360) % 360;
+
+/**
+ * Metin öğesinin ekrandaki yazı yönü (0/90/180/270, saat yönünde): metin katmanının toplam döndürmesi (data-main-rotation;
+ * öğe katman dışındaysa sayfasındaki katmanınki, yoksa 0) + öğenin kendi açısı (PDF.js --rotate: içerikte döndürülmüş yazı,
+ * ör. /Rotate 90 sayfada -90° çizilmiş, ekranda düz görünen metin ya da sayfa kenarına dikey yazılmış şerit).
+ */
+export function metinDonmesi(el) {
+  if (!el || el.nodeType !== 1) el = el?.parentElement;
+  if (!el) return 0;
+  const katman = el.closest('.textLayer') || el.closest('.sayfa')?.querySelector('.textLayer');
+  const ana = parseFloat(katman?.dataset.mainRotation) || 0;
+  const span = katman && katman.contains(el) ? el.closest('span:not(.highlight):not(.markedContent)') : null;   // arama vurgusu değil, PDF.js metin öğesi
+  return donmeYuvarla(ana + (span && katman.contains(span) ? parseFloat(span.style.getPropertyValue('--rotate')) || 0 : 0));
+}
+
+/**
+ * İstemci dikdörtgenini yazı yönüne göre okuma çerçevesine çevirir: bas→son satır boyunca (okuma yönünde artar),
+ * ust→alt satırdan satıra (sonraki satır yönünde artar). 0°: sol/sağ, üst/alt; 90°: yazı yukarıdan aşağı, satırlar sağdan sola;
+ * 180°: sağdan sola, aşağıdan yukarı; 270°: aşağıdan yukarı, soldan sağa.
+ */
+export function okumaKutusu(k, donme) {
+  switch (donme) {
+    case 90: return { bas: k.top, son: k.bottom, ust: -k.right, alt: -k.left };
+    case 180: return { bas: -k.right, son: -k.left, ust: -k.bottom, alt: -k.top };
+    case 270: return { bas: -k.bottom, son: -k.top, ust: k.left, alt: k.right };
+    default: return { bas: k.left, son: k.right, ust: k.top, alt: k.bottom };
+  }
+}
+
 // ---------------------------------------------------------------- seçimden geometri
-/** Seçimin, üzerinde bulunduğu metin katmanlarını ve sayfa yerel piksel dikdörtgenlerini döndürür. */
-export function secimDikdortgenleri() {
+/** Sayfa elemanının 1 tabanlı numarası: data-sayfa; yoksa kardeşler arasındaki .sayfa sırası (görüntüleyici sayfaları sırayla ekler). */
+export function sayfaNumarasi(sayfaEl) {
+  const n = parseInt(sayfaEl?.dataset?.sayfa, 10);
+  if (n > 0) return n;
+  let i = 0;
+  for (let e = sayfaEl; e; e = e.previousElementSibling) if (e.classList.contains('sayfa')) i++;
+  return i || NaN;
+}
+
+/**
+ * Seçimdeki metin katmanı (.textLayer) düğümlerinin istemci dikdörtgenleri, belge sırasıyla: [{sayfaEl, rect, donme}]
+ * (donme: metinDonmesi, ekrandaki yazı yönü). range.getClientRects() seçimin sardığı kapsayıcıların (sayfa, katman) kutularını
+ * da verdiği için her metin düğümünün yalnızca seçimle kesişen alt aralığı ölçülür; yalnızca boşluktan oluşan parçalar atlanır.
+ */
+export function secimMetinKutulari() {
   const sec = window.getSelection();
   if (!sec || sec.rangeCount === 0 || sec.isCollapsed) return [];
   const sonuc = [];
+  const alt = document.createRange();
   for (let r = 0; r < sec.rangeCount; r++) {
     const range = sec.getRangeAt(r);
-    for (const rect of range.getClientRects()) {
-      if (rect.width < 0.5 || rect.height < 0.5) continue;
-      const el = document.elementFromPoint(rect.left + 1, rect.top + rect.height / 2);
-      const sayfaEl = el?.closest?.('.sayfa') || range.startContainer.parentElement?.closest('.sayfa');
+    let kok = range.commonAncestorContainer;
+    if (kok.nodeType !== 1) kok = kok.parentNode;
+    if (!kok) continue;
+    const yuruyucu = document.createTreeWalker(kok, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => {
+        if (!range.intersectsNode(n)) return NodeFilter.FILTER_REJECT;                                    // seçim dışı alt ağaç atlanır
+        if (n.nodeType === 1) return n.classList.contains('not-katmani') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_SKIP;
+        return n.length && n.parentElement?.closest('.textLayer') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+      },
+    });
+    let n;
+    while ((n = yuruyucu.nextNode())) {
+      const bas = n === range.startContainer ? range.startOffset : 0;
+      const son = n === range.endContainer ? range.endOffset : n.length;
+      if (son <= bas || !n.data.slice(bas, son).trim()) continue;
+      const sayfaEl = n.parentElement.closest('.sayfa');
       if (!sayfaEl) continue;
-      const k = sayfaEl.getBoundingClientRect();
-      sonuc.push({ sayfa: +sayfaEl.dataset.sayfa, x: rect.left - k.left, y: rect.top - k.top, w: rect.width, h: rect.height });
+      alt.setStart(n, bas); alt.setEnd(n, son);
+      const donme = metinDonmesi(n.parentElement);
+      for (const rect of alt.getClientRects()) if (rect.width >= 0.5 && rect.height >= 0.5) sonuc.push({ sayfaEl, rect, donme });
     }
   }
   return sonuc;
 }
 
-/** Aynı satırdaki dikdörtgenleri birleştirir (sayfa bazında). */
+/**
+ * Seçili metnin sayfa yerel piksel dikdörtgenleri: [{sayfa, x, y, w, h, donme}]; birden çok sayfaya yayılan seçimde her kutu
+ * kendi sayfasıyla. donme: ekrandaki yazı yönü (90/270'te satırlar ekranda dikey şerittir).
+ */
+export function secimDikdortgenleri() {
+  const sonuc = [];
+  const sayfalar = new Map();   // sayfaEl → {no, k}
+  for (const { sayfaEl, rect, donme } of secimMetinKutulari()) {
+    let s = sayfalar.get(sayfaEl);
+    if (!s) sayfalar.set(sayfaEl, (s = { no: sayfaNumarasi(sayfaEl), k: sayfaEl.getBoundingClientRect() }));
+    if (!(s.no > 0)) continue;
+    sonuc.push({ sayfa: s.no, x: rect.left - s.k.left, y: rect.top - s.k.top, w: rect.width, h: rect.height, donme: donme || 0 });
+  }
+  return sonuc;
+}
+
+/**
+ * Aynı satırdaki dikdörtgenleri birleştirir (sayfa bazında): Map sayfa → [{x0, x1, y, h}] sayfa yerel px (ekran eksenleri).
+ * Satır kalınlık ekseninde (yatay satırda y, 90/270°'de ekranda dikey şeritte x) orta noktası satırın içinde kalan ve kalınlığı
+ * benzer kutular aynı satırdır; yatay ve dikey satırlar birbirine katılmaz.
+ */
 export function satirlaraBirlestir(dikler) {
-  const sayfalar = new Map();
+  const gecici = new Map();   // sayfa → [{dik, a0, a1, b0, b1}]: a satır boyu, b kalınlık ekseni
   for (const d of dikler) {
-    if (!sayfalar.has(d.sayfa)) sayfalar.set(d.sayfa, []);
-    const satirlar = sayfalar.get(d.sayfa);
-    const orta = d.y + d.h / 2;
-    let s = satirlar.find((x) => orta > x.y && orta < x.y + x.h && Math.abs(x.h - d.h) < Math.max(x.h, d.h));
-    if (s) { s.x0 = Math.min(s.x0, d.x); s.x1 = Math.max(s.x1, d.x + d.w); s.y = Math.min(s.y, d.y); s.h = Math.max(s.y + s.h, d.y + d.h) - s.y; }
-    else satirlar.push({ x0: d.x, x1: d.x + d.w, y: d.y, h: d.h });
+    if (!gecici.has(d.sayfa)) gecici.set(d.sayfa, []);
+    const satirlar = gecici.get(d.sayfa);
+    const dik = donmeYuvarla(d.donme) % 180 !== 0;
+    const a0 = dik ? d.y : d.x, a1 = a0 + (dik ? d.h : d.w), b0 = dik ? d.x : d.y, b1 = b0 + (dik ? d.w : d.h);
+    const orta = (b0 + b1) / 2, kalin = b1 - b0;
+    const s = satirlar.find((x) => x.dik === dik && orta > x.b0 && orta < x.b1 && Math.abs(x.b1 - x.b0 - kalin) < Math.max(x.b1 - x.b0, kalin));
+    if (s) { s.a0 = Math.min(s.a0, a0); s.a1 = Math.max(s.a1, a1); s.b0 = Math.min(s.b0, b0); s.b1 = Math.max(s.b1, b1); }
+    else satirlar.push({ dik, a0, a1, b0, b1 });
+  }
+  const sayfalar = new Map();
+  for (const [sayfa, satirlar] of gecici) {
+    sayfalar.set(sayfa, satirlar.map((s) => (s.dik ? { x0: s.b0, x1: s.b1, y: s.a0, h: s.a1 - s.a0 } : { x0: s.a0, x1: s.a1, y: s.b0, h: s.b1 - s.b0 })));
   }
   return sayfalar;
 }
 
 // ---------------------------------------------------------------- üç tıkla paragraf
-/** Tıklanan metin öğesinin bulunduğu paragrafı (dikey aralığı dar satır dizisi) seçer. */
-export function paragrafSec(hedefSpan) {
-  const katman = hedefSpan.closest('.textLayer');
+/**
+ * Tıklanan metin öğesinin bulunduğu paragrafı (satırlar arası aralığı dar satır dizisi) seçer. Geometri okuma çerçevesinde
+ * (okumaKutusu) karşılaştırılır: döndürülmüş sayfada satırlar ekranda dikey şerit ya da ters sıralı olabilir.
+ * Yalnızca tıklanan öğeyle aynı yönde yazılmış öğeler dikkate alınır (kenar şeridi gibi dik metin paragrafa katılmaz).
+ */
+export function paragrafSec(hedef) {
+  const katman = hedef?.closest?.('.textLayer');
   if (!katman) return false;
-  const spanlar = [...katman.querySelectorAll(':scope > span, :scope .markedContent > span')].filter((s) => s.textContent.trim());
-  const kut = (s) => s.getBoundingClientRect();
+  const hedefSpan = hedef.closest('span:not(.highlight)');   // arama vurgusuna tıklandıysa metin öğesi
+  if (!hedefSpan || !katman.contains(hedefSpan)) return false;
+  const donme = metinDonmesi(hedefSpan);
+  const spanlar = [...katman.querySelectorAll(':scope > span, :scope .markedContent > span')]
+    .filter((s) => !s.classList.contains('markedContent') && s.textContent.trim() && metinDonmesi(s) === donme);
+  const kutular = new Map();
+  const kut = (s) => { let k = kutular.get(s); if (!k) kutular.set(s, (k = okumaKutusu(s.getBoundingClientRect(), donme))); return k; };
   // Satırlara grupla
   const satirlar = [];
   for (const s of spanlar) {
-    const k = kut(s); const orta = k.top + k.height / 2;
-    let sat = satirlar.find((x) => orta > x.top && orta < x.bottom);
-    if (sat) { sat.spanlar.push(s); sat.top = Math.min(sat.top, k.top); sat.bottom = Math.max(sat.bottom, k.bottom); }
-    else satirlar.push({ top: k.top, bottom: k.bottom, spanlar: [s] });
+    const k = kut(s); const orta = (k.ust + k.alt) / 2;
+    const sat = satirlar.find((x) => orta > x.ust && orta < x.alt);
+    if (sat) { sat.spanlar.push(s); sat.ust = Math.min(sat.ust, k.ust); sat.alt = Math.max(sat.alt, k.alt); }
+    else satirlar.push({ ust: k.ust, alt: k.alt, spanlar: [s] });
   }
-  satirlar.sort((a, b) => a.top - b.top);
+  satirlar.sort((a, b) => a.ust - b.ust);
   const idx = satirlar.findIndex((x) => x.spanlar.includes(hedefSpan));
   if (idx < 0) return false;
-  const yukseklik = satirlar[idx].bottom - satirlar[idx].top;
+  const yukseklik = satirlar[idx].alt - satirlar[idx].ust;
   let bas = idx, son = idx;
-  while (bas > 0 && satirlar[bas].top - satirlar[bas - 1].bottom < yukseklik * 0.8) bas--;
-  while (son < satirlar.length - 1 && satirlar[son + 1].top - satirlar[son].bottom < yukseklik * 0.8) son++;
-  const ilk = satirlar[bas].spanlar.reduce((a, b) => (kut(a).left <= kut(b).left ? a : b));
-  const sonSpan = satirlar[son].spanlar.reduce((a, b) => (kut(a).right >= kut(b).right ? a : b));
+  while (bas > 0 && satirlar[bas].ust - satirlar[bas - 1].alt < yukseklik * 0.8) bas--;
+  while (son < satirlar.length - 1 && satirlar[son + 1].ust - satirlar[son].alt < yukseklik * 0.8) son++;
+  let ilk = satirlar[bas].spanlar.reduce((a, b) => (kut(a).bas <= kut(b).bas ? a : b));
+  let sonSpan = satirlar[son].spanlar.reduce((a, b) => (kut(a).son >= kut(b).son ? a : b));
+  // DOM sırası okuma sırasına ters düşerse aralık çökmesin
+  if (ilk !== sonSpan && ilk.compareDocumentPosition(sonSpan) & Node.DOCUMENT_POSITION_PRECEDING) [ilk, sonSpan] = [sonSpan, ilk];
   const sec = window.getSelection();
   const r = document.createRange();
   r.setStart(ilk.firstChild || ilk, 0);

@@ -18,6 +18,8 @@ export class KomutYigini extends EventTarget {
   /** Komutu çalıştırır ve yığına ekler (yinele dalını keser). */
   calistir(komut) {
     komut.uygula();
+    // Kaydedilen durum kesilecek yinele dalındaysa artık ulaşılamaz: belge temiz görünmemeli (-1 hiçbir konuma eşit değil)
+    if (this.kayitKonumu > this.konum) this.kayitKonumu = -1;
     this.yigin.length = this.konum;
     this.yigin.push(komut);
     this.konum++;
@@ -45,7 +47,15 @@ export class KomutYigini extends EventTarget {
   get yinelenecek() { return this.konum < this.yigin.length ? this.yigin[this.konum] : null; }
   get kirli() { return this.konum !== this.kayitKonumu; }
 
-  kaydedildi() { this.kayitKonumu = this.konum; this.bildir(); }
+  /**
+   * konum, komut: dosyaya yazılan durumun konumu ve o konumdaki son komut (geriAlinacak), kayıt başında alınır. Kayıt sürerken
+   * geri alınıp yeni komut çalıştırıldıysa yığın kesilmiştir: o konumda başka komut (ya da hiç komut) vardır, durum dosyadakiyle
+   * aynı değildir → kayıt konumu yok (-1, belge kirli kalır). Konum 0 her dalda özgün durumdur.
+   */
+  kaydedildi(konum = this.konum, komut = this.geriAlinacak) {
+    this.kayitKonumu = konum >= 0 && konum <= this.yigin.length && (konum === 0 || this.yigin[konum - 1] === komut) ? konum : -1;
+    this.bildir();
+  }
   temizle() { this.yigin = []; this.konum = 0; this.kayitKonumu = 0; this.bildir(); }
   bildir() { this.dispatchEvent(new CustomEvent('degisti')); }
 }
