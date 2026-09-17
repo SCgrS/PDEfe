@@ -9,6 +9,7 @@ import { NotYoneticisi, VURGU_RENKLERI } from './notlar.js';
 import { KomutYigini, Komut } from './komutlar.js';
 import { ayarlarPenceresiAc, ayarlarPenceresiKapat } from './ayarlarPenceresi.js';
 import { aracKomutlari } from './araclar/index.js';
+import { AraclarPenceresi } from './aracPenceresi.js';
 import { guncellemeSeridiKur } from './guncelleme.js';
 import { yazdir } from './yazdir.js';
 
@@ -75,6 +76,7 @@ function koyuMu() { return ayar.tema === 'sistem' ? sistemKoyu : ayar.tema === '
 
 function temaUygula() {
   document.documentElement.dataset.tema = koyuMu() ? 'koyu' : 'acik';
+  $('#dugme-tema').title = koyuMu() ? 'Açık temaya geç' : 'Koyu temaya geç';   // düğme geçilecek temanın simgesini gösterir (ay / güneş)
   for (const b of belgeler.values()) b.gorunum.koyuSayfaAyarla(koyuMu() && ayar.sayfayiKoyulastir);
 }
 
@@ -249,9 +251,9 @@ async function belgeKaydet(b, farkli = false, sessiz = false) {
       try { return await kayitYaz(b, farkli, sessiz); } catch (e) {
         durum.mesajYaz('');
         const kilitli = /açık olabilir|yazılamadı|okunamadı|Failed to open|Permission|EBUSY|EPERM/i.test(e.message || '');
-        const { secim } = await mesajKutusu({ tur: 'error', mesaj: 'Belge kaydedilemedi', ayrinti: (kilitli ? 'Dosya başka bir programda (örneğin bir PDF okuyucu) açık olabilir. Onu kapatıp yeniden deneyin ya da farklı bir adla kaydedin.\n\n' : '') + hataMetni(e), dugmeler: kilitli ? ['Farklı kaydet…', 'Vazgeç'] : ['Tamam'], iptal: kilitli ? 1 : 0 });
+        const { secim } = await mesajKutusu({ tur: 'error', mesaj: 'Belge kaydedilemedi', ayrinti: (kilitli ? 'Dosya başka bir programda (örneğin bir PDF okuyucu) açık olabilir. Onu kapatıp yeniden deneyin ya da farklı bir adla kaydedin.\n\n' : '') + hataMetni(e), dugmeler: kilitli ? ['Farklı kaydet', 'Vazgeç'] : ['Tamam'], iptal: kilitli ? 1 : 0 });
         if (!kilitli || secim !== 0) return false;
-        farkli = true; sessiz = false;   // 'Farklı kaydet…' aynı kaydın içinde: bekleyen kapatma akışı araya girmez
+        farkli = true; sessiz = false;   // 'Farklı kaydet' aynı kaydın içinde: bekleyen kapatma akışı araya girmez
       }
     }
   } finally { b.kaydediliyor = false; bitti(); }
@@ -553,14 +555,13 @@ const komutlar = {
   'arac.kucult': () => bildir('PDF küçültme aracı sonraki aşamada.'),
   'arac.sayfalar': () => bildir('Sayfaları düzenle aracı sonraki aşamada.'),
   'arac.ayir': () => bildir('PDF ayırma aracı sonraki aşamada.'),
-  'arac.birlestir': () => bildir('PDF birleştirme aracı sonraki aşamada.'),
   'arac.gorselBirlestir': () => bildir('Görüntü/PDF birleştirme aracı sonraki aşamada.'),
   'arac.dondurKaydet': () => bildir('Döndür ve kaydet sonraki aşamada.'),
   'yardim.kisayollar': () => kisayollarGoster(),
   'yardim.hakkinda': () => ayarlarPenceresiAc({ ayar: () => ayar, ayarKoy, uygula: ayarUygula, pdefe, varsayilanlar, cekirdek }, { bolum: 'hakkinda' }),
 };
 
-// Araç pencereleri (küçült, sayfaları düzenle, ayır, birleştir, görüntü/PDF birleştir, döndür ve kaydet)
+// Araç pencereleri (küçült, sayfaları düzenle, döndür ve kaydet, ayır, görüntü/PDF birleştir)
 try {
   Object.assign(komutlar, aracKomutlari({
     aktif, cekirdek,
@@ -588,7 +589,10 @@ function komutCalistir(id, veri) {
   catch (e) { console.error(e); bildir('Hata: ' + hataMetni(e)); }
 }
 
-pdefe.dinle('menu:komut', (id, veri) => komutCalistir(id, veri));
+// Araç çubuğundaki Araçlar düğmesinin penceresi; menüden ya da kısayolla gelen komut onu kapatır
+const araclarPenceresi = new AraclarPenceresi({ dugme: $('#dugme-araclar'), komutCalistir: (id) => komutCalistir(id), belgeVar: () => !!aktif() });
+
+pdefe.dinle('menu:komut', (id, veri) => { araclarPenceresi.kapat(); komutCalistir(id, veri); });
 pdefe.dinle('dosya:ac', async (yollar) => { for (const y of yollar) await dosyaAc(y); });
 pdefe.dinle('pencere:tamEkran', (acik) => document.body.classList.toggle('tam-ekran', acik));
 pdefe.dinle('pencere:kapatIstegi', async () => { if (await kapatmayaIzinAl()) await pdefe.cagir('pencere:kapatOnayla'); });
@@ -890,7 +894,7 @@ async function paylas() {
     if (secim === 0 && !(await belgeKaydet(b))) return;
   }
   const r = await pdefe.cagir('pano:dosya', b.yol);
-  bildir(r.tamam ? 'Dosya panoya kopyalandı — Ctrl+V ile yapıştırabilirsiniz' : 'Panoya kopyalanamadı: ' + r.hata);
+  bildir(r.tamam ? 'Dosya panoya kopyalandı — Ctrl+V veya Yapıştır ile yapıştırabilirsiniz' : 'Panoya kopyalanamadı: ' + r.hata);
 }
 
 // ---------------------------------------------------------------- diyaloglar
@@ -938,7 +942,7 @@ function kisayollarGoster() {
   const satirlar = [
     ['Ctrl+O', 'Aç'], ['Ctrl+S', 'Kaydet'], ['Ctrl+Shift+S', 'Farklı kaydet'], ['Ctrl+W', 'Sekmeyi kapat'], ['Ctrl+P', 'Yazdır'],
     ['Ctrl+F', 'Bul'], ['F3 / Shift+F3', 'Sonraki / önceki eşleşme'], ['Ctrl+G', 'Sayfaya git'], ['Ctrl+Z / Ctrl+Y', 'Geri al / yinele'],
-    ['Ctrl+Tab / Ctrl+Shift+Tab', 'Sekme değiştir (basılı tutunca seçici açılır)'], ['Ctrl+1…9', 'Sekme seç (9: son sekme)'],
+    ['Ctrl+Tab / Ctrl+Shift+Tab', 'Sekme değiştir (basılı tutunca seçici açılır)'], ['Ctrl+1 – Ctrl+9', 'Sekme seç (9: son sekme)'],
     ['Ctrl+Fare tekerleği, Ctrl++ / Ctrl+−', 'Yakınlaştır / uzaklaştır'], ['Ctrl+0', 'Gerçek boyut'],
     ['Ctrl+Shift++ / Ctrl+Shift+−', 'Döndür'], ['F4', 'Sol panel'], ['Ctrl+H', 'Okuma modu'], ['F11', 'Tam ekran'],
     ['← → / PageUp PageDown', 'Önceki / sonraki sayfa'], ['↑ ↓', 'Kaydır'], ['Home / End', 'İlk / son sayfa'], ['Ctrl+Home / Ctrl+End', 'Belge başı / sonu'],

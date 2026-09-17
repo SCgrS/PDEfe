@@ -1,0 +1,51 @@
+/* Araçlar penceresi (aracPenceresi.js): araç çubuğundaki Araçlar düğmesinin altında açılan araç karoları.
+   stil.css'teki değişkenleri kullanır; koyu tema html[data-tema="koyu"] ile uyar. */
+.araclar-penceresi {
+  position: fixed; z-index: 120; padding: 12px 12px 14px; overflow: auto; color: var(--metin);
+  background: var(--arka-yukseltilmis); border: 1px solid var(--kenar); border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
+  animation: araclar-ac 0.12s ease-out;
+}
+html[data-tema="koyu"] .araclar-penceresi { box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6); }
+@keyframes araclar-ac { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .araclar-penceresi { animation: none; } }
+
+.araclar-baslik { font-size: 14px; font-weight: 600; padding: 0 2px 10px; }
+.araclar-izgara { display: grid; grid-template-columns: repeat(3, 200px); gap: 8px; }
+@media (max-width: 700px) { .araclar-izgara { grid-template-columns: repeat(2, 200px); } }
+
+.araclar-karo {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; text-align: left;
+  padding: 12px 12px 11px; border: 1px solid var(--kenar); border-radius: 8px; background: var(--arka); color: var(--metin);
+  outline: none; cursor: default;
+}
+.araclar-karo:hover:not([aria-disabled="true"]) { background: var(--hover); border-color: color-mix(in srgb, var(--renk) 60%, var(--kenar)); }
+.araclar-karo:active:not([aria-disabled="true"]) { background: var(--basili); }
+.araclar-karo:focus-visible { outline: 2px solid var(--vurgu); outline-offset: 1px; }
+.araclar-karo[aria-disabled="true"] { opacity: 0.45; }
+
+.araclar-ikon {
+  --ikon-arka: color-mix(in srgb, var(--renk) 16%, var(--arka-yukseltilmis));
+  width: 44px; height: 44px; border-radius: 10px; margin-bottom: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--renk); background: var(--ikon-arka);
+}
+.araclar-ikon svg { width: 28px; height: 28px; display: block; }
+.araclar-ikon .dolgu { fill: var(--ikon-arka); }
+.araclar-ad { font-size: 13px; font-weight: 600; }
+.araclar-aciklama { font-size: 12px; color: var(--metin-soluk); }
+.araclar-not { margin: 10px 2px 0; font-size: 12px; color: var(--metin-soluk); }
+
+/* Karo renkleri: açık temada koyu, koyu temada açık tonlar */
+.araclar-karo[data-renk="yesil"] { --renk: #107c41; }
+.araclar-karo[data-renk="mavi"] { --renk: #0067c0; }
+.araclar-karo[data-renk="mor"] { --renk: #7a3fd1; }
+.araclar-karo[data-renk="turuncu"] { --renk: #c3501a; }
+.araclar-karo[data-renk="pembe"] { --renk: #b4278f; }
+.araclar-karo[data-renk="camgobegi"] { --renk: #007f8c; }
+html[data-tema="koyu"] .araclar-karo[data-renk="yesil"] { --renk: #6ccb8f; }
+html[data-tema="koyu"] .araclar-karo[data-renk="mavi"] { --renk: #60b8ff; }
+html[data-tema="koyu"] .araclar-karo[data-renk="mor"] { --renk: #b894ff; }
+html[data-tema="koyu"] .araclar-karo[data-renk="turuncu"] { --renk: #ff9d66; }
+html[data-tema="koyu"] .araclar-karo[data-renk="pembe"] { --renk: #f08ad6; }
+html[data-tema="koyu"] .araclar-karo[data-renk="camgobegi"] { --renk: #4fd1d9; }

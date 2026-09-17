@@ -195,7 +195,7 @@ export class SekmeCubugu extends EventTarget {
     const sayarak = !!this.aramaSay;
     const girdi = document.createElement('input');
     girdi.type = 'text'; girdi.spellcheck = false;
-    girdi.placeholder = sayarak ? 'Tüm belgelerde ara…' : 'Belge ara…';
+    girdi.placeholder = sayarak ? 'Tüm belgelerde ara' : 'Belge ara';
     kut.append(girdi);
     const ul = document.createElement('ul');
     kut.append(ul);
