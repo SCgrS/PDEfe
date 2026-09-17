@@ -24,7 +24,7 @@ export class Arama extends EventTarget {
 
   _kur() {
     this.kutu.innerHTML = `
-      <input type="text" id="bul-girdi" placeholder="Bul…" spellcheck="false">
+      <input type="text" id="bul-girdi" placeholder="Bul" spellcheck="false">
       <span class="sayac" id="bul-sayac"></span>
       <button class="ikon" id="bul-onceki" title="Önceki (Shift+Enter, Shift+F3)"><svg viewBox="0 0 20 20"><path d="m5 12 5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
       <button class="ikon" id="bul-sonraki" title="Sonraki (Enter, F3)"><svg viewBox="0 0 20 20"><path d="m5 8 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>

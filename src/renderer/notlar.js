@@ -552,13 +552,13 @@ export class NotYoneticisi extends EventTarget {
         <button class="ikon kucuk sil" title="Notu sil (Delete)"><svg viewBox="0 0 20 20"><path d="M5 6h10M8 6V4h4v2M6 6l1 10h6l1-10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
         <button class="ikon kucuk kapat" title="Kapat"><svg viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.5"/></svg></button>
       </div>
-      <textarea class="icerik" placeholder="Not yazın…" ${n.kilitli ? 'readonly' : ''}>${kacis(n.icerik || '')}</textarea>
+      <textarea class="icerik" placeholder="Not yazın" ${n.kilitli ? 'readonly' : ''}>${kacis(n.icerik || '')}</textarea>
       <div class="yanitlar">${yanitlar.map((y) => `
         <div class="yanit" data-yanit="${y.id}">
           <div class="ust"><span class="yazar">${kacis(y.yazar || '')}</span><span class="esnek"></span><span class="tarih">${kacis(tarihBicimle(y.degisim || y.olusturma))}</span><button class="ikon kucuk yanit-sil" title="Yanıtı sil"><svg viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.4"/></svg></button></div>
           <div class="metin">${kacis(y.icerik || '')}</div>
         </div>`).join('')}</div>
-      <div class="yanit-kutusu"><input type="text" class="yanit-girdi" placeholder="Yanıt yazın… (Enter)"><button class="ikincil yanitla">Yanıtla</button></div>`;
+      <div class="yanit-kutusu"><input type="text" class="yanit-girdi" placeholder="Yanıt yazın (Enter)"><button class="ikincil yanitla">Yanıtla</button></div>`;
     const ta = b.querySelector('textarea.icerik');
     let eskiDeger = ta.value;
     const kaydet = () => { if (ta.value !== eskiDeger) { const yeni = ta.value; eskiDeger = yeni; this.guncelle(n, { icerik: yeni }, 'Not metnini düzenle'); } };

@@ -101,7 +101,7 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce }) {
     } else if (durum.asama === 'hazir') {
       metin.textContent = `PDEfe ${durum.surum} indirildi. Kurmak için uygulamanın yeniden başlatılması gerekiyor.`;
       dugmeler.append(
-        dugme(durum.kuruluyor ? 'Yeniden başlatılıyor…' : 'Şimdi yeniden başlat ve kur', kur, { devre: durum.kuruluyor }),
+        dugme(durum.kuruluyor ? 'Yeniden başlatılıyor' : 'Şimdi yeniden başlat ve kur', kur, { devre: durum.kuruluyor }),
         kapatDugmesi(),
       );
       serit.append(metin, dugmeler);

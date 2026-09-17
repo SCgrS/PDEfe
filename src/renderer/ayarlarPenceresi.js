@@ -172,7 +172,7 @@ function bolumBaslangic(k) {
   const yuzdeYaz = () => { const v = Math.round(parseFloat(yuzde.value)); if (v >= 10 && v <= 6400) degistir('varsayilanZoom', v); else yuzde.value = String(typeof ayarlar().varsayilanZoom === 'number' ? ayarlar().varsayilanZoom : 100); };
   yuzde.addEventListener('change', yuzdeYaz);
   const zoomSecim = secimKutusu(zoomSayi ? 'yuzde' : (zoomDegeri || 'genislik'), [
-    ['son', 'Son kullanılan'], ['genislik', 'Genişliğe sığdır'], ['sayfa', 'Sayfayı sığdır'], ['gercek', 'Gerçek boyut'], ['gorunur', 'Görünür alana sığdır'], ['yuzde', 'Yüzde…'],
+    ['son', 'Son kullanılan'], ['genislik', 'Genişliğe sığdır'], ['sayfa', 'Sayfayı sığdır'], ['gercek', 'Gerçek boyut'], ['gorunur', 'Görünür alana sığdır'], ['yuzde', 'Yüzde'],
   ], (v) => { yuzde.hidden = v !== 'yuzde'; if (v === 'yuzde') { yuzdeYaz(); yuzde.focus(); yuzde.select(); } else degistir('varsayilanZoom', v); });
   k.append(kart({
     baslik: 'Varsayılan yakınlaştırma', aciklama: 'Belge açıldığında uygulanacak yakınlaştırma.',
@@ -287,7 +287,7 @@ function bolumDosya(k) {
   }));
   const yolEl = el('div', { class: 'ayar-yol' }, a.ciktiKlasoru || 'Belgenin bulunduğu klasör');
   yolEl.classList.toggle('soluk', !a.ciktiKlasoru);
-  const sec = el('button', { class: 'ikincil', type: 'button' }, 'Seç…');
+  const sec = el('button', { class: 'ikincil', type: 'button' }, 'Seç');
   const temizle = el('button', { class: 'ikincil', type: 'button' }, 'Temizle');
   temizle.disabled = !a.ciktiKlasoru;
   sec.addEventListener('click', async () => {
@@ -297,7 +297,7 @@ function bolumDosya(k) {
   });
   temizle.addEventListener('click', () => { degistir('ciktiKlasoru', ''); yolEl.textContent = 'Belgenin bulunduğu klasör'; yolEl.classList.add('soluk'); temizle.disabled = true; });
   k.append(kart({
-    baslik: 'Çıktı klasörü', aciklama: 'Araçların (küçült, ayır, birleştir…) ürettiği dosyalar buraya yazılır. Boşsa belgenin klasörü kullanılır.',
+    baslik: 'Çıktı klasörü', aciklama: 'Araçların (küçült, ayır, birleştir vb.) ürettiği dosyalar buraya yazılır. Boşsa belgenin klasörü kullanılır.',
     kontrol: el('div', { class: 'ayar-yanyana' }, [sec, temizle]), alt: yolEl,
   }));
 }

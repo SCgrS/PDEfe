@@ -370,7 +370,7 @@ function secenekPenceresi(belge, { toplam, gecerli, uyari, gecerliDevre }) {
     <label class="yazdir-notlar"><input type="checkbox" name="notlar"> Notları yazdır</label>
     <p class="soluk yazdir-aciklama">Yazıcı, kopya sayısı ve kâğıt kaynağı bir sonraki adımda Windows yazdırma penceresinden seçilir; orada yapılan kâğıt ve çift taraflı seçimi buradakinin yerine geçer. Sayfalar görüntü olarak basılır; Türkçe karakterler ekranda göründüğü gibi çıkar. "Notları yazdır" kapalıyken notlar, damgalar ve form alanları basılmaz.</p>
   </div>
-  <div class="dugmeler"><button class="birincil" data-id="yazdir">Yazdır…</button><button class="ikincil" data-id="iptal">Vazgeç</button></div>
+  <div class="dugmeler"><button class="birincil" data-id="yazdir">Yazdır</button><button class="ikincil" data-id="iptal">Vazgeç</button></div>
 </div>`;
     const sec = (ad) => ortu.querySelector(`[name="${ad}"]`);
     const radyoKoy = (ad, deger) => { const el = ortu.querySelector(`[name="${ad}"][value="${deger}"]:not([disabled])`) || ortu.querySelector(`[name="${ad}"]:not([disabled])`); if (el) el.checked = true; };
