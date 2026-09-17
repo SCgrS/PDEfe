@@ -211,7 +211,7 @@ export class SolPanel extends EventTarget {
       el.className = 'yorum';
       el.dataset.id = n.id || '';
       el.innerHTML = '<div class="ust"><span class="renk"></span><span class="tur"></span><span class="yazar"></span><span class="esnek"></span><span class="sayfa-no"></span></div><div class="icerik"></div><div class="yanit-sayisi"></div>';
-      el.querySelector('.renk').style.background = n.renk || (n.tur === 'FreeText' ? (n.yazi?.renk || '#999') : '#ffd000');
+      el.querySelector('.renk').style.background = n.renk || (n.tur === 'FreeText' ? (n.yazi?.renk || '#999') : '#ffd100');
       el.querySelector('.tur').textContent = turAdi(n.tur);
       el.querySelector('.yazar').textContent = n.yazar || '';
       el.querySelector('.sayfa-no').textContent = 's. ' + n.sayfa + (n.degisim ? ' · ' + tarihBicimle(n.degisim) : '');

@@ -128,6 +128,13 @@ def _not_sozlugu(annot, sayfa_no):
         "gizli": bool(annot.flags & pymupdf.PDF_ANNOT_IS_HIDDEN),
         "kilitli": bool(annot.flags & pymupdf.PDF_ANNOT_IS_LOCKED),
     }
+    # Amaç (/IT, ör. Referans okuyucunun notlu vurgusu /HighlightNote): silinip yeniden eklenen notta korunsun
+    try:
+        it = annot.parent.parent.xref_get_key(annot.xref, "IT")
+        if it[0] == "name":
+            d["it"] = it[1].lstrip("/")
+    except Exception:
+        pass
     if tur in ("Highlight", "Underline", "StrikeOut", "Squiggly"):
         v = annot.vertices or []
         d["quads"] = [[p[0], p[1]] for p in v]

@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Not (annotation) yazma/düzenleme: standart PDF notları; referans okuyucuda birebir görünür.
 
-- Highlight: QuadPoints + görünüm akışı (PyMuPDF üretir)
-- Text (yapışkan not): /Comment simgesi, Popup, yanıtlar (IRT)
+- Highlight: referans okuyucu yapısı: /C, /CA, /QuadPoints, görünüm akışı /BM /Multiply + /CA (PyMuPDF üretir), gizli Popup (/F 28 /Open false);
+  notlu vurgu ("Metinle ilgili yorum yap") /Contents + /IT /HighlightNote taşır
+- Text (yapışkan not): /Comment simgesi, Popup; dosyadaki yanıtları (IRT) geri yazabilir (yeni yanıt arayüzden eklenmez)
 - FreeText: /DA + /DS + kendi ürettiğimiz görünüm akışı; Windows'taki gerçek font (Segoe UI,
   Arial, Times New Roman, Calibri) alt kümesi gömülür, böylece ş ğ İ ı ç ö ü her yerde doğru çıkar.
 """
@@ -12,6 +13,7 @@ import re
 import time
 import shutil
 import tempfile
+import uuid
 
 import pymupdf
 
@@ -239,7 +241,21 @@ def _annot_bul(page, xref):
 def _popup_rect(page, annot):
     r = annot.rect
     pw = page.rect.width
-    return pymupdf.Rect(pw, r.y0, pw + 204, r.y0 + 114)
+    y0 = max(0, min(r.y0, page.rect.height - 114))   # sayfanın alt kenarından taşmasın
+    return pymupdf.Rect(pw, y0, pw + 204, y0 + 114)
+
+
+# Referans okuyucunun varsayılan not rengi (vurgu ve yapışkan not): /C [1 .819611 0]
+VARSAYILAN_SARI = (1, 0.819611, 0)
+
+
+def _popup_ekle(doc, page, annot):
+    """Referans okuyucu gibi gizli açılır pencere: yazdırılır, yakınlaştırılmaz/döndürülmez (/F 28), kapalı (/Open false)."""
+    annot.set_popup(_popup_rect(page, annot))
+    px = annot.popup_xref
+    if px:
+        doc.xref_set_key(px, "F", "28")
+        doc.xref_set_key(px, "Open", "false")
 
 
 def _ortak_bilgi(annot, n):
@@ -255,21 +271,23 @@ def _ortak_bilgi(annot, n):
 
 
 def not_ekle(doc, page, n):
-    """n: {tur, rect, quads, icerik, yazar, renk, opaklik, simge, yazi, yanitXref, konu}"""
+    """n: {tur, rect, quads, icerik, yazar, renk, opaklik, simge, yazi, yanitXref, konu, it}"""
     tur = n["tur"]
     renk = _renk(n.get("renk"))
     if tur == "Highlight":
         quads = [pymupdf.Rect(*q) for q in n["quads"]]
         a = page.add_highlight_annot(quads)
-        a.set_colors(stroke=renk or (1, 0.92, 0.23))
+        a.set_colors(stroke=renk or VARSAYILAN_SARI)
         a.set_opacity(float(n.get("opaklik", 0.4)))
         _ortak_bilgi(a, dict(n, konu=n.get("konu") or "Vurgu"))
-        a.update()
-        a.set_popup(_popup_rect(page, a))
+        a.update()                                   # görünüm: /ExtGState << /CA /ca /BM /Multiply >>
+        if n.get("it") == "HighlightNote":
+            doc.xref_set_key(a.xref, "IT", "/HighlightNote")
+        _popup_ekle(doc, page, a)
     elif tur == "Text":
         r = n["rect"]
         a = page.add_text_annot((r[0], r[1]), n.get("icerik") or "", icon=n.get("simge") or "Comment")
-        a.set_colors(stroke=renk or (1, 0.82, 0))
+        a.set_colors(stroke=renk or VARSAYILAN_SARI)
         _ortak_bilgi(a, dict(n, konu=n.get("konu") or "Yapışkan Not"))
         a.set_flags(pymupdf.PDF_ANNOT_IS_PRINT | pymupdf.PDF_ANNOT_IS_NO_ZOOM | pymupdf.PDF_ANNOT_IS_NO_ROTATE)
         a.update()
@@ -277,7 +295,7 @@ def not_ekle(doc, page, n):
             a.set_irt_xref(int(n["yanitXref"]))
             doc.xref_set_key(a.xref, "RT", "/R")
         else:
-            a.set_popup(_popup_rect(page, a))
+            _popup_ekle(doc, page, a)
     elif tur == "FreeText":
         r = pymupdf.Rect(*n["rect"])
         stil = n.get("yazi") or {}
@@ -290,9 +308,12 @@ def not_ekle(doc, page, n):
         raise ValueError("desteklenmeyen not türü: %s" % tur)
     # Tarihler
     doc.xref_set_key(a.xref, "M", _pdf_metin(_pdf_tarih()))
-    doc.xref_set_key(a.xref, "CreationDate", _pdf_metin(_pdf_tarih()))
-    if n.get("ad"):
-        doc.xref_set_key(a.xref, "NM", _pdf_metin(n["ad"]))
+    # Oluşturma tarihi modelden (silmesi geri alınıp yeniden yazılan not ilk tarihini korur)
+    olusturma = n.get("olusturma")
+    doc.xref_set_key(a.xref, "CreationDate", _pdf_metin(olusturma if isinstance(olusturma, str) and olusturma.startswith("D:") else _pdf_tarih()))
+    # Benzersiz ad (referans okuyucu gibi UUID); PyMuPDF'in "fitz-A0" adı her belgede yinelenir. n["ad"] kullanılmaz: çekirdeğin notlar
+    # yanıtındaki "ad" /NM değil /Name'dir (yapışkan not simgesi, ör. "Comment")
+    doc.xref_set_key(a.xref, "NM", _pdf_metin(str(uuid.uuid4())))
     return a.xref
 
 
