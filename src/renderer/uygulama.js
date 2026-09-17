@@ -4,7 +4,7 @@ import { SekmeCubugu } from './sekmeler.js';
 import { SolPanel } from './panel.js';
 import { DurumCubugu, boyutMetni, sayfaKutusuBagla, sayfaKutusuYaz } from './durum.js';
 import { Arama } from './arama.js';
-import { temizMetin, hamMetin, secimDikdortgenleri, satirlaraBirlestir, paragrafSec, secimHamMetni, secimYapiliMetni } from './metin.js';
+import { temizMetin, hamMetin, secimDikdortgenleri, satirlaraBirlestir, paragrafSec, secimHamMetni, secimYapiliMetni, surukleSecimiBagla } from './metin.js';
 import { NotYoneticisi, VURGU_RENKLERI } from './notlar.js';
 import { KomutYigini, Komut } from './komutlar.js';
 import { ayarlarPenceresiAc, ayarlarPenceresiKapat } from './ayarlarPenceresi.js';
@@ -792,6 +792,7 @@ function tumunuSec() {
 // ---------------------------------------------------------------- metin: sağ tık, üç tık, kopyalama
 function metinOlaylariBagla(belge) {
   const alan = belge.gorunum.alan;
+  surukleSecimiBagla(belge.gorunum, { aracAl: () => belge.notlar?.arac });   // boşluktan da sürükleyerek seçim
   alan.addEventListener('mousedown', (e) => {
     if (e.button !== 0 || e.detail !== 3) return;
     const span = e.target.closest('.textLayer span');
