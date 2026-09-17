@@ -5,6 +5,10 @@ import { CSS_BIRIM, yolAnahtari } from './goruntuleyici.js';
 import { Komut } from './komutlar.js';
 import { secimDikdortgenleri, secimMetinKutulari, satirlaraBirlestir } from './metin.js';
 import { turAdi, tarihBicimle } from './panel.js';
+import {
+  yaziKanonik, parcalariCiz, duzMetin, stilAl, stilKonumda, hepsindeMi, stilDegistir, metinDegistir, uzlastir, domdanOku, ofsetAl, secimAl, secimKoy,
+  HIZA_CSS, sirala,
+} from './yaziParcalari.js';
 
 export const VURGU_RENKLERI = [
   { ad: 'Sarı', hex: '#ffeb3b' }, { ad: 'Kırmızı', hex: '#ff6e6e' }, { ad: 'Turuncu', hex: '#ffb74d' },
@@ -175,7 +179,7 @@ export class NotYoneticisi extends EventTarget {
     const d = { xref: n.xref, tur: n.tur, sayfa: n.sayfa, rect: n.rect, icerik: n.icerik, yazar: n.yazar, renk: n.renk, opaklik: n.opaklik, konu: n.konu };
     if (n.tur === 'Highlight') d.quads = n.quadKutular || quadKutulari(n.quads);
     if (n.tur === 'Text') d.simge = n.simge || 'Comment';
-    if (n.tur === 'FreeText') d.yazi = n.yazi;
+    if (n.tur === 'FreeText') d.yazi = n.yazi ? yaziKanonik(n.yazi, n.icerik) : n.yazi;   // parçalar içerikle uyumlu gider
     if (n.ustId) { const ust = this.notlar.get(n.ustId); if (ust) { if (ust.xref) d.yanitXref = ust.xref; d.yanitId = ust.id; if (ust.kaynak && ust.kaynak.yol) d.yanitKaynak = { yol: ust.kaynak.yol, sayfa: ust.kaynak.sayfa }; } }
     return d;
   }
@@ -267,6 +271,7 @@ export class NotYoneticisi extends EventTarget {
     for (const n of this.sayfaNotlari(sayfa)) {
       const el = this.notElemani(n, sayfa - 1, svg);
       if (el && el !== svg) katman.append(el);
+      if (el && this.duzenleyici?.not === n) el.style.visibility = 'hidden';   // düzenlenen yazı yeniden çizimde (zoom) düzenleyicinin altında görünmesin
     }
     this.seciliIsaretle();
   }
@@ -298,19 +303,18 @@ export class NotYoneticisi extends EventTarget {
   }
 
   freeTextDoldur(el, n) {
-    const y = n.yazi || {};
+    const y = yaziKanonik(n.yazi, n.icerik);
     const k = this.ptPx();
     el.classList.add('not-freetext-yerli');
-    el.style.fontFamily = `'${y.tip || 'Segoe UI'}'`;
-    el.style.fontSize = ((y.boyut || 12) * k) + 'px';
+    el.style.fontFamily = `'${y.tip}'`;
+    el.style.fontSize = (y.boyut * k) + 'px';
     el.style.lineHeight = '1.2';
-    el.style.color = y.renk || '#000';
+    el.style.color = y.renk;
     el.style.background = y.arka || 'transparent';
-    el.style.fontWeight = y.kalin ? '700' : '400';
-    el.style.textDecoration = y.altiCizili ? 'underline' : 'none';
-    el.style.border = y.kenarlik ? `${Math.max(1, k)}px solid ${y.kenarlikRengi || y.renk || '#000'}` : 'none';
+    el.style.textAlign = HIZA_CSS[y.hiza] || 'left';
+    el.style.border = y.kenarlik ? `${Math.max(1, k)}px solid ${y.kenarlikRengi || y.renk}` : 'none';
     el.style.padding = (2 * k) + 'px';
-    el.textContent = n.icerik || '';
+    parcalariCiz(el, y.parcalar);   // kalın / italik / altı çizili / renk karakter düzeyinde (parça başına span)
   }
 
   async pixmapYukle(el, n, i) {
@@ -497,7 +501,7 @@ export class NotYoneticisi extends EventTarget {
     const n = this.notlar.get(hedef.dataset.id);
     if (!n) return;
     e.preventDefault();
-    if (n.tur === 'FreeText') this.yaziDuzenle(n);
+    if (n.tur === 'FreeText') this.yaziDuzenle(n, { x: e.clientX, y: e.clientY });
     else this.balonAc(n, { odak: true });
   }
 
@@ -772,7 +776,7 @@ export class NotYoneticisi extends EventTarget {
   // ------------------------------------------------------------ yazı (FreeText)
   varsayilanYazi() {
     const a = this.ayar();
-    return { tip: a.yaziTipi || 'Segoe UI', boyut: a.yaziBoyutu || 12, renk: a.yaziRengi || '#000000', arka: a.yaziArka || null, kalin: false, altiCizili: false, kenarlik: false };
+    return yaziKanonik({ tip: a.yaziTipi || 'Segoe UI', boyut: a.yaziBoyutu || 12, renk: a.yaziRengi || '#000000', arka: a.yaziArka || null, kenarlik: false }, '');
   }
 
   yaziBaslat(i, e) {
@@ -806,39 +810,62 @@ export class NotYoneticisi extends EventTarget {
     document.addEventListener('pointermove', hareket); document.addEventListener('pointerup', birak);
   }
 
-  async yaziDuzenle(n) {
+  /** Var olan yazıyı düzenler. nokta: çift tıklanan yer (imleç oraya konur). */
+  async yaziDuzenle(n, nokta = null) {
     if (n.kilitli) return;
-    if (!n.yazi) {
-      try { const r = await this.cekirdek('freetext_stil', { yol: n.kaynak.yol, sayfa: n.kaynak.sayfa, xref: n.xref }); n.yazi = r.stil; if (!n.icerik) n.icerik = r.icerik; }
-      catch { n.yazi = this.varsayilanYazi(); }
+    let yazi = n.yazi, icerik = n.icerik;
+    if (!yazi) {
+      // Dosyadaki (referans okuyucu vb.) yazının biçimi (/RC parçaları dahil) çekirdekten okunur; not ancak düzenleme onaylanıp bir şey
+      // değişirse güncellenir (açıp vazgeçmek ya da değiştirmeden kapatmak belgeyi değiştirmez)
+      try { const r = await this.cekirdek('freetext_stil', { yol: n.kaynak.yol, sayfa: n.kaynak.sayfa, xref: n.xref }); yazi = r.stil; icerik = r.icerik ?? icerik; }
+      catch { yazi = this.varsayilanYazi(); }
+      if (n.silindi || this.notlar.get(n.id) !== n) return;
     }
-    this.duzenleyiciAc(n, false);
+    this.duzenleyiciAc(n, false, { yazi, icerik, nokta });
   }
 
-  duzenleyiciAc(n, yeniMi) {
+  /**
+   * Zengin metin düzenleyicisi (contenteditable). Model parçalardır (d.parcalar); yazma, silme, yapıştırma ve biçim komutları
+   * beforeinput'ta modele uygulanıp DOM yeniden çizilir, imleç ve seçim metin ofsetleriyle korunur. Düzenleyici içinde geri al /
+   * yinele (Ctrl+Z / Ctrl+Y) metin, biçim ve kutu (dolgu, kenarlık, yazı tipi) değişikliklerini kapsar; düzenleme bitince bütün
+   * değişiklik tek komut olarak belgenin geri al yığınına girer.
+   */
+  duzenleyiciAc(n, yeniMi, { yazi = n.yazi, icerik = n.icerik, nokta = null } = {}) {
     this.duzenleyiciBitir(true);
     this.balonKapat();
     const i = n.sayfa - 1;
     const sayfaEl = this.g.sayfalar[i].el;
-    const r = this.rectToPx(i, n.rect);
-    const ta = document.createElement('textarea');
-    ta.className = 'yazi-duzenleyici';
-    ta.value = n.icerik || '';
-    ta.spellcheck = false;
-    sayfaEl.append(ta);
+    const kanonik = yaziKanonik(yazi, String(icerik ?? '').replace(/\r\n?/g, '\n'));
+    const { parcalar, ...kutu } = kanonik;
+    const ed = document.createElement('div');
+    ed.className = 'yazi-duzenleyici';
+    ed.contentEditable = 'true';
+    ed.spellcheck = false;
+    ed.setAttribute('role', 'textbox');
+    ed.setAttribute('aria-multiline', 'true');
+    ed.setAttribute('aria-label', 'Yazı');
+    sayfaEl.append(ed);
     const bicim = document.createElement('div');
     bicim.className = 'yazi-bicim';
     this.alan.append(bicim);
-    this.duzenleyici = { not: n, el: ta, bicim, yeniMi, eski: { icerik: n.icerik, yazi: structuredClone(n.yazi), rect: [...n.rect] }, yazi: structuredClone(n.yazi), rect: [...n.rect] };
+    const uzunluk = duzMetin(parcalar).length;
+    const d = this.duzenleyici = {
+      not: n, el: ed, bicim, yeniMi, eski: { icerik: duzMetin(parcalar), yazi: kanonik, rect: [...n.rect] }, yazi: kutu, parcalar, rect: [...n.rect],
+      secim: [uzunluk, uzunluk], bekleyen: null, geri: [], ileri: [], sonKayit: null,
+    };
+    parcalariCiz(ed, parcalar);
     // Yerli çizimi gizle (düzenleyici üstte)
     for (const el of sayfaEl.querySelectorAll(`.not-oge[data-id="${n.id}"]`)) el.style.visibility = 'hidden';
     this.duzenleyiciBicimYenile();
     this.duzenleyiciKonumla();
-    ta.addEventListener('keydown', (e) => {
-      e.stopPropagation();
-      if (e.key === 'Escape') { e.preventDefault(); this.duzenleyiciBitir(false); }
-    });
-    ta.addEventListener('input', () => this.duzenleyiciOtoBoyut());
+    ed.addEventListener('keydown', (e) => this.duzenleyiciTus(e));
+    ed.addEventListener('beforeinput', (e) => this.duzenleyiciGirdi(e));
+    ed.addEventListener('input', (e) => { if (!e.isComposing) this.duzenleyiciDomdanOku(); });
+    ed.addEventListener('compositionend', () => setTimeout(() => this.duzenleyiciDomdanOku(), 0));
+    ed.addEventListener('paste', (e) => { e.preventDefault(); this.duzenleyiciYaz(e.clipboardData?.getData('text/plain') || ''); });
+    ed.addEventListener('drop', (e) => e.preventDefault());
+    d.secimDinle = () => this.duzenleyiciSecimDegisti();
+    document.addEventListener('selectionchange', d.secimDinle);
     // Taşıma (kenar) ve boyutlandırma (sağ alt köşe) tutamaçları
     const tut = document.createElement('div'); tut.className = 'yazi-tutamac'; sayfaEl.append(tut);
     const bt = document.createElement('div'); bt.className = 'yazi-boyut'; sayfaEl.append(bt);
@@ -846,12 +873,13 @@ export class NotYoneticisi extends EventTarget {
     this.duzenleyiciKonumla();
     const surukle = (hedefEl, boyutMu) => (e) => {
       e.preventDefault(); e.stopPropagation();
-      const bas = { x: e.clientX, y: e.clientY, rect: [...this.duzenleyici.rect] };
+      const bas = { x: e.clientX, y: e.clientY, rect: [...d.rect] };
       const hareket = (e2) => {
-        const k = this.ptPx();
-        const dx = (e2.clientX - bas.x) / k, dy = (e2.clientY - bas.y) / k;
-        const rr = bas.rect;
-        this.duzenleyici.rect = boyutMu ? [rr[0], rr[1], Math.max(rr[0] + 30, rr[2] + dx), Math.max(rr[1] + 14, rr[3] + dy)] : [rr[0] + dx, rr[1] + dy, rr[2] + dx, rr[3] + dy];
+        // Ekran pikselinde taşınır / boyutlanır, sonra PDF'e çevrilir: döndürülmüş sayfada da fare yönünde (en az 30 × 14 pt)
+        const k = this.ptPx(), i = d.not.sayfa - 1;
+        const dx = e2.clientX - bas.x, dy = e2.clientY - bas.y;
+        const r = this.rectToPx(i, bas.rect);
+        d.rect = boyutMu ? this.pxRectToPdf(i, r.x, r.y, Math.max(30 * k, r.w + dx), Math.max(14 * k, r.h + dy)) : this.pxRectToPdf(i, r.x + dx, r.y + dy, r.w, r.h);
         this.duzenleyiciKonumla();
       };
       const birak = () => { document.removeEventListener('pointermove', hareket); document.removeEventListener('pointerup', birak); };
@@ -859,7 +887,14 @@ export class NotYoneticisi extends EventTarget {
     };
     tut.addEventListener('pointerdown', surukle(tut, false));
     bt.addEventListener('pointerdown', surukle(bt, true));
-    setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 0);
+    setTimeout(() => {
+      if (this.duzenleyici !== d) return;
+      // Çift tıklanan yazıda imleç tıklanan karaktere, yoksa metnin sonuna
+      const r = nokta && document.caretRangeFromPoint?.(nokta.x, nokta.y);
+      if (r && ed.contains(r.startContainer)) { const o = ofsetAl(ed, r.startContainer, r.startOffset); d.secim = [o, o]; }
+      this.duzenleyiciOdakla();
+      this.duzenleyiciDurum();
+    }, 0);
   }
 
   duzenleyiciKonumla() {
@@ -871,8 +906,8 @@ export class NotYoneticisi extends EventTarget {
     Object.assign(d.el.style, {
       left: r.x + 'px', top: r.y + 'px', width: r.w + 'px', height: r.h + 'px',
       fontFamily: `'${y.tip}'`, fontSize: (y.boyut * k) + 'px', color: y.renk, background: y.arka || 'rgba(255,255,255,0.01)',
-      fontWeight: y.kalin ? '700' : '400', textDecoration: y.altiCizili ? 'underline' : 'none',
-      border: y.kenarlik ? `${Math.max(1, k)}px solid ${y.renk}` : `1px dashed var(--vurgu)`, padding: (2 * k) + 'px', lineHeight: '1.2',
+      textAlign: HIZA_CSS[y.hiza] || 'left',
+      border: y.kenarlik ? `${Math.max(1, k)}px solid ${y.kenarlikRengi || y.renk}` : `1px dashed var(--vurgu)`, padding: (2 * k) + 'px', lineHeight: '1.2',
     });
     if (d.tut) Object.assign(d.tut.style, { left: (r.x - 6) + 'px', top: (r.y - 6) + 'px' });
     if (d.bt) Object.assign(d.bt.style, { left: (r.x + r.w - 5) + 'px', top: (r.y + r.h - 5) + 'px' });
@@ -888,63 +923,282 @@ export class NotYoneticisi extends EventTarget {
     const d = this.duzenleyici; if (!d) return;
     const ta = d.el;
     if (ta.scrollHeight > ta.clientHeight + 1) {
-      const k = this.ptPx();
-      const ekle = (ta.scrollHeight - ta.clientHeight) / k + 2;
-      d.rect = [d.rect[0], d.rect[1], d.rect[2], d.rect[3] + ekle];
+      // Ekranda aşağı doğru büyür (döndürülmüş sayfada PDF'in başka kenarı)
+      const i = d.not.sayfa - 1, r = this.rectToPx(i, d.rect);
+      d.rect = this.pxRectToPdf(i, r.x, r.y, r.w, r.h + (ta.scrollHeight - ta.clientHeight) + 2 * this.ptPx());
       this.duzenleyiciKonumla();
     }
   }
 
+  /** Biçim çubuğunu kurar (bir kez); durum (basılı düğmeler, renkler) duzenleyiciDurum ile güncellenir. */
   duzenleyiciBicimYenile() {
     const d = this.duzenleyici; if (!d) return;
-    const y = d.yazi;
     d.bicim.innerHTML = `
-      <select class="tip" title="Yazı tipi">${YAZI_TIPLERI.map((t) => `<option ${t === y.tip ? 'selected' : ''}>${t}</option>`).join('')}</select>
-      <input class="boyut" type="number" min="6" max="72" step="1" value="${y.boyut}" title="Boyut (pt)">
-      <label class="renk-etiket" title="Yazı rengi"><span class="ornek" style="background:${y.renk}"></span><input class="renk" type="color" value="${y.renk}"></label>
-      <label class="renk-etiket" title="Arka plan"><span class="ornek arka" style="background:${y.arka || 'transparent'}"></span><input class="arka" type="color" value="${y.arka || '#ffffff'}"></label>
-      <button class="ikon kucuk arka-yok ${y.arka ? '' : 'secili'}" title="Dolgusuz">∅</button>
-      <button class="ikon kucuk kalin ${y.kalin ? 'secili' : ''}" title="Kalın"><b>K</b></button>
-      <button class="ikon kucuk alti ${y.altiCizili ? 'secili' : ''}" title="Altı çizili"><u>A</u></button>
-      <button class="ikon kucuk kenar ${y.kenarlik ? 'secili' : ''}" title="Kenarlık">▢</button>
+      <select class="tip" title="Yazı tipi">${YAZI_TIPLERI.map((t) => `<option>${t}</option>`).join('')}</select>
+      <input class="boyut" type="number" min="6" max="72" step="1" title="Boyut (pt)">
+      <label class="renk-etiket" title="Yazı rengi"><span class="ornek"></span><input class="renk" type="color"></label>
+      <label class="renk-etiket" title="Dolgu rengi"><span class="ornek arka"></span><input class="arka-renk" type="color"></label>
+      <button class="ikon kucuk arka-yok" title="Dolgusuz">∅</button>
+      <button class="ikon kucuk kalin" title="Kalın (Ctrl+B)"><b>K</b></button>
+      <button class="ikon kucuk italik" title="İtalik (Ctrl+I)"><i>T</i></button>
+      <button class="ikon kucuk alti" title="Altı çizili (Ctrl+U)"><u>A</u></button>
+      <button class="ikon kucuk kenar" title="Kenarlık">▢</button>
       <span class="ayrac"></span>
       <button class="ikon kucuk tamam" title="Tamam (dışarı tıkla)"><svg viewBox="0 0 20 20"><path d="m4 10 4 4 8-8" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
       <button class="ikon kucuk iptal" title="Vazgeç (Esc)"><svg viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.6"/></svg></button>`;
     const b = d.bicim;
-    const uygula = () => { this.duzenleyiciKonumla(); this.duzenleyiciBicimYenile(); d.el.focus(); };
-    b.querySelector('.tip').addEventListener('change', (e) => { y.tip = e.target.value; uygula(); });
-    b.querySelector('.boyut').addEventListener('change', (e) => { y.boyut = Math.max(6, Math.min(72, +e.target.value || 12)); uygula(); });
-    b.querySelector('.renk').addEventListener('input', (e) => { y.renk = e.target.value; this.duzenleyiciKonumla(); b.querySelector('.ornek:not(.arka)').style.background = y.renk; });
-    b.querySelector('.arka').addEventListener('input', (e) => { y.arka = e.target.value; this.duzenleyiciKonumla(); b.querySelector('.ornek.arka').style.background = y.arka; b.querySelector('.arka-yok').classList.remove('secili'); });
-    b.querySelector('.arka-yok').addEventListener('click', () => { y.arka = null; uygula(); });
-    b.querySelector('.kalin').addEventListener('click', () => { y.kalin = !y.kalin; uygula(); });
-    b.querySelector('.alti').addEventListener('click', () => { y.altiCizili = !y.altiCizili; uygula(); });
-    b.querySelector('.kenar').addEventListener('click', () => { y.kenarlik = !y.kenarlik; uygula(); });
-    b.querySelector('.tamam').addEventListener('click', () => this.duzenleyiciBitir(true));
-    b.querySelector('.iptal').addEventListener('click', () => this.duzenleyiciBitir(false));
+    // Seçiciler öğe türüyle birlikte: '.arka' hem örnek span'ını hem dolgu girdisini seçiyordu, dolgu rengi dinleyicisi span'a bağlanıyordu
+    b.querySelector('select.tip').addEventListener('change', (e) => this.duzenleyiciKutu({ tip: e.target.value }));
+    b.querySelector('input.boyut').addEventListener('change', (e) => this.duzenleyiciKutu({ boyut: Math.max(6, Math.min(72, Math.round(+e.target.value) || 12)) }));
+    b.querySelector('input.renk').addEventListener('input', (e) => this.duzenleyiciRenk(e.target.value));
+    b.querySelector('input.arka-renk').addEventListener('input', (e) => this.duzenleyiciKutu({ arka: e.target.value.toLowerCase() }, 'arka'));
+    // Renk seçici açılmadan değer bir birim kaydırılır: gösterilen rengin aynısı seçilince de (ör. dolgusuzken beyaz, karışık
+    // seçimde ilk karakterin rengi) 'input' olayı gelsin
+    const komsu = (hex) => '#' + (parseInt(hex.slice(1), 16) ^ 1).toString(16).padStart(6, '0');
+    b.querySelector('input.renk').addEventListener('click', (e) => { e.target.value = komsu(this.duzenleyiciEtkinStil().renk || d.yazi.renk); });
+    b.querySelector('input.arka-renk').addEventListener('click', (e) => { e.target.value = komsu(d.yazi.arka || '#ffffff'); });
+    b.querySelector('button.arka-yok').addEventListener('click', () => this.duzenleyiciKutu({ arka: null }));
+    b.querySelector('button.kalin').addEventListener('click', () => this.duzenleyiciBicim('kalin'));
+    b.querySelector('button.italik').addEventListener('click', () => this.duzenleyiciBicim('italik'));
+    b.querySelector('button.alti').addEventListener('click', () => this.duzenleyiciBicim('alti'));
+    b.querySelector('button.kenar').addEventListener('click', () => this.duzenleyiciKutu({ kenarlik: !d.yazi.kenarlik }));
+    b.querySelector('button.tamam').addEventListener('click', () => this.duzenleyiciBitir(true));
+    b.querySelector('button.iptal').addEventListener('click', () => this.duzenleyiciBitir(false));
     b.addEventListener('pointerdown', (e) => e.stopPropagation());
+    // Düğmeye basmak odağı ve seçimi düzenleyicide bırakır (biçim seçili karakterlere uygulanır)
+    b.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
     b.addEventListener('keydown', (e) => e.stopPropagation());
+    this.duzenleyiciDurum();
+  }
+
+  /** Çubuğun durumu: imleçteki / seçimdeki biçim, renkler, dolgu, kenarlık, yazı tipi ve boyut. */
+  duzenleyiciDurum() {
+    const d = this.duzenleyici; if (!d) return;
+    const b = d.bicim, st = this.duzenleyiciEtkinStil();
+    const bas = (sec, acik) => { const x = b.querySelector(sec); x.classList.toggle('secili', !!acik); x.setAttribute('aria-pressed', acik ? 'true' : 'false'); };
+    bas('button.kalin', st.kalin); bas('button.italik', st.italik); bas('button.alti', st.alti);
+    bas('button.arka-yok', !d.yazi.arka); bas('button.kenar', d.yazi.kenarlik);
+    const renk = st.renk || d.yazi.renk;
+    b.querySelector('span.ornek:not(.arka)').style.background = renk;
+    // Dolgusuzda satranç deseni (CSS) görünsün: background kısaltması desen görselini de siler
+    b.querySelector('span.ornek.arka').style.background = d.yazi.arka || '';
+    const deger = (sec, v) => { const x = b.querySelector(sec); if (document.activeElement !== x && x.value !== String(v)) x.value = v; };
+    deger('input.renk', renk); deger('input.arka-renk', d.yazi.arka || '#ffffff');
+    deger('select.tip', d.yazi.tip); deger('input.boyut', d.yazi.boyut);
+  }
+
+  /** İmleçteki (yazılacak) ya da seçimin tamamındaki biçim. */
+  duzenleyiciEtkinStil() {
+    const d = this.duzenleyici;
+    const [a, b] = sirala(d.secim);
+    if (a === b) return d.bekleyen && d.bekleyen.ofset === a ? d.bekleyen.stil : stilKonumda(d.parcalar, a);
+    const st = {};
+    for (const k of ['kalin', 'italik', 'alti', 'ustu']) if (hepsindeMi(d.parcalar, a, b, k)) st[k] = true;
+    const renk = stilKonumda(d.parcalar, a, false).renk;
+    if (renk) st.renk = renk;
+    return st;
+  }
+
+  duzenleyiciOdakla() {
+    const d = this.duzenleyici; if (!d) return;
+    if (document.activeElement !== d.el) d.el.focus({ preventScroll: true });
+    secimKoy(d.el, d.secim[0], d.secim[1]);
+  }
+
+  /** Modeli düzenleyiciye çizer; düzenleyici odaktaysa seçimi geri koyar. */
+  duzenleyiciCiz() {
+    const d = this.duzenleyici; if (!d) return;
+    parcalariCiz(d.el, d.parcalar);
+    if (document.activeElement === d.el) secimKoy(d.el, d.secim[0], d.secim[1]);
+    this.duzenleyiciOtoBoyut();
+  }
+
+  duzenleyiciSecimDegisti() {
+    const d = this.duzenleyici; if (!d) return;
+    const s = secimAl(d.el); if (!s) return;
+    d.secim = s;
+    if (d.bekleyen && !(s[0] === s[1] && s[0] === d.bekleyen.ofset)) d.bekleyen = null;   // imleç başka yere gitti
+    this.duzenleyiciDurum();
+  }
+
+  /** Güncel seçim [baş, son]: selectionchange eşzamansız geldiğinden (hızlı Shift+ok, Ctrl+B) odak düzenleyicideyse canlı seçimden okunur. */
+  duzenleyiciSecim() {
+    const d = this.duzenleyici;
+    if (document.activeElement === d.el) { const s = secimAl(d.el); if (s) d.secim = s; }
+    return sirala(d.secim);
+  }
+
+  duzenleyiciTus(e) {
+    e.stopPropagation();
+    const d = this.duzenleyici; if (!d || e.isComposing) return;
+    if (e.key === 'Escape') { e.preventDefault(); this.duzenleyiciBitir(false); return; }
+    const ctrl = e.ctrlKey && !e.altKey && !e.metaKey;   // Ctrl+Alt = AltGr (Türkçe klavyede @, € …): kısayol değil
+    if (e.key === 'Enter' && !ctrl && !e.altKey) { e.preventDefault(); this.duzenleyiciYaz('\n'); return; }
+    if (!ctrl) return;
+    // Harf, düzenden bağımsız: önce tuşun ürettiği harf (Türkçe Q'da ı → i), harf değilse fiziksel tuş
+    const k = (e.key || '').toLocaleLowerCase('tr');
+    const harf = /^[a-z]$/.test(k) ? k : k === 'ı' ? 'i' : /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : '';
+    const islem = e.shiftKey ? { z: 'yinele' }[harf] : { b: 'kalin', i: 'italik', u: 'alti', z: 'geriAl', y: 'yinele' }[harf];
+    if (!islem) return;
+    e.preventDefault();
+    if (islem === 'geriAl') this.duzenleyiciGeriAl();
+    else if (islem === 'yinele') this.duzenleyiciYinele();
+    else this.duzenleyiciBicim(islem);
+  }
+
+  /** Tarayıcının düzenleme isteklerini modele uygular (DOM'u tarayıcı değil model değiştirir). */
+  duzenleyiciGirdi(e) {
+    const d = this.duzenleyici; if (!d) return;
+    const t = e.inputType || '';
+    if (e.isComposing || t === 'insertCompositionText') return;   // IME: tarayıcı yazar, bitince DOM'dan okunur
+    e.preventDefault();
+    const aralik = () => {
+      const r = e.getTargetRanges?.()[0];
+      return r ? sirala([ofsetAl(d.el, r.startContainer, r.startOffset), ofsetAl(d.el, r.endContainer, r.endOffset)]) : sirala(secimAl(d.el) || d.secim);
+    };
+    if (t === 'insertText' || t === 'insertReplacementText') this.duzenleyiciYaz(e.data ?? e.dataTransfer?.getData('text/plain') ?? '', aralik());
+    else if (t === 'insertLineBreak' || t === 'insertParagraph') this.duzenleyiciYaz('\n', aralik());
+    else if (t.startsWith('delete')) { const [a, b] = aralik(); if (b > a) this.duzenleyiciYaz('', [a, b]); }
+    else if (t === 'historyUndo') this.duzenleyiciGeriAl();
+    else if (t === 'historyRedo') this.duzenleyiciYinele();
+    else if (t === 'formatBold') this.duzenleyiciBicim('kalin');
+    else if (t === 'formatItalic') this.duzenleyiciBicim('italik');
+    else if (t === 'formatUnderline') this.duzenleyiciBicim('alti');
+    // yapıştırma 'paste' olayında düz metin olarak; bırakma, liste, hizalama gibi diğer istekler yok sayılır
+  }
+
+  /** [a, b) aralığını metinle değiştirir (boş metin: silme). Yazılan metin bekleyen biçimi ya da imleçten önceki karakterin biçimini alır. */
+  duzenleyiciYaz(metin, aralik = null) {
+    const d = this.duzenleyici; if (!d) return;
+    const [a, b] = aralik || this.duzenleyiciSecim();
+    // Yapıştırılan metinde PDF görünümüne çizilemeyen denetim karakterleri: sekme boşluk olur, yumuşak tire / sıfır genişlikli boşluk atılır
+    metin = String(metin ?? '').replace(/\r\n?|[\u2028\u2029]/g, '\n').replace(/\t/g, '    ').replace(/[\u0000-\u0008\u000b-\u001f\u007f\u00ad\u200b]/g, '');
+    if (!metin && a === b) return;
+    const stil = a === b ? (d.bekleyen?.ofset === a ? d.bekleyen.stil : stilKonumda(d.parcalar, a)) : stilKonumda(d.parcalar, a, false);
+    this.duzenleyiciKayit(metin ? 'yaz' : 'sil', /^\s+$/.test(metin));
+    d.parcalar = metinDegistir(d.parcalar, a, b, metin, stil);
+    d.bekleyen = null;
+    d.secim = [a + metin.length, a + metin.length];
+    this.duzenleyiciCiz();
+    this.duzenleyiciDurum();
+  }
+
+  /** Kalın / italik / altı çizili: seçimde Word gibi (hepsinde varsa kaldırır, yoksa ekler); imleçte sonra yazılacak metne. */
+  duzenleyiciBicim(anahtar) {
+    const d = this.duzenleyici; if (!d) return;
+    const [a, b] = this.duzenleyiciSecim();
+    if (a === b) {
+      const stil = { ...(d.bekleyen?.ofset === a ? d.bekleyen.stil : stilKonumda(d.parcalar, a)) };
+      if (stil[anahtar]) delete stil[anahtar]; else stil[anahtar] = true;
+      d.bekleyen = { ofset: a, stil };
+    } else {
+      this.duzenleyiciKayit('bicim');
+      d.parcalar = stilDegistir(d.parcalar, a, b, anahtar, !hepsindeMi(d.parcalar, a, b, anahtar));
+      this.duzenleyiciCiz();
+    }
+    this.duzenleyiciOdakla();
+    this.duzenleyiciDurum();
+  }
+
+  /** Yazı rengi: seçime; imleçte sonra yazılacak metne; kutu boşsa ya da metnin tamamı seçiliyse kutunun rengi (kenarlık da). */
+  duzenleyiciRenk(renk) {
+    const d = this.duzenleyici; if (!d) return;
+    renk = String(renk).toLowerCase();
+    const [a, b] = this.duzenleyiciSecim();
+    const uzunluk = duzMetin(d.parcalar).length;
+    if (!uzunluk || (a === 0 && b >= uzunluk && b > a)) {
+      this.duzenleyiciKayit('renk');
+      d.yazi.renk = renk;
+      d.parcalar = stilDegistir(d.parcalar, 0, uzunluk, 'renk', null);
+      d.bekleyen = null;
+      this.duzenleyiciKonumla();
+      this.duzenleyiciCiz();
+    } else if (a === b) {
+      d.bekleyen = { ofset: a, stil: stilAl({ ...(d.bekleyen?.ofset === a ? d.bekleyen.stil : stilKonumda(d.parcalar, a)), renk }, d.yazi.renk) };
+    } else {
+      this.duzenleyiciKayit('renk');
+      d.parcalar = stilDegistir(d.parcalar, a, b, 'renk', renk === d.yazi.renk ? null : renk);
+      this.duzenleyiciCiz();
+    }
+    this.duzenleyiciOdakla();
+    this.duzenleyiciDurum();
+  }
+
+  /** Kutu düzeyindeki değişiklik (yazı tipi, boyut, dolgu, dolgusuz, kenarlık): anında görünür, düzenleyicide geri alınabilir. */
+  duzenleyiciKutu(degisim, tur = 'kutu') {
+    const d = this.duzenleyici; if (!d) return;
+    if (Object.entries(degisim).some(([k, v]) => d.yazi[k] !== v)) {
+      this.duzenleyiciKayit(tur);
+      Object.assign(d.yazi, degisim);
+      this.duzenleyiciKonumla();
+      this.duzenleyiciOtoBoyut();
+    }
+    this.duzenleyiciOdakla();
+    this.duzenleyiciDurum();
+  }
+
+  /** IME gibi tarayıcının kendi yazdığı durumda DOM'dan okur; biçim modelden (değişen bölüm önündeki karakterin biçimini alır). */
+  duzenleyiciDomdanOku() {
+    const d = this.duzenleyici; if (!d) return;
+    const metin = duzMetin(domdanOku(d.el, d.yazi.renk));
+    if (metin === duzMetin(d.parcalar)) return;
+    const secim = secimAl(d.el);
+    this.duzenleyiciKayit('yaz');
+    d.parcalar = uzlastir(d.parcalar, metin);
+    d.bekleyen = null;
+    if (secim) d.secim = secim;
+    this.duzenleyiciCiz();
+    this.duzenleyiciDurum();
+  }
+
+  // Düzenleyici içi geri al / yinele: anlık görüntü yığını. Ardışık yazma / silme (1 sn içinde, boşluktan sonra yeni sözcüğe kadar) ve
+  // renk sürüklemesi tek adımdır.
+  duzenleyiciKayit(tur, bosluk = false) {
+    const d = this.duzenleyici; if (!d) return;
+    const simdi = Date.now(), s = d.sonKayit;
+    const birlesir = ['yaz', 'sil', 'renk', 'arka'].includes(tur) && s?.tur === tur && simdi - s.zaman < 1000 && !(tur === 'yaz' && s.bosluk && !bosluk);
+    d.sonKayit = { tur, zaman: simdi, bosluk };
+    if (birlesir) return;
+    d.geri.push({ parcalar: structuredClone(d.parcalar), yazi: structuredClone(d.yazi), secim: [...d.secim] });
+    if (d.geri.length > 500) d.geri.shift();
+    d.ileri.length = 0;
+  }
+
+  duzenleyiciGeriAl() { this._duzenleyiciGecmis('geri', 'ileri'); }
+  duzenleyiciYinele() { this._duzenleyiciGecmis('ileri', 'geri'); }
+  _duzenleyiciGecmis(kaynak, hedef) {
+    const d = this.duzenleyici; if (!d || !d[kaynak].length) return;
+    d[hedef].push({ parcalar: structuredClone(d.parcalar), yazi: structuredClone(d.yazi), secim: [...d.secim] });
+    const a = d[kaynak].pop();
+    d.parcalar = a.parcalar; d.yazi = a.yazi; d.secim = a.secim; d.bekleyen = null; d.sonKayit = null;
+    this.duzenleyiciKonumla();
+    this.duzenleyiciCiz();
+    this.duzenleyiciOdakla();
+    this.duzenleyiciDurum();
   }
 
   duzenleyiciBitir(kaydet) {
     const d = this.duzenleyici; if (!d) return;
     this.duzenleyici = null;
+    document.removeEventListener('selectionchange', d.secimDinle);
     const n = d.not;
-    const metin = d.el.value;
+    const metin = duzMetin(d.parcalar);
     d.el.remove(); d.bicim.remove(); d.tut?.remove(); d.bt?.remove();
     const sayfaEl = this.g.sayfalar[n.sayfa - 1].el;
     for (const el of sayfaEl.querySelectorAll(`.not-oge[data-id="${n.id}"]`)) el.style.visibility = '';
     if (!kaydet) { if (!d.yeniMi) this.cizSayfa(n.sayfa); return; }
+    const yazi = yaziKanonik({ ...d.yazi, parcalar: d.parcalar }, metin);
     if (d.yeniMi) {
       if (!metin.trim()) return;                 // boş yazı eklenmez
-      n.icerik = metin; n.yazi = d.yazi; n.rect = d.rect;
+      n.icerik = metin; n.yazi = yazi; n.rect = d.rect;
       this.ekle(n);
       this.sec(n.id);
       return;
     }
     const degisiklik = {};
-    if (metin !== d.eski.icerik) degisiklik.icerik = metin;
-    if (JSON.stringify(d.yazi) !== JSON.stringify(d.eski.yazi)) degisiklik.yazi = d.yazi;
+    if (JSON.stringify(yazi) !== JSON.stringify(d.eski.yazi)) degisiklik.yazi = yazi;
+    // Biçim değiştiyse metin de gider (dosyadaki /Contents'te \r satır sonu olabilir; parçalar metinle uyumlu olmalı)
+    if (metin !== d.eski.icerik || (degisiklik.yazi && metin !== (n.icerik ?? ''))) degisiklik.icerik = metin;
     if (JSON.stringify(d.rect) !== JSON.stringify(d.eski.rect)) degisiklik.rect = d.rect;
     if (Object.keys(degisiklik).length) this.guncelle(n, degisiklik, 'Yazıyı düzenle');
     else this.cizSayfa(n.sayfa);
