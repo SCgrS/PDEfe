@@ -1167,7 +1167,7 @@ def _oge_boyut_tahmini(oge, genel):
         return dict(_tahmin_onbellegi[anahtar])
     if tur == "pdf":
         if dosya in _gorselsiz_pdf_boyutu:
-            boyut, sayfa = _gorselsiz_pdf_boyutu[dosya]
+            (boyut, sayfa), gorselsiz = _gorselsiz_pdf_boyutu[dosya], True
         else:
             kaynak = _pdf_ac(yol)
             try:
@@ -1189,7 +1189,8 @@ def _oge_boyut_tahmini(oge, genel):
                 if len(_gorselsiz_pdf_boyutu) > 200:
                     _gorselsiz_pdf_boyutu.clear()
                 _gorselsiz_pdf_boyutu[dosya] = (boyut, sayfa)
-        sonuc = {"boyut": boyut, "tahmin": True, "ozet": "pdf:%s:%s" % (_dosya_ozeti(yol, dosya), kalite),
+        # Görselsiz PDF her seviyede aynı çıktıyı verir: özet seviyeden bağımsızdır (öğelere farklı kalite seçilse de bir kez saklanır)
+        sonuc = {"boyut": boyut, "tahmin": True, "ozet": "pdf:%s:%s" % (_dosya_ozeti(yol, dosya), "*" if gorselsiz else kalite),
                  "tekrar": TEKRAR_SAYFA_BAYT * sayfa}
     else:
         toplam, sayfa = 0, 0
