@@ -56,8 +56,75 @@ export async function ekranGoruntusu(dosya) {
 
 export const bekle = (ms) => new Promise((c) => setTimeout(c, ms));
 
+// ---------- Gerçek girdi (CDP Input): koordinatlar pencere içi CSS pikseli ----------
+const DUGME_BIT = { left: 1, right: 2, middle: 4 };
+const DEGISTIRICI = { alt: 1, ctrl: 2, meta: 4, shift: 8 };
+const degistiriciMaske = (d = []) => d.reduce((m, k) => m | (DEGISTIRICI[k] || 0), 0);
+
+/** Fare olayı: tur 'mousePressed' | 'mouseReleased' | 'mouseMoved' | 'mouseWheel'. */
+async function fareGonder(gonder, tur, x, y, { dugme = 'left', tiklama = 1, degistiriciler = [], basili = false, deltaY = 0 } = {}) {
+  await gonder('Input.dispatchMouseEvent', {
+    type: tur, x, y, modifiers: degistiriciMaske(degistiriciler),
+    button: tur === 'mouseMoved' && !basili ? 'none' : dugme, buttons: basili || tur === 'mousePressed' ? DUGME_BIT[dugme] : 0,
+    clickCount: tiklama, deltaX: 0, deltaY,
+  });
+}
+
+/** Fare: [{tur:'hareket'|'bas'|'birak'|'tekerlek', x, y, dugme, tiklama, degistiriciler, deltaY, bekle}] sırasıyla gönderilir. */
+export async function fare(adimlar) {
+  const { ws, gonder } = await baglan();
+  let basili = false;
+  for (const a of adimlar) {
+    const tur = { hareket: 'mouseMoved', bas: 'mousePressed', birak: 'mouseReleased', tekerlek: 'mouseWheel' }[a.tur];
+    if (a.tur === 'bas') basili = true;
+    await fareGonder(gonder, tur, a.x, a.y, { ...a, basili });
+    if (a.tur === 'birak') basili = false;
+    if (a.bekle) await bekle(a.bekle);
+  }
+  ws.close();
+}
+
+export async function tikla(x, y, { dugme = 'left', tiklama = 1, degistiriciler = [] } = {}) {
+  const adimlar = [{ tur: 'hareket', x, y }];
+  for (let i = 1; i <= tiklama; i++) adimlar.push({ tur: 'bas', x, y, dugme, tiklama: i, degistiriciler }, { tur: 'birak', x, y, dugme, tiklama: i, degistiriciler });
+  await fare(adimlar);
+}
+
+/** Basılı sürükleme: (x1,y1) → (x2,y2), adim ara hareketle. */
+export async function surukle(x1, y1, x2, y2, { adim = 12, araMs = 15, degistiriciler = [] } = {}) {
+  const adimlar = [{ tur: 'hareket', x: x1, y: y1 }, { tur: 'bas', x: x1, y: y1, degistiriciler, bekle: araMs }];
+  for (let i = 1; i <= adim; i++) adimlar.push({ tur: 'hareket', x: x1 + ((x2 - x1) * i) / adim, y: y1 + ((y2 - y1) * i) / adim, degistiriciler, bekle: araMs });
+  adimlar.push({ tur: 'birak', x: x2, y: y2, degistiriciler });
+  await fare(adimlar);
+}
+
+const TUS_KODLARI = {
+  ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, PageUp: 33, PageDown: 34, Home: 36, End: 35,
+  Enter: 13, Escape: 27, Tab: 9, Backspace: 8, Delete: 46, ' ': 32, F3: 114, F4: 115, F11: 122,
+};
+
+/** Tuş basışı: tus 'ArrowRight', 'a', 'Enter'…; degistiriciler ['ctrl','shift','alt']. */
+export async function tus(ad, degistiriciler = []) {
+  const { ws, gonder } = await baglan();
+  const tekKarakter = ad.length === 1;
+  const kod = TUS_KODLARI[ad] ?? (tekKarakter ? ad.toUpperCase().charCodeAt(0) : 0);
+  const code = tekKarakter ? (/[a-z]/i.test(ad) ? 'Key' + ad.toUpperCase() : /[0-9]/.test(ad) ? 'Digit' + ad : '') : ad;
+  const ortak = { key: ad, code, windowsVirtualKeyCode: kod, nativeVirtualKeyCode: kod, modifiers: degistiriciMaske(degistiriciler) };
+  const metinli = tekKarakter && !degistiriciler.some((d) => d === 'ctrl' || d === 'alt' || d === 'meta');
+  await gonder('Input.dispatchKeyEvent', { type: metinli ? 'keyDown' : 'rawKeyDown', ...ortak, ...(metinli ? { text: ad, unmodifiedText: ad } : {}) });
+  await gonder('Input.dispatchKeyEvent', { type: 'keyUp', ...ortak });
+  ws.close();
+}
+
+/** Odaktaki öğeye metin yazar (IME gibi; Türkçe karakterler dahil). */
+export async function yaz(metin) {
+  const { ws, gonder } = await baglan();
+  await gonder('Input.insertText', { text: metin });
+  ws.close();
+}
+
 const [, , komut, arg] = process.argv;
 if (komut === 'eval') console.log(JSON.stringify(await evalJs(arg), null, 1));
 else if (komut === 'ss') console.log('kaydedildi:', await ekranGoruntusu(arg));
 else if (komut === 'konsol') console.log((await konsol(+arg || 4000)).join('\n') || '(mesaj yok)');
-else if (komut === 'betik') { const m = await import(pathToFileURL(path.resolve(arg)).href); await m.default({ evalJs, ekranGoruntusu, bekle }); }
+else if (komut === 'betik') { const m = await import(pathToFileURL(path.resolve(arg)).href); await m.default({ evalJs, ekranGoruntusu, bekle, fare, tikla, surukle, tus, yaz }); }
