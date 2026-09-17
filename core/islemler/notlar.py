@@ -245,8 +245,8 @@ KIRILMA_ONCE = "\u2014"
 
 def _stilli_satirlar(kar, genislik, olc):
     """Biçimli karakterleri satırlara böler (renderer'daki tarayıcı dizilimiyle aynı yerden): boşlukta ve sözcük içindeki
-    kırılma yerlerinde (tire vb.) kırar (boşluklar korunur, kırılan yerdeki tek boşluk düşer), satıra sığmayan parçayı
-    karakterden böler.
+    kırılma yerlerinde (tire vb.) kırar, satıra sığmayan parçayı karakterden böler. Boşluklar korunur ve satırı kırmaz:
+    sığmasalar da satır sonunda asılı kalır (tarayıcıda white-space: pre-wrap), sonraki sözcük yeni satırdan başlar.
     Karışık yüzlerde her karakter kendi fontuyla ölçülür.
     kar: [(karakter, stil)], olc(karakter, stil) -> pt. Döner: [[(karakter, stil), ...], ...]"""
     satirlar = []
@@ -293,22 +293,25 @@ def _stilli_satirlar(kar, genislik, olc):
             else:
                 sozcuk.append(c)
         sozcukler.append(sozcuk)
-        cur, cur_gen = None, 0.0
+        cur, cur_gen = [], 0.0
         for i, sz in enumerate(sozcukler):
-            for j, pr in enumerate(parcala(sz)):
+            if i:
+                # Boşluk satırı kırmaz, sığmasa da satırda asılı kalır: ardışık boşluklar sonraki satırın başına taşınmaz,
+                # metni bitiren taşan boşluklar yeni (boş) satır açmaz
+                cur.append(ayiricilar[i - 1])
+                cur_gen += olc(*ayiricilar[i - 1])
+            for pr in parcala(sz):
+                if not pr:
+                    continue
                 pg = sum(olc(*c) for c in pr)
-                if cur is not None:
-                    ay = ayiricilar[i - 1] if j == 0 else None     # boşluk yalnızca sözcüğün ilk parçasından önce
-                    ag = olc(*ay) if ay else 0.0
-                    if cur_gen + ag + pg <= genislik + 1e-6:
-                        if ay:
-                            cur.append(ay)
-                        cur.extend(pr)
-                        cur_gen += ag + pg
-                        continue
+                if cur_gen + pg <= genislik + 1e-6:
+                    cur.extend(pr)
+                    cur_gen += pg
+                    continue
+                if cur:
                     satirlar.append(cur)
                 cur, cur_gen = bol(pr) if pg > genislik + 1e-6 else (list(pr), pg)
-        satirlar.append(cur or [])
+        satirlar.append(cur)
     return satirlar
 
 
@@ -678,11 +681,13 @@ def freetext_gorunum_yaz(doc, page, annot, metin, stil):
     if doc.xref_get_key(annot.xref, "IT")[1] != "/FreeTextCallout" and doc.xref_get_key(annot.xref, "CL")[0] != "null":
         doc.xref_set_key(annot.xref, "CL", "null")
     # PDEfe stil kaydı (yeniden düzenlerken aynı biçimi kullanmak için). Kalin / Alti / Italik: bütün metin o biçimdeyse
-    # (0.1.1 kutu düzeyinde okur). RCOzet: /RC başka programda değişirse parçalar /RC'den okunur.
-    doc.xref_set_key(annot.xref, "PDEfe", "<</Tip %s /Boyut %.1f /Renk %s /Arka %s /Kalin %s /Alti %s /Kenar %s /Italik %s /Hiza %s /Parcalar %s /RCOzet %s>>" % (
+    # (0.1.1 kutu düzeyinde okur). RCOzet: /RC başka programda değişirse parçalar /RC'den okunur. KenarRengi: yazı renginden
+    # farklı kenarlık rengi (referans okuyucu yazısının /DA'sından gelir; yoksa anahtar yazılmaz).
+    doc.xref_set_key(annot.xref, "PDEfe", "<</Tip %s /Boyut %.1f /Renk %s /Arka %s /Kalin %s /Alti %s /Kenar %s /Italik %s /Hiza %s /Parcalar %s /RCOzet %s%s>>" % (
         _pdf_metin(aile), boyut, _pdf_metin(renk_hex), _pdf_metin(_hex(arka) if arka else ""), "true" if hepsi["kalin"] else "false",
         "true" if hepsi["alti"] else "false", "true" if kenarlik else "false", "true" if hepsi["italik"] else "false", _pdf_metin(hiza),
-        _pdf_metin(json.dumps(parcalar, ensure_ascii=False, separators=(",", ":"))), _pdf_metin(hashlib.md5(rc.encode("utf-8")).hexdigest())))
+        _pdf_metin(json.dumps(parcalar, ensure_ascii=False, separators=(",", ":"))), _pdf_metin(hashlib.md5(rc.encode("utf-8")).hexdigest()),
+        " /KenarRengi %s" % _pdf_metin(_hex(kenar_renk)) if k.get("kenarlikRengi") and _hex(kenar_renk) != renk_hex else ""))
 
 
 def pdefe_stil_oku(doc, xref):
@@ -706,7 +711,8 @@ def pdefe_stil_oku(doc, xref):
             return v == "true"
         return None
     stil = {"tip": s("Tip"), "boyut": s("Boyut"), "renk": s("Renk"), "arka": s("Arka") or None, "kalin": bool(s("Kalin")),
-            "altiCizili": bool(s("Alti")), "italik": bool(s("Italik")), "kenarlik": bool(s("Kenar")), "hiza": s("Hiza")}
+            "altiCizili": bool(s("Alti")), "italik": bool(s("Italik")), "kenarlik": bool(s("Kenar")), "hiza": s("Hiza"),
+            "kenarlikRengi": s("KenarRengi") or None}
     metin = _duz(_anahtar_metin(doc, xref, "Contents"))
     try:
         parcalar = json.loads(s("Parcalar")) if s("Parcalar") is not None else None
@@ -732,17 +738,17 @@ def freetext_stil_al(doc, annot):
         return stil, icerik
     # DA: "/Helv 12 Tf 0 0 1 rg"
     _, da = doc.xref_get_key(a.xref, "DA")
-    boyut, renk = 12.0, "#000000"
+    boyut, renk, da_renk = 12.0, "#000000", None
     m = re.search(r"([\d.]+)\s+Tf", da or "")
     if m:
         boyut = float(m.group(1)) or 12.0
     m = re.search(r"([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+rg", da or "")
     if m:
-        renk = _hex((float(m.group(1)), float(m.group(2)), float(m.group(3))))
+        renk = da_renk = _hex((float(m.group(1)), float(m.group(2)), float(m.group(3))))
     else:
         m = re.search(r"([\d.]+)\s+g\b", da or "")
         if m:
-            g = float(m.group(1)); renk = _hex((g, g, g))
+            g = float(m.group(1)); renk = da_renk = _hex((g, g, g))
     ds = _css_oku(_anahtar_metin(doc, a.xref, "DS") or "")
     q = doc.xref_get_key(a.xref, "Q")[1]
     stil = {"tip": _aile_eslestir(ds.get("aile")) or ("Arial" if ds.get("aile") else "Segoe UI"), "boyut": ds.get("boyut") or boyut,
@@ -767,6 +773,10 @@ def freetext_stil_al(doc, annot):
     dolgu = a.colors.get("stroke") or a.colors.get("fill")
     stil["arka"] = _hex(dolgu) if dolgu else None
     stil["kenarlik"] = (a.border.get("width") or 0) > 0
+    # /DA rengi referans okuyucuda kenarlık rengidir (yazı rengi /DS ve /RC'de); yazı renginden farklıysa kenarlık rengi olarak korunur.
+    # /DS, /RC yoksa (başka yazıcılar) /DA rengi yazı rengidir, kenarlık da o renkte kalır.
+    if da_renk and da_renk != _hex(_renk(stil["renk"])):
+        stil["kenarlikRengi"] = da_renk
     return freetext_stil_kanonik(stil, icerik), icerik
 
 

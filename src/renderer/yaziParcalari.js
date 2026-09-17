@@ -156,6 +156,67 @@ export function parcalariCiz(el, parcalar) {
   el.replaceChildren(...cocuklar);
 }
 
+/**
+ * Satır sonundaki boşlukların altı / üstü çizgisini kaldırır: çekirdek kaydedilen görünümde satır sonu boşluklarını çizgide saymaz
+ * (Word gibi), tarayıcı ise sarma yerinde asılı kalan boşlukların da altını çizer. Eleman belgede ve dizilmişken çağrılır: çizgili
+ * parçadaki boşluk dizisinin ardından satır sonu, metin sonu ya da sonraki satırda başlayan karakter geliyorsa dizi çizgisiz ayrı
+ * span'a alınır. Metin, ofsetler ve satır kırılımı değişmez.
+ */
+export function sonBosluklariCizgisizYap(el) {
+  if (!el.isConnected || !el.querySelector('span[style*="text-decoration"]')) return;
+  const dugumler = [];
+  let metin = '';
+  const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  for (let t = w.nextNode(); t; t = w.nextNode()) { dugumler.push({ t, bas: metin.length }); metin += t.data; }
+  const dugumde = (g) => dugumler.find((x) => g >= x.bas && g < x.bas + x.t.data.length);
+  const kutu = (g, ilk) => {
+    const x = dugumde(g); if (!x) return null;
+    const r = document.createRange();
+    r.setStart(x.t, g - x.bas); r.setEnd(x.t, g - x.bas + 1);
+    const q = r.getClientRects();
+    return q.length ? q[ilk ? 0 : q.length - 1] : null;
+  };
+  const esik = (parseFloat(getComputedStyle(el).fontSize) || 12) * 0.6;   // yarım satır (satır yüksekliği 1.2)
+  const araliklar = [];
+  for (let g = 0; g < metin.length; g++) {
+    if (metin[g] !== ' ') continue;
+    let e = g;
+    while (e < metin.length && metin[e] === ' ') e++;
+    const cizgili = dugumler.some((x) => x.bas < e && x.bas + x.t.data.length > g && x.t.parentElement !== el && x.t.parentElement.style.textDecorationLine);
+    if (cizgili) {
+      let sonda = e === metin.length || metin[e] === '\n';
+      if (!sonda) {
+        // Dizinin satırı: önündeki karakterden (asılı boşluğun kutusu olmayabilir)
+        const once = g > 0 && metin[g - 1] !== '\n' ? kutu(g - 1, false) : kutu(g, false);
+        const sonra = kutu(e, true);
+        sonda = !!(once && sonra && sonra.top - once.top > esik);
+      }
+      if (sonda) araliklar.push([g, e]);
+    }
+    g = e;
+  }
+  if (!araliklar.length) return;
+  for (const { t, bas } of dugumler) {
+    const span = t.parentElement;
+    if (span === el || !span.style.textDecorationLine) continue;
+    const son = bas + t.data.length;
+    const kesitler = araliklar.filter(([a, b]) => a < son && b > bas);
+    if (!kesitler.length) continue;
+    const yeni = [];
+    const ekle = (a, b, cizgisiz) => {
+      if (b <= a) return;
+      const s = span.cloneNode(false);
+      if (cizgisiz) s.style.textDecorationLine = '';
+      s.textContent = metin.slice(a, b);
+      yeni.push(s);
+    };
+    let i = bas;
+    for (const [a, b] of kesitler) { const x = Math.max(a, bas), y = Math.min(b, son); ekle(i, x, false); ekle(x, y, true); i = y; }
+    ekle(i, son, false);
+    span.replaceWith(...yeni);
+  }
+}
+
 const rgbHex = (c) => {
   const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c || '');
   return m ? '#' + m.slice(1, 4).map((v) => (+v).toString(16).padStart(2, '0')).join('') : null;
