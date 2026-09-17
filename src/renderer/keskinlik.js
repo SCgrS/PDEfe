@@ -7,15 +7,19 @@
 //    küçük görseller (karekod, barkod) her yakınlaştırmada keskin kalır.
 // 2) İnce çizgiler (eksene paralel, cihazda 4 px'ten ince çizgi ve dolu dikdörtgen) piksel ızgarasına oturtulur
 //    (referans okuyucu "ince çizgileri geliştir"): tablo kenarlıkları iki satıra yayılmış gri yerine tam piksel siyah çizilir.
-// Metin değişmez: aynı ölçekte PDF.js (ClearType alt piksel) ile referans okuyucu arasında ölçülen fark yok.
-// Yalnızca keskinBaglam() ile sarılmış bağlamlar (sayfa tuvali ve PDF.js'in ara tuvalleri) etkilenir.
+// Metin değişmez: kullanıcının koşulunda (974 px pencere, sayfa genişliği = 1,536 px/pt, dpr 1) referans okuyucu %100'ün (1,528 px/pt)
+// ölçeğindeyiz, ekrandaki pikseller tuvalle birebir aynı (yeniden örnekleme yok) ve PDF.js'in ClearType metni referans okuyucudan en fazla
+// birkaç gri düzeyi farklı (biraz daha koyu). "Harfler bulanık" algısını yapan, iki satıra yayılan gri alt çizgi ve kenarlıklardı (2).
+// Yalnızca keskinBaglam() ile sarılmış bağlamlar (sayfa tuvali ve PDF.js'in ara tuvalleri) etkilenir. Bellek görsel boyutundan
+// bağımsız (BANT), işlemci süresi sınırlı (EN_FAZLA_*), kaydırırken büyük görsellerin örneklemesi ertelenir.
 
 const INCE = 4;                 // cihaz pikselinde bu kalınlıktan ince çizgi/dikdörtgen ızgaraya oturtulur
 const KESKIN_BUYUTME = 2;       // bu orana kadar büyütmede saf alan filtresi (referans okuyucu gibi keskin)
 const YUMUSAK_BUYUTME = 4;      // bu oran ve üstünde Chromium yumuşatması (taranmış sayfa yakınlaştırınca pikselli olmasın)
-const EN_FAZLA_CIKTI = 16e6;    // JS ile örneklenecek en fazla hedef pikseli; üstünde Chromium yumuşatması
+const EN_FAZLA_CIKTI = 16e6;    // JS ile örneklenecek en fazla hedef pikseli; üstünde Chromium yumuşatması (işlemci süresi sınırı)
 const EN_FAZLA_BUYUTME_CIKTISI = 3e6;   // büyütülen fotoğraf/taranmış sayfada JS ile örneklenecek en fazla hedef pikseli
-const EN_FAZLA_KAYNAK = 20e6;   // okunacak en fazla kaynak pikseli (RGBA kopyası geçici olarak 4 bayt/piksel)
+const EN_FAZLA_KAYNAK = 20e6;   // örneklenecek en fazla kaynak pikseli (işlemci süresi sınırı; bellek BANT ile sınırlı)
+const BANT = 1 << 20;           // bir seferde okunan ya da üretilen en fazla piksel (≈4 MB RGBA): bellek görsel boyutundan bağımsız
 const EPS = 1e-6;
 
 // ------------------------------------------------------------ etkileşim sırasında erteleme
@@ -35,14 +39,29 @@ export function ertelenenSayisi() { return ertelenen; }
 // ------------------------------------------------------------ yol kaydı
 // Path2D geometrisi okunamadığı için PDF.js'in yol kurarken çağırdığı yöntemler kaydedilir (yalnızca doğru parçalarından
 // oluşan kısa yollar; eğri ya da çok noktalı yol "karmaşık" işaretlenir). Metinle kurulan yollar (new Path2D(dize),
-// glif yolları) kayda girmez ve dokunulmadan çizilir.
+// glif yolları) kayda girmez ve dokunulmadan çizilir. Kayıtlar PDF.js'in işlem listesi önbelleğindeki yollar yaşadıkça durur:
+// çok çizimli belgede (plan, harita) bellek büyümesin diye yaşayan kayıtlardaki toplam nokta sınırlıdır, sınırda yeni yollar
+// kaydedilmez (yalnızca ızgaraya oturtulmazlar).
 const yolKaydi = new WeakMap();   // Path2D → { alt: [{ n: [x0,y0,x1,y1,…], kapali }], karmasik, nokta, yeniAlt }
-const EN_FAZLA_NOKTA = 512;
+const EN_FAZLA_NOKTA = 128;       // tek yolda (tablo kenarlıkları birkaç nokta; uzun çoklu çizgi ızgaraya oturtulmaz)
+const KAYIT_BUTCESI = 1 << 20;    // yaşayan bütün kayıtlarda en fazla nokta (≈16 MB)
+let kayitliNokta = 0;
+const kayitSilici = typeof FinalizationRegistry === 'function' ? new FinalizationRegistry((k) => { kayitliNokta -= k.nokta; }) : null;
 
 function kayitAl(yol) {
   let k = yolKaydi.get(yol);
-  if (!k) { k = { alt: [], karmasik: false, nokta: 0, yeniAlt: null }; yolKaydi.set(yol, k); }
+  if (!k) {
+    k = { alt: [], karmasik: false, nokta: 0, yeniAlt: null };
+    yolKaydi.set(yol, k);
+    kayitSilici?.register(yol, k);   // yol toplanınca noktaları bütçeden düşülür (k yola başvurmaz)
+  }
   return k;
+}
+
+/** Kaydı karmaşık işaretler ve noktalarını bırakır (eğri, çok nokta, bütçe dolu). */
+function kayitBirak(k) {
+  kayitliNokta -= k.nokta;
+  k.nokta = 0; k.karmasik = true; k.alt = []; k.yeniAlt = null;
 }
 
 function yolKaydiKur() {
@@ -56,7 +75,7 @@ function yolKaydiKur() {
   };
   const ekle = (k, x, y) => {
     if (k.karmasik) return;
-    if (++k.nokta > EN_FAZLA_NOKTA) { k.karmasik = true; k.alt = []; return; }
+    if (k.nokta >= EN_FAZLA_NOKTA || kayitliNokta >= KAYIT_BUTCESI) { kayitBirak(k); return; }
     let alt = k.alt[k.alt.length - 1];
     if (!alt || k.yeniAlt) {
       // lineTo'dan önce moveTo yoksa ya da closePath'ten sonra: yeni alt yol (closePath'te başlangıç noktasından sürer)
@@ -65,13 +84,14 @@ function yolKaydiKur() {
       k.alt.push(alt); k.yeniAlt = null;
     }
     alt.n.push(x, y);
+    k.nokta++; kayitliNokta++;
   };
   sar('moveTo', (yol, [x, y]) => { const k = kayitAl(yol); if (k.karmasik) return; k.yeniAlt = null; k.alt.push({ n: [], kapali: false }); ekle(k, +x, +y); });
   sar('lineTo', (yol, [x, y]) => ekle(kayitAl(yol), +x, +y));
   sar('closePath', (yol) => {
     const k = kayitAl(yol);
     const alt = k.alt[k.alt.length - 1];
-    if (k.karmasik || !alt || k.yeniAlt) return;
+    if (k.karmasik || !alt || !alt.n.length || k.yeniAlt) return;
     alt.kapali = true; k.yeniAlt = [alt.n[0], alt.n[1]];
   });
   sar('rect', (yol, [x, y, w, h]) => {
@@ -81,16 +101,16 @@ function yolKaydiKur() {
     k.yeniAlt = null;
     k.alt.push({ n: [], kapali: true });
     ekle(k, x, y); ekle(k, x + w, y); ekle(k, x + w, y + h); ekle(k, x, y + h);
-    k.yeniAlt = [x, y];
+    if (!k.karmasik) k.yeniAlt = [x, y];
   });
   for (const ad of ['bezierCurveTo', 'quadraticCurveTo', 'arc', 'arcTo', 'ellipse', 'roundRect']) {
-    sar(ad, (yol) => { const k = kayitAl(yol); k.karmasik = true; k.alt = []; });
+    sar(ad, (yol) => { const k = kayitAl(yol); if (!k.karmasik) kayitBirak(k); });
   }
   sar('addPath', (yol, [kaynak, m]) => {
     const k = kayitAl(yol);
     const s = kaynak && yolKaydi.get(kaynak);
     if (k.karmasik) return;
-    if (!s || s.karmasik) { k.karmasik = true; k.alt = []; return; }
+    if (!s || s.karmasik) { kayitBirak(k); return; }
     const d = m ? DOMMatrix.fromMatrix(m) : null;
     for (const alt of s.alt) {
       if (!alt.n.length) continue;
@@ -228,7 +248,7 @@ function inceDikdortgenler(m, kayit) {
  * kısmi örtüşme ağırlığı kenarları yumuşatıyordu). Büyütmede hedef pikselin [j+0.5−g/2, j+0.5+g/2) penceresinin her kaynak
  * pikseliyle örtüşme uzunluğu ağırlıktır (g=1: alan kapsaması; g: geçiş genişliği, hedef pikseli). grafik: az renkli küçük
  * görsel (karekod, barkod): her büyütmede g=1, yakınlaştırınca da keskin kalır.
- * Döner: { ilk, son (kaynak penceresi), bas: Int32Array (her hedef için ilk kaynak − ilk), sayi, agirlik: Float32Array, adim }
+ * Döner: { ilk, son (kaynak penceresi), bas: Int32Array (her hedef için ilk kaynak − ilk), sayi, agirlik: Float32Array, adim, kucuk }
  */
 function eksenAgirliklari(n, m, j0, j1, grafik) {
   const s = m / n;
@@ -262,49 +282,94 @@ function eksenAgirliklari(n, m, j0, j1, grafik) {
   return { ilk, son, bas, sayi, agirlik, adim, kucuk };
 }
 
-// Kaynak pikselleri: PDF.js'in çözdüğü görsel nesneleri (ImageBitmap, VideoFrame) sayfa temizlenene kadar aynı kalır; yakınlaştırınca
-// yeniden okumamak için tam görselin pikselleri sınırlı bir önbellekte tutulur (en son kullanılanlar, toplam EN_FAZLA_ONBELLEK bayt).
-const EN_FAZLA_ONBELLEK = 48 * 1024 * 1024;
+// Kaynak pikselleri. PDF.js'in çözdüğü görsel nesneleri (ImageBitmap, VideoFrame) sayfa temizlenene kadar aynı kalır: yakınlaştırınca
+// yeniden okumamak için orta boy görsellerin tamamı sınırlı bir önbellekte tutulur (en son eklenenler, toplam EN_FAZLA_ONBELLEK bayt).
+// Diğerleri (büyük görsel, içeriği değişebilen ara tuval) BANT piksellik satır parçaları hâlinde okunur.
+const EN_FAZLA_ONBELLEK = 32 * 1024 * 1024;
 const pikselOnbellek = new WeakMap();   // görsel → Uint8ClampedArray (tam görsel, RGBA)
 let onbellekSirasi = [];                // [{ ref: WeakRef(görsel), bayt }] eskiden yeniye
-let okumaTuvali = null;
+let okumaTuvali = null, bantTuvali = null;
 
-/** Görselin [x,y,w,h] bölgesini okur. Döner: { veri, satir (satır başına piksel), x0, y0 (verinin görseldeki sol üstü) } */
-function kaynakPikselleri(img, x, y, w, h) {
-  if (img instanceof HTMLCanvasElement || (typeof OffscreenCanvas !== 'undefined' && img instanceof OffscreenCanvas)) {
-    const c = img.getContext('2d', { willReadFrequently: true });   // PDF.js ara tuvali: içeriği değişebilir, önbelleğe alınmaz
-    if (c) return { veri: c.getImageData(x, y, w, h).data, satir: w, x0: x, y0: y };
-  }
-  const tw = img.displayWidth || img.width, th = img.displayHeight || img.height;
-  let tam = pikselOnbellek.get(img);
-  // Tamamı önbelleğe sığan ve istenen bölge görselin en az dörtte biri olduğunda (yüksek yakınlaştırmada küçük bölge için
-  // bütün taranmış sayfa okunmasın) tamamı okunur
-  if (!tam && tw * th * 4 <= EN_FAZLA_ONBELLEK && 4 * w * h >= tw * th) {
-    tam = oku(img, 0, 0, tw, th);
-    pikselOnbellek.set(img, tam);
-    onbellekSirasi.push({ ref: new WeakRef(img), bayt: tam.byteLength });
-    let toplam = onbellekSirasi.reduce((t, e) => t + e.bayt, 0);
-    while (toplam > EN_FAZLA_ONBELLEK && onbellekSirasi.length > 1) {
-      const e = onbellekSirasi.shift();
-      const o = e.ref.deref();
-      if (o) pikselOnbellek.delete(o);
-      toplam -= e.bayt;
-    }
-  }
-  if (tam) return { veri: tam, satir: tw, x0: 0, y0: 0 };
-  return { veri: oku(img, x, y, w, h), satir: w, x0: x, y0: y };
-}
+const tuvalMi = (img) => img instanceof HTMLCanvasElement || (typeof OffscreenCanvas !== 'undefined' && img instanceof OffscreenCanvas);
+const genislikAl = (img) => img.displayWidth || img.width;
+const yukseklikAl = (img) => img.displayHeight || img.height;
 
-function oku(img, x, y, w, h) {
-  // OffscreenCanvas + willReadFrequently: belge tuvalinden ~2 kat hızlı (VideoFrame 1654×2338: 20 ms / 41 ms)
+/** Görselin [x,y,w,h] bölgesini RGBA okur: ara tuvalden doğrudan, diğerlerinden okuma tuvaline 1:1 çizerek. */
+function bolgeOku(img, x, y, w, h) {
+  if (tuvalMi(img)) {
+    const c = img.getContext('2d', { willReadFrequently: true });   // PDF.js ara tuvali (CPU'da): doğrudan okunur
+    if (c) return c.getImageData(x, y, w, h).data;
+  }
+  if (typeof VideoFrame !== 'undefined' && img instanceof VideoFrame) {
+    // JPEG'ler PDF.js'ten (ImageDecoder) VideoFrame gelir. İşlemci tuvaline çizilince Chromium her karenin RGB dönüşümünü kare
+    // yaşadıkça paylaşımlı bellekte tutuyordu (40 sayfalık taramada kaydırırken ~650 MB); GPU tuvalinde dönüşüm ekrandaki çizimde
+    // olduğu gibi GPU'da kalır. Her okuma yeni tuvalle: sık okunan tuvali Chromium işlemciye geçirir.
+    const t = document.createElement('canvas');
+    t.width = w; t.height = h;
+    const c = t.getContext('2d');
+    c.drawImage(img, x, y, w, h, 0, 0, w, h);
+    try { return c.getImageData(0, 0, w, h).data; } finally { t.width = 0; t.height = 0; }
+  }
+  // ImageBitmap: OffscreenCanvas + willReadFrequently (işlemcide, belge tuvalinden hızlı)
   okumaTuvali ||= typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(1, 1) : document.createElement('canvas');
-  okumaTuvali.width = w; okumaTuvali.height = h;
+  if (okumaTuvali.width !== w || okumaTuvali.height !== h) { okumaTuvali.width = w; okumaTuvali.height = h; }
   const c = okumaTuvali.getContext('2d', { willReadFrequently: true });
   c.clearRect(0, 0, w, h);
   c.drawImage(img, x, y, w, h, 0, 0, w, h);
-  const veri = c.getImageData(0, 0, w, h).data;
-  okumaTuvali.width = 1; okumaTuvali.height = 1;
+  return c.getImageData(0, 0, w, h).data;
+}
+
+/** Okuma ve şerit tuvallerinin belleğini bırakır (bir görselin örneklemesi bitince). */
+function tuvalleriBirak() {
+  if (okumaTuvali) { okumaTuvali.width = 1; okumaTuvali.height = 1; }
+  if (bantTuvali) { bantTuvali.width = 0; bantTuvali.height = 0; }
+}
+
+/** Görselin önbellekteki tam pikselleri; yoksa ve okunan pencere görselin en az dörtte biriyse (yüksek yakınlaştırmada küçük bölge
+ *  için bütün taranmış sayfa okunmasın) ve sığıyorsa şimdi parça parça okunup önbelleğe alınır. Ara tuval ve büyük görsel: null. */
+function tamGorsel(img, w, h) {
+  if (tuvalMi(img)) return null;                        // ara tuvalin içeriği değişebilir
+  let veri = pikselOnbellek.get(img);
+  if (veri) return veri;
+  const tw = genislikAl(img), th = yukseklikAl(img);
+  if (tw * th * 4 > EN_FAZLA_ONBELLEK || 4 * w * h < tw * th) return null;
+  veri = new Uint8ClampedArray(tw * th * 4);
+  const parca = Math.max(1, Math.floor(BANT / tw));
+  for (let y = 0; y < th; y += parca) veri.set(bolgeOku(img, 0, y, tw, Math.min(parca, th - y)), y * tw * 4);
+  pikselOnbellek.set(img, veri);
+  onbellekSirasi = onbellekSirasi.filter((e) => e.ref.deref());   // toplanmış görsellerin pikselleri de gitti
+  onbellekSirasi.push({ ref: new WeakRef(img), bayt: veri.byteLength });
+  let toplam = onbellekSirasi.reduce((t, e) => t + e.bayt, 0);
+  while (toplam > EN_FAZLA_ONBELLEK && onbellekSirasi.length > 1) {
+    const e = onbellekSirasi.shift();
+    const o = e.ref.deref();
+    if (o) pikselOnbellek.delete(o);
+    toplam -= e.bayt;
+  }
   return veri;
+}
+
+/**
+ * Görselin (x, y, w, h) penceresini satır satır okuyan nesne: satir(r) pencerenin r. satırının RGBA başlangıcını verir; veri satir
+ * çağrısından sonra okunur (parça değişebilir). Satırlar artan sırada istenir; önbellekte olmayan görsel BANT piksellik parçalarla okunur.
+ */
+function kaynakAc(img, x, y, w, h) {
+  const tam = tamGorsel(img, w, h);
+  if (tam) {
+    const tw = genislikAl(img);
+    return { veri: tam, satir: (r) => ((y + r) * tw + x) * 4 };
+  }
+  const k = { veri: null, p0: 0, p1: 0 };
+  const parca = Math.max(1, Math.floor(BANT / w));
+  k.satir = (r) => {
+    if (r < k.p0 || r >= k.p1) {
+      const n = Math.min(parca, h - r);
+      k.veri = bolgeOku(img, x, y + r, w, n);
+      k.p0 = r; k.p1 = r + n;
+    }
+    return (r - k.p0) * w * 4;
+  };
+  return k;
 }
 
 const KUCUK_GORSEL = 512 * 512;       // az renkli (grafik) sayılabilecek en büyük görsel
@@ -313,17 +378,18 @@ const grafikOnbellek = new WeakMap(); // ImageBitmap/VideoFrame → az renkli mi
 /** Küçük ve en fazla 16 farklı renkli görsel mi (karekod, barkod, simge)? Fotoğraf ve taranmış sayfa değildir. */
 function azRenkli(img, sx, sy, sw, sh) {
   if (sw * sh > KUCUK_GORSEL) return false;
-  const onbellekli = !(img instanceof HTMLCanvasElement) && typeof img === 'object';
+  const onbellekli = !tuvalMi(img);
   if (onbellekli && grafikOnbellek.has(img)) return grafikOnbellek.get(img);
   let sonuc = true;
   try {
-    const { veri, satir, x0, y0 } = kaynakPikselleri(img, sx, sy, sw, sh);
+    const k = kaynakAc(img, sx, sy, sw, sh);
     const renkler = new Set();
-    const g = new Uint32Array(veri.buffer, veri.byteOffset, veri.byteLength >> 2);
-    for (let y = sy - y0; y < sy - y0 + sh && sonuc; y++) {
-      for (let i = y * satir + sx - x0, son = i + sw; i < son; i++) {
-        if (renkler.has(g[i])) continue;
-        renkler.add(g[i]);
+    for (let y = 0; y < sh && sonuc; y++) {
+      const p0 = k.satir(y), v = k.veri;
+      for (let p = p0, son = p0 + sw * 4; p < son; p += 4) {
+        const renk = v[p] * 16777216 + ((v[p + 1] << 16) | (v[p + 2] << 8) | v[p + 3]);
+        if (renkler.has(renk)) continue;
+        renkler.add(renk);
         if (renkler.size > AZ_RENK) { sonuc = false; break; }
       }
     }
@@ -333,106 +399,103 @@ function azRenkli(img, sx, sy, sw, sh) {
 }
 
 /**
- * Ayrılabilir örnekleme (önce yatay, sonra dikey); saydamlıkta ön çarpımlı. Yatay geçiş sonuçları yalnızca dikey çekirdeğin
- * penceresi kadar satır tutulur (büyük taranmış sayfada ara dizi kaynak yüksekliği kadar büyümesin).
- * k: kaynakPikselleri sonucu; kx, ky: okunan penceredeki ilk kaynak pikseli (görsel koordinatı). Döner: ImageData.
+ * Ayrılabilir örnekleme; saydamlıkta ön çarpımlı. Hedef en fazla BANT piksellik yatay şeritler hâlinde üretilir ve her şerit
+ * bantCiz(ImageData, ilkSatir, satirSayisi) ile çizilir: bellek görselin ve hedefin boyutundan bağımsızdır.
  */
-function ornekle(k, kx, ky, ax, ay) {
-  const { veri, satir } = k;
-  const ow = ax.bas.length, oh = ay.bas.length;
-  const xk = kx - k.x0, yk = ky - k.y0;           // pencerenin veri içindeki başlangıcı
-  const kw = ax.son - ax.ilk, kh = ay.son - ay.ilk;
-  let opak = true;
-  for (let y = 0; y < kh && opak; y++) {
-    for (let p = ((yk + y) * satir + xk) * 4 + 3, son = p + kw * 4; p < son; p += 4) if (veri[p] !== 255) { opak = false; break; }
+function ornekle(kaynak, ax, ay, bantCiz) {
+  const ow = ax.bas.length, oh = ay.bas.length, n4 = ow * 4;
+  const bantSatir = Math.max(1, Math.min(oh, Math.floor(BANT / ow)));
+  const bant = new ImageData(ow, bantSatir);
+  const satirYaz = ax.kucuk && ay.kucuk ? kutuSatiri(kaynak, ax, ay, bant.data) : ayrikSatir(kaynak, ax, ay, bant.data);
+  for (let r0 = 0; r0 < oh; r0 += bantSatir) {
+    const n = Math.min(bantSatir, oh - r0);
+    for (let k = 0; k < n; k++) satirYaz(r0 + k, k * n4);
+    bantCiz(bant, r0, n);
   }
-  if (opak && ax.kucuk && ay.kucuk) return kutuKucult(veri, satir, xk, yk, ax, ay);
+}
+
+/**
+ * İki eksende de küçültme (en sık durum: sayfa genişliğinde taranmış sayfa, fotoğraf). Nokta örneklemeli kutuda her kaynak
+ * satırı/sütunu tek bir hedef pikseline düşer ve ağırlıklar eşittir: tek geçişte toplanır (genel ayrılabilir yoldan ~2 kat hızlı).
+ * Döner: satirYaz(hedefSatiri, d içindeki başlangıç)
+ */
+function kutuSatiri(kaynak, ax, ay, d) {
+  const ow = ax.bas.length, axBas = ax.bas, axSayi = ax.sayi;
+  const top = new Float64Array(ow * 4);   // hedef pikseli başına Σ renk·alfa, Σ alfa
+  return (k2, cik) => {
+    const b = ay.bas[k2], sn = ay.sayi[k2];
+    top.fill(0);
+    for (let y = b; y < b + sn; y++) {
+      const sat = kaynak.satir(y), veri = kaynak.veri;
+      for (let j = 0, u = 0; j < ow; j++, u += 4) {
+        let r = 0, g = 0, bl = 0, a = 0;
+        for (let p = sat + axBas[j] * 4, son = p + axSayi[j] * 4; p < son; p += 4) {
+          const al = veri[p + 3];
+          r += veri[p] * al; g += veri[p + 1] * al; bl += veri[p + 2] * al; a += al;
+        }
+        top[u] += r; top[u + 1] += g; top[u + 2] += bl; top[u + 3] += a;
+      }
+    }
+    for (let j = 0, u = 0; j < ow; j++, u += 4) {
+      const a = top[u + 3], q = cik + u;
+      if (a > 0) { d[q] = top[u] / a; d[q + 1] = top[u + 1] / a; d[q + 2] = top[u + 2] / a; d[q + 3] = a / (axSayi[j] * sn); }
+      else d[q] = d[q + 1] = d[q + 2] = d[q + 3] = 0;
+    }
+  };
+}
+
+/**
+ * Genel ayrılabilir örnekleme (büyütme ya da karışık): önce yatay, sonra dikey. Yatay geçiş sonuçlarından yalnızca dikey çekirdeğin
+ * penceresi kadar satır tutulur. Döner: satirYaz(hedefSatiri, d içindeki başlangıç)
+ */
+function ayrikSatir(kaynak, ax, ay, d) {
+  const ow = ax.bas.length, n4 = ow * 4;
   const axBas = ax.bas, axSayi = ax.sayi, axAg = ax.agirlik, axAdim = ax.adim;
-  const satirlar = new Map();                     // pencere satırı → yatay geçiş sonucu (Float32Array ow*4)
+  const satirlar = new Map();                     // pencere satırı → yatay geçiş sonucu (Float32Array ow*4, ön çarpımlı)
   const serbest = [];
   const yatay = (y) => {
     let s = satirlar.get(y);
     if (s) return s;
-    s = serbest.pop() || new Float32Array(ow * 4);
-    const sat = ((yk + y) * satir + xk) * 4;
+    s = serbest.pop() || new Float32Array(n4);
+    const sat = kaynak.satir(y), veri = kaynak.veri;
     for (let j = 0, q = 0; j < ow; j++, q += 4) {
-      const b = sat + axBas[j] * 4, sn = axSayi[j], ao = j * axAdim;
+      const ao = j * axAdim;
       let r = 0, g = 0, bl = 0, a = 0;
-      if (opak) {
-        for (let t = 0, p = b; t < sn; t++, p += 4) {
-          const w = axAg[ao + t];
-          r += veri[p] * w; g += veri[p + 1] * w; bl += veri[p + 2] * w;
-        }
-        a = 255;
-      } else {
-        for (let t = 0, p = b; t < sn; t++, p += 4) {
-          const wa = axAg[ao + t] * veri[p + 3];
-          r += veri[p] * wa; g += veri[p + 1] * wa; bl += veri[p + 2] * wa; a += wa;
-        }
+      for (let t = 0, p = sat + axBas[j] * 4, sn = axSayi[j]; t < sn; t++, p += 4) {
+        const wa = axAg[ao + t] * veri[p + 3];
+        r += veri[p] * wa; g += veri[p + 1] * wa; bl += veri[p + 2] * wa; a += wa;
       }
       s[q] = r; s[q + 1] = g; s[q + 2] = bl; s[q + 3] = a;
     }
     satirlar.set(y, s);
     return s;
   };
-  const sonuc = new ImageData(ow, oh);
-  const d = sonuc.data;
-  const birikim = new Float32Array(ow * 4);      // Uint8ClampedArray her atamada yuvarladığı için toplam ayrı tutulur
-  const n4 = ow * 4;
-  for (let k2 = 0; k2 < oh; k2++) {
+  const birikim = new Float32Array(n4);           // Uint8ClampedArray her atamada yuvarladığı için toplam ayrı tutulur
+  return (k2, cik) => {
     const b = ay.bas[k2], sn = ay.sayi[k2], ao = k2 * ay.adim;
     for (const [y, s] of satirlar) if (y < b) { satirlar.delete(y); serbest.push(s); }   // pencere yalnızca aşağı kayar
-    const cik = k2 * n4;
-    if (sn === 1) {
-      const s = yatay(b);
-      if (opak) for (let p = 0; p < n4; p += 4) { d[cik + p] = s[p]; d[cik + p + 1] = s[p + 1]; d[cik + p + 2] = s[p + 2]; d[cik + p + 3] = 255; }
-      else for (let p = 0; p < n4; p += 4) { const a = s[p + 3]; if (a > 0) { d[cik + p] = s[p] / a; d[cik + p + 1] = s[p + 1] / a; d[cik + p + 2] = s[p + 2] / a; d[cik + p + 3] = a; } }
-      continue;
+    let s = birikim;
+    if (sn === 1) s = yatay(b);
+    else {
+      birikim.fill(0);
+      for (let t = 0; t < sn; t++) {
+        const w = ay.agirlik[ao + t], ys = yatay(b + t);
+        for (let p = 0; p < n4; p++) birikim[p] += ys[p] * w;
+      }
     }
-    birikim.fill(0);
-    for (let t = 0; t < sn; t++) {
-      const w = ay.agirlik[ao + t], s = yatay(b + t);
-      for (let p = 0; p < n4; p++) birikim[p] += s[p] * w;
+    for (let p = 0; p < n4; p += 4) {
+      const a = s[p + 3], q = cik + p;
+      if (a > 0) { d[q] = s[p] / a; d[q + 1] = s[p + 1] / a; d[q + 2] = s[p + 2] / a; d[q + 3] = a; }
+      else d[q] = d[q + 1] = d[q + 2] = d[q + 3] = 0;
     }
-    if (opak) for (let p = 0; p < n4; p += 4) { d[cik + p] = birikim[p]; d[cik + p + 1] = birikim[p + 1]; d[cik + p + 2] = birikim[p + 2]; d[cik + p + 3] = 255; }
-    else for (let p = 0; p < n4; p += 4) { const a = birikim[p + 3]; if (a > 0) { d[cik + p] = birikim[p] / a; d[cik + p + 1] = birikim[p + 1] / a; d[cik + p + 2] = birikim[p + 2] / a; d[cik + p + 3] = a; } }
-  }
-  return sonuc;
+  };
 }
 
 /**
- * Opak görselin iki eksende de küçültülmesi (en sık durum: sayfa genişliğinde taranmış sayfa, fotoğraf). Nokta örneklemeli
- * kutuda her kaynak satırı/sütunu tek bir hedef pikseline düşer ve ağırlıklar eşittir: tam sayı toplamla tek geçişte yapılır
- * (genel ayrılabilir yoldan ~2 kat hızlı, sonuç aynı).
- */
-function kutuKucult(veri, satir, xk, yk, ax, ay) {
-  const ow = ax.bas.length, oh = ay.bas.length;
-  const axBas = ax.bas, axSayi = ax.sayi;
-  const sonuc = new ImageData(ow, oh);
-  const d = sonuc.data;
-  const top = new Uint32Array(ow * 3);
-  for (let k2 = 0, q = 0; k2 < oh; k2++) {
-    const b = ay.bas[k2], sn = ay.sayi[k2];
-    top.fill(0);
-    for (let y = b; y < b + sn; y++) {
-      const sat = ((yk + y) * satir + xk) * 4;
-      for (let j = 0, u = 0; j < ow; j++, u += 3) {
-        let r = 0, g = 0, bl = 0;
-        for (let p = sat + axBas[j] * 4, son = p + axSayi[j] * 4; p < son; p += 4) { r += veri[p]; g += veri[p + 1]; bl += veri[p + 2]; }
-        top[u] += r; top[u + 1] += g; top[u + 2] += bl;
-      }
-    }
-    for (let j = 0, u = 0; j < ow; j++, u += 3, q += 4) {
-      const n = axSayi[j] * sn;
-      d[q] = top[u] / n; d[q + 1] = top[u + 1] / n; d[q + 2] = top[u + 2] / n; d[q + 3] = 255;
-    }
-  }
-  return sonuc;
-}
-/**
  * drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh) keskin sürümü. PDF.js görselleri drawImageAtIntegerCoords ile ±1 ölçekli,
- * tam sayı ötelemeli dönüşümde tam sayı hedef boyutuna çizer: bu durumda görünür hedef bölgesi JS'de örneklenip 1:1 çizilir.
- * Döner: true (çizildi ya da görünür değil) / false (bu yol uygun değil: Chromium yumuşatmasıyla çizilmeli).
+ * tam sayı ötelemeli dönüşümde tam sayı hedef boyutuna çizer: bu durumda görünür hedef bölgesi JS'de örneklenip şerit şerit 1:1
+ * çizilir (şeritler tam piksel sınırında birleşir). Döner: true (çizildi ya da görünür değil) / false (bu yol uygun değil ya da
+ * kaynak okunamadı: Chromium yumuşatmasıyla çizilmeli).
  */
 function keskinGorsel(ctx, ozgun, img, sx, sy, sw, sh, dx, dy, dw, dh, grafik) {
   const m = ctx.getTransform();
@@ -458,16 +521,27 @@ function keskinGorsel(ctx, ozgun, img, sx, sy, sw, sh, dx, dy, dw, dh, grafik) {
   // Fotoğraf/taranmış sayfa büyütülürken (yakınlaştırma) hedef büyük olur: JS yavaşlar, fark da azalır → Chromium yumuşatması
   if (cikti > EN_FAZLA_CIKTI || (!grafik && (dw > sw || dh > sh) && cikti > EN_FAZLA_BUYUTME_CIKTISI)) return false;
   const ax = eksenAgirliklari(sw, dw, j0, j1, grafik), ay = eksenAgirliklari(sh, dh, k0, k1, grafik);
-  if ((ax.son - ax.ilk) * (ay.son - ay.ilk) > EN_FAZLA_KAYNAK) return false;
-  let k;
-  try { k = kaynakPikselleri(img, sx + ax.ilk, sy + ay.ilk, ax.son - ax.ilk, ay.son - ay.ilk); } catch { return false; }   // okunamayan kaynak
-  const sonuc = ornekle(k, sx + ax.ilk, sy + ay.ilk, ax, ay);
-  const c = document.createElement('canvas');
-  c.width = sonuc.width; c.height = sonuc.height;
-  c.getContext('2d').putImageData(sonuc, 0, 0);
-  ozgun.call(ctx, c, 0, 0, c.width, c.height, dx + j0, dy + k0, c.width, c.height);
-  c.width = 0; c.height = 0;
-  return true;
+  const kw = ax.son - ax.ilk, kh = ay.son - ay.ilk, ow = j1 - j0;
+  if (kw * kh > EN_FAZLA_KAYNAK) return false;
+  let cizildi = false;
+  try {
+    const kaynak = kaynakAc(img, sx + ax.ilk, sy + ay.ilk, kw, kh);
+    kaynak.satir(0);                                        // okunamayan kaynak hiçbir şey çizilmeden burada düşer
+    bantTuvali ||= document.createElement('canvas');
+    const bc = bantTuvali.getContext('2d', { willReadFrequently: true });
+    ornekle(kaynak, ax, ay, (bant, r0, n) => {
+      if (bantTuvali.width !== ow || bantTuvali.height < n) { bantTuvali.width = ow; bantTuvali.height = bant.height; }
+      bc.putImageData(bant, 0, 0, 0, 0, ow, n);
+      ozgun.call(ctx, bantTuvali, 0, 0, ow, n, dx + j0, dy + k0 + r0, ow, n);
+      cizildi = true;
+    });
+    return true;
+  } catch (e) {
+    if (cizildi) console.warn('Keskin görsel çizimi yarıda kaldı', e);
+    return false;
+  } finally {
+    tuvalleriBirak();
+  }
 }
 
 /**

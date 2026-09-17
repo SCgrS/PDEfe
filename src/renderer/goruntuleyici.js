@@ -714,6 +714,7 @@ export class Goruntuleyici extends EventTarget {
     // Kaydırırken hızlı çizilmiş (görsel örneklemesi ertelenmiş) sayfa, kaydırma bitince görünüyorsa yeterli değil
     if (c.hizli && !keskinErtelenir() && this._gorunurKume.has(s)) return false;
     if (c.olcek !== yer.olcek || c.dondurme !== this.toplamDondurme(s) || c.dpr !== pikselOrani()) return false;
+    if (!!c.koyu !== !!this.koyuSayfa) return false;        // metin yumuşatması sayfa koyuluğuna göre (tuvalCiz)
     if (Math.abs(c.w - yer.w) > 1e-3 || Math.abs(c.h - yer.h) > 1e-3) return false;
     if (c.tam) return true;
     const g = this.gorunurKisim(yer), b = c.bolge;
@@ -733,11 +734,16 @@ export class Goruntuleyici extends EventTarget {
     const i = this.idx(s);
     const yer = i >= 0 ? this.yerAl(i) : null;
     return !!yer && Math.abs(yer.w - hedef.w) <= 1e-3 && Math.abs(yer.h - hedef.h) <= 1e-3 && yer.olcek === hedef.olcek
-      && this.toplamDondurme(s) === hedef.dondurme && pikselOrani() === hedef.dpr;
+      && this.toplamDondurme(s) === hedef.dondurme && pikselOrani() === hedef.dpr && hedef.koyu === !!this.koyuSayfa;
   }
 
-  /** Sayfanın b bölgesini (CSS px) oran (tuval pikseli / CSS px) çözünürlüğünde yeni bir tuvale çizer (dondurme: mutlak, toplamDondurme). İptal/hata: null. */
-  async tuvalCiz(s, pdfSayfa, olcek, dondurme, oran, b) {
+  /**
+   * Sayfanın b bölgesini (CSS px) oran (tuval pikseli / CSS px) çözünürlüğünde yeni bir tuvale çizer (dondurme: mutlak, toplamDondurme). İptal/hata: null.
+   * koyu: koyu sayfa için gri tonlamalı metin yumuşatması. Opak tuvalde (alpha:false) Chromium metni ClearType gibi alt piksel
+   * renkleriyle çizer (referans okuyucunun açık sayfadaki görüntüsüyle ölçüldü, aynı); koyu sayfanın invert + hue-rotate dönüşümü bu renk
+   * saçaklarını ters tarafa koyup harfleri bulanık gösteriyordu. alpha:true tuvalde metin gri tonlamalı çizilir.
+   */
+  async tuvalCiz(s, pdfSayfa, olcek, dondurme, oran, b, koyu = false) {
     const px = Math.round(b.x * oran), py = Math.round(b.y * oran);
     const canvas = document.createElement('canvas');
     canvas.className = 'ana';
@@ -746,7 +752,7 @@ export class Goruntuleyici extends EventTarget {
     const viewport = pdfSayfa.getViewport({ scale: olcek * CSS_BIRIM * oran, rotation: dondurme });
     const ertelenenOnce = ertelenenSayisi();
     const gorev = pdfSayfa.render({
-      canvasContext: keskinBaglam(canvas.getContext('2d', { alpha: false })), viewport,
+      canvasContext: keskinBaglam(canvas.getContext('2d', { alpha: koyu })), viewport,
       transform: [1, 0, 0, 1, -px, -py],
       annotationMode: pdfjs.AnnotationMode.DISABLE,
     });
@@ -785,7 +791,7 @@ export class Goruntuleyici extends EventTarget {
       const bolge = this.bolgeHesapla(i, yer);
       // dondurme mutlaktır (taban dahil). Sayfa nesnesi henüz yüklenmemişse taban 0 varsayılır ve yüklenince düzeltilir; beklerken
       // görünüm döndürmesi değişirse girdiBosalt hedefi zaten düşürür (girdinin kendi döndürmesi değişmez)
-      hedef = { olcek: yer.olcek, dondurme: this.toplamDondurme(s), dpr, oran: dpr, w: yer.w, h: yer.h, tam: bolge.tam, onizleme: false, bolge };
+      hedef = { olcek: yer.olcek, dondurme: this.toplamDondurme(s), dpr, oran: dpr, w: yer.w, h: yer.h, tam: bolge.tam, onizleme: false, bolge, koyu: !!this.koyuSayfa };
       s.hedef = hedef;
       const pdfSayfa = await this.sayfaAl(i);
       hedef.dondurme = this.toplamDondurme(s, tabanAl(pdfSayfa));
@@ -796,14 +802,14 @@ export class Goruntuleyici extends EventTarget {
       if (!s.canvas && !s.bos && bolge.w * bolge.h * dpr * dpr > ONIZLEME_ESIGI) {
         const oran = Math.min(dpr, Math.sqrt(ONIZLEME_PIKSEL / (yer.w * yer.h)));
         const tamSayfa = { x: 0, y: 0, w: yer.w, h: yer.h };
-        const on = await this.tuvalCiz(s, pdfSayfa, hedef.olcek, dondurme, oran, tamSayfa);
+        const on = await this.tuvalCiz(s, pdfSayfa, hedef.olcek, dondurme, oran, tamSayfa, hedef.koyu);
         if (!on) return;                                                // iptal ya da hata
         if (!gecerliMi()) { tuvalBirak(on.canvas); return; }
         if (s.canvas) tuvalBirak(on.canvas);
         else this.cizimUygula(s, on.canvas, { ...hedef, oran, tam: true, onizleme: true, bolge: tamSayfa, px: 0, py: 0 });
       }
 
-      const son = await this.tuvalCiz(s, pdfSayfa, hedef.olcek, dondurme, dpr, bolge);
+      const son = await this.tuvalCiz(s, pdfSayfa, hedef.olcek, dondurme, dpr, bolge, hedef.koyu);
       if (!son) return;
       if (!gecerliMi()) { tuvalBirak(son.canvas); return; }   // çizerken boyut/ölçek değişti: yanlış boyutlu tuvali gösterme
       const c = son.canvas;
@@ -967,8 +973,10 @@ export class Goruntuleyici extends EventTarget {
   }
 
   koyuSayfaAyarla(deger) {
+    const degisti = !!this.koyuSayfa !== !!deger;
     this.koyuSayfa = !!deger;
     for (const s of this.sayfalar) { this.yerTutucuRengi(s); if (s.hamCanvas && s.cizim) this.tuvalGoster(s); }
+    if (degisti) this.kaydirmaIsle();       // görünür sayfalar koyuluğa uygun metin yumuşatmasıyla yeniden çizilir (yeterliMi)
   }
 
   // ------------------------------------------------------------ yakınlaştırma
