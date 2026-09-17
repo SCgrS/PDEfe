@@ -550,7 +550,7 @@ function okumaSirasi(anaOgeler, bosluklar, satirlar, yanlar, ana) {
   // Birimler arası bağlar ve sıralama (bağı olmayan en erken içerik sıralı birim önce; döngüde içerik sırası)
   const ustte = [];
   birimler.forEach((U, i) => birimler.forEach((V, j) => {
-    if (i === j || U.rakipler.has(j)) return;
+    if (i === j || U.rakipler.has(j) || (U.yan && V.yan)) return;   // başka yönde yazılmış öğeler kendi aralarında içerik sırasıyla
     if (Math.min(U.son, V.son) - Math.max(U.bas, V.bas) > 1 && U.alt <= V.ust + hTip * 0.3) { U.sonra.add(j); ustte.push([i, j]); }
     else if ((U.yan || V.yan) && Math.min(U.alt, V.alt) > Math.max(U.ust, V.ust) && U.son <= V.bas) U.sonra.add(j);
   }));
