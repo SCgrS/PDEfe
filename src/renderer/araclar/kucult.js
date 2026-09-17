@@ -8,7 +8,8 @@ import {
   degisiklikleriSor, oge, kayitSecimi, kilitliHataMi, sekmeyiYenile, ciktiyiAc,
 } from './ortak.js';
 
-/** Hazır seviyeler. dpi/kalite değerleri yalnızca bilgi amaçlıdır; çekirdek (core/islemler/araclar.py SEVIYELER)
+/** Hazır seviyeler. dpi/kalite değerleri yalnızca bilgi amaçlıdır ve arayüzde gösterilmez (kartlarda ad, sade açıklama ve
+ *  tahmini boyut; Görüntü / PDF birleştir'deki gibi teknik ayrıntı yok); çekirdek (core/islemler/araclar.py SEVIYELER)
  *  adlandırılmış seviyelerde kendi değerlerini kullanır, bu tablo onunla aynı tutulur. Kimlikler çekirdekle ortaktır. */
 export const SEVIYELER = {
   asiri: { ad: 'Aşırı sıkıştırma', aciklama: 'En küçük dosya; görseller belirgin biçimde bulanıklaşır. E-posta ve arşiv için.', dpi: 96, kalite: 45 },
@@ -129,8 +130,7 @@ export class KucultPenceresi {
 
   async tahminleriAl() {
     try {
-      // Adlandırılmış seviyeler için çekirdek kendi dpi/kalite tablosunu kullanır (seviyeler:{ad:true});
-      // yanıttaki dpi/kalite kart açıklamasına yazılır, böylece arayüz çekirdekle uyumlu kalır.
+      // Adlandırılmış seviyeler için çekirdek kendi dpi/kalite tablosunu kullanır (seviyeler:{ad:true}); yanıttaki dpi/kalite gösterilmez
       const sonuc = await this.baglam.cekirdek('kucult_tahmin', { yol: this.belge.yol, seviyeler: Object.fromEntries(Object.keys(SEVIYELER).map((k) => [k, true])) });
       if (this.pencere.kapali) return;
       this.ornekleme = sonuc?.tahmin === true;
@@ -140,11 +140,6 @@ export class KucultPenceresi {
         this.tahminler[id] = b;
         if (b == null) { eksik++; this._tahminYaz(id, null, null, 'tahmin alınamadı'); }
         else this._tahminYaz(id, b);
-        const s = sonuc?.seviyeler?.[id];
-        if (s && typeof s === 'object' && s.dpi && s.kalite) {
-          const ac = this.kartlar.querySelector(`.kucult-kart[data-seviye="${id}"] .aciklama`);
-          if (ac) ac.textContent = `${SEVIYELER[id].aciklama} (${s.dpi} DPI, JPEG %${s.kalite})`;
-        }
       }
       const notlar = [];
       if (this.ornekleme) notlar.push('Büyük belge: tahminler ilk sayfalar örneklenerek hesaplandı (≈); gerçek sonuç biraz farklı olabilir.');

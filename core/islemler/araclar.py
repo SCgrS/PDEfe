@@ -12,6 +12,7 @@ boyut_tahmini, dondur_kaydet, sayfa_boyutlari, dosya_erisim.
 Üzerine yazma: yedek alınmaz; sonuç hedefin klasöründe geçici dosyaya yazılır ve os.replace ile atomik olarak yerine konur.
 Hedef başka bir programda kilitliyse özgün dosya değişmez ve hata iletisi KILITLI_METNI'ni, salt okunursa SALT_OKUNUR_METNI'ni içerir.
 """
+import hashlib
 import io
 import os
 import re
@@ -44,6 +45,11 @@ GORSEL_KALITE = {
 TAHMIN_ORNEK_BAYT = 40 * 1024 * 1024
 TAHMIN_ORNEK_SAYFA = 250
 TAHMIN_ORNEK_ADET = 20
+# Birleştirme tahmini: aynı içerik (aynı dosya birden çok kez ya da kopyası) çıktıda bir kez saklanır (garbage=4 eş
+# nesneleri birleştirir); her yinelenen sayfa yalnızca kendi sayfa nesnesi kadar yer tutar (ölçüm: 10-30 bayt).
+TEKRAR_SAYFA_BAYT = 20
+# Görsel sayfası başına sayfa nesnesi, içerik akışı ve görsel sözlüğü payı
+GORSEL_SAYFA_PAYI = 600
 
 GORSEL_UZANTILAR = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tif", ".tiff", ".webp", ".heic", ".heif"}
 
@@ -767,7 +773,7 @@ def _heic_hazirla(yol):
             pillow_heif.register_heif_opener()
         except ImportError:
             raise ValueError("HEIC/HEIF görselleri için 'pillow_heif' kütüphanesi kurulu değil; "
-                             "görseli önce JPEG ya da PNG'ye çevirin: %s" % os.path.basename(yol))
+                             "görseli önce JPG ya da PNG'ye çevirin: %s" % os.path.basename(yol))
 
 
 def _gorsel_ac(yol):
@@ -1074,8 +1080,10 @@ def y_gorsel_bilgi(p):
 
 # ---------------------------------------------------------------- 7) boyut_tahmini
 def y_boyut_tahmini(p):
-    """{oge, genelKalite?} → {boyut, tahmin}: öğenin verilen kaliteyle çıktı boyutunun hızlı tahmini.
-    Çoğul biçim (renderer): {ogeler: [oge...], genelKalite?|kalite?} → {ogeler: [{boyut, tahmin}|{hata}], toplam}
+    """{oge, genelKalite?} → {boyut, tahmin, ozet, tekrar}: öğenin verilen kaliteyle çıktı boyutunun hızlı tahmini.
+    ozet: çıktıya girecek içeriğin özeti (aynı özetli öğeler çıktıda bir kez saklanır); tekrar: aynı içerik yeniden
+    eklenince toplama eklenecek bayt. Toplam: ilk öğe boyut, aynı özetli sonrakiler yalnızca tekrar kadar.
+    Çoğul biçim: {ogeler: [oge...], genelKalite?|kalite?} → {ogeler: [{boyut, tahmin, ozet, tekrar}|{hata}], toplam}
     (bir öğe açılamazsa yalnızca o öğe hata alır, diğerleri hesaplanır)."""
     ilerleme = _ilerleme(p)
     genel = p.get("genelKalite") or p.get("kalite") or None
@@ -1083,12 +1091,14 @@ def y_boyut_tahmini(p):
     if isinstance(ogeler, list):
         sonuclar = []
         toplam = 0
+        gorulen = set()
         for i, oge in enumerate(ogeler):
             try:
                 if not isinstance(oge, dict):
                     raise ValueError("Öğe %d geçersiz." % (i + 1))
                 r = _oge_boyut_tahmini(oge, genel)
-                toplam += r["boyut"]
+                toplam += r["tekrar"] if r["ozet"] in gorulen else r["boyut"]
+                gorulen.add(r["ozet"])
                 sonuclar.append(r)
             except Exception as e:
                 sonuclar.append({"boyut": None, "tahmin": False, "hata": str(e)})
@@ -1101,14 +1111,52 @@ def y_boyut_tahmini(p):
 
 
 _tahmin_onbellegi = {}       # (yol, mtime, boyut, tür, kalite, sayfaBoyutu, kenar, dondurme) → sonuç
-_gorselsiz_pdf_boyutu = {}   # (yol, mtime, boyut) → görsel içermeyen PDF'in yeniden yazılmış boyutu (seviyeden bağımsız)
+_gorselsiz_pdf_boyutu = {}   # (yol, mtime, boyut) → (yeniden yazılmış boyut, sayfa): görsel içermeyen PDF (seviyeden bağımsız)
+_dosya_ozetleri = {}         # (yol, mtime, boyut) → dosya içeriğinin MD5 özeti
+_bos_sayfa_boyutlari = {}    # (genişlik, yükseklik) → boş tek sayfalık belgenin kayıtlı boyutu
+
+
+def _dosya_ozeti(yol, dosya):
+    """Dosya içeriğinin özeti (aynı dosyanın farklı adla kopyası da aynı özeti verir); dosya başına bir kez okunur."""
+    if dosya not in _dosya_ozetleri:
+        h = hashlib.md5()
+        with open(yol, "rb") as f:
+            for parca in iter(lambda: f.read(1 << 20), b""):
+                h.update(parca)
+        if len(_dosya_ozetleri) > 400:
+            _dosya_ozetleri.clear()
+        _dosya_ozetleri[dosya] = h.hexdigest()
+    return _dosya_ozetleri[dosya]
+
+
+def _gomulu_gorsel_boyutu(bayt, sayfa_g, sayfa_y, rect, dondurme):
+    """JPEG dışı (PNG) görselin PDF'teki gerçek boyutu. MuPDF PNG'yi çözüp kendi sıkıştırmasıyla yazar; boyutu dosyanın
+    ya da Pillow PNG'sinin boyutundan belirgin biçimde farklı olabilir (ölçüm: %2-60 büyük). Birleştirmedeki gibi tek
+    sayfalık belgeye eklenip kayıt boyutundan boş sayfanın boyutu çıkarılır."""
+    olcu = (round(sayfa_g, 1), round(sayfa_y, 1))
+    if olcu not in _bos_sayfa_boyutlari:
+        bos = pymupdf.open()
+        try:
+            bos.new_page(width=sayfa_g, height=sayfa_y)
+            _bos_sayfa_boyutlari[olcu] = len(bos.tobytes(**KAYIT_SECENEKLERI))
+        finally:
+            bos.close()
+    d = pymupdf.open()
+    try:
+        d.new_page(width=sayfa_g, height=sayfa_y).insert_image(rect, stream=bayt, rotate=dondurme, keep_proportion=True)
+        return max(0, len(d.tobytes(**KAYIT_SECENEKLERI)) - _bos_sayfa_boyutlari[olcu])
+    finally:
+        d.close()
 
 
 def _oge_boyut_tahmini(oge, genel):
-    """Öğenin verilen kaliteyle çıktı boyutu. Renderer her öğe için dört seviyeyi ayrı ayrı sorar; aynı öğe/seviye
-    yeniden hesaplanmaz, görsel her seviye için yeniden çözülmez, görselsiz PDF bir kez yazılır."""
+    """Öğenin verilen kaliteyle çıktı boyutu {boyut, tahmin, ozet, tekrar} (bkz. y_boyut_tahmini). Renderer her öğe için
+    dört seviyeyi ayrı ayrı sorar; aynı öğe/seviye yeniden hesaplanmaz, görsel her seviye için yeniden çözülmez,
+    görselsiz PDF bir kez yazılır."""
     tur = _oge_turu(oge)
     kalite = oge.get("kalite") or genel or "orijinal"
+    if kalite != "orijinal" and kalite not in GORSEL_KALITE:
+        raise ValueError("Bilinmeyen kalite: %r" % (kalite,))
     yol = _mutlak(oge.get("yol"))
     _dosya_var(yol)
     st = os.stat(yol)
@@ -1118,32 +1166,43 @@ def _oge_boyut_tahmini(oge, genel):
     if anahtar in _tahmin_onbellegi:
         return dict(_tahmin_onbellegi[anahtar])
     if tur == "pdf":
-        if kalite == "orijinal":
-            return {"boyut": st.st_size, "tahmin": False}
-        if kalite not in GORSEL_KALITE:
-            raise ValueError("Bilinmeyen kalite: %r" % (kalite,))
         if dosya in _gorselsiz_pdf_boyutu:
-            sonuc = {"boyut": _gorselsiz_pdf_boyutu[dosya], "tahmin": True}
+            boyut, sayfa = _gorselsiz_pdf_boyutu[dosya]
         else:
             kaynak = _pdf_ac(yol)
             try:
-                gorselsiz = not any(pg.get_images(full=False) for pg in kaynak)
-                if not gorselsiz:
-                    dpi, q = GORSEL_KALITE[kalite]
-                    _gorselleri_yeniden_yaz(kaynak, dpi, q)
-                sonuc = {"boyut": len(kaynak.tobytes(**KAYIT_SECENEKLERI)), "tahmin": True}
+                sayfa = kaynak.page_count
+                if kalite == "orijinal" and st.st_size > TAHMIN_ORNEK_BAYT:
+                    # Çok büyük belgeyi yalnızca "Orijinal" tahmini için bellekte yeniden yazmaya değmez: dosya boyutu yeterli yaklaşım
+                    boyut, gorselsiz = st.st_size, False
+                else:
+                    # Orijinal de yeniden yazılarak ölçülür: birleştirme kaydı (nesne akışları, sıkıştırma) çoğu dosyayı küçültür
+                    gorselsiz = not any(pg.get_images(full=False) for pg in kaynak)
+                    if not gorselsiz and kalite != "orijinal":
+                        dpi, q = GORSEL_KALITE[kalite]
+                        _gorselleri_yeniden_yaz(kaynak, dpi, q)
+                    boyut = len(kaynak.tobytes(**KAYIT_SECENEKLERI))
             finally:
                 kaynak.close()
             if gorselsiz:
                 # Görsel yoksa bütün seviyeler aynı sonucu verir: diğer seviyeler yeniden yazılmaz
                 if len(_gorselsiz_pdf_boyutu) > 200:
                     _gorselsiz_pdf_boyutu.clear()
-                _gorselsiz_pdf_boyutu[dosya] = sonuc["boyut"]
+                _gorselsiz_pdf_boyutu[dosya] = (boyut, sayfa)
+        sonuc = {"boyut": boyut, "tahmin": True, "ozet": "pdf:%s:%s" % (_dosya_ozeti(yol, dosya), kalite),
+                 "tekrar": TEKRAR_SAYFA_BAYT * sayfa}
     else:
-        toplam = 0
-        for bayt, *_ in _gorsel_hazirla(oge, genel, onbellekli=True):
-            toplam += len(bayt) + 600      # sayfa nesnesi + görsel sözlüğü yaklaşık payı
-        sonuc = {"boyut": toplam, "tahmin": True}
+        toplam, sayfa = 0, 0
+        h = hashlib.md5()
+        for bayt, sayfa_g, sayfa_y, rect, dondurme in _gorsel_hazirla(oge, genel, onbellekli=True):
+            h.update(bayt)
+            sayfa += 1
+            if bayt[:2] == b"\xff\xd8":
+                toplam += len(bayt) + GORSEL_SAYFA_PAYI   # JPEG olduğu gibi gömülür
+            else:
+                toplam += _gomulu_gorsel_boyutu(bayt, sayfa_g, sayfa_y, rect, dondurme) + GORSEL_SAYFA_PAYI
+        # Özet gömülecek baytlardan: aynı görsel aynı kaliteyle (aynı dosya ya da kopyası) çıktıda bir kez saklanır
+        sonuc = {"boyut": toplam, "tahmin": True, "ozet": "gorsel:" + h.hexdigest(), "tekrar": TEKRAR_SAYFA_BAYT * sayfa}
     if len(_tahmin_onbellegi) > 400:
         _tahmin_onbellegi.clear()
     _tahmin_onbellegi[anahtar] = dict(sonuc)
