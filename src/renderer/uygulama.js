@@ -1036,10 +1036,14 @@ function diyalogAc({ baslik, govde, dugmeler, onSecim, genislik }) {
     btn.className = b.birincil ? 'birincil' : 'ikincil';
     btn.style.marginTop = '0';
     btn.textContent = b.etiket; btn.dataset.id = b.id;
-    btn.addEventListener('click', () => { ortu.remove(); onSecim?.(b.id); });
+    btn.addEventListener('click', () => { kapat(); onSecim?.(b.id); });
     d.append(btn);
   }
-  ortu.addEventListener('keydown', (e) => { if (e.key === 'Escape') { ortu.remove(); onSecim?.(null); } });
+  // Yazı düzenlenirken açıldıysa (F1) kapanınca imleç düzenleyiciye döner; Esc yalnızca pencereyi kapatır (genel Esc işleyicisi pencere
+  // kalkmış olarak görüp düzenlemeyi de bitirmesin, seçimi / aracı bırakmasın)
+  const n = aktif()?.notlar, ed = n?.duzenleyici, oncekiOdak = document.activeElement;
+  const kapat = () => { ortu.remove(); if (ed && n.duzenleyici === ed && oncekiOdak === ed.el) n.duzenleyiciOdakla(); };
+  ortu.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); kapat(); onSecim?.(null); } });
   document.body.append(ortu);
   (ortu.querySelector('.birincil') || ortu.querySelector('button'))?.focus();
   return ortu;
