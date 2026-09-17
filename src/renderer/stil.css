@@ -389,11 +389,14 @@ body.okuma-modu.ust-goster #arac-cubugu { display: flex; position: absolute; top
 .not-oge img { width: 100%; height: 100%; display: block; pointer-events: none; }
 .not-text svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,0.35)); }
 .not-oge.not-secili { outline: 2px solid var(--vurgu); outline-offset: 2px; border-radius: 2px; }
-/* Notlu vurgu/işaret simgesi (yalnızca ekranda): not renginde dolgu, koyu kenar; açık hale koyu sayfada da seçilir */
+/* Notlu vurgu/işaret simgesi (yalnızca ekranda): not renginde dolgu, koyu kenar. Vurgunun ucunda üst simge gibi durur ve harflere
+   biraz binebilir: yarı saydam beyaz hale altındaki yazıyı bastırır, simge koyu sayfada da seçilir */
 .not-simge { position: absolute; pointer-events: auto; cursor: pointer; }
-.not-simge svg { width: 100%; height: 100%; display: block; overflow: visible; filter: drop-shadow(0 0 1px rgba(255,255,255,0.85)) drop-shadow(0 1px 1.5px rgba(0,0,0,0.35)); transition: transform 80ms; }
+.not-simge svg { width: 100%; height: 100%; display: block; overflow: visible; filter: drop-shadow(0 0.5px 1px rgba(0,0,0,0.3)); transition: transform 80ms; }
+.not-simge svg .hale { fill: rgba(255,255,255,0.72); stroke: rgba(255,255,255,0.72); stroke-width: 5; stroke-linejoin: round; }
+.koyu-sayfa .not-simge svg .hale { fill: rgba(0,0,0,0.72); stroke: rgba(0,0,0,0.72); }   /* koyulaştırılmış sayfada yazı açık renkli: hale koyu */
 .not-simge:hover svg, .not-simge.not-hover svg { transform: scale(1.12); }
-/* Simgenin üzerindeyken ait olduğu vurgu belirginleşir (simge satır sonuna kaymış olabilir): açık sayfada koyu, koyu sayfada açık kenar */
+/* Simgenin üzerindeyken ait olduğu vurgu belirginleşir (komşu notların simgeleri yan yana olabilir): açık sayfada koyu, koyu sayfada açık kenar */
 .not-isaretler.not-vurgular g.not-hover-simgeden:not(.not-secili) rect { stroke: rgba(0,0,0,0.55); stroke-width: 1px; stroke-dasharray: 3 2; }
 .not-isaretler.not-vurgular.koyu-sayfa g.not-hover-simgeden:not(.not-secili) rect { stroke: rgba(255,255,255,0.7); }
 .not-isaretler g.not-hover-simgeden:not(.not-secili) { filter: drop-shadow(0 0 1px rgba(128,128,128,0.9)); }
@@ -434,9 +437,9 @@ button.ikon.kucuk svg { width: 16px; height: 16px; }
   box-shadow: var(--golge); display: flex; flex-direction: column; overflow: hidden; user-select: text; font-size: 12px;
 }
 .not-balonu.gecici { pointer-events: auto; }
-.not-balonu .ust { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: var(--arka); border-bottom: 1px solid var(--kenar); }
+.not-balonu .ust { display: flex; align-items: center; gap: 4px; padding: 6px 8px; background: var(--arka); border-bottom: 1px solid var(--kenar); }
 .not-balonu .ust .renk { width: 10px; height: 10px; border-radius: 50%; background: var(--not-renk); border: 1px solid rgba(0,0,0,.25); flex-shrink: 0; }
-.not-balonu .ust .tur { font-weight: 600; }
+.not-balonu .ust .tur { font-weight: 600; white-space: nowrap; flex-shrink: 0; }
 .not-balonu .ust .yazar { color: var(--metin-soluk); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .not-balonu .ust .tarih { color: var(--metin-soluk); font-size: 11px; white-space: nowrap; }
 .not-balonu textarea.icerik { border: none; outline: none; resize: none; background: transparent; padding: 8px; min-height: 64px; max-height: 220px; font: inherit; color: var(--metin); }

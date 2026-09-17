@@ -239,7 +239,7 @@ export class SolPanel extends EventTarget {
       el.dataset.id = n.id || '';
       el.innerHTML = '<div class="ust"><span class="renk"></span><span class="tur"></span><span class="yazar"></span><span class="esnek"></span><span class="sayfa-no"></span></div><div class="icerik"></div><div class="yanit-sayisi"></div>';
       el.querySelector('.renk').style.background = n.renk || (n.tur === 'FreeText' ? (n.yazi?.renk || '#999') : '#ffd100');
-      el.querySelector('.tur').textContent = turAdi(n.tur);
+      el.querySelector('.tur').textContent = notTurAdi(n);
       el.querySelector('.yazar').textContent = n.yazar || '';
       el.querySelector('.sayfa-no').textContent = 's. ' + n.sayfa + (n.degisim ? ' · ' + tarihBicimle(n.degisim) : '');
       el.querySelector('.icerik').textContent = n.icerik || '';
@@ -258,6 +258,15 @@ export function turAdi(tur) {
     FreeText: 'Yazı', Ink: 'Çizim', Square: 'Kare', Circle: 'Daire', Line: 'Çizgi', Polygon: 'Çokgen', PolyLine: 'Çoklu çizgi',
     Stamp: 'Damga', FileAttachment: 'Dosya eki', Caret: 'Düzeltme', Link: 'Bağlantı', Widget: 'Form alanı', Popup: 'Balon',
   }[tur] || tur;
+}
+
+/**
+ * Notun gösterilen tür adı: not taşıyan vurgu (referans okuyucunun "Metinle ilgili yorum yap"ı, /IT /HighlightNote; ya da metni olan vurgu)
+ * "Metin notu"dur, notsuz vurgu "Vurgu" kalır.
+ */
+export function notTurAdi(n) {
+  if (n?.tur === 'Highlight' && (n.it === 'HighlightNote' || String(n.icerik || '').trim())) return 'Metin notu';
+  return turAdi(n?.tur);
 }
 
 /** PDF tarih dizesini (D:20260915225519+03'00') okunur biçime çevirir. */

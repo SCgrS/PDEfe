@@ -4,7 +4,7 @@
 import { CSS_BIRIM, yolAnahtari } from './goruntuleyici.js';
 import { Komut } from './komutlar.js';
 import { secimDikdortgenleri, secimMetinKutulari, satirlaraBirlestir, secimBaslangicSayfasi } from './metin.js';
-import { turAdi, tarihBicimle } from './panel.js';
+import { turAdi, notTurAdi, tarihBicimle } from './panel.js';
 import {
   yaziKanonik, parcalariCiz, duzMetin, stilAl, stilKonumda, hepsindeMi, stilDegistir, metinDegistir, uzlastir, domdanOku, ofsetAl, secimAl, secimKoy,
   HIZA_CSS, sirala, sonBosluklariCizgisizYap,
@@ -65,7 +65,6 @@ export class NotYoneticisi extends EventTarget {
     this._hoverId = null;        // fare altındaki notun kimliği (vurgu, not simgesi, yapışkan not)
     this._balonUstunde = false;  // fare balonun üzerinde
     this._canliIcerik = null;    // {id, metin}: balonda yazılan, henüz kaydedilmemiş not metni (not simgesi anında görünsün)
-    this._metinKutulari = new WeakMap();   // .textLayer → öğelerin sayfaya oranla kutuları (not simgesini metnin dışına koymak için)
     this._kutuBekleyenler = new WeakSet(); // koyu sayfada görsel kutuları gelince notları yeniden çizmek için beklenen istekler
     this._balonCapa = null;      // 'simge': geçici balon not simgesinden açıldı (simgenin yanına konur); değilse notun kendisine
     this._ayrilanKutu = null;    // fare notun hangi parçasından çıktı (istemci kutusu): balona giden koridor bundan hesaplanır
@@ -76,7 +75,7 @@ export class NotYoneticisi extends EventTarget {
     this.yuklendi = false;
 
     this.g.addEventListener('sayfaCizildi', (e) => { this.cizSayfa(e.detail.sayfa); this._cubukOnbellek = null; this.secimCubuguKonumla(); });
-    this.g.addEventListener('metinKatmani', (e) => { this.simgeleriKonumla(e.detail.sayfa); if (this.balon) this.balonKonumla(); });
+    this.g.addEventListener('metinKatmani', () => { if (this.balon) this.balonKonumla(); });
     this.g.addEventListener('sayfalar', () => this.sayfalarDegisti());
     this.g.addEventListener('yerlesim', () => { this.hepsiniCiz(); this.balonKonumla(); this.duzenleyiciKonumla(); this._cubukOnbellek = null; this.secimCubuguKonumla(); });
     this.g.alan.addEventListener('pointerdown', (e) => this.pointerDown(e));
@@ -471,8 +470,9 @@ export class NotYoneticisi extends EventTarget {
 
   // ------------------------------------------------------------ not simgesi (metin işaretindeki not)
   /**
-   * Notlu vurgu ailesi için küçük konuşma balonu simgesi (yalnızca PDEfe'de gösterilir, dosyaya yazılmaz). Konumu simgeKonumu:
-   * ilk satırın sonunda, metnin dışında. data-id taşır: üzerine gelince not gösterilir, tıklanınca düzenlemek için açılır.
+   * Notlu vurgu ailesi için küçük konuşma balonu simgesi (yalnızca PDEfe'de gösterilir, dosyaya yazılmaz). Konumu simgeKonumu: ilk
+   * satırın bitişinde, üst simge gibi yukarıda. data-id taşır: üzerine gelince not gösterilir, tıklanınca düzenlemek için açılır.
+   * Altındaki harflere binebildiği için simgenin çevresinde yarı saydam beyaz hale (ilk yol) çizilir.
    */
   notSimgesi(n, i, dolu = []) {
     const el = document.createElement('div');
@@ -480,7 +480,8 @@ export class NotYoneticisi extends EventTarget {
     el.dataset.id = n.id;
     el.setAttribute('aria-label', 'Not');
     el.style.setProperty('--not-renk', n.renk || NOT_RENGI);
-    el.innerHTML = '<svg viewBox="0 0 20 20"><path d="M2.5 4.2A2.2 2.2 0 0 1 4.7 2h10.6a2.2 2.2 0 0 1 2.2 2.2v7.6a2.2 2.2 0 0 1-2.2 2.2H9.2L5.4 17.6V14h-.7a2.2 2.2 0 0 1-2.2-2.2z" fill="var(--not-renk)" stroke="#1f1f1f" stroke-width="1.5" stroke-linejoin="round"/><path d="M6 6.6h8M6 9.6h5.5" stroke="#1f1f1f" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    const yol = 'M2.5 4.2A2.2 2.2 0 0 1 4.7 2h10.6a2.2 2.2 0 0 1 2.2 2.2v7.6a2.2 2.2 0 0 1-2.2 2.2H9.2L5.4 17.6V14h-.7a2.2 2.2 0 0 1-2.2-2.2z';
+    el.innerHTML = `<svg viewBox="1.5 1.5 17 17"><path class="hale" d="${yol}"/><path d="${yol}" fill="var(--not-renk)" stroke="#1f1f1f" stroke-width="1.5" stroke-linejoin="round"/><path d="M6 6.6h8M6 9.6h5.5" stroke="#1f1f1f" stroke-width="1.5" stroke-linecap="round"/></svg>`;
     this.simgeYerlestir(el, n, i, dolu);
     return el;
   }
@@ -492,17 +493,6 @@ export class NotYoneticisi extends EventTarget {
     el.hidden = false;
     dolu.push(k);
     Object.assign(el.style, { left: k.x + 'px', top: k.y + 'px', width: k.b + 'px', height: k.b + 'px' });
-  }
-
-  /** Metin katmanı çizilince (ya da yeniden kurulunca) sayfadaki not simgeleri metnin gerçek satır sonuna göre yeniden konumlanır. */
-  simgeleriKonumla(sayfa) {
-    const s = this.g.sayfalar[sayfa - 1];
-    if (!s || !this.yuklendi) return;
-    const dolu = [];
-    for (const el of s.notKatmani.querySelectorAll('.not-simge')) {
-      const n = this.notlar.get(el.dataset.id);
-      if (n) this.simgeYerlestir(el, n, sayfa - 1, dolu);
-    }
   }
 
   /** Balonda yazılırken ya da not silinince/boşalınca tek notun simgesini ekler/kaldırır (sayfanın tamamını yeniden çizmeden). */
@@ -521,84 +511,35 @@ export class NotYoneticisi extends EventTarget {
   }
 
   /**
-   * Metin katmanındaki öğelerin sayfa kutusuna oranla kutuları [x0,y0,x1,y1] (0..1). Oran kullanıldığı için yakınlaştırma sürerken
-   * (katman eski ölçekteyken) de geçerlidir; katman yeniden kurulunca (döndürme) önbellek kendiliğinden düşer.
-   */
-  metinKutulari(i) {
-    const katman = this.g.sayfalar[i]?.el.querySelector('.textLayer');
-    if (!katman || !katman.querySelector('.endOfContent')) return null;   // katman henüz çizilmedi
-    const onceki = this._metinKutulari.get(katman);
-    if (onceki && onceki.n === katman.childElementCount) return onceki.kutular;
-    const kr = katman.getBoundingClientRect();
-    if (!kr.width || !kr.height) return null;
-    const kutular = [];
-    for (const sp of katman.querySelectorAll('span:not(.markedContent):not(.highlight)')) {
-      if (!sp.textContent.trim()) continue;
-      const r = sp.getBoundingClientRect();
-      if (r.width < 0.5 || r.height < 0.5) continue;
-      kutular.push([(r.left - kr.left) / kr.width, (r.top - kr.top) / kr.height, (r.right - kr.left) / kr.width, (r.bottom - kr.top) / kr.height]);
-    }
-    this._metinKutulari.set(katman, { n: katman.childElementCount, kutular });
-    return kutular;
-  }
-
-  /**
-   * Not simgesinin sayfa içi konumu {x, y, b} (px). Simge hiçbir yazının (metin katmanı öğesinin) ve başka simgenin üstüne binmez; yerler
-   * sırayla denenir, boş olan ilki seçilir:
-   *  1) vurgunun ilk satırının bittiği yerin hemen sağı (satırdan biraz yukarıda, olmazsa satıra ortalı),
-   *  2) ilk satırın sağ üst köşesinin üstü (satır arasında ya da üst satırda boş yer varsa);
-   *     bu ikisi önce tam boyutla, sonra satır kalınlığına göre küçültülerek (en az 9 px) denenir; olmazsa
-   *  3) metin satırının gerçek sonu (satır vurgudan sonra bitişik yazıyla sürüyorsa; çoğunlukla sağ kenar boşluğu) ve okuma yönünde ötesi.
-   * Boyut satır kalınlığıyla ölçeklenir (12–30 px). Döndürülmüş sayfada okuma yönü viewport açısından alınır; simge dik kalır.
+   * Not simgesinin sayfa içi konumu {x, y, b} (px): üst simge (dipnot işareti) gibi vurgunun ilk satırının okuma yönündeki bitişinde,
+   * ortası o satırın üst kenarında. Boyut satır kalınlığının yaklaşık üçte ikisidir (12–22 px); komşu harflere biraz binebilir (yarı saydam
+   * beyaz hale okunur tutar, stil.css). Aynı sayfada önceden yerleştirilmiş bir simgeyle (dolu: {x, y, b} kutuları) çakışırsa okuma yönünde
+   * ileri, sayfaya sığmazsa geri kaydırılır. Döndürülmüş sayfada okuma yönü viewport açısından alınır; simge dik kalır.
    */
   simgeKonumu(n, i, dolu = []) {
     const vp = this.vp(i), s = this.g.sayfalar[i];
     if (!vp || !s) return null;
-    const kutular = n.quadKutular || quadKutulari(n.quads);
-    const r = this.rectToPx(i, kutular[0] || n.rect);
     const W = s.el.clientWidth || vp.width, H = s.el.clientHeight || vp.height;
     const aci = ((Math.round(vp.rotation / 90) * 90) % 360 + 360) % 360;
     // Yerel eksenler: u okuma yönünde, v sonraki satıra doğru artar. yerel: sayfa kutusu → {u0,u1,v0,v1}; sayfaya: yerel simge (u,v,b) → sol üst köşe
     const yerel = (x0, y0, x1, y1) => aci === 0 ? { u0: x0, u1: x1, v0: y0, v1: y1 } : aci === 90 ? { u0: y0, u1: y1, v0: -x1, v1: -x0 }
       : aci === 180 ? { u0: -x1, u1: -x0, v0: -y1, v1: -y0 } : { u0: -y1, u1: -y0, v0: x0, v1: x1 };
     const sayfaya = (u, v, b) => aci === 0 ? { x: u, y: v } : aci === 90 ? { x: -v - b, y: u } : aci === 180 ? { x: -u - b, y: -v - b } : { x: v, y: -u - b };
-    const satir = yerel(r.x, r.y, r.x + r.w, r.y + r.h);
-    const kalinlik = satir.v1 - satir.v0;
-    const oranlar = this.metinKutulari(i);
-    const metin = oranlar ? oranlar.map((o) => [o[0] * W, o[1] * H, o[2] * W, o[3] * H]) : [];
-    const kesisir = (k, x0, y0, x1, y1) => Math.min(x1, k.x + k.b) - Math.max(x0, k.x) > 1 && Math.min(y1, k.y + k.b) - Math.max(y0, k.y) > 1;
-    const aday = (u, v, b) => { const p = sayfaya(u, v, b); return { x: Math.max(0, Math.min(W - b, p.x)), y: Math.max(0, Math.min(H - b, p.y)), b }; };
-    const bos = (k) => !metin.some((m) => kesisir(k, ...m)) && !dolu.some((d) => kesisir(k, d.x, d.y, d.x + d.b, d.y + d.b));
-    const bosluk = (b) => Math.max(2, Math.min(kalinlik * 0.15, b * 0.3));
-    const buyuk = Math.round(Math.max(12, Math.min(30, kalinlik * 1.05)));
-    const kucuk = Math.round(Math.max(9, Math.min(buyuk, kalinlik * 0.8)));
-    const boyutlar = [...new Set([buyuk, Math.round((buyuk + kucuk) / 2), kucuk])];
-    // 1-2) vurgunun ilk satırının ucunda
-    for (const b of boyutlar) {
-      const yerler = [
-        [satir.u1 + bosluk(b), satir.v0 - b * 0.35],             // bitişin sağı, satırdan biraz yukarıda
-        [satir.u1 + bosluk(b), satir.v0 + (kalinlik - b) / 2],   // bitişin sağı, satıra ortalı
-        [satir.u1 - b * 0.5, satir.v0 - b - 1],                   // sağ üst köşenin üstü, köşeye ortalı
-        [satir.u1 + 1, satir.v0 - b - 1],                         // sağ üst köşenin üstü, bitişin sağında
-      ];
-      for (const [u, v] of yerler) { const k = aday(u, v, b); if (bos(k)) return k; }
+    const kutular = n.quadKutular || quadKutulari(n.quads);
+    const satirlar = (kutular.length ? kutular : [n.rect]).map((q) => { const r = this.rectToPx(i, q); return yerel(r.x, r.y, r.x + r.w, r.y + r.h); });
+    // İlk satır: okuma sırasında en üstteki kutu; aynı satırdaki öteki parçaları da (satır birden çok kutudan oluşabilir) bitişe katılır
+    const ilk = satirlar.reduce((a, q) => (q.v0 + q.v1 < a.v0 + a.v1 ? q : a));
+    const kalinlik = ilk.v1 - ilk.v0;
+    const ayni = satirlar.filter((q) => Math.min(q.v1, ilk.v1) - Math.max(q.v0, ilk.v0) >= 0.5 * Math.min(q.v1 - q.v0, kalinlik));
+    const u1 = Math.max(...ayni.map((q) => q.u1)), v0 = Math.min(...ayni.map((q) => q.v0));
+    const b = Math.round(Math.max(12, Math.min(22, kalinlik * 0.65)));
+    const aday = (u) => { const p = sayfaya(u, v0 - b / 2, b); return { x: Math.max(0, Math.min(W - b, p.x)), y: Math.max(0, Math.min(H - b, p.y)), b }; };
+    const carpisir = (k) => dolu.some((d) => Math.min(k.x + k.b, d.x + d.b) - Math.max(k.x, d.x) > 1 && Math.min(k.y + k.b, d.y + d.b) - Math.max(k.y, d.y) > 1);
+    const bas = u1 - b * 0.15;   // vurgunun ucuna hafifçe değer: hangi vurguya ait olduğu görünsün
+    for (const yon of [1, -1]) {
+      for (let kay = yon > 0 ? 0 : 1; kay < 8; kay++) { const k = aday(bas + yon * kay * (b + 2)); if (!carpisir(k)) return k; }
     }
-    // 3) metin satırının gerçek sonu: vurgunun bittiği yerden sonra bitişik metin öğeleri boyunca uzatılır
-    const ayniSatir = metin.map((m) => yerel(...m))
-      .filter((m) => Math.min(m.v1, satir.v1) - Math.max(m.v0, satir.v0) >= 0.5 * Math.min(m.v1 - m.v0, kalinlik))
-      .sort((p, q) => p.u0 - q.u0);
-    let son = satir.u1;
-    for (let degisti = true; degisti;) {
-      degisti = false;
-      for (const m of ayniSatir) if (m.u0 <= son + kalinlik && m.u1 > son + 0.5) { son = m.u1; degisti = true; }
-    }
-    for (const b of boyutlar) {
-      for (let kay = 0; kay < 6; kay++) {
-        const u = son + bosluk(b) + kay * (b + 2);
-        for (const v of [satir.v0 - b * 0.35, satir.v0 + (kalinlik - b) / 2]) { const k = aday(u, v, b); if (bos(k)) return k; }
-      }
-    }
-    return aday(son + bosluk(kucuk), satir.v0 + (kalinlik - kucuk) / 2, kucuk);   // hiç boş yer yoksa satırın sonunda, satıra ortalı
+    return aday(bas);
   }
 
   seciliIsaretle() {
@@ -856,7 +797,7 @@ export class NotYoneticisi extends EventTarget {
     b.innerHTML = `
       <div class="ust" style="--not-renk:${kacis(renk)}">
         <span class="renk"></span>
-        <span class="tur">${kacis(turAdi(n.tur))}</span>
+        <span class="tur">${kacis(notTurAdi(n))}</span>
         <span class="yazar">${kacis(n.yazar || '')}</span>
         <span class="esnek"></span>
         <span class="tarih">${kacis(tarihBicimle(n.degisim || n.olusturma))}</span>
@@ -892,7 +833,10 @@ export class NotYoneticisi extends EventTarget {
   /**
    * Balonu notun yanına koyar; notun kendisini (vurgunun hiçbir satırını, not simgesini) örtmeyen ve görünür alana sığan ilk yer seçilir.
    * Çapa: simgeden açılan balonda not simgesi; değilse notun ilk satırı (simge ona bitişikse ikisi birlikte). Sıra: çapanın sağı →
-   * hemen altı → hemen üstü → notun bütün satırlarının altı → üstü → çapanın solu. Hiçbiri olmazsa sağda, alana kırpılarak.
+   * hemen altı → hemen üstü → notun bütün satırlarının altı → üstü (bu dördü önce çapanın sağına, sonra soluna hizalı) → sayfanın
+   * sağ kenarının dışı → çapanın solu. Önce komşu sayfalar dahil başka notları da (vurgu, simge, yapışkan not, yazı) örtmeyen ilk yer
+   * aranır (bunda sayfa kenarından önce, yakındaki başka notun hemen altı/üstü de denenir); yoksa yalnızca kendi notunu örtmeyen ilk
+   * yer. Hiçbiri olmazsa sağda, alana kırpılarak.
    */
   balonKonumla() {
     const b = this.balon; if (!b) return;
@@ -929,17 +873,37 @@ export class NotYoneticisi extends EventTarget {
     const W = alanK.width, H = alanK.height;
     const yatayKirp = (x) => Math.max(P, Math.min(W - genis - P, x));
     const dikeyKirp = (y) => Math.max(P, Math.min(H - yuk - P, y));
-    const adaylar = [
+    const sagHiza = yatayKirp(capa.r - genis), solHiza = yatayKirp(capa.l);
+    const yakin = [
       { x: capa.r + P, y: dikeyKirp(capa.t) },
-      { x: yatayKirp(capa.r - genis), y: capa.b + 6 },
-      { x: yatayKirp(capa.r - genis), y: capa.t - 6 - yuk },
-      { x: yatayKirp(capa.r - genis), y: alt + 6 },
-      { x: yatayKirp(capa.r - genis), y: ust - 6 - yuk },
-      { x: capa.l - P - genis, y: dikeyKirp(capa.t) },
+      { x: sagHiza, y: capa.b + 6 }, { x: sagHiza, y: capa.t - 6 - yuk }, { x: sagHiza, y: alt + 6 }, { x: sagHiza, y: ust - 6 - yuk },
+      { x: solHiza, y: capa.b + 6 }, { x: solHiza, y: capa.t - 6 - yuk }, { x: solHiza, y: alt + 6 }, { x: solHiza, y: ust - 6 - yuk },
     ];
-    const uygun = (a) => a.x >= P && a.x + genis <= W - P && a.y >= P && a.y + yuk <= H - P
-      && !kutular.some((k) => Math.min(k.r, a.x + genis) > Math.max(k.l, a.x) && Math.min(k.b, a.y + yuk) > Math.max(k.t, a.y));
-    const yer = adaylar.find(uygun) || { x: yatayKirp(capa.r + P), y: dikeyKirp(capa.t) };
+    const uzak = [{ x: ox + sayfaK.width + P, y: dikeyKirp(capa.t) }, { x: capa.l - P - genis, y: dikeyKirp(capa.t) }];
+    const ortmez = (a, liste) => !liste.some((k) => Math.min(k.r, a.x + genis) > Math.max(k.l, a.x) && Math.min(k.b, a.y + yuk) > Math.max(k.t, a.y));
+    const uygun = (a) => a.x >= P && a.x + genis <= W - P && a.y >= P && a.y + yuk <= H - P && ortmez(a, kutular);
+    // Başka notların parçaları (bu sayfa ve komşuları; koyu sayfadaki ikinci vurgu kopyası da aynı kutuları verir)
+    const digerleri = [];
+    for (const j of [i - 1, i, i + 1]) {
+      const katman = this.g.sayfalar[j]?.notKatmani;
+      if (!katman) continue;
+      for (const el of katman.querySelectorAll('[data-id]')) {
+        if (el.dataset.id === n.id || el.hidden) continue;
+        for (const p of el instanceof SVGGElement ? el.querySelectorAll('rect, path') : [el]) {
+          const k = p.getBoundingClientRect();
+          if (k.width || k.height) digerleri.push({ l: k.left - alanK.left, t: k.top - alanK.top, r: k.right - alanK.left, b: k.bottom - alanK.top });
+        }
+      }
+    }
+    // Hemen altı/üstü başka notu örtüyorsa o notun altına/üstüne kaydırılmış yerler (notun yakınında kalsın diye en çok KAYMA px)
+    const KAYMA = 80, kaymali = [];
+    for (const k of digerleri) {
+      if (k.b > alt && k.b - alt <= KAYMA) kaymali.push({ x: sagHiza, y: k.b + 6, d: k.b - alt }, { x: solHiza, y: k.b + 6, d: k.b - alt });
+      if (k.t < ust && ust - k.t <= KAYMA) kaymali.push({ x: sagHiza, y: k.t - 6 - yuk, d: ust - k.t }, { x: solHiza, y: k.t - 6 - yuk, d: ust - k.t });
+    }
+    kaymali.sort((p, q) => p.d - q.d);
+    const yer = [...yakin, ...kaymali, ...uzak].find((a) => uygun(a) && ortmez(a, digerleri)) || [...yakin, ...uzak].find(uygun)
+      || { x: yatayKirp(capa.r + P), y: dikeyKirp(capa.t) };
     b.style.left = yer.x + 'px'; b.style.top = yer.y + 'px';
   }
 
