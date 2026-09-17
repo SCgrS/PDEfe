@@ -14,6 +14,27 @@ export const TEST = !app.isPackaged ? {
   boyut: (process.env.PDEFE_TEST_BOYUT || '').split(',').map(Number).filter((n) => n > 0),
 } : { veri: '', konum: [], boyut: [] };
 
+/**
+ * Test örneğinde (PDEFE_TEST_KONUM verilmiş) yerel diyaloglar (mesaj kutusu, aç/kaydet/klasör, açılır menü) gösterilmez: pencere ekran
+ * dışında olsa da Windows bunları görünen ekrana açar ve bilgisayarı kullanan kişiyi rahatsız eder. Yanıt, testin önceden kuyruğa
+ * koyduğu değerden (test:diyalogYanitlari) ya da varsayılandan gelir; her diyalog test:diyalogKaydi ile okunur.
+ * Döner: test örneği değilse null, yoksa (kanal, secenek, varsayilanYanit) => yanıt.
+ */
+export function testDiyalogKur(ipcMain) {
+  if (TEST.konum.length !== 2) return null;
+  const kuyruk = new Map();   // kanal → [yanıt, …]
+  let kayit = [];
+  ipcMain.handle('test:diyalogYanitlari', (_e, kanal, yanitlar) => { kuyruk.set(kanal, [...(kuyruk.get(kanal) || []), ...yanitlar]); return true; });
+  ipcMain.handle('test:diyalogKaydi', () => { const k = kayit; kayit = []; return k; });
+  return (kanal, secenek, varsayilanYanit) => {
+    const bekleyen = kuyruk.get(kanal);
+    const yanit = bekleyen?.length ? bekleyen.shift() : varsayilanYanit;
+    kayit.push({ kanal, secenek, yanit });
+    console.log('[test diyaloğu]', kanal, JSON.stringify(secenek)?.slice(0, 300), '→', JSON.stringify(yanit));
+    return yanit;
+  };
+}
+
 if (TEST.veri) {
   fs.mkdirSync(TEST.veri, { recursive: true });
   app.setPath('userData', TEST.veri);

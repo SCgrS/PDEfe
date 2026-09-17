@@ -1,6 +1,6 @@
 // PDEfe ana süreç: pencere, tek örnek, pdefe:// protokolü, menü, IPC köprüsü.
 import { app, BrowserWindow, protocol, net, ipcMain, dialog, Menu, shell, nativeTheme, clipboard, screen } from 'electron';
-import { TEST } from './gelistirme.js';
+import { TEST, testDiyalogKur } from './gelistirme.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -235,7 +235,9 @@ function ipcKur() {
   ipcMain.handle('tema:sistemKoyu', () => nativeTheme.shouldUseDarkColors);
 
   // secenek: {baslik, filtreler:[{name, extensions}], coklu, varsayilan}
+  const testDiyalog = testDiyalogKur(ipcMain);   // test örneğinde yerel diyaloglar ekrana çıkmaz (gelistirme.js)
   ipcMain.handle('dosya:acDiyalog', async (_e, secenek) => {
+    if (testDiyalog) return testDiyalog('dosya:acDiyalog', secenek, []);
     const s = await dialog.showOpenDialog(pencere, {
       title: secenek?.baslik || 'PDF aç',
       defaultPath: secenek?.varsayilan,
@@ -246,11 +248,13 @@ function ipcKur() {
   });
 
   ipcMain.handle('dosya:klasorSec', async (_e, secenek) => {
+    if (testDiyalog) return testDiyalog('dosya:klasorSec', secenek, null);
     const s = await dialog.showOpenDialog(pencere, { title: secenek?.baslik || 'Klasör seç', defaultPath: secenek?.varsayilan, properties: ['openDirectory', 'createDirectory'] });
     return s.canceled ? null : s.filePaths[0];
   });
 
   ipcMain.handle('dosya:kaydetDiyalog', async (_e, secenek) => {
+    if (testDiyalog) return testDiyalog('dosya:kaydetDiyalog', secenek, null);
     const s = await dialog.showSaveDialog(pencere, {
       title: secenek?.baslik || 'Farklı kaydet',
       defaultPath: secenek?.varsayilan,
@@ -299,6 +303,7 @@ function ipcKur() {
   ipcMain.handle('dosya:varMi', (_e, yol) => fs.existsSync(yol));
 
   ipcMain.handle('mesaj:kutu', async (_e, secenek) => {
+    if (testDiyalog) return testDiyalog('mesaj:kutu', secenek, { secim: secenek.varsayilan ?? 0, onay: false });
     const s = await dialog.showMessageBox(pencere, {
       type: secenek.tur || 'question',
       title: secenek.baslik || 'PDEfe',
@@ -316,6 +321,7 @@ function ipcKur() {
 
   // Genel açılır menü: [{id, etiket, devre, ayirici, isaretli}] → tıklanan id
   ipcMain.handle('menu:popup', (_e, ogeler) => new Promise((coz) => {
+    if (testDiyalog) { coz(testDiyalog('menu:popup', ogeler, null)); return; }
     let secilen = null;
     const sablon = ogeler.map((o) => (o.ayirici ? { type: 'separator' } : {
       label: o.etiket, enabled: o.devre !== true, type: o.isaretli != null ? 'checkbox' : 'normal',
