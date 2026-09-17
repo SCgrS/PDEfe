@@ -387,6 +387,7 @@ body.okuma-modu.ust-goster #arac-cubugu { display: flex; position: absolute; top
 .not-simge { position: absolute; pointer-events: auto; cursor: pointer; }
 .not-simge svg { width: 100%; height: 100%; display: block; overflow: visible; filter: drop-shadow(0 0.5px 1px rgba(0,0,0,0.3)); transition: transform 80ms; }
 .not-simge svg .hale { fill: rgba(255,255,255,0.72); stroke: rgba(255,255,255,0.72); stroke-width: 5; stroke-linejoin: round; }
+.koyu-sayfa .not-simge svg .hale { fill: rgba(0,0,0,0.72); stroke: rgba(0,0,0,0.72); }   /* koyulaştırılmış sayfada yazı açık renkli: hale koyu */
 .not-simge:hover svg, .not-simge.not-hover svg { transform: scale(1.12); }
 /* Simgenin üzerindeyken ait olduğu vurgu belirginleşir (komşu notların simgeleri yan yana olabilir): açık sayfada koyu, koyu sayfada açık kenar */
 .not-isaretler.not-vurgular g.not-hover-simgeden:not(.not-secili) rect { stroke: rgba(0,0,0,0.55); stroke-width: 1px; stroke-dasharray: 3 2; }
