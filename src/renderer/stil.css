@@ -400,8 +400,12 @@ body.okuma-modu.ust-goster #arac-cubugu { display: flex; position: absolute; top
 .yazi-cizim { position: absolute; border: 1px dashed var(--vurgu); background: rgba(0,103,192,0.06); z-index: 5; pointer-events: none; }
 .yazi-duzenleyici {
   position: absolute; z-index: 6; box-sizing: border-box; resize: none; outline: none; overflow: hidden; white-space: pre-wrap; word-wrap: break-word;
-  font: inherit; margin: 0;
+  font: inherit; margin: 0; user-select: text; cursor: text;
 }
+/* Yazı, kaydedilen PDF görünümüyle aynı dizilsin: çekirdek glif genişliklerini aralama (kerning) ve bitişik harf olmadan ölçer
+   (yoksa satırlar farklı yerden kırılır, referans okuyucuda son satır kutudan taşıp kesilebilir); alt çizgi harf kuyruklarında kesilmez */
+.yazi-duzenleyici, .not-freetext-yerli { font-kerning: none; font-variant-ligatures: none; }
+.yazi-duzenleyici span, .not-freetext-yerli span { text-decoration-skip-ink: none; }
 .yazi-tutamac { position: absolute; z-index: 7; width: 12px; height: 12px; border-radius: 50%; background: var(--vurgu); cursor: move; border: 2px solid #fff; box-shadow: 0 0 2px rgba(0,0,0,.5); }
 .yazi-boyut { position: absolute; z-index: 7; width: 10px; height: 10px; background: #fff; border: 2px solid var(--vurgu); cursor: nwse-resize; }
 .yazi-bicim {

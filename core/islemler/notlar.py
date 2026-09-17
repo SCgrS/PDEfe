@@ -4,31 +4,45 @@
 - Highlight: referans okuyucu yapısı: /C, /CA, /QuadPoints, görünüm akışı /BM /Multiply + /CA (PyMuPDF üretir), gizli Popup (/F 28 /Open false);
   notlu vurgu ("Metinle ilgili yorum yap") /Contents + /IT /HighlightNote taşır
 - Text (yapışkan not): /Comment simgesi, Popup; dosyadaki yanıtları (IRT) geri yazabilir (yeni yanıt arayüzden eklenmez)
-- FreeText: /DA + /DS + kendi ürettiğimiz görünüm akışı; Windows'taki gerçek font (Segoe UI,
-  Arial, Times New Roman, Calibri) alt kümesi gömülür, böylece ş ğ İ ı ç ö ü her yerde doğru çıkar.
+- FreeText: /DA + /DS + /RC (referans okuyucu XHTML zengin metni) + kendi ürettiğimiz görünüm akışı; Windows'taki gerçek font
+  (Segoe UI, Arial, Times New Roman, Calibri; düz, kalın, italik, kalın italik) alt kümesi gömülür, böylece ş ğ İ ı ç ö ü
+  her yerde doğru çıkar. Kalın / italik / altı çizili / üstü çizili ve renk karakter düzeyindedir (parçalar).
 """
+import hashlib
 import io
+import json
 import os
 import re
 import time
 import shutil
 import tempfile
+from html.parser import HTMLParser
 import uuid
 
 import pymupdf
 
 FONT_KLASORU = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")
+# (aile, kalın, italik) -> Windows font dosyası
 FONT_DOSYALARI = {
-    ("Segoe UI", False): "segoeui.ttf", ("Segoe UI", True): "segoeuib.ttf",
-    ("Arial", False): "arial.ttf", ("Arial", True): "arialbd.ttf",
-    ("Times New Roman", False): "times.ttf", ("Times New Roman", True): "timesbd.ttf",
-    ("Calibri", False): "calibri.ttf", ("Calibri", True): "calibrib.ttf",
+    ("Segoe UI", False, False): "segoeui.ttf", ("Segoe UI", True, False): "segoeuib.ttf",
+    ("Segoe UI", False, True): "segoeuii.ttf", ("Segoe UI", True, True): "segoeuiz.ttf",
+    ("Arial", False, False): "arial.ttf", ("Arial", True, False): "arialbd.ttf",
+    ("Arial", False, True): "ariali.ttf", ("Arial", True, True): "arialbi.ttf",
+    ("Times New Roman", False, False): "times.ttf", ("Times New Roman", True, False): "timesbd.ttf",
+    ("Times New Roman", False, True): "timesi.ttf", ("Times New Roman", True, True): "timesbi.ttf",
+    ("Calibri", False, False): "calibri.ttf", ("Calibri", True, False): "calibrib.ttf",
+    ("Calibri", False, True): "calibrii.ttf", ("Calibri", True, True): "calibriz.ttf",
 }
 # Gömülecek glif dağarcığı: ASCII, Latin-1, Latin Genişletilmiş-A (Türkçe dahil), genel noktalama, TL işareti
 DAGARCIK = (list(range(0x20, 0x7F)) + list(range(0xA0, 0x100)) + [0x11E, 0x11F, 0x130, 0x131, 0x15E, 0x15F, 0x152, 0x153, 0x178]
             + list(range(0x2010, 0x2027)) + [0x20AC, 0x20BA, 0x2122, 0x2030, 0x2032, 0x2033])
+BICIMLER = ("kalin", "italik", "alti", "ustu")          # parça (run) düzeyindeki biçimler; renk ayrıca
+HIZA_Q = {"sol": 0, "orta": 1, "sag": 2}
+HIZA_CSS = {"sol": "left", "orta": "center", "sag": "right"}
+SAHTE_ITALIK_EGIM = 0.2126                               # italik yüz bulunamazsa düz yüz ~12° eğilir
+SATIR_ARALIGI = 1.2                                      # renderer'daki line-height ile aynı
 
-_font_onbellek = {}      # (aile, kalin) -> (Font, altkume_bytes)
+_font_onbellek = {}      # (aile, kalin, italik) -> (Font, altkume_bytes, yol, ölçüler)
 
 
 def _renk(hex_):
@@ -63,16 +77,27 @@ def _pdf_tarih(ts=None):
 
 
 # ---------------------------------------------------------------- font gömme
-def _font_yukle(aile, kalin):
-    """Windows fontunu yükler ve Türkçe dağarcıklı, GID koruyan bir alt küme üretir."""
-    anahtar = (aile, bool(kalin))
+def _font_dosyasi(aile, kalin, italik):
+    """Var olan en uygun font dosyası ve sahte italik gerekip gerekmediği: önce istenen aile, sonra Arial; italik yüz
+    bulunamazsa düz yüz eğilerek çizilir."""
+    for a, i, sahte in ((aile, italik, False), ("Arial", italik, False), (aile, False, italik), ("Arial", False, italik)):
+        dosya = FONT_DOSYALARI.get((a, bool(kalin), bool(i)))
+        if dosya and os.path.exists(os.path.join(FONT_KLASORU, dosya)):
+            return os.path.join(FONT_KLASORU, dosya), bool(sahte)
+    return os.path.join(FONT_KLASORU, "arial.ttf"), bool(italik)
+
+
+def _font_yukle(aile, kalin, italik=False):
+    """Windows fontunu yükler ve Türkçe dağarcıklı, GID koruyan bir alt küme üretir.
+    Döner: (Font, alt küme baytları, dosya yolu, ölçüler). Ölçüler em cinsindendir: tarayıcının (DirectWrite) satır
+    yerleşiminde kullandığı win yükseklikleri, alt çizgi / üstü çizili konum ve kalınlığı, sahte italik bayrağı."""
+    anahtar = (aile, bool(kalin), bool(italik))
     if anahtar in _font_onbellek:
         return _font_onbellek[anahtar]
-    dosya = FONT_DOSYALARI.get(anahtar) or FONT_DOSYALARI.get(("Arial", bool(kalin)))
-    yol = os.path.join(FONT_KLASORU, dosya)
-    if not os.path.exists(yol):
-        yol = os.path.join(FONT_KLASORU, "arial.ttf")
+    yol, sahte = _font_dosyasi(aile, kalin, italik)
     font = pymupdf.Font(fontfile=yol)
+    olcu = {"yukari": font.ascender, "asagi": -font.descender, "altiKonum": -0.1, "altiKalinlik": 0.06,
+            "ustuKonum": 0.26, "ustuKalinlik": 0.05, "sahteItalik": sahte}
     altkume = None
     try:
         import logging
@@ -80,6 +105,14 @@ def _font_yukle(aile, kalin):
         from fontTools import subset
         from fontTools.ttLib import TTFont
         tt = TTFont(yol)
+        try:
+            em = float(tt["head"].unitsPerEm)
+            os2, post = tt["OS/2"], tt["post"]
+            olcu.update(yukari=os2.usWinAscent / em, asagi=os2.usWinDescent / em,
+                        altiKonum=post.underlinePosition / em, altiKalinlik=post.underlineThickness / em,
+                        ustuKonum=os2.yStrikeoutPosition / em, ustuKalinlik=os2.yStrikeoutSize / em)
+        except Exception:
+            pass
         secenek = subset.Options()
         secenek.retain_gids = True          # GID'ler değişmesin (Font.has_glyph ile aynı numaralar)
         secenek.name_IDs = ["*"]
@@ -93,22 +126,24 @@ def _font_yukle(aile, kalin):
         tt.save(buf)
         altkume = buf.getvalue()
     except Exception:
-        altkume = open(yol, "rb").read()
-    _font_onbellek[anahtar] = (font, altkume, yol)
+        with open(yol, "rb") as f:
+            altkume = f.read()
+    _font_onbellek[anahtar] = (font, altkume, yol, olcu)
     return _font_onbellek[anahtar]
 
 
-def _font_xref_al(doc, page, aile, kalin):
+def _font_xref_al(doc, page, aile, kalin, italik=False):
     """Belgede bu aile/stil için gömülü PDEfe fontunun xref'ini döndürür; yoksa gömer.
-    Kayıt, katalogdaki /PDEfeFonts sözlüğünde tutulur."""
-    anahtar = re.sub(r"[^A-Za-z0-9]", "", aile) + ("B" if kalin else "R")
+    Kayıt, katalogdaki /PDEfeFonts sözlüğünde tutulur (anahtar: aile + R | B | I | BI; 0.1.1'in R/B anahtarları aynen geçerli)."""
+    _, altkume, _, olcu = _font_yukle(aile, kalin, italik)
+    yuz = ("B" if kalin else "") + ("I" if italik and not olcu["sahteItalik"] else "")
+    anahtar = re.sub(r"[^A-Za-z0-9]", "", aile) + (yuz or "R")
     katalog = doc.pdf_catalog()
     tur, deger = doc.xref_get_key(katalog, "PDEfeFonts/" + anahtar)
     if tur == "xref":
         xref = int(deger.split()[0])
         if 0 < xref < doc.xref_length() and doc.xref_get_key(xref, "Type")[1] == "/Font":
             return xref
-    font, altkume, _ = _font_yukle(aile, kalin)
     xref = page.insert_font(fontname="PDEfe" + anahtar, fontbuffer=altkume)
     tur, mevcut = doc.xref_get_key(katalog, "PDEfeFonts")
     girdiler = dict(re.findall(r"/(\w+)\s+(\d+)\s+0\s+R", mevcut)) if tur == "dict" else {}
@@ -117,29 +152,167 @@ def _font_xref_al(doc, page, aile, kalin):
     return xref
 
 
-def _satirlara_bol(metin, font, boyut, genislik):
-    """Kelime sınırından satır kırma; sığmayan kelimeleri karakterden böler."""
+# ---------------------------------------------------------------- yazı parçaları (zengin metin)
+def _duz(metin):
+    """Satır sonlarını \\n'e indirger (referans okuyucu /Contents'te \\r kullanır)."""
+    return str(metin or "").replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _parca_stili(p, varsayilan_renk=None):
+    """Parçanın biçimi: yalnızca etkin bayraklar; renk kutu renginden farklıysa (renderer'daki stilAl ile aynı sıra)."""
+    if not isinstance(p, dict):
+        return {}
+    s = {k: True for k in BICIMLER if p.get(k)}
+    renk = _hex(_renk(p.get("renk")))
+    if renk and renk != varsayilan_renk:
+        s["renk"] = renk
+    return s
+
+
+def _parcalari_ac(parcalar, varsayilan_renk=None):
+    """Parçaları karakter listesine açar: [(karakter, stil)]."""
+    kar = []
+    for p in parcalar or []:
+        st = _parca_stili(p, varsayilan_renk)
+        for ch in str(p.get("metin") or "") if isinstance(p, dict) else "":
+            kar.append((ch, st))
+    return kar
+
+
+def _parcalari_topla(kar):
+    """Karakter listesini bitişik aynı stilleri birleştirerek parçalara toplar."""
+    gruplar = []
+    for ch, st in kar:
+        if gruplar and gruplar[-1][1] == st:
+            gruplar[-1][0].append(ch)
+        else:
+            gruplar.append(([ch], st))
+    return [dict({"metin": "".join(m)}, **st) for m, st in gruplar]
+
+
+def _parcalari_uydur(parcalar, metin, varsayilan_renk=None):
+    """Parçaları düz metne uydurur (renderer'daki uzlastir ile aynı): ortak baş ve son korunur; eski orta bölüm yenisinin
+    içinde duruyorsa o da biçimiyle korunur (eklenenler komşu karakterin biçimini alır), yoksa değişen bölüm önündeki
+    karakterin biçimini alır."""
+    kar = _parcalari_ac(parcalar, varsayilan_renk)
+    eski = "".join(c for c, _ in kar)
+    if eski != metin:
+        n = min(len(eski), len(metin))
+        bas = 0
+        while bas < n and eski[bas] == metin[bas]:
+            bas += 1
+        son = 0
+        while son < n - bas and eski[-1 - son] == metin[-1 - son]:
+            son += 1
+        eski_orta, yeni_orta = eski[bas:len(eski) - son], metin[bas:len(metin) - son]
+        k = yeni_orta.find(eski_orta) if eski_orta else -1
+        if k >= 0:
+            onceki = kar[bas - 1][1] if bas > 0 else kar[bas][1]
+            sonraki = kar[len(eski) - son - 1][1]
+            orta = ([(ch, onceki) for ch in yeni_orta[:k]] + kar[bas:len(eski) - son]
+                    + [(ch, sonraki) for ch in yeni_orta[k + len(eski_orta):]])
+        else:
+            st = kar[bas - 1][1] if bas > 0 else (kar[0][1] if kar else {})
+            orta = [(ch, st) for ch in yeni_orta]
+        kar = kar[:bas] + orta + kar[len(eski) - son:]
+    return _parcalari_topla(kar)
+
+
+def freetext_stil_kanonik(stil, metin):
+    """Yazı biçiminin kanonik biçimi (renderer'daki yaziKanonik ile aynı anahtarlar ve sıra):
+    {tip, boyut, renk, arka, kenarlik, [kenarlikRengi], [hiza], parcalar}. Parçası olmayan eski (0.1.1) kayıtta kutu
+    düzeyindeki kalin / italik / altiCizili bayrakları tek parçaya çevrilir; parçalar metinle uyuşmuyorsa uydurulur."""
+    s = stil if isinstance(stil, dict) else {}
+    metin = _duz(metin)
+    renk = _hex(_renk(s.get("renk"))) or "#000000"
+    if isinstance(s.get("parcalar"), list):
+        parcalar = _parcalari_uydur(s["parcalar"], metin, renk)
+    else:
+        parcalar = _parcalari_uydur([{"metin": metin, "kalin": s.get("kalin"), "italik": s.get("italik"), "alti": s.get("altiCizili")}], metin, renk)
+    k = {"tip": s.get("tip") or "Segoe UI", "boyut": float(s.get("boyut") or 12), "renk": renk,
+         "arka": _hex(_renk(s.get("arka"))), "kenarlik": bool(s.get("kenarlik"))}
+    if _renk(s.get("kenarlikRengi")):
+        k["kenarlikRengi"] = _hex(_renk(s.get("kenarlikRengi")))
+    if s.get("hiza") in ("orta", "sag"):
+        k["hiza"] = s["hiza"]
+    k["parcalar"] = parcalar
+    return k
+
+
+# Sözcük içinde satır kırılabilen yerler; renderer'daki Chromium dizilimiyle yoklanarak belirlendi (tireler, soru işareti,
+# üç nokta: arkasından; uzun tire: önünden de)
+KIRILMA_SONRA = "-\u2010\u2012\u2013\u2014?\u2026"
+KIRILMA_ONCE = "\u2014"
+
+
+def _stilli_satirlar(kar, genislik, olc):
+    """Biçimli karakterleri satırlara böler (renderer'daki tarayıcı dizilimiyle aynı yerden): boşlukta ve sözcük içindeki
+    kırılma yerlerinde (tire vb.) kırar, satıra sığmayan parçayı karakterden böler. Boşluklar korunur ve satırı kırmaz:
+    sığmasalar da satır sonunda asılı kalır (tarayıcıda white-space: pre-wrap), sonraki sözcük yeni satırdan başlar.
+    Karışık yüzlerde her karakter kendi fontuyla ölçülür.
+    kar: [(karakter, stil)], olc(karakter, stil) -> pt. Döner: [[(karakter, stil), ...], ...]"""
     satirlar = []
-    for paragraf in metin.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
-        kelimeler = paragraf.split(" ")
-        cur = ""
-        for k in kelimeler:
-            aday = (cur + " " + k) if cur else k
-            if font.text_length(aday, fontsize=boyut) <= genislik or not cur:
-                if font.text_length(aday, fontsize=boyut) > genislik and not cur:
-                    # tek kelime sığmıyor: karakterden böl
-                    parca = ""
-                    for ch in k:
-                        if font.text_length(parca + ch, fontsize=boyut) > genislik and parca:
-                            satirlar.append(parca)
-                            parca = ""
-                        parca += ch
-                    cur = parca
-                else:
-                    cur = aday
+    paragraflar = [[]]
+    for c in kar:
+        if c[0] == "\n":
+            paragraflar.append([])
+        else:
+            paragraflar[-1].append(c)
+
+    def bol(sozcuk):
+        # sığmayan sözcük: tam satırlar eklenir, kalan parça ve genişliği döner
+        parca, pg = [], 0.0
+        for c in sozcuk:
+            cw = olc(*c)
+            if parca and pg + cw > genislik + 1e-6:
+                satirlar.append(parca)
+                parca, pg = [], 0.0
+            parca.append(c)
+            pg += cw
+        return parca, pg
+
+    def parcala(sozcuk):
+        # sözcüğü kırılma yerlerinden parçalara ayırır (işaret sözcüğün başında / sonunda ya da ardışıksa kırılmaz)
+        parcalar, p = [], []
+        for i, c in enumerate(sozcuk):
+            if c[0] in KIRILMA_ONCE and p and sozcuk[i - 1][0] not in KIRILMA_ONCE:
+                parcalar.append(p)
+                p = []
+            p.append(c)
+            if c[0] in KIRILMA_SONRA and i > 0 and i + 1 < len(sozcuk) and sozcuk[i + 1][0] not in KIRILMA_SONRA:
+                parcalar.append(p)
+                p = []
+        parcalar.append(p)
+        return parcalar
+
+    for par in paragraflar:
+        sozcukler, ayiricilar, sozcuk = [], [], []
+        for c in par:
+            if c[0] == " ":
+                sozcukler.append(sozcuk)
+                ayiricilar.append(c)
+                sozcuk = []
             else:
-                satirlar.append(cur)
-                cur = k
+                sozcuk.append(c)
+        sozcukler.append(sozcuk)
+        cur, cur_gen = [], 0.0
+        for i, sz in enumerate(sozcukler):
+            if i:
+                # Boşluk satırı kırmaz, sığmasa da satırda asılı kalır: ardışık boşluklar sonraki satırın başına taşınmaz,
+                # metni bitiren taşan boşluklar yeni (boş) satır açmaz
+                cur.append(ayiricilar[i - 1])
+                cur_gen += olc(*ayiricilar[i - 1])
+            for pr in parcala(sz):
+                if not pr:
+                    continue
+                pg = sum(olc(*c) for c in pr)
+                if cur_gen + pg <= genislik + 1e-6:
+                    cur.extend(pr)
+                    cur_gen += pg
+                    continue
+                if cur:
+                    satirlar.append(cur)
+                cur, cur_gen = bol(pr) if pg > genislik + 1e-6 else (list(pr), pg)
         satirlar.append(cur)
     return satirlar
 
@@ -154,18 +327,264 @@ def _gid_hex(font, metin):
     return "".join(out)
 
 
+# ---------------------------------------------------------------- /RC (XHTML zengin metin) ve CSS
+def _xml_kacis(s):
+    """XHTML metni: özel karakterler varlık, ASCII dışı karakterler sayısal başvuru (referans okuyucunun yazdığı gibi)."""
+    return "".join({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}.get(c) or (c if 32 <= ord(c) < 127 else "&#%d;" % ord(c)) for c in s)
+
+
+def _css_aile(aile):
+    return "'%s'" % aile if " " in aile else aile
+
+
+def _css_renk(deger):
+    """'#rgb' | '#rrggbb' | 'rgb(r, g, b)' | birkaç adlı renk -> '#rrggbb' ya da None"""
+    d = (deger or "").strip().lower()
+    adli = {"black": "#000000", "white": "#ffffff", "red": "#ff0000", "green": "#008000", "blue": "#0000ff", "yellow": "#ffff00"}
+    if d in adli:
+        return adli[d]
+    m = re.fullmatch(r"#([0-9a-f]{3})", d)
+    if m:
+        return "#" + "".join(c * 2 for c in m.group(1))
+    if re.fullmatch(r"#[0-9a-f]{6}", d):
+        return d
+    m = re.fullmatch(r"rgb\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\)", d)
+    if m:
+        return "#%02x%02x%02x" % tuple(max(0, min(255, int(round(float(v))))) for v in m.groups())
+    return None
+
+
+def _css_oku(stil):
+    """Referans okuyucunun /DS ve /RC style değerlerini okur. Döner (yalnızca bulunanlar): {aile, boyut, renk, hiza, kalin, italik,
+    alti, ustu, bosluk}; kalin / italik açıkça normal verildiyse False, text-decoration: none alti / ustu'yu kapatır."""
+    sonuc = {}
+    for bildirim in (stil or "").split(";"):
+        if ":" not in bildirim:
+            continue
+        ad, deger = bildirim.split(":", 1)
+        ad, deger = ad.strip().lower(), deger.strip()
+        dk = deger.lower()
+        if ad == "font":
+            m = re.search(r"([\d.]+)\s*pt", deger)
+            if m:
+                sonuc["boyut"] = float(m.group(1))
+            on = deger[:m.start()] if m else deger
+            if re.search(r"\bbold\b", on, re.I):
+                sonuc["kalin"] = True
+            if re.search(r"\b(italic|oblique)\b", on, re.I):
+                sonuc["italik"] = True
+            aile = re.sub(r"\b(bold|bolder|lighter|italic|oblique|normal|[1-9]00)\b", "", on, flags=re.I).strip()
+            if aile:
+                sonuc["aile"] = aile.split(",")[0].strip().strip("'\"")
+        elif ad == "font-family":
+            sonuc["aile"] = deger.split(",")[0].strip().strip("'\"")
+        elif ad == "font-size":
+            m = re.match(r"([\d.]+)", deger)
+            if m:
+                sonuc["boyut"] = float(m.group(1))
+        elif ad == "color":
+            if _css_renk(deger):
+                sonuc["renk"] = _css_renk(deger)
+        elif ad == "text-align":
+            sonuc["hiza"] = {"center": "orta", "right": "sag"}.get(dk, "sol")
+        elif ad == "font-weight":
+            sonuc["kalin"] = dk in ("bold", "bolder") or (dk.isdigit() and int(dk) >= 600)
+        elif ad == "font-style":
+            sonuc["italik"] = dk in ("italic", "oblique")
+        elif ad == "text-decoration":
+            if "none" in dk:
+                sonuc["alti"] = sonuc["ustu"] = False
+            if "underline" in dk:
+                sonuc["alti"] = True
+            if "line-through" in dk:
+                sonuc["ustu"] = True
+        elif ad == "xfa-spacerun":
+            sonuc["bosluk"] = dk == "yes"
+    return sonuc
+
+
+def _aile_eslestir(ad):
+    """Referans okuyucudaki font adını PDEfe'nin gömebildiği aileye eşler (Helvetica → Arial); tanınmayan için None."""
+    a = (ad or "").lower()
+    if "segoe" in a:
+        return "Segoe UI"
+    if "calibri" in a:
+        return "Calibri"
+    if "times" in a:
+        return "Times New Roman"
+    if "arial" in a or "helv" in a:
+        return "Arial"
+    return None
+
+
+def freetext_rc_uret(parcalar, aile, boyut, renk_hex, hiza="sol"):
+    """Referans okuyucu biçiminde /RC: body varsayılan stili, paragraf (satır) başına <p dir="ltr">, parça başına biçimli <span>.
+    XHTML ardışık boşlukları birleştirdiğinden birden çok boşluk ile paragraf başı / sonu boşlukları xfa-spacerun ile korunur;
+    boş satır tek boşluklu paragraf olur (boş <p> satır yüksekliği almaz)."""
+    govde = "font-size:%.1fpt;text-align:%s;color:%s;font-weight:normal;font-style:normal;font-family:%s;font-stretch:normal" % (
+        boyut, HIZA_CSS.get(hiza, "left"), renk_hex, _css_aile(aile))
+    out = ['<?xml version="1.0"?><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" '
+           'xfa:APIVersion="PDEfe:0.1.0" xfa:spec="2.0.2" style="%s">' % govde]
+    paragraflar = [[]]
+    for ch, st in _parcalari_ac(parcalar, renk_hex):
+        if ch == "\n":
+            paragraflar.append([])
+        else:
+            paragraflar[-1].append((ch, st))
+    for par in paragraflar:
+        out.append('<p dir="ltr">')
+        if not par:
+            out.append('<span style="xfa-spacerun:yes"> </span>')
+        n = len(par)
+        korunan = [c == " " and (i == 0 or i == n - 1 or par[i - 1][0] == " " or par[i + 1][0] == " ") for i, (c, _) in enumerate(par)]
+        i = 0
+        while i < n:
+            st, j = par[i][1], i
+            while j < n and par[j][1] == st:
+                j += 1
+            ic, k = [], i
+            while k < j:
+                m = k
+                while m < j and korunan[m] == korunan[k]:
+                    m += 1
+                parca = _xml_kacis("".join(c for c, _ in par[k:m]))
+                ic.append('<span style="xfa-spacerun:yes">%s</span>' % parca if korunan[k] else parca)
+                k = m
+            icerik = "".join(ic)
+            if st.get("alti") and st.get("ustu"):
+                icerik = '<span style="text-decoration:line-through">%s</span>' % icerik
+            out.append('<span style="font-weight:%s;font-style:%s;color:%s;text-decoration:%s">%s</span>' % (
+                "bold" if st.get("kalin") else "normal", "italic" if st.get("italik") else "normal", st.get("renk") or renk_hex,
+                "underline" if st.get("alti") else ("line-through" if st.get("ustu") else "none"), icerik))
+            i = j
+        out.append("</p>")
+    out.append("</body>")
+    return "".join(out)
+
+
+class _RCOkuyucu(HTMLParser):
+    """/RC XHTML'ini biçimli karakterlere çevirir (referans okuyucunun ve PDEfe'nin yazdığı biçim; b/i/u/s etiketleri de)."""
+    BLOK = ("p", "div", "li")
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.yigin = [("", {})]     # (etiket, stil)
+        self.kar = []               # (karakter, stil, daraltılabilir)
+        self.govde = {}
+        self.paragraf = 0
+
+    def _satir(self):
+        self.kar.append(("\n", dict(self.yigin[-1][1]), False))
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        if tag == "br":
+            self._satir()
+            return
+        stil = dict(self.yigin[-1][1])
+        stil.update({"b": {"kalin": True}, "strong": {"kalin": True}, "i": {"italik": True}, "em": {"italik": True},
+                     "u": {"alti": True}, "s": {"ustu": True}, "strike": {"ustu": True}, "del": {"ustu": True}}.get(tag, {}))
+        css = _css_oku(dict(attrs).get("style") or "")
+        if tag == "body":
+            self.govde = css
+        for k, v in css.items():
+            # çizgiler üst öğeninkine eklenir (CSS'teki gibi); yalnızca text-decoration: none kaldırır
+            stil[k] = True if k in ("alti", "ustu") and v else v
+        if tag in self.BLOK:
+            if self.paragraf or self.kar:
+                self._satir()
+            self.paragraf += 1
+        self.yigin.append((tag, stil))
+
+    def handle_startendtag(self, tag, attrs):
+        self.handle_starttag(tag, attrs)
+        if tag.lower() != "br":
+            self.handle_endtag(tag)
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+        for i in range(len(self.yigin) - 1, 0, -1):
+            if self.yigin[i][0] == tag:
+                del self.yigin[i:]
+                break
+
+    def handle_data(self, data):
+        etiket, stil = self.yigin[-1]
+        if etiket in ("", "html", "body") and not data.strip():
+            return                   # etiketler arasındaki biçimlendirme boşluğu
+        bosluk = bool(stil.get("bosluk"))
+        for ch in data:
+            if not bosluk and ch in " \t\r\n\f":
+                self.kar.append((" ", stil, True))
+            else:
+                self.kar.append((ch, stil, False))
+
+    def sonuc(self, varsayilan_renk):
+        """HTML boşluk kuralı: daraltılabilir boşluklar birleşir, satır başı ve sonunda düşer."""
+        kar, satir = [], []
+        for ch, st, dar in self.kar + [("\n", {}, False)]:
+            if ch == "\n":
+                while satir and satir[-1][2]:
+                    satir.pop()
+                if len(satir) == 1 and satir[0][0] == " ":
+                    satir = []           # yalnızca korunan tek boşluk: boş satır (paragraf işareti) yazımı
+                kar.extend(satir)
+                kar.append(("\n", st))
+                satir = []
+            elif dar and (not satir or satir[-1][0] == " "):
+                continue
+            else:
+                satir.append((ch, st, dar))
+        kar = [(c[0], c[1]) for c in kar[:-1]]
+        temiz = [(ch, _parca_stili(st, varsayilan_renk)) for ch, st in kar]
+        return _parcalari_topla(temiz)
+
+
+def freetext_rc_oku(rc, varsayilan_renk="#000000"):
+    """/RC'yi okur. Döner: (parçalar, body stili {aile, boyut, renk, hiza, ...})."""
+    o = _RCOkuyucu()
+    o.feed(re.sub(r"<\?xml[^>]*\?>", "", rc or ""))
+    o.close()
+    renk = o.govde.get("renk") or varsayilan_renk
+    return o.sonuc(renk), o.govde
+
+
+def _anahtar_metin(doc, xref, anahtar):
+    """Metin değerli anahtar (dize ya da akış, ör. Referans okuyucunun bazen akış olarak yazdığı /RC); yoksa None."""
+    tur, deger = doc.xref_get_key(xref, anahtar)
+    if tur == "string":
+        return deger
+    if tur == "xref":
+        try:
+            b = doc.xref_stream(int(deger.split()[0])) or b""
+            return b[2:].decode("utf-16-be", "replace") if b[:2] == b"\xfe\xff" else b.decode("utf-8", "replace")
+        except Exception:
+            return None
+    return None
+
+
+# ---------------------------------------------------------------- FreeText yazma / okuma
 def freetext_gorunum_yaz(doc, page, annot, metin, stil):
-    """FreeText notu için görünüm akışı üretir ve /AP /N olarak bağlar.
-    stil: {tip, boyut, renk, arka, kalin, altiCizili, kenarlik, kenarlikRengi}"""
-    aile = stil.get("tip") or "Segoe UI"
-    kalin = bool(stil.get("kalin"))
-    boyut = float(stil.get("boyut") or 12)
-    renk = _renk(stil.get("renk")) or (0, 0, 0)
-    arka = _renk(stil.get("arka"))
-    kenarlik = bool(stil.get("kenarlik"))
-    kenar_renk = _renk(stil.get("kenarlikRengi")) or renk
-    font, _, _ = _font_yukle(aile, kalin)
-    fxref = _font_xref_al(doc, page, aile, kalin)
+    """FreeText notunu yazar: karakter düzeyinde biçimli görünüm akışı (/AP /N; her parça kendi gömülü yüzüyle, altı / üstü
+    çizgiler), referans okuyucu için /RC, /DS, /DA, /C (dolgu; dolgusuzsa silinir), /BS, /Q; PDEfe için /PDEfe stil kaydı (parçalar dahil).
+    /Contents önceden yazılmış olmalı: PyMuPDF içerik yazarken /RC'yi siler.
+    stil: {tip, boyut, renk, arka, kenarlik, kenarlikRengi, hiza, parcalar: [{metin, kalin, italik, alti, ustu, renk}]};
+    parçasız eski kayıtta kutu düzeyinde kalin / altiCizili."""
+    metin = _duz(metin)
+    k = freetext_stil_kanonik(stil, metin)
+    aile, boyut, hiza, parcalar = k["tip"], k["boyut"], k.get("hiza", "sol"), k["parcalar"]
+    renk = _renk(k["renk"]) or (0, 0, 0)
+    arka = _renk(k["arka"])
+    kenarlik = k["kenarlik"]
+    kenar_renk = _renk(k.get("kenarlikRengi")) or renk
+    kar = _parcalari_ac(parcalar, k["renk"])
+    # Kullanılan yüzler (düz yüz her zaman: satır ölçüleri ondan)
+    yuzler = sorted({(False, False)} | {(bool(st.get("kalin")), bool(st.get("italik"))) for _, st in kar})
+    kaynak = {}
+    for i, yuz in enumerate(yuzler):
+        font, _, _, olcu = _font_yukle(aile, *yuz)
+        kaynak[yuz] = ("F%d" % (i + 1), font, olcu, _font_xref_al(doc, page, aile, *yuz))
+    duz_olcu = kaynak[(False, False)][2]
     r = annot.rect
     # Sayfa döndürülmüşse (/Rotate), görünüm akışını ters yönde döndürerek metni ekranda dik tut
     rot = int(getattr(page, "rotation", 0) or 0) % 360
@@ -175,48 +594,115 @@ def freetext_gorunum_yaz(doc, page, annot, metin, stil):
         w, h = max(r.width, 1), max(r.height, 1)
     matris = {0: "[1 0 0 1 0 0]", 90: "[0 1 -1 0 0 0]", 180: "[-1 0 0 -1 0 0]", 270: "[0 -1 1 0 0 0]"}[rot]
     pad = 2.0
-    satirlar = _satirlara_bol(metin, font, boyut, w - 2 * pad)
-    satir_yuk = boyut * 1.2
+    ic = 1.0 if kenarlik else 0.0              # kenarlık içeriği daraltır (renderer: box-sizing border-box)
+    genislik = max(1.0, w - 2 * (pad + ic))
+    olculer = {}
+
+    def olc(ch, st):
+        a = (ch, bool(st.get("kalin")), bool(st.get("italik")))
+        if a not in olculer:
+            olculer[a] = kaynak[a[1:]][1].text_length(ch, fontsize=boyut)
+        return olculer[a]
+
+    satirlar = _stilli_satirlar(kar, genislik, olc)
+    satir_yuk = boyut * SATIR_ARALIGI
+    # CSS satır kutusu: taban çizgisi = yarım satır aralığı + font yüksekliği (win ölçüleri; tarayıcıyla aynı yer)
+    y = h - pad - ic - boyut * (SATIR_ARALIGI / 2 + (duz_olcu["yukari"] - duz_olcu["asagi"]) / 2)
     ops = ["q"]
     if arka:
         ops.append("%.3f %.3f %.3f rg 0 0 %.2f %.2f re f" % (arka[0], arka[1], arka[2], w, h))
     if kenarlik:
         ops.append("%.3f %.3f %.3f RG 1 w 0.5 0.5 %.2f %.2f re S" % (kenar_renk[0], kenar_renk[1], kenar_renk[2], w - 1, h - 1))
-    ops.append("BT /F1 %.2f Tf %.3f %.3f %.3f rg" % (boyut, renk[0], renk[1], renk[2]))
-    y = h - pad - boyut * font.ascender
-    alti = []
-    for s in satirlar:
-        ops.append("1 0 0 1 %.2f %.2f Tm <%s> Tj" % (pad, y, _gid_hex(font, s)))
-        if stil.get("altiCizili") and s.strip():
-            alti.append((pad, y - boyut * 0.12, pad + font.text_length(s, fontsize=boyut)))
+    metin_ops, cizgiler = ["BT"], []
+    for satir in satirlar:
+        son = len(satir)
+        while son and satir[son - 1][0] == " ":
+            son -= 1                           # satır sonu boşlukları hizada ve çizgide sayılmaz (tarayıcıda asılı kalır)
+        gorunur = sum(olc(*c) for c in satir[:son])
+        x = pad + ic + {"orta": (genislik - gorunur) / 2, "sag": genislik - gorunur}.get(hiza, 0.0)
+        bitis = x + gorunur
+        i = 0
+        while i < len(satir):
+            st, j = satir[i][1], i
+            while j < len(satir) and satir[j][1] == st:
+                j += 1
+            parca = "".join(c for c, _ in satir[i:j])
+            pg = sum(olc(*c) for c in satir[i:j])
+            ad, font, olcu, _ = kaynak[(bool(st.get("kalin")), bool(st.get("italik")))]
+            rr = _renk(st.get("renk")) or renk
+            if parca.strip():
+                egim = SAHTE_ITALIK_EGIM if st.get("italik") and olcu["sahteItalik"] else 0
+                metin_ops.append("/%s %.2f Tf %.3f %.3f %.3f rg 1 0 %.4f 1 %.2f %.2f Tm <%s> Tj" % (
+                    ad, boyut, rr[0], rr[1], rr[2], egim, x, y, _gid_hex(font, parca)))
+            x1 = min(x + pg, bitis)
+            for acik, konum, kalinlik in ((st.get("alti"), duz_olcu["altiKonum"], duz_olcu["altiKalinlik"]),
+                                          (st.get("ustu"), duz_olcu["ustuKonum"], duz_olcu["ustuKalinlik"])):
+                if not acik or x1 <= x:
+                    continue
+                kal = max(0.5, kalinlik * boyut)
+                yy = y + (konum - kalinlik / 2) * boyut           # ölçü çizginin üstünü verir; çizgi ortasından çizilir
+                onceki = cizgiler[-1] if cizgiler else None
+                if onceki and onceki[0] == rr and abs(onceki[1] - yy) < 1e-3 and abs(onceki[3] - x) < 1e-3:
+                    onceki[3] = x1                                  # bitişik parçaların çizgisi tek çizgi
+                else:
+                    cizgiler.append([rr, yy, x, x1, kal])
+            x += pg
+            i = j
         y -= satir_yuk
-    ops.append("ET")
-    if alti:
-        ops.append("%.3f %.3f %.3f RG %.2f w" % (renk[0], renk[1], renk[2], max(0.5, boyut * 0.06)))
-        for x0, yy, x1 in alti:
-            ops.append("%.2f %.2f m %.2f %.2f l S" % (x0, yy, x1, yy))
+    metin_ops.append("ET")
+    ops.extend(metin_ops if len(metin_ops) > 2 else [])
+    for rr, yy, x0, x1, kal in cizgiler:
+        ops.append("%.3f %.3f %.3f RG %.2f w %.2f %.2f m %.2f %.2f l S" % (rr[0], rr[1], rr[2], kal, x0, yy, x1, yy))
     ops.append("Q")
     icerik = "\n".join(ops).encode("latin-1")
     # Form XObject
+    fontlar = " ".join("/%s %d 0 R" % (v[0], v[3]) for v in kaynak.values())
     ap_xref = doc.get_new_xref()
-    doc.update_object(ap_xref, "<</Type/XObject/Subtype/Form/FormType 1/BBox[0 0 %.2f %.2f]/Matrix %s/Resources<</Font<</F1 %d 0 R>>/ProcSet[/PDF/Text]>>>>" % (w, h, matris, fxref))
+    doc.update_object(ap_xref, "<</Type/XObject/Subtype/Form/FormType 1/BBox[0 0 %.2f %.2f]/Matrix %s/Resources<</Font<<%s>>/ProcSet[/PDF/Text]>>>>" % (w, h, matris, fontlar))
     doc.update_stream(ap_xref, icerik)
     doc.xref_set_key(annot.xref, "AP", "<</N %d 0 R>>" % ap_xref)
-    # Referans okuyucu için varsayılan görünüm bilgileri
-    doc.xref_set_key(annot.xref, "DA", _pdf_metin("/Helv %.1f Tf %.3f %.3f %.3f rg" % (boyut, renk[0], renk[1], renk[2])))
-    ds = "font: %s'%s' %.1fpt; color: %s; text-align: left" % ("bold " if kalin else "", aile, boyut, _hex(renk))
+    # Referans okuyucu için varsayılan görünüm bilgileri: /DA rengi referans okuyucuda kenarlık rengidir, /C dolgudur (dolgusuzda anahtar kalkar)
+    renk_hex = _hex(renk)
+    gorunen = [st for ch, st in kar if ch.strip()]
+    hepsi = {b: bool(gorunen) and all(st.get(b) for st in gorunen) for b in BICIMLER}
+    doc.xref_set_key(annot.xref, "DA", _pdf_metin("/Helv %.1f Tf %.3f %.3f %.3f rg" % (boyut, kenar_renk[0], kenar_renk[1], kenar_renk[2])))
+    ds = "font: %s%s%s %.1fpt; text-align:%s; color:%s" % ("italic " if hepsi["italik"] else "", "bold " if hepsi["kalin"] else "",
+                                                         _css_aile(aile), boyut, HIZA_CSS.get(hiza, "left"), renk_hex)
     doc.xref_set_key(annot.xref, "DS", _pdf_metin(ds))
-    # PDEfe stil kaydı (yeniden düzenlerken aynı biçimi kullanmak için)
-    doc.xref_set_key(annot.xref, "PDEfe", "<</Tip %s /Boyut %.1f /Renk %s /Arka %s /Kalin %s /Alti %s /Kenar %s>>" % (
-        _pdf_metin(aile), boyut, _pdf_metin(_hex(renk)), _pdf_metin(_hex(arka) if arka else ""), "true" if kalin else "false",
-        "true" if stil.get("altiCizili") else "false", "true" if kenarlik else "false"))
+    rc = freetext_rc_uret(parcalar, aile, boyut, renk_hex, hiza)
+    doc.xref_set_key(annot.xref, "RC", _pdf_metin(rc))
+    doc.xref_set_key(annot.xref, "C", "[%.4f %.4f %.4f]" % arka if arka else "null")
+    if doc.xref_get_key(annot.xref, "IC")[0] != "null":
+        doc.xref_set_key(annot.xref, "IC", "null")
+    doc.xref_set_key(annot.xref, "BS", "<</Type/Border/W %d/S/S>>" % (1 if kenarlik else 0))
+    doc.xref_set_key(annot.xref, "Q", str(HIZA_Q.get(hiza, 0)))
+    # Döndürülmüş sayfada referans okuyucu görünümü yeniden üretirse metin yine dik dursun (referans okuyucu da sayfa açısını /Rotate'e yazar)
+    if rot or doc.xref_get_key(annot.xref, "Rotate")[0] != "null":
+        doc.xref_set_key(annot.xref, "Rotate", str(rot) if rot else "null")
+    # PyMuPDF her yazıya anlamsız bir çağrı çizgisi (/CL) ekliyor; çağrı çizgili (callout) olmayan yazıda kaldırılır
+    if doc.xref_get_key(annot.xref, "IT")[1] != "/FreeTextCallout" and doc.xref_get_key(annot.xref, "CL")[0] != "null":
+        doc.xref_set_key(annot.xref, "CL", "null")
+    # PDEfe stil kaydı (yeniden düzenlerken aynı biçimi kullanmak için). Kalin / Alti / Italik: bütün metin o biçimdeyse
+    # (0.1.1 kutu düzeyinde okur). RCOzet: /RC başka programda değişirse parçalar /RC'den okunur. KenarRengi: yazı renginden
+    # farklı kenarlık rengi (referans okuyucu yazısının /DA'sından gelir; yoksa anahtar yazılmaz).
+    doc.xref_set_key(annot.xref, "PDEfe", "<</Tip %s /Boyut %.1f /Renk %s /Arka %s /Kalin %s /Alti %s /Kenar %s /Italik %s /Hiza %s /Parcalar %s /RCOzet %s%s>>" % (
+        _pdf_metin(aile), boyut, _pdf_metin(renk_hex), _pdf_metin(_hex(arka) if arka else ""), "true" if hepsi["kalin"] else "false",
+        "true" if hepsi["alti"] else "false", "true" if kenarlik else "false", "true" if hepsi["italik"] else "false", _pdf_metin(hiza),
+        _pdf_metin(json.dumps(parcalar, ensure_ascii=False, separators=(",", ":"))), _pdf_metin(hashlib.md5(rc.encode("utf-8")).hexdigest()),
+        " /KenarRengi %s" % _pdf_metin(_hex(kenar_renk)) if k.get("kenarlikRengi") and _hex(kenar_renk) != renk_hex else ""))
 
 
 def pdefe_stil_oku(doc, xref):
-    """Notun /PDEfe stil sözlüğünü okur (yoksa None)."""
+    """Notun /PDEfe stil kaydını kanonik biçimde okur. Parçalar kayıttan; parçasız eski (0.1.1) kayıtta kutu düzeyindeki
+    Kalin / Alti bayraklarından. Kayıt yoksa ya da /RC başka programda (referans okuyucu) değiştirilmişse (özet tutmuyor; 0.1.1 /RC
+    yazmazdı) None: kayıt bayattır, yazı yabancı sayılır (görünüm dosyadaki AP'den, düzenleme /RC ve /DS'den)."""
     tur, _ = doc.xref_get_key(xref, "PDEfe")
     if tur != "dict":
         return None
+    rc = _anahtar_metin(doc, xref, "RC")
+    if rc and doc.xref_get_key(xref, "PDEfe/RCOzet")[1] != hashlib.md5(rc.encode("utf-8")).hexdigest():
+        return None
+
     def s(k):
         t, v = doc.xref_get_key(xref, "PDEfe/" + k)
         if t == "string":
@@ -226,8 +712,74 @@ def pdefe_stil_oku(doc, xref):
         if t == "bool":
             return v == "true"
         return None
-    return {"tip": s("Tip"), "boyut": s("Boyut"), "renk": s("Renk"), "arka": s("Arka") or None,
-            "kalin": bool(s("Kalin")), "altiCizili": bool(s("Alti")), "kenarlik": bool(s("Kenar"))}
+    stil = {"tip": s("Tip"), "boyut": s("Boyut"), "renk": s("Renk"), "arka": s("Arka") or None, "kalin": bool(s("Kalin")),
+            "altiCizili": bool(s("Alti")), "italik": bool(s("Italik")), "kenarlik": bool(s("Kenar")), "hiza": s("Hiza"),
+            "kenarlikRengi": s("KenarRengi") or None}
+    metin = _duz(_anahtar_metin(doc, xref, "Contents"))
+    try:
+        parcalar = json.loads(s("Parcalar")) if s("Parcalar") is not None else None
+    except ValueError:
+        parcalar = None
+    if parcalar is None and rc:
+        try:
+            parcalar = freetext_rc_oku(rc, _hex(_renk(stil["renk"])) or "#000000")[0]   # kayıt bozuk: /RC (bizim yazdığımız)
+        except Exception:
+            pass
+    if isinstance(parcalar, list):
+        stil["parcalar"] = parcalar
+    return freetext_stil_kanonik(stil, metin)
+
+
+def freetext_stil_al(doc, annot):
+    """FreeText'in düzenlenebilir biçimi ve düz metni. PDEfe kaydı varsa ondan; yoksa (referans okuyucu vb.) /RC, /DS, /DA, /C, /BS, /Q'dan.
+    Döner: (kanonik stil, düz metin)"""
+    a = annot
+    icerik = _duz(a.info.get("content") or "")
+    stil = pdefe_stil_oku(doc, a.xref)
+    if stil:
+        return stil, icerik
+    # DA: "/Helv 12 Tf 0 0 1 rg"
+    _, da = doc.xref_get_key(a.xref, "DA")
+    boyut, renk, da_renk = 12.0, "#000000", None
+    m = re.search(r"([\d.]+)\s+Tf", da or "")
+    if m:
+        boyut = float(m.group(1)) or 12.0
+    m = re.search(r"([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+rg", da or "")
+    if m:
+        renk = da_renk = _hex((float(m.group(1)), float(m.group(2)), float(m.group(3))))
+    else:
+        m = re.search(r"([\d.]+)\s+g\b", da or "")
+        if m:
+            g = float(m.group(1)); renk = da_renk = _hex((g, g, g))
+    ds = _css_oku(_anahtar_metin(doc, a.xref, "DS") or "")
+    q = doc.xref_get_key(a.xref, "Q")[1]
+    stil = {"tip": _aile_eslestir(ds.get("aile")) or ("Arial" if ds.get("aile") else "Segoe UI"), "boyut": ds.get("boyut") or boyut,
+            "renk": ds.get("renk") or renk, "hiza": ds.get("hiza") or {"1": "orta", "2": "sag"}.get(q, "sol"),
+            "kalin": ds.get("kalin"), "italik": ds.get("italik"), "altiCizili": ds.get("alti")}
+    rc = _anahtar_metin(doc, a.xref, "RC")
+    if rc:
+        try:
+            parcalar, govde = freetext_rc_oku(rc, stil["renk"])
+            if govde.get("aile"):
+                stil["tip"] = _aile_eslestir(govde["aile"]) or stil["tip"]
+            for anahtar in ("boyut", "renk", "hiza"):
+                if govde.get(anahtar):
+                    stil[anahtar] = govde[anahtar]
+            rc_metin = "".join(p["metin"] for p in parcalar)
+            if rc_metin.strip() or not icerik.strip():
+                stil["parcalar"] = parcalar
+                icerik = rc_metin
+        except Exception:
+            pass
+    # Referans okuyucuda FreeText dolgusu /C'dir (PyMuPDF bunu "stroke" olarak verir); PDF 2.0 yazıcıları /IC kullanabilir
+    dolgu = a.colors.get("stroke") or a.colors.get("fill")
+    stil["arka"] = _hex(dolgu) if dolgu else None
+    stil["kenarlik"] = (a.border.get("width") or 0) > 0
+    # /DA rengi referans okuyucuda kenarlık rengidir (yazı rengi /DS ve /RC'de); yazı renginden farklıysa kenarlık rengi olarak korunur.
+    # /DS, /RC yoksa (başka yazıcılar) /DA rengi yazı rengidir, kenarlık da o renkte kalır.
+    if da_renk and da_renk != _hex(_renk(stil["renk"])):
+        stil["kenarlikRengi"] = da_renk
+    return freetext_stil_kanonik(stil, icerik), icerik
 
 
 # ---------------------------------------------------------------- not işlemleri
@@ -320,6 +872,14 @@ def not_ekle(doc, page, n):
 def not_guncelle(doc, page, n):
     a = _annot_bul(page, int(n["xref"]))
     tur = a.type[1]
+    if tur == "FreeText":
+        # Biçim, /Contents yazılmadan önce okunur (PyMuPDF içerik yazarken /RC'yi siler). Renderer biçimi göndermediyse
+        # (ör. düzenlenmeden taşınan referans okuyucu yazısı) dosyadaki biçim korunur.
+        ft_stil, ft_metin = (n["yazi"], None) if n.get("yazi") else freetext_stil_al(doc, a)
+        if n.get("icerik") is not None:
+            ft_metin = n["icerik"]
+        elif ft_metin is None:
+            ft_metin = a.info.get("content") or ""
     if n.get("rect") and tur != "Highlight":
         a.set_rect(pymupdf.Rect(*n["rect"]))
     if n.get("renk") and tur in ("Highlight", "Text", "Underline", "StrikeOut", "Squiggly", "Square", "Circle", "Line", "Ink"):
@@ -328,9 +888,8 @@ def not_guncelle(doc, page, n):
         a.set_opacity(float(n["opaklik"]))
     _ortak_bilgi(a, n)
     if tur == "FreeText":
-        stil = n.get("yazi") or pdefe_stil_oku(doc, a.xref) or {}
         a.update()
-        freetext_gorunum_yaz(doc, page, a, n.get("icerik") if n.get("icerik") is not None else (a.info.get("content") or ""), stil)
+        freetext_gorunum_yaz(doc, page, a, ft_metin, ft_stil)
     elif tur in ("Highlight", "Text", "Underline", "StrikeOut", "Squiggly"):
         a.update()
     doc.xref_set_key(a.xref, "M", _pdf_metin(_pdf_tarih()))
@@ -465,30 +1024,14 @@ def y_notlar_kaydet(p):
 
 
 def y_freetext_stil(p):
-    """Bir FreeText notunun düzenlenebilir stil bilgisini döndürür (PDEfe kaydı ya da DA'dan)."""
+    """Bir FreeText notunun düzenlenebilir biçimini (kanonik, parçalar dahil) ve düz metnini döndürür (PDEfe kaydından ya da
+    Referans okuyucunun /RC, /DS, /DA, /C bilgilerinden)."""
     from pdefe_core import onbellek
     doc = onbellek.al(p["yol"])
     page = doc[int(p["sayfa"]) - 1]
     a = _annot_bul(page, int(p["xref"]))
-    stil = pdefe_stil_oku(doc, a.xref)
-    if stil:
-        return {"stil": stil, "icerik": a.info.get("content") or ""}
-    # DA: "/Helv 12 Tf 0 0 1 rg"
-    _, da = doc.xref_get_key(a.xref, "DA")
-    boyut, renk = 12.0, "#000000"
-    m = re.search(r"([\d.]+)\s+Tf", da or "")
-    if m:
-        boyut = float(m.group(1)) or 12.0
-    m = re.search(r"([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+rg", da or "")
-    if m:
-        renk = _hex((float(m.group(1)), float(m.group(2)), float(m.group(3))))
-    else:
-        m = re.search(r"([\d.]+)\s+g\b", da or "")
-        if m:
-            g = float(m.group(1)); renk = _hex((g, g, g))
-    arka = _hex(a.colors.get("fill")) if a.colors.get("fill") else None
-    return {"stil": {"tip": "Segoe UI", "boyut": boyut, "renk": renk, "arka": arka, "kalin": False, "altiCizili": False, "kenarlik": bool(a.border.get("width"))},
-            "icerik": a.info.get("content") or ""}
+    stil, icerik = freetext_stil_al(doc, a)
+    return {"stil": stil, "icerik": icerik}
 
 
 def y_baglantilar(p):
