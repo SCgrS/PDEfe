@@ -9,25 +9,33 @@ aşağıdaki adımlarla PDEfe'de oluşturulur.
 1. PDEfe'de `Desktop\PDF DENEME\DENEME PDF (2).pdf` dosyasının bir kopyasını açın. Aşağıdaki adımları belge
    açılır açılmaz, sayfa düzenini ya da yakınlaştırmayı değiştirmeden yapın (0.1.0'da ilk açılışta çalışmıyordu).
 2. Bir paragrafı seçin: mini çubuk seçimin altında çıkmalı ve fare hareket edince yerinden kıpırdamamalı.
-   Mini çubuktan **sarı vurgu** ekleyin; vurguya çift tıklayıp balona "Vurgu notu ğüşİ" yazın.
+   Mini çubuktan varsayılan **sarı vurgu** (#FFD100, %40) ekleyin: yazı siyah kalmalı, yalnızca zemin sararmalı.
+   - Başka bir satırı seçip mini çubuktan **Not ekle**'ye basın; açılan kutuya "Metin notu ğüşİ" yazın. Satır
+     vurgulanmalı, ilk satırın bittiği yerde not simgesi çıkmalı, kutunun başlığında "Metin notu" yazmalı.
    - Başka bir satırı seçip boş bir yere tıklayın: seçim ve mini çubuk kapanmalı.
    - Bir satırı araç çubuğundaki **Vurgu** düğmesiyle, bir başkasını sağ tık › **Vurgula** ile vurgulayın.
-3. Araç çubuğundan **Yapışkan not** seçip sayfada boş bir yere tıklayın; "Yapışkan not: şğıİçöü" yazın;
-   balondaki yanıt kutusuna "Yanıt ğüş" yazıp Enter'a basın. Boş bir yere sağ tık › **Not ekle** de not açmalı.
+3. Metin seçili değilken araç çubuğundan **Yapışkan not** seçip sayfada boş bir yere tıklayın; "Yapışkan not:
+   şğıİçöü" yazın. Not kutusunda yanıt kutusu olmamalı. Boş bir yere sağ tık › **Not ekle** de not açmalı.
 4. **Yazı** aracıyla sayfada bir kutu çizin; "Serbest metin: Şişli, İğneada, Çorum — ğüşıöç" yazın;
-   biçim çubuğundan Times New Roman, 13 pt, kalın, altı çizili, sarı arka plan, kenarlık seçin; dışarı tıklayın.
+   biçim çubuğundan Times New Roman, 13 pt, kenarlık seçin; bir sözcüğü seçip **Kalın**, başka bir sözcüğü seçip
+   **Altı çizili** yapın, **Dolgu rengi** ile sarı zemin verin; dışarı tıklayın.
 5. **Ctrl+S** ile kaydedin (durum çubuğunda "Kaydedildi" görünür).
 6. Aynı dosyayı **referans okuyucuda** açın. Beklenen:
-   - Vurgu aynı satırlarda, aynı renkte; Yorumlar panelinde yazar adı ve "Vurgu notu ğüşİ" metni.
-   - Yapışkan not simgesi (referans okuyucunun kendi simgesi) aynı yerde; içinde metin ve altında yanıt (yazar/tarih ile).
-   - Serbest metin kutusu aynı yerde; Türkçe harfler eksiksiz; kalın, altı çizili, sarı zemin, kenarlık.
-   - Referans okuyucuda nota yanıt yazıp kaydedin; PDEfe'de yeniden açınca yanıt Yorumlar panelinde ve balonda görünmeli.
+   - Vurgular aynı satırlarda, aynı renkte; yazı rengi değişmemiş.
+   - Metin notu Yorumlar panelinde "Metinle ilgili yorum" türünde, yazar adı ve "Metin notu ğüşİ" metniyle.
+   - Yapışkan not simgesi (referans okuyucunun kendi simgesi) aynı yerde; içinde metin.
+   - Serbest metin kutusu aynı yerde; Türkçe harfler eksiksiz; yalnızca seçilen sözcükler kalın / altı çizili,
+     sarı zemin, kenarlık; satırlar PDEfe'deki yerlerden kırılmış, son satır kesik değil.
+   - Referans okuyucuda nota yanıt yazıp kaydedin; PDEfe'de yeniden açınca yanıt balonda salt okunur görünmeli (PDEfe'de
+     yanıt yazılamaz), Yorumlar panelinde "1 yanıt" yazmalı.
 7. Referans okuyucuda eklenmiş notlu bir PDF'i (DENEME PDF (2).pdf'in özgün hali) PDEfe'de açın: iki vurgu, notu olan
-   vurgunun balonunda "NOT DENEMESİ" ve yazar "Deneme Yazar" görünmeli.
+   vurgunun satır bitişinde not simgesi; üzerine gelince tıklamadan açılan kutuda "Metin notu" başlığı,
+   "NOT DENEMESİ" ve yazar "Deneme Yazar" görünmeli.
 
 ## 2. Döndürülmüş sayfa
 `test/cikti/donuk-not.pdf` (sayfası 90° döndürülmüş kanun PDF'i): PDEfe'nin yazısı referans okuyucuda de dik okunmalı
-(PyMuPDF'in referans yazısı yan durur; bu beklenen fark).
+(PyMuPDF'in referans yazısı yan durur; bu beklenen fark). Yazılar PDEfe'de de referans okuyucudaki yönüyle görünmeli;
+0.1.1'in döndürülmüş sayfaya yazdığı yazıyı PDEfe'de düzenleyip kaydedince referans okuyucudaki yönü değişmemeli.
 
 ## 3. Kilitli dosya
 Bir PDF'i referans okuyucuda açık tutarken PDEfe'de aynı dosyaya not ekleyip Ctrl+S basın: "Dosya başka bir
@@ -55,9 +63,9 @@ kutu işaretlenince notlar basılmalı.
 4. Windows Uygulamalar listesinde "PDEfe" ve kaldırıcı görünmeli; kaldırınca ilişkilendirme silinmeli.
 
 ## 8. Güncelleme
-GitHub'da yeni sürüm etiketi (`v0.1.1`) yayımlandıktan sonra eski sürümü açın: 8 saniye içinde üstte
-"PDEfe 0.1.1 hazır — Güncellemeyi yükle" şeridi çıkmalı; yükleme → yeniden başlat → PDEfe yeni sürümle
-açılmalı (Ayarlar › Hakkında'da 0.1.1). Önceki sekmelerin geri gelmemesi beklenen davranıştır.
+GitHub'da yeni sürüm etiketi (`v0.1.2`) yayımlandıktan sonra eski sürümü açın: 8 saniye içinde üstte
+"PDEfe 0.1.2 hazır — Güncellemeyi yükle" şeridi çıkmalı; yükleme → yeniden başlat → PDEfe yeni sürümle
+açılmalı (Ayarlar › Hakkında'da 0.1.2). Önceki sekmelerin geri gelmemesi beklenen davranıştır.
 
 ## 9. Döndür
 1. Birkaç sayfalı bir PDF açıp 2. sayfaya gidin; araç çubuğundaki **Döndür** düğmesine basın:
@@ -74,10 +82,14 @@ açılmalı (Ayarlar › Hakkında'da 0.1.1). Önceki sekmelerin geri gelmemesi 
 7. Döndürüp kaydettiğiniz dosyayı kapatıp PDEfe'de yeniden açın: sayfa dönmüş ve tam (kesilmeden) görünmeli;
    o sayfada metin seçimi ve vurgu, yazının tam üstüne düşmeli.
 
-## 10. PDF küçült: üzerine yaz yedeği
-Araçlar › PDF küçült: kartlar "Aşırı / İdeal / Düşük sıkıştırma" olmalı ("Özel" yok). **Üzerine yaz**
-işaretleyip küçültün: özgün dosyanın yedeği aynı klasörde `<ad> (yedek).pdf` adıyla bulunmalı ve özgün
-boyutta olmalı; Gezgin'de görünmeli.
+## 10. PDF küçült: yeni belge ve üzerine yazma
+Araç çubuğundaki **Araçlar** › PDF küçült: kartlar "Aşırı / İdeal / Düşük sıkıştırma" olmalı ("Özel", DPI / JPEG
+yazısı yok); kaydetme seçimi varsayılan olarak **Yeni belge olarak kaydet**.
+1. Yeni belge: dosya Masaüstü'ne `<ad> (küçültülmüş).pdf` adıyla kaydedilmeli, özgün dosya değişmemeli.
+2. **Üzerine yaz**: dosya küçülmeli; klasörde `(yedek).pdf` ya da geçici dosya kalmamalı; sekme aynı sayfada
+   yeniden açılmalı.
+3. Dosyayı referans okuyucuda açık tutup **Üzerine yaz** ile yeniden deneyin: özgün dosya değişmemeli, dosyanın
+   başka programda açık olabileceği söylenip "Yeni belge olarak kaydet / Yeniden dene / Vazgeç" sorulmalı.
 
 ## 11. Metin, görüntü kalitesi ve sayfa numarası
 - Bir kanun PDF'inden birkaç paragraf seçip kopyalayın, UYAP Doküman Editörü'ne ve Word'e yapıştırın:
@@ -86,8 +98,43 @@ boyutta olmalı; Gezgin'de görünmeli.
   PDF'i büyütünce görseller pikselli değil yumuşak görünmeli.
 - Görünüm › Tek sayfa ve İki sayfa düzeninde (kaydırma kapalı) sayfa değiştirin: sayfa numarası kutusu her
   geçişte güncellenmeli; kutuya tıklayıp odakta bırakınca da güncellenmeli. Kaydırma aç/kapa ve düzen seçimi
-  açık bütün sekmelere uygulanmalı; iki sayfaya geçince yakınlaştırma "Sayfayı sığdır"a dönmeli.
-- Koyu modda ("sayfayı koyulaştır" açık) hızla sayfa geçin: çizilmemiş sayfalar beyaz parlamamalı, koyu yer
-  tutucu görünmeli.
+  açık bütün sekmelere uygulanmalı; iki sayfaya geçince yakınlaştırma her zaman "Sayfayı sığdır", tek sayfaya
+  dönünce "Genişliğe sığdır" olmalı.
+- Koyu modda ("sayfayı koyulaştır" açık) hızla sayfa geçin: çizilmemiş sayfalar beyaz parlamamalı, sayfa ve
+  yer tutucu tam siyah olmalı.
 - Açık belgeler listesindeki **Tüm belgelerde ara** kutusuna bir sözcük yazın: her belgenin yanında eşleşme
   sayısı çıkmalı; Enter'a basınca Bul kutusu "tüm sekmeler" kapsamında açılmalı.
+
+## 12. 0.1.2: otomatik testlerin sınayamadıkları
+Testler ekran dışındaki bir test örneğinde yapıldı: referans okuyucu açılmadı, Windows diyalogları ekrana çıkarılmadı,
+menü kısayolları ve gerçek pano kullanılamadı.
+1. **referans okuyucu ile aynı büyüklükte karşılaştırma.** referans okuyucunun %100'ü (110 ppi çözünürlük ayarıyla) PDEfe'nin
+   %100'ünden yaklaşık %13 büyüktür; %100'leri yan yana koymak yanıltır. Aynı belgeyi PDEfe'de %115'te, referans okuyucuda
+   %100'de açıp aynı yeri karşılaştırın: UYAP üst yazısının başlığı ve tablo çizgileri, UYAP karekodu, PTT dökümü
+   (JPEG sayfa) ve bir tarama. Harfler aynı netlikte, çizgiler gri iki satır değil tek piksel, karekod keskin
+   olmalı. Taranmış bir belgeyi %3200'e yakınlaştırın: yazı görünmeli ve beklemeden çizilmeli.
+2. **Döndürme kısayolları.** Çok sayfalı bir PDF'te `Ctrl+Shift++` ve `Ctrl+Shift+−` basın (ana tuşlar ve
+   sayısal tuş takımı): "Geçerli sayfa / Tüm PDF / Vazgeç" sorusu çıkmalı, sayfa saat yönünde / tersine dönmeli.
+   Tek sayfalık PDF'te soru çıkmadan dönmeli; `Ctrl+Z` geri almalı.
+3. **Pano hızı.** Araçlar › Görüntü / PDF birleştir'i açın.
+   - Gezgin'de birkaç PDF ve JPG'yi (biri Türkçe karakterli adlı) seçip `Ctrl+C`; pencerede `Ctrl+V`: satırlar
+     beklemeden gelmeli, "Dosya bulunamadı" çıkmamalı. Aynısını **Panodan ekle** ve listede sağ tık › **Yapıştır** ile deneyin.
+   - `Win+Shift+S` ile ekran görüntüsü alıp `Ctrl+V`: görüntü satırı hemen eklenmeli.
+4. **Değiştir düğmeleri ve Windows diyalogları.**
+   - PDF küçült ve Döndür ve kaydet ("Yeni belge olarak kaydet" seçiliyken) ile Görüntü / PDF birleştir'de
+     **Değiştir**: Windows Farklı kaydet penceresi önerilen ad ve klasörle (varsayılan Masaüstü) açılmalı; başka
+     klasör ve ad seçince satırdaki ad ve klasör güncellenmeli, çıktı oraya yazılmalı.
+   - Var olan bir dosyayı seçip Windows'un üzerine yazma sorusuna **Evet** deyin: PDEfe aynı soruyu ikinci kez
+     sormamalı (dosya PDEfe'de kaydedilmemiş değişiklikle açıksa bunun sorulması beklenir). O dosya PDEfe'de
+     açıksa sekme yeni haliyle yeniden açılmalı.
+   - PDF ayır'da **Değiştir**: Windows klasör seçme penceresi açılmalı, seçilen klasör satırda görünmeli.
+5. **Metin notu referans okuyucuda.** 1. bölümdeki metin notunu referans okuyucuda açın: vurgu aynı yerde; Yorumlar
+   panelinde "Metinle ilgili yorum", yazar ve not metni; vurguya tıklayınca notun açılır penceresi. Referans okuyucuda
+   notun metnini düzenleyip kaydedin; sonra PDEfe'de aynı notun metnini değiştirip kaydedin ve dosyayı yeniden
+   Referans okuyucuda açın: PDEfe'de yazılan metin görünmeli, referans okuyucudaki eski metin değil.
+6. **Biçimli yazı referans okuyucuda.** 1. bölümdeki yazı kutusunu referans okuyucuda açın: yalnızca seçilen sözcükler kalın / altı
+   çizili, satırlar PDEfe'deki yerlerden kırılmış. **Dolgusuz** yapılmış bir kutu referans okuyucuda saydam görünmeli.
+   Referans okuyucuda yazıya bir sözcük ekleyip kaydedin; PDEfe'de yeniden açıp çift tıklayınca biçimler ve kenarlık rengi
+   korunmalı.
+7. **Tema simgesi.** Koyu temada araç çubuğundaki tema düğmesinde kalın, içi dolu ay; açık temaya geçince dolu
+   güneş görünmeli.

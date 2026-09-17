@@ -11,8 +11,10 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 ## Ne yapar
 
 - **Sekmeler.** Birden çok PDF tek pencerede; sekmeler sürüklenerek sıralanır. `Ctrl+Tab` basılı tutulunca
-  son kullanılan sırayla sekme seçici açılır; `Ctrl+1…9` ile doğrudan sekmeye gidilir. Bir belge yeniden
+  son kullanılan sırayla sekme seçici açılır; `Ctrl+1` – `Ctrl+9` ile doğrudan sekmeye gidilir. Bir belge yeniden
   açıldığında kalınan sayfadan devam edilir. Kaydedilmemiş değişiklik sorusu sekme ya da pencere kapatılırken çıkar.
+- **Keskin görüntü.** Görseller, karekodlar ve tablo çizgileri referans okuyucudaki gibi keskin çizilir; taranmış
+  belgeler çok yakınlaştırıldığında da net ve hızlıdır.
 - **Temiz kopyalama.** Seçilen metin panoya yapıştırıldığında satır sonlarındaki tireler birleştirilir,
   girintiler korunur, paragraflar tek satır sonuyla ayrılır (UYAP Doküman Editörü'nde ve Word'de boş paragraf
   oluşmaz), bozuk glifler düzeltilir. İstenirse ham kopyalama.
@@ -20,18 +22,24 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   yorumlarda arama, tüm açık sekmelerde arama. Açık belgeler listesindeki **Tüm belgelerde ara** kutusu her
   belgedeki eşleşme sayısını gösterir. Word 2010'un bozuk Türkçe kodlaması (Ġ→İ, ġ→Ş, Ģ→ş) hem
   görünen metinde hem aramada düzeltilir.
-- **referans okuyucu uyumlu notlar.** Vurgu (yazının rengi değişmez), seçili metne not, yapışkan not ve serbest yazı ekleme; taşıma, düzenleme, silme.
-  Yazılar Türkçe karakterli Windows fontuyla (Segoe UI, Arial, Times, Calibri) belgeye gömülür; referans okuyucuda ve UYAP'ta aynı görünür. Kaydetme artımlıdır: belgenin geri kalanına dokunulmaz.
+- **referans okuyucu uyumlu notlar.** Vurgu (yazının rengi değişmez; varsayılan renk referans okuyucu ile aynı), seçili metne not
+  (referans okuyucunun "Metinle ilgili yorum"u gibi notlu vurgu; üzerine gelince tıklamadan görünür), yapışkan not ve serbest
+  yazı ekleme; taşıma, düzenleme, silme. Nota yanıt yazılmaz; referans okuyucuda yazılmış yanıtlar salt okunur gösterilir.
+  Yazılarda seçili sözcükler kalın, italik ya da altı çizili yapılır; yazılar Türkçe karakterli Windows fontuyla
+  (Segoe UI, Arial, Times, Calibri) belgeye gömülür, referans okuyucuda ve UYAP'ta aynı görünür. Kaydetme
+  artımlıdır: belgenin geri kalanına dokunulmaz.
 - **Geri al / yinele.** Her not ve sayfa işlemi `Ctrl+Z` / `Ctrl+Y` ile geri alınır; kayıttan sonra bile.
-- **Araçlar** (Araçlar menüsü): **PDF küçült** (üç hazır seviye, boyut tahmini), **Sayfaları düzenle** (küçük resim ızgarasında sürükleyerek sıralama, silme, döndürme, boş sayfa ya da başka
-  PDF'ten sayfa ekleme), **PDF ayır** (sayfa aralığı, her N sayfada bir, seçili sayfalar, her sayfa ayrı dosya),
-  **Görüntü / PDF belgelerinden PDF oluştur** (sürükle-bırak, `Ctrl+V` ya da sağ tık Yapıştır ile; seviye başına tahmini
-  boyut), **Döndür ve kaydet**. Küçült ve Döndür'de "Yeni belge olarak kaydet" (varsayılan klasör Masaüstü) ya da
-  "Üzerine yaz" (yedeksiz, güvenli yer değiştirme) seçilir. Uzun işlerde ilerleme çubuğu ve iptal.
+- **Araçlar** (araç çubuğundaki **Araçlar** düğmesi ya da Araçlar menüsü): **PDF küçült** (üç hazır seviye, boyut
+  tahmini), **Sayfaları düzenle** (küçük resim ızgarasında sürükleyerek sıralama, silme, döndürme, boş sayfa ya da
+  başka PDF'ten sayfa ekleme), **Döndür ve kaydet**, **PDF ayır** (sayfa aralığı, her N sayfada bir, seçili sayfalar,
+  her sayfa ayrı dosya), **Görüntü / PDF birleştir** (görüntü ve PDF'lerden tek PDF; sürükle-bırak, `Ctrl+V`, Panodan
+  ekle ya da sağ tık Yapıştır; Orijinal / Yüksek / Orta / Düşük kalite düğmelerinde toplam tahmini boyut), **Paylaş**.
+  Küçült ve Döndür'de "Yeni belge olarak kaydet" (varsayılan; klasör Masaüstü) ya da "Üzerine yaz" (yedeksiz,
+  güvenli yer değiştirme) seçilir. Uzun işlerde ilerleme çubuğu ve iptal.
 - **Yazdır** (`Ctrl+P`): sayfa aralığı, kâğıt boyutu, sayfaya sığdırma; sayfalar görüntü olarak basıldığından
   Türkçe karakterler ekrandaki gibi çıkar. Notlar istenirse basılır ("Notları yazdır" varsayılan olarak kapalı).
-- **Paylaş.** Belgeyi dosya olarak panoya kopyalar; UYAP'a, e-postaya ya da Gezgin'e `Ctrl+V` ile yapıştırılır.
-- **Koyu mod.** Sistem temasını izler; istenirse sayfa da koyulaştırılır (görseller korunur).
+- **Paylaş.** Belgeyi dosya olarak panoya kopyalar; UYAP'a, e-postaya ya da Gezgin'e `Ctrl+V` veya Yapıştır ile yapıştırılır.
+- **Koyu mod.** Sistem temasını izler; istenirse sayfa da tam siyaha koyulaştırılır (görseller korunur).
 - **Döndür.** Döndür düğmesi ve `Ctrl+Shift++` / `Ctrl+Shift+−` belgeyi döndürür: geçerli sayfa ya da tüm PDF
   sorulur ("Seçeneğimi hatırla" ile bir daha sorulmaz; Ayarlar › Görünüm'den değiştirilir). Geri alınabilir;
   kaydedince dosyaya yazılır.
@@ -100,7 +108,7 @@ silinmez; isterseniz o klasörü elle silebilirsiniz. Kurulum sistem klasörleri
 | `Ctrl+,` | Ayarlar |
 | `Ctrl+Z` / `Ctrl+Y` | Geri al / yinele |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Sonraki / önceki sekme (basılı tutunca seçici açılır) |
-| `Ctrl+1` … `Ctrl+9` | Sekme seç (`9`: son sekme) |
+| `Ctrl+1` – `Ctrl+9` | Sekme seç (`9`: son sekme) |
 | `Ctrl+fare tekerleği`, `Ctrl++` / `Ctrl+−` | Yakınlaştır / uzaklaştır |
 | `Ctrl+0` | Gerçek boyut |
 | `Ctrl+Shift++` / `Ctrl+Shift+−` | Belgeyi döndür (geçerli sayfa ya da tüm PDF; geri alınabilir) |
@@ -110,6 +118,7 @@ silinmez; isterseniz o klasörü elle silebilirsiniz. Kurulum sistem klasörleri
 | `←` `→`, `PageUp` `PageDown` | Önceki / sonraki sayfa |
 | `Home` / `End` | İlk / son sayfa |
 | `Ctrl+Home` / `Ctrl+End` | Belge başı / sonu |
+| `Ctrl+B` / `Ctrl+I` / `Ctrl+U` | Yazı kutusunda seçili metni kalın / italik / altı çizili yap |
 | `Delete` | Seçili notu sil |
 | `Esc` | Kapat / vazgeç |
 | `F1` | Kısayol listesi |
