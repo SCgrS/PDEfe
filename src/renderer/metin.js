@@ -526,7 +526,7 @@ function konumOgesi(konum) {
 // katmanın tutulması için); boyanmaz. Seçimi okuyan işlevler (metin, kutular) geçerliyken aralıkları kullanır.
 
 const SECIM_VURGUSU = 'pdefe-secim';
-let gorsel = null;   // {araliklar: Range[] okuma sırasıyla, ogeler: Map span → {anahtar, bas, son, kalin}, capa, kapsam: [sc, so, ec, eo]}
+let gorsel = null;   // {gorunum, araliklar: Range[] okuma sırasıyla, ogeler: Map span → {anahtar, bas, son, kalin}, capa, odak, kapsam: [sc, so, ec, eo], imza}
 
 /** Okuma sırasındaki seçimi ve boyamasını kaldırır (tarayıcı seçimine dokunmaz). */
 function gorselTemizle() {
@@ -539,9 +539,19 @@ function gorselTemizle() {
 function gorselGecerli() {
   if (!gorsel) return false;
   const sec = window.getSelection();
-  if (sec && sec.rangeCount === 1 && !sec.isCollapsed) {
-    const r = sec.getRangeAt(0), [sc, so, ec, eo] = gorsel.kapsam;
-    if (r.startContainer === sc && r.startOffset === so && r.endContainer === ec && r.endOffset === eo && sc.isConnected && ec.isConnected) return true;
+  if (sec && sec.rangeCount === 1) {
+    const r = sec.getRangeAt(0), [sc, so, ec, eo] = gorsel.kapsam, { imza } = gorsel;
+    const ayni = !sec.isCollapsed && r.startContainer === sc && r.startOffset === so && r.endContainer === ec && r.endOffset === eo;
+    const kopuk = !sc.isConnected || !ec.isConnected;
+    const kaydi = gorsel.araliklar.some((a, j) => a.startContainer !== imza[4 * j] || a.startOffset !== imza[4 * j + 1] || a.endContainer !== imza[4 * j + 2] || a.endOffset !== imza[4 * j + 3]);
+    if (ayni && !kopuk && !kaydi) return true;
+    // Öğelerin içi yeniden yazıldıysa (arama vurgusu eklendi/kaldırıldı: metin düğümleri değişir, öğeler kalır; tarayıcı seçimi ve
+    // aralıklar kayar) seçim aynı konumlardan yeniden kurulur
+    if (kopuk || (ayni && kaydi)) {
+      const { gorunum, capa, odak } = gorsel;
+      gorsel = null;
+      if (secimKur(gorunum, new Map(), capa, odak)) return true;
+    }
   }
   gorselTemizle();
   return false;
@@ -636,9 +646,12 @@ function secimKur(gorunum, onbellek, bas, odak) {
   const sec = window.getSelection();
   const imza = araliklar.map((r) => [r.startContainer, r.startOffset, r.endContainer, r.endOffset]).flat();
   const ayni = sec.rangeCount === 1 && sec.anchorNode === an && sec.anchorOffset === ao && sec.focusNode === fn && sec.focusOffset === fo;
-  if (ayni && gorselGecerli() && gorsel.imza.length === imza.length && gorsel.imza.every((v, j) => v === imza[j])) { gorsel.capa = { ...bas }; return true; }   // değişmedi: yeniden boyanmaz
+  if (ayni && gorselGecerli() && gorsel.imza.length === imza.length && gorsel.imza.every((v, j) => v === imza[j])) {   // değişmedi: yeniden boyanmaz
+    Object.assign(gorsel, { capa: { ...bas }, odak: { ...odak } });
+    return true;
+  }
   if (!ayni) sec.setBaseAndExtent(an, ao, fn, fo);
-  gorsel = { araliklar, ogeler, capa: { ...bas }, kapsam, imza };
+  gorsel = { gorunum, araliklar, ogeler, capa: { ...bas }, odak: { ...odak }, kapsam, imza };
   if (window.CSS?.highlights && typeof Highlight === 'function') {
     CSS.highlights.set(SECIM_VURGUSU, new Highlight(...araliklar));
     document.documentElement.classList.add('gorsel-secim');
