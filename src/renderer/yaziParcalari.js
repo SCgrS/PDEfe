@@ -61,6 +61,18 @@ export function hepsindeMi(parcalar, a, b, anahtar) {
   return true;
 }
 
+/**
+ * Biçim kararı için [a, b) aralığı: boşluk olmayan karakter içeriyorsa baştaki ve sondaki boşluklar (satır sonu dahil) dışarıda kalır
+ * (Word gibi; Windows'ta çift tık sözcüğü sondaki boşlukla seçer). Yalnızca boşluksa aralık olduğu gibi döner.
+ */
+export function bicimAraligi(parcalar, a, b) {
+  const metin = duzMetin(parcalar);
+  let x = Math.max(0, a), y = Math.min(b, metin.length);
+  while (x < y && /\s/.test(metin[x])) x++;
+  while (y > x && /\s/.test(metin[y - 1])) y--;
+  return x < y ? [x, y] : [a, b];
+}
+
 /** [a, b) aralığında biçimi açar / kapatır; anahtar 'renk' ise deger renk ya da null. */
 export function stilDegistir(parcalar, a, b, anahtar, deger) {
   const { metin, stiller } = ac(parcalar);
