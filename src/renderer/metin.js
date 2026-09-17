@@ -448,6 +448,56 @@ function siraEkle(konum) {
   return konum;
 }
 
+// Sözcük sınırları: tarayıcının çift tıklamadaki sözcük bölmesiyle aynı (ICU): "17-" → "17" + "-", "uygulanır." → "uygulanır" + "."
+const SOZCUK_BOLUCU = new Intl.Segmenter('tr', { granularity: 'word' });
+
+/** Öğedeki c. karakterin aralığı (arama vurgusu öğeyi birkaç düğüme bölebilir) ya da null. */
+function karakterAraligi(span, c) {
+  for (let y = document.createTreeWalker(span, NodeFilter.SHOW_TEXT), n; (n = y.nextNode());) {
+    if (c < n.length) { const r = document.createRange(); r.setStart(n, c); r.setEnd(n, c + 1); return r; }
+    c -= n.length;
+  }
+  return null;
+}
+
+/** Konumun iki yanındaki karakterlerden kutusu istemci noktasını içeren (fare harfin üstündeyse) ya da -1. */
+function noktadakiKarakter(konum, x, y) {
+  for (const c of [konum.ofset, konum.ofset - 1]) {
+    const b = c >= 0 && karakterAraligi(konum.span, c)?.getBoundingClientRect();
+    if (b && x >= b.left - 0.5 && x <= b.right + 0.5 && y >= b.top - 0.5 && y <= b.bottom + 0.5) return c;
+  }
+  return -1;
+}
+
+/** Çift tıklanan sözcük: [baş, son] konumları; sözcükse ardındaki boşluk da (Windows'ta tarayıcının çift tıklaması gibi). */
+function sozcukAraligi(konum, x, y) {
+  const metin = konum.span.textContent;
+  if (!metin) return null;
+  let c = noktadakiKarakter(konum, x, y);
+  if (c < 0) c = Math.min(konum.ofset, metin.length - 1);
+  const parcalar = SOZCUK_BOLUCU.segment(metin), p = parcalar.containing(c);
+  let son = p.index + p.segment.length;
+  if (p.isWordLike) for (let q; son < metin.length && !(q = parcalar.containing(son)).isWordLike && !q.segment.trim();) son = q.index + q.segment.length;
+  return [{ ...konum, ofset: p.index }, { ...konum, ofset: son }];
+}
+
+/** Sözcük kipinde odak: farenin altındaki (boşluktaysa konumun ortasında kaldığı) sözcüğün okuma yönünde ucu (ileri: sonu, geri: başı). */
+function sozcukUcu(konum, ileri, x, y) {
+  const metin = konum.span.textContent, c = noktadakiKarakter(konum, x, y);
+  const p = c >= 0 ? SOZCUK_BOLUCU.segment(metin).containing(c)
+    : konum.ofset > 0 && konum.ofset < metin.length ? SOZCUK_BOLUCU.segment(metin).containing(konum.ofset) : null;
+  if (!p || (c < 0 && p.index === konum.ofset)) return konum;   // boşlukta ve sözcük sınırında
+  return { ...konum, ofset: ileri ? p.index + p.segment.length : p.index };
+}
+
+/** a konumu belge sırasında b'den önce mi. */
+function onceMi(a, b) {
+  const [an, ao] = dugumKonumu(a.span, a.ofset), [bn, bo] = dugumKonumu(b.span, b.ofset);
+  const r = document.createRange();
+  r.setStart(bn, bo);
+  return r.comparePoint(an, ao) < 0;
+}
+
 /** Var olan seçimin çapası bu görüntüleyicinin metin katmanındaysa konumu (Shift+tıkla genişletme için). */
 function secimCapasi(gorunum) {
   const sec = window.getSelection();
@@ -464,13 +514,14 @@ function secimCapasi(gorunum) {
 }
 
 /**
- * Görüntüleyicide sürükleyerek metin seçimini kurar. Sayfanın metin ya da boş yerine basılınca (harf üstünde çift/üç tıklama hariç)
- * tarayıcı seçimi engellenir, fare bırakılana dek seçim canlı güncellenir, kenara gelince otomatik kaydırılır.
- * aracAl: etkin not aracı ('not' | 'yazi' basışta not/yazı kutusu koyar, seçim başlamaz).
+ * Görüntüleyicide sürükleyerek metin seçimini kurar. Sayfanın metin ya da boş yerine basılınca (harf üstünde üç tıklama hariç)
+ * tarayıcı seçimi engellenir, fare bırakılana dek seçim canlı güncellenir, kenara gelince otomatik kaydırılır. Harfte çift tıklama
+ * sözcüğü seçer, sürüklenirse seçim sözcük sözcük genişler.
+ * aracAl: etkin not aracı ('not' | 'yazi' basışta not/yazı kutusu koyar, seçim başlamaz; 'vurgu' seçimle çalışır, bırakınca vurgular).
  */
 export function surukleSecimiBagla(gorunum, { aracAl = () => null } = {}) {
   const { alan, kaydirici } = gorunum;
-  let d = null;   // {bas, x0, y0, x, y, basladi, onbellek, kare, aralik}
+  let d = null;   // {bas, sozcuk, x0, y0, x, y, basladi, onbellek, kare, aralik}
 
   /** Noktaya en yakın görünür sayfanın indeksi (yerleşimden; metin katmanı olmasa da) ya da -1. */
   const noktadakiSayfa = (x, y) => {
@@ -494,8 +545,15 @@ export function surukleSecimiBagla(gorunum, { aracAl = () => null } = {}) {
         if (!gorunum.sayfalar[i].textLayer) gorunum.metinKatmaniHazirla(i).then((kuruldu) => { if (kuruldu) guncelle(); }, () => {});
       }
     }
-    const odak = enYakinKonum(gorunum, d.x, d.y, d.onbellek);
-    if (odak) secimKur(d.bas, siraEkle(odak));
+    const odak = siraEkle(enYakinKonum(gorunum, d.x, d.y, d.onbellek));
+    if (!odak) return;
+    if (!d.sozcuk) { secimKur(d.bas, odak); return; }
+    // Sözcük kipi (harfte çift tıklayıp sürükleme): seçim sözcük sözcük genişler, çift tıklanan sözcük hep içinde kalır
+    const [sb, ss] = d.sozcuk;
+    if (!konumOgesi(sb) || !konumOgesi(ss)) return;
+    if (onceMi(odak, sb)) secimKur(ss, sozcukUcu(odak, false, d.x, d.y));
+    else if (onceMi(ss, odak)) secimKur(sb, sozcukUcu(odak, true, d.x, d.y));
+    else secimKur(sb, ss);
   };
 
   const kaydir = () => {
@@ -542,8 +600,10 @@ export function surukleSecimiBagla(gorunum, { aracAl = () => null } = {}) {
 
   alan.addEventListener('mousedown', (e) => {
     if (e.button !== 0 || e.ctrlKey || e.altKey || e.metaKey) return;
-    // Harf üstünde çift/üç tıklama tarayıcının sözcük seçimine ve paragrafSec'e kalır; boşlukta tıklayıp hemen sürüklemek de (detail 2) seçer
-    if (e.detail > 1 && e.target.closest?.('.textLayer span')) return;
+    // Harf üstünde üç tıklama tarayıcıya ve paragrafSec'e kalır; harfte çift tıklama sözcüğü seçer, sürüklenirse sözcük sözcük genişletir
+    // (tarayıcınınki sürüklerken boşlukta takılıyordu). Boşlukta tıklayıp hemen sürüklemek de (detail 2) seçer
+    const harfte = !!e.target.closest?.('.textLayer span');
+    if (e.detail > 2 && harfte) return;
     const arac = aracAl();
     if (arac === 'not' || arac === 'yazi') return;
     const sayfaEl = secimBaslangicSayfasi(e.target);
@@ -552,12 +612,14 @@ export function surukleSecimiBagla(gorunum, { aracAl = () => null } = {}) {
     const capa = e.shiftKey ? secimCapasi(gorunum) : null;
     const bas = capa || siraEkle(enYakinKonum(gorunum, e.clientX, e.clientY, onbellek));
     if (!bas) return;
+    const sozcuk = e.detail === 2 && harfte && !capa ? sozcukAraligi(bas, e.clientX, e.clientY) : null;
     e.preventDefault();   // tarayıcının kendi seçimi (ve seçili metni sürükle-bırak) başlamasın
     bitir();
     if (!kaydirici.contains(document.activeElement)) kaydirici.focus({ preventScroll: true });   // tarayıcı basışta kaydırıcıya odaklanırdı (klavye kısayolları)
     if (!capa) window.getSelection().removeAllRanges();   // boş yere tek tıklama seçimi kaldırır
-    d = { bas, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, basladi: !!capa, onbellek, kare: 0 };
+    d = { bas, sozcuk, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, basladi: !!capa, onbellek, kare: 0 };
     if (capa) guncelle();
+    if (sozcuk) secimKur(sozcuk[0], sozcuk[1]);
     document.addEventListener('mousemove', hareket, true);
     document.addEventListener('mouseup', bitir, true);
     window.addEventListener('blur', bitir);
