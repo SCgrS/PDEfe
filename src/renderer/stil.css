@@ -77,10 +77,18 @@ button.ikon.acilir { width: 20px; }
 button.ikon.metinli { width: auto; gap: 5px; padding: 0 4px 0 7px; font-weight: 600; white-space: nowrap; }
 button.ikon.metinli svg.ok { width: 14px; height: 14px; opacity: 0.75; }
 button.ikon.metinli[aria-expanded="true"] { background: var(--basili); }
-@media (max-width: 900px) {
-  button.ikon.metinli { width: 32px; padding: 0; }
-  button.ikon.metinli .etiket, button.ikon.metinli svg.ok { display: none; }
-}
+/* Dar pencerede araç çubuğu sığana kadar kademeli sıkışır (uygulama.js aracCubuguSigdir): 1) ayraç ve boşluklar, 2) Araçlar yalnızca simge,
+   3) düğmeler ve kutular, 4) Paylaş gizlenir (Araçlar penceresinde ve menüde de var). Gruplar ve ayraçlar ezilmez, taşma ölçülebilir */
+#arac-cubugu > .grup, #arac-cubugu > .ayrac { flex-shrink: 0; }
+#arac-cubugu.sikisik-1, #arac-cubugu.sikisik-1 .grup { gap: 1px; }
+#arac-cubugu.sikisik-1 > .ayrac { margin: 0 2px; }
+#arac-cubugu.sikisik-2 button.ikon.metinli { width: 32px; padding: 0; }
+#arac-cubugu.sikisik-2 button.ikon.metinli .etiket, #arac-cubugu.sikisik-2 button.ikon.metinli svg.ok { display: none; }
+#arac-cubugu.sikisik-3 button.ikon, #arac-cubugu.sikisik-3 button.ikon.metinli { width: 28px; }
+#arac-cubugu.sikisik-3 button.ikon.acilir { width: 18px; }
+#arac-cubugu.sikisik-3 .kutu { width: 44px; }
+#arac-cubugu.sikisik-3 #zoom-kutusu { width: 54px; }
+#arac-cubugu.sikisik-4 [data-komut="arac.paylas"] { display: none; }
 #dugme-tema .gunes { display: none; }
 html[data-tema="koyu"] #dugme-tema .ay { display: none; }
 html[data-tema="koyu"] #dugme-tema .gunes { display: block; }

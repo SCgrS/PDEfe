@@ -882,8 +882,30 @@ function dosyaVarMi(e) { return e.dataTransfer && [...e.dataTransfer.types].incl
 // ---------------------------------------------------------------- okuma modu: üstten fareyle araç çubuğu
 document.addEventListener('mousemove', (e) => {
   if (!okumaModu) return;
-  document.body.classList.toggle('ust-goster', e.clientY < 6 || (document.body.classList.contains('ust-goster') && e.clientY < 48));
+  // Araçlar penceresi açıkken çubuk gizlenmez (pencere düğmeye bağlı; fare karolara inince havada kalırdı)
+  document.body.classList.toggle('ust-goster', araclarPenceresi.acik || e.clientY < 6 || (document.body.classList.contains('ust-goster') && e.clientY < 48));
 });
+
+// ---------------------------------------------------------------- araç çubuğu: dar pencerede kademeli sıkıştırma
+// Sığana kadar sırayla (stil.css .sikisik-1 - 4): ayraç ve boşluklar daralır, Araçlar yalnızca simge olur, düğmeler ve kutular daralır,
+// en son Paylaş gizlenir (Araçlar penceresinde ve menüde de var). Gereken genişlik içeriğe (ör. sayfa sayısının basamakları) bağlı olduğundan ölçülür.
+const aracCubugu = $('#arac-cubugu');
+function aracCubuguSigdir() {
+  for (let k = 1; k <= 4; k++) aracCubugu.classList.remove('sikisik-' + k);
+  if (!aracCubugu.clientWidth) return;   // okuma modunda gizli
+  const sinir = aracCubugu.getBoundingClientRect().right - parseFloat(getComputedStyle(aracCubugu).paddingRight);
+  for (let k = 1; k <= 4 && aracCubugu.lastElementChild.getBoundingClientRect().right > sinir + 0.5; k++) aracCubugu.classList.add('sikisik-' + k);
+}
+// Pencere genişliği ve okuma modunda görünme için çubuğun kendi boyutu izlenir (sıkıştırma onu değiştirmez; grupları izlemek
+// ResizeObserver döngü hatası verirdi). İçerik değişimi (öğe ekleme/gizleme, sayfa sayısı) MutationObserver ile çizimden önce yakalanır.
+new ResizeObserver(aracCubuguSigdir).observe(aracCubugu);
+let aracCubuguToplam = null;
+new MutationObserver((kayitlar) => {
+  const toplam = $('#sayfa-toplam')?.textContent;
+  if (toplam === aracCubuguToplam && kayitlar.every((k) => k.target.id === 'sayfa-toplam')) return;   // her sayfa değişiminde yazılır
+  aracCubuguToplam = toplam;
+  aracCubuguSigdir();
+}).observe(aracCubugu, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['hidden', 'style'] });
 
 // ---------------------------------------------------------------- paylaş
 async function paylas() {

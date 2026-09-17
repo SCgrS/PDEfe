@@ -85,10 +85,15 @@ export class AraclarPenceresi {
 
     this._disTiklama = (e) => { if (!this.el.contains(e.target) && !this.dugme.contains(e.target)) this.kapat(); };
     this._belgeTusu = (e) => {
-      // Odak pencerenin dışındayken (ör. fareyle açılıp belgeye dönülmüşse) de Esc kapatsın; içerideyse karo tuş işleyicisi ele alır
-      if (e.key !== 'Escape' || this.el.contains(document.activeElement)) return;
+      // Odak içerideyse karo tuş işleyicisi (_tus), Araçlar düğmesindeyse düğmenin kendi işleyicisi ele alır
+      const odak = document.activeElement;
+      if (this.el.contains(odak) || (odak === this.dugme && ['Enter', ' ', 'ArrowDown'].includes(e.key))) return;
+      if (e.ctrlKey || e.altKey || e.metaKey) { this.kapat(); return; }
+      if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key)) return;
+      // Odak dışarıdayken de belge kısayolları (sayfa çevirme, not silme, kaydırma) çalışmasın: Esc kapatır, diğer tuşlar odağı karolara alır
       e.preventDefault(); e.stopPropagation();
-      this.kapat();
+      if (e.key === 'Escape') this.kapat();
+      else this.etkinKarolar()[0]?.focus({ preventScroll: true });
     };
     this._konumla = () => this.konumla();
     this._pencereOdagi = () => this.kapat();
@@ -103,6 +108,8 @@ export class AraclarPenceresi {
       else this.kapat({ odakDugmeye: true });
     });
     el.addEventListener('keydown', (e) => this._tus(e));
+    // Başlığa, karolar arasındaki boşluğa ya da soluk karoya tıklamak odağı karodan almasın (odak BODY'ye düşünce tuşlar belgeye giderdi)
+    el.addEventListener('mousedown', (e) => { if (!e.target.closest('.araclar-karo:not([aria-disabled="true"])')) e.preventDefault(); });
   }
 
   /** Seçilebilir (açık belge gerektirmeyen ya da belge açık olan) karolar, sırayla. */
@@ -122,6 +129,7 @@ export class AraclarPenceresi {
     this.acik = true;
     this.dugme.setAttribute('aria-expanded', 'true');
     this.konumla();
+    if (!this.acik) return;
     document.addEventListener('pointerdown', this._disTiklama, true);
     document.addEventListener('keydown', this._belgeTusu, true);
     window.addEventListener('resize', this._konumla);
@@ -153,10 +161,11 @@ export class AraclarPenceresi {
     this.komutCalistir(a.komut);
   }
 
-  /** Düğmenin altına, düğmeyle ortalı yerleştirir; uygulama penceresinin kenarlarından taşmaz. */
+  /** Düğmenin altına, düğmeyle ortalı yerleştirir; uygulama penceresinin kenarlarından taşmaz. Düğme görünmüyorsa pencere kapanır. */
   konumla() {
     if (!this.acik) return;
     const r = this.dugme.getBoundingClientRect();
+    if (!r.width) { this.kapat(); return; }
     const kenar = 8;
     const ust = Math.round(r.bottom + 4);
     this.el.style.maxHeight = Math.max(160, innerHeight - ust - kenar) + 'px';
