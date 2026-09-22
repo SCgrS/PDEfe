@@ -80,12 +80,12 @@ Windows 11'de varsayılan uygulamayı yalnızca kullanıcı seçebilir; kurulum 
 
 ### Güncelleme
 
-PDEfe açıldıktan kısa süre sonra ve günde bir kez GitHub'dan yeni sürüm olup olmadığına bakar. Yeni sürüm
-varsa pencerenin üstünde bir şerit çıkar: **Güncellemeyi yükle** paketi indirir (yalnızca değişen kısımlar,
-ilerleme çubuğuyla), sonra **Şimdi yeniden başlat ve kur** ile uygulama kapanıp yeni sürümle açılır;
-ayarlarınıza dokunulmaz (önceki sekmeler yeniden açılmaz). Şeridi **×** ile kapatırsanız o oturumda bir daha görünmez.
-İstediğiniz an **Yardım › Güncellemeleri denetle** ile elle de bakabilirsiniz; otomatik denetim
-**Ayarlar › Güncelleme** altından kapatılır.
+PDEfe 10 açılışta bir (kurulumdan ya da güncellemeden sonraki ilk açılışta, sonra her 10 açılışta bir) GitHub'dan
+yeni sürüm olup olmadığına bakar. Yeni sürüm varsa pencerenin üstünde **PDEfe X hazır (kullandığınız: Y).** şeridi çıkar.
+**Güncelle** düğmesine bir kez basmak yeter: paket indirilir (yalnızca değişen kısımlar), kurulum sihirbazı açılmadan
+kurulur ve PDEfe kendiliğinden yeni sürümle açılır. Kaydedilmemiş belge varsa önce sorulur; ayarlarınıza dokunulmaz.
+**Daha sonra** şeridi o oturum için gizler. İstediğiniz an **Yardım › Güncellemeleri denetle** ya da
+**Ayarlar › Güncelleme › Şimdi denetle** ile hemen bakabilirsiniz; otomatik denetim aynı yerden kapatılır.
 
 Sürüm notları: [CHANGELOG.md](CHANGELOG.md) ve [Sürümler sayfası](https://github.com/SCgrS/PDEfe/releases).
 

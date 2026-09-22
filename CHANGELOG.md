@@ -3,6 +3,16 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.3 — 2026-09-22
+
+### Güncelleme
+- Güncelleme denetimi 10 açılışta bir yapılır: kurulumdan ya da güncellemeden sonraki ilk açılışta, sonra her 10 açılışta bir, pencere açıldıktan birkaç saniye sonra arka planda. Günlük denetim kaldırıldı. İnternet yoksa sessizce geçilir ve bir sonraki açılışta yeniden denenir.
+- Yeni sürüm varsa üstteki şeritte "PDEfe X hazır (kullandığınız: Y)." yazar ve tek bir Güncelle düğmesi çıkar: tek tıkla indirilir (yalnızca değişen kısımlar), kurulum sihirbazı açılmadan kurulur ve PDEfe kendiliğinden yeniden açılır. "Sürüm notları" sürüm sayfasını açar, "Daha sonra" şeridi bu oturum için gizler.
+- Kaydedilmemiş belge varsa kurmadan önce sorulur. Vazgeç denirse indirilen sürüm saklanır; şeritteki "Kur ve yeniden başlat" yeniden indirmeden kurar. PDEfe o arada kapatılırsa bir sonraki açılışta şerit yeniden görünür.
+- İndirme ya da kurulum başarısız olursa şeritte kısa bir Türkçe açıklama ve "Yeniden dene" düğmesi görünür.
+- Yardım › Güncellemeleri denetle ve Ayarlar › Güncelleme › Şimdi denetle sayaca bakmadan hemen denetler; Ayarlar'daki sonuç satırında da Güncelle düğmesi vardır. Anahtarın adı "Açılışta güncellemeleri denetle (10 açılışta bir)" oldu.
+- Uygulama içinden başlatılan kurulum artık her zaman sessizdir: önceden kurulum penceresi görünüyor, PDEfe ancak "Son"a basılınca açılıyordu.
+
 ## 0.1.2 — 2026-09-22
 
 ### Görüntüleme ve kalite
