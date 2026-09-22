@@ -5,7 +5,8 @@
 //
 // Dışa verilen API:
 //   ayarlarPenceresiAc(baglam, secenek?)  → pencere kök öğesi (HTMLElement); zaten açıksa öne getirir.
-//     baglam = { ayar: () => ayarlar, ayarKoy(anahtar, deger), uygula(anahtar, deger), pdefe, varsayilanlar }
+//     baglam = { ayar: () => ayarlar, ayarKoy(anahtar, deger), uygula(anahtar, deger), pdefe, varsayilanlar, guncelleme? }
+//     (guncelleme: renderer/guncelleme.js şerit API'si; Güncelleme bölümündeki denetim ve Güncelle düğmesi onu kullanır)
 //     secenek = { bolum?: 'gorunum'|'baslangic'|'notlar'|'kopyalama'|'guncelleme'|'dosya'|'hakkinda' }
 //   ayarlarPenceresiKapat()               → açık pencereyi kapatır.
 //   DURUM_ANAHTARLARI                     → "Varsayılanlara dön" ile sıfırlanmayan durum alanları.
@@ -255,25 +256,35 @@ function bolumKopyalama(k) {
 function bolumGuncelleme(k) {
   const a = ayarlar();
   k.append(kart({
-    baslik: 'Güncellemeleri otomatik kontrol et', aciklama: 'Açılışta arka planda denetlenir; yeni sürüm varsa üstte bir şerit görünür.',
+    baslik: 'Açılışta güncellemeleri denetle (10 açılışta bir)',
+    aciklama: 'Kurulumdan ya da güncellemeden sonraki ilk açılışta, sonra her 10 açılışta bir arka planda yeni sürüme bakılır. Yeni sürüm varsa pencerenin üstünde bir şerit görünür; Güncelle\'ye tek tıkla indirilir, kurulur ve PDEfe yeniden açılır.',
     kontrol: anahtar(a.otoGuncelle !== false, (v) => degistir('otoGuncelle', v)),
   }));
   const sonuc = el('div', { class: 'ayar-sonuc soluk' }, '');
-  const dugme = el('button', { class: 'ikincil', type: 'button' }, 'Şimdi kontrol et');
+  const dugme = el('button', { class: 'ikincil', type: 'button' }, 'Şimdi denetle');
   dugme.addEventListener('click', async () => {
-    dugme.disabled = true; sonuc.className = 'ayar-sonuc soluk'; sonuc.textContent = 'Denetleniyor…';
+    const { pdefe, guncelleme } = acik.baglam;
+    dugme.disabled = true; sonuc.className = 'ayar-sonuc soluk'; sonuc.replaceChildren('Denetleniyor');
     try {
-      const r = await acik.baglam.pdefe.cagir('guncelleme:denetle');
+      // Güncelleme şeridi kuruluysa onun üzerinden: yeni sürüm varsa şerit de görünür (menüdeki denetimle aynı)
+      const r = guncelleme ? await guncelleme.denetle({ bildirim: false }) : await pdefe.cagir('guncelleme:denetle');
       if (!r || typeof r !== 'object') throw new Error('Beklenmeyen yanıt');
-      if (r.durum === 'var') { sonuc.className = 'ayar-sonuc ayar-sonuc-var'; sonuc.textContent = `Yeni sürüm var: ${r.surum || ''}${r.mesaj ? ' — ' + r.mesaj : ''}`; }
-      else if (r.durum === 'yok') { sonuc.className = 'ayar-sonuc soluk'; sonuc.textContent = `Güncel${r.surum ? ' (sürüm ' + r.surum + ')' : ''}.${r.mesaj ? ' ' + r.mesaj : ''}`; }
-      else { sonuc.className = 'ayar-sonuc ayar-sonuc-hata'; sonuc.textContent = 'Denetlenemedi: ' + (r.mesaj || 'bilinmeyen hata'); }
+      if (r.durum === 'var') {
+        sonuc.className = 'ayar-sonuc ayar-sonuc-var';
+        sonuc.replaceChildren(el('span', {}, `PDEfe ${r.surum || ''} hazır${r.mevcut ? ` (kullandığınız: ${r.mevcut})` : ''}. `));
+        if (guncelleme) {
+          const g = el('button', { class: 'ikincil', type: 'button' }, 'Güncelle');
+          g.addEventListener('click', () => { ayarlarPenceresiKapat(); guncelleme.guncelle(); });
+          sonuc.append(g);
+        }
+      } else if (r.durum === 'yok') { sonuc.className = 'ayar-sonuc soluk'; sonuc.replaceChildren(r.mesaj || `PDEfe güncel${r.surum ? ` (${r.surum})` : ''}.`); }
+      else { sonuc.className = 'ayar-sonuc ayar-sonuc-hata'; sonuc.replaceChildren('Denetlenemedi: ' + (r.mesaj || 'bilinmeyen hata')); }
     } catch (e) {
       sonuc.className = 'ayar-sonuc ayar-sonuc-hata';
-      sonuc.textContent = /No handler registered/i.test(hataMetni(e)) ? 'Güncelleme denetimi bu sürümde kullanılamıyor.' : 'Denetlenemedi: ' + hataMetni(e);
+      sonuc.replaceChildren(/No handler registered/i.test(hataMetni(e)) ? 'Güncelleme denetimi bu sürümde kullanılamıyor.' : 'Denetlenemedi: ' + hataMetni(e));
     } finally { dugme.disabled = false; }
   });
-  k.append(kart({ baslik: 'Şimdi kontrol et', aciklama: 'GitHub sürümlerine bakılır.', kontrol: dugme }));
+  k.append(kart({ baslik: 'Şimdi denetle', aciklama: 'GitHub\'daki PDEfe sürümlerine hemen bakılır.', kontrol: dugme }));
   k.append(sonuc);
 }
 

@@ -1,6 +1,6 @@
 // PDEfe ana süreç: pencere, tek örnek, pdefe:// protokolü, menü, IPC köprüsü.
 import { app, BrowserWindow, protocol, net, ipcMain, dialog, Menu, shell, nativeTheme, clipboard, screen } from 'electron';
-import { TEST, testDiyalogKur } from './gelistirme.js';
+import { TEST, testDiyalogKur, sahteGuncelleyiciKur } from './gelistirme.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -28,6 +28,8 @@ let pencere = null;
 let rendererHazir = false;
 let kapatOnayli = false;
 let bekleyenDosyalar = [];
+/** @type {ReturnType<typeof guncellemeKur>|null} */
+let guncelleme = null;
 const cekirdek = new Cekirdek({ kok: KOK, paketli: PAKETLI, kaynaklar: process.resourcesPath });
 
 // ---------- Yardımcılar ----------
@@ -122,6 +124,8 @@ function pencereOlustur() {
     if (kayitli.buyutulmus && TEST.konum.length !== 2) pencere.maximize();
     if (TEST.konum.length === 2) pencere.showInactive(); else pencere.show();
   });
+  // Sırası gelen açılışta (10 açılışta bir) güncelleme denetimi pencere göründükten birkaç saniye sonra yapılır
+  pencere.once('show', () => guncelleme?.pencereGosterildi());
   pencere.on('close', (e) => {
     if (!pencere) return;
     if (!kapatOnayli && rendererHazir) {
@@ -369,7 +373,13 @@ app.whenReady().then(() => {
   protokolKur();
   ipcKur();
   try {
-    guncellemeKur({ app, ipcMain, autoUpdater, pencereyeGonder, ayarAl, ayarKoy, kapatmayaHazirla: () => { kapatOnayli = true; } });
+    const sahte = sahteGuncelleyiciKur(ipcMain);   // yalnızca geliştirme örneğinde, PDEFE_TEST_GUNCELLEME ile
+    guncelleme = guncellemeKur({
+      app, ipcMain, autoUpdater: sahte || autoUpdater, etkin: PAKETLI || !!sahte, ilkOrnek: kilit, pencereyeGonder, ayarAl, ayarKoy,
+      // Kurulum uygulamayı kapatır: renderer kaydedilmemiş değişiklikleri önceden sorduğu için pencere kapatma yeniden sormasın
+      kapatmayaHazirla: () => { kapatOnayli = true; },
+      kapatmaIptal: () => { kapatOnayli = false; },
+    });
   } catch (e) { console.error('[güncelleme] kurulamadı:', e); }
   bekleyenDosyalar.push(...argvdenPdfler(process.argv, process.cwd()));
   pencereOlustur();

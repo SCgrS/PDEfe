@@ -4,15 +4,71 @@
 //   PDEFE_TEST_KONUM    "x,y": pencere bu konumda açılır (ör. "-3000,0" ekran dışı). Windows pencere örtülme hesabı
 //                       kapatılır; ekran dışındaki pencere çizmeye ve CDP ekran görüntüsü vermeye devam eder.
 //   PDEFE_TEST_BOYUT    "genişlik,yükseklik": pencere boyutu (kayıtlı boyut yerine).
+//   PDEFE_TEST_GUNCELLEME  "x.y.z": güncelleme akışı sahte güncelleyiciyle denenir (sunucuda x.y.z var sayılır; bkz. sahteGuncelleyiciKur).
 // Paketli uygulamada hiçbiri okunmaz.
 import { app } from 'electron';
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 
 export const TEST = !app.isPackaged ? {
   veri: process.env.PDEFE_VERI_KLASORU || '',
   konum: (process.env.PDEFE_TEST_KONUM || '').split(',').map(Number).filter(Number.isFinite),
   boyut: (process.env.PDEFE_TEST_BOYUT || '').split(',').map(Number).filter((n) => n > 0),
-} : { veri: '', konum: [], boyut: [] };
+  guncelleme: process.env.PDEFE_TEST_GUNCELLEME || '',
+} : { veri: '', konum: [], boyut: [], guncelleme: '' };
+
+/** "1.2.3" karşılaştırması (yalnızca sayısal parçalar): a > b → 1, eşit → 0, küçük → -1. */
+function surumKarsilastir(a, b) {
+  const pa = String(a).split('.').map((x) => parseInt(x, 10) || 0), pb = String(b).split('.').map((x) => parseInt(x, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) { const f = (pa[i] || 0) - (pb[i] || 0); if (f) return f > 0 ? 1 : -1; }
+  return 0;
+}
+
+/**
+ * Geliştirme örneğinde güncelleme şeridini ve açılış sayacını denemek için electron-updater yerine geçen sahte güncelleyici
+ * (PDEFE_TEST_GUNCELLEME verilmişse; paketli uygulamada ve değişken yokken null). Ağa çıkmaz, hiçbir şey kurmaz, uygulamayı kapatmaz.
+ * Senaryo 'test:guncellemeSenaryosu' ile değiştirilir: { surum, hata: null|'denetim'|'indirme'|'kurulum', sureMs }.
+ * 'test:guncellemeKaydi' → { denetimler, indirmeler, kurulumlar: [{ isSilent, isForceRunAfter }] }.
+ */
+export function sahteGuncelleyiciKur(ipcMain) {
+  if (!TEST.guncelleme) return null;
+  const senaryo = { surum: TEST.guncelleme, hata: null, sureMs: 1500 };
+  const kayit = { denetimler: 0, indirmeler: 0, kurulumlar: [] };
+  let indirilen = null;
+  const g = new EventEmitter();
+  const bilgi = () => ({ version: senaryo.surum, releaseNotes: 'Sahte sürüm notu', releaseDate: new Date().toISOString(), files: [] });
+  const hataVer = (mesaj) => { const e = new Error(mesaj); g.emit('error', e); return e; };
+  g.checkForUpdates = async () => {
+    kayit.denetimler++;
+    g.emit('checking-for-update');
+    await new Promise((c) => setTimeout(c, 300));
+    if (senaryo.hata === 'denetim') throw hataVer('net::ERR_CONNECTION_REFUSED');
+    const var_ = surumKarsilastir(senaryo.surum, app.getVersion()) > 0;
+    g.emit(var_ ? 'update-available' : 'update-not-available', bilgi());
+    return { isUpdateAvailable: var_, updateInfo: bilgi(), versionInfo: bilgi() };
+  };
+  g.downloadUpdate = async () => {
+    kayit.indirmeler++;
+    if (indirilen === senaryo.surum) { g.emit('update-downloaded', bilgi()); return []; }
+    const toplam = 80 * 1024 * 1024, adim = 10;
+    for (let i = 1; i <= adim; i++) {
+      await new Promise((c) => setTimeout(c, senaryo.sureMs / adim));
+      if (senaryo.hata === 'indirme' && i === 4) throw hataVer('net::ERR_CONNECTION_RESET');
+      g.emit('download-progress', { percent: (i * 100) / adim, transferred: (toplam * i) / adim, total: toplam, bytesPerSecond: toplam / (senaryo.sureMs / 1000) });
+    }
+    indirilen = senaryo.surum;
+    g.emit('update-downloaded', bilgi());
+    return ['sahte-kurulum.exe'];
+  };
+  g.quitAndInstall = (isSilent, isForceRunAfter) => {
+    kayit.kurulumlar.push({ isSilent, isForceRunAfter });
+    console.log('[test güncelleme] quitAndInstall', isSilent, isForceRunAfter);
+    if (senaryo.hata === 'kurulum') setImmediate(() => g.emit('error', new Error('spawn EACCES')));
+  };
+  ipcMain.handle('test:guncellemeSenaryosu', (_e, yeni) => { Object.assign(senaryo, yeni || {}); return { ...senaryo }; });
+  ipcMain.handle('test:guncellemeKaydi', () => JSON.parse(JSON.stringify(kayit)));
+  return g;
+}
 
 /**
  * Test örneğinde (PDEFE_TEST_KONUM verilmiş) yerel diyaloglar (mesaj kutusu, aç/kaydet/klasör, açılır menü) gösterilmez: pencere ekran
