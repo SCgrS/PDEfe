@@ -333,9 +333,10 @@ function ipcKur() {
 
   ipcMain.handle('kabuk:klasordeGoster', (_e, yol) => { shell.showItemInFolder(yol); return true; });
   ipcMain.handle('kabuk:disAc', (_e, url) => shell.openExternal(url));
-  ipcMain.handle('pano:metin', (_e, metin) => { clipboard.writeText(metin); return true; });
+  // Test örneğinde sistem panosuna yazılmaz (bilgisayarı kullanan kişinin panosu bozulmasın): yazılan test:diyalogKaydi'na düşer
+  ipcMain.handle('pano:metin', (_e, metin) => { if (testDiyalog) return testDiyalog('pano:metin', { uzunluk: metin?.length, bas: String(metin ?? '').slice(0, 200) }, true); clipboard.writeText(metin); return true; });
   ipcMain.handle('pano:oku', () => clipboard.readText());
-  ipcMain.handle('pano:dosya', async (_e, yol) => panoyaDosyaKopyala(yol));
+  ipcMain.handle('pano:dosya', async (_e, yol) => (testDiyalog ? testDiyalog('pano:dosya', { yol }, { tamam: true, hata: '' }) : panoyaDosyaKopyala(yol)));
 
   ipcMain.handle('pencere:tamEkran', (_e, deger) => {
     const yeni = deger ?? !pencere.isFullScreen();
