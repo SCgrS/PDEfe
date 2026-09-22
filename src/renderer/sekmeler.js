@@ -1,6 +1,9 @@
 // Sekme çubuğu: sekme listesi, sürükleyerek sıralama, tekerlekle geçiş, ◀ ▶ düğmeleri,
 // "Açık belgeler" listesi ve Ctrl+Tab son-kullanım sırasına göre sekme seçici.
 
+/** Sekmenin ipucu: sabit genişlikte kısalabilen tam ad ve dosyanın yolu. */
+const ipucu = (ad, yol) => (yol && yol !== ad ? `${ad}\n${yol}` : ad);
+
 export class SekmeCubugu extends EventTarget {
   constructor({ cubuk, liste, onceki, sonraki, acilir, secici, belgeListesi, aramaSay = null }) {
     super();
@@ -47,7 +50,7 @@ export class SekmeCubugu extends EventTarget {
     if (!this.belgeListesi.hidden) this.belgeListesiKapat();   // açık liste sekme kümesini bir kez kurar; bayat kalmasın
     const el = document.createElement('div');
     el.className = 'sekme';
-    el.title = yol;
+    el.title = ipucu(ad, yol);
     el.draggable = true;
     el.innerHTML = `<span class="nokta">•</span><span class="ad"></span><button class="kapat" title="Kapat (Ctrl+W)"><svg viewBox="0 0 16 16"><path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5"/></svg></button>`;
     el.querySelector('.ad').textContent = ad;
@@ -112,10 +115,13 @@ export class SekmeCubugu extends EventTarget {
 
   bul(id) { return this.sekmeler.find((s) => s.id === id); }
 
-  guncelle(id, { ad, degisti }) {
+  /** Ad, yol (Farklı kaydet) ya da değişiklik işareti değişti. */
+  guncelle(id, { ad, yol, degisti }) {
     const s = this.bul(id);
     if (!s) return;
     if (ad != null) { s.ad = ad; s.el.querySelector('.ad').textContent = ad; }
+    if (yol != null) s.yol = yol;
+    if (ad != null || yol != null) s.el.title = ipucu(s.ad, s.yol);
     if (degisti != null) { s.degisti = degisti; s.el.classList.toggle('degisti', degisti); }
   }
 

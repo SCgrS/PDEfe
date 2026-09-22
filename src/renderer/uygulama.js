@@ -345,8 +345,7 @@ async function kayitYaz(b, farkli, sessiz) {
   }
   if (farkli && !yolAyni(hedef, b.yol)) {
     b.yol = hedef; b.ad = dosyaAdi(hedef);
-    sekmeler.guncelle(b.id, { ad: b.ad });
-    sekmeler.bul(b.id).yol = hedef; sekmeler.bul(b.id).el.title = hedef;
+    sekmeler.guncelle(b.id, { ad: b.ad, yol: hedef });
     pdefe.cagir('pencere:baslik', b.ad);
     sonDosyalaraEkle(hedef);
   }
