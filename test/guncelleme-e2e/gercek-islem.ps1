@@ -3,8 +3,10 @@
 #   durum          deneme uygulamasının gerçek izleri: ayarlar.json, kurulu exe sürümü, kaldırma kaydı, güncelleme önbelleği
 #   pencereAyarla  ayarlar.json'daki pencereyi ekran dışına alır (-2600, 0), öbür ayarlara dokunmaz
 #   ac             deneme uygulamasını -Port CDP portuyla başlatır
+#   kur            -Kurucu <PDEfe-Setup.exe>: deneme kurucusunu sessiz kurar (/S); çıkış kodu, süre, exe sürümü
+#   ayarYaz        -Json <dosya>: ayarlar.json'a bu JSON'daki alanları yazar, öbür alanlar kalır (ör. açılış sayacı, pencere)
 #   kaldir         deneme uygulamasını kendi kaldırıcısıyla sessizce kaldırır, userData ve güncelleme önbelleğini siler
-param([Parameter(Mandatory = $true)][string]$Islem, [Parameter(Mandatory = $true)][string]$Cikti, [int]$Port = 9912)
+param([Parameter(Mandatory = $true)][string]$Islem, [Parameter(Mandatory = $true)][string]$Cikti, [int]$Port = 9912, [string]$Kurucu = '', [string]$Json = '')
 $ErrorActionPreference = 'Stop'
 $URUN = 'PDEfe Guncelleme Testi'
 $kurulum = Join-Path $env:LOCALAPPDATA "Programs\$URUN"
@@ -55,6 +57,23 @@ public static class AnahtarZamani {
         $k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($y)
         if ($k) { Yaz ("{0:yyyy-MM-dd HH:mm:ss}  HKCU\{1}" -f [AnahtarZamani]::Al($k), $y); $k.Close() } else { Yaz "yok  HKCU\$y" }
       }
+    }
+    'kur' {
+      if (-not (Test-Path -LiteralPath $Kurucu)) { throw "kurucu yok: $Kurucu" }
+      # Yalnızca deneme uygulamasının kurucusu: gerçek PDEfe kurucusu (ProductName PDEfe) burada asla çalıştırılmaz
+      $urunAdi = (Get-Item -LiteralPath $Kurucu).VersionInfo.ProductName
+      if ($urunAdi -ne $URUN) { throw "kurucu deneme uygulamasının değil (ProductName '$urunAdi')" }
+      $bas = Get-Date
+      $p = Start-Process -FilePath $Kurucu -ArgumentList '/S' -PassThru
+      while (-not $p.HasExited -and ((Get-Date) - $bas).TotalSeconds -lt 240) { Start-Sleep -Milliseconds 300 }
+      Yaz ("kurucu çıkış kodu: {0}, süre {1:N1} sn" -f $p.ExitCode, ((Get-Date) - $bas).TotalSeconds)
+      Yaz "exe: $(if (Test-Path $exe) { (Get-Item $exe).VersionInfo.FileVersion } else { 'yok' })"
+      TestKayitlari
+    }
+    'ayarYaz' {
+      New-Item -ItemType Directory -Force $veri | Out-Null
+      $js = "const fs=require('fs');const [y,j]=process.argv.slice(1);let a={};try{a=JSON.parse(fs.readFileSync(y,'utf8'))}catch{};Object.assign(a,JSON.parse(fs.readFileSync(j,'utf8')));fs.writeFileSync(y,JSON.stringify(a,null,'	'));console.log(JSON.stringify(a))"
+      Yaz (& node -e $js $ayar $Json)
     }
     'ac' {
       $p = Start-Process -FilePath $exe -ArgumentList "--remote-debugging-port=$Port" -PassThru

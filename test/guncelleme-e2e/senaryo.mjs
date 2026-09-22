@@ -1,6 +1,9 @@
 // Güncelleme uçtan uca testi: kurulu deneme uygulamasında (CDP) şerit adımları. surucu.mjs ile çalışır:
 //   $env:PDEFE_CDP_PORT=9911; $env:ADIM='serit'; node test/surucu.mjs betik test/guncelleme-e2e/senaryo.mjs
-// ADIM: serit | dahaSonra | hataIndir | ertele (PDF=<yol>) | kur | ayarlarDenetle
+// ADIM: serit | dahaSonra | hataIndir | ertele (PDF=<yol>) | kur | ayarlarDenetle | erteleAyarlar (PDF=<yol>) | kapat | eskiKur
+//   erteleAyarlar: kaydedilmemiş belgeyle Güncelle; indirme sürerken ve Vazgeç'ten sonra Ayarlar › Şimdi denetle sonucu
+//   kapat: kaydedilmemiş belge varsa Kaydetme yanıtıyla pencereyi kapatır (indirilmiş paket kurulmaz; autoInstallOnAppQuit false)
+//   eskiKur: 0.1.2 ve öncesinin şeridi (Güncellemeyi yükle → Şimdi yeniden başlat ve kur; quitAndInstall(false, true))
 // Tıklamalar gerçek CDP fare olaylarıdır (Input.dispatchMouseEvent). Sunucu denetimi SUNUCU (varsayılan http://127.0.0.1:9914).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,6 +31,22 @@ export default async function ({ evalJs, bekle, tikla, ekranGoruntusu }) {
     if (!d) throw new Error(`Düğme yok (${adlar.join('/')}); şerit: ${ozet(s)}`);
     console.log(`tıkla "${d.ad}" (${d.x}, ${d.y})`);
     await tikla(d.x, d.y);
+  };
+  /** Ayarlar › Güncelleme › Şimdi denetle: sonuç satırının metni ve düğmeleri. */
+  const ayarlarDenetle = async (ss) => {
+    await evalJs(`window.__pdefe.komutCalistir('duzen.ayarlar')`); await bekle(400);
+    await evalJs(`document.querySelector('.ayarlar-bolumler button[data-bolum="guncelleme"]').click()`); await bekle(300);
+    const d = await evalJs(`(() => { const b = [...document.querySelectorAll('.ayarlar-icerik button')].find((b) => b.textContent === 'Şimdi denetle'); const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+    await tikla(d.x, d.y);
+    for (let i = 0; i < 40; i++) { await bekle(250); if (!/Denetleniyor/.test(await evalJs(`document.querySelector('.ayar-sonuc').textContent`))) break; }
+    const r = await evalJs(`(() => { const s = document.querySelector('.ayar-sonuc'); return { metin: (s.querySelector('span')?.textContent ?? s.textContent).trim(), dugmeler: [...s.querySelectorAll('button')].map((b) => b.textContent) }; })()`);
+    if (ss) await ekranGoruntusu(ss);
+    await evalJs(`document.querySelector('.ayarlar-ortusu [data-id="kapat2"]').click()`); await bekle(200);
+    return r;
+  };
+  const belgeDegistir = async () => {
+    const pdf = process.env.PDF.replace(/\\/g, '/');
+    return evalJs(`(async () => { const p = window.__pdefe; const b = await p.dosyaAc(${JSON.stringify(pdf)}); await new Promise((r) => setTimeout(r, 1200)); await p.sayfalariDondur(b, [1], 90, 'Sayfayı döndür'); await new Promise((r) => setTimeout(r, 400)); return { ad: b.ad, degisti: b.degisti }; })()`);
   };
   /** Şeridi izler; kosul(s) doğru olunca ya da bağlantı kopunca (uygulama kapandı) döner. */
   const izle = async (kosul, sureMs = 60000, ornekMs = 200) => {
@@ -85,6 +104,42 @@ export default async function ({ evalJs, bekle, tikla, ekranGoruntusu }) {
     console.log('akış:', r.gorulen.join('\n   → '));
     console.log(`bağlantı ${((Date.now() - t0) / 1000).toFixed(1)} sn sonra koptu:`, !!r.koptu);
     process.exit(0);   // kopan CDP bağlantısında bekleyen istek süreci açık tutmasın
+  } else if (adim === 'erteleAyarlar') {
+    console.log('belge:', JSON.stringify(await belgeDegistir()));
+    await evalJs(`window.__pdefeOtoYanit = { secim: 2 }; true`);   // kapatma sorusu: Vazgeç
+    await bas('Güncelle', 'Yeniden dene');
+    const r1 = await izle((s) => (s.asama === 'indiriliyor' && /%[1-9]/.test(s.metin)) || s.asama === 'hazir' || s.asama === 'hata', 60000, 100);
+    console.log('akış:', r1.gorulen.join('\n   → '));
+    console.log('Ayarlar (indirme sürerken):', JSON.stringify(await ayarlarDenetle(process.env.SS_DIR ? path.join(process.env.SS_DIR, 'ayarlar-indirirken.png') : '')));
+    console.log('şerit:', ozet(await serit()));
+    const r2 = await izle((s) => s.asama === 'hazir' || s.asama === 'hata', 180000, 150);
+    console.log('akış:', r2.gorulen.join('\n   → '));
+    console.log('sorulan:', await evalJs(`JSON.stringify(window.__pdefeOtoYanit.son?.mesaj || null)`));
+    console.log('Ayarlar (Vazgeç sonrası):', JSON.stringify(await ayarlarDenetle(process.env.SS_DIR ? path.join(process.env.SS_DIR, 'ayarlar-hazir.png') : '')));
+    console.log('şerit:', ozet(await serit()));
+    console.log('durum:', JSON.stringify(await evalJs(`pdefe.cagir('guncelleme:durum')`)));
+    if (process.env.SS_DIR) await ekranGoruntusu(path.join(process.env.SS_DIR, 'serit-hazir.png'));
+  } else if (adim === 'kapat') {
+    await evalJs(`window.__pdefeOtoYanit = { secim: 1 }; true`);   // kaydedilmemiş belge: Kaydetme
+    const t0 = Date.now();
+    zamanli(evalJs(`pdefe.cagir('pencere:kapat')`), 3000).catch(() => {});
+    const r = await izle(() => false, 30000, 200);
+    console.log(`pencere kapatıldı; bağlantı ${((Date.now() - t0) / 1000).toFixed(1)} sn sonra koptu:`, !!r.koptu);
+    process.exit(0);
+  } else if (adim === 'eskiKur') {
+    await evalJs(`window.__pdefeOtoYanit = { secim: 1 }; true`);
+    let s = await serit();
+    if (s.gizli) { await evalJs(`window.__pdefe.komutCalistir('yardim.guncelle')`); s = (await izle((x) => !x.gizli, 20000)).s || s; }
+    console.log('şerit (0.1.2 arayüzü):', ozet(s));
+    await bas('Güncellemeyi yükle');
+    const r1 = await izle((x) => x.dugmeler.some((b) => b.ad === 'Şimdi yeniden başlat ve kur'), 180000, 200);
+    console.log('akış:', r1.gorulen.join('\n   → '));
+    const t0 = Date.now();
+    await bas('Şimdi yeniden başlat ve kur');
+    const r2 = await izle(() => false, 60000, 150);
+    console.log('akış:', r2.gorulen.join('\n   → '));
+    console.log(`bağlantı ${((Date.now() - t0) / 1000).toFixed(1)} sn sonra koptu:`, !!r2.koptu);
+    process.exit(0);
   } else if (adim === 'ayarlarDenetle') {
     await evalJs(`window.__pdefe.komutCalistir('duzen.ayarlar')`); await bekle(400);
     await evalJs(`document.querySelector('.ayarlar-bolumler button[data-bolum="guncelleme"]').click()`); await bekle(300);

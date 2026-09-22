@@ -21,13 +21,20 @@
 //   2. core/dist/pdefe-core.exe'yi kurulu PDEfe'den kopyala; derle.mjs ile A (0.9.0), B (0.9.1), C (0.9.2) derle
 //   3. sunucu.mjs --port 9914 --kok <çıktılar> --gunluk istekler.jsonl --yayinda 0.9.1 [--hiz 30000000]   (arka planda)
 //   4. A'yı sessiz kur (PDEfe-Setup.exe /S); %APPDATA%\PDEfe Guncelleme Testi\ayarlar.json'a pencere { x: -2600, … } yaz (ekran dışı)
-//   5. uygulama.ps1 -Islem ac|kapat (CDP 9911) ve senaryo.mjs adımları (ADIM=serit|dahaSonra|hataIndir|ertele|kur|ayarlarDenetle);
-//      açılış sayacı: sunucu günlüğünde 1. ve 11. açılışta /latest.yml isteği olmalı, 2–10'da olmamalı
+//   5. uygulama.ps1 -Islem ac|kapat (CDP 9911) ve senaryo.mjs adımları (ADIM=serit|dahaSonra|hataIndir|ertele|kur|ayarlarDenetle|
+//      erteleAyarlar|kapat|eskiKur); açılış sayacı: sunucu günlüğünde 1. ve 11. açılışta /latest.yml isteği olmalı, 2–10'da olmamalı;
+//      sunucu kapalıyken yapılan açılış sırayı tüketmemeli (sonraki açılış yine ister); Vazgeç + kapat sonrası açılış bir kez ister
 //   6. kurulum-izle.ps1 (arka planda) + ADIM=kur: sessiz kurulum (görünür pencere 0), "--updated" ile yeniden açılış, exe sürümü
 //   7. gercek-islem.ps1 -Islem kaldir (deneme uygulamasının kaldırıcısı, userData, güncelleme önbelleği); son görüntü ve karşılaştırma
 // Kabuk Claude masaüstü uygulamasının (MSIX) kumbarasındaysa kabuktan başlatılan kurucu ve uygulamanın %APPDATA%/%LOCALAPPDATA% ve
 // HKCU yazmaları sanallaşır, güncellemeden sonra kurucunun yeniden açtığı uygulama ise gerçek oturumda çalışır (ayarları görmez).
-// O durumda 4–7'yi gercek-oturum.ps1 + gercek-islem.ps1 (goruntu|durum|pencereAyarla|ac|kaldir|anahtarZamanlari) ile gerçek oturumda yapın.
+// O durumda 4–7'yi gercek-oturum.ps1 + gercek-islem.ps1 (goruntu|durum|kur|ayarYaz|pencereAyarla|ac|kaldir|anahtarZamanlari) ile gerçek
+// oturumda yapın.
+// Önce: node test/guncelleme-e2e/birim.mjs (ana süreç mantığı, Electron'suz).
+// Eski istemciden geçiş (yayımlanmış sürümün quitAndInstall çağrısı yeni kurucuyu çalıştırır): eski etiketi git archive ile bir klasöre
+// çıkarın, bu derle.mjs'i test/guncelleme-e2e altına, pdefe-core.exe'yi core/dist altına kopyalayın, node_modules bağlantısı kurun ve
+// oradan A0 (0.9.0) derleyin; sunucu kökünde A0 ile yeni B olsun. ADIM=eskiKur + kurulum-izle.ps1: görünür pencere 0 ve "--updated"
+// ile yeniden açılış (build/installer.nsh "--updated" görünce SetSilent).
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
