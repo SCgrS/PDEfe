@@ -201,8 +201,8 @@ function kirliGuncelle(b) {
   if (aktifId === b.id) { durum.degisiklikYaz(b.degisti); geriAlDugmeleriniGuncelle(b); }
   $('#arac-cubugu [data-komut="dosya.kaydet"]').disabled = !aktif()?.degisti;
   // Yazı düzenlenirken otomatik kayıt beklenir (kayıt düzenlemeyi uygulayıp kutuyu yazarken kapatırdı); düzenleme bitince not
-  // değişikliği kirliGuncelle'yi yeniden çağırır
-  if (ayar.otomatikKaydet && b.degisti) { clearTimeout(b._otoKayit); b._otoKayit = setTimeout(() => { if (b.degisti && belgeler.has(b.id) && !b.notlar?.duzenleyici) belgeKaydet(b, false, true); }, 1500); }
+  // değişikliği kirliGuncelle'yi yeniden çağırır. Otomatik kayıt başarısız olduysa (dosya başka programda açık) elle kaydedilene dek durur
+  if (ayar.otomatikKaydet && b.degisti && !b._otoKayitDurdu) { clearTimeout(b._otoKayit); b._otoKayit = setTimeout(() => { if (b.degisti && belgeler.has(b.id) && !b.notlar?.duzenleyici) belgeKaydet(b, false, true); }, 1500); }
 }
 
 /** Kaydırmasız (tek/iki) düzende sayfa çevrilince artık gösterilmeyen sayfadaki not bırakılır: açık yazı düzenleyicisi kaydedilip
@@ -282,8 +282,20 @@ async function belgeKaydet(b, farkli = false, sessiz = false) {
   b.kayitSozu = new Promise((coz) => { bitti = coz; });
   try {
     for (;;) {
-      try { return await kayitYaz(b, farkli, sessiz); } catch (e) {
+      try {
+        const sonuc = await kayitYaz(b, farkli, sessiz);
+        if (sonuc && !sessiz) b._otoKayitDurdu = false;   // elle kayıt başarılı: otomatik kayıt yeniden çalışır
+        return sonuc;
+      } catch (e) {
         durum.mesajYaz('');
+        // Otomatik kayıt başarısız: her değişiklikte engelleyici hata penceresi açılmasın; bir kez bildirilir, otomatik kayıt elle
+        // kaydedilene dek durur (değişiklikler PDEfe'de kalır, sekme kaydedilmemiş görünür)
+        if (sessiz && !farkli) {
+          b._otoKayitDurdu = true;
+          console.warn('Otomatik kayıt başarısız', b.yol, e);
+          bildir(`"${b.ad}" otomatik kaydedilemedi: dosya başka bir programda (örneğin referans okuyucu) açık olabilir. Değişiklikler PDEfe'de duruyor; o programı kapatıp Ctrl+S ile kaydedin.`, 9000);
+          return false;
+        }
         const kilitli = /açık olabilir|yazılamadı|okunamadı|Failed to open|Permission|EBUSY|EPERM/i.test(e.message || '');
         const { secim } = await mesajKutusu({ tur: 'error', mesaj: 'Belge kaydedilemedi', ayrinti: (kilitli ? 'Dosya başka bir programda (örneğin bir PDF okuyucu) açık olabilir. Onu kapatıp yeniden deneyin ya da farklı bir adla kaydedin.\n\n' : '') + hataMetni(e), dugmeler: kilitli ? ['Farklı kaydet', 'Vazgeç'] : ['Tamam'], iptal: kilitli ? 1 : 0 });
         if (!kilitli || secim !== 0) return false;
