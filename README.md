@@ -13,7 +13,9 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 - **Sekmeler.** Birden çok PDF tek pencerede; sekmeler sürüklenerek sıralanır. `Ctrl+Tab` basılı tutulunca
   son kullanılan sırayla sekme seçici açılır; `Ctrl+1` – `Ctrl+9` ile doğrudan sekmeye gidilir. Bir belge yeniden
   açıldığında kalınan sayfadan devam edilir. Kaydedilmemiş değişiklik sorusu sekme ya da pencere kapatılırken çıkar.
-- **Keskin görüntü.** Görseller, karekodlar ve tablo çizgileri referans okuyucudaki gibi keskin çizilir; taranmış
+- **Keskin görüntü.** Yazılar referans okuyucu gibi harflerin ana hatlarından çizilir: kalın yazılar referans okuyucudan koyu
+  görünmez, döndürülmüş sayfada da düz sayfadaki gibidir; gömülü olmayan Times, Arial ve Courier yazıları referans okuyucu gibi
+  Windows'un Times New Roman, Arial ve Courier New yazı tipleriyle çizilir (Ayarlar › Görünüm › Yazı çizimi: "Dengeli" ya da "Windows ClearType"). Görseller, karekodlar ve tablo çizgileri referans okuyucudaki gibi keskin çizilir; taranmış
   belgeler çok yakınlaştırıldığında da net ve hızlıdır.
 - **Temiz kopyalama.** Seçilen metin panoya yapıştırıldığında satır sonlarındaki tireler birleştirilir,
   girintiler korunur, paragraflar tek satır sonuyla ayrılır (UYAP Doküman Editörü'nde ve Word'de boş paragraf
@@ -22,12 +24,14 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   yorumlarda arama, tüm açık sekmelerde arama. Açık belgeler listesindeki **Tüm belgelerde ara** kutusu her
   belgedeki eşleşme sayısını gösterir. Word 2010'un bozuk Türkçe kodlaması (Ġ→İ, ġ→Ş, Ģ→ş) hem
   görünen metinde hem aramada düzeltilir.
-- **referans okuyucu uyumlu notlar.** Vurgu (yazının rengi değişmez; varsayılan renk referans okuyucu ile aynı), seçili metne not
+- **referans okuyucu uyumlu notlar.** Vurgu (yazının rengi değişmez; varsayılan renk referans okuyucu ile aynı; vurguya tıklayınca açılan
+  çubuktan renk değiştirme, not ekleme ve kaldırma), seçili metne not
   (referans okuyucunun "Metinle ilgili yorum"u gibi notlu vurgu; üzerine gelince tıklamadan görünür), yapışkan not ve serbest
   yazı ekleme; taşıma, düzenleme, silme. Nota yanıt yazılmaz; referans okuyucuda yazılmış yanıtlar salt okunur gösterilir.
   Yazılarda seçili sözcükler kalın, italik ya da altı çizili yapılır; yazılar Türkçe karakterli Windows fontuyla
-  (Segoe UI, Arial, Times, Calibri) belgeye gömülür, referans okuyucuda ve UYAP'ta aynı görünür. Kaydetme
-  artımlıdır: belgenin geri kalanına dokunulmaz.
+  (Segoe UI, Arial, Times, Calibri) belgeye gömülür, referans okuyucuda ve UYAP'ta aynı görünür. Notlar
+  varsayılan olarak kendiliğinden kaydedilir (Ayarlar › Kaydetme › Otomatik kaydet); kaydetme artımlıdır, belgenin
+  geri kalanına dokunulmaz.
 - **Geri al / yinele.** Her not ve sayfa işlemi `Ctrl+Z` / `Ctrl+Y` ile geri alınır; kayıttan sonra bile.
 - **Araçlar** (araç çubuğundaki **Araçlar** düğmesi ya da Araçlar menüsü): **PDF küçült** (üç hazır seviye, boyut
   tahmini), **Sayfaları düzenle** (küçük resim ızgarasında sürükleyerek sıralama, silme, döndürme, boş sayfa ya da
@@ -39,7 +43,8 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 - **Yazdır** (`Ctrl+P`): sayfa aralığı, kâğıt boyutu, sayfaya sığdırma; sayfalar görüntü olarak basıldığından
   Türkçe karakterler ekrandaki gibi çıkar. Notlar istenirse basılır ("Notları yazdır" varsayılan olarak kapalı).
 - **Paylaş.** Belgeyi dosya olarak panoya kopyalar; UYAP'a, e-postaya ya da Gezgin'e `Ctrl+V` veya Yapıştır ile yapıştırılır.
-- **Koyu mod.** Sistem temasını izler; istenirse sayfa da tam siyaha koyulaştırılır (görseller korunur).
+- **Koyu mod.** Sistem temasını izler; istenirse sayfa da tam siyaha koyulaştırılır (görseller korunur; yazı kutuları
+  sayfayla birlikte koyulaşır, dosyadaki renkleri değişmez).
 - **Döndür.** Döndür düğmesi ve `Ctrl+Shift++` / `Ctrl+Shift+−` belgeyi döndürür: geçerli sayfa ya da tüm PDF
   sorulur ("Seçeneğimi hatırla" ile bir daha sorulmaz; Ayarlar › Görünüm'den değiştirilir). Geri alınabilir;
   kaydedince dosyaya yazılır.
