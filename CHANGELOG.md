@@ -3,6 +3,49 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.4 — 2026-09-23
+
+### Görüntü kalitesi
+- Yazılar referans okuyucu gibi çizilir: harfler yazı tipindeki biçimleriyle ve gri yumuşatmayla çizilir. Kalın yazılar referans okuyucuya yaklaştı: UYAP tebligatının kalın satırlarında referans okuyucuya göre fazla koyuluk aynı ekran koşulunda (%125 ölçek) %31'den %13'e indi. Küçük yazılardaki renkli kenarlar (ClearType saçağı) kalktı.
+- Yatay döndürülen sayfada yazılar düz sayfadaki gibi görünür; uzaklaştırınca harfler incelip bozulmuyor.
+- Gömülü olmayan Times, Helvetica / Arial ve Courier yazıları referans okuyucunun yaptığı gibi Windows'un Times New Roman, Arial ve Courier New yazı tipleriyle çizilir. UYAP doğrulama satırındaki Consolas, "e-imzalı" damgasındaki Segoe Script gibi öteki yazı tipleri Windows'taki kendi biçimleriyle görünür.
+- Ayarlar › Görünüm › Yazı çizimi: "Dengeli" (varsayılan) ya da "Windows ClearType" (önceki, daha koyu çizim). Değişiklik belgeler yeniden açılınca uygulanır.
+
+### Vurgu ve notlar
+- Vurguya tıklayınca altında küçük bir çubuk açılır: renkler, Not ekle / Notu düzenle ve Kaldır. Referans okuyucuda eklenmiş vurgularda, altı çizili, üstü çizili ve dalgalı işaretlerde de çalışır. Renk değişince çubuk açık kalır, `Ctrl+Z` geri alır; varsayılan vurgu rengi değişmez. `Esc` ya da başka bir yere tıklamak çubuğu kapatır.
+- Otomatik kaydetme artık varsayılan olarak açık: notlar ve döndürme kısa bir gecikmeyle dosyaya yazılır; dosya referans okuyucuda ya da UYAP'ta açıldığında görünür. PDEfe'nin kaydettiği vurgu, metin notu, yazı ve yapışkan not referans okuyucunun kendi çizim motoruyla denetlendi ve görünüyor; görünmeme nedeni notların kaydedilmemiş olmasıydı. Ayarlar › Kaydetme › Otomatik kaydet'ten kapatılabilir.
+- Dosya başka bir programda (örneğin referans okuyucu) açık olduğu için otomatik kayıt yapılamazsa her değişiklikte hata penceresi açılmaz: bir kez bildirilir, değişiklikler PDEfe'de durur; o programı kapatıp `Ctrl+S` ile kaydedilir.
+
+### Yazı aracı
+- Koyu temada "Sayfayı da koyulaştır" açıkken yazı kutuları görünür: yazarken ve sonra siyah yazı beyaz, beyaz dolgu siyah görünür (sayfayla aynı biçimde). Dosyadaki renk değişmez. Önceden siyah yazı siyah sayfada görünmüyordu.
+- Biçim çubuğundaki ayrı "Dolgusuz" düğmesi kaldırıldı: Dolgu rengi düğmesi bir palet açar; içinde Dolgusuz, on açık renk ve Diğer renk (Windows renk seçicisi) var. `Esc` ya da dışarı tıklamak yalnızca paleti kapatır, yazı düzenlemesi sürer.
+
+### Sekmeler ve pencereler
+- Sekmeler adın uzunluğuna göre genişleyip daralmaz; hepsi aynı genişliktedir. "ustyazi (85).pdf", "(2)TensipZapti (9).pdf" gibi UYAP adları tam görünür, uzun adlar üç noktayla kısalır; sekmenin üzerine gelince tam ad ve dosyanın yolu görünür. Sığmayan sekmeler eskisi gibi ◀ ▶ ve fare tekerleğiyle gezilir.
+- Sürüklenen sekme sekme çubuğunun dışında bırakılınca ekranda görünen sıra geçerli olur; önceden `Ctrl+1` – `Ctrl+9` ve ◀ ▶ eski sırayla başka sekmeye gidiyordu.
+- Uygulama içinde bir pencere açıkken (araç pencereleri, Ayarlar, Yazdır, Klavye kısayolları, parola sorusu, `Ctrl+Tab` seçicisi, soru kutuları) arkadaki karartılmış alana tıklamak pencereyi kapatır; sonuç `Esc` ya da × ile aynıdır. Araç penceresinde işlem sürüyorsa, Sayfaları düzenle'de kaydedilmemiş değişiklik ya da birleştirme listesinde dosya varsa önce sorulur; yazdırma hazırlanırken dışarı tıklamak Vazgeç gibi yazdırmayı durdurur. Pencerenin içinde başlayıp dışarıda biten metin seçimi ya da sürükleme, sağ ve orta tık pencereyi kapatmaz.
+- Soru ve hata kutuları (kaydedilmemiş değişiklik, döndürme sorusu, kaydetme ve yazdırma hataları, araç soruları, Ayarlar'daki "Varsayılanlara dön") artık Windows kutusu olarak değil uygulamanın içinde açılır; açık ve koyu temaya uyar, iletisi seçilip kopyalanabilir. Arkadaki alana tıklamak ya da `Esc` Vazgeç ile aynıdır; `Enter` seçili düğmeye basar, `Tab` düğmeler ve "Seçeneğimi hatırla" arasında gezer.
+- Araç penceresi, Ayarlar ya da Klavye kısayolları açıkken çıkan soru onların üstünde açılır; dışına tıklamak yalnızca soruyu kapatır, alttaki pencere açık kalır. Soru açıkken belge ve kısayol tuşları, menü komutları ve pencereyi kapatma çalışmaz; önce soru yanıtlanır. Yazı düzenlenirken çıkan soruda `Esc` yalnızca soruyu kapatır, yazılan korunur.
+- Açık belgeler listesi ve Bul seçenekleri menüsü dışarıda nereye basılırsa basılsın kapanır; önceden bir nota tıklayınca açık kalıyordu.
+- Araç penceresi kapatılırken işlem aynı anda biterse kapanış işleri (ör. Küçült'te sekmeyi yenileme) iki kez çalışmaz.
+
+### Araçlar
+- Kaydetme seçiminde "Üzerine yaz" seçilince altındaki satır sonucun geri alınıp alınamayacağını söyler: PDF küçült ve PDF ayır'da sarı uyarı kutusu ("Geri alınamaz: sonuç "…" dosyasının yerine yazılır, yedek alınmaz."), Döndür ve kaydet ile Sayfaları düzenle'de "Ctrl+Z ile geri alınabilir" bilgisi; düğmenin ipucu da aynısını söyler.
+- Sayfaları düzenle: küçük resimlerin arasındaki boş alandan fareyle sürükleyerek birden çok sayfa seçilir; seçim sürüklerken güncellenir, `Ctrl` ya da `Shift` ile önceki seçime eklenir, listenin üst ya da alt kenarına gelince liste kendiliğinden kayar, `Esc` vazgeçer.
+- Sayfaları düzenle'de "Uygula" yerine "Yeni belge olarak kaydet" (varsayılan; `<ad> (düzenlenmiş).pdf`, Masaüstü ya da Ayarlar'daki çıktı klasörü) ve "Üzerine yaz" seçimi, düğme "Kaydet". Yeni belgede özgün dosya ve sekmesi değişmez, yeni dosya yeni sekmede açılır; notlar, bağlantılar ve yer imleri korunur. Üzerine yazma belgeye uygulanıp kaydedilir, `Ctrl+Z` ile geri alınabilir.
+- Sayfaları düzenle'de kaydedilmiş döndürmesi olan sayfanın küçük resmi iki kez döndürülmüş görünüyordu (ör. Döndür ve kaydet'ten sonra).
+- PDF ayır'a "Üzerine yaz" eklendi: seçili sayfaları çıkarırken ya da tek aralıkta özgün dosyada yalnızca ayrılan sayfalar kalır (yedek alınmaz, geri alınamaz; önizleme kalacak ve silinecek sayfaları söyler). Birden çok dosya üreten ayırmada yalnızca yeni belge olarak kaydedilir. Dosya başka bir programda açıksa ya da salt okunursa özgün dosya değişmez; belge sonra yeni haliyle yeniden açılır.
+- Sekmede kaydedilmemiş sayfa silme ya da sıralama varken PDF ayır önce kaydetmeyi ister (sayfa numaraları dosyadakiyle uyuşmaz).
+- Görüntü / PDF birleştir'de "Orijinal boyut" seçilince sayfa tam görsel boyutundadır; arkada beyaz kenar ya da ince beyaz çizgi kalmaz. Kenar ayarı yalnızca "A4'e sığdır"da görünür.
+- Araçlar penceresinden Paylaş karosu kaldırıldı; Paylaş araç çubuğundaki düğmeyle ve Araçlar menüsünde duruyor.
+
+### Bilinen sınırlar
+- "Dengeli" yazı çiziminde yazılar gri yumuşatmayla çizilir; referans okuyucunun "LCD ekran" yumuşatması (renkli alt piksel) kullanılmaz. Tercih edilirse Ayarlar › Görünüm › Yazı çizimi › Windows ClearType.
+- Gömülü olmayan Tw Cen MT gibi bazı yazı tiplerinde "ğ" iki çizimde de bozuk görünebilir (belgenin kodlaması; önceden de öyleydi).
+- Sayfaları düzenle'de yeni belge ve PDF ayır'ın üzerine yazması, yapısal kayıttaki gibi referans okuyucuda yazılmış yanıtları ve kopyalanan parçanın dışına giden sayfa içi bağlantıları taşımaz; notlar, form alanları ve yer imleri korunur.
+- Görüntü / PDF birleştir'de kenar ayarı "mm" diye yazar ama nokta (pt) olarak uygulanır (önceki sürümlerde de böyleydi).
+- Referans okuyucu denetimi referans okuyucunun önizleme motoruyla (ekrana pencere açmadan) yapıldı; referans okuyucu penceresinde gözle bakılmadı.
+
 ## 0.1.3 — 2026-09-22
 
 ### Güncelleme

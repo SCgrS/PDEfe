@@ -138,3 +138,27 @@ menü kısayolları ve gerçek pano kullanılamadı.
    korunmalı.
 7. **Tema simgesi.** Koyu temada araç çubuğundaki tema düğmesinde kalın, içi dolu ay; açık temaya geçince dolu
    güneş görünmeli.
+
+## 13. 0.1.4: otomatik testlerin sınayamadıkları
+Testler ekran dışındaki bir test örneğinde yapıldı; referans okuyucu yalnızca önizleme motoruyla (`test/pdf_onizleme.ps1`, ekrana pencere
+açmadan) denetlendi, Windows renk seçicisi ve gerçek klavyenin menü kısayolları kullanılmadı.
+1. **Yazı kalınlığı.** Aynı UYAP tebligatını PDEfe'de ve referans okuyucuda aynı büyüklükte yan yana açın (referans okuyucu %100 ≈ PDEfe %115): kalın
+   satırlar ("Duruşma Günü …") referans okuyucudaki kadar ince, küçük yazılarda renkli kenar yok. Beğenilmezse Ayarlar › Görünüm › Yazı çizimi ›
+   "Windows ClearType" seçip belgeyi yeniden açın.
+2. **Döndürülmüş sayfa.** Bir sayfayı Döndür ile yana çevirip %85'e uzaklaştırın: harfler düz sayfadaki gibi olmalı (ince, düzensiz değil).
+3. **referans okuyucuda notlar.** PDEfe'de bir belgeye vurgu ve not ekleyin, 2 saniye bekleyin (durum çubuğunda "Otomatik kaydedildi"), dosyayı
+   Referans okuyucuda açın: notlar görünmeli. Dosya referans okuyucuda açıkken PDEfe'de not ekleyin: pencere açılmamalı, bir kez "otomatik kaydedilemedi"
+   bildirimi çıkmalı; referans okuyucuyu kapatıp `Ctrl+S` ile kaydedince referans okuyucuda yeniden açınca notlar görünmeli.
+4. **Vurgu çubuğu.** Bir vurguya tıklayın: altında renkler, Not ekle ve Kaldır çıkmalı. Rengi değiştirin, `Ctrl+Z` ile geri alın; Not ekle
+   ile not yazın; Kaldır ile silin. Referans okuyucuda eklenmiş bir vurguda da deneyin, kaydedip referans okuyucuda rengin değiştiğine bakın.
+5. **Koyu mod.** Koyu tema ve "Sayfayı da koyulaştır" açıkken Yazı aracıyla kutu çizip yazın: yazı beyaz görünmeli; dosyayı referans okuyucuda
+   açınca yazı siyah olmalı.
+6. **Dolgu paleti.** Yazı düzenlerken Dolgu rengi düğmesi: Dolgusuz, renkler ve Diğer renk; Diğer renk Windows renk seçicisini açmalı,
+   seçilen renk dolgu olmalı.
+7. **Sekmeler ve pencereler.** Uzun adlı birkaç PDF açın: sekmeler aynı genişlikte, uzun ad üç noktayla. Bir araç penceresi, Ayarlar ve
+   bir soru kutusu (ör. değiştirilmiş sekmeyi kapatırken) açıkken arkadaki alana tıklayın: pencere kapanmalı (soru kutusunda Vazgeç).
+   Soru açıkken `Ctrl+W`, `Ctrl+O` gibi menü kısayolları çalışmamalı.
+8. **Araçlar.** PDF küçült ve PDF ayır'da Üzerine yaz seçilince sarı "Geri alınamaz" uyarısı; Sayfaları düzenle'de boş alandan
+   sürükleyerek çoklu seçim, Yeni belge / Üzerine yaz; PDF ayır'da seçili sayfalarla Üzerine yaz (özgün dosyada yalnızca o sayfalar);
+   Görüntü / PDF birleştir'de Orijinal boyutla bir fotoğraf: sayfanın çevresinde beyaz kenar olmamalı. Araçlar penceresinde Paylaş karosu
+   yok, araç çubuğundaki Paylaş düğmesi duruyor.
