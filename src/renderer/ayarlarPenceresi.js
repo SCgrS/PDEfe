@@ -270,18 +270,23 @@ function bolumGuncelleme(k) {
       const r = guncelleme ? await guncelleme.denetle({ bildirim: false }) : await pdefe.cagir('guncelleme:denetle');
       if (!r || typeof r !== 'object') throw new Error('Beklenmeyen yanıt');
       if (r.durum === 'var') {
+        // Şeritle aynı aşama: indirme sürüyorsa (ya da kurulum başlıyorsa) düğme yok; indirilmiş paket varsa "Kur ve yeniden başlat"
+        const serit = guncelleme?.durum?.().asama;
+        const asama = ['indiriliyor', 'onay', 'kuruluyor'].includes(serit) ? 'indiriliyor' : (r.asama || 'var');
         sonuc.className = 'ayar-sonuc ayar-sonuc-var';
-        sonuc.replaceChildren(el('span', {}, `PDEfe ${r.surum || ''} hazır${r.mevcut ? ` (kullandığınız: ${r.mevcut})` : ''}. `));
-        if (guncelleme) {
-          const g = el('button', { class: 'ikincil', type: 'button' }, 'Güncelle');
+        const metin = asama === 'var' || !r.mesaj ? `PDEfe ${r.surum || ''} hazır${r.mevcut ? ` (kullandığınız: ${r.mevcut})` : ''}.` : r.mesaj;
+        sonuc.replaceChildren(el('span', {}, metin + ' '));
+        if (guncelleme && asama !== 'indiriliyor') {
+          const g = el('button', { class: 'ikincil', type: 'button' }, asama === 'hazir' ? 'Kur ve yeniden başlat' : 'Güncelle');
           g.addEventListener('click', () => { ayarlarPenceresiKapat(); guncelleme.guncelle(); });
           sonuc.append(g);
         }
       } else if (r.durum === 'yok') { sonuc.className = 'ayar-sonuc soluk'; sonuc.replaceChildren(r.mesaj || `PDEfe güncel${r.surum ? ` (${r.surum})` : ''}.`); }
-      else { sonuc.className = 'ayar-sonuc ayar-sonuc-hata'; sonuc.replaceChildren('Denetlenemedi: ' + (r.mesaj || 'bilinmeyen hata')); }
+      else { sonuc.className = 'ayar-sonuc ayar-sonuc-hata'; sonuc.replaceChildren('Denetlenemedi. ' + (r.mesaj || 'Beklenmeyen bir hata oluştu; biraz sonra yeniden deneyin.')); }
     } catch (e) {
+      console.error('Güncelleme denetimi', e);
       sonuc.className = 'ayar-sonuc ayar-sonuc-hata';
-      sonuc.replaceChildren(/No handler registered/i.test(hataMetni(e)) ? 'Güncelleme denetimi bu sürümde kullanılamıyor.' : 'Denetlenemedi: ' + hataMetni(e));
+      sonuc.replaceChildren(/No handler registered/i.test(hataMetni(e)) ? 'Güncelleme denetimi bu sürümde kullanılamıyor.' : 'Denetlenemedi. Beklenmeyen bir hata oluştu; biraz sonra yeniden deneyin.');
     } finally { dugme.disabled = false; }
   });
   k.append(kart({ baslik: 'Şimdi denetle', aciklama: 'GitHub\'daki PDEfe sürümlerine hemen bakılır.', kontrol: dugme }));

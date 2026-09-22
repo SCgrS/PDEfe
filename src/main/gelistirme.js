@@ -5,6 +5,8 @@
 //                       kapatılır; ekran dışındaki pencere çizmeye ve CDP ekran görüntüsü vermeye devam eder.
 //   PDEFE_TEST_BOYUT    "genişlik,yükseklik": pencere boyutu (kayıtlı boyut yerine).
 //   PDEFE_TEST_GUNCELLEME  "x.y.z": güncelleme akışı sahte güncelleyiciyle denenir (sunucuda x.y.z var sayılır; bkz. sahteGuncelleyiciKur).
+//   PDEFE_TEST_GUNCELLEME_HATA  sahte güncelleyicinin başlangıç senaryosu: denetim | indirme | kurulum (açılıştaki otomatik denetimi
+//                       denemek için; sonradan test:guncellemeSenaryosu ile değiştirilir).
 // Paketli uygulamada hiçbiri okunmaz.
 import { app } from 'electron';
 import { EventEmitter } from 'node:events';
@@ -15,7 +17,8 @@ export const TEST = !app.isPackaged ? {
   konum: (process.env.PDEFE_TEST_KONUM || '').split(',').map(Number).filter(Number.isFinite),
   boyut: (process.env.PDEFE_TEST_BOYUT || '').split(',').map(Number).filter((n) => n > 0),
   guncelleme: process.env.PDEFE_TEST_GUNCELLEME || '',
-} : { veri: '', konum: [], boyut: [], guncelleme: '' };
+  guncellemeHata: process.env.PDEFE_TEST_GUNCELLEME_HATA || '',
+} : { veri: '', konum: [], boyut: [], guncelleme: '', guncellemeHata: '' };
 
 /** "1.2.3" karşılaştırması (yalnızca sayısal parçalar): a > b → 1, eşit → 0, küçük → -1. */
 function surumKarsilastir(a, b) {
@@ -27,12 +30,13 @@ function surumKarsilastir(a, b) {
 /**
  * Geliştirme örneğinde güncelleme şeridini ve açılış sayacını denemek için electron-updater yerine geçen sahte güncelleyici
  * (PDEFE_TEST_GUNCELLEME verilmişse; paketli uygulamada ve değişken yokken null). Ağa çıkmaz, hiçbir şey kurmaz, uygulamayı kapatmaz.
- * Senaryo 'test:guncellemeSenaryosu' ile değiştirilir: { surum, hata: null|'denetim'|'indirme'|'kurulum', sureMs }.
+ * Senaryo 'test:guncellemeSenaryosu' ile değiştirilir: { surum, hata: null|'denetim'|'indirme'|'kurulum', hataMesaji?, sureMs }
+ * (hataMesaji: electron-updater'ın vereceği ileti; verilmezse ağ ya da spawn hatası).
  * 'test:guncellemeKaydi' → { denetimler, indirmeler, kurulumlar: [{ isSilent, isForceRunAfter }] }.
  */
 export function sahteGuncelleyiciKur(ipcMain) {
   if (!TEST.guncelleme) return null;
-  const senaryo = { surum: TEST.guncelleme, hata: null, sureMs: 1500 };
+  const senaryo = { surum: TEST.guncelleme, hata: TEST.guncellemeHata || null, hataMesaji: '', sureMs: 1500 };
   const kayit = { denetimler: 0, indirmeler: 0, kurulumlar: [] };
   let indirilen = null;
   const g = new EventEmitter();
@@ -42,7 +46,7 @@ export function sahteGuncelleyiciKur(ipcMain) {
     kayit.denetimler++;
     g.emit('checking-for-update');
     await new Promise((c) => setTimeout(c, 300));
-    if (senaryo.hata === 'denetim') throw hataVer('net::ERR_CONNECTION_REFUSED');
+    if (senaryo.hata === 'denetim') throw hataVer(senaryo.hataMesaji || 'net::ERR_CONNECTION_REFUSED');
     const var_ = surumKarsilastir(senaryo.surum, app.getVersion()) > 0;
     g.emit(var_ ? 'update-available' : 'update-not-available', bilgi());
     return { isUpdateAvailable: var_, updateInfo: bilgi(), versionInfo: bilgi() };
@@ -53,7 +57,7 @@ export function sahteGuncelleyiciKur(ipcMain) {
     const toplam = 80 * 1024 * 1024, adim = 10;
     for (let i = 1; i <= adim; i++) {
       await new Promise((c) => setTimeout(c, senaryo.sureMs / adim));
-      if (senaryo.hata === 'indirme' && i === 4) throw hataVer('net::ERR_CONNECTION_RESET');
+      if (senaryo.hata === 'indirme' && i === 4) throw hataVer(senaryo.hataMesaji || 'net::ERR_CONNECTION_RESET');
       g.emit('download-progress', { percent: (i * 100) / adim, transferred: (toplam * i) / adim, total: toplam, bytesPerSecond: toplam / (senaryo.sureMs / 1000) });
     }
     indirilen = senaryo.surum;
@@ -63,7 +67,7 @@ export function sahteGuncelleyiciKur(ipcMain) {
   g.quitAndInstall = (isSilent, isForceRunAfter) => {
     kayit.kurulumlar.push({ isSilent, isForceRunAfter });
     console.log('[test güncelleme] quitAndInstall', isSilent, isForceRunAfter);
-    if (senaryo.hata === 'kurulum') setImmediate(() => g.emit('error', new Error('spawn EACCES')));
+    if (senaryo.hata === 'kurulum') setImmediate(() => g.emit('error', new Error(senaryo.hataMesaji || 'spawn EACCES')));
   };
   ipcMain.handle('test:guncellemeSenaryosu', (_e, yeni) => { Object.assign(senaryo, yeni || {}); return { ...senaryo }; });
   ipcMain.handle('test:guncellemeKaydi', () => JSON.parse(JSON.stringify(kayit)));

@@ -1,15 +1,19 @@
 // Otomatik güncelleme (electron-updater, GitHub Releases: SCgrS/PDEfe → latest.yml + PDEfe-Setup.exe).
 //
 // Otomatik denetim 10 açılışta bir yapılır: kurulumdan ya da güncellemeden sonraki ilk açılışta, sonra 11., 21., … açılışta;
-// pencere gösterildikten ACILIS_GECIKMESI_MS sonra, arka planda. Ağ hatası sessizce geçilir. Ayarlar › Güncelleme'deki
-// otoGuncelle kapalıysa otomatik denetim yapılmaz. Elle denetim (Yardım › Güncellemeleri denetle, Ayarlar) sayaca bakmaz.
+// pencere gösterildikten ACILIS_GECIKMESI_MS sonra, arka planda. Ağ hatası sessizce geçilir ve sırayı tüketmez: denetim
+// sunucudan yanıt alamazsa (ağ yok, sunucu hatası) bir sonraki açılışta yeniden denenir. Ayarlar › Güncelleme'deki otoGuncelle
+// kapalıysa otomatik denetim yapılmaz. Elle denetim (Yardım › Güncellemeleri denetle, Ayarlar) sayaca bakmaz.
 // Açılış sayacı yalnızca uygulamanın gerçek başlangıcında artar (pencere yenilemesi ya da ikinci örnekle dosya açma saymaz).
+// İndirilip kurulmamış sürüm (kaydedilmemiş belge sorusunda Vazgeç, sonra PDEfe kapatıldı) bekleyenGuncelleme'de tutulur: sonraki
+// açılışta sayaca bakılmadan bir kez denetlenir, şerit yeniden görünür; paket önbellekte olduğundan Güncelle yeniden indirmeden kurar.
 //
 // Tek tıkla güncelleme (renderer/guncelleme.js): 'guncelleme:indir' → kaydedilmemiş değişiklikler sorulur → 'guncelleme:kur' →
 // quitAndInstall(isSilent=true, isForceRunAfter=true). Bu yardımlı (oneClick: false) NSIS kurucusunda yalnızca bu ikili sessizdir:
 // electron-updater kurucuyu "--updated /S --force-run" ile başlatır; sihirbaz penceresi açılmaz, kurulum bitince installSection.nsh
-// ("isForceRun ve Silent") PDEfe'yi yeniden başlatır. isSilent=false verilirse /S geçilmez: ilerleme ve bitiş sayfası görünür,
-// kullanıcı "Son"a basana dek beklenir ve uygulama kendiliğinden açılmaz.
+// ("isForceRun ve Silent") PDEfe'yi yeniden başlatır. isSilent=false verilirse /S geçilmez; 0.1.2 ve öncesi böyle çağırıyordu
+// ("--updated --force-run"). O sürümlerden geçişte de sihirbaz görünmesin diye build/installer.nsh "--updated" ile başlatılan
+// kurucuyu kendisi sessize alır (customInit, SetSilent).
 //
 // Kullanım (main.js):
 //   const guncelleme = guncellemeKur({ app, ipcMain, autoUpdater, pencereyeGonder, ayarAl, ayarKoy, ilkOrnek,
@@ -22,7 +26,8 @@
 //   'guncelleme:hazir'    {surum}
 //   'guncelleme:hata'     {mesaj}                                (kurulum başlatılamadı)
 // IPC:
-//   'guncelleme:denetle' → {durum:'var'|'yok'|'hata', surum, mevcut, mesaj}   elle denetim
+//   'guncelleme:denetle' → {durum:'var'|'yok'|'hata', asama?, surum, mevcut, mesaj}   elle denetim
+//                          asama (durum 'var' iken): 'var' | 'indiriliyor' (indirme sürüyor) | 'hazir' (indirildi, kurulmayı bekliyor)
 //   'guncelleme:indir'   → {tamam, mesaj}                                     indirme bitince (ya da hata verince) döner
 //   'guncelleme:kur'     → true|false                                         renderer kapatmaya izin aldıktan sonra çağırır
 //   'guncelleme:durum'   → {paketli, surum, denetleniyor, indiriliyor, kuruluyor, bulunan, hazir}
@@ -32,22 +37,26 @@ const AYAR_OTO = 'otoGuncelle';
 const AYAR_ACILIS = 'acilisSayaci';              // toplam açılış sayısı; güncellemede sıfırlanmaz
 const AYAR_SON_DENETIM = 'sonDenetimAcilisi';    // son otomatik denetimin yapıldığı açılışın sırası
 const AYAR_SON_SURUM = 'sonDenetimSurumu';       // son otomatik denetimdeki sürüm; farklıysa bu, kurulum/güncelleme sonrası ilk açılıştır
+const AYAR_BEKLEYEN = 'bekleyenGuncelleme';      // indirilip kurulmamış sürüm ('' yok): sonraki açılışta sayaca bakılmadan denetlenir
 export const DENETIM_ARALIGI = 10;               // açılış
 const ACILIS_GECIKMESI_MS = 6000;                // pencere gösterildikten sonra
 
 /**
- * Bu açılışı sayar ve otomatik denetim sırası gelip gelmediğini döndürür (ayarları değiştirmez; denetim yapılınca
- * denetimYapildi() işaretler). Kurulum ya da güncellemeden sonraki ilk açılışta, sonra her DENETIM_ARALIGI açılışta bir: 1, 11, 21, …
- * Denetim yapılmadan kapanan açılışta sıra bir sonraki açılışa kalır.
+ * Bu açılışı sayar ve otomatik denetim sırası gelip gelmediğini döndürür (sayaç dışındaki ayarları değiştirmez; denetim sunucudan
+ * yanıt alınca denetimYapildi() işaretler). Kurulum ya da güncellemeden sonraki ilk açılışta, sonra her DENETIM_ARALIGI açılışta bir:
+ * 1, 11, 21, … Denetim yapılmadan kapanan ya da sunucuya ulaşamayan açılışta sıra bir sonraki açılışa kalır.
+ * Bekleyen (indirilip kurulmamış) sürüm varsa sayaca bakılmadan denetlenir; o sürüm kurulmuşsa bekleyen kaydı silinir.
  */
 export function acilisiSay({ ayarAl, ayarKoy, surum }) {
   const sayi = (anahtar) => { const n = Number(ayarAl(anahtar)); return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0; };
   const sayac = sayi(AYAR_ACILIS) + 1;
   ayarKoy(AYAR_ACILIS, sayac);
   const son = sayi(AYAR_SON_DENETIM);
-  const denetlenecek = ayarAl(AYAR_SON_SURUM) !== surum || !son || son > sayac || sayac - son >= DENETIM_ARALIGI;
+  let bekleyen = String(ayarAl(AYAR_BEKLEYEN) || '');
+  if (bekleyen && bekleyen === surum) { ayarKoy(AYAR_BEKLEYEN, ''); bekleyen = ''; }   // bekleyen sürüm kuruldu
+  const denetlenecek = !!bekleyen || ayarAl(AYAR_SON_SURUM) !== surum || !son || son > sayac || sayac - son >= DENETIM_ARALIGI;
   return {
-    sayac, denetlenecek,
+    sayac, denetlenecek, bekleyen,
     denetimYapildi: () => { ayarKoy(AYAR_SON_DENETIM, sayac); ayarKoy(AYAR_SON_SURUM, surum); },
   };
 }
@@ -68,16 +77,32 @@ function notlariDuzlestir(notlar) {
     .trim();
 }
 
-/** Kısa Türkçe hata metni. indirme: kurulum dosyası indirilirken (404 başka anlama gelir). */
-function hataMetni(e, indirme = false) {
+/**
+ * Kısa Türkçe hata metni (şeritte ve Ayarlar'da gösterilir). electron-updater'ın İngilizce iletisi arayüze çıkmaz; ayrıntıyı
+ * çağıran günlüğe yazar. Önce hata kodu (ERR_UPDATER_*, HttpError.statusCode), sonra ileti metni tanınır; tanınmayan hata için
+ * genel bir ileti döner. indirme: kurulum dosyası indirilirken (404 başka anlama gelir).
+ */
+export function hataMetni(e, indirme = false) {
   const m = (e && (e.message || String(e))) || '';
-  if (/ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ESOCKETTIMEDOUT|EAI_AGAIN|socket hang up|net::ERR/i.test(m)) return 'Sunucuya ulaşılamadı; internet bağlantısını denetleyin.';
-  if (/sha512|checksum/i.test(m)) return 'İndirilen dosyanın bütünlüğü doğrulanamadı.';
-  if (/ENOSPC/i.test(m)) return 'Diskte yeterli boş yer yok.';
-  if (/\b404\b|Cannot find latest\.yml|No published versions|Cannot find channel/i.test(m)) return indirme ? 'Kurulum dosyası sunucuda bulunamadı.' : 'Sürüm bilgisi bulunamadı (henüz yayımlanmış sürüm yok).';
-  if (/HttpError: 5\d\d/i.test(m)) return 'Sunucu şu an yanıt vermiyor; biraz sonra yeniden deneyin.';
-  return m.split('\n')[0].slice(0, 200) || 'Bilinmeyen hata';
+  const kod = String(e?.code || '');
+  const http = Number(e?.statusCode) || Number(/^(\d{3}) /.exec(m)?.[1]) || 0;
+  if (/^ERR_UPDATER_(NO_PUBLISHED_VERSIONS|LATEST_VERSION_NOT_FOUND|CHANNEL_FILE_NOT_FOUND)$/.test(kod)) return 'Sürüm bilgisi bulunamadı (henüz yayımlanmış sürüm yok).';
+  if (/^ERR_UPDATER_(INVALID_RELEASE_FEED|INVALID_UPDATE_INFO|NO_FILES_PROVIDED|NO_CHECKSUM)$/.test(kod)) return 'Sürüm bilgisi okunamadı.';
+  if (kod === 'ERR_UPDATER_INVALID_SIGNATURE') return 'Kurulum dosyasının imzası doğrulanamadı.';
+  if (kod === 'ERR_UPDATER_ASSET_NOT_FOUND' || kod === 'ERR_UPDATER_ZIP_FILE_NOT_FOUND') return 'Kurulum dosyası sunucuda bulunamadı.';
+  if (kod === 'ERR_CHECKSUM_MISMATCH' || /checksum mismatch/i.test(m)) return 'İndirilen dosyanın bütünlüğü doğrulanamadı.';
+  if (/ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ESOCKETTIMEDOUT|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|socket hang up|net::ERR/i.test(`${kod} ${m}`)) return 'Sunucuya ulaşılamadı; internet bağlantısını denetleyin.';
+  if (/ENOSPC/i.test(`${kod} ${m}`)) return 'Diskte yeterli boş yer yok.';
+  if (/No update filepath provided|No valid update available/i.test(m)) return 'İndirilen kurulum dosyası bulunamadı.';
+  if (/\bspawn\b|EACCES|EPERM|EBUSY/i.test(`${kod} ${m}`)) return 'Kurulum dosyası başlatılamadı.';
+  if (http === 404) return indirme ? 'Kurulum dosyası sunucuda bulunamadı.' : 'Sürüm bilgisi bulunamadı (henüz yayımlanmış sürüm yok).';
+  if (http === 403 || http === 429) return 'Sunucu isteği şu an kabul etmiyor; biraz sonra yeniden deneyin.';
+  if (http >= 500 && http <= 599) return 'Sunucu şu an yanıt vermiyor; biraz sonra yeniden deneyin.';
+  return 'Beklenmeyen bir hata oluştu; biraz sonra yeniden deneyin.';
 }
+
+/** Hatanın ilk satırı (günlük için; kısa). */
+const hataAyrintisi = (e) => String((e && (e.stack || e.message)) || e).split('\n')[0].slice(0, 300);
 
 /**
  * Güncelleme sistemini kurar. Etkin değilse (geliştirme sürümü) IPC kanalları "geliştirme sürümünde güncelleme yok" döndürür.
@@ -92,9 +117,11 @@ function hataMetni(e, indirme = false) {
  * @param {(anahtar: string, deger: any) => void} p.ayarKoy
  * @param {() => void} [p.kapatmayaHazirla]  quitAndInstall'dan önce çağrılır (main.js'de kapatOnayli = true)
  * @param {() => void} [p.kapatmaIptal]      kurulum başlatılamazsa çağrılır (kapatOnayli = false: pencere kapatma yine sorar)
+ * @param {number} [p.acilisGecikmesiMs]      otomatik denetimin pencere gösterildikten sonraki gecikmesi (birim denemesi kısaltır)
  * @returns {{ denetle: (elle?: boolean) => Promise<object>, pencereGosterildi: () => void, durdur: () => void }}
  */
-export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPackaged, ilkOrnek = true, pencereyeGonder, ayarAl, ayarKoy, kapatmayaHazirla, kapatmaIptal }) {
+export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPackaged, ilkOrnek = true, pencereyeGonder, ayarAl, ayarKoy, kapatmayaHazirla, kapatmaIptal,
+  acilisGecikmesiMs = ACILIS_GECIKMESI_MS }) {
   const mevcut = app?.getVersion?.() || '';
   const gelistirmeSonucu = { durum: 'hata', mevcut, mesaj: 'Geliştirme sürümünde güncelleme yok.' };
 
@@ -132,6 +159,8 @@ export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPack
   });
   autoUpdater.on('update-downloaded', (bilgi) => {
     durum.hazir = { surum: bilgi.version };
+    // Kurulum ertelenip PDEfe kapatılırsa sonraki açılışta sayaca bakılmadan denetlensin (bkz. başlık); kurulunca acilisiSay siler
+    try { ayarKoy(AYAR_BEKLEYEN, String(bilgi.version || '')); } catch (e) { console.error('[güncelleme] bekleyen sürüm yazılamadı:', e); }
     pencereyeGonder('guncelleme:hazir', durum.hazir);
   });
   autoUpdater.on('error', (e) => {
@@ -140,15 +169,16 @@ export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPack
     // gösterilmez). Buradan yalnızca kurulum başlatılamadığında (quitAndInstall → dispatchError) bildirilir.
     if (durum.kuruluyor) {
       durum.kuruluyor = false;
+      console.error('[güncelleme] kurulum başlatılamadı:', hataAyrintisi(e));
       try { kapatmaIptal?.(); } catch (h) { console.error('[güncelleme] kapatmaIptal:', h); }
-      pencereyeGonder('guncelleme:hata', { mesaj: 'Güncelleme kurulamadı: ' + hataMetni(e) });
+      pencereyeGonder('guncelleme:hata', { mesaj: 'Güncelleme kurulamadı. ' + hataMetni(e) });
     }
   });
 
   // ---- denetim
   async function denetle(elle = false) {
-    if (durum.hazir) return { durum: 'var', surum: durum.hazir.surum, mevcut, mesaj: `PDEfe ${durum.hazir.surum} indirildi, kurulmayı bekliyor.` };
-    if (durum.indiriliyor && durum.bulunan) return { durum: 'var', surum: durum.bulunan.surum, mevcut, mesaj: `PDEfe ${durum.bulunan.surum} indiriliyor.` };
+    if (durum.hazir) return { durum: 'var', asama: 'hazir', surum: durum.hazir.surum, mevcut, mesaj: `PDEfe ${durum.hazir.surum} indirildi, kurulmayı bekliyor.` };
+    if (durum.indiriliyor && durum.bulunan) return { durum: 'var', asama: 'indiriliyor', surum: durum.bulunan.surum, mevcut, mesaj: `PDEfe ${durum.bulunan.surum} indiriliyor.` };
     try {
       const sonuc = await autoUpdater.checkForUpdates();
       if (!sonuc) return { durum: 'hata', mevcut, mesaj: 'Güncelleme denetimi bu ortamda kullanılamıyor.' };
@@ -156,13 +186,13 @@ export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPack
       if (sonuc.isUpdateAvailable) {
         durum.bulunan = { surum: bilgi.version, notlar: notlariDuzlestir(bilgi.releaseNotes), tarih: bilgi.releaseDate || '' };
         pencereyeGonder('guncelleme:var', { ...durum.bulunan, mevcut, elle });
-        return { durum: 'var', surum: bilgi.version, mevcut, mesaj: `PDEfe ${bilgi.version} hazır (kullandığınız: ${mevcut}).` };
+        return { durum: 'var', asama: 'var', surum: bilgi.version, mevcut, mesaj: `PDEfe ${bilgi.version} hazır (kullandığınız: ${mevcut}).` };
       }
       durum.bulunan = null;
       return { durum: 'yok', surum: mevcut, mevcut, mesaj: `PDEfe güncel (${mevcut}).` };
     } catch (e) {
       durum.denetleniyor = false;
-      if (!elle) console.warn('[güncelleme] otomatik denetim:', hataMetni(e));
+      console.warn(`[güncelleme] ${elle ? 'elle' : 'otomatik'} denetim:`, hataAyrintisi(e));
       return { durum: 'hata', mevcut, mesaj: hataMetni(e) };
     }
   }
@@ -180,7 +210,7 @@ export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPack
         durum.indiriliyor = true;
         durum.indirme = autoUpdater.downloadUpdate()
           .then(() => ({ tamam: true }))
-          .catch((e) => { console.error('[güncelleme] indirme:', e?.message || e); return { tamam: false, mesaj: hataMetni(e, true) }; })
+          .catch((e) => { console.error('[güncelleme] indirme:', hataAyrintisi(e)); return { tamam: false, mesaj: hataMetni(e, true) }; })
           .finally(() => { durum.indiriliyor = false; durum.indirme = null; });
       }
     }
@@ -219,11 +249,18 @@ export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPack
   /** Ana pencere ilk kez gösterildi: sırası gelen açılışta otomatik denetimi zamanlar. */
   function pencereGosterildi() {
     if (!acilis?.denetlenecek || zamanlayici) return;
-    zamanlayici = setTimeout(() => {
+    zamanlayici = setTimeout(async () => {
       if (ayarAl(AYAR_OTO) === false) return;   // kapalı: sıra, açıldığı ilk açılışa kalır
-      try { acilis.denetimYapildi(); } catch (e) { console.error('[güncelleme] sayaç yazılamadı:', e); }
-      denetle(false).catch((e) => console.error('[güncelleme] otomatik denetim:', e));
-    }, ACILIS_GECIKMESI_MS);
+      const sonuc = await denetle(false).catch((e) => ({ durum: 'hata', mesaj: hataAyrintisi(e) }));
+      // Sunucudan yanıt alınamadıysa (ağ yok, VPN henüz bağlanmadı, sunucu hatası) sıra harcanmaz: sonraki açılışta yeniden denenir
+      if (sonuc?.durum !== 'var' && sonuc?.durum !== 'yok') return;
+      try {
+        acilis.denetimYapildi();
+        // Bekleyen sürüm için tek hatırlatma yapıldı (şerit gösterildi ya da artık güncelleme yok). Bu oturumda yeniden indirildiyse
+        // (update-downloaded kaydı yeniden yazdı) kalsın.
+        if (acilis.bekleyen && !durum.hazir) ayarKoy(AYAR_BEKLEYEN, '');
+      } catch (e) { console.error('[güncelleme] sayaç yazılamadı:', e); }
+    }, acilisGecikmesiMs);
     zamanlayici.unref?.();
   }
 

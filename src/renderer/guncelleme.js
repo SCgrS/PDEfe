@@ -7,8 +7,8 @@
 //
 // Akış (UDF Resimcisi'ndeki gibi tek düğme):
 //   main 'guncelleme:var' (10 açılışta bir otomatik ya da elle denetim) → "PDEfe x hazır (kullandığınız: y)." [Güncelle] [Sürüm notları] [Daha sonra]
-//   Güncelle → 'guncelleme:indir' ("PDEfe x indiriliyor %N") → kapatmadanOnce() (kaydedilmemiş belgeler sorulur) → 'guncelleme:kur':
-//   uygulama kapanır, sihirbazsız kurulur ve yeniden açılır.
+//   Güncelle → 'guncelleme:indir' ("PDEfe x indiriliyor %N") → "PDEfe x indirildi." ve kapatmadanOnce() (kaydedilmemiş belgeler
+//   sorulur) → "PDEfe x kuruluyor" ve 'guncelleme:kur': uygulama kapanır, sihirbazsız kurulur ve yeniden açılır.
 //   Soru Vazgeç ile kapatılırsa indirilen paket saklanır: "[Kur ve yeniden başlat]" yeniden indirmeden kurar.
 //   Hata → kısa Türkçe ileti ve [Yeniden dene]. Daha sonra → bu oturumda gizlenir (elle denetim yeniden gösterir).
 
@@ -28,16 +28,18 @@ const STIL = `
 #guncelleme-seridi .ilerleme > i { display: block; height: 100%; width: 0; background: currentColor; transition: width .2s; }
 `;
 
-/** Aşamalar: bos | var | indiriliyor | kuruluyor | hazir (indirildi, kurulum ertelendi) | hata */
-const SURUYOR = new Set(['indiriliyor', 'kuruluyor', 'hazir']);
+/** Aşamalar: bos | var | indiriliyor | onay (indirildi, kaydedilmemiş belgeler soruluyor) | kuruluyor | hazir (indirildi, kurulum
+ *  ertelendi) | hata */
+export const SURUYOR = new Set(['indiriliyor', 'onay', 'kuruluyor', 'hazir']);
+
+/** Beklenmeyen hata (ör. IPC çağrısı düştü): ayrıntı günlüğe, kullanıcıya kısa Türkçe ileti. */
+export const BEKLENMEYEN_HATA = 'Beklenmeyen bir hata oluştu; biraz sonra yeniden deneyin.';
 
 function boyutMetni(b) {
   if (!b || b <= 0) return '';
   if (b < 1024 * 1024) return `${Math.round(b / 1024)} KB`;
   return `${(b / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
 }
-
-function hataMetni(e) { return (e && (e.message || String(e))) || 'bilinmeyen hata'; }
 
 /**
  * @param {object} p
@@ -91,6 +93,10 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce }) {
       cubuk.setAttribute('role', 'progressbar'); cubuk.setAttribute('aria-valuemin', '0'); cubuk.setAttribute('aria-valuemax', '100'); cubuk.setAttribute('aria-valuenow', String(durum.yuzde));
       const ic = document.createElement('i'); ic.style.width = `${durum.yuzde}%`; cubuk.append(ic);
       serit.append(metin, cubuk);
+    } else if (durum.asama === 'onay') {
+      // Kaydedilmemiş belge sorusu açıkken: karar verilmeden "kuruluyor" denmez
+      metin.textContent = `PDEfe ${durum.surum} indirildi.`;
+      serit.append(metin);
     } else if (durum.asama === 'kuruluyor') {
       metin.textContent = `PDEfe ${durum.surum} kuruluyor; uygulama kapanıp yeniden açılacak.`;
       serit.append(metin);
@@ -120,16 +126,18 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce }) {
           const r = await pdefe.cagir('guncelleme:indir');
           if (!r?.tamam) { asama('hata', { hata: `Güncelleme indirilemedi. ${r?.mesaj || 'İndirme tamamlanamadı.'}` }); return false; }
         }
-        asama('kuruluyor');
+        asama('onay');
         if (kapatmadanOnce && (await kapatmadanOnce()) === false) {
           asama('hazir');
           bildir('Güncelleme ertelendi; indirilen sürüm saklandı.', 4000);
           return false;
         }
-        if (!(await pdefe.cagir('guncelleme:kur'))) { asama('hata', { hata: 'Güncelleme kurulamadı: indirilen kurulum dosyası bulunamadı.' }); return false; }
+        asama('kuruluyor');
+        if (!(await pdefe.cagir('guncelleme:kur'))) { asama('hata', { hata: 'Güncelleme kurulamadı. İndirilen kurulum dosyası bulunamadı.' }); return false; }
         return true;
       } catch (e) {
-        asama('hata', { hata: 'Güncellenemedi: ' + hataMetni(e) });
+        console.error('[güncelleme]', e);
+        asama('hata', { hata: 'Güncellenemedi. ' + BEKLENMEYEN_HATA });
         return false;
       }
     })().finally(() => { akis = null; });
@@ -169,12 +177,15 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce }) {
     if (bildirim) bildir('Güncellemeler denetleniyor', 2000);
     let sonuc;
     try { sonuc = await pdefe.cagir('guncelleme:denetle'); }
-    catch (e) { sonuc = { durum: 'hata', mesaj: hataMetni(e) }; }
+    catch (e) { console.error('[güncelleme] denetim:', e); sonuc = { durum: 'hata', mesaj: BEKLENMEYEN_HATA }; }
     if (sonuc?.mevcut) durum.mevcut = sonuc.mevcut;
     if (sonuc?.durum === 'var') {
       durum.kapatildi = false;
-      if (!akis && !SURUYOR.has(durum.asama)) durum.asama = 'var';
-      if (!akis && durum.asama === 'var') durum.surum = sonuc.surum || durum.surum;
+      if (!akis && !SURUYOR.has(durum.asama)) {
+        // Ana süreçte indirilmiş paket varsa (ör. kurulum hatasından sonra) şerit doğrudan "Kur ve yeniden başlat"
+        if (sonuc.asama === 'hazir') Object.assign(durum, { asama: 'hazir', indirildi: true, surum: sonuc.surum || durum.surum });
+        else Object.assign(durum, { asama: 'var', surum: sonuc.surum || durum.surum });
+      }
       ciz();
     } else if (bildirim) {
       bildir(sonuc?.mesaj || (sonuc?.durum === 'yok' ? 'PDEfe güncel.' : 'Güncellemeler denetlenemedi.'), sonuc?.durum === 'yok' ? 4000 : 6000);
