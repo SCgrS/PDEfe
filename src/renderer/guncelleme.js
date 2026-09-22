@@ -30,10 +30,10 @@ const STIL = `
 
 /** Aşamalar: bos | var | indiriliyor | onay (indirildi, kaydedilmemiş belgeler soruluyor) | kuruluyor | hazir (indirildi, kurulum
  *  ertelendi) | hata */
-export const SURUYOR = new Set(['indiriliyor', 'onay', 'kuruluyor', 'hazir']);
+const SURUYOR = new Set(['indiriliyor', 'onay', 'kuruluyor', 'hazir']);
 
 /** Beklenmeyen hata (ör. IPC çağrısı düştü): ayrıntı günlüğe, kullanıcıya kısa Türkçe ileti. */
-export const BEKLENMEYEN_HATA = 'Beklenmeyen bir hata oluştu; biraz sonra yeniden deneyin.';
+const BEKLENMEYEN_HATA = 'Beklenmeyen bir hata oluştu; biraz sonra yeniden deneyin.';
 
 function boyutMetni(b) {
   if (!b || b <= 0) return '';
