@@ -506,6 +506,16 @@ function okumaSirasi(anaOgeler, bosluklar, satirlar, yanlar, ana) {
       const l = K.ogeler.filter((x) => (x.o.ust + x.o.alt) / 2 > lo && (x.o.ust + x.o.alt) / 2 < hi);
       return l.length ? { ...ogelerKutusu(l), satir: new Set(l.map((x) => x.si)).size } : null;
     };
+    // Etiket/değer tablosu (Duruşma Günü/Saati/Yeri ile değerleri): iki koşunun satırları bire bir aynı (en az iki), aralarındaki
+    // boşluk dar ve biri ötekinin en çok yarısı genişlikteyse yan yana sütun değil, aynı birimin satırlarıdır: okuma sırası satır
+    // satır (referans okuyucu 'Duruşma Yeri  <yer adı>…' satırını böyle okur). Eşit genişlikte sütunlar ve tek satırlık etiketler yan yana kalır
+    const satirKumesi = (K) => (K.satirK ??= new Set(K.ogeler.map((x) => x.si)));
+    const tabloSatiri = (A, B, solda) => {
+      const a = satirKumesi(A), b = satirKumesi(B);
+      if (a.size < 2 || a.size !== b.size || [...a].some((s) => !b.has(s))) return false;
+      const bosluk = solda ? B.bas - A.son : A.bas - B.son, wa = A.son - A.bas, wb = B.son - B.bas;
+      return bosluk < hTip * 2 && Math.min(wa, wb) <= Math.max(wa, wb) / 2;
+    };
     for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
       const A = kosular[i], B = kosular[j];
       const lo = Math.max(A.ust, B.ust), hi = Math.min(A.alt, B.alt);
@@ -520,6 +530,7 @@ function okumaSirasi(anaOgeler, bosluklar, satirlar, yanlar, ana) {
         a = bant(A, lo - hTip * 1.5, hi + hTip * 1.5); b = bant(B, lo - hTip * 1.5, hi + hTip * 1.5);
         yan = solda ? a.son <= b.bas + 1 : b.son <= a.bas + 1;
       }
+      if (yan && tabloSatiri(A, B, solda)) yan = false;
       if (yan) yanyana.push(solda ? [i, j] : [j, i]);
       else ata[kok(i)] = kok(j);
     }
@@ -768,6 +779,24 @@ function boslukKonumu(model, p, capa, kapsayan) {
       for (const oge of V.ogeler) if (!oge.bosluk && sira(oge) < sira(alt.oge)) alt = { ...alt, oge, B: V };
     }
   }
+  // Okuma sırasında adaydan hemen sonra (yukarıda hemen önce) gelen birim aday satırı ile fare arasında dikeyde kalıyorsa fare
+  // yatayda onun hizasında olmasa da satırlarını geçmiştir (muhatap bloğundan 'Savcı Mütalasıdır.' kutusunun boşluğuna): seçim onu
+  // da alır. Yan yana birim (öteki sütun) ve okuma sırasında araya başka birim giren birimler alınmaz
+  const komsu = (c, ileri) => {
+    for (let n = 0; c && n < birimler.length; n++) {
+      let j = sira(c.oge) + (ileri ? 1 : -1);
+      while (model.sira[j]?.bosluk) j += ileri ? 1 : -1;
+      const o = model.sira[j], Vi = o?.birim, V = Vi === undefined ? null : model.birimler[Vi];
+      if (!V || V === c.B || V.yan || c.B.rakipler.has(Vi)) break;
+      if (ileri ? V.ust < c.oge.o.alt - pay || V.alt > p.ust : V.alt > c.oge.o.ust + pay || V.ust < p.ust) break;
+      let uc = o;
+      for (const x of V.ogeler) if (!x.bosluk && (ileri ? sira(x) > sira(uc) : sira(x) < sira(uc))) uc = x;
+      c = { ...c, oge: uc, B: V };
+    }
+    return c;
+  };
+  if (ust && yon > 0) ust = komsu(ust, true);
+  if (alt && yon < 0) alt = komsu(alt, false);
   const secilen = yon > 0 ? ust || alt : yon < 0 ? alt || ust : ust && alt ? (alt.iki < ust.iki ? alt : ust) : ust || alt;
   if (!secilen) return null;
   return secilen === ust ? { span: ust.oge.span, ofset: ust.oge.span.textContent.length } : { span: alt.oge.span, ofset: 0 };
