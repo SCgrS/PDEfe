@@ -1,5 +1,6 @@
 // Sekme çubuğu: sekme listesi, sürükleyerek sıralama, tekerlekle geçiş, ◀ ▶ düğmeleri,
 // "Açık belgeler" listesi ve Ctrl+Tab son-kullanım sırasına göre sekme seçici.
+import { ortuTiklamasiBagla } from './ortu.js';
 
 /** Sekmenin ipucu: sabit genişlikte kısalabilen tam ad ve dosyanın yolu. */
 const ipucu = (ad, yol) => (yol && yol !== ad ? `${ad}\n${yol}` : ad);
@@ -39,10 +40,13 @@ export class SekmeCubugu extends EventTarget {
       this.kaydir(e.deltaY > 0 || e.deltaX > 0 ? 1 : -1);
     }, { passive: false });
 
-    document.addEventListener('mousedown', (e) => {
-      // Açılır düğme hariç: yoksa mousedown kapatır, ardından gelen click listeyi yeniden açar
+    // Dışarıda herhangi bir tuşla basış listeyi kapatır (Araçlar penceresi gibi yakalama evresinde: basışı işleyip mousedown'ı
+    // engelleyen yerler, ör. nota tıklama, de kapatsın). Açılır düğme hariç: yoksa basış kapatır, ardından gelen click listeyi yeniden açar
+    document.addEventListener('pointerdown', (e) => {
       if (!this.belgeListesi.hidden && !this.belgeListesi.contains(e.target) && !acilir.contains(e.target)) this.belgeListesiKapat();
-    });
+    }, true);
+    // Ctrl+Tab seçicisinin karartılmış arka planına tıklamak Esc gibi sekme değiştirmeden kapatır
+    ortuTiklamasiBagla(secici, () => this.seciciIptal());
   }
 
   // ------------------------------------------------------------ temel işlemler
@@ -182,13 +186,19 @@ export class SekmeCubugu extends EventTarget {
 
   seciciKapat(secilenId = null) {
     if (!this.seciciAcik) return;
-    clearTimeout(this._seciciZaman);
     const adaylar = [...this.secici.querySelectorAll('.aday')];
     const id = secilenId ?? adaylar[this.seciciIdx]?.dataset.id;
+    this.seciciIptal();
+    if (id && id !== this.aktifId) this.dispatchEvent(new CustomEvent('sec', { detail: { id } }));
+  }
+
+  /** Seçiciyi sekme değiştirmeden kapatır (Esc, arka plana tıklama). */
+  seciciIptal() {
+    if (!this.seciciAcik) return;
+    clearTimeout(this._seciciZaman);
     this.seciciAcik = false;
     this.secici.hidden = true;
     this.secici.innerHTML = '';
-    if (id && id !== this.aktifId) this.dispatchEvent(new CustomEvent('sec', { detail: { id } }));
   }
 
   // ------------------------------------------------------------ Açık belgeler listesi

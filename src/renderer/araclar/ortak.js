@@ -150,7 +150,7 @@ const acikPencereler = new Map();   // anahtar → Pencere
 
 /**
  * Araç penceresi açar. Var olan diyalog görünümünü (.diyalog-ortusu/.diyalog) taklit eden daha geniş bir
- * iskelet: başlık + kapat (X) düğmesi, gövde, alt şerit. Kapatma yalnızca X ve Esc ile (Kapat/Vazgeç düğmesi yok);
+ * iskelet: başlık + kapat (X) düğmesi, gövde, alt şerit. Kapatma X, Esc ya da pencerenin dışına tıklamayla (Kapat/Vazgeç düğmesi yok);
  * birincil düğme alt şeridin ortasındadır. Metinler fareyle seçilip kopyalanabilir (sağ tık: Kopyala).
  * Klavye odağı pencere içinde kalır.
  *
@@ -213,8 +213,21 @@ export class Pencere {
     for (const d of dugmeler) this.dugmeEkle(d);
 
     ortu.querySelector('.arac-kapat').addEventListener('click', () => this.kapat(null));
-    // Örtüye tıklamak kapatmaz (yanlışlıkla veri kaybı olmasın); yalnızca odağı geri alır
+    // Örtüye (pencerenin dışına) tıklamak X gibi kapatır: kapatmadanOnce işlem sürüyorsa ya da uygulanmamış değişiklik varsa sorar.
+    // Basış da bırakış da örtünün kendisinde olmalı: pencerede başlayıp dışarıda biten seçim / sürükleme, sağ ve orta tık kapatmaz
+    // (../ortu.js ortuTiklamasiBagla ile aynı kural). Basış odağı pencereye alır (kapatma reddedilirse odak içeride kalsın); soru
+    // açılırken gelen ikinci tıklama (çift tık) soruyu yinelemez.
+    let basildi = false, birakildi = false, kapatiliyor = false;
     ortu.addEventListener('mousedown', (e) => { if (e.target === ortu) { e.preventDefault(); this.odakla(); } });
+    ortu.addEventListener('pointerdown', (e) => { basildi = e.target === ortu && e.button === 0 && e.isPrimary; birakildi = false; });
+    ortu.addEventListener('pointerup', (e) => { birakildi = basildi && e.target === ortu && e.button === 0; });
+    ortu.addEventListener('click', async (e) => {
+      const disari = basildi && birakildi && e.target === ortu && e.button === 0;
+      basildi = birakildi = false;
+      if (!disari || kapatiliyor) return;
+      kapatiliyor = true;
+      try { await this.kapat(null); } finally { kapatiliyor = false; }
+    });
     this.el.addEventListener('keydown', (e) => this._tusIsle(e));
     // Uygulama düzeyindeki kısayollar (Ctrl+Z, Delete, ok tuşları…) pencere açıkken çalışmasın
     this.el.addEventListener('keydown', (e) => e.stopPropagation());

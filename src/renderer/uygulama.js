@@ -12,6 +12,7 @@ import { aracKomutlari } from './araclar/index.js';
 import { AraclarPenceresi } from './aracPenceresi.js';
 import { guncellemeSeridiKur } from './guncelleme.js';
 import { yazdir } from './yazdir.js';
+import { ortuTiklamasiBagla } from './ortu.js';
 
 const $ = (s) => document.querySelector(s);
 const pdefe = window.pdefe;
@@ -810,7 +811,7 @@ document.addEventListener('keydown', (e) => {
     if (e.shiftKey && sekmeler.seciciIdx === 1) { /* ilk Shift+Tab geriye gider */ sekmeler.seciciIlerle(-2); }
     return;
   }
-  if (sekmeler.seciciAcik) { if (e.key === 'Escape') { sekmeler.seciciAcik = false; sekmeler.secici.hidden = true; } return; }
+  if (sekmeler.seciciAcik) { if (e.key === 'Escape') sekmeler.seciciIptal(); return; }
   if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key >= '1' && e.key <= '9') {
     const i = e.key === '9' ? sekmeler.sekmeler.length - 1 : parseInt(e.key, 10) - 1;
     const s = sekmeler.sekmeler[i];
@@ -1044,6 +1045,7 @@ function diyalogAc({ baslik, govde, dugmeler, onSecim, genislik }) {
   const n = aktif()?.notlar, ed = n?.duzenleyici, oncekiOdak = document.activeElement;
   const kapat = () => { ortu.remove(); if (ed && n.duzenleyici === ed && oncekiOdak === ed.el) n.duzenleyiciOdakla(); };
   ortu.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); kapat(); onSecim?.(null); } });
+  ortuTiklamasiBagla(ortu, () => { kapat(); onSecim?.(null); });   // pencerenin dışına tıklamak Esc gibi (parola: Vazgeç)
   document.body.append(ortu);
   (ortu.querySelector('.birincil') || ortu.querySelector('button'))?.focus();
   return ortu;

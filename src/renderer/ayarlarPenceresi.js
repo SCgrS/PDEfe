@@ -10,6 +10,7 @@
 //     secenek = { bolum?: 'gorunum'|'baslangic'|'notlar'|'kopyalama'|'guncelleme'|'dosya'|'hakkinda' }
 //   ayarlarPenceresiKapat()               → açık pencereyi kapatır.
 //   DURUM_ANAHTARLARI                     → "Varsayılanlara dön" ile sıfırlanmayan durum alanları.
+import { ortuTiklamasiBagla } from './ortu.js';
 
 export const DURUM_ANAHTARLARI = new Set(['sonDosyalar', 'sayfaKonumlari', 'pencere', 'solPanelGenislik', 'solPanelAcik', 'solPanelSekme', 'sonZoom']);
 
@@ -72,6 +73,7 @@ export function ayarlarPenceresiAc(baglam, secenek = {}) {
   }
   ortu.querySelector('[data-id="kapat"]').addEventListener('click', ayarlarPenceresiKapat);
   ortu.querySelector('[data-id="kapat2"]').addEventListener('click', ayarlarPenceresiKapat);
+  ortuTiklamasiBagla(ortu, ayarlarPenceresiKapat);   // pencerenin dışına tıklamak da kapatır (Esc gibi; yazılmakta olan metin kaydedilir)
   ortu.querySelector('[data-id="varsayilan"]').addEventListener('click', () => varsayilanlaraDon().catch((e) => console.error(e)));
   ortu.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { e.stopPropagation(); if (e.target.tagName === 'INPUT' && e.target.type === 'text' && e.target.dataset.degisti === '1') { e.target.blur(); return; } ayarlarPenceresiKapat(); return; }
