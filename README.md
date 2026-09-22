@@ -120,7 +120,7 @@ silinmez; isterseniz o klasörü elle silebilirsiniz. Kurulum sistem klasörleri
 | `Ctrl+Home` / `Ctrl+End` | Belge başı / sonu |
 | `Ctrl+B` / `Ctrl+I` / `Ctrl+U` | Yazı kutusunda seçili metni kalın / italik / altı çizili yap |
 | `Delete` | Seçili notu sil |
-| `Esc` | Kapat / vazgeç |
+| `Esc` | Kapat / vazgeç; yazı kutusunda düzenlemeyi bitirir (yazılan korunur) |
 | `F1` | Kısayol listesi |
 
 ## Verileriniz
