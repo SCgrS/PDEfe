@@ -851,12 +851,15 @@ function enYakinKonum(gorunum, x, y, onbellek, capa = null) {
       return enIyi && { L: enIyi, d: enIyiA[0] };
     };
     let en = enYakinSatir(satirlar);
+    const cy = capa && capaYeri(gorunum, model, s, k, capa, p), capaOge = cy?.sira === undefined ? null : model.sira[cy.sira];
     // Farenin yatay hizasındaki birimler (blok, sütun; bir satır kalınlığı payla). Hiçbiri en yakın satırda değilse ve metinleri farenin
     // bu satıra yatay uzaklığından yakınsa satır yan yana başka bir bloğundur (sol formun satırı hizasında sağ sütunun boşluğu):
-    // yalnızca o birimlerin satırlarına bakılır
+    // yalnızca o birimlerin satırlarına bakılır. Fare sürüklemenin başladığı satırın bandındaysa o satırda kalınır (satırın sonunu
+    // aşan sürükleme satırın kalanını seçer; yandaki bloğun farenin geçmediği satırları girmez)
     const kapsayan = [];
     model.birimler.forEach((B, i) => { if (!B.yan && p.bas >= B.bas - model.hTip && p.bas <= B.son + model.hTip) kapsayan.push(i); });
-    let yanBlok = en && kapsayan.length && !en.L.ogeler.some((o) => kapsayan.includes(o.birim));
+    let yanBlok = en && kapsayan.length && !en.L.ogeler.some((o) => kapsayan.includes(o.birim))
+      && !(en.d === 0 && capaOge && en.L.ogeler.some((o) => o.si === capaOge.si));
     if (yanBlok) {
       const satirUzak = Math.max(0, en.L.bas - p.bas, p.bas - en.L.son);
       let blokUzak = Infinity;
@@ -867,6 +870,7 @@ function enYakinKonum(gorunum, x, y, onbellek, capa = null) {
       }
       yanBlok = blokUzak < satirUzak;
     }
+    const satirda = (e) => e && e.d <= (e.L.alt - e.L.ust) / 2, enSatir = en;
     if (yanBlok) {
       const liste = [];
       for (const L of model.satirlar) {
@@ -876,26 +880,49 @@ function enYakinKonum(gorunum, x, y, onbellek, capa = null) {
       en = enYakinSatir(liste);
     }
     // Satırlardan uzak boşluk (paragraf arası, bloğun altı, sayfanın üstü/altı): bkz. boslukKonumu
-    if (!en || en.d > (en.L.alt - en.L.ust) / 2) {
-      const k2 = boslukKonumu(model, p, capa && capaYeri(gorunum, model, s, k, capa, p), kapsayan);
-      if (k2) return { girdi: s, ...k2 };
-      if (!en) continue;
-    }
-    const enIyi = en.L;
-    const og = enIyi.ogeler;
-    if (p.bas <= og[0].o.bas) return { girdi: s, span: og[0].span, ofset: 0 };
-    for (let i = 0; i < og.length; i++) {
-      const o = og[i];
-      if (p.bas <= o.o.son) return { girdi: s, span: o.span, ofset: ogeIciOfset(o, p.bas, k) };
-      const sonraki = og[i + 1];
-      if (sonraki && p.bas < sonraki.o.bas) {
-        return p.bas - o.o.son <= sonraki.o.bas - p.bas ? { girdi: s, span: o.span, ofset: o.span.textContent.length } : { girdi: s, span: sonraki.span, ofset: 0 };
-      }
-    }
-    const son = og[og.length - 1];
-    return { girdi: s, span: son.span, ofset: son.span.textContent.length };
+    let konum = satirda(en) ? null : boslukKonumu(model, p, cy, kapsayan);
+    if (!konum && !en) continue;
+    konum ??= satirKonumu(en.L, p, k);
+    // Yan bloktaki konuma okuma sırasında çapadan varılırken çapanın bloğu (ve devamı) ile konumun bloğu dışında bir bloğun fare ile
+    // çapanın dikey aralığının tümüyle dışındaki satırları atlanıyorsa fare o bloğun üstünden geçmemiştir (tebligatın başlığından sağ
+    // sütunun başına: sıra arada sol formun tamamından geçer). Fare bir satırın bandındaysa konum o satırdadır
+    if (yanBlok && satirda(enSatir) && capaOge && blokAtlar(model, capaOge, konum.span, p)) konum = satirKonumu(enSatir.L, p, k);
+    return { girdi: s, ...konum };
   }
   return null;
+}
+
+/** Fare bandındaki L satırında p'nin konumu: satır başının solu satır başı, sonunun sağı satır sonu; iki öğe arasında yakın olan kenar. */
+function satirKonumu(L, p, k) {
+  const og = L.ogeler;
+  if (p.bas <= og[0].o.bas) return { span: og[0].span, ofset: 0 };
+  for (let i = 0; i < og.length; i++) {
+    const o = og[i];
+    if (p.bas <= o.o.son) return { span: o.span, ofset: ogeIciOfset(o, p.bas, k) };
+    const sonraki = og[i + 1];
+    if (sonraki && p.bas < sonraki.o.bas) {
+      return p.bas - o.o.son <= sonraki.o.bas - p.bas ? { span: o.span, ofset: o.span.textContent.length } : { span: sonraki.span, ofset: 0 };
+    }
+  }
+  const son = og[og.length - 1];
+  return { span: son.span, ofset: son.span.textContent.length };
+}
+
+/**
+ * Çapa öğesinden span'e okuma sırasında aradaki öğelerden biri, çapanın birimi (ve devamı) ile span'in birimi dışında bir birimdeyse
+ * ve çapa ile farenin (p) dikey aralığının tümüyle dışındaysa true.
+ */
+function blokAtlar(model, capaOge, span, p) {
+  const cs = model.indeks.get(capaOge.span), ci = model.indeks.get(span);
+  if (cs === undefined || ci === undefined) return false;
+  const izin = new Set([model.sira[ci].birim]);
+  for (let u = capaOge.birim, n = 0; u !== undefined && n < model.birimler.length; u = model.birimler[u].devam, n++) izin.add(u);
+  const pay = model.hTip * 0.3, ust = Math.min(capaOge.o.ust, p.ust) - pay, alt = Math.max(capaOge.o.alt, p.ust) + pay;
+  for (let j = Math.min(cs, ci) + 1; j < Math.max(cs, ci); j++) {
+    const x = model.sira[j];
+    if (!x.bosluk && !izin.has(x.birim) && (x.o.alt < ust || x.o.ust > alt)) return true;
+  }
+  return false;
 }
 
 /** Konumun güncel öğesi: katman yeniden kurulduysa (yakınlaştırma/boşaltma) aynı sıradaki öğe. */
