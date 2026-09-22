@@ -822,8 +822,9 @@ document.addEventListener('keydown', (e) => {
     if (document.querySelector('.ayarlar-ortusu')) { ayarlarPenceresiKapat(); return; }
     if (document.querySelector('.arac-pencere, .diyalog-ortusu')) return;   // pencere kendi Esc'ini işler
     const n = aktif()?.notlar;
-    // Başka bir girdideki Esc (Bul, sayfa kutusu) o girdinindir, yazıyı atmaz (odak girdiye geçerken düzenleme zaten uygulanır)
-    if (n?.duzenleyici && !(girdideMi(e.target) && !n.duzenleyici.el.contains(e.target))) { n.duzenleyiciBitir(false); return; }
+    // Odak düzenleyicinin dışındayken (belge, araç çubuğu düğmesi) basılan Esc de düzenlemeyi uygulayıp bitirir. Başka bir girdideki
+    // Esc (Bul, sayfa kutusu) o girdinindir (odak girdiye geçerken düzenleme zaten uygulanır)
+    if (n?.duzenleyici && !(girdideMi(e.target) && !n.duzenleyici.el.contains(e.target))) { n.duzenleyiciEsc(); return; }
     if (girdideMi()) { document.activeElement.blur(); aktif()?.gorunum.kaydirici.focus(); return; }
     if (n?.arac) { n.aracSec(null); return; }
     if (n?.balon) { n.balonKapat(); return; }
@@ -1035,10 +1036,14 @@ function diyalogAc({ baslik, govde, dugmeler, onSecim, genislik }) {
     btn.className = b.birincil ? 'birincil' : 'ikincil';
     btn.style.marginTop = '0';
     btn.textContent = b.etiket; btn.dataset.id = b.id;
-    btn.addEventListener('click', () => { ortu.remove(); onSecim?.(b.id); });
+    btn.addEventListener('click', () => { kapat(); onSecim?.(b.id); });
     d.append(btn);
   }
-  ortu.addEventListener('keydown', (e) => { if (e.key === 'Escape') { ortu.remove(); onSecim?.(null); } });
+  // Yazı düzenlenirken açıldıysa (F1) kapanınca imleç düzenleyiciye döner; Esc yalnızca pencereyi kapatır (genel Esc işleyicisi pencere
+  // kalkmış olarak görüp düzenlemeyi de bitirmesin, seçimi / aracı bırakmasın)
+  const n = aktif()?.notlar, ed = n?.duzenleyici, oncekiOdak = document.activeElement;
+  const kapat = () => { ortu.remove(); if (ed && n.duzenleyici === ed && oncekiOdak === ed.el) n.duzenleyiciOdakla(); };
+  ortu.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); kapat(); onSecim?.(null); } });
   document.body.append(ortu);
   (ortu.querySelector('.birincil') || ortu.querySelector('button'))?.focus();
   return ortu;
@@ -1054,7 +1059,7 @@ function kisayollarGoster() {
     ['Ctrl+Z / Ctrl+Y', 'Geri al / yinele'], ['Ctrl+F', 'Bul'], ['F3 / Shift+F3', 'Sonraki / önceki eşleşme'],
     ['Ctrl+A', 'Sayfadaki tüm metni seç'], ['Delete', 'Seçili notu sil'], ['Ctrl+,', 'Ayarlar'],
     ['Yazı kutusu'],
-    ['Ctrl+B / Ctrl+I / Ctrl+U', 'Kalın / italik / altı çizili'],
+    ['Ctrl+B / Ctrl+I / Ctrl+U', 'Kalın / italik / altı çizili'], ['Esc', 'Düzenlemeyi bitir (yazılan korunur)'],
     ['Genel'],
     ['F1', 'Klavye kısayolları'], ['Esc', 'Kapat / vazgeç'],
   ], [

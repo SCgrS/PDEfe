@@ -1330,8 +1330,8 @@ export class NotYoneticisi extends EventTarget {
       <button class="ikon kucuk alti" title="Altı çizili (Ctrl+U)"><u>A</u></button>
       <button class="ikon kucuk kenar" title="Kenarlık">▢</button>
       <span class="ayrac"></span>
-      <button class="ikon kucuk tamam" title="Tamam (dışarı tıkla)"><svg viewBox="0 0 20 20"><path d="m4 10 4 4 8-8" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
-      <button class="ikon kucuk iptal" title="Vazgeç (Esc)"><svg viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.6"/></svg></button>`;
+      <button class="ikon kucuk tamam" title="Tamam (Esc ya da dışarı tıkla)"><svg viewBox="0 0 20 20"><path d="m4 10 4 4 8-8" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
+      <button class="ikon kucuk iptal" title="Vazgeç"><svg viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.6"/></svg></button>`;
     const b = d.bicim;
     // Seçiciler öğe türüyle birlikte: '.arka' hem örnek span'ını hem dolgu girdisini seçiyordu, dolgu rengi dinleyicisi span'a bağlanıyordu
     b.querySelector('select.tip').addEventListener('change', (e) => this.duzenleyiciKutu({ tip: e.target.value }));
@@ -1353,7 +1353,15 @@ export class NotYoneticisi extends EventTarget {
     b.addEventListener('pointerdown', (e) => e.stopPropagation());
     // Düğmeye basmak odağı ve seçimi düzenleyicide bırakır (biçim seçili karakterlere uygulanır)
     b.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
-    b.addEventListener('keydown', (e) => e.stopPropagation());
+    // Çubuktaki Esc de düzenlemeyi uygulayıp bitirir. Açık yazı tipi listesi / renk seçici ilk Esc'le kendisi kapanır (açıkken tuş
+    // sayfaya gelmez), ikinci Esc buraya gelir. Boyut kutusuna yazılıp Enter'a basılmamış değer önce uygulanır (odak çıkınca olduğu gibi).
+    b.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key !== 'Escape' || e.isComposing) return;
+      e.preventDefault();
+      if (e.target.matches('input.boyut')) e.target.blur();
+      this.duzenleyiciEsc();
+    });
     this.duzenleyiciDurum();
   }
 
@@ -1417,7 +1425,7 @@ export class NotYoneticisi extends EventTarget {
   duzenleyiciTus(e) {
     e.stopPropagation();
     const d = this.duzenleyici; if (!d || e.isComposing) return;
-    if (e.key === 'Escape') { e.preventDefault(); this.duzenleyiciBitir(false); return; }
+    if (e.key === 'Escape') { e.preventDefault(); this.duzenleyiciEsc(); return; }
     // Kutu içeriğe göre büyür, kendi içinde kaymaz: PageUp/PageDown'u tarayıcı belgeyi kaydırmaya çevirip düzenleyiciyi görünümden çıkarmasın
     if (e.key === 'PageDown' || e.key === 'PageUp') { e.preventDefault(); return; }
     const ctrl = e.ctrlKey && !e.altKey && !e.metaKey;   // Ctrl+Alt = AltGr (Türkçe klavyede @, € …): kısayol değil
@@ -1587,6 +1595,18 @@ export class NotYoneticisi extends EventTarget {
 
   /** Düzenleyici açıldı, kapandı ya da geçmişi değişti ('duzenleyici' olayı: uygulama Geri al / Yinele düğmelerini günceller). */
   duzenleyiciGecmisBildir() { this.dispatchEvent(new CustomEvent('duzenleyici')); }
+
+  /**
+   * Esc: düzenlemeyi dışarı tıklamak gibi uygulayıp bitirir (referans okuyucu gibi; yazılan atılmaz, bütün düzenleme belgenin geri al yığınına tek
+   * adım olarak girer), yeni yazı seçili kalır; boş yeni yazı eklenmez. Odak düzenleyici ya da çubuktaysa belgeye döner (kısayollar,
+   * ikinci Esc seçimi kaldırır).
+   */
+  duzenleyiciEsc() {
+    const d = this.duzenleyici; if (!d) return;
+    this.duzenleyiciBitir(true);
+    const odak = document.activeElement;
+    if (!odak || odak === document.body) this.g.kaydirici.focus({ preventScroll: true });
+  }
 
   duzenleyiciBitir(kaydet) {
     const d = this.duzenleyici; if (!d) return;
