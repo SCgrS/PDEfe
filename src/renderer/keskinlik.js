@@ -7,9 +7,8 @@
 //    küçük görseller (karekod, barkod) her yakınlaştırmada keskin kalır.
 // 2) İnce çizgiler (eksene paralel, cihazda 4 px'ten ince çizgi ve dolu dikdörtgen) piksel ızgarasına oturtulur
 //    (referans okuyucu "ince çizgileri geliştir"): tablo kenarlıkları iki satıra yayılmış gri yerine tam piksel siyah çizilir.
-// Metin değişmez: kullanıcının koşulunda (974 px pencere, sayfa genişliği = 1,536 px/pt, dpr 1) referans okuyucu %100'ün (1,528 px/pt)
-// ölçeğindeyiz, ekrandaki pikseller tuvalle birebir aynı (yeniden örnekleme yok) ve PDF.js'in ClearType metni referans okuyucudan en fazla
-// birkaç gri düzeyi farklı (biraz daha koyu). "Harfler bulanık" algısını yapan, iki satıra yayılan gri alt çizgi ve kenarlıklardı (2).
+// Metne dokunulmaz: 0.1.4'ten beri glifler ana hatlarından çizilir (yaziTipleri.js; Chromium'un ClearType metni kalın yazıyı referans okuyucudan
+// belirgin koyu çiziyordu). Glif yolları ince çizgi oturtmasına girmez (metinYolu).
 // Yalnızca keskinBaglam() ile sarılmış bağlamlar (sayfa tuvali ve PDF.js'in ara tuvalleri) etkilenir. Bellek görsel boyutundan
 // bağımsız (BANT, sınırlı önbellek), işlemci süresi sınırlı (EN_FAZLA_*).
 // Ana iş parçacığı GPU'dan eşzamanlı piksel okumaz: JPEG (VideoFrame) ve PDF.js'in çözdüğü görseller (ImageBitmap) bir işçide okunur
@@ -44,8 +43,9 @@ export function ertelenenSayisi() { return ertelenen; }
 
 // ------------------------------------------------------------ yol kaydı
 // Path2D geometrisi okunamadığı için PDF.js'in yol kurarken çağırdığı yöntemler kaydedilir (yalnızca doğru parçalarından
-// oluşan kısa yollar; eğri ya da çok noktalı yol "karmaşık" işaretlenir). Metinle kurulan yollar (new Path2D(dize),
-// glif yolları) kayda girmez ve dokunulmadan çizilir. Kayıtlar PDF.js'in işlem listesi önbelleğindeki yollar yaşadıkça durur:
+// oluşan kısa yollar; eğri ya da çok noktalı yol "karmaşık" işaretlenir). Metinle kurulan yollar (new Path2D(dize)) kayda girmez;
+// PDF.js'in moveTo/lineTo ile kurduğu glif yolları yaziTipleri.js'te metinYolu ile karmaşık işaretlenir ve dokunulmadan çizilir.
+// Kayıtlar PDF.js'in işlem listesi önbelleğindeki yollar yaşadıkça durur:
 // çok çizimli belgede (plan, harita) bellek büyümesin diye yaşayan kayıtlardaki toplam nokta sınırlıdır, sınırda yeni yollar
 // kaydedilmez (yalnızca ızgaraya oturtulmazlar).
 const yolKaydi = new WeakMap();   // Path2D → { alt: [{ n: [x0,y0,x1,y1,…], kapali }], karmasik, nokta, yeniAlt }
@@ -70,6 +70,16 @@ function kayitAl(yol) {
 function kayitBirak(k) {
   kayitliNokta -= k.nokta;
   k.nokta = 0; k.karmasik = true; k.alt = []; k.yeniAlt = null;
+}
+
+/**
+ * Glif yolu (yaziTipleri.js, ana hat çizimi): ince çizgi / dikdörtgen oturtmasına girmez. PDF.js glif yollarını moveTo/lineTo ile
+ * kurduğundan kayda girerler; 'l', 'I', '-' gibi yalnızca dikdörtgenden oluşan glifler ızgaraya oturtulunca aynı harfler farklı
+ * kalınlıkta çizilirdi.
+ */
+export function metinYolu(yol) {
+  const k = kayitAl(yol);
+  if (!k.karmasik) kayitBirak(k);
 }
 
 function yolKaydiKur() {

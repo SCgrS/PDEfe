@@ -157,6 +157,10 @@ function bolumGorunum(k) {
     baslik: 'Döndür düğmesi', aciklama: 'Araç çubuğundaki Döndür düğmesinin neyi döndüreceği. Döndürürken "Seçeneğimi hatırla" ile kaydedilen tercih burada değiştirilir.',
     kontrol: secimKutusu(a.dondurmeKapsami ?? 'sor', [['sor', 'Her seferinde sor'], ['sayfa', 'Geçerli sayfa'], ['tum', 'Tüm PDF']], (v) => degistir('dondurmeKapsami', v)),
   }));
+  k.append(kart({
+    baslik: 'Yazı çizimi', aciklama: 'Dengeli: harfler yazı tipindeki biçimiyle, referans okuyucu kalınlığında çizilir; döndürülmüş sayfada da aynıdır. Windows ClearType: daha koyu ve kalın. Değişiklik belgeler yeniden açılınca uygulanır.',
+    kontrol: secimKutusu(a.yaziCizimi ?? 'anaHat', [['anaHat', 'Dengeli'], ['sistem', 'Windows ClearType']], (v) => degistir('yaziCizimi', v)),
+  }));
 }
 
 /** Birleşik düzen değeri ↔ (iki sayfa, kaydırma) çifti. Bilinmeyen değer 'surekli' sayılır. */

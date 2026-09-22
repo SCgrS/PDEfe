@@ -290,7 +290,9 @@ function ipcKur() {
   });
   ipcMain.handle('uygulama:klasorler', () => {
     const al = (ad) => { try { return app.getPath(ad); } catch { return ''; } };
-    return { masaustu: al('desktop'), belgeler: al('documents'), indirilenler: al('downloads'), ev: al('home') };
+    // yaziTipleri: Windows yazı tipi klasörü (PDF yazılarının ana hat çiziminde gömülü olmayan standart fontlar için, renderer/yaziTipleri.js)
+    const yaziTipleri = path.join(process.env.WINDIR || process.env.SystemRoot || 'C:\\Windows', 'Fonts');
+    return { masaustu: al('desktop'), belgeler: al('documents'), indirilenler: al('downloads'), ev: al('home'), yaziTipleri };
   });
 
   ipcMain.handle('dosya:oku', async (_e, yol) => {

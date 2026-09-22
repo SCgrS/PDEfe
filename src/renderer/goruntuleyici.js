@@ -2,6 +2,7 @@
 // Her sekmenin kendi Goruntuleyici örneği vardır.
 import * as pdfjs from '../../node_modules/pdfjs-dist/build/pdf.min.mjs';
 import { keskinBaglam, KeskinTuvalFabrikasi, cizimGoreviHazirla, ETKILESIM_MS, etkilesimBildir, etkilesimBitir, keskinErtelenir, ertelenenSayisi, keskinHazirDinle, okumaSuruyor } from './keskinlik.js';
+import { anaHatSecenekleri, yaziTipiYukleyicisiniSar } from './yaziTipleri.js';
 
 const KAYNAK = new URL('../../node_modules/pdfjs-dist/', import.meta.url).href;
 pdfjs.GlobalWorkerOptions.workerSrc = KAYNAK + 'build/pdf.worker.min.mjs';
@@ -25,6 +26,12 @@ export { pdfjs };
 // Referans okuyucu gibi alan ortalamasıyla örneklenir, ince çizgiler piksel ızgarasına oturur. 0.1.1'deki prototip yaması (her görsele
 // yüksek kaliteli yumuşatma) kaldırıldı: küçültmede mip-map karışımıyla, küçük görsellerin (karekod) büyütülmesinde kübik
 // yumuşatmayla bulanıklaştırıyordu.
+
+// Yazı çizimi (yaziTipleri.js): true ise glifler referans okuyucu gibi ana hatlarından çizilir (varsayılan), false ise Chromium'un yazı çizicisiyle
+// (Ayarlar › Görünüm › Yazı çizimi). Belge açılırken okunur: değişiklik açık belgelere yeniden açılınca uygulanır.
+let anaHatCizimi = true;
+export function yaziCiziminiAyarla(anaHat) { anaHatCizimi = anaHat !== false; }
+const yaziSecenekleri = () => (anaHatCizimi ? anaHatSecenekleri() : {});
 
 /** Cihaz piksel oranı (CSS px başına cihaz pikseli). */
 const pikselOrani = () => window.devicePixelRatio || 1;
@@ -138,10 +145,12 @@ export class Goruntuleyici extends EventTarget {
       enableXfa: false, isEvalSupported: false,
       CanvasFactory: KeskinTuvalFabrikasi,       // PDF.js ara tuvalleri de keskin çizsin (keskinlik.js)
       password: secenek.parola,
+      ...yaziSecenekleri(),
     });
     if (secenek.parolaIste) gorev.onPassword = (cb, neden) => secenek.parolaIste(neden).then((p) => cb(p), () => cb(new Error('vazgeçildi')));
     this.yuklemeGorevi = gorev;
     this.belge = await gorev.promise;
+    if (anaHatCizimi) yaziTipiYukleyicisiniSar(this.belge);   // ilk sayfa çizilmeden önce
     this.yol = secenek.yol || null;
     this.belgeler.set(yolAnahtari(this.yol), { yol: this.yol, belge: this.belge, gorev });
     const n = this.belge.numPages;
@@ -244,8 +253,9 @@ export class Goruntuleyici extends EventTarget {
     if (this.belgeler.has(k)) return this.belgeler.get(k).belge;
     if (!this.dosyaOku) throw new Error('Dosya okuyucu tanımlı değil');
     const veri = await this.dosyaOku(yol);
-    const gorev = pdfjs.getDocument({ data: veri, cMapUrl: KAYNAK + 'cmaps/', cMapPacked: true, standardFontDataUrl: KAYNAK + 'standard_fonts/', wasmUrl: KAYNAK + 'wasm/', iccUrl: KAYNAK + 'iccs/', enableXfa: false, isEvalSupported: false, CanvasFactory: KeskinTuvalFabrikasi });
+    const gorev = pdfjs.getDocument({ data: veri, cMapUrl: KAYNAK + 'cmaps/', cMapPacked: true, standardFontDataUrl: KAYNAK + 'standard_fonts/', wasmUrl: KAYNAK + 'wasm/', iccUrl: KAYNAK + 'iccs/', enableXfa: false, isEvalSupported: false, CanvasFactory: KeskinTuvalFabrikasi, ...yaziSecenekleri() });
     const belge = await gorev.promise;
+    if (anaHatCizimi) yaziTipiYukleyicisiniSar(belge);
     this.belgeler.set(k, { yol, belge, gorev });
     return belge;
   }

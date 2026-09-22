@@ -1,5 +1,5 @@
 // PDEfe arayüz girişi: sekmeler, komutlar, kısayollar, ayarlar, sürükle-bırak.
-import { Goruntuleyici, yolAnahtari } from './goruntuleyici.js';
+import { Goruntuleyici, yolAnahtari, yaziCiziminiAyarla } from './goruntuleyici.js';
 import { SekmeCubugu } from './sekmeler.js';
 import { SolPanel } from './panel.js';
 import { DurumCubugu, boyutMetni, sayfaKutusuBagla, sayfaKutusuYaz } from './durum.js';
@@ -64,6 +64,7 @@ async function ayarlariYukle() {
   ayar = await pdefe.cagir('ayar:al');
   varsayilanlar = await pdefe.cagir('ayar:varsayilanlar').catch(() => ({}));
   sistemKoyu = await pdefe.cagir('tema:sistemKoyu');
+  yaziCiziminiAyarla(ayar.yaziCizimi !== 'sistem');
   temaUygula();
   panel.genislikAyarla(ayar.solPanelGenislik || 240);
   if (ayar.solPanelAcik) panel.acKapa(true);
@@ -87,6 +88,7 @@ function ayarUygula(anahtar, deger) {
   switch (anahtar) {
     case 'tema': case 'sayfayiKoyulastir': temaUygula(); break;
     case 'vurguRengi': secimCubuguYenile(); break;
+    case 'yaziCizimi': yaziCiziminiAyarla(deger !== 'sistem'); break;   // yeni açılan belgelerde
     case 'otomatikKaydet': if (deger) for (const b of belgeler.values()) if (b.degisti) kirliGuncelle(b); break;
     case 'varsayilanDuzen': case 'kapakAyri': duzenEsitle(aktif()); break;   // diğer sekmeler seçildiklerinde eşitlenir
     default: break;   // yazarAdi, yazı tipi, temizMetin vb. ayar nesnesinden okunur; anında etkili
