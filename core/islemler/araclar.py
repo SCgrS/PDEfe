@@ -521,22 +521,26 @@ def y_kucult(p):
 # ---------------------------------------------------------------- 3) sayfalar_uygula
 def y_sayfalar_uygula(p):
     """{yol, hedef, tarif:[{kaynak, sayfa, dondurme, genislik?, yukseklik?}]} → {boyut, sayfa}
-    kaynak null → boş sayfa; dondurme kaynak sayfanın /Rotate'ine EK; yer imleri korunan sayfalara
-    yeniden eşlenir; meta veri kopyalanır. hedef == yol olabilir."""
+    kaynak null → boş sayfa; dondurme kaynak sayfanın /Rotate'ine EK; notlar, form alanları ve aynı parçada kalan sayfalar arası
+    bağlantılar sayfalarla birlikte kopyalanır (insert_pdf; Popup ve yanıt notlarını kopyalamaz, yapısal kayıttaki gibi), yol
+    belgesinin yer imleri korunan sayfalara yeniden eşlenir; meta veri kopyalanır.
+    hedef == yol olabilir. Sayfaları düzenle "Yeni belge olarak kaydet" bu yöntemle yazar: sonuç hedefin klasöründe geçici
+    dosyaya yazılıp os.replace ile yerine konur (kilitli / salt okunur hedefte hedef değişmez: KILITLI_METNI /
+    SALT_OKUNUR_METNI). İptal yalnızca yazmadan önce denetlenir: yazdıktan sonra ilerleme bildirilmez (yoksa geç gelen
+    iptal yazılmış dosyayı yazılmamış gösterirdi)."""
     ilerleme = _ilerleme(p)
     yol = _mutlak(p.get("yol"))
     hedef = _mutlak(p.get("hedef") or yol, "hedef")
     tarif = p.get("tarif")
     if not isinstance(tarif, list) or not tarif:
         raise ValueError("Sayfa tarifi boş; en az bir sayfa gerekli.")
-    onb = _onbellek()
     kaynaklar = {}     # normalize yol → doc
     sayfa_sayilari = {}
 
     def kaynak_al(k):
         anahtar = os.path.normcase(os.path.abspath(k))
         if anahtar not in kaynaklar:
-            kaynaklar[anahtar] = onb.al(_dosya_var(os.path.abspath(k)))
+            kaynaklar[anahtar] = _onbellekten_al(_dosya_var(os.path.abspath(k)))
             if kaynaklar[anahtar].needs_pass:
                 raise PermissionError("Belge parolayla korunuyor: %s" % os.path.basename(k))
             sayfa_sayilari[anahtar] = kaynaklar[anahtar].page_count
@@ -607,7 +611,6 @@ def y_sayfalar_uygula(p):
         boyut = _kaydet(yeni, hedef, **YAPISAL_KAYIT)
     finally:
         _kapat(yeni)
-    ilerleme(100, "Tamamlandı")
     return {"boyut": boyut, "sayfa": sayfa}
 
 

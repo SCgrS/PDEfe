@@ -15,7 +15,7 @@
 html[data-tema="koyu"] .arac-pencere { box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6); }
 /* Tıklanan denetimler seçim başlatmasın (kartların, satırların seçilmesi ve sürüklenmesi bozulmasın) */
 .arac-pencere button, .arac-pencere select, .arac-segmentli, .arac-secenek-liste label, .arac-klasor-cip svg,
-.dondur-yon, .birlestir-oge, .sayfa-karti, .sayfalar-arac-cubugu { user-select: none; }
+.dondur-yon, .birlestir-oge, .sayfa-karti, .sayfalar-arac-cubugu, .sayfalar-izgara { user-select: none; }
 .arac-pencere ::selection { background: color-mix(in srgb, var(--vurgu) 35%, transparent); }
 .arac-baslik {
   display: flex; align-items: center; gap: 8px; padding: 14px 12px 6px 20px; font-size: 16px; font-weight: 600;
@@ -216,6 +216,21 @@ html[data-tema="koyu"] .arac-pencere .hata-metin, html[data-tema="koyu"] .kucult
 .sayfa-karti:hover .kart-dugmeler, .sayfa-karti.secili .kart-dugmeler { opacity: 1; }
 .sayfa-karti .kart-dugmeler button.ikon { width: 24px; height: 24px; }
 .sayfa-karti .kart-dugmeler button.ikon svg { width: 15px; height: 15px; }
+/* Boş alandan sürükleyerek alan seçimi (sayfalar.js _alanSecimiBagla) */
+.sayfalar-alan-secimi {
+  position: absolute; z-index: 4; pointer-events: none; border: 1px solid var(--vurgu); border-radius: 2px;
+  background: color-mix(in srgb, var(--vurgu) 14%, transparent);
+}
+/* Kaydetme şeridi: bölümlü seçim ile dosya adı satırı / üzerine yaz notu yan yana */
+.sayfalar-kayit {
+  display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-top: 1px solid var(--kenar); flex-shrink: 0;
+}
+.sayfalar-kayit > .arac-bolum-baslik { flex-shrink: 0; }
+.sayfalar-kayit .arac-kayit { flex: 1; min-width: 0; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
+.sayfalar-kayit .arac-segmentli { align-self: center; }
+.sayfalar-kayit .arac-kayit-yeni, .sayfalar-kayit .arac-kayit-uzerine { flex: 1 1 340px; min-width: 0; }
+.sayfalar-pencere .arac-hata { margin: 10px 16px 0; }
+.sayfalar-pencere .arac-ilerleme { margin: 0 16px 10px; }
 
 /* ---------- Ayır ---------- */
 .ayir-pencere { width: 660px; }
