@@ -21,7 +21,7 @@ export const VARSAYILANLAR = {
   yaziBoyutu: 12,
   yaziRengi: '#000000',
   yaziArka: null,
-  otomatikKaydet: false,
+  otomatikKaydet: true,           // 0.1.4: kaydedilmeden başka programda (referans okuyucu) açılan belgede notlar görünmüyordu
   // Kopyalama
   temizMetin: true,
   // Güncelleme: açılışta 10 açılışta bir denetle. Açılış sayacı (acilisSayaci, sonDenetimAcilisi, sonDenetimSurumu) main/guncelleme.js'te;
@@ -51,6 +51,14 @@ try {
     ayarlar.set('vurguRengiTasindi', true);
   }
 } catch (e) { console.warn('Vurgu rengi taşınamadı', e); }
+// 0.1.4'te otomatik kaydetme varsayılan olarak açıldı; eski sürümlerin dosyasında yazılı duran false (eski varsayılan) bir kez true olur.
+// Sonradan kapatan kullanıcının seçimi korunur (bayrak)
+try {
+  if (!ayarlar.get('otomatikKaydetTasindi')) {
+    ayarlar.set('otomatikKaydet', true);
+    ayarlar.set('otomatikKaydetTasindi', true);
+  }
+} catch (e) { console.warn('Otomatik kaydetme ayarı taşınamadı', e); }
 
 export function ayarAl(anahtar) { return ayarlar.get(anahtar); }
 export function ayarKoy(anahtar, deger) { ayarlar.set(anahtar, deger); }

@@ -239,7 +239,7 @@ function bolumNotlar(k) {
 
   k.append(el('h3', {}, 'Kaydetme'));
   k.append(kart({
-    baslik: 'Otomatik kaydet', aciklama: 'Not değişiklikleri kısa bir gecikmeyle dosyaya yazılır. Geri al yine çalışır.',
+    baslik: 'Otomatik kaydet', aciklama: 'Notlar ve döndürme kısa bir gecikmeyle dosyaya yazılır; dosya başka bir programda (referans okuyucu, UYAP) açıldığında değişiklikler görünür. Geri al yine çalışır.',
     kontrol: anahtar(!!a.otomatikKaydet, (v) => degistir('otomatikKaydet', v)),
   }));
 }
