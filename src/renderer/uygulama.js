@@ -13,6 +13,7 @@ import { AraclarPenceresi } from './aracPenceresi.js';
 import { guncellemeSeridiKur } from './guncelleme.js';
 import { yazdir } from './yazdir.js';
 import { ortuTiklamasiBagla } from './ortu.js';
+import { mesajKutusu as mesajKutusuAc, mesajKutusuAcik, mesajKutusuUyar } from './mesajKutusu.js';
 
 const $ = (s) => document.querySelector(s);
 const pdefe = window.pdefe;
@@ -650,10 +651,12 @@ function komutCalistir(id, veri) {
 // Araç çubuğundaki Araçlar düğmesinin penceresi; menüden ya da kısayolla gelen komut onu kapatır
 const araclarPenceresi = new AraclarPenceresi({ dugme: $('#dugme-araclar'), komutCalistir: (id) => komutCalistir(id), belgeVar: () => !!aktif() });
 
-pdefe.dinle('menu:komut', (id, veri) => { araclarPenceresi.kapat(); komutCalistir(id, veri); });
+// Mesaj kutusu açıkken fareyle seçilen menü komutu ve pencere kapatma yok sayılır (yerel kutu pencereyi kilitliyordu): soru yanıtlanmadan
+// başka iş başlamasın, aynı belge için ikinci soru açılmasın. Klavye kısayollarını kutu kendisi alır.
+pdefe.dinle('menu:komut', (id, veri) => { if (mesajKutusuAcik()) { mesajKutusuUyar(); return; } araclarPenceresi.kapat(); komutCalistir(id, veri); });
 pdefe.dinle('dosya:ac', async (yollar) => { for (const y of yollar) await dosyaAc(y); });
 pdefe.dinle('pencere:tamEkran', (acik) => document.body.classList.toggle('tam-ekran', acik));
-pdefe.dinle('pencere:kapatIstegi', async () => { if (await kapatmayaIzinAl()) await pdefe.cagir('pencere:kapatOnayla'); });
+pdefe.dinle('pencere:kapatIstegi', async () => { if (mesajKutusuAcik()) { mesajKutusuUyar(); return; } if (await kapatmayaIzinAl()) await pdefe.cagir('pencere:kapatOnayla'); });
 
 let _kapatmaIzni = null;
 /** Uygulama kapanmadan önce (pencere kapatma, güncelleme kurulumu): süren kayıtları bekler, kaydedilmemiş her belge için
@@ -699,7 +702,8 @@ $('#dugme-araclar').addEventListener('keydown', (e) => { if (['Enter', ' ', 'Arr
 // girdideyken düzenleyicinin geçmişini gösterip girdinin metnini geri almasın
 document.addEventListener('focusin', (e) => {
   const n = aktif()?.notlar, d = n?.duzenleyici, t = e.target;
-  if (!d || d.el.contains(t) || d.bicim.contains(t)) return;
+  // Düzenlerken açılan mesaj kutusunun onay kutusu da girdidir; soru geçicidir, Vazgeç'te düzenleme sürer
+  if (!d || d.el.contains(t) || d.bicim.contains(t) || t.closest?.('.mesaj-kutusu')) return;
   if (girdideMi(t) || t.tagName === 'SELECT') n.duzenleyiciBitir(true);
 });
 document.querySelectorAll('#not-araclari [data-arac]').forEach((el) => {
@@ -1006,9 +1010,11 @@ async function paylas() {
 }
 
 // ---------------------------------------------------------------- diyaloglar
+/** Uygulama içi mesaj kutusu (mesajKutusu.js; yerel kutuyla aynı seçenekler ve sonuç: { secim, onay }). Yazı düzenlenirken açıldıysa
+ *  (ör. döndürme sorusu) kapanınca imleç ve seçim düzenleyiciye döner; kutudaki Esc düzenlemeyi bitirmez (tuşu kutu alır). */
 function mesajKutusu(secenek) {
-  if (window.__pdefeOtoYanit) { const o = window.__pdefeOtoYanit; o.son = secenek; console.warn('[test] mesaj kutusu otomatik yanıtlandı:', secenek.mesaj); return Promise.resolve({ secim: o.secim ?? 0, onay: !!o.onay }); }
-  return pdefe.cagir('mesaj:kutu', secenek);
+  const n = aktif()?.notlar, ed = n?.duzenleyici, oncekiOdak = document.activeElement;
+  return mesajKutusuAc(secenek).then((r) => { if (ed && n.duzenleyici === ed && oncekiOdak === ed.el) n.duzenleyiciOdakla(); return r; });
 }
 
 async function parolaSor(ad, neden) {
@@ -1109,5 +1115,5 @@ document.addEventListener('click', (e) => {
   secimCubuguYenile();   // seçim mini çubuğunda kayıtlı vurgu rengi seçili görünsün (çubuk ayarlar yüklenmeden kuruluyor)
   sonDosyalariListele();
   pdefe.gonder('uygulama:hazir');
-  window.__pdefe = { belgeler, aktif, dosyaAc, belgeKapat, sekmeSec, komutCalistir, ayar: () => ayar, panel, sekmeler, arama, temizMetin, sayfaTarifiUygula, sayfalariDondur, belgeKaydet };
+  window.__pdefe = { belgeler, aktif, dosyaAc, belgeKapat, sekmeSec, komutCalistir, ayar: () => ayar, panel, sekmeler, arama, temizMetin, sayfaTarifiUygula, sayfalariDondur, belgeKaydet, mesajKutusu };
 })();

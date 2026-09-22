@@ -11,6 +11,7 @@
 //   ayarlarPenceresiKapat()               → açık pencereyi kapatır.
 //   DURUM_ANAHTARLARI                     → "Varsayılanlara dön" ile sıfırlanmayan durum alanları.
 import { ortuTiklamasiBagla } from './ortu.js';
+import { mesajKutusu } from './mesajKutusu.js';
 
 export const DURUM_ANAHTARLARI = new Set(['sonDosyalar', 'sayfaKonumlari', 'pencere', 'solPanelGenislik', 'solPanelAcik', 'solPanelSekme', 'sonZoom']);
 
@@ -129,9 +130,10 @@ function degistir(anahtar, deger) {
 
 async function varsayilanlaraDon() {
   if (!acik) return;
-  const { pdefe, varsayilanlar } = acik.baglam;
-  if (!varsayilanlar || typeof varsayilanlar !== 'object') { await pdefe.cagir('mesaj:kutu', { tur: 'warning', mesaj: 'Varsayılan değerler bulunamadı.' }); return; }
-  const { secim } = await pdefe.cagir('mesaj:kutu', {
+  const { varsayilanlar } = acik.baglam;
+  // Uygulama içi mesaj kutusu Ayarlar'ın üstünde açılır; dışına tıklamak ya da Esc yalnızca soruyu kapatır (Vazgeç)
+  if (!varsayilanlar || typeof varsayilanlar !== 'object') { await mesajKutusu({ tur: 'warning', mesaj: 'Varsayılan değerler bulunamadı.' }); return; }
+  const { secim } = await mesajKutusu({
     mesaj: 'Bütün ayarlar varsayılan değerlere döndürülsün mü?',
     ayrinti: 'Son açılan dosyalar, sayfa konumları ve pencere yerleşimi korunur.',
     dugmeler: ['Varsayılanlara dön', 'Vazgeç'], varsayilan: 1, iptal: 1,
