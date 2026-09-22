@@ -55,8 +55,9 @@ export class Arama extends EventTarget {
     this.kutu.querySelector('#bul-kapat').addEventListener('click', () => this.kapat());
     const menu = this.kutu.querySelector('#bul-ayar-menu'), ayarDugme = this.kutu.querySelector('#bul-ayar');
     ayarDugme.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; });
-    // Düğme (içindeki svg/path dahil) hariç: yoksa mousedown kapatır, ardından gelen click menüyü yeniden açar
-    document.addEventListener('mousedown', (e) => { if (!menu.hidden && !menu.contains(e.target) && !ayarDugme.contains(e.target)) menu.hidden = true; });
+    // Dışarıda herhangi bir tuşla basış kapatır (açık belgeler listesi gibi yakalama evresinde). Düğme (içindeki svg/path dahil) hariç:
+    // yoksa basış kapatır, ardından gelen click menüyü yeniden açar
+    document.addEventListener('pointerdown', (e) => { if (!menu.hidden && !menu.contains(e.target) && !ayarDugme.contains(e.target)) menu.hidden = true; }, true);
     menu.querySelectorAll('input[data-ayar]').forEach((c) => c.addEventListener('change', () => { this.ayar[c.dataset.ayar] = c.checked; this.ara(this.girdi.value, true); }));
     menu.querySelectorAll('input[data-kapsam]').forEach((c) => c.addEventListener('change', () => { this.ayar.tumSekmeler = menu.querySelector('input[data-kapsam="tum"]').checked; this.kaliciKapsam = null; this.ara(this.girdi.value, true); }));
   }

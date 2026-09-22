@@ -86,6 +86,9 @@ export function testDiyalogKur(ipcMain) {
   let kayit = [];
   ipcMain.handle('test:diyalogYanitlari', (_e, kanal, yanitlar) => { kuyruk.set(kanal, [...(kuyruk.get(kanal) || []), ...yanitlar]); return true; });
   ipcMain.handle('test:diyalogKaydi', () => { const k = kayit; kayit = []; return k; });
+  // Ana süreçten gelen olayı taklit eder (fareyle seçilen menü komutu 'menu:komut', pencere kapatma isteği 'pencere:kapatIstegi'):
+  // aynı kanaldan renderer'a geri gönderilir. CDP tuş olayı menü hızlandırıcısını tetiklemediğinden bu yolla sınanır.
+  ipcMain.handle('test:olayGonder', (e, kanal, ...args) => { e.sender.send(kanal, ...args); return true; });
   return (kanal, secenek, varsayilanYanit) => {
     const bekleyen = kuyruk.get(kanal);
     const yanit = bekleyen?.length ? bekleyen.shift() : varsayilanYanit;

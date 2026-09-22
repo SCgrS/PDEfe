@@ -118,8 +118,10 @@ html[data-tema="koyu"] #dugme-tema .ay { display: block; }
   scrollbar-width: none; height: 100%; gap: 2px; padding: 4px 2px 0;
 }
 #sekme-liste::-webkit-scrollbar { display: none; }
+/* Sekmeler ada göre değil sabit genişliktedir (kapat düğmesi ve değişiklik noktası dahil): "ustyazi (85).pdf", "(2)TensipZapti (9).pdf"
+   gibi UYAP adları tam görünür, uzun ad üç noktayla kısalır; tam ad ve yol ipucundadır (sekmeler.js). Sığmayanlar kaydırılır. */
 .sekme {
-  flex: 0 0 auto; max-width: 220px; min-width: 110px; height: 30px;
+  flex: 0 0 168px; width: 168px; height: 30px;
   display: flex; align-items: center; gap: 6px; padding: 0 6px 0 10px;
   border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0;
   background: transparent; color: var(--metin-soluk); position: relative; cursor: default;
@@ -367,6 +369,32 @@ body.okuma-modu.ust-goster #arac-cubugu { display: flex; position: absolute; top
 .kisayollar tr.bolum:first-child th { padding-top: 0; }
 .kisayollar td:first-child { width: 1%; }
 .kisayollar kbd { display: inline-block; white-space: nowrap; margin-bottom: 2px; }
+/* Mesaj kutusu (mesajKutusu.js): yerel mesaj kutusunun yerine; Ayarlar'ın (160) ve araç pencerelerinin de üstünde. Soru simgesiz,
+   bilgi / uyarı / hata simgeli; ileti ve ayrıntı seçilip kopyalanır, satır sonları korunur, uzun yollar kırılır */
+.mesaj-ortusu { z-index: 170; }
+.mesaj-kutusu { width: max-content; min-width: 360px; max-width: min(560px, 90vw); outline: none; }
+.mesaj-kutusu .mesaj-govde { display: flex; align-items: flex-start; gap: 14px; padding: 20px 22px 4px; overflow: auto; min-height: 0; }
+.mesaj-kutusu .mesaj-simge, .mesaj-kutusu .mesaj-simge svg { flex: none; display: block; width: 32px; height: 32px; }
+.mesaj-kutusu .mesaj-simge .cizgi { fill: none; stroke-width: 2.6; stroke-linecap: round; }
+.mesaj-kutusu[data-tur="info"] .dolgu { fill: var(--vurgu); }
+.mesaj-kutusu[data-tur="info"] .cizgi { stroke: var(--vurgu-metin); }
+.mesaj-kutusu[data-tur="warning"] .dolgu { fill: #f2b200; }
+.mesaj-kutusu[data-tur="warning"] .cizgi { stroke: #1b1b1b; }
+.mesaj-kutusu[data-tur="error"] .dolgu { fill: #d13438; }
+.mesaj-kutusu[data-tur="error"] .cizgi { stroke: #fff; }
+.mesaj-kutusu .mesaj-metin { flex: 1; min-width: 0; padding-top: 5px; user-select: text; }
+.mesaj-kutusu .mesaj-pencere-basligi { font-size: 12px; color: var(--metin-soluk); margin-bottom: 4px; }
+.mesaj-kutusu .mesaj-ileti { font-size: 15px; font-weight: 600; line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mesaj-kutusu .mesaj-ayrinti { margin-top: 8px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mesaj-kutusu .dugmeler { flex-wrap: wrap; align-items: center; padding: 16px 22px 18px; }
+.mesaj-kutusu .dugmeler button { margin-top: 0; min-width: 88px; padding: 6px 16px; border: 1px solid transparent; }
+.mesaj-kutusu .dugmeler button.ikincil { border-color: var(--kenar); }
+.mesaj-kutusu button:focus-visible, .mesaj-kutusu input:focus-visible { outline: 2px solid var(--vurgu); outline-offset: 2px; }
+.mesaj-kutusu .mesaj-onay { margin-right: auto; padding-right: 16px; display: flex; align-items: center; gap: 6px; }
+.mesaj-kutusu .mesaj-onay input { accent-color: var(--vurgu); margin: 0; }
+/* Kutu açıkken yok sayılan menü komutu / pencere kapatma isteği: kutu kısaca belirginleşir (yerel kutunun yanıp sönmesi gibi) */
+.mesaj-kutusu.dikkat { animation: mesaj-dikkat 0.45s ease-in-out; }
+@keyframes mesaj-dikkat { 0%, 100% { box-shadow: var(--golge); } 25%, 75% { box-shadow: 0 0 0 3px var(--vurgu), var(--golge); } }
 
 /* Kaydırma çubukları */
 ::-webkit-scrollbar { width: 12px; height: 12px; }

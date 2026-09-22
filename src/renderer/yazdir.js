@@ -20,6 +20,7 @@
 //     sayfalar[i] = { no, kaynak: 's0001.jpg' } (göreli dosya) ya da { no, veri: base64 } (data: URL), + genislikPt, yukseklikPt, bicim
 // Son ikisi saf işlevdir (DOM kullanmaz), Node'da sınanabilir.
 import { ayarlarPenceresiKapat } from './ayarlarPenceresi.js';
+import { ortuTiklamasiBagla } from './ortu.js';
 
 const PT_MM = 25.4 / 72;            // 1 pt = 0,352778 mm
 const PT_MIKRON = 25400 / 72;       // 1 pt = 352,778 mikron
@@ -419,7 +420,9 @@ function secenekPenceresi(belge, { toplam, gecerli, uyari, gecerliDevre }) {
       if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') { e.preventDefault(); onayla(); }
       if (GEZINME_TUSLARI.has(e.key)) e.stopPropagation();   // belge kısayollarına sızmasın
     });
-    ortu.addEventListener('mousedown', (e) => { if (e.target === ortu) { /* dış tık: kapatma, odak diyalogda kalsın */ e.preventDefault(); } });
+    // Dışarı tıklamak Vazgeç / Esc gibi kapatır; basış odağı diyalogdan almaz
+    ortu.addEventListener('mousedown', (e) => { if (e.target === ortu) e.preventDefault(); });
+    ortuTiklamasiBagla(ortu, () => kapat(null));
     document.body.append(ortu);
     acikPencere = ortu;
     ortu.querySelector('[data-id="yazdir"]').focus();
@@ -467,6 +470,9 @@ function ilerlemePenceresi(baslik) {
     if (e.key === 'Tab') { odakTuzagi(ortu, e); return; }
     if (GEZINME_TUSLARI.has(e.key)) e.stopPropagation();
   });
+  // Dışarı tıklamak Esc gibi Vazgeç'e basar (hazırlıkta döngü durur, Windows diyaloğu aşamasında diyalog kapanır); basış odağı almaz
+  ortu.addEventListener('mousedown', (e) => { if (e.target === ortu) e.preventDefault(); });
+  ortuTiklamasiBagla(ortu, () => { if (!iptalDugme.disabled) iptalDugme.click(); });
   document.body.append(ortu);
   acikPencere = ortu;
   iptalDugme.focus();

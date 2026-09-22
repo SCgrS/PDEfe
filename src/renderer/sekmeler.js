@@ -1,5 +1,9 @@
 // Sekme çubuğu: sekme listesi, sürükleyerek sıralama, tekerlekle geçiş, ◀ ▶ düğmeleri,
 // "Açık belgeler" listesi ve Ctrl+Tab son-kullanım sırasına göre sekme seçici.
+import { ortuTiklamasiBagla } from './ortu.js';
+
+/** Sekmenin ipucu: sabit genişlikte kısalabilen tam ad ve dosyanın yolu. */
+const ipucu = (ad, yol) => (yol && yol !== ad ? `${ad}\n${yol}` : ad);
 
 export class SekmeCubugu extends EventTarget {
   constructor({ cubuk, liste, onceki, sonraki, acilir, secici, belgeListesi, aramaSay = null }) {
@@ -36,10 +40,13 @@ export class SekmeCubugu extends EventTarget {
       this.kaydir(e.deltaY > 0 || e.deltaX > 0 ? 1 : -1);
     }, { passive: false });
 
-    document.addEventListener('mousedown', (e) => {
-      // Açılır düğme hariç: yoksa mousedown kapatır, ardından gelen click listeyi yeniden açar
+    // Dışarıda herhangi bir tuşla basış listeyi kapatır (Araçlar penceresi gibi yakalama evresinde: basışı işleyip mousedown'ı
+    // engelleyen yerler, ör. nota tıklama, de kapatsın). Açılır düğme hariç: yoksa basış kapatır, ardından gelen click listeyi yeniden açar
+    document.addEventListener('pointerdown', (e) => {
       if (!this.belgeListesi.hidden && !this.belgeListesi.contains(e.target) && !acilir.contains(e.target)) this.belgeListesiKapat();
-    });
+    }, true);
+    // Ctrl+Tab seçicisinin karartılmış arka planına tıklamak Esc gibi sekme değiştirmeden kapatır
+    ortuTiklamasiBagla(secici, () => this.seciciIptal());
   }
 
   // ------------------------------------------------------------ temel işlemler
@@ -47,7 +54,7 @@ export class SekmeCubugu extends EventTarget {
     if (!this.belgeListesi.hidden) this.belgeListesiKapat();   // açık liste sekme kümesini bir kez kurar; bayat kalmasın
     const el = document.createElement('div');
     el.className = 'sekme';
-    el.title = yol;
+    el.title = ipucu(ad, yol);
     el.draggable = true;
     el.innerHTML = `<span class="nokta">•</span><span class="ad"></span><button class="kapat" title="Kapat (Ctrl+W)"><svg viewBox="0 0 16 16"><path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5"/></svg></button>`;
     el.querySelector('.ad').textContent = ad;
@@ -65,7 +72,9 @@ export class SekmeCubugu extends EventTarget {
 
     // Sürükleyerek sıralama
     el.addEventListener('dragstart', (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/pdefe-sekme', id); el.classList.add('surukleniyor'); });
-    el.addEventListener('dragend', () => el.classList.remove('surukleniyor'));
+    // Sekme sürüklenirken yerinde taşınır; bırakma bir sekmenin üstünde olmasa da (çubuğun dışı, Esc) görünen sıra geçerli olsun
+    // (yoksa Ctrl+1–9 ve ◀ ▶ eski sırayla giderdi)
+    el.addEventListener('dragend', () => { el.classList.remove('surukleniyor'); this.siralamayiOku(); });
     el.addEventListener('dragover', (e) => {
       if (!e.dataTransfer.types.includes('text/pdefe-sekme')) return;
       e.preventDefault();
@@ -87,6 +96,7 @@ export class SekmeCubugu extends EventTarget {
 
   siralamayiOku() {
     const sira = [...this.liste.children].map((el) => this.sekmeler.find((s) => s.el === el)).filter(Boolean);
+    if (sira.length === this.sekmeler.length && sira.every((s, i) => s === this.sekmeler[i])) return;   // sıra değişmedi (bırakma + dragend)
     this.sekmeler = sira;
     this.dispatchEvent(new CustomEvent('siralandi', { detail: { idler: sira.map((s) => s.id) } }));
   }
@@ -112,10 +122,13 @@ export class SekmeCubugu extends EventTarget {
 
   bul(id) { return this.sekmeler.find((s) => s.id === id); }
 
-  guncelle(id, { ad, degisti }) {
+  /** Ad, yol (Farklı kaydet) ya da değişiklik işareti değişti. */
+  guncelle(id, { ad, yol, degisti }) {
     const s = this.bul(id);
     if (!s) return;
     if (ad != null) { s.ad = ad; s.el.querySelector('.ad').textContent = ad; }
+    if (yol != null) s.yol = yol;
+    if (ad != null || yol != null) s.el.title = ipucu(s.ad, s.yol);
     if (degisti != null) { s.degisti = degisti; s.el.classList.toggle('degisti', degisti); }
   }
 
@@ -173,13 +186,19 @@ export class SekmeCubugu extends EventTarget {
 
   seciciKapat(secilenId = null) {
     if (!this.seciciAcik) return;
-    clearTimeout(this._seciciZaman);
     const adaylar = [...this.secici.querySelectorAll('.aday')];
     const id = secilenId ?? adaylar[this.seciciIdx]?.dataset.id;
+    this.seciciIptal();
+    if (id && id !== this.aktifId) this.dispatchEvent(new CustomEvent('sec', { detail: { id } }));
+  }
+
+  /** Seçiciyi sekme değiştirmeden kapatır (Esc, arka plana tıklama). */
+  seciciIptal() {
+    if (!this.seciciAcik) return;
+    clearTimeout(this._seciciZaman);
     this.seciciAcik = false;
     this.secici.hidden = true;
     this.secici.innerHTML = '';
-    if (id && id !== this.aktifId) this.dispatchEvent(new CustomEvent('sec', { detail: { id } }));
   }
 
   // ------------------------------------------------------------ Açık belgeler listesi
