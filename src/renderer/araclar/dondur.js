@@ -8,8 +8,8 @@
 //  - Yeni belge: çekirdek dondur_kaydet {yol, hedef, sayfalar, derece} özgün dosyanın hedef klasördeki geçici kopyasına artımlı yazar
 //    (e-imzalı baytlar, ekler, belge bilgileri korunur), sonra atomik olarak hedefe koyar; özgün dosya ve sekme değişmez.
 import {
-  pencereAc, pencereAcikMi, IslemIlerleme, sayfaListesiCoz, belgeTarifi, tarifDisari, anaKaynakMi, hataMetni, oge, dosyaAdi, sayiMetni,
-  degisiklikleriSor, kayitSecimi, kilitliHataMi, ciktiyiAc,
+  pencereAc, pencereAcikMi, IslemIlerleme, sayfaListesiCoz, belgeTarifi, tarifDisari, hataMetni, oge, dosyaAdi, sayiMetni,
+  degisiklikleriSor, kayitSecimi, kilitliHataMi, ciktiyiAc, numaralarDosyaylaAyni, NUMARA_UYUSMAZ,
 } from './ortak.js';
 
 export class DondurPenceresi {
@@ -67,10 +67,8 @@ export class DondurPenceresi {
         for (const o of govde.querySelectorAll('.dondur-yon')) o.classList.toggle('secili', o === y);
       });
     }
-    this.kayit = kayitSecimi({
-      baglam: this.baglam, belge: this.belge, ek: 'döndürülmüş', diyalogBasligi: 'Döndürülmüş PDF',
-      uzerineMetni: `Döndürme "${dosyaAdi(this.belge.yol)}" belgesine uygulanıp doğrudan kaydedilir; yedek alınmaz, Ctrl+Z ile geri alınabilir.`,
-    });
+    // Üzerine yaz: döndürme sekmeye geri alınabilir komut olarak uygulanıp kaydedilir (Ctrl+Z)
+    this.kayit = kayitSecimi({ baglam: this.baglam, belge: this.belge, ek: 'döndürülmüş', diyalogBasligi: 'Döndürülmüş PDF', geriAlinabilir: true });
     govde.querySelector('.dondur-kayit').append(this.kayit.el);
     this.pencere = pencereAc({
       baslik: 'Döndür ve kaydet', govde, genislik: 540, anahtar: 'dondur', sinif: 'dondur-pencere',
@@ -99,15 +97,6 @@ export class DondurPenceresi {
     return !hata && sayfalar.length > 0;
   }
 
-  /** Sekmedeki sayfa numaraları dosyadakilerle aynı mı (kaydedilmemiş sayfa silme/sıralama/ekleme yok)? */
-  _numaralarDosyaylaAyni() {
-    const g = this.belge.gorunum;
-    if (!this.belge.degisti || typeof g?.yapisalKirli !== 'function' || !g.yapisalKirli()) return true;
-    const tarif = belgeTarifi(this.belge);
-    return !g.anlik && tarif.every((t, i) => t.kaynak && anaKaynakMi(this.belge, t.kaynak) && t.sayfa === i + 1)
-      && (this.belge.bilgi?.sayfa == null || tarif.length === this.belge.bilgi.sayfa);
-  }
-
   async uygula() {
     if (this.ilerleme.calisiyor || this._suruyor) return;
     this._suruyor = true;
@@ -131,8 +120,7 @@ export class DondurPenceresi {
     const adet = `${sayiMetni(sayfalar.length)} sayfa`;
     if (this.kayit.uzerineMi()) return this._sekmedeUygula(sayfalar, yon, adet);
 
-    const numaralarAyni = this._numaralarDosyaylaAyni();
-    if ((await degisiklikleriSor(baglam, belge, 'Döndürme', numaralarAyni ? {} : { yalnizKaydet: true, neden: 'Sayfa düzeninde kaydedilmemiş değişiklik olduğundan sayfa numaraları dosyadakiyle uyuşmuyor.' })) === 'vazgec') return false;
+    if ((await degisiklikleriSor(baglam, belge, 'Döndürme', numaralarDosyaylaAyni(belge) ? {} : { yalnizKaydet: true, neden: NUMARA_UYUSMAZ })) === 'vazgec') return false;
     if (this.pencere.kapali) return false;
     const hedef = this.kayit.hedef();
     this.pencere.el.classList.add('mesgul');

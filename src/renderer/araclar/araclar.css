@@ -103,11 +103,24 @@ button.ikincil.ikonlu svg { width: 16px; height: 16px; flex-shrink: 0; }
 .arac-klasor-cip .ad { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .arac-cikti-degistir { padding: 5px 14px; }
 
-/* Standart kaydetme seçimi */
+/* Standart kaydetme seçimi. "Üzerine yaz" satırı: geri alınamayan sonuçta uyarı kutusu (açık ve koyu temada okunur amber),
+   geri alınabilen sonuçta sade bilgi satırı */
 .arac-kayit { display: flex; flex-direction: column; gap: 10px; }
 .arac-not-satiri { display: flex; align-items: center; gap: 8px; color: var(--metin-soluk); min-height: 30px; }
 .arac-not-satiri svg { width: 16px; height: 16px; flex-shrink: 0; color: #b86e00; }
 html[data-tema="koyu"] .arac-not-satiri svg { color: #ffc83d; }
+.arac-not-satiri.uyari {
+  color: #7a3e00; background: rgba(255, 170, 0, 0.16); border: 1px solid rgba(214, 130, 0, 0.55); border-radius: 6px; padding: 5px 10px;
+}
+.arac-not-satiri.uyari svg { color: #b35c00; }
+.arac-not-satiri.uyari b { font-weight: 600; }
+html[data-tema="koyu"] .arac-not-satiri.uyari { color: #ffd98a; background: rgba(255, 185, 0, 0.12); border-color: rgba(255, 185, 0, 0.45); }
+html[data-tema="koyu"] .arac-not-satiri.uyari svg { color: #ffc83d; }
+.arac-not-satiri.bilgi svg, html[data-tema="koyu"] .arac-not-satiri.bilgi svg { color: var(--vurgu); }
+.arac-kayit-kisit { margin-top: -4px; }
+/* Bölümlü seçimde devre dışı seçenek (ör. birden çok dosya üreten ayırmada "Üzerine yaz") */
+.arac-segmentli > button:disabled { opacity: 0.45; }
+.arac-segmentli > button:disabled:hover { background: transparent; }
 
 /* ---------- İşlemİlerleme ---------- */
 .arac-ilerleme { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--kenar); border-radius: 8px; background: var(--arka); }
