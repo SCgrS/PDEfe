@@ -24,7 +24,8 @@ export const VARSAYILANLAR = {
   otomatikKaydet: false,
   // Kopyalama
   temizMetin: true,
-  // Güncelleme
+  // Güncelleme: açılışta 10 açılışta bir denetle. Açılış sayacı (acilisSayaci, sonDenetimAcilisi, sonDenetimSurumu) main/guncelleme.js'te;
+  // varsayılanı yoktur, "Varsayılanlara dön" ona dokunmaz.
   otoGuncelle: true,
   // Dosya
   ciktiKlasoru: '',               // araçların yeni belge çıktıları; boşsa Masaüstü (app.getPath('desktop'))
@@ -38,7 +39,7 @@ export const VARSAYILANLAR = {
 };
 
 /** Kaldırılmış ayarlar: eski sürümlerin yapılandırma dosyalarından silinir. */
-const KALDIRILAN_ANAHTARLAR = ['sekmeleriHatirla', 'acikSekmeler', 'sekmeDegisimindeSor'];
+const KALDIRILAN_ANAHTARLAR = ['sekmeleriHatirla', 'acikSekmeler', 'sekmeDegisimindeSor', 'sonGuncellemeDenetimi'];
 
 export const ayarlar = new Store({ name: 'ayarlar', defaults: VARSAYILANLAR, clearInvalidConfig: true });
 for (const anahtar of KALDIRILAN_ANAHTARLAR) { try { if (ayarlar.has(anahtar)) ayarlar.delete(anahtar); } catch (e) { console.warn('Eski ayar silinemedi', anahtar, e); } }

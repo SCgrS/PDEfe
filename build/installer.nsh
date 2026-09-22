@@ -28,6 +28,11 @@
 ;      "PDEfe'yi varsayılan PDF görüntüleyici yap" onay kutusu (MUI_FINISHPAGE_SHOWREADME_FUNCTION ile
 ;      Windows Ayarlar > Varsayılan uygulamalar > PDEfe sayfası açılır; Windows kuralı gereği seçimi kullanıcı yapar).
 ;   5. Kaldırırken 2'deki kayıtlar ve .pdf varsayılan değerinde kalan "PDEfe.pdf" silinir.
+;   6. Uygulama içinden güncelleme: electron-updater kurucuyu "--updated" ile başlatır. PDEfe 0.1.3 ve sonrası /S de verir
+;      (quitAndInstall(true, true)); 0.1.2 ve öncesi /S vermeden "--updated --force-run" ile başlatıyordu, sihirbazın ilerleme
+;      ve bitiş sayfası görünüyor, PDEfe "Son"a basılınca açılıyordu. customInit "--updated" görünce kurucuyu sessize alır
+;      (SetSilent yalnızca .onInit'te geçerlidir): sayfalar atlanır, installSection.nsh "isForceRun ve Silent" olduğu için
+;      kurulumdan sonra PDEfe'yi "--updated" ile yeniden açar. Elle çalıştırılan kurucu (bayraksız) etkilenmez.
 ;
 ; Kodlama: UTF-8 (electron-builder makensis'i -INPUTCHARSET UTF8 ile çağırır).
 
@@ -38,6 +43,10 @@
 ; ---------------------------------------------------------------- .onInit
 ; Değişkenler customPageAfterChangeDir içinde bildirilir (assistedInstaller.nsh, .onInit'ten önce derlenir).
 !macro customInit
+  ; Uygulama içinden güncelleme her zaman sessiz (bkz. başlık, madde 6)
+  ${if} ${isUpdated}
+    SetSilent silent
+  ${endif}
   ; Ek görevler sayfası atlanırsa (sessiz kurulum, güncelleme) varsayılan: masaüstü kısayolu oluştur.
   StrCpy $pdefeMasaustuKisayolu "1"
   ; .pdf için kullanıcının önceki varsayılan dosya sınıfı (APP_ASSOCIATE üzerine yazmadan önce)
