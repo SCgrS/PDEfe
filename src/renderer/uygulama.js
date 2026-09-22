@@ -629,7 +629,8 @@ try {
 // Güncelleme şeridi
 let guncelleme = null;
 try {
-  // Kurulum uygulamayı kapatır: kaydedilmemiş değişiklikler pencere kapatmadaki gibi sorulur; false kurulumu iptal eder
+  // Kurulum uygulamayı kapatır: kaydedilmemiş değişiklikler pencere kapatmadaki gibi sorulur; Vazgeç (false) kurulumu erteler,
+  // indirilen sürüm saklanır ve şeritte "Kur ve yeniden başlat" kalır
   guncelleme = guncellemeSeridiKur({ pdefe, serit: $('#guncelleme-seridi'), bildir, kapatmadanOnce: () => kapatmayaIzinAl() });
   komutlar['yardim.guncelle'] = () => guncelleme.denetle();
 } catch (e) { console.error('Güncelleme şeridi kurulamadı', e); }

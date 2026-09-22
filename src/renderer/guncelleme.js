@@ -15,7 +15,7 @@
 const SURUMLER_URL = 'https://github.com/SCgrS/PDEfe/releases';
 
 const STIL = `
-#guncelleme-seridi { flex-wrap: wrap; row-gap: 4px; font-size: 13px; }
+#guncelleme-seridi { flex-wrap: wrap; row-gap: 4px; font-size: 13px; min-height: 36px; box-sizing: border-box; }
 #guncelleme-seridi .metin { flex: 0 1 auto; min-width: 160px; }
 #guncelleme-seridi .dugmeler { display: flex; gap: 6px; align-items: center; margin-left: auto; }
 #guncelleme-seridi button { color: inherit; font: inherit; cursor: pointer; line-height: 1.2; }

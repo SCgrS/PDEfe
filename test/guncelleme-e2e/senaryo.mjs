@@ -1,0 +1,100 @@
+// Güncelleme uçtan uca testi: kurulu deneme uygulamasında (CDP) şerit adımları. surucu.mjs ile çalışır:
+//   $env:PDEFE_CDP_PORT=9911; $env:ADIM='serit'; node test/surucu.mjs betik test/guncelleme-e2e/senaryo.mjs
+// ADIM: serit | dahaSonra | hataIndir | ertele (PDF=<yol>) | kur | ayarlarDenetle
+// Tıklamalar gerçek CDP fare olaylarıdır (Input.dispatchMouseEvent). Sunucu denetimi SUNUCU (varsayılan http://127.0.0.1:9914).
+import fs from 'node:fs';
+import path from 'node:path';
+
+const SUNUCU = process.env.SUNUCU || 'http://127.0.0.1:9914';
+const AYAR = path.join(process.env.APPDATA, 'PDEfe Guncelleme Testi', 'ayarlar.json');
+const SERIT = `(() => { const s = document.querySelector('#guncelleme-seridi');
+  return { gizli: s.hidden, asama: s.dataset.asama || '', metin: s.querySelector('.metin')?.textContent || '',
+    dugmeler: [...s.querySelectorAll('button')].map((b) => { const r = b.getBoundingClientRect(); return { ad: b.textContent, sinif: b.className, x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) }; }) }; })()`;
+
+function sayac() {
+  try { const a = JSON.parse(fs.readFileSync(AYAR, 'utf8')); return { acilisSayaci: a.acilisSayaci, sonDenetimAcilisi: a.sonDenetimAcilisi, sonDenetimSurumu: a.sonDenetimSurumu, pencere: a.pencere }; }
+  catch (e) { return { hata: e.message }; }
+}
+const ozet = (s) => (s.gizli ? '(gizli)' : `[${s.asama}] ${s.metin} | ${s.dugmeler.map((b) => b.ad + (b.sinif === 'birincil-serit' ? '*' : '')).join(', ')}`);
+
+export default async function ({ evalJs, bekle, tikla, ekranGoruntusu }) {
+  const adim = process.env.ADIM || 'serit';
+  // Uygulama kapanınca surucu.mjs'in isteği hiç yanıtlanmaz: süre sınırıyla bağlantı koptu sayılır
+  const zamanli = (p, ms = 4000) => Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error('yanıt yok')), ms))]);
+  const serit = () => zamanli(evalJs(SERIT));
+  const bas = async (...adlar) => {
+    const s = await serit();
+    const d = s.dugmeler.find((b) => adlar.includes(b.ad));
+    if (!d) throw new Error(`Düğme yok (${adlar.join('/')}); şerit: ${ozet(s)}`);
+    console.log(`tıkla "${d.ad}" (${d.x}, ${d.y})`);
+    await tikla(d.x, d.y);
+  };
+  /** Şeridi izler; kosul(s) doğru olunca ya da bağlantı kopunca (uygulama kapandı) döner. */
+  const izle = async (kosul, sureMs = 60000, ornekMs = 200) => {
+    const gorulen = [];
+    const t0 = Date.now(), son = t0 + sureMs;
+    const zaman = () => `${((Date.now() - t0) / 1000).toFixed(1)} sn `;
+    let onceki = '';
+    while (Date.now() < son) {
+      let s;
+      try { s = await serit(); } catch (e) { gorulen.push(zaman() + '(bağlantı koptu: ' + String(e.message || e).slice(0, 60) + ')'); return { gorulen, koptu: true }; }
+      const o = ozet(s);
+      if (onceki !== o) { gorulen.push(zaman() + o); onceki = o; }
+      if (kosul(s)) return { gorulen, s };
+      await bekle(ornekMs);
+    }
+    return { gorulen, zamanAsimi: true };
+  };
+
+  if (adim === 'serit') {
+    const s = await serit();
+    console.log('şerit:', ozet(s));
+    console.log('sayaç:', JSON.stringify(sayac()));
+    console.log('durum:', JSON.stringify(await evalJs(`pdefe.cagir('guncelleme:durum')`)));
+    console.log('sürüm:', JSON.stringify(await evalJs(`pdefe.cagir('uygulama:bilgi').then((b) => ({ surum: b.surum, paketli: b.paketli }))`)));
+    if (process.env.SS) await ekranGoruntusu(process.env.SS);
+  } else if (adim === 'dahaSonra') {
+    await bas('Daha sonra'); await bekle(300);
+    console.log('Daha sonra →', ozet(await serit()));
+    await evalJs(`window.__pdefe.komutCalistir('yardim.guncelle')`);
+    const r = await izle((s) => !s.gizli, 15000);
+    console.log('Yardım › Güncellemeleri denetle →', r.gorulen.join('  →  '));
+  } else if (adim === 'hataIndir') {
+    console.log('sunucu:', await (await fetch(`${SUNUCU}/__hata?acik=1`)).text());
+    await bas('Güncelle', 'Yeniden dene');
+    const r = await izle((s) => s.asama === 'hata', 90000);
+    console.log('akış:', r.gorulen.join('  →  '));
+    if (process.env.SS) await ekranGoruntusu(process.env.SS);
+    console.log('sunucu:', await (await fetch(`${SUNUCU}/__hata?acik=0`)).text());
+  } else if (adim === 'ertele') {
+    // Kaydedilmemiş değişiklik: PDF aç, bir sayfayı döndür; kapatma sorusu Vazgeç (2) ile yanıtlanır (packaged'da da çalışan __pdefeOtoYanit)
+    const pdf = process.env.PDF.replace(/\\/g, '/');
+    console.log('belge:', JSON.stringify(await evalJs(`(async () => { const p = window.__pdefe; const b = await p.dosyaAc(${JSON.stringify(pdf)}); await new Promise((r) => setTimeout(r, 1200)); await p.sayfalariDondur(b, [1], 90, 'Sayfayı döndür'); await new Promise((r) => setTimeout(r, 400)); window.__pdefeOtoYanit = { secim: 2 }; return { ad: b.ad, degisti: b.degisti }; })()`)));
+    await bas('Güncelle', 'Yeniden dene');
+    const r = await izle((s) => s.asama === 'hazir' || s.asama === 'hata', 120000, 150);
+    console.log('akış:', r.gorulen.join('\n   → '));
+    console.log('sorulan:', await evalJs(`JSON.stringify(window.__pdefeOtoYanit.son || null)`));
+    console.log('durum:', JSON.stringify(await evalJs(`pdefe.cagir('guncelleme:durum')`)));
+    if (process.env.SS) await ekranGoruntusu(process.env.SS);
+  } else if (adim === 'kur') {
+    await evalJs(`window.__pdefeOtoYanit = { secim: 1 }; true`);   // varsa kaydedilmemiş değişiklik: Kaydetme
+    if (process.env.YAZAR) await evalJs(`pdefe.cagir('ayar:koy', 'yazarAdi', ${JSON.stringify(process.env.YAZAR)})`);   // güncellemeden sonra korunmalı
+    const t0 = Date.now();
+    await bas('Kur ve yeniden başlat', 'Güncelle');
+    const r = await izle(() => false, 180000, 150);
+    console.log('akış:', r.gorulen.join('\n   → '));
+    console.log(`bağlantı ${((Date.now() - t0) / 1000).toFixed(1)} sn sonra koptu:`, !!r.koptu);
+    process.exit(0);   // kopan CDP bağlantısında bekleyen istek süreci açık tutmasın
+  } else if (adim === 'ayarlarDenetle') {
+    await evalJs(`window.__pdefe.komutCalistir('duzen.ayarlar')`); await bekle(400);
+    await evalJs(`document.querySelector('.ayarlar-bolumler button[data-bolum="guncelleme"]').click()`); await bekle(300);
+    const d = await evalJs(`(() => { const b = [...document.querySelectorAll('.ayarlar-icerik button')].find((b) => b.textContent === 'Şimdi denetle'); const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+    await tikla(d.x, d.y);
+    for (let i = 0; i < 40; i++) { await bekle(250); if (!/Denetleniyor/.test(await evalJs(`document.querySelector('.ayar-sonuc').textContent`))) break; }
+    console.log('Ayarlar › Güncelleme sonucu:', await evalJs(`document.querySelector('.ayar-sonuc').textContent`));
+    console.log('anahtar:', await evalJs(`document.querySelector('.ayarlar-icerik .ayar-baslik').textContent`));
+    if (process.env.SS) await ekranGoruntusu(process.env.SS);
+    await evalJs(`document.querySelector('.ayarlar-ortusu [data-id="kapat2"]').click()`); await bekle(200);
+    console.log('şerit:', ozet(await serit()));
+  }
+}
