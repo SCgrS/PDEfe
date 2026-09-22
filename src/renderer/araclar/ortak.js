@@ -337,6 +337,8 @@ export class Pencere {
       let izin;
       try { izin = await this.kapatmadanOnce(this, sonuc); } catch { izin = true; }
       if (izin === false) return false;
+      // Soru açıkken pencere başka yoldan kapanmış olabilir (ör. işlem bitti, araç 'tamam' ile kapattı): 'kapandi' iki kez gitmesin
+      if (this.kapali) return false;
     }
     this.kapali = true;
     if (this.anahtar && acikPencereler.get(this.anahtar) === this) acikPencereler.delete(this.anahtar);
