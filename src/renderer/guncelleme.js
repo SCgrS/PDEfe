@@ -57,7 +57,7 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce }) {
   }
   serit.setAttribute('role', 'status');
 
-  const durum = { asama: 'bos', surum: '', mevcut: '', yuzde: 0, aktarilan: 0, toplam: 0, hata: '', kapatildi: false };
+  const durum = { asama: 'bos', surum: '', mevcut: '', yuzde: 0, aktarilan: 0, toplam: 0, hata: '', kapatildi: false, indirildi: false };
   let akis = null;   // süren Güncelle işlemi (Promise)
 
   function dugme(etiket, tiklama, { sinif = '', baslik = '' } = {}) {
@@ -115,7 +115,7 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce }) {
     durum.kapatildi = false;
     akis = (async () => {
       try {
-        if (durum.asama !== 'hazir') {
+        if (!durum.indirildi) {   // indirilmiş paket (Vazgeç ya da kurulum hatasından sonra) yeniden indirilmez
           asama('indiriliyor', { yuzde: 0, aktarilan: 0, toplam: 0, hata: '' });
           const r = await pdefe.cagir('guncelleme:indir');
           if (!r?.tamam) { asama('hata', { hata: `Güncelleme indirilemedi. ${r?.mesaj || 'İndirme tamamlanamadı.'}` }); return false; }
@@ -149,7 +149,7 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce }) {
     ciz();
   });
   pdefe.dinle('guncelleme:hazir', (b) => {
-    durum.surum = b?.surum || durum.surum;
+    durum.surum = b?.surum || durum.surum; durum.indirildi = true;
     if (!akis) asama('hazir');   // Güncelle süreci kendisi devam eder
   });
   pdefe.dinle('guncelleme:hata', (b) => { asama('hata', { hata: b?.mesaj || 'Güncelleme kurulamadı.' }); });
@@ -159,7 +159,7 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce }) {
     if (!d) return;
     durum.mevcut = d.surum || durum.mevcut;
     if (akis || durum.asama !== 'bos') return;
-    if (d.hazir) asama('hazir', { surum: d.hazir.surum });
+    if (d.hazir) asama('hazir', { surum: d.hazir.surum, indirildi: true });
     else if (d.bulunan) asama('var', { surum: d.bulunan.surum });
   }).catch(() => {});
 
