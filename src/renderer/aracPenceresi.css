@@ -42,10 +42,8 @@ html[data-tema="koyu"] .araclar-penceresi { box-shadow: 0 8px 28px rgba(0, 0, 0,
 .araclar-karo[data-renk="mor"] { --renk: #7a3fd1; }
 .araclar-karo[data-renk="turuncu"] { --renk: #c3501a; }
 .araclar-karo[data-renk="pembe"] { --renk: #b4278f; }
-.araclar-karo[data-renk="camgobegi"] { --renk: #007f8c; }
 html[data-tema="koyu"] .araclar-karo[data-renk="yesil"] { --renk: #6ccb8f; }
 html[data-tema="koyu"] .araclar-karo[data-renk="mavi"] { --renk: #60b8ff; }
 html[data-tema="koyu"] .araclar-karo[data-renk="mor"] { --renk: #b894ff; }
 html[data-tema="koyu"] .araclar-karo[data-renk="turuncu"] { --renk: #ff9d66; }
 html[data-tema="koyu"] .araclar-karo[data-renk="pembe"] { --renk: #f08ad6; }
-html[data-tema="koyu"] .araclar-karo[data-renk="camgobegi"] { --renk: #4fd1d9; }
