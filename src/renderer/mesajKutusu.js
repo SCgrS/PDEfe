@@ -14,6 +14,8 @@
 //   Klavye: Enter odaklı düğmeye, odak onay kutusundaysa varsayılan düğmeye basar; Tab / Shift+Tab düğmeler ve onay kutusu arasında
 //   döner, ← → düğmeler arasında gezer; Esc iptal. Kapanınca odak açılıştaki öğeye döner.
 // Test kancası (paketli uygulamada da): window.__pdefeOtoYanit = { secim, onay } verilmişse kutu açılmaz, bu yanıt döner; soru o.son'a yazılır.
+// window.__pdefeYerelKutu = true: soru eski yerel kutu yoluyla (ana süreç 'mesaj:kutu'; test örneğinde test:diyalogYanitlari kuyruğu /
+// varsayılan yanıt, test:diyalogKaydi) yanıtlanır.
 import { ortuTiklamasiBagla } from './ortu.js';
 
 const SIMGELER = {
@@ -36,6 +38,9 @@ export function mesajKutusu(secenek = {}) {
     console.warn('[test] mesaj kutusu otomatik yanıtlandı:', secenek.mesaj);
     return Promise.resolve({ secim: o.secim ?? 0, onay: !!o.onay });
   }
+  // Test kancası: eski yerel kutu yolu (ana süreçte 'mesaj:kutu'). Test örneğinde yanıt test:diyalogYanitlari kuyruğundan ya da
+  // varsayılandan gelir, soru test:diyalogKaydi'na yazılır (bu kuyrukla yazılmış senaryolar, ör. test/senaryo13.mjs)
+  if (window.__pdefeYerelKutu) return window.pdefe.cagir('mesaj:kutu', secenek);
   return new Promise((coz) => {
     const etiketler = secenek.dugmeler?.length ? secenek.dugmeler : ['Tamam'];
     const iptal = secenek.iptal ?? (secenek.dugmeler ? secenek.dugmeler.length - 1 : 0);

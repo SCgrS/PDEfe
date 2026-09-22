@@ -1,7 +1,7 @@
 // Açılır pencerelerin örtüsüne (pencerenin dışına) tıklama: gerçek fare girdisiyle.
 //  - Her modal pencere (F1, parola, Ayarlar, Yazdır seçenekleri ve hazırlık, beş araç penceresi, Ctrl+Tab seçicisi): içeride tık,
 //    içeriden dışarı sürükleme, örtüde basıp içeride bırakma, sağ ve orta tık kapatmaz; dışarı tık Esc / X ile aynı sonuçla kapatır.
-//  - Araç penceresinde işlem sürerken (Küçült) ve uygulanmamış değişiklik varken (Sayfaları düzenle, dolu birleştirme listesi) sorulur;
+//  - Araç penceresinde işlem sürerken (Küçült) ve kaydedilmemiş değişiklik varken (Sayfaları düzenle, dolu birleştirme listesi) sorulur;
 //    "Sürdür / Düzenlemeye dön" pencereyi açık bırakır.
 //  - İç içe: araç penceresinin üstündeki F1 / Ayarlar dışarı tıklamayla kapanır, araç penceresi açık kalır.
 //  - Açılır pencereler (açık belgeler listesi, Bul seçenekleri, Araçlar) dışarıda basışla kapanır; nota basış da kapatır.
@@ -179,12 +179,12 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
     denetle(`${ad}: X kapatır`, !(await acikMi(AR)));
   }
 
-  // Sayfaları düzenle: uygulanmamış değişiklik varken dışarı tık sorar
+  // Sayfaları düzenle: kaydedilmemiş değişiklik varken dışarı tık sorar
   await komut('arac.sayfalar'); await beklet(`document.querySelectorAll('.sayfa-karti').length > 0`); await bekle(500);
   await tikla(...(await evalJs(`__t.merkez('.sayfalar-arac-cubugu [data-komut="tumunuSec"]')`))); await bekle(150);
   await tikla(...(await evalJs(`__t.merkez('.sayfalar-arac-cubugu [data-komut="sagaDondur"]')`))); await bekle(300);
   await yanit(1); await disariTikla(AR);
-  denetle('Sayfaları düzenle: değişiklik varken dışarı tık sorar, "Düzenlemeye dön" açık bırakır', (await sonSoru()) === 'Sayfa düzeninde uygulanmamış değişiklikler var.' && await acikMi(AR), await sonSoru());
+  denetle('Sayfaları düzenle: değişiklik varken dışarı tık sorar, "Düzenlemeye dön" açık bırakır', (await sonSoru()) === 'Sayfa düzeninde kaydedilmemiş değişiklikler var.' && await acikMi(AR), await sonSoru());
   await yanit(0); await disariTikla(AR);
   denetle('Sayfaları düzenle: "Kapat" ile kapanır, belge değişmez', !(await acikMi(AR)) && !(await evalJs(`window.__pdefe.aktif().degisti`)));
 
@@ -363,7 +363,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   await disariTikla(AR); await kutuBekle();
   kb = await kutuBilgi();
   const ustte = await evalJs(`document.elementFromPoint(12, innerHeight >> 1)?.classList.contains('mesaj-ortusu')`);
-  denetle('Araç sorusu araç penceresinin üstünde açıldı (odak varsayılan "Düzenlemeye dön")', kb?.ileti === 'Sayfa düzeninde uygulanmamış değişiklikler var.' && kb.odak === 'Düzenlemeye dön' && ustte && await acikMi(AR), js(kb));
+  denetle('Araç sorusu araç penceresinin üstünde açıldı (odak varsayılan "Düzenlemeye dön")', kb?.ileti === 'Sayfa düzeninde kaydedilmemiş değişiklikler var.' && kb.odak === 'Düzenlemeye dön' && ustte && await acikMi(AR), js(kb));
   await ekranGoruntusu(`test/png/ortu/mesaj-arac-ustunde-${tema}.png`);
   await tus('Delete'); await tus('a', ['ctrl']); await bekle(250);
   denetle('Kutu açıkken tuşlar araç penceresine gitmez (Delete sayfa silmez)', (await evalJs(`document.querySelectorAll('.sayfa-karti').length`)) === kartlar && await kutuAcik());

@@ -77,6 +77,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
   // Otomatik kaydetme kapalı: kaydedilmemiş değişiklik soruları denetlenirken sekme kendiliğinden kaydedilmesin
   await evalJs(`(async () => { const a = { ciktiKlasoru: ${J(CIKTI)}, dondurmeKapsami: 'sayfa', otomatikKaydet: false };
     for (const [k, v] of Object.entries(a)) { await window.pdefe.cagir('ayar:koy', k, v); window.__pdefe.ayar()[k] = v; } return true; })()`);
+  // Sorular ana süreçteki test kuyruğuyla yanıtlanıp kaydedilsin (uygulama içi mesaj kutusu açılmaz; bkz. mesajKutusu.js)
+  await evalJs(`(() => { window.__pdefeYerelKutu = true; return true; })()`);
   await diyalogKaydi();
   await sekmeleriKapat();
 

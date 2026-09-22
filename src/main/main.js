@@ -309,7 +309,7 @@ function ipcKur() {
   ipcMain.handle('dosya:varMi', (_e, yol) => fs.existsSync(yol));
 
   // Yerel mesaj kutusu. Arayüz artık kendi mesaj kutusunu kullanır (renderer/mesajKutusu.js: aynı seçenekler, dışına tıklayınca kapanır);
-  // bu kanal geri uyum için duruyor, arayüzden çağrılmıyor.
+  // bu kanalı yalnızca test kancası (window.__pdefeYerelKutu; test kuyruğuyla yanıtlanan senaryolar) kullanır.
   ipcMain.handle('mesaj:kutu', async (_e, secenek) => {
     if (testDiyalog) return testDiyalog('mesaj:kutu', secenek, { secim: secenek.varsayilan ?? 0, onay: false });
     const s = await dialog.showMessageBox(pencere, {
