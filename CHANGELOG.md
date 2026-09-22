@@ -3,7 +3,7 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
-## 0.1.2 — 2026-09-17
+## 0.1.2 — 2026-09-22
 
 ### Görüntüleme ve kalite
 - Görseller referans okuyucudaki gibi keskin çizilir: küçülen JPEG sayfalar ve taramalar net; karekod, barkod gibi küçük görseller her yakınlaştırmada keskin kenarlı; fotoğraf ve taramalar çok büyütülünce pikselli değil yumuşak görünür.
