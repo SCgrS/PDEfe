@@ -5,6 +5,9 @@
 //    "Sürdür / Düzenlemeye dön" pencereyi açık bırakır.
 //  - İç içe: araç penceresinin üstündeki F1 / Ayarlar dışarı tıklamayla kapanır, araç penceresi açık kalır.
 //  - Açılır pencereler (açık belgeler listesi, Bul seçenekleri, Araçlar) dışarıda basışla kapanır; nota basış da kapatır.
+//  - Uygulama içi mesaj kutusu (otomatik yanıt kapalı): sekme kapatma sorusu (Kaydet / Kaydetme / Vazgeç: tık, Enter, Esc, dışarı tık;
+//    Tab, ← →), kutu açıkken belge ve uygulama tuşları, araç penceresinin / Ayarlar'ın / F1'in üstünde yalnızca kutunun kapanması,
+//    Küçült sürerken soru, döndürme sorusu ve "Seçeneğimi hatırla", yazı düzenlenirken açılan soru, üst üste kutular.
 // Kullanım: powershell -File test\baslat.ps1 -Port 9321 -Veri <klasör>; $env:PDEFE_CDP_PORT=9321; node test\surucu.mjs betik test\ortu_tiklama.mjs
 // Belgeler test/pdf'ten test/cikti/ortu'ya kopyalanır (asıllarına yazılmaz); araç çıktıları da oraya gider.
 import fs from 'node:fs';
@@ -24,7 +27,7 @@ function denetle(ad, kosul, ayrinti = '') {
   console.log(`${kosul ? 'TAMAM' : 'HATA '}  ${ad}${ayrinti ? '  — ' + ayrinti : ''}`);
 }
 
-export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, tus }) {
+export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, tus, yaz }) {
   fs.mkdirSync(K, { recursive: true });
   const kopyala = (kaynak, hedef) => { if (!fs.existsSync(hedef)) fs.copyFileSync(path.resolve('test/pdf', kaynak), hedef); };
   kopyala('dergipark_5104529_zamanasimi.pdf', A);
@@ -54,7 +57,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
     addEventListener('unhandledrejection', (e) => __t.hatalar.push('unhandledrejection: ' + (e.reason?.message || e.reason)));
     const ce = console.error.bind(console); console.error = (...a) => { __t.hatalar.push('console.error: ' + a.map(String).join(' ')); ce(...a); };
     const a = p.ayar(); a.ciktiKlasoru = ${js(K)}; a.otomatikKaydet = false;   // araç çıktıları Masaüstü'ne değil test klasörüne
-    // Önceki çalıştırmadan kalan pencereler kendi kapatma yollarıyla kapanır (araç penceresi kaydı, Ayarlar durumu bozulmasın)
+    // Önceki çalıştırmadan kalan pencereler kendi kapatma yollarıyla kapanır (araç penceresi kaydı, Ayarlar durumu bozulmasın); önce
+    // mesaj kutuları (Esc'i en üstteki kutu alır)
+    for (let i = 0; i < 10 && document.querySelector('.mesaj-ortusu'); i++) window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     window.__pdefeOtoYanit = { secim: 0 };
     document.querySelectorAll('.arac-ortusu .arac-kapat, .ayarlar-pencere [data-id="kapat"], .yazdir-diyalog [data-id="iptal"]').forEach((d) => d.click());
     document.querySelectorAll('.diyalog-ortusu').forEach((o) => o.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
@@ -89,7 +94,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   async function disariTikla(secici) { const n = await nokta(secici, null); if (n?.dis) await tikla(...n.dis); await bekle(350); return n; }
 
   // ---------------------------------------------------------------- F1: klavye kısayolları
-  const F1 = '.diyalog-ortusu:not(.ayarlar-ortusu):not(.yazdir-ortusu)';
+  const F1 = '.diyalog-ortusu:not(.ayarlar-ortusu):not(.yazdir-ortusu):not(.mesaj-ortusu)';
   await komut('yardim.kisayollar'); await bekle(300);
   await kapatmayanlar('F1', F1, '.diyalog .govde th');
   await ekranGoruntusu('test/png/ortu/f1-acik.png');
@@ -297,6 +302,188 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
     return { arac, kullanici: await kullanici, kapandi, sonuc: await p.sonuc, ortu: !!document.querySelector('.arac-ortusu') };
   })()`);
   denetle('Pencere.kapat: soru açıkken başka yoldan kapanınca "kapandi" bir kez gider', yaris.arac === true && yaris.kullanici === false && yaris.kapandi === 1 && yaris.sonuc === 'tamam' && !yaris.ortu, js(yaris));
+
+  // ================================================================ uygulama içi mesaj kutusu (otomatik yanıt kapalı, gerçek girdi)
+  await evalJs(`(delete window.__pdefeOtoYanit, true)`);
+  const tema = await evalJs(`document.documentElement.dataset.tema`);
+  const MK = '.mesaj-ortusu';
+  const kutuAcik = () => acikMi(MK);
+  const kutuBekle = () => beklet(`!!document.querySelector('.mesaj-kutusu')`, 5000);
+  const kutuBilgi = () => evalJs(`(() => {
+    const k = [...document.querySelectorAll('.mesaj-kutusu')].pop(); if (!k) return null;
+    const a = document.activeElement, ay = k.querySelector('.mesaj-ayrinti');
+    return { ileti: k.querySelector('.mesaj-ileti').textContent, ayrinti: ay.hidden ? null : ay.textContent, dugmeler: [...k.querySelectorAll('.dugmeler button')].map((b) => b.textContent),
+      odak: !a ? null : a.tagName === 'BUTTON' ? a.textContent : a.type === 'checkbox' ? 'onay kutusu' : a.className || a.tagName, tur: k.dataset.tur, onay: k.querySelector('.mesaj-onay input')?.checked ?? null, sayi: document.querySelectorAll('.mesaj-kutusu').length };
+  })()`);
+  const kutuDugmesi = (etiket) => evalJs(`(() => { const k = [...document.querySelectorAll('.mesaj-kutusu')].pop(); const b = [...k.querySelectorAll('.dugmeler button')].find((x) => x.textContent === ${js(etiket)}); const r = b.getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]; })()`);
+  const sekmeyeGec = (ad) => evalJs(`(async () => { const p = window.__pdefe; await p.sekmeSec([...p.belgeler.values()].find((x) => x.ad === ${js(ad)}).id); await new Promise((r) => setTimeout(r, 500)); return true; })()`);
+
+  // ---------------------------------------------------------------- sekme kapatma: Kaydet / Kaydetme / Vazgeç (tık, Enter, Esc, dışarı tık)
+  const KAPAT = path.join(K, 'kapatma.pdf');
+  fs.copyFileSync(path.resolve('test/pdf', 'dergipark_5104529_zamanasimi.pdf'), KAPAT);   // her çalıştırmada temiz kopya (Kaydet yazar)
+  const ilkDurum = (() => { const s = fs.statSync(KAPAT); return `${s.size}:${s.mtimeMs}`; })();
+  const dosyaDurum = () => { const s = fs.statSync(KAPAT); return `${s.size}:${s.mtimeMs}`; };
+  const kirlet = () => evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find((x) => x.ad === 'kapatma.pdf') || await p.dosyaAc(${js(KAPAT)}); await p.sekmeSec(b.id); await new Promise((r) => setTimeout(r, 900)); await p.sayfalariDondur(b, [1], 90, 'Sayfayı döndür'); await new Promise((r) => setTimeout(r, 300)); return b.degisti; })()`);
+  const sekmeX = () => evalJs(`(() => { const s = window.__pdefe.sekmeler.sekmeler.find((x) => x.ad === 'kapatma.pdf'); const r = s.el.querySelector('.kapat').getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]; })()`);
+  const sekmeVar = () => evalJs(`window.__pdefe.sekmeler.sekmeler.some((x) => x.ad === 'kapatma.pdf')`);
+  denetle('Mesaj kutusu: deneme belgesi değişti', await kirlet());
+  await tikla(...(await sekmeX())); await kutuBekle();
+  let kb = await kutuBilgi();
+  denetle('Sekme kapatma sorusu uygulama içinde açıldı, odak Kaydet\'te', /kaydedilmemiş değişiklikler var/.test(kb?.ileti) && kb.ayrinti === 'Kapatmadan önce kaydetmek ister misiniz?' && js(kb.dugmeler) === js(['Kaydet', 'Kaydetme', 'Vazgeç']) && kb.odak === 'Kaydet' && kb.tur === 'question', js(kb));
+  await ekranGoruntusu(`test/png/ortu/mesaj-sekme-kapat-${tema}.png`);
+  await kapatmayanlar('Mesaj kutusu', MK, '.mesaj-ileti');
+  const sayfaOnce = await evalJs(`window.__pdefe.aktif().gorunum.gecerli`);
+  await tus('End'); await tus('PageDown'); await tus('Delete'); await tus('1', ['ctrl']); await bekle(400);
+  denetle('Kutu açıkken belge tuşları ve Ctrl+1 çalışmaz, kutu açık kalır', (await evalJs(`window.__pdefe.aktif().gorunum.gecerli`)) === sayfaOnce && (await evalJs(`window.__pdefe.aktif().ad`)) === 'kapatma.pdf' && await kutuAcik());
+  await disariTikla(MK);
+  denetle('Sekme kapatma: dışarı tık = Vazgeç (sekme açık, değişiklik duruyor), odak × düğmesine döner', !(await kutuAcik()) && await sekmeVar() && await evalJs(`window.__pdefe.aktif().degisti`) && await evalJs(`!!document.activeElement?.closest('.sekme .kapat')`));
+  await tikla(...(await sekmeX())); await kutuBekle(); await tus('Escape'); await bekle(300);
+  denetle('Sekme kapatma: Esc = Vazgeç', !(await kutuAcik()) && await sekmeVar());
+  await tikla(...(await sekmeX())); await kutuBekle();
+  const odaklar = [];
+  for (const t of [[], [], [], ['shift'], ['shift']]) { await tus('Tab', t); odaklar.push((await kutuBilgi()).odak); }
+  await tus('ArrowRight'); odaklar.push((await kutuBilgi()).odak); await tus('ArrowLeft'); odaklar.push((await kutuBilgi()).odak);
+  denetle('Tab / Shift+Tab ve ← → düğmeler arasında döner', js(odaklar) === js(['Kaydetme', 'Vazgeç', 'Kaydet', 'Vazgeç', 'Kaydetme', 'Vazgeç', 'Kaydetme']), js(odaklar));
+  await tus('Tab'); await tus('Enter'); await bekle(300);
+  denetle('Enter odaklı düğmeye basar (Vazgeç: sekme açık)', !(await kutuAcik()) && await sekmeVar());
+  await tikla(...(await sekmeX())); await kutuBekle();
+  await tikla(...(await kutuDugmesi('Kaydetme'))); await beklet(`!window.__pdefe.sekmeler.sekmeler.some((x) => x.ad === 'kapatma.pdf')`, 5000);
+  denetle('Kaydetme (tık): sekme kapanır, dosya değişmez', !(await sekmeVar()) && dosyaDurum() === ilkDurum);
+  await kirlet();
+  await tikla(...(await sekmeX())); await kutuBekle(); await tus('Enter');
+  await beklet(`!window.__pdefe.sekmeler.sekmeler.some((x) => x.ad === 'kapatma.pdf')`, 10000);
+  denetle('Enter (varsayılan Kaydet): kaydedip kapatır, dosya değişti', !(await sekmeVar()) && dosyaDurum() !== ilkDurum && !(await kutuAcik()));
+
+  // ---------------------------------------------------------------- araç penceresinin üstünde araç sorusu (Sayfaları düzenle)
+  await sekmeyeGec('(2)TensipZapti (9).pdf');
+  await komut('arac.sayfalar'); await beklet(`document.querySelectorAll('.sayfa-karti').length > 0`); await bekle(500);
+  await tikla(...(await evalJs(`__t.merkez('.sayfalar-arac-cubugu [data-komut="tumunuSec"]')`))); await bekle(150);
+  await tikla(...(await evalJs(`__t.merkez('.sayfalar-arac-cubugu [data-komut="sagaDondur"]')`))); await bekle(300);
+  const kartlar = await evalJs(`document.querySelectorAll('.sayfa-karti').length`);
+  await disariTikla(AR); await kutuBekle();
+  kb = await kutuBilgi();
+  const ustte = await evalJs(`document.elementFromPoint(12, innerHeight >> 1)?.classList.contains('mesaj-ortusu')`);
+  denetle('Araç sorusu araç penceresinin üstünde açıldı (odak varsayılan "Düzenlemeye dön")', kb?.ileti === 'Sayfa düzeninde uygulanmamış değişiklikler var.' && kb.odak === 'Düzenlemeye dön' && ustte && await acikMi(AR), js(kb));
+  await ekranGoruntusu(`test/png/ortu/mesaj-arac-ustunde-${tema}.png`);
+  await tus('Delete'); await tus('a', ['ctrl']); await bekle(250);
+  denetle('Kutu açıkken tuşlar araç penceresine gitmez (Delete sayfa silmez)', (await evalJs(`document.querySelectorAll('.sayfa-karti').length`)) === kartlar && await kutuAcik());
+  await disariTikla(MK);
+  denetle('Kutunun dışına tık yalnızca kutuyu kapatır (Düzenlemeye dön), odak araç penceresine döner', !(await kutuAcik()) && await acikMi(AR) && await evalJs(`!!document.activeElement?.closest('.arac-pencere')`));
+  await tus('Escape'); await kutuBekle();
+  denetle('Araç penceresinde Esc soruyu yeniden açar', await kutuAcik());
+  await tus('Escape'); await bekle(300);
+  denetle('Kutuda Esc yalnızca kutuyu kapatır', !(await kutuAcik()) && await acikMi(AR));
+  await tikla(...(await evalJs(`__t.merkez('.arac-pencere .arac-kapat')`))); await kutuBekle();
+  await tikla(...(await kutuDugmesi('Kapat'))); await bekle(400);
+  denetle('"Kapat" (tık): kutu ve araç penceresi kapanır, belge değişmez', !(await kutuAcik()) && !(await acikMi(AR)) && !(await evalJs(`window.__pdefe.aktif().degisti`)));
+
+  // ---------------------------------------------------------------- Küçült sürerken (gerçek kutu)
+  await sekmeyeGec('buyuk.pdf');
+  await komut('arac.kucult'); await beklet(`!!document.querySelector('.kucult-pencere')`); await bekle(800);
+  await tikla(...(await evalJs(`__t.merkez('.arac-pencere .arac-dugmeler .birincil')`)));
+  await beklet(`!!document.querySelector('.arac-ilerleme:not([hidden])')`, 5000);
+  await disariTikla(AR); await kutuBekle();
+  kb = await kutuBilgi();
+  await tus('Enter'); await bekle(400);
+  denetle('Küçült sürerken: soru, Enter = varsayılan "Sürdür" (pencere açık, işlem sürüyor)', kb?.ileti === 'Küçültme sürüyor.' && kb.odak === 'Sürdür' && !(await kutuAcik()) && await acikMi(AR) && await evalJs(`!!document.querySelector('.arac-ilerleme:not([hidden]) .arac-ilerleme-iptal:not(:disabled)')`), js(kb));
+  await disariTikla(AR); await kutuBekle();
+  await tikla(...(await kutuDugmesi('İptal et ve kapat'))); await bekle(400);
+  denetle('Küçült: "İptal et ve kapat" (tık) pencereyi kapatır', !(await kutuAcik()) && !(await acikMi(AR)));
+  await bekle(1500);
+
+  // ---------------------------------------------------------------- döndürme sorusu ve "Seçeneğimi hatırla"
+  await sekmeyeGec('(2)TensipZapti (9).pdf');
+  await evalJs(`(async () => { window.__pdefe.ayar().dondurmeKapsami = 'sor'; await window.pdefe.cagir('ayar:koy', 'dondurmeKapsami', 'sor'); return true; })()`);
+  const donmeler = () => evalJs(`JSON.stringify(window.__pdefe.aktif().gorunum.tarif().map((t) => t.dondurme || 0))`);
+  const donmeOnce = await donmeler();
+  const kapsam = () => evalJs(`window.__pdefe.ayar().dondurmeKapsami`);
+  const dondurSor = async () => { await evalJs(`(window.__pdefe.komutCalistir('gorunum.dondur', 90), true)`); return kutuBekle(); };
+  await dondurSor();
+  kb = await kutuBilgi();
+  denetle('Döndürme sorusu: onay kutulu, odak "Geçerli sayfa"', kb?.ileti === 'Neyi döndürmek istiyorsunuz?' && js(kb.dugmeler) === js(['Geçerli sayfa', 'Tüm PDF', 'Vazgeç']) && kb.onay === false && kb.odak === 'Geçerli sayfa', js(kb));
+  await ekranGoruntusu(`test/png/ortu/mesaj-dondur-${tema}.png`);
+  await disariTikla(MK);
+  denetle('Döndürme: dışarı tık = Vazgeç (döndürülmez)', !(await kutuAcik()) && (await donmeler()) === donmeOnce && (await kapsam()) === 'sor');
+  await dondurSor();
+  await tikla(...(await evalJs(`__t.merkez('.mesaj-kutusu .mesaj-onay input')`))); await bekle(150);
+  const isaretli = (await kutuBilgi()).onay;
+  await tus('Escape'); await bekle(300);
+  denetle('Döndürme: onay kutusu işaretliyken Esc = Vazgeç (ayar değişmez, döndürülmez)', isaretli === true && !(await kutuAcik()) && (await donmeler()) === donmeOnce && (await kapsam()) === 'sor');
+  await dondurSor();
+  const yol2 = [];
+  for (const t of [[], [], []]) { await tus('Tab', t); yol2.push((await kutuBilgi()).odak); }
+  await tus(' '); await bekle(100); const bosluk = (await kutuBilgi()).onay;
+  await tus('Tab', ['shift']); await tus('Tab', ['shift']); yol2.push((await kutuBilgi()).odak);
+  await tus('Enter'); await bekle(600);
+  const donmeSonra = JSON.parse(await donmeler());
+  denetle('Döndürme: Tab onay kutusuna gelir, Boşluk işaretler, Enter "Tüm PDF": hepsi döner, ayar "tum" olur', js(yol2) === js(['Tüm PDF', 'Vazgeç', 'onay kutusu', 'Tüm PDF']) && bosluk === true && donmeSonra.every((d) => d === 90) && (await kapsam()) === 'tum', `${js(yol2)} bosluk=${bosluk} kapsam=${await kapsam()}`);
+  await komut('duzen.geriAl'); await bekle(400);
+  await evalJs(`(async () => { window.__pdefe.ayar().dondurmeKapsami = 'sor'; await window.pdefe.cagir('ayar:koy', 'dondurmeKapsami', 'sor'); return true; })()`);
+  denetle('Döndürme geri alındı', (await donmeler()) === donmeOnce);
+
+  // ---------------------------------------------------------------- yazı düzenlenirken açılan soru: Esc yalnızca soruyu kapatır
+  await evalJs(`(window.__pdefe.aktif().notlar.aracSec('yazi'), true)`);
+  const yaziNok = await evalJs(`(() => { const r = window.__pdefe.aktif().gorunum.sayfalar[0].el.getBoundingClientRect(); return [Math.round(r.left + 120), Math.round(r.top + 160)]; })()`);
+  await tikla(...yaziNok); await bekle(400);
+  await yaz('Deneme yazı');
+  const duzenleyici = () => evalJs(`(() => { const d = window.__pdefe.aktif().notlar.duzenleyici; return d ? { odakta: document.activeElement === d.el, metin: d.el.textContent } : null; })()`);
+  const d0 = await duzenleyici();
+  await dondurSor();
+  for (let i = 0; i < 3; i++) await tus('Tab');   // onay kutusu da bir girdi: odak ona geçince düzenleme bitmemeli
+  const d1 = await duzenleyici(), odak1 = (await kutuBilgi()).odak;
+  await tus('Escape'); await bekle(300);
+  const d2 = await duzenleyici();
+  denetle('Yazı düzenlenirken soru: onay kutusu ve Esc düzenlemeyi bitirmez, kapanınca imleç yazıya döner', d0?.odakta && d0.metin === 'Deneme yazı' && odak1 === 'onay kutusu' && d1 && !(await kutuAcik()) && d2?.odakta && d2.metin === 'Deneme yazı' && (await donmeler()) === donmeOnce, js({ d0, d1, odak1, d2 }));
+  await tus('Escape'); await bekle(400);
+  const yazi = await evalJs(`(() => { const n = window.__pdefe.aktif().notlar; return { duzenleyici: !!n.duzenleyici, yazi: [...n.notlar.values()].some((x) => x.tur === 'FreeText' && !x.silindi && ((x.icerik || '').includes('Deneme yazı') || JSON.stringify(x.yazi || {}).includes('Deneme yazı'))) }; })()`);
+  denetle('Ardından Esc düzenlemeyi uygular (yazı eklendi)', !yazi.duzenleyici && yazi.yazi, js(yazi));
+  await komut('duzen.geriAl'); await bekle(300);
+
+  // ---------------------------------------------------------------- kutu açıkken menü komutu ve pencere kapatma isteği yok sayılır
+  // (ana süreçten gelen olay test:olayGonder ile taklit edilir; CDP tuşu menü hızlandırıcısını tetiklemez)
+  await evalJs(`(window.__k = window.__pdefe.mesajKutusu({ mesaj: 'Menü denemesi', dugmeler: ['Tamam', 'Vazgeç'] }), true)`); await kutuBekle();
+  await evalJs(`window.pdefe.cagir('test:olayGonder', 'menu:komut', 'yardim.kisayollar')`); await bekle(300);
+  const dikkat = await evalJs(`document.querySelector('.mesaj-kutusu')?.classList.contains('dikkat')`);
+  denetle('Kutu açıkken menü komutu yok sayılır (F1 açılmaz), kutu belirginleşir', !(await acikMi(F1)) && dikkat && await kutuAcik());
+  await evalJs(`window.pdefe.cagir('test:olayGonder', 'pencere:kapatIstegi')`); await bekle(600);
+  kb = await kutuBilgi();
+  denetle('Kutu açıkken pencere kapatma isteği yok sayılır (ikinci soru açılmaz)', kb?.sayi === 1 && kb.ileti === 'Menü denemesi', js(kb));
+  await tus('Escape'); await bekle(200);
+  denetle('Kutu Esc ile Vazgeç döner', (await evalJs(`window.__k`)).secim === 1 && !(await kutuAcik()));
+  await evalJs(`window.pdefe.cagir('test:olayGonder', 'menu:komut', 'yardim.kisayollar')`); await bekle(300);
+  denetle('Kutu kapanınca menü komutu çalışır (F1 açılır)', await acikMi(F1));
+  await tus('Escape'); await bekle(200);
+
+  // ---------------------------------------------------------------- Ayarlar ve F1 üstünde, üst üste kutular, iptal varsayılanları
+  await komut('duzen.ayarlar'); await beklet(`!!document.querySelector('.ayarlar-ortusu')`);
+  const temaOnce = await evalJs(`window.__pdefe.ayar().tema`);
+  await tikla(...(await evalJs(`__t.merkez('.ayarlar-pencere [data-id="varsayilan"]')`))); await kutuBekle();
+  kb = await kutuBilgi();
+  await ekranGoruntusu(`test/png/ortu/mesaj-ayarlar-ustunde-${tema}.png`);
+  await disariTikla(MK);
+  denetle('Ayarlar üstünde "Varsayılanlara dön": dışarı tık yalnızca soruyu kapatır (Vazgeç), ayarlar değişmez', kb?.ileti === 'Bütün ayarlar varsayılan değerlere döndürülsün mü?' && kb.odak === 'Vazgeç' && !(await kutuAcik()) && await acikMi(AY) && (await evalJs(`window.__pdefe.ayar().tema`)) === temaOnce, js(kb));
+  await tikla(...(await evalJs(`__t.merkez('.ayarlar-pencere [data-id="varsayilan"]')`))); await kutuBekle();
+  await tus('Escape'); await bekle(250);
+  denetle('Ayarlar üstünde: kutuda Esc Ayarlar\'ı kapatmaz', !(await kutuAcik()) && await acikMi(AY));
+  await tus('Escape'); await bekle(250);
+  denetle('Ardından Esc Ayarlar\'ı kapatır', !(await acikMi(AY)));
+
+  await komut('yardim.kisayollar'); await bekle(300);
+  await evalJs(`(window.__k = window.__pdefe.mesajKutusu({ mesaj: 'F1 üstünde kutu', dugmeler: ['Tamam', 'Vazgeç'] }), true)`); await kutuBekle();
+  await disariTikla(MK);
+  denetle('F1 üstünde kutu: dışarı tık yalnızca kutuyu kapatır', (await evalJs(`window.__k`)).secim === 1 && await acikMi(F1));
+  await tus('Escape'); await bekle(250);
+  denetle('Ardından Esc F1\'i kapatır', !(await acikMi(F1)));
+
+  await evalJs(`(window.__k1 = window.__pdefe.mesajKutusu({ mesaj: 'Birinci', dugmeler: ['Evet', 'Hayır'] }), window.__k2 = window.__pdefe.mesajKutusu({ tur: 'error', mesaj: 'İkinci', dugmeler: ['Yeniden dene', 'Tamam', 'Vazgeç'], iptal: 1 }), true)`); await bekle(300);
+  await disariTikla(MK);
+  const ustUste = await evalJs(`(async () => ({ ikinci: await window.__k2, kalan: document.querySelectorAll('.mesaj-kutusu').length, kalanIleti: document.querySelector('.mesaj-ileti')?.textContent }))()`);
+  await tus('Escape'); await bekle(250);
+  denetle('Üst üste kutular: dışarı tık üsttekini verilen iptal ile kapatır, Esc alttakini son düğmeyle (iptal verilmedi)', ustUste.ikinci.secim === 1 && ustUste.kalan === 1 && ustUste.kalanIleti === 'Birinci' && (await evalJs(`window.__k1`)).secim === 1 && !(await kutuAcik()), js(ustUste));
+  await evalJs(`(window.__k = window.__pdefe.mesajKutusu({ mesaj: 'Düğmesiz' }), true)`); await kutuBekle();
+  kb = await kutuBilgi(); await tus('Escape'); await bekle(200);
+  denetle('Düğme verilmezse "Tamam", Esc 0 döner', js(kb.dugmeler) === js(['Tamam']) && (await evalJs(`window.__k`)).secim === 0);
+  await evalJs(`(window.__pdefeOtoYanit = { secim: 1 }, true)`);
 
   // ---------------------------------------------------------------- temizlik ve özet
   await evalJs(`(async () => { const p = window.__pdefe; window.__pdefeOtoYanit = { secim: 1 }; for (const s of [...p.sekmeler.sekmeler]) await p.belgeKapat(s.id, { zorla: true }); return true; })()`);
