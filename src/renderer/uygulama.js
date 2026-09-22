@@ -164,7 +164,7 @@ async function sekmeSec(id) {
   if (aktifId && aktifId !== id) {
     const eski = belgeler.get(aktifId);
     if (eski) {
-      eski.notlar?.balonKapat(); eski.notlar?.duzenleyiciBitir(true);
+      eski.notlar?.balonKapat(); eski.notlar?.notCubuguKapat(); eski.notlar?.duzenleyiciBitir(true);
       eski.el.hidden = true;
     }
   }
@@ -830,6 +830,7 @@ document.addEventListener('keydown', (e) => {
     if (n?.duzenleyici && !(girdideMi(e.target) && !n.duzenleyici.el.contains(e.target))) { n.duzenleyiciEsc(); return; }
     if (girdideMi()) { document.activeElement.blur(); aktif()?.gorunum.kaydirici.focus(); return; }
     if (n?.arac) { n.aracSec(null); return; }
+    if (n?.notCubuguId) { n.notCubuguKapat(); return; }
     if (n?.balon) { n.balonKapat(); return; }
     if (n?.secili) { n.sec(null); return; }
     if (okumaModu) { komutCalistir('gorunum.okumaModu'); return; }

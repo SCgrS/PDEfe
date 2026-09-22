@@ -16,6 +16,12 @@ export const VURGU_RENKLERI = [
   { ad: 'Yeşil', hex: '#7ee787' }, { ad: 'Mavi', hex: '#7cc4ff' }, { ad: 'Pembe', hex: '#ff9ad5' },
 ];
 export const YAZI_TIPLERI = ['Segoe UI', 'Arial', 'Times New Roman', 'Calibri'];
+// Yazı kutusu dolgu paleti (biçim çubuğundaki Dolgu rengi düğmesi): Dolgusuz, bu renkler ve Diğer renk (Windows renk seçicisi)
+const DOLGU_RENKLERI = [
+  { ad: 'Beyaz', hex: '#ffffff' }, { ad: 'Açık sarı', hex: '#fff7c2' }, { ad: 'Sarı', hex: '#ffd100' }, { ad: 'Açık turuncu', hex: '#ffe0b2' },
+  { ad: 'Açık kırmızı', hex: '#ffcdd2' }, { ad: 'Pembe', hex: '#f8bbd0' }, { ad: 'Lila', hex: '#d1c4e9' }, { ad: 'Açık yeşil', hex: '#c8e6c9' },
+  { ad: 'Açık mavi', hex: '#b3e5fc' }, { ad: 'Açık gri', hex: '#e0e0e0' },
+];
 // Yazı düzenleyicisindeki geri al / yinele adımlarının adları (araç çubuğu Geri al / Yinele ipuçları, ör. "Geri al: Yazma")
 const DUZENLEYICI_ADIMLARI = {
   yaz: 'Yazma', sil: 'Silme', kalin: 'Kalın', italik: 'İtalik', alti: 'Altı çizili', renk: 'Yazı rengi', arka: 'Dolgu rengi',
@@ -77,12 +83,14 @@ export class NotYoneticisi extends EventTarget {
     this._surukle = null;
     this._fareBekleniyor = false; // metin üzerinde basıldı, bırakılması bekleniyor (seçim çubuğu)
     this._cubukOnbellek = null;   // {anahtar, liste}: seçimin sayfa yerel kutuları (kaydırmada yeniden ölçülmez)
+    this.notCubugu = null;        // vurgu çubuğu (vurguya tıklayınca: renkler, not, kaldır); notCubuguId açık olduğu notun kimliği
+    this.notCubuguId = null;
     this.yuklendi = false;
 
     this.g.addEventListener('sayfaCizildi', (e) => { this.cizSayfa(e.detail.sayfa); this._cubukOnbellek = null; this.secimCubuguKonumla(); });
     this.g.addEventListener('metinKatmani', () => { if (this.balon) this.balonKonumla(); });
     this.g.addEventListener('sayfalar', () => this.sayfalarDegisti());
-    this.g.addEventListener('yerlesim', () => { this.hepsiniCiz(); this.balonKonumla(); this.duzenleyiciKonumla(); this._cubukOnbellek = null; this.secimCubuguKonumla(); });
+    this.g.addEventListener('yerlesim', () => { this.hepsiniCiz(); this.balonKonumla(); this.duzenleyiciKonumla(); this._cubukOnbellek = null; this.secimCubuguKonumla(); this.notCubuguKonumla(); });
     this.g.alan.addEventListener('pointerdown', (e) => this.pointerDown(e));
     // Kısa belgede tuval alanının altında kalan boş kaydırıcı alanına basış da "başka yere tıklama"dır (kaydırma çubukları hariç)
     this.g.kaydirici.addEventListener('pointerdown', (e) => {
@@ -94,7 +102,7 @@ export class NotYoneticisi extends EventTarget {
     this.g.alan.addEventListener('pointerover', (e) => this.pointerOver(e));
     this.g.alan.addEventListener('pointerout', (e) => this.pointerOut(e));
     // Seçim bitişi: metin üzerindeki basıştan sonra belge düzeyinde pointerup izlenir (secimBaslat)
-    this.g.kaydirici.addEventListener('scroll', () => { this.balonKonumla(); this.secimCubuguKonumla(); this.duzenleyiciCubukKonumla(); }, { passive: true });
+    this.g.kaydirici.addEventListener('scroll', () => { this.balonKonumla(); this.secimCubuguKonumla(); this.duzenleyiciCubukKonumla(); this.notCubuguKonumla(); }, { passive: true });
   }
 
   // ------------------------------------------------------------ yükleme ve model
@@ -255,7 +263,7 @@ export class NotYoneticisi extends EventTarget {
     this.dosyadanKalkti(n);
   }
 
-  degisti() { this.dispatchEvent(new CustomEvent('degisti')); }
+  degisti() { this.notCubuguYenile(); this.dispatchEvent(new CustomEvent('degisti')); }
 
   // ------------------------------------------------------------ koordinatlar
   vp(i) { return this.g.sayfalar[i] ? this.g.viewportAl(i) : null; }
@@ -573,6 +581,7 @@ export class NotYoneticisi extends EventTarget {
   }
 
   sec(id) {
+    if (this.notCubuguId && this.notCubuguId !== id) this.notCubuguKapat();
     this.secili = id;
     this.seciliIsaretle();
     this.dispatchEvent(new CustomEvent('secim', { detail: { id } }));
@@ -674,9 +683,12 @@ export class NotYoneticisi extends EventTarget {
       e.preventDefault();
       // Not simgesine tıklama: notu düzenlemek için açar (geçici balon kalıcı olur, metin kutusuna odaklanılır)
       if (hedef.classList.contains('not-simge')) { this.gosterimIptal(); this.balonAc(n, { odak: !n.kilitli, capa: 'simge' }); return; }
+      // Vurgu ailesine tıklama: vurgu çubuğu (renk, not, kaldır)
+      if (ISARET.has(n.tur)) { this.notCubuguAc(n); return; }
       if (TASINABILIR.has(n.tur) && !n.kilitli) this.surukleBaslat(n, hedef, e);
       return;
     }
+    this.notCubuguKapat();
     if (this.secili) this.sec(null);
     this.balonKapat();
   }
@@ -728,6 +740,7 @@ export class NotYoneticisi extends EventTarget {
     if (this.balon && this.balonNotId === id) { clearTimeout(this._gizleZaman); this.gosterimIptal(); return; }   // zaten bu notun balonu açık
     if (!this.balonGecici) clearTimeout(this._gizleZaman);
     if (this._surukle || this._fareBekleniyor || e.buttons || this.secimCubuguAcik()) return;
+    if (this.notCubuguId === id) return;   // vurgu çubuğu açık: notu çubuktaki düğme açar, balon çubuğun üstüne gelmesin
     const n = this.notlar.get(id);
     if (!this.balonluMu(n)) { this.gosterimIptal(); return; }   // kapatma planı (varsa) sürer
     if (this._gosterilecekId === id) return;   // gösterim zaten planlı (aynı notun parçaları arasında gezinirken ertelenmesin)
@@ -800,6 +813,7 @@ export class NotYoneticisi extends EventTarget {
   /** capa: 'simge' ise balon not simgesinin yanına, değilse notun kendisine (vurgunun ilk satırına) göre konur. */
   balonAc(n, { gecici = false, odak = false, capa = null } = {}) {
     this.duzenleyiciBitir(true);   // açık yazı düzenlemesi uygulanır (balondan aynı yazı silinebilir ya da metni değiştirilebilirdi)
+    if (!gecici || n.id === this.notCubuguId) this.notCubuguKapat();
     this.balonKapat();
     const b = document.createElement('div');
     b.className = 'not-balonu' + (gecici ? ' gecici' : '');
@@ -958,6 +972,7 @@ export class NotYoneticisi extends EventTarget {
 
   // ------------------------------------------------------------ araçlar
   aracSec(arac) {
+    this.notCubuguKapat();
     // Metin seçiliyken Yapışkan not aracı (düğme ya da menü) seçimi notlu vurguya çevirir; araç açılmaz
     if (arac === 'not' && this.arac !== 'not' && this.secimKatmani() && this.secimeNotKoy()) return;
     this.arac = this.arac === arac ? null : arac;
@@ -1118,6 +1133,102 @@ export class NotYoneticisi extends EventTarget {
   }
 
   secimCubuguGizle() { cubukSahibi = null; this._cubukOnbellek = null; const c = this.cubuk(); if (c) c.hidden = true; }
+
+  // ------------------------------------------------------------ vurgu çubuğu
+  /**
+   * Vurgu ailesinden bir nota (vurgu, altı / üstü çizili, dalgalı; referans okuyucuda eklenenler dahil) tıklanınca altında açılan çubuk: renkler
+   * (seçim çubuğundakiler; varsayılan vurgu rengini değiştirmez), Not ekle / Notu düzenle, Kaldır. Seçim çubuğu gibi görünür alana
+   * kırpılır, kaydırmada ve yakınlaştırmada notu izler, not görünümden çıkınca gizlenir. Başka yere basış, Esc, araç seçimi, sekme
+   * değişimi, notun silinmesi ya da kalıcı balonun açılması kapatır. Renk değişince açık kalır; değişiklik geri alınabilir.
+   */
+  notCubuguAc(n) {
+    if (!n || !ISARET.has(n.tur)) return;
+    let c = this.notCubugu;
+    if (!c) {
+      c = this.notCubugu = document.createElement('div');
+      c.className = 'not-cubugu';
+      c.setAttribute('role', 'toolbar');
+      c.hidden = true;
+      // Basış odağı ve metin seçimini değiştirmesin, belge (pointerDown) başka yere basıldı sanmasın
+      c.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
+      c.addEventListener('pointerdown', (e) => e.stopPropagation());
+      c.addEventListener('click', (e) => this.notCubuguTikla(e));
+      this.alan.append(c);
+    }
+    if (this.balon && this.balonGecici && this.balonNotId === n.id) this.balonKapat();   // üzerine gelince açılmış balon çubuğu örtmesin
+    this.gosterimIptal();
+    this.notCubuguId = n.id;
+    this.notCubuguCiz();
+    this.notCubuguKonumla();
+  }
+
+  notCubuguKapat() {
+    this.notCubuguId = null;
+    if (this.notCubugu) this.notCubugu.hidden = true;
+  }
+
+  /** Not değişince (renk, geri al / yinele): çubuk kendi notunu yeniden gösterir; not silindiyse kapanır. */
+  notCubuguYenile() {
+    if (!this.notCubuguId) return;
+    const n = this.notlar.get(this.notCubuguId);
+    if (!n || n.silindi) { this.notCubuguKapat(); return; }
+    this.notCubuguCiz();
+    this.notCubuguKonumla();
+  }
+
+  notCubuguCiz() {
+    const c = this.notCubugu, n = this.notlar.get(this.notCubuguId);
+    if (!c || !n) return;
+    const kilitli = !!n.kilitli, renk = String(n.renk || '').toLowerCase();
+    const notVar = !!this.notMetni(n) || this.yanitlari(n).length > 0;
+    const kaldirIpucu = kilitli ? 'Not kilitli' : `${n.tur === 'Highlight' ? 'Vurguyu' : 'İşareti'} kaldır (Delete)`;
+    c.setAttribute('aria-label', turAdi(n.tur));
+    c.innerHTML = VURGU_RENKLERI.map((r) => `<button class="renk${r.hex === renk ? ' secili' : ''}" data-renk="${r.hex}" title="${kilitli ? 'Not kilitli' : r.ad}" style="--r:${r.hex}"${kilitli ? ' disabled' : ''}></button>`).join('')
+      + '<span class="ayrac"></span>'
+      + `<button class="ikon kucuk metinli" data-islem="not" title="${notVar ? 'Notu aç' : 'Bu vurguya not ekle'}"><svg viewBox="0 0 20 20"><path d="M3 4.5A1.5 1.5 0 0 1 4.5 3h11A1.5 1.5 0 0 1 17 4.5v8a1.5 1.5 0 0 1-1.5 1.5H9l-4 3v-3H4.5A1.5 1.5 0 0 1 3 12.5z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span>${notVar ? 'Notu düzenle' : 'Not ekle'}</span></button>`
+      + `<button class="ikon kucuk metinli" data-islem="kaldir" title="${kaldirIpucu}"${kilitli ? ' disabled' : ''}><svg viewBox="0 0 20 20"><path d="M4 6h12M8 6V4.5h4V6M6 6l.8 10h6.4L14 6M8.6 9v4.5M11.4 9v4.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg><span>Kaldır</span></button>`;
+  }
+
+  notCubuguTikla(e) {
+    const b = e.target.closest('button');
+    const n = this.notlar.get(this.notCubuguId);
+    if (!b || b.disabled || !n) return;
+    if (b.dataset.renk) {
+      if (String(n.renk || '').toLowerCase() !== b.dataset.renk) this.guncelle(n, { renk: b.dataset.renk }, `${turAdi(n.tur)} rengini değiştir`);
+      return;
+    }
+    if (b.dataset.islem === 'not') { this.notCubuguKapat(); this.sec(n.id); this.balonAc(n, { odak: !n.kilitli }); return; }
+    if (b.dataset.islem === 'kaldir') { this.notCubuguKapat(); this.sil(n); }
+  }
+
+  /**
+   * Çubuğun konumu: notun görünür parçalarının birleşiminin altında ortalı (yer yoksa üstünde), görünür belge alanına kırpılır.
+   * Not görünür alanda değilse (kaydırıldı, sekme gizli) gizlenir, çubuk açık sayılır; görününce geri gelir.
+   */
+  notCubuguKonumla() {
+    const c = this.notCubugu;
+    if (!c || !this.notCubuguId) return;
+    const kay = this.g.kaydirici;
+    const parcalar = [...this.g.alan.querySelectorAll(`g[data-id="${this.notCubuguId}"] rect`)];
+    if (!parcalar.length || !kay.clientWidth || !kay.clientHeight) { c.hidden = true; return; }
+    const kk = kay.getBoundingClientRect(), alanK = this.alan.getBoundingClientRect();
+    const gl = kk.left, gt = kk.top, gr = kk.left + kay.clientWidth, gb = kk.top + kay.clientHeight;   // kaydırma çubukları hariç
+    let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+    for (const p of parcalar) {
+      const d = p.getBoundingClientRect();
+      const x0 = Math.max(d.left, gl), x1 = Math.min(d.right, gr), y0 = Math.max(d.top, gt), y1 = Math.min(d.bottom, gb);
+      if (x1 > x0 && y1 > y0) { l = Math.min(l, x0); r = Math.max(r, x1); t = Math.min(t, y0); b = Math.max(b, y1); }
+    }
+    if (!(r > l)) { c.hidden = true; return; }
+    c.hidden = false;
+    const P = 8, w = c.offsetWidth, h = c.offsetHeight;
+    const sol = Math.max(0, gl - alanK.left), sag = Math.min(alanK.width, gr - alanK.left), ust = Math.max(0, gt - alanK.top), alt = Math.min(alanK.height, gb - alanK.top);
+    let y = b - alanK.top + P;
+    if (y + h > alt - P) y = t - alanK.top - h - P;
+    y = Math.max(ust + P, Math.min(alt - h - P, y));
+    const x = Math.max(sol + P, Math.min(sag - w - P, (l + r) / 2 - alanK.left - w / 2));
+    c.style.left = x + 'px'; c.style.top = y + 'px';
+  }
 
   // ------------------------------------------------------------ yazı (FreeText)
   varsayilanYazi() {
@@ -1323,8 +1434,15 @@ export class NotYoneticisi extends EventTarget {
       <select class="tip" title="Yazı tipi">${YAZI_TIPLERI.map((t) => `<option>${t}</option>`).join('')}</select>
       <input class="boyut" type="number" min="6" max="72" step="1" title="Boyut (pt)">
       <label class="renk-etiket" title="Yazı rengi"><span class="ornek"></span><input class="renk" type="color"></label>
-      <label class="renk-etiket" title="Dolgu rengi"><span class="ornek arka"></span><input class="arka-renk" type="color"></label>
-      <button class="ikon kucuk arka-yok" title="Dolgusuz">∅</button>
+      <span class="dolgu-kap">
+        <button class="ikon kucuk dolgu-dugme" title="Dolgu rengi" aria-haspopup="menu" aria-expanded="false"><span class="ornek arka"></span><svg class="ok" viewBox="0 0 20 20"><path d="m6 8 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
+        <input class="arka-renk" type="color" tabindex="-1" aria-hidden="true">
+        <div class="dolgu-paleti" role="menu" aria-label="Dolgu rengi" hidden>
+          <button class="dolgu-dolgusuz" data-arka="" role="menuitemradio"><span class="ornek arka"></span>Dolgusuz</button>
+          <div class="dolgu-renkler">${DOLGU_RENKLERI.map((r) => `<button class="dolgu-renk" data-arka="${r.hex}" title="${r.ad}" role="menuitemradio" style="--r:${r.hex}"></button>`).join('')}</div>
+          <button class="dolgu-diger" data-islem="diger">Diğer renk</button>
+        </div>
+      </span>
       <button class="ikon kucuk kalin" title="Kalın (Ctrl+B)"><b>K</b></button>
       <button class="ikon kucuk italik" title="İtalik (Ctrl+I)"><i>T</i></button>
       <button class="ikon kucuk alti" title="Altı çizili (Ctrl+U)"><u>A</u></button>
@@ -1342,8 +1460,28 @@ export class NotYoneticisi extends EventTarget {
     // seçimde ilk karakterin rengi) 'input' olayı gelsin
     const komsu = (hex) => '#' + (parseInt(hex.slice(1), 16) ^ 1).toString(16).padStart(6, '0');
     b.querySelector('input.renk').addEventListener('click', (e) => { e.target.value = komsu(this.duzenleyiciEtkinStil().renk || d.yazi.renk); });
-    b.querySelector('input.arka-renk').addEventListener('click', (e) => { e.target.value = komsu(d.yazi.arka || '#ffffff'); });
-    b.querySelector('button.arka-yok').addEventListener('click', () => this.duzenleyiciKutu({ arka: null }));
+    // Dolgu rengi: düğme paleti açar (Dolgusuz, hazır renkler, Diğer renk → Windows renk seçicisi). Ayrı Dolgusuz düğmesi yok.
+    // Esc ve paletin dışına basış yalnızca paleti kapatır; düzenleme sürer
+    const kap = b.querySelector('.dolgu-kap'), palet = kap.querySelector('.dolgu-paleti'), dolguDugme = kap.querySelector('.dolgu-dugme');
+    const disBasis = (e) => { if (!kap.contains(e.target)) paletKapat(); };
+    const paletKapat = () => { palet.hidden = true; dolguDugme.setAttribute('aria-expanded', 'false'); document.removeEventListener('pointerdown', disBasis, true); };
+    d.dolguPaletiKapat = paletKapat;
+    d.dolguPaletiAcik = () => !palet.hidden;
+    dolguDugme.addEventListener('click', () => {
+      if (!palet.hidden) { paletKapat(); return; }
+      palet.hidden = false; dolguDugme.setAttribute('aria-expanded', 'true');
+      palet.classList.remove('yukari');
+      const r = palet.getBoundingClientRect(), a = this.alan.getBoundingClientRect();
+      if (r.bottom > a.bottom - 4 && r.top - r.height - dolguDugme.offsetHeight - 12 > a.top) palet.classList.add('yukari');   // altta yer yok
+      document.addEventListener('pointerdown', disBasis, true);
+    });
+    palet.addEventListener('click', (e) => {
+      const s = e.target.closest('button'); if (!s) return;
+      paletKapat();
+      if (s.dataset.islem === 'diger') { const g = kap.querySelector('input.arka-renk'); g.value = komsu(d.yazi.arka || '#ffffff'); g.click(); return; }
+      const arka = s.dataset.arka ? s.dataset.arka.toLowerCase() : null;
+      if (arka !== (d.yazi.arka || null)) this.duzenleyiciKutu({ arka });
+    });
     b.querySelector('button.kalin').addEventListener('click', () => this.duzenleyiciBicim('kalin'));
     b.querySelector('button.italik').addEventListener('click', () => this.duzenleyiciBicim('italik'));
     b.querySelector('button.alti').addEventListener('click', () => this.duzenleyiciBicim('alti'));
@@ -1359,6 +1497,7 @@ export class NotYoneticisi extends EventTarget {
       e.stopPropagation();
       if (e.key !== 'Escape' || e.isComposing) return;
       e.preventDefault();
+      if (!palet.hidden) { paletKapat(); return; }
       if (e.target.matches('input.boyut')) e.target.blur();
       this.duzenleyiciEsc();
     });
@@ -1371,11 +1510,17 @@ export class NotYoneticisi extends EventTarget {
     const b = d.bicim, st = this.duzenleyiciEtkinStil();
     const bas = (sec, acik) => { const x = b.querySelector(sec); x.classList.toggle('secili', !!acik); x.setAttribute('aria-pressed', acik ? 'true' : 'false'); };
     bas('button.kalin', st.kalin); bas('button.italik', st.italik); bas('button.alti', st.alti);
-    bas('button.arka-yok', !d.yazi.arka); bas('button.kenar', d.yazi.kenarlik);
+    bas('button.kenar', d.yazi.kenarlik);
     const renk = st.renk || d.yazi.renk;
     b.querySelector('span.ornek:not(.arka)').style.background = renk;
     // Dolgusuzda satranç deseni (CSS) görünsün: background kısaltması desen görselini de siler
-    b.querySelector('span.ornek.arka').style.background = d.yazi.arka || '';
+    b.querySelector('.dolgu-dugme span.ornek.arka').style.background = d.yazi.arka || '';
+    b.querySelector('.dolgu-dugme').title = d.yazi.arka ? 'Dolgu rengi' : 'Dolgu rengi: Dolgusuz';
+    const arka = String(d.yazi.arka || '').toLowerCase();
+    for (const x of b.querySelectorAll('.dolgu-paleti [data-arka]')) {
+      const secili = x.dataset.arka === arka;
+      x.classList.toggle('secili', secili); x.setAttribute('aria-checked', secili ? 'true' : 'false');
+    }
     const deger = (sec, v) => { const x = b.querySelector(sec); if (document.activeElement !== x && x.value !== String(v)) x.value = v; };
     deger('input.renk', renk); deger('input.arka-renk', d.yazi.arka || '#ffffff');
     deger('select.tip', d.yazi.tip); deger('input.boyut', d.yazi.boyut);
@@ -1603,6 +1748,7 @@ export class NotYoneticisi extends EventTarget {
    */
   duzenleyiciEsc() {
     const d = this.duzenleyici; if (!d) return;
+    if (d.dolguPaletiAcik?.()) { d.dolguPaletiKapat(); return; }   // açık dolgu paleti önce kendisi kapanır (odak düzenleyicide kalır)
     this.duzenleyiciBitir(true);
     const odak = document.activeElement;
     if (!odak || odak === document.body) this.g.kaydirici.focus({ preventScroll: true });
@@ -1615,6 +1761,7 @@ export class NotYoneticisi extends EventTarget {
     document.removeEventListener('selectionchange', d.secimDinle);
     const n = d.not;
     const metin = duzMetin(d.parcalar);
+    d.dolguPaletiKapat?.();   // belge düzeyindeki dış basış dinleyicisi kalmasın
     d.el.remove(); d.bicim.remove(); d.tut?.remove(); d.bt?.remove();
     const sayfaEl = this.g.sayfalar[n.sayfa - 1].el;
     for (const el of sayfaEl.querySelectorAll(`.not-oge[data-id="${n.id}"]`)) el.style.visibility = '';
@@ -1638,7 +1785,7 @@ export class NotYoneticisi extends EventTarget {
     else this.cizSayfa(n.sayfa);
   }
 
-  yokEt() { this.gosterimIptal(); this.balonKapat(); this.duzenleyiciBitir(false); if (cubukSahibi === this) this.secimCubuguGizle(); }
+  yokEt() { this.gosterimIptal(); this.balonKapat(); this.duzenleyiciBitir(false); if (cubukSahibi === this) this.secimCubuguGizle(); this.notCubuguKapat(); this.notCubugu?.remove(); }
 }
 
 /** PyMuPDF vertices (8 nokta/quad: x,y çiftleri, 4 nokta bir quad) → satır kutuları [x0,y0,x1,y1] */

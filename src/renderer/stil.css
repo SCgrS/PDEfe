@@ -409,6 +409,11 @@ body.okuma-modu.ust-goster #arac-cubugu { display: flex; position: absolute; top
 .not-isaretler.not-vurgular g.not-hover-simgeden { filter: none; }
 .not-simge.not-secili svg { filter: drop-shadow(0 0 1.5px var(--vurgu)) drop-shadow(0 0 1px var(--vurgu)); }
 .not-freetext-yerli { white-space: pre-wrap; word-wrap: break-word; overflow: hidden; cursor: default; user-select: none; }
+/* Koyulaştırılmış sayfa (tuval invert + hue-rotate ile gösterilir, goruntuleyici tuvalGoster): yazı kutuları, yazı düzenleyicisi ve çizim
+   notları da aynı dönüşümle görünür; siyah yazı beyaz, beyaz dolgu siyah olur, renkler tonunu korur. Dosyadaki renk değişmez. Önceden
+   siyah yazı siyah sayfada görünmüyordu. Damga ve ek gibi görsel notlar sayfadaki görseller gibi özgün renginde kalır. */
+.koyu-sayfa .not-freetext, .koyu-sayfa .yazi-duzenleyici, .koyu-sayfa .not-ink, .koyu-sayfa .not-line, .koyu-sayfa .not-square,
+.koyu-sayfa .not-circle, .koyu-sayfa .not-polygon, .koyu-sayfa .not-polyline { filter: invert(1) hue-rotate(180deg); }
 .not-bilinmeyen { border: 1px dashed rgba(128,128,128,0.6); font-size: 10px; color: var(--metin-soluk); display: flex; align-items: center; justify-content: center; }
 .arac-not .sayfa, .arac-yazi .sayfa { cursor: crosshair; }
 .arac-not .textLayer span, .arac-yazi .textLayer span { cursor: crosshair; }
@@ -434,6 +439,26 @@ body.okuma-modu.ust-goster #arac-cubugu { display: flex; position: absolute; top
 .yazi-bicim .renk-etiket input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
 .yazi-bicim .ornek { width: 18px; height: 18px; border-radius: 4px; border: 1px solid var(--kenar); display: block; background-image: linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%),linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%); background-size: 8px 8px; background-position: 0 0,4px 4px; }
 .yazi-bicim .ornek:not(.arka) { background-image: none; }
+/* Dolgu rengi düğmesi ve paleti (Dolgusuz, hazır renkler, Diğer renk); Windows renk seçicisinin girdisi görünmez, düğmenin altında */
+.yazi-bicim .dolgu-kap { position: relative; display: inline-flex; }
+.yazi-bicim button.dolgu-dugme { width: auto; padding: 0 1px 0 4px; gap: 1px; }
+.yazi-bicim button.dolgu-dugme svg.ok { width: 12px; height: 12px; opacity: 0.7; }
+.yazi-bicim button.dolgu-dugme[aria-expanded="true"] { background: var(--basili); }
+.yazi-bicim .dolgu-kap input.arka-renk { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; border: 0; padding: 0; }
+.dolgu-paleti {
+  position: absolute; top: calc(100% + 8px); left: -6px; z-index: 41; display: flex; flex-direction: column; gap: 6px; padding: 8px;
+  background: var(--arka-yukseltilmis); border: 1px solid var(--kenar); border-radius: 8px; box-shadow: var(--golge);
+}
+.dolgu-paleti.yukari { top: auto; bottom: calc(100% + 8px); }
+.dolgu-paleti .dolgu-renkler { display: grid; grid-template-columns: repeat(5, 24px); gap: 6px; padding: 0 4px; }
+.dolgu-paleti .dolgu-renk { width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--kenar); background: var(--r); padding: 0; cursor: pointer; }
+.dolgu-paleti .dolgu-renk:hover { transform: scale(1.1); }
+.dolgu-paleti .dolgu-dolgusuz, .dolgu-paleti .dolgu-diger {
+  display: flex; align-items: center; gap: 8px; border: none; background: transparent; color: var(--metin); padding: 4px 6px; border-radius: 4px;
+  text-align: left; cursor: pointer; white-space: nowrap;
+}
+.dolgu-paleti .dolgu-dolgusuz:hover, .dolgu-paleti .dolgu-diger:hover { background: var(--hover); }
+.dolgu-paleti .dolgu-renk.secili, .dolgu-paleti .dolgu-dolgusuz.secili .ornek { outline: 2px solid var(--vurgu); outline-offset: 1px; }
 button.ikon.kucuk { width: 26px; height: 26px; }
 button.ikon.kucuk svg { width: 16px; height: 16px; }
 
@@ -455,15 +480,18 @@ button.ikon.kucuk svg { width: 16px; height: 16px; }
 .not-balonu .yanit .ust { padding: 0 0 3px; background: transparent; border: none; }
 .not-balonu .yanit .metin { white-space: pre-wrap; word-break: break-word; }
 
-/* Seçim mini çubuğu */
-#secim-cubugu {
+/* Seçim mini çubuğu ve vurgu çubuğu (vurguya tıklayınca: renkler, not, kaldır; notlar.js notCubuguAc) */
+#secim-cubugu, .not-cubugu {
   position: absolute; z-index: 30; display: flex; align-items: center; gap: 4px; padding: 4px 6px;
   background: var(--arka-yukseltilmis); border: 1px solid var(--kenar); border-radius: 8px; box-shadow: var(--golge);
 }
-#secim-cubugu .renk { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; background: var(--r); cursor: pointer; padding: 0; }
-#secim-cubugu .renk:hover { transform: scale(1.12); }
-#secim-cubugu .renk.secili { border-color: var(--metin); }
-#secim-cubugu .ayrac { height: 16px; }
+#secim-cubugu .renk, .not-cubugu .renk { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; background: var(--r); cursor: pointer; padding: 0; }
+#secim-cubugu .renk:hover, .not-cubugu .renk:hover:not(:disabled) { transform: scale(1.12); }
+#secim-cubugu .renk.secili, .not-cubugu .renk.secili { border-color: var(--metin); }
+#secim-cubugu .ayrac, .not-cubugu .ayrac { height: 16px; }
+.not-cubugu .renk:disabled { opacity: 0.45; cursor: default; }
+.not-cubugu button.ikon.metinli { width: auto; gap: 4px; padding: 0 7px 0 5px; font-size: 12px; white-space: nowrap; }
+.not-cubugu button.ikon.metinli svg { width: 16px; height: 16px; }
 
 /* Yorumlar paneli ek */
 .yorum .ust .renk { width: 9px; height: 9px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0,0,0,.25); flex-shrink: 0; align-self: center; }
