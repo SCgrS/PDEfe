@@ -10,7 +10,8 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 
 ## Ne yapar
 
-- **Sekmeler.** Birden çok PDF tek pencerede; sekmeler sürüklenerek sıralanır. `Ctrl+Tab` basılı tutulunca
+- **Sekmeler.** Birden çok PDF tek pencerede; sekmeler aynı genişliktedir (uzun ad üç noktayla kısalır, tam ad ve yol
+  ipucunda) ve sürüklenerek sıralanır. `Ctrl+Tab` basılı tutulunca
   son kullanılan sırayla sekme seçici açılır; `Ctrl+1` – `Ctrl+9` ile doğrudan sekmeye gidilir. Bir belge yeniden
   açıldığında kalınan sayfadan devam edilir. Kaydedilmemiş değişiklik sorusu sekme ya da pencere kapatılırken çıkar.
 - **Keskin görüntü.** Yazılar referans okuyucu gibi harflerin ana hatlarından çizilir: kalın yazılar referans okuyucudan koyu
@@ -34,15 +35,19 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   geri kalanına dokunulmaz.
 - **Geri al / yinele.** Her not ve sayfa işlemi `Ctrl+Z` / `Ctrl+Y` ile geri alınır; kayıttan sonra bile.
 - **Araçlar** (araç çubuğundaki **Araçlar** düğmesi ya da Araçlar menüsü): **PDF küçült** (üç hazır seviye, boyut
-  tahmini), **Sayfaları düzenle** (küçük resim ızgarasında sürükleyerek sıralama, silme, döndürme, boş sayfa ya da
-  başka PDF'ten sayfa ekleme), **Döndür ve kaydet**, **PDF ayır** (sayfa aralığı, her N sayfada bir, seçili sayfalar,
-  her sayfa ayrı dosya), **Görüntü / PDF birleştir** (görüntü ve PDF'lerden tek PDF; sürükle-bırak, `Ctrl+V`, Panodan
-  ekle ya da sağ tık Yapıştır; Orijinal / Yüksek / Orta / Düşük kalite düğmelerinde toplam tahmini boyut), **Paylaş**.
-  Küçült ve Döndür'de "Yeni belge olarak kaydet" (varsayılan; klasör Masaüstü) ya da "Üzerine yaz" (yedeksiz,
-  güvenli yer değiştirme) seçilir. Uzun işlerde ilerleme çubuğu ve iptal.
+  tahmini), **Sayfaları düzenle** (küçük resim ızgarasında sürükleyerek sıralama, boş alandan sürükleyerek çoklu seçim,
+  silme, döndürme, boş sayfa ya da başka PDF'ten sayfa ekleme), **Döndür ve kaydet**, **PDF ayır** (sayfa aralığı, her
+  N sayfada bir, seçili sayfalar, her sayfa ayrı dosya), **Görüntü / PDF birleştir** (görüntü ve PDF'lerden tek PDF;
+  sürükle-bırak, `Ctrl+V`, Panodan ekle ya da sağ tık Yapıştır; Orijinal / Yüksek / Orta / Düşük kalite düğmelerinde
+  toplam tahmini boyut; "Orijinal boyut"ta sayfa tam görsel boyutunda). Küçült, Sayfaları düzenle, Döndür ve Ayır'da
+  "Yeni belge olarak kaydet" (varsayılan; klasör Masaüstü) ya da "Üzerine yaz" (yedeksiz, güvenli yer değiştirme)
+  seçilir: Küçült'te ve Ayır'da üzerine yazma geri alınamaz (uyarı gösterilir), Döndür'de ve Sayfaları düzenle'de
+  `Ctrl+Z` ile geri alınır; Ayır'da yalnızca tek dosya üreten ayırmada kullanılabilir. Uzun işlerde ilerleme çubuğu ve
+  iptal. Açık bir pencerenin dışına (arkadaki karartılmış alana) tıklamak onu kapatır.
 - **Yazdır** (`Ctrl+P`): sayfa aralığı, kâğıt boyutu, sayfaya sığdırma; sayfalar görüntü olarak basıldığından
   Türkçe karakterler ekrandaki gibi çıkar. Notlar istenirse basılır ("Notları yazdır" varsayılan olarak kapalı).
-- **Paylaş.** Belgeyi dosya olarak panoya kopyalar; UYAP'a, e-postaya ya da Gezgin'e `Ctrl+V` veya Yapıştır ile yapıştırılır.
+- **Paylaş** (araç çubuğunun sağındaki düğme ya da Araçlar menüsü). Belgeyi dosya olarak panoya kopyalar; UYAP'a,
+  e-postaya ya da Gezgin'e `Ctrl+V` veya Yapıştır ile yapıştırılır.
 - **Koyu mod.** Sistem temasını izler; istenirse sayfa da tam siyaha koyulaştırılır (görseller korunur; yazı kutuları
   sayfayla birlikte koyulaşır, dosyadaki renkleri değişmez).
 - **Döndür.** Döndür düğmesi ve `Ctrl+Shift++` / `Ctrl+Shift+−` belgeyi döndürür: geçerli sayfa ya da tüm PDF
