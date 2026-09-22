@@ -1,10 +1,11 @@
-// Araçlar penceresi: araç çubuğundaki "Araçlar" düğmesinin altında açılan karolar. Her karoda büyük simge, araç adı ve tek satırlık
-// açıklama vardır; seçilen araç Araçlar menüsündeki (menu.js) komut kimliğiyle çalıştırılır.
+// Araçlar penceresi: araç çubuğundaki "Araçlar" düğmesinin altında açılan karolar (PDF küçült, Sayfaları düzenle, Döndür ve kaydet,
+// PDF ayır, Görüntü / PDF birleştir). Her karoda büyük simge, araç adı ve tek satırlık açıklama vardır; seçilen araç Araçlar menüsündeki
+// (menu.js) komut kimliğiyle çalıştırılır. Paylaş'ın karosu yok: araç çubuğundaki düğmesi ve Araçlar menüsündeki öğesiyle çalışır.
 // Esc, dışarı tıklama ya da araç seçimi pencereyi kapatır; ok tuşları, Tab, Home ve End karolar arasında gezer, Enter / Boşluk seçer.
 
 const simge = (ic) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ic}</svg>`;
 
-/** Karolar, Araçlar menüsündeki sırayla. belge: açık bir PDF gerektirir (yoksa karo devre dışı görünür ve seçilemez). */
+/** Karolar, Araçlar menüsündeki araçların sırasıyla. belge: açık bir PDF gerektirir (yoksa karo devre dışı görünür ve seçilemez). */
 export const ARACLAR = [
   {
     komut: 'arac.kucult', ad: 'PDF küçült', aciklama: 'Dosya boyutunu azaltır', renk: 'yesil', belge: true,
@@ -35,12 +36,6 @@ export const ARACLAR = [
     ipucu: 'Görüntü ve PDF belgelerini birleştirerek tek bir PDF oluşturur',
     // Görüntü çerçevesi ve önünde artılı sayfa (sayfa dolgusu arkadaki çizgileri örter)
     ikon: '<rect x="2.5" y="3" width="11.5" height="9.5" rx="1.5"/><path d="m2.75 11 3.5-3.5 3 3 1.75-1.75 2.75 2.75"/><circle cx="10.25" cy="6.25" r="1"/><path class="dolgu" d="M10.25 9.25h6.5l4.25 4.25v8h-10.75z"/><path d="M16.75 9.25v4.25H21M15.6 15v4.5M13.35 17.25h4.5"/>',
-  },
-  {
-    komut: 'arac.paylas', ad: 'Paylaş', aciklama: 'Dosyayı panoya kopyalar', renk: 'camgobegi', belge: true,
-    ipucu: 'Dosyayı panoya kopyalar; Ctrl+V veya Yapıştır ile UYAP\'a, e-postaya ya da bir klasöre yapıştırabilirsiniz',
-    // Tepsiden yukarı çıkan ok
-    ikon: '<path d="M12 15V3.5M7.5 8 12 3.5 16.5 8"/><path d="M4.75 12.5v6.25a2.25 2.25 0 0 0 2.25 2.25h10a2.25 2.25 0 0 0 2.25-2.25V12.5"/>',
   },
 ];
 

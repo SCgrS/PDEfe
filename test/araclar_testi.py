@@ -10,12 +10,16 @@ import os
 import sys
 import json
 import time
+import stat
 import shutil
+import hashlib
+import contextlib
 import subprocess
 import traceback
 
 KOK = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(KOK, "core"))
+sys.stdout.reconfigure(encoding="utf-8")
 
 import pymupdf  # noqa: E402
 
@@ -61,6 +65,88 @@ def belge_ozet(yol):
                 "rect": [(round(pg.rect.width), round(pg.rect.height)) for pg in d]}
     finally:
         d.close()
+
+
+def md5(yol):
+    with open(yol, "rb") as f:
+        return hashlib.md5(f.read()).hexdigest()
+
+
+def notlu_pdf_uret(yol):
+    """Masaüstündeki notlu deneme dosyası yoksa yerine: 6 sayfa, 1. sayfada notlu vurgu (+Popup) ve yapışkan not (2 not)."""
+    d = pymupdf.open()
+    for i in range(6):
+        d.new_page(width=595, height=842).insert_text((72, 100), "Deneme sayfası %d" % (i + 1), fontsize=18)
+    pg = d[0]
+    v = pg.add_highlight_annot(pymupdf.Rect(70, 82, 260, 106))
+    v.set_info(content="Vurgu notu", title="Test")
+    v.set_popup(pymupdf.Rect(300, 80, 500, 180))
+    v.update()
+    pg.add_text_annot(pymupdf.Point(400, 300), "Yapışkan not").update()
+    d.save(yol)
+    d.close()
+    return yol
+
+
+def zengin_pdf_uret(yol, sayfa_sayisi=8):
+    """Her sayfada "Sayfa N" metni, notlu vurgu (+Popup) ve yapışkan not; 1. sayfada 3. sayfaya iç bağlantı, 2. sayfada dış bağlantı,
+    5. sayfada 2. sayfaya iç bağlantı; iki düzeyli yer imleri (her sayfaya bir tane)."""
+    d = pymupdf.open()
+    for i in range(sayfa_sayisi):
+        pg = d.new_page(width=595, height=842)
+        pg.insert_text((72, 100), "Sayfa %d" % (i + 1), fontsize=24)
+        v = pg.add_highlight_annot(pymupdf.Rect(70, 78, 190, 106))
+        v.set_info(content="Vurgu notu %d" % (i + 1), title="Test")
+        v.set_popup(pymupdf.Rect(300, 80, 500, 180))
+        v.update()
+        pg.add_text_annot(pymupdf.Point(400, 300), "Yapışkan not %d" % (i + 1)).update()
+    d[0].insert_link({"kind": pymupdf.LINK_GOTO, "from": pymupdf.Rect(72, 200, 250, 220), "page": 2, "to": pymupdf.Point(72, 100)})
+    d[1].insert_link({"kind": pymupdf.LINK_URI, "from": pymupdf.Rect(72, 200, 250, 220), "uri": "https://example.com/pdefe"})
+    d[4].insert_link({"kind": pymupdf.LINK_GOTO, "from": pymupdf.Rect(72, 200, 250, 220), "page": 1, "to": pymupdf.Point(72, 100)})
+    d.set_toc([[1, "Bölüm A", 1], [2, "A.1", 2], [2, "A.2", 3], [1, "Bölüm B", 4], [2, "B.1", 5], [2, "B.2", 6],
+               [1, "Bölüm C", 7], [2, "C.1", 8]])
+    d.save(yol)
+    d.close()
+    return yol
+
+
+# Kopyalanan sayfada beklenen notlar (page.annots() Popup'ları vermez). insert_pdf Popup, yanıt (IRT) ve form alanı notlarını kopyalamaz;
+# yapısal kayıt (yapisal.py tarif_belgesi), ayırma ve yeni belge aynı yolu kullanır (sayfa_ozeti popup sayısını ayrıca verir).
+NOT_TURLERI = ["Highlight", "Text"]
+
+
+def sayfa_ozeti(yol):
+    """Sayfa başına: ilk metin satırı, not türleri (sıralı; Popup'sız), Popup sayısı, döndürme, bağlantılar; ayrıca yer imleri
+    [(başlık, sayfa)]."""
+    d = pymupdf.open(yol)
+    try:
+        sayfalar = []
+        for pg in d:
+            metin = pg.get_text().strip()
+            sayfalar.append({"metin": metin.split("\n")[0] if metin else "", "not": sorted(a.type[1] for a in pg.annots()),
+                             "popup": sum(1 for x in pg.annot_xrefs() if x[1] == pymupdf.PDF_ANNOT_POPUP),
+                             "rot": pg.rotation, "rect": (round(pg.rect.width), round(pg.rect.height)),
+                             "baglanti": [(l.get("page") if l["kind"] == pymupdf.LINK_GOTO else l.get("uri")) for l in pg.get_links()]})
+        return sayfalar, [(t[1], t[2]) for t in d.get_toc()]
+    finally:
+        d.close()
+
+
+@contextlib.contextmanager
+def kilitli(yol, paylasim=0):
+    """Dosyayı Windows'ta başka bir program gibi açık tutar (test/kilitle.py): paylasim=0 okumayı da engeller (özel kilit),
+    1 (FILE_SHARE_READ) referans okuyucu gibi yalnızca okumaya izin verir (yazma / yer değiştirme olmaz)."""
+    import ctypes
+    from ctypes import wintypes
+    k32 = ctypes.windll.kernel32
+    k32.CreateFileW.restype = wintypes.HANDLE
+    h = k32.CreateFileW(yol, 0x80000000, paylasim, None, 3, 0, None)
+    if h == wintypes.HANDLE(-1).value:
+        raise OSError("kilitlenemedi: %d" % ctypes.GetLastError())
+    try:
+        yield
+    finally:
+        k32.CloseHandle(h)
 
 
 # ---------------------------------------------------------------- çağrı köprüsü
@@ -444,7 +530,216 @@ def test_dondur_kaydet(c):
     os.remove(kopya)
 
 
+def test_ayir_uzerine(c):
+    """PDF ayır "Üzerine yaz": özgün dosyada yalnızca ayrılan sayfalar kalır; notlar ve kalan sayfaların yer imleri korunur,
+    "(2)" adı ve geçici dosya kalmaz; birden çok dosya üreten ayırmada, salt okunur ya da kilitli dosyada özgün dosya değişmez."""
+    klasor = os.path.join(CIKTI, "ayir_uzerine")
+    shutil.rmtree(klasor, ignore_errors=True)
+    os.makedirs(klasor)
+    kaynak = zengin_pdf_uret(os.path.join(klasor, "_kaynak.pdf"))
+    # 1) Seçili sayfalar (sırasız verilir, sıralı kalır)
+    yol = os.path.join(klasor, "secili.pdf")
+    shutil.copy(kaynak, yol)
+    r, il = c.cagir("ayir", {"yol": yol, "mod": "secili", "sayfalar": [7, 2, 5], "uzerine": True})
+    sayfalar, toc = sayfa_ozeti(yol)
+    ok = (r["dosyalar"] == [yol] and r.get("uzerine") is True and r["ayrintilar"][0]["sayfa"] == 3
+          and [s["metin"] for s in sayfalar] == ["Sayfa 2", "Sayfa 5", "Sayfa 7"]
+          and all(s["not"] == NOT_TURLERI for s in sayfalar)
+          and sayfalar[0]["baglanti"] == ["https://example.com/pdefe"]
+          and toc == [("A.1", 1), ("B.1", 2), ("Bölüm C", 3)]
+          and sorted(os.listdir(klasor)) == ["_kaynak.pdf", "secili.pdf"]
+          and (not il or il[-1]["yuzde"] < 100))
+    kaydet_sonuc("ayir/uzerine", "secili [7,2,5]", ok, "sayfalar=%s notlar=%s toc=%s klasör=%s son ilerleme=%s"
+                 % ([s["metin"] for s in sayfalar], ["%d+%d popup" % (len(s["not"]), s["popup"]) for s in sayfalar], toc,
+                    sorted(os.listdir(klasor)), il[-1] if il else None))
+    # 2) Tek aralık
+    yol = os.path.join(klasor, "aralik.pdf")
+    shutil.copy(kaynak, yol)
+    r, _ = c.cagir("ayir", {"yol": yol, "mod": "aralik", "araliklar": "3-6", "uzerine": True})
+    sayfalar, toc = sayfa_ozeti(yol)
+    ok = ([s["metin"] for s in sayfalar] == ["Sayfa 3", "Sayfa 4", "Sayfa 5", "Sayfa 6"]
+          and all(s["not"] == NOT_TURLERI for s in sayfalar)
+          and toc == [("A.2", 1), ("Bölüm B", 2), ("B.1", 3), ("B.2", 4)] and r["dosyalar"] == [yol]
+          and not [a for a in os.listdir(klasor) if a.endswith(".pdefe-tmp") or "(2)" in a])
+    kaydet_sonuc("ayir/uzerine", "aralik 3-6", ok, "sayfalar=%s toc=%s" % ([s["metin"] for s in sayfalar], toc))
+    # 3) Birden çok dosya üreten ayırmada üzerine yazılmaz, dosya değişmez
+    yol = os.path.join(klasor, "coklu.pdf")
+    shutil.copy(kaynak, yol)
+    once = md5(yol)
+    for params in ({"mod": "aralik", "araliklar": "1-2, 4"}, {"mod": "herN", "n": 3}, {"mod": "tek"}):
+        try:
+            c.cagir("ayir", dict(params, yol=yol, uzerine=True))
+            kaydet_sonuc("ayir/uzerine/coklu", params["mod"], False, "hata beklenirdi")
+        except Exception as e:
+            kaydet_sonuc("ayir/uzerine/coklu", params["mod"], "tek dosya" in str(e) and md5(yol) == once
+                         and sorted(os.listdir(klasor)) == ["_kaynak.pdf", "aralik.pdf", "coklu.pdf", "secili.pdf"], str(e).splitlines()[0])
+    # 4) Salt okunur: özgün dosya değişmez, ileti salt okunur der
+    yol = os.path.join(klasor, "salt.pdf")
+    shutil.copy(kaynak, yol)
+    once = md5(yol)
+    os.chmod(yol, stat.S_IREAD)
+    try:
+        c.cagir("ayir", {"yol": yol, "mod": "secili", "sayfalar": [1], "uzerine": True})
+        kaydet_sonuc("ayir/uzerine/salt okunur", "salt.pdf", False, "hata beklenirdi")
+    except Exception as e:
+        kaydet_sonuc("ayir/uzerine/salt okunur", "salt.pdf", "salt okunur" in str(e) and md5(yol) == once
+                     and not [a for a in os.listdir(klasor) if a.endswith(".pdefe-tmp")], str(e).splitlines()[0])
+    finally:
+        os.chmod(yol, stat.S_IREAD | stat.S_IWRITE)
+    # 5) Başka programda açık: yalnızca okumaya izin veren (referans okuyucu gibi) ve okumayı da engelleyen kilit
+    for paylasim, ad in ((1, "okumaya açık kilit"), (0, "özel kilit")):
+        yol = os.path.join(klasor, "kilitli_%d.pdf" % paylasim)
+        shutil.copy(kaynak, yol)
+        once = md5(yol)
+        try:
+            with kilitli(yol, paylasim):
+                c.cagir("ayir", {"yol": yol, "mod": "secili", "sayfalar": [1, 2], "uzerine": True})
+            kaydet_sonuc("ayir/uzerine/kilitli", ad, False, "hata beklenirdi")
+        except Exception as e:
+            kaydet_sonuc("ayir/uzerine/kilitli", ad, "başka bir programda açık" in str(e) and md5(yol) == once
+                         and not [a for a in os.listdir(klasor) if a.endswith(".pdefe-tmp")], str(e).splitlines()[0])
+    # 6) Yazmadan önce iptal: özgün dosya değişmez (yalnızca doğrudan modülde; iptal ilerleme bildiriminde denetlenir)
+    if not c.surec:
+        yol = os.path.join(klasor, "iptal.pdf")
+        shutil.copy(kaynak, yol)
+        once = md5(yol)
+
+        def iptal_eden(yuzde, mesaj=""):
+            if yuzde >= 30:
+                raise InterruptedError("İşlem iptal edildi.")
+        try:
+            c.yontemler["ayir"]({"yol": yol, "mod": "secili", "sayfalar": [1], "uzerine": True, "_ilerleme": iptal_eden})
+            kaydet_sonuc("ayir/uzerine/iptal", "iptal.pdf", False, "iptal beklenirdi")
+        except InterruptedError:
+            kaydet_sonuc("ayir/uzerine/iptal", "iptal.pdf", md5(yol) == once and not [a for a in os.listdir(klasor) if a.endswith(".pdefe-tmp")],
+                         "özgün dosya değişmedi")
+
+
+def test_sayfalar_yeni_belge(c):
+    """Sayfaları düzenle "Yeni belge olarak kaydet" (sayfalar_uygula, renderer'ın gönderdiği biçimde): sıra, döndürme, boş sayfa, başka
+    PDF'ten sayfa; notlar, bağlantılar ve kalan sayfaların yer imleri korunur; özgün dosya değişmez; yazdıktan sonra ilerleme yok.
+    Aynı tarif yapısal kayıtla (yapisal_kaydet) da yazılıp notlar/bağlantılar karşılaştırılır."""
+    klasor = os.path.join(CIKTI, "sayfalar_yeni")
+    shutil.rmtree(klasor, ignore_errors=True)
+    os.makedirs(klasor)
+    kaynak = zengin_pdf_uret(os.path.join(klasor, "zengin.pdf"))
+    once = md5(kaynak)
+    hedef = os.path.join(klasor, "zengin (düzenlenmiş).pdf")
+    tarif = [{"kaynak": kaynak, "sayfa": 1, "dondurme": 0}, {"kaynak": kaynak, "sayfa": 2, "dondurme": 0},
+             {"kaynak": kaynak, "sayfa": 3, "dondurme": 90},
+             {"kaynak": None, "sayfa": None, "genislik": 400, "yukseklik": 300, "dondurme": 0},
+             {"kaynak": YATAY, "sayfa": 1, "dondurme": 0}, {"kaynak": kaynak, "sayfa": 6, "dondurme": 180}]
+    r, il = c.cagir("sayfalar_uygula", {"yol": kaynak, "hedef": hedef, "tarif": tarif})
+    sayfalar, toc = sayfa_ozeti(hedef)
+    ok = (r["sayfa"] == 6 and r["boyut"] == os.path.getsize(hedef) and md5(kaynak) == once
+          and [s["metin"] for s in sayfalar][:4] == ["Sayfa 1", "Sayfa 2", "Sayfa 3", ""] and sayfalar[5]["metin"] == "Sayfa 6"
+          and [s["rot"] for s in sayfalar][:4] == [0, 0, 90, 0] and sayfalar[5]["rot"] == 180 and sayfalar[3]["rect"] == (400, 300)
+          and all(sayfalar[i]["not"] == NOT_TURLERI for i in (0, 1, 2, 5))
+          and sayfalar[0]["baglanti"] == [2] and sayfalar[1]["baglanti"] == ["https://example.com/pdefe"]
+          and toc == [("Bölüm A", 1), ("A.1", 2), ("A.2", 3), ("B.2", 6)]
+          and (not il or il[-1]["yuzde"] <= 85) and not [a for a in os.listdir(klasor) if a.endswith(".pdefe-tmp")])
+    kaydet_sonuc("sayfalar_uygula/yeni", "zengin + boş + YATAY", ok, "metin=%s rot=%s notlar=%s bağlantı=%s toc=%s son ilerleme=%s"
+                 % ([s["metin"][:10] for s in sayfalar], [s["rot"] for s in sayfalar], ["%d+%d popup" % (len(s["not"]), s["popup"]) for s in sayfalar],
+                    [s["baglanti"] for s in sayfalar], toc, il[-1] if il else None))
+    # Aynı tarifin yapısal kayıttaki sonucu (sekmenin Ctrl+S yolu): notlar ve bağlantılar aynı mı
+    if not c.surec:
+        kopya = os.path.join(klasor, "yapisal.pdf")
+        shutil.copy(kaynak, kopya)
+        yapisal_tarif = [{"kaynak": {"yol": kopya if t["kaynak"] == kaynak else t["kaynak"], "sayfa": t["sayfa"]} if t["kaynak"] else None,
+                          "dondurme": t["dondurme"], "genislik": t.get("genislik"), "yukseklik": t.get("yukseklik")} for t in tarif]
+        r2, _ = c.cagir("yapisal_kaydet", {"yol": kopya, "hedef": kopya, "tarif": yapisal_tarif, "anlikKlasor": os.path.join(klasor, "anlik")})
+        y_sayfalar, y_toc = sayfa_ozeti(kopya)
+        ayni = [s["not"] for s in y_sayfalar] == [s["not"] for s in sayfalar] and [s["baglanti"] for s in y_sayfalar] == [s["baglanti"] for s in sayfalar]
+        kaydet_sonuc("sayfalar_uygula/yeni", "yapısal kayıtla karşılaştırma", ayni,
+                     "yapısal notlar=%s bağlantı=%s toc=%s" % ([len(s["not"]) for s in y_sayfalar], [s["baglanti"] for s in y_sayfalar], y_toc))
+    # Hedef başka programda açık (yalnızca okumaya izin veren kilit): var olan hedef değişmez, ileti kilidi söyler
+    kilitli_hedef = os.path.join(klasor, "kilitli hedef.pdf")
+    shutil.copy(YATAY, kilitli_hedef)
+    once_hedef = md5(kilitli_hedef)
+    try:
+        with kilitli(kilitli_hedef, 1):
+            c.cagir("sayfalar_uygula", {"yol": kaynak, "hedef": kilitli_hedef, "tarif": tarif[:2]})
+        kaydet_sonuc("sayfalar_uygula/kilitli hedef", "okumaya açık kilit", False, "hata beklenirdi")
+    except Exception as e:
+        kaydet_sonuc("sayfalar_uygula/kilitli hedef", "okumaya açık kilit", "başka bir programda açık" in str(e) and md5(kilitli_hedef) == once_hedef,
+                     str(e).splitlines()[0])
+
+
+def test_gorsel_orijinal_kenarsiz(c):
+    """Görüntü / PDF birleştir "Orijinal boyut": sayfa görselin kendisidir, kenar boşluğu (verilen kenar yok sayılır) ve yuvarlamadan
+    kıl payı beyaz çizgi yoktur. Sayfa 72 dpi'de (%100) çizilir: dört kenarın bütün pikselleri görselin çerçeve rengindedir.
+    JPEG (olduğu gibi gömülen ve yeniden kodlanan), PNG (saydamlıksız ve saydam), döndürülmüş öğe ve EXIF'le döndürülmüş fotoğraf.
+    A4'e sığdır ise kenarı korur (kenarlar beyaz)."""
+    from PIL import Image, ImageDraw
+    klasor = os.path.join(CIKTI, "gorsel_orijinal")
+    shutil.rmtree(klasor, ignore_errors=True)
+    os.makedirs(klasor)
+    CERCEVE = (200, 30, 30)
+
+    def cerceveli(boyut, kip="RGB", kalinlik=8):
+        saydam = kip == "RGBA"
+        im = Image.new(kip, boyut, CERCEVE + ((255,) if saydam else ()))
+        ImageDraw.Draw(im).rectangle((kalinlik, kalinlik, boyut[0] - 1 - kalinlik, boyut[1] - 1 - kalinlik),
+                                     fill=(40, 90, 200) + ((110,) if saydam else ()))
+        return im
+
+    yollar = {}
+    yollar["jpeg"] = os.path.join(klasor, "cerceve.jpg")
+    cerceveli((1200, 900)).save(yollar["jpeg"], quality=92)
+    yollar["png"] = os.path.join(klasor, "cerceve.png")
+    cerceveli((640, 480)).save(yollar["png"])
+    yollar["png_saydam"] = os.path.join(klasor, "cerceve_saydam.png")
+    cerceveli((500, 400), "RGBA").save(yollar["png_saydam"])
+    yollar["png_dondur"] = os.path.join(klasor, "cerceve_dondur.png")
+    cerceveli((300, 200)).save(yollar["png_dondur"])
+    yollar["exif"] = os.path.join(klasor, "foto_exif6.jpg")
+    exif = Image.Exif()
+    exif[0x0112] = 6
+    cerceveli((4032, 3024), kalinlik=24).save(yollar["exif"], quality=90, exif=exif.tobytes())
+    # (öğe, beklenen sayfa ölçüsü pt; None: A4)
+    vakalar = [
+        ({"yol": yollar["jpeg"], "kalite": "orijinal"}, (1200, 900), "JPEG olduğu gibi"),
+        ({"yol": yollar["jpeg"], "kalite": "orta"}, (1200, 900), "JPEG yeniden kodlanmış"),
+        ({"yol": yollar["png"], "kalite": "orijinal"}, (640, 480), "PNG"),
+        ({"yol": yollar["png_saydam"], "kalite": "orijinal"}, (500, 400), "PNG saydam"),
+        ({"yol": yollar["png_dondur"], "kalite": "orijinal", "dondurme": 90}, (200, 300), "PNG 90° döndürülmüş"),
+        ({"yol": yollar["exif"], "kalite": "orijinal"}, (726, 968), "EXIF 6 fotoğraf (300 dpi)"),
+        ({"yol": yollar["png"], "kalite": "orijinal", "sayfaBoyutu": "a4"}, None, "A4'e sığdır (kenar 20)"),
+    ]
+    ogeler = [dict({"tur": "gorsel", "sayfaBoyutu": "orijinal", "kenar": 20}, **o) for o, _, _ in vakalar]
+    hedef = os.path.join(klasor, "orijinal_boyut.pdf")
+    c.cagir("birlestir", {"ogeler": ogeler, "hedef": hedef, "genelKalite": "orijinal"})
+    d = pymupdf.open(hedef)
+    try:
+        for i, (_, beklenen, ad) in enumerate(vakalar):
+            pg = d[i]
+            pix = pg.get_pixmap(alpha=False)   # 72 dpi: 1 pt = 1 piksel
+            w, h = pix.width, pix.height
+            kenar = [pix.pixel(x, 0) for x in range(w)] + [pix.pixel(x, h - 1) for x in range(w)] \
+                + [pix.pixel(0, y) for y in range(h)] + [pix.pixel(w - 1, y) for y in range(h)]
+            fark = max(max(abs(p[k] - CERCEVE[k]) for k in range(3)) for p in kenar)
+            beyaz = sum(1 for p in kenar if min(p) >= 235)
+            bbox = pymupdf.Rect(pg.get_image_info()[0]["bbox"])
+            olcu = (round(pg.rect.width, 3), round(pg.rect.height, 3))
+            if beklenen is None:
+                ok = beyaz == len(kenar) and bbox.x0 >= 20 and pg.rect.contains(bbox)
+                ayrinti = "sayfa=%s görsel=%s kenar pikselleri beyaz=%d/%d" % (olcu, tuple(round(v, 1) for v in bbox), beyaz, len(kenar))
+            else:
+                ok = (olcu == beklenen and (w, h) == beklenen and max(abs(a - b) for a, b in zip(bbox, pg.rect)) < 1e-3
+                      and beyaz == 0 and fark <= 60)
+                ayrinti = "sayfa=%s px=%dx%d görsel kutusu=sayfa:%s kenar pikselleri beyaz=%d/%d çerçeveden en büyük fark=%d" % (
+                    olcu, w, h, max(abs(a - b) for a, b in zip(bbox, pg.rect)) < 1e-3, beyaz, len(kenar), fark)
+            kaydet_sonuc("birlestir/orijinal", ad, ok, ayrinti)
+    finally:
+        d.close()
+    # Boyut tahmini orijinal boyutta kenara bakmaz (arayüz kenarı gizler; eski değer tahmini değiştirmemeli)
+    t0, _ = c.cagir("boyut_tahmini", {"oge": {"yol": yollar["png"], "tur": "gorsel", "kalite": "orijinal", "sayfaBoyutu": "orijinal", "kenar": 0}})
+    t1, _ = c.cagir("boyut_tahmini", {"oge": {"yol": yollar["png"], "tur": "gorsel", "kalite": "orijinal", "sayfaBoyutu": "orijinal", "kenar": 25}})
+    kaydet_sonuc("boyut_tahmini/orijinal", "kenar 0 ve 25", t0["boyut"] == t1["boyut"] and t0["ozet"] == t1["ozet"], "%d / %d bayt" % (t0["boyut"], t1["boyut"]))
+
+
 def main():
+    global NOTLU
     exe = None
     if "--exe" in sys.argv:
         exe = os.path.abspath(sys.argv[sys.argv.index("--exe") + 1])
@@ -452,6 +747,9 @@ def main():
             print("exe bulunamadı:", exe)
             return 2
     os.makedirs(CIKTI, exist_ok=True)
+    if not os.path.isfile(NOTLU):
+        NOTLU = notlu_pdf_uret(os.path.join(CIKTI, "notlu_uretilen.pdf"))
+        print("Notlu deneme dosyası yok; yerine üretildi:", NOTLU)
     for yol in (TBK, NOTLU, GORSELLI, YATAY, YERIMLI, BUYUK, TTK):
         if not os.path.isfile(yol):
             print("Test dosyası yok:", yol)
@@ -469,10 +767,13 @@ def main():
         ("kucult_tahmin/seviyeler", lambda: test_kucult_tahmin_seviyeler(c)),
         ("kucult", lambda: test_kucult(c)),
         ("sayfalar_uygula", lambda: test_sayfalar_uygula(c)),
+        ("sayfalar_uygula/yeni belge", lambda: test_sayfalar_yeni_belge(c)),
         ("ayir", lambda: test_ayir(c)),
+        ("ayir/uzerine", lambda: test_ayir_uzerine(c)),
         ("gorsel_bilgi", lambda: test_gorsel_bilgi(c, g)),
         ("boyut_tahmini", lambda: test_boyut_tahmini(c, g)),
         ("birlestir", lambda: test_birlestir(c, g)),
+        ("birlestir/orijinal boyut", lambda: test_gorsel_orijinal_kenarsiz(c)),
         ("dondur_kaydet", lambda: test_dondur_kaydet(c)),
     ]
     for ad, f in testler:

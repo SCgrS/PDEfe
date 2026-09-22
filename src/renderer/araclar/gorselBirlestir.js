@@ -341,7 +341,11 @@ export class BirlestirmePenceresi {
     if (!o) return;
     const t = e.target;
     if (t.matches('.oge-kalite')) { o.kalite = t.value || null; this._tahminleriYaz(); this.tahminGeciktir(); }
-    else if (t.matches('.oge-sayfa-boyutu')) { o.sayfaBoyutu = t.value; this._tahminleriYaz(); this.tahminGeciktir(); }
+    else if (t.matches('.oge-sayfa-boyutu')) {
+      o.sayfaBoyutu = t.value;
+      el.querySelector('.oge-kenar-alani').hidden = o.sayfaBoyutu === 'orijinal';
+      this._tahminleriYaz(); this.tahminGeciktir();
+    }
     else if (t.matches('.oge-kenar')) { const v = parseFloat(t.value); o.kenar = Number.isFinite(v) ? Math.max(0, Math.min(50, v)) : 10; this._tahminleriYaz(); this.tahminGeciktir(); }
   }
 
@@ -371,7 +375,7 @@ export class BirlestirmePenceresi {
           <span class="tahmin secilebilir"></span>
           <span class="gorsel-ayar" hidden>
             <label>Sayfa <select class="arac-girdi oge-sayfa-boyutu"><option value="a4">A4'e sığdır</option><option value="orijinal">Orijinal boyut</option></select></label>
-            <label>Kenar <input type="number" class="arac-girdi oge-kenar" min="0" max="50" step="1"> mm</label>
+            <label class="oge-kenar-alani">Kenar <input type="number" class="arac-girdi oge-kenar" min="0" max="50" step="1"> mm</label>
           </span>
         </div>
         <span class="hata secilebilir" hidden></span>
@@ -424,6 +428,8 @@ export class BirlestirmePenceresi {
     hata.hidden = !o.hata; hata.textContent = o.hata || '';
     el.querySelector('.ayarlar').hidden = !!o.hata;
     el.querySelector('.gorsel-ayar').hidden = o.tur !== 'gorsel';
+    // Orijinal boyutta sayfa görselin kendisidir, kenar boşluğu yoktur: kenar yalnızca "A4'e sığdır"da ayarlanır
+    el.querySelector('.oge-kenar-alani').hidden = o.sayfaBoyutu === 'orijinal';
     el.querySelector('.oge-kalite').value = o.kalite || '';
     el.querySelector('.oge-kalite').querySelector('option[value=""]').textContent = `Genel (${KALITELER.find((k) => k.id === this.genelKalite)?.ad || ''})`;
     this._ogeTahminYaz(o, el);
@@ -446,9 +452,12 @@ export class BirlestirmePenceresi {
   /** Kalite hariç öğe parametresi: tahmin önbelleğinin anahtarı (PDF'te boyutu döndürme değiştirmez). */
   _tahminAnahtari(o) {
     const p = { yol: o.yol, tur: o.tur };
-    if (o.tur === 'gorsel') { p.sayfaBoyutu = o.sayfaBoyutu; p.kenar = o.kenar; p.dondurme = o.dondurme; }
+    if (o.tur === 'gorsel') { p.sayfaBoyutu = o.sayfaBoyutu; p.kenar = this._kenar(o); p.dondurme = o.dondurme; }
     return JSON.stringify(p);
   }
+
+  /** Görselin kenar boşluğu: orijinal boyutta yok (çekirdek de kullanmaz; tahmin anahtarı kenara göre ayrılmasın). */
+  _kenar(o) { return o.sayfaBoyutu === 'orijinal' ? 0 : o.kenar; }
 
   /** Öğenin verilen kalitedeki tahmini: sayı | null (alınamadı) | undefined (henüz yok). */
   _tahmin(o, kalite) {
@@ -586,7 +595,7 @@ export class BirlestirmePenceresi {
   /** Çekirdeğin birlestir/boyut_tahmini öğe biçimi. kalite verilmezse etkin kalite (öğeye özel ya da genel). */
   _ogeParametresi(o, kalite = this.etkinKalite(o)) {
     const p = { yol: o.yol, tur: o.tur, dondurme: o.dondurme, kalite };
-    if (o.tur === 'gorsel') { p.sayfaBoyutu = o.sayfaBoyutu; p.kenar = o.kenar; }
+    if (o.tur === 'gorsel') { p.sayfaBoyutu = o.sayfaBoyutu; p.kenar = this._kenar(o); }
     return p;
   }
 

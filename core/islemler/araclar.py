@@ -155,6 +155,17 @@ def _kilitli_mi(yol):
         return False
 
 
+def _onbellekten_al(yol):
+    """Önbellekteki belgeyi verir; dosya başka bir programda özel kilitle açık olduğu için açılamıyorsa MuPDF'in İngilizce
+    iletisi yerine Türkçe PermissionError (KILITLI_METNI; renderer "okunamadı" sorusunu gösterir)."""
+    try:
+        return _onbellek().al(yol)
+    except Exception:
+        if _kilitli_mi(yol):
+            raise PermissionError("Dosya okunamadı; %s: %s" % (KILITLI_METNI, os.path.basename(yol)))
+        raise
+
+
 def _pdf_ac(yol):
     """Belgeyi diskten TAZE açar (önbellekteki nesneyi değiştirmemek için)."""
     _dosya_var(yol)
@@ -206,17 +217,21 @@ def _yerine_koy(gecici, hedef):
         raise PermissionError("Dosya yazılamadı; %s: %s (%s)" % (KILITLI_METNI, os.path.basename(hedef), e))
 
 
-def _kaydet_sinirli(doc, hedef, en_fazla=None, **secenekler):
+def _kaydet_sinirli(doc, hedef, en_fazla=None, once_kapat=(), **secenekler):
     """Belgeyi önce hedefin klasöründe geçici dosyaya yazar, belgeyi KAPATIR, sonra os.replace ile hedefe
     taşır (hedef kaynağın kendisi olabilir; MuPDF dosya tanıtıcısını açık tuttuğundan kapatmadan üzerine
-    yazılamaz; yarım dosya bırakmaz, yedek almaz). en_fazla verilir ve geçici dosya bu bayttan küçük değilse
-    hedefe dokunulmaz. Döner: (boyut, yazildi). Çağıran, bu işlevden sonra doc'u kullanmamalı."""
+    yazılamaz; yarım dosya bırakmaz, yedek almaz). once_kapat: geçici dosya yazıldıktan sonra, hedefin yerine
+    konmasından önce kapatılacak başka belgeler (ör. hedefin kendisinden açılmış kaynak belge). en_fazla verilir
+    ve geçici dosya bu bayttan küçük değilse hedefe dokunulmaz. Döner: (boyut, yazildi). Çağıran, bu işlevden
+    sonra doc'u ve once_kapat belgelerini kullanmamalı."""
     hedef = _mutlak(hedef, "hedef")
     _hedef_klasoru_hazirla(hedef)
     gecici = _gecici_yol(hedef)
     try:
         doc.save(gecici, **secenekler)
         _kapat(doc)
+        for d in once_kapat:
+            _kapat(d)
         boyut = os.path.getsize(gecici)
         if en_fazla is not None and boyut >= en_fazla:
             return boyut, False
@@ -230,9 +245,9 @@ def _kaydet_sinirli(doc, hedef, en_fazla=None, **secenekler):
     return os.path.getsize(hedef), True
 
 
-def _kaydet(doc, hedef, **secenekler):
+def _kaydet(doc, hedef, once_kapat=(), **secenekler):
     """_kaydet_sinirli'nin sınırsız hali: geçici dosya + os.replace; yeni boyutu döner."""
-    return _kaydet_sinirli(doc, hedef, **secenekler)[0]
+    return _kaydet_sinirli(doc, hedef, once_kapat=once_kapat, **secenekler)[0]
 
 
 def _benzersiz_yol(klasor, ad, uzanti=".pdf"):
@@ -506,22 +521,26 @@ def y_kucult(p):
 # ---------------------------------------------------------------- 3) sayfalar_uygula
 def y_sayfalar_uygula(p):
     """{yol, hedef, tarif:[{kaynak, sayfa, dondurme, genislik?, yukseklik?}]} → {boyut, sayfa}
-    kaynak null → boş sayfa; dondurme kaynak sayfanın /Rotate'ine EK; yer imleri korunan sayfalara
-    yeniden eşlenir; meta veri kopyalanır. hedef == yol olabilir."""
+    kaynak null → boş sayfa; dondurme kaynak sayfanın /Rotate'ine EK; notlar, form alanları ve aynı parçada kalan sayfalar arası
+    bağlantılar sayfalarla birlikte kopyalanır (insert_pdf; Popup ve yanıt notlarını kopyalamaz, yapısal kayıttaki gibi), yol
+    belgesinin yer imleri korunan sayfalara yeniden eşlenir; meta veri kopyalanır.
+    hedef == yol olabilir. Sayfaları düzenle "Yeni belge olarak kaydet" bu yöntemle yazar: sonuç hedefin klasöründe geçici
+    dosyaya yazılıp os.replace ile yerine konur (kilitli / salt okunur hedefte hedef değişmez: KILITLI_METNI /
+    SALT_OKUNUR_METNI). İptal yalnızca yazmadan önce denetlenir: yazdıktan sonra ilerleme bildirilmez (yoksa geç gelen
+    iptal yazılmış dosyayı yazılmamış gösterirdi)."""
     ilerleme = _ilerleme(p)
     yol = _mutlak(p.get("yol"))
     hedef = _mutlak(p.get("hedef") or yol, "hedef")
     tarif = p.get("tarif")
     if not isinstance(tarif, list) or not tarif:
         raise ValueError("Sayfa tarifi boş; en az bir sayfa gerekli.")
-    onb = _onbellek()
     kaynaklar = {}     # normalize yol → doc
     sayfa_sayilari = {}
 
     def kaynak_al(k):
         anahtar = os.path.normcase(os.path.abspath(k))
         if anahtar not in kaynaklar:
-            kaynaklar[anahtar] = onb.al(_dosya_var(os.path.abspath(k)))
+            kaynaklar[anahtar] = _onbellekten_al(_dosya_var(os.path.abspath(k)))
             if kaynaklar[anahtar].needs_pass:
                 raise PermissionError("Belge parolayla korunuyor: %s" % os.path.basename(k))
             sayfa_sayilari[anahtar] = kaynaklar[anahtar].page_count
@@ -592,7 +611,6 @@ def y_sayfalar_uygula(p):
         boyut = _kaydet(yeni, hedef, **YAPISAL_KAYIT)
     finally:
         _kapat(yeni)
-    ilerleme(100, "Tamamlandı")
     return {"boyut": boyut, "sayfa": sayfa}
 
 
@@ -646,8 +664,10 @@ def _aralik_etiketi(gruplar):
     return "_".join(parcalar)
 
 
-def _parca_yaz(kaynak, gruplar, hedef_yol, toc):
-    """Kaynaktan verilen aralıkları yeni belgeye kopyalar ve kaydeder."""
+def _parca_yaz(kaynak, gruplar, hedef_yol, toc, once_kapat=()):
+    """Kaynaktan verilen aralıkları yeni belgeye kopyalar (notlar, form alanları, bağlantılar; insert_pdf Popup ve yanıt notlarını
+    kopyalamaz) ve kaydeder; kalan sayfalara düşen yer imleri yeniden eşlenir. once_kapat: hedef yerine konmadan önce kapatılacak
+    belgeler (hedef kaynağın kendisiyse kaynak)."""
     yeni = pymupdf.open()
     try:
         esleme = {}
@@ -658,26 +678,48 @@ def _parca_yaz(kaynak, gruplar, hedef_yol, toc):
                 esleme[s] = ilk + k + 1
         _meta_kopyala(kaynak, yeni)
         _yerimi_yaz(yeni, _yerimi_esle(toc, esleme))
-        _kaydet(yeni, hedef_yol, **YAPISAL_KAYIT)
+        _kaydet(yeni, hedef_yol, once_kapat=once_kapat, **YAPISAL_KAYIT)
     finally:
         _kapat(yeni)
     return hedef_yol
 
 
+def _ayir_uzerine(yol, gruplar, ilerleme):
+    """PDF ayır "Üzerine yaz": özgün dosyada yalnızca verilen sayfa aralıkları kalır (sırasıyla). Yedek alınmaz; sonuç aynı
+    klasörde geçici dosyaya yazılır, özgün dosyanın tanıtıcıları (önbellek ve bu işin açtığı belge) kapatılıp os.replace ile
+    yerine konur: dosya kilitli ya da salt okunursa özgün dosya değişmez (KILITLI_METNI / SALT_OKUNUR_METNI). Ada "(2)" eklenmez.
+    İptal yalnızca yazmadan önce denetlenir: yer değiştirmeden sonra ilerleme bildirilmez (geç gelen iptal yazılmış dosyayı
+    yazılmamış göstermesin). Döner: {dosyalar, ayrintilar, uzerine}."""
+    _onbellekten_birak(yol)
+    ilerleme(5, "Belge açılıyor…")
+    kaynak = _pdf_ac(yol)
+    try:
+        toc = kaynak.get_toc(simple=False)
+        ilerleme(30, "Sayfalar kopyalanıyor…")
+        _parca_yaz(kaynak, gruplar, yol, toc, once_kapat=(kaynak,))
+    finally:
+        _kapat(kaynak)
+    sayfa = sum(s - b + 1 for b, s in gruplar)
+    return {"dosyalar": [yol], "ayrintilar": [{"yol": yol, "boyut": os.path.getsize(yol), "sayfa": sayfa}], "uzerine": True}
+
+
 def y_ayir(p):
-    """{yol, hedefKlasor|klasor, mod:'aralik'|'herN'|'secili'|'tek', araliklar, n, sayfalar}
-    → {dosyalar: [yol...], ayrintilar: [{yol, boyut, sayfa}]}
+    """{yol, hedefKlasor|klasor, mod:'aralik'|'herN'|'secili'|'tek', araliklar, n, sayfalar, uzerine?}
+    → {dosyalar: [yol...], ayrintilar: [{yol, boyut, sayfa}], uzerine?}
     Dosya adları: <ad>_1-3.pdf, <ad>_sayfa_5.pdf, <ad>_bolum_1.pdf; var olanın üzerine yazılmaz, (2) eklenir.
+    uzerine: tek dosya üreten ayırmada ('secili' ya da tek aralıklı 'aralik') sonuç özgün dosyanın yerine yazılır, özgün dosyada
+    yalnızca o sayfalar kalır (bkz. _ayir_uzerine; hedefKlasor kullanılmaz). Birden çok dosya üreten ayırmada hata verir.
     Alternatif (renderer): {yol, klasor, parcalar: [{ad: 'dosya.pdf', sayfalar: [1,2,3]}], uzerineYaz?}
     → adlar çağırandan gelir; uzerineYaz varsayılan True (renderer kullanıcıya önceden sorar)."""
     ilerleme = _ilerleme(p)
     yol = _mutlak(p.get("yol"))
     _dosya_var(yol)
+    uzerine = bool(p.get("uzerine"))
     klasor = _mutlak(p.get("hedefKlasor") or p.get("klasor") or os.path.dirname(yol), "hedefKlasor")
-    if not os.path.isdir(klasor):
+    if not uzerine and not os.path.isdir(klasor):
         os.makedirs(klasor, exist_ok=True)
     mod = p.get("mod") or "aralik"
-    doc = _onbellek().al(yol)
+    doc = _onbellekten_al(yol)
     if doc.needs_pass:
         raise PermissionError("Belge parolayla korunuyor.")
     n_sayfa = doc.page_count
@@ -743,6 +785,11 @@ def y_ayir(p):
             parcalar.append(("sayfa_%d" % s, [(s, s)]))
     else:
         raise ValueError("Bilinmeyen ayırma modu: %r" % (mod,))
+
+    if uzerine:
+        if len(parcalar) != 1:
+            raise ValueError("Üzerine yazma yalnızca tek dosya üreten ayırmada yapılabilir.")
+        return _ayir_uzerine(yol, parcalar[0][1], ilerleme)
 
     dosyalar, ayrintilar = [], []
     toplam = len(parcalar)
@@ -854,7 +901,10 @@ def _gorsel_kodla(im, kalite_adi, hedef_px=None, orijinal_bayt=None):
 
 def _gorsel_sayfa_olcusu(gen_px, yuk_px, sayfa_boyutu, kenar, dondurme, dpi_bilgisi=None):
     """Görselin yerleşeceği sayfa (pt) ve görsel dikdörtgeni (pt). dondurme 90/270 ise görselin
-    görünen en/boyu yer değiştirir. Döner: (sayfa_g, sayfa_y, Rect)."""
+    görünen en/boyu yer değiştirir. Döner: (sayfa_g, sayfa_y, Rect).
+    'orijinal': sayfa görselin kendisidir; kenar boşluğu yoktur (kenar yalnızca A4'te kullanılır). Ölçü tam pt'ye yuvarlanır ve
+    görsel dikdörtgeni sayfa kutusunun aynısıdır: kesirli ölçüde sayfa ile görsel arasında kıl payı beyaz çizgi kalmaz (yuvarlama
+    görseli en çok yarım pt gerer; bkz. _gorsel_sayfasi_ekle)."""
     kenar = max(0.0, float(kenar or 0))
     gorunen_g, gorunen_y = (yuk_px, gen_px) if dondurme in (90, 270) else (gen_px, yuk_px)
     if sayfa_boyutu == "orijinal":
@@ -863,13 +913,11 @@ def _gorsel_sayfa_olcusu(gen_px, yuk_px, sayfa_boyutu, kenar, dondurme, dpi_bilg
         if max(gorunen_g, gorunen_y) > 2500:
             dpi = 300.0
         g_pt, y_pt = gorunen_g * 72.0 / dpi, gorunen_y * 72.0 / dpi
-        ust_sinir = PDF_EN_BUYUK_KENAR - 2 * kenar
-        if max(g_pt, y_pt) > ust_sinir:
-            oran = ust_sinir / max(g_pt, y_pt)
+        if max(g_pt, y_pt) > PDF_EN_BUYUK_KENAR:
+            oran = PDF_EN_BUYUK_KENAR / max(g_pt, y_pt)
             g_pt, y_pt = g_pt * oran, y_pt * oran
-        sayfa_g, sayfa_y = g_pt + 2 * kenar, y_pt + 2 * kenar
-        rect = pymupdf.Rect(kenar, kenar, kenar + g_pt, kenar + y_pt)
-        return sayfa_g, sayfa_y, rect
+        g_pt, y_pt = float(max(1, round(g_pt))), float(max(1, round(y_pt)))
+        return g_pt, y_pt, pymupdf.Rect(0, 0, g_pt, y_pt)
     # A4: görsel yatay ise sayfa da yatay
     if gorunen_g > gorunen_y:
         sayfa_g, sayfa_y = A4_YUKSEKLIK, A4_GENISLIK
@@ -882,6 +930,16 @@ def _gorsel_sayfa_olcusu(gen_px, yuk_px, sayfa_boyutu, kenar, dondurme, dpi_bilg
     x0 = (sayfa_g - g_pt) / 2
     y0 = (sayfa_y - y_pt) / 2
     return sayfa_g, sayfa_y, pymupdf.Rect(x0, y0, x0 + g_pt, y0 + y_pt)
+
+
+def _gorsel_sayfasi_ekle(doc, bayt, sayfa_g, sayfa_y, rect, dondurme):
+    """Görsel sayfasını belgenin sonuna ekler (birleştirme ve boyut tahmini aynı yolu kullanır). Orijinal boyutta görsel dikdörtgeni
+    sayfanın kendisidir: oran korunmaz, görsel sayfayı kenardan kenara doldurur (tam pt'ye yuvarlanmış sayfada oran korunsaydı
+    görsel bir yönde kıl payı küçülür, kenarda beyaz çizgi kalırdı). A4'te görsel oranı korunarak kutusuna yerleşir."""
+    pg = doc.new_page(width=sayfa_g, height=sayfa_y)
+    tam_sayfa = rect == pymupdf.Rect(0, 0, sayfa_g, sayfa_y)
+    pg.insert_image(rect, stream=bayt, rotate=dondurme, keep_proportion=not tam_sayfa)
+    return pg
 
 
 _cozulmus_gorseller = {}   # (yol, mtime, boyut) → (bicim, exif_yon, [(kare_kipi, duz)]); yalnızca tahminde, en çok 2 görsel
@@ -1014,8 +1072,7 @@ def y_birlestir(p):
                     kaynak.close()
             else:
                 for bayt, sg, sy, rect, dondurme in _gorsel_hazirla(oge, genel):
-                    pg = yeni.new_page(width=sg, height=sy)
-                    pg.insert_image(rect, stream=bayt, rotate=dondurme, keep_proportion=True)
+                    _gorsel_sayfasi_ekle(yeni, bayt, sg, sy, rect, dondurme)
         if yeni.page_count == 0:
             raise ValueError("Sonuç belgede sayfa yok.")
         md = ilk_pdf or {}
@@ -1143,7 +1200,7 @@ def _gomulu_gorsel_boyutu(bayt, sayfa_g, sayfa_y, rect, dondurme):
             bos.close()
     d = pymupdf.open()
     try:
-        d.new_page(width=sayfa_g, height=sayfa_y).insert_image(rect, stream=bayt, rotate=dondurme, keep_proportion=True)
+        _gorsel_sayfasi_ekle(d, bayt, sayfa_g, sayfa_y, rect, dondurme)
         return max(0, len(d.tobytes(**KAYIT_SECENEKLERI)) - _bos_sayfa_boyutlari[olcu])
     finally:
         d.close()
@@ -1161,8 +1218,9 @@ def _oge_boyut_tahmini(oge, genel):
     _dosya_var(yol)
     st = os.stat(yol)
     dosya = (os.path.normcase(yol), st.st_mtime, st.st_size)
-    anahtar = dosya + (tur, kalite) + ((oge.get("sayfaBoyutu") or "a4", float(oge.get("kenar") or 0),
-                                         _dondurme(oge.get("dondurme"))) if tur == "gorsel" else ())
+    sayfa_boyutu = oge.get("sayfaBoyutu") or "a4"
+    kenar = float(oge.get("kenar") or 0) if sayfa_boyutu != "orijinal" else 0.0   # orijinal boyutta kenar yok
+    anahtar = dosya + (tur, kalite) + ((sayfa_boyutu, kenar, _dondurme(oge.get("dondurme"))) if tur == "gorsel" else ())
     if anahtar in _tahmin_onbellegi:
         return dict(_tahmin_onbellegi[anahtar])
     if tur == "pdf":

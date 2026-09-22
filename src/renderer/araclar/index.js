@@ -3,7 +3,7 @@
 //   Object.assign(komutlar, aracKomutlari(baglam));
 //
 // baglam = {
-//   aktif: () => belge|null,                       // {id, yol, ad, boyut, degisti, gorunum:{sayfaSayisi, gecerli, sayfalar}, notlar, yigin}
+//   aktif: () => belge|null,                       // {id, yol, ad, boyut, degisti, kaydediliyor, diskDondurme, gorunum:{sayfaSayisi, gecerli, sayfalar, anlik, tarif(), yapisalKirli()}, notlar, yigin}
 //   cekirdek(yontem, params, ilerlemeCb),           // Promise (iptal() ve istekId taşır); ilerlemeCb({yuzde, mesaj})
 //   iptal?: (istekId) => void,                     // isteğe bağlı; çağrının kendi iptal()'i yoksa kullanılır
 //   dosyaAc(yol, {arkaPlanda, sayfa}) → Promise<belge>,

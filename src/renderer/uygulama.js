@@ -989,7 +989,7 @@ document.addEventListener('mousemove', (e) => {
 
 // ---------------------------------------------------------------- araç çubuğu: dar pencerede kademeli sıkıştırma
 // Sığana kadar sırayla (stil.css .sikisik-1 - 4): ayraç ve boşluklar daralır, Araçlar yalnızca simge olur, düğmeler ve kutular daralır,
-// en son Paylaş gizlenir (Araçlar penceresinde ve menüde de var). Gereken genişlik içeriğe (ör. sayfa sayısının basamakları) bağlı olduğundan ölçülür.
+// en son Paylaş gizlenir (Araçlar menüsünde de var). Gereken genişlik içeriğe (ör. sayfa sayısının basamakları) bağlı olduğundan ölçülür.
 const aracCubugu = $('#arac-cubugu');
 function aracCubuguSigdir() {
   for (let k = 1; k <= 4; k++) aracCubugu.classList.remove('sikisik-' + k);
