@@ -68,7 +68,9 @@ export class SekmeCubugu extends EventTarget {
 
     // Sürükleyerek sıralama
     el.addEventListener('dragstart', (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/pdefe-sekme', id); el.classList.add('surukleniyor'); });
-    el.addEventListener('dragend', () => el.classList.remove('surukleniyor'));
+    // Sekme sürüklenirken yerinde taşınır; bırakma bir sekmenin üstünde olmasa da (çubuğun dışı, Esc) görünen sıra geçerli olsun
+    // (yoksa Ctrl+1–9 ve ◀ ▶ eski sırayla giderdi)
+    el.addEventListener('dragend', () => { el.classList.remove('surukleniyor'); this.siralamayiOku(); });
     el.addEventListener('dragover', (e) => {
       if (!e.dataTransfer.types.includes('text/pdefe-sekme')) return;
       e.preventDefault();
@@ -90,6 +92,7 @@ export class SekmeCubugu extends EventTarget {
 
   siralamayiOku() {
     const sira = [...this.liste.children].map((el) => this.sekmeler.find((s) => s.el === el)).filter(Boolean);
+    if (sira.length === this.sekmeler.length && sira.every((s, i) => s === this.sekmeler[i])) return;   // sıra değişmedi (bırakma + dragend)
     this.sekmeler = sira;
     this.dispatchEvent(new CustomEvent('siralandi', { detail: { idler: sira.map((s) => s.id) } }));
   }
