@@ -14,6 +14,7 @@ import { guncellemeSeridiKur } from './guncelleme.js';
 import { yazdir } from './yazdir.js';
 import { ortuTiklamasiBagla } from './ortu.js';
 import { mesajKutusu as mesajKutusuAc, mesajKutusuAcik, mesajKutusuUyar } from './mesajKutusu.js';
+import { BaslangicEkrani } from './baslangic.js';
 
 const $ = (s) => document.querySelector(s);
 const pdefe = window.pdefe;
@@ -453,19 +454,7 @@ function sonDosyalardanCikar(yol) {
   pdefe.cagir('uygulama:sonDosyalar', ayar.sonDosyalar);
   sonDosyalariListele();
 }
-function sonDosyalariListele() {
-  const ul = $('#son-dosyalar');
-  ul.innerHTML = '';
-  for (const y of (ayar.sonDosyalar || []).slice(0, 10)) {
-    const li = document.createElement('li');
-    li.innerHTML = '<span class="ad"></span><span class="yol"></span>';
-    li.querySelector('.ad').textContent = dosyaAdi(y);
-    li.querySelector('.yol').textContent = y;
-    li.addEventListener('click', () => dosyaAc(y));
-    ul.append(li);
-  }
-  if (!ul.children.length) ul.innerHTML = '<li class="soluk">Henüz yok.</li>';
-}
+function sonDosyalariListele() { baslangic.listele(ayar.sonDosyalar || []); }
 
 let _konumZaman = null;
 /** Verilen belgelerin sayfa konumlarını tek yazımda kaydeder (en fazla 300 dosya; en eskiler düşer). */
@@ -664,6 +653,12 @@ function komutCalistir(id, veri) {
 
 // Araç çubuğundaki Araçlar düğmesinin penceresi; menüden ya da kısayolla gelen komut onu kapatır
 const araclarPenceresi = new AraclarPenceresi({ dugme: $('#dugme-araclar'), komutCalistir: (id) => komutCalistir(id), belgeVar: () => !!aktif() });
+
+// Başlangıç ekranı: PDF aç ve Görüntü / PDF birleştir kartları, son açılanlar
+const baslangic = new BaslangicEkrani({
+  kok: $('#baslangic'), komutCalistir: (id) => komutCalistir(id), ac: (yol) => dosyaAc(yol), kaldir: (yol) => sonDosyalardanCikar(yol),
+  temizle: () => komutCalistir('dosya.sonTemizle'), pdefe, bildir,
+});
 
 // Mesaj kutusu açıkken fareyle seçilen menü komutu ve pencere kapatma yok sayılır (yerel kutu pencereyi kilitliyordu): soru yanıtlanmadan
 // başka iş başlamasın, aynı belge için ikinci soru açılmasın. Klavye kısayollarını kutu kendisi alır.
