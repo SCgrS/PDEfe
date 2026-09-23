@@ -3,6 +3,12 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.6 — 2026-09-23
+
+### Araçlar
+- Görüntü / PDF birleştir: "Yüksek" kalite artık "Orijinal"den büyük dosya üretmez. Önceden "Yüksek" her görseli yeniden sıkıştırıyordu; zaten daha düşük kaliteyle kaydedilmiş JPEG'ler (UYAP taramaları, telefon fotoğrafları) bu yüzden büyüyor (örneğin 487 KB'lık tarama 652 KB), ekran görüntülerinde JPEG PNG'den büyük çıkıyordu (0,09 → 0,33 MB); toplam boyut "Orijinal"i geçebiliyordu. Artık Yüksek, Orta ve Düşük'te sıkıştırınca küçülmeyen görsel olduğu gibi eklenir: kalite düşmez, dosya büyümez. Kalite düğmelerindeki tahmin bunu gösterir.
+- Aynı araçta A4'e sığdırılan fotoğraflar "Yüksek"te belirgin daha küçük (örnekte 810 KB → 585 KB): kaynaktaki renk ayrıntısı korunarak gereksiz baytlar atılır.
+
 ## 0.1.5 — 2026-09-23
 
 ### Görüntü kalitesi

@@ -174,3 +174,7 @@ Ekran dışı test örneği %100 ölçekte çalıştı: %125 ölçekli ekranda g
 4. **Araçlar penceresi.** Alttaki iki araç ortalı; ok tuşlarıyla karolar arasında gezinin.
 5. **Dolgu düğmesi.** Yazı aracıyla kutu açın: Dolgu rengi düğmesindeki kare, yazı rengi karesiyle aynı boyda ve hizada.
 6. **Görüntü birleştir.** Bir fotoğraf ekleyin: Sayfa seçiminde "Orijinal" seçili gelmeli, seçenekler "A4'e sığdır" ve "Orijinal".
+
+## 15. 0.1.6
+1. **Görüntü birleştir kalitesi.** Birkaç tarama / telefon fotoğrafı ve bir ekran görüntüsü ekleyin: kalite düğmelerinde Orijinal ≥ Yüksek
+   ≥ Orta ≥ Düşük olmalı; Yüksek ile birleştirilen PDF Orijinal'den büyük olmamalı.
