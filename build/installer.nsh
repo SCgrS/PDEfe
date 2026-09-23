@@ -26,7 +26,8 @@
 ;      (OpenWithProgids girdisi kalır: "Birlikte aç" ve Varsayılan uygulamalar sayfası için yeterlidir).
 ;   4. Bitiş sayfası: "PDEfe'yi başlat" (electron-builder'ın varsayılan davranışı korunur) +
 ;      "PDEfe'yi varsayılan PDF görüntüleyici yap" onay kutusu (MUI_FINISHPAGE_SHOWREADME_FUNCTION ile
-;      Windows Ayarlar > Varsayılan uygulamalar > PDEfe sayfası açılır; Windows kuralı gereği seçimi kullanıcı yapar).
+;      Windows Ayarlar > Varsayılan uygulamalar > PDEfe sayfası açılır; Windows kuralı gereği seçimi kullanıcı yapar). Kutu
+;      etiketleri tek satıra sığmalı (MUI2 kutuları 10 DLU yüksekliğinde çizer); görünüm test\kurulum_bitis.ps1 ile denetlenir.
 ;   5. Kaldırırken 2'deki kayıtlar ve .pdf varsayılan değerinde kalan "PDEfe.pdf" silinir.
 ;   6. Uygulama içinden güncelleme: electron-updater kurucuyu "--updated" ile başlatır. PDEfe 0.1.3 ve sonrası /S de verir
 ;      (quitAndInstall(true, true)); 0.1.2 ve öncesi /S vermeden "--updated --force-run" ile başlatıyordu, sihirbazın ilerleme
@@ -163,13 +164,17 @@
     ${EndIf}
   FunctionEnd
 
+  ; MUI2 bitiş sayfası onay kutularını tek satırlık (195 × 10 DLU) çizer: 0.1.7'ye dek "(Windows Ayarlar açılır)" ekli uzun etiket
+  ; ikinci satıra kayıp yarısı kesiliyordu. Etiket kısa, açıklama sayfa metninde; metin alanı geniş (60 DLU), kutular aşağıda.
+  !define MUI_FINISHPAGE_TEXT "PDEfe bilgisayarınıza kuruldu.$\r$\n$\r$\nVarsayılan PDF görüntüleyici yapmak için aşağıdaki kutuyu işaretleyin: Bitir'e basınca Windows Ayarlar açılır, orada .pdf için PDEfe'yi seçin."
+  !define MUI_FINISHPAGE_TEXT_LARGE
   !ifndef HIDE_RUN_AFTER_FINISH
     !define MUI_FINISHPAGE_RUN
     !define MUI_FINISHPAGE_RUN_TEXT "PDEfe'yi &başlat"
     !define MUI_FINISHPAGE_RUN_FUNCTION pdefeBaslat
   !endif
   !define MUI_FINISHPAGE_SHOWREADME ""
-  !define MUI_FINISHPAGE_SHOWREADME_TEXT "PDEfe'yi &varsayılan PDF görüntüleyici yap (Windows Ayarlar açılır)"
+  !define MUI_FINISHPAGE_SHOWREADME_TEXT "PDEfe'yi &varsayılan PDF görüntüleyici yap"
   !define MUI_FINISHPAGE_SHOWREADME_FUNCTION pdefeVarsayilanUygulamalariAc
   !define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED
   !insertmacro MUI_PAGE_FINISH
