@@ -49,7 +49,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus }) {
   const genislikler = new Set(o.sekmeler.map((s) => Math.round(s.g)));
   denetle(`${o.sekmeler.length} sekmenin genişliği aynı`, genislikler.size === 1, [...genislikler].join(', ') + ' px');
   const kisa = (ad) => o.sekmeler.find((s) => s.ad === ad);
-  denetle('"ustyazi (85).pdf" ve "(2)TensipZapti (9).pdf" tam görünür', !kisa('ustyazi (85).pdf').kisaldi && !kisa('(2)TensipZapti (9).pdf').kisaldi);
+  denetle('sekme 118 px (0.1.4\'teki 168 px\'ten %30 dar)', genislikler.size === 1 && genislikler.has(118), [...genislikler].join(', ') + ' px');
+  denetle('"ustyazi (85).pdf" ve "ustyazi (86).pdf" tam görünür', !kisa('ustyazi (85).pdf').kisaldi && !kisa('ustyazi (86).pdf').kisaldi);
+  denetle('"(2)TensipZapti (9).pdf" üç noktayla kısalır (tam adı ipucunda)', kisa('(2)TensipZapti (9).pdf').kisaldi);
   denetle('uzun ad üç noktayla kısalır', kisa('Bilirkişi Raporu - Ek 1 - Hesap Tablosu ve Açıklamalar (son hali).pdf').kisaldi && o.ustTasma === 'ellipsis');
   denetle('ipucu: tam ad + yol', o.sekmeler.every((s) => s.ipucu === `${s.ad}\n${K}${path.sep}${s.ad}`), js(o.sekmeler[3].ipucu));
   denetle('etkin (son açılan) sekme görünür', o.sekmeler.find((s) => s.aktif)?.gorunur);

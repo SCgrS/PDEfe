@@ -118,11 +118,12 @@ html[data-tema="koyu"] #dugme-tema .ay { display: block; }
   scrollbar-width: none; height: 100%; gap: 2px; padding: 4px 2px 0;
 }
 #sekme-liste::-webkit-scrollbar { display: none; }
-/* Sekmeler ada göre değil sabit genişliktedir (kapat düğmesi ve değişiklik noktası dahil): "ustyazi (85).pdf", "(2)TensipZapti (9).pdf"
-   gibi UYAP adları tam görünür, uzun ad üç noktayla kısalır; tam ad ve yol ipucundadır (sekmeler.js). Sığmayanlar kaydırılır. */
+/* Sekmeler ada göre değil sabit genişliktedir (kapat düğmesi ve değişiklik noktası dahil). 0.1.5'te 168 px'ten %30 daraldı: yazı 12 px,
+   iç boşluklar sıkı; "ustyazi (85).pdf", "ustyazi (100).pdf" gibi UYAP adları yine tam görünür, uzun ad ("(2)TensipZapti (9).pdf" dahil)
+   üç noktayla kısalır; tam ad ve yol ipucundadır (sekmeler.js). Sığmayanlar kaydırılır. */
 .sekme {
-  flex: 0 0 168px; width: 168px; height: 30px;
-  display: flex; align-items: center; gap: 6px; padding: 0 6px 0 10px;
+  flex: 0 0 118px; width: 118px; height: 30px; font-size: 12px;
+  display: flex; align-items: center; gap: 3px; padding: 0 3px 0 7px;
   border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0;
   background: transparent; color: var(--metin-soluk); position: relative; cursor: default;
 }
@@ -131,14 +132,14 @@ html[data-tema="koyu"] #dugme-tema .ay { display: block; }
 .sekme.aktif::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: var(--sekme-aktif); }
 .sekme.surukleniyor { opacity: 0.5; }
 .sekme .ad { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sekme .nokta { color: var(--vurgu); font-size: 16px; line-height: 1; display: none; }
+.sekme .nokta { color: var(--vurgu); font-size: 16px; line-height: 1; display: none; flex-shrink: 0; }
 .sekme.degisti .nokta { display: inline; }
 .sekme .kapat {
-  width: 20px; height: 20px; border: none; background: transparent; border-radius: 4px;
+  width: 18px; height: 18px; flex-shrink: 0; border: none; background: transparent; border-radius: 4px;
   display: inline-flex; align-items: center; justify-content: center; padding: 0; opacity: 0.7;
 }
 .sekme .kapat:hover { background: var(--hover); opacity: 1; }
-.sekme .kapat svg { width: 14px; height: 14px; }
+.sekme .kapat svg { width: 13px; height: 13px; }
 
 /* ---------- Gövde ---------- */
 #govde { flex: 1; display: flex; min-height: 0; position: relative; }
