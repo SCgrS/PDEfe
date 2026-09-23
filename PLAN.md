@@ -34,6 +34,7 @@ src/renderer/           arayüz (ES modülleri; derleme adımı yok, pdefe://app
   goruntuleyici.js      PDF.js: tembel sayfa çizimi, bölgesel çizim (%6400'e kadar), düzenler, zoom, döndürme
   keskinlik.js          keskin çizim: görsel yeniden örnekleme (işçi + önbellek), ince çizgi ızgarası, maske tuvali kırpma
   sekmeler.js           sekme çubuğu, sürükle-sırala, Ctrl+Tab seçici, açık belgeler listesi
+  baslangic.js          başlangıç ekranı: PDF aç ve Görüntü / PDF birleştir kartları, son açılanlar (0.1.8)
   panel.js              sol panel: Sayfalar (çekirdekten küçük resim), İçindekiler, Yorumlar
   metin.js              seçim (boşluktan sürükleme, okuma sırası, sözcük/paragraf), temiz kopyalama
   arama.js              Bul kutusu: Türkçe duyarlı, tam sözcük, yer imi/yorum, tüm sekmeler, belge başına geçerli eşleşme
@@ -49,7 +50,7 @@ core/                   Python 3.12 (proje içi .venv, uv ile kurulu; PyInstalle
   islemler/notlar.py    not yazma: Highlight/Text (referans okuyucu yapısı)/FreeText (gömülü Türkçe yüzler, parçalı /RC), kaydet
   islemler/araclar.py   küçült, sayfa düzenle, ayır, görüntü/PDF birleştir, döndür; geçici dosya + atomik yer değiştirme
   islemler/yapisal.py   sayfa tarifinden belge kurma, anlık kopya, konumsal not eşleme, içerik kutusu
-test/                   surucu.mjs (CDP ile uygulamayı sürer; gerçek fare/klavye girdisi), baslat.ps1 / durdur.ps1
+test/                   surucu.mjs (CDP ile uygulamayı sürer; gerçek fare/klavye girdisi), baslat.ps1 / durdur.ps1, kurulum_bitis.ps1
                         (ayrı veri klasörlü, ekran dışı test örneği), senaryo*.mjs, incele.py, not_testi.py
 build/                  simge, NSIS, derleme betikleri
 ```
@@ -348,3 +349,62 @@ Ayrıntı: CHANGELOG.md. Kullanıcı 5 istek bildirdi (referans okuyucu ile yan 
   rotate, PDF öğesinde /Rotate). Görseller 0.1.0'dan beri önizlemenin tersine dönüyordu (testler yalnızca ölçüye bakıyordu).
   `_gorsel_sayfasi_ekle` `rotate=(360 - dondurme) % 360`. Test: `test_gorsel_yonu` (köşe işaretleri, 54 vaka).
 - [ ] MPO (çok resimli JPEG, bazı kameralar) hâlâ PNG yolunda; bu makinede örneği yok.
+
+### Revizyon 0.1.8 (2026-09-23, kullanıcı geri bildirimi)
+Ayrıntı: CHANGELOG.md. Kullanıcı 9 istek bildirdi (referans okuyucu ile yan yana ekran görüntüsü, kurulum son sayfası görüntüsü, karışık boyutlu
+birleştirilmiş PDF). Kök nedenler ve kararlar:
+- [x] **"Yazılar bulanık"**: ekran görüntüsünün solu PDEfe (renksiz, gri), sağı referans okuyucu (renkli alt piksel; ortadaki ▶ şeridi referans okuyucunun sol
+  bölme düğmesi, 0.1.4'teki görüntünün tersi). Görüntüdeki satırların hepsi kalın (UYAP Times-Bold, gömülü değil → timesbd.ttf); PDEfe
+  yarısı test örneğinde %115'te piksel piksel üretildi (mürekkep 269,4 / 270,4). Koyuluk referans okuyucuyla aynı (269,0), fark keskinlikte: ana hat
+  çizimi ipuçsuz ve gri, referans okuyucu ipuçlu ClearType. ClearType kalın (Chromium DirectWrite) aynı ölçekte referans okuyucudan %13–17 koyu. Ölçüm:
+  Times New Roman Bold ClearType'la ana hattından 8–11 px'te %25, 12 px'te %16, 16 px'te %6 koyu, 20 px üstünde eşit (Georgia, Garamond,
+  Palatino, Book Antiqua, Cambria Bold benzer; Arial, Calibri, Segoe UI, Tahoma, Verdana, Trebuchet, Courier Bold ±%7 dalgalı). Karar:
+  düz kalın yazı da FontFace ile (ClearType) çizilir, showText sarmalayıcısı globalAlpha'yı yazı tipi × boyut kovası (¼ px) başına bir kez
+  ölçülen oranla (ana hat mürekkebi / ClearType mürekkebi, alt sınır 0,85) çarpar. Ölçüm: belgenin o yazı tipindeki gliflerinden en çok 24'ü,
+  sayfa tuvaliyle aynı saydamlık kipinde, ekran kartındaki tek bir tuvalin üst yarısına ClearType, alt yarısına ana hat (getPathGenerator);
+  tek getImageData. willReadFrequently (işlemci tuvali) ClearType'ı başka karıştırıp %15'e dek yanlış ölçtüğü için kullanılmaz; aynı
+  tuvalden iki okuma konsola uyarı yazdırıyordu. Sonuç yazı tipi adı (alt küme öneki atılmış) | kip | kova anahtarıyla belgeler arasında
+  saklanır (en çok 4000). Tebligatın dört kalın satırı referans okuyucuyla +2,6 / −0,8 / −2,8 / −0,5 %; 60 belgelik taramada konsol temiz, ilk çizim
+  144–703 ms; ölçüm başına ~5 ms (tebligatta 8 kova, ilk açılışta), 200 adımlı yakınlaştırmada takılma ve bellek artışı yok. Taban 0,85:
+  Referans okuyucu küçük (10,8 px) kalın yazıyı ana hattından %5–9 koyu çiziyor; tam ana hat oranı (0,7'ye dek) 7 pt satırları referans okuyucudan %7–9 açık
+  bırakıyordu. Döndürülmüş yazı ana hatla (değişmedi). Açık: %125 ölçekte (0.1.4 ölçümü: referans okuyucu ana hattından %13 açık) denenmedi.
+- [x] **Başlangıç ekranı tıklanmıyordu**: `#gorunumler` (boş, position:absolute; inset:0) DOM'da `#baslangic`'ten sonra geldiği için üstteydi
+  ve bütün tıklamaları yutuyordu (PDF aç ve son açılanlar hiç çalışmıyordu; belgeyle açılan uygulamada başlangıç ekranı görünmediğinden fark
+  edilmemiş). `#baslangic` z-index:1 ve DOM'da sonra. Yeni başlangıç ekranı baslangic.js'te: PDF aç / Görüntü / PDF birleştir kartları
+  (data-eylem; uygulama.js'in [data-komut] bağlaması yüklemede çalıştığından kullanılmaz), son açılanlar (×, Delete, sağ tık menüsü; dosyaya
+  dokunulmaz), container query ile dar pencerede tek sütun. "Ctrl+O" yazısı kaldırıldı.
+- [x] **X bağlantısı iki kez**: Hakkında'daki bağlantının kendi tıklama işleyicisi (kabuk:disAc) ve uygulama.js'in genel `a[href^=http]`
+  işleyicisi ikisi de açıyordu. Yerel işleyici kaldırıldı; genel işleyici defaultPrevented olayı atlar.
+- [x] **Haftalık güncelleme denetimi**: açılış sayacı (acilisSayaci, sonDenetimAcilisi, sonDenetimSurumu; ayarlar.js'te silinir) yerine
+  sonDenetimZamani (ms). Açılışta hiç denetlenmemişse, 7 gün geçtiyse ya da saat geri alınmışsa (son denetim gelecekte) denetlenir; açık kalan
+  uygulamada saatte bir bakılır (indirme sürerken / indirilmiş sürüm beklerken bakılmaz). Süreyi sunucudan yanıt alan her denetim (elle
+  de) başlatır; ağ hatası başlatmaz. bekleyenGuncelleme kuralı aynı. Ayarlar'da son denetimin tarihi (guncelleme:durum.sonDenetim).
+  Birim denemesi (test/guncelleme-e2e/birim.mjs) sahte saatle: 56 denetim.
+- [x] **Genişliğe sığdır**: kaydırmalı düzende (surekli, ikiSurekli) ölçek geçerli sayfanın satırına göre hesaplanıyordu (belge en geniş
+  sayfada açılınca / sığdırılınca hepsi küçük). Artık `baskinSatir()`: satır genişlikleri sıralanır, genişliği en darının %3 fazlasına dek
+  olanlar bir küme; en kalabalık kümenin en geniş satırına sığdırılır (eşitlikte ortancaya yakın, sonra dar olan). Taşan satırda görünüm
+  yatayda ortalanır (yerlesimHesapla; genislik ve sayfa kiplerinde). Kaydırmasız düzen ve öteki kipler gösterilen satıra göre. Hız: belge
+  açılırken ilk 300 sayfanın boyutu 50'lik paralel isteklerle ilk yerleşimden önce öğrenilir, kalanlar arka planda (sıra sıra bekleniyordu);
+  öğrenilmeyen sayfalar öğrenilenlerin en sık boyutunu alır (ilk sayfası farklı büyük belgede ölçek açıldıktan sonra sıçramasın). 1500
+  sayfalık karışık belgede açılış 134 ms; kullanıcının 9 sayfalık birleşik PDF'inde baskın genişlik 1014 pt (4 sayfa), açılış 56 ms.
+  0.1.2'deki "Açık: 'genislik' sekmeye dönünce geçerli sayfaya göre" maddesi kaydırmalı düzende çözüldü.
+- [x] **Birleştir'de alan seçimi**: tek seçim (seciliKimlik) yerine küme; sağ tuşla (satırların üzerinden de) ve sol tuşla boş alandan
+  sürükleyerek alan seçimi (sayfalar.js _alanSecimiBagla'nın dikey liste karşılığı: setPointerCapture, kenarda kaydırma, Esc, Ctrl/Shift
+  ile ekleme). Windows'ta contextmenu sağ tuş bırakılınca geldiğinden sürüklemeden sonra liste yakalama evresinde yutulur. Ctrl/Shift tık,
+  Ctrl+A, Delete; satır düğmeleri ve menü seçiliyse seçilenlerin hepsine; sürükle-sırala seçilenleri blok taşır, yukarı/aşağı bitişikleri
+  birlikte kaydırır. Ctrl/Shift ile basış metin seçimini uzatmasın diye mousedown'da engellenir; Ctrl+A liste dinleyicisinde (pencerenin
+  kendi Ctrl+A'sından önce).
+- [x] **Kurulum son sayfası**: MUI2 onay kutularını 195 × 10 DLU (tek satır) çizer; "… (Windows Ayarlar açılır)" ikinci satıra kayıp
+  kesiliyordu. Etiket kısaldı, açıklama MUI_FINISHPAGE_TEXT'te (MUI_FINISHPAGE_TEXT_LARGE: 60 DLU, kutular aşağı). test\kurulum_bitis.ps1:
+  installer.nsh'teki bitiş tanımlarıyla küçük kurucu derler, görünmeyen masaüstünde (CreateDesktop) çalıştırıp PrintWindow ile yakalar;
+  onay kutusu metninin kesilmesini görüntüden, etiketlerin sığmasını DrawText ile denetler (odak çerçevesi gizlenir). 0.1.7 tanımlarıyla
+  "TAŞIYOR", yenisiyle hepsi "SIĞIYOR".
+- [x] Testler: Masaüstü\PDF DENEME ve test/pdf'teki örnekler bu makinede yoktu; yerlerine İnenler'den benzerleri kondu (1.5.6098.pdf,
+  fdsafsd.pdf yerine bir UYAP üst yazısı, dergipark_* yerine bir makale ve bir bilirkişi raporu, PDF32000 yerine 188 sayfalık taranmış
+  dilekçe). senaryo13 60/60, sekme_genislik 18/18, ortu_tiklama 154/155: kalan "Enter (varsayılan Kaydet): kaydedip kapatır" adımı tek
+  başına 3 turda da geçiyor (tam koşuda büyük olasılıkla iptal edilen Küçült, 188 sayfalık taramada çekirdeği hâlâ meşgul tutuyordu).
+  Gerçek fareyle: Birleştir seçimi 19 denetim (sağ sürükleme, menü, Ctrl/Shift, toplu döndürme, çoklu sıralama, boş alandan seçim, Esc,
+  Delete, Ctrl+A), başlangıç ekranı 11 denetim (PDF aç Aç penceresini ister, son açılan açılır, × yalnızca listeden kaldırır, Ctrl+O yok).
+  60 belgelik tarama (İnenler, 211 üretici grubundan): konsol temiz. Uzun süren test oturumunda bir kez test örneği hiç çizmez oldu (sayfa
+  yenilemesi düzeltmedi); yeni örnekte yinelenmedi, 200 adımlı yakınlaştırma ve 60 belge taramasında da görülmedi.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 17.

@@ -14,9 +14,9 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   görünür, uzun ad üç noktayla kısalır, tam ad ve yol ipucunda) ve sürüklenerek sıralanır. `Ctrl+Tab` basılı tutulunca
   son kullanılan sırayla sekme seçici açılır; `Ctrl+1` – `Ctrl+9` ile doğrudan sekmeye gidilir. Bir belge yeniden
   açıldığında kalınan sayfadan devam edilir. Kaydedilmemiş değişiklik sorusu sekme ya da pencere kapatılırken çıkar.
-- **Keskin görüntü.** Yazılar referans okuyucudaki gibi görünür: küçük ve düz yazılar keskin ve koyu (Windows'un
-  ClearType çizimiyle), kalın yazılar referans okuyucu kalınlığında (harflerin ana hatlarından) çizilir; döndürülmüş sayfada harfler
-  bozulmaz. Gömülü olmayan Times, Arial ve Courier yazıları referans okuyucu gibi Windows'un Times New Roman, Arial ve Courier New
+- **Keskin görüntü.** Yazılar referans okuyucudaki gibi görünür: düz ve kalın yazılar Windows'un ClearType çizimiyle keskin
+  çizilir; kalın yazılar referans okuyucu kalınlığında kalır (Windows'un bazı kalın yazı tiplerini küçük boyutta fazla koyu çizmesi ölçülüp
+  düzeltilir); döndürülmüş sayfada harfler bozulmaz. Gömülü olmayan Times, Arial ve Courier yazıları referans okuyucu gibi Windows'un Times New Roman, Arial ve Courier New
   yazı tipleriyle çizilir (Ayarlar › Görünüm › Yazı çizimi: "Dengeli" ya da "Windows ClearType"). Görseller,
   karekodlar ve tablo çizgileri referans okuyucudaki gibi keskin çizilir; taranmış belgeler çok yakınlaştırıldığında da net ve hızlıdır.
 - **Temiz kopyalama.** Seçilen metin panoya yapıştırıldığında satır sonlarındaki tireler birleştirilir,
@@ -40,7 +40,8 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   silme, döndürme, boş sayfa ya da başka PDF'ten sayfa ekleme), **Döndür ve kaydet**, **PDF ayır** (sayfa aralığı, her
   N sayfada bir, seçili sayfalar, her sayfa ayrı dosya), **Görüntü / PDF birleştir** (görüntü ve PDF'lerden tek PDF;
   sürükle-bırak, `Ctrl+V`, Panodan ekle ya da sağ tık Yapıştır; Orijinal / Yüksek / Orta / Düşük kalite düğmelerinde
-  toplam tahmini boyut; görüntünün sayfası "Orijinal" (varsayılan: sayfa tam görsel boyutunda) ya da "A4'e sığdır").
+  toplam tahmini boyut; görüntünün sayfası "Orijinal" (varsayılan: sayfa tam görsel boyutunda) ya da "A4'e sığdır"; farenin sağ
+  tuşuyla sürükleyerek, `Ctrl` / `Shift` ile tıklayarak çoklu seçim, seçilenler birlikte döndürülür, taşınır, çıkarılır).
   Küçült, Sayfaları düzenle, Döndür ve Ayır'da
   "Yeni belge olarak kaydet" (varsayılan; klasör Masaüstü) ya da "Üzerine yaz" (yedeksiz, güvenli yer değiştirme)
   seçilir: Küçült'te ve Ayır'da üzerine yazma geri alınamaz (uyarı gösterilir), Döndür'de ve Sayfaları düzenle'de
@@ -56,8 +57,11 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   sorulur ("Seçeneğimi hatırla" ile bir daha sorulmaz; Ayarlar › Görünüm'den değiştirilir). Geri alınabilir;
   kaydedince dosyaya yazılır.
 - Sayfa düzeni (tek sayfa / iki sayfa, kaydırma aç/kapa, kapak ayrı; bütün sekmelere uygulanır), %6400'e kadar
-  yakınlaştırma, okuma modu, tam ekran, sol panelde küçük resimler / İçindekiler / Yorumlar, belge içi ve dış
+  yakınlaştırma (genişliğe sığdır, kaydırmalı düzende sayfaların çoğunun genişliğine göre: birkaç geniş sayfa belgeyi
+  küçültmez, yana taşar), okuma modu, tam ekran, sol panelde küçük resimler / İçindekiler / Yorumlar, belge içi ve dış
   bağlantılar, form alanlarının görünümü, parola korumalı belgeler, sürükle-bırak, ayarlar penceresi (`Ctrl+,`).
+- **Başlangıç ekranı.** Belge açık değilken: PDF aç ve Görüntü / PDF birleştir kartları, son açılan belgeler (tek tıkla açılır;
+  × ya da sağ tıkla listeden kaldırılır, klasörde gösterilir).
 
 ## Ekran görüntüleri
 
@@ -92,7 +96,7 @@ Windows 11'de varsayılan uygulamayı yalnızca kullanıcı seçebilir; kurulum 
 
 ### Güncelleme
 
-PDEfe 10 açılışta bir (kurulumdan ya da güncellemeden sonraki ilk açılışta, sonra her 10 açılışta bir) GitHub'dan
+PDEfe haftada bir (son denetimden bu yana bir hafta geçtiyse açılışta; günlerce açık kalıyorsa gün içinde) GitHub'dan
 yeni sürüm olup olmadığına bakar. Yeni sürüm varsa pencerenin üstünde **PDEfe X hazır (kullandığınız: Y).** şeridi çıkar.
 **Güncelle** düğmesine bir kez basmak yeter: paket indirilir (yalnızca değişen kısımlar), kurulum sihirbazı açılmadan
 kurulur ve PDEfe kendiliğinden yeni sürümle açılır. Kaydedilmemiş belge varsa önce sorulur; ayarlarınıza dokunulmaz.

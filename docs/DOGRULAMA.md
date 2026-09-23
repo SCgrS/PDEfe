@@ -183,3 +183,25 @@ Ekran dışı test örneği %100 ölçekte çalıştı: %125 ölçekli ekranda g
 1. **Telefon fotoğrafı.** Telefonda dik çekilmiş bir fotoğrafı (ör. WhatsApp) Görüntü / PDF birleştir'e ekleyin: "Orijinal" tahmini dosya
    boyutuna yakın olmalı, PDF'te fotoğraf doğru yönde görünmeli.
 2. **Döndürme yönü.** Bir görüntüyü "Sağa döndür" ile döndürüp birleştirin: PDF'te önizlemedeki gibi sağa (saat yönünde) dönmüş olmalı.
+
+## 17. 0.1.8: otomatik testlerin sınayamadıkları
+Kalın yazı karşılaştırması kullanıcının gönderdiği yan yana ekran görüntüsündeki referans okuyucu yarısıyla aynı ölçekte (PDEfe %115, %100 Windows
+ölçeği) yapıldı; referans okuyucu penceresinde gözle bakılmadı. Kurulum son sayfası, derlenen küçük bir kurucuyla görünmeyen masaüstünde
+yakalandı (test\kurulum_bitis.ps1); gerçek kurulumda bakılmadı.
+1. **Kalın yazı netliği.** `ustyazi (74).pdf` tebligatını PDEfe'de ve referans okuyucuda aynı büyüklükte yan yana açın: "Duruşma Günü / Saati / Yeri",
+   "BU ZARFTA …" ve "Muhatap adresini değiştirmişse …" satırları referans okuyucudaki kadar keskin (gri ve bulanık değil) ve referans okuyucudaki kadar ince
+   olmalı. Başka kalın başlıklı bir Word PDF'inde de bakın; %125 ölçekli ekranda da deneyin.
+2. **Başlangıç ekranı.** PDEfe'yi Başlat menüsündeki ya da masaüstündeki kısayoldan (belge açmadan) başlatın: "PDF aç" kartı Windows'un Aç
+   penceresini açmalı; son açılanlardan birine tıklayınca belge açılmalı; satırın üzerindeki × yalnızca listeden kaldırmalı (dosya
+   yerinde); "Görüntü / PDF birleştir" kartı aracı açmalı. Ekranda "Ctrl+O" yazısı olmamalı.
+3. **Genişliğe sığdır.** `birlesik (3).pdf`'i açın (Genişliğe sığdır, kaydırma açık): 3–6. sayfalar pencereyi tam doldurmalı; 2. ve 9. sayfa
+   iki yandan taşmalı (yana kaydırılarak görülür), A4 ilk sayfa ortada. Son sayfaya gidip yeniden Genişliğe sığdır seçince ölçek
+   değişmemeli. Büyük bir kanun PDF'i açılırken ölçek açıldıktan sonra sıçramamalı.
+4. **Birleştir'de seçim.** Görüntü / PDF birleştir'e 5–6 dosya ekleyin: farenin sağ tuşunu basılı tutup satırların üzerinden sürükleyin;
+   geçtiği satırlar seçilmeli, bırakınca menü açılmamalı. Seçili bir satıra sağ tıklayınca menüde "(3)" gibi sayı görünmeli; Delete
+   seçilenleri çıkarmalı; seçili satırı sürükleyince seçilenler birlikte taşınmalı.
+5. **Kurulum son sayfası.** Yeni kurulum dosyasını çalıştırıp son sayfaya gelin: "PDEfe'yi varsayılan PDF görüntüleyici yap" tek satırda,
+   kesiksiz görünmeli; işaretleyip Bitir'e basınca Windows Ayarlar'ın Varsayılan uygulamalar › PDEfe sayfası açılmalı.
+6. **X bağlantısı.** Ayarlar › Hakkında'daki x.com/CgrShn bağlantısı tarayıcıda tek sekme açmalı.
+7. **Haftalık güncelleme.** Ayarlar › Güncelleme'de "Güncellemeleri otomatik denetle (haftada bir)" ve altında son denetimin tarihi
+   görünmeli; "Şimdi denetle"den sonra tarih o ana güncellenmeli.

@@ -3,6 +3,36 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.8 — 2026-09-23
+
+### Görüntü kalitesi
+- Kalın yazılar artık bulanık görünmüyor: referans okuyucudaki gibi keskin çizilir. 0.1.4 – 0.1.7'de kalın yazılar (UYAP tebligatındaki "Duruşma Günü", "Muhatap adresini değiştirmişse…" gibi satırlar) harflerin ana hatlarından, gri yumuşatmayla çiziliyordu: koyulukları referans okuyucuyla aynıydı ama harf kenarları iki piksele yayıldığı için yan yana bakınca bulanıktı. Artık kalın yazılar da Windows'un ClearType çizimiyle (referans okuyucunun "LCD ekran" yumuşatması gibi, harfler piksel ızgarasına oturtularak) çizilir.
+- Windows, bazı kalın yazı tiplerini (Times New Roman, Georgia, Garamond, Cambria Bold) küçük boyutta ClearType ile belirgin koyu çizer. PDEfe bunu her yazı tipi ve boyut için bir kez ölçer ve düzeltir: kalın yazılar keskin ama referans okuyucu kalınlığında kalır. Gönderilen tebligatın kalın satırları aynı ölçekte referans okuyucuyla ±%3 aynı koyulukta.
+- Döndürülmüş sayfadaki yazılar eskisi gibi harflerin ana hatlarından çizilir.
+
+### Başlangıç ekranı
+- Uygulama kısayoldan (belge açmadan) başlatılınca başlangıç ekranındaki "PDF aç" düğmesi ve son açılan belgeler tıklanamıyordu: ekranın üstünde görünmeyen boş bir katman kalıyordu. Düzeltildi; "PDF aç" Windows'un Aç penceresini açar, son açılanlar tek tıkla açılır.
+- Başlangıç ekranı yenilendi: solda iki büyük kart, **PDF aç** (bir ya da birkaç PDF seçilir) ve **Görüntü / PDF birleştir** (fotoğraf, taranmış belge ve PDF'lerden tek PDF; açık belge gerekmez); sağda dosya simgeleriyle **Son açılanlar** (dosya adı ve klasörü). Listedeki satırın üzerine gelince çıkan × ya da `Delete` belgeyi yalnızca listeden kaldırır (dosya silinmez); sağ tıkla Aç, Klasörde göster, Yolu kopyala, Listeden kaldır. "Listeyi temizle" bütün listeyi boşaltır. Açık ve koyu temaya, dar pencereye uyar.
+- Başlangıç ekranındaki "Ctrl+O" yazısı kaldırıldı (kısayol çalışmaya devam eder).
+
+### Görünüm
+- Genişliğe sığdır, kaydırmalı düzende belgedeki en geniş sayfaya değil, sayfaların çoğunun genişliğine göre yapılır. Örneğin farklı boyutlarda görüntülerden birleştirilmiş 9 sayfalık bir PDF'te dört sayfa ~1012 pt genişliğindeyse o dört sayfa pencereyi tam doldurur; daha dar sayfalar ortada durur, daha geniş iki sayfa iki yandan taşar (yana kaydırılarak görülür). Önceden ölçek o an bulunulan sayfaya göre hesaplandığından belge en geniş sayfada açılınca bütün sayfalar küçük görünüyordu.
+- Ölçek artık hangi sayfada olunduğuna bağlı değil: belgede gezinirken ya da başka bir sayfadayken yeniden "Genişliğe sığdır" seçince değişmez. Tek sayfa (kaydırma kapalı) düzeninde her sayfa eskisi gibi kendi genişliğine sığdırılır.
+- Hızlı: sayfa boyutları belge açılırken birlikte öğrenilir (1500 sayfalık belgede açılış 0,13 sn); ölçek açıldıktan sonra sıçramaz.
+
+### Araçlar
+- Görüntü / PDF birleştir: listede **farenin sağ tuşuyla sürükleyerek** birden çok dosya seçilir (satırların üzerinden de başlanabilir); sol tuşla boş alandan sürüklemek de seçer. Sürüklerken seçim canlı güncellenir, listenin kenarına gelince liste kayar, `Esc` vazgeçer; `Ctrl` ya da `Shift` basılıyken önceki seçime eklenir. Kıpırdamadan sağ tık eskisi gibi menüyü açar.
+- Aynı listede `Ctrl`+tık tek tek, `Shift`+tık aralık seçer, `Ctrl+A` hepsini seçer. Seçili dosyalar birlikte döndürülür, yukarı / aşağı taşınır, sürüklenip sıralanır ve `Delete` ya da "Listeden çıkar" ile birlikte çıkarılır; sağ tık menüsü seçili dosya sayısını gösterir ("Listeden çıkar (3)").
+
+### Güncelleme
+- Güncelleme denetimi haftada bir yapılır (önceden 10 açılışta bir): son denetimden bu yana bir hafta geçtiyse açılışta, PDEfe günlerce açık kalıyorsa gün içinde arka planda. İnternet yoksa sessizce geçilir, sonra yeniden denenir. Yardım › Güncellemeleri denetle ve Ayarlar › Güncelleme › Şimdi denetle her zaman hemen denetler; Ayarlar'da son denetimin tarihi görünür.
+
+### Kurulum
+- Kurulumun son sayfasında "PDEfe'yi varsayılan PDF görüntüleyici yap" seçeneğinin yazısı yarım görünüyordu (ikinci satırı kesiliyordu). Seçenek tek satıra sığar; Windows Ayarlar'ın açılacağı ve orada ne seçileceği sayfanın metninde yazar.
+
+### Düzeltmeler
+- Ayarlar › Hakkında'daki x.com/CgrShn bağlantısı tarayıcıda profili iki sekmede açıyordu; artık bir kez açılır.
+
 ## 0.1.7 — 2026-09-23
 
 ### Araçlar
