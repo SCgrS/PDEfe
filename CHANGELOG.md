@@ -3,6 +3,12 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.7 — 2026-09-23
+
+### Araçlar
+- Görüntü / PDF birleştir: telefonda dik ya da ters çekilmiş fotoğraflar (WhatsApp ve telefon kamerası fotoğrafları gibi, dönüş bilgisi dosyanın içinde olanlar) "Orijinal"de artık olduğu gibi eklenir. Önceden bu fotoğraflar kayıpsız biçime çevrildiği için kat kat büyüyordu: 364 KB'lık bir WhatsApp fotoğrafı PDF'te 3,1 MB yer tutuyordu, şimdi 364 KB. Fotoğraf yine doğru yönde görünür.
+- Aynı araçta "Sağa döndür" görüntüyü birleştirilmiş PDF'te sola döndürüyordu (önizlemede doğru görünüyordu); artık önizlemedeki yöne döner. "Sola döndür" için de aynı. PDF dosyalarının döndürülmesi zaten doğruydu.
+
 ## 0.1.6 — 2026-09-23
 
 ### Araçlar

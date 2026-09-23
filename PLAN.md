@@ -337,4 +337,14 @@ Ayrıntı: CHANGELOG.md. Kullanıcı 5 istek bildirdi (referans okuyucu ile yan 
   gömülemeyen görselde (EXIF yönü, CMYK) karşılaştırma yapılmaz. Kaynak JPEG'in alt örneklemesi (get_sampling) yeniden kodlamada korunur.
   PDF öğelerinde MuPDF eşik altındaki JPEG'lere dokunmadığından sorun yoktu. Test: araclar_testi.py `test_kalite_buyutmez` (yapay düz
   çizimler yeniden kodlanınca büyümüyor; belirlenimci Mandelbrot yakın çekimi q60). Tahmin ile çıktı ±1 KB.
-  Açık: EXIF yönlü telefon fotoğrafı "Orijinal"de PNG'ye çevrilip çok büyüyor (JPEG döndürülerek olduğu gibi gömülebilir).
+  EXIF yönlü telefon fotoğrafının "Orijinal"de PNG'ye çevrilip büyümesi 0.1.7'de çözüldü.
+
+### Revizyon 0.1.7 (2026-09-23, kullanıcı isteği)
+- [x] **Telefon fotoğrafı**: EXIF yönü 3/6/8 olan JPEG (bu makinede WhatsApp fotoğrafları yön 8) de dokunulmadan gömülür; `EXIF_DONUSU`
+  (saat yönünde 180/90/270, Pillow exif_transpose'la denetlendi) kullanıcı döndürmesine eklenip karenin dönüşü olur. Sayfa ölçüsü ve yeniden
+  kodlama hep görünen (çevrilmiş) kareden; yeniden kodlanan kare yalnızca kullanıcı döndürmesini taşır (`bayt is ozgun_jpeg` ile ayrılır).
+  Aynalı yönler (2, 4, 5, 7) PNG yolunda. PyMuPDF insert_image JPEG'in EXIF yönünü uygulamaz (deneyle). 364 KB fotoğraf: 3,1 MB → 364 KB.
+- [x] **"Sağa döndür" ters**: PyMuPDF'in `insert_image(rotate=)`'i saat yönünün tersine; arayüzün dondurme'si saat yönünde (önizleme CSS
+  rotate, PDF öğesinde /Rotate). Görseller 0.1.0'dan beri önizlemenin tersine dönüyordu (testler yalnızca ölçüye bakıyordu).
+  `_gorsel_sayfasi_ekle` `rotate=(360 - dondurme) % 360`. Test: `test_gorsel_yonu` (köşe işaretleri, 54 vaka).
+- [ ] MPO (çok resimli JPEG, bazı kameralar) hâlâ PNG yolunda; bu makinede örneği yok.

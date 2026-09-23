@@ -178,3 +178,8 @@ Ekran dışı test örneği %100 ölçekte çalıştı: %125 ölçekli ekranda g
 ## 15. 0.1.6
 1. **Görüntü birleştir kalitesi.** Birkaç tarama / telefon fotoğrafı ve bir ekran görüntüsü ekleyin: kalite düğmelerinde Orijinal ≥ Yüksek
    ≥ Orta ≥ Düşük olmalı; Yüksek ile birleştirilen PDF Orijinal'den büyük olmamalı.
+
+## 16. 0.1.7
+1. **Telefon fotoğrafı.** Telefonda dik çekilmiş bir fotoğrafı (ör. WhatsApp) Görüntü / PDF birleştir'e ekleyin: "Orijinal" tahmini dosya
+   boyutuna yakın olmalı, PDF'te fotoğraf doğru yönde görünmeli.
+2. **Döndürme yönü.** Bir görüntüyü "Sağa döndür" ile döndürüp birleştirin: PDF'te önizlemedeki gibi sağa (saat yönünde) dönmüş olmalı.
