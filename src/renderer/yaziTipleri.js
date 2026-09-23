@@ -1,13 +1,14 @@
 // PDF yazılarının çizimi ("Dengeli"): her yazı referans okuyucunun görünümüne en yakın yolla çizilir.
-//  - Kalın olmayan yazı tipleri, yazı düz (dönmemiş, eğilmemiş, aynalanmamış) çizilirken Chromium'un yazı çizicisiyle (FontFace;
-//    DirectWrite, ipuçlu, ClearType): referans okuyucu küçük yazıyı ipuçlarıyla ve LCD yumuşatmasıyla keskin ve koyu çizer. 0.1.4'teki ana hat
-//    çiziminde (ipuçsuz, gri) harfler iki piksele yayılıp soluk ve bulanık görünüyordu: UYAP tebligatının 7 pt Times paragrafı %100
-//    ölçekte (cihaz pikseli oranı 1) referans okuyucudan %28 açık; ClearType ile +%2, 8 pt Arial +%4.
-//  - Kalın (yarı kalın ve üstü) yazı tipleri ve döndürülmüş / eğik yazı ana hatlarından (Path2D, gri yumuşatma): ClearType kalın yazıyı
-//    Referans okuyucudan belirgin kalın çiziyor (aynı paragrafın Times-Bold satırlarında %100'de +%11, kullanıcının %125 ölçekli ekranında +%24;
-//    ana hatla ±%0 ve +%13), döndürülmüş glifleri de ipuçlarıyla bozuk (ince, düzensiz) çiziyordu.
+//  - Düz (dönmemiş, eğilmemiş, aynalanmamış) yazı Chromium'un yazı çizicisiyle (FontFace; DirectWrite, ipuçlu, ClearType): referans okuyucu yazıyı
+//    ipuçlarıyla ve LCD yumuşatmasıyla keskin çizer. 0.1.4'teki ana hat çiziminde (ipuçsuz, gri) harfler iki piksele yayılıp soluk ve
+//    bulanık görünüyordu: UYAP tebligatının 7 pt Times paragrafı %100 ölçekte (cihaz pikseli oranı 1) referans okuyucudan %28 açık; ClearType ile
+//    +%2, 8 pt Arial +%4.
+//  - Kalın (yarı kalın ve üstü) yazı 0.1.4 – 0.1.7'de ana hatlarından çiziliyordu (ClearType kalın yazıyı referans okuyucudan koyu çiziyordu);
+//    koyuluk referans okuyucuyla aynıydı ama yazı yanında bulanık görünüyordu. 0.1.8'den beri düz kalın yazı da ClearType'la, ClearType'ın
+//    fazladan koyuluğu ölçülüp saydamlıkla giderilerek çizilir (kalinOpaklik; tebligatın kalın satırları referans okuyucuyla ±%3).
+//  - Döndürülmüş / eğik yazı ana hatlarından (Path2D, gri yumuşatma): ipuçlu çizim döndürülmüş glifleri bozuk (ince, düzensiz) çiziyordu.
 //  - Gömülü fontlar: PDF.js belgedeki font verisinden hem FontFace hem ana hat çıkarır (belge disableFontFace ile açılır: işçi glif
-//    yollarını her yazı tipi için gönderir; düz yazı tipinde FontFace ayrıca kurulur).
+//    yollarını her yazı tipi için gönderir; FontFace ayrıca kurulur).
 //  - Gömülü olmayan standart 14 font (Times, Helvetica/Arial, Courier): referans okuyucunun Windows'ta yaptığı gibi Windows'un Times New Roman,
 //    Arial ve Courier New dosyaları kullanılır (PDF.js'in kendi yedekleri Foxit/Liberation'da Türkçe ş, İ, ğ yok).
 //  - Gömülü olmayan öteki fontlar (UYAP doğrulama satırındaki Consolas, "e-imzalı" damgasındaki Segoe Script, Cambria…): Windows'taki
@@ -66,7 +67,7 @@ export class SistemYaziTipiFabrikasi {
   }
 }
 
-/** "Dengeli" çizimle (kalın ve döndürülmüş yazı ana hatlarından, düz yazı FontFace ile) belge açmak için getDocument seçenekleri. */
+/** "Dengeli" çizimle (döndürülmüş yazı ana hatlarından, düz yazı FontFace ile) belge açmak için getDocument seçenekleri. */
 export function anaHatSecenekleri() {
   return { disableFontFace: true, useSystemFonts: false, BinaryDataFactory: SistemYaziTipiFabrikasi };
 }
@@ -76,9 +77,9 @@ let yukleyiciSarili = false, yolSarili = false;
 
 /**
  * Belgenin yazı tipi yükleyicisini (prototipte, bir kez) sarar; ilk sayfa çizilmeden önce çağrılmalı (bind yazı tipi ilk
- * kullanıldığında çalışır). Gömülü olmayan standart dışı fontlara Windows'taki fontu bağlar, kalın olmayan yazı tiplerinde düz yazıyı
- * Chromium'a bırakır (yerliCizimAc), glif yollarını keskinlik.js'in ince çizgi oturtmasından çıkarır ('l', 'I', '-' gibi dikdörtgen
- * glifler ızgaraya oturtulunca harf kalınlıkları tutarsızlaşırdı).
+ * kullanıldığında çalışır). Gömülü olmayan standart dışı fontlara Windows'taki fontu bağlar, düz yazıyı Chromium'a bırakır
+ * (yerliCizimAc; kalın yazı tiplerini kalinYazilar'a yazar), glif yollarını keskinlik.js'in ince çizgi oturtmasından çıkarır ('l', 'I',
+ * '-' gibi dikdörtgen glifler ızgaraya oturtulunca harf kalınlıkları tutarsızlaşırdı).
  */
 export function yaziTipiYukleyicisiniSar(pdfBelge) {
   if (yukleyiciSarili) return;
@@ -91,8 +92,8 @@ export function yaziTipiYukleyicisiniSar(pdfBelge) {
       glifYollariniSar(font);
       if (font && !font.attached && !font.isType3Font) {
         if (font.missingFile) { if (!font.systemFontInfo) await yerelYaziTipiBagla(font); }
-        // disableFontFace true: belge ana hat kipinde açıldı (işçi glif yollarını gönderiyor); kalın olmayan yazı tipi Chromium'la da çizilebilir
-        else if (font.disableFontFace === true && font.data && !kalinMi(font)) yerliCizimAc(font);
+        // disableFontFace true: belge ana hat kipinde açıldı (işçi glif yollarını gönderiyor); düz yazı Chromium'la da çizilebilir
+        else if (font.disableFontFace === true && font.data) { if (kalinMi(font)) kalinYazilar.add(font); yerliCizimAc(font); }
       }
     } catch (e) { console.warn('Yazı tipi hazırlanamadı', font?.name, e); }
     return ozgun.call(this, font);
@@ -100,7 +101,7 @@ export function yaziTipiYukleyicisiniSar(pdfBelge) {
   yukleyiciSarili = true;
 }
 
-// ------------------------------------------------------------ düz yazı Chromium'la, kalın ve döndürülmüş yazı ana hatlarından
+// ------------------------------------------------------------ düz yazı Chromium'la, döndürülmüş yazı ana hatlarından
 // "Black" ve "Demi" büyük harfle ve ardından küçük harf gelmeden: "BlackadderITC", "Academic" kalın sayılmaz
 const KALIN_AD = /bold|heavy|kal[ıi]n/i, KALIN_AD_BUYUK = /Black(?![a-z])|Demi(?![a-z])/;
 /**
@@ -135,7 +136,7 @@ function agirlikSinifi(veri) {
 let yerliIzin = true;   // çizilen yazı düz mü (showText sarmalayıcısı yazar); showText dışında true: bind FontFace'i kurabilsin
 
 /**
- * Kalın olmayan gömülü (ya da Windows'tan okunan standart) yazı tipi: PDF.js'in disableFontFace bayrağı nesnede erişimciyle değiştirilir.
+ * Gömülü (ya da Windows'tan okunan standart) yazı tipi: PDF.js'in disableFontFace bayrağı nesnede erişimciyle değiştirilir.
  * bind sırasında false (PDF.js FontFace kurar), çizimde yazı düzse false (Chromium fillText), değilse true (ana hat; işçi yolları
  * belge ana hat kipinde açıldığı için gönderir). FontFace yüklenemezse PDF.js true yazar: o yazı tipi hep ana hatlarından çizilir.
  */
@@ -149,16 +150,91 @@ function yerliCizimAc(font) {
 }
 
 const KIMLIK = [1, 0, 0, 1, 0, 0];
-/** Yazı cihazda dönmeden, eğilmeden ve aynalanmadan mı çizilecek: tuval dönüşümü × metin matrisi × showText'in yatay ölçek / y çevirmesi. */
-function duzYaziMi(gfx) {
+/**
+ * Yazı cihazda dönmeden, eğilmeden ve aynalanmadan mı çizilecek (tuval dönüşümü × metin matrisi × showText'in yatay ölçek / y
+ * çevirmesi): öyleyse metin uzayının dikey ölçeği (cihaz pikseli; × yazı boyutu = harf boyu), değilse 0.
+ */
+function duzYaziOlcegi(gfx) {
   const c = gfx.current, ctx = gfx.ctx;
-  if (!c || !ctx || c.font?.vertical) return false;
+  if (!c || !ctx || c.font?.vertical) return 0;
   const m = ctx.getTransform(), t = c.textMatrix || KIMLIK;
   const yon = c.fontDirection > 0 ? 1 : -1, sx = (c.textHScale ?? 1) * yon, sy = -yon;
   const a = (m.a * t[0] + m.c * t[1]) * sx, b = (m.b * t[0] + m.d * t[1]) * sx;
   const cc = (m.a * t[2] + m.c * t[3]) * sy, d = (m.b * t[2] + m.d * t[3]) * sy;
   const pay = 1e-3 * Math.max(Math.abs(a), Math.abs(d));
-  return a > 0 && d > 0 && Math.abs(b) <= pay && Math.abs(cc) <= pay;
+  return a > 0 && d > 0 && Math.abs(b) <= pay && Math.abs(cc) <= pay ? d : 0;
+}
+
+// ------------------------------------------------------------ kalın yazı: ClearType keskinliği, referans okuyucu koyuluğu
+// Kalın yazı 0.1.4 – 0.1.7'de ana hatlarından (ipuçsuz, gri) çiziliyordu: koyuluğu referans okuyucuyla aynıydı ama gövdeler iki piksele yayılıp
+// yazı referans okuyucunun ipuçlu ClearType çizimi yanında bulanık görünüyordu. Artık düz kalın yazı da Chromium'la (ipuçlu, ClearType) çizilir.
+// Windows'un bazı kalın yüzleri ClearType'la küçük boyutta belirgin koyu çıkar: ipucu talimatları gövdeleri tam piksele kalınlaştırır
+// (Times New Roman Bold 8–11 px'te ana hattından %25, 12 px'te %16, 16 px'te %6 fazla; Georgia, Garamond, Palatino, Book Antiqua,
+// Cambria Bold benzer; Arial, Calibri, Segoe UI, Tahoma, Verdana Bold'da sistematik fark yok, 20 px üstünde hiçbirinde yok). Referans okuyucu
+// kalın yazıyı ana hattı kadar koyu çizer (UYAP tebligatında ±%8). Bu yüzden her yazı tipi ve boyutta bir kez aynı glifler küçük bir
+// tuvale hem ClearType'la hem ana hattından çizilip mürekkepleri oranlanır; ClearType daha koyuysa yazı o oranda saydam çizilir.
+const kalinYazilar = new WeakSet();          // kalın yazı tipleri (PDF.js FontFaceObject)
+const kalinGlifleri = new WeakMap();         // yazı tipi → Set(fontChar): ölçümde çizilecek glifler (belgenin yazılarından)
+const kalinOpakliklari = new Map();          // "ad|opak|boyut kovası" → opaklık; belgeler arasında paylaşılır (aynı ad aynı yüzdür)
+const OLCUM_GLIF = 24;                       // oranlamada en çok bu kadar glif
+const OPAKLIK_EN_AZ = 0.85;                  // referans okuyucu küçük kalın yazıyı ana hattından biraz koyu çizer (tebligatın 7 pt satırları +%5–9)
+const OPAKLIK_SAKLAMA = 4000;                // saklanan ölçüm sayısı (sürekli yakınlaştırmada sınırsız büyümesin)
+
+/**
+ * Glifleri px boyunda bir tuvalin üst yarısına ClearType'la, alt yarısına ana hatlarından çizip mürekkeplerini (0–255 koyuluk toplamı)
+ * döndürür: [ClearType, ana hat]. Tuval sayfa tuvaliyle aynı saydamlık kipindedir (opakta Chromium yazıyı ClearType'la, saydamda gri
+ * çizer) ve ekran kartındadır: willReadFrequently tuvali işlemciye alır, ClearType orada başka karışır (sayfadakinden %15'e dek farklı
+ * ölçüyordu). Tek okuma (aynı tuvalden ikinci okumada Chromium konsola uyarı yazar); en az 300×300 px, küçük tuval ekran kartına
+ * alınmayabilir.
+ */
+function murekkepleriOlc(gfx, font, karakterler, px, opak) {
+  const hucre = Math.ceil(px * 1.3) + 2, taban = Math.ceil(px * 1.35) + 2, h = taban + Math.ceil(px * 0.55) + 2, w = hucre * karakterler.length;
+  const tuval = document.createElement('canvas');
+  tuval.width = Math.max(w, 300); tuval.height = Math.max(2 * h, 300);
+  const ctx = tuval.getContext('2d', { alpha: !opak });
+  try {
+    if (opak) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, tuval.width, tuval.height); }
+    ctx.fillStyle = '#000';
+    // ClearType: PDF.js'in kurduğu yazı tipi tanımı (tarayıcı boyu 16–100 px), ölçekle cihazda px boyunda
+    ctx.font = gfx.ctx.font;
+    const k = px / ((gfx.current.fontSize || 1) / (gfx.current.fontSizeScale || 1));
+    karakterler.forEach((c, i) => { ctx.setTransform(k, 0, 0, k, i * hucre + 1, taban); ctx.fillText(c, 0, 0); });
+    // Ana hat: PDF.js paintChar gibi (glif yolu em biriminde, y yukarı)
+    karakterler.forEach((c, i) => { const yol = font.getPathGenerator(gfx.commonObjs, c); if (yol) { ctx.setTransform(px, 0, 0, -px, i * hucre + 1, h + taban); ctx.fill(yol); } });
+    const v = ctx.getImageData(0, 0, w, 2 * h).data, yari = w * h * 4;
+    const m = [0, 0];
+    if (opak) for (let i = 0; i < v.length; i += 4) m[i < yari ? 0 : 1] += 765 - v[i] - v[i + 1] - v[i + 2];
+    else for (let i = 3; i < v.length; i += 4) m[i < yari ? 0 : 1] += v[i] * 3;
+    return m;
+  } finally { tuval.width = 0; tuval.height = 0; }
+}
+
+/**
+ * Kalın yazının ClearType'la çizilirken alacağı opaklık (OPAKLIK_EN_AZ – 1): belgenin bu yazı tipiyle yazılmış glifleri (en çok
+ * OLCUM_GLIF) px boyunda ana hattından ve ClearType'la çizildiğinde mürekkeplerinin oranı. Yazı tipinin adı (alt küme öneki atılmış),
+ * tuval kipi ve çeyrek piksellik boyut kovasıyla saklanır: aynı yazı tipi ve boyut bir kez ölçülür (ölçüm ~5 ms), başka belgede de
+ * yeniden ölçülmez. Yeterli glif yoksa (tek harflik parçalar) 1; ölçüm sonraki parçalarda yapılır.
+ */
+function kalinOpaklik(gfx, font, glifler, px) {
+  const kova = Math.round(px * 4) / 4;
+  const opak = gfx.ctx.getContextAttributes?.().alpha === false;
+  const anahtar = `${String(font.name || font.loadedName).replace(/^[A-Z]{6}\+/, '')}|${opak ? 1 : 0}|${kova}`;
+  if (kalinOpakliklari.has(anahtar)) return kalinOpakliklari.get(anahtar);
+  let secilen = kalinGlifleri.get(font);
+  if (!secilen) kalinGlifleri.set(font, secilen = new Set());
+  for (const g of glifler || []) {
+    if (secilen.size >= OLCUM_GLIF) break;
+    if (g && typeof g === 'object' && g.fontChar && !g.isSpace && g.isInFont && !g.accent) secilen.add(g.fontChar);
+  }
+  if (secilen.size < 3) return 1;
+  let deger = 1;
+  try {
+    const [ct, ah] = murekkepleriOlc(gfx, font, [...secilen], kova, opak);
+    if (ct > 0 && ah > 0) deger = Math.max(OPAKLIK_EN_AZ, Math.min(1, ah / ct));
+  } catch (e) { console.warn('Kalın yazı ölçülemedi', font?.name, e); }
+  if (kalinOpakliklari.size >= OPAKLIK_SAKLAMA) kalinOpakliklari.clear();
+  kalinOpakliklari.set(anahtar, deger);
+  return deger;
 }
 
 function metinCizimiSar(P) {
@@ -166,8 +242,16 @@ function metinCizimiSar(P) {
   Object.defineProperty(P, '__yaziYonu', { value: true });
   const ozgun = P.showText;
   const sarili = function (...a) {
-    yerliIzin = duzYaziMi(this);
-    try { return ozgun.apply(this, a); } finally { yerliIzin = true; }
+    const olcek = duzYaziOlcegi(this);
+    yerliIzin = olcek > 0;
+    const c = this.current, font = c?.font, ctx = this.ctx;
+    let alfa = null;
+    // Kalın yazı Chromium'la dolgu olarak çizilecekse (FontFace yüklü, desen dolgusu yok, görünmez / yalnızca çizgi kipi değil)
+    if (yerliIzin && font && kalinYazilar.has(font) && !font.disableFontFace && !c.patternFill && ((c.textRenderingMode & 3) === 0 || (c.textRenderingMode & 3) === 2)) {
+      const o = kalinOpaklik(this, font, a.find(Array.isArray), olcek * (c.fontSize || 0));
+      if (o < 1) { alfa = ctx.globalAlpha; ctx.globalAlpha = alfa * o; }
+    }
+    try { return ozgun.apply(this, a); } finally { yerliIzin = true; if (alfa !== null) ctx.globalAlpha = alfa; }
   };
   // PDF.js işlemleri numarasıyla (OPS) çağırır: aynı işlevi taşıyan numaralı anahtar da değiştirilir
   for (const k of Object.getOwnPropertyNames(P)) if (Object.getOwnPropertyDescriptor(P, k).value === ozgun) P[k] = sarili;
