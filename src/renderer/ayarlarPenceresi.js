@@ -263,11 +263,22 @@ function bolumKopyalama(k) {
 
 function bolumGuncelleme(k) {
   const a = ayarlar();
+  const sonDenetim = el('div', { class: 'soluk' }, '');
   k.append(kart({
-    baslik: 'Açılışta güncellemeleri denetle (10 açılışta bir)',
-    aciklama: 'Kurulumdan ya da güncellemeden sonraki ilk açılışta, sonra her 10 açılışta bir arka planda yeni sürüme bakılır. Yeni sürüm varsa pencerenin üstünde bir şerit görünür; Güncelle\'ye tek tıkla indirilir, kurulur ve PDEfe yeniden açılır.',
+    baslik: 'Güncellemeleri otomatik denetle (haftada bir)',
+    aciklama: 'Haftada bir, açılışta ya da PDEfe açık kalıyorsa gün içinde arka planda yeni sürüme bakılır; internet yoksa sonra yeniden denenir. Yeni sürüm varsa pencerenin üstünde bir şerit görünür; Güncelle\'ye tek tıkla indirilir, kurulur ve PDEfe yeniden açılır.',
     kontrol: anahtar(a.otoGuncelle !== false, (v) => degistir('otoGuncelle', v)),
+    alt: sonDenetim,
   }));
+  const sonDenetimYaz = () => {
+    const pdefe = acik?.baglam.pdefe;
+    if (!pdefe) return;
+    pdefe.cagir('guncelleme:durum').then((d) => {
+      const t = Number(d?.sonDenetim) || 0;
+      sonDenetim.textContent = t ? `Son denetim: ${new Date(t).toLocaleString('tr-TR', { dateStyle: 'long', timeStyle: 'short' })}` : 'Henüz denetlenmedi.';
+    }).catch(() => {});
+  };
+  sonDenetimYaz();
   const sonuc = el('div', { class: 'ayar-sonuc soluk' }, '');
   const dugme = el('button', { class: 'ikincil', type: 'button' }, 'Şimdi denetle');
   dugme.addEventListener('click', async () => {
@@ -291,6 +302,7 @@ function bolumGuncelleme(k) {
         }
       } else if (r.durum === 'yok') { sonuc.className = 'ayar-sonuc soluk'; sonuc.replaceChildren(r.mesaj || `PDEfe güncel${r.surum ? ` (${r.surum})` : ''}.`); }
       else { sonuc.className = 'ayar-sonuc ayar-sonuc-hata'; sonuc.replaceChildren('Denetlenemedi. ' + (r.mesaj || 'Beklenmeyen bir hata oluştu; biraz sonra yeniden deneyin.')); }
+      sonDenetimYaz();
     } catch (e) {
       console.error('Güncelleme denetimi', e);
       sonuc.className = 'ayar-sonuc ayar-sonuc-hata';

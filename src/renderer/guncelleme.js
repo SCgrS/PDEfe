@@ -6,7 +6,7 @@
 //   komutlar['yardim.guncelle'] = () => guncelleme.denetle();
 //
 // Akış (UDF Resimcisi'ndeki gibi tek düğme):
-//   main 'guncelleme:var' (10 açılışta bir otomatik ya da elle denetim) → "PDEfe x hazır (kullandığınız: y)." [Güncelle] [Sürüm notları] [Daha sonra]
+//   main 'guncelleme:var' (haftada bir otomatik ya da elle denetim) → "PDEfe x hazır (kullandığınız: y)." [Güncelle] [Sürüm notları] [Daha sonra]
 //   Güncelle → 'guncelleme:indir' ("PDEfe x indiriliyor %N") → "PDEfe x indirildi." ve kapatmadanOnce() (kaydedilmemiş belgeler
 //   sorulur) → "PDEfe x kuruluyor" ve 'guncelleme:kur': uygulama kapanır, sihirbazsız kurulur ve yeniden açılır.
 //   Soru Vazgeç ile kapatılırsa indirilen paket saklanır: "[Kur ve yeniden başlat]" yeniden indirmeden kurar.
@@ -171,7 +171,7 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce }) {
     else if (d.bulunan) asama('var', { surum: d.bulunan.surum });
   }).catch(() => {});
 
-  /** Elle denetim (Yardım › Güncellemeleri denetle, Ayarlar › Güncelleme): sayaca bakmaz; yeni sürüm varsa şerit ("Daha sonra" ile
+  /** Elle denetim (Yardım › Güncellemeleri denetle, Ayarlar › Güncelleme): haftalık süreye bakmaz; yeni sürüm varsa şerit ("Daha sonra" ile
    *  gizlenmiş olsa da) görünür. bildirim: false iken sonuç yalnızca döndürülür (Ayarlar kendisi yazar). */
   async function denetle({ bildirim = true } = {}) {
     if (bildirim) bildir('Güncellemeler denetleniyor', 2000);

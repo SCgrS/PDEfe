@@ -124,7 +124,7 @@ function pencereOlustur() {
     if (kayitli.buyutulmus && TEST.konum.length !== 2) pencere.maximize();
     if (TEST.konum.length === 2) pencere.showInactive(); else pencere.show();
   });
-  // Sırası gelen açılışta (10 açılışta bir) güncelleme denetimi pencere göründükten birkaç saniye sonra yapılır
+  // Haftalık güncelleme denetimi: sırası geldiyse pencere göründükten birkaç saniye sonra; uygulama açık kaldıkça saatte bir bakılır
   pencere.once('show', () => guncelleme?.pencereGosterildi());
   pencere.on('close', (e) => {
     if (!pencere) return;

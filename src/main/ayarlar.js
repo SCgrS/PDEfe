@@ -25,8 +25,8 @@ export const VARSAYILANLAR = {
   otomatikKaydet: true,           // 0.1.4: kaydedilmeden başka programda (referans okuyucu) açılan belgede notlar görünmüyordu
   // Kopyalama
   temizMetin: true,
-  // Güncelleme: açılışta 10 açılışta bir denetle. Açılış sayacı (acilisSayaci, sonDenetimAcilisi, sonDenetimSurumu) main/guncelleme.js'te;
-  // varsayılanı yoktur, "Varsayılanlara dön" ona dokunmaz.
+  // Güncelleme: haftada bir otomatik denetle. Son denetimin zamanı (sonDenetimZamani) main/guncelleme.js'te; varsayılanı yoktur,
+  // "Varsayılanlara dön" ona dokunmaz.
   otoGuncelle: true,
   // Dosya
   ciktiKlasoru: '',               // araçların yeni belge çıktıları; boşsa Masaüstü (app.getPath('desktop'))
@@ -39,8 +39,8 @@ export const VARSAYILANLAR = {
   pencere: {},
 };
 
-/** Kaldırılmış ayarlar: eski sürümlerin yapılandırma dosyalarından silinir. */
-const KALDIRILAN_ANAHTARLAR = ['sekmeleriHatirla', 'acikSekmeler', 'sekmeDegisimindeSor', 'sonGuncellemeDenetimi'];
+/** Kaldırılmış ayarlar: eski sürümlerin yapılandırma dosyalarından silinir (0.1.8: 10 açılışta bir denetimin sayacı → haftalık denetim). */
+const KALDIRILAN_ANAHTARLAR = ['sekmeleriHatirla', 'acikSekmeler', 'sekmeDegisimindeSor', 'sonGuncellemeDenetimi', 'acilisSayaci', 'sonDenetimAcilisi', 'sonDenetimSurumu'];
 
 export const ayarlar = new Store({ name: 'ayarlar', defaults: VARSAYILANLAR, clearInvalidConfig: true });
 for (const anahtar of KALDIRILAN_ANAHTARLAR) { try { if (ayarlar.has(anahtar)) ayarlar.delete(anahtar); } catch (e) { console.warn('Eski ayar silinemedi', anahtar, e); } }

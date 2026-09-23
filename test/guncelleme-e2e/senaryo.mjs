@@ -14,8 +14,9 @@ const SERIT = `(() => { const s = document.querySelector('#guncelleme-seridi');
   return { gizli: s.hidden, asama: s.dataset.asama || '', metin: s.querySelector('.metin')?.textContent || '',
     dugmeler: [...s.querySelectorAll('button')].map((b) => { const r = b.getBoundingClientRect(); return { ad: b.textContent, sinif: b.className, x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) }; }) }; })()`;
 
+/** Haftalık denetimin kaydı (0.1.8; önceden açılış sayacı): son başarılı denetim zamanı ve bekleyen sürüm. */
 function sayac() {
-  try { const a = JSON.parse(fs.readFileSync(AYAR, 'utf8')); return { acilisSayaci: a.acilisSayaci, sonDenetimAcilisi: a.sonDenetimAcilisi, sonDenetimSurumu: a.sonDenetimSurumu, pencere: a.pencere }; }
+  try { const a = JSON.parse(fs.readFileSync(AYAR, 'utf8')); return { sonDenetimZamani: a.sonDenetimZamani ? new Date(a.sonDenetimZamani).toISOString() : null, bekleyenGuncelleme: a.bekleyenGuncelleme, pencere: a.pencere }; }
   catch (e) { return { hata: e.message }; }
 }
 const ozet = (s) => (s.gizli ? '(gizli)' : `[${s.asama}] ${s.metin} | ${s.dugmeler.map((b) => b.ad + (b.sinif === 'birincil-serit' ? '*' : '')).join(', ')}`);
@@ -68,7 +69,7 @@ export default async function ({ evalJs, bekle, tikla, ekranGoruntusu }) {
   if (adim === 'serit') {
     const s = await serit();
     console.log('şerit:', ozet(s));
-    console.log('sayaç:', JSON.stringify(sayac()));
+    console.log('denetim kaydı:', JSON.stringify(sayac()));
     console.log('durum:', JSON.stringify(await evalJs(`pdefe.cagir('guncelleme:durum')`)));
     console.log('sürüm:', JSON.stringify(await evalJs(`pdefe.cagir('uygulama:bilgi').then((b) => ({ surum: b.surum, paketli: b.paketli }))`)));
     if (process.env.SS) await ekranGoruntusu(process.env.SS);
