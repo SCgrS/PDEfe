@@ -195,13 +195,21 @@ export class AraclarPenceresi {
     }
   }
 
-  /** Aynı sütunda yukarı/aşağıdaki ilk seçilebilir karo (sütun sayısı yerleşimden okunur); yoksa bulunduğu karo. */
+  /**
+   * Yukarı/aşağıda seçilebilir karo bulunan en yakın satırda yatayda en yakın karo; yoksa bulunduğu karo. Son satır ortalı olduğundan
+   * sütunlar hizalı değil: iki karo eşit uzaklıktaysa aşağı giderken sağdaki, yukarı giderken soldaki (aşağı-yukarı geri döner).
+   */
   _dikey(k, yon) {
-    const hepsi = this.karolar.map((x) => x.k);
-    const sutun = Math.max(1, hepsi.filter((x) => x.offsetTop === hepsi[0].offsetTop).length);
-    for (let j = hepsi.indexOf(k) + yon * sutun; j >= 0 && j < hepsi.length; j += yon * sutun) {
-      if (hepsi[j].getAttribute('aria-disabled') !== 'true') return hepsi[j];
+    const r0 = k.getBoundingClientRect(), x0 = r0.left + r0.width / 2;
+    let en = k, enSatir = Infinity, enUzak = Infinity, enSol = 0;
+    for (const x of this.etkinKarolar()) {
+      const r = x.getBoundingClientRect();
+      const dy = (r.top - r0.top) * yon, dx = Math.abs(r.left + r.width / 2 - x0);
+      if (dy <= 1) continue;   // aynı satır ya da öteki yön
+      const yakinSatir = dy < enSatir - 1, ayniSatir = Math.abs(dy - enSatir) <= 1;
+      const yakin = dx < enUzak - 1, esit = Math.abs(dx - enUzak) <= 1;
+      if (yakinSatir || (ayniSatir && (yakin || (esit && (r.left - enSol) * yon > 0)))) { en = x; enSatir = dy; enUzak = dx; enSol = r.left; }
     }
-    return k;
+    return en;
   }
 }

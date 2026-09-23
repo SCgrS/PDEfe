@@ -96,8 +96,10 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
       if (t === 'koyu') {
         const odak = () => evalJs(`document.activeElement?.dataset?.aracKomut || document.activeElement?.id`);
         const adimlar = [];
-        for (const [tus_, bekl] of [['ArrowRight', 'arac.sayfalar'], ['ArrowRight', 'arac.dondurKaydet'], ['ArrowDown', 'arac.dondurKaydet'], ['ArrowLeft', 'arac.sayfalar'],
-          ['ArrowDown', 'arac.gorselBirlestir'], ['ArrowRight', 'arac.kucult'], ['End', 'arac.gorselBirlestir'], ['ArrowUp', 'arac.sayfalar'], ['Home', 'arac.kucult'],
+        // Alt satır (PDF ayır, Görüntü / PDF birleştir) ortalı: aşağı ok yatayda en yakın karoya, eşitlikte aşağıda sağdakine, yukarıda soldakine
+        for (const [tus_, bekl] of [['ArrowRight', 'arac.sayfalar'], ['ArrowRight', 'arac.dondurKaydet'], ['ArrowDown', 'arac.gorselBirlestir'], ['ArrowDown', 'arac.gorselBirlestir'],
+          ['ArrowUp', 'arac.sayfalar'], ['ArrowDown', 'arac.gorselBirlestir'], ['ArrowLeft', 'arac.ayir'], ['ArrowUp', 'arac.kucult'], ['ArrowDown', 'arac.ayir'],
+          ['ArrowRight', 'arac.gorselBirlestir'], ['ArrowRight', 'arac.kucult'], ['End', 'arac.gorselBirlestir'], ['ArrowUp', 'arac.sayfalar'], ['Home', 'arac.kucult'],
           ['ArrowLeft', 'arac.gorselBirlestir'], ['Tab', 'arac.kucult']]) {
           await tus(tus_);
           const o = await odak();
@@ -105,7 +107,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
           if (o !== bekl) hataSayisi++;
         }
         console.log('     klavye: ' + adimlar.join(', '));
-        sonuc('karolar arasında klavyeyle gezinme (3+2 ızgara, sarma)', !adimlar.some((a) => a.includes('beklenen')));
+        sonuc('karolar arasında klavyeyle gezinme (3 + ortalı 2, sarma)', !adimlar.some((a) => a.includes('beklenen')));
       }
       await tus('Escape');
       sonuc(`Esc kapatır (${t})`, await kosul(`document.querySelector('#araclar-penceresi').hidden`, 2000));
