@@ -1,17 +1,24 @@
-// PDF yazılarının çizimi: referans okuyucu gibi glifler ana hatlarından (Path2D) çizilir.
-// Chromium'un yazı çizicisi (DirectWrite, ClearType + kontrast artırımı) kalın yazıyı referans okuyucudan belirgin kalın ve koyu çiziyordu
-// (kullanıcının %125 ölçekli ekranında UYAP tebligatının Times-Bold satırlarında referans okuyucudan %24 fazla mürekkep); döndürülmüş sayfada da
-// döndürülmüş glifleri ipuçlarıyla (hinting) bozuk çiziyordu. Ana hat çiziminde glif, yazı tipi dosyasındaki biçimiyle ve gri
-// yumuşatmayla çizilir; kalınlık ve görünüm referans okuyucuya yakındır, sayfa hangi açıda olursa olsun aynıdır.
-//  - Gömülü fontlar: PDF.js belgedeki font verisinden ana hat çıkarır.
+// PDF yazılarının çizimi ("Dengeli"): her yazı referans okuyucunun görünümüne en yakın yolla çizilir.
+//  - Kalın olmayan yazı tipleri, yazı düz (dönmemiş, eğilmemiş, aynalanmamış) çizilirken Chromium'un yazı çizicisiyle (FontFace;
+//    DirectWrite, ipuçlu, ClearType): referans okuyucu küçük yazıyı ipuçlarıyla ve LCD yumuşatmasıyla keskin ve koyu çizer. 0.1.4'teki ana hat
+//    çiziminde (ipuçsuz, gri) harfler iki piksele yayılıp soluk ve bulanık görünüyordu: UYAP tebligatının 7 pt Times paragrafı %100
+//    ölçekte (cihaz pikseli oranı 1) referans okuyucudan %28 açık; ClearType ile +%2, 8 pt Arial +%4.
+//  - Kalın (yarı kalın ve üstü) yazı tipleri ve döndürülmüş / eğik yazı ana hatlarından (Path2D, gri yumuşatma): ClearType kalın yazıyı
+//    Referans okuyucudan belirgin kalın çiziyor (aynı paragrafın Times-Bold satırlarında %100'de +%11, kullanıcının %125 ölçekli ekranında +%24;
+//    ana hatla ±%0 ve +%13), döndürülmüş glifleri de ipuçlarıyla bozuk (ince, düzensiz) çiziyordu.
+//  - Gömülü fontlar: PDF.js belgedeki font verisinden hem FontFace hem ana hat çıkarır (belge disableFontFace ile açılır: işçi glif
+//    yollarını her yazı tipi için gönderir; düz yazı tipinde FontFace ayrıca kurulur).
 //  - Gömülü olmayan standart 14 font (Times, Helvetica/Arial, Courier): referans okuyucunun Windows'ta yaptığı gibi Windows'un Times New Roman,
 //    Arial ve Courier New dosyaları kullanılır (PDF.js'in kendi yedekleri Foxit/Liberation'da Türkçe ş, İ, ğ yok).
 //  - Gömülü olmayan öteki fontlar (UYAP doğrulama satırındaki Consolas, "e-imzalı" damgasındaki Segoe Script, Cambria…): Windows'taki
 //    kendi fontlarıyla (local()) eskisi gibi Chromium çizer; ana hattı çıkarılacak verileri yok.
 // Dayanılan PDF.js iç adları (pdfjs-dist 6): PDFDocumentProxy._transport.fontLoader, FontLoader.prototype.bind,
-// FontFaceObject.prototype.getPathGenerator ve name / loadedName / missingFile / systemFontInfo / bold / italic / isType3Font;
-// pdfjs-dist yükseltmesinde denetlenmeli. Yoksa çökmez: standart dışı fontlar PDF.js'in genel yedeğiyle (serif / sans-serif /
-// monospace) çizilir, glif yolları ince çizgi oturtmasına girebilir.
+// FontFaceObject.prototype.getPathGenerator ve name / loadedName / missingFile / systemFontInfo / bold / black / italic / isType3Font /
+// data / disableFontFace (erişimciyle gölgelenir), InternalRenderTask.initializeGraphics ve gfx, CanvasGraphics.showText (numaralı
+// OPS anahtarı dahil) ve current.textMatrix / textHScale / fontDirection / font.vertical; pdfjs-dist yükseltmesinde denetlenmeli.
+// Yoksa çökmez: yükleyici bulunamazsa bütün yazılar ana hatlarından, standart dışı fontlar PDF.js'in genel yedeğiyle (serif /
+// sans-serif / monospace) çizilir, glif yolları ince çizgi oturtmasına girebilir; showText sarılamazsa düz yazı tipleri döndürülmüş
+// sayfada da Chromium'la çizilir.
 import { metinYolu } from './keskinlik.js';
 
 /** PDF.js'in standart font dosya adı → Windows yazı tipi dosyası. Symbol ve ZapfDingbats PDF.js'in kendi dosyalarıyla kalır. */
@@ -59,7 +66,7 @@ export class SistemYaziTipiFabrikasi {
   }
 }
 
-/** Ana hat çizimiyle belge açmak için getDocument seçenekleri. */
+/** "Dengeli" çizimle (kalın ve döndürülmüş yazı ana hatlarından, düz yazı FontFace ile) belge açmak için getDocument seçenekleri. */
 export function anaHatSecenekleri() {
   return { disableFontFace: true, useSystemFonts: false, BinaryDataFactory: SistemYaziTipiFabrikasi };
 }
@@ -69,8 +76,9 @@ let yukleyiciSarili = false, yolSarili = false;
 
 /**
  * Belgenin yazı tipi yükleyicisini (prototipte, bir kez) sarar; ilk sayfa çizilmeden önce çağrılmalı (bind yazı tipi ilk
- * kullanıldığında çalışır). Gömülü olmayan standart dışı fontlara Windows'taki fontu bağlar, glif yollarını keskinlik.js'in ince
- * çizgi oturtmasından çıkarır ('l', 'I', '-' gibi dikdörtgen glifler ızgaraya oturtulunca harf kalınlıkları tutarsızlaşırdı).
+ * kullanıldığında çalışır). Gömülü olmayan standart dışı fontlara Windows'taki fontu bağlar, kalın olmayan yazı tiplerinde düz yazıyı
+ * Chromium'a bırakır (yerliCizimAc), glif yollarını keskinlik.js'in ince çizgi oturtmasından çıkarır ('l', 'I', '-' gibi dikdörtgen
+ * glifler ızgaraya oturtulunca harf kalınlıkları tutarsızlaşırdı).
  */
 export function yaziTipiYukleyicisiniSar(pdfBelge) {
   if (yukleyiciSarili) return;
@@ -81,11 +89,105 @@ export function yaziTipiYukleyicisiniSar(pdfBelge) {
   proto.bind = async function (font) {
     try {
       glifYollariniSar(font);
-      if (font && !font.attached && font.missingFile && !font.systemFontInfo && !font.isType3Font) await yerelYaziTipiBagla(font);
+      if (font && !font.attached && !font.isType3Font) {
+        if (font.missingFile) { if (!font.systemFontInfo) await yerelYaziTipiBagla(font); }
+        // disableFontFace true: belge ana hat kipinde açıldı (işçi glif yollarını gönderiyor); kalın olmayan yazı tipi Chromium'la da çizilebilir
+        else if (font.disableFontFace === true && font.data && !kalinMi(font)) yerliCizimAc(font);
+      }
     } catch (e) { console.warn('Yazı tipi hazırlanamadı', font?.name, e); }
     return ozgun.call(this, font);
   };
   yukleyiciSarili = true;
+}
+
+// ------------------------------------------------------------ düz yazı Chromium'la, kalın ve döndürülmüş yazı ana hatlarından
+// "Black" ve "Demi" büyük harfle ve ardından küçük harf gelmeden: "BlackadderITC", "Academic" kalın sayılmaz
+const KALIN_AD = /bold|heavy|kal[ıi]n/i, KALIN_AD_BUYUK = /Black(?![a-z])|Demi(?![a-z])/;
+/**
+ * Kalın (yarı kalın ve üstü) yazı tipi mi: adı ("Times-Bold", "ABCDEF+Calibri-Bold", "Arial,Bold", "FrutigerBlack"), PDF.js'in
+ * bayrakları ya da yazı tipinin kendi OS/2 ağırlığı (usWeightClass ≥ 600). Microsoft Print to PDF'in "CIDFont+F1" gibi adlarında
+ * yalnızca ağırlık bilgi verir; bazı üreticiler (kurumsal belge sistemi) bütün yüzlere 400 yazdığından önce ada bakılır.
+ */
+function kalinMi(font) {
+  const ad = String(font.name || '').replace(/^[A-Z]{6}\+/, '');
+  if (font.bold || font.black || KALIN_AD.test(ad) || KALIN_AD_BUYUK.test(ad)) return true;
+  const w = agirlikSinifi(font.data);
+  return w !== null && w >= 600;
+}
+
+/** OpenType / TrueType verisindeki OS/2 usWeightClass; tablo yoksa, bozuksa ya da PDF.js'in kurduğu tabloysa (üretici "*21*") null. */
+function agirlikSinifi(veri) {
+  if (!(veri instanceof Uint8Array) || veri.length < 12) return null;
+  const dv = new DataView(veri.buffer, veri.byteOffset, veri.byteLength);
+  const n = dv.getUint16(4);
+  for (let i = 0; i < n; i++) {
+    const o = 12 + i * 16;
+    if (o + 16 > veri.length) return null;
+    if (dv.getUint32(o) !== 0x4f532f32) continue;   // 'OS/2'
+    const t = dv.getUint32(o + 8);
+    if (dv.getUint32(o + 12) < 62 || t + 62 > veri.length || dv.getUint32(t + 58) === 0x2a32312a) return null;
+    const w = dv.getUint16(t + 4);
+    return w >= 100 && w <= 1000 ? w : null;
+  }
+  return null;
+}
+
+let yerliIzin = true;   // çizilen yazı düz mü (showText sarmalayıcısı yazar); showText dışında true: bind FontFace'i kurabilsin
+
+/**
+ * Kalın olmayan gömülü (ya da Windows'tan okunan standart) yazı tipi: PDF.js'in disableFontFace bayrağı nesnede erişimciyle değiştirilir.
+ * bind sırasında false (PDF.js FontFace kurar), çizimde yazı düzse false (Chromium fillText), değilse true (ana hat; işçi yolları
+ * belge ana hat kipinde açıldığı için gönderir). FontFace yüklenemezse PDF.js true yazar: o yazı tipi hep ana hatlarından çizilir.
+ */
+function yerliCizimAc(font) {
+  let yerli = true;
+  Object.defineProperty(font, 'disableFontFace', {
+    configurable: true, enumerable: true,
+    get: () => !(yerli && yerliIzin),
+    set: (v) => { if (v) yerli = false; },
+  });
+}
+
+const KIMLIK = [1, 0, 0, 1, 0, 0];
+/** Yazı cihazda dönmeden, eğilmeden ve aynalanmadan mı çizilecek: tuval dönüşümü × metin matrisi × showText'in yatay ölçek / y çevirmesi. */
+function duzYaziMi(gfx) {
+  const c = gfx.current, ctx = gfx.ctx;
+  if (!c || !ctx || c.font?.vertical) return false;
+  const m = ctx.getTransform(), t = c.textMatrix || KIMLIK;
+  const yon = c.fontDirection > 0 ? 1 : -1, sx = (c.textHScale ?? 1) * yon, sy = -yon;
+  const a = (m.a * t[0] + m.c * t[1]) * sx, b = (m.b * t[0] + m.d * t[1]) * sx;
+  const cc = (m.a * t[2] + m.c * t[3]) * sy, d = (m.b * t[2] + m.d * t[3]) * sy;
+  const pay = 1e-3 * Math.max(Math.abs(a), Math.abs(d));
+  return a > 0 && d > 0 && Math.abs(b) <= pay && Math.abs(cc) <= pay;
+}
+
+function metinCizimiSar(P) {
+  if (!P || Object.prototype.hasOwnProperty.call(P, '__yaziYonu') || typeof P.showText !== 'function') return;
+  Object.defineProperty(P, '__yaziYonu', { value: true });
+  const ozgun = P.showText;
+  const sarili = function (...a) {
+    yerliIzin = duzYaziMi(this);
+    try { return ozgun.apply(this, a); } finally { yerliIzin = true; }
+  };
+  // PDF.js işlemleri numarasıyla (OPS) çağırır: aynı işlevi taşıyan numaralı anahtar da değiştirilir
+  for (const k of Object.getOwnPropertyNames(P)) if (Object.getOwnPropertyDescriptor(P, k).value === ozgun) P[k] = sarili;
+}
+
+/**
+ * page.render() görevini alır: PDF.js'in çizim sınıfının showText'ini ilk çizimden önce (bir kez) sarar; yazının yönü her yazı
+ * parçasında denetlenir. PDF.js iç yapısı değişirse hiçbir şey yapmaz. Döner: görev.
+ */
+export function yaziGoreviHazirla(gorev) {
+  const P = gorev?._internalRenderTask && Object.getPrototypeOf(gorev._internalRenderTask);
+  if (!P || Object.prototype.hasOwnProperty.call(P, '__yaziGorev') || typeof P.initializeGraphics !== 'function') return gorev;
+  Object.defineProperty(P, '__yaziGorev', { value: true });
+  const ozgun = P.initializeGraphics;
+  P.initializeGraphics = function (...a) {
+    const r = ozgun.apply(this, a);
+    if (this.gfx) metinCizimiSar(Object.getPrototypeOf(this.gfx));
+    return r;
+  };
+  return gorev;
 }
 
 function glifYollariniSar(font) {

@@ -2,7 +2,7 @@
 // Her sekmenin kendi Goruntuleyici örneği vardır.
 import * as pdfjs from '../../node_modules/pdfjs-dist/build/pdf.min.mjs';
 import { keskinBaglam, KeskinTuvalFabrikasi, cizimGoreviHazirla, ETKILESIM_MS, etkilesimBildir, etkilesimBitir, keskinErtelenir, ertelenenSayisi, keskinHazirDinle, okumaSuruyor } from './keskinlik.js';
-import { anaHatSecenekleri, yaziTipiYukleyicisiniSar } from './yaziTipleri.js';
+import { anaHatSecenekleri, yaziTipiYukleyicisiniSar, yaziGoreviHazirla } from './yaziTipleri.js';
 
 const KAYNAK = new URL('../../node_modules/pdfjs-dist/', import.meta.url).href;
 pdfjs.GlobalWorkerOptions.workerSrc = KAYNAK + 'build/pdf.worker.min.mjs';
@@ -27,8 +27,9 @@ export { pdfjs };
 // yüksek kaliteli yumuşatma) kaldırıldı: küçültmede mip-map karışımıyla, küçük görsellerin (karekod) büyütülmesinde kübik
 // yumuşatmayla bulanıklaştırıyordu.
 
-// Yazı çizimi (yaziTipleri.js): true ise glifler referans okuyucu gibi ana hatlarından çizilir (varsayılan), false ise Chromium'un yazı çizicisiyle
-// (Ayarlar › Görünüm › Yazı çizimi). Belge açılırken okunur: değişiklik açık belgelere yeniden açılınca uygulanır.
+// Yazı çizimi (yaziTipleri.js): true ise referans okuyucu gibi (varsayılan; kalın ve döndürülmüş yazı ana hatlarından, düz yazı Chromium'la),
+// false ise bütün yazılar Chromium'un yazı çizicisiyle (Ayarlar › Görünüm › Yazı çizimi). Belge açılırken okunur: değişiklik açık
+// belgelere yeniden açılınca uygulanır.
 let anaHatCizimi = true;
 export function yaziCiziminiAyarla(anaHat) { anaHatCizimi = anaHat !== false; }
 const yaziSecenekleri = () => (anaHatCizimi ? anaHatSecenekleri() : {});
@@ -828,11 +829,11 @@ export class Goruntuleyici extends EventTarget {
     canvas.height = Math.max(1, Math.round(b.h * oran));
     const viewport = pdfSayfa.getViewport({ scale: olcek * CSS_BIRIM * oran, rotation: dondurme });
     const ertelenenOnce = ertelenenSayisi();
-    const gorev = cizimGoreviHazirla(pdfSayfa.render({
+    const gorev = yaziGoreviHazirla(cizimGoreviHazirla(pdfSayfa.render({
       canvasContext: keskinBaglam(canvas.getContext('2d', { alpha: koyu })), viewport,
       transform: [1, 0, 0, 1, -px, -py],
       annotationMode: pdfjs.AnnotationMode.DISABLE,
-    }));   // görsel maskesi bölgesel tuvale kırpılır (keskinlik.js)
+    })));   // görsel maskesi bölgesel tuvale kırpılır (keskinlik.js); yazının yönü her parçada denetlenir (yaziTipleri.js)
     s.gorev = gorev;
     try {
       await gorev.promise;

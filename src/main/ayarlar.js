@@ -7,7 +7,7 @@ export const VARSAYILANLAR = {
   tema: 'sistem',                 // 'acik' | 'koyu' | 'sistem'
   sayfayiKoyulastir: false,       // koyu modda sayfayı da koyulaştır (görselleri koru)
   dondurmeKapsami: 'sor',         // 'sor' | 'sayfa' | 'tum'; araç çubuğundaki Döndür düğmesinin kapsamı
-  yaziCizimi: 'anaHat',           // 'anaHat' (glifler ana hatlarından, referans okuyucu gibi) | 'sistem' (Chromium / ClearType); renderer/yaziTipleri.js
+  yaziCizimi: 'anaHat',           // 'anaHat' (referans okuyucu gibi: kalın ve döndürülmüş yazı ana hatlarından, düz yazı ClearType) | 'sistem' (hepsi Chromium / ClearType); renderer/yaziTipleri.js
   // Başlangıç
   varsayilanZoom: 'genislik',     // 'son' | 'genislik' | 'sayfa' | 'gercek' | sayı (yüzde)
   sonZoom: 100,

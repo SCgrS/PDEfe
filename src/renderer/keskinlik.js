@@ -7,8 +7,8 @@
 //    küçük görseller (karekod, barkod) her yakınlaştırmada keskin kalır.
 // 2) İnce çizgiler (eksene paralel, cihazda 4 px'ten ince çizgi ve dolu dikdörtgen) piksel ızgarasına oturtulur
 //    (referans okuyucu "ince çizgileri geliştir"): tablo kenarlıkları iki satıra yayılmış gri yerine tam piksel siyah çizilir.
-// Metne dokunulmaz: 0.1.4'ten beri glifler ana hatlarından çizilir (yaziTipleri.js; Chromium'un ClearType metni kalın yazıyı referans okuyucudan
-// belirgin koyu çiziyordu). Glif yolları ince çizgi oturtmasına girmez (metinYolu).
+// Metne dokunulmaz: yazı çizimi yaziTipleri.js'te (kalın ve döndürülmüş yazı ana hatlarından, düz yazı Chromium'un ClearType'ıyla).
+// Ana hatlarından çizilen glif yolları ince çizgi oturtmasına girmez (metinYolu).
 // Yalnızca keskinBaglam() ile sarılmış bağlamlar (sayfa tuvali ve PDF.js'in ara tuvalleri) etkilenir. Bellek görsel boyutundan
 // bağımsız (BANT, sınırlı önbellek), işlemci süresi sınırlı (EN_FAZLA_*).
 // Ana iş parçacığı GPU'dan eşzamanlı piksel okumaz: JPEG (VideoFrame) ve PDF.js'in çözdüğü görseller (ImageBitmap) bir işçide okunur

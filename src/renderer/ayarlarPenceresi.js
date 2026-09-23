@@ -162,7 +162,7 @@ function bolumGorunum(k) {
     kontrol: secimKutusu(a.dondurmeKapsami ?? 'sor', [['sor', 'Her seferinde sor'], ['sayfa', 'Geçerli sayfa'], ['tum', 'Tüm PDF']], (v) => degistir('dondurmeKapsami', v)),
   }));
   k.append(kart({
-    baslik: 'Yazı çizimi', aciklama: 'Dengeli: harfler yazı tipindeki biçimiyle, referans okuyucu kalınlığında çizilir; döndürülmüş sayfada da aynıdır. Windows ClearType: daha koyu ve kalın. Değişiklik belgeler yeniden açılınca uygulanır.',
+    baslik: 'Yazı çizimi', aciklama: 'Dengeli: küçük yazılar referans okuyucudaki gibi keskin, kalın yazılar referans okuyucu kalınlığında çizilir; döndürülmüş sayfada harfler bozulmaz. Windows ClearType: bütün yazılar Windows\'un çizimiyle, kalın yazılar daha koyu. Değişiklik belgeler yeniden açılınca uygulanır.',
     kontrol: secimKutusu(a.yaziCizimi ?? 'anaHat', [['anaHat', 'Dengeli'], ['sistem', 'Windows ClearType']], (v) => degistir('yaziCizimi', v)),
   }));
 }
