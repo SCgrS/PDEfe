@@ -195,7 +195,8 @@ export class Goruntuleyici extends EventTarget {
       this.kaydirmaIsle();
     };
     for (let i = 1; i < n && !this.yok; i++) {
-      const p = await this.sayfaAl(i);
+      let p;
+      try { p = await this.sayfaAl(i); } catch (e) { if (this.yok) return; throw e; }   // sekme bu arada kapandı: "Transport destroyed"
       if (this.yok) return;
       const vp = p.getViewport({ scale: 1 });   // varsayılan döndürme page.rotate: pt taban (/Rotate) dahil
       const s = this.sayfalar[i];
