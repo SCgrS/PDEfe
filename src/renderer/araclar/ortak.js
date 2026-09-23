@@ -40,7 +40,7 @@ export function hataMetni(e) {
   return (m.split('\n').filter(Boolean).pop() || 'Bilinmeyen hata').replace(/^Error invoking remote method '[^']+': (\w*Error: )?/, '');
 }
 
-/** Dosya başka bir programda (örn. bir PDF okuyucu) açık olduğu ya da salt okunur olduğu için okunamadı / yazılamadı mı?
+/** Dosya başka bir programda (örn. bir PDF okuyucuda) açık olduğu ya da salt okunur olduğu için okunamadı / yazılamadı mı?
  *  (çekirdek: KILITLI_METNI, SALT_OKUNUR_METNI) */
 export function kilitliHataMi(e) {
   return /başka bir programda açık|salt okunur|EBUSY|EPERM|EACCES|being used by another process/i.test((e && (e.message || String(e))) || '');
@@ -612,7 +612,7 @@ export function bilinenKlasorler(pdefe) {
 }
 
 /**
- * Araçların yeni belge çıktıları için varsayılan klasör: Ayarlar › Dosya "Çıktı klasörü" doluysa ve varsa o,
+ * Araçların yeni belge çıktıları için varsayılan klasör: Ayarlar › Kaydetme "Çıktı klasörü" doluysa ve varsa o,
  * yoksa kullanıcının Masaüstü.
  */
 export async function varsayilanCiktiKlasoru(baglam) {
@@ -904,7 +904,7 @@ export function kayitSecimi({ baglam, belge, ek, kip = 'yeni', diyalogBasligi = 
     const okunamadi = /okunamadı/i.test(m);
     const saltOkunur = /salt okunur/i.test(m);
     const hedefAd = dosyaAdi(uzerine ? belge.yol : klasorKipi ? '' : cikti.yol());
-    const programda = 'başka bir programda (örneğin bir PDF okuyucu) açık olabilir';
+    const programda = 'başka bir programda (örneğin bir PDF okuyucuda) açık olabilir';
     let mesaj, ayrinti, dugmeler, yanitlar;
     if (okunamadi) {
       mesaj = `"${ozgunAd}" okunamadı.`;

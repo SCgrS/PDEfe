@@ -5,10 +5,11 @@ import fs from 'node:fs';
 import readline from 'node:readline';
 
 export class Cekirdek {
-  constructor({ kok, paketli, kaynaklar }) {
+  constructor({ kok, paketli, kaynaklar, surum }) {
     this.kok = kok;
     this.paketli = paketli;
     this.kaynaklar = kaynaklar;
+    this.surum = surum;             // PDEFE_SURUM: çekirdek yazdığı notlara üretici sürümü olarak koyar (islemler/notlar.py)
     this.surec = null;
     this.sayac = 0;
     this.bekleyen = new Map();     // id → {coz, reddet, ilerleme}
@@ -37,7 +38,7 @@ export class Cekirdek {
         p = spawn(cmd, args, {
           stdio: ['pipe', 'pipe', 'pipe'],
           windowsHide: true,
-          env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1', PYTHONUNBUFFERED: '1' },
+          env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1', PYTHONUNBUFFERED: '1', ...(this.surum ? { PDEFE_SURUM: this.surum } : {}) },
         });
       } catch (e) { reddet(e); return; }
       this.surec = p;

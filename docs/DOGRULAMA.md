@@ -1,11 +1,11 @@
 # PDEfe — Kullanıcı doğrulama listesi
 
-Bu liste, PDEfe'nin otomatik testlerle sınanamayan (referans okuyucu, gerçek yazıcı, Gezgin, Windows
+Bu liste, PDEfe'nin otomatik testlerle sınanamayan (başka PDF okuyucuları, gerçek yazıcı, Gezgin, Windows
 varsayılan uygulama sayfası) davranışlarını kullanıcının kendi bilgisayarında denemesi içindir.
 Test dosyaları `test/cikti` altında üretilir (`node test/surucu.mjs betik test/senaryo4.mjs` vb.) ya da
 aşağıdaki adımlarla PDEfe'de oluşturulur.
 
-## 1. PDEfe notlarının referans okuyucuda görünmesi
+## 1. PDEfe notlarının başka bir PDF okuyucuda görünmesi
 1. PDEfe'de `Desktop\PDF DENEME\DENEME PDF (2).pdf` dosyasının bir kopyasını açın. Aşağıdaki adımları belge
    açılır açılmaz, sayfa düzenini ya da yakınlaştırmayı değiştirmeden yapın (0.1.0'da ilk açılışta çalışmıyordu).
 2. Bir paragrafı seçin: mini çubuk seçimin altında çıkmalı ve fare hareket edince yerinden kıpırdamamalı.
@@ -20,25 +20,25 @@ aşağıdaki adımlarla PDEfe'de oluşturulur.
    biçim çubuğundan Times New Roman, 13 pt, kenarlık seçin; bir sözcüğü seçip **Kalın**, başka bir sözcüğü seçip
    **Altı çizili** yapın, **Dolgu rengi** ile sarı zemin verin; dışarı tıklayın.
 5. **Ctrl+S** ile kaydedin (durum çubuğunda "Kaydedildi" görünür).
-6. Aynı dosyayı **referans okuyucuda** açın. Beklenen:
+6. Aynı dosyayı bilgisayarınızdaki **başka bir PDF okuyucuda** açın. Beklenen:
    - Vurgular aynı satırlarda, aynı renkte; yazı rengi değişmemiş.
    - Metin notu Yorumlar panelinde "Metinle ilgili yorum" türünde, yazar adı ve "Metin notu ğüşİ" metniyle.
-   - Yapışkan not simgesi (referans okuyucunun kendi simgesi) aynı yerde; içinde metin.
+   - Yapışkan not simgesi (okuyucunun kendi simgesi) aynı yerde; içinde metin.
    - Serbest metin kutusu aynı yerde; Türkçe harfler eksiksiz; yalnızca seçilen sözcükler kalın / altı çizili,
      sarı zemin, kenarlık; satırlar PDEfe'deki yerlerden kırılmış, son satır kesik değil.
-   - Referans okuyucuda nota yanıt yazıp kaydedin; PDEfe'de yeniden açınca yanıt balonda salt okunur görünmeli (PDEfe'de
+   - O okuyucuda nota yanıt yazıp kaydedin; PDEfe'de yeniden açınca yanıt balonda salt okunur görünmeli (PDEfe'de
      yanıt yazılamaz), Yorumlar panelinde "1 yanıt" yazmalı.
-7. Referans okuyucuda eklenmiş notlu bir PDF'i (DENEME PDF (2).pdf'in özgün hali) PDEfe'de açın: iki vurgu, notu olan
+7. Başka bir PDF okuyucuda eklenmiş notlu bir PDF'i (DENEME PDF (2).pdf'in özgün hali) PDEfe'de açın: iki vurgu, notu olan
    vurgunun satır bitişinde not simgesi; üzerine gelince tıklamadan açılan kutuda "Metin notu" başlığı,
    "NOT DENEMESİ" ve yazar "Deneme Yazar" görünmeli.
 
 ## 2. Döndürülmüş sayfa
-`test/cikti/donuk-not.pdf` (sayfası 90° döndürülmüş kanun PDF'i): PDEfe'nin yazısı referans okuyucuda de dik okunmalı
-(PyMuPDF'in referans yazısı yan durur; bu beklenen fark). Yazılar PDEfe'de de referans okuyucudaki yönüyle görünmeli;
-0.1.1'in döndürülmüş sayfaya yazdığı yazıyı PDEfe'de düzenleyip kaydedince referans okuyucudaki yönü değişmemeli.
+`test/cikti/donuk-not.pdf` (sayfası 90° döndürülmüş kanun PDF'i): PDEfe'nin yazısı başka bir PDF okuyucuda da dik okunmalı
+(PyMuPDF'in referans yazısı yan durur; bu beklenen fark). Yazılar PDEfe'de de o okuyucudaki yönüyle görünmeli;
+0.1.1'in döndürülmüş sayfaya yazdığı yazıyı PDEfe'de düzenleyip kaydedince o okuyucudaki yönü değişmemeli.
 
 ## 3. Kilitli dosya
-Bir PDF'i referans okuyucuda açık tutarken PDEfe'de aynı dosyaya not ekleyip Ctrl+S basın: "Dosya başka bir
+Bir PDF'i başka bir PDF okuyucuda açık tutarken PDEfe'de aynı dosyaya not ekleyip Ctrl+S basın: okuyucu dosyayı kilitliyorsa "Dosya başka bir
 programda açık olabilir" uyarısı ve **Farklı kaydet** seçeneği çıkmalı.
 
 ## 4. Gezgin ve tek örnek
@@ -72,12 +72,12 @@ açılmalı (Ayarlar › Hakkında'da 0.1.2). Önceki sekmelerin geri gelmemesi 
    "Geçerli sayfa / Tüm PDF / Vazgeç" sorusu ve **Seçeneğimi hatırla** kutusu çıkmalı.
 2. **Geçerli sayfa**: yalnızca 2. sayfa dönmeli, sekmede değişiklik işareti çıkmalı; `Ctrl+Z` ile geri gelmeli.
 3. `Ctrl+Shift++` → **Tüm PDF**: bütün sayfalar dönmeli. Sekmeyi kapatmaya çalışın: kaydetme sorusu çıkmalı;
-   **Kaydet** deyip dosyayı referans okuyucuda açın, sayfalar dönmüş olmalı.
+   **Kaydet** deyip dosyayı başka bir PDF okuyucuda açın, sayfalar dönmüş olmalı.
 4. **Seçeneğimi hatırla** ile bir seçim yapın: sonraki döndürmede soru çıkmamalı. Ayarlar › Görünüm'deki döndürme
    seçeneği yeniden sormaya alınınca soru geri gelmeli.
 5. Değişiklik yapılmış bir sekmeden başka sekmeye geçin: soru çıkmamalı, değişiklik sekmede kalmalı.
 6. **E-imzalı belge** (UYAP'tan indirilmiş imzalı bir PDF'in kopyası): bir sayfayı döndürüp kaydedin, dosyayı
-   Referans okuyucuda açın. İmzalar panelinde imza kaybolmamalı; imzalı sürüm doğrulanabilir kalmalı (referans okuyucu
+   imza doğrulayabilen bir PDF okuyucuda açın. İmzalar panelinde imza kaybolmamalı; imzalı sürüm doğrulanabilir kalmalı (okuyucu
    "imzadan sonra değişiklik yapıldı" diyebilir, bu beklenir). Ekli dosyası olan PDF'lerde ekler durmalı.
 7. Döndürüp kaydettiğiniz dosyayı kapatıp PDEfe'de yeniden açın: sayfa dönmüş ve tam (kesilmeden) görünmeli;
    o sayfada metin seçimi ve vurgu, yazının tam üstüne düşmeli.
@@ -88,7 +88,7 @@ yazısı yok); kaydetme seçimi varsayılan olarak **Yeni belge olarak kaydet**.
 1. Yeni belge: dosya Masaüstü'ne `<ad> (küçültülmüş).pdf` adıyla kaydedilmeli, özgün dosya değişmemeli.
 2. **Üzerine yaz**: dosya küçülmeli; klasörde `(yedek).pdf` ya da geçici dosya kalmamalı; sekme aynı sayfada
    yeniden açılmalı.
-3. Dosyayı referans okuyucuda açık tutup **Üzerine yaz** ile yeniden deneyin: özgün dosya değişmemeli, dosyanın
+3. Dosyayı başka bir PDF okuyucuda açık tutup **Üzerine yaz** ile yeniden deneyin: okuyucu dosyayı kilitliyorsa özgün dosya değişmemeli, dosyanın
    başka programda açık olabileceği söylenip "Yeni belge olarak kaydet / Yeniden dene / Vazgeç" sorulmalı.
 
 ## 11. Metin, görüntü kalitesi ve sayfa numarası
@@ -108,8 +108,8 @@ yazısı yok); kaydetme seçimi varsayılan olarak **Yeni belge olarak kaydet**.
 ## 12. 0.1.2: otomatik testlerin sınayamadıkları
 Testler ekran dışındaki bir test örneğinde yapıldı: referans okuyucu açılmadı, Windows diyalogları ekrana çıkarılmadı,
 menü kısayolları ve gerçek pano kullanılamadı.
-1. **referans okuyucu ile aynı büyüklükte karşılaştırma.** referans okuyucunun %100'ü (110 ppi çözünürlük ayarıyla) PDEfe'nin
-   %100'ünden yaklaşık %13 büyüktür; %100'leri yan yana koymak yanıltır. Aynı belgeyi PDEfe'de %115'te, referans okuyucuda
+1. **Başka bir PDF okuyucuyla aynı büyüklükte karşılaştırma.** Okuyucunun %100'ü (110 ppi çözünürlük ayarıyla) PDEfe'nin
+   %100'ünden yaklaşık %13 büyüktür; %100'leri yan yana koymak yanıltır. Aynı belgeyi PDEfe'de %115'te, öteki okuyucuda
    %100'de açıp aynı yeri karşılaştırın: UYAP üst yazısının başlığı ve tablo çizgileri, UYAP karekodu, PTT dökümü
    (JPEG sayfa) ve bir tarama. Harfler aynı netlikte, çizgiler gri iki satır değil tek piksel, karekod keskin
    olmalı. Taranmış bir belgeyi %3200'e yakınlaştırın: yazı görünmeli ve beklemeden çizilmeli.
@@ -128,13 +128,13 @@ menü kısayolları ve gerçek pano kullanılamadı.
      sormamalı (dosya PDEfe'de kaydedilmemiş değişiklikle açıksa bunun sorulması beklenir). O dosya PDEfe'de
      açıksa sekme yeni haliyle yeniden açılmalı.
    - PDF ayır'da **Değiştir**: Windows klasör seçme penceresi açılmalı, seçilen klasör satırda görünmeli.
-5. **Metin notu referans okuyucuda.** 1. bölümdeki metin notunu referans okuyucuda açın: vurgu aynı yerde; Yorumlar
-   panelinde "Metinle ilgili yorum", yazar ve not metni; vurguya tıklayınca notun açılır penceresi. Referans okuyucuda
+5. **Metin notu başka bir PDF okuyucuda.** 1. bölümdeki metin notunu bilgisayarınızdaki başka bir PDF okuyucuda açın: vurgu aynı yerde; Yorumlar
+   panelinde "Metinle ilgili yorum", yazar ve not metni; vurguya tıklayınca notun açılır penceresi. O okuyucuda
    notun metnini düzenleyip kaydedin; sonra PDEfe'de aynı notun metnini değiştirip kaydedin ve dosyayı yeniden
-   Referans okuyucuda açın: PDEfe'de yazılan metin görünmeli, referans okuyucudaki eski metin değil.
-6. **Biçimli yazı referans okuyucuda.** 1. bölümdeki yazı kutusunu referans okuyucuda açın: yalnızca seçilen sözcükler kalın / altı
-   çizili, satırlar PDEfe'deki yerlerden kırılmış. **Dolgusuz** yapılmış bir kutu referans okuyucuda saydam görünmeli.
-   Referans okuyucuda yazıya bir sözcük ekleyip kaydedin; PDEfe'de yeniden açıp çift tıklayınca biçimler ve kenarlık rengi
+   o okuyucuda açın: PDEfe'de yazılan metin görünmeli, okuyucuda yazılan eski metin değil.
+6. **Biçimli yazı başka bir PDF okuyucuda.** 1. bölümdeki yazı kutusunu aynı okuyucuda açın: yalnızca seçilen sözcükler kalın / altı
+   çizili, satırlar PDEfe'deki yerlerden kırılmış. **Dolgusuz** yapılmış bir kutu orada saydam görünmeli.
+   O okuyucuda yazıya bir sözcük ekleyip kaydedin; PDEfe'de yeniden açıp çift tıklayınca biçimler ve kenarlık rengi
    korunmalı.
 7. **Tema simgesi.** Koyu temada araç çubuğundaki tema düğmesinde kalın, içi dolu ay; açık temaya geçince dolu
    güneş görünmeli.
@@ -142,16 +142,16 @@ menü kısayolları ve gerçek pano kullanılamadı.
 ## 13. 0.1.4: otomatik testlerin sınayamadıkları
 Testler ekran dışındaki bir test örneğinde yapıldı; referans okuyucu yalnızca önizleme motoruyla (`test/pdf_onizleme.ps1`, ekrana pencere
 açmadan) denetlendi, Windows renk seçicisi ve gerçek klavyenin menü kısayolları kullanılmadı.
-1. **Yazı kalınlığı.** Aynı UYAP tebligatını PDEfe'de ve referans okuyucuda aynı büyüklükte yan yana açın (referans okuyucu %100 ≈ PDEfe %115): kalın
-   satırlar ("Duruşma Günü …") referans okuyucudaki kadar ince, küçük yazılarda renkli kenar yok. Beğenilmezse Ayarlar › Görünüm › Yazı çizimi ›
+1. **Yazı kalınlığı.** Aynı UYAP tebligatını PDEfe'de ve başka bir PDF okuyucuda aynı büyüklükte yan yana açın (okuyucu %100 ≈ PDEfe %115): kalın
+   satırlar ("Duruşma Günü …") okuyucudaki kadar ince, küçük yazılarda renkli kenar yok. Beğenilmezse Ayarlar › Görünüm › Yazı çizimi ›
    "Windows ClearType" seçip belgeyi yeniden açın.
 2. **Döndürülmüş sayfa.** Bir sayfayı Döndür ile yana çevirip %85'e uzaklaştırın: harfler düz sayfadaki gibi olmalı (ince, düzensiz değil).
-3. **referans okuyucuda notlar.** PDEfe'de bir belgeye vurgu ve not ekleyin, 2 saniye bekleyin (durum çubuğunda "Otomatik kaydedildi"), dosyayı
-   Referans okuyucuda açın: notlar görünmeli. Dosya referans okuyucuda açıkken PDEfe'de not ekleyin: pencere açılmamalı, bir kez "otomatik kaydedilemedi"
-   bildirimi çıkmalı; referans okuyucuyu kapatıp `Ctrl+S` ile kaydedince referans okuyucuda yeniden açınca notlar görünmeli.
+3. **Notlar başka bir PDF okuyucuda.** PDEfe'de bir belgeye vurgu ve not ekleyin, 2 saniye bekleyin (durum çubuğunda "Otomatik kaydedildi"), dosyayı
+   bilgisayarınızdaki başka bir PDF okuyucuda açın: notlar görünmeli. Dosya o okuyucuda açıkken PDEfe'de not ekleyin: okuyucu dosyayı kilitliyorsa pencere açılmamalı, bir kez "otomatik kaydedilemedi"
+   bildirimi çıkmalı; okuyucuyu kapatıp `Ctrl+S` ile kaydedince, dosya okuyucuda yeniden açıldığında notlar görünmeli.
 4. **Vurgu çubuğu.** Bir vurguya tıklayın: altında renkler, Not ekle ve Kaldır çıkmalı. Rengi değiştirin, `Ctrl+Z` ile geri alın; Not ekle
-   ile not yazın; Kaldır ile silin. Referans okuyucuda eklenmiş bir vurguda da deneyin, kaydedip referans okuyucuda rengin değiştiğine bakın.
-5. **Koyu mod.** Koyu tema ve "Sayfayı da koyulaştır" açıkken Yazı aracıyla kutu çizip yazın: yazı beyaz görünmeli; dosyayı referans okuyucuda
+   ile not yazın; Kaldır ile silin. Başka bir PDF okuyucuda eklenmiş bir vurguda da deneyin, kaydedip o okuyucuda rengin değiştiğine bakın.
+5. **Koyu mod.** Koyu tema ve "Sayfayı da koyulaştır" açıkken Yazı aracıyla kutu çizip yazın: yazı beyaz görünmeli; dosyayı başka bir PDF okuyucuda
    açınca yazı siyah olmalı.
 6. **Dolgu paleti.** Yazı düzenlerken Dolgu rengi düğmesi: Dolgusuz, renkler ve Diğer renk; Diğer renk Windows renk seçicisini açmalı,
    seçilen renk dolgu olmalı.
@@ -166,8 +166,8 @@ açmadan) denetlendi, Windows renk seçicisi ve gerçek klavyenin menü kısayol
 ## 14. 0.1.5: otomatik testlerin sınayamadıkları
 Yazı karşılaştırması kullanıcının ekran görüntüsündeki referans okuyucu penceresiyle (%99,6, %100 Windows ölçeği) aynı ölçekte yapıldı; referans okuyucu açılmadı.
 Ekran dışı test örneği %100 ölçekte çalıştı: %125 ölçekli ekranda gözle bakılmadı.
-1. **Yazı netliği.** Aynı UYAP tebligatını PDEfe'de ve referans okuyucuda aynı büyüklükte yan yana açın (referans okuyucu %100 ≈ PDEfe %115): kutudaki küçük
-   "Geçerli bir özrünüz olmadan…" paragrafı ve Arial satırları referans okuyucudaki kadar koyu ve keskin, kalın satırlar ("Duruşma Günü …") referans okuyucudaki
+1. **Yazı netliği.** Aynı UYAP tebligatını PDEfe'de ve başka bir PDF okuyucuda aynı büyüklükte yan yana açın (okuyucu %100 ≈ PDEfe %115): kutudaki küçük
+   "Geçerli bir özrünüz olmadan…" paragrafı ve Arial satırları okuyucudaki kadar koyu ve keskin, kalın satırlar ("Duruşma Günü …") okuyucudaki
    kadar ince olmalı. Aynısını %125 ölçekli ekranda da deneyin.
 2. **Döndürülmüş sayfa.** Bir sayfayı Döndür ile yana çevirin: harfler düzgün (ince, düzensiz değil).
 3. **Sekmeler.** Birkaç UYAP belgesi açın: sekmeler öncekinden dar, "ustyazi (85).pdf" gibi adlar tam; uzun adın tamamı üzerine gelince görünür.
@@ -186,10 +186,10 @@ Ekran dışı test örneği %100 ölçekte çalıştı: %125 ölçekli ekranda g
 
 ## 17. 0.1.8: otomatik testlerin sınayamadıkları
 Kalın yazı karşılaştırması kullanıcının gönderdiği yan yana ekran görüntüsündeki referans okuyucu yarısıyla aynı ölçekte (PDEfe %115, %100 Windows
-ölçeği) yapıldı; referans okuyucu penceresinde gözle bakılmadı. Kurulum son sayfası, derlenen küçük bir kurucuyla görünmeyen masaüstünde
+ölçeği) yapıldı; referans okuyucunun penceresinde gözle bakılmadı. Kurulum son sayfası, derlenen küçük bir kurucuyla görünmeyen masaüstünde
 yakalandı (test\kurulum_bitis.ps1); gerçek kurulumda bakılmadı.
-1. **Kalın yazı netliği.** `ustyazi (74).pdf` tebligatını PDEfe'de ve referans okuyucuda aynı büyüklükte yan yana açın: "Duruşma Günü / Saati / Yeri",
-   "BU ZARFTA …" ve "Muhatap adresini değiştirmişse …" satırları referans okuyucudaki kadar keskin (gri ve bulanık değil) ve referans okuyucudaki kadar ince
+1. **Kalın yazı netliği.** `ustyazi (74).pdf` tebligatını PDEfe'de ve başka bir PDF okuyucuda aynı büyüklükte yan yana açın: "Duruşma Günü / Saati / Yeri",
+   "BU ZARFTA …" ve "Muhatap adresini değiştirmişse …" satırları okuyucudaki kadar keskin (gri ve bulanık değil) ve okuyucudaki kadar ince
    olmalı. Başka kalın başlıklı bir Word PDF'inde de bakın; %125 ölçekli ekranda da deneyin.
 2. **Başlangıç ekranı.** PDEfe'yi Başlat menüsündeki ya da masaüstündeki kısayoldan (belge açmadan) başlatın: "PDF aç" kartı Windows'un Aç
    penceresini açmalı; son açılanlardan birine tıklayınca belge açılmalı; satırın üzerindeki × yalnızca listeden kaldırmalı (dosya
@@ -205,3 +205,23 @@ yakalandı (test\kurulum_bitis.ps1); gerçek kurulumda bakılmadı.
 6. **X bağlantısı.** Ayarlar › Hakkında'daki x.com/CgrShn bağlantısı tarayıcıda tek sekme açmalı.
 7. **Haftalık güncelleme.** Ayarlar › Güncelleme'de "Güncellemeleri otomatik denetle (haftada bir)" ve altında son denetimin tarihi
    görünmeli; "Şimdi denetle"den sonra tarih o ana güncellenmeli.
+
+## 18. 0.1.9: otomatik testlerin sınayamadıkları
+Ayarlar penceresi, iki "hatırla" anahtarı, başlangıç ekranı ve Dosya menüsü test örneğinde gerçek tıklamayla sınandı
+(test/senaryo14.mjs). Windows'un son kullanılanlar listesi, kurulu sürümde güncelleme ve başka bir okuyucuda yazı notunu düzenleme
+denenmedi.
+1. **Ayarlar sekmeleri.** Ayarlar'ı açın (`Ctrl+,`): sekmeler Görünüm, Sayfa düzeni, Belge açılışı, Notlar, Kaydetme, Kopyalama,
+   Güncelleme, Hakkında olmalı. Varsayılan PDF görüntüleyici Belge açılışı'nda; otomatik kaydetme ve araçların çıktı klasörü
+   Kaydetme'de; Döndür düğmesi ve Kapak sayfasını ayrı göster Sayfa düzeni'nde olmalı. Bir ayarı beklediğiniz sekmede bulamazsanız
+   söyleyin.
+2. **Son açılanları hatırla.** Belge açılışı'nda kapatın: başlangıç ekranında liste yerine "Son açılan belgeler hatırlanmıyor"
+   yazmalı, Dosya menüsünde Son açılanlar olmamalı. Bir belge açıp kapatın, PDEfe'yi yeniden başlatın: liste yine boş olmalı.
+   Yeniden açınca açtığınız belgeler listelenmeli.
+3. **Windows'un son kullanılanları.** Anahtar kapalıyken Dosya › Aç ile bir PDF açın: Gezgin'deki "Son kullanılanlar"da o dosya
+   yeni eklenmiş görünmemeli. Gezgin'den çift tıklayarak açılan dosyaları Windows kendisi ekler; bu PDEfe'nin elinde değil.
+4. **Kaldığım sayfa.** Belge açılışı › Her belgeyi kaldığım sayfadan aç'ı kapatın; bir belgenin 5. sayfasına gidip sekmeyi kapatın,
+   yeniden açın: 1. sayfadan açılmalı. Anahtarı yeniden açınca kalınan sayfa yeniden hatırlanmalı.
+5. **Yazı notu.** Yeni bir yazı notu ekleyip kaydedin, bilgisayarınızdaki başka bir PDF okuyucuda açın: yazı eskisi gibi görünmeli;
+   okuyucuda yazıyı düzenlemeye açınca biçimi (yazı tipi, renk, kalın) korunmalı.
+6. **Güncelleme (depo public olunca).** Kurulu 0.1.8'de güncelleme şeridi ya da Yardım › Güncellemeleri denetle 0.1.9'u bulmalı;
+   Güncelle'ye basınca kurulup PDEfe 0.1.9 olarak açılmalı, ayarlar (tema, yazar adı, son açılanlar) korunmalı.

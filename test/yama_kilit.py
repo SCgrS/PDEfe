@@ -25,7 +25,7 @@ yama("core/islemler/notlar.py", [
         return pymupdf.open(yol)
     except Exception as e:
         if os.path.exists(yol):
-            raise PermissionError("Dosya açılamadı; başka bir programda (örneğin bir PDF okuyucu) açık olabilir. (%s)" % e)
+            raise PermissionError("Dosya açılamadı; başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. (%s)" % e)
         raise FileNotFoundError("Dosya bulunamadı: %s" % yol)
 
 
@@ -41,7 +41,7 @@ yama("core/islemler/yapisal.py", [
         try:
             shutil.copy2(yol, anlik)
         except OSError as e:
-            raise PermissionError("Dosya okunamadı; başka bir programda (örneğin bir PDF okuyucu) açık olabilir. (%s)" % e)"""),
+            raise PermissionError("Dosya okunamadı; başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. (%s)" % e)"""),
 ("""    acik = {}
     def belge_al(y):
         k = os.path.normcase(os.path.abspath(y))

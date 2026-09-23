@@ -1,5 +1,8 @@
 // Ayarlar penceresi: solda bölüm listesi, sağda içerik (Windows 11 Ayarlar havası).
 // Her değişiklik anında kaydedilir (baglam.ayarKoy) ve canlı uygulanır (baglam.uygula).
+// Bölümler (0.1.9): Görünüm (tema, yazı çizimi), Sayfa düzeni (yakınlaştırma, tek/iki sayfa, kaydırma, kapak, döndürme),
+// Belge açılışı (varsayılan uygulama, kaldığım sayfa, son açılanlar), Notlar, Kaydetme (otomatik kaydet, araçların çıktı klasörü),
+// Kopyalama, Güncelleme, Hakkında. Sekme adı içeriğini söylesin: bir ayar eklerken ona göre yerleştirin.
 // Sayfa düzeni iki kontrolle (Tek/İki sayfa + Kaydırma) tek bir varsayilanDuzen değerine yazılır:
 // 'tek' | 'surekli' | 'iki' | 'ikiSurekli'. Hakkında bölümü yalnızca sürümü ve geliştiriciyi gösterir.
 //
@@ -7,7 +10,8 @@
 //   ayarlarPenceresiAc(baglam, secenek?)  → pencere kök öğesi (HTMLElement); zaten açıksa öne getirir.
 //     baglam = { ayar: () => ayarlar, ayarKoy(anahtar, deger), uygula(anahtar, deger), pdefe, varsayilanlar, guncelleme? }
 //     (guncelleme: renderer/guncelleme.js şerit API'si; Güncelleme bölümündeki denetim ve Güncelle düğmesi onu kullanır)
-//     secenek = { bolum?: 'gorunum'|'baslangic'|'notlar'|'kopyalama'|'guncelleme'|'dosya'|'hakkinda' }
+//     secenek = { bolum?: 'gorunum'|'sayfa'|'acilis'|'notlar'|'kaydetme'|'kopyalama'|'guncelleme'|'hakkinda' }
+//     (0.1.8'e dek kullanılan 'baslangic' ve 'dosya' karşılıklarına, 'sayfa' ve 'acilis'e gider)
 //   ayarlarPenceresiKapat()               → açık pencereyi kapatır.
 //   DURUM_ANAHTARLARI                     → "Varsayılanlara dön" ile sıfırlanmayan durum alanları.
 import { ortuTiklamasiBagla } from './ortu.js';
@@ -21,15 +25,18 @@ const VURGU_RENKLERI = [
 ];
 const YAZI_TIPLERI = ['Segoe UI', 'Arial', 'Times New Roman', 'Calibri'];
 
+// Sayfa düzeni ve Kaydetme simgeleri araç çubuğundaki düğmelerinkiyle, Belge açılışı'nınki başlangıç ekranındaki PDF aç simgesiyle aynı
 const BOLUMLER = [
   { id: 'gorunum', ad: 'Görünüm', simge: 'M10 3a7 7 0 1 0 0 14V3z' },
-  { id: 'baslangic', ad: 'Başlangıç', simge: 'M4 10h12M11 5l5 5-5 5' },
+  { id: 'sayfa', ad: 'Sayfa düzeni', simge: 'M4 3h4a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM12 3h4a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z' },
+  { id: 'acilis', ad: 'Belge açılışı', simge: 'M2.5 6.5V15A1.5 1.5 0 0 0 4 16.5h12a1.5 1.5 0 0 0 1.5-1.5V8.5A1.5 1.5 0 0 0 16 7h-5.8L8.5 5H4a1.5 1.5 0 0 0-1.5 1.5zM2.5 9.5h15' },
   { id: 'notlar', ad: 'Notlar', simge: 'M3 4.5A1.5 1.5 0 0 1 4.5 3h11A1.5 1.5 0 0 1 17 4.5v8a1.5 1.5 0 0 1-1.5 1.5H9l-4 3v-3H4.5A1.5 1.5 0 0 1 3 12.5z' },
+  { id: 'kaydetme', ad: 'Kaydetme', simge: 'M4 3h9l3 3v11H4zM7 3v4h5V3M6 17v-5h8v5' },
   { id: 'kopyalama', ad: 'Kopyalama', simge: 'M7 7h9v10H7zM13 7V4H4v9h3' },
   { id: 'guncelleme', ad: 'Güncelleme', simge: 'M15 9A5.5 5.5 0 1 0 14 13.5M15 4v5h-5' },
-  { id: 'dosya', ad: 'Dosya', simge: 'M4 3h9l3 3v11H4zM13 3v3h3' },
   { id: 'hakkinda', ad: 'Hakkında', simge: 'M10 3a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM10 9v5M10 6.5v.5' },
 ];
+const ESKI_BOLUMLER = { baslangic: 'sayfa', dosya: 'acilis' };
 
 const GEZINME_TUSLARI = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Delete', 'Backspace', 'Enter']);
 
@@ -107,6 +114,7 @@ export function ayarlarPenceresiKapat() {
 
 function bolumSec(id) {
   if (!acik) return;
+  id = ESKI_BOLUMLER[id] || id;
   if (!BOLUMLER.some((b) => b.id === id)) id = 'gorunum';
   acik.bolum = id;
   acik.ortu.querySelectorAll('.ayarlar-bolumler button').forEach((b) => b.classList.toggle('secili', b.dataset.bolum === id));
@@ -116,7 +124,7 @@ function bolumSec(id) {
   const baslik = document.createElement('h2');
   baslik.textContent = BOLUMLER.find((b) => b.id === id).ad;
   icerik.append(baslik);
-  const ciz = { gorunum: bolumGorunum, baslangic: bolumBaslangic, notlar: bolumNotlar, kopyalama: bolumKopyalama, guncelleme: bolumGuncelleme, dosya: bolumDosya, hakkinda: bolumHakkinda }[id];
+  const ciz = { gorunum: bolumGorunum, sayfa: bolumSayfaDuzeni, acilis: bolumAcilis, notlar: bolumNotlar, kaydetme: bolumKaydetme, kopyalama: bolumKopyalama, guncelleme: bolumGuncelleme, hakkinda: bolumHakkinda }[id];
   try { ciz(icerik); } catch (e) { console.error('Ayar bölümü çizilemedi', e); icerik.append(el('p', { class: 'soluk' }, 'Bu bölüm yüklenemedi: ' + hataMetni(e))); }
 }
 
@@ -158,12 +166,8 @@ function bolumGorunum(k) {
     kontrol: anahtar(!!a.sayfayiKoyulastir, (v) => degistir('sayfayiKoyulastir', v)),
   }));
   k.append(kart({
-    baslik: 'Döndür düğmesi', aciklama: 'Araç çubuğundaki Döndür düğmesinin neyi döndüreceği. Döndürürken "Seçeneğimi hatırla" ile kaydedilen tercih burada değiştirilir.',
-    kontrol: secimKutusu(a.dondurmeKapsami ?? 'sor', [['sor', 'Her seferinde sor'], ['sayfa', 'Geçerli sayfa'], ['tum', 'Tüm PDF']], (v) => degistir('dondurmeKapsami', v)),
-  }));
-  k.append(kart({
-    baslik: 'Yazı çizimi', aciklama: 'Dengeli: küçük yazılar referans okuyucudaki gibi keskin, kalın yazılar referans okuyucu kalınlığında çizilir; döndürülmüş sayfada harfler bozulmaz. Windows ClearType: bütün yazılar Windows\'un çizimiyle, kalın yazılar daha koyu. Değişiklik belgeler yeniden açılınca uygulanır.',
-    kontrol: secimKutusu(a.yaziCizimi ?? 'anaHat', [['anaHat', 'Dengeli'], ['sistem', 'Windows ClearType']], (v) => degistir('yaziCizimi', v)),
+    baslik: 'Yazı çizimi', aciklama: 'Dengeli: yazılar keskin, kalın yazılar fazla koyulaşmadan çizilir; döndürülmüş sayfada harfler bozulmaz. Windows ClearType: bütün yazılar doğrudan Windows\'un çizimiyle; kalın yazılar daha koyu görünür. Değişiklik belgeler yeniden açılınca uygulanır.',
+    kontrol: secimKutusu(a.yaziCizimi ?? 'anaHat', [['anaHat', 'Dengeli (önerilen)'], ['sistem', 'Windows ClearType']], (v) => degistir('yaziCizimi', v)),
   }));
 }
 
@@ -171,7 +175,7 @@ function bolumGorunum(k) {
 function duzenCoz(d) { return { iki: d === 'iki' || d === 'ikiSurekli', kaydir: d !== 'tek' && d !== 'iki' }; }
 function duzenBirlestir(iki, kaydir) { return iki ? (kaydir ? 'ikiSurekli' : 'iki') : (kaydir ? 'surekli' : 'tek'); }
 
-function bolumBaslangic(k) {
+function bolumSayfaDuzeni(k) {
   const a = ayarlar();
   // Yakınlaştırma: 'son' | 'genislik' | 'sayfa' | 'gercek' | 'gorunur' | sayı (yüzde)
   const zoomDegeri = a.varsayilanZoom;
@@ -190,7 +194,7 @@ function bolumBaslangic(k) {
   // Sayfa düzeni: iki kontrol tek bir varsayilanDuzen değerine yazar; diğerinin güncel değeri ayarlardan okunur
   const duzen = duzenCoz(a.varsayilanDuzen ?? 'surekli');
   k.append(kart({
-    baslik: 'Sayfa düzeni', aciklama: 'Bütün sekmelerde kullanılır; araç çubuğundan da değiştirilebilir.',
+    baslik: 'Tek ya da iki sayfa', aciklama: 'Sayfalar tek tek ya da yan yana ikişer gösterilir. Bütün sekmelerde kullanılır; araç çubuğundaki Sayfa düzeni düğmesinden de değiştirilebilir.',
     kontrol: secimKutusu(duzen.iki ? 'iki' : 'tek', [['tek', 'Tek sayfa'], ['iki', 'İki sayfa']], (v) => degistir('varsayilanDuzen', duzenBirlestir(v === 'iki', duzenCoz(ayarlar().varsayilanDuzen ?? 'surekli').kaydir))),
   }));
   k.append(kart({
@@ -198,8 +202,30 @@ function bolumBaslangic(k) {
     kontrol: anahtar(duzen.kaydir, (v) => degistir('varsayilanDuzen', duzenBirlestir(duzenCoz(ayarlar().varsayilanDuzen ?? 'surekli').iki, v))),
   }));
   k.append(kart({
-    baslik: 'Her belgeyi kaldığım sayfadan aç', aciklama: 'Son bakılan sayfa dosya yoluna göre hatırlanır.',
+    baslik: 'Kapak sayfasını ayrı göster', aciklama: 'İki sayfa düzeninde ilk sayfa tek başına durur, sonraki sayfalar basılı kitaptaki gibi ikişer yan yana gelir. Araç çubuğundan da değiştirilebilir.',
+    kontrol: anahtar(!!a.kapakAyri, (v) => degistir('kapakAyri', v)),
+  }));
+  k.append(kart({
+    baslik: 'Döndür düğmesi', aciklama: 'Araç çubuğundaki Döndür düğmesinin ve Ctrl+Shift++ / Ctrl+Shift+− kısayollarının neyi döndüreceği. Döndürürken "Seçeneğimi hatırla" ile kaydedilen tercih burada değiştirilir.',
+    kontrol: secimKutusu(a.dondurmeKapsami ?? 'sor', [['sor', 'Her seferinde sor'], ['sayfa', 'Geçerli sayfa'], ['tum', 'Tüm PDF']], (v) => degistir('dondurmeKapsami', v)),
+  }));
+}
+
+function bolumAcilis(k) {
+  const a = ayarlar();
+  const varsayilanDugme = el('button', { class: 'ikincil', type: 'button' }, 'Varsayılan PDF görüntüleyici yap');
+  varsayilanDugme.addEventListener('click', () => acik.baglam.pdefe.cagir('kabuk:varsayilanUygulamalar').catch((e) => console.error(e)));
+  k.append(kart({
+    baslik: 'Varsayılan PDF görüntüleyici', aciklama: 'PDF dosyalarına çift tıklayınca PDEfe\'de açılsın. Windows "Varsayılan Uygulamalar" sayfası açılır; .pdf satırında PDEfe\'yi seçin. Kurulumsuz (geliştirme) çalıştırmada PDEfe listede görünmeyebilir.',
+    kontrol: varsayilanDugme,
+  }));
+  k.append(kart({
+    baslik: 'Her belgeyi kaldığım sayfadan aç', aciklama: 'Her belgede son bakılan sayfa, dosya yoluyla birlikte hatırlanır. Kapatılınca hatırlanan sayfalar silinir, yenileri tutulmaz.',
     kontrol: anahtar(a.kaldigimSayfadanAc !== false, (v) => degistir('kaldigimSayfadanAc', v)),
+  }));
+  k.append(kart({
+    baslik: 'Son açılanları hatırla', aciklama: 'Açtığınız belgeler başlangıç ekranında ve Dosya › Son açılanlar menüsünde listelenir. Kapatılınca liste silinir, yeni açılan belgeler eklenmez.',
+    kontrol: anahtar(a.sonAcilanlariHatirla !== false, (v) => degistir('sonAcilanlariHatirla', v)),
   }));
 }
 
@@ -227,7 +253,7 @@ function bolumNotlar(k) {
   opaklikSurgu.addEventListener('change', () => degistir('vurguOpaklik', Math.round(parseFloat(opaklikSurgu.value) * 100) / 100));
   k.append(kart({ baslik: 'Vurgu opaklığı', aciklama: 'Yeni vurguların saydamlığı (0,1–1).', kontrol: el('div', { class: 'ayar-yanyana' }, [opaklikSurgu, opaklikEtiket]) }));
 
-  k.append(el('h3', {}, 'Yazı (FreeText) varsayılanları'));
+  k.append(el('h3', {}, 'Yazı aracı'));
   k.append(kart({
     baslik: 'Yazı tipi', aciklama: 'Belgeye gömülür; Türkçe karakterler korunur.',
     kontrol: secimKutusu(YAZI_TIPLERI.includes(a.yaziTipi) ? a.yaziTipi : 'Segoe UI', YAZI_TIPLERI.map((t) => [t, t]), (v) => degistir('yaziTipi', v)),
@@ -244,11 +270,28 @@ function bolumNotlar(k) {
   arkaRenk.disabled = dolgusuzKutu.checked;
   dolgusuzKutu.addEventListener('change', () => { arkaRenk.disabled = dolgusuzKutu.checked; degistir('yaziArka', dolgusuzKutu.checked ? null : arkaRenk.value); });
   k.append(kart({ baslik: 'Yazı arka planı', kontrol: el('div', { class: 'ayar-yanyana' }, [dolgusuz, arkaRenk]) }));
+}
 
-  k.append(el('h3', {}, 'Kaydetme'));
+function bolumKaydetme(k) {
+  const a = ayarlar();
   k.append(kart({
-    baslik: 'Otomatik kaydet', aciklama: 'Notlar ve döndürme kısa bir gecikmeyle dosyaya yazılır; dosya başka bir programda (referans okuyucu, UYAP) açıldığında değişiklikler görünür. Geri al yine çalışır.',
+    baslik: 'Otomatik kaydet', aciklama: 'Notlar ve döndürme kısa bir gecikmeyle dosyaya yazılır; dosya başka bir programda (UYAP ya da başka bir PDF okuyucu) açıldığında değişiklikler görünür. Geri al yine çalışır.',
     kontrol: anahtar(!!a.otomatikKaydet, (v) => degistir('otomatikKaydet', v)),
+  }));
+  const yolEl = el('div', { class: 'ayar-yol' }, a.ciktiKlasoru || 'Masaüstü');
+  yolEl.classList.toggle('soluk', !a.ciktiKlasoru);
+  const sec = el('button', { class: 'ikincil', type: 'button' }, 'Seç');
+  const temizle = el('button', { class: 'ikincil', type: 'button' }, 'Temizle');
+  temizle.disabled = !a.ciktiKlasoru;
+  sec.addEventListener('click', async () => {
+    const yol = await acik.baglam.pdefe.cagir('dosya:klasorSec', { baslik: 'Çıktı klasörü seç', varsayilan: ayarlar().ciktiKlasoru || undefined });
+    if (!yol || !acik) return;
+    degistir('ciktiKlasoru', yol); yolEl.textContent = yol; yolEl.classList.remove('soluk'); temizle.disabled = false;
+  });
+  temizle.addEventListener('click', () => { degistir('ciktiKlasoru', ''); yolEl.textContent = 'Masaüstü'; yolEl.classList.add('soluk'); temizle.disabled = true; });
+  k.append(kart({
+    baslik: 'Araçların çıktı klasörü', aciklama: 'Araçların (PDF küçült, Sayfaları düzenle, Döndür ve kaydet, PDF ayır, Görüntü / PDF birleştir) yeni belge olarak kaydettiği dosyalar için önerilen klasör; araç penceresinde değiştirilebilir. Boşsa Masaüstü kullanılır.',
+    kontrol: el('div', { class: 'ayar-yanyana' }, [sec, temizle]), alt: yolEl,
   }));
 }
 
@@ -311,31 +354,6 @@ function bolumGuncelleme(k) {
   });
   k.append(kart({ baslik: 'Şimdi denetle', aciklama: 'GitHub\'daki PDEfe sürümlerine hemen bakılır.', kontrol: dugme }));
   k.append(sonuc);
-}
-
-function bolumDosya(k) {
-  const a = ayarlar();
-  const varsayilanDugme = el('button', { class: 'ikincil', type: 'button' }, 'Varsayılan PDF görüntüleyici yap');
-  varsayilanDugme.addEventListener('click', () => acik.baglam.pdefe.cagir('kabuk:varsayilanUygulamalar').catch((e) => console.error(e)));
-  k.append(kart({
-    baslik: 'Varsayılan PDF görüntüleyici', aciklama: 'Windows "Varsayılan Uygulamalar" sayfası açılır; .pdf satırında PDEfe\'yi seçin. Kurulumsuz (geliştirme) çalıştırmada PDEfe listede görünmeyebilir.',
-    kontrol: varsayilanDugme,
-  }));
-  const yolEl = el('div', { class: 'ayar-yol' }, a.ciktiKlasoru || 'Masaüstü');
-  yolEl.classList.toggle('soluk', !a.ciktiKlasoru);
-  const sec = el('button', { class: 'ikincil', type: 'button' }, 'Seç');
-  const temizle = el('button', { class: 'ikincil', type: 'button' }, 'Temizle');
-  temizle.disabled = !a.ciktiKlasoru;
-  sec.addEventListener('click', async () => {
-    const yol = await acik.baglam.pdefe.cagir('dosya:klasorSec', { baslik: 'Çıktı klasörü seç', varsayilan: ayarlar().ciktiKlasoru || undefined });
-    if (!yol || !acik) return;
-    degistir('ciktiKlasoru', yol); yolEl.textContent = yol; yolEl.classList.remove('soluk'); temizle.disabled = false;
-  });
-  temizle.addEventListener('click', () => { degistir('ciktiKlasoru', ''); yolEl.textContent = 'Masaüstü'; yolEl.classList.add('soluk'); temizle.disabled = true; });
-  k.append(kart({
-    baslik: 'Çıktı klasörü', aciklama: 'Araçların (küçült, ayır, birleştir, döndür) yeni belge olarak kaydettiği dosyaların varsayılan klasörü. Boşsa Masaüstü kullanılır.',
-    kontrol: el('div', { class: 'ayar-yanyana' }, [sec, temizle]), alt: yolEl,
-  }));
 }
 
 function bolumHakkinda(k) {

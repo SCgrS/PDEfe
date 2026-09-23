@@ -239,7 +239,7 @@ export function sayfaAraligiCoz(metin, toplam) {
  * Kâğıt: seçilen sayfalar arasında en sık görülen (dikey yönelimli) boyut tek kâğıt boyutu olarak
  * kullanılır; Windows yazdırma işinde kâğıt boyutu tektir ve sürücüler sayfa başına yön değişimini
  * güvenilir biçimde desteklemez. Yatay sayfalar (g > y) kâğıt üzerinde 90° döndürülerek basılır
- * (referans okuyucunun "otomatik döndür" davranışı). Böylece karışık yönlü belgeler de tek işte, kesilmeden çıkar.
+ * (PDF okuyucularının "otomatik döndür" davranışı). Böylece karışık yönlü belgeler de tek işte, kesilmeden çıkar.
  *
  * "sigdir": görüntü, kâğıda (GUVENLI_KENAR_MM payıyla) oranı korunarak sığdırılır.
  * "gercek": görüntü PDF'teki pt boyutlarıyla basılır, kâğıt ortasına yerleşir; taşan kısım kesilir.

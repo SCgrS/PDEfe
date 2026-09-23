@@ -1,12 +1,13 @@
 // Keskin çizim: PDF.js sayfa tuvallerinde referans okuyucuya yakın görüntü kalitesi.
 // 1) Görseller kutu/alan filtresiyle JS'de yeniden örneklenir. Referans okuyucunun (110 ppi, %100) ekran yakalamasıyla ölçüldü:
 //    küçültmede (PTT JPEG ×0,76, taranmış sayfa ×0,55) nokta örneklemeli kutu, büyütmede (UYAP karekodu ×1,5) alan kapsaması
-//    Referans okuyucuya en yakın sonuç. Chromium'un 'high' kalitesi küçültmede mip-map karıştırıp bulanıklaştırıyor, büyütmede kübik
+//    referans okuyucuya en yakın sonuç. Chromium'un 'high' kalitesi küçültmede mip-map karıştırıp bulanıklaştırıyor, büyütmede kübik
 //    yumuşatıyordu; PDF.js'in kendi seçimi (×1,33 üstünde en yakın komşu) ise pikselli. Fotoğraf/taranmış sayfa ×2–×4 arasında
 //    giderek yumuşar, ×4 ve üstünde (ya da hedef çok büyükse) Chromium'un yüksek kaliteli yumuşatmasıyla çizilir; az renkli
 //    küçük görseller (karekod, barkod) her yakınlaştırmada keskin kalır.
 // 2) İnce çizgiler (eksene paralel, cihazda 4 px'ten ince çizgi ve dolu dikdörtgen) piksel ızgarasına oturtulur
-//    (referans okuyucu "ince çizgileri geliştir"): tablo kenarlıkları iki satıra yayılmış gri yerine tam piksel siyah çizilir.
+//    (PDF okuyucularındaki "ince çizgileri geliştir" seçeneği gibi): tablo kenarlıkları iki satıra yayılmış gri yerine tam
+//    piksel siyah çizilir.
 // Metne dokunulmaz: yazı çizimi yaziTipleri.js'te (kalın ve döndürülmüş yazı ana hatlarından, düz yazı Chromium'un ClearType'ıyla).
 // Ana hatlarından çizilen glif yolları ince çizgi oturtmasına girmez (metinYolu).
 // Yalnızca keskinBaglam() ile sarılmış bağlamlar (sayfa tuvali ve PDF.js'in ara tuvalleri) etkilenir. Bellek görsel boyutundan
@@ -17,7 +18,7 @@
 // çizim kaydı işlemcide oynatılmaz (0.1.1 sonrası ilk sürümde kaydırma bitince 300 ms'lik blokajın asıl nedeni buydu).
 
 const INCE = 4;                 // cihaz pikselinde bu kalınlıktan ince çizgi/dikdörtgen ızgaraya oturtulur
-const KESKIN_BUYUTME = 2;       // bu orana kadar büyütmede saf alan filtresi (referans okuyucu gibi keskin)
+const KESKIN_BUYUTME = 2;       // bu orana kadar büyütmede saf alan filtresi (referans okuyucudaki gibi keskin)
 const YUMUSAK_BUYUTME = 4;      // bu oran ve üstünde Chromium yumuşatması (taranmış sayfa yakınlaştırınca pikselli olmasın)
 const EN_FAZLA_CIKTI = 8e6;     // JS ile örneklenecek en fazla hedef pikseli; üstünde Chromium yumuşatması (süre ve sonuç belleği sınırı)
 const EN_FAZLA_BUYUTME_CIKTISI = 3e6;   // büyütülen fotoğraf/taranmış sayfada JS ile örneklenecek en fazla hedef pikseli

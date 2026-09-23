@@ -94,6 +94,9 @@ function ayarUygula(anahtar, deger) {
     case 'yaziCizimi': yaziCiziminiAyarla(deger !== 'sistem'); break;   // yeni açılan belgelerde
     case 'otomatikKaydet': if (deger) for (const b of belgeler.values()) if (b.degisti) kirliGuncelle(b); break;
     case 'varsayilanDuzen': case 'kapakAyri': duzenEsitle(aktif()); break;   // diğer sekmeler seçildiklerinde eşitlenir
+    // Kapatılınca kayıt silinir; açıkken yeni açılan belgeler yeniden eklenir (bkz. sonDosyalaraEkle, konumlariYaz)
+    case 'sonAcilanlariHatirla': if (deger) sonDosyalariListele(); else komutCalistir('dosya.sonTemizle'); break;
+    case 'kaldigimSayfadanAc': if (!deger) { clearTimeout(_konumZaman); ayarKoy('sayfaKonumlari', {}); } break;
     default: break;   // yazarAdi, yazı tipi, temizMetin vb. ayar nesnesinden okunur; anında etkili
   }
 }
@@ -296,11 +299,11 @@ async function belgeKaydet(b, farkli = false, sessiz = false) {
         if (sessiz && !farkli) {
           b._otoKayitDurdu = true;
           console.warn('Otomatik kayıt başarısız', b.yol, e);
-          bildir(`"${b.ad}" otomatik kaydedilemedi: dosya başka bir programda (örneğin referans okuyucu) açık olabilir. Değişiklikler PDEfe'de duruyor; o programı kapatıp Ctrl+S ile kaydedin.`, 9000);
+          bildir(`"${b.ad}" otomatik kaydedilemedi: dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Değişiklikler PDEfe'de duruyor; o programı kapatıp Ctrl+S ile kaydedin.`, 9000);
           return false;
         }
         const kilitli = /açık olabilir|yazılamadı|okunamadı|Failed to open|Permission|EBUSY|EPERM/i.test(e.message || '');
-        const { secim } = await mesajKutusu({ tur: 'error', mesaj: 'Belge kaydedilemedi', ayrinti: (kilitli ? 'Dosya başka bir programda (örneğin bir PDF okuyucu) açık olabilir. Onu kapatıp yeniden deneyin ya da farklı bir adla kaydedin.\n\n' : '') + hataMetni(e), dugmeler: kilitli ? ['Farklı kaydet', 'Vazgeç'] : ['Tamam'], iptal: kilitli ? 1 : 0 });
+        const { secim } = await mesajKutusu({ tur: 'error', mesaj: 'Belge kaydedilemedi', ayrinti: (kilitli ? 'Dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Onu kapatıp yeniden deneyin ya da farklı bir adla kaydedin.\n\n' : '') + hataMetni(e), dugmeler: kilitli ? ['Farklı kaydet', 'Vazgeç'] : ['Tamam'], iptal: kilitli ? 1 : 0 });
         if (!kilitli || secim !== 0) return false;
         farkli = true; sessiz = false;   // 'Farklı kaydet' aynı kaydın içinde: bekleyen kapatma akışı araya girmez
       }
@@ -444,7 +447,9 @@ let _zoomZaman = null;
 function zoomKaydetGecikmeli() { clearTimeout(_zoomZaman); _zoomZaman = setTimeout(() => ayarKoy('sonZoom', ayar.sonZoom), 800); }
 
 // ---------------------------------------------------------------- son dosyalar, oturum, sayfa konumu
+// "Son açılanları hatırla" ve "Her belgeyi kaldığım sayfadan aç" kapalıyken bu kayıtlar hiç yazılmaz (Ayarlar › Belge açılışı).
 function sonDosyalaraEkle(yol) {
+  if (ayar.sonAcilanlariHatirla === false) return;
   const liste = [yol, ...(ayar.sonDosyalar || []).filter((y) => !yolAyni(y, yol))].slice(0, 15);
   ayar.sonDosyalar = liste;
   pdefe.cagir('uygulama:sonDosyalar', liste);
@@ -454,11 +459,12 @@ function sonDosyalardanCikar(yol) {
   pdefe.cagir('uygulama:sonDosyalar', ayar.sonDosyalar);
   sonDosyalariListele();
 }
-function sonDosyalariListele() { baslangic.listele(ayar.sonDosyalar || []); }
+function sonDosyalariListele() { baslangic.listele(ayar.sonDosyalar || [], { kapali: ayar.sonAcilanlariHatirla === false }); }
 
 let _konumZaman = null;
 /** Verilen belgelerin sayfa konumlarını tek yazımda kaydeder (en fazla 300 dosya; en eskiler düşer). */
 function konumlariYaz(liste) {
+  if (ayar.kaldigimSayfadanAc === false) return Promise.resolve();
   const k = ayar.sayfaKonumlari || {};
   for (const b of liste) { delete k[b.yol]; k[b.yol] = b.gorunum.gecerli; }
   const anahtarlar = Object.keys(k);
@@ -591,7 +597,8 @@ const komutlar = {
   'duzen.bul': (metin) => { if (aktif()) arama.ac(typeof metin === 'string' ? metin : (secimHamMetni().trim().split('\n')[0] || '')); },
   'duzen.bulSonraki': () => arama.git(1), 'duzen.bulOnceki': () => arama.git(-1),
   'duzen.sayfayaGit': () => { const k = $('#sayfa-kutusu'); k.focus(); k.select(); },
-  'duzen.ayarlar': () => ayarlarPenceresiAc({ ayar: () => ayar, ayarKoy, uygula: ayarUygula, pdefe, varsayilanlar, cekirdek, guncelleme }),
+  // bolum: açılacak sekme (ör. başlangıç ekranındaki "Ayarlar › Belge açılışı" bağlantısı); menüden ve araç çubuğundan gelmez
+  'duzen.ayarlar': (bolum) => ayarlarPenceresiAc({ ayar: () => ayar, ayarKoy, uygula: ayarUygula, pdefe, varsayilanlar, cekirdek, guncelleme }, typeof bolum === 'string' ? { bolum } : {}),
   'gorunum.yakinlastir': () => aktif()?.gorunum.yakinlastir(1),
   'gorunum.uzaklastir': () => aktif()?.gorunum.yakinlastir(-1),
   'gorunum.zoom': (mod) => { const b = aktif(); if (!b) return; if (mod === 'gercek') b.gorunum.zoomAyarla(1, null, 'serbest'); else b.gorunum.zoomModuAyarla(mod); },
@@ -639,7 +646,7 @@ try {
   komutlar['yardim.guncelle'] = () => guncelleme.denetle();
 } catch (e) { console.error('Güncelleme şeridi kurulamadı', e); }
 
-// Bu komutlar önce açık yazı düzenlemesini uygular (referans okuyucuda araç çubuğuna / menüye gitmek düzenlemeyi bitirir): araç, paylaş, yazdır
+// Bu komutlar önce açık yazı düzenlemesini uygular (PDF okuyucularında da araç çubuğuna / menüye gitmek düzenlemeyi bitirir): araç, paylaş, yazdır
 // ve kaydet dosyadaki eski hâlle değil yazılan metinle çalışsın, belge değişmiş sayılsın; araç kapanınca basılan Esc metni atmasın.
 const DUZENLEMEYI_UYGULAYAN = /^(arac\.|dosya\.(kaydet|farkliKaydet|yazdir)$|sekme\.kapat$)/;
 
@@ -656,7 +663,7 @@ const araclarPenceresi = new AraclarPenceresi({ dugme: $('#dugme-araclar'), komu
 
 // Başlangıç ekranı: PDF aç ve Görüntü / PDF birleştir kartları, son açılanlar
 const baslangic = new BaslangicEkrani({
-  kok: $('#baslangic'), komutCalistir: (id) => komutCalistir(id), ac: (yol) => dosyaAc(yol), kaldir: (yol) => sonDosyalardanCikar(yol),
+  kok: $('#baslangic'), komutCalistir: (id, veri) => komutCalistir(id, veri), ac: (yol) => dosyaAc(yol), kaldir: (yol) => sonDosyalardanCikar(yol),
   temizle: () => komutCalistir('dosya.sonTemizle'), pdefe, bildir,
 });
 
@@ -707,7 +714,7 @@ for (const d of [$('#dugme-geri-al'), $('#dugme-yinele')]) {
 $('#dugme-araclar').addEventListener('pointerdown', (e) => { if (e.button === 0) aktif()?.notlar?.duzenleyiciBitir(true); }, true);
 $('#dugme-araclar').addEventListener('keydown', (e) => { if (['Enter', ' ', 'ArrowDown'].includes(e.key)) aktif()?.notlar?.duzenleyiciBitir(true); }, true);
 // Yazı düzenlenirken düzenleyici ve biçim çubuğu dışındaki bir girdiye geçmek (sayfa / yakınlaştırma kutusu, Bul, panel) düzenlemeyi
-// uygular (referans okuyucuda başka yere gitmek düzenlemeyi bitirir): o girdide basılan Esc yazıyı sessizce atmasın, Geri al düğmesi ve menüsü
+// uygular (PDF okuyucularında da başka yere gitmek düzenlemeyi bitirir): o girdide basılan Esc yazıyı sessizce atmasın, Geri al düğmesi ve menüsü
 // girdideyken düzenleyicinin geçmişini gösterip girdinin metnini geri almasın
 document.addEventListener('focusin', (e) => {
   const n = aktif()?.notlar, d = n?.duzenleyici, t = e.target;

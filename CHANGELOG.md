@@ -3,11 +3,28 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.9 — 2026-09-23
+
+### Ayarlar
+- Ayarlar yeniden düzenlendi; her ayar adına uyan sekmede:
+  - **Görünüm**: tema, sayfayı koyulaştırma, yazı çizimi.
+  - **Sayfa düzeni** (eski "Başlangıç"): varsayılan yakınlaştırma, tek ya da iki sayfa, kaydırma, kapak sayfasını ayrı gösterme (önceden yalnızca araç çubuğunda ve Görünüm menüsündeydi) ve Döndür düğmesinin neyi döndüreceği (Görünüm'den taşındı).
+  - **Belge açılışı** (eski "Dosya"): varsayılan PDF görüntüleyici, kaldığım sayfadan açma, son açılanlar.
+  - **Kaydetme** (yeni): otomatik kaydetme (Notlar'dan taşındı) ve araçların çıktı klasörü (Dosya'dan taşındı).
+  - Notlar sekmesinde yalnızca not ayarları kaldı; yazı aracının varsayılanları "Yazı aracı" başlığı altında.
+- Yeni: **Son açılanları hatırla** (Ayarlar › Belge açılışı, varsayılan açık). Kapatılınca son açılanlar listesi silinir, yeni açılan belgeler eklenmez: başlangıç ekranında liste yerine "Son açılan belgeler hatırlanmıyor" satırı ve Ayarlar'a giden bağlantı görünür, Dosya menüsündeki Son açılanlar kalkar. Kapalıyken PDEfe'nin Aç ve Kaydet pencereleri de seçilen dosyayı Windows'un son kullanılanlar listesine eklemez. Yeniden açılınca liste boş başlar.
+- **Her belgeyi kaldığım sayfadan aç** kapalıyken PDEfe belgelerde kalınan sayfayı (dosya yoluyla birlikte) artık ayar dosyasına yazmıyor; önceden kapalıyken de yazıyordu. Kapatılınca kayıtlı sayfalar silinir; bu ayarı daha önce kapatmış olanlarda eski kayıtlar ilk açılışta silinir.
+- Yazı çizimi seçeneğinin adı "Dengeli (önerilen)" oldu; çizim aynı.
+
+### Diğer
+- Dosya başka bir programda açık olduğu için kaydedilemeyince çıkan uyarılar belirli bir program adı vermiyor: "başka bir programda (örneğin bir PDF okuyucuda) açık olabilir".
+- PDEfe'nin eklediği yazı notlarına üretici bilgisi olarak PDEfe'nin adı ve sürümü yazılır (önceden başka bir programın adı yazılıyordu). Notların görünümü değişmedi.
+
 ## 0.1.8 — 2026-09-23
 
 ### Görüntü kalitesi
-- Kalın yazılar artık bulanık görünmüyor: referans okuyucudaki gibi keskin çizilir. 0.1.4 – 0.1.7'de kalın yazılar (UYAP tebligatındaki "Duruşma Günü", "Muhatap adresini değiştirmişse…" gibi satırlar) harflerin ana hatlarından, gri yumuşatmayla çiziliyordu: koyulukları referans okuyucuyla aynıydı ama harf kenarları iki piksele yayıldığı için yan yana bakınca bulanıktı. Artık kalın yazılar da Windows'un ClearType çizimiyle (referans okuyucunun "LCD ekran" yumuşatması gibi, harfler piksel ızgarasına oturtularak) çizilir.
-- Windows, bazı kalın yazı tiplerini (Times New Roman, Georgia, Garamond, Cambria Bold) küçük boyutta ClearType ile belirgin koyu çizer. PDEfe bunu her yazı tipi ve boyut için bir kez ölçer ve düzeltir: kalın yazılar keskin ama referans okuyucu kalınlığında kalır. Gönderilen tebligatın kalın satırları aynı ölçekte referans okuyucuyla ±%3 aynı koyulukta.
+- Kalın yazılar artık bulanık görünmüyor: keskin çizilir. 0.1.4 – 0.1.7'de kalın yazılar (UYAP tebligatındaki "Duruşma Günü", "Muhatap adresini değiştirmişse…" gibi satırlar) harflerin ana hatlarından, gri yumuşatmayla çiziliyordu: koyulukları doğruydu ama harf kenarları iki piksele yayıldığı için yan yana bakınca bulanıktı. Artık kalın yazılar da Windows'un ClearType çizimiyle (renkli alt piksel yumuşatmasıyla, harfler piksel ızgarasına oturtularak) çizilir.
+- Windows, bazı kalın yazı tiplerini (Times New Roman, Georgia, Garamond, Cambria Bold) küçük boyutta ClearType ile belirgin koyu çizer. PDEfe bunu her yazı tipi ve boyut için bir kez ölçer ve düzeltir: kalın yazılar keskin ama doğru kalınlıkta kalır. Gönderilen tebligatın kalın satırları olması gereken koyulukta (±%3).
 - Döndürülmüş sayfadaki yazılar eskisi gibi harflerin ana hatlarından çizilir.
 
 ### Başlangıç ekranı
@@ -48,7 +65,7 @@ otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 ## 0.1.5 — 2026-09-23
 
 ### Görüntü kalitesi
-- Küçük yazılar referans okuyucudaki gibi keskin ve koyu: 0.1.4'te harfler gri ve soluk, bulanık görünüyordu. Artık düz yazılar Windows'un ClearType çizimiyle (referans okuyucu gibi renkli alt piksel yumuşatması ve ipuçlarıyla), kalın yazılar referans okuyucu kalınlığında harflerin ana hatlarından çizilir. UYAP tebligatının 7 pt Times paragrafı %100 ölçekte referans okuyucudan %28 açıktı, şimdi referans okuyucu ile aynı (+%2); 8 pt Arial satırları +%4, kalın satırlar referans okuyucu kalınlığında (±%0). Farklı üreticilerden 43 PDF'te (UYAP, Word, Microsoft Print to PDF, iLovePDF, Canva, taramalar) denetlendi; sayfa çizim süresi değişmedi.
+- Küçük yazılar keskin ve koyu: 0.1.4'te harfler gri ve soluk, bulanık görünüyordu. Artık düz yazılar Windows'un ClearType çizimiyle (renkli alt piksel yumuşatması ve ipuçlarıyla), kalın yazılar doğru kalınlıkta, harflerin ana hatlarından çizilir. UYAP tebligatının 7 pt Times paragrafı %100 ölçekte olması gerekenden %28 açıktı, şimdi farksız (+%2); 8 pt Arial satırları +%4, kalın satırlar doğru kalınlıkta (±%0). Farklı üreticilerden 43 PDF'te (UYAP, Word, Microsoft Print to PDF, iLovePDF, Canva, taramalar) denetlendi; sayfa çizim süresi değişmedi.
 - Döndürülmüş sayfada yazılar eskisi gibi ana hatlarından çizilir: harfler incelip bozulmaz.
 - Ayarlar › Görünüm › Yazı çizimi'nde "Dengeli" (varsayılan) bu çizimdir; "Windows ClearType" kalınlar dahil bütün yazıları Windows'la çizer.
 
@@ -62,20 +79,20 @@ otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
 ### Bilinen sınırlar
 - Döndürülmüş sayfada küçük yazılar gri yumuşatmayla çizildiği için düz sayfadakinden biraz soluk görünebilir.
-- UYAP tebligatındaki "Taahhütlü No" satırı gömülü olmayan bir barkod yazı tipiyle (IDAutomationHC39M) yazılmış; yazı tipi bilgisayarda kurulu olmadığından referans okuyucu kendi yedek yazı tipiyle geniş harflerle, PDEfe Windows'un eş aralıklı yazı tipiyle (Consolas) gösterir.
+- UYAP tebligatındaki "Taahhütlü No" satırı gömülü olmayan bir barkod yazı tipiyle (IDAutomationHC39M) yazılmış; yazı tipi bilgisayarda kurulu olmadığından bazı PDF okuyucuları kendi yedek yazı tipleriyle geniş harflerle, PDEfe Windows'un eş aralıklı yazı tipiyle (Consolas) gösterir.
 
 ## 0.1.4 — 2026-09-23
 
 ### Görüntü kalitesi
-- Yazılar referans okuyucu gibi çizilir: harfler yazı tipindeki biçimleriyle ve gri yumuşatmayla çizilir. Kalın yazılar referans okuyucuya yaklaştı: UYAP tebligatının kalın satırlarında referans okuyucuya göre fazla koyuluk aynı ekran koşulunda (%125 ölçek) %31'den %13'e indi. Küçük yazılardaki renkli kenarlar (ClearType saçağı) kalktı.
+- Yazı çizimi değişti: harfler yazı tipindeki biçimleriyle ve gri yumuşatmayla çizilir. Kalın yazılar doğru kalınlığa yaklaştı: UYAP tebligatının kalın satırlarındaki fazla koyuluk aynı ekran koşulunda (%125 ölçek) %31'den %13'e indi. Küçük yazılardaki renkli kenarlar (ClearType saçağı) kalktı.
 - Yatay döndürülen sayfada yazılar düz sayfadaki gibi görünür; uzaklaştırınca harfler incelip bozulmuyor.
-- Gömülü olmayan Times, Helvetica / Arial ve Courier yazıları referans okuyucunun yaptığı gibi Windows'un Times New Roman, Arial ve Courier New yazı tipleriyle çizilir. UYAP doğrulama satırındaki Consolas, "e-imzalı" damgasındaki Segoe Script gibi öteki yazı tipleri Windows'taki kendi biçimleriyle görünür.
+- Gömülü olmayan Times, Helvetica / Arial ve Courier yazıları yaygın PDF okuyucularında olduğu gibi Windows'un Times New Roman, Arial ve Courier New yazı tipleriyle çizilir. UYAP doğrulama satırındaki Consolas, "e-imzalı" damgasındaki Segoe Script gibi öteki yazı tipleri Windows'taki kendi biçimleriyle görünür.
 - Ayarlar › Görünüm › Yazı çizimi: "Dengeli" (varsayılan) ya da "Windows ClearType" (önceki, daha koyu çizim). Değişiklik belgeler yeniden açılınca uygulanır.
 
 ### Vurgu ve notlar
-- Vurguya tıklayınca altında küçük bir çubuk açılır: renkler, Not ekle / Notu düzenle ve Kaldır. Referans okuyucuda eklenmiş vurgularda, altı çizili, üstü çizili ve dalgalı işaretlerde de çalışır. Renk değişince çubuk açık kalır, `Ctrl+Z` geri alır; varsayılan vurgu rengi değişmez. `Esc` ya da başka bir yere tıklamak çubuğu kapatır.
-- Otomatik kaydetme artık varsayılan olarak açık: notlar ve döndürme kısa bir gecikmeyle dosyaya yazılır; dosya referans okuyucuda ya da UYAP'ta açıldığında görünür. PDEfe'nin kaydettiği vurgu, metin notu, yazı ve yapışkan not referans okuyucunun kendi çizim motoruyla denetlendi ve görünüyor; görünmeme nedeni notların kaydedilmemiş olmasıydı. Ayarlar › Kaydetme › Otomatik kaydet'ten kapatılabilir.
-- Dosya başka bir programda (örneğin referans okuyucu) açık olduğu için otomatik kayıt yapılamazsa her değişiklikte hata penceresi açılmaz: bir kez bildirilir, değişiklikler PDEfe'de durur; o programı kapatıp `Ctrl+S` ile kaydedilir.
+- Vurguya tıklayınca altında küçük bir çubuk açılır: renkler, Not ekle / Notu düzenle ve Kaldır. Başka PDF okuyucularında eklenmiş vurgularda, altı çizili, üstü çizili ve dalgalı işaretlerde de çalışır. Renk değişince çubuk açık kalır, `Ctrl+Z` geri alır; varsayılan vurgu rengi değişmez. `Esc` ya da başka bir yere tıklamak çubuğu kapatır.
+- Otomatik kaydetme artık varsayılan olarak açık: notlar ve döndürme kısa bir gecikmeyle dosyaya yazılır; dosya başka bir PDF okuyucuda ya da UYAP'ta açıldığında görünür. PDEfe'nin kaydettiği vurgu, metin notu, yazı ve yapışkan not yaygın bir PDF okuyucunun kendi çizim motoruyla denetlendi ve görünüyor; görünmeme nedeni notların kaydedilmemiş olmasıydı. Ayarlar › Kaydetme › Otomatik kaydet'ten kapatılabilir.
+- Dosya başka bir programda (örneğin bir PDF okuyucuda) açık olduğu için otomatik kayıt yapılamazsa her değişiklikte hata penceresi açılmaz: bir kez bildirilir, değişiklikler PDEfe'de durur; o programı kapatıp `Ctrl+S` ile kaydedilir.
 
 ### Yazı aracı
 - Koyu temada "Sayfayı da koyulaştır" açıkken yazı kutuları görünür: yazarken ve sonra siyah yazı beyaz, beyaz dolgu siyah görünür (sayfayla aynı biçimde). Dosyadaki renk değişmez. Önceden siyah yazı siyah sayfada görünmüyordu.
@@ -101,11 +118,11 @@ otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 - Araçlar penceresinden Paylaş karosu kaldırıldı; Paylaş araç çubuğundaki düğmeyle ve Araçlar menüsünde duruyor.
 
 ### Bilinen sınırlar
-- "Dengeli" yazı çiziminde yazılar gri yumuşatmayla çizilir; referans okuyucunun "LCD ekran" yumuşatması (renkli alt piksel) kullanılmaz. Tercih edilirse Ayarlar › Görünüm › Yazı çizimi › Windows ClearType.
+- "Dengeli" yazı çiziminde yazılar gri yumuşatmayla çizilir; LCD ekran yumuşatması (renkli alt piksel) kullanılmaz. Tercih edilirse Ayarlar › Görünüm › Yazı çizimi › Windows ClearType.
 - Gömülü olmayan Tw Cen MT gibi bazı yazı tiplerinde "ğ" iki çizimde de bozuk görünebilir (belgenin kodlaması; önceden de öyleydi).
-- Sayfaları düzenle'de yeni belge ve PDF ayır'ın üzerine yazması, yapısal kayıttaki gibi referans okuyucuda yazılmış yanıtları ve kopyalanan parçanın dışına giden sayfa içi bağlantıları taşımaz; notlar, form alanları ve yer imleri korunur.
+- Sayfaları düzenle'de yeni belge ve PDF ayır'ın üzerine yazması, yapısal kayıttaki gibi başka PDF okuyucularında yazılmış yanıtları ve kopyalanan parçanın dışına giden sayfa içi bağlantıları taşımaz; notlar, form alanları ve yer imleri korunur.
 - Görüntü / PDF birleştir'de kenar ayarı "mm" diye yazar ama nokta (pt) olarak uygulanır (önceki sürümlerde de böyleydi).
-- Referans okuyucu denetimi referans okuyucunun önizleme motoruyla (ekrana pencere açmadan) yapıldı; referans okuyucu penceresinde gözle bakılmadı.
+- Notların başka bir PDF okuyucuda görünmesi o okuyucunun önizleme motoruyla (ekrana pencere açmadan) denetlendi; okuyucunun penceresinde gözle bakılmadı.
 
 ## 0.1.3 — 2026-09-22
 
@@ -120,34 +137,34 @@ otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 ## 0.1.2 — 2026-09-22
 
 ### Görüntüleme ve kalite
-- Görseller referans okuyucudaki gibi keskin çizilir: küçülen JPEG sayfalar ve taramalar net; karekod, barkod gibi küçük görseller her yakınlaştırmada keskin kenarlı; fotoğraf ve taramalar çok büyütülünce pikselli değil yumuşak görünür.
+- Görseller keskin çizilir: küçülen JPEG sayfalar ve taramalar net; karekod, barkod gibi küçük görseller her yakınlaştırmada keskin kenarlı; fotoğraf ve taramalar çok büyütülünce pikselli değil yumuşak görünür.
 - İnce çizgiler (tablo kenarlıkları, alt çizgiler, çerçeveler) iki satıra yayılmış gri yerine tam piksel çizilir; kesikli ve noktalı çizgiler özgün desenle hizalıdır, sonlarında fazladan parça çıkmaz.
-- Harfler aynı ölçekte referans okuyucu ile ölçülüp karşılaştırıldı ve eşit çıktı; "bulanık harf" izlenimini gri alt çizgi ve kenarlıklar veriyordu.
+- Harfler aynı ölçekte yaygın bir PDF okuyucuyla ölçülüp karşılaştırıldı ve eşit çıktı; "bulanık harf" izlenimini gri alt çizgi ve kenarlıklar veriyordu.
 - Yakınlaştırırken sayfa önce yumuşak, sonra keskin görünmez; tek adımda keskin çizilir. Taranmış belgede kaydırma durunca oluşan kısa donma giderildi.
 - Arka plan görüntüsü ve ayrı metin katmanından oluşan taramalarda %2400 ve üstünde kaybolan yazı artık görünür ve net; %1600–%6400 yakınlaştırma bekletmez, ekran kartı belleği birkaç GB'a çıkmaz.
 - Koyu temada "Sayfayı da koyulaştır" açıkken sayfa ve henüz çizilmemiş sayfanın yer tutucusu tam siyah; koyulaştırılmış sayfada metin renk saçaksız beyaz.
 - Sayfalar panelinde döndürülmüş sayfanın küçük resmi doğru oranlı kutuda ve doğru yönde görünür.
 
 ### Vurgu ve notlar
-- Vurgu yazının rengini değiştirmez: referans okuyucudaki gibi yalnızca zemin renklenir, siyah yazı siyah kalır. Referans okuyucuda ya da PDEfe'de eklenen vurgularda, açık ve koyu temada, koyulaştırılmış sayfadaki taramalar ve resimler üzerinde de böyledir. Seçili vurgu gölge yerine mavi kenarla gösterilir.
-- Varsayılan vurgu rengi ve opaklığı referans okuyucu ile aynı: sarı #FFD100, %40. Eski varsayılan sarıyı (#FFEB3B) kullananların ayarı bir kez yeni sarıya taşınır.
-- Seçili metne not (seçim mini çubuğu, sağ tık › Not ekle ya da metin seçiliyken Yapışkan not) referans okuyucunun "Metinle ilgili yorum"u gibi çalışır: metin vurgulanır, not vurgunun içine yazılır, not kutusu hemen açılır. Balon başlığında ve Yorumlar panelinde türü "Metin notu" yazar. Metin seçili değilken Yapışkan not eskisi gibi çalışır.
-- Notu olan vurgunun (referans okuyucuda eklenenler dahil) ilk satırının bittiği yerde, dipnot işareti gibi hafif yukarıda küçük bir not simgesi görünür; yakınlaştırmayla büyür küçülür, döndürülmüş sayfada da yerindedir. Aynı yerde biten iki notun simgeleri yan yana dizilir; simgenin üzerine gelince ait olduğu vurgu kesik kenarla belirginleşir, tıklayınca not düzenlenmek üzere açılır.
+- Vurgu yazının rengini değiştirmez: yalnızca zemin renklenir, siyah yazı siyah kalır. Başka PDF okuyucularında ya da PDEfe'de eklenen vurgularda, açık ve koyu temada, koyulaştırılmış sayfadaki taramalar ve resimler üzerinde de böyledir. Seçili vurgu gölge yerine mavi kenarla gösterilir.
+- Varsayılan vurgu rengi ve opaklığı PDF okuyucularında yaygın varsayılanla aynı: sarı #FFD100, %40. Eski varsayılan sarıyı (#FFEB3B) kullananların ayarı bir kez yeni sarıya taşınır.
+- Seçili metne not (seçim mini çubuğu, sağ tık › Not ekle ya da metin seçiliyken Yapışkan not) PDF okuyucularındaki "Metinle ilgili yorum" gibi çalışır: metin vurgulanır, not vurgunun içine yazılır, not kutusu hemen açılır. Balon başlığında ve Yorumlar panelinde türü "Metin notu" yazar. Metin seçili değilken Yapışkan not eskisi gibi çalışır.
+- Notu olan vurgunun (başka PDF okuyucularında eklenenler dahil) ilk satırının bittiği yerde, dipnot işareti gibi hafif yukarıda küçük bir not simgesi görünür; yakınlaştırmayla büyür küçülür, döndürülmüş sayfada da yerindedir. Aynı yerde biten iki notun simgeleri yan yana dizilir; simgenin üzerine gelince ait olduğu vurgu kesik kenarla belirginleşir, tıklayınca not düzenlenmek üzere açılır.
 - Notun üzerine gelince (vurgu, simge, yapışkan not) not tıklamadan yaklaşık 0,1 saniyede görünür; fare not kutusuna geçerken kapanmaz, metin seçerken açılmaz. Not kutusu kendi notunu ve yakındaki notları örtmeyen yere açılır, uzun notlar kaydırmadan okunur.
 - Notu olmayan vurgunun üzerine gelince boş not kutusu açılmaz; not eklemek için vurguya çift tıklanır.
-- Kaydedilen vurgu ve notlar referans okuyucu yapısında yazılır (gizli açılır pencere, benzersiz not adı, notlu vurgu "Metinle İlgili Yorum Yap" olarak). Silinip geri alınan not bu bilgiyi ve ilk oluşturma tarihini korur.
-- Referans okuyucuda düzenlenmiş bir notun metni PDEfe'de değiştirilince referans okuyucu artık eski metni göstermez.
+- Kaydedilen vurgu ve notlar yaygın PDF okuyucularının kullandığı yapıda yazılır (gizli açılır pencere, benzersiz not adı, notlu vurgu "Metinle İlgili Yorum Yap" olarak). Silinip geri alınan not bu bilgiyi ve ilk oluşturma tarihini korur.
+- Başka bir PDF okuyucuda düzenlenmiş bir notun metni PDEfe'de değiştirilince o okuyucu artık eski metni göstermez.
 
 ### Yazı aracı
-- Dolgu rengi seçilemiyordu, bu yüzden "Dolgusuz" da işe yaramıyordu: ikisi de anında uygulanır, geri alınabilir; kaydedince referans okuyucuda saydam kutu görünür. "Arka plan" düğmesinin adı "Dolgu rengi" oldu.
+- Dolgu rengi seçilemiyordu, bu yüzden "Dolgusuz" da işe yaramıyordu: ikisi de anında uygulanır, geri alınabilir; kaydedince başka PDF okuyucularında da saydam kutu görünür. "Arka plan" düğmesinin adı "Dolgu rengi" oldu.
 - Kalın, İtalik (yeni düğme) ve Altı çizili yazının tamamına değil seçili metne uygulanır; seçim yoksa sonra yazılacak metne (`Ctrl+B` / `Ctrl+I` / `Ctrl+U`). Düğmeler imlecin bulunduğu yerin biçimini gösterir; çift tıkla seçilen sözcükte de doğru çalışır, alt çizgi sondaki boşluğa uzamaz. Yazı rengi de seçime uygulanır; yazı tipi ve boyut kutunun tamamı için geçerlidir.
-- Biçimli yazı PDF'e referans okuyucunun zengin metin biçiminde yazılır; referans okuyucuda ve PDEfe'de yeniden açınca aynı görünür. Referans okuyucuda hazırlanmış yazı kutularının biçimi ve kenarlık rengi PDEfe'de düzenlenince korunur.
-- Kaydedilen yazıda satırlar ekrandakiyle aynı yerden kırılır, referans okuyucuda son satır kesilmez. Calibri yazıların yukarı kayması ve düzenlerken yakınlaştırınca metnin çift görünmesi düzeltildi.
+- Biçimli yazı PDF'e standart zengin metin biçiminde yazılır; başka PDF okuyucularında ve PDEfe'de yeniden açınca aynı görünür. Başka PDF okuyucularında hazırlanmış yazı kutularının biçimi ve kenarlık rengi PDEfe'de düzenlenince korunur.
+- Kaydedilen yazıda satırlar ekrandakiyle aynı yerden kırılır, başka PDF okuyucularında son satır kesilmez. Calibri yazıların yukarı kayması ve düzenlerken yakınlaştırınca metnin çift görünmesi düzeltildi.
 - Yazı düzenlenirken `Ctrl+Z` / `Ctrl+Y`, araç çubuğundaki ve Düzen menüsündeki Geri al / Yinele yazının kendi adımlarını (metin, biçim, dolgu, kenarlık) geri alır; belge geri alınıp yazı kaybolmaz. Düzenleme bitince bütün değişiklik belgede tek adımda geri alınır, kayıttan sonra da.
 - Yazı düzenlenirken araç açmak, Paylaş, Yazdır, kaydetme, sekme ya da pencere kapatma ve sayfa, yakınlaştırma ya da Bul kutusuna geçmek önce yazılanı uygular; o kutularda basılan Esc yazıyı silmez. Otomatik kaydetme yazarken kutuyu kapatmaz.
-- Yazı kutusunda `Esc` artık yazılanı atmaz: referans okuyucudaki gibi düzenlemeyi bitirip uygular, kutu seçili kalır ve `Ctrl+Z` tek adımda geri alır. Boş yeni kutu `Esc` ile kaldırılır. Biçim çubuğundayken de aynıdır (açık yazı tipi listesi önce kendisi kapanır); düzenlerken açılan `F1` penceresindeki `Esc` yalnızca pencereyi kapatır.
+- Yazı kutusunda `Esc` artık yazılanı atmaz: PDF okuyucularında alışıldığı gibi düzenlemeyi bitirip uygular, kutu seçili kalır ve `Ctrl+Z` tek adımda geri alır. Boş yeni kutu `Esc` ile kaldırılır. Biçim çubuğundayken de aynıdır (açık yazı tipi listesi önce kendisi kapanır); düzenlerken açılan `F1` penceresindeki `Esc` yalnızca pencereyi kapatır.
 - Yazı düzenlenirken kaydırınca biçim çubuğu kutuyu izler; fare tekerleği ve PageUp / PageDown kutuyu görünümden çıkarmaz, sayfayı çevirmez.
-- Döndürülmüş sayfadaki yazılar dosyadaki yönüyle (referans okuyucu gibi) görünür ve düzenlenir; sayfa döndürülünce yazı da döner, taşıma ve boyut tutamaçları fare yönünde çalışır.
+- Döndürülmüş sayfadaki yazılar dosyadaki yönüyle (başka PDF okuyucularında olduğu gibi) görünür ve düzenlenir; sayfa döndürülünce yazı da döner, taşıma ve boyut tutamaçları fare yönünde çalışır.
 - Yazıya çift tıklayınca imleç tıklanan yere konur; hiçbir şey değiştirmeden kapatmak belgeyi değişmiş saymaz.
 
 ### Metin seçimi ve arama
@@ -156,14 +173,14 @@ otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 - Çift tıklayıp sürükleyince seçim sözcük sözcük genişler. Üç tıklama yalnızca tıklanan paragrafı seçer: üst bilgi, alt bilgi ve önceki başlık girmez; sütunlu sayfada yalnızca o sütun seçilir, numaralı asılı girintili madde bölünmez.
 - Birkaç sayfaya yayılan seçim kaydırınca bozulmaz; kopyada aradaki sayfalar eksik kalmaz.
 - Seçerken sayfanın sol üst köşesinde beliren kesik mavi şerit giderildi; seçim renginin altında harfler özgün renginde kalır.
-- Vurgu aracı açıkken boş yerden başlayan sürükleme de metni seçip vurgular (referans okuyucunun "Metni vurgula" aracı gibi); not ve yazı araçlarında seçim başlamaz.
+- Vurgu aracı açıkken boş yerden başlayan sürükleme de metni seçip vurgular (PDF okuyucularındaki "Metni vurgula" aracı gibi); not ve yazı araçlarında seçim başlamaz.
 - Arama sonuçlarında harflerin rengi değişmez, yalnızca zemin boyanır (geçerli sonuç turuncu, diğerleri sarı).
 - Bul kutusu etkin belgenin sonuçlarını gösterir; sekmeye dönünce o belgede en son gidilen eşleşme yeniden geçerli olur. Arama açıkken yapılan seçim arama kapanınca korunur.
 
 ### Gezinme ve görünüm
 - İki sayfa düzeninde sağ ok, PageDown ve Sonraki sayfa düğmesi bir sonraki çifte geçer (kapak ayrıyken de). Son sayfaya okla ulaşılır, sayfa kutusuna yazılan sayfa numarası kalır, tek kalan son sayfa çiftlerle aynı boyutta gösterilir.
 - İki sayfa düzenine geçince ve bu düzende belge açılınca yakınlaştırma her zaman Sayfayı sığdır olur. Tek sayfaya geçince Genişliğe sığdır olur (Ayarlar › Başlangıç'ta başka bir sığdırma seçeneği seçiliyse o).
-- Kaydırma kapalıyken fare tekerleği sayfa sonunda sonraki sayfaya geçer; aşağı ok ve PageDown uzun sayfada önce sayfa içinde kaydırır, sonunda sayfayı çevirir (referans okuyucunun tek sayfa görünümü gibi). Elle yakınlaştırılmış sayfada sağ / sol ok önce yana kaydırır, yeni sayfa okuma yönündeki kenarından başlar.
+- Kaydırma kapalıyken fare tekerleği sayfa sonunda sonraki sayfaya geçer; aşağı ok ve PageDown uzun sayfada önce sayfa içinde kaydırır, sonunda sayfayı çevirir (PDF okuyucularının tek sayfa görünümü gibi). Elle yakınlaştırılmış sayfada sağ / sol ok önce yana kaydırır, yeni sayfa okuma yönündeki kenarından başlar.
 - Tek sayfalık belgede Döndür düğmesi ve `Ctrl+Shift++` / `Ctrl+Shift+−` "Geçerli sayfa / Tüm PDF" diye sormadan döndürür.
 - Klavye kısayolları ya da Araçlar penceresi açıkken ok tuşları arkadaki belgeyi çevirmez. Kaydırma kapalıyken sayfa çevrilince önceki sayfadaki not bırakılır; Delete görünmeyen sayfadaki notu silmez.
 - Yakınlaştırma kutusu her zaman "%150" biçiminde görünür. "Son kullanılan" yakınlaştırma seçiliyse yeni belge son kullanılan ölçekle açılır.
@@ -190,18 +207,18 @@ otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
 ### Kaldırılanlar
 - "PDF birleştir" aracı; aynı işi Görüntü / PDF birleştir yapar.
-- Nota yanıt yazma ve yanıt silme. Referans okuyucuda yazılmış yanıtlar kaybolmasın diye not kutusunda salt okunur gösterilir, Yorumlar panelinde sayıları durur.
+- Nota yanıt yazma ve yanıt silme. Başka PDF okuyucularında yazılmış yanıtlar kaybolmasın diye not kutusunda salt okunur gösterilir, Yorumlar panelinde sayıları durur.
 - PDF küçült "Üzerine yaz" yedeği (`<ad> (yedek).pdf` artık oluşturulmaz).
 
 ### Bilinen sınırlar
-- Referans okuyucunun %100'ü (110 ppi çözünürlük ayarıyla) PDEfe'nin %100'ünden yaklaşık %13 büyük görünür. Harfleri ve görselleri aynı büyüklükte karşılaştırın (ör. PDEfe'de %115, referans okuyucuda %100).
+- Başka bir PDF okuyucunun %100'ü (110 ppi çözünürlük ayarıyla) PDEfe'nin %100'ünden yaklaşık %13 büyük görünür. Harfleri ve görselleri aynı büyüklükte karşılaştırın (ör. PDEfe'de %115, öteki okuyucuda %100).
 - "Sayfayı da koyulaştır" açıkken taranmış sayfalar ve görseller özgün renginde kalır.
-- Vurgu ve arama vurgusu beyaz ya da açık zeminde harf rengini korur; koyu ya da renkli dolgulu alanlarda (ör. koyu zeminli tablo başlığındaki beyaz yazı) harfler vurgu rengini alır. Tek bir karışım kipi ikisini birden sağlayamaz; referans okuyucunun vurgusu da böyledir.
+- Vurgu ve arama vurgusu beyaz ya da açık zeminde harf rengini korur; koyu ya da renkli dolgulu alanlarda (ör. koyu zeminli tablo başlığındaki beyaz yazı) harfler vurgu rengini alır. Tek bir karışım kipi ikisini birden sağlayamaz; yaygın PDF okuyucularındaki vurgu da böyledir.
 - Not simgesi sıkışık metinde ya da küçük yakınlaştırmada komşu harflere biraz binebilir (yarı saydam hale yazıyı okunur tutar).
 - Alt bilgi gibi okuma sırası farklı satırları da kapsayan seçimlerde boyama biraz farklı çizilir; iki yana yaslı satırlarda sözcük aralarında ince boşluk kalabilir.
 - Taranmış belge ilk açıldığında sayfa bir an hızlı (yumuşak) çizilip keskinleşir.
 - `Ctrl+Shift++` / `Ctrl+Shift+−` kısayolları yalnızca çalıştırdıkları komut üzerinden sınandı; klavyeden elle denenmelidir.
-- PDEfe'nin notlu vurguları ve biçimli yazıları referans okuyucunun yazdığı yapıyla alan alan karşılaştırıldı; referans okuyucuda açılarak doğrulanmadı.
+- PDEfe'nin notlu vurguları ve biçimli yazıları yaygın bir PDF okuyucunun yazdığı yapıyla alan alan karşılaştırıldı; o okuyucuda açılarak doğrulanmadı.
 
 ## 0.1.1 — 2026-09-17
 
@@ -257,7 +274,7 @@ otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 - Türkçe duyarlı arama (`Ctrl+F`, `F3` / `Shift+F3`): İ/ı ayrımı doğru, tam sözcük seçeneği, yer imlerinde ve yorumlarda arama, tüm sekmelerde arama.
 - Word 2010 kaynaklı bozuk Türkçe karakter (Ġ→İ, ġ→Ş, Ģ→ş) düzeltmesi hem görünen metinde hem aramada.
 
-### Notlar (referans okuyucu uyumlu)
+### Notlar (başka PDF okuyucularıyla uyumlu)
 - Var olan notların gösterilmesi: vurgu ailesi, yapışkan not, yazı, çizim ve diğer türler.
 - Yeni: vurgu (renk ve saydamlık ayarı), yapışkan not, yanıt, serbest yazı (FreeText). Yazılar Türkçe karakter içeren Windows fontuyla (Segoe UI, Arial, Times, Calibri; kalın dahil) belgeye gömülür.
 - Notları taşıma, düzenleme, silme; sınırsız geri al / yinele (`Ctrl+Z` / `Ctrl+Y`), kayıttan sonra da geri alma.

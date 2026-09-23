@@ -1,4 +1,4 @@
-// Senaryo 4: notlar — referans okuyucu notlarını gösterme, vurgu/yapışkan not/yazı ekleme, geri al/yinele, kaydetme.
+// Senaryo 4: notlar — başka programların notlarını gösterme, vurgu/yapışkan not/yazı ekleme, geri al/yinele, kaydetme.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 const D = 'C:/Users/Kullanici/Desktop/PDF DENEME/';
@@ -14,7 +14,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   console.log('aç:', await evalJs(`(async () => { const b = await window.__pdefe.dosyaAc(${JSON.stringify(KOPYA)}); await new Promise(r => setTimeout(r, 1500)); return { ad: b.ad, notSayisi: b.notlar.notlar.size, cizili: b.gorunum.sayfalar.filter(s => s.canvas).length, svgGrup: document.querySelectorAll('.not-isaretler g').length, dataSayfa: b.gorunum.sayfalar.every((s, i) => s.el.dataset.sayfa === String(i + 1)) }; })()`));
   await ekranGoruntusu('test/png/s4-01-dis-notlar.png');
 
-  // Referans okuyucu vurgusunun balonunu aç
+  // Başka programda eklenmiş vurgunun balonunu aç
   await evalJs(`(() => { const b = window.__pdefe.aktif(); const n = b.notlar.liste()[0]; b.notlar.notaGit(n.id); return n.icerik; })()`);
   await bekle(800);
   console.log('balon:', await evalJs(`({ var: !!document.querySelector('.not-balonu'), metin: document.querySelector('.not-balonu textarea')?.value, yazar: document.querySelector('.not-balonu .yazar')?.textContent })`));
@@ -66,7 +66,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   console.log('geri al ×2:', await evalJs(`(() => { const b = window.__pdefe.aktif(); b.yigin.geriAl(); b.yigin.geriAl(); return { adet: b.notlar.liste().length, yeni: b.notlar.liste().filter(n => n.yeni).length, konum: b.yigin.konum, degisti: b.degisti, yerli: !!document.querySelector('.not-freetext-yerli') }; })()`));
   console.log('yinele ×2:', await evalJs(`(() => { const b = window.__pdefe.aktif(); b.yigin.yinele(); b.yigin.yinele(); return { adet: b.notlar.liste().length, konum: b.yigin.konum, yerli: !!document.querySelector('.not-freetext-yerli') }; })()`));
 
-  // 5) referans okuyucu vurgusunu sil, sonra geri al
+  // 5) Başka programda eklenmiş vurguyu sil, sonra geri al
   console.log('sil+geri al:', await evalJs(`(() => { const b = window.__pdefe.aktif(); const n = b.notlar.liste()[0]; b.notlar.sec(n.id); const ok = b.notlar.silSecili(); const sonra = b.notlar.liste().length; b.yigin.geriAl(); return { ok, sonra, geriAlSonrasi: b.notlar.liste().length, fark: b.notlar.fark().map(o => o.islem + ':' + o.not.tur) }; })()`));
 
   // 6) Kaydet (Ctrl+S)

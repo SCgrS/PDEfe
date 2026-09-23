@@ -113,7 +113,7 @@ def y_yapisal_kaydet(p):
             try:
                 shutil.copy2(yol, anlik)
             except OSError as e:           # yarım kopya dış blokta silinir
-                raise PermissionError("Dosya okunamadı; başka bir programda (örneğin bir PDF okuyucu) açık olabilir. (%s)" % e)
+                raise PermissionError("Dosya okunamadı; başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. (%s)" % e)
             for e in tarif:
                 if e.get("kaynak") and _ayni_yol(e["kaynak"]["yol"], yol):
                     e["kaynak"] = dict(e["kaynak"], yol=anlik)

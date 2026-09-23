@@ -128,7 +128,7 @@ def _not_sozlugu(annot, sayfa_no):
         "gizli": bool(annot.flags & pymupdf.PDF_ANNOT_IS_HIDDEN),
         "kilitli": bool(annot.flags & pymupdf.PDF_ANNOT_IS_LOCKED),
     }
-    # Amaç (/IT, ör. Referans okuyucunun notlu vurgusu /HighlightNote): silinip yeniden eklenen notta korunsun
+    # Amaç (/IT, ör. PDF okuyucularının notlu vurgusu /HighlightNote): silinip yeniden eklenen notta korunsun
     try:
         it = annot.parent.parent.xref_get_key(annot.xref, "IT")
         if it[0] == "name":

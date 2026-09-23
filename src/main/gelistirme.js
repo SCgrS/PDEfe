@@ -8,7 +8,7 @@
 //   PDEFE_TEST_GUNCELLEME_HATA  sahte güncelleyicinin başlangıç senaryosu: denetim | indirme | kurulum (açılıştaki otomatik denetimi
 //                       denemek için; sonradan test:guncellemeSenaryosu ile değiştirilir).
 // Paketli uygulamada hiçbiri okunmaz.
-import { app } from 'electron';
+import { app, Menu } from 'electron';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 
@@ -89,6 +89,9 @@ export function testDiyalogKur(ipcMain) {
   // Ana süreçten gelen olayı taklit eder (fareyle seçilen menü komutu 'menu:komut', pencere kapatma isteği 'pencere:kapatIstegi'):
   // aynı kanaldan renderer'a geri gönderilir. CDP tuş olayı menü hızlandırıcısını tetiklemediğinden bu yolla sınanır.
   ipcMain.handle('test:olayGonder', (e, kanal, ...args) => { e.sender.send(kanal, ...args); return true; });
+  // Uygulama menüsünün etiketleri (alt menüler iç içe): ayara bağlı öğeler (Dosya › Son açılanlar) sınanır
+  const menuYapisi = (m) => (m ? m.items.map((o) => (o.submenu ? { etiket: o.label, alt: menuYapisi(o.submenu) } : o.label)) : null);
+  ipcMain.handle('test:menu', () => menuYapisi(Menu.getApplicationMenu()));
   return (kanal, secenek, varsayilanYanit) => {
     const bekleyen = kuyruk.get(kanal);
     const yanit = bekleyen?.length ? bekleyen.shift() : varsayilanYanit;

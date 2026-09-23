@@ -2,9 +2,11 @@
 import { Menu } from 'electron';
 import path from 'node:path';
 
+/** sonDosyalar() null dönerse ("Son açılanları hatırla" kapalı) Dosya menüsünde Son açılanlar gösterilmez. */
 export function menuKur({ komut, sonDosyalar, duzen }) {
   const k = (id, veri) => () => komut(id, veri);
-  const son = (sonDosyalar() || []).slice(0, 10);
+  const sonListe = sonDosyalar();
+  const son = (sonListe || []).slice(0, 10);
   // Sayfa düzeni işaretleri (araç çubuğundaki düzen menüsüyle aynı): ayar değişince menü yeniden kurulur (main.js uygulamaMenusuKur)
   const dz = duzen?.() || {};
   const d = ['tek', 'surekli', 'iki', 'ikiSurekli'].includes(dz.duzen) ? dz.duzen : 'surekli';
@@ -15,13 +17,13 @@ export function menuKur({ komut, sonDosyalar, duzen }) {
       label: '&Dosya',
       submenu: [
         { label: 'Aç', accelerator: 'Ctrl+O', click: k('dosya.ac') },
-        {
+        ...(sonListe ? [{
           label: 'Son açılanlar',
           submenu: son.length
             ? [...son.map((y) => ({ label: path.basename(y), sublabel: path.dirname(y), click: k('dosya.acYol', y) })),
                { type: 'separator' }, { label: 'Listeyi temizle', click: k('dosya.sonTemizle') }]
             : [{ label: '(boş)', enabled: false }],
-        },
+        }] : []),
         { type: 'separator' },
         { label: 'Kaydet', accelerator: 'Ctrl+S', click: k('dosya.kaydet') },
         { label: 'Farklı kaydet', accelerator: 'Ctrl+Shift+S', click: k('dosya.farkliKaydet') },

@@ -26,11 +26,11 @@ const GIRDI_MS = 300;                     // kullanıcı girdisinden (tekerlek, 
 export { pdfjs };
 
 // Görsel ve çizgi kalitesi keskinlik.js'te: sayfa tuvali ve PDF.js'in ara tuvalleri (KeskinTuvalFabrikasi) sarılır; görseller
-// Referans okuyucu gibi alan ortalamasıyla örneklenir, ince çizgiler piksel ızgarasına oturur. 0.1.1'deki prototip yaması (her görsele
+// referans okuyucudaki gibi alan ortalamasıyla örneklenir, ince çizgiler piksel ızgarasına oturur. 0.1.1'deki prototip yaması (her görsele
 // yüksek kaliteli yumuşatma) kaldırıldı: küçültmede mip-map karışımıyla, küçük görsellerin (karekod) büyütülmesinde kübik
 // yumuşatmayla bulanıklaştırıyordu.
 
-// Yazı çizimi (yaziTipleri.js): true ise referans okuyucu gibi (varsayılan; kalın ve döndürülmüş yazı ana hatlarından, düz yazı Chromium'la),
+// Yazı çizimi (yaziTipleri.js): true ise "Dengeli" çizim (varsayılan; kalın ve döndürülmüş yazı ana hatlarından, düz yazı Chromium'la),
 // false ise bütün yazılar Chromium'un yazı çizicisiyle (Ayarlar › Görünüm › Yazı çizimi). Belge açılırken okunur: değişiklik açık
 // belgelere yeniden açılınca uygulanır.
 let anaHatCizimi = true;
@@ -481,7 +481,7 @@ export class Goruntuleyici extends EventTarget {
 
   /**
    * İkili düzende tek sayfalık satır yarım çift mi: ayrı kapak (tek sayfalık belgede de) ya da çok sayfalı belgede tek kalan son
-   * sayfa. Yarım satır çiftle aynı ölçekte çizilir; kapak sağ, son sayfa sol sütuna oturur (referans okuyucu gibi).
+   * sayfa. Yarım satır çiftle aynı ölçekte çizilir; kapak sağ, son sayfa sol sütuna oturur (referans okuyucudaki gibi).
    */
   yarimSatirMi(idxler) {
     return this.ikili() && idxler.length === 1 && ((this.kapakAyri && idxler[0] === 0) || this.sayfalar.length > 1);
@@ -581,7 +581,7 @@ export class Goruntuleyici extends EventTarget {
     const yerler = [];
     for (const r of olculer) {
       let x = (alanW - r.satirW) / 2;
-      // Kapak ayrıysa tek sayfalık ilk satırı sağ tarafa hizala (referans okuyucu gibi); tek kalan son sayfa sol yarıda kalır
+      // Kapak ayrıysa tek sayfalık ilk satırı sağ tarafa hizala (referans okuyucudaki gibi); tek kalan son sayfa sol yarıda kalır
       if (this.ikili() && this.kapakAyri && r.idxler.length === 1 && r.idxler[0] === 0) x = alanW / 2 + BOSLUK / 2;
       r.idxler.forEach((i, k) => {
         const b = r.boyutlar[k];
@@ -1329,7 +1329,7 @@ export class Goruntuleyici extends EventTarget {
 
   /**
    * Kaydırmasız (tek/iki) düzende fare tekerleği: görünüm o yönde kenara dayanmışsa sayfa (çift) çevrilir; ileride yeni sayfanın üstü,
-   * geride altı görünür (referans okuyucu gibi). Dayanmamışsa tarayıcı kaydırır. Bir tekerlek hareketi (arasında 150 ms'den uzun boşluk olmayan
+   * geride altı görünür (referans okuyucudaki gibi). Dayanmamışsa tarayıcı kaydırır. Bir tekerlek hareketi (arasında 150 ms'den uzun boşluk olmayan
    * olaylar; dokunmatik yüzeyde momentum dahil) en çok bir sayfa çevirir; kenara o hareketle kaydırarak gelindiyse çevirmez (yeni hareket gerekir).
    */
   tekerlekleCevir(e) {

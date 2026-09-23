@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Not (annotation) yazma/düzenleme: standart PDF notları; referans okuyucuda birebir görünür.
+"""Not (annotation) yazma/düzenleme: standart PDF notları; referans PDF okuyucusunda birebir görünür.
 
-- Highlight: referans okuyucu yapısı: /C, /CA, /QuadPoints, görünüm akışı /BM /Multiply + /CA (PyMuPDF üretir), gizli Popup (/F 28 /Open false);
+- Highlight: PDF okuyucularının yazdığı yapı: /C, /CA, /QuadPoints, görünüm akışı /BM /Multiply + /CA (PyMuPDF üretir), gizli Popup (/F 28 /Open false);
   notlu vurgu ("Metinle ilgili yorum yap") /Contents + /IT /HighlightNote taşır
 - Text (yapışkan not): /Comment simgesi, Popup; dosyadaki yanıtları (IRT) geri yazabilir (yeni yanıt arayüzden eklenmez)
-- FreeText: /DA + /DS + /RC (referans okuyucu XHTML zengin metni) + kendi ürettiğimiz görünüm akışı; Windows'taki gerçek font
+- FreeText: /DA + /DS + /RC (XHTML zengin metin) + kendi ürettiğimiz görünüm akışı; Windows'taki gerçek font
   (Segoe UI, Arial, Times New Roman, Calibri; düz, kalın, italik, kalın italik) alt kümesi gömülür, böylece ş ğ İ ı ç ö ü
   her yerde doğru çıkar. Kalın / italik / altı çizili / üstü çizili ve renk karakter düzeyindedir (parçalar).
 """
@@ -22,6 +22,8 @@ import uuid
 
 import pymupdf
 
+# /RC'deki xfa:APIVersion "program:sürüm" biçimindedir; ana süreç uygulama sürümünü PDEFE_SURUM ortam değişkeninde verir
+URETICI_SURUMU = "PDEfe:" + (os.environ.get("PDEFE_SURUM") or "0")
 FONT_KLASORU = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")
 # (aile, kalın, italik) -> Windows font dosyası
 FONT_DOSYALARI = {
@@ -155,7 +157,7 @@ def _font_xref_al(doc, page, aile, kalin, italik=False):
 
 # ---------------------------------------------------------------- yazı parçaları (zengin metin)
 def _duz(metin):
-    """Satır sonlarını \\n'e indirger (referans okuyucu /Contents'te \\r kullanır)."""
+    """Satır sonlarını \\n'e indirger (bazı PDF okuyucuları /Contents'te \\r kullanır)."""
     return str(metin or "").replace("\r\n", "\n").replace("\r", "\n")
 
 
@@ -385,7 +387,7 @@ def _css_renk(deger):
 
 
 def _css_oku(stil):
-    """Referans okuyucunun /DS ve /RC style değerlerini okur. Döner (yalnızca bulunanlar): {aile, boyut, renk, hiza, kalin, italik,
+    """PDF okuyucularının yazdığı /DS ve /RC style değerlerini okur. Döner (yalnızca bulunanlar): {aile, boyut, renk, hiza, kalin, italik,
     alti, ustu, bosluk}; kalin / italik açıkça normal verildiyse False, text-decoration: none alti / ustu'yu kapatır."""
     sonuc = {}
     for bildirim in (stil or "").split(";"):
@@ -434,7 +436,7 @@ def _css_oku(stil):
 
 
 def _aile_eslestir(ad):
-    """Referans okuyucudaki font adını PDEfe'nin gömebildiği aileye eşler (Helvetica → Arial); tanınmayan için None."""
+    """/DS ya da /RC'deki font adını PDEfe'nin gömebildiği aileye eşler (Helvetica → Arial); tanınmayan için None."""
     a = (ad or "").lower()
     if "segoe" in a:
         return "Segoe UI"
@@ -448,13 +450,13 @@ def _aile_eslestir(ad):
 
 
 def freetext_rc_uret(parcalar, aile, boyut, renk_hex, hiza="sol"):
-    """Referans okuyucu biçiminde /RC: body varsayılan stili, paragraf (satır) başına <p dir="ltr">, parça başına biçimli <span>.
+    """Referans okuyucunun yazdığı biçimde /RC: body varsayılan stili, paragraf (satır) başına <p dir="ltr">, parça başına biçimli <span>.
     XHTML ardışık boşlukları birleştirdiğinden birden çok boşluk ile paragraf başı / sonu boşlukları xfa-spacerun ile korunur;
     boş satır tek boşluklu paragraf olur (boş <p> satır yüksekliği almaz)."""
     govde = "font-size:%.1fpt;text-align:%s;color:%s;font-weight:normal;font-style:normal;font-family:%s;font-stretch:normal" % (
         boyut, HIZA_CSS.get(hiza, "left"), renk_hex, _css_aile(aile))
     out = ['<?xml version="1.0"?><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" '
-           'xfa:APIVersion="PDEfe:0.1.0" xfa:spec="2.0.2" style="%s">' % govde]
+           'xfa:APIVersion="%s" xfa:spec="2.0.2" style="%s">' % (URETICI_SURUMU, govde)]
     paragraflar = [[]]
     for ch, st in _parcalari_ac(parcalar, renk_hex):
         if ch == "\n":
@@ -493,7 +495,7 @@ def freetext_rc_uret(parcalar, aile, boyut, renk_hex, hiza="sol"):
 
 
 class _RCOkuyucu(HTMLParser):
-    """/RC XHTML'ini biçimli karakterlere çevirir (referans okuyucunun ve PDEfe'nin yazdığı biçim; b/i/u/s etiketleri de)."""
+    """/RC XHTML'ini biçimli karakterlere çevirir (PDF okuyucularının ve PDEfe'nin yazdığı biçim; b/i/u/s etiketleri de)."""
     BLOK = ("p", "div", "li")
 
     def __init__(self):
@@ -580,7 +582,7 @@ def freetext_rc_oku(rc, varsayilan_renk="#000000"):
 
 
 def _anahtar_metin(doc, xref, anahtar):
-    """Metin değerli anahtar (dize ya da akış, ör. Referans okuyucunun bazen akış olarak yazdığı /RC); yoksa None."""
+    """Metin değerli anahtar (dize ya da akış, ör. PDF okuyucularının bazen akış olarak yazdığı /RC); yoksa None."""
     tur, deger = doc.xref_get_key(xref, anahtar)
     if tur == "string":
         return deger
@@ -596,7 +598,7 @@ def _anahtar_metin(doc, xref, anahtar):
 # ---------------------------------------------------------------- FreeText yazma / okuma
 def freetext_gorunum_yaz(doc, page, annot, metin, stil):
     """FreeText notunu yazar: karakter düzeyinde biçimli görünüm akışı (/AP /N; her parça kendi gömülü yüzüyle, altı / üstü
-    çizgiler), referans okuyucu için /RC, /DS, /DA, /C (dolgu; dolgusuzsa silinir), /BS, /Q; PDEfe için /PDEfe stil kaydı (parçalar dahil).
+    çizgiler), başka PDF okuyucuları için /RC, /DS, /DA, /C (dolgu; dolgusuzsa silinir), /BS, /Q; PDEfe için /PDEfe stil kaydı (parçalar dahil).
     /Contents önceden yazılmış olmalı: PyMuPDF içerik yazarken /RC'yi siler.
     stil: {tip, boyut, renk, arka, kenarlik, kenarlikRengi, hiza, parcalar: [{metin, kalin, italik, alti, ustu, renk}]};
     parçasız eski kayıtta kutu düzeyinde kalin / altiCizili."""
@@ -617,7 +619,7 @@ def freetext_gorunum_yaz(doc, page, annot, metin, stil):
     duz_olcu = kaynak[(False, False)][2]
     r = annot.rect
     # Metin yönü (stil donus): görünüm akışı bu açıyla döndürülür. Yeni yazıda renderer ekrandaki sayfa açısını verir (metin dik
-    # durur); var olan yazıda dosyadaki yön korunur (freetext_donus): düzenleyip kaydetmek yazının referans okuyucudaki yönünü değiştirmez
+    # durur); var olan yazıda dosyadaki yön korunur (freetext_donus): düzenleyip kaydetmek yazının başka okuyuculardaki yönünü değiştirmez
     rot = k.get("donus", 0)
     if rot in (90, 270):
         w, h = max(r.height, 1), max(r.width, 1)
@@ -692,7 +694,7 @@ def freetext_gorunum_yaz(doc, page, annot, metin, stil):
     doc.update_object(ap_xref, "<</Type/XObject/Subtype/Form/FormType 1/BBox[0 0 %.2f %.2f]/Matrix %s/Resources<</Font<<%s>>/ProcSet[/PDF/Text]>>>>" % (w, h, matris, fontlar))
     doc.update_stream(ap_xref, icerik)
     doc.xref_set_key(annot.xref, "AP", "<</N %d 0 R>>" % ap_xref)
-    # Referans okuyucu için varsayılan görünüm bilgileri: /DA rengi referans okuyucuda kenarlık rengidir, /C dolgudur (dolgusuzda anahtar kalkar)
+    # Başka PDF okuyucuları için varsayılan görünüm bilgileri: /DA rengi referans okuyucuda kenarlık rengidir, /C dolgudur (dolgusuzda anahtar kalkar)
     renk_hex = _hex(renk)
     gorunen = [st for ch, st in kar if ch.strip()]
     hepsi = {b: bool(gorunen) and all(st.get(b) for st in gorunen) for b in BICIMLER}
@@ -707,7 +709,8 @@ def freetext_gorunum_yaz(doc, page, annot, metin, stil):
         doc.xref_set_key(annot.xref, "IC", "null")
     doc.xref_set_key(annot.xref, "BS", "<</Type/Border/W %d/S/S>>" % (1 if kenarlik else 0))
     doc.xref_set_key(annot.xref, "Q", str(HIZA_Q.get(hiza, 0)))
-    # Referans okuyucu görünümü yeniden üretirse metin aynı yönde dursun (referans okuyucu da döndürülmüş sayfadaki yazının açısını /Rotate'e yazar)
+    # Okuyucu görünümü yeniden üretirse metin aynı yönde dursun (referans okuyucu da döndürülmüş sayfadaki yazının açısını
+    # /Rotate'e yazar)
     if rot or doc.xref_get_key(annot.xref, "Rotate")[0] != "null":
         doc.xref_set_key(annot.xref, "Rotate", str(rot) if rot else "null")
     # PyMuPDF her yazıya anlamsız bir çağrı çizgisi (/CL) ekliyor; çağrı çizgili (callout) olmayan yazıda kaldırılır
@@ -715,7 +718,7 @@ def freetext_gorunum_yaz(doc, page, annot, metin, stil):
         doc.xref_set_key(annot.xref, "CL", "null")
     # PDEfe stil kaydı (yeniden düzenlerken aynı biçimi kullanmak için). Kalin / Alti / Italik: bütün metin o biçimdeyse
     # (0.1.1 kutu düzeyinde okur). RCOzet: /RC başka programda değişirse parçalar /RC'den okunur. KenarRengi: yazı renginden
-    # farklı kenarlık rengi (referans okuyucu yazısının /DA'sından gelir; yoksa anahtar yazılmaz).
+    # farklı kenarlık rengi (başka programda yazılmış yazının /DA'sından gelir; yoksa anahtar yazılmaz).
     doc.xref_set_key(annot.xref, "PDEfe", "<</Tip %s /Boyut %.1f /Renk %s /Arka %s /Kalin %s /Alti %s /Kenar %s /Italik %s /Hiza %s /Parcalar %s /RCOzet %s%s>>" % (
         _pdf_metin(aile), boyut, _pdf_metin(renk_hex), _pdf_metin(_hex(arka) if arka else ""), "true" if hepsi["kalin"] else "false",
         "true" if hepsi["alti"] else "false", "true" if kenarlik else "false", "true" if hepsi["italik"] else "false", _pdf_metin(hiza),
@@ -725,7 +728,7 @@ def freetext_gorunum_yaz(doc, page, annot, metin, stil):
 
 def pdefe_stil_oku(doc, xref):
     """Notun /PDEfe stil kaydını kanonik biçimde okur. Parçalar kayıttan; parçasız eski (0.1.1) kayıtta kutu düzeyindeki
-    Kalin / Alti bayraklarından. Kayıt yoksa ya da /RC başka programda (referans okuyucu) değiştirilmişse (özet tutmuyor; 0.1.1 /RC
+    Kalin / Alti bayraklarından. Kayıt yoksa ya da /RC başka programda değiştirilmişse (özet tutmuyor; 0.1.1 /RC
     yazmazdı) None: kayıt bayattır, yazı yabancı sayılır (görünüm dosyadaki AP'den, düzenleme /RC ve /DS'den)."""
     tur, _ = doc.xref_get_key(xref, "PDEfe")
     if tur != "dict":
@@ -763,7 +766,7 @@ def pdefe_stil_oku(doc, xref):
 
 
 def freetext_stil_al(doc, annot):
-    """FreeText'in düzenlenebilir biçimi ve düz metni. PDEfe kaydı varsa ondan; yoksa (referans okuyucu vb.) /RC, /DS, /DA, /C, /BS, /Q'dan.
+    """FreeText'in düzenlenebilir biçimi ve düz metni. PDEfe kaydı varsa ondan; yoksa (başka programın yazısı) /RC, /DS, /DA, /C, /BS, /Q'dan.
     Döner: (kanonik stil, düz metin)"""
     a = annot
     icerik = _duz(a.info.get("content") or "")
@@ -830,12 +833,12 @@ def _popup_rect(page, annot):
     return pymupdf.Rect(pw, y0, pw + 204, y0 + 114)
 
 
-# Referans okuyucunun varsayılan not rengi (vurgu ve yapışkan not): /C [1 .819611 0]
+# PDF okuyucularında yaygın varsayılan not rengi (vurgu ve yapışkan not): /C [1 .819611 0]
 VARSAYILAN_SARI = (1, 0.819611, 0)
 
 
 def _popup_ekle(doc, page, annot):
-    """Referans okuyucu gibi gizli açılır pencere: yazdırılır, yakınlaştırılmaz/döndürülmez (/F 28), kapalı (/Open false)."""
+    """Referans okuyucudaki gibi gizli açılır pencere: yazdırılır, yakınlaştırılmaz/döndürülmez (/F 28), kapalı (/Open false)."""
     annot.set_popup(_popup_rect(page, annot))
     px = annot.popup_xref
     if px:
@@ -896,7 +899,7 @@ def not_ekle(doc, page, n):
     # Oluşturma tarihi modelden (silmesi geri alınıp yeniden yazılan not ilk tarihini korur)
     olusturma = n.get("olusturma")
     doc.xref_set_key(a.xref, "CreationDate", _pdf_metin(olusturma if isinstance(olusturma, str) and olusturma.startswith("D:") else _pdf_tarih()))
-    # Benzersiz ad (referans okuyucu gibi UUID); PyMuPDF'in "fitz-A0" adı her belgede yinelenir. n["ad"] kullanılmaz: çekirdeğin notlar
+    # Benzersiz ad (referans okuyucudaki gibi UUID); PyMuPDF'in "fitz-A0" adı her belgede yinelenir. n["ad"] kullanılmaz: çekirdeğin notlar
     # yanıtındaki "ad" /NM değil /Name'dir (yapışkan not simgesi, ör. "Comment")
     doc.xref_set_key(a.xref, "NM", _pdf_metin(str(uuid.uuid4())))
     return a.xref
@@ -907,7 +910,7 @@ def not_guncelle(doc, page, n):
     tur = a.type[1]
     if tur == "FreeText":
         # Biçim, /Contents yazılmadan önce okunur (PyMuPDF içerik yazarken /RC'yi siler). Renderer biçimi göndermediyse
-        # (ör. düzenlenmeden taşınan referans okuyucu yazısı) dosyadaki biçim korunur.
+        # (ör. başka programda yazılmış, düzenlenmeden taşınan yazı) dosyadaki biçim korunur.
         ft_stil, ft_metin = (n["yazi"], None) if n.get("yazi") else freetext_stil_al(doc, a)
         if n.get("icerik") is not None:
             ft_metin = n["icerik"]
@@ -944,7 +947,7 @@ def belge_ac_yazmak_icin(yol):
         return pymupdf.open(yol)
     except Exception as e:
         if os.path.exists(yol):
-            raise PermissionError("Dosya açılamadı; başka bir programda (örneğin bir PDF okuyucu) açık olabilir. (%s)" % e)
+            raise PermissionError("Dosya açılamadı; başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. (%s)" % e)
         raise FileNotFoundError("Dosya bulunamadı: %s" % yol)
 
 
@@ -1058,7 +1061,7 @@ def y_notlar_kaydet(p):
 
 def y_freetext_stil(p):
     """Bir FreeText notunun düzenlenebilir biçimini (kanonik, parçalar dahil) ve düz metnini döndürür (PDEfe kaydından ya da
-    Referans okuyucunun /RC, /DS, /DA, /C bilgilerinden)."""
+    başka programların yazdığı /RC, /DS, /DA, /C bilgilerinden)."""
     from pdefe_core import onbellek
     doc = onbellek.al(p["yol"])
     page = doc[int(p["sayfa"]) - 1]

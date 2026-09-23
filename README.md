@@ -4,7 +4,8 @@
 
 Windows 11 (ve Windows 10) için Türkçe, sekmeli **PDF görüntüleyici ve düzenleyici**. Hukukçuların ve
 her gün onlarca PDF açan herkesin işini görmek için yazıldı: belgeler sekmelerde açılır, metin kopyalandığında
-satır sonları ve tireler temizlenir, arama Türkçe karakterleri doğru tanır, eklenen notlar referans okuyucuda aynen görünür.
+satır sonları ve tireler temizlenir, arama Türkçe karakterleri doğru tanır, eklenen notlar başka PDF okuyucularında
+ve UYAP'ta aynen görünür.
 
 Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 
@@ -13,12 +14,13 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 - **Sekmeler.** Birden çok PDF tek pencerede; sekmeler aynı ve dar genişliktedir ("ustyazi (85).pdf" gibi adlar tam
   görünür, uzun ad üç noktayla kısalır, tam ad ve yol ipucunda) ve sürüklenerek sıralanır. `Ctrl+Tab` basılı tutulunca
   son kullanılan sırayla sekme seçici açılır; `Ctrl+1` – `Ctrl+9` ile doğrudan sekmeye gidilir. Bir belge yeniden
-  açıldığında kalınan sayfadan devam edilir. Kaydedilmemiş değişiklik sorusu sekme ya da pencere kapatılırken çıkar.
-- **Keskin görüntü.** Yazılar referans okuyucudaki gibi görünür: düz ve kalın yazılar Windows'un ClearType çizimiyle keskin
-  çizilir; kalın yazılar referans okuyucu kalınlığında kalır (Windows'un bazı kalın yazı tiplerini küçük boyutta fazla koyu çizmesi ölçülüp
-  düzeltilir); döndürülmüş sayfada harfler bozulmaz. Gömülü olmayan Times, Arial ve Courier yazıları referans okuyucu gibi Windows'un Times New Roman, Arial ve Courier New
-  yazı tipleriyle çizilir (Ayarlar › Görünüm › Yazı çizimi: "Dengeli" ya da "Windows ClearType"). Görseller,
-  karekodlar ve tablo çizgileri referans okuyucudaki gibi keskin çizilir; taranmış belgeler çok yakınlaştırıldığında da net ve hızlıdır.
+  açıldığında kalınan sayfadan devam edilir (Ayarlar › Belge açılışı'ndan kapatılabilir). Kaydedilmemiş değişiklik sorusu
+  sekme ya da pencere kapatılırken çıkar.
+- **Keskin görüntü.** Düz ve kalın yazılar Windows'un ClearType çizimiyle keskin çizilir; kalın yazılar fazla koyulaşmaz
+  (Windows'un bazı kalın yazı tiplerini küçük boyutta fazla koyu çizmesi ölçülüp düzeltilir); döndürülmüş sayfada harfler
+  bozulmaz. Gömülü olmayan Times, Arial ve Courier yazıları Windows'un Times New Roman, Arial ve Courier New yazı tipleriyle
+  çizilir (Ayarlar › Görünüm › Yazı çizimi: "Dengeli" ya da "Windows ClearType"). Görseller, karekodlar ve tablo
+  çizgileri keskin çizilir; taranmış belgeler çok yakınlaştırıldığında da net ve hızlıdır.
 - **Temiz kopyalama.** Seçilen metin panoya yapıştırıldığında satır sonlarındaki tireler birleştirilir,
   girintiler korunur, paragraflar tek satır sonuyla ayrılır (UYAP Doküman Editörü'nde ve Word'de boş paragraf
   oluşmaz), bozuk glifler düzeltilir. İstenirse ham kopyalama.
@@ -26,12 +28,12 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   yorumlarda arama, tüm açık sekmelerde arama. Açık belgeler listesindeki **Tüm belgelerde ara** kutusu her
   belgedeki eşleşme sayısını gösterir. Word 2010'un bozuk Türkçe kodlaması (Ġ→İ, ġ→Ş, Ģ→ş) hem
   görünen metinde hem aramada düzeltilir.
-- **referans okuyucu uyumlu notlar.** Vurgu (yazının rengi değişmez; varsayılan renk referans okuyucu ile aynı; vurguya tıklayınca açılan
-  çubuktan renk değiştirme, not ekleme ve kaldırma), seçili metne not
-  (referans okuyucunun "Metinle ilgili yorum"u gibi notlu vurgu; üzerine gelince tıklamadan görünür), yapışkan not ve serbest
-  yazı ekleme; taşıma, düzenleme, silme. Nota yanıt yazılmaz; referans okuyucuda yazılmış yanıtlar salt okunur gösterilir.
+- **Standart PDF notları.** Vurgu (yazının rengi değişmez; varsayılan renk PDF okuyucularında yaygın olan sarı; vurguya
+  tıklayınca açılan çubuktan renk değiştirme, not ekleme ve kaldırma), seçili metne not
+  ("Metinle ilgili yorum" türünde notlu vurgu; üzerine gelince tıklamadan görünür), yapışkan not ve serbest
+  yazı ekleme; taşıma, düzenleme, silme. Nota yanıt yazılmaz; başka programlarda yazılmış yanıtlar salt okunur gösterilir.
   Yazılarda seçili sözcükler kalın, italik ya da altı çizili yapılır; yazılar Türkçe karakterli Windows fontuyla
-  (Segoe UI, Arial, Times, Calibri) belgeye gömülür, referans okuyucuda ve UYAP'ta aynı görünür. Notlar
+  (Segoe UI, Arial, Times, Calibri) belgeye gömülür, başka PDF okuyucularında ve UYAP'ta aynı görünür. Notlar
   varsayılan olarak kendiliğinden kaydedilir (Ayarlar › Kaydetme › Otomatik kaydet); kaydetme artımlıdır, belgenin
   geri kalanına dokunulmaz.
 - **Geri al / yinele.** Her not ve sayfa işlemi `Ctrl+Z` / `Ctrl+Y` ile geri alınır; kayıttan sonra bile.
@@ -43,7 +45,7 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   toplam tahmini boyut; görüntünün sayfası "Orijinal" (varsayılan: sayfa tam görsel boyutunda) ya da "A4'e sığdır"; farenin sağ
   tuşuyla sürükleyerek, `Ctrl` / `Shift` ile tıklayarak çoklu seçim, seçilenler birlikte döndürülür, taşınır, çıkarılır).
   Küçült, Sayfaları düzenle, Döndür ve Ayır'da
-  "Yeni belge olarak kaydet" (varsayılan; klasör Masaüstü) ya da "Üzerine yaz" (yedeksiz, güvenli yer değiştirme)
+  "Yeni belge olarak kaydet" (varsayılan; klasör Masaüstü, Ayarlar › Kaydetme'den değiştirilir) ya da "Üzerine yaz" (yedeksiz, güvenli yer değiştirme)
   seçilir: Küçült'te ve Ayır'da üzerine yazma geri alınamaz (uyarı gösterilir), Döndür'de ve Sayfaları düzenle'de
   `Ctrl+Z` ile geri alınır; Ayır'da yalnızca tek dosya üreten ayırmada kullanılabilir. Uzun işlerde ilerleme çubuğu ve
   iptal. Açık bir pencerenin dışına (arkadaki karartılmış alana) tıklamak onu kapatır.
@@ -54,14 +56,18 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 - **Koyu mod.** Sistem temasını izler; istenirse sayfa da tam siyaha koyulaştırılır (görseller korunur; yazı kutuları
   sayfayla birlikte koyulaşır, dosyadaki renkleri değişmez).
 - **Döndür.** Döndür düğmesi ve `Ctrl+Shift++` / `Ctrl+Shift+−` belgeyi döndürür: geçerli sayfa ya da tüm PDF
-  sorulur ("Seçeneğimi hatırla" ile bir daha sorulmaz; Ayarlar › Görünüm'den değiştirilir). Geri alınabilir;
+  sorulur ("Seçeneğimi hatırla" ile bir daha sorulmaz; Ayarlar › Sayfa düzeni'nden değiştirilir). Geri alınabilir;
   kaydedince dosyaya yazılır.
 - Sayfa düzeni (tek sayfa / iki sayfa, kaydırma aç/kapa, kapak ayrı; bütün sekmelere uygulanır), %6400'e kadar
   yakınlaştırma (genişliğe sığdır, kaydırmalı düzende sayfaların çoğunun genişliğine göre: birkaç geniş sayfa belgeyi
   küçültmez, yana taşar), okuma modu, tam ekran, sol panelde küçük resimler / İçindekiler / Yorumlar, belge içi ve dış
-  bağlantılar, form alanlarının görünümü, parola korumalı belgeler, sürükle-bırak, ayarlar penceresi (`Ctrl+,`).
+  bağlantılar, form alanlarının görünümü, parola korumalı belgeler, sürükle-bırak.
+- **Ayarlar** (`Ctrl+,`): Görünüm (tema, yazı çizimi), Sayfa düzeni (yakınlaştırma, tek / iki sayfa, kaydırma, kapak,
+  Döndür düğmesi), Belge açılışı (varsayılan PDF görüntüleyici, kaldığım sayfa, son açılanlar), Notlar, Kaydetme
+  (otomatik kaydet, araçların çıktı klasörü), Kopyalama, Güncelleme.
 - **Başlangıç ekranı.** Belge açık değilken: PDF aç ve Görüntü / PDF birleştir kartları, son açılan belgeler (tek tıkla açılır;
-  × ya da sağ tıkla listeden kaldırılır, klasörde gösterilir).
+  × ya da sağ tıkla listeden kaldırılır, klasörde gösterilir). Liste istenirse hiç tutulmaz: Ayarlar › Belge açılışı ›
+  Son açılanları hatırla kapatılınca liste silinir, Dosya menüsündeki Son açılanlar da kalkar.
 
 ## Ekran görüntüleri
 
@@ -69,7 +75,7 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 
 ![Temiz kopyalama ve arama](docs/ekran-arama.png)
 
-![Not ekleme ve referans okuyucuda görünümü](docs/ekran-notlar.png)
+![Not ekleme ve Yorumlar paneli](docs/ekran-notlar.png)
 
 ## Kurulum
 
@@ -91,7 +97,7 @@ Windows 11'de varsayılan uygulamayı yalnızca kullanıcı seçebilir; kurulum 
 - Kurulumun son sayfasında **PDEfe'yi varsayılan PDF görüntüleyici yap** kutusunu işaretleyin: Windows
   Ayarlar'ın **Varsayılan uygulamalar › PDEfe** sayfası açılır; `.pdf` satırında **PDEfe**'yi seçin.
 - Daha sonra: **Ayarlar › Uygulamalar › Varsayılan uygulamalar › PDEfe** ya da PDEfe içinde
-  **Ayarlar › Varsayılan PDF görüntüleyici yap**. Bir `.pdf` dosyasına sağ tıklayıp **Birlikte aç › Başka bir
+  **Ayarlar › Belge açılışı › Varsayılan PDF görüntüleyici yap**. Bir `.pdf` dosyasına sağ tıklayıp **Birlikte aç › Başka bir
   uygulama seç › PDEfe › Her zaman** de olur.
 
 ### Güncelleme
@@ -142,7 +148,9 @@ silinmez; isterseniz o klasörü elle silebilirsiniz. Kurulum sistem klasörleri
 ## Verileriniz
 
 Bütün işlemler yereldir; belgeleriniz hiçbir yere gönderilmez, telemetri yoktur. Ağa yalnızca sürüm
-denetiminde (`github.com`) çıkılır. Ayarlar `%APPDATA%\PDEfe\ayarlar.json` dosyasındadır.
+denetiminde (`github.com`) çıkılır. Ayarlar `%APPDATA%\PDEfe\ayarlar.json` dosyasındadır. Son açılan belgelerin listesi
+ve belgelerde kalınan sayfalar da (dosya yollarıyla) bu dosyada tutulur; ikisi de Ayarlar › Belge açılışı'ndan kapatılır,
+kapatılınca kayıtları silinir.
 
 ## Geliştirme
 

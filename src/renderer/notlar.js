@@ -1,4 +1,4 @@
-// Notlar: okuma (referans okuyucu notları dahil), çizim katmanı, etkileşim (seç/taşı/sil/düzenle),
+// Notlar: okuma (başka programların notları dahil), çizim katmanı, etkileşim (seç/taşı/sil/düzenle),
 // araçlar (yapışkan not, vurgu, metinle ilgili not, yazı), açılır balon (yazar, tarih, içerik; var olan yanıtlar salt okunur),
 // komut deseniyle geri al/yinele ve kaydetme farkı (diff).
 import { CSS_BIRIM, yolAnahtari } from './goruntuleyici.js';
@@ -10,7 +10,7 @@ import {
   HIZA_CSS, sirala, sonBosluklariCizgisizYap, bicimAraligi,
 } from './yaziParcalari.js';
 
-// İlk renk referans okuyucunun varsayılan vurgu rengi: /C [1 .819611 0]
+// İlk renk PDF okuyucularında yaygın varsayılan vurgu rengi: /C [1 .819611 0]
 export const VURGU_RENKLERI = [
   { ad: 'Sarı', hex: '#ffd100' }, { ad: 'Kırmızı', hex: '#ff6e6e' }, { ad: 'Turuncu', hex: '#ffb74d' },
   { ad: 'Yeşil', hex: '#7ee787' }, { ad: 'Mavi', hex: '#7cc4ff' }, { ad: 'Pembe', hex: '#ff9ad5' },
@@ -27,14 +27,14 @@ const DUZENLEYICI_ADIMLARI = {
   yaz: 'Yazma', sil: 'Silme', kalin: 'Kalın', italik: 'İtalik', alti: 'Altı çizili', renk: 'Yazı rengi', arka: 'Dolgu rengi',
   tip: 'Yazı tipi', boyut: 'Boyut', dolgusuz: 'Dolgusuz', kenarlik: 'Kenarlık',
 };
-const NOT_RENGI = '#ffd100';                        // yapışkan not ve renksiz not için referans okuyucu varsayılanı
+const NOT_RENGI = '#ffd100';                        // yapışkan not ve renksiz not için PDF okuyucularının yaygın varsayılanı
 const METINLE_NOT_KONUSU = 'Metinle İlgili Yorum Yap';   // referans okuyucunun (Türkçe) notlu vurgu konusu; /IT /HighlightNote ile yazılır
 const BALON_GOSTER_MS = 120;                        // üzerine gelince notun gösterilme gecikmesi
 const BALON_GIZLE_MS = 250;                         // hedeften ve balondan çıkınca gizleme gecikmesi
 const TASINABILIR = new Set(['Text', 'FreeText', 'Stamp', 'Square', 'Circle', 'Line', 'Ink', 'Polygon', 'PolyLine', 'FileAttachment', 'Caret']);
 const ISARET = new Set(['Highlight', 'Underline', 'StrikeOut', 'Squiggly']);
-// Çekirdeğin (not_ekle) yeniden oluşturabildiği türler: dosyadan kalkmış başka türde bir not (ör. kayıttan sonra silmesi geri alınan
-// Referans okuyucu damgası) 'ekle' olarak gönderilirse kayıt bütünüyle hata verir; böyle not oturumda görünür ama dosyaya yazılamaz.
+// Çekirdeğin (not_ekle) yeniden oluşturabildiği türler: dosyadan kalkmış başka türde bir not (ör. kayıttan sonra silmesi geri alınan,
+// başka programda eklenmiş bir damga) 'ekle' olarak gönderilirse kayıt bütünüyle hata verir; böyle not oturumda görünür ama dosyaya yazılamaz.
 const EKLENEBILIR = new Set(['Highlight', 'Text', 'FreeText']);
 
 let sayac = 0;
@@ -310,7 +310,7 @@ export class NotYoneticisi extends EventTarget {
 
   /**
    * Sayfanın not katmanını yeniden kurar. Sıra (alttan üste): vurgular, diğer metin işaretleri, not öğeleri, not simgeleri.
-   * Vurgular referans okuyucu gibi çarpma (multiply) karışımıyla ayrı bir SVG'de çizilir: yazı siyah kalır, yalnızca beyaz zemin renklenir
+   * Vurgular referans okuyucudaki gibi çarpma (multiply) karışımıyla ayrı bir SVG'de çizilir: yazı siyah kalır, yalnızca beyaz zemin renklenir
    * (katman yığın bağlamı oluşturmaz, karışım .sayfa içindeki tuvalle yapılır; stil.css). Koyulaştırılmış sayfada (ters çevrilmiş
    * tuval) karışım ekran (screen) olur: çarpmanın tersine çevrilmiş sayfadaki karşılığıdır, açık renkli yazı olduğu gibi kalır,
    * koyu zemin vurgu rengine döner. Koyu sayfada görseller (taramalar, gömülü resimler) ters çevrilmeden özgün renginde çizildiği için
@@ -623,7 +623,7 @@ export class NotYoneticisi extends EventTarget {
   }
 
   /**
-   * dosyaEski: eski değerlerin açık hâli, eski değer dosyadan okunan (modelde olmayan) bir şeyse (ör. Referans okuyucu yazısının biçimi: n.yazi
+   * dosyaEski: eski değerlerin açık hâli, eski değer dosyadan okunan (modelde olmayan) bir şeyse (ör. başka programda yazılmış yazının biçimi: n.yazi
    * yok, çekirdek kayıtta dosyadan okur). Komuttan sonra not kaydedildiyse geri alma bunları yazar: dosyada artık düzenlenmiş
    * biçim durduğundan eski (boş) değer kaydı ve ekranı geri getirmezdi. Kayıt olmadıysa eski (boş) değer döner, belge temiz kalır.
    */
@@ -834,7 +834,7 @@ export class NotYoneticisi extends EventTarget {
     const b = this.balon; if (!b) return;
     const n = this.notlar.get(this.balonNotId); if (!n || n.silindi) { this.balonKapat(); return; }
     const renk = n.renk || (n.tur === 'FreeText' ? (n.yazi?.renk || '#888') : NOT_RENGI);
-    // Yanıt eklenemez; dosyada (ör. Referans okuyucuda) yazılmış yanıtlar bilgi kaybolmasın diye salt okunur gösterilir
+    // Yanıt eklenemez; dosyadaki (başka bir programda yazılmış) yanıtlar bilgi kaybolmasın diye salt okunur gösterilir
     const yanitlar = this.yanitlari(n);
     b.innerHTML = `
       <div class="ust" style="--not-renk:${kacis(renk)}">
@@ -1136,7 +1136,7 @@ export class NotYoneticisi extends EventTarget {
 
   // ------------------------------------------------------------ vurgu çubuğu
   /**
-   * Vurgu ailesinden bir nota (vurgu, altı / üstü çizili, dalgalı; referans okuyucuda eklenenler dahil) tıklanınca altında açılan çubuk: renkler
+   * Vurgu ailesinden bir nota (vurgu, altı / üstü çizili, dalgalı; başka programlarda eklenenler dahil) tıklanınca altında açılan çubuk: renkler
    * (seçim çubuğundakiler; varsayılan vurgu rengini değiştirmez), Not ekle / Notu düzenle, Kaldır. Seçim çubuğu gibi görünür alana
    * kırpılır, kaydırmada ve yakınlaştırmada notu izler, not görünümden çıkınca gizlenir. Başka yere basış, Esc, araç seçimi, sekme
    * değişimi, notun silinmesi ya da kalıcı balonun açılması kapatır. Renk değişince açık kalır; değişiklik geri alınabilir.
@@ -1272,7 +1272,7 @@ export class NotYoneticisi extends EventTarget {
     if (n.kilitli) return;
     let yazi = n.yazi, icerik = n.icerik;
     if (!yazi) {
-      // Dosyadaki (referans okuyucu vb.) yazının biçimi (/RC parçaları dahil) çekirdekten okunur; not ancak düzenleme onaylanıp bir şey
+      // Dosyadaki (ör. başka programda yazılmış) yazının biçimi (/RC parçaları dahil) çekirdekten okunur; not ancak düzenleme onaylanıp bir şey
       // değişirse güncellenir (açıp vazgeçmek ya da değiştirmeden kapatmak belgeyi değiştirmez)
       try { const r = await this.cekirdek('freetext_stil', { yol: n.kaynak.yol, sayfa: n.kaynak.sayfa, xref: n.xref }); yazi = r.stil; icerik = r.icerik ?? icerik; }
       catch { yazi = this.varsayilanYazi(); }
@@ -1730,7 +1730,7 @@ export class NotYoneticisi extends EventTarget {
 
   /**
    * Açık düzenleyicinin geri al / yinele durumu: { geri, ileri } (adımın adı ya da null); düzenleyici yoksa null. Düzenleyici açıkken
-   * araç çubuğu ve Düzen menüsündeki Geri al / Yinele belgeyi değil düzenleyicinin metnini geri alır (referans okuyucu gibi; belge geri alınsaydı
+   * araç çubuğu ve Düzen menüsündeki Geri al / Yinele belgeyi değil düzenleyicinin metnini geri alır (referans okuyucudaki gibi; belge geri alınsaydı
    * son komut "Yazı ekle" olduğunda yazı kurtarılamadan kaybolurdu).
    */
   duzenleyiciGecmisi() {
@@ -1742,7 +1742,7 @@ export class NotYoneticisi extends EventTarget {
   duzenleyiciGecmisBildir() { this.dispatchEvent(new CustomEvent('duzenleyici')); }
 
   /**
-   * Esc: düzenlemeyi dışarı tıklamak gibi uygulayıp bitirir (referans okuyucu gibi; yazılan atılmaz, bütün düzenleme belgenin geri al yığınına tek
+   * Esc: düzenlemeyi dışarı tıklamak gibi uygulayıp bitirir (referans okuyucudaki gibi; yazılan atılmaz, bütün düzenleme belgenin geri al yığınına tek
    * adım olarak girer), yeni yazı seçili kalır; boş yeni yazı eklenmez. Odak düzenleyici ya da çubuktaysa belgeye döner (kısayollar,
    * ikinci Esc seçimi kaldırır).
    */

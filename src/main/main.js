@@ -30,7 +30,7 @@ let kapatOnayli = false;
 let bekleyenDosyalar = [];
 /** @type {ReturnType<typeof guncellemeKur>|null} */
 let guncelleme = null;
-const cekirdek = new Cekirdek({ kok: KOK, paketli: PAKETLI, kaynaklar: process.resourcesPath });
+const cekirdek = new Cekirdek({ kok: KOK, paketli: PAKETLI, kaynaklar: process.resourcesPath, surum: app.getVersion() });
 
 // ---------- Yardımcılar ----------
 const MIME = {
@@ -149,11 +149,12 @@ function pencereOlustur() {
   uygulamaMenusuKur();
 }
 
-/** Uygulama menüsünü (yeniden) kurar: son dosyalar ve Görünüm menüsündeki düzen işaretleri ayardan okunur. */
+/** Uygulama menüsünü (yeniden) kurar: son dosyalar ve Görünüm menüsündeki düzen işaretleri ayardan okunur. "Son açılanları
+ *  hatırla" kapalıyken Dosya menüsünde Son açılanlar yoktur (sonDosyalar null). */
 function uygulamaMenusuKur() {
   Menu.setApplicationMenu(menuKur({
     komut: (id, veri) => pencereyeGonder('menu:komut', id, veri),
-    sonDosyalar: () => ayarAl('sonDosyalar') || [],
+    sonDosyalar: () => (ayarAl('sonAcilanlariHatirla') === false ? null : ayarAl('sonDosyalar') || []),
     duzen: () => ({ duzen: ayarAl('varsayilanDuzen'), kapakAyri: !!ayarAl('kapakAyri') }),
   }));
 }
@@ -235,18 +236,21 @@ function ipcKur() {
   });
 
   ipcMain.handle('ayar:al', (_e, anahtar) => (anahtar ? ayarAl(anahtar) : ayarlar.store));
-  ipcMain.handle('ayar:koy', (_e, anahtar, deger) => { ayarKoy(anahtar, deger); if (anahtar === 'varsayilanDuzen' || anahtar === 'kapakAyri') uygulamaMenusuKur(); return true; });
+  const MENU_AYARLARI = new Set(['varsayilanDuzen', 'kapakAyri', 'sonAcilanlariHatirla']);   // menüde görünen ayarlar
+  ipcMain.handle('ayar:koy', (_e, anahtar, deger) => { ayarKoy(anahtar, deger); if (MENU_AYARLARI.has(anahtar)) uygulamaMenusuKur(); return true; });
   ipcMain.handle('tema:sistemKoyu', () => nativeTheme.shouldUseDarkColors);
 
   // secenek: {baslik, filtreler:[{name, extensions}], coklu, varsayilan}
   const testDiyalog = testDiyalogKur(ipcMain);   // test örneğinde yerel diyaloglar ekrana çıkmaz (gelistirme.js)
+  // "Son açılanları hatırla" kapalıyken Aç / Kaydet pencereleri seçilen dosyayı Windows'un son kullanılanlar listesine de eklemez
+  const sonKullanilanlar = () => (ayarAl('sonAcilanlariHatirla') === false ? ['dontAddToRecent'] : []);
   ipcMain.handle('dosya:acDiyalog', async (_e, secenek) => {
-    if (testDiyalog) return testDiyalog('dosya:acDiyalog', secenek, []);
+    if (testDiyalog) return testDiyalog('dosya:acDiyalog', { ...secenek, windowsSonKullanilanlar: !sonKullanilanlar().length }, []);
     const s = await dialog.showOpenDialog(pencere, {
       title: secenek?.baslik || 'PDF aç',
       defaultPath: secenek?.varsayilan,
       filters: secenek?.filtreler || [{ name: 'PDF belgeleri', extensions: ['pdf'] }, { name: 'Tüm dosyalar', extensions: ['*'] }],
-      properties: ['openFile', ...(secenek?.coklu === false ? [] : ['multiSelections'])],
+      properties: ['openFile', ...(secenek?.coklu === false ? [] : ['multiSelections']), ...sonKullanilanlar()],
     });
     return s.canceled ? [] : s.filePaths;
   });
@@ -263,6 +267,7 @@ function ipcKur() {
       title: secenek?.baslik || 'Farklı kaydet',
       defaultPath: secenek?.varsayilan,
       filters: secenek?.filtreler || [{ name: 'PDF belgesi', extensions: ['pdf'] }],
+      properties: sonKullanilanlar(),
     });
     return s.canceled ? null : s.filePath;
   });

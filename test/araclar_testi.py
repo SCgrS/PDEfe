@@ -135,7 +135,7 @@ def sayfa_ozeti(yol):
 @contextlib.contextmanager
 def kilitli(yol, paylasim=0):
     """Dosyayı Windows'ta başka bir program gibi açık tutar (test/kilitle.py): paylasim=0 okumayı da engeller (özel kilit),
-    1 (FILE_SHARE_READ) referans okuyucu gibi yalnızca okumaya izin verir (yazma / yer değiştirme olmaz)."""
+    1 (FILE_SHARE_READ) bir PDF okuyucu gibi yalnızca okumaya izin verir (yazma / yer değiştirme olmaz)."""
     import ctypes
     from ctypes import wintypes
     k32 = ctypes.windll.kernel32
@@ -586,7 +586,7 @@ def test_ayir_uzerine(c):
                      and not [a for a in os.listdir(klasor) if a.endswith(".pdefe-tmp")], str(e).splitlines()[0])
     finally:
         os.chmod(yol, stat.S_IREAD | stat.S_IWRITE)
-    # 5) Başka programda açık: yalnızca okumaya izin veren (referans okuyucu gibi) ve okumayı da engelleyen kilit
+    # 5) Başka programda açık: yalnızca okumaya izin veren (bir PDF okuyucununki gibi) ve okumayı da engelleyen kilit
     for paylasim, ad in ((1, "okumaya açık kilit"), (0, "özel kilit")):
         yol = os.path.join(klasor, "kilitli_%d.pdf" % paylasim)
         shutil.copy(kaynak, yol)

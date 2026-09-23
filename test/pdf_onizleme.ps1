@@ -1,18 +1,65 @@
-﻿# referans okuyucunun PDF önizleme işleyicisiyle (Gezgin önizleme bölmesindeki "referans okuyucu PDF Preview Handler", referans okuyucunun çizim motoru) bir PDF'i
-# çizip PNG'ye kaydeder: PDEfe'nin yazdığı notların referans okuyucuda görünüp görünmediği ekrana pencere açmadan denetlenir.
+﻿# Windows'ta .pdf için kayıtlı önizleme işleyicisiyle (Gezgin önizleme bölmesinin kullandığı COM nesnesi) bir PDF'i o işleyicinin
+# çizim motoruyla çizip PNG'ye kaydeder: PDEfe'nin yazdığı notların başka bir PDF okuyucusunda görünüp görünmediği ekrana pencere
+# açmadan denetlenir. İşleyicinin CLSID'i kayıt defterinden bulunur (OnizleyiciClsid); -Clsid verilirse kayıt defterine bakılmaz.
 # Pencere ekranda ama DWM ile gizlidir (cloak), odak almaz, görev çubuğunda görünmez. -Asagi N: N kez PageDown (sonraki sayfalar).
-# Önizleme işleyicisi referans okuyucu süreçlerini (prevhost.exe, referans okuyucu.exe) başlatır; iş bitince kapanmayanları çağıran kapatmalıdır.
+# Önizleme işleyicisi süreç başlatabilir (prevhost.exe, işleyicinin kendi programı); iş bitince kapanmayanları çağıran kapatmalıdır.
 # Kullanım: powershell -STA -File test\pdf_onizleme.ps1 -Pdf <yol> -Cikti <png> [-Genislik 900] [-Yukseklik 1200] [-Bekle 12] [-Asagi 0]
-# Not: referans okuyucunun önizlemesi metni gri tonlamalı çizer; referans okuyucu penceresi ("Yumuşak metin: LCD") ClearType benzeri çizebilir.
+#           [-Clsid <GUID>]
+# Not: önizleme işleyicisi metni gri tonlamalı çizebilir; aynı programın kendi penceresi (LCD yumuşatma ayarıyla) ClearType benzeri
+# çizebilir.
 param(
   [Parameter(Mandatory = $true)][string]$Pdf,
   [Parameter(Mandatory = $true)][string]$Cikti,
   [int]$Genislik = 900,
   [int]$Yukseklik = 1200,
   [int]$Bekle = 12,
-  [int]$Asagi = 0
+  [int]$Asagi = 0,
+  [string]$Clsid = ''
 )
 $ErrorActionPreference = 'Stop'
+
+# IPreviewHandler arayüzünün GUID'i: önizleme işleyicisi dosya türünün (ya da ProgID'sinin) ShellEx\<bu GUID> anahtarında kayıtlıdır
+$ONIZLEME_ANAHTARI = '{8895b1c6-b41f-4c1c-a562-0d564250836f}'
+
+function GuidMi([string]$Metin) {
+  $g = [Guid]::Empty
+  return [Guid]::TryParse($Metin, [ref]$g)
+}
+
+# Kayıt defteri anahtarının varsayılan değeri; anahtar ya da değer yoksa $null
+function VarsayilanDeger([string]$Yol) {
+  $anahtar = Get-Item -LiteralPath $Yol -ErrorAction SilentlyContinue
+  if (-not $anahtar) { return $null }
+  $deger = $anahtar.GetValue('')
+  if ($deger -is [string] -and $deger.Trim()) { return $deger.Trim() }
+  return $null
+}
+
+# .pdf için kayıtlı önizleme işleyicisinin CLSID'i; sırayla: kullanıcının kaydı (HKCU\Software\Classes\.pdf), HKCR\.pdf
+# (kullanıcı ve makine kayıtlarının birleşik görünümü), .pdf'nin ProgID'si (HKCR\.pdf varsayılan değeri) altındaki kayıt.
+# Her birinde ShellEx\$ONIZLEME_ANAHTARI anahtarının varsayılan değerine bakılır. Bulunamazsa $null.
+function OnizleyiciClsid {
+  $adaylar = @("HKCU:\Software\Classes\.pdf\ShellEx\$ONIZLEME_ANAHTARI",
+               "Registry::HKEY_CLASSES_ROOT\.pdf\ShellEx\$ONIZLEME_ANAHTARI")
+  $progId = VarsayilanDeger 'Registry::HKEY_CLASSES_ROOT\.pdf'
+  if ($progId) { $adaylar += "Registry::HKEY_CLASSES_ROOT\$progId\ShellEx\$ONIZLEME_ANAHTARI" }
+  foreach ($yol in $adaylar) {
+    $deger = VarsayilanDeger $yol
+    if ($deger -and (GuidMi $deger)) { return $deger }
+  }
+  return $null
+}
+
+if ($Clsid) {
+  if (-not (GuidMi $Clsid)) { throw "-Clsid geçersiz: '$Clsid' bir GUID değil." }
+} else {
+  $Clsid = OnizleyiciClsid
+  if (-not $Clsid) {
+    throw ("Windows'ta .pdf için kayıtlı bir önizleme işleyicisi bulunamadı: HKCU\Software\Classes\.pdf, HKCR\.pdf ve .pdf'nin " +
+           "ProgID'si altında ShellEx\$ONIZLEME_ANAHTARI anahtarı yok. İşleyicinin CLSID'ini -Clsid ile verin.")
+  }
+}
+
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -ReferencedAssemblies System.Windows.Forms, System.Drawing -TypeDefinition @"
@@ -52,7 +99,8 @@ public static class Onizleme {
   [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int val, int size);
   [DllImport("ole32.dll")] static extern int CoCreateInstance(ref Guid clsid, IntPtr outer, uint ctx, ref Guid iid, [MarshalAs(UnmanagedType.IUnknown)] out object ppv);
 
-  public static string Calistir(string pdf, string cikti, int w, int h, int bekleSn, int asagi) {
+  // clsidMetni: önizleme işleyicisinin CLSID'i (betik kayıt defterinden bulur ya da -Clsid ile verilir)
+  public static string Calistir(string pdf, string cikti, int w, int h, int bekleSn, int asagi, string clsidMetni) {
     var log = new System.Text.StringBuilder();
     var form = new GizliForm();
     form.StartPosition = FormStartPosition.Manual;
@@ -65,7 +113,8 @@ public static class Onizleme {
     log.AppendLine("cloak hr=0x" + hrc.ToString("X"));
     form.Show();
     Application.DoEvents();
-    Guid clsid = new Guid("DC6EFB56-9CFA-464D-8880-44885D7DC193");
+    Guid clsid = new Guid(clsidMetni);
+    log.AppendLine("clsid=" + clsid.ToString("B"));
     Guid iunk = new Guid("00000000-0000-0000-C000-000000000046");
     object o = null;
     foreach (uint ctx in new uint[] { 4, 1 }) {
@@ -91,7 +140,8 @@ public static class Onizleme {
     var son = DateTime.Now.AddSeconds(bekleSn);
     while (DateTime.Now < son) { Application.DoEvents(); System.Threading.Thread.Sleep(100); }
     if (asagi > 0) {
-      // Sayfa görünümü penceresine (en büyük alt pencere) PageDown gönderilir; odak ve ön plan gerekmez
+      // Önizleyicinin sayfa görünümü penceresine (sınıf adında AVView geçen en büyük alt pencere) PageDown gönderilir; odak ve ön
+      // plan gerekmez. Böyle bir pencere yoksa (sayfa görünümü başka sınıf adlı işleyici) sayfa çevrilmez.
       IntPtr hedef = IntPtr.Zero; long enBuyuk = 0;
       EnumChildWindows(form.Handle, (c, l) => {
         var sb = new System.Text.StringBuilder(128); GetClassName(c, sb, 128); RECT rr; GetWindowRect(c, out rr);
@@ -117,4 +167,4 @@ public static class Onizleme {
   }
 }
 "@
-[Onizleme]::Calistir($Pdf, $Cikti, $Genislik, $Yukseklik, $Bekle, $Asagi)
+[Onizleme]::Calistir($Pdf, $Cikti, $Genislik, $Yukseklik, $Bekle, $Asagi, $Clsid)

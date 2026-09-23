@@ -53,7 +53,7 @@ GORSEL_SAYFA_PAYI = 600
 
 GORSEL_UZANTILAR = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tif", ".tiff", ".webp", ".heic", ".heif"}
 
-# Not: use_objstms=1 nesne akışlarını korur (Word/referans okuyucu çıktıları buna dayanır; kapalıyken dosya %25 büyüyebilir).
+# Not: use_objstms=1 nesne akışlarını korur (Word ve PDF yazıcılarının çıktıları buna dayanır; kapalıyken dosya %25 büyüyebilir).
 # clean=True ölçümlerde boyutu %3 artırıp süreyi uzattığı için kullanılmıyor.
 KAYIT_SECENEKLERI = dict(garbage=4, deflate=True, deflate_images=True, deflate_fonts=True, use_objstms=1)
 YAPISAL_KAYIT = dict(garbage=3, deflate=True, use_objstms=1)

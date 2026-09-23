@@ -326,6 +326,10 @@ html[data-tema="koyu"] .karsilama-kart[data-renk="pembe"] { --renk: #f08ad6; }
 .karsilama-kaldir:hover { background: var(--basili); color: var(--metin); }
 .karsilama-kaldir:focus-visible { outline: 2px solid var(--vurgu); outline-offset: -2px; }
 .karsilama-bos { padding: 10px 8px 12px; font-size: 12px; }
+/* "Son açılanları hatırla" kapalıyken bilgi satırındaki Ayarlar bağlantısı */
+.karsilama-ayar-baglantisi { border: none; background: transparent; padding: 0; font: inherit; color: var(--vurgu); cursor: pointer; }
+.karsilama-ayar-baglantisi:hover { text-decoration: underline; text-underline-offset: 2px; }
+.karsilama-ayar-baglantisi:focus-visible { outline: 2px solid var(--vurgu); outline-offset: 1px; border-radius: 2px; }
 .karsilama-ipucu { margin: 0; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; color: var(--metin-soluk); }
 .karsilama-ipucu svg { width: 16px; height: 16px; flex: none; }
 button.birincil {
@@ -468,7 +472,7 @@ body.okuma-modu.ust-goster #arac-cubugu { display: flex; position: absolute; top
 .sayfa .not-katmani { position: absolute; inset: 0; z-index: 3; pointer-events: none; overflow: visible; }
 .not-isaretler { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .not-isaretler g { pointer-events: auto; cursor: pointer; }
-/* Vurgular referans okuyucu gibi çarpma (multiply) karışımıyla çizilir: yazı rengi değişmez, yalnızca zemin renklenir. Karışım sayfanın tuvaliyle
+/* Vurgular PDF okuyucularındaki gibi çarpma (multiply) karışımıyla çizilir: yazı rengi değişmez, yalnızca zemin renklenir. Karışım sayfanın tuvaliyle
    yapılsın diye not katmanı yığın bağlamı oluşturmaz (öğeleri z-index 3 ile metin katmanının üstünde) ve .sayfa yalıtılmış gruptur.
    Koyulaştırılmış sayfada (ters çevrilmiş tuval) çarpmanın karşılığı ekran (screen) karışımıdır: açık yazı aynı kalır, zemin renklenir. */
 .sayfa { isolation: isolate; }
@@ -514,7 +518,7 @@ body.okuma-modu.ust-goster #arac-cubugu { display: flex; position: absolute; top
   font: inherit; margin: 0; user-select: text; cursor: text;
 }
 /* Yazı, kaydedilen PDF görünümüyle aynı dizilsin: çekirdek glif genişliklerini aralama (kerning) ve bitişik harf olmadan ölçer
-   (yoksa satırlar farklı yerden kırılır, referans okuyucuda son satır kutudan taşıp kesilebilir); alt çizgi harf kuyruklarında kesilmez */
+   (yoksa satırlar farklı yerden kırılır, başka PDF okuyucularında son satır kutudan taşıp kesilebilir); alt çizgi harf kuyruklarında kesilmez */
 .yazi-duzenleyici, .not-freetext-yerli { font-kerning: none; font-variant-ligatures: none; }
 .yazi-duzenleyici span, .not-freetext-yerli span { text-decoration-skip-ink: none; }
 .yazi-tutamac { position: absolute; z-index: 7; width: 12px; height: 12px; border-radius: 50%; background: var(--vurgu); cursor: move; border: 2px solid #fff; box-shadow: 0 0 2px rgba(0,0,0,.5); }

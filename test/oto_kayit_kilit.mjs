@@ -14,7 +14,7 @@ export default async function ({ evalJs, bekle }) {
     await new Promise((r) => setTimeout(r, 1500));
     return window.__pdefe.ayar().otomatikKaydet;
   })()`).then((v) => dogrula(v === true, 'otomatik kaydetme varsayılan olarak açık'));
-  // Dosyayı referans okuyucu gibi kilitle: okumaya izin ver, yazmaya izin verme (FILE_SHARE_READ). PDEfe'nin çekirdeği dosyayı zaten okuma için
+  // Dosyayı bir PDF okuyucu gibi kilitle: okumaya izin ver, yazmaya izin verme (FILE_SHARE_READ). PDEfe'nin çekirdeği dosyayı zaten okuma için
   // açık tuttuğundan paylaşımsız kilit (test/kilitle.py) alınamaz
   const betik = [
     'import sys, time, ctypes', 'from ctypes import wintypes', 'k = ctypes.windll.kernel32', 'k.CreateFileW.restype = wintypes.HANDLE',

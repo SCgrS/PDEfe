@@ -72,16 +72,21 @@ notlar_kaydet, freetext_stil, baglantilar, form_gorunum (+ araçlar).
 - **Kopyalama**: okuma sırasındaki seçim parçaları + metin katmanı geometrisi (girinti) → ardından çekirdekten (sözcük
   merkezi kutuda) daha temiz sürüm alınıp pano güncellenir. Ayar: temiz / ham.
 - **Arama**: PDF.js metin öğelerinden dizin, `toLocaleLowerCase('tr')` ile İ/ı doğru; bozuk glif düzeltmesi dizine de uygulanır.
+- **Marka adı** (0.1.9, kullanıcı isteği: marka / telif kaygısı): başka PDF programlarının adı arayüzde, kodda, yorumlarda, testlerde,
+  belgelerde ve sürüm notlarında geçmez. Ölçüm ve karşılaştırmada "referans okuyucu", kullanıcıya dönük metinde sonuç ("keskin",
+  "başka PDF okuyucularında da görünür"). Commit öncesi `git grep -niE "ado[b]e|acroba[t]"` boş dönmeli.
+- **Ayarlar sekmeleri** (0.1.9): sekme adı içeriğini söyler. Görünüm, Sayfa düzeni, Belge açılışı, Notlar, Kaydetme, Kopyalama,
+  Güncelleme, Hakkında; yeni ayar içeriğine uyan sekmeye girer (ayarlarPenceresi.js BOLUMLER, ayarlar.js VARSAYILANLAR aynı sırada).
 
 ## Durum (2026-09-17)
 - [x] Açma/sekme/görüntüleme, düzenler, zoom (görünür alana sığdır dahil), döndürme, sol panel, koyu tema (sayfayı koyulaştır, görselleri koru), son dosya ve kalınan sayfa, Ctrl+Tab seçici; keskin çizim (görsel, ince çizgi, taramada yüksek yakınlaştırma)
 - [x] Metin seçme (boşluktan sürükleme, okuma sırası), temiz kopyalama, arama; bağlantılar (iç/dış), form alanları (görüntü)
-- [x] Notlar: referans okuyucu notlarını gösterme, vurgu/metin notu/yapışkan not/yazı (seçime göre biçim) ekleme, taşıma, silme, geri al/yinele, artımlı kaydetme; döndürülmüş sayfada yazı dosyadaki yönüyle; yanıt yazma yok (dosyadakiler salt okunur)
+- [x] Notlar: başka okuyucularda eklenmiş notları gösterme, vurgu/metin notu/yapışkan not/yazı (seçime göre biçim) ekleme, taşıma, silme, geri al/yinele, artımlı kaydetme; döndürülmüş sayfada yazı dosyadaki yönüyle; yanıt yazma yok (dosyadakiler salt okunur)
 - [x] Sayfa tarifi komutları (sil/sırala/döndür/boş sayfa/başka PDF'ten sayfa) ve yapısal kaydetme (anlık kopya), kayıttan sonra geri al
 - [x] Ayarlar penceresi, yazdırma (sayfa başına görüntü dosyası, Windows diyaloğu, iptal)
 - [x] Araçlar (araç çubuğundaki Araçlar penceresi ve menü): küçült (tahminli), sayfaları düzenle, ayır, görüntü/PDF birleştir (pano dahil), döndür ve kaydet; standart kaydetme seçimi (yeni belge / yedeksiz üzerine yaz); çekirdekte işbirlikçi iptal
 - [x] Güncelleme (electron-updater; 0.1.3: 10 açılışta bir denetim, tek tıkla indir + sessiz kur + yeniden aç), kurulum (NSIS, Türkçe, .pdf ilişkilendirme, Varsayılan Programlar kaydı), GitHub Actions, README/CHANGELOG/THIRD_PARTY/LICENSE; paket derlendi ve paketli uygulama çalıştırıldı
-- [ ] Kullanıcı doğrulaması (docs/DOGRULAMA.md): referans okuyucuda notlar, kurulum sihirbazı, gerçek yazıcı, Gezgin çift tık; 0.1.2 için 12. bölüm (referans okuyucu ile aynı ölçekte kalite, döndürme kısayolları, pano hızı, Windows diyalogları)
+- [ ] Kullanıcı doğrulaması (docs/DOGRULAMA.md): notların başka bir PDF okuyucuda görünmesi, kurulum sihirbazı, gerçek yazıcı, Gezgin çift tık; 0.1.2 için 12. bölüm (başka bir okuyucuyla aynı ölçekte kalite, döndürme kısayolları, pano hızı, Windows diyalogları)
 - [x] GitHub deposu: SCgrS/PDEfe (özel)
 - [ ] Karar bekleyen: README teşekkür bölümü
 
@@ -111,13 +116,13 @@ Ayrıntı: CHANGELOG.md. Kök nedenler ve kararlar:
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 1, 6, 9, 10, 11.
 
 ### Revizyon 0.1.2 (2026-09-17, kullanıcı geri bildirimi)
-Ayrıntı: CHANGELOG.md. Kullanıcı referans okuyucu ile karşılaştırarak 34 istek bildirdi; gruplar ayrı dallarda uygulandı,
+Ayrıntı: CHANGELOG.md. Kullanıcı referans okuyucuyla karşılaştırarak 34 istek bildirdi; gruplar ayrı dallarda uygulandı,
 incelendi, birleştirildi ve birleşik sürüm yeniden doğrulandı. Kök nedenler ve kararlar:
 - [x] **Keskin çizim** (keskinlik.js): 0.1.1'in zorladığı `imageSmoothingQuality='high'` küçültmede mip-map karıştırıp JPEG ve
   taramayı, büyütmede kübik yumuşatmayla karekodu yumuşatıyordu; PDF.js'in kendi seçimi (×1,33 üstünde en yakın komşu)
   pikselliydi. Görseller JS'de kutu (küçültme) / alan (büyütme) filtresiyle örneklenir (referans okuyucu yakalamasına en yakın sonuç);
   az renkli küçük görsel her ölçekte keskin, ×4 üstünde Chromium yumuşatması. Eksene paralel 4 px'ten ince çizgi ve
-  dikdörtgen piksel ızgarasına oturtulur (referans okuyucu "ince çizgileri geliştir"): Path2D yöntemleri sarılıp yol kaydedilir (yol
+  dikdörtgen piksel ızgarasına oturtulur (referans okuyucunun ince çizgi geliştirme ayarı gibi): Path2D yöntemleri sarılıp yol kaydedilir (yol
   başına 128, toplam 1M nokta, FinalizationRegistry), kesikli çizgide uçlar içe yuvarlanır ve lineDashOffset telafi edilir.
   Harfler değişmedi: 974 px'te sayfa genişliği 1,536 px/pt ≈ referans okuyucu %100 (110 ppi, 1,528 px/pt), tuval ekrana birebir,
   ClearType metin referans okuyucudan birkaç gri düzeyi farklı; "bulanık" izlenimi gri alt çizgi ve kenarlıktandı. PDEfe %100 =
@@ -169,16 +174,16 @@ incelendi, birleştirildi ve birleşik sürüm yeniden doğrulandı. Kök nedenl
   okuma yedeği; çift tık seçiminin baş/son boşlukları biçim kararında sayılmaz. Çekirdek düz/kalın/italik/kalın italik Windows
   yüzlerini gömer (yüz başına ~30 KB), AP'yi parça parça çizer; taban çizgisi CSS satır kutusu formülüyle (Calibri 2 pt
   kayıyordu), satır kırma Chromium kurallarıyla (tire sonrası kırılma, boşluk satır sonunda asılı, yerli çizimde
-  kerning/ligatür kapalı), satır sonu boşlukları çizgisiz. /RC referans okuyucu biçiminde (p/span, xfa-spacerun), /DS, /Contents;
+  kerning/ligatür kapalı), satır sonu boşlukları çizgisiz. /RC referans okuyucunun biçiminde (p/span, xfa-spacerun), /DS, /Contents;
   /PDEfe kaydı: parçalar (JSON), /RC özeti (md5), Italik, Hiza, KenarRengi. /RC başka programda değişmişse yazı yabancı sayılır
   (AP'den çizilir, /RC ve /DS'den düzenlenir). Kayıttan sonra geri almada özgün kanonik biçim açıkça yazılır. Yön: `yazi.donus`
   dosyadan (AP /Matrix, yoksa /Rotate); çizim sayfa açısı − donus kadar döner, yeni yazı ekrandaki açıyla oluşur.
 - [x] **Yazı düzenleyici ve uygulama**: düzenleyici açıkken `duzen.geriAl/yinele` (düğme, menü) düzenleyici geçmişinde çalışır.
   Araçlar, Paylaş, Yazdır, kaydetme, sekme/pencere kapatma ve düzenleyici dışındaki bir girdiye `focusin` önce
-  `duzenleyiciBitir(true)` çağırır; Esc (düzenleyicide, biçim çubuğunda ya da başka bir girdide) referans okuyucu gibi düzenlemeyi uygular
+  `duzenleyiciBitir(true)` çağırır; Esc (düzenleyicide, biçim çubuğunda ya da başka bir girdide) referans okuyucudaki gibi düzenlemeyi uygular
   (`duzenleyiciEsc`), boş yeni kutu eklenmez, diyalog Esc'i stopPropagation ile düzenleyiciye ulaşmaz; otomatik kayıt düzenleme
   bitene kadar bekler; kaydırmasız düzende tekerlek ve PageUp/PageDown düzenleyiciyi sahipsiz bırakmaz. Açık: hizalama ve
-  üstü çizili düğmesi yok (modelde ve çekirdekte var), yazı tipi/boyut kutu düzeyinde; referans okuyucunun döndürülmüş FreeText'i denenmedi.
+  üstü çizili düğmesi yok (modelde ve çekirdekte var), yazı tipi/boyut kutu düzeyinde; referans okuyucuda oluşturulmuş döndürülmüş FreeText denenmedi.
 - [x] **Metin seçimi**: `.sayfa`/`body` user-select:none olduğundan tarayıcı seçimi yalnızca harfte başlıyor, boşlukta konum
   mutlak konumlu katmanda sayfa başı/sonuna çözülüyordu. `surukleSecimiBagla`: tek basışta preventDefault, konum metin katmanı
   geometrisinden (en yakın satır, karakter kutusunda ikili arama), rAF ile otomatik kaydırma, Shift+tık; çift tıklayıp
@@ -212,7 +217,7 @@ incelendi, birleştirildi ve birleşik sürüm yeniden doğrulandı. Kök nedenl
   sütunda (1 sayfalık belge tam genişlikte kalır). Zoom kuralı: iki sayfaya geçişte ve iki sayfa düzeninde açılışta her zaman
   'sayfa'; teke geçişte `tekSayfaZoomu` (varsayilanZoom sığdırma moduysa o, değilse 'genislik'). Kaydırmasız düzende tekerlek
   kenarda çevirir (bir hareket: 150 ms'den kısa aralıklı olaylar, 60 px; fiziksel tekerlekle denenmedi); aşağı ok / PageDown uzun
-  sayfada önce kaydırır (karar: referans okuyucu tuşları, istek kelimesi kelimesine uygulanmadı). Açık diyalog/araç penceresi, SELECT ve
+  sayfada önce kaydırır (karar: referans okuyucunun tuş davranışı, istek kelimesi kelimesine uygulanmadı). Açık diyalog/araç penceresi, SELECT ve
   açık belgeler listesinde sayfa çevrilmez. Tek sayfalık belgede döndürme sorusuz. `belgeDurumuYaz` / `zoomKutusuYaz` araç
   çubuğu durumunu sekme değişiminde ve başlangıçta yazar; 'son kullanılan' zoom yalnızca yüklenmiş belgeden kaydedilir.
   Açık: 'genislik' sekmeye dönünce geçerli sayfaya göre yeniden hesaplanır (karışık yönlü belgede diğer sayfalar taşar).
@@ -243,18 +248,18 @@ incelendi, birleştirildi ve birleşik sürüm yeniden doğrulandı. Kök nedenl
   surucu.mjs gerçek girdi: `fare`, `tikla`, `surukle`, `tus`, `yaz`. CDP tuş olayı menü hızlandırıcılarını (Ctrl+F/S/G/H,
   Ctrl+Shift+=) tetiklemez, komutla sınanır; küsuratlı koordinatta basış seçim başlatmaz. test/senaryo4.mjs'in yanıt adımı
   (`.yanit-girdi`) artık geçersiz; test/not_testi.py yanıtı çekirdek düzeyinde yazar (çekirdek yolu duruyor).
-- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 1, 10, 12 (Windows diyalogları, gerçek pano, referans okuyucuda açma, kısayollar).
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 1, 10, 12 (Windows diyalogları, gerçek pano, başka bir PDF okuyucuda açma, kısayollar).
 
 ### Revizyon 0.1.4 (2026-09-23, kullanıcı geri bildirimi)
 Ayrıntı: CHANGELOG.md. Kullanıcı 14 istek bildirdi (ekran görüntüleriyle); araç pencereleri ve sekme / pencere davranışı ayrı dallarda
 (r014-araclar, r014-arayuz) yapılıp r014'te birleştirildi. Kök nedenler ve kararlar:
-- [x] **"Notlar referans okuyucuda görünmüyor"**: kullanıcının o akşam kaydettiği iki dosyada (Yargıtay ilamı, üst yazı) notlar dosyadaydı, yapı geçerliydi.
-  Referans okuyucunun kendi çizim motoruyla (Gezgin önizleme işleyicisi "referans okuyucu PDF Preview Handler", `test/pdf_onizleme.ps1`: ekranda ama DWM ile
-  gizli pencere, PrintWindow) doğrulandı: vurgular, yazılar, yapışkan not referans okuyucuda görünüyor. Referans okuyucu IAC (AcroExch.PDDoc) bu kurulumda
-  E_NOINTERFACE (Reader kipi). Neden: notlar Ctrl+S'ye dek yalnızca bellekteydi. Karar: `otomatikKaydet` varsayılan true, eski ayar dosyalarında
-  bir kez true (`otomatikKaydetTasindi`). Otomatik kayıt başarısız olursa (dosya referans okuyucuda açık, yazmaya kapalı) engelleyici pencere açılmaz:
+- [x] **"Notlar başka okuyucuda görünmüyor"**: kullanıcının o akşam kaydettiği iki dosyada (Yargıtay ilamı, üst yazı) notlar dosyadaydı, yapı geçerliydi.
+  Referans okuyucunun kendi çizim motoruyla (okuyucunun Gezgin önizleme işleyicisi, `test/pdf_onizleme.ps1`: ekranda ama DWM ile
+  gizli pencere, PrintWindow) doğrulandı: vurgular, yazılar, yapışkan not referans okuyucuda görünüyor. Okuyucunun COM otomasyon arayüzü bu kurulumda
+  E_NOINTERFACE (ücretsiz okuyucu kipi). Neden: notlar Ctrl+S'ye dek yalnızca bellekteydi. Karar: `otomatikKaydet` varsayılan true, eski ayar dosyalarında
+  bir kez true (`otomatikKaydetTasindi`). Otomatik kayıt başarısız olursa (dosya başka bir programda açık, yazmaya kapalı) engelleyici pencere açılmaz:
   bir bildirim, o belgede otomatik kayıt elle kayda dek durur (`b._otoKayitDurdu`).
-- [x] **Yazı kalınlığı ve netlik**: kullanıcının yan yana görüntüsünde (solda referans okuyucu, sağdaki şerit referans okuyucunun sağ bölme düğmesi; sağda PDEfe)
+- [x] **Yazı kalınlığı ve netlik**: kullanıcının yan yana görüntüsünde (solda referans okuyucu, sağdaki şerit onun sağ bölme düğmesi; sağda PDEfe)
   iki yarı aynı ölçekte (1,648 cihaz px/pt; büyük olasılıkla %125 Windows ölçeği, PDEfe %99), PDEfe'de UYAP tebligatının Times-Bold satırları
   %19–27 fazla mürekkep, küçük Arial eşit. Test örneğinde `--force-device-scale-factor=1.25` ile aynı koşul kuruldu (PDEfe/referans okuyucu %31, kullanıcıda
   %24). Sentetik kalınlık yok (FontFace "Times New Roman Bold" gerçek yüz); fark Chromium'un DirectWrite çiziminden (ClearType + kontrast):
@@ -300,7 +305,7 @@ Ayrıntı: CHANGELOG.md. Kullanıcı 14 istek bildirdi (ekran görüntüleriyle)
   Açık: insert_pdf Popup ve yanıt notlarını, parça dışına giden bağlantıları taşımaz (yapısal kayıttaki gibi); kenar "mm" etiketli ama pt.
 
 ### Revizyon 0.1.5 (2026-09-23, kullanıcı geri bildirimi)
-Ayrıntı: CHANGELOG.md. Kullanıcı 5 istek bildirdi (referans okuyucu ile yan yana ekran görüntüsüyle). Kök nedenler ve kararlar:
+Ayrıntı: CHANGELOG.md. Kullanıcı 5 istek bildirdi (referans okuyucuyla yan yana ekran görüntüsüyle). Kök nedenler ve kararlar:
 - [x] **"Bazı yazılarda bulanıklık"**: ekran görüntüsündeki PDEfe yarısı test örneğinde piksel piksel yeniden üretildi (%100 Windows ölçeği,
   PDEfe genişliğe sığdır = 1,1521; ortalama fark 0,04 gri düzeyi), referans okuyucu yarısı aynı ölçekte (1,520 px/pt) hizalanıp ölçüldü. 0.1.4'ün
   ana hat çizimi (ipuçsuz, gri) küçük düz yazıyı soluk çiziyordu: 7 pt Times paragrafı referans okuyucudan %28 açık, 8 pt Arial %8. Referans okuyucu küçük
@@ -313,8 +318,8 @@ Ayrıntı: CHANGELOG.md. Kullanıcı 5 istek bildirdi (referans okuyucu ile yan 
   showText PDF.js'te numaralı OPS anahtarıyla çağrıldığı için o anahtar da değiştirilir (ilk denemede yalnızca adı sarılmıştı, etkisizdi).
   Ölçüm: paragraf +%2, Arial +%4, kalın ±%0, başlık +%6; 44 sayfalık belgede sayfa başına 36 ms (değişmedi), 43 PDF'lik taramada konsol
   temiz. Döndürülmüş sayfada (90/180/270) yazılar ana hatla (0.1.4 gibi). Ayar değeri 'anaHat' korundu ("Dengeli" = karma).
-  Açık: döndürülmüş sayfada küçük yazı soluk; gömülü olmayan barkod yazı tipi (IDAutomationHC39M, UYAP "Taahhütlü No") referans okuyucuda referans okuyucu
-  Sans MM ile genişletilmiş, PDEfe'de monospace (Consolas) ile.
+  Açık: döndürülmüş sayfada küçük yazı soluk; gömülü olmayan barkod yazı tipi (IDAutomationHC39M, UYAP "Taahhütlü No") referans okuyucuda
+  kendi yedek yazı tipiyle genişletilmiş, PDEfe'de monospace (Consolas) ile.
 - [x] **Dolgu düğmesi yamuk**: `button.ikon.kucuk { width: 26px }` aynı özgüllükteki `.yazi-bicim button.dolgu-dugme { width: auto }`'dan
   sonra geldiği için düğme 26 px kalıyor, esnek kutu örneği 12,3×18'e sıkıştırıyordu. Özgüllük artırıldı, içerik daralmaz.
 - [x] **Araçlar penceresi**: ızgara flex-wrap + ortalama (satırda 3, dar pencerede 2); son satır ortalı. `_dikey` sütun sırası yerine
@@ -351,9 +356,9 @@ Ayrıntı: CHANGELOG.md. Kullanıcı 5 istek bildirdi (referans okuyucu ile yan 
 - [ ] MPO (çok resimli JPEG, bazı kameralar) hâlâ PNG yolunda; bu makinede örneği yok.
 
 ### Revizyon 0.1.8 (2026-09-23, kullanıcı geri bildirimi)
-Ayrıntı: CHANGELOG.md. Kullanıcı 9 istek bildirdi (referans okuyucu ile yan yana ekran görüntüsü, kurulum son sayfası görüntüsü, karışık boyutlu
+Ayrıntı: CHANGELOG.md. Kullanıcı 9 istek bildirdi (referans okuyucuyla yan yana ekran görüntüsü, kurulum son sayfası görüntüsü, karışık boyutlu
 birleştirilmiş PDF). Kök nedenler ve kararlar:
-- [x] **"Yazılar bulanık"**: ekran görüntüsünün solu PDEfe (renksiz, gri), sağı referans okuyucu (renkli alt piksel; ortadaki ▶ şeridi referans okuyucunun sol
+- [x] **"Yazılar bulanık"**: ekran görüntüsünün solu PDEfe (renksiz, gri), sağı referans okuyucu (renkli alt piksel; ortadaki ▶ şeridi okuyucunun sol
   bölme düğmesi, 0.1.4'teki görüntünün tersi). Görüntüdeki satırların hepsi kalın (UYAP Times-Bold, gömülü değil → timesbd.ttf); PDEfe
   yarısı test örneğinde %115'te piksel piksel üretildi (mürekkep 269,4 / 270,4). Koyuluk referans okuyucuyla aynı (269,0), fark keskinlikte: ana hat
   çizimi ipuçsuz ve gri, referans okuyucu ipuçlu ClearType. ClearType kalın (Chromium DirectWrite) aynı ölçekte referans okuyucudan %13–17 koyu. Ölçüm:
@@ -366,7 +371,7 @@ birleştirilmiş PDF). Kök nedenler ve kararlar:
   tuvalden iki okuma konsola uyarı yazdırıyordu. Sonuç yazı tipi adı (alt küme öneki atılmış) | kip | kova anahtarıyla belgeler arasında
   saklanır (en çok 4000). Tebligatın dört kalın satırı referans okuyucuyla +2,6 / −0,8 / −2,8 / −0,5 %; 60 belgelik taramada konsol temiz, ilk çizim
   144–703 ms; ölçüm başına ~5 ms (tebligatta 8 kova, ilk açılışta), 200 adımlı yakınlaştırmada takılma ve bellek artışı yok. Taban 0,85:
-  Referans okuyucu küçük (10,8 px) kalın yazıyı ana hattından %5–9 koyu çiziyor; tam ana hat oranı (0,7'ye dek) 7 pt satırları referans okuyucudan %7–9 açık
+  referans okuyucu küçük (10,8 px) kalın yazıyı ana hattından %5–9 koyu çiziyor; tam ana hat oranı (0,7'ye dek) 7 pt satırları referans okuyucudan %7–9 açık
   bırakıyordu. Döndürülmüş yazı ana hatla (değişmedi). Açık: %125 ölçekte (0.1.4 ölçümü: referans okuyucu ana hattından %13 açık) denenmedi.
 - [x] **Başlangıç ekranı tıklanmıyordu**: `#gorunumler` (boş, position:absolute; inset:0) DOM'da `#baslangic`'ten sonra geldiği için üstteydi
   ve bütün tıklamaları yutuyordu (PDF aç ve son açılanlar hiç çalışmıyordu; belgeyle açılan uygulamada başlangıç ekranı görünmediğinden fark
@@ -408,3 +413,36 @@ birleştirilmiş PDF). Kök nedenler ve kararlar:
   60 belgelik tarama (İnenler, 211 üretici grubundan): konsol temiz. Uzun süren test oturumunda bir kez test örneği hiç çizmez oldu (sayfa
   yenilemesi düzeltmedi); yeni örnekte yinelenmedi, 200 adımlı yakınlaştırma ve 60 belge taramasında da görülmedi.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 17.
+
+### Revizyon 0.1.9 (2026-09-23, kullanıcı isteği)
+Ayrıntı: CHANGELOG.md. Üç istek: başka PDF programlarının adı hiçbir yerde geçmesin, son açılanları tutmak açılıp kapatılabilsin,
+ayarlar sekmelerinin adı içeriğiyle örtüşsün.
+- [x] **Marka adı**: iki marka sözcüğü 29 dosyada 232 yerde geçiyordu; 8'i arayüzde (Yazı çizimi seçeneğinin adı, otomatik kaydetme
+  açıklaması, kilitli dosya uyarıları, çekirdeğin kilitli dosya iletileri). Hepsi kaldırıldı; ölçüm ve karşılaştırmalarda "referans
+  okuyucu". PDEfe'nin yazdığı FreeText /RC'de `xfa:APIVersion` başka bir programın adı ve sürümüydü (PDEfe'nin kaydettiği her dosyaya
+  giriyordu): artık `PDEfe:<sürüm>`; sürüm ana süreçten PDEFE_SURUM ortam değişkeniyle gelir (cekirdek.js), yoksa "0". /RC okuyan kod
+  APIVersion'a bakmıyor, geri okuma aynı. Varsayılan not sarısının sabiti VARSAYILAN_SARI oldu. Önizleme betiği test/pdf_onizleme.ps1: CLSID'i sabit değil,
+  .pdf'nin ShellEx\{8895b1c6-…} kaydından (HKCU Classes, HKCR, ProgID) bulur; -Clsid ile verilebilir. GitHub'daki 0.1.0, 0.1.2, 0.1.4,
+  0.1.5 ve 0.1.8 sürüm notları CHANGELOG'un temizlenmiş bölümleriyle yeniden yazıldı (yalnızca "Bu sürümde" bölümü; indirme bağlantısı,
+  boyut ve SHA-256 aynı). git geçmişindeki commit mesajlarına dokunulmadı (zorla push gerektirir).
+- [x] **Ayarlar sekmeleri**: "Dosya"da varsayılan PDF görüntüleyici, "Notlar"da otomatik kaydetme, "Görünüm"de Döndür düğmesi,
+  "Başlangıç"ta sayfa düzeni duruyordu. Yeni düzen (BOLUMLER): Görünüm (tema, koyulaştırma, yazı çizimi), Sayfa düzeni (yakınlaştırma,
+  tek / iki sayfa, kaydırma, kapak — önceden ayarlarda yoktu —, Döndür düğmesi), Belge açılışı (varsayılan uygulama, kaldığım sayfa, son
+  açılanlar), Notlar, Kaydetme (otomatik kaydetme, araçların çıktı klasörü), Kopyalama, Güncelleme, Hakkında. Eski bölüm kimlikleri
+  ('baslangic', 'dosya') yenilerine eşlenir (ESKI_BOLUMLER). 'duzen.ayarlar' komutu isteğe bağlı bölüm kimliği alır.
+- [x] **Son açılanları hatırla** (sonAcilanlariHatirla, varsayılan true): kapalıyken sonDosyalaraEkle yazmaz; kapatılınca liste silinir
+  (dosya.sonTemizle); menuKur sonDosyalar() null alınca Son açılanlar'ı kurmaz (ayar:koy bu anahtarda menüyü yeniden kurar); başlangıç
+  ekranı listele(yollar, { kapali }) ile bilgi satırı ve Ayarlar › Belge açılışı bağlantısı; Aç / Kaydet pencereleri 'dontAddToRecent'
+  alır (Electron varsayılanı dosyayı Windows'un son kullanılanlarına ekliyordu; Gezgin'den çift tıklamayla açılanları Windows kendisi
+  ekler). **Kaldığım sayfa** (kaldigimSayfadanAc): kapalıyken de sayfaKonumlari (dosya yollarıyla, 300 dosyaya dek) yazılıyordu; artık
+  konumlariYaz kapalıyken yazmaz, kapatılınca kayıt silinir. ayarlar.js açılışta kapalı ayarın kalmış kaydını siler (eski sürümden gelen).
+- [x] Testler: test/senaryo14.mjs 62/62, iki kez üst üste (sekmeler açık ve koyu temada, kartlar, eski kimlikler; iki anahtar gerçek
+  tıklamayla, kapalıyken kayıt yok, açınca yeniden; başlangıç ekranı ve Ayarlar bağlantısı; Dosya menüsü test:menu kancasıyla; Aç
+  penceresinin dontAddToRecent'i test diyaloğu kaydından; arayüzde ve menüde marka adı yok). Yeniden başlatmada açılış temizliği
+  (kapalı ayarın kalmış konumları ve listesi silindi). araclar_testi 131/131. Test örneğinin çekirdeğiyle yazılan yazı notunda
+  `xfa:APIVersion="PDEfe:0.1.9"`; not, test/pdf_onizleme.ps1 ile (gizli pencere) referans okuyucunun önizleyicisinde Türkçe
+  karakterleriyle görünüyor. /AP'si silinmiş notu önizleyici hiç çizmediğinden (eski ve yeni üretici adlı iki dosya piksel piksel aynı,
+  ikisinde de not yok) /RC'nin üretici adından bağımsız okunduğu bu yolla sınanamadı: DOGRULAMA 18.5. senaryo4 çalıştırılamadı (girdisi
+  Masaüstü\PDF DENEME\DENEME PDF (2).pdf bu makinede yok); not kodunda (notlar.js, notlar.py) yorum dışında değişen satır yalnızca
+  VARSAYILAN_SARI, URETICI_SURUMU ve kilitli dosya iletisi.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 18.

@@ -151,7 +151,7 @@ async function belgeKaydet(b, farkli = false, sessiz = false) {
   } catch (e) {
     durum.mesajYaz('');
     const kilitli = /açık olabilir|yazılamadı|Permission/i.test(e.message || '');
-    const { secim } = await mesajKutusu({ tur: 'error', mesaj: 'Belge kaydedilemedi', ayrinti: (kilitli ? 'Dosya başka bir programda (örneğin bir PDF okuyucu) açık olabilir. Onu kapatıp yeniden deneyin ya da farklı bir adla kaydedin.\\n\\n' : '') + hataMetni(e), dugmeler: kilitli ? ['Farklı kaydet…', 'Vazgeç'] : ['Tamam'], iptal: kilitli ? 1 : 0 });
+    const { secim } = await mesajKutusu({ tur: 'error', mesaj: 'Belge kaydedilemedi', ayrinti: (kilitli ? 'Dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Onu kapatıp yeniden deneyin ya da farklı bir adla kaydedin.\\n\\n' : '') + hataMetni(e), dugmeler: kilitli ? ['Farklı kaydet…', 'Vazgeç'] : ['Tamam'], iptal: kilitli ? 1 : 0 });
     if (kilitli && secim === 0) { b.kaydediliyor = false; return belgeKaydet(b, true); }
     return false;
   } finally { b.kaydediliyor = false; }

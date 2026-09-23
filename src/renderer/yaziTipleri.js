@@ -107,7 +107,7 @@ const KALIN_AD = /bold|heavy|kal[ıi]n/i, KALIN_AD_BUYUK = /Black(?![a-z])|Demi(
 /**
  * Kalın (yarı kalın ve üstü) yazı tipi mi: adı ("Times-Bold", "ABCDEF+Calibri-Bold", "Arial,Bold", "FrutigerBlack"), PDF.js'in
  * bayrakları ya da yazı tipinin kendi OS/2 ağırlığı (usWeightClass ≥ 600). Microsoft Print to PDF'in "CIDFont+F1" gibi adlarında
- * yalnızca ağırlık bilgi verir; bazı üreticiler (kurumsal belge sistemi) bütün yüzlere 400 yazdığından önce ada bakılır.
+ * yalnızca ağırlık bilgi verir; bazı kurumsal belge üreticileri bütün yüzlere 400 yazdığından önce ada bakılır.
  */
 function kalinMi(font) {
   const ad = String(font.name || '').replace(/^[A-Z]{6}\+/, '');
@@ -165,13 +165,14 @@ function duzYaziOlcegi(gfx) {
   return a > 0 && d > 0 && Math.abs(b) <= pay && Math.abs(cc) <= pay ? d : 0;
 }
 
-// ------------------------------------------------------------ kalın yazı: ClearType keskinliği, referans okuyucu koyuluğu
-// Kalın yazı 0.1.4 – 0.1.7'de ana hatlarından (ipuçsuz, gri) çiziliyordu: koyuluğu referans okuyucuyla aynıydı ama gövdeler iki piksele yayılıp
-// yazı referans okuyucunun ipuçlu ClearType çizimi yanında bulanık görünüyordu. Artık düz kalın yazı da Chromium'la (ipuçlu, ClearType) çizilir.
+// ------------------------------------------------------------ kalın yazı: ClearType keskinliği, ana hat koyuluğu
+// Kalın yazı 0.1.4 – 0.1.7'de ana hatlarından (ipuçsuz, gri) çiziliyordu: koyuluğu referans okuyucuyla aynıydı ama gövdeler iki
+// piksele yayılıp yazı referans okuyucunun ipuçlu ClearType çizimi yanında bulanık görünüyordu. Artık düz kalın yazı da
+// Chromium'la (ipuçlu, ClearType) çizilir.
 // Windows'un bazı kalın yüzleri ClearType'la küçük boyutta belirgin koyu çıkar: ipucu talimatları gövdeleri tam piksele kalınlaştırır
 // (Times New Roman Bold 8–11 px'te ana hattından %25, 12 px'te %16, 16 px'te %6 fazla; Georgia, Garamond, Palatino, Book Antiqua,
-// Cambria Bold benzer; Arial, Calibri, Segoe UI, Tahoma, Verdana Bold'da sistematik fark yok, 20 px üstünde hiçbirinde yok). Referans okuyucu
-// kalın yazıyı ana hattı kadar koyu çizer (UYAP tebligatında ±%8). Bu yüzden her yazı tipi ve boyutta bir kez aynı glifler küçük bir
+// Cambria Bold benzer; Arial, Calibri, Segoe UI, Tahoma, Verdana Bold'da sistematik fark yok, 20 px üstünde hiçbirinde yok). Referans
+// okuyucu kalın yazıyı ana hattı kadar koyu çizer (UYAP tebligatında ±%8). Bu yüzden her yazı tipi ve boyutta bir kez aynı glifler küçük bir
 // tuvale hem ClearType'la hem ana hattından çizilip mürekkepleri oranlanır; ClearType daha koyuysa yazı o oranda saydam çizilir.
 const kalinYazilar = new WeakSet();          // kalın yazı tipleri (PDF.js FontFaceObject)
 const kalinGlifleri = new WeakMap();         // yazı tipi → Set(fontChar): ölçümde çizilecek glifler (belgenin yazılarından)

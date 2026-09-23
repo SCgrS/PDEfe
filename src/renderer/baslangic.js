@@ -2,6 +2,7 @@
 // sağda son açılan belgeler. Kartlar uygulama komutlarını çalıştırır (dosya.ac: Windows'un Aç penceresi; arac.gorselBirlestir: araç
 // penceresi, açık belge gerektirmez). Son açılanlar listesinde tıklama ya da Enter belgeyi açar; sağ tık Aç / Klasörde göster /
 // Yolu kopyala / Listeden kaldır menüsünü, satırdaki × ve Delete yalnızca listeden kaldırmayı yapar (dosyaya dokunulmaz).
+// "Son açılanları hatırla" kapalıyken liste yerine bunu söyleyen bir satır ve Ayarlar › Belge açılışı bağlantısı görünür.
 // 0.1.8'e dek boş #gorunumler katmanı bu ekranın üstünde kaldığı için PDF aç düğmesi ve son açılanlar tıklanamıyordu (stil.css: z-index).
 import { ARACLAR } from './aracPenceresi.js';
 
@@ -64,12 +65,24 @@ export class BaslangicEkrani {
     pdefe.cagir('uygulama:bilgi').then((b) => { if (b?.surum) kok.querySelector('.karsilama-surum').textContent = ` · sürüm ${b.surum}`; }).catch(() => {});
   }
 
-  /** Son açılanları (en çok 10) çizer. */
-  listele(yollar) {
+  /** Son açılanları (en çok 10) çizer. kapali: "Son açılanları hatırla" kapalı; liste yerine bilgi satırı. */
+  listele(yollar, { kapali = false } = {}) {
     const ul = this.liste;
     ul.replaceChildren();
-    const liste = (yollar || []).slice(0, 10);
+    const liste = kapali ? [] : (yollar || []).slice(0, 10);
     this.temizleDugmesi.hidden = !liste.length;
+    if (kapali) {
+      const li = document.createElement('li');
+      li.className = 'karsilama-bos soluk';
+      const ayarlar = document.createElement('button');
+      ayarlar.type = 'button';
+      ayarlar.className = 'karsilama-ayar-baglantisi';
+      ayarlar.textContent = 'Ayarlar › Belge açılışı';
+      ayarlar.addEventListener('click', () => this.komutCalistir('duzen.ayarlar', 'acilis'));
+      li.append('Son açılan belgeler hatırlanmıyor. Açmak için: ', ayarlar);
+      ul.append(li);
+      return;
+    }
     if (!liste.length) {
       const li = document.createElement('li');
       li.className = 'karsilama-bos soluk';

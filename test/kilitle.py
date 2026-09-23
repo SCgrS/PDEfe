@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Bir dosyayı Windows'ta paylaşımsız (share mode 0) açık tutar: referans okuyucunun dosyayı kilitlemesini taklit eder.
+"""Bir dosyayı Windows'ta paylaşımsız (share mode 0) açık tutar: bir PDF okuyucunun dosyayı kilitlemesini taklit eder.
 Kullanım: python test/kilitle.py <dosya> <saniye>"""
 import sys, time, ctypes
 from ctypes import wintypes
