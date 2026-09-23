@@ -798,6 +798,67 @@ def test_kalite_buyutmez(c):
                  "JPEG aynen=%s tahmin=%d çıktı=%d" % (aynen, t["toplam"], r["boyut"]))
 
 
+def test_gorsel_yonu(c):
+    """Görüntü / PDF birleştir: EXIF yönlü telefon fotoğrafı (3, 6, 8) "Orijinal"de JPEG baytları aynen gömülür, dönüş PDF'te yapılır
+    (önceden PNG'ye çevrilip kat kat büyüyordu); aynalı yön (2) çözülüp çevrilir. Arayüzün "Sağa döndür"ü (dondurme +90, önizlemede saat
+    yönünde) çıktıda da saat yönünde (0.1.6'ya dek görseller tersine dönüyordu). Köşe işaretleri Pillow'un exif_transpose'u + saat
+    yönünde döndürmeyle karşılaştırılır; orijinal sayfa ve A4, Orijinal ve Orta kalite."""
+    from PIL import Image, ImageDraw, ImageOps
+    klasor = os.path.join(CIKTI, "gorsel_yonu")
+    shutil.rmtree(klasor, ignore_errors=True)
+    os.makedirs(klasor)
+    taban = Image.new("RGB", (400, 300), (255, 255, 255))
+    cz = ImageDraw.Draw(taban)
+    cz.rectangle((0, 0, 60, 60), fill=(255, 0, 0))        # sol üst kırmızı
+    cz.rectangle((340, 0, 399, 60), fill=(0, 0, 255))     # sağ üst mavi
+    cz.rectangle((0, 240, 60, 299), fill=(0, 160, 0))     # sol alt yeşil
+
+    def renk(p):
+        r, g, b = p[:3]
+        return "K" if r > 180 and g < 90 and b < 90 else "M" if b > 180 and r < 90 and g < 90 else "Y" if g > 120 and r < 90 and b < 90 else "."
+
+    def koseler(al, x0, y0, x1, y1, pay):
+        return "".join(renk(al(x, y)) for x, y in ((x0 + pay, y0 + pay), (x1 - 1 - pay, y0 + pay), (x0 + pay, y1 - 1 - pay), (x1 - 1 - pay, y1 - 1 - pay)))
+
+    yollar = {}
+    for yon in (1, 2, 3, 6, 8):
+        exif = Image.Exif()
+        if yon != 1:
+            exif[0x0112] = yon
+        yollar[yon] = os.path.join(klasor, "exif%d.jpg" % yon)
+        taban.save(yollar[yon], quality=95, exif=exif.tobytes())
+    yollar["png"] = os.path.join(klasor, "isaretli.png")
+    taban.save(yollar["png"])
+    for anahtar, yol in yollar.items():
+        gorunen = ImageOps.exif_transpose(Image.open(yol)).convert("RGB")
+        for dondurme in (0, 90, 270):
+            beklenen = gorunen.rotate(-dondurme, expand=True)   # saat yönünde
+            bw, bh = beklenen.size
+            bk = koseler(lambda x, y: beklenen.getpixel((x, y)), 0, 0, bw, bh, 6)
+            for sayfa, kalite in (("orijinal", "orijinal"), ("orijinal", "orta"), ("a4", "orijinal")):
+                hedef = os.path.join(klasor, "c_%s_%d_%s_%s.pdf" % (anahtar, dondurme, sayfa, kalite))
+                c.cagir("birlestir", {"ogeler": [{"yol": yol, "tur": "gorsel", "kalite": kalite, "sayfaBoyutu": sayfa, "kenar": 20,
+                                                   "dondurme": dondurme}], "hedef": hedef})
+                d = pymupdf.open(hedef)
+                try:
+                    pg = d[0]
+                    kutu = pymupdf.Rect(pg.get_image_info()[0]["bbox"])
+                    pix = pg.get_pixmap(matrix=pymupdf.Matrix(2, 2), alpha=False)
+                    k = koseler(pix.pixel, *[int(round(v * 2)) for v in kutu], 12)
+                    with open(yol, "rb") as f:
+                        aynen = d.xref_stream_raw(pg.get_images(full=True)[0][0]) == f.read()
+                finally:
+                    d.close()
+                beklenen_aynen = kalite == "orijinal" and anahtar in (1, 3, 6, 8)
+                ok = k == bk and abs(kutu.width / kutu.height - bw / bh) < 0.01 and (aynen == beklenen_aynen)
+                kaydet_sonuc("birlestir/yön", "%s %s°, %s sayfa, %s" % ("EXIF %s" % anahtar if anahtar != "png" else "PNG", dondurme, sayfa, kalite), ok,
+                             "köşeler %s beklenen %s, JPEG aynen=%s" % (k, bk, aynen))
+    # Boyut: yön bilgili fotoğrafın "Orijinal" tahmini dosya boyutuna yakın (önceden PNG: kat kat büyük)
+    t, _ = c.cagir("boyut_tahmini", {"oge": {"yol": yollar[6], "tur": "gorsel", "kalite": "orijinal", "sayfaBoyutu": "orijinal"}})
+    kaydet_sonuc("boyut_tahmini/yön", "EXIF 6 Orijinal ≈ dosya", t["boyut"] <= os.path.getsize(yollar[6]) + 2048,
+                 "tahmin %d, dosya %d bayt" % (t["boyut"], os.path.getsize(yollar[6])))
+
+
 def main():
     global NOTLU
     exe = None
@@ -835,6 +896,7 @@ def main():
         ("birlestir", lambda: test_birlestir(c, g)),
         ("birlestir/orijinal boyut", lambda: test_gorsel_orijinal_kenarsiz(c)),
         ("birlestir/kalite büyütmez", lambda: test_kalite_buyutmez(c)),
+        ("birlestir/yön", lambda: test_gorsel_yonu(c)),
         ("dondur_kaydet", lambda: test_dondur_kaydet(c)),
     ]
     for ad, f in testler:

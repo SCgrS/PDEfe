@@ -939,10 +939,12 @@ def _gorsel_sayfa_olcusu(gen_px, yuk_px, sayfa_boyutu, kenar, dondurme, dpi_bilg
 def _gorsel_sayfasi_ekle(doc, bayt, sayfa_g, sayfa_y, rect, dondurme):
     """Görsel sayfasını belgenin sonuna ekler (birleştirme ve boyut tahmini aynı yolu kullanır). Orijinal boyutta görsel dikdörtgeni
     sayfanın kendisidir: oran korunmaz, görsel sayfayı kenardan kenara doldurur (tam pt'ye yuvarlanmış sayfada oran korunsaydı
-    görsel bir yönde kıl payı küçülür, kenarda beyaz çizgi kalırdı). A4'te görsel oranı korunarak kutusuna yerleşir."""
+    görsel bir yönde kıl payı küçülür, kenarda beyaz çizgi kalırdı). A4'te görsel oranı korunarak kutusuna yerleşir.
+    dondurme saat yönündedir (arayüzün "Sağa döndür"ü +90, önizleme ve PDF /Rotate gibi); PyMuPDF'in rotate'i saat yönünün tersine
+    döndürür (0.1.6'ya dek görseller önizlemenin tersine dönüyordu)."""
     pg = doc.new_page(width=sayfa_g, height=sayfa_y)
     tam_sayfa = rect == pymupdf.Rect(0, 0, sayfa_g, sayfa_y)
-    pg.insert_image(rect, stream=bayt, rotate=dondurme, keep_proportion=not tam_sayfa)
+    pg.insert_image(rect, stream=bayt, rotate=(360 - dondurme) % 360, keep_proportion=not tam_sayfa)
     return pg
 
 
@@ -997,11 +999,14 @@ def _gorsel_hazirla(oge, genel_kalite=None, onbellekli=False):
     bicim, exif_yon, alt_ornekleme, kareler = _gorsel_kareleri(yol, onbellekli)
     sonuc = []
     for kare_kipi, duz in kareler:
-        # Dokunulmadan gömülebilen JPEG (EXIF yönü gerekmiyor, ilk kare, kip değişmedi): "Orijinal"in kendisi, öteki seviyelerin ölçüsü
+        # Dokunulmadan gömülebilen JPEG (ilk kare, kip değişmedi; EXIF yönü yok ya da yalnızca döndürme): "Orijinal"in kendisi, öteki
+        # seviyelerin ölçüsü. Yön bilgili telefon fotoğrafı da olduğu gibi gömülür, dönüş PDF'te yapılır: önceden çözülüp PNG'ye
+        # çevriliyordu (WhatsApp fotoğrafı 364 KB → 3,1 MB). Aynalı yönler (2, 4, 5, 7) çözülür.
         ozgun_jpeg = None
-        if bicim == "JPEG" and exif_yon == 1 and len(sonuc) == 0 and duz.mode == kare_kipi:
+        if bicim == "JPEG" and exif_yon in EXIF_DONUSU and len(sonuc) == 0 and duz.mode == kare_kipi:
             with open(yol, "rb") as f:
                 ozgun_jpeg = f.read()
+        # duz EXIF'e göre çevrilmiş (görünen) karedir: sayfa ölçüsü ve yeniden kodlama onunla, özgün JPEG'e EXIF dönüşü de eklenir
         sayfa_g, sayfa_y, rect = _gorsel_sayfa_olcusu(duz.width, duz.height, sayfa_boyutu, kenar, dondurme)
         if kalite == "orijinal":
             bayt = ozgun_jpeg if ozgun_jpeg is not None else _ozgun_png(duz)[0]
@@ -1012,8 +1017,13 @@ def _gorsel_hazirla(oge, genel_kalite=None, onbellekli=False):
             hedef_px = (int(yer_g / 72.0 * dpi), int(yer_y / 72.0 * dpi))
             bayt, _, _, _ = _gorsel_kodla(duz, kalite, hedef_px, kaynak_alt_ornekleme=alt_ornekleme)
             bayt = _buyutmeyen(bayt, duz, bicim, ozgun_jpeg, sayfa_g, sayfa_y, rect, dondurme)
-        sonuc.append((bayt, sayfa_g, sayfa_y, rect, dondurme))
+        kare_donusu = (EXIF_DONUSU[exif_yon] + dondurme) % 360 if ozgun_jpeg is not None and bayt is ozgun_jpeg else dondurme
+        sonuc.append((bayt, sayfa_g, sayfa_y, rect, kare_donusu))
     return sonuc
+
+
+# EXIF yönü → görünen görsele ulaşmak için saklanan pikselleri saat yönünde döndürme (Pillow exif_transpose ile denetlendi)
+EXIF_DONUSU = {1: 0, 3: 180, 6: 90, 8: 270}
 
 
 KAYIPLI_BICIMLER = ("JPEG", "MPO", "HEIF", "HEIC", "AVIF")
@@ -1034,7 +1044,7 @@ def _buyutmeyen(aday, duz, bicim, ozgun_jpeg, sayfa_g, sayfa_y, rect, dondurme):
     dosya büyümez. Yeniden kodlama kaynaktan daha yüksek JPEG kalitesiyle bayt harcar (UYAP taraması q≈75 kaydedilmiş, "Yüksek"
     q90: 487 → 611 KB), ekran görüntüsü gibi az renkli görselde JPEG PNG'den büyüktür (0,09 → 0,33 MB). Karşılaştırma PDF'e gömülü
     boyutla: JPEG olduğu gibi, PNG MuPDF'in yeniden sıkıştırdığı hâliyle (_gomulu_gorsel_boyutu). Kayıplı biçimlerden (JPEG, HEIC)
-    gelen ama dokunulmadan gömülemeyen görselde (EXIF yönü, CMYK) kayıpsız PNG hep çok büyüktür: karşılaştırılmaz."""
+    gelen ama dokunulmadan gömülemeyen görselde (aynalı EXIF yönü, CMYK) kayıpsız PNG hep çok büyüktür: karşılaştırılmaz."""
     def gomulu(b):
         return len(b) if b[:2] == b"\xff\xd8" else _gomulu_gorsel_boyutu(b, sayfa_g, sayfa_y, rect, dondurme)
     if ozgun_jpeg is not None:
