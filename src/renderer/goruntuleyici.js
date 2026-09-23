@@ -17,6 +17,9 @@ const ONIZLEME_ESIGI = 6e6;               // bundan büyük (cihaz pikseli) ilk 
 const ONIZLEME_PIKSEL = 1.5e6;            // önizleme tuvalinin en fazla piksel sayısı
 const KOYU_YER_TUTUCU = '#000';            // beyazın invert(1) karşılığı: koyu sayfada henüz çizilmemiş sayfanın ve tuvalin kaplamadığı alanın rengi
 const ZOOM_ADIMLARI = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
+const BASKIN_PAY = 1.03;                  // baskın genişlik kümesi: genişlikleri en darından en çok %3 büyük satırlar (A4 ile Letter bir arada)
+const ILK_BOYUT_SAYISI = 300;             // belge açılırken ilk yerleşimden önce boyutu öğrenilen sayfa sayısı (kalanlar arka planda)
+const BOYUT_PARTISI = 50;                 // sayfa boyutları bu kadar sayfalık paralel isteklerle öğrenilir
 const KAYDIRMA_TUSLARI = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' ']);
 const GIRDI_MS = 300;                     // kullanıcı girdisinden (tekerlek, tuş) sonra bu süredeki kaydırma olayları etkileşimdir (yumuşak kaydırma kuyruğu dahil)
 
@@ -171,6 +174,23 @@ export class Goruntuleyici extends EventTarget {
     if (secenek.zoomModu) this.zoomModu = secenek.zoomModu;
     if (secenek.olcek) this.olcek = secenek.olcek;
     if (secenek.sayfa) this.gecerli = Math.min(Math.max(1, secenek.sayfa), n);
+    // Genişliğe sığdırma belgenin baskın sayfa genişliğine göre (sigdirOlcek): ilk yerleşimden önce sayfa boyutları öğrenilir, belge
+    // açıldıktan sonra ölçek sıçramasın. Çok sayfalı belgede ilk ILK_BOYUT_SAYISI sayfa beklenir, kalanlar arka planda.
+    try { await this.boyutlariOgren(this.sayfalar.slice(1, ILK_BOYUT_SAYISI)); } catch (e) { if (this.yok) return this.belge; console.warn('Sayfa boyutları alınamadı', e); }
+    if (this.yok) return this.belge;
+    // Boyutu henüz öğrenilmeyen sayfalar ilk sayfanın değil öğrenilenlerin en sık boyutunu alır: ilk sayfası farklı (kapak, A3 ek) büyük
+    // belgede baskın genişlik, ölçek ve kaydırma çubuğu baştan doğru olsun (yoksa arka plan yüklemesi bitince ölçek sıçrıyordu)
+    if (n > ILK_BOYUT_SAYISI) {
+      const sayim = new Map();
+      for (const s of this.sayfalar.slice(0, ILK_BOYUT_SAYISI)) {
+        const k = `${Math.round(s.pt.w)}x${Math.round(s.pt.h)}`;
+        const e = sayim.get(k);
+        if (e) e.adet++; else sayim.set(k, { adet: 1, pt: s.pt });
+      }
+      let en = null;
+      for (const e of sayim.values()) if (!en || e.adet > en.adet) en = e;
+      for (const s of this.sayfalar.slice(ILK_BOYUT_SAYISI)) s.pt = { ...en.pt };
+    }
     this.yerlesimHesapla();
     if (secenek.sayfa && secenek.sayfa > 1) this.sayfayaGit(secenek.sayfa, { aninda: true });
     this.kaydirmaIsle();
@@ -179,31 +199,43 @@ export class Goruntuleyici extends EventTarget {
     return this.belge;
   }
 
-  /** Bütün sayfaların gerçek boyutlarını arka planda öğrenir; farklıysa yerleşimi yeniler. */
-  async sayfaBoyutlariniYukle() {
-    const n = this.sayfalar.length;
+  /**
+   * Girdilerin gerçek boyutlarını (s.pt, taban /Rotate dahil) PDF.js'ten BOYUT_PARTISI'lik paralel isteklerle öğrenir (sırayla beklemek
+   * büyük belgede saniyeler sürüyordu). Döner: boyutu değişen girdi var mı. Sekme kapanırsa PDF.js "Transport destroyed" ile reddeder.
+   */
+  async boyutlariOgren(girdiler) {
     let degisti = false;
+    for (let bas = 0; bas < girdiler.length && !this.yok; bas += BOYUT_PARTISI) {
+      const parti = girdiler.slice(bas, bas + BOYUT_PARTISI).filter((s) => !s.bos);
+      const pdfSayfalari = await Promise.all(parti.map((s) => {
+        const i = this.idx(s);
+        return i >= 0 ? this.sayfaAl(i) : (s.sayfaSozu || null);
+      }));
+      if (this.yok) return degisti;
+      parti.forEach((s, k) => {
+        const p = pdfSayfalari[k];
+        if (!p) return;
+        const vp = p.getViewport({ scale: 1 });   // varsayılan döndürme page.rotate: pt taban (/Rotate) dahil
+        if (Math.abs(vp.width - s.pt.w) > 0.5 || Math.abs(vp.height - s.pt.h) > 0.5) { s.pt = { w: vp.width, h: vp.height }; degisti = true; }
+      });
+    }
+    return degisti;
+  }
+
+  /** İlk yerleşimden sonra kalan sayfaların gerçek boyutlarını arka planda öğrenir; farklıysa yerleşimi bir kez yeniler. */
+  async sayfaBoyutlariniYukle() {
+    const kalan = this.sayfalar.slice(ILK_BOYUT_SAYISI);
+    if (!kalan.length) return;
+    let degisti;
+    try { degisti = await this.boyutlariOgren(kalan); } catch (e) { if (this.yok) return; throw e; }   // sekme bu arada kapandı: "Transport destroyed"
     // Yeni pt'lerle yerleşimi kurar; geçerli sayfa ve sayfa içi oran korunur (boyutDegisti gibi: scrollTop olduğu gibi kalırsa görünüm
     // başka sayfaya kayar, yanlış sayfa kaydedilirdi). Gizli sekmede (boyut 0) atlanır: sigdirOlcek %25 verirdi; sekme gösterilince
     // boyutDegisti oranı eski (scrollTop ile tutarlı) yerleşimden alıp yeni pt'lerle kurar. Boyutu değişen görünür sayfalar yeniden planlanır.
-    const yenile = () => {
-      degisti = false;
-      if (this.yok || !this.kaydirici.clientWidth || !this.kaydirici.clientHeight) return;
-      const sayfa = this.gecerli, oran = this.sayfaIciOran();
-      this.yerlesimHesapla(true);
-      this.sayfayaGit(sayfa, { oran, aninda: true });
-      this.kaydirmaIsle();
-    };
-    for (let i = 1; i < n && !this.yok; i++) {
-      let p;
-      try { p = await this.sayfaAl(i); } catch (e) { if (this.yok) return; throw e; }   // sekme bu arada kapandı: "Transport destroyed"
-      if (this.yok) return;
-      const vp = p.getViewport({ scale: 1 });   // varsayılan döndürme page.rotate: pt taban (/Rotate) dahil
-      const s = this.sayfalar[i];
-      if (Math.abs(vp.width - s.pt.w) > 0.5 || Math.abs(vp.height - s.pt.h) > 0.5) { s.pt = { w: vp.width, h: vp.height }; degisti = true; }
-      if (i % 40 === 0 && degisti) yenile();
-    }
-    if (degisti) yenile();
+    if (!degisti || this.yok || !this.kaydirici.clientWidth || !this.kaydirici.clientHeight) return;
+    const sayfa = this.gecerli, oran = this.sayfaIciOran();
+    this.yerlesimHesapla(true);
+    this.sayfayaGit(sayfa, { oran, aninda: true });
+    this.kaydirmaIsle();
   }
 
   sayfaAl(i) {
@@ -461,22 +493,49 @@ export class Goruntuleyici extends EventTarget {
     return Array.from({ length: this.sayfalar.length }, (_, i) => [i]);
   }
 
+  /**
+   * Satırın ölçek 1'deki ölçüleri: genis (sayfaların toplam genişliği, px), bosluk (satırdaki sabit, ölçekle büyümeyen sayfa arası
+   * boşluk, px), yuksek (en yüksek sayfa). Tek sayfalık satır (ayrı kapak ya da tek kalan son sayfa) ikili düzende yarım çift yer
+   * kaplar: çiftlerle aynı ölçekte kalsın (son sayfada yakınlaştırma sıçramasın).
+   */
+  satirOlcusu(idxler) {
+    let genis = 0, yuksek = 0;
+    for (const i of idxler) { const b = this.sayfaBoyutu(i, 1); genis += b.w; yuksek = Math.max(yuksek, b.h); }
+    let bosluk = (idxler.length - 1) * BOSLUK;
+    if (this.yarimSatirMi(idxler)) { genis *= 2; bosluk = BOSLUK; }
+    return { genis, bosluk, yuksek };
+  }
+
+  /**
+   * Kaydırmalı düzende belgenin baskın satır ölçüsü (satirOlcusu): satırların en çoğunun sığdığı genişlik. Genişlikleri en darından en
+   * çok BASKIN_PAY kadar büyük satırlar bir kümedir; en kalabalık kümenin en geniş satırı döner (kümedeki bütün sayfalar tam sığar).
+   * Eşitlikte genişliği bütün satırların ortancasına en yakın küme, sonra daha dar olan. Geçerli sayfaya bağlı değildir: kaydırınca ya
+   * da başka sayfadayken yeniden sığdırınca ölçek değişmez; birkaç geniş sayfa (yatay tablo, büyük görsel) belgeyi küçültmez, yana taşar.
+   */
+  baskinSatir() {
+    const olculer = this.satirlar().map((r) => this.satirOlcusu(r)).sort((a, b) => a.genis - b.genis);
+    const n = olculer.length;
+    if (!n) return null;
+    const ortanca = olculer[(n - 1) >> 1].genis;
+    let en = null;
+    for (let i = 0, j = 0; i < n; i++) {
+      if (j < i) j = i;
+      while (j + 1 < n && olculer[j + 1].genis <= olculer[i].genis * BASKIN_PAY) j++;
+      const adet = j - i + 1, uzak = Math.abs((olculer[i].genis + olculer[j].genis) / 2 - ortanca);
+      if (!en || adet > en.adet || (adet === en.adet && uzak < en.uzak - 1e-9)) en = { adet, uzak, olcu: olculer[j] };
+    }
+    return en.olcu;
+  }
+
   /** Sığdırma modları için ölçek hesabı (varsayılan: gecerli sayfa; komşu satırın ölçeği için başka sayfa verilebilir). */
   sigdirOlcek(mod, sayfaIdx = this.gecerli - 1) {
     const vw = this.kaydirici.clientWidth - 2 * KENAR;
     const vh = this.kaydirici.clientHeight - 2 * KENAR;
     const idx = Math.max(0, Math.min(sayfaIdx, this.sayfalar.length - 1));
-    let genis, yuksek, bosluk = 0;       // bosluk: satırdaki sabit (ölçekle büyümeyen) sayfa arası boşluk, px
-    if (this.ikili()) {
-      const c = this.ciftler()[this.ciftBul(idx)];
-      genis = c.reduce((t, i) => t + this.sayfaBoyutu(i, 1).w, 0);
-      bosluk = (c.length - 1) * BOSLUK;
-      yuksek = Math.max(...c.map((i) => this.sayfaBoyutu(i, 1).h));
-      // Tek sayfalık satır (ayrı kapak ya da tek kalan son sayfa) yarım çift yer kaplar: çiftlerle aynı ölçekte kalsın (son sayfada yakınlaştırma sıçramasın)
-      if (this.yarimSatirMi(c)) { genis *= 2; bosluk = BOSLUK; }
-    } else {
-      ({ w: genis, h: yuksek } = this.sayfaBoyutu(idx, 1));
-    }
+    // Kaydırmalı düzende genişliğe sığdırma belgenin baskın satır genişliğine (0.1.8; önceden geçerli sayfanın satırına), öteki
+    // modlar ve kaydırmasız düzen gösterilen satıra göre
+    const baskin = mod === 'genislik' && this.surekli() ? this.baskinSatir() : null;
+    const { genis, bosluk, yuksek } = baskin || this.satirOlcusu(this.ikili() ? this.ciftler()[this.ciftBul(idx)] : [idx]);
     // Boşluk ölçeklenmediği için sayfalara kalan genişlik: yoksa çift satır görünür alandan taşar, yatay kaydırma çubuğu çıkar
     const sayfaW = Math.max(1, vw - bosluk);
     if (mod === 'gercek') return 1;
@@ -555,6 +614,10 @@ export class Goruntuleyici extends EventTarget {
     for (const [i, yer] of yerler) this.yerlesim[i] = yer;
     this.alan.style.width = alanW + 'px';
     this.alan.style.height = alanH + 'px';
+    // Sığdırmada bir satır (baskın genişlikten geniş yatay tablo, büyük görsel) görünür alandan taşıyorsa görünüm yatayda ortalanır:
+    // satırlar alanın ortasına dizildiği için sol kenarda kalan görünümde sığdırılan sayfalar sağa kayık, bir kısmı dışarıda kalırdı.
+    // Sığdırılan sayfalar tam görünür, geniş sayfa iki yandan taşar (yatay kaydırılır).
+    if ((this.zoomModu === 'genislik' || this.zoomModu === 'sayfa') && alanW > vw) this.kaydirici.scrollLeft = (alanW - vw) / 2;
 
     // Tek/iki düzende önceki/sonraki satırın, gösterildiğinde alacağı yerleşimin aynısı (y=KENAR, ortalı, kendi sığdırma ölçeği)
     this.onYerlesim = new Array(n).fill(null);
