@@ -200,7 +200,7 @@ export class BirlestirmePenceresi {
     if (!kabul.length) return 0;
     const yeniler = kabul.map((yol) => ({
       kimlik: ++this.kimlikSayac, yol, ad: dosyaAdi(yol), tur: uzanti(yol) === 'pdf' ? 'pdf' : 'gorsel', sayfa: null, boyut: null,
-      genislik: null, yukseklik: null, png: null, dondurme: 0, kalite: null, sayfaBoyutu: 'a4', kenar: 10, hata: null, yukleniyor: true,
+      genislik: null, yukseklik: null, png: null, dondurme: 0, kalite: null, sayfaBoyutu: 'orijinal', kenar: 10, hata: null, yukleniyor: true,
     }));
     const idx = konum == null ? this.ogeler.length : Math.max(0, Math.min(konum, this.ogeler.length));
     this.ogeler.splice(idx, 0, ...yeniler);
@@ -374,7 +374,7 @@ export class BirlestirmePenceresi {
           <label>Kalite <select class="arac-girdi oge-kalite"><option value="">Genel</option>${KALITELER.map((k) => `<option value="${k.id}">${k.ad}</option>`).join('')}</select></label>
           <span class="tahmin secilebilir"></span>
           <span class="gorsel-ayar" hidden>
-            <label>Sayfa <select class="arac-girdi oge-sayfa-boyutu"><option value="a4">A4'e sığdır</option><option value="orijinal">Orijinal boyut</option></select></label>
+            <label>Sayfa <select class="arac-girdi oge-sayfa-boyutu"><option value="a4">A4'e sığdır</option><option value="orijinal">Orijinal</option></select></label>
             <label class="oge-kenar-alani">Kenar <input type="number" class="arac-girdi oge-kenar" min="0" max="50" step="1"> mm</label>
           </span>
         </div>
@@ -428,7 +428,7 @@ export class BirlestirmePenceresi {
     hata.hidden = !o.hata; hata.textContent = o.hata || '';
     el.querySelector('.ayarlar').hidden = !!o.hata;
     el.querySelector('.gorsel-ayar').hidden = o.tur !== 'gorsel';
-    // Orijinal boyutta sayfa görselin kendisidir, kenar boşluğu yoktur: kenar yalnızca "A4'e sığdır"da ayarlanır
+    // "Orijinal"de (varsayılan) sayfa görselin kendisidir, kenar boşluğu yoktur: kenar yalnızca "A4'e sığdır"da ayarlanır
     el.querySelector('.oge-kenar-alani').hidden = o.sayfaBoyutu === 'orijinal';
     el.querySelector('.oge-kalite').value = o.kalite || '';
     el.querySelector('.oge-kalite').querySelector('option[value=""]').textContent = `Genel (${KALITELER.find((k) => k.id === this.genelKalite)?.ad || ''})`;

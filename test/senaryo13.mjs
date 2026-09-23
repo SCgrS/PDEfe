@@ -3,7 +3,7 @@
 // sürükleyerek alan seçimi (gerçek fare: canlı seçim, Ctrl ile ekleme, kenarda otomatik kaydırma, Esc, düz tıklama, kartla sıralama),
 // "Yeni belge olarak kaydet" (notlar/bağlantılar/yer imleri, bekleyen not sorusu) ve "Üzerine yaz" (kayıt, Ctrl+Z, yeniden kayıt);
 // PDF ayır "Üzerine yaz" (tek dosya kuralı canlı, seçili sayfalar ve tek aralık, sekmenin yenilenmesi, bekleyen değişiklik soruları);
-// Görüntü / PDF birleştir "Orijinal boyut" (kenar alanı gizli, çıktıda kenar boşluğu yok).
+// Görüntü / PDF birleştir: varsayılan "Orijinal" (kenar alanı gizli, çıktıda kenar boşluğu yok), "A4'e sığdır"da kenar alanı.
 // Girdiler test/cikti/ui/pdf altına kopyalanır/üretilir; araçların çıktı klasörü test/cikti/ui/cikti yapılır (Masaüstüne yazılmaz).
 // Kullanım: test örneği (baslat.ps1) açıkken  $env:PDEFE_CDP_PORT=9331; node test/surucu.mjs betik test/senaryo13.mjs
 // Yalnızca bir bölüm: $env:BOLUM="3" (virgülle birden çok). Ekran görüntüleri test/cikti/ui/png altına yazılır.
@@ -458,9 +458,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     await pencereKapat();
   }
 
-  // ------------------------------------------------------------ 7) Görüntü / PDF birleştir: orijinal boyut kenarsız
+  // ------------------------------------------------------------ 7) Görüntü / PDF birleştir: varsayılan Orijinal, kenarsız
   if (bolum(7)) {
-    console.log('\n== 7) Görüntü birleştir: orijinal boyut');
+    console.log('\n== 7) Görüntü birleştir: Orijinal');
     await sekmeleriKapat();
     const gorseller = py(`from PIL import Image, ImageDraw
 k = ${J(GORSEL)}
@@ -479,11 +479,18 @@ print(json.dumps(y))`);
     await evalJs(`window.__pdefe.komutCalistir('arac.gorselBirlestir', ${J(Object.values(gorseller))})`);
     await kosul(`document.querySelectorAll('.birlestir-oge').length === 4 && !document.querySelector('.birlestir-oge.yukleniyor')`, 15000);
     const kenarGorunur = () => evalJs(`[...document.querySelectorAll('.birlestir-oge')].map((o) => !o.querySelector('.oge-kenar-alani').hidden)`);
-    sonuc('A4\'e sığdır (varsayılan): kenar ayarı görünür', J(await kenarGorunur()) === J([true, true, true, true]));
-    await evalJs(`(() => { for (const s of document.querySelectorAll('.oge-sayfa-boyutu')) { s.value = 'orijinal'; s.dispatchEvent(new Event('change', { bubbles: true })); } })()`);
+    const sayfaSecimi = (deger) => evalJs(`(() => { for (const s of document.querySelectorAll('.oge-sayfa-boyutu')) { s.value = ${J(deger)}; s.dispatchEvent(new Event('change', { bubbles: true })); } })()`);
+    const secimler = await evalJs(`[...document.querySelectorAll('.oge-sayfa-boyutu')].map((s) => s.value + ':' + s.selectedOptions[0].textContent)`);
+    const secenekAdlari = await evalJs(`[...document.querySelector('.oge-sayfa-boyutu').options].map((o) => o.textContent)`);
+    sonuc('Orijinal (varsayılan): kenar ayarı gizli, seçenekler "A4\'e sığdır" / "Orijinal" ("boyut" yok)',
+      J(await kenarGorunur()) === J([false, false, false, false]) && secimler.every((x) => x === 'orijinal:Orijinal') && J(secenekAdlari) === J(["A4'e sığdır", 'Orijinal']),
+      { secimler, secenekAdlari });
+    await sayfaSecimi('a4');
+    sonuc('A4\'e sığdır: kenar ayarı görünür', J(await kenarGorunur()) === J([true, true, true, true]));
+    await sayfaSecimi('orijinal');
     // Döndürülmüş öğe: ikinci görsel (PNG) sağa döndürülür
     await evalJs(`document.querySelectorAll('.birlestir-oge')[1].querySelector('[data-komut="saga"]').click()`);
-    sonuc('Orijinal boyut: kenar ayarı gizli', J(await kenarGorunur()) === J([false, false, false, false]));
+    sonuc('Orijinal: kenar ayarı gizli', J(await kenarGorunur()) === J([false, false, false, false]));
     await kosul(`!document.querySelector('.birlestir-kalite-secim .boyut.bekliyor') && [...document.querySelectorAll('.birlestir-oge .tahmin')].every((t) => /tahmin: \\d/.test(t.textContent))`, 20000);
     await ss('07-gorsel-orijinal-koyu');
     await tema('acik'); await ss('07-gorsel-orijinal-acik'); await tema('koyu');
