@@ -3,6 +3,25 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.5 — 2026-09-23
+
+### Görüntü kalitesi
+- Küçük yazılar referans okuyucudaki gibi keskin ve koyu: 0.1.4'te harfler gri ve soluk, bulanık görünüyordu. Artık düz yazılar Windows'un ClearType çizimiyle (referans okuyucu gibi renkli alt piksel yumuşatması ve ipuçlarıyla), kalın yazılar referans okuyucu kalınlığında harflerin ana hatlarından çizilir. UYAP tebligatının 7 pt Times paragrafı %100 ölçekte referans okuyucudan %28 açıktı, şimdi referans okuyucu ile aynı (+%2); 8 pt Arial satırları +%4, kalın satırlar referans okuyucu kalınlığında (±%0). Farklı üreticilerden 43 PDF'te (UYAP, Word, Microsoft Print to PDF, iLovePDF, Canva, taramalar) denetlendi; sayfa çizim süresi değişmedi.
+- Döndürülmüş sayfada yazılar eskisi gibi ana hatlarından çizilir: harfler incelip bozulmaz.
+- Ayarlar › Görünüm › Yazı çizimi'nde "Dengeli" (varsayılan) bu çizimdir; "Windows ClearType" kalınlar dahil bütün yazıları Windows'la çizer.
+
+### Arayüz
+- Sekmeler %30 daraldı (168 → 118 px): daha çok belge yan yana sığar. Sekme yazısı biraz küçüldü, iç boşluklar sıkılaştı; "ustyazi (85).pdf", "ustyazi (100).pdf" gibi adlar yine tam görünür, daha uzun adlar üç noktayla kısalır (tam ad ve yol sekmenin ipucunda).
+- Araçlar penceresinde alttaki iki araç (PDF ayır, Görüntü / PDF birleştir) pencereye ortalanır; sağda boş yer kalmaz. Ok tuşlarıyla yukarı / aşağı gezinme yeni yerleşime uyar.
+- Yazı aracının biçim çubuğunda Dolgu rengi düğmesindeki renk karesi daralıp yamuk görünüyordu; artık yazı rengi karesiyle aynı boyda ve hizada.
+
+### Araçlar
+- Görüntü / PDF birleştir: eklenen görüntünün sayfası varsayılan olarak "Orijinal" (sayfa tam görsel boyutunda, kenar boşluğu yok); A4 sayfaya yerleştirmek için "A4'e sığdır" seçilir. Seçeneklerin adı kalite seçimiyle karışmasın diye yalnızca "A4'e sığdır" ve "Orijinal" (önceden "Orijinal boyut").
+
+### Bilinen sınırlar
+- Döndürülmüş sayfada küçük yazılar gri yumuşatmayla çizildiği için düz sayfadakinden biraz soluk görünebilir.
+- UYAP tebligatındaki "Taahhütlü No" satırı gömülü olmayan bir barkod yazı tipiyle (IDAutomationHC39M) yazılmış; yazı tipi bilgisayarda kurulu olmadığından referans okuyucu kendi yedek yazı tipiyle geniş harflerle, PDEfe Windows'un eş aralıklı yazı tipiyle (Consolas) gösterir.
+
 ## 0.1.4 — 2026-09-23
 
 ### Görüntü kalitesi

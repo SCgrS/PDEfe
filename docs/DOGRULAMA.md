@@ -162,3 +162,15 @@ açmadan) denetlendi, Windows renk seçicisi ve gerçek klavyenin menü kısayol
    sürükleyerek çoklu seçim, Yeni belge / Üzerine yaz; PDF ayır'da seçili sayfalarla Üzerine yaz (özgün dosyada yalnızca o sayfalar);
    Görüntü / PDF birleştir'de Orijinal boyutla bir fotoğraf: sayfanın çevresinde beyaz kenar olmamalı. Araçlar penceresinde Paylaş karosu
    yok, araç çubuğundaki Paylaş düğmesi duruyor.
+
+## 14. 0.1.5: otomatik testlerin sınayamadıkları
+Yazı karşılaştırması kullanıcının ekran görüntüsündeki referans okuyucu penceresiyle (%99,6, %100 Windows ölçeği) aynı ölçekte yapıldı; referans okuyucu açılmadı.
+Ekran dışı test örneği %100 ölçekte çalıştı: %125 ölçekli ekranda gözle bakılmadı.
+1. **Yazı netliği.** Aynı UYAP tebligatını PDEfe'de ve referans okuyucuda aynı büyüklükte yan yana açın (referans okuyucu %100 ≈ PDEfe %115): kutudaki küçük
+   "Geçerli bir özrünüz olmadan…" paragrafı ve Arial satırları referans okuyucudaki kadar koyu ve keskin, kalın satırlar ("Duruşma Günü …") referans okuyucudaki
+   kadar ince olmalı. Aynısını %125 ölçekli ekranda da deneyin.
+2. **Döndürülmüş sayfa.** Bir sayfayı Döndür ile yana çevirin: harfler düzgün (ince, düzensiz değil).
+3. **Sekmeler.** Birkaç UYAP belgesi açın: sekmeler öncekinden dar, "ustyazi (85).pdf" gibi adlar tam; uzun adın tamamı üzerine gelince görünür.
+4. **Araçlar penceresi.** Alttaki iki araç ortalı; ok tuşlarıyla karolar arasında gezinin.
+5. **Dolgu düğmesi.** Yazı aracıyla kutu açın: Dolgu rengi düğmesindeki kare, yazı rengi karesiyle aynı boyda ve hizada.
+6. **Görüntü birleştir.** Bir fotoğraf ekleyin: Sayfa seçiminde "Orijinal" seçili gelmeli, seçenekler "A4'e sığdır" ve "Orijinal".

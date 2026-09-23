@@ -10,14 +10,15 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 
 ## Ne yapar
 
-- **Sekmeler.** Birden çok PDF tek pencerede; sekmeler aynı genişliktedir (uzun ad üç noktayla kısalır, tam ad ve yol
-  ipucunda) ve sürüklenerek sıralanır. `Ctrl+Tab` basılı tutulunca
+- **Sekmeler.** Birden çok PDF tek pencerede; sekmeler aynı ve dar genişliktedir ("ustyazi (85).pdf" gibi adlar tam
+  görünür, uzun ad üç noktayla kısalır, tam ad ve yol ipucunda) ve sürüklenerek sıralanır. `Ctrl+Tab` basılı tutulunca
   son kullanılan sırayla sekme seçici açılır; `Ctrl+1` – `Ctrl+9` ile doğrudan sekmeye gidilir. Bir belge yeniden
   açıldığında kalınan sayfadan devam edilir. Kaydedilmemiş değişiklik sorusu sekme ya da pencere kapatılırken çıkar.
-- **Keskin görüntü.** Yazılar referans okuyucu gibi harflerin ana hatlarından çizilir: kalın yazılar referans okuyucudan koyu
-  görünmez, döndürülmüş sayfada da düz sayfadaki gibidir; gömülü olmayan Times, Arial ve Courier yazıları referans okuyucu gibi
-  Windows'un Times New Roman, Arial ve Courier New yazı tipleriyle çizilir (Ayarlar › Görünüm › Yazı çizimi: "Dengeli" ya da "Windows ClearType"). Görseller, karekodlar ve tablo çizgileri referans okuyucudaki gibi keskin çizilir; taranmış
-  belgeler çok yakınlaştırıldığında da net ve hızlıdır.
+- **Keskin görüntü.** Yazılar referans okuyucudaki gibi görünür: küçük ve düz yazılar keskin ve koyu (Windows'un
+  ClearType çizimiyle), kalın yazılar referans okuyucu kalınlığında (harflerin ana hatlarından) çizilir; döndürülmüş sayfada harfler
+  bozulmaz. Gömülü olmayan Times, Arial ve Courier yazıları referans okuyucu gibi Windows'un Times New Roman, Arial ve Courier New
+  yazı tipleriyle çizilir (Ayarlar › Görünüm › Yazı çizimi: "Dengeli" ya da "Windows ClearType"). Görseller,
+  karekodlar ve tablo çizgileri referans okuyucudaki gibi keskin çizilir; taranmış belgeler çok yakınlaştırıldığında da net ve hızlıdır.
 - **Temiz kopyalama.** Seçilen metin panoya yapıştırıldığında satır sonlarındaki tireler birleştirilir,
   girintiler korunur, paragraflar tek satır sonuyla ayrılır (UYAP Doküman Editörü'nde ve Word'de boş paragraf
   oluşmaz), bozuk glifler düzeltilir. İstenirse ham kopyalama.
@@ -39,7 +40,8 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   silme, döndürme, boş sayfa ya da başka PDF'ten sayfa ekleme), **Döndür ve kaydet**, **PDF ayır** (sayfa aralığı, her
   N sayfada bir, seçili sayfalar, her sayfa ayrı dosya), **Görüntü / PDF birleştir** (görüntü ve PDF'lerden tek PDF;
   sürükle-bırak, `Ctrl+V`, Panodan ekle ya da sağ tık Yapıştır; Orijinal / Yüksek / Orta / Düşük kalite düğmelerinde
-  toplam tahmini boyut; "Orijinal boyut"ta sayfa tam görsel boyutunda). Küçült, Sayfaları düzenle, Döndür ve Ayır'da
+  toplam tahmini boyut; görüntünün sayfası "Orijinal" (varsayılan: sayfa tam görsel boyutunda) ya da "A4'e sığdır").
+  Küçült, Sayfaları düzenle, Döndür ve Ayır'da
   "Yeni belge olarak kaydet" (varsayılan; klasör Masaüstü) ya da "Üzerine yaz" (yedeksiz, güvenli yer değiştirme)
   seçilir: Küçült'te ve Ayır'da üzerine yazma geri alınamaz (uyarı gösterilir), Döndür'de ve Sayfaları düzenle'de
   `Ctrl+Z` ile geri alınır; Ayır'da yalnızca tek dosya üreten ayırmada kullanılabilir. Uzun işlerde ilerleme çubuğu ve
