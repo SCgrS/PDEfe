@@ -54,7 +54,8 @@ export class BirlestirmePenceresi {
     this.anahtar = anahtar;
     this.ogeler = [];
     this.kimlikSayac = 0;
-    this.seciliKimlik = null;
+    this.secim = new Set();           // seçili öğelerin kimlikleri (tıklama, Ctrl/Shift, alan seçimi)
+    this.capa = null;                 // Shift+tık aralığının başı
     this.genelKalite = 'orijinal';
     this.tahminSayac = 0;
     this.tahminler = new Map();       // öğe anahtarı (kalite hariç parametre) → {boyut:{kalite: bayt}, ozet:{kalite: içerik özeti}, tekrar:{kalite: bayt}, hata:{kalite: ileti}}
@@ -106,7 +107,7 @@ export class BirlestirmePenceresi {
 
     govde.querySelector('.birlestir-ekle').addEventListener('click', () => this.dosyaSec());
     govde.querySelector('.birlestir-yapistir').addEventListener('click', () => this.panodanEkle());
-    govde.querySelector('.birlestir-temizle').addEventListener('click', () => { if (this.ogeler.length) { this.ogeler = []; this.seciliKimlik = null; this.ciz(); } });
+    govde.querySelector('.birlestir-temizle').addEventListener('click', () => { if (this.ogeler.length) { this.ogeler = []; this.secim.clear(); this.capa = null; this.ciz(); } });
 
     this.pencere = pencereAc({
       baslik, govde, anahtar: this.anahtar, sinif: 'birlestir-pencere',
@@ -130,18 +131,35 @@ export class BirlestirmePenceresi {
     // Ctrl+V (girdi kutularında normal yapıştırma)
     this.pencere.el.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'v' || e.key === 'V') && !e.target.matches('input, textarea')) { e.preventDefault(); this.panodanEkle(); }
-      if (e.key === 'Delete' && e.target === this.liste && this.seciliKimlik != null) { e.preventDefault(); this.sil(this.seciliKimlik); }
     });
-    // Listede ve bırakma alanında sağ tık: Yapıştır (Ctrl+V ile aynı), satırda sıralama/döndürme/çıkarma
+    // Listede Delete seçilenleri çıkarır, Ctrl+A satırların hepsini seçer. Listenin kendi dinleyicisinde: pencerenin Ctrl+A'sından
+    // (ortak.js _tusIsle: pencerenin metnini seçer; işlenmiş olayı atlar) önce çalışsın
+    this.liste.addEventListener('keydown', (e) => {
+      if (e.target !== this.liste || this.ilerleme.calisiyor) return;
+      if (e.key === 'Delete' && this.secim.size) { e.preventDefault(); this.sil(this._secilenler()); }
+      else if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); this.secim = new Set(this.ogeler.map((o) => o.kimlik)); this._secimiCiz(); }
+    });
+    // Listede ve bırakma alanında sağ tık: Yapıştır (Ctrl+V ile aynı), satırda sıralama/döndürme/çıkarma (seçiliyse seçilenlerin hepsine)
     this.pencere.baglamMenusuEkle((e) => this._listeMenusu(e));
-    // Liste etkileşimi
+    // Liste etkileşimi. Ctrl / Shift ile satıra basış satır seçimidir: tarayıcı metin seçimini (dosya adı, özet seçilebilir) uzatmasın
+    this.liste.addEventListener('mousedown', (e) => {
+      if (e.button === 0 && (e.shiftKey || e.ctrlKey || e.metaKey) && e.target.closest('.birlestir-oge') && !e.target.closest('button, input, select, textarea')) {
+        e.preventDefault();
+        try { window.getSelection()?.removeAllRanges(); } catch { /* yok say */ }
+      }
+    });
     this.liste.addEventListener('click', (e) => this._tikla(e));
     this.liste.addEventListener('change', (e) => this._degisti(e));
     this.liste.addEventListener('input', (e) => { if (e.target.matches('input[type=number]')) this._degisti(e); });
+    // Seçili bir satırı sürüklemek seçilenlerin hepsini birlikte taşır
     this.sirala = suruklemeSiralama(this.liste, {
       ogeSecici: '.birlestir-oge', izgara: false, metinSecici: '.secilebilir',
-      onBirak: (ogeler, hedefIdx) => this.tasi(+ogeler[0].dataset.kimlik, hedefIdx),
+      grupAl: (el) => (this.secim.has(+el.dataset.kimlik) ? [...this.liste.querySelectorAll('.birlestir-oge.secili')] : [el]),
+      onBirak: (ogeler, hedefIdx) => this.tasi(ogeler.map((o) => +o.dataset.kimlik), hedefIdx),
     });
+    this._alanSecimiBagla();
+    this.pencere.altMetinAyarla(['Tıkla: seç', 'Ctrl/Shift: çoklu seç', 'Sağ tuşla sürükle: alan seç', 'Satırı sürükle: sırala', 'Delete: çıkar']
+      .map((s) => s.replace(/ /g, ' ')).join(' · '));
     this.pencere.el.addEventListener('kapandi', () => this.sirala());
     this.ciz();
   }
@@ -171,20 +189,135 @@ export class BirlestirmePenceresi {
     if (!e.target.closest('.birlestir-liste') || this.ilerleme.calisiyor) return null;
     const satir = e.target.closest('.birlestir-oge');
     const menu = [{ id: 'yapistir', etiket: 'Yapıştır', calistir: () => this.panodanEkle() }];
-    if (!satir) { menu.push({ id: 'ekle', etiket: 'Dosya ekle', calistir: () => this.dosyaSec() }); return menu; }
+    if (!satir) {
+      menu.push({ id: 'ekle', etiket: 'Dosya ekle', calistir: () => this.dosyaSec() });
+      if (this.ogeler.length) menu.push({ ayirici: true }, { id: 'tumu', etiket: 'Tümünü seç', calistir: () => { this.secim = new Set(this.ogeler.map((o) => o.kimlik)); this._secimiCiz(); } });
+      return menu;
+    }
     const kimlik = +satir.dataset.kimlik;
-    const i = this.ogeler.findIndex((o) => o.kimlik === kimlik);
-    this._sec(kimlik);
+    // Seçili satıra sağ tık seçimi korur (işlemler seçilenlerin hepsine); seçili olmayana tıklamak yalnızca onu seçer
+    if (!this.secim.has(kimlik)) this._tekSec(kimlik);
+    const hedefler = this._hedefler(kimlik), n = hedefler.length, ek = n > 1 ? ` (${n})` : '';
     menu.push(
       { ayirici: true },
-      { id: 'yukari', etiket: 'Yukarı taşı', devre: i <= 0, calistir: () => this.kaydir(kimlik, -1) },
-      { id: 'asagi', etiket: 'Aşağı taşı', devre: i >= this.ogeler.length - 1, calistir: () => this.kaydir(kimlik, 1) },
-      { id: 'sola', etiket: 'Sola döndür', calistir: () => this.dondur(kimlik, -90) },
-      { id: 'saga', etiket: 'Sağa döndür', calistir: () => this.dondur(kimlik, 90) },
+      { id: 'yukari', etiket: 'Yukarı taşı' + ek, devre: !this._kayabilir(hedefler, -1), calistir: () => this.kaydir(hedefler, -1) },
+      { id: 'asagi', etiket: 'Aşağı taşı' + ek, devre: !this._kayabilir(hedefler, 1), calistir: () => this.kaydir(hedefler, 1) },
+      { id: 'sola', etiket: 'Sola döndür' + ek, calistir: () => this.dondur(hedefler, -90) },
+      { id: 'saga', etiket: 'Sağa döndür' + ek, calistir: () => this.dondur(hedefler, 90) },
       { ayirici: true },
-      { id: 'cikar', etiket: 'Listeden çıkar', calistir: () => this.sil(kimlik) },
+      { id: 'cikar', etiket: 'Listeden çıkar' + ek, calistir: () => this.sil(hedefler) },
     );
     return menu;
+  }
+
+  /**
+   * Alan seçimi: listede sağ tuşla (satırların üzerinden de) ya da sol tuşla boş alandan sürükleyince dikdörtgen çizilir, kesiştiği satırlar
+   * sürüklerken seçilir. Değiştiricisiz sürükleme seçimin yerini alır, Ctrl ya da Shift ile başlangıçtaki seçime ekler. Fare listenin üst /
+   * alt kenarına yaklaşınca ya da dışına çıkınca liste kayar (kenara yakınlıkla hızlanır); Esc iptal eder, önceki seçim geri gelir.
+   * Kıpırdamadan bırakılan sağ tuş olağan sağ tık menüsünü açar; sürüklemeden sonra menü açılmaz (Windows'ta contextmenu bırakışta gelir).
+   * Sol tuşla satırdan başlayan sürükleme sıralamadır (suruklemeSiralama); girdilere, düğmelere ve kaydırma çubuğuna basış seçim başlatmaz.
+   * İşaretçi listede tutulur (setPointerCapture): listenin dışına taşan hareket ve bırakış da buraya gelir. sayfalar.js _alanSecimiBagla'nın
+   * dikey liste karşılığı.
+   */
+  _alanSecimiBagla() {
+    const li = this.liste;
+    const ESIK = 5, KENAR = 30, EN_HIZ = 22;
+    // a: basılı işaretçi {pointerId, tus (1 sol, 2 sağ), bx, by (başlangıç, içerik koordinatı), x, y, sx, sy (istemci), onceki, taban,
+    //    ilk, basladi, iptal, kutular, sinirG, sinirY, el, raf}
+    let a = null;
+    const icerik = (x, y) => {
+      const r = li.getBoundingClientRect();
+      return { x: x - r.left - li.clientLeft + li.scrollLeft, y: y - r.top - li.clientTop + li.scrollTop };
+    };
+    const guncelle = () => {
+      const p = icerik(a.x, a.y);
+      const sinirla = (v, m) => Math.max(0, Math.min(m, v));   // dikdörtgen kaydırılabilir alanı büyütmesin
+      const x0 = sinirla(Math.min(a.bx, p.x), a.sinirG), x1 = sinirla(Math.max(a.bx, p.x), a.sinirG);
+      const y0 = sinirla(Math.min(a.by, p.y), a.sinirY), y1 = sinirla(Math.max(a.by, p.y), a.sinirY);
+      Object.assign(a.el.style, { left: x0 + 'px', top: y0 + 'px', width: (x1 - x0) + 'px', height: (y1 - y0) + 'px' });
+      const secim = new Set(a.taban);
+      a.ilk = null;
+      for (const k of a.kutular) if (k.x0 < x1 && k.x1 > x0 && k.y0 < y1 && k.y1 > y0) { secim.add(k.kimlik); a.ilk ??= k.kimlik; }
+      this.secim = secim;
+      this._secimiCiz();
+    };
+    const kaydir = () => {
+      a.raf = requestAnimationFrame(kaydir);
+      const r = li.getBoundingClientRect();
+      const dy = a.y < r.top + KENAR ? -Math.min(EN_HIZ, Math.ceil((r.top + KENAR - a.y) / 3))
+        : a.y > r.bottom - KENAR ? Math.min(EN_HIZ, Math.ceil((a.y - r.bottom + KENAR) / 3)) : 0;
+      if (!dy) return;
+      const once = li.scrollTop;
+      li.scrollTop += dy;
+      if (li.scrollTop !== once) guncelle();
+    };
+    const basla = () => {
+      // Satırlar alan seçimi sürerken yer değiştirmez: kutular bir kez, içerik koordinatında ölçülür (kaydırma yalnızca görünümü kaydırır)
+      const r = li.getBoundingClientRect();
+      const ox = r.left + li.clientLeft - li.scrollLeft, oy = r.top + li.clientTop - li.scrollTop;
+      a.kutular = [...li.querySelectorAll(':scope > .birlestir-oge')].map((el) => {
+        const b = el.getBoundingClientRect();
+        return { kimlik: +el.dataset.kimlik, x0: b.left - ox, y0: b.top - oy, x1: b.right - ox, y1: b.bottom - oy };
+      });
+      a.sinirG = li.scrollWidth; a.sinirY = li.scrollHeight;
+      a.el = document.createElement('div');
+      a.el.className = 'birlestir-alan-secimi';
+      li.append(a.el);
+      li.classList.add('alan-seciliyor');
+      try { window.getSelection()?.removeAllRanges(); } catch { /* yok say */ }
+      a.basladi = true;
+      a.raf = requestAnimationFrame(kaydir);
+    };
+    /** Dikdörtgeni kaldırır. iptal: önceki seçimi geri getirir (Esc; işaretçi bırakılana kadar tutulur, hareketi yok sayılır). */
+    const durdur = (iptal) => {
+      if (!a?.basladi || a.iptal) return;
+      cancelAnimationFrame(a.raf);
+      a.el.remove();
+      li.classList.remove('alan-seciliyor');
+      if (iptal) { a.iptal = true; this.secim = a.onceki; }
+      else if (a.ilk != null) this.capa = a.ilk;
+      this._secimiCiz();
+    };
+    /** Bırakış: sürükleme olduysa arkasından gelen tıklama (sol tuş) seçimi değiştirmesin, sağ tık menüsü (sağ tuş) açılmasın. */
+    const birak = () => {
+      const s = a;
+      a = null;
+      if (!s) return;
+      try { if (li.hasPointerCapture(s.pointerId)) li.releasePointerCapture(s.pointerId); } catch { /* yok say */ }
+      if (!s.basladi) return;
+      if (s.tus === 2) this._sagSuruklemeBitti = performance.now(); else this._alanTiki = true;
+      li.focus({ preventScroll: true });
+    };
+    li.addEventListener('pointerdown', (e) => {
+      a = null;
+      this._alanTiki = false;
+      if ((e.button !== 0 && e.button !== 2) || e.pointerType === 'touch' || this.ilerleme.calisiyor || !this.ogeler.length) return;
+      if (e.target.closest('button, input, select, textarea, a, .birlestir-alan-secimi')) return;
+      if (e.button === 0 && e.target.closest('.birlestir-oge')) return;   // sol tuşla satırdan: sıralama
+      const r = li.getBoundingClientRect();
+      if (e.clientX - r.left - li.clientLeft >= li.clientWidth || e.clientY - r.top - li.clientTop >= li.clientHeight) return;   // kaydırma çubuğu
+      const p = icerik(e.clientX, e.clientY);
+      const onceki = new Set(this.secim);
+      a = { pointerId: e.pointerId, tus: e.button === 2 ? 2 : 1, bx: p.x, by: p.y, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, onceki, ilk: null,
+        basladi: false, iptal: false, taban: e.ctrlKey || e.metaKey || e.shiftKey ? onceki : new Set() };
+      try { li.setPointerCapture(e.pointerId); } catch { /* yok say */ }
+    });
+    li.addEventListener('pointermove', (e) => {
+      if (!a || e.pointerId !== a.pointerId || a.iptal) return;
+      if (!(e.buttons & a.tus)) { durdur(false); birak(); return; }   // bırakış kaçırıldı (ör. pencere odağı gitti)
+      a.x = e.clientX; a.y = e.clientY;
+      if (!a.basladi) { if (Math.hypot(a.x - a.sx, a.y - a.sy) < ESIK) return; basla(); }
+      guncelle();
+    });
+    li.addEventListener('pointerup', (e) => { if (a && e.pointerId === a.pointerId) { durdur(false); birak(); } });
+    li.addEventListener('pointercancel', (e) => { if (a && e.pointerId === a.pointerId) { durdur(true); birak(); } });
+    li.addEventListener('lostpointercapture', (e) => { if (a && e.pointerId === a.pointerId) { durdur(false); birak(); } });
+    // Sürerken Esc pencereyi kapatmaz: alan seçimini iptal eder
+    li.addEventListener('keydown', (e) => { if (e.key === 'Escape' && a?.basladi) { e.preventDefault(); e.stopPropagation(); durdur(true); } }, true);
+    // Sağ tuşla alan seçiminin bırakışından sonra gelen sağ tık menüsü açılmaz (pencerenin menü dinleyicisine ulaşmadan durur)
+    li.addEventListener('contextmenu', (e) => {
+      if (a?.basladi || performance.now() - (this._sagSuruklemeBitti ?? -Infinity) < 600) { e.preventDefault(); e.stopPropagation(); this._sagSuruklemeBitti = null; }
+    }, true);
   }
 
   // ---------------------------------------------------------------- dosya ekleme
@@ -262,39 +395,71 @@ export class BirlestirmePenceresi {
   // ---------------------------------------------------------------- liste işlemleri
   _oge(kimlik) { return this.ogeler.find((o) => o.kimlik === kimlik); }
 
-  sil(kimlik) {
-    const i = this.ogeler.findIndex((o) => o.kimlik === kimlik);
-    if (i < 0) return;
-    this.ogeler.splice(i, 1);
-    if (this.seciliKimlik === kimlik) this.seciliKimlik = this.ogeler[Math.min(i, this.ogeler.length - 1)]?.kimlik ?? null;
+  /** Seçili öğelerin kimlikleri, liste sırasıyla. */
+  _secilenler() { return this.ogeler.filter((o) => this.secim.has(o.kimlik)).map((o) => o.kimlik); }
+
+  /** Satırdaki düğme ya da menü işleminin hedefleri: satır seçiliyse seçilenlerin hepsi, değilse yalnızca o satır (sayfalar.js gibi). */
+  _hedefler(kimlik) { return this.secim.has(kimlik) ? this._secilenler() : [kimlik]; }
+
+  /** Öğeleri listeden çıkarır; seçim, çıkarılan ilk öğenin yerine gelen öğeye geçer. kimlikler: tek kimlik ya da dizi. */
+  sil(kimlikler) {
+    const kume = new Set([].concat(kimlikler));
+    const ilk = this.ogeler.findIndex((o) => kume.has(o.kimlik));
+    if (ilk < 0) return;
+    this.ogeler = this.ogeler.filter((o) => !kume.has(o.kimlik));
+    for (const k of kume) this.secim.delete(k);
+    if (!this.secim.size) {
+      const yeni = this.ogeler[Math.min(ilk, this.ogeler.length - 1)]?.kimlik;
+      if (yeni != null) this.secim.add(yeni);
+      this.capa = yeni ?? null;
+    }
     this.ciz();
   }
 
-  tasi(kimlik, hedefIdx) {
-    const i = this.ogeler.findIndex((o) => o.kimlik === kimlik);
-    if (i < 0) return;
-    const [o] = this.ogeler.splice(i, 1);
-    this.ogeler.splice(Math.max(0, Math.min(hedefIdx, this.ogeler.length)), 0, o);
-    this.seciliKimlik = kimlik;
+  /** Öğeleri (liste sırasını koruyarak, blok hâlinde) hedefIdx'e taşır; hedefIdx taşınanlar çıkarılmış listeye göredir. */
+  tasi(kimlikler, hedefIdx) {
+    const kume = new Set([].concat(kimlikler));
+    const tasinan = this.ogeler.filter((o) => kume.has(o.kimlik));
+    if (!tasinan.length) return;
+    const kalan = this.ogeler.filter((o) => !kume.has(o.kimlik));
+    kalan.splice(Math.max(0, Math.min(hedefIdx, kalan.length)), 0, ...tasinan);
+    this.ogeler = kalan;
+    this.secim = new Set(kume);
     this.ciz();
   }
 
-  kaydir(kimlik, yon) {
-    const i = this.ogeler.findIndex((o) => o.kimlik === kimlik);
-    const j = i + yon;
-    if (i < 0 || j < 0 || j >= this.ogeler.length) return;
-    [this.ogeler[i], this.ogeler[j]] = [this.ogeler[j], this.ogeler[i]];
-    this.seciliKimlik = kimlik;
-    this.ciz();
-    this.liste.querySelector(`[data-kimlik="${kimlik}"] [data-komut="${yon < 0 ? 'yukari' : 'asagi'}"]`)?.focus();
+  /** Öğeler yon (−1 yukarı, 1 aşağı) yönünde birer sıra kayabilir mi: en az biri, önünde seçili olmayan öğe bulunan. */
+  _kayabilir(kimlikler, yon) {
+    const kume = new Set([].concat(kimlikler));
+    return this.ogeler.some((o, i) => kume.has(o.kimlik) && this.ogeler[i + yon] && !kume.has(this.ogeler[i + yon].kimlik));
   }
 
-  dondur(kimlik, derece) {
-    const o = this._oge(kimlik);
-    if (!o) return;
-    o.dondurme = ((o.dondurme + derece) % 360 + 360) % 360;
-    this._ogeCiz(o);
-    if (o.tur === 'gorsel') this.tahminGeciktir();   // görselde sayfa yönü değişir, boyut da değişebilir
+  /** Öğeleri birer sıra yukarı / aşağı kaydırır; bitişik öğeler birlikte kayar, listenin ucuna dayanan blok yerinde kalır. */
+  kaydir(kimlikler, yon) {
+    const kume = new Set([].concat(kimlikler));
+    if (!this._kayabilir([...kume], yon)) return;
+    const l = this.ogeler;
+    const sira = yon < 0 ? l.map((_, i) => i) : l.map((_, i) => l.length - 1 - i);
+    for (const i of sira) {
+      const j = i + yon;
+      if (kume.has(l[i].kimlik) && l[j] && !kume.has(l[j].kimlik)) [l[i], l[j]] = [l[j], l[i]];
+    }
+    this.secim = new Set(kume);
+    this.ciz();
+    const tek = kume.size === 1 ? [...kume][0] : null;
+    if (tek != null) this.liste.querySelector(`[data-kimlik="${tek}"] [data-komut="${yon < 0 ? 'yukari' : 'asagi'}"]`)?.focus();
+  }
+
+  dondur(kimlikler, derece) {
+    let gorsel = false;
+    for (const k of [].concat(kimlikler)) {
+      const o = this._oge(k);
+      if (!o) continue;
+      o.dondurme = ((o.dondurme + derece) % 360 + 360) % 360;
+      this._ogeCiz(o);
+      gorsel ||= o.tur === 'gorsel';
+    }
+    if (gorsel) this.tahminGeciktir();   // görselde sayfa yönü değişir, boyut da değişebilir
   }
 
   genelKaliteDegisti(deger) {
@@ -309,28 +474,43 @@ export class BirlestirmePenceresi {
 
   etkinKalite(o) { return o.kalite || this.genelKalite; }
 
-  _sec(kimlik) {
-    this.seciliKimlik = kimlik;
-    for (const x of this.liste.querySelectorAll('.birlestir-oge')) x.classList.toggle('secili', +x.dataset.kimlik === kimlik);
+  /** Satırların seçili görünümünü this.secim'e göre yeniler. */
+  _secimiCiz() {
+    for (const x of this.liste.querySelectorAll('.birlestir-oge')) x.classList.toggle('secili', this.secim.has(+x.dataset.kimlik));
+  }
+
+  _tekSec(kimlik) { this.secim = new Set([kimlik]); this.capa = kimlik; this._secimiCiz(); }
+
+  /** Shift+tık: çapadan tıklanan satıra kadar (ikisi dahil) bütün satırlar. */
+  _aralikSec(capa, kimlik) {
+    const i = this.ogeler.findIndex((o) => o.kimlik === capa), j = this.ogeler.findIndex((o) => o.kimlik === kimlik);
+    if (i < 0 || j < 0) { this._tekSec(kimlik); return; }
+    const [bas, son] = i <= j ? [i, j] : [j, i];
+    this.secim = new Set(this.ogeler.slice(bas, son + 1).map((o) => o.kimlik));
+    this._secimiCiz();
   }
 
   _tikla(e) {
+    if (this._alanTiki) { this._alanTiki = false; return; }
     if (suruklemeKalintisi(this.liste)) return;
     const el = e.target.closest('.birlestir-oge');
-    if (!el) return;
+    if (!el) { if (e.target === this.liste && this.secim.size) { this.secim.clear(); this._secimiCiz(); } return; }   // boş alana tıklama seçimi kaldırır
     const kimlik = +el.dataset.kimlik;
     const btn = e.target.closest('button[data-komut]');
     if (btn) {
-      const k = btn.dataset.komut;
-      if (k === 'sil') this.sil(kimlik);
-      else if (k === 'yukari') this.kaydir(kimlik, -1);
-      else if (k === 'asagi') this.kaydir(kimlik, 1);
-      else if (k === 'sola') this.dondur(kimlik, -90);
-      else if (k === 'saga') this.dondur(kimlik, 90);
+      // Satır seçiliyse seçilenlerin hepsine, değilse yalnızca o satıra
+      const k = btn.dataset.komut, hedefler = this._hedefler(kimlik);
+      if (k === 'sil') this.sil(hedefler);
+      else if (k === 'yukari') this.kaydir(hedefler, -1);
+      else if (k === 'asagi') this.kaydir(hedefler, 1);
+      else if (k === 'sola') this.dondur(hedefler, -90);
+      else if (k === 'saga') this.dondur(hedefler, 90);
       return;
     }
     if (e.target.matches('select, input')) return;
-    this._sec(kimlik);
+    if (e.shiftKey && this.capa != null) this._aralikSec(this.capa, kimlik);
+    else if (e.ctrlKey || e.metaKey) { if (this.secim.has(kimlik)) this.secim.delete(kimlik); else this.secim.add(kimlik); this.capa = kimlik; this._secimiCiz(); }
+    else this._tekSec(kimlik);
     // Metin seçiliyken odak listeye alınırsa seçim kaybolmaz; yine de seçimi bozmamak için yalnızca seçim yoksa odakla
     if (!window.getSelection()?.toString()) this.liste.focus({ preventScroll: true });
   }
@@ -402,7 +582,7 @@ export class BirlestirmePenceresi {
     if (!el) return;
     const i = idx ?? this.ogeler.indexOf(o);
     el.querySelector('.sira').textContent = String(i + 1);
-    el.classList.toggle('secili', this.seciliKimlik === o.kimlik);
+    el.classList.toggle('secili', this.secim.has(o.kimlik));
     el.classList.toggle('yukleniyor', !!o.yukleniyor);
     el.querySelector('[data-komut="yukari"]').disabled = i <= 0;
     el.querySelector('[data-komut="asagi"]').disabled = i >= this.ogeler.length - 1;

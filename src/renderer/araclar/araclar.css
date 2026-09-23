@@ -216,8 +216,9 @@ html[data-tema="koyu"] .arac-pencere .hata-metin, html[data-tema="koyu"] .kucult
 .sayfa-karti:hover .kart-dugmeler, .sayfa-karti.secili .kart-dugmeler { opacity: 1; }
 .sayfa-karti .kart-dugmeler button.ikon { width: 24px; height: 24px; }
 .sayfa-karti .kart-dugmeler button.ikon svg { width: 15px; height: 15px; }
-/* Boş alandan sürükleyerek alan seçimi (sayfalar.js _alanSecimiBagla) */
-.sayfalar-alan-secimi {
+/* Sürükleyerek alan seçimi: Sayfaları düzenle'de boş alandan (sayfalar.js _alanSecimiBagla), Görüntü / PDF birleştir'de sağ tuşla ya da
+   boş alandan (gorselBirlestir.js _alanSecimiBagla) */
+.sayfalar-alan-secimi, .birlestir-alan-secimi {
   position: absolute; z-index: 4; pointer-events: none; border: 1px solid var(--vurgu); border-radius: 2px;
   background: color-mix(in srgb, var(--vurgu) 14%, transparent);
 }
@@ -266,6 +267,7 @@ html[data-tema="koyu"] .arac-pencere .hata-metin, html[data-tema="koyu"] .kucult
 }
 .birlestir-oge:hover { border-color: color-mix(in srgb, var(--vurgu) 45%, var(--kenar)); }
 .birlestir-oge.secili { border-color: var(--vurgu); box-shadow: inset 0 0 0 1px var(--vurgu); }
+.birlestir-liste.alan-seciliyor, .birlestir-liste.alan-seciliyor * { cursor: default !important; }
 .birlestir-oge .birlestir-tutamac { color: var(--metin-soluk); display: flex; justify-content: center; opacity: 0.7; }
 .birlestir-oge .birlestir-tutamac svg { width: 10px; height: 18px; fill: currentColor; }
 .birlestir-oge .sira { color: var(--metin-soluk); font-variant-numeric: tabular-nums; text-align: center; font-size: 12px; }
