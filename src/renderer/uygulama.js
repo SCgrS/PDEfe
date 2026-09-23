@@ -1113,10 +1113,12 @@ function yolAyni(a, b) { return a.replace(/\//g, '\\').toLowerCase() === b.repla
 function hataMetni(e) { return ((e && (e.message || String(e))) || 'Bilinmeyen hata').replace(/^Error invoking remote method '[^']+': (Error: )?/, ''); }
 function kacis(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
-// Bağlantılar dış tarayıcıda
+// Bağlantılar dış tarayıcıda, bir kez: kendi tıklama işleyicisi bağlantıyı açmış (varsayılanı engellemiş) öğe yeniden açılmaz
 document.addEventListener('click', (e) => {
   const a = e.target.closest('a[href^="http"]');
-  if (a) { e.preventDefault(); pdefe.cagir('kabuk:disAc', a.href); }
+  if (!a || e.defaultPrevented) return;
+  e.preventDefault();
+  pdefe.cagir('kabuk:disAc', a.href).catch(() => {});
 });
 
 // ---------------------------------------------------------------- başlat

@@ -341,8 +341,8 @@ function bolumDosya(k) {
 function bolumHakkinda(k) {
   const { pdefe } = acik.baglam;
   const surumEl = el('span', {}, '…');
+  // Tarayıcıda açılması uygulama.js'teki genel bağlantı dinleyicisinde (burada da açılınca profil iki sekmede açılıyordu)
   const gelistirici = el('a', { href: 'https://x.com/CgrShn' }, 'x.com/CgrShn');
-  gelistirici.addEventListener('click', (e) => { e.preventDefault(); pdefe.cagir('kabuk:disAc', 'https://x.com/CgrShn').catch(() => {}); });
   k.append(el('div', { class: 'ayar-hakkinda' }, [
     el('div', { class: 'ayar-hakkinda-satir' }, ['Sürüm ', surumEl]),
     el('div', { class: 'ayar-hakkinda-satir' }, ['Geliştirici: ', gelistirici]),
