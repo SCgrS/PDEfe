@@ -738,6 +738,66 @@ def test_gorsel_orijinal_kenarsiz(c):
     kaydet_sonuc("boyut_tahmini/orijinal", "kenar 0 ve 25", t0["boyut"] == t1["boyut"] and t0["ozet"] == t1["ozet"], "%d / %d bayt" % (t0["boyut"], t1["boyut"]))
 
 
+def test_kalite_buyutmez(c):
+    """Görüntü / PDF birleştir: kayıplı seviyeler (Yüksek, Orta, Düşük) özgün gösterimden (Orijinal) büyük sonuç vermez. Daha düşük
+    kaliteyle kaydedilmiş JPEG (UYAP taraması q≈75, telefon fotoğrafı) "Yüksek"te (q90) yeniden kodlanınca büyüyordu, az renkli ekran
+    görüntüsünde JPEG PNG'den büyüktü; bu durumda görsel olduğu gibi gömülür (JPEG baytları aynen). Fotoğraf benzeri PNG'de kayıplı
+    seviyeler yine küçültür. Tahmin çıktıyla uyuşur."""
+    import io
+    import random
+    from PIL import Image, ImageDraw
+    klasor = os.path.join(CIKTI, "kalite_buyutmez")
+    shutil.rmtree(klasor, ignore_errors=True)
+    os.makedirs(klasor)
+    rnd = random.Random(7)
+    # İnce ayrıntılı gri görsel (belirlenimci Mandelbrot yakın çekimi), q60, 4:2:0: yapay düz çizimler yeniden kodlanınca büyümüyor,
+    # gerçek taramalar ve fotoğraflar gibi ayrıntı gerekir
+    tarama = Image.merge("RGB", [Image.effect_mandelbrot((1240, 1754), (-0.75, 0.05, -0.70, 0.12), 250)] * 3)
+    yol_jpeg = os.path.join(klasor, "tarama_q60.jpg")
+    tarama.save(yol_jpeg, quality=60, subsampling="4:2:0")
+    tampon = io.BytesIO()
+    Image.open(yol_jpeg).save(tampon, format="JPEG", quality=90, optimize=True, subsampling="4:2:0")   # çekirdeğin "Yüksek" kodlaması
+    kaydet_sonuc("birlestir/kalite", "önkoşul: q90'a yeniden kodlama büyütür", len(tampon.getvalue()) > os.path.getsize(yol_jpeg),
+                 "%d → %d bayt" % (os.path.getsize(yol_jpeg), len(tampon.getvalue())))
+    # Ekran görüntüsü benzeri: düz renkler, çizgiler (PNG)
+    ekran = Image.new("RGB", (1600, 900), (250, 250, 250))
+    cz = ImageDraw.Draw(ekran)
+    cz.rectangle((0, 0, 1600, 60), fill=(0, 103, 192))
+    for i in range(24):
+        cz.rectangle((40, 90 + i * 32, 40 + rnd.randint(300, 1400), 110 + i * 32), fill=(60, 60, 60))
+    yol_ekran = os.path.join(klasor, "ekran.png")
+    ekran.save(yol_ekran)
+    # Fotoğraf benzeri PNG (gürültülü degrade): kayıplı seviyeler küçültmeli
+    foto = Image.merge("RGB", [Image.linear_gradient("L").resize((900, 600)), Image.linear_gradient("L").rotate(90).resize((900, 600)),
+                               Image.effect_noise((900, 600), 40)])
+    yol_foto = os.path.join(klasor, "foto.png")
+    foto.save(yol_foto)
+    for yol, ad, kayipli_kucultmeli in ((yol_jpeg, "JPEG q60", False), (yol_ekran, "ekran PNG", False), (yol_foto, "fotoğraf PNG", True)):
+        for sb in ("orijinal", "a4"):
+            b = {}
+            for kalite in ("orijinal", "yuksek", "orta", "dusuk"):
+                r, _ = c.cagir("boyut_tahmini", {"oge": {"yol": yol, "tur": "gorsel", "kalite": kalite, "sayfaBoyutu": sb, "kenar": 10}})
+                b[kalite] = r["boyut"]
+            ok = all(b[k] <= b["orijinal"] for k in ("yuksek", "orta", "dusuk"))
+            if kayipli_kucultmeli:
+                ok = ok and b["yuksek"] < b["orijinal"] and b["dusuk"] <= b["orta"] <= b["yuksek"]
+            kaydet_sonuc("birlestir/kalite", "%s, sayfa %s" % (ad, sb), ok, " ".join("%s=%d" % (k, v) for k, v in b.items()))
+    # Yüksek: JPEG baytları aynen gömülür; tahmin çıktıyla uyuşur
+    ogeler = [{"yol": y, "tur": "gorsel", "sayfaBoyutu": "orijinal"} for y in (yol_jpeg, yol_ekran, yol_foto)]
+    t, _ = c.cagir("boyut_tahmini", {"ogeler": ogeler, "kalite": "yuksek"})
+    hedef = os.path.join(klasor, "yuksek.pdf")
+    r, _ = c.cagir("birlestir", {"ogeler": ogeler, "hedef": hedef, "genelKalite": "yuksek"})
+    d = pymupdf.open(hedef)
+    try:
+        x = d[0].get_images(full=True)[0][0]
+        with open(yol_jpeg, "rb") as f:
+            aynen = d.xref_stream_raw(x) == f.read()
+    finally:
+        d.close()
+    kaydet_sonuc("birlestir/kalite", "Yüksek: JPEG aynen, tahmin ≈ çıktı", aynen and abs(t["toplam"] - r["boyut"]) <= 2048,
+                 "JPEG aynen=%s tahmin=%d çıktı=%d" % (aynen, t["toplam"], r["boyut"]))
+
+
 def main():
     global NOTLU
     exe = None
@@ -774,6 +834,7 @@ def main():
         ("boyut_tahmini", lambda: test_boyut_tahmini(c, g)),
         ("birlestir", lambda: test_birlestir(c, g)),
         ("birlestir/orijinal boyut", lambda: test_gorsel_orijinal_kenarsiz(c)),
+        ("birlestir/kalite büyütmez", lambda: test_kalite_buyutmez(c)),
         ("dondur_kaydet", lambda: test_dondur_kaydet(c)),
     ]
     for ad, f in testler:

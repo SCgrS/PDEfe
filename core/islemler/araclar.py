@@ -870,10 +870,13 @@ def _duzlestir(im):
     return im
 
 
-def _gorsel_kodla(im, kalite_adi, hedef_px=None, orijinal_bayt=None):
+def _gorsel_kodla(im, kalite_adi, hedef_px=None, orijinal_bayt=None, kaynak_alt_ornekleme=-1):
     """Görseli PDF'e gömülecek bayta çevirir. Döner: (bayt, uzanti, genislik, yukseklik).
     kalite 'orijinal': JPEG dosyası dokunulmadan (EXIF yönü gerekmiyorsa), diğerleri PNG (kayıpsız).
-    Diğer kaliteler: hedef_px'e (g, y) sığacak biçimde küçült ve JPEG'e kodla (1-bit → PNG)."""
+    Diğer kaliteler: hedef_px'e (g, y) sığacak biçimde küçült ve JPEG'e kodla (1-bit → PNG). kaynak_alt_ornekleme: kaynak
+    JPEG'in renk alt örneklemesi (Pillow get_sampling: 0 = 4:4:4, 1 = 4:2:2, 2 = 4:2:0, -1 = bilinmiyor); seviyeninkinden kabaysa
+    o kullanılır: kaynakta zaten yarım çözünürlüklü renk 4:4:4 kodlanınca yalnızca bayt harcanır (telefon fotoğrafı "Yüksek"te
+    A4'e sığdırılınca 810 → 585 KB)."""
     Image, _, _ = _pillow()
     if kalite_adi == "orijinal":
         if orijinal_bayt is not None:
@@ -895,7 +898,8 @@ def _gorsel_kodla(im, kalite_adi, hedef_px=None, orijinal_bayt=None):
     if im.mode == "1":
         im.save(buf, format="PNG", optimize=True)
         return buf.getvalue(), "png", im.width, im.height
-    im.save(buf, format="JPEG", quality=jpeg_kalite, optimize=True, progressive=False, subsampling="4:2:0" if jpeg_kalite < 85 else "4:4:4")
+    alt_ornekleme = max(2 if jpeg_kalite < 85 else 0, kaynak_alt_ornekleme if kaynak_alt_ornekleme in (0, 1, 2) else 0)
+    im.save(buf, format="JPEG", quality=jpeg_kalite, optimize=True, progressive=False, subsampling=alt_ornekleme)
     return buf.getvalue(), "jpeg", im.width, im.height
 
 
@@ -942,11 +946,12 @@ def _gorsel_sayfasi_ekle(doc, bayt, sayfa_g, sayfa_y, rect, dondurme):
     return pg
 
 
-_cozulmus_gorseller = {}   # (yol, mtime, boyut) → (bicim, exif_yon, [(kare_kipi, duz)]); yalnızca tahminde, en çok 2 görsel
+_cozulmus_gorseller = {}   # (yol, mtime, boyut) → (bicim, exif_yon, alt_ornekleme, [(kare_kipi, duz)]); yalnızca tahminde, en çok 2 görsel
 
 
 def _gorsel_kareleri(yol, onbellekli=False):
-    """Görseli açıp düzleştirilmiş karelerini verir: (bicim, exif_yon, [(kare_kipi, duz)]).
+    """Görseli açıp düzleştirilmiş karelerini verir: (bicim, exif_yon, alt_ornekleme, [(kare_kipi, duz)]); alt_ornekleme JPEG'in
+    renk alt örneklemesi (bkz. _gorsel_kodla), JPEG değilse -1.
     onbellekli: aynı görselin her kalite seviyesi için yeniden çözülmemesi için son iki görsel bellekte tutulur."""
     anahtar = None
     if onbellekli:
@@ -961,8 +966,15 @@ def _gorsel_kareleri(yol, onbellekli=False):
         exif_yon = int(im.getexif().get(0x0112, 1) or 1)
     except Exception:
         pass
+    alt_ornekleme = -1
+    if bicim in ("JPEG", "MPO"):
+        try:
+            from PIL import JpegImagePlugin
+            alt_ornekleme = JpegImagePlugin.get_sampling(im)
+        except Exception:
+            pass
     kareler = [(kare.mode, _duzlestir(kare)) for kare in _kareler(im)]
-    sonuc = (bicim, exif_yon, kareler)
+    sonuc = (bicim, exif_yon, alt_ornekleme, kareler)
     if anahtar is not None:
         while len(_cozulmus_gorseller) >= 2:
             _cozulmus_gorseller.pop(next(iter(_cozulmus_gorseller)))
@@ -982,23 +994,56 @@ def _gorsel_hazirla(oge, genel_kalite=None, onbellekli=False):
         raise ValueError("Bilinmeyen sayfa boyutu: %r" % (sayfa_boyutu,))
     kenar = float(oge.get("kenar") or 0)
     dondurme = _dondurme(oge.get("dondurme"))
-    bicim, exif_yon, kareler = _gorsel_kareleri(yol, onbellekli)
+    bicim, exif_yon, alt_ornekleme, kareler = _gorsel_kareleri(yol, onbellekli)
     sonuc = []
     for kare_kipi, duz in kareler:
-        orijinal_bayt = None
-        if kalite == "orijinal" and bicim == "JPEG" and exif_yon == 1 and len(sonuc) == 0 and duz.mode == kare_kipi:
+        # Dokunulmadan gömülebilen JPEG (EXIF yönü gerekmiyor, ilk kare, kip değişmedi): "Orijinal"in kendisi, öteki seviyelerin ölçüsü
+        ozgun_jpeg = None
+        if bicim == "JPEG" and exif_yon == 1 and len(sonuc) == 0 and duz.mode == kare_kipi:
             with open(yol, "rb") as f:
-                orijinal_bayt = f.read()
+                ozgun_jpeg = f.read()
         sayfa_g, sayfa_y, rect = _gorsel_sayfa_olcusu(duz.width, duz.height, sayfa_boyutu, kenar, dondurme)
-        hedef_px = None
-        if kalite != "orijinal":
+        if kalite == "orijinal":
+            bayt = ozgun_jpeg if ozgun_jpeg is not None else _ozgun_png(duz)[0]
+        else:
             dpi, _ = GORSEL_KALITE[kalite]
             # Görselin sayfadaki fiziksel boyutu (döndürme öncesi eksenlere göre)
             yer_g, yer_y = (rect.height, rect.width) if dondurme in (90, 270) else (rect.width, rect.height)
             hedef_px = (int(yer_g / 72.0 * dpi), int(yer_y / 72.0 * dpi))
-        bayt, _, _, _ = _gorsel_kodla(duz, kalite, hedef_px, orijinal_bayt)
+            bayt, _, _, _ = _gorsel_kodla(duz, kalite, hedef_px, kaynak_alt_ornekleme=alt_ornekleme)
+            bayt = _buyutmeyen(bayt, duz, bicim, ozgun_jpeg, sayfa_g, sayfa_y, rect, dondurme)
         sonuc.append((bayt, sayfa_g, sayfa_y, rect, dondurme))
     return sonuc
+
+
+KAYIPLI_BICIMLER = ("JPEG", "MPO", "HEIF", "HEIC", "AVIF")
+
+
+def _ozgun_png(duz):
+    """Karenin kayıpsız PNG kodu ("Orijinal" seviyesinde JPEG olmayan görsel), [bayt]. Karenin kendisinde saklanır (Pillow görseli
+    sözlük anahtarı olamaz): tahminde kare önbellekte kaldıkça dört seviye aynı kodu paylaşır."""
+    k = getattr(duz, "_pdefe_png", None)
+    if k is None:
+        k = [_gorsel_kodla(duz, "orijinal")[0]]
+        duz._pdefe_png = k
+    return k
+
+
+def _buyutmeyen(aday, duz, bicim, ozgun_jpeg, sayfa_g, sayfa_y, rect, dondurme):
+    """Kayıplı seviyenin sonucu özgün gösteriminden ("Orijinal"in gömeceğinden) küçük değilse özgün kullanılır: kalite hiç düşmez,
+    dosya büyümez. Yeniden kodlama kaynaktan daha yüksek JPEG kalitesiyle bayt harcar (UYAP taraması q≈75 kaydedilmiş, "Yüksek"
+    q90: 487 → 611 KB), ekran görüntüsü gibi az renkli görselde JPEG PNG'den büyüktür (0,09 → 0,33 MB). Karşılaştırma PDF'e gömülü
+    boyutla: JPEG olduğu gibi, PNG MuPDF'in yeniden sıkıştırdığı hâliyle (_gomulu_gorsel_boyutu). Kayıplı biçimlerden (JPEG, HEIC)
+    gelen ama dokunulmadan gömülemeyen görselde (EXIF yönü, CMYK) kayıpsız PNG hep çok büyüktür: karşılaştırılmaz."""
+    def gomulu(b):
+        return len(b) if b[:2] == b"\xff\xd8" else _gomulu_gorsel_boyutu(b, sayfa_g, sayfa_y, rect, dondurme)
+    if ozgun_jpeg is not None:
+        return ozgun_jpeg if len(ozgun_jpeg) <= gomulu(aday) else aday
+    if bicim in KAYIPLI_BICIMLER:
+        return aday
+    # PNG'nin baytı ölçü değil: MuPDF çözüp yeniden sıkıştırır, gömülü hâli büyük de küçük de olabilir (ekran görüntüsü 0,12 → 0,09 MB)
+    png = _ozgun_png(duz)[0]
+    return png if _gomulu_gorsel_boyutu(png, sayfa_g, sayfa_y, rect, dondurme) <= gomulu(aday) else aday
 
 
 def _oge_turu(oge):
@@ -1171,6 +1216,7 @@ _tahmin_onbellegi = {}       # (yol, mtime, boyut, tür, kalite, sayfaBoyutu, ke
 _gorselsiz_pdf_boyutu = {}   # (yol, mtime, boyut) → (yeniden yazılmış boyut, sayfa): görsel içermeyen PDF (seviyeden bağımsız)
 _dosya_ozetleri = {}         # (yol, mtime, boyut) → dosya içeriğinin MD5 özeti
 _bos_sayfa_boyutlari = {}    # (genişlik, yükseklik) → boş tek sayfalık belgenin kayıtlı boyutu
+_gomulu_boyutlar = {}        # (görsel özeti, sayfa, kutu, döndürme) → JPEG dışı görselin PDF'teki boyutu (_gomulu_gorsel_boyutu)
 
 
 def _dosya_ozeti(yol, dosya):
@@ -1188,8 +1234,12 @@ def _dosya_ozeti(yol, dosya):
 
 def _gomulu_gorsel_boyutu(bayt, sayfa_g, sayfa_y, rect, dondurme):
     """JPEG dışı (PNG) görselin PDF'teki gerçek boyutu. MuPDF PNG'yi çözüp kendi sıkıştırmasıyla yazar; boyutu dosyanın
-    ya da Pillow PNG'sinin boyutundan belirgin biçimde farklı olabilir (ölçüm: %2-60 büyük). Birleştirmedeki gibi tek
-    sayfalık belgeye eklenip kayıt boyutundan boş sayfanın boyutu çıkarılır."""
+    ya da Pillow PNG'sinin boyutundan belirgin biçimde farklı olabilir (ölçüm: %25 küçükten %60 büyüğe). Birleştirmedeki gibi tek
+    sayfalık belgeye eklenip kayıt boyutundan boş sayfanın boyutu çıkarılır. Aynı görsel (kayıplı seviyenin özgünle karşılaştırması
+    ve tahmindeki ölçüm) bir kez ölçülür."""
+    anahtar = (hashlib.md5(bayt).digest(), len(bayt), round(sayfa_g, 1), round(sayfa_y, 1), tuple(round(v, 1) for v in rect), dondurme)
+    if anahtar in _gomulu_boyutlar:
+        return _gomulu_boyutlar[anahtar]
     olcu = (round(sayfa_g, 1), round(sayfa_y, 1))
     if olcu not in _bos_sayfa_boyutlari:
         bos = pymupdf.open()
@@ -1201,9 +1251,13 @@ def _gomulu_gorsel_boyutu(bayt, sayfa_g, sayfa_y, rect, dondurme):
     d = pymupdf.open()
     try:
         _gorsel_sayfasi_ekle(d, bayt, sayfa_g, sayfa_y, rect, dondurme)
-        return max(0, len(d.tobytes(**KAYIT_SECENEKLERI)) - _bos_sayfa_boyutlari[olcu])
+        boyut = max(0, len(d.tobytes(**KAYIT_SECENEKLERI)) - _bos_sayfa_boyutlari[olcu])
     finally:
         d.close()
+    if len(_gomulu_boyutlar) > 64:
+        _gomulu_boyutlar.clear()
+    _gomulu_boyutlar[anahtar] = boyut
+    return boyut
 
 
 def _oge_boyut_tahmini(oge, genel):

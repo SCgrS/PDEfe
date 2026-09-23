@@ -17,9 +17,10 @@ import {
 /** Kalite seviyeleri (çekirdekteki GORSEL_KALITE ile aynı kimlikler). Açıklamalar teknik ayrıntı (çözünürlük, sıkıştırma türü) içermez. */
 export const KALITELER = [
   { id: 'orijinal', ad: 'Orijinal', aciklama: 'Görseller olduğu gibi eklenir; kalite kaybı olmaz, dosya en büyüktür.' },
-  { id: 'yuksek', ad: 'Yüksek', aciklama: 'Baskıya uygun kalite; görseller hafifçe sıkıştırılır.' },
-  { id: 'orta', ad: 'Orta', aciklama: 'Ekranda okuma ve paylaşım için iyi kalite, daha küçük dosya.' },
-  { id: 'dusuk', ad: 'Düşük', aciklama: 'En küçük dosya; görsellerde belirgin kalite kaybı olabilir.' },
+  // Kayıplı seviyede sıkıştırınca küçülmeyen görsel (zaten sıkıştırılmış JPEG, ekran görüntüsü) olduğu gibi eklenir (çekirdek _buyutmeyen)
+  { id: 'yuksek', ad: 'Yüksek', aciklama: 'Baskıya uygun kalite; görseller hafifçe sıkıştırılır. Sıkıştırınca küçülmeyen görsel olduğu gibi eklenir.' },
+  { id: 'orta', ad: 'Orta', aciklama: 'Ekranda okuma ve paylaşım için iyi kalite, daha küçük dosya. Sıkıştırınca küçülmeyen görsel olduğu gibi eklenir.' },
+  { id: 'dusuk', ad: 'Düşük', aciklama: 'En küçük dosya; görsellerde belirgin kalite kaybı olabilir. Sıkıştırınca küçülmeyen görsel olduğu gibi eklenir.' },
 ];
 export const GORSEL_UZANTILAR = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'tif', 'tiff', 'webp', 'heic', 'heif'];
 const UZANTILAR = ['pdf', ...GORSEL_UZANTILAR];
