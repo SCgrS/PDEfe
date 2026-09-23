@@ -469,7 +469,9 @@ body.okuma-modu.ust-goster #arac-cubugu { display: flex; position: absolute; top
 .yazi-bicim .ornek:not(.arka) { background-image: none; }
 /* Dolgu rengi düğmesi ve paleti (Dolgusuz, hazır renkler, Diğer renk); Windows renk seçicisinin girdisi görünmez, düğmenin altında */
 .yazi-bicim .dolgu-kap { position: relative; display: inline-flex; }
-.yazi-bicim button.dolgu-dugme { width: auto; padding: 0 1px 0 4px; gap: 1px; }
+/* button.ikon.kucuk'un 26 px genişliği örneği sıkıştırıp daraltıyordu (12×18, yamuk görünüyordu): özgüllük ondan yüksek, içerik daralmaz */
+.yazi-bicim button.ikon.dolgu-dugme { width: auto; padding: 0 2px 0 4px; gap: 1px; }
+.yazi-bicim button.dolgu-dugme > * { flex-shrink: 0; }
 .yazi-bicim button.dolgu-dugme svg.ok { width: 12px; height: 12px; opacity: 0.7; }
 .yazi-bicim button.dolgu-dugme[aria-expanded="true"] { background: var(--basili); }
 .yazi-bicim .dolgu-kap input.arka-renk { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; border: 0; padding: 0; }
