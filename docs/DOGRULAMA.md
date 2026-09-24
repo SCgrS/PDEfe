@@ -234,3 +234,13 @@ Kopyalama test örneğinde sistem panosuna dokunmadan sınandı; UYAP Doküman E
    Girintisiz paragrafa yapıştırınca da satırlar birleşik olmalı.
 2. **Başka belgeler.** Bir Word PDF'inden, bir bilirkişi raporundan ve madde imli bir listeden kopyalayın: paragraflar eskisi gibi
    ayrı, madde imli satırlar ve başlıklar ayrı paragraf olmalı.
+
+## 20. 0.1.11: otomatik testlerin sınayamadıkları
+Kopyalama test örneğinde sistem panosuna dokunmadan sınandı; UYAP Doküman Editörü'ne yapıştırmaya bakılmadı.
+1. **Kanunda bölüm başlığı.** `1.5.6098.pdf`'in 15. sayfasında "Önemli ölçüde tehlike arzeden…" ile "Haksız fiil dolayısıyla" arasını
+   seçip kopyalayın; UYAP Doküman Editörü'nde paragraf aralığı 0 olan bir belgeye yapıştırın: "…isteyebilirler." ile "C. Zamanaşımı"
+   arasında bir boş satır olmalı; "C. Zamanaşımı", "I. Kural" ve "MADDE 72-" alt alta, aralarında boş satır olmadan gelmeli.
+2. **Sayfa geçişi.** 15. sayfanın son paragrafından ("Aynı şekilde…") 16. sayfadaki "II. Tazminat hükmünün değiştirilmesi" satırına
+   kadar seçip yapıştırın: başlıktan önce bir boş satır olmalı.
+3. **UYAP belgesi.** Bir mahkeme kararının ya da bilirkişi raporunun başlığını ve taraf bilgilerini kopyalayın: PDF'te boş satır olan
+   yerlerde boş satır olmalı, paragraflar arasındaki küçük aralıkta olmamalı; sayfa sonunda süren paragraf tek paragraf kalmalı.

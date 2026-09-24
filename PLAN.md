@@ -477,3 +477,44 @@ Ayrıntı: CHANGELOG.md. Kullanıcı: UDF'de girinti ayarı olan paragrafa yapı
   belgesindeki seçim). test/senaryo15.mjs 5/5: test örneğinde gerçek fareyle seçim, sistem panosuna dokunmayan kopyalama olayı;
   renderer metni ve çekirdeğin pano:metin kaydı üç paragraf. araclar_testi 131/131.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 19.
+
+### Revizyon 0.1.11 (2026-09-24, kullanıcı isteği)
+Ayrıntı: CHANGELOG.md. Kullanıcı: kanundan kopyalanan metinde boşluklar yok; UYAP Doküman Editörü'nde paragraf aralığı 0,4 iken de 0
+iken de "…isteyebilirler." ile "C. Zamanaşımı" arasındaki boş satır gelmiyor (iki ekran görüntüsü, 1.5.6098.pdf s.15). Başlıkların
+kalınlığı kapsam dışı (kullanıcı kararı: düz metin kalır).
+- [x] **Kök neden**: temizMetin paragrafları tek satır sonuyla ayırıyor (0.1.x'te çift satır sonu her paragraf arasına boş paragraf
+  koyuyordu), metin_sec de belgedeki boş satırı paragraf arasından ayırmıyordu: boşluk bilgisi hiçbir yerde taşınmıyordu.
+- [x] **Ölçüm**: TBK'de (Word çıktısı) boş paragraf bir boşluk karakteri olarak ayrı PyMuPDF bloğudur (get_text("words") vermez);
+  satır aralığı 18,24, boş satırlı aralık 36,4–36,5 (2,0 kat). 342 PDF'te sayfanın ortancasına göre oranların dağılımı 2,0'da
+  tepe yapıyor, 1,1–1,95 arası sürekli (paragraf aralığı, başlık, tablo). Paragraf aralığı: UYAP'ta 0,4 ≈ 1,65 kat (ekran
+  görüntüsünden), bir Word dilekçesinde 1,78–1,82 kat, boş paragraf yok. Sayfanın ortancası yetmedi: TMK s.113 ve s.120'de 1,2
+  aralıklı metinde tek aralıklı boş paragraf 1,83 kat; TTK s.55'te aralık sayfa içinde 17,64'ten 16,56'ya iniyor. Bu yüzden yerel
+  aralık: üstteki satırın üstündeki ve alttakinin altındaki komşuya uzaklığın küçüğü (benzer boyda ve yatayda örtüşen komşu).
+- [x] **Çekirdek** (y_metin_sec): alt alta iki satır arasında boş satır, fark ≥ 1,9 × yerel aralık ya da arada boş paragraf
+  (yalnızca boşluktan oluşan satır; get_text("dict", TEXTFLAGS_TEXT), gerekince bir kez) varken fark ≥ 1,7 × min(yerel aralık,
+  sayfanın ortancası) (alt alta tek satırlık başlıklarda iki komşu da boş satırla ayrık, yerel aralık boş satırı içerir). Çıktıda
+  iki boş satır (paragraf arası ve boş satır). bas_bosluk / son_bosluk: seçimin sayfadaki ilk satırının hemen üstünde, son
+  satırının hemen altında sütununda boş paragraf var mı (ortası satırın ortasından en çok 1,3 satır aralığı uzakta). Kanunlarda
+  sayfa sonundaki boş paragraf 0,97–1,09 aralık uzakta; UYAP (iText) sayfanın sonuna, paragraf sonraki sayfada sürerken de son
+  satırın 1,56–2,25 aralık altına boşluk satırı yazıyor: ilk denemedeki 1,5 penceresi iki dilekçede paragrafı sayfa sonunda böldü.
+- [x] **temizMetin**: hamda art arda iki ya da daha çok tamamen boş satır, iki paragrafın arasına bir boş paragraf (en çok bir).
+  Yalnızca boşluktan oluşan satır sayılmaz: renderer'ın tarayıcı seçimi yolunda (Tümünü seç) boşluk öğeleri satır olabilir.
+  **sayfaMetinleriniBirlestir** (metin.js; uygulama.js kopyalama olayı): sayfaların çekirdek metinleri tek satır sonuyla, önceki
+  sayfa son_bosluk ya da sonraki bas_bosluk ise iki boş satırla birleşir.
+- [x] **Renderer'ın hızlı metni** (secimYapiliMetni) değişmedi, boş satır taşımaz: PDF.js metin katmanı boş paragraf satırını
+  vermiyor ("" ve hasEOL), yalnızca geometriyle ikinci bir kural gerekirdi. Çekirdeğin metni test örneğinde kopyalamadan 14–15 ms
+  sonra panoya geçiyor (çekirdek boşken).
+- [x] Karşılaştırma: 342 PDF'in ilk 6 sayfası ve üç kanunun tamamı (1423 sayfa, tamamı seçilmiş gibi) ve 459 ardışık sayfa çifti:
+  1297 sayfada yalnızca boş satır eklendi (5643), 51 sayfada boş satırın iki yanı artık ayrı paragraf (hepsi önceden yanlış
+  birleşiyordu: taraf bilgileri tablosu, tablodan başlığa geçiş, özgeçmiş bölümleri, "zorunlu değildir. d. …"), 75 sayfa aynı.
+  Sınırdaki kararlar (1,9–1,95 kat, boş paragraf kuralı) tek tek okundu; bir makale sayfası ve iki UYAP dilekçesi görüntüyle
+  karşılaştırıldı: boş satırlar görüntüdekiyle aynı yerde. Kanunlarda TBK 627, TMK 1023, TTK 1515 boş satır; TBK'de 620'si
+  1,9–2,1 kat, en küçüğü 1,94; TMK'de 8'i yalnızca boş paragraf kuralıyla.
+- [x] Testler: test/kopyalama_testi.py 20/20 (yeni: boş paragraf, yalnızca bir satırlık boşluk, 1,83 kat boş paragraflı ve
+  boş paragrafsız, 1,65 kat boşluk karakterli, çift satır aralığı, sayfa geçişi, sayfada süren paragraf, UYAP gibi sayfa sonu
+  boşluk satırı, çok satırlı bloklar arasında bir satır boşluk, TBK s.15, TBK s.15→16, TMK s.120; "altlık" vakasında altlığın
+  önünde artık boş satır var, "çok satırlı bloklar" vakasının PDF'inde paragraflar arasında bir satırdan büyük boşluk vardı: 8 pt'ye
+  indirildi). test/senaryo16.mjs 6/6 (test örneğinde gerçek fareyle aynı sayfada ve sayfa geçişinde; çekirdeğin pano:metin
+  kaydında boş paragraf), senaryo15 5/5, araclar_testi 131/131. Test örneğinde kullanıcının TBK'sinin kopyasıyla s.15 ve s.15→16
+  seçimleri: boş satır var.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 20.

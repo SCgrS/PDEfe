@@ -3,6 +3,14 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.11 — 2026-09-24
+
+### Kopyalama
+- Belgedeki boş satırlar kopyalanan metne geçiyor. Kanun metinlerinde bölüm ve madde başlıklarından önceki boşluk ("…isteyebilirler." ile "C. Zamanaşımı" arası gibi) UYAP Doküman Editörü'ne yapıştırınca, paragraf aralığı 0 olsa da, bir boş satır olarak görünür. Önceden bütün paragraflar alt alta geliyordu. Mahkeme kararlarında, bilirkişi raporlarında ve dilekçelerde başlıkların, taraf bilgilerinin ve maddelerin arasındaki boş satırlar da korunur.
+- Boş satır bir sayfanın sonuna ya da başına denk gelmişse de korunur: kanunun bir sayfasının sonundan sonraki sayfanın başlığına kadar seçilen metinde başlığın önünde boş satır olur. Sonraki sayfada süren paragraf eskisi gibi tek paragraf kalır.
+- Yalnızca gerçekten bir satır kadar boşluk olan yerler boş satır sayılır. Paragraflar arasındaki küçük aralık (UYAP'taki paragraf aralığı gibi) ve çift satır aralıklı metnin satır araları boş satır olarak gelmez.
+- Boş satırın iki yanındaki satırlar artık birbirine yapışmıyor. Önceden bir başlık ya da tablo satırı, boşluğun ardından gelen satırla tek paragraf oluyordu ("DAVACI : … VEKİLİ", "…zorunlu değildir. d. Mirasbırakan…").
+
 ## 0.1.10 — 2026-09-24
 
 ### Kopyalama

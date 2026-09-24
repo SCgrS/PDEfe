@@ -34,7 +34,9 @@ const BASLIK = /^(MADDE\s+\d+|GEÇİCİ MADDE|BİRİNCİ|İKİNCİ|ÜÇÜNCÜ|D�
  * Ham (satır satır) metni temiz paragraf metnine çevirir:
  * satır sonu tirelerini birleştirir, aynı paragraftaki satırları birleştirir, boşlukları sadeleştirir,
  * NFC normalizasyonu ve bozuk glif düzeltmesi yapar. Paragraflar tek satır sonuyla ayrılır: UDF/UYAP
- * editörü her satır sonunu paragraf yapar, çift satır sonu araya boş paragraf bırakıyordu.
+ * editörü her satır sonunu paragraf yapar, çift satır sonu araya boş paragraf bırakıyordu. Hamda art arda
+ * iki (ya da daha çok) boş satır belgedeki boş satırdır (çekirdeğin metin_sec'i koyar): iki paragrafın arasına
+ * bir boş paragraf girer (kanunda bölüm başlığından önceki boşluk). Yalnızca boşluktan oluşan satır sayılmaz.
  */
 export function temizMetin(ham) {
   if (!ham) return '';
@@ -48,11 +50,13 @@ export function temizMetin(ham) {
   const satirlar = hamSatirlar.map((x) => ({ metin: x.replace(/ {2,}/g, ' ').trim(), girintili: /^ {2,}\S/.test(x) }));
   const enUzun = Math.max(1, ...satirlar.map((x) => x.metin.length));
   const paragraflar = [];
-  let cur = '';
+  let cur = '', bos = 0;   // bos: art arda boş satır sayısı
   const bitir = () => { if (cur.trim()) paragraflar.push(cur.trim()); cur = ''; };
   for (let i = 0; i < satirlar.length; i++) {
     const { metin: satir, girintili } = satirlar[i];
-    if (!satir) { bitir(); continue; }
+    if (!satir) { bitir(); if (!hamSatirlar[i]) bos++; continue; }
+    if (bos >= 2 && paragraflar.length) paragraflar.push('');   // belgedeki boş satır: boş paragraf
+    bos = 0;
     const sonrakiK = satirlar[i + 1];
     const sonraki = sonrakiK ? sonrakiK.metin : '';
     if (girintili && cur) bitir();                                     // girintili satır yeni paragraf
@@ -70,6 +74,22 @@ export function temizMetin(ham) {
   }
   bitir();
   return paragraflar.map((p) => p.replace(/ {2,}/g, ' ').replace(/ ([,.;:!?])/g, '$1')).join('\n');
+}
+
+/**
+ * Çekirdeğin sayfa sayfa metin_sec sonuçlarını ({metin, bas_bosluk, son_bosluk}, sayfa sırasıyla) temizMetin'e verilecek ham metne
+ * birleştirir. Sayfalar tek satır sonuyla birleşir (paragraf sonraki sayfada sürebilir); önceki sayfadaki seçim boş paragrafla
+ * bitiyor ya da sonrakindeki boş paragrafla başlıyorsa araya iki boş satır (belgedeki boş satır) girer. Metni boş sayfa atlanır.
+ */
+export function sayfaMetinleriniBirlestir(sonuclar) {
+  let ham = '', sonBosluk = false;
+  for (const r of sonuclar) {
+    if (!r?.metin?.trim()) continue;
+    if (ham) ham += sonBosluk || r.bas_bosluk ? '\n\n\n' : '\n';
+    ham += r.metin;
+    sonBosluk = !!r.son_bosluk;
+  }
+  return ham;
 }
 
 /**

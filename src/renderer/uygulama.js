@@ -4,7 +4,7 @@ import { SekmeCubugu } from './sekmeler.js';
 import { SolPanel } from './panel.js';
 import { DurumCubugu, boyutMetni, sayfaKutusuBagla, sayfaKutusuYaz } from './durum.js';
 import { Arama } from './arama.js';
-import { temizMetin, hamMetin, secimDikdortgenleri, satirlaraBirlestir, paragrafSec, secimHamMetni, secimYapiliMetni, surukleSecimiBagla } from './metin.js';
+import { temizMetin, hamMetin, sayfaMetinleriniBirlestir, secimDikdortgenleri, satirlaraBirlestir, paragrafSec, secimHamMetni, secimYapiliMetni, surukleSecimiBagla } from './metin.js';
 import { NotYoneticisi, VURGU_RENKLERI } from './notlar.js';
 import { KomutYigini, Komut } from './komutlar.js';
 import { ayarlarPenceresiAc, ayarlarPenceresiKapat } from './ayarlarPenceresi.js';
@@ -947,7 +947,7 @@ document.addEventListener('copy', (e) => {
   const satirlar = satirlaraBirlestir(secimDikdortgenleri());
   if (!satirlar.size) return;
   (async () => {
-    const parcalar = [];
+    const sonuclar = [];
     for (const [sayfa, liste] of [...satirlar.entries()].sort((a, b2) => a[0] - b2[0])) {
       const g = b.gorunum;
       const s = g.sayfalar[sayfa - 1];
@@ -963,10 +963,10 @@ document.addEventListener('copy', (e) => {
       }
       // Ekrandaki sıra değil girdinin kaynağı: sayfa silinmiş/sıralanmış/eklenmişse b.yol'un aynı numaralı sayfası başka sayfadır.
       // Kaynak istek anında okunur (kayıt kaynakYeniden ile anlık kopyaya çevirmiş olabilir)
-      const r = await cekirdek('metin_sec', { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa, kutular });
-      if (r.metin.trim()) parcalar.push(r.metin);
+      sonuclar.push(await cekirdek('metin_sec', { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa, kutular }));
     }
-    const cekirdekMetin = temizMetin(parcalar.join('\n'));
+    // Sayfa geçişinde boş paragraf varsa (bölüm arası sayfa sonuna denk gelmiş) araya boş satır
+    const cekirdekMetin = temizMetin(sayfaMetinleriniBirlestir(sonuclar));
     // Çekirdek sürümü anlamlı biçimde farklı ve boş değilse panoyu güncelle
     if (cekirdekMetin && cekirdekMetin.length >= metin.length * 0.5 && cekirdekMetin.length <= metin.length * 1.5 + 40) await pdefe.cagir('pano:metin', cekirdekMetin);
   })().catch((err) => console.warn('Temiz kopya alınamadı', err));

@@ -254,6 +254,13 @@ MADDE_IMI = re.compile(r"^([■-◿•‣⁃∙➢➤✓✔❖-]|[-–—]
 NUMARALI_MADDE = re.compile(r"^\(?(\d{1,3}|[a-zçğıöşü]|[IVX]{1,6}|[A-ZÇĞİÖŞÜ])[.)-]$")
 MADDE_ONCESI = re.compile(r"[\d.:;!?…)\"”’]$")
 NOKTALI_DOLGU = re.compile(r"(\.\s?){5,}|…{2,}")   # içindekiler satırı: başlık …… sayfa
+# Boş satır: alt alta iki satırın üstten üste uzaklığı çevredeki satır aralığının (_yerel_aralik) BOS_SATIR katı ya da fazlasıysa
+# araya bir satır sığar. Arada boş paragraf varsa (yalnızca boşluktan oluşan satır: Word ve UYAP boş paragrafı bir boşluk karakteriyle
+# yazar) BOS_SATIR_IZLI katı yeter: tek aralıklı boş paragraf 1,2 aralıklı metinde 1,83 kat tutar (TMK s.113, s.120). Paragraf aralığı
+# boş satır sayılmaz: UYAP'ta 0,4 ≈ 1,65 kat, bir Word dilekçesinde 1,78–1,82 kat ve orada boş paragraf yok. Ölçüm (0.1.11): TBK'de
+# 627 boş satırın 620'si 1,9–2,1 kat, en küçüğü 1,94; TMK'de 1023 boş satırın 8'i yalnızca boş paragrafla bulunur
+BOS_SATIR = 1.9
+BOS_SATIR_IZLI = 1.7
 
 
 def _satir_gruplari(sozcukler):
@@ -302,6 +309,40 @@ def _satir_araligi(tum):
     return statistics.median(farklar) if farklar else None
 
 
+def _komsu_uzakligi(s, tum, yukari):
+    """s satırından yatayda örtüşen, benzer boydaki (yüksekliği en az 0,7 katı: üst simge ya da dipnot imi değil) en yakın üstteki
+    (yukari) ya da alttaki satıra üstten üste uzaklık (pt) ya da None. Aynı hizadakiler (yarım satırdan yakın) sayılmaz."""
+    h = s["y1"] - s["y0"]
+    en = None
+    for t in tum:
+        if t is s or min(s["x1"], t["x1"]) - max(s["x0"], t["x0"]) <= 0 or t["y1"] - t["y0"] < 0.7 * h:
+            continue
+        d = s["y0"] - t["y0"] if yukari else t["y0"] - s["y0"]
+        if d > 0.5 * h and (en is None or d < en):
+            en = d
+    return en
+
+
+def _yerel_aralik(ust, alt, tum):
+    """Alt alta iki satırın arasındaki boşluğu ölçmeye yarayan satır aralığı: üsttekinin üstündeki ve alttakinin altındaki komşusuna
+    uzaklıkların küçüğü; ikisi de yoksa None. Sayfanın ortancası yetmez: aynı sayfada aralık değişebilir (TTK s.55'te 17,64 ve 16,56;
+    dipnotlar) ve çift aralıklı paragrafın satırları olağan aralıktadır."""
+    adaylar = [d for d in (_komsu_uzakligi(ust, tum, True), _komsu_uzakligi(alt, tum, False)) if d]
+    return min(adaylar) if adaylar else None
+
+
+def _bos_paragraflar(pg):
+    """Sayfadaki yalnızca boşluktan oluşan metin satırlarının kutuları [(x0, y0, x1, y1)]: boş paragraflar. get_text("words") bunları
+    vermez; görseller okunmaz (TEXTFLAGS_TEXT)."""
+    kutular = []
+    for b in pg.get_text("dict", flags=pymupdf.TEXTFLAGS_TEXT)["blocks"]:
+        for ln in b.get("lines", ()):
+            metin = "".join(s["text"] for s in ln["spans"])
+            if metin and not metin.strip():
+                kutular.append(tuple(ln["bbox"]))
+    return kutular
+
+
 def y_metin_sec(p):
     """Verilen satır dikdörtgenlerindeki (PDF koordinatı, üst-sol köken) sözcükleri okuma sırasıyla döndürür. Sözcük, merkezi
     kutulardan birinin içindeyse seçilmiş sayılır (böylece komşu satırlardan yinelenen parça gelmez). Çıktıda paragraf girintisi
@@ -313,14 +354,18 @@ def y_metin_sec(p):
     içindekiler satırından ve noktalamadan sonraki numaralı maddeden önce paragraf arası konur; sayfa başlığı ve altlığı (içerikte
     başka yerde yazılmış) ayrı kalır. Girinti de sütunun sol kenarına göre ölçülür. 0.1.9'a dek bu belgelerde her satır
     ayrı paragraf çıkıyor, girintiler görünmüyordu (tek satırlık blok kendi kenarına göre ölçülüyordu); UDF'ye yapıştırınca her
-    satır ayrı paragraf oluyordu."""
+    satır ayrı paragraf oluyordu.
+    Boş satır (bkz. BOS_SATIR): alt alta iki satırın arasına bir satır sığıyorsa ya da arada boş paragraf varsa paragraf arası iki boş
+    satırla belirtilir; temizMetin oraya boş paragraf koyar. Seçimin bu sayfadaki ilk satırının hemen üstünde ya da son satırının
+    hemen altında boş paragraf varsa bas_bosluk / son_bosluk true döner: renderer sayfaların metnini birleştirirken sayfa geçişine
+    boş satır koyar. 0.1.10'a dek boş satırlar kayboluyordu: kanunda bölüm başlığından önceki boşluk UDF'ye yapıştırınca yoktu."""
     doc = onbellek.al(p["yol"])
     pg = doc[int(p["sayfa"]) - 1]
     kutular = [pymupdf.Rect(*k) for k in p["kutular"]]
     tum = pg.get_text("words")
     secili = [w for w in tum if any(k.x0 <= (w[0] + w[2]) / 2 <= k.x1 and k.y0 <= (w[1] + w[3]) / 2 <= k.y1 for k in kutular)]
     if not secili:
-        return {"metin": ""}
+        return {"metin": "", "bas_bosluk": False, "son_bosluk": False}
     sayfa_satirlari = _satir_gruplari(tum)
     tum_satirlar = list(sayfa_satirlari.values())
     blok_satir_sayisi, blok_sol = {}, {}
@@ -329,23 +374,64 @@ def y_metin_sec(p):
         blok_sol[s["blok"]] = min(blok_sol.get(s["blok"], 1e9), s["x0"])
     sayfa_sol = min(blok_sol.values()) if blok_sol else 0
     tek_satirli = lambda blok: blok_satir_sayisi.get(blok, 0) <= 1
-    aralik = None   # yalnızca her satırı ayrı blok olan akışta gerekir
     sutunlar = {}   # satır anahtarı → (sol, sağ)
     sutun = lambda anahtar: sutunlar.get(anahtar) or sutunlar.setdefault(anahtar, _sutun(sayfa_satirlari[anahtar], tum_satirlar))
+    olcu = {}   # gerekince bir kez hesaplananlar: sayfanın olağan satır aralığı, boş paragrafları
+
+    def sayfa_araligi():
+        if "aralik" not in olcu:
+            olcu["aralik"] = _satir_araligi(tum_satirlar) or 0
+        return olcu["aralik"]
+
+    def bos_paragraf(y0, y1, sol, sag):
+        """Ortası [y0, y1] yüksekliğinde olan ve [sol, sag] sütununa değen boş paragraf var mı."""
+        if "bos" not in olcu:
+            olcu["bos"] = _bos_paragraflar(pg)
+        return any(y0 <= (b[1] + b[3]) / 2 <= y1 and b[0] < sag + 2 and b[2] > sol - 2 for b in olcu["bos"])
+
+    def bos_satir(ust_anahtar, alt_anahtar):
+        """Alt alta iki satırın arasında boş satır var mı (bkz. BOS_SATIR)."""
+        ust, alt = sayfa_satirlari[ust_anahtar], sayfa_satirlari[alt_anahtar]
+        fark = alt["y0"] - ust["y0"]
+        # Satır aralığı satır boyundan pek kısa olmaz: bundan yakın satırlar ölçülmeden geçilir (olağan aralık)
+        if fark < 1.3 * min(ust["y1"] - ust["y0"], alt["y1"] - alt["y0"]):
+            return False
+        olagan = _yerel_aralik(ust, alt, tum_satirlar) or sayfa_araligi()
+        if not olagan:
+            return False
+        if fark >= BOS_SATIR * olagan:
+            return True
+        # Boş paragraf varsa daha küçük boşluk yeter. İki komşu da boş satırla ayrıksa (alt alta tek satırlık başlıklar) yerel aralık
+        # boş satırı da içerir: sayfanın ortancası daha küçükse o
+        (sol, sag), (sol2, sag2) = sutun(ust_anahtar), sutun(alt_anahtar)
+        return fark >= BOS_SATIR_IZLI * min(olagan, sayfa_araligi() or olagan) and bos_paragraf(ust["y1"] - 1, alt["y0"] + 1, min(sol, sol2), max(sag, sag2))
+
+    def bitisik_bos_paragraf(anahtar, alta):
+        """Satırın hemen altında (alta) ya da üstünde, sütununda boş paragraf var mı: ortası satırın dışında ve satırın ortasından en çok
+        1,3 satır aralığı uzakta (kanunlarda sayfa sonundaki boş paragraf 0,97–1,09). UYAP (iText) sayfanın sonuna, paragraf sonraki sayfada
+        sürerken de son satırın 1,56–2,25 satır aralığı altına bir boşluk satırı yazar: o boş satır değildir. Satır aralığı, komşu satıra
+        uzaklık ile sayfanın ortancasının küçüğü (komşu boş satırla ayrık olabilir)."""
+        s = sayfa_satirlari[anahtar]
+        adaylar = [x for x in (_komsu_uzakligi(s, tum_satirlar, alta), sayfa_araligi()) if x]
+        olagan = min(adaylar) if adaylar else s["y1"] - s["y0"]
+        orta, (sol, sag) = (s["y0"] + s["y1"]) / 2, sutun(anahtar)
+        return bos_paragraf(s["y1"] - 1, orta + 1.3 * olagan, sol, sag) if alta else bos_paragraf(orta - 1.3 * olagan, s["y0"] + 1, sol, sag)
+
     sirali = sorted(_satir_gruplari(secili).items(), key=lambda kv: (kv[1]["y0"], kv[1]["x0"]))
     cikti = []
     onceki = None   # önceki satırın anahtarı; satırlar sayfadaki tam hâliyle (seçilmeyen sözcükleri dahil) ölçülür
     for anahtar, s in sirali:
         tam = sayfa_satirlari[anahtar]
         blok = s["blok"]
-        if onceki is not None and blok != onceki[0]:
+        if onceki is not None and bos_satir(onceki, anahtar):
+            cikti += ["", ""]   # paragraf arası ve boş satır
+        elif onceki is not None and blok != onceki[0]:
             ayir = True
             # Satır başına blok: aynı sütunda, olağan aralıkla alta geçen satır, üstteki dolu satırın devamı olabilir
             if tek_satirli(blok) and tek_satirli(onceki[0]):
                 ust = sayfa_satirlari[onceki]
                 (sol, sag), (sol2, _) = sutun(onceki), sutun(anahtar)
-                if aralik is None:
-                    aralik = _satir_araligi(tum_satirlar) or 0
+                aralik = sayfa_araligi()
                 fark = tam["y0"] - ust["y0"]
                 ilk = min(tam["sozcukler"], key=lambda x: x[0])[4]
                 ust_metin = " ".join(x[4] for x in sorted(ust["sozcukler"], key=lambda x: x[0]))
@@ -362,7 +448,8 @@ def y_metin_sec(p):
         kenar = sutun(anahtar)[0] if tek_satirli(blok) else min(blok_sol.get(blok, sayfa_sol), sayfa_sol + 40)
         cikti.append(("    " if ws[0][0] - kenar > 8 else "") + " ".join(x[4] for x in ws))
         onceki = anahtar
-    return {"metin": "\n".join(cikti)}
+    return {"metin": "\n".join(cikti), "bas_bosluk": bitisik_bos_paragraf(sirali[0][0], False),
+            "son_bosluk": bitisik_bos_paragraf(sirali[-1][0], True)}
 
 
 def y_sayfa_metni(p):
