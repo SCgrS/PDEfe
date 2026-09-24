@@ -3,6 +3,12 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.10 — 2026-09-24
+
+### Kopyalama
+- Her satırı ayrı parça olarak yazılmış PDF'lerden (mevzuat.gov.tr kanun metinleri, bazı Word ve tarayıcı çıktıları, taranıp metne çevrilmiş belgeler) kopyalanan metinde paragrafın satırları artık birleşiyor. Önceden her satır ayrı paragraf çıkıyordu: UYAP Doküman Editörü'nde girinti ayarı olan bir paragrafa yapıştırınca her satır girintili ve aralıklı başlıyor, taşan sözcük alt satıra düşüyordu. Paragraf başı girintileri de tanınıyor; başlıklar, madde imli satırlar, içindekiler satırları ve sayfa altlıkları ayrı paragraf olarak kalıyor.
+- Satır sonunda tireyle bölünmüş sözcükler (kitap dizgisindeki "insan- / lara") birleşirken araya boşluk girmiyor: "insanlara".
+
 ## 0.1.9 — 2026-09-23
 
 ### Ayarlar

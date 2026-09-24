@@ -446,3 +446,34 @@ ayarlar sekmelerinin adı içeriğiyle örtüşsün.
   Masaüstü\PDF DENEME\DENEME PDF (2).pdf bu makinede yok); not kodunda (notlar.js, notlar.py) yorum dışında değişen satır yalnızca
   VARSAYILAN_SARI, URETICI_SURUMU ve kilitli dosya iletisi.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 18.
+
+### Revizyon 0.1.10 (2026-09-24, kullanıcı geri bildirimi)
+Ayrıntı: CHANGELOG.md. Kullanıcı: UDF'de girinti ayarı olan paragrafa yapıştırılan metinde gereksiz boşluklar (iki ekran görüntüsü:
+1.5.6098.pdf s.15'ten "tehlike … bile," seçimi, UYAP Doküman Editörü'nde girintili ve girintisiz paragrafa yapıştırılmış).
+- [x] **Kök neden**: kopyalamada önce renderer'ın metni (secimYapiliMetni → temizMetin; bu seçimde doğru, üç paragraf) panoya
+  konuyor, birkaç yüz ms sonra çekirdeğin metni (metin_sec → temizMetin) uzunluk tutunca üzerine yazılıyordu. metin_sec (0.1.0'dan
+  kalma) PyMuPDF blok değişiminde boş satır koyuyor, girintiyi bloğun kendi sol kenarına göre ölçüyordu. Bu PDF'te (mevzuat.gov.tr,
+  Word çıktısı) her satır ayrı blok: her satırın arasına boş satır girdi, tek satırlık blokta girinti hiç görünmedi, temizMetin her
+  satırı ayrı paragraf yaptı. UDF editörü her satır sonunu paragraf yapar: girintili paragrafta her satır girintili ve aralıklı
+  başladı, girintiyle taşan "bu" alt satıra düştü; girintisiz paragrafta da satırlar birleşmemişti (göze batmıyordu).
+- [x] **Çekirdek** (y_metin_sec): çok satırlı bloklarda davranış aynı. Tek satırlık iki blok arasında boş satır konmaz, satır
+  üsttekinin devamı sayılır, koşullar: aynı sütun (sol kenarları aynı: sütunda en az iki satırın başladığı en soldaki x; yatay
+  örtüşmeyle ölçülünce girintili satırın altındaki kısa son satır "başka sütun" çıkıyordu), olağan satır aralığı (sayfanın satırdan
+  satıra uzaklıklarının ortancası) en çok 1,3 katı, blok numarası 1–3 artıyor (sayfa başlığı / altlığı içerikte ayrı yazılmış:
+  bilirkişi raporunda "DENEME 9. ASLİYE TİCARET MAHKEMESİ" altlığı blok 0), üstteki satır sütunun sağına en az %80 yaklaşıyor
+  (%60'ta ortalanmış başlık, adres, kitap kapağı birleşiyordu), alttaki satır madde imiyle (■ • ➢ ✓, Symbol / Wingdings özel alanı,
+  "- ") başlamıyor, iki satırın hiçbirinde içindekiler noktalı dolgusu yok, noktalama ya da sayıyla biten satırdan sonra numaralı
+  madde gelmiyor ("Kanunun / 49. maddesi" birleşir), üstteki satır büyük harfli başlık değil. Girinti tek satırlık blokta sütunun sol
+  kenarına göre.
+- [x] **temizMetin**: satır sonundaki yumuşak tire (U+00AD) glifDuzelt silmeden önce sözcüğü boşluksuz birleştirir (kitaplarda
+  "insan lara" çıkıyordu; satırlar birleşince görünür oldu).
+- [x] Karşılaştırma: 342 PDF'in (test/pdf, Masaüstü\PDF DENEME, İndirilenler) ilk 6 sayfası ve 1.5.6098 s.14–16, sayfanın tamamı
+  seçilmiş gibi: panoya giden metin 687 sayfanın 35'inde değişti, hepsinde paragraf sayısı azaldı (satırlar birleşti). Birleşen
+  satır sınırları tek tek okundu: mevzuat, dilekçe, bilirkişi raporu, taranmış yazı, özgeçmiş, kitaplar doğru; kalan kuşkulu tek
+  örnek bir kitap künyesinde adres satırının altındaki satıra yapışması. Kurallar eklenmeden önce bulunan yanlışlar (broşürde madde
+  imleri, içindekiler, altlık, kitap kapağı, adres satırı) giderildi.
+- [x] Testler: test/kopyalama_testi.py 7/7 (sentetik satır başına blok PDF'leri: girintili paragraflar ve ortadan seçim, kısa son
+  satır, madde imi / başlık / içindekiler, altlık ve paragraf boşluğu, çok satırlı bloklar değişmedi, yumuşak tire; kullanıcının
+  belgesindeki seçim). test/senaryo15.mjs 5/5: test örneğinde gerçek fareyle seçim, sistem panosuna dokunmayan kopyalama olayı;
+  renderer metni ve çekirdeğin pano:metin kaydı üç paragraf. araclar_testi 131/131.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 19.

@@ -38,7 +38,9 @@ const BASLIK = /^(MADDE\s+\d+|GEÇİCİ MADDE|BİRİNCİ|İKİNCİ|ÜÇÜNCÜ|D�
  */
 export function temizMetin(ham) {
   if (!ham) return '';
-  let s = glifDuzelt(ham.normalize('NFC'));
+  // Satır sonundaki yumuşak tire (U+00AD; dizgide bölünmüş sözcüğün görünen tiresi) sözcüğü boşluksuz birleştirir. glifDuzelt
+  // yumuşak tireyi sildiğinden önce yapılır: sonra satırlar boşlukla birleşiyor, "insan- / lara" "insan lara" oluyordu
+  let s = glifDuzelt(ham.normalize('NFC').replace(/\r\n?/g, '\n').replace(/­[ \t]*\n[ \t]*(?=\S)/g, ''));
   s = s.replace(/[-]/g, '');          // özel kullanım alanı (Wingdings madde imleri vb.)
   s = s.replace(/\r\n?/g, '\n').replace(/\t/g, '    ').replace(/ /g, ' ');
   // Satırlar: girinti (baştaki boşluk) paragraf başlangıcı ipucudur

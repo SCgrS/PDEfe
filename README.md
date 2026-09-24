@@ -21,9 +21,10 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   bozulmaz. Gömülü olmayan Times, Arial ve Courier yazıları Windows'un Times New Roman, Arial ve Courier New yazı tipleriyle
   çizilir (Ayarlar › Görünüm › Yazı çizimi: "Dengeli" ya da "Windows ClearType"). Görseller, karekodlar ve tablo
   çizgileri keskin çizilir; taranmış belgeler çok yakınlaştırıldığında da net ve hızlıdır.
-- **Temiz kopyalama.** Seçilen metin panoya yapıştırıldığında satır sonlarındaki tireler birleştirilir,
-  girintiler korunur, paragraflar tek satır sonuyla ayrılır (UYAP Doküman Editörü'nde ve Word'de boş paragraf
-  oluşmaz), bozuk glifler düzeltilir. İstenirse ham kopyalama.
+- **Temiz kopyalama.** Seçilen metin panoya yapıştırıldığında paragrafın satırları birleştirilir (her satırı ayrı
+  yazılmış mevzuat PDF'lerinde de), satır sonlarındaki tireler birleştirilir, girintiler korunur, paragraflar tek satır
+  sonuyla ayrılır (UYAP Doküman Editörü'nde ve Word'de boş paragraf oluşmaz; girintili paragrafa yapıştırınca satırlar
+  dağılmaz), bozuk glifler düzeltilir. İstenirse ham kopyalama.
 - **Türkçe arama.** `Ctrl+F` ile bul: İ/ı ve I/ı ayrımı doğru, tam sözcük seçeneği, yer imlerinde ve
   yorumlarda arama, tüm açık sekmelerde arama. Açık belgeler listesindeki **Tüm belgelerde ara** kutusu her
   belgedeki eşleşme sayısını gösterir. Word 2010'un bozuk Türkçe kodlaması (Ġ→İ, ġ→Ş, Ģ→ş) hem

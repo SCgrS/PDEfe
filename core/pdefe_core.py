@@ -15,6 +15,8 @@ import time
 import traceback
 import threading
 import queue
+import re
+import statistics
 
 import pymupdf
 
@@ -244,42 +246,122 @@ def y_gorsel_kutulari(p):
     return {"kutular": kutular}
 
 
+# Madde imi: bununla başlayan satır yeni paragraftır (■ • ● ◦ ▪ ➢ ✓ …, Symbol / Wingdings imlerinin özel kullanım alanı karşılıkları,
+# ardından boşluk gelen tire). Numaralı maddeler ("1.", "a)", "(2)") temizMetin'de önceki satırın noktalamasıyla ayrılır: "Kanunun /
+# 49. maddesi" gibi satır başındaki sayı paragraf başı değildir
+MADDE_IMI = re.compile(r"^([■-◿•‣⁃∙➢➤✓✔❖-]|[-–—](\s|$))")
+# Numaralı madde ("2.", "(3)", "a)", "IV.", "1-"): sayı ya da noktalamayla biten satırdan sonra geliyorsa yeni paragraftır
+NUMARALI_MADDE = re.compile(r"^\(?(\d{1,3}|[a-zçğıöşü]|[IVX]{1,6}|[A-ZÇĞİÖŞÜ])[.)-]$")
+MADDE_ONCESI = re.compile(r"[\d.:;!?…)\"”’]$")
+NOKTALI_DOLGU = re.compile(r"(\.\s?){5,}|…{2,}")   # içindekiler satırı: başlık …… sayfa
+
+
+def _satir_gruplari(sozcukler):
+    """Sözcükleri PyMuPDF (blok, satır) gruplarına toplar: anahtar → {blok, x0, y0, x1, y1, sozcukler}."""
+    gruplar = {}
+    for w in sozcukler:
+        g = gruplar.get((w[5], w[6]))
+        if g is None:
+            gruplar[(w[5], w[6])] = g = {"blok": w[5], "x0": w[0], "y0": w[1], "x1": w[2], "y1": w[3], "sozcukler": []}
+        else:
+            g["x0"], g["y0"], g["x1"], g["y1"] = min(g["x0"], w[0]), min(g["y0"], w[1]), max(g["x1"], w[2]), max(g["y1"], w[3])
+        g["sozcukler"].append(w)
+    return gruplar
+
+
+def _ayni_sutun(a, b):
+    """İki satır aynı sütunda mı: yatayda kısa olanın genişliğinin %30'undan çok örtüşüyorlar."""
+    ortusme = min(a["x1"], b["x1"]) - max(a["x0"], b["x0"])
+    return ortusme > 0.3 * max(1.0, min(a["x1"] - a["x0"], b["x1"] - b["x0"]))
+
+
+def _sutun(satir, tum):
+    """Satırın sütunu (sol, sağ): sol kenar, sütunda en az iki satırın başladığı en soldaki x (tek başına duran kenar notu ya da
+    madde numarası kenar sayılmaz; böyle bir yer yoksa en soldaki başlangıç); sağ kenar, sütundaki satırların en sağdaki bitişi.
+    Sütundaki satırlar: bu satırla yatayda örtüşenler (_ayni_sutun)."""
+    ayni = [s for s in tum if _ayni_sutun(satir, s)] or [satir]
+    xs = sorted(s["x0"] for s in ayni)
+    sol = next((a for a, b in zip(xs, xs[1:]) if b - a <= 1.5), xs[0])
+    return sol, max(s["x1"] for s in ayni)
+
+
+def _satir_araligi(tum):
+    """Sayfanın olağan satır aralığı (satır üstünden altındakinin üstüne, pt): her satırdan aynı sütunda hemen altındaki satıra
+    olan uzaklıkların ortancası (satır yüksekliğinin üç katından uzak olanlar paragraf ya da bölüm arasıdır, sayılmaz)."""
+    sirali = sorted(tum, key=lambda s: s["y0"])
+    farklar = []
+    for i, a in enumerate(sirali):
+        h = a["y1"] - a["y0"]
+        for b in sirali[i + 1:]:
+            fark = b["y0"] - a["y0"]
+            if fark > 3 * h:
+                break
+            if fark > 0.5 * h and _ayni_sutun(a, b):
+                farklar.append(fark)
+                break
+    return statistics.median(farklar) if farklar else None
+
+
 def y_metin_sec(p):
-    """Verilen satır dikdörtgenlerindeki (PDF koordinatı, üst-sol köken) sözcükleri okuma
-    sırasıyla döndürür. Sözcük, merkezi kutulardan birinin içindeyse seçilmiş sayılır (böylece
-    komşu satırlardan yinelenen parça gelmez). Çıktıda paragraf girintisi baştaki boşluk
-    sayısıyla, blok geçişi boş satırla belirtilir; temizMetin bunları kullanır."""
+    """Verilen satır dikdörtgenlerindeki (PDF koordinatı, üst-sol köken) sözcükleri okuma sırasıyla döndürür. Sözcük, merkezi
+    kutulardan birinin içindeyse seçilmiş sayılır (böylece komşu satırlardan yinelenen parça gelmez). Çıktıda paragraf girintisi
+    baştaki boşlukla, paragraf arası boş satırla belirtilir; renderer'ın temizMetin'i satırları bunlara göre birleştirir.
+    Paragraf arası PyMuPDF bloğunun değişmesidir. Ancak her satırı ayrı blok olan belgelerde (mevzuat PDF'leri gibi) blok değişimi
+    paragraf demek değildir: orada satır, aynı sütunda (sol kenarları aynı), olağan satır aralığıyla (en çok 1,3 katı) ve içerik
+    sırasında da hemen ardından (blok numarası 1–3 artarak) alta geçen, sütunun sağına yakın biten (genişliğin en az %80'i)
+    satırın devamı sayılır. Kısa ya da ortalanmış satırdan (başlık, adres, paragrafın son satırı), büyük boşluktan, madde iminden,
+    içindekiler satırından ve noktalamadan sonraki numaralı maddeden önce paragraf arası konur; sayfa başlığı ve altlığı (içerikte
+    başka yerde yazılmış) ayrı kalır. Girinti de sütunun sol kenarına göre ölçülür. 0.1.9'a dek bu belgelerde her satır
+    ayrı paragraf çıkıyor, girintiler görünmüyordu (tek satırlık blok kendi kenarına göre ölçülüyordu); UDF'ye yapıştırınca her
+    satır ayrı paragraf oluyordu."""
     doc = onbellek.al(p["yol"])
     pg = doc[int(p["sayfa"]) - 1]
     kutular = [pymupdf.Rect(*k) for k in p["kutular"]]
-    secili = []
-    for w in pg.get_text("words"):
-        x0, y0, x1, y1, kelime, blok, satir, _ = w
-        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-        if any(k.x0 <= cx <= k.x1 and k.y0 <= cy <= k.y1 for k in kutular):
-            secili.append(w)
+    tum = pg.get_text("words")
+    secili = [w for w in tum if any(k.x0 <= (w[0] + w[2]) / 2 <= k.x1 and k.y0 <= (w[1] + w[3]) / 2 <= k.y1 for k in kutular)]
     if not secili:
         return {"metin": ""}
-    # (blok, satır) gruplarına ayır; satırları konuma göre sırala
-    satirlar = {}
-    for w in secili:
-        satirlar.setdefault((w[5], w[6]), []).append(w)
-    sirali = sorted(satirlar.items(), key=lambda kv: (min(x[1] for x in kv[1]), min(x[0] for x in kv[1])))
-    # Sol kenar: bloktaki en küçük x0 (girinti için referans)
-    blok_sol = {}
-    for w in pg.get_text("words"):
-        blok_sol[w[5]] = min(blok_sol.get(w[5], 1e9), w[0])
+    sayfa_satirlari = _satir_gruplari(tum)
+    tum_satirlar = list(sayfa_satirlari.values())
+    blok_satir_sayisi, blok_sol = {}, {}
+    for s in tum_satirlar:
+        blok_satir_sayisi[s["blok"]] = blok_satir_sayisi.get(s["blok"], 0) + 1
+        blok_sol[s["blok"]] = min(blok_sol.get(s["blok"], 1e9), s["x0"])
     sayfa_sol = min(blok_sol.values()) if blok_sol else 0
+    tek_satirli = lambda blok: blok_satir_sayisi.get(blok, 0) <= 1
+    aralik = None   # yalnızca her satırı ayrı blok olan akışta gerekir
+    sutunlar = {}   # satır anahtarı → (sol, sağ)
+    sutun = lambda anahtar: sutunlar.get(anahtar) or sutunlar.setdefault(anahtar, _sutun(sayfa_satirlari[anahtar], tum_satirlar))
+    sirali = sorted(_satir_gruplari(secili).items(), key=lambda kv: (kv[1]["y0"], kv[1]["x0"]))
     cikti = []
-    onceki_blok = None
-    for (blok, _), ws in sirali:
-        ws.sort(key=lambda x: x[0])
-        if onceki_blok is not None and blok != onceki_blok:
-            cikti.append("")
-        girinti = ws[0][0] - min(blok_sol.get(blok, sayfa_sol), sayfa_sol + 40)
-        bosluk = "    " if girinti > 8 else ""
-        cikti.append(bosluk + " ".join(x[4] for x in ws))
-        onceki_blok = blok
+    onceki = None   # önceki satırın anahtarı; satırlar sayfadaki tam hâliyle (seçilmeyen sözcükleri dahil) ölçülür
+    for anahtar, s in sirali:
+        tam = sayfa_satirlari[anahtar]
+        blok = s["blok"]
+        if onceki is not None and blok != onceki[0]:
+            ayir = True
+            # Satır başına blok: aynı sütunda, olağan aralıkla alta geçen satır, üstteki dolu satırın devamı olabilir
+            if tek_satirli(blok) and tek_satirli(onceki[0]):
+                ust = sayfa_satirlari[onceki]
+                (sol, sag), (sol2, _) = sutun(onceki), sutun(anahtar)
+                if aralik is None:
+                    aralik = _satir_araligi(tum_satirlar) or 0
+                fark = tam["y0"] - ust["y0"]
+                ilk = min(tam["sozcukler"], key=lambda x: x[0])[4]
+                ust_metin = " ".join(x[4] for x in sorted(ust["sozcukler"], key=lambda x: x[0]))
+                alt_metin = " ".join(x[4] for x in sorted(tam["sozcukler"], key=lambda x: x[0]))
+                ayir = not (abs(sol - sol2) <= 2 and aralik and 0.5 * (ust["y1"] - ust["y0"]) < fark <= 1.3 * aralik
+                            and 0 < blok - onceki[0] <= 3   # içerik sırası da aşağı akıyor (sayfa başlığı / altlığı ayrı katmandır)
+                            and ust["x1"] >= sol + 0.8 * (sag - sol) and not MADDE_IMI.match(ilk)
+                            and ust_metin != ust_metin.upper()   # büyük harfli satır başlıktır (kapak, mahkeme adı)
+                            and not NOKTALI_DOLGU.search(ust_metin) and not NOKTALI_DOLGU.search(alt_metin)
+                            and not (NUMARALI_MADDE.match(ilk) and MADDE_ONCESI.search(ust_metin)))
+            if ayir:
+                cikti.append("")
+        ws = sorted(s["sozcukler"], key=lambda x: x[0])
+        kenar = sutun(anahtar)[0] if tek_satirli(blok) else min(blok_sol.get(blok, sayfa_sol), sayfa_sol + 40)
+        cikti.append(("    " if ws[0][0] - kenar > 8 else "") + " ".join(x[4] for x in ws))
+        onceki = anahtar
     return {"metin": "\n".join(cikti)}
 
 

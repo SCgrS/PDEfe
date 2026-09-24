@@ -225,3 +225,12 @@ denenmedi.
    okuyucuda yazıyı düzenlemeye açınca biçimi (yazı tipi, renk, kalın) korunmalı.
 6. **Güncelleme (depo public olunca).** Kurulu 0.1.8'de güncelleme şeridi ya da Yardım › Güncellemeleri denetle 0.1.9'u bulmalı;
    Güncelle'ye basınca kurulup PDEfe 0.1.9 olarak açılmalı, ayarlar (tema, yazar adı, son açılanlar) korunmalı.
+
+## 19. 0.1.10: otomatik testlerin sınayamadıkları
+Kopyalama test örneğinde sistem panosuna dokunmadan sınandı; UYAP Doküman Editörü'ne yapıştırmaya bakılmadı.
+1. **Mevzuat metni, girintili paragraf.** `1.5.6098.pdf`'in 15. sayfasında "tehlike arzeden bir işletme…" ile "…izin verilmiş olsa
+   bile," arasını seçip kopyalayın; UDF'de ilk satır girintisi olan bir paragrafa yapıştırın: üç paragraf gelmeli ("…işletme
+   sayılır." / "Belirli…saklıdır." / "Önemli…olsa bile,"), satırlar paragraf içinde akmalı, arada gereksiz boşluk olmamalı.
+   Girintisiz paragrafa yapıştırınca da satırlar birleşik olmalı.
+2. **Başka belgeler.** Bir Word PDF'inden, bir bilirkişi raporundan ve madde imli bir listeden kopyalayın: paragraflar eskisi gibi
+   ayrı, madde imli satırlar ve başlıklar ayrı paragraf olmalı.
