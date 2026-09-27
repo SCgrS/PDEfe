@@ -17,7 +17,7 @@ const kacis = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': 
 
 // Açık klasör ve önündeki sayfa
 const AC_IKON = '<path d="M2.75 7.25V18a1.75 1.75 0 0 0 1.75 1.75h15A1.75 1.75 0 0 0 21.25 18V9.5a1.75 1.75 0 0 0-1.75-1.75h-7.1L10.3 5.25H4.5A1.75 1.75 0 0 0 2.75 7v.25z"/><path d="M2.75 11.25h18.5"/>';
-// Son açılan belge: sayfa ve PDEfe simgesindeki gibi kırmızı şerit
+// Son açılan belge: sayfa ve kırmızı PDF şeridi (0.1.15'e dek uygulama simgesinde de vardı; 0.1.16'da simge değişti, bu kaldı)
 const BELGE_IKON = '<path d="M4.75 2.25h7l3.5 3.5v12H4.75z" fill="var(--arka-yukseltilmis)"/><path d="M11.75 2.25v3.5h3.5"/><rect x="3" y="9.75" width="14" height="4.75" rx="1" fill="#c42b1c" stroke="none"/>';
 
 export class BaslangicEkrani {

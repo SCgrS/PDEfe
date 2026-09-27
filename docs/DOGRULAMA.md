@@ -312,3 +312,11 @@ değişmediği piksel karşılaştırmasıyla sınandı (test/senaryo21.mjs). Ge
    üzerine gelince ya da basılı tutunca hiçbir şey değişmemeli (çerçeve, zemin, el imleci yok).
 3. **Çift tık.** Simgeye çift tıklayın, sonra araç çubuğundaki dişliye çift tıklayın: Ayarlar açılıp açık kalmalı (önceden bir an
    görünüp kapanıyordu). Pencerenin dışındaki karartılmış yere bir kez tıklamak yine kapatmalı.
+
+## 25. 0.1.16: otomatik testlerin sınayamadıkları
+Exe'lere gömülen simgeler çıkarılıp bakıldı, kurulumdan sonra kayıt defterindeki simge yolları okundu. Windows'un kendi gösterdiği
+yerler (masaüstü, görev çubuğu, Gezgin) denenmedi.
+1. **Simge.** PDEfe'yi açın: pencerenin sol üstünde ve görev çubuğunda yeni simge (lacivert sayfa, altın süsleme) görünmeli. Açılış
+   ekranının sağ altında da yeni simge olmalı.
+2. **Gezgin ve kısayollar.** Bir PDF dosyasının, masaüstü kısayolunun ve Başlat menüsündeki PDEfe'nin simgesine bakın. Eski mavi simge
+   görünüyorsa Windows'un simge önbelleğidir; bilgisayarı yeniden başlatınca düzelir.

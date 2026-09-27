@@ -695,3 +695,22 @@ ya da kutu izi görünmesin, görüntüsü aynen kalsın.
   gerçek fare olaylarıyla tık ve çift tık, Tab), senaryo20 38/38, senaryo19 111/111, senaryo14 56/56,
   ortu_tiklama 155/155 (örtü kuralı değiştiği için). Sürüm 0.1.15.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 24.
+
+### Revizyon 0.1.16 (2026-09-27, kullanıcı isteği)
+Ayrıntı: CHANGELOG.md. Kullanıcı yeni simgeyi zip olarak gönderdi (PDEfe-simge.zip: icon.ico, icon.png, icon.svg, png/, BENIOKU.txt;
+"9B · Dörtlü Çiçek": lacivert sayfa, altın sarısı dört yapraklı süsleme, kırmızı kıvrık köşe).
+- [x] **Simge dosyaları** (build/): icon.ico (16, 20, 24, 32, 40, 48, 64, 96, 128, 256 px; hepsi PNG sıkıştırmalı, 32 bit), icon.png
+  (512×512 RGBA), icon.svg (vektör asıl, yeni; `files: build/icon.*` ile pakete de girer, 15 KB). Eski simgenin başka kopyası yoktu
+  (git ls-files içinde SHA-256 ve base64 taraması). Yapılandırma zaten bu adları kullanıyordu, değişmedi: electron-builder.yml
+  win.icon, fileAssociations icon, nsis.installerIcon / uninstallerIcon → build/icon.ico; main.js BrowserWindow icon → build/icon.png
+  (asar içinde); açılış ekranının imzası (baslangic.js) → ../../build/icon.png.
+- [x] **Çekirdek** (core/dist/pdefe-core.exe): pdefe-core.spec simgeyi build/icon.ico'dan alır; `node build/cekirdek-derle.mjs` ile
+  yeniden derlendi (kod aynı), ping OK. araclar_testi.py kaynakla 131/131, `--exe` ile yeni ve eski çekirdek ikişer kez 130/130. Paket
+  derlemesiyle aynı anda koşan ilk `--exe` koşusunda ayir/parcalar bir kez HATA verdi (ilk çağrının bildirdiği boyut ile üzerine
+  yazıldıktan sonraki dosya boyutu karşılaştırması); yeniden üretilemedi, kararsız denetim.
+- [x] Doğrulama: PDEfe.exe, PDEfe-Setup.exe ve pdefe-core.exe'den 256 / 48 / 32 / 16 px simge çıkarıldı (PrivateExtractIcons), hepsi
+  yeni. Açılış ekranının imzası açık ve koyu temada, %100 ve %125 ölçekte görüntülendi. Kurulumdan sonra gerçek sistemde (WMI):
+  Uninstall 0.1.16, exe 0.1.16.0, DisplayIcon (uninstallerIcon.ico) ve PDEfe.pdf DefaultIcon (resources\icon.ico) yeni ICO ile aynı
+  boyutta. `baslangic.js` BELGE_IKON yorumu güncellendi (son açılanlardaki kırmızı şeritli belge simgesi eski uygulama simgesinden
+  geliyordu; kendisi değişmedi). Sürüm 0.1.16.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 25.

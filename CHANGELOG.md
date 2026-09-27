@@ -3,6 +3,11 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.16 — 2026-09-27
+
+### Görünüm
+- **Yeni simge:** lacivert bir sayfanın üzerinde altın sarısı dört yapraklı süsleme, kırmızı kıvrık köşe. Program, kurulum dosyası, kaldırıcı, pencere ve görev çubuğu, .pdf dosyaları ve açılış ekranının sağ altı yeni simgeyi kullanır. Masaüstünde ya da görev çubuğunda eski simge görünmeye devam ederse Windows'un simge önbelleğindendir; bilgisayar yeniden başlatılınca düzelir.
+
 ## 0.1.15 — 2026-09-27
 
 ### Açılış ekranı
