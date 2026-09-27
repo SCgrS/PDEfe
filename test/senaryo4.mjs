@@ -1,4 +1,4 @@
-// Senaryo 4: notlar — başka programların notlarını gösterme, vurgu/yapışkan not/yazı ekleme, geri al/yinele, kaydetme.
+// Senaryo 4: notlar — başka programların notlarını gösterme, vurgu/not/yazı ekleme, geri al/yinele, kaydetme.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 const D = 'C:/Users/Kullanici/Desktop/PDF DENEME/';
@@ -10,7 +10,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   await evalJs(`(() => { const a = window.__pdefe.ayar(); a.otomatikKaydet = false; return true; })()`);
   // Diğer sekmeleri kapat, kopyayı aç
   await evalJs(`(async () => { const p = window.__pdefe; for (const s of [...p.sekmeler.sekmeler]) await p.belgeKapat(s.id, { zorla: true }); return p.sekmeler.sekmeler.length; })()`);
-  // dataSayfa: ilk yüklemede her .sayfa elemanında data-sayfa olmalı (yoksa vurgu, yapışkan not ve yazı aracı NaN sayfaya düşer)
+  // dataSayfa: ilk yüklemede her .sayfa elemanında data-sayfa olmalı (yoksa vurgu, not ve yazı aracı NaN sayfaya düşer)
   console.log('aç:', await evalJs(`(async () => { const b = await window.__pdefe.dosyaAc(${JSON.stringify(KOPYA)}); await new Promise(r => setTimeout(r, 1500)); return { ad: b.ad, notSayisi: b.notlar.notlar.size, cizili: b.gorunum.sayfalar.filter(s => s.canvas).length, svgGrup: document.querySelectorAll('.not-isaretler g').length, dataSayfa: b.gorunum.sayfalar.every((s, i) => s.el.dataset.sayfa === String(i + 1)) }; })()`));
   await ekranGoruntusu('test/png/s4-01-dis-notlar.png');
 
@@ -33,17 +33,17 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   })()`);
   console.log('vurgu:', vurgu);
 
-  // 2) Yapışkan not: sayfa 1'de (300, 400) piksele
-  console.log('yapışkan:', await evalJs(`(() => {
+  // 2) Not: sayfa 1'de (300, 400) piksele
+  console.log('not:', await evalJs(`(() => {
     const b = window.__pdefe.aktif(); const s = b.gorunum.sayfalar[0]; const k = s.el.getBoundingClientRect();
-    b.notlar.yapiskanNotKoy(0, { clientX: k.left + 300, clientY: k.top + 400 });
-    const ta = document.querySelector('.not-balonu textarea.icerik'); ta.value = 'PDEfe yapışkan notu: şğıİçöü'; ta.dispatchEvent(new Event('blur'));
+    b.notlar.sayfayaNotKoy(0, { clientX: k.left + 300, clientY: k.top + 400 });
+    const ta = document.querySelector('.not-balonu textarea.icerik'); ta.value = 'PDEfe notu: şğıİçöü'; ta.dispatchEvent(new Event('blur'));
     const n = b.notlar.liste().find(x => x.tur === 'Text' && x.yeni);
     return { icerik: n?.icerik, rect: n?.rect?.map(v => +v.toFixed(1)), balon: !!document.querySelector('.not-balonu') };
   })()`));
   // Yanıt ekle
   console.log('yanıt:', await evalJs(`(() => { const g = document.querySelector('.not-balonu .yanit-girdi'); g.value = 'Yanıt metni ğüş'; g.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); const b = window.__pdefe.aktif(); const n = b.notlar.liste().find(x => x.tur === 'Text' && x.yeni); return { yanitSayisi: b.notlar.yanitlari(n).length, balonYanit: document.querySelectorAll('.not-balonu .yanit').length }; })()`));
-  await ekranGoruntusu('test/png/s4-03-yapiskan-balon.png');
+  await ekranGoruntusu('test/png/s4-03-not-balon.png');
   await evalJs(`window.__pdefe.aktif().notlar.balonKapat()`);
 
   // 3) Yazı: sayfa 1'de (80, 500) → düzenleyici → metin → bitir

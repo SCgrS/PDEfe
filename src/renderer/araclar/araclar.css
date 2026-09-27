@@ -37,7 +37,6 @@ html[data-tema="koyu"] .arac-pencere { box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6)
 .arac-dugmeler button.ikincil:disabled { opacity: 0.45; }
 .arac-pencere button.ikincil:disabled:hover { background: var(--arka-yukseltilmis); }
 .arac-pencere button.ikincil:disabled { opacity: 0.45; }
-.arac-alt-metin { font-size: 11px; color: var(--metin-soluk); line-height: 1.35; text-wrap: balance; }
 
 .arac-hata {
   background: rgba(209, 52, 56, 0.12); border: 1px solid rgba(209, 52, 56, 0.5); color: var(--metin);

@@ -116,6 +116,21 @@ export async function tus(ad, degistiriciler = []) {
   ws.close();
 }
 
+/**
+ * Ham tuş basışı (CDP): key, code ve sanal tuş kodu ayrı verilir; klavye düzeni birebir taklit edilir. Türkçe Q örnekleri:
+ * Ctrl++ = { key: '+', code: 'Digit4', vk: 0x34, degistiriciler: ['ctrl', 'shift'] }, Ctrl+− = { key: '-', code: 'Equal', vk: 0xBD, ['ctrl'] },
+ * sayısal + = { key: '+', code: 'NumpadAdd', vk: 0x6B }, Ctrl+I (ı) = { key: 'ı', code: 'KeyI', vk: 0x49, ['ctrl'] }. CDP tuşu menü
+ * hızlandırıcısına ulaşmaz (sayfada işlenen tuşlar için); hızlandırıcı için test:tusGonder (görünmeyen masaüstündeki örnekte).
+ */
+export async function tusHam({ key, code, vk, degistiriciler = [] }) {
+  const { ws, gonder } = await baglan();
+  const ortak = { key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers: degistiriciMaske(degistiriciler) };
+  const metinli = key.length === 1 && !degistiriciler.some((d) => d === 'ctrl' || d === 'alt' || d === 'meta');
+  await gonder('Input.dispatchKeyEvent', { type: metinli ? 'keyDown' : 'rawKeyDown', ...ortak, ...(metinli ? { text: key, unmodifiedText: key } : {}) });
+  await gonder('Input.dispatchKeyEvent', { type: 'keyUp', ...ortak });
+  ws.close();
+}
+
 /** Odaktaki öğeye metin yazar (IME gibi; Türkçe karakterler dahil). */
 export async function yaz(metin) {
   const { ws, gonder } = await baglan();
@@ -127,4 +142,4 @@ const [, , komut, arg] = process.argv;
 if (komut === 'eval') console.log(JSON.stringify(await evalJs(arg), null, 1));
 else if (komut === 'ss') console.log('kaydedildi:', await ekranGoruntusu(arg));
 else if (komut === 'konsol') console.log((await konsol(+arg || 4000)).join('\n') || '(mesaj yok)');
-else if (komut === 'betik') { const m = await import(pathToFileURL(path.resolve(arg)).href); await m.default({ evalJs, ekranGoruntusu, bekle, fare, tikla, surukle, tus, yaz }); }
+else if (komut === 'betik') { const m = await import(pathToFileURL(path.resolve(arg)).href); await m.default({ evalJs, ekranGoruntusu, bekle, fare, tikla, surukle, tus, tusHam, yaz }); }

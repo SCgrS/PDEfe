@@ -128,17 +128,17 @@ export class SayfalarPenceresi {
         ${dugme('sil', 'Seçilenleri sil (Delete)', '<path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11" fill="none" stroke="currentColor" stroke-width="1.4"/>')}
         <span class="ayrac"></span>
         <button class="ikincil" data-komut="bosEkle" title="Seçili sayfanın arkasına boş sayfa ekler (boyut: önceki sayfa)">Boş sayfa ekle</button>
-        <button class="ikincil" data-komut="pdfEkle" title="Başka bir PDF'in sayfalarını seçili sayfanın arkasına ekler">PDF'ten sayfa ekle</button>
+        <button class="ikincil" data-komut="pdfEkle" title="Başka bir PDF'in sayfalarını seçili sayfanın arkasına ekler">PDF ekle</button>
         <span class="sayac"></span>
       </div>
       <div class="sayfalar-izgara" tabindex="0" role="listbox" aria-multiselectable="true"></div>
-      <div class="sayfalar-kayit"><span class="arac-bolum-baslik">Kaydetme</span></div>
+      <div class="sayfalar-kayit"><span class="arac-bolum-baslik">Kaydet</span></div>
     </div>`);
     this.govde = govde;
     this.cubuk = govde.querySelector('.sayfalar-arac-cubugu');
     this.izgara = govde.querySelector('.sayfalar-izgara');
     this.sayac = govde.querySelector('.sayac');
-    this.cubuk.addEventListener('click', (e) => { const b = e.target.closest('[data-komut]'); if (b && !b.disabled) this.komut(b.dataset.komut); });
+    this.cubuk.addEventListener('click', (e) => { const b = e.target.closest('[data-komut]'); if (b && !b.disabled) { this.komut(b.dataset.komut); this._odagiKoru(); } });
     // Üzerine yaz: düzen sekmeye geri alınabilir komut olarak uygulanıp kaydedilir (Ctrl+Z)
     this.kayit = kayitSecimi({ baglam: this.baglam, belge: this.belge, ek: 'düzenlenmiş', diyalogBasligi: 'Düzenlenmiş PDF', geriAlinabilir: true });
     govde.querySelector('.sayfalar-kayit').append(this.kayit.el);
@@ -152,9 +152,7 @@ export class SayfalarPenceresi {
     this.pencere.el.addEventListener('esc', (e) => { if (this.ilerleme.calisiyor) { e.preventDefault(); this.ilerleme.iptalIste(); } });
     this.kayit.onDegisti(() => this._kaydetIpucu());
     this._kaydetIpucu();
-    // Her "tuş: iş" çifti bölünmeden satır atlasın (bölünemez boşluk); ayırıcı nokta önceki çiftin sonunda kalır
-    this.pencere.altMetinAyarla(['Tıkla: seç', 'Ctrl/Shift: çoklu seç', 'Boş alandan sürükle: alan seç', 'Kartı sürükle: sırala', 'Delete: sil', 'Ctrl+Z/Y: geri al/yinele']
-      .map((s) => s.replace(/ /g, '\u00a0')).join('\u00a0· '));
+    // Fare ve tuş kullanımı (tıkla: seç, Delete: sil…) pencerede yazmaz, F1 Kısayollar penceresinde (0.1.13, kullanıcı isteği)
 
     // Görünürlük gözlemcisi: küçük resimleri tembel yükle
     this.gozlemci = new IntersectionObserver((girdiler) => {
@@ -164,7 +162,8 @@ export class SayfalarPenceresi {
     // Seçim ve klavye
     this.izgara.addEventListener('click', (e) => this._tikla(e));
     this.izgara.addEventListener('dblclick', (e) => { const el = e.target.closest('.sayfa-karti'); if (el && !e.target.closest('button')) { this.secim = new Set([+el.dataset.kimlik]); this._secimiCiz(); } });
-    this.izgara.addEventListener('keydown', (e) => this._tus(e));
+    // Izgaranın tuşları araç çubuğundaki bir düğmeye basıldıktan sonra da (odak düğmede kalır) çalışır; kayıt satırındaki girdi ve seçimler hariç
+    govde.addEventListener('keydown', (e) => { if (this.izgara.contains(e.target) || this.cubuk.contains(e.target)) { this._tus(e); this._odagiKoru(); } });
     this.sirala = suruklemeSiralama(this.izgara, {
       ogeSecici: '.sayfa-karti', izgara: true,
       grupAl: (el) => { const k = +el.dataset.kimlik; return this.secim.has(k) ? [...this.izgara.querySelectorAll('.sayfa-karti.secili')] : [el]; },
@@ -213,6 +212,12 @@ export class SayfalarPenceresi {
       case 'pdfEkle': return this.pdfdenEkle();
       default: return undefined;
     }
+  }
+
+  /** Odaklı düğme işlemden sonra devre dışı kaldıysa (seçim boşaldı) ya da DOM'dan çıktıysa odak ızgaraya döner (BODY'ye düşmesin). */
+  _odagiKoru() {
+    const a = document.activeElement;
+    if (!a || a === document.body || a.disabled || !a.isConnected) this.izgara.focus({ preventScroll: true });
   }
 
   _tus(e) {

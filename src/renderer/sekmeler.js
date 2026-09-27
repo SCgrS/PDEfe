@@ -1,5 +1,5 @@
-// Sekme çubuğu: sekme listesi, sürükleyerek sıralama, tekerlekle geçiş, ◀ ▶ düğmeleri,
-// "Açık belgeler" listesi ve Ctrl+Tab son-kullanım sırasına göre sekme seçici.
+// Sekme çubuğu: sekme listesi, sürükleyerek sıralama, tekerlekle geçiş, ◀ ▶ düğmeleri, + (yeni sekme; uygulama.js açılış sayfası
+// sekmesi açar), "Açık belgeler" listesi ve Ctrl+Tab son-kullanım sırasına göre sekme seçici.
 import { ortuTiklamasiBagla } from './ortu.js';
 
 /** Sekmenin ipucu: sabit genişlikte kısalabilen tam ad ve dosyanın yolu. */
@@ -38,8 +38,8 @@ export class SekmeCubugu extends EventTarget {
     }
     acilir.addEventListener('click', (e) => { e.stopPropagation(); this.belgeListesiAcKapa(); });
 
-    // Sekme çubuğu üzerinde fare tekerleği: sekme değiştir
-    liste.addEventListener('wheel', (e) => {
+    // Sekme çubuğu üzerinde (sekmeler, boş kısım, düğmeler) fare tekerleği: sekme değiştir
+    cubuk.addEventListener('wheel', (e) => {
       if (!this.sekmeler.length) return;
       e.preventDefault();
       this.kaydir(e.deltaY > 0 || e.deltaX > 0 ? 1 : -1);
@@ -55,17 +55,20 @@ export class SekmeCubugu extends EventTarget {
   }
 
   // ------------------------------------------------------------ temel işlemler
-  ekle({ id, ad, yol }) {
+  /** Sekme ekler: sona ya da `once` kimlikli sekmenin önüne (açılış sekmesinden açılan belge onun yerini alır). baslangic: açılış
+   *  sayfası sekmesi ("Yeni sekme"; dosyası yok). */
+  ekle({ id, ad, yol, once = null, baslangic = false }) {
     if (!this.belgeListesi.hidden) this.belgeListesiKapat();   // açık liste sekme kümesini bir kez kurar; bayat kalmasın
     const el = document.createElement('div');
-    el.className = 'sekme';
+    el.className = 'sekme' + (baslangic ? ' baslangic-sekmesi' : '');
     el.title = ipucu(ad, yol);
     el.draggable = true;
     el.innerHTML = `<span class="nokta">•</span><span class="ad"></span><button class="kapat" title="Kapat (Ctrl+W)"><svg viewBox="0 0 16 16"><path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5"/></svg></button>`;
     el.querySelector('.ad').textContent = ad;
-    const sekme = { id, ad, yol, el, degisti: false };
-    this.sekmeler.push(sekme);
-    this.liste.append(el);
+    const sekme = { id, ad, yol, el, degisti: false, baslangic };
+    const sonraki = once ? this.sekmeler.findIndex((s) => s.id === once) : -1;
+    if (sonraki >= 0) { this.sekmeler.splice(sonraki, 0, sekme); this.liste.insertBefore(el, this.sekmeler[sonraki + 1].el); }
+    else { this.sekmeler.push(sekme); this.liste.append(el); }
 
     el.addEventListener('mousedown', (e) => {
       if (e.button === 1) { e.preventDefault(); this.dispatchEvent(new CustomEvent('kapat', { detail: { id } })); }
@@ -178,7 +181,8 @@ export class SekmeCubugu extends EventTarget {
       const a = document.createElement('div');
       a.className = 'aday' + (k === this.seciciIdx ? ' secili' : '');
       a.dataset.id = id;
-      a.innerHTML = '<div class="bos"></div><div class="ad"></div>';
+      a.innerHTML = s.baslangic ? '<div class="bos baslangic"><svg viewBox="0 0 20 20"><path d="M10 4.5v11M4.5 10h11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div><div class="ad"></div>'
+        : '<div class="bos"></div><div class="ad"></div>';
       a.querySelector('.ad').textContent = s.ad;
       a.addEventListener('click', () => { this.seciciKapat(id); });
       ic.append(a);
@@ -240,7 +244,7 @@ export class SekmeCubugu extends EventTarget {
     const sorguVar = () => sayarak && girdi.value.trim() !== '';
     const sec = (r) => {
       // "0 eşleşme" satırı yalnızca sekmeye geçer: tüm sekmelerde arama ilk eşleşmeyi başka belgede bulup oraya atlardı
-      const sorgu = girdi.value, ara = sorguVar() && r.sayi !== 0;
+      const sorgu = girdi.value, ara = sorguVar() && r.sayi !== 0 && !r.s.baslangic;   // açılış sekmesinde aranacak belge yok
       this.belgeListesiKapat();
       if (ara) this.dispatchEvent(new CustomEvent('belgedeAra', { detail: { id: r.s.id, sorgu } }));
       else this.dispatchEvent(new CustomEvent('sec', { detail: { id: r.s.id } }));

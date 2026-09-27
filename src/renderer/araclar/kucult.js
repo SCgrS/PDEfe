@@ -40,7 +40,7 @@ export class KucultPenceresi {
         <div class="kucult-kartlar" role="radiogroup" aria-label="Sıkıştırma"></div>
         <div class="arac-aciklama kucult-not" hidden></div>
       </div>
-      <div class="arac-bolum kucult-kayit"><div class="arac-bolum-baslik">Kaydetme</div></div>
+      <div class="arac-bolum kucult-kayit"><div class="arac-bolum-baslik">Kaydet</div></div>
       <div class="kucult-sonuc" hidden></div>
     </div>`);
     this.govde = govde;
@@ -269,7 +269,7 @@ export class KucultPenceresi {
         if (!r) return;
         this.sekmeBayat = false;
         await this.pencere.kapat('tamam');
-        await baglam.dosyaAc(yol, { arkaPlanda: false, sayfa });
+        await baglam.dosyaAc(yol, { arkaPlanda: false, sayfa, yenile: true });   // yenile: açılış sekmesinin yerine açılmaz
         baglam.bildir(`Küçültüldü ve kaydedildi · ${ozet}`, 5000);
         return;
       }

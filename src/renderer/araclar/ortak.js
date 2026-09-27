@@ -153,6 +153,17 @@ const kapanisDinleyicileri = new Set();
 /** Açık araç penceresi var mı. */
 export function acikAracPenceresiVar() { return tumPencereler.size > 0; }
 
+// Odak pencerenin içindeki bir öğeyle birlikte kaybolursa (son satırı silen düğme, seçim kalmayınca devre dışı kalan düğme) BODY'ye düşer:
+// tuşlar pencereye gitmez, Esc kapatmaz, Ctrl+A arkadaki sayfanın bütün metnini seçerdi. En üstteki pencere tuşu kendi işleyicisinden
+// geçirir (Esc, Tab, Ctrl+A) ve odağı geri alır; diğer tuşlar belgeye zaten gitmez (uygulama.js açık pencere denetimi).
+document.addEventListener('keydown', (e) => {
+  if (e.target !== document.body || !tumPencereler.size || document.querySelector('.mesaj-kutusu')) return;
+  const ust = [...tumPencereler].at(-1);
+  if (!ust || ust.kapali) return;
+  ust._tusIsle(e);
+  if (!ust.kapali) ust.odakla();
+}, true);
+
 /** Her araç penceresi kapandığında (kapandi olayından sonra) çağrılır: f(pencere). uygulama.js çekirdeğin önbelleğindeki araç
  *  dosyalarını son pencere kapanınca bırakır. */
 export function aracPenceresiKapaninca(f) { kapanisDinleyicileri.add(f); }
@@ -311,14 +322,6 @@ export class Pencere {
     this.dugmeAlani.querySelector(birincil ? '.arac-dugmeler-orta' : sol ? '.arac-dugmeler-sol' : '.arac-dugmeler-sag').append(btn);
     this.dugmeler.set(id, btn);
     return btn;
-  }
-
-  /** Alt şeridin sol köşesine küçük açıklama metni (örn. kısayollar) koyar. */
-  altMetinAyarla(metin) {
-    const sol = this.dugmeAlani.querySelector('.arac-dugmeler-sol');
-    let s = sol.querySelector('.arac-alt-metin');
-    if (!s) { s = document.createElement('span'); s.className = 'arac-alt-metin'; sol.append(s); }
-    s.textContent = metin || '';
   }
 
   dugme(id) { return this.dugmeler.get(id); }
@@ -877,7 +880,7 @@ export function kayitSecimi({ baglam, belge, ek, kip = 'yeni', diyalogBasligi = 
     ? `Değişiklik açık belgeye uygulanıp "${ozgunAd}" dosyasına kaydedilir; Ctrl+Z ile geri alınabilir`
     : `Sonuç "${ozgunAd}" dosyasının yerine kaydedilir; yedek alınmaz, geri alınamaz`;
   const secim = segmentliSecim({
-    etiket: 'Kaydetme biçimi', deger: kip, sinif: 'arac-kayit-secim',
+    etiket: 'Kayıt biçimi', deger: kip, sinif: 'arac-kayit-secim',
     secenekler: [
       { id: 'yeni', etiket: 'Yeni belge olarak kaydet', baslik: 'Sonuç ayrı bir PDF dosyası olarak kaydedilir; özgün dosya değişmez' },
       { id: 'uzerine', etiket: 'Üzerine yaz', baslik: uzerineIpucu },
@@ -1051,7 +1054,7 @@ export async function sekmeyiYenile(baglam, belge, { soruAyrintisi, ac = true, s
   }
   const sayfa = belge.gorunum?.gecerli || 1;
   if (!(await baglam.belgeKapat(belge.id, { zorla: true }))) return false;
-  if (ac) await baglam.dosyaAc(belge.yol, { arkaPlanda: false, sayfa });
+  if (ac) await baglam.dosyaAc(belge.yol, { arkaPlanda: false, sayfa, yenile: true });   // yenile: açılış sekmesinin yerine açılmaz
   return 'yenilendi';
 }
 

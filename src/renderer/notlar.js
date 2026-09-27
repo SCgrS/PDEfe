@@ -1,5 +1,5 @@
 // Notlar: okuma (başka programların notları dahil), çizim katmanı, etkileşim (seç/taşı/sil/düzenle),
-// araçlar (yapışkan not, vurgu, metinle ilgili not, yazı), açılır balon (yazar, tarih, içerik; var olan yanıtlar salt okunur),
+// araçlar (not, vurgu, metinle ilgili not, yazı), açılır balon (yazar, tarih, içerik; var olan yanıtlar salt okunur),
 // komut deseniyle geri al/yinele ve kaydetme farkı (diff).
 import { CSS_BIRIM, yolAnahtari } from './goruntuleyici.js';
 import { Komut } from './komutlar.js';
@@ -27,7 +27,11 @@ const DUZENLEYICI_ADIMLARI = {
   yaz: 'Yazma', sil: 'Silme', kalin: 'Kalın', italik: 'İtalik', alti: 'Altı çizili', renk: 'Yazı rengi', arka: 'Dolgu rengi',
   tip: 'Yazı tipi', boyut: 'Boyut', dolgusuz: 'Dolgusuz', kenarlik: 'Kenarlık',
 };
-const NOT_RENGI = '#ffd100';                        // yapışkan not ve renksiz not için PDF okuyucularının yaygın varsayılanı
+/** Yazı düzenleyicisinde ve not balonunda da belge düzeyinde işlenen Ctrl kısayolları (uygulama.js): sekme geçişi (Ctrl+PageUp/PageDown),
+ *  yakınlaştırma (Ctrl++ / Ctrl+− / Ctrl+sayısal 0). Bunlar metin için anlam taşımaz; düzenleyici yutmaz, belgeye geçirir. */
+const belgeKisayoluMu = (e) => e.ctrlKey && !e.altKey && !e.metaKey && (e.key === 'PageUp' || e.key === 'PageDown' || e.key === '+' || e.key === '='
+  || e.key === '-' || e.key === '_' || e.code === 'NumpadAdd' || e.code === 'NumpadSubtract' || (e.code === 'Numpad0' && e.key === '0'));
+const NOT_RENGI = '#ffd100';                        // not (Text) ve renksiz not için PDF okuyucularının yaygın varsayılanı
 const METINLE_NOT_KONUSU = 'Metinle İlgili Yorum Yap';   // referans okuyucunun (Türkçe) notlu vurgu konusu; /IT /HighlightNote ile yazılır
 const BALON_GOSTER_MS = 120;                        // üzerine gelince notun gösterilme gecikmesi
 const BALON_GIZLE_MS = 250;                         // hedeften ve balondan çıkınca gizleme gecikmesi
@@ -73,7 +77,7 @@ export class NotYoneticisi extends EventTarget {
     this._hoverZaman = null;     // balonu gösterme zamanlayıcısı
     this._gosterilecekId = null; // gösterimi planlanmış notun kimliği
     this._gizleZaman = null;     // geçici balonu gizleme zamanlayıcısı
-    this._hoverId = null;        // fare altındaki notun kimliği (vurgu, not simgesi, yapışkan not)
+    this._hoverId = null;        // fare altındaki notun kimliği (vurgu, not simgesi, not)
     this._balonUstunde = false;  // fare balonun üzerinde
     this._canliIcerik = null;    // {id, metin}: balonda yazılan, henüz kaydedilmemiş not metni (not simgesi anında görünsün)
     this._kutuBekleyenler = new WeakSet(); // koyu sayfada görsel kutuları gelince notları yeniden çizmek için beklenen istekler
@@ -390,7 +394,7 @@ export class NotYoneticisi extends EventTarget {
     return String(m || '').trim() ? m : '';
   }
 
-  /** Üzerine gelince balon açılır mı: yapışkan not her zaman; diğerleri metni ya da yanıtı varsa (boş vurgu okurken balon açmasın). */
+  /** Üzerine gelince balon açılır mı: not (Text) her zaman; diğerleri metni ya da yanıtı varsa (boş vurgu okurken balon açmasın). */
   balonluMu(n) {
     if (!n || n.tur === 'FreeText') return false;
     return n.tur === 'Text' || !!this.notMetni(n) || this.yanitlari(n).length > 0;
@@ -613,7 +617,7 @@ export class NotYoneticisi extends EventTarget {
       () => { not.silindi = true; for (const y of yanitlar) y.silindi = true; if (this.secili === not.id) this.sec(null); this.balonKapat(); this.cizSayfa(not.sayfa); },
       () => {
         // Kayıt notu dosyadan silmiş ve çekirdek bu türü yeniden oluşturamıyorsa (EKLENEBILIR dışı: ek, damga, şekil) geri konmaz: ekranda
-        // görünür ama kayıtta yazılmaz, belge temiz sayılırdı. Yanıtlar da konmaz (üstsüz kalıp bağımsız yapışkan not olarak yazılırlardı).
+        // görünür ama kayıtta yazılmaz, belge temiz sayılırdı. Yanıtlar da konmaz (üstsüz kalıp bağımsız not olarak yazılırlardı).
         if (!this.kayitli.has(not.id) && !EKLENEBILIR.has(not.tur)) {
           this.dispatchEvent(new CustomEvent('uyari', { detail: { metin: `${turAdi(not.tur)} kaydedilirken dosyadan silindi; bu tür not dosyaya geri yazılamadığı için silme geri alınamaz.` } }));
           return;
@@ -673,7 +677,7 @@ export class NotYoneticisi extends EventTarget {
     else this.secimTemizle();
     if (this.duzenleyici && !hedef) { this.duzenleyiciBitir(true); }
     if (!hedef) this.gosterimIptal();   // basılıyken (metin seçerken) balon açılmasın
-    if (this.arac === 'not' && !hedef && i >= 0) { e.preventDefault(); this.yapiskanNotKoy(i, e); return; }
+    if (this.arac === 'not' && !hedef && i >= 0) { e.preventDefault(); this.sayfayaNotKoy(i, e); return; }
     if (this.arac === 'yazi' && !hedef && i >= 0) { e.preventDefault(); this.yaziBaslat(i, e); return; }
     if (hedef) {
       const id = hedef.dataset.id;
@@ -725,7 +729,7 @@ export class NotYoneticisi extends EventTarget {
   }
 
   /**
-   * Üzerine gelince hızlı gösterim: notun hedefine (vurgu, not simgesi, yapışkan not) girince BALON_GOSTER_MS sonra geçici balon açılır.
+   * Üzerine gelince hızlı gösterim: notun hedefine (vurgu, not simgesi, not) girince BALON_GOSTER_MS sonra geçici balon açılır.
    * Balon, fare hedefte ya da balonun üzerinde kaldıkça açık kalır; ikisinden de çıkınca BALON_GIZLE_MS sonra kapanır. Aynı notun
    * parçaları arasında (çok satırlı vurgunun satır aralıkları, vurgu → simge) geçiş kapatmayı iptal eder: titreme olmaz. Fare hedeften
    * balona doğru ilerlerken (ikisini kapsayan koridorda balona yaklaşıyorsa) kapatma ertelenir, yoldaki başka not balonu değiştirmez.
@@ -864,19 +868,19 @@ export class NotYoneticisi extends EventTarget {
     boyutla();
     // Yazarken not simgesi hemen görünür/kaybolur (kayıt yine odaktan çıkınca tek komutla yapılır)
     ta.addEventListener('input', () => { this._canliIcerik = { id: n.id, metin: ta.value }; this.notSimgesiYenile(n); boyutla(); });
-    ta.addEventListener('keydown', (e) => { if (e.key === 'Escape') { ta.blur(); } e.stopPropagation(); });
+    ta.addEventListener('keydown', (e) => { if (e.key === 'Escape') { ta.blur(); } if (!belgeKisayoluMu(e)) e.stopPropagation(); });
     // Düğmeye basış metin kutusunun odağını almasın: odaktan çıkış kaydı balonu yeniden kurar, tıklama kaybolurdu
     for (const btn of b.querySelectorAll('.ust button')) btn.addEventListener('mousedown', (e) => e.preventDefault());
     b.querySelector('.sil').addEventListener('click', () => { if (document.activeElement === ta) ta.blur(); if (!n.silindi) this.sil(n); });
     b.querySelector('.kapat').addEventListener('click', () => this.balonKapat());
-    b.addEventListener('keydown', (e) => e.stopPropagation());
+    b.addEventListener('keydown', (e) => { if (!belgeKisayoluMu(e)) e.stopPropagation(); });
   }
 
   /**
    * Balonu notun yanına koyar; notun kendisini (vurgunun hiçbir satırını, not simgesini) örtmeyen ve görünür alana sığan ilk yer seçilir.
    * Çapa: simgeden açılan balonda not simgesi; değilse notun ilk satırı (simge ona bitişikse ikisi birlikte). Sıra: çapanın sağı →
    * hemen altı → hemen üstü → notun bütün satırlarının altı → üstü (bu dördü önce çapanın sağına, sonra soluna hizalı) → sayfanın
-   * sağ kenarının dışı → çapanın solu. Önce komşu sayfalar dahil başka notları da (vurgu, simge, yapışkan not, yazı) örtmeyen ilk yer
+   * sağ kenarının dışı → çapanın solu. Önce komşu sayfalar dahil başka notları da (vurgu, simge, not, yazı) örtmeyen ilk yer
    * aranır (bunda sayfa kenarından önce, yakındaki başka notun hemen altı/üstü de denenir); yoksa yalnızca kendi notunu örtmeyen ilk
    * yer. Hiçbiri olmazsa sağda, alana kırpılarak.
    */
@@ -973,7 +977,7 @@ export class NotYoneticisi extends EventTarget {
   // ------------------------------------------------------------ araçlar
   aracSec(arac) {
     this.notCubuguKapat();
-    // Metin seçiliyken Yapışkan not aracı (düğme ya da menü) seçimi notlu vurguya çevirir; araç açılmaz
+    // Metin seçiliyken Not aracı (düğme ya da menü) seçimi notlu vurguya çevirir; araç açılmaz
     if (arac === 'not' && this.arac !== 'not' && this.secimKatmani() && this.secimeNotKoy()) return;
     this.arac = this.arac === arac ? null : arac;
     this.g.alan.classList.toggle('arac-not', this.arac === 'not');
@@ -982,14 +986,15 @@ export class NotYoneticisi extends EventTarget {
     this.dispatchEvent(new CustomEvent('arac', { detail: { arac: this.arac } }));
   }
 
-  yapiskanNotKoy(i, e) {
+  /** Sayfaya not (Text) koyar ve balonunu yazmaya açar: Not aracıyla tıklama, sağ tık › Not ekle (seçim yokken). */
+  sayfayaNotKoy(i, e) {
     if (!this.g.sayfalar[i] && e?.target) i = this.sayfaIdx(e.target);   // sayfa numarası geçersizse tıklanan sayfadan bul
     if (!this.vp(i)) return false;
     const sayfaEl = this.g.sayfalar[i].el;
     const k = sayfaEl.getBoundingClientRect();
     const [x, y] = this.pxToPdf(i, e.clientX - k.left, e.clientY - k.top);
     const a = this.ayar();
-    const not = { tur: 'Text', sayfa: i + 1, rect: [x, y, x + 20, y + 20], icerik: '', yazar: a.yazarAdi, renk: NOT_RENGI, opaklik: 1, simge: 'Comment', konu: 'Yapışkan Not' };
+    const not = { tur: 'Text', sayfa: i + 1, rect: [x, y, x + 20, y + 20], icerik: '', yazar: a.yazarAdi, renk: NOT_RENGI, opaklik: 1, simge: 'Comment', konu: 'Not' };
     this.ekle(not);
     this.aracSec(null);
     this.sec(not.id);
@@ -1031,8 +1036,8 @@ export class NotYoneticisi extends EventTarget {
   }
 
   /**
-   * Seçili metne not: seçim notlu vurguya dönüşür (ayrı yapışkan not simgesi konmaz) ve notun düzenleyicisi hemen açılır.
-   * Seçim mini çubuğu, sağ tık "Not ekle" ve metin seçiliyken Yapışkan not aracı buraya gelir. Seçim yoksa false.
+   * Seçili metne not: seçim notlu vurguya dönüşür (ayrı not simgesi konmaz) ve notun düzenleyicisi hemen açılır.
+   * Seçim mini çubuğu, sağ tık "Not ekle" ve metin seçiliyken Not aracı buraya gelir. Seçim yoksa false.
    */
   secimeNotKoy() {
     const a = this.ayar();
@@ -1125,15 +1130,21 @@ export class NotYoneticisi extends EventTarget {
     const w = cubuk.offsetWidth, h = cubuk.offsetHeight;
     const sol = Math.max(0, gl - alanK.left), sag = Math.min(alanK.width, gr - alanK.left), ust = Math.max(0, gt - alanK.top), alt = Math.min(alanK.height, gb - alanK.top);
     let y = b - alanK.top + P;
-    // Altta yer var mı, ▾ ile açılan renk satırı sayılmadan karar verilir: satır açılınca çubuk seçimin altından üstüne atlamasın
-    const renkler = cubuk.classList.contains('renkler-acik') ? cubuk.querySelector('.secim-renkler') : null;
-    const hKapali = h - (renkler ? renkler.offsetHeight + 3 : 0);
-    const ustte = y + hKapali > alt - P;
-    if (ustte) y = t - alanK.top - h - P;                               // altta yer yok → üstüne (renk satırı yukarı açılır: 'ustte')
+    // ▾ ile açılan renk sütunu çubuğun dışında durur (stil.css), çubuğun boyutunu ve yerini değiştirmez
+    const ustte = y + h > alt - P;
+    if (ustte) y = t - alanK.top - h - P;                               // altta yer yok → seçimin üstüne
     cubuk.classList.toggle('ustte', ustte);
     y = Math.max(ust + P, Math.min(alt - h - P, y));
     const x = Math.max(sol + P, Math.min(sag - w - P, (l + r) / 2 - alanK.left - w / 2));
     cubuk.style.left = x + 'px'; cubuk.style.top = y + 'px';
+    // Renk sütunu: çubuk seçimin altındaysa aşağı, üstündeyse yukarı açılır (seçili metni örtmesin); o yönde görünür alanda yer yoksa öteki yöne
+    const renkler = cubuk.classList.contains('renkler-acik') ? cubuk.querySelector('.secim-renkler') : null;
+    if (renkler) {
+      const rh = renkler.offsetHeight + 6;
+      const asagiSigar = y + h + rh <= alt, yukariSigar = y - rh >= ust;
+      const yukari = !asagiSigar && !yukariSigar ? y - ust > alt - (y + h) : ustte ? yukariSigar : !asagiSigar;
+      cubuk.classList.toggle('renkler-yukari', yukari);
+    } else cubuk.classList.remove('renkler-yukari');
     return true;
   }
 
@@ -1142,8 +1153,8 @@ export class NotYoneticisi extends EventTarget {
     const c = this.cubuk();
     if (!c) return;
     c.hidden = true;
-    // ▾ ile açılan renk satırı (uygulama.js secimCubuguYenile) çubuk bir sonraki seçimde kapalı açılsın
-    c.classList.remove('renkler-acik');
+    // ▾ ile açılan renk sütunu (uygulama.js secimCubuguYenile) çubuk bir sonraki seçimde kapalı açılsın
+    c.classList.remove('renkler-acik', 'renkler-yukari');
     c.querySelector('.renk-ac')?.setAttribute('aria-expanded', 'false');
   }
 
@@ -1581,6 +1592,7 @@ export class NotYoneticisi extends EventTarget {
   }
 
   duzenleyiciTus(e) {
+    if (belgeKisayoluMu(e)) return;   // sekme geçişi, yakınlaştırma: belgede (sekme değişince düzenleme uygulanıp biter)
     e.stopPropagation();
     const d = this.duzenleyici; if (!d || e.isComposing) return;
     if (e.key === 'Escape') { e.preventDefault(); this.duzenleyiciEsc(); return; }

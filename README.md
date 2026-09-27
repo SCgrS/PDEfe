@@ -13,7 +13,9 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 
 - **Sekmeler.** Birden çok PDF tek pencerede; sekmeler aynı ve dar genişliktedir ("ustyazi (85).pdf" gibi adlar tam
   görünür, uzun ad üç noktayla kısalır, tam ad ve yol ipucunda) ve sürüklenerek sıralanır. `Ctrl+Tab` basılı tutulunca
-  son kullanılan sırayla sekme seçici açılır; `Ctrl+1` – `Ctrl+9` ile doğrudan sekmeye gidilir. Bir belge yeniden
+  son kullanılan sırayla sekme seçici açılır; `Ctrl+PageUp` / `Ctrl+PageDown` ya da `Ctrl+←` / `Ctrl+→` önceki / sonraki
+  sekmeye, `Ctrl+1` – `Ctrl+9` doğrudan sekmeye gider. Sekme çubuğundaki **+** (ya da `Ctrl+T`) açılış sayfasını yeni bir
+  sekmede açar; oradan açılan belge o sekmenin yerine açılır. Bir belge yeniden
   açıldığında kalınan sayfadan devam edilir (Ayarlar › Açılış ve düzen'den kapatılabilir). Sekme çubuğundaki ◀ ▶ ilk ve
   son sekmede durur. Pencere kapatılırken değişikliği olmayan sekmeler hemen kapanır; kaydedilmemiş değişikliği olan her
   belge için "Çıkmadan önce kaydetmek ister misiniz?" sorulur (Kaydet / Kaydetme / Vazgeç; Vazgeç'te o belgeler açık kalır).
@@ -36,14 +38,15 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 - **Standart PDF notları.** Vurgu (yazının rengi değişmez; varsayılan renk PDF okuyucularında yaygın olan sarı; metin seçince
   çıkan çubukta tek tıkla varsayılan renkle vurgulama, ▾ ile başka renk: seçilen renk değiştirilene dek varsayılan olur; vurguya
   tıklayınca açılan çubuktan renk değiştirme, not ekleme ve kaldırma), seçili metne not
-  ("Metinle ilgili yorum" türünde notlu vurgu; üzerine gelince tıklamadan görünür), yapışkan not ve serbest
+  ("Metinle ilgili yorum" türünde notlu vurgu; üzerine gelince tıklamadan görünür), not ve serbest
   yazı ekleme; taşıma, düzenleme, silme. Nota yanıt yazılmaz; başka programlarda yazılmış yanıtlar salt okunur gösterilir.
   Yazılarda seçili sözcükler kalın, italik ya da altı çizili yapılır; yazılar Türkçe karakterli Windows fontuyla
   (Segoe UI, Arial, Times, Calibri) belgeye gömülür, başka PDF okuyucularında ve UYAP'ta aynı görünür. Notlar `Ctrl+S` ile
   ya da istenirse kendiliğinden kaydedilir (Ayarlar › Kaydetme › Otomatik kaydet, varsayılan kapalı); kaydetme artımlıdır,
   belgenin geri kalanına dokunulmaz.
 - **Geri al / yinele.** Her not ve sayfa işlemi `Ctrl+Z` / `Ctrl+Y` ile geri alınır; kayıttan sonra bile.
-- **Araçlar** (araç çubuğundaki **Araçlar** düğmesi ya da Araçlar menüsü): **PDF küçült** (üç hazır seviye, boyut
+- **Araçlar** (araç çubuğundaki **Araçlar** düğmesi, açılış ekranı ya da Araçlar menüsü; belge açık değilken önce PDF seçilir;
+  pencerelerdeki fare ve tuş kullanımı `F1` Kısayollar'da): **PDF küçült** (üç hazır seviye, boyut
   tahmini), **Sayfaları düzenle** (küçük resim ızgarasında sürükleyerek sıralama, boş alandan sürükleyerek çoklu seçim,
   silme, döndürme, boş sayfa ya da başka PDF'ten sayfa ekleme), **Döndür ve kaydet**, **PDF ayır** (sayfa aralığı, her
   N sayfada bir, seçili sayfalar, her sayfa ayrı dosya), **Görüntü / PDF birleştir** (görüntü ve PDF'lerden tek PDF;
@@ -62,7 +65,7 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   e-postaya ya da Gezgin'e `Ctrl+V` veya Yapıştır ile yapıştırılır.
 - **Koyu mod.** Sistem temasını izler; istenirse sayfa da tam siyaha koyulaştırılır (görseller korunur; yazı kutuları
   sayfayla birlikte koyulaşır, dosyadaki renkleri değişmez).
-- **Döndür.** Döndür düğmesi ve `Ctrl+Shift++` / `Ctrl+Shift+−` belgeyi döndürür: geçerli sayfa ya da tüm PDF
+- **Döndür.** Döndür düğmesi ve `Ctrl+R` / `Ctrl+Shift+R` (saat yönünde / tersine) belgeyi döndürür: geçerli sayfa ya da tüm PDF
   sorulur ("Seçeneğimi hatırla" ile bir daha sorulmaz; Ayarlar › Açılış ve düzen'den değiştirilir). Geri alınabilir;
   kaydedince dosyaya yazılır.
 - Sayfa düzeni (tek sayfa / iki sayfa, kaydırma aç/kapa, kapak ayrı; bütün sekmelere uygulanır), %6400'e kadar
@@ -73,9 +76,10 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   görüntüleyici: PDEfe zaten varsayılansa "Zaten varsayılan"; kaldığım sayfa, son açılanlar ve Listeyi temizle; yakınlaştırma,
   tek / iki sayfa, kaydırma, kapak, Döndür düğmesi), Not ve vurgu, Kaydetme (otomatik kaydet, araçların çıktı klasörü),
   Güncelleme. Kopyalama her zaman temiz metinle yapılır.
-- **Başlangıç ekranı.** Belge açık değilken: PDF aç ve Görüntü / PDF birleştir kartları, son açılan belgeler (tek tıkla açılır;
-  × ya da sağ tıkla listeden kaldırılır, klasörde gösterilir). Liste istenirse hiç tutulmaz: Ayarlar › Açılış ve düzen ›
-  Son açılanları hatırla kapatılınca liste silinir, Dosya menüsündeki Son açılanlar da kalkar.
+- **Açılış ekranı.** Belge açık değilken ve yeni sekmede: büyük **PDF aç** düğmesi (PDF'ler pencereye sürüklenerek de açılır),
+  bütün araçlar ve son açılan belgeler (tek tıkla açılır; × ya da sağ tıkla listeden kaldırılır, klasörde gösterilir). Belge
+  gerektiren bir araç seçilince önce Aç penceresi gelir, araç seçilen PDF'le açılır. Liste istenirse hiç tutulmaz: Ayarlar ›
+  Açılış ve düzen › Son açılanları hatırla kapatılınca liste silinir, açılış ekranındaki kutu ve Dosya menüsündeki Son açılanlar kalkar.
 
 ## Ekran görüntüleri
 
@@ -129,6 +133,7 @@ silinmez; isterseniz o klasörü elle silebilirsiniz. Kurulum sistem klasörleri
 | Kısayol | İşlev |
 | --- | --- |
 | `Ctrl+O` | PDF aç |
+| `Ctrl+T` | Yeni sekme (açılış sayfası) |
 | `Ctrl+S` / `Ctrl+Shift+S` | Kaydet / Farklı kaydet |
 | `Ctrl+W` | Sekmeyi kapat |
 | `Ctrl+P` | Yazdır |
@@ -137,11 +142,12 @@ silinmez; isterseniz o klasörü elle silebilirsiniz. Kurulum sistem klasörleri
 | `Ctrl+G` | Sayfaya git |
 | `Ctrl+,` | Ayarlar |
 | `Ctrl+Z` / `Ctrl+Y` | Geri al / yinele |
-| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Sonraki / önceki sekme (basılı tutunca seçici açılır) |
+| `Ctrl+PageUp` / `Ctrl+PageDown`, `Ctrl+←` / `Ctrl+→` | Önceki / sonraki sekme |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Son kullanılan sekmeler arasında geç (basılı tutunca seçici açılır; seçicide `←` `→`) |
 | `Ctrl+1` – `Ctrl+9` | Sekme seç (`9`: son sekme) |
-| `Ctrl+fare tekerleği`, `Ctrl++` / `Ctrl+−` | Yakınlaştır / uzaklaştır |
+| `Ctrl+fare tekerleği`, `Ctrl++` / `Ctrl+−` | Yakınlaştır / uzaklaştır (Türkçe klavyede `+` Shift+4 ya da sayısal tuş takımındaki +) |
 | `Ctrl+0` | Gerçek boyut |
-| `Ctrl+Shift++` / `Ctrl+Shift+−` | Belgeyi döndür (geçerli sayfa ya da tüm PDF; geri alınabilir) |
+| `Ctrl+R` / `Ctrl+Shift+R` | Belgeyi saat yönünde / tersine döndür (geçerli sayfa ya da tüm PDF; geri alınabilir) |
 | `F4` | Sol panel |
 | `Ctrl+H` | Okuma modu |
 | `F11` | Tam ekran |
@@ -151,7 +157,7 @@ silinmez; isterseniz o klasörü elle silebilirsiniz. Kurulum sistem klasörleri
 | `Ctrl+B` / `Ctrl+I` / `Ctrl+U` | Yazı kutusunda seçili metni kalın / italik / altı çizili yap |
 | `Delete` | Seçili notu sil |
 | `Esc` | Kapat / vazgeç; yazı kutusunda düzenlemeyi bitirir (yazılan korunur) |
-| `F1` | Kısayol listesi |
+| `F1` | Kısayollar (araç pencerelerindeki fare ve tuş kullanımı dahil) |
 
 ## Verileriniz
 

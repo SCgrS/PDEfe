@@ -62,7 +62,7 @@ notlar_kaydet, freetext_stil, baglantilar, form_gorunum (+ araçlar).
 
 ## Temel kararlar
 - **Çizim**: PDF.js sayfa içeriğini çizer (annotationMode DISABLE); notların tamamı PDEfe'nin kendi katmanında çizilir
-  (vurgu ailesi ve yapışkan not simgesi SVG/HTML, PDEfe yazıları yerli HTML, diğer türler çekirdekten AP pixmap'i).
+  (vurgu ailesi ve not simgesi SVG/HTML, PDEfe yazıları yerli HTML, diğer türler çekirdekten AP pixmap'i).
   Böylece taşıma/silme/düzenleme anında görünür, PDF.js belgesi değişmez.
 - **Kaydetme**: renderer model + komut yığını gerçeği tutar; kaydederken dosyadaki duruma göre ekle/güncelle/sil farkı
   çıkarılır ve çekirdek artımlı (incremental) yazar. Yapısal (sayfa) değişiklikler tam yazımla; kayıttan sonra da
@@ -85,7 +85,7 @@ notlar_kaydet, freetext_stil, baglantilar, form_gorunum (+ araçlar).
 ## Durum (2026-09-17)
 - [x] Açma/sekme/görüntüleme, düzenler, zoom (görünür alana sığdır dahil), döndürme, sol panel, koyu tema (sayfayı koyulaştır, görselleri koru), son dosya ve kalınan sayfa, Ctrl+Tab seçici; keskin çizim (görsel, ince çizgi, taramada yüksek yakınlaştırma)
 - [x] Metin seçme (boşluktan sürükleme, okuma sırası), temiz kopyalama, arama; bağlantılar (iç/dış), form alanları (görüntü)
-- [x] Notlar: başka okuyucularda eklenmiş notları gösterme, vurgu/metin notu/yapışkan not/yazı (seçime göre biçim) ekleme, taşıma, silme, geri al/yinele, artımlı kaydetme; döndürülmüş sayfada yazı dosyadaki yönüyle; yanıt yazma yok (dosyadakiler salt okunur)
+- [x] Notlar: başka okuyucularda eklenmiş notları gösterme, vurgu/metin notu/not/yazı (seçime göre biçim) ekleme, taşıma, silme, geri al/yinele, artımlı kaydetme; döndürülmüş sayfada yazı dosyadaki yönüyle; yanıt yazma yok (dosyadakiler salt okunur)
 - [x] Sayfa tarifi komutları (sil/sırala/döndür/boş sayfa/başka PDF'ten sayfa) ve yapısal kaydetme (anlık kopya), kayıttan sonra geri al
 - [x] Ayarlar penceresi, yazdırma (sayfa başına görüntü dosyası, Windows diyaloğu, iptal)
 - [x] Araçlar (araç çubuğundaki Araçlar penceresi ve menü): küçült (tahminli), sayfaları düzenle, ayır, görüntü/PDF birleştir (pano dahil), döndür ve kaydet; standart kaydetme seçimi (yeni belge / yedeksiz üzerine yaz); çekirdekte işbirlikçi iptal
@@ -96,7 +96,7 @@ notlar_kaydet, freetext_stil, baglantilar, form_gorunum (+ araçlar).
 
 ### Revizyon 0.1.1 (2026-09-16, kullanıcı geri bildirimi)
 Ayrıntı: CHANGELOG.md. Kök nedenler ve kararlar:
-- [x] Vurgu / yapışkan not / yazı aracı ilk yüklemede çalışmıyordu: `Goruntuleyici.yukle()` sayfa elemanlarına
+- [x] Vurgu / not / yazı aracı ilk yüklemede çalışmıyordu: `Goruntuleyici.yukle()` sayfa elemanlarına
   `data-sayfa` vermiyordu (yalnızca `sayfalariAyarla` veriyordu) → `notlar.js sayfaIdx`, `metin.js` seçim
   dikdörtgenleri ve sağ tık "Not ekle" NaN sayfa alıyordu. Mini çubuk mouseup'ta `e.clientX`'e taşındığı için
   fareyi izliyordu, `.sayfa`/`body` `user-select:none` olduğundan boş yere tıklamada seçim kalkmıyordu: çubuk
@@ -259,7 +259,7 @@ Ayrıntı: CHANGELOG.md. Kullanıcı 14 istek bildirdi (ekran görüntüleriyle)
 (r014-araclar, r014-arayuz) yapılıp r014'te birleştirildi. Kök nedenler ve kararlar:
 - [x] **"Notlar başka okuyucuda görünmüyor"**: kullanıcının o akşam kaydettiği iki dosyada (Yargıtay ilamı, üst yazı) notlar dosyadaydı, yapı geçerliydi.
   Referans okuyucunun kendi çizim motoruyla (okuyucunun Gezgin önizleme işleyicisi, `test/pdf_onizleme.ps1`: ekranda ama DWM ile
-  gizli pencere, PrintWindow) doğrulandı: vurgular, yazılar, yapışkan not referans okuyucuda görünüyor. Okuyucunun COM otomasyon arayüzü bu kurulumda
+  gizli pencere, PrintWindow) doğrulandı: vurgular, yazılar, not referans okuyucuda görünüyor. Okuyucunun COM otomasyon arayüzü bu kurulumda
   E_NOINTERFACE (ücretsiz okuyucu kipi). Neden: notlar Ctrl+S'ye dek yalnızca bellekteydi. Karar: `otomatikKaydet` varsayılan true, eski ayar dosyalarında
   bir kez true (`otomatikKaydetTasindi`). Otomatik kayıt başarısız olursa (dosya başka bir programda açık, yazmaya kapalı) engelleyici pencere açılmaz:
   bir bildirim, o belgede otomatik kayıt elle kayda dek durur (`b._otoKayitDurdu`).
@@ -584,3 +584,53 @@ döndürme simgesi). Sekme adı soruldu: "Açılış ve düzen". Otomatik kaydet
   yolla açar; pdefe-core.exe yeniden derlendi, derlenmiş exe'de iki yazımla açılıp üçüncüyle bırakılan dosyanın adı değiştirilebildi).
   Çekirdek istekleri tek işçi iş parçacığında sırayla işlendiğinden bırakma süren okumayı kesmez.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 21.
+
+### Revizyon 0.1.13 (2026-09-27, kullanıcı isteği)
+Ayrıntı: CHANGELOG.md. Kullanıcı 11 istek bildirdi (iki ekran görüntüsüyle: seçim çubuğu, Sayfaları düzenle araç çubuğu). Sorulup yanıtlanan:
+"Son açılanlar" kapalıyken kutu tamamen kalksın ("kutucuğu kalsın" yazılmıştı; 0.1.12'de kutu zaten bilgi satırıyla kalıyordu); döndürme
+kısayolu Claude'a bırakıldı (Ctrl+R / Ctrl+Shift+R); sürüm 0.1.13 (0.1.12 yayımlanmadan).
+- [x] **Adlar**: "Yapışkan not" arayüzde, menüde, Yorumlar panelinde, kodda (notlar.js yapiskanNotKoy → sayfayaNotKoy), testlerde ve belgelerde
+  (geçmiş sürüm notları dahil) "Not"; yeni Text notunun /Subj'i çekirdekte 'Not' (başka okuyucuların yorum listesinde görünür). Eski
+  tek seferlik yama betiklerinde (test/yama_*.py, test/wf) eski ad kaldı. Araçlardaki "Kaydetme" bölüm başlığı "Kaydet" (ekran okuyucu adı
+  "Kayıt biçimi"; kaydetmeden çıkış sorusunun Kaydetme düğmesi ve Ayarlar'ın Kaydetme sekmesi değişmedi), "PDF'ten sayfa ekle" → "PDF ekle".
+- [x] **Seçim çubuğu**: renkler ▾'nin altında dikey sütun (`.renk-ac-kap` içinde position:absolute), çubuk 171 → 113 px; sütun çubuk seçimin
+  altındaysa aşağı, üstündeyse yukarı, o yönde yer yoksa öteki yöne, ikisine de sığmazsa daha çok yer olana açılır ('renkler-yukari').
+- [x] **Açılış sekmesi**: + (`#sekme-yeni`, son sekmenin hemen sağında; `#sekme-liste` artık flex 0 1 auto) ve Ctrl+T açılış sayfasını
+  "Yeni sekme" sekmesinde açar. Sekme belge değildir: `baslangicSekmeleri` kümesi, aktifId açılış sekmesi olabilir, aktif() null.
+  dosyaAc: açılış sekmesi etkinken önde açılan belge onun yerini alır (sekmeler.ekle once), zaten açık dosyada o sekmeye geçilir ve açılış
+  sekmesi kapanır; yükleme başarısızsa açılış sekmesi aynı yere geri gelir; `yenile` seçeneği (araçların sekmeyi diskteki yeni hâliyle
+  yeniden açması: ortak.js sekmeyiYenile, küçült) açılış sekmesini tüketmez. Açık belge kalmayınca açılış sekmeleri de kalkar (sekmesiz
+  açılış ekranı, uygulamanın ilk hâli); pencere kapatmada değişmeyen sekmelerle birlikte kapanır. Sağ tık menüsünde Klasörde göster / Yolu
+  kopyala devre dışı; Ctrl+Tab seçicisinde + simgesi; Açık belgeler listesinde aramaya gitmez. Seçim çubuğu açılış sekmesine geçince gizlenir.
+- [x] **Açılış ekranı**: büyük PDF aç (`.karsilama-ac`), altında sürükle-bırak ipucu, beş araç kartı (ARACLAR), sağda Son açılanlar;
+  "Son açılanları hatırla" kapalıyken kutu gizli, içerik 640 px ve ortalı (`.karsilama.son-kapali`).
+- [x] **Belgesiz araç**: ARACLAR belge:true araçların komutu sarılır: belge yokken Aç penceresi (coklu:false, başlık "<araç>: PDF seçin"),
+  açılan belgeyle araç açılır; açılış ekranı kartları, Araçlar penceresi (soluk karo ve "önce bir PDF açın" notu kalktı) ve menü aynı yol.
+- [x] **Araç ipuçları**: Pencere.altMetinAyarla ve alt şeritteki ipucu satırları kalktı; F1 penceresi "Kısayollar" (menüde de), üç sütun,
+  üçüncüsü Sayfaları düzenle ve Görüntü / PDF birleştir'in fare / tuş kullanımı.
+- [x] **Kısayollar** (hepsi gerçek girdiyle sınandı; kullanıcının klavyesi Türkçe Q, 041F): menü hızlandırıcıları sanal tuş koduyla eşlenir,
+  Türkçe Q'da VK_OEM_PLUS yok (+ Shift+4, = Shift+0): Ctrl+= ve Ctrl+Shift+= hiç çalışmıyordu. Yakınlaştırma sayfada (uygulama.js
+  yakinlastirmaTusu: e.key '+', '=', '-', '_', sayısal + / −, sayısal 0 yalnızca key '0' iken; Shift'li − de uzaklaştırır, döndürmez),
+  menüde registerAccelerator:false. Döndürme Ctrl+R / Ctrl+Shift+R (hızlandırıcı). Ctrl+PageUp/PageDown (girdide de) ve Ctrl+←/→ (girdide
+  değil) önceki / sonraki sekme, uçta durur. Ctrl+Tab seçicisinde ← → ↑ ↓ Enter Esc; ilk Ctrl+Shift+Tab en eskiye, sonrakiler birer geri.
+  Açık pencere varken (ortuAcik: mesaj kutusu, .diyalog-ortusu, .arac-ortusu, .ayarlar-ortusu) Ctrl+Tab, Ctrl+1–9, Ctrl+Z/Y/A, Ctrl+PageUp/
+  PageDown arkadaki belgeye gitmez; menu:komut'ta döndürme, sekme ve açma komutları da (ORTU_ACIKKEN_CALISMAYAN; Ctrl+W yazdırılan
+  belgeyi kapatıyordu). Yazı düzenleyicisi ve not balonu sekme geçişi ve yakınlaştırma tuşlarını belgeye geçirir (notlar.js
+  belgeKisayoluMu). Sayfaları düzenle'nin tuşları araç çubuğundaki düğmeden sonra da (govde dinleyicisi), Birleştir'in Delete / Ctrl+A'sı
+  satır düğmesinden sonra da çalışır. Ctrl+F yalnızca metin katmanındaki seçimi alır; Bul kapalıyken gizli girdideki input (başka kutuda
+  Ctrl+Z Chromium'un çerçeveye ortak geri alma yığınından onu geri alabilir) aramaz. Sekme çubuğunun her yerinde tekerlek sekme değiştirir.
+- [x] **Test altyapısı**: test/baslat_gizli.ps1 test örneğini görünmeyen ayrı bir masaüstünde başlatır; `test:odakla` (yalnızca
+  PDEFE_TEST_GIZLI_MASAUSTU=1) pencereyi orada etkinleştirir: menü hızlandırıcıları yalnızca etkin pencerede çalıştığından ekran dışı örnekte
+  hiç sınanamıyordu; `test:tusGonder` (webContents.sendInputEvent) tarayıcı sürecinin girdi yolu, etkin pencerede CDP tuşu da menüye
+  ulaşır. surucu.mjs `tusHam` (key / code / sanal tuş ayrı: Türkçe Q taklidi).
+- [x] Testler: test/kisayol_dosya.mjs 163/163, test/kisayol_gorunum.mjs 117/117 (menü kısayolları görünmeyen masaüstünde), test/kisayol_araclar.mjs 91/91,
+  test/senaryo19.mjs 111/111 (yeni); senaryo13, 14 (Son açılanlar kapalıyken kutu gizli), 17, 18 hepsi, ortu_tiklama 155/155, sekme_genislik 20/20,
+  vurgu_cubugu (deneme-notlu) hepsi; düzeltmelerden önce: senaryo15 5/5, senaryo16 6/6, oto_kayit_kilit 7/7, araclar_testi 131/131,
+  kopyalama_testi 20/20. İlk turda kısayol testleri 7 hata buldu (Ctrl+Shift+Tab art arda en eskiye sıçrıyordu; Ctrl+F sayfa kutusunun
+  seçili numarasını arıyordu; Bul kapatılınca bekleyen arama ve başka kutudaki Ctrl+Z gizli aramayı çalıştırıyordu; açık pencerede Ctrl+1–9,
+  Ctrl+Tab, Ctrl+Z/Y, Ctrl+W, Ctrl+T arkada çalışıyor, sonra Esc pencereyi kapatmıyordu), araç testleri odak kaybını (düğme devre dışı
+  kalınca / satır silinince odak BODY'ye düşüp Esc ve Ctrl+A pencereye gitmiyordu: ortak.js en üstteki pencereye yönlendirir), yeni
+  özellik testi pencere kapatmada açılış sekmesini; hepsi düzeltildi. İnceleme (üç boyutlu bulucu + her bulguya bağımsız çürütme):
+  11 bulgu doğrulandı, hepsi düzeltildi; reddedilen 3'ten biri (Shift'li − döndürüyordu) yine de kaldırıldı. Kapsam dışı, 0.1.12'de de
+  var: vurgu çubuğu aynı notun kalıcı balonunun altında kalıyor (PyMuPDF'le üretilen vurgulu PDF'te vurgu_cubugu "Kaldır" düşüyor).
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 22.

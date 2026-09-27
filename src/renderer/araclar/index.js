@@ -6,7 +6,7 @@
 //   aktif: () => belge|null,                       // {id, yol, ad, boyut, degisti, kaydediliyor, diskDondurme, gorunum:{sayfaSayisi, gecerli, sayfalar, anlik, tarif(), yapisalKirli()}, notlar, yigin}
 //   cekirdek(yontem, params, ilerlemeCb),           // Promise (iptal() ve istekId taşır); ilerlemeCb({yuzde, mesaj})
 //   iptal?: (istekId) => void,                     // isteğe bağlı; çağrının kendi iptal()'i yoksa kullanılır
-//   dosyaAc(yol, {arkaPlanda, sayfa}) → Promise<belge>,
+//   dosyaAc(yol, {arkaPlanda, sayfa, yenile}) → Promise<belge>,   // yenile: sekmeyi yeniden açma (açılış sekmesinin yerine geçmez)
 //   kaydet(belge) → Promise<bool>,
 //   mesajKutusu({tur, mesaj, ayrinti, dugmeler, varsayilan, iptal}) → {secim, onay},
 //   bildir(metin, sure?),

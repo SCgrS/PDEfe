@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Not yazma testi: vurgu, yapışkan not (+yanıt), Türkçe serbest metin ekle; geri oku; PNG'ye çiz.
+"""Not yazma testi: vurgu, not (+yanıt), Türkçe serbest metin ekle; geri oku; PNG'ye çiz.
 Kullanım: .venv\\Scripts\\python.exe test\\not_testi.py"""
 import os, sys, shutil, json
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "core"))
@@ -25,7 +25,7 @@ islemler = [
     {"islem": "ekle", "id": "v1", "not": {"tur": "Highlight", "sayfa": 1, "quads": [[kutu.x0, kutu.y0, kutu.x1, kutu.y1]],
                                           "renk": "#ffeb3b", "opaklik": 0.4, "yazar": "Deneme Yazar", "icerik": "Vurgu notu: şğİıçöü"}},
     {"islem": "ekle", "id": "n1", "not": {"tur": "Text", "sayfa": 1, "rect": [kutu2.x1 + 20, kutu2.y0 - 4, 0, 0],
-                                          "renk": "#ffd000", "yazar": "Deneme Yazar", "icerik": "Yapışkan not içeriği — İĞŞÇÖÜ ığşçöü"}},
+                                          "renk": "#ffd000", "yazar": "Deneme Yazar", "icerik": "Not içeriği — İĞŞÇÖÜ ığşçöü"}},
     {"islem": "ekle", "id": "y1", "not": {"tur": "Text", "sayfa": 1, "rect": [kutu2.x1 + 20, kutu2.y0 - 4, 0, 0], "yanitId": "n1",
                                           "yazar": "Deneme Yanıtçı", "icerik": "Bu bir yanıt: şışman İğne"}},
     {"islem": "ekle", "id": "f1", "not": {"tur": "FreeText", "sayfa": 1, "rect": [70, 700, 330, 760],

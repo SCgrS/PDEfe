@@ -17,6 +17,7 @@ export function menuKur({ komut, sonDosyalar, duzen }) {
       label: '&Dosya',
       submenu: [
         { label: 'Aç', accelerator: 'Ctrl+O', click: k('dosya.ac') },
+        { label: 'Yeni sekme', accelerator: 'Ctrl+T', click: k('sekme.yeni') },
         ...(sonListe ? [{
           label: 'Son açılanlar',
           submenu: son.length
@@ -29,6 +30,9 @@ export function menuKur({ komut, sonDosyalar, duzen }) {
         { label: 'Farklı kaydet', accelerator: 'Ctrl+Shift+S', click: k('dosya.farkliKaydet') },
         { type: 'separator' },
         { label: 'Sekmeyi kapat', accelerator: 'Ctrl+W', click: k('sekme.kapat') },
+        // Sekme geçişi sayfada işlenir (uygulama.js; Ctrl+← / Ctrl+→ de): hızlandırıcı yalnızca menüde yazar
+        { label: 'Sonraki sekme', accelerator: 'Ctrl+PageDown', registerAccelerator: false, click: k('sekme.sonraki') },
+        { label: 'Önceki sekme', accelerator: 'Ctrl+PageUp', registerAccelerator: false, click: k('sekme.onceki') },
         { label: 'Klasörde göster', click: k('dosya.klasordeGoster') },
         { type: 'separator' },
         { label: 'Yazdır', accelerator: 'Ctrl+P', click: k('dosya.yazdir') },
@@ -45,7 +49,7 @@ export function menuKur({ komut, sonDosyalar, duzen }) {
         { label: 'Kopyala', accelerator: 'Ctrl+C', role: 'copy' },
         { label: 'Tümünü seç', accelerator: 'Ctrl+A', registerAccelerator: false, click: k('duzen.tumunuSec') },
         { type: 'separator' },
-        { label: 'Yapışkan not', click: k('not.arac', 'not') },
+        { label: 'Not', click: k('not.arac', 'not') },
         { label: 'Vurgu', click: k('not.arac', 'vurgu') },
         { label: 'Yazı', click: k('not.arac', 'yazi') },
         { label: 'Seçili notu sil', accelerator: 'Delete', registerAccelerator: false, click: k('not.sil') },
@@ -61,8 +65,10 @@ export function menuKur({ komut, sonDosyalar, duzen }) {
     {
       label: '&Görünüm',
       submenu: [
-        { label: 'Yakınlaştır', accelerator: 'Ctrl+=', click: k('gorunum.yakinlastir') },
-        { label: 'Uzaklaştır', accelerator: 'Ctrl+-', click: k('gorunum.uzaklastir') },
+        // Yakınlaştırma tuşları sayfada işlenir (uygulama.js yakinlastirmaTusu): hızlandırıcı sanal tuş koduyla eşlenir, Türkçe Q klavyede
+        // "=" tuşu (VK_OEM_PLUS) yok ve + Shift+4'tür; Ctrl+= hiç çalışmıyordu. Burada yalnızca menüde yazar.
+        { label: 'Yakınlaştır', accelerator: 'Ctrl+Plus', registerAccelerator: false, click: k('gorunum.yakinlastir') },
+        { label: 'Uzaklaştır', accelerator: 'Ctrl+-', registerAccelerator: false, click: k('gorunum.uzaklastir') },
         { label: 'Gerçek boyut (%100)', accelerator: 'Ctrl+0', click: k('gorunum.zoom', 'gercek') },
         { label: 'Sayfayı sığdır', click: k('gorunum.zoom', 'sayfa') },
         { label: 'Genişliğe sığdır', click: k('gorunum.zoom', 'genislik') },
@@ -73,8 +79,10 @@ export function menuKur({ komut, sonDosyalar, duzen }) {
         { label: 'Kaydırmayı etkinleştir', type: 'checkbox', checked: kaydirma, click: k('gorunum.kaydirma') },
         { label: 'İki sayfalı görünümde kapak sayfasını ayrı göster', type: 'checkbox', checked: !!dz.kapakAyri, click: k('gorunum.kapakAyri') },
         { type: 'separator' },
-        { label: 'Saat yönünde döndür', accelerator: 'Ctrl+Shift+=', click: k('gorunum.dondur', 90) },
-        { label: 'Saat yönünün tersine döndür', accelerator: 'Ctrl+Shift+-', click: k('gorunum.dondur', -90) },
+        // 0.1.13: Ctrl+Shift++ Türkçe Q klavyede basılamıyordu (+ zaten Shift+4); R her düzende aynı tuş. Araç penceresi / diyalog açıkken
+        // çalışmaz (uygulama.js menu:komut)
+        { label: 'Saat yönünde döndür', accelerator: 'Ctrl+R', click: k('gorunum.dondur', 90) },
+        { label: 'Saat yönünün tersine döndür', accelerator: 'Ctrl+Shift+R', click: k('gorunum.dondur', -90) },
         { type: 'separator' },
         { label: 'Sol panel', accelerator: 'F4', click: k('gorunum.solPanel') },
         { label: 'Koyu / açık tema', click: k('gorunum.tema') },
@@ -99,7 +107,7 @@ export function menuKur({ komut, sonDosyalar, duzen }) {
     {
       label: '&Yardım',
       submenu: [
-        { label: 'Klavye kısayolları', accelerator: 'F1', click: k('yardim.kisayollar') },
+        { label: 'Kısayollar', accelerator: 'F1', click: k('yardim.kisayollar') },
         { label: 'Güncellemeleri denetle', click: k('yardim.guncelle') },
         { type: 'separator' },
         { label: 'Geliştirici araçları', accelerator: 'Ctrl+Shift+I', role: 'toggleDevTools' },

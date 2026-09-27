@@ -1,6 +1,6 @@
 // Senaryo 18 (0.1.12): çekirdeğin belge önbelleği araç kapanınca bırakılır. Araç penceresinin okuttuğu dosya (Görüntü / PDF birleştir
-// listesi, Sayfaları düzenle'de PDF'ten sayfa ekle) araç açıkken çekirdekte açıktır (Windows'ta adı değiştirilemez); son araç penceresi
-// kapanınca bırakılır. Açık bir sekmenin dosyası bırakılmaz; sekme kapanınca bırakılır. Dosyanın açık olup olmadığı adını değiştirmeyi
+// listesi, Sayfaları düzenle'de PDF ekle; 0.1.12'de adı "PDF'ten sayfa ekle") araç açıkken çekirdekte açıktır (Windows'ta adı
+// değiştirilemez); son araç penceresi kapanınca bırakılır. Açık bir sekmenin dosyası bırakılmaz; sekme kapanınca bırakılır. Dosyanın açık olup olmadığı adını değiştirmeyi
 // deneyerek ölçülür (değiştirilebildiyse geri alınır).
 // Kullanım: boş veri klasörlü test örneği (baslat.ps1) açıkken  $env:PDEFE_CDP_PORT=9381; node test/surucu.mjs betik test/senaryo18.mjs
 import fs from 'node:fs';
@@ -68,7 +68,7 @@ export default async function ({ evalJs, bekle, tus }) {
   await kapat('sekme.pdf');
   sonuc('Sekme kapanınca dosyası bırakılır', !acikMi(A));
 
-  // ---------------------------------------------------------------- Sayfaları düzenle: PDF'ten sayfa ekle
+  // ---------------------------------------------------------------- Sayfaları düzenle: PDF ekle (0.1.13'e dek "PDF'ten sayfa ekle")
   await ac(A);
   await evalJs(`window.__pdefe.komutCalistir('arac.sayfalar')`);
   await kosul(`document.querySelectorAll('.sayfa-karti').length > 0`);

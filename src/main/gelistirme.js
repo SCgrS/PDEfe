@@ -4,11 +4,13 @@
 //   PDEFE_TEST_KONUM    "x,y": pencere bu konumda açılır (ör. "-3000,0" ekran dışı). Windows pencere örtülme hesabı
 //                       kapatılır; ekran dışındaki pencere çizmeye ve CDP ekran görüntüsü vermeye devam eder.
 //   PDEFE_TEST_BOYUT    "genişlik,yükseklik": pencere boyutu (kayıtlı boyut yerine).
+//   PDEFE_TEST_GIZLI_MASAUSTU  "1": örnek görünmeyen ayrı bir masaüstünde (test/baslat_gizli.ps1); test:odakla pencereyi etkinleştirir
+//                       (menü kısayolları yalnızca etkin pencerede çalışır; kişinin ekranındaki odak etkilenmez).
 //   PDEFE_TEST_GUNCELLEME  "x.y.z": güncelleme akışı sahte güncelleyiciyle denenir (sunucuda x.y.z var sayılır; bkz. sahteGuncelleyiciKur).
 //   PDEFE_TEST_GUNCELLEME_HATA  sahte güncelleyicinin başlangıç senaryosu: denetim | indirme | kurulum (açılıştaki otomatik denetimi
 //                       denemek için; sonradan test:guncellemeSenaryosu ile değiştirilir).
 // Paketli uygulamada hiçbiri okunmaz.
-import { app, Menu } from 'electron';
+import { app, BrowserWindow, Menu } from 'electron';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 
@@ -89,6 +91,20 @@ export function testDiyalogKur(ipcMain) {
   // Ana süreçten gelen olayı taklit eder (fareyle seçilen menü komutu 'menu:komut', pencere kapatma isteği 'pencere:kapatIstegi'):
   // aynı kanaldan renderer'a geri gönderilir. CDP tuş olayı menü hızlandırıcısını tetiklemediğinden bu yolla sınanır.
   ipcMain.handle('test:olayGonder', (e, kanal, ...args) => { e.sender.send(kanal, ...args); return true; });
+  // Tuş olayını tarayıcı sürecinin girdi yolundan gönderir (webContents.sendInputEvent): sayfa işlemediği tuş menü hızlandırıcısına
+  // da ulaşır (CDP tuş olayı ulaşmaz). olaylar: [{ type: 'keyDown'|'char'|'keyUp', keyCode, modifiers }]; aralarında 30 ms
+  ipcMain.handle('test:tusGonder', async (e, olaylar) => {
+    for (const o of olaylar || []) { e.sender.sendInputEvent(o); await new Promise((c) => setTimeout(c, 30)); }
+    return true;
+  });
+  // Menü hızlandırıcıları yalnızca etkin pencerede çalışır. Pencereyi etkinleştirmek yalnızca görünmeyen masaüstündeki örnekte
+  // (test/baslat_gizli.ps1) yapılır: orada etkin pencere olmak kişinin ekranındaki odağı etkilemez.
+  ipcMain.handle('test:odakla', (e) => {
+    const pencere = BrowserWindow.fromWebContents(e.sender);
+    if (process.env.PDEFE_TEST_GIZLI_MASAUSTU !== '1' || !pencere) return { odak: pencere?.isFocused() ?? false, gizliMasaustu: false };
+    pencere.focus(); e.sender.focus();
+    return { odak: pencere.isFocused(), gizliMasaustu: true };
+  });
   // Uygulama menüsünün etiketleri (alt menüler iç içe): ayara bağlı öğeler (Dosya › Son açılanlar) sınanır
   const menuYapisi = (m) => (m ? m.items.map((o) => (o.submenu ? { etiket: o.label, alt: menuYapisi(o.submenu) } : o.label)) : null);
   ipcMain.handle('test:menu', () => menuYapisi(Menu.getApplicationMenu()));

@@ -107,7 +107,7 @@ export class AyirPenceresi {
         </div>
       </div>
       <div class="arac-bolum ayir-cikti-alani">
-        <div class="arac-bolum-baslik">Kaydetme</div>
+        <div class="arac-bolum-baslik">Kaydet</div>
         <div class="ayir-onizleme"></div>
         <div class="arac-aciklama ayir-adlar">Dosya adları <b>${kacis(adGovdesi(b.yol))}_1-3.pdf</b> biçiminde verilir; var olan dosyaların üzerine yazılmaz, ada "(2)" eklenir.</div>
       </div>

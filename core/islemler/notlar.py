@@ -3,7 +3,7 @@
 
 - Highlight: PDF okuyucularının yazdığı yapı: /C, /CA, /QuadPoints, görünüm akışı /BM /Multiply + /CA (PyMuPDF üretir), gizli Popup (/F 28 /Open false);
   notlu vurgu ("Metinle ilgili yorum yap") /Contents + /IT /HighlightNote taşır
-- Text (yapışkan not): /Comment simgesi, Popup; dosyadaki yanıtları (IRT) geri yazabilir (yeni yanıt arayüzden eklenmez)
+- Text (not): /Comment simgesi, Popup; dosyadaki yanıtları (IRT) geri yazabilir (yeni yanıt arayüzden eklenmez)
 - FreeText: /DA + /DS + /RC (XHTML zengin metin) + kendi ürettiğimiz görünüm akışı; Windows'taki gerçek font
   (Segoe UI, Arial, Times New Roman, Calibri; düz, kalın, italik, kalın italik) alt kümesi gömülür, böylece ş ğ İ ı ç ö ü
   her yerde doğru çıkar. Kalın / italik / altı çizili / üstü çizili ve renk karakter düzeyindedir (parçalar).
@@ -833,7 +833,7 @@ def _popup_rect(page, annot):
     return pymupdf.Rect(pw, y0, pw + 204, y0 + 114)
 
 
-# PDF okuyucularında yaygın varsayılan not rengi (vurgu ve yapışkan not): /C [1 .819611 0]
+# PDF okuyucularında yaygın varsayılan not rengi (vurgu ve not): /C [1 .819611 0]
 VARSAYILAN_SARI = (1, 0.819611, 0)
 
 
@@ -876,7 +876,7 @@ def not_ekle(doc, page, n):
         r = n["rect"]
         a = page.add_text_annot((r[0], r[1]), n.get("icerik") or "", icon=n.get("simge") or "Comment")
         a.set_colors(stroke=renk or VARSAYILAN_SARI)
-        _ortak_bilgi(a, dict(n, konu=n.get("konu") or "Yapışkan Not"))
+        _ortak_bilgi(a, dict(n, konu=n.get("konu") or "Not"))
         a.set_flags(pymupdf.PDF_ANNOT_IS_PRINT | pymupdf.PDF_ANNOT_IS_NO_ZOOM | pymupdf.PDF_ANNOT_IS_NO_ROTATE)
         a.update()
         if n.get("yanitXref"):
@@ -900,7 +900,7 @@ def not_ekle(doc, page, n):
     olusturma = n.get("olusturma")
     doc.xref_set_key(a.xref, "CreationDate", _pdf_metin(olusturma if isinstance(olusturma, str) and olusturma.startswith("D:") else _pdf_tarih()))
     # Benzersiz ad (referans okuyucudaki gibi UUID); PyMuPDF'in "fitz-A0" adı her belgede yinelenir. n["ad"] kullanılmaz: çekirdeğin notlar
-    # yanıtındaki "ad" /NM değil /Name'dir (yapışkan not simgesi, ör. "Comment")
+    # yanıtındaki "ad" /NM değil /Name'dir (not simgesi, ör. "Comment")
     doc.xref_set_key(a.xref, "NM", _pdf_metin(str(uuid.uuid4())))
     return a.xref
 

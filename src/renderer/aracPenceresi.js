@@ -5,7 +5,8 @@
 
 const simge = (ic) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ic}</svg>`;
 
-/** Karolar, Araçlar menüsündeki araçların sırasıyla. belge: açık bir PDF gerektirir (yoksa karo devre dışı görünür ve seçilemez). */
+/** Karolar, Araçlar menüsündeki araçların sırasıyla. belge: açık bir PDF gerektirir; belge yokken seçilince önce Aç penceresi açılır
+ *  (uygulama.js; 0.1.13'e dek karo soluk ve seçilemezdi). Açılış ekranı (baslangic.js) da bu listeyi gösterir. */
 export const ARACLAR = [
   {
     komut: 'arac.kucult', ad: 'PDF küçült', aciklama: 'Dosya boyutunu azaltır', renk: 'yesil', belge: true,
@@ -44,12 +45,10 @@ export class AraclarPenceresi {
    * @param {object} s
    * @param {HTMLButtonElement} s.dugme araç çubuğundaki Araçlar düğmesi
    * @param {(komut:string)=>void} s.komutCalistir uygulama komutunu çalıştırır
-   * @param {()=>boolean} s.belgeVar etkin (açık) bir belge var mı
    */
-  constructor({ dugme, komutCalistir, belgeVar }) {
+  constructor({ dugme, komutCalistir }) {
     this.dugme = dugme;
     this.komutCalistir = komutCalistir;
-    this.belgeVar = belgeVar;
     this.acik = false;
 
     const el = document.createElement('div');
@@ -58,9 +57,8 @@ export class AraclarPenceresi {
     el.setAttribute('role', 'dialog');
     el.setAttribute('aria-label', 'Araçlar');
     el.hidden = true;
-    el.innerHTML = '<div class="araclar-baslik">Araçlar</div><div class="araclar-izgara"></div><div class="araclar-not" hidden>Soluk görünen araçlar için önce bir PDF açın.</div>';
+    el.innerHTML = '<div class="araclar-baslik">Araçlar</div><div class="araclar-izgara"></div>';
     this.el = el;
-    this.not = el.querySelector('.araclar-not');
     const izgara = el.querySelector('.araclar-izgara');
     // data-komut kullanılmaz: uygulama.js [data-komut] öğelerine ayrıca tıklama dinleyicisi bağlar
     this.karolar = ARACLAR.map((a) => {
@@ -72,7 +70,8 @@ export class AraclarPenceresi {
       k.innerHTML = `<span class="araclar-ikon">${simge(a.ikon)}</span><span class="araclar-ad"></span><span class="araclar-aciklama"></span>`;
       k.querySelector('.araclar-ad').textContent = a.ad;
       k.querySelector('.araclar-aciklama').textContent = a.aciklama;
-      k.addEventListener('click', () => this.sec(a, k));
+      k.title = a.ipucu;
+      k.addEventListener('click', () => this.sec(a));
       izgara.append(k);
       return { a, k };
     });
@@ -103,23 +102,15 @@ export class AraclarPenceresi {
       else this.kapat({ odakDugmeye: true });
     });
     el.addEventListener('keydown', (e) => this._tus(e));
-    // Başlığa, karolar arasındaki boşluğa ya da soluk karoya tıklamak odağı karodan almasın (odak BODY'ye düşünce tuşlar belgeye giderdi)
-    el.addEventListener('mousedown', (e) => { if (!e.target.closest('.araclar-karo:not([aria-disabled="true"])')) e.preventDefault(); });
+    // Başlığa ya da karolar arasındaki boşluğa tıklamak odağı karodan almasın (odak BODY'ye düşünce tuşlar belgeye giderdi)
+    el.addEventListener('mousedown', (e) => { if (!e.target.closest('.araclar-karo')) e.preventDefault(); });
   }
 
-  /** Seçilebilir (açık belge gerektirmeyen ya da belge açık olan) karolar, sırayla. */
-  etkinKarolar() { return this.karolar.filter((x) => x.k.getAttribute('aria-disabled') !== 'true').map((x) => x.k); }
+  /** Karolar, sırayla (klavye gezinmesi). */
+  etkinKarolar() { return this.karolar.map((x) => x.k); }
 
   ac() {
     if (this.acik) return;
-    const belge = !!this.belgeVar();
-    for (const { a, k } of this.karolar) {
-      const devre = a.belge && !belge;
-      k.setAttribute('aria-disabled', String(devre));
-      k.tabIndex = devre ? -1 : 0;
-      k.title = devre ? `${a.ad}: bu araç için önce bir PDF açın` : a.ipucu;
-    }
-    this.not.hidden = belge;
     this.el.hidden = false;
     this.acik = true;
     this.dugme.setAttribute('aria-expanded', 'true');
@@ -149,9 +140,8 @@ export class AraclarPenceresi {
     }
   }
 
-  /** Aracı çalıştırır; devre dışı karo pencereyi kapatmaz (alttaki not nedenini söyler). */
-  sec(a, k) {
-    if (k.getAttribute('aria-disabled') === 'true') return;
+  /** Pencereyi kapatıp aracı çalıştırır (belge gerektiren araç belge yokken önce Aç penceresini açar: uygulama.js). */
+  sec(a) {
     this.kapat();
     this.komutCalistir(a.komut);
   }
@@ -188,7 +178,7 @@ export class AraclarPenceresi {
       case 'Enter': case ' ': {
         e.preventDefault();
         const x = this.karolar.find((y) => y.k === document.activeElement);
-        if (x) this.sec(x.a, x.k);
+        if (x) this.sec(x.a);
         break;
       }
       default: break;

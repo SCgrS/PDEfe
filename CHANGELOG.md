@@ -3,6 +3,29 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.13 — 2026-09-27
+
+### Açılış ekranı ve yeni sekme
+- Açılış ekranında büyük bir **PDF aç** düğmesi var; "PDF'leri bu pencereye sürükleyip bırakarak da açabilirsiniz" yazısı hemen altında. Altında bütün araçlar görünür: PDF küçült, Sayfaları düzenle, Döndür ve kaydet, PDF ayır, Görüntü / PDF birleştir.
+- Belge gerektiren bir araç (Görüntü / PDF birleştir dışındakiler) belge açık değilken seçilince önce Aç penceresi gelir; seçilen PDF açılır ve araç doğrudan o belgeyle açılır. Açılış ekranında, araç çubuğundaki Araçlar penceresinde ve Araçlar menüsünde böyle; Araçlar penceresinde soluk araç kalmadı.
+- Sekme çubuğunda Chrome'daki gibi bir **+** düğmesi var (`Ctrl+T` de aynı): açılış sayfası yeni bir sekmede açılır. Oradan açılan belge o sekmenin yerine açılır.
+- "Son açılanları hatırla" kapalıyken açılış ekranında Son açılanlar kutusu hiç görünmez.
+
+### Kısayollar
+- Bütün kısayollar sınandı. Türkçe klavyede `Ctrl++` (yakınlaştır) hiç çalışmıyordu, döndürme kısayolu da basılamıyordu: artık `Ctrl++` (Shift+4 ile ya da sayısal tuş takımındaki +) yakınlaştırır, `Ctrl+−` uzaklaştırır; döndürme `Ctrl+R` (saat yönünde) ve `Ctrl+Shift+R` (tersine). `Ctrl+Shift+−` artık döndürmez, uzaklaştırır: + için Shift basılı kalınca belge yanlışlıkla dönebiliyordu.
+- `Ctrl+PageUp` / `Ctrl+PageDown` ve `Ctrl+←` / `Ctrl+→` önceki / sonraki sekmeye geçer (önceden `Ctrl+PageUp` / `Ctrl+PageDown` sayfa çeviriyordu). `Ctrl+Tab` seçicisi açıkken `←` `→` ile sekme seçilir.
+- Kısayollar, Ayarlar, Yazdır ya da bir araç penceresi açıkken `Ctrl+Tab`, `Ctrl+1` – `Ctrl+9`, `Ctrl+Z` / `Ctrl+Y`, `Ctrl+W` gibi kısayollar arkadaki belgede çalışıyordu (örneğin `Ctrl+W` yazdırılmakta olan belgeyi kapatıyordu); artık çalışmaz.
+- `Ctrl` basılıyken `Shift+Tab` art arda basılınca sekme seçicisi geri gider (en eski sekmeye geri sıçrıyordu).
+- Yazı kutusu ve not düzenlenirken de `Ctrl+PageUp` / `Ctrl+PageDown` ve `Ctrl++` / `Ctrl+−` çalışır.
+- Sayfaları düzenle'de araç çubuğundaki bir düğmeye bastıktan sonra da sayfa kısayolları (`Ctrl+Z`, `R`, oklar, `Delete`, `Ctrl+A`) çalışır; Görüntü / PDF birleştir'de satırdaki bir düğmeden sonra `Delete` ve `Ctrl+A` da. Önceden `Ctrl+A` pencerenin yazısını seçiyordu.
+- `Ctrl+F` yalnızca belgede seçili metni aranacak diye alır (sayfa kutusundaki numarayı arıyordu); Bul kapalıyken sayfa kutusunda `Ctrl+Z` belgeyi başka sayfaya atlatmaz.
+- Araç pencerelerinin altındaki "Tıkla: seç · Delete: sil …" açıklamaları kaldırıldı; `F1` ile açılan **Kısayollar** penceresinde Sayfaları düzenle ve Görüntü / PDF birleştir bölümleri olarak yer alıyor.
+
+### Adlar ve görünüm
+- Not aracının adı her yerde yalnızca **Not** (araç çubuğu, Düzen menüsü, Yorumlar paneli; yeni notun başka PDF okuyucularında görünen konusu da "Not").
+- Metin seçince çıkan çubuk daraldı: renkler ▾'nin altında dikey bir sütunda açılır, çubuk genişlemez.
+- Sayfaları düzenle'deki "PDF'ten sayfa ekle" düğmesinin adı **PDF ekle**; araç pencerelerindeki "Kaydetme" başlığı **Kaydet**.
+
 ## 0.1.12 — 2026-09-27
 
 ### Kapatma ve kaydetme soruları
@@ -137,7 +160,7 @@ otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
 ### Vurgu ve notlar
 - Vurguya tıklayınca altında küçük bir çubuk açılır: renkler, Not ekle / Notu düzenle ve Kaldır. Başka PDF okuyucularında eklenmiş vurgularda, altı çizili, üstü çizili ve dalgalı işaretlerde de çalışır. Renk değişince çubuk açık kalır, `Ctrl+Z` geri alır; varsayılan vurgu rengi değişmez. `Esc` ya da başka bir yere tıklamak çubuğu kapatır.
-- Otomatik kaydetme artık varsayılan olarak açık: notlar ve döndürme kısa bir gecikmeyle dosyaya yazılır; dosya başka bir PDF okuyucuda ya da UYAP'ta açıldığında görünür. PDEfe'nin kaydettiği vurgu, metin notu, yazı ve yapışkan not yaygın bir PDF okuyucunun kendi çizim motoruyla denetlendi ve görünüyor; görünmeme nedeni notların kaydedilmemiş olmasıydı. Ayarlar › Kaydetme › Otomatik kaydet'ten kapatılabilir.
+- Otomatik kaydetme artık varsayılan olarak açık: notlar ve döndürme kısa bir gecikmeyle dosyaya yazılır; dosya başka bir PDF okuyucuda ya da UYAP'ta açıldığında görünür. PDEfe'nin kaydettiği vurgu, metin notu, yazı ve not yaygın bir PDF okuyucunun kendi çizim motoruyla denetlendi ve görünüyor; görünmeme nedeni notların kaydedilmemiş olmasıydı. Ayarlar › Kaydetme › Otomatik kaydet'ten kapatılabilir.
 - Dosya başka bir programda (örneğin bir PDF okuyucuda) açık olduğu için otomatik kayıt yapılamazsa her değişiklikte hata penceresi açılmaz: bir kez bildirilir, değişiklikler PDEfe'de durur; o programı kapatıp `Ctrl+S` ile kaydedilir.
 
 ### Yazı aracı
@@ -194,9 +217,9 @@ otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 ### Vurgu ve notlar
 - Vurgu yazının rengini değiştirmez: yalnızca zemin renklenir, siyah yazı siyah kalır. Başka PDF okuyucularında ya da PDEfe'de eklenen vurgularda, açık ve koyu temada, koyulaştırılmış sayfadaki taramalar ve resimler üzerinde de böyledir. Seçili vurgu gölge yerine mavi kenarla gösterilir.
 - Varsayılan vurgu rengi ve opaklığı PDF okuyucularında yaygın varsayılanla aynı: sarı #FFD100, %40. Eski varsayılan sarıyı (#FFEB3B) kullananların ayarı bir kez yeni sarıya taşınır.
-- Seçili metne not (seçim mini çubuğu, sağ tık › Not ekle ya da metin seçiliyken Yapışkan not) PDF okuyucularındaki "Metinle ilgili yorum" gibi çalışır: metin vurgulanır, not vurgunun içine yazılır, not kutusu hemen açılır. Balon başlığında ve Yorumlar panelinde türü "Metin notu" yazar. Metin seçili değilken Yapışkan not eskisi gibi çalışır.
+- Seçili metne not (seçim mini çubuğu, sağ tık › Not ekle ya da metin seçiliyken Not aracı) PDF okuyucularındaki "Metinle ilgili yorum" gibi çalışır: metin vurgulanır, not vurgunun içine yazılır, not kutusu hemen açılır. Balon başlığında ve Yorumlar panelinde türü "Metin notu" yazar. Metin seçili değilken Not aracı eskisi gibi çalışır.
 - Notu olan vurgunun (başka PDF okuyucularında eklenenler dahil) ilk satırının bittiği yerde, dipnot işareti gibi hafif yukarıda küçük bir not simgesi görünür; yakınlaştırmayla büyür küçülür, döndürülmüş sayfada da yerindedir. Aynı yerde biten iki notun simgeleri yan yana dizilir; simgenin üzerine gelince ait olduğu vurgu kesik kenarla belirginleşir, tıklayınca not düzenlenmek üzere açılır.
-- Notun üzerine gelince (vurgu, simge, yapışkan not) not tıklamadan yaklaşık 0,1 saniyede görünür; fare not kutusuna geçerken kapanmaz, metin seçerken açılmaz. Not kutusu kendi notunu ve yakındaki notları örtmeyen yere açılır, uzun notlar kaydırmadan okunur.
+- Notun üzerine gelince (vurgu, simge, not) not tıklamadan yaklaşık 0,1 saniyede görünür; fare not kutusuna geçerken kapanmaz, metin seçerken açılmaz. Not kutusu kendi notunu ve yakındaki notları örtmeyen yere açılır, uzun notlar kaydırmadan okunur.
 - Notu olmayan vurgunun üzerine gelince boş not kutusu açılmaz; not eklemek için vurguya çift tıklanır.
 - Kaydedilen vurgu ve notlar yaygın PDF okuyucularının kullandığı yapıda yazılır (gizli açılır pencere, benzersiz not adı, notlu vurgu "Metinle İlgili Yorum Yap" olarak). Silinip geri alınan not bu bilgiyi ve ilk oluşturma tarihini korur.
 - Başka bir PDF okuyucuda düzenlenmiş bir notun metni PDEfe'de değiştirilince o okuyucu artık eski metni göstermez.
@@ -269,7 +292,7 @@ otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 ## 0.1.1 — 2026-09-17
 
 ### Düzeltmeler
-- Yeni açılan belgede vurgu (seçim mini çubuğu, araç çubuğundaki düğme, sağ tık menüsü), yapışkan not / yorum ve Yazı aracı çalışmıyordu.
+- Yeni açılan belgede vurgu (seçim mini çubuğu, araç çubuğundaki düğme, sağ tık menüsü), not / yorum ve Yazı aracı çalışmıyordu.
 - Vurgu mini çubuğu fareyi izliyordu: artık seçimin altında sabit durur, başka bir yere tıklanınca kapanır.
 - Harfler bulanık görünüyordu: sayfa tuvali ekranın piksel ızgarasına oturtuldu.
 - Büyütülen görseller (fotoğraf, taranmış sayfa) pikselli çiziliyordu: yüksek kaliteli yumuşatmayla çizilir.
@@ -321,8 +344,8 @@ otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 - Word 2010 kaynaklı bozuk Türkçe karakter (Ġ→İ, ġ→Ş, Ģ→ş) düzeltmesi hem görünen metinde hem aramada.
 
 ### Notlar (başka PDF okuyucularıyla uyumlu)
-- Var olan notların gösterilmesi: vurgu ailesi, yapışkan not, yazı, çizim ve diğer türler.
-- Yeni: vurgu (renk ve saydamlık ayarı), yapışkan not, yanıt, serbest yazı (FreeText). Yazılar Türkçe karakter içeren Windows fontuyla (Segoe UI, Arial, Times, Calibri; kalın dahil) belgeye gömülür.
+- Var olan notların gösterilmesi: vurgu ailesi, not, yazı, çizim ve diğer türler.
+- Yeni: vurgu (renk ve saydamlık ayarı), not, yanıt, serbest yazı (FreeText). Yazılar Türkçe karakter içeren Windows fontuyla (Segoe UI, Arial, Times, Calibri; kalın dahil) belgeye gömülür.
 - Notları taşıma, düzenleme, silme; sınırsız geri al / yinele (`Ctrl+Z` / `Ctrl+Y`), kayıttan sonra da geri alma.
 - Artımlı kaydetme: belgenin geri kalanına dokunulmaz, yalnızca not farkı yazılır. Otomatik kaydetme ve sekme değişiminde sorma seçenekleri.
 

@@ -73,7 +73,7 @@ def md5(yol):
 
 
 def notlu_pdf_uret(yol):
-    """Masaüstündeki notlu deneme dosyası yoksa yerine: 6 sayfa, 1. sayfada notlu vurgu (+Popup) ve yapışkan not (2 not)."""
+    """Masaüstündeki notlu deneme dosyası yoksa yerine: 6 sayfa, 1. sayfada notlu vurgu (+Popup) ve not (2 not)."""
     d = pymupdf.open()
     for i in range(6):
         d.new_page(width=595, height=842).insert_text((72, 100), "Deneme sayfası %d" % (i + 1), fontsize=18)
@@ -82,14 +82,14 @@ def notlu_pdf_uret(yol):
     v.set_info(content="Vurgu notu", title="Test")
     v.set_popup(pymupdf.Rect(300, 80, 500, 180))
     v.update()
-    pg.add_text_annot(pymupdf.Point(400, 300), "Yapışkan not").update()
+    pg.add_text_annot(pymupdf.Point(400, 300), "Not").update()
     d.save(yol)
     d.close()
     return yol
 
 
 def zengin_pdf_uret(yol, sayfa_sayisi=8):
-    """Her sayfada "Sayfa N" metni, notlu vurgu (+Popup) ve yapışkan not; 1. sayfada 3. sayfaya iç bağlantı, 2. sayfada dış bağlantı,
+    """Her sayfada "Sayfa N" metni, notlu vurgu (+Popup) ve not; 1. sayfada 3. sayfaya iç bağlantı, 2. sayfada dış bağlantı,
     5. sayfada 2. sayfaya iç bağlantı; iki düzeyli yer imleri (her sayfaya bir tane)."""
     d = pymupdf.open()
     for i in range(sayfa_sayisi):
@@ -99,7 +99,7 @@ def zengin_pdf_uret(yol, sayfa_sayisi=8):
         v.set_info(content="Vurgu notu %d" % (i + 1), title="Test")
         v.set_popup(pymupdf.Rect(300, 80, 500, 180))
         v.update()
-        pg.add_text_annot(pymupdf.Point(400, 300), "Yapışkan not %d" % (i + 1)).update()
+        pg.add_text_annot(pymupdf.Point(400, 300), "Not %d" % (i + 1)).update()
     d[0].insert_link({"kind": pymupdf.LINK_GOTO, "from": pymupdf.Rect(72, 200, 250, 220), "page": 2, "to": pymupdf.Point(72, 100)})
     d[1].insert_link({"kind": pymupdf.LINK_URI, "from": pymupdf.Rect(72, 200, 250, 220), "uri": "https://example.com/pdefe"})
     d[4].insert_link({"kind": pymupdf.LINK_GOTO, "from": pymupdf.Rect(72, 200, 250, 220), "page": 1, "to": pymupdf.Point(72, 100)})

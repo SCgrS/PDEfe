@@ -9,7 +9,7 @@ import { NotYoneticisi, VURGU_RENKLERI } from './notlar.js';
 import { KomutYigini, Komut } from './komutlar.js';
 import { ayarlarPenceresiAc, ayarlarPenceresiKapat } from './ayarlarPenceresi.js';
 import { aracKomutlari, aracPencereleriniKapat, aracPenceresiKapaninca, acikAracPenceresiVar } from './araclar/index.js';
-import { AraclarPenceresi } from './aracPenceresi.js';
+import { AraclarPenceresi, ARACLAR } from './aracPenceresi.js';
 import { guncellemeSeridiKur } from './guncelleme.js';
 import { yazdir } from './yazdir.js';
 import { ortuTiklamasiBagla } from './ortu.js';
@@ -103,8 +103,16 @@ function ayarUygula(anahtar, deger) {
 
 // ---------------------------------------------------------------- belge açma / kapatma
 async function dosyaAc(yol, secenek = {}) {
-  // Zaten açıksa o sekmeye geç
-  for (const b of belgeler.values()) if (yolAyni(b.yol, yol)) { sekmeSec(b.id); return b; }
+  // Zaten açıksa o sekmeye geç; açılış sekmesinden açılmak istendiyse o sekme kapanır (işi bitti). secenek.yenile: araç sekmeyi
+  // diskteki yeni hâliyle yeniden açıyor (ortak.js sekmeyiYenile, küçült): kapanan sekmenin yerine geçici olarak seçilmiş açılış
+  // sekmesi tüketilmez
+  const acilistan = !secenek.arkaPlanda && !secenek.yenile && baslangicSekmeleri.has(aktifId);
+  for (const b of belgeler.values()) if (yolAyni(b.yol, yol)) {
+    const bos = acilistan ? aktifId : null;
+    sekmeSec(b.id);
+    if (bos) baslangicSekmesiniKapat(bos);
+    return b;
+  }
   const varMi = await pdefe.cagir('dosya:varMi', yol);
   if (!varMi) { bildir('Dosya bulunamadı: ' + yol); sonDosyalardanCikar(yol); return null; }
 
@@ -118,9 +126,11 @@ async function dosyaAc(yol, secenek = {}) {
   // diskDondurme: yüklenen dosyaya (gorunum.yol) artımlı kayıtla işlenmiş göreli döndürmeler, kaynak sayfa no → açı (bkz. yapisalTarif)
   const belge = { id, yol, ad, el, gorunum, degisti: false, boyut: 0, bilgi: null, diskDondurme: {} };
   belgeler.set(id, belge);
-  sekmeler.ekle({ id, ad, yol });
+  // Açılış sekmesi (+ / Ctrl+T) etkinken önde açılan belge o sekmenin yerini alır (tarayıcıdaki gibi); arka planda açılan sona eklenir
+  const yerine = acilistan && baslangicSekmeleri.has(aktifId) ? aktifId : null;
+  sekmeler.ekle({ id, ad, yol, once: yerine });
+  if (yerine) { baslangicSekmeleri.delete(yerine); sekmeler.kaldir(yerine); aktifId = null; }
   if (!secenek.arkaPlanda || !aktifId) sekmeSec(id);
-  $('#baslangic').hidden = true;
 
   gorunum.addEventListener('sayfa', (e) => { if (aktifId === id) { sayfaGoster(belge); } sayfaKonumuKaydet(belge); gizlenenNotuBirak(belge); });
   gorunum.addEventListener('zoom', (e) => { if (aktifId === id) zoomGoster(belge); });
@@ -155,6 +165,12 @@ async function dosyaAc(yol, secenek = {}) {
     belge.notlar.yukle().catch((e2) => console.warn('Notlar yüklenemedi', e2));
   } catch (e) {
     console.error(e);
+    // Açılamadı (bozuk dosya, parola sorusunda Vazgeç): yerini aldığı açılış sekmesi aynı yere geri gelir, kullanıcı orada kalır
+    if (yerine && !baslangicSekmeleri.has(yerine) && sekmeler.bul(id)) {
+      baslangicSekmeleri.add(yerine);
+      sekmeler.ekle({ id: yerine, ad: 'Yeni sekme', yol: '', once: id, baslangic: true });
+      if (aktifId === id) sekmeSec(yerine);
+    }
     belgeKapat(id, { zorla: true });
     await mesajKutusu({ tur: 'error', mesaj: 'PDF açılamadı', ayrinti: `${ad}\n\n${hataMetni(e)}` });
     return null;
@@ -166,18 +182,22 @@ async function dosyaAc(yol, secenek = {}) {
 
 async function sekmeSec(id) {
   const b = belgeler.get(id);
-  if (!b) return;
+  const bas = baslangicSekmeleri.has(id);
+  if (!b && !bas) return;
   if (aktifId && aktifId !== id) {
     const eski = belgeler.get(aktifId);
     if (eski) {
       eski.notlar?.balonKapat(); eski.notlar?.notCubuguKapat(); eski.notlar?.duzenleyiciBitir(true);
       eski.el.hidden = true;
+      eski.notlar?.secimCubuguKonumla();   // görünümü gizlendi: seçim çubuğu da gizlenir (açılış sekmesinde belgenin boyutDegisti'si yok)
     }
   }
   aktifId = id;
+  sekmeler.aktifYap(id);
+  if (bas) { baslangicGoster(); return; }   // açılış sekmesi: belge alanında açılış ekranı
+  $('#baslangic').hidden = true;
   b.el.hidden = false;
   duzenEsitle(b);   // genel düzen/kapak bu sekme arka plandayken değiştiyse şimdi uygula
-  sekmeler.aktifYap(id);
   belgeDurumuYaz(b);
   pdefe.cagir('pencere:baslik', b.ad);
   panel.belgeAyarla(b);
@@ -262,13 +282,51 @@ async function belgeKapat(id, secenek = {}) {
   b.el.remove();
   kullanilmayanlariBirak(yollar);
   if (b.gorunum.anlik) cekirdek('anlik_sil', { yol: b.gorunum.anlik }).catch(() => {});
-  if (aktifId === id) {
-    aktifId = null;
-    const sonraki = sekmeler.mru[0] || sekmeler.sekmeler[0]?.id;
-    if (sonraki) sekmeSec(sonraki);
-    else { baslangicGoster(); }
-  }
+  if (aktifId === id) { aktifId = null; sonrakiSekmeyeGec(); }
+  bosSekmeleriTemizle();
   return true;
+}
+
+// ---------------------------------------------------------------- açılış sekmeleri (0.1.13, kullanıcı isteği)
+// Sekme çubuğundaki + ya da Ctrl+T tarayıcıdaki gibi açılış sayfasını yeni bir sekmede açar ("Yeni sekme"). Sekme belge değildir
+// (belgeler'de yok; aktif() null): belge alanında #baslangic görünür, araç çubuğu açılış ekranındaki gibidir. Oradan önde açılan
+// belge sekmenin yerini alır (dosyaAc). Açık belge kalmayınca açılış sekmeleri de kalkar: sekmesiz açılış ekranı (uygulamanın ilk hâli).
+const baslangicSekmeleri = new Set();
+let baslangicSayac = 0;
+
+/** Yeni açılış sekmesi (sona); hiç sekme yokken açılış ekranı zaten görünür, sekme açılmaz. */
+function yeniSekme() {
+  if (!sekmeler.sekmeler.length) { baslangicGoster(); return; }
+  const id = 'y' + (++baslangicSayac);
+  baslangicSekmeleri.add(id);
+  sekmeler.ekle({ id, ad: 'Yeni sekme', yol: '', baslangic: true });
+  sekmeSec(id);
+}
+
+function baslangicSekmesiniKapat(id) {
+  if (!baslangicSekmeleri.delete(id)) return false;
+  sekmeler.kaldir(id);
+  if (aktifId === id) { aktifId = null; sonrakiSekmeyeGec(); }
+  bosSekmeleriTemizle();
+  return true;
+}
+
+/** Belge ya da açılış sekmesi kapatır (sekme × düğmesi, orta tık, Ctrl+W, sağ tık menüsü). */
+function sekmeKapat(id, secenek) { return baslangicSekmeleri.has(id) ? Promise.resolve(baslangicSekmesiniKapat(id)) : belgeKapat(id, secenek); }
+
+/** Etkin sekme kapandıktan sonra: en son kullanılan sekme, yoksa açılış ekranı. */
+function sonrakiSekmeyeGec() {
+  const sonraki = sekmeler.mru[0] || sekmeler.sekmeler[0]?.id;
+  if (sonraki) sekmeSec(sonraki); else baslangicGoster();
+}
+
+/** Açık belge kalmadıysa açılış sekmeleri de kaldırılır: sekme çubuğu gizlenir, açılış ekranı sekmesiz görünür. */
+function bosSekmeleriTemizle() {
+  if (belgeler.size || !baslangicSekmeleri.size) return;
+  for (const id of baslangicSekmeleri) sekmeler.kaldir(id);
+  baslangicSekmeleri.clear();
+  aktifId = null;
+  baslangicGoster();
 }
 
 // ---------------------------------------------------------------- çekirdeğin belge önbelleği
@@ -327,6 +385,7 @@ function aracDosyalariniBirak() {
 /** Birden çok sekmeyi kapatır (sekmede sağ tık: Diğerlerini / Sağdakileri kapat), pencere kapatmadaki sırayla: önce değişikliği
  *  olmayanlar, sonra kaydedilmemiş değişikliği olanlar tek tek sorularak. Vazgeç (ya da başarısız kayıt) kalanları açık bırakır. */
 async function sekmeleriKapat(idler) {
+  for (const id of idler) if (baslangicSekmeleri.has(id)) baslangicSekmesiniKapat(id);   // açılış sekmesinde kaydedilecek bir şey yok
   const liste = idler.map((id) => belgeler.get(id)).filter(Boolean);
   for (const b of liste) b.notlar?.duzenleyiciBitir(true);
   for (const b of liste) if (belgeler.has(b.id)) await kayitBitmesiniBekle(b);   // süren kayıt bitince degisti kesinleşir
@@ -664,11 +723,13 @@ const komutlar = {
   'not.sil': () => aktif()?.notlar.silSecili(),
   'dosya.klasordeGoster': () => { const b = aktif(); if (b) pdefe.cagir('kabuk:klasordeGoster', b.yol); },
   'dosya.yazdir': () => { const b = aktif(); if (!b) { bildir('Yazdırılacak belge yok.'); return; } return yazdir({ cekirdek, pdefe, mesajKutusu, bildir, kaydet: (belge) => belgeKaydet(belge) }, b); },
-  'sekme.kapat': () => { if (aktifId) belgeKapat(aktifId); else pdefe.cagir('pencere:kapat'); },
+  'sekme.kapat': () => { if (aktifId) sekmeKapat(aktifId); else pdefe.cagir('pencere:kapat'); },
+  'sekme.yeni': () => yeniSekme(),
+  'sekme.sonraki': () => sekmeGec(1), 'sekme.onceki': () => sekmeGec(-1),
   'duzen.geriAl': () => geriAlYinele(true),
   'duzen.yinele': () => geriAlYinele(false),
   'duzen.tumunuSec': () => tumunuSec(),
-  'duzen.bul': (metin) => { if (aktif()) arama.ac(typeof metin === 'string' ? metin : (secimHamMetni().trim().split('\n')[0] || '')); },
+  'duzen.bul': (metin) => { if (aktif()) arama.ac(typeof metin === 'string' ? metin : (belgeSecimMetni().trim().split('\n')[0] || '')); },
   'duzen.bulSonraki': () => arama.git(1), 'duzen.bulOnceki': () => arama.git(-1),
   'duzen.sayfayaGit': () => { const k = $('#sayfa-kutusu'); k.focus(); k.select(); },
   // bolum: açılacak sekme (ör. başlangıç ekranındaki "Ayarlar › Açılış ve düzen" bağlantısı); menüden ve araç çubuğundan gelmez
@@ -718,6 +779,23 @@ try {
   }));
 } catch (e) { console.error('Araç komutları bağlanamadı', e); }
 
+// Açık belge gerektiren araçlar (ARACLAR belge: true; Görüntü / PDF birleştir gerektirmez) belge yokken (açılış ekranı ya da açılış
+// sekmesi) önce Aç penceresini açar; seçilen PDF açılır ve araç o belgeyle açılır (0.1.13, kullanıcı isteği; önceden "Önce bir PDF açın"
+// bildirimi ve Araçlar penceresinde soluk karo). Açılış ekranındaki karolar, Araçlar penceresi ve Araçlar menüsü aynı yoldan gelir.
+for (const a of ARACLAR.filter((x) => x.belge)) {
+  const ac = komutlar[a.komut];
+  if (!ac) continue;
+  komutlar[a.komut] = async (veri) => {
+    if (!aktif()) {
+      const yollar = await pdefe.cagir('dosya:acDiyalog', { coklu: false, baslik: `${a.ad}: PDF seçin` });
+      if (!yollar?.length) return null;
+      const b = await dosyaAc(yollar[0]);
+      if (!b || aktif() !== b) return null;   // açılamadı ya da açılırken başka sekmeye geçildi
+    }
+    return ac(veri);
+  };
+}
+
 // Güncelleme şeridi
 let guncelleme = null;
 try {
@@ -740,7 +818,7 @@ function komutCalistir(id, veri) {
 }
 
 // Araç çubuğundaki Araçlar düğmesinin penceresi; menüden ya da kısayolla gelen komut onu kapatır
-const araclarPenceresi = new AraclarPenceresi({ dugme: $('#dugme-araclar'), komutCalistir: (id) => komutCalistir(id), belgeVar: () => !!aktif() });
+const araclarPenceresi = new AraclarPenceresi({ dugme: $('#dugme-araclar'), komutCalistir: (id) => komutCalistir(id) });
 
 // Başlangıç ekranı: PDF aç ve Görüntü / PDF birleştir kartları, son açılanlar
 const baslangic = new BaslangicEkrani({
@@ -750,7 +828,15 @@ const baslangic = new BaslangicEkrani({
 
 // Mesaj kutusu açıkken fareyle seçilen menü komutu ve pencere kapatma yok sayılır (yerel kutu pencereyi kilitliyordu): soru yanıtlanmadan
 // başka iş başlamasın, aynı belge için ikinci soru açılmasın. Klavye kısayollarını kutu kendisi alır.
-pdefe.dinle('menu:komut', (id, veri) => { if (mesajKutusuAcik()) { mesajKutusuUyar(); return; } araclarPenceresi.kapat(); komutCalistir(id, veri); });
+// Araç penceresi, diyalog (F1, yazdır, parola) ya da Ayarlar açıkken arkadaki belgeyi ya da sekmeleri değiştiren komutlar (Ctrl+R, Ctrl+T,
+// Ctrl+W, Ctrl+O hızlandırıcıları da) çalışmaz: araç kendi tarifini kaydederken arkada yapılan döndürmeyi ezerdi, Ctrl+W yazdırılmakta olan
+// belgeyi kapatıyordu (sayfada işlenen Ctrl+PageUp/PageDown, Ctrl+Tab, Ctrl+1–9, Ctrl+Z aynı kuralla: ortuAcik)
+const ORTU_ACIKKEN_CALISMAYAN = new Set(['gorunum.dondur', 'sekme.yeni', 'sekme.sonraki', 'sekme.onceki', 'sekme.kapat', 'dosya.ac', 'dosya.acYol', 'duzen.geriAl', 'duzen.yinele']);
+pdefe.dinle('menu:komut', (id, veri) => {
+  if (mesajKutusuAcik()) { mesajKutusuUyar(); return; }
+  if (ORTU_ACIKKEN_CALISMAYAN.has(id) && (acikAracPenceresiVar() || document.querySelector('.diyalog-ortusu, .ayarlar-ortusu'))) return;
+  araclarPenceresi.kapat(); komutCalistir(id, veri);
+});
 pdefe.dinle('dosya:ac', async (yollar) => { for (const y of yollar) await dosyaAc(y); });
 pdefe.dinle('pencere:tamEkran', (acik) => document.body.classList.toggle('tam-ekran', acik));
 pdefe.dinle('pencere:kapatIstegi', async () => { if (mesajKutusuAcik()) { mesajKutusuUyar(); return; } if (await kapatmayaIzinAl({ degismeyenleriKapat: true })) await pdefe.cagir('pencere:kapatOnayla'); });
@@ -769,6 +855,7 @@ function kapatmayaIzinAl({ degismeyenleriKapat = false } = {}) {
     const vazgecildi = () => { for (const x of belgeler.values()) if (x.degisti) kirliGuncelle(x); return false; };   // kapanmıyor: iptal edilen otomatik kayıtlar yeniden kurulsun
     for (const b of [...belgeler.values()]) if (belgeler.has(b.id)) await kayitBitmesiniBekle(b);
     if (degismeyenleriKapat && [...belgeler.values()].some((b) => b.degisti)) {
+      for (const id of [...baslangicSekmeleri]) baslangicSekmesiniKapat(id);
       for (const b of [...belgeler.values()]) if (belgeler.has(b.id) && !b.degisti) await belgeKapat(b.id);
     }
     for (const b of [...belgeler.values()]) {
@@ -818,29 +905,31 @@ document.querySelectorAll('#not-araclari [data-arac]').forEach((el) => {
   });
 });
 // Seçim mini çubuğu (0.1.12, kullanıcı isteği): tek vurgu düğmesi (altındaki çizgi varsayılan renk) + ▾ renkler + not + kopyala.
-// Renkler ▾ ile açılır (çubuğun altında bir satır); seçilen renkle vurgulanır ve o renk değiştirilene dek varsayılan olur (vurguRengi).
-// Açık renk satırı çubuk gizlenince kapanır (notlar.js secimCubuguGizle 'renkler-acik' sınıfını kaldırır). Düğmeler mousedown'da
-// çalışır ve varsayılanı engeller: metin seçimi ve odak yerinde kalır.
+// Renkler ▾ ile açılır: ▾'nin altında (çubuk seçimin üstündeyse ya da altta yer yoksa üstünde) dikey bir sütun (0.1.13, kullanıcı
+// isteği: yatay renk satırı çubuğu genişletiyordu, çubuk kapalıyken de o genişlikte duruyordu); sütun çubuğun boyutunu değiştirmez.
+// Seçilen renkle vurgulanır ve o renk değiştirilene dek varsayılan olur (vurguRengi). Açık sütun çubuk gizlenince kapanır (notlar.js
+// secimCubuguGizle 'renkler-acik' sınıfını kaldırır). Düğmeler mousedown'da çalışır ve varsayılanı engeller: metin seçimi ve odak yerinde kalır.
 const VURGU_SVG = '<svg viewBox="0 0 20 20"><path d="m5 13 8-8 2 2-8 8H5z" fill="none" stroke="currentColor" stroke-width="1.4"/><path class="renk-cizgi" d="M3 17h14" stroke-width="2.4"/></svg>';
 function secimCubuguYenile() {
   const c = $('#secim-cubugu');
   const renk = ayar.vurguRengi || VURGU_RENKLERI[0].hex;
   const renkAdi = VURGU_RENKLERI.find((r) => r.hex === renk)?.ad || 'varsayılan renk';
-  c.classList.remove('renkler-acik');
+  c.classList.remove('renkler-acik', 'renkler-yukari');
   c.innerHTML = '<div class="secim-ana">' +
     `<button class="ikon kucuk vurgu-dugme" data-islem="vurgu" title="Vurgula (${renkAdi})" style="--r:${renk}">${VURGU_SVG}</button>` +
-    '<button class="ikon kucuk renk-ac" data-islem="renkler" title="Vurgu rengini seç" aria-expanded="false"><svg viewBox="0 0 20 20"><path d="m6 8 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>' +
+    '<span class="renk-ac-kap"><button class="ikon kucuk renk-ac" data-islem="renkler" title="Vurgu rengini seç" aria-expanded="false"><svg viewBox="0 0 20 20"><path d="m6 8 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>' +
+    '<div class="secim-renkler" role="radiogroup" aria-label="Vurgu rengi">' +
+    VURGU_RENKLERI.map((r) => `<button class="renk ${r.hex === renk ? 'secili' : ''}" data-renk="${r.hex}" title="${r.ad}" role="radio" aria-checked="${r.hex === renk}" style="--r:${r.hex}"></button>`).join('') +
+    '</div></span>' +
     '<span class="ayrac"></span><button class="ikon kucuk" data-islem="not" title="Not ekle"><svg viewBox="0 0 20 20"><path d="M3 4.5A1.5 1.5 0 0 1 4.5 3h11A1.5 1.5 0 0 1 17 4.5v8a1.5 1.5 0 0 1-1.5 1.5H9l-4 3v-3H4.5A1.5 1.5 0 0 1 3 12.5z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></button>' +
     '<button class="ikon kucuk" data-islem="kopyala" title="Kopyala"><svg viewBox="0 0 20 20"><rect x="7" y="7" width="9" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M13 7V4.5A1.5 1.5 0 0 0 11.5 3h-6A1.5 1.5 0 0 0 4 4.5v8A1.5 1.5 0 0 0 5.5 14H7" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></button>' +
-    '</div><div class="secim-renkler" role="radiogroup" aria-label="Vurgu rengi">' +
-    VURGU_RENKLERI.map((r) => `<button class="renk ${r.hex === renk ? 'secili' : ''}" data-renk="${r.hex}" title="${r.ad}" role="radio" aria-checked="${r.hex === renk}" style="--r:${r.hex}"></button>`).join('') +
     '</div>';
   const bas = (sec, f) => c.querySelectorAll(sec).forEach((btn) => btn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); if (e.button === 0) f(btn); }));
   bas('[data-islem="vurgu"]', () => aktif()?.notlar.vurguUygula(renk));
   bas('[data-islem="renkler"]', (btn) => {
     const acik = c.classList.toggle('renkler-acik');
     btn.setAttribute('aria-expanded', String(acik));
-    aktif()?.notlar.secimCubuguKonumla();   // çubuk büyüdü / küçüldü: görünür alanda kalsın
+    aktif()?.notlar.secimCubuguKonumla();   // sütunun açılacağı yön (altta / üstte yer) çubuğun konumuna göre
   });
   bas('.renk', (btn) => { const b = aktif(); if (!b) return; ayarKoy('vurguRengi', btn.dataset.renk); b.notlar.vurguUygula(btn.dataset.renk); secimCubuguYenile(); });
   bas('[data-islem="not"]', () => aktif()?.notlar.secimeNotKoy());
@@ -899,20 +988,21 @@ $('#dugme-duzen').addEventListener('click', async () => {
 
 // Sekme olayları
 sekmeler.addEventListener('sec', (e) => sekmeSec(e.detail.id));
-sekmeler.addEventListener('kapat', (e) => belgeKapat(e.detail.id));
+sekmeler.addEventListener('kapat', (e) => sekmeKapat(e.detail.id));
 sekmeler.addEventListener('belgedeAra', async (e) => { await sekmeSec(e.detail.id); arama.ac(e.detail.sorgu, { tumSekmeler: true }); });
 sekmeler.addEventListener('sagTik', async (e) => {
-  const id = e.detail.id; const b = belgeler.get(id); if (!b) return;
+  // Açılış sekmesinde (dosyası yok) Klasörde göster / Yolu kopyala devre dışı
+  const id = e.detail.id; const b = belgeler.get(id); if (!b && !baslangicSekmeleri.has(id)) return;
   const secim = await pdefe.cagir('menu:popup', [
-    { id: 'kapat', etiket: 'Kapat' }, { id: 'digerleri', etiket: 'Diğerlerini kapat', devre: belgeler.size < 2 },
+    { id: 'kapat', etiket: 'Kapat' }, { id: 'digerleri', etiket: 'Diğerlerini kapat', devre: sekmeler.sekmeler.length < 2 },
     { id: 'sagdakiler', etiket: 'Sağdakileri kapat', devre: sekmeler.sekmeler.findIndex((s) => s.id === id) >= sekmeler.sekmeler.length - 1 },
-    { ayirici: true }, { id: 'klasor', etiket: 'Klasörde göster' }, { id: 'yol', etiket: 'Yolu kopyala' },
+    { ayirici: true }, { id: 'klasor', etiket: 'Klasörde göster', devre: !b }, { id: 'yol', etiket: 'Yolu kopyala', devre: !b },
   ]);
-  if (secim === 'kapat') belgeKapat(id);
+  if (secim === 'kapat') sekmeKapat(id);
   else if (secim === 'digerleri') await sekmeleriKapat(sekmeler.sekmeler.filter((s) => s.id !== id).map((s) => s.id));
   else if (secim === 'sagdakiler') { const i = sekmeler.sekmeler.findIndex((s) => s.id === id); await sekmeleriKapat(sekmeler.sekmeler.slice(i + 1).map((s) => s.id)); }
-  else if (secim === 'klasor') pdefe.cagir('kabuk:klasordeGoster', b.yol);
-  else if (secim === 'yol') { await pdefe.cagir('pano:metin', b.yol); bildir('Yol panoya kopyalandı'); }
+  else if (secim === 'klasor' && b) pdefe.cagir('kabuk:klasordeGoster', b.yol);
+  else if (secim === 'yol' && b) { await pdefe.cagir('pano:metin', b.yol); bildir('Yol panoya kopyalandı'); }
 });
 
 // Panel olayları
@@ -927,21 +1017,69 @@ function girdideMi(a = document.activeElement) {
   return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable);
 }
 
+/**
+ * Yakınlaştırma tuşu (Ctrl, Alt'sız; AltGr = Ctrl+Alt kısayol değildir): 'yakin' | 'uzak' | 'gercek' | null. Tuşun ürettiği karaktere
+ * (e.key) göre: Türkçe Q'da + Shift+4 ve = Shift+0'dır, "=" tuşu (VK_OEM_PLUS) yoktur; menü hızlandırıcısı sanal tuş koduyla eşlendiği
+ * için Ctrl+= orada hiç çalışmıyordu. Ctrl++ (Shift'li ya da Shift'siz, sayısal + dahil) yakınlaştırır, Ctrl+− (Shift'li de: Türkçe Q'da
+ * + için basılı tutulan Shift'le − gelebilir, döndürmez) uzaklaştırır, Ctrl+sayısal 0 gerçek boyut (NumLock kapalıyken o tuş Insert'tir:
+ * Ctrl+Ins kopyalar). Döndürme yalnızca Ctrl+R / Ctrl+Shift+R (menü).
+ */
+function yakinlastirmaTusu(e) {
+  if (!e.ctrlKey || e.altKey || e.metaKey) return null;
+  if (e.code === 'NumpadAdd' || e.key === '+' || e.key === '=') return 'yakin';
+  if (e.code === 'NumpadSubtract' || e.key === '-' || e.key === '_') return 'uzak';
+  if (e.code === 'Numpad0' && e.key === '0') return 'gercek';
+  return null;
+}
+
+/** Önceki / sonraki sekmeye (sekme çubuğundaki sırayla) geçer; ilk / son sekmede durur (◀ ▶ gibi). */
+function sekmeGec(yon) { sekmeler.kaydir(yon); }
+
+/** Belgenin önünde açık bir pencere (mesaj kutusu, Kısayollar / Yazdır / parola diyaloğu, Ayarlar, araç penceresi) var mı: varken sekme
+ *  değiştiren ve arkadaki belgeyi değiştiren kısayollar çalışmaz (0.1.13 kısayol testi: Ctrl+1–9, Ctrl+Tab, Ctrl+Z arkada çalışıyordu). */
+function ortuAcik() { return mesajKutusuAcik() || !!document.querySelector('.diyalog-ortusu, .arac-ortusu, .ayarlar-ortusu'); }
+
 document.addEventListener('keydown', (e) => {
   // Ctrl+Tab seçici
   if (e.ctrlKey && e.key === 'Tab') {
     e.preventDefault();
-    if (belgeler.size < 2) return;
-    if (!sekmeler.seciciAcik) sekmeler.seciciAc((id) => kucukResimAl(belgeler.get(id)));
+    if (sekmeler.sekmeler.length < 2 || (!sekmeler.seciciAcik && ortuAcik())) return;
+    const yeniAcildi = !sekmeler.seciciAcik;
+    if (yeniAcildi) sekmeler.seciciAc((id) => kucukResimAl(belgeler.get(id)));
     else sekmeler.seciciIlerle(e.shiftKey ? -1 : 1);
-    if (e.shiftKey && sekmeler.seciciIdx === 1) { /* ilk Shift+Tab geriye gider */ sekmeler.seciciIlerle(-2); }
+    if (yeniAcildi && e.shiftKey) sekmeler.seciciIlerle(-2);   // ilk Ctrl+Shift+Tab en eski sekmeye gider; sonrakiler birer geri
     return;
   }
-  if (sekmeler.seciciAcik) { if (e.key === 'Escape') sekmeler.seciciIptal(); return; }
+  // Seçici açıkken (Ctrl basılı): ← → (↑ ↓) adaylar arasında gezer, Enter seçer, Esc vazgeçer; başka tuş belgeye gitmez
+  if (sekmeler.seciciAcik) {
+    e.preventDefault();
+    if (e.key === 'Escape') sekmeler.seciciIptal();
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') sekmeler.seciciIlerle(1);
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') sekmeler.seciciIlerle(-1);
+    else if (e.key === 'Enter') sekmeler.seciciKapat();
+    return;
+  }
   if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key >= '1' && e.key <= '9') {
+    if (ortuAcik()) return;
     const i = e.key === '9' ? sekmeler.sekmeler.length - 1 : parseInt(e.key, 10) - 1;
     const s = sekmeler.sekmeler[i];
     if (s) { e.preventDefault(); sekmeSec(s.id); }
+    return;
+  }
+  // Ctrl+PageUp / Ctrl+PageDown: önceki / sonraki sekme (tarayıcılardaki gibi; 0.1.12'ye dek sayfa çeviriyordu). Girdi kutusunda da
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'PageUp' || e.key === 'PageDown')) {
+    e.preventDefault();
+    if (!mesajKutusuAcik() && !document.querySelector('.diyalog-ortusu, .arac-ortusu, .ayarlar-ortusu')) sekmeGec(e.key === 'PageDown' ? 1 : -1);
+    return;
+  }
+  // Yakınlaştırma tuşları (menüde yalnızca yazar; bkz. yakinlastirmaTusu). Yazı düzenleyicisi ve not balonu bu tuşları geçirir (notlar.js belgeKisayoluMu)
+  const yt = yakinlastirmaTusu(e);
+  if (yt != null) {
+    e.preventDefault();
+    if (mesajKutusuAcik() || document.querySelector('.diyalog-ortusu, .ayarlar-ortusu')) return;
+    if (yt === 'yakin') komutCalistir('gorunum.yakinlastir');
+    else if (yt === 'uzak') komutCalistir('gorunum.uzaklastir');
+    else komutCalistir('gorunum.zoom', 'gercek');
     return;
   }
   if (e.key === 'Escape') {
@@ -959,13 +1097,16 @@ document.addEventListener('keydown', (e) => {
     if (n?.secili) { n.sec(null); return; }
     if (okumaModu) { komutCalistir('gorunum.okumaModu'); return; }
   }
-  if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'z' || e.key === 'Z')) { if (!girdideMi()) { e.preventDefault(); komutCalistir('duzen.geriAl'); } return; }
-  if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'y' || e.key === 'Y')) { if (!girdideMi()) { e.preventDefault(); komutCalistir('duzen.yinele'); } return; }
-  if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'a' || e.key === 'A')) { if (!girdideMi()) { e.preventDefault(); tumunuSec(); } return; }
+  // Girdi kutusunda tarayıcının kendi geri alma / tümünü seçmesi; açık pencere varken arkadaki belgeye gitmez
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'z' || e.key === 'Z')) { if (!girdideMi()) { e.preventDefault(); if (!ortuAcik()) komutCalistir('duzen.geriAl'); } return; }
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'y' || e.key === 'Y')) { if (!girdideMi()) { e.preventDefault(); if (!ortuAcik()) komutCalistir('duzen.yinele'); } return; }
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'a' || e.key === 'A')) { if (!girdideMi()) { e.preventDefault(); if (!ortuAcik()) tumunuSec(); } return; }
   if (girdideMi()) return;
   // Açık diyalog / araç penceresi (odak pencerenin dışında kalmış olsa da), açılır liste ya da açık belgeler listesi varken belge
   // sayfa çevirmesin, not silinmesin
   if (document.querySelector('.diyalog-ortusu, .arac-ortusu') || !$('#belge-listesi').hidden || document.activeElement?.tagName === 'SELECT') return;
+  // Ctrl+← / Ctrl+→: önceki / sonraki sekme (girdi kutusunda sözcük atlama kalır: yukarıda girdideMi). Açılış sekmesinde de
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); sekmeGec(e.key === 'ArrowRight' ? 1 : -1); return; }
   const b = aktif();
   if (!b) return;
   if (e.key === 'Delete' || e.key === 'Backspace') { if (b.notlar?.silSecili()) { e.preventDefault(); return; } }
@@ -994,6 +1135,12 @@ async function kucukResimAl(b) {
   if (!b) return null;
   try { const r = await cekirdek('kucuk_resim', { yol: b.yol, sayfa: 1, genislik: 220 }); return 'data:image/png;base64,' + r.png; }
   catch { return null; }
+}
+
+/** Belgedeki (metin katmanındaki) seçimin metni; seçim başka yerdeyse (ör. sayfa kutusunun odakta seçtiği numara) boş. */
+function belgeSecimMetni() {
+  const d = window.getSelection()?.anchorNode;
+  return (d?.nodeType === 1 ? d : d?.parentElement)?.closest('.textLayer') ? secimHamMetni() : '';
 }
 
 function tumunuSec() {
@@ -1033,7 +1180,7 @@ function metinOlaylariBagla(belge) {
     else if (secim === 'ara') komutCalistir('duzen.bul', secimHamMetni().trim().split('\n')[0]);
     else if (secim === 'tumunuSec') tumunuSec();
     else if (secim === 'vurgula') belge.notlar.vurguUygula(ayar.vurguRengi || VURGU_RENKLERI[0].hex);
-    else if (secim === 'not') { if (!(seciliVar && belge.notlar.secimeNotKoy())) belge.notlar.yapiskanNotKoy(+sayfaEl.dataset.sayfa - 1, e); }
+    else if (secim === 'not') { if (!(seciliVar && belge.notlar.secimeNotKoy())) belge.notlar.sayfayaNotKoy(+sayfaEl.dataset.sayfa - 1, e); }
   });
 }
 
@@ -1180,35 +1327,48 @@ function diyalogAc({ baslik, govde, dugmeler, onSecim, genislik }) {
 }
 
 function kisayollarGoster() {
-  // İki sütun (dar pencerede alt alta): bölüm başlığı tek öğeli dizi; birden çok tuş dizi olarak verilir (tuş kutuları arasında satır kırılabilir)
+  // Üç sütun (dar pencerede alt alta): bölüm başlığı tek öğeli dizi; birden çok tuş dizi olarak verilir (tuş kutuları arasında satır kırılabilir).
+  // Üçüncü sütun araç pencerelerinin fare ve tuş kullanımı: 0.1.13'e dek pencerelerin alt şeridinde yazıyordu (kullanıcı isteğiyle buraya taşındı).
   const sutunlar = [[
     ['Dosya ve sekmeler'],
-    ['Ctrl+O', 'Aç'], ['Ctrl+S', 'Kaydet'], ['Ctrl+Shift+S', 'Farklı kaydet'], ['Ctrl+P', 'Yazdır'], ['Ctrl+W', 'Sekmeyi kapat'],
-    ['Ctrl+Tab / Ctrl+Shift+Tab', 'Sekme değiştir (basılı tutunca seçici açılır)'], ['Ctrl+1 – Ctrl+9', 'Sekme seç (9: son sekme)'],
+    ['Ctrl+O', 'Aç'], ['Ctrl+T', 'Yeni sekme (açılış sayfası)'], ['Ctrl+S', 'Kaydet'], ['Ctrl+Shift+S', 'Farklı kaydet'], ['Ctrl+P', 'Yazdır'],
+    ['Ctrl+W', 'Sekmeyi kapat'], [['Ctrl+PageUp / PageDown', 'Ctrl+← / →'], 'Önceki / sonraki sekme'],
+    ['Ctrl+Tab / Ctrl+Shift+Tab', 'Son kullanılan sekmeye geç (basılı tutunca seçici; içinde ← →)'],
+    ['Ctrl+1 – Ctrl+9', 'Sekme seç (9: son sekme)'],
     ['Düzen'],
     ['Ctrl+Z / Ctrl+Y', 'Geri al / yinele'], ['Ctrl+F', 'Bul'], ['F3 / Shift+F3', 'Sonraki / önceki eşleşme'],
     ['Ctrl+A', 'Sayfadaki tüm metni seç'], ['Delete', 'Seçili notu sil'], ['Ctrl+,', 'Ayarlar'],
-    ['Yazı kutusu'],
-    ['Ctrl+B / Ctrl+I / Ctrl+U', 'Kalın / italik / altı çizili'], ['Esc', 'Düzenlemeyi bitir (yazılan korunur)'],
     ['Genel'],
-    ['F1', 'Klavye kısayolları'], ['Esc', 'Kapat / vazgeç'],
+    ['F1', 'Kısayollar'], ['Esc', 'Kapat / vazgeç'],
   ], [
     ['Gezinme'],
-    ['Ctrl+G', 'Sayfaya git'], ['← →', 'Önceki / sonraki sayfa (elle yakınlaştırılmışsa önce yana kaydırır)'],
-    ['PageUp / PageDown', 'Önceki / sonraki sayfa (kaydırma kapalıyken önce bir ekran kaydırır)'],
-    ['↑ ↓', 'Kaydır (kaydırma kapalıyken sayfa sonunda sayfayı çevirir)'], ['Boşluk / Shift+Boşluk', 'Bir ekran aşağı / yukarı kaydır'],
-    ['Home / End', 'İlk / son sayfa'], ['Ctrl+Home / Ctrl+End', 'Belge başı / sonu'], ['Shift+Fare tekerleği', 'Yatay kaydırma'],
+    ['Ctrl+G', 'Sayfaya git'], ['← →', 'Önceki / sonraki sayfa (yakınlaştırılmışsa önce yana kaydırır)'],
+    ['PageUp / PageDown', 'Önceki / sonraki sayfa (kaydırma kapalıyken önce bir ekran)'],
+    ['↑ ↓', 'Kaydır (kaydırma kapalıyken sayfa sonunda çevirir)'], ['Boşluk / Shift+Boşluk', 'Bir ekran aşağı / yukarı kaydır'],
+    ['Home / End', 'İlk / son sayfa'], ['Ctrl+Home / End', 'Belge başı / sonu'], ['Shift+Fare tekerleği', 'Yatay kaydırma'],
     ['Görünüm'],
     [['Ctrl+Fare tekerleği', 'Ctrl++ / Ctrl+−'], 'Yakınlaştır / uzaklaştır'], ['Ctrl+0', 'Gerçek boyut'],
-    ['Ctrl+Shift++ / Ctrl+Shift+−', 'Döndür'], ['F4', 'Sol panel'], ['Ctrl+H', 'Okuma modu'], ['F11', 'Tam ekran'],
+    ['Ctrl+R / Ctrl+Shift+R', 'Saat yönünde / tersine döndür'], ['F4', 'Sol panel'], ['Ctrl+H', 'Okuma modu'], ['F11', 'Tam ekran'],
+    ['Yazı kutusu'],
+    ['Ctrl+B / I / U', 'Kalın / italik / altı çizili'], ['Esc', 'Düzenlemeyi bitir (yazılan korunur)'],
+  ], [
+    ['Sayfaları düzenle'],
+    ['Tıkla', 'Sayfayı seç'], ['Ctrl+tık / Shift+tık', 'Seçime ekle / aralığı seç'], ['Boş alandan sürükle', 'Alandaki sayfaları seç'],
+    ['Sayfayı sürükle', 'Sırala (seçiliyse seçilenler birlikte)'], ['Delete', 'Seçilenleri sil'], ['Ctrl+A', 'Tümünü seç'],
+    [['← → ↑ ↓', 'Home / End'], 'Sayfalar arasında gez (Shift ile seçimi genişlet)'], ['R / Shift+R', 'Seçilenleri sağa / sola döndür'],
+    ['Ctrl+Z / Ctrl+Y', 'Geri al / yinele'],
+    ['Görüntü / PDF birleştir'],
+    ['Tıkla', 'Dosyayı seç'], ['Ctrl+tık / Shift+tık', 'Seçime ekle / aralığı seç'],
+    [['Sağ tuşla sürükle', 'Boş alandan sürükle'], 'Alandaki dosyaları seç'], ['Satırı sürükle', 'Sırala (seçiliyse seçilenler birlikte)'],
+    ['Delete', 'Seçilenleri çıkar'], ['Ctrl+A', 'Tümünü seç'], ['Ctrl+V', 'Panodaki dosyaları ya da görüntüyü ekle'],
   ]];
   const satir = ([k, a]) => (a == null ? `<tr class="bolum"><th colspan="2">${k}</th></tr>`
     : `<tr><td>${[].concat(k).map((t) => `<kbd>${t}</kbd>`).join(' ')}</td><td>${a}</td></tr>`);
   diyalogAc({
-    baslik: 'Klavye kısayolları',
+    baslik: 'Kısayollar',
     govde: '<div class="kisayol-sutunlar">' + sutunlar.map((s) => '<table class="kisayollar">' + s.map(satir).join('') + '</table>').join('') + '</div>',
     dugmeler: [{ id: 'tamam', etiket: 'Tamam', birincil: true }],
-    genislik: 880,
+    genislik: 1180,
   });
 }
 

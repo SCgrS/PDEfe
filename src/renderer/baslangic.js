@@ -1,12 +1,15 @@
-// Başlangıç (karşılama) ekranı: açık belge yokken belge alanında görünür. Solda iki eylem kartı (PDF aç, Görüntü / PDF birleştir),
-// sağda son açılan belgeler. Kartlar uygulama komutlarını çalıştırır (dosya.ac: Windows'un Aç penceresi; arac.gorselBirlestir: araç
-// penceresi, açık belge gerektirmez). Son açılanlar listesinde tıklama ya da Enter belgeyi açar; sağ tık Aç / Klasörde göster /
-// Yolu kopyala / Listeden kaldır menüsünü, satırdaki × ve Delete yalnızca listeden kaldırmayı yapar (dosyaya dokunulmaz).
-// "Son açılanları hatırla" kapalıyken liste yerine bunu söyleyen bir satır ve Ayarlar › Açılış ve düzen bağlantısı görünür.
+// Başlangıç (karşılama) ekranı: açık belge yokken ve açılış sekmesinde (+ / Ctrl+T) belge alanında görünür. Solda büyük PDF aç düğmesi
+// (uygulamanın temel işi; altında sürükle-bırak ipucu) ve bütün araçlar (Araçlar penceresindeki ARACLAR, aynı sıra ve renklerle), sağda
+// son açılan belgeler (0.1.13, kullanıcı isteği; önceden yalnızca PDF aç ve Görüntü / PDF birleştir kartları vardı). Düğmeler uygulama
+// komutlarını çalıştırır: dosya.ac Windows'un Aç penceresi; belge gerektiren araç belge yokken önce Aç penceresini açar, seçilen PDF'le
+// açılır (uygulama.js); Görüntü / PDF birleştir belge gerektirmez. Son açılanlar listesinde tıklama ya da Enter belgeyi açar; sağ tık
+// Aç / Klasörde göster / Yolu kopyala / Listeden kaldır menüsünü, satırdaki × ve Delete yalnızca listeden kaldırmayı yapar (dosyaya
+// dokunulmaz). "Son açılanları hatırla" kapalıyken Son açılanlar kutusu hiç görünmez (0.1.13, kullanıcı isteği), sol sütun ortalanır.
 // 0.1.8'e dek boş #gorunumler katmanı bu ekranın üstünde kaldığı için PDF aç düğmesi ve son açılanlar tıklanamıyordu (stil.css: z-index).
 import { ARACLAR } from './aracPenceresi.js';
 
 const simge = (ic, kutu = 24) => `<svg viewBox="0 0 ${kutu} ${kutu}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ic}</svg>`;
+const kacis = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // Açık klasör ve önündeki sayfa
 const AC_IKON = '<path d="M2.75 7.25V18a1.75 1.75 0 0 0 1.75 1.75h15A1.75 1.75 0 0 0 21.25 18V9.5a1.75 1.75 0 0 0-1.75-1.75h-7.1L10.3 5.25H4.5A1.75 1.75 0 0 0 2.75 7v.25z"/><path d="M2.75 11.25h18.5"/>';
@@ -27,7 +30,11 @@ export class BaslangicEkrani {
    */
   constructor({ kok, komutCalistir, ac, kaldir, temizle, pdefe, bildir }) {
     Object.assign(this, { kok, komutCalistir, ac, kaldir, temizle, pdefe, bildir });
-    const birlestir = ARACLAR.find((a) => a.komut === 'arac.gorselBirlestir');
+    const aracKarti = (a) => `
+          <button type="button" class="karsilama-arac" data-eylem="${a.komut}" data-renk="${a.renk}" title="${kacis(a.ipucu)}">
+            <span class="karsilama-arac-ikon">${simge(a.ikon)}</span>
+            <span class="karsilama-metin"><span class="karsilama-arac-ad">${kacis(a.ad)}</span><span class="karsilama-aciklama">${kacis(a.aciklama)}</span></span>
+          </button>`;
     kok.innerHTML = `
 <div class="karsilama">
   <header class="karsilama-ust">
@@ -38,15 +45,19 @@ export class BaslangicEkrani {
     </div>
   </header>
   <div class="karsilama-govde">
-    <div class="karsilama-eylemler">
-      <button type="button" class="karsilama-kart" data-eylem="dosya.ac" data-renk="mavi">
-        <span class="karsilama-ikon">${simge(AC_IKON)}</span>
-        <span class="karsilama-metin"><span class="karsilama-ad">PDF aç</span><span class="karsilama-aciklama">Bilgisayarınızdaki bir ya da birkaç PDF'i seçin</span></span>
-      </button>
-      <button type="button" class="karsilama-kart" data-eylem="arac.gorselBirlestir" data-renk="pembe">
-        <span class="karsilama-ikon">${simge(birlestir?.ikon || '')}</span>
-        <span class="karsilama-metin"><span class="karsilama-ad">${birlestir?.ad || 'Görüntü / PDF birleştir'}</span><span class="karsilama-aciklama">Fotoğraf, taranmış belge ve PDF'lerden tek PDF oluşturun</span></span>
-      </button>
+    <div class="karsilama-sol">
+      <div class="karsilama-ac-alani">
+        <button type="button" class="karsilama-ac" data-eylem="dosya.ac">
+          <span class="karsilama-ac-ikon">${simge(AC_IKON)}</span>
+          <span class="karsilama-metin"><span class="karsilama-ac-ad">PDF aç</span><span class="karsilama-aciklama">Bilgisayarınızdaki bir ya da birkaç PDF'i seçin</span></span>
+        </button>
+        <p class="karsilama-ipucu">${simge(IPUCU_IKON, 20)}<span>PDF'leri bu pencereye sürükleyip bırakarak da açabilirsiniz.</span></p>
+      </div>
+      <section class="karsilama-araclar" aria-label="Araçlar">
+        <h2>Araçlar</h2>
+        <div class="karsilama-arac-izgara">${ARACLAR.map(aracKarti).join('')}
+        </div>
+      </section>
     </div>
     <section class="karsilama-son" aria-label="Son açılanlar">
       <div class="karsilama-son-ust">
@@ -56,33 +67,25 @@ export class BaslangicEkrani {
       <ul id="son-dosyalar"></ul>
     </section>
   </div>
-  <p class="karsilama-ipucu">${simge(IPUCU_IKON, 20)}<span>PDF'leri bu pencereye sürükleyip bırakarak da açabilirsiniz.</span></p>
 </div>`;
+    this.karsilama = kok.querySelector('.karsilama');
+    this.son = kok.querySelector('.karsilama-son');
     this.liste = kok.querySelector('#son-dosyalar');
     this.temizleDugmesi = kok.querySelector('.karsilama-temizle');
-    for (const k of kok.querySelectorAll('.karsilama-kart')) k.addEventListener('click', () => this.komutCalistir(k.dataset.eylem));
+    for (const k of kok.querySelectorAll('[data-eylem]')) k.addEventListener('click', () => this.komutCalistir(k.dataset.eylem));
     this.temizleDugmesi.addEventListener('click', () => this.temizle());
     pdefe.cagir('uygulama:bilgi').then((b) => { if (b?.surum) kok.querySelector('.karsilama-surum').textContent = ` · sürüm ${b.surum}`; }).catch(() => {});
   }
 
-  /** Son açılanları (en çok 10) çizer. kapali: "Son açılanları hatırla" kapalı; liste yerine bilgi satırı. */
+  /** Son açılanları (en çok 10) çizer. kapali: "Son açılanları hatırla" kapalı; kutu hiç görünmez. */
   listele(yollar, { kapali = false } = {}) {
     const ul = this.liste;
     ul.replaceChildren();
-    const liste = kapali ? [] : (yollar || []).slice(0, 10);
+    this.son.hidden = kapali;
+    this.karsilama.classList.toggle('son-kapali', kapali);   // başlık ve sol sütun ortada, dar
+    if (kapali) return;
+    const liste = (yollar || []).slice(0, 10);
     this.temizleDugmesi.hidden = !liste.length;
-    if (kapali) {
-      const li = document.createElement('li');
-      li.className = 'karsilama-bos soluk';
-      const ayarlar = document.createElement('button');
-      ayarlar.type = 'button';
-      ayarlar.className = 'karsilama-ayar-baglantisi';
-      ayarlar.textContent = 'Ayarlar › Açılış ve düzen';
-      ayarlar.addEventListener('click', () => this.komutCalistir('duzen.ayarlar', 'acilis'));
-      li.append('Son açılan belgeler hatırlanmıyor. Açmak için: ', ayarlar);
-      ul.append(li);
-      return;
-    }
     if (!liste.length) {
       const li = document.createElement('li');
       li.className = 'karsilama-bos soluk';
@@ -114,7 +117,7 @@ export class BaslangicEkrani {
     this.kaldir(yol);
     if (!odakta) return;
     const satirlar = this.liste.querySelectorAll('.karsilama-oge');
-    (satirlar[Math.min(komsu, satirlar.length - 1)] || this.kok.querySelector('.karsilama-kart'))?.focus();
+    (satirlar[Math.min(komsu, satirlar.length - 1)] || this.kok.querySelector('.karsilama-ac'))?.focus();
   }
 
   async menu(li, yol) {

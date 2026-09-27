@@ -259,7 +259,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   await tikla(...(await evalJs(`__t.merkez('#sekme-acilir')`))); await bekle(150);
   denetle('Açık belgeler: düğmeye yeniden basış kapatır', !(await listeAcik()));
   // Nota basış (notlar.js basışı işleyip mousedown'ı engeller) da kapatır
-  await evalJs(`(() => { const b = window.__pdefe.aktif(); const r = b.gorunum.sayfalar[0].el.getBoundingClientRect(); b.notlar.yapiskanNotKoy(0, { clientX: r.left + 120, clientY: r.top + 120 }); b.notlar.balonKapat(); b.notlar.sec(null); return true; })()`);
+  await evalJs(`(() => { const b = window.__pdefe.aktif(); const r = b.gorunum.sayfalar[0].el.getBoundingClientRect(); b.notlar.sayfayaNotKoy(0, { clientX: r.left + 120, clientY: r.top + 120 }); b.notlar.balonKapat(); b.notlar.sec(null); return true; })()`);
   await bekle(300);
   const notNok = await evalJs(`__t.merkez('.not-oge[data-id]')`);
   await tikla(...(await evalJs(`__t.merkez('#sekme-acilir')`))); await bekle(150);

@@ -215,7 +215,7 @@ function sayfaDuzeniKartlari(k) {
     kontrol: anahtar(!!a.kapakAyri, (v) => degistir('kapakAyri', v)),
   }));
   k.append(kart({
-    baslik: 'Döndür düğmesi', aciklama: 'Araç çubuğundaki Döndür düğmesinin ve Ctrl+Shift++ / Ctrl+Shift+− kısayollarının neyi döndüreceği. Döndürürken "Seçeneğimi hatırla" ile kaydedilen tercih burada değiştirilir.',
+    baslik: 'Döndür düğmesi', aciklama: 'Araç çubuğundaki Döndür düğmesinin ve Ctrl+R / Ctrl+Shift+R kısayollarının neyi döndüreceği. Döndürürken "Seçeneğimi hatırla" ile kaydedilen tercih burada değiştirilir.',
     kontrol: secimKutusu(a.dondurmeKapsami ?? 'sor', [['sor', 'Her seferinde sor'], ['sayfa', 'Geçerli sayfa'], ['tum', 'Tüm PDF']], (v) => degistir('dondurmeKapsami', v)),
   }));
 }

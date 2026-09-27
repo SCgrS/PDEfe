@@ -44,7 +44,7 @@ export class DondurPenceresi {
           <label class="dondur-yon" data-derece="180"><input type="radio" name="dondur-yon" value="180"><svg viewBox="0 0 20 20"><path d="M3 11.9A6 6 0 0 1 15 11.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12.2 11.9h5.6L15 15.1z" fill="currentColor"/></svg><span class="ad">180°</span></label>
         </div>
       </div>
-      <div class="arac-bolum dondur-kayit"><div class="arac-bolum-baslik">Kaydetme</div></div>
+      <div class="arac-bolum dondur-kayit"><div class="arac-bolum-baslik">Kaydet</div></div>
     </div>`);
     this.govde = govde;
     this.aralikEl = govde.querySelector('.dondur-aralik');

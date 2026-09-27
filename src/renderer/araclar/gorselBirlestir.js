@@ -136,8 +136,9 @@ export class BirlestirmePenceresi {
     // Listede Delete seçilenleri çıkarır, Ctrl+A satırların hepsini seçer. Listenin kendi dinleyicisinde: pencerenin Ctrl+A'sından
     // (ortak.js _tusIsle: pencerenin metnini seçer; işlenmiş olayı atlar) önce çalışsın
     this.liste.addEventListener('keydown', (e) => {
-      if (e.target !== this.liste || this.ilerleme.calisiyor) return;
-      if (e.key === 'Delete' && this.secim.size) { e.preventDefault(); this.sil(this._secilenler()); }
+      // Satırdaki bir düğmeye (döndür, taşı) basıldıktan sonra da; satırdaki girdi ve seçim kutuları kendi tuşlarını alır
+      if (this.ilerleme.calisiyor || e.target.closest('input, select, textarea')) return;
+      if (e.key === 'Delete' && this.secim.size) { e.preventDefault(); this.sil(this._secilenler()); if (!this.liste.contains(document.activeElement)) this.liste.focus({ preventScroll: true }); }
       else if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); this.secim = new Set(this.ogeler.map((o) => o.kimlik)); this._secimiCiz(); }
     });
     // Listede ve bırakma alanında sağ tık: Yapıştır (Ctrl+V ile aynı), satırda sıralama/döndürme/çıkarma (seçiliyse seçilenlerin hepsine)
@@ -159,8 +160,7 @@ export class BirlestirmePenceresi {
       onBirak: (ogeler, hedefIdx) => this.tasi(ogeler.map((o) => +o.dataset.kimlik), hedefIdx),
     });
     this._alanSecimiBagla();
-    this.pencere.altMetinAyarla(['Tıkla: seç', 'Ctrl/Shift: çoklu seç', 'Sağ tuşla sürükle: alan seç', 'Satırı sürükle: sırala', 'Delete: çıkar']
-      .map((s) => s.replace(/ /g, ' ')).join(' · '));
+    // Fare ve tuş kullanımı (tıkla: seç, Delete: çıkar…) pencerede yazmaz, F1 Kısayollar penceresinde (0.1.13, kullanıcı isteği)
     this.pencere.el.addEventListener('kapandi', () => this.sirala());
     this.ciz();
   }

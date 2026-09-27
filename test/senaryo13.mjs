@@ -4,6 +4,8 @@
 // "Yeni belge olarak kaydet" (notlar/bağlantılar/yer imleri, bekleyen not sorusu) ve "Üzerine yaz" (kayıt, Ctrl+Z, yeniden kayıt);
 // PDF ayır "Üzerine yaz" (tek dosya kuralı canlı, seçili sayfalar ve tek aralık, sekmenin yenilenmesi, bekleyen değişiklik soruları);
 // Görüntü / PDF birleştir: varsayılan "Orijinal" (kenar alanı gizli, çıktıda kenar boşluğu yok), "A4'e sığdır"da kenar alanı.
+// 0.1.13: araç pencerelerinin alt şeridindeki fare/tuş ipucu kalktı (F1 "Kısayollar" penceresine taşındı; 3. bölüm), araçlardaki
+// "Kaydetme" bölüm başlığı "Kaydet" oldu (2, 3, 6. bölüm), Sayfaları düzenle'de "PDF'ten sayfa ekle" düğmesi "PDF ekle" (3. bölüm).
 // Girdiler test/cikti/ui/pdf altına kopyalanır/üretilir; araçların çıktı klasörü test/cikti/ui/cikti yapılır (Masaüstüne yazılmaz).
 // Kullanım: test örneği (baslat.ps1) açıkken  $env:PDEFE_CDP_PORT=9331; node test/surucu.mjs betik test/senaryo13.mjs
 // Yalnızca bir bölüm: $env:BOLUM="3" (virgülle birden çok). Ekran görüntüleri test/cikti/ui/png altına yazılır.
@@ -61,6 +63,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     await evalJs(`document.querySelector('.arac-pencere .arac-kapat')?.click()`);
     return kosul(`!document.querySelector('.arac-ortusu')`, 4000);
   };
+  /** Açık araç penceresinin bölüm başlıkları (0.1.13: kayıt bölümü "Kaydetme" değil "Kaydet"). */
+  const bolumBasliklari = () => evalJs(`[...document.querySelectorAll('.arac-pencere .arac-bolum-baslik')].map((e) => e.textContent.trim())`);
   const bolumler = (process.env.BOLUM || '1,2,3,4,5,6,7,8').split(',').map((s) => s.trim());
   const bolum = (n) => bolumler.includes(String(n));
 
@@ -127,6 +131,10 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
       for (const t of ['koyu', 'acik']) {
         await tema(t);
         await aracAc(komut, sinif);
+        if (t === 'koyu') {
+          const basliklar = await bolumBasliklari();
+          sonuc(`${ad}: kayıt bölümünün başlığı "Kaydet" (0.1.13; önceden "Kaydetme")`, basliklar.includes('Kaydet') && !basliklar.includes('Kaydetme'), basliklar);
+        }
         await evalJs(`document.querySelector('.arac-kayit-secim [data-id="uzerine"]').click()`);
         const n = await oku();
         const ok = n.gorunur && (geriAlinir
@@ -152,8 +160,11 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
         kartlar: [...iz.querySelectorAll(':scope > .sayfa-karti')].map((k) => { const b = k.getBoundingClientRect(); return { no: +k.querySelector('.no').textContent, x: b.left, y: b.top, r: b.right, b: b.bottom }; }) }; })()`);
     const secili = () => evalJs(`[...document.querySelectorAll('.sayfalar-izgara > .sayfa-karti.secili')].map((k) => +k.querySelector('.no').textContent)`);
     const kesisen = (o, x0, y0, x1, y1) => o.kartlar.filter((k) => k.x < Math.max(x0, x1) && k.r > Math.min(x0, x1) && k.y < Math.max(y0, y1) && k.b > Math.min(y0, y1)).map((k) => k.no);
-    const ipucu = await evalJs(`document.querySelector('.arac-alt-metin')?.textContent.replace(/\\u00a0/g, ' ')`);
-    sonuc('alt şeritte ipucu', /Boş alandan sürükle: alan seç/.test(ipucu) && /Kartı sürükle: sırala/.test(ipucu), ipucu);
+    const sb = { basliklar: await bolumBasliklari(), pdfEkle: await evalJs(`document.querySelector('.sayfalar-arac-cubugu [data-komut="pdfEkle"]')?.textContent.trim()`) };
+    sonuc('sayfalar: "Kaydet" başlığı ve "PDF ekle" düğmesi (0.1.13; önceden "Kaydetme", "PDF\'ten sayfa ekle")', sb.basliklar.includes('Kaydet') && !sb.basliklar.includes('Kaydetme') && sb.pdfEkle === 'PDF ekle', sb);
+    // 0.1.13 (kullanıcı isteği): alt şeritteki "Tıkla: seç · Delete: sil…" ipucu kaldırıldı; fare ve tuş kullanımı F1 Kısayollar'da (aşağıda)
+    const alt = await evalJs(`(() => { const s = document.querySelector('.sayfalar-pencere .arac-dugmeler-sol'); return { metinOgesi: !!document.querySelector('.arac-alt-metin'), solMetin: (s?.textContent || '').replace(/\\u00a0/g, ' ').trim() }; })()`);
+    sonuc('alt şeritte ipucu yok (F1 Kısayollar\'a taşındı)', !alt.metinOgesi && !/Tıkla|sürükle|Delete|Ctrl\+Z/.test(alt.solMetin), alt);
     let o = await olc();
     const bx = Math.round(o.iz.x + 6), by = Math.round(o.iz.y + 6);          // ızgaranın iç boşluğu: kart değil
     const k7 = o.kartlar[6];
@@ -230,6 +241,15 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     await tema('acik'); await ss('03-sayfalar-alan-secimi-acik');
     await tema('koyu'); await ss('03-sayfalar-alan-secimi-koyu');
     sonuc('pencere kapanır (düzen değişmedi: soru yok)', await pencereKapat() && (await diyalogKaydi()).length === 0);
+    // Alt şeritten taşınan ipucu F1 "Kısayollar" penceresinde (0.1.13; başlık önceden "Klavye kısayolları")
+    await evalJs(`window.__pdefe.komutCalistir('yardim.kisayollar')`);
+    await kosul(`!!document.querySelector('.diyalog-ortusu')`, 3000);
+    const kys = await evalJs(`(() => { const o = document.querySelector('.diyalog-ortusu'); return o ? { baslik: o.querySelector('.baslik').textContent, bolumler: [...o.querySelectorAll('tr.bolum th')].map((e) => e.textContent), metin: o.querySelector('.govde').innerText } : null; })()`);
+    sonuc('F1 "Kısayollar": Sayfaları düzenle ve Görüntü / PDF birleştir bölümleri (alan seçimi, sıralama)', kys?.baslik === 'Kısayollar' && kys.bolumler.includes('Sayfaları düzenle')
+      && kys.bolumler.includes('Görüntü / PDF birleştir') && /Boş alandan sürükle/.test(kys.metin) && /Sayfayı sürükle/.test(kys.metin), kys && { baslik: kys.baslik, bolumler: kys.bolumler });
+    await ss('03-kisayollar-koyu');
+    await tus('Escape');
+    sonuc('Kısayollar Esc ile kapanır', !!(await kosul(`!document.querySelector('.diyalog-ortusu')`, 2000)));
   }
 
   // ------------------------------------------------------------ 4) Sayfaları düzenle: Yeni belge olarak kaydet
@@ -276,7 +296,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     // Bekleyen not: sorulur; "Kaydetmeden devam et" → yeni belge dosyadaki kayıtlı notlarla (bekleyen not girmez), sekme kirli kalır
     await evalJs(`window.__pdefe.sekmeSec([...window.__pdefe.belgeler.keys()][0])`);
     await bekle(300);
-    await evalJs(`window.__pdefe.aktif().notlar.ekle({ tur: 'Text', sayfa: 1, rect: [100, 700, 120, 720], icerik: 'bekleyen not', yazar: 'Test', renk: '#ffd100', opaklik: 1, simge: 'Comment', konu: 'Yapışkan Not' })`);
+    await evalJs(`window.__pdefe.aktif().notlar.ekle({ tur: 'Text', sayfa: 1, rect: [100, 700, 120, 720], icerik: 'bekleyen not', yazar: 'Test', renk: '#ffd100', opaklik: 1, simge: 'Comment', konu: 'Not' })`);
     await kosul(`window.__pdefe.aktif().degisti`);
     await aracAc('arac.sayfalar', 'sayfalar-pencere');
     await kartTikla(7); await tus('Delete');                // 8. sayfayı sil
@@ -336,7 +356,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     sonuc('geri alınıp kaydedilince dosya eski düzende', geriKayit.sayfalar.length === 8 && geriKayit.sayfalar.every((s) => s.rot === 0 && s.not.length === 2)
       && J(geriKayit.sayfalar.map((s) => s.metin)) === J(once.sayfalar.map((s) => s.metin)), { sayfa: geriKayit.sayfalar.length, not: geriKayit.sayfalar.map((s) => s.not.length) });
     // Sekmede başka kaydedilmemiş değişiklik varken: yalnızca "Kaydet ve devam et / Vazgeç" sorulur; Vazgeç hiçbir şeye dokunmaz
-    await evalJs(`window.__pdefe.aktif().notlar.ekle({ tur: 'Text', sayfa: 2, rect: [100, 700, 120, 720], icerik: 'bekleyen', yazar: 'Test', renk: '#ffd100', opaklik: 1, simge: 'Comment', konu: 'Yapışkan Not' })`);
+    await evalJs(`window.__pdefe.aktif().notlar.ekle({ tur: 'Text', sayfa: 2, rect: [100, 700, 120, 720], icerik: 'bekleyen', yazar: 'Test', renk: '#ffd100', opaklik: 1, simge: 'Comment', konu: 'Not' })`);
     await aracAc('arac.sayfalar', 'sayfalar-pencere');
     await evalJs(`document.querySelector('.sayfalar-kayit .arac-kayit-secim [data-id="uzerine"]').click()`);
     await tikla(k1[0], k1[1]); await tus('r');
@@ -359,6 +379,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     await sekmeleriKapat();
     await ac(zengin.c);
     await aracAc('arac.ayir', 'ayir-pencere');
+    const ayirBasliklar = await bolumBasliklari();
+    sonuc('ayir: kayıt bölümünün başlığı "Kaydet" (0.1.13; önceden "Kaydetme")', ayirBasliklar.includes('Kaydet') && !ayirBasliklar.includes('Kaydetme'), ayirBasliklar);
     const durum = () => evalJs(`(() => { const u = document.querySelector('.ayir-pencere .arac-kayit-secim [data-id="uzerine"]'); const k = document.querySelector('.ayir-pencere .arac-kayit-kisit'); const n = document.querySelector('.ayir-pencere .arac-kayit-uzerine');
       return { etkin: !u.disabled, kip: document.querySelector('.ayir-pencere .arac-kayit-secim .secili').dataset.id, kisit: k.hidden ? '' : k.textContent, ipucu: u.title, not: n.hidden ? '' : n.textContent.trim(), notSinif: n.className,
         onizleme: document.querySelector('.ayir-onizleme').textContent.replace(/\\s+/g, ' ').trim(), adlar: !document.querySelector('.ayir-adlar').hidden, ayir: !document.querySelector('.arac-dugmeler [data-id="ayir"]').disabled }; })()`);
@@ -408,7 +430,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     // Tek aralık, sekmede bekleyen not: "Kaydetmeden devam et" → üzerine yazılır, sekme yenilenirken "Değişiklikleri at ve yeniden aç" sorulur
     await sekmeleriKapat();
     await ac(zengin.d);
-    await evalJs(`window.__pdefe.aktif().notlar.ekle({ tur: 'Text', sayfa: 1, rect: [100, 700, 120, 720], icerik: 'bekleyen', yazar: 'Test', renk: '#ffd100', opaklik: 1, simge: 'Comment', konu: 'Yapışkan Not' })`);
+    await evalJs(`window.__pdefe.aktif().notlar.ekle({ tur: 'Text', sayfa: 1, rect: [100, 700, 120, 720], icerik: 'bekleyen', yazar: 'Test', renk: '#ffd100', opaklik: 1, simge: 'Comment', konu: 'Not' })`);
     await aracAc('arac.ayir', 'ayir-pencere');
     await yazIn('ayir-aralik', '3-6');
     await evalJs(`document.querySelector('.ayir-pencere .arac-kayit-secim [data-id="uzerine"]').click()`);
@@ -560,7 +582,7 @@ print(json.dumps(sonuc))`);
     sonuc('yapısal üzerine yaz: sıra değişti, 1. sayfa 90° kaldı, notlar korundu', anlik && J(f2.sayfalar.map((s) => s.metin)) === J(['Sayfa 1', 'Sayfa 3', 'Sayfa 4', 'Sayfa 5', 'Sayfa 6', 'Sayfa 7', 'Sayfa 8', 'Sayfa 2'])
       && f2.sayfalar[0].rot === 90 && f2.sayfalar.every((s, i) => i === 0 || s.rot === 0) && f2.sayfalar.every((s) => s.not.length === 2), { metin: f2.sayfalar.map((s) => s.metin), rot: f2.sayfalar.map((s) => s.rot), anlik });
     // e) Yapısal kayıttan sonra, bekleyen notla yeni belge: sorulur (3 düğme); dosyadaki sayfalar ve kayıtlı notlar, bekleyen not yok
-    await evalJs(`window.__pdefe.aktif().notlar.ekle({ tur: 'Text', sayfa: 1, rect: [100, 700, 120, 720], icerik: 'bekleyen', yazar: 'Test', renk: '#ffd100', opaklik: 1, simge: 'Comment', konu: 'Yapışkan Not' })`);
+    await evalJs(`window.__pdefe.aktif().notlar.ekle({ tur: 'Text', sayfa: 1, rect: [100, 700, 120, 720], icerik: 'bekleyen', yazar: 'Test', renk: '#ffd100', opaklik: 1, simge: 'Comment', konu: 'Not' })`);
     await aracAc('arac.sayfalar', 'sayfalar-pencere');
     await kosul(`document.querySelectorAll('.sayfalar-izgara > .sayfa-karti img').length >= 8`);
     k = await kartlar();

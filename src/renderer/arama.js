@@ -44,7 +44,9 @@ export class Arama extends EventTarget {
     this.girdi = g;
     this.sayac = this.kutu.querySelector('#bul-sayac');
     let zaman = null;
-    g.addEventListener('input', () => { clearTimeout(zaman); zaman = setTimeout(() => this.ara(g.value), 200); });
+    // Bul kapalıyken gelen input (başka bir kutuda Ctrl+Z bu gizli girdinin son yazmasını geri alabilir) aramaz, belgeyi kaydırmaz; yazdıktan
+    // hemen sonra Esc ile kapatılırsa bekleyen arama da çalışmaz
+    g.addEventListener('input', () => { clearTimeout(zaman); if (this.acik) zaman = setTimeout(() => { if (this.acik) this.ara(g.value); }, 200); });
     g.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); if (g.value !== this.sorgu) this.ara(g.value); else this.git(e.shiftKey ? -1 : 1); }
       else if (e.key === 'Escape') { this.kapat(); }

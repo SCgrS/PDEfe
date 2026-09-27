@@ -14,7 +14,7 @@ aşağıdaki adımlarla PDEfe'de oluşturulur.
      vurgulanmalı, ilk satırın bittiği yerde not simgesi çıkmalı, kutunun başlığında "Metin notu" yazmalı.
    - Başka bir satırı seçip boş bir yere tıklayın: seçim ve mini çubuk kapanmalı.
    - Bir satırı araç çubuğundaki **Vurgu** düğmesiyle, bir başkasını sağ tık › **Vurgula** ile vurgulayın.
-3. Metin seçili değilken araç çubuğundan **Yapışkan not** seçip sayfada boş bir yere tıklayın; "Yapışkan not:
+3. Metin seçili değilken araç çubuğundan **Not** seçip sayfada boş bir yere tıklayın; "Not:
    şğıİçöü" yazın. Not kutusunda yanıt kutusu olmamalı. Boş bir yere sağ tık › **Not ekle** de not açmalı.
 4. **Yazı** aracıyla sayfada bir kutu çizin; "Serbest metin: Şişli, İğneada, Çorum — ğüşıöç" yazın;
    biçim çubuğundan Times New Roman, 13 pt, kenarlık seçin; bir sözcüğü seçip **Kalın**, başka bir sözcüğü seçip
@@ -23,7 +23,7 @@ aşağıdaki adımlarla PDEfe'de oluşturulur.
 6. Aynı dosyayı bilgisayarınızdaki **başka bir PDF okuyucuda** açın. Beklenen:
    - Vurgular aynı satırlarda, aynı renkte; yazı rengi değişmemiş.
    - Metin notu Yorumlar panelinde "Metinle ilgili yorum" türünde, yazar adı ve "Metin notu ğüşİ" metniyle.
-   - Yapışkan not simgesi (okuyucunun kendi simgesi) aynı yerde; içinde metin.
+   - Not simgesi (okuyucunun kendi simgesi) aynı yerde; içinde metin.
    - Serbest metin kutusu aynı yerde; Türkçe harfler eksiksiz; yalnızca seçilen sözcükler kalın / altı çizili,
      sarı zemin, kenarlık; satırlar PDEfe'deki yerlerden kırılmış, son satır kesik değil.
    - O okuyucuda nota yanıt yazıp kaydedin; PDEfe'de yeniden açınca yanıt balonda salt okunur görünmeli (PDEfe'de
@@ -71,7 +71,7 @@ açılmalı (Ayarlar › Hakkında'da 0.1.2). Önceki sekmelerin geri gelmemesi 
 1. Birkaç sayfalı bir PDF açıp 2. sayfaya gidin; araç çubuğundaki **Döndür** düğmesine basın:
    "Geçerli sayfa / Tüm PDF / Vazgeç" sorusu ve **Seçeneğimi hatırla** kutusu çıkmalı.
 2. **Geçerli sayfa**: yalnızca 2. sayfa dönmeli, sekmede değişiklik işareti çıkmalı; `Ctrl+Z` ile geri gelmeli.
-3. `Ctrl+Shift++` → **Tüm PDF**: bütün sayfalar dönmeli. Sekmeyi kapatmaya çalışın: kaydetme sorusu çıkmalı;
+3. `Ctrl+R` (0.1.13'e dek `Ctrl+Shift++`) → **Tüm PDF**: bütün sayfalar dönmeli. Sekmeyi kapatmaya çalışın: kaydetme sorusu çıkmalı;
    **Kaydet** deyip dosyayı başka bir PDF okuyucuda açın, sayfalar dönmüş olmalı.
 4. **Seçeneğimi hatırla** ile bir seçim yapın: sonraki döndürmede soru çıkmamalı. Ayarlar › Görünüm'deki döndürme
    seçeneği yeniden sormaya alınınca soru geri gelmeli.
@@ -113,8 +113,8 @@ menü kısayolları ve gerçek pano kullanılamadı.
    %100'de açıp aynı yeri karşılaştırın: UYAP üst yazısının başlığı ve tablo çizgileri, UYAP karekodu, PTT dökümü
    (JPEG sayfa) ve bir tarama. Harfler aynı netlikte, çizgiler gri iki satır değil tek piksel, karekod keskin
    olmalı. Taranmış bir belgeyi %3200'e yakınlaştırın: yazı görünmeli ve beklemeden çizilmeli.
-2. **Döndürme kısayolları.** Çok sayfalı bir PDF'te `Ctrl+Shift++` ve `Ctrl+Shift+−` basın (ana tuşlar ve
-   sayısal tuş takımı): "Geçerli sayfa / Tüm PDF / Vazgeç" sorusu çıkmalı, sayfa saat yönünde / tersine dönmeli.
+2. **Döndürme kısayolları.** Çok sayfalı bir PDF'te `Ctrl+R` ve `Ctrl+Shift+R` basın (0.1.13'e dek `Ctrl+Shift++` /
+   `Ctrl+Shift+−`; Türkçe klavyede basılamıyordu): "Geçerli sayfa / Tüm PDF / Vazgeç" sorusu çıkmalı, sayfa saat yönünde / tersine dönmeli.
    Tek sayfalık PDF'te soru çıkmadan dönmeli; `Ctrl+Z` geri almalı.
 3. **Pano hızı.** Araçlar › Görüntü / PDF birleştir'i açın.
    - Gezgin'de birkaç PDF ve JPG'yi (biri Türkçe karakterli adlı) seçip `Ctrl+C`; pencerede `Ctrl+V`: satırlar
@@ -262,3 +262,25 @@ Kapatma akışları, araç soruları, Ayarlar, seçim çubuğu, sekme okları ve
 6. **Seçim çubuğu.** Bir sözcük seçin: tek vurgu düğmesi, ▾, not ve kopyala görünmeli. ▾'ye basınca renkler açılmalı, çubuk
    kaymamalı (▾ yine imlecin altında); bir renk seçince o renkle vurgulanmalı ve sonraki seçimde vurgu düğmesi o rengi göstermeli.
 7. **Görünüm.** Sayfa kutusu, kopyala ve dişli simgeleri, yeni döndürme simgesi açık ve koyu temada, %125 ölçekte düzgün görünmeli.
+
+## 22. 0.1.13: otomatik testlerin sınayamadıkları
+Kısayolların hepsi, açılış ekranı, yeni sekme, belgesiz araç akışı ve seçim çubuğu test örneğinde gerçek girdiyle sınandı; menü kısayolları
+görünmeyen ayrı bir masaüstünde, etkin pencerede (test/kisayol_dosya.mjs, test/kisayol_gorunum.mjs, test/kisayol_araclar.mjs,
+test/senaryo19.mjs). Türkçe klavye tuşları taklit edildi; gerçek klavyede ve Windows'un gerçek Aç penceresinde denenmedi.
+1. **Türkçe klavye.** Bir PDF açıp `Ctrl` ile `+` (Shift+4) basın: bir adım yakınlaşmalı. Sayısal tuş takımındaki `+` / `−` ve
+   `Ctrl+−` de çalışmalı; `Ctrl+0` %100'e dönmeli. `Ctrl+R` sayfayı saat yönünde, `Ctrl+Shift+R` tersine döndürmeli (`Ctrl+Z` geri alır).
+2. **Sekme değiştirme.** Üç belge açın. `Ctrl+PageDown` / `Ctrl+PageUp` ve `Ctrl+→` / `Ctrl+←` sekme değiştirmeli, sayfa
+   değişmemeli; ilk ve son sekmede durmalı. `Ctrl+Tab`'a basılı tutup `←` `→` ile seçici içinde gezin; `Ctrl`'ü bırakınca seçilen
+   sekmeye geçmeli.
+3. **Yeni sekme.** Sekmelerin sağındaki **+**'ya (ya da `Ctrl+T`) basın: "Yeni sekme" açılmalı, açılış ekranı görünmeli. Oradan
+   **PDF aç** ile bir belge açın: belge aynı sekmede açılmalı (sekme sayısı artmamalı). Gezgin'de bir PDF'e çift tıklamak da
+   açık "Yeni sekme"nin yerine açmalı.
+4. **Belgesiz araç.** Bütün sekmeleri kapatın. Açılış ekranında **PDF küçült**'e basın: Windows'un Aç penceresi gelmeli (başlığı
+   "PDF küçült: PDF seçin"); bir PDF seçince belge açılıp Küçült penceresi o belgeyle açılmalı. Vazgeçince hiçbir şey açılmamalı.
+   Araç çubuğundaki **Araçlar** penceresinde soluk araç olmamalı.
+5. **Açılış ekranı.** PDF aç büyük ve belirgin, sürükle-bırak yazısı hemen altında, beş araç görünmeli (açık ve koyu temada, %125
+   ölçekte). Ayarlar › Açılış ve düzen › Son açılanları hatırla kapatılınca Son açılanlar kutusu kalkmalı, açınca geri gelmeli.
+6. **Seçim çubuğu.** Bir sözcük seçin: çubuk dar olmalı (yanlarda boşluk yok). ▾'ye basınca renkler ▾'nin altında dikey bir
+   sütunda açılmalı, çubuk genişlememeli.
+7. **Not.** Not aracının adı her yerde yalnızca "Not" olmalı (araç çubuğu ipucu, Düzen menüsü, Yorumlar paneli). Not aracıyla konup kaydedilen
+   not başka bir PDF okuyucuda "Not" konusuyla görünmeli.
