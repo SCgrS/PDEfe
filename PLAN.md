@@ -714,3 +714,12 @@ Ayrıntı: CHANGELOG.md. Kullanıcı yeni simgeyi zip olarak gönderdi (PDEfe-si
   boyutta. `baslangic.js` BELGE_IKON yorumu güncellendi (son açılanlardaki kırmızı şeritli belge simgesi eski uygulama simgesinden
   geliyordu; kendisi değişmedi). Sürüm 0.1.16.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 25.
+
+### Revizyon 0.1.17 (2026-09-27, kullanıcı isteği)
+Kullanıcı simgenin sade sürümünü gönderdi (PDEfe-simge2.zip; BENIOKU aynı): kıvrımlı süslemeler kalktı, ortada dolgulu dört yapraklı
+çiçek.
+- [x] build/icon.ico (10 boyut, PNG sıkıştırmalı), icon.png (512×512), icon.svg değişti; yapılandırma aynı. pdefe-core.exe yeniden
+  derlendi (ping OK), araclar_testi `--exe` 130/130. PDEfe.exe, PDEfe-Setup.exe ve pdefe-core.exe'den çıkarılan simgeler (256 / 48 /
+  32 / 16 px) yeni. Kurulumdan sonra (WMI): Uninstall 0.1.17, exe 0.1.17.0, app.asar ve çekirdek derlemeyle aynı boyutta,
+  resources\icon.ico ve uninstallerIcon.ico yeni ICO (55 348 bayt). Sürüm 0.1.17.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 25 (0.1.17 simgesiyle).

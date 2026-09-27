@@ -3,6 +3,11 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.17 — 2026-09-27
+
+### Görünüm
+- **Simge sadeleşti:** lacivert sayfanın ortasında dolgulu, altın sarısı dört yapraklı çiçek; kıvrımlı süslemeler kalktı. Küçük boyutlarda (görev çubuğu, Gezgin) daha net seçilir. Eski simge görünmeye devam ederse Windows'un simge önbelleğindendir; bilgisayar yeniden başlatılınca düzelir.
+
 ## 0.1.16 — 2026-09-27
 
 ### Görünüm
