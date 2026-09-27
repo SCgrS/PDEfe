@@ -460,7 +460,13 @@ def y_sayfa_metni(p):
 
 
 def y_belge_birak(p):
-    onbellek.birak(p["yol"])
+    """Belgeyi önbellekten bırakır (dosya tanıtıcısı kapanır; Windows'ta dosya yeniden silinip adlandırılabilir). Aynı dosyanın
+    başka yazımla anahtarlanmış girdileri de bırakılır: sekmeler ham yolla, araç yöntemleri os.path.abspath ile açar (0.1.12)."""
+    yol = p["yol"]
+    hedef = os.path.normcase(os.path.abspath(yol))
+    for anahtar in list(onbellek.belgeler):
+        if anahtar == yol or os.path.normcase(os.path.abspath(anahtar)) == hedef:
+            onbellek.birak(anahtar)
     return {"ok": True}
 
 

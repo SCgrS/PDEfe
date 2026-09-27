@@ -8,7 +8,7 @@ import { temizMetin, sayfaMetinleriniBirlestir, secimDikdortgenleri, satirlaraBi
 import { NotYoneticisi, VURGU_RENKLERI } from './notlar.js';
 import { KomutYigini, Komut } from './komutlar.js';
 import { ayarlarPenceresiAc, ayarlarPenceresiKapat } from './ayarlarPenceresi.js';
-import { aracKomutlari, aracPencereleriniKapat } from './araclar/index.js';
+import { aracKomutlari, aracPencereleriniKapat, aracPenceresiKapaninca, acikAracPenceresiVar } from './araclar/index.js';
 import { AraclarPenceresi } from './aracPenceresi.js';
 import { guncellemeSeridiKur } from './guncelleme.js';
 import { yazdir } from './yazdir.js';
@@ -252,6 +252,7 @@ async function belgeKapat(id, secenek = {}) {
     if (!belgeler.has(id)) return true;
   }
   sayfaKonumuKaydet(b, true);
+  const yollar = sekmeninYollari(b);   // görünüm yok edilmeden: başka PDF'ten eklenmiş sayfaların dosyaları da
   b.notlar?.yokEt();
   belgeler.delete(id);
   sekmeler.kaldir(id);
@@ -259,7 +260,7 @@ async function belgeKapat(id, secenek = {}) {
   arama.belgeUnut(b.gorunum);
   b.gorunum.yokEt();
   b.el.remove();
-  cekirdek('belge_birak', { yol: b.yol }).catch(() => {});
+  kullanilmayanlariBirak(yollar);
   if (b.gorunum.anlik) cekirdek('anlik_sil', { yol: b.gorunum.anlik }).catch(() => {});
   if (aktifId === id) {
     aktifId = null;
@@ -268,6 +269,59 @@ async function belgeKapat(id, secenek = {}) {
     else { baslangicGoster(); }
   }
   return true;
+}
+
+// ---------------------------------------------------------------- çekirdeğin belge önbelleği
+// Çekirdek okuduğu PDF'leri önbellekte açık tutar; açık tanıtıcı varken Windows'ta dosya silinemez, adı değiştirilemez. Sekme kapanınca
+// sekmenin dosyaları (başka PDF'ten eklenmiş sayfalarınkiler dahil), son araç penceresi kapanınca araçların okuttuğu dosyalar (Görüntü /
+// PDF birleştir listesi, Sayfaları düzenle'de PDF'ten sayfa ekle…) bırakılır; açık bir sekmenin kullandığı dosya bırakılmaz (0.1.12:
+// araç kapandıktan sonra birleştirme listesindeki dosya PDEfe kapanana dek silinemiyordu).
+const aracYollari = new Map();   // yolAnahtari → yol: araç pencerelerinin çekirdeğe okuttuğu dosyalar
+
+/** Çekirdek isteğindeki (okunacak) dosya yolları: yol, oge.yol (boyut tahmini), ogeler[].yol (birleştir), tarif[].kaynak. Yazılacak
+ *  hedefler (hedef, hedefKlasor) okunmaz, sayılmaz. */
+function cekirdekYollari(p) {
+  if (!p || typeof p !== 'object') return [];
+  const y = [p.yol, p.oge?.yol];
+  if (Array.isArray(p.ogeler)) for (const o of p.ogeler) y.push(o?.yol);
+  if (Array.isArray(p.tarif)) for (const t of p.tarif) y.push(typeof t?.kaynak === 'string' ? t.kaynak : t?.kaynak?.yol);
+  return y.filter((x) => typeof x === 'string' && x);
+}
+
+/** Araç pencerelerine verilen çekirdek: okuttuğu dosyaları aracYollari'na yazar (bkz. aracDosyalariniBirak). */
+function aracCekirdek(yontem, params, ilerleme) {
+  for (const y of cekirdekYollari(params)) aracYollari.set(yolAnahtari(y), y);
+  return cekirdek(yontem, params, ilerleme);
+}
+
+/** Sekmenin çekirdekte açtırdığı dosyalar: kendi dosyası, yüklediği dosya ve sayfalarının kaynakları (anlık kopya hariç: anlik_sil). */
+function sekmeninYollari(b) {
+  const g = b.gorunum, anlik = g?.anlik ? yolAnahtari(g.anlik) : null;
+  return [b.yol, g?.yol, ...(g?.sayfalar || []).map((s) => s?.kaynak?.yol)].filter((y) => y && yolAnahtari(y) !== anlik);
+}
+
+/** Açık sekmelerin kullanmadığı yolları çekirdek önbelleğinden bırakır (istekler sırayla işlenir: süren okumadan sonra bırakılır). */
+function kullanilmayanlariBirak(yollar) {
+  const kullanilan = new Set();
+  for (const x of belgeler.values()) {
+    for (const y of sekmeninYollari(x)) kullanilan.add(yolAnahtari(y));
+    if (x.gorunum?.anlik) kullanilan.add(yolAnahtari(x.gorunum.anlik));
+  }
+  const gonderilen = new Set();
+  for (const y of yollar) {
+    const a = y && yolAnahtari(y);
+    if (!a || kullanilan.has(a) || gonderilen.has(a)) continue;
+    gonderilen.add(a);
+    cekirdek('belge_birak', { yol: y }).catch(() => {});
+  }
+}
+
+/** Son araç penceresi kapanınca araçların okuttuğu dosyaları bırakır (başka araç penceresi açıkken beklenir). */
+function aracDosyalariniBirak() {
+  if (acikAracPenceresiVar()) return;
+  const yollar = [...aracYollari.values()];
+  aracYollari.clear();
+  kullanilmayanlariBirak(yollar);
 }
 
 /** Birden çok sekmeyi kapatır (sekmede sağ tık: Diğerlerini / Sağdakileri kapat), pencere kapatmadaki sırayla: önce değişikliği
@@ -650,8 +704,10 @@ function ayarlarBaglami() {
 
 // Araç pencereleri (küçült, sayfaları düzenle, döndür ve kaydet, ayır, görüntü/PDF birleştir)
 try {
+  // cekirdek: araçların okuttuğu dosyalar kaydedilir, son araç penceresi kapanınca bırakılır (aracDosyalariniBirak)
+  aracPenceresiKapaninca(aracDosyalariniBirak);
   Object.assign(komutlar, aracKomutlari({
-    aktif, cekirdek,
+    aktif, cekirdek: aracCekirdek,
     iptal: (istekId) => pdefe.cagir('cekirdek:iptal', istekId),
     dosyaAc, kaydet: (b) => belgeKaydet(b), mesajKutusu, bildir, pdefe,
     belgeKapat: (id, secenek) => belgeKapat(id, secenek),   // küçült "üzerine yaz" sonrası sekmeyi kapatıp yeniden açmak için

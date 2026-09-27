@@ -560,9 +560,10 @@ döndürme simgesi). Sekme adı soruldu: "Açılış ve düzen". Otomatik kaydet
 - [x] Testler (her biri kendi temiz veri klasörlü, ekran dışı test örneğinde): test/senaryo17.mjs 42/42 (yeni; aynı örnekte üst üste de
   geçer), senaryo13 60/60 (çıktı klasörü denetimi çipin data-klasor'undan; araç kapatma sorusunda Kaydetme), ortu_tiklama 155/155 (0.1.8'de
   154/155), senaryo14 hepsi (sekmeler, eski kimlikler 'sayfa' / 'kopyalama' dahil), sekme_genislik 20/20 (uçta durma, tekerlek),
-  senaryo15 5/5, senaryo16 6/6, oto_kayit_kilit 7/7 (otomatik kaydı bellekte açar). vurgu_cubugu 11/12: "Kaldır vurguyu siler" 0.1.11
+  senaryo15 5/5, senaryo16 6/6, oto_kayit_kilit 7/7 (otomatik kaydı bellekte açar), senaryo18 10/10 (yeni: araç ve sekme kapanınca
+  dosyanın bırakılması, dosya adı değiştirilerek ölçülür), araclar_testi 131/131. vurgu_cubugu 11/12: "Kaldır vurguyu siler" 0.1.11
   kodunda da (ayrı çalışma ağacında, aynı PDF'le) aynı biçimde düşüyor; bu sürümün değişikliği değil. senaryo7'nin sekme adı güncellendi.
-  Çekirdek değişmedi (araclar_testi, kopyalama_testi çalıştırılmadı).
+  kopyalama_testi çalıştırılmadı (metin kodu değişmedi).
 - [x] **İnceleme** (üç boyutlu bulucu + her bulguya bağımsız çürütme; 8 bulgu doğrulandı, hepsi düzeltildi): Küçült'ün 'kapandi'da
   başlattığı sekme yenilemesi uygulama kapatılırken beklenmiyordu (iki soru üst üste açılabiliyordu) → Pencere 'kapandi' olayında
   detail.bekle(söz), kapanisIsi; aracPencereleriniKapat bekler. Birleştir'de kapatma sorusundaki Kaydet dosyalar okunurken birleştirmeye
@@ -572,6 +573,14 @@ döndürme simgesi). Sekme adı soruldu: "Açılış ve düzen". Otomatik kaydet
   görünmez), üstteyken ('ustte') satır yukarı açılır; üstte / altta kararı renk satırı sayılmadan. "x.pdf.pdf" seçilince uzantı iki kez
   siliniyordu → kutuGovde bayrağı. Devre dışı Listeyi temizle soluk değildi; README'de "İstenirse ham kopyalama" kalmıştı;
   test/oto_kayit_kilit.mjs varsayılanı açık bekliyordu (artık bellekte açar).
-- [ ] Önceden var olan, bu sürümde düzeltilmeyen: araç penceresine eklenen dosyalar (birleştirme listesi) çekirdeğin belge önbelleğinde
-  açık kalır; araç kapandıktan sonra da Gezgin'de silinemez (test/cikti/s17'de görüldü). Ayrı iş olarak önerildi.
+- [x] **Çekirdeğin belge önbelleği** (önceden de vardı; test/cikti/s17 silinemeyince görüldü, kullanıcı bu sürümde istedi): araçların
+  okuttuğu dosyalar (gorsel_bilgi, sayfa_boyutlari, belge_bilgi, kucuk_resim, sayfalar_uygula kaynakları) BelgeOnbellek'te açık kalıyor,
+  araç kapanınca belge_birak çağrılmıyordu; araç kapandıktan sonra dosya PDEfe kapanana dek silinemiyor / yeniden adlandırılamıyordu.
+  uygulama.js araçlara `aracCekirdek` verir: istekteki okunacak yollar (yol, oge.yol, ogeler[].yol, tarif[].kaynak; hedefler değil)
+  kaydedilir; ortak.js `aracPenceresiKapaninca` son araç penceresi kapanınca `aracDosyalariniBirak` → `kullanilmayanlariBirak`:
+  açık sekmelerin kullandığı yollar (dosyası, yüklediği dosya, sayfa kaynakları, anlık kopya) dışındakilere belge_birak. Sekme
+  kapanınca da sekmenin bütün yolları (başka PDF'ten eklenmiş sayfalarınki dahil) aynı yolla bırakılır (önceden yalnızca b.yol).
+  Çekirdek y_belge_birak aynı dosyanın başka yazımla anahtarlanmış girdilerini de bırakır (araç yöntemleri os.path.abspath, sekmeler ham
+  yolla açar; pdefe-core.exe yeniden derlendi, derlenmiş exe'de iki yazımla açılıp üçüncüyle bırakılan dosyanın adı değiştirilebildi).
+  Çekirdek istekleri tek işçi iş parçacığında sırayla işlendiğinden bırakma süren okumayı kesmez.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 21.

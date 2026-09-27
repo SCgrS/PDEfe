@@ -148,6 +148,14 @@ export function sayfaAraliklariCoz(metin, toplam) {
 // ---------------------------------------------------------------- pencere iskeleti
 const acikPencereler = new Map();   // anahtar → Pencere
 const tumPencereler = new Set();    // açık bütün araç pencereleri (anahtarsızlar dahil), açılış sırasıyla
+const kapanisDinleyicileri = new Set();
+
+/** Açık araç penceresi var mı. */
+export function acikAracPenceresiVar() { return tumPencereler.size > 0; }
+
+/** Her araç penceresi kapandığında (kapandi olayından sonra) çağrılır: f(pencere). uygulama.js çekirdeğin önbelleğindeki araç
+ *  dosyalarını son pencere kapanınca bırakır. */
+export function aracPenceresiKapaninca(f) { kapanisDinleyicileri.add(f); }
 
 /**
  * Açık araç pencerelerini (en son açılan önce) kapatır. Her pencerenin kapatmadanOnce'u kendi sorusunu sorar (süren işlem, kaydedilmemiş
@@ -380,6 +388,7 @@ export class Pencere {
     const isler = [];
     this.el.dispatchEvent(new CustomEvent('kapandi', { detail: { bekle: (soz) => { if (soz?.then) isler.push(soz); } } }));
     this.kapanisIsi = Promise.allSettled(isler);
+    for (const f of kapanisDinleyicileri) { try { f(this); } catch (e) { console.warn('[araçlar] kapanış dinleyicisi', e); } }
     this.ortu.remove();
     this._sonucCoz(sonuc);
     try { if (this.onceOdak && document.contains(this.onceOdak)) this.onceOdak.focus({ preventScroll: true }); } catch { /* yok say */ }

@@ -23,6 +23,7 @@ otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 ### Araç pencereleri
 - Kaydedilecek dosyanın adı uzantısız görünür; ".pdf" kaydederken eklenir.
 - Adın yanındaki klasör (örneğin "Masaüstü") tıklanınca o klasör Gezgin'de açılır.
+- Görüntü / PDF birleştir'e eklenen ya da Sayfaları düzenle'de "PDF'ten sayfa ekle" ile okunan dosya, araç kapandıktan sonra da PDEfe'de açık kalıyordu: PDEfe kapanana dek Gezgin'de silinemiyor, adı değiştirilemiyordu. Artık araç kapanınca bırakılır. Bir sekmede açık olan dosya sekme kapanınca bırakılır.
 
 ### Ayarlar
 - Sayfa düzeni ve Belge açılışı sekmeleri **Açılış ve düzen** adıyla birleşti; Notlar sekmesinin adı **Not ve vurgu** oldu.
