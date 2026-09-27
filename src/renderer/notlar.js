@@ -1179,7 +1179,10 @@ export class NotYoneticisi extends EventTarget {
       c.addEventListener('click', (e) => this.notCubuguTikla(e));
       this.alan.append(c);
     }
-    if (this.balon && this.balonGecici && this.balonNotId === n.id) this.balonKapat();   // üzerine gelince açılmış balon çubuğu örtmesin
+    // Açık balon (üzerine gelince açılan geçici ya da Not ekle'yle açılmış kalıcı) çubuğu örtmesin: kapanır, yazılan not odaktan çıkışta
+    // kaydedilir; Notu düzenle yeniden açar. Balon açılınca da çubuk kapanır (notCubuguTikla): ikisi aynı anda açık olmaz (0.1.13: kalıcı
+    // balon açıkken vurguya yeniden tıklanınca çubuk balonun altında kalıyor, Kaldır'a basılamıyordu)
+    if (this.balon) this.balonKapat();
     this.gosterimIptal();
     this.notCubuguId = n.id;
     this.notCubuguCiz();

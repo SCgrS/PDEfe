@@ -631,6 +631,9 @@ kısayolu Claude'a bırakıldı (Ctrl+R / Ctrl+Shift+R); sürüm 0.1.13 (0.1.12 
   Ctrl+Tab, Ctrl+Z/Y, Ctrl+W, Ctrl+T arkada çalışıyor, sonra Esc pencereyi kapatmıyordu), araç testleri odak kaybını (düğme devre dışı
   kalınca / satır silinince odak BODY'ye düşüp Esc ve Ctrl+A pencereye gitmiyordu: ortak.js en üstteki pencereye yönlendirir), yeni
   özellik testi pencere kapatmada açılış sekmesini; hepsi düzeltildi. İnceleme (üç boyutlu bulucu + her bulguya bağımsız çürütme):
-  11 bulgu doğrulandı, hepsi düzeltildi; reddedilen 3'ten biri (Shift'li − döndürüyordu) yine de kaldırıldı. Kapsam dışı, 0.1.12'de de
-  var: vurgu çubuğu aynı notun kalıcı balonunun altında kalıyor (PyMuPDF'le üretilen vurgulu PDF'te vurgu_cubugu "Kaldır" düşüyor).
+  11 bulgu doğrulandı, hepsi düzeltildi; reddedilen 3'ten biri (Shift'li − döndürüyordu) yine de kaldırıldı.
+- [x] **Vurgu çubuğu ve kalıcı balon** (0.1.12'de de vardı, regresyon testinde görüldü; kullanıcı bu sürümde istedi): notCubuguAc yalnızca
+  geçici balonu kapatıyordu; Not ekle'yle açılıp ilk Esc'le açık kalan kalıcı balon (z-index 45) çubuğu (30) örtüyor, Kaldır tıklanamıyordu.
+  Artık çubuk açılırken açık balon kapanır (balonKapat metin kutusundan çıkarak notu kaydeder); balon açılınca çubuk zaten kapanıyordu.
+  vurgu_cubugu.mjs'e denetim eklendi: deneme-notlu ve PyMuPDF'le üretilen PDF'te 13/13; yazılan not korunuyor.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 22.

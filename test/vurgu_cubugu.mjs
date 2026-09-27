@@ -89,6 +89,11 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus }) {
   nokta = await vurguNoktasi(nokta.id);
   await tikla(nokta.x, nokta.y); await bekle(250);
   const kaldir = await evalJs(`(() => { const r = document.querySelector('.not-cubugu [data-islem="kaldir"]').getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]; })()`);
+  // İlk Esc yalnızca not kutusundan çıkar, kalıcı balon açık kalır; vurguya yeniden tıklamak onu kapatır, çubuk örtülmez (0.1.13'e dek
+  // çubuk balonun altında kalıyor, Kaldır'a basılamıyordu)
+  d = await durum();
+  const ustteki = await evalJs(`(() => { const e = document.elementFromPoint(${kaldir[0]}, ${kaldir[1]}); return e?.closest('[data-islem="kaldir"]') ? 'kaldir' : (e?.closest('.not-balonu') ? 'balon' : e?.className || e?.tagName); })()`);
+  dogrula(!d.balon && d.acik && ustteki === 'kaldir', 'Vurguya yeniden tıklamak açık balonu kapatır, Kaldır üstte ve tıklanabilir', `balon=${d.balon} ustteki=${ustteki}`);
   await tikla(kaldir[0], kaldir[1]); await bekle(300);
   d = await durum();
   dogrula(d.sayi === ilkSayi - 1 && !d.acik, 'Kaldır vurguyu siler, çubuk kapanır', `sayi=${d.sayi}/${ilkSayi}`);

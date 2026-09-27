@@ -25,6 +25,7 @@ otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 - Not aracının adı her yerde yalnızca **Not** (araç çubuğu, Düzen menüsü, Yorumlar paneli; yeni notun başka PDF okuyucularında görünen konusu da "Not").
 - Metin seçince çıkan çubuk daraldı: renkler ▾'nin altında dikey bir sütunda açılır, çubuk genişlemez.
 - Sayfaları düzenle'deki "PDF'ten sayfa ekle" düğmesinin adı **PDF ekle**; araç pencerelerindeki "Kaydetme" başlığı **Kaydet**.
+- Vurgunun notu açıkken vurguya yeniden tıklanınca açılan çubuk notun altında kalıyor, **Kaldır**'a basılamıyordu. Artık not kapanır (yazılan not kaydedilir), çubuk üstte açılır.
 
 ## 0.1.12 — 2026-09-27
 

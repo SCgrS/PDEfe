@@ -284,3 +284,5 @@ test/senaryo19.mjs). Türkçe klavye tuşları taklit edildi; gerçek klavyede v
    sütunda açılmalı, çubuk genişlememeli.
 7. **Not.** Not aracının adı her yerde yalnızca "Not" olmalı (araç çubuğu ipucu, Düzen menüsü, Yorumlar paneli). Not aracıyla konup kaydedilen
    not başka bir PDF okuyucuda "Not" konusuyla görünmeli.
+8. **Vurgu çubuğu.** Bir vurguya tıklayıp **Not ekle** deyin, bir şey yazın, Esc'e bir kez basın, vurguya yeniden tıklayın: not
+   kapanmalı (yazdığınız kaydedilmiş olmalı), çubuk üstte açılmalı; **Kaldır** vurguyu silmeli.
