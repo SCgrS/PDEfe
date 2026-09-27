@@ -156,15 +156,16 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus }) {
   sonuc('Kapalı: belge 1. sayfadan açılır', (await evalJs(`window.__pdefe.aktif().gorunum.gecerli`)) === 1);
   await sekmeleriKapat();
 
-  // ---------------------------------------------------------------- başlangıç ekranı: Son açılanlar kutusu gizli, içerik ortada (0.1.13)
+  // ---------------------------------------------------------------- başlangıç ekranı: Son açılanlar kutusu gizli, içerik ortada (0.1.13;
+  // 0.1.14'ten beri tek sütun: kapalıyken yalnızca Son açılanlar bölümü kalkar, sütun aynı genişlikte ve ortada kalır)
   await kosul(`!document.querySelector('#baslangic').hidden`);
   const baslangicDurumu = () => evalJs(`(() => { const s = document.querySelector('.karsilama-son'), k = document.querySelector('.karsilama'), r = k.getBoundingClientRect(), b = document.querySelector('#baslangic').getBoundingClientRect();
-    return { sonGizli: s.hidden && s.getBoundingClientRect().height === 0, sonKapaliSinifi: k.classList.contains('son-kapali'), baglanti: !!document.querySelector('.karsilama-ayar-baglantisi'),
+    return { sonGizli: s.hidden && s.getBoundingClientRect().height === 0, baglanti: !!document.querySelector('.karsilama-ayar-baglantisi'),
       ortaFark: Math.round(Math.abs((r.left + r.right) / 2 - (b.left + b.right) / 2)), genislik: Math.round(r.width), pdfAc: !!document.querySelector('.karsilama-ac'),
       araclar: document.querySelectorAll('.karsilama-arac').length, liste: document.querySelector('#son-dosyalar').innerText, tum: document.querySelector('#baslangic').innerText }; })()`);
   const bas = await baslangicDurumu();
   sonuc('Başlangıç ekranı: Son açılanlar kutusu hiç görünmüyor (bilgi satırı / Ayarlar bağlantısı yok), PDF aç ve 5 araç ortada',
-    bas.sonGizli && bas.sonKapaliSinifi && !bas.baglanti && !/Son açılanlar|hatırlanmıyor/.test(bas.tum) && bas.ortaFark <= 10 && bas.genislik <= 640 && bas.pdfAc && bas.araclar === 5, bas);
+    bas.sonGizli && !bas.baglanti && !/Son açılanlar|hatırlanmıyor/.test(bas.tum) && bas.ortaFark <= 10 && bas.pdfAc && bas.araclar === 5, bas);
   sonuc('Başlangıç ekranı: marka adı geçmiyor', !MARKA.test(bas.tum));
   await ss('baslangic-kapali-koyu');
   // 0.1.12'ye dek başlangıç ekranındaki bağlantı Ayarlar › Açılış ve düzen'i açıyordu; bağlantı kutuyla birlikte kalktı, Ayarlar komutla açılır
@@ -182,8 +183,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus }) {
   sonuc('Açıkken Aç penceresi eskisi gibi (Windows listesine ekler)', acKaydi2?.secenek?.windowsSonKullanilanlar === true, acKaydi2?.secenek);
   await ayarlarKapat();
   const bas2 = await baslangicDurumu();
-  sonuc('Açınca başlangıç ekranında Son açılanlar kutusu geri geldi, boş liste iletisiyle', !bas2.sonGizli && !bas2.sonKapaliSinifi && /Henüz açılan belge yok/.test(bas2.liste)
-    && /Son açılanlar/.test(bas2.tum) && bas2.genislik > 640, bas2);
+  sonuc('Açınca başlangıç ekranında Son açılanlar kutusu geri geldi, boş liste iletisiyle (sütun aynı genişlikte)', !bas2.sonGizli && /Henüz açılan belge yok/.test(bas2.liste)
+    && /Son açılanlar/.test(bas2.tum) && bas2.genislik === bas.genislik && bas2.ortaFark <= 10, bas2);
   await ac(A);
   await evalJs(`window.__pdefe.aktif().gorunum.sayfayaGit(2)`);
   await bekle(1600);

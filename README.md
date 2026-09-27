@@ -12,7 +12,8 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 ## Ne yapar
 
 - **Sekmeler.** Birden çok PDF tek pencerede; sekmeler aynı ve dar genişliktedir ("ustyazi (85).pdf" gibi adlar tam
-  görünür, uzun ad üç noktayla kısalır, tam ad ve yol ipucunda) ve sürüklenerek sıralanır. `Ctrl+Tab` basılı tutulunca
+  görünür, uzun ad üç noktayla kısalır, tam ad ve yol ipucunda) ve sürüklenerek sıralanır (sürüklenen sekme imleci izler,
+  ötekiler kayarak yer açar; `Esc` vazgeçer). `Ctrl+Tab` basılı tutulunca
   son kullanılan sırayla sekme seçici açılır; `Ctrl+PageUp` / `Ctrl+PageDown` ya da `Ctrl+←` / `Ctrl+→` önceki / sonraki
   sekmeye, `Ctrl+1` – `Ctrl+9` doğrudan sekmeye gider. Sekme çubuğundaki **+** (ya da `Ctrl+T`) açılış sayfasını yeni bir
   sekmede açar; oradan açılan belge o sekmenin yerine açılır. Bir belge yeniden
@@ -77,7 +78,8 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   tek / iki sayfa, kaydırma, kapak, Döndür düğmesi), Not ve vurgu, Kaydetme (otomatik kaydet, araçların çıktı klasörü),
   Güncelleme. Kopyalama her zaman temiz metinle yapılır.
 - **Açılış ekranı.** Belge açık değilken ve yeni sekmede: büyük **PDF aç** düğmesi (PDF'ler pencereye sürüklenerek de açılır),
-  bütün araçlar ve son açılan belgeler (tek tıkla açılır; × ya da sağ tıkla listeden kaldırılır, klasörde gösterilir). Belge
+  bütün araçlar ve altlarında son açılan en çok 10 belge (tek tıkla açılır; × ya da sağ tıkla listeden kaldırılır, klasörde
+  gösterilir; kutu kaydırılmaz, geniş pencerede iki sütun). Uygulamanın adı ve sürümü sağ altta. Belge
   gerektiren bir araç seçilince önce Aç penceresi gelir, araç seçilen PDF'le açılır. Liste istenirse hiç tutulmaz: Ayarlar ›
   Açılış ve düzen › Son açılanları hatırla kapatılınca liste silinir, açılış ekranındaki kutu ve Dosya menüsündeki Son açılanlar kalkar.
 

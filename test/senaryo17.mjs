@@ -2,7 +2,7 @@
 // araç penceresi açıkken pencere kapatma (önce aracın sorusu), bütün kaydetmeden çıkış sorularının tek biçimi (Kaydet | Kaydetme |
 // Vazgeç; araçta Kaydet aracın kendi kaydı), araç çıktısında uzantısız ad ve Gezgin'de açılan klasör çipi, sekme ◀ ▶ uçta durması,
 // Ayarlar düğmesi ve kopyala simgeli Paylaş, Ayarlar'da "Açılış ve düzen" / "Not ve vurgu" / Kopyalama'nın kalkması / Zaten varsayılan /
-// Listeyi temizle / otomatik kaydetmenin varsayılan kapalı olması, seçim çubuğunda tek vurgu düğmesi ve ▾ renkler, not balonunda "Not:",
+// Listeyi temizle / otomatik kaydetmenin varsayılan kapalı olması, seçim çubuğunda tek vurgu düğmesi ve ▾ renkler, not balonunda "Not" (0.1.14: "Not | yazar | tarih"),
 // basamağa göre sayfa kutusu, yeni döndürme simgeleri, eski temizMetin=false ayarına rağmen temiz kopya.
 // Kullanım: boş veri klasörlü test örneği (baslat.ps1) açıkken  $env:PDEFE_CDP_PORT=9371; node test/surucu.mjs betik test/senaryo17.mjs
 // Belgeler test/pdf'ten test/cikti/s17/pdf'e kopyalanır (asıllarına yazılmaz); araç çıktıları test/cikti/s17/cikti'ya gider.
@@ -137,11 +137,12 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   sonuc('Kopyalama her zaman temiz metin (eski temizMetin=false ayarına rağmen)', kopya.engellendi && kopya.metin.length > 0 && !/\n$/.test(kopya.metin), kopya);
   await evalJs(`(() => { delete window.__pdefe.ayar().temizMetin; getSelection().removeAllRanges(); window.__pdefe.aktif().notlar.secimCubuguGizle(); return true; })()`);
 
-  // ---------------------------------------------------------------- 12) not balonu "Not:"
+  // ---------------------------------------------------------------- 12) not balonu "Not" (0.1.12'de "Not:"; 0.1.14'ten beri iki nokta
+  // yerine tür, yazar ve tarih arasında ince dikey çizgi: "Not | Yazar | tarih")
   await surukle(satir2[0], satir2[1] + 120, satir2[2], satir2[1] + 120); await bekle(400);
   await tikla(...(await merkez(q('#secim-cubugu [data-islem="not"]')))); await bekle(500);
-  const balon = await evalJs(`({ tur: document.querySelector('.not-balonu .tur')?.textContent, panel: null })`);
-  sonuc('Metin notunun balonunda "Not:"', balon.tur === 'Not:', balon);
+  const balon = await evalJs(`({ tur: document.querySelector('.not-balonu .tur')?.textContent, sira: [...document.querySelector('.not-balonu .ust').children].map((e) => e.className).filter((c) => /^(tur|yazar|tarih|ayrac)$/.test(c)) })`);
+  sonuc('Metin notunun balonunda "Not | yazar | tarih"', balon.tur === 'Not' && J(balon.sira) === J(['tur', 'ayrac', 'yazar', 'ayrac', 'tarih']), balon);
   await evalJs(`(() => { const t = document.querySelector('.not-balonu textarea'); t.value = 'Deneme'; t.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
   await ss('not-balonu');
   await tus('Escape'); await bekle(300);

@@ -3,6 +3,20 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.14 — 2026-09-27
+
+### Açılış ekranı
+- **Son açılanlar** artık araçların altında: "Son açılanlar" başlığı üstte, belgeler altındaki kutunun içinde. Kutu kaydırılmaz; son açılan 10 belgenin hepsi görünür, geniş pencerede iki sütuna dağılır (en yenisi sol üstte).
+- Sürükle-bırak bilgisi PDF aç düğmesinin içinde: **Bilgisayarınızdaki bir ya da birkaç PDF'i seçin veya bu pencereye sürükleyin**. Düğmenin altındaki ayrı satır kalktı.
+- İçerik tam ortada değil, biraz yukarıda durur.
+- **PDEfe**, "PDF görüntüleyici ve düzenleyici" ve sürüm sağ altta. Pencere büyüyüp küçülünce köşede kalır; pencere içeriğe yetmeyecek kadar küçükse içeriğin altına iner, üstüne binmez.
+
+### Sekmeler
+- Sekme sürüklenirken artık imleçle birlikte yarı saydam bir kopya dolaşmıyor: sekmenin kendisi hafif gölgeyle öne çıkıp imleci yatayda izler, öteki sekmeler kayarak yer açar. Bırakınca sekme açılan yere kayıp oturur. `Esc` sürüklemeden vazgeçer. Sekmeler sığmıyorsa imleç çubuğun ucuna götürülünce çubuk kendiliğinden kayar.
+
+### Notlar
+- Not balonunun başlığı **Not | Ad Soyad | tarih** biçiminde: tür, yazar ve tarih ince dikey çizgilerle ayrılır, tarih yazarın hemen yanında durur ("Not:" yerine). Uzun bir yazar adı kısalır; tam adı fareyle üzerine gelince görünür.
+
 ## 0.1.13 — 2026-09-27
 
 ### Açılış ekranı ve yeni sekme

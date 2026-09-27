@@ -140,7 +140,16 @@ html[data-tema="koyu"] #dugme-tema .ay { display: block; }
 .sekme:hover { background: var(--hover); }
 .sekme.aktif { background: var(--sekme-aktif); color: var(--metin); border-color: var(--kenar); }
 .sekme.aktif::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: var(--sekme-aktif); }
-.sekme.surukleniyor { opacity: 0.5; }
+/* Sürükleyerek sıralama (sekmeler.js, 0.1.14): sürüklenen sekme gölgeyle öne çıkıp imleci izler, ötekiler kayarak yer açar; bırakınca
+   sekme açılan yere kayar */
+#sekme-liste.siralaniyor .sekme { transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1); }
+#sekme-liste.siralaniyor .sekme.tasiniyor {
+  z-index: 2; transition: none; background: var(--sekme-aktif); color: var(--metin); border-color: var(--kenar);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.16);
+}
+html[data-tema="koyu"] #sekme-liste.siralaniyor .sekme.tasiniyor { box-shadow: 0 0 12px rgba(0, 0, 0, 0.6); }
+#sekme-liste.siralaniyor .sekme.tasiniyor.yerlesiyor { transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1); }
+@media (prefers-reduced-motion: reduce) { #sekme-liste.siralaniyor .sekme { transition: none !important; } }
 .sekme .ad { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sekme .nokta { color: var(--vurgu); font-size: 16px; line-height: 1; display: none; flex-shrink: 0; }
 .sekme.degisti .nokta { display: inline; }
@@ -268,27 +277,27 @@ html.metin-seciliyor, html.metin-seciliyor * { cursor: text !important; }
 .koyu-sayfa .textLayer .highlight.selected { background: #b35400; }
 
 /* Başlangıç ekranı (baslangic.js). #gorunumler de belge alanını kaplar ve DOM'da sonra gelirse üstte kalır: boşken bile tıklamaları
-   yutuyordu (PDF aç ve son açılanlar tıklanamıyordu). Başlangıç ekranı kendi yığın katmanında, görünümlerin üstündedir. */
+   yutuyordu (PDF aç ve son açılanlar tıklanamıyordu). Başlangıç ekranı kendi yığın katmanında, görünümlerin üstündedir.
+   Izgara satırları (0.1.14, kullanıcı isteği: içerik tam ortada değil biraz yukarıda, ad ve sürüm sağ altta): üst boşluk, içerik, alt
+   boşluk, imza. Boş yer 1:2 bölünür, içerik ortanın üstünde durur; pencere küçülünce boşluklar en aza iner, içerik sığmazsa ekran kayar
+   ve imza içeriğin altında kalır, üstüne binmez. */
 #baslangic {
-  position: absolute; inset: 0; z-index: 1; overflow: auto; display: flex; padding: 32px 24px;
+  position: absolute; inset: 0; z-index: 1; overflow: auto; padding: 0 24px 10px;
+  display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(20px, 1fr) auto minmax(28px, 2fr) auto;
   container-type: inline-size;
 }
-.karsilama { margin: auto; width: min(1000px, 100%); display: flex; flex-direction: column; gap: 22px; }
-.karsilama.son-kapali { width: min(640px, 100%); }
-.karsilama-ust { display: flex; align-items: center; gap: 14px; }
-.karsilama-logo { width: 52px; height: 52px; flex: none; user-select: none; }
-.karsilama-baslik h1 { margin: 0; font-size: 28px; font-weight: 600; line-height: 1.15; }
-.karsilama-baslik p { margin: 2px 0 0; font-size: 13px; }
-/* Solda PDF aç ve araçlar, sağda son açılanlar; "Son açılanları hatırla" kapalıyken kutu yok, sol sütun ortada (0.1.13) */
-.karsilama-govde { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); gap: 20px; align-items: start; }
-.son-kapali .karsilama-govde { grid-template-columns: minmax(0, 1fr); }
-@container (max-width: 720px) { .karsilama-govde { grid-template-columns: minmax(0, 1fr); } }
-.karsilama-sol { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+/* Tek sütun: PDF aç, araçlar (geniş pencerede beşi bir satırda), son açılanlar */
+.karsilama { grid-row: 2; justify-self: center; width: min(1100px, 100%); display: flex; flex-direction: column; gap: 22px; }
 .karsilama h2 { margin: 0; font-size: 13px; font-weight: 600; }
 .karsilama-metin { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .karsilama-aciklama { font-size: 12px; color: var(--metin-soluk); line-height: 1.35; }
-/* PDF aç: uygulamanın temel işi, araçlardan büyük ve vurgu renginde; sürükle-bırak ipucu hemen altında */
-.karsilama-ac-alani { display: flex; flex-direction: column; gap: 8px; }
+/* Ad ve sürüm (imza): sağ altta, göze batmadan; pencereyle birlikte köşede kalır */
+.karsilama-imza { grid-row: 4; justify-self: end; display: flex; align-items: center; gap: 9px; padding-top: 10px; user-select: none; }
+.karsilama-logo { width: 30px; height: 30px; flex: none; }
+.karsilama-baslik p { margin: 0; white-space: nowrap; }
+.karsilama-ad { font-size: 14px; font-weight: 600; line-height: 1.25; }
+.karsilama-alt { font-size: 11px; line-height: 1.3; color: var(--metin-soluk); }
+/* PDF aç: uygulamanın temel işi, araçlardan büyük ve vurgu renginde; sürükleyip bırakma da açıklamasında yazar */
 .karsilama-ac {
   --renk: #0067c0;
   display: flex; align-items: center; gap: 18px; width: 100%; padding: 22px 24px; text-align: left; cursor: default;
@@ -308,8 +317,6 @@ html[data-tema="koyu"] .karsilama-ac-ikon { color: #0b1a2a; }
 .karsilama-ac-ikon svg { width: 36px; height: 36px; display: block; }
 .karsilama-ac-ad { font-size: 20px; font-weight: 600; line-height: 1.2; }
 .karsilama-ac .karsilama-aciklama { font-size: 13px; }
-.karsilama-ipucu { margin: 0; display: flex; align-items: center; gap: 6px; padding: 0 4px; font-size: 12px; color: var(--metin-soluk); }
-.karsilama-ipucu svg { width: 16px; height: 16px; flex: none; }
 /* Araçlar: Araçlar penceresindeki karolarla aynı ad, açıklama, simge ve renk; küçük yatay kartlar */
 .karsilama-araclar { display: flex; flex-direction: column; gap: 8px; }
 .karsilama-araclar h2 { padding: 0 4px; }
@@ -340,16 +347,19 @@ html[data-tema="koyu"] .karsilama-arac[data-renk="mavi"] { --renk: #60b8ff; }
 html[data-tema="koyu"] .karsilama-arac[data-renk="mor"] { --renk: #b894ff; }
 html[data-tema="koyu"] .karsilama-arac[data-renk="turuncu"] { --renk: #ff9d66; }
 html[data-tema="koyu"] .karsilama-arac[data-renk="pembe"] { --renk: #f08ad6; }
-.karsilama-son {
-  background: var(--arka-yukseltilmis); border: 1px solid var(--kenar); border-radius: 10px; padding: 12px 8px 8px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06); min-width: 0;
-}
-.karsilama-son-ust { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px 6px; }
-.karsilama-temizle { border: none; background: transparent; color: var(--metin-soluk); font-size: 12px; padding: 2px 4px; border-radius: 4px; cursor: default; }
+/* Son açılanlar (0.1.14, kullanıcı isteği): araçların altında; başlık kutunun dışında (Araçlar gibi), belgeler kutunun içinde. En çok 10
+   belge; kutu kaydırılmaz, belgeler geniş pencerede iki sütuna (en yenisi sol üstte, yukarıdan aşağı) dağılır, dar pencerede tek sütun */
+.karsilama-son { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.karsilama-son-ust { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; min-height: 20px; }
+.karsilama-temizle { border: none; background: transparent; color: var(--metin-soluk); font-size: 12px; padding: 1px 4px; margin-right: -4px; border-radius: 4px; cursor: default; }
 .karsilama-temizle:hover { color: var(--vurgu); text-decoration: underline; text-underline-offset: 2px; }
 .karsilama-temizle:focus-visible { outline: 2px solid var(--vurgu); outline-offset: 1px; }
-#son-dosyalar { list-style: none; margin: 0; padding: 0; max-height: 420px; overflow-y: auto; }
-#son-dosyalar li { position: relative; }
+#son-dosyalar {
+  list-style: none; margin: 0; padding: 6px; columns: 2; column-gap: 6px;
+  background: var(--arka-yukseltilmis); border: 1px solid var(--kenar); border-radius: 10px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+@container (max-width: 560px) { #son-dosyalar { columns: 1; } }
+#son-dosyalar li { position: relative; break-inside: avoid; }
 .karsilama-oge {
   display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 40px 7px 8px; border: none; border-radius: 6px;
   background: transparent; color: var(--metin); text-align: left; cursor: default; outline: none;
@@ -371,7 +381,7 @@ html[data-tema="koyu"] .karsilama-arac[data-renk="pembe"] { --renk: #f08ad6; }
 #son-dosyalar li:hover .karsilama-kaldir, .karsilama-kaldir:focus-visible, .karsilama-oge:focus-visible + .karsilama-kaldir { opacity: 1; }
 .karsilama-kaldir:hover { background: var(--basili); color: var(--metin); }
 .karsilama-kaldir:focus-visible { outline: 2px solid var(--vurgu); outline-offset: -2px; }
-.karsilama-bos { padding: 10px 8px 12px; font-size: 12px; }
+.karsilama-bos { column-span: all; padding: 10px 8px; font-size: 12px; }
 button.birincil {
   background: var(--vurgu); color: var(--vurgu-metin); border: none; border-radius: 6px; padding: 8px 16px; font-weight: 600; margin-top: 12px;
 }
@@ -611,7 +621,10 @@ button.ikon.kucuk svg { width: 16px; height: 16px; }
 .not-balonu .ust .renk { width: 10px; height: 10px; border-radius: 50%; background: var(--not-renk); border: 1px solid rgba(0,0,0,.25); flex-shrink: 0; }
 .not-balonu .ust .tur { font-weight: 600; white-space: nowrap; flex-shrink: 0; }
 .not-balonu .ust .yazar { color: var(--metin-soluk); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.not-balonu .ust .tarih { color: var(--metin-soluk); font-size: 11px; white-space: nowrap; }
+.not-balonu .ust .tarih { color: var(--metin-soluk); font-size: 11px; white-space: nowrap; flex-shrink: 0; }
+/* Tür | yazar | tarih arasındaki ince dikey çizgi (0.1.14). Yer darsa yalnızca yazar kısalır (tam adı ipucunda); düğmeler daralmaz */
+.not-balonu .ust .ayrac { height: 12px; margin: 0 2px; flex-shrink: 0; background: var(--metin-soluk); opacity: 0.45; }
+.not-balonu .ust button { flex-shrink: 0; }
 .not-balonu textarea.icerik { border: none; outline: none; resize: none; background: transparent; padding: 8px; min-height: 64px; max-height: 220px; font: inherit; color: var(--metin); }
 .not-balonu .yanitlar { max-height: 200px; overflow: auto; }
 .not-balonu .yanit { border-top: 1px solid var(--kenar); padding: 6px 8px 6px 18px; position: relative; }

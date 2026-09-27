@@ -2,8 +2,9 @@
 // paneli, dosyadaki /Subj), seçim mini çubuğunda renklerin ▾'nin altında dikey sütun olarak açılması (çubuk genişlemez, yan boşluklar
 // küçük; altta yer yoksa ya da çubuk seçimin üstündeyse sütun yukarı), Sayfaları düzenle'de "PDF ekle" ve araçlarda "Kaydet" bölüm
 // başlığı, sekme çubuğunda + / Ctrl+T ile "Yeni sekme" (açılış sayfası sekmesi; önde açılan belge onun yerini alır, zaten açık dosyada
-// o sekmeye geçilir, son belge kapanınca açılış sekmeleri de kalkar), açılış ekranında büyük PDF aç düğmesi + altında sürükle-bırak
-// ipucu + beş aracın hepsi + Son açılanlar ("Son açılanları hatırla" kapalıyken kutu hiç yok, içerik ortada), belge gerektiren araçların
+// o sekmeye geçilir, son belge kapanınca açılış sekmeleri de kalkar), açılış ekranında büyük PDF aç düğmesi + sürükle-bırak bilgisi
+// (0.1.14'ten beri düğmenin açıklamasında) + beş aracın hepsi + Son açılanlar (0.1.14'ten beri araçların altında; "Son açılanları
+// hatırla" kapalıyken kutu hiç yok, içerik ortada; 0.1.14'ün ayrıntılı açılış denetimleri senaryo20'de), belge gerektiren araçların
 // belge yokken önce Aç penceresini açması (açılış ekranı kartları, Araçlar penceresi, Araçlar menüsü, açılış sekmesi), araç
 // pencerelerinin alt şeridindeki ipucu satırlarının F1 Kısayollar penceresine taşınması. Açık ve koyu temada ekran görüntüleri alınır.
 // Menü kısayolları (Ctrl+T, Ctrl+W, Ctrl+S, F1) test:tusGonder ile sınanır: örnek görünmeyen masaüstünde olmalı (baslat_gizli.ps1).
@@ -160,19 +161,19 @@ export default async function (surucu) {
     const olc = () => evalJs(`(() => {
       const r = (e) => { if (!e) return null; const k = e.getBoundingClientRect(); return { l: Math.round(k.left * 10) / 10, t: Math.round(k.top * 10) / 10, r: Math.round(k.right * 10) / 10, b: Math.round(k.bottom * 10) / 10, w: Math.round(k.width * 10) / 10, h: Math.round(k.height * 10) / 10 }; };
       const bas = document.querySelector('#baslangic'), k = document.querySelector('.karsilama'), br = bas.getBoundingClientRect();
-      const son = document.querySelector('.karsilama-son'), ip = document.querySelector('.karsilama-ipucu');
+      const son = document.querySelector('.karsilama-son'), ip = document.querySelector('.karsilama-ac .karsilama-aciklama');
       const alanSag = br.left + bas.clientWidth;
-      const bloklar = [...bas.querySelectorAll('.karsilama, .karsilama-ust, .karsilama-govde, .karsilama-sol, .karsilama-ac, .karsilama-ipucu, .karsilama-araclar, .karsilama-arac, .karsilama-arac *, .karsilama-son, .karsilama-son-ust')];
+      const bloklar = [...bas.querySelectorAll('.karsilama, .karsilama-imza, .karsilama-ac, .karsilama-araclar, .karsilama-arac, .karsilama-arac *, .karsilama-son, .karsilama-son-ust')];
       const tasan = bloklar.filter((e) => { const x = e.getBoundingClientRect(); return x.width > 0 && (x.right > alanSag + 0.5 || x.left < br.left - 0.5); }).map((e) => e.className || e.tagName).slice(0, 6);
       const kartTasan = [...document.querySelectorAll('.karsilama-arac')].filter((c) => { const ck = c.getBoundingClientRect(); return [...c.querySelectorAll('*')].some((e) => { const x = e.getBoundingClientRect(); return x.width > 0 && (x.right > ck.right + 0.5 || x.bottom > ck.bottom + 0.5); }); }).map((c) => c.dataset.eylem);
       return { gen: innerWidth, alan: { l: br.left, w: bas.clientWidth, scrollW: bas.scrollWidth }, docScroll: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-        karsilama: r(k), ust: r(document.querySelector('.karsilama-ust')), sol: r(document.querySelector('.karsilama-sol')), ac: r(document.querySelector('.karsilama-ac')),
+        karsilama: r(k), imza: r(document.querySelector('.karsilama-imza')), eskiIpucu: !!document.querySelector('.karsilama-ipucu'), ac: r(document.querySelector('.karsilama-ac')),
         acAd: document.querySelector('.karsilama-ac-ad')?.textContent, acYazi: parseFloat(getComputedStyle(document.querySelector('.karsilama-ac-ad')).fontSize),
         aracYazi: parseFloat(getComputedStyle(document.querySelector('.karsilama-arac-ad')).fontSize),
         ipucu: r(ip), ipucuMetin: ip?.textContent.trim(), araclar: r(document.querySelector('.karsilama-araclar')), araclarBaslik: document.querySelector('.karsilama-araclar h2')?.textContent,
         kartlar: [...document.querySelectorAll('.karsilama-arac')].map((e) => ({ eylem: e.dataset.eylem, ad: e.querySelector('.karsilama-arac-ad')?.textContent, ...r(e) })),
         son: r(son), sonHidden: son.hidden, sonDisplay: getComputedStyle(son).display, sonBaslik: son.querySelector('h2')?.textContent, sonOgeler: [...son.querySelectorAll('.karsilama-oge .ad')].map((e) => e.textContent),
-        sonKapaliSinif: k.classList.contains('son-kapali'), gorunurMetin: bas.innerText, tasan, kartTasan };
+        gorunurMetin: bas.innerText, tasan, kartTasan };
     })()`);
     const ARACLAR_SIRA = await evalJs(`import('./aracPenceresi.js').then((m) => m.ARACLAR.map((a) => [a.komut, a.ad])).catch(() => null)`);
     const beklenenSira = ARACLAR_SIRA || [['arac.kucult', 'PDF küçült'], ['arac.sayfalar', 'Sayfaları düzenle'], ['arac.dondurKaydet', 'Döndür ve kaydet'], ['arac.ayir', 'PDF ayır'], ['arac.gorselBirlestir', 'Görüntü / PDF birleştir']];
@@ -186,15 +187,17 @@ export default async function (surucu) {
         o.acAd === 'PDF aç' && o.ac.h >= 1.3 * enYuksek && o.ac.w * o.ac.h >= 2.5 * kartAlan && o.ac.w >= enGenis && o.acYazi > o.aracYazi,
         { ac: o.ac, enYuksek, enGenis, oran: +(o.ac.h / enYuksek).toFixed(2), alanOrani: +((o.ac.w * o.ac.h) / kartAlan).toFixed(2), acYazi: o.acYazi, aracYazi: o.aracYazi });
       bilgi(`${gen}px: PDF aç ${o.ac.w}×${o.ac.h}, en büyük kart ${enGenis}×${enYuksek}`);
-      sonuc(`[${gen}px] Sürükle-bırak ipucu PDF aç'ın hemen altında (araçlardan önce)`,
-        o.ipucuMetin === "PDF'leri bu pencereye sürükleyip bırakarak da açabilirsiniz." && o.ipucu.t - o.ac.b >= 0 && o.ipucu.t - o.ac.b <= 14 && o.ipucu.b <= o.araclar.t && o.ipucu.l >= o.ac.l - 1 && o.ipucu.l < o.ac.r,
-        { ac: o.ac, ipucu: o.ipucu, araclar: o.araclar, metin: o.ipucuMetin });
+      // 0.1.14: sürükle-bırak bilgisi ayrı satır değil, PDF aç düğmesinin açıklamasında
+      sonuc(`[${gen}px] Sürükle-bırak bilgisi PDF aç düğmesinin içinde (ayrı ipucu satırı yok)`,
+        o.ipucuMetin === "Bilgisayarınızdaki bir ya da birkaç PDF'i seçin veya bu pencereye sürükleyin" && !o.eskiIpucu && o.ipucu.t >= o.ac.t && o.ipucu.b <= o.ac.b && o.ipucu.r <= o.ac.r,
+        { ac: o.ac, ipucu: o.ipucu, metin: o.ipucuMetin, eskiIpucu: o.eskiIpucu });
       const sira = o.kartlar.map((c) => [c.eylem, c.ad]);
       const gorselSira = [...o.kartlar].sort((x, y) => (Math.abs(x.t - y.t) > 2 ? x.t - y.t : x.l - y.l)).map((c) => c.eylem);
       sonuc(`[${gen}px] Beş araç kartı ARACLAR sırasıyla (DOM ve görsel sıra)`, J(sira) === J(beklenenSira) && J(gorselSira) === J(beklenenSira.map((x) => x[0])) && o.araclarBaslik === 'Araçlar', { sira, gorselSira });
       sonuc(`[${gen}px] Son açılanlar kutusu görünür, iki belge listeli`, !o.sonHidden && o.sonDisplay !== 'none' && o.sonBaslik === 'Son açılanlar' && J(o.sonOgeler) === J(['b.pdf', 'a.pdf']), { sonHidden: o.sonHidden, sonDisplay: o.sonDisplay, sonOgeler: o.sonOgeler });
-      if (gen === 1280) sonuc(`[${gen}px] Son açılanlar sağda (sol sütunun yanında), karşılama ortada`, o.son.l >= o.sol.r && Math.abs(o.son.t - o.sol.t) < 2 && Math.abs((o.karsilama.l - o.alan.l) - (o.alan.l + o.alan.w - o.karsilama.r)) < 2, { sol: o.sol, son: o.son, karsilama: o.karsilama, alan: o.alan });
-      else sonuc(`[${gen}px] Dar pencerede Son açılanlar araçların altında (tek sütun)`, o.son.t >= o.araclar.b && Math.abs(o.son.l - o.sol.l) < 2, { sol: o.sol, son: o.son, araclar: o.araclar });
+      // 0.1.14: tek sütun, Son açılanlar araçların altında (0.1.13'te geniş pencerede sağ sütundaydı)
+      sonuc(`[${gen}px] Son açılanlar araçların altında, aynı sütunda; karşılama ortada`, o.son.t >= o.araclar.b && Math.abs(o.son.l - o.karsilama.l) < 2 && Math.abs(o.son.w - o.karsilama.w) < 2
+        && Math.abs((o.karsilama.l - o.alan.l) - (o.alan.l + o.alan.w - o.karsilama.r)) < 2, { son: o.son, araclar: o.araclar, karsilama: o.karsilama, alan: o.alan });
       sonuc(`[${gen}px] Düzen taşmıyor (yatay kaydırma yok, bloklar ve kart içerikleri sığıyor)`, o.alan.scrollW <= o.alan.w && o.docScroll <= 0 && !o.tasan.length && !o.kartTasan.length, { alan: o.alan, docScroll: o.docScroll, tasan: o.tasan, kartTasan: o.kartTasan });
       await ssCdp(`a-acilis-${gen}-acik`);
       if (gen === 700) { await temaDegistir(); await ssCdp(`a-acilis-${gen}-koyu`); await temaDegistir(); }
@@ -214,15 +217,10 @@ export default async function (surucu) {
       await genislikTaklit(gen);
       const o = await olc();
       const bosluk = [o.karsilama.l - o.alan.l, o.alan.l + o.alan.w - o.karsilama.r];
-      sonuc(`[${gen}px] Kapalıyken Son açılanlar kutusu tamamen gizli (hidden, görünür metin yok)`, o.sonHidden && o.sonDisplay === 'none' && !o.son.w && !/Son açılanlar|hatırlanmıyor/.test(o.gorunurMetin) && o.sonKapaliSinif,
-        { sonHidden: o.sonHidden, sonDisplay: o.sonDisplay, son: o.son, sinif: o.sonKapaliSinif, metinde: /Son açılanlar|hatırlanmıyor/.test(o.gorunurMetin) });
-      sonuc(`[${gen}px] Kapalıyken başlık ve içerik ortada (dar sütun, iki yan boşluk eşit; başlık içerikle aynı hizada)`,
-        Math.abs(bosluk[0] - bosluk[1]) < 2 && o.karsilama.w <= 641 && Math.abs(o.ust.l - o.sol.l) < 1 && Math.abs(o.sol.w - o.karsilama.w) < 1, { bosluk, karsilama: o.karsilama, ust: o.ust, sol: o.sol });
+      sonuc(`[${gen}px] Kapalıyken Son açılanlar kutusu tamamen gizli (hidden, görünür metin yok)`, o.sonHidden && o.sonDisplay === 'none' && !o.son.w && !/Son açılanlar|hatırlanmıyor/.test(o.gorunurMetin),
+        { sonHidden: o.sonHidden, sonDisplay: o.sonDisplay, son: o.son, metinde: /Son açılanlar|hatırlanmıyor/.test(o.gorunurMetin) });
+      sonuc(`[${gen}px] Kapalıyken içerik ortada (iki yan boşluk eşit)`, Math.abs(bosluk[0] - bosluk[1]) < 2, { bosluk, karsilama: o.karsilama });
       sonuc(`[${gen}px] Kapalıyken düzen taşmıyor`, o.alan.scrollW <= o.alan.w && o.docScroll <= 0 && !o.tasan.length && !o.kartTasan.length, { alan: o.alan, tasan: o.tasan, kartTasan: o.kartTasan });
-      if (gen === 1280) {
-        const baslikIcerik = await evalJs(`(() => { const u = document.querySelector('.karsilama-ust'), a = document.querySelector('#baslangic').getBoundingClientRect(), bas = document.querySelector('#baslangic'); const l = u.querySelector('.karsilama-logo').getBoundingClientRect().left, r = u.querySelector('.karsilama-baslik').getBoundingClientRect().right; return { baslikOrta: (l + r) / 2, alanOrta: a.left + bas.clientWidth / 2 }; })()`);
-        bilgi(`başlık (logo + ad) içeriği sütunun solunda hizalı: başlık ortası ${baslikIcerik.baslikOrta.toFixed(0)} px, alan ortası ${baslikIcerik.alanOrta.toFixed(0)} px (sütun ortada)`);
-      }
       await ssCdp(`a-son-kapali-${gen}-acik`);
     }
     await genislikTaklit(0);
@@ -237,8 +235,8 @@ export default async function (surucu) {
     await tikl(q('.ayarlar-ortusu [data-id="kapat2"]')); await kosul(`!document.querySelector('.ayarlar-ortusu')`, 4000); await bekle(300);
     {
       const o = await olc();
-      sonuc('Yeniden açılınca Son açılanlar kutusu geri gelir (liste kapanırken silindiği için boş satır)', acikAyar === true && !o.sonHidden && o.sonDisplay !== 'none' && o.son.w > 0 && !o.sonKapaliSinif && o.son.l >= o.sol.r && /Henüz açılan belge yok/.test(o.gorunurMetin),
-        { acikAyar, sonHidden: o.sonHidden, son: o.son, sinif: o.sonKapaliSinif });
+      sonuc('Yeniden açılınca Son açılanlar kutusu geri gelir (liste kapanırken silindiği için boş satır)', acikAyar === true && !o.sonHidden && o.sonDisplay !== 'none' && o.son.w > 0 && o.son.t >= o.araclar.b && /Henüz açılan belge yok/.test(o.gorunurMetin),
+        { acikAyar, sonHidden: o.sonHidden, son: o.son });
     }
 
     // Son açılanlar listesi (b için): a, b, c, d, e açılıp kapanır → listede

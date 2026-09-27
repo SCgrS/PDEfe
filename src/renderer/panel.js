@@ -269,10 +269,11 @@ export function notTurAdi(n) {
   return turAdi(n?.tur);
 }
 
-/** Not balonunun başlığındaki tür: metin notunda yalnızca "Not:" (0.1.12, kullanıcı isteği; Yorumlar panelinde "Metin notu" kalır). */
+/** Not balonunun başlığındaki tür: metin notunda yalnızca "Not" (0.1.12, kullanıcı isteği; Yorumlar panelinde "Metin notu" kalır).
+ *  0.1.14'e dek "Not:" idi; tür, yazar ve tarih artık ince dikey çizgilerle ayrılır (notlar.js balonYenile). */
 export function balonTurAdi(n) {
   const ad = notTurAdi(n);
-  return ad === 'Metin notu' ? 'Not:' : ad;
+  return ad === 'Metin notu' ? 'Not' : ad;
 }
 
 /** PDF tarih dizesini (D:20260915225519+03'00') okunur biçime çevirir. */

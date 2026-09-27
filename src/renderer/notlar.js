@@ -840,20 +840,24 @@ export class NotYoneticisi extends EventTarget {
     const renk = n.renk || (n.tur === 'FreeText' ? (n.yazi?.renk || '#888') : NOT_RENGI);
     // Yanıt eklenemez; dosyadaki (başka bir programda yazılmış) yanıtlar bilgi kaybolmasın diye salt okunur gösterilir
     const yanitlar = this.yanitlari(n);
+    // Başlık "Not | Yazar | tarih" (0.1.14, kullanıcı isteği; önceden "Not: Yazar" ve sağa yaslı tarih): parçalar ince dikey çizgiyle
+    // ayrılır, tarih yazarın hemen yanında, düğmeler sağda. Boş parça (yazarsız ya da tarihsiz not) ve çizgisi yazılmaz. Yanıtlarda da.
+    // Yer darsa yazar üç noktayla kısalır; tam adı ipucunda.
+    const basligi = (parcalar) => parcalar.filter(([, metin]) => metin)
+      .map(([sinif, metin]) => `<span class="${sinif}"${sinif === 'yazar' ? ` title="${kacis(metin)}"` : ''}>${kacis(metin)}</span>`)
+      .join('<span class="ayrac" aria-hidden="true"></span>');
     b.innerHTML = `
       <div class="ust" style="--not-renk:${kacis(renk)}">
         <span class="renk"></span>
-        <span class="tur">${kacis(balonTurAdi(n))}</span>
-        <span class="yazar">${kacis(n.yazar || '')}</span>
+        ${basligi([['tur', balonTurAdi(n)], ['yazar', n.yazar], ['tarih', tarihBicimle(n.degisim || n.olusturma)]])}
         <span class="esnek"></span>
-        <span class="tarih">${kacis(tarihBicimle(n.degisim || n.olusturma))}</span>
         <button class="ikon kucuk sil" title="Notu sil (Delete)"><svg viewBox="0 0 20 20"><path d="M5 6h10M8 6V4h4v2M6 6l1 10h6l1-10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
         <button class="ikon kucuk kapat" title="Kapat"><svg viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.5"/></svg></button>
       </div>
       <textarea class="icerik" placeholder="Not yazın" ${n.kilitli ? 'readonly' : ''}>${kacis(n.icerik || '')}</textarea>
       ${yanitlar.length ? `<div class="yanitlar">${yanitlar.map((y) => `
         <div class="yanit">
-          <div class="ust"><span class="yazar">${kacis(y.yazar || '')}</span><span class="esnek"></span><span class="tarih">${kacis(tarihBicimle(y.degisim || y.olusturma))}</span></div>
+          <div class="ust">${basligi([['yazar', y.yazar], ['tarih', tarihBicimle(y.degisim || y.olusturma)]])}</div>
           <div class="metin">${kacis(y.icerik || '')}</div>
         </div>`).join('')}</div>` : ''}`;
     const ta = b.querySelector('textarea.icerik');

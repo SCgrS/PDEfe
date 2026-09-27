@@ -1,6 +1,7 @@
 // Sabit genişlikli sekmeler: her sekme aynı genişlikte, uzun ad üç noktayla kısalır, ipucunda tam ad ve yol; etkin sekme görünür
-// kaydırılır; ◀ ▶, Ctrl+1–9, sürükleyerek sıralama (CDP sürükleme yakalama: işletim sisteminin sürükleme döngüsü açılmaz),
-// Ctrl+Tab seçicisi, açık belgeler listesi ve Farklı kaydet sonrası ipucu. Ekran görüntüleri test/png/sekme altına.
+// kaydırılır; ◀ ▶, Ctrl+1–9, sürükleyerek sıralama (0.1.14'ten beri işaretçi olaylarıyla: sekme imleci izler, ötekiler kayarak yer
+// açar, Esc iptal eder, liste uçta kendiliğinden kayar), Ctrl+Tab seçicisi, açık belgeler listesi ve Farklı kaydet sonrası ipucu.
+// Ekran görüntüleri test/png/sekme altına.
 // Kullanım: powershell -File test\baslat.ps1 -Port 9321 -Veri <klasör> [-Boyut "720,700"] [-Tema koyu]; $env:PDEFE_CDP_PORT=9321
 //           node test\surucu.mjs betik test\sekme_genislik.mjs   (PDEFE_EK: ekran görüntüsü adlarına ek, ör. "dar-koyu")
 import fs from 'node:fs';
@@ -22,7 +23,7 @@ function denetle(ad, kosul, ayrinti = '') {
   console.log(`${kosul ? 'TAMAM' : 'HATA '}  ${ad}${ayrinti ? '  — ' + ayrinti : ''}`);
 }
 
-/** surucu.mjs'teki gibi CDP bağlantısı; sürükle-bırakı Input.setInterceptDrags ile yakalamak için ham komut gerekir. */
+/** surucu.mjs'teki gibi CDP bağlantısı; sürükleme ortasında ölçüm ve ekran görüntüsü için tek oturumda ham komut gerekir. */
 async function cdp() {
   const hedefler = await (await fetch(`http://127.0.0.1:${process.env.PDEFE_CDP_PORT || 9222}/json`)).json();
   const sayfa = hedefler.find((h) => h.type === 'page' && h.url.startsWith('pdefe://'));
@@ -87,43 +88,82 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare
   o = await olc();
   denetle('son sekmede ▶ devre dışı; ▶ ve aşağı tekerlek son sekmede bırakır (ilk sekmeye dönmez)', d[0] === false && d[1] === true && o.sekmeler.at(-1).aktif, js(d));
 
-  // Sürükleyerek sıralama. Fare basılıp sürüklenir; tarayıcının başlattığı sürükleme CDP'de yakalanır (Input.setInterceptDrags: işletim
-  // sisteminin sürükleme döngüsü açılmaz, gerçek fareye dokunulmaz), sürükleme olayları Input.dispatchDragEvent ile verilir.
-  // disari: bırakma sekme çubuğunun dışında (belge alanında) olur.
-  async function surukleBirak(kaynak, hedef, { disari = false } = {}) {
+  // Sürükleyerek sıralama (0.1.14'ten beri işaretçi olaylarıyla). Gerçek fare olayları CDP'den verilir (Input.dispatchMouseEvent; gerçek
+  // fareye dokunulmaz). Sürükleme ortasında ölçülür: sekme imlecin altında, aradaki sekmeler bir sekme boyu kaymış, tarayıcının
+  // sürükle-bırakı yok (draggable değil). disari: imleç belge alanına inip orada bırakılır. iptal: bırakmadan önce Esc.
+  const durum = () => evalJs(`({ model: window.__pdefe.sekmeler.sekmeler.map((s) => s.ad), dom: [...document.querySelectorAll('.sekme .ad')].map((a) => a.textContent),
+    kalan: [...document.querySelectorAll('.sekme')].filter((s) => s.style.transform || s.classList.contains('tasiniyor') || s.classList.contains('yerlesiyor')).length
+      + (document.querySelector('#sekme-liste').classList.contains('siralaniyor') ? 1 : 0) })`);
+  async function surukleBirak(kaynak, hedef, { disari = false, iptal = false, ekran = null, x = null } = {}) {
     await tus('1', ['ctrl']); await bekle(400);   // dar pencerede de ilk sekmeler görünsün
-    const { ws, gonder, dinle } = await cdp();
-    let veri = null;
-    dinle((d) => { if (d.method === 'Input.dragIntercepted') veri = d.params.data; });
-    await gonder('Input.setInterceptDrags', { enabled: true });
+    const { ws, gonder } = await cdp();
     const k = await evalJs(`[...document.querySelectorAll('.sekme')].map((s) => { const r = s.getBoundingClientRect(); return { x: Math.round(r.left + 40), y: Math.round(r.top + r.height / 2), sag: Math.round(r.right - 20) }; })`);
     const [a, b] = [k[kaynak], k[hedef]];
-    await gonder('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x, y: a.y, button: 'none' });
-    await gonder('Input.dispatchMouseEvent', { type: 'mousePressed', x: a.x, y: a.y, button: 'left', buttons: 1, clickCount: 1 });
-    for (let i = 1; i <= 10; i++) await gonder('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x + ((b.sag - a.x) * i) / 10, y: a.y, button: 'left', buttons: 1 });
-    await bekle(200);
-    const son = disari ? { x: b.sag, y: 400 } : { x: b.sag, y: b.y };
-    if (veri) {
-      await gonder('Input.dispatchDragEvent', { type: 'dragEnter', x: b.sag, y: b.y, data: veri });
-      await gonder('Input.dispatchDragEvent', { type: 'dragOver', x: b.sag, y: b.y, data: veri });   // sekme yerinde taşınır
-      await gonder('Input.dispatchDragEvent', { type: 'dragOver', x: son.x, y: son.y, data: veri });  // fare artık taşınan sekmenin (ya da belgenin) üstünde
-      await gonder('Input.dispatchDragEvent', { type: 'drop', x: son.x, y: son.y, data: veri });
+    const son = { x: x ?? b.sag, y: disari ? 400 : a.y };   // x: imlecin bırakılacağı yer (verilmezse hedef sekmenin sağ yarısı)
+    const fareOlayi = (type, x, y, buttons) => gonder('Input.dispatchMouseEvent', { type, x, y, button: type === 'mouseMoved' && !buttons ? 'none' : 'left', buttons, clickCount: 1 });
+    await fareOlayi('mouseMoved', a.x, a.y, 0);
+    await fareOlayi('mousePressed', a.x, a.y, 1);
+    for (let i = 1; i <= 10; i++) await fareOlayi('mouseMoved', a.x + ((son.x - a.x) * i) / 10, a.y + ((son.y - a.y) * i) / 10, 1);
+    await bekle(300);   // öteki sekmelerin kayması (0,15 sn) bitsin
+    const ortada = await evalJs(`(() => { const t = document.querySelector('.sekme.tasiniyor'), r = t?.getBoundingClientRect();
+      return { tasinan: t?.querySelector('.ad').textContent ?? null, sol: r ? Math.round(r.left) : null, ust: r ? Math.round(r.top) : null,
+        kaymis: [...document.querySelectorAll('.sekme:not(.tasiniyor)')].filter((s) => s.style.transform).length,
+        opak: t ? getComputedStyle(t).opacity === '1' && getComputedStyle(t).backgroundColor !== 'rgba(0, 0, 0, 0)' : false,
+        draggable: [...document.querySelectorAll('.sekme')].some((s) => s.draggable) }; })()`);
+    ortada.solBeklenen = son.x - 40; ortada.ustBeklenen = Math.round(a.y - 15);
+    if (ekran) await ekran();
+    if (iptal) {
+      await gonder('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+      await gonder('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+      await bekle(300);
     }
-    await gonder('Input.dispatchMouseEvent', { type: 'mouseReleased', x: son.x, y: son.y, button: 'left', buttons: 0, clickCount: 1 });
-    await gonder('Input.setInterceptDrags', { enabled: false });
+    await fareOlayi('mouseReleased', son.x, son.y, 0);
     ws.close();
-    await bekle(300);
-    return { yakalandi: !!veri, model: await evalJs(`window.__pdefe.sekmeler.sekmeler.map((s) => s.ad)`), dom: await evalJs(`[...document.querySelectorAll('.sekme .ad')].map((a) => a.textContent)`) };
+    await bekle(400);   // sekmenin yerine kayması (0,15 sn) ve bitiş
+    return { ortada, ...(await durum()) };
   }
-  // 1. sekmeyi 3. sekmenin sağ yarısına bırak → yeni sıra 2, 3, 1, …
-  let r = await surukleBirak(0, 2);
-  denetle('sürükle-bırak: 1. sekme 3.nün arkasına taşındı (model ve DOM)', r.yakalandi && js(r.model.slice(0, 3)) === js([ADLAR[1], ADLAR[2], ADLAR[0]]) && js(r.dom) === js(r.model), js(r.model.slice(0, 3)));
-  denetle('sürükle-bırak: sürükleme işareti kalmadı', !(await evalJs(`!!document.querySelector('.sekme.surukleniyor')`)));
-  // Çubuğun dışında bırakınca da görünen sıra geçerli (önceden DOM taşınıp model eski sırada kalıyordu: Ctrl+1 başka sekmeyi seçerdi)
+  // 1. sekmeyi 3. sekmenin sağ yarısına sürükle → ortada: sekme imlecin altında, çubuğun hizasında; 2. ve 3. sekme sola kaymış
+  let r = await surukleBirak(0, 2, { ekran: () => ekranGoruntusu(`test/png/sekme/surukleme-ortasi${EK}.png`) });
+  denetle('sürükle-bırak ortası: sürüklenen sekme imlecin altında, çubukta (yukarı-aşağı oynamaz), opak; tarayıcı sürüklemesi yok',
+    r.ortada.tasinan === ADLAR[0] && Math.abs(r.ortada.sol - r.ortada.solBeklenen) <= 2 && Math.abs(r.ortada.ust - r.ortada.ustBeklenen) <= 2 && r.ortada.opak && !r.ortada.draggable, js(r.ortada));
+  denetle('sürükle-bırak ortası: aradaki iki sekme kayarak yer açmış', r.ortada.kaymis === 2, js(r.ortada));
+  denetle('sürükle-bırak: 1. sekme 3.nün arkasına taşındı (model ve DOM), sürükleme izi kalmadı', js(r.model.slice(0, 3)) === js([ADLAR[1], ADLAR[2], ADLAR[0]]) && js(r.dom) === js(r.model) && r.kalan === 0, js({ ilk3: r.model.slice(0, 3), kalan: r.kalan }));
+  // İmleç belge alanına inip orada bırakılınca da sekme çubukta kalır ve görünen sıra geçerli olur (Ctrl+1 görünen ilk sekmeyi seçer)
   r = await surukleBirak(0, 1, { disari: true });
-  denetle('sürükle-bırak (dışarıda bırakma): model DOM sırasıyla aynı', r.yakalandi && js(r.dom) === js(r.model) && js(r.model.slice(0, 3)) === js([ADLAR[2], ADLAR[1], ADLAR[0]]), js(r.model.slice(0, 3)));
+  denetle('sürükle-bırak (imleç belge alanında bırakıldı): sekme çubukta kaldı, model DOM sırasıyla aynı', r.ortada.kaymis === 1 && Math.abs(r.ortada.ust - r.ortada.ustBeklenen) <= 2 && js(r.dom) === js(r.model) && js(r.model.slice(0, 3)) === js([ADLAR[2], ADLAR[1], ADLAR[0]]) && r.kalan === 0, js({ ortada: r.ortada, ilk3: r.model.slice(0, 3) }));
   await tus('1', ['ctrl']); await bekle(300);
   denetle('sürükle-bırak sonrası Ctrl+1: görünen ilk sekme seçilir', (await evalJs(`window.__pdefe.aktif().ad`)) === r.dom[0]);
+  // En sola: sekme listenin solunun ötesine dek çekilince ilk sekme olur (sürüklenen sekme uçta durur, ortası uçtaki sekmenin ortasıyla
+  // çakışır; bu düzeltilmeden önce bir önceki yere düşüyordu)
+  const ad2 = (await durum()).dom[2];
+  const listeSol = await evalJs(`Math.round(document.querySelector('#sekme-liste').getBoundingClientRect().left)`);
+  r = await surukleBirak(2, 0, { x: Math.max(1, listeSol - 40) });
+  denetle('sürükle-bırak en sola (imleç listenin solunun ötesinde): sekme ilk sırada', r.dom[0] === ad2 && js(r.dom) === js(r.model) && r.kalan === 0, js({ ilk: r.dom[0], beklenen: ad2 }));
+  // Esc: sekmeler eski yerlerine kayar, sıra değişmez
+  const eskiSira = r.model;
+  r = await surukleBirak(0, 3, { iptal: true });
+  denetle('sürükle-bırak Esc ile iptal: sıra değişmedi, sürükleme izi kalmadı', r.ortada.kaymis === 3 && js(r.model) === js(eskiSira) && js(r.dom) === js(eskiSira) && r.kalan === 0, js({ ortada: r.ortada, kalan: r.kalan }));
+  // En sağa: imleç listenin sağ ucunun ötesinde tutulur. Sekmeler sığmıyorsa liste kendiliğinden sonuna dek kayar (uca uzaklığa göre
+  // hızlanır); bırakınca sekme en sonda
+  {
+    await tus('1', ['ctrl']); await bekle(400);
+    const { ws, gonder } = await cdp();
+    const l = await evalJs(`(() => { const l = document.querySelector('#sekme-liste'), r = l.getBoundingClientRect(), s = document.querySelector('.sekme').getBoundingClientRect();
+      return { sag: Math.round(r.right), x: Math.round(s.left + 40), y: Math.round(s.top + s.height / 2), kaydirma: l.scrollLeft, enCok: l.scrollWidth - l.clientWidth, gen: innerWidth }; })()`);
+    const ad0 = (await durum()).dom[0], hedefX = Math.min(l.gen - 2, l.sag + 40), tasiyor = l.enCok > 1;
+    await gonder('Input.dispatchMouseEvent', { type: 'mouseMoved', x: l.x, y: l.y, button: 'none', buttons: 0 });
+    await gonder('Input.dispatchMouseEvent', { type: 'mousePressed', x: l.x, y: l.y, button: 'left', buttons: 1, clickCount: 1 });
+    for (let i = 1; i <= 10; i++) await gonder('Input.dispatchMouseEvent', { type: 'mouseMoved', x: l.x + ((hedefX - l.x) * i) / 10, y: l.y, button: 'left', buttons: 1 });
+    await bekle(1500);
+    const kaydirma = await evalJs(`document.querySelector('#sekme-liste').scrollLeft`);
+    await gonder('Input.dispatchMouseEvent', { type: 'mouseReleased', x: hedefX, y: l.y, button: 'left', buttons: 0, clickCount: 1 });
+    ws.close();
+    await bekle(400);
+    r = await durum();
+    denetle(`sürükle-bırak en sağa: sekme son sırada${tasiyor ? '; imleç ucun ötesinde tutulunca liste kendiliğinden sonuna dek kaydı' : ''}`,
+      r.dom.at(-1) === ad0 && (!tasiyor || kaydirma >= l.enCok - 1) && js(r.dom) === js(r.model) && r.kalan === 0, js({ son: r.dom.at(-1), beklenen: ad0, once: l.kaydirma, sonra: kaydirma, enCok: l.enCok }));
+    if (!tasiyor) console.log('       (sekmeler sığıyor: kendiliğinden kaydırma denenmedi; dar pencerede çalıştırın)');
+  }
 
   // Ctrl+Tab seçicisi ve açık belgeler listesi (uzun adlar)
   await tus('Tab', ['ctrl']); await bekle(600);

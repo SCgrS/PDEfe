@@ -33,8 +33,8 @@ src/renderer/           arayüz (ES modülleri; derleme adımı yok, pdefe://app
   uygulama.js           giriş: sekmeler, komutlar, kısayollar, açma/kapatma/kaydetme, sürükle-bırak, araç çubuğu sıkıştırma
   goruntuleyici.js      PDF.js: tembel sayfa çizimi, bölgesel çizim (%6400'e kadar), düzenler, zoom, döndürme
   keskinlik.js          keskin çizim: görsel yeniden örnekleme (işçi + önbellek), ince çizgi ızgarası, maske tuvali kırpma
-  sekmeler.js           sekme çubuğu, sürükle-sırala, Ctrl+Tab seçici, açık belgeler listesi
-  baslangic.js          başlangıç ekranı: PDF aç ve Görüntü / PDF birleştir kartları, son açılanlar (0.1.8)
+  sekmeler.js           sekme çubuğu, sürükle-sırala (işaretçi olaylarıyla, 0.1.14), Ctrl+Tab seçici, açık belgeler listesi
+  baslangic.js          başlangıç ekranı: PDF aç, araçlar, altında son açılanlar; sağ altta ad ve sürüm (0.1.8; düzen 0.1.14)
   panel.js              sol panel: Sayfalar (çekirdekten küçük resim), İçindekiler, Yorumlar
   metin.js              seçim (boşluktan sürükleme, okuma sırası, sözcük/paragraf), temiz kopyalama
   arama.js              Bul kutusu: Türkçe duyarlı, tam sözcük, yer imi/yorum, tüm sekmeler, belge başına geçerli eşleşme
@@ -637,3 +637,39 @@ kısayolu Claude'a bırakıldı (Ctrl+R / Ctrl+Shift+R); sürüm 0.1.13 (0.1.12 
   Artık çubuk açılırken açık balon kapanır (balonKapat metin kutusundan çıkarak notu kaydeder); balon açılınca çubuk zaten kapanıyordu.
   vurgu_cubugu.mjs'e denetim eklendi: deneme-notlu ve PyMuPDF'le üretilen PDF'te 13/13; yazılan not korunuyor.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 22.
+
+### Revizyon 0.1.14 (2026-09-27, kullanıcı isteği)
+Ayrıntı: CHANGELOG.md. Kullanıcı altı istek bildirdi (üç ekran görüntüsüyle: not balonu başlığı, sürükle-bırak ipucu, sekme sürükleme).
+Yorumlanan: "Açılıştaki PDEfe ve bağlı 'PDF görüntüleyici ve düzenleyici · sürüm' yazısı sağ altta" üstteki başlığın tamamı (logo, ad,
+alt yazı ve sürüm) olarak alındı; "Not'tan sonra ve tarihten önce düz çizgi" başlığın "Not | Yazar | tarih" diye tek satırda akması olarak.
+- [x] **Açılış ekranı** (baslangic.js, stil.css): tek sütun (en çok 1100 px): PDF aç, araçlar (geniş pencerede beşi bir satırda, adlar tek
+  satır), "Son açılanlar" başlığı ve Listeyi temizle kutunun dışında, belgeler `#son-dosyalar` kutusunda. Kutunun en çok yüksekliği ve
+  kaydırması kalktı (0.1.13'te 420 px, 10 belgede kaydırma çubuğu çıkıyordu); `columns: 2` (yukarıdan aşağı, `break-inside: avoid`),
+  kap 560 px'ten darsa tek sütun; boş liste satırı iki sütunu kaplar. Sürükle-bırak ipucu satırı (`.karsilama-ipucu`) kalktı, PDF aç'ın
+  açıklaması "… PDF'i seçin veya bu pencereye sürükleyin". `.karsilama-ust`, `.karsilama-govde`, `.karsilama-sol` ve `son-kapali` sınıfı
+  kalktı; "Son açılanları hatırla" kapalıyken yalnızca bölüm gizlenir, sütun aynı genişlikte ortada kalır.
+- [x] **Dikey yer ve imza**: `#baslangic` ızgara (satırlar `minmax(20px, 1fr) auto minmax(28px, 2fr) auto`): boş yerin üçte biri
+  içeriğin üstünde; imza (`.karsilama-imza`: 30 px logo, "PDEfe", "PDF görüntüleyici ve düzenleyici · sürüm") dördüncü satırda sağa
+  yaslı. Pencere küçülünce boşluklar en azda kalır; içerik sığmazsa ekran kayar, imza içeriğin altında kalır. 1536×770 (kullanıcının
+  %125 ölçekli ekranı) ve 1280×700'de 10 belgeyle kaydırmasız; 1024×640 ve altında (araç adları iki satıra iner) kayar.
+- [x] **Not balonu başlığı** (notlar.js balonYenile, panel.js balonTurAdi): "Not:" → "Not"; tür, yazar ve tarih `.ayrac` (1×12 px, soluk)
+  ile ayrılır, tarih yazarın yanında, `.esnek` düğmelerden önce. Boş parça ve çizgisi yazılmaz; yanıtlarda da. Yer darsa yalnızca yazar
+  kısalır (ipucu tam ad), tarih ve düğmeler daralmaz (flex-shrink: 0). Balon genişliği 300 px kaldı: yazara
+  ~78 px (kullanıcının adı ~60 px) düşer.
+- [x] **Sekme sürükleme** (sekmeler.js): HTML5 sürükle-bırak (draggable, dragover'da DOM taşıma) yerine işaretçi olayları. Basışta
+  surukleHazirla (pencerede yakalama evresinde pointermove / pointerup / pointercancel / keydown, blur); yatayda 5 px'te surukleBaslat:
+  sekmelerin liste içeriğine göre konum ve genişlikleri ölçülür, sekme `.tasiniyor` (opak, gölge, z-index), liste `.siralaniyor`
+  (ötekilerde 0,15 sn transform geçişi), setPointerCapture. surukleIzle: sekme `translateX` ile imlecin altında (ilk sekmenin solu ile
+  son sekmenin sağı arasında); yeni yer j, sürüklenen ortanın öteki ortalara varmasıyla (eşitlik yeter: uca çekilen sekme uçtaki
+  sekmenin ortasına ancak varır; katı karşılaştırmada son / ilk yere hiç düşmüyordu, sekme_genislik ilk koşuda buldu); aradakiler bir sekme
+  boyu kayar. surukleKaydir: imleç listenin ucundaki 32 px'te ya da dışında liste rAF'ta kayar (uzaklığa göre, en çok 20 px/kare).
+  surukleBitir: sekme hedef yuvaya kayar (`.yerlesiyor`), transitionend ya da 220 ms'de geçişsiz olarak sınıflar ve transform'lar kalkar,
+  DOM sırası değişir, siralamayiOku. Esc / blur / pointercancel: eski yerlere kayar. Sekme eklenir ya da kapanırsa surukleKes (hemen
+  bırakır). Tekerlek sürüklerken sekme değiştirmez. Sınıf adı `.surukleniyor` değil: araclar.css'teki genel `.surukleniyor { opacity: .4 }`
+  sekmeyi saydam yapıyordu.
+- [x] Testler: test/senaryo20.mjs 38/38 (yeni: beş pencere boyutu, iki tema, not başlığı, sürükleme ortası ölçümü), test/sekme_genislik.mjs
+  24/24 (1520 ve 704 px; sürükleme gerçek fare olaylarıyla: ortada sekme imleçte ve çubukta, kayan sekmeler, belge alanında bırakma, en
+  sola, en sağa ve kendiliğinden kaydırma, Esc), senaryo19 111/111, senaryo14 hepsi, senaryo17 hepsi (balon başlığı denetimi "Not |
+  yazar | tarih"), kisayol_dosya 163/163, kisayol_gorunum 117/117, kisayol_araclar 91/91, ortu_tiklama 155/155, vurgu_cubugu 13/13
+  (PyMuPDF'le vurgu eklenmiş PDF).
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 23.

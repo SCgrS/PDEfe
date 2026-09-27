@@ -286,3 +286,18 @@ test/senaryo19.mjs). Türkçe klavye tuşları taklit edildi; gerçek klavyede v
    not başka bir PDF okuyucuda "Not" konusuyla görünmeli.
 8. **Vurgu çubuğu.** Bir vurguya tıklayıp **Not ekle** deyin, bir şey yazın, Esc'e bir kez basın, vurguya yeniden tıklayın: not
    kapanmalı (yazdığınız kaydedilmiş olmalı), çubuk üstte açılmalı; **Kaldır** vurguyu silmeli.
+
+## 23. 0.1.14: otomatik testlerin sınayamadıkları
+Açılış ekranı birkaç pencere boyutunda (1920×1000, 1536×770, 1280×700, 1024×640, 760×560) ölçüldü, sekme sürükleme gerçek fare
+olaylarıyla (CDP) ve not balonu başlığı test örneğinde sınandı (test/senaryo20.mjs, test/sekme_genislik.mjs). Gerçek farenin
+hareketi, %125 ölçek ve gözle beğeni denenmedi.
+1. **Açılış ekranı.** Bütün sekmeleri kapatın. "Son açılanlar" başlığı araçların altında, belgeler altındaki kutuda olmalı; kutuda
+   kaydırma çubuğu olmamalı, 10 belge iki sütunda görünmeli. PDF aç düğmesinde "Bilgisayarınızdaki bir ya da birkaç PDF'i seçin veya
+   bu pencereye sürükleyin" yazmalı, altında ayrı satır olmamalı. İçerik ortanın biraz üstünde durmalı.
+2. **Ad ve sürüm.** PDEfe, "PDF görüntüleyici ve düzenleyici" ve sürüm sağ altta olmalı. Pencereyi büyütüp küçültün: yazı köşede
+   kalmalı, içeriğin üstüne binmemeli.
+3. **Sekme sürükleme.** Üç dört belge açın, bir sekmeyi basılı tutup yana çekin: sekme imleçle birlikte kaymalı (yarı saydam kopya
+   çıkmamalı), öteki sekmeler kayarak yer açmalı; bırakınca sekme yerine oturmalı. Sürüklerken `Esc` sekmeleri eski yerlerine
+   döndürmeli. Çok sekme varken çubuğun ucuna götürünce çubuk kendiliğinden kaymalı.
+4. **Not başlığı.** Bir notu açın: başlıkta "Not | Adınız | tarih" görünmeli, çizgiler ince ve dikey olmalı; tarih adınızın hemen
+   yanında, çöp kutusu ve × sağda.

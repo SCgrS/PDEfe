@@ -1,5 +1,5 @@
-// Sekme çubuğu: sekme listesi, sürükleyerek sıralama, tekerlekle geçiş, ◀ ▶ düğmeleri, + (yeni sekme; uygulama.js açılış sayfası
-// sekmesi açar), "Açık belgeler" listesi ve Ctrl+Tab son-kullanım sırasına göre sekme seçici.
+// Sekme çubuğu: sekme listesi, sürükleyerek sıralama (işaretçi olaylarıyla; aşağıda surukleHazirla), tekerlekle geçiş, ◀ ▶ düğmeleri,
+// + (yeni sekme; uygulama.js açılış sayfası sekmesi açar), "Açık belgeler" listesi ve Ctrl+Tab son-kullanım sırasına göre sekme seçici.
 import { ortuTiklamasiBagla } from './ortu.js';
 
 /** Sekmenin ipucu: sabit genişlikte kısalabilen tam ad ve dosyanın yolu. */
@@ -18,6 +18,8 @@ export class SekmeCubugu extends EventTarget {
     this.mru = [];            // son kullanım sırası (id'ler; en yeni başta)
     this.seciciAcik = false;
     this.seciciIdx = 0;
+    this.surukleme = null;    // basılı tutulan / sürüklenen sekmenin durumu (surukleHazirla)
+    this.yerlesme = null;     // bırakılan sekme yerine kayarken: bitiren işlev
 
     // ◀ ▶ basılı tutunca hızlı geçiş. Başa dönmez (0.1.12, kullanıcı isteği): ilk / son sekmede durur, o uçtaki düğme devre dışı.
     // Devre dışı kalan düğme mouseup / mouseleave almaz: basılı tutma uca varınca kendisi biter, bırakma belgede de dinlenir
@@ -38,11 +40,11 @@ export class SekmeCubugu extends EventTarget {
     }
     acilir.addEventListener('click', (e) => { e.stopPropagation(); this.belgeListesiAcKapa(); });
 
-    // Sekme çubuğu üzerinde (sekmeler, boş kısım, düğmeler) fare tekerleği: sekme değiştir
+    // Sekme çubuğu üzerinde (sekmeler, boş kısım, düğmeler) fare tekerleği: sekme değiştir (sekme sürüklenirken değil)
     cubuk.addEventListener('wheel', (e) => {
       if (!this.sekmeler.length) return;
       e.preventDefault();
-      this.kaydir(e.deltaY > 0 || e.deltaX > 0 ? 1 : -1);
+      if (!this.surukleme?.basladi) this.kaydir(e.deltaY > 0 || e.deltaX > 0 ? 1 : -1);
     }, { passive: false });
 
     // Dışarıda herhangi bir tuşla basış listeyi kapatır (Araçlar penceresi gibi yakalama evresinde: basışı işleyip mousedown'ı
@@ -59,10 +61,10 @@ export class SekmeCubugu extends EventTarget {
    *  sayfası sekmesi ("Yeni sekme"; dosyası yok). */
   ekle({ id, ad, yol, once = null, baslangic = false }) {
     if (!this.belgeListesi.hidden) this.belgeListesiKapat();   // açık liste sekme kümesini bir kez kurar; bayat kalmasın
+    this.surukleKes();   // sürükleme sekmelerin yerlerini ölçüp tutar; yeni sekmeyle bayatlar
     const el = document.createElement('div');
     el.className = 'sekme' + (baslangic ? ' baslangic-sekmesi' : '');
     el.title = ipucu(ad, yol);
-    el.draggable = true;
     el.innerHTML = `<span class="nokta">•</span><span class="ad"></span><button class="kapat" title="Kapat (Ctrl+W)"><svg viewBox="0 0 16 16"><path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5"/></svg></button>`;
     el.querySelector('.ad').textContent = ad;
     const sekme = { id, ad, yol, el, degisti: false, baslangic };
@@ -78,25 +80,8 @@ export class SekmeCubugu extends EventTarget {
     el.querySelector('.kapat').addEventListener('click', (e) => { e.stopPropagation(); this.dispatchEvent(new CustomEvent('kapat', { detail: { id } })); });
     el.addEventListener('contextmenu', (e) => { e.preventDefault(); this.dispatchEvent(new CustomEvent('sagTik', { detail: { id } })); });
 
-    // Sürükleyerek sıralama
-    el.addEventListener('dragstart', (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/pdefe-sekme', id); el.classList.add('surukleniyor'); });
-    // Sekme sürüklenirken yerinde taşınır; bırakma bir sekmenin üstünde olmasa da (çubuğun dışı, Esc) görünen sıra geçerli olsun
-    // (yoksa Ctrl+1–9 ve ◀ ▶ eski sırayla giderdi)
-    el.addEventListener('dragend', () => { el.classList.remove('surukleniyor'); this.siralamayiOku(); });
-    el.addEventListener('dragover', (e) => {
-      if (!e.dataTransfer.types.includes('text/pdefe-sekme')) return;
-      e.preventDefault();
-      const surukleyen = this.liste.querySelector('.surukleniyor');
-      if (!surukleyen || surukleyen === el) return;
-      const kut = el.getBoundingClientRect();
-      const sonra = e.clientX > kut.left + kut.width / 2;
-      this.liste.insertBefore(surukleyen, sonra ? el.nextSibling : el);
-    });
-    el.addEventListener('drop', (e) => {
-      if (!e.dataTransfer.types.includes('text/pdefe-sekme')) return;
-      e.preventDefault(); e.stopPropagation();
-      this.siralamayiOku();
-    });
+    // Sürükleyerek sıralama: sol tuşla basılıp yatayda çekilince (kapat düğmesinden değil)
+    el.addEventListener('pointerdown', (e) => { if (e.button === 0 && e.isPrimary && !e.target.closest('.kapat')) this.surukleHazirla(e, el); });
 
     this.cubuk.hidden = false;
     this.okDurumu();   // arka planda açılan sekme sona eklenir: ▶ etkinleşir
@@ -105,15 +90,134 @@ export class SekmeCubugu extends EventTarget {
 
   siralamayiOku() {
     const sira = [...this.liste.children].map((el) => this.sekmeler.find((s) => s.el === el)).filter(Boolean);
-    if (sira.length === this.sekmeler.length && sira.every((s, i) => s === this.sekmeler[i])) return;   // sıra değişmedi (bırakma + dragend)
+    if (sira.length === this.sekmeler.length && sira.every((s, i) => s === this.sekmeler[i])) return;   // sıra değişmedi
     this.sekmeler = sira;
     this.okDurumu();
     this.dispatchEvent(new CustomEvent('siralandi', { detail: { idler: sira.map((s) => s.id) } }));
   }
 
+  // ------------------------------------------------------------ sürükleyerek sıralama
+  // 0.1.14 (kullanıcı isteği): tarayıcının sürükle-bırakı (draggable) yerine işaretçi olaylarıyla. Önceden sekmenin yarı saydam gri
+  // kopyası imleçle her yöne gidiyor, sekmeler yer açmadan birden yer değiştiriyordu. Artık Chrome'daki gibi: sekme çubukta kalır, gölgeyle
+  // öne çıkıp imleci yatayda izler; öteki sekmeler kayarak yer açar; bırakınca sekme açılan yere kayıp oturur, sıra ancak o zaman
+  // değişir (siralamayiOku). Esc, pencerenin odağı kaybetmesi ya da işaretçinin iptali sürüklemeyi bırakır: sekmeler eski yerlerine kayar.
+  // Sekmeler sığmayıp kaydırılıyorsa imleç listenin ucuna gelince liste kendiliğinden kayar. Konumlar sürükleme başında ölçülür
+  // (liste içeriğine göre, kaydırmadan bağımsız); sekme eklenir ya da kapanırsa sürükleme hemen bırakılır (surukleKes).
+
+  /** Sol tuşla basış: sürükleme henüz başlamaz; yatayda 5 px'ten çok çekilince başlar (tıklama sekmeyi seçmekle kalır). */
+  surukleHazirla(e, el) {
+    this.surukleKes();
+    const s = this.surukleme = { el, pointerId: e.pointerId, x0: e.clientX, x: e.clientX, kaydirma0: this.liste.scrollLeft, basladi: false };
+    const hareket = (ev) => {
+      if (ev.pointerId !== s.pointerId) return;
+      s.x = ev.clientX;
+      if (!s.basladi) { if (Math.abs(s.x - s.x0) < 5) return; this.surukleBaslat(s); }
+      this.surukleIzle(s);
+    };
+    const birak = (ev) => { if (ev.pointerId === s.pointerId) this.surukleBitir(s, true); };
+    const iptal = () => this.surukleBitir(s, false);
+    const tus = (ev) => { if (ev.key === 'Escape' && s.basladi) { ev.preventDefault(); ev.stopImmediatePropagation(); iptal(); } };
+    const dinleyiciler = [['pointermove', hareket], ['pointerup', birak], ['pointercancel', iptal], ['keydown', tus]];
+    for (const [ad, f] of dinleyiciler) window.addEventListener(ad, f, true);
+    window.addEventListener('blur', iptal);
+    s.dinlemeyiBirak = () => { for (const [ad, f] of dinleyiciler) window.removeEventListener(ad, f, true); window.removeEventListener('blur', iptal); };
+  }
+
+  surukleBaslat(s) {
+    const ogeler = [...this.liste.children], i = ogeler.indexOf(s.el);
+    if (i < 0) { this.surukleBitir(s, false); return; }
+    const lr = this.liste.getBoundingClientRect(), kaydirma = this.liste.scrollLeft;
+    const kutular = ogeler.map((x) => x.getBoundingClientRect());
+    Object.assign(s, {
+      basladi: true, ogeler, i, j: i,
+      konum: kutular.map((k) => k.left - lr.left + kaydirma), genislik: kutular.map((k) => k.width),
+      bosluk: parseFloat(getComputedStyle(this.liste).columnGap) || 0,
+    });
+    s.el.classList.add('tasiniyor');
+    this.liste.classList.add('siralaniyor');
+    try { s.el.setPointerCapture(s.pointerId); } catch { /* işaretçi bu arada bırakıldıysa */ }
+    this.surukleKaydir(s);
+  }
+
+  /** Sürüklenen sekmeyi imlecin altında tutar (ilk sekmenin solu ile son sekmenin sağı arasında) ve ötekileri açılan yere göre kaydırır. */
+  surukleIzle(s) {
+    if (this.surukleme !== s || !s.basladi) return;
+    const { i, konum, genislik, ogeler } = s, n = ogeler.length;
+    const dx = Math.max(konum[0] - konum[i], Math.min(konum[n - 1] + genislik[n - 1] - konum[i] - genislik[i],
+      s.x - s.x0 + this.liste.scrollLeft - s.kaydirma0));
+    s.el.style.transform = `translateX(${dx}px)`;
+    // Yeni yer: sürüklenen sekmenin ortası öteki sekmelerin kaçının ortasına vardı. Varmak (eşitlik) yeter: sekme uca dek çekilince ortası
+    // uçtaki sekmenin ortasıyla çakışır, en sona / en başa taşınabilmeli
+    const orta = konum[i] + dx + genislik[i] / 2;
+    s.j = ogeler.reduce((j, _x, k) => {
+      const o = konum[k] + genislik[k] / 2;
+      return k > i && o <= orta ? j + 1 : k < i && o >= orta ? j - 1 : j;
+    }, i);
+    const kay = genislik[i] + s.bosluk;
+    ogeler.forEach((x, k) => {
+      if (k === i) return;
+      const d = k > i && k <= s.j ? -kay : k < i && k >= s.j ? kay : 0;
+      x.style.transform = d ? `translateX(${d}px)` : '';
+    });
+  }
+
+  /** İmleç listenin ucundaysa (ya da dışındaysa) liste o yöne kayar; uca uzaklığa göre hızlanır. */
+  surukleKaydir(s) {
+    if (this.surukleme !== s) return;
+    const r = this.liste.getBoundingClientRect(), bolge = 32;
+    const derinlik = s.x < r.left + bolge ? s.x - r.left - bolge : s.x > r.right - bolge ? s.x - r.right + bolge : 0;
+    if (derinlik) {
+      const once = this.liste.scrollLeft, hiz = Math.max(-20, Math.min(20, derinlik / 3));
+      this.liste.scrollLeft = once + (Math.trunc(hiz) || Math.sign(hiz));
+      if (this.liste.scrollLeft !== once) this.surukleIzle(s);
+    }
+    s.kare = requestAnimationFrame(() => this.surukleKaydir(s));
+  }
+
+  /** Bırakma (kaydet) ya da iptal: sekme açılan yere (iptalde eski yerine) kayar, sonra DOM sırası değişir ve model okunur. hemen:
+   *  kaydırma beklenmez (sekme eklenirken / kapanırken). */
+  surukleBitir(s, kaydet, { hemen = false } = {}) {
+    if (this.surukleme !== s) return;
+    this.surukleme = null;
+    s.dinlemeyiBirak();
+    if (!s.basladi) return;
+    cancelAnimationFrame(s.kare);
+    const { el, i, ogeler, konum, genislik } = s, j = kaydet ? s.j : i;
+    let zaman = null;
+    const yerles = () => {
+      if (this.yerlesme !== yerles) return;
+      this.yerlesme = null;
+      clearTimeout(zaman);
+      el.removeEventListener('transitionend', bitti);
+      // Geçişsiz: sınıflar ve kaydırmalar aynı anda kalkar, sekmeler yeni DOM sırasındaki yerlerinde (görünen yerleri) durur
+      this.liste.classList.remove('siralaniyor');
+      el.classList.remove('tasiniyor', 'yerlesiyor');
+      for (const x of ogeler) x.style.transform = '';
+      if (j !== i && el.parentNode === this.liste && ogeler[j].parentNode === this.liste) this.liste.insertBefore(el, j > i ? ogeler[j].nextSibling : ogeler[j]);
+      this.siralamayiOku();
+    };
+    const bitti = (ev) => { if (ev.target === el && ev.propertyName === 'transform') yerles(); };
+    this.yerlesme = yerles;
+    if (hemen) { yerles(); return; }
+    if (!kaydet) for (const x of ogeler) if (x !== el) x.style.transform = '';   // ötekiler de eski yerlerine kayar
+    // Varılacak yer: sağa taşınırken j'nin sağ kenarına, sola taşınırken j'nin sol kenarına hizalı (sekmeler eş genişlikte olmasa da)
+    const hedef = j > i ? konum[j] + genislik[j] - genislik[i] - konum[i] : j < i ? konum[j] - konum[i] : 0;
+    el.classList.add('yerlesiyor');
+    el.style.transform = `translateX(${hedef}px)`;
+    el.addEventListener('transitionend', bitti);
+    zaman = setTimeout(yerles, 220);   // geçiş yoksa (yer aynı, azaltılmış hareket) ya da transitionend gelmezse
+  }
+
+  /** Süren sürüklemeyi hemen bırakır (sıra değişmez), yerleşmekte olan sekmeyi hemen yerine koyar. */
+  surukleKes() {
+    if (this.surukleme) this.surukleBitir(this.surukleme, false, { hemen: true });
+    this.yerlesme?.();
+  }
+
   kaldir(id) {
     const i = this.sekmeler.findIndex((s) => s.id === id);
     if (i < 0) return;
+    this.surukleKes();
     // Liste açıkken (ör. Ctrl+W) kapanan belgenin satırı kalmasın; kapatma listeNo'yu artırıp süren sayımları da iptal eder
     if (!this.belgeListesi.hidden) this.belgeListesiKapat();
     this.sekmeler[i].el.remove();
