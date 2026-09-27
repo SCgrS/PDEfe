@@ -13,6 +13,7 @@ import {
   pencereAc, pencereAcikMi, kacis, hataMetni, dosyaAdi, belgeTarifi, tarifDisari, anaKaynakMi, suruklemeSiralama, suruklemeKalintisi, oge,
   IslemIlerleme, kayitSecimi, degisiklikleriSor, kilitliHataMi, ciktiyiAc, yolAyni,
 } from './ortak.js';
+import { kaydetmedenCikisSorusu } from '../mesajKutusu.js';
 
 const KUCUK_RESIM_GENISLIK = 160;
 const GECMIS_SINIRI = 200;
@@ -122,8 +123,8 @@ export class SayfalarPenceresi {
         ${dugme('tumunuSec', 'Tümünü seç (Ctrl+A)', '<rect x="3" y="3" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="m6.5 10 2.5 2.5 5-5" fill="none" stroke="currentColor" stroke-width="1.6"/>')}
         ${dugme('secimiKaldir', 'Seçimi kaldır', '<rect x="3" y="3" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/>')}
         <span class="ayrac"></span>
-        ${dugme('solaDondur', 'Seçilenleri sola döndür', '<path d="M5 9A5.5 5.5 0 1 1 6 13.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5 4v5h5" fill="none" stroke="currentColor" stroke-width="1.4"/>')}
-        ${dugme('sagaDondur', 'Seçilenleri sağa döndür', '<path d="M15 9A5.5 5.5 0 1 0 14 13.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M15 4v5h-5" fill="none" stroke="currentColor" stroke-width="1.4"/>')}
+        ${dugme('solaDondur', 'Seçilenleri sola döndür', '<path d="M13.1 15.8A6.2 6.2 0 1 0 5.1 13.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2.8 15.5 7.4 12.3 6.8 16.4z" fill="currentColor"/>')}
+        ${dugme('sagaDondur', 'Seçilenleri sağa döndür', '<path d="M6.9 15.8A6.2 6.2 0 1 1 14.9 13.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M17.2 15.5 12.6 12.3 13.2 16.4z" fill="currentColor"/>')}
         ${dugme('sil', 'Seçilenleri sil (Delete)', '<path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11" fill="none" stroke="currentColor" stroke-width="1.4"/>')}
         <span class="ayrac"></span>
         <button class="ikincil" data-komut="bosEkle" title="Seçili sayfanın arkasına boş sayfa ekler (boyut: önceki sayfa)">Boş sayfa ekle</button>
@@ -191,8 +192,12 @@ export class SayfalarPenceresi {
       return true;
     }
     if (sonuc === 'tamam' || !this.degisti) return true;
-    const { secim } = await this.baglam.mesajKutusu({ mesaj: 'Sayfa düzeninde kaydedilmemiş değişiklikler var.', ayrinti: 'Pencereyi kapatırsanız değişiklikler kaybolur.', dugmeler: ['Kapat', 'Düzenlemeye dön'], varsayilan: 1, iptal: 1 });
-    return secim === 0;
+    // Uygulamanın bütün çıkış sorularıyla aynı: Kaydet | Kaydetme | Vazgeç. Kaydet, alttaki Kaydet düğmesiyle aynı işi yapar (kaydetme
+    // seçimine göre yeni belge ya da üzerine yaz); başarılıysa pencereyi kendisi kapatır ('tamam'), olmazsa pencere açık kalır
+    const { secim } = await this.baglam.mesajKutusu(kaydetmedenCikisSorusu(this.belge.ad));
+    if (secim === 1) return true;
+    if (secim === 0 && !this.pencere.kapali) await this.kaydet();
+    return false;
   }
 
   komut(ad) {
@@ -508,8 +513,8 @@ export class SayfalarPenceresi {
       <div class="resim-kutu"><div class="yukleniyor"></div></div>
       <div class="alt"><span class="no"></span>
         <span class="kart-dugmeler">
-          <button class="ikon" data-kart-komut="sola" title="Sola döndür"><svg viewBox="0 0 20 20"><path d="M5 9A5.5 5.5 0 1 1 6 13.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5 4v5h5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></button>
-          <button class="ikon" data-kart-komut="saga" title="Sağa döndür"><svg viewBox="0 0 20 20"><path d="M15 9A5.5 5.5 0 1 0 14 13.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M15 4v5h-5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></button>
+          <button class="ikon" data-kart-komut="sola" title="Sola döndür"><svg viewBox="0 0 20 20"><path d="M13.1 15.8A6.2 6.2 0 1 0 5.1 13.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2.8 15.5 7.4 12.3 6.8 16.4z" fill="currentColor"/></svg></button>
+          <button class="ikon" data-kart-komut="saga" title="Sağa döndür"><svg viewBox="0 0 20 20"><path d="M6.9 15.8A6.2 6.2 0 1 1 14.9 13.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M17.2 15.5 12.6 12.3 13.2 16.4z" fill="currentColor"/></svg></button>
           <button class="ikon" data-kart-komut="sil" title="Sil"><svg viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.5"/></svg></button>
         </span></div>
       <span class="kaynak" hidden></span>

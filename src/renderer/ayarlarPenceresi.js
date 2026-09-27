@@ -1,17 +1,19 @@
 // Ayarlar penceresi: solda bölüm listesi, sağda içerik (Windows 11 Ayarlar havası).
 // Her değişiklik anında kaydedilir (baglam.ayarKoy) ve canlı uygulanır (baglam.uygula).
-// Bölümler (0.1.9): Görünüm (tema, yazı çizimi), Sayfa düzeni (yakınlaştırma, tek/iki sayfa, kaydırma, kapak, döndürme),
-// Belge açılışı (varsayılan uygulama, kaldığım sayfa, son açılanlar), Notlar, Kaydetme (otomatik kaydet, araçların çıktı klasörü),
-// Kopyalama, Güncelleme, Hakkında. Sekme adı içeriğini söylesin: bir ayar eklerken ona göre yerleştirin.
+// Bölümler (0.1.12): Görünüm (tema, yazı çizimi), Açılış ve düzen (varsayılan uygulama, kaldığım sayfa, son açılanlar; yakınlaştırma,
+// tek/iki sayfa, kaydırma, kapak, döndürme), Not ve vurgu, Kaydetme (otomatik kaydet, araçların çıktı klasörü), Güncelleme, Hakkında.
+// Sekme adı içeriğini söylesin: bir ayar eklerken ona göre yerleştirin. 0.1.12'de (kullanıcı isteği) Sayfa düzeni ile Belge açılışı
+// birleşti ("Açılış ve düzen"), Notlar'ın adı "Not ve vurgu" oldu, Kopyalama kalktı (kopyalama her zaman temiz metin).
 // Sayfa düzeni iki kontrolle (Tek/İki sayfa + Kaydırma) tek bir varsayilanDuzen değerine yazılır:
 // 'tek' | 'surekli' | 'iki' | 'ikiSurekli'. Hakkında bölümü yalnızca sürümü ve geliştiriciyi gösterir.
 //
 // Dışa verilen API:
 //   ayarlarPenceresiAc(baglam, secenek?)  → pencere kök öğesi (HTMLElement); zaten açıksa öne getirir.
-//     baglam = { ayar: () => ayarlar, ayarKoy(anahtar, deger), uygula(anahtar, deger), pdefe, varsayilanlar, guncelleme? }
-//     (guncelleme: renderer/guncelleme.js şerit API'si; Güncelleme bölümündeki denetim ve Güncelle düğmesi onu kullanır)
-//     secenek = { bolum?: 'gorunum'|'sayfa'|'acilis'|'notlar'|'kaydetme'|'kopyalama'|'guncelleme'|'hakkinda' }
-//     (0.1.8'e dek kullanılan 'baslangic' ve 'dosya' karşılıklarına, 'sayfa' ve 'acilis'e gider)
+//     baglam = { ayar: () => ayarlar, ayarKoy(anahtar, deger), uygula(anahtar, deger), pdefe, varsayilanlar, guncelleme?, sonTemizle? }
+//     (guncelleme: renderer/guncelleme.js şerit API'si; Güncelleme bölümündeki denetim ve Güncelle düğmesi onu kullanır.
+//     sonTemizle: son açılanlar listesini siler; menü ve başlangıç ekranı da güncellenir)
+//     secenek = { bolum?: 'gorunum'|'acilis'|'notlar'|'kaydetme'|'guncelleme'|'hakkinda' }
+//     (eski kimlikler ESKI_BOLUMLER'le eşlenir: 'sayfa', 'baslangic', 'dosya' → 'acilis'; 'kopyalama' → 'gorunum')
 //   ayarlarPenceresiKapat()               → açık pencereyi kapatır.
 //   DURUM_ANAHTARLARI                     → "Varsayılanlara dön" ile sıfırlanmayan durum alanları.
 import { ortuTiklamasiBagla } from './ortu.js';
@@ -25,18 +27,17 @@ const VURGU_RENKLERI = [
 ];
 const YAZI_TIPLERI = ['Segoe UI', 'Arial', 'Times New Roman', 'Calibri'];
 
-// Sayfa düzeni ve Kaydetme simgeleri araç çubuğundaki düğmelerinkiyle, Belge açılışı'nınki başlangıç ekranındaki PDF aç simgesiyle aynı
+// Açılış ve düzen simgesi başlangıç ekranındaki PDF aç simgesiyle, Kaydetme'ninki araç çubuğundaki düğmeninkiyle aynı
 const BOLUMLER = [
   { id: 'gorunum', ad: 'Görünüm', simge: 'M10 3a7 7 0 1 0 0 14V3z' },
-  { id: 'sayfa', ad: 'Sayfa düzeni', simge: 'M4 3h4a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM12 3h4a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z' },
-  { id: 'acilis', ad: 'Belge açılışı', simge: 'M2.5 6.5V15A1.5 1.5 0 0 0 4 16.5h12a1.5 1.5 0 0 0 1.5-1.5V8.5A1.5 1.5 0 0 0 16 7h-5.8L8.5 5H4a1.5 1.5 0 0 0-1.5 1.5zM2.5 9.5h15' },
-  { id: 'notlar', ad: 'Notlar', simge: 'M3 4.5A1.5 1.5 0 0 1 4.5 3h11A1.5 1.5 0 0 1 17 4.5v8a1.5 1.5 0 0 1-1.5 1.5H9l-4 3v-3H4.5A1.5 1.5 0 0 1 3 12.5z' },
+  { id: 'acilis', ad: 'Açılış ve düzen', simge: 'M2.5 6.5V15A1.5 1.5 0 0 0 4 16.5h12a1.5 1.5 0 0 0 1.5-1.5V8.5A1.5 1.5 0 0 0 16 7h-5.8L8.5 5H4a1.5 1.5 0 0 0-1.5 1.5zM2.5 9.5h15' },
+  { id: 'notlar', ad: 'Not ve vurgu', simge: 'M3 4.5A1.5 1.5 0 0 1 4.5 3h11A1.5 1.5 0 0 1 17 4.5v8a1.5 1.5 0 0 1-1.5 1.5H9l-4 3v-3H4.5A1.5 1.5 0 0 1 3 12.5z' },
   { id: 'kaydetme', ad: 'Kaydetme', simge: 'M4 3h9l3 3v11H4zM7 3v4h5V3M6 17v-5h8v5' },
-  { id: 'kopyalama', ad: 'Kopyalama', simge: 'M7 7h9v10H7zM13 7V4H4v9h3' },
   { id: 'guncelleme', ad: 'Güncelleme', simge: 'M15 9A5.5 5.5 0 1 0 14 13.5M15 4v5h-5' },
   { id: 'hakkinda', ad: 'Hakkında', simge: 'M10 3a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM10 9v5M10 6.5v.5' },
 ];
-const ESKI_BOLUMLER = { baslangic: 'sayfa', dosya: 'acilis' };
+// 0.1.8'e dek 'baslangic' ve 'dosya', 0.1.11'e dek 'sayfa' (Sayfa düzeni) ve 'kopyalama' vardı
+const ESKI_BOLUMLER = { baslangic: 'acilis', dosya: 'acilis', sayfa: 'acilis', kopyalama: 'gorunum' };
 
 const GEZINME_TUSLARI = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Delete', 'Backspace', 'Enter']);
 
@@ -124,7 +125,7 @@ function bolumSec(id) {
   const baslik = document.createElement('h2');
   baslik.textContent = BOLUMLER.find((b) => b.id === id).ad;
   icerik.append(baslik);
-  const ciz = { gorunum: bolumGorunum, sayfa: bolumSayfaDuzeni, acilis: bolumAcilis, notlar: bolumNotlar, kaydetme: bolumKaydetme, kopyalama: bolumKopyalama, guncelleme: bolumGuncelleme, hakkinda: bolumHakkinda }[id];
+  const ciz = { gorunum: bolumGorunum, acilis: bolumAcilisVeDuzen, notlar: bolumNotlar, kaydetme: bolumKaydetme, guncelleme: bolumGuncelleme, hakkinda: bolumHakkinda }[id];
   try { ciz(icerik); } catch (e) { console.error('Ayar bölümü çizilemedi', e); icerik.append(el('p', { class: 'soluk' }, 'Bu bölüm yüklenemedi: ' + hataMetni(e))); }
 }
 
@@ -175,7 +176,15 @@ function bolumGorunum(k) {
 function duzenCoz(d) { return { iki: d === 'iki' || d === 'ikiSurekli', kaydir: d !== 'tek' && d !== 'iki' }; }
 function duzenBirlestir(iki, kaydir) { return iki ? (kaydir ? 'ikiSurekli' : 'iki') : (kaydir ? 'surekli' : 'tek'); }
 
-function bolumSayfaDuzeni(k) {
+/** Açılış ve düzen (0.1.12'de Belge açılışı ile Sayfa düzeni birleşti): önce belgenin açılışı, sonra sayfaların dizilişi. */
+function bolumAcilisVeDuzen(k) {
+  k.append(el('h3', {}, 'Belge açılışı'));
+  acilisKartlari(k);
+  k.append(el('h3', {}, 'Sayfa düzeni'));
+  sayfaDuzeniKartlari(k);
+}
+
+function sayfaDuzeniKartlari(k) {
   const a = ayarlar();
   // Yakınlaştırma: 'son' | 'genislik' | 'sayfa' | 'gercek' | 'gorunur' | sayı (yüzde)
   const zoomDegeri = a.varsayilanZoom;
@@ -211,21 +220,62 @@ function bolumSayfaDuzeni(k) {
   }));
 }
 
-function bolumAcilis(k) {
+const VARSAYILAN_ACIKLAMA = 'PDF dosyalarına çift tıklayınca PDEfe\'de açılsın. Windows "Varsayılan Uygulamalar" sayfası açılır; .pdf satırında PDEfe\'yi seçin. Kurulumsuz (geliştirme) çalıştırmada PDEfe listede görünmeyebilir.';
+const TIK_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="m6.3 10.2 2.5 2.5 5-5.2"/></svg>';
+
+function acilisKartlari(k) {
   const a = ayarlar();
+  const { pdefe } = acik.baglam;
+  // Varsayılan PDF görüntüleyici: PDEfe zaten varsayılansa düğme yerine yeşil tik ve "Zaten varsayılan" (0.1.12, kullanıcı isteği).
+  // Windows'un kaydı ana süreçte okunur (kabuk:varsayilanMi); okunamazsa düğme görünür. Windows Ayarlar'dan PDEfe'ye dönülünce
+  // (pencere odağı) yeniden bakılır: orada yapılan seçim bölüm açıkken de görünsün
   const varsayilanDugme = el('button', { class: 'ikincil', type: 'button' }, 'Varsayılan PDF görüntüleyici yap');
-  varsayilanDugme.addEventListener('click', () => acik.baglam.pdefe.cagir('kabuk:varsayilanUygulamalar').catch((e) => console.error(e)));
-  k.append(kart({
-    baslik: 'Varsayılan PDF görüntüleyici', aciklama: 'PDF dosyalarına çift tıklayınca PDEfe\'de açılsın. Windows "Varsayılan Uygulamalar" sayfası açılır; .pdf satırında PDEfe\'yi seçin. Kurulumsuz (geliştirme) çalıştırmada PDEfe listede görünmeyebilir.',
-    kontrol: varsayilanDugme,
-  }));
+  varsayilanDugme.hidden = true;
+  varsayilanDugme.addEventListener('click', () => pdefe.cagir('kabuk:varsayilanUygulamalar').catch((e) => console.error(e)));
+  const zaten = el('span', { class: 'ayar-zaten-varsayilan', role: 'status' });
+  zaten.innerHTML = TIK_SVG;
+  zaten.append(el('span', {}, 'Zaten varsayılan'));
+  zaten.hidden = true;
+  const varsayilanKart = kart({
+    baslik: 'Varsayılan PDF görüntüleyici', aciklama: VARSAYILAN_ACIKLAMA,
+    kontrol: el('div', { class: 'ayar-yanyana' }, [zaten, varsayilanDugme]),
+  });
+  const aciklamaEl = varsayilanKart.querySelector('.ayar-aciklama');
+  let soruluyor = false;
+  const varsayilanYenile = async () => {
+    if (!varsayilanKart.isConnected) { window.removeEventListener('focus', varsayilanYenile); return; }
+    if (soruluyor) return;
+    soruluyor = true;
+    let r = null;
+    try { r = await pdefe.cagir('kabuk:varsayilanMi'); } catch (e) { console.warn('Varsayılan uygulama okunamadı', e); } finally { soruluyor = false; }
+    if (!varsayilanKart.isConnected) return;
+    const evet = r?.varsayilan === true;
+    zaten.hidden = !evet;
+    varsayilanDugme.hidden = evet;
+    aciklamaEl.textContent = evet ? 'PDF dosyalarına çift tıklayınca PDEfe\'de açılıyor. Başka bir uygulama seçilirse burada yeniden varsayılan yapılabilir.' : VARSAYILAN_ACIKLAMA;
+  };
+  k.append(varsayilanKart);   // önce eklenir: varsayilanYenile sayfada olmayan kartı kapanmış bölüm sayıp dinlemeyi bırakır
+  window.addEventListener('focus', varsayilanYenile);
+  varsayilanYenile();
   k.append(kart({
     baslik: 'Her belgeyi kaldığım sayfadan aç', aciklama: 'Her belgede son bakılan sayfa, dosya yoluyla birlikte hatırlanır. Kapatılınca hatırlanan sayfalar silinir, yenileri tutulmaz.',
     kontrol: anahtar(a.kaldigimSayfadanAc !== false, (v) => degistir('kaldigimSayfadanAc', v)),
   }));
+  // Son açılanlar: altında listeyi temizleme düğmesi (0.1.12, kullanıcı isteği); liste boşken devre dışı. Kapatmak da listeyi siler
+  const temizle = el('button', { class: 'ikincil', type: 'button' }, 'Listeyi temizle');
+  const temizleYenile = () => { temizle.disabled = !(ayarlar().sonDosyalar || []).length; };
+  temizle.addEventListener('click', () => {
+    const b = acik?.baglam;
+    if (!b) return;
+    if (typeof b.sonTemizle === 'function') b.sonTemizle();
+    else degistir('sonDosyalar', []);
+    temizleYenile();
+  });
+  temizleYenile();
   k.append(kart({
     baslik: 'Son açılanları hatırla', aciklama: 'Açtığınız belgeler başlangıç ekranında ve Dosya › Son açılanlar menüsünde listelenir. Kapatılınca liste silinir, yeni açılan belgeler eklenmez.',
-    kontrol: anahtar(a.sonAcilanlariHatirla !== false, (v) => degistir('sonAcilanlariHatirla', v)),
+    kontrol: anahtar(a.sonAcilanlariHatirla !== false, (v) => { degistir('sonAcilanlariHatirla', v); temizleYenile(); }),
+    alt: temizle,
   }));
 }
 
@@ -293,15 +343,6 @@ function bolumKaydetme(k) {
     baslik: 'Araçların çıktı klasörü', aciklama: 'Araçların (PDF küçült, Sayfaları düzenle, Döndür ve kaydet, PDF ayır, Görüntü / PDF birleştir) yeni belge olarak kaydettiği dosyalar için önerilen klasör; araç penceresinde değiştirilebilir. Boşsa Masaüstü kullanılır.',
     kontrol: el('div', { class: 'ayar-yanyana' }, [sec, temizle]), alt: yolEl,
   }));
-}
-
-function bolumKopyalama(k) {
-  const a = ayarlar();
-  const temiz = a.temizMetin !== false;
-  k.append(radyoKartlari('temizMetin', temiz ? 'temiz' : 'ham', [
-    { id: 'temiz', baslik: 'Temiz metin (varsayılan)', aciklama: 'Satır sonları paragrafa göre birleştirilir, tireyle bölünmüş sözcükler onarılır, girintiler ve bozuk Türkçe karakterler (Ġ→İ gibi) düzeltilir. Word ya da UYAP\'a yapıştırmak için uygundur.' },
-    { id: 'ham', baslik: 'Düzeni koru (ham)', aciklama: 'Metin PDF\'teki satır yapısıyla, olduğu gibi kopyalanır. Tablo ya da liste düzenini korumak istediğinizde kullanın.' },
-  ], (v) => degistir('temizMetin', v === 'temiz')));
 }
 
 function bolumGuncelleme(k) {
@@ -418,20 +459,6 @@ function renkKutusu(deger, onDegis) {
   const g = el('input', { type: 'color', class: 'ayar-renk-girdi', value: /^#[0-9a-f]{6}$/i.test(deger) ? deger : '#000000' });
   g.addEventListener('change', () => onDegis(g.value));
   return g;
-}
-
-function radyoKartlari(ad, secili, secenekler, onDegis) {
-  const grup = el('div', { class: 'ayar-radyo-grubu', role: 'radiogroup' });
-  for (const s of secenekler) {
-    const lbl = el('label', { class: 'ayar-kart ayar-radyo-kart' });
-    const g = el('input', { type: 'radio', name: 'ayar-' + ad, value: s.id });
-    g.checked = s.id === secili;
-    g.addEventListener('change', () => { if (g.checked) { onDegis(s.id); grup.querySelectorAll('.ayar-radyo-kart').forEach((x) => x.classList.toggle('secili', x.contains(g))); } });
-    lbl.classList.toggle('secili', g.checked);
-    lbl.append(g, el('div', { class: 'ayar-etiket' }, [el('div', { class: 'ayar-baslik' }, s.baslik), el('div', { class: 'ayar-aciklama' }, s.aciklama)]));
-    grup.append(lbl);
-  }
-  return grup;
 }
 
 // ---------------------------------------------------------------- yardımcılar

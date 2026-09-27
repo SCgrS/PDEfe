@@ -9,8 +9,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   await bekle(1200);
   console.log('ayarlar:', await evalJs(`({ acik: !!document.querySelector('.ayarlar-pencere'), bolumler: [...document.querySelectorAll('.ayarlar-bolumler button')].map(b => b.textContent.trim()) })`));
   await ekranGoruntusu('test/png/s7-01-ayarlar.png');
-  // Notlar bölümü, sonra Hakkında
-  await evalJs(`[...document.querySelectorAll('.ayarlar-bolumler button')].find(b => b.textContent.includes('Notlar'))?.click()`);
+  // Not ve vurgu bölümü (0.1.11'e dek "Notlar"), sonra Hakkında
+  await evalJs(`[...document.querySelectorAll('.ayarlar-bolumler button')].find(b => b.dataset.bolum === 'notlar')?.click()`);
   await bekle(500);
   await ekranGoruntusu('test/png/s7-02-ayarlar-notlar.png');
   await evalJs(`[...document.querySelectorAll('.ayarlar-bolumler button')].find(b => b.textContent.includes('Hakkında'))?.click()`);

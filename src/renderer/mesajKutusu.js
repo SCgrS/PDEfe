@@ -32,6 +32,12 @@ export function mesajKutusuAcik() { return acikKutular.length > 0; }
 /** En üstteki kutuyu kısaca belirginleştirir ve odağı ona verir (kutu açıkken yok sayılan menü komutu ya da pencere kapatma isteğinde). */
 export function mesajKutusuUyar() { acikKutular.at(-1)?.uyar(); }
 
+/** Kaydetmeden çıkma sorusu (0.1.12, kullanıcı isteği: uygulamadaki bütün çıkış soruları aynı biçimde): sekme ve pencere kapatma,
+ *  araç pencereleri. secim: 0 Kaydet (Enter), 1 Kaydetme, 2 Vazgeç (Esc, arka plana tıklama). ad: dosya adı, uzantısıyla. */
+export function kaydetmedenCikisSorusu(ad) {
+  return { mesaj: `"${ad}" belgesinde kaydedilmemiş değişiklikler var.`, ayrinti: 'Çıkmadan önce kaydetmek ister misiniz?', dugmeler: ['Kaydet', 'Kaydetme', 'Vazgeç'], varsayilan: 0, iptal: 2 };
+}
+
 export function mesajKutusu(secenek = {}) {
   if (window.__pdefeOtoYanit) {
     const o = window.__pdefeOtoYanit; o.son = secenek;

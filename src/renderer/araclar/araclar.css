@@ -94,10 +94,14 @@ button.ikincil.ikonlu svg { width: 16px; height: 16px; flex-shrink: 0; }
 /* Çıktı satırı: kısa dosya adı + klasör çipi + Değiştir */
 .arac-cikti { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .arac-cikti-ad { flex: 1 1 auto; min-width: 140px; max-width: 320px; }
+/* Klasör çipi düğmedir: tıklanınca klasör Gezgin'de açılır */
 .arac-klasor-cip {
   display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px 0 9px; border-radius: 15px; background: var(--hover);
-  color: var(--metin); flex: 0 1 auto; max-width: 220px; min-width: 0; cursor: default;
+  color: var(--metin); flex: 0 1 auto; max-width: 220px; min-width: 0; cursor: default; border: none; font: inherit;
 }
+.arac-klasor-cip:hover:not(:disabled) { background: var(--basili); }
+.arac-klasor-cip:active:not(:disabled) { background: color-mix(in srgb, var(--basili) 70%, var(--metin) 8%); }
+.arac-klasor-cip:focus-visible { outline: 2px solid var(--vurgu); outline-offset: 1px; }
 .arac-cikti-degistir { flex-shrink: 0; }
 .arac-klasor-cip svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--metin-soluk); }
 .arac-klasor-cip .ad { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

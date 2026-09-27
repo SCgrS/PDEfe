@@ -39,9 +39,9 @@ export class DondurPenceresi {
       <div class="arac-bolum">
         <div class="arac-bolum-baslik">Yön</div>
         <div class="dondur-yonler" role="radiogroup" aria-label="Yön">
-          <label class="dondur-yon secili" data-derece="90"><input type="radio" name="dondur-yon" value="90" checked><svg viewBox="0 0 24 24"><path d="M18 11A6.5 6.5 0 1 0 16.6 16" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M18 5v6h-6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span class="ad">90° saat yönü</span></label>
-          <label class="dondur-yon" data-derece="270"><input type="radio" name="dondur-yon" value="270"><svg viewBox="0 0 24 24"><path d="M6 11A6.5 6.5 0 1 1 7.4 16" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 5v6h6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span class="ad">90° saat yönü tersi</span></label>
-          <label class="dondur-yon" data-derece="180"><input type="radio" name="dondur-yon" value="180"><svg viewBox="0 0 24 24"><path d="M5 9a7 7 0 0 1 14 0M19 15a7 7 0 0 1-14 0" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M15 9h4V5M9 15H5v4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span class="ad">180°</span></label>
+          <label class="dondur-yon secili" data-derece="90"><input type="radio" name="dondur-yon" value="90" checked><svg viewBox="0 0 20 20"><path d="M6.9 15.8A6.2 6.2 0 1 1 14.9 13.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M17.2 15.5 12.6 12.3 13.2 16.4z" fill="currentColor"/></svg><span class="ad">90° saat yönü</span></label>
+          <label class="dondur-yon" data-derece="270"><input type="radio" name="dondur-yon" value="270"><svg viewBox="0 0 20 20"><path d="M13.1 15.8A6.2 6.2 0 1 0 5.1 13.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2.8 15.5 7.4 12.3 6.8 16.4z" fill="currentColor"/></svg><span class="ad">90° saat yönü tersi</span></label>
+          <label class="dondur-yon" data-derece="180"><input type="radio" name="dondur-yon" value="180"><svg viewBox="0 0 20 20"><path d="M3 11.9A6 6 0 0 1 15 11.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12.2 11.9h5.6L15 15.1z" fill="currentColor"/></svg><span class="ad">180°</span></label>
         </div>
       </div>
       <div class="arac-bolum dondur-kayit"><div class="arac-bolum-baslik">Kaydetme</div></div>

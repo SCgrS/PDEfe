@@ -8,16 +8,16 @@ export const VARSAYILANLAR = {
   tema: 'sistem',                 // 'acik' | 'koyu' | 'sistem'
   sayfayiKoyulastir: false,       // koyu modda sayfayı da koyulaştır (görselleri koru)
   yaziCizimi: 'anaHat',           // 'anaHat' ("Dengeli": düz yazı ClearType'la, kalın yazının fazla koyuluğu giderilir, döndürülmüş yazı ana hatlarından) | 'sistem' (hepsi Chromium / ClearType); renderer/yaziTipleri.js
-  // Sayfa düzeni
+  // Açılış ve düzen (0.1.12'de Belge açılışı ve Sayfa düzeni birleşti). Kapalıyken kaydı tutulmaz, kapatılınca silinir:
+  // kaldigimSayfadanAc → sayfaKonumlari, sonAcilanlariHatirla → sonDosyalar
+  kaldigimSayfadanAc: true,
+  sonAcilanlariHatirla: true,
   varsayilanZoom: 'genislik',     // 'son' | 'genislik' | 'sayfa' | 'gercek' | sayı (yüzde)
   sonZoom: 100,
   varsayilanDuzen: 'surekli',     // 'tek' | 'surekli' | 'iki' | 'ikiSurekli'
   kapakAyri: false,
   dondurmeKapsami: 'sor',         // 'sor' | 'sayfa' | 'tum'; araç çubuğundaki Döndür düğmesinin kapsamı
-  // Belge açılışı. Kapalıyken kaydı tutulmaz, kapatılınca silinir: kaldigimSayfadanAc → sayfaKonumlari, sonAcilanlariHatirla → sonDosyalar
-  kaldigimSayfadanAc: true,
-  sonAcilanlariHatirla: true,
-  // Notlar
+  // Not ve vurgu
   yazarAdi: os.userInfo().username || 'Kullanıcı',
   vurguRengi: '#ffd100',          // PDF okuyucularında yaygın varsayılan vurgu rengi: /C [1 .819611 0]
   vurguOpaklik: 0.4,              // aynı yaygın varsayılan: /CA .4
@@ -26,10 +26,9 @@ export const VARSAYILANLAR = {
   yaziRengi: '#000000',
   yaziArka: null,
   // Kaydetme
-  otomatikKaydet: true,           // 0.1.4: kaydedilmeden başka bir programda açılan belgede notlar görünmüyordu
+  otomatikKaydet: false,          // 0.1.4–0.1.11 varsayılan açıktı; 0.1.12'de kullanıcı isteğiyle kapalı (aşağıdaki taşıma)
   ciktiKlasoru: '',               // araçların yeni belge çıktıları; boşsa Masaüstü (app.getPath('desktop'))
-  // Kopyalama
-  temizMetin: true,
+  // Kopyalama ayarı (temizMetin) 0.1.12'de kalktı: kopyalama her zaman temiz metin
   // Güncelleme: haftada bir otomatik denetle. Son denetimin zamanı (sonDenetimZamani) main/guncelleme.js'te; varsayılanı yoktur,
   // "Varsayılanlara dön" ona dokunmaz.
   otoGuncelle: true,
@@ -42,8 +41,9 @@ export const VARSAYILANLAR = {
   pencere: {},
 };
 
-/** Kaldırılmış ayarlar: eski sürümlerin yapılandırma dosyalarından silinir (0.1.8: 10 açılışta bir denetimin sayacı → haftalık denetim). */
-const KALDIRILAN_ANAHTARLAR = ['sekmeleriHatirla', 'acikSekmeler', 'sekmeDegisimindeSor', 'sonGuncellemeDenetimi', 'acilisSayaci', 'sonDenetimAcilisi', 'sonDenetimSurumu'];
+/** Kaldırılmış ayarlar: eski sürümlerin yapılandırma dosyalarından silinir (0.1.8: 10 açılışta bir denetimin sayacı → haftalık denetim;
+ *  0.1.12: Kopyalama ayarı ve 0.1.4'ün otomatik kaydetme taşımasının bayrağı). */
+const KALDIRILAN_ANAHTARLAR = ['sekmeleriHatirla', 'acikSekmeler', 'sekmeDegisimindeSor', 'sonGuncellemeDenetimi', 'acilisSayaci', 'sonDenetimAcilisi', 'sonDenetimSurumu', 'temizMetin', 'otomatikKaydetTasindi'];
 
 export const ayarlar = new Store({ name: 'ayarlar', defaults: VARSAYILANLAR, clearInvalidConfig: true });
 for (const anahtar of KALDIRILAN_ANAHTARLAR) { try { if (ayarlar.has(anahtar)) ayarlar.delete(anahtar); } catch (e) { console.warn('Eski ayar silinemedi', anahtar, e); } }
@@ -55,12 +55,13 @@ try {
     ayarlar.set('vurguRengiTasindi', true);
   }
 } catch (e) { console.warn('Vurgu rengi taşınamadı', e); }
-// 0.1.4'te otomatik kaydetme varsayılan olarak açıldı; eski sürümlerin dosyasında yazılı duran false (eski varsayılan) bir kez true olur.
-// Sonradan kapatan kullanıcının seçimi korunur (bayrak)
+// 0.1.12'de otomatik kaydetme varsayılan olarak kapandı (kullanıcı isteği: ilk kurulumda kapalı, kullanıcının kendi kurulumunda da
+// kapansın). Eski sürümlerin dosyasında yazılı duran true (0.1.4–0.1.11 varsayılanı) bir kez false olur; sonradan açan kullanıcının
+// seçimi korunur (bayrak). 0.1.4'ün tersi yöndeki taşımasının bayrağı (otomatikKaydetTasindi) yukarıda silinir
 try {
-  if (!ayarlar.get('otomatikKaydetTasindi')) {
-    ayarlar.set('otomatikKaydet', true);
-    ayarlar.set('otomatikKaydetTasindi', true);
+  if (!ayarlar.get('otomatikKaydetKapatildi')) {
+    ayarlar.set('otomatikKaydet', false);
+    ayarlar.set('otomatikKaydetKapatildi', true);
   }
 } catch (e) { console.warn('Otomatik kaydetme ayarı taşınamadı', e); }
 // 0.1.8'e dek "Kaldığım sayfadan aç" kapalıyken de sayfa konumları (dosya yollarıyla) yazılıyordu: kapalı ayarın kaydı silinir.

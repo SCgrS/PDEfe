@@ -60,12 +60,15 @@ export class KucultPenceresi {
     this.pencere.govde.append(this.ilerleme.el);   // gövdenin doğrudan çocuğu: meşgulken soluklaşmaz, İptal tıklanabilir
     this.pencere.el.addEventListener('esc', (e) => { if (this.ilerleme.calisiyor) { e.preventDefault(); this.ilerleme.iptalIste(); } });
     // Bayat sekme (sonraki kayıt eski xref'lerle hata verir ya da başka notu değiştirir) pencere nasıl kapanırsa kapansın (X, Esc)
-    // diskteki haliyle yeniden açılır; 'kapandi' kapatmadanOnce izin verdikten sonra gelir
-    this.pencere.el.addEventListener('kapandi', async () => {
+    // diskteki haliyle yeniden açılır; 'kapandi' kapatmadanOnce izin verdikten sonra gelir. İş detail.bekle ile bildirilir: uygulama
+    // kapanırken (aracPencereleriniKapat) bitmesi beklenir
+    this.pencere.el.addEventListener('kapandi', (e) => {
       if (!this.sekmeBayat) return;
-      const sonuc = await sekmeyiYenile(this.baglam, this.belge, { soruAyrintisi: 'Belge diskteki küçültülmüş haliyle yeniden açılırsa bu değişiklikler atılır.' }).catch(() => false);
-      if (sonuc) this.sekmeBayat = false;
-      else this.baglam.bildir('Açık sekme dosyanın küçültülmeden önceki halini gösteriyor; notlarda değişiklik yapmadan önce sekmeyi kapatıp yeniden açın.', 8000);
+      e.detail?.bekle?.((async () => {
+        const sonuc = await sekmeyiYenile(this.baglam, this.belge, { soruAyrintisi: 'Belge diskteki küçültülmüş haliyle yeniden açılırsa bu değişiklikler atılır.' }).catch(() => false);
+        if (sonuc) this.sekmeBayat = false;
+        else this.baglam.bildir('Açık sekme dosyanın küçültülmeden önceki halini gösteriyor; notlarda değişiklik yapmadan önce sekmeyi kapatıp yeniden açın.', 8000);
+      })());
     });
     this.seviyeSec('onerilen');
     this.tahminleriAl();

@@ -147,6 +147,24 @@ export function sayfaAraliklariCoz(metin, toplam) {
 
 // ---------------------------------------------------------------- pencere iskeleti
 const acikPencereler = new Map();   // anahtar → Pencere
+const tumPencereler = new Set();    // açık bütün araç pencereleri (anahtarsızlar dahil), açılış sırasıyla
+
+/**
+ * Açık araç pencerelerini (en son açılan önce) kapatır. Her pencerenin kapatmadanOnce'u kendi sorusunu sorar (süren işlem, kaydedilmemiş
+ * değişiklik: Kaydet | Kaydetme | Vazgeç). Hepsi kapandıysa true; biri açık kaldıysa (Vazgeç, başarısız kayıt) false ve ondan sonrakilere
+ * dokunulmaz. Uygulama kapanmadan önce çağrılır (0.1.12: araçta kaydedilmemiş iş varken pencere X'i uygulamayı doğrudan kapatıyordu).
+ */
+export async function aracPencereleriniKapat() {
+  for (const p of [...tumPencereler].reverse()) {
+    if (p.kapali) continue;
+    p.odakla();
+    await p.kapat(null);
+    // Soruda Kaydet seçildiyse aracın kaydı pencereyi kendisi kapatır ('tamam'); kapat(null) o zaman false döner: sonuca pencereden bakılır
+    if (!p.kapali) return false;
+    await p.kapanisIsi;   // kapanışta başlayan iş (Küçült: sekmeyi diskteki haliyle yeniden açma, kendi sorusuyla)
+  }
+  return true;
+}
 
 /**
  * Araç penceresi açar. Var olan diyalog görünümünü (.diyalog-ortusu/.diyalog) taklit eden daha geniş bir
@@ -240,6 +258,7 @@ export class Pencere {
     this.menuSaglayicilar = [];
     this.el.addEventListener('contextmenu', (e) => this._baglamMenusu(e));
     document.body.append(ortu);
+    tumPencereler.add(this);
     this.odakla();
   }
 
@@ -354,8 +373,13 @@ export class Pencere {
       if (this.kapali) return false;
     }
     this.kapali = true;
+    tumPencereler.delete(this);
     if (this.anahtar && acikPencereler.get(this.anahtar) === this) acikPencereler.delete(this.anahtar);
-    this.el.dispatchEvent(new CustomEvent('kapandi'));
+    // Kapanışta süren iş (ör. Küçült'ün bayat sekmeyi yenilemesi) detail.bekle(söz) ile bildirilir; kapanisIsi onları bekler
+    // (aracPencereleriniKapat: uygulama kapanırken o iş bitmeden belgelere geçilmesin, iki soru üst üste açılmasın)
+    const isler = [];
+    this.el.dispatchEvent(new CustomEvent('kapandi', { detail: { bekle: (soz) => { if (soz?.then) isler.push(soz); } } }));
+    this.kapanisIsi = Promise.allSettled(isler);
     this.ortu.remove();
     this._sonucCoz(sonuc);
     try { if (this.onceOdak && document.contains(this.onceOdak)) this.onceOdak.focus({ preventScroll: true }); } catch { /* yok say */ }
@@ -633,20 +657,29 @@ export function klasorEtiketi(klasor, bilinen = {}) {
 
 const KLASOR_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h3.6l1.6 1.6H16a1.5 1.5 0 0 1 1.5 1.5v7.4A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>';
 
-/** Klasör çipi: kısa ad (Masaüstü…), tam yol ipucunda. */
+/** Klasör çipi: kısa ad (Masaüstü…), tam yol ipucunda. Tıklanınca klasör Gezgin'de açılır (0.1.12, kullanıcı isteği). */
 function klasorCipi() {
-  const el = oge(`<span class="arac-klasor-cip">${KLASOR_SVG}<span class="ad"></span></span>`);
+  const el = oge(`<button type="button" class="arac-klasor-cip">${KLASOR_SVG}<span class="ad"></span></button>`);
+  let klasor = '', pdefe = null;
+  el.addEventListener('click', () => {
+    if (!klasor || !pdefe) return;
+    pdefe.cagir('kabuk:klasorAc', klasor).catch((e) => console.warn('[araçlar] klasör açılamadı', klasor, e));
+  });
   return {
     el,
-    yaz: async (klasor, pdefe) => {
-      el.title = klasor || '';
-      el.querySelector('.ad').textContent = klasorEtiketi(klasor, await bilinenKlasorler(pdefe));
+    yaz: async (k, p) => {
+      klasor = k || ''; pdefe = p;
+      el.disabled = !klasor;
+      el.title = klasor ? `Klasörü aç: ${klasor}` : '';
+      el.dataset.klasor = klasor;   // tam yol (testler çıktı klasörünü buradan denetler)
+      el.querySelector('.ad').textContent = klasorEtiketi(klasor, await bilinenKlasorler(p));
     },
   };
 }
 
 /**
- * Yeni dosya çıktısı satırı: kısa dosya adı kutusu + klasör çipi (Masaüstü; tam yol ipucunda) + Değiştir.
+ * Yeni dosya çıktısı satırı: kısa dosya adı kutusu + klasör çipi (Masaüstü; tam yol ipucunda, tıklanınca Gezgin'de açılır) + Değiştir.
+ * Kutuda ad uzantısız görünür (0.1.12, kullanıcı isteği); ad() ve yol() uzantıyla döner, ayarla() uzantılı ya da uzantısız ad alır.
  * Değiştir, Windows'un Farklı kaydet diyaloğunu açar (klasör ve ad birlikte seçilir; var olan dosyanın üzerine yazma
  * sorusunu Windows sorar, dolayısıyla o yol için araç ayrıca sormaz: onayli()).
  * onayla/onaylandi: aracın kendi "zaten var" sorusunda üzerine yazma onaylanan hedef ("Yeniden dene"de yeniden sorulmaz);
@@ -670,31 +703,40 @@ export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasl
   let aracOnayi = null;         // araç "zaten var" sorusunda onaylanan hedef
   const bildir = () => dinleyiciler.forEach((f) => f());
   const yaz = () => { cip.yaz(mevcutKlasor, pdefe); };
-  adEl.value = ad || '';
+  // Kutudaki ad uzantısızdır; kullanıcı uzantıyı yazarsa odak çıkınca silinir, kaydederken ad() ekler
+  const uzantiDeseni = uz ? new RegExp('\\.' + uz + '$', 'i') : null;
+  const govdesi = (a) => (uzantiDeseni ? String(a ?? '').trim().replace(uzantiDeseni, '') : String(a ?? '').trim());
+  // Uzantı yalnızca bir kez silinir: kutuGovde, kutudaki değerin uzantısı zaten silinmiş gövde olduğunu söyler ("dilekce.pdf.pdf"
+  // seçilince kutuda "dilekce.pdf" kalır, ad() yine "dilekce.pdf.pdf")
+  let kutuGovde = true;
+  const tamAd = () => { const g = kutuGovde ? String(adEl.value).trim() : govdesi(adEl.value); return g ? (uz ? `${g}.${uz}` : g) : ''; };
+  const govdeYaz = (a) => { adEl.value = govdesi(a); kutuGovde = true; };
+  govdeYaz(ad);
   yaz();
-  adEl.addEventListener('input', () => { elle = true; onayliYol = null; aracOnayi = null; bildir(); });
+  adEl.addEventListener('input', () => { kutuGovde = false; elle = true; onayliYol = null; aracOnayi = null; bildir(); });
   adEl.addEventListener('blur', () => {
-    let v = guvenliAd(adEl.value);
-    if (uz && !new RegExp('\\.' + uz + '$', 'i').test(v)) v += '.' + uz;
+    if (kutuGovde) return;
+    const v = guvenliAd(govdesi(adEl.value));
+    kutuGovde = true;
     if (v !== adEl.value) { adEl.value = v; bildir(); }
   });
   el.querySelector('.arac-cikti-degistir').addEventListener('click', async () => {
     const secilen = await pdefe.cagir('dosya:kaydetDiyalog', {
-      baslik: diyalogBasligi, varsayilan: yolBirlestir(mevcutKlasor, adEl.value),
+      baslik: diyalogBasligi, varsayilan: yolBirlestir(mevcutKlasor, tamAd()),
       filtreler: [{ name: 'PDF belgesi', extensions: [uz] }],
     });
     if (!secilen) return;
     mevcutKlasor = klasorAdi(secilen);
-    adEl.value = dosyaAdi(secilen);
+    govdeYaz(dosyaAdi(secilen));
     elle = true; onayliYol = secilen; aracOnayi = null;
     yaz(); bildir();
   });
   return {
     el,
-    yol: () => yolBirlestir(mevcutKlasor, adEl.value.trim()),
+    yol: () => yolBirlestir(mevcutKlasor, tamAd()),
     klasor: () => mevcutKlasor,
-    ad: () => adEl.value.trim(),
-    ayarla: (k, a, { elle: e = false } = {}) => { if (k != null) mevcutKlasor = k; if (a != null) adEl.value = a; if (e) elle = true; onayliYol = null; aracOnayi = null; yaz(); bildir(); },
+    ad: () => tamAd(),
+    ayarla: (k, a, { elle: e = false } = {}) => { if (k != null) mevcutKlasor = k; if (a != null) govdeYaz(a); if (e) elle = true; onayliYol = null; aracOnayi = null; yaz(); bildir(); },
     onDegisti: (cb) => dinleyiciler.push(cb),
     elleDegisti: () => elle,
     onayli: (yol) => !!onayliYol && yolAyni(onayliYol, yol),

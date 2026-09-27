@@ -210,7 +210,7 @@ yakalandı (test\kurulum_bitis.ps1); gerçek kurulumda bakılmadı.
 Ayarlar penceresi, iki "hatırla" anahtarı, başlangıç ekranı ve Dosya menüsü test örneğinde gerçek tıklamayla sınandı
 (test/senaryo14.mjs). Windows'un son kullanılanlar listesi, kurulu sürümde güncelleme ve başka bir okuyucuda yazı notunu düzenleme
 denenmedi.
-1. **Ayarlar sekmeleri.** Ayarlar'ı açın (`Ctrl+,`): sekmeler Görünüm, Sayfa düzeni, Belge açılışı, Notlar, Kaydetme, Kopyalama,
+1. **Ayarlar sekmeleri.** (0.1.12'de değişti: 21. bölüm.) Ayarlar'ı açın (`Ctrl+,`): sekmeler Görünüm, Sayfa düzeni, Belge açılışı, Notlar, Kaydetme, Kopyalama,
    Güncelleme, Hakkında olmalı. Varsayılan PDF görüntüleyici Belge açılışı'nda; otomatik kaydetme ve araçların çıktı klasörü
    Kaydetme'de; Döndür düğmesi ve Kapak sayfasını ayrı göster Sayfa düzeni'nde olmalı. Bir ayarı beklediğiniz sekmede bulamazsanız
    söyleyin.
@@ -244,3 +244,21 @@ Kopyalama test örneğinde sistem panosuna dokunmadan sınandı; UYAP Doküman E
    kadar seçip yapıştırın: başlıktan önce bir boş satır olmalı.
 3. **UYAP belgesi.** Bir mahkeme kararının ya da bilirkişi raporunun başlığını ve taraf bilgilerini kopyalayın: PDF'te boş satır olan
    yerlerde boş satır olmalı, paragraflar arasındaki küçük aralıkta olmamalı; sayfa sonunda süren paragraf tek paragraf kalmalı.
+
+## 21. 0.1.12: otomatik testlerin sınayamadıkları
+Kapatma akışları, araç soruları, Ayarlar, seçim çubuğu, sekme okları ve araç çıktı satırı test örneğinde gerçek tıklamayla sınandı
+(test/senaryo17.mjs). Test örneğinde Gezgin açılmaz ve Windows'un varsayılan uygulama kaydı okunmaz; kurulu sürümde denenmedi.
+1. **Pencere kapatma.** Üç belge açın, birinde bir not ekleyin (otomatik kaydetme kapalıyken). Pencerenin sağ üstündeki ×'e basın:
+   değişikliği olmayan iki sekme hemen kapanmalı, kalan belge için "… belgesinde kaydedilmemiş değişiklikler var. Çıkmadan önce
+   kaydetmek ister misiniz?" sorulmalı. Vazgeç'te PDEfe açık kalmalı; Kaydetme'de kapanmalı.
+2. **Araç açıkken kapatma.** Sayfaları düzenle'de bir sayfayı döndürüp pencereyi kapatmadan PDEfe'nin ×'ine basın: önce aracın
+   sorusu gelmeli; Vazgeç'te hiçbir şey kapanmamalı.
+3. **Klasör çipi.** Bir araçta (ör. PDF küçült) adın yanındaki "Masaüstü"ne tıklayın: Masaüstü Gezgin'de açılmalı. Ad kutusunda
+   ".pdf" görünmemeli; kaydedilen dosyanın adı ".pdf" ile bitmeli.
+4. **Zaten varsayılan.** Ayarlar › Açılış ve düzen: PDEfe varsayılan PDF görüntüleyiciyse yeşil tik ve "Zaten varsayılan" görünmeli.
+   Windows Ayarlar'dan başka bir uygulamayı seçip PDEfe'ye dönünce düğme geri gelmeli; yeniden PDEfe seçilince tik dönmeli.
+5. **Otomatik kaydetme.** 0.1.12'yi kurduktan sonra Ayarlar › Kaydetme › Otomatik kaydet kapalı olmalı; açınca açık kalmalı
+   (PDEfe yeniden başlatılınca da).
+6. **Seçim çubuğu.** Bir sözcük seçin: tek vurgu düğmesi, ▾, not ve kopyala görünmeli. ▾'ye basınca renkler açılmalı, çubuk
+   kaymamalı (▾ yine imlecin altında); bir renk seçince o renkle vurgulanmalı ve sonraki seçimde vurgu düğmesi o rengi göstermeli.
+7. **Görünüm.** Sayfa kutusu, kopyala ve dişli simgeleri, yeni döndürme simgesi açık ve koyu temada, %125 ölçekte düzgün görünmeli.

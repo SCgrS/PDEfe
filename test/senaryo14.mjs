@@ -1,7 +1,8 @@
-// Senaryo 14 (0.1.9): Ayarlar sekmeleri (adlar ve sıra, her sekmenin kartları, eski bölüm kimlikleri 'baslangic' / 'dosya'),
-// Belge açılışı'ndaki "Son açılanları hatırla" ve "Her belgeyi kaldığım sayfadan aç" anahtarları (gerçek tıklamayla: kapatınca kayıt
+// Senaryo 14 (0.1.9; 0.1.12'de güncellendi: Sayfa düzeni ve Belge açılışı "Açılış ve düzen" oldu, Notlar "Not ve vurgu", Kopyalama
+// kalktı): Ayarlar sekmeleri (adlar ve sıra, her sekmenin kartları, eski bölüm kimlikleri 'baslangic' / 'dosya' / 'sayfa' / 'kopyalama'),
+// Açılış ve düzen'deki "Son açılanları hatırla" ve "Her belgeyi kaldığım sayfadan aç" anahtarları (gerçek tıklamayla: kapatınca kayıt
 // silinir, kapalıyken yazılmaz, açınca yeniden tutulur; başlangıç ekranındaki bilgi satırı ve Ayarlar bağlantısı; Dosya menüsündeki
-// Son açılanlar), Sayfa düzeni'ndeki kapak anahtarı ve arayüzde (ayarlar, başlangıç ekranı, menü) başka PDF programlarının adının
+// Son açılanlar), aynı sekmedeki kapak anahtarı ve arayüzde (ayarlar, başlangıç ekranı, menü) başka PDF programlarının adının
 // geçmemesi. Açık ve koyu temada her sekmenin ekran görüntüsü test/cikti/ui14/png altına yazılır.
 // Kullanım: boş veri klasörlü test örneği (baslat.ps1) açıkken  $env:PDEFE_CDP_PORT=9341; node test/surucu.mjs betik test/senaryo14.mjs
 import fs from 'node:fs';
@@ -17,11 +18,10 @@ const MARKA = /ado[b]e|acroba[t]/i;   // başka PDF programlarının adı (0.1.9
 
 const BEKLENEN = [
   ['gorunum', 'Görünüm', ['Tema', 'Sayfayı da koyulaştır', 'Yazı çizimi']],
-  ['sayfa', 'Sayfa düzeni', ['Varsayılan yakınlaştırma', 'Tek ya da iki sayfa', 'Kaydırmayı etkinleştir', 'Kapak sayfasını ayrı göster', 'Döndür düğmesi']],
-  ['acilis', 'Belge açılışı', ['Varsayılan PDF görüntüleyici', 'Her belgeyi kaldığım sayfadan aç', 'Son açılanları hatırla']],
-  ['notlar', 'Notlar', ['Yazar adı', 'Varsayılan vurgu rengi', 'Vurgu opaklığı', 'Yazı tipi', 'Yazı boyutu', 'Yazı rengi', 'Yazı arka planı']],
+  ['acilis', 'Açılış ve düzen', ['Varsayılan PDF görüntüleyici', 'Her belgeyi kaldığım sayfadan aç', 'Son açılanları hatırla',
+    'Varsayılan yakınlaştırma', 'Tek ya da iki sayfa', 'Kaydırmayı etkinleştir', 'Kapak sayfasını ayrı göster', 'Döndür düğmesi']],
+  ['notlar', 'Not ve vurgu', ['Yazar adı', 'Varsayılan vurgu rengi', 'Vurgu opaklığı', 'Yazı tipi', 'Yazı boyutu', 'Yazı rengi', 'Yazı arka planı']],
   ['kaydetme', 'Kaydetme', ['Otomatik kaydet', 'Araçların çıktı klasörü']],
-  ['kopyalama', 'Kopyalama', ['Temiz metin (varsayılan)', 'Düzeni koru (ham)']],
   ['guncelleme', 'Güncelleme', ['Güncellemeleri otomatik denetle (haftada bir)', 'Şimdi denetle']],
   ['hakkinda', 'Hakkında', []],
 ];
@@ -119,8 +119,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus }) {
   const cizim = await evalJs(`(() => { const s = [...document.querySelectorAll('.ayarlar-icerik .ayar-kart')].find((k) => k.querySelector('.ayar-baslik')?.textContent === 'Yazı çizimi').querySelector('select'); return { deger: s.value, secenekler: [...s.options].map((o) => o.textContent) }; })()`);
   sonuc('Yazı çizimi: "Dengeli (önerilen)" seçili, ikinci seçenek Windows ClearType', cizim.deger === 'anaHat' && J(cizim.secenekler) === J(['Dengeli (önerilen)', 'Windows ClearType']), cizim);
 
-  // ---------------------------------------------------------------- kapak anahtarı (Sayfa düzeni)
-  await bolumTikla('sayfa');
+  // ---------------------------------------------------------------- kapak anahtarı (Açılış ve düzen)
+  await bolumTikla('acilis');
   const kapakOnce = await ayar('kapakAyri');
   await ortayaTikla(anahtarSecici('Kapak sayfasını ayrı göster'));
   sonuc('Kapak anahtarı ayarı değiştirir', (await ayar('kapakAyri')) === !kapakOnce && (await depo('kapakAyri')) === !kapakOnce);
@@ -164,7 +164,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus }) {
   await ss('baslangic-kapali-koyu');
   await ortayaTikla(`document.querySelector('#son-dosyalar .karsilama-ayar-baglantisi')`);
   await kosul(`!!document.querySelector('.ayarlar-ortusu')`);
-  sonuc('Bağlantı Ayarlar › Belge açılışı sekmesini açar', (await seciliBolum()) === 'acilis', await seciliBolum());
+  sonuc('Bağlantı Ayarlar › Açılış ve düzen sekmesini açar', (await seciliBolum()) === 'acilis', await seciliBolum());
 
   // ---------------------------------------------------------------- yeniden aç: kayıt yeniden tutulur
   await ortayaTikla(anahtarSecici('Son açılanları hatırla'));
@@ -188,11 +188,13 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus }) {
 
   // ---------------------------------------------------------------- eski bölüm kimlikleri, menü metni
   await ayarlarAc('dosya');
-  sonuc("Eski 'dosya' kimliği Belge açılışı'nı açar", (await seciliBolum()) === 'acilis');
+  sonuc("Eski 'dosya' kimliği Açılış ve düzen'i açar", (await seciliBolum()) === 'acilis');
   await ayarlarKapat();
-  await ayarlarAc('baslangic');
-  sonuc("Eski 'baslangic' kimliği Sayfa düzeni'ni açar", (await seciliBolum()) === 'sayfa');
-  await ayarlarKapat();
+  for (const [eski, yeni] of [['baslangic', 'acilis'], ['sayfa', 'acilis'], ['kopyalama', 'gorunum']]) {
+    await ayarlarAc(eski);
+    sonuc(`Eski '${eski}' kimliği '${yeni}' sekmesini açar`, (await seciliBolum()) === yeni, await seciliBolum());
+    await ayarlarKapat();
+  }
   const menuMetni = J(await evalJs(`window.pdefe.cagir('test:menu')`));
   sonuc('Uygulama menüsünde marka adı geçmiyor', !MARKA.test(menuMetni));
 

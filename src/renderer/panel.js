@@ -269,6 +269,12 @@ export function notTurAdi(n) {
   return turAdi(n?.tur);
 }
 
+/** Not balonunun başlığındaki tür: metin notunda yalnızca "Not:" (0.1.12, kullanıcı isteği; Yorumlar panelinde "Metin notu" kalır). */
+export function balonTurAdi(n) {
+  const ad = notTurAdi(n);
+  return ad === 'Metin notu' ? 'Not:' : ad;
+}
+
 /** PDF tarih dizesini (D:20260915225519+03'00') okunur biçime çevirir. */
 export function tarihBicimle(d) {
   const m = /^D:(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?/.exec(d || '');

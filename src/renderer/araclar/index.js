@@ -28,7 +28,7 @@ export { SayfalarPenceresi } from './sayfalar.js';
 export { AyirPenceresi } from './ayir.js';
 export { BirlestirmePenceresi } from './gorselBirlestir.js';
 export { DondurPenceresi } from './dondur.js';
-export { boyutMetni, pencereAc, IslemIlerleme } from './ortak.js';
+export { boyutMetni, pencereAc, IslemIlerleme, aracPencereleriniKapat } from './ortak.js';
 
 const GEREKLI = ['aktif', 'cekirdek', 'dosyaAc', 'kaydet', 'mesajKutusu', 'bildir', 'pdefe', 'ayar'];
 

@@ -3,6 +3,7 @@ import { app, BrowserWindow, protocol, net, ipcMain, dialog, Menu, shell, native
 import { TEST, testDiyalogKur, sahteGuncelleyiciKur } from './gelistirme.js';
 import path from 'node:path';
 import fs from 'node:fs';
+import { execFile } from 'node:child_process';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { ayarlar, ayarKoy, ayarAl, VARSAYILANLAR } from './ayarlar.js';
 import { menuKur } from './menu.js';
@@ -50,6 +51,27 @@ function argvdenPdfler(argv, cwd) {
     if (fs.existsSync(tam)) sonuc.push(tam);
   }
   return sonuc;
+}
+
+/** Kayıt defterinden bir ProgId değeri (reg.exe; Electron'da kayıt defteri API'si yok). Anahtar ya da değer yoksa null.
+ *  reg.exe tam yoluyla çalıştırılır: çıplak ad sürecin çalışma klasöründe (çift tıklanan PDF'in klasörü) aranabilirdi. */
+function progIdOku(anahtar) {
+  const reg = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'reg.exe');
+  return new Promise((coz) => {
+    execFile(reg, ['query', anahtar, '/v', 'ProgId'], { windowsHide: true, timeout: 5000 }, (hata, cikti) => {
+      const m = !hata && /^\s*ProgId\s+REG_\w+\s+(.+?)\s*$/im.exec(String(cikti || ''));
+      coz(m ? m[1] : null);
+    });
+  });
+}
+
+/** .pdf'yi Windows'ta PDEfe mi açıyor: kullanıcının seçimi Windows 11'in yeni kaydında (FileExts\.pdf\UserChoiceLatest\ProgId; varsa
+ *  geçerli olan o), yoksa eski kayıtta (UserChoice). Kurulumun yazdığı ProgId PDEfe.pdf (electron-builder.yml fileAssociations.name).
+ *  Seçim hiç yapılmamışsa ya da okunamadıysa { varsayilan: null }. */
+async function pdfVarsayilaniOku() {
+  const kok = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\.pdf';
+  const progId = (await progIdOku(kok + '\\UserChoiceLatest\\ProgId')) || (await progIdOku(kok + '\\UserChoice'));
+  return { varsayilan: progId ? progId.toLowerCase() === 'pdefe.pdf' : null, progId };
 }
 
 function pencereyeGonder(kanal, ...args) {
@@ -277,6 +299,9 @@ function ipcKur() {
   ipcMain.handle('uygulama:veriKlasoru', () => app.getPath('userData'));
   ipcMain.handle('uygulama:geciciKlasor', () => { const k = path.join(app.getPath('temp'), 'PDEfe'); fs.mkdirSync(k, { recursive: true }); return k; });
   ipcMain.handle('kabuk:varsayilanUygulamalar', () => shell.openExternal('ms-settings:defaultapps?registeredAppUser=PDEfe'));
+  // .pdf'nin varsayılan uygulaması PDEfe mi (Ayarlar › Açılış ve düzen): { varsayilan: true | false | null (okunamadı), progId }.
+  // Test örneğinde gerçek kayıt okunmaz; yanıt test:diyalogYanitlari kuyruğundan (varsayılan: okunamadı)
+  ipcMain.handle('kabuk:varsayilanMi', async () => (testDiyalog ? testDiyalog('kabuk:varsayilanMi', {}, { varsayilan: null, progId: null }) : pdfVarsayilaniOku()));
   // Panodaki dosyalar (Gezgin'den kopyalanan) ve görsel. Electron'un pano API'siyle ana süreçte okunur: önceki PowerShell
   // yolu (pano:dosyalar / pano:gorsel, kaldırıldı) her çağrıda süreç başlattığı için saniyeler sürüyor, Türkçe karakterli yolları da bozuyordu.
   // Electron 44'te clipboard yalnızca has/read/readText/write/writeText/clear sunar (readImage/readBuffer yok):
@@ -345,6 +370,12 @@ function ipcKur() {
   }));
 
   ipcMain.handle('kabuk:klasordeGoster', (_e, yol) => { shell.showItemInFolder(yol); return true; });
+  // Klasörü Gezgin'de açar (araç pencerelerindeki klasör çipi). Test örneğinde Gezgin açılmaz (bilgisayarı kullanan kişinin ekranı)
+  ipcMain.handle('kabuk:klasorAc', async (_e, klasor) => {
+    if (testDiyalog) return testDiyalog('kabuk:klasorAc', { klasor }, true);
+    const hata = await shell.openPath(String(klasor || ''));
+    return !hata;
+  });
   ipcMain.handle('kabuk:disAc', (_e, url) => shell.openExternal(url));
   // Test örneğinde sistem panosuna yazılmaz (bilgisayarı kullanan kişinin panosu bozulmasın): yazılan test:diyalogKaydi'na düşer
   ipcMain.handle('pano:metin', (_e, metin) => { if (testDiyalog) return testDiyalog('pano:metin', { uzunluk: metin?.length, bas: String(metin ?? '').slice(0, 200) }, true); clipboard.writeText(metin); return true; });

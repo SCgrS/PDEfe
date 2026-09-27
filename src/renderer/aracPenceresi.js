@@ -22,8 +22,8 @@ export const ARACLAR = [
   {
     komut: 'arac.dondurKaydet', ad: 'Döndür ve kaydet', aciklama: 'Sayfaları döndürüp kaydeder', renk: 'mor', belge: true,
     ipucu: 'Tüm sayfaları, geçerli sayfayı ya da bir aralığı döndürüp dosyaya kaydeder',
-    // Sayfa ve saat yönünde dönen ok
-    ikon: '<rect x="3.5" y="8.5" width="10.5" height="12.75" rx="1.5"/><path d="M10.5 3.5h2.75a7 7 0 0 1 7 7v1.75"/><path d="m17.75 9.75 2.5 2.5 2.5-2.5"/>',
+    // Sayfa ve saat yönünde dönen ok (0.1.12: ok ucu dolu, bütün döndürme simgeleriyle aynı)
+    ikon: '<rect x="3.5" y="8.5" width="10.5" height="12.75" rx="1.5"/><path d="M10.5 3.5h2.75a7 7 0 0 1 7 7v.9"/><path d="M17.35 11.1h5.8l-2.9 3.5z" fill="currentColor" stroke="none"/>',
   },
   {
     komut: 'arac.ayir', ad: 'PDF ayır', aciklama: 'Belgeyi dosyalara böler', renk: 'turuncu', belge: true,

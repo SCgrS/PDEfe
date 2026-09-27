@@ -34,7 +34,7 @@ async function cdp() {
   return { ws, gonder, dinle: (f) => dinleyiciler.push(f) };
 }
 
-export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus }) {
+export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare }) {
   fs.mkdirSync(K, { recursive: true });
   ADLAR.forEach((ad, i) => { const h = path.join(K, ad); if (!fs.existsSync(h)) fs.copyFileSync(path.resolve('test/pdf', KAYNAKLAR[i % 2]), h); });
   await evalJs(`(async () => { const p = window.__pdefe; for (const s of [...p.sekmeler.sekmeler]) await p.belgeKapat(s.id, { zorla: true }); for (const ad of ${js(ADLAR)}) await p.dosyaAc(${js(K + path.sep)} + ad); await new Promise((r) => setTimeout(r, 1500)); return true; })()`);
@@ -71,6 +71,21 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus }) {
   denetle('▶ altı kez: 7. sekme etkin ve görünür', o.sekmeler[6].aktif && o.sekmeler[6].gorunur, o.sekmeler.find((s) => s.aktif)?.ad);
   await tikla(...onceki); await bekle(300); o = await olc();
   denetle('◀: 6. sekme etkin ve görünür', o.sekmeler[5].aktif && o.sekmeler[5].gorunur);
+  // 0.1.12 (kullanıcı isteği): başa dönmez — ilk sekmede ◀, son sekmede ▶ devre dışı ve etkisiz; tekerlek de uçta durur
+  const oklar = () => evalJs(`[document.querySelector('#sekme-onceki').disabled, document.querySelector('#sekme-sonraki').disabled]`);
+  const listeOrtasi = await evalJs(`(() => { const r = document.querySelector('#sekme-liste').getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]; })()`);
+  await tus('1', ['ctrl']); await bekle(300);
+  let d = await oklar();
+  await tikla(...onceki); await bekle(300);
+  await fare([{ tur: 'hareket', x: listeOrtasi[0], y: listeOrtasi[1] }, { tur: 'tekerlek', x: listeOrtasi[0], y: listeOrtasi[1], deltaY: -120, bekle: 300 }]);
+  o = await olc();
+  denetle('ilk sekmede ◀ devre dışı; ◀ ve yukarı tekerlek ilk sekmede bırakır (son sekmeye dönmez)', d[0] === true && d[1] === false && o.sekmeler[0].aktif, js(d));
+  await tus('9', ['ctrl']); await bekle(300);
+  d = await oklar();
+  await tikla(...sonraki); await bekle(300);
+  await fare([{ tur: 'hareket', x: listeOrtasi[0], y: listeOrtasi[1] }, { tur: 'tekerlek', x: listeOrtasi[0], y: listeOrtasi[1], deltaY: 120, bekle: 300 }]);
+  o = await olc();
+  denetle('son sekmede ▶ devre dışı; ▶ ve aşağı tekerlek son sekmede bırakır (ilk sekmeye dönmez)', d[0] === false && d[1] === true && o.sekmeler.at(-1).aktif, js(d));
 
   // Sürükleyerek sıralama. Fare basılıp sürüklenir; tarayıcının başlattığı sürükleme CDP'de yakalanır (Input.setInterceptDrags: işletim
   // sisteminin sürükleme döngüsü açılmaz, gerçek fareye dokunulmaz), sürükleme olayları Input.dispatchDragEvent ile verilir.

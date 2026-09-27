@@ -13,6 +13,7 @@ import {
   bosAdBul, yolAyni, suruklemeSiralama, suruklemeKalintisi, geciktir, oge, segmentliSecim, varsayilanCiktiKlasoru,
   varOlanaYazmaSor, kilitliHataMi, ciktiyiAc,
 } from './ortak.js';
+import { kaydetmedenCikisSorusu } from '../mesajKutusu.js';
 
 /** Kalite seviyeleri (çekirdekteki GORSEL_KALITE ile aynı kimlikler). Açıklamalar teknik ayrıntı (çözünürlük, sıkıştırma türü) içermez. */
 export const KALITELER = [
@@ -178,9 +179,13 @@ export class BirlestirmePenceresi {
       this.ilerleme.iptalIste();
       return true;
     }
+    // Liste doluyken birleştirilmiş belge henüz kaydedilmemiştir: uygulamanın bütün çıkış sorularıyla aynı soru, ad kaydedilecek dosyanın
+    // adı. Kaydet, Birleştir düğmesiyle aynı işi yapar; başarılıysa pencereyi kendisi kapatır ('tamam'), olmazsa pencere açık kalır
     if (sonuc !== 'tamam' && this.ogeler.length > 0) {
-      const { secim } = await this.baglam.mesajKutusu({ mesaj: 'Liste boş değil.', ayrinti: 'Pencereyi kapatırsanız eklediğiniz dosya listesi kaybolur.', dugmeler: ['Kapat', 'Listeye dön'], varsayilan: 1, iptal: 1 });
-      return secim === 0;
+      const { secim } = await this.baglam.mesajKutusu(kaydetmedenCikisSorusu(this.cikti.ad() || 'birlesik.pdf'));
+      if (secim === 1) return true;
+      if (secim === 0 && !this.pencere.kapali) await this.birlestir();
+      return false;
     }
     return true;
   }
@@ -562,8 +567,8 @@ export class BirlestirmePenceresi {
         <span class="hata secilebilir" hidden></span>
       </div>
       <div class="dugmeler">
-        <button class="ikon" data-komut="sola" title="Sola döndür"><svg viewBox="0 0 20 20"><path d="M5 9A5.5 5.5 0 1 1 6 13.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5 4v5h5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></button>
-        <button class="ikon" data-komut="saga" title="Sağa döndür"><svg viewBox="0 0 20 20"><path d="M15 9A5.5 5.5 0 1 0 14 13.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M15 4v5h-5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></button>
+        <button class="ikon" data-komut="sola" title="Sola döndür"><svg viewBox="0 0 20 20"><path d="M13.1 15.8A6.2 6.2 0 1 0 5.1 13.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2.8 15.5 7.4 12.3 6.8 16.4z" fill="currentColor"/></svg></button>
+        <button class="ikon" data-komut="saga" title="Sağa döndür"><svg viewBox="0 0 20 20"><path d="M6.9 15.8A6.2 6.2 0 1 1 14.9 13.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M17.2 15.5 12.6 12.3 13.2 16.4z" fill="currentColor"/></svg></button>
         <span class="ayrac"></span>
         <button class="ikon" data-komut="yukari" title="Yukarı taşı"><svg viewBox="0 0 20 20"><path d="m5 12 5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
         <button class="ikon" data-komut="asagi" title="Aşağı taşı"><svg viewBox="0 0 20 20"><path d="m5 8 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
@@ -784,6 +789,8 @@ export class BirlestirmePenceresi {
   async birlestir() {
     const { baglam } = this;
     if (this.ilerleme.calisiyor) return;
+    // Birleştir düğmesi dosyalar okunurken devre dışıdır; kapatma sorusundaki Kaydet de buraya gelir: okuma bitmeden birleştirilmez
+    if (this.ogeler.some((o) => o.yukleniyor)) { baglam.bildir('Dosyalar hâlâ okunuyor; bitince yeniden deneyin.'); return; }
     const ogeler = this.ogeler.filter((o) => !o.hata);
     if (this.ogeler.some((o) => o.hata)) {
       const { secim } = await baglam.mesajKutusu({ mesaj: 'Bazı dosyalar okunamadı.', ayrinti: 'Okunamayan dosyalar atlanarak devam edilsin mi?', dugmeler: ['Atla ve devam et', 'Vazgeç'], varsayilan: 0, iptal: 1 });

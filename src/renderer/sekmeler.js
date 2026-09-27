@@ -19,17 +19,22 @@ export class SekmeCubugu extends EventTarget {
     this.seciciAcik = false;
     this.seciciIdx = 0;
 
-    // ◀ ▶ basılı tutunca hızlı geçiş
+    // ◀ ▶ basılı tutunca hızlı geçiş. Başa dönmez (0.1.12, kullanıcı isteği): ilk / son sekmede durur, o uçtaki düğme devre dışı.
+    // Devre dışı kalan düğme mouseup / mouseleave almaz: basılı tutma uca varınca kendisi biter, bırakma belgede de dinlenir
+    this.onceki = onceki; this.sonraki = sonraki;
     for (const [dugme, yon] of [[onceki, -1], [sonraki, 1]]) {
       let zaman = null, aralik = null;
+      const birak = () => { clearTimeout(zaman); clearInterval(aralik); zaman = aralik = null; };
       dugme.addEventListener('mousedown', (e) => {
         if (e.button !== 0) return;
-        this.kaydir(yon);
-        zaman = setTimeout(() => { aralik = setInterval(() => this.kaydir(yon), 180); }, 400);
+        birak();
+        if (!this.kaydir(yon)) return;
+        zaman = setTimeout(() => { aralik = setInterval(() => { if (!this.kaydir(yon)) birak(); }, 180); }, 400);
       });
-      const birak = () => { clearTimeout(zaman); clearInterval(aralik); zaman = aralik = null; };
       dugme.addEventListener('mouseup', birak);
       dugme.addEventListener('mouseleave', birak);
+      window.addEventListener('mouseup', birak);
+      window.addEventListener('blur', birak);
     }
     acilir.addEventListener('click', (e) => { e.stopPropagation(); this.belgeListesiAcKapa(); });
 
@@ -91,6 +96,7 @@ export class SekmeCubugu extends EventTarget {
     });
 
     this.cubuk.hidden = false;
+    this.okDurumu();   // arka planda açılan sekme sona eklenir: ▶ etkinleşir
     return sekme;
   }
 
@@ -98,6 +104,7 @@ export class SekmeCubugu extends EventTarget {
     const sira = [...this.liste.children].map((el) => this.sekmeler.find((s) => s.el === el)).filter(Boolean);
     if (sira.length === this.sekmeler.length && sira.every((s, i) => s === this.sekmeler[i])) return;   // sıra değişmedi (bırakma + dragend)
     this.sekmeler = sira;
+    this.okDurumu();
     this.dispatchEvent(new CustomEvent('siralandi', { detail: { idler: sira.map((s) => s.id) } }));
   }
 
@@ -110,6 +117,7 @@ export class SekmeCubugu extends EventTarget {
     this.sekmeler.splice(i, 1);
     this.mru = this.mru.filter((x) => x !== id);
     if (!this.sekmeler.length) { this.cubuk.hidden = true; this.aktifId = null; }
+    this.okDurumu();
   }
 
   aktifYap(id) {
@@ -118,6 +126,7 @@ export class SekmeCubugu extends EventTarget {
     const s = this.bul(id);
     if (s) s.el.scrollIntoView({ inline: 'nearest', block: 'nearest' });
     this.mru = [id, ...this.mru.filter((x) => x !== id)];
+    this.okDurumu();
   }
 
   bul(id) { return this.sekmeler.find((s) => s.id === id); }
@@ -132,12 +141,22 @@ export class SekmeCubugu extends EventTarget {
     if (degisti != null) { s.degisti = degisti; s.el.classList.toggle('degisti', degisti); }
   }
 
-  /** Bir sonraki/önceki sekmeye (sıra düzenine göre) geç. */
+  /** Bir sonraki/önceki sekmeye (sıra düzenine göre) geç: ◀ ▶ ve sekme çubuğunda tekerlek. İlk / son sekmede durur, başa dönmez
+   *  (0.1.12, kullanıcı isteği). Geçildiyse true. */
   kaydir(yon) {
-    if (!this.sekmeler.length) return;
+    if (!this.sekmeler.length) return false;
     const i = this.sekmeler.findIndex((s) => s.id === this.aktifId);
-    const j = (i + yon + this.sekmeler.length) % this.sekmeler.length;
+    const j = i < 0 ? 0 : i + yon;
+    if (j < 0 || j >= this.sekmeler.length || j === i) return false;
     this.dispatchEvent(new CustomEvent('sec', { detail: { id: this.sekmeler[j].id } }));
+    return true;
+  }
+
+  /** ◀ ▶ uçta devre dışı: ilk sekmedeyken ◀, son sekmedeyken ▶. */
+  okDurumu() {
+    const i = this.sekmeler.findIndex((s) => s.id === this.aktifId);
+    if (this.onceki) this.onceki.disabled = i <= 0;
+    if (this.sonraki) this.sonraki.disabled = i < 0 || i >= this.sekmeler.length - 1;
   }
 
   /** En son kullanılana göre bir sonraki (Ctrl+Tab'ın kısa basımı). */

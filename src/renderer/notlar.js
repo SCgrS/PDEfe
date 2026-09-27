@@ -4,7 +4,7 @@
 import { CSS_BIRIM, yolAnahtari } from './goruntuleyici.js';
 import { Komut } from './komutlar.js';
 import { secimDikdortgenleri, secimMetinKutulari, satirlaraBirlestir, secimBaslangicSayfasi } from './metin.js';
-import { turAdi, notTurAdi, tarihBicimle } from './panel.js';
+import { turAdi, balonTurAdi, tarihBicimle } from './panel.js';
 import {
   yaziKanonik, parcalariCiz, duzMetin, stilAl, stilKonumda, hepsindeMi, stilDegistir, metinDegistir, uzlastir, domdanOku, ofsetAl, secimAl, secimKoy,
   HIZA_CSS, sirala, sonBosluklariCizgisizYap, bicimAraligi,
@@ -839,7 +839,7 @@ export class NotYoneticisi extends EventTarget {
     b.innerHTML = `
       <div class="ust" style="--not-renk:${kacis(renk)}">
         <span class="renk"></span>
-        <span class="tur">${kacis(notTurAdi(n))}</span>
+        <span class="tur">${kacis(balonTurAdi(n))}</span>
         <span class="yazar">${kacis(n.yazar || '')}</span>
         <span class="esnek"></span>
         <span class="tarih">${kacis(tarihBicimle(n.degisim || n.olusturma))}</span>
@@ -1125,14 +1125,27 @@ export class NotYoneticisi extends EventTarget {
     const w = cubuk.offsetWidth, h = cubuk.offsetHeight;
     const sol = Math.max(0, gl - alanK.left), sag = Math.min(alanK.width, gr - alanK.left), ust = Math.max(0, gt - alanK.top), alt = Math.min(alanK.height, gb - alanK.top);
     let y = b - alanK.top + P;
-    if (y + h > alt - P) y = t - alanK.top - h - P;                     // altta yer yok → üstüne
+    // Altta yer var mı, ▾ ile açılan renk satırı sayılmadan karar verilir: satır açılınca çubuk seçimin altından üstüne atlamasın
+    const renkler = cubuk.classList.contains('renkler-acik') ? cubuk.querySelector('.secim-renkler') : null;
+    const hKapali = h - (renkler ? renkler.offsetHeight + 3 : 0);
+    const ustte = y + hKapali > alt - P;
+    if (ustte) y = t - alanK.top - h - P;                               // altta yer yok → üstüne (renk satırı yukarı açılır: 'ustte')
+    cubuk.classList.toggle('ustte', ustte);
     y = Math.max(ust + P, Math.min(alt - h - P, y));
     const x = Math.max(sol + P, Math.min(sag - w - P, (l + r) / 2 - alanK.left - w / 2));
     cubuk.style.left = x + 'px'; cubuk.style.top = y + 'px';
     return true;
   }
 
-  secimCubuguGizle() { cubukSahibi = null; this._cubukOnbellek = null; const c = this.cubuk(); if (c) c.hidden = true; }
+  secimCubuguGizle() {
+    cubukSahibi = null; this._cubukOnbellek = null;
+    const c = this.cubuk();
+    if (!c) return;
+    c.hidden = true;
+    // ▾ ile açılan renk satırı (uygulama.js secimCubuguYenile) çubuk bir sonraki seçimde kapalı açılsın
+    c.classList.remove('renkler-acik');
+    c.querySelector('.renk-ac')?.setAttribute('aria-expanded', 'false');
+  }
 
   // ------------------------------------------------------------ vurgu çubuğu
   /**

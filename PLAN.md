@@ -70,13 +70,17 @@ notlar_kaydet, freetext_stil, baglantilar, form_gorunum (+ araçlar).
 - **FreeText**: Base-14 Helvetica Türkçe glif içermediğinden Windows fontunun (Segoe UI/Arial/Times/Calibri, kalın
   dahil) GID koruyan alt kümesi belgeye bir kez gömülür; görünüm akışı PDEfe üretir; /RC, /DA, /DS ve /PDEfe stil kaydı yazılır.
 - **Kopyalama**: okuma sırasındaki seçim parçaları + metin katmanı geometrisi (girinti) → ardından çekirdekten (sözcük
-  merkezi kutuda) daha temiz sürüm alınıp pano güncellenir. Ayar: temiz / ham.
+  merkezi kutuda) daha temiz sürüm alınıp pano güncellenir. 0.1.12'den beri her zaman temiz (temiz / ham ayarı kullanıcı isteğiyle kalktı).
 - **Arama**: PDF.js metin öğelerinden dizin, `toLocaleLowerCase('tr')` ile İ/ı doğru; bozuk glif düzeltmesi dizine de uygulanır.
 - **Marka adı** (0.1.9, kullanıcı isteği: marka / telif kaygısı): başka PDF programlarının adı arayüzde, kodda, yorumlarda, testlerde,
   belgelerde ve sürüm notlarında geçmez. Ölçüm ve karşılaştırmada "referans okuyucu", kullanıcıya dönük metinde sonuç ("keskin",
   "başka PDF okuyucularında da görünür"). Commit öncesi `git grep -niE "ado[b]e|acroba[t]"` boş dönmeli.
-- **Ayarlar sekmeleri** (0.1.9): sekme adı içeriğini söyler. Görünüm, Sayfa düzeni, Belge açılışı, Notlar, Kaydetme, Kopyalama,
-  Güncelleme, Hakkında; yeni ayar içeriğine uyan sekmeye girer (ayarlarPenceresi.js BOLUMLER, ayarlar.js VARSAYILANLAR aynı sırada).
+- **Ayarlar sekmeleri** (0.1.9; 0.1.12'de kullanıcı isteğiyle birleşti): sekme adı içeriğini söyler. Görünüm, Açılış ve düzen (Belge
+  açılışı + Sayfa düzeni, iki alt başlık), Not ve vurgu, Kaydetme, Güncelleme, Hakkında; yeni ayar içeriğine uyan sekmeye girer
+  (ayarlarPenceresi.js BOLUMLER, ayarlar.js VARSAYILANLAR aynı sırada; eski kimlikler ESKI_BOLUMLER'le eşlenir).
+- **Kaydetmeden çıkış sorusu** (0.1.12, kullanıcı isteği): uygulamanın her yerinde tek biçim, mesajKutusu.js `kaydetmedenCikisSorusu(ad)`:
+  '"<ad>" belgesinde kaydedilmemiş değişiklikler var.' / 'Çıkmadan önce kaydetmek ister misiniz?' / Kaydet (Enter) | Kaydetme |
+  Vazgeç (Esc). Araçta Kaydet aracın kendi kaydını çalıştırır; yeni bir çıkış sorusu eklerken bunu kullanın.
 
 ## Durum (2026-09-17)
 - [x] Açma/sekme/görüntüleme, düzenler, zoom (görünür alana sığdır dahil), döndürme, sol panel, koyu tema (sayfayı koyulaştır, görselleri koru), son dosya ve kalınan sayfa, Ctrl+Tab seçici; keskin çizim (görsel, ince çizgi, taramada yüksek yakınlaştırma)
@@ -518,3 +522,56 @@ kalınlığı kapsam dışı (kullanıcı kararı: düz metin kalır).
   kaydında boş paragraf), senaryo15 5/5, araclar_testi 131/131. Test örneğinde kullanıcının TBK'sinin kopyasıyla s.15 ve s.15→16
   seçimleri: boş satır var.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 20.
+
+### Revizyon 0.1.12 (2026-09-27, kullanıcı isteği)
+Ayrıntı: CHANGELOG.md. Kullanıcı 18 istek bildirdi (beş ekran görüntüsüyle: araç çıktı satırı, not balonu, çıkış sorusu, sayfa kutusu,
+döndürme simgesi). Sekme adı soruldu: "Açılış ve düzen". Otomatik kaydetme kullanıcının kendi kurulumunda da kapansın dendi.
+- [x] **Pencere kapatma**: `kapatmayaIzinAl({ degismeyenleriKapat })` pencere kapatma isteğinde (pencere:kapatIstegi) önce açık araç
+  pencerelerini kapatır (ortak.js `aracPencereleriniKapat`: her pencerenin kapatmadanOnce'u kendi sorusunu sorar; biri açık kalırsa
+  kapatma durur), sonra süren kayıtları bekler; kaydedilmemiş değişikliği olan belge varsa değişikliği olmayan sekmeleri soru açılmadan
+  kapatır, sonra kalanları tek tek sorar. Vazgeç'te soru açık olan ve sonraki belgeler açık kalır (önceden sorulup "Kaydetme" denenler de:
+  uygulama kapanmadıkça değişiklik atılmaz). Güncelleme kurulumu aynı işlevi degismeyenleriKapat olmadan çağırır (araçlar yine sorulur).
+  Sekme sağ tık Diğerlerini / Sağdakileri kapat `sekmeleriKapat`: aynı sıra. Önceden araç penceresindeki kaydedilmemiş iş (Sayfaları
+  düzenle, dolu birleştirme listesi) pencere X'inde hiç sorulmuyordu.
+- [x] **Araç çıkış soruları**: Sayfaları düzenle (değişiklik) ve Görüntü / PDF birleştir (dolu liste; ad çıktı dosyasının adı) aynı
+  soruyu sorar; Kaydet aracın kaydet() / birlestir()'ini çalıştırır, başarılıysa araç pencereyi kendisi 'tamam' ile kapatır (iç içe
+  kapat: dış kapat false döner, pencere kapalıdır; aracPencereleriniKapat sonuca pencerenin kapali'sinden bakar). Süren işlem soruları
+  ("… sürüyor", İptal et ve kapat / Sürdür) değişmedi.
+- [x] **Araç çıktı satırı**: ciktiSecici kutuda uzantısız ad gösterir; ad() / yol() uzantıyla döner, ayarla() ikisini de alır, elle
+  yazılan uzantı odak çıkınca silinir. Klasör çipi `<button>`; tıklanınca `kabuk:klasorAc` (shell.openPath; test örneğinde Gezgin açılmaz,
+  test diyaloğu kaydına düşer). İpucu "Klasörü aç: <yol>", tam yol `data-klasor`'da (testler çıktı klasörünü oradan denetler).
+- [x] **Ayarlar**: "Zaten varsayılan": ana süreç `kabuk:varsayilanMi` reg.exe ile HKCU `…\FileExts\.pdf\UserChoiceLatest\ProgId`
+  (Windows 11'in yeni kaydı; varsa geçerli olan) ya da `UserChoice`'taki ProgId'yi okur, PDEfe.pdf ise varsayılan (bu makinede UserChoice
+  eski bir programı, UserChoiceLatest PDEfe.pdf'i gösteriyordu). Okunamazsa düğme görünür; pencere odağı dönünce yeniden bakılır.
+  Listeyi temizle (baglam.sonTemizle → dosya.sonTemizle: menü ve başlangıç ekranı da). Kopyalama bölümü, radyo kartları ve temizMetin
+  kalktı (KALDIRILAN_ANAHTARLAR). otomatikKaydet varsayılanı false; `otomatikKaydetKapatildi` bayrağıyla eski kurulumlarda bir kez false
+  (0.1.4'ün tersi yöndeki taşımasının bayrağı otomatikKaydetTasindi silinir). Otomatik kayıt zamanlayıcısı dolunca ayar yeniden okunur.
+- [x] **Araç çubuğu**: Ayarlar düğmesi (dişli, `duzen.ayarlar`) Paylaş'ın sağında; Paylaş kopyala simgeli. Sayfa kutusu
+  `--basamak` (sayfa sayısının basamağı; yalnızca değişince yazılır, araç çubuğunun MutationObserver'ı stil değişiminde yeniden sığdırır)
+  × 1ch + 18 px, en az 30 px, 24 px yükseklik; yakınlaştırma kutusu da 24 px. sikisik-3'te sayfa kutusu ayrıca daralmaz.
+- [x] **Döndürme simgesi**: kullanıcının örneği: alttan açık daire (yay 208°'den saat yönünde 125°'ye), yayın ucunda teğet yönünde dolu
+  üçgen ok ucu (20'lik kutuda r 6,2, stroke 1,5); saat yönü tersi aynası; 180° yarım yay + dolu uç; Döndür ve kaydet karosunda dolu uç.
+  Güncelleme ayar simgesi (yenile) değişmedi.
+- [x] **Seçim çubuğu**: tek vurgu düğmesi (alt çizgi `--r` = vurguRengi) + ▾ (`renkler-acik` sınıfı, alt satırda 6 renk; açılınca
+  secimCubuguKonumla yeniden yerleştirir) + not + kopyala. Renk seçimi vurgular ve vurguRengi olur. secimCubuguGizle renk satırını kapatır.
+- [x] **Sekme okları**: `kaydir` uçta durur (true/false döner), `okDurumu` uçtaki düğmeyi devre dışı bırakır; basılı tutma uca varınca
+  kendisi biter (devre dışı düğme mouseup almaz; bırakma pencerede de dinlenir).
+- [x] **Not balonu**: `balonTurAdi`: metin notunda "Not:"; Yorumlar panelinde "Metin notu" kaldı.
+- [x] Testler (her biri kendi temiz veri klasörlü, ekran dışı test örneğinde): test/senaryo17.mjs 42/42 (yeni; aynı örnekte üst üste de
+  geçer), senaryo13 60/60 (çıktı klasörü denetimi çipin data-klasor'undan; araç kapatma sorusunda Kaydetme), ortu_tiklama 155/155 (0.1.8'de
+  154/155), senaryo14 hepsi (sekmeler, eski kimlikler 'sayfa' / 'kopyalama' dahil), sekme_genislik 20/20 (uçta durma, tekerlek),
+  senaryo15 5/5, senaryo16 6/6, oto_kayit_kilit 7/7 (otomatik kaydı bellekte açar). vurgu_cubugu 11/12: "Kaldır vurguyu siler" 0.1.11
+  kodunda da (ayrı çalışma ağacında, aynı PDF'le) aynı biçimde düşüyor; bu sürümün değişikliği değil. senaryo7'nin sekme adı güncellendi.
+  Çekirdek değişmedi (araclar_testi, kopyalama_testi çalıştırılmadı).
+- [x] **İnceleme** (üç boyutlu bulucu + her bulguya bağımsız çürütme; 8 bulgu doğrulandı, hepsi düzeltildi): Küçült'ün 'kapandi'da
+  başlattığı sekme yenilemesi uygulama kapatılırken beklenmiyordu (iki soru üst üste açılabiliyordu) → Pencere 'kapandi' olayında
+  detail.bekle(söz), kapanisIsi; aracPencereleriniKapat bekler. Birleştir'de kapatma sorusundaki Kaydet dosyalar okunurken birleştirmeye
+  başlıyordu → birlestir() okuma bitmeden çalışmaz. reg.exe (ve Paylaş'ın powershell.exe'si, önceden de) çıplak adla çalıştırılıyordu:
+  süreç çalışma klasörü (çift tıklanan PDF'in klasörü) arama yolunda → System32 tam yolu. ▾ açılınca çubuk genişleyip yeniden
+  ortalanıyor, ▾ imlecin altından kayıp ikinci tık Not ekle'ye düşüyordu → renk satırı kapalıyken de genişlikte yer tutar (yükseklik 0,
+  görünmez), üstteyken ('ustte') satır yukarı açılır; üstte / altta kararı renk satırı sayılmadan. "x.pdf.pdf" seçilince uzantı iki kez
+  siliniyordu → kutuGovde bayrağı. Devre dışı Listeyi temizle soluk değildi; README'de "İstenirse ham kopyalama" kalmıştı;
+  test/oto_kayit_kilit.mjs varsayılanı açık bekliyordu (artık bellekte açar).
+- [ ] Önceden var olan, bu sürümde düzeltilmeyen: araç penceresine eklenen dosyalar (birleştirme listesi) çekirdeğin belge önbelleğinde
+  açık kalır; araç kapandıktan sonra da Gezgin'de silinemez (test/cikti/s17'de görüldü). Ayrı iş olarak önerildi.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 21.

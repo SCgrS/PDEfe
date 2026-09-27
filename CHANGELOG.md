@@ -3,6 +3,37 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.12 — 2026-09-27
+
+### Kapatma ve kaydetme soruları
+- Pencere kapatılırken (sağ üstteki ×) önce değişikliği olmayan sekmeler kapanır; yalnızca kaydedilmemiş değişikliği olan belgeler kalır ve onlar için sorulur. Vazgeç denirse o belgeler açık kalır. Önceden bütün sekmeler soru yanıtlanana dek açık duruyor, yanıttan sonra hepsi birden kapanıyordu. Sekmede sağ tıkla **Diğerlerini kapat** ve **Sağdakileri kapat** da aynı sırayla çalışır.
+- Kaydetmeden çıkma soruları uygulamanın her yerinde aynı: **"belge.pdf" belgesinde kaydedilmemiş değişiklikler var. Çıkmadan önce kaydetmek ister misiniz?** — **Kaydet**, **Kaydetme**, **Vazgeç**. Sekme ve pencere kapatmada, Sayfaları düzenle'de ve dolu listeyle Görüntü / PDF birleştir'de böyle sorulur. Araçta Kaydet, aracın kendi Kaydet / Birleştir düğmesiyle aynı işi yapar.
+- Bir araç penceresinde kaydedilmemiş iş varken (Sayfaları düzenle'de değişiklik, Görüntü / PDF birleştir'de dolu liste) PDEfe'nin kapatma düğmesine basılınca uygulama soru sormadan kapanıyordu. Artık önce aracın sorusu gelir; Vazgeç'te PDEfe açık kalır.
+
+### Araç çubuğu ve sekmeler
+- Paylaş düğmesinin yanında **Ayarlar** düğmesi (dişli) var. Paylaş düğmesinin simgesi kopyala simgesi oldu; işlevi aynı (belgeyi dosya olarak panoya kopyalar).
+- Sayfa numarası kutusu küçüldü: genişliği belgenin sayfa sayısının basamağına göre, daha alçak ve sade.
+- Döndürme simgeleri (araç çubuğu, Sayfaları düzenle, Görüntü / PDF birleştir, Döndür ve kaydet) yenilendi: altı açık bir daire ve dolu ok ucu. Artık yenile simgesine benzemiyor.
+- Sekme çubuğundaki ◀ ▶ düğmeleri ve fare tekerleği ilk ve son sekmede durur, başa dönmez; uçtaki düğme soluk görünür.
+
+### Seçim ve notlar
+- Metin seçince çıkan çubukta renkler yerine tek bir **Vurgula** düğmesi var: altındaki çizgi vurgu rengini gösterir, tek tıkla o renkle vurgular. Yanındaki ▾ renkleri açar; seçilen renkle vurgulanır ve o renk değiştirilene dek varsayılan olur.
+- Not balonunda "Metin notu" yerine yalnızca **Not:** yazar.
+
+### Araç pencereleri
+- Kaydedilecek dosyanın adı uzantısız görünür; ".pdf" kaydederken eklenir.
+- Adın yanındaki klasör (örneğin "Masaüstü") tıklanınca o klasör Gezgin'de açılır.
+
+### Ayarlar
+- Sayfa düzeni ve Belge açılışı sekmeleri **Açılış ve düzen** adıyla birleşti; Notlar sekmesinin adı **Not ve vurgu** oldu.
+- Varsayılan PDF görüntüleyici: PDEfe zaten varsayılansa düğme yerine yeşil tik ve **Zaten varsayılan** yazar. Windows ayarlarından PDEfe'ye dönünce yeniden bakılır.
+- **Son açılanları hatırla**'nın altında **Listeyi temizle** düğmesi var.
+- Kopyalama sekmesi kaldırıldı: kopyalama her zaman temiz metinle yapılır (paragraflar birleştirilir, bozuk Türkçe karakterler düzeltilir).
+- Otomatik kaydetme artık varsayılan olarak kapalı. Bu sürüme güncelleyince bir kez kapatılır; isteyen Ayarlar › Kaydetme'den açar.
+
+### Diğer
+- PDEfe'nin kullandığı Windows araçları (Paylaş'ta panoya kopyalama, varsayılan uygulama denetimi) Windows klasöründeki tam yoluyla çalıştırılır; açılan PDF'in klasöründeki aynı adlı bir dosya çalıştırılamaz.
+
 ## 0.1.11 — 2026-09-24
 
 ### Kopyalama

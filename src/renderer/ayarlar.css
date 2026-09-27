@@ -40,7 +40,9 @@
 .ayar-kart-alt { padding: 0 16px 12px; }
 .ayar-yanyana { display: flex; align-items: center; gap: 8px; }
 .ayar-kontrol button.ikincil { margin-top: 0; padding: 5px 14px; }
-.ayar-kontrol button.ikincil:disabled { opacity: 0.5; }
+/* Devre dışı ikincil düğmeler (kartın sağında ve alt satırında, ör. Listeyi temizle): soluk, üzerine gelince değişmez */
+.ayarlar-pencere button.ikincil:disabled { opacity: 0.5; }
+.ayarlar-pencere button.ikincil:disabled:hover { background: var(--arka-yukseltilmis); }
 
 /* Anahtar (toggle) */
 .ayar-anahtar { display: inline-flex; align-items: center; gap: 10px; cursor: default; user-select: none; }
@@ -84,11 +86,13 @@
 .ayar-sonuc-hata { color: #d13438; }
 html[data-tema="koyu"] .ayar-sonuc-hata { color: #ff8c8c; }
 
-/* Radyo kartları (Kopyalama) */
-.ayar-radyo-grubu { display: flex; flex-direction: column; gap: 4px; }
-.ayar-radyo-kart { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; cursor: default; }
-.ayar-radyo-kart input { margin: 3px 0 0; accent-color: var(--vurgu); }
-.ayar-radyo-kart.secili { border-color: var(--vurgu); }
+/* Varsayılan PDF görüntüleyici: PDEfe zaten varsayılansa düğme yerine yeşil tik (Windows 11 Ayarlar'daki başarı yeşili) */
+.ayar-zaten-varsayilan { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; color: #0f7b0f; }
+.ayar-zaten-varsayilan svg { width: 18px; height: 18px; flex-shrink: 0; }
+.ayar-zaten-varsayilan svg circle { fill: currentColor; }
+.ayar-zaten-varsayilan svg path { fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+html[data-tema="koyu"] .ayar-zaten-varsayilan { color: #6ccb5f; }
+html[data-tema="koyu"] .ayar-zaten-varsayilan svg path { stroke: #1c1c1c; }
 
 /* Hakkında */
 .ayar-hakkinda { display: flex; flex-direction: column; gap: 6px; padding: 8px 4px 18px; }

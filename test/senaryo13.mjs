@@ -245,9 +245,10 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
       const r = await evalJs(`(() => { const b = ${kart(i)}.getBoundingClientRect(); return [Math.round(b.left + b.width / 2), Math.round(b.top + 40)]; })()`);
       await tikla(r[0], r[1], { degistiriciler });
     };
-    const kayit = await evalJs(`(() => { const s = document.querySelector('.sayfalar-kayit'); return { kip: s.querySelector('.arac-kayit-secim .secili')?.dataset.id, ad: s.querySelector('.arac-cikti-ad')?.value, klasor: s.querySelector('.arac-klasor-cip')?.title, dugme: document.querySelector('.arac-dugmeler [data-id="kaydet"]')?.textContent, devre: document.querySelector('.arac-dugmeler [data-id="kaydet"]')?.disabled }; })()`);
-    sonuc('varsayılan: Yeni belge, "<ad> (düzenlenmiş).pdf", çıktı klasörü, Kaydet (değişiklik yokken pasif)',
-      kayit.kip === 'yeni' && kayit.ad === 'zengin_a (düzenlenmiş).pdf' && kayit.klasor === CIKTI && kayit.dugme === 'Kaydet' && kayit.devre === true, kayit);
+    const kayit = await evalJs(`(() => { const s = document.querySelector('.sayfalar-kayit'); return { kip: s.querySelector('.arac-kayit-secim .secili')?.dataset.id, ad: s.querySelector('.arac-cikti-ad')?.value, klasor: s.querySelector('.arac-klasor-cip')?.dataset.klasor, dugme: document.querySelector('.arac-dugmeler [data-id="kaydet"]')?.textContent, devre: document.querySelector('.arac-dugmeler [data-id="kaydet"]')?.disabled }; })()`);
+    // 0.1.12: ad kutusunda uzantı görünmez; kaydederken .pdf eklenir (hedef aşağıda "zengin_a (düzenlenmiş).pdf")
+    sonuc('varsayılan: Yeni belge, "<ad> (düzenlenmiş)" (uzantısız), çıktı klasörü, Kaydet (değişiklik yokken pasif)',
+      kayit.kip === 'yeni' && kayit.ad === 'zengin_a (düzenlenmiş)' && kayit.klasor === CIKTI && kayit.dugme === 'Kaydet' && kayit.devre === true, kayit);
     await ss('04-sayfalar-yeni-belge-koyu');
     // 4. sayfayı sil, 3. sayfayı saat yönünde döndür (1-3 ardışık kalır: 1. sayfadaki 3. sayfaya iç bağlantı korunur; insert_pdf
     // kopyalanan aralığın dışını gösteren iç bağlantıyı atar, yapısal kayıttaki gibi)
@@ -255,7 +256,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     await kartTikla(2); await tus('r');
     await tema('acik'); await ss('04-sayfalar-yeni-belge-acik'); await tema('koyu');
     const hedef = path.join(CIKTI, 'zengin_a (düzenlenmiş).pdf');
-    if (!(await evalJs(`document.querySelector('.sayfalar-kayit .arac-klasor-cip').title === ${J(CIKTI)}`))) throw new Error('çıktı klasörü test klasörü değil; Masaüstüne yazılmasın');
+    if (!(await evalJs(`document.querySelector('.sayfalar-kayit .arac-klasor-cip').dataset.klasor === ${J(CIKTI)}`))) throw new Error('çıktı klasörü test klasörü değil; Masaüstüne yazılmasın');
     await evalJs(`document.querySelector('.arac-dugmeler [data-id="kaydet"]').click()`);
     await kosul(`!document.querySelector('.sayfalar-pencere') && window.__pdefe.belgeler.size === 2`, 15000);
     await bekle(800);
@@ -346,7 +347,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     const durum = await evalJs(`({ pencere: !!document.querySelector('.sayfalar-pencere'), sayfa: window.__pdefe.aktif().gorunum.sayfaSayisi, rot: window.__pdefe.aktif().gorunum.sayfalar[0].dondurme })`);
     sonuc('başka değişiklik varken sorulur (2 düğme); Vazgeç sekmeye dokunmaz', sorular2.length === 1 && sorular2[0].secenek.dugmeler.length === 2 && durum.pencere && durum.rot === 0,
       { soru: sorular2.map((s) => [s.secenek?.ayrinti, s.secenek?.dugmeler]), durum });
-    await diyalogYanitla([{ secim: 0 }]);   // Kapat (kaydedilmemiş düzen)
+    await diyalogYanitla([{ secim: 1 }]);   // Kaydetme (kaydedilmemiş düzen atılır; 0.1.12: Kaydet | Kaydetme | Vazgeç)
     await pencereKapat();
     const kapatSoru = await diyalogKaydi();
     sonuc('pencereyi kapatırken kaydedilmemiş düzen sorulur', kapatSoru.length === 1 && /kaydedilmemiş değişiklikler/.test(kapatSoru[0].secenek.mesaj), kapatSoru.map((s) => s.secenek?.mesaj));
@@ -494,7 +495,7 @@ print(json.dumps(y))`);
     await kosul(`!document.querySelector('.birlestir-kalite-secim .boyut.bekliyor') && [...document.querySelectorAll('.birlestir-oge .tahmin')].every((t) => /tahmin: \\d/.test(t.textContent))`, 20000);
     await ss('07-gorsel-orijinal-koyu');
     await tema('acik'); await ss('07-gorsel-orijinal-acik'); await tema('koyu');
-    if (!(await evalJs(`document.querySelector('.birlestir-pencere .arac-klasor-cip').title === ${J(CIKTI)}`))) throw new Error('çıktı klasörü test klasörü değil');
+    if (!(await evalJs(`document.querySelector('.birlestir-pencere .arac-klasor-cip').dataset.klasor === ${J(CIKTI)}`))) throw new Error('çıktı klasörü test klasörü değil');
     await evalJs(`document.querySelector('.arac-dugmeler [data-id="birlestir"]').click()`);
     const hedef = path.join(CIKTI, 'birlesik.pdf');
     await kosul(`!document.querySelector('.birlestir-pencere')`, 20000);

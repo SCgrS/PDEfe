@@ -4,16 +4,16 @@ import { SekmeCubugu } from './sekmeler.js';
 import { SolPanel } from './panel.js';
 import { DurumCubugu, boyutMetni, sayfaKutusuBagla, sayfaKutusuYaz } from './durum.js';
 import { Arama } from './arama.js';
-import { temizMetin, hamMetin, sayfaMetinleriniBirlestir, secimDikdortgenleri, satirlaraBirlestir, paragrafSec, secimHamMetni, secimYapiliMetni, surukleSecimiBagla } from './metin.js';
+import { temizMetin, sayfaMetinleriniBirlestir, secimDikdortgenleri, satirlaraBirlestir, paragrafSec, secimHamMetni, secimYapiliMetni, surukleSecimiBagla } from './metin.js';
 import { NotYoneticisi, VURGU_RENKLERI } from './notlar.js';
 import { KomutYigini, Komut } from './komutlar.js';
 import { ayarlarPenceresiAc, ayarlarPenceresiKapat } from './ayarlarPenceresi.js';
-import { aracKomutlari } from './araclar/index.js';
+import { aracKomutlari, aracPencereleriniKapat } from './araclar/index.js';
 import { AraclarPenceresi } from './aracPenceresi.js';
 import { guncellemeSeridiKur } from './guncelleme.js';
 import { yazdir } from './yazdir.js';
 import { ortuTiklamasiBagla } from './ortu.js';
-import { mesajKutusu as mesajKutusuAc, mesajKutusuAcik, mesajKutusuUyar } from './mesajKutusu.js';
+import { mesajKutusu as mesajKutusuAc, mesajKutusuAcik, mesajKutusuUyar, kaydetmedenCikisSorusu } from './mesajKutusu.js';
 import { BaslangicEkrani } from './baslangic.js';
 
 const $ = (s) => document.querySelector(s);
@@ -97,7 +97,7 @@ function ayarUygula(anahtar, deger) {
     // Kapatılınca kayıt silinir; açıkken yeni açılan belgeler yeniden eklenir (bkz. sonDosyalaraEkle, konumlariYaz)
     case 'sonAcilanlariHatirla': if (deger) sonDosyalariListele(); else komutCalistir('dosya.sonTemizle'); break;
     case 'kaldigimSayfadanAc': if (!deger) { clearTimeout(_konumZaman); ayarKoy('sayfaKonumlari', {}); } break;
-    default: break;   // yazarAdi, yazı tipi, temizMetin vb. ayar nesnesinden okunur; anında etkili
+    default: break;   // yazarAdi, yazı tipi vb. ayar nesnesinden okunur; anında etkili
   }
 }
 
@@ -192,7 +192,7 @@ function belgeDurumuYaz(b) {
   if (b) { sayfaGoster(b); zoomGoster(b); }
   else {
     durum.sayfa(0, 0); durum.zoomYaz(1);
-    sayfaKutusuYaz($('#sayfa-kutusu'), ''); $('#sayfa-toplam').textContent = '/ 0';
+    sayfaKutusuYaz($('#sayfa-kutusu'), ''); sayfaKutusuGenislik(0); $('#sayfa-toplam').textContent = '/ 0';
     zoomKutusuYaz(1);
   }
   durum.boyutYaz(b ? b.boyut : null); durum.degisiklikYaz(!!b?.degisti);
@@ -208,7 +208,8 @@ function kirliGuncelle(b) {
   $('#arac-cubugu [data-komut="dosya.kaydet"]').disabled = !aktif()?.degisti;
   // Yazı düzenlenirken otomatik kayıt beklenir (kayıt düzenlemeyi uygulayıp kutuyu yazarken kapatırdı); düzenleme bitince not
   // değişikliği kirliGuncelle'yi yeniden çağırır. Otomatik kayıt başarısız olduysa (dosya başka programda açık) elle kaydedilene dek durur
-  if (ayar.otomatikKaydet && b.degisti && !b._otoKayitDurdu) { clearTimeout(b._otoKayit); b._otoKayit = setTimeout(() => { if (b.degisti && belgeler.has(b.id) && !b.notlar?.duzenleyici) belgeKaydet(b, false, true); }, 1500); }
+  // (Zamanlayıcı dolunca ayar yeniden okunur: arada Ayarlar'dan kapatılmış olabilir)
+  if (ayar.otomatikKaydet && b.degisti && !b._otoKayitDurdu) { clearTimeout(b._otoKayit); b._otoKayit = setTimeout(() => { if (ayar.otomatikKaydet && b.degisti && belgeler.has(b.id) && !b.notlar?.duzenleyici) belgeKaydet(b, false, true); }, 1500); }
 }
 
 /** Kaydırmasız (tek/iki) düzende sayfa çevrilince artık gösterilmeyen sayfadaki not bırakılır: açık yazı düzenleyicisi kaydedilip
@@ -244,7 +245,7 @@ async function belgeKapat(id, secenek = {}) {
   await kayitBitmesiniBekle(b);
   if (!belgeler.has(id)) return true;   // beklerken başka yoldan kapatılmış
   if (b.degisti && !secenek.zorla) {
-    const { secim } = await mesajKutusu({ mesaj: `"${b.ad}" belgesinde kaydedilmemiş değişiklikler var.`, ayrinti: 'Kapatmadan önce kaydetmek ister misiniz?', dugmeler: ['Kaydet', 'Kaydetme', 'Vazgeç'], varsayilan: 0, iptal: 2 });
+    const { secim } = await mesajKutusu(kaydetmedenCikisSorusu(b.ad));
     if (secim === 2) { if (belgeler.has(id)) kirliGuncelle(b); return false; }   // kapatılmadı: otomatik kayıt zamanlayıcısı yeniden kurulsun
     if (secim === 0 && !(await kapatirkenKaydet(b))) return false;
     await kayitBitmesiniBekle(b);   // soru açıkken başlamış olabilecek (otomatik) kayıt
@@ -267,6 +268,17 @@ async function belgeKapat(id, secenek = {}) {
     else { baslangicGoster(); }
   }
   return true;
+}
+
+/** Birden çok sekmeyi kapatır (sekmede sağ tık: Diğerlerini / Sağdakileri kapat), pencere kapatmadaki sırayla: önce değişikliği
+ *  olmayanlar, sonra kaydedilmemiş değişikliği olanlar tek tek sorularak. Vazgeç (ya da başarısız kayıt) kalanları açık bırakır. */
+async function sekmeleriKapat(idler) {
+  const liste = idler.map((id) => belgeler.get(id)).filter(Boolean);
+  for (const b of liste) b.notlar?.duzenleyiciBitir(true);
+  for (const b of liste) if (belgeler.has(b.id)) await kayitBitmesiniBekle(b);   // süren kayıt bitince degisti kesinleşir
+  for (const b of liste) if (belgeler.has(b.id) && !b.degisti) await belgeKapat(b.id);
+  for (const b of liste) if (belgeler.has(b.id) && !(await belgeKapat(b.id))) break;
+  for (const b of liste) if (belgeler.has(b.id) && b.degisti) kirliGuncelle(b);   // bekleme iptal ettiği otomatik kayıtlar yeniden kurulsun
 }
 
 function baslangicGoster() {
@@ -430,8 +442,16 @@ function sayfaGoster(b) {
   const g = b.gorunum;
   durum.sayfa(g.gecerli, g.sayfaSayisi);
   sayfaKutusuYaz($('#sayfa-kutusu'), String(g.gecerli));
+  sayfaKutusuGenislik(g.sayfaSayisi);
   $('#sayfa-toplam').textContent = '/ ' + g.sayfaSayisi;
   panel.gecerliSayfaIsaretle(g.gecerli);
+}
+
+/** Araç çubuğundaki sayfa kutusu sayfa sayısının basamağı kadar geniştir (stil.css --basamak). Yalnızca değişince yazılır: kutunun stil
+ *  değişikliği araç çubuğunu yeniden sığdırır (aracCubuguSigdir'in MutationObserver'ı). */
+function sayfaKutusuGenislik(toplam) {
+  const k = $('#sayfa-kutusu'), n = String(Math.max(1, String(toplam || 0).length));
+  if (k.dataset.basamak !== n) { k.dataset.basamak = n; k.style.setProperty('--basamak', n); }
 }
 
 function zoomGoster(b) {
@@ -447,7 +467,7 @@ let _zoomZaman = null;
 function zoomKaydetGecikmeli() { clearTimeout(_zoomZaman); _zoomZaman = setTimeout(() => ayarKoy('sonZoom', ayar.sonZoom), 800); }
 
 // ---------------------------------------------------------------- son dosyalar, oturum, sayfa konumu
-// "Son açılanları hatırla" ve "Her belgeyi kaldığım sayfadan aç" kapalıyken bu kayıtlar hiç yazılmaz (Ayarlar › Belge açılışı).
+// "Son açılanları hatırla" ve "Her belgeyi kaldığım sayfadan aç" kapalıyken bu kayıtlar hiç yazılmaz (Ayarlar › Açılış ve düzen).
 function sonDosyalaraEkle(yol) {
   if (ayar.sonAcilanlariHatirla === false) return;
   const liste = [yol, ...(ayar.sonDosyalar || []).filter((y) => !yolAyni(y, yol))].slice(0, 15);
@@ -597,8 +617,8 @@ const komutlar = {
   'duzen.bul': (metin) => { if (aktif()) arama.ac(typeof metin === 'string' ? metin : (secimHamMetni().trim().split('\n')[0] || '')); },
   'duzen.bulSonraki': () => arama.git(1), 'duzen.bulOnceki': () => arama.git(-1),
   'duzen.sayfayaGit': () => { const k = $('#sayfa-kutusu'); k.focus(); k.select(); },
-  // bolum: açılacak sekme (ör. başlangıç ekranındaki "Ayarlar › Belge açılışı" bağlantısı); menüden ve araç çubuğundan gelmez
-  'duzen.ayarlar': (bolum) => ayarlarPenceresiAc({ ayar: () => ayar, ayarKoy, uygula: ayarUygula, pdefe, varsayilanlar, cekirdek, guncelleme }, typeof bolum === 'string' ? { bolum } : {}),
+  // bolum: açılacak sekme (ör. başlangıç ekranındaki "Ayarlar › Açılış ve düzen" bağlantısı); menüden ve araç çubuğundan gelmez
+  'duzen.ayarlar': (bolum) => ayarlarPenceresiAc(ayarlarBaglami(), typeof bolum === 'string' ? { bolum } : {}),
   'gorunum.yakinlastir': () => aktif()?.gorunum.yakinlastir(1),
   'gorunum.uzaklastir': () => aktif()?.gorunum.yakinlastir(-1),
   'gorunum.zoom': (mod) => { const b = aktif(); if (!b) return; if (mod === 'gercek') b.gorunum.zoomAyarla(1, null, 'serbest'); else b.gorunum.zoomModuAyarla(mod); },
@@ -620,8 +640,13 @@ const komutlar = {
   'arac.gorselBirlestir': () => bildir('Görüntü/PDF birleştirme aracı sonraki aşamada.'),
   'arac.dondurKaydet': () => bildir('Döndür ve kaydet sonraki aşamada.'),
   'yardim.kisayollar': () => kisayollarGoster(),
-  'yardim.hakkinda': () => ayarlarPenceresiAc({ ayar: () => ayar, ayarKoy, uygula: ayarUygula, pdefe, varsayilanlar, cekirdek, guncelleme }, { bolum: 'hakkinda' }),
+  'yardim.hakkinda': () => ayarlarPenceresiAc(ayarlarBaglami(), { bolum: 'hakkinda' }),
 };
+
+/** Ayarlar penceresinin bağlamı (ayarlarPenceresi.js). sonTemizle: Açılış ve düzen › Listeyi temizle (menü ve başlangıç ekranı da güncellenir). */
+function ayarlarBaglami() {
+  return { ayar: () => ayar, ayarKoy, uygula: ayarUygula, pdefe, varsayilanlar, cekirdek, guncelleme, sonTemizle: () => komutCalistir('dosya.sonTemizle') };
+}
 
 // Araç pencereleri (küçült, sayfaları düzenle, döndür ve kaydet, ayır, görüntü/PDF birleştir)
 try {
@@ -672,25 +697,31 @@ const baslangic = new BaslangicEkrani({
 pdefe.dinle('menu:komut', (id, veri) => { if (mesajKutusuAcik()) { mesajKutusuUyar(); return; } araclarPenceresi.kapat(); komutCalistir(id, veri); });
 pdefe.dinle('dosya:ac', async (yollar) => { for (const y of yollar) await dosyaAc(y); });
 pdefe.dinle('pencere:tamEkran', (acik) => document.body.classList.toggle('tam-ekran', acik));
-pdefe.dinle('pencere:kapatIstegi', async () => { if (mesajKutusuAcik()) { mesajKutusuUyar(); return; } if (await kapatmayaIzinAl()) await pdefe.cagir('pencere:kapatOnayla'); });
+pdefe.dinle('pencere:kapatIstegi', async () => { if (mesajKutusuAcik()) { mesajKutusuUyar(); return; } if (await kapatmayaIzinAl({ degismeyenleriKapat: true })) await pdefe.cagir('pencere:kapatOnayla'); });
 
 let _kapatmaIzni = null;
-/** Uygulama kapanmadan önce (pencere kapatma, güncelleme kurulumu): süren kayıtları bekler, kaydedilmemiş her belge için
- *  Kaydet / Kaydetme / Vazgeç sorar, sonunda sayfa konumlarını yazar. Vazgeç ya da başarısız kayıtta false döner.
- *  Sürerken gelen ikinci istek (ör. ikinci kapatma isteği) aynı sonucu bekler; sorular iki kez açılmaz. */
-function kapatmayaIzinAl() {
+/** Uygulama kapanmadan önce (pencere kapatma, güncelleme kurulumu): açık araç penceresi varsa önce onun sorusu (kaydedilmemiş iş,
+ *  süren işlem), sonra süren kayıtları bekler, kaydedilmemiş her belge için Kaydet / Kaydetme / Vazgeç sorar, sonunda sayfa konumlarını
+ *  yazar. Vazgeç ya da başarısız kayıtta false döner. degismeyenleriKapat (pencere kapatma; 0.1.12, kullanıcı isteği): kaydedilmemiş
+ *  değişikliği olan belge varsa sorulardan önce değişikliği olmayan sekmeler kapatılır, yalnızca sorulacaklar kalır (Vazgeç'te onlar
+ *  açık kalır). Sürerken gelen ikinci istek (ör. ikinci kapatma isteği) aynı sonucu bekler; sorular iki kez açılmaz. */
+function kapatmayaIzinAl({ degismeyenleriKapat = false } = {}) {
   if (!_kapatmaIzni) _kapatmaIzni = (async () => {
+    // Araç penceresi belgenin önünde açıktır ve belgeye bağlıdır (Sayfaları düzenle kaydederken sekmeye yazabilir): önce o
+    if (!(await aracPencereleriniKapat())) return false;
     for (const b of belgeler.values()) b.notlar?.duzenleyiciBitir(true);   // açık yazı düzenlemesi kaydetme sorusunda sayılsın
+    const vazgecildi = () => { for (const x of belgeler.values()) if (x.degisti) kirliGuncelle(x); return false; };   // kapanmıyor: iptal edilen otomatik kayıtlar yeniden kurulsun
+    for (const b of [...belgeler.values()]) if (belgeler.has(b.id)) await kayitBitmesiniBekle(b);
+    if (degismeyenleriKapat && [...belgeler.values()].some((b) => b.degisti)) {
+      for (const b of [...belgeler.values()]) if (belgeler.has(b.id) && !b.degisti) await belgeKapat(b.id);
+    }
     for (const b of [...belgeler.values()]) {
       if (!belgeler.has(b.id)) continue;
       await kayitBitmesiniBekle(b);
       if (!b.degisti) continue;
       sekmeSec(b.id);   // hangi belge için sorulduğu görünsün
-      const { secim } = await mesajKutusu({ mesaj: `"${b.ad}" belgesinde kaydedilmemiş değişiklikler var.`, ayrinti: 'Çıkmadan önce kaydetmek ister misiniz?', dugmeler: ['Kaydet', 'Kaydetme', 'Vazgeç'], varsayilan: 0, iptal: 2 });
-      if (secim === 2 || (secim === 0 && !(await kapatirkenKaydet(b)))) {
-        for (const x of belgeler.values()) if (x.degisti) kirliGuncelle(x);   // kapanmıyor: iptal edilen otomatik kayıtlar yeniden kurulsun
-        return false;
-      }
+      const { secim } = await mesajKutusu(kaydetmedenCikisSorusu(b.ad));
+      if (secim === 2 || (secim === 0 && !(await kapatirkenKaydet(b)))) return vazgecildi();
     }
     // Sorular açıkken başlamış olabilecek kayıtlar da bitsin: kapanışta çekirdek durdurulur, yazma yarıda kalmasın
     for (const b of [...belgeler.values()]) await kayitBitmesiniBekle(b);
@@ -730,15 +761,34 @@ document.querySelectorAll('#not-araclari [data-arac]').forEach((el) => {
     if (secim) { ayarKoy('vurguRengi', secim); secimCubuguYenile(); }
   });
 });
-// Seçim mini çubuğu: renk örnekleri + not
+// Seçim mini çubuğu (0.1.12, kullanıcı isteği): tek vurgu düğmesi (altındaki çizgi varsayılan renk) + ▾ renkler + not + kopyala.
+// Renkler ▾ ile açılır (çubuğun altında bir satır); seçilen renkle vurgulanır ve o renk değiştirilene dek varsayılan olur (vurguRengi).
+// Açık renk satırı çubuk gizlenince kapanır (notlar.js secimCubuguGizle 'renkler-acik' sınıfını kaldırır). Düğmeler mousedown'da
+// çalışır ve varsayılanı engeller: metin seçimi ve odak yerinde kalır.
+const VURGU_SVG = '<svg viewBox="0 0 20 20"><path d="m5 13 8-8 2 2-8 8H5z" fill="none" stroke="currentColor" stroke-width="1.4"/><path class="renk-cizgi" d="M3 17h14" stroke-width="2.4"/></svg>';
 function secimCubuguYenile() {
   const c = $('#secim-cubugu');
-  c.innerHTML = VURGU_RENKLERI.map((r) => `<button class="renk ${r.hex === ayar.vurguRengi ? 'secili' : ''}" data-renk="${r.hex}" title="${r.ad} vurgu" style="--r:${r.hex}"></button>`).join('') +
+  const renk = ayar.vurguRengi || VURGU_RENKLERI[0].hex;
+  const renkAdi = VURGU_RENKLERI.find((r) => r.hex === renk)?.ad || 'varsayılan renk';
+  c.classList.remove('renkler-acik');
+  c.innerHTML = '<div class="secim-ana">' +
+    `<button class="ikon kucuk vurgu-dugme" data-islem="vurgu" title="Vurgula (${renkAdi})" style="--r:${renk}">${VURGU_SVG}</button>` +
+    '<button class="ikon kucuk renk-ac" data-islem="renkler" title="Vurgu rengini seç" aria-expanded="false"><svg viewBox="0 0 20 20"><path d="m6 8 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>' +
     '<span class="ayrac"></span><button class="ikon kucuk" data-islem="not" title="Not ekle"><svg viewBox="0 0 20 20"><path d="M3 4.5A1.5 1.5 0 0 1 4.5 3h11A1.5 1.5 0 0 1 17 4.5v8a1.5 1.5 0 0 1-1.5 1.5H9l-4 3v-3H4.5A1.5 1.5 0 0 1 3 12.5z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></button>' +
-    '<button class="ikon kucuk" data-islem="kopyala" title="Kopyala"><svg viewBox="0 0 20 20"><rect x="7" y="7" width="9" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M13 7V4.5A1.5 1.5 0 0 0 11.5 3h-6A1.5 1.5 0 0 0 4 4.5v8A1.5 1.5 0 0 0 5.5 14H7" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></button>';
-  c.querySelectorAll('.renk').forEach((btn) => btn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); const b = aktif(); if (!b) return; ayarKoy('vurguRengi', btn.dataset.renk); b.notlar.vurguUygula(btn.dataset.renk); secimCubuguYenile(); }));
-  c.querySelector('[data-islem="not"]').addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); aktif()?.notlar.secimeNotKoy(); });
-  c.querySelector('[data-islem="kopyala"]').addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); document.execCommand('copy'); aktif()?.notlar.secimCubuguGizle(); });
+    '<button class="ikon kucuk" data-islem="kopyala" title="Kopyala"><svg viewBox="0 0 20 20"><rect x="7" y="7" width="9" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M13 7V4.5A1.5 1.5 0 0 0 11.5 3h-6A1.5 1.5 0 0 0 4 4.5v8A1.5 1.5 0 0 0 5.5 14H7" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></button>' +
+    '</div><div class="secim-renkler" role="radiogroup" aria-label="Vurgu rengi">' +
+    VURGU_RENKLERI.map((r) => `<button class="renk ${r.hex === renk ? 'secili' : ''}" data-renk="${r.hex}" title="${r.ad}" role="radio" aria-checked="${r.hex === renk}" style="--r:${r.hex}"></button>`).join('') +
+    '</div>';
+  const bas = (sec, f) => c.querySelectorAll(sec).forEach((btn) => btn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); if (e.button === 0) f(btn); }));
+  bas('[data-islem="vurgu"]', () => aktif()?.notlar.vurguUygula(renk));
+  bas('[data-islem="renkler"]', (btn) => {
+    const acik = c.classList.toggle('renkler-acik');
+    btn.setAttribute('aria-expanded', String(acik));
+    aktif()?.notlar.secimCubuguKonumla();   // çubuk büyüdü / küçüldü: görünür alanda kalsın
+  });
+  bas('.renk', (btn) => { const b = aktif(); if (!b) return; ayarKoy('vurguRengi', btn.dataset.renk); b.notlar.vurguUygula(btn.dataset.renk); secimCubuguYenile(); });
+  bas('[data-islem="not"]', () => aktif()?.notlar.secimeNotKoy());
+  bas('[data-islem="kopyala"]', () => { document.execCommand('copy'); aktif()?.notlar.secimCubuguGizle(); });
 }
 secimCubuguYenile();
 
@@ -803,8 +853,8 @@ sekmeler.addEventListener('sagTik', async (e) => {
     { ayirici: true }, { id: 'klasor', etiket: 'Klasörde göster' }, { id: 'yol', etiket: 'Yolu kopyala' },
   ]);
   if (secim === 'kapat') belgeKapat(id);
-  else if (secim === 'digerleri') for (const s of [...sekmeler.sekmeler]) { if (s.id !== id && !(await belgeKapat(s.id))) break; }
-  else if (secim === 'sagdakiler') { const i = sekmeler.sekmeler.findIndex((s) => s.id === id); for (const s of [...sekmeler.sekmeler].slice(i + 1)) { if (!(await belgeKapat(s.id))) break; } }
+  else if (secim === 'digerleri') await sekmeleriKapat(sekmeler.sekmeler.filter((s) => s.id !== id).map((s) => s.id));
+  else if (secim === 'sagdakiler') { const i = sekmeler.sekmeler.findIndex((s) => s.id === id); await sekmeleriKapat(sekmeler.sekmeler.slice(i + 1).map((s) => s.id)); }
   else if (secim === 'klasor') pdefe.cagir('kabuk:klasordeGoster', b.yol);
   else if (secim === 'yol') { await pdefe.cagir('pano:metin', b.yol); bildir('Yol panoya kopyalandı'); }
 });
@@ -937,10 +987,9 @@ document.addEventListener('copy', (e) => {
   const katman = (sec.anchorNode.nodeType === 1 ? sec.anchorNode : sec.anchorNode.parentElement)?.closest('.textLayer');
   if (!katman) return;
   e.preventDefault();
-  const ham = ayar.temizMetin === false ? secimHamMetni() : (secimYapiliMetni() || secimHamMetni());
-  const metin = ayar.temizMetin === false ? hamMetin(ham) : temizMetin(ham);
+  // Kopyalama her zaman temiz metin (0.1.12: Kopyalama ayarı, "Düzeni koru (ham)" seçeneğiyle birlikte kalktı)
+  const metin = temizMetin(secimYapiliMetni() || secimHamMetni());
   e.clipboardData.setData('text/plain', metin);
-  if (ayar.temizMetin === false) return;
   // Çekirdekten (PyMuPDF) daha temiz bir sürüm iste; hazır olunca panoyu güncelle
   const b = aktif();
   if (!b) return;

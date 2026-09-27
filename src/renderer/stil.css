@@ -86,7 +86,6 @@ button.ikon.metinli[aria-expanded="true"] { background: var(--basili); }
 #arac-cubugu.sikisik-2 button.ikon.metinli .etiket, #arac-cubugu.sikisik-2 button.ikon.metinli svg.ok { display: none; }
 #arac-cubugu.sikisik-3 button.ikon, #arac-cubugu.sikisik-3 button.ikon.metinli { width: 28px; }
 #arac-cubugu.sikisik-3 button.ikon.acilir { width: 18px; }
-#arac-cubugu.sikisik-3 .kutu { width: 44px; }
 #arac-cubugu.sikisik-3 #zoom-kutusu { width: 54px; }
 #arac-cubugu.sikisik-4 [data-komut="arac.paylas"] { display: none; }
 /* Tema düğmesi şu anki temayı gösterir: açık temada güneş, koyu temada ay */
@@ -98,7 +97,15 @@ html[data-tema="koyu"] #dugme-tema .ay { display: block; }
   background: var(--arka-yukseltilmis); text-align: center; padding: 0 4px; outline: none;
 }
 .kutu:focus { border-color: var(--vurgu); }
-#zoom-kutusu { width: 62px; }
+#zoom-kutusu { width: 62px; height: 24px; }
+/* Sayfa numarası kutusu (0.1.12, kullanıcı isteği: büyük görünüyordu): genişlik sayfa sayısının basamağına göre (uygulama.js sayfaGoster
+   --basamak), alçak, ince çerçeve; "/ N" hemen yanında. Dar pencerede ayrıca daralmaz */
+#sayfa-kutusu {
+  width: calc(var(--basamak, 1) * 1ch + 18px); min-width: 30px; height: 24px; padding: 0 3px; border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+#sayfa-kutusu:hover:not(:focus) { border-color: color-mix(in srgb, var(--kenar) 55%, var(--metin) 30%); }
+#sayfa-toplam { margin: 0 2px 0 1px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* ---------- Güncelleme şeridi ---------- */
 #guncelleme-seridi {
@@ -585,6 +592,25 @@ button.ikon.kucuk svg { width: 16px; height: 16px; }
 #secim-cubugu .renk:hover, .not-cubugu .renk:hover:not(:disabled) { transform: scale(1.12); }
 #secim-cubugu .renk.secili, .not-cubugu .renk.secili { border-color: var(--metin); }
 #secim-cubugu .ayrac, .not-cubugu .ayrac { height: 16px; }
+/* Seçim çubuğu (0.1.12): üst satırda tek vurgu düğmesi (altındaki çizgi varsayılan renk) + ▾, not, kopyala; renkler ▾ ile alt satırda */
+#secim-cubugu { flex-direction: column; align-items: stretch; gap: 0; padding: 3px 4px; }
+#secim-cubugu .secim-ana { display: flex; align-items: center; justify-content: center; gap: 1px; }
+#secim-cubugu .vurgu-dugme svg { width: 18px; height: 18px; }
+#secim-cubugu .vurgu-dugme .renk-cizgi { stroke: var(--r); }
+#secim-cubugu button.renk-ac { width: 18px; }
+#secim-cubugu button.renk-ac svg { width: 14px; height: 14px; transition: transform .12s; }
+#secim-cubugu.renkler-acik button.renk-ac { background: var(--basili); }
+#secim-cubugu.renkler-acik button.renk-ac svg { transform: rotate(180deg); }
+/* Renk satırı kapalıyken de genişlikte yer tutar (yüksekliği 0, görünmez): ▾ açılınca çubuk genişleyip yeniden ortalanmasın, ▾ imlecin
+   altından kaymasın (aynı yere ikinci tık Not ekle'ye düşüyordu). Çubuk seçimin üstündeyse (notlar.js 'ustte') satır yukarı açılır, ana
+   satır yerinde kalır */
+#secim-cubugu .secim-renkler {
+  display: flex; justify-content: center; gap: 5px; height: 0; margin: 0; padding: 0 2px; overflow: hidden; visibility: hidden;
+  border: 0 solid var(--kenar);
+}
+#secim-cubugu.renkler-acik .secim-renkler { height: auto; margin-top: 3px; padding: 5px 2px 2px; border-top-width: 1px; overflow: visible; visibility: visible; }
+#secim-cubugu.ustte { flex-direction: column-reverse; }
+#secim-cubugu.ustte.renkler-acik .secim-renkler { margin: 0 0 3px; padding: 2px 2px 5px; border-top-width: 0; border-bottom-width: 1px; }
 .not-cubugu .renk:disabled { opacity: 0.45; cursor: default; }
 .not-cubugu button.ikon.metinli { width: auto; gap: 4px; padding: 0 7px 0 5px; font-size: 12px; white-space: nowrap; }
 .not-cubugu button.ikon.metinli svg { width: 16px; height: 16px; }

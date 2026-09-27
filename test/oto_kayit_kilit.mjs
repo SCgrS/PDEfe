@@ -1,4 +1,4 @@
-// Otomatik kayıt (0.1.4'te varsayılan açık): dosya başka programda kilitliyken engelleyici hata penceresi açılmaz, bir kez bildirilir,
+// Otomatik kayıt (0.1.4–0.1.11 varsayılan açık; 0.1.12'den beri varsayılan kapalı, test bellekte açar): dosya başka programda kilitliyken engelleyici hata penceresi açılmaz, bir kez bildirilir,
 // otomatik kayıt durur; kilit kalkınca Ctrl+S (elle kayıt) kaydeder ve otomatik kayıt yeniden çalışır.
 // Kullanım: $env:PDEFE_CDP_PORT=<port>; $env:PDEFE_TEST_PDF=<PDF kopyası>; node test/surucu.mjs betik test/oto_kayit_kilit.mjs
 import { spawn } from 'node:child_process';
@@ -10,10 +10,12 @@ export default async function ({ evalJs, bekle }) {
   await evalJs(`(async () => {
     window.__pdefeOtoYanit = { secim: 1 };
     for (const b of [...window.__pdefe.belgeler.values()]) await window.__pdefe.belgeKapat(b.id, { zorla: true });
+    const varsayilan = window.__pdefe.ayar().otomatikKaydet;
+    window.__pdefe.ayar().otomatikKaydet = true;   // yalnızca bellekte (ayar dosyasına yazılmaz)
     const b = await window.__pdefe.dosyaAc(${JSON.stringify(PDF)});
     await new Promise((r) => setTimeout(r, 1500));
-    return window.__pdefe.ayar().otomatikKaydet;
-  })()`).then((v) => dogrula(v === true, 'otomatik kaydetme varsayılan olarak açık'));
+    return varsayilan;
+  })()`).then((v) => dogrula(v === false, 'otomatik kaydetme varsayılan olarak kapalı (0.1.12); test için bellekte açıldı'));
   // Dosyayı bir PDF okuyucu gibi kilitle: okumaya izin ver, yazmaya izin verme (FILE_SHARE_READ). PDEfe'nin çekirdeği dosyayı zaten okuma için
   // açık tuttuğundan paylaşımsız kilit (test/kilitle.py) alınamaz
   const betik = [

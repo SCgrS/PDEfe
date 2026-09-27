@@ -2,7 +2,8 @@
 //  - Her modal pencere (F1, parola, Ayarlar, Yazdır seçenekleri ve hazırlık, beş araç penceresi, Ctrl+Tab seçicisi): içeride tık,
 //    içeriden dışarı sürükleme, örtüde basıp içeride bırakma, sağ ve orta tık kapatmaz; dışarı tık Esc / X ile aynı sonuçla kapatır.
 //  - Araç penceresinde işlem sürerken (Küçült) ve kaydedilmemiş değişiklik varken (Sayfaları düzenle, dolu birleştirme listesi) sorulur;
-//    "Sürdür / Düzenlemeye dön" pencereyi açık bırakır.
+//    "Sürdür" / "Vazgeç" pencereyi açık bırakır (0.1.12: kaydedilmemiş değişiklik sorusu uygulamanın bütün çıkış sorularıyla aynı:
+//    "<ad>" belgesinde kaydedilmemiş değişiklikler var. / Çıkmadan önce kaydetmek ister misiniz? / Kaydet | Kaydetme | Vazgeç).
 //  - İç içe: araç penceresinin üstündeki F1 / Ayarlar dışarı tıklamayla kapanır, araç penceresi açık kalır.
 //  - Açılır pencereler (açık belgeler listesi, Bul seçenekleri, Araçlar) dışarıda basışla kapanır; nota basış da kapatır.
 //  - Uygulama içi mesaj kutusu (otomatik yanıt kapalı): sekme kapatma sorusu (Kaydet / Kaydetme / Vazgeç: tık, Enter, Esc, dışarı tık;
@@ -183,20 +184,21 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   await komut('arac.sayfalar'); await beklet(`document.querySelectorAll('.sayfa-karti').length > 0`); await bekle(500);
   await tikla(...(await evalJs(`__t.merkez('.sayfalar-arac-cubugu [data-komut="tumunuSec"]')`))); await bekle(150);
   await tikla(...(await evalJs(`__t.merkez('.sayfalar-arac-cubugu [data-komut="sagaDondur"]')`))); await bekle(300);
+  await yanit(2); await disariTikla(AR);
+  const sayfalarSoru = `"${await evalJs(`window.__pdefe.aktif().ad`)}" belgesinde kaydedilmemiş değişiklikler var.`;
+  denetle('Sayfaları düzenle: değişiklik varken dışarı tık sorar, "Vazgeç" açık bırakır', (await sonSoru()) === sayfalarSoru && await acikMi(AR), await sonSoru());
   await yanit(1); await disariTikla(AR);
-  denetle('Sayfaları düzenle: değişiklik varken dışarı tık sorar, "Düzenlemeye dön" açık bırakır', (await sonSoru()) === 'Sayfa düzeninde kaydedilmemiş değişiklikler var.' && await acikMi(AR), await sonSoru());
-  await yanit(0); await disariTikla(AR);
-  denetle('Sayfaları düzenle: "Kapat" ile kapanır, belge değişmez', !(await acikMi(AR)) && !(await evalJs(`window.__pdefe.aktif().degisti`)));
+  denetle('Sayfaları düzenle: "Kaydetme" ile kapanır, belge değişmez', !(await acikMi(AR)) && !(await evalJs(`window.__pdefe.aktif().degisti`)));
 
   // Görüntü / PDF birleştir: dolu liste sorulur
   await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'dosya:acDiyalog', [[${js(B)}]])`);
   await komut('arac.gorselBirlestir'); await beklet(`!!document.querySelector('.birlestir-ekle')`); await bekle(300);
   await tikla(...(await evalJs(`__t.merkez('.birlestir-ekle')`)));
   await beklet(`!document.querySelector('.arac-pencere .bos-mesaj')`); await bekle(500);
+  await yanit(2); await disariTikla(AR);
+  denetle('Birleştir: dolu listede dışarı tık sorar, "Vazgeç" açık bırakır', (await sonSoru()) === '"birlesik.pdf" belgesinde kaydedilmemiş değişiklikler var.' && await acikMi(AR), await sonSoru());
   await yanit(1); await disariTikla(AR);
-  denetle('Birleştir: dolu listede dışarı tık sorar, "Listeye dön" açık bırakır', (await sonSoru()) === 'Liste boş değil.' && await acikMi(AR), await sonSoru());
-  await yanit(0); await disariTikla(AR);
-  denetle('Birleştir: "Kapat" ile kapanır', !(await acikMi(AR)));
+  denetle('Birleştir: "Kaydetme" ile kapanır', !(await acikMi(AR)));
 
   // Küçült: işlem sürerken dışarı tık sorar (Sürdür → açık, işlem sürer; İptal et ve kapat → kapanır)
   await evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find((x) => x.ad === 'buyuk.pdf'); await p.sekmeSec(b.id); return true; })()`);
@@ -329,7 +331,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   denetle('Mesaj kutusu: deneme belgesi değişti', await kirlet());
   await tikla(...(await sekmeX())); await kutuBekle();
   let kb = await kutuBilgi();
-  denetle('Sekme kapatma sorusu uygulama içinde açıldı, odak Kaydet\'te', /kaydedilmemiş değişiklikler var/.test(kb?.ileti) && kb.ayrinti === 'Kapatmadan önce kaydetmek ister misiniz?' && js(kb.dugmeler) === js(['Kaydet', 'Kaydetme', 'Vazgeç']) && kb.odak === 'Kaydet' && kb.tur === 'question', js(kb));
+  denetle('Sekme kapatma sorusu uygulama içinde açıldı, odak Kaydet\'te', /kaydedilmemiş değişiklikler var/.test(kb?.ileti) && kb.ayrinti === 'Çıkmadan önce kaydetmek ister misiniz?' && js(kb.dugmeler) === js(['Kaydet', 'Kaydetme', 'Vazgeç']) && kb.odak === 'Kaydet' && kb.tur === 'question', js(kb));
   await ekranGoruntusu(`test/png/ortu/mesaj-sekme-kapat-${tema}.png`);
   await kapatmayanlar('Mesaj kutusu', MK, '.mesaj-ileti');
   const sayfaOnce = await evalJs(`window.__pdefe.aktif().gorunum.gecerli`);
@@ -363,19 +365,19 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   await disariTikla(AR); await kutuBekle();
   kb = await kutuBilgi();
   const ustte = await evalJs(`document.elementFromPoint(12, innerHeight >> 1)?.classList.contains('mesaj-ortusu')`);
-  denetle('Araç sorusu araç penceresinin üstünde açıldı (odak varsayılan "Düzenlemeye dön")', kb?.ileti === 'Sayfa düzeninde kaydedilmemiş değişiklikler var.' && kb.odak === 'Düzenlemeye dön' && ustte && await acikMi(AR), js(kb));
+  denetle('Araç sorusu araç penceresinin üstünde açıldı (odak varsayılan "Kaydet")', kb?.ileti === '"(2)TensipZapti (9).pdf" belgesinde kaydedilmemiş değişiklikler var.' && kb.ayrinti === 'Çıkmadan önce kaydetmek ister misiniz?' && js(kb.dugmeler) === js(['Kaydet', 'Kaydetme', 'Vazgeç']) && kb.odak === 'Kaydet' && ustte && await acikMi(AR), js(kb));
   await ekranGoruntusu(`test/png/ortu/mesaj-arac-ustunde-${tema}.png`);
   await tus('Delete'); await tus('a', ['ctrl']); await bekle(250);
   denetle('Kutu açıkken tuşlar araç penceresine gitmez (Delete sayfa silmez)', (await evalJs(`document.querySelectorAll('.sayfa-karti').length`)) === kartlar && await kutuAcik());
   await disariTikla(MK);
-  denetle('Kutunun dışına tık yalnızca kutuyu kapatır (Düzenlemeye dön), odak araç penceresine döner', !(await kutuAcik()) && await acikMi(AR) && await evalJs(`!!document.activeElement?.closest('.arac-pencere')`));
+  denetle('Kutunun dışına tık yalnızca kutuyu kapatır (Vazgeç), odak araç penceresine döner', !(await kutuAcik()) && await acikMi(AR) && await evalJs(`!!document.activeElement?.closest('.arac-pencere')`));
   await tus('Escape'); await kutuBekle();
   denetle('Araç penceresinde Esc soruyu yeniden açar', await kutuAcik());
   await tus('Escape'); await bekle(300);
   denetle('Kutuda Esc yalnızca kutuyu kapatır', !(await kutuAcik()) && await acikMi(AR));
   await tikla(...(await evalJs(`__t.merkez('.arac-pencere .arac-kapat')`))); await kutuBekle();
-  await tikla(...(await kutuDugmesi('Kapat'))); await bekle(400);
-  denetle('"Kapat" (tık): kutu ve araç penceresi kapanır, belge değişmez', !(await kutuAcik()) && !(await acikMi(AR)) && !(await evalJs(`window.__pdefe.aktif().degisti`)));
+  await tikla(...(await kutuDugmesi('Kaydetme'))); await bekle(400);
+  denetle('"Kaydetme" (tık): kutu ve araç penceresi kapanır, belge değişmez', !(await kutuAcik()) && !(await acikMi(AR)) && !(await evalJs(`window.__pdefe.aktif().degisti`)));
 
   // ---------------------------------------------------------------- Küçült sürerken (gerçek kutu)
   await sekmeyeGec('buyuk.pdf');
