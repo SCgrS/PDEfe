@@ -1,5 +1,5 @@
 // Senaryo 8: araç pencereleri açılıyor mu (küçült, sayfaları düzenle, ayır, görüntü/PDF birleştir, döndür), güncelleme denetimi.
-const D = 'C:/Users/Kullanici/Desktop/PDF DENEME/';
+import { D } from './test_klasoru.mjs';
 
 export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   await evalJs(`(() => { window.__pdefeOtoYanit = { secim: 1 }; return true; })()`);

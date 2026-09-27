@@ -1,5 +1,5 @@
 // Senaryo 10: okuma modu, iki sayfa + kapak ayrı, Ctrl+Tab kısa basış (seçici görünmez), Ctrl+Tab basılı (seçici görünür).
-const D = 'C:/Users/Kullanici/Desktop/PDF DENEME/';
+import { D } from './test_klasoru.mjs';
 
 export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   await evalJs(`(() => { window.__pdefeOtoYanit = { secim: 1 }; return true; })()`);

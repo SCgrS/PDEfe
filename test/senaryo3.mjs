@@ -1,6 +1,6 @@
 // Senaryo 3: metin seçme, temiz kopyalama, arama. node test/surucu.mjs betik test/senaryo3.mjs
 import fs from 'node:fs';
-const D = 'C:/Users/Kullanici/Desktop/PDF DENEME/';
+import { D } from './test_klasoru.mjs';
 const T = 'C:/Projeler/PDEfe/test/pdf/';
 
 export default async function ({ evalJs, ekranGoruntusu, bekle }) {

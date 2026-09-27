@@ -1,5 +1,5 @@
 // Senaryo 7: ayarlar penceresi ve yazdırma seçenekleri diyaloğu (yazdırma başlatılmaz).
-const D = 'C:/Users/Kullanici/Desktop/PDF DENEME/';
+import { D } from './test_klasoru.mjs';
 
 export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   await evalJs(`(() => { window.__pdefeOtoYanit = { secim: 1 }; return true; })()`);

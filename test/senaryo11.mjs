@@ -1,7 +1,7 @@
 // Senaryo 11: araç pencereleri uçtan uca — küçült, ayır, görüntü/PDF birleştir (panodan), sayfaları düzenle (sil+Uygula), döndür ve kaydet.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-const D = 'C:/Users/Kullanici/Desktop/PDF DENEME/';
+import { D } from './test_klasoru.mjs';
 const K = 'C:/Projeler/PDEfe/test/cikti/araclar-ui';
 const KOPYA = K + '/arac-test.pdf';
 

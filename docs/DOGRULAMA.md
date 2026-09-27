@@ -30,7 +30,7 @@ aşağıdaki adımlarla PDEfe'de oluşturulur.
      yanıt yazılamaz), Yorumlar panelinde "1 yanıt" yazmalı.
 7. Başka bir PDF okuyucuda eklenmiş notlu bir PDF'i (DENEME PDF (2).pdf'in özgün hali) PDEfe'de açın: iki vurgu, notu olan
    vurgunun satır bitişinde not simgesi; üzerine gelince tıklamadan açılan kutuda "Metin notu" başlığı,
-   "NOT DENEMESİ" ve yazar "Deneme Yazar" görünmeli.
+   "NOT DENEMESİ" ve yazar olarak notu ekleyenin adı görünmeli.
 
 ## 2. Döndürülmüş sayfa
 `test/cikti/donuk-not.pdf` (sayfası 90° döndürülmüş kanun PDF'i): PDEfe'nin yazısı başka bir PDF okuyucuda da dik okunmalı

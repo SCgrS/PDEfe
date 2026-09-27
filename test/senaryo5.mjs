@@ -1,7 +1,7 @@
 // Senaryo 5: sayfa düzeni komutları (sil, döndür, boş sayfa, başka PDF'ten sayfa), geri al/yinele, yapısal kaydetme.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-const D = 'C:/Users/Kullanici/Desktop/PDF DENEME/';
+import { D } from './test_klasoru.mjs';
 const KOPYA = 'C:/Projeler/PDEfe/test/cikti/yapisal-test.pdf';
 const EK = 'C:/Projeler/PDEfe/test/cikti/deneme-notlu.pdf';   // senaryo4'ün ürettiği notlu dosya
 

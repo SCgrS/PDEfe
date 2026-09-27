@@ -11,7 +11,7 @@ p1.insert_text((72, 72), "Form ve bağlantı testi — Türkçe: şğıİçöü"
 w = pymupdf.Widget()
 w.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
 w.field_name = "adsoyad"
-w.field_value = "Deneme Yazar"
+w.field_value = "Deneme Adı Soyadı"
 w.rect = pymupdf.Rect(72, 110, 320, 136)
 w.text_fontsize = 12
 w.fill_color = (0.95, 0.97, 1)

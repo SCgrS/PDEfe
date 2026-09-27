@@ -8,7 +8,9 @@ import pymupdf
 import pdefe_core
 from islemler import notlar
 
-KAYNAK = r"C:\Users\Kullanici\Desktop\PDF DENEME\1.5.6098.pdf"
+# Örnek PDF klasörü: PDEFE_TEST_PDF_KLASORU ya da çalıştıranın Masaüstü\PDF DENEME klasörü (kişisel yol koda yazılmaz)
+KLASOR = os.environ.get("PDEFE_TEST_PDF_KLASORU") or os.path.join(os.path.expanduser("~"), "Desktop", "PDF DENEME")
+KAYNAK = os.path.join(KLASOR, "1.5.6098.pdf")
 CIKTI = os.path.join(os.path.dirname(__file__), "cikti")
 os.makedirs(CIKTI, exist_ok=True)
 hedef = os.path.join(CIKTI, "not-testi.pdf")

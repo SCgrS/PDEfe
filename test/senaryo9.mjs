@@ -1,12 +1,12 @@
 // Senaryo 9: kaydedilmemiş değişiklik sorusu (sekme değiştirince SORULMAZ, sekme kapatılınca sorulur); kilitli dosyaya kaydetme uyarısı.
 import fs from 'node:fs';
 import { spawn } from 'node:child_process';
-const D = 'C:/Users/Kullanici/Desktop/PDF DENEME/';
+import { D } from './test_klasoru.mjs';
 const A = 'C:/Projeler/PDEfe/test/cikti/kilit-a.pdf';
 const B = 'C:/Projeler/PDEfe/test/cikti/kilit-b.pdf';
 
 export default async function ({ evalJs, ekranGoruntusu, bekle }) {
-  fs.copyFileSync(D + 'Deneme Kişi SGK işe giriş (1).pdf', A);
+  fs.copyFileSync(D + '1.5.6098.pdf', A);
   fs.copyFileSync(D + 'daf3dfc4-0c16-4317-9868-6d1f0393c8cd.pdf', B);
   await evalJs(`(async () => { const p = window.__pdefe; window.__pdefeOtoYanit = { secim: 1, onay: false }; const a = p.ayar(); a.otomatikKaydet = false; for (const s of [...p.sekmeler.sekmeler]) await p.belgeKapat(s.id, { zorla: true }); await p.dosyaAc(${JSON.stringify(A)}); await p.dosyaAc(${JSON.stringify(B)}); await new Promise(r => setTimeout(r, 1200)); return true; })()`);
 

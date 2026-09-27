@@ -1,7 +1,7 @@
 // Senaryo 12: ayır (aralık girerek) ve görüntü/PDF birleştir (panodaki görsel + PDF dosyası).
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-const D = 'C:/Users/Kullanici/Desktop/PDF DENEME/';
+import { D } from './test_klasoru.mjs';
 const K = 'C:/Projeler/PDEfe/test/cikti/araclar-ui';
 const KOPYA = K + '/arac-test.pdf';
 const dugmeTikla = (desen) => `(() => { const w = [...document.querySelectorAll('.arac-pencere')].pop(); if (!w) return 'pencere yok'; const b = [...w.querySelectorAll('button')].find(x => ${desen}.test(x.textContent.trim())); if (!b) return 'düğme yok'; b.click(); return 'tıklandı: ' + b.textContent.trim(); })()`;

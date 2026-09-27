@@ -16,3 +16,4 @@ test/cikti/
 test/pdf/*.pdf
 test/png/
 .claude/
+test/secim_bloklar.mjs

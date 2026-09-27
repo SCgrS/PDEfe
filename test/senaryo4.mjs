@@ -1,7 +1,7 @@
 // Senaryo 4: notlar — başka programların notlarını gösterme, vurgu/not/yazı ekleme, geri al/yinele, kaydetme.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-const D = 'C:/Users/Kullanici/Desktop/PDF DENEME/';
+import { D } from './test_klasoru.mjs';
 const KOPYA = 'C:/Projeler/PDEfe/test/cikti/deneme-notlu.pdf';
 
 export default async function ({ evalJs, ekranGoruntusu, bekle }) {

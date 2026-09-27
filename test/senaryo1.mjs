@@ -1,5 +1,5 @@
 // Senaryo 1: çoklu belge, büyük belge, düzenler, yakınlaştırma, panel. node test/surucu.mjs betik test/senaryo1.mjs
-const D = 'C:/Users/Kullanici/Desktop/PDF DENEME/';
+import { D } from './test_klasoru.mjs';
 const T = 'C:/Projeler/PDEfe/test/pdf/';
 
 export default async function ({ evalJs, ekranGoruntusu, bekle }) {

@@ -12,7 +12,7 @@ Windows 11 için sekmeli PDF görüntüleyici ve düzenleyici. Electron (arayüz
 | mevzuat_4721_TMK.pdf, mevzuat_6102_TTK.pdf | büyük kanun PDF'leri (aynı yapı) |
 | DENEME PDF (2).pdf (UDF→PDF, iText) | referans okuyucuda eklenmiş 2 vurgu (biri notlu, Popup + AP); gömülü olmayan süslü fontlar (Viner Hand, Vivaldi, Rockwell, Tw Cen) → sistem fontu; UDF'den gelen görseller |
 | 2099_83_EK-1_pdf.pdf | yatay sayfa, "Microsoft Print to PDF", CID fontlar, QR görseli |
-| 2099_12_BLR_BILIRKISI_EKRAPORU.pdf, fdsafsd.pdf | Word; karışık gömülü/gömülü olmayan font, Cambria Math, görseller |
+| bilirkişi ek raporu (UYAP, Word çıktısı), fdsafsd.pdf | Word; karışık gömülü/gömülü olmayan font, Cambria Math, görseller |
 | UYAP (iText/JasperReports) dosyaları ×4 | Helvetica/Arial gömülü değil, kodlama yok → standart font eşlemesi; 595x879 sayfa |
 | dergipark_3972595_ttk_tbk.pdf | 231 yer imi; **bozuk ToUnicode**: Ġ→İ, ġ→Ş, Ģ→ş (Word 2010 Türkçe hatası) |
 | dergipark_5104529_zamanasimi.pdf | 52 sayfa, PDFium |
@@ -211,7 +211,7 @@ incelendi, birleştirildi ve birleşik sürüm yeniden doğrulandı. Kök nedenl
   satırlarıdır. `enYakinKonum`: fare satırlardan uzaksa `boslukKonumu` (aday: fare hizasındaki birimler, başlanan birim hep aday;
   aşağıda çapanın gerisindeki, yukarıda ilerisindeki adaylar elenir; bloğun son satırının sonu / ilk satırının başı); yan blok
   kuralı fare başlanan satırın bandındayken uygulanmaz (satır sonunun sağı satır sonu), `blokAtlar` farenin üstünden geçmediği
-  bloğu atlayan konumu reddeder. Regresyon: `test/secim_bloklar.mjs` (109 vaka, 65 beklentili; ek PDF'ler iki-sutun, kayik-bosluk,
+  bloğu atlayan konumu reddeder. Regresyon: `test/secim_bloklar.mjs` (git dışı, yerel örnek belgelerle çalışır; 109 vaka, 65 beklentili; ek PDF'ler iki-sutun, kayik-bosluk,
   asili-girinti git dışında). Açık (0.1.1'de de vardı): sağ tık "Tümünü seç" DOM sırasıyla; iki imza bloklu Word sayfasında sağ
   bloğun satır sonunu aşan sürükleme ters seçebilir; sütun oluğundan ve bloklar arası çapraz sürüklemede sınır durumları; kısa
   satırlı imza bloğunda üç tık tek satır seçer.
@@ -464,7 +464,7 @@ Ayrıntı: CHANGELOG.md. Kullanıcı: UDF'de girinti ayarı olan paragrafa yapı
   üsttekinin devamı sayılır, koşullar: aynı sütun (sol kenarları aynı: sütunda en az iki satırın başladığı en soldaki x; yatay
   örtüşmeyle ölçülünce girintili satırın altındaki kısa son satır "başka sütun" çıkıyordu), olağan satır aralığı (sayfanın satırdan
   satıra uzaklıklarının ortancası) en çok 1,3 katı, blok numarası 1–3 artıyor (sayfa başlığı / altlığı içerikte ayrı yazılmış:
-  bilirkişi raporunda "DENEME 9. ASLİYE TİCARET MAHKEMESİ" altlığı blok 0), üstteki satır sütunun sağına en az %80 yaklaşıyor
+  bilirkişi raporunda mahkeme adı altlığı blok 0), üstteki satır sütunun sağına en az %80 yaklaşıyor
   (%60'ta ortalanmış başlık, adres, kitap kapağı birleşiyordu), alttaki satır madde imiyle (■ • ➢ ✓, Symbol / Wingdings özel alanı,
   "- ") başlamıyor, iki satırın hiçbirinde içindekiler noktalı dolgusu yok, noktalama ya da sayıyla biten satırdan sonra numaralı
   madde gelmiyor ("Kanunun / 49. maddesi" birleşir), üstteki satır büyük harfli başlık değil. Girinti tek satırlık blokta sütunun sol
@@ -722,4 +722,10 @@ Kullanıcı simgenin sade sürümünü gönderdi (PDEfe-simge2.zip; BENIOKU ayn�
   derlendi (ping OK), araclar_testi `--exe` 130/130. PDEfe.exe, PDEfe-Setup.exe ve pdefe-core.exe'den çıkarılan simgeler (256 / 48 /
   32 / 16 px) yeni. Kurulumdan sonra (WMI): Uninstall 0.1.17, exe 0.1.17.0, app.asar ve çekirdek derlemeyle aynı boyutta,
   resources\icon.ico ve uninstallerIcon.ico yeni ICO (55 348 bayt). Sürüm 0.1.17.
+- [x] **Örnek veriler** (yayımdan önce): test/senaryo1, 3, 4, 5, 7, 8, 9, 10, 11, 12'deki masaüstü yolu `test/test_klasoru.mjs`'e
+  taşındı (PDEFE_TEST_PDF_KLASORU ya da os.homedir()\Desktop\PDF DENEME; kişisel yol koda yazılmaz); not_testi.py aynı kuralla, yazarlar
+  "Deneme Yazar"; form_pdf_uret.py alanı "Deneme Adı Soyadı"; senaryo9 örnek belge olarak TBK (1.5.6098.pdf); test/wf/tamamla.js'te
+  yol %USERPROFILE%; DOGRULAMA 1.7'de yazar adı genelleştirildi. Test ve belgelerdeki dosya adları, mahkeme adları ve esas numaraları
+  yer tutucudur (2099_…, DENEME 9. ASLİYE TİCARET MAHKEMESİ). Seçim regresyonu (test/secim_bloklar.mjs) yerel örnek belgelerle çalıştığı
+  için git dışındadır.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 25 (0.1.17 simgesiyle).
