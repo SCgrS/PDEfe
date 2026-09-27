@@ -252,14 +252,15 @@ export class Pencere {
     ortu.querySelector('.arac-kapat').addEventListener('click', () => this.kapat(null));
     // Örtüye (pencerenin dışına) tıklamak X gibi kapatır: kapatmadanOnce işlem sürüyorsa ya da uygulanmamış değişiklik varsa sorar.
     // Basış da bırakış da örtünün kendisinde olmalı: pencerede başlayıp dışarıda biten seçim / sürükleme, sağ ve orta tık kapatmaz
-    // (../ortu.js ortuTiklamasiBagla ile aynı kural). Basış odağı pencereye alır (kapatma reddedilirse odak içeride kalsın); soru
-    // açılırken gelen ikinci tıklama (çift tık) soruyu yinelemez.
+    // (../ortu.js ortuTiklamasiBagla ile aynı kural; çok tıklamanın sonraki tıkları, e.detail > 1, da kapatmaz: pencereyi açan tıklamanın
+    // eşi örtüye düşebilir). Basış odağı pencereye alır (kapatma reddedilirse odak içeride kalsın); soru açılırken gelen ikinci
+    // tıklama (çift tık) soruyu yinelemez.
     let basildi = false, birakildi = false, kapatiliyor = false;
     ortu.addEventListener('mousedown', (e) => { if (e.target === ortu) { e.preventDefault(); this.odakla(); } });
     ortu.addEventListener('pointerdown', (e) => { basildi = e.target === ortu && e.button === 0 && e.isPrimary; birakildi = false; });
     ortu.addEventListener('pointerup', (e) => { birakildi = basildi && e.target === ortu && e.button === 0; });
     ortu.addEventListener('click', async (e) => {
-      const disari = basildi && birakildi && e.target === ortu && e.button === 0;
+      const disari = basildi && birakildi && e.target === ortu && e.button === 0 && e.detail <= 1;
       basildi = birakildi = false;
       if (!disari || kapatiliyor) return;
       kapatiliyor = true;

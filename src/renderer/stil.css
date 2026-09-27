@@ -291,16 +291,18 @@ html.metin-seciliyor, html.metin-seciliyor * { cursor: text !important; }
 .karsilama h2 { margin: 0; font-size: 13px; font-weight: 600; }
 .karsilama-metin { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .karsilama-aciklama { font-size: 12px; color: var(--metin-soluk); line-height: 1.35; }
-/* Ad ve sürüm (imza): sağ altta, göze batmadan; pencereyle birlikte köşede kalır */
+/* Ad ve sürüm (imza): sağ altta, göze batmadan; pencereyle birlikte köşede kalır. Tıklanınca Ayarlar › Hakkında açılır (baslangic.js),
+   ama düğme gibi görünmez: çerçeve, zemin, üzerine gelme ya da odak izi yok (0.1.15, kullanıcı isteği) */
 .karsilama-imza { grid-row: 4; justify-self: end; display: flex; align-items: center; gap: 9px; padding-top: 10px; user-select: none; }
 .karsilama-logo { width: 30px; height: 30px; flex: none; }
 .karsilama-baslik p { margin: 0; white-space: nowrap; }
 .karsilama-ad { font-size: 14px; font-weight: 600; line-height: 1.25; }
 .karsilama-alt { font-size: 11px; line-height: 1.3; color: var(--metin-soluk); }
-/* PDF aç: uygulamanın temel işi, araçlardan büyük ve vurgu renginde; sürükleyip bırakma da açıklamasında yazar */
+/* PDF aç: uygulamanın temel işi, araçlardan büyük ve vurgu renginde; sürükleyip bırakma da açıklamasında yazar. Genişliği yazısı kadar,
+   sola yaslı (0.1.15, kullanıcı isteği: sütunun tamamını kaplayınca düğmeye benzemiyordu); dar pencerede açıklama alt satıra iner */
 .karsilama-ac {
   --renk: #0067c0;
-  display: flex; align-items: center; gap: 18px; width: 100%; padding: 22px 24px; text-align: left; cursor: default;
+  display: flex; align-items: center; gap: 18px; align-self: flex-start; padding: 22px 24px; text-align: left; cursor: default;
   color: var(--metin); border: 1px solid color-mix(in srgb, var(--renk) 40%, var(--kenar)); border-radius: 12px;
   background: color-mix(in srgb, var(--renk) 7%, var(--arka-yukseltilmis));
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); outline: none; transition: border-color 0.1s, background-color 0.1s;

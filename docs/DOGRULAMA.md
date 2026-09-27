@@ -301,3 +301,14 @@ hareketi, %125 ölçek ve gözle beğeni denenmedi.
    döndürmeli. Çok sekme varken çubuğun ucuna götürünce çubuk kendiliğinden kaymalı.
 4. **Not başlığı.** Bir notu açın: başlıkta "Not | Adınız | tarih" görünmeli, çizgiler ince ve dikey olmalı; tarih adınızın hemen
    yanında, çöp kutusu ve × sağda.
+
+## 24. 0.1.15: otomatik testlerin sınayamadıkları
+PDF aç düğmesi beş pencere boyutunda ölçüldü; imzaya tık ve çift tık gerçek fare olaylarıyla (CDP), üzerine gelince görüntünün
+değişmediği piksel karşılaştırmasıyla sınandı (test/senaryo21.mjs). Gerçek fare, %125 ölçek ve gözle beğeni denenmedi.
+1. **PDF aç.** Bütün sekmeleri kapatın: PDF aç kutusu "… bu pencereye sürükleyin" yazısından hemen sonra bitmeli, sola yaslı durmalı;
+   sağdaki boşluk soldaki kadar olmalı. Sol paneli açıp (F4) pencereyi olabildiğince daraltın: açıklama alt satıra inmeli, kutu
+   taşmamalı (sol panel kapalıyken en dar pencerede de kutu sığar, açıklama tek satırda kalır).
+2. **Hakkında.** Sağ alttaki PDEfe simgesine, sonra "PDEfe" yazısına tıklayın: her seferinde Ayarlar › Hakkında açılmalı. Fareyle
+   üzerine gelince ya da basılı tutunca hiçbir şey değişmemeli (çerçeve, zemin, el imleci yok).
+3. **Çift tık.** Simgeye çift tıklayın, sonra araç çubuğundaki dişliye çift tıklayın: Ayarlar açılıp açık kalmalı (önceden bir an
+   görünüp kapanıyordu). Pencerenin dışındaki karartılmış yere bir kez tıklamak yine kapatmalı.

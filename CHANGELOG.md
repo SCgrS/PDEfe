@@ -3,6 +3,15 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.15 — 2026-09-27
+
+### Açılış ekranı
+- **PDF aç** düğmesi artık yazısı kadar: "… bu pencereye sürükleyin" yazısından hemen sonra biter, sola yaslıdır. Önceden araçların ve son açılanların genişliği boyunca uzanıyordu. Yer darsa (örneğin sol panel açıkken dar pencerede) açıklama alt satıra iner.
+- Sağ alttaki **PDEfe** simgesine ya da yazısına tıklayınca **Ayarlar › Hakkında** açılır. Görünümü değişmedi: düğme gibi çerçeve, zemin ya da üzerine gelince değişen bir şey yok.
+
+### Pencereler
+- Ayarlar'ı açan dişliye ya da PDEfe simgesine çift tıklayınca Ayarlar bir an açılıp hemen kapanıyordu: ikinci tık pencerenin dışına düşüp kapatma sayılıyordu. Artık açık kalır. Araç pencerelerinde, Yazdır'da ve öteki açılır pencerelerde de böyle; pencerenin dışına bir kez tıklamak yine kapatır.
+
 ## 0.1.14 — 2026-09-27
 
 ### Açılış ekranı

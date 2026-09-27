@@ -79,9 +79,10 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   Güncelleme. Kopyalama her zaman temiz metinle yapılır.
 - **Açılış ekranı.** Belge açık değilken ve yeni sekmede: büyük **PDF aç** düğmesi (PDF'ler pencereye sürüklenerek de açılır),
   bütün araçlar ve altlarında son açılan en çok 10 belge (tek tıkla açılır; × ya da sağ tıkla listeden kaldırılır, klasörde
-  gösterilir; kutu kaydırılmaz, geniş pencerede iki sütun). Uygulamanın adı ve sürümü sağ altta. Belge
-  gerektiren bir araç seçilince önce Aç penceresi gelir, araç seçilen PDF'le açılır. Liste istenirse hiç tutulmaz: Ayarlar ›
-  Açılış ve düzen › Son açılanları hatırla kapatılınca liste silinir, açılış ekranındaki kutu ve Dosya menüsündeki Son açılanlar kalkar.
+  gösterilir; kutu kaydırılmaz, geniş pencerede iki sütun). Uygulamanın adı ve sürümü sağ altta (tıklanınca Ayarlar ›
+  Hakkında açılır). Belge gerektiren bir araç seçilince önce Aç penceresi gelir, araç seçilen PDF'le açılır. Liste istenirse
+  hiç tutulmaz: Ayarlar › Açılış ve düzen › Son açılanları hatırla kapatılınca liste silinir, açılış ekranındaki kutu ve Dosya
+  menüsündeki Son açılanlar kalkar.
 
 ## Ekran görüntüleri
 

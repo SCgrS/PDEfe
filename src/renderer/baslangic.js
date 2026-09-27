@@ -4,7 +4,9 @@
 // sütun, kaydırma çubuğu çıkmaz). Uygulamanın adı, "PDF görüntüleyici ve düzenleyici" ve sürüm sağ altta (0.1.14, kullanıcı isteği;
 // 0.1.13'te ad üstte, sürükle-bırak ipucu düğmenin altında, son açılanlar sağ sütunda ve 10 belgede kaydırmalıydı). Düğmeler uygulama
 // komutlarını çalıştırır: dosya.ac Windows'un Aç penceresi; belge gerektiren araç belge yokken önce Aç penceresini açar, seçilen PDF'le
-// açılır (uygulama.js); Görüntü / PDF birleştir belge gerektirmez. Son açılanlar listesinde tıklama ya da Enter belgeyi açar; sağ tık
+// açılır (uygulama.js); Görüntü / PDF birleştir belge gerektirmez. Sağ alttaki simgeye ya da ada tıklanınca Ayarlar › Hakkında açılır
+// (yardim.hakkinda; 0.1.15, kullanıcı isteği); imza düğme değildir, görünümü değişmez, Tab ile odaklanmaz (klavyeyle: Yardım › PDEfe
+// hakkında). Son açılanlar listesinde tıklama ya da Enter belgeyi açar; sağ tık
 // Aç / Klasörde göster / Yolu kopyala / Listeden kaldır menüsünü, satırdaki × ve Delete yalnızca listeden kaldırmayı yapar (dosyaya
 // dokunulmaz). "Son açılanları hatırla" kapalıyken Son açılanlar bölümü (başlık ve kutu) hiç görünmez (0.1.13, kullanıcı isteği).
 // 0.1.8'e dek boş #gorunumler katmanı bu ekranın üstünde kaldığı için PDF aç düğmesi ve son açılanlar tıklanamıyordu (stil.css: z-index).
@@ -56,7 +58,7 @@ export class BaslangicEkrani {
     <ul id="son-dosyalar"></ul>
   </section>
 </div>
-<footer class="karsilama-imza">
+<footer class="karsilama-imza" data-eylem="yardim.hakkinda">
   <img class="karsilama-logo" src="../../build/icon.png" alt="" draggable="false">
   <div class="karsilama-baslik">
     <p class="karsilama-ad">PDEfe</p>

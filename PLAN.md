@@ -673,3 +673,25 @@ alt yazı ve sürüm) olarak alındı; "Not'tan sonra ve tarihten önce düz çi
   yazar | tarih"), kisayol_dosya 163/163, kisayol_gorunum 117/117, kisayol_araclar 91/91, ortu_tiklama 155/155, vurgu_cubugu 13/13
   (PyMuPDF'le vurgu eklenmiş PDF).
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 23.
+
+### Revizyon 0.1.15 (2026-09-27, kullanıcı isteği)
+Ayrıntı: CHANGELOG.md. Kullanıcı iki istek bildirdi (0.1.14 açılış ekranının ekran görüntüsüyle): PDF aç kutusu "sürükleyin"den sonra
+kesilsin, çok uzun olmuş, düğme gibi durmuyor; alttaki PDEfe yazısına ve simgesine tıklayınca Ayarlar'daki Hakkında açılsın, ama düğme
+ya da kutu izi görünmesin, görüntüsü aynen kalsın.
+- [x] **PDF aç genişliği** (stil.css `.karsilama-ac`): `width: 100%` yerine `align-self: flex-start`; düğme yazısı kadar (1100 px'lik
+  sütunda 557,6×110 px), sola yaslı, sağdaki boşluk soldaki kadar (25 px). Sütun düğmeden darsa düğme sütun kadar olur, açıklama alt
+  satıra iner (`.karsilama-metin` min-width: 0). Gerçek pencerede bu ancak sol panel açıkken olur: en az pencere genişliği 720 px
+  (main.js), sol panel kapalıyken sütun ~644 px kalır ve düğme sığar. Test 520 px'i CDP genişlik taklidiyle ölçer.
+- [x] **İmza → Hakkında** (baslangic.js): `.karsilama-imza`'ya `data-eylem="yardim.hakkinda"`; yapıcıdaki `[data-eylem]` döngüsü
+  tıklamayı Yardım › PDEfe hakkında ile aynı komuta bağlar (Ayarlar açıksa yalnızca Hakkında'ya geçer). Stil değişmedi: çerçeve, zemin,
+  :hover / :active / :focus-visible kuralı yok, imleç ok, `user-select: none` zaten vardı. tabindex ve role verilmedi (Tab'da görünmez odak
+  olurdu), title verilmedi (ipucu kutusu çıkardı); klavyeyle Yardım › PDEfe hakkında. Tıklama alanı imzanın kutusu: logo, ad, alt yazı
+  ve üstündeki 10 px'lik padding.
+- [x] **Çift tık örtüyü kapatmaz** (ortu.js ortuTiklamasiBagla, araclar/ortak.js Pencere): bağımsız inceleme buldu. İmzaya (ya da araç
+  çubuğundaki dişliye) çift tıklayınca ilk tık Ayarlar'ı açıyor, ikinci tık ortadaki pencerenin dışında kalan örtüye düşüyor ve dışarı
+  tıklama sayılıp Ayarlar'ı kapatıyordu (dişlide eskiden beri). Örtünün click'inde `e.detail <= 1` koşulu: çok tıklamanın sonraki
+  tıkları kapatmaz; bilerek dışarı tıklamak yeni bir dizidir (detail 1) ve kapatır. senaryo21 hatayı düzeltmeden önce yakaladı (4 HATA).
+- [x] Testler: test/senaryo21.mjs 39/39 (yeni; beş pencere boyutu, iki tema, piksel karşılaştırmasıyla üzerine gelme ve basılı tutma,
+  gerçek fare olaylarıyla tık ve çift tık, Tab), senaryo20 38/38, senaryo19 111/111, senaryo14 56/56,
+  ortu_tiklama 155/155 (örtü kuralı değiştiği için). Sürüm 0.1.15.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 24.
