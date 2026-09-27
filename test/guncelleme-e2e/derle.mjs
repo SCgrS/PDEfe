@@ -1,6 +1,6 @@
 // Güncelleme uçtan uca testi için ayrı bir deneme uygulaması derler: kurulu PDEfe'ye dokunmayan "PDEfe Guncelleme Testi".
 //
-// Kullanım (depo kökünden; core/dist/pdefe-core.exe hazır olmalı):
+// Kullanım (depo kökünden; core/dist/pdefe-core/pdefe-core.exe hazır olmalı):
 //   node test/guncelleme-e2e/derle.mjs --surum 0.9.0 --cikti test/cikti/g1/e2e/A [--port 9914]
 //
 // electron-builder.yml okunur, yalnızca şunlar değiştirilir (yapılandırma <cikti>/electron-builder-test.json'a yazılır):
@@ -18,7 +18,8 @@
 //
 // Uçtan uca güncelleme testi (bu klasördeki araçlarla; kurulu gerçek PDEfe'ye dokunmaz):
 //   1. kayit-goruntusu.ps1 -Cikti once.json            gerçek PDEfe'nin kayıt defteri/dosya izleri (sonda karsilastir.ps1 ile aynı olmalı)
-//   2. core/dist/pdefe-core.exe'yi kurulu PDEfe'den kopyala; derle.mjs ile A (0.9.0), B (0.9.1), C (0.9.2) derle
+//   2. core/dist/pdefe-core klasörünü kurulu PDEfe'nin resources\pdefe-core'undan kopyala (ya da npm run cekirdek:derle); derle.mjs ile
+//      A (0.9.0), B (0.9.1), C (0.9.2) derle
 //   3. sunucu.mjs --port 9914 --kok <çıktılar> --gunluk istekler.jsonl --yayinda 0.9.1 [--hiz 30000000]   (arka planda)
 //   4. A'yı sessiz kur (PDEfe-Setup.exe /S); %APPDATA%\PDEfe Guncelleme Testi\ayarlar.json'a pencere { x: -2600, … } yaz (ekran dışı)
 //   5. uygulama.ps1 -Islem ac|kapat (CDP 9911) ve senaryo.mjs adımları (ADIM=serit|dahaSonra|hataIndir|ertele|kur|ayarlarDenetle|
@@ -50,7 +51,7 @@ const surum = arg('surum');
 const cikti = path.resolve(KOK, arg('cikti', ''));
 const port = Number(arg('port', 9914));
 if (!/^\d+\.\d+\.\d+$/.test(surum || '') || !arg('cikti')) { console.error('Kullanım: node test/guncelleme-e2e/derle.mjs --surum 0.9.0 --cikti <klasör> [--port 9914]'); process.exit(2); }
-if (!fs.existsSync(path.join(KOK, 'core', 'dist', 'pdefe-core.exe'))) { console.error('core/dist/pdefe-core.exe yok.'); process.exit(2); }
+if (!fs.existsSync(path.join(KOK, 'core', 'dist', 'pdefe-core', 'pdefe-core.exe'))) { console.error('core/dist/pdefe-core/pdefe-core.exe yok.'); process.exit(2); }
 
 const TEST_URUN = 'PDEfe Guncelleme Testi';
 const TEST_AD = 'pdefe-guncelleme-testi';
@@ -89,10 +90,13 @@ if (path.resolve(nmGercek).toLowerCase() !== path.resolve(KOK, 'node_modules').t
   proje = path.join(path.dirname(cikti), 'hazirlik');
   console.log('node_modules bağlantı →', nmGercek, '; hazırlık klasörü:', proje);
   for (const ad of ['src', 'build']) { fs.rmSync(path.join(proje, ad), { recursive: true, force: true }); fs.cpSync(path.join(KOK, ad), path.join(proje, ad), { recursive: true }); }
-  for (const ad of ['package.json', 'package-lock.json', 'LICENSE', 'THIRD_PARTY.md', 'core/dist/pdefe-core.exe']) {
+  for (const ad of ['package.json', 'package-lock.json', 'LICENSE', 'THIRD_PARTY.md']) {
     fs.mkdirSync(path.dirname(path.join(proje, ad)), { recursive: true });
     fs.copyFileSync(path.join(KOK, ad), path.join(proje, ad));
   }
+  // Çekirdek tek klasör (pdefe-core.exe + _internal)
+  fs.rmSync(path.join(proje, 'core', 'dist'), { recursive: true, force: true });
+  fs.cpSync(path.join(KOK, 'core', 'dist', 'pdefe-core'), path.join(proje, 'core', 'dist', 'pdefe-core'), { recursive: true });
   // Üretim bağımlılıkları (npm ls, gerçek node_modules'ün bulunduğu depoda)
   let liste;
   try { liste = execFileSync('npm', ['ls', '--omit=dev', '--all', '--parseable'], { cwd: path.dirname(nmGercek), encoding: 'utf8', shell: true }); }

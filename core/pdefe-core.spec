@@ -1,5 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec: pdefe-core.exe (tek dosya, konsollu — stdio üzerinden JSON-RPC gerekli).
+"""PyInstaller spec: pdefe-core (tek klasör: pdefe-core.exe + _internal; konsollu — stdio üzerinden JSON-RPC gerekli).
+
+Çıktı: core/dist/pdefe-core/pdefe-core.exe. Tek dosya (onefile) kullanılmaz: her açılışta ~70 MB'ı %TEMP%\\_MEI* altına açıyordu
+(~0,9 sn) ve süreç öldürülünce (kapanış, çökme, Windows kapanışı) açılan klasör silinmeden kalıyordu (0.1.17'de 151 klasör, 10 GB).
 
 Derleme: build/cekirdek-derle.mjs (npm run cekirdek:derle) ya da doğrudan
   .venv\\Scripts\\pyinstaller.exe --noconfirm --distpath core/dist --workpath build/pyinstaller-work core/pdefe-core.spec
@@ -70,16 +73,14 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,   # ikililer ve veriler COLLECT ile klasöre (tek klasör paketi)
     name="pdefe-core",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
     upx_exclude=[],
-    runtime_tmpdir=None,
     console=True,            # stdin/stdout gerekli; Electron windowsHide ile pencereyi gizler
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -88,4 +89,15 @@ exe = EXE(
     entitlements_file=None,
     icon=os.path.join(KOK, "..", "build", "icon.ico") if os.path.exists(os.path.join(KOK, "..", "build", "icon.ico")) else None,
     version=None,
+)
+
+# Tek klasör: core/dist/pdefe-core/pdefe-core.exe ve yanındaki _internal (python312.dll, pymupdf, PIL, fontTools...)
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name="pdefe-core",
 )

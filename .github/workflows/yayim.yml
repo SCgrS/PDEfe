@@ -89,16 +89,17 @@ jobs:
           key: electron-builder-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
           restore-keys: electron-builder-${{ runner.os }}-
 
-      - name: Çekirdeği derle (PyInstaller → core/dist/pdefe-core.exe)
+      - name: Çekirdeği derle (PyInstaller → core/dist/pdefe-core/, tek klasör)
         run: npm run cekirdek:derle
 
       - name: Çekirdeği sına (ping)
         shell: pwsh
         run: |
-          if (-not (Test-Path "core\dist\pdefe-core.exe")) { Write-Error "core\dist\pdefe-core.exe üretilmedi."; exit 1 }
-          $boyut = [math]::Round((Get-Item "core\dist\pdefe-core.exe").Length / 1MB, 1)
-          Write-Host "pdefe-core.exe: $boyut MB"
-          $yanit = '{"id":1,"method":"ping","params":{}}' | & "core\dist\pdefe-core.exe"
+          $exe = "core\dist\pdefe-core\pdefe-core.exe"
+          if (-not (Test-Path $exe)) { Write-Error "$exe üretilmedi."; exit 1 }
+          $boyut = [math]::Round((Get-ChildItem "core\dist\pdefe-core" -Recurse -File | Measure-Object Length -Sum).Sum / 1MB, 1)
+          Write-Host "pdefe-core klasörü: $boyut MB"
+          $yanit = '{"id":1,"method":"ping","params":{}}' | & $exe
           Write-Host "Yanıt: $yanit"
           if (-not ($yanit -match '"result"')) { Write-Error "Çekirdek ping yanıtı vermedi."; exit 1 }
 

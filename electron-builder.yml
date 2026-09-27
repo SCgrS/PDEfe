@@ -9,7 +9,7 @@ directories:
   output: release
   buildResources: build
 
-# Uygulama dosyaları asar arşivine konur. pdefe-core.exe asar dışında, resources/ altında durur.
+# Uygulama dosyaları asar arşivine konur. Python çekirdeği asar dışında, resources/pdefe-core/ altında durur.
 asar: true
 # Yalnızca Türkçe ve İngilizce Chromium yerelleştirme dosyaları paketlensin (~8 MB tasarruf)
 electronLanguages:
@@ -39,11 +39,12 @@ files:
   - "!node_modules/@napi-rs/**"
   - "!**/{CHANGELOG.md,README.md,CODE_OF_CONDUCT.md,.github,.editorconfig,.eslintrc*,tsconfig.json}"
 
-# Python çekirdeği: cekirdek.js paketliyken process.resourcesPath/pdefe-core.exe bekler.
-# core/dist/pdefe-core.exe "npm run cekirdek:derle" (build/cekirdek-derle.mjs, PyInstaller) ile üretilir.
+# Python çekirdeği: cekirdek.js paketliyken process.resourcesPath/pdefe-core/pdefe-core.exe bekler.
+# core/dist/pdefe-core/ (tek klasör: pdefe-core.exe + _internal) "npm run cekirdek:derle" (build/cekirdek-derle.mjs, PyInstaller) ile
+# üretilir. Tek dosya (onefile) değil: her açılışta %TEMP%'e açılıyor, süreç öldürülünce açılan klasör kalıyordu (bkz. core/pdefe-core.spec).
 extraResources:
-  - from: core/dist/pdefe-core.exe
-    to: pdefe-core.exe
+  - from: core/dist/pdefe-core
+    to: pdefe-core
 
 win:
   target:

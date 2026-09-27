@@ -23,6 +23,7 @@ export class SolPanel extends EventTarget {
     this.belge = null;         // aktif sekmenin bilgileri {id, yol, gorunum}
     this.kucukResimler = new Map();   // belgeId → Map(sayfa → dataURL)
     this._gozlemci = null;
+    this._sayfalarBelge = null;
 
     sekmeler.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => this.sekmeSec(b.dataset.panel)));
 
@@ -70,7 +71,15 @@ export class SolPanel extends EventTarget {
     if (this.acik) this.yenile();
   }
 
-  belgeUnut(belgeId) { this.kucukResimler.delete(belgeId); }
+  /** Belge kapandı: küçük resim önbelleği silinir. Sayfalar alanı o belgenin küçük resimlerini gösteriyorsa (panel kapalı ya da başka
+   *  panel sekmesindeyken yeniden kurulmaz) gözlemci ve resimler de bırakılır: gözlemcinin geri çağrısı kapanan belgeyi tutuyordu. */
+  belgeUnut(belgeId) {
+    this.kucukResimler.delete(belgeId);
+    if (this._sayfalarBelge !== belgeId) return;
+    this._gozlemci?.disconnect(); this._gozlemci = null;
+    this.alanlar.sayfalar.innerHTML = '';
+    this._sayfalarBelge = null; this._sayfalarHazir = null;
+  }
 
   yenile() {
     if (!this.acik) return;
@@ -86,6 +95,7 @@ export class SolPanel extends EventTarget {
     const b = this.belge;
     if (this._sayfalarHazir === b.id) { this.gecerliSayfaIsaretle(b.gorunum.gecerli); return; }
     this._sayfalarHazir = b.id;
+    this._sayfalarBelge = b.id;   // alanın küçük resimleri hangi belgenin (belgeUnut)
     alan.innerHTML = '';
     if (this._gozlemci) this._gozlemci.disconnect();
     const genislik = Math.max(80, alan.clientWidth - 28);

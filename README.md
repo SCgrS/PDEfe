@@ -183,7 +183,7 @@ uv venv .venv --python 3.12
 uv pip install --python .venv/Scripts/python.exe pymupdf fonttools pillow pyinstaller
 
 npm start                 # geliştirme: Electron + core/pdefe_core.py (.venv ile)
-npm run cekirdek:derle    # PyInstaller → core/dist/pdefe-core.exe
+npm run cekirdek:derle    # PyInstaller → core/dist/pdefe-core/ (tek klasör)
 npm run dist              # electron-builder → release/PDEfe-Setup.exe
 ```
 

@@ -45,7 +45,7 @@ src/renderer/           arayüz (ES modülleri; derleme adımı yok, pdefe://app
                         ortak.js: pencere, çıktı satırı, standart kaydetme seçimi, üzerine yazma / kilit soruları
   komutlar.js           komut deseni: KomutYigini (geri al/yinele, kayıt konumu)
   durum.js              durum çubuğu
-core/                   Python 3.12 (proje içi .venv, uv ile kurulu; PyInstaller ile pdefe-core.exe)
+core/                   Python 3.12 (proje içi .venv, uv ile kurulu; PyInstaller ile tek klasör core/dist/pdefe-core/)
   pdefe_core.py         JSON-RPC döngüsü, belge önbelleği, temel yöntemler
   islemler/notlar.py    not yazma: Highlight/Text (referans okuyucu yapısı)/FreeText (gömülü Türkçe yüzler, parçalı /RC), kaydet
   islemler/araclar.py   küçült, sayfa düzenle, ayır, görüntü/PDF birleştir, döndür; geçici dosya + atomik yer değiştirme
@@ -729,3 +729,32 @@ Kullanıcı simgenin sade sürümünü gönderdi (PDEfe-simge2.zip; BENIOKU ayn�
   yer tutucudur (2099_…, DENEME 9. ASLİYE TİCARET MAHKEMESİ). Seçim regresyonu (test/secim_bloklar.mjs) yerel örnek belgelerle çalıştığı
   için git dışındadır.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 25 (0.1.17 simgesiyle).
+
+### Revizyon 0.1.18 (2026-09-27, kullanıcı isteği)
+Kullanıcı RAM kullanımının denetlenmesini, kullanımı gözle görülür biçimde etkilemeyen iyileştirmelerin yapılmasını istedi. Ölçüm: ekran
+dışı test örneği (test/baslat.ps1) kullanıcının ekranı boyutunda (2560×1400, genişliğe sığdır, %100 ölçek); Görev Yöneticisi "Bellek"
+sütunu = süreç ağacının özel çalışma kümesi. İç dağılım CDP memory-infra dökümüyle (Tracing.requestMemoryDump), işçi yığınları
+Target.setAutoAttach ile okundu. 0.1.17: boşta ~140 MB, 1 belge ~210–280 MB, 3 belge ~430–490 MB (+ ~680 MB ekran kartı belleği),
+hepsi kapanınca ~275 MB. JS sızıntısı yok (sekmeler kapanınca pdf.js işçileri kapanıyor, yığın 3 MB); kapanıştan sonra kalan fazlalık
+Chromium ayırıcılarının serbest belleği hemen iade etmemesi.
+- [x] **Gizli sekme tuvalleri** (goruntuleyici.js `arkaPlanaAlindi`, uygulama.js `sekmeSec`): sekme gizlenince yalnızca `el.hidden`
+  yapılıyordu; gizli sekmede kaydirmaIsle çalışmadığından ön çizilmiş bant ve komşu sayfaların tuvalleri sekme kapanana dek kalıyordu
+  (2560 px'te A4 tuvali ~27 MB, sekme başına 3–4). Artık görünür sayfalar (`_gorunurKume`) dışındakiler bırakılır; sekmeye dönünce
+  görünür sayfa ilk karede çizili (ölçüldü, ekran görüntüsüyle denetlendi), bant boyutDegisti → kaydirmaIsle ile yeniden çizilir
+  (sayfa başına 25–120 ms). Görünür sayfalar kasıtlı tutulur (tamamen bırakmak dönüşte 30–120 ms boş sayfa gösterirdi). 3 sekmede
+  tuval 68,5 → 42 MP (canvas 261 → 160 MB), özel bellek 427 → 372 MB; kazanç gizli sekme sayısıyla artar.
+- [x] **Küçük resim paneli** (panel.js `belgeUnut`): panel kapalıyken ya da başka panel sekmesindeyken kapanan belgenin küçük
+  resimleri alanda, IntersectionObserver geri çağrısı da kapanan belgeyi tutuyordu. Alan o belgeninse gözlemci kesilir, alan boşaltılır.
+- [x] **Çekirdek tek klasör** (core/pdefe-core.spec COLLECT, cekirdek.js, cekirdek-derle.mjs, electron-builder.yml, yayim.yml):
+  onefile her açılışta ~70 MB'ı %TEMP%\_MEI* altına açıyordu (~0,9 sn) ve `durdur()` önyükleyiciyi `kill()` ile öldürdüğü için
+  açılan klasör silinmeden kalıyordu (deneyle doğrulandı; ev bilgisayarında 151 klasör, 10,07 GB — kullanıcı onayıyla silindi).
+  Artık resources/pdefe-core/pdefe-core.exe + _internal (77 MB, exe 5,8 MB); çekirdek ikinci açılışta 185 ms'de ping yanıtı veriyor,
+  tek süreç (önyükleyici yok). araclar_testi `--exe` 130/130.
+- [x] **Çekirdek kapanışı** (cekirdek.js `durdur`): önce yalnızca stdin kapatılır; çekirdek kuyruktaki işi bitirip (pdefe_core.main
+  en çok 5 sn bekler) kendiliğinden çıkar. Ana süreç yaşıyorsa 8 sn sonra `kill()`.
+- [x] Regresyon: senaryo17 42/42, senaryo18 10/10, sekme_genislik 24/24, senaryo2, senaryo6, senaryo9 beklenen çıktı; küçük resim
+  paneli bırakma sınaması OK. Sürüm 0.1.18.
+- Bilerek yapılmayanlar (gözle görülür etki ya da küçük kazanç): etkin sekmede boşaltma bandını daraltmak (−3/+4 ekran; geri kaydırmada
+  yeniden çizim), koyu sayfa kipindeki ikinci tuval (CSS süzgeci farklı çizer), arama metin önbelleğini Bul kapanınca silmek (yeniden
+  aramada büyük belgede saniyeler), tek paylaşılan pdf.js işçisi (belgeler birbirini bekler), MuPDF deposu (çekirdek 30–45 MB, belge
+  kapanınca iniyor).

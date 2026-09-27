@@ -1,5 +1,5 @@
-// pdefe-core.exe derleme betiği: .venv içindeki PyInstaller ile core/pdefe-core.spec'i derler,
-// çıktıyı core/dist/pdefe-core.exe'ye koyar, exe'yi başlatıp "ping" ile doğrular, süre ve boyutu yazar.
+// pdefe-core derleme betiği: .venv içindeki PyInstaller ile core/pdefe-core.spec'i derler, çıktıyı tek klasör olarak
+// core/dist/pdefe-core/ altına koyar (pdefe-core.exe + _internal), exe'yi başlatıp "ping" ile doğrular, süre ve boyutu yazar.
 //
 // Kullanım:  node build/cekirdek-derle.mjs [--temiz] [--atla-derleme]
 //   --temiz         PyInstaller önbelleğini temizler (--clean)
@@ -18,7 +18,9 @@ const PYINSTALLER_ON_ARGS = PDEFE_PYTHON ? ['-m', 'PyInstaller'] : [];
 const SPEC = path.join(KOK, 'core', 'pdefe-core.spec');
 const DIST = path.join(KOK, 'core', 'dist');
 const WORK = path.join(KOK, 'build', 'pyinstaller-work');
-const EXE = path.join(DIST, 'pdefe-core.exe');
+const KLASOR = path.join(DIST, 'pdefe-core');           // electron-builder.yml extraResources bu klasörü resources/pdefe-core'a koyar
+const EXE = path.join(KLASOR, 'pdefe-core.exe');
+const ESKI_TEK_DOSYA = path.join(DIST, 'pdefe-core.exe');  // 0.1.17'ye dek onefile çıktısı
 
 const argv = new Set(process.argv.slice(2));
 
@@ -49,6 +51,8 @@ async function derle() {
   await calistir(PYINSTALLER, [...PYINSTALLER_ON_ARGS, ...args], { cwd: KOK, env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' } });
   console.log(`[derle] tamamlandı: ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   if (!fs.existsSync(EXE)) throw new Error(`Derleme bitti ama exe yok: ${EXE}`);
+  // Eski tek dosya çıktısı kalmasın (artık paketlenmez; yanlışlıkla sınanmasın)
+  if (fs.existsSync(ESKI_TEK_DOSYA)) { fs.rmSync(ESKI_TEK_DOSYA, { force: true }); console.log(`[derle] eski tek dosya çıktısı silindi: ${ESKI_TEK_DOSYA}`); }
 }
 
 function klasorBoyutu(klasor) {
@@ -105,7 +109,7 @@ async function ana() {
   else console.log('[derle] atlandı (--atla-derleme)');
 
   const exeBoyut = fs.statSync(EXE).size;
-  console.log(`[çıktı] ${EXE}  (${mb(exeBoyut)}); dist klasörü toplam ${mb(klasorBoyutu(DIST))}`);
+  console.log(`[çıktı] ${EXE}  (${mb(exeBoyut)}); çekirdek klasörü toplam ${mb(klasorBoyutu(KLASOR))}`);
 
   console.log('[sına] exe başlatılıyor ve ping gönderiliyor…');
   const s = await sina(EXE);
@@ -113,10 +117,10 @@ async function ana() {
   if (!r.ok) throw new Error(`Beklenmedik ping yanıtı: ${JSON.stringify(s.yanit)}`);
   console.log(`[sına] ping OK — çekirdek ${r.surum}, PyMuPDF ${r.pymupdf}; başlatma+yanıt ${s.baslatmaMs} ms`);
   if (s.stderr.trim()) console.log(`[sına] stderr:\n${s.stderr.trim()}`);
-  // İkinci başlatma (onefile açılımı önbellekli değil; gerçekçi süre için tekrar ölç)
+  // İkinci başlatma (ilkinde dosyalar henüz disk önbelleğinde olmayabilir; gerçekçi süre için tekrar ölç)
   const s2 = await sina(EXE);
   console.log(`[sına] ikinci başlatma+yanıt ${s2.baslatmaMs} ms`);
-  console.log('[tamam] pdefe-core.exe çalışıyor.');
+  console.log('[tamam] pdefe-core çalışıyor.');
 }
 
 ana().catch((e) => {

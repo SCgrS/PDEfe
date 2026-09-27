@@ -1141,6 +1141,17 @@ export class Goruntuleyici extends EventTarget {
 
   sayfaBosalt(i) { const s = this.sayfalar[i]; if (s) this.girdiBosalt(s); }
 
+  /**
+   * Sekme arka plana alındı (başka sekme ya da açılış ekranı seçildi): görünür sayfalar dışındaki tuvaller bırakılır. Gizli sekmede
+   * kaydirmaIsle çalışmadığından ön çizilmiş bant ve komşu sayfalar sekme kapanana dek bellekte kalıyordu (2560 px genişliğe sığdırılmış
+   * A4 tuvali ~27 MB, sekme başına 3–4 tuval). Görünür sayfalar tutulur: sekmeye dönünce aynı görüntü beklemeden gelir, bant yeniden çizilir.
+   */
+  arkaPlanaAlindi() {
+    if (this.yok || !this.belge) return;
+    this._onKuyruk = [];
+    for (let i = 0; i < this.sayfalar.length; i++) if (!this._gorunurKume.has(this.sayfalar[i])) this.sayfaBosalt(i);
+  }
+
   hepsiniYenidenCiz() {
     for (let i = 0; i < this.sayfalar.length; i++) this.sayfaBosalt(i);
     this.kaydirmaIsle();

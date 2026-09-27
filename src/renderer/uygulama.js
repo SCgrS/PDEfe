@@ -189,6 +189,7 @@ async function sekmeSec(id) {
     if (eski) {
       eski.notlar?.balonKapat(); eski.notlar?.notCubuguKapat(); eski.notlar?.duzenleyiciBitir(true);
       eski.el.hidden = true;
+      eski.gorunum.arkaPlanaAlindi();       // görünür sayfalar dışındaki tuvaller bırakılır (gizli sekme bellek tutmasın)
       eski.notlar?.secimCubuguKonumla();   // görünümü gizlendi: seçim çubuğu da gizlenir (açılış sekmesinde belgenin boyutDegisti'si yok)
     }
   }

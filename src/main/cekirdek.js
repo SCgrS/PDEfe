@@ -20,7 +20,9 @@ export class Cekirdek {
 
   komut() {
     if (this.paketli) {
-      const exe = path.join(this.kaynaklar, 'pdefe-core.exe');
+      // Tek klasör PyInstaller paketi (resources/pdefe-core/pdefe-core.exe + _internal). 0.1.17'ye dek tek dosyaydı: her açılışta
+      // %TEMP%\_MEI* altına ~70 MB açılıyordu (~0,9 sn) ve çekirdek kapanışta öldürülünce klasör kalıyordu.
+      const exe = path.join(this.kaynaklar, 'pdefe-core', 'pdefe-core.exe');
       return { cmd: exe, args: [] };
     }
     const python = path.join(this.kok, '.venv', 'Scripts', 'python.exe');
@@ -94,8 +96,15 @@ export class Cekirdek {
     return this.gonder('iptal', { id }).then(() => true).catch(() => false);
   }
 
+  /** Uygulama kapanırken: stdin kapatılır, çekirdek kuyruktaki işi bitirip (en çok ~5 sn, pdefe_core.main) kendiliğinden çıkar.
+   *  Hemen kill() edilmez: yazılmakta olan çıktı dosyası yarım kalmasın. Ana süreç o ana dek yaşıyorsa 8 sn sonra zorla kapatılır. */
   durdur() {
     this.kapaniyor = true;
-    if (this.surec) { try { this.surec.stdin.end(); this.surec.kill(); } catch {} }
+    const p = this.surec;
+    if (!p) return;
+    try { p.stdin.end(); } catch {}
+    const zorla = setTimeout(() => { try { p.kill(); } catch {} }, 8000);
+    zorla.unref();
+    p.once('exit', () => clearTimeout(zorla));
   }
 }

@@ -3,6 +3,14 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.18 — 2026-09-27
+
+### Bellek ve hız
+- Birden çok belge açıkken daha az bellek kullanılır: arka plandaki sekmede yalnızca ekranda duran sayfa hazır tutulur, öteki sayfalar sekmeye dönünce yeniden hazırlanır. Sekmeye dönünce sayfa beklemeden görünür. Geniş ekranda (2560 piksel, genişliğe sığdır) arka plandaki her sekme ~50 MB daha az yer tutar.
+- Kapatılan belgenin sayfa küçük resimleri, küçük resim paneli kapalıyken de bellekten bırakılır.
+- PDF işlemlerini yapan yardımcı program artık her açılışta Windows'un geçici klasörüne açılmıyor. Belge araçları açılışta daha çabuk hazır olur (~0,9 sn yerine ~0,2 sn) ve PDEfe kapanınca geçici klasörde (%TEMP%) ~70 MB'lık bir `_MEI…` klasörü kalmaz. Önceki sürümlerin bıraktığı bu klasörler (içinde `pymupdf` klasörü olanlar) PDEfe kapalıyken silinebilir.
+- PDEfe kapanırken yardımcı program zorla kapatılmaz; süren bir işi varsa bitirip kapanır.
+
 ## 0.1.17 — 2026-09-27
 
 ### Görünüm

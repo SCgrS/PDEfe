@@ -3,7 +3,7 @@
 test/cikti/araclar/ altına yazar, boyutları (MB), sayfa sayılarını, notların/yer imlerinin ve
 Türkçe metnin korunduğunu doğrular; sonunda sonuç tablosunu yazdırır.
 
-Çalıştırma:  .venv\\Scripts\\python.exe test\\araclar_testi.py [--exe core\\dist\\pdefe-core.exe]
+Çalıştırma:  .venv\\Scripts\\python.exe test\\araclar_testi.py [--exe core\\dist\\pdefe-core\\pdefe-core.exe]
 --exe verilirse yöntemler doğrudan değil, paketlenmiş exe üzerinden JSON-RPC ile çağrılır.
 """
 import os
