@@ -1,16 +1,24 @@
-// Sekme çubuğu: sekme listesi, sürükleyerek sıralama (işaretçi olaylarıyla; aşağıda surukleHazirla), tekerlekle geçiş, ◀ ▶ düğmeleri,
-// + (yeni sekme; uygulama.js açılış sayfası sekmesi açar), "Açık belgeler" listesi ve Ctrl+Tab son-kullanım sırasına göre sekme seçici.
+// Sekme çubuğu: sekme listesi, sürükleyerek sıralama ve çubuğun dışına sürükleyerek ayırma (işaretçi olaylarıyla; aşağıda
+// surukleHazirla), tekerlekle geçiş, ◀ ▶ düğmeleri, + (yeni sekme; uygulama.js açılış sayfası sekmesi açar), "Açık belgeler" listesi ve
+// Ctrl+Tab son-kullanım sırasına göre sekme seçici.
 import { ortuTiklamasiBagla } from './ortu.js';
 
 /** Sekmenin ipucu: sabit genişlikte kısalabilen tam ad ve dosyanın yolu. */
 const ipucu = (ad, yol) => (yol && yol !== ad ? `${ad}\n${yol}` : ad);
 
+// Sürüklenen sekme, imleç sekme çubuğunun üstünden ya da altından (ya da pencerenin yanlarından) bu kadar uzaklaşınca çubuktan ayrılır
+// (sıralarken elin biraz kayması sekmeyi ayırmasın); ayrılmış sekme çubuğa bunun yarısı kadar yaklaşınca geri takılır (kıyıda gidip gelmesin)
+const AYIRMA_ESIGI = 24;
+
 export class SekmeCubugu extends EventTarget {
-  constructor({ cubuk, liste, onceki, sonraki, acilir, secici, belgeListesi, aramaSay = null }) {
+  constructor({ cubuk, liste, onceki, sonraki, acilir, secici, belgeListesi, aramaSay = null, ayrilabilir = null }) {
     super();
     this.cubuk = cubuk; this.liste = liste; this.secici = secici; this.belgeListesi = belgeListesi;
     // (id, sorgu, { iptal }) => Promise<number>: "Açık belgeler" listesinde belge içi eşleşme sayısı; verilmezse liste ada göre süzülür
     this.aramaSay = typeof aramaSay === 'function' ? aramaSay : null;
+    // (id) => boolean: sekme çubuğun dışına sürüklenince ayrılabilir mi (belge sekmesi, yüklenmiş); verilmezse hiçbir sekme ayrılmaz
+    this.ayrilabilir = typeof ayrilabilir === 'function' ? ayrilabilir : null;
+    this._isaret = null;      // başka pencereden sürüklenen sekmenin bırakılacağı yerin işareti (birakmaIsareti)
     this.listeNo = 0;         // açık listenin/sorgunun kimliği; geç gelen eski sayımları ayıklar
     this.listeZaman = null;
     this.sekmeler = [];       // {id, ad, yol, el, degisti}
@@ -80,8 +88,8 @@ export class SekmeCubugu extends EventTarget {
     el.querySelector('.kapat').addEventListener('click', (e) => { e.stopPropagation(); this.dispatchEvent(new CustomEvent('kapat', { detail: { id } })); });
     el.addEventListener('contextmenu', (e) => { e.preventDefault(); this.dispatchEvent(new CustomEvent('sagTik', { detail: { id } })); });
 
-    // Sürükleyerek sıralama: sol tuşla basılıp yatayda çekilince (kapat düğmesinden değil)
-    el.addEventListener('pointerdown', (e) => { if (e.button === 0 && e.isPrimary && !e.target.closest('.kapat')) this.surukleHazirla(e, el); });
+    // Sürükleyerek sıralama / ayırma: sol tuşla basılıp çekilince (kapat düğmesinden değil)
+    el.addEventListener('pointerdown', (e) => { if (e.button === 0 && e.isPrimary && !e.target.closest('.kapat')) this.surukleHazirla(e, el, id); });
 
     this.cubuk.hidden = false;
     this.okDurumu();   // arka planda açılan sekme sona eklenir: ▶ etkinleşir
@@ -103,18 +111,25 @@ export class SekmeCubugu extends EventTarget {
   // değişir (siralamayiOku). Esc, pencerenin odağı kaybetmesi ya da işaretçinin iptali sürüklemeyi bırakır: sekmeler eski yerlerine kayar.
   // Sekmeler sığmayıp kaydırılıyorsa imleç listenin ucuna gelince liste kendiliğinden kayar. Konumlar sürükleme başında ölçülür
   // (liste içeriğine göre, kaydırmadan bağımsız); sekme eklenir ya da kapanırsa sürükleme hemen bırakılır (surukleKes).
+  //
+  // 0.1.19 (kullanıcı isteği): sekme çubuğun dışına sürüklenince çubuktan ayrılır. İmleç çubuğun üstüne / altına ya da pencerenin
+  // yanlarına AYIRMA_ESIGI'nden çok uzaklaşınca (seridinDisinda) sekme çubukta görünmez olur, ötekiler boşluğu kapatır ve 'ayrildi'
+  // olayı verilir (uygulama.js imleci izleyen önizlemeyi gösterir). Çubuğa geri gelince sekme imlecin altında yerine takılır
+  // ('geriTakildi'), sıralama sürer. Dışarıda bırakılınca ('disariBirakildi') sıra değişmez; sekme, uygulama onu başka pencereye
+  // taşıyana (kaldir) ya da vazgeçene (askidanCikar) dek çubukta gizli kalır. Esc ve odak kaybı ayrılmış sekmeyi de yerine döndürür.
+  // Yalnızca ayrilabilir(id)'nin izin verdiği sekmeler ayrılır (açılış sekmesi ayrılmaz: çubukta kalır, imleci yatayda izler).
 
-  /** Sol tuşla basış: sürükleme henüz başlamaz; yatayda 5 px'ten çok çekilince başlar (tıklama sekmeyi seçmekle kalır). */
-  surukleHazirla(e, el) {
+  /** Sol tuşla basış: sürükleme henüz başlamaz; 5 px'ten çok çekilince başlar (tıklama sekmeyi seçmekle kalır). */
+  surukleHazirla(e, el, id = null) {
     this.surukleKes();
-    const s = this.surukleme = { el, pointerId: e.pointerId, x0: e.clientX, x: e.clientX, kaydirma0: this.liste.scrollLeft, basladi: false };
+    const s = this.surukleme = { el, id, pointerId: e.pointerId, x0: e.clientX, x: e.clientX, y0: e.clientY, y: e.clientY, kaydirma0: this.liste.scrollLeft, basladi: false, ayrildi: false, ayrilir: false };
     const hareket = (ev) => {
       if (ev.pointerId !== s.pointerId) return;
-      s.x = ev.clientX;
-      if (!s.basladi) { if (Math.abs(s.x - s.x0) < 5) return; this.surukleBaslat(s); }
-      this.surukleIzle(s);
+      s.x = ev.clientX; s.y = ev.clientY;
+      if (!s.basladi) { if (Math.hypot(s.x - s.x0, s.y - s.y0) < 5) return; this.surukleBaslat(s); }
+      this.surukleGuncelle(s);
     };
-    const birak = (ev) => { if (ev.pointerId === s.pointerId) this.surukleBitir(s, true); };
+    const birak = (ev) => { if (ev.pointerId !== s.pointerId) return; if (s.ayrildi) this.surukleDisariBirak(s); else this.surukleBitir(s, true); };
     const iptal = () => this.surukleBitir(s, false);
     const tus = (ev) => { if (ev.key === 'Escape' && s.basladi) { ev.preventDefault(); ev.stopImmediatePropagation(); iptal(); } };
     const dinleyiciler = [['pointermove', hareket], ['pointerup', birak], ['pointercancel', iptal], ['keydown', tus]];
@@ -124,7 +139,7 @@ export class SekmeCubugu extends EventTarget {
   }
 
   surukleBaslat(s) {
-    const ogeler = [...this.liste.children], i = ogeler.indexOf(s.el);
+    const ogeler = [...this.liste.children].filter((x) => x.classList.contains('sekme') && !x.classList.contains('askida')), i = ogeler.indexOf(s.el);
     if (i < 0) { this.surukleBitir(s, false); return; }
     const lr = this.liste.getBoundingClientRect(), kaydirma = this.liste.scrollLeft;
     const kutular = ogeler.map((x) => x.getBoundingClientRect());
@@ -132,12 +147,63 @@ export class SekmeCubugu extends EventTarget {
       basladi: true, ogeler, i, j: i,
       konum: kutular.map((k) => k.left - lr.left + kaydirma), genislik: kutular.map((k) => k.width),
       bosluk: parseFloat(getComputedStyle(this.liste).columnGap) || 0,
+      tutma: { x: s.x0 - kutular[i].left, y: s.y0 - kutular[i].top },   // sekmenin tutulduğu nokta (önizleme imlecin altında aynı yerden durur)
+      ayrilir: !!(s.id != null && this.ayrilabilir?.(s.id)),
     });
     s.el.classList.add('tasiniyor');
     this.liste.classList.add('siralaniyor');
-    try { s.el.setPointerCapture(s.pointerId); } catch { /* işaretçi bu arada bırakıldıysa */ }
+    // Yakalama listede (sekmede değil): sekme ayrılınca görünmez olur; imleç pencerenin dışına çıksa da olaylar gelmeye devam eder
+    try { this.liste.setPointerCapture(s.pointerId); } catch { /* işaretçi bu arada bırakıldıysa */ }
     this.surukleKaydir(s);
   }
+
+  /** İmleç sekme çubuğundan (üstünden / altından) ya da pencerenin yanlarından eşikten çok uzakta mı. Ayrılmış sekme için eşik yarıya iner. */
+  seridinDisinda(s) {
+    const r = this.cubuk.getBoundingClientRect(), e = s.ayrildi ? AYIRMA_ESIGI / 2 : AYIRMA_ESIGI;
+    return s.y < r.top - e || s.y > r.bottom + e || s.x < -e || s.x > window.innerWidth + e;
+  }
+
+  /** İmlecin yeni yerine göre: sekme çubuktaysa sıralamayı izler, dışına çıktıysa ayırır, geri geldiyse yerine takar. */
+  surukleGuncelle(s) {
+    if (this.surukleme !== s || !s.basladi) return;
+    const disarda = s.ayrilir && this.seridinDisinda(s);
+    if (disarda && !s.ayrildi) this.surukleAyir(s);
+    else if (!disarda && s.ayrildi) this.surukleGeriTak(s);
+    if (!s.ayrildi) this.surukleIzle(s);
+  }
+
+  /** Sekme çubuktan ayrıldı: görünmez olur, sonraki sekmeler boşluğu kapatır (bırakılana ya da geri takılana dek DOM sırası değişmez). */
+  surukleAyir(s) {
+    s.ayrildi = true;
+    s.el.classList.add('ayrildi');
+    const kay = s.genislik[s.i] + s.bosluk;
+    s.ogeler.forEach((x, k) => { if (k !== s.i) x.style.transform = k > s.i ? `translateX(${-kay}px)` : ''; });
+    this.dispatchEvent(new CustomEvent('ayrildi', { detail: { id: s.id, tutma: s.tutma } }));
+  }
+
+  /** Ayrılmış sekme çubuğa geri döndü (ya da sürükleme bırakıldı): yeniden görünür. */
+  surukleGeriTak(s) {
+    s.ayrildi = false;
+    s.el.classList.remove('ayrildi');
+    this.dispatchEvent(new CustomEvent('geriTakildi', { detail: { id: s.id } }));
+  }
+
+  /** Ayrılmış sekme çubuğun dışında bırakıldı: sıra değişmez; sekme uygulama karar verene dek çubukta gizli (askıda) kalır. */
+  surukleDisariBirak(s) {
+    if (this.surukleme !== s) return;
+    this.surukleme = null;
+    s.dinlemeyiBirak();
+    cancelAnimationFrame(s.kare);
+    try { this.liste.releasePointerCapture(s.pointerId); } catch { /* zaten bırakılmış */ }
+    this.liste.classList.remove('siralaniyor');
+    s.el.classList.remove('tasiniyor', 'ayrildi');
+    for (const x of s.ogeler) x.style.transform = '';
+    s.el.classList.add('askida');
+    this.dispatchEvent(new CustomEvent('disariBirakildi', { detail: { id: s.id } }));
+  }
+
+  /** Dışarıda bırakılan sekme taşınamadı ya da vazgeçildi: çubukta eski yerinde yeniden görünür. */
+  askidanCikar(id) { this.bul(id)?.el.classList.remove('askida'); }
 
   /** Sürüklenen sekmeyi imlecin altında tutar (ilk sekmenin solu ile son sekmenin sağı arasında) ve ötekileri açılan yere göre kaydırır. */
   surukleIzle(s) {
@@ -165,7 +231,7 @@ export class SekmeCubugu extends EventTarget {
   surukleKaydir(s) {
     if (this.surukleme !== s) return;
     const r = this.liste.getBoundingClientRect(), bolge = 32;
-    const derinlik = s.x < r.left + bolge ? s.x - r.left - bolge : s.x > r.right - bolge ? s.x - r.right + bolge : 0;
+    const derinlik = s.ayrildi ? 0 : s.x < r.left + bolge ? s.x - r.left - bolge : s.x > r.right - bolge ? s.x - r.right + bolge : 0;   // ayrılmış sekme listeyi kaydırmaz
     if (derinlik) {
       const once = this.liste.scrollLeft, hiz = Math.max(-20, Math.min(20, derinlik / 3));
       this.liste.scrollLeft = once + (Math.trunc(hiz) || Math.sign(hiz));
@@ -182,6 +248,9 @@ export class SekmeCubugu extends EventTarget {
     s.dinlemeyiBirak();
     if (!s.basladi) return;
     cancelAnimationFrame(s.kare);
+    try { this.liste.releasePointerCapture(s.pointerId); } catch { /* zaten bırakılmış */ }
+    // Çubuktan ayrılmışken bırakma (Esc, odak kaybı, sekme eklendi / kapandı): sekme yeniden görünür, eski yerine döner
+    if (s.ayrildi) { this.surukleGeriTak(s); kaydet = false; for (const x of s.ogeler) if (x !== s.el) x.style.transform = ''; }
     const { el, i, ogeler, konum, genislik } = s, j = kaydet ? s.j : i;
     let zaman = null;
     const yerles = () => {
@@ -237,6 +306,24 @@ export class SekmeCubugu extends EventTarget {
   }
 
   bul(id) { return this.sekmeler.find((s) => s.id === id); }
+
+  /** Başka pencereden bırakılan sekmenin gireceği yer: x (pencere içi yatay konum) hangi sekmenin ortasından soldaysa o sekmenin
+   *  kimliği (taşınan sekme onun önüne eklenir); bütün sekmelerin sağındaysa null (sona eklenir). */
+  birakmaYeri(x) {
+    for (const s of this.sekmeler) { const r = s.el.getBoundingClientRect(); if (r.width && x < r.left + r.width / 2) return s.id; }
+    return null;
+  }
+
+  /** Başka pencereden sürüklenen sekmenin bırakılacağı yeri gösterir: x'in düştüğü iki sekmenin arasında dikey çizgi (birakmaYeri ile
+   *  aynı kural); x null ise işaret kalkar. Sekmeler kaydırılmışsa çizgi listenin görünen kısmında kalır. */
+  birakmaIsareti(x) {
+    if (x == null || !this.sekmeler.length) { this._isaret?.remove(); this._isaret = null; return; }
+    if (!this._isaret) { this._isaret = document.createElement('div'); this._isaret.className = 'sekme-birakma'; this.cubuk.append(this._isaret); }
+    const once = this.birakmaYeri(x), cr = this.cubuk.getBoundingClientRect(), lr = this.liste.getBoundingClientRect();
+    const son = this.sekmeler.at(-1).el.getBoundingClientRect();
+    const sol = once ? this.bul(once).el.getBoundingClientRect().left - 2 : son.right + 1;
+    this._isaret.style.left = Math.round(Math.max(lr.left, Math.min(lr.right, sol)) - cr.left) + 'px';
+  }
 
   /** Ad, yol (Farklı kaydet) ya da değişiklik işareti değişti. */
   guncelle(id, { ad, yol, degisti }) {

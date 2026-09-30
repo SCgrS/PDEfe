@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="tr" data-tema="acik">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' pdefe:; style-src 'self' pdefe: 'unsafe-inline'; img-src data:;">
+  <title>PDEfe</title>
+  <!-- Sürüklenen sekmenin önizlemesi (0.1.19): sekme çubuğundan ayrılan sekmenin adı ve geçerli sayfasının küçük görüntüsü. Ana süreç
+       bu pencereyi imlecin altında tutar (main/pencereler.js hayaletiGoster); pencere odak almaz, fare olaylarını geçirir. -->
+  <style>
+    :root { --zemin: #ffffff; --baslik: #f3f3f3; --metin: #1b1b1b; --kenar: #b9b9b9; --vurgu: #0067c0; }
+    html[data-tema="koyu"] { --zemin: #171717; --baslik: #2b2b2b; --metin: #f0f0f0; --kenar: #5a5a5a; --vurgu: #4cc2ff; }
+    [hidden] { display: none !important; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: var(--zemin); }
+    body { font: 12px 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif; color: var(--metin); user-select: none; cursor: default; }
+    #kart { position: fixed; inset: 0; display: flex; flex-direction: column; border: 1px solid var(--kenar); box-sizing: border-box; }
+    #baslik { flex: 0 0 29px; display: flex; align-items: center; gap: 6px; padding: 0 9px; background: var(--baslik); border-bottom: 2px solid var(--vurgu); box-sizing: border-box; }
+    #baslik svg { flex: 0 0 14px; width: 14px; height: 14px; }
+    #ad { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+    #onizleme { flex: 1; min-height: 0; width: 100%; display: block; object-fit: cover; object-position: top left; }
+  </style>
+</head>
+<body>
+  <div id="kart">
+    <div id="baslik">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.75 2.25h7l3.5 3.5v12H4.75z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M11.75 2.25v3.5h3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      <span id="ad"></span>
+    </div>
+    <img id="onizleme" alt="" hidden>
+  </div>
+  <script type="module" src="hayalet.js"></script>
+</body>
+</html>

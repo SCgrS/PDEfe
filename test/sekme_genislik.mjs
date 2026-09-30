@@ -90,7 +90,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare
 
   // Sürükleyerek sıralama (0.1.14'ten beri işaretçi olaylarıyla). Gerçek fare olayları CDP'den verilir (Input.dispatchMouseEvent; gerçek
   // fareye dokunulmaz). Sürükleme ortasında ölçülür: sekme imlecin altında, aradaki sekmeler bir sekme boyu kaymış, tarayıcının
-  // sürükle-bırakı yok (draggable değil). disari: imleç belge alanına inip orada bırakılır. iptal: bırakmadan önce Esc.
+  // sürükle-bırakı yok (draggable değil). disari: imleç çubuğun biraz altına (belge alanının üst kenarına) inip orada bırakılır; 0.1.19'dan
+  // beri çubuktan 24 px'ten çok uzaklaşan sekme çubuktan ayrılır ve dışarıda bırakılınca yeni pencerede açılır (test/senaryo22.mjs),
+  // eşiğin içinde kalan sekme eskisi gibi çubukta kalır. iptal: bırakmadan önce Esc.
   const durum = () => evalJs(`({ model: window.__pdefe.sekmeler.sekmeler.map((s) => s.ad), dom: [...document.querySelectorAll('.sekme .ad')].map((a) => a.textContent),
     kalan: [...document.querySelectorAll('.sekme')].filter((s) => s.style.transform || s.classList.contains('tasiniyor') || s.classList.contains('yerlesiyor')).length
       + (document.querySelector('#sekme-liste').classList.contains('siralaniyor') ? 1 : 0) })`);
@@ -99,7 +101,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare
     const { ws, gonder } = await cdp();
     const k = await evalJs(`[...document.querySelectorAll('.sekme')].map((s) => { const r = s.getBoundingClientRect(); return { x: Math.round(r.left + 40), y: Math.round(r.top + r.height / 2), sag: Math.round(r.right - 20) }; })`);
     const [a, b] = [k[kaynak], k[hedef]];
-    const son = { x: x ?? b.sag, y: disari ? 400 : a.y };   // x: imlecin bırakılacağı yer (verilmezse hedef sekmenin sağ yarısı)
+    const cubukAlti = await evalJs(`Math.round(document.querySelector('#sekme-cubugu').getBoundingClientRect().bottom)`);
+    const son = { x: x ?? b.sag, y: disari ? cubukAlti + 18 : a.y };   // x: imlecin bırakılacağı yer (verilmezse hedef sekmenin sağ yarısı)
     const fareOlayi = (type, x, y, buttons) => gonder('Input.dispatchMouseEvent', { type, x, y, button: type === 'mouseMoved' && !buttons ? 'none' : 'left', buttons, clickCount: 1 });
     await fareOlayi('mouseMoved', a.x, a.y, 0);
     await fareOlayi('mousePressed', a.x, a.y, 1);
@@ -128,9 +131,11 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare
     r.ortada.tasinan === ADLAR[0] && Math.abs(r.ortada.sol - r.ortada.solBeklenen) <= 2 && Math.abs(r.ortada.ust - r.ortada.ustBeklenen) <= 2 && r.ortada.opak && !r.ortada.draggable, js(r.ortada));
   denetle('sürükle-bırak ortası: aradaki iki sekme kayarak yer açmış', r.ortada.kaymis === 2, js(r.ortada));
   denetle('sürükle-bırak: 1. sekme 3.nün arkasına taşındı (model ve DOM), sürükleme izi kalmadı', js(r.model.slice(0, 3)) === js([ADLAR[1], ADLAR[2], ADLAR[0]]) && js(r.dom) === js(r.model) && r.kalan === 0, js({ ilk3: r.model.slice(0, 3), kalan: r.kalan }));
-  // İmleç belge alanına inip orada bırakılınca da sekme çubukta kalır ve görünen sıra geçerli olur (Ctrl+1 görünen ilk sekmeyi seçer)
+  // İmleç çubuğun biraz altına (ayırma eşiğinin içinde) inip orada bırakılınca da sekme çubukta kalır ve görünen sıra geçerli olur
+  // (Ctrl+1 görünen ilk sekmeyi seçer); sekme ayrılmaz, yeni pencere açılmaz
   r = await surukleBirak(0, 1, { disari: true });
-  denetle('sürükle-bırak (imleç belge alanında bırakıldı): sekme çubukta kaldı, model DOM sırasıyla aynı', r.ortada.kaymis === 1 && Math.abs(r.ortada.ust - r.ortada.ustBeklenen) <= 2 && js(r.dom) === js(r.model) && js(r.model.slice(0, 3)) === js([ADLAR[2], ADLAR[1], ADLAR[0]]) && r.kalan === 0, js({ ortada: r.ortada, ilk3: r.model.slice(0, 3) }));
+  denetle('sürükle-bırak (imleç çubuğun 18 px altında bırakıldı): sekme çubukta kaldı, ayrılmadı; model DOM sırasıyla aynı', r.ortada.kaymis === 1 && Math.abs(r.ortada.ust - r.ortada.ustBeklenen) <= 2 && js(r.dom) === js(r.model) && js(r.model.slice(0, 3)) === js([ADLAR[2], ADLAR[1], ADLAR[0]]) && r.kalan === 0
+    && (await evalJs(`window.pdefe.cagir('pencere:sayi')`)) === 1 && !(await evalJs(`!!document.querySelector('.sekme.ayrildi, .sekme.askida')`)), js({ ortada: r.ortada, ilk3: r.model.slice(0, 3) }));
   await tus('1', ['ctrl']); await bekle(300);
   denetle('sürükle-bırak sonrası Ctrl+1: görünen ilk sekme seçilir', (await evalJs(`window.__pdefe.aktif().ad`)) === r.dom[0]);
   // En sola: sekme listenin solunun ötesine dek çekilince ilk sekme olur (sürüklenen sekme uçta durur, ortası uçtaki sekmenin ortasıyla
