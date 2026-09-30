@@ -59,7 +59,8 @@ test/                   surucu.mjs (CDP ile uygulamayı sürer; gerçek fare/kla
                         baslat.ps1 / durdur.ps1, kurulum_bitis.ps1 (ayrı veri klasörlü, ekran dışı test örneği), senaryo*.mjs,
                         incele.py, not_testi.py, ornek_pdf_uret.py (yer tutucu PDF üretir ve PDF özetini verir),
                         gercek_fare.ps1 (+ fare_gonder.ps1, gercek_fare.mjs: görünmeyen masaüstünde Windows fare iletileriyle sekme ayırma),
-                        sigdirma_kararli.mjs (sığdırma ve kaydırma çubukları; ekran ölçeği 1, 1,25 ve 1,5'te koşulur: baslat.ps1 -Olcek)
+                        sigdirma_kararli.mjs, sigdirma_rastgele.mjs (sığdırma ve kaydırma çubukları; ekran ölçeği 1, 1,25 ve 1,5'te
+                        koşulur: baslat.ps1 -Olcek)
 build/                  simge, NSIS, derleme betikleri
 ```
 
@@ -101,7 +102,7 @@ notlar_kaydet, freetext_stil, baglantilar, form_gorunum (+ araçlar).
   kaydırma çubukları öngörülerek hesaplanır (goruntuleyici.js `gorunumCoz`). Yerleşim hesabında kaydırıcının `clientWidth` /
   `clientHeight` değeri okunmaz: görünür boyut yerleşimin kendi çıkardığı çubuğa bağlıdır, sığdırma ölçeğiyle döngü kurar (görüntü
   titrer); `offsetWidth` de okunmaz (ekran ölçeği 1 değilken kesirli boyutu yuvarlar, alan kutudan taşar). Yerleşimi değiştiren iş
-  test/sigdirma_kararli.mjs ile üç ekran ölçeğinde sınanır.
+  test/sigdirma_kararli.mjs ve test/sigdirma_rastgele.mjs ile üç ekran ölçeğinde sınanır.
 
 ## Durum (2026-09-17)
 - [x] Açma/sekme/görüntüleme, düzenler, zoom (görünür alana sığdır dahil), döndürme, sol panel, koyu tema (sayfayı koyulaştır, görselleri koru), son dosya ve kalınan sayfa, Ctrl+Tab seçici; keskin çizim (görsel, ince çizgi, taramada yüksek yakınlaştırma)
@@ -964,9 +965,12 @@ yerleştirme aracından kuşkulandı. Kök neden ve kararlar:
   kesirli boyutlar (önceki durumda çubuk varken ve yokken). Üç ekran ölçeğinde koşulur (baslat.ps1 `-Olcek`, yeni:
   `--force-device-scale-factor`). 0.1.19'un koduyla (ayrı çalışma ağacı) 51 denetimin 24'ü (ölçek 1), 27'si (1,25), 25'i (1,5) kalıyor;
   düzeltmeyle üçünde de 51/51.
-  - Bir kez koşulanlar: rastgele belge / düzen / mod / boyut taraması (7 belge, ölçek başına 420 örnek, boyutlar cihaz pikseli
-    adımlarıyla; her örnekte durulma, çubuk–taşma tutarlılığı, ortalama): üç ölçekte sorunsuz. İki sayfa düzenindeki 1 px'lik taşmayı
-    bu tarama buldu. Kullanıcının belgesinin kopyasıyla kullanıcının pencere boyutunda: 0.1.19 kodu 3 sn'de 45 yerleşim, düzeltme 1.
+  - test/sigdirma_rastgele.mjs (yeni): tohumlu rastgele belge / düzen / mod / yakınlaştırma / boyut taraması (7 belge, 420 örnek,
+    boyutlar cihaz pikseli adımlarıyla, her örnek öncekinin durumundan başlar; durulma, çubuk–taşma tutarlılığı, ortalama). Bilinen
+    sınırları deneyen testin göremediğini arar: iki sayfa düzenindeki 1 px'lik taşmayı bu buldu. Üç ölçekte 420'şer örnek (1,5'te
+    üç ayrı tohum) sorunsuz. Bir koşuda tek örnek "durulmadı" verdi; aynı tohumla iki yinelemede ve tek başına yeniden üretilemedi
+    (boyut değişiminin yerleşimi geç geldi): durulma ölçütü ilk yerleşimi bekleyecek biçimde düzeltildi.
+  - Bir kez ölçülenler: kullanıcının belgesinin kopyasıyla kullanıcının pencere boyutunda 0.1.19 kodu 3 sn'de 45 yerleşim, düzeltme 1.
     Sekme değiştirme, sol panel, okuma modu (gizliyken boyutu değişen sekme gösterilince yeni boyuta yerleşiyor, sayfa korunuyor).
   - Regresyon (düzeltilmiş kodla): kisayol_gorunum 117/117, senaryo22 101/101, senaryo19 111/111 (yer tutucu belgelerle),
     vurgu_cubugu 13/13, kisayol_araclar 91/91.
