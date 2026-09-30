@@ -58,7 +58,8 @@ core/                   Python 3.12 (proje içi .venv, uv ile kurulu; PyInstalle
 test/                   surucu.mjs (CDP ile uygulamayı sürer; gerçek fare/klavye girdisi; hedefler / hedefSec: birden çok pencere),
                         baslat.ps1 / durdur.ps1, kurulum_bitis.ps1 (ayrı veri klasörlü, ekran dışı test örneği), senaryo*.mjs,
                         incele.py, not_testi.py, ornek_pdf_uret.py (yer tutucu PDF üretir ve PDF özetini verir),
-                        gercek_fare.ps1 (+ fare_gonder.ps1, gercek_fare.mjs: görünmeyen masaüstünde Windows fare iletileriyle sekme ayırma)
+                        gercek_fare.ps1 (+ fare_gonder.ps1, gercek_fare.mjs: görünmeyen masaüstünde Windows fare iletileriyle sekme ayırma),
+                        sigdirma_kararli.mjs (sığdırma ve kaydırma çubukları; ekran ölçeği 1, 1,25 ve 1,5'te koşulur: baslat.ps1 -Olcek)
 build/                  simge, NSIS, derleme betikleri
 ```
 
@@ -95,6 +96,12 @@ notlar_kaydet, freetext_stil, baglantilar, form_gorunum (+ araçlar).
   Yeni bir komut türü eklerken tarifini (`Komut.tanim`) ve komutDisari / komutIceri karşılığını da yazın: tarifsiz komut varsa o
   belgenin geri al geçmişi taşınmaz. Başka pencerelerde de anında etkili olması gereken yeni ayar uygulama.js
   `ayarDisaridanDegisti`'ye eklenir. Ana süreçte "pencere" tekil değildir: isteği gönderen pencere `pencereAl(e)` ile bulunur.
+
+- **Yerleşim ve kaydırma çubukları** (0.1.20): ölçek, görünür boyut ve tuval alanının boyutu kaydırıcının dış boyutundan, çıkacak
+  kaydırma çubukları öngörülerek hesaplanır (goruntuleyici.js `gorunumCoz`). Yerleşim hesabında kaydırıcının `clientWidth` /
+  `clientHeight` değeri okunmaz: görünür boyut yerleşimin kendi çıkardığı çubuğa bağlıdır, sığdırma ölçeğiyle döngü kurar (görüntü
+  titrer); `offsetWidth` de okunmaz (ekran ölçeği 1 değilken kesirli boyutu yuvarlar, alan kutudan taşar). Yerleşimi değiştiren iş
+  test/sigdirma_kararli.mjs ile üç ekran ölçeğinde sınanır.
 
 ## Durum (2026-09-17)
 - [x] Açma/sekme/görüntüleme, düzenler, zoom (görünür alana sığdır dahil), döndürme, sol panel, koyu tema (sayfayı koyulaştır, görselleri koru), son dosya ve kalınan sayfa, Ctrl+Tab seçici; keskin çizim (görsel, ince çizgi, taramada yüksek yakınlaştırma)
@@ -163,7 +170,7 @@ incelendi, birleştirildi ve birleşik sürüm yeniden doğrulandı. Kök nedenl
   `current.patternFill`, `dependencyTracker`, `_internalRenderTask`, `initializeGraphics`; pdfjs-dist yükseltmesinde
   denetlenmeli, adlar yoksa çökmeden eski (yavaş, büyük tuval) yola düşer. Tekrarlı ve desenli maske kırpılmaz.
   `onYuklemeIsle`: görünür sayfa örneklemesi beklenirken ön çizimler bekler (soğuk açılışta keskin çizim ~0,65 → ~0,4 sn).
-  Açık: dikey kaydırma çubuğu çıkınca 926 → 914 px yeniden yerleşim fazladan çizim yapıyor.
+  Dikey kaydırma çubuğu çıkınca 926 → 914 px yeniden yerleşim fazladan çizim yapıyordu; 0.1.20'de kapandı (yerleşim çubuğu öngörür).
 - [x] **Koyu sayfa**: yer tutucu ve boş tuval #000. `invert + hue-rotate` ClearType saçağını ters tarafa koyuyordu → koyu sayfa
   tuvali alpha:true (gri yumuşatma), çizim kaydında koyu bayrağı. Taramalar ve görseller özgün renkte kalır (tasarım gereği).
 - [x] **Vurgu ve arama karışımı**: `.not-highlight rect { mix-blend-mode: multiply }` `.not-katmani` yığın bağlamında yalnızca
@@ -900,3 +907,67 @@ birleştirilemezdi), ayarların pencerelerde ortak olması, bir dosyanın tek pe
   oto_kayit_kilit 7/7, vurgu_cubugu 13/13. senaryo17 (2), kisayol_dosya (7) ve ortu_tiklama (1–2; küçük belgede küçültme soru
   yanıtlanmadan bitiyor) hataları yer tutucu belgelerden: 0.1.18'de de aynı.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 26.
+
+### Revizyon 0.1.20 (2026-09-30, kullanıcı geri bildirimi)
+Ayrıntı: CHANGELOG.md. Kullanıcı yatay iki sayfalık bir belgeyi ekranın yarısına yerleştirilmiş pencerede (pencere yerleştirme aracının
+yarım ekran bölgesi, 1920×1080 ekran) açınca görüntünün titrediğini, yakınlaştırmanın %81 ile %82 arasında gidip geldiğini bildirdi ve
+yerleştirme aracından kuşkulandı. Kök neden ve kararlar:
+- [x] **Sığdırma kendi kaydırma çubuğuyla döngüye giriyordu** (goruntuleyici.js). Sığdırma ölçeği kaydırıcının o anki görünür
+  boyutundan (clientWidth / clientHeight) alınıyordu; görünür boyut ise yerleşimin çıkardığı kaydırma çubuğuna bağlı. Çubuksuz ölçekte
+  içerik aşağı taşıp çubuklu ölçekte sığan belgede: çubuk çıkar → genişlik 12 px daralır → ölçek küçülür → içerik sığar → çubuk kalkar →
+  ölçek büyür… ResizeObserver her turda yeniden yerleşim başlatıyordu (60 ms gecikmeyle): saniyede ~16 yerleşim, sayfalar her
+  seferinde yeniden çiziliyor. Kullanıcının durumu ölçüldü: görünüm 958×876 px, sayfalar 845×382 pt; %82'de içerik 881 px (taşar),
+  %81'de 870 px (sığar); kararsız aralık 870–881 px görünüm yüksekliği. Yerleştirme aracının payı yalnızca pencereyi bu boyuta
+  getirmesi: elle aynı boyuta getirilen pencerede de aynı. Test örneğinde aynı boyutta yeniden üretildi (belge olağan yoldan açılınca
+  3 sn'de 45 yerleşim). Aralık her sığdırma modunda ve düzende var (tek dikey sayfa da: pencere oranı sayfa oranına yakınken); genişliği
+  belgeye göre 10–20 px.
+  - Karar: yerleşim kaydırıcının dış boyutundan (çubuklardan etkilenmez) hesaplanır, çıkacak çubukları kendisi öngörür (`gorunumCoz`).
+    Sığdırmada önce çubuksuz ölçek denenir; içerik taşıyorsa o çubuk var sayılıp ölçek yeniden hesaplanır; var sayılan çubuk geri
+    alınmaz (en çok üç tur: çubuksuz, biri, ikisi). Kararsız aralıkta sonuç çubuklu (küçük) ölçektir ve içerik çubuksuz sığar:
+    sayfalar 12 px dar, ortada, kaydırma çubuğu yok. Sonra o ölçekte tarayıcının göstereceği çubuklar `overflow: auto` kuralıyla
+    bulunur (önce çubuksuz; biri gerekiyorsa kapladığı yer ötekini de gerektirebilir); görünür boyut ve tuval alanının boyutu ondan
+    çıkar. Çubuk kalınlığı stil sayfasından gelir (12 px); her zaman çubuklu bir deneme kutusuyla, cihaz piksel oranı başına bir kez
+    ölçülür. Yerleşim artık ilk seferde son hâlindedir: belge açılırken ve elle yakınlaştırmada çubuk çıkınca / kalkınca yapılan ikinci
+    yerleşim (ve 6 px'lik yana kayma, fazladan çizim) kalktı.
+  - İkinci güvence: ResizeObserver yalnızca kaydırıcının dış boyutu değiştiyse yerleşim başlatır (`kutuDegisti`; son yerleşimin dış
+    boyutu `_yerlesimKutusu`). Çubuğun çıkması / kalkması içerik kutusunu değiştirir ama yerleşim gerektirmez. Gizlenip gösterilen
+    sekmede dış boyut aynı olsa da yerleşim yenilenir (gizliyken sayfa boyutları öğrenilmiş olabilir); `boyutDegisti`'yi doğrudan
+    çağıranlar (sekme seçimi, sol panel, okuma modu, ekran ölçeği) bu süzgece girmez.
+  - Değerlendirilip seçilmeyenler: `scrollbar-gutter: stable` (çubuğun yeri hep ayrılır: çubuksuz belgede sağda boş şerit, sayfalar
+    ortadan kayık; yatay çubuğu çözmez), kararsız aralıkta içeriği yüksekliğe tam dolduran ara ölçek (pencere yüksekliğiyle sürekli
+    değişen ölçek, kazanç en çok 12 px), yalnızca yeniden yerleşimi seyreltmek (titreme yavaşlar, bitmez).
+  - Dayanılan tarayıcı davranışı: iki çubuk yalnızca birbirinin kapladığı yer yüzünden gerekiyorsa Chromium ikisini de kaldırır
+    (içerik çubuksuz kutuya sığıyor; önceki durumda iki çubuk varken de ölçüldü). Öngörü ile gerçek ayrışırsa döngü yine kurulmaz
+    (hesap dış boyuta bağlı), yalnızca gereksiz çubuk görünür; test bunu yakalar.
+- [x] **Gereksiz kaydırma çubukları** (doğrulama sırasında bulundu; ikisi de 0.1.19'da vardı, aynı hesabın parçası):
+  - İki sayfa düzeni: sığdırılan çiftin iki sayfası da piksel ızgarasına yuvarlanır; eşit genişlikte iki sayfa tek sayıda piksele
+    sığdırılınca ikisi de yarım piksel yukarı yuvarlanır, çift tam 1 px taşar. Taşma payı "1 px'ten az"dı (tek sayfanın yuvarlaması
+    için yeterli): ekran ölçeği 1'de her iki pencere genişliğinden birinde sığdırılmış çiftin altında yatay çubuk çıkıyordu (12 px
+    yükseklik de alarak). Karar: 1 px'e kadar taşma sayılmaz (`tasar`); fazlalığı kenar boşluğu karşılar (16 yerine 15 px), sayfalar
+    alandan taşmaz. Sayfa boyutlarına dokunulmadı (çiftin toplamını yuvarlamak iki eş sayfayı farklı genişlikte çizerdi).
+  - Kesirli boyut (bağımsız kod incelemesinin bulgusu): ekran ölçeği 1 değilken (%125, %150) kaydırıcının gerçek boyutu CSS pikselinin
+    kesri olabilir (951 cihaz pikseli = 760,8 px); offsetWidth / clientWidth bunu 761'e yuvarlar. Yuvarlanmış boyuta kurulan alan
+    gerçek kutudan taşar; Chromium yarım cihaz pikselinden büyük taşmada çubuk çıkarır, daha küçüğünde önceden çubuk varsa kaldırmaz.
+    0.1.19'da %125'te sığdırılmış uzun belgede her beş pencere genişliğinden birinde yatay çubuk, "Sayfayı sığdır"da iki çubuk
+    birden çıkıyordu. Karar: boyut getBoundingClientRect'ten alınır (`disKutu`); taşma gerçek (kesirli) boyuta göre, sığdırma ölçeği
+    ve alan tam piksele aşağı yuvarlanmış boyuta göre hesaplanır. Alan taşmayan yönde gerçek kutuyu hiç aşmaz; taşma sayılan fazlalık
+    gerçek kutuyu 1 px'ten çok aşar (karar tarayıcının yuvarlamasına kalmaz). Çubuk kalınlığı yukarı yuvarlanır.
+  - Bağımsız inceleme (yalnızca okuyan ajan; çalışma ağacındaki işlevleri ayrı bir Chromium sayfasında koşturdu): ilk turda kesirli
+    boyut kusurunu buldu; düzeltmeden sonra %100–%200 arasındaki beş ölçekte, tam ve kesirli kutularda, önceki çubuk durumlarının
+    hepsinde on binlerce denemede öngörü ile tarayıcının gösterdiği çubuklar aynı. Kalan sınır: Windows'un standart olmayan özel
+    ölçeklerinde (%110, %120, %133) çubuk kalınlığı tam piksel değildir (11,3–11,8 px, 12 sayılır); ikinci çubuk öngörülüp çıkmayabilir,
+    o zaman sayfalar 6 px ortadan kayık durur (%133'te 20 000 rastgele denemede 2). Çubuk çıkmaz, döngü olmaz; düzeltilmedi.
+- [x] **Testler**: test/sigdirma_kararli.mjs (yeni; üretilen yer tutucu belgeler: bildirilen sayfa boyutunda yatay iki sayfa, tek dikey
+  sayfa, uzun belge, baskın genişlikten geniş sayfalı karışık belge). Görünümün boyutunu kaydırıcının kenarlarını oynatarak değiştirir:
+  kararsız aralığı ölçüp her yüksekliği dener (yerleşim duruluyor, ölçek tek değerde, çubuk yalnızca taşma varken, sayfalar görünür
+  alanda ortalı; ölçek kuralı), elle yakınlaştırmada tek yerleşim, iki sayfa düzeninde ardışık 24 genişlik, cihaz pikseli adımlarıyla
+  kesirli boyutlar (önceki durumda çubuk varken ve yokken). Üç ekran ölçeğinde koşulur (baslat.ps1 `-Olcek`, yeni:
+  `--force-device-scale-factor`). 0.1.19'un koduyla (ayrı çalışma ağacı) 51 denetimin 24'ü (ölçek 1), 27'si (1,25), 25'i (1,5) kalıyor;
+  düzeltmeyle üçünde de 51/51.
+  - Bir kez koşulanlar: rastgele belge / düzen / mod / boyut taraması (7 belge, ölçek başına 420 örnek, boyutlar cihaz pikseli
+    adımlarıyla; her örnekte durulma, çubuk–taşma tutarlılığı, ortalama): üç ölçekte sorunsuz. İki sayfa düzenindeki 1 px'lik taşmayı
+    bu tarama buldu. Kullanıcının belgesinin kopyasıyla kullanıcının pencere boyutunda: 0.1.19 kodu 3 sn'de 45 yerleşim, düzeltme 1.
+    Sekme değiştirme, sol panel, okuma modu (gizliyken boyutu değişen sekme gösterilince yeni boyuta yerleşiyor, sayfa korunuyor).
+  - Regresyon (düzeltilmiş kodla): kisayol_gorunum 117/117, senaryo22 101/101, senaryo19 111/111 (yer tutucu belgelerle),
+    vurgu_cubugu 13/13, kisayol_araclar 91/91.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 27.

@@ -3,6 +3,13 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.20 — 2026-09-30
+
+### Görünüm
+- **Sığdırılmış görünüm artık titremiyor.** Sayfaları pencereye kıl payı sığan belgelerde (ör. yatay iki sayfalık belge, ekranın yarısını kaplayan pencere) "Genişliğe sığdır" görüntüyü durmadan büyütüp küçültüyordu: kaydırma çubuğu bir çıkıp bir kayboluyor, yakınlaştırma kutusu %81 ile %82 arasında gidip geliyordu. Böyle bir belge artık kaydırma çubuğu gerektirmeyen yakınlaştırmada sabit durur. Aynı titreme "Sayfayı sığdır" ve "Görünür alana sığdır"da, tek sayfalık belgelerde ve iki sayfa düzeninde de oluşabiliyordu; hepsinde giderildi.
+- Belge açılırken ve yakınlaştırma değişirken sayfa önce bir boyutta çizilip kaydırma çubuğu çıkınca birkaç piksel küçülmüyor ya da yana kaymıyor; ilk çizim son hâlindedir.
+- Sığdırılmış belgenin altında, pencerenin boyutuna göre gereksiz bir yatay kaydırma çubuğu çıkabiliyordu: iki sayfa düzeninde (sayfalar pencereden bir piksel taşıyordu) ve ölçeği %125 ya da %150 olan ekranlarda ("Sayfayı sığdır"da iki çubuk birden çıkabiliyordu). Artık çıkmıyor.
+
 ## 0.1.19 — 2026-09-30
 
 ### Pencereler

@@ -348,3 +348,18 @@ görünüşü gözle denenmedi.
 8. **Gezgin.** İki pencere açıkken Gezgin'de bir PDF'e çift tıklayın: en son kullandığınız pencerede açılmalı. Öteki pencerede açık
    bir PDF'e çift tıklayın: o pencere öne gelmeli, belge ikinci kez açılmamalı.
 9. **Ayarlar.** Bir pencerede temayı değiştirin (ay / güneş düğmesi): öteki pencere de değişmeli.
+
+## 27. 0.1.20: otomatik testlerin sınayamadıkları
+Titreme, test örneğinde sizin pencere boyutunuzda ve belgenizin bir kopyasıyla yeniden üretildi ve düzeltmeden sonra ölçüldü
+(test/sigdirma_kararli.mjs; ekran ölçeği %100, %125 ve %150). Gerçek ekranda, pencere yerleştirme aracının bölgesinde ve gözle denenmedi.
+1. **Bildirilen belge.** Titreyen belgeyi aynı yerde (ana ekranda, yarım ekran bölgesinde) açın: görüntü sabit durmalı, yakınlaştırma
+   kutusu tek değerde (%81) kalmalı, kaydırma çubuğu çıkıp kaybolmamalı. İki sayfa da pencereye sığar; sayfaların iki yanındaki boşluk
+   öteki belgelerdekinden birkaç piksel geniştir (kaydırma çubuğu gerekmeyen yakınlaştırma).
+2. **Pencereyi boyutlandırma.** Aynı belge açıkken pencerenin alt ve sağ kenarını yavaşça sürükleyin: sayfa pencereyi izlemeli, hiçbir
+   boyutta titrememeli. **Görünüm** menüsünden "Sayfayı sığdır" ve "Görünür alana sığdır"ı seçip yineleyin.
+3. **İkinci ekran.** Pencereyi %150 ölçekli ikinci ekrana taşıyıp 1. ve 2. maddeyi orada da deneyin. Uzun bir belgede pencerenin sağ
+   kenarını yavaşça sürüklerken sayfaların altında yatay kaydırma çubuğu belirmemeli (önceden her üç genişlikten birinde çıkıyordu).
+4. **İki sayfa düzeni.** Ana ekranda **Görünüm › İki sayfa**'yı seçip pencerenin sağ kenarını yavaşça sürükleyin: sayfaların altında
+   yatay kaydırma çubuğu çıkıp kaybolmamalı.
+5. **Öteki belgeler.** Uzun bir belge (kaydırma çubuğu olan) ve tek sayfalık bir belge açın: eskisi gibi genişliğe sığmalı; açılırken
+   sayfa bir an büyük görünüp küçülmemeli.
