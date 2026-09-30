@@ -1,13 +1,20 @@
 ﻿# Test örneğini görünmeyen ayrı bir Windows masaüstünde başlatır (baslat.ps1'in eşi): pencere bilgisayarı kullanan kişinin ekranına
 # çıkmaz, odağını çalmaz; o masaüstünde etkin pencere olabildiği için menü kısayolları (hızlandırıcılar) da sınanabilir (ekran dışındaki
 # test örneğinde pencere etkin olmadığından hızlandırıcı hiç çalışmaz; test:odakla yalnızca burada, PDEFE_TEST_GIZLI_MASAUSTU=1'de etkin).
-# Kullanım:  powershell -File test\baslat_gizli.ps1 -Port 9411 [-Veri <klasör>] [-Boyut "1280,860"] [-Tema koyu|acik|sistem]
+# Kullanım:  powershell -File test\baslat_gizli.ps1 -Port 9411 [-Veri <klasör>] [-Boyut "1280,860"] [-Tema koyu|acik|sistem] [-GercekEkran] [-Paketli <PDEfe.exe>]
 # Durdurma:  powershell -File test\durdur.ps1 -SurecId <pid>
+# -GercekEkran (0.1.19): test konumu verilmez; uygulama olağan çalışır gibi gerçek ekran düzenini (çalışma alanına sığdırma, ekran ölçeği),
+# gerçek imleci ve gerçek odağı kullanır (pencerelerin yerleşimi ve test/gercek_fare.ps1 için). Test kancaları (test:* kanalları, sahte
+# diyaloglar) kapalıdır: yerel diyalog açan yollar kullanılmamalı (diyalog görünmeyen masaüstünde açılır, yanıtlanamaz).
+# -Paketli <PDEfe.exe> (0.1.19): geliştirme örneği yerine paketli sürümü başlatır (ör. release\win-unpacked\PDEfe.exe). Paketli uygulama test
+# değişkenlerini okumaz: veri klasörü --user-data-dir ile verilir (kurulu PDEfe'nin ayarı ve tek örnek kilidi paylaşılmaz), -GercekEkran gibi çalışır.
 param(
   [Parameter(Mandatory = $true)][int]$Port,
   [string]$Veri = "",
   [string]$Boyut = "1280,860",
-  [string]$Tema = ""
+  [string]$Tema = "",
+  [switch]$GercekEkran,
+  [string]$Paketli = ""
 )
 $ErrorActionPreference = 'Stop'
 $kok = Split-Path -Parent $PSScriptRoot
@@ -20,12 +27,21 @@ if ($Tema) {
   [System.IO.File]::WriteAllText($ayar, ($j | ConvertTo-Json -Depth 10), (New-Object System.Text.UTF8Encoding $false))
 }
 $exe = Join-Path $kok 'node_modules\electron\dist\electron.exe'
+$arguman = ". --remote-debugging-port=$Port"; $calismaKlasoru = $kok
+if ($Paketli) {   # (PowerShell değişken adları büyük/küçük harf ayırmaz: parametre adı $exe ile çakışmamalı)
+  $exe = (Resolve-Path $Paketli).Path
+  $arguman = "--remote-debugging-port=$Port --user-data-dir=`"$Veri`""; $calismaKlasoru = Split-Path -Parent $exe
+}
 if (-not (Test-Path $exe)) { throw "electron.exe yok: $exe (node_modules bağlantısını kurun)" }
 # Ortam değişkenleri alt sürece geçer (CreateProcess ortamı devralır). Konum verilir: test diyalogları (gelistirme.js testDiyalogKur) açık olsun
 $env:PDEFE_VERI_KLASORU = $Veri
-$env:PDEFE_TEST_KONUM = "0,0"
-$env:PDEFE_TEST_BOYUT = $Boyut
-$env:PDEFE_TEST_GIZLI_MASAUSTU = "1"
+if ($GercekEkran -or $Paketli) {
+  foreach ($ad in 'PDEFE_TEST_KONUM', 'PDEFE_TEST_BOYUT', 'PDEFE_TEST_GIZLI_MASAUSTU') { Remove-Item "Env:$ad" -ErrorAction SilentlyContinue }
+} else {
+  $env:PDEFE_TEST_KONUM = "0,0"
+  $env:PDEFE_TEST_BOYUT = $Boyut
+  $env:PDEFE_TEST_GIZLI_MASAUSTU = "1"
+}
 
 Add-Type -TypeDefinition @"
 using System;
@@ -50,7 +66,7 @@ public static class GizliBaslat {
   }
 }
 "@
-$surecId = [GizliBaslat]::Baslat("PDEfeTest$Port", $exe, ". --remote-debugging-port=$Port", $kok)
+$surecId = [GizliBaslat]::Baslat("PDEfeTest$Port", $exe, $arguman, $calismaKlasoru)
 if ($surecId -le 0) { throw "Görünmeyen masaüstünde başlatılamadı (Win32 hata $(-$surecId))." }
 for ($i = 0; $i -lt 60; $i++) {
   Start-Sleep -Milliseconds 500

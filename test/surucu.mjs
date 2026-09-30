@@ -7,10 +7,23 @@ import { pathToFileURL } from 'node:url';
 
 const PORT = process.env.PDEFE_CDP_PORT || 9222;
 
+// Birden çok pencere (0.1.19): her uygulama penceresi ayrı bir CDP hedefidir. hedefSec(id) ile seçilen pencere sürülür; seçilmemişse
+// (ya da seçilen pencere kapandıysa) listedeki ilk uygulama penceresi. Sürüklenen sekmenin önizleme penceresi (hayalet.html) hedef sayılmaz.
+let seciliHedef = null;
+
+/** Açık uygulama pencereleri: [{ id, url, title, webSocketDebuggerUrl }] */
+export async function hedefler() {
+  const hepsi = await (await fetch(`http://127.0.0.1:${PORT}/json`)).json();
+  return hepsi.filter((h) => h.type === 'page' && /^pdefe:\/\/app\/src\/renderer\/index\.html/.test(h.url));
+}
+
+/** Sonraki komutların gideceği pencereyi seçer (hedefler()'deki id; null: ilk pencere). */
+export function hedefSec(id) { seciliHedef = id || null; }
+
 async function baglan() {
-  const hedefler = await (await fetch(`http://127.0.0.1:${PORT}/json`)).json();
-  const sayfa = hedefler.find((h) => h.type === 'page' && h.url.startsWith('pdefe://'));
-  if (!sayfa) throw new Error('PDEfe penceresi bulunamadı: ' + JSON.stringify(hedefler.map((h) => h.url)));
+  const liste = await hedefler();
+  const sayfa = liste.find((h) => h.id === seciliHedef) || liste[0];
+  if (!sayfa) throw new Error('PDEfe penceresi bulunamadı.');
   const ws = new WebSocket(sayfa.webSocketDebuggerUrl);
   await new Promise((c, r) => { ws.onopen = c; ws.onerror = r; });
   let id = 0;
@@ -142,4 +155,4 @@ const [, , komut, arg] = process.argv;
 if (komut === 'eval') console.log(JSON.stringify(await evalJs(arg), null, 1));
 else if (komut === 'ss') console.log('kaydedildi:', await ekranGoruntusu(arg));
 else if (komut === 'konsol') console.log((await konsol(+arg || 4000)).join('\n') || '(mesaj yok)');
-else if (komut === 'betik') { const m = await import(pathToFileURL(path.resolve(arg)).href); await m.default({ evalJs, ekranGoruntusu, bekle, fare, tikla, surukle, tus, tusHam, yaz }); }
+else if (komut === 'betik') { const m = await import(pathToFileURL(path.resolve(arg)).href); await m.default({ evalJs, ekranGoruntusu, bekle, fare, tikla, surukle, tus, tusHam, yaz, hedefler, hedefSec }); }
