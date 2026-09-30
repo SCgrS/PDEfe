@@ -116,7 +116,7 @@ html[data-tema="koyu"] #dugme-tema .ay { display: block; }
 
 /* ---------- Sekme çubuğu ---------- */
 #sekme-cubugu {
-  height: var(--sekme-yukseklik); display: flex; align-items: flex-end;
+  height: var(--sekme-yukseklik); display: flex; align-items: flex-end; position: relative;
   background: var(--arka); border-bottom: 1px solid var(--kenar); flex-shrink: 0; padding: 0 2px;
 }
 #sekme-cubugu > button.ikon { width: 28px; height: 28px; margin-bottom: 2px; }
@@ -150,6 +150,12 @@ html[data-tema="koyu"] #dugme-tema .ay { display: block; }
 html[data-tema="koyu"] #sekme-liste.siralaniyor .sekme.tasiniyor { box-shadow: 0 0 12px rgba(0, 0, 0, 0.6); }
 #sekme-liste.siralaniyor .sekme.tasiniyor.yerlesiyor { transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1); }
 @media (prefers-reduced-motion: reduce) { #sekme-liste.siralaniyor .sekme { transition: none !important; } }
+/* Sekmeyi çubuğun dışına sürükleme (sekmeler.js, 0.1.19): çubuktan ayrılan sekme görünmez olur (ötekiler yerini kapatır, önizlemesi
+   ayrı bir pencerede imleci izler); dışarıda bırakılan sekme başka pencereye taşınana dek çubukta yer tutmaz. Başka pencereden
+   sürüklenen sekmenin bırakılacağı yer sekmelerin arasında dikey çizgiyle gösterilir (birakmaIsareti) */
+#sekme-liste .sekme.ayrildi { visibility: hidden; }
+#sekme-liste .sekme.askida { display: none; }
+.sekme-birakma { position: absolute; bottom: 1px; width: 3px; height: 28px; border-radius: 2px; background: var(--vurgu); pointer-events: none; z-index: 3; }
 .sekme .ad { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sekme .nokta { color: var(--vurgu); font-size: 16px; line-height: 1; display: none; flex-shrink: 0; }
 .sekme.degisti .nokta { display: inline; }
@@ -469,6 +475,11 @@ button.ikincil:hover { background: var(--hover); }
 /* Sürükle-bırak örtüsü */
 #surukle-ortusu { position: fixed; inset: 0; z-index: 300; background: rgba(0,103,192,0.15); display: flex; align-items: center; justify-content: center; }
 #surukle-ortusu div { border: 3px dashed var(--vurgu); border-radius: 12px; padding: 30px 60px; font-size: 20px; color: var(--vurgu); background: var(--arka-yukseltilmis); }
+
+/* Sekme başka pencereye taşınırken ya da güncelleme kurulumu beklenirken (uygulama.js girdiKilitli) pencere girdi almaz: görünmez örtü
+   her şeyin üstünde. Mesaj kutusu açılırsa (beklenmeyen bir hata sorusu) örtü çekilir: soru yanıtlanabilsin, pencere kilitli kalmasın */
+#tasima-ortusu { position: fixed; inset: 0; z-index: 1000; cursor: progress; }
+body:has(.mesaj-ortusu) #tasima-ortusu { display: none; }
 
 /* Okuma modu */
 body.okuma-modu #arac-cubugu, body.okuma-modu #sekme-cubugu, body.okuma-modu #durum-cubugu { display: none; }

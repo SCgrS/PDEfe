@@ -35,25 +35,36 @@ const CIFT_TARAFLI = { tek: 'simplex', uzun: 'longEdge', kisa: 'shortEdge' };
 const STANDART_BOYUTLAR = new Set(['A3', 'A4', 'A5', 'Legal', 'Letter', 'Tabloid']);
 const BICIM_UZANTI = { jpeg: 'jpg', jpg: 'jpg', png: 'png' };
 
-/** @type {{ id: string, klasor: string, asama: 'hazirlik'|'yazdirma', sayfaSayisi: number, toplamBayt: number, pencere: any, bitir: Function|null, iptalEdildi: boolean } | null} */
+/** @type {{ id: string, klasor: string, asama: 'hazirlik'|'yazdirma', sayfaSayisi: number, toplamBayt: number, pencere: any, bitir: Function|null, iptalEdildi: boolean, sahipBirak: Function|null } | null} */
 let aktif = null;
 let sayac = 0;
 
 /**
  * Yazdırma IPC işleyicilerini kurar.
- * @param {{ ipcMain: Electron.IpcMain, BrowserWindow: typeof Electron.BrowserWindow, pencereAl: () => Electron.BrowserWindow|null }} p
+ * @param {{ ipcMain: Electron.IpcMain, BrowserWindow: typeof Electron.BrowserWindow, pencereAl: (e: Electron.IpcMainInvokeEvent) => Electron.BrowserWindow|null }} p
+ *   pencereAl: isteği gönderen uygulama penceresi (birden çok pencere olabilir)
  */
 export function yazdirmaKur({ ipcMain, BrowserWindow, pencereAl }) {
-  ipcMain.handle('yazdir:hazirla', async () => {
+  ipcMain.handle('yazdir:hazirla', async (e) => {
     if (aktif) return { basarili: false, hata: 'Bir yazdırma işlemi zaten sürüyor. Önce onu bitirin ya da iptal edin.' };
     const id = `${Date.now().toString(36)}-${process.pid}-${++sayac}`;
     const klasor = path.join(kokKlasor(), `yazdir-${id}`);
     try {
       await fs.promises.mkdir(klasor, { recursive: true });
-    } catch (e) {
-      return { basarili: false, hata: 'Geçici yazdırma klasörü oluşturulamadı: ' + hataMetni(e) };
+    } catch (h) {
+      return { basarili: false, hata: 'Geçici yazdırma klasörü oluşturulamadı: ' + hataMetni(h) };
     }
-    aktif = { id, klasor, asama: 'hazirlik', sayfaSayisi: 0, toplamBayt: 0, pencere: null, bitir: null, iptalEdildi: false };
+    if (aktif) { fs.promises.rm(klasor, { recursive: true, force: true }).catch(() => {}); return { basarili: false, hata: 'Bir yazdırma işlemi zaten sürüyor. Önce onu bitirin ya da iptal edin.' }; }   // klasör kurulurken başka pencere başlattı
+    const is = aktif = { id, klasor, asama: 'hazirlik', sayfaSayisi: 0, toplamBayt: 0, pencere: null, bitir: null, iptalEdildi: false, sahipBirak: null };
+    // İşi başlatan pencere hazırlık sürerken kapanırsa ya da arayüz süreci çökerse iş bırakılır (0.1.19: birden çok pencere; yoksa
+    // öteki pencereler PDEfe kapanana dek yazdıramazdı). Yazdırma aşamasında pencerenin kapanışını yazdir() izler.
+    const sahip = e?.sender;
+    if (sahip && !sahip.isDestroyed?.()) {
+      const sahipGitti = () => { if (aktif === is && is.asama === 'hazirlik') { iptalEt(is); isiBitir(is).catch(() => {}); } };
+      sahip.once('destroyed', sahipGitti);
+      sahip.once('render-process-gone', sahipGitti);
+      is.sahipBirak = () => { try { if (!sahip.isDestroyed()) { sahip.removeListener('destroyed', sahipGitti); sahip.removeListener('render-process-gone', sahipGitti); } } catch { /* yok say */ } };
+    }
     return { basarili: true, is: id, klasor };
   });
 
@@ -83,14 +94,14 @@ export function yazdirmaKur({ ipcMain, BrowserWindow, pencereAl }) {
     return { basarili: true, dosya, bayt: tampon.length, toplamBayt: is.toplamBayt };
   });
 
-  ipcMain.handle('yazdir:baslat', async (_e, istek) => {
+  ipcMain.handle('yazdir:baslat', async (e, istek) => {
     const is = aktif;
     const { is: id, html, secenekler } = istek || {};
     if (!is || is.id !== id) return { basarili: false, hata: 'Yazdırma işi bulunamadı ya da iptal edildi.' };
     if (is.asama !== 'hazirlik') return { basarili: false, hata: 'Bu yazdırma işi zaten başlatıldı.' };
     is.asama = 'yazdirma';
     try {
-      return await yazdir({ BrowserWindow, pencereAl }, is, { html, secenekler });
+      return await yazdir({ BrowserWindow, pencereAl: () => pencereAl?.(e) || null }, is, { html, secenekler });   // diyaloğun sahibi: yazdıran pencere
     } catch (e) {
       return { basarili: false, hata: hataMetni(e) };
     } finally {
@@ -136,6 +147,7 @@ function iptalEt(is) {
 /** İş klasörünü siler, aktif kaydı düşürür. */
 async function isiBitir(is) {
   if (aktif === is) aktif = null;
+  is.sahipBirak?.(); is.sahipBirak = null;
   const p = is.pencere;
   if (p && !p.isDestroyed()) { try { p.destroy(); } catch { /* yok say */ } }
   is.pencere = null;

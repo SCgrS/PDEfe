@@ -9,6 +9,7 @@ import { NotYoneticisi, VURGU_RENKLERI } from './notlar.js';
 import { KomutYigini, Komut } from './komutlar.js';
 import { ayarlarPenceresiAc, ayarlarPenceresiKapat } from './ayarlarPenceresi.js';
 import { aracKomutlari, aracPencereleriniKapat, aracPenceresiKapaninca, acikAracPenceresiVar } from './araclar/index.js';
+import { sekmeyiYenile } from './araclar/ortak.js';
 import { AraclarPenceresi, ARACLAR } from './aracPenceresi.js';
 import { guncellemeSeridiKur } from './guncelleme.js';
 import { yazdir } from './yazdir.js';
@@ -45,6 +46,8 @@ const sekmeler = new SekmeCubugu({
   cubuk: $('#sekme-cubugu'), liste: $('#sekme-liste'), onceki: $('#sekme-onceki'), sonraki: $('#sekme-sonraki'),
   acilir: $('#sekme-acilir'), secici: $('#sekme-secici'), belgeListesi: $('#belge-listesi'),
   aramaSay: (id, sorgu, secenek) => arama.belgedeSay(belgeler.get(id), sorgu, secenek),   // arama aşağıda kurulur; çağrı anında hazırdır. secenek: { iptal }
+  // Sekme çubuğun dışına sürüklenince ayrılabilir mi: yüklenmiş belge sekmesi (açılış sekmesi ayrılmaz), süren taşıma ve açık pencere yok
+  ayrilabilir: (id) => { const b = belgeler.get(id); return !!b && !tasimaEngeli(b, { kayitHaric: true }); },
 });
 const panel = new SolPanel({
   panel: $('#sol-panel'), tutamac: $('#panel-tutamac'), sayfalar: $('#panel-sayfalar'), icindekiler: $('#panel-icindekiler'),
@@ -102,36 +105,18 @@ function ayarUygula(anahtar, deger) {
 }
 
 // ---------------------------------------------------------------- belge açma / kapatma
-async function dosyaAc(yol, secenek = {}) {
-  // Zaten açıksa o sekmeye geç; açılış sekmesinden açılmak istendiyse o sekme kapanır (işi bitti). secenek.yenile: araç sekmeyi
-  // diskteki yeni hâliyle yeniden açıyor (ortak.js sekmeyiYenile, küçült): kapanan sekmenin yerine geçici olarak seçilmiş açılış
-  // sekmesi tüketilmez
-  const acilistan = !secenek.arkaPlanda && !secenek.yenile && baslangicSekmeleri.has(aktifId);
-  for (const b of belgeler.values()) if (yolAyni(b.yol, yol)) {
-    const bos = acilistan ? aktifId : null;
-    sekmeSec(b.id);
-    if (bos) baslangicSekmesiniKapat(bos);
-    return b;
-  }
-  const varMi = await pdefe.cagir('dosya:varMi', yol);
-  if (!varMi) { bildir('Dosya bulunamadı: ' + yol); sonDosyalardanCikar(yol); return null; }
-
+/** Sekmenin belge nesnesini, görünümünü, geri al yığınını ve not yöneticisini kurar, olaylarını bağlar. Belge henüz yüklenmez, sekmesi
+ *  eklenmez: dosyadan açan (dosyaAc) ve başka pencereden taşınan sekmeyi kuran (sekmeyiAl) çağırır. */
+function belgeOlustur(yol) {
   const id = 'b' + (++sayac);
-  const ad = dosyaAdi(yol);
   const el = document.createElement('div');
   el.className = 'gorunum';
   el.hidden = true;
   $('#gorunumler').append(el);
   const gorunum = new Goruntuleyici(el, { dosyaOku: async (y) => (await pdefe.cagir('dosya:oku', y)).veri, cekirdek });
   // diskDondurme: yüklenen dosyaya (gorunum.yol) artımlı kayıtla işlenmiş göreli döndürmeler, kaynak sayfa no → açı (bkz. yapisalTarif)
-  const belge = { id, yol, ad, el, gorunum, degisti: false, boyut: 0, bilgi: null, diskDondurme: {} };
+  const belge = { id, yol, ad: dosyaAdi(yol), el, gorunum, degisti: false, boyut: 0, bilgi: null, diskDondurme: {} };
   belgeler.set(id, belge);
-  // Açılış sekmesi (+ / Ctrl+T) etkinken önde açılan belge o sekmenin yerini alır (tarayıcıdaki gibi); arka planda açılan sona eklenir
-  const yerine = acilistan && baslangicSekmeleri.has(aktifId) ? aktifId : null;
-  sekmeler.ekle({ id, ad, yol, once: yerine });
-  if (yerine) { baslangicSekmeleri.delete(yerine); sekmeler.kaldir(yerine); aktifId = null; }
-  if (!secenek.arkaPlanda || !aktifId) sekmeSec(id);
-
   gorunum.addEventListener('sayfa', (e) => { if (aktifId === id) { sayfaGoster(belge); } sayfaKonumuKaydet(belge); gizlenenNotuBirak(belge); });
   gorunum.addEventListener('zoom', (e) => { if (aktifId === id) zoomGoster(belge); });
   gorunum.addEventListener('metinKatmani', (e) => arama.katmanCizildi(gorunum, e.detail.sayfa));
@@ -146,6 +131,44 @@ async function dosyaAc(yol, secenek = {}) {
   // Yazı düzenleyicisi açılınca, kapanınca ve geçmişi değişince Geri al / Yinele düğmeleri; kapanınca beklettiği otomatik kayıt yeniden kurulur
   belge.notlar.addEventListener('duzenleyici', () => { if (!belge.notlar.duzenleyici && belge.degisti) kirliGuncelle(belge); else if (aktifId === id) geriAlDugmeleriniGuncelle(belge); });
   belge.notlar.addEventListener('uyari', (e) => { if (aktifId === id) bildir(e.detail.metin, 6000); });
+  belgeleriBildir();
+  return belge;
+}
+
+/** Bu pencerenin açık belgelerini ana sürece bildirir (pencereler.js): dosya yalnızca bir pencerede açık olur, Gezgin'den açılan ya da
+ *  başka pencerede açılmak istenen dosya açık olduğu pencerede gösterilir. Liste değişince çağrılır. */
+let _bildirilenBelgeler = '[]';
+function belgeleriBildir() {
+  const yollar = [...belgeler.values()].map((b) => b.yol), anahtar = JSON.stringify(yollar);
+  if (anahtar === _bildirilenBelgeler) return;
+  _bildirilenBelgeler = anahtar;
+  pdefe.gonder('pencere:belgeler', yollar);
+}
+
+async function dosyaAc(yol, secenek = {}) {
+  // Zaten açıksa o sekmeye geç; açılış sekmesinden açılmak istendiyse o sekme kapanır (işi bitti). secenek.yenile: araç sekmeyi
+  // diskteki yeni hâliyle yeniden açıyor (ortak.js sekmeyiYenile, küçült): kapanan sekmenin yerine geçici olarak seçilmiş açılış
+  // sekmesi tüketilmez
+  const acilistan = !secenek.arkaPlanda && !secenek.yenile && baslangicSekmeleri.has(aktifId);
+  for (const b of belgeler.values()) if (yolAyni(b.yol, yol)) {
+    const bos = acilistan ? aktifId : null;
+    sekmeSec(b.id);
+    if (bos) baslangicSekmesiniKapat(bos);
+    return b;
+  }
+  // Başka bir pencerede açıksa o pencere öne gelir ve sekmesine geçer; burada ikinci kez açılmaz (iki kopya birbirinin kaydını ezerdi).
+  // secenek.yazildi: araç dosyayı az önce yeniden yazdı; öteki penceredeki sekmesi diskteki yeni hâliyle yeniden açılır
+  if (!secenek.yenile && await pdefe.cagir('pencere:baskaPenceredeAc', yol, { yazildi: !!secenek.yazildi }).catch(() => false)) return null;
+  const varMi = await pdefe.cagir('dosya:varMi', yol);
+  if (!varMi) { bildir('Dosya bulunamadı: ' + yol); sonDosyalardanCikar(yol); return null; }
+
+  const belge = belgeOlustur(yol);
+  const { id, ad, gorunum } = belge;
+  // Açılış sekmesi (+ / Ctrl+T) etkinken önde açılan belge o sekmenin yerini alır (tarayıcıdaki gibi); arka planda açılan sona eklenir
+  const yerine = acilistan && baslangicSekmeleri.has(aktifId) ? aktifId : null;
+  sekmeler.ekle({ id, ad, yol, once: yerine });
+  if (yerine) { baslangicSekmeleri.delete(yerine); sekmeler.kaldir(yerine); aktifId = null; }
+  if (!secenek.arkaPlanda || !aktifId) sekmeSec(id);
 
   try {
     const { veri, boyut } = await pdefe.cagir('dosya:oku', yol);
@@ -162,7 +185,8 @@ async function dosyaAc(yol, secenek = {}) {
       parolaIste: (neden) => parolaSor(ad, neden),
     });
     cekirdek('belge_bilgi', { yol }).then((bilgi) => { belge.bilgi = bilgi; }).catch(() => {});
-    belge.notlar.yukle().catch((e2) => console.warn('Notlar yüklenemedi', e2));
+    // notSozu: notların dosyadan ilk okunması (sekme başka pencereye taşınmadan önce beklenir, bkz. sekmePaketi)
+    belge.notSozu = belge.notlar.yukle().catch((e2) => console.warn('Notlar yüklenemedi', e2));
   } catch (e) {
     console.error(e);
     // Açılamadı (bozuk dosya, parola sorusunda Vazgeç): yerini aldığı açılış sekmesi aynı yere geri gelir, kullanıcı orada kalır
@@ -188,6 +212,7 @@ async function sekmeSec(id) {
     const eski = belgeler.get(aktifId);
     if (eski) {
       eski.notlar?.balonKapat(); eski.notlar?.notCubuguKapat(); eski.notlar?.duzenleyiciBitir(true);
+      eski.gorunum.gizlenecek();            // sayfa içi konum: arka plandaki sekme başka pencereye taşınırsa orada aynı yerde açılsın
       eski.el.hidden = true;
       eski.gorunum.arkaPlanaAlindi();       // görünür sayfalar dışındaki tuvaller bırakılır (gizli sekme bellek tutmasın)
       eski.notlar?.secimCubuguKonumla();   // görünümü gizlendi: seçim çubuğu da gizlenir (açılış sekmesinde belgenin boyutDegisti'si yok)
@@ -230,7 +255,8 @@ function kirliGuncelle(b) {
   // Yazı düzenlenirken otomatik kayıt beklenir (kayıt düzenlemeyi uygulayıp kutuyu yazarken kapatırdı); düzenleme bitince not
   // değişikliği kirliGuncelle'yi yeniden çağırır. Otomatik kayıt başarısız olduysa (dosya başka programda açık) elle kaydedilene dek durur
   // (Zamanlayıcı dolunca ayar yeniden okunur: arada Ayarlar'dan kapatılmış olabilir)
-  if (ayar.otomatikKaydet && b.degisti && !b._otoKayitDurdu) { clearTimeout(b._otoKayit); b._otoKayit = setTimeout(() => { if (ayar.otomatikKaydet && b.degisti && belgeler.has(b.id) && !b.notlar?.duzenleyici) belgeKaydet(b, false, true); }, 1500); }
+  // Başka pencereye taşınmakta olan sekme (b.tasiniyor) kaydedilmez: durumu paketlendi, kayıt hedef pencerenin işidir
+  if (ayar.otomatikKaydet && b.degisti && !b._otoKayitDurdu && !b.tasiniyor) { clearTimeout(b._otoKayit); b._otoKayit = setTimeout(() => { if (ayar.otomatikKaydet && b.degisti && belgeler.has(b.id) && !b.notlar?.duzenleyici && !b.tasiniyor) belgeKaydet(b, false, true); }, 1500); }
 }
 
 /** Kaydırmasız (tek/iki) düzende sayfa çevrilince artık gösterilmeyen sayfadaki not bırakılır: açık yazı düzenleyicisi kaydedilip
@@ -261,6 +287,7 @@ function aracDugmeleriniGuncelle(arac) {
 async function belgeKapat(id, secenek = {}) {
   const b = belgeler.get(id);
   if (!b) return true;
+  if (b.tasiniyor) return false;      // sekme başka pencereye geçiyor ya da oradan kuruluyor: durumu paketlendi, kapatılmaz
   b.notlar?.duzenleyiciBitir(true);   // açık yazı düzenlemesi uygulanır: yazılan metin kaydetme sorusunda sayılsın
   // Süren kayıt yarıda kesilmesin (anlık kopya silinir, 'Kaydet' kaydediliyor koruması yüzünden sessizce false dönerdi); bitince degisti yeniden değerlendirilir
   await kayitBitmesiniBekle(b);
@@ -273,6 +300,15 @@ async function belgeKapat(id, secenek = {}) {
     if (!belgeler.has(id)) return true;
   }
   sayfaKonumuKaydet(b, true);
+  belgeyiKaldir(b);
+  return true;
+}
+
+/** Sekmeyi ve belgesini sormadan pencereden kaldırır (belgeKapat ve sekme taşıma). devredildi: sekme başka pencereye geçti (ya da oradan
+ *  gelip açılamadı): anlık kopya ve çekirdekte açık dosyalar öteki pencerenindir, silinmez ve bırakılmaz. */
+function belgeyiKaldir(b, { devredildi = false } = {}) {
+  const id = b.id;
+  clearTimeout(b._otoKayit); b._otoKayit = null;
   const yollar = sekmeninYollari(b);   // görünüm yok edilmeden: başka PDF'ten eklenmiş sayfaların dosyaları da
   b.notlar?.yokEt();
   belgeler.delete(id);
@@ -281,11 +317,13 @@ async function belgeKapat(id, secenek = {}) {
   arama.belgeUnut(b.gorunum);
   b.gorunum.yokEt();
   b.el.remove();
-  kullanilmayanlariBirak(yollar);
-  if (b.gorunum.anlik) cekirdek('anlik_sil', { yol: b.gorunum.anlik }).catch(() => {});
+  if (!devredildi) {
+    kullanilmayanlariBirak(yollar);
+    if (b.gorunum.anlik) cekirdek('anlik_sil', { yol: b.gorunum.anlik }).catch(() => {});
+  }
   if (aktifId === id) { aktifId = null; sonrakiSekmeyeGec(); }
   bosSekmeleriTemizle();
-  return true;
+  belgeleriBildir();
 }
 
 // ---------------------------------------------------------------- açılış sekmeleri (0.1.13, kullanıcı isteği)
@@ -383,6 +421,27 @@ function aracDosyalariniBirak() {
   kullanilmayanlariBirak(yollar);
 }
 
+/** Pencere kapanınca çekirdekte bırakılacak dosyalar ve silinecek anlık kopyalar. Çekirdek bütün pencerelerin ortağıdır ve son pencere
+ *  kapanana dek çalışır: kapanan pencerenin dosyaları önbellekte açık kalırsa öteki pencereler açık oldukça silinemez, adı değiştirilemez.
+ *  Ana süreç pencere gerçekten kapandıktan sonra uygular (pencereler.js 'closed'). */
+function kapanisDosyalari() {
+  const yollar = new Map(), anliklar = new Set();
+  for (const b of belgeler.values()) {
+    for (const y of sekmeninYollari(b)) yollar.set(yolAnahtari(y), y);
+    if (b.gorunum?.anlik) anliklar.add(b.gorunum.anlik);
+  }
+  for (const [a, y] of aracYollari) yollar.set(a, y);
+  return { yollar: [...yollar.values()], anliklar: [...anliklar] };
+}
+
+/** Kapatma onaylandı (kaydedilmemiş belgeler soruldu ya da pencerede belge kalmadı): pencere kapanana dek başka pencereden sekme alınmaz.
+ *  Pencere kapanmazsa (beklenmez) işaret kendiliğinden kalkar. */
+function kapanisiOnayla() {
+  _kapaniyor = true;
+  setTimeout(() => { _kapaniyor = false; }, 3000);
+  return pdefe.cagir('pencere:kapatOnayla', kapanisDosyalari());
+}
+
 /** Birden çok sekmeyi kapatır (sekmede sağ tık: Diğerlerini / Sağdakileri kapat), pencere kapatmadaki sırayla: önce değişikliği
  *  olmayanlar, sonra kaydedilmemiş değişikliği olanlar tek tek sorularak. Vazgeç (ya da başarısız kayıt) kalanları açık bırakır. */
 async function sekmeleriKapat(idler) {
@@ -404,11 +463,276 @@ function baslangicGoster() {
   sonDosyalariListele();
 }
 
+// ---------------------------------------------------------------- sekmeyi başka pencereye taşıma (0.1.19, kullanıcı isteği)
+// Sekme kendi penceresine ayrılır (sekmede sağ tık › Pencereye ayır; sekmeyi sekme çubuğunun dışına sürükleyip bırakmak) ya da başka bir
+// PDEfe penceresinin sekme çubuğuna bırakılır. Her pencere ayrı bir renderer sürecidir: sekme nesne olarak taşınamaz, durumu paketlenir
+// (sekmePaketi: belge baytları, sayfa düzeni, notlar, geri al yığını, görünüm). Ana süreç paketi hedef pencereye verir ('sekme:tasi',
+// main/pencereler.js), hedef sekmeyi kurup onaylar (sekmeyiAl), bu pencere sekmeyi ancak o zaman bırakır (belgeyiKaldir devredildi).
+// Kaydedilmemiş değişiklikler ve geri al geçmişi sekmeyle birlikte gider; hedef açamazsa sekme burada olduğu gibi kalır.
+// Taşıma sürerken (tasimaSuruyor: bu pencereden sekme gidiyor ya da bu pencereye sekme kuruluyor) pencere girdi almaz: paketlenen durum
+// ile sekme arasında fark oluşmasın, yarım kurulmuş sekme kapatılmasın.
+let tasimaSuruyor = false;
+let tasimaSozu = null;          // süren taşıma bitince çözülür (tasimaBitmesiniBekle)
+// Güncelleme kurulumu bütün pencereleri kapatır: kapatmaya izin veren pencere kurulum başlayana (ya da vazgeçilene) dek girdi almaz;
+// yoksa izinden sonra yapılan değişiklik sorulmadan kaybolurdu (öteki pencerenin sorusu açıkken bu pencereye dönüp not eklemek).
+let kurulumKilidi = false;
+let _kapanis = false;           // pencere kapatma isteği işleniyor (kaydedilmemiş belge soruları dahil)
+let _kapaniyor = false;         // kapatma onaylandı, pencere kapanmak üzere
+const girdiKilitli = () => tasimaSuruyor || kurulumKilidi;
+const tasimaOrtusu = document.createElement('div');
+tasimaOrtusu.id = 'tasima-ortusu'; tasimaOrtusu.hidden = true;
+document.body.append(tasimaOrtusu);
+const kilitOrtusunuGuncelle = () => { tasimaOrtusu.hidden = !girdiKilitli(); };
+function kurulumKilidiKoy(deger) { kurulumKilidi = !!deger; kilitOrtusunuGuncelle(); }
+// Pencere düzeyinde yakalama evresinde ilk dinleyici: kilitliyken hiçbir tuş uygulamaya, belgeye ya da açık kutuya gitmez. Mesaj kutusu
+// açıksa (beklenmeyen bir hata sorusu) tuşlar ona gider, örtü de çekilir (stil.css): soru yanıtsız kalıp pencereyi kilitlemesin
+for (const tur of ['keydown', 'keyup', 'keypress']) window.addEventListener(tur, (e) => { if (girdiKilitli() && !mesajKutusuAcik()) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+
+/** Süren sekme taşıması (giden ya da gelen) varsa bitmesini bekler. */
+async function tasimaBitmesiniBekle() { while (tasimaSozu) await tasimaSozu; }
+/** Taşımayı başlatır (pencere girdiye kilitlenir); dönen işlev taşıma bitince çağrılır. */
+function tasimaBaslat() {
+  let bitti;
+  const soz = new Promise((coz) => { bitti = coz; });
+  tasimaSuruyor = true; tasimaSozu = soz; kilitOrtusunuGuncelle();
+  return () => { tasimaSuruyor = false; if (tasimaSozu === soz) tasimaSozu = null; kilitOrtusunuGuncelle(); bitti(); };
+}
+/** Pencere kapanıyor ya da kapatmak için izin soruluyor mu (kapatma isteği, güncelleme kurulumu): bu sırada sekme alınmaz, verilmez. */
+const kapanisSuruyor = () => _kapanis || _kapaniyor || !!_kapatmaIzni;
+
+/** Sekme şu an başka pencereye taşınamıyorsa nedeni (kullanıcıya bildirilir), taşınabiliyorsa ''. b: belge (açılış sekmesinde yok).
+ *  kayitHaric: süren kayda bakılmaz (sürükleme başında: kayıt sekme bırakılana dek biter; bırakılınca sekmeyiTasi bekler). */
+function tasimaEngeli(b, { kayitHaric = false } = {}) {
+  if (!b) return 'Açılış sekmesi pencereye ayrılamaz.';
+  if (tasimaSuruyor || b.tasiniyor) return 'Bir sekme taşınıyor; bitince yeniden deneyin.';
+  if (!belgeler.has(b.id) || !b.gorunum.hazir) return 'Belge henüz açılıyor; açılınca yeniden deneyin.';
+  // Kilit altında süren kayıt beklenmez: başarısız olursa sorusu (Belge kaydedilemedi) taşıma kilidinin altında kalırdı
+  if (b.kaydediliyor && !kayitHaric) return 'Belge kaydediliyor; bitince yeniden deneyin.';
+  if (kurulumKilidi || kapanisSuruyor()) return 'Pencere kapanmak üzere; sekme taşınamaz.';
+  if (ortuAcik()) return 'Önce açık pencereyi kapatın.';
+  return '';
+}
+
+/** Komutun başka pencereye taşınabilen tarifi (nesneler yerine numara ve kimlikler); tarifi yoksa null. */
+function komutDisari(b, k, girdiNo) {
+  const t = k.tanim;
+  if (t?.tur === 'sayfalar') return { tur: 'sayfalar', ad: k.ad, eski: t.eski.map(girdiNo), yeni: t.yeni.map(girdiNo) };
+  return b.notlar.komutDisari(k);
+}
+
+/** Taşınan tariften komutu bu pencerenin nesneleriyle kurar (çalıştırmaz); tarif eksikse null. */
+function komutIceri(b, veri, girdiAl, notBul) {
+  if (veri?.tur === 'sayfalar') {
+    const eski = (veri.eski || []).map(girdiAl), yeni = (veri.yeni || []).map(girdiAl);
+    return eski.every(Boolean) && yeni.every(Boolean) ? sayfaKomutu(b, veri.ad, eski, yeni) : null;
+  }
+  return b.notlar.komutIceri(veri, notBul);
+}
+
+/** Sekmenin bütün durumu (başka pencerede sekmeyiAl ile kurulur). Açık not balonu ve yazı düzenlemesi önce uygulanır, süren kayıt ve
+ *  bekleyen döndürme beklenir. */
+async function sekmePaketi(b) {
+  const g = b.gorunum, n = b.notlar;
+  n.balonKapat(); n.notCubuguKapat(); n.duzenleyiciBitir(true);   // yazılan metin pakete girsin; seçili araç ve seçim taşınmaz
+  await kayitBitmesiniBekle(b);                                     // süren kayıt bitsin; bekleyen otomatik kayıt iptal
+  await (b._dondurme || Promise.resolve()).catch(() => {});          // sırada bekleyen döndürme
+  await b.notSozu;                                                  // notların dosyadan ilk okunması
+  if (!belgeler.has(b.id) || !g.hazir) throw new Error('Belge kapatıldı.');
+  const { durum: gorunum, girdiNo } = await g.durumAl();
+  if (!belgeler.has(b.id) || !g.hazir) throw new Error('Belge kapatıldı.');   // baytlar alınırken kapatılmış
+  // Buradan sonra beklenmez: görünüm, notlar ve geri al yığını aynı andaki durumdan paketlenir
+  const komutlar = b.yigin.yigin.map((k) => komutDisari(b, k, girdiNo));
+  return {
+    surum: 1, yol: b.yol, ad: b.ad, boyut: b.boyut, diskDondurme: { ...b.diskDondurme }, otoKayitDurdu: !!b._otoKayitDurdu, degisti: !!b.degisti,
+    gorunum,
+    notlar: n.durumAl(girdiNo, b.yigin.yigin.flatMap((k) => n.komutNotlari(k))),
+    // Tarifi olmayan komut varsa geri al geçmişi taşınmaz (belge ve kaydedilmemiş değişiklikler yine taşınır)
+    yigin: komutlar.every(Boolean) ? { komutlar, konum: b.yigin.konum, kayitKonumu: b.yigin.kayitKonumu } : null,
+  };
+}
+
+/**
+ * Sekmeyi başka pencereye taşır. hedef: { tur: 'yeni' } (yeni pencere, bu pencerenin yanında) | { tur: 'yeni', nokta, tutma, sekmeYeri }
+ * (sekmenin bırakıldığı yerde) | { tur: 'pencere', pencere, x } (var olan pencere; x: sekme çubuğunda bırakıldığı yer). Döner: taşındı mı.
+ */
+async function sekmeyiTasi(id, hedef) {
+  let b = belgeler.get(id);
+  // Süren kayıt pencere kilitlenmeden önce beklenir: başarısız olursa sorusu yanıtlanabilsin. Beklerken sekme kapatılmış olabilir
+  if (b?.kaydediliyor && b.kayitSozu && !girdiKilitli()) { await b.kayitSozu; b = belgeler.get(id); if (!b) return false; }
+  const engel = tasimaEngeli(b);
+  if (engel) { bildir(engel); return false; }
+  const bitti = tasimaBaslat();
+  b.tasiniyor = true;
+  try {
+    const paket = await sekmePaketi(b);
+    const r = await pdefe.cagir('sekme:tasi', paket, hedef);
+    if (!r?.tamam) throw new Error(r?.hata || 'Hedef pencere sekmeyi açamadı.');
+    belgeyiKaldir(b, { devredildi: true });
+    // Son belgesi başka bir pencereye taşınan pencere kapanır (açılış sekmeleri tek başına pencereyi açık tutmaz)
+    if (hedef?.tur === 'pencere' && !belgeler.size) kapanisiOnayla();
+    return true;
+  } catch (e) {
+    console.error('Sekme taşınamadı', e);
+    b.tasiniyor = false;
+    if (belgeler.has(b.id)) kirliGuncelle(b);   // beklerken iptal edilen otomatik kayıt yeniden kurulsun
+    bildir('Sekme taşınamadı: ' + hataMetni(e), 6000);
+    return false;
+  } finally { bitti(); }
+}
+
+/** Başka pencereden taşınan sekmeyi kurar (sekmePaketi'nin verdiği paket). x: sekme çubuğunda bırakıldığı yer (pencere içi; yoksa sona
+ *  eklenir). onayla: sekme kurulunca ana sürece bildirir; false dönerse ana süreç artık beklemiyordur (süresi doldu, sekme kaynak
+ *  pencerede kaldı) ve burada kurulan sekme kaldırılır. Açılamazsa hata fırlatır; sekme kaynak pencerede kalır. Kurulurken pencere
+ *  girdi almaz (yarım kurulmuş sekme kapatılırsa anlık kopyası silinirdi; o kopya taşıma bitene dek kaynak pencerenindir). */
+async function sekmeyiAl(paket, { x = null } = {}, onayla = null) {
+  if (!paket || paket.surum !== 1 || !paket.yol || !paket.gorunum) throw new Error('Sekme verisi okunamadı.');
+  if (girdiKilitli() || ortuAcik()) throw new Error('Hedef pencere meşgul.');
+  if (kapanisSuruyor()) throw new Error('Hedef pencere kapanıyor.');
+  for (const b of belgeler.values()) if (yolAyni(b.yol, paket.yol)) throw new Error('Belge hedef pencerede zaten açık.');
+  const bitti = tasimaBaslat();
+  let belge = null;
+  try {
+    const once = x != null ? sekmeler.birakmaYeri(x) : null;
+    belge = belgeOlustur(paket.yol);
+    const { id, gorunum } = belge;
+    belge.tasiniyor = true;   // kurulana dek kaydedilmez, kapatılmaz
+    if (paket.ad) belge.ad = paket.ad;
+    belge.boyut = paket.boyut || 0; belge.diskDondurme = { ...(paket.diskDondurme || {}) }; belge._otoKayitDurdu = !!paket.otoKayitDurdu;
+    belge.notSozu = Promise.resolve();
+    sekmeler.ekle({ id, ad: belge.ad, yol: belge.yol, once });
+    sekmeSec(id);
+    gorunum.koyuSayfa = koyuMu() && ayar.sayfayiKoyulastir;
+    const girdiAl = await gorunum.durumdanYukle(paket.gorunum, { duzen: genelDuzen(), kapakAyri: !!ayar.kapakAyri });
+    if (!girdiAl || !belgeler.has(id)) throw new Error('Sekme açılırken kapatıldı.');
+    const notBul = belge.notlar.durumdanYukle(paket.notlar || {}, girdiAl);
+    const y = paket.yigin;
+    const komutlar = y ? y.komutlar.map((v) => komutIceri(belge, v, girdiAl, notBul)) : null;
+    // Geri al geçmişi kurulamadıysa boş yığın: belge kaydedilmemiş değişiklik taşıyorsa kayıt konumu yok (-1), belge kirli kalır
+    if (komutlar && komutlar.every(Boolean)) belge.yigin.durumKoy(komutlar, y.konum, y.kayitKonumu);
+    else belge.yigin.durumKoy([], 0, paket.degisti ? -1 : 0);
+    if (onayla && !(await onayla())) throw new Error('Sekme zamanında açılamadı.');
+    if (!belgeler.has(id)) throw new Error('Sekme açılırken kapatıldı.');
+    belge.tasiniyor = false;
+    cekirdek('belge_bilgi', { yol: belge.yol }).then((bilgi) => { belge.bilgi = bilgi; }).catch(() => {});
+    kirliGuncelle(belge);
+    if (aktifId === id) { sayfaGoster(belge); zoomGoster(belge); durum.boyutYaz(belge.boyut); panel.belgeAyarla(belge); arama.sekmeDegisti(); }
+    return belge;
+  } catch (e) {
+    if (belge && belgeler.has(belge.id)) belgeyiKaldir(belge, { devredildi: true });   // anlık kopya ve dosyalar kaynak pencerenindir
+    throw e;
+  } finally { bitti(); }
+}
+
+// Sürükleyerek ayırma (sekmeler.js): sekme çubuğun dışına çıkınca ('ayrildi') imleci izleyen önizleme gösterilir. Önizleme ana süreçte
+// ayrı, odak almayan küçük bir penceredir (pencereler.js, hayalet.html): pencerenin dışında, başka ekranda da görünür; imleci ve altındaki
+// pencereyi ana süreç izler. Bu pencere yalnızca sürüklemenin sürdüğünü bildirir ('sekme:surukleCan'; ses kesilirse önizleme kalkar).
+const ONIZLEME_GENISLIK = 240, ONIZLEME_BASLIK = 30, ONIZLEME_EN_YUKSEK = 300;
+let _surukleCan = null;
+const surukleCaniDurdur = () => { clearInterval(_surukleCan); _surukleCan = null; };
+
+/** Önizleme penceresinin boyutu ve görüntüsü: geçerli sayfanın ekranda görünen kısmından başlayan küçük görüntü (sayfa henüz
+ *  çizilmediyse yalnızca başlık). Döner: { genislik, yukseklik, onizleme (data URL ya da '') }. */
+function sekmeOnizlemesi(b) {
+  const bos = { genislik: ONIZLEME_GENISLIK, yukseklik: ONIZLEME_BASLIK, onizleme: '' };
+  try {
+    const g = b.gorunum, s = g.sayfalar[g.gecerli - 1], kaynak = s?.canvas, c = s?.cizim, yer = g.yerlesim[g.gecerli - 1];
+    if (!kaynak?.width || !kaynak.height || !c?.bolge?.w || !c.bolge.h) return bos;
+    const G = ONIZLEME_GENISLIK, kat = 2;                        // görüntü iki kat çözünürlükte (yüksek ölçekli ekranda da net)
+    const h = Math.max(40, Math.min(ONIZLEME_EN_YUKSEK, Math.round(G * kaynak.height / kaynak.width)));
+    const tuvalPx = kaynak.height / c.bolge.h;                   // tuval pikseli / sayfa içi CSS px
+    // Sayfanın görünen kısmının üstü (sayfa içi CSS px) → tuvaldeki satır; görüntü oradan başlar
+    const ust = yer ? Math.max(0, g.kaydirici.scrollTop - yer.y) : 0;
+    const kaynakH = Math.min(kaynak.height, (h / G) * kaynak.width);
+    const sy = Math.max(0, Math.min(kaynak.height - kaynakH, (ust - c.bolge.y) * tuvalPx));
+    const tuval = document.createElement('canvas');
+    tuval.width = G * kat; tuval.height = h * kat;
+    const ctx = tuval.getContext('2d');
+    ctx.fillStyle = g.koyuSayfa ? '#000' : '#fff';
+    ctx.fillRect(0, 0, tuval.width, tuval.height);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(kaynak, 0, sy, kaynak.width, kaynakH, 0, 0, tuval.width, tuval.height);
+    const onizleme = tuval.toDataURL('image/jpeg', 0.85);
+    tuval.width = 0; tuval.height = 0;
+    return { genislik: G, yukseklik: ONIZLEME_BASLIK + h, onizleme };
+  } catch (e) { console.warn('Sekme önizlemesi üretilemedi', e); return bos; }
+}
+
+let _surukleYeri = null;   // { tutma, sekmeYeri }: sekmenin tutulduğu nokta ve yeni pencerede ilk sekmenin duracağı yer (pencere içi)
+sekmeler.addEventListener('ayrildi', (e) => {
+  const b = belgeler.get(e.detail.id);
+  if (!b) return;
+  const liste = $('#sekme-liste').getBoundingClientRect();
+  _surukleYeri = { tutma: e.detail.tutma, sekmeYeri: { x: Math.round(liste.left + 2), y: Math.round(liste.top + 4) } };
+  pdefe.gonder('sekme:surukleBasla', { ad: b.ad, koyu: koyuMu(), ...sekmeOnizlemesi(b), ..._surukleYeri });
+  surukleCaniDurdur();
+  _surukleCan = setInterval(() => pdefe.gonder('sekme:surukleCan'), 500);
+});
+sekmeler.addEventListener('geriTakildi', () => { surukleCaniDurdur(); pdefe.gonder('sekme:surukleIptal'); });
+// Sekme çubuğun dışında bırakıldı: başka bir pencerenin sekme çubuğuna bırakıldıysa oraya, boş yere bırakıldıysa orada açılan yeni
+// pencereye taşınır. Pencerenin tek sekmesi boş yere bırakılınca yeni pencere açılmaz, pencerenin kendisi oraya gider.
+sekmeler.addEventListener('disariBirakildi', async (e) => {
+  surukleCaniDurdur();
+  const id = e.detail.id;
+  let tasindi = false;
+  try {
+    const hedef = await pdefe.cagir('sekme:surukleBitti', _surukleYeri);
+    if (hedef?.tur === 'pencere') tasindi = await sekmeyiTasi(id, hedef);
+    else if (hedef?.tur === 'yeni') {
+      if (sekmeler.sekmeler.length < 2) await pdefe.cagir('pencere:tasi', hedef);
+      else tasindi = await sekmeyiTasi(id, hedef);
+    }
+  } catch (h) { console.error('Sekme bırakılamadı', h); }
+  if (!tasindi) { sekmeler.askidanCikar(id); pdefe.gonder('sekme:surukleIptal'); }   // sekme çubukta yerinde; önizleme kalkar
+});
+// Başka pencerenin sekmesi bu pencerenin üstünde sürükleniyor. 'sekme:bant': sekmenin bırakılabileceği alan (pencere içi): sekme çubuğu
+// (biraz payla); sekmesiz pencerede (açılış ekranı) pencerenin tamamı; açık pencere ya da süren taşıma varken yok.
+pdefe.dinle('sekme:bant', (istekId) => {
+  let bant = null;
+  if (!girdiKilitli() && !ortuAcik() && !kapanisSuruyor()) {
+    const r = $('#sekme-cubugu').getBoundingClientRect();
+    if (!sekmeler.sekmeler.length) bant = { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
+    else if (r.width && r.height) bant = { x: r.left, y: r.top - 6, w: r.width, h: r.height + 12 };
+  }
+  pdefe.cagir('yanit', istekId, bant).catch(() => {});
+});
+// { x, y }: imleç bırakma alanında (bırakılacak yerin işareti gösterilir); null: alandan çıktı ya da sürükleme bitti
+pdefe.dinle('sekme:disSurukle', (nokta) => {
+  const ortu = $('#surukle-ortusu');
+  if (!nokta) { sekmeler.birakmaIsareti(null); if (ortu.dataset.sekme) { delete ortu.dataset.sekme; ortu.hidden = true; ortu.firstElementChild.textContent = 'PDF\'i bırakın'; } return; }
+  if (sekmeler.sekmeler.length) sekmeler.birakmaIsareti(nokta.x);
+  else { ortu.dataset.sekme = '1'; ortu.firstElementChild.textContent = 'Sekmeyi buraya bırakın'; ortu.hidden = false; }
+});
+
+/** Açık sekmesinin dosyası başka bir pencerede yeniden yazıldı (araç çıktısı): sekme diskteki yeni hâliyle yeniden açılır; kaydedilmemiş
+ *  değişikliği varsa önce sorulur (araclar/ortak.js sekmeyiYenile). */
+async function yazilanSekmeyiYenile(b) {
+  await sekmeSec(b.id);
+  const r = await sekmeyiYenile({ mesajKutusu, dosyaAc, belgeKapat: (id, s) => belgeKapat(id, s) }, b,
+    { soruAyrintisi: 'Dosya başka bir pencerede yeniden yazıldı. Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.' }).catch(() => false);
+  if (!r) bildir(`"${b.ad}" sekmesi dosyanın önceki halini gösteriyor; notlarda değişiklik yapmadan önce sekmeyi kapatıp yeniden açın.`, 8000);
+}
+
+/** Başka bir pencerede değişen ayarı bu pencereye uygular (ana süreç 'ayar:degisti' ile bildirir). Ayarlar bütün pencerelerde ortaktır;
+ *  ayarUygula'nın tersine buradan ana sürece geri yazılmaz (değiştiren pencere yazdı). */
+function ayarDisaridanDegisti(anahtar, deger) {
+  ayar[anahtar] = deger;
+  switch (anahtar) {
+    case 'tema': case 'sayfayiKoyulastir': temaUygula(); break;
+    case 'vurguRengi': secimCubuguYenile(); break;
+    case 'yaziCizimi': yaziCiziminiAyarla(deger !== 'sistem'); break;
+    case 'otomatikKaydet': if (deger) for (const b of belgeler.values()) if (b.degisti) kirliGuncelle(b); break;
+    case 'varsayilanDuzen': case 'kapakAyri': duzenEsitle(aktif()); break;
+    case 'sonDosyalar': case 'sonAcilanlariHatirla': sonDosyalariListele(); break;
+    case 'kaldigimSayfadanAc': if (!deger) clearTimeout(_konumZaman); break;
+    default: break;   // panel genişliği, son yakınlaştırma, sayfa konumları vb.: yalnızca kopya güncellenir
+  }
+}
+
 /** Belgeyi kaydeder. farkli=true ise yeni yol sorar. Başarılıysa true döner.
  *  Çağrı sürdükçe (Farklı kaydet diyaloğu ve hata sorusu dahil) b.kaydediliyor true'dur ve b.kayitSozu çağrı bitince çözülür
  *  (hiç reddedilmez); kapatma akışları onu bekler (kayitBitmesiniBekle). Bu arada gelen ikinci kaydetme false döner. */
 async function belgeKaydet(b, farkli = false, sessiz = false) {
-  if (!b || b.kaydediliyor) return false;
+  if (!b || b.kaydediliyor || b.tasiniyor) return false;   // tasiniyor: sekme başka pencereye geçiyor (bkz. sekmeyiTasi)
   let bitti;
   b.kaydediliyor = true;
   b.kayitSozu = new Promise((coz) => { bitti = coz; });
@@ -494,6 +818,7 @@ async function kayitYaz(b, farkli, sessiz) {
     sekmeler.guncelle(b.id, { ad: b.ad, yol: hedef });
     pdefe.cagir('pencere:baslik', b.ad);
     sonDosyalaraEkle(hedef);
+    belgeleriBildir();   // yol değişti: dosyanın hangi pencerede açık olduğu kaydı
   }
   kirliGuncelle(b);
   if (aktifId === b.id) durum.boyutYaz(b.boyut);
@@ -655,7 +980,14 @@ async function sayfaTarifiUygula(b, tarif, ad = 'Sayfa düzenini uygula') {
   const yeni = await g.tarifHazirla(tarif);
   // Yeni kaynak dosyaların notlarını yükle
   for (const t of tarif) if (t.kaynak && t.kaynak.yol && yolAnahtari(t.kaynak.yol) !== yolAnahtari(b.yol) && (!g.anlik || yolAnahtari(t.kaynak.yol) !== yolAnahtari(g.anlik))) await b.notlar?.kaynakYukle(t.kaynak.yol);
-  b.yigin.calistir(new Komut(ad, () => g.sayfalariAyarla(yeni), () => g.sayfalariAyarla(eski)));
+  b.yigin.calistir(sayfaKomutu(b, ad, eski, yeni));
+}
+
+/** Sayfa listesini değiştiren komut (geri al / yinele). Tarifi (eski ve yeni sayfa listeleri) sekme başka pencereye taşınınca geri al
+ *  yığınının orada yeniden kurulmasını sağlar (komutDisari / komutIceri). */
+function sayfaKomutu(b, ad, eski, yeni) {
+  const g = b.gorunum;
+  return new Komut(ad, () => g.sayfalariAyarla(yeni), () => g.sayfalariAyarla(eski), { tur: 'sayfalar', eski, yeni });
 }
 
 /** Tek sayfa ya da tüm sayfaları kalıcı döndürme komutu. */
@@ -802,7 +1134,21 @@ let guncelleme = null;
 try {
   // Kurulum uygulamayı kapatır: kaydedilmemiş değişiklikler pencere kapatmadaki gibi sorulur; Vazgeç (false) kurulumu erteler,
   // indirilen sürüm saklanır ve şeritte "Kur ve yeniden başlat" kalır
-  guncelleme = guncellemeSeridiKur({ pdefe, serit: $('#guncelleme-seridi'), bildir, kapatmadanOnce: () => kapatmayaIzinAl() });
+  // Kurulum bütün pencereleri kapatır: önce bu pencerenin, sonra öteki pencerelerin kaydedilmemiş belgeleri sorulur (her biri kendi
+  // penceresinde; ana süreç sırayla öne getirir). İzin veren pencere kurulum başlayana dek girdi almaz (kurulumKilidi): öteki pencerenin
+  // sorusu açıkken bu pencerede yapılacak değişiklik sorulmadan kaybolurdu. Vazgeçilirse ya da kurulum başlatılamazsa kilit açılır
+  // ('pencere:izinBitti'; kurulamadi: şerit 'guncelleme:kur' başarısız olunca çağırır).
+  const kurulumIzniAl = async () => {
+    await tasimaBitmesiniBekle();
+    if (kurulumKilidi || _kapaniyor) return false;   // başka pencerenin başlattığı kurulum için izin verildi ya da pencere kapanıyor
+    if (!(await kapatmayaIzinAl())) return false;
+    kurulumKilidiKoy(true);
+    let izin = false;
+    try { izin = !!(await pdefe.cagir('pencere:digerlerindenIzinAl')); } catch (e) { console.error(e); }
+    if (!izin) kurulumKilidiKoy(false);
+    return izin;
+  };
+  guncelleme = guncellemeSeridiKur({ pdefe, serit: $('#guncelleme-seridi'), bildir, kapatmadanOnce: kurulumIzniAl, kurulamadi: () => pdefe.cagir('pencere:izinBirak').catch(() => {}) });
   komutlar['yardim.guncelle'] = () => guncelleme.denetle();
 } catch (e) { console.error('Güncelleme şeridi kurulamadı', e); }
 
@@ -835,12 +1181,55 @@ const baslangic = new BaslangicEkrani({
 const ORTU_ACIKKEN_CALISMAYAN = new Set(['gorunum.dondur', 'sekme.yeni', 'sekme.sonraki', 'sekme.onceki', 'sekme.kapat', 'dosya.ac', 'dosya.acYol', 'duzen.geriAl', 'duzen.yinele']);
 pdefe.dinle('menu:komut', (id, veri) => {
   if (mesajKutusuAcik()) { mesajKutusuUyar(); return; }
+  if (girdiKilitli()) return;   // sekme taşınırken ya da güncelleme kurulumu beklenirken pencere girdi almaz
   if (ORTU_ACIKKEN_CALISMAYAN.has(id) && (acikAracPenceresiVar() || document.querySelector('.diyalog-ortusu, .ayarlar-ortusu'))) return;
   araclarPenceresi.kapat(); komutCalistir(id, veri);
 });
-pdefe.dinle('dosya:ac', async (yollar) => { for (const y of yollar) await dosyaAc(y); });
+// secenek.yazildi: dosya başka bir pencerede (araç çıktısı olarak) yeniden yazıldı; burada açık sekmesi diskteki yeni hâliyle yenilenir
+pdefe.dinle('dosya:ac', async (yollar, secenek) => {
+  // Taşınmakta olan sekme yenilenmez, kapatılmaz: taşıma bitince dosya hangi penceredeyse orada işlenir (dosyaAc öteki pencereye sorar)
+  await tasimaBitmesiniBekle();
+  for (const y of yollar) {
+    const acik = secenek?.yazildi ? [...belgeler.values()].find((b) => yolAyni(b.yol, y)) : null;
+    if (acik) await yazilanSekmeyiYenile(acik); else await dosyaAc(y, { yazildi: !!secenek?.yazildi });
+  }
+});
 pdefe.dinle('pencere:tamEkran', (acik) => document.body.classList.toggle('tam-ekran', acik));
-pdefe.dinle('pencere:kapatIstegi', async () => { if (mesajKutusuAcik()) { mesajKutusuUyar(); return; } if (await kapatmayaIzinAl({ degismeyenleriKapat: true })) await pdefe.cagir('pencere:kapatOnayla'); });
+// Kapatma isteği yanıtsız bırakılmaz: Dosya › Çıkış pencereleri sırayla kapatır, vazgeçilen pencerede durur ('pencere:kapatVazgec').
+// Kapatma akışı sürerken gelen ikinci istek (× yeniden, Alt+F4, Çıkış) yalnızca açık soruyu gösterir; yanıtı süren akış verir (yoksa
+// ikinci istek "vazgeçildi" der, Çıkış yarıda kalırdı).
+pdefe.dinle('pencere:kapatIstegi', async () => {
+  if (_kapanis) { if (mesajKutusuAcik()) mesajKutusuUyar(); return; }
+  if (mesajKutusuAcik() || girdiKilitli()) { if (mesajKutusuAcik()) mesajKutusuUyar(); pdefe.cagir('pencere:kapatVazgec'); return; }
+  _kapanis = true;
+  let izin = false;
+  try { izin = await kapatmayaIzinAl({ degismeyenleriKapat: true }); }
+  catch (e) { console.error(e); }
+  finally { _kapanis = false; }
+  if (izin) await kapanisiOnayla(); else pdefe.cagir('pencere:kapatVazgec');
+});
+// Başka bir pencere uygulamayı kapatacak (güncelleme kurulumu): bu pencerenin kaydedilmemiş belgeleri sorulur. İzin veren pencere
+// kurulum başlayana dek girdi almaz (kurulumKilidi); vazgeçilirse ya da kurulum başlatılamazsa 'pencere:izinBitti' kilidi açar.
+pdefe.dinle('pencere:izinIste', async (istekId) => {
+  let izin = kurulumKilidi;   // bu turda zaten izin verdi
+  try {
+    if (izin) { /* yeniden sorulmaz */ }
+    else if (mesajKutusuAcik()) mesajKutusuUyar();
+    else if (!tasimaSuruyor && !_kapanis && !_kapaniyor) { izin = await kapatmayaIzinAl(); if (izin) kurulumKilidiKoy(true); }
+  } catch (e) { console.error(e); izin = false; }
+  pdefe.cagir('yanit', istekId, izin).catch(() => {});
+});
+pdefe.dinle('pencere:izinBitti', () => kurulumKilidiKoy(false));
+pdefe.dinle('ayar:degisti', ayarDisaridanDegisti);
+// Başka pencereden taşınan sekme (ana süreç yanıtı bekler: hedef açamazsa sekme kaynak pencerede kalır). 'yanit' false dönerse ana
+// süreç artık beklemiyordur (sekmeyiAl kurduğu sekmeyi kaldırır)
+pdefe.dinle('sekme:al', async (istekId, paket, secenek) => {
+  try { await sekmeyiAl(paket, secenek || {}, () => pdefe.cagir('yanit', istekId, { tamam: true }).catch(() => false)); }
+  catch (e) {
+    console.error('Taşınan sekme açılamadı', e);
+    pdefe.cagir('yanit', istekId, { tamam: false, hata: hataMetni(e) }).catch(() => {});
+  }
+});
 
 let _kapatmaIzni = null;
 /** Uygulama kapanmadan önce (pencere kapatma, güncelleme kurulumu): açık araç penceresi varsa önce onun sorusu (kaydedilmemiş iş,
@@ -994,11 +1383,15 @@ sekmeler.addEventListener('belgedeAra', async (e) => { await sekmeSec(e.detail.i
 sekmeler.addEventListener('sagTik', async (e) => {
   // Açılış sekmesinde (dosyası yok) Klasörde göster / Yolu kopyala devre dışı
   const id = e.detail.id; const b = belgeler.get(id); if (!b && !baslangicSekmeleri.has(id)) return;
+  // Pencereye ayır (0.1.19, kullanıcı isteği): sekme kendi penceresinde açılır. Pencerenin tek sekmesinde (ayrılacak başka sekme yok)
+  // ve açılış sekmesinde devre dışı
   const secim = await pdefe.cagir('menu:popup', [
     { id: 'kapat', etiket: 'Kapat' }, { id: 'digerleri', etiket: 'Diğerlerini kapat', devre: sekmeler.sekmeler.length < 2 },
     { id: 'sagdakiler', etiket: 'Sağdakileri kapat', devre: sekmeler.sekmeler.findIndex((s) => s.id === id) >= sekmeler.sekmeler.length - 1 },
+    { ayirici: true }, { id: 'ayir', etiket: 'Pencereye ayır', devre: !b || sekmeler.sekmeler.length < 2 },
     { ayirici: true }, { id: 'klasor', etiket: 'Klasörde göster', devre: !b }, { id: 'yol', etiket: 'Yolu kopyala', devre: !b },
   ]);
+  if (secim === 'ayir') { if (belgeler.has(id) && sekmeler.sekmeler.length > 1) await sekmeyiTasi(id, { tur: 'yeni' }); return; }
   if (secim === 'kapat') sekmeKapat(id);
   else if (secim === 'digerleri') await sekmeleriKapat(sekmeler.sekmeler.filter((s) => s.id !== id).map((s) => s.id));
   else if (secim === 'sagdakiler') { const i = sekmeler.sekmeler.findIndex((s) => s.id === id); await sekmeleriKapat(sekmeler.sekmeler.slice(i + 1).map((s) => s.id)); }
@@ -1336,6 +1729,7 @@ function kisayollarGoster() {
     ['Ctrl+W', 'Sekmeyi kapat'], [['Ctrl+PageUp / PageDown', 'Ctrl+← / →'], 'Önceki / sonraki sekme'],
     ['Ctrl+Tab / Ctrl+Shift+Tab', 'Son kullanılan sekmeye geç (basılı tutunca seçici; içinde ← →)'],
     ['Ctrl+1 – Ctrl+9', 'Sekme seç (9: son sekme)'],
+    ['Sekmeyi sürükle', 'Sırala; sekme çubuğunun dışına bırakınca belge kendi penceresinde açılır'],
     ['Düzen'],
     ['Ctrl+Z / Ctrl+Y', 'Geri al / yinele'], ['Ctrl+F', 'Bul'], ['F3 / Shift+F3', 'Sonraki / önceki eşleşme'],
     ['Ctrl+A', 'Sayfadaki tüm metni seç'], ['Delete', 'Seçili notu sil'], ['Ctrl+,', 'Ayarlar'],
@@ -1399,6 +1793,7 @@ document.addEventListener('click', (e) => {
   await ayarlariYukle();
   secimCubuguYenile();   // seçim mini çubuğunda kayıtlı vurgu rengi seçili görünsün (çubuk ayarlar yüklenmeden kuruluyor)
   sonDosyalariListele();
+  pdefe.gonder('pencere:belgeler', []);   // arayüz yeniden yüklendiyse ana süreçteki açık belge kaydı bayat kalmasın
   pdefe.gonder('uygulama:hazir');
-  window.__pdefe = { belgeler, aktif, dosyaAc, belgeKapat, sekmeSec, komutCalistir, ayar: () => ayar, panel, sekmeler, arama, temizMetin, sayfaTarifiUygula, sayfalariDondur, belgeKaydet, mesajKutusu };
+  window.__pdefe = { belgeler, aktif, dosyaAc, belgeKapat, sekmeSec, komutCalistir, ayar: () => ayar, panel, sekmeler, arama, temizMetin, sayfaTarifiUygula, sayfalariDondur, belgeKaydet, mesajKutusu, sekmeyiTasi, sekmePaketi, tasimaSuruyor: () => tasimaSuruyor, kilitli: () => girdiKilitli() };
 })();

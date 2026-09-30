@@ -1068,7 +1068,8 @@ export async function sekmeyiYenile(baglam, belge, { soruAyrintisi, ac = true, s
 export async function ciktiyiAc(baglam, hedef, { cikti, soruAyrintisi } = {}) {
   const acik = acikBelge(baglam, hedef);
   const r = acik ? await sekmeyiYenile(baglam, acik, { soruAyrintisi, sormadan: !!cikti?.onaylandi?.(hedef) }).catch(() => false) : 'yok';
-  if (r === 'yok') { await baglam.dosyaAc(hedef, { arkaPlanda: false }); return true; }
+  // yazildi: hedef başka bir PDEfe penceresinde açıksa oradaki sekmesi diskteki yeni hâliyle yenilenir (uygulama.js dosyaAc)
+  if (r === 'yok') { await baglam.dosyaAc(hedef, { arkaPlanda: false, yazildi: true }); return true; }
   if (r) return true;
   baglam.bildir(`"${acik.ad}" sekmesi dosyanın önceki halini gösteriyor; notlarda değişiklik yapmadan önce sekmeyi kapatıp yeniden açın.`, 8000);
   return false;

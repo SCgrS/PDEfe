@@ -75,7 +75,8 @@ export class Cekirdek {
 
   gonder(yontem, params, ilerleme, istekId = null) {
     return new Promise((coz, reddet) => {
-      if (!this.surec) { reddet(new Error('Çekirdek çalışmıyor.')); return; }
+      // kapaniyor: durdur() stdin'i kapattı; kapanan akışa yazılmaz (son pencere kapanırken gelen istek)
+      if (!this.surec || this.kapaniyor) { reddet(new Error('Çekirdek çalışmıyor.')); return; }
       const id = ++this.sayac;
       this.bekleyen.set(id, { coz, reddet, ilerleme });
       if (istekId != null) this.istekEslemesi.set(istekId, id);
@@ -84,6 +85,7 @@ export class Cekirdek {
   }
 
   async cagir(yontem, params, ilerleme, istekId = null) {
+    if (this.kapaniyor) throw new Error('Çekirdek çalışmıyor.');   // uygulama kapanıyor: çekirdek yeniden başlatılmaz
     await this.baslat();
     try { return await this.gonder(yontem, params, ilerleme, istekId); }
     finally { if (istekId != null) this.istekEslemesi.delete(istekId); }

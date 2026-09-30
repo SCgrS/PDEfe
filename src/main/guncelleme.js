@@ -19,8 +19,10 @@
 //
 // Kullanım (main.js):
 //   const guncelleme = guncellemeKur({ app, ipcMain, autoUpdater, pencereyeGonder, ayarAl, ayarKoy, ilkOrnek,
-//                                      kapatmayaHazirla: () => { kapatOnayli = true; }, kapatmaIptal: () => { kapatOnayli = false; } });
+//                                      kapatmayaHazirla: () => kapatmaOnayiAyarla(true), kapatmaIptal: () => kapatmaOnayiAyarla(false) });
 //   pencere.once('show', () => guncelleme.pencereGosterildi());   // açılış denetimi ve saatlik bakış buradan başlar
+// pencereyeGonder bütün pencerelere gönderir (0.1.19: birden çok pencere; şerit hepsinde görünür). Kurulumdan önce "Güncelle"ye
+// basılan pencere kendi belgelerini, sonra öteki pencerelerinkini sorar (renderer kapatmadanOnce, pencereler.js digerlerindenIzinAl).
 //
 // Renderer'a giden olaylar:
 //   'guncelleme:var'      {surum, mevcut, notlar, tarih, elle}   (elle: kullanıcı denetledi; "Daha sonra" ile gizlenmiş şerit yeniden görünür)
@@ -42,6 +44,7 @@ const AYAR_BEKLEYEN = 'bekleyenGuncelleme';      // indirilip kurulmamış sür�
 export const DENETIM_ARALIGI_MS = 7 * 24 * 3600 * 1000;   // haftada bir
 const BAKIS_ARALIGI_MS = 3600 * 1000;            // açık kalan PDEfe'de sürenin dolup dolmadığına saatte bir bakılır
 const ACILIS_GECIKMESI_MS = 6000;                // pencere gösterildikten sonra
+const KURULUM_BEKLEME_MS = 30000;                // kurulum bu sürede uygulamayı kapatmazsa başlatılamamış sayılır
 
 /** Son başarılı denetimin zamanı (ms); hiç yoksa ya da bozuksa 0. */
 function sonDenetim(ayarAl) { const n = Number(ayarAl(AYAR_SON_DENETIM)); return Number.isFinite(n) && n > 0 ? n : 0; }
@@ -97,6 +100,7 @@ export function hataMetni(e, indirme = false) {
   if (/ENOSPC/i.test(`${kod} ${m}`)) return 'Diskte yeterli boş yer yok.';
   if (/No update filepath provided|No valid update available/i.test(m)) return 'İndirilen kurulum dosyası bulunamadı.';
   if (/\bspawn\b|EACCES|EPERM|EBUSY/i.test(`${kod} ${m}`)) return 'Kurulum dosyası başlatılamadı.';
+  if (kod === 'PDEFE_KURULUM_BASLAMADI') return 'Kurulum başlamadı; yeniden deneyin.';   // kur(): uygulama beklenen sürede kapanmadı
   if (http === 404) return indirme ? 'Kurulum dosyası sunucuda bulunamadı.' : 'Sürüm bilgisi bulunamadı (henüz yayımlanmış sürüm yok).';
   if (http === 403 || http === 429) return 'Sunucu isteği şu an kabul etmiyor; biraz sonra yeniden deneyin.';
   if (http >= 500 && http <= 599) return 'Sunucu şu an yanıt vermiyor; biraz sonra yeniden deneyin.';
@@ -117,15 +121,16 @@ const hataAyrintisi = (e) => String((e && (e.stack || e.message)) || e).split('\
  * @param {(kanal: string, ...args: any[]) => void} p.pencereyeGonder
  * @param {(anahtar: string) => any} p.ayarAl
  * @param {(anahtar: string, deger: any) => void} p.ayarKoy
- * @param {() => void} [p.kapatmayaHazirla]  quitAndInstall'dan önce çağrılır (main.js'de kapatOnayli = true)
- * @param {() => void} [p.kapatmaIptal]      kurulum başlatılamazsa çağrılır (kapatOnayli = false: pencere kapatma yine sorar)
+ * @param {() => void} [p.kapatmayaHazirla]  quitAndInstall'dan önce çağrılır (pencerelerin kapatma onayı verilir: yeniden sormazlar)
+ * @param {() => void} [p.kapatmaIptal]      kurulum başlatılamazsa çağrılır (onay geri alınır: pencere kapatma yine sorar)
  * @param {number} [p.acilisGecikmesiMs]      otomatik denetimin pencere gösterildikten sonraki gecikmesi (birim denemesi kısaltır)
  * @param {number} [p.bakisAraligiMs]         açık kalan uygulamada haftalık sıranın denetlendiği aralık (birim denemesi kısaltır)
+ * @param {number} [p.kurulumBeklemeMs]       kurulum uygulamayı bu sürede kapatmazsa başlatılamamış sayılır (birim denemesi kısaltır)
  * @param {() => number} [p.saat]              şimdiki zaman, ms (birim denemesi haftayı ileri sarar)
  * @returns {{ denetle: (elle?: boolean) => Promise<object>, pencereGosterildi: () => void, durdur: () => void }}
  */
 export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPackaged, ilkOrnek = true, pencereyeGonder, ayarAl, ayarKoy, kapatmayaHazirla, kapatmaIptal,
-  acilisGecikmesiMs = ACILIS_GECIKMESI_MS, bakisAraligiMs = BAKIS_ARALIGI_MS, saat = Date.now }) {
+  acilisGecikmesiMs = ACILIS_GECIKMESI_MS, bakisAraligiMs = BAKIS_ARALIGI_MS, kurulumBeklemeMs = KURULUM_BEKLEME_MS, saat = Date.now }) {
   const mevcut = app?.getVersion?.() || '';
   const gelistirmeSonucu = { durum: 'hata', mevcut, mesaj: 'Geliştirme sürümünde güncelleme yok.' };
 
@@ -226,16 +231,24 @@ export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPack
     return durum.indirme;
   }
 
+  let kurulumNo = 0;
   function kur() {
     if (!durum.hazir) return false;
     if (durum.kuruluyor) return true;
     durum.kuruluyor = true;
+    const deneme = ++kurulumNo;
     try { kapatmayaHazirla?.(); } catch (e) { console.error('[güncelleme] kapatmayaHazirla:', e); }
     // Sessiz kurulum ve yeniden başlatma: bkz. başlık. Kurulum başlatılamazsa electron-updater 'error' olayını verir (yukarıda).
     setImmediate(() => {
       try { autoUpdater.quitAndInstall(true, true); }
       catch (e) { autoUpdater.emit?.('error', e); }
     });
+    // Kurulum uygulamayı kapatır. Kapanmadıysa ve hata da gelmediyse başlatılamamıştır: aynı yoldan bildirilir (kapatmaIptal: kapatma
+    // onayı geri alınır, izin verirken girdiye kilitlenen pencereler açılır; 0.1.19)
+    const zaman = setTimeout(() => {
+      if (durum.kuruluyor && deneme === kurulumNo) autoUpdater.emit?.('error', Object.assign(new Error('Kurulum uygulamayı kapatmadı.'), { code: 'PDEFE_KURULUM_BASLAMADI' }));
+    }, kurulumBeklemeMs);
+    zaman.unref?.();
     return true;
   }
 

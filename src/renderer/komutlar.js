@@ -1,8 +1,10 @@
 // Evrensel geri al / yinele: komut deseni. Her sekmenin kendi yığını vardır.
 // Her değişiklik bir Komut nesnesidir: {ad, uygula(), geriAl()}.
+// Sekme başka pencereye taşınınca (0.1.19) geri al geçmişi de taşınır: işlevler taşınamadığından her komut kendisini yeniden kurmaya
+// yeten bir tarif (tanim: { tur, … }) taşır; hedef pencere komutu tariften aynı kodla kurar (notlar.js komutIceri, uygulama.js).
 
 export class Komut {
-  constructor(ad, uygula, geriAl) { this.ad = ad; this._uygula = uygula; this._geriAl = geriAl; }
+  constructor(ad, uygula, geriAl, tanim = null) { this.ad = ad; this._uygula = uygula; this._geriAl = geriAl; this.tanim = tanim; }
   uygula() { return this._uygula(); }
   geriAl() { return this._geriAl(); }
 }
@@ -57,5 +59,12 @@ export class KomutYigini extends EventTarget {
     this.bildir();
   }
   temizle() { this.yigin = []; this.konum = 0; this.kayitKonumu = 0; this.bildir(); }
+  /** Yığını başka pencereden taşınan komutlarla kurar. Komutlar çalıştırılmaz: belge, komutların uygulanmış hâliyle gelir. */
+  durumKoy(komutlar, konum, kayitKonumu) {
+    this.yigin = komutlar;
+    this.konum = Math.max(0, Math.min(konum, komutlar.length));
+    this.kayitKonumu = Number.isInteger(kayitKonumu) ? kayitKonumu : -1;
+    this.bildir();
+  }
   bildir() { this.dispatchEvent(new CustomEvent('degisti')); }
 }

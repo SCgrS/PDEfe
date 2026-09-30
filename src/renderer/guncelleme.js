@@ -47,10 +47,11 @@ function boyutMetni(b) {
  * @param {HTMLElement} p.serit             #guncelleme-seridi
  * @param {(metin: string, sure?: number) => void} p.bildir
  * @param {() => (boolean|void|Promise<boolean|void>)} [p.kapatmadanOnce]  kurmadan önce kaydedilmemiş değişiklikleri sorar; false kurulumu erteler
+ * @param {() => void} [p.kurulamadi]        kapatmadanOnce izin verdikten sonra kurulum başlatılamadıysa çağrılır
  * @returns {{ denetle: (secenek?: {bildirim?: boolean}) => Promise<{durum: string, surum?: string, mevcut?: string, mesaj?: string}>,
  *            guncelle: () => Promise<boolean>, gizle: () => void, durum: () => object }}
  */
-export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce }) {
+export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce, kurulamadi }) {
   if (!serit) throw new Error('Güncelleme şeridi öğesi (#guncelleme-seridi) bulunamadı.');
   if (!document.getElementById('guncelleme-stil')) {
     const s = document.createElement('style');
@@ -133,7 +134,10 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce }) {
           return false;
         }
         asama('kuruluyor');
-        if (!(await pdefe.cagir('guncelleme:kur'))) { asama('hata', { hata: 'Güncelleme kurulamadı. İndirilen kurulum dosyası bulunamadı.' }); return false; }
+        // Kurulum başlamadıysa kapatmaya izin verirken girdiye kilitlenen pencereler açılır (kurulamadi; uygulama.js kurulumKilidi)
+        let kuruldu = false;
+        try { kuruldu = !!(await pdefe.cagir('guncelleme:kur')); } finally { if (!kuruldu) { try { kurulamadi?.(); } catch { /* yok say */ } } }
+        if (!kuruldu) { asama('hata', { hata: 'Güncelleme kurulamadı. İndirilen kurulum dosyası bulunamadı.' }); return false; }
         return true;
       } catch (e) {
         console.error('[güncelleme]', e);

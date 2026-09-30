@@ -2,9 +2,10 @@
 import { Menu } from 'electron';
 import path from 'node:path';
 
-/** sonDosyalar() null dönerse ("Son açılanları hatırla" kapalı) Dosya menüsünde Son açılanlar gösterilmez. */
-export function menuKur({ komut, sonDosyalar, duzen }) {
-  const k = (id, veri) => () => komut(id, veri);
+/** sonDosyalar() null dönerse ("Son açılanları hatırla" kapalı) Dosya menüsünde Son açılanlar gösterilmez. komut(id, veri, pencere):
+ *  pencere menünün açıldığı (etkin) penceredir; birden çok pencere açıkken komut ona gider. cik(): bütün pencereleri kapatır. */
+export function menuKur({ komut, cik, sonDosyalar, duzen }) {
+  const k = (id, veri) => (_oge, pencere) => komut(id, veri, pencere);
   const sonListe = sonDosyalar();
   const son = (sonListe || []).slice(0, 10);
   // Sayfa düzeni işaretleri (araç çubuğundaki düzen menüsüyle aynı): ayar değişince menü yeniden kurulur (main.js uygulamaMenusuKur)
@@ -37,7 +38,9 @@ export function menuKur({ komut, sonDosyalar, duzen }) {
         { type: 'separator' },
         { label: 'Yazdır', accelerator: 'Ctrl+P', click: k('dosya.yazdir') },
         { type: 'separator' },
-        { label: 'Çıkış', accelerator: 'Alt+F4', role: 'quit' },
+        // Çıkış bütün pencereleri sırayla kapatır (her biri kaydedilmemiş belgelerini sorar). Alt+F4 Windows'taki gibi yalnızca etkin
+        // pencereyi kapatır (hızlandırıcı kaydedilmez, tuşu Windows işler); tek pencere açıkken ikisi aynıdır
+        { label: 'Çıkış', accelerator: 'Alt+F4', registerAccelerator: false, click: () => cik() },
       ],
     },
     {

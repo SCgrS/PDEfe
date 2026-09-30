@@ -53,6 +53,18 @@ const tabanAl = (pdfSayfa) => aciyaIndir(pdfSayfa?.rotate || 0);
 /** Yol anahtarı: büyük/küçük harf ve eğik çizgi farklarını yok sayar. */
 export const yolAnahtari = (yol) => (yol || '').replace(/\//g, '\\').toLowerCase();
 
+/** PDF.js belge yükleme seçenekleri (veri: dosyanın baytları). */
+const belgeSecenekleri = (veri, parola) => ({
+  data: veri,
+  cMapUrl: KAYNAK + 'cmaps/', cMapPacked: true,
+  standardFontDataUrl: KAYNAK + 'standard_fonts/',
+  wasmUrl: KAYNAK + 'wasm/', iccUrl: KAYNAK + 'iccs/',
+  enableXfa: false, isEvalSupported: false,
+  CanvasFactory: KeskinTuvalFabrikasi,       // PDF.js ara tuvalleri de keskin çizsin (keskinlik.js)
+  password: parola,
+  ...yaziSecenekleri(),
+});
+
 /** Boş sayfa için en küçük geçerli PDF (W×H pt). */
 function bosPdfBaytlari(w, h) {
   const nesneler = [
@@ -102,6 +114,7 @@ export class Goruntuleyici extends EventTarget {
     this._istenen = null;        // son sayfayaGit hedefi ve o anki kaydırma konumu {no, st, sl} (kaydirmaIsle)
     this.koyuSayfa = false;
     this.yok = false;
+    this.hazir = false;          // yukle / durumdanYukle bitince true
     this._cizimZamanlayici = null;
     this._boyutZamanlayici = null;
 
@@ -141,17 +154,10 @@ export class Goruntuleyici extends EventTarget {
 
   // ------------------------------------------------------------ yükleme
   async yukle(veri, secenek = {}) {
-    const gorev = pdfjs.getDocument({
-      data: veri,
-      cMapUrl: KAYNAK + 'cmaps/', cMapPacked: true,
-      standardFontDataUrl: KAYNAK + 'standard_fonts/',
-      wasmUrl: KAYNAK + 'wasm/', iccUrl: KAYNAK + 'iccs/',
-      enableXfa: false, isEvalSupported: false,
-      CanvasFactory: KeskinTuvalFabrikasi,       // PDF.js ara tuvalleri de keskin çizsin (keskinlik.js)
-      password: secenek.parola,
-      ...yaziSecenekleri(),
-    });
-    if (secenek.parolaIste) gorev.onPassword = (cb, neden) => secenek.parolaIste(neden).then((p) => cb(p), () => cb(new Error('vazgeçildi')));
+    const gorev = pdfjs.getDocument(belgeSecenekleri(veri, secenek.parola));
+    // Girilen parola saklanır: sekme başka pencereye taşınınca orada yeniden sorulmaz (durumAl)
+    this._parola = secenek.parola ?? null;
+    if (secenek.parolaIste) gorev.onPassword = (cb, neden) => secenek.parolaIste(neden).then((p) => { this._parola = p; cb(p); }, () => cb(new Error('vazgeçildi')));
     this.yuklemeGorevi = gorev;
     this.belge = await gorev.promise;
     if (anaHatCizimi) yaziTipiYukleyicisiniSar(this.belge);   // ilk sayfa çizilmeden önce
@@ -194,9 +200,102 @@ export class Goruntuleyici extends EventTarget {
     this.yerlesimHesapla();
     if (secenek.sayfa && secenek.sayfa > 1) this.sayfayaGit(secenek.sayfa, { aninda: true });
     this.kaydirmaIsle();
+    this.hazir = true;   // belge yüklendi, sayfalar yerleşti (uygulama.js: sekme ancak bundan sonra başka pencereye taşınabilir)
     this.dispatchEvent(new CustomEvent('hazir'));
     this.sayfaBoyutlariniYukle();
     return this.belge;
+  }
+
+  // ------------------------------------------------------------ sekmenin başka pencereye taşınması (0.1.19)
+  /**
+   * Görünümün başka pencerede aynen kurulabilmesi için durumu. Döner: { durum, girdiNo }.
+   *   durum.girdiler[i] = { kimlik, kaynak: {yol, sayfa} | null (boş sayfa), pt, dondurme }; durum.sayfalar: şimdiki sayfa listesi (girdi
+   *   numaraları); durum.belgeler: yüklü PDF.js belgeleri [{ yol, ana, veri: Uint8Array }] (ana: görünümün kendi belgesi).
+   *   girdiNo(s): girdinin taşınan numarası. Listede olmayan girdiler (geri al yığınındaki eski sayfa listeleri, notların izlediği
+   *   sayfa) çağrıldıkça durum.girdiler'e eklenir; durum gönderilmeden önce hepsi için çağrılmış olmalıdır.
+   * Baytlar diskten yeniden okunmaz, PDF.js'in elindeki veri gönderilir: hedef pencere belgeyi bu pencerenin gördüğü hâliyle açar.
+   * Artımlı kayıtla diske işlenmiş döndürmenin hesabı (uygulama.js belge.diskDondurme) böylece olduğu gibi geçerli kalır; dosya bu arada
+   * taşınmış ya da silinmiş olsa da sekme taşınır.
+   */
+  async durumAl() {
+    const belgeler = [];
+    for (const kayit of this.belgeler.values()) belgeler.push({ yol: kayit.yol, ana: kayit.belge === this.belge, veri: await kayit.belge.getData() });
+    const girdiler = [], sira = new Map(), kimlikler = new Map();
+    const girdiNo = (s) => {
+      let i = sira.get(s);
+      if (i == null) {
+        i = girdiler.length; sira.set(s, i);
+        if (!kimlikler.has(s.kimlik)) kimlikler.set(s.kimlik, kimlikler.size);
+        girdiler.push({ kimlik: kimlikler.get(s.kimlik), kaynak: s.bos ? null : { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa }, pt: { w: s.pt.w, h: s.pt.h }, dondurme: s.dondurme || 0,
+          icerikKutusu: s.icerikKutusu ? [...s.icerikKutusu] : null });   // "Görünür alana sığdır" ölçeği hedefte de aynı kutudan hesaplansın
+      }
+      return i;
+    };
+    // Arka plandaki sekmenin kaydırıcısı ölçülemez (display: none iken scrollTop 0 okunur): gizlenmeden önce saklanan konum kullanılır
+    const konum = !this.kaydirici.clientHeight && this._gizliKonum ? this._gizliKonum : { oran: this.sayfaIciOran(), sol: this.kaydirici.scrollLeft };
+    const durum = {
+      yol: this.yol, anlik: this.anlik, kayitliTarif: this.kayitliTarif, parola: this._parola ?? null,
+      zoomModu: this.zoomModu, olcek: this.olcek, gecerli: this.gecerli, oran: konum.oran, kaydirmaSol: konum.sol,
+      gorunumDondurme: this.gorunumDondurme, boyutlarEksik: !!this._boyutlarEksik,
+      girdiler, sayfalar: this.sayfalar.map(girdiNo), belgeler,
+    };
+    return { durum, girdiNo };
+  }
+
+  /**
+   * Başka pencereden taşınan görünümü kurar (durumAl'ın verdiği durum). secenek: { duzen, kapakAyri } (genel ayar; bütün pencerelerde
+   * aynıdır). Döner: taşınan numara → bu penceredeki girdi (notlar ve geri al yığını kendi girdilerini bununla bulur).
+   */
+  async durumdanYukle(durum, secenek = {}) {
+    let ana = null;
+    for (const b of durum.belgeler || []) {
+      const gorev = pdfjs.getDocument(belgeSecenekleri(b.veri, b.ana ? durum.parola ?? undefined : undefined));
+      let belge;
+      try { belge = await gorev.promise; } catch (e) { try { gorev.destroy().catch(() => {}); } catch {} throw e; }
+      // Beklerken sekme kapatıldıysa (yokEt belgeleri bıraktı) az önce yüklenen belge de bırakılır: işçisi açık kalmasın
+      if (this.yok) { try { gorev.destroy().catch(() => {}); } catch {} return null; }
+      if (anaHatCizimi) yaziTipiYukleyicisiniSar(belge);
+      const kayit = { yol: b.yol, belge, gorev };
+      this.belgeler.set(yolAnahtari(b.yol), kayit);
+      if (b.ana) ana = kayit;
+    }
+    if (!ana) throw new Error('Taşınan sekmenin belgesi eksik.');
+    this.yuklemeGorevi = ana.gorev; this.belge = ana.belge;
+    this.yol = durum.yol || null; this.anlik = durum.anlik || null; this._parola = durum.parola ?? null;
+    // Aynı sayfanın döndürme kopyaları (geri al yığınında) kimliği paylaşır: bu oturumda eklenen notlar sayfayı kimliğiyle izler
+    const kimlikler = new Map();
+    const girdiler = (durum.girdiler || []).map((v) => {
+      const s = this.girdiOlustur(v.kaynak ? { yol: v.kaynak.yol, sayfa: v.kaynak.sayfa } : { bos: true, w: v.pt.w, h: v.pt.h }, v.dondurme || 0, v.pt);
+      if (kimlikler.has(v.kimlik)) s.kimlik = kimlikler.get(v.kimlik); else kimlikler.set(v.kimlik, s.kimlik);
+      if (Array.isArray(v.icerikKutusu)) s.icerikKutusu = [...v.icerikKutusu];
+      return s;
+    });
+    this.sayfalar = (durum.sayfalar || []).map((i) => girdiler[i]).filter(Boolean);
+    if (!this.sayfalar.length) throw new Error('Taşınan sekmenin sayfaları eksik.');
+    this.sayfalar.forEach((s, i) => { this.numaraVer(s, i + 1); this.alan.append(s.el); });
+    this.kayitliTarif = durum.kayitliTarif ?? this.tarifJson();
+    if (secenek.duzen) this.duzen = secenek.duzen;
+    if (secenek.kapakAyri != null) this.kapakAyri = secenek.kapakAyri;
+    if (durum.zoomModu) this.zoomModu = durum.zoomModu;
+    if (durum.olcek) this.olcek = durum.olcek;
+    this.gorunumDondurme = durum.gorunumDondurme || 0;
+    this.gecerli = Math.min(Math.max(1, durum.gecerli || 1), this.sayfalar.length);
+    // "Görünür alana sığdır": ölçek içerik kutusundan ve sayfanın toplam döndürmesinden hesaplanır; taban döndürme ancak sayfa nesnesi
+    // yüklüyse bilinir (sigdirOlcek yoksa sayfa genişliğine sığdırır, ölçek kaynak penceredekinden farklı çıkardı)
+    if (this.zoomModu === 'gorunur') {
+      await Promise.all([this.icerikKutusuAl(this.gecerli - 1), this.sayfaAl(this.gecerli - 1).catch(() => null)]);
+      if (this.yok) return null;
+    }
+    this.yerlesimHesapla();
+    this.sayfayaGit(this.gecerli, { oran: durum.oran || 0, aninda: true });
+    if (this.zoomModu === 'gorunur') this.gorunurAlanaKaydir(this.gecerli);
+    else if (durum.kaydirmaSol && this.zoomModu === 'serbest') this.kaydirici.scrollLeft = durum.kaydirmaSol;
+    this.kaydirmaIsle();
+    this.hazir = true;
+    this.dispatchEvent(new CustomEvent('hazir'));
+    // Çok sayfalı belge boyutları öğrenilmeden taşındıysa (açılır açılmaz) kalanlar burada öğrenilir
+    if (durum.boyutlarEksik) this.sayfaBoyutlariniYukle(this.sayfalar);
+    return (i) => girdiler[i] || null;
   }
 
   /**
@@ -222,12 +321,14 @@ export class Goruntuleyici extends EventTarget {
     return degisti;
   }
 
-  /** İlk yerleşimden sonra kalan sayfaların gerçek boyutlarını arka planda öğrenir; farklıysa yerleşimi bir kez yeniler. */
-  async sayfaBoyutlariniYukle() {
-    const kalan = this.sayfalar.slice(ILK_BOYUT_SAYISI);
+  /** İlk yerleşimden sonra kalan sayfaların gerçek boyutlarını arka planda öğrenir; farklıysa yerleşimi bir kez yeniler.
+   *  _boyutlarEksik: öğrenme sürüyor (sekme bu sırada başka pencereye taşınırsa orada yeniden öğrenilir, bkz. durumAl). */
+  async sayfaBoyutlariniYukle(kalan = this.sayfalar.slice(ILK_BOYUT_SAYISI)) {
     if (!kalan.length) return;
     let degisti;
+    this._boyutlarEksik = true;
     try { degisti = await this.boyutlariOgren(kalan); } catch (e) { if (this.yok) return; throw e; }   // sekme bu arada kapandı: "Transport destroyed"
+    this._boyutlarEksik = false;
     // Yeni pt'lerle yerleşimi kurar; geçerli sayfa ve sayfa içi oran korunur (boyutDegisti gibi: scrollTop olduğu gibi kalırsa görünüm
     // başka sayfaya kayar, yanlış sayfa kaydedilirdi). Gizli sekmede (boyut 0) atlanır: sigdirOlcek %25 verirdi; sekme gösterilince
     // boyutDegisti oranı eski (scrollTop ile tutarlı) yerleşimden alıp yeni pt'lerle kurar. Boyutu değişen görünür sayfalar yeniden planlanır.
@@ -287,7 +388,7 @@ export class Goruntuleyici extends EventTarget {
     if (this.belgeler.has(k)) return this.belgeler.get(k).belge;
     if (!this.dosyaOku) throw new Error('Dosya okuyucu tanımlı değil');
     const veri = await this.dosyaOku(yol);
-    const gorev = pdfjs.getDocument({ data: veri, cMapUrl: KAYNAK + 'cmaps/', cMapPacked: true, standardFontDataUrl: KAYNAK + 'standard_fonts/', wasmUrl: KAYNAK + 'wasm/', iccUrl: KAYNAK + 'iccs/', enableXfa: false, isEvalSupported: false, CanvasFactory: KeskinTuvalFabrikasi, ...yaziSecenekleri() });
+    const gorev = pdfjs.getDocument(belgeSecenekleri(veri));
     const belge = await gorev.promise;
     if (anaHatCizimi) yaziTipiYukleyicisiniSar(belge);
     this.belgeler.set(k, { yol, belge, gorev });
@@ -1141,6 +1242,12 @@ export class Goruntuleyici extends EventTarget {
 
   sayfaBosalt(i) { const s = this.sayfalar[i]; if (s) this.girdiBosalt(s); }
 
+  /** Sekme gizlenmek üzere (henüz görünür): sayfa içi konum saklanır; gizli kaydırıcı ölçülemez (durumAl arka plandaki sekme için kullanır). */
+  gizlenecek() {
+    if (this.yok || !this.belge || !this.kaydirici.clientHeight) return;
+    this._gizliKonum = { oran: this.sayfaIciOran(), sol: this.kaydirici.scrollLeft };
+  }
+
   /**
    * Sekme arka plana alındı (başka sekme ya da açılış ekranı seçildi): görünür sayfalar dışındaki tuvaller bırakılır. Gizli sekmede
    * kaydirmaIsle çalışmadığından ön çizilmiş bant ve komşu sayfalar sekme kapanana dek bellekte kalıyordu (2560 px genişliğe sığdırılmış
@@ -1210,17 +1317,19 @@ export class Goruntuleyici extends EventTarget {
     this.zoomModu = mod;
     this.yerlesimHesapla();
     this.sayfayaGit(sayfa, { oran, aninda: true });
-    if (mod === 'gorunur') {
-      const s = this.sayfalar[sayfa - 1];
-      if (s?.icerikKutusu && s.pdfSayfa) {
-        const vp = this.viewportAl(sayfa - 1), view = s.pdfSayfa.view, k = s.icerikKutusu;
-        // Döndürülmüş sayfada kutunun ekrandaki sol kenarı başka köşeden gelir: karşıt iki köşenin küçük x'i
-        const x = Math.min(vp.convertToViewportPoint(view[0] + k[0], view[3] - k[1])[0], vp.convertToViewportPoint(view[0] + k[2], view[3] - k[3])[0]);
-        const yer = this.yerlesim[sayfa - 1];
-        if (yer) this.kaydirici.scrollLeft = Math.max(0, yer.x + x - 4);
-      }
-    }
+    if (mod === 'gorunur') this.gorunurAlanaKaydir(sayfa);
     this.kaydirmaIsle();
+  }
+
+  /** "Görünür alana sığdır"da yatay kaydırma: sayfanın içerik kutusunun sol kenarı görünümün soluna gelir (kutu ve sayfa nesnesi yüklüyse). */
+  gorunurAlanaKaydir(sayfa) {
+    const s = this.sayfalar[sayfa - 1];
+    if (!s?.icerikKutusu || !s.pdfSayfa) return;
+    const vp = this.viewportAl(sayfa - 1), view = s.pdfSayfa.view, k = s.icerikKutusu;
+    // Döndürülmüş sayfada kutunun ekrandaki sol kenarı başka köşeden gelir: karşıt iki köşenin küçük x'i
+    const x = Math.min(vp.convertToViewportPoint(view[0] + k[0], view[3] - k[1])[0], vp.convertToViewportPoint(view[0] + k[2], view[3] - k[3])[0]);
+    const yer = this.yerlesim[sayfa - 1];
+    if (yer) this.kaydirici.scrollLeft = Math.max(0, yer.x + x - 4);
   }
 
   /** Sayfanın içerik kutusunu (metin+çizim+görsel birleşimi, PyMuPDF üst-sol pt) çekirdekten alır. */
@@ -1401,7 +1510,7 @@ export class Goruntuleyici extends EventTarget {
 
   // ------------------------------------------------------------ kapatma
   yokEt() {
-    this.yok = true;
+    this.yok = true; this.hazir = false;
     this._gozlemci.disconnect();
     clearTimeout(this._boyutZamanlayici); clearTimeout(this._keskinZaman);
     this._dprSorgu?.removeEventListener('change', this._dprIsle); this._dprSorgu = null;

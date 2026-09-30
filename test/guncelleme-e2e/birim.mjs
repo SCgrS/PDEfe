@@ -31,7 +31,7 @@ const GUN = 24 * 3600 * 1000, T0 = Date.UTC(2026, 8, 23, 9, 0, 0);
 }
 
 // ---- guncellemeKur
-function kurulum({ surum = '0.9.0', ayar = {}, ilkOrnek = true, simdi = T0, bakisAraligiMs = 1e9 } = {}) {
+function kurulum({ surum = '0.9.0', ayar = {}, ilkOrnek = true, simdi = T0, bakisAraligiMs = 1e9, kurulumBeklemeMs = 30000 } = {}) {
   const depo = new Map(Object.entries(ayar));
   const ipc = new Map();
   const giden = [];
@@ -57,7 +57,7 @@ function kurulum({ surum = '0.9.0', ayar = {}, ilkOrnek = true, simdi = T0, baki
   const sayac = { kapatmayaHazirla: 0, kapatmaIptal: 0 };
   const saat = { simdi };
   const g = guncellemeKur({
-    app, ipcMain: { handle: (k, f) => ipc.set(k, f) }, autoUpdater: au, etkin: true, ilkOrnek, acilisGecikmesiMs: 20, bakisAraligiMs,
+    app, ipcMain: { handle: (k, f) => ipc.set(k, f) }, autoUpdater: au, etkin: true, ilkOrnek, acilisGecikmesiMs: 20, bakisAraligiMs, kurulumBeklemeMs,
     saat: () => saat.simdi,
     pencereyeGonder: (k, v) => giden.push([k, v]), ayarAl: (k) => depo.get(k), ayarKoy: (k, v) => depo.set(k, v),
     kapatmayaHazirla: () => sayac.kapatmayaHazirla++, kapatmaIptal: () => sayac.kapatmaIptal++,
@@ -194,6 +194,26 @@ const ayar = (k) => JSON.stringify({ son: k.depo.get(AYAR_SON_DENETIM), bekleyen
   // çift kur → tek quitAndInstall(true, true)
   k.cagir('guncelleme:kur'); k.cagir('guncelleme:kur'); await bekle(10);
   kontrol('çift kur → tek quitAndInstall(true, true)', JSON.stringify(k.au.kayit.kurulum) === '[[true,true]]', JSON.stringify(k.au.kayit.kurulum));
+}
+
+// 0.1.19: kurulum uygulamayı kapatmazsa (hata da gelmezse) başlatılamamış sayılır: kapatma onayı geri alınır (kapatmaIptal; izin verirken
+// girdiye kilitlenen pencereler açılır), hata bildirilir, yeniden kurulabilir
+{
+  const k = kurulum({ kurulumBeklemeMs: 40 });
+  await k.cagir('guncelleme:denetle'); await k.cagir('guncelleme:indir');
+  k.cagir('guncelleme:kur'); await bekle(15);
+  kontrol('kurulum başladı: kapatmayaHazirla, henüz iptal yok', k.sayac.kapatmayaHazirla === 1 && k.sayac.kapatmaIptal === 0 && (await k.cagir('guncelleme:durum')).kuruluyor === true);
+  await bekle(80);
+  const olay = k.giden.find(([x]) => x === 'guncelleme:hata')?.[1];
+  kontrol('uygulama kapanmadı → kapatmaIptal, Türkçe ileti, kuruluyor değil', k.sayac.kapatmaIptal === 1 && olay?.mesaj === 'Güncelleme kurulamadı. Kurulum başlamadı; yeniden deneyin.' && (await k.cagir('guncelleme:durum')).kuruluyor === false, JSON.stringify(olay));
+  k.cagir('guncelleme:kur'); await bekle(15);
+  kontrol('yeniden kur → ikinci quitAndInstall', k.au.kayit.kurulum.length === 2, JSON.stringify(k.au.kayit.kurulum));
+  // kurulum hatası bekçiden önce geldiyse bekçi ikinci kez bildirmez
+  const k2 = kurulum({ kurulumBeklemeMs: 40 });
+  await k2.cagir('guncelleme:denetle'); await k2.cagir('guncelleme:indir');
+  k2.au.s.kurulumHatasi = () => new Error('spawn EACCES');
+  k2.cagir('guncelleme:kur'); await bekle(100);
+  kontrol('kurulum hatası geldiyse bekçi yinelemez', k2.sayac.kapatmaIptal === 1 && k2.giden.filter(([x]) => x === 'guncelleme:hata').length === 1, JSON.stringify(k2.giden.filter(([x]) => x === 'guncelleme:hata')));
 }
 
 // Bulgu 3: Türkçe hata metinleri

@@ -1,5 +1,5 @@
-// PDEfe ana süreç: pencere, tek örnek, pdefe:// protokolü, menü, IPC köprüsü.
-import { app, BrowserWindow, protocol, net, ipcMain, dialog, Menu, shell, nativeTheme, clipboard, screen } from 'electron';
+// PDEfe ana süreç: tek örnek, pdefe:// protokolü, menü, IPC köprüsü. Pencereler (birden çok olabilir) pencereler.js'te.
+import { app, BrowserWindow, protocol, net, ipcMain, dialog, Menu, shell, nativeTheme, clipboard } from 'electron';
 import { TEST, testDiyalogKur, sahteGuncelleyiciKur } from './gelistirme.js';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -11,6 +11,7 @@ import { Cekirdek } from './cekirdek.js';
 import { panoyaDosyaKopyala } from './pano.js';
 import { yazdirmaKur } from './yazdir.js';
 import { guncellemeKur } from './guncelleme.js';
+import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla } from './pencereler.js';
 import electronUpdater from 'electron-updater';
 const { autoUpdater } = electronUpdater;
 
@@ -24,11 +25,6 @@ if (!kilit) {
   app.quit();
 }
 
-/** @type {BrowserWindow|null} */
-let pencere = null;
-let rendererHazir = false;
-let kapatOnayli = false;
-let bekleyenDosyalar = [];
 /** @type {ReturnType<typeof guncellemeKur>|null} */
 let guncelleme = null;
 const cekirdek = new Cekirdek({ kok: KOK, paketli: PAKETLI, kaynaklar: process.resourcesPath, surum: app.getVersion() });
@@ -74,22 +70,10 @@ async function pdfVarsayilaniOku() {
   return { varsayilan: progId ? progId.toLowerCase() === 'pdefe.pdf' : null, progId };
 }
 
-function pencereyeGonder(kanal, ...args) {
-  if (pencere && !pencere.isDestroyed()) pencere.webContents.send(kanal, ...args);
-}
-
-function dosyalariAc(dosyalar) {
-  if (!dosyalar.length) return;
-  if (rendererHazir) pencereyeGonder('dosya:ac', dosyalar);
-  else bekleyenDosyalar.push(...dosyalar);
-}
-
+// Gezgin'de çift tıklanan PDF (ikinci örnek): bir pencerede zaten açıksa o pencerede, değilse en son etkin pencerede açılır
 app.on('second-instance', (_e, argv, cwd) => {
-  dosyalariAc(argvdenPdfler(argv, cwd));
-  if (pencere) {
-    if (pencere.isMinimized()) pencere.restore();
-    pencere.focus();
-  }
+  const k = dosyalariAc(argvdenPdfler(argv, cwd)) || etkinKayit();
+  if (k) odakla(k);
 });
 
 // ---------- Protokol ----------
@@ -114,68 +98,14 @@ function protokolKur() {
   });
 }
 
-// ---------- Pencere ----------
-function pencereOlustur() {
-  const koyu = temaKoyuMu();
-  const kayitli = ayarAl('pencere') || {};
-  const ekran = screen.getPrimaryDisplay().workAreaSize;
-  const genislik = TEST.boyut.length === 2 ? TEST.boyut[0] : Math.min(kayitli.genislik || 1280, ekran.width);
-  const yukseklik = TEST.boyut.length === 2 ? TEST.boyut[1] : Math.min(kayitli.yukseklik || 860, ekran.height);
-
-  pencere = new BrowserWindow({
-    width: genislik, height: yukseklik,
-    x: TEST.konum.length === 2 ? TEST.konum[0] : kayitli.x, y: TEST.konum.length === 2 ? TEST.konum[1] : kayitli.y,
-    minWidth: 720, minHeight: 480,
-    show: false,
-    title: 'PDEfe',
-    backgroundColor: koyu ? '#1c1c1c' : '#f3f3f3',
-    autoHideMenuBar: false,
-    icon: path.join(KOK, 'build', 'icon.png'),
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
-      contextIsolation: true,
-      sandbox: true,
-      nodeIntegration: false,
-      spellcheck: false,
-      backgroundThrottling: false,
-    },
-  });
-
-  pencere.loadURL('pdefe://app/src/renderer/index.html');
-  pencere.once('ready-to-show', () => {
-    if (kayitli.buyutulmus && TEST.konum.length !== 2) pencere.maximize();
-    if (TEST.konum.length === 2) pencere.showInactive(); else pencere.show();
-  });
-  // Haftalık güncelleme denetimi: sırası geldiyse pencere göründükten birkaç saniye sonra; uygulama açık kaldıkça saatte bir bakılır
-  pencere.once('show', () => guncelleme?.pencereGosterildi());
-  pencere.on('close', (e) => {
-    if (!pencere) return;
-    if (!kapatOnayli && rendererHazir) {
-      e.preventDefault();
-      pencereyeGonder('pencere:kapatIstegi');
-      return;
-    }
-    const b = pencere.getNormalBounds();
-    ayarKoy('pencere', { x: b.x, y: b.y, genislik: b.width, yukseklik: b.height, buyutulmus: pencere.isMaximized() });
-  });
-  pencere.on('closed', () => { pencere = null; });
-  pencere.on('enter-full-screen', () => pencereyeGonder('pencere:tamEkran', true));
-  pencere.on('leave-full-screen', () => pencereyeGonder('pencere:tamEkran', false));
-
-  // Dış bağlantılar tarayıcıda açılsın
-  pencere.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/i.test(url)) shell.openExternal(url);
-    return { action: 'deny' };
-  });
-
-  uygulamaMenusuKur();
-}
-
+// ---------- Menü ----------
 /** Uygulama menüsünü (yeniden) kurar: son dosyalar ve Görünüm menüsündeki düzen işaretleri ayardan okunur. "Son açılanları
- *  hatırla" kapalıyken Dosya menüsünde Son açılanlar yoktur (sonDosyalar null). */
+ *  hatırla" kapalıyken Dosya menüsünde Son açılanlar yoktur (sonDosyalar null). Menü bütün pencerelerde aynıdır; komut, menünün
+ *  açıldığı (etkin) pencereye gider. */
 function uygulamaMenusuKur() {
   Menu.setApplicationMenu(menuKur({
-    komut: (id, veri) => pencereyeGonder('menu:komut', id, veri),
+    komut: (id, veri, pencere) => { const p = kayitAl(pencere?.webContents)?.pencere || etkinPencere(); if (p && !p.isDestroyed()) p.webContents.send('menu:komut', id, veri); },
+    cik: () => cik(),
     sonDosyalar: () => (ayarAl('sonAcilanlariHatirla') === false ? null : ayarAl('sonDosyalar') || []),
     duzen: () => ({ duzen: ayarAl('varsayilanDuzen'), kapakAyri: !!ayarAl('kapakAyri') }),
   }));
@@ -187,7 +117,7 @@ function temaKoyuMu() {
   return tema === 'koyu';
 }
 
-nativeTheme.on('updated', () => pencereyeGonder('tema:sistem', nativeTheme.shouldUseDarkColors));
+nativeTheme.on('updated', () => herkese('tema:sistem', nativeTheme.shouldUseDarkColors));
 
 // ---------- Pano okuma (araçlar) ----------
 async function panoOgeleri() { try { return await clipboard.read(); } catch { return []; } }
@@ -252,23 +182,24 @@ async function panoGorseliniYaz(png) {
 
 // ---------- IPC ----------
 function ipcKur() {
-  ipcMain.on('uygulama:hazir', () => {
-    rendererHazir = true;
-    if (bekleyenDosyalar.length) { pencereyeGonder('dosya:ac', bekleyenDosyalar); bekleyenDosyalar = []; }
-  });
-
   ipcMain.handle('ayar:al', (_e, anahtar) => (anahtar ? ayarAl(anahtar) : ayarlar.store));
   const MENU_AYARLARI = new Set(['varsayilanDuzen', 'kapakAyri', 'sonAcilanlariHatirla']);   // menüde görünen ayarlar
-  ipcMain.handle('ayar:koy', (_e, anahtar, deger) => { ayarKoy(anahtar, deger); if (MENU_AYARLARI.has(anahtar)) uygulamaMenusuKur(); return true; });
+  // Ayarlar bütün pencerelerde ortaktır: değişiklik öteki pencerelere bildirilir ('ayar:degisti'; kendi kopyalarını güncelleyip uygularlar)
+  ipcMain.handle('ayar:koy', (e, anahtar, deger) => {
+    ayarKoy(anahtar, deger);
+    if (MENU_AYARLARI.has(anahtar)) uygulamaMenusuKur();
+    digerlerine(e, 'ayar:degisti', anahtar, deger);
+    return true;
+  });
   ipcMain.handle('tema:sistemKoyu', () => nativeTheme.shouldUseDarkColors);
 
   // secenek: {baslik, filtreler:[{name, extensions}], coklu, varsayilan}
   const testDiyalog = testDiyalogKur(ipcMain);   // test örneğinde yerel diyaloglar ekrana çıkmaz (gelistirme.js)
   // "Son açılanları hatırla" kapalıyken Aç / Kaydet pencereleri seçilen dosyayı Windows'un son kullanılanlar listesine de eklemez
   const sonKullanilanlar = () => (ayarAl('sonAcilanlariHatirla') === false ? ['dontAddToRecent'] : []);
-  ipcMain.handle('dosya:acDiyalog', async (_e, secenek) => {
+  ipcMain.handle('dosya:acDiyalog', async (e, secenek) => {
     if (testDiyalog) return testDiyalog('dosya:acDiyalog', { ...secenek, windowsSonKullanilanlar: !sonKullanilanlar().length }, []);
-    const s = await dialog.showOpenDialog(pencere, {
+    const s = await dialog.showOpenDialog(pencereAl(e), {
       title: secenek?.baslik || 'PDF aç',
       defaultPath: secenek?.varsayilan,
       filters: secenek?.filtreler || [{ name: 'PDF belgeleri', extensions: ['pdf'] }, { name: 'Tüm dosyalar', extensions: ['*'] }],
@@ -277,15 +208,15 @@ function ipcKur() {
     return s.canceled ? [] : s.filePaths;
   });
 
-  ipcMain.handle('dosya:klasorSec', async (_e, secenek) => {
+  ipcMain.handle('dosya:klasorSec', async (e, secenek) => {
     if (testDiyalog) return testDiyalog('dosya:klasorSec', secenek, null);
-    const s = await dialog.showOpenDialog(pencere, { title: secenek?.baslik || 'Klasör seç', defaultPath: secenek?.varsayilan, properties: ['openDirectory', 'createDirectory'] });
+    const s = await dialog.showOpenDialog(pencereAl(e), { title: secenek?.baslik || 'Klasör seç', defaultPath: secenek?.varsayilan, properties: ['openDirectory', 'createDirectory'] });
     return s.canceled ? null : s.filePaths[0];
   });
 
-  ipcMain.handle('dosya:kaydetDiyalog', async (_e, secenek) => {
+  ipcMain.handle('dosya:kaydetDiyalog', async (e, secenek) => {
     if (testDiyalog) return testDiyalog('dosya:kaydetDiyalog', secenek, null);
-    const s = await dialog.showSaveDialog(pencere, {
+    const s = await dialog.showSaveDialog(pencereAl(e), {
       title: secenek?.baslik || 'Farklı kaydet',
       defaultPath: secenek?.varsayilan,
       filters: secenek?.filtreler || [{ name: 'PDF belgesi', extensions: ['pdf'] }],
@@ -340,9 +271,9 @@ function ipcKur() {
 
   // Yerel mesaj kutusu. Arayüz artık kendi mesaj kutusunu kullanır (renderer/mesajKutusu.js: aynı seçenekler, dışına tıklayınca kapanır);
   // bu kanalı yalnızca test kancası (window.__pdefeYerelKutu; test kuyruğuyla yanıtlanan senaryolar) kullanır.
-  ipcMain.handle('mesaj:kutu', async (_e, secenek) => {
+  ipcMain.handle('mesaj:kutu', async (e, secenek) => {
     if (testDiyalog) return testDiyalog('mesaj:kutu', secenek, { secim: secenek.varsayilan ?? 0, onay: false });
-    const s = await dialog.showMessageBox(pencere, {
+    const s = await dialog.showMessageBox(pencereAl(e), {
       type: secenek.tur || 'question',
       title: secenek.baslik || 'PDEfe',
       message: secenek.mesaj,
@@ -358,7 +289,7 @@ function ipcKur() {
   });
 
   // Genel açılır menü: [{id, etiket, devre, ayirici, isaretli}] → tıklanan id
-  ipcMain.handle('menu:popup', (_e, ogeler) => new Promise((coz) => {
+  ipcMain.handle('menu:popup', (e, ogeler) => new Promise((coz) => {
     if (testDiyalog) { coz(testDiyalog('menu:popup', ogeler, null)); return; }
     let secilen = null;
     const sablon = ogeler.map((o) => (o.ayirici ? { type: 'separator' } : {
@@ -366,7 +297,7 @@ function ipcKur() {
       checked: !!o.isaretli, click: () => { secilen = o.id; },
     }));
     const m = Menu.buildFromTemplate(sablon);
-    m.popup({ window: pencere, callback: () => coz(secilen) });
+    m.popup({ window: pencereAl(e) || undefined, callback: () => coz(secilen) });
   }));
 
   ipcMain.handle('kabuk:klasordeGoster', (_e, yol) => { shell.showItemInFolder(yol); return true; });
@@ -382,27 +313,25 @@ function ipcKur() {
   ipcMain.handle('pano:oku', () => clipboard.readText());
   ipcMain.handle('pano:dosya', async (_e, yol) => (testDiyalog ? testDiyalog('pano:dosya', { yol }, { tamam: true, hata: '' }) : panoyaDosyaKopyala(yol)));
 
-  ipcMain.handle('pencere:tamEkran', (_e, deger) => {
-    const yeni = deger ?? !pencere.isFullScreen();
-    pencere.setFullScreen(yeni);
-    return yeni;
-  });
-  ipcMain.handle('pencere:baslik', (_e, baslik) => { pencere.setTitle(baslik ? `${baslik} — PDEfe` : 'PDEfe'); return true; });
-  ipcMain.handle('pencere:kapat', () => { pencere?.close(); return true; });
-  ipcMain.handle('pencere:kapatOnayla', () => { kapatOnayli = true; pencere?.close(); return true; });
+  // Pencere kanalları (tam ekran, başlık, kapatma, sekme taşıma) pencereler.js'te
   ipcMain.handle('uygulama:bilgi', () => ({ surum: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome, node: process.versions.node, paketli: PAKETLI, kok: KOK }));
-  ipcMain.handle('uygulama:sonDosyalar', (_e, liste) => {
+  ipcMain.handle('uygulama:sonDosyalar', (e, liste) => {
     ayarKoy('sonDosyalar', liste);
     uygulamaMenusuKur();
+    digerlerine(e, 'ayar:degisti', 'sonDosyalar', liste);
     return true;
   });
 
-  // Çekirdek (PyMuPDF) çağrıları
-  ipcMain.handle('cekirdek:cagir', (_e, yontem, params, istekId) =>
-    cekirdek.cagir(yontem, params, (ilerleme) => pencereyeGonder('cekirdek:ilerleme', istekId, ilerleme), istekId));
-  ipcMain.handle('cekirdek:iptal', (_e, istekId) => cekirdek.iptal(istekId));
+  // Çekirdek (PyMuPDF) çağrıları. Çekirdek bütün pencerelerce paylaşılır: istek kimliği pencereye göre ayrılır (her pencere kendi
+  // sayacından verir), ilerleme yalnızca isteği yapan pencereye gider
+  ipcMain.handle('cekirdek:cagir', (e, yontem, params, istekId) => {
+    const gonderen = e.sender;
+    return cekirdek.cagir(yontem, params, (ilerleme) => { if (!gonderen.isDestroyed()) gonderen.send('cekirdek:ilerleme', istekId, ilerleme); },
+      istekId == null ? null : `${gonderen.id}:${istekId}`);
+  });
+  ipcMain.handle('cekirdek:iptal', (e, istekId) => cekirdek.iptal(`${e.sender.id}:${istekId}`));
   ipcMain.handle('ayar:varsayilanlar', () => VARSAYILANLAR);
-  yazdirmaKur({ ipcMain, BrowserWindow, pencereAl: () => pencere });
+  yazdirmaKur({ ipcMain, BrowserWindow, pencereAl });
 }
 
 // ---------- Yaşam döngüsü ----------
@@ -412,17 +341,29 @@ app.whenReady().then(() => {
   if (kilit) { try { fs.rmSync(path.join(app.getPath('userData'), 'anlik'), { recursive: true, force: true }); } catch { /* yok say */ } }
   protokolKur();
   ipcKur();
+  pencereleriKur({
+    ipcMain, KOK, onYukleme: path.join(__dirname, 'preload.cjs'), TEST, ayarAl, ayarKoy, temaKoyuMu,
+    // Haftalık güncelleme denetimi: sırası geldiyse ilk pencere göründükten birkaç saniye sonra; uygulama açık kaldıkça saatte bir bakılır
+    pencereGosterildi: () => guncelleme?.pencereGosterildi(),
+    // Kapanan pencerenin dosyaları: çekirdek önbelleğinden bırakılır (dosya tanıtıcısı kapanır), anlık kopyalar silinir. İstekler
+    // çekirdekte sırayla işlenir; son pencere kapanıyorsa çekirdek bunları bitirip durur (window-all-closed)
+    dosyalariBirak: ({ yollar = [], anliklar = [] } = {}) => {
+      for (const yol of [...yollar, ...anliklar]) if (typeof yol === 'string' && yol) cekirdek.cagir('belge_birak', { yol }).catch(() => {});
+      for (const yol of anliklar) if (typeof yol === 'string' && yol) cekirdek.cagir('anlik_sil', { yol }).catch(() => {});
+    },
+  });
   try {
     const sahte = sahteGuncelleyiciKur(ipcMain);   // yalnızca geliştirme örneğinde, PDEFE_TEST_GUNCELLEME ile
     guncelleme = guncellemeKur({
-      app, ipcMain, autoUpdater: sahte || autoUpdater, etkin: PAKETLI || !!sahte, ilkOrnek: kilit, pencereyeGonder, ayarAl, ayarKoy,
-      // Kurulum uygulamayı kapatır: renderer kaydedilmemiş değişiklikleri önceden sorduğu için pencere kapatma yeniden sormasın
-      kapatmayaHazirla: () => { kapatOnayli = true; },
-      kapatmaIptal: () => { kapatOnayli = false; },
+      app, ipcMain, autoUpdater: sahte || autoUpdater, etkin: PAKETLI || !!sahte, ilkOrnek: kilit, pencereyeGonder: herkese, ayarAl, ayarKoy,
+      // Kurulum uygulamayı kapatır: pencereler kaydedilmemiş değişiklikleri önceden sorduğu için (isteyen pencere kendininkini,
+      // öteki pencereler 'pencere:digerlerindenIzinAl' ile) pencere kapatma yeniden sormasın
+      kapatmayaHazirla: () => kapatmaOnayiAyarla(true),
+      kapatmaIptal: () => kapatmaOnayiAyarla(false),
     });
   } catch (e) { console.error('[güncelleme] kurulamadı:', e); }
-  bekleyenDosyalar.push(...argvdenPdfler(process.argv, process.cwd()));
-  pencereOlustur();
+  uygulamaMenusuKur();
+  pencereOlustur({ dosyalar: argvdenPdfler(process.argv, process.cwd()) });
   cekirdek.baslat().catch((e) => console.error('[çekirdek] başlatılamadı:', e));
 });
 

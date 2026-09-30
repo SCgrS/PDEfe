@@ -592,28 +592,33 @@ export class NotYoneticisi extends EventTarget {
   }
 
   // ------------------------------------------------------------ komutlar
-  calistir(ad, uygula, geriAl) {
-    const k = new Komut(ad, () => { uygula(); this.degisti(); }, () => { geriAl(); this.degisti(); });
-    this.yigin.calistir(k);
-    return k;
+  // Not komutları üç kurucuyla kurulur (ekleKomutu / silKomutu / guncelleKomutu) ve tariflerini (tanim) taşır: sekme başka pencereye
+  // taşınınca (0.1.19) geri al yığını oradaki tariflerden aynı kurucularla yeniden kurulur (komutDisari / komutIceri); komutun
+  // kapattığı bütün değerler bu yüzden tarifte durur.
+  komutKur(ad, uygula, geriAl, tanim) {
+    return new Komut(ad, () => { uygula(); this.degisti(); }, () => { geriAl(); this.degisti(); }, tanim);
+  }
+
+  ekleKomutu(not, ad) {
+    // Yinele: eklenip kaydedilen, geri alınıp (silinerek) yeniden kaydedilen not modelden çıkmıştır; geri konur ve yeniden eklenir.
+    // Kayıtlıyken geri alınırsa silindi işaretlenir, sonraki kayıtta 'sil' yazılır.
+    return this.komutKur(ad,
+      () => { this.modeleGeriKoy(not); this.cizSayfa(not.sayfa); },
+      () => { not.silindi = true; if (this.secili === not.id) this.sec(null); this.balonKapat(); this.cizSayfa(not.sayfa); },
+      { tur: 'not.ekle', not });
   }
 
   ekle(not, ad = null) {
     not.id = not.id || yeniId(); not.yeni = true; not.silindi = false; not.yanitlar = not.yanitlar || []; not.ustId = not.ustId || null;
     if (!not.kaynak) { const s = this.g.sayfalar[not.sayfa - 1]; if (s) { not.kaynak = s.bos ? { bos: true } : { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa }; not.kaynakGirdi = s; } }
     not.olusturma = not.olusturma || simdiPdfTarih(); not.degisim = not.olusturma;
-    // Yinele: eklenip kaydedilen, geri alınıp (silinerek) yeniden kaydedilen not modelden çıkmıştır; geri konur ve yeniden eklenir.
-    // Kayıtlıyken geri alınırsa silindi işaretlenir, sonraki kayıtta 'sil' yazılır.
-    this.calistir(ad || `${turAdi(not.tur)} ekle`,
-      () => { this.modeleGeriKoy(not); this.cizSayfa(not.sayfa); },
-      () => { not.silindi = true; if (this.secili === not.id) this.sec(null); this.balonKapat(); this.cizSayfa(not.sayfa); });
+    this.yigin.calistir(this.ekleKomutu(not, ad || `${turAdi(not.tur)} ekle`));
     return not;
   }
 
-  sil(not) {
-    const yanitlar = this.yanitlari(not);
+  silKomutu(not, yanitlar, ad) {
     // Geri al: kayıt silinen notu ve yanıtlarını modelden çıkarmış olabilir; modele geri konur (dosyada yoksa sonraki kayıtta eklenir)
-    this.calistir(`${turAdi(not.tur)} sil`,
+    return this.komutKur(ad,
       () => { not.silindi = true; for (const y of yanitlar) y.silindi = true; if (this.secili === not.id) this.sec(null); this.balonKapat(); this.cizSayfa(not.sayfa); },
       () => {
         // Kayıt notu dosyadan silmiş ve çekirdek bu türü yeniden oluşturamıyorsa (EKLENEBILIR dışı: ek, damga, şekil) geri konmaz: ekranda
@@ -623,26 +628,96 @@ export class NotYoneticisi extends EventTarget {
           return;
         }
         this.modeleGeriKoy(not); for (const y of yanitlar) this.modeleGeriKoy(y); this.cizSayfa(not.sayfa);
-      });
+      },
+      { tur: 'not.sil', not, yanitlar });
   }
 
+  sil(not) { this.yigin.calistir(this.silKomutu(not, this.yanitlari(not), `${turAdi(not.tur)} sil`)); }
+
   /**
+   * v: { yeni, eski, eskiSayfa, kayitliIlk, dosyaEski, degisim }. eski: değişen alanların önceki değerleri ve değişim tarihi (geri
+   * alınınca tarih de döner; yoksa anlık farkı belgeyi kirli bırakır). kayitliIlk: komut kurulurken notun dosyadaki durumu. degisim:
+   * ilk uygulamadaki tarih (yinelemede aynısı yazılır: kaydedilmiş duruma dönülünce belge temiz görünür).
    * dosyaEski: eski değerlerin açık hâli, eski değer dosyadan okunan (modelde olmayan) bir şeyse (ör. başka programda yazılmış yazının biçimi: n.yazi
    * yok, çekirdek kayıtta dosyadan okur). Komuttan sonra not kaydedildiyse geri alma bunları yazar: dosyada artık düzenlenmiş
    * biçim durduğundan eski (boş) değer kaydı ve ekranı geri getirmezdi. Kayıt olmadıysa eski (boş) değer döner, belge temiz kalır.
    */
-  guncelle(not, yeni, ad = null, dosyaEski = null) {
-    const eski = { degisim: not.degisim };   // geri alınınca değişim tarihi de döner (yoksa anlık farkı belgeyi kirli bırakır)
-    for (const k of Object.keys(yeni)) eski[k] = structuredClone(not[k]);
-    const eskiSayfa = not.sayfa;
-    const kayitliIlk = this.kayitli.get(not.id);
-    let degisim = null;                      // yinelemede ilk uygulamadaki tarih: kaydedilmiş duruma dönülünce belge temiz görünür
-    this.calistir(ad || `${turAdi(not.tur)} düzenle`,
-      () => { Object.assign(not, structuredClone(yeni)); not.degisim = degisim ||= simdiPdfTarih(); this.pixmapOnbellek.clear(); this.cizSayfa(not.sayfa); if (this.balonNotId === not.id) this.balonYenile(); },
+  guncelleKomutu(not, v, ad) {
+    return this.komutKur(ad,
+      () => { Object.assign(not, structuredClone(v.yeni)); not.degisim = v.degisim ||= simdiPdfTarih(); this.pixmapOnbellek.clear(); this.cizSayfa(not.sayfa); if (this.balonNotId === not.id) this.balonYenile(); },
       () => {
-        const deger = dosyaEski && this.kayitli.get(not.id) !== kayitliIlk ? { ...eski, ...dosyaEski } : eski;
-        Object.assign(not, structuredClone(deger)); this.pixmapOnbellek.clear(); this.cizSayfa(eskiSayfa); if (this.balonNotId === not.id) this.balonYenile();
-      });
+        const deger = v.dosyaEski && this.kayitli.get(not.id) !== v.kayitliIlk ? { ...v.eski, ...v.dosyaEski } : v.eski;
+        Object.assign(not, structuredClone(deger)); this.pixmapOnbellek.clear(); this.cizSayfa(v.eskiSayfa); if (this.balonNotId === not.id) this.balonYenile();
+      },
+      { tur: 'not.guncelle', not, v });
+  }
+
+  guncelle(not, yeni, ad = null, dosyaEski = null) {
+    const eski = { degisim: not.degisim };
+    for (const k of Object.keys(yeni)) eski[k] = structuredClone(not[k]);
+    this.yigin.calistir(this.guncelleKomutu(not, { yeni, eski, eskiSayfa: not.sayfa, kayitliIlk: this.kayitli.get(not.id), dosyaEski, degisim: null }, ad || `${turAdi(not.tur)} düzenle`));
+  }
+
+  // ------------------------------------------------------------ sekmenin başka pencereye taşınması (0.1.19)
+  /** Not komutunun taşınabilen tarifi (not nesneleri yerine kimlikler); not komutu değilse null. */
+  komutDisari(k) {
+    const t = k.tanim;
+    if (t?.tur === 'not.ekle') return { tur: t.tur, ad: k.ad, not: t.not.id };
+    if (t?.tur === 'not.sil') return { tur: t.tur, ad: k.ad, not: t.not.id, yanitlar: t.yanitlar.map((y) => y.id) };
+    if (t?.tur === 'not.guncelle') return { tur: t.tur, ad: k.ad, not: t.not.id, v: t.v };
+    return null;
+  }
+
+  /** Komutun tuttuğu notlar: kayıtta modelden çıkmış olsalar da taşınan pakete girerler (durumAl ekNotlar). */
+  komutNotlari(k) { const t = k.tanim; return typeof t?.tur === 'string' && t.tur.startsWith('not.') ? [t.not, ...(t.yanitlar || [])] : []; }
+
+  /** Taşınan tariften komutu kurar (çalıştırmaz). notBul: kimlik → taşınan not (durumdanYukle'nin döndürdüğü). Tarif eksikse null. */
+  komutIceri(veri, notBul) {
+    const not = notBul(veri?.not);
+    if (!not) return null;
+    if (veri.tur === 'not.ekle') return this.ekleKomutu(not, veri.ad);
+    if (veri.tur === 'not.sil') { const yanitlar = (veri.yanitlar || []).map(notBul); return yanitlar.every(Boolean) ? this.silKomutu(not, yanitlar, veri.ad) : null; }
+    if (veri.tur === 'not.guncelle') return veri.v && veri.v.yeni && veri.v.eski ? this.guncelleKomutu(not, veri.v, veri.ad) : null;
+    return null;
+  }
+
+  /**
+   * Not modelinin tamamı: notlar (modeldeki sırasıyla), dosyadaki durumun anlık görüntüleri (kayitli), yüklenmiş kaynaklar ve modelden
+   * çıkmış ama geri al yığınında duran notlar (ekNotlar: yığındaki komutların notları). girdiNo: sayfa girdisi → taşınan numarası
+   * (kaynakGirdi nesnesi taşınamaz). Açık balon ve yazı düzenlemesi çağrıdan önce kapatılmış olmalıdır.
+   */
+  durumAl(girdiNo, ekNotlar = []) {
+    const disari = (n) => { const { kaynakGirdi, ...gerisi } = n; return kaynakGirdi ? { ...gerisi, kaynakGirdi: girdiNo(kaynakGirdi) } : gerisi; };
+    const modelde = new Set(this.notlar.values()), cikanlar = new Set();
+    for (const r of this._cikanlar) { const n = r.deref(); if (n && !modelde.has(n)) cikanlar.add(n); }
+    for (const n of ekNotlar) if (n && !modelde.has(n)) cikanlar.add(n);
+    return {
+      notlar: [...this.notlar.values()].map(disari),
+      cikanlar: [...cikanlar].map(disari),
+      kayitli: [...this.kayitli],
+      yuklenenKaynaklar: [...(this.yuklenenKaynaklar || [])],
+    };
+  }
+
+  /** Taşınan not modelini kurar (dosyadan okumaz). girdiAl: taşınan numara → bu penceredeki sayfa girdisi. Döner: kimlik → not. */
+  durumdanYukle(durum, girdiAl) {
+    const iceri = (v) => {
+      const n = { ...v };
+      if (v.kaynakGirdi != null) { const s = girdiAl(v.kaynakGirdi); if (s) n.kaynakGirdi = s; else delete n.kaynakGirdi; }
+      return n;
+    };
+    const hepsi = new Map();
+    this.notlar.clear(); this._cikanlar.clear();
+    for (const v of durum.notlar || []) { const n = iceri(v); this.notlar.set(n.id, n); hepsi.set(n.id, n); }
+    for (const v of durum.cikanlar || []) { const n = iceri(v); this._cikanlar.add(new WeakRef(n)); hepsi.set(n.id, n); }
+    this.kayitli = new Map(durum.kayitli || []);
+    this.yuklenenKaynaklar = new Set(durum.yuklenenKaynaklar || []);
+    this.pixmapOnbellek.clear();
+    this.sayfalarDegisti(false);
+    this.yuklendi = true;
+    this.hepsiniCiz();
+    this.dispatchEvent(new CustomEvent('yuklendi'));
+    return (id) => hepsi.get(id) || null;
   }
 
   silSecili() {
