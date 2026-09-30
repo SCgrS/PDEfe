@@ -1,5 +1,7 @@
 ﻿# Test örneği başlatır: ayrı veri klasörü, ekran dışı pencere, CDP portu. PID'yi yazar; CDP hazır olunca döner.
-# Kullanım:  powershell -File test\baslat.ps1 -Port 9311 [-Veri <klasör>] [-Konum "-2600,0"] [-Boyut "1280,900"] [-Tema koyu|acik|sistem]
+# Kullanım:  powershell -File test\baslat.ps1 -Port 9311 [-Veri <klasör>] [-Konum "-2600,0"] [-Boyut "1280,900"] [-Tema koyu|acik|sistem] [-Olcek 1.25]
+# -Olcek: ekran ölçeği (cihaz piksel oranı; 1.25 = Windows'ta %125). Verilmezse ekranınki. -Boyut ölçekten bağımsızdır (CSS pikseli);
+# pencere ekranın çalışma alanından büyük olamadığı için ölçek büyüdükçe en büyük pencere küçülür (1920×1080 ekranda %150: 1280×688).
 # Durdurma:  powershell -File test\durdur.ps1 -SurecId <pid>    (yalnızca bu örneğin süreç ağacını kapatır)
 # Sürme:     $env:PDEFE_CDP_PORT = 9311; node test\surucu.mjs betik <dosya.mjs>
 param(
@@ -7,7 +9,8 @@ param(
   [string]$Veri = "",
   [string]$Konum = "-2600,0",
   [string]$Boyut = "1280,900",
-  [string]$Tema = ""
+  [string]$Tema = "",
+  [string]$Olcek = ""
 )
 $ErrorActionPreference = 'Stop'
 $kok = Split-Path -Parent $PSScriptRoot
@@ -24,7 +27,9 @@ if (-not (Test-Path $exe)) { throw "electron.exe yok: $exe (node_modules bağlan
 $env:PDEFE_VERI_KLASORU = $Veri
 $env:PDEFE_TEST_KONUM = $Konum
 $env:PDEFE_TEST_BOYUT = $Boyut
-$p = Start-Process -FilePath $exe -ArgumentList @('.', "--remote-debugging-port=$Port") -WorkingDirectory $kok -PassThru -WindowStyle Hidden
+$arguman = @('.', "--remote-debugging-port=$Port")
+if ($Olcek) { $arguman += "--force-device-scale-factor=$Olcek" }
+$p = Start-Process -FilePath $exe -ArgumentList $arguman -WorkingDirectory $kok -PassThru -WindowStyle Hidden
 for ($i = 0; $i -lt 60; $i++) {
   Start-Sleep -Milliseconds 500
   try {

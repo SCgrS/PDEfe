@@ -41,6 +41,33 @@ const yaziSecenekleri = () => (anaHatCizimi ? anaHatSecenekleri() : {});
 const pikselOrani = () => window.devicePixelRatio || 1;
 /** Değeri cihaz pikseli ızgarasına oturtur (CSS px). */
 const izgaraya = (v, dpr) => Math.round(v * dpr) / dpr;
+/**
+ * İçerik görünür boyuttan taşıyor mu (kaydırma çubuğu gerekir mi). 1 px'e kadar taşma sayılmaz: ızgaraya yuvarlama sığdırılmış satırı
+ * bu kadar taşırabilir (iki sayfalık satırda iki sayfa da yarım piksel yukarı yuvarlanınca tam 1 px: 0.1.20'ye dek pay 1 px'ten azdı,
+ * ekran ölçeği 1'de her iki pencere genişliğinden birinde sığdırılmış çiftin altında yatay çubuk çıkıyordu). O durumda alan görünür
+ * boyutu aşmaz (gorunumCoz), fazlalığı kenar boşluğu karşılar, çubuk çıkmaz.
+ */
+const tasar = (icerik, gorunur) => icerik - gorunur > 1;
+/**
+ * Kaydırma çubuğunun kalınlığı (CSS px, yukarı yuvarlanmış tam sayı): en dikey çubuğun genişliği, boy yatay çubuğun yüksekliği. Stil
+ * sayfası belirler (stil.css ::-webkit-scrollbar); çubuğu hep açık bir deneme kutusunun iç öğesiyle, cihaz piksel oranı başına bir
+ * kez ölçülür (clientWidth tam sayıya yuvarlar; kesirli kalınlıkta çubuğun kapladığı yer eksik hesaplanmasın).
+ */
+let cubukOlcusu = null;
+function cubukKalinligi() {
+  const dpr = pikselOrani();
+  if (cubukOlcusu?.dpr === dpr) return cubukOlcusu;
+  const el = document.createElement('div'), ic = document.createElement('div');
+  el.style.cssText = 'position:absolute;left:-9999px;top:0;width:100px;height:100px;overflow:scroll;visibility:hidden;';
+  ic.style.cssText = 'width:100%;height:100%;';
+  el.append(ic);
+  document.body.append(el);
+  const dis = el.getBoundingClientRect(), icKutu = ic.getBoundingClientRect();
+  const olcu = { dpr, en: Math.ceil(dis.width - icKutu.width - 0.001), boy: Math.ceil(dis.height - icKutu.height - 0.001) };
+  el.remove();
+  if (dis.width > 0) cubukOlcusu = olcu;   // belge henüz yerleşmediyse (ölçüm 0) saklanmaz, sonraki çağrıda yeniden ölçülür
+  return olcu;
+}
 /** Tuvalin belleğini hemen bırakır. */
 const tuvalBirak = (c) => { c.width = 0; c.height = 0; };
 /** Açıyı 0..359'a indirger. */
@@ -135,7 +162,7 @@ export class Goruntuleyici extends EventTarget {
     document.addEventListener('keydown', this._tusGirdisi, true);
     // Arka planda okunan görseller hazır: hızlı çizilmiş görünür sayfalar keskin yeniden çizilir (yeterliMi)
     this._keskinHazirBirak = keskinHazirDinle(() => this.keskinHazir());
-    this._gozlemci = new ResizeObserver(() => this.boyutDegisti());
+    this._gozlemci = new ResizeObserver(() => this.kutuDegisti());
     this._gozlemci.observe(this.kaydirici);
     // Metin seçimi bitince katmanların 'selecting' sınıfını kaldır (katman başına belge dinleyicisi eklemek sızıntı yapıyordu)
     this._fareBirak = () => { for (const k of this.alan.querySelectorAll('.textLayer.selecting')) k.classList.remove('selecting'); };
@@ -628,10 +655,14 @@ export class Goruntuleyici extends EventTarget {
     return en.olcu;
   }
 
-  /** Sığdırma modları için ölçek hesabı (varsayılan: gecerli sayfa; komşu satırın ölçeği için başka sayfa verilebilir). */
-  sigdirOlcek(mod, sayfaIdx = this.gecerli - 1) {
-    const vw = this.kaydirici.clientWidth - 2 * KENAR;
-    const vh = this.kaydirici.clientHeight - 2 * KENAR;
+  /**
+   * Sığdırma modları için ölçek hesabı (varsayılan: gecerli sayfa; komşu satırın ölçeği için başka sayfa verilebilir). gw × gh:
+   * kaydırıcının görünür boyutu (kaydırma çubukları düşülmüş); verilmezse o anki. Yerleşim o ankini kullanmaz, çubukları kendisi
+   * hesaplayıp verir (gorunumCoz).
+   */
+  sigdirOlcek(mod, sayfaIdx = this.gecerli - 1, gw = this.kaydirici.clientWidth, gh = this.kaydirici.clientHeight) {
+    const vw = gw - 2 * KENAR;
+    const vh = gh - 2 * KENAR;
     const idx = Math.max(0, Math.min(sayfaIdx, this.sayfalar.length - 1));
     // Kaydırmalı düzende genişliğe sığdırma belgenin baskın satır genişliğine (0.1.8; önceden geçerli sayfanın satırına), öteki
     // modlar ve kaydırmasız düzen gösterilen satıra göre
@@ -658,27 +689,78 @@ export class Goruntuleyici extends EventTarget {
   }
 
   /**
-   * Verilen satırları (sayfa indeks dizileri) üst üste yerleştirir; bütün dikdörtgenler cihaz pikseli ızgarasına oturur
+   * Verilen satırların (sayfa indeks dizileri) bu ölçekteki ölçüleri, üst üste dizilmiş; bütün boyutlar cihaz pikseli ızgarasına oturur
    * (tuval CSS boyutu cihaz pikseline tam denk gelsin, yeniden örnekleme bulanıklığı olmasın).
-   * Döner: {yerler: [[i, {x,y,w,h,olcek}]], alanW, alanH}
+   * Döner: { olculer: [{idxler, boyutlar, satirW, y}], icW, icH } (icW × icH: içeriğin kenar boşluklarıyla kapladığı alan)
    */
-  satirlariYerlestir(satirlar, olcek, vw, vh, dpr) {
-    let toplamW = 0, y = KENAR;
+  satirlariOlc(satirlar, olcek, dpr) {
+    let icW = 0, y = KENAR;
     const olculer = satirlar.map((idxler) => {
       const boyutlar = idxler.map((i) => { const b = this.sayfaBoyutu(i, olcek); return { w: izgaraya(b.w, dpr), h: izgaraya(b.h, dpr) }; });
       // Yarım satır (bkz. yarimSatirMi) bir çift genişliğinde yer kaplar: sayfa bu yerin sağ (kapak) ya da sol (son sayfa) yarısındadır
       const satirW = this.yarimSatirMi(idxler) ? 2 * boyutlar[0].w + BOSLUK : boyutlar.reduce((t, b) => t + b.w, 0) + (idxler.length - 1) * BOSLUK;
       const satirH = Math.max(...boyutlar.map((b) => b.h));
-      toplamW = Math.max(toplamW, satirW + 2 * KENAR);
+      icW = Math.max(icW, satirW + 2 * KENAR);
       const r = { idxler, boyutlar, satirW, y: izgaraya(y, dpr) };
       y = r.y + satirH + BOSLUK;
       return r;
     });
-    // Izgaraya yuvarlama sığdırılmış satırı görünür alandan 1 px'ten az taşırabilir: bu kadarlık taşmada kaydırma çubuğu
-    // çıkıp görünür boyut (ve sığdırma ölçeği) değişmesin diye alan görünür boyutta tutulur
-    const alanW = toplamW - vw < 1 ? vw : toplamW;
-    let alanH = y - BOSLUK + KENAR;
-    if (alanH > vh && alanH - vh < 1) alanH = vh;
+    return { olculer, icW, icH: y - BOSLUK + KENAR };
+  }
+
+  /** Kaydırıcının gerçek dış boyutu (CSS px; ekran ölçeği 1 değilse kesirli olabilir, kaydırma çubuklarından etkilenmez) ve piksel oranı. */
+  disKutu() {
+    const r = this.kaydirici.getBoundingClientRect();
+    return { w: r.width, h: r.height, dpr: pikselOrani() };
+  }
+
+  /**
+   * Verilen satırlar gösterilirken geçerli olacak ölçeği, satır ölçülerini (satirlariOlc), kaydırıcının görünür boyutunu (vw × vh:
+   * kaydırma çubukları düşülmüş) ve tuval alanının boyutunu (alanW × alanH) hesaplar. Hesap kaydırıcının dış boyutuna dayanır, o anki
+   * görünür boyutuna (clientWidth / clientHeight) değil: görünür boyut yerleşimin kendi çıkardığı çubuklara bağlıdır. Sığdırma ölçeği
+   * o anki görünür boyuttan alınırken, çubuksuz ölçekte içerik taşıp çubuklu ölçekte sığan belgede (ör. yatay iki sayfa, ekranın
+   * yarısındaki pencere) çubuk çıkıyor → genişlik çubuk kadar daralıyor → ölçek küçülüyor → içerik sığıyor → çubuk kalkıyor → ölçek
+   * büyüyor… ve görüntü saniyede ~16 kez %81 ↔ %82 arasında gidip geliyordu (0.1.20).
+   * Sığdırmada gerekli görülen çubuk hesabın sonuna dek var sayılır (çubuk yalnızca eklenir; en çok üç tur): kararsız aralıkta küçük
+   * ölçek seçilir, içerik çubuksuz sığar. Sonra o ölçekte tarayıcının göstereceği çubuklar bulunur (overflow: auto kuralı: önce
+   * çubuksuz dener; biri gerekiyorsa onun kapladığı yer ötekini de gerektirebilir).
+   * Kesirli boyut: ekran ölçeği 1 değilken (%125, %150) kaydırıcının gerçek boyutu CSS pikselinin kesri olabilir (951 cihaz pikseli
+   * 760,8 px); offsetWidth / clientWidth bunu 761'e yuvarlar. Yuvarlanmış boyuta kurulan alan gerçek kutudan taşıp gereksiz çubuk
+   * çıkarıyordu (0.1.19'da %125'te sığdırılmış uzun belgede her beş pencere genişliğinden birinde yatay çubuk). Boyut bu yüzden
+   * getBoundingClientRect'ten alınır: taşma gerçek (kesirli) boyuta göre, sığdırma ve alan tam piksele aşağı yuvarlanmış boyuta göre
+   * hesaplanır. Alan taşmayan yönde gerçek kutuyu hiç aşmaz; taşma sayılan fazlalık 1 px'ten büyüktür (karar tarayıcının
+   * yuvarlamasına kalmaz).
+   */
+  gorunumCoz(satirlar, sayfaIdx, dpr) {
+    const kutu = this.disKutu(), cubuk = cubukKalinligi();
+    // Verilen çubuklar varken görünür boyut: gw × gh gerçek (kesirli), vw × vh tam piksele aşağı yuvarlanmış
+    const gorunur = (dikey, yatay) => {
+      const gw = Math.max(0, kutu.w - (dikey ? cubuk.en : 0)), gh = Math.max(0, kutu.h - (yatay ? cubuk.boy : 0));
+      return { gw, gh, vw: Math.floor(gw), vh: Math.floor(gh) };
+    };
+    let olcek = this.olcek, olcum;
+    if (this.zoomModu === 'serbest') olcum = this.satirlariOlc(satirlar, olcek, dpr);
+    else {
+      for (let tur = 0, dikey = false, yatay = false; tur < 3; tur++) {
+        const g = gorunur(dikey, yatay);
+        olcek = Math.min(EN_BUYUK, Math.max(EN_KUCUK, this.sigdirOlcek(this.zoomModu, sayfaIdx, g.vw, g.vh)));
+        olcum = this.satirlariOlc(satirlar, olcek, dpr);
+        const d = dikey || tasar(olcum.icH, g.gh), y = yatay || tasar(olcum.icW, g.gw);
+        if (d === dikey && y === yatay) break;
+        dikey = d; yatay = y;
+      }
+    }
+    let yatayCubuk = tasar(olcum.icW, kutu.w), dikeyCubuk = tasar(olcum.icH, kutu.h);
+    if (yatayCubuk && !dikeyCubuk) dikeyCubuk = tasar(olcum.icH, kutu.h - cubuk.boy);
+    else if (dikeyCubuk && !yatayCubuk) yatayCubuk = tasar(olcum.icW, kutu.w - cubuk.en);
+    const { vw, vh } = gorunur(dikeyCubuk, yatayCubuk);
+    // Alan taşan yönde içerik kadardır; taşmayan yönde görünür boyutu aşmaz (1 px'e kadar fazlalığı kenar boşluğu karşılar, bkz. tasar).
+    // Genişlikte görünür boyutu tam kaplar: satırlar ortasına dizilir.
+    return { olcek, olcum, vw, vh, alanW: yatayCubuk ? olcum.icW : vw, alanH: dikeyCubuk ? olcum.icH : Math.min(olcum.icH, vh), kutu };
+  }
+
+  /** Ölçülen satırları (satirlariOlc) alanW genişliğindeki tuval alanının ortasına dizer. Döner: [[i, {x,y,w,h,olcek}]] */
+  satirlariYerlestir({ olculer }, olcek, alanW, dpr) {
     const yerler = [];
     for (const r of olculer) {
       let x = (alanW - r.satirW) / 2;
@@ -691,7 +773,7 @@ export class Goruntuleyici extends EventTarget {
         x += b.w + BOSLUK;
       });
     }
-    return { yerler, alanW, alanH };
+    return yerler;
   }
 
   /** Görünürde (yerlesim) ya da ön çizim için sanal olarak (onYerlesim) sayfanın yeri; yoksa null. */
@@ -700,19 +782,20 @@ export class Goruntuleyici extends EventTarget {
   yerlesimHesapla(sessiz = false) {
     if (!this.belge) return;
     const eskiOlcek = this.olcek;
-    const sinirla = (o) => Math.min(EN_BUYUK, Math.max(EN_KUCUK, o));
-    if (this.zoomModu !== 'serbest') this.olcek = sinirla(this.sigdirOlcek(this.zoomModu));
-    const n = this.sayfalar.length;
-    const vw = this.kaydirici.clientWidth, vh = this.kaydirici.clientHeight, dpr = pikselOrani();
+    const n = this.sayfalar.length, dpr = pikselOrani();
     const tumSatirlar = this.satirlar();
     const satirNo = new Int32Array(n);
     tumSatirlar.forEach((r, k) => { for (const i of r) satirNo[i] = k; });
     const gk = n ? satirNo[Math.max(0, Math.min(this.gecerli - 1, n - 1))] : 0;
     const gosterilen = this.surekli() ? tumSatirlar : (tumSatirlar[gk] ? [tumSatirlar[gk]] : []);
 
-    const { yerler, alanW, alanH } = this.satirlariYerlestir(gosterilen, this.olcek, vw, vh, dpr);
+    // Ölçek (sığdırma modunda), görünür boyut ve alan kaydırıcının dış boyutundan, çıkacak kaydırma çubukları hesaplanarak (gorunumCoz)
+    const coz = this.gorunumCoz(gosterilen, this.gecerli - 1, dpr);
+    const { vw, alanW, alanH } = coz;
+    this.olcek = coz.olcek;
+    this._yerlesimKutusu = coz.kutu;   // bu yerleşimin hesaplandığı dış boyut (kutuDegisti)
     this.yerlesim = new Array(n).fill(null);
-    for (const [i, yer] of yerler) this.yerlesim[i] = yer;
+    for (const [i, yer] of this.satirlariYerlestir(coz.olcum, this.olcek, alanW, dpr)) this.yerlesim[i] = yer;
     this.alan.style.width = alanW + 'px';
     this.alan.style.height = alanH + 'px';
     // Sığdırmada bir satır (baskın genişlikten geniş yatay tablo, büyük görsel) görünür alandan taşıyorsa görünüm yatayda ortalanır:
@@ -727,8 +810,8 @@ export class Goruntuleyici extends EventTarget {
       for (const k of [gk - 1, gk + 1]) {
         const satir = tumSatirlar[k];
         if (!satir) continue;
-        const olcek = this.zoomModu !== 'serbest' ? sinirla(this.sigdirOlcek(this.zoomModu, satir[0])) : this.olcek;
-        for (const [i, yer] of this.satirlariYerlestir([satir], olcek, vw, vh, dpr).yerler) { yer.sanal = true; this.onYerlesim[i] = yer; this._onIdx.push(i); }
+        const c = this.gorunumCoz([satir], satir[0], dpr);
+        for (const [i, yer] of this.satirlariYerlestir(c.olcum, c.olcek, c.alanW, dpr)) { yer.sanal = true; this.onYerlesim[i] = yer; this._onIdx.push(i); }
       }
     }
 
@@ -751,6 +834,20 @@ export class Goruntuleyici extends EventTarget {
     }
     if (!sessiz || this.olcek !== eskiOlcek) this.dispatchEvent(new CustomEvent('zoom', { detail: { olcek: this.olcek, mod: this.zoomModu } }));
     this.dispatchEvent(new CustomEvent('yerlesim'));
+  }
+
+  /**
+   * Kaydırıcının içerik kutusu değişti (ResizeObserver). Kutu iki nedenle değişir: kaydırıcının kendisi boyut değiştirmiştir (pencere,
+   * sol panel, okuma modu) ya da son yerleşim kaydırma çubuğu çıkarmış / kaldırmıştır. İkincisi yeni yerleşim gerektirmez: yerleşim
+   * dış boyuttan hesaplanır, çubukları kendisi öngörür (gorunumCoz); yeniden hesap aynı sonucu verirdi. Gizlenip gösterilen sekmede dış
+   * boyut aynı kalsa da yerleşim yenilenir (sekme gizliyken sayfa boyutları öğrenilmiş olabilir, bkz. sayfaBoyutlariniYukle).
+   */
+  kutuDegisti() {
+    const k = this.disKutu(), y = this._yerlesimKutusu;
+    if (!k.w || !k.h) { this._kutuGizliydi = true; return; }
+    const ayni = !this._kutuGizliydi && !!y && Math.abs(y.w - k.w) < 0.01 && Math.abs(y.h - k.h) < 0.01 && y.dpr === k.dpr;
+    this._kutuGizliydi = false;
+    if (!ayni) this.boyutDegisti();
   }
 
   boyutDegisti() {
