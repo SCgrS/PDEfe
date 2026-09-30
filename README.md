@@ -21,6 +21,14 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   son sekmede durur. Pencere kapatılırken değişikliği olmayan sekmeler hemen kapanır; kaydedilmemiş değişikliği olan her
   belge için "Çıkmadan önce kaydetmek ister misiniz?" sorulur (Kaydet / Kaydetme / Vazgeç; Vazgeç'te o belgeler açık kalır).
   Açık bir araç penceresinde kaydedilmemiş iş varsa önce onun sorusu gelir.
+- **Pencereler.** Sekme kendi penceresine ayrılır: sekmeyi sekme çubuğunun dışına sürükleyip bırakın (belgenin adı ve küçük
+  görüntüsü imleci izler; bırakılan yerde, öteki ekranda da, yeni pencere açılır) ya da sekmede sağ tık › **Pencereye ayır**.
+  Ayrılan sekme başka bir PDEfe penceresinin sekme çubuğuna bırakılınca o pencereye takılır (gireceği yer çizgiyle gösterilir);
+  çubuğa geri getirilirse yerine döner, `Esc` vazgeçer. Kaydedilmemiş notlar, sayfa değişiklikleri ve geri al / yinele geçmişi
+  sekmeyle birlikte taşınır; belge aynı sayfada açılır. Her pencere kendi araç çubuğu, sekmeleri ve sol paneliyle çalışır;
+  ayarlar ortaktır. Bir belge aynı anda tek pencerede açık olur: başka pencerede açık belge yeniden açılmak istenince o pencere
+  öne gelir; Gezgin'de çift tıklanan PDF en son kullanılan pencerede açılır. Pencere kapatılırken yalnızca o pencerenin
+  kaydedilmemiş belgeleri sorulur; **Dosya › Çıkış** bütün pencereleri sırayla kapatır, `Alt+F4` yalnızca etkin pencereyi.
 - **Keskin görüntü.** Düz ve kalın yazılar Windows'un ClearType çizimiyle keskin çizilir; kalın yazılar fazla koyulaşmaz
   (Windows'un bazı kalın yazı tiplerini küçük boyutta fazla koyu çizmesi ölçülüp düzeltilir); döndürülmüş sayfada harfler
   bozulmaz. Gömülü olmayan Times, Arial ve Courier yazıları Windows'un Times New Roman, Arial ve Courier New yazı tipleriyle

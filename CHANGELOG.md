@@ -3,6 +3,20 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.19 — 2026-09-30
+
+### Pencereler
+- **Sekme kendi penceresine ayrılır.** Bir sekmeyi tutup sekme çubuğunun dışına sürükleyince sekme çubuktan ayrılır; belgenin adı ve sayfasının küçük görüntüsü imleci izler. Bırakıldığı yerde belge kendi penceresinde açılır (öteki ekranda da). Sekme çubuğa geri getirilirse yerine takılır ve sıralama sürer; `Esc` vazgeçer. Sekmeyi çubuğun içinde sürüklemek eskisi gibi yalnızca sıralar.
+- Sekmede sağ tık › **Pencereye ayır** aynı işi sürüklemeden yapar: belge, pencerenin yanında açılan yeni pencereye geçer.
+- Ayrılan sekme başka bir PDEfe penceresinin sekme çubuğuna bırakılınca o pencereye takılır; gireceği yer sekmelerin arasında bir çizgiyle gösterilir. Son belgesi de başka pencereye taşınan pencere kapanır.
+- Sekme taşınırken hiçbir şey kaybolmaz: kaydedilmemiş notlar, vurgular, sayfa değişiklikleri ve geri al / yinele geçmişi belgeyle birlikte öteki pencereye geçer; belge aynı sayfada ve aynı yakınlaştırmayla açılır.
+- Pencerenin tek sekmesi dışarı sürüklenip boş bir yere bırakılınca yeni pencere açılmaz; pencerenin kendisi oraya gider. Açılış sekmesi ("Yeni sekme") ayrılmaz.
+- Her pencere kendi araç çubuğu, sekmeleri ve sol paneliyle tam bir PDEfe penceresidir. Tema, sayfa düzeni, vurgu rengi, son açılanlar ve öteki ayarlar bütün pencerelerde ortaktır; birinde değişince ötekilerde de değişir.
+- Bir belge aynı anda tek pencerede açık olur: başka bir pencerede açık olan belge yeniden açılmak istenince o pencere öne gelir ve belgenin sekmesine geçer. Gezgin'de çift tıklanan PDF en son kullanılan pencerede açılır.
+- Pencere kapatılırken yalnızca o pencerenin kaydedilmemiş belgeleri sorulur. **Dosya › Çıkış** bütün pencereleri sırayla kapatır; birinde **Vazgeç** denirse o pencere ve sıradakiler açık kalır. `Alt+F4` yalnızca etkin pencereyi kapatır. Güncelleme kurulmadan önce bütün pencerelerdeki kaydedilmemiş belgeler sorulur; sorusu yanıtlanan pencere kurulum başlayana dek değişiklik kabul etmez.
+- Bir pencere kapatılınca belgeleri hemen serbest kalır: öteki PDEfe pencereleri açıkken de dosya Gezgin'de silinebilir, adı değiştirilebilir.
+- Arayüzü çöken (boş kalan) pencere artık × ile kapatılabiliyor; öteki pencereler çalışmayı sürdürür. Önceden böyle bir pencere kapatılamıyordu.
+
 ## 0.1.18 — 2026-09-27
 
 ### Bellek ve hız

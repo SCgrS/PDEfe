@@ -22,8 +22,10 @@ Windows 11 için sekmeli PDF görüntüleyici ve düzenleyici. Electron (arayüz
 ```
 package.json            Electron 44, pdfjs-dist 6, electron-store 11, electron-updater 6, electron-builder 26
 src/main/               ana süreç (ESM)
-  main.js               pencere, tek örnek, pdefe:// protokolü, IPC (pano:icerik: Electron panosundan dosya/görüntü), kapatma onayı
-  menu.js               Türkçe menü → renderer'a komut kimliği gönderir
+  main.js               tek örnek, pdefe:// protokolü, IPC (pano:icerik: Electron panosundan dosya/görüntü), ayarların pencerelere bildirimi
+  pencereler.js         uygulama pencereleri (0.1.19: birden çok): kayıt, odak sırası, kapatma onayı ve Çıkış, dosyanın açılacağı
+                        pencere, sekmenin pencereler arasında taşınması, sürüklenen sekmenin önizleme penceresi
+  menu.js               Türkçe menü → etkin pencerenin renderer'ına komut kimliği gönderir
   ayarlar.js            electron-store şeması (bütün varsayılanlar, tek seferlik taşımalar)
   cekirdek.js           pdefe-core ile JSON-RPC (stdio, satır başına JSON, ilerleme mesajları)
   pano.js               Paylaş: dosyayı CF_HDROP olarak panoya koyar (PowerShell)
@@ -33,7 +35,9 @@ src/renderer/           arayüz (ES modülleri; derleme adımı yok, pdefe://app
   uygulama.js           giriş: sekmeler, komutlar, kısayollar, açma/kapatma/kaydetme, sürükle-bırak, araç çubuğu sıkıştırma
   goruntuleyici.js      PDF.js: tembel sayfa çizimi, bölgesel çizim (%6400'e kadar), düzenler, zoom, döndürme
   keskinlik.js          keskin çizim: görsel yeniden örnekleme (işçi + önbellek), ince çizgi ızgarası, maske tuvali kırpma
-  sekmeler.js           sekme çubuğu, sürükle-sırala (işaretçi olaylarıyla, 0.1.14), Ctrl+Tab seçici, açık belgeler listesi
+  sekmeler.js           sekme çubuğu, sürükle-sırala (işaretçi olaylarıyla, 0.1.14) ve çubuğun dışına sürükleyerek ayırma (0.1.19),
+                        Ctrl+Tab seçici, açık belgeler listesi
+  hayalet.html/.js      sürüklenen sekmenin önizleme penceresi (ad + sayfa görüntüsü; ana süreç imlecin altında tutar)
   baslangic.js          başlangıç ekranı: PDF aç, araçlar, altında son açılanlar; sağ altta ad ve sürüm (0.1.8; düzen 0.1.14)
   panel.js              sol panel: Sayfalar (çekirdekten küçük resim), İçindekiler, Yorumlar
   metin.js              seçim (boşluktan sürükleme, okuma sırası, sözcük/paragraf), temiz kopyalama
@@ -43,15 +47,18 @@ src/renderer/           arayüz (ES modülleri; derleme adımı yok, pdefe://app
   aracPenceresi.js/.css Araçlar düğmesinin karolu penceresi
   araclar/              araç pencereleri (kucult, sayfalar, dondur, ayir, gorselBirlestir; birlestir.js 0.1.2'de kaldırıldı);
                         ortak.js: pencere, çıktı satırı, standart kaydetme seçimi, üzerine yazma / kilit soruları
-  komutlar.js           komut deseni: KomutYigini (geri al/yinele, kayıt konumu)
+  komutlar.js           komut deseni: KomutYigini (geri al/yinele, kayıt konumu); komut tarifi (tanim): sekme başka pencereye taşınınca
+                        yığın tariflerden yeniden kurulur
   durum.js              durum çubuğu
 core/                   Python 3.12 (proje içi .venv, uv ile kurulu; PyInstaller ile tek klasör core/dist/pdefe-core/)
   pdefe_core.py         JSON-RPC döngüsü, belge önbelleği, temel yöntemler
   islemler/notlar.py    not yazma: Highlight/Text (referans okuyucu yapısı)/FreeText (gömülü Türkçe yüzler, parçalı /RC), kaydet
   islemler/araclar.py   küçült, sayfa düzenle, ayır, görüntü/PDF birleştir, döndür; geçici dosya + atomik yer değiştirme
   islemler/yapisal.py   sayfa tarifinden belge kurma, anlık kopya, konumsal not eşleme, içerik kutusu
-test/                   surucu.mjs (CDP ile uygulamayı sürer; gerçek fare/klavye girdisi), baslat.ps1 / durdur.ps1, kurulum_bitis.ps1
-                        (ayrı veri klasörlü, ekran dışı test örneği), senaryo*.mjs, incele.py, not_testi.py
+test/                   surucu.mjs (CDP ile uygulamayı sürer; gerçek fare/klavye girdisi; hedefler / hedefSec: birden çok pencere),
+                        baslat.ps1 / durdur.ps1, kurulum_bitis.ps1 (ayrı veri klasörlü, ekran dışı test örneği), senaryo*.mjs,
+                        incele.py, not_testi.py, ornek_pdf_uret.py (yer tutucu PDF üretir ve PDF özetini verir),
+                        gercek_fare.ps1 (+ fare_gonder.ps1, gercek_fare.mjs: görünmeyen masaüstünde Windows fare iletileriyle sekme ayırma)
 build/                  simge, NSIS, derleme betikleri
 ```
 
@@ -81,6 +88,13 @@ notlar_kaydet, freetext_stil, baglantilar, form_gorunum (+ araçlar).
 - **Kaydetmeden çıkış sorusu** (0.1.12, kullanıcı isteği): uygulamanın her yerinde tek biçim, mesajKutusu.js `kaydetmedenCikisSorusu(ad)`:
   '"<ad>" belgesinde kaydedilmemiş değişiklikler var.' / 'Çıkmadan önce kaydetmek ister misiniz?' / Kaydet (Enter) | Kaydetme |
   Vazgeç (Esc). Araçta Kaydet aracın kendi kaydını çalıştırır; yeni bir çıkış sorusu eklerken bunu kullanın.
+- **Pencereler** (0.1.19, kullanıcı isteği): her pencere ayrı renderer sürecinde tam bir arayüzdür; çekirdek, ayarlar, uygulama menüsü
+  ve tek örnek kilidi ortaktır (main/pencereler.js). Bir belge aynı anda tek pencerede açıktır: pencereler açık dosyalarını ana sürece
+  bildirir, açma isteği dosyanın açık olduğu pencereye yönlenir. Sekme pencereler arasında durumu paketlenerek taşınır (PDF.js'in
+  elindeki baytlar, sayfa girdileri, not modeli, komut tarifleri); hedef pencere sekmeyi kurup onaylamadan kaynak sekmeyi bırakmaz.
+  Yeni bir komut türü eklerken tarifini (`Komut.tanim`) ve komutDisari / komutIceri karşılığını da yazın: tarifsiz komut varsa o
+  belgenin geri al geçmişi taşınmaz. Başka pencerelerde de anında etkili olması gereken yeni ayar uygulama.js
+  `ayarDisaridanDegisti`'ye eklenir. Ana süreçte "pencere" tekil değildir: isteği gönderen pencere `pencereAl(e)` ile bulunur.
 
 ## Durum (2026-09-17)
 - [x] Açma/sekme/görüntüleme, düzenler, zoom (görünür alana sığdır dahil), döndürme, sol panel, koyu tema (sayfayı koyulaştır, görselleri koru), son dosya ve kalınan sayfa, Ctrl+Tab seçici; keskin çizim (görsel, ince çizgi, taramada yüksek yakınlaştırma)
@@ -758,3 +772,131 @@ Chromium ayırıcılarının serbest belleği hemen iade etmemesi.
   yeniden çizim), koyu sayfa kipindeki ikinci tuval (CSS süzgeci farklı çizer), arama metin önbelleğini Bul kapanınca silmek (yeniden
   aramada büyük belgede saniyeler), tek paylaşılan pdf.js işçisi (belgeler birbirini bekler), MuPDF deposu (çekirdek 30–45 MB, belge
   kapanınca iniyor).
+
+### Revizyon 0.1.19 (2026-09-30, kullanıcı isteği)
+Ayrıntı: CHANGELOG.md. Kullanıcı iki istek bildirdi: (1) sekme, sekme şeridinin dışına sürüklenince ayrılsın, mekaniği referans
+okuyucudaki gibi olsun (marka adı belgelerde geçmesin); (2) sekmenin sağ tık menüsüne "Pencereye ayır" seçeneği. Yorumlanan: 1. maddede
+"yeni sekme olarak açsın" yazılmıştı; 2. maddedeki "pencereye ayır … de" ve örnek gösterilen davranış nedeniyle "yeni pencere" olarak
+alındı. İstenenin gereği olarak eklenenler: ayrılan sekmenin başka pencerenin çubuğuna bırakılıp takılabilmesi (yoksa ayrılan sekme geri
+birleştirilemezdi), ayarların pencerelerde ortak olması, bir dosyanın tek pencerede açık olması, Çıkış'ın bütün pencereleri kapatması.
+- [x] **Birden çok pencere** (main/pencereler.js; main.js, menu.js, yazdir.js): 0.1.18'e dek ana süreçte tek `pencere` değişkeni vardı;
+  diyalogların sahibi, olayların hedefi, kapatma onayı ve bekleyen dosyalar ona bağlıydı. Artık her pencerenin kaydı var (arayüzü
+  hazır mı, kapatma onayı, bekleyen dosyaları, açık dosyaları); IPC işleyicileri isteği gönderen pencereyi `pencereAl(e)` ile bulur,
+  menü komutu menünün açıldığı pencereye gider, tema ve güncelleme olayları bütün pencerelere (`herkese`), ayar değişikliği öteki
+  pencerelere (`digerlerine`, 'ayar:degisti' → uygulama.js `ayarDisaridanDegisti`: kopyayı günceller, tema / düzen / vurgu rengi / son
+  açılanları uygular, geri yazmaz) gider. Çekirdek ortaktır: renderer istek kimlikleri pencere başına sayıldığından ana süreç
+  `<pencere>:<istek>` ile ayırır (ilerleme yalnızca isteyen pencereye, iptal yalnızca onun isteğine).
+  Odak sırası (`odakSirasi`, pencerenin 'focus' olayı): Gezgin'den açılan dosya en son etkin pencereye gider; üst üste binen
+  pencerelerde sekmenin bırakılacağı pencere en öndekidir. Electron pencerelerin ekrandaki sırasını vermediğinden başka bir uygulamanın
+  örttüğü PDEfe penceresi görülemez (imleç oradaysa sekme o pencerenin çubuğuna bırakılmış sayılır); kabul edildi.
+  - Çekirdek ve yazdırma işi artık pencereden uzun yaşar (0.1.18'de pencere kapanınca uygulama da kapanıyordu). Pencere kapanırken
+    çekirdekte açtırdığı dosyaları ve anlık kopyalarını bildirir ('pencere:kapatOnayla'); ana süreç pencere gerçekten kapanınca dosyaları
+    bırakır, kopyaları siler (`dosyalariBirak`). Yoksa kapanan pencerenin PDF'leri öteki pencereler açık kaldıkça Gezgin'de silinemez,
+    adı değiştirilemezdi (0.1.12'deki hata sınıfı). Hazırlık aşamasındaki yazdırma işi, sahibi pencere kapanınca bırakılır (yazdir.js;
+    yoksa öteki pencereler PDEfe kapanana dek "yazdırma sürüyor" alırdı). Çekirdek durdurulduktan sonra gelen istek yazılmaz
+    (cekirdek.js `kapaniyor`).
+  - Arayüz süreci çöken pencere ('render-process-gone'; ör. bellek yetmedi): hazır sayılmaz (sorusuz kapatılabilir, Çıkış onu da
+    kapatır), dosya ve sekme hedefi olmaz, dosya kaydı boşalır, ondan yanıt bekleyen istekler düşer. 0.1.18'de çöken pencere kapatma
+    sorusunu yanıtlayamadığı için kapatılamıyordu; birden çok pencerede öteki pencerelerin Çıkış'ını ve güncellemesini de tutardı.
+- [x] **Sekmenin taşınması** (uygulama.js sekmePaketi / sekmeyiTasi / sekmeyiAl; goruntuleyici.js, notlar.js durumAl /
+  durumdanYukle; komutlar.js): her pencere ayrı süreç olduğundan sekme nesne olarak taşınamaz. Değerlendirilip seçilmeyenler: ikinci
+  pencereyi aynı renderer'da açıp DOM'u taşımak (bütün arayüz modülleri tek `document` varsayıyor, ~17 bin satır), sekme başına ayrı
+  webContents (tarayıcı mimarisi; arayüzün tamamı yeniden yazılırdı), taşımadan önce kaydetmeyi zorunlu kılmak (kullanıcı kaydetmek
+  istemeyebilir; geri al geçmişi yine giderdi). Seçilen: durum paketi. Kaynak pencere açık balonu ve yazı düzenlemesini uygular, süren
+  kaydı, sıradaki döndürmeyi ve notların ilk okunmasını bekler, PDF.js belgelerinin baytlarını alır (`getData`), sonra beklemeden
+  (model değişemeden) görünümü, not modelini ve geri al yığınını paketler; ana süreç paketi hedefe verir ('sekme:tasi' → 'sekme:al' →
+  'yanit'); hedef sekmeyi kurup onaylayınca kaynak sekmeyi bırakır (`belgeyiKaldir` devredildi: anlık kopya silinmez, çekirdekteki
+  dosyalar bırakılmaz). Hedef açamazsa (meşgul, hata) sekme kaynakta olduğu gibi kalır ve nedeni bildirilir. Taşıma sürerken kaynak
+  pencere girdi almaz (`tasimaSuruyor`: görünmez örtü, tuşlar pencere düzeyinde yutulur, menü komutu ve kapatma isteği yok sayılır),
+  taşınan belge kaydedilmez (`b.tasiniyor`).
+  - Baytlar diskten yeniden okunmaz: hedef belgeyi kaynağın gördüğü hâliyle açar. Artımlı kayıtla diske işlenmiş döndürme
+    (`diskDondurme`) ve anlık kopya hesabı böylece olduğu gibi geçerli kalır; diskten okunsaydı tarifteki göreli açıların hepsi (geri
+    al yığınındakiler dahil) yeni tabana göre çevrilmeliydi. 106 MB'lık belge iki IPC atlamasıyla 0,7 sn'de taşındı (yeni pencere
+    dahil); ayrı bir aktarım yolu gerekmedi.
+  - Geri al yığını işlev tuttuğundan olduğu gibi taşınamaz: her komut kendini yeniden kurmaya yeten bir tarif taşır (`Komut.tanim`).
+    Not komutları üç kurucuyla kurulur (notlar.js ekleKomutu / silKomutu / guncelleKomutu; kapattıkları bütün değerler tarifte, ilk
+    uygulamadaki tarih dahil), sayfa komutu `sayfaKomutu` ile (eski ve yeni sayfa listeleri). Hedef, tariften aynı kurucularla kurar;
+    komut çalıştırılmaz (belge uygulanmış hâliyle gelir). Sayfa girdileri numaralanıp taşınır (listede olmayan, yalnızca yığındaki
+    girdiler de; döndürme kopyalarının paylaştığı `kimlik` korunur), notlar kimlikleriyle (kayıtta modelden çıkmış ama yığında duran
+    notlar `cikanlar` olarak). Tarifi olmayan komut varsa yığın taşınmaz, belge kaydedilmemiş görünmeye devam eder.
+  - `gorunum.hazir` (yukle / durumdanYukle bitti) olmadan sekme taşınmaz; çok sayfalı belgenin sayfa boyutları öğrenilmeden taşındıysa
+    hedef öğrenir (`_boyutlarEksik`). Girilen parola pakete girer (hedefte yeniden sorulmaz).
+  - Görünüm aynen gelir: arka plandaki sekmenin kaydırıcısı ölçülemediğinden (display: none iken scrollTop 0) sayfa içi konum sekme
+    gizlenirken saklanır (`gizlenecek`); "Görünür alana sığdır" ölçeği için sayfaların içerik kutusu pakette gider ve hedef, yerleşimden
+    önce geçerli sayfanın nesnesini bekler (yoksa sayfa genişliğine sığdırmaya düşüyordu).
+  - Kilitler (iki bağımsız kod incelemesinin bulguları): kaydedilmekte olan belge taşınmaz (kayıt başarısız olursa "Belge kaydedilemedi"
+    sorusu taşıma örtüsünün altında kalır, pencere kilitlenirdi); ayrıca kilitliyken açılan mesaj kutusunda örtü çekilir, tuşlar kutuya
+    gider. Hedef pencere de sekme kurulurken girdi almaz (yarım kurulmuş sekme kapatılırsa kaynağa ait anlık kopya silinirdi).
+    Kapanmakta olan ya da kapatma izni sorulan pencere sekme almaz, vermez (kapatma akışı belgelerin anlık listesini sorar; sonradan
+    gelen sekme sorulmadan kapanırdı). Taşınmakta olan sekme kapatılamaz; başka pencerenin aracı o dosyayı yeniden yazdıysa yenileme
+    taşıma bitince, dosya hangi penceredeyse orada yapılır.
+  - Geç yanıt: hedef sekmeyi kurunca 'yanit' ile bildirir; ana süreç artık beklemiyorsa (120 sn doldu, sekme kaynakta kaldı) 'yanit'
+    false döner ve hedef kurduğu sekmeyi kaldırır (belge iki pencerede birden açık kalmaz).
+- [x] **Sürükleyerek ayırma** (sekmeler.js, pencereler.js, renderer/hayalet.html): sürükleme artık her yöne 5 px'te başlar, yakalama
+  sekmede değil listede (ayrılan sekme görünmez olur; imleç pencerenin dışına çıksa da olaylar gelir). İmleç çubuğun üstünden /
+  altından ya da pencerenin yanlarından 24 px'ten çok uzaklaşınca sekme ayrılır (`.ayrildi`: görünmez, sonrakiler yerini kapatır), 12
+  px'e yaklaşınca geri takılır (kıyıda gidip gelmesin); sıralarken elin kayması ayırmaz. Dışarıda bırakılan sekme karar verilene dek
+  `.askida` (çubukta yer tutmaz). Açılış sekmesi ayrılmaz.
+  Önizleme ana süreçte ayrı bir penceredir (çerçevesiz, `focusable: false`, `showInactive`, fare olaylarını geçirir, her zaman üstte,
+  opaklık 0,92): pencerenin dışında ve öteki ekranda da görünür; görünmeyen masaüstünde gerçek odakla denendi, kaynak pencere etkin
+  kalıyor (odak kaybı sürüklemeyi iptal ederdi). İlk gösterim ~120 ms (süreç başlar), sonrakiler ~30 ms; son sürüklemeden 30 sn sonra
+  yok edilir (boşta bellek tutmasın), son uygulama penceresi kapanınca da (gizli pencere uygulamayı açık tutardı). İçeriği kaynak
+  pencere üretir: sekmenin adı ve geçerli sayfanın tuvalinden küçük görüntü (ekran görüntüsü alınmaz).
+  İmleci ana süreç izler (16 ms; `screen.getCursorScreenPoint`): farklı ölçekli ekranlarda renderer'ın ekran koordinatı güvenilir
+  değil; pencere sınırlarıyla aynı birimde. Öteki pencereler bırakma alanlarını bildirir ('sekme:bant': sekme çubuğu ± 6 px; sekmesiz
+  pencerede pencerenin tamamı; açık pencere varken yok), imleç oradayken o pencere bırakılacak yeri gösterir ('sekme:disSurukle' →
+  `birakmaIsareti`; sekmesiz pencerede "Sekmeyi buraya bırakın" örtüsü). Kaynak pencere yarım saniyede bir ses verir
+  ('sekme:surukleCan'); 3 sn ses gelmezse önizleme kalkar (pencere kilitlendiyse ekranda asılı kalmasın), bırakma yine de geçerlidir.
+  Bırakınca: başka pencerenin çubuğu → oraya taşınır (pencere öne gelir; kaynakta belge kalmadıysa kaynak kapanır); boş yer → yeni
+  pencere, ilk sekmesi imlecin altında, kaynak pencerenin (ekranı kaplamıyorkenki) boyutunda, imlecin ekranındaki çalışma alanına
+  sığdırılmış; pencerenin tek sekmesiyse yeni pencere açılmaz, pencere oraya taşınır ('pencere:tasi').
+  - Farklı ölçekli ekrana geçişte tek `setBounds` boyutu ölçek oranında bozuyor (görünmeyen masaüstünde ölçüldü: %100 → %150 ekranda
+    1280×754 yerine 1920×1131, dönüşte 853×503): yeni pencerede ve 'pencere:tasi'de sınırlar iki kez verilir.
+  - Gerçek girdi yolu görünmeyen masaüstünde Win32 fare iletileriyle (PostMessage) denendi (CDP fare olayları tarayıcı sürecinin girdi
+    yolunu ve fare yakalamasını atlar): önizleme penceresi gösterilince fare yakalaması ve etkin pencere kaynak pencerede kalıyor
+    (GetGUIThreadInfo), 3 sn tutulan sekme ayrılmış kalıyor, bırakınca yakalama kalkıyor, yeni pencere açılıp etkinleşiyor.
+- [x] **Pencereye ayır** (sekme sağ tık menüsü): Kapat grubundan sonra, ayrı grupta. Yeni pencere kaynak pencerenin boyutunda, 32 px
+  sağında ve aşağısında. Pencerenin tek sekmesinde ve açılış sekmesinde devre dışı.
+- [x] **Tek dosya tek pencere**: pencereler açık dosyalarını bildirir ('pencere:belgeler'); `dosyaAc` kendi sekmelerinde bulamazsa ana
+  sürece sorar ('pencere:baskaPenceredeAc'): dosya başka pencerede açıksa o pencere öne gelir ve sekmesine geçer. İkinci örnek
+  (Gezgin) de aynı kayda bakar. Araç çıktısı başka pencerede açık bir dosyanın üzerine yazıldıysa o pencerenin sekmesi diskteki yeni
+  hâliyle yenilenir (`yazildi`; aynı penceredeki `sekmeyiYenile` kuralı).
+- [x] **Kapatma, Çıkış, güncelleme**: pencere kapatma isteği yalnızca o pencerenin belgelerini sorar; renderer artık her durumda
+  yanıt verir ('pencere:kapatOnayla' ya da 'pencere:kapatVazgec'). Dosya › Çıkış `role: 'quit'` yerine `cik()`: pencereleri en
+  öndekinden başlayarak sırayla kapatır, Vazgeç'te durur (her pencerenin sorusu aynı anda açılmasın). Alt+F4 hızlandırıcısı kaydedilmez
+  (menüde yazar): tuşu Windows işler, yalnızca etkin pencere kapanır. Güncelleme kurulumundan önce düğmeye basılan pencere kendi
+  belgelerini, sonra öteki pencerelerinkini sorar ('pencere:digerlerindenIzinAl' → 'pencere:izinIste'). Kayıtlı pencere konumu en son
+  kapatılan pencereninkidir. Son sekmesini kullanıcının kapattığı pencere açık kalır (açılış ekranı; ilk pencerede de böyleydi).
+  - İzinle kurulum arasındaki boşluk (inceleme bulgusu): izinler pencere pencere toplanır; izin vermiş pencere açık kalıp değiştirilirse
+    (öteki pencerenin sorusu açıkken geri dönüp not eklemek) kurulum onu sormadan kapatırdı. İzin veren pencere girdiye kilitlenir
+    (`kurulumKilidi`; taşıma kilidiyle aynı örtü); vazgeçilince, isteyen pencere kapanınca ya da kurulum başlatılamayınca ana süreç
+    kilitleri açar ('pencere:izinBitti'). Kurulum uygulamayı 30 sn içinde kapatmazsa ve hata da gelmezse başlatılamamış sayılır
+    (guncelleme.js `kur`): kapatma onayı geri alınır, kilitler açılır, şerit hatayı gösterir, yeniden denenebilir.
+  - Çıkış sürerken gelen ikinci kapatma isteği (soru açıkken × ya da Çıkış yeniden) yanıtlanmaz, yalnızca soruyu belirginleştirir; yanıtı
+    süren akış verir (önceden "vazgeçildi" sayılıp Çıkış yarıda kalıyor, soru yanıtlanınca yalnızca o pencere kapanıyordu). `cik()` her
+    adımda o an en öndeki pencereyi alır: çıkış sürerken açılan pencere de kapanır.
+- [x] **Test altyapısı**: surucu.mjs `hedefler()` / `hedefSec(id)` (her pencere ayrı CDP hedefi; önizleme penceresi hedef sayılmaz).
+  Ekran dışındaki örnekte imleç testten gelir ('test:imlec'), pencere gerçekten etkinleşmediğinden odak sırası 'test:oneAl' ile
+  belirlenir; 'test:pencereler', 'test:hayalet', 'test:surukleme', 'test:cik'. Yeni pencereler de ekran dışında açılır (çalışma
+  alanına sığdırma test örneğinde atlanır). test/ornek_pdf_uret.py yer tutucu PDF üretir (gerçek belge kullanılmaz) ve PDF özeti verir.
+  - Gerçek girdi: test/gercek_fare.ps1 örneği görünmeyen masaüstünde test konumu vermeden başlatır (`baslat_gizli.ps1 -GercekEkran`:
+    gerçek ekran düzeni, imleç, odak; test kancaları kapalı) ve aynı masaüstünde çalışan test/fare_gonder.ps1 ile sekmeye Windows
+    fare iletileri gönderir; fare yakalamasını ve etkin pencereyi okur. Pencere iletileri yalnızca aynı masaüstündeki süreçler
+    arasında gider, bu yüzden yardımcı o masaüstünde başlatılır. Görünmeyen masaüstünde gerçek imlecin yeri (0,0) okunur: bırakılan
+    sekmenin penceresi oraya açılır; pencereler arası bırakma bu yolla sınanamaz (senaryo22 imleci testten verir).
+- Bilerek yapılmayanlar: pencere menüsü / Yeni pencere komutu (istenmedi; yeni pencere yalnızca sekme ayırarak açılır), sekme ayrılırken
+  gerçek pencerenin imleci izlemesi (pencere ve belge her fare hareketinde taşınırdı; önizleme yeterli), açılış sekmesinin ayrılması,
+  bir belgenin iki pencerede birden açılması. Yanıt vermeyen (kilitlenmiş ama çökmemiş) arayüz süreci için zaman aşımı yok: o pencere
+  0.1.18'deki gibi kapatılamaz.
+- [x] **Testler**: test/senaryo22.mjs 101/101 (ekran dışı örnek: pencereler, eş belge karşılaştırmasıyla taşıma, sürükleme, kilitler,
+  kapatma / Çıkış, çöken pencere). test/gercek_fare.ps1 9/9 (görünmeyen masaüstü, Windows fare iletileri); aynı sınama yerelde
+  paketlenen sürümle (`electron-builder --win --dir`, `-Paketli release\win-unpacked\PDEfe.exe`) 9/9; paketli sürümde kaydedilmemiş
+  notlu ve döndürülmüş belge yeni pencereye taşınıp kaydedildi (diskte doğrulandı), pencereler kapanınca süreç kalmadı.
+  guncelleme-e2e/birim.mjs geçti (kurulum bekçisi eklendi). İki pencereyle güncelleme kurulumu sahte güncelleyiciyle denendi (soru
+  açıkken isteyen pencere kilitli, Vazgeç'te kilit açılıyor, 30 sn sonra bekçi). İkinci örnekle dosya açma (Gezgin çift tık) üç
+  durumda denendi. 106 MB'lık belge yeni pencereye 0,7 sn'de taşındı.
+  Regresyon (bu klonda gerçek örnek PDF yok; yer tutucu PDF'lerle, 0.1.18'in çalışma ağacıyla yan yana): sekme_genislik 24/24 (1264 ve
+  704 px), senaryo14, senaryo18, senaryo19 110/110, senaryo20 38/38, senaryo21 39/39, kisayol_araclar 91/91, kisayol_gorunum 117/117,
+  oto_kayit_kilit 7/7, vurgu_cubugu 13/13. senaryo17 (2), kisayol_dosya (7) ve ortu_tiklama (1–2; küçük belgede küçültme soru
+  yanıtlanmadan bitiyor) hataları yer tutucu belgelerden: 0.1.18'de de aynı.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 26.

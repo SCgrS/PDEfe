@@ -320,3 +320,31 @@ yerler (masaüstü, görev çubuğu, Gezgin) denenmedi.
    dört yapraklı çiçek). Açılış ekranının sağ altında da yeni simge olmalı.
 2. **Gezgin ve kısayollar.** Bir PDF dosyasının, masaüstü kısayolunun ve Başlat menüsündeki PDEfe'nin simgesine bakın. Eski simge (mavi ya
    da süslemeli) görünüyorsa Windows'un simge önbelleğidir; bilgisayarı yeniden başlatınca düzelir.
+
+## 26. 0.1.19: otomatik testlerin sınayamadıkları
+Sekmenin ayrılması, taşınan belgenin durumu (notlar, sayfa değişiklikleri, geri al), pencereler arası bırakma, ayarların ortaklığı ve
+kapatma soruları ekran dışındaki test örneğinde, fare olayları test aracından verilerek sınandı (test/senaryo22.mjs); imlecin yeri de
+testten verildi. Ayrıca görünmeyen bir masaüstünde Windows fare iletileriyle sekme ayrıldı (fare yakalaması ve pencere odağı ölçüldü)
+ve pencerenin farklı ölçekli ikinci ekrana yerleşmesi ölçüldü. Elle tutulan gerçek fare, önizlemenin ve pencerelerin ekrandaki
+görünüşü gözle denenmedi.
+1. **Sürükleyerek ayırma.** Üç PDF açın. Bir sekmeyi çubuğun içinde sağa sola sürükleyin: eskisi gibi yalnızca sıralanmalı. Sonra
+   sekmeyi aşağı, belgenin üstüne çekin: sekme çubuktan ayrılmalı, belgenin adını ve sayfasını gösteren küçük bir önizleme imleci
+   izlemeli; PDEfe penceresi etkin kalmalı (başlık çubuğu solmamalı). Sekmeyi çubuğa geri götürün: yerine takılmalı, önizleme
+   kalkmalı. Yeniden dışarı çekip `Esc`'e basın: sekme eski yerine dönmeli.
+2. **Bırakma.** Sekmeyi dışarı çekip masaüstünün boş bir yerinde (ve ikinci ekranda) bırakın: belge orada kendi penceresinde açılmalı,
+   sekmesi imlecin altında olmalı, pencere ekrana sığmalı; belge aynı sayfada olmalı. Ekranı kaplayan (büyütülmüş) pencereden ayrılan
+   sekme olağan boyutta bir pencerede açılmalı.
+3. **Kaydedilmemiş değişiklikler.** Bir belgede vurgu ve not ekleyin, bir sayfayı döndürün, kaydetmeden sekmeyi dışarı sürükleyin:
+   yeni pencerede vurgu, not ve döndürme durmalı; `Ctrl+Z` hepsini sırayla geri almalı, `Ctrl+Y` yinelemeli, `Ctrl+S` kaydetmeli.
+4. **Sağ tık.** Sekmede sağ tık › **Pencereye ayır**: belge, pencerenin biraz sağında ve aşağısında açılan yeni pencereye geçmeli.
+   Pencerede tek sekme varken ve "Yeni sekme"de seçenek soluk olmalı.
+5. **Pencereler arası.** İki pencere yan yanayken bir pencerenin sekmesini ötekinin sekme çubuğuna sürükleyin: sekmelerin arasında
+   çizgi belirmeli, bırakınca sekme oraya takılmalı ve o pencere öne gelmeli. Son sekmesi de taşınan pencere kapanmalı.
+6. **Tek sekme.** Tek sekmeli pencerenin sekmesini dışarı çekip boş bir yere (ikinci ekrana da) bırakın: yeni pencere açılmamalı,
+   pencere oraya gitmeli, boyutu bozulmamalı.
+7. **Görev çubuğu ve kapatma.** İki pencere görev çubuğunda aynı PDEfe simgesinin altında görünmeli. Kaydedilmemiş belgesi olan
+   pencereyi × ile kapatın: soru yalnızca o pencerede çıkmalı. `Alt+F4` yalnızca öndeki pencereyi kapatmalı; **Dosya › Çıkış**
+   ikisini de (kaydedilmemiş belgeleri sorarak) kapatmalı.
+8. **Gezgin.** İki pencere açıkken Gezgin'de bir PDF'e çift tıklayın: en son kullandığınız pencerede açılmalı. Öteki pencerede açık
+   bir PDF'e çift tıklayın: o pencere öne gelmeli, belge ikinci kez açılmamalı.
+9. **Ayarlar.** Bir pencerede temayı değiştirin (ay / güneş düğmesi): öteki pencere de değişmeli.
