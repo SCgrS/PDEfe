@@ -99,10 +99,13 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare
   async function surukleBirak(kaynak, hedef, { disari = false, iptal = false, ekran = null, x = null } = {}) {
     await tus('1', ['ctrl']); await bekle(400);   // dar pencerede de ilk sekmeler görünsün
     const { ws, gonder } = await cdp();
-    const k = await evalJs(`[...document.querySelectorAll('.sekme')].map((s) => { const r = s.getBoundingClientRect(); return { x: Math.round(r.left + 40), y: Math.round(r.top + r.height / 2), sag: Math.round(r.right - 20) }; })`);
+    const k = await evalJs(`[...document.querySelectorAll('.sekme')].map((s) => { const r = s.getBoundingClientRect(); return { x: Math.round(r.left + 40), y: Math.round(r.top + r.height / 2) }; })`);
     const [a, b] = [k[kaynak], k[hedef]];
     const cubukAlti = await evalJs(`Math.round(document.querySelector('#sekme-cubugu').getBoundingClientRect().bottom)`);
-    const son = { x: x ?? b.sag, y: disari ? cubukAlti + 18 : a.y };   // x: imlecin bırakılacağı yer (verilmezse hedef sekmenin sağ yarısı)
+    // x: imlecin bırakılacağı yer; verilmezse hedef sekmenin tutma noktası: sürüklenen sekme hedefin tam üstüne gelir, hedefin dörtte
+    // birinden çoğuna girer, sonrakine girmez (0.1.21'e dek sekmenin ortası komşunun ortasına varınca yer değişiyordu, hedefin sağ yarısına
+    // bırakılıyordu)
+    const son = { x: x ?? b.x, y: disari ? cubukAlti + 18 : a.y };
     const fareOlayi = (type, x, y, buttons) => gonder('Input.dispatchMouseEvent', { type, x, y, button: type === 'mouseMoved' && !buttons ? 'none' : 'left', buttons, clickCount: 1 });
     await fareOlayi('mouseMoved', a.x, a.y, 0);
     await fareOlayi('mousePressed', a.x, a.y, 1);
@@ -125,7 +128,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare
     await bekle(400);   // sekmenin yerine kayması (0,15 sn) ve bitiş
     return { ortada, ...(await durum()) };
   }
-  // 1. sekmeyi 3. sekmenin sağ yarısına sürükle → ortada: sekme imlecin altında, çubuğun hizasında; 2. ve 3. sekme sola kaymış
+  // 1. sekmeyi 3. sekmenin üstüne sürükle → ortada: sekme imlecin altında, çubuğun hizasında; 2. ve 3. sekme sola kaymış
   let r = await surukleBirak(0, 2, { ekran: () => ekranGoruntusu(`test/png/sekme/surukleme-ortasi${EK}.png`) });
   denetle('sürükle-bırak ortası: sürüklenen sekme imlecin altında, çubukta (yukarı-aşağı oynamaz), opak; tarayıcı sürüklemesi yok',
     r.ortada.tasinan === ADLAR[0] && Math.abs(r.ortada.sol - r.ortada.solBeklenen) <= 2 && Math.abs(r.ortada.ust - r.ortada.ustBeklenen) <= 2 && r.ortada.opak && !r.ortada.draggable, js(r.ortada));

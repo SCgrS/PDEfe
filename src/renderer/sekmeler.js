@@ -9,6 +9,8 @@ const ipucu = (ad, yol) => (yol && yol !== ad ? `${ad}\n${yol}` : ad);
 // Sürüklenen sekme, imleç sekme çubuğunun üstünden ya da altından (ya da pencerenin yanlarından) bu kadar uzaklaşınca çubuktan ayrılır
 // (sıralarken elin biraz kayması sekmeyi ayırmasın); ayrılmış sekme çubuğa bunun yarısı kadar yaklaşınca geri takılır (kıyıda gidip gelmesin)
 const AYIRMA_ESIGI = 24;
+// Sürüklenen sekme komşu sekmenin genişliğinin bu kadarına girince ikisi yer değiştirir (surukleIzle; 0.1.21)
+const YER_DEGISTIRME = 0.25;
 
 export class SekmeCubugu extends EventTarget {
   constructor({ cubuk, liste, onceki, sonraki, acilir, secici, belgeListesi, aramaSay = null, ayrilabilir = null }) {
@@ -216,13 +218,12 @@ export class SekmeCubugu extends EventTarget {
     const dx = Math.max(konum[0] - konum[i], Math.min(konum[n - 1] + genislik[n - 1] - konum[i] - genislik[i],
       s.x - s.x0 + this.liste.scrollLeft - s.kaydirma0));
     s.el.style.transform = `translateX(${dx}px)`;
-    // Yeni yer: sürüklenen sekmenin ortası öteki sekmelerin kaçının ortasına vardı. Varmak (eşitlik) yeter: sekme uca dek çekilince ortası
-    // uçtaki sekmenin ortasıyla çakışır, en sona / en başa taşınabilmeli
-    const orta = konum[i] + dx + genislik[i] / 2;
-    s.j = ogeler.reduce((j, _x, k) => {
-      const o = konum[k] + genislik[k] / 2;
-      return k > i && o <= orta ? j + 1 : k < i && o >= orta ? j - 1 : j;
-    }, i);
+    // Yeni yer: sürüklenen sekme öteki sekmelerin kaçının içine YER_DEGISTIRME kadar girdi (sağa giderken sağ kenarı, sola giderken sol
+    // kenarı). 0.1.21 (kullanıcı isteği, "geçiş çok sert"): önceden sekmenin ortası komşunun ortasına varmalıydı, yani sekme komşusunun
+    // tam üstüne gelince yer değişiyordu; artık komşusunun dörtte birine girince değişir. Varmak (eşitlik) yeter
+    const sol = konum[i] + dx, sag = sol + genislik[i];
+    s.j = ogeler.reduce((j, _x, k) => (k > i && sag >= konum[k] + genislik[k] * YER_DEGISTIRME ? j + 1
+      : k < i && sol <= konum[k] + genislik[k] * (1 - YER_DEGISTIRME) ? j - 1 : j), i);
     const kay = genislik[i] + s.bosluk;
     ogeler.forEach((x, k) => {
       if (k === i) return;

@@ -164,7 +164,9 @@ export default async function ({ evalJs, bekle }) {
     const k = await evalJs(`[...document.querySelectorAll('.sekme')].map((s) => { const r = s.getBoundingClientRect(); return { x: Math.round(r.left + 40), y: Math.round(r.top + r.height / 2), l: r.left, t: r.top, sag: Math.round(r.right - 20) }; })`);
     await fareOlayi('mouseMoved', k[0].x, k[0].y, 0);
     await fareOlayi('mousePressed', k[0].x, k[0].y, 1);
-    const hedefX = k[2].sag;
+    // Sürüklenen sekme 3. sekmenin tam üstüne (imleç onun tutma noktasına): onun dörtte birinden çoğuna girer, 4. sekmeye girmez. 0.1.21:
+    // komşunun %25'ine girince yer değişir (önceden ortası komşunun ortasına varınca); imleç eskiden 3. sekmenin sağ ucuna götürülüyordu
+    const hedefX = k[2].x;
     for (let i = 1; i <= 12; i++) await fareOlayi('mouseMoved', k[0].x + ((hedefX - k[0].x) * i) / 12, k[0].y + (i > 6 ? 40 : 0), 1);
     await bekle(300);
     const ortada = await evalJs(`(() => { const t = document.querySelector('.sekme.tasiniyor'), r = t.getBoundingClientRect(), cs = getComputedStyle(t);
