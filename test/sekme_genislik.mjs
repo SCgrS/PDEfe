@@ -1,4 +1,5 @@
-// Sabit genişlikli sekmeler: her sekme aynı genişlikte, uzun ad üç noktayla kısalır, ipucunda tam ad ve yol; etkin sekme görünür
+// Sekme genişliği (0.1.21'e dek sabit 118 px; artık sekme sayısına göre 118–220 px, ayrıntısı senaryo23'te): dar pencerede 12 sekme en dar
+// genişlikte (118 px) ve kaydırılır; her sekme aynı genişlikte, uzun ad üç noktayla kısalır, ipucunda tam ad ve yol; etkin sekme görünür
 // kaydırılır; ◀ ▶, Ctrl+1–9, sürükleyerek sıralama (0.1.14'ten beri işaretçi olaylarıyla: sekme imleci izler, ötekiler kayarak yer
 // açar, Esc iptal eder, liste uçta kendiliğinden kayar), Ctrl+Tab seçicisi, açık belgeler listesi ve Farklı kaydet sonrası ipucu.
 // Ekran görüntüleri test/png/sekme altına.
@@ -50,7 +51,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare
   const genislikler = new Set(o.sekmeler.map((s) => Math.round(s.g)));
   denetle(`${o.sekmeler.length} sekmenin genişliği aynı`, genislikler.size === 1, [...genislikler].join(', ') + ' px');
   const kisa = (ad) => o.sekmeler.find((s) => s.ad === ad);
-  denetle('sekme 118 px (0.1.4\'teki 168 px\'ten %30 dar)', genislikler.size === 1 && genislikler.has(118), [...genislikler].join(', ') + ' px');
+  denetle('sığmayan sekmeler en dar genişlikte: 118 px (0.1.4\'teki 168 px\'ten %30 dar)', genislikler.size === 1 && genislikler.has(118), [...genislikler].join(', ') + ' px');
   denetle('"ustyazi (85).pdf" ve "ustyazi (86).pdf" tam görünür', !kisa('ustyazi (85).pdf').kisaldi && !kisa('ustyazi (86).pdf').kisaldi);
   denetle('"(2)TensipZapti (9).pdf" üç noktayla kısalır (tam adı ipucunda)', kisa('(2)TensipZapti (9).pdf').kisaldi);
   denetle('uzun ad üç noktayla kısalır', kisa('Bilirkişi Raporu - Ek 1 - Hesap Tablosu ve Açıklamalar (son hali).pdf').kisaldi && o.ustTasma === 'ellipsis');

@@ -49,6 +49,7 @@ export class SekmeCubugu extends EventTarget {
       window.addEventListener('blur', birak);
     }
     acilir.addEventListener('click', (e) => { e.stopPropagation(); this.belgeListesiAcKapa(); });
+    cubuk.addEventListener('pointerleave', () => this.genislikKilidiniKaldir());   // kapatırken kilitlenen sekme genişliği (genislikKilitle)
 
     // Sekme çubuğu üzerinde (sekmeler, boş kısım, düğmeler) fare tekerleği: sekme değiştir (sekme sürüklenirken değil)
     cubuk.addEventListener('wheel', (e) => {
@@ -72,6 +73,7 @@ export class SekmeCubugu extends EventTarget {
   ekle({ id, ad, yol, once = null, baslangic = false }) {
     if (!this.belgeListesi.hidden) this.belgeListesiKapat();   // açık liste sekme kümesini bir kez kurar; bayat kalmasın
     this.surukleKes();   // sürükleme sekmelerin yerlerini ölçüp tutar; yeni sekmeyle bayatlar
+    this.genislikKilidiniKaldir();   // yeni sekme kilitli genişlikle eklenip listeyi gereksiz kaydırmasın
     const el = document.createElement('div');
     el.className = 'sekme' + (baslangic ? ' baslangic-sekmesi' : '');
     el.title = ipucu(ad, yol);
@@ -83,11 +85,11 @@ export class SekmeCubugu extends EventTarget {
     else { this.sekmeler.push(sekme); this.liste.append(el); }
 
     el.addEventListener('mousedown', (e) => {
-      if (e.button === 1) { e.preventDefault(); this.dispatchEvent(new CustomEvent('kapat', { detail: { id } })); }
+      if (e.button === 1) { e.preventDefault(); this.genislikKilitle(el); this.dispatchEvent(new CustomEvent('kapat', { detail: { id } })); }
       else if (e.button === 0 && !e.target.closest('.kapat')) this.dispatchEvent(new CustomEvent('sec', { detail: { id } }));
     });
     el.addEventListener('auxclick', (e) => { if (e.button === 1) e.preventDefault(); });
-    el.querySelector('.kapat').addEventListener('click', (e) => { e.stopPropagation(); this.dispatchEvent(new CustomEvent('kapat', { detail: { id } })); });
+    el.querySelector('.kapat').addEventListener('click', (e) => { e.stopPropagation(); this.genislikKilitle(el); this.dispatchEvent(new CustomEvent('kapat', { detail: { id } })); });
     el.addEventListener('contextmenu', (e) => { e.preventDefault(); this.dispatchEvent(new CustomEvent('sagTik', { detail: { id } })); });
 
     // Sürükleyerek sıralama / ayırma: sol tuşla basılıp çekilince (kapat düğmesinden değil)
@@ -97,6 +99,18 @@ export class SekmeCubugu extends EventTarget {
     this.tekAcilisDurumu();
     return sekme;
   }
+
+  /** Sekme × ya da orta tıkla kapatılırken sekmelerin genişliği o anki genişlikte kilitlenir: sekme sayısı azalınca genişlemezler, sıradaki
+   *  sekmenin × düğmesi imlecin altına gelir (tarayıcılardaki gibi). İmleç sekme çubuğundan çıkınca ya da sekme eklenince kilit kalkar,
+   *  sekmeler sayılarına göre yeniden genişler (stil.css .sekme). */
+  genislikKilitle(el) {
+    const g = el.getBoundingClientRect().width;
+    if (!g) return;
+    this.liste.style.setProperty('--sekme-kilit', g + 'px');
+    this.liste.classList.add('genislik-kilitli');
+  }
+
+  genislikKilidiniKaldir() { this.liste.classList.remove('genislik-kilitli'); }
 
   /** Çubuktaki tek sekme açılış sekmesiyse kapat düğmesi gizlenir: o sekme kapatılmaz, çubuk hiç boş kalmaz (0.1.21; uygulama.js
    *  baslangicSekmesiniKapat). */

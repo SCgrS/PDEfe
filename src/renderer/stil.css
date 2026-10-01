@@ -119,7 +119,9 @@ html[data-tema="koyu"] #dugme-tema .ay { display: block; }
   height: var(--sekme-yukseklik); display: flex; align-items: flex-end; position: relative;
   background: var(--arka); border-bottom: 1px solid var(--kenar); flex-shrink: 0; padding: 0 2px;
 }
-#sekme-cubugu > button.ikon { width: 28px; height: 28px; margin-bottom: 2px; }
+/* Düğmeler daralmaz: sekmeler sığmayınca yalnızca liste daralır (0.1.21'e dek ◀ ▶ ve açık belgeler düğmesi de birkaç piksel eziliyordu,
+   sekme kapanıp sekmeler sığınca bütün sekmeler sağa kayıyordu) */
+#sekme-cubugu > button.ikon { width: 28px; height: 28px; margin-bottom: 2px; flex-shrink: 0; }
 /* Liste içeriği kadar geniş (+ düğmesi son sekmenin hemen sağında, tarayıcılardaki gibi); sığmazsa daralıp kaydırılır, + sağda kalır */
 #sekme-liste {
   flex: 0 1 auto; min-width: 0; display: flex; align-items: flex-end; overflow-x: auto; overflow-y: hidden;
@@ -128,15 +130,19 @@ html[data-tema="koyu"] #dugme-tema .ay { display: block; }
 #sekme-cubugu > #sekme-yeni { margin-left: 1px; flex-shrink: 0; }
 #sekme-cubugu > #sekme-yeni svg { width: 16px; height: 16px; }
 #sekme-liste::-webkit-scrollbar { display: none; }
-/* Sekmeler ada göre değil sabit genişliktedir (kapat düğmesi ve değişiklik noktası dahil). 0.1.5'te 168 px'ten %30 daraldı: yazı 12 px,
-   iç boşluklar sıkı; "ustyazi (85).pdf", "ustyazi (100).pdf" gibi UYAP adları yine tam görünür, uzun ad ("(2)TensipZapti (9).pdf" dahil)
-   üç noktayla kısalır; tam ad ve yol ipucundadır (sekmeler.js). Sığmayanlar kaydırılır. */
+/* Sekmeler ada göre değil sekme sayısına göre genişler; hepsi aynı genişliktedir (kapat düğmesi ve değişiklik noktası dahil). 0.1.21
+   (kullanıcı isteği): az sekme varken 220 px; sekmeler çubuğa sığmayınca birlikte daralır, en dar genişliğe (118 px) inince liste
+   kaydırılır. 118 px 0.1.5'ten 0.1.20'ye dek sabit genişlikti (168 px'ten %30 dar): yazı 12 px, iç boşluklar sıkı; "ustyazi (85).pdf",
+   "ustyazi (100).pdf" gibi UYAP adları yine tam görünür, uzun ad ("(2)TensipZapti (9).pdf" dahil) üç noktayla kısalır; tam ad ve yol
+   ipucundadır (sekmeler.js). Sekme × ya da orta tıkla kapatılınca öteki sekmeler imleç çubuktan çıkana dek genişlemez (.genislik-kilitli):
+   sıradaki sekmenin × düğmesi imlecin altına gelir, art arda kapatılabilir. */
 .sekme {
-  flex: 0 0 118px; width: 118px; height: 30px; font-size: 12px;
+  flex: 0 1 220px; width: 220px; min-width: 118px; height: 30px; font-size: 12px;
   display: flex; align-items: center; gap: 3px; padding: 0 3px 0 7px;
   border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0;
   background: transparent; color: var(--metin-soluk); position: relative; cursor: default;
 }
+#sekme-liste.genislik-kilitli .sekme { flex: 0 0 var(--sekme-kilit); width: var(--sekme-kilit); }
 .sekme:hover { background: var(--hover); }
 .sekme.aktif { background: var(--sekme-aktif); color: var(--metin); border-color: var(--kenar); }
 .sekme.aktif::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: var(--sekme-aktif); }
