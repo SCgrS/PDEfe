@@ -1,6 +1,6 @@
 // Araçlar penceresi: araç çubuğundaki "Araçlar" düğmesinin altında açılan karolar (PDF küçült, Sayfaları düzenle, Döndür ve kaydet,
 // PDF ayır, Görüntü / PDF birleştir). Her karoda büyük simge, araç adı ve tek satırlık açıklama vardır; seçilen araç Araçlar menüsündeki
-// (menu.js) komut kimliğiyle çalıştırılır. Paylaş'ın karosu yok: araç çubuğundaki düğmesi ve Araçlar menüsündeki öğesiyle çalışır.
+// (menu.js) komut kimliğiyle çalıştırılır. PDF'i kopyala'nın (0.1.21'e dek Paylaş) karosu yok: araç çubuğundaki düğmesi ve Araçlar menüsündeki öğesiyle çalışır.
 // Esc, dışarı tıklama ya da araç seçimi pencereyi kapatır; ok tuşları, Tab, Home ve End karolar arasında gezer, Enter / Boşluk seçer.
 
 const simge = (ic) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ic}</svg>`;

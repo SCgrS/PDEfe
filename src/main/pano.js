@@ -1,4 +1,4 @@
-// Paylaş: PDF dosyasını Windows dosya panosuna (CF_HDROP) koyar. Gezgin, Outlook,
+// PDF'i kopyala (0.1.21'e dek Paylaş): PDF dosyasını Windows dosya panosuna (CF_HDROP) koyar. Gezgin, Outlook,
 // WhatsApp, UYAP gibi yerlere Ctrl+V ile yapıştırılabilir.
 import { spawn } from 'node:child_process';
 import path from 'node:path';

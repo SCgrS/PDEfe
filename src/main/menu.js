@@ -104,7 +104,7 @@ export function menuKur({ komut, cik, sonDosyalar, duzen }) {
         { label: 'PDF ayır', click: k('arac.ayir') },
         { label: 'Görüntü / PDF belgeleri birleştirerek PDF oluştur', click: k('arac.gorselBirlestir') },
         { type: 'separator' },
-        { label: 'Paylaş (dosyayı panoya kopyala)', click: k('arac.paylas') },
+        { label: 'PDF\'i kopyala (dosyayı panoya)', click: k('arac.paylas') },
       ],
     },
     {

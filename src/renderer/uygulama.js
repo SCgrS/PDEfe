@@ -1099,7 +1099,7 @@ const komutlar = {
   'gorunum.tema': () => { const yeni = koyuMu() ? 'acik' : 'koyu'; ayarKoy('tema', yeni); temaUygula(); },
   'gorunum.okumaModu': () => { okumaModu = !okumaModu; document.body.classList.toggle('okuma-modu', okumaModu); aktif()?.gorunum.boyutDegisti(); },
   'gorunum.tamEkran': () => pdefe.cagir('pencere:tamEkran'),
-  'arac.paylas': () => paylas(),
+  'arac.paylas': () => pdfKopyala(),
   'arac.kucult': () => bildir('PDF küçültme aracı sonraki aşamada.'),
   'arac.sayfalar': () => bildir('Sayfaları düzenle aracı sonraki aşamada.'),
   'arac.ayir': () => bildir('PDF ayırma aracı sonraki aşamada.'),
@@ -1399,7 +1399,8 @@ sekmeler.addEventListener('sec', (e) => sekmeSec(e.detail.id));
 sekmeler.addEventListener('kapat', (e) => sekmeKapat(e.detail.id));
 sekmeler.addEventListener('belgedeAra', async (e) => { await sekmeSec(e.detail.id); arama.ac(e.detail.sorgu, { tumSekmeler: true }); });
 sekmeler.addEventListener('sagTik', async (e) => {
-  // Açılış sekmesinde (dosyası yok) Klasörde göster / Yolu kopyala devre dışı
+  // Açılış sekmesinde (dosyası yok) Klasörde göster / Yolu kopyala / PDF'i kopyala devre dışı; belgesiz pencerenin tek açılış sekmesinde
+  // Kapat da (o sekme kapatılmaz)
   const id = e.detail.id; const b = belgeler.get(id); if (!b && !baslangicSekmeleri.has(id)) return;
   // Pencereye ayır (0.1.19, kullanıcı isteği): sekme kendi penceresinde açılır. Pencerenin tek sekmesinde (ayrılacak başka sekme yok)
   // ve açılış sekmesinde devre dışı
@@ -1408,6 +1409,7 @@ sekmeler.addEventListener('sagTik', async (e) => {
     { id: 'sagdakiler', etiket: 'Sağdakileri kapat', devre: sekmeler.sekmeler.findIndex((s) => s.id === id) >= sekmeler.sekmeler.length - 1 },
     { ayirici: true }, { id: 'ayir', etiket: 'Pencereye ayır', devre: !b || sekmeler.sekmeler.length < 2 },
     { ayirici: true }, { id: 'klasor', etiket: 'Klasörde göster', devre: !b }, { id: 'yol', etiket: 'Yolu kopyala', devre: !b },
+    { id: 'pdf', etiket: 'PDF\'i kopyala', devre: !b },   // 0.1.21 (kullanıcı isteği): dosyanın kendisi panoya (araç çubuğundaki kopyala düğmesi gibi)
   ]);
   if (secim === 'ayir') { if (belgeler.has(id) && sekmeler.sekmeler.length > 1) await sekmeyiTasi(id, { tur: 'yeni' }); return; }
   if (secim === 'kapat') sekmeKapat(id);
@@ -1415,6 +1417,7 @@ sekmeler.addEventListener('sagTik', async (e) => {
   else if (secim === 'sagdakiler') { const i = sekmeler.sekmeler.findIndex((s) => s.id === id); await sekmeleriKapat(sekmeler.sekmeler.slice(i + 1).map((s) => s.id)); }
   else if (secim === 'klasor' && b) pdefe.cagir('kabuk:klasordeGoster', b.yol);
   else if (secim === 'yol' && b) { await pdefe.cagir('pano:metin', b.yol); bildir('Yol panoya kopyalandı'); }
+  else if (secim === 'pdf' && b) await pdfKopyala(b);
 });
 
 // Panel olayları
@@ -1659,7 +1662,7 @@ document.addEventListener('mousemove', (e) => {
 
 // ---------------------------------------------------------------- araç çubuğu: dar pencerede kademeli sıkıştırma
 // Sığana kadar sırayla (stil.css .sikisik-1 - 4): ayraç ve boşluklar daralır, Araçlar yalnızca simge olur, düğmeler ve kutular daralır,
-// en son Paylaş gizlenir (Araçlar menüsünde de var). Gereken genişlik içeriğe (ör. sayfa sayısının basamakları) bağlı olduğundan ölçülür.
+// en son PDF'i kopyala gizlenir (Araçlar menüsünde de var). Gereken genişlik içeriğe (ör. sayfa sayısının basamakları) bağlı olduğundan ölçülür.
 const aracCubugu = $('#arac-cubugu');
 function aracCubuguSigdir() {
   for (let k = 1; k <= 4; k++) aracCubugu.classList.remove('sikisik-' + k);
@@ -1678,12 +1681,18 @@ new MutationObserver((kayitlar) => {
   aracCubuguSigdir();
 }).observe(aracCubugu, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['hidden', 'style'] });
 
-// ---------------------------------------------------------------- paylaş
-async function paylas() {
-  const b = aktif(); if (!b) return;
+// ---------------------------------------------------------------- PDF'i kopyala
+// Belgeyi dosya olarak panoya koyar (Gezgin'e, e-postaya, UYAP'a yapıştırılır): araç çubuğundaki kopyala düğmesi, Araçlar menüsü ve
+// sekmede sağ tık › PDF'i kopyala (0.1.21). Komutun kimliği eskisi gibi 'arac.paylas'; 0.1.21'e dek arayüzde adı "Paylaş"tı (kullanıcı
+// isteğiyle "kopyala" oldu). b: kopyalanacak belge (verilmezse etkin sekme). Kaydedilmemiş değişiklik varsa önce sorulur; sağ tıklanan
+// sekme etkin değilse soru açılmadan önce ona geçilir (hangi belge için sorulduğu görünsün).
+async function pdfKopyala(b = aktif()) {
+  if (!b || !belgeler.has(b.id)) return;
+  b.notlar?.duzenleyiciBitir(true);   // sağ tık menüsünden: açık yazı düzenlemesi kopyaya girsin (komutlarda DUZENLEMEYI_UYGULAYAN yapar)
   if (b.degisti) {
-    const { secim } = await mesajKutusu({ mesaj: 'Belgede kaydedilmemiş değişiklikler var.', ayrinti: 'Paylaşmadan önce kaydetmek ister misiniz?', dugmeler: ['Kaydet ve paylaş', 'Kaydetmeden paylaş', 'Vazgeç'], iptal: 2 });
-    if (secim === 2) return;
+    if (aktifId !== b.id) await sekmeSec(b.id);
+    const { secim } = await mesajKutusu({ mesaj: 'Belgede kaydedilmemiş değişiklikler var.', ayrinti: 'Kopyalamadan önce kaydetmek ister misiniz?', dugmeler: ['Kaydet ve kopyala', 'Kaydetmeden kopyala', 'Vazgeç'], iptal: 2 });
+    if (secim === 2 || !belgeler.has(b.id)) return;
     if (secim === 0 && !(await belgeKaydet(b))) return;
   }
   const r = await pdefe.cagir('pano:dosya', b.yol);
