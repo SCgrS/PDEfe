@@ -370,7 +370,8 @@ sınandı (test/senaryo23.mjs); sekmeyi çubuğun dışına sürükleme Windows 
 ekrandaki görünüşü ve panodaki dosyanın başka programa yapıştırılması gözle denenmedi.
 1. **Sekme çubuğu.** PDEfe'yi açın: sekme çubuğunda "Yeni sekme" durmalı, × düğmesi olmamalı. Bir PDF açın: "Yeni sekme"nin yerine
    geçmeli. Sekmesini kapatın: çubuk yerinde kalmalı, "Yeni sekme" ve açılış sayfası görünmeli; araç çubuğunda sayfa "/ 0" olmalı.
-   "Yeni sekme"de **+** ya da `Ctrl+T` ikinci boş sekme açmamalı; `Ctrl+W` pencereyi kapatmalı.
+   "Yeni sekme"de `Ctrl+W` pencereyi kapatmalı. (Belge yokken **+** / `Ctrl+T` 0.1.21'de ikinci boş sekme açmıyordu; 0.1.22'de açar,
+   bkz. 29.)
 2. **Sürükleme.** Üç PDF açın. Bir sekmeyi tutup yavaşça komşusuna doğru çekin: sekme komşusunun dörtte birine girince komşu kayarak
    yer açmalı (önceden ancak tam üstüne gelince açıyordu). Biraz geri çekince komşu yerine dönmeli.
 3. **Genişlik.** Bir iki belge açıkken sekmeler geniş olmalı, adlar daha uzun görünmeli. Belge açtıkça sekmeler birlikte daralmalı;
@@ -383,3 +384,14 @@ ekrandaki görünüşü ve panodaki dosyanın başka programa yapıştırılmas�
    sağ tık › PDF'i kopyala'sıyla deneyin: soru açılmadan önce o belgeye geçilmeli.
 6. **Alçak pencere.** Pencereyi alçaltın (yaklaşık 700 piksel yükseklik) ve son açılanlarda on belge varken "Yeni sekme"ye bakın:
    açılış sayfası kaydırma çubuğu olmadan sığmalı, sağ alttaki ad ve sürüm içeriğin altında kalmalı.
+
+## 29. 0.1.22: otomatik testlerin sınayamadıkları
+Belge yokken yeni boş sekme açma ekran dışındaki test örneğinde (+ düğmesine test aracından fare tıklamasıyla, `Ctrl+T` / `Ctrl+W` menü
+kısayollarıyla görünmeyen masaüstünde) sınandı (test/senaryo23.mjs, senaryo19.mjs, kisayol_dosya.mjs). Gerçek fareyle ve ekranda gözle
+denenmedi.
+1. **Belge yokken + ve Ctrl+T.** Bütün sekmeleri kapatın: "Yeni sekme" kalmalı, × düğmesi olmamalı. **+**'ya basın: ikinci "Yeni sekme"
+   açılmalı ve seçilmeli; ikisinde de × görünmeli. `Ctrl+T` ile bir tane daha açın.
+2. **Kapatma.** Bu "Yeni sekme"lerden birini × ile, birini `Ctrl+W` ile kapatın: pencere kapanmamalı. Tek "Yeni sekme" kalınca × kaybolmalı;
+   o sekmede `Ctrl+W` pencereyi kapatmalı.
+3. **Belge açma.** İki "Yeni sekme" varken birinden PDF açın: belge yalnızca o sekmenin yerine geçmeli, öteki "Yeni sekme" kalmalı. Belgeyi
+   kapatınca yanındaki "Yeni sekme" yerinde kalmalı (yenisi eklenmemeli).

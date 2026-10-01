@@ -3,6 +3,13 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.22 — 2026-10-01
+
+### Sekmeler
+- **Bütün belgeler kapandıktan sonra da yeni boş sekme açılabiliyor.** 0.1.21'de belge kalmayınca **+** ve `Ctrl+T` hiçbir şey yapmıyordu; artık her zaman yeni bir "Yeni sekme" açar, tarayıcıdaki gibi. Birden çok "Yeni sekme" varken her biri × ile (ya da `Ctrl+W`, orta tık, sağ tık › Kapat ile) kapatılabilir; pencerede tek sekme kalınca o sekme yine kapatılmaz ve `Ctrl+W` pencereyi kapatır.
+- Son belge kapanınca yanındaki "Yeni sekme"ler olduğu gibi kalır; önceden teke iniyordu.
+- Birden çok "Yeni sekme" varken arka planda açılan ya da başka pencereden sürüklenen belge onların yanına eklenir; "Yeni sekme"lerden birindeyken açılan belge yalnızca o sekmenin yerini alır.
+
 ## 0.1.21 — 2026-10-01
 
 ### Sekmeler

@@ -1032,3 +1032,28 @@ Yolu kopyala'nın altına "PDF'i kopyala"; (5) kopyala düğmesinin (kaydedilmem
     kisayol_gorunum 117/117, senaryo21 39/39, senaryo14, sekme_genislik 24/24 (720 px), gercek_fare (Windows fare iletileri) hepsi geçti.
     ortu_tiklama bu bilgisayarda olmayan yer imli örnek PDF'i istediği için koşulmadı (sekmelerle ilgisi yok).
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 28.
+
+### Revizyon 0.1.22 (2026-10-01, kullanıcı isteği)
+Ayrıntı: CHANGELOG.md. Kullanıcı: "tüm sekmeler kapandığında ekstra yeni boş sekmeler ekleyemiyorum, bunu düzeltelim".
+- [x] **Belgesiz pencerede de yeni boş sekme** (uygulama.js `yeniSekme`, `sekmesizKalmasin`). Kök neden: 0.1.21'de belgesiz pencere "tek
+  açılış sekmesi" kuralıyla sekmesiz açılış ekranının yerine konmuştu; `yeniSekme` pencerenin tek sekmesi açılış sekmesiyse yenisini
+  açmıyor, o sekmeyi seçiyordu (0.1.13'ün "belge yokken Ctrl+T sekme açmaz" kararını sürdürmek için). Kullanıcının isteği bu kararı
+  kaldırır: + / Ctrl+T her zaman yeni açılış sekmesi açar. 0.1.21'de seçilmeyen "tarayıcıdaki gibi açılış sekmeleri olduğu gibi kalsın"
+  yolu seçildi; kurallar:
+  - Son belge kapanınca yanındaki açılış sekmeleri kalır (`belgesizseTekSekme` → `sekmesizKalmasin`: yalnızca sekme kalmadıysa açılış
+    sekmesi açar). Teke indirmek kullanıcının az önce açtığı boş sekmeleri silerdi.
+  - Pencerenin tek sekmesi açılış sekmesiyse kurallar 0.1.21'deki gibi: kapatılmaz (× gizli, Kapat devre dışı), Ctrl+W pencereyi kapatır,
+    açılan ya da başka pencereden gelen ilk belge onun yerini alır (`tekAcilisSekmesi`). Birden çok açılış sekmesinde her biri kapatılabilir.
+  - Birden çok açılış sekmesi varken: etkin açılış sekmesinden açılan belge yalnızca onun yerini alır (0.1.13 kuralı); arka planda açılan
+    ya da başka pencereden taşınan belge yanlarına eklenir (yerini alacak tek sekme yok, hangisinin silineceği belirsiz).
+  - Değişmeyen: son belgesi başka pencereye taşınan pencere, açılış sekmeleri olsa da kapanır (boş sekmenin taşıdığı bir şey yok;
+    0.1.21'deki gibi). Belgesiz pencerenin bırakma alanı pencerenin tamamı.
+- [x] **Testler**: senaryo23 (42 → 53): + düğmesine gerçek fare tıklaması (CDP), Ctrl+T, sağ tık menüsü, Ctrl+W ve × ile açılış sekmelerini
+  kapatma, iki açılış sekmesinden belge açma / kapama, belgeler kapanınca açılış sekmelerinin kalması, arka planda açma, iki açılış
+  sekmeli belgesiz pencereye sekme taşıma. Eski davranışı bekleyen denetimler güncellendi: senaryo19 (son belge kapanınca açılış
+  sekmeleri kalır; belge yokken Ctrl+T açar, Ctrl+W kapatır), kisayol_dosya (belge yokken Ctrl+T ikinci sekme açar, Ctrl+W onu kapatır).
+  - Regresyon (yer tutucu belgelerle): senaryo23 53/53, kisayol_dosya 164/164, senaryo19 112/112, senaryo20 38/38 (son üçü görünmeyen
+    masaüstünde), senaryo22 101/101, sekme_genislik 24/24 (720 px). senaryo22 görünmeyen masaüstündeki örnekte (`baslat_gizli.ps1`)
+    koşulunca "ikinci örnek" denetimlerinden 3'ü düşüyor (ikinci örnek o masaüstündeki örneği bulamıyor); kendi kullanımındaki gibi
+    `baslat.ps1` ile hepsi geçti.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 29.
