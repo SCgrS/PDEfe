@@ -1,0 +1,351 @@
+# -*- coding: utf-8 -*-
+"""Görsellerdeki yazının tanınması (0.1.24): taranmış sayfalardaki ve sayfaya görsel olarak konmuş yazılar seçilip kopyalanabilsin.
+
+Tanıyıcı Windows'un yerleşik yazı tanıyıcısıdır (Windows.Media.Ocr, Türkçe dil paketinin tanıma bileşeni): çevrim dışı çalışır, ek
+model dosyası gerekmez, bir A4 sayfa ~0,15 sn. Türkçe tanıyıcı yoksa kullanıcının dil listesindeki ilk tanıyıcı, o da yoksa tanıma
+yapılmaz ("desteklenmiyor"). Tanınan sözcükler belgeye yazılmaz; yalnızca PDEfe'nin metin katmanında (seçim) ve kopyalamada (metin_sec)
+kullanılır.
+
+Tanınan bölgeler sayfadaki görsellerin kutularıdır (birleşik; EN_KUCUK_ALAN'dan küçükler sayılmaz). Görselin üstünde zaten metin varsa
+(tarayıcının tanıyıp görünmez yazıyla eklediği metin, antet görselinin üstüne yazılmış belge) o görsel tanınmaz: kutusunun en az
+METIN_ORANI'nı sayfadaki sözcükler kaplıyorsa. Tanınan sözcüklerden sayfadaki bir sözcükle örtüşenler atılır (görselin üstüne yazılmış
+metin, örneğin taranmış evraka eklenmiş e-imza satırı, iki kez seçilmesin).
+
+Bölgeler ekrandaki (/Rotate uygulanmış) düzlemde çizilir: tanıyıcı yazıyı okuyucunun gördüğü gibi dik görür. Sonuç PyMuPDF sözcüklerinin
+düzlemine (döndürülmemiş, görünür kutunun üst-sol kökenli koordinatı) çevrilir. Çizim (PyMuPDF) işçi iş parçacığında, tanıma kendi iş
+parçacığında yapılır: tanıma sürerken işçi öteki isteklere (küçük resimler, kopyalama) geçer. Sonuçlar dosyanın değişme zamanı ve
+boyutuyla önbellekte tutulur.
+"""
+import asyncio
+import collections
+import os
+import queue
+import re
+import sys
+import threading
+
+import pymupdf
+
+OLCEK = 3.0                    # 216 dpi: 10 pt yazı ~30 piksel; A4 ~4,5 milyon piksel
+EN_FAZLA_PIKSEL = 20_000_000   # sayfa başına (bütün bölgeler; gri, bayt başına piksel): büyük sayfada ölçek küçülür
+EN_BUYUK_KENAR = 9_600         # tanıyıcının sınırı OcrEngine.MaxImageDimension = 10 000 piksel
+EN_KUCUK_ALAN = 1_000          # pt²: daha küçük görseller (simge, madde imi, küçük logo) tanınmaz
+EN_KUCUK_KENAR = 8             # pt
+METIN_ORANI = 0.15             # görselin bu kadarını sayfadaki sözcükler kaplıyorsa görselde metin zaten var
+TAM_SAYFA = 0.6                # görseller sayfanın bu kadarını kaplıyorsa sayfa tek bölge olarak tanınır
+EN_FAZLA_BOLGE = 30            # birleştirmeden sonra bundan çok ayrı bölge varsa da sayfa tek bölge
+EN_FAZLA_GORSEL = 60           # bundan çok görsel kutusu birleştirilmez, sayfa tek bölge (birleştirme kutu sayısının küpüyle uzar)
+ORTUSME = 0.3                  # tanınan sözcük sayfadaki bir sözcükle (küçüğünün alanının) bu oranda örtüşüyorsa atılır
+EGIK = 1.0                     # derece; tanıyıcının ölçtüğü eğim bundan büyükse sözcük kutuları satıra eşitlenmez
+BLOK_TABANI = 1_000_000        # tanınan satırların PyMuPDF blok numarası: satır başına bir blok, sayfanın bloklarından ayrı
+ONBELLEK_SAYFA = 400
+BEKLEME = 30                   # sn; metin_sec tanımayı en çok bu kadar bekler
+
+_BOS = {"satirlar": [], "sozcukler": []}
+
+# ---------------------------------------------------------------- önbellek
+_onbellek = collections.OrderedDict()   # (yol, değişme zamanı, boyut, sayfa) → {"satirlar", "sozcukler"}
+_onbellek_kilidi = threading.Lock()
+
+
+def _anahtar(yol, sayfa):
+    st = os.stat(yol)
+    return (os.path.normcase(os.path.abspath(yol)), st.st_mtime_ns, st.st_size, int(sayfa))
+
+
+def _onbellekten(anahtar):
+    with _onbellek_kilidi:
+        k = _onbellek.get(anahtar)
+        if k is not None:
+            _onbellek.move_to_end(anahtar)
+        return k
+
+
+def _onbellege(anahtar, kayit):
+    with _onbellek_kilidi:
+        _onbellek[anahtar] = kayit
+        _onbellek.move_to_end(anahtar)
+        while len(_onbellek) > ONBELLEK_SAYFA:
+            _onbellek.popitem(last=False)
+
+
+# ---------------------------------------------------------------- tanıma iş parçacığı
+_motor = None        # None: henüz denenmedi; False: tanıyıcı yok; yoksa OcrEngine
+_kuyruk = queue.Queue()
+_is_parcacigi = None
+_baslatma_kilidi = threading.Lock()
+
+
+def _calistir(is_, bitir):
+    """is_(dongu) tanıma iş parçacığında çalışır; bitince bitir(sonuc, hata) çağrılır."""
+    global _is_parcacigi
+    with _baslatma_kilidi:
+        if _is_parcacigi is None:
+            _is_parcacigi = threading.Thread(target=_dongu, name="yazi-tanima", daemon=True)
+            _is_parcacigi.start()
+    _kuyruk.put((is_, bitir))
+
+
+def _dongu():
+    dongu = asyncio.new_event_loop()
+    while True:
+        is_, bitir = _kuyruk.get()
+        try:
+            sonuc, hata = is_(dongu), None
+        except Exception as e:
+            sonuc, hata = None, e
+        try:   # bitir yanıt yazar; yazamasa da iş parçacığı ölmemeli (ölürse bütün tanıma istekleri yanıtsız kalırdı)
+            bitir(sonuc, hata)
+        except Exception as e:
+            print("[yazi_tanima] yanıt yazılamadı: %s" % e, file=sys.stderr)
+
+
+def calisti():
+    """Tanıma iş parçacığı başlatıldı mı (pdefe_core çıkışta WinRT işi sürerken yorumlayıcıyı kapatmasın diye bakar)."""
+    return _is_parcacigi is not None
+
+
+def bitmesini_bekle(sure=10):
+    """Kuyruktaki tanıma işleri bitip yanıtları yazılana dek bekler (en çok sure saniye; çekirdeğin girdisi kapanınca)."""
+    if _is_parcacigi is None:
+        return
+    bitti = threading.Event()
+    _kuyruk.put((lambda _dongu: None, lambda _r, _h: bitti.set()))
+    bitti.wait(sure)
+
+
+def _motor_al():
+    """Tanıyıcı (yalnızca tanıma iş parçacığında): Türkçe, yoksa kullanıcının dil listesinden; hiçbiri yoksa None."""
+    global _motor
+    if _motor is None:
+        try:
+            from winrt.windows.media.ocr import OcrEngine
+            from winrt.windows.globalization import Language
+            m = OcrEngine.try_create_from_language(Language("tr")) or OcrEngine.try_create_from_user_profile_languages()
+            _motor = m or False
+            if not m:
+                print("[yazi_tanima] Windows yazı tanıyıcısı yok (dil paketi)", file=sys.stderr)
+        except Exception as e:
+            print("[yazi_tanima] Windows yazı tanıyıcısı açılamadı: %s" % e, file=sys.stderr)
+            _motor = False
+    return _motor or None
+
+
+async def _tani(motor, gri, genislik, yukseklik):
+    from winrt.windows.graphics.imaging import SoftwareBitmap, BitmapPixelFormat
+    from winrt.windows.storage.streams import DataWriter
+    yazici = DataWriter()
+    yazici.write_bytes(gri)
+    bmp = SoftwareBitmap.create_copy_from_buffer(yazici.detach_buffer(), BitmapPixelFormat.GRAY8, genislik, yukseklik)
+    try:
+        return await motor.recognize_async(bmp)
+    finally:
+        try:
+            bmp.close()
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------- bölgeler ve çizim (işçi iş parçacığı)
+def _birlestir(kutular):
+    """Değen ya da örtüşen kutuları birleştirir (şeritler hâlinde saklanmış taranmış sayfa tek bölge olur)."""
+    kutular = [pymupdf.Rect(k) for k in kutular]
+    degisti = True
+    while degisti:
+        degisti = False
+        for i in range(len(kutular)):
+            for j in range(i + 1, len(kutular)):
+                a, b = kutular[i], kutular[j]
+                if a.x0 <= b.x1 + 2 and b.x0 <= a.x1 + 2 and a.y0 <= b.y1 + 2 and b.y0 <= a.y1 + 2:
+                    kutular[i] = a | b
+                    del kutular[j]
+                    degisti = True
+                    break
+            if degisti:
+                break
+    return kutular
+
+
+def _bolgeler(pg, sozcukler):
+    """Tanınacak bölgeler (döndürülmemiş düzlemde Rect listesi); tanınacak görsel yoksa boş."""
+    tam = pymupdf.Rect(0, 0, pg.cropbox.width, pg.cropbox.height)
+    kutular = []
+    for bilgi in pg.get_image_info():
+        b = bilgi.get("bbox")
+        if not b:
+            continue
+        r = pymupdf.Rect(b) & tam
+        if not r.is_empty:
+            kutular.append(r)
+    # Çok sayıda görsel (şeritler hâlinde saklanmış tarama ya da kötü niyetle binlerce görsele bölünmüş sayfa) birleştirilmez ve tek tek
+    # çizilip tanınmaz: bütün sayfa tek bölge (birleştirme kutu sayısının küpüyle uzar; 800 kutu 5,6 sn sürüyordu)
+    if len(kutular) > EN_FAZLA_GORSEL:
+        kutular = [tam]
+    else:
+        kutular = [r for r in _birlestir(kutular)
+                   if r.width >= EN_KUCUK_KENAR and r.height >= EN_KUCUK_KENAR and r.width * r.height >= EN_KUCUK_ALAN]
+        if not kutular:
+            return []
+        if len(kutular) > EN_FAZLA_BOLGE or sum(r.width * r.height for r in kutular) >= TAM_SAYFA * tam.width * tam.height:
+            kutular = [tam]
+    secilen = []
+    for r in kutular:
+        kaplanan = 0.0
+        for w in sozcukler:
+            if r.x0 <= (w[0] + w[2]) / 2 <= r.x1 and r.y0 <= (w[1] + w[3]) / 2 <= r.y1:
+                kaplanan += max(0.0, w[2] - w[0]) * max(0.0, w[3] - w[1])
+        if kaplanan < METIN_ORANI * r.width * r.height:
+            secilen.append(r)
+    return secilen
+
+
+def _hazirla(pg, sozcukler, bolgeler):
+    """Sayfanın tanınacak bölgelerini çizer: {"cizimler": [...], "sozcukler": bölgelere değen sayfa sözcükleri (Rect), "derot": Matrix}.
+    Bütün bölgelerin piksel toplamı EN_FAZLA_PIKSEL'i geçmez (ölçek ortak küçülür)."""
+    cizimler = []
+    # Örtüşme denetimine yalnızca bölgelere değen sözcükler girer (tanıma iş parçacığında sözcük × sözcük karşılaştırılır)
+    gercekler = [pymupdf.Rect(w[:4]) for w in sozcukler]
+    gercekler = [g for g in gercekler if any(g.intersects(b) for b in bolgeler)]
+    kirpimlar = []
+    for bolge in bolgeler:
+        kirp = pymupdf.Rect(bolge * pg.rotation_matrix)
+        kirp.normalize()
+        kirpimlar.append(kirp)
+    toplam = sum(max(k.width, 1.0) * max(k.height, 1.0) for k in kirpimlar) or 1.0
+    for kirp in kirpimlar:
+        w, h = max(kirp.width, 1.0), max(kirp.height, 1.0)
+        z = min(OLCEK, (EN_FAZLA_PIKSEL / toplam) ** 0.5, EN_BUYUK_KENAR / max(w, h))
+        pix = pg.get_pixmap(matrix=pymupdf.Matrix(z, z), clip=kirp, colorspace=pymupdf.csGRAY, alpha=False, annots=False)
+        if pix.width >= 16 and pix.height >= 16:
+            cizimler.append({"gri": pix.samples, "genislik": pix.width, "yukseklik": pix.height, "x": pix.x, "y": pix.y, "z": z})
+        pix = None
+    return {"cizimler": cizimler, "sozcukler": gercekler, "derot": pymupdf.Matrix(pg.derotation_matrix)}
+
+
+# ---------------------------------------------------------------- tanıma ve koordinatlar (tanıma iş parçacığı)
+_RAKAMLAR = str.maketrans({"o": "0", "O": "0", "ı": "1", "l": "1", "I": "1", "i": "1", "|": "1"})
+# Rakama benzeyen harf dizisi: önünde rakam ya da . / - (veya sözcük başı), ardında rakam ya da . / - var. Ekler ("1990'lı", "15'i",
+# "80li") çevrilmez: kesme işaretinden sonra ya da sözcük sonunda kalırlar
+_RAKAM_ARASI = re.compile(r"(?:(?<=[\d./-])|^)[oOılIi|]+(?=[\d./-])")
+
+
+def _rakamlari_duzelt(metin):
+    """Türkçe tanıyıcı rakamların arasındaki 1 ve 0'ı harf okuyabiliyor ("01.ıo.2026"). En az iki rakamlı sözcükte (tarih, esas
+    numarası, tutar) rakamların ya da . / - işaretlerinin arasına sıkışmış rakama benzeyen harfler rakama çevrilir."""
+    if sum(c.isdigit() for c in metin) < 2:
+        return metin
+    return _RAKAM_ARASI.sub(lambda m: m.group(0).translate(_RAKAMLAR), metin)
+
+def _ortusuyor(k, gercekler):
+    alan = k.width * k.height
+    for g in gercekler:
+        if g.x1 <= k.x0 or g.x0 >= k.x1 or g.y1 <= k.y0 or g.y0 >= k.y1:
+            continue
+        kesisim = (min(g.x1, k.x1) - max(g.x0, k.x0)) * (min(g.y1, k.y1) - max(g.y0, k.y0))
+        if kesisim >= ORTUSME * max(1e-6, min(alan, g.width * g.height)):
+            return True
+    return False
+
+
+def _tamamla(anahtar, hazirlik, dongu):
+    """Çizilen bölgeleri tanır, sonucu önbelleğe yazar. Döner: renderer yanıtı. Tanıma işleri tek iş parçacığında sırayla çalıştığından
+    aynı sayfa için ikinci bir iş (ör. tanıma sürerken gelen kopyalama) önceki işin önbelleğe yazdığını bulur, yeniden tanımaz."""
+    k = _onbellekten(anahtar)
+    if k is not None:
+        return {"satirlar": k["satirlar"]}
+    motor = _motor_al()
+    if motor is None:
+        return {"satirlar": [], "desteklenmiyor": True}
+    derot, gercekler = hazirlik["derot"], hazirlik["sozcukler"]
+    satirlar, sozcukler = [], []
+    yuvarla = lambda v: round(v, 2)
+    for c in hazirlik["cizimler"]:
+        sonuc = dongu.run_until_complete(_tani(motor, c["gri"], c["genislik"], c["yukseklik"]))
+        z, ox, oy = c["z"], c["x"], c["y"]
+        nokta = lambda px, py: pymupdf.Point((ox + px) / z, (oy + py) / z) * derot
+        egik = abs(sonuc.text_angle or 0.0) >= EGIK
+        for satir in sonuc.lines:
+            kel = [(w.bounding_rect, _rakamlari_duzelt(w.text)) for w in satir.words if (w.text or "").strip()]
+            if not kel:
+                continue
+            ust = min(r.y for r, _ in kel)
+            alt = max(r.y + r.height for r, _ in kel)
+            ogeler = []
+            for r, metin in kel:
+                u, a = (r.y, r.y + r.height) if egik else (ust, alt)
+                sol_ust, sol_alt, sag_ust = nokta(r.x, u), nokta(r.x, a), nokta(r.x + r.width, u)
+                sag_alt = sag_ust + (sol_alt - sol_ust)
+                xs, ys = (sol_ust.x, sol_alt.x, sag_ust.x, sag_alt.x), (sol_ust.y, sol_alt.y, sag_ust.y, sag_alt.y)
+                kutu = pymupdf.Rect(min(xs), min(ys), max(xs), max(ys))
+                if _ortusuyor(kutu, gercekler):
+                    continue
+                ogeler.append((kutu, [metin, yuvarla(sol_ust.x), yuvarla(sol_ust.y), yuvarla(sol_alt.x), yuvarla(sol_alt.y),
+                                      yuvarla(sag_ust.x), yuvarla(sag_ust.y)]))
+            if not ogeler:
+                continue
+            blok = BLOK_TABANI + len(satirlar)
+            satirlar.append([o for _, o in ogeler])
+            for j, (kutu, o) in enumerate(ogeler):
+                sozcukler.append((kutu.x0, kutu.y0, kutu.x1, kutu.y1, o[0], blok, 0, j))
+        c["gri"] = None
+    _onbellege(anahtar, {"satirlar": satirlar, "sozcukler": sozcukler})
+    return {"satirlar": satirlar}
+
+
+# ---------------------------------------------------------------- yöntemler
+def y_ocr_sayfa(p):
+    """Sayfanın görsellerindeki sözcükler (renderer'ın metin katmanı için): {"satirlar": [[[metin, solÜstX, solÜstY, solAltX, solAltY,
+    sağÜstX, sağÜstY], ...], ...]} (PyMuPDF düzleminde; sol üst → sağ üst yazı yönü, sol üst → sol alt satırın yüksekliği). Tanıyıcı
+    yoksa "desteklenmiyor": true. Tanıma gerekiyorsa yanıt tanıma iş parçacığından gelir (Ertelenmis)."""
+    from pdefe_core import onbellek, Ertelenmis
+    yol, sayfa = p["yol"], int(p["sayfa"])
+    anahtar = _anahtar(yol, sayfa)
+    k = _onbellekten(anahtar)
+    if k is not None:
+        return {"satirlar": k["satirlar"]}
+    if _motor is False:
+        return {"satirlar": [], "desteklenmiyor": True}
+    pg = onbellek.al(yol)[sayfa - 1]
+    sayfa_sozcukleri = pg.get_text("words")
+    hazirlik = _hazirla(pg, sayfa_sozcukleri, _bolgeler(pg, sayfa_sozcukleri))
+    if not hazirlik["cizimler"]:
+        _onbellege(anahtar, _BOS)
+        return {"satirlar": []}
+    return Ertelenmis(lambda bitir: _calistir(lambda dongu: _tamamla(anahtar, hazirlik, dongu), bitir))
+
+
+def sozcukler(doc, yol, sayfa, kutular=None):
+    """metin_sec için sayfanın görsellerinde tanınan sözcükler (PyMuPDF get_text("words") biçiminde). Önbellekte yoksa tanınır ve
+    beklenir (renderer metin katmanını kurarken istediği için çoğunlukla önbellektedir). kutular (seçim, döndürülmemiş düzlemde)
+    verilirse ve hiçbiri tanınacak bir bölgeye değmiyorsa tanınmaz, beklenmez: yalnızca PDF metni seçilmiştir."""
+    try:
+        anahtar = _anahtar(yol, sayfa)
+        k = _onbellekten(anahtar)
+        if k is None:
+            if _motor is False:
+                return []
+            pg = doc[int(sayfa) - 1]
+            sayfa_sozcukleri = pg.get_text("words")
+            bolgeler = _bolgeler(pg, sayfa_sozcukleri)
+            if not bolgeler:
+                _onbellege(anahtar, _BOS)
+                return []
+            if kutular is not None and not any(secim.intersects(b) for secim in kutular for b in bolgeler):
+                return []
+            hazirlik = _hazirla(pg, sayfa_sozcukleri, bolgeler)
+            if not hazirlik["cizimler"]:
+                _onbellege(anahtar, _BOS)
+                return []
+            bitti, sonuc = threading.Event(), {}
+            _calistir(lambda dongu: _tamamla(anahtar, hazirlik, dongu), lambda r, hata: (sonuc.update(hata=hata), bitti.set()))
+            if not bitti.wait(BEKLEME) or sonuc.get("hata"):
+                return []
+            k = _onbellekten(anahtar) or _BOS
+        return list(k["sozcukler"])
+    except Exception as e:
+        print("[yazi_tanima] sözcükler alınamadı: %s" % e, file=sys.stderr)
+        return []
+
+
+def kaydol(yontemler):
+    yontemler["ocr_sayfa"] = y_ocr_sayfa

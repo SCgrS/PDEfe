@@ -348,16 +348,34 @@ def _yerel_aralik(ust, alt, tum):
     return min(adaylar) if adaylar else None
 
 
-def _bos_paragraflar(pg):
+def _bos_paragraflar(pg, donusum=None):
     """Sayfadaki yalnızca boşluktan oluşan metin satırlarının kutuları [(x0, y0, x1, y1)]: boş paragraflar. get_text("words") bunları
-    vermez; görseller okunmaz (TEXTFLAGS_TEXT)."""
+    vermez; görseller okunmaz (TEXTFLAGS_TEXT). donusum: kutuların çevrileceği düzlem (y_metin_sec: döndürülmüş sayfada ekrandaki)."""
     kutular = []
     for b in pg.get_text("dict", flags=pymupdf.TEXTFLAGS_TEXT)["blocks"]:
         for ln in b.get("lines", ()):
             metin = "".join(s["text"] for s in ln["spans"])
             if metin and not metin.strip():
-                kutular.append(tuple(ln["bbox"]))
+                kutular.append(tuple(pymupdf.Rect(ln["bbox"]) * donusum) if donusum else tuple(ln["bbox"]))
     return kutular
+
+
+def _metin_duzlemi(pg):
+    """metin_sec'in döndürülmüş sayfada çalışacağı düzlem (0.1.24): PDF metninin satırlarının çoğu ekranda soldan sağa okunuyorsa (sayfanın
+    yazısı ekranda düz) sayfanın döndürme matrisi, döndürülmemiş düzlemde soldan sağa okunuyorsa (sayfa ekranda yan duruyor; 0.1.23'teki
+    gibi) None. Sayfada PDF metni yoksa (yalnızca tanınan yazı: tanıyıcı ekrandaki düz yazıyı okur) döndürme matrisi."""
+    if not pg.rotation % 360:
+        return None
+    m = pymupdf.Matrix(pg.rotation_matrix)
+    ekranda = donmeden = 0
+    for b in pg.get_text("dict", flags=pymupdf.TEXTFLAGS_TEXT)["blocks"]:
+        for ln in b.get("lines", ()):
+            dx, dy = ln["dir"]
+            if dx > 0.9:
+                donmeden += 1
+            if dx * m.a + dy * m.c > 0.9:
+                ekranda += 1
+    return m if ekranda >= donmeden else None
 
 
 def y_metin_sec(p):
@@ -380,7 +398,25 @@ def y_metin_sec(p):
     pg = doc[int(p["sayfa"]) - 1]
     kutular = [pymupdf.Rect(*k) for k in p["kutular"]]
     tum = pg.get_text("words")
-    secili = [w for w in tum if any(k.x0 <= (w[0] + w[2]) / 2 <= k.x1 and k.y0 <= (w[1] + w[3]) / 2 <= k.y1 for k in kutular)]
+    secimde = lambda w: any(k.x0 <= (w[0] + w[2]) / 2 <= k.x1 and k.y0 <= (w[1] + w[3]) / 2 <= k.y1 for k in kutular)
+    # Görsellerde tanınan sözcükler (0.1.24, islemler/yazi_tanima.py): metin katmanında seçilebildikleri için kopyaya da girerler.
+    # Her satır ayrı bloktur; alt alta tam satırlar aşağıdaki "satır başına blok" kuralıyla paragrafta birleşir. Yalnızca seçim tanınan
+    # bir sözcüğe değiyorsa katılırlar: yalnızca PDF metni seçilmişken sayfanın sol kenarı, sütunlar ve satır aralığı tanınan yazıdan
+    # (ör. kenardaki bir kaşe) etkilenmesin; her satır girintili çıkıp ayrı paragraf oluyordu (bağımsız incelemede bulundu)
+    try:
+        from islemler import yazi_tanima
+        taninan = yazi_tanima.sozcukler(doc, p["yol"], int(p["sayfa"]), kutular)
+        if any(secimde(w) for w in taninan):
+            tum = tum + taninan
+    except ImportError:
+        pass
+    # Döndürülmüş sayfada (/Rotate) satırlar ekranda okundukları düzlemde sıralanır (0.1.24): sözcükler ve kutular döndürülmemiş
+    # düzlemdedir; ekranda düz okunan yazı orada dikeydir ve satırlar karışık sırayla çıkıyordu (yan çevrilmiş taranmış sayfa, yatay sayfa)
+    donusum = _metin_duzlemi(pg)
+    if donusum:
+        tum = [(*tuple(pymupdf.Rect(w[:4]) * donusum), *w[4:]) for w in tum]
+        kutular = [k * donusum for k in kutular]
+    secili = [w for w in tum if secimde(w)]
     if not secili:
         return {"metin": "", "bas_bosluk": False, "son_bosluk": False}
     sayfa_satirlari = _satir_gruplari(tum)
@@ -403,7 +439,7 @@ def y_metin_sec(p):
     def bos_paragraf(y0, y1, sol, sag):
         """Ortası [y0, y1] yüksekliğinde olan ve [sol, sag] sütununa değen boş paragraf var mı."""
         if "bos" not in olcu:
-            olcu["bos"] = _bos_paragraflar(pg)
+            olcu["bos"] = _bos_paragraflar(pg, donusum)
         return any(y0 <= (b[1] + b[3]) / 2 <= y1 and b[0] < sag + 2 and b[2] > sol - 2 for b in olcu["bos"])
 
     def bos_satir(ust_anahtar, alt_anahtar):
@@ -491,6 +527,14 @@ class IptalEdildi(Exception):
     """Kullanıcı işlemi iptal etti (ilerleme noktasında fark edilir)."""
 
 
+class Ertelenmis:
+    """Yanıtı başka bir iş parçacığında hazırlanan isteğin dönüş değeri (0.1.24, yazı tanıma): işçi beklemeden sıradaki isteğe geçer.
+    baslat(bitir) işi başlatır; iş bitince bitir(sonuc, hata) bir kez çağrılır ve yanıt oradan yazılır."""
+
+    def __init__(self, baslat):
+        self.baslat = baslat
+
+
 _iptal_bayraklari = set()
 _iptal_kilidi = threading.Lock()
 
@@ -562,6 +606,9 @@ def _istek_isle(istek):
     try:
         params["_ilerleme"] = ilerleme_yap(istek_id)
         sonuc = f(params)
+        if isinstance(sonuc, Ertelenmis):
+            sonuc.baslat(lambda r, hata: _ertelenmis_yanit(istek_id, r, hata))
+            return
         yaz_guvenli({"id": istek_id, "result": sonuc})
     except IptalEdildi:
         yaz_guvenli({"id": istek_id, "error": {"code": -32800, "message": "İşlem iptal edildi."}})
@@ -570,6 +617,14 @@ def _istek_isle(istek):
     finally:
         with _iptal_kilidi:
             _iptal_bayraklari.discard(istek_id)
+
+
+def _ertelenmis_yanit(istek_id, sonuc, hata):
+    if hata is None:
+        yaz_guvenli({"id": istek_id, "result": sonuc})
+    else:
+        yaz_guvenli({"id": istek_id, "error": {"code": -32000, "message": str(hata),
+                                               "data": "".join(traceback.format_exception(hata))}})
 
 
 def _isci(kuyruk):
@@ -608,6 +663,20 @@ def main():
         kuyruk.put(istek)
     kuyruk.put(None)
     isci.join(timeout=5)
+    # Tanıma iş parçacığı çalıştıysa yorumlayıcı olağan yoldan kapatılmaz (0.1.24): süren bir WinRT işinin geri çağrısı kapanmakta olan
+    # yorumlayıcıya girip çıkışta çökme penceresi açabilirdi. Yazılanlar boşaltılıp süreç hemen sonlandırılır
+    try:
+        from islemler import yazi_tanima
+        tanima = yazi_tanima.calisti()
+    except ImportError:
+        tanima = False
+    if tanima:
+        try:
+            yazi_tanima.bitmesini_bekle()   # sıradaki tanımaların yanıtları yazılsın
+            sys.stdout.flush()
+            sys.stderr.flush()
+        finally:
+            os._exit(0)
 
 
 if __name__ == "__main__":

@@ -22,6 +22,7 @@ gizli = [
     "islemler.notlar",
     "islemler.araclar",
     "islemler.yapisal",
+    "islemler.yazi_tanima",
     "fontTools.subset",
     "fontTools.ttLib",
     "PIL",
@@ -45,6 +46,15 @@ try:
     ikili += collect_dynamic_libs("pillow_heif")
 except ImportError:
     pass
+
+# Windows yazı tanıyıcısının Python bağları (0.1.24, islemler/yazi_tanima.py; pywinrt): modüller işlev içinde yüklendiği için açıkça
+# toplanır; winrt klasöründeki msvcp140.dll de .pyd'lerin yanına gelir. Kurulu değilse çekirdek tanımasız derlenir ("desteklenmiyor")
+try:
+    import winrt  # noqa: F401
+    gizli += collect_submodules("winrt")
+    ikili += collect_dynamic_libs("winrt")
+except ImportError:
+    print("UYARI: winrt paketleri yok; çekirdek görsellerdeki yazıyı tanıyamayacak")
 
 # Gereksiz büyük paketler dışarıda
 haric = ["tkinter", "_tkinter", "matplotlib", "numpy", "scipy", "pandas", "IPython", "jupyter",

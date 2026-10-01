@@ -59,7 +59,11 @@ jobs:
       - name: Python bağımlılıkları (sistem + .venv)
         shell: pwsh
         run: |
-          $paketler = @("pymupdf==1.28.2", "fonttools==4.65.0", "pillow==12.3.0", "pyinstaller==6.22.3")
+          # winrt-*: Windows yazı tanıyıcısının Python bağları (0.1.24, görsellerdeki yazı; core/islemler/yazi_tanima.py)
+          $paketler = @("pymupdf==1.28.2", "fonttools==4.65.0", "pillow==12.3.0", "pyinstaller==6.22.3",
+            "winrt-runtime==3.2.1", "winrt-Windows.Foundation==3.2.1", "winrt-Windows.Foundation.Collections==3.2.1",
+            "winrt-Windows.Globalization==3.2.1", "winrt-Windows.Graphics.Imaging==3.2.1", "winrt-Windows.Media.Ocr==3.2.1",
+            "winrt-Windows.Storage.Streams==3.2.1")
           python -m pip install --upgrade pip
           python -m pip install @paketler
           if ($LASTEXITCODE -ne 0) { exit 1 }
@@ -68,7 +72,7 @@ jobs:
           .\.venv\Scripts\python.exe -m pip install --upgrade pip
           .\.venv\Scripts\python.exe -m pip install @paketler
           if ($LASTEXITCODE -ne 0) { exit 1 }
-          .\.venv\Scripts\python.exe -c "import pymupdf, fontTools, PIL, PyInstaller; print('PyMuPDF', pymupdf.pymupdf_version, '| MuPDF', pymupdf.mupdf_version, '| PyInstaller', PyInstaller.__version__)"
+          .\.venv\Scripts\python.exe -c "import pymupdf, fontTools, PIL, PyInstaller, winrt.windows.media.ocr; print('PyMuPDF', pymupdf.pymupdf_version, '| MuPDF', pymupdf.mupdf_version, '| PyInstaller', PyInstaller.__version__)"
 
       - name: Etiket ile package.json sürümü uyuşmalı
         if: startsWith(github.ref, 'refs/tags/')

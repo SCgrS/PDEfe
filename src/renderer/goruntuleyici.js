@@ -75,6 +75,58 @@ const tuvalBirak = (c) => { c.width = 0; c.height = 0; };
 const aciyaIndir = (d) => ((d % 360) + 360) % 360;
 /** Eleman (metin katmanı) belgedeki boş olmayan seçimle kesişiyor mu. */
 const secimdeMi = (el) => { const sec = window.getSelection(); return !!el && !!sec && sec.rangeCount > 0 && !sec.isCollapsed && sec.getRangeAt(0).intersectsNode(el); };
+// ---------------------------------------------------------------- görsellerdeki yazı (0.1.24)
+/** Tanınan sözcüklerin metin katmanındaki yazı tipi anahtarı (PDF.js TextContent.styles). */
+const TANIMA_YAZI = 'pdefe-tanima';
+/** Çekirdek Windows yazı tanıyıcısını bulamadı (dil paketi yok): bu pencerede yeniden istenmez. */
+let tanimaYok = false;
+let tanimaOrani = 0;
+/** Yazı tipinin üst payı / toplam yükseklik oranı: PDF.js TextLayer satır öğesinin üst kenarını kökenden bu oranla yukarı koyar; öğe
+ *  tanınan satırın üst kenarına otursun diye köken aynı oranla aşağı alınır (TextLayer #getAscent ile aynı ölçüm). */
+function tanimaYaziOrani() {
+  if (tanimaOrani) return tanimaOrani;
+  let oran = 0.8;
+  try {
+    const ctx = document.createElement('canvas').getContext('2d');
+    ctx.font = '30px sans-serif';
+    const m = ctx.measureText('');
+    const ust = m.fontBoundingBoxAscent, alt = Math.abs(m.fontBoundingBoxDescent);
+    if (ust > 0) oran = ust / (ust + alt);
+  } catch { /* varsayılan oran */ }
+  return (tanimaOrani = oran);
+}
+const tanimaStili = () => ({ fontFamily: 'sans-serif', ascent: tanimaYaziOrani(), descent: tanimaYaziOrani() - 1, vertical: false });
+
+/**
+ * Çekirdeğin tanıdığı satırları (yazi_tanima.py: sözcük başına [metin, solÜst x/y, solAlt x/y, sağÜst x/y], PyMuPDF düzleminde: döndürülmemiş,
+ * görünür kutunun üst-sol kökenli) PDF.js metin öğelerine çevirir: sözcük başına bir öğe, satırın son sözcüğünde satır sonu. Aradaki boşluk
+ * sözcüğe katılır ve öğe sonraki sözcüğün başına dek uzar: ayrı boşluk öğesi (doğal genişliğinde, ölçeklenmez) sonraki sözcüğün üstüne
+ * taşıyor, seçim vurgusu orada iki kat koyulaşıyordu. Öğenin dönüşümü yazı yönünden ve satır yüksekliğinden kurulur: döndürülmüş sayfada
+ * da ekrandaki gibi düz durur. view: PDF.js sayfasının görünür kutusu (kullanıcı uzayı; uygulama.js'teki kopyalama aynı çeviriyi tersinden yapar).
+ */
+function tanimaOgeleri(satirlar, view) {
+  const oran = tanimaYaziOrani();
+  const kul = (x, y) => [x + view[0], view[3] - y];
+  const ogeler = [];
+  for (const satir of satirlar) {
+    satir.forEach((w, j) => {
+      const solUst = kul(w[1], w[2]), solAlt = kul(w[3], w[4]), sagUst = kul(w[5], w[6]);
+      const yukari = [solUst[0] - solAlt[0], solUst[1] - solAlt[1]];
+      const h = Math.hypot(yukari[0], yukari[1]);
+      if (!(h > 0.5)) return;
+      const ileri = [sagUst[0] - solUst[0], sagUst[1] - solUst[1]];
+      const genislik = Math.hypot(ileri[0], ileri[1]);
+      const yon = genislik > 0.01 ? [ileri[0] / genislik, ileri[1] / genislik] : [yukari[1] / h, -yukari[0] / h];
+      const n = satir[j + 1];
+      ogeler.push({
+        str: String(w[0]) + (n ? ' ' : ''), dir: 'ltr', width: genislik, height: h, fontName: TANIMA_YAZI, hasEOL: !n,
+        transform: [h * yon[0], h * yon[1], yukari[0], yukari[1], solUst[0] - oran * yukari[0], solUst[1] - oran * yukari[1]],
+      });
+    });
+  }
+  return ogeler;
+}
+
 /** PDF.js sayfa nesnesinin taban döndürmesi (sayfa sözlüğündeki /Rotate, 0/90/180/270); sayfa nesnesi yoksa 0. */
 const tabanAl = (pdfSayfa) => aciyaIndir(pdfSayfa?.rotate || 0);
 
@@ -143,6 +195,8 @@ export class Goruntuleyici extends EventTarget {
     this.koyuSayfa = false;
     this.yok = false;
     this.hazir = false;          // yukle / durumdanYukle bitince true
+    this._tanimaBekleyen = new Set();   // görsellerindeki yazının tanınması bekleyen sayfa girdileri (tanimaIste)
+    this._tanimaSuruyor = false;
     this._cizimZamanlayici = null;
     this._boyutZamanlayici = null;
 
@@ -1311,7 +1365,10 @@ export class Goruntuleyici extends EventTarget {
     s.el.insertBefore(katman, s.notKatmani);
     const icerik = await this.metinIcerigi(i);
     if (this.yok || s.el.querySelector('.textLayer') !== katman) return;
-    const tl = new pdfjs.TextLayer({ textContentSource: icerik, container: katman, viewport });
+    // Görsellerde tanınan sözcükler (0.1.24) PDF'in metninin ardına eklenir: arama vurgusu öğe sırasıyla eşlenir, PDF'in öğeleri yerinde kalır
+    const tanima = s.tanima?.satirlar.length ? tanimaOgeleri(s.tanima.satirlar, pdfSayfa.view) : null;
+    const kaynak = tanima?.length ? { ...icerik, items: [...icerik.items, ...tanima], styles: { ...icerik.styles, [TANIMA_YAZI]: tanimaStili() } } : icerik;
+    const tl = new pdfjs.TextLayer({ textContentSource: kaynak, container: katman, viewport });
     s.textLayer = tl; s.metinOlcek = olcek; s.metinDondurme = dondurme;
     await tl.render();
     if (s.textLayer !== tl) return;
@@ -1320,6 +1377,66 @@ export class Goruntuleyici extends EventTarget {
     katman.append(son);
     katman.addEventListener('mousedown', () => katman.classList.add('selecting'));   // kaldırma: kurucudaki _fareBirak
     this.dispatchEvent(new CustomEvent('metinKatmani', { detail: { sayfa: i + 1 } }));
+    this.tanimaIste(s);
+  }
+
+  // ------------------------------------------------------------ görsellerdeki yazı (0.1.24)
+  /**
+   * Metin katmanı kurulan sayfanın görsellerindeki yazı çekirdekte tanınır (core/islemler/yazi_tanima.py: Windows'un yazı tanıyıcısı);
+   * tanınan sözcükler katmana eklenir, PDF'in kendi metni gibi seçilir ve kopyalanır (Bul onları aramaz). Görseli olmayan sayfa çekirdekte
+   * hemen boş döner. Aynı anda tek istek: sıradaki, geçerli sayfaya en yakın bekleyen sayfa; katmanı boşaltılan (kaydırılıp geçilen) sayfa
+   * kuyruktan düşer, yeniden görününce istenir. Sonuç girdide (s.tanima) kalır: katman yeniden kurulunca yeniden istenmez.
+   */
+  tanimaIste(s) {
+    if (tanimaYok || !this.cekirdek || s.bos || s.tanima !== undefined || this.yok) return;
+    s.tanima = null;   // istendi
+    this._tanimaBekleyen.add(s);
+    this._tanimaSur();
+  }
+
+  async _tanimaSur() {
+    if (this._tanimaSuruyor || this.yok) return;
+    let s = null, uzaklik = Infinity;
+    for (const x of this._tanimaBekleyen) {
+      const i = this.sayfalar.indexOf(x);
+      if (i < 0 || !x.textLayer || tanimaYok) { this._tanimaBekleyen.delete(x); if (x.tanima === null) x.tanima = undefined; continue; }
+      const d = Math.abs(i + 1 - this.gecerli);
+      if (d < uzaklik) { uzaklik = d; s = x; }
+    }
+    if (!s) return;
+    this._tanimaBekleyen.delete(s);
+    this._tanimaSuruyor = true;
+    try {
+      const r = await this.cekirdek('ocr_sayfa', { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa });
+      if (r?.desteklenmiyor) tanimaYok = true;
+      s.tanima = { satirlar: Array.isArray(r?.satirlar) ? r.satirlar : [] };
+      if (s.tanima.satirlar.length) this._tanimaKatmanaEkle(s);
+    } catch (e) {
+      console.warn('Görseldeki yazı tanınamadı', e);
+      s.tanima = { satirlar: [] };
+    } finally {
+      this._tanimaSuruyor = false;
+      this._tanimaSur();
+    }
+  }
+
+  /** Tanınan sözcükler gelince sayfanın metin katmanı yeniden kurulur (PDF.js katmanına öğe eklenemiyor). Katmanda seçim varsa seçim
+   *  bozulmasın diye seçim kalkana dek beklenir; katman bu arada boşaltılırsa yeniden kurulurken öğeler zaten eklenir. */
+  _tanimaKatmanaEkle(s) {
+    clearTimeout(s._tanimaZaman);
+    const i = this.sayfalar.indexOf(s);
+    if (this.yok || i < 0 || !s.textLayer) return;
+    if (secimdeMi(s.el.querySelector(':scope > .textLayer'))) { s._tanimaZaman = setTimeout(() => this._tanimaKatmanaEkle(s), 500); return; }
+    // Ön çizilen (tek / iki sayfa düzeninde henüz gösterilmeyen sonraki) sayfanın yeri ön yerleşimdedir (yerAl): orada da yeniden kurulur;
+    // yalnızca yerleşime bakılsaydı gösterilince tuval yeterli bulunup katman kurulmayacağından tanınan yazı hiç eklenmezdi
+    const yer = this.yerAl(i);
+    if (!yer) return;
+    const olcek = s.metinOlcek || yer.olcek;
+    s.textLayer.cancel(); s.textLayer = null;
+    this.sayfaAl(i).then((p) => {
+      if (this.yok || this.sayfalar[i] !== s || s.textLayer || !this.yerAl(i)) return null;
+      return this.metinKatmaniCiz(i, p, olcek, this.toplamDondurme(s, tabanAl(p)));
+    }).catch((e) => console.error('Metin katmanı', e));
   }
 
   /**
