@@ -111,6 +111,41 @@ export default async function ({ evalJs, bekle }) {
   sonuc("CSP: object-src 'none', base-uri 'none', form-action 'none'", /object-src 'none'/.test(r) && /base-uri 'none'/.test(r) && /form-action 'none'/.test(r), r);
   for (const ad of ['gizli.txt', 'sahte.pdf']) fs.rmSync(path.join(CIKTI, ad), { force: true });
 
+  // ---------------------------------------------------------------- 3. Silinen not dosyada iz bırakmaz
+  console.log('— Silinen notun izi');
+  const GIZLI = 'GIZLI-NOT-METNI-4711';
+  const icindeMi = (yol) => fs.readFileSync(yol).includes(Buffer.from(GIZLI));
+  /** Belgeyi açar, tek notunu siler ve kaydeder; yanit verilirse sorulan kutu otomatik yanıtlanır. Döner: { kaydedildi, soru, durum }. */
+  const notuSilKaydet = (yol, yanit = null) => evalJs(`(async () => {
+    const p = window.__pdefe;
+    await p.dosyaAc(${J(yol)});
+    const b = p.aktif();
+    for (let i = 0; i < 80 && !(b.notlar && b.notlar.notlar.size); i++) await new Promise((c) => setTimeout(c, 100));
+    const n = [...b.notlar.notlar.values()].find((x) => !x.silindi);
+    if (!n) return { hata: 'not yüklenmedi' };
+    b.notlar.sil(n);
+    ${yanit ? `window.__pdefeOtoYanit = ${J(yanit)};` : 'delete window.__pdefeOtoYanit;'}
+    const kaydedildi = await p.belgeKaydet(b);
+    const soru = window.__pdefeOtoYanit?.son?.mesaj || null;
+    delete window.__pdefeOtoYanit;
+    const durum = document.querySelector('#durum-mesaj')?.textContent || '';
+    await p.belgeKapat(b.id);
+    return { kaydedildi, soru, durum };
+  })()`);
+  const notlu = path.join(CIKTI, 'notlu.pdf');
+  sonuc('örnek belgede notun metni var', icindeMi(notlu));
+  r = await notuSilKaydet(notlu);
+  sonuc('imzasız belge: soru sorulmadan kaydedilir', r.kaydedildi === true && !r.soru, r);
+  sonuc('imzasız belge: silinen notun metni dosyada kalmaz', !icindeMi(notlu));
+  sonuc('imzasız belge: durum çubuğu "tam yazım" der', /tam yazım/.test(r.durum), r);
+  const koru = path.join(CIKTI, 'notlu-imzali-koru.pdf');
+  r = await notuSilKaydet(koru, { secim: 0 });
+  sonuc('e-imzalı belge: sorulur', r.soru === 'Bu belge e-imzalı.', r);
+  sonuc('e-imzalı belge, "İmzayı koru": kaydedilir, eski metin imza için kalır', r.kaydedildi === true && icindeMi(koru), r);
+  const sil = path.join(CIKTI, 'notlu-imzali-sil.pdf');
+  r = await notuSilKaydet(sil, { secim: 1 });
+  sonuc('e-imzalı belge, "Tamamen sil": eski metin kalmaz', r.kaydedildi === true && !icindeMi(sil), r);
+
   console.log(`\nSonuç: ${toplam - hataSayisi}/${toplam} geçti${hataSayisi ? `, ${hataSayisi} HATA` : ''}.`);
   if (hataSayisi) process.exitCode = 1;
 }

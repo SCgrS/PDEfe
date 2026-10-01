@@ -1009,7 +1009,12 @@ def y_notlar_kaydet(p):
     yol, hedef = p["yol"], p.get("hedef") or p["yol"]
     islemler = p.get("islemler") or []
     sayfa_dondurmeleri = p.get("sayfaDondurmeleri")
-    artimli = bool(p.get("artimli", True)) and os.path.abspath(hedef) == os.path.abspath(yol)
+    # temiz (0.1.23, güvenlik denetimi): artımlı kayıt eklemeyi dosyanın sonuna yazar; silinen ya da değiştirilen notun eski hâli
+    # dosyanın önceki bölümünde kalır (ekranda görünmez, uygun bir araçla okunur). temiz verilince belge baştan yazılır, eski hâller
+    # gider; şifreleme korunur. E-imzalı belgede imzayı geçersiz kılar: arayüz sorar (renderer/uygulama.js temizKayitKarari).
+    temiz = bool(p.get("temiz"))
+    artimli = bool(p.get("artimli", True)) and not temiz and os.path.abspath(hedef) == os.path.abspath(yol)
+    sifre_koru = temiz and os.path.abspath(hedef) == os.path.abspath(yol)
     onbellek.birak(yol)
     doc = belge_ac_yazmak_icin(yol)
     gecici = None
@@ -1038,7 +1043,10 @@ def y_notlar_kaydet(p):
                     artimli = False
             if not artimli:
                 gecici = hedef + ".pdefe-tmp"
-                doc.save(gecici, garbage=1, deflate=True)
+                if sifre_koru:
+                    doc.save(gecici, garbage=1, deflate=True, encryption=pymupdf.PDF_ENCRYPT_KEEP)
+                else:
+                    doc.save(gecici, garbage=1, deflate=True)
                 doc.close()
                 doc = None
                 os.replace(gecici, hedef)
@@ -1113,8 +1121,31 @@ def y_form_gorunum(p):
     return {"png": png_base64(pix), "genislik": pix.width, "yukseklik": pix.height}
 
 
+def y_imza_durumu(p):
+    """Belgede PDF'e gömülü e-imza var mı (0.1.23): katalogdaki /SigFlags, değeri dolu imza alanı ya da dosyada imza sözlüğünün
+    /ByteRange'i. Temiz (baştan) kayıt imzayı geçersiz kılacağı için arayüz bu durumda sorar."""
+    from pdefe_core import onbellek
+    yol = p["yol"]
+    doc = onbellek.al(yol)
+    try:
+        if doc.get_sigflags() > 0:
+            return {"imzali": True}
+    except Exception:
+        pass
+    for page in doc:
+        for w in page.widgets(types=[pymupdf.PDF_WIDGET_TYPE_SIGNATURE]):
+            if doc.xref_get_key(w.xref, "V")[0] != "null":
+                return {"imzali": True}
+    try:
+        with open(yol, "rb") as f:
+            return {"imzali": b"/ByteRange" in f.read()}
+    except OSError:
+        return {"imzali": False}
+
+
 def kaydol(yontemler):
     yontemler["notlar_kaydet"] = y_notlar_kaydet
+    yontemler["imza_durumu"] = y_imza_durumu
     yontemler["freetext_stil"] = y_freetext_stil
     yontemler["baglantilar"] = y_baglantilar
     yontemler["form_gorunum"] = y_form_gorunum

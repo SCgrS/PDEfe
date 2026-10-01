@@ -803,9 +803,12 @@ async function kayitYaz(b, farkli, sessiz) {
     b.yigin?.kaydedildi(yiginKonumu, yiginKomutu);
     b.boyut = r.boyut;
   } else {
+    // Kayıtlı bir not silindi ya da değiştiyse belge temiz (baştan) yazılır: artımlı kayıtta eski hâli dosyada kalırdı (temizKayitKarari)
+    const temiz = !farkli && islemler.some((op) => op.islem === 'sil' || op.islem === 'guncelle') ? await temizKayitKarari(b, sessiz) : false;
+    if (temiz === null) { durum.mesajYaz(''); return false; }
     // Döndürmesi son kayıttakinden farklı sayfaların mutlak açıları notlardan önce uygulanır; aynı dosyaya artımlı yazılır
     const sayfaDondurmeleri = yalnizDondurme ? await sayfaDondurmeleriHesapla(g, tarif, tarifAnligi) : null;
-    r = await cekirdek('notlar_kaydet', { yol: b.yol, hedef, islemler, artimli: true, ...(sayfaDondurmeleri ? { sayfaDondurmeleri } : {}) });
+    r = await cekirdek('notlar_kaydet', { yol: b.yol, hedef, islemler, artimli: true, ...(temiz ? { temiz: true } : {}), ...(sayfaDondurmeleri ? { sayfaDondurmeleri } : {}) });
     if (yalnizDondurme) {
       g.yapisalKaydedildi();
       if (g.tarifJson() !== tarifAnligi) g.kayitliTarif = tarifAnligi;   // kayıt sürerken yapılan sayfa değişikliği kirli kalsın
@@ -841,6 +844,29 @@ async function kayitYaz(b, farkli, sessiz) {
   cekirdek('belge_birak', { yol: b.yol }).catch(() => {});
   panel.yorumlariYenile();
   return true;
+}
+
+/**
+ * Kayıtlı bir not silinip ya da değişip aynı dosyaya kaydedilirken belge temiz (baştan) mı yazılsın (0.1.23, güvenlik denetimi).
+ * Artımlı kayıt değişikliği dosyanın sonuna ekler: notun eski hâli dosyanın önceki bölümünde kalır, ekranda görünmez ama uygun bir
+ * araçla okunabilir. Temiz yazım eski hâlleri siler. E-imzalı belgede (PDF'e gömülü imza; çekirdek imza_durumu) temiz yazım imzayı
+ * geçersiz kılar: sorulur, seçim belge kapanana dek hatırlanır; otomatik kayıtta sorulmaz, imza korunur.
+ * Döner: true (temiz yaz) | false (artımlı) | null (Vazgeç).
+ */
+async function temizKayitKarari(b, sessiz) {
+  let imzali;
+  try { imzali = !!(await cekirdek('imza_durumu', { yol: b.yol })).imzali; } catch { return false; }   // bilinmiyorsa imza korunur
+  if (!imzali) return true;
+  if (b.imzaSecimi) return b.imzaSecimi === 'temiz';
+  if (sessiz) return false;
+  const { secim } = await mesajKutusu({
+    tur: 'warning', mesaj: 'Bu belge e-imzalı.',
+    ayrinti: 'Silinen ya da değiştirilen notun eski hâli, e-imzayı korumak için dosyanın içinde kalır: ekranda görünmez ama uygun bir araçla okunabilir.\n\nEski hâli tamamen silmek için belge baştan yazılır; o zaman e-imza geçersiz görünür.',
+    dugmeler: ['İmzayı koru', 'Tamamen sil', 'Vazgeç'], varsayilan: 0, iptal: 2,
+  });
+  if (secim !== 0 && secim !== 1) return null;
+  b.imzaSecimi = secim === 1 ? 'temiz' : 'koru';
+  return secim === 1;
 }
 
 /** Kaydedilmemiş sayfa değişikliği yalnızca döndürme mi: anlık kopya yok; sayfalar sekmenin dosyasının sayfaları, eksiksiz,
