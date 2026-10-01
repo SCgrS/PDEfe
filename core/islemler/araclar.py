@@ -1169,7 +1169,8 @@ def y_gorsel_bilgi(p):
             raise PermissionError("Belge parolayla korunuyor: %s" % os.path.basename(yol))
         pg = doc[0]
         r = pg.rect
-        olcek = float(kucuk_g) / max(r.width, 1)
+        from pdefe_core import olcek_sinirla
+        olcek = olcek_sinirla(r.width, r.height, float(kucuk_g) / max(r.width, 1))   # çok uzun sayfa: piksel sınırı (0.1.23)
         pix = pg.get_pixmap(matrix=pymupdf.Matrix(olcek, olcek), annots=True, alpha=False)
         return {"tur": "pdf", "genislik": r.width, "yukseklik": r.height, "boyut": boyut,
                 "sayfa": doc.page_count, "png": base64.b64encode(pix.tobytes("png")).decode("ascii"),

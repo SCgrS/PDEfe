@@ -107,7 +107,9 @@ def _font_yukle(aile, kalin, italik=False):
         logging.getLogger("fontTools").setLevel(logging.ERROR)
         from fontTools import subset
         from fontTools.ttLib import TTFont
-        tt = TTFont(yol)
+        # recalcTimestamp=False (0.1.23): alt küme her üretimde aynı baytlar olsun (head.modified kaydedilen anın saati olmasın);
+        # _pdefe_fontu_mu belgede gömülü fontu bununla karşılaştırır
+        tt = TTFont(yol, recalcTimestamp=False)
         try:
             em = float(tt["head"].unitsPerEm)
             os2, post = tt["OS/2"], tt["post"]
@@ -135,8 +137,35 @@ def _font_yukle(aile, kalin, italik=False):
     return _font_onbellek[anahtar]
 
 
+def _pdefe_fontu_mu(doc, xref, altkume):
+    """/PDEfeFonts kaydının gösterdiği font PDEfe'nin gömdüğü font mu (0.1.23, güvenlik denetimi): Type0 / Identity-H, CIDFontType2
+    (CIDToGIDMap yok ya da /Identity) ve font programı (FontFile2) şimdiki alt kümeyle bayt bayt aynı. Kayıt belgeden okunur: hazırlanmış
+    bir PDF buraya kendi fontunu koyabilir, yeni yazı notu PDEfe'de doğru, başka okuyucularda başka harflerle görünürdü (ör. 1.000 yerine
+    9.000). Tutmazsa font yeniden gömülür; başka bilgisayarın (Windows fontu farklı sürüm) gömdüğü fontta da öyle olur (bir kez ~50 KB)."""
+    try:
+        if doc.xref_get_key(xref, "Subtype")[1] != "/Type0" or doc.xref_get_key(xref, "Encoding")[1] != "/Identity-H":
+            return False
+        tur, alt = doc.xref_get_key(xref, "DescendantFonts")
+        m = re.fullmatch(r"\[\s*(\d+)\s+0\s+R\s*\]", alt or "")
+        if tur != "array" or not m:
+            return False
+        alt = int(m.group(1))
+        if doc.xref_get_key(alt, "Subtype")[1] != "/CIDFontType2":
+            return False
+        tur, harita = doc.xref_get_key(alt, "CIDToGIDMap")
+        if tur != "null" and harita != "/Identity":
+            return False
+        tur, fd = doc.xref_get_key(alt, "FontDescriptor")
+        if tur != "xref":
+            return False
+        tur, ff = doc.xref_get_key(int(fd.split()[0]), "FontFile2")
+        return tur == "xref" and doc.xref_stream(int(ff.split()[0])) == altkume
+    except Exception:
+        return False
+
+
 def _font_xref_al(doc, page, aile, kalin, italik=False):
-    """Belgede bu aile/stil için gömülü PDEfe fontunun xref'ini döndürür; yoksa gömer.
+    """Belgede bu aile/stil için gömülü PDEfe fontunun xref'ini döndürür; yoksa (ya da kayıttaki font PDEfe'ninki değilse) gömer.
     Kayıt, katalogdaki /PDEfeFonts sözlüğünde tutulur (anahtar: aile + R | B | I | BI; 0.1.1'in R/B anahtarları aynen geçerli)."""
     _, altkume, _, olcu = _font_yukle(aile, kalin, italik)
     yuz = ("B" if kalin else "") + ("I" if italik and not olcu["sahteItalik"] else "")
@@ -145,9 +174,16 @@ def _font_xref_al(doc, page, aile, kalin, italik=False):
     tur, deger = doc.xref_get_key(katalog, "PDEfeFonts/" + anahtar)
     if tur == "xref":
         xref = int(deger.split()[0])
-        if 0 < xref < doc.xref_length() and doc.xref_get_key(xref, "Type")[1] == "/Font":
+        if 0 < xref < doc.xref_length() and doc.xref_get_key(xref, "Type")[1] == "/Font" and _pdefe_fontu_mu(doc, xref, altkume):
             return xref
     xref = page.insert_font(fontname="PDEfe" + anahtar, fontbuffer=altkume)
+    if not _pdefe_fontu_mu(doc, xref, altkume):
+        # insert_font sayfa kaynaklarında aynı adlı font varsa onu döndürür (belge sayfaya o adla başka font koymuş olabilir): benzersiz
+        # adla yeniden gömülür (0.1.23). Bu da denetimden geçmezse (font yapısı beklenenden farklı: alt küme üretilemeyip bütün dosya
+        # gömüldüyse) gömülen font kullanılır, önceki sürümlerdeki gibi
+        yeni = page.insert_font(fontname="PDEfe" + anahtar + uuid.uuid4().hex[:8], fontbuffer=altkume)
+        if _pdefe_fontu_mu(doc, yeni, altkume):
+            xref = yeni
     tur, mevcut = doc.xref_get_key(katalog, "PDEfeFonts")
     girdiler = dict(re.findall(r"/(\w+)\s+(\d+)\s+0\s+R", mevcut)) if tur == "dict" else {}
     girdiler[anahtar] = str(xref)
@@ -1106,7 +1142,8 @@ def y_form_gorunum(p):
     page = doc[int(p["sayfa"]) - 1]
     if not any(True for _ in page.widgets()):
         return {"png": None}
-    olcek = float(p.get("olcek", 1.0))
+    from pdefe_core import olcek_sinirla
+    olcek = olcek_sinirla(page.rect.width, page.rect.height, float(p.get("olcek", 1.0)))   # dev sayfa: piksel sınırı (0.1.23)
     from pymupdf import mupdf
     # dondurme: ekrandaki mutlak açı. fz_run_page_widgets diskteki /Rotate'i zaten uygular, yalnızca fark eklenir (aynı dosyaya
     # kayıttan sonra disk taban+göreli açıyı taşır; görüntüleyicinin PDF.js tabanı bayattır). Verilmezse fark 0: eski davranış.

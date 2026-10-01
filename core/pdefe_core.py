@@ -27,6 +27,17 @@ if __name__ == "__main__":
 
 SURUM = "0.1.1"
 
+# Çizilen görüntünün en büyük piksel sayısı (0.1.23, güvenlik denetimi): notun kutusu ve sayfa ölçüsü PDF'ten gelir; dev bir kutu ya da
+# sayfa birkaç GB'lık görüntü isteyip bütün pencerelerin ortak çekirdeğini dondurabilirdi. 64 milyon piksel ≈ 8000×8000; 200 dpi'de A0
+# sayfa (6622×9362) bile sığar.
+EN_FAZLA_PIKSEL = 64_000_000
+
+
+def olcek_sinirla(genislik, yukseklik, olcek):
+    """genislik × yukseklik (pt) alanın olcek ile çizimi EN_FAZLA_PIKSEL'i geçecekse ölçeği küçültür; geçmiyorsa olduğu gibi döner."""
+    alan = max(float(genislik), 1.0) * max(float(yukseklik), 1.0) * olcek * olcek
+    return olcek if alan <= EN_FAZLA_PIKSEL else olcek * (EN_FAZLA_PIKSEL / alan) ** 0.5
+
 # ---------------------------------------------------------------- belge önbelleği
 class BelgeOnbellek:
     """Yola göre açık PyMuPDF belgelerini tutar; dosya değişmişse yeniden açar."""
@@ -189,7 +200,7 @@ def y_kucuk_resim(p):
     genislik = float(p.get("genislik", 160))
     sayfa = doc[no]
     r = sayfa.rect
-    olcek = genislik / max(r.width, 1)
+    olcek = olcek_sinirla(r.width, r.height, genislik / max(r.width, 1))
     pix = sayfa.get_pixmap(matrix=pymupdf.Matrix(olcek, olcek), annots=True, alpha=False)
     return {"png": png_base64(pix), "genislik": pix.width, "yukseklik": pix.height}
 
@@ -199,6 +210,7 @@ def y_sayfa_goruntu(p):
     doc = onbellek.al(p["yol"])
     pg = doc[int(p["sayfa"]) - 1]
     dpi = int(p.get("dpi", 200))
+    dpi = max(1, int(72 * olcek_sinirla(pg.rect.width, pg.rect.height, dpi / 72)))
     pix = pg.get_pixmap(dpi=dpi, annots=bool(p.get("notlar", True)), alpha=False)
     bicim = p.get("bicim", "png")
     veri = pix.tobytes("jpeg", jpg_quality=int(p.get("kalite", 90))) if bicim == "jpeg" else pix.tobytes("png")
@@ -228,8 +240,9 @@ def y_not_gorunum(p):
     olcek = float(p.get("olcek", 1.0))
     for a in pg.annots():
         if a.xref == xref:
-            pix = a.get_pixmap(matrix=pymupdf.Matrix(olcek, olcek), alpha=True)
             r = a.rect
+            olcek = olcek_sinirla(r.width, r.height, olcek)
+            pix = a.get_pixmap(matrix=pymupdf.Matrix(olcek, olcek), alpha=True)
             return {"png": png_base64(pix), "rect": [r.x0, r.y0, r.x1, r.y1], "genislik": pix.width, "yukseklik": pix.height}
     raise KeyError("not bulunamadı: %d" % xref)
 
@@ -566,6 +579,12 @@ def _isci(kuyruk):
 def main():
     sys.stdin.reconfigure(encoding="utf-8", errors="replace")
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    # PyMuPDF / MuPDF iletileri (bozuk PDF uyarıları) varsayılan olarak stdout'a, yani ana süreçle konuşulan JSON kanalına yazılıyordu
+    # (0.1.23, güvenlik denetimi): yanıt satırlarına karışmasınlar diye stderr'e
+    try:
+        pymupdf.set_messages(stream=sys.stderr)
+    except Exception:
+        pass
     kuyruk = queue.Queue()
     isci = threading.Thread(target=_isci, args=(kuyruk,), daemon=True)
     isci.start()
