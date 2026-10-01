@@ -2,6 +2,7 @@
 """Yapısal (sayfa düzeni) kaydetme: sayfa tarifinden yeni belge kurma, anlık kopya, notların
 konumsal eşlemeyle yeni belgeye taşınması, içerik kutusu."""
 import os
+import re
 import uuid
 import shutil
 
@@ -243,10 +244,17 @@ def _degistir(gecici, hedef, deneme=6):
     raise PermissionError("Dosya yazılamadı; başka bir programda açık olabilir. (%s)" % son)
 
 
+_ANLIK_ADI = re.compile(r"^[0-9a-f]{32}\.pdf$", re.IGNORECASE)
+
+
 def y_anlik_sil(p):
+    """Anlık kopyayı siler. Yalnızca y_yapisal_kaydet'in adlandırdığı dosya (anlik klasöründe <32 onaltılık>.pdf) silinir (0.1.23,
+    güvenlik denetimi: verilen her yolu siliyordu; ana süreç de klasörü denetler, main/guvenlik.js)."""
     yol = p.get("yol")
+    if not yol or not _ANLIK_ADI.match(os.path.basename(yol)) or os.path.basename(os.path.dirname(os.path.abspath(yol))).lower() != "anlik":
+        return {"ok": False}
     try:
-        if yol and os.path.exists(yol):
+        if os.path.exists(yol):
             os.remove(yol)
         return {"ok": True}
     except Exception:

@@ -281,7 +281,7 @@ export class KucultPenceresi {
     this.sonucEl.querySelector('.kucult-ac')?.addEventListener('click', ac);
     this.sonucEl.querySelector('.kucult-goster').addEventListener('click', () => baglam.pdefe.cagir('kabuk:klasordeGoster', yol));
     this.sonucEl.querySelector('.kucult-sil')?.addEventListener('click', async () => {
-      await baglam.pdefe.cagir('dosya:sil', yol);
+      if (!(await baglam.pdefe.cagir('dosya:sil', yol).catch(() => false))) { baglam.bildir('Sonuç dosyası çöp kutusuna gönderilemedi.'); return; }
       baglam.bildir('Sonuç dosyası çöp kutusuna gönderildi.');
       this.sonucEl.hidden = true;
       this.kayit.adYenile();

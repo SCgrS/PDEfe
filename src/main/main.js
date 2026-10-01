@@ -12,7 +12,7 @@ import { panoyaDosyaKopyala } from './pano.js';
 import { yazdirmaKur } from './yazdir.js';
 import { guncellemeKur } from './guncelleme.js';
 import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla } from './pencereler.js';
-import { disAdresMi } from './guvenlik.js';
+import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasoru, anlikDosyasiMi } from './guvenlik.js';
 import electronUpdater from 'electron-updater';
 const { autoUpdater } = electronUpdater;
 
@@ -29,6 +29,12 @@ if (!kilit) {
 /** @type {ReturnType<typeof guncellemeKur>|null} */
 let guncelleme = null;
 const cekirdek = new Cekirdek({ kok: KOK, paketli: PAKETLI, kaynaklar: process.resourcesPath, surum: app.getVersion() });
+// Uygulama dışına gezinme ve gömülü sayfa engellenir; IPC yalnızca uygulamanın kendi sayfalarından kabul edilir (0.1.23, guvenlik.js)
+gezinmeKorumasiKur(app);
+const ipc = guvenliIpc(ipcMain);
+
+/** Yapısal kayıttaki anlık kopyaların klasörü (çekirdeğe ana süreç verir; açılışta temizlenir). */
+function anlikKlasoru() { return path.join(app.getPath('userData'), 'anlik'); }
 
 // ---------- Yardımcılar ----------
 const MIME = {
@@ -182,7 +188,8 @@ async function panoGorseliniYaz(png) {
 }
 
 // ---------- IPC ----------
-function ipcKur() {
+/** ipcMain: guvenliIpc sarmalayıcısı (uygulamanın sayfası dışından gelen istek işlenmez); modüllere de o verilir. */
+function ipcKur(ipcMain) {
   ipcMain.handle('ayar:al', (_e, anahtar) => (anahtar ? ayarAl(anahtar) : ayarlar.store));
   const MENU_AYARLARI = new Set(['varsayilanDuzen', 'kapakAyri', 'sonAcilanlariHatirla']);   // menüde görünen ayarlar
   // Ayarlar bütün pencerelerde ortaktır: değişiklik öteki pencerelere bildirilir ('ayar:degisti'; kendi kopyalarını güncelleyip uygularlar)
@@ -217,17 +224,24 @@ function ipcKur() {
 
   ipcMain.handle('dosya:kaydetDiyalog', async (e, secenek) => {
     if (testDiyalog) return testDiyalog('dosya:kaydetDiyalog', secenek, null);
+    const filtreler = secenek?.filtreler || [{ name: 'PDF belgesi', extensions: ['pdf'] }];
     const s = await dialog.showSaveDialog(pencereAl(e), {
       title: secenek?.baslik || 'Farklı kaydet',
       defaultPath: secenek?.varsayilan,
-      filters: secenek?.filtreler || [{ name: 'PDF belgesi', extensions: ['pdf'] }],
+      filters: filtreler,
       properties: sonKullanilanlar(),
     });
-    return s.canceled ? null : s.filePath;
+    if (s.canceled || !s.filePath) return null;
+    // Yalnızca PDF süzgeci varken başka uzantılı ad yazılırsa (ör. "rapor.v2") .pdf eklenir: çekirdek yalnızca .pdf'e yazar (guvenlik.js)
+    const yalnizPdf = filtreler.every((f) => (f.extensions || []).every((x) => String(x).toLowerCase() === 'pdf'));
+    return yalnizPdf && !/\.pdf$/i.test(s.filePath) ? s.filePath + '.pdf' : s.filePath;
   });
 
-  ipcMain.handle('dosya:sil', async (_e, yol) => { try { await shell.trashItem(yol); return true; } catch { try { await fs.promises.unlink(yol); return true; } catch { return false; } } });
-  ipcMain.handle('dosya:kopyala', async (_e, kaynak, hedef) => { await fs.promises.mkdir(path.dirname(hedef), { recursive: true }); await fs.promises.copyFile(kaynak, hedef); return true; });
+  // Araçların yarım kalan / istenmeyen çıktısı: yalnızca .pdf dosyası ve yalnızca Geri Dönüşüm Kutusu'na (0.1.23: kalıcı silme yok)
+  ipcMain.handle('dosya:sil', async (_e, yol) => {
+    if (!/\.pdf$/i.test(String(yol || ''))) return false;
+    try { await shell.trashItem(String(yol)); return true; } catch { return false; }
+  });
   ipcMain.handle('uygulama:veriKlasoru', () => app.getPath('userData'));
   ipcMain.handle('uygulama:geciciKlasor', () => { const k = path.join(app.getPath('temp'), 'PDEfe'); fs.mkdirSync(k, { recursive: true }); return k; });
   ipcMain.handle('kabuk:varsayilanUygulamalar', () => shell.openExternal('ms-settings:defaultapps?registeredAppUser=PDEfe'));
@@ -253,11 +267,15 @@ function ipcKur() {
   ipcMain.handle('uygulama:klasorler', () => {
     const al = (ad) => { try { return app.getPath(ad); } catch { return ''; } };
     // yaziTipleri: Windows yazı tipi klasörü (PDF yazılarının ana hat çiziminde gömülü olmayan standart fontlar için, renderer/yaziTipleri.js)
-    const yaziTipleri = path.join(process.env.WINDIR || process.env.SystemRoot || 'C:\\Windows', 'Fonts');
-    return { masaustu: al('desktop'), belgeler: al('documents'), indirilenler: al('downloads'), ev: al('home'), yaziTipleri };
+    return { masaustu: al('desktop'), belgeler: al('documents'), indirilenler: al('downloads'), ev: al('home'), yaziTipleri: yaziTipiKlasoru() };
   });
 
+  // Yalnızca PDF belgeleri (başında %PDF- imzası) ve Windows yazı tipi klasöründeki yazı tipleri okunur (0.1.23, guvenlik.js)
   ipcMain.handle('dosya:oku', async (_e, yol) => {
+    if (!yaziTipiDosyasiMi(yol) && !(await pdfDosyasiMi(yol))) {
+      try { await fs.promises.access(String(yol)); } catch { throw new Error(`Dosya bulunamadı: ${yol}`); }
+      throw new Error('Bu dosya bir PDF belgesi değil.');
+    }
     const veri = await fs.promises.readFile(yol);
     const st = await fs.promises.stat(yol);
     return { veri, boyut: st.size, degisim: st.mtimeMs };
@@ -303,9 +321,12 @@ function ipcKur() {
 
   ipcMain.handle('kabuk:klasordeGoster', (_e, yol) => { shell.showItemInFolder(yol); return true; });
   // Klasörü Gezgin'de açar (araç pencerelerindeki klasör çipi). Test örneğinde Gezgin açılmaz (bilgisayarı kullanan kişinin ekranı)
+  // Yalnızca klasör: shell.openPath dosyayı varsayılan programıyla açar, exe'yi çalıştırır (0.1.23)
   ipcMain.handle('kabuk:klasorAc', async (_e, klasor) => {
+    const st = await fs.promises.stat(String(klasor || '')).catch(() => null);
+    if (!st?.isDirectory()) return false;
     if (testDiyalog) return testDiyalog('kabuk:klasorAc', { klasor }, true);
-    const hata = await shell.openPath(String(klasor || ''));
+    const hata = await shell.openPath(String(klasor));
     return !hata;
   });
   // Yalnızca web ve e-posta adresleri (0.1.23; guvenlik.js disAdresMi): PDF'teki bağlantı buraya gelir, başka türler açılmaz
@@ -316,7 +337,10 @@ function ipcKur() {
   // Test örneğinde sistem panosuna yazılmaz (bilgisayarı kullanan kişinin panosu bozulmasın): yazılan test:diyalogKaydi'na düşer
   ipcMain.handle('pano:metin', (_e, metin) => { if (testDiyalog) return testDiyalog('pano:metin', { uzunluk: metin?.length, bas: String(metin ?? '').slice(0, 200) }, true); clipboard.writeText(metin); return true; });
   ipcMain.handle('pano:oku', () => clipboard.readText());
-  ipcMain.handle('pano:dosya', async (_e, yol) => (testDiyalog ? testDiyalog('pano:dosya', { yol }, { tamam: true, hata: '' }) : panoyaDosyaKopyala(yol)));
+  ipcMain.handle('pano:dosya', async (_e, yol) => {
+    if (!(await pdfDosyasiMi(yol))) return { tamam: false, hata: 'Bu dosya bir PDF belgesi değil.' };   // yalnızca PDF panoya konur (0.1.23)
+    return testDiyalog ? testDiyalog('pano:dosya', { yol }, { tamam: true, hata: '' }) : panoyaDosyaKopyala(yol);
+  });
 
   // Pencere kanalları (tam ekran, başlık, kapatma, sekme taşıma) pencereler.js'te
   ipcMain.handle('uygulama:bilgi', () => ({ surum: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome, node: process.versions.node, paketli: PAKETLI, kok: KOK }));
@@ -329,9 +353,10 @@ function ipcKur() {
 
   // Çekirdek (PyMuPDF) çağrıları. Çekirdek bütün pencerelerce paylaşılır: istek kimliği pencereye göre ayrılır (her pencere kendi
   // sayacından verir), ilerleme yalnızca isteği yapan pencereye gider
+  // Parametreler denetlenir (guvenlik.js cekirdekParametreleri): çekirdek yalnızca .pdf'e yazar, anlık kopya klasörünü ana süreç verir
   ipcMain.handle('cekirdek:cagir', (e, yontem, params, istekId) => {
     const gonderen = e.sender;
-    return cekirdek.cagir(yontem, params, (ilerleme) => { if (!gonderen.isDestroyed()) gonderen.send('cekirdek:ilerleme', istekId, ilerleme); },
+    return cekirdek.cagir(yontem, cekirdekParametreleri(yontem, params, anlikKlasoru()), (ilerleme) => { if (!gonderen.isDestroyed()) gonderen.send('cekirdek:ilerleme', istekId, ilerleme); },
       istekId == null ? null : `${gonderen.id}:${istekId}`);
   });
   ipcMain.handle('cekirdek:iptal', (e, istekId) => cekirdek.iptal(`${e.sender.id}:${istekId}`));
@@ -343,24 +368,24 @@ function ipcKur() {
 app.whenReady().then(() => {
   // Önceki oturumlardan kalan anlık kopyalar (yapısal kayıtta özgün dosyanın kopyası; sekme kapanınca silinir, pencere kapatma ya da
   // çökmede kalır). Tek örnek kilidi bizdeyse başka örnek bunları kullanmıyordur: çekirdek başlamadan ve pencere açılmadan sil.
-  if (kilit) { try { fs.rmSync(path.join(app.getPath('userData'), 'anlik'), { recursive: true, force: true }); } catch { /* yok say */ } }
+  if (kilit) { try { fs.rmSync(anlikKlasoru(), { recursive: true, force: true }); } catch { /* yok say */ } }
   protokolKur();
-  ipcKur();
+  ipcKur(ipc);
   pencereleriKur({
-    ipcMain, KOK, onYukleme: path.join(__dirname, 'preload.cjs'), TEST, ayarAl, ayarKoy, temaKoyuMu,
+    ipcMain: ipc, KOK, onYukleme: path.join(__dirname, 'preload.cjs'), TEST, ayarAl, ayarKoy, temaKoyuMu,
     // Haftalık güncelleme denetimi: sırası geldiyse ilk pencere göründükten birkaç saniye sonra; uygulama açık kaldıkça saatte bir bakılır
     pencereGosterildi: () => guncelleme?.pencereGosterildi(),
     // Kapanan pencerenin dosyaları: çekirdek önbelleğinden bırakılır (dosya tanıtıcısı kapanır), anlık kopyalar silinir. İstekler
     // çekirdekte sırayla işlenir; son pencere kapanıyorsa çekirdek bunları bitirip durur (window-all-closed)
     dosyalariBirak: ({ yollar = [], anliklar = [] } = {}) => {
       for (const yol of [...yollar, ...anliklar]) if (typeof yol === 'string' && yol) cekirdek.cagir('belge_birak', { yol }).catch(() => {});
-      for (const yol of anliklar) if (typeof yol === 'string' && yol) cekirdek.cagir('anlik_sil', { yol }).catch(() => {});
+      for (const yol of anliklar) if (anlikDosyasiMi(yol, anlikKlasoru())) cekirdek.cagir('anlik_sil', { yol }).catch(() => {});
     },
   });
   try {
-    const sahte = sahteGuncelleyiciKur(ipcMain);   // yalnızca geliştirme örneğinde, PDEFE_TEST_GUNCELLEME ile
+    const sahte = sahteGuncelleyiciKur(ipc);   // yalnızca geliştirme örneğinde, PDEFE_TEST_GUNCELLEME ile
     guncelleme = guncellemeKur({
-      app, ipcMain, autoUpdater: sahte || autoUpdater, etkin: PAKETLI || !!sahte, ilkOrnek: kilit, pencereyeGonder: herkese, ayarAl, ayarKoy,
+      app, ipcMain: ipc, autoUpdater: sahte || autoUpdater, etkin: PAKETLI || !!sahte, ilkOrnek: kilit, pencereyeGonder: herkese, ayarAl, ayarKoy,
       // Kurulum uygulamayı kapatır: pencereler kaydedilmemiş değişiklikleri önceden sorduğu için (isteyen pencere kendininkini,
       // öteki pencereler 'pencere:digerlerindenIzinAl' ile) pencere kapatma yeniden sormasın
       kapatmayaHazirla: () => kapatmaOnayiAyarla(true),
