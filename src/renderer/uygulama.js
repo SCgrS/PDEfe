@@ -1680,8 +1680,9 @@ document.addEventListener('copy', (e) => {
     }
     // Sayfa geçişinde boş paragraf varsa (bölüm arası sayfa sonuna denk gelmiş) araya boş satır
     const cekirdekMetin = temizMetin(sayfaMetinleriniBirlestir(sonuclar));
-    // Çekirdek sürümü anlamlı biçimde farklı ve boş değilse panoyu güncelle
-    if (cekirdekMetin && cekirdekMetin.length >= metin.length * 0.5 && cekirdekMetin.length <= metin.length * 1.5 + 40) await pdefe.cagir('pano:metin', cekirdekMetin);
+    // Çekirdek sürümü anlamlı biçimde farklı ve boş değilse panoyu güncelle. Yalnızca pano hâlâ bu kopyalamanın metnini taşıyorsa
+    // (0.1.23, güvenlik denetimi): bu arada başka bir yerde kopyalanan metnin yerine belge metni geçmesin, yanlış yere yapıştırılmasın
+    if (cekirdekMetin && cekirdekMetin.length >= metin.length * 0.5 && cekirdekMetin.length <= metin.length * 1.5 + 40) await pdefe.cagir('pano:metin', cekirdekMetin, { yalnizcaPanodaysa: metin });
   })().catch((err) => console.warn('Temiz kopya alınamadı', err));
 });
 

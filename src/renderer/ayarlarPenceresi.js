@@ -257,9 +257,16 @@ function acilisKartlari(k) {
   k.append(varsayilanKart);   // önce eklenir: varsayilanYenile sayfada olmayan kartı kapanmış bölüm sayıp dinlemeyi bırakır
   window.addEventListener('focus', varsayilanYenile);
   varsayilanYenile();
+  // Hatırlanan sayfalar: altında temizleme düğmesi (0.1.23, güvenlik denetimi: kayıt dosya yollarını tutar, yol adında kişi adı olabilir);
+  // kayıt boşken devre dışı. Kapatmak da kaydı siler
+  const konumTemizle = el('button', { class: 'ikincil', type: 'button' }, 'Hatırlanan sayfaları temizle');
+  const konumYenile = () => { konumTemizle.disabled = !Object.keys(ayarlar().sayfaKonumlari || {}).length; };
+  konumTemizle.addEventListener('click', () => { degistir('sayfaKonumlari', {}); konumYenile(); });
+  konumYenile();
   k.append(kart({
     baslik: 'Her belgeyi kaldığım sayfadan aç', aciklama: 'Her belgede son bakılan sayfa, dosya yoluyla birlikte hatırlanır. Kapatılınca hatırlanan sayfalar silinir, yenileri tutulmaz.',
-    kontrol: anahtar(a.kaldigimSayfadanAc !== false, (v) => degistir('kaldigimSayfadanAc', v)),
+    kontrol: anahtar(a.kaldigimSayfadanAc !== false, (v) => { degistir('kaldigimSayfadanAc', v); konumYenile(); }),
+    alt: konumTemizle,
   }));
   // Son açılanlar: altında listeyi temizleme düğmesi (0.1.12, kullanıcı isteği); liste boşken devre dışı. Kapatmak da listeyi siler
   const temizle = el('button', { class: 'ikincil', type: 'button' }, 'Listeyi temizle');

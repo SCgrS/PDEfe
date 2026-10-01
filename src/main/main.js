@@ -36,6 +36,24 @@ const ipc = guvenliIpc(ipcMain);
 /** Yapısal kayıttaki anlık kopyaların klasörü (çekirdeğe ana süreç verir; açılışta temizlenir). */
 function anlikKlasoru() { return path.join(app.getPath('userData'), 'anlik'); }
 
+/**
+ * %TEMP%\PDEfe'deki pano görüntülerini ("Pano görüntüsü …png", ekran görüntüleri) ve yazdırma iş klasörlerini (yazdir-*, belge
+ * sayfalarının görüntüleri) siler (0.1.23, güvenlik denetimi): önceden bir günden eskileri yalnızca yeni bir yapıştırmada / yazdırmada
+ * siliniyordu, yapıştırma olmazsa süresiz kalıyordu. Açılışta (yazdırma klasörleri dahil) ve kapanışta (pano görüntüleri) çağrılır.
+ * Yalnızca kurulu PDEfe'nin kendi veri klasörüyle çalışan örneğinde: %TEMP%\PDEfe bütün örneklerin ortağıdır; ayrı veri klasörüyle
+ * çalışan test örneği, kullanıcının açık PDEfe'sinin kullandığı görüntüyü ya da süren yazdırma işini silmesin.
+ */
+function geciciKopyalariSil({ yazdirma = true } = {}) {
+  if (!PAKETLI || !kilit || path.resolve(app.getPath('userData')).toLowerCase() !== path.resolve(app.getPath('appData'), 'PDEfe').toLowerCase()) return;
+  const klasor = path.join(app.getPath('temp'), 'PDEfe');
+  let adlar = [];
+  try { adlar = fs.readdirSync(klasor); } catch { return; }
+  for (const ad of adlar) {
+    if (!/^Pano görüntüsü .*\.png$/i.test(ad) && !(yazdirma && /^yazdir-/.test(ad))) continue;
+    try { fs.rmSync(path.join(klasor, ad), { recursive: true, force: true }); } catch { /* kullanımda: sonraki açılışta */ }
+  }
+}
+
 // ---------- Yardımcılar ----------
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript',
@@ -335,7 +353,15 @@ function ipcKur(ipcMain) {
     try { await shell.openExternal(String(url)); return true; } catch { return false; }
   });
   // Test örneğinde sistem panosuna yazılmaz (bilgisayarı kullanan kişinin panosu bozulmasın): yazılan test:diyalogKaydi'na düşer
-  ipcMain.handle('pano:metin', (_e, metin) => { if (testDiyalog) return testDiyalog('pano:metin', { uzunluk: metin?.length, bas: String(metin ?? '').slice(0, 200) }, true); clipboard.writeText(metin); return true; });
+  // secenek.yalnizcaPanodaysa: pano hâlâ bu metni taşıyorsa yazılır (kopyalamadan sonra gelen temiz metin; bu arada başka bir şey
+  // kopyalandıysa onun yerine geçmez, 0.1.23). Satır sonları karşılaştırmada eşitlenir
+  ipcMain.handle('pano:metin', (_e, metin, secenek) => {
+    if (testDiyalog) return testDiyalog('pano:metin', { uzunluk: metin?.length, bas: String(metin ?? '').slice(0, 200), kosullu: secenek?.yalnizcaPanodaysa != null }, true);
+    const esitle = (s) => String(s ?? '').replace(/\r\n/g, '\n');
+    if (secenek?.yalnizcaPanodaysa != null && esitle(clipboard.readText()) !== esitle(secenek.yalnizcaPanodaysa)) return false;
+    clipboard.writeText(String(metin ?? ''));
+    return true;
+  });
   ipcMain.handle('pano:oku', () => clipboard.readText());
   ipcMain.handle('pano:dosya', async (_e, yol) => {
     if (!(await pdfDosyasiMi(yol))) return { tamam: false, hata: 'Bu dosya bir PDF belgesi değil.' };   // yalnızca PDF panoya konur (0.1.23)
@@ -369,6 +395,7 @@ app.whenReady().then(() => {
   // Önceki oturumlardan kalan anlık kopyalar (yapısal kayıtta özgün dosyanın kopyası; sekme kapanınca silinir, pencere kapatma ya da
   // çökmede kalır). Tek örnek kilidi bizdeyse başka örnek bunları kullanmıyordur: çekirdek başlamadan ve pencere açılmadan sil.
   if (kilit) { try { fs.rmSync(anlikKlasoru(), { recursive: true, force: true }); } catch { /* yok say */ } }
+  geciciKopyalariSil();
   protokolKur();
   ipcKur(ipc);
   pencereleriKur({
@@ -401,3 +428,4 @@ app.on('window-all-closed', () => {
   cekirdek.durdur();
   app.quit();
 });
+app.on('will-quit', () => geciciKopyalariSil({ yazdirma: false }));

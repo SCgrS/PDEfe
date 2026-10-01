@@ -146,6 +146,40 @@ export default async function ({ evalJs, bekle }) {
   r = await notuSilKaydet(sil, { secim: 1 });
   sonuc('e-imzalı belge, "Tamamen sil": eski metin kalmaz', r.kaydedildi === true && !icindeMi(sil), r);
 
+  // ---------------------------------------------------------------- 4. Pano ve hatırlanan sayfalar
+  console.log('— Pano ve hatırlanan sayfalar');
+  // Kopyalamadan sonra gelen temiz metin yalnızca pano hâlâ o metni taşıyorsa yazılır (koşullu); test örneğinde sistem panosuna yazılmaz
+  const metinliPdf = path.join(KOK, 'test', 'pdf', 'dergipark_3972595_ttk_tbk.pdf');
+  if (fs.existsSync(metinliPdf)) {
+    await evalJs(`window.__pdefe.dosyaAc(${J(metinliPdf)}).then(() => 1)`);
+    await kosul(`!!document.querySelector('.gorunum:not([hidden]) .textLayer span')`, 15000);
+    await evalJs(`window.pdefe.cagir('test:diyalogKaydi')`);
+    const kopya = await evalJs(`(() => {
+      const spanlar = [...document.querySelectorAll('.gorunum:not([hidden]) .textLayer span')].filter((s) => s.textContent.trim().length > 3).slice(0, 4);
+      if (spanlar.length < 2) return null;
+      const r = document.createRange(); r.setStart(spanlar[0].firstChild, 0); r.setEnd(spanlar.at(-1).firstChild, spanlar.at(-1).firstChild.length);
+      const sec = getSelection(); sec.removeAllRanges(); sec.addRange(r);
+      const veri = new DataTransfer();
+      document.dispatchEvent(new ClipboardEvent('copy', { clipboardData: veri, bubbles: true, cancelable: true }));
+      return veri.getData('text/plain');
+    })()`);
+    let kayit = null;
+    for (let t0 = Date.now(); !kayit && Date.now() - t0 < 8000; await bekle(200)) kayit = (await evalJs(`window.pdefe.cagir('test:diyalogKaydi')`)).find((k) => k.kanal === 'pano:metin') || null;
+    sonuc('kopyalama: temiz metin panoya koşullu yazılır', !!kopya && kayit?.secenek?.kosullu === true, { kopya, kayit });
+    await evalJs(`(async () => { getSelection().removeAllRanges(); const b = window.__pdefe.aktif(); if (b) await window.__pdefe.belgeKapat(b.id); return 1; })()`);
+  } else console.log(`     · ${metinliPdf} yok; kopyalama denetimi atlandı`);
+  // Ayarlar › Açılış ve düzen › Hatırlanan sayfaları temizle
+  await evalJs(`window.pdefe.cagir('ayar:koy', 'sayfaKonumlari', { 'C:\\\\Deneme\\\\dava.pdf': 3 }).then(() => window.__pdefe.ayar().sayfaKonumlari = { 'C:\\\\Deneme\\\\dava.pdf': 3 })`);
+  await evalJs(`window.__pdefe.komutCalistir('duzen.ayarlar', 'acilis'), 1`);
+  await kosul(`[...document.querySelectorAll('button')].some((b) => b.textContent === 'Hatırlanan sayfaları temizle')`);
+  const dugme = `[...document.querySelectorAll('button')].find((b) => b.textContent === 'Hatırlanan sayfaları temizle')`;
+  sonuc('"Hatırlanan sayfaları temizle" düğmesi var ve kayıt varken etkin', await evalJs(`!!${dugme} && !${dugme}.disabled`));
+  await evalJs(`${dugme}.click(), 1`);
+  await bekle(300);
+  r = await evalJs(`window.pdefe.cagir('ayar:al', 'sayfaKonumlari')`);
+  sonuc('temizleyince hatırlanan sayfalar silinir, düğme devre dışı kalır', J(r) === '{}' && await evalJs(`${dugme}.disabled`), r);
+  await evalJs(`(document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })), 1)`);
+
   console.log(`\nSonuç: ${toplam - hataSayisi}/${toplam} geçti${hataSayisi ? `, ${hataSayisi} HATA` : ''}.`);
   if (hataSayisi) process.exitCode = 1;
 }
