@@ -1038,9 +1038,31 @@ async function dondur(derece) {
   return is;
 }
 
+/** PDF'teki dış bağlantı (0.1.23, güvenlik denetimi): yalnızca web ve e-posta adresleri, tam adres gösterilip sorulduktan sonra açılır.
+ *  Başka türler (file:, search-ms:, uygulama adresleri) Windows'ta program çalıştırabildiği ya da uzak ağ paylaşımına bağlanabildiği
+ *  için açılmaz; ana süreç de yalnızca bu türleri açar (main/guvenlik.js). "Bu belgede yeniden sorma" belge kapanana dek geçerli. */
+const DIS_BAGLANTI_TURLERI = ['http:', 'https:', 'mailto:'];
+async function disBaglantiAc(b, adres) {
+  let tur = '';
+  try { tur = new URL(adres).protocol; } catch { /* geçersiz adres */ }
+  if (!DIS_BAGLANTI_TURLERI.includes(tur)) {
+    await mesajKutusu({ tur: 'warning', mesaj: 'Bu bağlantı açılmadı.', ayrinti: `Güvenlik nedeniyle yalnızca web ve e-posta adresleri açılır.\n\n${adres}` });
+    return;
+  }
+  if (!b.disBaglantiIzni) {
+    const { secim, onay } = await mesajKutusu({
+      mesaj: tur === 'mailto:' ? 'E-posta uygulaması açılsın mı?' : 'Bağlantı tarayıcıda açılsın mı?', ayrinti: adres,
+      dugmeler: ['Aç', 'Vazgeç'], varsayilan: 0, iptal: 1, onayKutusu: 'Bu belgede yeniden sorma',
+    });
+    if (secim !== 0) return;
+    if (onay) b.disBaglantiIzni = true;
+  }
+  pdefe.cagir('kabuk:disAc', adres).catch(() => {});
+}
+
 function baglantiyaGit(b, l) {
   const g = b.gorunum;
-  if (l.uri) { pdefe.cagir('kabuk:disAc', l.uri); return; }
+  if (l.uri) { disBaglantiAc(b, l.uri); return; }
   if (l.sayfa) {
     // Bağlantının hedefi kaynak dosyadaki sayfa; geçerli konumunu bul
     const i = g.sayfalar.findIndex((s) => !s.bos && yolAnahtari(s.kaynak.yol) === yolAnahtari(l.kaynakYol) && s.kaynak.sayfa === l.sayfa);

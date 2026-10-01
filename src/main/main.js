@@ -12,6 +12,7 @@ import { panoyaDosyaKopyala } from './pano.js';
 import { yazdirmaKur } from './yazdir.js';
 import { guncellemeKur } from './guncelleme.js';
 import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla } from './pencereler.js';
+import { disAdresMi } from './guvenlik.js';
 import electronUpdater from 'electron-updater';
 const { autoUpdater } = electronUpdater;
 
@@ -307,7 +308,11 @@ function ipcKur() {
     const hata = await shell.openPath(String(klasor || ''));
     return !hata;
   });
-  ipcMain.handle('kabuk:disAc', (_e, url) => shell.openExternal(url));
+  // Yalnızca web ve e-posta adresleri (0.1.23; guvenlik.js disAdresMi): PDF'teki bağlantı buraya gelir, başka türler açılmaz
+  ipcMain.handle('kabuk:disAc', async (_e, url) => {
+    if (!disAdresMi(url)) return false;
+    try { await shell.openExternal(String(url)); return true; } catch { return false; }
+  });
   // Test örneğinde sistem panosuna yazılmaz (bilgisayarı kullanan kişinin panosu bozulmasın): yazılan test:diyalogKaydi'na düşer
   ipcMain.handle('pano:metin', (_e, metin) => { if (testDiyalog) return testDiyalog('pano:metin', { uzunluk: metin?.length, bas: String(metin ?? '').slice(0, 200) }, true); clipboard.writeText(metin); return true; });
   ipcMain.handle('pano:oku', () => clipboard.readText());

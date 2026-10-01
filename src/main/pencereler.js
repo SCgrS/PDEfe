@@ -17,6 +17,7 @@
 //   'sekme:disSurukle'    { x, y } | null            başka pencerenin sekmesi bu pencerenin şeridi üzerinde sürükleniyor / ayrıldı
 import { BrowserWindow, screen, shell } from 'electron';
 import path from 'node:path';
+import { disAdresMi } from './guvenlik.js';
 
 const HAZIR_BEKLEME_MS = 20000;      // yeni pencerenin arayüzü bu sürede hazır olmazsa taşıma vazgeçilir
 const ISTEK_BEKLEME_MS = 120000;     // renderer'dan beklenen yanıt (büyük belgenin açılması dahil)
@@ -181,9 +182,9 @@ export function pencereOlustur({ sinirlar = null, goster = true, dosyalar = [] }
   pencere.on('enter-full-screen', () => gonder(k, 'pencere:tamEkran', true));
   pencere.on('leave-full-screen', () => gonder(k, 'pencere:tamEkran', false));
 
-  // Dış bağlantılar tarayıcıda açılsın
+  // Dış bağlantılar tarayıcıda açılsın (yalnızca web ve e-posta adresleri, guvenlik.js)
   pencere.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/i.test(url)) shell.openExternal(url);
+    if (disAdresMi(url)) shell.openExternal(url).catch(() => {});
     return { action: 'deny' };
   });
   return k;
