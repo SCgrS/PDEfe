@@ -412,3 +412,21 @@ Güvenlik düzeltmeleri test örneğinde (test/senaryo24.mjs, test/guvenlik_test
    Daha önce ortasında bırakılmış bir belgeyi açın: ilk sayfadan açılmalı.
 5. **Kurulu sürüm.** 0.1.23'e güncelledikten sonra PDEfe açılmalı; PDF açma, not ekleme ve kaydetme, yazdırma diyaloğu, Araçlar (Küçült,
    Birleştir) önceki gibi çalışmalı. (Electron 44.5.1'e yükseltildi ve uygulama dosyasının bütünlüğü açılışta denetleniyor.)
+
+## 31. 0.1.24: otomatik testlerin sınayamadıkları
+Görsellerdeki yazının tanınması, menü çubuğu ve kaydırma çubuğu ekran dışındaki test örneğinde üretilmiş örnek PDF'le sınandı
+(test/senaryo25.mjs); tanıma ayrıca İndirilenler'deki taranmış PDF'lerde yalnızca süre ve satır sayısı ölçülerek denendi. Gerçek
+fareyle, ekranda gözle ve kurulu sürümle denenmedi.
+1. **Taranmış belgede seçim.** UYAP'tan indirilmiş taranmış (yazısı seçilemeyen) bir evrak açın. Sayfa göründükten kısa süre sonra
+   yazının üstünde imleç yazı imlecine dönmeli; birkaç satırı fareyle seçin: mavi vurgu yazının tam üstüne oturmalı. `Ctrl+C` ile
+   kopyalayıp Word'e ya da UYAP Doküman Editörü'ne yapıştırın: satırlar paragraf olarak birleşmiş gelmeli. Birkaç sözcüğü taramayla
+   karşılaştırın (tarih ve esas numarası dahil); tanıyıcı her harfi doğru okumayabilir.
+2. **Karışık sayfa.** Hem yazısı seçilebilen hem görsel (kaşe, imza, antet) olan bir belgede: PDF'in kendi yazısı önceki gibi seçilmeli,
+   görseldeki yazı da seçilebilmeli; aynı satır iki kez kopyalanmamalı.
+3. **Yan çevrilmiş sayfa.** Yatay ya da yan yatırılmış taranmış bir sayfa varsa orada da seçin ve kopyalayın: satırlar okuma sırasıyla
+   gelmeli.
+4. **Menü çubuğu.** PDEfe açıldığında Dosya / Düzen / Görünüm çubuğu görünmemeli. Kopyala düğmesinin solundaki düğmeye basın: çubuk
+   görünmeli, düğme basılı görünmeli. PDEfe'yi kapatıp açın: çubuk açık kalmalı. Yeniden basıp gizleyin, kapatıp açın: gizli kalmalı.
+   Gizliyken tek başına `Alt`'a basın: çubuk geçici görünmeli (belgeye tıklayınca kaybolmalı); `Ctrl+O`, `Ctrl+S` çalışmalı.
+5. **Kaydırma çubuğu.** Belgenin sağındaki kaydırma çubuğunun tutamağı öncekinden kalın olmalı ve fareyle kolay tutulmalı. Genişliğe
+   sığdırılmış belgede altta yatay çubuk çıkmamalı.

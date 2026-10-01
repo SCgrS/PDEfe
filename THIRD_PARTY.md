@@ -19,6 +19,7 @@ kullanılan MuPDF / PyMuPDF'in AGPL-3.0 olmasıdır; bu bileşenler için Artife
 | Python | 3.12.14 | PSF-2.0 | Çekirdek sürecinin dili (PyInstaller ile exe'ye gömülür) | https://www.python.org/ |
 | fontTools | 4.65.0 | MIT | FreeText notları için Windows fontlarının GID koruyan alt kümesini çıkarma | https://github.com/fonttools/fonttools |
 | Pillow | 12.3.0 | MIT-CMU (HPND) | Görüntü işleme (görüntü → PDF, küçük resimler) | https://github.com/python-pillow/Pillow |
+| pywinrt (`winrt-runtime`, `winrt-Windows.Media.Ocr`, `winrt-Windows.Graphics.Imaging`, `winrt-Windows.Storage.Streams`, `winrt-Windows.Globalization`, `winrt-Windows.Foundation`, `winrt-Windows.Foundation.Collections`) | 3.2.1 | MIT | Windows'un yerleşik yazı tanıyıcısına (Windows.Media.Ocr) erişim: görsellerdeki yazının seçilebilmesi (0.1.24). Tanıyıcının kendisi Windows'un parçasıdır, PDEfe ile dağıtılmaz; paketle gelen `msvcp140.dll` Microsoft Visual C++ çalışma zamanıdır (Microsoft'un yeniden dağıtım koşulları) | https://github.com/pywinrt/pywinrt |
 | PyInstaller | 6.22.3 | GPL-2.0-or-later, önyükleyici istisnasıyla | `pdefe-core.exe` paketleme aracı; istisna gereği üretilen exe'ye GPL bulaşmaz | https://github.com/pyinstaller/pyinstaller |
 | electron-builder / app-builder-lib | 26.15.3 | MIT | NSIS kurulum paketi, GitHub yayımı | https://github.com/electron-userland/electron-builder |
 | electron-updater | 6.8.9 | MIT | Otomatik güncelleme (`latest.yml`, blockmap fark indirmesi) | https://github.com/electron-userland/electron-builder/tree/master/packages/electron-updater |
@@ -35,5 +36,5 @@ Windows'un kendi lisans koşullarına tabidir.
 ## Lisans metinleri
 
 - GNU AGPL-3.0: `LICENSE` (PDEfe, PyMuPDF, MuPDF)
-- MIT, Apache-2.0, BSD, PSF, HPND ve zlib lisans metinleri ilgili paketlerin dağıtım dosyalarında bulunur
+- MIT (pywinrt dahil), Apache-2.0, BSD, PSF, HPND ve zlib lisans metinleri ilgili paketlerin dağıtım dosyalarında bulunur
   (`node_modules/<paket>/LICENSE*`, Python paketlerinde `*.dist-info/licenses/`).

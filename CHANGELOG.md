@@ -3,6 +3,20 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.24 — 2026-10-02
+
+### Taranmış belgelerde yazı seçme
+- **Görsellerdeki yazı seçilip kopyalanabiliyor.** Taranmış sayfalardaki (UYAP'a görüntü olarak yüklenmiş evrak gibi) ve sayfaya resim olarak konmuş yazılar (kaşe, antet) artık PDF'in kendi metni gibi fareyle seçilir, sağ tıkla ya da `Ctrl+C` ile kopyalanır; kopyalanan metin temiz kopyalamadaki gibi paragraf paragraf gelir. Yazıyı Windows'un kendi yazı tanıyıcısı okur: internet gerekmez, belge hiçbir yere gönderilmez, PDF dosyası değişmez. Sayfa göründükten kısa süre sonra (bir sayfa için genellikle yarım saniyeden az) seçilebilir olur.
+- Tanıma bilgisayardaki Türkçe dil paketini kullanır. Tanıyıcı her harfi doğru okumayabilir (özellikle silik, eğik ya da el yazısı taramalarda); kopyaladığınız metni kontrol edin. `Ctrl+F` ile arama tanınan yazıda yapılmaz.
+- Daha önce başka bir programla tanınmış (yazısı seçilebilen) taranmış belgeler yeniden tanınmaz; sayfada hem metin hem görsel varsa yalnızca görseldeki yazı eklenir, aynı satır iki kez seçilmez.
+- **Yan çevrilmiş sayfalarda kopyalama düzeldi.** Yan yatırılmış olarak kaydedilip ekranda düz gösterilen sayfalarda kopyalanan satırlar karışık sırayla geliyordu; artık ekranda okunduğu sırayla gelir.
+
+### Menü çubuğu
+- **Menü çubuğu (Dosya, Düzen, Görünüm…) varsayılan olarak gizli.** Araç çubuğunun sağında, kopyala düğmesinin solundaki yeni düğmeyle açılıp kapanır; seçiminiz hatırlanır, her açılışta yeniden ayarlamanız gerekmez. Gizliyken `Alt` tuşu menü çubuğunu geçici olarak gösterir; `Ctrl+O`, `Ctrl+S` gibi kısayollar her iki durumda da çalışır.
+
+### Kaydırma çubuğu
+- Belgenin sağındaki (ve altındaki) kaydırma çubuğu kalınlaştı; fareyle tutması kolaylaştı.
+
 ## 0.1.23 — 2026-10-01
 
 Güvenlik ve kişisel veri denetiminden çıkan düzeltmeler.

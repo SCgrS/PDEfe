@@ -43,6 +43,10 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   paragrafa yapıştırınca satırlar dağılmaz), bozuk glifler düzeltilir. Belgede gerçekten boş satır olan yerler (kanunlarda
   bölüm ve madde başlıklarından önceki boşluk, sayfa sonuna denk gelenler dahil) bir boş paragraf olarak gelir; paragraf
   aralığı boş satır sayılmaz.
+- **Taranmış belgede seçim.** Taranmış sayfalardaki ve sayfaya resim olarak konmuş yazılar (kaşe, antet) PDF'in kendi metni gibi
+  fareyle seçilir ve temiz kopyalanır. Yazıyı Windows'un yerleşik yazı tanıyıcısı (Türkçe dil paketi) okur: çevrim dışı, belge
+  bir yere gönderilmez, dosyaya bir şey yazılmaz. Sayfada zaten seçilebilen metin varsa (başka programla tanınmış tarama) o metin
+  kullanılır; tanınan yazı `Ctrl+F` aramasına girmez.
 - **Türkçe arama.** `Ctrl+F` ile bul: İ/ı ve I/ı ayrımı doğru, tam sözcük seçeneği, yer imlerinde ve
   yorumlarda arama, tüm açık sekmelerde arama. Açık belgeler listesindeki **Tüm belgelerde ara** kutusu her
   belgedeki eşleşme sayısını gösterir. Word 2010'un bozuk Türkçe kodlaması (Ġ→İ, ġ→Ş, Ģ→ş) hem
@@ -76,6 +80,8 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   Türkçe karakterler ekrandaki gibi çıkar. Notlar istenirse basılır ("Notları yazdır" varsayılan olarak kapalı).
 - **PDF'i kopyala** (araç çubuğunun sağındaki kopyala simgeli düğme, Araçlar menüsü ya da sekmede sağ tık; yanında Ayarlar düğmesi).
   Belgeyi dosya olarak panoya kopyalar; UYAP'a, e-postaya ya da Gezgin'e `Ctrl+V` veya Yapıştır ile yapıştırılır.
+- **Menü çubuğu** (Dosya, Düzen, Görünüm…) varsayılan olarak gizlidir; kopyala düğmesinin solundaki düğmeyle açılıp kapanır, seçim
+  hatırlanır. Gizliyken `Alt` menü çubuğunu geçici gösterir; menünün kısayolları her iki durumda da çalışır.
 - **Koyu mod.** Sistem temasını izler; istenirse sayfa da tam siyaha koyulaştırılır (görseller korunur; yazı kutuları
   sayfayla birlikte koyulaşır, dosyadaki renkleri değişmez).
 - **Döndür.** Döndür düğmesi ve `Ctrl+R` / `Ctrl+Shift+R` (saat yönünde / tersine) belgeyi döndürür: geçerli sayfa ya da tüm PDF
@@ -164,6 +170,7 @@ silinmez; isterseniz o klasörü elle silebilirsiniz. Kurulum sistem klasörleri
 | `Ctrl+0` | Gerçek boyut |
 | `Ctrl+R` / `Ctrl+Shift+R` | Belgeyi saat yönünde / tersine döndür (geçerli sayfa ya da tüm PDF; geri alınabilir) |
 | `F4` | Sol panel |
+| `Alt` | Gizli menü çubuğunu geçici göster |
 | `Ctrl+H` | Okuma modu |
 | `F11` | Tam ekran |
 | `←` `→`, `PageUp` `PageDown` | Önceki / sonraki sayfa |
@@ -177,7 +184,8 @@ silinmez; isterseniz o klasörü elle silebilirsiniz. Kurulum sistem klasörleri
 ## Verileriniz
 
 Bütün işlemler yereldir; belgeleriniz hiçbir yere gönderilmez, telemetri yoktur. Ağa yalnızca sürüm
-denetiminde (`github.com`) çıkılır. Ayarlar `%APPDATA%\PDEfe\ayarlar.json` dosyasındadır. Son açılan belgelerin listesi
+denetiminde (`github.com`) çıkılır. Görsellerdeki yazıyı Windows'un kendi yazı tanıyıcısı bilgisayarda okur; tanınan yazı yalnızca
+PDEfe açıkken bellekte tutulur, dosyaya ya da başka bir yere yazılmaz. Ayarlar `%APPDATA%\PDEfe\ayarlar.json` dosyasındadır. Son açılan belgelerin listesi
 ve belgelerde kalınan sayfalar da (dosya yollarıyla) bu dosyada tutulur; ikisi de Ayarlar › Açılış ve düzen'den kapatılır,
 kapatılınca kayıtları silinir (kalınan sayfalar Hatırlanan sayfaları temizle ile de silinir). Yapıştırılan ekran görüntüleri
 ve yazdırılan sayfaların görüntüleri `%TEMP%\PDEfe` altında geçici tutulur; PDEfe açılırken ve kapanırken silinir. Notlara
@@ -196,6 +204,9 @@ npm install
 # Python çekirdeği için sanal ortam (uv ile; pip de olur)
 uv venv .venv --python 3.12
 uv pip install --python .venv/Scripts/python.exe pymupdf fonttools pillow pyinstaller
+# görsellerdeki yazının tanınması (Windows yazı tanıyıcısının Python bağları)
+uv pip install --python .venv/Scripts/python.exe winrt-runtime winrt-Windows.Foundation winrt-Windows.Foundation.Collections \
+  winrt-Windows.Globalization winrt-Windows.Graphics.Imaging winrt-Windows.Media.Ocr winrt-Windows.Storage.Streams
 
 npm start                 # geliştirme: Electron + core/pdefe_core.py (.venv ile)
 npm run cekirdek:derle    # PyInstaller → core/dist/pdefe-core/ (tek klasör)
@@ -218,6 +229,7 @@ PDEfe şu açık kaynak projelerin üzerine kuruludur (sürümler ve lisanslar i
 - **PDF.js / pdfjs-dist** (Apache-2.0, Mozilla) — sayfa çizimi, metin katmanı, yer imleri.
 - **PyMuPDF** ve **MuPDF** (AGPL-3.0, Artifex) — belge işleme çekirdeği: notlar, kaydetme, küçük resimler.
 - **Python** (PSF), **fontTools** (MIT), **Pillow** (MIT-CMU), **PyInstaller** (GPL-2.0, önyükleyici istisnası).
+- **pywinrt** (MIT) — Windows'un yerleşik yazı tanıyıcısına (Windows.Media.Ocr) Python'dan erişim.
 - **electron-builder / electron-updater** (MIT), **electron-store** (MIT), **pdf-lib** (MIT), **NSIS** (zlib).
 
 <!-- TEŞEKKÜR: kullanıcı onayı bekliyor — aşağıdaki bölüm proje sahibi onaylayınca yayımlanacak.

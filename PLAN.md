@@ -56,6 +56,7 @@ core/                   Python 3.12 (proje içi .venv, uv ile kurulu; PyInstalle
   islemler/notlar.py    not yazma: Highlight/Text (referans okuyucu yapısı)/FreeText (gömülü Türkçe yüzler, parçalı /RC), kaydet
   islemler/araclar.py   küçült, sayfa düzenle, ayır, görüntü/PDF birleştir, döndür; geçici dosya + atomik yer değiştirme
   islemler/yapisal.py   sayfa tarifinden belge kurma, anlık kopya, konumsal not eşleme, içerik kutusu
+  islemler/yazi_tanima.py  0.1.24: görsellerdeki yazının tanınması (Windows.Media.Ocr, pywinrt); kendi iş parçacığı, sayfa önbelleği
 test/                   surucu.mjs (CDP ile uygulamayı sürer; gerçek fare/klavye girdisi; hedefler / hedefSec: birden çok pencere),
                         baslat.ps1 / durdur.ps1, kurulum_bitis.ps1 (ayrı veri klasörlü, ekran dışı test örneği), senaryo*.mjs,
                         incele.py, not_testi.py, ornek_pdf_uret.py (yer tutucu PDF üretir ve PDF özetini verir),
@@ -68,7 +69,8 @@ build/                  simge, NSIS, derleme betikleri
 ## Çekirdek protokolü
 İstek `{"id", "method", "params"}` → yanıt `{"id", "result"}` / `{"id", "error"}`; uzun işler `{"id", "progress": {"yuzde", "mesaj"}}` gönderir.
 Yöntemler: ping, belge_bilgi, kucuk_resim, notlar, not_gorunum, gorsel_kutulari, metin_sec, sayfa_metni, belge_birak,
-notlar_kaydet, freetext_stil, baglantilar, form_gorunum (+ araçlar).
+notlar_kaydet, freetext_stil, baglantilar, form_gorunum, ocr_sayfa (+ araçlar). ocr_sayfa'nın yanıtı tanıma iş parçacığından gelir
+(`Ertelenmis`, 0.1.24): işçi beklemeden sıradaki isteğe geçer, yanıtlar istek sırasıyla gelmeyebilir.
 
 ## Temel kararlar
 - **Çizim**: PDF.js sayfa içeriğini çizer (annotationMode DISABLE); notların tamamı PDEfe'nin kendi katmanında çizilir
@@ -1135,3 +1137,84 @@ bakacak.
     111'i 0.1.22'de de 111 (notlardaki 112 ortama bağlı). not_testi ve araclar_testi 0.1.22 ile aynı (yer tutucularla araclar 114/120,
     aynı 6 hata). Testlerin "Panodan ekle" adımı gerçek panodaki görüntüyü kullanıp %TEMP%\PDEfe'ye kopyasını bırakıyor: silindi.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 30.
+
+### Revizyon 0.1.24 (2026-10-02, kullanıcı isteği)
+Ayrıntı: CHANGELOG.md. Kullanıcı (evde, üç madde): "pdf resimlerdeki seçebildiği harf kelimeleri seçebilmek istiyorum"; menü çubuğu
+varsayılan olarak gizli olsun, kopyalama simgesinin yanındaki bir işaretle açılıp gizlensin, PDEfe bu ayarı hatırlasın; "soldaki kaydırma
+şeridini biraz genişletmek lazım" (sorulunca: "sağdaki kaydırma şeyini kastetmiştim", yani belgenin kaydırma çubuğu).
+- [x] **Görsellerdeki yazı** (core/islemler/yazi_tanima.py; goruntuleyici.js `tanimaIste`, `tanimaOgeleri`; pdefe_core.py `Ertelenmis`,
+  `y_metin_sec`).
+  - Tanıyıcı Windows.Media.Ocr (Python'dan pywinrt 3.2.1). Gerekçe: Windows 10/11'de yerleşik, Türkçe dil paketiyle gelir (bu bilgisayarda
+    "tr" var), çevrim dışı, model dosyası dağıtılmaz, hızlı: A4 216 dpi ~0,15 sn; İndirilenler'deki gerçek taranmış UYAP sayfalarında
+    (yalnızca sayılar okundu) en uzunu 0,39 sn, sayfa başına 17–75 satır. Seçilmeyen: Tesseract (PyMuPDF'in tanıması da onu ister; kurulum
+    ve ~15 MB Türkçe model), tesseract.js (WASM, yavaş, model dağıtımı), PowerShell'den WinRT (her sayfada süreç), .NET yardımcı exe
+    (çalışma zamanı ya da ~60 MB).
+  - Tanınan bölgeler: sayfadaki görsellerin birleşik kutuları; 1000 pt²'den küçükler (simge, madde imi, logo) atlanır, görseller sayfanın
+    %60'ını kaplıyorsa bütün sayfa. Kutusunun en az %15'ini sayfanın sözcükleri kaplayan görsel tanınmaz (başka programla tanınmış tarama:
+    görünmez yazı; antet görselinin üstüne yazılmış belge). Tanınan sözcüklerden sayfanın bir sözcüğüyle (küçüğünün alanının) %30'undan
+    çok örtüşenler atılır: taranmış evraka eklenmiş e-imza satırı iki kez seçilmesin.
+  - Bölge ekrandaki düzlemde (/Rotate uygulanmış) gri çizilir: tanıyıcı yazıyı okuyucunun gördüğü gibi dik görür; sonuç PyMuPDF'in
+    düzlemine (döndürülmemiş, görünür kutunun üst-sol kökenli) çevrilir. Tanıyıcının ölçtüğü eğim 1°'den azsa sözcük kutuları satırın
+    üst ve alt kenarına eşitlenir (seçim vurgusu satırda düz). Ters (180°) taranmış yazı tanınmaz.
+  - Türkçe tanıyıcı rakamların arasındaki 1 ve 0'ı harf okuyabiliyor ("01.ıo.2026"): en az iki rakamlı sözcükte, önünde rakam ya da
+    . / - (veya sözcük başı), ardında rakam ya da . / - olan rakama benzer harf dizisi (o O ı l I i |) rakam yapılır. Ekler ("1990'lı",
+    "15'i", "80li") çevrilmez (ilk sürümdeki "harfler rakamlardan az" kuralı onları bozuyordu; incelemede bulundu).
+  - İş parçacıkları: çizim işçide (PyMuPDF iş parçacığı güvenli değil), tanıma `yazi-tanima` iş parçacığında. Yöntem `Ertelenmis`
+    döndürür, `_istek_isle` yanıtı oradan yazdırır: tanıma sürerken küçük resimler ve kopyalama beklemez (sınandı: tanımadan sonra
+    gönderilen küçük resim isteği önce yanıtlandı). Sonuç (yol, değişme zamanı, boyut, sayfa) anahtarıyla 400 sayfalık önbellekte.
+    Tanıyıcı yoksa (dil paketi, pywinrt) `desteklenmiyor` döner, arayüz o pencerede bir daha istemez.
+  - Arayüz: metin katmanı kurulunca sayfa için `ocr_sayfa` istenir; aynı anda tek istek, sıradaki geçerli sayfaya en yakın bekleyen;
+    katmanı boşaltılan (kaydırılıp geçilen) sayfa kuyruktan düşer. Sözcükler PDF.js metin öğesine çevrilir ve PDF'in öğelerinden sonra
+    eklenir: Bul'un vurgusu öğe sırasıyla eşlendiğinden PDF'in öğeleri yerinde kalmalı. Sonuç gelince katman yeniden kurulur (katmanda
+    seçim varsa seçim kalkana dek beklenir); sonra yakınlaştırma ya da kaydırmayla yeniden kurulurken girdideki sonuç kullanılır.
+  - Öğe = sözcük + ardındaki boşluk, genişliği sözcüğün kendi genişliği. Ayrı boşluk öğesi de sonraki sözcüğe dek uzanan öğe de seçim
+    vurgusunu sonraki sözcüğün başında iki kat koyulaştırıyordu (ekran görüntüsüyle bulundu): Chromium her mutlak konumlu öğenin sonuna
+    satır sonu vurgusu çiziyor; öğe sözcükte bitince o vurgu sözcük arasındaki boşluğa düşer.
+  - Kopyalama: `metin_sec` tanınan sözcükleri yalnızca seçim onlardan birine değiyorsa sayfanın sözcüklerine katar (yalnızca PDF metni
+    seçilmişken sayfanın sol kenarı ve sütunlar kenardaki bir kaşenin yazısından etkilenmesin: her satır girintili, ayrı paragraf
+    çıkıyordu). Her satır ayrı bloktur, alt alta tam satırlar "satır başına blok" kuralıyla paragrafta birleşir. Önbellekte yoksa ve
+    seçim tanınacak bir bölgeye değiyorsa tanır ve bekler; değmiyorsa beklemez.
+  - Bul tanınan yazıyı aramaz (bilerek): tanıma yalnızca görünen sayfalarda yapılıyor; aranan sözcük tanınmış sayfada bulunup henüz
+    tanınmamışta bulunmazdı. Bütün belgede aramak için arka planda tanıma ileride düşünülebilir.
+  - Tanınan yazı belgeye yazılmaz (görünmez yazı katmanı eklenmez): dosya değişmez, e-imza bozulmaz.
+- [x] **Döndürülmüş sayfada kopya sırası** (pdefe_core.py `y_metin_sec`, `_bos_paragraflar`). Kök neden: sözcükler ve seçim kutuları
+  döndürülmemiş düzlemde; /Rotate 90 sayfada ekranda düz okunan yazı orada dikeydir, satırlar y'ye göre sıralanınca karışıyordu (PDF
+  metniyle de sınandı: "Üçüncü, Birinci, İkinci"; çekirdeğin metni uzunluğu tuttuğu için panoya o geçiyordu). Karar (`_metin_duzlemi`):
+  PDF metninin satırlarının çoğu ekranda soldan sağa okunuyorsa (ya da sayfada yalnızca tanınan yazı varsa) sözcükler, kutular ve boş
+  paragraflar ekrandaki düzleme çevrilir; satırlar döndürülmemiş düzlemde soldan sağa okunuyorsa (sayfa ekranda yan duruyor) 0.1.23'teki
+  gibi kalır (ilk sürüm her döndürülmüş sayfayı çeviriyor, yan duran sayfada sırayı tersine çeviriyordu; incelemede bulundu).
+  Döndürülmemiş sayfada değişiklik yok.
+- [x] **Menü çubuğu** (ayar `menuCubugu`, varsayılan false; pencereler.js `menuCubuguKur`, `menuCubugunuUygula`; uygulama.js
+  `menuDugmesiGuncelle`; index.html `#dugme-menu`). Düğme kopyala düğmesinin solunda: kopyala, Ayarlar ve tema düğmelerinin yeri
+  değişmez. Basılıyken çubuk görünür. Gizliyken `autoHideMenuBar`: tek başına Alt çubuğu geçici gösterir (Windows'taki gibi; Alt+D gibi
+  menü harfleri de çalışır; test örneğinde sınandı); Ctrl kısayolları her iki durumda çalışır (gizliyken `Ctrl+,` sınandı). Dar pencerede
+  araç çubuğu sıkışırken menü düğmesi kopyala düğmesinden önce gizlenir (yeni kademe `sikisik-4`; kopyala `sikisik-5`): yoksa 720–748 px
+  pencerelerde kopyala düğmesi gizleniyordu (gerileme denetiminde ölçüldü). Ayar bütün pencerelerde ortak (ana süreç `ayar:koy`'da bütün
+  pencerelere uygular); "Varsayılanlara dön" ona dokunmaz (DURUM_ANAHTARLARI, sol panel gibi görünüm durumu). Eski sürümden gelen
+  kullanıcıda da gizli açılır ("varsayılan olarak gizli olsun"). Seçilmeyen: Görünüm menüsüne ayrıca öğe (istenmedi).
+- [x] **Kaydırma çubuğu** (stil.css `.kaydirici::-webkit-scrollbar` 16 px, tutamak 6 → 10 px). Yalnızca belge görünümü; panellerdeki ve
+  pencerelerdeki çubuklar 12 px kaldı. Sığdırma hesabı kalınlığı ölçüm kutusundan okur (`cubukKalinligi`): kutuya `.kaydirma-olcer`
+  sınıfı verildi, aynı kuralı alır.
+- [x] **Paket**: pywinrt PyInstaller'da açıkça toplanır (`collect_submodules("winrt")`, `collect_dynamic_libs("winrt")`: msvcp140.dll);
+  çekirdek klasörü ~80 MB (+~1 MB). CI paket listesine winrt-* 3.2.1. Paketli çekirdek bu bilgisayarda sınandı (örnek PDF'te sonuçlar
+  kaynaktakiyle aynı).
+- [x] **Testler**: senaryo25 (28: menü çubuğu varsayılanı, düğme, içerik alanı, yeniden yükleme, ayar; çubuk kalınlığı ve sığdırma;
+  taranmış, yan çevrilmiş, görselsiz, önceden tanınmış ve karışık sayfa; sözcüklerin yeri, fareyle seçim, kopya, çekirdeğin temiz metni,
+  katman yeniden kurulunca, Bul), test/tanima_pdf_uret.py (örnek PDF), test/tanima_testi.py (19: rakam kuralı, kenardaki kaşe, iki tür
+  döndürülmüş sayfa, 4000 görselli ve büyük sayfa, çıkışta bekleyen yanıt; incelemenin bulgularını kapsar).
+  - Regresyon (yer tutucusuz; Masaüstü\PDF DENEME bu bilgisayarda yok): senaryo23 53/53, senaryo24 38/38, senaryo21 39/39, kisayol_gorunum
+    117/117, kisayol_araclar 91/91 (ilk koşum hatasız kesildi, temiz örnekte geçti), ortu_tiklama 155/155, sekme_genislik 24/24 (720 px;
+    son hâlle yeniden), sigdirma_kararli 51/51 (ölçek 1, 1,25, 1,5), sigdirma_rastgele 420 örnekte 0 sorun (1 ve 1,5), senaryo19 112/112,
+    senaryo20 38/38, kisayol_dosya 164/164, senaryo22 101/101, kopyalama_testi 17/17 (1.5.6098.pdf vakaları atlandı), guvenlik_testi 36/36.
+    Pano kullanan senaryo3, 11, 12 koşulmadı.
+- [x] **Bağımsız inceleme** (salt okunur ajan) gerçek hatalar buldu, düzeltildi ve kopyalarıyla yeniden sınandı:
+  - Yalnızca PDF metni seçilince kenardaki kaşenin tanınan yazısı kopyayı bozuyordu; rakam kuralı ekleri bozuyordu; döndürülmüş ama yazısı
+    yan duran sayfada kopya sırası tersine dönüyordu (yukarıda).
+  - Kötü niyetli PDF: görsel kutularını birleştirme kutu sayısının küpüyle uzuyordu (800 kutu 5,6 sn; ~14 KB'lık PDF'le dakikalar). 60'tan
+    çok görsel kutusu birleştirilmez, sayfa tek bölge (4000 görselli sayfa 0,13 sn). Piksel sınırı bölge başınaydı (30 bölgede ~600 MB):
+    sayfa başına 20 milyon piksel, ölçek ortak küçülür.
+  - Tek / iki sayfa düzeninde ön çizilen sonraki sayfanın tanınan yazısı gösterilince eklenmiyordu (`yerlesim` yerine `yerAl`).
+  - Tanıma iş parçacığı yanıt yazarken hata alırsa ölüyordu (bütün tanıma istekleri yanıtsız kalırdı): yanıt yazımı da korunur. Çıkışta
+    süren WinRT işi kapanan yorumlayıcıya girip çökebilirdi: sıradaki tanımalar en çok 10 sn beklenir, süreç `os._exit` ile sonlanır
+    (yanıt da yazılır; sınandı). Aynı sayfa için ikinci tanıma işi önbellekteki sonucu kullanır.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 31.
