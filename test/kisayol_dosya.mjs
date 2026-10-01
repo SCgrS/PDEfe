@@ -99,9 +99,15 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, tusH
   let d = await durumAl();
   // 0.1.21: sekme çubuğu hiç kapanmaz; belgesiz pencerede tek açılış sekmesi (önceden sekme yoktu, çubuk gizliydi)
   sonuc('Başlangıç: tek sekme "Yeni sekme", sekme çubuğu görünür, açılış ekranı görünür', J(d.sekmeler) === J(['Yeni sekme']) && d.aktif === 'Yeni sekme' && d.cubuk && d.baslangic, d);
+  // 0.1.22 (kullanıcı isteği): belge yokken de Ctrl+T yeni boş sekme açar (0.1.21'de açmıyordu); Ctrl+W onu kapatır, pencere açık kalır
+  const ilkSekme = await evalJs(`window.__pdefe.sekmeler.aktifId`);
   await tusG('T', ['control']);
   d = await durumAl();
-  sonuc('Ctrl+T belge yokken: yeni sekme açılmaz (tek açılış sekmesi), açılış ekranı görünür', J(d.sekmeler) === J(['Yeni sekme']) && d.aktif === 'Yeni sekme' && d.cubuk && d.baslangic, d);
+  const ikinciSekme = await evalJs(`window.__pdefe.sekmeler.aktifId`);
+  sonuc('Ctrl+T belge yokken: ikinci "Yeni sekme" açılır ve etkin olur, açılış ekranı görünür', J(d.sekmeler) === J(['Yeni sekme', 'Yeni sekme']) && d.aktifIdx === 1 && ikinciSekme !== ilkSekme && d.cubuk && d.baslangic, d);
+  await tusG('W', ['control']);
+  d = await durumAl();
+  sonuc('Ctrl+W belge yokken iki açılış sekmesinden etkin olanı kapatır; pencere açık, ilk sekme kalır', J(d.sekmeler) === J(['Yeni sekme']) && (await evalJs(`window.__pdefe.sekmeler.aktifId`)) === ilkSekme && d.cubuk && d.baslangic, d);
   await tusG('O', ['control'], 600);
   let k = await kayit();
   sonuc('Ctrl+O: Aç penceresi (dosya:acDiyalog) açılır; yanıtsız (vazgeç) hiçbir şey açılmaz', k.length === 1 && k[0].kanal === 'dosya:acDiyalog' && J((await durumAl()).sekmeler) === J(['Yeni sekme']), k);

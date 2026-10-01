@@ -2,8 +2,8 @@
 // paneli, dosyadaki /Subj), seçim mini çubuğunda renklerin ▾'nin altında dikey sütun olarak açılması (çubuk genişlemez, yan boşluklar
 // küçük; altta yer yoksa ya da çubuk seçimin üstündeyse sütun yukarı), Sayfaları düzenle'de "PDF ekle" ve araçlarda "Kaydet" bölüm
 // başlığı, sekme çubuğunda + / Ctrl+T ile "Yeni sekme" (açılış sayfası sekmesi; önde açılan belge onun yerini alır, zaten açık dosyada
-// o sekmeye geçilir; 0.1.21'den beri sekme çubuğu hiç kapanmaz: son belge kapanınca açılış sekmeleri teke iner, belgesiz pencerede
-// tek açılış sekmesi), açılış ekranında büyük PDF aç düğmesi + sürükle-bırak bilgisi
+// o sekmeye geçilir; 0.1.21'den beri sekme çubuğu hiç kapanmaz; 0.1.22'den beri son belge kapanınca açılış sekmeleri kalır, belge
+// yokken de Ctrl+T yeni açılış sekmesi açar), açılış ekranında büyük PDF aç düğmesi + sürükle-bırak bilgisi
 // (0.1.14'ten beri düğmenin açıklamasında) + beş aracın hepsi + Son açılanlar (0.1.14'ten beri araçların altında; "Son açılanları
 // hatırla" kapalıyken kutu hiç yok, içerik ortada; 0.1.14'ün ayrıntılı açılış denetimleri senaryo20'de), belge gerektiren araçların
 // belge yokken önce Aç penceresini açması (açılış ekranı kartları, Araçlar penceresi, Araçlar menüsü, açılış sekmesi), araç
@@ -398,19 +398,24 @@ export default async function (surucu) {
     await menuTus('W', ['control']);
     d = await durum();
     sonuc('Ctrl+W (menü kısayolu) açılış sekmesini kapatır, önceki sekmeye dönülür', onceW.aktif === '+' && !d.adlar.includes('+') && d.adlar.length === 7 && d.aktif === 'd.pdf', { onceW, d });
-    // Son belge kapanınca açılış sekmeleri teke iner (0.1.21; önceden hepsi kalkıyor, sekme çubuğu gizleniyordu)
+    // Son belge kapanınca açılış sekmeleri kalır (0.1.22, kullanıcı isteği; 0.1.21'de teke iniyordu, önceden hepsi kalkıyor, sekme çubuğu
+    // gizleniyordu)
     await menuTus('T', ['control']);
     await menuTus('T', ['control']);
     for (const ad of ['a.pdf', 'b.pdf', 'c.pdf', 'd.pdf', 'e.pdf', 'f.pdf']) await kapat(ad);
     d = await durum();
     sonuc('Bir belge kalmışken açılış sekmeleri duruyor', J(d.adlar) === J(['g.pdf', '+', '+']), d);
+    const etkinArti = d.aktifId;
     await kapat('g.pdf'); await bekle(300);
     d = await durum();
     const baslikBos = pencereBasligi();
-    sonuc('Son belge kapanınca açılış sekmeleri teke iner: sekme çubuğu görünür, açılış ekranı', J(d.adlar) === J(['+']) && !d.cubukGizli && d.acilisGorunur && d.aktif === '+' && d.belge === null && (baslikBos == null || baslikBos === 'PDEfe'), { d, baslikBos });
+    sonuc('Son belge kapanınca açılış sekmeleri kalır: sekme çubuğu görünür, etkin olan değişmez, açılış ekranı', J(d.adlar) === J(['+', '+']) && d.aktifId === etkinArti && !d.cubukGizli && d.acilisGorunur && d.aktif === '+' && d.belge === null && (baslikBos == null || baslikBos === 'PDEfe'), { d, baslikBos });
     await menuTus('T', ['control']);
     d = await durum();
-    sonuc('Belge yokken Ctrl+T sekme açmaz (açılış sayfası tek açılış sekmesinde zaten açık)', J(d.adlar) === J(['+']) && !d.cubukGizli && d.acilisGorunur, d);
+    sonuc('Belge yokken Ctrl+T (menü kısayolu) yeni açılış sekmesi açar, o etkin', J(d.adlar) === J(['+', '+', '+']) && d.aktifId === d.idler[2] && !d.idler.slice(0, 2).includes(d.aktifId) && !d.cubukGizli && d.acilisGorunur, d);
+    await menuTus('W', ['control']); await menuTus('W', ['control']);
+    d = await durum();
+    sonuc('Belge yokken Ctrl+W açılış sekmelerini birer birer kapatır, pencere açık kalır, tek açılış sekmesi', J(d.adlar) === J(['+']) && !d.cubukGizli && d.acilisGorunur, d);
 
     // Sekmeler sığmayınca: + sağda sabit (▶ öncesi), liste kayar, etkin açılış sekmesi görünür
     for (const ad of kucukAdlar) await evalJs(`window.__pdefe.dosyaAc(${J(path.join(PDF, ad + '.pdf'))}).then(() => true)`);

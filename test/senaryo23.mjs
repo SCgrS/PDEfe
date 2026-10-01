@@ -1,7 +1,9 @@
 // Senaryo 23 (0.1.21, kullanıcı istekleri): sekme çubuğu ve PDF'i kopyala.
-//   1) Sekme çubuğu hiç kapanmaz: belgesiz pencerede tek açılış sekmesi ("Yeni sekme") vardır; pencere onunla açılır, son belge kapanınca
-//      yerine o gelir (yanındaki açılış sekmeleri teke iner); kapatılmaz (× gizli, Kapat devre dışı, orta tık etkisiz), + / Ctrl+T yeni sekme
-//      açmaz, pencerede açılan ya da başka pencereden gelen ilk belge onun yerini alır; tek açılış sekmesinde Ctrl+W pencereyi kapatır.
+//   1) Sekme çubuğu hiç kapanmaz: pencere açılış sekmesiyle ("Yeni sekme") açılır, son sekme kapanınca yerine o gelir; pencerenin tek
+//      sekmesi açılış sekmesiyse kapatılmaz (× gizli, Kapat devre dışı, orta tık etkisiz), pencerede açılan ya da başka pencereden gelen
+//      ilk belge onun yerini alır; tek açılış sekmesinde Ctrl+W pencereyi kapatır.
+//      0.1.22 (kullanıcı isteği): belgesiz pencerede de + / Ctrl+T yeni boş sekme açar; son belge kapanınca yanındaki açılış sekmeleri kalır
+//      (0.1.21'de teke iniyordu); birden çok açılış sekmesi varken arka planda açılan ya da taşınan belge onların yanına eklenir.
 //   2) Sürüklenen sekme komşusunun dörtte birine girince yer değiştirir (önceden ortası komşunun ortasına varınca: tam üstüne gelince).
 //   3) Sekme genişliği sekme sayısına göre: az sekmede 220 px, sığmayınca birlikte daralır, 118 px'e inince liste kaydırılır; × ile
 //      kapatırken genişlik imleç çubuktan çıkana dek kilitli (sıradaki sekmenin × düğmesi imlecin altına gelir).
@@ -64,7 +66,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
   const P = (kimlik) => hedefSec(harita.get(kimlik));
   const ana = (kanal, ...args) => evalJs(`window.pdefe.cagir(${J(kanal)}, ...${J(args)})`);
   const durum = () => evalJs(`(() => { const p = window.__pdefe, c = document.querySelector('#sekme-cubugu'), cr = c.getBoundingClientRect();
-    return { sekmeler: p.sekmeler.sekmeler.map((s) => s.ad), acilis: p.sekmeler.sekmeler.map((s) => !!s.baslangic), aktif: p.sekmeler.aktifId,
+    return { sekmeler: p.sekmeler.sekmeler.map((s) => s.ad), idler: p.sekmeler.sekmeler.map((s) => s.id), acilis: p.sekmeler.sekmeler.map((s) => !!s.baslangic), aktif: p.sekmeler.aktifId,
       aktifAd: p.sekmeler.bul(p.sekmeler.aktifId)?.ad ?? null, belge: p.aktif()?.ad ?? null, cubukGorunur: !c.hidden && cr.height > 20,
       acilisEkrani: !document.querySelector('#baslangic').hidden, toplam: document.querySelector('#sayfa-toplam').textContent,
       kapatGorunur: [...document.querySelectorAll('.sekme .kapat')].map((k) => getComputedStyle(k).visibility === 'visible') }; })()`);
@@ -110,11 +112,43 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
   d = await durum();
   sonuc('Son belge kapanınca yerine açılış sekmesi gelir: çubuk görünür, "Yeni sekme" etkin, açılış ekranı ve boş araç çubuğu', d.cubukGorunur && J(d.sekmeler) === J(['Yeni sekme']) && d.acilis[0] && d.aktifAd === 'Yeni sekme' && d.acilisEkrani && d.belge === null && d.toplam === '/ 0' && J(d.kapatGorunur) === J([false]), d);
   await ekranGoruntusu(path.join(K, 'png', '1-son-belge-kapandi.png'));
-  // Belgesiz pencerede + / Ctrl+T yeni sekme açmaz (açılış sayfası zaten açık; 0.1.13'ten beri sekmesiz açılış ekranında da açmıyordu)
+  // 0.1.22 (kullanıcı isteği): belgesiz pencerede de + yeni boş sekme açar (0.1.21'de açmıyordu). + düğmesine gerçek fare tıklaması
+  const bosId = d.aktif;
+  const fare = await girdi(harita.get(P1));
+  const arti = await evalJs(`(() => { const r = document.querySelector('#sekme-yeni').getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]; })()`);
+  await fare.tikla(...arti); await bekle(300);
+  d = await durum();
+  sonuc('Belgesiz pencerede + yeni boş sekme açar, o etkin; iki sekmenin de × düğmesi görünür, açılış ekranı',
+    J(d.sekmeler) === J(['Yeni sekme', 'Yeni sekme']) && d.acilis.every(Boolean) && d.aktif === d.idler[1] && d.idler[0] === bosId && d.acilisEkrani && d.belge === null && J(d.kapatGorunur) === J([true, true]), d);
+  const arti2 = await evalJs(`(() => { const r = document.querySelector('#sekme-yeni').getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]; })()`);
+  await fare.tikla(...arti2); await bekle(300);
+  fare.kapat();
+  d = await durum();
+  sonuc('+ ile üçüncü boş sekme de açılır (+ son sekmenin yanına kayar)', J(d.sekmeler) === J(['Yeni sekme', 'Yeni sekme', 'Yeni sekme']) && d.aktif === d.idler[2] && arti2[0] > arti[0], { d, arti, arti2 });
   await evalJs(`window.__pdefe.komutCalistir('sekme.yeni')`); await bekle(200);
   d = await durum();
-  sonuc('Belgesiz pencerede + / Ctrl+T yeni sekme açmaz', J(d.sekmeler) === J(['Yeni sekme']) && d.acilisEkrani, d.sekmeler);
-  // Belgelerin yanındaki açılış sekmeleri: son belge kapanınca tek açılış sekmesi kalır (etkin olan)
+  sonuc('Belgesiz pencerede Ctrl+T (sekme.yeni) de yeni boş sekme açar', J(d.sekmeler) === J(['Yeni sekme', 'Yeni sekme', 'Yeni sekme', 'Yeni sekme']) && d.aktif === d.idler[3], d);
+  m = await sagTik('Yeni sekme', null);
+  sonuc('Birden çok açılış sekmesinde sağ tık: Kapat etkin, Pencereye ayır devre dışı', m.menu && m.menu.includes('Kapat') && m.menu.includes('Pencereye ayır (devre dışı)'), m.menu);
+  // Ctrl+W etkin açılış sekmesini kapatır (pencere kapanmaz); son kullanılan sekmeye dönülür
+  const ucuncu = d.idler[2];
+  await evalJs(`window.__pdefe.komutCalistir('sekme.kapat')`); await bekle(300);
+  d = await durum();
+  sonuc('Belgesiz pencerede Ctrl+W etkin açılış sekmesini kapatır, son kullanılana döner, pencere açık', J(d.sekmeler) === J(['Yeni sekme', 'Yeni sekme', 'Yeni sekme']) && d.aktif === ucuncu && (await yenile()).includes(P1), d);
+  P(P1);
+  // × ile kapatma: son açılış sekmesi kalınca × gizlenir, ilk sekme kalır
+  for (const id of d.idler.slice(1)) await evalJs(`(async () => { window.__pdefe.sekmeler.dispatchEvent(new CustomEvent('kapat', { detail: { id: ${J(id)} } })); await new Promise((r) => setTimeout(r, 200)); return true; })()`);
+  d = await durum();
+  sonuc('Açılış sekmeleri tek tek kapatılır; tek açılış sekmesi kalınca × gizli, kapatılmaz', J(d.sekmeler) === J(['Yeni sekme']) && d.aktif === bosId && J(d.kapatGorunur) === J([false]) && d.acilisEkrani, d);
+  // Belgesiz pencerede açılış sekmelerinden birinden açılan belge yalnızca o sekmenin yerini alır
+  await evalJs(`window.__pdefe.komutCalistir('sekme.yeni')`); await bekle(200);
+  await ac(['a.pdf']);
+  d = await durum();
+  sonuc('İki açılış sekmesinden etkin olandan açılan belge onun yerini alır, öteki kalır', J(d.sekmeler) === J(['Yeni sekme', 'a.pdf']) && d.idler[0] === bosId && d.belge === 'a.pdf', d);
+  await kapatOlayi('a.pdf');
+  d = await durum();
+  sonuc('Belge kapanınca yanındaki açılış sekmesi kalır (yenisi açılmaz)', J(d.sekmeler) === J(['Yeni sekme']) && d.aktif === bosId && d.acilisEkrani && J(d.kapatGorunur) === J([false]), d);
+  // Belgelerin yanındaki açılış sekmeleri: son belge kapanınca hepsi kalır, etkin olan değişmez (0.1.21'de teke iniyordu)
   await ac(['a.pdf', 'b.pdf']);
   await evalJs(`window.__pdefe.komutCalistir('sekme.yeni')`); await bekle(200);
   await evalJs(`(async () => { const p = window.__pdefe; await p.sekmeSec([...p.belgeler.values()].find((x) => x.ad === 'a.pdf').id); p.komutCalistir('sekme.yeni'); await new Promise((r) => setTimeout(r, 200)); return true; })()`);
@@ -123,7 +157,15 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
   const yeniId = d.aktif;
   await kapatOlayi('a.pdf'); await kapatOlayi('b.pdf');
   d = await durum();
-  sonuc('Belgeler kapanınca tek açılış sekmesi kalır (etkin olan), çubuk görünür', J(d.sekmeler) === J(['Yeni sekme']) && d.aktif === yeniId && d.cubukGorunur && d.acilisEkrani && J(d.kapatGorunur) === J([false]), d);
+  sonuc('Belgeler kapanınca iki açılış sekmesi de kalır, etkin olan değişmez, çubuk görünür', J(d.sekmeler) === J(['Yeni sekme', 'Yeni sekme']) && d.aktif === yeniId && d.cubukGorunur && d.acilisEkrani && J(d.kapatGorunur) === J([true, true]), d);
+  // Birden çok açılış sekmesi varken arka planda açılan belge sona eklenir, etkin açılış sekmesi kalır
+  await ac(['c.pdf'], { arkaPlanda: true });
+  d = await durum();
+  sonuc('İki açılış sekmesi varken arka planda açılan belge sona eklenir, etkin sekme değişmez', J(d.sekmeler) === J(['Yeni sekme', 'Yeni sekme', 'c.pdf']) && d.aktif === yeniId && d.belge === null && d.acilisEkrani, d);
+  await kapatOlayi('c.pdf');
+  await evalJs(`(async () => { const p = window.__pdefe; const s = p.sekmeler.sekmeler.find((x) => x.id !== ${J(yeniId)}); p.sekmeler.dispatchEvent(new CustomEvent('kapat', { detail: { id: s.id } })); await new Promise((r) => setTimeout(r, 300)); return true; })()`);
+  d = await durum();
+  sonuc('Etkin olmayan açılış sekmesi kapatılınca tek açılış sekmesi kalır', J(d.sekmeler) === J(['Yeni sekme']) && d.aktif === yeniId && J(d.kapatGorunur) === J([false]), d);
   // Arka planda açılan belge de tek açılış sekmesinin yerini alır ve etkin olur
   await ac(['c.pdf'], { arkaPlanda: true });
   d = await durum();
@@ -175,6 +217,19 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
   await evalJs(`window.__pdefe.komutCalistir('sekme.kapat')`); await bekle(400);
   d = await durum();
   sonuc('Ctrl+W belgeyi kapatır, yerine açılış sekmesi', J(d.sekmeler) === J(['Yeni sekme']), d);
+  // 0.1.22: iki açılış sekmeli belgesiz pencereye taşınan sekme onların yanına eklenir (açılış sekmeleri kalır)
+  await evalJs(`window.__pdefe.komutCalistir('sekme.yeni')`); await bekle(200);
+  P(P1);
+  const tasindi3 = await evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find((x) => x.ad === 'e.pdf'); return await p.sekmeyiTasi(b.id, { tur: 'pencere', pencere: ${P3}, x: null }); })()`);
+  P(P3);
+  await kosul(`window.__pdefe.aktif()?.ad === 'e.pdf'`, 8000);
+  d = await durum();
+  sonuc('İki açılış sekmeli belgesiz pencereye taşınan sekme sona eklenir, açılış sekmeleri kalır', tasindi3 === true && J(d.sekmeler) === J(['Yeni sekme', 'Yeni sekme', 'e.pdf']) && d.belge === 'e.pdf', d);
+  await kapatOlayi('e.pdf');
+  await evalJs(`window.__pdefe.komutCalistir('sekme.kapat')`); await bekle(300);
+  d = await durum();
+  sonuc('Belgesi kapanınca açılış sekmeleri kalır; Ctrl+W birini kapatır, tek açılış sekmesi kalır', J(d.sekmeler) === J(['Yeni sekme']) && (await yenile()).includes(P3), d);
+  P(P3);
   await evalJs(`window.__pdefe.komutCalistir('sekme.kapat')`);
   let kapandi = false;
   for (let i = 0; i < 40 && !kapandi; i++) { await bekle(200); kapandi = !(await yenile()).includes(P3); }
