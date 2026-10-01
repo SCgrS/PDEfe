@@ -108,6 +108,11 @@ export function testDiyalogKur(ipcMain) {
   // Uygulama menüsünün etiketleri (alt menüler iç içe): ayara bağlı öğeler (Dosya › Son açılanlar) sınanır
   const menuYapisi = (m) => (m ? m.items.map((o) => (o.submenu ? { etiket: o.label, alt: menuYapisi(o.submenu) } : o.label)) : null);
   ipcMain.handle('test:menu', () => menuYapisi(Menu.getApplicationMenu()));
+  // Pencerenin menü çubuğu (0.1.24): görünür mü, gizliyken Alt'la geçici gösterilir mi; içerik alanının yüksekliği
+  ipcMain.handle('test:menuCubugu', (e) => {
+    const p = BrowserWindow.fromWebContents(e.sender);
+    return p ? { gorunur: p.isMenuBarVisible(), otoGizle: p.isMenuBarAutoHide(), icerikYuksekligi: p.getContentBounds().height, disYukseklik: p.getBounds().height } : null;
+  });
   return (kanal, secenek, varsayilanYanit) => {
     const bekleyen = kuyruk.get(kanal);
     const yanit = bekleyen?.length ? bekleyen.shift() : varsayilanYanit;

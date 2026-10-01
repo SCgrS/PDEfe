@@ -11,7 +11,7 @@ import { Cekirdek } from './cekirdek.js';
 import { panoyaDosyaKopyala } from './pano.js';
 import { yazdirmaKur } from './yazdir.js';
 import { guncellemeKur } from './guncelleme.js';
-import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla } from './pencereler.js';
+import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla, menuCubugunuUygula } from './pencereler.js';
 import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasoru, anlikDosyasiMi } from './guvenlik.js';
 import electronUpdater from 'electron-updater';
 const { autoUpdater } = electronUpdater;
@@ -214,6 +214,7 @@ function ipcKur(ipcMain) {
   ipcMain.handle('ayar:koy', (e, anahtar, deger) => {
     ayarKoy(anahtar, deger);
     if (MENU_AYARLARI.has(anahtar)) uygulamaMenusuKur();
+    if (anahtar === 'menuCubugu') menuCubugunuUygula(!!deger);
     digerlerine(e, 'ayar:degisti', anahtar, deger);
     return true;
   });

@@ -72,6 +72,7 @@ async function ayarlariYukle() {
   sistemKoyu = await pdefe.cagir('tema:sistemKoyu');
   yaziCiziminiAyarla(ayar.yaziCizimi !== 'sistem');
   temaUygula();
+  menuDugmesiGuncelle();
   panel.genislikAyarla(ayar.solPanelGenislik || 240);
   if (ayar.solPanelAcik) panel.acKapa(true);
   panel.sekmeSec(ayar.solPanelSekme || 'sayfalar');
@@ -88,6 +89,14 @@ function temaUygula() {
 }
 
 pdefe.dinle('tema:sistem', (koyu) => { sistemKoyu = koyu; temaUygula(); });
+
+/** Menü çubuğu düğmesi (0.1.24): basılıyken çubuk görünür. Çubuğu ana süreç gösterir / gizler (ayar:koy → menuCubugunuUygula). */
+function menuDugmesiGuncelle() {
+  const d = $('#dugme-menu'), acik = !!ayar.menuCubugu;
+  d.classList.toggle('secili', acik);
+  d.setAttribute('aria-pressed', String(acik));
+  d.title = acik ? 'Menü çubuğunu gizle' : 'Menü çubuğunu göster';
+}
 
 /** Ayarlar penceresinden gelen değişiklikleri canlı uygular. */
 function ayarUygula(anahtar, deger) {
@@ -739,6 +748,7 @@ function ayarDisaridanDegisti(anahtar, deger) {
     case 'varsayilanDuzen': case 'kapakAyri': duzenEsitle(aktif()); break;
     case 'sonDosyalar': case 'sonAcilanlariHatirla': sonDosyalariListele(); break;
     case 'kaldigimSayfadanAc': if (!deger) clearTimeout(_konumZaman); break;
+    case 'menuCubugu': menuDugmesiGuncelle(); break;
     default: break;   // panel genişliği, son yakınlaştırma, sayfa konumları vb.: yalnızca kopya güncellenir
   }
 }
@@ -1144,6 +1154,7 @@ const komutlar = {
   'gorunum.sonrakiSayfa': () => aktif()?.gorunum.sonrakiSayfa(),
   'gorunum.solPanel': () => { panel.acKapa(); ayarKoy('solPanelAcik', panel.acik); },
   'gorunum.tema': () => { const yeni = koyuMu() ? 'acik' : 'koyu'; ayarKoy('tema', yeni); temaUygula(); },
+  'gorunum.menuCubugu': () => { ayarKoy('menuCubugu', !ayar.menuCubugu); menuDugmesiGuncelle(); },
   'gorunum.okumaModu': () => { okumaModu = !okumaModu; document.body.classList.toggle('okuma-modu', okumaModu); aktif()?.gorunum.boyutDegisti(); },
   'gorunum.tamEkran': () => pdefe.cagir('pencere:tamEkran'),
   'arac.paylas': () => pdfKopyala(),
@@ -1709,14 +1720,15 @@ document.addEventListener('mousemove', (e) => {
 });
 
 // ---------------------------------------------------------------- araç çubuğu: dar pencerede kademeli sıkıştırma
-// Sığana kadar sırayla (stil.css .sikisik-1 - 4): ayraç ve boşluklar daralır, Araçlar yalnızca simge olur, düğmeler ve kutular daralır,
-// en son PDF'i kopyala gizlenir (Araçlar menüsünde de var). Gereken genişlik içeriğe (ör. sayfa sayısının basamakları) bağlı olduğundan ölçülür.
+// Sığana kadar sırayla (stil.css .sikisik-1 - 5): ayraç ve boşluklar daralır, Araçlar yalnızca simge olur, düğmeler ve kutular daralır,
+// menü çubuğu düğmesi gizlenir (Alt menüyü yine gösterir; 0.1.24), en son PDF'i kopyala gizlenir (Araçlar menüsünde de var). Gereken genişlik içeriğe
+// (ör. sayfa sayısının basamakları) bağlı olduğundan ölçülür.
 const aracCubugu = $('#arac-cubugu');
 function aracCubuguSigdir() {
-  for (let k = 1; k <= 4; k++) aracCubugu.classList.remove('sikisik-' + k);
+  for (let k = 1; k <= 5; k++) aracCubugu.classList.remove('sikisik-' + k);
   if (!aracCubugu.clientWidth) return;   // okuma modunda gizli
   const sinir = aracCubugu.getBoundingClientRect().right - parseFloat(getComputedStyle(aracCubugu).paddingRight);
-  for (let k = 1; k <= 4 && aracCubugu.lastElementChild.getBoundingClientRect().right > sinir + 0.5; k++) aracCubugu.classList.add('sikisik-' + k);
+  for (let k = 1; k <= 5 && aracCubugu.lastElementChild.getBoundingClientRect().right > sinir + 0.5; k++) aracCubugu.classList.add('sikisik-' + k);
 }
 // Pencere genişliği ve okuma modunda görünme için çubuğun kendi boyutu izlenir (sıkıştırma onu değiştirmez; grupları izlemek
 // ResizeObserver döngü hatası verirdi). İçerik değişimi (öğe ekleme/gizleme, sayfa sayısı) MutationObserver ile çizimden önce yakalanır.

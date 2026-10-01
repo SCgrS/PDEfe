@@ -38,6 +38,7 @@ export const VARSAYILANLAR = {
   solPanelGenislik: 240,
   solPanelAcik: false,
   solPanelSekme: 'sayfalar',
+  menuCubugu: false,              // pencerenin menü çubuğu (Dosya, Düzen…) görünür mü; 0.1.24'ten beri varsayılan gizli, araç çubuğundaki düğmeyle açılır
   pencere: {},
 };
 

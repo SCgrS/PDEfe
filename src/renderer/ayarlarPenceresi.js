@@ -19,7 +19,7 @@
 import { ortuTiklamasiBagla } from './ortu.js';
 import { mesajKutusu } from './mesajKutusu.js';
 
-export const DURUM_ANAHTARLARI = new Set(['sonDosyalar', 'sayfaKonumlari', 'pencere', 'solPanelGenislik', 'solPanelAcik', 'solPanelSekme', 'sonZoom']);
+export const DURUM_ANAHTARLARI = new Set(['sonDosyalar', 'sayfaKonumlari', 'pencere', 'solPanelGenislik', 'solPanelAcik', 'solPanelSekme', 'sonZoom', 'menuCubugu']);
 
 const VURGU_RENKLERI = [
   { ad: 'Sarı', hex: '#ffd100' }, { ad: 'Kırmızı', hex: '#ff6e6e' }, { ad: 'Turuncu', hex: '#ffb74d' },

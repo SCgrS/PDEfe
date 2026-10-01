@@ -99,6 +99,17 @@ function rendererdanIste(k, kanal, ...args) {
   });
 }
 
+// ---------------------------------------------------------------- menü çubuğu
+/** Menü çubuğunu (Dosya, Düzen…) gösterir ya da gizler (0.1.24, kullanıcı isteği: varsayılan gizli, araç çubuğundaki düğmeyle açılır,
+ *  seçim hatırlanır). Gizliyken Windows'taki gibi tek başına basılan Alt çubuğu geçici gösterir (Alt+D gibi menü kısayolları da çalışır);
+ *  menünün Ctrl kısayolları her iki durumda da çalışır. */
+function menuCubuguKur(pencere, goster) {
+  try { pencere.setAutoHideMenuBar(!goster); pencere.setMenuBarVisibility(!!goster); } catch { /* pencere kapandı */ }
+}
+
+/** Menü çubuğu ayarı bütün pencerelerde ortaktır (main.js ayar:koy). */
+export function menuCubugunuUygula(goster) { for (const k of kayitlar.values()) if (canli(k)) menuCubuguKur(k.pencere, goster); }
+
 // ---------------------------------------------------------------- pencere oluşturma
 /**
  * Yeni uygulama penceresi. sinirlar verilmezse kayıtlı pencere konumu ve boyutu (test örneğinde PDEFE_TEST_KONUM / BOYUT) kullanılır.
@@ -119,13 +130,14 @@ export function pencereOlustur({ sinirlar = null, goster = true, dosyalar = [] }
     };
     buyut = !!kayitli.buyutulmus;
   }
+  const menuGorunur = !!ayarAl('menuCubugu');
   const pencere = new BrowserWindow({
     ...sinirlar,
     minWidth: 720, minHeight: 480,
     show: false,
     title: 'PDEfe',
     backgroundColor: temaKoyuMu() ? '#1c1c1c' : '#f3f3f3',
-    autoHideMenuBar: false,
+    autoHideMenuBar: !menuGorunur,   // gizliyken Alt tuşu geçici gösterir (menuCubuguKur)
     icon: path.join(KOK, 'build', 'icon.png'),
     webPreferences: {
       preload: onYukleme,
@@ -136,6 +148,7 @@ export function pencereOlustur({ sinirlar = null, goster = true, dosyalar = [] }
       backgroundThrottling: false,
     },
   });
+  menuCubuguKur(pencere, menuGorunur);
   /** @type {Kayit} */
   const k = { pencere, wc: pencere.webContents, id: pencere.webContents.id, hazir: false, hazirSozu: null, hazirCoz: null, coktu: false,
     kapatOnayli: false, kapatBekleyen: null, bekleyenDosyalar: [...dosyalar], yollar: new Set(), kapanisDosyalari: null };
