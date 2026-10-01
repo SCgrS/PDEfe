@@ -170,7 +170,7 @@ def _pdf_ac(yol):
     """Belgeyi diskten TAZE açar (önbellekteki nesneyi değiştirmemek için)."""
     _dosya_var(yol)
     try:
-        doc = pymupdf.open(yol)
+        doc = pymupdf.open(yol, filetype="pdf")   # yalnızca PDF (0.1.23; pdefe_core.BelgeOnbellek.al)
     except Exception as e:
         if _kilitli_mi(yol):
             raise PermissionError("Dosya okunamadı; %s: %s" % (KILITLI_METNI, os.path.basename(yol)))

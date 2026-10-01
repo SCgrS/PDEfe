@@ -80,7 +80,7 @@ export default async function ({ evalJs, bekle }) {
   r = await cagir('dosya:oku', sahtePdf);
   sonuc('dosya:oku adı .pdf olan ama PDF olmayan dosyayı okumaz', r.hata === 'Bu dosya bir PDF belgesi değil.', r);
   r = await cagir('dosya:oku', path.join(CIKTI, 'yok-boyle-bir-dosya.pdf'));
-  sonuc('dosya:oku olmayan dosyada "bulunamadı" der', /^Dosya bulunamadı/.test(r.hata || ''), r);
+  sonuc('dosya:oku olmayan dosyada okuma hatası verir ("PDF değil" demez)', /ENOENT/.test(r.hata || ''), r);
   const yazitipi = await evalJs(`window.pdefe.cagir('uygulama:klasorler').then((k) => k.yaziTipleri)`);
   r = await cagir('dosya:oku', path.join(yazitipi, 'arial.ttf'));
   sonuc('dosya:oku Windows yazı tipini okur', r.ok && r.deger?.bayt > 0, r);
@@ -145,6 +145,29 @@ export default async function ({ evalJs, bekle }) {
   const sil = path.join(CIKTI, 'notlu-imzali-sil.pdf');
   r = await notuSilKaydet(sil, { secim: 1 });
   sonuc('e-imzalı belge, "Tamamen sil": eski metin kalmaz', r.kaydedildi === true && !icindeMi(sil), r);
+  // Uzantısı .pdf olmayan PDF ("Tüm dosyalar" süzgeciyle açılan) de kaydedilir: çekirdek var olan PDF'in üzerine yazabilir
+  const uzantisiz = path.join(CIKTI, 'notlu-uzantisiz');
+  execFileSync(path.join(KOK, '.venv', 'Scripts', 'python.exe'), [path.join(KOK, 'test', 'guvenlik_pdf_uret.py'), CIKTI], { stdio: 'ignore' });   // notlu.pdf yeniden (not geri gelsin)
+  fs.copyFileSync(path.join(CIKTI, 'notlu.pdf'), uzantisiz);
+  r = await notuSilKaydet(uzantisiz);
+  sonuc('uzantısı .pdf olmayan PDF kaydedilir, eski metin kalmaz', r.kaydedildi === true && !icindeMi(uzantisiz), r);
+  // Farklı kaydet'te aynı dosya seçilirse de temiz yazılır
+  const farkliAyni = path.join(CIKTI, 'notlu.pdf');
+  await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'dosya:kaydetDiyalog', [${J(farkliAyni)}])`);
+  r = await evalJs(`(async () => {
+    const p = window.__pdefe;
+    await p.dosyaAc(${J(farkliAyni)});
+    const b = p.aktif();
+    for (let i = 0; i < 80 && !(b.notlar && b.notlar.notlar.size); i++) await new Promise((c) => setTimeout(c, 100));
+    const n = [...b.notlar.notlar.values()].find((x) => !x.silindi);
+    if (!n) return { hata: 'not yüklenmedi' };
+    b.notlar.sil(n);
+    const kaydedildi = await p.belgeKaydet(b, true);
+    await p.belgeKapat(b.id);
+    return { kaydedildi };
+  })()`);
+  sonuc('Farklı kaydet ile aynı dosya: eski metin kalmaz', r.kaydedildi === true && !icindeMi(farkliAyni), r);
+  fs.rmSync(uzantisiz, { force: true });
 
   // ---------------------------------------------------------------- 4. Pano ve hatırlanan sayfalar
   console.log('— Pano ve hatırlanan sayfalar');

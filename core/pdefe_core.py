@@ -58,7 +58,9 @@ class BelgeOnbellek:
                 kayit[0].close()
             except Exception:
                 pass
-        doc = pymupdf.open(yol)
+        # Yalnızca PDF olarak açılır (0.1.23, güvenlik denetimi): uzantıya bakılsaydı metin, HTML, SVG, EPUB, görsel dosyaları da açılır,
+        # sayfa_metni gibi çağrılarla okunabilirdi (ana sürecin dosya:oku kısıtı aşılırdı)
+        doc = pymupdf.open(yol, filetype="pdf")
         self.belgeler[yol] = (doc, st.st_mtime, st.st_size, time.time())
         if len(self.belgeler) > self.en_fazla:
             en_eski = min(self.belgeler.items(), key=lambda kv: kv[1][3])[0]
@@ -210,8 +212,10 @@ def y_sayfa_goruntu(p):
     doc = onbellek.al(p["yol"])
     pg = doc[int(p["sayfa"]) - 1]
     dpi = int(p.get("dpi", 200))
-    dpi = max(1, int(72 * olcek_sinirla(pg.rect.width, pg.rect.height, dpi / 72)))
-    pix = pg.get_pixmap(dpi=dpi, annots=bool(p.get("notlar", True)), alpha=False)
+    # Ölçek tamsayı dpi'ye yuvarlanmaz: çok büyük sayfada (ör. /UserUnit) dpi 1'e inince bile sınır aşılırdı (0.1.23)
+    olcek = olcek_sinirla(pg.rect.width, pg.rect.height, dpi / 72)
+    pix = pg.get_pixmap(matrix=pymupdf.Matrix(olcek, olcek), annots=bool(p.get("notlar", True)), alpha=False)
+    pix.set_dpi(max(1, round(72 * olcek)), max(1, round(72 * olcek)))   # görüntünün çözünürlük bilgisi önceki gibi (dpi ile çizimdeki)
     bicim = p.get("bicim", "png")
     veri = pix.tobytes("jpeg", jpg_quality=int(p.get("kalite", 90))) if bicim == "jpeg" else pix.tobytes("png")
     return {"veri": base64.b64encode(veri).decode("ascii"), "bicim": bicim, "genislik": pix.width, "yukseklik": pix.height,

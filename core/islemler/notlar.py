@@ -969,18 +969,75 @@ def not_guncelle(doc, page, n):
 
 
 def not_sil(doc, page, xref):
+    """Notu yanıtlarıyla siler. Silinen nesneler (not, yanıtlar, açılır pencereleri) boşaltılır (0.1.23, güvenlik denetimi): etiketli
+    PDF'te yapı ağacı (StructTreeRoot → OBJR) notu göstermeye devam ettiği için tam yazımda (garbage) nesne atılmıyor, metni dosyada
+    kalıyordu."""
     a = _annot_bul(page, int(xref))
     # Yanıtları da sil
     yanitlar = [b for b in page.annots() if getattr(b, "irt_xref", 0) == a.xref]
+    silinen = []
+    for b in yanitlar + [a]:
+        silinen.append(b.xref)
+        if getattr(b, "popup_xref", 0):
+            silinen.append(b.popup_xref)
     for b in yanitlar:
         page.delete_annot(b)
     page.delete_annot(a)
+    for x in silinen:
+        try:
+            doc.update_object(x, "<<>>")
+        except Exception:
+            pass
+
+
+def _replace_file(hedef, gecici):
+    """Windows ReplaceFileW: gecici, hedefin yerine geçer; hedefin yan akışları (ör. "internetten indirildi" işareti Zone.Identifier),
+    izinleri, öznitelikleri ve oluşturma tarihi korunur. Kilitte PermissionError; desteklenmeyen durumda os.replace."""
+    import ctypes
+    from ctypes import wintypes
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    f = k32.ReplaceFileW
+    f.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD, wintypes.LPVOID, wintypes.LPVOID]
+    f.restype = wintypes.BOOL
+    if f(hedef, gecici, None, 0x2 | 0x4, None, None):       # REPLACEFILE_IGNORE_MERGE_ERRORS | REPLACEFILE_IGNORE_ACL_ERRORS
+        return
+    kod = ctypes.get_last_error()
+    if kod in (1176, 1177) and os.path.exists(gecici) and not os.path.exists(hedef):
+        os.replace(gecici, hedef)                              # hedef kalktı, yenisi taşınamadı: düz taşıma (veri kaybolmasın)
+        return
+    if kod in (5, 32, 33, 1175):                               # erişim engellendi, paylaşım / kilit ihlali, hedef silinemedi
+        raise PermissionError(kod, ctypes.FormatError(kod).strip(), hedef)
+    os.replace(gecici, hedef)
+
+
+def dosyayi_yerine_koy(gecici, hedef, deneme=6):
+    """Geçici dosyayı hedefin yerine koyar (0.1.23). Hedef varsa ReplaceFileW (yukarıda): os.replace yeni dosyanın yan akışlarını ve
+    izinlerini bırakırdı; internetten indirilmiş PDF'in işareti kalkar, başka okuyucular onu korumalı görünümde açmazdı. Kısa süreli
+    kilitlere (virüs tarayıcı, dizin oluşturucu, eşitleme) karşı birkaç kez dener; olmazsa geçici dosyayı siler, Türkçe PermissionError."""
+    import gc
+    son = None
+    for i in range(deneme):
+        try:
+            if os.name == "nt" and os.path.exists(hedef):
+                _replace_file(os.path.abspath(hedef), os.path.abspath(gecici))
+            else:
+                os.replace(gecici, hedef)
+            return
+        except PermissionError as e:
+            son = e
+            gc.collect()
+            time.sleep(0.25 * (i + 1))
+    try:
+        os.remove(gecici)
+    except OSError:
+        pass
+    raise son
 
 
 def belge_ac_yazmak_icin(yol):
     """Dosyayı açar; açılamıyorsa (başka programda kilitli vb.) Türkçe PermissionError verir."""
     try:
-        return pymupdf.open(yol)
+        return pymupdf.open(yol, filetype="pdf")   # yalnızca PDF (0.1.23; pdefe_core.BelgeOnbellek.al)
     except Exception as e:
         if os.path.exists(yol):
             raise PermissionError("Dosya açılamadı; başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. (%s)" % e)
@@ -1050,13 +1107,16 @@ def y_notlar_kaydet(p):
     # gider; şifreleme korunur. E-imzalı belgede imzayı geçersiz kılar: arayüz sorar (renderer/uygulama.js temizKayitKarari).
     temiz = bool(p.get("temiz"))
     artimli = bool(p.get("artimli", True)) and not temiz and os.path.abspath(hedef) == os.path.abspath(yol)
-    sifre_koru = temiz and os.path.abspath(hedef) == os.path.abspath(yol)
+    # Aynı dosyaya tam yazımda şifreleme (sahip parolası, izinler) korunur; 0.1.22'ye dek yedek tam yazım yolu onu düşürüyordu
+    sifre_koru = os.path.abspath(hedef) == os.path.abspath(yol)
     onbellek.birak(yol)
     doc = belge_ac_yazmak_icin(yol)
     gecici = None
     try:
         if doc.is_encrypted:
             raise PermissionError("Belge şifreli; kaydedilemiyor.")
+        if artimli and doc.is_repaired:
+            artimli = False   # onarılmış (bozuk xref'li) dosyaya artımlı yazılamaz; MuPDF FzErrorArgument verir (0.1.23)
         dondurmeler = sayfa_dondurmeleri_uygula(doc, sayfa_dondurmeleri)
         xrefler = {}
         for op in islemler:
@@ -1075,7 +1135,7 @@ def y_notlar_kaydet(p):
             if artimli:
                 try:
                     doc.save(yol, incremental=True, encryption=pymupdf.PDF_ENCRYPT_KEEP, deflate=True)
-                except (ValueError, RuntimeError):
+                except (ValueError, RuntimeError, pymupdf.mupdf.FzErrorBase):
                     artimli = False
             if not artimli:
                 gecici = hedef + ".pdefe-tmp"
@@ -1085,7 +1145,7 @@ def y_notlar_kaydet(p):
                     doc.save(gecici, garbage=1, deflate=True)
                 doc.close()
                 doc = None
-                os.replace(gecici, hedef)
+                dosyayi_yerine_koy(gecici, hedef)   # yan akışlar (internetten indirildi işareti), izinler korunur; kilitte yeniden dener
                 gecici = None
         except PermissionError as e:
             raise PermissionError("Dosya yazılamadı; başka bir programda açık olabilir. (%s)" % e)
@@ -1173,11 +1233,17 @@ def y_imza_durumu(p):
         for w in page.widgets(types=[pymupdf.PDF_WIDGET_TYPE_SIGNATURE]):
             if doc.xref_get_key(w.xref, "V")[0] != "null":
                 return {"imzali": True}
-    try:
-        with open(yol, "rb") as f:
-            return {"imzali": b"/ByteRange" in f.read()}
-    except OSError:
-        return {"imzali": False}
+    # Dosya parça parça (örtüşmeli) taranır: büyük taranmış belgede bütün dosya belleğe okunmasın. Okunamazsa hata: arayüz "bilinmiyor"
+    # sayar ve imzayı korur (artımlı kayıt)
+    aranan, parca, onceki = b"/ByteRange", 1 << 20, b""
+    with open(yol, "rb") as f:
+        while True:
+            blok = f.read(parca)
+            if not blok:
+                return {"imzali": False}
+            if aranan in onceki + blok:
+                return {"imzali": True}
+            onceki = blok[-(len(aranan) - 1):]
 
 
 def kaydol(yontemler):

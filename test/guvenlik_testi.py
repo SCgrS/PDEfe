@@ -96,6 +96,55 @@ sifre_var = bool(d.metadata.get("encryption"))
 d.close()
 sonuc("temiz: şifreli belgenin şifrelemesi korunur", sifre_var, d.metadata if not sifre_var else "")
 
+# Temiz kayıt dosyanın "internetten indirildi" işaretini (Zone.Identifier yan akışı) korur
+yol = bos_belge("not-isaretli.pdf")
+xref = not_ekle_kaydet(yol, GIZLI)
+ISARET = "[ZoneTransfer]\r\nZoneId=3\r\n"
+with open(yol + ":Zone.Identifier", "w", newline="") as f:
+    f.write(ISARET)
+notlar.y_notlar_kaydet({"yol": yol, "artimli": True, "temiz": True,
+                        "islemler": [{"islem": "sil", "id": "n1", "xref": xref, "not": {"xref": xref, "sayfa": 1}}]})
+pdefe_core.onbellek.hepsini_birak()
+try:
+    with open(yol + ":Zone.Identifier", newline="") as f:
+        isaret = f.read()
+except OSError as e:
+    isaret = "yok (%s)" % e
+sonuc("temiz: 'internetten indirildi' işareti korunur", isaret == ISARET, isaret)
+sonuc("temiz: işaretli dosyada da metin kalmaz", GIZLI.encode() not in ham(yol))
+
+# Onarılmış (bozuk çapraz başvuru tablolu) dosyaya not eklenebilir: artımlı yazılamaz, tam yazıma geçilir
+yol = bos_belge("onarilmis.pdf")
+with open(yol, "rb") as f:
+    veri = f.read()
+with open(yol, "wb") as f:
+    f.write(veri.replace(b"startxref", b"startxxxx"))
+try:
+    xref = not_ekle_kaydet(yol, "Onarılmış belgeye not")
+    d = pymupdf.open(yol)
+    sonuc("onarılmış dosyaya not kaydedilir", len(list(d[0].annots())) == 1)
+    d.close()
+except Exception as e:
+    sonuc("onarılmış dosyaya not kaydedilir", False, e)
+
+# Etiketli PDF: yapı ağacı (OBJR) notu gösterse de silinen notun metni tam yazımda kalmaz
+yol = bos_belge("etiketli.pdf")
+xref = not_ekle_kaydet(yol, GIZLI)
+d = pymupdf.open(yol)
+objr = d.get_new_xref()
+d.update_object(objr, "<< /Type /OBJR /Obj %d 0 R /Pg %d 0 R >>" % (xref, d[0].xref))
+yapi = d.get_new_xref()
+d.update_object(yapi, "<< /Type /StructElem /S /Annot /K [%d 0 R] >>" % objr)
+kok = d.get_new_xref()
+d.update_object(kok, "<< /Type /StructTreeRoot /K [%d 0 R] >>" % yapi)
+d.xref_set_key(d.pdf_catalog(), "StructTreeRoot", "%d 0 R" % kok)
+d.saveIncr()
+d.close()
+notlar.y_notlar_kaydet({"yol": yol, "artimli": True, "temiz": True,
+                        "islemler": [{"islem": "sil", "id": "n1", "xref": xref, "not": {"xref": xref, "sayfa": 1}}]})
+pdefe_core.onbellek.hepsini_birak()
+sonuc("etiketli PDF: silinen notun metni dosyada kalmaz", GIZLI.encode() not in ham(yol))
+
 # ---------------------------------------------------------------- 2. e-imza algılama
 print("— E-imza algılama")
 yol = bos_belge("imzasiz.pdf")
@@ -169,6 +218,16 @@ sonuc("küçük resim: 1 pt genişliğindeki uzun sayfa sınırı aşmaz", r["ge
 r = notlar.y_form_gorunum({"yol": dev, "sayfa": 1, "olcek": 6})
 sonuc("form görünümü: dev sayfa sınırı aşmaz", r.get("png") and r["genislik"] * r["yukseklik"] <= pdefe_core.EN_FAZLA_PIKSEL * 1.01, (r.get("genislik"), r.get("yukseklik")))
 sonuc("dev sayfa çizimleri makul sürede biter", time.time() - t0 < 60, round(time.time() - t0, 1))
+pdefe_core.onbellek.hepsini_birak()
+# /UserUnit: sayfa ölçüsü katlanır (MuPDF rect'e yansıtır); yazdırmada dpi 1'e inse bile sınır aşılmamalı
+uu = os.path.join(CIKTI, "userunit.pdf")
+d = pymupdf.open()
+pg = d.new_page(width=14400, height=14400)
+d.xref_set_key(pg.xref, "UserUnit", "200")
+d.save(uu)
+d.close()
+r = pdefe_core.y_sayfa_goruntu({"yol": uu, "sayfa": 1, "dpi": 200, "bicim": "jpeg", "kalite": 30})
+sonuc("yazdırma görüntüsü: /UserUnit'li dev sayfa sınırı aşmaz", r["genislik"] * r["yukseklik"] <= pdefe_core.EN_FAZLA_PIKSEL * 1.01, (r["genislik"], r["yukseklik"]))
 pdefe_core.onbellek.hepsini_birak()
 
 # ---------------------------------------------------------------- 5. /PDEfeFonts kaydına körü körüne güvenilmez

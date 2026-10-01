@@ -804,7 +804,8 @@ async function kayitYaz(b, farkli, sessiz) {
     b.boyut = r.boyut;
   } else {
     // Kayıtlı bir not silindi ya da değiştiyse belge temiz (baştan) yazılır: artımlı kayıtta eski hâli dosyada kalırdı (temizKayitKarari)
-    const temiz = !farkli && islemler.some((op) => op.islem === 'sil' || op.islem === 'guncelle') ? await temizKayitKarari(b, sessiz) : false;
+    // (Farklı kaydet'te aynı dosya seçilirse de: çekirdek aynı dosyaya artımlı yazar)
+    const temiz = yolAyni(hedef, b.yol) && islemler.some((op) => op.islem === 'sil' || op.islem === 'guncelle') ? await temizKayitKarari(b, sessiz) : false;
     if (temiz === null) { durum.mesajYaz(''); return false; }
     // Döndürmesi son kayıttakinden farklı sayfaların mutlak açıları notlardan önce uygulanır; aynı dosyaya artımlı yazılır
     const sayfaDondurmeleri = yalnizDondurme ? await sayfaDondurmeleriHesapla(g, tarif, tarifAnligi) : null;

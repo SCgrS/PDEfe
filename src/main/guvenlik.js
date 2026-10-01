@@ -65,15 +65,15 @@ export function yaziTipiDosyasiMi(yol) {
   return !!y && ayniYol(path.dirname(path.resolve(y)), yaziTipiKlasoru()) && /\.(ttf|ttc|otf)$/i.test(y);
 }
 
-/** Dosyanın başında (ilk 1024 bayt) PDF imzası (%PDF-) var mı. Okunamazsa false. */
+/** Dosyanın başında (ilk 64 KB; başına e-posta ağ geçidi gibi araçların eklediği başlıklar olabilir) PDF imzası (%PDF-) var mı.
+ *  Dosya okunamazsa (yok, başka programda kilitli) hata fırlatır: çağıran olağan okuma hatasını göstersin, "PDF değil" demesin. */
 export async function pdfDosyasiMi(yol) {
-  let fh = null;
+  const fh = await fs.promises.open(String(yol), 'r');
   try {
-    fh = await fs.promises.open(String(yol), 'r');
-    const bas = Buffer.alloc(1024);
+    const bas = Buffer.alloc(64 * 1024);
     const { bytesRead } = await fh.read(bas, 0, bas.length, 0);
     return bas.subarray(0, bytesRead).includes('%PDF-');
-  } catch { return false; } finally { await fh?.close().catch(() => {}); }
+  } finally { await fh.close().catch(() => {}); }
 }
 
 /** Yol, anlık kopya klasöründeki bir anlık kopya mı (çekirdeğin adlandırması: 32 onaltılık karakter + .pdf). */
@@ -84,13 +84,17 @@ export function anlikDosyasiMi(yol, anlikKlasor) {
 
 /**
  * Çekirdek çağrısının parametreleri (renderer'dan gelir) denetlenir, gerekirse düzeltilir; izin verilmeyen çağrıda hata fırlatır.
- *  - hedef: çekirdeğin yazdığı dosya yalnızca .pdf uzantılı olabilir (PDF baytları .bat/.cmd gibi bir dosyaya yazılıp çalıştırılmasın).
+ *  - hedef: çekirdek yalnızca .pdf uzantılı dosyaya ya da zaten var olan bir PDF'in üzerine (uzantısı başka olsa da: "Tüm dosyalar"
+ *    süzgeciyle açılıp kaydedilen belge) yazar. PDF baytları .bat/.cmd gibi bir dosyaya yazılıp çalıştırılmasın: notun /Contents'indeki
+ *    "&komut&" komut satırında çalışırdı.
  *  - yapisal_kaydet: anlık kopyanın klasörünü ana süreç verir (renderer'ın verdiği yok sayılır).
  *  - anlik_sil: yalnızca anlık kopya klasöründeki anlık kopyalar silinir.
  */
-export function cekirdekParametreleri(yontem, params, anlikKlasor) {
+export async function cekirdekParametreleri(yontem, params, anlikKlasor) {
   const p = params && typeof params === 'object' && !Array.isArray(params) ? { ...params } : {};
-  if (p.hedef != null && !/\.pdf$/i.test(String(p.hedef))) throw new Error('Yalnızca .pdf uzantılı dosyaya yazılabilir.');
+  if (p.hedef != null && !/\.pdf$/i.test(String(p.hedef)) && !(await pdfDosyasiMi(p.hedef).catch(() => false))) {
+    throw new Error('Yalnızca .pdf uzantılı dosyaya yazılabilir.');
+  }
   if (yontem === 'yapisal_kaydet') p.anlikKlasor = anlikKlasor;
   if (yontem === 'anlik_sil' && !anlikDosyasiMi(p.yol, anlikKlasor)) throw new Error('İzin verilmeyen istek.');
   return p;
