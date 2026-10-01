@@ -11,9 +11,11 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 
 ## Ne yapar
 
-- **Sekmeler.** Birden çok PDF tek pencerede; sekmeler aynı ve dar genişliktedir ("ustyazi (85).pdf" gibi adlar tam
-  görünür, uzun ad üç noktayla kısalır, tam ad ve yol ipucunda) ve sürüklenerek sıralanır (sürüklenen sekme imleci izler,
-  ötekiler kayarak yer açar; `Esc` vazgeçer). `Ctrl+Tab` basılı tutulunca
+- **Sekmeler.** Birden çok PDF tek pencerede; sekmeler aynı genişliktedir: az sekmede geniş, çoğaldıkça birlikte daralır, en dar
+  hâlde ("ustyazi (85).pdf" gibi adlar yine tam görünür, uzun ad üç noktayla kısalır, tam ad ve yol ipucunda) sekme çubuğu kaydırılır.
+  Sekme çubuğu hiç kapanmaz: belge yokken "Yeni sekme" (açılış sayfası) durur, açılan ilk belge onun yerini alır. Sekmeler sürüklenerek
+  sıralanır (sürüklenen sekme imleci izler, komşusunun dörtte birine girince komşusu kayarak yer açar; `Esc` vazgeçer). Sekmede sağ
+  tıkla kapatma, pencereye ayırma, klasörde gösterme, yolu ve PDF'in kendisini kopyalama. `Ctrl+Tab` basılı tutulunca
   son kullanılan sırayla sekme seçici açılır; `Ctrl+PageUp` / `Ctrl+PageDown` ya da `Ctrl+←` / `Ctrl+→` önceki / sonraki
   sekmeye, `Ctrl+1` – `Ctrl+9` doğrudan sekmeye gider. Sekme çubuğundaki **+** (ya da `Ctrl+T`) açılış sayfasını yeni bir
   sekmede açar; oradan açılan belge o sekmenin yerine açılır. Bir belge yeniden
@@ -70,8 +72,8 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   iptal. Açık bir pencerenin dışına (arkadaki karartılmış alana) tıklamak onu kapatır; kaydedilmemiş iş varsa sorulur.
 - **Yazdır** (`Ctrl+P`): sayfa aralığı, kâğıt boyutu, sayfaya sığdırma; sayfalar görüntü olarak basıldığından
   Türkçe karakterler ekrandaki gibi çıkar. Notlar istenirse basılır ("Notları yazdır" varsayılan olarak kapalı).
-- **Paylaş** (araç çubuğunun sağındaki kopyala simgeli düğme ya da Araçlar menüsü; yanında Ayarlar düğmesi). Belgeyi dosya olarak panoya kopyalar; UYAP'a,
-  e-postaya ya da Gezgin'e `Ctrl+V` veya Yapıştır ile yapıştırılır.
+- **PDF'i kopyala** (araç çubuğunun sağındaki kopyala simgeli düğme, Araçlar menüsü ya da sekmede sağ tık; yanında Ayarlar düğmesi).
+  Belgeyi dosya olarak panoya kopyalar; UYAP'a, e-postaya ya da Gezgin'e `Ctrl+V` veya Yapıştır ile yapıştırılır.
 - **Koyu mod.** Sistem temasını izler; istenirse sayfa da tam siyaha koyulaştırılır (görseller korunur; yazı kutuları
   sayfayla birlikte koyulaşır, dosyadaki renkleri değişmez).
 - **Döndür.** Döndür düğmesi ve `Ctrl+R` / `Ctrl+Shift+R` (saat yönünde / tersine) belgeyi döndürür: geçerli sayfa ya da tüm PDF

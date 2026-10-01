@@ -3,6 +3,22 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.21 — 2026-10-01
+
+### Sekmeler
+- **Sekme çubuğu artık hiç kapanmıyor.** Son sekme kapatılınca çubuk kaybolmuyor; yerine "Yeni sekme" gelir ve açılış sayfası görünür, tıpkı **+** ile yeni boş sekme açılmış gibi. PDEfe de bu sekmeyle açılır. Bu sekmedeyken açılan (ya da Gezgin'den gelen, pencereye sürüklenen) ilk belge onun yerini alır. Belge yokken tek kalan "Yeni sekme" kapatılmaz (× düğmesi yok); `Ctrl+W` önceden olduğu gibi pencereyi kapatır, **+** ve `Ctrl+T` ikinci bir boş sekme açmaz. Son belge kapanınca yanındaki öteki "Yeni sekme"ler de teke iner.
+- **Sekmeler sürüklenirken daha erken yer değiştiriyor.** Önceden sürüklenen sekme komşusunun tam üstüne gelince yer değişiyordu; artık komşusunun dörtte birine girince değişir.
+- **Sekme genişliği sekme sayısına göre ayarlanıyor.** Az sekme varken sekmeler geniş olur, adlar daha uzun görünür. Sekmeler çoğalıp çubuğa sığmayınca hepsi birlikte daralır; önceki genişliğe (en dar hâl) inince sekme çubuğu eskisi gibi kaydırılır.
+- Bir sekme × ile (ya da orta tıkla) kapatılınca öteki sekmeler fare sekme çubuğunun üstündeyken genişlemez: sıradaki sekmenin × düğmesi farenin altına gelir, sekmeler art arda kapatılabilir. Fare çubuktan çıkınca sekmeler yeniden genişler.
+- Sekmeler çubuğa sığmayınca çubuktaki ◀ ▶ ve "Açık belgeler" düğmeleri birkaç piksel eziliyordu; artık ezilmiyor.
+- Sekmede sağ tık menüsünde **Yolu kopyala**'nın altına **PDF'i kopyala** geldi: belgeyi dosya olarak panoya koyar (araç çubuğundaki kopyala düğmesi gibi); Gezgin'e, e-postaya ya da UYAP'a yapıştırılabilir. Kaydedilmemiş değişiklik varsa önce sorulur.
+
+### PDF'i kopyala
+- Araç çubuğundaki kopyala düğmesinin sorusu artık "Kopyalamadan önce kaydetmek ister misiniz?" diyor; düğmeler **Kaydet ve kopyala**, **Kaydetmeden kopyala**, **Vazgeç**. Önceden "paylaş" diyordu. Düğmenin ipucu ve Araçlar menüsündeki adı da **PDF'i kopyala** oldu.
+
+### Görünüm
+- Sekme çubuğu artık açılış sayfasında da durduğu için açılış sayfası alçak pencerelerde (yüksekliği 780 piksele dek) biraz sıkılaştı: 1280×700'lük pencerede son açılan on belgeyle de kaydırma çubuğu çıkmaz. Yüksek pencerede görünüm değişmedi.
+
 ## 0.1.20 — 2026-09-30
 
 ### Görünüm

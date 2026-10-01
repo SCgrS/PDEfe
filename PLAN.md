@@ -975,3 +975,60 @@ yerleştirme aracından kuşkulandı. Kök neden ve kararlar:
   - Regresyon (düzeltilmiş kodla): kisayol_gorunum 117/117, senaryo22 101/101, senaryo19 111/111 (yer tutucu belgelerle),
     vurgu_cubugu 13/13, kisayol_araclar 91/91.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 27.
+
+### Revizyon 0.1.21 (2026-10-01, kullanıcı isteği)
+Ayrıntı: CHANGELOG.md. Kullanıcı beş istek bildirdi: (1) tek sekme de kapatılınca sekme şeridi kapanmasın, "boş yeni sekme açılmış gibi"
+dursun; (2) sekmeler arası geçiş çok sert, sekme komşusunun tam üstüne gelince yer değiştiriyor, %25'ine girince değiştirsin; (3) sekme
+genişliği: şimdiki boyut en küçük boyut olsun, az sekmede büyük, çoğalınca küçülsün, en küçüğe inince kayma başlasın; (4) sekmede sağ tık ›
+Yolu kopyala'nın altına "PDF'i kopyala"; (5) kopyala düğmesinin (kaydedilmemiş değişiklik) sorusunda "paylaş" değil "kopyala" yazsın.
+- [x] **Sekme çubuğu hiç kapanmaz** (uygulama.js açılış sekmeleri bölümü; sekmeler.js `kaldir`, `tekAcilisDurumu`; index.html).
+  Önceden açık belge kalmayınca açılış sekmeleri kaldırılıyor, `kaldir` çubuğu gizliyordu (sekmesiz açılış ekranı, uygulamanın ilk
+  hâli). Karar: sekmesiz açılış ekranının yerini **belgesiz pencerede tek açılış sekmesi** aldı; kuralları da o ekranınkiler:
+  - Pencere açılış sekmesiyle açılır (`baslat`, 'uygulama:hazir'dan önce). Son belge kapanınca yerine o gelir; belge kalmayınca yanındaki
+    öteki açılış sekmeleri teke iner (`belgesizseTekSekme`: etkin olan kalır). İkinci öneri "tarayıcıdaki gibi açılış sekmeleri olduğu
+    gibi kalsın" idi; seçilmedi, çünkü belgesiz pencerede birden çok boş sekme hiçbir işe yaramaz ve 0.1.13'ün "belge yokken Ctrl+T sekme
+    açmaz" kararıyla çelişir (kısayol testi bunu yakaladı).
+  - Tek açılış sekmesi kapatılmaz (`baslangicSekmesiniKapat` reddeder; × gizli, `.tek-acilis`; sağ tıkta Kapat devre dışı; orta tık
+    etkisiz). `Ctrl+W` o sekmede pencereyi kapatır: önceki sekmesiz açılış ekranındaki davranış. + / `Ctrl+T` yeni sekme açmaz, o sekmeyi
+    seçer (`yeniSekme`).
+  - Pencerede açılan her belge (arka planda açılan, araç sonrası yeniden açılan dahil: `dosyaAc`) ve başka pencereden gelen sekme
+    (`sekmeyiAl`; yeni pencere de açılış sekmesiyle açılır) tek açılış sekmesinin yerini alır (`tekAcilisSekmesi`). Yoksa "Pencereye
+    ayır"da yeni pencerede belgenin yanında boş sekme kalırdı.
+  - "Sekmesiz pencere" denetimleri "belgesiz pencere" oldu: başka pencereden sürüklenen sekmenin bırakma alanı belgesiz pencerede
+    pencerenin tamamı ('sekme:bant', 'sekme:disSurukle'). Son belgesi başka pencereye taşınan pencere eskisi gibi kapanır.
+  - Açılış ekranı 34 px kısaldı (çubuk artık orada da): 1280×700'de 10 son açılanla 26 px taşıyordu (senaryo20). 780 px'e dek alçak
+    pencerede bölüm arası 22 → 14 px, üst / alt en az boşluk 20 / 28 → 12 / 16 px, imzanın üstü 10 → 4 px (`@media (max-height: 780px)`);
+    yüksek pencerede değişmedi. Bölümleri her boyutta sıklaştırmak seçilmedi (geniş ekranda gereksiz).
+- [x] **Sürüklerken yer değiştirme eşiği** (sekmeler.js `surukleIzle`, `YER_DEGISTIRME = 0.25`). Önceden sürüklenen sekmenin ortası
+  komşunun ortasına varınca yer değişiyordu; eş genişlikte sekmelerde bu, sağ kenarın komşunun sağ kenarına varması, yani sekmenin
+  komşusunun tam üstüne gelmesi demek. Artık sağa giderken sağ kenarı, sola giderken sol kenarı komşunun genişliğinin dörtte birine
+  girince yer değişir. Gecikme payı (histerezis) eklenmedi: eşik yalnızca sürükleme miktarına bağlı, geri çekince aynı noktada geri
+  döner; titreme olmaz. Başka pencereden gelen sekmenin bırakılacağı yer (`birakmaYeri`) ortaya göre kaldı (sürükleme değil, yer seçimi).
+- [x] **Sekme genişliği** (stil.css `.sekme`; sekmeler.js `genislikKilitle`). `.sekme { flex: 0 1 220px; width: 220px; min-width: 118px }`:
+  liste içeriği kadar geniş (`#sekme-liste { flex: 0 1 auto }`, + son sekmenin yanında), sığmayınca sekmeler birlikte daralır, 118 px'te
+  durur, liste kayar. 118 px 0.1.5'ten beri sabit genişlikti; kullanıcının dediği gibi en küçük boyut oldu. En büyük boyut 220 px
+  (kullanıcı değer vermedi; tarayıcılarınkine yakın, UYAP adlarının çoğu kısalmadan sığar). 1280 px pencerede 5 sekmeye dek 220 px,
+  6–9 sekmede 189–125 px, 10 sekmeden sonra 118 px ve kayma.
+  - × ya da orta tıkla kapatırken sekme genişliği o anki genişlikte kilitlenir (`.genislik-kilitli`, `--sekme-kilit`), imleç sekme
+    çubuğundan çıkınca ya da sekme eklenince kalkar: sıradaki sekmenin × düğmesi imlecin altına gelir (tarayıcılardaki gibi). Kilit
+    olmasa art arda kapatırken her seferinde sekmeler genişleyip × düğmeleri kayardı.
+  - Bulunan eski kusur: sekmeler sığmayınca listeyle birlikte ◀ ▶ ve açık belgeler düğmeleri de daralıyordu (flex-shrink; 0.1.20'de de
+    kaydırma başlayınca 8 px). Sekme kapanıp sekmeler sığınca bütün sekmeler 8 px sağa kayıyor, × düğmesi imlecin altından çıkıyordu
+    (senaryo23 yakaladı). Düğmeler artık daralmaz.
+- [x] **PDF'i kopyala** (uygulama.js `pdfKopyala`; index.html, menu.js). Sekmede sağ tık › Yolu kopyala'nın altında; açılış sekmesinde devre
+  dışı. Araç çubuğu düğmesiyle aynı iş: kaydedilmemiş değişiklik varsa önce sorulur; sağ tıklanan sekme etkin değilse soru açılmadan önce
+  ona geçilir (kapatma sorusundaki gibi hangi belge için sorulduğu görünsün). Komut kimliği `arac.paylas` kaldı (testler ve menü onu
+  kullanıyor). Sorudaki "paylaş" sözcükleri "kopyala" oldu; düğmenin ipucu ("PDF'i kopyala: dosyayı panoya kopyalar") ve Araçlar menüsü
+  ("PDF'i kopyala (dosyayı panoya)") da: kullanıcı yalnızca soruyu gösterdi, ama aynı işin üç yerde farklı adla görünmemesi için.
+- [x] **Testler**: test/senaryo23.mjs (yeni, 42 denetim): açılış sekmesi kuralları (açılış, kapatma, belge açma / kapama, arka planda
+  açma, Pencereye ayır ile yeni pencere, belgesiz pencereye taşıma, Ctrl+W), genişlik (1–14 belge: eşit genişlik, 220 px, daralma,
+  kayma yalnızca 118 px'te), gerçek fare olaylarıyla × ve orta tıkla kapatırken kilit, sürükleme eşiği (%18'de değişmez, %32'de değişir,
+  iki yönde, iki sekme öteye), PDF'i kopyala menüsü, soru metni ve düğmeleri, ipucu ve menü adı.
+  - Eski davranışı bekleyen denetimler güncellendi: senaryo19 (belge yokken çubuk gizli, son belge kapanınca açılış sekmeleri kalkar;
+    sağ tık menüsünde PDF'i kopyala), kisayol_dosya (başlangıçta sekme yok), senaryo22 (sekmesiz pencere; sağ tık menüsü), senaryo20 ve
+    sekme_genislik (sürükleme hedefi eski eşiğe göre hedefin sağ ucundaydı; artık hedef sekmenin tutma noktası: her genişlikte hedefe
+    girer, sonrakine girmez; alçak penceredeki en az boşluklar).
+  - Regresyon (yer tutucu belgelerle): senaryo23 42/42, senaryo22 101/101, senaryo19 110/110, senaryo20 38/38, kisayol_dosya 163/163,
+    kisayol_gorunum 117/117, senaryo21 39/39, senaryo14, sekme_genislik 24/24 (720 px), gercek_fare (Windows fare iletileri) hepsi geçti.
+    ortu_tiklama bu bilgisayarda olmayan yer imli örnek PDF'i istediği için koşulmadı (sekmelerle ilgisi yok).
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 28.

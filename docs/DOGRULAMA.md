@@ -46,8 +46,8 @@ programda açık olabilir" uyarısı ve **Farklı kaydet** seçeneği çıkmalı
   açılmalı, ikinci pencere açılmamalı. Zaten açık bir dosya ise o sekmeye geçmeli.
 - Gezgin'den birkaç PDF'i pencereye sürükleyin: her biri yeni sekmede açılmalı.
 
-## 5. Paylaş
-Araç çubuğundaki **Paylaş** düğmesine basın; sonra Gezgin'de bir klasöre, Outlook'ta yeni iletiye ya da
+## 5. PDF'i kopyala (0.1.21'e dek Paylaş)
+Araç çubuğundaki **PDF'i kopyala** düğmesine basın; sonra Gezgin'de bir klasöre, Outlook'ta yeni iletiye ya da
 WhatsApp'a **Ctrl+V** yapın: PDF dosyası yapıştırılmalı.
 
 ## 6. Yazdırma
@@ -363,3 +363,23 @@ Titreme, test örneğinde sizin pencere boyutunuzda ve belgenizin bir kopyasıyl
    yatay kaydırma çubuğu çıkıp kaybolmamalı.
 5. **Öteki belgeler.** Uzun bir belge (kaydırma çubuğu olan) ve tek sayfalık bir belge açın: eskisi gibi genişliğe sığmalı; açılırken
    sayfa bir an büyük görünüp küçülmemeli.
+
+## 28. 0.1.21: otomatik testlerin sınayamadıkları
+Sekme çubuğu, sürükleme eşiği, sekme genişliği ve PDF'i kopyala ekran dışındaki test örneğinde, fare olayları test aracından verilerek
+sınandı (test/senaryo23.mjs); sekmeyi çubuğun dışına sürükleme Windows fare iletileriyle de denendi. Elle tutulan gerçek fare, sekmelerin
+ekrandaki görünüşü ve panodaki dosyanın başka programa yapıştırılması gözle denenmedi.
+1. **Sekme çubuğu.** PDEfe'yi açın: sekme çubuğunda "Yeni sekme" durmalı, × düğmesi olmamalı. Bir PDF açın: "Yeni sekme"nin yerine
+   geçmeli. Sekmesini kapatın: çubuk yerinde kalmalı, "Yeni sekme" ve açılış sayfası görünmeli; araç çubuğunda sayfa "/ 0" olmalı.
+   "Yeni sekme"de **+** ya da `Ctrl+T` ikinci boş sekme açmamalı; `Ctrl+W` pencereyi kapatmalı.
+2. **Sürükleme.** Üç PDF açın. Bir sekmeyi tutup yavaşça komşusuna doğru çekin: sekme komşusunun dörtte birine girince komşu kayarak
+   yer açmalı (önceden ancak tam üstüne gelince açıyordu). Biraz geri çekince komşu yerine dönmeli.
+3. **Genişlik.** Bir iki belge açıkken sekmeler geniş olmalı, adlar daha uzun görünmeli. Belge açtıkça sekmeler birlikte daralmalı;
+   çubuk dolunca önceki dar genişlikte kalıp kaydırılmalı (◀ ▶ ile, tekerlekle). Sekmeleri × ile art arda kapatın: fare çubuktayken
+   sekmeler genişlememeli, sıradaki sekmenin × düğmesi farenin altına gelmeli; fareyi belgenin üstüne götürünce sekmeler genişlemeli.
+4. **PDF'i kopyala.** Sekmede sağ tık: **Yolu kopyala**'nın altında **PDF'i kopyala** olmalı. Seçip Gezgin'de bir klasöre `Ctrl+V`
+   yapın: PDF dosyası oraya kopyalanmalı (e-postaya ya da UYAP'a da yapıştırılabilir). "Yeni sekme"de seçenek soluk olmalı.
+5. **Soru.** Bir belgeye not ekleyip kaydetmeden araç çubuğunun sağındaki kopyala düğmesine basın: soru "Kopyalamadan önce kaydetmek
+   ister misiniz?" olmalı, düğmeler **Kaydet ve kopyala**, **Kaydetmeden kopyala**, **Vazgeç**. Aynısını başka bir sekmedeyken o belgenin
+   sağ tık › PDF'i kopyala'sıyla deneyin: soru açılmadan önce o belgeye geçilmeli.
+6. **Alçak pencere.** Pencereyi alçaltın (yaklaşık 700 piksel yükseklik) ve son açılanlarda on belge varken "Yeni sekme"ye bakın:
+   açılış sayfası kaydırma çubuğu olmadan sığmalı, sağ alttaki ad ve sürüm içeriğin altında kalmalı.
