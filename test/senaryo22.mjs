@@ -3,7 +3,7 @@
 //   - sekmeyle birlikte taşınanlar: kaydedilmemiş notlar, sayfa değişiklikleri, geri al / yinele geçmişi, anlık kopya; taşınan belge,
 //     aynı işlemlerin yapıldığı ama taşınmayan eş belgeyle adım adım karşılaştırılır (geri al, yinele, kaydet, diskteki sonuç)
 //   - sekmeyi çubuğun dışına sürükleme (gerçek fare olayları CDP'den): eşik, önizleme penceresi, çubuğa geri takılma, Esc, boş yere
-//     bırakınca yeni pencere (sekme imlecin altında), başka pencerenin çubuğuna bırakma (bırakma işareti, sıra), sekmesiz pencereye
+//     bırakınca yeni pencere (sekme imlecin altında), başka pencerenin çubuğuna bırakma (bırakma işareti, sıra), belgesiz pencereye
 //     bırakma, tek sekmeli pencerenin taşınması / kapanması, açılış sekmesinin ayrılmaması
 //   - dosya yalnızca bir pencerede açık: başka pencerede açık dosya orada gösterilir (arayüzden ve Gezgin'den / ikinci örnekten)
 //   - ayarların pencereler arasında eşitlenmesi; meşgul hedef pencere; pencere kapatma, Çıkış ve güncelleme öncesi izin
@@ -257,8 +257,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
   P(P4);
   await belgeIslemi('es-tasinan.pdf', `await p.belgeKapat(b.id, { zorla: true }); await new Promise((r) => setTimeout(r, 800)); return true;`);
   sonuc('Taşınan sekme kapanınca anlık kopyası silindi', !fs.existsSync(anlikYol));
-  // Sekmesiz kalan pencere (kullanıcı son sekmeyi kapattı) açık kalır: açılış ekranı
-  sonuc('Son sekmesi kapatılan pencere açık kalır (açılış ekranı)', (await yenile()).includes(P4) && (P(P4), !(await evalJs(`document.querySelector('#baslangic').hidden`))) && (await pencereBilgisi(P4)).baslik === 'PDEfe');
+  // Belgesiz kalan pencere (kullanıcı son belgeyi kapattı) açık kalır: açılış ekranı; 0.1.21'den beri sekme çubuğunda açılış sekmesi
+  sonuc('Son belgesi kapatılan pencere açık kalır (açılış ekranı, sekme çubuğunda "Yeni sekme")', (await yenile()).includes(P4) && (P(P4), !(await evalJs(`document.querySelector('#baslangic').hidden`))) && J(await sekmeAdlari()) === J(['Yeni sekme']) && (await pencereBilgisi(P4)).baslik === 'PDEfe');
   P(P1); await belgeIslemi('es-duran.pdf', `await p.belgeKapat(b.id, { zorla: true }); return true;`);
 
   // ---------------------------------------------------------------- 4b) görünüm durumu, kaydedilmekte olan belge
@@ -299,7 +299,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
   sonuc('Beklenmeyen yanıt kabul edilmez; süresi dolmuş taşımada hedefte kurulan sekme kaldırılır', gecKalan.kabul === false && J(gecKalan.sekmeler) === J(['b.pdf', 'c.pdf']) && gecKalan.kilitli === false, gecKalan);
 
   // ---------------------------------------------------------------- 5) sürükleyerek ayırma (gerçek fare olayları)
-  // P1: [b, c], P2: [a, notlu], P4: sekmesiz
+  // P1: [b, c], P2: [a, notlu], P4: belgesiz (açılış sekmesi)
   P(P1);
   await ac('d.pdf'); await bekle(500);
   let yer = await sekmeYeri('c.pdf'), cb = await cubuk();
@@ -414,7 +414,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
   sonuc('Tek sekmeli pencerenin sekmesi boş yere bırakıldı: yeni pencere yok, pencere oraya taşındı (sekme imlecin altında)', (await yenile()).length === kimlikler.length && (p1Sonra.sinirlar.x !== p1Once.sinirlar.x || p1Sonra.sinirlar.y !== p1Once.sinirlar.y) && Math.abs(altinda.x - 40) <= 3 && altinda.y >= 5 && altinda.y <= 25 && J(await sekmeAdlari()) === J(['b.pdf']) && (await ana('test:hayalet')).gorunur === false, { p1Once: p1Once.sinirlar, p1Sonra: p1Sonra.sinirlar, altinda });
   g.kapat();
 
-  // Sekmesiz pencereye (P4, açılış ekranı) bırakma: pencerenin her yeri bırakma alanı. P4 öteki pencerelerle üst üste: öne alınır
+  // Belgesiz pencereye (P4, yalnızca açılış sekmesi; 0.1.21'e dek sekmesizdi) bırakma: pencerenin her yeri bırakma alanı. P4 öteki pencerelerle üst üste: öne alınır
   // (üst üste binen pencerelerde imlecin altındaki, en öndeki penceredir)
   P(P4); await oneAl();
   const p4 = await pencereBilgisi(P4);
@@ -424,14 +424,14 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
   await g.bas(yer.x, yer.y); await g.git(yer.x, yer.y, yer.x + 10, cb.alt + 100);
   await kosul(`window.pdefe.cagir('test:hayalet').then((h) => !!h && h.gorunur)`, 4000);
   await ana('test:imlec', { x: Math.round(p4.icerik.x + p4.icerik.width / 2), y: Math.round(p4.icerik.y + p4.icerik.height / 2) });
-  sonuc('Sekmesiz pencerenin ortası bırakma alanı sayılır', await kosul(`window.pdefe.cagir('test:surukleme').then((s) => s?.hedef === ${P4})`, 4000), await ana('test:surukleme'));
+  sonuc('Belgesiz pencerenin ortası bırakma alanı sayılır', await kosul(`window.pdefe.cagir('test:surukleme').then((s) => s?.hedef === ${P4})`, 4000), await ana('test:surukleme'));
   P(P4);
-  sonuc('Sekmesiz pencerenin üstünde: "Sekmeyi buraya bırakın" örtüsü', await kosul(`!document.querySelector('#surukle-ortusu').hidden && document.querySelector('#surukle-ortusu').textContent.includes('Sekmeyi buraya bırakın')`, 3000));
+  sonuc('Belgesiz pencerenin üstünde: "Sekmeyi buraya bırakın" örtüsü', await kosul(`!document.querySelector('#surukle-ortusu').hidden && document.querySelector('#surukle-ortusu').textContent.includes('Sekmeyi buraya bırakın')`, 3000));
   P(P5);
   await g.birak(yer.x + 10, cb.alt + 100);
   P(P4);
   await kosul(`window.__pdefe.sekmeler.sekmeler.length === 1 && !!window.__pdefe.aktif()?.gorunum.hazir`, 8000);
-  sonuc('Sekmesiz pencereye bırakılan sekme orada açıldı; örtü kalktı ve eski yazısına döndü', J(await sekmeAdlari()) === J(['d.pdf*']) && (await evalJs(`document.querySelector('#surukle-ortusu').hidden && document.querySelector('#surukle-ortusu').textContent.includes('PDF')`)), await sekmeAdlari());
+  sonuc('Belgesiz pencereye bırakılan sekme orada açıldı, açılış sekmesinin yerini aldı; örtü kalktı ve eski yazısına döndü', J(await sekmeAdlari()) === J(['d.pdf*']) && (await evalJs(`document.querySelector('#surukle-ortusu').hidden && document.querySelector('#surukle-ortusu').textContent.includes('PDF')`)), await sekmeAdlari());
   sonuc('Tek sekmesi başka pencereye bırakılan pencere kapandı', await pencereKapandi(P5), await yenile());
   kimlikler = await yenile();
   g.kapat();

@@ -97,13 +97,14 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, tusH
 
   // ================================================================ 1) belge yokken: Ctrl+T, Ctrl+O
   let d = await durumAl();
-  sonuc('Başlangıç: sekme yok, sekme çubuğu gizli, açılış ekranı görünür', !d.sekmeler.length && !d.cubuk && d.baslangic, d);
+  // 0.1.21: sekme çubuğu hiç kapanmaz; belgesiz pencerede tek açılış sekmesi (önceden sekme yoktu, çubuk gizliydi)
+  sonuc('Başlangıç: tek sekme "Yeni sekme", sekme çubuğu görünür, açılış ekranı görünür', J(d.sekmeler) === J(['Yeni sekme']) && d.aktif === 'Yeni sekme' && d.cubuk && d.baslangic, d);
   await tusG('T', ['control']);
   d = await durumAl();
-  sonuc('Ctrl+T belge yokken: sekme açılmaz, çubuk gizli, açılış ekranı görünür', !d.sekmeler.length && !d.cubuk && d.baslangic, d);
+  sonuc('Ctrl+T belge yokken: yeni sekme açılmaz (tek açılış sekmesi), açılış ekranı görünür', J(d.sekmeler) === J(['Yeni sekme']) && d.aktif === 'Yeni sekme' && d.cubuk && d.baslangic, d);
   await tusG('O', ['control'], 600);
   let k = await kayit();
-  sonuc('Ctrl+O: Aç penceresi (dosya:acDiyalog) açılır; yanıtsız (vazgeç) hiçbir şey açılmaz', k.length === 1 && k[0].kanal === 'dosya:acDiyalog' && (await durumAl()).sekmeler.length === 0, k);
+  sonuc('Ctrl+O: Aç penceresi (dosya:acDiyalog) açılır; yanıtsız (vazgeç) hiçbir şey açılmaz', k.length === 1 && k[0].kanal === 'dosya:acDiyalog' && J((await durumAl()).sekmeler) === J(['Yeni sekme']), k);
   await yanitla('dosya:acDiyalog', [[path.join(PDF, 'a.pdf')]]);
   await tusG('O', ['control'], 300);
   await kosul(`window.__pdefe.aktif()?.ad === 'a.pdf' && window.__pdefe.aktif().gorunum.sayfaSayisi > 0`);

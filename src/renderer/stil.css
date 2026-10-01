@@ -165,6 +165,8 @@ html[data-tema="koyu"] #sekme-liste.siralaniyor .sekme.tasiniyor { box-shadow: 0
 }
 .sekme .kapat:hover { background: var(--hover); opacity: 1; }
 .sekme .kapat svg { width: 13px; height: 13px; }
+/* Pencerenin tek sekmesi açılış sekmesiyse kapatılmaz (0.1.21: sekme çubuğu hiç boş kalmaz); yer tutsun, ad kaymasın */
+#sekme-liste.tek-acilis .sekme .kapat { visibility: hidden; }
 
 /* ---------- Gövde ---------- */
 #govde { flex: 1; display: flex; min-height: 0; position: relative; }
@@ -300,6 +302,14 @@ html.metin-seciliyor, html.metin-seciliyor * { cursor: text !important; }
 /* Ad ve sürüm (imza): sağ altta, göze batmadan; pencereyle birlikte köşede kalır. Tıklanınca Ayarlar › Hakkında açılır (baslangic.js),
    ama düğme gibi görünmez: çerçeve, zemin, üzerine gelme ya da odak izi yok (0.1.15, kullanıcı isteği) */
 .karsilama-imza { grid-row: 4; justify-self: end; display: flex; align-items: center; gap: 9px; padding-top: 10px; user-select: none; }
+/* Alçak pencerede sıkı (0.1.21): sekme çubuğu artık açılış ekranında da görünür (belgesiz pencerede tek açılış sekmesi), açılış ekranı
+   34 px kısaldı. 1280×700 pencerede 10 son açılan belgeyle kaydırmadan sığsın diye bölümler arası, üst / alt boşluklar ve imzanın üstü
+   daralır; yüksek pencerede görünüm değişmez */
+@media (max-height: 780px) {
+  #baslangic { grid-template-rows: minmax(12px, 1fr) auto minmax(16px, 2fr) auto; }
+  .karsilama { gap: 14px; }
+  .karsilama-imza { padding-top: 4px; }
+}
 .karsilama-logo { width: 30px; height: 30px; flex: none; }
 .karsilama-baslik p { margin: 0; white-space: nowrap; }
 .karsilama-ad { font-size: 14px; font-weight: 600; line-height: 1.25; }

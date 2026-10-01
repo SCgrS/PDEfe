@@ -2,7 +2,8 @@
 // paneli, dosyadaki /Subj), seçim mini çubuğunda renklerin ▾'nin altında dikey sütun olarak açılması (çubuk genişlemez, yan boşluklar
 // küçük; altta yer yoksa ya da çubuk seçimin üstündeyse sütun yukarı), Sayfaları düzenle'de "PDF ekle" ve araçlarda "Kaydet" bölüm
 // başlığı, sekme çubuğunda + / Ctrl+T ile "Yeni sekme" (açılış sayfası sekmesi; önde açılan belge onun yerini alır, zaten açık dosyada
-// o sekmeye geçilir, son belge kapanınca açılış sekmeleri de kalkar), açılış ekranında büyük PDF aç düğmesi + sürükle-bırak bilgisi
+// o sekmeye geçilir; 0.1.21'den beri sekme çubuğu hiç kapanmaz: son belge kapanınca açılış sekmeleri teke iner, belgesiz pencerede
+// tek açılış sekmesi), açılış ekranında büyük PDF aç düğmesi + sürükle-bırak bilgisi
 // (0.1.14'ten beri düğmenin açıklamasında) + beş aracın hepsi + Son açılanlar (0.1.14'ten beri araçların altında; "Son açılanları
 // hatırla" kapalıyken kutu hiç yok, içerik ortada; 0.1.14'ün ayrıntılı açılış denetimleri senaryo20'de), belge gerektiren araçların
 // belge yokken önce Aç penceresini açması (açılış ekranı kartları, Araçlar penceresi, Araçlar menüsü, açılış sekmesi), araç
@@ -156,7 +157,8 @@ export default async function (surucu) {
     // ================================================================ (a) açılış ekranı
     await ac('a.pdf'); await ac('b.pdf'); await kapat('a.pdf'); await kapat('b.pdf');
     let d = await durum();
-    sonuc('Belge yokken: sekme çubuğu gizli, açılış ekranı görünür', d.cubukGizli && d.acilisGorunur && d.adlar.length === 0, d);
+    // 0.1.21: sekme çubuğu hiç kapanmaz; belge kalmayınca açılış sekmesi (önceden çubuk gizleniyordu)
+    sonuc('Belge yokken: sekme çubuğu görünür, tek sekme açılış sekmesi, açılış ekranı görünür', !d.cubukGizli && d.acilisGorunur && J(d.adlar) === J(['+']) && d.aktif === '+', d);
 
     const olc = () => evalJs(`(() => {
       const r = (e) => { if (!e) return null; const k = e.getBoundingClientRect(); return { l: Math.round(k.left * 10) / 10, t: Math.round(k.top * 10) / 10, r: Math.round(k.right * 10) / 10, b: Math.round(k.bottom * 10) / 10, w: Math.round(k.width * 10) / 10, h: Math.round(k.height * 10) / 10 }; };
@@ -396,7 +398,7 @@ export default async function (surucu) {
     await menuTus('W', ['control']);
     d = await durum();
     sonuc('Ctrl+W (menü kısayolu) açılış sekmesini kapatır, önceki sekmeye dönülür', onceW.aktif === '+' && !d.adlar.includes('+') && d.adlar.length === 7 && d.aktif === 'd.pdf', { onceW, d });
-    // Son belge kapanınca açılış sekmeleri de kalkar
+    // Son belge kapanınca açılış sekmeleri teke iner (0.1.21; önceden hepsi kalkıyor, sekme çubuğu gizleniyordu)
     await menuTus('T', ['control']);
     await menuTus('T', ['control']);
     for (const ad of ['a.pdf', 'b.pdf', 'c.pdf', 'd.pdf', 'e.pdf', 'f.pdf']) await kapat(ad);
@@ -405,10 +407,10 @@ export default async function (surucu) {
     await kapat('g.pdf'); await bekle(300);
     d = await durum();
     const baslikBos = pencereBasligi();
-    sonuc('Son belge kapanınca açılış sekmeleri de kalkar: sekme çubuğu gizli, sekmesiz açılış ekranı', d.adlar.length === 0 && d.cubukGizli && d.acilisGorunur && d.aktifId === null && (baslikBos == null || baslikBos === 'PDEfe'), { d, baslikBos });
+    sonuc('Son belge kapanınca açılış sekmeleri teke iner: sekme çubuğu görünür, açılış ekranı', J(d.adlar) === J(['+']) && !d.cubukGizli && d.acilisGorunur && d.aktif === '+' && d.belge === null && (baslikBos == null || baslikBos === 'PDEfe'), { d, baslikBos });
     await menuTus('T', ['control']);
     d = await durum();
-    sonuc('Belge yokken Ctrl+T sekme açmaz (açılış ekranı zaten görünür)', d.adlar.length === 0 && d.cubukGizli && d.acilisGorunur, d);
+    sonuc('Belge yokken Ctrl+T sekme açmaz (açılış sayfası tek açılış sekmesinde zaten açık)', J(d.adlar) === J(['+']) && !d.cubukGizli && d.acilisGorunur, d);
 
     // Sekmeler sığmayınca: + sağda sabit (▶ öncesi), liste kayar, etkin açılış sekmesi görünür
     for (const ad of kucukAdlar) await evalJs(`window.__pdefe.dosyaAc(${J(path.join(PDF, ad + '.pdf'))}).then(() => true)`);
@@ -469,7 +471,7 @@ export default async function (surucu) {
       const kk = (await kayit()).filter((k) => k.kanal === 'dosya:acDiyalog');
       const bos = { pencere: await evalJs(`!!document.querySelector('.arac-ortusu')`), belge: await evalJs(`window.__pdefe.belgeler.size`), d: await durum() };
       sonuc(`Açılış kartı "${a.ad}", belge yok → Aç penceresi ("${a.ad}: PDF seçin", tek dosya); vazgeçilince hiçbir şey açılmaz`,
-        kk.length === 1 && kk[0].secenek?.baslik === `${a.ad}: PDF seçin` && kk[0].secenek?.coklu === false && J(kk[0].yanit) === '[]' && !bos.pencere && bos.belge === 0 && bos.d.cubukGizli && bos.d.acilisGorunur, { kk, bos });
+        kk.length === 1 && kk[0].secenek?.baslik === `${a.ad}: PDF seçin` && kk[0].secenek?.coklu === false && J(kk[0].yanit) === '[]' && !bos.pencere && bos.belge === 0 && J(bos.d.adlar) === J(['+']) && bos.d.acilisGorunur, { kk, bos });
       await acYaniti(path.join(PDF, a.dosya));
       await tikl(q(`.karsilama-arac[data-eylem="${komut}"]`));
       const r = await aracSonucu(komut, 'kart', a.dosya);

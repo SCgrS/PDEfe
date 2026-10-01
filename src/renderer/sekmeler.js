@@ -91,10 +91,14 @@ export class SekmeCubugu extends EventTarget {
     // Sürükleyerek sıralama / ayırma: sol tuşla basılıp çekilince (kapat düğmesinden değil)
     el.addEventListener('pointerdown', (e) => { if (e.button === 0 && e.isPrimary && !e.target.closest('.kapat')) this.surukleHazirla(e, el, id); });
 
-    this.cubuk.hidden = false;
     this.okDurumu();   // arka planda açılan sekme sona eklenir: ▶ etkinleşir
+    this.tekAcilisDurumu();
     return sekme;
   }
+
+  /** Çubuktaki tek sekme açılış sekmesiyse kapat düğmesi gizlenir: o sekme kapatılmaz, çubuk hiç boş kalmaz (0.1.21; uygulama.js
+   *  baslangicSekmesiniKapat). */
+  tekAcilisDurumu() { this.liste.classList.toggle('tek-acilis', this.sekmeler.length === 1 && !!this.sekmeler[0].baslangic); }
 
   siralamayiOku() {
     const sira = [...this.liste.children].map((el) => this.sekmeler.find((s) => s.el === el)).filter(Boolean);
@@ -292,8 +296,9 @@ export class SekmeCubugu extends EventTarget {
     this.sekmeler[i].el.remove();
     this.sekmeler.splice(i, 1);
     this.mru = this.mru.filter((x) => x !== id);
-    if (!this.sekmeler.length) { this.cubuk.hidden = true; this.aktifId = null; }
+    if (!this.sekmeler.length) this.aktifId = null;   // uygulama hemen açılış sekmesi açar (çubuk gizlenmez)
     this.okDurumu();
+    this.tekAcilisDurumu();
   }
 
   aktifYap(id) {

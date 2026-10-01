@@ -103,8 +103,10 @@ export default async function ({ evalJs, bekle }) {
         o.ogeler.map((g) => [g.ad, g.l, g.t]));
       sonuc(`${e} Açılış ekranı kaydırılmadan sığıyor (10 belgeyle)`, o.alan.sh <= o.alan.h && o.alan.sw <= o.alan.w && o.docScroll <= 0, o.alan);
       const ust = o.karsilama.t - o.alan.t, alt = o.imza.t - o.karsilama.b;
-      // Boş yer azsa boşluklar en az değerlerinde (üst 20, alt 28 px) kalabilir; yoksa alt boşluk üsttekinin iki katı
-      sonuc(`${e} İçerik ortanın üstünde: üst boşluk alttakinin yarısı kadar (tam ortada değil)`, ust >= 19.5 && ust < alt && (ust <= 20.5 || alt <= 28.5 || Math.abs(alt - 2 * ust) < 3), { ust, alt });
+      // Boş yer azsa boşluklar en az değerlerinde (üst 20, alt 28 px; 0.1.21'den beri 780 px'e dek alçak pencerede üst 12, alt 16 px: sekme
+      // çubuğu açılış ekranında da görünür) kalabilir; yoksa alt boşluk üsttekinin iki katı
+      const alcak = (await evalJs('innerHeight')) <= 780, enAzUst = alcak ? 12 : 20, enAzAlt = alcak ? 16 : 28;
+      sonuc(`${e} İçerik ortanın üstünde: üst boşluk alttakinin yarısı kadar (tam ortada değil)`, ust >= enAzUst - 0.5 && ust < alt && (ust <= enAzUst + 0.5 || alt <= enAzAlt + 0.5 || Math.abs(alt - 2 * ust) < 3), { ust, alt, alcak });
       sonuc(`${e} Ad ve sürüm sağ altta: "PDEfe · PDF görüntüleyici ve düzenleyici · sürüm ${surum}", logo yanında`,
         Math.abs(o.imza.r - (o.alan.l + o.alan.w - o.alan.pr)) < 1.5 && Math.abs(o.imza.b - (o.alan.t + o.alan.h - o.alan.pb)) < 1.5 && o.imzaMetin === `PDEfe PDF görüntüleyici ve düzenleyici · sürüm ${surum}` && o.logo.w >= 24 && o.logo.r <= o.imza.l + o.logo.w + 1,
         { imza: o.imza, alan: o.alan, metin: o.imzaMetin });

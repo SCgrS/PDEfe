@@ -164,8 +164,9 @@ async function dosyaAc(yol, secenek = {}) {
 
   const belge = belgeOlustur(yol);
   const { id, ad, gorunum } = belge;
-  // Açılış sekmesi (+ / Ctrl+T) etkinken önde açılan belge o sekmenin yerini alır (tarayıcıdaki gibi); arka planda açılan sona eklenir
-  const yerine = acilistan && baslangicSekmeleri.has(aktifId) ? aktifId : null;
+  // Açılış sekmesi (+ / Ctrl+T) etkinken önde açılan belge o sekmenin yerini alır (tarayıcıdaki gibi); arka planda açılan sona eklenir.
+  // Pencerenin tek sekmesi açılış sekmesiyse (belgesiz pencere) her açılan belge onun yerini alır
+  const yerine = (acilistan && baslangicSekmeleri.has(aktifId) ? aktifId : null) || tekAcilisSekmesi();
   sekmeler.ekle({ id, ad, yol, once: yerine });
   if (yerine) { baslangicSekmeleri.delete(yerine); sekmeler.kaldir(yerine); aktifId = null; }
   if (!secenek.arkaPlanda || !aktifId) sekmeSec(id);
@@ -322,50 +323,63 @@ function belgeyiKaldir(b, { devredildi = false } = {}) {
     if (b.gorunum.anlik) cekirdek('anlik_sil', { yol: b.gorunum.anlik }).catch(() => {});
   }
   if (aktifId === id) { aktifId = null; sonrakiSekmeyeGec(); }
-  bosSekmeleriTemizle();
+  belgesizseTekSekme();
   belgeleriBildir();
 }
 
 // ---------------------------------------------------------------- açılış sekmeleri (0.1.13, kullanıcı isteği)
 // Sekme çubuğundaki + ya da Ctrl+T tarayıcıdaki gibi açılış sayfasını yeni bir sekmede açar ("Yeni sekme"). Sekme belge değildir
 // (belgeler'de yok; aktif() null): belge alanında #baslangic görünür, araç çubuğu açılış ekranındaki gibidir. Oradan önde açılan
-// belge sekmenin yerini alır (dosyaAc). Açık belge kalmayınca açılış sekmeleri de kalkar: sekmesiz açılış ekranı (uygulamanın ilk hâli).
+// belge sekmenin yerini alır (dosyaAc).
+// 0.1.21 (kullanıcı isteği): sekme çubuğu hiç kapanmaz. Belgesiz pencerede tek bir açılış sekmesi vardır: pencere onunla açılır, son
+// belge kapanınca yerine o gelir (yeni boş sekme açılmış gibi; yanında başka açılış sekmeleri varsa teke iner). Önceden açık belge
+// kalmayınca açılış sekmeleri kalkıyor, çubuk gizleniyordu: sekmesiz açılış ekranının yerini tek açılış sekmesi aldı, kuralları da onun:
+// kapatılmaz (× yok; Ctrl+W pencereyi kapatır), + / Ctrl+T yeni sekme açmaz (açılış sayfası zaten açık), pencerede açılan ya da başka
+// pencereden gelen ilk belge onun yerini alır (tekAcilisSekmesi).
 const baslangicSekmeleri = new Set();
 let baslangicSayac = 0;
 
-/** Yeni açılış sekmesi (sona); hiç sekme yokken açılış ekranı zaten görünür, sekme açılmaz. */
+/** Yeni açılış sekmesi (sona). Belgesiz pencerede (tek açılış sekmesi) yenisi açılmaz, o sekme seçilir. */
 function yeniSekme() {
-  if (!sekmeler.sekmeler.length) { baslangicGoster(); return; }
+  const bos = tekAcilisSekmesi();
+  if (bos) { sekmeSec(bos); return; }
   const id = 'y' + (++baslangicSayac);
   baslangicSekmeleri.add(id);
   sekmeler.ekle({ id, ad: 'Yeni sekme', yol: '', baslangic: true });
   sekmeSec(id);
 }
 
+/** Pencerenin tek sekmesi açılış sekmesiyse onun kimliği (belgesiz pencere), değilse null. */
+function tekAcilisSekmesi() {
+  const s = sekmeler.sekmeler;
+  return s.length === 1 && baslangicSekmeleri.has(s[0].id) ? s[0].id : null;
+}
+
+/** Açılış sekmesini kapatır; pencerenin tek sekmesiyse kapatmaz (çubuk boş kalmasın). Kapandıysa true. */
 function baslangicSekmesiniKapat(id) {
-  if (!baslangicSekmeleri.delete(id)) return false;
+  if (!baslangicSekmeleri.has(id) || tekAcilisSekmesi() === id) return false;
+  baslangicSekmeleri.delete(id);
   sekmeler.kaldir(id);
   if (aktifId === id) { aktifId = null; sonrakiSekmeyeGec(); }
-  bosSekmeleriTemizle();
   return true;
 }
 
 /** Belge ya da açılış sekmesi kapatır (sekme × düğmesi, orta tık, Ctrl+W, sağ tık menüsü). */
 function sekmeKapat(id, secenek) { return baslangicSekmeleri.has(id) ? Promise.resolve(baslangicSekmesiniKapat(id)) : belgeKapat(id, secenek); }
 
-/** Etkin sekme kapandıktan sonra: en son kullanılan sekme, yoksa açılış ekranı. */
+/** Etkin sekme kapandıktan sonra: en son kullanılan sekme; sekme kalmadıysa yeni açılış sekmesi. */
 function sonrakiSekmeyeGec() {
   const sonraki = sekmeler.mru[0] || sekmeler.sekmeler[0]?.id;
-  if (sonraki) sekmeSec(sonraki); else baslangicGoster();
+  if (sonraki) sekmeSec(sonraki); else yeniSekme();
 }
 
-/** Açık belge kalmadıysa açılış sekmeleri de kaldırılır: sekme çubuğu gizlenir, açılış ekranı sekmesiz görünür. */
-function bosSekmeleriTemizle() {
-  if (belgeler.size || !baslangicSekmeleri.size) return;
-  for (const id of baslangicSekmeleri) sekmeler.kaldir(id);
-  baslangicSekmeleri.clear();
-  aktifId = null;
-  baslangicGoster();
+/** Pencerede belge kalmadıysa tek açılış sekmesi kalır: etkin olan (ya da ilki) durur, ötekiler kalkar; hiç yoksa açılır. */
+function belgesizseTekSekme() {
+  if (belgeler.size) return;
+  const kalan = baslangicSekmeleri.has(aktifId) ? aktifId : [...baslangicSekmeleri][0];
+  for (const id of [...baslangicSekmeleri]) if (id !== kalan) { baslangicSekmeleri.delete(id); sekmeler.kaldir(id); }
+  if (!kalan) yeniSekme();
+  else if (aktifId !== kalan) sekmeSec(kalan);
 }
 
 // ---------------------------------------------------------------- çekirdeğin belge önbelleği
@@ -599,7 +613,10 @@ async function sekmeyiAl(paket, { x = null } = {}, onayla = null) {
     if (paket.ad) belge.ad = paket.ad;
     belge.boyut = paket.boyut || 0; belge.diskDondurme = { ...(paket.diskDondurme || {}) }; belge._otoKayitDurdu = !!paket.otoKayitDurdu;
     belge.notSozu = Promise.resolve();
+    // Belgesiz pencerenin (yeni açılan pencere dahil) tek açılış sekmesinin yerini alır; açılamazsa belgeyiKaldir yenisini açar
+    const bos = tekAcilisSekmesi();
     sekmeler.ekle({ id, ad: belge.ad, yol: belge.yol, once });
+    if (bos) { baslangicSekmeleri.delete(bos); sekmeler.kaldir(bos); if (aktifId === bos) aktifId = null; }
     sekmeSec(id);
     gorunum.koyuSayfa = koyuMu() && ayar.sayfayiKoyulastir;
     const girdiAl = await gorunum.durumdanYukle(paket.gorunum, { duzen: genelDuzen(), kapakAyri: !!ayar.kapakAyri });
@@ -685,12 +702,12 @@ sekmeler.addEventListener('disariBirakildi', async (e) => {
   if (!tasindi) { sekmeler.askidanCikar(id); pdefe.gonder('sekme:surukleIptal'); }   // sekme çubukta yerinde; önizleme kalkar
 });
 // Başka pencerenin sekmesi bu pencerenin üstünde sürükleniyor. 'sekme:bant': sekmenin bırakılabileceği alan (pencere içi): sekme çubuğu
-// (biraz payla); sekmesiz pencerede (açılış ekranı) pencerenin tamamı; açık pencere ya da süren taşıma varken yok.
+// (biraz payla); belgesiz pencerede (yalnızca açılış sekmeleri) pencerenin tamamı; açık pencere ya da süren taşıma varken yok.
 pdefe.dinle('sekme:bant', (istekId) => {
   let bant = null;
   if (!girdiKilitli() && !ortuAcik() && !kapanisSuruyor()) {
     const r = $('#sekme-cubugu').getBoundingClientRect();
-    if (!sekmeler.sekmeler.length) bant = { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
+    if (!belgeler.size) bant = { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
     else if (r.width && r.height) bant = { x: r.left, y: r.top - 6, w: r.width, h: r.height + 12 };
   }
   pdefe.cagir('yanit', istekId, bant).catch(() => {});
@@ -699,7 +716,7 @@ pdefe.dinle('sekme:bant', (istekId) => {
 pdefe.dinle('sekme:disSurukle', (nokta) => {
   const ortu = $('#surukle-ortusu');
   if (!nokta) { sekmeler.birakmaIsareti(null); if (ortu.dataset.sekme) { delete ortu.dataset.sekme; ortu.hidden = true; ortu.firstElementChild.textContent = 'PDF\'i bırakın'; } return; }
-  if (sekmeler.sekmeler.length) sekmeler.birakmaIsareti(nokta.x);
+  if (belgeler.size) sekmeler.birakmaIsareti(nokta.x);
   else { ortu.dataset.sekme = '1'; ortu.firstElementChild.textContent = 'Sekmeyi buraya bırakın'; ortu.hidden = false; }
 });
 
@@ -1056,7 +1073,8 @@ const komutlar = {
   'not.sil': () => aktif()?.notlar.silSecili(),
   'dosya.klasordeGoster': () => { const b = aktif(); if (b) pdefe.cagir('kabuk:klasordeGoster', b.yol); },
   'dosya.yazdir': () => { const b = aktif(); if (!b) { bildir('Yazdırılacak belge yok.'); return; } return yazdir({ cekirdek, pdefe, mesajKutusu, bildir, kaydet: (belge) => belgeKaydet(belge) }, b); },
-  'sekme.kapat': () => { if (aktifId) sekmeKapat(aktifId); else pdefe.cagir('pencere:kapat'); },
+  // Pencerenin tek sekmesi açılış sekmesiyse (kapatılmaz) Ctrl+W pencereyi kapatır
+  'sekme.kapat': () => { if (aktifId && tekAcilisSekmesi() !== aktifId) sekmeKapat(aktifId); else pdefe.cagir('pencere:kapat'); },
   'sekme.yeni': () => yeniSekme(),
   'sekme.sonraki': () => sekmeGec(1), 'sekme.onceki': () => sekmeGec(-1),
   'duzen.geriAl': () => geriAlYinele(true),
@@ -1386,7 +1404,7 @@ sekmeler.addEventListener('sagTik', async (e) => {
   // Pencereye ayır (0.1.19, kullanıcı isteği): sekme kendi penceresinde açılır. Pencerenin tek sekmesinde (ayrılacak başka sekme yok)
   // ve açılış sekmesinde devre dışı
   const secim = await pdefe.cagir('menu:popup', [
-    { id: 'kapat', etiket: 'Kapat' }, { id: 'digerleri', etiket: 'Diğerlerini kapat', devre: sekmeler.sekmeler.length < 2 },
+    { id: 'kapat', etiket: 'Kapat', devre: tekAcilisSekmesi() === id }, { id: 'digerleri', etiket: 'Diğerlerini kapat', devre: sekmeler.sekmeler.length < 2 },
     { id: 'sagdakiler', etiket: 'Sağdakileri kapat', devre: sekmeler.sekmeler.findIndex((s) => s.id === id) >= sekmeler.sekmeler.length - 1 },
     { ayirici: true }, { id: 'ayir', etiket: 'Pencereye ayır', devre: !b || sekmeler.sekmeler.length < 2 },
     { ayirici: true }, { id: 'klasor', etiket: 'Klasörde göster', devre: !b }, { id: 'yol', etiket: 'Yolu kopyala', devre: !b },
@@ -1792,7 +1810,9 @@ document.addEventListener('click', (e) => {
 (async function baslat() {
   await ayarlariYukle();
   secimCubuguYenile();   // seçim mini çubuğunda kayıtlı vurgu rengi seçili görünsün (çubuk ayarlar yüklenmeden kuruluyor)
-  sonDosyalariListele();
+  // Pencere açılış sekmesiyle açılır (0.1.21): sekme çubuğu hiç kapanmaz. Açılırken verilen ya da başka pencereden gelen belge bu sekmenin
+  // yerini alır (ana süreç belge göndermeden önce 'uygulama:hazir'ı bekler). Açılış sayfası son açılanları da listeler
+  yeniSekme();
   pdefe.gonder('pencere:belgeler', []);   // arayüz yeniden yüklendiyse ana süreçteki açık belge kaydı bayat kalmasın
   pdefe.gonder('uygulama:hazir');
   window.__pdefe = { belgeler, aktif, dosyaAc, belgeKapat, sekmeSec, komutCalistir, ayar: () => ayar, panel, sekmeler, arama, temizMetin, sayfaTarifiUygula, sayfalariDondur, belgeKaydet, mesajKutusu, sekmeyiTasi, sekmePaketi, tasimaSuruyor: () => tasimaSuruyor, kilitli: () => girdiKilitli() };
