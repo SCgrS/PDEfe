@@ -50,7 +50,7 @@ const izgaraya = (v, dpr) => Math.round(v * dpr) / dpr;
 const tasar = (icerik, gorunur) => icerik - gorunur > 1;
 /**
  * Kaydırma çubuğunun kalınlığı (CSS px, yukarı yuvarlanmış tam sayı): en dikey çubuğun genişliği, boy yatay çubuğun yüksekliği. Stil
- * sayfası belirler (stil.css ::-webkit-scrollbar); çubuğu hep açık bir deneme kutusunun iç öğesiyle, cihaz piksel oranı başına bir
+ * sayfası belirler (stil.css .kaydirici::-webkit-scrollbar); çubuğu hep açık bir deneme kutusunun iç öğesiyle, cihaz piksel oranı başına bir
  * kez ölçülür (clientWidth tam sayıya yuvarlar; kesirli kalınlıkta çubuğun kapladığı yer eksik hesaplanmasın).
  */
 let cubukOlcusu = null;
@@ -58,6 +58,7 @@ function cubukKalinligi() {
   const dpr = pikselOrani();
   if (cubukOlcusu?.dpr === dpr) return cubukOlcusu;
   const el = document.createElement('div'), ic = document.createElement('div');
+  el.className = 'kaydirma-olcer';   // belge görünümünün (.kaydirici) çubuk kalınlığı (stil.css)
   el.style.cssText = 'position:absolute;left:-9999px;top:0;width:100px;height:100px;overflow:scroll;visibility:hidden;';
   ic.style.cssText = 'width:100%;height:100%;';
   el.append(ic);
