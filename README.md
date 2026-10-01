@@ -54,8 +54,9 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   yazı ekleme; taşıma, düzenleme, silme. Nota yanıt yazılmaz; başka programlarda yazılmış yanıtlar salt okunur gösterilir.
   Yazılarda seçili sözcükler kalın, italik ya da altı çizili yapılır; yazılar Türkçe karakterli Windows fontuyla
   (Segoe UI, Arial, Times, Calibri) belgeye gömülür, başka PDF okuyucularında ve UYAP'ta aynı görünür. Notlar `Ctrl+S` ile
-  ya da istenirse kendiliğinden kaydedilir (Ayarlar › Kaydetme › Otomatik kaydet, varsayılan kapalı); kaydetme artımlıdır,
-  belgenin geri kalanına dokunulmaz.
+  ya da istenirse kendiliğinden kaydedilir (Ayarlar › Kaydetme › Otomatik kaydet, varsayılan kapalı). Not ekleme artımlı
+  kaydedilir, belgenin geri kalanına dokunulmaz; kayıtlı bir not silinir ya da değişirse belge baştan yazılır, notun eski hâli
+  dosyada kalmaz (belgede PDF'e gömülü e-imza varsa imzayı korumak için sorulur).
 - **Geri al / yinele.** Her not ve sayfa işlemi `Ctrl+Z` / `Ctrl+Y` ile geri alınır; kayıttan sonra bile.
 - **Araçlar** (araç çubuğundaki **Araçlar** düğmesi, açılış ekranı ya da Araçlar menüsü; belge açık değilken önce PDF seçilir;
   pencerelerdeki fare ve tuş kullanımı `F1` Kısayollar'da): **PDF küçült** (üç hazır seviye, boyut
@@ -83,9 +84,9 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 - Sayfa düzeni (tek sayfa / iki sayfa, kaydırma aç/kapa, kapak ayrı; bütün sekmelere uygulanır), %6400'e kadar
   yakınlaştırma (genişliğe sığdır, kaydırmalı düzende sayfaların çoğunun genişliğine göre: birkaç geniş sayfa belgeyi
   küçültmez, yana taşar), okuma modu, tam ekran, sol panelde küçük resimler / İçindekiler / Yorumlar, belge içi ve dış
-  bağlantılar, form alanlarının görünümü, parola korumalı belgeler, sürükle-bırak.
+  bağlantılar (dış bağlantı yalnızca web ve e-posta adresiyse, adresi gösterilip sorulduktan sonra açılır), form alanlarının görünümü, parola korumalı belgeler, sürükle-bırak.
 - **Ayarlar** (`Ctrl+,` ya da araç çubuğundaki dişli): Görünüm (tema, yazı çizimi), Açılış ve düzen (varsayılan PDF
-  görüntüleyici: PDEfe zaten varsayılansa "Zaten varsayılan"; kaldığım sayfa, son açılanlar ve Listeyi temizle; yakınlaştırma,
+  görüntüleyici: PDEfe zaten varsayılansa "Zaten varsayılan"; kaldığım sayfa ve Hatırlanan sayfaları temizle, son açılanlar ve Listeyi temizle; yakınlaştırma,
   tek / iki sayfa, kaydırma, kapak, Döndür düğmesi), Not ve vurgu, Kaydetme (otomatik kaydet, araçların çıktı klasörü),
   Güncelleme. Kopyalama her zaman temiz metinle yapılır.
 - **Açılış ekranı.** Belge açık değilken ve yeni sekmede: büyük **PDF aç** düğmesi (PDF'ler pencereye sürüklenerek de açılır),
@@ -178,7 +179,10 @@ silinmez; isterseniz o klasörü elle silebilirsiniz. Kurulum sistem klasörleri
 Bütün işlemler yereldir; belgeleriniz hiçbir yere gönderilmez, telemetri yoktur. Ağa yalnızca sürüm
 denetiminde (`github.com`) çıkılır. Ayarlar `%APPDATA%\PDEfe\ayarlar.json` dosyasındadır. Son açılan belgelerin listesi
 ve belgelerde kalınan sayfalar da (dosya yollarıyla) bu dosyada tutulur; ikisi de Ayarlar › Açılış ve düzen'den kapatılır,
-kapatılınca kayıtları silinir.
+kapatılınca kayıtları silinir (kalınan sayfalar Hatırlanan sayfaları temizle ile de silinir). Yapıştırılan ekran görüntüleri
+ve yazdırılan sayfaların görüntüleri `%TEMP%\PDEfe` altında geçici tutulur; PDEfe açılırken ve kapanırken silinir. Notlara
+yazılan yazar adı Ayarlar › Not ve vurgu › Yazar adı'ndadır (varsayılanı Windows kullanıcı adı) ve kaydedilen notla
+birlikte PDF'e yazılır.
 
 ## Geliştirme
 

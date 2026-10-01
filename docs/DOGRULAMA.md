@@ -395,3 +395,20 @@ denenmedi.
    o sekmede `Ctrl+W` pencereyi kapatmalı.
 3. **Belge açma.** İki "Yeni sekme" varken birinden PDF açın: belge yalnızca o sekmenin yerine geçmeli, öteki "Yeni sekme" kalmalı. Belgeyi
    kapatınca yanındaki "Yeni sekme" yerinde kalmalı (yenisi eklenmemeli).
+
+## 30. 0.1.23: otomatik testlerin sınayamadıkları
+Güvenlik düzeltmeleri test örneğinde (test/senaryo24.mjs, test/guvenlik_testi.py) ve görünmeyen masaüstünde paketli sürümle
+(test/gercek_fare.ps1 -Paketli) sınandı. Gerçek tarayıcı, gerçek pano, başka PDF okuyucu ve kurulu sürümle denenmedi.
+1. **Bağlantı sorusu.** İçinde web bağlantısı olan bir PDF açın (ör. bir makale ya da mevzuat PDF'i), bağlantıya tıklayın: tam adresiyle
+   "Bağlantı tarayıcıda açılsın mı?" sorulmalı; **Aç** varsayılan tarayıcıda açmalı, **Vazgeç** hiçbir şey açmamalı. "Bu belgede
+   yeniden sorma"yı işaretleyip **Aç** deyin: aynı belgedeki başka bir bağlantı sorulmadan açılmalı.
+2. **Silinen not.** Notlu bir PDF'in **kopyasında** bir notu silip `Ctrl+S`: durum çubuğunda "Kaydedildi (tam yazım)" görünmeli. Dosyayı
+   başka bir PDF okuyucuda açın: not olmamalı, belge sağlam açılmalı. İnternetten indirilmiş bir PDF'in kopyasında aynısını yapın: o
+   okuyucu dosyayı önceki gibi (korumalı görünüm uyarısıyla) açmalı.
+3. **Temiz kopyalama.** PDEfe'de birkaç satır kopyalayıp Word'e ya da UYAP Doküman Editörü'ne yapıştırın: metin önceki sürümdeki gibi
+   temiz gelmeli (satırlar paragraf olarak birleşmiş). Sonra PDEfe'de bir şey kopyalayıp hemen (1 saniye içinde) başka bir programda
+   başka bir sözcük kopyalayın ve yapıştırın: yapıştırılan o sözcük olmalı.
+4. **Hatırlanan sayfalar.** Ayarlar › Açılış ve düzen › **Hatırlanan sayfaları temizle**: düğme etkin olmalı, basınca devre dışı kalmalı.
+   Daha önce ortasında bırakılmış bir belgeyi açın: ilk sayfadan açılmalı.
+5. **Kurulu sürüm.** 0.1.23'e güncelledikten sonra PDEfe açılmalı; PDF açma, not ekleme ve kaydetme, yazdırma diyaloğu, Araçlar (Küçült,
+   Birleştir) önceki gibi çalışmalı. (Electron 44.5.1'e yükseltildi ve uygulama dosyasının bütünlüğü açılışta denetleniyor.)

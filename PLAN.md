@@ -30,7 +30,8 @@ src/main/               ana süreç (ESM)
   cekirdek.js           pdefe-core ile JSON-RPC (stdio, satır başına JSON, ilerleme mesajları)
   pano.js               Paylaş: dosyayı CF_HDROP olarak panoya koyar (PowerShell)
   gelistirme.js         test örneği kancaları (ayrı veri klasörü, ekran dışı pencere/boyut, yerel diyalog kuyruğu); paketlide kapalı
-  preload.cjs           contextBridge: cagir / dinle / gonder / dosyaYolu
+  guvenlik.js           0.1.23: dış adres süzgeci, IPC gönderen denetimi, gezinme koruması, dosya yolu ve çekirdek parametre denetimleri
+  preload.cjs           contextBridge: cagir / dinle / gonder / dosyaYolu (kanal izin listesi, 0.1.23)
 src/renderer/           arayüz (ES modülleri; derleme adımı yok, pdefe://app/ üzerinden sunulur)
   uygulama.js           giriş: sekmeler, komutlar, kısayollar, açma/kapatma/kaydetme, sürükle-bırak, araç çubuğu sıkıştırma
   goruntuleyici.js      PDF.js: tembel sayfa çizimi, bölgesel çizim (%6400'e kadar), düzenler, zoom, döndürme
@@ -1057,3 +1058,80 @@ Ayrıntı: CHANGELOG.md. Kullanıcı: "tüm sekmeler kapandığında ekstra yeni
     koşulunca "ikinci örnek" denetimlerinden 3'ü düşüyor (ikinci örnek o masaüstündeki örneği bulamıyor); kendi kullanımındaki gibi
     `baslat.ps1` ile hepsi geçti.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 29.
+
+### Revizyon 0.1.23 (2026-10-01, güvenlik ve kişisel veri denetimi)
+Ayrıntı: CHANGELOG.md. Kullanıcı PDEfe'nin kişisel veri ve güvenlik açısından denetlenmesini istedi; denetim (ana süreç, arayüz, çekirdek,
+kurulum, güncelleme, depo geçmişi) önerilerinden "yazar adı" dışındakilerin hepsini onayladı ("3 numara hariç bütün önerilerini
+yapabilirsin"). Yazar adı (varsayılan Windows kullanıcı adı, notun /T alanına gider) değişmedi; kullanıcı Ayarlar › Not ve vurgu'dan
+bakacak.
+- [x] **PDF bağlantıları** (main/guvenlik.js `disAdresMi`, uygulama.js `disBaglantiAc`). Kök neden: PDF'teki /URI tek tıkla, süzgeçsiz ve
+  sorusuz `shell.openExternal`'a gidiyordu. PyMuPDF yalnızca küçük harfli `file:`'ı LINK_LAUNCH sayıyor; `FILE:///…exe`, `search-ms:`,
+  `ms-…:` LINK_URI olarak geçiyordu (bellekte üretilen PDF'le sınandı). Windows'ta ShellExecute bunlarla program çalıştırabilir, uzak
+  paylaşıma bağlanıp NTLM özetini gönderebilir. Karar: yalnızca http / https / mailto (ana süreç `kabuk:disAc` ve `setWindowOpenHandler`
+  de bakar); PDF bağlantısında tam adres gösterilip sorulur, "Bu belgede yeniden sorma" belge kapanana dek. Çekirdekte süzülmedi (adres
+  ipucunda görünsün; karar arayüzde ve ana süreçte).
+- [x] **Köprü ve ana süreç** (preload.cjs izin listesi; guvenlik.js `guvenliIpc`, `gezinmeKorumasiKur`, `cekirdekParametreleri`,
+  `pdfDosyasiMi`, `yaziTipiDosyasiMi`, `anlikDosyasiMi`). Bugün XSS bulunmadı (PDF'ten gelen her dize textContent / `kacis` ile giriyor,
+  CSP sıkı, PDF JavaScript'i çalışmıyor); değişiklik önleyici: PDF.js'te ileride bir açık çıkıp arayüzde kod çalışırsa köprü her dosyayı
+  okuyup silebiliyor (`dosya:oku`, `dosya:sil` → kalıcı `unlink` yedeği, `dosya:kopyala`), `kabuk:klasorAc` (`shell.openPath`) exe
+  çalıştırabiliyordu. Kararlar:
+  - IPC yalnızca `pdefe://app/` çerçevesinden (`guvenliIpc`; bütün modüllere ipcMain yerine verilir, main.js `ipcKur(ipc)`).
+  - `dosya:oku` yalnızca başında `%PDF-` olan dosyalar ve Windows yazı tipi klasöründeki .ttf/.ttc/.otf (yaziTipleri.js). Uzantıya değil
+    imzaya bakılır: "Tüm dosyalar" süzgeciyle açılan uzantısız PDF de açılır.
+  - `dosya:sil` yalnızca .pdf ve yalnızca Geri Dönüşüm Kutusu (kalıcı silme yedeği kalktı; kucult.js "gönderilemedi" der).
+    `dosya:kopyala` kaldırıldı (kullanılmıyordu). `kabuk:klasorAc` yalnızca klasör. `pano:dosya` yalnızca PDF.
+  - Çekirdek: `hedef` yalnızca .pdf (PDF baytları .bat/.cmd'ye yazılırsa notun `/Contents`'indeki `&komut&` çalışabilirdi); yapısal kaydın
+    anlık kopya klasörünü ana süreç verir; `anlik_sil` yalnızca anlık kopya (ana süreç klasör + ad, çekirdek ad + "anlik" klasörü).
+    Farklı kaydet'te PDF süzgeciyle başka uzantı yazılırsa `.pdf` eklenir (meşru yol hep .pdf'le biter).
+  - `will-navigate`, `will-frame-navigate`, `will-redirect` uygulama dışına gidemez; webview eklenemez. CSP: `object-src`, `base-uri`,
+    `form-action` 'none'.
+  - Seçilmeyen: kanal başına ayrı preload işlevleri (bütün arayüzü değiştirirdi; izin listesi + ana süreç denetimi aynı korumayı verir).
+- [x] **Silinen notun izi** (notlar.py `y_notlar_kaydet` `temiz`, `y_imza_durumu`; uygulama.js `temizKayitKarari`). Kök neden: Kaydet her
+  zaman artımlı; kayıtlı not silinince / değişince eski hâli dosyanın önceki bölümünde kalıyordu (sınandı). Karar: o durumda belge baştan
+  yazılır (garbage=1 xref'leri korur; aynı dosyaya yazımda şifreleme PDF_ENCRYPT_KEEP). PDF'e gömülü e-imza varsa (/SigFlags, değerli imza
+  alanı ya da /ByteRange) baştan yazım imzayı bozar: İmzayı koru / Tamamen sil / Vazgeç sorulur, seçim belge kapanana dek; otomatik
+  kayıtta sorulmaz, imza korunur (otomatik kayıt varsayılan kapalı). İndirilenler'deki 200 UYAP PDF'inin hiçbirinde PDF'e gömülü imza
+  yok (yalnızca sayıldı): soru pratikte çıkmaz. Not ekleme ve yalnızca döndürme yine artımlı (e-imza ve hız).
+- [x] **Pano ve geçici dosyalar** (main.js `pano:metin` `yalnizcaPanodaysa`, `geciciKopyalariSil`; ayarlarPenceresi.js). Kopyalamadan sonra
+  gelen temiz metin yalnızca pano hâlâ o kopyalamanın metnini taşıyorsa yazılır (satır sonları eşitlenir: Blink Windows'ta \n'i \r\n
+  yazar). Pano görüntüleri ve yazdırma iş klasörleri kurulu PDEfe'nin açılışında, pano görüntüleri kapanışında da silinir; yalnızca
+  varsayılan veri klasörüyle çalışan paketli örnekte (%TEMP%\PDEfe bütün örneklerin ortağı: test örneği kullanıcının açık PDEfe'sinin
+  dosyasını silmesin). Ayarlar › Açılış ve düzen'e "Hatırlanan sayfaları temizle". Seçilmeyen: anlık kopyaları %LOCALAPPDATA%'ya almak
+  (veri klasörü ayrı örnekler aynı klasörü paylaşır, açılış temizliği başka örneğin açık belgesinin kopyasını silerdi).
+- [x] **Kötü niyetli PDF** (pdefe_core.py `olcek_sinirla` / `EN_FAZLA_PIKSEL` 64 milyon; notlar.py `_pdefe_fontu_mu`;
+  `pymupdf.set_messages(stream=sys.stderr)`). Not görünümü, yazdırma görüntüsü, küçük resim, form görünümü ve araçların küçük resmi dev
+  kutu / sayfada ölçeği küçültür. /PDEfeFonts kaydındaki font yalnızca PDEfe'nin alt kümesiyle bayt bayt aynıysa (Type0/Identity-H,
+  CIDToGIDMap yok ya da /Identity) yeniden kullanılır; değilse yeniden gömülür, sayfada aynı adlı kaynak varsa benzersiz adla. Bunun
+  için alt küme kararlı yapıldı (`TTFont(recalcTimestamp=False)`; önceden head.modified her üretimde değişiyordu). Önceki sürümlerin
+  gömdüğü fontta bir kez, başka bilgisayarın farklı sürüm Windows fontunda o bilgisayarda her kayıtta yeniden gömülür (~50 KB). MuPDF iletileri JSON kanalına
+  (stdout) karışıyordu (bozuk akışlı PDF'te sınandı).
+- [x] **Bağımsız inceleme** (iki salt okunur ajan: ana süreç / arayüz, çekirdek) gerçek hatalar buldu, düzeltildi:
+  - Çekirdek belgeleri uzantıya göre açıyordu (metin, HTML, SVG, EPUB): `sayfa_metni` gibi çağrılarla `dosya:oku` kısıtı aşılırdı.
+    Önbellek, `belge_ac_yazmak_icin` ve araçların `_pdf_ac`'ı `filetype="pdf"`.
+  - Temiz yazım `os.replace` ile "internetten indirildi" işaretini (Zone.Identifier), izinleri ve oluşturma tarihini siliyordu:
+    notlar.py `dosyayi_yerine_koy` (ReplaceFileW, kısa kilitlerde yeniden dener). Araçların ve yapısal kaydın üzerine yazması
+    (araclar.py `_kaydet_sinirli`, yapisal.py `_degistir`) 0.1.22'deki gibi `os.replace`: dokunulmadı.
+  - Onarılmış dosyaya not kaydı tamamen başarısızdı (0.1.22'de de; MuPDF FzErrorArgument yakalanmıyordu): `is_repaired` ise tam yazım.
+    Aynı dosyaya her tam yazımda şifreleme korunur (yedek yol önceden düşürüyordu).
+  - Etiketli PDF'te yapı ağacı (OBJR) silinen notu gösterdiği için garbage nesneyi atmıyor, metin kalıyordu: `not_sil` silinen
+    nesneleri boşaltır.
+  - Yazdırmada dpi tamsayıya yuvarlanınca dev sayfada (/UserUnit) sınır aşılıyordu: ölçek matrisle, çözünürlük bilgisi `set_dpi`.
+  - İmza araması parça parça; okunamazsa hata (arayüz imzayı korur).
+  - Uzantısı .pdf olmayan PDF kaydedilemiyordu (`cekirdekParametreleri` var olan PDF'in üzerine yazmaya izin verir); kilitli dosyada
+    "PDF değil" deniyordu (`pdfDosyasiMi` okuma hatasını fırlatır); Farklı kaydet'te aynı dosya seçilince temiz yazım atlanıyordu;
+    `.pdf` eki eklenen ad varsa Windows'un sorusu atlanıyordu (ana süreç sorar).
+  - Bilerek yapılmayan: otomatik kayıtta da temiz yazım (büyük taranmış belgede yavaş; otomatik kayıt varsayılan kapalı, kullanıcı
+    kapattı). Yazı tipi ev ve ofisin Windows font sürümleri farklıysa belge bilgisayar her değiştiğinde yeniden gömülür (~50 KB).
+- [x] **Electron 44.5.1 ve sigortalar** (package.json, electron-builder.yml `electronFuses`): RunAsNode, NODE_OPTIONS, --inspect kapalı;
+  OnlyLoadAppFromAsar ve EmbeddedAsarIntegrityValidation açık (electron-builder Windows exe'ye asar özetini yazar). Yerel pakette sınandı:
+  sigortalar okundu, `gercek_fare.ps1 -Paketli` 9/9, app.asar'ı bir bayt değiştirilmiş kopya açılmadı.
+  grantFileProtocolExtraPrivileges değişmedi (yazdırma penceresi file:// ile yükler).
+- [x] **Testler**: senaryo24 (38: bağlantılar, köprü, silinen not, pano, ayar), test/guvenlik_testi.py (36: temiz kayıt, internetten indirildi
+  işareti, onarılmış dosya, etiketli PDF, şifre, imza algılama, anlık silme, piksel sınırı, yazı tipi kaydı, çekirdek kanalı), test/guvenlik_pdf_uret.py.
+  - Regresyon (son hâl, Electron 44.5.1; Masaüstü\PDF DENEME örnekleri bu bilgisayarda yok, yer tutucularla): senaryo24 38/38,
+    senaryo23 53/53, senaryo19 111/111, senaryo20 38/38, senaryo21 39/39, kisayol_dosya 164/164, kisayol_gorunum 117/117, kisayol_araclar
+    91/91, ortu_tiklama 155/155, sekme_genislik 24/24, sigdirma_kararli 51/51; senaryo1, 3, 5–8, 10–18, 22 geçti. senaryo2, 4, 9,
+    vurgu_cubugu, oto_kayit_kilit 0.1.22'nin çalışma ağacında da aynı hatayla düşüyor (eski testler, örnek belgeye bağlı); senaryo19'un
+    111'i 0.1.22'de de 111 (notlardaki 112 ortama bağlı). not_testi ve araclar_testi 0.1.22 ile aynı (yer tutucularla araclar 114/120,
+    aynı 6 hata). Testlerin "Panodan ekle" adımı gerçek panodaki görüntüyü kullanıp %TEMP%\PDEfe'ye kopyasını bırakıyor: silindi.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 30.

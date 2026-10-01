@@ -3,6 +3,29 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.23 — 2026-10-01
+
+Güvenlik ve kişisel veri denetiminden çıkan düzeltmeler.
+
+### PDF'teki bağlantılar
+- **Bağlantılar artık sorulduktan sonra açılıyor.** PDF'teki bir bağlantıya tıklanınca tam adres gösterilir ve "Bağlantı tarayıcıda açılsın mı?" diye sorulur. Aynı belgede yeniden sorulmasın isterseniz kutuyu işaretleyin.
+- Yalnızca web (http, https) ve e-posta adresleri açılır. Bilgisayarda program çalıştırabilen ya da ağ klasörü açan bağlantılar (ör. `file:`, `search-ms:`) açılmaz; "Bu bağlantı açılmadı" uyarısı çıkar. Önceden PDF'teki bağlantı sorulmadan Windows'a açtırılıyordu; kötü niyetle hazırlanmış bir PDF'te tek tıklama yetebilirdi.
+
+### Silinen notlar
+- **Sildiğiniz ya da değiştirdiğiniz notun eski hâli artık dosyada kalmıyor.** Önceden Kaydet değişikliği dosyanın sonuna ekliyordu: silinen not ekranda görünmese de dosyanın içinde duruyor, uygun bir araçla okunabiliyordu. Artık kayıtlı bir not silinince ya da değişince belge baştan yazılır (durum çubuğunda "Kaydedildi (tam yazım)").
+- Belgenin içinde e-imza varsa (PDF'e gömülü imza) baştan yazmak imzayı geçersiz kılacağı için sorulur: **İmzayı koru** (notun eski hâli imza için dosyada kalır) ya da **Tamamen sil** (e-imza geçersiz görünür). UYAP'tan indirilen PDF'lerin çoğunda PDF'e gömülü imza yoktur; bu soru nadiren çıkar.
+- Önceki sürümlerle kaydedilmiş dosyalarda kalmış eski notları temizlemek için belgeyi **Farklı kaydet** ile yeni bir dosyaya kaydedin.
+
+### Geçici dosyalar ve kayıtlar
+- Yapıştırılan ekran görüntüleri ve yazdırma sırasında üretilen sayfa görüntüleri geçici klasörde kalmıyor: PDEfe açılırken ve kapanırken silinir.
+- **Ayarlar › Açılış ve düzen › Hatırlanan sayfaları temizle**: "Her belgeyi kaldığım sayfadan aç" için tutulan kayıtlar (dosya yollarıyla birlikte) tek düğmeyle silinir.
+- Metin kopyaladıktan hemen sonra başka bir yerde bir şey kopyalarsanız, PDEfe'nin birkaç yüz milisaniye sonra hazırladığı temiz metin artık sizin kopyaladığınızın üzerine yazılmıyor.
+
+### Güvenlik önlemleri
+- PDEfe'nin arayüzü ana programdan yalnızca gereken işleri isteyebilir: yalnızca PDF belgeleri (ve Windows yazı tipleri) okunur, yalnızca PDF dosyaları Geri Dönüşüm Kutusu'na gönderilir, yalnızca klasörler açılır, PDF'ler yalnızca `.pdf` uzantılı dosyalara yazılır; pencere uygulama dışında bir sayfaya gidemez. Bugün bilinen bir açık yok; bu, ileride PDF çizim bileşeninde bir açık çıkarsa zararı sınırlar.
+- Kötü niyetle hazırlanmış PDF'lere karşı: dev boyutlu bir not ya da sayfa PDEfe'yi dondurmaz (görüntü boyutuna üst sınır); belgeye konmuş sahte bir yazı tipi, PDEfe'de yazdığınız yazı notunun başka okuyucularda farklı harflerle görünmesine yol açmaz.
+- Electron 44.5.1'e yükseltildi. Uygulama dosyası değiştirilmişse PDEfe açılmaz; PDEfe'nin programı Node.js ya da hata ayıklayıcı olarak çalıştırılamaz.
+
 ## 0.1.22 — 2026-10-01
 
 ### Sekmeler
