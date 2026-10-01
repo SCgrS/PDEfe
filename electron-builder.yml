@@ -19,6 +19,18 @@ compression: maximum   # LZMA; kurulum dosyası belirgin küçülür, derleme da
 npmRebuild: false
 nodeGypRebuild: false
 
+# Electron sigortaları (0.1.23, güvenlik denetimi): exe'ye derleme sırasında yazılır, çalışırken değiştirilemez. Varsayılanlar açıktı;
+# PDEfe bunların hiçbirini kullanmaz. Kapatılanlar: ELECTRON_RUN_AS_NODE ile exe'nin düz Node.js gibi çalıştırılması, NODE_OPTIONS ve
+# --inspect ile ana sürece kod / hata ayıklayıcı sokulması. Açılanlar: uygulama yalnızca app.asar'dan yüklenir ve app.asar'ın bütünlüğü
+# (exe'ye gömülü özet) denetlenir; değiştirilmiş app.asar ile PDEfe açılmaz. grantFileProtocolExtraPrivileges değişmedi: yazdırma
+# penceresi geçici HTML'i file:// ile yükler (main/yazdir.js).
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  onlyLoadAppFromAsar: true
+  enableEmbeddedAsarIntegrityValidation: true
+
 # Uygulamaya girecek dosyalar. package.json otomatik eklenir; üretim bağımlılıkları (dependencies)
 # node_modules'dan otomatik toplanır (pdfjs-dist'in cmaps, standard_fonts, wasm, iccs, build klasörleri dahil).
 # Aşağıdaki "!" desenleri yalnızca gereksiz parçaları çıkarır.
