@@ -376,7 +376,7 @@ def test_ayir(c):
     os.makedirs(klasor)
     parcalar = [{"ad": "Ayrılmış - Sayfa 1-3.pdf", "sayfalar": [1, 2, 3]}, {"ad": "Ayrılmış - Sayfa 5.pdf", "sayfalar": [5]},
                 {"ad": "Ayrılmış - Sayfa 8-10.pdf", "sayfalar": [8, 9, 10]}]
-    r, _ = c.cagir("ayir", {"yol": YERIMLI, "klasor": klasor, "parcalar": parcalar, "uzerineYaz": False})
+    r, il = c.cagir("ayir", {"yol": YERIMLI, "klasor": klasor, "parcalar": parcalar, "uzerineYaz": False})
     adlar = [os.path.basename(x) for x in r["dosyalar"]]
     d = pymupdf.open(r["dosyalar"][0])
     toc1 = d.get_toc()
@@ -384,9 +384,10 @@ def test_ayir(c):
     d.close()
     ok = (adlar == ["Ayrılmış - Sayfa 1-3.pdf", "Ayrılmış - Sayfa 5.pdf", "Ayrılmış - Sayfa 8-10.pdf"]
           and belge_ozet(r["dosyalar"][2])["sayfa"] == 3 and all(1 <= s <= 3 for _, _, s in toc1)
-          and [a["sayfa"] for a in r["ayrintilar"]] == [3, 1, 3] and r["ayrintilar"][0]["boyut"] == os.path.getsize(r["dosyalar"][0]))
-    kaydet_sonuc("ayir/ayrı ayrı", "dergipark_3972595", ok, "%s toc(1-3)=%d tr=%s boyutlar=%s"
-                 % (adlar, len(toc1), tr1, [mb(os.path.getsize(x)) for x in r["dosyalar"]]))
+          and [a["sayfa"] for a in r["ayrintilar"]] == [3, 1, 3] and r["ayrintilar"][0]["boyut"] == os.path.getsize(r["dosyalar"][0])
+          and (not il or il[-1]["yuzde"] < 100))   # son dosyadan sonra ilerleme (iptal denetimi) yok
+    kaydet_sonuc("ayir/ayrı ayrı", "dergipark_3972595", ok, "%s toc(1-3)=%d tr=%s boyutlar=%s son ilerleme=%s"
+                 % (adlar, len(toc1), tr1, [mb(os.path.getsize(x)) for x in r["dosyalar"]], il[-1] if il else None))
     # Yeniden, var olanın üzerine yazmadan: "(2)" eki
     r2, _ = c.cagir("ayir", {"yol": YERIMLI, "klasor": klasor, "parcalar": parcalar[:1], "uzerineYaz": False})
     kaydet_sonuc("ayir/benzersiz", "1-3 yeniden", os.path.basename(r2["dosyalar"][0]) == "Ayrılmış - Sayfa 1-3 (2).pdf", os.path.basename(r2["dosyalar"][0]))

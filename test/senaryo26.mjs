@@ -12,6 +12,8 @@
 //   4) Birleştir: açık PDF listenin başında; "Üzerine yaz" açık PDF listedeyken seçilebilir, çıkarılınca seçilemez; üzerine yazınca açık
 //      PDF birleşik sonuçla yeniden açılır; PDF açık değilken açılan araçta seçilemez; yeni belge "Birleşik.pdf", ikincisi "Birleşik (2)".
 //   5) Sıkıştırma ve Döndür'ün yeni belgeleri "Sıkıştırılmış.pdf", "Döndürülmüş.pdf".
+//   6) Bağımsız incelemenin bulguları: ad kutusuna açık belgenin adı yazılınca önce "zaten var" sorulur; Birleştir'de açık PDF listeden
+//      çıkarılınca ya da okunamayınca üzerine yazılmaz; PDF ayır önizlemesi önerilen ad değişince güncel adla.
 // Girdiler test/cikti/s26/pdf altında üretilir; araçların çıktı klasörü test/cikti/s26/cikti (Masaüstüne yazılmaz).
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9426 -Veri "%TEMP%\pdefe-s26-9426"      → PID=… yazar
@@ -102,7 +104,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     };
   })()`);
   const kipSec = (id) => tikSecici(`.arac-pencere .arac-kayit-secim > button[data-id="${id}"]`);
-  const bolumler = (process.env.BOLUM || '1,2,3,4,5').split(',').map((s) => s.trim());
+  const bolumler = (process.env.BOLUM || '1,2,3,4,5,6').split(',').map((s) => s.trim());
   const bolum = (n) => bolumler.includes(String(n));
 
   // ------------------------------------------------------------ hazırlık
@@ -178,6 +180,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
       await kipSec('yeni');
       const y = await kayitDurumu();
       sonuc(`${sinif}: Yeni belge'ye dönünce ad ve klasör yerinde`, y.yeniGorunur && !y.sabitGorunur && !y.notGorunur && y.ad === ad && y.klasor === CIKTI, { ad: y.ad, klasor: y.klasor });
+      // Birleştir'in listesi dolu (açık PDF): kapatırken "kaydedilsin mi" sorulur, Kaydetme
+      if (komut === 'arac.gorselBirlestir') await diyalogYanitla([{ secim: 1 }]);
       await pencereKapat();
     }
   }
@@ -186,7 +190,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
   if (bolum(3)) {
     console.log('\n== 3) PDF ayır');
     await sekmeleriKapat();
-    for (const a of dosyalar()) fs.rmSync(path.join(CIKTI, a));
+    for (const a of dosyalar()) fs.rmSync(path.join(CIKTI, a), { maxRetries: 10, retryDelay: 300 });
     await ac(zengin.b);
     await aracAc('arac.ayir', 'ayir-pencere');
     await kosul(`document.querySelector('.arac-kayit-yeni .arac-cikti-ad')?.value === 'Ayrılmış'`, 4000);
@@ -277,7 +281,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
   if (bolum(4)) {
     console.log('\n== 4) Birleştir');
     await sekmeleriKapat();
-    for (const a of dosyalar()) fs.rmSync(path.join(CIKTI, a));
+    for (const a of dosyalar()) fs.rmSync(path.join(CIKTI, a), { maxRetries: 10, retryDelay: 300 });
     await ac(zengin.c);
     await aracAc('arac.gorselBirlestir', 'birlestir-pencere');
     await kosul(`document.querySelectorAll('.birlestir-oge').length === 1 && !document.querySelector('.birlestir-oge.yukleniyor')`, 8000);
@@ -330,7 +334,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
   if (bolum(5)) {
     console.log('\n== 5) Sıkıştırılmış, Döndürülmüş');
     await sekmeleriKapat();
-    for (const a of dosyalar()) fs.rmSync(path.join(CIKTI, a));
+    for (const a of dosyalar()) fs.rmSync(path.join(CIKTI, a), { maxRetries: 10, retryDelay: 300 });
     await ac(zengin.a);
     await aracAc('arac.kucult', 'kucult-pencere');
     await kosul(`document.querySelector('.arac-kayit-yeni .arac-cikti-ad')?.value === 'Sıkıştırılmış'`, 4000);
@@ -346,6 +350,89 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await evalJs(`document.querySelector('.arac-dugmeler .birincil').click()`);
     await kosul(`!document.querySelector('.dondur-pencere')`, 15000);
     sonuc('"Döndürülmüş.pdf" oluştu', fs.existsSync(path.join(CIKTI, 'Döndürülmüş.pdf')), dosyalar());
+  }
+
+  // ------------------------------------------------------------ 6) Bağımsız incelemenin bulguları
+  //   Ad kutusuna açık belgenin adı yazılınca sessizce üzerine yazılmaz ("zaten var" sorulur); Birleştir'de açık PDF listeden çıkarılınca ya
+  //   da okunamayınca aynı ad olağan yeni belgedir (okunamayan liste öğesinin yerine hiç yazılmaz); PDF ayır önizlemesi güncel adla.
+  if (bolum(6)) {
+    console.log('\n== 6) İnceleme bulguları');
+    await sekmeleriKapat();
+    await bekle(300);
+    for (const a of dosyalar()) fs.rmSync(path.join(CIKTI, a), { maxRetries: 10, retryDelay: 300 });
+    const kaynak = path.join(CIKTI, 'kaynak_e.pdf');
+    fs.copyFileSync(zengin.a, kaynak);
+    const ozetMd5 = () => py(`import hashlib\nprint(json.dumps(hashlib.md5(open(${J(kaynak)}, 'rb').read()).hexdigest()))`);
+    const ilkMd5 = ozetMd5();
+    const adYaz = (ad) => evalJs(`(() => { const e = document.querySelector('.arac-kayit-yeni .arac-cikti-ad'); e.value = ${J(ad)}; e.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+    const aralikYaz = (metin) => evalJs(`(() => { const e = document.querySelector('.ayir-aralik'); e.value = ${J(metin)}; e.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+    const sorular = async () => (await diyalogKaydi()).filter((x) => x.kanal === 'mesaj:kutu').map((x) => x.secenek?.mesaj || '');
+    const tikla_ = (secici) => evalJs(`document.querySelector(${J(secici)}).click()`);
+    await ac(kaynak);
+    // a) PDF ayır, tek dosya: ad kutusuna açık belgenin adı yazılınca önce "zaten var" sorulur; Vazgeç dosyaya dokunmaz
+    await aracAc('arac.ayir', 'ayir-pencere');
+    await aralikYaz('1-2');
+    await adYaz('kaynak_e');
+    await bekle(200);
+    await diyalogKaydi();
+    await diyalogYanitla([{ secim: 1 }]);   // Vazgeç
+    await tikla_('.arac-dugmeler .birincil');
+    await bekle(1500);
+    let s = await sorular();
+    sonuc('PDF ayır: ad açık belgenin kendisi olunca önce "zaten var" sorulur; Vazgeç dosyaya dokunmaz',
+      s.some((m) => /"kaynak_e\.pdf" zaten var/.test(m)) && ozetMd5() === ilkMd5 && await evalJs(`!!document.querySelector('.ayir-pencere')`), s);
+    await pencereKapat();
+    // b) PDF ayır: "Ayrılmış.pdf" varken önerilen ad "Ayrılmış (2)"; birden çok dosyaya geçince ad "Ayrılmış", önizleme de yeni adla
+    fs.copyFileSync(zengin.a, path.join(CIKTI, 'Ayrılmış.pdf'));
+    await aracAc('arac.ayir', 'ayir-pencere');
+    await kosul(`document.querySelector('.arac-kayit-yeni .arac-cikti-ad')?.value === 'Ayrılmış (2)'`, 4000);
+    await aralikYaz('1-3, 5');
+    await bekle(300);
+    const on = await evalJs(`({ ad: document.querySelector('.arac-kayit-yeni .arac-cikti-ad').value, li: [...document.querySelectorAll('.ayir-onizleme li')].map((l) => l.textContent) })`);
+    sonuc('PDF ayır: birden çok dosyaya geçince önizleme yeni adla ("Ayrılmış - Sayfa 1-3.pdf", "Ayrılmış (2) - …" değil)', on.ad === 'Ayrılmış' && on.li[0]?.startsWith('Ayrılmış - Sayfa 1-3.pdf'), on);
+    await pencereKapat();
+    // c) Birleştir: açık PDF listedeyken ad kutusuna onun adı yazılırsa (Yeni belge seçili) önce "zaten var" sorulur
+    await evalJs(`(async () => { const m = await import('pdefe://app/src/renderer/araclar/gorselBirlestir.js'); const P = m.BirlestirmePenceresi.prototype; const asil = P._uzerineDurumu;
+      window.__s26Geri = () => { P._uzerineDurumu = asil; }; P._uzerineDurumu = function (...a) { window.__s26B = this; return asil.apply(this, a); }; return true; })()`);
+    await aracAc('arac.gorselBirlestir', 'birlestir-pencere');
+    await kosul(`document.querySelectorAll('.birlestir-oge').length === 1 && !document.querySelector('.birlestir-oge.yukleniyor')`, 8000);
+    await adYaz('kaynak_e');
+    await bekle(200);
+    await diyalogKaydi();
+    await diyalogYanitla([{ secim: 1 }]);   // Vazgeç
+    await tikla_('.arac-dugmeler .birincil');
+    await bekle(1500);
+    s = await sorular();
+    sonuc('Birleştir: ad açık PDF olunca önce "zaten var" sorulur; Vazgeç dosyaya dokunmaz', s.some((m) => /"kaynak_e\.pdf" zaten var/.test(m)) && ozetMd5() === ilkMd5, s);
+    // d) Açık PDF listeden çıkarılınca aynı ad olağan yeni belge: Üzerine yaz seçilemez, not görünmez, "zaten var" sorulur
+    await tikla_('.birlestir-oge [data-komut="sil"]');
+    await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'dosya:acDiyalog', [[${J(zengin.d)}]])`);
+    await tikla_('.birlestir-ekle');
+    await kosul(`document.querySelectorAll('.birlestir-oge').length === 1 && !document.querySelector('.birlestir-oge.yukleniyor')`, 8000);
+    let d = await kayitDurumu();
+    await diyalogKaydi();
+    await diyalogYanitla([{ secim: 1 }]);   // Vazgeç
+    await tikla_('.arac-dugmeler .birincil');
+    await bekle(1500);
+    s = await sorular();
+    sonuc('Birleştir: açık PDF listede değilken aynı ad yeni belge sayılır ("zaten var" sorulur, Üzerine yaz seçilemez); Vazgeç dosyaya dokunmaz',
+      d.secenekler[1].devre && !d.notGorunur && s.some((m) => /"kaynak_e\.pdf" zaten var/.test(m)) && ozetMd5() === ilkMd5, { s, kisit: d.kisit });
+    // e) Açık PDF listede ama okunamadı (ör. parolalı): Üzerine yaz seçilemez; aynı adla yeni belge de yazılmaz (listedeki dosya)
+    await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'dosya:acDiyalog', [[${J(kaynak)}]])`);
+    await tikla_('.birlestir-ekle');
+    await kosul(`document.querySelectorAll('.birlestir-oge').length === 2 && !document.querySelector('.birlestir-oge.yukleniyor')`, 8000);
+    await evalJs(`(() => { const b = window.__s26B; const o = b.ogeler.find((x) => x.ad === 'kaynak_e.pdf'); o.hata = 'Belge parolayla korunuyor.'; b.ciz(); return true; })()`);
+    d = await kayitDurumu();
+    await diyalogKaydi();
+    await diyalogYanitla([{ secim: 0 }]);   // Okunamayanları atla ve devam et
+    await tikla_('.arac-dugmeler .birincil');
+    await bekle(1500);
+    const bildirim = await evalJs(`document.querySelector('#bildirim')?.textContent || ''`);
+    sonuc('Birleştir: açık PDF okunamayınca Üzerine yaz seçilemez (neden yazar); aynı adla da yazılmaz (listedeki dosya), dosya değişmez',
+      d.secenekler[1].devre && /okunamadığı için/.test(d.kisit) && /listedeki dosyalardan biriyle aynı olamaz/.test(bildirim) && ozetMd5() === ilkMd5, { kisit: d.kisit, bildirim });
+    await evalJs(`window.__s26Geri?.()`);
+    await diyalogYanitla([{ secim: 1 }]);   // kapatırken: Kaydetme
+    await pencereKapat();
   }
 
   const hatalar = await evalJs(`window.__hatalar || []`);

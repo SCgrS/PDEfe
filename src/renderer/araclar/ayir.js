@@ -167,7 +167,7 @@ export class AyirPenceresi {
   }
 
   onizle() {
-    const { parcalar, hata } = this.parcalariHesapla();
+    let { parcalar, hata } = this.parcalariHesapla();
     // Tek dosya mı: "Üzerine yaz" yalnızca tek dosyada; ayrı ayrı dosyada aralık yazılırken (hatalıyken) önceki durum korunur
     let tek;
     if (this.mod === 'herSayfa') tek = this.toplam <= 1;
@@ -175,6 +175,8 @@ export class AyirPenceresi {
     else { tek = hata ? (this._sonTek ?? true) : parcalar.length === 1; this._sonTek = tek; }
     this.kayit.cokluAyarla(!tek);
     this.kayit.uzerineKullanilabilir(tek, COKLU_DOSYA_NEDENI);
+    // cokluAyarla varsayılan adı yeniden önermiş olabilir ("Ayrılmış (2)" → "Ayrılmış"): dosya adları güncel adla
+    ({ parcalar, hata } = this.parcalariHesapla());
     const uzerine = this.kayit.uzerineMi();
     this.adlarEl.hidden = uzerine || tek;
     this.aralikEl.classList.remove('hatali');
@@ -255,8 +257,13 @@ export class AyirPenceresi {
     } catch (e) {
       this.ilerleme.gizle();
       if (e.iptal) {
-        baglam.bildir('Ayırma iptal edildi.');
-        if (e.sonuc) await this.sonucGoster(this.dosyalariOku(e.sonuc, parcalar));
+        // Çekirdek son dosyayı yazdıktan sonra iptale bakmaz: sonuç geldiyse hepsi yazılmıştır
+        baglam.bildir(e.sonuc ? 'İptal edilemeden tamamlandı.' : 'Ayırma iptal edildi.');
+        if (e.sonuc) {
+          const dosyalar = this.dosyalariOku(e.sonuc, parcalar);
+          if (!coklu) await this._acikSekmeyiYenile(dosyalar[0]?.yol);
+          await this.sonucGoster(dosyalar);
+        }
       } else if (kilitliHataMi(e)) kilit = e;
       else this.pencere.hataGoster('Ayırma başarısız: ' + hataMetni(e));
     } finally {
@@ -269,10 +276,14 @@ export class AyirPenceresi {
     return kilit && !this.pencere.kapali ? this.kayit.hataSor(kilit) : false;
   }
 
-  /** Tek dosya PDEfe'de açık bir dosyanın yerine yazıldıysa (denetimde onaylandı) o sekme diskteki yeni haliyle yeniden açılır. */
+  /** Tek dosya PDEfe'de açık bir dosyanın yerine yazıldıysa (denetimde onaylandı) o sekme diskteki yeni haliyle yeniden açılır; dosya başka
+   *  bir PDEfe penceresinde açıksa oradaki sekme (öteki araçlardaki ciktiyiAc gibi). */
   async _acikSekmeyiYenile(yol) {
     const acik = yol ? acikBelge(this.baglam, yol) : null;
-    if (!acik) return;
+    if (!acik) {
+      if (yol) await this.baglam.pdefe.cagir('pencere:baskaPenceredeAc', yol, { yazildi: true }).catch(() => false);
+      return;
+    }
     const r = await sekmeyiYenile(this.baglam, acik, {
       soruAyrintisi: 'Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.', sormadan: !!this.kayit.cikti.onaylandi?.(yol),
     }).catch(() => false);

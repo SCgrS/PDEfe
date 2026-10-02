@@ -263,7 +263,7 @@ def _benzersiz_yol(klasor, ad, uzanti=".pdf"):
 
 def _guvenli_ad(ad):
     ad = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", ad).strip().rstrip(".")
-    return ad or "belge"
+    return ad or "Belge"
 
 
 def _sayfa_no(deger, sayfa_sayisi, ad="sayfa"):
@@ -680,7 +680,10 @@ def y_ayir(p):
         sayfalar = p.get("sayfalar")
         if not isinstance(sayfalar, list) or not sayfalar:
             raise ValueError("Kalacak sayfa yok.")
-        n_sayfa = _onbellekten_al(yol).page_count
+        doc = _onbellekten_al(yol)
+        if doc.needs_pass:
+            raise PermissionError("Belge parolayla korunuyor.")
+        n_sayfa = doc.page_count
         return _ayir_uzerine(yol, _sayfa_listesini_gruplara([_sayfa_no(s, n_sayfa) for s in sayfalar]), ilerleme)
     klasor = _mutlak(p.get("klasor") or p.get("hedefKlasor") or os.path.dirname(yol), "klasor")
     if not os.path.isdir(klasor):
@@ -706,6 +709,9 @@ def y_ayir(p):
     dosyalar, ayrintilar = [], []
     toplam = len(parcalar)
     for i, (dosya_adi, gruplar) in enumerate(parcalar):
+        # İlerleme (ve iptal) her dosyadan önce: son dosya yazıldıktan sonra iptale bakılmaz, geç gelen iptal yazılmış dosyayı (tek
+        # dosyada var olanın yerine yazılmış olabilir) yazılmamış göstermesin
+        ilerleme(int(100 * i / toplam), "%d/%d dosya yazılıyor" % (i + 1, toplam))
         hedef = os.path.join(klasor, dosya_adi + ".pdf") if uzerine_yaz else _benzersiz_yol(klasor, dosya_adi)
         if _ayni_dosya(hedef, yol):
             raise ValueError("Ayrılan dosya özgün dosyanın yerine yazılamaz; bunun için \"Üzerine yaz\" seçilmeli.")
@@ -714,7 +720,6 @@ def y_ayir(p):
         _parca_yaz(doc, gruplar, hedef, toc)
         dosyalar.append(hedef)
         ayrintilar.append({"yol": hedef, "boyut": os.path.getsize(hedef), "sayfa": sum(s - b + 1 for b, s in gruplar)})
-        ilerleme(int(100 * (i + 1) / toplam), "%d/%d dosya yazıldı" % (i + 1, toplam))
     return {"dosyalar": dosyalar, "ayrintilar": ayrintilar}
 
 

@@ -171,11 +171,15 @@ export class BirlestirmePenceresi {
     this.ciz();
   }
 
-  /** "Üzerine yaz" yalnızca araç açılırken açık olan PDF listedeyken (kullanıcı onu çıkarmadıysa) seçilebilir. */
+  /** "Üzerine yaz" yalnızca araç açılırken açık olan PDF listede ve okunabilirken (kullanıcı onu çıkarmadıysa) seçilebilir: okunamayan öğe
+   *  birleştirmede atlanır, PDF yalnızca öteki dosyalarla yer değiştirirdi. Her çizimde ve her öğe okununca. */
   _uzerineDurumu() {
     if (!this.belge) return;
-    const listede = this.ogeler.some((o) => yolAyni(o.yol, this.belge.yol));
-    this.kayit.uzerineKullanilabilir(listede, `"${this.belge.ad}" listeden çıkarıldığı için yalnızca yeni belge olarak kaydedilebilir.`);
+    const ayni = this.ogeler.filter((o) => yolAyni(o.yol, this.belge.yol));
+    const okunur = ayni.some((o) => !o.hata);
+    this.kayit.uzerineKullanilabilir(okunur, ayni.length
+      ? `"${this.belge.ad}" okunamadığı için yalnızca yeni belge olarak kaydedilebilir.`
+      : `"${this.belge.ad}" listeden çıkarıldığı için yalnızca yeni belge olarak kaydedilebilir.`);
   }
 
   /** Kaydedilecek dosyanın adı (kapatma sorusu için): üzerine yazmada açık belgenin adı. */
@@ -372,6 +376,7 @@ export class BirlestirmePenceresi {
       o.hata = hataMetni(e);
     }
     this._ogeCiz(o);
+    this._uzerineDurumu();
     this._ozetYaz();
     this.tahminGeciktir();
   }
@@ -820,18 +825,22 @@ export class BirlestirmePenceresi {
     // Listedeki bir PDF PDEfe'de kaydedilmemiş değişiklikle açıksa (çoğunlukla aracın açıldığı belge) önce sorulur: birleştirme dosyadaki
     // kayıtlı sürümle yapılır
     for (const b of this._kirliAcikBelgeler(ogeler)) {
-      if ((await degisiklikleriSor(baglam, b, 'Birleştirme')) === 'vazgec' || this.pencere.kapali) return false;
+      const yerineYazilacak = this.kayit.uzerineMi() && yolAyni(b.yol, this.belge?.yol);
+      const secenek = yerineYazilacak ? { aciklama: 'Birleştirme dosyadaki kayıtlı sürümle yapılır; üzerine yazıldıktan sonra belge yeni haliyle yeniden açılır ve kaydedilmemiş değişiklikler atılır.' } : {};
+      if ((await degisiklikleriSor(baglam, b, 'Birleştirme', secenek)) === 'vazgec' || this.pencere.kapali) return false;
     }
-    // Ad, klasör, var olan dosya sorusu; yazılacak dosya (üzerine yazmada açık PDF) başka programda kilitliyse ya da salt okunursa şimdi
+    // Hedef listedeki bir dosyaysa var olan dosya sorusundan önce söylenir; ad, klasör, var olan dosya sorusu, kilit / salt okunur denetimi;
+    // hedef denetimden sonra yeniden (klasör ya da ad orada seçilmiş olabilir)
+    await this.kayit.hazir;
+    if (!this._hedefListeyleUygun(ogeler)) return false;
     const denetim = await this.kayit.denetle();
     if (this.pencere.kapali || denetim === 'vazgec') return false;
     if (denetim instanceof Error) return this.kayit.hataSor(denetim);
+    if (!this._hedefListeyleUygun(ogeler)) return false;
     const uzerine = this.kayit.uzerineMi();
     const hedef = this.kayit.hedef();
-    // Yeni belge listedeki bir dosyanın yerine yazılmaz; açık PDF'in yerine yazmak "Üzerine yaz"dır
-    if (!uzerine && ogeler.some((o) => yolAyni(o.yol, hedef))) {
-      baglam.bildir('Kaydedilecek dosya, listedeki dosyalardan biriyle aynı olamaz. Başka bir ad seçin.', 4000); return false;
-    }
+    // İptal yazdıktan sonra ulaşırsa yalnızca yeni oluşan dosya silinir; var olanın (onaylanmış) yerine yazılmışsa sonuç kalır
+    const hedefVardi = await baglam.pdefe.cagir('dosya:varMi', hedef).catch(() => true);
     this.pencere.hataGoster('');
     this.pencere.el.classList.add('mesgul');
     this.pencere.dugmeAyarla('birlestir', { devre: true });
@@ -850,12 +859,13 @@ export class BirlestirmePenceresi {
       await ciktiyiAc(baglam, hedef, { cikti: this.cikti, soruAyrintisi });
     } catch (e) {
       this.ilerleme.gizle();
-      if (e.iptal && e.sonuc && uzerine) {
-        // İptal dosya yazıldıktan sonra ulaştı (çekirdek yazmaya başlayınca iptale bakmaz): açık PDF'in yerine yazılmıştır
+      if (e.iptal && e.sonuc && (uzerine || hedefVardi)) {
+        // İptal dosya yazıldıktan sonra ulaştı (çekirdek yazmaya başlayınca iptale bakmaz): var olan dosyanın yerine yazılmıştır
         await this.pencere.kapat('tamam');
         baglam.bildir(`İptal edilemeden tamamlandı: "${dosyaAdi(hedef)}" üzerine yazıldı.`, 6000);
         await ciktiyiAc(baglam, hedef, { cikti: this.cikti, soruAyrintisi });
       } else if (e.iptal) {
+        // Yeni oluşmuş dosya (iptal geç ulaştı) yarım iş bırakılmasın: çöp kutusuna
         if (e.sonuc) { try { await baglam.pdefe.cagir('dosya:sil', hedef); } catch { /* yok say */ } }
         baglam.bildir('Birleştirme iptal edildi.' + (uzerine ? ' Özgün dosya değiştirilmedi.' : ''));
       } else if (kilitliHataMi(e)) kilit = e;
@@ -868,6 +878,24 @@ export class BirlestirmePenceresi {
     }
     // Soru yazılamayan dosyayı adıyla söyler (üzerine yazmada açık PDF, yeni belgede var olan hedef); seçime göre kaydetme seçimini değiştirir
     return kilit && !this.pencere.kapali ? this.kayit.hataSor(kilit) : false;
+  }
+
+  /**
+   * Yeni belge listedeki bir dosyanın (okunamayanlar dahil) yerine yazılmaz; açık PDF'in yerine yazmak "Üzerine yaz"dır ve o PDF
+   * birleştirilecekler arasında olmalı (okunamadıysa atlanırdı: PDF yalnızca öteki dosyalarla yer değiştirirdi). Uygun değilse bildirir.
+   * @param {object[]} ogeler birleştirilecek (okunabilen) öğeler
+   */
+  _hedefListeyleUygun(ogeler) {
+    const uzerine = this.kayit.uzerineMi(), hedef = this.kayit.hedef();
+    if (uzerine && !ogeler.some((o) => yolAyni(o.yol, hedef))) {
+      this.baglam.bildir(`"${dosyaAdi(hedef)}" listede olmadığı ya da okunamadığı için üzerine yazılamaz; yeni belge olarak kaydedin.`, 5000);
+      return false;
+    }
+    if (!uzerine && this.ogeler.some((o) => yolAyni(o.yol, hedef))) {
+      this.baglam.bildir('Kaydedilecek dosya, listedeki dosyalardan biriyle aynı olamaz. Başka bir ad seçin.', 4000);
+      return false;
+    }
+    return true;
   }
 
   /** Listedeki, PDEfe'de kaydedilmemiş değişiklikle açık PDF'ler (her biri bir kez). */

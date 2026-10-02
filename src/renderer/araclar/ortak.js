@@ -119,7 +119,7 @@ export function sayfaListesiCoz(metin, toplam) {
 
 /**
  * "1-3, 4-10, 12" → her parça ayrı bir aralık: [{bas, son, sayfalar:[...]}, ...]. Sıra korunur.
- * Çekirdekteki araliklari_ayristir ile aynı kurallar: "-3" = 1-3, "5-" = 5-son, ters aralık düzeltilir.
+ * Kurallar: "-3" = 1-3, "5-" = 5-son, ters aralık düzeltilir (0.1.25'e dek çekirdekteki araliklari_ayristir da aynıydı).
  */
 export function sayfaAraliklariCoz(metin, toplam) {
   const araliklar = [];
@@ -873,6 +873,7 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
   const ozgunAd = belge ? dosyaAdi(belge.yol) : '';
   const oneriAd = () => `${guvenliAd(varsayilanAd)}.pdf`;
   let coklu = false;            // birden çok dosya (PDF ayır): ad dosya adlarının ortak başı
+  let uzerineIzinli = !!belge;  // "Üzerine yaz" seçilebilir mi (uzerineKullanilabilir)
   const cikti = ciktiSecici({ pdefe: baglam.pdefe, klasor: '', ad: oneriAd(), diyalogBasligi });
   cikti.onDegisti(bildir);
   const yeniEl = el.querySelector('.arac-kayit-yeni');
@@ -912,6 +913,7 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
   const kipAyarla = (k) => { secim.sec(k); goster(); bildir(); };
   function uzerineKullanilabilir(evet, neden = '') {
     if (!belge) { evet = false; neden = neden || belgesizNeden; }
+    uzerineIzinli = evet;
     secim.etkin('uzerine', evet);
     secim.dugme('uzerine').title = evet ? uzerineIpucu : neden;
     kisitEl.textContent = evet ? '' : neden;
@@ -919,8 +921,12 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
     if (!evet && secim.deger() === 'uzerine') kipAyarla('yeni');
   }
   if (!belge) uzerineKullanilabilir(false);
-  /** Değiştir ile özgün dosyanın kendisi seçildiyse de üzerine yazmadır (birden çok dosyada ad yalnızca ortak baştır). */
-  const uzerineMi = () => !!belge && (secim.deger() === 'uzerine' || (!coklu && yolAyni(cikti.yol(), belge.yol)));
+  /**
+   * Kayıt özgün dosyanın yerine mi: "Üzerine yaz" seçili ya da (üzerine yazma seçilebilirken) yeni belgenin adı ve klasörü özgün dosyanın
+   * kendisi (Değiştir'de seçildi ya da kutuya yazıldı; denetle önce "zaten var" diye sorar). Üzerine yazma seçilemiyorsa (ayırmada birden
+   * çok dosya, Birleştir'de açık PDF listede değil ya da okunamadı) aynı ad olağan bir yeni belge hedefidir.
+   */
+  const uzerineMi = () => !!belge && uzerineIzinli && (secim.deger() === 'uzerine' || (!coklu && yolAyni(cikti.yol(), belge.yol)));
   /**
    * Varsayılan klasör ve ad (kullanıcı elle değiştirmediyse): tek dosyada klasörde boş bir ad ("Sıkıştırılmış (2)"), birden çok dosyada
    * aracın adı olduğu gibi (dosya adları sayfa numarasıyla ayrılır; var olanı araç yönetir). Son çağrının sonucu geçerlidir (hazir).
@@ -963,7 +969,8 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
   async function denetle() {
     await adSozu;
     const uzerine = uzerineMi();
-    if (!uzerine) {
+    // Yeni belge (adı ve klasörü özgün dosyanın kendisi olsa da: üzerine yazma ancak sorulup onaylanınca); "Üzerine yaz" seçiliyse sorulmaz
+    if (secim.deger() !== 'uzerine') {
       if (!cikti.ad()) { baglam.bildir('Dosya adı girin.'); cikti.odakla(); return 'vazgec'; }
       if (!cikti.klasor()) {
         const k = await baglam.pdefe.cagir('dosya:klasorSec', { baslik: diyalogBasligi }).catch(() => null);
@@ -972,7 +979,7 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
       }
       if (coklu) return 'devam';   // dosya adlarını ve var olan dosyaları araç kendisi yönetir
       if (!(await varOlanaYazmaSor(baglam, cikti, cikti.yol()))) return 'vazgec';
-      if (!(await baglam.pdefe.cagir('dosya:varMi', cikti.yol()).catch(() => false))) return 'devam';
+      if (!uzerine && !(await baglam.pdefe.cagir('dosya:varMi', cikti.yol()).catch(() => false))) return 'devam';
     }
     const erisim = await yazilabilirMi(baglam, uzerine ? belge.yol : cikti.yol());
     if (erisim.okunur && erisim.yazilir) return 'devam';
@@ -992,10 +999,12 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
     const okunamadi = /okunamadı/i.test(m);
     const saltOkunur = /salt okunur/i.test(m);
     const hedefAd = dosyaAdi(uzerine ? belge.yol : coklu ? '' : cikti.yol());
+    // Çekirdeğin iletisi okunamayan dosyanın adıyla biter ("…: Ek.pdf"; Birleştir'de listedeki herhangi bir dosya olabilir)
+    const hatadakiAd = (/: ([^:\\/]+\.pdf)\s*$/i.exec(m) || [])[1];
     const programda = 'başka bir programda (örneğin bir PDF okuyucuda) açık olabilir';
     let mesaj, ayrinti, dugmeler, yanitlar;
     if (okunamadi) {
-      mesaj = `"${ozgunAd || hedefAd}" okunamadı.`;
+      mesaj = `"${hatadakiAd || ozgunAd || hedefAd}" okunamadı.`;
       ayrinti = `Dosya ${programda}. Hiçbir dosya değiştirilmedi.\n\nDosyayı kullanan programı kapatıp yeniden deneyin.`;
       dugmeler = ['Yeniden dene', 'Vazgeç']; yanitlar = ['tekrar', 'vazgec'];
     } else if (!uzerine && coklu) {
