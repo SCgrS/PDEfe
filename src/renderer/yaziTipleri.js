@@ -32,12 +32,14 @@ const STANDART_DOSYALAR = {
 let klasorSozu = null;
 const veriler = new Map();   // Windows dosya adı → Promise<Uint8Array | null> (her dosya bir kez okunur)
 
-/** Windows yazı tipi dosyasının baytları; okunamazsa null (PDF.js'in kendi dosyası kullanılır). */
+/** Sistem yazı tipi dosyasının baytları (Windows dosya adıyla; macOS'ta karşılığı, 0.2.0: ana süreç yolunu verir); okunamazsa null
+ *  (PDF.js'in kendi dosyası kullanılır). */
 function windowsYaziTipi(dosya) {
   if (!veriler.has(dosya)) {
-    klasorSozu ||= window.pdefe.cagir('uygulama:klasorler').then((k) => k?.yaziTipleri || 'C:\\Windows\\Fonts').catch(() => 'C:\\Windows\\Fonts');
+    klasorSozu ||= window.pdefe.cagir('uygulama:klasorler').catch(() => ({}));
     veriler.set(dosya, klasorSozu
-      .then((klasor) => window.pdefe.cagir('dosya:oku', klasor.replace(/[\\/]+$/, '') + '\\' + dosya))
+      .then((k) => window.pdefe.cagir('dosya:oku', k?.yaziTipiDosyalari?.[dosya]
+        || (k?.yaziTipleri || 'C:\\Windows\\Fonts').replace(/[\\/]+$/, '') + '\\' + dosya))
       .then((r) => (r?.veri ? new Uint8Array(r.veri) : null))
       .catch((e) => { console.warn('Windows yazı tipi okunamadı; PDF.js yedeği kullanılacak', dosya, e); return null; }));
   }

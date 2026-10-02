@@ -16,9 +16,15 @@ import { yazdir } from './yazdir.js';
 import { ortuTiklamasiBagla } from './ortu.js';
 import { mesajKutusu as mesajKutusuAc, mesajKutusuAcik, mesajKutusuUyar, kaydetmedenCikisSorusu } from './mesajKutusu.js';
 import { BaslangicEkrani } from './baslangic.js';
+import { MAC, birincil, tus, ipuclariniCevir, DOSYA_YONETICISI } from './platform.js';
 
 const $ = (s) => document.querySelector(s);
 const pdefe = window.pdefe;
+
+// macOS (0.2.0): kısayolların birincil tuşu ⌘ (platform.js birincil); ipuçları Mac kısayollarıyla yazılır; menü çubuğu düğmesi gizlenir
+// (Mac'in menüsü ekranın üstünde, hep görünür: stil.css html[data-platform="mac"])
+document.documentElement.dataset.platform = MAC ? 'mac' : 'windows';
+ipuclariniCevir();
 
 // ---------------------------------------------------------------- durum
 let ayar = {};
@@ -805,7 +811,7 @@ async function kayitYaz(b, farkli, sessiz) {
   durum.mesajYaz('Kaydediliyor…', 0);
   let r;
   if (yapisal && !yalnizDondurme) {
-    const anlikKlasor = (await pdefe.cagir('uygulama:veriKlasoru')) + '\\anlik';
+    const anlikKlasor = (await pdefe.cagir('uygulama:veriKlasoru')) + (MAC ? '/anlik' : '\\anlik');
     r = await cekirdek('yapisal_kaydet', { yol: b.yol, hedef, tarif: yapisalTarif(b, tarif), anlikKlasor, anlik: g.anlik, islemler }, (i) => durum.mesajYaz(`Kaydediliyor… %${i.yuzde} ${i.mesaj || ''}`, 0));
     if (r.anlik && !g.anlik) { g.anlik = r.anlik; g.kaynakYeniden(b.yol, r.anlik); b.notlar?.kaynakYeniden(b.yol, r.anlik); }
     // Yapısal modda notların kayıtlı temeli anlık kopyadaki durumdur; yalnızca konumlar güncellenir
@@ -1104,9 +1110,10 @@ function baglantiyaGit(b, l) {
 /** Geri al (geri=true) / yinele: yazı düzenlenirken düzenleyicinin metnini (araç çubuğu düğmesi odağı alsa da, Düzen menüsünden de),
  *  başka bir girdi kutusundaysa onun metnini, yoksa belgeyi. */
 function geriAlYinele(geri) {
-  const b = aktif(); if (!b) return;
-  const n = b.notlar, d = n?.duzenleyici, odak = document.activeElement;
+  const b = aktif();
+  const n = b?.notlar, d = n?.duzenleyici, odak = document.activeElement;
   if (girdideMi() && !(d && (odak === d.el || d.bicim.contains(odak)))) { document.execCommand(geri ? 'undo' : 'redo'); return; }
+  if (!b) return;
   if (d) { if (geri) n.duzenleyiciGeriAl(); else n.duzenleyiciYinele(); return; }
   const k = geri ? b.yigin.geriAl() : b.yigin.yinele();
   if (k) durum.mesajYaz((geri ? 'Geri alındı: ' : 'Yinelendi: ') + k.ad);
@@ -1248,7 +1255,19 @@ const baslangic = new BaslangicEkrani({
 // Ctrl+W, Ctrl+O hızlandırıcıları da) çalışmaz: araç kendi tarifini kaydederken arkada yapılan döndürmeyi ezerdi, Ctrl+W yazdırılmakta olan
 // belgeyi kapatıyordu (sayfada işlenen Ctrl+PageUp/PageDown, Ctrl+Tab, Ctrl+1–9, Ctrl+Z aynı kuralla: ortuAcik)
 const ORTU_ACIKKEN_CALISMAYAN = new Set(['gorunum.dondur', 'sekme.yeni', 'sekme.sonraki', 'sekme.onceki', 'sekme.kapat', 'dosya.ac', 'dosya.acYol', 'duzen.geriAl', 'duzen.yinele']);
+// macOS: odak girdi kutusundayken (Bul, sayfa kutusu, araç penceresi, parola) ⌘Z / ⇧⌘Z / ⌘A menüden gelir (Chromium Mac'te bu tuşları
+// sayfaya değil menüye bırakır, menu.js): kutunun kendi geri alması / seçimi; açık pencere kuralına takılmaz. Yazı notu düzenleyicisi
+// kendi geçmişini tutar: onun geri alması geriAlYinele'den (tuşu düzenleyici zaten kendisi işler)
+const MAC_GIRDI_KOMUTLARI = { 'duzen.geriAl': 'undo', 'duzen.yinele': 'redo', 'duzen.tumunuSec': 'selectAll' };
+function macGirdiKomutu(id) {
+  if (!MAC || !MAC_GIRDI_KOMUTLARI[id] || !girdideMi()) return false;
+  const d = aktif()?.notlar?.duzenleyici, odak = document.activeElement;
+  if (d && id !== 'duzen.tumunuSec' && (odak === d.el || d.bicim.contains(odak))) return false;
+  document.execCommand(MAC_GIRDI_KOMUTLARI[id]);
+  return true;
+}
 pdefe.dinle('menu:komut', (id, veri) => {
+  if (!girdiKilitli() && macGirdiKomutu(id)) return;
   if (mesajKutusuAcik()) { mesajKutusuUyar(); return; }
   if (girdiKilitli()) return;   // sekme taşınırken ya da güncelleme kurulumu beklenirken pencere girdi almaz
   if (ORTU_ACIKKEN_CALISMAYAN.has(id) && (acikAracPenceresiVar() || document.querySelector('.diyalog-ortusu, .ayarlar-ortusu'))) return;
@@ -1491,7 +1510,7 @@ function girdideMi(a = document.activeElement) {
  * Ctrl+Ins kopyalar). Döndürme yalnızca Ctrl+R / Ctrl+Shift+R (menü).
  */
 function yakinlastirmaTusu(e) {
-  if (!e.ctrlKey || e.altKey || e.metaKey) return null;
+  if (!birincil(e) || e.altKey || (!MAC && e.metaKey)) return null;
   if (e.code === 'NumpadAdd' || e.key === '+' || e.key === '=') return 'yakin';
   if (e.code === 'NumpadSubtract' || e.key === '-' || e.key === '_') return 'uzak';
   if (e.code === 'Numpad0' && e.key === '0') return 'gercek';
@@ -1525,7 +1544,7 @@ document.addEventListener('keydown', (e) => {
     else if (e.key === 'Enter') sekmeler.seciciKapat();
     return;
   }
-  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key >= '1' && e.key <= '9') {
+  if (birincil(e) && !e.shiftKey && !e.altKey && e.key >= '1' && e.key <= '9') {
     if (ortuAcik()) return;
     const i = e.key === '9' ? sekmeler.sekmeler.length - 1 : parseInt(e.key, 10) - 1;
     const s = sekmeler.sekmeler[i];
@@ -1533,9 +1552,15 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   // Ctrl+PageUp / Ctrl+PageDown: önceki / sonraki sekme (tarayıcılardaki gibi; 0.1.12'ye dek sayfa çeviriyordu). Girdi kutusunda da
-  if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'PageUp' || e.key === 'PageDown')) {
+  if ((e.ctrlKey || (MAC && e.metaKey)) && !e.shiftKey && !e.altKey && (e.key === 'PageUp' || e.key === 'PageDown')) {
     e.preventDefault();
     if (!mesajKutusuAcik() && !document.querySelector('.diyalog-ortusu, .arac-ortusu, .ayarlar-ortusu')) sekmeGec(e.key === 'PageDown' ? 1 : -1);
+    return;
+  }
+  // macOS: ⇧⌘] / ⇧⌘[ sonraki / önceki sekme (Safari ve Chrome'daki gibi). Fiziksel tuşla (e.code): Türkçe klavyede [ ] başka tuşlarda
+  if (MAC && birincil(e) && e.shiftKey && !e.altKey && (e.code === 'BracketRight' || e.code === 'BracketLeft')) {
+    e.preventDefault();
+    if (!mesajKutusuAcik() && !document.querySelector('.diyalog-ortusu, .arac-ortusu, .ayarlar-ortusu')) sekmeGec(e.code === 'BracketRight' ? 1 : -1);
     return;
   }
   // Yakınlaştırma tuşları (menüde yalnızca yazar; bkz. yakinlastirmaTusu). Yazı düzenleyicisi ve not balonu bu tuşları geçirir (notlar.js belgeKisayoluMu)
@@ -1564,29 +1589,37 @@ document.addEventListener('keydown', (e) => {
     if (okumaModu) { komutCalistir('gorunum.okumaModu'); return; }
   }
   // Girdi kutusunda tarayıcının kendi geri alma / tümünü seçmesi; açık pencere varken arkadaki belgeye gitmez
-  if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'z' || e.key === 'Z')) { if (!girdideMi()) { e.preventDefault(); if (!ortuAcik()) komutCalistir('duzen.geriAl'); } return; }
-  if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'y' || e.key === 'Y')) { if (!girdideMi()) { e.preventDefault(); if (!ortuAcik()) komutCalistir('duzen.yinele'); } return; }
-  if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'a' || e.key === 'A')) { if (!girdideMi()) { e.preventDefault(); if (!ortuAcik()) tumunuSec(); } return; }
+  // macOS'ta yinele ⇧⌘Z; girdi kutusunda tuş sayfada işlenmez, menüden kutunun kendi işine gider (macGirdiKomutu)
+  const yineleTusu = MAC ? birincil(e) && e.shiftKey && !e.altKey && (e.key === 'z' || e.key === 'Z')
+    : e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'y' || e.key === 'Y');
+  if (birincil(e) && !e.shiftKey && !e.altKey && (e.key === 'z' || e.key === 'Z')) { if (!girdideMi()) { e.preventDefault(); if (!ortuAcik()) komutCalistir('duzen.geriAl'); } return; }
+  if (yineleTusu) { if (!girdideMi()) { e.preventDefault(); if (!ortuAcik()) komutCalistir('duzen.yinele'); } return; }
+  if (birincil(e) && !e.shiftKey && !e.altKey && (e.key === 'a' || e.key === 'A')) { if (!girdideMi()) { e.preventDefault(); if (!ortuAcik()) tumunuSec(); } return; }
   if (girdideMi()) return;
   // Açık diyalog / araç penceresi (odak pencerenin dışında kalmış olsa da), açılır liste ya da açık belgeler listesi varken belge
   // sayfa çevirmesin, not silinmesin
   if (document.querySelector('.diyalog-ortusu, .arac-ortusu') || !$('#belge-listesi').hidden || document.activeElement?.tagName === 'SELECT') return;
   // Ctrl+← / Ctrl+→: önceki / sonraki sekme (girdi kutusunda sözcük atlama kalır: yukarıda girdideMi). Açılış sekmesinde de
-  if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); sekmeGec(e.key === 'ArrowRight' ? 1 : -1); return; }
+  const sekmeOku = MAC ? birincil(e) && e.altKey && !e.shiftKey : e.ctrlKey && !e.shiftKey && !e.altKey;   // macOS: ⌥⌘← / ⌥⌘→
+  if (sekmeOku && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); sekmeGec(e.key === 'ArrowRight' ? 1 : -1); return; }
   const b = aktif();
   if (!b) return;
+  // macOS: ⌘↑ / ⌘↓ belge başı / sonu (Mac klavyelerinde Home / End yok; fn+← / fn+→ ilk / son sayfa)
+  if (MAC && birincil(e) && !e.shiftKey && !e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+    e.preventDefault(); if (e.key === 'ArrowUp') b.gorunum.belgeBasi(); else b.gorunum.belgeSonu(); return;
+  }
   if (e.key === 'Delete' || e.key === 'Backspace') { if (b.notlar?.silSecili()) { e.preventDefault(); return; } }
   const g = b.gorunum;
   const satir = 48;
   switch (e.key) {
     case 'ArrowDown': e.preventDefault(); g.dikeyKaydir(satir); break;
     case 'ArrowUp': e.preventDefault(); g.dikeyKaydir(-satir); break;
-    case 'ArrowRight': if (!e.ctrlKey) { e.preventDefault(); g.yatayOk(1, satir); } break;
-    case 'ArrowLeft': if (!e.ctrlKey) { e.preventDefault(); g.yatayOk(-1, satir); } break;
+    case 'ArrowRight': if (!birincil(e)) { e.preventDefault(); g.yatayOk(1, satir); } break;
+    case 'ArrowLeft': if (!birincil(e)) { e.preventDefault(); g.yatayOk(-1, satir); } break;
     case 'PageDown': e.preventDefault(); if (g.surekli()) g.sonrakiSayfa(); else g.dikeyKaydir(g.kaydirici.clientHeight - 40); break;
     case 'PageUp': e.preventDefault(); if (g.surekli()) g.oncekiSayfa(); else g.dikeyKaydir(-(g.kaydirici.clientHeight - 40)); break;
-    case 'Home': e.preventDefault(); if (e.ctrlKey) g.belgeBasi(); else g.sayfayaGit(1); break;
-    case 'End': e.preventDefault(); if (e.ctrlKey) g.belgeSonu(); else g.sayfayaGit(g.sayfaSayisi); break;
+    case 'Home': e.preventDefault(); if (birincil(e)) g.belgeBasi(); else g.sayfayaGit(1); break;
+    case 'End': e.preventDefault(); if (birincil(e)) g.belgeSonu(); else g.sayfayaGit(g.sayfaSayisi); break;
     case ' ': e.preventDefault(); g.dikeyKaydir((e.shiftKey ? -1 : 1) * (g.kaydirici.clientHeight - 40)); break;
     default: break;
   }
@@ -1610,6 +1643,7 @@ function belgeSecimMetni() {
 }
 
 function tumunuSec() {
+  if (girdideMi()) { document.execCommand('selectAll'); return; }
   const b = aktif(); if (!b) return;
   const g = b.gorunum;
   const katman = g.sayfalar[g.gecerli - 1]?.el.querySelector('.textLayer');
@@ -1749,7 +1783,7 @@ async function pdfKopyala(b = aktif()) {
     if (secim === 0 && !(await belgeKaydet(b))) return;
   }
   const r = await pdefe.cagir('pano:dosya', b.yol);
-  bildir(r.tamam ? 'Dosya panoya kopyalandı — Ctrl+V veya Yapıştır ile yapıştırabilirsiniz' : 'Panoya kopyalanamadı: ' + r.hata);
+  bildir(r.tamam ? tus('Dosya panoya kopyalandı — Ctrl+V veya Yapıştır ile yapıştırabilirsiniz') : 'Panoya kopyalanamadı: ' + r.hata);
 }
 
 // ---------------------------------------------------------------- diyaloglar
@@ -1838,7 +1872,7 @@ function kisayollarGoster() {
     ['Delete', 'Seçilenleri çıkar'], ['Ctrl+A', 'Tümünü seç'], ['Ctrl+V', 'Panodaki dosyaları ya da görüntüyü ekle'],
   ]];
   const satir = ([k, a]) => (a == null ? `<tr class="bolum"><th colspan="2">${k}</th></tr>`
-    : `<tr><td>${[].concat(k).map((t) => `<kbd>${t}</kbd>`).join(' ')}</td><td>${a}</td></tr>`);
+    : `<tr><td>${[].concat(k).map((t) => `<kbd>${tus(t)}</kbd>`).join(' ')}</td><td>${a}</td></tr>`);
   diyalogAc({
     baslik: 'Kısayollar',
     govde: '<div class="kisayol-sutunlar">' + sutunlar.map((s) => '<table class="kisayollar">' + s.map(satir).join('') + '</table>').join('') + '</div>',

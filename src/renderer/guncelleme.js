@@ -12,6 +12,8 @@
 //   Soru Vazgeç ile kapatılırsa indirilen paket saklanır: "[Kur ve yeniden başlat]" yeniden indirmeden kurar.
 //   Hata → kısa Türkçe ileti ve [Yeniden dene]. Daha sonra → bu oturumda gizlenir (elle denetim yeniden gösterir).
 
+import { MAC } from './platform.js';
+
 const SURUMLER_URL = 'https://github.com/SCgrS/PDEfe/releases';
 
 const STIL = `
@@ -82,7 +84,9 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce, kuru
     if (durum.asama === 'var') {
       metin.textContent = `PDEfe ${durum.surum} hazır${kullandiginiz()}.`;
       dugmeler.append(
-        dugme('Güncelle', () => guncelle(), { sinif: 'birincil-serit', baslik: 'İndir, kur ve PDEfe\'yi yeniden başlat' }),
+        // macOS (0.2.0): yeni sürümün Mac paketi tarayıcıda iner, kullanıcı Uygulamalar klasörüne sürükler (main/macGuncelleme.js)
+        MAC ? dugme('İndir', () => guncelle(), { sinif: 'birincil-serit', baslik: 'Yeni sürümü tarayıcıda indir' })
+          : dugme('Güncelle', () => guncelle(), { sinif: 'birincil-serit', baslik: 'İndir, kur ve PDEfe\'yi yeniden başlat' }),
         dugme('Sürüm notları', () => pdefe.cagir('kabuk:disAc', `${SURUMLER_URL}/tag/v${durum.surum}`).catch(() => {}), { sinif: 'baglanti-dugme', baslik: 'GitHub sürüm sayfasını aç' }),
         dahaSonra(),
       );
@@ -105,6 +109,10 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce, kuru
       metin.textContent = `PDEfe ${durum.surum} indirildi${kullandiginiz()}. Kurmak için PDEfe kapanıp yeniden açılacak.`;
       dugmeler.append(dugme('Kur ve yeniden başlat', () => guncelle(), { sinif: 'birincil-serit' }), dahaSonra());
       serit.append(metin, dugmeler);
+    } else if (durum.asama === 'tarayicida') {
+      metin.textContent = `PDEfe ${durum.surum} tarayıcıda iniyor. İnen PDEfe-Mac dosyasını açıp PDEfe'yi Uygulamalar klasörüne sürükleyin (eskisinin yerine), sonra PDEfe'yi yeniden açın.`;
+      dugmeler.append(dugme('Tamam', () => { durum.kapatildi = true; gizle(); }, { sinif: 'birincil-serit' }));
+      serit.append(metin, dugmeler);
     } else if (durum.asama === 'hata') {
       metin.textContent = durum.hata;
       dugmeler.append(dugme('Yeniden dene', () => guncelle(), { sinif: 'birincil-serit' }), dahaSonra());
@@ -123,9 +131,10 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce, kuru
     akis = (async () => {
       try {
         if (!durum.indirildi) {   // indirilmiş paket (Vazgeç ya da kurulum hatasından sonra) yeniden indirilmez
-          asama('indiriliyor', { yuzde: 0, aktarilan: 0, toplam: 0, hata: '' });
+          if (!MAC) asama('indiriliyor', { yuzde: 0, aktarilan: 0, toplam: 0, hata: '' });   // macOS: tarayıcıda iner
           const r = await pdefe.cagir('guncelleme:indir');
           if (!r?.tamam) { asama('hata', { hata: `Güncelleme indirilemedi. ${r?.mesaj || 'İndirme tamamlanamadı.'}` }); return false; }
+          if (r.tarayicida) { asama('tarayicida'); return false; }   // macOS: kurulum kullanıcıda
         }
         asama('onay');
         if (kapatmadanOnce && (await kapatmadanOnce()) === false) {

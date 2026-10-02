@@ -2,6 +2,7 @@
 // yol yardımcıları, sürükleyerek sıralama, çıktı satırı (ad + klasör çipi), standart kaydetme seçimi
 // ("Yeni belge olarak kaydet" | "Üzerine yaz"), üzerine yazılan sekmeyi yenileme.
 // Bütün araçlar (kucult: Sıkıştır, sayfalar, ayir, gorselBirlestir, dondur) bu modülü kullanır.
+import { tus } from '../platform.js';
 
 // ---------------------------------------------------------------- metin ve biçim
 const TR_SAYI_2 = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -915,12 +916,12 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
   const uzerineMetin = notEl.querySelector('.metin');
   if (belge) {
     sabit.yaz(belge.yol);
-    if (geriAlinabilir) uzerineMetin.textContent = `Belgeye uygulanıp "${ozgunAd}" dosyasına kaydedilir; Ctrl+Z ile geri alınabilir.`;
+    if (geriAlinabilir) uzerineMetin.textContent = tus(`Belgeye uygulanıp "${ozgunAd}" dosyasına kaydedilir; Ctrl+Z ile geri alınabilir.`);
     else uzerineMetin.append(Object.assign(document.createElement('b'), { textContent: 'Geri alınamaz:' }), ` sonuç "${ozgunAd}" dosyasının yerine yazılır, yedek alınmaz.`);
     notEl.title = belge.yol;
   }
   const uzerineIpucu = !belge ? ''
-    : geriAlinabilir ? `Değişiklik açık belgeye uygulanıp "${ozgunAd}" dosyasına kaydedilir; Ctrl+Z ile geri alınabilir`
+    : geriAlinabilir ? tus(`Değişiklik açık belgeye uygulanıp "${ozgunAd}" dosyasına kaydedilir; Ctrl+Z ile geri alınabilir`)
       : `Sonuç "${ozgunAd}" dosyasının yerine kaydedilir; yedek alınmaz, geri alınamaz`;
   const secim = segmentliSecim({
     etiket: 'Kayıt biçimi', deger: belge ? kip : 'yeni', sinif: 'arac-kayit-secim',

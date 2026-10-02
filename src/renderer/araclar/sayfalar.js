@@ -14,6 +14,7 @@ import {
   IslemIlerleme, kayitSecimi, degisiklikleriSor, kilitliHataMi, ciktiyiAc, yolAyni,
 } from './ortak.js';
 import { kaydetmedenCikisSorusu } from '../mesajKutusu.js';
+import { tus } from '../platform.js';
 
 const KUCUK_RESIM_GENISLIK = 160;
 const GECMIS_SINIRI = 200;
@@ -755,7 +756,7 @@ export class SayfalarPenceresi {
     }
     await this.pencere.kapat('tamam');
     const kaydedildi = await baglam.kaydet(belge);
-    baglam.bildir(kaydedildi ? `Sayfa düzeni uygulandı ve kaydedildi: ${n} sayfa. Geri almak için Ctrl+Z.` : `Sayfa düzeni uygulandı: ${n} sayfa; kaydedilmedi.`, kaydedildi ? 4000 : 6000);
+    baglam.bildir(kaydedildi ? tus(`Sayfa düzeni uygulandı ve kaydedildi: ${n} sayfa. Geri almak için Ctrl+Z.`) : `Sayfa düzeni uygulandı: ${n} sayfa; kaydedilmedi.`, kaydedildi ? 4000 : 6000);
     return false;
   }
 }

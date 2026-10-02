@@ -3,6 +3,10 @@
 import * as pdfjs from '../../node_modules/pdfjs-dist/build/pdf.min.mjs';
 import { keskinBaglam, KeskinTuvalFabrikasi, cizimGoreviHazirla, ETKILESIM_MS, etkilesimBildir, etkilesimBitir, keskinErtelenir, ertelenenSayisi, keskinHazirDinle, okumaSuruyor } from './keskinlik.js';
 import { anaHatSecenekleri, yaziTipiYukleyicisiniSar, yaziGoreviHazirla } from './yaziTipleri.js';
+import { MAC } from './platform.js';
+
+/** Yakınlaştıran tekerlek olayı: Windows'ta Ctrl+tekerlek; macOS'ta (0.2.0) dokunmatik yüzeyde kıstırma (Ctrl'li gelir) ya da ⌘+tekerlek. */
+const yakinlastirmaTekerlegi = (e) => e.ctrlKey || (MAC && e.metaKey);
 
 const KAYNAK = new URL('../../node_modules/pdfjs-dist/', import.meta.url).href;
 pdfjs.GlobalWorkerOptions.workerSrc = KAYNAK + 'build/pdf.worker.min.mjs';
@@ -205,7 +209,7 @@ export class Goruntuleyici extends EventTarget {
     // Kaydırma etkileşimi yalnızca kullanıcı girdisinden sayılır (etkilesimIzle): tekerlek (Ctrl'siz), dokunma, kaydırma çubuğu, tuşlar
     this._girdiZamani = -Infinity; this._cubukTutuluyor = false;
     this.kaydirici.addEventListener('wheel', (e) => {
-      if (e.ctrlKey) { this._girdiZamani = -Infinity; etkilesimBitir(); } else this._girdiZamani = performance.now();
+      if (yakinlastirmaTekerlegi(e)) { this._girdiZamani = -Infinity; etkilesimBitir(); } else this._girdiZamani = performance.now();
     }, { passive: true });
     this.kaydirici.addEventListener('touchmove', () => { this._girdiZamani = performance.now(); }, { passive: true });
     this.kaydirici.addEventListener('pointerdown', (e) => {
@@ -1489,11 +1493,13 @@ export class Goruntuleyici extends EventTarget {
 
   // ------------------------------------------------------------ yakınlaştırma
   tekerlek(e) {
-    if (!e.ctrlKey) { this.tekerlekleCevir(e); return; }
+    if (!yakinlastirmaTekerlegi(e)) { this.tekerlekleCevir(e); return; }
     e.preventDefault();
     const kut = this.kaydirici.getBoundingClientRect();
     const sabit = { x: e.clientX - kut.left, y: e.clientY - kut.top };
-    const adim = Math.exp(-e.deltaY * 0.0015);
+    // macOS'ta dokunmatik yüzeyde iki parmakla kıstırma Ctrl'li küçük tekerlek adımları olarak gelir (0.2.0): adım büyütülür, sıçrama
+    // olmasın diye sınırlanır. Fare tekerleği (Windows'ta Ctrl, Mac'te ⌘ ile) önceki gibi
+    const adim = MAC && e.ctrlKey ? Math.exp(Math.max(-0.5, Math.min(0.5, -e.deltaY * 0.01))) : Math.exp(-e.deltaY * 0.0015);
     this.zoomAyarla(this.olcek * adim, sabit);
   }
 

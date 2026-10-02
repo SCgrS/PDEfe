@@ -89,6 +89,8 @@ button.ikon.metinli[aria-expanded="true"] { background: var(--basili); }
 #arac-cubugu.sikisik-3 button.ikon.acilir { width: 18px; }
 #arac-cubugu.sikisik-3 #zoom-kutusu { width: 54px; }
 #arac-cubugu.sikisik-4 #dugme-menu { display: none; }
+/* macOS (0.2.0): menü ekranın üstünde hep görünür; göster / gizle düğmesi yok (uygulama.js data-platform) */
+html[data-platform="mac"] #dugme-menu { display: none; }
 #arac-cubugu.sikisik-5 [data-komut="arac.paylas"] { display: none; }
 /* Tema düğmesi şu anki temayı gösterir: açık temada güneş, koyu temada ay */
 #dugme-tema .ay { display: none; }

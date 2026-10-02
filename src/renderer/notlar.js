@@ -2,6 +2,7 @@
 // araçlar (not, vurgu, metinle ilgili not, yazı), açılır balon (yazar, tarih, içerik; var olan yanıtlar salt okunur),
 // komut deseniyle geri al/yinele ve kaydetme farkı (diff).
 import { CSS_BIRIM, yolAnahtari } from './goruntuleyici.js';
+import { MAC, birincil } from './platform.js';
 import { Komut } from './komutlar.js';
 import { secimDikdortgenleri, secimMetinKutulari, satirlaraBirlestir, secimBaslangicSayfasi } from './metin.js';
 import { turAdi, balonTurAdi, tarihBicimle } from './panel.js';
@@ -15,7 +16,12 @@ export const VURGU_RENKLERI = [
   { ad: 'Sarı', hex: '#ffd100' }, { ad: 'Kırmızı', hex: '#ff6e6e' }, { ad: 'Turuncu', hex: '#ffb74d' },
   { ad: 'Yeşil', hex: '#7ee787' }, { ad: 'Mavi', hex: '#7cc4ff' }, { ad: 'Pembe', hex: '#ff9ad5' },
 ];
-export const YAZI_TIPLERI = ['Segoe UI', 'Arial', 'Times New Roman', 'Calibri'];
+// macOS'ta (0.2.0) Segoe UI ve Calibri yok: çekirdek o ailelerle yazılmış notu Arial'le gömer (core/islemler/notlar.py _font_dosyasi);
+// ekranda da Arial'le gösterilir (yaziTipiCss)
+export const YAZI_TIPLERI = MAC ? ['Arial', 'Times New Roman'] : ['Segoe UI', 'Arial', 'Times New Roman', 'Calibri'];
+const VARSAYILAN_YAZI_TIPI = MAC ? 'Arial' : 'Segoe UI';
+/** Yazı notunun CSS yazı tipi: macOS'ta bilgisayarda olmayan aile (Windows'ta yazılmış not) kaydedildiğinde olduğu gibi Arial'le görünür. */
+const yaziTipiCss = (tip) => (MAC && !YAZI_TIPLERI.includes(tip) ? `'${tip}', 'Arial'` : `'${tip}'`);
 // Yazı kutusu dolgu paleti (biçim çubuğundaki Dolgu rengi düğmesi): Dolgusuz, bu renkler ve Diğer renk (Windows renk seçicisi)
 const DOLGU_RENKLERI = [
   { ad: 'Beyaz', hex: '#ffffff' }, { ad: 'Açık sarı', hex: '#fff7c2' }, { ad: 'Sarı', hex: '#ffd100' }, { ad: 'Açık turuncu', hex: '#ffe0b2' },
@@ -29,7 +35,7 @@ const DUZENLEYICI_ADIMLARI = {
 };
 /** Yazı düzenleyicisinde ve not balonunda da belge düzeyinde işlenen Ctrl kısayolları (uygulama.js): sekme geçişi (Ctrl+PageUp/PageDown),
  *  yakınlaştırma (Ctrl++ / Ctrl+− / Ctrl+sayısal 0). Bunlar metin için anlam taşımaz; düzenleyici yutmaz, belgeye geçirir. */
-const belgeKisayoluMu = (e) => e.ctrlKey && !e.altKey && !e.metaKey && (e.key === 'PageUp' || e.key === 'PageDown' || e.key === '+' || e.key === '='
+const belgeKisayoluMu = (e) => birincil(e) && !e.altKey && (MAC || !e.metaKey) && (e.key === 'PageUp' || e.key === 'PageDown' || e.key === '+' || e.key === '='
   || e.key === '-' || e.key === '_' || e.code === 'NumpadAdd' || e.code === 'NumpadSubtract' || (e.code === 'Numpad0' && e.key === '0'));
 const NOT_RENGI = '#ffd100';                        // not (Text) ve renksiz not için PDF okuyucularının yaygın varsayılanı
 const METINLE_NOT_KONUSU = 'Metinle İlgili Yorum Yap';   // referans okuyucunun (Türkçe) notlu vurgu konusu; /IT /HighlightNote ile yazılır
@@ -432,7 +438,7 @@ export class NotYoneticisi extends EventTarget {
     const y = yaziKanonik(n.yazi, n.icerik);
     const k = this.ptPx();
     el.classList.add('not-freetext-yerli');
-    el.style.fontFamily = `'${y.tip}'`;
+    el.style.fontFamily = yaziTipiCss(y.tip);
     el.style.fontSize = (y.boyut * k) + 'px';
     el.style.lineHeight = '1.2';
     el.style.color = y.renk;
@@ -1339,7 +1345,7 @@ export class NotYoneticisi extends EventTarget {
   // ------------------------------------------------------------ yazı (FreeText)
   varsayilanYazi() {
     const a = this.ayar();
-    return yaziKanonik({ tip: a.yaziTipi || 'Segoe UI', boyut: a.yaziBoyutu || 12, renk: a.yaziRengi || '#000000', arka: a.yaziArka || null, kenarlik: false }, '');
+    return yaziKanonik({ tip: YAZI_TIPLERI.includes(a.yaziTipi) ? a.yaziTipi : VARSAYILAN_YAZI_TIPI, boyut: a.yaziBoyutu || 12, renk: a.yaziRengi || '#000000', arka: a.yaziArka || null, kenarlik: false }, '');
   }
 
   yaziBaslat(i, e) {
@@ -1471,7 +1477,7 @@ export class NotYoneticisi extends EventTarget {
     const egim = this.yaziEgimi(i, y);
     this.yaziYerlestir(d.el, r, egim);
     Object.assign(d.el.style, {
-      fontFamily: `'${y.tip}'`, fontSize: (y.boyut * k) + 'px', color: y.renk, background: y.arka || 'rgba(255,255,255,0.01)',
+      fontFamily: yaziTipiCss(y.tip), fontSize: (y.boyut * k) + 'px', color: y.renk, background: y.arka || 'rgba(255,255,255,0.01)',
       textAlign: HIZA_CSS[y.hiza] || 'left',
       // Kenarlıksızken kesik çizgili işaret outline ile (kutunun içine): kenarlık gibi yer kaplayıp içeriği yerli çizimden ve kaydedilen
       // görünümden 2 px daraltmasın (satırlar düzenlerken başka yerden kırılırdı)
@@ -1680,7 +1686,7 @@ export class NotYoneticisi extends EventTarget {
     if (e.key === 'Escape') { e.preventDefault(); this.duzenleyiciEsc(); return; }
     // Kutu içeriğe göre büyür, kendi içinde kaymaz: PageUp/PageDown'u tarayıcı belgeyi kaydırmaya çevirip düzenleyiciyi görünümden çıkarmasın
     if (e.key === 'PageDown' || e.key === 'PageUp') { e.preventDefault(); return; }
-    const ctrl = e.ctrlKey && !e.altKey && !e.metaKey;   // Ctrl+Alt = AltGr (Türkçe klavyede @, € …): kısayol değil
+    const ctrl = birincil(e) && !e.altKey && (MAC || !e.metaKey);   // Ctrl+Alt = AltGr (Türkçe klavyede @, € …): kısayol değil; macOS'ta ⌘
     if (e.key === 'Enter' && !ctrl && !e.altKey) { e.preventDefault(); this.duzenleyiciYaz('\n'); return; }
     if (!ctrl) return;
     // Harf, düzenden bağımsız: önce tuşun ürettiği harf (Türkçe Q'da ı → i), harf değilse fiziksel tuş

@@ -18,6 +18,7 @@
 //   DURUM_ANAHTARLARI                     → "Varsayılanlara dön" ile sıfırlanmayan durum alanları.
 import { ortuTiklamasiBagla } from './ortu.js';
 import { mesajKutusu } from './mesajKutusu.js';
+import { MAC, SISTEM } from './platform.js';
 
 export const DURUM_ANAHTARLARI = new Set(['sonDosyalar', 'sayfaKonumlari', 'pencere', 'solPanelGenislik', 'solPanelAcik', 'solPanelSekme', 'sonZoom', 'menuCubugu']);
 
@@ -25,7 +26,7 @@ const VURGU_RENKLERI = [
   { ad: 'Sarı', hex: '#ffd100' }, { ad: 'Kırmızı', hex: '#ff6e6e' }, { ad: 'Turuncu', hex: '#ffb74d' },
   { ad: 'Yeşil', hex: '#7ee787' }, { ad: 'Mavi', hex: '#7cc4ff' }, { ad: 'Pembe', hex: '#ff9ad5' },
 ];
-const YAZI_TIPLERI = ['Segoe UI', 'Arial', 'Times New Roman', 'Calibri'];
+const YAZI_TIPLERI = MAC ? ['Arial', 'Times New Roman'] : ['Segoe UI', 'Arial', 'Times New Roman', 'Calibri'];   // notlar.js ile aynı
 
 // Açılış ve düzen simgesi başlangıç ekranındaki PDF aç simgesiyle, Kaydetme'ninki araç çubuğundaki düğmeninkiyle aynı
 const BOLUMLER = [
@@ -159,7 +160,7 @@ async function varsayilanlaraDon() {
 function bolumGorunum(k) {
   const a = ayarlar();
   k.append(kart({
-    baslik: 'Tema', aciklama: 'Uygulama arayüzünün rengi. "Sistemi izle" Windows ayarını kullanır.',
+    baslik: 'Tema', aciklama: `Uygulama arayüzünün rengi. "Sistemi izle" ${SISTEM} ayarını kullanır.`,
     kontrol: secimKutusu(a.tema ?? 'sistem', [['acik', 'Açık'], ['koyu', 'Koyu'], ['sistem', 'Sistemi izle']], (v) => degistir('tema', v)),
   }));
   k.append(kart({
@@ -167,8 +168,10 @@ function bolumGorunum(k) {
     kontrol: anahtar(!!a.sayfayiKoyulastir, (v) => degistir('sayfayiKoyulastir', v)),
   }));
   k.append(kart({
-    baslik: 'Yazı çizimi', aciklama: 'Dengeli: yazılar keskin, kalın yazılar fazla koyulaşmadan çizilir; döndürülmüş sayfada harfler bozulmaz. Windows ClearType: bütün yazılar doğrudan Windows\'un çizimiyle; kalın yazılar daha koyu görünür. Değişiklik belgeler yeniden açılınca uygulanır.',
-    kontrol: secimKutusu(a.yaziCizimi ?? 'anaHat', [['anaHat', 'Dengeli (önerilen)'], ['sistem', 'Windows ClearType']], (v) => degistir('yaziCizimi', v)),
+    baslik: 'Yazı çizimi', aciklama: MAC
+      ? 'Dengeli: yazılar keskin, kalın yazılar fazla koyulaşmadan çizilir; döndürülmüş sayfada harfler bozulmaz. macOS çizimi: bütün yazılar doğrudan macOS\'un çizimiyle; kalın yazılar daha koyu görünür. Değişiklik belgeler yeniden açılınca uygulanır.'
+      : 'Dengeli: yazılar keskin, kalın yazılar fazla koyulaşmadan çizilir; döndürülmüş sayfada harfler bozulmaz. Windows ClearType: bütün yazılar doğrudan Windows\'un çizimiyle; kalın yazılar daha koyu görünür. Değişiklik belgeler yeniden açılınca uygulanır.',
+    kontrol: secimKutusu(a.yaziCizimi ?? 'anaHat', [['anaHat', 'Dengeli (önerilen)'], ['sistem', MAC ? 'macOS çizimi' : 'Windows ClearType']], (v) => degistir('yaziCizimi', v)),
   }));
 }
 
@@ -217,7 +220,10 @@ function sayfaDuzeniKartlari(k) {
   // "Döndür düğmesi" (Her seferinde sor / Geçerli sayfa / Tüm PDF) 0.1.27'de kaldırıldı: düğme yalnızca geçerli sayfayı döndürür
 }
 
-const VARSAYILAN_ACIKLAMA = 'PDF dosyalarına çift tıklayınca PDEfe\'de açılsın. Windows "Varsayılan Uygulamalar" sayfası açılır; .pdf satırında PDEfe\'yi seçin. Kurulumsuz (geliştirme) çalıştırmada PDEfe listede görünmeyebilir.';
+const VARSAYILAN_ACIKLAMA = MAC
+  // macOS (0.2.0): varsayılan uygulama Finder'dan seçilir; uygulama bunu okuyamaz, düğme yok (main.js kabuk:varsayilanMi)
+  ? 'PDF dosyalarına çift tıklayınca PDEfe\'de açılsın: Finder\'da bir PDF\'e sağ tıklayıp Bilgi Al\'ı seçin, "Birlikte aç" listesinden PDEfe\'yi seçin ve "Tümünü Değiştir"e basın.'
+  : 'PDF dosyalarına çift tıklayınca PDEfe\'de açılsın. Windows "Varsayılan Uygulamalar" sayfası açılır; .pdf satırında PDEfe\'yi seçin. Kurulumsuz (geliştirme) çalıştırmada PDEfe listede görünmeyebilir.';
 const TIK_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="m6.3 10.2 2.5 2.5 5-5.2"/></svg>';
 
 function acilisKartlari(k) {
@@ -248,7 +254,7 @@ function acilisKartlari(k) {
     if (!varsayilanKart.isConnected) return;
     const evet = r?.varsayilan === true;
     zaten.hidden = !evet;
-    varsayilanDugme.hidden = evet;
+    varsayilanDugme.hidden = evet || MAC;
     aciklamaEl.textContent = evet ? 'PDF dosyalarına çift tıklayınca PDEfe\'de açılıyor. Başka bir uygulama seçilirse burada yeniden varsayılan yapılabilir.' : VARSAYILAN_ACIKLAMA;
   };
   k.append(varsayilanKart);   // önce eklenir: varsayilanYenile sayfada olmayan kartı kapanmış bölüm sayıp dinlemeyi bırakır
@@ -310,7 +316,7 @@ function bolumNotlar(k) {
   k.append(el('h3', {}, 'Yazı aracı'));
   k.append(kart({
     baslik: 'Yazı tipi', aciklama: 'Belgeye gömülür; Türkçe karakterler korunur.',
-    kontrol: secimKutusu(YAZI_TIPLERI.includes(a.yaziTipi) ? a.yaziTipi : 'Segoe UI', YAZI_TIPLERI.map((t) => [t, t]), (v) => degistir('yaziTipi', v)),
+    kontrol: secimKutusu(YAZI_TIPLERI.includes(a.yaziTipi) ? a.yaziTipi : YAZI_TIPLERI[0], YAZI_TIPLERI.map((t) => [t, t]), (v) => degistir('yaziTipi', v)),
   }));
   const boyut = el('input', { type: 'number', class: 'kutu ayar-sayi', min: '6', max: '72', step: '1', value: String(a.yaziBoyutu ?? 12) });
   boyut.addEventListener('change', () => { const v = Math.round(parseFloat(boyut.value)); if (v >= 6 && v <= 72) degistir('yaziBoyutu', v); else boyut.value = String(ayarlar().yaziBoyutu ?? 12); });

@@ -21,6 +21,7 @@
 // Son ikisi saf işlevdir (DOM kullanmaz), Node'da sınanabilir.
 import { ayarlarPenceresiKapat } from './ayarlarPenceresi.js';
 import { ortuTiklamasiBagla } from './ortu.js';
+import { SISTEM } from './platform.js';
 
 const PT_MM = 25.4 / 72;            // 1 pt = 0,352778 mm
 const PT_MIKRON = 25400 / 72;       // 1 pt = 352,778 mikron
@@ -168,7 +169,7 @@ export async function yazdir(baglam, belge) {
 
     // 6) HTML iskeletini kur, ana sürece gönder; Vazgeç artık diyaloğu kapatır
     const { html, sayfaBoyutu } = yazdirmaHtmlOlustur(sayfalar, { olcek: secenek.olcek, baslik: belge.ad });
-    ilerleme.guncelle(100, `Windows yazdırma penceresi açılıyor… (${sayfalar.length} sayfa, ${mb(toplamBayt)} MB)`);
+    ilerleme.guncelle(100, `${SISTEM} yazdırma penceresi açılıyor… (${sayfalar.length} sayfa, ${mb(toplamBayt)} MB)`);
     const isId = is;
     ilerleme.diyalogAsamasi(() => pdefe.cagir('yazdir:iptal', { is: isId }).catch(() => {}));
     const sonuc = await pdefe.cagir('yazdir:baslat', { is, html, secenekler: { ciftTarafli: secenek.ciftTarafli, sayfaBoyutu } });
@@ -369,7 +370,7 @@ function secenekPenceresi(belge, { toplam, gecerli, uyari, gecerliDevre }) {
       <label><input type="radio" name="ciftTarafli" value="kisa"> Çift taraflı (kısa kenardan çevir)</label>
     </fieldset>
     <label class="yazdir-notlar"><input type="checkbox" name="notlar"> Notları yazdır</label>
-    <p class="soluk yazdir-aciklama">Yazıcı, kopya sayısı ve kâğıt kaynağı bir sonraki adımda Windows yazdırma penceresinden seçilir; orada yapılan kâğıt ve çift taraflı seçimi buradakinin yerine geçer. Sayfalar görüntü olarak basılır; Türkçe karakterler ekranda göründüğü gibi çıkar. "Notları yazdır" kapalıyken notlar, damgalar ve form alanları basılmaz.</p>
+    <p class="soluk yazdir-aciklama">Yazıcı, kopya sayısı ve kâğıt kaynağı bir sonraki adımda ${SISTEM} yazdırma penceresinden seçilir; orada yapılan kâğıt ve çift taraflı seçimi buradakinin yerine geçer. Sayfalar görüntü olarak basılır; Türkçe karakterler ekranda göründüğü gibi çıkar. "Notları yazdır" kapalıyken notlar, damgalar ve form alanları basılmaz.</p>
   </div>
   <div class="dugmeler"><button class="birincil" data-id="yazdir">Yazdır</button><button class="ikincil" data-id="iptal">Vazgeç</button></div>
 </div>`;
