@@ -131,16 +131,22 @@ sonuc('paketli çekirdekte yazı tanıma', taninan.length > 40 && taninan !== 'd
 sonuc(`Türkçe tanıma (${bulunan.length}/${beklenenler.length} sözcük)`, bulunan.length >= 6, `bulunamayan: ${beklenenler.filter((s) => !bulunan.includes(s)).join(', ')}`, false);
 
 // ---------------------------------------------------------------- 5) PDF'i kopyala (panoya dosya)
-const pano = await degerlendir(`window.pdefe.cagir('pano:dosya', ${JSON.stringify(PDF1)}).then((r) => JSON.stringify(r))`);
-// Finder'ın yapıştırdığı tür: public.file-url (NSURL). Pano AppKit'ten okunur (JavaScript for Automation; izin istemez)
-const panodaki = calistir('/usr/bin/osascript', ['-l', 'JavaScript', '-e', [
-  "ObjC.import('AppKit');",
-  'var p = $.NSPasteboard.generalPasteboard;',
-  "JSON.stringify({ turler: ObjC.deepUnwrap(p.types), url: ObjC.unwrap(p.stringForType('public.file-url')) })",
-].join('\n')]);
-let panoYolu = '', panoBilgi = panodaki.cikti || panodaki.hata;
-try { panoYolu = fs.realpathSync(decodeURIComponent(new URL(JSON.parse(panodaki.cikti).url).pathname)); } catch { /* panoda dosya yok */ }
-sonuc('PDF\'i kopyala: dosya panoda (Finder\'da ⌘V ile yapıştırılır)', /"tamam":true/.test(pano) && panoYolu === PDF1, `${pano} → ${panoBilgi}`);
+// Finder'ın yapıştırdığı türler: public.file-url ve NSFilenamesPboardType. Pano AppKit'ten okunur (JavaScript for Automation; izin istemez).
+// Üç kez (araya başka bir metin kopyalanarak): yazan süreç kapandıktan sonra pano boş kalmamalı (0.2.0 yayım derlemesinde bir kez kalmıştı)
+for (let deneme = 1; deneme <= 3; deneme++) {
+  calistir('/usr/bin/osascript', ['-e', 'set the clipboard to "araya giren metin"']);
+  const pano = await degerlendir(`window.pdefe.cagir('pano:dosya', ${JSON.stringify(PDF1)}).then((r) => JSON.stringify(r))`);
+  await bekle(300);
+  const panodaki = calistir('/usr/bin/osascript', ['-l', 'JavaScript', '-e', [
+    "ObjC.import('AppKit');",
+    'var p = $.NSPasteboard.generalPasteboard;',
+    "JSON.stringify({ turler: ObjC.deepUnwrap(p.types), url: ObjC.unwrap(p.stringForType('public.file-url')), yollar: ObjC.deepUnwrap(p.propertyListForType('NSFilenamesPboardType')) })",
+  ].join('\n')]);
+  let panoYolu = '', yollar = [];
+  try { const j = JSON.parse(panodaki.cikti); panoYolu = fs.realpathSync(decodeURIComponent(new URL(j.url).pathname)); yollar = j.yollar || []; } catch { /* panoda dosya yok */ }
+  sonuc(`PDF'i kopyala: dosya panoda (Finder'da ⌘V ile yapıştırılır), deneme ${deneme}`, /"tamam":true/.test(pano) && panoYolu === PDF1 && yollar.length === 1,
+    `${pano} → ${panodaki.cikti || panodaki.hata}`);
+}
 
 // ---------------------------------------------------------------- 6) gerçek klavye: Mac kısayolları (menü ve sayfa)
 const tus = (karakter, ...degistirici) => osascript(`tell application "System Events" to keystroke "${karakter}"${degistirici.length ? ` using {${degistirici.map((d) => d + ' down').join(', ')}}` : ''}`);

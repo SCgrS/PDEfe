@@ -26,15 +26,19 @@ $l.Add([string]$env:PDEFE_DOSYA) | Out-Null
   });
 }
 
-// macOS: Finder'ın Kopyala'sı gibi panoya dosyanın NSURL'ü yazılır (NSPasteboard writeObjects: public.file-url ve dosya adı türleri). Betik
-// JavaScript for Automation'la AppKit'i doğrudan çağırır (izin istemez); yol betiğe gömülmez, argüman olarak geçer. AppleScript'in "set the
-// clipboard to POSIX file" yolu panoya Finder'ın yapıştıramadığı bir veri koyuyordu (CI sınaması, 0.2.0).
+// macOS: Finder'ın Kopyala'sı gibi panoya dosyanın adresi (public.file-url) ve yolu (NSFilenamesPboardType) yazılır; Finder, Mail ⌘V ile
+// dosyayı yapıştırır. Betik JavaScript for Automation'la AppKit'i doğrudan çağırır (izin istemez); yol betiğe gömülmez, argüman olarak geçer.
+// Veri hemen yazılır (setString / setPropertyList): writeObjects(NSURL) bazı türleri "sonra verilecek" diye bırakıyor, yazan süreç hemen
+// kapandığından pano ara sıra boş kalıyordu (0.2.0 yayım derlemesinin sınaması). AppleScript'in "set the clipboard to POSIX file" yolu
+// panoya Finder'ın yapıştıramadığı bir veri koyuyordu.
 const MAC_PANO_BETIGI = [
   "ObjC.import('AppKit');",
   'function run(argv) {',
   '  var pano = $.NSPasteboard.generalPasteboard;',
   '  pano.clearContents;',
-  '  return pano.writeObjects($([$.NSURL.fileURLWithPath(argv[0])])) ? "tamam" : "yazilamadi";',
+  "  var adres = pano.setStringForType($.NSURL.fileURLWithPath(argv[0]).absoluteString, 'public.file-url');",
+  "  var yol = pano.setPropertyListForType($([argv[0]]), 'NSFilenamesPboardType');",
+  '  return adres && yol ? "tamam" : "yazilamadi";',
   '}',
 ].join('\n');
 
