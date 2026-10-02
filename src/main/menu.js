@@ -98,10 +98,10 @@ export function menuKur({ komut, cik, sonDosyalar, duzen }) {
       label: '&Araçlar',
       submenu: [
         // Sıra araç çubuğundaki Araçlar penceresiyle aynı (renderer/aracPenceresi.js ARACLAR)
-        { label: 'PDF Sıkıştırma', click: k('arac.kucult') },
+        { label: 'Sıkıştır', click: k('arac.kucult') },
         { label: 'Sayfaları düzenle', click: k('arac.sayfalar') },
         { label: 'Döndür ve kaydet', click: k('arac.dondurKaydet') },
-        { label: 'PDF ayır', click: k('arac.ayir') },
+        { label: 'Ayır', click: k('arac.ayir') },
         { label: 'Görüntü / PDF belgeleri birleştirerek PDF oluştur', click: k('arac.gorselBirlestir') },
         { type: 'separator' },
         { label: 'PDF\'i kopyala (dosyayı panoya)', click: k('arac.paylas') },

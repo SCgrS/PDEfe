@@ -1,7 +1,7 @@
 // Araç pencereleri için ortak parçalar: pencere iskeleti, ilerleme çubuğu, boyut biçimleme,
 // yol yardımcıları, sürükleyerek sıralama, çıktı satırı (ad + klasör çipi), standart kaydetme seçimi
 // ("Yeni belge olarak kaydet" | "Üzerine yaz"), üzerine yazılan sekmeyi yenileme.
-// Bütün araçlar (kucult: PDF Sıkıştırma, sayfalar, ayir, gorselBirlestir, dondur) bu modülü kullanır.
+// Bütün araçlar (kucult: Sıkıştır, sayfalar, ayir, gorselBirlestir, dondur) bu modülü kullanır.
 
 // ---------------------------------------------------------------- metin ve biçim
 const TR_SAYI_2 = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -861,8 +861,8 @@ const UYARI_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3 18
 const BILGI_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.25" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10 9v5M10 6.2v.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 
 /**
- * Standart kaydetme seçimi: "Yeni belge olarak kaydet" | "Üzerine yaz". Bütün araçlar (PDF Sıkıştırma, Sayfaları düzenle, Döndür ve kaydet,
- * PDF ayır, Görüntü / PDF birleştir) aynı biçimde, aynı sırayla ve aynı varsayılanla ("Yeni belge olarak kaydet") kullanır: aracın "Kaydet"
+ * Standart kaydetme seçimi: "Yeni belge olarak kaydet" | "Üzerine yaz". Bütün araçlar (Sıkıştır, Sayfaları düzenle, Döndür ve kaydet,
+ * Ayır, Görüntü / PDF birleştir) aynı biçimde, aynı sırayla ve aynı varsayılanla ("Yeni belge olarak kaydet") kullanır: aracın "Kaydet"
  * başlığının altında bu seçim, (varsa) kısıt satırı, dosya satırı (ad + klasör çipi + Değiştir) ve üzerine yazma notu (0.1.25, kullanıcı
  * isteği: her araçta fotoğraftaki düzen).
  *  - Yeni belge: varsayılan klasör varsayilanCiktiKlasoru (Masaüstü), varsayılan ad aracın verdiği ad ("Sıkıştırılmış", "Ayrılmış"…;
@@ -870,12 +870,12 @@ const BILGI_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" c
  *  - Üzerine yaz: sonuç özgün dosyaya yazılır, yedek alınmaz. Dosya satırı kaybolmaz: yazılacak dosyanın adı ve klasörüyle soluk
  *    (değiştirilemez) görünür. Altındaki not sonucun geri alınıp alınamayacağını söyler: geriAlinabilir araç (Döndür ve kaydet, Sayfaları
  *    düzenle) sonucu sekmedeki belgeye geri alınabilir komut olarak uygulayıp normal kayıt yoluyla kaydeder (Ctrl+Z), not sade bilgidir;
- *    değilse (PDF Sıkıştırma, PDF ayır, Birleştir: çekirdek aynı klasörde geçici dosyaya yazıp atomik olarak yerine koyar) not uyarı
+ *    değilse (Sıkıştır, Ayır, Birleştir: çekirdek aynı klasörde geçici dosyaya yazıp atomik olarak yerine koyar) not uyarı
  *    biçiminde "Geri alınamaz" der, seçeneğin ipucu da. Dosya kilitli ya da salt okunursa özgün dosya değişmez (bkz. hataSor).
  *  - uzerineKullanilabilir(false, neden): "Üzerine yaz" seçilemez (birden çok dosya üreten ayırma; Birleştir'de açık belge listeden
  *    çıkarıldı), neden seçimin altında yazar; seçiliyse "Yeni belge"ye geçilir (yeniden kullanılabilir olunca kendiliğinden geri seçilmez).
  *    belge verilmezse (Birleştir bir PDF açık değilken açıldı) hiç seçilemez; neden belgesizNeden.
- *  - cokluAyarla(true): araç birden çok dosya üretecek (PDF ayır); ad dosya adlarının ortak başıdır. Adları ve var olan dosyaları araç
+ *  - cokluAyarla(true): araç birden çok dosya üretecek (Ayır); ad dosya adlarının ortak başıdır. Adları ve var olan dosyaları araç
  *    yönetir (denetle yalnızca ada ve klasöre bakar), varsayılan ada "(2)" eklenmez, Değiştir'le özgün dosya seçilse de üzerine yazma değildir.
  * denetle() işlemden önce, hataSor(e) kilit/salt okunur hatasında çağrılır; ikisi de hedefe göre (özgün dosya ya da yeni belge) konuşur.
  * @param {object} s
@@ -901,7 +901,7 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
   const bildir = () => dinleyiciler.forEach((f) => f());
   const ozgunAd = belge ? dosyaAdi(belge.yol) : '';
   const oneriAd = () => `${guvenliAd(varsayilanAd)}.pdf`;
-  let coklu = false;            // birden çok dosya (PDF ayır): ad dosya adlarının ortak başı
+  let coklu = false;            // birden çok dosya (Ayır): ad dosya adlarının ortak başı
   let uzerineIzinli = !!belge;  // "Üzerine yaz" seçilebilir mi (uzerineKullanilabilir)
   const cikti = ciktiSecici({ pdefe: baglam.pdefe, klasor: '', ad: oneriAd(), diyalogBasligi });
   cikti.onDegisti(bildir);
@@ -974,7 +974,7 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
     return adSozu;
   }
   adYenile();
-  /** Araç birden çok dosya üretecekse true (PDF ayır); değişince varsayılan ad yeniden önerilir. */
+  /** Araç birden çok dosya üretecekse true (Ayır); değişince varsayılan ad yeniden önerilir. */
   function cokluAyarla(evet) {
     evet = !!evet;
     if (evet === coklu) return;
@@ -1205,7 +1205,7 @@ export function anaKaynakMi(belge, yol) {
 }
 
 /** Sekmedeki sayfa numaraları dosyadakilerle aynı mı (kaydedilmemiş sayfa silme / sıralama / ekleme yok)? Dosya üzerinde çalışan ve
- *  sayfa numarasını sekmedeki gibi alan araçlar (Döndür ve kaydet'in yeni belgesi, PDF ayır) uyuşmazlıkta önce kaydettirir. */
+ *  sayfa numarasını sekmedeki gibi alan araçlar (Döndür ve kaydet'in yeni belgesi, Ayır) uyuşmazlıkta önce kaydettirir. */
 export function numaralarDosyaylaAyni(belge) {
   const g = belge?.gorunum;
   if (!belge?.degisti || typeof g?.yapisalKirli !== 'function' || !g.yapisalKirli()) return true;

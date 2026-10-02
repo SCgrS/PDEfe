@@ -1,4 +1,4 @@
-// Senaryo 8: araç pencereleri açılıyor mu (PDF Sıkıştırma, sayfaları düzenle, ayır, görüntü/PDF birleştir, döndür), güncelleme denetimi.
+// Senaryo 8: araç pencereleri açılıyor mu (Sıkıştır, sayfaları düzenle, ayır, görüntü/PDF birleştir, döndür), güncelleme denetimi.
 import { D } from './test_klasoru.mjs';
 
 export default async function ({ evalJs, ekranGoruntusu, bekle }) {

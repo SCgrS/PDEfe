@@ -677,7 +677,7 @@ export class SayfalarPenceresi {
   }
 
   /**
-   * Yeni belge olarak kaydet. Sekmede kaydedilmemiş not değişikliği varsa (yeni belge dosyadaki kayıtlı notlarla kurulur) PDF küçült'teki
+   * Yeni belge olarak kaydet. Sekmede kaydedilmemiş not değişikliği varsa (yeni belge dosyadaki kayıtlı notlarla kurulur) Sıkıştır'daki
    * gibi sorulur: Kaydet ve devam et | Kaydetmeden devam et | Vazgeç. Yapısal kayıttan sonra sekmenin sayfa düzeni kaydedilmemişse
    * sayfalar dosyadakilerle eşleştirilemez: yalnızca Kaydet ve devam et | Vazgeç. Pencerede yapılan düzen sekmeye uygulanmaz.
    */

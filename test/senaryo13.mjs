@@ -1,8 +1,8 @@
 // Senaryo 13: araç pencereleri revizyonu. Araçlar penceresi 5 karo (Paylaş yok) ve klavyeyle gezinme; kaydetme seçiminde "Üzerine yaz"
-// notu (PDF küçült: geri alınamaz uyarısı, Döndür ve kaydet / Sayfaları düzenle: Ctrl+Z bilgisi); Sayfaları düzenle: boş alandan
+// notu (Sıkıştır: geri alınamaz uyarısı, Döndür ve kaydet / Sayfaları düzenle: Ctrl+Z bilgisi); Sayfaları düzenle: boş alandan
 // sürükleyerek alan seçimi (gerçek fare: canlı seçim, Ctrl ile ekleme, kenarda otomatik kaydırma, Esc, düz tıklama, kartla sıralama),
 // "Yeni belge olarak kaydet" (notlar/bağlantılar/yer imleri, bekleyen not sorusu) ve "Üzerine yaz" (kayıt, Ctrl+Z, yeniden kayıt);
-// PDF ayır "Üzerine yaz" (tek dosya kuralı canlı, seçili sayfalar ve tek aralık, sekmenin yenilenmesi, bekleyen değişiklik soruları);
+// Ayır "Üzerine yaz" (tek dosya kuralı canlı, seçili sayfalar ve tek aralık, sekmenin yenilenmesi, bekleyen değişiklik soruları);
 // Görüntü / PDF birleştir: varsayılan "Orijinal" (kenar alanı gizli, çıktıda kenar boşluğu yok), "A4'e sığdır"da kenar alanı.
 // 0.1.25: varsayılan adlar "Düzenlenmiş", "Birleşik" (0.1.26'dan "Birleştirilmiş"; klasörde varsa "(2)"; hedef addan okunur); Ayır'da
 // "Seçili sayfaları çıkart" yerine Sayfa aralıklarına göre + Tek dosya, "Her N sayfada bir" yok (6. bölüm).
@@ -107,7 +107,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
       if (t === 'koyu') {
         const odak = () => evalJs(`document.activeElement?.dataset?.aracKomut || document.activeElement?.id`);
         const adimlar = [];
-        // Alt satır (PDF ayır, Görüntü / PDF birleştir) ortalı: aşağı ok yatayda en yakın karoya, eşitlikte aşağıda sağdakine, yukarıda soldakine
+        // Alt satır (Ayır, Görüntü / PDF birleştir) ortalı: aşağı ok yatayda en yakın karoya, eşitlikte aşağıda sağdakine, yukarıda soldakine
         for (const [tus_, bekl] of [['ArrowRight', 'arac.sayfalar'], ['ArrowRight', 'arac.dondurKaydet'], ['ArrowDown', 'arac.gorselBirlestir'], ['ArrowDown', 'arac.gorselBirlestir'],
           ['ArrowUp', 'arac.sayfalar'], ['ArrowDown', 'arac.gorselBirlestir'], ['ArrowLeft', 'arac.ayir'], ['ArrowUp', 'arac.kucult'], ['ArrowDown', 'arac.ayir'],
           ['ArrowRight', 'arac.gorselBirlestir'], ['ArrowRight', 'arac.kucult'], ['End', 'arac.gorselBirlestir'], ['ArrowUp', 'arac.sayfalar'], ['Home', 'arac.kucult'],
@@ -380,9 +380,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     sonuc('pencereyi kapatırken kaydedilmemiş düzen sorulur', kapatSoru.length === 1 && /kaydedilmemiş değişiklikler/.test(kapatSoru[0].secenek.mesaj), kapatSoru.map((s) => s.secenek?.mesaj));
   }
 
-  // ------------------------------------------------------------ 6) PDF ayır: üzerine yaz
+  // ------------------------------------------------------------ 6) Ayır: üzerine yaz
   if (bolum(6)) {
-    console.log('\n== 6) PDF ayır: üzerine yaz');
+    console.log('\n== 6) Ayır: üzerine yaz');
     await sekmeleriKapat();
     await ac(zengin.c);
     await aracAc('arac.ayir', 'ayir-pencere');

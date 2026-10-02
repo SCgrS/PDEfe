@@ -1,5 +1,5 @@
-// PDF Sıkıştırma (0.1.25'e dek "PDF küçült"; komut, sınıf ve dosya adları kucult kaldı): mevcut boyut, üç hazır seviye (aşırı / ideal /
-// düşük), tahminler, standart kaydetme seçimi, ilerleme, sonuç.
+// Sıkıştır (0.1.25'e dek "PDF küçült", 0.1.25'te "PDF Sıkıştırma"; komut, sınıf ve dosya adları kucult kaldı): mevcut boyut, üç hazır
+// seviye (aşırı / ideal / düşük), tahminler, standart kaydetme seçimi, ilerleme, sonuç.
 // Çekirdek: kucult_tahmin {yol, seviyeler} ve kucult {yol, hedef, seviye, dpi, kalite, kuculmezseYazma} (ilerlemeli).
 // "Üzerine yaz": yedek alınmaz. Çekirdek sonucu özgün dosyanın klasöründe geçici dosyaya yazıp atomik olarak yerine koyar;
 // sonuç özgünden küçük değilse özgün dosyaya dokunmaz (yedek olmadığından büyüyen sonuç geri alınamazdı). Dosya başka
@@ -54,7 +54,7 @@ export class KucultPenceresi {
     this.sonucEl = govde.querySelector('.kucult-sonuc');
 
     this.pencere = pencereAc({
-      baslik: 'PDF Sıkıştırma', govde, genislik: 700, anahtar: 'kucult', sinif: 'kucult-pencere',
+      baslik: 'Sıkıştır', govde, genislik: 700, anahtar: 'kucult', sinif: 'kucult-pencere',
       dugmeler: [{ id: 'kucult', etiket: 'Sıkıştır', birincil: true, tiklama: () => this.kucult() }],
       kapatmadanOnce: () => this._kapatmaIzni(),
     });

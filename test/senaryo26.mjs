@@ -1,12 +1,12 @@
-// Senaryo 26 (0.1.25, kullanıcı istekleri): araçların Kaydet bölümü, PDEfe'nin verdiği adlar, PDF ayır'ın yeni seçenekleri, Birleştir'de
-// açık PDF ve üzerine yazma, PDF Sıkıştırma adı.
-//   1) "PDF küçült" her yerde "PDF Sıkıştırma" (Araçlar penceresi, Araçlar menüsü, pencere başlığı, "Sıkıştır" düğmesi), "Sıkıştırma"
-//      başlığı "Sıkıştırma seçenekleri".
+// Senaryo 26 (0.1.25–0.1.26, kullanıcı istekleri): araçların Kaydet bölümü, PDEfe'nin verdiği adlar, Ayır'ın yeni seçenekleri, Birleştir'de
+// açık PDF, üzerine yazma ve pencerenin yeri, araç adları.
+//   1) Araç adlarında "PDF" yok (0.1.26): "Sıkıştır" (önce "PDF küçült", 0.1.25'te "PDF Sıkıştırma") ve "Ayır" ("PDF ayır") Araçlar
+//      penceresinde, Araçlar menüsünde, açılış ekranında ve pencere başlıklarında; "Sıkıştır" düğmesi, "Sıkıştırma seçenekleri" başlığı.
 //   2) Beş araçta Kaydet bölümü aynı düzende: başlık, altında Yeni belge olarak kaydet | Üzerine yaz, altında ad + klasör + Değiştir
 //      (alt alta, sola hizalı); varsayılan ad parantezsiz, baş harfi büyük, Türkçe harfli: Sıkıştırılmış, Düzenlenmiş, Döndürülmüş,
 //      Ayrılmış, Birleştirilmiş. "Üzerine yaz" seçilince satır kaybolmaz: yerinde üzerine yazılacak dosyanın adı ve klasörü soluk
 //      (değiştirilemez) durur, altında not.
-//   3) PDF ayır: "Sayfa aralıklarına göre"nin yanında Ayrı ayrı dosya | Tek dosya ("aralık" sözcüğü yok), "Her … sayfada bir" ve "Seçili
+//   3) Ayır: "Sayfa aralıklarına göre"nin yanında Ayrı ayrı dosya | Tek dosya ("aralık" sözcüğü yok), "Her … sayfada bir" ve "Seçili
 //      sayfaları çıkart" yok; dosya adı kutusu (Ayrılmış), birden çok dosyada "Ayrılmış - Sayfa 1-3.pdf"; çıktılar diskte; var olan
 //      dosyada "(2)"; tek dosyada üzerine yazma.
 //   4) Birleştir: açık PDF listenin başında; "Üzerine yaz" açık PDF listedeyken seçilebilir, çıkarılınca seçilemez; üzerine yazınca açık
@@ -15,7 +15,7 @@
 //      kipinde ve şeridin altında yer kalmayınca ortalanır.
 //   5) Sıkıştırma ve Döndür'ün yeni belgeleri "Sıkıştırılmış.pdf", "Döndürülmüş.pdf".
 //   6) Bağımsız incelemenin bulguları: ad kutusuna açık belgenin adı yazılınca önce "zaten var" sorulur; Birleştir'de açık PDF listeden
-//      çıkarılınca ya da okunamayınca üzerine yazılmaz; PDF ayır önizlemesi önerilen ad değişince güncel adla.
+//      çıkarılınca ya da okunamayınca üzerine yazılmaz; Ayır önizlemesi önerilen ad değişince güncel adla.
 // Girdiler test/cikti/s26/pdf altında üretilir; araçların çıktı klasörü test/cikti/s26/cikti (Masaüstüne yazılmaz).
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9426 -Veri "%TEMP%\pdefe-s26-9426"      → PID=… yazar
@@ -126,30 +126,37 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
   await diyalogKaydi();
   await sekmeleriKapat();
 
-  // ------------------------------------------------------------ 1) PDF Sıkıştırma adı
+  // ------------------------------------------------------------ 1) Araç adları
   if (bolum(1)) {
-    console.log('\n== 1) PDF Sıkıştırma');
+    console.log('\n== 1) Araç adları: Sıkıştır, Ayır');
+    // "PDF" ile başlayan araç adı ve eski "küçült" adı yok ("PDF'i kopyala" ve "Görüntü / PDF birleştir" bu kurala girmez)
+    const pdfsiz = (liste) => !liste.some((k) => typeof k === 'string' && (/^PDF\s/.test(k) || /küçült/i.test(k)));
     await ac(zengin.a);
     await evalJs(`document.querySelector('#dugme-araclar').click()`);
     await kosul(`!document.querySelector('#araclar-penceresi').hidden`);
     const karolar = await evalJs(`[...document.querySelectorAll('.araclar-karo .araclar-ad')].map((e) => e.textContent)`);
-    sonuc('Araçlar penceresi: ilk karo "PDF Sıkıştırma"', karolar[0] === 'PDF Sıkıştırma' && !karolar.some((k) => /küçült/i.test(k)), karolar);
+    sonuc('Araçlar penceresi: ilk karo "Sıkıştır", "Ayır" var, "PDF" ile başlayan ad yok', karolar[0] === 'Sıkıştır' && karolar.includes('Ayır') && pdfsiz(karolar), karolar);
     const ayirIpucu = await evalJs(`document.querySelector('.araclar-karo[data-arac-komut="arac.ayir"]').title`);
-    sonuc('PDF ayır ipucunda "her N sayfada" yok', !/her N sayfada/i.test(ayirIpucu), ayirIpucu);
+    sonuc('Ayır ipucunda "her N sayfada" yok', !/her N sayfada/i.test(ayirIpucu), ayirIpucu);
     await evalJs(`document.querySelector('#dugme-araclar').click()`);
     const menu = await evalJs(`window.pdefe.cagir('test:menu')`);
     const araclar = (menu || []).find((m) => m?.etiket === '&Araçlar')?.alt || [];
-    sonuc('Araçlar menüsü: "PDF Sıkıştırma"', araclar[0] === 'PDF Sıkıştırma' && !araclar.some((m) => typeof m === 'string' && /küçült/i.test(m)), araclar);
+    sonuc('Araçlar menüsü: "Sıkıştır" ve "Ayır"', araclar[0] === 'Sıkıştır' && araclar.includes('Ayır') && pdfsiz(araclar), araclar);
     const baslangic = await evalJs(`(async () => { await window.__pdefe.komutCalistir('sekme.yeni'); await new Promise((c) => setTimeout(c, 400)); return [...document.querySelectorAll('.karsilama-arac-ad')].map((e) => e.textContent); })()`);
-    sonuc('Açılış ekranı: "PDF Sıkıştırma"', baslangic.includes('PDF Sıkıştırma') && !baslangic.some((k) => /küçült/i.test(k)), baslangic);
+    sonuc('Açılış ekranı: "Sıkıştır" ve "Ayır"', baslangic.includes('Sıkıştır') && baslangic.includes('Ayır') && pdfsiz(baslangic), baslangic);
     await evalJs(`window.__pdefe.komutCalistir('sekme.kapat')`);
     await kosul(`!!window.__pdefe.aktif()`);
     await aracAc('arac.kucult', 'kucult-pencere');
     const k = await evalJs(`({ baslik: document.querySelector('.arac-baslik-metin').textContent, dugme: document.querySelector('.arac-dugmeler .birincil').textContent,
       basliklar: [...document.querySelectorAll('.arac-pencere .arac-bolum-baslik')].map((e) => e.textContent.trim()) })`);
-    sonuc('pencere "PDF Sıkıştırma", düğme "Sıkıştır", başlıklar "Sıkıştırma seçenekleri" ve "Kaydet"',
-      k.baslik === 'PDF Sıkıştırma' && k.dugme === 'Sıkıştır' && J(k.basliklar) === J(['Sıkıştırma seçenekleri', 'Kaydet']), k);
-    await ss('01-sikistirma');
+    sonuc('pencere "Sıkıştır", düğme "Sıkıştır", başlıklar "Sıkıştırma seçenekleri" ve "Kaydet"',
+      k.baslik === 'Sıkıştır' && k.dugme === 'Sıkıştır' && J(k.basliklar) === J(['Sıkıştırma seçenekleri', 'Kaydet']), k);
+    await ss('01-sikistir');
+    await pencereKapat();
+    await aracAc('arac.ayir', 'ayir-pencere');
+    const ayirBaslik = await evalJs(`document.querySelector('.arac-baslik-metin').textContent`);
+    sonuc('Ayır penceresinin başlığı "Ayır"', ayirBaslik === 'Ayır', ayirBaslik);
+    await ss('01-ayir');
     await pencereKapat();
   }
 
@@ -188,9 +195,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     }
   }
 
-  // ------------------------------------------------------------ 3) PDF ayır
+  // ------------------------------------------------------------ 3) Ayır
   if (bolum(3)) {
-    console.log('\n== 3) PDF ayır');
+    console.log('\n== 3) Ayır');
     await sekmeleriKapat();
     for (const a of dosyalar()) fs.rmSync(path.join(CIKTI, a), { maxRetries: 10, retryDelay: 300 });
     await ac(zengin.b);
@@ -291,13 +298,6 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     let d = await kayitDurumu();
     sonuc('açık PDF listenin başında; Üzerine yaz seçilebilir, ad "Birleştirilmiş"', ilk === 'zengin_c.pdf' && !d.secenekler[1].devre && !d.kisit && d.ad === 'Birleştirilmiş', { ilk, d: d.secenekler, ad: d.ad });
     await ss('04-birlestir-acik-pdf');
-    // Listeden çıkarınca seçilemez, geri eklenince seçilebilir
-    await kipSec('uzerine');
-    await evalJs(`document.querySelector('.birlestir-oge [data-komut="sil"]').click()`);
-    await bekle(300);
-    d = await kayitDurumu();
-    sonuc('açık PDF listeden çıkarılınca Üzerine yaz seçilemez (Yeni belge seçilir, neden yazar)', d.secenekler[1].devre && d.secenekler[0].secili && /listeden çıkarıldığı için/.test(d.kisit), d.kisit);
-    await ss('04-birlestir-cikarildi');
     // Pencerenin yeri (0.1.26): sekme şeridinin altında başlar, etkin sekmenin üstünde örtüden başka bir şey yok (pencere onu kapatmıyor);
     // yüksekliği 88vh, sığmazsa altta 12 px kalacak kadar. Okuma kipinde (şerit gizli) ve şeridin altında yer kalmayınca ortada.
     const yer = () => evalJs(`(() => {
@@ -327,6 +327,13 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await evalJs(`(() => { document.getElementById('sekme-cubugu').style.height = ''; return true; })()`);
     await kosul(`document.querySelector('.arac-ortusu').classList.contains('serit-alti')`, 3000);
     await ss('04-birlestir-yer');
+    // Listeden çıkarınca seçilemez, geri eklenince seçilebilir
+    await kipSec('uzerine');
+    await evalJs(`document.querySelector('.birlestir-oge [data-komut="sil"]').click()`);
+    await bekle(300);
+    d = await kayitDurumu();
+    sonuc('açık PDF listeden çıkarılınca Üzerine yaz seçilemez (Yeni belge seçilir, neden yazar)', d.secenekler[1].devre && d.secenekler[0].secili && /listeden çıkarıldığı için/.test(d.kisit), d.kisit);
+    await ss('04-birlestir-cikarildi');
     // Dosya ekle diyaloğunun yanıtı: önce açık PDF, sonra ikinci PDF
     await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'dosya:acDiyalog', [[${J(zengin.c)}, ${J(zengin.d)}]])`);
     await evalJs(`document.querySelector('.birlestir-ekle').click()`);
@@ -385,7 +392,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
 
   // ------------------------------------------------------------ 6) Bağımsız incelemenin bulguları
   //   Ad kutusuna açık belgenin adı yazılınca sessizce üzerine yazılmaz ("zaten var" sorulur); Birleştir'de açık PDF listeden çıkarılınca ya
-  //   da okunamayınca aynı ad olağan yeni belgedir (okunamayan liste öğesinin yerine hiç yazılmaz); PDF ayır önizlemesi güncel adla.
+  //   da okunamayınca aynı ad olağan yeni belgedir (okunamayan liste öğesinin yerine hiç yazılmaz); Ayır önizlemesi güncel adla.
   if (bolum(6)) {
     console.log('\n== 6) İnceleme bulguları');
     await sekmeleriKapat();
@@ -400,7 +407,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     const sorular = async () => (await diyalogKaydi()).filter((x) => x.kanal === 'mesaj:kutu').map((x) => x.secenek?.mesaj || '');
     const tikla_ = (secici) => evalJs(`document.querySelector(${J(secici)}).click()`);
     await ac(kaynak);
-    // a) PDF ayır, tek dosya: ad kutusuna açık belgenin adı yazılınca önce "zaten var" sorulur; Vazgeç dosyaya dokunmaz
+    // a) Ayır, tek dosya: ad kutusuna açık belgenin adı yazılınca önce "zaten var" sorulur; Vazgeç dosyaya dokunmaz
     await aracAc('arac.ayir', 'ayir-pencere');
     await aralikYaz('1-2');
     await adYaz('kaynak_e');
@@ -410,17 +417,17 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await tikla_('.arac-dugmeler .birincil');
     await bekle(1500);
     let s = await sorular();
-    sonuc('PDF ayır: ad açık belgenin kendisi olunca önce "zaten var" sorulur; Vazgeç dosyaya dokunmaz',
+    sonuc('Ayır: ad açık belgenin kendisi olunca önce "zaten var" sorulur; Vazgeç dosyaya dokunmaz',
       s.some((m) => /"kaynak_e\.pdf" zaten var/.test(m)) && ozetMd5() === ilkMd5 && await evalJs(`!!document.querySelector('.ayir-pencere')`), s);
     await pencereKapat();
-    // b) PDF ayır: "Ayrılmış.pdf" varken önerilen ad "Ayrılmış (2)"; birden çok dosyaya geçince ad "Ayrılmış", önizleme de yeni adla
+    // b) Ayır: "Ayrılmış.pdf" varken önerilen ad "Ayrılmış (2)"; birden çok dosyaya geçince ad "Ayrılmış", önizleme de yeni adla
     fs.copyFileSync(zengin.a, path.join(CIKTI, 'Ayrılmış.pdf'));
     await aracAc('arac.ayir', 'ayir-pencere');
     await kosul(`document.querySelector('.arac-kayit-yeni .arac-cikti-ad')?.value === 'Ayrılmış (2)'`, 4000);
     await aralikYaz('1-3, 5');
     await bekle(300);
     const on = await evalJs(`({ ad: document.querySelector('.arac-kayit-yeni .arac-cikti-ad').value, li: [...document.querySelectorAll('.ayir-onizleme li')].map((l) => l.textContent) })`);
-    sonuc('PDF ayır: birden çok dosyaya geçince önizleme yeni adla ("Ayrılmış - Sayfa 1-3.pdf", "Ayrılmış (2) - …" değil)', on.ad === 'Ayrılmış' && on.li[0]?.startsWith('Ayrılmış - Sayfa 1-3.pdf'), on);
+    sonuc('Ayır: birden çok dosyaya geçince önizleme yeni adla ("Ayrılmış - Sayfa 1-3.pdf", "Ayrılmış (2) - …" değil)', on.ad === 'Ayrılmış' && on.li[0]?.startsWith('Ayrılmış - Sayfa 1-3.pdf'), on);
     await pencereKapat();
     // c) Birleştir: açık PDF listedeyken ad kutusuna onun adı yazılırsa (Yeni belge seçili) önce "zaten var" sorulur
     await evalJs(`(async () => { const m = await import('pdefe://app/src/renderer/araclar/gorselBirlestir.js'); const P = m.BirlestirmePenceresi.prototype; const asil = P._uzerineDurumu;

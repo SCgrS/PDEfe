@@ -368,7 +368,7 @@ def test_sayfalar_uygula(c):
 
 
 def test_ayir(c):
-    """PDF ayır (0.1.25): dosya adlarını renderer verir (parcalar). Birden çok dosya "Ayrılmış - Sayfa 1-3.pdf"…, tek dosya "Ayrılmış.pdf"
+    """Ayır (0.1.25): dosya adlarını renderer verir (parcalar). Birden çok dosya "Ayrılmış - Sayfa 1-3.pdf"…, tek dosya "Ayrılmış.pdf"
     (sırasız ve yinelenen sayfalar sıralı, tekrarsız yazılır); uzerineYaz=False'ta var olan ada "(2)" eklenir, varsayılanda aynı ad
     yeniden yazılır; yer imleri, notlar ve Türkçe metin korunur; hatalı parça ve özgün dosyanın kendisi reddedilir."""
     klasor = os.path.join(CIKTI, "ayir")
@@ -549,7 +549,7 @@ def test_dondur_kaydet(c):
 
 
 def test_ayir_uzerine(c):
-    """PDF ayır "Üzerine yaz": özgün dosyada yalnızca ayrılan sayfalar kalır; notlar ve kalan sayfaların yer imleri korunur,
+    """Ayır "Üzerine yaz": özgün dosyada yalnızca ayrılan sayfalar kalır; notlar ve kalan sayfaların yer imleri korunur,
     "(2)" adı ve geçici dosya kalmaz; geçersiz sayfa listesinde, salt okunur ya da kilitli dosyada özgün dosya değişmez (0.1.25: istek
     {yol, sayfalar, uzerine})."""
     klasor = os.path.join(CIKTI, "ayir_uzerine")

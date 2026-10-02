@@ -1158,9 +1158,9 @@ const komutlar = {
   'gorunum.okumaModu': () => { okumaModu = !okumaModu; document.body.classList.toggle('okuma-modu', okumaModu); aktif()?.gorunum.boyutDegisti(); },
   'gorunum.tamEkran': () => pdefe.cagir('pencere:tamEkran'),
   'arac.paylas': () => pdfKopyala(),
-  'arac.kucult': () => bildir('PDF Sıkıştırma aracı sonraki aşamada.'),
+  'arac.kucult': () => bildir('Sıkıştır aracı sonraki aşamada.'),
   'arac.sayfalar': () => bildir('Sayfaları düzenle aracı sonraki aşamada.'),
-  'arac.ayir': () => bildir('PDF ayırma aracı sonraki aşamada.'),
+  'arac.ayir': () => bildir('Ayır aracı sonraki aşamada.'),
   'arac.gorselBirlestir': () => bildir('Görüntü/PDF birleştirme aracı sonraki aşamada.'),
   'arac.dondurKaydet': () => bildir('Döndür ve kaydet sonraki aşamada.'),
   'yardim.kisayollar': () => kisayollarGoster(),
@@ -1172,7 +1172,7 @@ function ayarlarBaglami() {
   return { ayar: () => ayar, ayarKoy, uygula: ayarUygula, pdefe, varsayilanlar, cekirdek, guncelleme, sonTemizle: () => komutCalistir('dosya.sonTemizle') };
 }
 
-// Araç pencereleri (PDF Sıkıştırma, sayfaları düzenle, döndür ve kaydet, ayır, görüntü/PDF birleştir)
+// Araç pencereleri (Sıkıştır, sayfaları düzenle, döndür ve kaydet, ayır, görüntü/PDF birleştir)
 try {
   // cekirdek: araçların okuttuğu dosyalar kaydedilir, son araç penceresi kapanınca bırakılır (aracDosyalariniBirak)
   aracPenceresiKapaninca(aracDosyalariniBirak);

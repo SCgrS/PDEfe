@@ -1,4 +1,4 @@
-// Senaryo 11: araç pencereleri uçtan uca — PDF Sıkıştırma (0.1.25'e dek küçült), ayır, görüntü/PDF birleştir (panodan), sayfaları düzenle (sil+Uygula), döndür ve kaydet.
+// Senaryo 11: araç pencereleri uçtan uca — Sıkıştır (0.1.25'e dek küçült), ayır, görüntü/PDF birleştir (panodan), sayfaları düzenle (sil+Uygula), döndür ve kaydet.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { D } from './test_klasoru.mjs';

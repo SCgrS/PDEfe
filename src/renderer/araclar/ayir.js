@@ -1,6 +1,6 @@
-// PDF ayır: sayfa aralıklarına göre (Ayrı ayrı dosya | Tek dosya) ya da her sayfayı ayrı dosyaya. 0.1.25 (kullanıcı isteği): "Her N sayfada
-// bir" ve "Seçili sayfaları çıkart" kaldırıldı (seçili sayfaları çıkarmak "Tek dosya"dır); dosya adı öteki araçlardaki gibi Kaydet bölümünde
-// yazılır, varsayılanı "Ayrılmış".
+// Ayır (0.1.26'ya dek "PDF ayır"): sayfa aralıklarına göre (Ayrı ayrı dosya | Tek dosya) ya da her sayfayı ayrı dosyaya. 0.1.25
+// (kullanıcı isteği): "Her N sayfada bir" ve "Seçili sayfaları çıkart" kaldırıldı (seçili sayfaları çıkarmak "Tek dosya"dır); dosya adı
+// öteki araçlardaki gibi Kaydet bölümünde yazılır, varsayılanı "Ayrılmış".
 // Çekirdek (core/islemler/araclar.py y_ayir):
 //   ayir {yol, klasor, parcalar:[{ad:'Ayrılmış - Sayfa 1-3.pdf', sayfalar:[1,2,3]}], uzerineYaz} (ilerlemeli)
 //     → {dosyalar:[yol, ...], ayrintilar:[{yol, boyut, sayfa}]}; uzerineYaz false iken var olan dosyanın üzerine yazılmaz, ada "(2)" eklenir
@@ -131,7 +131,7 @@ export class AyirPenceresi {
     govde.addEventListener('keydown', (e) => { if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && e.target.type === 'radio') e.stopPropagation(); });
 
     this.pencere = pencereAc({
-      baslik: 'PDF ayır', govde, genislik: 660, anahtar: 'ayir', sinif: 'ayir-pencere',
+      baslik: 'Ayır', govde, genislik: 660, anahtar: 'ayir', sinif: 'ayir-pencere',
       dugmeler: [{ id: 'ayir', etiket: 'Ayır', birincil: true, tiklama: () => this.ayir() }],
       kapatmadanOnce: () => this._kapatmaIzni(),
     });

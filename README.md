@@ -63,9 +63,9 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   dosyada kalmaz (belgede PDF'e gömülü e-imza varsa imzayı korumak için sorulur).
 - **Geri al / yinele.** Her not ve sayfa işlemi `Ctrl+Z` / `Ctrl+Y` ile geri alınır; kayıttan sonra bile.
 - **Araçlar** (araç çubuğundaki **Araçlar** düğmesi, açılış ekranı ya da Araçlar menüsü; belge açık değilken önce PDF seçilir;
-  pencerelerdeki fare ve tuş kullanımı `F1` Kısayollar'da): **PDF Sıkıştırma** (üç hazır seviye, boyut
+  pencerelerdeki fare ve tuş kullanımı `F1` Kısayollar'da): **Sıkıştır** (üç hazır seviye, boyut
   tahmini), **Sayfaları düzenle** (küçük resim ızgarasında sürükleyerek sıralama, boş alandan sürükleyerek çoklu seçim,
-  silme, döndürme, boş sayfa ya da başka PDF'ten sayfa ekleme), **Döndür ve kaydet**, **PDF ayır** (sayfa aralıklarına göre
+  silme, döndürme, boş sayfa ya da başka PDF'ten sayfa ekleme), **Döndür ve kaydet**, **Ayır** (sayfa aralıklarına göre
   ayrı ayrı dosya ya da tek dosya, her sayfa ayrı dosya), **Görüntü / PDF birleştir** (görüntü ve PDF'lerden tek PDF; bir PDF
   açıkken açılınca o PDF listenin başında gelir; pencere sekme şeridinin altında açılır, arkadaki
   sekmelerden doğru belgede olunduğu görülür;

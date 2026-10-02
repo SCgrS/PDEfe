@@ -1,5 +1,5 @@
-// Araçlar penceresi: araç çubuğundaki "Araçlar" düğmesinin altında açılan karolar (PDF Sıkıştırma, Sayfaları düzenle, Döndür ve kaydet,
-// PDF ayır, Görüntü / PDF birleştir). Her karoda büyük simge, araç adı ve tek satırlık açıklama vardır; seçilen araç Araçlar menüsündeki
+// Araçlar penceresi: araç çubuğundaki "Araçlar" düğmesinin altında açılan karolar (Sıkıştır, Sayfaları düzenle, Döndür ve kaydet,
+// Ayır, Görüntü / PDF birleştir). Her karoda büyük simge, araç adı ve tek satırlık açıklama vardır; seçilen araç Araçlar menüsündeki
 // (menu.js) komut kimliğiyle çalıştırılır. PDF'i kopyala'nın (0.1.21'e dek Paylaş) karosu yok: araç çubuğundaki düğmesi ve Araçlar menüsündeki öğesiyle çalışır.
 // Esc, dışarı tıklama ya da araç seçimi pencereyi kapatır; ok tuşları, Tab, Home ve End karolar arasında gezer, Enter / Boşluk seçer.
 
@@ -9,7 +9,7 @@ const simge = (ic) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor
  *  (uygulama.js; 0.1.13'e dek karo soluk ve seçilemezdi). Açılış ekranı (baslangic.js) da bu listeyi gösterir. */
 export const ARACLAR = [
   {
-    komut: 'arac.kucult', ad: 'PDF Sıkıştırma', aciklama: 'Dosya boyutunu azaltır', renk: 'yesil', belge: true,
+    komut: 'arac.kucult', ad: 'Sıkıştır', aciklama: 'Dosya boyutunu azaltır', renk: 'yesil', belge: true,
     ipucu: 'Görselleri sıkıştırarak PDF dosyasının boyutunu azaltır',
     // Sayfa ve ortadaki çizgiye doğru bastıran iki ok
     ikon: '<path d="M5 2.75h10.5l3.5 3.5v15.5H5z"/><path d="M15.5 2.75v3.5H19"/><path d="M12 6.25v4M10 8.25l2 2 2-2M8.5 13.25h7M12 19.75v-3.5M10 18.25l2-2 2 2"/>',
@@ -27,7 +27,7 @@ export const ARACLAR = [
     ikon: '<rect x="3.5" y="8.5" width="10.5" height="12.75" rx="1.5"/><path d="M10.5 3.5h2.75a7 7 0 0 1 7 7v.9"/><path d="M17.35 11.1h5.8l-2.9 3.5z" fill="currentColor" stroke="none"/>',
   },
   {
-    komut: 'arac.ayir', ad: 'PDF ayır', aciklama: 'Belgeyi dosyalara böler', renk: 'turuncu', belge: true,
+    komut: 'arac.ayir', ad: 'Ayır', aciklama: 'Belgeyi dosyalara böler', renk: 'turuncu', belge: true,
     ipucu: 'Belgeyi sayfa aralıklarına göre ayrı ayrı dosyalara ya da tek dosyaya ayırır; her sayfayı ayrı dosyaya da kaydedebilir',
     // Kesik çizgiyle ayrılan iki sayfa
     ikon: '<rect x="2.75" y="3.75" width="6.75" height="16.5" rx="1.2"/><rect x="14.5" y="3.75" width="6.75" height="16.5" rx="1.2"/><path d="M12 2.5v19" stroke-dasharray="2.2 2.6"/>',

@@ -4,7 +4,7 @@
 //    kayıt yolu: yalnızca döndürme değiştiyse artımlı yazılır, e-imzalı baytlar korunur; yedek alınmaz). Döndürme geri alma yığınına
 //    girer (Ctrl+Z ile geri alınıp yeniden kaydedilebilir); sekme yeniden açılmaz, geri alma geçmişi ve sekme sırası korunur. Dosya
 //    başka programda kilitliyse ya da salt okunursa önceden sorulur, sekmeye dokunulmaz. Sekmede kaydedilmemiş başka değişiklik
-//    varsa (kayıt onları da dosyaya yazacağından) Yeni belge ve PDF küçült'teki gibi önce sorulur.
+//    varsa (kayıt onları da dosyaya yazacağından) Yeni belge ve Sıkıştır'daki gibi önce sorulur.
 //  - Yeni belge: çekirdek dondur_kaydet {yol, hedef, sayfalar, derece} özgün dosyanın hedef klasördeki geçici kopyasına artımlı yazar
 //    (e-imzalı baytlar, ekler, belge bilgileri korunur), sonra atomik olarak hedefe koyar; özgün dosya ve sekme değişmez.
 import {
@@ -151,7 +151,7 @@ export class DondurPenceresi {
 
   /**
    * Üzerine yaz: döndürme sekmedeki belgeye geri alınabilir komut olarak uygulanır ve belge kaydedilir (Ctrl+S ile aynı yol).
-   * Sekmede kaydedilmemiş başka değişiklik (ör. sayfa silme/sıralama) varsa Yeni belge ve PDF küçült'teki gibi önce sorulur
+   * Sekmede kaydedilmemiş başka değişiklik (ör. sayfa silme/sıralama) varsa Yeni belge ve Sıkıştır'daki gibi önce sorulur
    * (ortak degisiklikleriSor: Kaydet ve devam et | Vazgeç); sormadan dosyaya yazılmaz. Kayıt başarısız olursa belgeKaydet kendi
    * sorusunu gösterir; döndürme sekmede kalır.
    */
