@@ -26,6 +26,10 @@ on:
         type: choice
         options: [hepsi, windows, mac]
         default: hepsi
+      cekirdek_calismasi:
+        description: macOS çekirdeklerini bu çalışmanın (run id) çıktısından al; boşsa yeniden derlenir (dakika tasarrufu, 3 gün saklanır)
+        type: string
+        default: ""
 
 permissions:
   contents: write
@@ -176,7 +180,7 @@ jobs:
     name: macOS çekirdek (${{ matrix.mimari }})
     timeout-minutes: 25
     needs: taslak
-    if: ${{ !failure() && !cancelled() && (startsWith(github.ref, 'refs/tags/') || inputs.platform != 'windows') }}
+    if: ${{ !failure() && !cancelled() && (startsWith(github.ref, 'refs/tags/') || (inputs.platform != 'windows' && inputs.cekirdek_calismasi == '')) }}
     strategy:
       fail-fast: true
       matrix:
@@ -240,7 +244,7 @@ jobs:
     name: macOS DMG (evrensel)
     timeout-minutes: 35
     needs: [taslak, mac-cekirdek]
-    if: ${{ !failure() && !cancelled() && needs.mac-cekirdek.result == 'success' }}
+    if: ${{ !failure() && !cancelled() && (needs.mac-cekirdek.result == 'success' || (inputs.platform != 'windows' && inputs.cekirdek_calismasi != '')) }}
     runs-on: macos-15
     outputs:
       sha: ${{ steps.ozet.outputs.sha }}
@@ -265,6 +269,8 @@ jobs:
         with:
           pattern: pdefe-core-mac-*
           merge-multiple: true
+          run-id: ${{ inputs.cekirdek_calismasi || github.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Çekirdekleri aç
         run: |
