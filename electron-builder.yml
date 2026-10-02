@@ -1,5 +1,5 @@
-# PDEfe — electron-builder yapılandırması (Windows, NSIS kurulum sihirbazı, GitHub Releases yayımı)
-# package.json'da "build" alanı YOK; electron-builder bu dosyayı okur (npm run dist / electron-builder --win).
+# PDEfe — electron-builder yapılandırması (Windows: NSIS kurulum sihirbazı, GitHub Releases yayımı; macOS: evrensel DMG, 0.2.0)
+# package.json'da "build" alanı YOK; electron-builder bu dosyayı okur (npm run dist / electron-builder --win / --mac --universal).
 
 appId: com.cgrshn.pdefe
 productName: PDEfe
@@ -51,14 +51,14 @@ files:
   - "!node_modules/@napi-rs/**"
   - "!**/{CHANGELOG.md,README.md,CODE_OF_CONDUCT.md,.github,.editorconfig,.eslintrc*,tsconfig.json}"
 
-# Python çekirdeği: cekirdek.js paketliyken process.resourcesPath/pdefe-core/pdefe-core.exe bekler.
-# core/dist/pdefe-core/ (tek klasör: pdefe-core.exe + _internal) "npm run cekirdek:derle" (build/cekirdek-derle.mjs, PyInstaller) ile
-# üretilir. Tek dosya (onefile) değil: her açılışta %TEMP%'e açılıyor, süreç öldürülünce açılan klasör kalıyordu (bkz. core/pdefe-core.spec).
-extraResources:
-  - from: core/dist/pdefe-core
-    to: pdefe-core
-
 win:
+  # Python çekirdeği: cekirdek.js paketliyken process.resourcesPath/pdefe-core/pdefe-core.exe bekler.
+  # core/dist/pdefe-core/ (tek klasör: pdefe-core.exe + _internal) "npm run cekirdek:derle" (build/cekirdek-derle.mjs, PyInstaller) ile
+  # üretilir. Tek dosya (onefile) değil: her açılışta %TEMP%'e açılıyor, süreç öldürülünce açılan klasör kalıyordu (bkz. core/pdefe-core.spec).
+  # 0.2.0: Windows'a özgü (macOS'ta iki mimarinin çekirdeği ayrı klasörlerde, aşağıda mac.extraResources)
+  extraResources:
+    - from: core/dist/pdefe-core
+      to: pdefe-core
   target:
     - target: nsis
       arch:
@@ -103,3 +103,52 @@ nsis:
   uninstallDisplayName: PDEfe
   artifactName: "PDEfe-Setup.${ext}"
   differentialPackage: true
+
+# ---------------------------------------------------------------- macOS (0.2.0)
+# Tek DMG hem Apple işlemcili (arm64) hem Intel (x64) Mac'te çalışır (evrensel: electron-builder --mac --universal). Python çekirdeği
+# mimariye özgüdür ve tek dosyada birleştirilemez (PyMuPDF / Pillow tekerlekleri mimari başına): iki mimarinin PyInstaller çıktısı CI'da
+# ayrı Mac'lerde derlenip core/dist/pdefe-core-arm64 ve -x64'e konur, ikisi de pakete girer; cekirdek.js process.arch'a göre seçer.
+# İki ara pakette aynı dosyalar olduğundan birleştirici (@electron/universal) onları lipo'lamaz, olduğu gibi alır (x64ArchFiles).
+# İmza: Apple geliştirici kimliği yok (kullanıcı kararı, 2026-10-02): yerinde (ad-hoc, "-") imzalanır. Apple işlemcili Mac imzasız kodu
+# hiç çalıştırmaz; yerinde imzalı uygulamayı ilk açılışta bir kez Sistem Ayarları › Gizlilik ve Güvenlik › "Yine de Aç" ile açar.
+# Sertleştirilmiş çalışma ortamı (hardenedRuntime) yerinde imzayla kitaplık doğrulamasına takılır (çekirdeğin kitaplıkları): kapalı.
+mac:
+  target:
+    - target: dmg
+      arch:
+        - universal
+  icon: build/icon.png          # 512×512; electron-builder .icns'e çevirir
+  category: public.app-category.productivity
+  minimumSystemVersion: "12.0"  # Electron 44'ün en düşük macOS sürümü
+  darkModeSupport: true
+  identity: "-"
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  notarize: false
+  x64ArchFiles: "Contents/Resources/pdefe-core-*/**"
+  extraResources:
+    - from: core/dist/pdefe-core-arm64
+      to: pdefe-core-arm64
+    - from: core/dist/pdefe-core-x64
+      to: pdefe-core-x64
+  # Finder'da "Birlikte aç" listesinde görünür; varsayılan uygulamayı kullanıcı Bilgi Al'dan seçer (Alternate: sistemin PDF görüntüleyicisinin
+  # yerine kendiliğinden geçmez). Uzantıyla tanımlanır (CFBundleTypeExtensions): PDF'in sistem tür kimliğinde bir marka adı geçer
+  fileAssociations:
+    - ext: pdf
+      name: PDF belgesi
+      role: Editor
+      rank: Alternate
+  extendInfo:
+    CFBundleDevelopmentRegion: tr
+    # macOS bu klasörlere ilk erişimde izin sorar (araçların çıktısı varsayılan olarak Masaüstü'ne yazılır, son açılanlar yeniden açılır)
+    NSDesktopFolderUsageDescription: PDEfe, Masaüstü'ndeki PDF belgelerini açmak ve araçların çıktısını kaydetmek için erişim ister.
+    NSDocumentsFolderUsageDescription: PDEfe, Belgeler klasöründeki PDF belgelerini açmak ve kaydetmek için erişim ister.
+    NSDownloadsFolderUsageDescription: PDEfe, İndirilenler klasöründeki PDF belgelerini açmak ve kaydetmek için erişim ister.
+    NSRemovableVolumesUsageDescription: PDEfe, çıkarılabilir disklerdeki PDF belgelerini açmak ve kaydetmek için erişim ister.
+    NSNetworkVolumesUsageDescription: PDEfe, ağ sürücülerindeki PDF belgelerini açmak ve kaydetmek için erişim ister.
+
+dmg:
+  title: PDEfe
+  artifactName: "PDEfe-Mac.${ext}"   # README'deki tek bağlantı: releases/latest/download/PDEfe-Mac.dmg
+  format: ULFO                       # lzfse; macOS 10.11+
+  writeUpdateInfo: false             # Mac güncellemesi tarayıcıdan indirilir (main/macGuncelleme.js), blockmap gerekmez

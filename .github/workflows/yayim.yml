@@ -1,11 +1,18 @@
-# PDEfe — Windows kurulum paketini derler ve GitHub Releases'e yayımlar.
+# PDEfe — Windows kurulum paketini ve macOS DMG'sini derler, GitHub Releases'e yayımlar.
 #
 # Sürüm akışı:
 #   1. package.json "version" alanını yükselt, CHANGELOG.md'ye "## x.y.z — YYYY-AA-GG" bölümü ekle, commit et.
 #   2. git tag vx.y.z && git push origin vx.y.z
-#   3. Bu iş akışı PDEfe-Setup.exe, PDEfe-Setup.exe.blockmap ve latest.yml dosyalarını "vx.y.z" sürümüne yükler;
-#      sürüm gövdesini Türkçe (SmartScreen notu + CHANGELOG bölümü) yazar. electron-updater latest.yml'i okur.
-#   workflow_dispatch ile elle çalıştırılırsa yalnızca derler, paketi iş akışı çıktısı (artifact) olarak saklar.
+#   3. Bu iş akışı taslak sürümü açar; Windows işi PDEfe-Setup.exe, PDEfe-Setup.exe.blockmap ve latest.yml'i, macOS işi PDEfe-Mac.dmg'yi
+#      (evrensel: Apple işlemcili ve Intel) yükler; ikisi de başarılıysa sürüm gövdesi Türkçe yazılır ve sürüm yayımlanır (Latest).
+#      Biri başarısızsa sürüm taslak kalır: README'deki releases/latest/download bağlantıları önceki tam sürümü vermeye devam eder.
+#      electron-updater (Windows) latest.yml'i, macOS'taki PDEfe sürüm akışını (releases.atom) okur.
+#   workflow_dispatch ile elle çalıştırılırsa yalnızca derler ve sınar; paketler iş akışı çıktısı (artifact) olarak saklanır.
+#   "platform" seçimiyle yalnızca Windows ya da yalnızca macOS derlenebilir (macOS dakikaları gizli depoda 10 kat sayılır).
+#
+# macOS (0.2.0): Python çekirdeği mimariye özgüdür; Apple işlemcili (macos-15) ve Intel (macos-15-intel) makinelerde ayrı derlenir, ikisi
+# evrensel uygulamaya girer (electron-builder.yml mac). Apple geliştirici kimliği yok: uygulama yerinde (ad-hoc) imzalanır. Paket, Apple
+# işlemcili makinede Uygulamalar'a kopyalanıp test/mac_duman.mjs ile sınanır; elle çalıştırmada Intel ve macOS 26 makinelerinde de.
 
 name: Derle ve yayımla
 
@@ -13,6 +20,12 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      platform:
+        description: Derlenecek platform
+        type: choice
+        options: [hepsi, windows, mac]
+        default: hepsi
 
 permissions:
   contents: write
@@ -21,18 +34,51 @@ concurrency:
   group: yayim-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  npm_config_fund: "false"
+  npm_config_audit: "false"
+
 jobs:
+  taslak:
+    name: Taslak sürüm
+    timeout-minutes: 5
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kaynağı al
+        uses: actions/checkout@v4
+
+      - name: Etiket ile package.json sürümü uyuşmalı
+        run: |
+          surum=$(node -p "require('./package.json').version")
+          if [ "${{ github.ref_name }}" != "v$surum" ]; then
+            echo "::error::Etiket '${{ github.ref_name }}' ile package.json sürümü 'v$surum' uyuşmuyor. Önce package.json'daki version alanını yükseltin."
+            exit 1
+          fi
+          echo "Sürüm: $surum (etiket ${{ github.ref_name }})"
+
+      # electron-builder dosyaları paralel yüklerken sürüm yoksa aynı etiketle iki sürüm açabiliyor (v0.1.0'da oldu);
+      # taslak sürüm önceden oluşturulur, yüklemeler ona gider, son adımda yayımlanır.
+      - name: Taslak sürümü önceden oluştur
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "${{ github.ref_name }}" --repo "${{ github.repository }}" --draft --title "PDEfe ${{ github.ref_name }}" --notes "Derleniyor…" --verify-tag
+
   windows:
     name: Windows kurulum paketi
+    timeout-minutes: 30
+    needs: taslak
+    if: ${{ !failure() && !cancelled() && (startsWith(github.ref, 'refs/tags/') || inputs.platform != 'mac') }}
     runs-on: windows-latest
+    outputs:
+      sha: ${{ steps.ozet.outputs.sha }}
+      mb: ${{ steps.ozet.outputs.mb }}
     env:
       # build/cekirdek-derle.mjs bu değişkenle .venv yerine sistem Python'unu (ve onun PyInstaller'ını) kullanır.
       PDEFE_PYTHON: python
       # Kod imzalama sertifikası yok; electron-builder sertifika aramasın.
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
       ELECTRON_BUILDER_CACHE: ${{ github.workspace }}\.cache\electron-builder
-      npm_config_fund: "false"
-      npm_config_audit: "false"
 
     steps:
       - name: Kaynağı al
@@ -74,18 +120,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit 1 }
           .\.venv\Scripts\python.exe -c "import pymupdf, fontTools, PIL, PyInstaller, winrt.windows.media.ocr; print('PyMuPDF', pymupdf.pymupdf_version, '| MuPDF', pymupdf.mupdf_version, '| PyInstaller', PyInstaller.__version__)"
 
-      - name: Etiket ile package.json sürümü uyuşmalı
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: pwsh
-        run: |
-          $surum = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          $etiket = "${{ github.ref_name }}"
-          if ($etiket -ne "v$surum") {
-            Write-Error "Etiket '$etiket' ile package.json sürümü 'v$surum' uyuşmuyor. Önce package.json'daki version alanını yükseltin."
-            exit 1
-          }
-          Write-Host "Sürüm: $surum (etiket $etiket)"
-
       - name: electron-builder önbelleği (NSIS, winCodeSign)
         uses: actions/cache@v4
         with:
@@ -107,18 +141,7 @@ jobs:
           Write-Host "Yanıt: $yanit"
           if (-not ($yanit -match '"result"')) { Write-Error "Çekirdek ping yanıtı vermedi."; exit 1 }
 
-      # electron-builder dosyaları paralel yüklerken sürüm yoksa aynı etiketle iki sürüm açabiliyor (v0.1.0'da oldu);
-      # taslak sürüm önceden oluşturulur, yüklemeler ona gider, son adımda yayımlanır.
-      - name: Taslak sürümü önceden oluştur
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create "${{ github.ref_name }}" --draft --title "PDEfe ${{ github.ref_name }}" --notes "Derleniyor…" --verify-tag
-          if ($LASTEXITCODE -ne 0) { Write-Error "Taslak sürüm oluşturulamadı."; exit 1 }
-
-      - name: Paketle ve yayımla (etiket)
+      - name: Paketle ve taslak sürüme yükle (etiket)
         if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -128,58 +151,15 @@ jobs:
         if: "!startsWith(github.ref, 'refs/tags/')"
         run: npx electron-builder --win --publish never
 
-      - name: Çıktıları listele
+      - name: Çıktıları listele, özet
+        id: ozet
         shell: pwsh
-        run: Get-ChildItem release -File | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,1)}} | Format-Table -AutoSize
-
-      - name: Sürüm gövdesini yaz (Türkçe, SmartScreen notu + CHANGELOG)
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $etiket = "${{ github.ref_name }}"
-          $surum = $etiket.TrimStart("v")
+          Get-ChildItem release -File | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,1)}} | Format-Table -AutoSize
           $sha = (Get-FileHash -Algorithm SHA256 "release\PDEfe-Setup.exe").Hash.ToLower()
-          $boyut = [math]::Round((Get-Item "release\PDEfe-Setup.exe").Length / 1MB, 1)
-
-          # CHANGELOG.md içinden bu sürümün bölümü
-          $notlar = ""
-          if (Test-Path CHANGELOG.md) {
-            $satirlar = Get-Content CHANGELOG.md -Encoding utf8
-            $al = $false
-            foreach ($s in $satirlar) {
-              if ($s -match '^## ') { if ($al) { break }; if ($s -match [regex]::Escape($surum)) { $al = $true; continue } }
-              elseif ($al) { $notlar += $s + "`n" }
-            }
-          }
-          if (-not $notlar.Trim()) { $notlar = "Bu sürümün ayrıntıları için CHANGELOG.md dosyasına bakın.`n" }
-
-          # YAML blok içinde PowerShell here-string kullanılamaz (kapanış "@ sütun 0'da olmalı); satır listesi birleştirilir.
-          $k = [char]96   # ters tırnak (Markdown kod işareti)
-          $satirlar = @(
-            "### [⬇ PDEfe-Setup.exe indir](https://github.com/${{ github.repository }}/releases/download/$etiket/PDEfe-Setup.exe)",
-            "",
-            "Windows 10/11, 64 bit. Yönetici hakkı gerekmez; kurulum sihirbazı Türkçedir.",
-            "",
-            "**Kod imzalama sertifikası yok.** Windows SmartScreen uyarı gösterirse **Daha fazla bilgi → Yine de çalıştır** deyin.",
-            "Kurulu PDEfe yeni sürümü kendisi bulur ve tek tıkla günceller.",
-            "",
-            "## Bu sürümde",
-            "",
-            $notlar.TrimEnd(),
-            "",
-            "---",
-            "PDEfe-Setup.exe: $boyut MB · SHA-256 $k$sha$k",
-            "$($k)latest.yml$k ve $($k)PDEfe-Setup.exe.blockmap$k otomatik güncelleme içindir; elle indirmeniz gerekmez."
-          )
-          $govde = ($satirlar -join "`n") + "`n"
-          $dosya = Join-Path $env:RUNNER_TEMP "surum-notlari.md"
-          [System.IO.File]::WriteAllText($dosya, $govde, (New-Object System.Text.UTF8Encoding $false))
-
-          # Taslak sürümün adını ve gövdesini yaz, yayımla.
-          gh release edit $etiket --title "PDEfe $surum" --notes-file $dosya --draft=false --latest
-          if ($LASTEXITCODE -ne 0) { Write-Error "Sürüm gövdesi yazılamadı."; exit 1 }
+          $mb = [math]::Round((Get-Item "release\PDEfe-Setup.exe").Length / 1MB, 1)
+          "sha=$sha" >> $env:GITHUB_OUTPUT
+          "mb=$mb" >> $env:GITHUB_OUTPUT
 
       - name: Paketi iş akışı çıktısı olarak sakla
         uses: actions/upload-artifact@v4
@@ -191,3 +171,272 @@ jobs:
             release/latest.yml
           if-no-files-found: error
           retention-days: 14
+
+  mac-cekirdek:
+    name: macOS çekirdek (${{ matrix.mimari }})
+    timeout-minutes: 25
+    needs: taslak
+    if: ${{ !failure() && !cancelled() && (startsWith(github.ref, 'refs/tags/') || inputs.platform != 'windows') }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - runner: macos-15
+            mimari: arm64
+          - runner: macos-15-intel
+            mimari: x64
+    runs-on: ${{ matrix.runner }}
+    env:
+      PDEFE_PYTHON: python
+    steps:
+      - name: Kaynağı al
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # pyobjc-framework-Vision: Apple yazı tanıyıcısının Python bağları (core/islemler/yazi_tanima.py _AppleTaniyici); Quartz ve Cocoa'yı da getirir
+      - name: Python bağımlılıkları
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pymupdf==1.28.2" "fonttools==4.65.0" "pillow==12.3.0" "pyinstaller==6.22.3" pyobjc-framework-Vision pyobjc-framework-Quartz
+          python -c "import platform, pymupdf, PyInstaller, objc, Vision; print(platform.machine(), platform.mac_ver()[0], '| PyMuPDF', pymupdf.pymupdf_version, '| PyInstaller', PyInstaller.__version__, '| pyobjc', objc.__version__)"
+
+      - name: Çekirdeğin işletim sistemine bağlı parçaları (kaynaktan; yazı notu fontu, kayıtta öznitelikler, yazı tanıma)
+        run: python test/mac_cekirdek_testi.py
+
+      - name: Yazı tanıma testi (Windows için yazılmış beklentiler; bilgi için, sonucu zorunlu değil)
+        continue-on-error: true
+        timeout-minutes: 5
+        run: python test/tanima_testi.py
+
+      - name: Çekirdeği derle (PyInstaller → core/dist/pdefe-core/, tek klasör) ve sına (ping)
+        run: node build/cekirdek-derle.mjs
+
+      - name: Çekirdeği paketle
+        run: |
+          mv core/dist/pdefe-core "core/dist/pdefe-core-${{ matrix.mimari }}"
+          lipo -archs "core/dist/pdefe-core-${{ matrix.mimari }}/pdefe-core"
+          du -sh "core/dist/pdefe-core-${{ matrix.mimari }}"
+          # tar: çalıştırma izinleri ve sembolik bağlantılar korunsun (iş akışı çıktısı bunları düşürür)
+          tar -C core/dist -czf "pdefe-core-mac-${{ matrix.mimari }}.tgz" "pdefe-core-${{ matrix.mimari }}"
+
+      - name: Çekirdeği iş akışı çıktısı olarak sakla
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdefe-core-mac-${{ matrix.mimari }}
+          path: pdefe-core-mac-${{ matrix.mimari }}.tgz
+          if-no-files-found: error
+          retention-days: 3
+
+  mac:
+    name: macOS DMG (evrensel)
+    timeout-minutes: 35
+    needs: [taslak, mac-cekirdek]
+    if: ${{ !failure() && !cancelled() && needs.mac-cekirdek.result == 'success' }}
+    runs-on: macos-15
+    outputs:
+      sha: ${{ steps.ozet.outputs.sha }}
+      mb: ${{ steps.ozet.outputs.mb }}
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"   # anahtar zinciri aranmasın; imza yerinde (electron-builder.yml mac.identity "-")
+    steps:
+      - name: Kaynağı al
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Node bağımlılıkları
+        run: npm ci
+
+      - name: Çekirdekleri al (arm64, x64)
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pdefe-core-mac-*
+          merge-multiple: true
+
+      - name: Çekirdekleri aç
+        run: |
+          mkdir -p core/dist
+          for m in arm64 x64; do tar -C core/dist -xzf "pdefe-core-mac-$m.tgz"; done
+          ls -la core/dist
+
+      - name: Electron önbelleği
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: electron-mac-${{ hashFiles('package-lock.json') }}
+          restore-keys: electron-mac-
+
+      - name: Paketle (evrensel DMG)
+        run: npx electron-builder --mac --universal --publish never
+
+      - name: Çıktıları listele, özet
+        id: ozet
+        run: |
+          ls -la release
+          sha=$(shasum -a 256 release/PDEfe-Mac.dmg | cut -d' ' -f1)
+          mb=$(node -p "Math.round(require('fs').statSync('release/PDEfe-Mac.dmg').size / 1048576 * 10) / 10")
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "mb=$mb" >> "$GITHUB_OUTPUT"
+          echo "PDEfe-Mac.dmg: $mb MB, SHA-256 $sha"
+
+      - name: Sınama için Python (örnek PDF'ler)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Örnek PDF'leri üret
+        run: |
+          python -m pip install "pymupdf==1.28.2" "pillow==12.3.0"
+          mkdir -p "$RUNNER_TEMP/ornekler"
+          python -c "import sys; sys.path.insert(0, 'test'); import ornek_pdf_uret as o, tanima_pdf_uret as t; o.uret(sys.argv[1] + '/not.pdf', 2, 'Deneme belgesi', True); t.uret(sys.argv[1])" "$RUNNER_TEMP/ornekler"
+
+      - name: Uygulamalar'a kur (DMG'den)
+        run: |
+          hdiutil attach -nobrowse -mountpoint /Volumes/PDEfe release/PDEfe-Mac.dmg
+          ls -la /Volumes/PDEfe
+          ditto /Volumes/PDEfe/PDEfe.app /Applications/PDEfe.app
+          hdiutil detach /Volumes/PDEfe
+          du -sh /Applications/PDEfe.app
+
+      - name: Uygulamayı sına (Apple işlemcili)
+        timeout-minutes: 10
+        run: node test/mac_duman.mjs /Applications/PDEfe.app "$RUNNER_TEMP/ornekler" "$RUNNER_TEMP/duman"
+
+      - name: Sınama çıktıları (ekran görüntüleri)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-sinama-arm64-macos15
+          path: ${{ runner.temp }}/duman
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: DMG'yi taslak sürüme yükle (etiket)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.ref_name }}" release/PDEfe-Mac.dmg --repo "${{ github.repository }}" --clobber
+
+      - name: DMG'yi iş akışı çıktısı olarak sakla
+        uses: actions/upload-artifact@v4
+        with:
+          name: PDEfe-Mac
+          path: release/PDEfe-Mac.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+  # Elle çalıştırmada: aynı DMG Intel Mac'te ve en yeni macOS'ta da sınanır (sürüm derlemesinde atlanır; dakika tasarrufu)
+  mac-sina:
+    name: macOS sınama (${{ matrix.ad }})
+    timeout-minutes: 20
+    needs: mac
+    if: ${{ github.event_name == 'workflow_dispatch' && !failure() && !cancelled() && needs.mac.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            ad: intel-macos15
+          - runner: macos-26
+            ad: arm64-macos26
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Kaynağı al (sınama betikleri)
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: DMG'yi al
+        uses: actions/download-artifact@v4
+        with:
+          name: PDEfe-Mac
+
+      - name: Örnek PDF'leri üret, Uygulamalar'a kur
+        run: |
+          python -m pip install "pymupdf==1.28.2" "pillow==12.3.0"
+          mkdir -p "$RUNNER_TEMP/ornekler"
+          python -c "import sys; sys.path.insert(0, 'test'); import ornek_pdf_uret as o, tanima_pdf_uret as t; o.uret(sys.argv[1] + '/not.pdf', 2, 'Deneme belgesi', True); t.uret(sys.argv[1])" "$RUNNER_TEMP/ornekler"
+          hdiutil attach -nobrowse -mountpoint /Volumes/PDEfe PDEfe-Mac.dmg
+          ditto /Volumes/PDEfe/PDEfe.app /Applications/PDEfe.app
+          hdiutil detach /Volumes/PDEfe
+
+      - name: Uygulamayı sına
+        timeout-minutes: 10
+        run: node test/mac_duman.mjs /Applications/PDEfe.app "$RUNNER_TEMP/ornekler" "$RUNNER_TEMP/duman"
+
+      - name: Sınama çıktıları (ekran görüntüleri)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-sinama-${{ matrix.ad }}
+          path: ${{ runner.temp }}/duman
+          if-no-files-found: ignore
+          retention-days: 14
+
+  yayimla:
+    name: Sürümü yayımla
+    timeout-minutes: 5
+    needs: [windows, mac]
+    if: ${{ startsWith(github.ref, 'refs/tags/') && needs.windows.result == 'success' && needs.mac.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kaynağı al (CHANGELOG)
+        uses: actions/checkout@v4
+
+      - name: Sürüm gövdesini yaz (Türkçe; indirme bağlantıları, kurulum notları, CHANGELOG) ve yayımla
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ETIKET: ${{ github.ref_name }}
+          DEPO: ${{ github.repository }}
+          WIN_SHA: ${{ needs.windows.outputs.sha }}
+          WIN_MB: ${{ needs.windows.outputs.mb }}
+          MAC_SHA: ${{ needs.mac.outputs.sha }}
+          MAC_MB: ${{ needs.mac.outputs.mb }}
+        run: |
+          surum="${ETIKET#v}"
+          # CHANGELOG.md içinden bu sürümün bölümü ("## x.y.z — tarih" başlığından sonrakine dek)
+          notlar=$(awk -v s="$surum" '/^## /{ if (al) exit; if (index($0, s)) { al=1; next } } al' CHANGELOG.md)
+          [ -n "$(echo "$notlar" | tr -d '[:space:]')" ] || notlar="Bu sürümün ayrıntıları için CHANGELOG.md dosyasına bakın."
+          k='`'
+          {
+            echo "### [⬇ Windows: PDEfe-Setup.exe indir](https://github.com/$DEPO/releases/download/$ETIKET/PDEfe-Setup.exe)"
+            echo "### [⬇ macOS: PDEfe-Mac.dmg indir](https://github.com/$DEPO/releases/download/$ETIKET/PDEfe-Mac.dmg)"
+            echo ""
+            echo "**Windows 10/11**, 64 bit. Yönetici hakkı gerekmez; kurulum sihirbazı Türkçedir. Kod imzalama sertifikası yok: Windows SmartScreen uyarı gösterirse **Daha fazla bilgi → Yine de çalıştır** deyin. Kurulu PDEfe yeni sürümü kendisi bulur ve tek tıkla günceller."
+            echo ""
+            echo "**macOS 12 ve sonrası**, Apple işlemcili (M1 ve sonrası) ve Intel Mac'ler (tek dosya ikisinde de çalışır). DMG'yi açıp PDEfe'yi Uygulamalar klasörüne sürükleyin. Apple geliştirici imzası yok: ilk açılışta macOS uyarı verirse Sistem Ayarları › Gizlilik ve Güvenlik › **Yine de Aç** deyin (bir kez). Yeni sürüm çıkınca PDEfe haber verir; **İndir** yeni DMG'yi indirir, PDEfe'yi yine Uygulamalar'a sürüklersiniz."
+            echo ""
+            echo "## Bu sürümde"
+            echo ""
+            echo "$notlar"
+            echo ""
+            echo "---"
+            echo "PDEfe-Setup.exe: $WIN_MB MB · SHA-256 $k$WIN_SHA$k  "
+            echo "PDEfe-Mac.dmg: $MAC_MB MB · SHA-256 $k$MAC_SHA$k  "
+            echo "${k}latest.yml$k ve ${k}PDEfe-Setup.exe.blockmap$k Windows'taki otomatik güncelleme içindir; elle indirmeniz gerekmez."
+          } > "$RUNNER_TEMP/surum-notlari.md"
+          cat "$RUNNER_TEMP/surum-notlari.md"
+          gh release edit "$ETIKET" --repo "$DEPO" --title "PDEfe $surum" --notes-file "$RUNNER_TEMP/surum-notlari.md" --draft=false --latest
