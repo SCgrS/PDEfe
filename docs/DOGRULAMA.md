@@ -471,3 +471,31 @@ Ekran dışındaki test örneğinde üretilmiş örnek PDF'lerle sınandı (test
    açıklaması "Sıralar, siler, döndürür, sayfa ekler" olmalı; Döndür penceresinin başlığı ve düğmesi "Döndür".
 4. **Sayfaları düzenle'nin yeri.** Pencere sekmelerin hemen altında açılmalı, arkadaki sekmeler okunmalı; küçük resimler, Kaydet bölümü ve
    Kaydet düğmesi görünmeli.
+
+## 35. 0.2.0 (macOS): otomatik testlerin sınayamadıkları
+GitHub'ın Mac makinelerinde (macOS 15 Apple işlemcili, macOS 15 Intel, macOS 26) DMG kurulup sınandı (test/mac_duman.mjs): açılış,
+Finder'dan PDF açma, sayfa çizimi, yazı tipleri, yazı tanıma, PDF'i kopyala, gerçek klavyeyle ⌘F / ⌘A / ⌘Z / ⌘T / ⌘W / ⌘0, çıkış. O makineler
+ilk açılış uyarısını göstermez ve ekrana bakan biri yoktur: aşağıdakiler gerçek bir Mac'te elle denenmeli. Windows'ta görünür bir değişiklik
+olmamalı (11. madde).
+1. **İndirme ve ilk açılış.** README'deki "macOS için indir" bağlantısıyla `PDEfe-Mac.dmg`'yi indirin, açın, PDEfe'yi Uygulamalar'a
+   sürükleyin, Uygulamalar'dan açın. Uyarı çıkmalı; Sistem Ayarları › Gizlilik ve Güvenlik › **Yine de Aç** ile PDEfe açılmalı. İkinci
+   açılışta uyarı çıkmamalı.
+2. **Finder.** Bir PDF'e sağ tık › Birlikte aç listesinde PDEfe olmalı ve açmalı. Bilgi Al › Birlikte aç › PDEfe › Tümünü Değiştir'den sonra
+   PDF'e çift tıklayınca PDEfe'de açılmalı (PDEfe açıkken ikinci PDF aynı pencerede yeni sekmede). PDEfe kapalıyken çift tıklayınca da.
+   Dock'taki PDEfe simgesine PDF sürükleyip bırakın.
+3. **Menü.** Ekranın üstünde PDEfe, Dosya, Düzen, Görünüm, Araçlar, Pencere, Yardım; PDEfe menüsünde Hakkında, Güncellemeleri denetle,
+   Ayarlar…, Gizle, Çık. Pencerenin araç çubuğunda menü çubuğu düğmesi olmamalı.
+4. **Kısayollar.** ⌘O, ⌘T, ⌘S, ⇧⌘S, ⌘W, ⌘P, ⌘F, ⌘G, ⌥⌘G, ⌘,, ⌘Z / ⇧⌘Z (bir not ekleyip), ⇧⌘[ / ⇧⌘] ve ⌃Tab (iki sekme açıkken), ⌘1,
+   ⌘+ / ⌘− / ⌘0, ⌘R, ⌃⌘S (sol panel), ⇧⌘H (okuma modu), ⌃⌘F (tam ekran), ⌘↑ / ⌘↓. Bul kutusunda ve sayfa kutusunda ⌘A, ⌘C, ⌘V, ⌘Z
+   kutunun içinde çalışmalı. Araç çubuğu düğmelerinin üzerinde durunca ipuçlarında ⌘'li kısayollar yazmalı; F1 (ya da Yardım › Kısayollar)
+   penceresinde de.
+5. **Dokunmatik yüzey.** İki parmakla kıstırarak yakınlaştırıp uzaklaştırın: akıcı olmalı, sıçramamalı. İki parmakla kaydırma sayfayı
+   kaydırmalı.
+6. **Notlar.** Bir PDF'in kopyasına vurgu, not ve Türkçe harfli (ş ğ ı İ ç ö ü) bir yazı notu ekleyip kaydedin; dosyayı Önizleme'de açın:
+   yazı ve harfler aynı görünmeli. Yazı notunun yazı tipi listesinde Arial ve Times New Roman olmalı.
+7. **PDF'i kopyala.** Araçlar › PDF'i kopyala; Finder'da bir klasörde ⌘V: PDF'in kopyası gelmeli. Bir e-postaya ⌘V: ek olmalı.
+8. **Yazdır.** ⌘P: PDEfe'nin yazdırma penceresinden sonra Mac'in yazdırma penceresi açılmalı (PDF olarak kaydet ile deneyebilirsiniz).
+9. **Yazı tanıma.** Taranmış bir UYAP evrakında birkaç satırı seçip kopyalayın. macOS 26'da Türkçe harfler doğru gelmeli; macOS 15 ve
+   öncesinde ş, ğ, ı, İ harfleri s, g, i, I gelebilir, tarih ve esas numarası yine doğru olmalı.
+10. **Çıkış.** Kaydedilmemiş değişiklikle ⌘Q: kaydetme sorusu gelmeli; Vazgeç'te PDEfe açık kalmalı. Dock'ta PDEfe › Çık da aynı.
+11. **Windows.** Windows'ta PDEfe 0.2.0'da menü, kısayollar ve ipuçları eskisi gibi (Ctrl'li) olmalı; README'nin başında iki bağlantı.

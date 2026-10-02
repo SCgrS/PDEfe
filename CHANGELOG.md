@@ -3,6 +3,34 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.2.0 — 2026-10-02
+
+### macOS desteği
+- **PDEfe artık Mac'te de çalışıyor.** macOS 12 ve sonrası; Apple işlemcili (M1 ve sonrası) ve Intel Mac'lerde aynı dosya:
+  `PDEfe-Mac.dmg`. README'nin ve sürüm sayfasının en üstünde Windows ve macOS indirme bağlantıları var.
+- **Kurulum:** DMG'yi açıp PDEfe'yi Uygulamalar klasörüne sürükleyin. PDEfe Apple geliştirici imzası taşımadığı için macOS ilk açılışta
+  uyarı verir: Sistem Ayarları › Gizlilik ve Güvenlik › **Yine de Aç** (bir kez).
+- **Kısayollar Mac düzeninde:** Ctrl yerine ⌘ (⌘O, ⌘S, ⌘W, ⌘F, ⌘Z…). Mac'e özgü olanlar: yinele ⇧⌘Z, sekme geçişi ⇧⌘[ / ⇧⌘] ve
+  ⌥⌘← / ⌥⌘→, belge başı / sonu ⌘↑ / ⌘↓, sayfaya git ⌥⌘G, sonraki / önceki eşleşme ⌘G / ⇧⌘G, sol panel ⌃⌘S, okuma modu ⇧⌘H,
+  tam ekran ⌃⌘F, çıkış ⌘Q. İpuçlarında ve Kısayollar penceresinde Mac kısayolları yazar.
+- **Mac menüsü:** ekranın üstünde PDEfe (Hakkında, Güncellemeleri denetle, Ayarlar ⌘,, Gizle, Çık), Dosya, Düzen, Görünüm, Araçlar,
+  Pencere ve Yardım. Menü çubuğunu gösterip gizleyen düğme Mac'te yok.
+- **Finder'dan açma:** PDF "Birlikte aç" ile, Dock simgesine bırakılarak ya da (PDEfe varsayılan yapıldıysa) çift tıklanarak açılır.
+  Varsayılan yapmak için: PDF'e sağ tık › Bilgi Al › Birlikte aç › PDEfe › Tümünü Değiştir.
+- **Dokunmatik yüzeyde iki parmakla kıstırarak yakınlaştırma.**
+- **PDF'i kopyala** dosyayı panoya koyar: Finder'da, Mail'de ⌘V ile yapıştırılır. Dosya menüsünde **Finder'da göster**.
+- **Yazı notları** Mac'te Arial ya da Times New Roman'la yazılır (Segoe UI ve Calibri Mac'te yok; Windows'ta bu yazı tipleriyle yazılmış
+  bir not Mac'te düzenlenince Arial'le kaydedilir). Türkçe harfler doğru gömülür.
+- **Kaydetme** dosyanın izinlerini, Finder etiketlerini ve "internetten indirildi" işaretini korur.
+- **Görsellerdeki yazı** Mac'te Apple'ın yerleşik yazı tanıyıcısıyla okunur: macOS 26 ve sonrasında Türkçe doğru okunur. macOS 15 ve
+  öncesinde Apple'ın tanıyıcısı Türkçe bilmiyor: ş, ğ, ı, İ harfleri s, g, i, I gelebilir (ç, ö, ü, rakamlar ve tarihler doğru).
+  Windows'taki tanıma değişmedi.
+- **Güncelleme:** PDEfe Mac'te de yeni sürümü haber verir; **İndir** yeni DMG'yi tarayıcıda indirir, PDEfe'yi yeniden Uygulamalar'a
+  sürüklersiniz (imzasız Mac uygulaması kendini güncelleyemez).
+
+### Windows
+- Değişiklik yok.
+
 ## 0.1.27 — 2026-10-02
 
 ### Döndürme

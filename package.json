@@ -1,8 +1,8 @@
 {
   "name": "pdefe",
   "productName": "PDEfe",
-  "version": "0.1.27",
-  "description": "PDEfe — Windows 11 için PDF görüntüleyici ve düzenleyici",
+  "version": "0.2.0",
+  "description": "PDEfe — Windows ve macOS için PDF görüntüleyici ve düzenleyici",
   "author": "Geliştirici: x.com/CgrShn",
   "homepage": "https://github.com/SCgrS/PDEfe",
   "license": "AGPL-3.0",

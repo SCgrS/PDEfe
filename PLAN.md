@@ -1,6 +1,6 @@
 # PDEfe — Plan ve Mimari
 
-Windows 11 için sekmeli PDF görüntüleyici ve düzenleyici. Electron (arayüz, PDF.js ile çizim) + PyMuPDF tabanlı
+Windows 11 ve macOS (0.2.0) için sekmeli PDF görüntüleyici ve düzenleyici. Electron (arayüz, PDF.js ile çizim) + PyMuPDF tabanlı
 `pdefe-core` yardımcı süreci (dosyaya dokunan her iş). Arayüz, menüler, mesajlar Türkçe. Geliştirici: x.com/CgrShn.
 
 ## Test seti ve tespitler
@@ -1373,3 +1373,69 @@ varsayılan olarak sadece geçerli sayfayı döndürsün. ayarlardaki seçeneği
     115/115 (görünmeyen masaüstü, gerçek Ctrl+R), senaryo19 112/112, ortu_tiklama 156/156, kisayol_araclar 92/92, senaryo14 56/56, senaryo13
     65/65, senaryo26 60/60.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 34.
+
+### Revizyon 0.2.0 (2026-10-02, kullanıcı isteği: macOS)
+Ayrıntı: CHANGELOG.md. Kullanıcı: "pdefe uygulamamı macos'e uygun hale getirmek istiyorum. yine linki en başta olsun oradan indirebilsinler."
+Plan onaylandı; Apple geliştirici hesabı (yıllık 99 $) şimdilik yok (kullanıcı kararı). Bu bilgisayarda Mac yok: Mac'te derleme ve sınama
+GitHub Actions'ın Mac makinelerinde (macos-15 Apple işlemcili, macos-15-intel, macos-26), kullanıcı onayıyla `macos` dalından elle
+çalıştırmayla yapıldı.
+- [x] **Tek indirme bağlantısı, evrensel DMG** (`PDEfe-Mac.dmg`; README'nin ve sürüm gövdesinin en üstünde Windows bağlantısının altında).
+  Apple işlemcili ve Intel Mac'te aynı dosya: kullanıcının işlemcisini bilmesi gerekmesin. Bedeli boyut: DMG ~289 MB, kurulu uygulama
+  ~660 MB (Electron iki mimari + iki çekirdek). Seçilmeyen: iki ayrı DMG (~150 MB; iki bağlantı, "hangisi benim" sorusu).
+  - Python çekirdeği tek dosyada birleştirilemez (PyMuPDF / Pillow tekerlekleri mimariye özgü, universal2 yok): iki mimarinin PyInstaller
+    çıktısı ayrı Mac'lerde derlenip `pdefe-core-arm64` / `pdefe-core-x64` olarak ikisi de pakete girer; `cekirdek.js` `process.arch`'a
+    göre seçer (Rosetta'yla çalışan uygulama x64 çekirdeği). İki ara pakette aynı dosyalar olduğundan @electron/universal onları lipo'lamaz:
+    `x64ArchFiles` kuralı (`{**,**/.*/**}`: minimatch'te `**` Pillow'un `.dylibs` klasörüne girmiyordu, ilk derleme bu yüzden düştü).
+  - macOS en düşük 12 (Electron 44).
+- [x] **İmza**: yerinde (ad-hoc, `identity: "-"`), `hardenedRuntime: false` (yerinde imzada kitaplık doğrulaması çekirdeğin kitaplıklarını
+  reddeder), noter onayı yok. Apple işlemcili Mac imzasız kodu hiç çalıştırmaz; yerinde imzalı uygulama ilk açılışta bir kez Sistem
+  Ayarları › Gizlilik ve Güvenlik › "Yine de Aç" ister (macOS 15'ten beri sağ tık › Aç yolu yok). CI'da `codesign --verify --deep --strict`
+  geçiyor, `spctl` "rejected" (beklenen).
+- [x] **Güncelleme**: Squirrel.Mac yeni paketin imzasını eskisininkiyle karşılaştırdığından imzasız uygulama kendini güncelleyemez.
+  `macGuncelleme.js` electron-updater'ın yerine geçer (aynı olay arayüzü): GitHub'ın `releases.atom` akışından en son sürüm; şeritte
+  "İndir" `releases/download/vX/PDEfe-Mac.dmg`'yi tarayıcıda açar, şerit "Uygulamalar'a sürükleyin" der (`guncelleme.js` `tarayiciIndir`).
+  electron-updater macOS'ta hiç yüklenmez (`autoUpdater` erişimi MacUpdater'ı kurar). Apple hesabı alınırsa: kimlik + noter onayı + zip
+  hedefi + electron-updater'a dönüş.
+- [x] **Mac menüsü** (`menu.js` `macSablonu`; Windows şablonu birebir aynı kaldı, karşılaştırmayla doğrulandı): uygulama menüsü (Hakkında,
+  Güncellemeleri denetle, Ayarlar ⌘,, Hizmetler, Gizle, Çık ⌘Q), Pencere ve Yardım rolleri. Chromium Mac'te ⌘C/⌘V/⌘X/⌘Z/⌘A'yı sayfaya değil
+  menüye bırakır (editing_behavior'da Mac için yok): Kes / Kopyala / Yapıştır rol, Geri al / Yinele / Tümünü seç kaydedilmiş kısayollu komut;
+  sayfa tuşu işlerse (preventDefault) menü çalışmaz, işlemezse (girdi kutusu) menü komutu gelir ve renderer kutunun kendi işini yapar
+  (`uygulama.js macGirdiKomutu`: execCommand undo / redo / selectAll; yazı notu düzenleyicisi kendi geçmişini tutar).
+- [x] **Kısayollar** (`renderer/platform.js`): `birincil(e)` (Windows Ctrl, Mac ⌘ ve Ctrl'siz: Mac'te Ctrl+tık sağ tıktır), `tus()` Windows
+  yazımını Mac'e çevirir (ipuçları bir MutationObserver'la, Kısayollar penceresi, bildirimler). Mac'te başka tuşa oturanlar: ⇧⌘Z yinele, ⇧⌘[ /
+  ⇧⌘] (fiziksel tuş, `e.code`: Türkçe klavyede [ ] başka yerde) ve ⌥⌘← / → sekme, ⌘↑ / ⌘↓ belge başı / sonu, ⌥⌘G sayfaya git, ⌘G / ⇧⌘G
+  eşleşme, ⌃⌘S sol panel, ⇧⌘H okuma modu (⌘H uygulamayı gizler), ⌃⌘F tam ekran, ⌥⌘I geliştirici araçları. ⌃Tab seçici aynı (Ctrl).
+  Dokunmatik yüzeyde kıstırma Ctrl'li küçük tekerlek adımı gelir: adım 0,01 katsayıyla, olay başına en çok e^±0,5.
+- [x] **Finder**: `open-file` (uygulama kapalıyken de; hazır olmadan gelenler ilk pencereye), `activate`, Dock'tan / oturum kapanışında
+  çıkış `before-quit` → Çıkış gibi pencereler sırayla (Electron'un kendi çıkışı ilk kapatma sorusunda durur). Son pencere kapanınca
+  uygulama Mac'te de kapanır (belge uygulaması; Dock'ta boş kalmasın, çekirdeğin yaşam döngüsü değişmesin). PDF ilişkisi uzantıyla
+  (`fileAssociations` ext pdf, Editor, Alternate): PDF'in sistem tür kimliğinde marka adı geçtiği için LSItemContentTypes kullanılmadı.
+  Varsayılan uygulamayı uygulama okuyup değiştiremez (Electron API'si yok): Ayarlar yalnızca Bilgi Al yolunu anlatır.
+- [x] **Yazı tipleri**: standart 14 font yerine `/System/Library/Fonts/Supplemental`'daki Times New Roman / Arial / Courier New (ana süreç
+  `standartYaziTipleri` yolu verir, `guvenlik.js` okumaya izin verdiği klasörler). Yazı notu: Mac'te Arial ve Times New Roman; Segoe UI ve
+  Calibri yok, çekirdek o ailelerde Arial gömer, arayüz de Arial'le gösterir (`yaziTipiCss`). Arial ve Times'ın Mac kopyalarında hhea ile
+  usWin ölçüleri aynı: satır yerleşimi Windows'takiyle uyuşur. ClearType yerine Mac'in çizimi ("macOS çizimi" seçeneği; "Dengeli"nin kalın
+  yazı ölçümü gri yumuşatmada da çalışır).
+- [x] **Kaydetme** (`notlar._ozellikleri_aktar`): Windows'taki ReplaceFileW'nin Mac karşılığı: hedefin izinleri (copymode) ve genişletilmiş
+  öznitelikleri / erişim listesi (libSystem `copyfile` COPYFILE_XATTR | COPYFILE_ACL; değişme zamanı aktarılmaz) yeni dosyaya, sonra
+  os.replace. Araçların ve yapısal kaydın yerine koyması da aynı yoldan.
+- [x] **PDF'i kopyala**: NSPasteboard `writeObjects:@[NSURL]` (JavaScript for Automation; izin istemez). İlk deneme AppleScript'in "set the
+  clipboard to POSIX file"ıydı: panoya Finder'ın yapıştıramadığı veri koyuyordu (CI'da panodaki tür okunarak bulundu).
+- [x] **Yazı tanıma** (`yazi_tanima._AppleTaniyici`): Vision `VNRecognizeTextRequest` (doğru kip), sözcük kutuları `boundingBoxForRange`,
+  eğim satırın üst kenarından; Windows tanıyıcısının sonuç biçimine çevrilir. Ölçüm (taranmış örnek, 200 dpi; Windows'ta 35/35):
+  macOS 15'te tanıyıcının dilleri arasında Türkçe yok; sözcüklerin %57–60'ı, Türkçe harflilerin %21–26'sı doğru (ş ğ ı İ → s g i I; ç ö ü
+  çoğunlukla doğru). Türkçe yokken dil düzeltmesi kapalı (İngilizce sözlük sözcükleri bozmasın). macOS 26'da Türkçe var: paketli
+  uygulamada Türkçe harfli 8 sözcüğün 8'i doğru ("İCRA" → "iCRA" dışında). Türkçesiz macOS için Türkçe harf düzeltme (sözlükle ş ğ ı
+  İ'yi geri koyma) düşünüldü, kullanıcıya soruldu.
+- [x] **Sistem adları**: Ayarlar (tema, yazı çizimi, varsayılan uygulama), yazdırma ("macOS yazdırma penceresi"), Birleştir'in boş liste metni
+  ("Finder'dan"), yazıcı yok hatası. Menü çubuğu düğmesi Mac'te gizli.
+- [x] **CI** (`yayim.yml`): taslak (ubuntu) → Windows ve iki mimarinin çekirdeği paralel → evrensel DMG + Apple işlemcili Mac'te kurulum
+  sınaması → yayım (ubuntu; iki paket de hazırsa; biri düşerse sürüm taslak kalır, README bağlantıları önceki tam sürümü verir). Elle
+  çalıştırmada `platform` (hepsi / windows / mac), `cekirdek_calismasi` (önceki çalışmanın çekirdekleri; `actions: read` izni) ve Intel +
+  macOS 26 sınaması. Ölçülen süre: Mac çekirdekleri ~1,5'er dk, DMG + sınama ~2,5 dk. Gizli depoda Mac dakikası 10 kat sayılır ve iş başına yukarı yuvarlanır: bir sürüm ~70 Mac + ~10 Windows faturalı dakika (ücretsiz hesapta aylık 2.000).
+- [x] **Testler**: `test/mac_cekirdek_testi.py` (kaynaktan; Windows'ta da koşar: 9/9, Mac'te 12/12), `test/mac_duman.mjs` (paket: imza,
+  evrensel, iki çekirdek, PDF türü, open -a ile açılış, Finder'dan PDF, tek örnek, çizim, sistem yazı tipleri, çekirdek, tanıma, pano,
+  System Events'le gerçek klavye ⌘F / ⌘A / ⌘Z / Esc / ⌘T / ⌘W / ⌘A / ⌘0, quit olayıyla çıkış). Windows regresyonu (bu bilgisayar):
+  kisayol_dosya 164/164, kisayol_gorunum 115/115, kisayol_araclar 92/92, senaryo25 28/28, senaryo27 hepsi, senaryo23 53/53, ortu_tiklama 156/156, senaryo19 111/111; paketli
+  Windows sürümü `gercek_fare.ps1 -Paketli` 9/9 (çekirdek `win.extraResources`'tan pakette).
+- [ ] Gerçek bir Mac'te elle deneme: docs/DOGRULAMA.md 35.

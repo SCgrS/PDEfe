@@ -1,8 +1,10 @@
 # PDEfe
 
-### [⬇ PDEfe-Setup.exe indir](https://github.com/SCgrS/PDEfe/releases/latest/download/PDEfe-Setup.exe)
+### [⬇ Windows için indir (PDEfe-Setup.exe)](https://github.com/SCgrS/PDEfe/releases/latest/download/PDEfe-Setup.exe)
+### [⬇ macOS için indir (PDEfe-Mac.dmg)](https://github.com/SCgrS/PDEfe/releases/latest/download/PDEfe-Mac.dmg)
 
-Windows 11 (ve Windows 10) için Türkçe, sekmeli **PDF görüntüleyici ve düzenleyici**. Hukukçuların ve
+Windows 11 (ve Windows 10) ile macOS (12 ve sonrası; Apple işlemcili ve Intel Mac'ler) için Türkçe, sekmeli **PDF görüntüleyici ve
+düzenleyici**. Hukukçuların ve
 her gün onlarca PDF açan herkesin işini görmek için yazıldı: belgeler sekmelerde açılır, metin kopyalandığında
 satır sonları ve tireler temizlenir, arama Türkçe karakterleri doğru tanır, eklenen notlar başka PDF okuyucularında
 ve UYAP'ta aynen görünür.
@@ -36,7 +38,8 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   (Windows'un bazı kalın yazı tiplerini küçük boyutta fazla koyu çizmesi ölçülüp düzeltilir); döndürülmüş sayfada harfler
   bozulmaz. Gömülü olmayan Times, Arial ve Courier yazıları Windows'un Times New Roman, Arial ve Courier New yazı tipleriyle
   çizilir (Ayarlar › Görünüm › Yazı çizimi: "Dengeli" ya da "Windows ClearType"). Görseller, karekodlar ve tablo
-  çizgileri keskin çizilir; taranmış belgeler çok yakınlaştırıldığında da net ve hızlıdır.
+  çizgileri keskin çizilir; taranmış belgeler çok yakınlaştırıldığında da net ve hızlıdır. macOS'ta yazılar macOS'un kendi çizimiyle,
+  gömülü olmayan standart yazılar Mac'teki Times New Roman, Arial ve Courier New'le çizilir.
 - **Temiz kopyalama.** Seçilen metin panoya yapıştırıldığında paragrafın satırları birleştirilir (her satırı ayrı
   yazılmış mevzuat PDF'lerinde de), satır sonlarındaki tireler birleştirilir, girintiler korunur, paragraflar tek satır
   sonuyla ayrılır (UYAP Doküman Editörü'nde ve Word'de paragraf aralarına fazladan boş paragraf girmez; girintili
@@ -45,7 +48,8 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   aralığı boş satır sayılmaz.
 - **Taranmış belgede seçim.** Taranmış sayfalardaki ve sayfaya resim olarak konmuş yazılar (kaşe, antet) PDF'in kendi metni gibi
   fareyle seçilir ve temiz kopyalanır. Yazıyı Windows'un yerleşik yazı tanıyıcısı (Türkçe dil paketi) okur: çevrim dışı, belge
-  bir yere gönderilmez, dosyaya bir şey yazılmaz. Sayfada zaten seçilebilen metin varsa (başka programla tanınmış tarama) o metin
+  bir yere gönderilmez, dosyaya bir şey yazılmaz. macOS'ta Apple'ın yerleşik tanıyıcısı okur: macOS 26 ve sonrasında Türkçe; macOS 15 ve
+  öncesinde Apple'ın tanıyıcısı Türkçe bilmediğinden ş, ğ, ı, İ harfleri s, g, i, I gelebilir. Sayfada zaten seçilebilen metin varsa (başka programla tanınmış tarama) o metin
   kullanılır; tanınan yazı `Ctrl+F` aramasına girmez.
 - **Türkçe arama.** `Ctrl+F` ile bul: İ/ı ve I/ı ayrımı doğru, tam sözcük seçeneği, yer imlerinde ve
   yorumlarda arama, tüm açık sekmelerde arama. Açık belgeler listesindeki **Tüm belgelerde ara** kutusu her
@@ -57,7 +61,7 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   ("Metinle ilgili yorum" türünde notlu vurgu; üzerine gelince tıklamadan görünür), not ve serbest
   yazı ekleme; taşıma, düzenleme, silme. Nota yanıt yazılmaz; başka programlarda yazılmış yanıtlar salt okunur gösterilir.
   Yazılarda seçili sözcükler kalın, italik ya da altı çizili yapılır; yazılar Türkçe karakterli Windows fontuyla
-  (Segoe UI, Arial, Times, Calibri) belgeye gömülür, başka PDF okuyucularında ve UYAP'ta aynı görünür. Notlar `Ctrl+S` ile
+  (Segoe UI, Arial, Times, Calibri; macOS'ta Arial ve Times) belgeye gömülür, başka PDF okuyucularında ve UYAP'ta aynı görünür. Notlar `Ctrl+S` ile
   ya da istenirse kendiliğinden kaydedilir (Ayarlar › Kaydetme › Otomatik kaydet, varsayılan kapalı). Not ekleme artımlı
   kaydedilir, belgenin geri kalanına dokunulmaz; kayıtlı bir not silinir ya da değişirse belge baştan yazılır, notun eski hâli
   dosyada kalmaz (belgede PDF'e gömülü e-imza varsa imzayı korumak için sorulur).
@@ -116,6 +120,8 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 
 ## Kurulum
 
+### Windows
+
 1. Yukarıdaki bağlantıdan `PDEfe-Setup.exe` dosyasını indirin (Windows 10/11, 64 bit; yönetici hakkı gerekmez).
 2. Dosyaya **çift tıklayın**.
 3. Dosya imzalı olmadığı için Windows SmartScreen uyarı gösterebilir: **Daha fazla bilgi** yazısına, sonra
@@ -126,7 +132,24 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
    "Birlikte aç" menüsünde PDEfe ile görünür.
 5. Son sayfada **PDEfe'yi başlat** ve **PDEfe'yi varsayılan PDF görüntüleyici yap** seçenekleri vardır.
 
-### Varsayılan PDF görüntüleyici yapma
+### macOS
+
+1. Yukarıdaki bağlantıdan `PDEfe-Mac.dmg` dosyasını indirin (macOS 12 Monterey ve sonrası; Apple işlemcili (M1 ve sonrası) ve Intel
+   Mac'lerde aynı dosya).
+2. Dosyayı açın; açılan pencerede **PDEfe**'yi **Uygulamalar** klasörüne sürükleyin.
+3. PDEfe'yi Uygulamalar'dan açın. PDEfe Apple geliştirici imzası taşımadığı için macOS ilk açılışta uyarı verir ("Apple, PDEfe'nin
+   kötü amaçlı yazılım içermediğini doğrulayamadı"): **Bitti**'ye basın, **Sistem Ayarları › Gizlilik ve Güvenlik**'i açın, sayfanın
+   altındaki "PDEfe engellendi" satırında **Yine de Aç**'a basın ve parolanızla onaylayın. Bu bir kez yapılır; yeni sürüm kurulunca
+   yeniden istenebilir.
+4. PDEfe bir klasördeki belgeye ilk kez eriştiğinde macOS Masaüstü, Belgeler ya da İndirilenler için izin sorabilir: **İzin Ver**.
+5. Varsayılan PDF uygulaması yapmak için: Finder'da bir PDF'e sağ tıklayın › **Bilgi Al** › **Birlikte aç** listesinden **PDEfe** ›
+   **Tümünü Değiştir**.
+
+Güncelleme: PDEfe yeni sürümü haber verir (aşağıdaki şerit). macOS'ta **İndir** yeni `PDEfe-Mac.dmg`'yi tarayıcıda indirir; dosyayı
+açıp PDEfe'yi yine Uygulamalar'a sürükleyin (**Değiştir**). Kaldırma: Uygulamalar'dan PDEfe'yi Çöp Sepeti'ne sürükleyin; ayarlar
+`~/Library/Application Support/PDEfe` klasöründe kalır.
+
+### Varsayılan PDF görüntüleyici yapma (Windows)
 
 Windows 11'de varsayılan uygulamayı yalnızca kullanıcı seçebilir; kurulum bunu kendiliğinden değiştiremez.
 İki yol:
@@ -137,7 +160,7 @@ Windows 11'de varsayılan uygulamayı yalnızca kullanıcı seçebilir; kurulum 
   **Ayarlar › Açılış ve düzen › Varsayılan PDF görüntüleyici yap** (PDEfe zaten varsayılansa orada yeşil tik ve "Zaten varsayılan" görünür). Bir `.pdf` dosyasına sağ tıklayıp **Birlikte aç › Başka bir
   uygulama seç › PDEfe › Her zaman** de olur.
 
-### Güncelleme
+### Güncelleme (Windows)
 
 PDEfe haftada bir (son denetimden bu yana bir hafta geçtiyse açılışta; günlerce açık kalıyorsa gün içinde) GitHub'dan
 yeni sürüm olup olmadığına bakar. Yeni sürüm varsa pencerenin üstünde **PDEfe X hazır (kullandığınız: Y).** şeridi çıkar.
@@ -148,48 +171,50 @@ kurulur ve PDEfe kendiliğinden yeni sürümle açılır. Kaydedilmemiş belge v
 
 Sürüm notları: [CHANGELOG.md](CHANGELOG.md) ve [Sürümler sayfası](https://github.com/SCgrS/PDEfe/releases).
 
-### Kaldırma
+### Kaldırma (Windows)
 
 **Ayarlar › Uygulamalar › Yüklü uygulamalar › PDEfe › Kaldır**. Ayarlarınız (`%APPDATA%\PDEfe\ayarlar.json`)
 silinmez; isterseniz o klasörü elle silebilirsiniz. Kurulum sistem klasörlerine ve HKLM'ye yazmaz.
 
 ## Klavye kısayolları
 
-| Kısayol | İşlev |
-| --- | --- |
-| `Ctrl+O` | PDF aç |
-| `Ctrl+T` | Yeni sekme (açılış sayfası) |
-| `Ctrl+S` / `Ctrl+Shift+S` | Kaydet / Farklı kaydet |
-| `Ctrl+W` | Sekmeyi kapat |
-| `Ctrl+P` | Yazdır |
-| `Ctrl+F` | Bul |
-| `F3` / `Shift+F3` | Sonraki / önceki eşleşme |
-| `Ctrl+G` | Sayfaya git |
-| `Ctrl+,` | Ayarlar |
-| `Ctrl+Z` / `Ctrl+Y` | Geri al / yinele |
-| `Ctrl+PageUp` / `Ctrl+PageDown`, `Ctrl+←` / `Ctrl+→` | Önceki / sonraki sekme |
-| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Son kullanılan sekmeler arasında geç (basılı tutunca seçici açılır; seçicide `←` `→`) |
-| `Ctrl+1` – `Ctrl+9` | Sekme seç (`9`: son sekme) |
-| `Ctrl+fare tekerleği`, `Ctrl++` / `Ctrl+−` | Yakınlaştır / uzaklaştır (Türkçe klavyede `+` Shift+4 ya da sayısal tuş takımındaki +) |
-| `Ctrl+0` | Gerçek boyut |
-| `Ctrl+R` / `Ctrl+Shift+R` | Belgeyi saat yönünde / tersine döndür (geçerli sayfa ya da tüm PDF; geri alınabilir) |
-| `F4` | Sol panel |
-| `Alt` | Gizli menü çubuğunu geçici göster |
-| `Ctrl+H` | Okuma modu |
-| `F11` | Tam ekran |
-| `←` `→`, `PageUp` `PageDown` | Önceki / sonraki sayfa |
-| `Home` / `End` | İlk / son sayfa |
-| `Ctrl+Home` / `Ctrl+End` | Belge başı / sonu |
-| `Ctrl+B` / `Ctrl+I` / `Ctrl+U` | Yazı kutusunda seçili metni kalın / italik / altı çizili yap |
-| `Delete` | Seçili notu sil |
-| `Esc` | Kapat / vazgeç; yazı kutusunda düzenlemeyi bitirir (yazılan korunur) |
-| `F1` | Kısayollar (araç pencerelerindeki fare ve tuş kullanımı dahil) |
+| Windows | macOS | İşlev |
+| --- | --- | --- |
+| `Ctrl+O` | `⌘O` | PDF aç |
+| `Ctrl+T` | `⌘T` | Yeni sekme (açılış sayfası) |
+| `Ctrl+S` / `Ctrl+Shift+S` | `⌘S` / `⇧⌘S` | Kaydet / Farklı kaydet |
+| `Ctrl+W` | `⌘W` | Sekmeyi kapat |
+| `Ctrl+P` | `⌘P` | Yazdır |
+| `Ctrl+F` | `⌘F` | Bul |
+| `F3` / `Shift+F3` | `⌘G` / `⇧⌘G` | Sonraki / önceki eşleşme |
+| `Ctrl+G` | `⌥⌘G` | Sayfaya git |
+| `Ctrl+,` | `⌘,` | Ayarlar |
+| `Ctrl+Z` / `Ctrl+Y` | `⌘Z` / `⇧⌘Z` | Geri al / yinele |
+| `Ctrl+PageUp` / `Ctrl+PageDown`, `Ctrl+←` / `Ctrl+→` | `⇧⌘[` / `⇧⌘]`, `⌥⌘←` / `⌥⌘→` | Önceki / sonraki sekme |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | `⌃Tab` / `⌃⇧Tab` | Son kullanılan sekmeler arasında geç (basılı tutunca seçici açılır; seçicide `←` `→`) |
+| `Ctrl+1` – `Ctrl+9` | `⌘1` – `⌘9` | Sekme seç (`9`: son sekme) |
+| `Ctrl+fare tekerleği`, `Ctrl++` / `Ctrl+−` | `⌘+fare tekerleği`, dokunmatik yüzeyde kıstırma, `⌘+` / `⌘−` | Yakınlaştır / uzaklaştır (Türkçe klavyede `+` Shift+4 ya da sayısal tuş takımındaki +) |
+| `Ctrl+0` | `⌘0` | Gerçek boyut |
+| `Ctrl+R` / `Ctrl+Shift+R` | `⌘R` / `⇧⌘R` | Geçerli sayfayı saat yönünde / tersine döndür (geri alınabilir) |
+| `F4` | `⌃⌘S` | Sol panel |
+| `Alt` | — | Gizli menü çubuğunu geçici göster (macOS'ta menü ekranın üstünde hep görünür) |
+| `Ctrl+H` | `⇧⌘H` | Okuma modu |
+| `F11` | `⌃⌘F` | Tam ekran |
+| `←` `→`, `PageUp` `PageDown` | `←` `→`, `fn+↑` `fn+↓` | Önceki / sonraki sayfa |
+| `Home` / `End` | `fn+←` / `fn+→` | İlk / son sayfa |
+| `Ctrl+Home` / `Ctrl+End` | `⌘↑` / `⌘↓` | Belge başı / sonu |
+| `Ctrl+B` / `Ctrl+I` / `Ctrl+U` | `⌘B` / `⌘I` / `⌘U` | Yazı kutusunda seçili metni kalın / italik / altı çizili yap |
+| `Delete` | `⌫` | Seçili notu sil |
+| `Esc` | `Esc` | Kapat / vazgeç; yazı kutusunda düzenlemeyi bitirir (yazılan korunur) |
+| `F1` | `F1` (`fn+F1`) | Kısayollar (araç pencerelerindeki fare ve tuş kullanımı dahil) |
+| `Alt+F4` | `⌘Q` | Çıkış (Windows'ta etkin pencereyi kapatır; macOS'ta bütün pencereleri sırayla kapatıp çıkar) |
 
 ## Verileriniz
 
 Bütün işlemler yereldir; belgeleriniz hiçbir yere gönderilmez, telemetri yoktur. Ağa yalnızca sürüm
-denetiminde (`github.com`) çıkılır. Görsellerdeki yazıyı Windows'un kendi yazı tanıyıcısı bilgisayarda okur; tanınan yazı yalnızca
-PDEfe açıkken bellekte tutulur, dosyaya ya da başka bir yere yazılmaz. Ayarlar `%APPDATA%\PDEfe\ayarlar.json` dosyasındadır. Son açılan belgelerin listesi
+denetiminde (`github.com`) çıkılır. Görsellerdeki yazıyı Windows'un (macOS'ta Apple'ın) kendi yazı tanıyıcısı bilgisayarda okur; tanınan
+yazı yalnızca PDEfe açıkken bellekte tutulur, dosyaya ya da başka bir yere yazılmaz. Ayarlar `%APPDATA%\PDEfe\ayarlar.json` dosyasındadır
+(macOS'ta `~/Library/Application Support/PDEfe/ayarlar.json`). Son açılan belgelerin listesi
 ve belgelerde kalınan sayfalar da (dosya yollarıyla) bu dosyada tutulur; ikisi de Ayarlar › Açılış ve düzen'den kapatılır,
 kapatılınca kayıtları silinir (kalınan sayfalar Hatırlanan sayfaları temizle ile de silinir). Yapıştırılan ekran görüntüleri
 ve yazdırılan sayfaların görüntüleri `%TEMP%\PDEfe` altında geçici tutulur; PDEfe açılırken ve kapanırken silinir. Notlara
@@ -198,7 +223,8 @@ birlikte PDF'e yazılır.
 
 ## Geliştirme
 
-Gereksinimler: Node.js 22, Python 3.12 (proje içi `.venv`), Git. Windows'ta geliştirilir ve paketlenir.
+Gereksinimler: Node.js 22, Python 3.12 (proje içi `.venv`), Git. Windows'ta geliştirilir ve paketlenir; macOS paketi GitHub Actions'ta
+derlenir (çekirdek Apple işlemcili ve Intel Mac'lerde ayrı derlenip tek evrensel DMG'ye konur, `.github/workflows/yayim.yml`).
 
 ```bash
 git clone https://github.com/SCgrS/PDEfe.git
@@ -212,6 +238,9 @@ uv pip install --python .venv/Scripts/python.exe pymupdf fonttools pillow pyinst
 uv pip install --python .venv/Scripts/python.exe winrt-runtime winrt-Windows.Foundation winrt-Windows.Foundation.Collections \
   winrt-Windows.Globalization winrt-Windows.Graphics.Imaging winrt-Windows.Media.Ocr winrt-Windows.Storage.Streams
 
+# macOS'ta: .venv/bin/python; yazı tanıma için winrt yerine Apple'ın tanıyıcısının bağları:
+# uv pip install --python .venv/bin/python pymupdf fonttools pillow pyinstaller pyobjc-framework-Vision pyobjc-framework-Quartz
+
 npm start                 # geliştirme: Electron + core/pdefe_core.py (.venv ile)
 npm run cekirdek:derle    # PyInstaller → core/dist/pdefe-core/ (tek klasör)
 npm run dist              # electron-builder → release/PDEfe-Setup.exe
@@ -222,7 +251,7 @@ npm run dist              # electron-builder → release/PDEfe-Setup.exe
   (JSON-RPC benzeri) konuşur. Uzun işler `progress` mesajları gönderir.
 - Paketleme yapılandırması `electron-builder.yml`, kurulum sihirbazı eklemeleri `build/installer.nsh`.
 - Sürüm çıkarma: `package.json` sürümünü yükselt, `CHANGELOG.md`'ye bölüm ekle, `git tag vX.Y.Z` ve push;
-  `.github/workflows/yayim.yml` paketi derleyip GitHub Releases'e yükler (`PDEfe-Setup.exe`, `.blockmap`, `latest.yml`).
+  `.github/workflows/yayim.yml` paketleri derleyip GitHub Releases'e yükler (`PDEfe-Setup.exe`, `.blockmap`, `latest.yml`, `PDEfe-Mac.dmg`).
 - Mimari ve kararlar: [PLAN.md](PLAN.md).
 
 ## Üçüncü taraf projeler
@@ -234,6 +263,7 @@ PDEfe şu açık kaynak projelerin üzerine kuruludur (sürümler ve lisanslar i
 - **PyMuPDF** ve **MuPDF** (AGPL-3.0, Artifex) — belge işleme çekirdeği: notlar, kaydetme, küçük resimler.
 - **Python** (PSF), **fontTools** (MIT), **Pillow** (MIT-CMU), **PyInstaller** (GPL-2.0, önyükleyici istisnası).
 - **pywinrt** (MIT) — Windows'un yerleşik yazı tanıyıcısına (Windows.Media.Ocr) Python'dan erişim.
+- **PyObjC** (MIT) — macOS'ta Apple'ın yerleşik yazı tanıyıcısına (Vision) Python'dan erişim.
 - **electron-builder / electron-updater** (MIT), **electron-store** (MIT), **pdf-lib** (MIT), **NSIS** (zlib).
 
 <!-- TEŞEKKÜR: kullanıcı onayı bekliyor — aşağıdaki bölüm proje sahibi onaylayınca yayımlanacak.
