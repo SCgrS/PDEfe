@@ -208,10 +208,10 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   // ---------------------------------------------------------------- 15) araç penceresi açıkken pencere kapatma: önce aracın sorusu
   await evalJs(`window.__pdefe.komutCalistir('arac.gorselBirlestir', [${J(path.join(PDF, 'c.pdf'))}])`);
   await kosul(`document.querySelectorAll('.birlestir-oge').length > 0`); await bekle(800);
-  const birlestirAd = await evalJs(`document.querySelector('.birlestir-pencere .arac-cikti-ad').value`);
+  const birlestirAd = await evalJs(`document.querySelector('.birlestir-pencere .arac-kayit-yeni .arac-cikti-ad').value`);
   await kapatIstegi(); await soruBekle();
   k = await kutu();
-  sonuc('Araç açıkken pencere kapatma: önce aracın sorusu ("birlesik.pdf"), sekmelere dokunulmadı', k?.ileti === '"birlesik.pdf" belgesinde kaydedilmemiş değişiklikler var.' && birlestirAd === 'birlesik' && J(await sekmeler()) === J(['b.pdf*', 'd.pdf*']), { k, birlestirAd });
+  sonuc('Araç açıkken pencere kapatma: önce aracın sorusu ("Birleşik.pdf"; 0.1.25), sekmelere dokunulmadı', /^Birleşik( \(\d+\))?$/.test(birlestirAd) && k?.ileti === `"${birlestirAd}.pdf" belgesinde kaydedilmemiş değişiklikler var.` && J(await sekmeler()) === J(['b.pdf*', 'd.pdf*']), { k, birlestirAd });
   await kutuDugmesi('Vazgeç');
   sonuc('Aracın sorusunda Vazgeç: araç ve sekmeler açık, uygulama kapanmadı', await evalJs(`!!document.querySelector('.birlestir-pencere')`) && J(await sekmeler()) === J(['b.pdf*', 'd.pdf*']));
   await kapatIstegi(); await soruBekle(); await kutuDugmesi('Kaydetme');

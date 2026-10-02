@@ -295,9 +295,8 @@ html[data-tema="koyu"] .birlestir-oge .bilgi .hata { color: #ff8c8c; }
 .birlestir-oge .dugmeler .ayrac { height: 16px; margin: 0 3px; }
 .birlestir-oge .dugmeler button.ikon { width: 28px; height: 28px; }
 .birlestir-oge .dugmeler button.ikon svg { width: 16px; height: 16px; }
-.birlestir-ayarlar { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 16px; row-gap: 12px; align-items: center; }
-.birlestir-ayarlar > .arac-bolum-baslik { min-width: 48px; align-self: start; line-height: 34px; }
-.birlestir-kalite-sutun { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+/* Kalite ve Kaydet bölümleri öteki araçlardaki düzende: başlık üstte (0.1.25; önceden başlıklar solda, denetimler sağda bir ızgaraydı) */
+.birlestir-kalite-bolumu, .birlestir-kayit { flex-shrink: 0; }
 .birlestir-kalite-secim { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-self: stretch; }
 .birlestir-kalite-secim > button { padding: 7px 10px; font-variant-numeric: tabular-nums; }
 .birlestir-kalite-secim .boyut { font-weight: 400; color: var(--metin-soluk); }

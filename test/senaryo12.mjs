@@ -34,9 +34,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   await ekranGoruntusu('test/png/s12-02-gorsel-birlestir.png');
   console.log('birleştir:', await evalJs(dugmeTikla('/^Birleştir$/')));
   await bekle(8000);
-  console.log('  sekmeler:', await evalJs(`window.__pdefe.sekmeler.sekmeler.map(s => s.ad)`), 'çıktılar:', fs.readdirSync(K).filter(f => /birlesik/i.test(f)));
+  console.log('  sekmeler:', await evalJs(`window.__pdefe.sekmeler.sekmeler.map(s => s.ad)`), 'çıktılar:', fs.readdirSync(K).filter(f => /birleşik/i.test(f)));
   const py = 'C:/Projeler/PDEfe/.venv/Scripts/python.exe';
-  const cikti = fs.readdirSync(K).find(f => /birlesik/i.test(f));
+  const cikti = fs.readdirSync(K).find(f => /birleşik/i.test(f));
   if (cikti) console.log(execFileSync(py, ['-c', `import pymupdf,sys; sys.stdout.reconfigure(encoding='utf-8'); d=pymupdf.open(r'${K}/${cikti}'); print('birlesik: sayfa', d.page_count, 'ilk sayfa görsel:', len(d[0].get_images()), 'boyut', d[0].rect)`], { encoding: 'utf8' }));
   await evalJs(`document.querySelectorAll('.arac-pencere').forEach(e => e.remove())`);
   console.log('bitti');

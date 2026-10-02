@@ -8,10 +8,13 @@
 //     bir çağrı; çekirdek sonucu ve çözülmüş görseli önbellekte tutar). Aynı ozet'li öğeler (aynı dosya birden çok kez ya da
 //     kopyası) çıktıda bir kez saklanır: toplamlarda ilki boyut, sonrakiler yalnızca tekrar kadar sayılır.
 //   birlestir {ogeler:[{yol, tur, kalite, sayfaBoyutu, kenar, dondurme}], hedef, genelKalite} (ilerlemeli) → {boyut, sayfa}
+// Araç bir PDF açıkken açılırsa o PDF listenin başında gelir (0.1.25, kullanıcı isteği). Kaydetme öteki araçlardaki standart seçimdir
+// (ortak.js kayitSecimi; varsayılan ad "Birleşik"): "Üzerine yaz" yalnızca araç bir PDF açıkken açıldıysa ve o PDF listeden
+// çıkarılmadıysa seçilebilir; birleşik sonuç o PDF'in yerine yazılır (çekirdek geçici dosya + os.replace; yedek yok, geri alınamaz).
 import {
-  pencereAc, pencereAcikMi, IslemIlerleme, ciktiSecici, boyutMetni, sayiMetni, kacis, hataMetni, dosyaAdi, uzanti,
-  bosAdBul, yolAyni, suruklemeSiralama, suruklemeKalintisi, geciktir, oge, segmentliSecim, varsayilanCiktiKlasoru,
-  varOlanaYazmaSor, kilitliHataMi, ciktiyiAc,
+  pencereAc, pencereAcikMi, IslemIlerleme, kayitSecimi, boyutMetni, sayiMetni, kacis, hataMetni, dosyaAdi, uzanti,
+  yolAyni, suruklemeSiralama, suruklemeKalintisi, geciktir, oge, segmentliSecim, kilitliHataMi, ciktiyiAc, acikBelge,
+  degisiklikleriSor,
 } from './ortak.js';
 import { kaydetmedenCikisSorusu } from '../mesajKutusu.js';
 
@@ -48,11 +51,13 @@ const SVG = {
 export class BirlestirmePenceresi {
   /**
    * @param {object} baglam
-   * @param {{baslik?:string, anahtar?:string, ilkDosyalar?:string[]}} s
+   * @param {{baslik?:string, anahtar?:string, ilkDosyalar?:string[], belge?:object|null}} s  belge: araç açılırken açık olan belge
+   *   ("Üzerine yaz"ın hedefi; listede yoksa üzerine yazılamaz)
    */
-  constructor(baglam, { baslik, anahtar = 'gorselBirlestir', ilkDosyalar = [] } = {}) {
+  constructor(baglam, { baslik, anahtar = 'gorselBirlestir', ilkDosyalar = [], belge = null } = {}) {
     this.baglam = baglam;
     this.anahtar = anahtar;
+    this.belge = belge?.yol ? belge : null;
     this.ogeler = [];
     this.kimlikSayac = 0;
     this.secim = new Set();           // seçili öğelerin kimlikleri (tıklama, Ctrl/Shift, alan seçimi)
@@ -79,15 +84,12 @@ export class BirlestirmePenceresi {
         <span class="birlestir-ozet"></span>
       </div>
       <div class="birlestir-liste" tabindex="0" aria-label="Birleştirilecek dosyalar"></div>
-      <div class="birlestir-ayarlar">
-        <span class="arac-bolum-baslik">Kalite</span>
-        <div class="birlestir-kalite-sutun">
-          <div class="birlestir-kalite"></div>
-          <div class="birlestir-kalite-not" hidden><span class="degisti">Değiştirildi (öğelerde özel ayarlar var)</span><span class="toplam"></span></div>
-        </div>
-        <span class="arac-bolum-baslik">Kaydet</span>
-        <div class="birlestir-cikti"></div>
+      <div class="arac-bolum birlestir-kalite-bolumu">
+        <div class="arac-bolum-baslik">Kalite</div>
+        <div class="birlestir-kalite"></div>
+        <div class="birlestir-kalite-not" hidden><span class="degisti">Değiştirildi (öğelerde özel ayarlar var)</span><span class="toplam"></span></div>
       </div>
+      <div class="arac-bolum birlestir-kayit"><div class="arac-bolum-baslik">Kaydet</div></div>
     </div>`);
     this.govde = govde;
     this.liste = govde.querySelector('.birlestir-liste');
@@ -102,9 +104,13 @@ export class BirlestirmePenceresi {
     });
     govde.querySelector('.birlestir-kalite').replaceWith(this.kaliteSecim.el);
 
-    this.cikti = ciktiSecici({ pdefe: this.baglam.pdefe, klasor: '', ad: 'birlesik.pdf', diyalogBasligi: 'Birleştirilmiş PDF' });
-    govde.querySelector('.birlestir-cikti').replaceWith(this.cikti.el);
-    this.ciktiHazir = this._varsayilanCikti();
+    // Kaydetme: öteki araçlardaki standart seçim. "Üzerine yaz"ın hedefi araç açılırken açık olan PDF'tir; listede değilse seçilemez
+    this.kayit = kayitSecimi({
+      baglam: this.baglam, belge: this.belge, ad: 'Birleşik', diyalogBasligi: 'Birleştirilmiş PDF',
+      belgesizNeden: 'Üzerine yaz, araç bir PDF açıkken açıldığında o PDF için seçilebilir.',
+    });
+    this.cikti = this.kayit.cikti;
+    govde.querySelector('.birlestir-kayit').append(this.kayit.el);
 
     govde.querySelector('.birlestir-ekle').addEventListener('click', () => this.dosyaSec());
     govde.querySelector('.birlestir-yapistir').addEventListener('click', () => this.panodanEkle());
@@ -165,12 +171,15 @@ export class BirlestirmePenceresi {
     this.ciz();
   }
 
-  async _varsayilanCikti() {
-    const klasor = await varsayilanCiktiKlasoru(this.baglam);
-    let ad = 'birlesik.pdf';
-    try { ad = await bosAdBul(this.baglam.pdefe, klasor, ad); } catch { /* varsayılan */ }
-    if (!this.cikti.elleDegisti()) this.cikti.ayarla(klasor, ad);
+  /** "Üzerine yaz" yalnızca araç açılırken açık olan PDF listedeyken (kullanıcı onu çıkarmadıysa) seçilebilir. */
+  _uzerineDurumu() {
+    if (!this.belge) return;
+    const listede = this.ogeler.some((o) => yolAyni(o.yol, this.belge.yol));
+    this.kayit.uzerineKullanilabilir(listede, `"${this.belge.ad}" listeden çıkarıldığı için yalnızca yeni belge olarak kaydedilebilir.`);
   }
+
+  /** Kaydedilecek dosyanın adı (kapatma sorusu için): üzerine yazmada açık belgenin adı. */
+  _kayitAdi() { return this.kayit.uzerineMi() ? dosyaAdi(this.belge.yol) : this.cikti.ad() || 'Birleşik.pdf'; }
 
   async _kapatmaIzni(sonuc) {
     if (this.ilerleme.calisiyor) {
@@ -182,7 +191,7 @@ export class BirlestirmePenceresi {
     // Liste doluyken birleştirilmiş belge henüz kaydedilmemiştir: uygulamanın bütün çıkış sorularıyla aynı soru, ad kaydedilecek dosyanın
     // adı. Kaydet, Birleştir düğmesiyle aynı işi yapar; başarılıysa pencereyi kendisi kapatır ('tamam'), olmazsa pencere açık kalır
     if (sonuc !== 'tamam' && this.ogeler.length > 0) {
-      const { secim } = await this.baglam.mesajKutusu(kaydetmedenCikisSorusu(this.cikti.ad() || 'birlesik.pdf'));
+      const { secim } = await this.baglam.mesajKutusu(kaydetmedenCikisSorusu(this._kayitAdi()));
       if (secim === 1) return true;
       if (secim === 0 && !this.pencere.kapali) await this.birlestir();
       return false;
@@ -543,6 +552,7 @@ export class BirlestirmePenceresi {
       this.liste.append(oge(`<div class="bos-mesaj"><b>Dosyaları buraya sürükleyin</b><span>ya da "Dosya ekle" düğmesini kullanın. Gezgin'den kopyalanan dosyaları ve ekran görüntüsünü Ctrl+V veya Yapıştır ile yapıştırabilirsiniz.</span><span class="soluk">PDF, JPG, PNG, BMP, GIF, TIFF, WEBP, HEIC</span></div>`));
     }
     this.ogeler.forEach((o, i) => { const el = this._ogeOlustur(o); this.liste.append(el); this._ogeCiz(o, i); });
+    this._uzerineDurumu();
     this._ozetYaz();
     this._tahminleriYaz();
     this.tahminGeciktir();
@@ -786,33 +796,47 @@ export class BirlestirmePenceresi {
   }
 
   // ---------------------------------------------------------------- birleştir
+  /** Birleştirir; kilitli / salt okunur dosya sorusunda "Yeniden dene", "Yeni belge olarak kaydet" ya da "Başka adla kaydet" seçilirse
+   *  yeniden çalışır (öteki araçlardaki gibi; ortak.js kayitSecimi.hataSor). */
   async birlestir() {
+    if (this.ilerleme.calisiyor || this._suruyor) return;
+    this._suruyor = true;
+    try {
+      while (!this.pencere.kapali && await this._birlestirBir());
+    } finally { this._suruyor = false; }
+  }
+
+  /** Bir birleştirme denemesi; yeniden denenecekse true döner. */
+  async _birlestirBir() {
     const { baglam } = this;
-    if (this.ilerleme.calisiyor) return;
     // Birleştir düğmesi dosyalar okunurken devre dışıdır; kapatma sorusundaki Kaydet de buraya gelir: okuma bitmeden birleştirilmez
-    if (this.ogeler.some((o) => o.yukleniyor)) { baglam.bildir('Dosyalar hâlâ okunuyor; bitince yeniden deneyin.'); return; }
+    if (this.ogeler.some((o) => o.yukleniyor)) { baglam.bildir('Dosyalar hâlâ okunuyor; bitince yeniden deneyin.'); return false; }
     const ogeler = this.ogeler.filter((o) => !o.hata);
     if (this.ogeler.some((o) => o.hata)) {
       const { secim } = await baglam.mesajKutusu({ mesaj: 'Bazı dosyalar okunamadı.', ayrinti: 'Okunamayan dosyalar atlanarak devam edilsin mi?', dugmeler: ['Atla ve devam et', 'Vazgeç'], varsayilan: 0, iptal: 1 });
-      if (secim !== 0) return;
+      if (secim !== 0 || this.pencere.kapali) return false;
     }
-    if (ogeler.length < 1) { baglam.bildir('En az bir dosya ekleyin.'); return; }
-    await this.ciktiHazir;
-    if (!this.cikti.ad()) { baglam.bildir('Dosya adı girin.'); this.cikti.odakla(); return; }
-    if (!this.cikti.klasor()) {
-      const k = await baglam.pdefe.cagir('dosya:klasorSec', { baslik: 'Birleştirilmiş PDF\'in kaydedileceği klasör' });
-      if (!k) return;
-      this.cikti.ayarla(k, null, { elle: true });
+    if (ogeler.length < 1) { baglam.bildir('En az bir dosya ekleyin.'); return false; }
+    // Listedeki bir PDF PDEfe'de kaydedilmemiş değişiklikle açıksa (çoğunlukla aracın açıldığı belge) önce sorulur: birleştirme dosyadaki
+    // kayıtlı sürümle yapılır
+    for (const b of this._kirliAcikBelgeler(ogeler)) {
+      if ((await degisiklikleriSor(baglam, b, 'Birleştirme')) === 'vazgec' || this.pencere.kapali) return false;
     }
-    const hedef = this.cikti.yol();
-    if (ogeler.some((o) => yolAyni(o.yol, hedef))) {
-      baglam.bildir('Kaydedilecek dosya, listedeki dosyalardan biriyle aynı olamaz. Başka bir ad seçin.', 4000); return;
+    // Ad, klasör, var olan dosya sorusu; yazılacak dosya (üzerine yazmada açık PDF) başka programda kilitliyse ya da salt okunursa şimdi
+    const denetim = await this.kayit.denetle();
+    if (this.pencere.kapali || denetim === 'vazgec') return false;
+    if (denetim instanceof Error) return this.kayit.hataSor(denetim);
+    const uzerine = this.kayit.uzerineMi();
+    const hedef = this.kayit.hedef();
+    // Yeni belge listedeki bir dosyanın yerine yazılmaz; açık PDF'in yerine yazmak "Üzerine yaz"dır
+    if (!uzerine && ogeler.some((o) => yolAyni(o.yol, hedef))) {
+      baglam.bildir('Kaydedilecek dosya, listedeki dosyalardan biriyle aynı olamaz. Başka bir ad seçin.', 4000); return false;
     }
-    if (!(await varOlanaYazmaSor(baglam, this.cikti, hedef))) return;
-    if (this.pencere.kapali) return;
     this.pencere.hataGoster('');
     this.pencere.el.classList.add('mesgul');
     this.pencere.dugmeAyarla('birlestir', { devre: true });
+    let kilit = null;
+    const soruAyrintisi = 'Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.';
     try {
       // Çekirdek sonucu: {boyut, sayfa}
       const sonuc = await this.ilerleme.calistir(baglam, 'birlestir', {
@@ -821,29 +845,47 @@ export class BirlestirmePenceresi {
       const boyut = sonuc?.boyut ?? (await baglam.pdefe.cagir('dosya:bilgi', hedef).catch(() => null))?.boyut;
       this.ilerleme.gizle();
       await this.pencere.kapat('tamam');
-      baglam.bildir(`Birleştirildi: ${dosyaAdi(hedef)}${boyut != null ? ' · ' + boyutMetni(boyut) : ''}${sonuc?.sayfa ? ' · ' + sonuc.sayfa + ' sayfa' : ''}`, 4000);
-      // Var olan (bir sekmede açık) dosyanın üzerine yazıldıysa o sekme yeni haliyle yeniden açılır, yoksa yeni sekmede açılır
-      await ciktiyiAc(baglam, hedef, { cikti: this.cikti, soruAyrintisi: 'Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.' });
+      baglam.bildir(`${uzerine ? 'Birleştirildi ve üzerine yazıldı' : 'Birleştirildi'}: ${dosyaAdi(hedef)}${boyut != null ? ' · ' + boyutMetni(boyut) : ''}${sonuc?.sayfa ? ' · ' + sonuc.sayfa + ' sayfa' : ''}`, 4000);
+      // Açık bir sekmenin dosyasına yazıldıysa (üzerine yazma ya da var olan dosya) o sekme yeni haliyle yeniden açılır, yoksa yeni sekmede açılır
+      await ciktiyiAc(baglam, hedef, { cikti: this.cikti, soruAyrintisi });
     } catch (e) {
       this.ilerleme.gizle();
-      if (e.iptal) {
-        baglam.bildir('Birleştirme iptal edildi.');
+      if (e.iptal && e.sonuc && uzerine) {
+        // İptal dosya yazıldıktan sonra ulaştı (çekirdek yazmaya başlayınca iptale bakmaz): açık PDF'in yerine yazılmıştır
+        await this.pencere.kapat('tamam');
+        baglam.bildir(`İptal edilemeden tamamlandı: "${dosyaAdi(hedef)}" üzerine yazıldı.`, 6000);
+        await ciktiyiAc(baglam, hedef, { cikti: this.cikti, soruAyrintisi });
+      } else if (e.iptal) {
         if (e.sonuc) { try { await baglam.pdefe.cagir('dosya:sil', hedef); } catch { /* yok say */ } }
-      } else if (kilitliHataMi(e)) {
-        this.pencere.hataGoster(/salt okunur/i.test(e?.message || '')
-          ? `"${dosyaAdi(hedef)}" kaydedilemedi: aynı adlı var olan dosya salt okunur. Başka bir ad seçin.`
-          : `"${dosyaAdi(hedef)}" kaydedilemedi: dosya başka bir programda açık olabilir. Programı kapatıp yeniden deneyin ya da başka bir ad seçin.`);
-      } else this.pencere.hataGoster('Birleştirme başarısız: ' + hataMetni(e));
+        baglam.bildir('Birleştirme iptal edildi.' + (uzerine ? ' Özgün dosya değiştirilmedi.' : ''));
+      } else if (kilitliHataMi(e)) kilit = e;
+      else this.pencere.hataGoster('Birleştirme başarısız: ' + hataMetni(e) + (uzerine ? '\nÖzgün dosya değiştirilmedi.' : ''));
     } finally {
       if (!this.pencere.kapali) {
         this.pencere.el.classList.remove('mesgul');
         this._ozetYaz();
       }
     }
+    // Soru yazılamayan dosyayı adıyla söyler (üzerine yazmada açık PDF, yeni belgede var olan hedef); seçime göre kaydetme seçimini değiştirir
+    return kilit && !this.pencere.kapali ? this.kayit.hataSor(kilit) : false;
+  }
+
+  /** Listedeki, PDEfe'de kaydedilmemiş değişiklikle açık PDF'ler (her biri bir kez). */
+  _kirliAcikBelgeler(ogeler) {
+    const sonuc = [];
+    for (const o of ogeler) {
+      if (o.tur !== 'pdf') continue;
+      const b = acikBelge(this.baglam, o.yol);
+      if (b?.degisti && !sonuc.includes(b)) sonuc.push(b);
+    }
+    return sonuc;
   }
 }
 
+/** Bir PDF açıkken açılan araçta o PDF listenin başında gelir (0.1.25, kullanıcı isteği) ve "Üzerine yaz"ın hedefidir. */
 export function gorselBirlestirAc(baglam, ilkDosyalar = []) {
   if (pencereAcikMi('gorselBirlestir')) return null;
-  return new BirlestirmePenceresi(baglam, { ilkDosyalar });
+  const belge = baglam.aktif?.() || null;
+  const ilk = ilkDosyalar.length ? ilkDosyalar : belge?.yol ? [belge.yol] : [];
+  return new BirlestirmePenceresi(baglam, { ilkDosyalar: ilk, belge: belge?.yol && ilk.some((y) => yolAyni(y, belge.yol)) ? belge : null });
 }

@@ -507,6 +507,23 @@ def test_birlestir(c, g):
         kaydet_sonuc("birlestir/heic", "yok.heic", "pillow_heif" in str(e) or "açılamadı" in str(e), str(e).splitlines()[0])
 
 
+def test_birlestir_uzerine(c):
+    """Görüntü / PDF birleştir "Üzerine yaz" (0.1.25): hedef listedeki PDF'in (açık belgenin) kendisidir; sonuç geçici dosya + os.replace
+    ile yerine yazılır, sayfalar ve notlar korunur, geçici dosya kalmaz; yazdıktan sonra ilerleme bildirilmez (geç gelen iptal yazılmış
+    dosyayı yazılmamış göstermesin)."""
+    klasor = os.path.join(CIKTI, "birlestir_uzerine")
+    shutil.rmtree(klasor, ignore_errors=True)
+    os.makedirs(klasor)
+    a = zengin_pdf_uret(os.path.join(klasor, "a.pdf"))
+    b = zengin_pdf_uret(os.path.join(klasor, "b.pdf"))
+    r, il = c.cagir("birlestir", {"ogeler": [{"yol": a, "tur": "pdf"}, {"yol": b, "tur": "pdf"}], "hedef": a})
+    sayfalar, _ = sayfa_ozeti(a)
+    ok = (r["sayfa"] == 16 and len(sayfalar) == 16 and [s["metin"] for s in sayfalar[7:9]] == ["Sayfa 8", "Sayfa 1"]
+          and all(s["not"] == NOT_TURLERI for s in sayfalar) and sorted(os.listdir(klasor)) == ["a.pdf", "b.pdf"]
+          and (not il or il[-1]["yuzde"] < 100))
+    kaydet_sonuc("birlestir/üzerine", "a + b → a", ok, "sayfa=%d klasör=%s son ilerleme=%s" % (len(sayfalar), sorted(os.listdir(klasor)), il[-1] if il else None))
+
+
 def test_dondur_kaydet(c):
     kopya = os.path.join(CIKTI, "dondur_yerinde_yatay.pdf")
     shutil.copy(YATAY, kopya)
@@ -898,6 +915,7 @@ def main():
         ("birlestir/orijinal boyut", lambda: test_gorsel_orijinal_kenarsiz(c)),
         ("birlestir/kalite büyütmez", lambda: test_kalite_buyutmez(c)),
         ("birlestir/yön", lambda: test_gorsel_yonu(c)),
+        ("birlestir/üzerine", lambda: test_birlestir_uzerine(c)),
         ("dondur_kaydet", lambda: test_dondur_kaydet(c)),
     ]
     for ad, f in testler:

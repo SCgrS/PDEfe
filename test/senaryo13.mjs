@@ -525,8 +525,8 @@ print(json.dumps(y))`);
     await ss('07-gorsel-orijinal-koyu');
     await tema('acik'); await ss('07-gorsel-orijinal-acik'); await tema('koyu');
     if (!(await evalJs(`document.querySelector('.birlestir-pencere .arac-klasor-cip').dataset.klasor === ${J(CIKTI)}`))) throw new Error('çıktı klasörü test klasörü değil');
+    const hedef = await yeniBelgeHedefi();   // 0.1.25: "Birleşik"
     await evalJs(`document.querySelector('.arac-dugmeler [data-id="birlestir"]').click()`);
-    const hedef = path.join(CIKTI, 'birlesik.pdf');
     await kosul(`!document.querySelector('.birlestir-pencere')`, 20000);
     await bekle(800);
     const kontrol = py(`d = pymupdf.open(${J(hedef)})

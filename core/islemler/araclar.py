@@ -1061,7 +1061,8 @@ def y_birlestir(p):
         boyut = _kaydet(yeni, hedef, **KAYIT_SECENEKLERI)
     finally:
         _kapat(yeni)
-    ilerleme(100, "Tamamlandı")
+    # Yazdıktan sonra ilerleme bildirilmez (iptale bakılmaz): geç gelen iptal yazılmış dosyayı yazılmamış göstermesin (0.1.25: hedef açık
+    # PDF'in kendisi olabilir, "Üzerine yaz"); renderer sonucu iptal edilmiş sayarsa yeni belgeyi kendisi siler
     return {"boyut": boyut, "sayfa": sayfa, "yol": hedef}
 
 

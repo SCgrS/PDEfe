@@ -8,7 +8,8 @@
 // Görüntü / PDF birleştir'de Ctrl+V sistem panosuna dokunmadan sınanır: açık pencerenin panodanEkle işlevi örnek üzerinde geçici olarak
 // sarılıp çağrılar sayılır (asıl işlev çağrılmaz, pano okunmaz; örneğe modülün dinamik içe aktarımıyla, _secimiCiz bir kez sarılarak
 // ulaşılır). Girdi kutusundaki Ctrl+V'nin yapıştırma olayı engellenir (kutuya pano içeriği yazılmaz).
-// Kullanım: boş veri klasörlü ekran dışı test örneği (baslat.ps1) açıkken  $env:PDEFE_CDP_PORT=9413; node test/surucu.mjs betik test/kisayol_araclar.mjs
+// Kullanım: boş veri klasörlü ekran dışı test örneği (baslat.ps1 -Boyut "1280,1000") açıkken  $env:PDEFE_CDP_PORT=9413; node test/surucu.mjs betik test/kisayol_araclar.mjs
+// (0.1.25: Birleştir'de Kalite ve Kaydet bölümleri alt alta; 900 px yüksek pencerede dört satırlık listenin altında boş alan kalmıyor)
 // Belgeler PyMuPDF / PIL ile test/cikti/ka/<zaman>/pdf altında üretilir; hiçbir şey kaydedilmez (çıktı klasörü yine de test klasörü).
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -413,6 +414,12 @@ print(json.dumps({"ana": pdf("ana.pdf", 12, "Sayfa"), "ek": pdf("ek.pdf", 3, "Ek
   await kosul(`!!document.querySelector('.birlestir-pencere')`);
   await bekle(300);
   cerceveDenetle('Görüntü / PDF birleştir', await cerceve('birlestir-pencere'));
+  // 0.1.25: açık PDF (ana.pdf) listenin başında gelir; bu bölümün sınamaları dört dosyalık listeyle yapılır, ana.pdf çıkarılır
+  await kosul(`window.__ka.satirlar().length === 1 && !document.querySelector('.birlestir-oge.yukleniyor')`, 8000);
+  const acikIlk = (await bDurum()).sira;
+  sonuc('Açık PDF listenin başında (0.1.25)', ayni(acikIlk, ['ana.pdf']), acikIlk);
+  await evalJs(`document.querySelector('.birlestir-oge [data-komut="sil"]').click()`);
+  await kosul(`window.__ka.satirlar().length === 0`, 3000);
   await diyalogKaydi();
   const dosyalar = [Y.bir, Y.iki, Y.uc, Y.dort];
   await acYaniti(dosyalar);
@@ -531,9 +538,9 @@ print(json.dumps({"ana": pdf("ana.pdf", 12, "Sayfa"), "ek": pdf("ek.pdf", 3, "Ek
   await tus('v', ['ctrl']); await bekle(150);
   const cv2 = await evalJs(`window.__kaPano.slice()`);
   sonuc('Ctrl+V (odak pencerenin bir düğmesinde): panodanEkle çağrılır', cv2.length === 2, cv2, B_CV);
-  await evalJs(`(() => { const g = document.querySelector('.birlestir-pencere .arac-cikti-ad'); window.__kaEskiAd = g.value; window.__kaYapistir = 0; window.__kaYapistirEngel = (e) => { window.__kaYapistir++; e.preventDefault(); }; g.addEventListener('paste', window.__kaYapistirEngel); g.focus(); return true; })()`);
+  await evalJs(`(() => { const g = document.querySelector('.birlestir-pencere .arac-kayit-yeni .arac-cikti-ad'); window.__kaEskiAd = g.value; window.__kaYapistir = 0; window.__kaYapistirEngel = (e) => { window.__kaYapistir++; e.preventDefault(); }; g.addEventListener('paste', window.__kaYapistirEngel); g.focus(); return true; })()`);
   await tus('v', ['ctrl']); await bekle(150);
-  const cv3 = await evalJs(`(() => { const g = document.querySelector('.birlestir-pencere .arac-cikti-ad'); g.removeEventListener('paste', window.__kaYapistirEngel); const r = { pano: window.__kaPano.length, yapistir: window.__kaYapistir, ad: g.value, eski: window.__kaEskiAd }; return r; })()`);
+  const cv3 = await evalJs(`(() => { const g = document.querySelector('.birlestir-pencere .arac-kayit-yeni .arac-cikti-ad'); g.removeEventListener('paste', window.__kaYapistirEngel); const r = { pano: window.__kaPano.length, yapistir: window.__kaYapistir, ad: g.value, eski: window.__kaEskiAd }; return r; })()`);
   sonuc('Ctrl+V (odak dosya adı kutusunda): panodanEkle çağrılmaz (kutunun olağan yapıştırması)', cv3.pano === 2 && cv3.ad === cv3.eski, cv3, B_CV);
   if (cv3.yapistir !== 1) console.log(`     bilgi: kutuda yapıştırma olayı ${cv3.yapistir} kez geldi (CDP tuşunda düzenleme komutu)`);
   const panoSonra = await bDurum();
