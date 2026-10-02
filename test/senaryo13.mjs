@@ -86,7 +86,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
   // Hataları topla (sayfa yeniden yüklenmeden); çıktı klasörü Masaüstü yerine test klasörü
   await evalJs(`(() => { if (!window.__hatalar) { window.__hatalar = []; window.addEventListener('error', (e) => window.__hatalar.push('error: ' + e.message)); window.addEventListener('unhandledrejection', (e) => window.__hatalar.push('reject: ' + (e.reason?.message || e.reason))); const ce = console.error; console.error = (...a) => { window.__hatalar.push('console.error: ' + a.map(String).join(' ')); ce.apply(console, a); }; } return true; })()`);
   // Otomatik kaydetme kapalı: kaydedilmemiş değişiklik soruları denetlenirken sekme kendiliğinden kaydedilmesin
-  await evalJs(`(async () => { const a = { ciktiKlasoru: ${J(CIKTI)}, dondurmeKapsami: 'sayfa', otomatikKaydet: false };
+  await evalJs(`(async () => { const a = { ciktiKlasoru: ${J(CIKTI)}, otomatikKaydet: false };
     for (const [k, v] of Object.entries(a)) { await window.pdefe.cagir('ayar:koy', k, v); window.__pdefe.ayar()[k] = v; } return true; })()`);
   // Sorular ana süreçteki test kuyruğuyla yanıtlanıp kaydedilsin (uygulama içi mesaj kutusu açılmaz; bkz. mesajKutusu.js)
   await evalJs(`(() => { window.__pdefeYerelKutu = true; return true; })()`);

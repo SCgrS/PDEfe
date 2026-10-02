@@ -83,9 +83,9 @@ export function menuKur({ komut, cik, sonDosyalar, duzen }) {
         { label: 'İki sayfalı görünümde kapak sayfasını ayrı göster', type: 'checkbox', checked: !!dz.kapakAyri, click: k('gorunum.kapakAyri') },
         { type: 'separator' },
         // 0.1.13: Ctrl+Shift++ Türkçe Q klavyede basılamıyordu (+ zaten Shift+4); R her düzende aynı tuş. Araç penceresi / diyalog açıkken
-        // çalışmaz (uygulama.js menu:komut)
-        { label: 'Saat yönünde döndür', accelerator: 'Ctrl+R', click: k('gorunum.dondur', 90) },
-        { label: 'Saat yönünün tersine döndür', accelerator: 'Ctrl+Shift+R', click: k('gorunum.dondur', -90) },
+        // çalışmaz (uygulama.js menu:komut). 0.1.27: yalnızca geçerli sayfa döner, sorulmaz (bütün sayfalar ya da aralık: Araçlar › Döndür)
+        { label: 'Sayfayı saat yönünde döndür', accelerator: 'Ctrl+R', click: k('gorunum.dondur', 90) },
+        { label: 'Sayfayı saat yönünün tersine döndür', accelerator: 'Ctrl+Shift+R', click: k('gorunum.dondur', -90) },
         { type: 'separator' },
         { label: 'Sol panel', accelerator: 'F4', click: k('gorunum.solPanel') },
         { label: 'Koyu / açık tema', click: k('gorunum.tema') },

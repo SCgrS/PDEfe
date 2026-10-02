@@ -89,16 +89,15 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   hatırlanır. Gizliyken `Alt` menü çubuğunu geçici gösterir; menünün kısayolları her iki durumda da çalışır.
 - **Koyu mod.** Sistem temasını izler; istenirse sayfa da tam siyaha koyulaştırılır (görseller korunur; yazı kutuları
   sayfayla birlikte koyulaşır, dosyadaki renkleri değişmez).
-- **Döndür.** Döndür düğmesi ve `Ctrl+R` / `Ctrl+Shift+R` (saat yönünde / tersine) belgeyi döndürür: geçerli sayfa ya da tüm PDF
-  sorulur ("Seçeneğimi hatırla" ile bir daha sorulmaz; Ayarlar › Açılış ve düzen'den değiştirilir). Geri alınabilir;
-  kaydedince dosyaya yazılır.
+- **Döndür.** Döndür düğmesi ve `Ctrl+R` / `Ctrl+Shift+R` (saat yönünde / tersine) geçerli sayfayı sormadan döndürür; bütün
+  sayfalar ya da bir aralık için Araçlar › Döndür. Geri alınabilir; kaydedince dosyaya yazılır.
 - Sayfa düzeni (tek sayfa / iki sayfa, kaydırma aç/kapa, kapak ayrı; bütün sekmelere uygulanır), %6400'e kadar
   yakınlaştırma (genişliğe sığdır, kaydırmalı düzende sayfaların çoğunun genişliğine göre: birkaç geniş sayfa belgeyi
   küçültmez, yana taşar), okuma modu, tam ekran, sol panelde küçük resimler / İçindekiler / Yorumlar, belge içi ve dış
   bağlantılar (dış bağlantı yalnızca web ve e-posta adresiyse, adresi gösterilip sorulduktan sonra açılır), form alanlarının görünümü, parola korumalı belgeler, sürükle-bırak.
 - **Ayarlar** (`Ctrl+,` ya da araç çubuğundaki dişli): Görünüm (tema, yazı çizimi), Açılış ve düzen (varsayılan PDF
   görüntüleyici: PDEfe zaten varsayılansa "Zaten varsayılan"; kaldığım sayfa ve Hatırlanan sayfaları temizle, son açılanlar ve Listeyi temizle; yakınlaştırma,
-  tek / iki sayfa, kaydırma, kapak, Döndür düğmesi), Not ve vurgu, Kaydetme (otomatik kaydet, araçların çıktı klasörü),
+  tek / iki sayfa, kaydırma, kapak), Not ve vurgu, Kaydetme (otomatik kaydet, araçların çıktı klasörü),
   Güncelleme. Kopyalama her zaman temiz metinle yapılır.
 - **Açılış ekranı.** Belge açık değilken ve yeni sekmede: büyük **PDF aç** düğmesi (PDF'ler pencereye sürüklenerek de açılır),
   bütün araçlar ve altlarında son açılan en çok 10 belge (tek tıkla açılır; × ya da sağ tıkla listeden kaldırılır, klasörde

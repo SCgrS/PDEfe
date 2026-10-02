@@ -16,7 +16,6 @@ export const VARSAYILANLAR = {
   sonZoom: 100,
   varsayilanDuzen: 'surekli',     // 'tek' | 'surekli' | 'iki' | 'ikiSurekli'
   kapakAyri: false,
-  dondurmeKapsami: 'sor',         // 'sor' | 'sayfa' | 'tum'; araç çubuğundaki Döndür düğmesinin kapsamı
   // Not ve vurgu
   yazarAdi: os.userInfo().username || 'Kullanıcı',
   vurguRengi: '#ffd100',          // PDF okuyucularında yaygın varsayılan vurgu rengi: /C [1 .819611 0]
@@ -43,8 +42,9 @@ export const VARSAYILANLAR = {
 };
 
 /** Kaldırılmış ayarlar: eski sürümlerin yapılandırma dosyalarından silinir (0.1.8: 10 açılışta bir denetimin sayacı → haftalık denetim;
- *  0.1.12: Kopyalama ayarı ve 0.1.4'ün otomatik kaydetme taşımasının bayrağı). */
-const KALDIRILAN_ANAHTARLAR = ['sekmeleriHatirla', 'acikSekmeler', 'sekmeDegisimindeSor', 'sonGuncellemeDenetimi', 'acilisSayaci', 'sonDenetimAcilisi', 'sonDenetimSurumu', 'temizMetin', 'otomatikKaydetTasindi'];
+ *  0.1.12: Kopyalama ayarı ve 0.1.4'ün otomatik kaydetme taşımasının bayrağı; 0.1.27: Döndür düğmesinin kapsamı, düğme artık yalnızca
+ *  geçerli sayfayı döndürür). */
+const KALDIRILAN_ANAHTARLAR = ['sekmeleriHatirla', 'acikSekmeler', 'sekmeDegisimindeSor', 'sonGuncellemeDenetimi', 'acilisSayaci', 'sonDenetimAcilisi', 'sonDenetimSurumu', 'temizMetin', 'otomatikKaydetTasindi', 'dondurmeKapsami'];
 
 export const ayarlar = new Store({ name: 'ayarlar', defaults: VARSAYILANLAR, clearInvalidConfig: true });
 for (const anahtar of KALDIRILAN_ANAHTARLAR) { try { if (ayarlar.has(anahtar)) ayarlar.delete(anahtar); } catch (e) { console.warn('Eski ayar silinemedi', anahtar, e); } }

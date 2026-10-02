@@ -80,8 +80,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, tus
   await tus('Escape');
   await hepsiniKapat();
   await evalJs(`(() => { window.__kgHatalar = []; addEventListener('error', (e) => window.__kgHatalar.push(String(e.message))); addEventListener('unhandledrejection', (e) => window.__kgHatalar.push(String(e.reason?.message || e.reason))); return true; })()`);
-  // Aynı veri klasörüyle yeniden çalıştırmada da aynı başlangıç: döndürme her seferinde sorulur, sol panel kapalı, düzen kaydırmalı
-  await evalJs(`(async () => { const a = window.__pdefe.ayar(); for (const [k, v] of [['dondurmeKapsami', 'sor'], ['solPanelAcik', false]]) { a[k] = v; await window.pdefe.cagir('ayar:koy', k, v); } if (window.__pdefe.panel.acik) window.__pdefe.panel.acKapa(false); return true; })()`);
+  // Aynı veri klasörüyle yeniden çalıştırmada da aynı başlangıç: sol panel kapalı, düzen kaydırmalı
+  await evalJs(`(async () => { const a = window.__pdefe.ayar(); for (const [k, v] of [['solPanelAcik', false]]) { a[k] = v; await window.pdefe.cagir('ayar:koy', k, v); } if (window.__pdefe.panel.acik) window.__pdefe.panel.acKapa(false); return true; })()`);
   await evalJs(`window.__pdefe.dosyaAc(${J(BELGE)}).then(() => new Promise((r) => setTimeout(() => r(true), 1500)))`);
   sonuc(`Deneme belgesi açıldı (${SAYFA} sayfa)`, (await evalJs(`${G}.sayfaSayisi`)) === SAYFA);
   if (!(await duzenYap('surekli'))) sonuc('Başlangıç düzeni kaydırmalı tek sayfa', false, await evalJs(`${G}.duzen`));
@@ -376,25 +376,21 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, tus
   await sigdir('genislik');
 
   // ---------------------------------------------------------------- Ctrl+R / Ctrl+Shift+R (menü)
+  // 0.1.27 (kullanıcı isteği): soru yok, yalnızca geçerli sayfa döner; Ayarlar'da "Döndür düğmesi" seçeneği yok (bütün sayfalar ya da
+  // bir aralık: Araçlar › Döndür)
   await git(3);
   await tusG('R', ['control'], 500);
-  const soru = await kutu();
-  sonuc('Ctrl+R (kapsam "Her seferinde sor", çok sayfalı belge): "Neyi döndürmek istiyorsunuz?" sorulur', soru?.ileti === 'Neyi döndürmek istiyorsunuz?' && J(soru.dugmeler) === J(['Geçerli sayfa', 'Tüm PDF', 'Vazgeç']), soru);
-  if (soru) await kutuDugmesi('Geçerli sayfa');
   await donBekle(3, 90);
   d = await durum();
-  sonuc('Soruda "Geçerli sayfa": yalnızca 3. sayfa saat yönünde 90°', J(d.don) === J(d.don.map((_, i) => (i === 2 ? 90 : 0))) && d.degisti, { don: d.don, degisti: d.degisti });
+  sonuc('Ctrl+R (çok sayfalı belge): soru yok, yalnızca 3. sayfa saat yönünde 90°', !(await kutu()) && J(d.don) === J(d.don.map((_, i) => (i === 2 ? 90 : 0))) && d.degisti, { don: d.don, degisti: d.degisti, kutu: await kutu() });
   await tusG('Z', ['control'], 600);
   sonuc('Ctrl+Z döndürmeyi geri alır', (await durum()).don.every((x) => x === 0), (await durum()).don);
-  sonuc('"Seçeneğimi hatırla" işaretlenmeden ayar değişmez', (await evalJs(`window.pdefe.cagir('ayar:al', 'dondurmeKapsami')`)) === 'sor');
 
-  // Ayarlar › Açılış ve düzen › Döndür düğmesi: Geçerli sayfa
+  // Ayarlar › Açılış ve düzen: döndürme seçeneği yok
   await evalJs(`window.__pdefe.komutCalistir('duzen.ayarlar', 'acilis')`);
   await kosul(`!!document.querySelector('.ayarlar-ortusu')`);
-  const secim = `[...document.querySelectorAll('.ayarlar-icerik .ayar-kart')].find((k) => k.querySelector('.ayar-baslik')?.textContent === 'Döndür düğmesi')?.querySelector('select')`;
-  const sonSecim = await evalJs(`(() => { const s = ${secim}; if (!s) return null; s.value = 'sayfa'; s.dispatchEvent(new Event('change', { bubbles: true })); return s.value; })()`);
-  await bekle(300);
-  sonuc('Ayarlar › Döndür düğmesi: "Geçerli sayfa" seçildi (ayar deposunda dondurmeKapsami = sayfa)', sonSecim === 'sayfa' && (await evalJs(`window.pdefe.cagir('ayar:al', 'dondurmeKapsami')`)) === 'sayfa', sonSecim);
+  const basliklar = await evalJs(`[...document.querySelectorAll('.ayarlar-icerik .ayar-kart .ayar-baslik')].map((e) => e.textContent)`);
+  sonuc('Ayarlar › Açılış ve düzen: "Döndür düğmesi" seçeneği yok', basliklar.includes('Kapak sayfasını ayrı göster') && !basliklar.some((t) => /döndür/i.test(t)), basliklar);
   await tus('Escape'); await bekle(300);
   sonuc('Ayarlar Esc ile kapanır', !(await evalJs(`!!document.querySelector('.ayarlar-ortusu')`)));
   await odakla();
@@ -404,7 +400,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, tus
   await tusG('R', ['control'], 200);
   await donBekle(4, 90);
   d = await durum();
-  sonuc('Ctrl+R (kapsam Geçerli sayfa): soru yok, yalnızca 4. sayfa saat yönünde 90° (bir kez)', !(await kutu()) && J(d.don) === J(d.don.map((_, i) => (i === 3 ? 90 : 0))), { don: d.don, kutu: await kutu() });
+  sonuc('Ctrl+R: soru yok, yalnızca 4. sayfa saat yönünde 90° (bir kez)', !(await kutu()) && J(d.don) === J(d.don.map((_, i) => (i === 3 ? 90 : 0))), { don: d.don, kutu: await kutu() });
   await tusG('R', ['control', 'shift'], 200);
   await donBekle(4, 0);
   a1 = await durum();
@@ -589,7 +585,6 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, tus
   // ---------------------------------------------------------------- son
   const hatalar = await evalJs(`JSON.stringify(window.__kgHatalar || [])`);
   sonuc('Konsolda yakalanmamış hata yok', hatalar === '[]', hatalar);
-  await evalJs(`(async () => { const a = window.__pdefe.ayar(); a.dondurmeKapsami = 'sor'; await window.pdefe.cagir('ayar:koy', 'dondurmeKapsami', 'sor'); return true; })()`);
   await hepsiniKapat();
   console.log(`\n${denetimSayisi} denetim, ${denetimSayisi - hataSayisi} geçti` + (hataSayisi ? `, ${hataSayisi} HATA` : ' — hepsi geçti'));
   process.exitCode = hataSayisi ? 1 : 0;

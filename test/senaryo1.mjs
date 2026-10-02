@@ -53,11 +53,10 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   console.log('iki sayfa:', await durum());
   await ekranGoruntusu('test/png/s1-05-iki-sayfa.png');
 
-  // Tek sayfa düzeni (kaydırma kapalı; 'tek' kaydırma durumunu koruduğundan önce kaydırma kapatılır), geçerli sayfayı döndür.
-  // "Neyi döndürmek istiyorsunuz?" sorusu otomatik "Geçerli sayfa" yanıtlanır (soru dondur() içinde eşzamanlı sorulur; yanıtlayıcı hemen kaldırılır).
+  // Tek sayfa düzeni (kaydırma kapalı; 'tek' kaydırma durumunu koruduğundan önce kaydırma kapatılır), geçerli sayfayı döndür
+  // (0.1.27'den beri sorulmaz: düğme ve Ctrl+R yalnızca geçerli sayfayı döndürür).
   const dondurme = await evalJs(`(() => { const p = window.__pdefe, b = p.aktif(); p.komutCalistir('gorunum.kaydirma'); p.komutCalistir('gorunum.duzen', 'tek');
-    const konum = b.yigin.konum; window.__pdefeOtoYanit = { secim: 0, onay: false, son: null };
-    try { p.komutCalistir('gorunum.dondur', 90); return { konum, soru: window.__pdefeOtoYanit.son?.mesaj || null }; } finally { delete window.__pdefeOtoYanit; } })()`);
+    const konum = b.yigin.konum; p.komutCalistir('gorunum.dondur', 90); return { konum }; })()`);
   await bekle(1200);
   console.log('tek sayfa döndürülmüş:', await durum(), dondurme);   // beklenen: duzen='tek'
   await ekranGoruntusu('test/png/s1-06-tek-dondur.png');

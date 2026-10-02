@@ -1056,20 +1056,13 @@ function dondurulebilir(b) {
   return true;
 }
 
-/** Döndürme komutu: kapsamı ayardan alır ya da sorar; belgeyi geri alınabilir biçimde döndürür (belge kirlenir, kapatırken kaydetme sorulur).
- *  Tek sayfalık belgede geçerli sayfa ile tüm PDF aynıdır: sorulmaz, sayfa hemen döner (ayar değişmez). */
+/** Döndürme komutu (araç çubuğundaki düğme, Ctrl+R / Ctrl+Shift+R): yalnızca geçerli sayfayı geri alınabilir biçimde döndürür (belge
+ *  kirlenir, kapatırken kaydetme sorulur). 0.1.27 (kullanıcı isteği): "Geçerli sayfa / Tüm PDF" sorusu ve Ayarlar'daki "Döndür düğmesi"
+ *  seçeneği kaldırıldı; bütün sayfalar ya da bir aralık için Araçlar › Döndür. */
 async function dondur(derece) {
   const b = aktif(); if (!b || !dondurulebilir(b)) return;
-  let kapsam = ayar.dondurmeKapsami;
-  if (kapsam !== 'sayfa' && kapsam !== 'tum' && b.gorunum.sayfaSayisi > 1) {
-    const { secim, onay } = await mesajKutusu({ mesaj: 'Neyi döndürmek istiyorsunuz?', dugmeler: ['Geçerli sayfa', 'Tüm PDF', 'Vazgeç'], varsayilan: 0, iptal: 2, onayKutusu: 'Seçeneğimi hatırla' });
-    if (secim !== 0 && secim !== 1) return;
-    kapsam = secim === 1 ? 'tum' : 'sayfa';
-    if (onay) ayarKoy('dondurmeKapsami', kapsam);
-  }
-  // Hızlı art arda basışlarda her döndürme bir öncekinin tarifi üzerine kurulsun; sıra gelince yeniden denetle (soru açıkken sekme kapatılmış ya da kayıt başlamış olabilir)
-  const is = (b._dondurme || Promise.resolve()).catch(() => {}).then(() => (!dondurulebilir(b) ? undefined : kapsam === 'tum'
-    ? sayfalariDondur(b, null, derece, 'Tüm sayfaları döndür')
+  // Hızlı art arda basışlarda her döndürme bir öncekinin tarifi üzerine kurulsun; sıra gelince yeniden denetle (arada sekme kapatılmış ya da kayıt başlamış olabilir)
+  const is = (b._dondurme || Promise.resolve()).catch(() => {}).then(() => (!dondurulebilir(b) ? undefined
     : sayfalariDondur(b, [b.gorunum.gecerli], derece, 'Sayfayı döndür')));
   b._dondurme = is;
   return is;
@@ -1830,7 +1823,7 @@ function kisayollarGoster() {
     ['Home / End', 'İlk / son sayfa'], ['Ctrl+Home / End', 'Belge başı / sonu'], ['Shift+Fare tekerleği', 'Yatay kaydırma'],
     ['Görünüm'],
     [['Ctrl+Fare tekerleği', 'Ctrl++ / Ctrl+−'], 'Yakınlaştır / uzaklaştır'], ['Ctrl+0', 'Gerçek boyut'],
-    ['Ctrl+R / Ctrl+Shift+R', 'Saat yönünde / tersine döndür'], ['F4', 'Sol panel'], ['Ctrl+H', 'Okuma modu'], ['F11', 'Tam ekran'],
+    ['Ctrl+R / Ctrl+Shift+R', 'Geçerli sayfayı saat yönünde / tersine döndür'], ['F4', 'Sol panel'], ['Ctrl+H', 'Okuma modu'], ['F11', 'Tam ekran'],
     ['Yazı kutusu'],
     ['Ctrl+B / I / U', 'Kalın / italik / altı çizili'], ['Esc', 'Düzenlemeyi bitir (yazılan korunur)'],
   ], [

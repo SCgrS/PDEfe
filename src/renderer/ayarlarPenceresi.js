@@ -1,7 +1,7 @@
 // Ayarlar penceresi: solda bölüm listesi, sağda içerik (Windows 11 Ayarlar havası).
 // Her değişiklik anında kaydedilir (baglam.ayarKoy) ve canlı uygulanır (baglam.uygula).
 // Bölümler (0.1.12): Görünüm (tema, yazı çizimi), Açılış ve düzen (varsayılan uygulama, kaldığım sayfa, son açılanlar; yakınlaştırma,
-// tek/iki sayfa, kaydırma, kapak, döndürme), Not ve vurgu, Kaydetme (otomatik kaydet, araçların çıktı klasörü), Güncelleme, Hakkında.
+// tek/iki sayfa, kaydırma, kapak), Not ve vurgu, Kaydetme (otomatik kaydet, araçların çıktı klasörü), Güncelleme, Hakkında.
 // Sekme adı içeriğini söylesin: bir ayar eklerken ona göre yerleştirin. 0.1.12'de (kullanıcı isteği) Sayfa düzeni ile Belge açılışı
 // birleşti ("Açılış ve düzen"), Notlar'ın adı "Not ve vurgu" oldu, Kopyalama kalktı (kopyalama her zaman temiz metin).
 // Sayfa düzeni iki kontrolle (Tek/İki sayfa + Kaydırma) tek bir varsayilanDuzen değerine yazılır:
@@ -214,10 +214,7 @@ function sayfaDuzeniKartlari(k) {
     baslik: 'Kapak sayfasını ayrı göster', aciklama: 'İki sayfa düzeninde ilk sayfa tek başına durur, sonraki sayfalar basılı kitaptaki gibi ikişer yan yana gelir. Araç çubuğundan da değiştirilebilir.',
     kontrol: anahtar(!!a.kapakAyri, (v) => degistir('kapakAyri', v)),
   }));
-  k.append(kart({
-    baslik: 'Döndür düğmesi', aciklama: 'Araç çubuğundaki Döndür düğmesinin ve Ctrl+R / Ctrl+Shift+R kısayollarının neyi döndüreceği. Döndürürken "Seçeneğimi hatırla" ile kaydedilen tercih burada değiştirilir.',
-    kontrol: secimKutusu(a.dondurmeKapsami ?? 'sor', [['sor', 'Her seferinde sor'], ['sayfa', 'Geçerli sayfa'], ['tum', 'Tüm PDF']], (v) => degistir('dondurmeKapsami', v)),
-  }));
+  // "Döndür düğmesi" (Her seferinde sor / Geçerli sayfa / Tüm PDF) 0.1.27'de kaldırıldı: düğme yalnızca geçerli sayfayı döndürür
 }
 
 const VARSAYILAN_ACIKLAMA = 'PDF dosyalarına çift tıklayınca PDEfe\'de açılsın. Windows "Varsayılan Uygulamalar" sayfası açılır; .pdf satırında PDEfe\'yi seçin. Kurulumsuz (geliştirme) çalıştırmada PDEfe listede görünmeyebilir.';
