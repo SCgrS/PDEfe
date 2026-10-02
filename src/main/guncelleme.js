@@ -123,6 +123,8 @@ const hataAyrintisi = (e) => String((e && (e.stack || e.message)) || e).split('\
  * @param {(anahtar: string, deger: any) => void} p.ayarKoy
  * @param {() => void} [p.kapatmayaHazirla]  quitAndInstall'dan önce çağrılır (pencerelerin kapatma onayı verilir: yeniden sormazlar)
  * @param {() => void} [p.kapatmaIptal]      kurulum başlatılamazsa çağrılır (onay geri alınır: pencere kapatma yine sorar)
+ * @param {(surum: string) => Promise<boolean>} [p.tarayiciIndir]  verilirse (macOS, 0.2.0: imzasız uygulama kendini güncelleyemez) indirme
+ *   bulunan sürümün paketini tarayıcıda açar; 'guncelleme:indir' { tamam, tarayicida: true } döner, kurulum kullanıcıya kalır
  * @param {number} [p.acilisGecikmesiMs]      otomatik denetimin pencere gösterildikten sonraki gecikmesi (birim denemesi kısaltır)
  * @param {number} [p.bakisAraligiMs]         açık kalan uygulamada haftalık sıranın denetlendiği aralık (birim denemesi kısaltır)
  * @param {number} [p.kurulumBeklemeMs]       kurulum uygulamayı bu sürede kapatmazsa başlatılamamış sayılır (birim denemesi kısaltır)
@@ -130,7 +132,7 @@ const hataAyrintisi = (e) => String((e && (e.stack || e.message)) || e).split('\
  * @returns {{ denetle: (elle?: boolean) => Promise<object>, pencereGosterildi: () => void, durdur: () => void }}
  */
 export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPackaged, ilkOrnek = true, pencereyeGonder, ayarAl, ayarKoy, kapatmayaHazirla, kapatmaIptal,
-  acilisGecikmesiMs = ACILIS_GECIKMESI_MS, bakisAraligiMs = BAKIS_ARALIGI_MS, kurulumBeklemeMs = KURULUM_BEKLEME_MS, saat = Date.now }) {
+  tarayiciIndir = null, acilisGecikmesiMs = ACILIS_GECIKMESI_MS, bakisAraligiMs = BAKIS_ARALIGI_MS, kurulumBeklemeMs = KURULUM_BEKLEME_MS, saat = Date.now }) {
   const mevcut = app?.getVersion?.() || '';
   const gelistirmeSonucu = { durum: 'hata', mevcut, mesaj: 'Geliştirme sürümünde güncelleme yok.' };
 
@@ -213,6 +215,13 @@ export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPack
 
   /** Bulunan sürümü indirir; bitince (ya da hata verince) sonuç döner. İndirilmiş paket varsa hemen döner. */
   async function indir() {
+    if (tarayiciIndir) {
+      if (!durum.bulunan) {
+        const s = await denetle(true);
+        if (s.durum !== 'var') return { tamam: false, mesaj: s.durum === 'yok' ? s.mesaj : (s.mesaj || 'Güncelleme bulunamadı.') };
+      }
+      return (await tarayiciIndir(durum.bulunan.surum)) ? { tamam: true, tarayicida: true } : { tamam: false, mesaj: 'Tarayıcı açılamadı.' };
+    }
     if (durum.hazir) return { tamam: true };
     if (!durum.indirme) {
       if (!durum.bulunan) {

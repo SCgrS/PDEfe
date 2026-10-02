@@ -2,7 +2,10 @@
 // CSP; PDF içindeki JavaScript çalışmaz. Buradaki denetimler bir katman daha ekler: PDF'i çizen bileşende ileride bir açık çıkıp arayüzde
 // kod çalışsa bile ana süreç her dosyayı okuyup silmez, program çalıştırmaz, uygulamanın dışındaki bir sayfaya köprü (preload) açmaz.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+
+const MAC = process.platform === 'darwin';
 
 /** Dışarıda (tarayıcıda, e-posta uygulamasında) açılabilecek adres türleri. shell.openExternal adresi Windows'ta ShellExecute'a verir:
  *  file:, search-ms:, ms-…: gibi türler program çalıştırabilir, uzak ağ paylaşımına bağlanıp Windows oturumunun parola özetini
@@ -52,17 +55,34 @@ export function gezinmeKorumasiKur(app) {
 }
 
 // ---------------------------------------------------------------- dosya yolları
-/** Windows yazı tipi klasörü (renderer/yaziTipleri.js gömülü olmayan standart yazı tiplerini buradan okur). */
-export function yaziTipiKlasoru() {
-  return path.join(process.env.WINDIR || process.env.SystemRoot || 'C:\\Windows', 'Fonts');
+/** Sistemin yazı tipi klasörleri (renderer/yaziTipleri.js gömülü olmayan standart yazı tiplerini buradan okur): Windows'ta Windows\Fonts;
+ *  macOS'ta (0.2.0) sistemle gelen Arial / Times New Roman / Courier New'ün klasörü (Supplemental), sistem ve kullanıcı yazı tipleri. */
+export function yaziTipiKlasorleri() {
+  if (MAC) return ['/System/Library/Fonts/Supplemental', '/System/Library/Fonts', '/Library/Fonts', path.join(os.homedir(), 'Library', 'Fonts')];
+  return [path.join(process.env.WINDIR || process.env.SystemRoot || 'C:\\Windows', 'Fonts')];
+}
+
+// PDF.js'in gömülü olmayan standart fontları (Times, Helvetica, Courier) yerine okunan sistem fontları: anahtar Windows dosya adı
+// (renderer/yaziTipleri.js STANDART_DOSYALAR), değer macOS'taki dosya adı (Supplemental klasöründe)
+const MAC_STANDART = {
+  'times.ttf': 'Times New Roman.ttf', 'timesbd.ttf': 'Times New Roman Bold.ttf', 'timesi.ttf': 'Times New Roman Italic.ttf',
+  'timesbi.ttf': 'Times New Roman Bold Italic.ttf', 'arial.ttf': 'Arial.ttf', 'arialbd.ttf': 'Arial Bold.ttf', 'ariali.ttf': 'Arial Italic.ttf',
+  'arialbi.ttf': 'Arial Bold Italic.ttf', 'cour.ttf': 'Courier New.ttf', 'courbd.ttf': 'Courier New Bold.ttf', 'couri.ttf': 'Courier New Italic.ttf',
+  'courbi.ttf': 'Courier New Bold Italic.ttf',
+};
+
+/** Standart fontların bu sistemdeki tam yolları: { 'times.ttf': '<yol>', … } (uygulama:klasorler → renderer/yaziTipleri.js). */
+export function standartYaziTipleri() {
+  const [klasor] = yaziTipiKlasorleri();
+  return Object.fromEntries(Object.entries(MAC_STANDART).map(([win, mac]) => [win, path.join(klasor, MAC ? mac : win)]));
 }
 
 const ayniYol = (a, b) => path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
 
-/** Yol Windows yazı tipi klasöründe bir yazı tipi dosyası mı (alt klasör yok). */
+/** Yol sistemin yazı tipi klasörlerinden birinde bir yazı tipi dosyası mı (alt klasör yok). */
 export function yaziTipiDosyasiMi(yol) {
   const y = String(yol || '');
-  return !!y && ayniYol(path.dirname(path.resolve(y)), yaziTipiKlasoru()) && /\.(ttf|ttc|otf)$/i.test(y);
+  return !!y && /\.(ttf|ttc|otf)$/i.test(y) && yaziTipiKlasorleri().some((k) => ayniYol(path.dirname(path.resolve(y)), k));
 }
 
 /** Dosyanın başında (ilk 64 KB; başına e-posta ağ geçidi gibi araçların eklediği başlıklar olabilir) PDF imzası (%PDF-) var mı.

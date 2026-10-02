@@ -289,7 +289,10 @@ function webContentsYazdir(pencere, is, secenek) {
 /** Electron/Chromium'un İngilizce yazdırma hatalarını Türkçeye çevirir. */
 function nedenTurkce(neden) {
   if (!neden) return 'Yazdırma başarısız oldu.';
-  if (/no printers|printer not found|no valid printers|printer_not_found/i.test(neden)) return 'Kurulu yazıcı bulunamadı. Windows Ayarlar > Yazıcılar ve tarayıcılar bölümünden bir yazıcı ekleyin.';
+  if (/no printers|printer not found|no valid printers|printer_not_found/i.test(neden)) {
+    return process.platform === 'darwin' ? 'Kurulu yazıcı bulunamadı. Sistem Ayarları > Yazıcılar ve Tarayıcılar bölümünden bir yazıcı ekleyin.'
+      : 'Kurulu yazıcı bulunamadı. Windows Ayarlar > Yazıcılar ve tarayıcılar bölümünden bir yazıcı ekleyin.';
+  }
   if (/invalid printer settings|invalid settings|invalid_settings/i.test(neden)) return 'Yazıcı ayarları geçersiz. Sayfa boyutu ya da çift taraflı seçeneği bu yazıcıda desteklenmiyor olabilir.';
   if (/print job failed|^failed$/i.test(neden)) return 'Yazdırma işi başarısız oldu. Yazıcının açık ve bağlı olduğundan emin olun.';
   if (/failed to print|printing failed/i.test(neden)) return 'Yazdırma işi başarısız oldu. Yazıcının açık ve bağlı olduğundan emin olun.';

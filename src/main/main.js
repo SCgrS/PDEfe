@@ -11,14 +11,15 @@ import { Cekirdek } from './cekirdek.js';
 import { panoyaDosyaKopyala } from './pano.js';
 import { yazdirmaKur } from './yazdir.js';
 import { guncellemeKur } from './guncelleme.js';
-import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla, menuCubugunuUygula } from './pencereler.js';
-import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasoru, anlikDosyasiMi } from './guvenlik.js';
+import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla, menuCubugunuUygula, pencereSayisi } from './pencereler.js';
+import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasorleri, standartYaziTipleri, anlikDosyasiMi } from './guvenlik.js';
 import electronUpdater from 'electron-updater';
-const { autoUpdater } = electronUpdater;
+import { MacGuncelleyici, tarayicidaIndir } from './macGuncelleme.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const KOK = app.getAppPath();                   // package.json'un bulunduğu kök
 const PAKETLI = app.isPackaged;
+const MAC = process.platform === 'darwin';
 
 // ---------- Tek örnek ----------
 const kilit = app.requestSingleInstanceLock();
@@ -101,6 +102,28 @@ app.on('second-instance', (_e, argv, cwd) => {
   if (k) odakla(k);
 });
 
+// macOS (0.2.0): Finder'da çift tıklanan, "Birlikte aç"la ya da Dock simgesine bırakılarak açılan PDF komut satırında gelmez, bu olayla gelir
+// (uygulama kapalıyken de: hazır olmadan önce). Açık uygulamada Windows'taki ikinci örnek gibi işlenir; pencere yoksa yenisi açılır.
+const acilisDosyalari = [];
+let pencerelerKuruldu = false;
+app.on('open-file', (e, yol) => {
+  e.preventDefault();
+  if (!/\.pdf$/i.test(String(yol || ''))) return;
+  if (!pencerelerKuruldu) { acilisDosyalari.push(yol); return; }
+  const k = dosyalariAc([yol]);
+  if (k) odakla(k); else pencereOlustur({ dosyalar: [yol] });
+});
+// macOS: Dock simgesine tıklanınca açık pencere yoksa yeni pencere (son pencere kapanınca uygulama da kapandığından çoğunlukla gelmez)
+app.on('activate', () => { if (pencerelerKuruldu && !pencereSayisi()) pencereOlustur(); });
+// macOS: Dock'tan "Çık", oturum kapatma ve yeniden başlatma uygulamaya çıkış isteği olarak gelir: ⌘Q gibi pencereler sırayla kapatılır,
+// her biri kaydedilmemiş belgelerini sorar (Electron'un kendi çıkışı ilk kapatma sorusunda dururdu). Son pencere kapanınca çıkılır.
+let cikisSerbest = false;
+app.on('before-quit', (e) => {
+  if (!MAC || cikisSerbest || !pencereSayisi()) return;
+  e.preventDefault();
+  cik();
+});
+
 // ---------- Protokol ----------
 protocol.registerSchemesAsPrivileged([
   { scheme: 'pdefe', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
@@ -179,7 +202,7 @@ function metindekiYollar(metin) {
   if (!satirlar.length || satirlar.length > 200) return [];
   const yollar = [];
   for (const s of satirlar) {
-    if (s.length > 1024 || !path.win32.isAbsolute(s)) return [];
+    if (s.length > 1024 || !path.isAbsolute(s)) return [];
     try { if (!fs.statSync(s).isFile()) return []; } catch { return []; }
     yollar.push(s);
   }
@@ -273,10 +296,12 @@ function ipcKur(ipcMain) {
   });
   ipcMain.handle('uygulama:veriKlasoru', () => app.getPath('userData'));
   ipcMain.handle('uygulama:geciciKlasor', () => { const k = path.join(app.getPath('temp'), 'PDEfe'); fs.mkdirSync(k, { recursive: true }); return k; });
-  ipcMain.handle('kabuk:varsayilanUygulamalar', () => shell.openExternal('ms-settings:defaultapps?registeredAppUser=PDEfe'));
+  // macOS'ta varsayılan uygulama Finder'ın Bilgi Al penceresinden seçilir (Ayarlar yalnızca yolu anlatır): bu iki kanal orada iş yapmaz
+  ipcMain.handle('kabuk:varsayilanUygulamalar', () => (MAC ? false : shell.openExternal('ms-settings:defaultapps?registeredAppUser=PDEfe')));
   // .pdf'nin varsayılan uygulaması PDEfe mi (Ayarlar › Açılış ve düzen): { varsayilan: true | false | null (okunamadı), progId }.
   // Test örneğinde gerçek kayıt okunmaz; yanıt test:diyalogYanitlari kuyruğundan (varsayılan: okunamadı)
-  ipcMain.handle('kabuk:varsayilanMi', async () => (testDiyalog ? testDiyalog('kabuk:varsayilanMi', {}, { varsayilan: null, progId: null }) : pdfVarsayilaniOku()));
+  ipcMain.handle('kabuk:varsayilanMi', async () => (testDiyalog ? testDiyalog('kabuk:varsayilanMi', {}, { varsayilan: null, progId: null })
+    : MAC ? { varsayilan: null, progId: null } : pdfVarsayilaniOku()));
   // Panodaki dosyalar (Gezgin'den kopyalanan) ve görsel. Electron'un pano API'siyle ana süreçte okunur: önceki PowerShell
   // yolu (pano:dosyalar / pano:gorsel, kaldırıldı) her çağrıda süreç başlattığı için saniyeler sürüyor, Türkçe karakterli yolları da bozuyordu.
   // Electron 44'te clipboard yalnızca has/read/readText/write/writeText/clear sunar (readImage/readBuffer yok):
@@ -295,11 +320,13 @@ function ipcKur(ipcMain) {
   });
   ipcMain.handle('uygulama:klasorler', () => {
     const al = (ad) => { try { return app.getPath(ad); } catch { return ''; } };
-    // yaziTipleri: Windows yazı tipi klasörü (PDF yazılarının ana hat çiziminde gömülü olmayan standart fontlar için, renderer/yaziTipleri.js)
-    return { masaustu: al('desktop'), belgeler: al('documents'), indirilenler: al('downloads'), ev: al('home'), yaziTipleri: yaziTipiKlasoru() };
+    // yaziTipleri: sistemin yazı tipi klasörü; yaziTipiDosyalari: gömülü olmayan standart fontların (Times, Helvetica, Courier) yerine
+    // okunan sistem fontlarının yolları (Windows'ta times.ttf…, macOS'ta Times New Roman.ttf…; renderer/yaziTipleri.js)
+    return { masaustu: al('desktop'), belgeler: al('documents'), indirilenler: al('downloads'), ev: al('home'), yaziTipleri: yaziTipiKlasorleri()[0],
+      yaziTipiDosyalari: standartYaziTipleri() };
   });
 
-  // Yalnızca PDF belgeleri (başında %PDF- imzası) ve Windows yazı tipi klasöründeki yazı tipleri okunur (0.1.23, guvenlik.js)
+  // Yalnızca PDF belgeleri (başında %PDF- imzası) ve sistemin yazı tipi klasörlerindeki yazı tipleri okunur (0.1.23, guvenlik.js)
   ipcMain.handle('dosya:oku', async (_e, yol) => {
     // Dosya yoksa ya da kilitliyse okuma hatası olduğu gibi döner (pdfDosyasiMi fırlatır); okunup imzası yoksa "PDF değil"
     if (!yaziTipiDosyasiMi(yol) && !(await pdfDosyasiMi(yol))) throw new Error('Bu dosya bir PDF belgesi değil.');
@@ -423,7 +450,10 @@ app.whenReady().then(() => {
   try {
     const sahte = sahteGuncelleyiciKur(ipc);   // yalnızca geliştirme örneğinde, PDEFE_TEST_GUNCELLEME ile
     guncelleme = guncellemeKur({
-      app, ipcMain: ipc, autoUpdater: sahte || autoUpdater, etkin: PAKETLI || !!sahte, ilkOrnek: kilit, pencereyeGonder: herkese, ayarAl, ayarKoy,
+      // macOS (0.2.0): imzasız uygulama kendini güncelleyemez; yeni sürüm GitHub'ın sürüm akışından denetlenir, paket tarayıcıda indirilir
+      // (macGuncelleme.js). electron-updater yalnızca Windows'ta yüklenir (autoUpdater erişimi platformun güncelleyicisini kurar)
+      app, ipcMain: ipc, autoUpdater: sahte || (MAC ? new MacGuncelleyici(app.getVersion()) : electronUpdater.autoUpdater), etkin: PAKETLI || !!sahte,
+      tarayiciIndir: MAC && !sahte ? tarayicidaIndir : null, ilkOrnek: kilit, pencereyeGonder: herkese, ayarAl, ayarKoy,
       // Kurulum uygulamayı kapatır: pencereler kaydedilmemiş değişiklikleri önceden sorduğu için (isteyen pencere kendininkini,
       // öteki pencereler 'pencere:digerlerindenIzinAl' ile) pencere kapatma yeniden sormasın
       kapatmayaHazirla: () => kapatmaOnayiAyarla(true),
@@ -431,11 +461,14 @@ app.whenReady().then(() => {
     });
   } catch (e) { console.error('[güncelleme] kurulamadı:', e); }
   uygulamaMenusuKur();
-  pencereOlustur({ dosyalar: argvdenPdfler(process.argv, process.cwd()) });
+  pencereOlustur({ dosyalar: [...argvdenPdfler(process.argv, process.cwd()), ...acilisDosyalari.splice(0)] });
+  pencerelerKuruldu = true;
   cekirdek.baslat().catch((e) => console.error('[çekirdek] başlatılamadı:', e));
 });
 
+// Son pencere kapanınca uygulama kapanır; macOS'ta da (0.2.0: belge uygulaması, Dock'ta boş kalmasın; Dock'tan yeniden açılır)
 app.on('window-all-closed', () => {
+  cikisSerbest = true;
   cekirdek.durdur();
   app.quit();
 });

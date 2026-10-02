@@ -20,7 +20,7 @@ export const VARSAYILANLAR = {
   yazarAdi: os.userInfo().username || 'Kullanıcı',
   vurguRengi: '#ffd100',          // PDF okuyucularında yaygın varsayılan vurgu rengi: /C [1 .819611 0]
   vurguOpaklik: 0.4,              // aynı yaygın varsayılan: /CA .4
-  yaziTipi: 'Segoe UI',
+  yaziTipi: process.platform === 'darwin' ? 'Arial' : 'Segoe UI',   // macOS'ta Segoe UI yok (0.2.0)
   yaziBoyutu: 12,
   yaziRengi: '#000000',
   yaziArka: null,

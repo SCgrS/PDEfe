@@ -38,4 +38,6 @@ contextBridge.exposeInMainWorld('pdefe', {
     return () => ipcRenderer.removeListener(kanal, f);
   },
   dosyaYolu: (dosya) => webUtils.getPathForFile(dosya),
+  // İşletim sistemi (0.2.0): 'win32' | 'darwin'. Arayüz macOS'ta kısayolları ⌘ ile işler ve gösterir (renderer/platform.js)
+  platform: process.platform,
 });

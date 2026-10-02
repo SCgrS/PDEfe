@@ -19,16 +19,20 @@ export class Cekirdek {
   }
 
   komut() {
+    const windows = process.platform === 'win32';
     if (this.paketli) {
       // Tek klasör PyInstaller paketi (resources/pdefe-core/pdefe-core.exe + _internal). 0.1.17'ye dek tek dosyaydı: her açılışta
       // %TEMP%\_MEI* altına ~70 MB açılıyordu (~0,9 sn) ve çekirdek kapanışta öldürülünce klasör kalıyordu.
-      const exe = path.join(this.kaynaklar, 'pdefe-core', 'pdefe-core.exe');
-      return { cmd: exe, args: [] };
+      if (windows) return { cmd: path.join(this.kaynaklar, 'pdefe-core', 'pdefe-core.exe'), args: [] };
+      // macOS (0.2.0): evrensel pakette iki mimarinin çekirdeği yan yana (Contents/Resources/pdefe-core-arm64, -x64; electron-builder.yml).
+      // Uygulama Rosetta'yla (x64) çalışıyorsa x64 çekirdeği. Tek mimarili yerel derlemede pdefe-core
+      const mimari = path.join(this.kaynaklar, `pdefe-core-${process.arch}`, 'pdefe-core');
+      return { cmd: fs.existsSync(mimari) ? mimari : path.join(this.kaynaklar, 'pdefe-core', 'pdefe-core'), args: [] };
     }
-    const python = path.join(this.kok, '.venv', 'Scripts', 'python.exe');
+    const python = windows ? path.join(this.kok, '.venv', 'Scripts', 'python.exe') : path.join(this.kok, '.venv', 'bin', 'python');
     const betik = path.join(this.kok, 'core', 'pdefe_core.py');
     if (fs.existsSync(python)) return { cmd: python, args: ['-X', 'utf8', betik] };
-    return { cmd: 'python', args: ['-X', 'utf8', betik] };
+    return { cmd: windows ? 'python' : 'python3', args: ['-X', 'utf8', betik] };
   }
 
   baslat() {
