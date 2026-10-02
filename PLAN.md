@@ -1345,3 +1345,31 @@ ismi".
     sıkıştırma "işlem sürerken" denetimlerinden önce bitiyordu; 300 sayfa ve 60 büyük görselli yer tutucuyla (27 MB) hepsi geçti,
     0.1.25'te düşen "kaydedip kapatır" denetimi de.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 33.
+
+### Revizyon 0.1.27 (2026-10-02, kullanıcı isteği)
+Ayrıntı: CHANGELOG.md. Kullanıcı 0.1.26 kurulduktan sonra: "döndür ve kaydet yazmasın, yalnızca Döndür yazsın. açıklamasında da sayfaları
+döndürür. yazsın. sayfaları düzenle'nin açıklaması da: Sıralar, siler, döndürür, sayfa ekler yazalım. sayfa düzenle aracı da yine
+birleştirme aracında olduğu gibi sekme şeridinin altında açılsın arkadan görebilelim. döndürme tuşunda seçenek sormayı bırakalım.
+varsayılan olarak sadece geçerli sayfayı döndürsün. ayarlardaki seçeneği de kaldıralım. döndürme aracını kullanabilir insanlar."
+- [x] **"Döndür"** (menu.js, aracPenceresi.js `ARACLAR`, dondur.js başlık ve birincil düğme; Ayarlar'daki çıktı klasörü açıklaması, README,
+  yorumlar). Düğme de "Döndür": öteki araçlarda düğme aracın adıyla aynı (Sıkıştır, Ayır, Birleştir) ve kaydetmenin nereye yapılacağı
+  Kaydet bölümünde yazıyor. Açıklama "Sayfaları döndürür"; Sayfaları düzenle'nin açıklaması "Sıralar, siler, döndürür, sayfa ekler" (ikisi
+  de öteki karolar gibi sonda noktasız). Karonun ipucu (fareyle üzerinde durunca) aynı kaldı. Komut kimliği `arac.dondurKaydet` değişmedi.
+- [x] **Sayfaları düzenle sekme şeridinin altında**: `pencereAc({ seritAlti: true })` (0.1.26'daki Birleştir seçeneği; 88vh, sığmazsa
+  kısalır, okuma kipinde ortada).
+- [x] **Döndür düğmesi sormaz** (uygulama.js `dondur`). Soru ve "Seçeneğimi hatırla" kalktı; düğme ve Ctrl+R / Ctrl+Shift+R yalnızca
+  geçerli sayfayı döndürür. `dondurmeKapsami` varsayılanlardan çıktı ve `KALDIRILAN_ANAHTARLAR`'a eklendi (eski yapılandırma dosyasından
+  açılışta silinir; renderer da okumaz, kalmış bir "Tüm PDF" tercihi uygulanmaz). Ayarlar › Açılış ve düzen'deki "Döndür düğmesi" kartı
+  kalktı. Etiketler davranışı söylesin diye: düğmenin ipucu "Sayfayı döndür (Ctrl+R)", Görünüm menüsünde "Sayfayı saat yönünde döndür" /
+  "Sayfayı saat yönünün tersine döndür", F1'de "Geçerli sayfayı saat yönünde / tersine döndür" (kullanıcı ayrıca istemedi; araç "Döndür"
+  adını alınca düğmeyle karışmasın diye).
+  - Yazı kutusu düzenlenirken Ctrl+R: soru eskiden önce açılıyordu, şimdi döndürme hemen olur. Denendi: düzenleme uygulanır (yazı not
+    olarak kalır), sayfa döner, Ctrl+Z önce döndürmeyi sonra yazıyı geri alır; ayrı bir önlem gerekmedi.
+  - Onay kutulu soru (mesajKutusu `onayKutusu`) artık yalnızca dış bağlantı sorusunda ("Bu belgede yeniden sorma"); ortu_tiklama onu
+    döndürme sorusu yerine `window.__pdefe.mesajKutusu` ile sınıyor.
+- [x] **Testler**: senaryo27 (yeni, 20). Güncellenen: kisayol_gorunum, ortu_tiklama, senaryo14, senaryo13, 19, kisayol_araclar, eski
+  senaryo1, 5, 11.
+  - Koşulanlar (ofis; test/pdf ve test/cikti/ui/pdf'te yer tutucular): senaryo27 20/20 (eski ayarlı veri klasörüyle), kisayol_gorunum
+    115/115 (görünmeyen masaüstü, gerçek Ctrl+R), senaryo19 112/112, ortu_tiklama 156/156, kisayol_araclar 92/92, senaryo14 56/56, senaryo13
+    65/65, senaryo26 60/60.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 34.

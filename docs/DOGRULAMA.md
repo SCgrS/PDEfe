@@ -461,3 +461,13 @@ Ekran dışındaki test örneğinde üretilmiş örnek PDF'lerle sınandı (test
    düğmesini görebilmelisiniz. Uygulama penceresini küçültüp büyütün: pencere yine sekmelerin altında kalmalı (çok kısa pencerede ortaya
    geçer).
 3. **Önerilen ad.** Birleştir'in Kaydet bölümünde ad "Birleştirilmiş" olmalı; Masaüstünde "Birleştirilmiş.pdf" varken "Birleştirilmiş (2)".
+
+## 34. 0.1.27: otomatik testlerin sınayamadıkları
+Ekran dışındaki test örneğinde üretilmiş örnek PDF'lerle sınandı (test/senaryo27.mjs). Gerçek ekranda gözle denenmedi.
+1. **Döndür düğmesi.** Çok sayfalı bir belgenin (kopyasının) 3. sayfasındayken araç çubuğundaki Döndür düğmesine basın: soru çıkmamalı,
+   yalnızca 3. sayfa dönmeli. `Ctrl+R` ve `Ctrl+Shift+R` de öyle. `Ctrl+Z` geri almalı.
+2. **Ayarlar.** Ayarlar › Açılış ve düzen'de "Döndür düğmesi" seçeneği olmamalı.
+3. **Adlar.** Araçlar düğmesinde, Araçlar menüsünde ve açılış ekranında "Döndür" (açıklaması "Sayfaları döndürür") ve Sayfaları düzenle'nin
+   açıklaması "Sıralar, siler, döndürür, sayfa ekler" olmalı; Döndür penceresinin başlığı ve düğmesi "Döndür".
+4. **Sayfaları düzenle'nin yeri.** Pencere sekmelerin hemen altında açılmalı, arkadaki sekmeler okunmalı; küçük resimler, Kaydet bölümü ve
+   Kaydet düğmesi görünmeli.

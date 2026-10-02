@@ -3,6 +3,19 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.27 — 2026-10-02
+
+### Döndürme
+- **Döndür düğmesi artık sormuyor.** Araç çubuğundaki Döndür düğmesi ve `Ctrl+R` / `Ctrl+Shift+R` yalnızca bulunduğunuz sayfayı döndürür; "Geçerli sayfa / Tüm PDF" sorusu kalktı. Bütün sayfaları ya da bir sayfa aralığını döndürmek için **Araçlar › Döndür**'ü kullanın. Döndürme eskisi gibi `Ctrl+Z` ile geri alınır.
+- Ayarlar › Açılış ve düzen'deki "Döndür düğmesi" seçeneği kaldırıldı (önceden "Seçeneğimi hatırla" ile kaydedilen tercih de artık kullanılmaz).
+
+### Araç adları ve açıklamaları
+- **Döndür ve kaydet** aracının adı artık **Döndür**; açıklaması "Sayfaları döndürür".
+- **Sayfaları düzenle**'nin açıklaması "Sıralar, siler, döndürür, sayfa ekler".
+
+### Sayfaları düzenle
+- **Pencere sekme şeridinin altında açılıyor** (Birleştir'deki gibi): arkadaki sekmelerden hangi belgede olduğunuz görülür.
+
 ## 0.1.26 — 2026-10-02
 
 ### Araç adları
