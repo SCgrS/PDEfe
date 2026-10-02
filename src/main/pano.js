@@ -26,10 +26,23 @@ $l.Add([string]$env:PDEFE_DOSYA) | Out-Null
   });
 }
 
-/** macOS: AppleScript'in panoya dosya koyması (POSIX file → dosya başvurusu). Yol betiğe gömülmez, argüman olarak geçer. */
+// macOS: Finder'ın Kopyala'sı gibi panoya dosyanın NSURL'ü yazılır (NSPasteboard writeObjects: public.file-url ve dosya adı türleri). Betik
+// JavaScript for Automation'la AppKit'i doğrudan çağırır (izin istemez); yol betiğe gömülmez, argüman olarak geçer. AppleScript'in "set the
+// clipboard to POSIX file" yolu panoya Finder'ın yapıştıramadığı bir veri koyuyordu (CI sınaması, 0.2.0).
+const MAC_PANO_BETIGI = [
+  "ObjC.import('AppKit');",
+  'function run(argv) {',
+  '  var pano = $.NSPasteboard.generalPasteboard;',
+  '  pano.clearContents;',
+  '  return pano.writeObjects($([$.NSURL.fileURLWithPath(argv[0])])) ? "tamam" : "yazilamadi";',
+  '}',
+].join('\n');
+
 function macPanoyaKopyala(yol) {
   return new Promise((coz) => {
-    execFile('/usr/bin/osascript', ['-e', 'on run argv', '-e', 'set the clipboard to (POSIX file (item 1 of argv))', '-e', 'end run', String(yol)],
-      { timeout: 10000 }, (hata, _cikti, stderr) => coz({ tamam: !hata, hata: hata ? String(stderr || hata.message).trim() : '' }));
+    execFile('/usr/bin/osascript', ['-l', 'JavaScript', '-e', MAC_PANO_BETIGI, String(yol)], { timeout: 10000 }, (hata, cikti, stderr) => {
+      const tamam = !hata && String(cikti).trim() === 'tamam';
+      coz({ tamam, hata: tamam ? '' : String(stderr || hata?.message || cikti || 'Panoya yazılamadı.').trim() });
+    });
   });
 }

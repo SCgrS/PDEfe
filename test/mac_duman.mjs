@@ -132,10 +132,15 @@ sonuc(`Türkçe tanıma (${bulunan.length}/${beklenenler.length} sözcük)`, bul
 
 // ---------------------------------------------------------------- 5) PDF'i kopyala (panoya dosya)
 const pano = await degerlendir(`window.pdefe.cagir('pano:dosya', ${JSON.stringify(PDF1)}).then((r) => JSON.stringify(r))`);
-const panodaki = osascript('POSIX path of (the clipboard as «class furl»)');
-let panoYolu = '';
-try { panoYolu = fs.realpathSync(panodaki.cikti); } catch { /* panoda dosya yok */ }
-sonuc('PDF\'i kopyala: dosya panoda (Finder\'da ⌘V ile yapıştırılır)', /"tamam":true/.test(pano) && panoYolu === PDF1, `${pano} → ${panodaki.cikti || panodaki.hata}`);
+// Finder'ın yapıştırdığı tür: public.file-url (NSURL). Pano AppKit'ten okunur (JavaScript for Automation; izin istemez)
+const panodaki = calistir('/usr/bin/osascript', ['-l', 'JavaScript', '-e', [
+  "ObjC.import('AppKit');",
+  'var p = $.NSPasteboard.generalPasteboard;',
+  "JSON.stringify({ turler: ObjC.deepUnwrap(p.types), url: ObjC.unwrap(p.stringForType('public.file-url')) })",
+].join('\n')]);
+let panoYolu = '', panoBilgi = panodaki.cikti || panodaki.hata;
+try { panoYolu = fs.realpathSync(decodeURIComponent(new URL(JSON.parse(panodaki.cikti).url).pathname)); } catch { /* panoda dosya yok */ }
+sonuc('PDF\'i kopyala: dosya panoda (Finder\'da ⌘V ile yapıştırılır)', /"tamam":true/.test(pano) && panoYolu === PDF1, `${pano} → ${panoBilgi}`);
 
 // ---------------------------------------------------------------- 6) gerçek klavye: Mac kısayolları (menü ve sayfa)
 const tus = (karakter, ...degistirici) => osascript(`tell application "System Events" to keystroke "${karakter}"${degistirici.length ? ` using {${degistirici.map((d) => d + ' down').join(', ')}}` : ''}`);
