@@ -11,13 +11,16 @@ Tanınan bölgeler sayfadaki görsellerin kutularıdır (birleşik; EN_KUCUK_ALA
 METIN_ORANI'nı sayfadaki sözcükler kaplıyorsa. Tanınan sözcüklerden sayfadaki bir sözcükle örtüşenler atılır (görselin üstüne yazılmış
 metin, örneğin taranmış evraka eklenmiş e-imza satırı, iki kez seçilmesin).
 
-Bölgeler ekrandaki (/Rotate uygulanmış) düzlemde çizilir: tanıyıcı yazıyı okuyucunun gördüğü gibi dik görür. Sonuç PyMuPDF sözcüklerinin
-düzlemine (döndürülmemiş, görünür kutunun üst-sol kökenli koordinatı) çevrilir. Çizim (PyMuPDF) işçi iş parçacığında, tanıma kendi iş
-parçacığında yapılır: tanıma sürerken işçi öteki isteklere (küçük resimler, kopyalama) geçer. Sonuçlar dosyanın değişme zamanı ve
-boyutuyla önbellekte tutulur.
+Bölgeler 300 dpi'da ekrandaki (/Rotate uygulanmış) düzlemde çizilir: tanıyıcı yazıyı okuyucunun gördüğü gibi dik görür. Görsel kendi
+çözünürlüğünün iki katı ve üstüne büyütülecekse (düşük çözünürlüklü tarama) MuPDF onu en yakın komşuyla büyütüp harfleri basamaklı
+yaptığından görsel kendi çözünürlüğünde çizilir, büyütmeyi Pillow (Lanczos) yapar (0.1.25; ölçüm PLAN.md "Revizyon 0.1.25").
+Sonuç PyMuPDF sözcüklerinin düzlemine (döndürülmemiş, görünür kutunun üst-sol kökenli koordinatı) çevrilir. Çizim (PyMuPDF) işçi iş
+parçacığında, tanıma kendi iş parçacığında yapılır: tanıma sürerken işçi öteki isteklere (küçük resimler, kopyalama) geçer. Sonuçlar
+dosyanın değişme zamanı ve boyutuyla önbellekte tutulur.
 """
 import asyncio
 import collections
+import math
 import os
 import queue
 import re
@@ -26,7 +29,9 @@ import threading
 
 import pymupdf
 
-OLCEK = 3.0                    # 216 dpi: 10 pt yazı ~30 piksel; A4 ~4,5 milyon piksel
+OLCEK = 300 / 72               # 300 dpi: 10 pt yazı ~42 piksel; A4 ~8,7 milyon piksel (0.1.25'e dek 216 dpi)
+BLOKLU_BUYUTME = 1.95          # görsel kendi çözünürlüğünün bu katından çok büyütülecekse büyütmeyi MuPDF değil Pillow yapar (MuPDF 2 kat
+                               # ve üstünde en yakın komşuyla büyütüyor: 1,99 kat yumuşak, 2,00 kat basamaklı ölçüldü)
 EN_FAZLA_PIKSEL = 20_000_000   # sayfa başına (bütün bölgeler; gri, bayt başına piksel): büyük sayfada ölçek küçülür
 EN_BUYUK_KENAR = 9_600         # tanıyıcının sınırı OcrEngine.MaxImageDimension = 10 000 piksel
 EN_KUCUK_ALAN = 1_000          # pt²: daha küçük görseller (simge, madde imi, küçük logo) tanınmaz
@@ -166,11 +171,12 @@ def _birlestir(kutular):
     return kutular
 
 
-def _bolgeler(pg, sozcukler):
-    """Tanınacak bölgeler (döndürülmemiş düzlemde Rect listesi); tanınacak görsel yoksa boş."""
+def _bolgeler(pg, sozcukler, gorseller=None):
+    """Tanınacak bölgeler (döndürülmemiş düzlemde Rect listesi); tanınacak görsel yoksa boş. gorseller: pg.get_image_info() (çağıran
+    _hazirla'ya da verir; yoksa burada okunur)."""
     tam = pymupdf.Rect(0, 0, pg.cropbox.width, pg.cropbox.height)
     kutular = []
-    for bilgi in pg.get_image_info():
+    for bilgi in (pg.get_image_info() if gorseller is None else gorseller):
         b = bilgi.get("bbox")
         if not b:
             continue
@@ -199,9 +205,30 @@ def _bolgeler(pg, sozcukler):
     return secilen
 
 
-def _hazirla(pg, sozcukler, bolgeler):
+def _dogal_olcek(bolge, gorseller):
+    """Bölgeye en çok alanıyla düşen görselin kendi çözünürlüğü, çizim ölçeği olarak (1 = 72 dpi; bu ölçekte görselin bir pikseli bir
+    piksele düşer; iki ekseninden yoğun olanı). Görsel yoksa None."""
+    en, en_alan = None, 0.0
+    for g in gorseller:
+        kutu, t = g.get("bbox"), g.get("transform")
+        if not kutu or not t or not g.get("width") or not g.get("height"):
+            continue
+        kesisim = pymupdf.Rect(kutu) & bolge
+        alan = 0.0 if kesisim.is_empty else kesisim.width * kesisim.height
+        gx, gy = math.hypot(t[0], t[1]), math.hypot(t[2], t[3])
+        if alan <= en_alan or gx <= 0 or gy <= 0:
+            continue
+        en, en_alan = max(g["width"] / gx, g["height"] / gy), alan
+    return en
+
+
+def _hazirla(pg, sozcukler, bolgeler, gorseller=None):
     """Sayfanın tanınacak bölgelerini çizer: {"cizimler": [...], "sozcukler": bölgelere değen sayfa sözcükleri (Rect), "derot": Matrix}.
-    Bütün bölgelerin piksel toplamı EN_FAZLA_PIKSEL'i geçmez (ölçek ortak küçülür)."""
+    Bütün bölgelerin piksel toplamı EN_FAZLA_PIKSEL'i geçmez (ölçek ortak küçülür). Bölgedeki görsel kendi çözünürlüğünün
+    BLOKLU_BUYUTME katından çok büyütülecekse kendi çözünürlüğünde çizilip Pillow'la (Lanczos) büyütülür; çizimin z / zy'si (yatay /
+    dikey ölçek) ve x, y'si (kökeni) büyütülmüş görüntüye göredir. gorseller: pg.get_image_info() (yoksa burada okunur)."""
+    if gorseller is None:
+        gorseller = pg.get_image_info()
     cizimler = []
     # Örtüşme denetimine yalnızca bölgelere değen sözcükler girer (tanıma iş parçacığında sözcük × sözcük karşılaştırılır)
     gercekler = [pymupdf.Rect(w[:4]) for w in sozcukler]
@@ -212,12 +239,24 @@ def _hazirla(pg, sozcukler, bolgeler):
         kirp.normalize()
         kirpimlar.append(kirp)
     toplam = sum(max(k.width, 1.0) * max(k.height, 1.0) for k in kirpimlar) or 1.0
-    for kirp in kirpimlar:
+    for bolge, kirp in zip(bolgeler, kirpimlar):
         w, h = max(kirp.width, 1.0), max(kirp.height, 1.0)
         z = min(OLCEK, (EN_FAZLA_PIKSEL / toplam) ** 0.5, EN_BUYUK_KENAR / max(w, h))
-        pix = pg.get_pixmap(matrix=pymupdf.Matrix(z, z), clip=kirp, colorspace=pymupdf.csGRAY, alpha=False, annots=False)
-        if pix.width >= 16 and pix.height >= 16:
-            cizimler.append({"gri": pix.samples, "genislik": pix.width, "yukseklik": pix.height, "x": pix.x, "y": pix.y, "z": z})
+        zn = _dogal_olcek(bolge, gorseller)
+        if zn and z >= BLOKLU_BUYUTME * zn:
+            from PIL import Image
+            pix = pg.get_pixmap(matrix=pymupdf.Matrix(zn, zn), clip=kirp, colorspace=pymupdf.csGRAY, alpha=False, annots=False)
+            # Hedef boyut doğrudan z'de çizimin vereceği boyut: kaba ölçekteki yuvarlama payı büyütmeyle katlanıp EN_FAZLA_PIKSEL'i aşmasın
+            hedef = (kirp * pymupdf.Matrix(z, z)).irect
+            g, y = max(1, hedef.width), max(1, hedef.height)
+            if g >= 16 and y >= 16 and pix.width and pix.height:
+                gri = Image.frombytes("L", (pix.width, pix.height), pix.samples).resize((g, y), Image.Resampling.LANCZOS).tobytes()
+                fx, fy = g / pix.width, y / pix.height
+                cizimler.append({"gri": gri, "genislik": g, "yukseklik": y, "x": pix.x * fx, "y": pix.y * fy, "z": zn * fx, "zy": zn * fy})
+        else:
+            pix = pg.get_pixmap(matrix=pymupdf.Matrix(z, z), clip=kirp, colorspace=pymupdf.csGRAY, alpha=False, annots=False)
+            if pix.width >= 16 and pix.height >= 16:
+                cizimler.append({"gri": pix.samples, "genislik": pix.width, "yukseklik": pix.height, "x": pix.x, "y": pix.y, "z": z})
         pix = None
     return {"cizimler": cizimler, "sozcukler": gercekler, "derot": pymupdf.Matrix(pg.derotation_matrix)}
 
@@ -261,8 +300,8 @@ def _tamamla(anahtar, hazirlik, dongu):
     yuvarla = lambda v: round(v, 2)
     for c in hazirlik["cizimler"]:
         sonuc = dongu.run_until_complete(_tani(motor, c["gri"], c["genislik"], c["yukseklik"]))
-        z, ox, oy = c["z"], c["x"], c["y"]
-        nokta = lambda px, py: pymupdf.Point((ox + px) / z, (oy + py) / z) * derot
+        zx, zy, ox, oy = c["z"], c.get("zy", c["z"]), c["x"], c["y"]
+        nokta = lambda px, py: pymupdf.Point((ox + px) / zx, (oy + py) / zy) * derot
         egik = abs(sonuc.text_angle or 0.0) >= EGIK
         for satir in sonuc.lines:
             kel = [(w.bounding_rect, _rakamlari_duzelt(w.text)) for w in satir.words if (w.text or "").strip()]
@@ -307,7 +346,8 @@ def y_ocr_sayfa(p):
         return {"satirlar": [], "desteklenmiyor": True}
     pg = onbellek.al(yol)[sayfa - 1]
     sayfa_sozcukleri = pg.get_text("words")
-    hazirlik = _hazirla(pg, sayfa_sozcukleri, _bolgeler(pg, sayfa_sozcukleri))
+    gorseller = pg.get_image_info()
+    hazirlik = _hazirla(pg, sayfa_sozcukleri, _bolgeler(pg, sayfa_sozcukleri, gorseller), gorseller)
     if not hazirlik["cizimler"]:
         _onbellege(anahtar, _BOS)
         return {"satirlar": []}
@@ -326,13 +366,14 @@ def sozcukler(doc, yol, sayfa, kutular=None):
                 return []
             pg = doc[int(sayfa) - 1]
             sayfa_sozcukleri = pg.get_text("words")
-            bolgeler = _bolgeler(pg, sayfa_sozcukleri)
+            gorseller = pg.get_image_info()
+            bolgeler = _bolgeler(pg, sayfa_sozcukleri, gorseller)
             if not bolgeler:
                 _onbellege(anahtar, _BOS)
                 return []
             if kutular is not None and not any(secim.intersects(b) for secim in kutular for b in bolgeler):
                 return []
-            hazirlik = _hazirla(pg, sayfa_sozcukleri, bolgeler)
+            hazirlik = _hazirla(pg, sayfa_sozcukleri, bolgeler, gorseller)
             if not hazirlik["cizimler"]:
                 _onbellege(anahtar, _BOS)
                 return []
