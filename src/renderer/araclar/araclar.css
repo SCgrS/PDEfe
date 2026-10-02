@@ -13,6 +13,10 @@
   user-select: text;   /* dosya adı, boyut, tahmin, sonuç ve iletiler fareyle seçilip kopyalanabilir */
 }
 html[data-tema="koyu"] .arac-pencere { box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6); }
+/* Sekme şeridinin altında başlayan pencere (ortak.js Pencere._seritAltinaYerlestir; 0.1.26, Birleştir): --arac-ust şeridin altı + boşluk.
+   Pencerenin kendi yüksekliği (Birleştir 88vh) sığmazsa altta boşluk kalacak kadar kısalır. */
+.arac-ortusu.serit-alti { align-items: flex-start; }
+.arac-ortusu.serit-alti > .arac-pencere { margin-top: var(--arac-ust); max-height: calc(100vh - var(--arac-ust) - 12px); }
 /* Tıklanan denetimler seçim başlatmasın (kartların, satırların seçilmesi ve sürüklenmesi bozulmasın) */
 .arac-pencere button, .arac-pencere select, .arac-segmentli, .arac-secenek-liste label, .arac-klasor-cip svg,
 .dondur-yon, .birlestir-oge, .sayfa-karti, .sayfalar-arac-cubugu, .sayfalar-izgara { user-select: none; }

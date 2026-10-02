@@ -200,15 +200,16 @@ export async function aracPencereleriniKapat() {
  * @param {string} [s.anahtar] aynı anahtarla ikinci pencere açılmaz; var olan öne gelir
  * @param {string} [s.sinif] ek CSS sınıfı
  * @param {(p:Pencere)=>boolean|Promise<boolean>} [s.kapatmadanOnce] false dönerse kapatma iptal edilir
+ * @param {boolean} [s.seritAlti] pencere ortada değil sekme şeridinin altında başlar (bkz. Pencere._seritAltinaYerlestir)
  * @returns {Pencere}
  */
-export function pencereAc({ baslik, govde, dugmeler = [], genislik, anahtar, sinif, kapatmadanOnce }) {
+export function pencereAc({ baslik, govde, dugmeler = [], genislik, anahtar, sinif, kapatmadanOnce, seritAlti = false }) {
   if (anahtar && acikPencereler.has(anahtar)) {
     const p = acikPencereler.get(anahtar);
     p.odakla();
     return p;
   }
-  const pencere = new Pencere({ baslik, govde, dugmeler, genislik, anahtar, sinif, kapatmadanOnce });
+  const pencere = new Pencere({ baslik, govde, dugmeler, genislik, anahtar, sinif, kapatmadanOnce, seritAlti });
   if (anahtar) acikPencereler.set(anahtar, pencere);
   return pencere;
 }
@@ -222,7 +223,7 @@ export function pencereAcikMi(anahtar) {
 }
 
 export class Pencere {
-  constructor({ baslik, govde, dugmeler, genislik, anahtar, sinif, kapatmadanOnce }) {
+  constructor({ baslik, govde, dugmeler, genislik, anahtar, sinif, kapatmadanOnce, seritAlti = false }) {
     this.anahtar = anahtar;
     this.kapatmadanOnce = kapatmadanOnce;
     this.kapali = false;
@@ -279,7 +280,35 @@ export class Pencere {
     this.el.addEventListener('contextmenu', (e) => this._baglamMenusu(e));
     document.body.append(ortu);
     tumPencereler.add(this);
+    if (seritAlti) this._seritAltinaYerlestir();
     this.odakla();
+  }
+
+  /**
+   * Pencere sekme şeridinin hemen altında başlar, yüksekliği pencerenin altına sığacak kadar kısalır (0.1.26, kullanıcı isteği:
+   * Birleştir'in arkasındaki sekmeler görünsün, doğru belgede olunduğu denetlenebilsin). Örtü şeridi de karartır, tıklama yine
+   * pencerenin dışına tıklamadır. Şerit gizliyse (okuma kipi) ya da altında yeterli yer yoksa pencere ortalanır. Uygulama penceresi
+   * boyutlanınca, menü çubuğu açılıp kapanınca ya da okuma kipine girilince yeniden yerleşir.
+   */
+  _seritAltinaYerlestir() {
+    const serit = document.getElementById('sekme-cubugu');
+    if (!serit) return;
+    const BOSLUK = 8, ALT_BOSLUK = 12, EN_AZ = 480;   // px: şeritle pencere arası, pencerenin altı, şeridin altında gereken en az yükseklik
+    const yerlestir = () => {
+      if (this.kapali) return;
+      const k = serit.getBoundingClientRect();
+      const ust = Math.round(k.bottom + BOSLUK);
+      const uygun = k.height > 0 && innerHeight - ust - ALT_BOSLUK >= EN_AZ;
+      this.ortu.classList.toggle('serit-alti', uygun);
+      this.ortu.style.setProperty('--arac-ust', uygun ? `${ust}px` : '');
+    };
+    const gozlemci = new ResizeObserver(yerlestir);
+    gozlemci.observe(serit);
+    const cubuk = document.getElementById('arac-cubugu');
+    if (cubuk) gozlemci.observe(cubuk);
+    addEventListener('resize', yerlestir);
+    this.el.addEventListener('kapandi', () => { gozlemci.disconnect(); removeEventListener('resize', yerlestir); });
+    yerlestir();
   }
 
   /**

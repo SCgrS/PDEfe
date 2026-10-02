@@ -67,13 +67,14 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   tahmini), **Sayfaları düzenle** (küçük resim ızgarasında sürükleyerek sıralama, boş alandan sürükleyerek çoklu seçim,
   silme, döndürme, boş sayfa ya da başka PDF'ten sayfa ekleme), **Döndür ve kaydet**, **PDF ayır** (sayfa aralıklarına göre
   ayrı ayrı dosya ya da tek dosya, her sayfa ayrı dosya), **Görüntü / PDF birleştir** (görüntü ve PDF'lerden tek PDF; bir PDF
-  açıkken açılınca o PDF listenin başında gelir;
+  açıkken açılınca o PDF listenin başında gelir; pencere sekme şeridinin altında açılır, arkadaki
+  sekmelerden doğru belgede olunduğu görülür;
   sürükle-bırak, `Ctrl+V`, Panodan ekle ya da sağ tık Yapıştır; Orijinal / Yüksek / Orta / Düşük kalite düğmelerinde
   toplam tahmini boyut; görüntünün sayfası "Orijinal" (varsayılan: sayfa tam görsel boyutunda) ya da "A4'e sığdır"; farenin sağ
   tuşuyla sürükleyerek, `Ctrl` / `Shift` ile tıklayarak çoklu seçim, seçilenler birlikte döndürülür, taşınır, çıkarılır).
   Her araçta Kaydet bölümü aynı düzendedir: "Yeni belge olarak kaydet" (varsayılan; önerilen ad "Sıkıştırılmış", "Düzenlenmiş",
-  "Döndürülmüş", "Ayrılmış", "Birleşik"; klasör Masaüstü, Ayarlar › Kaydetme'den değiştirilir) ya da "Üzerine yaz" (yedeksiz,
-  güvenli yer değiştirme; yazılacak dosyanın adı ve klasörü soluk görünür): Sıkıştırma'da, Ayır'da ve Birleştir'de üzerine
+  "Döndürülmüş", "Ayrılmış", "Birleştirilmiş"; klasör Masaüstü, Ayarlar › Kaydetme'den değiştirilir) ya da "Üzerine yaz" (yedeksiz,
+  güvenli yer değiştirme; yazılacak dosyanın adı ve klasörü soluk görünür): Sıkıştır'da, Ayır'da ve Birleştir'de üzerine
   yazma geri alınamaz (uyarı gösterilir), Döndür'de ve Sayfaları düzenle'de `Ctrl+Z` ile geri alınır; Ayır'da yalnızca tek
   dosya üreten ayırmada, Birleştir'de araç açılırken açık olan PDF listedeyse kullanılabilir. Dosya adı uzantısız yazılır
   (".pdf" kaydederken eklenir; Ayır birden çok dosyada "Ayrılmış - Sayfa 1-3.pdf" gibi adlar verir); yanındaki klasöre tıklamak

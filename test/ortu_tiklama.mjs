@@ -196,7 +196,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   await tikla(...(await evalJs(`__t.merkez('.birlestir-ekle')`)));
   await beklet(`!document.querySelector('.arac-pencere .bos-mesaj')`); await bekle(500);
   await yanit(2); await disariTikla(AR);
-  denetle('Birleştir: dolu listede dışarı tık sorar, "Vazgeç" açık bırakır', /^"Birleşik( \(\d+\))?\.pdf" belgesinde kaydedilmemiş değişiklikler var\.$/.test(await sonSoru()) && await acikMi(AR), await sonSoru());
+  denetle('Birleştir: dolu listede dışarı tık sorar, "Vazgeç" açık bırakır', /^"Birleştirilmiş( \(\d+\))?\.pdf" belgesinde kaydedilmemiş değişiklikler var\.$/.test(await sonSoru()) && await acikMi(AR), await sonSoru());
   await yanit(1); await disariTikla(AR);
   denetle('Birleştir: "Kaydetme" ile kapanır', !(await acikMi(AR)));
 

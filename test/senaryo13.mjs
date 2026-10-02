@@ -4,8 +4,8 @@
 // "Yeni belge olarak kaydet" (notlar/bağlantılar/yer imleri, bekleyen not sorusu) ve "Üzerine yaz" (kayıt, Ctrl+Z, yeniden kayıt);
 // PDF ayır "Üzerine yaz" (tek dosya kuralı canlı, seçili sayfalar ve tek aralık, sekmenin yenilenmesi, bekleyen değişiklik soruları);
 // Görüntü / PDF birleştir: varsayılan "Orijinal" (kenar alanı gizli, çıktıda kenar boşluğu yok), "A4'e sığdır"da kenar alanı.
-// 0.1.25: varsayılan adlar "Düzenlenmiş", "Birleşik" (klasörde varsa "(2)"; hedef addan okunur); PDF ayır'da "Seçili sayfaları çıkart" yerine
-// Sayfa aralıklarına göre + Tek dosya, "Her N sayfada bir" yok (6. bölüm).
+// 0.1.25: varsayılan adlar "Düzenlenmiş", "Birleşik" (0.1.26'dan "Birleştirilmiş"; klasörde varsa "(2)"; hedef addan okunur); Ayır'da
+// "Seçili sayfaları çıkart" yerine Sayfa aralıklarına göre + Tek dosya, "Her N sayfada bir" yok (6. bölüm).
 // 0.1.13: araç pencerelerinin alt şeridindeki fare/tuş ipucu kalktı (F1 "Kısayollar" penceresine taşındı; 3. bölüm), araçlardaki
 // "Kaydetme" bölüm başlığı "Kaydet" oldu (2, 3, 6. bölüm), Sayfaları düzenle'de "PDF'ten sayfa ekle" düğmesi "PDF ekle" (3. bölüm).
 // Girdiler test/cikti/ui/pdf altına kopyalanır/üretilir; araçların çıktı klasörü test/cikti/ui/cikti yapılır (Masaüstüne yazılmaz).
@@ -525,7 +525,7 @@ print(json.dumps(y))`);
     await ss('07-gorsel-orijinal-koyu');
     await tema('acik'); await ss('07-gorsel-orijinal-acik'); await tema('koyu');
     if (!(await evalJs(`document.querySelector('.birlestir-pencere .arac-klasor-cip').dataset.klasor === ${J(CIKTI)}`))) throw new Error('çıktı klasörü test klasörü değil');
-    const hedef = await yeniBelgeHedefi();   // 0.1.25: "Birleşik"
+    const hedef = await yeniBelgeHedefi();   // "Birleştirilmiş" (0.1.25'te "Birleşik")
     await evalJs(`document.querySelector('.arac-dugmeler [data-id="birlestir"]').click()`);
     await kosul(`!document.querySelector('.birlestir-pencere')`, 20000);
     await bekle(800);

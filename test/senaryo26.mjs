@@ -4,13 +4,15 @@
 //      başlığı "Sıkıştırma seçenekleri".
 //   2) Beş araçta Kaydet bölümü aynı düzende: başlık, altında Yeni belge olarak kaydet | Üzerine yaz, altında ad + klasör + Değiştir
 //      (alt alta, sola hizalı); varsayılan ad parantezsiz, baş harfi büyük, Türkçe harfli: Sıkıştırılmış, Düzenlenmiş, Döndürülmüş,
-//      Ayrılmış, Birleşik. "Üzerine yaz" seçilince satır kaybolmaz: yerinde üzerine yazılacak dosyanın adı ve klasörü soluk
+//      Ayrılmış, Birleştirilmiş. "Üzerine yaz" seçilince satır kaybolmaz: yerinde üzerine yazılacak dosyanın adı ve klasörü soluk
 //      (değiştirilemez) durur, altında not.
 //   3) PDF ayır: "Sayfa aralıklarına göre"nin yanında Ayrı ayrı dosya | Tek dosya ("aralık" sözcüğü yok), "Her … sayfada bir" ve "Seçili
 //      sayfaları çıkart" yok; dosya adı kutusu (Ayrılmış), birden çok dosyada "Ayrılmış - Sayfa 1-3.pdf"; çıktılar diskte; var olan
 //      dosyada "(2)"; tek dosyada üzerine yazma.
 //   4) Birleştir: açık PDF listenin başında; "Üzerine yaz" açık PDF listedeyken seçilebilir, çıkarılınca seçilemez; üzerine yazınca açık
-//      PDF birleşik sonuçla yeniden açılır; PDF açık değilken açılan araçta seçilemez; yeni belge "Birleşik.pdf", ikincisi "Birleşik (2)".
+//      PDF birleşik sonuçla yeniden açılır; PDF açık değilken açılan araçta seçilemez; yeni belge "Birleştirilmiş.pdf" (0.1.25'te
+//      "Birleşik"), ikincisi "Birleştirilmiş (2)". Pencere sekme şeridinin altında başlar, etkin sekme görünür kalır (0.1.26); okuma
+//      kipinde ve şeridin altında yer kalmayınca ortalanır.
 //   5) Sıkıştırma ve Döndür'ün yeni belgeleri "Sıkıştırılmış.pdf", "Döndürülmüş.pdf".
 //   6) Bağımsız incelemenin bulguları: ad kutusuna açık belgenin adı yazılınca önce "zaten var" sorulur; Birleştir'de açık PDF listeden
 //      çıkarılınca ya da okunamayınca üzerine yazılmaz; PDF ayır önizlemesi önerilen ad değişince güncel adla.
@@ -158,7 +160,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await ac(zengin.a);
     const araclar = [
       ['arac.kucult', 'kucult-pencere', 'Sıkıştırılmış'], ['arac.sayfalar', 'sayfalar-pencere', 'Düzenlenmiş'],
-      ['arac.dondurKaydet', 'dondur-pencere', 'Döndürülmüş'], ['arac.ayir', 'ayir-pencere', 'Ayrılmış'], ['arac.gorselBirlestir', 'birlestir-pencere', 'Birleşik'],
+      ['arac.dondurKaydet', 'dondur-pencere', 'Döndürülmüş'], ['arac.ayir', 'ayir-pencere', 'Ayrılmış'], ['arac.gorselBirlestir', 'birlestir-pencere', 'Birleştirilmiş'],
     ];
     for (const [komut, sinif, ad] of araclar) {
       await aracAc(komut, sinif);
@@ -287,7 +289,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await kosul(`document.querySelectorAll('.birlestir-oge').length === 1 && !document.querySelector('.birlestir-oge.yukleniyor')`, 8000);
     const ilk = await evalJs(`document.querySelector('.birlestir-oge .ad').textContent`);
     let d = await kayitDurumu();
-    sonuc('açık PDF listenin başında; Üzerine yaz seçilebilir, ad "Birleşik"', ilk === 'zengin_c.pdf' && !d.secenekler[1].devre && !d.kisit && d.ad === 'Birleşik', { ilk, d: d.secenekler, ad: d.ad });
+    sonuc('açık PDF listenin başında; Üzerine yaz seçilebilir, ad "Birleştirilmiş"', ilk === 'zengin_c.pdf' && !d.secenekler[1].devre && !d.kisit && d.ad === 'Birleştirilmiş', { ilk, d: d.secenekler, ad: d.ad });
     await ss('04-birlestir-acik-pdf');
     // Listeden çıkarınca seçilemez, geri eklenince seçilebilir
     await kipSec('uzerine');
@@ -296,6 +298,35 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     d = await kayitDurumu();
     sonuc('açık PDF listeden çıkarılınca Üzerine yaz seçilemez (Yeni belge seçilir, neden yazar)', d.secenekler[1].devre && d.secenekler[0].secili && /listeden çıkarıldığı için/.test(d.kisit), d.kisit);
     await ss('04-birlestir-cikarildi');
+    // Pencerenin yeri (0.1.26): sekme şeridinin altında başlar, etkin sekmenin üstünde örtüden başka bir şey yok (pencere onu kapatmıyor);
+    // yüksekliği 88vh, sığmazsa altta 12 px kalacak kadar. Okuma kipinde (şerit gizli) ve şeridin altında yer kalmayınca ortada.
+    const yer = () => evalJs(`(() => {
+      const o = document.querySelector('.arac-ortusu'), p = document.querySelector('.birlestir-pencere');
+      const s = document.getElementById('sekme-cubugu').getBoundingClientRect(), b = p.getBoundingClientRect();
+      const t = document.querySelector('#sekme-cubugu .sekme.aktif')?.getBoundingClientRect();
+      const ustteki = t && t.height ? document.elementFromPoint(t.left + t.width / 2, t.top + t.height / 2) : null;
+      return { seritAlti: o.classList.contains('serit-alti'), seritAlt: Math.round(s.bottom), seritH: Math.round(s.height), ust: Math.round(b.top),
+        alt: Math.round(b.bottom), h: Math.round(b.height), ih: innerHeight, sekmeGorunur: !!ustteki && ustteki === o, ortaY: Math.round((b.top + b.bottom) / 2) };
+    })()`);
+    let y = await yer();
+    sonuc('pencere sekme şeridinin altında başlar, etkin sekme görünür; yükseklik 88vh ya da sığacak kadar',
+      y.seritAlti && y.seritH > 0 && y.ust >= y.seritAlt + 7 && y.ust <= y.seritAlt + 9 && y.alt <= y.ih - 11 && y.sekmeGorunur
+      && Math.abs(y.h - Math.min(0.88 * y.ih, y.ih - y.ust - 12)) <= 2, y);
+    await evalJs(`window.__pdefe.komutCalistir('gorunum.okumaModu')`);
+    await kosul(`!document.querySelector('.arac-ortusu').classList.contains('serit-alti')`, 3000);
+    y = await yer();
+    sonuc('okuma kipinde (şerit gizli) pencere ortada', !y.seritAlti && y.seritH === 0 && Math.abs(y.ortaY - y.ih / 2) <= 2, y);
+    await evalJs(`window.__pdefe.komutCalistir('gorunum.okumaModu')`);
+    await kosul(`document.querySelector('.arac-ortusu').classList.contains('serit-alti')`, 3000);
+    y = await yer();
+    sonuc('okuma kipinden çıkınca yeniden şeridin altında', y.seritAlti && y.ust >= y.seritAlt + 7 && y.sekmeGorunur, y);
+    await evalJs(`(() => { document.getElementById('sekme-cubugu').style.height = (innerHeight - 400) + 'px'; return true; })()`);
+    await kosul(`!document.querySelector('.arac-ortusu').classList.contains('serit-alti')`, 3000);
+    y = await yer();
+    sonuc('şeridin altında yer kalmayınca pencere ortada', !y.seritAlti && Math.abs(y.ortaY - y.ih / 2) <= 2, y);
+    await evalJs(`(() => { document.getElementById('sekme-cubugu').style.height = ''; return true; })()`);
+    await kosul(`document.querySelector('.arac-ortusu').classList.contains('serit-alti')`, 3000);
+    await ss('04-birlestir-yer');
     // Dosya ekle diyaloğunun yanıtı: önce açık PDF, sonra ikinci PDF
     await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'dosya:acDiyalog', [[${J(zengin.c)}, ${J(zengin.d)}]])`);
     await evalJs(`document.querySelector('.birlestir-ekle').click()`);
@@ -325,8 +356,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await evalJs(`document.querySelector('.arac-dugmeler .birincil').click()`);
     await kosul(`!document.querySelector('.birlestir-pencere')`, 15000);
     await aracAc('arac.gorselBirlestir', 'birlestir-pencere');
-    const ad2 = await kosul(`document.querySelector('.arac-kayit-yeni .arac-cikti-ad')?.value === 'Birleşik (2)' && 'Birleşik (2)'`, 4000);
-    sonuc('yeni belge "Birleşik.pdf"; ikincisinde önerilen ad "Birleşik (2)"', fs.existsSync(path.join(CIKTI, 'Birleşik.pdf')) && ad2 === 'Birleşik (2)', { dosyalar: dosyalar(), ad2 });
+    const ad2 = await kosul(`document.querySelector('.arac-kayit-yeni .arac-cikti-ad')?.value === 'Birleştirilmiş (2)' && 'Birleştirilmiş (2)'`, 4000);
+    sonuc('yeni belge "Birleştirilmiş.pdf"; ikincisinde önerilen ad "Birleştirilmiş (2)"', fs.existsSync(path.join(CIKTI, 'Birleştirilmiş.pdf')) && ad2 === 'Birleştirilmiş (2)', { dosyalar: dosyalar(), ad2 });
     await pencereKapat();
   }
 

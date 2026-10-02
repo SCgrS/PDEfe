@@ -9,8 +9,9 @@
 //     kopyası) çıktıda bir kez saklanır: toplamlarda ilki boyut, sonrakiler yalnızca tekrar kadar sayılır.
 //   birlestir {ogeler:[{yol, tur, kalite, sayfaBoyutu, kenar, dondurme}], hedef, genelKalite} (ilerlemeli) → {boyut, sayfa}
 // Araç bir PDF açıkken açılırsa o PDF listenin başında gelir (0.1.25, kullanıcı isteği). Kaydetme öteki araçlardaki standart seçimdir
-// (ortak.js kayitSecimi; varsayılan ad "Birleşik"): "Üzerine yaz" yalnızca araç bir PDF açıkken açıldıysa ve o PDF listeden
-// çıkarılmadıysa seçilebilir; birleşik sonuç o PDF'in yerine yazılır (çekirdek geçici dosya + os.replace; yedek yok, geri alınamaz).
+// (ortak.js kayitSecimi; varsayılan ad "Birleştirilmiş", 0.1.25'te "Birleşik"): "Üzerine yaz" yalnızca araç bir PDF açıkken açıldıysa
+// ve o PDF listeden çıkarılmadıysa seçilebilir; birleşik sonuç o PDF'in yerine yazılır (çekirdek geçici dosya + os.replace; yedek yok,
+// geri alınamaz).
 import {
   pencereAc, pencereAcikMi, IslemIlerleme, kayitSecimi, boyutMetni, sayiMetni, kacis, hataMetni, dosyaAdi, uzanti,
   yolAyni, suruklemeSiralama, suruklemeKalintisi, geciktir, oge, segmentliSecim, kilitliHataMi, ciktiyiAc, acikBelge,
@@ -106,7 +107,7 @@ export class BirlestirmePenceresi {
 
     // Kaydetme: öteki araçlardaki standart seçim. "Üzerine yaz"ın hedefi araç açılırken açık olan PDF'tir; listede değilse seçilemez
     this.kayit = kayitSecimi({
-      baglam: this.baglam, belge: this.belge, ad: 'Birleşik', diyalogBasligi: 'Birleştirilmiş PDF',
+      baglam: this.baglam, belge: this.belge, ad: 'Birleştirilmiş', diyalogBasligi: 'Birleştirilmiş PDF',
       belgesizNeden: 'Üzerine yaz, araç bir PDF açıkken açıldığında o PDF için seçilebilir.',
     });
     this.cikti = this.kayit.cikti;
@@ -116,8 +117,9 @@ export class BirlestirmePenceresi {
     govde.querySelector('.birlestir-yapistir').addEventListener('click', () => this.panodanEkle());
     govde.querySelector('.birlestir-temizle').addEventListener('click', () => { if (this.ogeler.length) { this.ogeler = []; this.secim.clear(); this.capa = null; this.ciz(); } });
 
+    // Pencere sekme şeridinin altında başlar: arkadaki sekmelerden doğru belgede olunduğu görülür (0.1.26, kullanıcı isteği)
     this.pencere = pencereAc({
-      baslik, govde, anahtar: this.anahtar, sinif: 'birlestir-pencere',
+      baslik, govde, anahtar: this.anahtar, sinif: 'birlestir-pencere', seritAlti: true,
       dugmeler: [{ id: 'birlestir', etiket: 'Birleştir', birincil: true, devre: true, tiklama: () => this.birlestir() }],
       kapatmadanOnce: (_p, sonuc) => this._kapatmaIzni(sonuc),
     });
@@ -183,7 +185,7 @@ export class BirlestirmePenceresi {
   }
 
   /** Kaydedilecek dosyanın adı (kapatma sorusu için): üzerine yazmada açık belgenin adı. */
-  _kayitAdi() { return this.kayit.uzerineMi() ? dosyaAdi(this.belge.yol) : this.cikti.ad() || 'Birleşik.pdf'; }
+  _kayitAdi() { return this.kayit.uzerineMi() ? dosyaAdi(this.belge.yol) : this.cikti.ad() || 'Birleştirilmiş.pdf'; }
 
   async _kapatmaIzni(sonuc) {
     if (this.ilerleme.calisiyor) {
