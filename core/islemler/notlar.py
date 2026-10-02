@@ -4,9 +4,9 @@
 - Highlight: PDF okuyucularının yazdığı yapı: /C, /CA, /QuadPoints, görünüm akışı /BM /Multiply + /CA (PyMuPDF üretir), gizli Popup (/F 28 /Open false);
   notlu vurgu ("Metinle ilgili yorum yap") /Contents + /IT /HighlightNote taşır
 - Text (not): /Comment simgesi, Popup; dosyadaki yanıtları (IRT) geri yazabilir (yeni yanıt arayüzden eklenmez)
-- FreeText: /DA + /DS + /RC (XHTML zengin metin) + kendi ürettiğimiz görünüm akışı; Windows'taki gerçek font
-  (Segoe UI, Arial, Times New Roman, Calibri; düz, kalın, italik, kalın italik) alt kümesi gömülür, böylece ş ğ İ ı ç ö ü
-  her yerde doğru çıkar. Kalın / italik / altı çizili / üstü çizili ve renk karakter düzeyindedir (parçalar).
+- FreeText: /DA + /DS + /RC (XHTML zengin metin) + kendi ürettiğimiz görünüm akışı; bilgisayardaki gerçek font
+  (Windows'ta Segoe UI, Arial, Times New Roman, Calibri; macOS'ta Arial, Times New Roman; düz, kalın, italik, kalın italik) alt kümesi
+  gömülür, böylece ş ğ İ ı ç ö ü her yerde doğru çıkar. Kalın / italik / altı çizili / üstü çizili ve renk karakter düzeyindedir (parçalar).
 """
 import hashlib
 import io
@@ -14,6 +14,7 @@ import json
 import math
 import os
 import re
+import sys
 import time
 import shutil
 import tempfile
@@ -24,18 +25,31 @@ import pymupdf
 
 # /RC'deki xfa:APIVersion "program:sürüm" biçimindedir; ana süreç uygulama sürümünü PDEFE_SURUM ortam değişkeninde verir
 URETICI_SURUMU = "PDEfe:" + (os.environ.get("PDEFE_SURUM") or "0")
-FONT_KLASORU = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")
-# (aile, kalın, italik) -> Windows font dosyası
-FONT_DOSYALARI = {
-    ("Segoe UI", False, False): "segoeui.ttf", ("Segoe UI", True, False): "segoeuib.ttf",
-    ("Segoe UI", False, True): "segoeuii.ttf", ("Segoe UI", True, True): "segoeuiz.ttf",
-    ("Arial", False, False): "arial.ttf", ("Arial", True, False): "arialbd.ttf",
-    ("Arial", False, True): "ariali.ttf", ("Arial", True, True): "arialbi.ttf",
-    ("Times New Roman", False, False): "times.ttf", ("Times New Roman", True, False): "timesbd.ttf",
-    ("Times New Roman", False, True): "timesi.ttf", ("Times New Roman", True, True): "timesbi.ttf",
-    ("Calibri", False, False): "calibri.ttf", ("Calibri", True, False): "calibrib.ttf",
-    ("Calibri", False, True): "calibrii.ttf", ("Calibri", True, True): "calibriz.ttf",
-}
+MAC = sys.platform == "darwin"
+if MAC:
+    # macOS (0.2.0): Arial ve Times New Roman sistemle gelir (Supplemental). Segoe UI ve Calibri yoktur; o ailelerle yazılmış not
+    # düzenlenince Arial gömülür (_font_dosyasi). Kullanıcının kurduğu fontlar da aranır.
+    FONT_KLASORLERI = ["/System/Library/Fonts/Supplemental", "/Library/Fonts", os.path.expanduser("~/Library/Fonts")]
+    # (aile, kalın, italik) -> macOS font dosyası
+    FONT_DOSYALARI = {
+        ("Arial", False, False): "Arial.ttf", ("Arial", True, False): "Arial Bold.ttf",
+        ("Arial", False, True): "Arial Italic.ttf", ("Arial", True, True): "Arial Bold Italic.ttf",
+        ("Times New Roman", False, False): "Times New Roman.ttf", ("Times New Roman", True, False): "Times New Roman Bold.ttf",
+        ("Times New Roman", False, True): "Times New Roman Italic.ttf", ("Times New Roman", True, True): "Times New Roman Bold Italic.ttf",
+    }
+else:
+    FONT_KLASORLERI = [os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")]
+    # (aile, kalın, italik) -> Windows font dosyası
+    FONT_DOSYALARI = {
+        ("Segoe UI", False, False): "segoeui.ttf", ("Segoe UI", True, False): "segoeuib.ttf",
+        ("Segoe UI", False, True): "segoeuii.ttf", ("Segoe UI", True, True): "segoeuiz.ttf",
+        ("Arial", False, False): "arial.ttf", ("Arial", True, False): "arialbd.ttf",
+        ("Arial", False, True): "ariali.ttf", ("Arial", True, True): "arialbi.ttf",
+        ("Times New Roman", False, False): "times.ttf", ("Times New Roman", True, False): "timesbd.ttf",
+        ("Times New Roman", False, True): "timesi.ttf", ("Times New Roman", True, True): "timesbi.ttf",
+        ("Calibri", False, False): "calibri.ttf", ("Calibri", True, False): "calibrib.ttf",
+        ("Calibri", False, True): "calibrii.ttf", ("Calibri", True, True): "calibriz.ttf",
+    }
 # Gömülecek glif dağarcığı: ASCII, Latin-1, Latin Genişletilmiş-A (Türkçe dahil), genel noktalama, TL işareti
 DAGARCIK = (list(range(0x20, 0x7F)) + list(range(0xA0, 0x100)) + [0x11E, 0x11F, 0x130, 0x131, 0x15E, 0x15F, 0x152, 0x153, 0x178]
             + list(range(0x2010, 0x2027)) + [0x20AC, 0x20BA, 0x2122, 0x2030, 0x2032, 0x2033])
@@ -85,9 +99,10 @@ def _font_dosyasi(aile, kalin, italik):
     bulunamazsa düz yüz eğilerek çizilir."""
     for a, i, sahte in ((aile, italik, False), ("Arial", italik, False), (aile, False, italik), ("Arial", False, italik)):
         dosya = FONT_DOSYALARI.get((a, bool(kalin), bool(i)))
-        if dosya and os.path.exists(os.path.join(FONT_KLASORU, dosya)):
-            return os.path.join(FONT_KLASORU, dosya), bool(sahte)
-    return os.path.join(FONT_KLASORU, "arial.ttf"), bool(italik)
+        for klasor in FONT_KLASORLERI if dosya else ():
+            if os.path.exists(os.path.join(klasor, dosya)):
+                return os.path.join(klasor, dosya), bool(sahte)
+    return os.path.join(FONT_KLASORLERI[0], FONT_DOSYALARI[("Arial", False, False)]), bool(italik)
 
 
 def _font_yukle(aile, kalin, italik=False):
@@ -1010,12 +1025,34 @@ def _replace_file(hedef, gecici):
     os.replace(gecici, hedef)
 
 
+def _ozellikleri_aktar(hedef, gecici):
+    """macOS / Linux (0.2.0): hedefin izinleri ve (macOS'ta) genişletilmiş öznitelikleri (Finder etiketleri, "internetten indirildi"
+    işareti com.apple.quarantine) ve erişim listesi yeni dosyaya aktarılır; os.replace yalnızca yeni dosyanınkini bırakırdı. Değişme
+    zamanı aktarılmaz (COPYFILE_STAT yok). Elden geldiğince: aktarılamazsa kayıt yine yapılır."""
+    try:
+        shutil.copymode(hedef, gecici)
+    except OSError:
+        pass
+    if MAC:
+        try:
+            import ctypes
+            f = ctypes.CDLL("/usr/lib/libSystem.B.dylib", use_errno=True).copyfile
+            f.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_void_p, ctypes.c_uint32]
+            f.restype = ctypes.c_int
+            f(os.fsencode(hedef), os.fsencode(gecici), None, 0x1 | 0x4)   # COPYFILE_ACL | COPYFILE_XATTR
+        except Exception:
+            pass
+
+
 def dosyayi_yerine_koy(gecici, hedef, deneme=6):
-    """Geçici dosyayı hedefin yerine koyar (0.1.23). Hedef varsa ReplaceFileW (yukarıda): os.replace yeni dosyanın yan akışlarını ve
-    izinlerini bırakırdı; internetten indirilmiş PDF'in işareti kalkar, başka okuyucular onu korumalı görünümde açmazdı. Kısa süreli
-    kilitlere (virüs tarayıcı, dizin oluşturucu, eşitleme) karşı birkaç kez dener; olmazsa geçici dosyayı siler, Türkçe PermissionError."""
+    """Geçici dosyayı hedefin yerine koyar (0.1.23). Hedef varsa Windows'ta ReplaceFileW (yukarıda): os.replace yeni dosyanın yan
+    akışlarını ve izinlerini bırakırdı; internetten indirilmiş PDF'in işareti kalkar, başka okuyucular onu korumalı görünümde açmazdı.
+    macOS'ta aynı iş için önce öznitelikler aktarılır (_ozellikleri_aktar), sonra os.replace. Kısa süreli kilitlere (virüs tarayıcı,
+    dizin oluşturucu, eşitleme) karşı birkaç kez dener; olmazsa geçici dosyayı siler, Türkçe PermissionError."""
     import gc
     son = None
+    if os.name != "nt" and os.path.exists(hedef):
+        _ozellikleri_aktar(hedef, gecici)
     for i in range(deneme):
         try:
             if os.name == "nt" and os.path.exists(hedef):

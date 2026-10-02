@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 """PyInstaller spec: pdefe-core (tek klasör: pdefe-core.exe + _internal; konsollu — stdio üzerinden JSON-RPC gerekli).
+macOS'ta (0.2.0) aynı spec pdefe-core + _internal üretir (o bilgisayarın mimarisi için); yazı tanıma için Vision bağları (pyobjc) toplanır.
 
 Çıktı: core/dist/pdefe-core/pdefe-core.exe. Tek dosya (onefile) kullanılmaz: her açılışta ~70 MB'ı %TEMP%\\_MEI* altına açıyordu
 (~0,9 sn) ve süreç öldürülünce (kapanış, çökme, Windows kapanışı) açılan klasör silinmeden kalıyordu (0.1.17'de 151 klasör, 10 GB).
@@ -8,7 +9,10 @@ Derleme: build/cekirdek-derle.mjs (npm run cekirdek:derle) ya da doğrudan
   .venv\\Scripts\\pyinstaller.exe --noconfirm --distpath core/dist --workpath build/pyinstaller-work core/pdefe-core.spec
 """
 import os
+import sys
 from PyInstaller.utils.hooks import collect_dynamic_libs, collect_submodules
+
+WINDOWS = sys.platform == "win32"
 
 KOK = os.path.abspath(SPECPATH)            # core/
 
@@ -49,12 +53,25 @@ except ImportError:
 
 # Windows yazı tanıyıcısının Python bağları (0.1.24, islemler/yazi_tanima.py; pywinrt): modüller işlev içinde yüklendiği için açıkça
 # toplanır; winrt klasöründeki msvcp140.dll de .pyd'lerin yanına gelir. Kurulu değilse çekirdek tanımasız derlenir ("desteklenmiyor")
-try:
-    import winrt  # noqa: F401
-    gizli += collect_submodules("winrt")
-    ikili += collect_dynamic_libs("winrt")
-except ImportError:
-    print("UYARI: winrt paketleri yok; çekirdek görsellerdeki yazıyı tanıyamayacak")
+if WINDOWS:
+    try:
+        import winrt  # noqa: F401
+        gizli += collect_submodules("winrt")
+        ikili += collect_dynamic_libs("winrt")
+    except ImportError:
+        print("UYARI: winrt paketleri yok; çekirdek görsellerdeki yazıyı tanıyamayacak")
+else:
+    # macOS: Apple yazı tanıyıcısının Python bağları (0.2.0; pyobjc-framework-Vision, -Quartz, -Cocoa). Modüller işlev içinde yüklenir
+    try:
+        import objc, Vision, Quartz, Foundation  # noqa: F401,E401
+        for paket in ("objc", "Foundation", "CoreFoundation", "Quartz", "Vision", "CoreML"):
+            try:
+                gizli += collect_submodules(paket)
+                ikili += collect_dynamic_libs(paket)
+            except Exception:
+                pass
+    except ImportError:
+        print("UYARI: pyobjc Vision paketleri yok; çekirdek görsellerdeki yazıyı tanıyamayacak")
 
 # Gereksiz büyük paketler dışarıda
 haric = ["tkinter", "_tkinter", "matplotlib", "numpy", "scipy", "pandas", "IPython", "jupyter",
@@ -97,7 +114,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=os.path.join(KOK, "..", "build", "icon.ico") if os.path.exists(os.path.join(KOK, "..", "build", "icon.ico")) else None,
+    icon=os.path.join(KOK, "..", "build", "icon.ico") if WINDOWS and os.path.exists(os.path.join(KOK, "..", "build", "icon.ico")) else None,
     version=None,
 )
 

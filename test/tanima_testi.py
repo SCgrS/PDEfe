@@ -19,7 +19,7 @@ from islemler import yazi_tanima as yt  # noqa: E402
 
 CIKTI = os.path.join(KOK, "test", "cikti", "tanima_testi")
 os.makedirs(CIKTI, exist_ok=True)
-YAZI = r"C:\Windows\Fonts\arial.ttf"
+YAZI = "/System/Library/Fonts/Supplemental/Arial.ttf" if sys.platform == "darwin" else r"C:\Windows\Fonts\arial.ttf"   # macOS: 0.2.0
 hata = toplam = 0
 
 

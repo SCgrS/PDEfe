@@ -13,7 +13,7 @@ import sys
 import pymupdf
 from PIL import Image
 
-YAZI = r"C:\Windows\Fonts\arial.ttf"
+YAZI = "/System/Library/Fonts/Supplemental/Arial.ttf" if sys.platform == "darwin" else r"C:\Windows\Fonts\arial.ttf"   # macOS: 0.2.0
 BASLIK = "T.C. DENEME İCRA DAİRESİ"
 IMZA_SATIRI = "Bu belge elektronik ortamda imzalanmıştır."
 GOVDE = [

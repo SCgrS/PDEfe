@@ -14,7 +14,8 @@ import sys
 
 import pymupdf
 
-ARIAL = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "arial.ttf")
+ARIAL = ("/System/Library/Fonts/Supplemental/Arial.ttf" if sys.platform == "darwin"   # macOS (0.2.0)
+         else os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "arial.ttf"))
 
 
 def uret(yol, sayfa=3, baslik="Örnek belge", notlu=False):

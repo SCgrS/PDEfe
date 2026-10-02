@@ -226,9 +226,12 @@ def y_yapisal_kaydet(p):
 
 
 def _degistir(gecici, hedef, deneme=6):
-    """os.replace; Windows'ta kısa süreli kilitlere karşı birkaç kez dener."""
+    """os.replace; Windows'ta kısa süreli kilitlere karşı birkaç kez dener. macOS'ta hedefin izinleri ve öznitelikleri (Finder
+    etiketleri) korunur (0.2.0, notlar._ozellikleri_aktar)."""
     import time, gc
     son = None
+    if os.name != "nt" and os.path.exists(hedef):
+        notlar._ozellikleri_aktar(hedef, gecici)
     for i in range(deneme):
         try:
             os.replace(gecici, hedef)

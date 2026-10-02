@@ -1,5 +1,7 @@
 // pdefe-core derleme betiği: .venv içindeki PyInstaller ile core/pdefe-core.spec'i derler, çıktıyı tek klasör olarak
-// core/dist/pdefe-core/ altına koyar (pdefe-core.exe + _internal), exe'yi başlatıp "ping" ile doğrular, süre ve boyutu yazar.
+// core/dist/pdefe-core/ altına koyar (pdefe-core.exe + _internal; macOS'ta pdefe-core + _internal), exe'yi başlatıp "ping" ile doğrular,
+// süre ve boyutu yazar. macOS'ta (0.2.0) PyInstaller o bilgisayarın mimarisi için derler; evrensel paket için iki mimarinin çıktısı
+// CI'da pdefe-core-arm64 / pdefe-core-x64 adıyla birleştirilir (.github/workflows/yayim.yml, electron-builder.yml mac.extraResources).
 //
 // Kullanım:  node build/cekirdek-derle.mjs [--temiz] [--atla-derleme]
 //   --temiz         PyInstaller önbelleğini temizler (--clean)
@@ -13,13 +15,14 @@ import { fileURLToPath } from 'node:url';
 const KOK = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // PDEFE_PYTHON verilirse (CI) o yorumlayıcının PyInstaller modülü, yoksa proje içi .venv kullanılır
 const PDEFE_PYTHON = process.env.PDEFE_PYTHON || '';
-const PYINSTALLER = PDEFE_PYTHON ? PDEFE_PYTHON : path.join(KOK, '.venv', 'Scripts', 'pyinstaller.exe');
+const WINDOWS = process.platform === 'win32';
+const PYINSTALLER = PDEFE_PYTHON ? PDEFE_PYTHON : (WINDOWS ? path.join(KOK, '.venv', 'Scripts', 'pyinstaller.exe') : path.join(KOK, '.venv', 'bin', 'pyinstaller'));
 const PYINSTALLER_ON_ARGS = PDEFE_PYTHON ? ['-m', 'PyInstaller'] : [];
 const SPEC = path.join(KOK, 'core', 'pdefe-core.spec');
 const DIST = path.join(KOK, 'core', 'dist');
 const WORK = path.join(KOK, 'build', 'pyinstaller-work');
 const KLASOR = path.join(DIST, 'pdefe-core');           // electron-builder.yml extraResources bu klasörü resources/pdefe-core'a koyar
-const EXE = path.join(KLASOR, 'pdefe-core.exe');
+const EXE = path.join(KLASOR, WINDOWS ? 'pdefe-core.exe' : 'pdefe-core');
 const ESKI_TEK_DOSYA = path.join(DIST, 'pdefe-core.exe');  // 0.1.17'ye dek onefile çıktısı
 
 const argv = new Set(process.argv.slice(2));
@@ -38,7 +41,7 @@ function calistir(cmd, args, secenekler = {}) {
 
 async function derle() {
   if (!PDEFE_PYTHON && !fs.existsSync(PYINSTALLER)) {
-    throw new Error(`PyInstaller bulunamadı: ${PYINSTALLER}\n.venv içine kurun: .venv\\Scripts\\python.exe -m pip install pyinstaller pyinstaller-hooks-contrib`);
+    throw new Error(`PyInstaller bulunamadı: ${PYINSTALLER}\n.venv içine kurun: ${WINDOWS ? '.venv\\Scripts\\python.exe' : '.venv/bin/python'} -m pip install pyinstaller pyinstaller-hooks-contrib`);
   }
   if (!fs.existsSync(SPEC)) throw new Error(`Spec dosyası yok: ${SPEC}`);
   fs.mkdirSync(DIST, { recursive: true });

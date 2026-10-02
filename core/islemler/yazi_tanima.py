@@ -3,8 +3,9 @@
 
 Tanıyıcı Windows'un yerleşik yazı tanıyıcısıdır (Windows.Media.Ocr, Türkçe dil paketinin tanıma bileşeni): çevrim dışı çalışır, ek
 model dosyası gerekmez, bir A4 sayfa ~0,15 sn. Türkçe tanıyıcı yoksa kullanıcının dil listesindeki ilk tanıyıcı, o da yoksa tanıma
-yapılmaz ("desteklenmiyor"). Tanınan sözcükler belgeye yazılmaz; yalnızca PDEfe'nin metin katmanında (seçim) ve kopyalamada (metin_sec)
-kullanılır.
+yapılmaz ("desteklenmiyor"). macOS'ta (0.2.0) Apple'ın yerleşik tanıyıcısı (Vision, VNRecognizeTextRequest; pyobjc) kullanılır: Türkçe
+destekliyse Türkçe, desteklemiyorsa dil düzeltmesi kapalı Latin tanıma (_AppleTaniyici). Tanınan sözcükler belgeye yazılmaz; yalnızca
+PDEfe'nin metin katmanında (seçim) ve kopyalamada (metin_sec) kullanılır.
 
 Tanınan bölgeler sayfadaki görsellerin kutularıdır (birleşik; EN_KUCUK_ALAN'dan küçükler sayılmaz). Görselin üstünde zaten metin varsa
 (tarayıcının tanıyıp görünmez yazıyla eklediği metin, antet görselinin üstüne yazılmış belge) o görsel tanınmaz: kutusunun en az
@@ -75,7 +76,8 @@ def _onbellege(anahtar, kayit):
 
 
 # ---------------------------------------------------------------- tanıma iş parçacığı
-_motor = None        # None: henüz denenmedi; False: tanıyıcı yok; yoksa OcrEngine
+_motor = None        # None: henüz denenmedi; False: tanıyıcı yok; yoksa OcrEngine (Windows) ya da _AppleTaniyici (macOS)
+MAC = sys.platform == "darwin"
 _kuyruk = queue.Queue()
 _is_parcacigi = None
 _baslatma_kilidi = threading.Lock()
@@ -122,6 +124,12 @@ def bitmesini_bekle(sure=10):
 def _motor_al():
     """Tanıyıcı (yalnızca tanıma iş parçacığında): Türkçe, yoksa kullanıcının dil listesinden; hiçbiri yoksa None."""
     global _motor
+    if _motor is None and MAC:
+        try:
+            _motor = _AppleTaniyici()
+        except Exception as e:
+            print("[yazi_tanima] Apple yazı tanıyıcısı açılamadı: %s" % e, file=sys.stderr)
+            _motor = False
     if _motor is None:
         try:
             from winrt.windows.media.ocr import OcrEngine
@@ -149,6 +157,86 @@ async def _tani(motor, gri, genislik, yukseklik):
             bmp.close()
         except Exception:
             pass
+
+
+# ---------------------------------------------------------------- macOS: Apple'ın yazı tanıyıcısı (0.2.0)
+# Windows.Media.Ocr'ın sonucuyla aynı biçim (_tamamla ikisini aynı okur): satırlar → sözcükler → piksel kutusu (üst-sol kökenli)
+_Kutu = collections.namedtuple("_Kutu", "x y width height")
+_Sozcuk = collections.namedtuple("_Sozcuk", "text bounding_rect")
+_Satir = collections.namedtuple("_Satir", "words")
+_Sonuc = collections.namedtuple("_Sonuc", "lines text_angle")
+_SOZCUK = re.compile(r"\S+")
+
+
+class _AppleTaniyici:
+    """Vision çerçevesinin VNRecognizeTextRequest'i (doğru kip). Dil: tanıyıcı Türkçeyi destekliyorsa Türkçe (dil düzeltmesi açık);
+    desteklemiyorsa varsayılan Latin tanıma, dil düzeltmesi kapalı (İngilizce sözlük Türkçe sözcükleri bozmasın; ş ğ ı s g i okunabilir).
+    Sözcük kutuları satırın metnindeki aralıklardan (boundingBoxForRange) alınır; eğim satırların üst kenarının ortanca açısıdır."""
+
+    def __init__(self):
+        import objc
+        import Vision
+        with objc.autorelease_pool():
+            istek = Vision.VNRecognizeTextRequest.alloc().init()
+            istek.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
+            try:
+                destek, _ = istek.supportedRecognitionLanguagesAndReturnError_(None)
+                destek = [str(d) for d in (destek or [])]
+            except Exception:
+                destek = []
+        self.diller = [d for d in destek if d.lower().split("-")[0] == "tr"][:1]
+        print("[yazi_tanima] Apple tanıyıcısı; Türkçe %s (diller: %s)" % ("var" if self.diller else "yok", ", ".join(destek)),
+              file=sys.stderr)
+
+    def tani(self, gri, genislik, yukseklik):
+        import objc
+        import Quartz
+        import Vision
+        from Foundation import NSData
+        with objc.autorelease_pool():
+            veri = NSData.dataWithBytes_length_(bytes(gri), len(gri))
+            resim = Quartz.CGImageCreate(genislik, yukseklik, 8, 8, genislik, Quartz.CGColorSpaceCreateDeviceGray(),
+                                         Quartz.kCGImageAlphaNone, Quartz.CGDataProviderCreateWithCFData(veri), None, False,
+                                         Quartz.kCGRenderingIntentDefault)
+            istek = Vision.VNRecognizeTextRequest.alloc().init()
+            istek.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
+            istek.setUsesLanguageCorrection_(bool(self.diller))
+            if self.diller:
+                istek.setRecognitionLanguages_(self.diller)
+            isleyici = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(resim, {})
+            tamam, hata = isleyici.performRequests_error_([istek], None)
+            if not tamam:
+                raise RuntimeError("Vision: %s" % hata)
+            satirlar, acilar = [], []
+            for gozlem in istek.results() or []:
+                adaylar = gozlem.topCandidates_(1)
+                if not adaylar:
+                    continue
+                aday = adaylar[0]
+                metin = str(aday.string())
+                sozcukler = []
+                for m in _SOZCUK.finditer(metin):
+                    # NSString aralığı UTF-16 birimiyle (Türkçe harfler tek birim; BMP dışı karakterde kayma olmasın)
+                    bas = len(metin[:m.start()].encode("utf-16-le")) // 2
+                    uzunluk = len(m.group(0).encode("utf-16-le")) // 2
+                    kutu, _ = aday.boundingBoxForRange_error_((bas, uzunluk), None)
+                    if kutu is None:
+                        continue
+                    b = kutu.boundingBox()   # 0–1, sol alt kökenli
+                    sozcukler.append(_Sozcuk(m.group(0), _Kutu(b.origin.x * genislik, (1 - b.origin.y - b.size.height) * yukseklik,
+                                                              b.size.width * genislik, b.size.height * yukseklik)))
+                if sozcukler:
+                    satirlar.append(_Satir(sozcukler))
+                    sol, sag = gozlem.topLeft(), gozlem.topRight()
+                    acilar.append(math.degrees(math.atan2((sol.y - sag.y) * yukseklik, (sag.x - sol.x) * genislik)))
+            return _Sonuc(satirlar, sorted(acilar)[len(acilar) // 2] if acilar else 0.0)
+
+
+def _tani_calistir(motor, c, dongu):
+    """Bir çizimi tanır: Apple tanıyıcısı eşzamanlı, Windows'unki zaman uyumsuz (iş parçacığının olay döngüsünde)."""
+    if isinstance(motor, _AppleTaniyici):
+        return motor.tani(c["gri"], c["genislik"], c["yukseklik"])
+    return dongu.run_until_complete(_tani(motor, c["gri"], c["genislik"], c["yukseklik"]))
 
 
 # ---------------------------------------------------------------- bölgeler ve çizim (işçi iş parçacığı)
@@ -299,7 +387,7 @@ def _tamamla(anahtar, hazirlik, dongu):
     satirlar, sozcukler = [], []
     yuvarla = lambda v: round(v, 2)
     for c in hazirlik["cizimler"]:
-        sonuc = dongu.run_until_complete(_tani(motor, c["gri"], c["genislik"], c["yukseklik"]))
+        sonuc = _tani_calistir(motor, c, dongu)
         zx, zy, ox, oy = c["z"], c.get("zy", c["z"]), c["x"], c["y"]
         nokta = lambda px, py: pymupdf.Point((ox + px) / zx, (oy + py) / zy) * derot
         egik = abs(sonuc.text_angle or 0.0) >= EGIK

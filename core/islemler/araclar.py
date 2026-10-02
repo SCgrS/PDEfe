@@ -207,7 +207,11 @@ def _hedef_klasoru_hazirla(hedef):
 
 
 def _yerine_koy(gecici, hedef):
-    """Geçici dosyayı hedefin yerine atomik olarak koyar. Hedef kilitliyse özgün dosya olduğu gibi kalır."""
+    """Geçici dosyayı hedefin yerine atomik olarak koyar. Hedef kilitliyse özgün dosya olduğu gibi kalır. macOS'ta hedefin izinleri ve
+    öznitelikleri (Finder etiketleri) korunur (0.2.0, notlar._ozellikleri_aktar)."""
+    if os.name != "nt" and os.path.exists(hedef):
+        from .notlar import _ozellikleri_aktar
+        _ozellikleri_aktar(hedef, gecici)
     try:
         os.replace(gecici, hedef)
     except PermissionError as e:
