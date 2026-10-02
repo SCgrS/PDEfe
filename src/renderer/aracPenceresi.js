@@ -1,4 +1,4 @@
-// Araçlar penceresi: araç çubuğundaki "Araçlar" düğmesinin altında açılan karolar (Sıkıştır, Sayfaları düzenle, Döndür ve kaydet,
+// Araçlar penceresi: araç çubuğundaki "Araçlar" düğmesinin altında açılan karolar (Sıkıştır, Sayfaları düzenle, Döndür,
 // Ayır, Görüntü / PDF birleştir). Her karoda büyük simge, araç adı ve tek satırlık açıklama vardır; seçilen araç Araçlar menüsündeki
 // (menu.js) komut kimliğiyle çalıştırılır. PDF'i kopyala'nın (0.1.21'e dek Paylaş) karosu yok: araç çubuğundaki düğmesi ve Araçlar menüsündeki öğesiyle çalışır.
 // Esc, dışarı tıklama ya da araç seçimi pencereyi kapatır; ok tuşları, Tab, Home ve End karolar arasında gezer, Enter / Boşluk seçer.
@@ -15,13 +15,13 @@ export const ARACLAR = [
     ikon: '<path d="M5 2.75h10.5l3.5 3.5v15.5H5z"/><path d="M15.5 2.75v3.5H19"/><path d="M12 6.25v4M10 8.25l2 2 2-2M8.5 13.25h7M12 19.75v-3.5M10 18.25l2-2 2 2"/>',
   },
   {
-    komut: 'arac.sayfalar', ad: 'Sayfaları düzenle', aciklama: 'Sırala, sil, döndür, sayfa ekle', renk: 'mavi', belge: true,
+    komut: 'arac.sayfalar', ad: 'Sayfaları düzenle', aciklama: 'Sıralar, siler, döndürür, sayfa ekler', renk: 'mavi', belge: true,
     ipucu: 'Sayfaları sürükleyerek sıralayın; silin, döndürün, boş sayfa ya da başka PDF\'ten sayfa ekleyin',
     // 2×2 sayfa ızgarası, biri seçili
     ikon: '<rect x="3.5" y="2.75" width="7" height="8.25" rx="1.2"/><rect x="13.5" y="2.75" width="7" height="8.25" rx="1.2"/><rect x="3.5" y="13" width="7" height="8.25" rx="1.2"/><rect x="13.5" y="13" width="7" height="8.25" rx="1.2" fill="currentColor" fill-opacity=".3"/>',
   },
   {
-    komut: 'arac.dondurKaydet', ad: 'Döndür ve kaydet', aciklama: 'Sayfaları döndürüp kaydeder', renk: 'mor', belge: true,
+    komut: 'arac.dondurKaydet', ad: 'Döndür', aciklama: 'Sayfaları döndürür', renk: 'mor', belge: true,
     ipucu: 'Tüm sayfaları, geçerli sayfayı ya da bir aralığı döndürüp dosyaya kaydeder',
     // Sayfa ve saat yönünde dönen ok (0.1.12: ok ucu dolu, bütün döndürme simgeleriyle aynı)
     ikon: '<rect x="3.5" y="8.5" width="10.5" height="12.75" rx="1.5"/><path d="M10.5 3.5h2.75a7 7 0 0 1 7 7v.9"/><path d="M17.35 11.1h5.8l-2.9 3.5z" fill="currentColor" stroke="none"/>',

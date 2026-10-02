@@ -1162,7 +1162,7 @@ const komutlar = {
   'arac.sayfalar': () => bildir('Sayfaları düzenle aracı sonraki aşamada.'),
   'arac.ayir': () => bildir('Ayır aracı sonraki aşamada.'),
   'arac.gorselBirlestir': () => bildir('Görüntü/PDF birleştirme aracı sonraki aşamada.'),
-  'arac.dondurKaydet': () => bildir('Döndür ve kaydet sonraki aşamada.'),
+  'arac.dondurKaydet': () => bildir('Döndür aracı sonraki aşamada.'),
   'yardim.kisayollar': () => kisayollarGoster(),
   'yardim.hakkinda': () => ayarlarPenceresiAc(ayarlarBaglami(), { bolum: 'hakkinda' }),
 };
@@ -1172,7 +1172,7 @@ function ayarlarBaglami() {
   return { ayar: () => ayar, ayarKoy, uygula: ayarUygula, pdefe, varsayilanlar, cekirdek, guncelleme, sonTemizle: () => komutCalistir('dosya.sonTemizle') };
 }
 
-// Araç pencereleri (Sıkıştır, sayfaları düzenle, döndür ve kaydet, ayır, görüntü/PDF birleştir)
+// Araç pencereleri (Sıkıştır, sayfaları düzenle, döndür, ayır, görüntü/PDF birleştir)
 try {
   // cekirdek: araçların okuttuğu dosyalar kaydedilir, son araç penceresi kapanınca bırakılır (aracDosyalariniBirak)
   aracPenceresiKapaninca(aracDosyalariniBirak);

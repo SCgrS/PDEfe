@@ -65,7 +65,8 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 - **Araçlar** (araç çubuğundaki **Araçlar** düğmesi, açılış ekranı ya da Araçlar menüsü; belge açık değilken önce PDF seçilir;
   pencerelerdeki fare ve tuş kullanımı `F1` Kısayollar'da): **Sıkıştır** (üç hazır seviye, boyut
   tahmini), **Sayfaları düzenle** (küçük resim ızgarasında sürükleyerek sıralama, boş alandan sürükleyerek çoklu seçim,
-  silme, döndürme, boş sayfa ya da başka PDF'ten sayfa ekleme), **Döndür ve kaydet**, **Ayır** (sayfa aralıklarına göre
+  silme, döndürme, boş sayfa ya da başka PDF'ten sayfa ekleme; pencere sekme şeridinin altında açılır), **Döndür** (tüm sayfalar,
+  geçerli sayfa ya da bir aralık), **Ayır** (sayfa aralıklarına göre
   ayrı ayrı dosya ya da tek dosya, her sayfa ayrı dosya), **Görüntü / PDF birleştir** (görüntü ve PDF'lerden tek PDF; bir PDF
   açıkken açılınca o PDF listenin başında gelir; pencere sekme şeridinin altında açılır, arkadaki
   sekmelerden doğru belgede olunduğu görülür;

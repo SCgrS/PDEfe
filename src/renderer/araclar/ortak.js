@@ -861,14 +861,14 @@ const UYARI_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3 18
 const BILGI_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.25" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10 9v5M10 6.2v.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 
 /**
- * Standart kaydetme seçimi: "Yeni belge olarak kaydet" | "Üzerine yaz". Bütün araçlar (Sıkıştır, Sayfaları düzenle, Döndür ve kaydet,
+ * Standart kaydetme seçimi: "Yeni belge olarak kaydet" | "Üzerine yaz". Bütün araçlar (Sıkıştır, Sayfaları düzenle, Döndür,
  * Ayır, Görüntü / PDF birleştir) aynı biçimde, aynı sırayla ve aynı varsayılanla ("Yeni belge olarak kaydet") kullanır: aracın "Kaydet"
  * başlığının altında bu seçim, (varsa) kısıt satırı, dosya satırı (ad + klasör çipi + Değiştir) ve üzerine yazma notu (0.1.25, kullanıcı
  * isteği: her araçta fotoğraftaki düzen).
  *  - Yeni belge: varsayılan klasör varsayilanCiktiKlasoru (Masaüstü), varsayılan ad aracın verdiği ad ("Sıkıştırılmış", "Ayrılmış"…;
  *    0.1.25'e dek "<özgün ad> (<ek>)"; klasörde varsa "(2)"…).
  *  - Üzerine yaz: sonuç özgün dosyaya yazılır, yedek alınmaz. Dosya satırı kaybolmaz: yazılacak dosyanın adı ve klasörüyle soluk
- *    (değiştirilemez) görünür. Altındaki not sonucun geri alınıp alınamayacağını söyler: geriAlinabilir araç (Döndür ve kaydet, Sayfaları
+ *    (değiştirilemez) görünür. Altındaki not sonucun geri alınıp alınamayacağını söyler: geriAlinabilir araç (Döndür, Sayfaları
  *    düzenle) sonucu sekmedeki belgeye geri alınabilir komut olarak uygulayıp normal kayıt yoluyla kaydeder (Ctrl+Z), not sade bilgidir;
  *    değilse (Sıkıştır, Ayır, Birleştir: çekirdek aynı klasörde geçici dosyaya yazıp atomik olarak yerine koyar) not uyarı
  *    biçiminde "Geri alınamaz" der, seçeneğin ipucu da. Dosya kilitli ya da salt okunursa özgün dosya değişmez (bkz. hataSor).
@@ -1205,7 +1205,7 @@ export function anaKaynakMi(belge, yol) {
 }
 
 /** Sekmedeki sayfa numaraları dosyadakilerle aynı mı (kaydedilmemiş sayfa silme / sıralama / ekleme yok)? Dosya üzerinde çalışan ve
- *  sayfa numarasını sekmedeki gibi alan araçlar (Döndür ve kaydet'in yeni belgesi, Ayır) uyuşmazlıkta önce kaydettirir. */
+ *  sayfa numarasını sekmedeki gibi alan araçlar (Döndür'ün yeni belgesi, Ayır) uyuşmazlıkta önce kaydettirir. */
 export function numaralarDosyaylaAyni(belge) {
   const g = belge?.gorunum;
   if (!belge?.degisti || typeof g?.yapisalKirli !== 'function' || !g.yapisalKirli()) return true;

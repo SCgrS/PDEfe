@@ -167,7 +167,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
 
   // ---------------------------------------------------------------- araç pencereleri
   const AR = '.arac-ortusu';
-  for (const [id, ad] of [['arac.kucult', 'Sıkıştırma'], ['arac.sayfalar', 'Sayfaları düzenle'], ['arac.dondurKaydet', 'Döndür ve kaydet'], ['arac.ayir', 'Ayır'], ['arac.gorselBirlestir', 'Görüntü / PDF birleştir']]) {
+  for (const [id, ad] of [['arac.kucult', 'Sıkıştırma'], ['arac.sayfalar', 'Sayfaları düzenle'], ['arac.dondurKaydet', 'Döndür'], ['arac.ayir', 'Ayır'], ['arac.gorselBirlestir', 'Görüntü / PDF birleştir']]) {
     await evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find((x) => x.ad === 'ustyazi (85).pdf'); await p.sekmeSec(b.id); return true; })()`);
     await komut(id); await beklet(`!!document.querySelector('.arac-pencere')`); await bekle(600);
     await kapatmayanlar(ad, AR, '.arac-baslik-metin');

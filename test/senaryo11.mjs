@@ -65,10 +65,10 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   await bekle(2500);
   console.log('  sayfa sayısı:', await evalJs(`({ sayfa: window.__pdefe.aktif().gorunum.sayfaSayisi, kirli: window.__pdefe.aktif().gorunum.yapisalKirli(), geriAl: document.querySelector('#dugme-geri-al').title })`));
 
-  // 5) Döndür ve kaydet (tüm sayfalar 90°, "Üzerine yaz") → döndürme sekmeye geri alınabilir komut olarak uygulanır ve belge (sayfa silmeyle birlikte) kaydedilir
+  // 5) Döndür (tüm sayfalar 90°, "Üzerine yaz") → döndürme sekmeye geri alınabilir komut olarak uygulanır ve belge (sayfa silmeyle birlikte) kaydedilir
   await evalJs(`window.__pdefe.komutCalistir('arac.dondurKaydet')`); await bekle(1500);
   await evalJs(`[...document.querySelectorAll('.arac-pencere')].pop()?.querySelector('.arac-kayit-secim button[data-id="uzerine"]')?.click()`);
-  console.log('döndür:', await evalJs(dugmeTikla('/^Döndür ve kaydet$/')));
+  console.log('döndür:', await evalJs(dugmeTikla('/^Döndür$/')));
   await bekle(6000);
   console.log('  durum:', await evalJs(`({ dondurme: window.__pdefe.aktif().gorunum.sayfalar[0].dondurme, degisti: window.__pdefe.aktif().degisti, sayfa: window.__pdefe.aktif().gorunum.sayfaSayisi, geriAl: document.querySelector('#dugme-geri-al').title })`));
   const py = 'C:/Projeler/PDEfe/.venv/Scripts/python.exe';

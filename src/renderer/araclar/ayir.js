@@ -124,7 +124,7 @@ export class AyirPenceresi {
     this.kayit.onDegisti(() => this.onizle());
 
     for (const r of govde.querySelectorAll('input[name="ayir-mod"]')) r.addEventListener('change', () => this._modSec(r.value, true));
-    // Kutu her zaman yazılabilir: tıklayınca ya da yazınca "Sayfa aralıklarına göre" seçilir (Döndür ve kaydet'teki gibi)
+    // Kutu her zaman yazılabilir: tıklayınca ya da yazınca "Sayfa aralıklarına göre" seçilir (Döndür'deki gibi)
     this.aralikEl.addEventListener('pointerdown', () => { if (this.mod !== 'aralik') this._modSec('aralik', false); });
     this.aralikEl.addEventListener('input', () => { if (this.mod !== 'aralik') this._modSec('aralik', false); else this.onizle(); });
     this.aralikEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.ayir(); } });

@@ -178,7 +178,7 @@ export default async function (surucu) {
         gorunurMetin: bas.innerText, tasan, kartTasan };
     })()`);
     const ARACLAR_SIRA = await evalJs(`import('./aracPenceresi.js').then((m) => m.ARACLAR.map((a) => [a.komut, a.ad])).catch(() => null)`);
-    const beklenenSira = ARACLAR_SIRA || [['arac.kucult', 'Sıkıştır'], ['arac.sayfalar', 'Sayfaları düzenle'], ['arac.dondurKaydet', 'Döndür ve kaydet'], ['arac.ayir', 'Ayır'], ['arac.gorselBirlestir', 'Görüntü / PDF birleştir']];
+    const beklenenSira = ARACLAR_SIRA || [['arac.kucult', 'Sıkıştır'], ['arac.sayfalar', 'Sayfaları düzenle'], ['arac.dondurKaydet', 'Döndür'], ['arac.ayir', 'Ayır'], ['arac.gorselBirlestir', 'Görüntü / PDF birleştir']];
     if (!ARACLAR_SIRA) bilgi('ARACLAR modülü içe aktarılamadı; beklenen sıra elle yazıldı');
 
     for (const gen of [1280, 700]) {
@@ -447,7 +447,7 @@ export default async function (surucu) {
     const ARAC = {
       'arac.kucult': { ad: 'Sıkıştır', sinif: 'kucult-pencere', dosya: 'kucult.pdf' },
       'arac.sayfalar': { ad: 'Sayfaları düzenle', sinif: 'sayfalar-pencere', dosya: 'sayfalar.pdf' },
-      'arac.dondurKaydet': { ad: 'Döndür ve kaydet', sinif: 'dondur-pencere', dosya: 'dondur.pdf' },
+      'arac.dondurKaydet': { ad: 'Döndür', sinif: 'dondur-pencere', dosya: 'dondur.pdf' },
       'arac.ayir': { ad: 'Ayır', sinif: 'ayir-pencere', dosya: 'ayir.pdf' },
     };
     const pencereBilgi = () => evalJs(`(() => { const p = document.querySelector('.arac-pencere'); if (!p) return null; const dg = p.querySelector('.arac-dugmeler');
@@ -509,7 +509,7 @@ export default async function (surucu) {
     await acYaniti(path.join(PDF, 'arac-pencere.pdf'));
     await tikl(q('.araclar-karo[data-arac-komut="arac.dondurKaydet"]'));
     let r = await aracSonucu('arac.dondurKaydet', 'pencere', 'arac-pencere.pdf');
-    sonuc('Araçlar penceresi › Döndür ve kaydet → Aç penceresi → PDF açılır → araç o belgeyle açılır', r.ok, { acildi: r.acildi, d: r.dd, kk: r.kk });
+    sonuc('Araçlar penceresi › Döndür → Aç penceresi → PDF açılır → araç o belgeyle açılır', r.ok, { acildi: r.acildi, d: r.dd, kk: r.kk });
     if (r.p) await aracKapat();
     await hepsiniKapat(); await bekle(300);
 

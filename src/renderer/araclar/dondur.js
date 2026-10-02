@@ -1,4 +1,4 @@
-// Döndür ve kaydet: Tüm sayfalar / Geçerli sayfa / Sayfa aralığı × 90° saat yönü / 90° tersi / 180°; standart kaydetme seçimi
+// Döndür (0.1.27'ye dek "Döndür ve kaydet"): Tüm sayfalar / Geçerli sayfa / Sayfa aralığı × 90° saat yönü / 90° tersi / 180°; standart kaydetme seçimi
 // ("Yeni belge olarak kaydet" | "Üzerine yaz", ortak.js kayitSecimi; varsayılan her araçta "Yeni belge olarak kaydet").
 //  - Üzerine yaz: tarif üretir → baglam.sayfaTarifiUygula(belge, tarif, 'Sayfaları döndür') → baglam.kaydet(belge) (Ctrl+S ile aynı
 //    kayıt yolu: yalnızca döndürme değiştiyse artımlı yazılır, e-imzalı baytlar korunur; yedek alınmaz). Döndürme geri alma yığınına
@@ -71,8 +71,8 @@ export class DondurPenceresi {
     this.kayit = kayitSecimi({ baglam: this.baglam, belge: this.belge, ad: 'Döndürülmüş', diyalogBasligi: 'Döndürülmüş PDF', geriAlinabilir: true });
     govde.querySelector('.dondur-kayit').append(this.kayit.el);
     this.pencere = pencereAc({
-      baslik: 'Döndür ve kaydet', govde, genislik: 540, anahtar: 'dondur', sinif: 'dondur-pencere',
-      dugmeler: [{ id: 'uygula', etiket: 'Döndür ve kaydet', birincil: true, tiklama: () => this.uygula() }],
+      baslik: 'Döndür', govde, genislik: 540, anahtar: 'dondur', sinif: 'dondur-pencere',
+      dugmeler: [{ id: 'uygula', etiket: 'Döndür', birincil: true, tiklama: () => this.uygula() }],
       kapatmadanOnce: () => !this.ilerleme.calisiyor,
     });
     this.pencere.govde.append(this.ilerleme.el);

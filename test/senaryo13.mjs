@@ -1,5 +1,5 @@
 // Senaryo 13: araç pencereleri revizyonu. Araçlar penceresi 5 karo (Paylaş yok) ve klavyeyle gezinme; kaydetme seçiminde "Üzerine yaz"
-// notu (Sıkıştır: geri alınamaz uyarısı, Döndür ve kaydet / Sayfaları düzenle: Ctrl+Z bilgisi); Sayfaları düzenle: boş alandan
+// notu (Sıkıştır: geri alınamaz uyarısı, Döndür / Sayfaları düzenle: Ctrl+Z bilgisi); Sayfaları düzenle: boş alandan
 // sürükleyerek alan seçimi (gerçek fare: canlı seçim, Ctrl ile ekleme, kenarda otomatik kaydırma, Esc, düz tıklama, kartla sıralama),
 // "Yeni belge olarak kaydet" (notlar/bağlantılar/yer imleri, bekleyen not sorusu) ve "Üzerine yaz" (kayıt, Ctrl+Z, yeniden kayıt);
 // Ayır "Üzerine yaz" (tek dosya kuralı canlı, seçili sayfalar ve tek aralık, sekmenin yenilenmesi, bekleyen değişiklik soruları);
@@ -552,13 +552,13 @@ print(json.dumps(sonuc))`);
     const kartlar = () => evalJs(`[...document.querySelectorAll('.sayfalar-izgara > .sayfa-karti')].map((k) => { const b = k.getBoundingClientRect(); const r = k.querySelector('.rozet.dondurme'); const g = k.querySelector('.resim-kutu img'); return { no: +k.querySelector('.no').textContent, x: Math.round(b.left + b.width / 2), y: Math.round(b.top + 40), r: Math.round(b.right), rozet: r.hidden ? '' : r.textContent, css: g ? g.style.transform : null, baslik: k.title }; })`);
     const kaydetTikla = () => evalJs(`document.querySelector('.arac-dugmeler [data-id="kaydet"]').click()`);
     const sekmeBekle = (ifade) => kosul(`!document.querySelector('.arac-ortusu') && !window.__pdefe.aktif().kaydediliyor && (${ifade})`, 15000);
-    // a) Döndür ve kaydet (üzerine yaz, 1. sayfa): yalnızca döndürme değiştiği için artımlı kayıt (belge.diskDondurme)
+    // a) Döndür (üzerine yaz, 1. sayfa): yalnızca döndürme değiştiği için artımlı kayıt (belge.diskDondurme)
     await aracAc('arac.dondurKaydet', 'dondur-pencere');
     await evalJs(`document.querySelector('input[name="dondur-kapsam"][value="gecerli"]').click(); document.querySelector('.arac-kayit-secim [data-id="uzerine"]').click(); document.querySelector('.arac-dugmeler [data-id="uygula"]').click()`);
     await sekmeBekle('!window.__pdefe.aktif().degisti');
     const disk = await evalJs(`JSON.stringify(window.__pdefe.aktif().diskDondurme)`);
     const f1 = ozet(zengin.f);
-    sonuc('Döndür ve kaydet üzerine yaz: 1. sayfa dosyada 90°, artımlı kayıt', f1.sayfalar[0].rot === 90 && Object.entries(JSON.parse(disk)).every(([n, d]) => d === (n === '1' ? 90 : 0)),
+    sonuc('Döndür üzerine yaz: 1. sayfa dosyada 90°, artımlı kayıt', f1.sayfalar[0].rot === 90 && Object.entries(JSON.parse(disk)).every(([n, d]) => d === (n === '1' ? 90 : 0)),
       { rot: f1.sayfalar.map((s) => s.rot), disk });
     // b) Küçük resim dosyadaki hali gösterir: bir daha döndürülmez, rozet yok
     await aracAc('arac.sayfalar', 'sayfalar-pencere');

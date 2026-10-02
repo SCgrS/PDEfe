@@ -4,7 +4,7 @@
 //  - Yeni belge: düzen çekirdek sayfalar_uygula ile yeni bir PDF'e yazılır (notlar, form alanları, bağlantılar ve korunan sayfaların
 //    yer imleri yapısal kayıttaki gibi kopyalanır; geçici dosya + os.replace); özgün dosya ve sekme değişmez, yeni dosya yeni sekmede
 //    açılır. Sayfalar dosyadaki kayıtlı hallerinden alınır (bkz. _yeniBelgeTarifi); sekmede kaydedilmemiş not değişikliği varsa önce sorulur.
-//  - Üzerine yaz: Döndür ve kaydet'teki gibi tarif sekmeye geri alınabilir komut olarak uygulanır (baglam.sayfaTarifiUygula) ve belge
+//  - Üzerine yaz: Döndür'deki gibi tarif sekmeye geri alınabilir komut olarak uygulanır (baglam.sayfaTarifiUygula) ve belge
 //    normal kayıt yoluyla kaydedilir (Ctrl+S ile aynı): Ctrl+Z ile geri alınıp yeniden kaydedilebilir. Sekmede kaydedilmemiş başka
 //    değişiklik varsa önce sorulur.
 // Çekirdek: kucuk_resim {yol, sayfa, genislik}, sayfa_boyutlari {yol} → {sayfalar:[{genislik, yukseklik}]} (yoksa belge_bilgi ile

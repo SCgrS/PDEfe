@@ -100,7 +100,7 @@ export function menuKur({ komut, cik, sonDosyalar, duzen }) {
         // Sıra araç çubuğundaki Araçlar penceresiyle aynı (renderer/aracPenceresi.js ARACLAR)
         { label: 'Sıkıştır', click: k('arac.kucult') },
         { label: 'Sayfaları düzenle', click: k('arac.sayfalar') },
-        { label: 'Döndür ve kaydet', click: k('arac.dondurKaydet') },
+        { label: 'Döndür', click: k('arac.dondurKaydet') },
         { label: 'Ayır', click: k('arac.ayir') },
         { label: 'Görüntü / PDF belgeleri birleştirerek PDF oluştur', click: k('arac.gorselBirlestir') },
         { type: 'separator' },
