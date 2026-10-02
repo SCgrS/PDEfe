@@ -430,3 +430,24 @@ fareyle, ekranda gözle ve kurulu sürümle denenmedi.
    Gizliyken tek başına `Alt`'a basın: çubuk geçici görünmeli (belgeye tıklayınca kaybolmalı); `Ctrl+O`, `Ctrl+S` çalışmalı.
 5. **Kaydırma çubuğu.** Belgenin sağındaki kaydırma çubuğunun tutamağı öncekinden kalın olmalı ve fareyle kolay tutulmalı. Genişliğe
    sığdırılmış belgede altta yatay çubuk çıkmamalı.
+
+## 32. 0.1.25: otomatik testlerin sınayamadıkları
+Araçlar ekran dışındaki test örneğinde üretilmiş örnek PDF'lerle sınandı (test/senaryo26.mjs; senaryo13, 17, 19, kisayol_araclar,
+ortu_tiklama güncellendi); yazı tanıma İnenler'deki PDF'lerde yalnızca oranlar okunarak ölçüldü. Gerçek fareyle, ekranda gözle ve kurulu
+sürümle denenmedi. Denemeleri belgelerin **kopyalarıyla** yapın.
+1. **Kaydet bölümü.** Bir PDF açıp sırayla PDF Sıkıştırma, Sayfaları düzenle, Döndür ve kaydet, PDF ayır ve Görüntü / PDF birleştir'i açın:
+   her birinde "Kaydet" başlığının altında önce **Yeni belge olarak kaydet | Üzerine yaz**, altında ad kutusu, klasör ve **Değiştir**
+   olmalı (gönderdiğiniz ekran görüntüsündeki gibi). Önerilen adlar: Sıkıştırılmış, Düzenlenmiş, Döndürülmüş, Ayrılmış, Birleşik.
+2. **Üzerine yaz.** Herhangi bir araçta **Üzerine yaz**'a basın: ad ve klasör satırı kaybolmamalı; açık belgenin adı ve klasörü soluk
+   görünmeli, altında uyarı ya da bilgi satırı. **Yeni belge olarak kaydet**'e dönünce önceki ad yerinde olmalı.
+3. **PDF ayır.** "Sayfa aralıklarına göre"nin yanında **Ayrı ayrı dosya | Tek dosya** görünmeli; "Her … sayfada bir" ve "Seçili sayfaları
+   çıkart" olmamalı. Kutuya `1-3, 5` yazıp Ayrı ayrı dosya ile ayırın: Masaüstünde "Ayrılmış - Sayfa 1-3.pdf" ve "Ayrılmış - Sayfa 5.pdf"
+   oluşmalı. Tek dosya ile ayırın: "Ayrılmış.pdf" (4 sayfa). Ad kutusuna başka bir ad yazıp deneyin.
+4. **Birleştir.** Bir PDF açıkken Görüntü / PDF birleştir'i açın: o PDF listenin en üstünde olmalı. Bir görüntü ya da PDF ekleyip
+   **Birleştir**: Masaüstünde "Birleşik.pdf" oluşmalı. Bir **kopya** PDF'te Üzerine yaz'ı seçip birleştirin: o PDF'in sayfaları artmış
+   olarak yeniden açılmalı. Açık PDF'i listeden çıkarınca Üzerine yaz soluklaşmalı.
+5. **PDF Sıkıştırma.** Araçlar düğmesinde ve Araçlar menüsünde "PDF küçült" yerine "PDF Sıkıştırma" yazmalı; pencerede "Sıkıştırma
+   seçenekleri" başlığı ve "Sıkıştır" düğmesi.
+6. **Yazı tanıma.** Taranmış (özellikle düşük çözünürlüklü, bulanık görünen) bir UYAP evrakında birkaç satırı seçip kopyalayın; tarih,
+   esas numarası ve tutarları taramayla karşılaştırın. 0.1.24'e göre daha az yanlış okunmalı; sayfa göründükten sonra seçilebilir olması
+   biraz (sayfa başına yaklaşık 0,1 saniye) uzayabilir.

@@ -3,6 +3,31 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.25 — 2026-10-02
+
+### Araçların Kaydet bölümü
+- **Bütün araçlarda aynı düzen.** PDF Sıkıştırma, Sayfaları düzenle, Döndür ve kaydet, PDF ayır ve Görüntü / PDF birleştir'de "Kaydet" başlığının altında önce **Yeni belge olarak kaydet | Üzerine yaz**, onun altında dosya adı, klasör ve **Değiştir** düğmesi yer alır.
+- **"Üzerine yaz" seçilince kayıt yeri ve adı kaybolmuyor.** Üzerine yazılacak dosyanın adı ve klasörü aynı yerde soluk olarak görünür (değiştirilemez); altında sonucun geri alınıp alınamayacağı yazar.
+- **Önerilen dosya adları sade.** PDEfe'nin önerdiği adlar parantezsiz, baş harfi büyük ve Türkçe harfli: **Sıkıştırılmış**, **Düzenlenmiş**, **Döndürülmüş**, **Ayrılmış**, **Birleşik**. Klasörde aynı adlı dosya varsa ada "(2)" eklenir. (Önceden "belgenin adı (küçültülmüş)", "birlesik" gibiydi.)
+- Ad kutusuna açık belgenin kendi adını yazarsanız (aynı klasörde) belgenin üzerine yazılmadan önce "zaten var" diye sorulur.
+
+### PDF ayır
+- "Sayfa aralıklarına göre" seçeneğinin yanında iki seçenek: **Ayrı ayrı dosya** (yazdığınız her aralık ayrı bir dosya olur) ve **Tek dosya** (yazdığınız sayfaların hepsi tek dosyada toplanır).
+- "Her … sayfada bir yeni dosya" ve "Seçili sayfaları çıkart" seçenekleri kaldırıldı; seçili sayfaları çıkarmak için "Tek dosya"yı kullanın. "Her sayfayı ayrı dosyaya kaydet" duruyor.
+- **Dosya adı yazılabiliyor** (öteki araçlardaki gibi; önerilen ad "Ayrılmış"). Birden çok dosya çıkıyorsa adlar sayfa numarasıyla verilir: "Ayrılmış - Sayfa 1-3.pdf", "Ayrılmış - Sayfa 4-10.pdf".
+
+### Görüntü / PDF birleştir
+- **Açık PDF listenin başında.** Bir PDF açıkken aracı açınca o PDF birleştirilecek dosyalar arasında ilk sırada gelir.
+- **Açık PDF'in üzerine yazma.** Araç bir PDF açıkken açıldıysa ve o PDF listeden çıkarılmadıysa "Üzerine yaz" seçilebilir: birleştirilmiş sonuç o PDF'in yerine yazılır (yedek alınmaz, geri alınamaz) ve belge yeni haliyle yeniden açılır. PDF açık değilken ya da listeden çıkarıldıysa yalnızca yeni belge olarak kaydedilir.
+- Kalite ve Kaydet bölümleri öteki araçlardaki gibi başlıkları üstte olacak biçimde dizildi.
+
+### PDF Sıkıştırma
+- "PDF küçült" aracının adı **PDF Sıkıştırma** oldu (Araçlar penceresi ve menüsü, açılış ekranı); düğmesi "Sıkıştır", seviyelerin başlığı "Sıkıştırma seçenekleri".
+
+### Taranmış belgelerde yazı tanıma
+- **Sözcükler ve rakamlar daha doğru okunuyor.** Taranmış sayfalar daha yüksek çözünürlükte tanınıyor; düşük çözünürlüklü (bulanık görünen) taramalarda harfler artık basamaklı büyütülmüyor. Ölçümde sözcüklerin doğru okunma oranı %86,8'den %89,2'ye, tarih, esas numarası ve tutar gibi rakam içeren sözcüklerinki %72,7'den %76,6'ya çıktı; düşük çözünürlüklü taramalarda artış daha büyük (sözcükte 9, rakamda 12 puan).
+- Sayfa göründükten sonra yazının seçilebilir olması biraz uzayabilir (sayfa başına yaklaşık 0,1 saniye).
+
 ## 0.1.24 — 2026-10-02
 
 ### Taranmış belgelerde yazı seçme

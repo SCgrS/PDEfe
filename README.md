@@ -63,18 +63,21 @@ Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
   dosyada kalmaz (belgede PDF'e gömülü e-imza varsa imzayı korumak için sorulur).
 - **Geri al / yinele.** Her not ve sayfa işlemi `Ctrl+Z` / `Ctrl+Y` ile geri alınır; kayıttan sonra bile.
 - **Araçlar** (araç çubuğundaki **Araçlar** düğmesi, açılış ekranı ya da Araçlar menüsü; belge açık değilken önce PDF seçilir;
-  pencerelerdeki fare ve tuş kullanımı `F1` Kısayollar'da): **PDF küçült** (üç hazır seviye, boyut
+  pencerelerdeki fare ve tuş kullanımı `F1` Kısayollar'da): **PDF Sıkıştırma** (üç hazır seviye, boyut
   tahmini), **Sayfaları düzenle** (küçük resim ızgarasında sürükleyerek sıralama, boş alandan sürükleyerek çoklu seçim,
-  silme, döndürme, boş sayfa ya da başka PDF'ten sayfa ekleme), **Döndür ve kaydet**, **PDF ayır** (sayfa aralığı, her
-  N sayfada bir, seçili sayfalar, her sayfa ayrı dosya), **Görüntü / PDF birleştir** (görüntü ve PDF'lerden tek PDF;
+  silme, döndürme, boş sayfa ya da başka PDF'ten sayfa ekleme), **Döndür ve kaydet**, **PDF ayır** (sayfa aralıklarına göre
+  ayrı ayrı dosya ya da tek dosya, her sayfa ayrı dosya), **Görüntü / PDF birleştir** (görüntü ve PDF'lerden tek PDF; bir PDF
+  açıkken açılınca o PDF listenin başında gelir;
   sürükle-bırak, `Ctrl+V`, Panodan ekle ya da sağ tık Yapıştır; Orijinal / Yüksek / Orta / Düşük kalite düğmelerinde
   toplam tahmini boyut; görüntünün sayfası "Orijinal" (varsayılan: sayfa tam görsel boyutunda) ya da "A4'e sığdır"; farenin sağ
   tuşuyla sürükleyerek, `Ctrl` / `Shift` ile tıklayarak çoklu seçim, seçilenler birlikte döndürülür, taşınır, çıkarılır).
-  Küçült, Sayfaları düzenle, Döndür ve Ayır'da
-  "Yeni belge olarak kaydet" (varsayılan; klasör Masaüstü, Ayarlar › Kaydetme'den değiştirilir) ya da "Üzerine yaz" (yedeksiz, güvenli yer değiştirme)
-  seçilir: Küçült'te ve Ayır'da üzerine yazma geri alınamaz (uyarı gösterilir), Döndür'de ve Sayfaları düzenle'de
-  `Ctrl+Z` ile geri alınır; Ayır'da yalnızca tek dosya üreten ayırmada kullanılabilir. Dosya adı uzantısız yazılır (".pdf"
-  kaydederken eklenir); yanındaki klasöre tıklamak onu Gezgin'de açar. Uzun işlerde ilerleme çubuğu ve
+  Her araçta Kaydet bölümü aynı düzendedir: "Yeni belge olarak kaydet" (varsayılan; önerilen ad "Sıkıştırılmış", "Düzenlenmiş",
+  "Döndürülmüş", "Ayrılmış", "Birleşik"; klasör Masaüstü, Ayarlar › Kaydetme'den değiştirilir) ya da "Üzerine yaz" (yedeksiz,
+  güvenli yer değiştirme; yazılacak dosyanın adı ve klasörü soluk görünür): Sıkıştırma'da, Ayır'da ve Birleştir'de üzerine
+  yazma geri alınamaz (uyarı gösterilir), Döndür'de ve Sayfaları düzenle'de `Ctrl+Z` ile geri alınır; Ayır'da yalnızca tek
+  dosya üreten ayırmada, Birleştir'de araç açılırken açık olan PDF listedeyse kullanılabilir. Dosya adı uzantısız yazılır
+  (".pdf" kaydederken eklenir; Ayır birden çok dosyada "Ayrılmış - Sayfa 1-3.pdf" gibi adlar verir); yanındaki klasöre tıklamak
+  onu Gezgin'de açar. Uzun işlerde ilerleme çubuğu ve
   iptal. Açık bir pencerenin dışına (arkadaki karartılmış alana) tıklamak onu kapatır; kaydedilmemiş iş varsa sorulur.
 - **Yazdır** (`Ctrl+P`): sayfa aralığı, kâğıt boyutu, sayfaya sığdırma; sayfalar görüntü olarak basıldığından
   Türkçe karakterler ekrandaki gibi çıkar. Notlar istenirse basılır ("Notları yazdır" varsayılan olarak kapalı).

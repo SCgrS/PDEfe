@@ -1218,3 +1218,102 @@ varsayılan olarak gizli olsun, kopyalama simgesinin yanındaki bir işaretle a�
     süren WinRT işi kapanan yorumlayıcıya girip çökebilirdi: sıradaki tanımalar en çok 10 sn beklenir, süreç `os._exit` ile sonlanır
     (yanıt da yazılır; sınandı). Aynı sayfa için ikinci tanıma işi önbellekteki sonucu kullanır.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 31.
+
+### Revizyon 0.1.25 (2026-10-02, kullanıcı isteği)
+Ayrıntı: CHANGELOG.md. Kullanıcı (ofiste, maddeler): PDF ayır'da "sayfa aralıklarına göre"nin yanına "ayrı ayrı dosya" ve "tek dosya"
+seçenekleri ("aralık" sözcüğü bu iki seçenekte geçmesin; kullanıcı ayrıca açıkladı), "her … sayfada bir yeni dosya" ve "seçili sayfaları
+çıkart" kalksın, dosya adı birleştirmedeki gibi verilsin, "Ayrılmış" yazsın; PDEfe'nin verdiği adlar baş harfi büyük ve "Birleşik" gibi
+Türkçe harfli olsun; bir PDF açıkken birleştir açılınca o PDF listenin başında olsun; PDF ayır'da dosya adı yeri yok, bütün araçlar
+standart olsun; "PDF küçült"ün adı "PDF Sıkıştırma", araçtaki "Sıkıştırma" başlığı "Sıkıştırma seçenekleri"; varsayılan ad parantezsiz,
+doğrudan "Sıkıştırılmış", aynı şekilde "Düzenlenmiş"; bütün araçlarda Kaydet başlığının altı ekran görüntüsündeki (PDF küçült'ün Kaydet
+bölümü) düzende; görüntülerden metin çekerken sözcükleri ve rakamları daha iyi tanısın; "üzerine yaz'ı seçince kayıt yeri ve kayıt
+isimlendirmesi kayboluyor". Plan sunuldu; iki soru soruldu: birden çok dosyada adlar sayfa numarasıyla ("Ayrılmış - Sayfa 1-3.pdf",
+önerilen) mı sıra numarasıyla mı → sayfa numarasıyla; Birleştir'de "Üzerine yaz" → "eğer açık belgede araç açılıp da açık belge
+çıkartılmamışsa üzerine yaz gelsin".
+- [x] **Kaydet bölümü** (ortak.js `kayitSecimi`, `sabitCiktiSatiri`; araclar.css). Bütün araçlarda başlık "Kaydet", altında sırayla bölümlü
+  seçim, kısıt satırı, dosya satırı, not. Sayfaları düzenle'de seçim ile dosya satırı yan yana bir şeritti; Birleştir'de başlıklar solda,
+  denetimler sağda bir ızgaraydı ve "Üzerine yaz" yoktu (Kalite bölümü de başlığı üstte oldu: pencerenin içinde iki düzen olmasın).
+  Birleştir'in listesi ~90 px kısaldı (1080p ekranda ~6 satır görünür; kisayol_araclar 900 px yerine 1000 px yüksek pencerede koşulur).
+- [x] **"Üzerine yaz"da satır kaybolmuyor.** Kök neden: `goster()` yeni belge satırını gizleyip yalnızca notu gösteriyordu; kullanıcı
+  "kayboluyor" diye bildirdi. Karar: yerinde üzerine yazılacak dosyanın adı (uzantısız) ve klasörü aynı düzende soluk durur; ad kutusu ve
+  Değiştir devre dışı, klasör çipi Gezgin'de açar. Yeni belge satırının değeri korunur, geri dönünce yerinde. Seçilmeyen: aynı kutuyu
+  devre dışı bırakıp yeni belge adını göstermek (yanlış dosyayı gösterirdi), Değiştir'e basınca yeni belgeye geçmek (beklenmedik).
+- [x] **Önerilen adlar.** `kayitSecimi` `ek` yerine `ad` alır: "Sıkıştırılmış", "Düzenlenmiş", "Döndürülmüş", "Ayrılmış", "Birleşik"
+  (0.1.24'e dek "<özgün ad> (küçültülmüş)", "birlesik"). Kullanıcı "direkt Sıkıştırılmış diye isim öner" dedi: özgün ad öneriye girmez.
+  Klasörde varsa "(2)"… (`bosAdBul`). Boş ad yedeği "belge" yerine "Belge" (renderer `guvenliAd`; çekirdekte ad artık zorunlu).
+- [x] **PDF ayır** (ayir.js, çekirdek `y_ayir`). Kipler: `aralik` + dosya sayısı (`ayri` | `tek`, "Sayfa aralıklarına göre"nin yanında
+  bölümlü seçim) ve `herSayfa`. `herN` ve `secili` kalktı (seçili sayfalar = tek dosya; sayfalar sıralı ve tekrarsız, eski seçili gibi).
+  Aralık kutusu ve dosya sayısı seçimi her zaman kullanılabilir, tıklanınca "Sayfa aralıklarına göre" seçilir (Döndür ve kaydet'teki gibi).
+  Adları arayüz verir: tek dosyada Kaydet'teki ad olduğu gibi ("Ayrılmış.pdf"; tek aralık yazılınca "Ayrı ayrı" da tek dosyadır),
+  birden çok dosyada "<ad> - Sayfa 1-3.pdf" / "<ad> - Sayfa 5.pdf" (parantez yok: "(2)" eki ve sayfa numarası karışmasın; " - " Windows'un
+  kopya adlarındaki ayraç). `kayitSecimi.cokluAyarla`: birden çok dosyada ad ortak baştır, varsayılana "(2)" eklenmez, var olan dosyalar
+  için araç sorar ve çekirdek "(2)" ekler (uzerineYaz false), "Üzerine yaz" seçilemez. Tek dosya öteki araçlar gibidir: var olan dosyanın
+  üzerine yazmadan önce sorulur, PDEfe'de açıksa sekmesi yenilenir. Sonuç penceresi kaldı (bir dosyada "Yeni sekmede aç").
+  Çekirdek: istek `{yol, klasor, parcalar:[{ad, sayfalar}], uzerineYaz}` ya da `{yol, sayfalar, uzerine}`; ad zorunlu, kip tabanlı
+  istekler ve "<ad>_1-3" adları kalktı; çıktı özgün dosyanın kendisi olamaz (bunun yolu "Üzerine yaz").
+- [x] **Birleştir** (gorselBirlestir.js). `gorselBirlestirAc` etkin belgeyi listenin başına koyar ve "Üzerine yaz"ın hedefi yapar (verilen
+  dosya listesiyle açılırsa hedef yalnızca o listedeyse). "Üzerine yaz" o belge listedeyken seçilebilir (`_uzerineDurumu`, her çizimde);
+  çıkarılınca yeni belgeye geçer, nedeni yazar; geri eklenince yeniden seçilebilir. Belgesiz açılan araçta hiç seçilemez. Birleştirmeden
+  önce listedeki PDF'lerden PDEfe'de kaydedilmemiş değişiklikle açık olanlar sorulur (birleştirme diskteki sürümle yapılır). Kilitli /
+  salt okunur hedefte öteki araçların sorusu ve yeniden deneme (`kayitSecimi.hataSor`; önceden yalnızca hata şeridi). Çekirdek: hedef
+  listedeki bir PDF olabilir (kaynaklar ekledikten sonra kapatılır, geçici dosya + os.replace); yazdıktan sonra ilerleme bildirilmez
+  (geç gelen iptal yazılmış dosyayı yazılmamış gösterip yeni belgeyi silmesin / üzerine yazılan sekmeyi bayat bırakmasın).
+- [x] **PDF Sıkıştırma.** Kullanıcının yazdığı gibi "PDF Sıkıştırma" (menüde öteki araçlar küçük harfle; ad bilerek böyle). Düğme
+  "Sıkıştır", iletiler "Sıkıştırma …"; komut kimliği (`arac.kucult`), sınıf ve dosya adları değişmedi.
+- [x] **Yazı tanıma: sözcükler ve rakamlar** (core/islemler/yazi_tanima.py `_hazirla`, `_dogal_olcek`). Önce ölçüldü (ayrı ölçüm ajanı;
+  belge içeriği yazdırılmadı, yalnızca oranlar): İnenler'deki 1100 PDF'ten 703'ü tarandı; metni olan 66 sayfa (66 ayrı belge, 21 396
+  sözcük, 2 315'i rakamlı) taranmış gibi görüntüye çevrildi (C1 200 dpi gri JPEG, C2 150 dpi bulanık + 0,5° eğik, C3 200 dpi tek bit,
+  C4 300 dpi gürültülü, C5 100 dpi), metin katmanı doğru kabul edildi; 50 gerçek taranmış sayfada (doğru bilinmediğinden) sözlük isabeti
+  ve akla yatkın sayı oranı. Ölçümler: sözcük, rakamlı sözcük ve karakter F1; süre ve bellek. Gerçek taramalar: kendi çözünürlüğü
+  yüzdelik 10/25/50/75/90 = 72/96/150/200/300 dpi (%47'si 150 dpi'ın altında), 372/373'ü 8 bit (JPEG 210, Flate 162), tek bitlik faks
+  türü yok denecek kadar az.
+  - Kök neden: MuPDF görseli kendi çözünürlüğünün 2 katı ve üstüne büyütürken en yakın komşu örnekliyor (1,99 kat yumuşak, 2,00 kat
+    basamaklı ölçüldü); 216 dpi'da 108 dpi ve altındaki taramalar (gerçek taramaların %14'ü) basamaklı harflerle tanınıyordu.
+  - Karar: hedef 300 dpi; görsel kendi çözünürlüğünün 1,95 katından çok büyütülecekse kendi çözünürlüğünde çizilir, büyütmeyi Pillow
+    Lanczos'la yapar (`BLOKLU_BUYUTME`; bölgeye en çok alanıyla düşen görselin `transform`'undan; çizimin yatay / dikey ölçeği ayrı
+    tutulur, koordinatlar büyütülmüş görüntüye göre çevrilir; hedef boyut doğrudan çizimin boyutuyla aynı, sayfa başına 20 milyon piksel
+    sınırı korunur). Benzetimde 216 dpi'a göre sözcük F1 +0,8 ile +1,1 puan (C1, C2, C4), rakamlı sözcük F1 +2 ile +3 puan; 100 dpi'da
+    sözcük +9,5, rakam +13,6 puan (66 sayfanın 63'ünde daha iyi). Gerçek taramalarda sözlük isabeti +%0,8, akla yatkın sayı +%5,5
+    (200 dpi'lık 31 sayfada sayı +%9,7). Bedeli: sayfa başına süre ortalama +%23 (386 → 474 ms), en çok ~+31 MB bellek.
+  - Seçilmeyen (ölçüldü): koruma olmadan 300 dpi (145 dpi taramalarda isabet −%9: basamaklı büyütme), 400 dpi, kendi çözünürlüğünde
+    tanıma (−1,3 ile −4,5 puan), Otsu / uyarlamalı eşikleme, ortanca süzgeç, keskinleştirme (düşük çözünürlükte −4,5 puan), kontrast ve
+    gama (yalnızca 100 dpi'da küçük kazanç, gerçek taramada yok). Rakam düzeltmesi aynı kaldı: bütün koşullarda 27 sözcüğü değiştirdi,
+    3'ünü düzeltti, hiçbirini bozmadı; S→5, B→8, Z→2, g→9 gibi yeni kurallar 0–6 düzeltip 7–11 bozdu (bu karışıklıklar neredeyse hiç
+    görülmedi; kaçan rakamların çoğu tanıyıcının bitişik okuduğu ya da hiç okumadığı sözcükler).
+  - Ölçüm betikleri depoya girmedi (oturumun geçici klasöründe; belge adları ve içerikleri yazılmadan çalışır).
+  - Doğrulama: ölçüm betiğinin "V0" yolu çekirdeğin `_hazirla`'sını çağırır; yeni çekirdekle yeniden koşulup önerilen yolla
+    karşılaştırıldı: C1, C3, C4'te 66 sayfanın hepsinde birebir aynı, C2 ve C5'te fark gürültü düzeyinde (ortalama sözcük F1 farkı +0,02
+    ve −0,3 puan; hedef boyut doğrudan çizimin boyutu olduğundan görüntüler birkaç piksel farklı). Aynı ölçüyle (sayfa ortalaması) beş
+    koşulun ortalaması: sözcük F1 0,868 → 0,892, rakamlı sözcük F1 0,727 → 0,766; gerçek taramalarda sözlük isabeti +%0,8, akla yatkın
+    sayı +%5,2. İlk denemede hedef boyut kaba ölçekteki yuvarlamanın büyütülmesiyle hesaplanıyordu: tanima_testi'nin 30 görselli büyük
+    sayfasında 20 milyon piksel sınırı %2,5 aşıldı; hedef boyut doğrudan çizimin boyutuna eşitlendi.
+- [x] **Testler**: senaryo26 (yeni, 55: adlar ve PDF Sıkıştırma; beş araçta Kaydet düzeni ve konumları, üzerine yazma satırı; PDF ayır
+  seçenekleri, önizleme, diskteki çıktılar, "(2)", tek dosyada üzerine yazma; Birleştir'de açık PDF, üzerine yazma, belgesiz araç,
+  "Birleşik (2)"; Sıkıştırılmış / Döndürülmüş; 6. bölüm incelemenin bulguları). Güncellenen: araclar_testi (ayır yeni istek biçimi, son
+  dosyadan sonra ilerleme yok, birleştir/üzerine), senaryo13, 17, 19, kisayol_araclar (açık PDF listenin başında; 1000 px yüksek pencere),
+  ortu_tiklama, eski senaryo 11, 12 (günlük çıktılı).
+  - Koşulanlar (ofis; Masaüstü\PDF DENEME yok, test/pdf ve test/cikti/ui/pdf'te yer tutucular): senaryo26 55/55, senaryo13 64/65 + 3. bölüm
+    135 sayfalık yer tutucuyla 16/16 (30 sayfalıkta otomatik kaydırma denetimi 20'den az kart seçebiliyor), incelemeden sonra 6-7. bölüm
+    17/17; senaryo17 40/42 (2 hata yer tutucudan: çok basamaklı sayfa kutusu, tek tık vurgu), ortu_tiklama 154/155 (aşağıda),
+    kisayol_araclar 92/92 (incelemeden sonra yeniden), senaryo19 112/112, senaryo25 28/28, tanima_testi 19/19, araclar_testi'nin ayır ve
+    birleştir/üzerine bölümleri yer tutucularla 19/19. Paketli sürüm bu bilgisayarda sınanmadı (PyInstaller yok); kurulumdan sonra
+    gercek_fare.ps1 -Paketli.
+- [x] **Bağımsız inceleme** (salt okunur ajan) gerçek hatalar buldu, düzeltildi ve senaryo26'nın 6. bölümüyle sınandı:
+  - Birleştir: açık PDF listede okunamadıysa (ör. parolalı: PDF.js açar, çekirdek açamaz) "Üzerine yaz" açık kalıyordu; "Atla ve devam
+    et" ile PDF yedeksiz olarak yalnızca öteki dosyalarla yer değiştirirdi. Artık okunamayınca seçilemez (her öğe okununca da bakılır),
+    birleştirmede ayrıca denetlenir.
+  - Ad kutusuna açık belgenin adı yazılınca `uzerineMi` bunu üzerine yazma sayıyor (0.1.24'te de "Değiştir'de özgün dosya seçilirse
+    üzerine yazma" kuralıydı), `denetle` ise "zaten var"ı sormuyordu; Birleştir'de açık PDF listeden çıkarılmışken (seçenek devre dışıyken)
+    bile sessizce yerine yazılabiliyordu. Artık üzerine yazma seçilebiliyorsa önce "zaten var" sorulur (PDF ayır'da da: sayfalar geri
+    alınamaz biçimde silinirdi); seçilemiyorsa aynı ad olağan yeni belge hedefidir; Birleştir'de listedeki bir dosyanın (okunamayan dahil)
+    yerine hiç yazılmaz ve bu sorudan önce söylenir.
+  - PDF ayır: birden çok dosyaya geçince önerilen ad ("Ayrılmış (2)" → "Ayrılmış") eşzamanlı değişip iç içe çizilen önizlemenin üstüne
+    eski adlı önizleme çiziliyordu; ad ayarlandıktan sonra parçalar yeniden hesaplanır.
+  - Birleştirmede çekirdeğin yazdıktan sonra iptale bakmaması (bu sürümde) geç iptalde onaylanmış var olan hedefi çöp kutusuna
+    gönderirdi; artık yalnızca yeni oluşan dosya silinir, var olanın yerine yazılmışsa sonuç kalır ve sekmesi yenilenir. Ayırmada da
+    çekirdek son dosyadan sonra iptale bakmaz (ilerleme her dosyadan önce); tek dosyada açık sekme yenilenir, başka PDEfe penceresindeki
+    sekme de (`pencere:baskaPenceredeAc` yazildi).
+  - Küçükler: okunamadı sorusu çekirdeğin bildirdiği dosyayı adıyla söyler (Birleştir'de listedeki herhangi bir dosya olabilir); parolalı
+    belgede ayırmanın üzerine yazması "parolayla korunuyor" der; çekirdekte boş ad yedeği "Belge"; eski yorum.
+  - Bulunup değişmeyen: sekmeyi kapatırken kaydetme (ortu_tiklama'nın bir denetimi) yer tutucu belgeyle düşüyor, araçlarla ilgisiz.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 32.
