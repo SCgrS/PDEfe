@@ -1317,3 +1317,31 @@ isimlendirmesi kayboluyor". Plan sunuldu; iki soru soruldu: birden çok dosyada 
     belgede ayırmanın üzerine yazması "parolayla korunuyor" der; çekirdekte boş ad yedeği "Belge"; eski yorum.
   - Bulunup değişmeyen: sekmeyi kapatırken kaydetme (ortu_tiklama'nın bir denetimi) yer tutucu belgeyle düşüyor, araçlarla ilgisiz.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 32.
+
+### Revizyon 0.1.26 (2026-10-02, kullanıcı isteği)
+Ayrıntı: CHANGELOG.md. Kullanıcı 0.1.25'i kurduktan sonra: "birleştir aracı biraz daha yukarıdan biraz daha aşağıda olsun ki arkasındaki
+sekmeler şeridini görebilelim. oradan doğrulama yapmak isteyebiliriz. doğru dosyada mıyız diye"; Birleştir'in varsayılan adı
+"Birleştirilmiş" olsun; ardından "PDF Sıkıştır olsun aracın ismi" ve "Hatta PDF kelimesini de kaldıralım. Sıkıştır, Ayır olsun araçların
+ismi".
+- [x] **Araç adları** "Sıkıştır" ve "Ayır" (menu.js, aracPenceresi.js `ARACLAR`: Araçlar penceresi, açılış ekranı ve "<ad>: PDF seçin"
+  diyaloğu; kucult.js ve ayir.js pencere başlıkları; Ayarlar'daki çıktı klasörü açıklaması; README; yorumlar). Sıkıştır'ın düğmesi de
+  "Sıkıştır" (başlık ile düğme aynı; kullanıcının istediği ad). "Sıkıştırma seçenekleri" başlığı ve "Sıkıştırma sürüyor." gibi iletiler
+  kaldı. Komut kimlikleri (`arac.kucult`, `arac.ayir`), sınıf ve dosya adları değişmedi. "Görüntü / PDF birleştir" ve "PDF'i kopyala"ya
+  dokunulmadı (istek iki araç içindi).
+- [x] **Birleştir penceresinin yeri** (ortak.js `pencereAc({ seritAlti })`, `Pencere._seritAltinaYerlestir`; araclar.css
+  `.arac-ortusu.serit-alti`). Pencere ortada değil, sekme şeridinin 8 px altında başlar; yüksekliği eskisi gibi 88vh, sığmazsa altta
+  12 px kalacak kadar kısalır. Örtü şeridi de karartır (pencere kipli kalır; şeride tıklamak pencerenin dışına tıklamaktır, sekme
+  değiştirmez): sekmeler okunur ama araç açıkken etkin belge değişmez. Şerit gizliyse (okuma kipi) ya da altında 480 px'ten az yer
+  kalıyorsa pencere ortalanır. Konum şeridin ve araç çubuğunun boyutu değişince (ResizeObserver: okuma kipi, menü çubuğu) ve pencere
+  boyutlanınca yeniden hesaplanır. Yalnızca Birleştir'de (kullanıcı onu istedi); Sayfaları düzenle de 88vh ve şeridi kapatıyor, istenirse
+  aynı seçenekle açılır.
+- [x] **Birleştir'in önerdiği ad "Birleştirilmiş"** (0.1.25'te "Birleşik"); klasörde varsa "Birleştirilmiş (2)".
+- [x] **Testler**: senaryo26 1. bölüm (Sıkıştır ve Ayır adları Araçlar penceresinde, menüde, açılış ekranında ve pencere başlıklarında;
+  "PDF" ile başlayan araç adı yok) ve 4. bölüm (pencere şeridin altında, etkin sekmenin üstünde yalnızca örtü var, yükseklik; okuma
+  kipinde ve şerit uzatılıp yer kalmayınca ortada, geri dönünce yine şeridin altında; "Birleştirilmiş (2)"). Güncellenen: senaryo19,
+  kisayol_araclar, senaryo13, 17, ortu_tiklama (adlar ve "Birleştirilmiş").
+  - Koşulanlar (ofis; test/pdf'te yer tutucular): senaryo26 60/60, kisayol_araclar 92/92, ortu_tiklama 155/155, senaryo19 112/112,
+    senaryo17 41/42 (tek tık vurgu, 0.1.25'teki gibi yer tutucudan). ortu_tiklama'nın "büyük" belgesi 40 sayfalık metin yer tutucusuyla
+    sıkıştırma "işlem sürerken" denetimlerinden önce bitiyordu; 300 sayfa ve 60 büyük görselli yer tutucuyla (27 MB) hepsi geçti,
+    0.1.25'te düşen "kaydedip kapatır" denetimi de.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 33.

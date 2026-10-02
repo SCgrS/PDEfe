@@ -451,3 +451,13 @@ sürümle denenmedi. Denemeleri belgelerin **kopyalarıyla** yapın.
 6. **Yazı tanıma.** Taranmış (özellikle düşük çözünürlüklü, bulanık görünen) bir UYAP evrakında birkaç satırı seçip kopyalayın; tarih,
    esas numarası ve tutarları taramayla karşılaştırın. 0.1.24'e göre daha az yanlış okunmalı; sayfa göründükten sonra seçilebilir olması
    biraz (sayfa başına yaklaşık 0,1 saniye) uzayabilir.
+
+## 33. 0.1.26: otomatik testlerin sınayamadıkları
+Ekran dışındaki test örneğinde üretilmiş örnek PDF'lerle sınandı (test/senaryo26.mjs). Gerçek ekranda gözle denenmedi.
+1. **Araç adları.** Araçlar düğmesinde, Araçlar menüsünde ve açılış ekranında "PDF Sıkıştırma" yerine **Sıkıştır**, "PDF ayır" yerine
+   **Ayır** yazmalı; iki aracın penceresinin başlığı da öyle.
+2. **Birleştir'in yeri.** Bir PDF açıkken Görüntü / PDF birleştir'i açın: pencere sekmelerin hemen altında başlamalı, arkadaki sekmelerin
+   adları (hafif karartılmış) okunmalı, etkin sekme belli olmalı. Pencerenin altında listeyi, Kalite ve Kaydet bölümlerini ve Birleştir
+   düğmesini görebilmelisiniz. Uygulama penceresini küçültüp büyütün: pencere yine sekmelerin altında kalmalı (çok kısa pencerede ortaya
+   geçer).
+3. **Önerilen ad.** Birleştir'in Kaydet bölümünde ad "Birleştirilmiş" olmalı; Masaüstünde "Birleştirilmiş.pdf" varken "Birleştirilmiş (2)".

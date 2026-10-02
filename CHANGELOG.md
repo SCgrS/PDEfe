@@ -3,6 +3,15 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.1.26 — 2026-10-02
+
+### Araç adları
+- Araçların adlarında "PDF" sözcüğü yok: **PDF Sıkıştırma** artık **Sıkıştır**, **PDF ayır** artık **Ayır** (Araçlar penceresi ve menüsü, açılış ekranı, araç penceresinin başlığı).
+
+### Görüntü / PDF birleştir
+- **Pencere sekme şeridinin altında açılıyor.** Birleştirme penceresi artık ekranın ortasında değil, sekmelerin hemen altında başlıyor; arkadaki sekmeler görünür kalır, hangi belgede olduğunuzu oradan kontrol edebilirsiniz. Uygulama penceresi çok kısaysa ya da okuma kipindeyseniz (sekmeler gizli) pencere eskisi gibi ortada açılır.
+- **Önerilen dosya adı "Birleştirilmiş"** (önceden "Birleşik"). Klasörde aynı adlı dosya varsa "Birleştirilmiş (2)" önerilir.
+
 ## 0.1.25 — 2026-10-02
 
 ### Araçların Kaydet bölümü
