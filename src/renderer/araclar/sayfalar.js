@@ -143,8 +143,9 @@ export class SayfalarPenceresi {
     this.kayit = kayitSecimi({ baglam: this.baglam, belge: this.belge, ad: 'Düzenlenmiş', diyalogBasligi: 'Düzenlenmiş PDF', geriAlinabilir: true });
     govde.querySelector('.sayfalar-kayit').append(this.kayit.el);
 
+    // Pencere sekme şeridinin altında başlar, arkadaki sekmeler görünür (0.1.27, kullanıcı isteği; Birleştir'deki gibi)
     this.pencere = pencereAc({
-      baslik: `Sayfaları düzenle — ${this.belge.ad}`, govde, anahtar: 'sayfalar', sinif: 'sayfalar-pencere',
+      baslik: `Sayfaları düzenle — ${this.belge.ad}`, govde, anahtar: 'sayfalar', sinif: 'sayfalar-pencere', seritAlti: true,
       dugmeler: [{ id: 'kaydet', etiket: 'Kaydet', birincil: true, tiklama: () => this.kaydet() }],
       kapatmadanOnce: (_p, sonuc) => this._kapatmaIzni(sonuc),
     });

@@ -285,8 +285,8 @@ export class Pencere {
   }
 
   /**
-   * Pencere sekme şeridinin hemen altında başlar, yüksekliği pencerenin altına sığacak kadar kısalır (0.1.26, kullanıcı isteği:
-   * Birleştir'in arkasındaki sekmeler görünsün, doğru belgede olunduğu denetlenebilsin). Örtü şeridi de karartır, tıklama yine
+   * Pencere sekme şeridinin hemen altında başlar, yüksekliği pencerenin altına sığacak kadar kısalır (kullanıcı isteği, 0.1.26 Birleştir,
+   * 0.1.27 Sayfaları düzenle: arkadaki sekmeler görünsün, doğru belgede olunduğu denetlenebilsin). Örtü şeridi de karartır, tıklama yine
    * pencerenin dışına tıklamadır. Şerit gizliyse (okuma kipi) ya da altında yeterli yer yoksa pencere ortalanır. Uygulama penceresi
    * boyutlanınca, menü çubuğu açılıp kapanınca ya da okuma kipine girilince yeniden yerleşir.
    */
