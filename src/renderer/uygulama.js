@@ -1158,7 +1158,7 @@ const komutlar = {
   'gorunum.okumaModu': () => { okumaModu = !okumaModu; document.body.classList.toggle('okuma-modu', okumaModu); aktif()?.gorunum.boyutDegisti(); },
   'gorunum.tamEkran': () => pdefe.cagir('pencere:tamEkran'),
   'arac.paylas': () => pdfKopyala(),
-  'arac.kucult': () => bildir('PDF küçültme aracı sonraki aşamada.'),
+  'arac.kucult': () => bildir('PDF Sıkıştırma aracı sonraki aşamada.'),
   'arac.sayfalar': () => bildir('Sayfaları düzenle aracı sonraki aşamada.'),
   'arac.ayir': () => bildir('PDF ayırma aracı sonraki aşamada.'),
   'arac.gorselBirlestir': () => bildir('Görüntü/PDF birleştirme aracı sonraki aşamada.'),
@@ -1172,7 +1172,7 @@ function ayarlarBaglami() {
   return { ayar: () => ayar, ayarKoy, uygula: ayarUygula, pdefe, varsayilanlar, cekirdek, guncelleme, sonTemizle: () => komutCalistir('dosya.sonTemizle') };
 }
 
-// Araç pencereleri (küçült, sayfaları düzenle, döndür ve kaydet, ayır, görüntü/PDF birleştir)
+// Araç pencereleri (PDF Sıkıştırma, sayfaları düzenle, döndür ve kaydet, ayır, görüntü/PDF birleştir)
 try {
   // cekirdek: araçların okuttuğu dosyalar kaydedilir, son araç penceresi kapanınca bırakılır (aracDosyalariniBirak)
   aracPenceresiKapaninca(aracDosyalariniBirak);
@@ -1180,7 +1180,7 @@ try {
     aktif, cekirdek: aracCekirdek,
     iptal: (istekId) => pdefe.cagir('cekirdek:iptal', istekId),
     dosyaAc, kaydet: (b) => belgeKaydet(b), mesajKutusu, bildir, pdefe,
-    belgeKapat: (id, secenek) => belgeKapat(id, secenek),   // küçült "üzerine yaz" sonrası sekmeyi kapatıp yeniden açmak için
+    belgeKapat: (id, secenek) => belgeKapat(id, secenek),   // sıkıştırma "üzerine yaz" sonrası sekmeyi kapatıp yeniden açmak için
     belgeler: () => [...belgeler.values()],                // araç çıktısı açık bir sekmenin dosyasına yazıldıysa o sekmeyi yenilemek için
     ayar: () => ayar, ayarKoy,
     sayfaTarifiUygula: (b, tarif, ad) => sayfaTarifiUygula(b, tarif, ad),

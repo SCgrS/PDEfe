@@ -596,8 +596,8 @@ print(json.dumps({"ana": pdf("ana.pdf", 12, "Sayfa"), "ek": pdf("ek.pdf", 3, "Ek
   sonuc('Görüntü / PDF birleştir Esc → Kaydetme ile kapanır, çıktı klasörüne dosya yazılmadı', await kosul(`!document.querySelector('.birlestir-pencere')`, 4000) && fs.readdirSync(CIKTI).length === 0, fs.readdirSync(CIKTI));
 
   // ---------------------------------------------------------------- 3) Diğer araç pencereleri: alt şerit ve "Kaydet" başlığı
-  console.log('\n== 3) PDF küçült, Döndür ve kaydet, PDF ayır');
-  for (const [komut, sinif, ad] of [['arac.kucult', 'kucult-pencere', 'PDF küçült'], ['arac.dondurKaydet', 'dondur-pencere', 'Döndür ve kaydet'], ['arac.ayir', 'ayir-pencere', 'PDF ayır']]) {
+  console.log('\n== 3) PDF Sıkıştırma, Döndür ve kaydet, PDF ayır');
+  for (const [komut, sinif, ad] of [['arac.kucult', 'kucult-pencere', 'PDF Sıkıştırma'], ['arac.dondurKaydet', 'dondur-pencere', 'Döndür ve kaydet'], ['arac.ayir', 'ayir-pencere', 'PDF ayır']]) {
     await evalJs(`window.__pdefe.komutCalistir(${J(komut)})`);
     await kosul(`!!document.querySelector('.${sinif}')`);
     await bekle(500);

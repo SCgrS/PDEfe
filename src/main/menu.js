@@ -98,7 +98,7 @@ export function menuKur({ komut, cik, sonDosyalar, duzen }) {
       label: '&Araçlar',
       submenu: [
         // Sıra araç çubuğundaki Araçlar penceresiyle aynı (renderer/aracPenceresi.js ARACLAR)
-        { label: 'PDF küçült', click: k('arac.kucult') },
+        { label: 'PDF Sıkıştırma', click: k('arac.kucult') },
         { label: 'Sayfaları düzenle', click: k('arac.sayfalar') },
         { label: 'Döndür ve kaydet', click: k('arac.dondurKaydet') },
         { label: 'PDF ayır', click: k('arac.ayir') },

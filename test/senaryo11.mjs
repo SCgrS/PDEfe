@@ -1,4 +1,4 @@
-// Senaryo 11: araç pencereleri uçtan uca — küçült, ayır, görüntü/PDF birleştir (panodan), sayfaları düzenle (sil+Uygula), döndür ve kaydet.
+// Senaryo 11: araç pencereleri uçtan uca — PDF Sıkıştırma (0.1.25'e dek küçült), ayır, görüntü/PDF birleştir (panodan), sayfaları düzenle (sil+Uygula), döndür ve kaydet.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { D } from './test_klasoru.mjs';
@@ -16,7 +16,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   // 1) Küçült (varsayılan seviye: İdeal sıkıştırma; "Özel" kartı olmamalı) → yeni sekme
   await evalJs(`window.__pdefe.komutCalistir('arac.kucult')`); await bekle(4000);
   console.log('küçült kartları:', await evalJs(`[...document.querySelectorAll('.arac-pencere .kucult-kart')].map(k => (k.classList.contains('secili') ? '*' : '') + (k.querySelector('.ad')?.textContent || k.dataset.seviye))`));
-  console.log('küçült:', await evalJs(dugmeTikla('/^Küçült$/')));
+  console.log('sıkıştır:', await evalJs(dugmeTikla('/^Sıkıştır$/')));
   await bekle(8000);
   console.log('  sekmeler:', await sekmeler(), 'çıktılar:', fs.readdirSync(K));
   // Açık kalan araç pencerelerini X ile kapat (Kapat düğmesi yok; yalnızca DOM'dan silmek pencere kaydını bırakır, aynı araç yeniden açılmaz)
@@ -27,7 +27,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   const ozgunBoyut = fs.statSync(KOPYA).size;
   await evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find(x => x.ad === 'arac-test.pdf'); await p.sekmeSec(b.id); window.__pdefeOtoYanit = { secim: 0, son: null }; p.komutCalistir('arac.kucult'); return true; })()`); await bekle(4000);
   console.log('üzerine yaz seçimi:', await evalJs(`(() => { const w = [...document.querySelectorAll('.arac-pencere')].pop(); const d = w?.querySelector('.arac-kayit-secim button[data-id="uzerine"]'); if (!d) return 'seçim yok'; d.click(); return w.querySelector('.arac-kayit-uzerine').textContent.trim(); })()`));
-  console.log('küçült (üzerine yaz):', await evalJs(dugmeTikla('/^Küçült$/')));
+  console.log('sıkıştır (üzerine yaz):', await evalJs(dugmeTikla('/^Sıkıştır$/')));
   await bekle(9000);
   const yedekler = fs.readdirSync(K).filter(f => /\(yedek|pdefe-tmp/i.test(f));
   console.log('  üzerine yazma:', { yedekVeGeciciDosyalar: yedekler, beklenen: [], ozgunBoyut, yeniBoyut: fs.statSync(KOPYA).size }, '| sekmeler:', await sekmeler());

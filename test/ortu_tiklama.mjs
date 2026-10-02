@@ -167,7 +167,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
 
   // ---------------------------------------------------------------- araç pencereleri
   const AR = '.arac-ortusu';
-  for (const [id, ad] of [['arac.kucult', 'Küçült'], ['arac.sayfalar', 'Sayfaları düzenle'], ['arac.dondurKaydet', 'Döndür ve kaydet'], ['arac.ayir', 'Ayır'], ['arac.gorselBirlestir', 'Görüntü / PDF birleştir']]) {
+  for (const [id, ad] of [['arac.kucult', 'Sıkıştırma'], ['arac.sayfalar', 'Sayfaları düzenle'], ['arac.dondurKaydet', 'Döndür ve kaydet'], ['arac.ayir', 'Ayır'], ['arac.gorselBirlestir', 'Görüntü / PDF birleştir']]) {
     await evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find((x) => x.ad === 'ustyazi (85).pdf'); await p.sekmeSec(b.id); return true; })()`);
     await komut(id); await beklet(`!!document.querySelector('.arac-pencere')`); await bekle(600);
     await kapatmayanlar(ad, AR, '.arac-baslik-metin');
@@ -207,10 +207,10 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   const suruyor = await beklet(`!!document.querySelector('.arac-ilerleme:not([hidden])')`, 5000);
   await yanit(1); await disariTikla(AR);
   const s1 = { soru: await sonSoru(), acik: await acikMi(AR), suruyor: await evalJs(`!!document.querySelector('.arac-ilerleme:not([hidden]) .arac-ilerleme-iptal:not(:disabled)')`) };
-  denetle('Küçült: işlem sürerken dışarı tık sorar, "Sürdür" açık bırakır', suruyor && s1.soru === 'Küçültme sürüyor.' && s1.acik, JSON.stringify(s1));
+  denetle('Sıkıştırma: işlem sürerken dışarı tık sorar, "Sürdür" açık bırakır', suruyor && s1.soru === 'Sıkıştırma sürüyor.' && s1.acik, JSON.stringify(s1));
   await ekranGoruntusu('test/png/ortu/kucult-suruyor.png');
   await yanit(0); await disariTikla(AR);
-  denetle('Küçült: "İptal et ve kapat" ile kapanır', !(await acikMi(AR)));
+  denetle('Sıkıştırma: "İptal et ve kapat" ile kapanır', !(await acikMi(AR)));
   await bekle(1500);
 
   // ---------------------------------------------------------------- iç içe: araç penceresinin üstünde F1 ve Ayarlar
@@ -387,10 +387,10 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   await disariTikla(AR); await kutuBekle();
   kb = await kutuBilgi();
   await tus('Enter'); await bekle(400);
-  denetle('Küçült sürerken: soru, Enter = varsayılan "Sürdür" (pencere açık, işlem sürüyor)', kb?.ileti === 'Küçültme sürüyor.' && kb.odak === 'Sürdür' && !(await kutuAcik()) && await acikMi(AR) && await evalJs(`!!document.querySelector('.arac-ilerleme:not([hidden]) .arac-ilerleme-iptal:not(:disabled)')`), js(kb));
+  denetle('Sıkıştırma sürerken: soru, Enter = varsayılan "Sürdür" (pencere açık, işlem sürüyor)', kb?.ileti === 'Sıkıştırma sürüyor.' && kb.odak === 'Sürdür' && !(await kutuAcik()) && await acikMi(AR) && await evalJs(`!!document.querySelector('.arac-ilerleme:not([hidden]) .arac-ilerleme-iptal:not(:disabled)')`), js(kb));
   await disariTikla(AR); await kutuBekle();
   await tikla(...(await kutuDugmesi('İptal et ve kapat'))); await bekle(400);
-  denetle('Küçült: "İptal et ve kapat" (tık) pencereyi kapatır', !(await kutuAcik()) && !(await acikMi(AR)));
+  denetle('Sıkıştırma: "İptal et ve kapat" (tık) pencereyi kapatır', !(await kutuAcik()) && !(await acikMi(AR)));
   await bekle(1500);
 
   // ---------------------------------------------------------------- döndürme sorusu ve "Seçeneğimi hatırla"

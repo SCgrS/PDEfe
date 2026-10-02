@@ -1,4 +1,4 @@
-/* Araç pencereleri (küçült, sayfaları düzenle, ayır, görüntü/PDF birleştir, döndür).
+/* Araç pencereleri (PDF Sıkıştırma: kucult, sayfaları düzenle, ayır, görüntü/PDF birleştir, döndür).
    stil.css'teki değişkenleri kullanır; koyu tema html[data-tema="koyu"] ile kendiliğinden uyar. */
 
 /* ---------- pencere iskeleti ---------- */
@@ -153,7 +153,7 @@ html[data-tema="koyu"] .arac-not-satiri.uyari svg { color: #ffc83d; }
 .surukleme-aktif { cursor: grabbing; user-select: none; }
 .surukleme-aktif * { user-select: none !important; }
 
-/* ---------- Küçült ---------- */
+/* ---------- PDF Sıkıştırma (kucult) ---------- */
 .kucult-pencere { width: 700px; }
 .kucult-boyut { text-align: center; padding: 6px 0 0; }
 .kucult-boyut .deger { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.15; }

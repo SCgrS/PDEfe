@@ -1,4 +1,4 @@
-// Araçlar penceresi: araç çubuğundaki "Araçlar" düğmesinin altında açılan karolar (PDF küçült, Sayfaları düzenle, Döndür ve kaydet,
+// Araçlar penceresi: araç çubuğundaki "Araçlar" düğmesinin altında açılan karolar (PDF Sıkıştırma, Sayfaları düzenle, Döndür ve kaydet,
 // PDF ayır, Görüntü / PDF birleştir). Her karoda büyük simge, araç adı ve tek satırlık açıklama vardır; seçilen araç Araçlar menüsündeki
 // (menu.js) komut kimliğiyle çalıştırılır. PDF'i kopyala'nın (0.1.21'e dek Paylaş) karosu yok: araç çubuğundaki düğmesi ve Araçlar menüsündeki öğesiyle çalışır.
 // Esc, dışarı tıklama ya da araç seçimi pencereyi kapatır; ok tuşları, Tab, Home ve End karolar arasında gezer, Enter / Boşluk seçer.
@@ -9,7 +9,7 @@ const simge = (ic) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor
  *  (uygulama.js; 0.1.13'e dek karo soluk ve seçilemezdi). Açılış ekranı (baslangic.js) da bu listeyi gösterir. */
 export const ARACLAR = [
   {
-    komut: 'arac.kucult', ad: 'PDF küçült', aciklama: 'Dosya boyutunu azaltır', renk: 'yesil', belge: true,
+    komut: 'arac.kucult', ad: 'PDF Sıkıştırma', aciklama: 'Dosya boyutunu azaltır', renk: 'yesil', belge: true,
     ipucu: 'Görselleri sıkıştırarak PDF dosyasının boyutunu azaltır',
     // Sayfa ve ortadaki çizgiye doğru bastıran iki ok
     ikon: '<path d="M5 2.75h10.5l3.5 3.5v15.5H5z"/><path d="M15.5 2.75v3.5H19"/><path d="M12 6.25v4M10 8.25l2 2 2-2M8.5 13.25h7M12 19.75v-3.5M10 18.25l2-2 2 2"/>',

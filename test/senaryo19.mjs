@@ -178,7 +178,7 @@ export default async function (surucu) {
         gorunurMetin: bas.innerText, tasan, kartTasan };
     })()`);
     const ARACLAR_SIRA = await evalJs(`import('./aracPenceresi.js').then((m) => m.ARACLAR.map((a) => [a.komut, a.ad])).catch(() => null)`);
-    const beklenenSira = ARACLAR_SIRA || [['arac.kucult', 'PDF küçült'], ['arac.sayfalar', 'Sayfaları düzenle'], ['arac.dondurKaydet', 'Döndür ve kaydet'], ['arac.ayir', 'PDF ayır'], ['arac.gorselBirlestir', 'Görüntü / PDF birleştir']];
+    const beklenenSira = ARACLAR_SIRA || [['arac.kucult', 'PDF Sıkıştırma'], ['arac.sayfalar', 'Sayfaları düzenle'], ['arac.dondurKaydet', 'Döndür ve kaydet'], ['arac.ayir', 'PDF ayır'], ['arac.gorselBirlestir', 'Görüntü / PDF birleştir']];
     if (!ARACLAR_SIRA) bilgi('ARACLAR modülü içe aktarılamadı; beklenen sıra elle yazıldı');
 
     for (const gen of [1280, 700]) {
@@ -445,7 +445,7 @@ export default async function (surucu) {
 
     // ================================================================ (c) belgesiz araç akışı
     const ARAC = {
-      'arac.kucult': { ad: 'PDF küçült', sinif: 'kucult-pencere', dosya: 'kucult.pdf' },
+      'arac.kucult': { ad: 'PDF Sıkıştırma', sinif: 'kucult-pencere', dosya: 'kucult.pdf' },
       'arac.sayfalar': { ad: 'Sayfaları düzenle', sinif: 'sayfalar-pencere', dosya: 'sayfalar.pdf' },
       'arac.dondurKaydet': { ad: 'Döndür ve kaydet', sinif: 'dondur-pencere', dosya: 'dondur.pdf' },
       'arac.ayir': { ad: 'PDF ayır', sinif: 'ayir-pencere', dosya: 'ayir.pdf' },
@@ -520,7 +520,7 @@ export default async function (surucu) {
     await kayit();
     await evalJs(`window.pdefe.cagir('test:olayGonder', 'menu:komut', 'arac.kucult')`); await bekle(800);
     kk = (await kayit()).filter((k) => k.kanal === 'dosya:acDiyalog');
-    sonuc('Araçlar menüsü › PDF küçült, belge yok → Aç penceresi; vazgeçilince hiçbir şey açılmaz', kk.length === 1 && kk[0].secenek?.baslik === 'PDF küçült: PDF seçin' && kk[0].secenek?.coklu === false && !(await evalJs(`!!document.querySelector('.arac-ortusu')`)) && (await evalJs(`window.__pdefe.belgeler.size`)) === 0, kk);
+    sonuc('Araçlar menüsü › PDF Sıkıştırma, belge yok → Aç penceresi; vazgeçilince hiçbir şey açılmaz', kk.length === 1 && kk[0].secenek?.baslik === 'PDF Sıkıştırma: PDF seçin' && kk[0].secenek?.coklu === false && !(await evalJs(`!!document.querySelector('.arac-ortusu')`)) && (await evalJs(`window.__pdefe.belgeler.size`)) === 0, kk);
     await acYaniti(path.join(PDF, 'arac-menu.pdf'));
     await evalJs(`window.pdefe.cagir('test:olayGonder', 'menu:komut', 'arac.sayfalar')`);
     r = await aracSonucu('arac.sayfalar', 'menu', 'arac-menu.pdf');
@@ -535,7 +535,7 @@ export default async function (surucu) {
     kk = (await kayit()).filter((k) => k.kanal === 'dosya:acDiyalog');
     const d2 = await durum();
     sonuc('Açılış sekmesinde belge gerektiren araç → Aç penceresi; vazgeçilince açılış sekmesi yerinde, araç açılmaz',
-      J(d.adlar) === J(['arac-menu.pdf', '+']) && kk.length === 1 && kk[0].secenek?.baslik === 'PDF küçült: PDF seçin' && J(d2.adlar) === J(['arac-menu.pdf', '+']) && d2.aktif === '+' && !(await evalJs(`!!document.querySelector('.arac-ortusu')`)), { d, d2, kk });
+      J(d.adlar) === J(['arac-menu.pdf', '+']) && kk.length === 1 && kk[0].secenek?.baslik === 'PDF Sıkıştırma: PDF seçin' && J(d2.adlar) === J(['arac-menu.pdf', '+']) && d2.aktif === '+' && !(await evalJs(`!!document.querySelector('.arac-ortusu')`)), { d, d2, kk });
     await acYaniti(path.join(PDF, 'arac-sekme.pdf'));
     await tikl(q('.karsilama-arac[data-eylem="arac.ayir"]'));
     r = await aracSonucu('arac.ayir', 'sekme', 'arac-sekme.pdf');
