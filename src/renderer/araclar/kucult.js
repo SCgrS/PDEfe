@@ -48,7 +48,7 @@ export class KucultPenceresi {
     this.kartlar = govde.querySelector('.kucult-kartlar');
     for (const [id, s] of Object.entries(SEVIYELER)) this.kartlar.append(this._kart(id, s.ad, s.aciklama));
     this.notEl = govde.querySelector('.kucult-not');
-    this.kayit = kayitSecimi({ baglam: this.baglam, belge: b, ek: 'küçültülmüş', kip: 'yeni', diyalogBasligi: 'Küçültülmüş PDF' });
+    this.kayit = kayitSecimi({ baglam: this.baglam, belge: b, ad: 'Sıkıştırılmış', kip: 'yeni', diyalogBasligi: 'Sıkıştırılmış PDF' });
     govde.querySelector('.kucult-kayit').append(this.kayit.el);
     this.sonucEl = govde.querySelector('.kucult-sonuc');
 

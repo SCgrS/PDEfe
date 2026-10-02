@@ -16,7 +16,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   await evalJs(`(() => { const w = document.querySelector('.arac-pencere'); const g = w.querySelector('input[type=text]'); g.value = '1-3, 4-12'; g.dispatchEvent(new Event('input', { bubbles: true })); g.dispatchEvent(new Event('change', { bubbles: true })); })()`);
   console.log('ayır:', await evalJs(dugmeTikla('/^Ayır$/')));
   await bekle(5000);
-  console.log('  çıktılar:', fs.readdirSync(K).filter(f => f.includes('arac-test_')), '| pencere:', await evalJs(`document.querySelector('.arac-pencere')?.textContent.replace(/\\s+/g, ' ').slice(-220)`));
+  console.log('  çıktılar:', fs.readdirSync(K).filter(f => f.startsWith('Ayrılmış')), '| pencere:', await evalJs(`document.querySelector('.arac-pencere')?.textContent.replace(/\\s+/g, ' ').slice(-220)`));
   await ekranGoruntusu('test/png/s12-01-ayir-sonuc.png');
   await evalJs(`document.querySelectorAll('.arac-pencere').forEach(e => e.remove())`);
 

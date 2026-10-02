@@ -68,7 +68,7 @@ export class DondurPenceresi {
       });
     }
     // Üzerine yaz: döndürme sekmeye geri alınabilir komut olarak uygulanıp kaydedilir (Ctrl+Z)
-    this.kayit = kayitSecimi({ baglam: this.baglam, belge: this.belge, ek: 'döndürülmüş', diyalogBasligi: 'Döndürülmüş PDF', geriAlinabilir: true });
+    this.kayit = kayitSecimi({ baglam: this.baglam, belge: this.belge, ad: 'Döndürülmüş', diyalogBasligi: 'Döndürülmüş PDF', geriAlinabilir: true });
     govde.querySelector('.dondur-kayit').append(this.kayit.el);
     this.pencere = pencereAc({
       baslik: 'Döndür ve kaydet', govde, genislik: 540, anahtar: 'dondur', sinif: 'dondur-pencere',

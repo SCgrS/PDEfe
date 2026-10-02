@@ -132,7 +132,7 @@ export class SayfalarPenceresi {
         <span class="sayac"></span>
       </div>
       <div class="sayfalar-izgara" tabindex="0" role="listbox" aria-multiselectable="true"></div>
-      <div class="sayfalar-kayit"><span class="arac-bolum-baslik">Kaydet</span></div>
+      <div class="sayfalar-kayit arac-bolum"><div class="arac-bolum-baslik">Kaydet</div></div>
     </div>`);
     this.govde = govde;
     this.cubuk = govde.querySelector('.sayfalar-arac-cubugu');
@@ -140,7 +140,7 @@ export class SayfalarPenceresi {
     this.sayac = govde.querySelector('.sayac');
     this.cubuk.addEventListener('click', (e) => { const b = e.target.closest('[data-komut]'); if (b && !b.disabled) { this.komut(b.dataset.komut); this._odagiKoru(); } });
     // Üzerine yaz: düzen sekmeye geri alınabilir komut olarak uygulanıp kaydedilir (Ctrl+Z)
-    this.kayit = kayitSecimi({ baglam: this.baglam, belge: this.belge, ek: 'düzenlenmiş', diyalogBasligi: 'Düzenlenmiş PDF', geriAlinabilir: true });
+    this.kayit = kayitSecimi({ baglam: this.baglam, belge: this.belge, ad: 'Düzenlenmiş', diyalogBasligi: 'Düzenlenmiş PDF', geriAlinabilir: true });
     govde.querySelector('.sayfalar-kayit').append(this.kayit.el);
 
     this.pencere = pencereAc({

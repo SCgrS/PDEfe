@@ -615,37 +615,6 @@ def y_sayfalar_uygula(p):
 
 
 # ---------------------------------------------------------------- 4) ayir
-def araliklari_ayristir(metin, sayfa_sayisi):
-    """'1-3, 5, 8-10' → [(1,3), (5,5), (8,10)]. Boşluklara dayanıklı; ters aralık (7-4) düzeltilir;
-    '-3' = 1-3, '5-' = 5-son; sınır dışı ya da anlaşılmayan parça → ValueError."""
-    if metin is None or not str(metin).strip():
-        raise ValueError("Sayfa aralığı boş.")
-    sonuc = []
-    for parca in re.split(r"[,;]", str(metin)):
-        parca = parca.strip().replace(" ", "")
-        if not parca:
-            continue
-        m = re.fullmatch(r"(\d*)\s*[-–—]\s*(\d*)", parca)
-        if m:
-            a, b = m.group(1), m.group(2)
-            if not a and not b:
-                raise ValueError("Anlaşılmayan aralık: '%s'" % parca)
-            bas = int(a) if a else 1
-            son = int(b) if b else sayfa_sayisi
-        elif re.fullmatch(r"\d+", parca):
-            bas = son = int(parca)
-        else:
-            raise ValueError("Anlaşılmayan sayfa ifadesi: '%s' (örnek: 1-3, 5, 8-10)" % parca)
-        if bas > son:
-            bas, son = son, bas
-        if bas < 1 or son > sayfa_sayisi:
-            raise ValueError("Sayfa aralığı sınır dışı: %d-%d (belge %d sayfa)" % (bas, son, sayfa_sayisi))
-        sonuc.append((bas, son))
-    if not sonuc:
-        raise ValueError("Sayfa aralığı boş.")
-    return sonuc
-
-
 def _sayfa_listesini_gruplara(sayfalar):
     """[1,2,3,5] → [(1,3),(5,5)] (sıralı, tekrarsız)."""
     gruplar = []
@@ -655,13 +624,6 @@ def _sayfa_listesini_gruplara(sayfalar):
         else:
             gruplar.append((s, s))
     return gruplar
-
-
-def _aralik_etiketi(gruplar):
-    parcalar = ["%d-%d" % g if g[0] != g[1] else "%d" % g[0] for g in gruplar]
-    if len(parcalar) > 4:
-        return "secili_%dsayfa" % sum(g[1] - g[0] + 1 for g in gruplar)
-    return "_".join(parcalar)
 
 
 def _parca_yaz(kaynak, gruplar, hedef_yol, toc, once_kapat=()):
@@ -704,101 +666,54 @@ def _ayir_uzerine(yol, gruplar, ilerleme):
 
 
 def y_ayir(p):
-    """{yol, hedefKlasor|klasor, mod:'aralik'|'herN'|'secili'|'tek', araliklar, n, sayfalar, uzerine?}
-    → {dosyalar: [yol...], ayrintilar: [{yol, boyut, sayfa}], uzerine?}
-    Dosya adları: <ad>_1-3.pdf, <ad>_sayfa_5.pdf, <ad>_bolum_1.pdf; var olanın üzerine yazılmaz, (2) eklenir.
-    uzerine: tek dosya üreten ayırmada ('secili' ya da tek aralıklı 'aralik') sonuç özgün dosyanın yerine yazılır, özgün dosyada
-    yalnızca o sayfalar kalır (bkz. _ayir_uzerine; hedefKlasor kullanılmaz). Birden çok dosya üreten ayırmada hata verir.
-    Alternatif (renderer): {yol, klasor, parcalar: [{ad: 'dosya.pdf', sayfalar: [1,2,3]}], uzerineYaz?}
-    → adlar çağırandan gelir; uzerineYaz varsayılan True (renderer kullanıcıya önceden sorar)."""
+    """Belgeyi dosyalara ayırır. Dosya adlarını renderer verir (0.1.25: "Ayrılmış.pdf", "Ayrılmış - Sayfa 1-3.pdf"; önceki sayfa
+    aralığı / her N sayfada bir / seçili sayfalar kipleri ve "<ad>_1-3.pdf" adları kaldırıldı).
+      {yol, klasor|hedefKlasor, parcalar: [{ad: 'dosya.pdf', sayfalar: [1, 2, 3]}], uzerineYaz?}
+        → {dosyalar: [yol...], ayrintilar: [{yol, boyut, sayfa}]}. Bir parçanın sayfaları sıralı ve tekrarsız yazılır. uzerineYaz
+        (varsayılan True; renderer kullanıcıya önceden sorar): aynı adlı dosyanın yerine yazılır; False: var olan dosya korunur, ada
+        "(2)", "(3)"... eklenir.
+      {yol, sayfalar: [...], uzerine: True} → özgün dosyada yalnızca o sayfalar kalır (bkz. _ayir_uzerine)."""
     ilerleme = _ilerleme(p)
     yol = _mutlak(p.get("yol"))
     _dosya_var(yol)
-    uzerine = bool(p.get("uzerine"))
-    klasor = _mutlak(p.get("hedefKlasor") or p.get("klasor") or os.path.dirname(yol), "hedefKlasor")
-    if not uzerine and not os.path.isdir(klasor):
+    if p.get("uzerine"):
+        sayfalar = p.get("sayfalar")
+        if not isinstance(sayfalar, list) or not sayfalar:
+            raise ValueError("Kalacak sayfa yok.")
+        n_sayfa = _onbellekten_al(yol).page_count
+        return _ayir_uzerine(yol, _sayfa_listesini_gruplara([_sayfa_no(s, n_sayfa) for s in sayfalar]), ilerleme)
+    klasor = _mutlak(p.get("klasor") or p.get("hedefKlasor") or os.path.dirname(yol), "klasor")
+    if not os.path.isdir(klasor):
         os.makedirs(klasor, exist_ok=True)
-    mod = p.get("mod") or "aralik"
+    verilen = p.get("parcalar")
+    if not isinstance(verilen, list) or not verilen:
+        raise ValueError("Ayrılacak parça yok.")
     doc = _onbellekten_al(yol)
     if doc.needs_pass:
         raise PermissionError("Belge parolayla korunuyor.")
     n_sayfa = doc.page_count
-    ad = os.path.splitext(os.path.basename(yol))[0]
     toc = doc.get_toc(simple=False)
-
-    # Yazılacak parçalar: [(etiket, [(bas,son)...])]
     parcalar = []
-    verilen_parcalar = p.get("parcalar")
-    if isinstance(verilen_parcalar, list) and verilen_parcalar:
-        uzerine_yaz = p.get("uzerineYaz", True)
-        for i, parca in enumerate(verilen_parcalar):
-            if not isinstance(parca, dict) or not isinstance(parca.get("sayfalar"), list) or not parca["sayfalar"]:
-                raise ValueError("Parça %d geçersiz: sayfa listesi gerekli." % (i + 1))
-            sayfalar = [_sayfa_no(s, n_sayfa) for s in parca["sayfalar"]]
-            dosya_adi = _guvenli_ad(os.path.splitext(str(parca.get("ad") or "").strip())[0]) if parca.get("ad") else None
-            if not dosya_adi or dosya_adi == "belge":
-                dosya_adi = "%s_%s" % (ad, _aralik_etiketi(_sayfa_listesini_gruplara(sayfalar)))
-            parcalar.append((dosya_adi, _sayfa_listesini_gruplara(sayfalar)))
-        dosyalar, ayrintilar = [], []
-        toplam = len(parcalar)
-        for i, (dosya_adi, gruplar) in enumerate(parcalar):
-            hedef = os.path.join(klasor, dosya_adi + ".pdf") if uzerine_yaz else _benzersiz_yol(klasor, dosya_adi)
-            if uzerine_yaz and os.path.exists(hedef):
-                _onbellekten_birak(hedef)
-            _parca_yaz(doc, gruplar, hedef, toc)
-            dosyalar.append(hedef)
-            ayrintilar.append({"yol": hedef, "boyut": os.path.getsize(hedef),
-                               "sayfa": sum(s - b + 1 for b, s in gruplar)})
-            ilerleme(int(100 * (i + 1) / toplam), "%d/%d dosya yazıldı" % (i + 1, toplam))
-        return {"dosyalar": dosyalar, "ayrintilar": ayrintilar}
-    if mod == "aralik":
-        for bas, son in araliklari_ayristir(p.get("araliklar"), n_sayfa):
-            etiket = "sayfa_%d" % bas if bas == son else "%d-%d" % (bas, son)
-            parcalar.append((etiket, [(bas, son)]))
-    elif mod == "herN":
-        try:
-            n = int(p.get("n") or 0)
-        except (TypeError, ValueError):
-            raise ValueError("Geçersiz bölüm uzunluğu.")
-        if n < 1:
-            raise ValueError("Bölüm uzunluğu en az 1 olmalı.")
-        if n >= n_sayfa:
-            raise ValueError("Bölüm uzunluğu (%d) belge sayfa sayısından (%d) küçük olmalı." % (n, n_sayfa))
-        for i, bas in enumerate(range(1, n_sayfa + 1, n)):
-            parcalar.append(("bolum_%d" % (i + 1), [(bas, min(bas + n - 1, n_sayfa))]))
-    elif mod == "secili":
-        sayfalar = p.get("sayfalar")
-        if not isinstance(sayfalar, list) or not sayfalar:
-            raise ValueError("Seçili sayfa yok.")
-        sayfalar = [_sayfa_no(s, n_sayfa) for s in sayfalar]
-        gruplar = _sayfa_listesini_gruplara(sayfalar)
-        etiket = "sayfa_%d" % gruplar[0][0] if len(gruplar) == 1 and gruplar[0][0] == gruplar[0][1] \
-            else _aralik_etiketi(gruplar)
-        parcalar.append((etiket, gruplar))
-    elif mod == "tek":
-        sayfalar = p.get("sayfalar")
-        if isinstance(sayfalar, list) and sayfalar:
-            sayfalar = sorted(set(_sayfa_no(s, n_sayfa) for s in sayfalar))
-        else:
-            sayfalar = list(range(1, n_sayfa + 1))
-        for s in sayfalar:
-            parcalar.append(("sayfa_%d" % s, [(s, s)]))
-    else:
-        raise ValueError("Bilinmeyen ayırma modu: %r" % (mod,))
-
-    if uzerine:
-        if len(parcalar) != 1:
-            raise ValueError("Üzerine yazma yalnızca tek dosya üreten ayırmada yapılabilir.")
-        return _ayir_uzerine(yol, parcalar[0][1], ilerleme)
-
+    for i, parca in enumerate(verilen):
+        if not isinstance(parca, dict) or not isinstance(parca.get("sayfalar"), list) or not parca["sayfalar"]:
+            raise ValueError("Parça %d geçersiz: sayfa listesi gerekli." % (i + 1))
+        ham = str(parca.get("ad") or "").strip()
+        if not ham:
+            raise ValueError("Parça %d için dosya adı gerekli." % (i + 1))
+        gruplar = _sayfa_listesini_gruplara([_sayfa_no(s, n_sayfa) for s in parca["sayfalar"]])
+        parcalar.append((_guvenli_ad(re.sub(r"\.pdf$", "", ham, flags=re.I)), gruplar))
+    uzerine_yaz = p.get("uzerineYaz", True)
     dosyalar, ayrintilar = [], []
     toplam = len(parcalar)
-    for i, (etiket, gruplar) in enumerate(parcalar):
-        hedef = _benzersiz_yol(klasor, "%s_%s" % (ad, etiket))
+    for i, (dosya_adi, gruplar) in enumerate(parcalar):
+        hedef = os.path.join(klasor, dosya_adi + ".pdf") if uzerine_yaz else _benzersiz_yol(klasor, dosya_adi)
+        if _ayni_dosya(hedef, yol):
+            raise ValueError("Ayrılan dosya özgün dosyanın yerine yazılamaz; bunun için \"Üzerine yaz\" seçilmeli.")
+        if uzerine_yaz and os.path.exists(hedef):
+            _onbellekten_birak(hedef)
         _parca_yaz(doc, gruplar, hedef, toc)
         dosyalar.append(hedef)
-        ayrintilar.append({"yol": hedef, "boyut": os.path.getsize(hedef),
-                           "sayfa": sum(s - b + 1 for b, s in gruplar)})
+        ayrintilar.append({"yol": hedef, "boyut": os.path.getsize(hedef), "sayfa": sum(s - b + 1 for b, s in gruplar)})
         ilerleme(int(100 * (i + 1) / toplam), "%d/%d dosya yazıldı" % (i + 1, toplam))
     return {"dosyalar": dosyalar, "ayrintilar": ayrintilar}
 

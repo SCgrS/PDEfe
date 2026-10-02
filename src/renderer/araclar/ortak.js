@@ -1,7 +1,7 @@
 // Araç pencereleri için ortak parçalar: pencere iskeleti, ilerleme çubuğu, boyut biçimleme,
 // yol yardımcıları, sürükleyerek sıralama, çıktı satırı (ad + klasör çipi), standart kaydetme seçimi
 // ("Yeni belge olarak kaydet" | "Üzerine yaz"), üzerine yazılan sekmeyi yenileme.
-// Bütün araçlar (kucult, sayfalar, ayir, gorselBirlestir, dondur) bu modülü kullanır.
+// Bütün araçlar (kucult: PDF Sıkıştırma, sayfalar, ayir, gorselBirlestir, dondur) bu modülü kullanır.
 
 // ---------------------------------------------------------------- metin ve biçim
 const TR_SAYI_2 = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -66,7 +66,7 @@ export function yolAyni(a, b) {
 /** Dosya adında kullanılamayan karakterleri temizler (çekirdekteki _guvenli_ad ile aynı kural). */
 export function guvenliAd(ad) {
   // eslint-disable-next-line no-control-regex
-  return String(ad || '').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim().replace(/\.+$/, '') || 'belge';
+  return String(ad || '').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim().replace(/\.+$/, '') || 'Belge';
 }
 
 /**
@@ -760,22 +760,23 @@ export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasl
 }
 
 /**
- * Yalnızca klasör satırı (birden çok dosya üreten araçlar, örn. PDF ayır): klasör çipi + Değiştir (klasör seçme diyaloğu).
- * @returns {{el:HTMLElement, klasor:()=>string, ayarla:(k:string)=>void, onDegisti:(cb)=>void}}
+ * "Üzerine yaz" seçiliyken yeni belge satırının yerinde durur (0.1.25, kullanıcı isteği: kayıt yeri ve adı kaybolmasın): üzerine yazılacak
+ * dosyanın adı (uzantısız) ve klasörü aynı düzende; ad kutusu ve Değiştir soluk (değiştirilemez), klasör çipi klasörü Gezgin'de açar.
+ * @returns {{el:HTMLElement, yaz:(yol:string)=>void}}
  */
-export function klasorSecici({ pdefe, klasor, diyalogBasligi = 'Kaydedilecek klasör' }) {
-  const el = oge(`<div class="arac-cikti"><span class="arac-cikti-konum"></span><button type="button" class="ikincil arac-cikti-degistir" title="Dosyaların kaydedileceği klasörü seçin">Değiştir</button></div>`);
+function sabitCiktiSatiri(pdefe) {
+  const el = oge(`<div class="arac-cikti arac-cikti-sabit">
+      <input type="text" class="arac-girdi arac-cikti-ad" spellcheck="false" disabled aria-label="Üzerine yazılacak dosya">
+      <span class="arac-cikti-konum"></span>
+      <button type="button" class="ikincil arac-cikti-degistir" disabled title="Üzerine yazarken dosya adı ve klasör değişmez">Değiştir</button>
+    </div>`);
   const cip = klasorCipi();
   el.querySelector('.arac-cikti-konum').replaceWith(cip.el);
-  const dinleyiciler = [];
-  let mevcut = klasor || '';
-  const ayarla = (k) => { mevcut = k || ''; cip.yaz(mevcut, pdefe); dinleyiciler.forEach((f) => f()); };
-  cip.yaz(mevcut, pdefe);
-  el.querySelector('.arac-cikti-degistir').addEventListener('click', async () => {
-    const k = await pdefe.cagir('dosya:klasorSec', { baslik: diyalogBasligi, varsayilan: mevcut || undefined });
-    if (k) ayarla(k);
-  });
-  return { el, klasor: () => mevcut, ayarla, onDegisti: (cb) => dinleyiciler.push(cb) };
+  const adEl = el.querySelector('.arac-cikti-ad');
+  return {
+    el,
+    yaz: (yol) => { adEl.value = adGovdesi(yol); adEl.title = yol; cip.yaz(klasorAdi(yol), pdefe); },
+  };
 }
 
 /** İki (ya da daha çok) seçenekli bölümlü düğme grubu. secenekler: [{id, etiket, baslik?}]. etkin(id, false) seçeneği devre dışı
@@ -831,57 +832,68 @@ const UYARI_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3 18
 const BILGI_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.25" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10 9v5M10 6.2v.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 
 /**
- * Standart kaydetme seçimi: "Yeni belge olarak kaydet" | "Üzerine yaz". Açık belgenin değiştirilmiş sürümünü üreten her araç
- * (PDF küçült, Sayfaları düzenle, Döndür ve kaydet, PDF ayır) aynı biçimde ve aynı varsayılanla ("Yeni belge olarak kaydet") kullanır.
- *  - Yeni belge: dosya adı + klasör çipi + Değiştir; varsayılan klasör varsayilanCiktiKlasoru (Masaüstü), varsayılan ad
- *    "<ad> (<ek>).pdf" (klasörde varsa "(2)"…). klasorKipi: dosya adlarını kendisi veren (birden çok dosya üretebilen) araçta
- *    yalnızca klasör satırı (klasorSecici).
- *  - Üzerine yaz: sonuç özgün dosyaya yazılır, yedek alınmaz. Seçiliyken altındaki satır sonucun geri alınıp alınamayacağını söyler:
- *    geriAlinabilir araç (Döndür ve kaydet, Sayfaları düzenle) sonucu sekmedeki belgeye geri alınabilir komut olarak uygulayıp normal
- *    kayıt yoluyla kaydeder (Ctrl+Z), satır sade bilgidir; değilse (PDF küçült, PDF ayır: çekirdek aynı klasörde geçici dosyaya yazıp
- *    atomik olarak yerine koyar) satır uyarı biçiminde "Geri alınamaz" der, bölüm ipucu da. Dosya kilitli ya da salt okunursa özgün
- *    dosya değişmez (bkz. hataSor).
- *  - uzerineKullanilabilir(false, neden): "Üzerine yaz" seçilemez (ör. birden çok dosya üreten ayırma), neden seçimin altında yazar;
- *    seçiliyse "Yeni belge"ye geçilir (yeniden kullanılabilir olunca kendiliğinden geri seçilmez).
+ * Standart kaydetme seçimi: "Yeni belge olarak kaydet" | "Üzerine yaz". Bütün araçlar (PDF Sıkıştırma, Sayfaları düzenle, Döndür ve kaydet,
+ * PDF ayır, Görüntü / PDF birleştir) aynı biçimde, aynı sırayla ve aynı varsayılanla ("Yeni belge olarak kaydet") kullanır: aracın "Kaydet"
+ * başlığının altında bu seçim, (varsa) kısıt satırı, dosya satırı (ad + klasör çipi + Değiştir) ve üzerine yazma notu (0.1.25, kullanıcı
+ * isteği: her araçta fotoğraftaki düzen).
+ *  - Yeni belge: varsayılan klasör varsayilanCiktiKlasoru (Masaüstü), varsayılan ad aracın verdiği ad ("Sıkıştırılmış", "Ayrılmış"…;
+ *    0.1.25'e dek "<özgün ad> (<ek>)"; klasörde varsa "(2)"…).
+ *  - Üzerine yaz: sonuç özgün dosyaya yazılır, yedek alınmaz. Dosya satırı kaybolmaz: yazılacak dosyanın adı ve klasörüyle soluk
+ *    (değiştirilemez) görünür. Altındaki not sonucun geri alınıp alınamayacağını söyler: geriAlinabilir araç (Döndür ve kaydet, Sayfaları
+ *    düzenle) sonucu sekmedeki belgeye geri alınabilir komut olarak uygulayıp normal kayıt yoluyla kaydeder (Ctrl+Z), not sade bilgidir;
+ *    değilse (PDF Sıkıştırma, PDF ayır, Birleştir: çekirdek aynı klasörde geçici dosyaya yazıp atomik olarak yerine koyar) not uyarı
+ *    biçiminde "Geri alınamaz" der, seçeneğin ipucu da. Dosya kilitli ya da salt okunursa özgün dosya değişmez (bkz. hataSor).
+ *  - uzerineKullanilabilir(false, neden): "Üzerine yaz" seçilemez (birden çok dosya üreten ayırma; Birleştir'de açık belge listeden
+ *    çıkarıldı), neden seçimin altında yazar; seçiliyse "Yeni belge"ye geçilir (yeniden kullanılabilir olunca kendiliğinden geri seçilmez).
+ *    belge verilmezse (Birleştir bir PDF açık değilken açıldı) hiç seçilemez; neden belgesizNeden.
+ *  - cokluAyarla(true): araç birden çok dosya üretecek (PDF ayır); ad dosya adlarının ortak başıdır. Adları ve var olan dosyaları araç
+ *    yönetir (denetle yalnızca ada ve klasöre bakar), varsayılan ada "(2)" eklenmez, Değiştir'le özgün dosya seçilse de üzerine yazma değildir.
  * denetle() işlemden önce, hataSor(e) kilit/salt okunur hatasında çağrılır; ikisi de hedefe göre (özgün dosya ya da yeni belge) konuşur.
  * @param {object} s
  * @param {object} s.baglam
- * @param {object} s.belge   {yol, ad}
- * @param {string} [s.ek]    varsayılan ad eki, örn. 'küçültülmüş' (klasorKipi'nde gerekmez)
+ * @param {object|null} s.belge   {yol, ad}; null: üzerine yazılacak belge yok
+ * @param {string} s.ad          varsayılan yeni belge adı, uzantısız (örn. 'Sıkıştırılmış')
  * @param {'yeni'|'uzerine'} [s.kip]
  * @param {boolean} [s.geriAlinabilir]  "Üzerine yaz" sonucu Ctrl+Z ile geri alınabiliyor mu (varsayılan: hayır → uyarı)
- * @param {boolean} [s.klasorKipi]      yeni belge satırı yalnızca klasör
+ * @param {string} [s.belgesizNeden]   belge yokken "Üzerine yaz"ın altında yazan neden
  * @returns {{el:HTMLElement, kip:()=>string, kipAyarla:(k:string)=>void, hedef:()=>string, uzerineMi:()=>boolean, cikti:object,
  *   hazir:Promise<void>, adYenile:()=>Promise<void>, denetle:()=>Promise<'devam'|'vazgec'|Error>, hataSor:(e:Error)=>Promise<boolean>,
- *   uzerineKullanilabilir:(evet:boolean, neden?:string)=>void, onDegisti:(cb)=>void}}
+ *   uzerineKullanilabilir:(evet:boolean, neden?:string)=>void, cokluAyarla:(evet:boolean)=>void, coklu:()=>boolean, onDegisti:(cb)=>void}}
  */
-export function kayitSecimi({ baglam, belge, ek, kip = 'yeni', diyalogBasligi = 'Yeni belge olarak kaydet', geriAlinabilir = false, klasorKipi = false }) {
+export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', kip = 'yeni', diyalogBasligi = 'Yeni belge olarak kaydet', geriAlinabilir = false, belgesizNeden = '' }) {
   const el = oge(`<div class="arac-kayit">
       <div class="arac-kayit-kip"></div>
       <div class="arac-kayit-kisit arac-aciklama" hidden></div>
       <div class="arac-kayit-yeni"></div>
+      <div class="arac-kayit-sabit" hidden></div>
       <div class="arac-kayit-uzerine arac-not-satiri ${geriAlinabilir ? 'bilgi' : 'uyari'}" hidden>${geriAlinabilir ? BILGI_SVG : UYARI_SVG}<span class="metin"></span></div>
     </div>`);
   const dinleyiciler = [];
   const bildir = () => dinleyiciler.forEach((f) => f());
-  const ozgunAd = dosyaAdi(belge.yol);
-  const oneriAd = () => `${adGovdesi(belge.yol)} (${ek}).pdf`;
-  const cikti = klasorKipi
-    ? klasorSecici({ pdefe: baglam.pdefe, klasor: '', diyalogBasligi })
-    : ciktiSecici({ pdefe: baglam.pdefe, klasor: '', ad: oneriAd(), diyalogBasligi });
+  const ozgunAd = belge ? dosyaAdi(belge.yol) : '';
+  const oneriAd = () => `${guvenliAd(varsayilanAd)}.pdf`;
+  let coklu = false;            // birden çok dosya (PDF ayır): ad dosya adlarının ortak başı
+  const cikti = ciktiSecici({ pdefe: baglam.pdefe, klasor: '', ad: oneriAd(), diyalogBasligi });
   cikti.onDegisti(bildir);
-  el.querySelector('.arac-kayit-yeni').append(cikti.el);
+  const yeniEl = el.querySelector('.arac-kayit-yeni');
+  yeniEl.append(cikti.el);
+  const sabit = sabitCiktiSatiri(baglam.pdefe);
+  const sabitEl = el.querySelector('.arac-kayit-sabit');
+  sabitEl.append(sabit.el);
   const kisitEl = el.querySelector('.arac-kayit-kisit');
   const notEl = el.querySelector('.arac-kayit-uzerine');
   const uzerineMetin = notEl.querySelector('.metin');
-  if (geriAlinabilir) uzerineMetin.textContent = `Belgeye uygulanıp "${ozgunAd}" dosyasına kaydedilir; Ctrl+Z ile geri alınabilir.`;
-  else uzerineMetin.append(Object.assign(document.createElement('b'), { textContent: 'Geri alınamaz:' }), ` sonuç "${ozgunAd}" dosyasının yerine yazılır, yedek alınmaz.`);
-  notEl.title = belge.yol;
-  const uzerineIpucu = geriAlinabilir
-    ? `Değişiklik açık belgeye uygulanıp "${ozgunAd}" dosyasına kaydedilir; Ctrl+Z ile geri alınabilir`
-    : `Sonuç "${ozgunAd}" dosyasının yerine kaydedilir; yedek alınmaz, geri alınamaz`;
+  if (belge) {
+    sabit.yaz(belge.yol);
+    if (geriAlinabilir) uzerineMetin.textContent = `Belgeye uygulanıp "${ozgunAd}" dosyasına kaydedilir; Ctrl+Z ile geri alınabilir.`;
+    else uzerineMetin.append(Object.assign(document.createElement('b'), { textContent: 'Geri alınamaz:' }), ` sonuç "${ozgunAd}" dosyasının yerine yazılır, yedek alınmaz.`);
+    notEl.title = belge.yol;
+  }
+  const uzerineIpucu = !belge ? ''
+    : geriAlinabilir ? `Değişiklik açık belgeye uygulanıp "${ozgunAd}" dosyasına kaydedilir; Ctrl+Z ile geri alınabilir`
+      : `Sonuç "${ozgunAd}" dosyasının yerine kaydedilir; yedek alınmaz, geri alınamaz`;
   const secim = segmentliSecim({
-    etiket: 'Kayıt biçimi', deger: kip, sinif: 'arac-kayit-secim',
+    etiket: 'Kayıt biçimi', deger: belge ? kip : 'yeni', sinif: 'arac-kayit-secim',
     secenekler: [
       { id: 'yeni', etiket: 'Yeni belge olarak kaydet', baslik: 'Sonuç ayrı bir PDF dosyası olarak kaydedilir; özgün dosya değişmez' },
       { id: 'uzerine', etiket: 'Üzerine yaz', baslik: uzerineIpucu },
@@ -889,35 +901,51 @@ export function kayitSecimi({ baglam, belge, ek, kip = 'yeni', diyalogBasligi = 
     degisti: () => { goster(); bildir(); },
   });
   el.querySelector('.arac-kayit-kip').replaceWith(secim.el);
+  /** Üzerine yazmada dosya satırının yerinde yazılacak dosya (soluk) ve not durur; satır kaybolmaz. */
   function goster() {
     const uzerine = secim.deger() === 'uzerine';
-    el.querySelector('.arac-kayit-yeni').hidden = uzerine;
+    yeniEl.hidden = uzerine;
+    sabitEl.hidden = !uzerine;
     notEl.hidden = !uzerine;
   }
   goster();
   const kipAyarla = (k) => { secim.sec(k); goster(); bildir(); };
   function uzerineKullanilabilir(evet, neden = '') {
+    if (!belge) { evet = false; neden = neden || belgesizNeden; }
     secim.etkin('uzerine', evet);
     secim.dugme('uzerine').title = evet ? uzerineIpucu : neden;
     kisitEl.textContent = evet ? '' : neden;
     kisitEl.hidden = evet || !neden;
     if (!evet && secim.deger() === 'uzerine') kipAyarla('yeni');
   }
-  /** Değiştir ile özgün dosyanın kendisi seçildiyse de üzerine yazmadır. */
-  const uzerineMi = () => secim.deger() === 'uzerine' || (!klasorKipi && yolAyni(cikti.yol(), belge.yol));
-  /** Varsayılan klasör ve boş ad (kullanıcı elle değiştirmediyse); klasör kipinde yalnızca klasör (seçilmemişse). */
-  async function adYenile() {
-    if (klasorKipi) {
-      if (!cikti.klasor()) { const k = await varsayilanCiktiKlasoru(baglam); if (!cikti.klasor()) cikti.ayarla(k); }
-      return;
-    }
-    if (cikti.elleDegisti()) return;
-    const klasor = cikti.klasor() || await varsayilanCiktiKlasoru(baglam);
-    let ad = oneriAd();
-    try { ad = await bosAdBul(baglam.pdefe, klasor, ad); } catch { /* varsayılan ad */ }
-    if (!cikti.elleDegisti()) cikti.ayarla(klasor, ad);
+  if (!belge) uzerineKullanilabilir(false);
+  /** Değiştir ile özgün dosyanın kendisi seçildiyse de üzerine yazmadır (birden çok dosyada ad yalnızca ortak baştır). */
+  const uzerineMi = () => !!belge && (secim.deger() === 'uzerine' || (!coklu && yolAyni(cikti.yol(), belge.yol)));
+  /**
+   * Varsayılan klasör ve ad (kullanıcı elle değiştirmediyse): tek dosyada klasörde boş bir ad ("Sıkıştırılmış (2)"), birden çok dosyada
+   * aracın adı olduğu gibi (dosya adları sayfa numarasıyla ayrılır; var olanı araç yönetir). Son çağrının sonucu geçerlidir (hazir).
+   */
+  let adSayac = 0;
+  let adSozu = Promise.resolve();
+  function adYenile() {
+    const n = ++adSayac;
+    adSozu = (async () => {
+      if (cikti.elleDegisti()) return;
+      const klasor = cikti.klasor() || await varsayilanCiktiKlasoru(baglam);
+      let ad = oneriAd();
+      if (!coklu) { try { ad = await bosAdBul(baglam.pdefe, klasor, ad); } catch { /* varsayılan ad */ } }
+      if (n === adSayac && !cikti.elleDegisti()) cikti.ayarla(klasor, ad);
+    })();
+    return adSozu;
   }
-  const hazir = adYenile();
+  adYenile();
+  /** Araç birden çok dosya üretecekse true (PDF ayır); değişince varsayılan ad yeniden önerilir. */
+  function cokluAyarla(evet) {
+    evet = !!evet;
+    if (evet === coklu) return;
+    coklu = evet;
+    adYenile();
+  }
   /** Yeni belge adını aynı klasörde boş bir ada çevirir ("… (2).pdf"); elle yazılmış ad da değiştirilir. */
   async function baskaAdSec(temel) {
     const klasor = cikti.klasor() || await varsayilanCiktiKlasoru(baglam);
@@ -928,16 +956,21 @@ export function kayitSecimi({ baglam, belge, ek, kip = 'yeni', diyalogBasligi = 
   }
 
   /**
-   * İşlemden önce: yeni belgede ad boş mu, hedef zaten var mı (sorulur); yazılacak dosya (üzerine yazmada özgün dosya, yeni belgede
-   * var olan hedef) başka bir programda kilitli ya da salt okunur mu (uzun işlem bittikten sonra hata vermemek için).
+   * İşlemden önce: yeni belgede ad boş mu, klasör var mı, hedef zaten var mı (sorulur); yazılacak dosya (üzerine yazmada özgün dosya, yeni
+   * belgede var olan hedef) başka bir programda kilitli ya da salt okunur mu (uzun işlem bittikten sonra hata vermemek için).
    * Döner: 'devam' | 'vazgec' | Error (hataSor'a verilir).
    */
   async function denetle() {
-    await hazir;
+    await adSozu;
     const uzerine = uzerineMi();
-    if (!uzerine && klasorKipi) return 'devam';   // dosya adlarını ve var olan dosyaları araç kendisi yönetir
     if (!uzerine) {
       if (!cikti.ad()) { baglam.bildir('Dosya adı girin.'); cikti.odakla(); return 'vazgec'; }
+      if (!cikti.klasor()) {
+        const k = await baglam.pdefe.cagir('dosya:klasorSec', { baslik: diyalogBasligi }).catch(() => null);
+        if (!k) return 'vazgec';
+        cikti.ayarla(k, null, { elle: true });
+      }
+      if (coklu) return 'devam';   // dosya adlarını ve var olan dosyaları araç kendisi yönetir
       if (!(await varOlanaYazmaSor(baglam, cikti, cikti.yol()))) return 'vazgec';
       if (!(await baglam.pdefe.cagir('dosya:varMi', cikti.yol()).catch(() => false))) return 'devam';
     }
@@ -958,15 +991,15 @@ export function kayitSecimi({ baglam, belge, ek, kip = 'yeni', diyalogBasligi = 
     const uzerine = uzerineMi();
     const okunamadi = /okunamadı/i.test(m);
     const saltOkunur = /salt okunur/i.test(m);
-    const hedefAd = dosyaAdi(uzerine ? belge.yol : klasorKipi ? '' : cikti.yol());
+    const hedefAd = dosyaAdi(uzerine ? belge.yol : coklu ? '' : cikti.yol());
     const programda = 'başka bir programda (örneğin bir PDF okuyucuda) açık olabilir';
     let mesaj, ayrinti, dugmeler, yanitlar;
     if (okunamadi) {
-      mesaj = `"${ozgunAd}" okunamadı.`;
+      mesaj = `"${ozgunAd || hedefAd}" okunamadı.`;
       ayrinti = `Dosya ${programda}. Hiçbir dosya değiştirilmedi.\n\nDosyayı kullanan programı kapatıp yeniden deneyin.`;
       dugmeler = ['Yeniden dene', 'Vazgeç']; yanitlar = ['tekrar', 'vazgec'];
-    } else if (!uzerine && klasorKipi) {
-      // Klasör kipinde araç var olan dosyaların üzerine yazmaz (ada "(2)" ekler): yazılamayan, seçilen klasördür
+    } else if (!uzerine && coklu) {
+      // Birden çok dosyada araç var olan dosyaların üzerine yazmaz (ada "(2)" ekler): yazılamayan, seçilen klasördür
       mesaj = 'Dosyalar kaydedilemedi.';
       ayrinti = `Seçilen klasöre yazılamadı; klasör salt okunur olabilir ya da bir dosya ${programda}. Var olan hiçbir dosya değiştirilmedi.\n\nBaşka bir klasör seçebilir ya da yeniden deneyebilirsiniz.`;
       dugmeler = ['Yeniden dene', 'Vazgeç']; yanitlar = ['tekrar', 'vazgec'];
@@ -988,17 +1021,20 @@ export function kayitSecimi({ baglam, belge, ek, kip = 'yeni', diyalogBasligi = 
     if (sonuc === 'vazgec') return false;
     if (sonuc === 'yeni') {
       kipAyarla('yeni');
-      if (klasorKipi || !cikti.elleDegisti()) await adYenile();
+      if (coklu || !cikti.elleDegisti()) await adYenile();
       else if (yolAyni(cikti.yol(), belge.yol)) await baskaAdSec(oneriAd());   // elle seçilen ad özgün dosyanın kendisiydi
     } else if (sonuc === 'baskaAd') await baskaAdSec();
     return true;
   }
 
   return {
-    el, cikti, hazir, adYenile, kipAyarla, uzerineMi, uzerineKullanilabilir, denetle, hataSor,
+    el, cikti, adYenile, kipAyarla, uzerineMi, uzerineKullanilabilir, cokluAyarla, denetle, hataSor,
+    /** Varsayılan ad önerisi bitti (son adYenile). */
+    get hazir() { return adSozu; },
     kip: () => secim.deger(),
-    /** Üzerine yazmada özgün dosya; yeni belgede hedef dosya (klasör kipinde klasör). */
-    hedef: () => (secim.deger() === 'uzerine' ? belge.yol : klasorKipi ? cikti.klasor() : cikti.yol()),
+    coklu: () => coklu,
+    /** Üzerine yazmada özgün dosya; yeni belgede hedef dosya (birden çok dosyada ortak ad, klasörü cikti.klasor()). */
+    hedef: () => (secim.deger() === 'uzerine' && belge ? belge.yol : cikti.yol()),
     onDegisti: (cb) => dinleyiciler.push(cb),
   };
 }

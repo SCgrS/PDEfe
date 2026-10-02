@@ -368,54 +368,54 @@ def test_sayfalar_uygula(c):
 
 
 def test_ayir(c):
+    """PDF ayır (0.1.25): dosya adlarını renderer verir (parcalar). Birden çok dosya "Ayrılmış - Sayfa 1-3.pdf"…, tek dosya "Ayrılmış.pdf"
+    (sırasız ve yinelenen sayfalar sıralı, tekrarsız yazılır); uzerineYaz=False'ta var olan ada "(2)" eklenir, varsayılanda aynı ad
+    yeniden yazılır; yer imleri, notlar ve Türkçe metin korunur; hatalı parça ve özgün dosyanın kendisi reddedilir."""
     klasor = os.path.join(CIKTI, "ayir")
     shutil.rmtree(klasor, ignore_errors=True)
     os.makedirs(klasor)
-    once = belge_ozet(YERIMLI)
-    r, _ = c.cagir("ayir", {"yol": YERIMLI, "hedefKlasor": klasor, "mod": "aralik", "araliklar": " 1-3 , 5, 10 - 8 "})
+    parcalar = [{"ad": "Ayrılmış - Sayfa 1-3.pdf", "sayfalar": [1, 2, 3]}, {"ad": "Ayrılmış - Sayfa 5.pdf", "sayfalar": [5]},
+                {"ad": "Ayrılmış - Sayfa 8-10.pdf", "sayfalar": [8, 9, 10]}]
+    r, _ = c.cagir("ayir", {"yol": YERIMLI, "klasor": klasor, "parcalar": parcalar, "uzerineYaz": False})
     adlar = [os.path.basename(x) for x in r["dosyalar"]]
     d = pymupdf.open(r["dosyalar"][0])
     toc1 = d.get_toc()
     tr1, _ = turkce_var(d)
     d.close()
-    ok = (adlar == ["dergipark_3972595_ttk_tbk_1-3.pdf", "dergipark_3972595_ttk_tbk_sayfa_5.pdf", "dergipark_3972595_ttk_tbk_8-10.pdf"]
-          and belge_ozet(r["dosyalar"][2])["sayfa"] == 3 and all(1 <= s <= 3 for _, _, s in toc1))
-    kaydet_sonuc("ayir/aralik", "dergipark_3972595", ok, "%s toc(1-3)=%d tr=%s boyutlar=%s"
+    ok = (adlar == ["Ayrılmış - Sayfa 1-3.pdf", "Ayrılmış - Sayfa 5.pdf", "Ayrılmış - Sayfa 8-10.pdf"]
+          and belge_ozet(r["dosyalar"][2])["sayfa"] == 3 and all(1 <= s <= 3 for _, _, s in toc1)
+          and [a["sayfa"] for a in r["ayrintilar"]] == [3, 1, 3] and r["ayrintilar"][0]["boyut"] == os.path.getsize(r["dosyalar"][0]))
+    kaydet_sonuc("ayir/ayrı ayrı", "dergipark_3972595", ok, "%s toc(1-3)=%d tr=%s boyutlar=%s"
                  % (adlar, len(toc1), tr1, [mb(os.path.getsize(x)) for x in r["dosyalar"]]))
-    # tekrar: (2) eki
-    r2, _ = c.cagir("ayir", {"yol": YERIMLI, "hedefKlasor": klasor, "mod": "aralik", "araliklar": "1-3"})
-    kaydet_sonuc("ayir/benzersiz", "1-3 yeniden", os.path.basename(r2["dosyalar"][0]) == "dergipark_3972595_ttk_tbk_1-3 (2).pdf", os.path.basename(r2["dosyalar"][0]))
-    # herN
-    r, _ = c.cagir("ayir", {"yol": YATAY, "hedefKlasor": klasor, "mod": "herN", "n": 2})
-    ok = len(r["dosyalar"]) == 2 and belge_ozet(r["dosyalar"][1])["sayfa"] == 1 and os.path.basename(r["dosyalar"][0]).endswith("_bolum_1.pdf")
-    kaydet_sonuc("ayir/herN", "2099_83_EK-1 n=2", ok, [os.path.basename(x) for x in r["dosyalar"]])
-    # secili
-    r, _ = c.cagir("ayir", {"yol": NOTLU, "hedefKlasor": klasor, "mod": "secili", "sayfalar": [1, 2, 5]})
+    # Yeniden, var olanın üzerine yazmadan: "(2)" eki
+    r2, _ = c.cagir("ayir", {"yol": YERIMLI, "klasor": klasor, "parcalar": parcalar[:1], "uzerineYaz": False})
+    kaydet_sonuc("ayir/benzersiz", "1-3 yeniden", os.path.basename(r2["dosyalar"][0]) == "Ayrılmış - Sayfa 1-3 (2).pdf", os.path.basename(r2["dosyalar"][0]))
+    # Tek dosya: sırasız ve yinelenen sayfalar sıralı, tekrarsız; notlar korunur
+    r, _ = c.cagir("ayir", {"yol": NOTLU, "klasor": klasor, "parcalar": [{"ad": "Ayrılmış.pdf", "sayfalar": [5, 1, 2, 2]}]})
     oz = belge_ozet(r["dosyalar"][0])
-    kaydet_sonuc("ayir/secili", "DENEME PDF (2) [1,2,5]", oz["sayfa"] == 3 and oz["not"] == belge_ozet(NOTLU)["not"],
-                 "%s sayfa=%d not=%d" % (os.path.basename(r["dosyalar"][0]), oz["sayfa"], oz["not"]))
-    # tek
-    r, _ = c.cagir("ayir", {"yol": YATAY, "hedefKlasor": klasor, "mod": "tek"})
-    kaydet_sonuc("ayir/tek", "2099_83_EK-1", len(r["dosyalar"]) == 3, [os.path.basename(x) for x in r["dosyalar"]])
-    # Renderer biçimi: parcalar [{ad, sayfalar}] + klasor; adlar çağırandan, üzerine yazma varsayılan
-    parcalar = [{"ad": "tbk_s1-3.pdf", "sayfalar": [1, 2, 3]}, {"ad": "tbk_secili.pdf", "sayfalar": [5, 2, 9]}]
-    r, _ = c.cagir("ayir", {"yol": YERIMLI, "klasor": klasor, "parcalar": parcalar, "mod": "aralik"})
-    r2, _ = c.cagir("ayir", {"yol": YERIMLI, "klasor": klasor, "parcalar": parcalar, "mod": "aralik"})   # üzerine yazar
-    r3, _ = c.cagir("ayir", {"yol": YERIMLI, "klasor": klasor, "parcalar": parcalar[:1], "uzerineYaz": False})
-    adlar = [os.path.basename(x) for x in r["dosyalar"]]
-    oz = belge_ozet(r["dosyalar"][1])
-    ok = (adlar == ["tbk_s1-3.pdf", "tbk_secili.pdf"] and oz["sayfa"] == 3 and r["ayrintilar"][1]["sayfa"] == 3
-          and r2["dosyalar"] == r["dosyalar"] and os.path.basename(r3["dosyalar"][0]) == "tbk_s1-3 (2).pdf"
-          and r["ayrintilar"][0]["boyut"] == os.path.getsize(r["dosyalar"][0]))
-    kaydet_sonuc("ayir/parcalar", "renderer biçimi", ok, "%s, secili sayfa=%d, yeniden=%s, uzerineYaz=False → %s"
-                 % (adlar, oz["sayfa"], [os.path.basename(x) for x in r2["dosyalar"]] == adlar, os.path.basename(r3["dosyalar"][0])))
-    # hatalı aralıklar
-    for ifade in ("0-3", "1-99", "abc", "", "3-x"):
+    kaydet_sonuc("ayir/tek dosya", "DENEME PDF (2) [5,1,2,2]", os.path.basename(r["dosyalar"][0]) == "Ayrılmış.pdf" and oz["sayfa"] == 3
+                 and oz["not"] == belge_ozet(NOTLU)["not"], "%s sayfa=%d not=%d" % (os.path.basename(r["dosyalar"][0]), oz["sayfa"], oz["not"]))
+    # Tek dosya, aynı ad (uzerineYaz varsayılan: renderer kullanıcıya sordu): aynı dosya yeniden yazılır
+    r3, _ = c.cagir("ayir", {"yol": NOTLU, "klasor": klasor, "parcalar": [{"ad": "Ayrılmış.pdf", "sayfalar": [1]}]})
+    kaydet_sonuc("ayir/aynı ada yazar", "Ayrılmış.pdf", r3["dosyalar"] == r["dosyalar"] and belge_ozet(r3["dosyalar"][0])["sayfa"] == 1
+                 and not [a for a in os.listdir(klasor) if "Ayrılmış (2)" in a or a.endswith(".pdefe-tmp")], os.listdir(klasor))
+    # Her sayfa ayrı dosya
+    parcalar = [{"ad": "Ayrılmış - Sayfa %d.pdf" % s, "sayfalar": [s]} for s in range(1, 4)]
+    r, _ = c.cagir("ayir", {"yol": YATAY, "klasor": klasor, "parcalar": parcalar, "uzerineYaz": False})
+    kaydet_sonuc("ayir/her sayfa", "2099_83_EK-1", [os.path.basename(x) for x in r["dosyalar"]] == [p["ad"] for p in parcalar]
+                 and all(belge_ozet(x)["sayfa"] == 1 for x in r["dosyalar"]), [os.path.basename(x) for x in r["dosyalar"]])
+    # Hatalı istekler: sınır dışı sayfa, ad yok, parça yok, özgün dosyanın kendisi (kopyası üzerinde: değişmemeli)
+    kopya = os.path.join(klasor, "kopya.pdf")
+    shutil.copy(YATAY, kopya)
+    once = md5(kopya)
+    for ad, params in (("sayfa 0", {"parcalar": [{"ad": "x.pdf", "sayfalar": [0]}]}), ("sayfa 99", {"parcalar": [{"ad": "x.pdf", "sayfalar": [99]}]}),
+                       ("ad yok", {"parcalar": [{"sayfalar": [1]}]}), ("parça yok", {"parcalar": []}),
+                       ("özgün dosya", {"parcalar": [{"ad": "kopya.pdf", "sayfalar": [1]}]})):
         try:
-            c.cagir("ayir", {"yol": YATAY, "hedefKlasor": klasor, "mod": "aralik", "araliklar": ifade})
-            kaydet_sonuc("ayir/hata", repr(ifade), False, "hata beklenirdi")
+            c.cagir("ayir", dict({"yol": kopya, "klasor": klasor}, **params))
+            kaydet_sonuc("ayir/hata", ad, False, "hata beklenirdi")
         except Exception as e:
-            kaydet_sonuc("ayir/hata", repr(ifade), True, str(e).splitlines()[0])
+            kaydet_sonuc("ayir/hata", ad, md5(kopya) == once and not os.path.exists(os.path.join(klasor, "x.pdf")), str(e).splitlines()[0])
 
 
 def test_gorsel_bilgi(c, g):
@@ -532,7 +532,8 @@ def test_dondur_kaydet(c):
 
 def test_ayir_uzerine(c):
     """PDF ayır "Üzerine yaz": özgün dosyada yalnızca ayrılan sayfalar kalır; notlar ve kalan sayfaların yer imleri korunur,
-    "(2)" adı ve geçici dosya kalmaz; birden çok dosya üreten ayırmada, salt okunur ya da kilitli dosyada özgün dosya değişmez."""
+    "(2)" adı ve geçici dosya kalmaz; geçersiz sayfa listesinde, salt okunur ya da kilitli dosyada özgün dosya değişmez (0.1.25: istek
+    {yol, sayfalar, uzerine})."""
     klasor = os.path.join(CIKTI, "ayir_uzerine")
     shutil.rmtree(klasor, ignore_errors=True)
     os.makedirs(klasor)
@@ -540,7 +541,7 @@ def test_ayir_uzerine(c):
     # 1) Seçili sayfalar (sırasız verilir, sıralı kalır)
     yol = os.path.join(klasor, "secili.pdf")
     shutil.copy(kaynak, yol)
-    r, il = c.cagir("ayir", {"yol": yol, "mod": "secili", "sayfalar": [7, 2, 5], "uzerine": True})
+    r, il = c.cagir("ayir", {"yol": yol, "sayfalar": [7, 2, 5], "uzerine": True})
     sayfalar, toc = sayfa_ozeti(yol)
     ok = (r["dosyalar"] == [yol] and r.get("uzerine") is True and r["ayrintilar"][0]["sayfa"] == 3
           and [s["metin"] for s in sayfalar] == ["Sayfa 2", "Sayfa 5", "Sayfa 7"]
@@ -555,31 +556,31 @@ def test_ayir_uzerine(c):
     # 2) Tek aralık
     yol = os.path.join(klasor, "aralik.pdf")
     shutil.copy(kaynak, yol)
-    r, _ = c.cagir("ayir", {"yol": yol, "mod": "aralik", "araliklar": "3-6", "uzerine": True})
+    r, _ = c.cagir("ayir", {"yol": yol, "sayfalar": [3, 4, 5, 6], "uzerine": True})
     sayfalar, toc = sayfa_ozeti(yol)
     ok = ([s["metin"] for s in sayfalar] == ["Sayfa 3", "Sayfa 4", "Sayfa 5", "Sayfa 6"]
           and all(s["not"] == NOT_TURLERI for s in sayfalar)
           and toc == [("A.2", 1), ("Bölüm B", 2), ("B.1", 3), ("B.2", 4)] and r["dosyalar"] == [yol]
           and not [a for a in os.listdir(klasor) if a.endswith(".pdefe-tmp") or "(2)" in a])
     kaydet_sonuc("ayir/uzerine", "aralik 3-6", ok, "sayfalar=%s toc=%s" % ([s["metin"] for s in sayfalar], toc))
-    # 3) Birden çok dosya üreten ayırmada üzerine yazılmaz, dosya değişmez
-    yol = os.path.join(klasor, "coklu.pdf")
+    # 3) Geçersiz sayfa listesi (boş, sınır dışı): dosya değişmez
+    yol = os.path.join(klasor, "gecersiz.pdf")
     shutil.copy(kaynak, yol)
     once = md5(yol)
-    for params in ({"mod": "aralik", "araliklar": "1-2, 4"}, {"mod": "herN", "n": 3}, {"mod": "tek"}):
+    for ad, sayfalar in (("boş", []), ("sınır dışı", [1, 99])):
         try:
-            c.cagir("ayir", dict(params, yol=yol, uzerine=True))
-            kaydet_sonuc("ayir/uzerine/coklu", params["mod"], False, "hata beklenirdi")
+            c.cagir("ayir", {"yol": yol, "sayfalar": sayfalar, "uzerine": True})
+            kaydet_sonuc("ayir/uzerine/geçersiz", ad, False, "hata beklenirdi")
         except Exception as e:
-            kaydet_sonuc("ayir/uzerine/coklu", params["mod"], "tek dosya" in str(e) and md5(yol) == once
-                         and sorted(os.listdir(klasor)) == ["_kaynak.pdf", "aralik.pdf", "coklu.pdf", "secili.pdf"], str(e).splitlines()[0])
+            kaydet_sonuc("ayir/uzerine/geçersiz", ad, md5(yol) == once
+                         and sorted(os.listdir(klasor)) == ["_kaynak.pdf", "aralik.pdf", "gecersiz.pdf", "secili.pdf"], str(e).splitlines()[0])
     # 4) Salt okunur: özgün dosya değişmez, ileti salt okunur der
     yol = os.path.join(klasor, "salt.pdf")
     shutil.copy(kaynak, yol)
     once = md5(yol)
     os.chmod(yol, stat.S_IREAD)
     try:
-        c.cagir("ayir", {"yol": yol, "mod": "secili", "sayfalar": [1], "uzerine": True})
+        c.cagir("ayir", {"yol": yol, "sayfalar": [1], "uzerine": True})
         kaydet_sonuc("ayir/uzerine/salt okunur", "salt.pdf", False, "hata beklenirdi")
     except Exception as e:
         kaydet_sonuc("ayir/uzerine/salt okunur", "salt.pdf", "salt okunur" in str(e) and md5(yol) == once
@@ -593,7 +594,7 @@ def test_ayir_uzerine(c):
         once = md5(yol)
         try:
             with kilitli(yol, paylasim):
-                c.cagir("ayir", {"yol": yol, "mod": "secili", "sayfalar": [1, 2], "uzerine": True})
+                c.cagir("ayir", {"yol": yol, "sayfalar": [1, 2], "uzerine": True})
             kaydet_sonuc("ayir/uzerine/kilitli", ad, False, "hata beklenirdi")
         except Exception as e:
             kaydet_sonuc("ayir/uzerine/kilitli", ad, "başka bir programda açık" in str(e) and md5(yol) == once
@@ -608,7 +609,7 @@ def test_ayir_uzerine(c):
             if yuzde >= 30:
                 raise InterruptedError("İşlem iptal edildi.")
         try:
-            c.yontemler["ayir"]({"yol": yol, "mod": "secili", "sayfalar": [1], "uzerine": True, "_ilerleme": iptal_eden})
+            c.yontemler["ayir"]({"yol": yol, "sayfalar": [1], "uzerine": True, "_ilerleme": iptal_eden})
             kaydet_sonuc("ayir/uzerine/iptal", "iptal.pdf", False, "iptal beklenirdi")
         except InterruptedError:
             kaydet_sonuc("ayir/uzerine/iptal", "iptal.pdf", md5(yol) == once and not [a for a in os.listdir(klasor) if a.endswith(".pdefe-tmp")],

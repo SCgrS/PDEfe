@@ -28,7 +28,7 @@ export const ARACLAR = [
   },
   {
     komut: 'arac.ayir', ad: 'PDF ayır', aciklama: 'Belgeyi dosyalara böler', renk: 'turuncu', belge: true,
-    ipucu: 'Belgeyi sayfa aralıklarına göre, her N sayfada bir ya da her sayfayı ayrı dosyaya böler',
+    ipucu: 'Belgeyi sayfa aralıklarına göre ayrı ayrı dosyalara ya da tek dosyaya ayırır; her sayfayı ayrı dosyaya da kaydedebilir',
     // Kesik çizgiyle ayrılan iki sayfa
     ikon: '<rect x="2.75" y="3.75" width="6.75" height="16.5" rx="1.2"/><rect x="14.5" y="3.75" width="6.75" height="16.5" rx="1.2"/><path d="M12 2.5v19" stroke-dasharray="2.2 2.6"/>',
   },

@@ -4,6 +4,8 @@
 // "Yeni belge olarak kaydet" (notlar/bağlantılar/yer imleri, bekleyen not sorusu) ve "Üzerine yaz" (kayıt, Ctrl+Z, yeniden kayıt);
 // PDF ayır "Üzerine yaz" (tek dosya kuralı canlı, seçili sayfalar ve tek aralık, sekmenin yenilenmesi, bekleyen değişiklik soruları);
 // Görüntü / PDF birleştir: varsayılan "Orijinal" (kenar alanı gizli, çıktıda kenar boşluğu yok), "A4'e sığdır"da kenar alanı.
+// 0.1.25: varsayılan adlar "Düzenlenmiş", "Birleşik" (klasörde varsa "(2)"; hedef addan okunur); PDF ayır'da "Seçili sayfaları çıkart" yerine
+// Sayfa aralıklarına göre + Tek dosya, "Her N sayfada bir" yok (6. bölüm).
 // 0.1.13: araç pencerelerinin alt şeridindeki fare/tuş ipucu kalktı (F1 "Kısayollar" penceresine taşındı; 3. bölüm), araçlardaki
 // "Kaydetme" bölüm başlığı "Kaydet" oldu (2, 3, 6. bölüm), Sayfaları düzenle'de "PDF'ten sayfa ekle" düğmesi "PDF ekle" (3. bölüm).
 // Girdiler test/cikti/ui/pdf altına kopyalanır/üretilir; araçların çıktı klasörü test/cikti/ui/cikti yapılır (Masaüstüne yazılmaz).
@@ -65,6 +67,11 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
   };
   /** Açık araç penceresinin bölüm başlıkları (0.1.13: kayıt bölümü "Kaydetme" değil "Kaydet"). */
   const bolumBasliklari = () => evalJs(`[...document.querySelectorAll('.arac-pencere .arac-bolum-baslik')].map((e) => e.textContent.trim())`);
+  /** Açık aracın yeni belge hedefi (0.1.25: varsayılan ad klasördeki dosyalara göre "Düzenlenmiş", "Düzenlenmiş (2)"…). */
+  const yeniBelgeHedefi = async () => {
+    const r = await evalJs(`(() => { const s = document.querySelector('.arac-pencere .arac-kayit-yeni'); return { klasor: s.querySelector('.arac-klasor-cip').dataset.klasor, ad: s.querySelector('.arac-cikti-ad').value }; })()`);
+    return path.join(r.klasor, r.ad + '.pdf');
+  };
   const bolumler = (process.env.BOLUM || '1,2,3,4,5,6,7,8').split(',').map((s) => s.trim());
   const bolum = (n) => bolumler.includes(String(n));
 
@@ -266,16 +273,16 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
       await tikla(r[0], r[1], { degistiriciler });
     };
     const kayit = await evalJs(`(() => { const s = document.querySelector('.sayfalar-kayit'); return { kip: s.querySelector('.arac-kayit-secim .secili')?.dataset.id, ad: s.querySelector('.arac-cikti-ad')?.value, klasor: s.querySelector('.arac-klasor-cip')?.dataset.klasor, dugme: document.querySelector('.arac-dugmeler [data-id="kaydet"]')?.textContent, devre: document.querySelector('.arac-dugmeler [data-id="kaydet"]')?.disabled }; })()`);
-    // 0.1.12: ad kutusunda uzantı görünmez; kaydederken .pdf eklenir (hedef aşağıda "zengin_a (düzenlenmiş).pdf")
-    sonuc('varsayılan: Yeni belge, "<ad> (düzenlenmiş)" (uzantısız), çıktı klasörü, Kaydet (değişiklik yokken pasif)',
-      kayit.kip === 'yeni' && kayit.ad === 'zengin_a (düzenlenmiş)' && kayit.klasor === CIKTI && kayit.dugme === 'Kaydet' && kayit.devre === true, kayit);
+    // 0.1.12: ad kutusunda uzantı görünmez; kaydederken .pdf eklenir. 0.1.25: varsayılan ad "Düzenlenmiş" (klasörde varsa "(2)"…)
+    sonuc('varsayılan: Yeni belge, "Düzenlenmiş" (uzantısız), çıktı klasörü, Kaydet (değişiklik yokken pasif)',
+      kayit.kip === 'yeni' && /^Düzenlenmiş( \(\d+\))?$/.test(kayit.ad) && kayit.klasor === CIKTI && kayit.dugme === 'Kaydet' && kayit.devre === true, kayit);
     await ss('04-sayfalar-yeni-belge-koyu');
     // 4. sayfayı sil, 3. sayfayı saat yönünde döndür (1-3 ardışık kalır: 1. sayfadaki 3. sayfaya iç bağlantı korunur; insert_pdf
     // kopyalanan aralığın dışını gösteren iç bağlantıyı atar, yapısal kayıttaki gibi)
     await kartTikla(3); await tus('Delete');
     await kartTikla(2); await tus('r');
     await tema('acik'); await ss('04-sayfalar-yeni-belge-acik'); await tema('koyu');
-    const hedef = path.join(CIKTI, 'zengin_a (düzenlenmiş).pdf');
+    const hedef = await yeniBelgeHedefi();
     if (!(await evalJs(`document.querySelector('.sayfalar-kayit .arac-klasor-cip').dataset.klasor === ${J(CIKTI)}`))) throw new Error('çıktı klasörü test klasörü değil; Masaüstüne yazılmasın');
     await evalJs(`document.querySelector('.arac-dugmeler [data-id="kaydet"]').click()`);
     await kosul(`!document.querySelector('.sayfalar-pencere') && window.__pdefe.belgeler.size === 2`, 15000);
@@ -284,7 +291,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     const yeni = ozet(hedef), sonra = ozet(zengin.a);
     const sorular = await diyalogKaydi();
     sonuc('yeni belge yazıldı ve yeni sekmede açıldı; özgün sekme değişmedi',
-      sekmeler.length === 2 && sekmeler[1].ad === 'zengin_a (düzenlenmiş).pdf' && sekmeler[1].sayfa === 7 && !sekmeler[0].degisti && sekmeler[0].sayfa === 8, sekmeler);
+      sekmeler.length === 2 && sekmeler[1].ad === path.basename(hedef) && sekmeler[1].sayfa === 7 && !sekmeler[0].degisti && sekmeler[0].sayfa === 8, sekmeler);
     sonuc('özgün dosya değişmedi', once.md5 === sonra.md5);
     sonuc('yeni belge: sıra, döndürme, notlar, bağlantılar, yer imleri',
       J(yeni.sayfalar.map((s) => s.metin)) === J(['Sayfa 1', 'Sayfa 2', 'Sayfa 3', 'Sayfa 5', 'Sayfa 6', 'Sayfa 7', 'Sayfa 8'])
@@ -301,17 +308,17 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     await aracAc('arac.sayfalar', 'sayfalar-pencere');
     await kartTikla(7); await tus('Delete');                // 8. sayfayı sil
     await diyalogYanitla([{ secim: 1 }]);                  // Kaydetmeden devam et
+    const hedef2 = await yeniBelgeHedefi();
     await evalJs(`document.querySelector('.arac-dugmeler [data-id="kaydet"]').click()`);
     await kosul(`!document.querySelector('.sayfalar-pencere') && window.__pdefe.belgeler.size === 3`, 15000);
     await bekle(800);
     const sorular2 = await diyalogKaydi();
-    const hedef2 = path.join(CIKTI, 'zengin_a (düzenlenmiş) (2).pdf');
     const yeni2 = ozet(hedef2);
     const ilk = await evalJs(`(() => { const b = [...window.__pdefe.belgeler.values()][0]; return { degisti: b.degisti, sayfa: b.gorunum.sayfaSayisi }; })()`);
     sonuc('bekleyen notta sorulur (Kaydet ve devam et / Kaydetmeden devam et / Vazgeç)',
       sorular2.length === 1 && sorular2[0].secenek.dugmeler.length === 3 && /kaydedilmemiş not değişiklikleri yeni belgeye girmez/.test(sorular2[0].secenek.ayrinti), sorular2.map((s) => [s.secenek?.mesaj, s.secenek?.ayrinti, s.secenek?.dugmeler]));
     sonuc('Kaydetmeden devam et: bekleyen not yeni belgede yok, sekme kirli kalır, "(2)" adı',
-      yeni2.sayfalar.length === 7 && yeni2.sayfalar[0].not.length === 2 && ilk.degisti && ilk.sayfa === 8, { not: yeni2.sayfalar.map((s) => s.not.length), ilk });
+      path.basename(hedef2) === path.basename(hedef, '.pdf') + ' (2).pdf' && yeni2.sayfalar.length === 7 && yeni2.sayfalar[0].not.length === 2 && ilk.degisti && ilk.sayfa === 8, { not: yeni2.sayfalar.map((s) => s.not.length), ilk });
   }
 
   // ------------------------------------------------------------ 5) Sayfaları düzenle: Üzerine yaz (+ Ctrl+Z)
@@ -385,6 +392,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
       return { etkin: !u.disabled, kip: document.querySelector('.ayir-pencere .arac-kayit-secim .secili').dataset.id, kisit: k.hidden ? '' : k.textContent, ipucu: u.title, not: n.hidden ? '' : n.textContent.trim(), notSinif: n.className,
         onizleme: document.querySelector('.ayir-onizleme').textContent.replace(/\\s+/g, ' ').trim(), adlar: !document.querySelector('.ayir-adlar').hidden, ayir: !document.querySelector('.arac-dugmeler [data-id="ayir"]').disabled }; })()`);
     const mod = (m) => evalJs(`document.querySelector('input[name="ayir-mod"][value="${m}"]').click()`);
+    const tekDosya = () => evalJs(`document.querySelector('.ayir-dosya-kipi-secim [data-id="tek"]').click()`);
     const yazIn = (sinif, v) => evalJs(`(() => { const g = document.querySelector('.${sinif}'); g.value = ${J(v)}; g.dispatchEvent(new Event('input', { bubbles: true })); })()`);
     let d = await durum();
     sonuc('aralık kipinde, boş kutu: üzerine yaz seçilebilir, varsayılan yeni belge', d.etkin && d.kip === 'yeni', d);
@@ -400,20 +408,19 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     sonuc('üzerine yaz: geri alınamaz uyarısı ve kalan sayfalar önizlemesi', d.kip === 'uzerine' && d.notSinif.includes('uyari') && /^Geri alınamaz: sonuç "zengin_c\.pdf" dosyasının yerine yazılır, yedek alınmaz\.$/.test(d.not)
       && /"zengin_c\.pdf" dosyasında yalnızca 3 sayfa kalır \(2-4\); diğer 5 sayfa silinir\./.test(d.onizleme) && !d.adlar, d);
     await ss('06-ayir-uzerine-aralik-koyu');
-    await mod('tek');
+    await mod('herSayfa');
     d = await durum();
     sonuc('her sayfa ayrı dosya: devre dışı, yeni belgeye geçildi (canlı)', !d.etkin && d.kip === 'yeni' && d.adlar && !!d.kisit, d);
-    await mod('herN');
+    // 0.1.25: "Seçili sayfaları çıkart" yerine Sayfa aralıklarına göre + Tek dosya
+    await mod('aralik');
+    await tekDosya();
+    await yazIn('ayir-aralik', '7, 2, 5');
     d = await durum();
-    sonuc('her N sayfada bir: devre dışı', !d.etkin && d.kip === 'yeni', d);
-    await mod('secili');
-    await yazIn('ayir-secili', '7, 2, 5');
-    d = await durum();
-    sonuc('seçili sayfalar: seçilebilir (kendiliğinden üzerine yaza dönmez)', d.etkin && d.kip === 'yeni' && !d.kisit, d);
+    sonuc('tek dosya (seçili sayfalar): seçilebilir (kendiliğinden üzerine yaza dönmez)', d.etkin && d.kip === 'yeni' && !d.kisit, d);
     await evalJs(`document.querySelector('.ayir-pencere .arac-kayit-secim [data-id="uzerine"]').click()`);
     await ss('06-ayir-uzerine-secili-koyu');
     await tema('acik'); await ss('06-ayir-uzerine-secili-acik');
-    await mod('tek'); await ss('06-ayir-coklu-devre-disi-acik'); await mod('secili');
+    await mod('herSayfa'); await ss('06-ayir-coklu-devre-disi-acik'); await mod('aralik');
     await evalJs(`document.querySelector('.ayir-pencere .arac-kayit-secim [data-id="uzerine"]').click()`);
     await tema('koyu');
     const oncekiDosyalar = fs.readdirSync(PDF).sort();
@@ -451,7 +458,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     try {
       await ac(zengin.e);
       await aracAc('arac.ayir', 'ayir-pencere');
-      await mod('secili'); await yazIn('ayir-secili', '1');
+      await yazIn('ayir-aralik', '1');
       await evalJs(`document.querySelector('.ayir-pencere .arac-kayit-secim [data-id="uzerine"]').click()`);
       const once = ozet(zengin.e);
       await diyalogYanitla([{ secim: 2 }]);   // Vazgeç
@@ -468,7 +475,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     await ac(zengin.g);
     await evalJs(`(async () => { const b = window.__pdefe.aktif(); await window.__pdefe.sayfaTarifiUygula(b, b.gorunum.tarif().slice(1), 'Test: 1. sayfayı sil'); return b.degisti; })()`);
     await aracAc('arac.ayir', 'ayir-pencere');
-    await mod('secili'); await yazIn('ayir-secili', '1');
+    await yazIn('ayir-aralik', '1');
     await evalJs(`document.querySelector('.ayir-pencere .arac-kayit-secim [data-id="uzerine"]').click()`);
     const onceG = ozet(zengin.g);
     await diyalogYanitla([{ secim: 1 }]);   // Vazgeç
@@ -561,10 +568,11 @@ print(json.dumps(sonuc))`);
     await ss('08-sayfalar-kayitli-dondurme-koyu');
     // c) Yeni belge: 8. sayfa silinir; 1. sayfa dosyadaki gibi 90°
     await tikla(k[7].x, k[7].y); await tus('Delete');
+    const h1 = await yeniBelgeHedefi();
     await kaydetTikla();
     await kosul(`!document.querySelector('.sayfalar-pencere') && window.__pdefe.belgeler.size === 2`, 15000);
     await bekle(600);
-    const y1 = ozet(path.join(CIKTI, 'zengin_f (düzenlenmiş).pdf'));
+    const y1 = ozet(h1);
     sonuc('yeni belge: kayıtlı döndürme korunur (iki kez eklenmez)', y1.sayfalar.length === 7 && J(y1.sayfalar.map((s) => s.rot)) === J([90, 0, 0, 0, 0, 0, 0]), y1.sayfalar.map((s) => s.rot));
     // d) Üzerine yaz ile yapısal kayıt: 2. sayfa sona taşınır (sekme anlık kopyaya geçer)
     await evalJs(`window.__pdefe.sekmeSec([...window.__pdefe.belgeler.keys()][0])`);
@@ -589,11 +597,12 @@ print(json.dumps(sonuc))`);
     sonuc('yapısal kayıttan sonra kartlar anlık kopyadan: 1. kart rozetsiz, sıra sekmedeki gibi', k[0].rozet === '' && /sayfa 1$/.test(k[0].baslik) && /sayfa 2$/.test(k[7].baslik), k.map((x) => x.baslik.replace(/^.* — /, '')));
     await tikla(k[7].x, k[7].y); await tus('Delete');
     await diyalogYanitla([{ secim: 1 }]);   // Kaydetmeden devam et
+    const h2 = await yeniBelgeHedefi();
     await kaydetTikla();
     await kosul(`!document.querySelector('.sayfalar-pencere') && window.__pdefe.belgeler.size === 3`, 15000);
     await bekle(600);
     const s8 = await diyalogKaydi();
-    const y2 = ozet(path.join(CIKTI, 'zengin_f (düzenlenmiş) (2).pdf'));
+    const y2 = ozet(h2);
     sonuc('yapısal kayıttan sonra yeni belge (bekleyen not sorusu, Kaydetmeden devam et)', s8.length === 1 && s8[0].secenek.dugmeler.length === 3
       && J(y2.sayfalar.map((s) => s.metin)) === J(['Sayfa 1', 'Sayfa 3', 'Sayfa 4', 'Sayfa 5', 'Sayfa 6', 'Sayfa 7', 'Sayfa 8']) && y2.sayfalar[0].rot === 90
       && y2.sayfalar.every((s) => s.not.length === 2) && J(y2.toc.map((t) => t[0])) === J(['Bölüm A', 'A.2', 'Bölüm B', 'B.1', 'B.2', 'Bölüm C', 'C.1']),
@@ -609,11 +618,12 @@ print(json.dumps(sonuc))`);
     k = await kartlar();
     await tikla(k[2].x, k[2].y); await tus('r');
     await diyalogYanitla([{ secim: 0 }]);   // Kaydet ve devam et
+    const h3 = await yeniBelgeHedefi();
     await kaydetTikla();
     await kosul(`!document.querySelector('.sayfalar-pencere') && window.__pdefe.belgeler.size === 4`, 15000);
     await bekle(600);
     const s9 = await diyalogKaydi();
-    const y3 = ozet(path.join(CIKTI, 'zengin_f (düzenlenmiş) (3).pdf')), f3 = ozet(zengin.f);
+    const y3 = ozet(h3), f3 = ozet(zengin.f);
     const ilk = await evalJs(`(() => { const b = [...window.__pdefe.belgeler.values()][0]; return { degisti: b.degisti, sayfa: b.gorunum.sayfaSayisi }; })()`);
     sonuc('kaydedilmemiş düzende yalnızca kaydedip devam (2 düğme); sekme kaydedildi, yeni belge sekmenin düzeniyle', s9.length === 1 && s9[0].secenek.dugmeler.length === 2
       && J(f3.sayfalar.map((s) => s.metin)) === J(['Sayfa 1', 'Sayfa 2', 'Sayfa 3', 'Sayfa 4', 'Sayfa 5', 'Sayfa 6', 'Sayfa 7', 'Sayfa 8']) && !ilk.degisti

@@ -35,10 +35,10 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   await pencereleriKapat();
   await evalJs(`(() => { window.__pdefeOtoYanit = { secim: 0 }; return true; })()`);
 
-  // 2) Ayır: her N sayfada bir (varsayılan mod ne ise) → çıktı klasörüne
+  // 2) Ayır: her sayfayı ayrı dosyaya (0.1.25: "her N sayfada bir" kaldırıldı) → çıktı klasörüne
   await evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find(x => x.ad === 'arac-test.pdf'); await p.sekmeSec(b.id); p.komutCalistir('arac.ayir'); })()`); await bekle(2000);
   console.log('ayır pencere metni:', await evalJs(`document.querySelector('.arac-pencere')?.textContent.replace(/\\s+/g, ' ').slice(0, 260)`));
-  await evalJs(`(() => { const w = document.querySelector('.arac-pencere'); const r = [...w.querySelectorAll('input[type=radio]')]; const herN = r.find(x => /herN|her/i.test(x.value + x.parentElement.textContent)); if (herN) { herN.click(); } const n = w.querySelector('input[type=number]'); if (n) { n.value = 5; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); } })()`);
+  await evalJs(`document.querySelector('.arac-pencere input[name="ayir-mod"][value="herSayfa"]')?.click()`);
   console.log('ayır:', await evalJs(dugmeTikla('/^Ayır$/')));
   await bekle(6000);
   console.log('  çıktılar:', fs.readdirSync(K), 'pencere metni:', await evalJs(`document.querySelector('.arac-pencere')?.textContent.replace(/\\s+/g, ' ').slice(0, 200)`));

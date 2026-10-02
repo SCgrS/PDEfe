@@ -1,20 +1,24 @@
-// PDF ayır: sayfa aralıklarına göre / her N sayfada bir / seçili sayfaları çıkart / her sayfayı ayrı dosyaya.
+// PDF ayır: sayfa aralıklarına göre (Ayrı ayrı dosya | Tek dosya) ya da her sayfayı ayrı dosyaya. 0.1.25 (kullanıcı isteği): "Her N sayfada
+// bir" ve "Seçili sayfaları çıkart" kaldırıldı (seçili sayfaları çıkarmak "Tek dosya"dır); dosya adı öteki araçlardaki gibi Kaydet bölümünde
+// yazılır, varsayılanı "Ayrılmış".
 // Çekirdek (core/islemler/araclar.py y_ayir):
-//   ayir {yol, hedefKlasor, mod:'aralik'|'herN'|'secili'|'tek', araliklar:"1-3, 5", n, sayfalar:[...], uzerine?} (ilerlemeli)
-//   → {dosyalar:[yol, ...], ayrintilar:[{yol, boyut, sayfa}]}
-// Dosya adlarını çekirdek belirler: <ad>_<etiket>.pdf; var olan ad üzerine yazılmaz, "(2)", "(3)" eklenir.
-// Bu pencere aynı adlandırma kuralını (ayirParcalari) önizleme için burada da uygular.
-// Kaydetme: standart seçim (ortak.js kayitSecimi, klasör kipi). "Yeni belge olarak kaydet" (varsayılan) yalnızca klasör satırıdır
-// (varsayılan: Ayarlar'daki çıktı klasörü, yoksa Masaüstü). "Üzerine yaz" yalnızca tek dosya üreten ayırmada (seçili sayfalar ya da
-// tek aralık) seçilebilir: özgün dosyada yalnızca ayrılan sayfalar kalır, yedek alınmaz, geri alınamaz; çekirdek aynı klasörde geçici
-// dosyaya yazıp atomik olarak yerine koyar (kilitli / salt okunur dosya değişmez, kayitSecimi.hataSor sorar), ardından açık sekme
-// diskteki yeni haliyle yeniden açılır.
+//   ayir {yol, klasor, parcalar:[{ad:'Ayrılmış - Sayfa 1-3.pdf', sayfalar:[1,2,3]}], uzerineYaz} (ilerlemeli)
+//     → {dosyalar:[yol, ...], ayrintilar:[{yol, boyut, sayfa}]}; uzerineYaz false iken var olan dosyanın üzerine yazılmaz, ada "(2)" eklenir
+//   ayir {yol, sayfalar:[...], uzerine:true} → özgün dosyada yalnızca o sayfalar kalır
+// Dosya adlarını bu pencere verir (ayirParcalari): tek dosyada Kaydet'teki ad olduğu gibi ("Ayrılmış.pdf"), birden çok dosyada sayfa
+// numarasıyla ("Ayrılmış - Sayfa 1-3.pdf"; 0.1.25'e dek "<özgün ad>_1-3.pdf").
+// Kaydetme: standart seçim (ortak.js kayitSecimi). Tek dosyada öteki araçlar gibidir: var olan dosyanın üzerine yazmadan önce sorulur;
+// "Üzerine yaz"da özgün dosyada yalnızca ayrılan sayfalar kalır (yedek alınmaz, geri alınamaz; çekirdek aynı klasörde geçici dosyaya
+// yazıp atomik olarak yerine koyar, kilitli / salt okunur dosya değişmez ve kayitSecimi.hataSor sorar), ardından açık sekme diskteki
+// yeni haliyle yeniden açılır. Birden çok dosyada "Üzerine yaz" seçilemez; var olan dosyaların üzerine yazılmaz, ada "(2)" eklenir
+// (önce sorulur).
 import {
-  pencereAc, pencereAcikMi, IslemIlerleme, boyutMetni, kacis, hataMetni, dosyaAdi, adGovdesi, yolBirlestir,
-  guvenliAd, sayfaListesiCoz, sayfaAraliklariCoz, degisiklikleriSor, oge, kayitSecimi, kilitliHataMi, ciktiyiAc, sayiMetni,
-  numaralarDosyaylaAyni, NUMARA_UYUSMAZ,
+  pencereAc, pencereAcikMi, IslemIlerleme, boyutMetni, kacis, hataMetni, dosyaAdi, adGovdesi, yolBirlestir, guvenliAd,
+  sayfaAraliklariCoz, degisiklikleriSor, oge, kayitSecimi, kilitliHataMi, ciktiyiAc, sayiMetni, segmentliSecim, acikBelge,
+  sekmeyiYenile, numaralarDosyaylaAyni, NUMARA_UYUSMAZ,
 } from './ortak.js';
 
+const VARSAYILAN_AD = 'Ayrılmış';
 const COKLU_DOSYA_NEDENI = 'Birden çok dosya üreten ayırmada yalnızca yeni belge olarak kaydedilir.';
 
 /** [1,2,3,5] → [[1,3],[5,5]] (sıralı, tekrarsız). Çekirdekteki _sayfa_listesini_gruplara ile aynı. */
@@ -27,56 +31,43 @@ export function sayfaGruplari(sayfalar) {
   return gruplar;
 }
 
-/** Çekirdekteki _aralik_etiketi: en çok 4 grup "1-3_5_8-9", fazlası "secili_<n>sayfa". */
-function aralikEtiketi(gruplar) {
-  const parcalar = gruplar.map(([a, b]) => (a === b ? String(a) : `${a}-${b}`));
-  if (parcalar.length > 4) return `secili_${gruplar.reduce((t, [a, b]) => t + (b - a + 1), 0)}sayfa`;
-  return parcalar.join('_');
+/** 1,2,3,5,6 → "1-3, 5-6" */
+function kisaListe(sayfalar) {
+  return sayfaGruplari(sayfalar).map(([a, b]) => (a === b ? String(a) : `${a}-${b}`)).join(', ');
 }
 
+/** Birden çok dosyada bir dosyanın adı: "<ad> - Sayfa 1-3.pdf", tek sayfada "<ad> - Sayfa 5.pdf". */
+function parcaAdi(ad, bas, son) { return `${ad} - Sayfa ${bas === son ? bas : `${bas}-${son}`}.pdf`; }
+
 /**
- * Seçilen moda göre oluşacak parçaları ve çekirdeğe gidecek parametreleri hesaplar.
- * @param {{mod:string, aralikMetni?:string, n?:number|string, seciliMetni?:string}} girdi
+ * Seçilen biçime göre oluşacak dosyaları hesaplar.
+ * @param {{mod:'aralik'|'herSayfa', dosyaKipi?:'ayri'|'tek', aralikMetni?:string}} girdi
+ *   aralik + ayri: her aralık ayrı dosya (tek aralık yazıldıysa tek dosya); aralik + tek: yazılan sayfaların hepsi tek dosyada (sıralı,
+ *   tekrarsız); herSayfa: her sayfa ayrı dosya
  * @param {number} toplam belgedeki sayfa sayısı
- * @param {string} govde dosya adı gövdesi (uzantısız)
- * @returns {{parcalar:Array<{ad:string, sayfalar:number[]}>, params:object|null, hata:string|null}}
+ * @param {string} ad Kaydet bölümündeki dosya adı, uzantısız
+ * @returns {{parcalar:Array<{ad:string, sayfalar:number[]}>, hata:string|null}} tek dosyada ad olduğu gibi, birden çok dosyada sayfa
+ *   numarasıyla
  */
-export function ayirParcalari(girdi, toplam, govde) {
-  const ad = guvenliAd(govde);
-  const dosyaAd = (etiket) => guvenliAd(`${ad}_${etiket}`) + '.pdf';
-  if (!(toplam >= 1)) return { parcalar: [], params: null, hata: 'Belgenin sayfa sayısı bilinmiyor.' };
-  const mod = girdi.mod;
-  if (mod === 'aralik') {
+export function ayirParcalari(girdi, toplam, ad) {
+  const temel = guvenliAd(ad);
+  if (!(toplam >= 1)) return { parcalar: [], hata: 'Belgenin sayfa sayısı bilinmiyor.' };
+  if (girdi.mod === 'aralik') {
     const { araliklar, hata } = sayfaAraliklariCoz(girdi.aralikMetni, toplam);
-    if (hata) return { parcalar: [], params: null, hata };
-    const parcalar = araliklar.map((a) => ({ ad: dosyaAd(a.bas === a.son ? `sayfa_${a.bas}` : `${a.bas}-${a.son}`), sayfalar: a.sayfalar }));
-    return { parcalar, params: { mod: 'aralik', araliklar: String(girdi.aralikMetni || '').trim() }, hata: null };
-  }
-  if (mod === 'herN') {
-    const n = parseInt(girdi.n, 10);
-    if (!(n >= 1)) return { parcalar: [], params: null, hata: 'Bölüm uzunluğu en az 1 olmalı.' };
-    if (n >= toplam) return { parcalar: [], params: null, hata: `Belgede ${toplam} sayfa var; her ${n} sayfada bir ayırmak tek dosya üretir. Daha küçük bir sayı girin.` };
-    const parcalar = [];
-    for (let bas = 1, k = 1; bas <= toplam; bas += n, k++) {
-      const sayfalar = [];
-      for (let s = bas; s <= Math.min(bas + n - 1, toplam); s++) sayfalar.push(s);
-      parcalar.push({ ad: dosyaAd(`bolum_${k}`), sayfalar });
+    if (hata) return { parcalar: [], hata };
+    if (girdi.dosyaKipi === 'tek' || araliklar.length === 1) {
+      const sayfalar = [...new Set(araliklar.flatMap((a) => a.sayfalar))].sort((a, b) => a - b);
+      return { parcalar: [{ ad: `${temel}.pdf`, sayfalar }], hata: null };
     }
-    return { parcalar, params: { mod: 'herN', n }, hata: null };
+    return { parcalar: araliklar.map((a) => ({ ad: parcaAdi(temel, a.bas, a.son), sayfalar: a.sayfalar })), hata: null };
   }
-  if (mod === 'secili') {
-    const { sayfalar, hata } = sayfaListesiCoz(girdi.seciliMetni, toplam);
-    if (hata) return { parcalar: [], params: null, hata };
-    const gruplar = sayfaGruplari(sayfalar);
-    const etiket = gruplar.length === 1 && gruplar[0][0] === gruplar[0][1] ? `sayfa_${gruplar[0][0]}` : aralikEtiketi(gruplar);
-    return { parcalar: [{ ad: dosyaAd(etiket), sayfalar }], params: { mod: 'secili', sayfalar }, hata: null };
-  }
-  if (mod === 'tek') {
+  if (girdi.mod === 'herSayfa') {
+    if (toplam === 1) return { parcalar: [{ ad: `${temel}.pdf`, sayfalar: [1] }], hata: null };
     const parcalar = [];
-    for (let s = 1; s <= toplam; s++) parcalar.push({ ad: dosyaAd(`sayfa_${s}`), sayfalar: [s] });
-    return { parcalar, params: { mod: 'tek' }, hata: null };
+    for (let s = 1; s <= toplam; s++) parcalar.push({ ad: parcaAdi(temel, s, s), sayfalar: [s] });
+    return { parcalar, hata: null };
   }
-  return { parcalar: [], params: null, hata: 'Bilinmeyen ayırma modu.' };
+  return { parcalar: [], hata: 'Bilinmeyen ayırma biçimi.' };
 }
 
 export class AyirPenceresi {
@@ -85,6 +76,7 @@ export class AyirPenceresi {
     this.belge = belge;
     this.toplam = belge.gorunum?.sayfaSayisi || belge.bilgi?.sayfa || 0;
     this.mod = 'aralik';
+    this.dosyaKipi = 'ayri';
     this.ilerleme = new IslemIlerleme();
     this._kur();
   }
@@ -98,48 +90,44 @@ export class AyirPenceresi {
       <div class="arac-bolum">
         <div class="arac-bolum-baslik">Nasıl ayrılsın?</div>
         <div class="arac-secenek-liste">
-          <label><input type="radio" name="ayir-mod" value="aralik" checked> Sayfa aralıklarına göre <span class="soluk">(her aralık ayrı dosya)</span></label>
-          <div class="ic"><input type="text" class="arac-girdi ayir-aralik" placeholder="örn. 1-3, 4-10, 11" style="width:260px" spellcheck="false" data-ilk-odak><span class="arac-aciklama">"-3" baştan 3'e, "8-" 8'den sona</span></div>
-          <label><input type="radio" name="ayir-mod" value="herN"> Her <input type="number" class="arac-girdi kucuk ayir-n" min="1" max="${Math.max(1, this.toplam - 1)}" value="${Math.min(10, Math.max(1, this.toplam - 1))}" disabled> sayfada bir yeni dosya</label>
-          <label><input type="radio" name="ayir-mod" value="secili"> Seçili sayfaları çıkart <span class="soluk">(tek dosya)</span></label>
-          <div class="ic"><input type="text" class="arac-girdi ayir-secili" placeholder="örn. 2, 5, 7-9" style="width:260px" spellcheck="false" disabled></div>
-          <label><input type="radio" name="ayir-mod" value="tek"> Her sayfayı ayrı dosyaya kaydet <span class="soluk">(${sayiMetni(this.toplam)} dosya)</span></label>
+          <div class="ayir-aralik-satiri"><label><input type="radio" name="ayir-mod" value="aralik" checked> Sayfa aralıklarına göre</label><span class="ayir-dosya-kipi"></span></div>
+          <div class="ic"><input type="text" class="arac-girdi ayir-aralik" placeholder="örn. 1-3, 4-10, 11" style="width:260px" spellcheck="false" aria-label="Sayfalar" data-ilk-odak><span class="arac-aciklama">"-3" baştan 3'e, "8-" 8'den sona</span></div>
+          <label><input type="radio" name="ayir-mod" value="herSayfa"> Her sayfayı ayrı dosyaya kaydet <span class="soluk">(${sayiMetni(this.toplam)} dosya)</span></label>
         </div>
       </div>
       <div class="arac-bolum ayir-cikti-alani">
         <div class="arac-bolum-baslik">Kaydet</div>
         <div class="ayir-onizleme"></div>
-        <div class="arac-aciklama ayir-adlar">Dosya adları <b>${kacis(adGovdesi(b.yol))}_1-3.pdf</b> biçiminde verilir; var olan dosyaların üzerine yazılmaz, ada "(2)" eklenir.</div>
+        <div class="arac-aciklama ayir-adlar" hidden>Var olan dosyaların üzerine yazılmaz; aynı adlı dosya varsa ada "(2)" eklenir.</div>
       </div>
       <div class="ayir-sonuc" hidden></div>
     </div>`);
     this.govde = govde;
     this.aralikEl = govde.querySelector('.ayir-aralik');
-    this.nEl = govde.querySelector('.ayir-n');
-    this.seciliEl = govde.querySelector('.ayir-secili');
     this.onizleme = govde.querySelector('.ayir-onizleme');
     this.adlarEl = govde.querySelector('.ayir-adlar');
     this.sonucEl = govde.querySelector('.ayir-sonuc');
-    // Yeni belge: yalnızca klasör (adları çekirdek verir); üzerine yaz geri alınamaz (uyarı)
-    this.kayit = kayitSecimi({ baglam: this.baglam, belge: b, klasorKipi: true, diyalogBasligi: 'Ayrılan dosyaların kaydedileceği klasör' });
+    // "Sayfa aralıklarına göre"nin yanında dosya sayısı (0.1.25, kullanıcı isteği; seçeneklerde "aralık" sözcüğü geçmez)
+    this.kipSecim = segmentliSecim({
+      etiket: 'Dosya sayısı', deger: this.dosyaKipi, sinif: 'ayir-dosya-kipi-secim',
+      secenekler: [
+        { id: 'ayri', etiket: 'Ayrı ayrı dosya', baslik: 'Yazılanların her biri ayrı bir dosya olur (örn. 1-3, 4-10: iki dosya)' },
+        { id: 'tek', etiket: 'Tek dosya', baslik: 'Yazılan sayfaların hepsi tek bir dosyada toplanır (örn. 1-3, 7: dört sayfalık bir dosya)' },
+      ],
+      degisti: (id) => { this.dosyaKipi = id; if (this.mod !== 'aralik') this._modSec('aralik', false); else this.onizle(); },
+    });
+    govde.querySelector('.ayir-dosya-kipi').replaceWith(this.kipSecim.el);
+    // Seçili seçeneğe tıklamak da "Sayfa aralıklarına göre"yi seçer
+    this.kipSecim.el.addEventListener('click', () => { if (this.mod !== 'aralik') this._modSec('aralik', false); });
+    this.kayit = kayitSecimi({ baglam: this.baglam, belge: b, ad: VARSAYILAN_AD, diyalogBasligi: 'Ayrılan PDF' });
     govde.querySelector('.ayir-cikti-alani .arac-bolum-baslik').after(this.kayit.el);
     this.kayit.onDegisti(() => this.onizle());
 
-    for (const r of govde.querySelectorAll('input[name="ayir-mod"]')) {
-      r.addEventListener('change', () => {
-        this.mod = r.value;
-        this.aralikEl.disabled = this.mod !== 'aralik';
-        this.nEl.disabled = this.mod !== 'herN';
-        this.seciliEl.disabled = this.mod !== 'secili';
-        const odak = { aralik: this.aralikEl, herN: this.nEl, secili: this.seciliEl }[this.mod];
-        if (odak) { odak.focus(); odak.select?.(); }
-        this.onizle();
-      });
-    }
-    for (const g of [this.aralikEl, this.nEl, this.seciliEl]) {
-      g.addEventListener('input', () => this.onizle());
-      g.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.ayir(); } });
-    }
+    for (const r of govde.querySelectorAll('input[name="ayir-mod"]')) r.addEventListener('change', () => this._modSec(r.value, true));
+    // Kutu her zaman yazılabilir: tıklayınca ya da yazınca "Sayfa aralıklarına göre" seçilir (Döndür ve kaydet'teki gibi)
+    this.aralikEl.addEventListener('pointerdown', () => { if (this.mod !== 'aralik') this._modSec('aralik', false); });
+    this.aralikEl.addEventListener('input', () => { if (this.mod !== 'aralik') this._modSec('aralik', false); else this.onizle(); });
+    this.aralikEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.ayir(); } });
     govde.addEventListener('keydown', (e) => { if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && e.target.type === 'radio') e.stopPropagation(); });
 
     this.pencere = pencereAc({
@@ -149,6 +137,15 @@ export class AyirPenceresi {
     });
     this.pencere.govde.append(this.ilerleme.el);   // gövdenin doğrudan çocuğu: meşgulken soluklaşmaz, İptal tıklanabilir
     this.pencere.el.addEventListener('esc', (e) => { if (this.ilerleme.calisiyor) { e.preventDefault(); this.ilerleme.iptalIste(); } });
+    this.onizle();
+  }
+
+  /** Ayırma biçimini seçer; odakla: aralık seçilince kutuya geçilir. */
+  _modSec(mod, odakla) {
+    const r = this.govde.querySelector(`input[name="ayir-mod"][value="${mod}"]`);
+    if (!r.checked) r.checked = true;
+    this.mod = mod;
+    if (odakla && mod === 'aralik') { this.aralikEl.focus(); this.aralikEl.select(); }
     this.onizle();
   }
 
@@ -163,23 +160,28 @@ export class AyirPenceresi {
     return true;
   }
 
-  /** Seçilen moda göre parçaları hesaplar: {parcalar:[{ad, sayfalar}], params, hata} */
+  /** Seçilen biçime ve Kaydet'teki ada göre dosyaları hesaplar: {parcalar:[{ad, sayfalar}], hata} */
   parcalariHesapla() {
-    return ayirParcalari({ mod: this.mod, aralikMetni: this.aralikEl.value, n: this.nEl.value, seciliMetni: this.seciliEl.value }, this.toplam, adGovdesi(this.belge.yol));
+    const ad = adGovdesi(this.kayit.cikti.ad()) || VARSAYILAN_AD;
+    return ayirParcalari({ mod: this.mod, dosyaKipi: this.dosyaKipi, aralikMetni: this.aralikEl.value }, this.toplam, ad);
   }
 
   onizle() {
     const { parcalar, hata } = this.parcalariHesapla();
-    // "Üzerine yaz" yalnızca tek dosya üreten ayırmada: seçili sayfalar ya da tek aralık (aralık yazılırken hatalıyken değişmez)
-    this.kayit.uzerineKullanilabilir(this.mod === 'secili' || (this.mod === 'aralik' && (!!hata || parcalar.length === 1)), COKLU_DOSYA_NEDENI);
+    // Tek dosya mı: "Üzerine yaz" yalnızca tek dosyada; ayrı ayrı dosyada aralık yazılırken (hatalıyken) önceki durum korunur
+    let tek;
+    if (this.mod === 'herSayfa') tek = this.toplam <= 1;
+    else if (this.dosyaKipi === 'tek') tek = true;
+    else { tek = hata ? (this._sonTek ?? true) : parcalar.length === 1; this._sonTek = tek; }
+    this.kayit.cokluAyarla(!tek);
+    this.kayit.uzerineKullanilabilir(tek, COKLU_DOSYA_NEDENI);
     const uzerine = this.kayit.uzerineMi();
-    this.adlarEl.hidden = uzerine;
-    const girdi = { aralik: this.aralikEl, secili: this.seciliEl, herN: this.nEl }[this.mod];
-    for (const g of [this.aralikEl, this.seciliEl, this.nEl]) g.classList.remove('hatali');
+    this.adlarEl.hidden = uzerine || tek;
+    this.aralikEl.classList.remove('hatali');
     if (hata) {
       // Henüz bir şey yazılmamış kutu hata sayılmaz: yalnızca yol gösterilir
-      const bos = girdi && girdi !== this.nEl && !girdi.value.trim();
-      girdi?.classList.toggle('hatali', !bos);
+      const bos = this.mod === 'aralik' && !this.aralikEl.value.trim();
+      this.aralikEl.classList.toggle('hatali', this.mod === 'aralik' && !bos);
       this.onizleme.innerHTML = bos ? `<span>${kacis(hata)}</span>` : `<span class="hata-metin">${kacis(hata)}</span>`;
       this.pencere?.dugmeAyarla('ayir', { devre: true });
       return;
@@ -200,7 +202,7 @@ export class AyirPenceresi {
     this.pencere?.dugmeAyarla('ayir', { devre: false });
   }
 
-  /** Ayırır; kilitli / salt okunur dosya sorusunda "Yeniden dene" ya da "Yeni belge olarak kaydet" seçilirse yeniden çalışır. */
+  /** Ayırır; kilitli / salt okunur dosya sorusunda "Yeniden dene", "Yeni belge olarak kaydet" ya da "Başka adla kaydet" seçilirse yeniden çalışır. */
   async ayir() {
     if (this.ilerleme.calisiyor || this._suruyor) return;
     this._suruyor = true;
@@ -212,69 +214,85 @@ export class AyirPenceresi {
   /** Bir ayırma denemesi; yeniden denenecekse true döner. */
   async _ayirBir() {
     const { baglam, belge } = this;
-    const { parcalar, params, hata } = this.parcalariHesapla();
-    if (hata || !params) { this.onizle(); return false; }
+    if (this.parcalariHesapla().hata) { this.onizle(); return false; }
     this.pencere.hataGoster('');
     this.sonucEl.hidden = true;
-    const uzerine = this.kayit.uzerineMi();
     // Sayfa numaraları sekmedeki gibidir: sekmede kaydedilmemiş sayfa silme / sıralama varsa dosyadakilerle uyuşmaz, önce kaydedilmeli
     // (üzerine yazmada yanlış sayfalar geri alınamaz biçimde kalırdı)
     const secenek = numaralarDosyaylaAyni(belge) ? {} : { yalnizKaydet: true, neden: NUMARA_UYUSMAZ };
-    if (uzerine) secenek.aciklama = 'Ayırma dosyadaki kayıtlı sürüm üzerinde çalışır; üzerine yazıldıktan sonra belge yeni haliyle yeniden açılır ve kaydedilmemiş değişiklikler atılır.';
+    if (this.kayit.uzerineMi()) secenek.aciklama = 'Ayırma dosyadaki kayıtlı sürüm üzerinde çalışır; üzerine yazıldıktan sonra belge yeni haliyle yeniden açılır ve kaydedilmemiş değişiklikler atılır.';
     if ((await degisiklikleriSor(baglam, belge, 'Ayırma', secenek)) === 'vazgec') return false;
     if (this.pencere.kapali) return false;
-    if (uzerine) return this._uzerineYaz(parcalar[0], params);
-    await this.kayit.hazir;
-    if (!this.klasor) {
-      const k = await baglam.pdefe.cagir('dosya:klasorSec', { baslik: 'Ayrılan dosyaların kaydedileceği klasör' });
-      if (!k || this.pencere.kapali) return false;
-      this.kayit.cikti.ayarla(k);
-    }
-    // Aynı adlı dosya varsa çekirdek "(2)" ekler; kullanıcı bilsin
-    const varOlanlar = [];
-    for (const p of parcalar.slice(0, 200)) { if (await baglam.pdefe.cagir('dosya:varMi', yolBirlestir(this.klasor, p.ad))) varOlanlar.push(p.ad); }
-    if (this.pencere.kapali) return false;
-    if (varOlanlar.length) {
-      const { secim } = await baglam.mesajKutusu({ mesaj: `${varOlanlar.length} dosya zaten var.`, ayrinti: varOlanlar.slice(0, 8).join('\n') + (varOlanlar.length > 8 ? `\nve ${varOlanlar.length - 8} dosya daha` : '') + '\n\nVar olanlar korunur; yeni dosyaların adına "(2)" eklenir. Devam edilsin mi?', dugmeler: ['Devam et', 'Vazgeç'], varsayilan: 0, iptal: 1 });
-      if (secim !== 0 || this.pencere.kapali) return false;
+    // Ad ve klasör; tek dosyada var olan dosya sorusu; yazılacak dosya (üzerine yazmada özgün dosya) kilitli ya da salt okunursa şimdi
+    const denetim = await this.kayit.denetle();
+    if (this.pencere.kapali || denetim === 'vazgec') return false;
+    if (denetim instanceof Error) return this.kayit.hataSor(denetim);
+    const { parcalar, hata } = this.parcalariHesapla();   // ad denetimde değişmiş olabilir
+    if (hata || !parcalar.length) { this.onizle(); return false; }
+    if (this.kayit.uzerineMi()) return this._uzerineYaz(parcalar[0]);
+    const klasor = this.klasor;
+    const coklu = parcalar.length > 1;
+    if (coklu) {
+      // Aynı adlı dosya varsa çekirdek "(2)" ekler; kullanıcı bilsin
+      const varOlanlar = [];
+      for (const p of parcalar.slice(0, 200)) { if (await baglam.pdefe.cagir('dosya:varMi', yolBirlestir(klasor, p.ad))) varOlanlar.push(p.ad); }
+      if (this.pencere.kapali) return false;
+      if (varOlanlar.length) {
+        const { secim } = await baglam.mesajKutusu({ mesaj: `${varOlanlar.length} dosya zaten var.`, ayrinti: varOlanlar.slice(0, 8).join('\n') + (varOlanlar.length > 8 ? `\nve ${varOlanlar.length - 8} dosya daha` : '') + '\n\nVar olanlar korunur; yeni dosyaların adına "(2)" eklenir. Devam edilsin mi?', dugmeler: ['Devam et', 'Vazgeç'], varsayilan: 0, iptal: 1 });
+        if (secim !== 0 || this.pencere.kapali) return false;
+      }
     }
     this.pencere.el.classList.add('mesgul');
     this.pencere.dugmeAyarla('ayir', { devre: true });
+    let kilit = null;
     try {
-      const sonuc = await this.ilerleme.calistir(baglam, 'ayir', { yol: belge.yol, hedefKlasor: this.klasor, ...params }, { baslangicMesaji: 'Ayrılıyor…' });
-      await this.sonucGoster(this.dosyalariOku(sonuc, parcalar));
+      // Tek dosyada var olan dosyanın üzerine yazılması denetimde sorulup onaylandı (uzerineYaz); birden çok dosyada ada "(2)" eklenir
+      const params = { yol: belge.yol, klasor, parcalar: parcalar.map((p) => ({ ad: p.ad, sayfalar: p.sayfalar })), uzerineYaz: !coklu };
+      const sonuc = await this.ilerleme.calistir(baglam, 'ayir', params, { baslangicMesaji: 'Ayrılıyor…' });
+      const dosyalar = this.dosyalariOku(sonuc, parcalar);
+      if (!coklu) await this._acikSekmeyiYenile(dosyalar[0]?.yol);
+      await this.sonucGoster(dosyalar);
     } catch (e) {
       this.ilerleme.gizle();
       if (e.iptal) {
         baglam.bildir('Ayırma iptal edildi.');
         if (e.sonuc) await this.sonucGoster(this.dosyalariOku(e.sonuc, parcalar));
-      } else this.pencere.hataGoster('Ayırma başarısız: ' + hataMetni(e));
+      } else if (kilitliHataMi(e)) kilit = e;
+      else this.pencere.hataGoster('Ayırma başarısız: ' + hataMetni(e));
     } finally {
       if (!this.pencere.kapali) {
         this.pencere.el.classList.remove('mesgul');
         this.pencere.dugmeAyarla('ayir', { devre: false });
       }
     }
-    return false;
+    // Soru yazılamayan dosyayı (tek dosyada var olan hedef) ya da klasörü söyler; seçime göre adı değiştirir
+    return kilit && !this.pencere.kapali ? this.kayit.hataSor(kilit) : false;
+  }
+
+  /** Tek dosya PDEfe'de açık bir dosyanın yerine yazıldıysa (denetimde onaylandı) o sekme diskteki yeni haliyle yeniden açılır. */
+  async _acikSekmeyiYenile(yol) {
+    const acik = yol ? acikBelge(this.baglam, yol) : null;
+    if (!acik) return;
+    const r = await sekmeyiYenile(this.baglam, acik, {
+      soruAyrintisi: 'Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.', sormadan: !!this.kayit.cikti.onaylandi?.(yol),
+    }).catch(() => false);
+    if (!r) this.baglam.bildir(`"${acik.ad}" sekmesi dosyanın önceki halini gösteriyor; notlarda değişiklik yapmadan önce sekmeyi kapatıp yeniden açın.`, 8000);
   }
 
   /**
    * Üzerine yaz: özgün dosyada yalnızca ayrılan sayfalar kalır (yedek yok, geri alınamaz; ada "(2)" eklenmez). Özgün dosya kilitli ya da
-   * salt okunursa önceden sorulur (kayitSecimi.denetle / hataSor: Yeni belge olarak kaydet | Yeniden dene | Vazgeç); çekirdek de
-   * yazamazsa dosya değişmez ve aynı soru sorulur. Başarıda pencere kapanır, açık sekme diskteki yeni haliyle yeniden açılır
-   * (kaydedilmemiş değişiklik varsa ciktiyiAc önce sorar). Döner: yeniden denenecekse true.
+   * salt okunursa önceden sorulmuştur (kayitSecimi.denetle); çekirdek de yazamazsa dosya değişmez ve aynı soru sorulur. Başarıda pencere
+   * kapanır, açık sekme diskteki yeni haliyle yeniden açılır (kaydedilmemiş değişiklik varsa ciktiyiAc önce sorar). Döner: yeniden
+   * denenecekse true.
    */
-  async _uzerineYaz(parca, params) {
+  async _uzerineYaz(parca) {
     const { baglam, belge } = this;
-    const denetim = await this.kayit.denetle();
-    if (this.pencere.kapali || denetim === 'vazgec') return false;
-    if (denetim instanceof Error) return this.kayit.hataSor(denetim);
     const yol = belge.yol;
     this.pencere.el.classList.add('mesgul');
     this.pencere.dugmeAyarla('ayir', { devre: true });
     let kilit = null, sonuc = null;
     try {
-      sonuc = await this.ilerleme.calistir(baglam, 'ayir', { yol, ...params, uzerine: true }, { baslangicMesaji: 'Ayrılıyor…' });
+      sonuc = await this.ilerleme.calistir(baglam, 'ayir', { yol, sayfalar: parca.sayfalar, uzerine: true }, { baslangicMesaji: 'Ayrılıyor…' });
     } catch (e) {
       this.ilerleme.gizle();
       // Çekirdek yer değiştirmeden sonra iptali denetlemez: sonuç geldiyse dosya yazılmıştır, gelmediyse özgün dosya değişmemiştir
@@ -317,28 +335,24 @@ export class AyirPenceresi {
     for (const d of dosyalar) if (d.boyut == null) { try { const b = await baglam.pdefe.cagir('dosya:bilgi', d.yol); if (b?.var) d.boyut = b.boyut; } catch { /* yok say */ } }
     if (this.pencere.kapali) return;
     const toplam = dosyalar.reduce((t, d) => t + (d.boyut || 0), 0);
+    const tek = dosyalar.length === 1;
     this.sonucEl.innerHTML = `<div title="${kacis(this.klasor)}"><b>${dosyalar.length} dosya oluşturuldu</b> · toplam ${kacis(boyutMetni(toplam))}</div>
       <ul>${dosyalar.map((d, i) => `<li><a data-i="${i}" title="Yeni sekmede aç">${kacis(dosyaAdi(d.yol))}</a><span class="soluk">${d.sayfa ? d.sayfa + ' sayfa' : ''}</span><span class="boyut">${kacis(boyutMetni(d.boyut))}</span></li>`).join('')}</ul>
       <div class="arac-satir" style="margin-top:6px">
         <button class="ikincil ayir-goster">Klasörde göster</button>
-        <button class="ikincil ayir-ilk-ac">İlkini yeni sekmede aç</button>
-        <label><input type="checkbox" class="ayir-hepsi-ac"> Hepsini aç</label>
+        <button class="ikincil ayir-ilk-ac">${tek ? 'Yeni sekmede aç' : 'İlkini yeni sekmede aç'}</button>
+        ${tek ? '' : '<label><input type="checkbox" class="ayir-hepsi-ac"> Hepsini aç</label>'}
       </div>`;
     this.sonucEl.querySelector('.ayir-goster').addEventListener('click', () => baglam.pdefe.cagir('kabuk:klasordeGoster', dosyalar[0].yol));
     this.sonucEl.querySelectorAll('a[data-i]').forEach((a) => a.addEventListener('click', () => baglam.dosyaAc(dosyalar[+a.dataset.i].yol, { arkaPlanda: true })));
     this.sonucEl.querySelector('.ayir-ilk-ac').addEventListener('click', async () => {
-      const hepsi = this.sonucEl.querySelector('.ayir-hepsi-ac').checked;
+      const hepsi = !!this.sonucEl.querySelector('.ayir-hepsi-ac')?.checked;
       await this.pencere.kapat('tamam');
       if (hepsi) { for (const d of dosyalar.slice(0, 50)) await baglam.dosyaAc(d.yol, { arkaPlanda: true }); if (dosyalar.length > 50) baglam.bildir('İlk 50 dosya açıldı.'); }
       else await baglam.dosyaAc(dosyalar[0].yol, { arkaPlanda: false });
     });
     baglam.bildir(`${dosyalar.length} dosya oluşturuldu.`);
   }
-}
-
-function kisaListe(sayfalar) {
-  // 1,2,3,5,6 → "1-3, 5-6"
-  return sayfaGruplari(sayfalar).map(([a, b]) => (a === b ? String(a) : `${a}-${b}`)).join(', ');
 }
 
 export function ayirAc(baglam) {

@@ -156,7 +156,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   await evalJs(`window.__pdefe.sekmeSec([...window.__pdefe.belgeler.values()].find((b) => b.ad === 'a.pdf').id)`); await bekle(500);
   await evalJs(`window.__pdefe.komutCalistir('arac.sayfalar')`); await kosul(`document.querySelectorAll('.sayfa-karti').length > 0`); await bekle(600);
   const cikti = await evalJs(`({ ad: document.querySelector('.arac-cikti-ad').value, cip: document.querySelector('.arac-klasor-cip').tagName, ipucu: document.querySelector('.arac-klasor-cip').title })`);
-  sonuc('Kaydetme adı uzantısız: "a (düzenlenmiş)"', cikti.ad === 'a (düzenlenmiş)', cikti);
+  sonuc('Kaydetme adı uzantısız: "Düzenlenmiş" (0.1.25; klasörde varsa "(2)"…)', /^Düzenlenmiş( \(\d+\))?$/.test(cikti.ad), cikti);
   await evalJs(`window.pdefe.cagir('test:diyalogKaydi')`);
   await tikla(...(await merkez(q('.arac-klasor-cip')))); await bekle(300);
   const cipKaydi = (await evalJs(`window.pdefe.cagir('test:diyalogKaydi')`)).filter((k) => k.kanal === 'kabuk:klasorAc');

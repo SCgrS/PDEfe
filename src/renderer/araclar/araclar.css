@@ -59,6 +59,7 @@ html[data-tema="koyu"] .arac-pencere { box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6)
   outline: none; font: inherit; min-width: 0;
 }
 .arac-girdi:focus { border-color: var(--vurgu); box-shadow: inset 0 -1px 0 var(--vurgu); }
+.arac-girdi:disabled { color: var(--metin-soluk); background: var(--hover); }
 .arac-girdi.kucuk { width: 72px; text-align: center; }
 .arac-girdi.hatali { border-color: #d13438; }
 .arac-pencere select.arac-girdi { padding: 0 6px; }
@@ -106,8 +107,9 @@ button.ikincil.ikonlu svg { width: 16px; height: 16px; flex-shrink: 0; }
 .arac-klasor-cip .ad { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .arac-cikti-degistir { padding: 5px 14px; }
 
-/* Standart kaydetme seçimi. "Üzerine yaz" satırı: geri alınamayan sonuçta uyarı kutusu (açık ve koyu temada okunur amber),
-   geri alınabilen sonuçta sade bilgi satırı */
+/* Standart kaydetme seçimi: bütün araçlarda "Kaydet" başlığının altında aynı sıra (0.1.25): Yeni belge | Üzerine yaz, kısıt satırı, dosya
+   satırı (üzerine yazmada yazılacak dosyayla soluk), not. Not satırı: geri alınamayan sonuçta uyarı kutusu (açık ve koyu temada okunur
+   amber), geri alınabilen sonuçta sade bilgi satırı */
 .arac-kayit { display: flex; flex-direction: column; gap: 10px; }
 .arac-not-satiri { display: flex; align-items: center; gap: 8px; color: var(--metin-soluk); min-height: 30px; }
 .arac-not-satiri svg { width: 16px; height: 16px; flex-shrink: 0; color: #b86e00; }
@@ -225,19 +227,16 @@ html[data-tema="koyu"] .arac-pencere .hata-metin, html[data-tema="koyu"] .kucult
   position: absolute; z-index: 4; pointer-events: none; border: 1px solid var(--vurgu); border-radius: 2px;
   background: color-mix(in srgb, var(--vurgu) 14%, transparent);
 }
-/* Kaydetme şeridi: bölümlü seçim ile dosya adı satırı / üzerine yaz notu yan yana */
-.sayfalar-kayit {
-  display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-top: 1px solid var(--kenar); flex-shrink: 0;
-}
-.sayfalar-kayit > .arac-bolum-baslik { flex-shrink: 0; }
-.sayfalar-kayit .arac-kayit { flex: 1; min-width: 0; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
-.sayfalar-kayit .arac-segmentli { align-self: center; }
-.sayfalar-kayit .arac-kayit-yeni, .sayfalar-kayit .arac-kayit-uzerine { flex: 1 1 340px; min-width: 0; }
+/* Kaydet bölümü öteki araçlardaki düzende (0.1.25; önceden seçim ile dosya satırı yan yana bir şeritti) */
+.sayfalar-kayit { padding: 10px 16px 12px; border-top: 1px solid var(--kenar); flex-shrink: 0; }
 .sayfalar-pencere .arac-hata { margin: 10px 16px 0; }
 .sayfalar-pencere .arac-ilerleme { margin: 0 16px 10px; }
 
 /* ---------- Ayır ---------- */
 .ayir-pencere { width: 660px; }
+/* "Sayfa aralıklarına göre"nin yanında Ayrı ayrı dosya | Tek dosya */
+.ayir-aralik-satiri { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; }
+.ayir-dosya-kipi-secim > button { padding: 3px 12px; }
 .ayir-onizleme { max-height: 140px; overflow: auto; font-size: 12px; color: var(--metin-soluk); }
 .ayir-onizleme ul, .arac-sonuc-liste ul { margin: 4px 0 0; padding-left: 18px; }
 .arac-sonuc-liste { max-height: 200px; overflow: auto; word-break: break-word; }
