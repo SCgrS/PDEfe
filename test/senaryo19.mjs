@@ -292,7 +292,7 @@ export default async function (surucu) {
     const menuA = (await kayit()).filter((k) => k.kanal === 'menu:popup').at(-1)?.secenek || [];
     const ogeDurum = (m) => Object.fromEntries(m.filter((o) => o.id).map((o) => [o.id, o.devre ? 'devre' : 'etkin']));
     // 0.1.19: Pencereye ayır (açılış sekmesinde devre dışı; belge sekmesinde, pencerede başka sekme varken etkin)
-    sonuc('Açılış sekmesinde sağ tık: Klasörde göster / Yolu kopyala / Pencereye ayır devre dışı, Kapat ve Diğerlerini kapat etkin', J(ogeDurum(menuY)) === J({ kapat: 'etkin', digerleri: 'etkin', sagdakiler: 'devre', ayir: 'devre', klasor: 'devre', yol: 'devre', pdf: 'devre' }) && menuY.find((o) => o.id === 'klasor')?.etiket === 'Klasörde göster' && menuY.find((o) => o.id === 'yol')?.etiket === 'Yolu kopyala', menuY);
+    sonuc('Açılış sekmesinde sağ tık: Klasörde göster / Yolu kopyala / Pencereye ayır devre dışı, Kapat ve Diğerlerini kapat etkin', J(ogeDurum(menuY)) === J({ kapat: 'etkin', digerleri: 'etkin', sagdakiler: 'devre', kaydet: 'devre', ayir: 'devre', klasor: 'devre', yol: 'devre', pdf: 'devre' }) && menuY.find((o) => o.id === 'klasor')?.etiket === 'Klasörde göster' && menuY.find((o) => o.id === 'yol')?.etiket === 'Yolu kopyala', menuY);
     sonuc('Belge sekmesinde sağ tık: Klasörde göster / Yolu kopyala / Pencereye ayır etkin', ogeDurum(menuA).klasor === 'etkin' && ogeDurum(menuA).yol === 'etkin' && ogeDurum(menuA).ayir === 'etkin', menuA);
     // Sağ tık menüsünden Kapat (açılış sekmesi) — test yanıtıyla; sonra yeniden aç
     await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'menu:popup', ['kapat'])`);

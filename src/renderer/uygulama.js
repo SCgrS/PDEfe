@@ -759,6 +759,11 @@ function ayarDisaridanDegisti(anahtar, deger) {
   }
 }
 
+/** Sağ tık menülerindeki Kaydet etkin mi (0.2.1, kullanıcı isteği; belge sayfasında ve sekmede): araç çubuğundaki Kaydet gibi kaydedilmemiş
+ *  değişiklik varsa. Açık yazı düzenlemesi de sayılır: yeni yazı kutusu düzenleme bitince not olur, o ana dek degisti false olabilir
+ *  (kayitYaz önce düzenlemeyi bitirir). Kaydı süren ya da başka pencereye taşınan sekmede devre dışı (belgeKaydet o zaman bir şey yapmaz). */
+function kaydedilecekVar(b) { return !!b && !b.kaydediliyor && !b.tasiniyor && (!!b.degisti || !!b.notlar?.duzenleyici); }
+
 /** Belgeyi kaydeder. farkli=true ise yeni yol sorar. Başarılıysa true döner.
  *  Çağrı sürdükçe (Farklı kaydet diyaloğu ve hata sorusu dahil) b.kaydediliyor true'dur ve b.kayitSozu çağrı bitince çözülür
  *  (hiç reddedilmez); kapatma akışları onu bekler (kayitBitmesiniBekle). Bu arada gelen ikinci kaydetme false döner. */
@@ -1473,10 +1478,12 @@ sekmeler.addEventListener('sagTik', async (e) => {
   // Kapat da (o sekme kapatılmaz)
   const id = e.detail.id; const b = belgeler.get(id); if (!b && !baslangicSekmeleri.has(id)) return;
   // Pencereye ayır (0.1.19, kullanıcı isteği): sekme kendi penceresinde açılır. Pencerenin tek sekmesinde (ayrılacak başka sekme yok)
-  // ve açılış sekmesinde devre dışı
+  // ve açılış sekmesinde devre dışı. Kaydet (0.2.1, kullanıcı isteği): sağ tıklanan sekmenin belgesini kaydeder (etkin sekme olmasa da;
+  // birden çok sekme kapatılırken kaydetme de böyle çalışır); kaydedilecek değişiklik yokken devre dışı
   const secim = await pdefe.cagir('menu:popup', [
     { id: 'kapat', etiket: 'Kapat', devre: tekAcilisSekmesi() === id }, { id: 'digerleri', etiket: 'Diğerlerini kapat', devre: sekmeler.sekmeler.length < 2 },
     { id: 'sagdakiler', etiket: 'Sağdakileri kapat', devre: sekmeler.sekmeler.findIndex((s) => s.id === id) >= sekmeler.sekmeler.length - 1 },
+    { ayirici: true }, { id: 'kaydet', etiket: 'Kaydet', devre: !kaydedilecekVar(b) },
     { ayirici: true }, { id: 'ayir', etiket: 'Pencereye ayır', devre: !b || sekmeler.sekmeler.length < 2 },
     { ayirici: true }, { id: 'klasor', etiket: 'Klasörde göster', devre: !b }, { id: 'yol', etiket: 'Yolu kopyala', devre: !b },
     { id: 'pdf', etiket: 'PDF\'i kopyala', devre: !b },   // 0.1.21 (kullanıcı isteği): dosyanın kendisi panoya (araç çubuğundaki kopyala düğmesi gibi)
@@ -1488,6 +1495,7 @@ sekmeler.addEventListener('sagTik', async (e) => {
   else if (secim === 'klasor' && b) pdefe.cagir('kabuk:klasordeGoster', b.yol);
   else if (secim === 'yol' && b) { await pdefe.cagir('pano:metin', b.yol); bildir('Yol panoya kopyalandı'); }
   else if (secim === 'pdf' && b) await pdfKopyala(b);
+  else if (secim === 'kaydet' && b && belgeler.has(id)) await belgeKaydet(b);   // menü açıkken sekme kapatılmış olabilir
 });
 
 // Panel olayları
@@ -1675,8 +1683,12 @@ function metinOlaylariBagla(belge) {
       { id: 'ara', etiket: 'Ara', devre: !seciliVar },
       { ayirici: true },
       { id: 'tumunuSec', etiket: 'Tümünü seç' },
+      // 0.2.1 (kullanıcı isteği): en altta, sık kullanılan Kopyala'nın yerinde değil (alışkanlıkla yanlışlıkla kaydedilmesin)
+      { ayirici: true },
+      { id: 'kaydet', etiket: 'Kaydet', devre: !kaydedilecekVar(belge) },
     ]);
-    if (secim === 'kopyala') document.execCommand('copy');
+    if (secim === 'kaydet') { if (belgeler.has(belge.id)) await belgeKaydet(belge); }   // menü açıkken sekme kapatılmış olabilir
+    else if (secim === 'kopyala') document.execCommand('copy');
     else if (secim === 'ara') komutCalistir('duzen.bul', secimHamMetni().trim().split('\n')[0]);
     else if (secim === 'tumunuSec') tumunuSec();
     else if (secim === 'vurgula') belge.notlar.vurguUygula(ayar.vurguRengi || VURGU_RENKLERI[0].hex);

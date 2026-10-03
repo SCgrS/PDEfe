@@ -148,7 +148,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
   await ac('b.pdf', 'c.pdf');
   menu = await sagTik('a.pdf', null);
   sonuc('Birden çok sekme varken "Pencereye ayır" etkin; Kapat grubundan sonra, Klasörde göster\'den önce',
-    J(menu) === J(['Kapat', 'Diğerlerini kapat', 'Sağdakileri kapat', '-', 'Pencereye ayır', '-', 'Klasörde göster', 'Yolu kopyala', 'PDF\'i kopyala']), menu);   // PDF'i kopyala: 0.1.21
+    J(menu) === J(['Kapat', 'Diğerlerini kapat', 'Sağdakileri kapat', '-', 'Kaydet (devre dışı)', '-', 'Pencereye ayır', '-', 'Klasörde göster', 'Yolu kopyala', 'PDF\'i kopyala']), menu);   // PDF'i kopyala: 0.1.21, Kaydet: 0.2.1
   await evalJs(`(window.__pdefe.komutCalistir('sekme.yeni'), true)`); await bekle(200);
   menu = await sagTik('Yeni sekme', null);
   sonuc('Açılış sekmesinde "Pencereye ayır" devre dışı', menu?.includes('Pencereye ayır (devre dışı)'), menu);
