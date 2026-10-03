@@ -499,3 +499,16 @@ olmamalı (11. madde).
    öncesinde ş, ğ, ı, İ harfleri s, g, i, I gelebilir, tarih ve esas numarası yine doğru olmalı.
 10. **Çıkış.** Kaydedilmemiş değişiklikle ⌘Q: kaydetme sorusu gelmeli; Vazgeç'te PDEfe açık kalmalı. Dock'ta PDEfe › Çık da aynı.
 11. **Windows.** Windows'ta PDEfe 0.2.0'da menü, kısayollar ve ipuçları eskisi gibi (Ctrl'li) olmalı; README'nin başında iki bağlantı.
+
+## 36. 0.2.1: otomatik testlerin sınayamadıkları
+Ekran dışındaki test örneğinde üretilmiş örnek PDF'lerle sınandı (test/senaryo28.mjs): sağ tık gerçek fare olayıyla, menüdeki seçim test
+yanıtıyla verildi; menü ekranda açılmadı. Gerçek ekranda gözle denenmedi.
+1. **Belgede sağ tık.** Bir PDF'in kopyasında sayfaya sağ tıklayın: menünün en altında, çizgiyle ayrılmış "Kaydet" soluk olmalı. Bir vurgu ya
+   da not ekleyip yeniden sağ tıklayın: "Kaydet" etkin olmalı. Seçince sekmedeki • işareti ve durum çubuğundaki "Kaydedilmemiş değişiklikler"
+   kalkmalı, durum çubuğunda kısa süre "Kaydedildi" yazmalı. Dosyayı başka bir PDF okuyucuda açınca not görünmeli.
+2. **Yazı kutusu.** Yazı aracıyla bir kutuya yazarken (bitirmeden) yazının üstüne sağ tık › Kaydet: yazı not olarak kalmalı ve kaydedilmeli.
+   Kutu henüz boşken sağ tıklayınca Kaydet soluk olmalı.
+3. **Sekmede sağ tık.** İki PDF'in kopyası açıkken birine not ekleyip öbür sekmeye geçin; notlu belgenin sekmesine sağ tık › Kaydet: o sekmenin
+   • işareti kalkmalı, öndeki belge değişmemeli. Değişikliksiz bir sekmede ve "Yeni sekme"de Kaydet soluk olmalı.
+4. **Soru açılırsa.** Aynı denemeyi, notlu belgenin kopyası başka bir programda açıkken yapın: "Belge kaydedilemedi" uyarısı açılmadan önce
+   o belge öne gelmeli (uyarının hangi belge için olduğu görünsün).

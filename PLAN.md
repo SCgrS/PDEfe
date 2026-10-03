@@ -1439,3 +1439,36 @@ GitHub Actions'ın Mac makinelerinde (macos-15 Apple işlemcili, macos-15-intel,
   kisayol_dosya 164/164, kisayol_gorunum 115/115, kisayol_araclar 92/92, senaryo25 28/28, senaryo27 hepsi, senaryo23 53/53, ortu_tiklama 156/156, senaryo19 111/111; paketli
   Windows sürümü `gercek_fare.ps1 -Paketli` 9/9 (çekirdek `win.extraResources`'tan pakette).
 - [ ] Gerçek bir Mac'te elle deneme: docs/DOGRULAMA.md 35.
+
+### Revizyon 0.2.1 (2026-10-03, kullanıcı isteği)
+Ayrıntı: CHANGELOG.md. Kullanıcı: "pdfefe'de sağ tık'a "kaydet" butonu ekleyelim."
+- [x] **Hangi menü**: istek menüyü adlandırmıyor; PDEfe'nin belgeyle ilgili iki sağ tık menüsü var (belge sayfası, sekme), ikisine de kondu
+  (raporda söylendi). Araç pencerelerindeki listelerin, açılış ekranındaki son dosyaların ve vurgu düğmesinin menüleri belge kaydetmeyle
+  ilgisiz; dokunulmadı.
+- [x] **Yer**: belge menüsünde en altta, Tümünü seç'ten ayraçla ayrı: ilk sıradaki Kopyala alışkanlıkla seçilirken yanlışlıkla kaydedilmesin.
+  Sekme menüsünde Kapat grubundan sonra, ayraçlar arasında (Pencereye ayır'dan önce). Kısayol yazılmadı: menüdeki öteki öğelerde de yok
+  (`menu:popup` hızlandırıcı göstermiyor).
+- [x] **Devre dışı koşulu** (`kaydedilecekVar`): araç çubuğundaki Kaydet düğmesi gibi kaydedilmemiş değişiklik yoksa. Ek olarak değişiklik
+  taşıyan açık yazı düzenlemesi sayılır (`notlar.duzenleyiciDegisti`: duzenleyiciBitir'in karşılaştırması; yeni kutuda boş olmayan metin,
+  kayıtlı yazıda metin, biçim ya da kutu farkı): yeni yazı kutusu düzenleme bitince not olur, o ana dek `degisti` false (senaryo28'de
+  ölçüldü); kayitYaz önce düzenlemeyi bitirir. Boş yeni kutu ya da değiştirilmeden açılmış yazı sayılmaz (ilk sürümde sayılıyordu: Kaydet
+  etkin görünüp "Kaydedilecek değişiklik yok" diyordu; bağımsız inceleme buldu). Kaydı süren ya da başka pencereye taşınan sekmede devre
+  dışı (belgeKaydet o zaman sessizce bir şey yapmaz). Araç çubuğundaki Kaydet düğmesi yazı yazılırken eskisi gibi soluk kalır (önceden de
+  öyleydi; düğmeyi düzenleyiciye bağlamak sekme işaretini ve durum çubuğunu da gerektirirdi, istenmedi).
+- [x] **Etkin olmayan sekme**: `belgeKaydet(b, …, { oneAl: true })` sorusuz kayıtta sekmeye geçmeden kaydeder (birden çok sekme
+  kapatılırken kaydetme de böyle çalışıyordu). Soru açılacaksa (temizKayitKarari'nın e-imza sorusu, belgeKaydet'in "Belge kaydedilemedi"
+  sorusu) soru açılmadan hemen önce belgenin sekmesine geçilir (`soruIcinOneAl`, PDF'i kopyala gibi): iki soru da belgenin adını vermiyor,
+  öndeki başka belgenin üstünde açılınca kullanıcı onu o belge için sanabilirdi ("Tamamen sil" e-imzayı geçersiz kılar; bağımsız inceleme
+  buldu). Kapatma akışlarında `oneAl` yok: ilk soru (kaydetmedenCikisSorusu) belgenin adını verir, davranış değişmedi. Menü açıkken sekme
+  kapatılmış ya da başka pencereye taşınmışsa (`belgeler.has`) bir şey yapılmaz.
+- [x] **Bağımsız inceleme** (iki salt okunur ajan: doğruluk / tutarlılık; 7 bulgu, her biri karşıt doğrulamayla): ikisi gerçek, yukarıda
+  düzeltildi. Elenen beş: biri yazı kutusu bulgusunun eşi (yine de düzeltildi); ötekiler bu değişiklikten önce de vardı ya da kusur
+  değildi: arka plandaki sekme kilitli dosya sonrası Farklı kaydet'le kaydedilince pencere başlığının o belgenin adı olması (iki bulgu;
+  kayitYaz koşulsuz `pencere:baslik`, kapatma akışında da oluyordu; sekme menüsünden kayıtta artık önce sekmeye geçildiği için bu yolda
+  doğru), okuma kipinde kayıttan sonra görünür bildirim olmaması (Ctrl+S'te de böyle), arka plandaki sekme kaydedilince durum çubuğunda
+  "Kaydedildi" yazması (kayıt doğru, sekmenin işareti de kalkar).
+- [x] **Testler**: senaryo28 (yeni: menüdeki yer, devre dışı koşulları, sayfadan / yazı düzenlenirken / kayıtlı yazı değişince / etkin
+  olmayan sekmeden kayıt, e-imza ve salt okunur dosyada sorunun belgenin sekmesinde açılması, dosyadaki notlar). Güncellenen: senaryo19 ve
+  senaryo22 (sekme menüsünün öğe listesi). Koşulanlar (ev, ekran dışı / görünmeyen masaüstü): senaryo28 38/38, senaryo22 101/101, senaryo23
+  53/53, senaryo17 42/42, senaryo19 112/112, senaryo24 38/38, ortu_tiklama 156/156, kisayol_dosya 164/164.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 36.

@@ -3,6 +3,12 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.2.1 — 2026-10-03
+
+### Sağ tık menüsünde Kaydet
+- **Belgede sağ tık › Kaydet.** Sayfaya sağ tıklayınca açılan menünün en altında. Kaydedilmemiş değişiklik (not, vurgu, yazı, sayfa düzeni) yokken soluk görünür, araç çubuğundaki Kaydet düğmesi gibi. Bir yazı kutusuna yazarken de seçilebilir: yazı not olarak belgeye kaydedilir.
+- **Sekmede sağ tık › Kaydet.** Sağ tıkladığınız sekmenin belgesini kaydeder; o sekmeye geçmeniz gerekmez. Kaydederken bir şey sorulacaksa (örneğin e-imzalı belgede ya da dosya başka bir programda açıkken) soru açılmadan önce o belge öne gelir.
+
 ## 0.2.0 — 2026-10-02
 
 ### macOS desteği
