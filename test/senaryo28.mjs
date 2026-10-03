@@ -1,9 +1,11 @@
 // Senaryo 28 (0.2.1, kullanıcı isteği): sağ tık menülerinde "Kaydet".
 //   1) Belge sayfasında sağ tık: menünün en altında, Tümünü seç'ten ayraçla ayrılmış "Kaydet"; kaydedilecek değişiklik yokken devre dışı,
 //      not eklenince etkin; seçilince belge kaydedilir (dosyada not var, sekme kaydedilmiş görünür, araç çubuğundaki Kaydet devre dışı).
-//   2) Yazı kutusu düzenlenirken sağ tık: Kaydet etkin (yeni yazı henüz not değil); seçilince yazı not olarak dosyaya yazılır.
+//   2) Yazı kutusu düzenlenirken sağ tık: yazı yazılmışsa Kaydet etkin (yeni yazı henüz not değil), seçilince yazı not olarak dosyaya yazılır;
+//      boş yeni kutuda ve değiştirilmeden açılmış kayıtlı yazıda devre dışı, yazı değişince etkin.
 //   3) Sekmede sağ tık: "Sağdakileri kapat"tan sonra, ayraçlar arasında "Kaydet"; etkin olmayan sekmenin belgesi kaydedilir, etkin sekme
-//      değişmez, öteki belgeye dokunulmaz. Değişikliksiz belgede, açılış sekmesinde ve kaydı süren belgede devre dışı.
+//      değişmez, öteki belgeye dokunulmaz. Değişikliksiz belgede, açılış sekmesinde ve kaydı süren belgede devre dışı. Soru açılacaksa
+//      (e-imzalı belgede silinen not, salt okunur dosya) soru açılmadan önce o belgenin sekmesine geçilir.
 // Girdiler test/cikti/s28/pdf altında üretilir; menü seçimi test yanıtıyla verilir (test:diyalogYanitlari), sağ tık gerçek fare olayıyla.
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9428      → PID=… yazar
@@ -50,7 +52,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz }) {
     }
   };
   const ss = async (ad) => { await bekle(250); await ekranGoruntusu(path.join(PNG, ad + '.png')); };
-  const diyalogKaydi = () => evalJs(`window.pdefe.cagir('test:diyalogKaydi')`);
+  // Kayıt okununca boşalır: menüyü okurken gelen öteki kayıtlar (ör. Kaydet'in açtığı soru) mesajKutulari için saklanır
+  let artakalan = [];
+  const diyalogKaydi = async () => { const k = [...artakalan, ...(await evalJs(`window.pdefe.cagir('test:diyalogKaydi')`))]; artakalan = []; return k; };
   const yanitla = (yanit) => evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'menu:popup', [${J(yanit)}])`);
   const sekmeleriKapat = () => evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); for (const s of [...p.sekmeler.sekmeler]) p.sekmeler.dispatchEvent(new CustomEvent('kapat', { detail: { id: s.id } })); await new Promise((r) => setTimeout(r, 300)); return p.belgeler.size; })()`);
   const ac = async (yol) => {
@@ -69,9 +73,11 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz }) {
     const k = g.kaydirici.getBoundingClientRect(); return [Math.round(r.left + ${dx}), Math.round(Math.max(r.top, k.top) + ${dy})]; })()`);
   /** Gerçek fareyle sağ tık; menüyü test yanıtıyla kapatır, menünün öğelerini döndürür */
   const sagTikMenu = async (x, y, yanit = null) => {
-    await diyalogKaydi(); await yanitla(yanit);
+    artakalan = (await diyalogKaydi()).filter((d) => d.kanal !== 'menu:popup'); await yanitla(yanit);   // eski menü kayıtları atılır
     await tikla(x, y, { dugme: 'right' }); await bekle(500);
-    const k = (await diyalogKaydi()).filter((d) => d.kanal === 'menu:popup');
+    const tum = await diyalogKaydi();
+    const k = tum.filter((d) => d.kanal === 'menu:popup');
+    artakalan.push(...tum.filter((d) => d.kanal !== 'menu:popup'));
     return k.at(-1)?.secenek || null;
   };
   /** Sekmede gerçek fareyle sağ tık (sekmenin ad yazısının ortası) */
@@ -138,6 +144,10 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz }) {
     await evalJs(`(window.__pdefe.aktif().notlar.aracSec('yazi'), true)`);
     [x, y] = await sayfaNoktasi(120, 320);
     await tikla(x, y); await bekle(400);
+    // Boş yeni kutu: kaydedilecek bir şey yok (boş yazı not olmaz)
+    const bos = await evalJs(`(() => { const d = window.__pdefe.aktif().notlar.duzenleyici; if (!d) return null; const r = d.el.getBoundingClientRect(); return [Math.round(r.left + Math.min(8, r.width / 2)), Math.round(r.top + r.height / 2)]; })()`);
+    menu = bos ? await sagTikMenu(bos[0], bos[1]) : null;
+    sonuc('Boş yeni yazı kutusunda sağ tık: Kaydet devre dışı, kutu açık kalır', menuMetni(menu)?.at(-1) === 'Kaydet (devre dışı)' && await evalJs(`!!window.__pdefe.aktif().notlar.duzenleyici`), menuMetni(menu));
     await yaz('Sağ tık yazısı');
     await bekle(200);
     const acik = await evalJs(`(() => { const b = window.__pdefe.aktif(); const d = b.notlar.duzenleyici; return { duzenleyici: d ? d.el.textContent : null, degisti: !!b.degisti }; })()`);
@@ -158,6 +168,24 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz }) {
     const kutular2 = await mesajKutulari();
     sonuc('Soru sorulmadı', kutular2.length === 0, kutular2.map((k) => k.secenek?.mesaj));
     await evalJs(`(window.__pdefe.aktif().notlar.aracSec(null), true)`);
+
+    // Kayıtlı yazıyı çift tıkla düzenlemeye aç: değiştirmeden Kaydet devre dışı, bir harf ekleyince etkin
+    const yaziNoktasi = await evalJs(`(() => { const b = window.__pdefe.aktif(); const n = [...b.notlar.notlar.values()].find((x) => x.tur === 'FreeText' && !x.silindi);
+      const el = n && document.querySelector('.not-oge[data-id="' + n.id + '"]'); if (!el) return null; const r = el.getBoundingClientRect(); return [Math.round(r.left + 10), Math.round(r.top + r.height / 2)]; })()`);
+    if (yaziNoktasi) { await tikla(yaziNoktasi[0], yaziNoktasi[1], { tiklama: 2 }); await bekle(500); }
+    const acildi = await evalJs(`(() => { const d = window.__pdefe.aktif().notlar.duzenleyici; return d ? { yeni: d.yeniMi, metin: d.el.textContent } : null; })()`);
+    sonuc('Kayıtlı yazı çift tıkla düzenlemeye açıldı', acildi && !acildi.yeni && acildi.metin === 'Sağ tık yazısı', acildi);
+    const ic2 = await evalJs(`(() => { const d = window.__pdefe.aktif().notlar.duzenleyici; if (!d) return null; const r = d.el.getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]; })()`);
+    menu = ic2 ? await sagTikMenu(ic2[0], ic2[1]) : null;
+    sonuc('Değiştirilmeden açılmış yazıda Kaydet devre dışı', menuMetni(menu)?.at(-1) === 'Kaydet (devre dışı)', menuMetni(menu));
+    await evalJs(`(() => { const d = window.__pdefe.aktif().notlar.duzenleyici; if (!d) return false; d.el.focus(); const s = window.getSelection(); s.selectAllChildren(d.el); s.collapseToEnd(); return true; })()`);
+    await yaz('!'); await bekle(200);
+    menu = ic2 ? await sagTikMenu(ic2[0], ic2[1]) : null;
+    sonuc('Yazı değişince Kaydet etkin', menuMetni(menu)?.at(-1) === 'Kaydet', { menu: menuMetni(menu), metin: await evalJs(`window.__pdefe.aktif().notlar.duzenleyici?.el.textContent ?? null`) });
+    if (ic2) await sagTikMenu(ic2[0], ic2[1], 'kaydet');
+    await kosul(`(() => { const b = window.__pdefe.aktif(); return b && !b.notlar.duzenleyici && !b.degisti && !b.kaydediliyor; })()`, 8000);
+    const notlar3 = dosyaNotlari(yol);
+    sonuc('Değişen yazı kaydedildi', notlar3.some((n) => n.tur === 'FreeText' && n.metin === 'Sağ tık yazısı!'), notlar3);
     await sekmeleriKapat();
   }
 
@@ -201,6 +229,45 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz }) {
     sonuc('Kaydı süren belgede Kaydet devre dışı (sekmede ve sayfada)', menuMetni(menu)?.includes('Kaydet (devre dışı)') && menuMetni(sayfaMenu)?.at(-1) === 'Kaydet (devre dışı)', { sekme: menuMetni(menu), sayfa: menuMetni(sayfaMenu) });
     menu = await sekmeSagTik('b.pdf');
     sonuc('Kayıt bitince yeniden etkin', menuMetni(menu)?.includes('Kaydet'), menuMetni(menu));
+
+    // Soru açılacaksa (e-imza, kaydedilemedi) önce o belgenin sekmesine geçilir: soru öndeki başka belgenin üstünde açılmasın
+    const etkinAd = () => evalJs(`window.__pdefe.aktif()?.ad ?? null`);
+    const kutuYanitla = (secim) => evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'mesaj:kutu', [{ secim: ${secim}, onay: false }])`);
+    execFileSync(PY, ['-X', 'utf8', path.join(KOK, 'test', 'guvenlik_pdf_uret.py'), PDF], { encoding: 'utf8' });
+    const imzali = path.join(PDF, 'notlu-imzali-koru.pdf');
+    await ac(imzali);
+    await evalJs(`(async () => { const p = window.__pdefe; await p.sekmeSec([...p.belgeler.values()].find((x) => x.ad === 'b.pdf').id); return true; })()`);
+    await bekle(300);
+    const silindi = await evalJs(`(async () => { const b = [...window.__pdefe.belgeler.values()].find((x) => x.ad === 'notlu-imzali-koru.pdf');
+      const n = [...b.notlar.notlar.values()].find((x) => !x.silindi && !x.yeni); if (!n) return false; b.notlar.sil(n); await new Promise((r) => setTimeout(r, 200)); return !!b.degisti; })()`);
+    sonuc('E-imzalı belgenin kayıtlı notu silindi; öndeki belge b.pdf', silindi && (await etkinAd()) === 'b.pdf', { silindi, etkin: await etkinAd() });
+    await mesajKutulari();
+    await kutuYanitla(2);   // Vazgeç
+    await sekmeSagTik('notlu-imzali-koru.pdf', 'kaydet');
+    await kosul(`(() => { const b = [...window.__pdefe.belgeler.values()].find((x) => x.ad === 'notlu-imzali-koru.pdf'); return b && !b.kaydediliyor; })()`, 8000);
+    let kutular2 = await mesajKutulari();
+    let etkin = await etkinAd();
+    sonuc('E-imza sorusu, belgenin sekmesine geçildikten sonra açıldı; Vazgeç\'te kaydedilmedi', kutular2.length === 1 && kutular2[0].secenek?.mesaj === 'Bu belge e-imzalı.' && etkin === 'notlu-imzali-koru.pdf'
+      && (await belgeDurumu('notlu-imzali-koru.pdf'))?.degisti, { kutular: kutular2.map((k) => k.secenek?.mesaj), etkin });
+
+    // Salt okunur dosya: "Belge kaydedilemedi" sorusu da belgenin sekmesinde
+    const c = path.join(PDF, 'c.pdf');
+    uret(c, 2, 'Sekme C');
+    await ac(c);
+    await notEkle('c.pdf', 'salt okunur not');
+    await evalJs(`(async () => { const p = window.__pdefe; await p.sekmeSec([...p.belgeler.values()].find((x) => x.ad === 'b.pdf').id); return true; })()`);
+    await bekle(300);
+    fs.chmodSync(c, 0o444);
+    try {
+      await mesajKutulari();
+      await kutuYanitla(1);   // Vazgeç
+      await sekmeSagTik('c.pdf', 'kaydet');
+      await kosul(`(() => { const b = [...window.__pdefe.belgeler.values()].find((x) => x.ad === 'c.pdf'); return b && !b.kaydediliyor; })()`, 8000);
+      kutular2 = await mesajKutulari();
+      etkin = await etkinAd();
+      sonuc('"Belge kaydedilemedi" sorusu belgenin sekmesinde açıldı', kutular2.length === 1 && kutular2[0].secenek?.mesaj === 'Belge kaydedilemedi' && etkin === 'c.pdf'
+        && (await belgeDurumu('c.pdf'))?.degisti, { kutular: kutular2.map((k) => k.secenek?.mesaj), etkin });
+    } finally { fs.chmodSync(c, 0o666); }
 
     // Açılış sekmesi (dosyası yok)
     await evalJs(`(window.__pdefe.komutCalistir('sekme.yeni'), true)`); await bekle(300);

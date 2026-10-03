@@ -1867,6 +1867,16 @@ export class NotYoneticisi extends EventTarget {
     if (!odak || odak === document.body) this.g.kaydirici.focus({ preventScroll: true });
   }
 
+  /** Açık yazı düzenlemesi uygulanınca (duzenleyiciBitir(true)) belge değişir mi: yeni kutuda boş olmayan metin; var olan yazıda metin,
+   *  biçim ya da kutu farkı (duzenleyiciBitir'in karşılaştırması). Düzenleme yoksa false. Sağ tık menülerindeki Kaydet'in etkinliği (0.2.1). */
+  duzenleyiciDegisti() {
+    const d = this.duzenleyici; if (!d) return false;
+    const metin = duzMetin(d.parcalar);
+    if (d.yeniMi) return !!metin.trim();
+    const yazi = yaziKanonik({ ...d.yazi, parcalar: d.parcalar }, metin);
+    return JSON.stringify(yazi) !== JSON.stringify(d.eski.yazi) || metin !== d.eski.icerik || JSON.stringify(d.rect) !== JSON.stringify(d.eski.rect);
+  }
+
   duzenleyiciBitir(kaydet) {
     const d = this.duzenleyici; if (!d) return;
     this.duzenleyici = null;

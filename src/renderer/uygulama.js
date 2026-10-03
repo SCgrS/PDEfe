@@ -760,14 +760,21 @@ function ayarDisaridanDegisti(anahtar, deger) {
 }
 
 /** Sağ tık menülerindeki Kaydet etkin mi (0.2.1, kullanıcı isteği; belge sayfasında ve sekmede): araç çubuğundaki Kaydet gibi kaydedilmemiş
- *  değişiklik varsa. Açık yazı düzenlemesi de sayılır: yeni yazı kutusu düzenleme bitince not olur, o ana dek degisti false olabilir
- *  (kayitYaz önce düzenlemeyi bitirir). Kaydı süren ya da başka pencereye taşınan sekmede devre dışı (belgeKaydet o zaman bir şey yapmaz). */
-function kaydedilecekVar(b) { return !!b && !b.kaydediliyor && !b.tasiniyor && (!!b.degisti || !!b.notlar?.duzenleyici); }
+ *  değişiklik varsa. Değişiklik taşıyan açık yazı düzenlemesi de sayılır: yeni yazı kutusu düzenleme bitince not olur, o ana dek degisti
+ *  false (kayitYaz önce düzenlemeyi bitirir); boş yeni kutu ya da değiştirilmeden açılmış yazı sayılmaz ("Kaydedilecek değişiklik yok" derdi).
+ *  Kaydı süren ya da başka pencereye taşınan sekmede devre dışı (belgeKaydet o zaman bir şey yapmaz). */
+function kaydedilecekVar(b) { return !!b && !b.kaydediliyor && !b.tasiniyor && (!!b.degisti || !!b.notlar?.duzenleyiciDegisti()); }
+
+/** Belgeyle ilgili bir soru açılmadan önce, belge önde değilse sekmesine geçilir (0.2.1: sekmede sağ tık › Kaydet etkin olmayan sekmeyi
+ *  kaydeder; e-imza ve "kaydedilemedi" soruları belgenin adını vermez, hangi belge için sorulduğu görünsün; PDF'i kopyala gibi). */
+async function soruIcinOneAl(b) { if (aktifId !== b.id && belgeler.has(b.id)) await sekmeSec(b.id); }
 
 /** Belgeyi kaydeder. farkli=true ise yeni yol sorar. Başarılıysa true döner.
  *  Çağrı sürdükçe (Farklı kaydet diyaloğu ve hata sorusu dahil) b.kaydediliyor true'dur ve b.kayitSozu çağrı bitince çözülür
- *  (hiç reddedilmez); kapatma akışları onu bekler (kayitBitmesiniBekle). Bu arada gelen ikinci kaydetme false döner. */
-async function belgeKaydet(b, farkli = false, sessiz = false) {
+ *  (hiç reddedilmez); kapatma akışları onu bekler (kayitBitmesiniBekle). Bu arada gelen ikinci kaydetme false döner.
+ *  oneAl (sekme menüsündeki Kaydet): belge önde değilse sorusuz kayıtta öndeki sekme değişmez; e-imza ya da hata sorusu açılacaksa önce
+ *  belgenin sekmesine geçilir. Kapatma akışlarında gerekmez: ilk soru (kaydetmedenCikisSorusu) belgenin adını verir. */
+async function belgeKaydet(b, farkli = false, sessiz = false, { oneAl = false } = {}) {
   if (!b || b.kaydediliyor || b.tasiniyor) return false;   // tasiniyor: sekme başka pencereye geçiyor (bkz. sekmeyiTasi)
   let bitti;
   b.kaydediliyor = true;
@@ -775,7 +782,7 @@ async function belgeKaydet(b, farkli = false, sessiz = false) {
   try {
     for (;;) {
       try {
-        const sonuc = await kayitYaz(b, farkli, sessiz);
+        const sonuc = await kayitYaz(b, farkli, sessiz, oneAl);
         if (sonuc && !sessiz) b._otoKayitDurdu = false;   // elle kayıt başarılı: otomatik kayıt yeniden çalışır
         return sonuc;
       } catch (e) {
@@ -789,6 +796,7 @@ async function belgeKaydet(b, farkli = false, sessiz = false) {
           return false;
         }
         const kilitli = /açık olabilir|yazılamadı|okunamadı|Failed to open|Permission|EBUSY|EPERM/i.test(e.message || '');
+        if (oneAl) await soruIcinOneAl(b);
         const { secim } = await mesajKutusu({ tur: 'error', mesaj: 'Belge kaydedilemedi', ayrinti: (kilitli ? 'Dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Onu kapatıp yeniden deneyin ya da farklı bir adla kaydedin.\n\n' : '') + hataMetni(e), dugmeler: kilitli ? ['Farklı kaydet', 'Vazgeç'] : ['Tamam'], iptal: kilitli ? 1 : 0 });
         if (!kilitli || secim !== 0) return false;
         farkli = true; sessiz = false;   // 'Farklı kaydet' aynı kaydın içinde: bekleyen kapatma akışı araya girmez
@@ -798,7 +806,7 @@ async function belgeKaydet(b, farkli = false, sessiz = false) {
 }
 
 /** belgeKaydet'in yazma adımı; hata fırlatır. Vazgeçilirse false, yazılırsa (ya da yazılacak değişiklik yoksa) true. */
-async function kayitYaz(b, farkli, sessiz) {
+async function kayitYaz(b, farkli, sessiz, oneAl = false) {
   b.notlar?.duzenleyiciBitir(true);
   let hedef = b.yol;
   if (farkli) {
@@ -826,7 +834,7 @@ async function kayitYaz(b, farkli, sessiz) {
   } else {
     // Kayıtlı bir not silindi ya da değiştiyse belge temiz (baştan) yazılır: artımlı kayıtta eski hâli dosyada kalırdı (temizKayitKarari)
     // (Farklı kaydet'te aynı dosya seçilirse de: çekirdek aynı dosyaya artımlı yazar)
-    const temiz = yolAyni(hedef, b.yol) && islemler.some((op) => op.islem === 'sil' || op.islem === 'guncelle') ? await temizKayitKarari(b, sessiz) : false;
+    const temiz = yolAyni(hedef, b.yol) && islemler.some((op) => op.islem === 'sil' || op.islem === 'guncelle') ? await temizKayitKarari(b, sessiz, oneAl) : false;
     if (temiz === null) { durum.mesajYaz(''); return false; }
     // Döndürmesi son kayıttakinden farklı sayfaların mutlak açıları notlardan önce uygulanır; aynı dosyaya artımlı yazılır
     const sayfaDondurmeleri = yalnizDondurme ? await sayfaDondurmeleriHesapla(g, tarif, tarifAnligi) : null;
@@ -875,12 +883,13 @@ async function kayitYaz(b, farkli, sessiz) {
  * geçersiz kılar: sorulur, seçim belge kapanana dek hatırlanır; otomatik kayıtta sorulmaz, imza korunur.
  * Döner: true (temiz yaz) | false (artımlı) | null (Vazgeç).
  */
-async function temizKayitKarari(b, sessiz) {
+async function temizKayitKarari(b, sessiz, oneAl = false) {
   let imzali;
   try { imzali = !!(await cekirdek('imza_durumu', { yol: b.yol })).imzali; } catch { return false; }   // bilinmiyorsa imza korunur
   if (!imzali) return true;
   if (b.imzaSecimi) return b.imzaSecimi === 'temiz';
   if (sessiz) return false;
+  if (oneAl) await soruIcinOneAl(b);
   const { secim } = await mesajKutusu({
     tur: 'warning', mesaj: 'Bu belge e-imzalı.',
     ayrinti: 'Silinen ya da değiştirilen notun eski hâli, e-imzayı korumak için dosyanın içinde kalır: ekranda görünmez ama uygun bir araçla okunabilir.\n\nEski hâli tamamen silmek için belge baştan yazılır; o zaman e-imza geçersiz görünür.',
@@ -1495,7 +1504,7 @@ sekmeler.addEventListener('sagTik', async (e) => {
   else if (secim === 'klasor' && b) pdefe.cagir('kabuk:klasordeGoster', b.yol);
   else if (secim === 'yol' && b) { await pdefe.cagir('pano:metin', b.yol); bildir('Yol panoya kopyalandı'); }
   else if (secim === 'pdf' && b) await pdfKopyala(b);
-  else if (secim === 'kaydet' && b && belgeler.has(id)) await belgeKaydet(b);   // menü açıkken sekme kapatılmış olabilir
+  else if (secim === 'kaydet' && b && belgeler.has(id)) await belgeKaydet(b, false, false, { oneAl: true });   // menü açıkken sekme kapatılmış olabilir
 });
 
 // Panel olayları
