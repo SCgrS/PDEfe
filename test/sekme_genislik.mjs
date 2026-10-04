@@ -227,6 +227,28 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare
   const kayit = await evalJs(`(async () => { const p = window.__pdefe; const ok = await p.belgeKaydet(p.aktif(), true); const s = p.sekmeler.bul(p.aktif().id); return { ok, ad: s.ad, yol: s.yol, ipucu: s.el.title, dom: s.el.querySelector('.ad').textContent }; })()`);
   denetle('Farklı kaydet: sekme adı, yolu ve ipucu güncellendi', kayit.ok && kayit.ad === path.basename(yeni) && kayit.yol === yeni && kayit.ipucu === `${path.basename(yeni)}\n${yeni}` && kayit.dom === kayit.ad, js(kayit));
 
+  // Ctrl+Tab seçicisi arka planda açılmış (hiç etkin olmamış) sekmeleri de gösterir: son kullanım sırasından sonra (0.2.1; önceden
+  // yalnızca etkin olmuş sekmeler, tek etkin sekme varken Ctrl+Tab hiçbir şey yapmıyordu). Ayır › Tümünü aç böyle açar
+  await evalJs(`(async () => { const p = window.__pdefe; for (const s of [...p.sekmeler.sekmeler]) await p.belgeKapat(s.id, { zorla: true });
+    await p.dosyaAc(${js(path.join(K, ADLAR[2]))}); await p.dosyaAc(${js(path.join(K, ADLAR[0]))}, { arkaPlanda: true }); await p.dosyaAc(${js(path.join(K, ADLAR[1]))}, { arkaPlanda: true });
+    await new Promise((r) => setTimeout(r, 800)); return true; })()`);
+  const secici = () => evalJs(`(() => { const s = window.__pdefe.sekmeler; return { acik: s.seciciAcik, adaylar: [...document.querySelectorAll('#sekme-secici .aday .ad')].map((x) => x.textContent),
+    secili: document.querySelector('#sekme-secici .aday.secili .ad')?.textContent ?? null, aktif: s.bul(s.aktifId)?.ad, mru: s.mru.map((id) => s.bul(id)?.ad) }; })()`);
+  let sc = await secici();
+  denetle('Ctrl+Tab hazırlık: biri önde, ikisi arka planda açıldı (son kullanım sırasında yalnızca öndeki)', sc.aktif === ADLAR[2] && js(sc.mru) === js([ADLAR[2]]), js(sc));
+  await tus('Tab', ['ctrl']); await bekle(400);
+  sc = await secici();
+  denetle('Ctrl+Tab seçicisi arka planda açılmış sekmeleri de gösterir; ikinci aday seçili', sc.acik && js(sc.adaylar) === js([ADLAR[2], ADLAR[0], ADLAR[1]]) && sc.secili === ADLAR[0], js(sc));
+  await tus('Control'); await bekle(500);
+  sc = await secici();
+  denetle('Ctrl bırakılınca seçilen (hiç etkin olmamış) sekmeye geçilir', !sc.acik && sc.aktif === ADLAR[0] && js(sc.mru) === js([ADLAR[0], ADLAR[2]]), js(sc));
+  await tus('Tab', ['ctrl']); await tus('Tab', ['ctrl']); await bekle(300);
+  sc = await secici();
+  denetle('ikinci açılış: son kullanım sırası, sonra hiç etkin olmamış sekme; iki Tab onu seçer', js(sc.adaylar) === js([ADLAR[0], ADLAR[2], ADLAR[1]]) && sc.secili === ADLAR[1], js(sc));
+  await tus('Control'); await bekle(500);
+  sc = await secici();
+  denetle('Ctrl bırakılınca son (hiç etkin olmamış) sekmeye geçilir', sc.aktif === ADLAR[1], js(sc));
+
   await evalJs(`(async () => { const p = window.__pdefe; for (const s of [...p.sekmeler.sekmeler]) await p.belgeKapat(s.id, { zorla: true }); return true; })()`);
   console.log(`\n${tamam} tamam, ${hata} hata (pencere genişliği ${o.genislik} px, tema ${o.tema})`);
 }

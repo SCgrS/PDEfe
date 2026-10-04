@@ -402,9 +402,11 @@ export class SekmeCubugu extends EventTarget {
     this.seciciIdx = 1;
     this.secici.innerHTML = '<div class="kutu-ic"></div>';
     const ic = this.secici.firstChild;
-    this.mru.forEach((id, k) => {
+    // Son kullanım sırası, ardından hiç etkin olmamış sekmeler (arka planda açılanlar, ör. Ayır › Tümünü aç; mru'ya yalnızca aktifYap
+    // ekler). 0.2.1'e dek bunlar seçicide yoktu; yalnızca onlar varken Ctrl+Tab hiçbir şey yapmıyordu
+    const adaylar = [...this.mru, ...this.sekmeler.map((s) => s.id).filter((id) => !this.mru.includes(id))].filter((id) => this.bul(id));
+    adaylar.forEach((id, k) => {
       const s = this.bul(id);
-      if (!s) return;
       const a = document.createElement('div');
       a.className = 'aday' + (k === this.seciciIdx ? ' secili' : '');
       a.dataset.id = id;
