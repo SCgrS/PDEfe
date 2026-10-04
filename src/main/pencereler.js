@@ -483,6 +483,12 @@ export function pencereleriKur(b) {
     odakla(k);
     return true;
   });
+  // Dosya başka bir pencerede açık mı (0.2.1; salt okunur, pencereye dokunmaz): Farklı kaydet başka pencerede açık belgenin üzerine yazmaz
+  // (renderer/uygulama.js kayitYaz)
+  ipcMain.handle('pencere:baskaPenceredeAcikMi', (e, yol) => {
+    const a = yolAnahtari(yol);
+    return [...kayitlar.values()].some((x) => x.id !== e.sender.id && canli(x) && x.yollar.has(a));
+  });
 
   ipcMain.handle('pencere:tamEkran', (e, deger) => {
     const p = kayitAl(e)?.pencere;

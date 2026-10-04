@@ -828,8 +828,21 @@ async function kayitYaz(b, farkli, sessiz, oneAl = false) {
   b.notlar?.duzenleyiciBitir(true);
   let hedef = b.yol;
   if (farkli) {
-    hedef = await pdefe.cagir('dosya:kaydetDiyalog', { baslik: 'Farklı kaydet', varsayilan: b.yol });
-    if (!hedef) return false;
+    // Hedef bu pencerede ya da başka bir PDEfe penceresinde açık bir belgenin dosyasıysa yazılmaz (0.2.1): o sekme diskteki yeni içeriği
+    // değil eski hâlini gösterir, sonraki kaydı eski xref'lerle bozardı; aynı dosya iki sekmede açık kalırdı. Windows'ta çekirdek dosyayı
+    // açık tuttuğu için yazım "başka bir programda açık olabilir" hatasıyla düşüyordu. Kullanıcı başka ad seçebilir
+    for (;;) {
+      hedef = await pdefe.cagir('dosya:kaydetDiyalog', { baslik: 'Farklı kaydet', varsayilan: b.yol });
+      if (!hedef) return false;
+      const yer = await hedefAcikMi(b, hedef);
+      if (!yer) break;
+      const { secim } = await mesajKutusu({
+        tur: 'warning', mesaj: yer === 'pencere' ? `"${dosyaAdi(hedef)}" başka bir PDEfe penceresinde açık.` : `"${dosyaAdi(hedef)}" PDEfe'de başka bir sekmede açık.`,
+        ayrinti: 'Belge kaydedilmedi. Üzerine kaydetmek için önce o sekmeyi kapatın ya da başka bir ad seçin.',
+        dugmeler: ['Başka ad seç', 'Vazgeç'], varsayilan: 0, iptal: 1,
+      });
+      if (secim !== 0) return false;
+    }
   } else if (!b.degisti) { if (!sessiz) bildir('Kaydedilecek değişiklik yok.'); return true; }
   const islemler = b.notlar ? b.notlar.fark() : [];
   // Gönderilen durum şimdi saptanır: kayıt sürerken yapılan değişiklikler (ör. yeni not) kayıt bitince kaydedilmiş sayılmasın
@@ -892,6 +905,14 @@ async function kayitYaz(b, farkli, sessiz, oneAl = false) {
   cekirdek('belge_birak', { yol: b.yol }).catch(() => {});
   panel.yorumlariYenile();
   return true;
+}
+
+/** Farklı kaydet'in hedefi başka bir belgede açık mı (0.2.1): 'sekme' (bu pencerede), 'pencere' (başka bir PDEfe penceresinde) ya da
+ *  null. Belgenin kendi dosyası sayılmaz (aynı dosyaya kayıt). */
+async function hedefAcikMi(b, hedef) {
+  if (yolAyni(hedef, b.yol)) return null;
+  if ([...belgeler.values()].some((x) => x !== b && yolAyni(x.yol, hedef))) return 'sekme';
+  return (await pdefe.cagir('pencere:baskaPenceredeAcikMi', hedef).catch(() => false)) ? 'pencere' : null;
 }
 
 /**

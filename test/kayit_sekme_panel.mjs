@@ -2,6 +2,9 @@
 //   1) Yüklenirken kapatılan sekme: dosya okunurken ya da PDF.js belgeyi yüklerken kapatılan sekmenin yükleme görevi bırakılır, dosyaAc
 //      açılmamış gibi döner (null), "PDF açılamadı" sorulmaz, dosya son açılanlara eklenmez; çekirdek dosyayı yeniden açmaz (Windows'ta
 //      dosyanın adı değiştirilebilir).
+//   2) Farklı kaydet'in hedefi başka bir sekmede ya da başka bir PDEfe penceresinde açıksa yazılmaz: soru açılır ("… başka bir sekmede
+//      açık" / "… başka bir PDEfe penceresinde açık"), Vazgeç'te kayıt false döner, belge kaydedilmemiş kalır, hedef dosya değişmez;
+//      "Başka ad seç" kaydetme penceresini yeniden açar ve seçilen yeni ada kaydedilir. Belgenin kendi dosyasına Farklı kaydet sorusuz.
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9621      → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9621; node test\surucu.mjs betik test\kayit_sekme_panel.mjs
@@ -33,18 +36,40 @@ const uret = (ad, sayfa, baslik = ad.replace(/\.pdf$/, ''), { notlu = false } = 
   execFileSync(PY, ['-X', 'utf8', path.join(KOK, 'test', 'ornek_pdf_uret.py'), yol, String(sayfa), baslik, ...(notlu ? ['--notlu'] : [])], { encoding: 'utf8' });
   return yol;
 };
+/** Dosyanın özeti (ornek_pdf_uret.py --ozet): { sayfa, ilkSatir, notlar } */
+const ozet = (yol) => JSON.parse(execFileSync(PY, ['-X', 'utf8', path.join(KOK, 'test', 'ornek_pdf_uret.py'), '--ozet', yol], { encoding: 'utf8' }));
 /** Dosyanın adı değiştirilebiliyor mu (Windows'ta açık tanıtıcısı olan dosyanın adı değiştirilemez); geri eski adına döner. */
 const adDegisirMi = (yol) => {
   try { fs.renameSync(yol, yol + '.ad'); fs.renameSync(yol + '.ad', yol); return true; } catch (e) { return e.code || String(e); }
 };
 
-export default async function ({ evalJs, bekle }) {
+export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
   const kosul = async (ifade, sure = 10000) => { const t0 = Date.now(); for (;;) { const v = await evalJs(ifade); if (v || Date.now() - t0 > sure) return v; await bekle(150); } };
   const diyalogKaydi = () => evalJs(`window.pdefe.cagir('test:diyalogKaydi')`);
+  const yanitla = (kanal, yanitlar) => evalJs(`window.pdefe.cagir('test:diyalogYanitlari', ${J(kanal)}, ${J(yanitlar)})`);
+  const ac = async (yol) => {
+    const r = await evalJs(`(async () => { const b = await window.__pdefe.dosyaAc(${J(yol)}); return !!b; })()`);
+    await kosul(`(() => { const b = [...window.__pdefe.belgeler.values()].find((x) => x.yol === ${J(yol)}); return !!b?.gorunum?.hazir && b.notlar?.yuklendi; })()`);
+    return r;
+  };
+  /** Belgede (ada göre) işlem: govde içinde p (window.__pdefe) ve b (belge) kullanılır */
+  const belgeIslemi = (ad, govde) => evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find((x) => x.ad === ${J(ad)}); if (!b) return null; ${govde} })()`);
+  const notEkle = (ad, icerik) => belgeIslemi(ad, `b.notlar.ekle({ tur: 'Text', sayfa: 1, rect: [400, 600, 420, 620], icerik: ${J(icerik)}, yazar: 'Deneme Yazar', renk: '#ffd100', opaklik: 1, simge: 'Comment', konu: 'Not' });
+    await new Promise((r) => setTimeout(r, 200)); return !!b.degisti;`);
+  const sekmeAdlari = () => evalJs(`window.__pdefe.sekmeler.sekmeler.map((s) => s.ad + (s.degisti ? '*' : ''))`);
+  // Pencereler: ana süreçteki kimlik (webContents kimliği) → CDP hedefi
+  let harita = new Map();
+  const pencereleriYenile = async () => {
+    const m = new Map();
+    for (const h of await hedefler()) { hedefSec(h.id); m.set(await evalJs(`window.pdefe.cagir('pencere:kimlik')`), h.id); }
+    harita = m; hedefSec(null);
+    return [...m.keys()].sort((a, b) => a - b);
+  };
+  const P = (kimlik) => hedefSec(kimlik == null ? null : harita.get(kimlik));
   const mesajKutulari = async () => (await diyalogKaydi()).filter((d) => d.kanal === 'mesaj:kutu').map((d) => d.secenek);
   const hatalar = () => evalJs(`(() => { const h = window.__hatalar.slice(); window.__hatalar.length = 0; return h; })()`);
   const sekmeleriKapat = () => evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); await new Promise((r) => setTimeout(r, 300)); return p.belgeler.size; })()`);
-  const bolumler = (process.env.BOLUM || '1').split(',').map((s) => s.trim());
+  const bolumler = (process.env.BOLUM || '1,2').split(',').map((s) => s.trim());
   const bolum = (n) => bolumler.includes(String(n));
 
   // ------------------------------------------------------------ hazırlık
@@ -101,6 +126,79 @@ export default async function ({ evalJs, bekle }) {
     const c = uret('sonraki.pdf', 2);
     const r = await evalJs(`(async () => { const p = window.__pdefe; const b = await Promise.race([p.dosyaAc(${J(c)}), new Promise((r) => setTimeout(() => r('zaman aşımı'), 8000))]); return b && b !== 'zaman aşımı' ? { ad: b.ad, sayfa: b.gorunum.sayfaSayisi } : b; })()`);
     sonuc('Ardından açılan belge olağan açıldı', r?.ad === 'sonraki.pdf' && r.sayfa === 2, r);
+    await sekmeleriKapat();
+  }
+
+  // ------------------------------------------------------------ 2) Farklı kaydet'in hedefi başka sekmede / pencerede açık
+  if (bolum(2)) {
+    console.log('\n== 2) Farklı kaydet\'in hedefi başka sekmede ya da pencerede açık');
+    const a = uret('a.pdf', 3, 'A belgesi'), bYol = uret('b.pdf', 2, 'B belgesi', { notlu: true }), yeni = path.join(K, 'a-yeni.pdf');
+    const bOnce = ozet(bYol);
+    await ac(a); await ac(bYol);
+    await evalJs(`window.__pdefe.sekmeSec([...window.__pdefe.belgeler.values()].find((x) => x.ad === 'a.pdf').id)`);
+    sonuc('a.pdf\'e not eklendi', await notEkle('a.pdf', 'farklı kaydet notu'));
+    await diyalogKaydi(); await hatalar();
+    const farkliKaydet = (ad) => belgeIslemi(ad, `return await p.belgeKaydet(b, true);`);
+
+    // a) Aynı penceredeki sekme, Vazgeç. b.pdf çekirdek önbelleğinden bırakılır: Windows'ta da yazılabilir olsun (macOS'ta hep yazılabilir;
+    // eski kod b.pdf'in yerine a.pdf'i yazar, b.pdf sekmesi eski içerikle kalırdı)
+    await evalJs(`window.pdefe.cagir('cekirdek:cagir', 'belge_birak', { yol: ${J(bYol)} }, 0)`);
+    await yanitla('dosya:kaydetDiyalog', [bYol]); await yanitla('mesaj:kutu', [{ secim: 1, onay: false }]);
+    let r = await farkliKaydet('a.pdf');
+    let kutular = await mesajKutulari();
+    sonuc('Hedef başka sekmede açık: kayıt false döndü', r === false, r);
+    sonuc('Soru: "b.pdf" PDEfe\'de başka bir sekmede açık', kutular.length === 1 && kutular[0].mesaj === '"b.pdf" PDEfe\'de başka bir sekmede açık.'
+      && /önce o sekmeyi kapatın ya da başka bir ad seçin/.test(kutular[0].ayrinti) && J(kutular[0].dugmeler) === J(['Başka ad seç', 'Vazgeç']), kutular);
+    sonuc('"Başka bir programda açık olabilir" hatası yok', !kutular.some((k) => /başka bir programda/.test(`${k.mesaj} ${k.ayrinti}`)));
+    sonuc('b.pdf değişmedi', J(ozet(bYol)) === J(bOnce), ozet(bYol).ilkSatir);
+    sonuc('a.pdf kaydedilmemiş kaldı, sekmeler aynı', J(await sekmeAdlari()) === J(['a.pdf*', 'b.pdf']), await sekmeAdlari());
+    sonuc('a.pdf\'in dosyası değişmedi (not yok)', ozet(a).notlar.length === 0);
+
+    // b) "Başka ad seç": kaydetme penceresi yeniden açılır, yeni ada kaydedilir
+    await yanitla('dosya:kaydetDiyalog', [bYol, yeni]); await yanitla('mesaj:kutu', [{ secim: 0, onay: false }]);
+    r = await farkliKaydet('a.pdf');
+    kutular = await mesajKutulari();
+    const kayit = (await diyalogKaydi()).filter((d) => d.kanal === 'dosya:kaydetDiyalog');
+    sonuc('"Başka ad seç" sonrası yeni ada kaydedildi', r === true && fs.existsSync(yeni) && ozet(yeni).notlar.some((n) => n.icerik === 'farklı kaydet notu'), { r, var: fs.existsSync(yeni) });
+    sonuc('Soru bir kez soruldu', kutular.length === 1, kutular.map((k) => k.mesaj));
+    sonuc('Sekme yeni adı aldı, b.pdf yerinde', J(await sekmeAdlari()) === J(['a-yeni.pdf', 'b.pdf']), await sekmeAdlari());
+    sonuc('b.pdf yine değişmedi', J(ozet(bYol)) === J(bOnce));
+
+    // c) Belgenin kendi dosyasına Farklı kaydet: sorulmaz, kaydedilir
+    await notEkle('a-yeni.pdf', 'ikinci not');
+    await diyalogKaydi();
+    await yanitla('dosya:kaydetDiyalog', [yeni]);
+    r = await farkliKaydet('a-yeni.pdf');
+    kutular = await mesajKutulari();
+    sonuc('Kendi dosyasına Farklı kaydet sorusuz kaydetti', r === true && !kutular.length && ozet(yeni).notlar.length === 2, { r, kutular: kutular.map((k) => k.mesaj) });
+
+    // d) Başka bir PDEfe penceresinde açık: b.pdf yeni pencereye taşınır
+    let kimlikler = await pencereleriYenile();
+    const P1 = kimlikler[0];
+    P(P1);
+    sonuc('b.pdf yeni pencereye taşındı', await belgeIslemi('b.pdf', `return await p.sekmeyiTasi(b.id, { tur: 'yeni' });`) === true);
+    let P2 = null;
+    for (let i = 0; i < 60 && P2 == null; i++) { kimlikler = await pencereleriYenile(); P2 = kimlikler.find((k) => k !== P1) ?? null; if (P2 == null) await bekle(200); }
+    if (P2 != null) { P(P2); await kosul(`[...window.__pdefe.belgeler.values()].some((x) => x.ad === 'b.pdf' && x.gorunum.hazir)`); P(P1); }
+    await notEkle('a-yeni.pdf', 'üçüncü not');
+    await diyalogKaydi();
+    await yanitla('dosya:kaydetDiyalog', [bYol]); await yanitla('mesaj:kutu', [{ secim: 1, onay: false }]);
+    r = await farkliKaydet('a-yeni.pdf');
+    kutular = await mesajKutulari();
+    sonuc('Hedef başka pencerede açık: kayıt false döndü', r === false, r);
+    sonuc('Soru: "b.pdf" başka bir PDEfe penceresinde açık', kutular.length === 1 && kutular[0].mesaj === '"b.pdf" başka bir PDEfe penceresinde açık.', kutular.map((k) => k.mesaj));
+    sonuc('b.pdf (başka pencerede) değişmedi', J(ozet(bYol)) === J(bOnce));
+    sonuc('a-yeni.pdf kaydedilmemiş kaldı', J(await sekmeAdlari()) === J(['a-yeni.pdf*']), await sekmeAdlari());
+    const h = await hatalar();
+    sonuc('Konsolda hata yok', !h.length, h);
+    // Temizlik: ikinci pencere kapatılır
+    if (P2 != null) {
+      P(P2);
+      await evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); return true; })()`).catch(() => {});
+      await evalJs(`window.pdefe.cagir('pencere:kapat')`).catch(() => {});
+      for (let i = 0; i < 40 && (await pencereleriYenile()).length > 1; i++) await bekle(200);
+    }
+    P(null);
     await sekmeleriKapat();
   }
 
