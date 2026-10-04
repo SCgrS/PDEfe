@@ -303,7 +303,9 @@ export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPack
   }
 
   function durdur() { clearTimeout(zamanlayici); clearInterval(bakis); zamanlayici = null; bakis = null; }
-  app.on('before-quit', durdur);
+  // will-quit: çıkış gerçekten sürüyor (bütün pencereler kapandı). before-quit değil: macOS'ta Dock › Çık ve oturum kapatma before-quit
+  // olarak gelir, main.js onu engelleyip pencereleri sorar; Vazgeç denince uygulama açık kalır, denetim de sürmeli (0.2.1)
+  app.on('will-quit', durdur);
 
   return { denetle, pencereGosterildi, durdur };
 }

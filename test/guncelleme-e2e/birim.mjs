@@ -62,7 +62,7 @@ function kurulum({ surum = '0.9.0', ayar = {}, ilkOrnek = true, simdi = T0, baki
     pencereyeGonder: (k, v) => giden.push([k, v]), ayarAl: (k) => depo.get(k), ayarKoy: (k, v) => depo.set(k, v),
     kapatmayaHazirla: () => sayac.kapatmayaHazirla++, kapatmaIptal: () => sayac.kapatmaIptal++,
   });
-  return { g, au, depo, giden, sayac, saat, cagir: (k, ...a) => ipc.get(k)({}, ...a), ayar: () => Object.fromEntries(depo) };
+  return { g, au, app, depo, giden, sayac, saat, cagir: (k, ...a) => ipc.get(k)({}, ...a), ayar: () => Object.fromEntries(depo) };
 }
 /** Otomatik denetim zamanlayıcısını çalıştırır ve denetimin bitmesini bekler. */
 async function otomatik(k) { k.g.pencereGosterildi(); await bekle(120); k.g.durdur(); }
@@ -144,6 +144,22 @@ const ayar = (k) => JSON.stringify({ son: k.depo.get(AYAR_SON_DENETIM), bekleyen
   k.saat.simdi = T0 + 15 * GUN;
   await bekle(120);
   kontrol('bakış: indirilmiş sürüm kurulmayı beklerken denetlemez', k.au.kayit.denetim === 1, JSON.stringify(k.au.kayit));
+  k.g.durdur();
+}
+
+// 0.2.1: macOS'ta Dock › Çık ya da oturum kapatma before-quit olarak gelir, main.js onu engelleyip pencereleri sorar; kullanıcı Vazgeç
+// derse uygulama açık kalır. Vazgeçilen çıkış zamanlayıcıları durdurmamalı; yalnızca gerçekten sürdüren çıkış (will-quit) durdurur
+{
+  const k = kurulum({ ayar: { [AYAR_SON_DENETIM]: T0 }, simdi: T0 + GUN, bakisAraligiMs: 25 });
+  k.g.pencereGosterildi();
+  k.app.emit('before-quit', { preventDefault() {} });   // main.js çıkışı engelledi, kullanıcı Vazgeç dedi
+  k.saat.simdi = T0 + 7 * GUN + 1;
+  await bekle(120);
+  kontrol('vazgeçilen çıkıştan sonra saatlik bakış sürer, hafta dolunca denetler', k.au.kayit.denetim === 1, JSON.stringify(k.au.kayit));
+  k.app.emit('will-quit', { preventDefault() {} });
+  k.saat.simdi = T0 + 15 * GUN;
+  await bekle(120);
+  kontrol('çıkış sürünce (will-quit) bakış durur', k.au.kayit.denetim === 1, JSON.stringify(k.au.kayit));
   k.g.durdur();
 }
 
