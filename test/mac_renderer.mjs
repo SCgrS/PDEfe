@@ -220,6 +220,29 @@ export default async function ({ evalJs }) {
     /İndir'e basınca yeni sürüm tarayıcıda iner/.test(ayarGuncelleme.mac.aciklama) && /Uygulamalar klasörüne sürükle/.test(ayarGuncelleme.mac.aciklama)
     && !/tek tıkla|kurulur ve PDEfe yeniden açılır/.test(ayarGuncelleme.mac.aciklama) && ayarGuncelleme.mac.dugme === 'İndir', ayarGuncelleme.mac);
 
+  // ---------------------------------------------------------------- Güncelleme şeridi (guncelleme.js)
+  // macOS: İndir → paket tarayıcıda iner ('tarayicida'). Şerit önce PDEfe'den çıkmayı (Finder açık uygulamanın yerine koymaz) ve
+  // engellenirse Sistem Ayarları › Gizlilik ve Güvenlik › Yine de Aç'ı söylemeli. Windows'ta düğme eskisi gibi Güncelle
+  const serit = await evalJs(`(async () => { ${ORTAM}
+    const sonuc = {};
+    for (const mac of [true, false]) {
+      const o = ortam(mac), { guncellemeSeridiKur } = await o.yukle('guncelleme.js');
+      const dinleyiciler = {};
+      const pdefe = { cagir: async (kanal) => (kanal === 'guncelleme:indir' ? { tamam: true, tarayicida: true } : null), dinle: (kanal, cb) => { dinleyiciler[kanal] = cb; } };
+      const el = o.belge.createElement('div'); el.hidden = true; o.belge.body.append(el);
+      const g = guncellemeSeridiKur({ pdefe, serit: el, bildir: () => {} });
+      dinleyiciler['guncelleme:var']({ surum: '9.9.9', mevcut: '0.2.1' });
+      const r = sonuc[mac ? 'mac' : 'win'] = { dugme: el.querySelector('button.birincil-serit')?.textContent || null };
+      if (mac) { await g.guncelle(); r.asama = el.dataset.asama; r.metin = el.querySelector('.metin')?.textContent || ''; }
+      el.remove();
+    }
+    return sonuc;
+  })()`);
+  sonuc('Güncelleme şeridi (Windows): düğme eskisi gibi Güncelle', serit.win.dugme === 'Güncelle', serit.win);
+  sonuc('Güncelleme şeridi (macOS): İndir\'den sonra önce PDEfe\'den çıkmayı (⌘Q), Değiştir\'i ve engellenirse Yine de Aç\'ı söylüyor',
+    serit.mac.dugme === 'İndir' && serit.mac.asama === 'tarayicida' && /PDEfe'den çıkın \(⌘Q\)/.test(serit.mac.metin) && /\(Değiştir\)/.test(serit.mac.metin)
+    && /Sistem Ayarları › Gizlilik ve Güvenlik › Yine de Aç/.test(serit.mac.metin), serit.mac);
+
   await evalJs(`(() => { document.querySelector('#mac-cerceve')?.remove(); document.querySelector('#win-cerceve')?.remove(); return true; })()`);
   console.log(`\n${tamam} tamam, ${hata} hata`);
 }

@@ -110,7 +110,9 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce, kuru
       dugmeler.append(dugme('Kur ve yeniden başlat', () => guncelle(), { sinif: 'birincil-serit' }), dahaSonra());
       serit.append(metin, dugmeler);
     } else if (durum.asama === 'tarayicida') {
-      metin.textContent = `PDEfe ${durum.surum} tarayıcıda iniyor. İnen PDEfe-Mac dosyasını açıp PDEfe'yi Uygulamalar klasörüne sürükleyin (eskisinin yerine), sonra PDEfe'yi yeniden açın.`;
+      // Yalnızca macOS. Önce çıkılmalı (0.2.1): Finder açık uygulamanın yerine yenisini koymaz ("kullanımda"); yeni sürüm yerinde imzalı ve
+      // karantinalı indiği için macOS ilk açılışta yeniden engelleyebilir (README "macOS" 3. adım)
+      metin.textContent = `PDEfe ${durum.surum} tarayıcıda iniyor. PDEfe'den çıkın (⌘Q), inen PDEfe-Mac dosyasını açıp PDEfe'yi Uygulamalar klasörüne sürükleyin (Değiştir), sonra PDEfe'yi açın. macOS açmayı engellerse: Sistem Ayarları › Gizlilik ve Güvenlik › Yine de Aç.`;
       dugmeler.append(dugme('Tamam', () => { durum.kapatildi = true; gizle(); }, { sinif: 'birincil-serit' }));
       serit.append(metin, dugmeler);
     } else if (durum.asama === 'hata') {
