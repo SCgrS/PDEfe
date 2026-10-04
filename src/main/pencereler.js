@@ -130,6 +130,11 @@ export function pencereOlustur({ sinirlar = null, goster = true, dosyalar = [] }
       x: TEST.konum.length === 2 ? TEST.konum[0] : kayitli.x, y: TEST.konum.length === 2 ? TEST.konum[1] : kayitli.y,
     };
     buyut = !!kayitli.buyutulmus;
+    // Kayıtlı konumun başlık şeridi bağlı bir ekranda görünmüyorsa (ikinci ekran çıkarıldı, Mac harici ekrandan ayrıldı) pencere en yakın
+    // ekranın çalışma alanına sığdırılır: Electron konumu denetlemez, pencere ekran dışında açılıp uygulama açılmamış sanılıyordu (0.2.1)
+    if (!ekranDisi() && Number.isFinite(sinirlar.x) && Number.isFinite(sinirlar.y) && !basligiGorunur(sinirlar)) {
+      Object.assign(sinirlar, sigdir(sinirlar, { x: Math.round(sinirlar.x + sinirlar.width / 2), y: Math.round(sinirlar.y + 15) }));
+    }
   }
   const menuGorunur = !!ayarAl('menuCubugu');
   const pencere = new BrowserWindow({
@@ -280,6 +285,13 @@ export function kapatmaOnayiAyarla(deger) {
 
 // ---------------------------------------------------------------- yeni pencerenin yeri
 function calismaAlani(nokta) { return screen.getDisplayNearestPoint(nokta).workArea; }
+
+/** Pencerenin başlık şeridi bağlı bir ekranın çalışma alanında görünüyor mu: en az 100 px genişliğinde, üst kenarı alanın içinde (Windows'un
+ *  görünmeyen 8 px'lik çerçevesi payıyla). Kısmen ekran dışında duran pencere tutulup çekilebildiği için yerinde bırakılır. */
+function basligiGorunur(s) {
+  return screen.getAllDisplays().some(({ workArea: a }) => Math.min(s.x + s.width, a.x + a.width) - Math.max(s.x, a.x) >= 100
+    && s.y >= a.y - 8 && s.y <= a.y + a.height - 40);
+}
 
 /** Sınırları noktanın ekranındaki çalışma alanına sığdırır: pencere alandan büyük olmaz, tamamı görünür. Test örneği ekran dışında kalır. */
 function sigdir(s, nokta) {
