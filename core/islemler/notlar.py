@@ -1059,6 +1059,22 @@ def _ozellikleri_aktar(hedef, gecici):
             pass
 
 
+def pdf_hedefi_denetle(hedef):
+    """Çekirdek yalnızca .pdf uzantılı dosyaya ya da var olan bir PDF'in (başının ilk 64 KB'ında %PDF- imzası) üzerine yazar (0.2.1; ana
+    süreçteki denetimin ikinci savunması, main/guvenlik.js cekirdekParametreleri). PDF baytları .cmd / .bat gibi bir dosyaya yazılıp
+    çalıştırılmasın, var olan başka bir dosya PDF'le ezilmesin: yapisal_kaydet ve sayfalar_uygula hedef verilmeyince var olması gerekmeyen
+    yol'a yazıyordu. Değilse ValueError."""
+    if str(hedef).lower().endswith(".pdf"):
+        return
+    try:
+        with open(hedef, "rb") as f:
+            if b"%PDF-" in f.read(64 * 1024):
+                return
+    except OSError:
+        pass
+    raise ValueError("Yalnızca .pdf uzantılı dosyaya yazılabilir.")
+
+
 SALT_OKUNUR_METNI = "salt okunur"     # araclar.SALT_OKUNUR_METNI ile aynı: renderer bu ifadeyle salt okunur dosya hatasını tanır
 
 

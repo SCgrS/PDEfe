@@ -12,7 +12,7 @@ import { panoyaDosyaKopyala } from './pano.js';
 import { yazdirmaKur } from './yazdir.js';
 import { guncellemeKur } from './guncelleme.js';
 import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla, menuCubugunuUygula, pencereSayisi } from './pencereler.js';
-import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasorleri, standartYaziTipleri, anlikDosyasiMi } from './guvenlik.js';
+import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, YOLA_YAZANLAR, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasorleri, standartYaziTipleri, anlikDosyasiMi } from './guvenlik.js';
 import electronUpdater from 'electron-updater';
 import { MacGuncelleyici, tarayicidaIndir } from './macGuncelleme.js';
 
@@ -416,10 +416,11 @@ function ipcKur(ipcMain) {
 
   // Çekirdek (PyMuPDF) çağrıları. Çekirdek bütün pencerelerce paylaşılır: istek kimliği pencereye göre ayrılır (her pencere kendi
   // sayacından verir), ilerleme yalnızca isteği yapan pencereye gider
-  // Parametreler denetlenir (guvenlik.js cekirdekParametreleri): çekirdek yalnızca .pdf'e yazar, anlık kopya klasörünü ana süreç verir
+  // Parametreler denetlenir (guvenlik.js cekirdekParametreleri): çekirdek yalnızca .pdf'e yazar, anlık kopya klasörünü ana süreç verir.
+  // Hedef verilmeyince yol'a yazan yöntemler de (YOLA_YAZANLAR; 0.2.1)
   ipcMain.handle('cekirdek:cagir', (e, yontem, params, istekId) => {
     const gonderen = e.sender;
-    const p = (yontem === 'yapisal_kaydet' || yontem === 'anlik_sil' || params?.hedef != null) ? cekirdekParametreleri(yontem, params, anlikKlasoru()) : params;
+    const p = (yontem === 'anlik_sil' || params?.hedef != null || YOLA_YAZANLAR.has(yontem)) ? cekirdekParametreleri(yontem, params, anlikKlasoru()) : params;
     return Promise.resolve(p).then((guvenli) => cekirdek.cagir(yontem, guvenli, (ilerleme) => { if (!gonderen.isDestroyed()) gonderen.send('cekirdek:ilerleme', istekId, ilerleme); },
       istekId == null ? null : `${gonderen.id}:${istekId}`));
   });

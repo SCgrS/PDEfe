@@ -306,5 +306,74 @@ json_olmayan = [s for s in satirlar if not s.startswith("{")]
 sonuc("stdout'ta yalnızca JSON yanıt satırları var", not json_olmayan and len(satirlar) == 3, json_olmayan[:3] or satirlar)
 sonuc("MuPDF iletileri stderr'e gider", len(p.stderr) > 0, p.stderr[:200])
 
+# ---------------------------------------------------------------- 7. çekirdek yalnızca .pdf'e ya da var olan PDF'e yazar (0.2.1)
+# yapisal_kaydet ve sayfalar_uygula hedef verilmeyince yol'a yazar; yol'un var olması gerekmiyordu: .cmd dosyası PDF baytlarıyla
+# oluşturulabiliyor, var olan başka bir dosya PDF'le eziliyordu. Ana süreç (guvenlik.js) de hedefsiz yazan yöntemlerde yol'u denetler.
+print("— Yalnızca .pdf'e yazma")
+import pathlib  # noqa: E402
+from islemler import araclar  # noqa: E402
+kaynak_pdf = bos_belge("yazma-kaynak.pdf")
+TARIF_Y = [{"kaynak": {"yol": kaynak_pdf, "sayfa": 1}}]
+TARIF_A = [{"kaynak": kaynak_pdf, "sayfa": 1}]
+metin_dosyasi = os.path.join(CIKTI, "var-olan.txt")
+for ad, cagri in (("yapisal_kaydet", lambda y: yapisal.y_yapisal_kaydet({"yol": y, "tarif": TARIF_Y, "anlikKlasor": os.path.join(CIKTI, "anlik")})),
+                  ("sayfalar_uygula", lambda y: araclar.y_sayfalar_uygula({"yol": y, "tarif": TARIF_A}))):
+    cmd = os.path.join(CIKTI, "deneme-%s.cmd" % ad)
+    if os.path.exists(cmd):
+        os.remove(cmd)
+    try:
+        cagri(cmd)
+        sonuc("%s: hedefsiz .cmd yol'u reddedilir" % ad, False, "yazıldı")
+    except ValueError as e:
+        sonuc("%s: hedefsiz .cmd yol'u reddedilir" % ad, ".pdf" in str(e) and not os.path.exists(cmd), e)
+    with open(metin_dosyasi, "w", encoding="utf-8") as f:
+        f.write("kullanıcının metni")
+    try:
+        cagri(metin_dosyasi)
+        sonuc("%s: var olan PDF olmayan dosya ezilmez" % ad, False, "yazıldı")
+    except Exception:  # noqa: BLE001
+        with open(metin_dosyasi, encoding="utf-8") as f:
+            sonuc("%s: var olan PDF olmayan dosya ezilmez" % ad, f.read() == "kullanıcının metni")
+    uzantisiz = os.path.join(CIKTI, "uzantisiz-%s" % ad)
+    shutil.copy(kaynak_pdf, uzantisiz)
+    try:
+        cagri(uzantisiz)
+        d = pymupdf.open(uzantisiz, filetype="pdf")
+        sonuc("%s: uzantısı .pdf olmayan var olan PDF'e yazılır" % ad, d.page_count == 1)
+        d.close()
+    except Exception as e:  # noqa: BLE001
+        sonuc("%s: uzantısı .pdf olmayan var olan PDF'e yazılır" % ad, False, e)
+    pdefe_core.onbellek.hepsini_birak()
+# Ana süreç denetimi (src/main/guvenlik.js cekirdekParametreleri), Node ile
+KOK = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+betik = """
+import { cekirdekParametreleri } from %s;
+const [cmd, txt, pdf] = %s;
+const sonuc = {};
+for (const [ad, yontem, p] of [
+  ['yapisal_kaydet hedefsiz .cmd', 'yapisal_kaydet', { yol: cmd, tarif: [] }],
+  ['sayfalar_uygula hedefsiz .cmd', 'sayfalar_uygula', { yol: cmd, tarif: [] }],
+  ['notlar_kaydet hedefsiz .txt', 'notlar_kaydet', { yol: txt, islemler: [] }],
+  ['kucult hedefsiz .txt', 'kucult', { yol: txt }],
+  ['ayir uzerine .txt', 'ayir', { yol: txt, sayfalar: [1], uzerine: true }],
+  ['sayfalar_uygula hedef .cmd', 'sayfalar_uygula', { yol: pdf, hedef: cmd, tarif: [] }],
+  ['sayfalar_uygula hedefsiz .pdf', 'sayfalar_uygula', { yol: pdf, tarif: [] }],
+  ['ayir klasöre (yol okunur)', 'ayir', { yol: txt, parcalar: [] }],
+]) {
+  try { await cekirdekParametreleri(yontem, p, 'anlik'); sonuc[ad] = 'geçti'; } catch (e) { sonuc[ad] = 'reddedildi'; }
+}
+console.log(JSON.stringify(sonuc));
+""" % (json.dumps(pathlib.Path(os.path.abspath(os.path.join(KOK, "src", "main", "guvenlik.js"))).as_uri()),
+       json.dumps([os.path.join(CIKTI, "yok.cmd"), metin_dosyasi, kaynak_pdf]))
+try:
+    p = subprocess.run(["node", "--input-type=module", "-e", betik], capture_output=True, timeout=60)
+    ana = json.loads(p.stdout.decode("utf-8").strip().splitlines()[-1])
+    beklenen = {"yapisal_kaydet hedefsiz .cmd": "reddedildi", "sayfalar_uygula hedefsiz .cmd": "reddedildi", "notlar_kaydet hedefsiz .txt": "reddedildi",
+                "kucult hedefsiz .txt": "reddedildi", "ayir uzerine .txt": "reddedildi", "sayfalar_uygula hedef .cmd": "reddedildi",
+                "sayfalar_uygula hedefsiz .pdf": "geçti", "ayir klasöre (yol okunur)": "geçti"}
+    sonuc("ana süreç hedefsiz yazan yöntemlerde yol'u denetler", ana == beklenen, ana)
+except Exception as e:  # noqa: BLE001
+    sonuc("ana süreç hedefsiz yazan yöntemlerde yol'u denetler", False, repr(e))
+
 print("\nSonuç: %d/%d geçti%s." % (toplam - hata, toplam, ", %d HATA" % hata if hata else ""))
 sys.exit(1 if hata else 0)

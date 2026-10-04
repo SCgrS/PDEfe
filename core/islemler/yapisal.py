@@ -95,6 +95,7 @@ def y_yapisal_kaydet(p):
     Döner: {anlik, boyut, sayfa, xrefler}"""
     from pdefe_core import onbellek
     yol, hedef = p["yol"], p.get("hedef") or p["yol"]
+    notlar.pdf_hedefi_denetle(hedef)         # yalnızca .pdf'e ya da var olan PDF'e (0.2.1)
     tarif = list(p.get("tarif") or [])
     islemler = list(p.get("islemler") or [])
     anlik_klasor = p.get("anlikKlasor") or os.path.join(os.environ.get("TEMP", "."), "PDEfe", "anlik")

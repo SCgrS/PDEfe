@@ -540,6 +540,8 @@ def y_sayfalar_uygula(p):
     ilerleme = _ilerleme(p)
     yol = _mutlak(p.get("yol"))
     hedef = _mutlak(p.get("hedef") or yol, "hedef")
+    from .notlar import pdf_hedefi_denetle
+    pdf_hedefi_denetle(hedef)               # yalnızca .pdf'e ya da var olan PDF'e (0.2.1)
     tarif = p.get("tarif")
     if not isinstance(tarif, list) or not tarif:
         raise ValueError("Sayfa tarifi boş; en az bir sayfa gerekli.")

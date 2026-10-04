@@ -102,17 +102,23 @@ export function anlikDosyasiMi(yol, anlikKlasor) {
   return !!y && ayniYol(path.dirname(path.resolve(y)), anlikKlasor) && /^[0-9a-f]{32}\.pdf$/i.test(path.basename(y));
 }
 
+/** Hedef verilmezse yol'a (açık belgenin kendisine) yazan çekirdek yöntemleri (0.2.1); ayir yalnızca uzerine ile. Bu yöntemler hedefsiz
+ *  de denetlenir (main.js cekirdek:cagir). */
+export const YOLA_YAZANLAR = new Set(['notlar_kaydet', 'yapisal_kaydet', 'sayfalar_uygula', 'kucult', 'dondur_kaydet', 'ayir']);
+
 /**
  * Çekirdek çağrısının parametreleri (renderer'dan gelir) denetlenir, gerekirse düzeltilir; izin verilmeyen çağrıda hata fırlatır.
- *  - hedef: çekirdek yalnızca .pdf uzantılı dosyaya ya da zaten var olan bir PDF'in üzerine (uzantısı başka olsa da: "Tüm dosyalar"
- *    süzgeciyle açılıp kaydedilen belge) yazar. PDF baytları .bat/.cmd gibi bir dosyaya yazılıp çalıştırılmasın: notun /Contents'indeki
- *    "&komut&" komut satırında çalışırdı.
+ *  - yazılacak dosya (hedef; hedef verilmezse YOLA_YAZANLAR'da yol): çekirdek yalnızca .pdf uzantılı dosyaya ya da zaten var olan bir PDF'in
+ *    üzerine (uzantısı başka olsa da: "Tüm dosyalar" süzgeciyle açılıp kaydedilen belge) yazar. PDF baytları .bat/.cmd gibi bir dosyaya
+ *    yazılıp çalıştırılmasın: notun /Contents'indeki "&komut&" komut satırında çalışırdı. 0.2.1: önceden yalnızca hedef denetleniyordu;
+ *    yapisal_kaydet ve sayfalar_uygula hedefsiz çağrılınca var olması gerekmeyen yol'a yazıyordu.
  *  - yapisal_kaydet: anlık kopyanın klasörünü ana süreç verir (renderer'ın verdiği yok sayılır).
  *  - anlik_sil: yalnızca anlık kopya klasöründeki anlık kopyalar silinir.
  */
 export async function cekirdekParametreleri(yontem, params, anlikKlasor) {
   const p = params && typeof params === 'object' && !Array.isArray(params) ? { ...params } : {};
-  if (p.hedef != null && !/\.pdf$/i.test(String(p.hedef)) && !(await pdfDosyasiMi(p.hedef).catch(() => false))) {
+  const yazilacak = p.hedef != null ? p.hedef : (YOLA_YAZANLAR.has(yontem) && (yontem !== 'ayir' || p.uzerine) ? p.yol : null);
+  if (yazilacak != null && !/\.pdf$/i.test(String(yazilacak)) && !(await pdfDosyasiMi(yazilacak).catch(() => false))) {
     throw new Error('Yalnızca .pdf uzantılı dosyaya yazılabilir.');
   }
   if (yontem === 'yapisal_kaydet') p.anlikKlasor = anlikKlasor;
