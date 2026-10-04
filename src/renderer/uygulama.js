@@ -1552,6 +1552,7 @@ sekmeler.addEventListener('sagTik', async (e) => {
 // Panel olayları
 panel.addEventListener('sayfayaGit', (e) => { const b = aktif(); if (b) { b.gorunum.sayfayaGit(e.detail.sayfa, { y: e.detail.y }); b.gorunum.kaydirici.focus(); } });
 panel.addEventListener('notaGit', (e) => { const b = aktif(); if (!b) return; const n = e.detail.not; if (n.id && b.notlar) b.notlar.notaGit(n.id); else b.gorunum.sayfayaGit(n.sayfa, { y: Math.max(0, n.rect[1] - 40) }); });
+panel.addEventListener('yerimiHedefiYok', () => bildir('Yer iminin hedef sayfası bu belgede yok.'));   // sayfası silinmiş (0.2.1)
 panel.addEventListener('genislik', (e) => ayarKoy('solPanelGenislik', Math.round(e.detail.genislik)));
 panel.addEventListener('sekme', (e) => ayarKoy('solPanelSekme', e.detail.sekme));
 panel.addEventListener('durum', () => aktif()?.gorunum.boyutDegisti());

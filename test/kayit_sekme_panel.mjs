@@ -9,6 +9,9 @@
 //      belge yeni ada kaydedilince başlık yeni ad olur; arka plandaki belgeye geçilince başlık onun yeni adı olur.
 //   4) Sayfalar panelinin küçük resimleri not kaydından sonra diskteki hâli gösterir (silinen vurgu kalkar, eklenen not görünür); resimler
 //      yerinde yenilenir (panel baştan kurulmaz).
+//   5) İçindekiler'in (ve Bul'un yer imi sonuçlarının) yer imi sayfa düzeni değişince doğru sayfaya gider: hedef kaynak sayfasından
+//      bulunur (ilk sayfa silinince "Bolum 4" 3. sayfaya); sayfası silinmiş yer iminde görünüm kımıldamaz, "Yer iminin hedef sayfası bu
+//      belgede yok." bildirilir. Yapısal kayıttan (Üzerine yaz) sonra da doğru.
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9621      → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9621; node test\surucu.mjs betik test\kayit_sekme_panel.mjs
@@ -73,7 +76,7 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
   const mesajKutulari = async () => (await diyalogKaydi()).filter((d) => d.kanal === 'mesaj:kutu').map((d) => d.secenek);
   const hatalar = () => evalJs(`(() => { const h = window.__hatalar.slice(); window.__hatalar.length = 0; return h; })()`);
   const sekmeleriKapat = () => evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); await new Promise((r) => setTimeout(r, 300)); return p.belgeler.size; })()`);
-  const bolumler = (process.env.BOLUM || '1,2,3,4').split(',').map((s) => s.trim());
+  const bolumler = (process.env.BOLUM || '1,2,3,4,5').split(',').map((s) => s.trim());
   const bolum = (n) => bolumler.includes(String(n));
 
   // ------------------------------------------------------------ hazırlık
@@ -278,6 +281,43 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
     const h = await hatalar();
     sonuc('Konsolda hata yok', !h.length, h);
     await evalJs(`(() => { window.__pdefe.panel.acKapa(false); return true; })()`);
+    await sekmeleriKapat();
+  }
+
+  // ------------------------------------------------------------ 5) Yer imi sayfa düzeni değişince
+  if (bolum(5)) {
+    console.log('\n== 5) Yer imi sayfa düzeni değişince');
+    const yol = uret('yerimli.pdf', 6, 'Yer imli');
+    // Her sayfaya bir yer imi ("Bolum N" → N. sayfa)
+    execFileSync(PY, ['-X', 'utf8', '-c', 'import pymupdf, sys; d = pymupdf.open(sys.argv[1]); d.set_toc([[1, "Bolum %d" % (i + 1), i + 1] for i in range(d.page_count)]); d.saveIncr(); d.close()', yol], { encoding: 'utf8' });
+    await ac(yol);
+    /** Yer imine gider (panel.yerimineGit, İçindekiler'deki tıklama ve Bul'un yer imi sonucu); { gecerli, kaynak, bildirim } */
+    const git = (baslik) => belgeIslemi('yerimli.pdf', `
+      const agac = await b.gorunum.belge.getOutline(); const o = agac.find((x) => x.title === ${J(baslik)});
+      const el = document.querySelector('#bildirim'); el.hidden = true; el.textContent = '';
+      b.gorunum.sayfayaGit(1, { aninda: true }); await new Promise((r) => setTimeout(r, 300));
+      await p.panel.yerimineGit(o, b); await new Promise((r) => setTimeout(r, 600));
+      const g = b.gorunum; return { gecerli: g.gecerli, kaynak: g.sayfalar[g.gecerli - 1]?.kaynak?.sayfa, sayfaSayisi: g.sayfaSayisi, bildirim: el.hidden ? '' : el.textContent };`);
+    let r = await git('Bolum 4');
+    sonuc('Düzen değişmeden "Bolum 4" → 4. sayfa', r?.gecerli === 4 && r.kaynak === 4, r);
+    // İlk sayfa silinir (Sayfaları düzenle'deki gibi, sekme yeniden açılmaz)
+    await belgeIslemi('yerimli.pdf', `await p.sayfaTarifiUygula(b, b.gorunum.tarif().slice(1), 'Sayfa sil'); return true;`);
+    await kosul(`[...window.__pdefe.belgeler.values()].find((x) => x.ad === 'yerimli.pdf')?.gorunum.sayfaSayisi === 5`);
+    r = await git('Bolum 4');
+    sonuc('İlk sayfa silinince "Bolum 4" → 3. sayfa (kaynak 4)', r?.gecerli === 3 && r.kaynak === 4, r);
+    r = await git('Bolum 6');
+    sonuc('"Bolum 6" (son) → 5. sayfa (kaynak 6)', r?.gecerli === 5 && r.kaynak === 6, r);
+    r = await git('Bolum 1');
+    sonuc('Sayfası silinmiş "Bolum 1": görünüm kımıldamadı, bildirildi', r?.gecerli === 1 && r.bildirim === 'Yer iminin hedef sayfası bu belgede yok.', r);
+    // Yapısal kayıttan (Üzerine yaz) sonra: sayfaların kaynağı anlık kopya, panel yüklenen dosyanın yer imlerini okumayı sürdürür
+    const kayit = await belgeIslemi('yerimli.pdf', `return await p.belgeKaydet(b);`);
+    sonuc('Sayfa silinmiş belge kaydedildi (yapısal)', kayit === true && ozet(yol).sayfa === 5, { kayit, sayfa: ozet(yol).sayfa });
+    r = await git('Bolum 4');
+    sonuc('Kayıttan sonra "Bolum 4" → 3. sayfa', r?.gecerli === 3 && r.kaynak === 4, r);
+    r = await git('Bolum 1');
+    sonuc('Kayıttan sonra "Bolum 1" bildirildi', r?.bildirim === 'Yer iminin hedef sayfası bu belgede yok.', r);
+    const h = await hatalar();
+    sonuc('Konsolda hata yok', !h.length, h);
     await sekmeleriKapat();
   }
 

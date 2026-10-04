@@ -225,15 +225,22 @@ export class SolPanel extends EventTarget {
 
   async yerimineGit(o, b) {
     try {
+      const g = b.gorunum;
       let dest = o.dest;
-      if (typeof dest === 'string') dest = await b.gorunum.belge.getDestination(dest);
+      if (typeof dest === 'string') dest = await g.belge.getDestination(dest);
       if (!dest || !dest[0]) return;
-      const idx = typeof dest[0] === 'object' ? await b.gorunum.belge.getPageIndex(dest[0]) : dest[0];
-      const s = b.gorunum.sayfalar[idx];
+      const idx = typeof dest[0] === 'object' ? await g.belge.getPageIndex(dest[0]) : dest[0];
+      // Hedef, yüklenen dosyanın (g.belge) sayfasıdır; şimdiki yeri kaynak sayfasından bulunur (0.2.1; bağlantılar gibi, uygulama.js
+      // baglantiyaGit). Sayfa silinmiş, eklenmiş ya da sıralanmışsa dizin aynı sayfayı göstermez; yüklenen dosyanın sayfalarının kaynak
+      // yolu kayıtla değişebilir (anlık kopya, Farklı kaydet): o yol görünümün belge kaydındadır (kaynakYeniden onu da çevirir)
+      const ana = [...g.belgeler.values()].find((k) => k.belge === g.belge);
+      const i = !ana ? -1 : g.sayfalar.findIndex((s) => !s.bos && yolAnahtari(s.kaynak.yol) === yolAnahtari(ana.yol) && s.kaynak.sayfa === idx + 1);
+      if (i < 0) { this.dispatchEvent(new CustomEvent('yerimiHedefiYok')); return; }
+      const s = g.sayfalar[i];
       let y = null;
       if (dest[1]?.name === 'XYZ' && typeof dest[3] === 'number') y = s.pt.h - dest[3];
       else if (dest[1]?.name === 'FitH' && typeof dest[2] === 'number') y = s.pt.h - dest[2];
-      this.dispatchEvent(new CustomEvent('sayfayaGit', { detail: { sayfa: idx + 1, y: y != null && y >= 0 ? y : undefined } }));
+      this.dispatchEvent(new CustomEvent('sayfayaGit', { detail: { sayfa: i + 1, y: y != null && y >= 0 ? y : undefined } }));
     } catch (e) { console.warn('Yer imi çözülemedi', e); }
   }
 
