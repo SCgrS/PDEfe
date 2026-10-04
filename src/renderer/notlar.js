@@ -1436,7 +1436,9 @@ export class NotYoneticisi extends EventTarget {
     ed.addEventListener('beforeinput', (e) => this.duzenleyiciGirdi(e));
     ed.addEventListener('input', (e) => { if (!e.isComposing) this.duzenleyiciDomdanOku(); });
     ed.addEventListener('compositionstart', () => { d.birlesim = true; });
-    ed.addEventListener('compositionend', () => { d.birlesim = false; setTimeout(() => this.duzenleyiciDomdanOku(), 0); });
+    // Birleşen metin modele bir zamanlayıcıyla okunur (IME olayı sürerken DOM yeniden çizilmesin); okuma bekliyorken gelen basış, tuş ya
+    // da biçim işlemi önce onu okur (duzenleyiciBekleyeniOku)
+    ed.addEventListener('compositionend', () => { d.birlesim = false; d.domOkunacak = true; setTimeout(() => this.duzenleyiciBekleyeniOku(), 0); });
     ed.addEventListener('paste', (e) => { e.preventDefault(); this.duzenleyiciYaz(e.clipboardData?.getData('text/plain') || ''); });
     ed.addEventListener('drop', (e) => e.preventDefault());
     d.secimDinle = () => this.duzenleyiciSecimDegisti();
@@ -1493,7 +1495,7 @@ export class NotYoneticisi extends EventTarget {
     this.duzenleyiciCubukKonumla(r);
     // Satır kırılımı değişmiş olabilir (genişlik, yakınlaştırma, yazı tipi, boyut, kenarlık): satır sonu boşluklarının çizgisi yeniden belirlenir
     const dizilim = [d.el.style.width, y.boyut * k, y.tip, y.kenarlik].join('|');
-    if (d.dizilim !== dizilim && !d.birlesim) { d.dizilim = dizilim; if (d.parcalar.some((p) => p.alti || p.ustu)) this.duzenleyiciDomCiz(); }
+    if (d.dizilim !== dizilim && !d.birlesim && !d.domOkunacak) { d.dizilim = dizilim; if (d.parcalar.some((p) => p.alti || p.ustu)) this.duzenleyiciDomCiz(); }
   }
 
   /**
@@ -1676,6 +1678,16 @@ export class NotYoneticisi extends EventTarget {
     this.duzenleyiciDurum();
   }
 
+  /**
+   * Birleşimin (IME, macOS'ta ölü tuşla yazılan â…) bitişinde bekleyen DOM okumasını hemen yapar. compositionend modeli bir zamanlayıcıyla
+   * okur; Chromium birleşimi basışta önce bitirdiği ve girdi zamanlayıcıdan önce işlendiği için birleşim biter bitmez gelen basış düzenlemeyi
+   * birleşen metin olmadan bitiriyor, tuş ya da biçim işlemi DOM'u eski modelden yeniden çizip birleşen metni siliyordu (0.2.1). Modeli
+   * okuyan ya da değiştiren her işlem (bitirme, tuş, girdi, yazma, biçim, renk, kutu, geri al / yinele) önce bunu çağırır.
+   */
+  duzenleyiciBekleyeniOku() {
+    if (this.duzenleyici?.domOkunacak) this.duzenleyiciDomdanOku();
+  }
+
   /** Güncel seçim [baş, son]: selectionchange eşzamansız geldiğinden (hızlı Shift+ok, Ctrl+B) odak düzenleyicideyse canlı seçimden okunur. */
   duzenleyiciSecim() {
     const d = this.duzenleyici;
@@ -1687,6 +1699,7 @@ export class NotYoneticisi extends EventTarget {
     if (belgeKisayoluMu(e)) return;   // sekme geçişi, yakınlaştırma: belgede (sekme değişince düzenleme uygulanıp biter)
     e.stopPropagation();
     const d = this.duzenleyici; if (!d || e.isComposing) return;
+    this.duzenleyiciBekleyeniOku();
     if (e.key === 'Escape') { e.preventDefault(); this.duzenleyiciEsc(); return; }
     // Kutu içeriğe göre büyür, kendi içinde kaymaz: PageUp/PageDown'u tarayıcı belgeyi kaydırmaya çevirip düzenleyiciyi görünümden çıkarmasın
     if (e.key === 'PageDown' || e.key === 'PageUp') { e.preventDefault(); return; }
@@ -1710,10 +1723,11 @@ export class NotYoneticisi extends EventTarget {
     const t = e.inputType || '';
     if (e.isComposing || t === 'insertCompositionText') return;   // IME: tarayıcı yazar, bitince DOM'dan okunur
     e.preventDefault();
-    const aralik = () => {
-      const r = e.getTargetRanges?.()[0];
-      return r ? sirala([ofsetAl(d.el, r.startContainer, r.startOffset), ofsetAl(d.el, r.endContainer, r.endOffset)]) : sirala(secimAl(d.el) || d.secim);
-    };
+    // Hedef aralık, bekleyen birleşim okunmadan önce alınır: okuma DOM'u modelden yeniden çizer (metin ofsetleri aynı kalır)
+    const r = e.getTargetRanges?.()[0];
+    const hedef = r ? sirala([ofsetAl(d.el, r.startContainer, r.startOffset), ofsetAl(d.el, r.endContainer, r.endOffset)]) : null;
+    this.duzenleyiciBekleyeniOku();
+    const aralik = () => hedef || sirala(secimAl(d.el) || d.secim);
     if (t === 'insertText' || t === 'insertReplacementText') this.duzenleyiciYaz(e.data ?? e.dataTransfer?.getData('text/plain') ?? '', aralik());
     else if (t === 'insertLineBreak' || t === 'insertParagraph') this.duzenleyiciYaz('\n', aralik());
     else if (t.startsWith('delete')) { const [a, b] = aralik(); if (b > a) this.duzenleyiciYaz('', [a, b]); }
@@ -1728,6 +1742,7 @@ export class NotYoneticisi extends EventTarget {
   /** [a, b) aralığını metinle değiştirir (boş metin: silme). Yazılan metin bekleyen biçimi ya da imleçten önceki karakterin biçimini alır. */
   duzenleyiciYaz(metin, aralik = null) {
     const d = this.duzenleyici; if (!d) return;
+    this.duzenleyiciBekleyeniOku();
     const [a, b] = aralik || this.duzenleyiciSecim();
     // Yapıştırılan metinde PDF görünümüne çizilemeyen denetim karakterleri: sekme boşluk olur, yumuşak tire / sıfır genişlikli boşluk atılır
     metin = String(metin ?? '').replace(/\r\n?|[\u2028\u2029]/g, '\n').replace(/\t/g, '    ').replace(/[\u0000-\u0008\u000b-\u001f\u007f\u00ad\u200b]/g, '');
@@ -1749,6 +1764,7 @@ export class NotYoneticisi extends EventTarget {
    */
   duzenleyiciBicim(anahtar) {
     const d = this.duzenleyici; if (!d) return;
+    this.duzenleyiciBekleyeniOku();
     const [a, b] = this.duzenleyiciSecim();
     if (a === b) {
       const stil = { ...(d.bekleyen?.ofset === a ? d.bekleyen.stil : stilKonumda(d.parcalar, a)) };
@@ -1768,6 +1784,7 @@ export class NotYoneticisi extends EventTarget {
   /** Yazı rengi: seçime; imleçte sonra yazılacak metne; kutu boşsa ya da metnin tamamı seçiliyse kutunun rengi (kenarlık da). */
   duzenleyiciRenk(renk) {
     const d = this.duzenleyici; if (!d) return;
+    this.duzenleyiciBekleyeniOku();
     renk = String(renk).toLowerCase();
     const [a, b] = this.duzenleyiciSecim();
     const uzunluk = duzMetin(d.parcalar).length;
@@ -1792,6 +1809,7 @@ export class NotYoneticisi extends EventTarget {
   /** Kutu düzeyindeki değişiklik (yazı tipi, boyut, dolgu, dolgusuz, kenarlık): anında görünür, düzenleyicide geri alınabilir. */
   duzenleyiciKutu(degisim, tur = 'kutu') {
     const d = this.duzenleyici; if (!d) return;
+    this.duzenleyiciBekleyeniOku();
     if (Object.entries(degisim).some(([k, v]) => d.yazi[k] !== v)) {
       const anahtar = Object.keys(degisim)[0];
       this.duzenleyiciKayit(tur, false, DUZENLEYICI_ADIMLARI[anahtar === 'arka' && !degisim.arka ? 'dolgusuz' : anahtar]);
@@ -1806,6 +1824,7 @@ export class NotYoneticisi extends EventTarget {
   /** IME gibi tarayıcının kendi yazdığı durumda DOM'dan okur; biçim modelden (değişen bölüm önündeki karakterin biçimini alır). */
   duzenleyiciDomdanOku() {
     const d = this.duzenleyici; if (!d) return;
+    d.domOkunacak = false;
     const metin = duzMetin(domdanOku(d.el, d.yazi.renk));
     if (metin === duzMetin(d.parcalar)) return;
     const secim = secimAl(d.el);
@@ -1834,6 +1853,7 @@ export class NotYoneticisi extends EventTarget {
   duzenleyiciGeriAl() { this._duzenleyiciGecmis('geri', 'ileri'); }
   duzenleyiciYinele() { this._duzenleyiciGecmis('ileri', 'geri'); }
   _duzenleyiciGecmis(kaynak, hedef) {
+    this.duzenleyiciBekleyeniOku();   // birleşen metin geri alınabilir bir adım olsun
     const d = this.duzenleyici; if (!d || !d[kaynak].length) return;
     const a = d[kaynak].pop();
     d[hedef].push({ parcalar: structuredClone(d.parcalar), yazi: structuredClone(d.yazi), secim: [...d.secim], ad: a.ad });
@@ -1882,6 +1902,7 @@ export class NotYoneticisi extends EventTarget {
   }
 
   duzenleyiciBitir(kaydet) {
+    if (kaydet) this.duzenleyiciBekleyeniOku();
     const d = this.duzenleyici; if (!d) return;
     this.duzenleyici = null;
     this.duzenleyiciGecmisBildir();
