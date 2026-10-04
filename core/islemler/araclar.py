@@ -538,42 +538,43 @@ def y_sayfalar_uygula(p):
     tarif = p.get("tarif")
     if not isinstance(tarif, list) or not tarif:
         raise ValueError("Sayfa tarifi boş; en az bir sayfa gerekli.")
+    # Kaynaklar diskten taze açılır ve iş bitince kapatılır (0.2.1): önceden paylaşılan önbellekten alınıyordu; önbellek en çok 8
+    # belge tuttuğundan 9. ayrı kaynak açılınca bu işin ilk kaynağı kapanıyor, kayıt "document closed" hatasıyla düşüyordu
     kaynaklar = {}     # normalize yol → doc
     sayfa_sayilari = {}
 
     def kaynak_al(k):
         anahtar = os.path.normcase(os.path.abspath(k))
         if anahtar not in kaynaklar:
-            kaynaklar[anahtar] = _onbellekten_al(_dosya_var(os.path.abspath(k)))
-            if kaynaklar[anahtar].needs_pass:
-                raise PermissionError("Belge parolayla korunuyor: %s" % os.path.basename(k))
+            kaynaklar[anahtar] = _pdf_ac(os.path.abspath(k))
             sayfa_sayilari[anahtar] = kaynaklar[anahtar].page_count
         return anahtar, kaynaklar[anahtar]
 
-    # Tarifi doğrula ve normalize et
-    ogeler = []
-    for i, t in enumerate(tarif):
-        if not isinstance(t, dict):
-            raise ValueError("Tarif öğesi %d geçersiz." % (i + 1))
-        kaynak = t.get("kaynak")
-        dondurme = _dondurme(t.get("dondurme"))
-        if kaynak:
-            anahtar, d = kaynak_al(kaynak)
-            sayfa = _sayfa_no(t.get("sayfa"), d.page_count)
-            ogeler.append({"kaynak": anahtar, "sayfa": sayfa, "dondurme": dondurme})
-        else:
-            ogeler.append({"kaynak": None, "sayfa": None, "dondurme": dondurme,
-                           "genislik": t.get("genislik"), "yukseklik": t.get("yukseklik")})
-
-    ana_anahtar = os.path.normcase(yol)
-    if ana_anahtar not in kaynaklar and os.path.isfile(yol):
-        kaynak_al(yol)
-    ana = kaynaklar.get(ana_anahtar)
-    ana_toc = ana.get_toc(simple=False) if ana else []
-
-    yeni = pymupdf.open()
-    esleme = {}     # ana belgenin eski sayfa no → yeni sayfa no (ilk eşleşen)
+    yeni = None
     try:
+        # Tarifi doğrula ve normalize et
+        ogeler = []
+        for i, t in enumerate(tarif):
+            if not isinstance(t, dict):
+                raise ValueError("Tarif öğesi %d geçersiz." % (i + 1))
+            kaynak = t.get("kaynak")
+            dondurme = _dondurme(t.get("dondurme"))
+            if kaynak:
+                anahtar, d = kaynak_al(kaynak)
+                sayfa = _sayfa_no(t.get("sayfa"), d.page_count)
+                ogeler.append({"kaynak": anahtar, "sayfa": sayfa, "dondurme": dondurme})
+            else:
+                ogeler.append({"kaynak": None, "sayfa": None, "dondurme": dondurme,
+                               "genislik": t.get("genislik"), "yukseklik": t.get("yukseklik")})
+
+        ana_anahtar = os.path.normcase(yol)
+        if ana_anahtar not in kaynaklar and os.path.isfile(yol):
+            kaynak_al(yol)
+        ana = kaynaklar.get(ana_anahtar)
+        ana_toc = ana.get_toc(simple=False) if ana else []
+
+        yeni = pymupdf.open()
+        esleme = {}     # ana belgenin eski sayfa no → yeni sayfa no (ilk eşleşen)
         gruplar = _ardisik_gruplar([(o["kaynak"], o["sayfa"]) for o in ogeler])
         toplam = len(gruplar)
         for gi, (kaynak, bas, son, idxler) in enumerate(gruplar):
@@ -607,14 +608,16 @@ def y_sayfalar_uygula(p):
             _meta_kopyala(ana, yeni)
             _yerimi_yaz(yeni, _yerimi_esle(ana_toc, esleme))
         ilerleme(85, "Kaydediliyor…")
-        # Hedef, kaynaklardan biri olabilir: yazmadan önce aynı dosyaya işaret eden her girdiyi bırak
-        # (insert_pdf nesneleri kopyaladığından kaynak belgelerin kapanması sonucu etkilemez)
+        # Hedef, kaynaklardan biri olabilir: yazmadan önce aynı dosyaya işaret eden her girdiyi bırak, bu işin açtığı kaynaklar da
+        # hedef yerine konmadan önce kapatılır (insert_pdf nesneleri kopyaladığından kaynak belgelerin kapanması sonucu etkilemez)
         if os.path.exists(hedef):
             _onbellekten_birak(hedef)
         sayfa = yeni.page_count
-        boyut = _kaydet(yeni, hedef, **YAPISAL_KAYIT)
+        boyut = _kaydet(yeni, hedef, once_kapat=list(kaynaklar.values()), **YAPISAL_KAYIT)
     finally:
         _kapat(yeni)
+        for d in kaynaklar.values():
+            _kapat(d)
     return {"boyut": boyut, "sayfa": sayfa}
 
 

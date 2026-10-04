@@ -682,6 +682,24 @@ def test_sayfalar_yeni_belge(c):
     except Exception as e:
         kaydet_sonuc("sayfalar_uygula/kilitli hedef", "okumaya açık kilit", "başka bir programda açık" in str(e) and md5(kilitli_hedef) == once_hedef,
                      str(e).splitlines()[0])
+    # 0.2.1: 9 ve daha çok ayrı kaynak PDF (önbellek 8 belge tutar; 9. kaynak bu işin ilk kaynağını kapatıyor, "document closed")
+    kaynaklar = []
+    for i in range(10):
+        y = os.path.join(klasor, "kaynak %d.pdf" % (i + 1))
+        d = pymupdf.open()
+        d.new_page(width=595, height=842).insert_text((72, 72), "Kaynak %d" % (i + 1), fontsize=14)
+        d.save(y)
+        d.close()
+        kaynaklar.append(y)
+    dokuz = os.path.join(klasor, "on kaynak.pdf")
+    try:
+        r, _ = c.cagir("sayfalar_uygula", {"yol": kaynaklar[0], "hedef": dokuz, "tarif": [{"kaynak": y, "sayfa": 1} for y in kaynaklar]})
+        d = pymupdf.open(dokuz)
+        metin = [d[i].get_text().strip() for i in range(d.page_count)]
+        d.close()
+        kaydet_sonuc("sayfalar_uygula/10 kaynak", "10 ayrı PDF", r["sayfa"] == 10 and metin == ["Kaynak %d" % (i + 1) for i in range(10)], metin)
+    except Exception as e:
+        kaydet_sonuc("sayfalar_uygula/10 kaynak", "10 ayrı PDF", False, str(e).splitlines()[0])
 
 
 def test_gorsel_orijinal_kenarsiz(c):
