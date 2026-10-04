@@ -906,6 +906,7 @@ async function kayitYaz(b, farkli, sessiz, oneAl = false) {
   durum.mesajYaz(sessiz ? 'Otomatik kaydedildi' : 'Kaydedildi' + (r.artimli ? '' : ' (tam yazım)'));
   cekirdek('belge_birak', { yol: b.yol }).catch(() => {});
   panel.yorumlariYenile();
+  if (islemler.length) panel.kucukResimleriYenile(b.id);   // Sayfalar'ın küçük resimleri kaydedilen notları göstersin (0.2.1)
   return true;
 }
 

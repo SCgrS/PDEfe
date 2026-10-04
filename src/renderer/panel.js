@@ -81,6 +81,16 @@ export class SolPanel extends EventTarget {
     this._sayfalarBelge = null; this._sayfalarHazir = null;
   }
 
+  /** Belgenin notları kaydedildi (0.2.1): küçük resimler diskteki hâlden notlarıyla çizilir, önbellek anahtarı (yol, sayfa, diskteki
+   *  döndürme) not kaydıyla değişmez; silinen not resimde kalıyor, yeni not görünmüyordu. Belgenin önbelleği boşaltılır; Sayfalar alanı
+   *  o belgeyi gösteriyorsa resimler yerinde yenilenir: alan baştan kurulmaz (kaydırma yeri ve eski resim yenisi gelene dek kalır),
+   *  görünenler hemen, ötekiler göründükçe yeniden istenir (gözlemci). */
+  kucukResimleriYenile(belgeId) {
+    this.kucukResimler.get(belgeId)?.clear();   // gözlemcinin geri çağrısı aynı önbelleği tutar: silinmez, boşaltılır
+    if (this._sayfalarBelge !== belgeId || !this._gozlemci) return;
+    for (const el of this.alanlar.sayfalar.querySelectorAll('.kucuk-resim')) this._gozlemci.observe(el);
+  }
+
   yenile() {
     if (!this.acik) return;
     if (!this.belge) { for (const el of Object.values(this.alanlar)) el.innerHTML = '<p class="soluk">Açık belge yok.</p>'; return; }
@@ -150,7 +160,9 @@ export class SolPanel extends EventTarget {
       // Resmin ekranda ayrıca döndürüleceği açı: ekrandaki yön (göreli + görünüm döndürmesi) eksi diske işlenmiş olan
       const d = aciyaIndir((s.dondurme || 0) + (b.gorunum.gorunumDondurme || 0) - disk);
       const oran = img.naturalHeight / img.naturalWidth;
-      if (!d) { img.style.width = genislik + 'px'; el.querySelector('.bos')?.replaceWith(img); return; }
+      // Yerine konan: yer tutucu ya da (kayıttan sonra yenilenirken, kucukResimleriYenile) önceki resim
+      const eski = () => el.querySelector(':scope > .bos, :scope > img, :scope > .donuk');
+      if (!d) { img.style.width = genislik + 'px'; eski()?.replaceWith(img); return; }
       // Döndürülen resim, ekrandaki (döndürülmüş) boyutta ve panel genişliğindeki kutunun ortasında döner; 90/270'te resmin
       // yüksekliği ekranda genişlik, genişliği yükseklik olur
       const yan = d % 180 !== 0;
@@ -161,7 +173,7 @@ export class SolPanel extends EventTarget {
       if (yan) { img.style.height = genislik + 'px'; img.style.width = Math.round(genislik / oran) + 'px'; } else img.style.width = genislik + 'px';
       img.style.transform = `rotate(${d}deg)`;
       sarmal.append(img);
-      el.querySelector('.bos')?.replaceWith(sarmal);
+      eski()?.replaceWith(sarmal);
     } catch (e) { console.warn('Küçük resim alınamadı', no, e.message); }
   }
 

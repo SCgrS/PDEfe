@@ -7,6 +7,8 @@
 //      "Başka ad seç" kaydetme penceresini yeniden açar ve seçilen yeni ada kaydedilir. Belgenin kendi dosyasına Farklı kaydet sorusuz.
 //   3) Arka plandaki belge Farklı kaydet'le yeni ada kaydedilince pencere başlığı öndeki belgenin kalır (sekmenin adı değişir); öndeki
 //      belge yeni ada kaydedilince başlık yeni ad olur; arka plandaki belgeye geçilince başlık onun yeni adı olur.
+//   4) Sayfalar panelinin küçük resimleri not kaydından sonra diskteki hâli gösterir (silinen vurgu kalkar, eklenen not görünür); resimler
+//      yerinde yenilenir (panel baştan kurulmaz).
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9621      → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9621; node test\surucu.mjs betik test\kayit_sekme_panel.mjs
@@ -71,7 +73,7 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
   const mesajKutulari = async () => (await diyalogKaydi()).filter((d) => d.kanal === 'mesaj:kutu').map((d) => d.secenek);
   const hatalar = () => evalJs(`(() => { const h = window.__hatalar.slice(); window.__hatalar.length = 0; return h; })()`);
   const sekmeleriKapat = () => evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); await new Promise((r) => setTimeout(r, 300)); return p.belgeler.size; })()`);
-  const bolumler = (process.env.BOLUM || '1,2,3').split(',').map((s) => s.trim());
+  const bolumler = (process.env.BOLUM || '1,2,3,4').split(',').map((s) => s.trim());
   const bolum = (n) => bolumler.includes(String(n));
 
   // ------------------------------------------------------------ hazırlık
@@ -231,6 +233,51 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
     sonuc('Öndeki belge yeni ada kaydedilince başlık yeni ad', (await baslik()) === 'baslik-a-yeni.pdf — PDEfe', await baslik());
     const kutular = await mesajKutulari();
     sonuc('Soru açılmadı', !kutular.length, kutular.map((k) => k.mesaj));
+    await sekmeleriKapat();
+  }
+
+  // ------------------------------------------------------------ 4) Sayfalar panelinin küçük resimleri kayıttan sonra
+  if (bolum(4)) {
+    console.log('\n== 4) Sayfalar panelinin küçük resimleri kayıttan sonra');
+    const yol = uret('kucuk-resim.pdf', 3, 'Küçük resim', { notlu: true });
+    await ac(yol);
+    await evalJs(`(() => { const p = window.__pdefe; p.panel.acKapa(true); p.panel.sekmeSec('sayfalar'); return true; })()`);
+    /** 1. sayfanın küçük resmi: { src, isaret (öğe yeniden kurulmadıysa true), taze (çekirdekten şimdi alınanla aynı mı) } */
+    const resim = () => evalJs(`(async () => {
+      const alan = document.querySelector('#panel-sayfalar'), el = alan.querySelector('.kucuk-resim[data-sayfa="1"]');
+      const img = el?.querySelector('img'); if (!img) return null;
+      const g = parseFloat(img.style.width);   // panelin istediği genişlik (alan kurulurken; kaydırma çubuğu sonradan çıkmış olabilir)
+      const r = await window.pdefe.cagir('cekirdek:cagir', 'kucuk_resim', { yol: ${J(yol)}, sayfa: 1, genislik: g * Math.min(2, window.devicePixelRatio || 1) }, 0);
+      return { src: img.src, isaret: el.__isaret === 1, taze: img.src === 'data:image/png;base64,' + r.png };
+    })()`);
+    await kosul(`!!document.querySelector('#panel-sayfalar .kucuk-resim[data-sayfa="1"] img')`);
+    const r0 = await resim();
+    sonuc('Küçük resim yüklendi, kayıtlı vurguyu gösteriyor (diskteki hâl)', r0?.taze === true, r0 && { taze: r0.taze });
+    await evalJs(`(() => { document.querySelector('#panel-sayfalar .kucuk-resim[data-sayfa="1"]').__isaret = 1; return true; })()`);
+    const kayit = await belgeIslemi('kucuk-resim.pdf', `const n = b.notlar.liste().find((x) => x.tur === 'Highlight'); if (!n) return 'vurgu yok'; b.notlar.sil(n);
+      return await p.belgeKaydet(b);`);
+    sonuc('Vurgu silinip kaydedildi', kayit === true && !ozet(yol).notlar.some((n) => n.tur === 'Highlight'), kayit);
+    await kosul(`(() => { const img = document.querySelector('#panel-sayfalar .kucuk-resim[data-sayfa="1"] img'); return !!img && img.src !== ${J(r0?.src || '')}; })()`, 5000);
+    const r1 = await resim();
+    sonuc('Küçük resim yenilendi (silinen vurgu kalktı)', r1 && r1.src !== r0?.src && r1.taze === true, r1 && { degisti: r1.src !== r0?.src, taze: r1.taze });
+    sonuc('Panel baştan kurulmadı (öğe yerinde)', r1?.isaret === true);
+    // Yeni not eklenip kaydedilince de görünür
+    await notEkle('kucuk-resim.pdf', 'küçük resim notu');
+    await belgeIslemi('kucuk-resim.pdf', `return await p.belgeKaydet(b);`);
+    await kosul(`(() => { const img = document.querySelector('#panel-sayfalar .kucuk-resim[data-sayfa="1"] img'); return !!img && img.src !== ${J(r1?.src || '')}; })()`, 5000);
+    const r2 = await resim();
+    sonuc('Eklenen not kayıttan sonra küçük resimde', r2 && r2.src !== r1?.src && r2.taze === true, r2 && { degisti: r2.src !== r1?.src, taze: r2.taze });
+    // Panel Yorumlar'dayken kaydedilince Sayfalar'a dönülünce yenilenir
+    await evalJs(`(() => { window.__pdefe.panel.sekmeSec('yorumlar'); return true; })()`);
+    await belgeIslemi('kucuk-resim.pdf', `const n = b.notlar.liste().find((x) => x.icerik === 'küçük resim notu'); b.notlar.sil(n); return await p.belgeKaydet(b);`);
+    await bekle(500);
+    await evalJs(`(() => { window.__pdefe.panel.sekmeSec('sayfalar'); return true; })()`);
+    await kosul(`(() => { const img = document.querySelector('#panel-sayfalar .kucuk-resim[data-sayfa="1"] img'); return !!img && img.src !== ${J(r2?.src || '')}; })()`, 5000);
+    const r3 = await resim();
+    sonuc('Yorumlar\'dayken kaydedilen değişiklik Sayfalar\'a dönünce küçük resimde', r3 && r3.src !== r2?.src && r3.taze === true, r3 && { degisti: r3.src !== r2?.src, taze: r3.taze });
+    const h = await hatalar();
+    sonuc('Konsolda hata yok', !h.length, h);
+    await evalJs(`(() => { window.__pdefe.panel.acKapa(false); return true; })()`);
     await sekmeleriKapat();
   }
 
