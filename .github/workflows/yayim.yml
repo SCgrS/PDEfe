@@ -434,7 +434,7 @@ jobs:
             echo ""
             echo "**Windows 10/11**, 64 bit. Yönetici hakkı gerekmez; kurulum sihirbazı Türkçedir. Kod imzalama sertifikası yok: Windows SmartScreen uyarı gösterirse **Daha fazla bilgi → Yine de çalıştır** deyin. Kurulu PDEfe yeni sürümü kendisi bulur ve tek tıkla günceller."
             echo ""
-            echo "**macOS 13 Ventura ve sonrası**, Apple işlemcili (M1 ve sonrası) ve Intel Mac'ler (tek dosya ikisinde de çalışır). DMG'yi açıp PDEfe'yi Uygulamalar klasörüne sürükleyin. Apple geliştirici imzası yok: ilk açılışta macOS uyarı verirse Sistem Ayarları › Gizlilik ve Güvenlik › **Yine de Aç** deyin (bir kez). Yeni sürüm çıkınca PDEfe haber verir; **İndir** yeni DMG'yi indirir, PDEfe'yi yine Uygulamalar'a sürüklersiniz."
+            echo "**macOS 13 Ventura ve sonrası**, Apple işlemcili (M1 ve sonrası) ve Intel Mac'ler (tek dosya ikisinde de çalışır). DMG'yi açıp PDEfe'yi Uygulamalar klasörüne sürükleyin. Apple geliştirici imzası yok: ilk açılışta macOS uyarı verirse Sistem Ayarları › Gizlilik ve Güvenlik › **Yine de Aç** deyin. Yeni sürüm çıkınca PDEfe haber verir; **İndir** yeni DMG'yi indirir, PDEfe'den çıkıp (⌘Q) PDEfe'yi yine Uygulamalar'a sürüklersiniz (**Değiştir**). Yeni sürümün ilk açılışında macOS bu onayı yeniden isteyebilir: aynı yerden **Yine de Aç**."
             echo ""
             echo "## Bu sürümde"
             echo ""

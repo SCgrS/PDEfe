@@ -110,7 +110,8 @@ nsis:
 # ayrı Mac'lerde derlenip core/dist/pdefe-core-arm64 ve -x64'e konur, ikisi de pakete girer; cekirdek.js process.arch'a göre seçer.
 # İki ara pakette aynı dosyalar olduğundan birleştirici (@electron/universal) onları lipo'lamaz, olduğu gibi alır (x64ArchFiles).
 # İmza: Apple geliştirici kimliği yok (kullanıcı kararı, 2026-10-02): yerinde (ad-hoc, "-") imzalanır. Apple işlemcili Mac imzasız kodu
-# hiç çalıştırmaz; yerinde imzalı uygulamayı ilk açılışta bir kez Sistem Ayarları › Gizlilik ve Güvenlik › "Yine de Aç" ile açar.
+# hiç çalıştırmaz; yerinde imzalı uygulamayı ilk açılışta Sistem Ayarları › Gizlilik ve Güvenlik › "Yine de Aç" ile açar. Bu izin o
+# kopyaya bağlıdır: tarayıcıdan inen (karantinalı) her yeni sürümün ilk açılışında yeniden istenebilir (0.2.1).
 # Sertleştirilmiş çalışma ortamı (hardenedRuntime) yerinde imzayla kitaplık doğrulamasına takılır (çekirdeğin kitaplıkları): kapalı.
 mac:
   target:
