@@ -88,6 +88,35 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare
   await fare([{ tur: 'hareket', x: listeOrtasi[0], y: listeOrtasi[1] }, { tur: 'tekerlek', x: listeOrtasi[0], y: listeOrtasi[1], deltaY: 120, bekle: 300 }]);
   o = await olc();
   denetle('son sekmede ▶ devre dışı; ▶ ve aşağı tekerlek son sekmede bırakır (ilk sekmeye dönmez)', d[0] === false && d[1] === true && o.sekmeler.at(-1).aktif, js(d));
+  // Bir tekerlek hareketi bir sekme (0.2.1): dokunmatik yüzey tek hareketi kare başına küçük adımlı olaylarla gönderir (sayfa olayıyla:
+  // CDP'nin tekerlek olayı çentik gibi wheelDeltaY -120 taşır). 150 ms'ten kısa aralıklı aynı yönlü olaylar bir harekettir; fare
+  // tekerleğinin çentiği (wheelDelta 120'nin katı, Windows) eskisi gibi çentik başına bir sekme. Süre olayın zamanından (timeStamp):
+  // olaylar önceden, aralarında [ara] ms bekleyerek oluşturulur, sonra gönderilir (sekme geçişinin meşgul ettiği ana iş parçacığı süreyi bozmasın)
+  const teker = (olaylar) => evalJs(`(async () => {
+    const c = document.querySelector('#sekme-liste'), hazir = [];
+    for (const [dy, ara, w = 0] of ${js(olaylar)}) {
+      hazir.push(new WheelEvent('wheel', { deltaY: dy, wheelDeltaY: w, bubbles: true, cancelable: true }));
+      const t0 = performance.now(); while (performance.now() - t0 < ara) { /* bekle */ }
+    }
+    for (const e of hazir) { c.dispatchEvent(e); await new Promise((r) => setTimeout(r, 5)); }
+    await new Promise((r) => setTimeout(r, 300));
+    const s = window.__pdefe.sekmeler; return s.sekmeler.findIndex((x) => x.id === s.aktifId);
+  })()`);
+  await tus('1', ['ctrl']); await bekle(300);
+  let t = await teker(Array.from({ length: 12 }, () => [4, 16]));
+  denetle('tekerlek: dokunmatik yüzeyin tek hareketi (16 ms arayla 12 küçük olay) bir sekme geçer', t === 1, 'etkin ' + t);
+  t = await teker([[0, 10], ...Array.from({ length: 8 }, () => [9, 16]), [3, 120], [2, 140], [1, 140], [0, 10]]);
+  denetle('tekerlek: eylemsizlikle süren hareket (arada 140 ms) bir sekme; deltası 0 olan baş / son olayı sayılmaz', t === 2, 'etkin ' + t);
+  t = await teker([[4, 200], [4, 200]]);
+  denetle('tekerlek: 150 ms\'ten uzun arayla iki hareket iki sekme', t === 4, 'etkin ' + t);
+  t = await teker([[-4, 16], [-4, 16], [-4, 16]]);
+  denetle('tekerlek: ters yöndeki hareket bir sekme geri', t === 3, 'etkin ' + t);
+  t = await teker([[100, 20, -120], [100, 20, -120], [100, 20, -120]]);
+  denetle('tekerlek: fare tekerleğinin hızlı üç çentiği üç sekme (Windows)', t === 6, 'etkin ' + t);
+  await fare([{ tur: 'hareket', x: listeOrtasi[0], y: listeOrtasi[1] }, { tur: 'tekerlek', x: listeOrtasi[0], y: listeOrtasi[1], deltaY: -100, bekle: 20 },
+    { tur: 'tekerlek', x: listeOrtasi[0], y: listeOrtasi[1], deltaY: -100, bekle: 300 }]);
+  t = await evalJs(`(() => { const s = window.__pdefe.sekmeler; return s.sekmeler.findIndex((x) => x.id === s.aktifId); })()`);
+  denetle('tekerlek: gerçek (CDP) tekerleğin hızlı iki çentiği iki sekme geri', t === 4, 'etkin ' + t);
 
   // Sürükleyerek sıralama (0.1.14'ten beri işaretçi olaylarıyla). Gerçek fare olayları CDP'den verilir (Input.dispatchMouseEvent; gerçek
   // fareye dokunulmaz). Sürükleme ortasında ölçülür: sekme imlecin altında, aradaki sekmeler bir sekme boyu kaymış, tarayıcının

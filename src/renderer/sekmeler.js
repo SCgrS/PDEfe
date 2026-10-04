@@ -2,6 +2,7 @@
 // surukleHazirla), tekerlekle geçiş, ◀ ▶ düğmeleri, + (yeni sekme; uygulama.js açılış sayfası sekmesi açar), "Açık belgeler" listesi ve
 // Ctrl+Tab son-kullanım sırasına göre sekme seçici.
 import { ortuTiklamasiBagla } from './ortu.js';
+import { MAC } from './platform.js';
 
 /** Sekmenin ipucu: sabit genişlikte kısalabilen tam ad ve dosyanın yolu. */
 const ipucu = (ad, yol) => (yol && yol !== ad ? `${ad}\n${yol}` : ad);
@@ -51,11 +52,26 @@ export class SekmeCubugu extends EventTarget {
     acilir.addEventListener('click', (e) => { e.stopPropagation(); this.belgeListesiAcKapa(); });
     cubuk.addEventListener('pointerleave', () => this.genislikKilidiniKaldir());   // kapatırken kilitlenen sekme genişliği (genislikKilitle)
 
-    // Sekme çubuğu üzerinde (sekmeler, boş kısım, düğmeler) fare tekerleği: sekme değiştir (sekme sürüklenirken değil)
+    // Sekme çubuğu üzerinde (sekmeler, boş kısım, düğmeler) fare tekerleği: sekme değiştir (sekme sürüklenirken değil). Bir tekerlek
+    // hareketi bir sekme geçer (0.2.1): dokunmatik yüzey (macOS'ta ve Windows'un hassas dokunmatik yüzeyinde) tek hareketi ve ardından
+    // gelen eylemsizliği kare başına küçük adımlı ayrı olaylarla gönderir; her olay bir sekme geçince tek hareket çubuğun ucuna atlatıyordu.
+    // Arasında 150 ms'den uzun boşluk olmayan aynı yönlü olaylar bir harekettir (görüntüleyicideki tekerlekleCevir gibi). Süre olayın
+    // kendi zamanından (timeStamp: girdinin geldiği an): sekme geçişi ana iş parçacığını meşgul edince bekleyen olaylar topluca işlenir,
+    // işleme anına bakılsaydı aynı hareket ikinci kez sekme geçerdi. Piksel eşiği yok: Mac'te yavaş çevrilen fare tekerleğinin bir
+    // çentiği ~4 px gelir. Windows'ta fare tekerleğinin çentiği (wheelDelta 120'nin katı) eskisi gibi çentik başına bir sekme geçer;
+    // Mac'te bu ölçüt kullanılmaz (dokunmatik yüzeyin olayı da 120'nin katı olabilir).
     cubuk.addEventListener('wheel', (e) => {
       if (!this.sekmeler.length) return;
       e.preventDefault();
-      if (!this.surukleme?.basladi) this.kaydir(e.deltaY > 0 || e.deltaX > 0 ? 1 : -1);
+      const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (!d) return;   // dokunmatik yüzeyin hareket başı / sonu olayı (Mac'te deltası 0)
+      const yon = d > 0 ? 1 : -1, simdi = e.timeStamp || performance.now();
+      const w = Math.abs(e.wheelDeltaX || 0) > Math.abs(e.wheelDeltaY || 0) ? e.wheelDeltaX : e.wheelDeltaY;
+      const centik = !MAC && (e.deltaMode !== 0 || (!!w && w % 120 === 0));
+      const t = this._tekerlek || (this._tekerlek = { son: -Infinity, yon: 0 });
+      const yeni = centik || simdi - t.son > 150 || yon !== t.yon;
+      t.son = simdi; t.yon = yon;
+      if (yeni && !this.surukleme?.basladi) this.kaydir(yon);
     }, { passive: false });
 
     // Dışarıda herhangi bir tuşla basış listeyi kapatır (Araçlar penceresi gibi yakalama evresinde: basışı işleyip mousedown'ı
