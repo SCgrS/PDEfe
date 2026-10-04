@@ -1790,8 +1790,10 @@ document.addEventListener('copy', (e) => {
       // Kaynak istek anında okunur (kayıt kaynakYeniden ile anlık kopyaya çevirmiş olabilir)
       sonuclar.push(await cekirdek('metin_sec', { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa, kutular }));
     }
-    // Sayfa geçişinde boş paragraf varsa (bölüm arası sayfa sonuna denk gelmiş) araya boş satır
-    const cekirdekMetin = temizMetin(sayfaMetinleriniBirlestir(sonuclar));
+    // Sayfa geçişinde boş paragraf varsa (bölüm arası sayfa sonuna denk gelmiş) araya boş satır. İlk satırın sayfada dolu olup olmadığını
+    // çekirdek söyler (satırın ortasından başlayan seçimde paragraf bölünmesin, 0.2.1)
+    const ilkDolu = !!sonuclar.find((r) => r?.metin?.trim())?.ilk_dolu;
+    const cekirdekMetin = temizMetin(sayfaMetinleriniBirlestir(sonuclar), { ilkDolu });
     // Çekirdek sürümü anlamlı biçimde farklı ve boş değilse panoyu güncelle. Yalnızca pano hâlâ bu kopyalamanın metnini taşıyorsa
     // (0.1.23, güvenlik denetimi): bu arada başka bir yerde kopyalanan metnin yerine belge metni geçmesin, yanlış yere yapıştırılmasın
     if (cekirdekMetin && cekirdekMetin.length >= metin.length * 0.5 && cekirdekMetin.length <= metin.length * 1.5 + 40) await pdefe.cagir('pano:metin', cekirdekMetin, { yalnizcaPanodaysa: metin });

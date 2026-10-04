@@ -393,7 +393,9 @@ def y_metin_sec(p):
     Boş satır (bkz. BOS_SATIR): alt alta iki satırın arasına bir satır sığıyorsa ya da arada boş paragraf varsa paragraf arası iki boş
     satırla belirtilir; temizMetin oraya boş paragraf koyar. Seçimin bu sayfadaki ilk satırının hemen üstünde ya da son satırının
     hemen altında boş paragraf varsa bas_bosluk / son_bosluk true döner: renderer sayfaların metnini birleştirirken sayfa geçişine
-    boş satır koyar. 0.1.10'a dek boş satırlar kayboluyordu: kanunda bölüm başlığından önceki boşluk UDF'ye yapıştırınca yoktu."""
+    boş satır koyar. 0.1.10'a dek boş satırlar kayboluyordu: kanunda bölüm başlığından önceki boşluk UDF'ye yapıştırınca yoktu.
+    ilk_dolu: seçimin bu sayfadaki ilk satırı, sayfadaki tam hâliyle sütunun sağına yakın bitiyor (satır başına blok kuralındaki %80).
+    Seçim satırın ortasından başlayınca temizMetin seçilen parçayı kısa satır sayıp noktalamadan sonra paragrafı bölüyordu (0.2.1)."""
     doc = onbellek.al(p["yol"])
     pg = doc[int(p["sayfa"]) - 1]
     kutular = [pymupdf.Rect(*k) for k in p["kutular"]]
@@ -418,7 +420,7 @@ def y_metin_sec(p):
         kutular = [k * donusum for k in kutular]
     secili = [w for w in tum if secimde(w)]
     if not secili:
-        return {"metin": "", "bas_bosluk": False, "son_bosluk": False}
+        return {"metin": "", "bas_bosluk": False, "son_bosluk": False, "ilk_dolu": False}
     sayfa_satirlari = _satir_gruplari(tum)
     tum_satirlar = list(sayfa_satirlari.values())
     blok_satir_sayisi, blok_sol = {}, {}
@@ -501,8 +503,10 @@ def y_metin_sec(p):
         kenar = sutun(anahtar)[0] if tek_satirli(blok) else min(blok_sol.get(blok, sayfa_sol), sayfa_sol + 40)
         cikti.append(("    " if ws[0][0] - kenar > 8 else "") + " ".join(x[4] for x in ws))
         onceki = anahtar
-    return {"metin": "\n".join(cikti), "bas_bosluk": bitisik_bos_paragraf(sirali[0][0], False),
-            "son_bosluk": bitisik_bos_paragraf(sirali[-1][0], True)}
+    ilk = sirali[0][0]
+    sol, sag = sutun(ilk)
+    return {"metin": "\n".join(cikti), "bas_bosluk": bitisik_bos_paragraf(ilk, False),
+            "son_bosluk": bitisik_bos_paragraf(sirali[-1][0], True), "ilk_dolu": sayfa_satirlari[ilk]["x1"] >= sol + 0.8 * (sag - sol)}
 
 
 def y_sayfa_metni(p):

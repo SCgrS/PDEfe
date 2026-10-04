@@ -4,8 +4,10 @@ son metin. Her satırı ayrı PyMuPDF bloğu olan belgeler (mevzuat PDF'leri gib
 insert_text ayrı blok verir. 0.1.9'a dek bu belgelerde her satır ayrı paragraf çıkıyor, UDF'ye yapıştırınca girintili paragrafta
 satırlar dağılıyordu. 0.1.10'a dek belgedeki boş satırlar (kanunda bölüm başlığından önceki boşluk) kayboluyordu: boş satır boş
 paragraf olarak gelmeli, paragraf aralığı ve çift satır aralığı boş satır sayılmamalı, sayfa geçişindeki boş paragraf da gelmeli.
-Kullanıcının belgesi (Masaüstü\\PDF DENEME\\1.5.6098.pdf) ve test\\pdf\\mevzuat_4721_TMK.pdf varsa onlardaki seçimler de sınanır.
-Çalıştırma: .venv\\Scripts\\python.exe test\\kopyalama_testi.py
+Kullanıcının belgesi (Masaüstü\\PDF DENEME\\1.5.6098.pdf) ve test\\pdf'teki kanun / makale PDF'leri varsa onlardaki seçimler de sınanır.
+0.2.1: satırın ortasından başlayan seçimde noktalamayla biten dolu ilk satır paragrafı bölmüyor (çekirdeğin ilk_dolu'su), "HMK’ya" gibi
+kesme işaretli kısaltmayla başlayan satır başlık sayılmıyor.
+Çalıştırma: .venv\\Scripts\\python.exe test\\kopyalama_testi.py   (PDF'lerin klasörü: KOPYALAMA_KLASORU, yoksa test\\cikti\\kopyalama)
 """
 import os
 import sys
@@ -19,10 +21,12 @@ sys.stdout.reconfigure(encoding="utf-8")
 import pymupdf  # noqa: E402
 import pdefe_core  # noqa: E402
 
-CIKTI = os.path.join(KOK, "test", "cikti", "kopyalama")
+CIKTI = os.environ.get("KOPYALAMA_KLASORU") or os.path.join(KOK, "test", "cikti", "kopyalama")
 FONT = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "times.ttf")
 MASAUSTU_BELGE = os.path.join(os.path.expanduser("~"), "Desktop", "PDF DENEME", "1.5.6098.pdf")
 TMK_BELGE = os.path.join(KOK, "test", "pdf", "mevzuat_4721_TMK.pdf")
+TTK_BELGE = os.path.join(KOK, "test", "pdf", "mevzuat_6102_TTK.pdf")
+MAKALE_BELGE = os.path.join(KOK, "test", "pdf", "dergipark_5104529_zamanasimi.pdf")
 ARALIK = 18.24          # satır aralığı (mevzuat PDF'indeki gibi)
 SOL, GIRINTI = 70.94, 106.34
 
@@ -38,11 +42,13 @@ def sonuc(ad, ok, ayrinti=""):
 
 def temiz(hamlar):
     """temizMetin'i (src/renderer/metin.js) Node'da uygular; hamlar: metin listesi. Öğe metin değil sayfa sayfa metin_sec
-    sonuçlarıysa (liste) önce renderer gibi sayfaMetinleriniBirlestir ile birleştirilir."""
+    sonuçlarıysa (liste) uygulama.js'in kopyalama olayı gibi sayfaMetinleriniBirlestir ile birleştirilir ve ilk sonucun ilk_dolu'su
+    verilir; {"ham", "secenek"} sözlüğüyse temizMetin(ham, secenek)."""
     betik = ("globalThis.document = { addEventListener() {} };"
              "const girdi = JSON.parse(require('fs').readFileSync(0, 'utf8'));"
              "import('file:///' + process.argv[1].replace(/\\\\/g, '/')).then((m) => process.stdout.write(JSON.stringify("
-             "girdi.map((h) => m.temizMetin(Array.isArray(h) ? m.sayfaMetinleriniBirlestir(h) : h)))));")
+             "girdi.map((h) => Array.isArray(h) ? m.temizMetin(m.sayfaMetinleriniBirlestir(h), { ilkDolu: !!h.find((r) => r?.metin?.trim())?.ilk_dolu })"
+             " : typeof h === 'object' ? m.temizMetin(h.ham, h.secenek) : m.temizMetin(h)))));")
     yol = os.path.join(KOK, "src", "renderer", "metin.js")
     r = subprocess.run(["node", "-e", betik, yol], input=json.dumps(hamlar), capture_output=True, text=True, encoding="utf-8")
     if r.returncode:
@@ -73,8 +79,8 @@ def satir_basina_blok(ad, satirlar, altlik=None, aralik=ARALIK, sonraki_sayfa=No
 
 
 def secim(yol, sayfa, bas, son):
-    """secim_sonucu'nun metni."""
-    return secim_sonucu(yol, sayfa, bas, son)["metin"]
+    """Tek sayfalık seçim, temiz() için sonuç listesi olarak (renderer gibi ilk_dolu'suyla)."""
+    return [secim_sonucu(yol, sayfa, bas, son)]
 
 
 def secim_sonucu(yol, sayfa, bas, son):
@@ -103,7 +109,7 @@ def secim_sonucu(yol, sayfa, bas, son):
 def tum_sayfa(yol, sayfa=1):
     pg = pymupdf.open(yol)[sayfa - 1]
     kutular = [[s["x0"] - 1, s["y0"] - 0.5, s["x1"] + 1, s["y1"] + 0.5] for s in pdefe_core._satir_gruplari(pg.get_text("words")).values()]
-    return pdefe_core.y_metin_sec({"yol": yol, "sayfa": sayfa, "kutular": kutular})["metin"]
+    return [pdefe_core.y_metin_sec({"yol": yol, "sayfa": sayfa, "kutular": kutular})]
 
 
 def main():
@@ -281,6 +287,40 @@ def main():
         ]))
     else:
         print("ATLANDI mevzuat_4721_TMK.pdf (test\\pdf'te yok)")
+
+    # 18–23) Satırın ortasından başlayan seçim (0.2.1): seçilen parça kısa görünür; ilk satır sayfada dolu ve noktalamayla bitiyorsa
+    # paragraf bölünmez (çekirdeğin ilk_dolu'su). Satır kısaysa (paragrafın son satırı) bölünür. Senaryo15 aynı PDF'i kullanır
+    yol = satir_basina_blok("ortadan-dolu-satir", [
+        (GIRINTI, "Ticaret sicili, Bakanlığın gözetim ve denetiminde ticaret sicili müdürlükleri tarafından"),
+        (SOL, "tutulur ve her ilde bu amaçla gereken düzenlemeler yapılarak sicil müdürlükleri kurulur."),
+        (SOL, "Bakanlık il merkezleri dışındaki odalarda da ticaret sicili müdürlükleri kurabileceği gibi"),
+        (SOL, "müdürlüklere bağlı şubeler de kurabilir."),
+    ])
+    vakalar.append(("ortadan seçim: dolu ilk satır noktayla bitiyor", secim(yol, 1, "sicil", "gibi"), [
+        "sicil müdürlükleri kurulur. Bakanlık il merkezleri dışındaki odalarda da ticaret sicili müdürlükleri kurabileceği gibi",
+    ]))
+    vakalar.append(("ortadan seçim: kısa ilk satır noktayla bitiyor (bölünür)", {"ham": "    şubeler de kurabilir.\nTicaret sicili kayıtlarının elektronik ortamda tutulmasına ilişkin usul ve esaslar", "secenek": {"ilkDolu": False}}, [
+        "şubeler de kurabilir.", "Ticaret sicili kayıtlarının elektronik ortamda tutulmasına ilişkin usul ve esaslar",
+    ]))
+    # Büyük harfle başlayan satır başlık sayılır (kaynakça girdileri ayrı kalır); kesme işaretli kısaltma ("HMK’ya") sayılmaz
+    vakalar.append(("kesme işaretli kısaltmayla başlayan satır başlık değil", "Bu sebeple davalı dava dilekçesinde zamanaşımı def’ini bildirmek zorundadır.\nHMK’ya göre basit yargılama usulünde iddianın genişletilmesi yasağı dava dilekçesiyle başlar.", [
+        "Bu sebeple davalı dava dilekçesinde zamanaşımı def’ini bildirmek zorundadır. HMK’ya göre basit yargılama usulünde iddianın genişletilmesi yasağı dava dilekçesiyle başlar.",
+    ]))
+    vakalar.append(("kaynakça girdileri ayrı kalır", "ARAL, Fikret: Borçlar Hukuku Özel Borç İlişkileri, Gözden Geçirilmiş Baskı, Ankara 2019.\nTEKİNALP, Ünal: Banka Hukuku, İstanbul 2018.", [
+        "ARAL, Fikret: Borçlar Hukuku Özel Borç İlişkileri, Gözden Geçirilmiş Baskı, Ankara 2019.", "TEKİNALP, Ünal: Banka Hukuku, İstanbul 2018.",
+    ]))
+    if os.path.exists(TTK_BELGE):
+        vakalar.append(("mevzuat_6102_TTK.pdf s.8: ortadan seçim, dolu satır", secim(TTK_BELGE, 8, "sicili", "gibi"), [
+            "sicili müdürlükleri kurulur. Bakanlık il merkezleri dışındaki odalarda ticaret sicili müdürlükleri kurabileceği gibi",
+        ]))
+    else:
+        print("ATLANDI mevzuat_6102_TTK.pdf (test\\pdf'te yok)")
+    if os.path.exists(MAKALE_BELGE):
+        vakalar.append(("dergipark_5104529_zamanasimi.pdf s.30: HMK’ya ile başlayan satır", secim(MAKALE_BELGE, 30, "beple", "iddianın"), [
+            "beple dava dilekçesinde zamanaşımı def’ini bildirmek zorundadır. HMK’ya göre HMK m. 141’e göre basit yargılama usulünde, iddianın",
+        ]))
+    else:
+        print("ATLANDI dergipark_5104529_zamanasimi.pdf (test\\pdf'te yok)")
 
     temizler = temiz([ham for _, ham, _ in vakalar])
     for (ad, ham, beklenen), metin in zip(vakalar, temizler):

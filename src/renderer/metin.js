@@ -37,8 +37,10 @@ const BASLIK = /^(MADDE\s+\d+|GEÇİCİ MADDE|BİRİNCİ|İKİNCİ|ÜÇÜNCÜ|D�
  * editörü her satır sonunu paragraf yapar, çift satır sonu araya boş paragraf bırakıyordu. Hamda art arda
  * iki (ya da daha çok) boş satır belgedeki boş satırdır (çekirdeğin metin_sec'i koyar): iki paragrafın arasına
  * bir boş paragraf girer (kanunda bölüm başlığından önceki boşluk). Yalnızca boşluktan oluşan satır sayılmaz.
+ * ilkDolu (çekirdeğin metin_sec'i söyler: ilk_dolu): ilk satır sayfada dolu. Seçim satırın ortasından başlayınca seçilen parça kısa
+ * görünür; dolu satır kısa sayılmaz (0.2.1: "… kurulur." ile biten dolu satırın son sözcüklerinden seçince paragraf ikiye bölünüyordu).
  */
-export function temizMetin(ham) {
+export function temizMetin(ham, { ilkDolu = false } = {}) {
   if (!ham) return '';
   // Satır sonundaki yumuşak tire (U+00AD; dizgide bölünmüş sözcüğün görünen tiresi) sözcüğü boşluksuz birleştirir. glifDuzelt
   // yumuşak tireyi sildiğinden önce yapılır: sonra satırlar boşlukla birleşiyor, "insan- / lara" "insan lara" oluyordu
@@ -49,6 +51,7 @@ export function temizMetin(ham) {
   const hamSatirlar = s.split('\n');
   const satirlar = hamSatirlar.map((x) => ({ metin: x.replace(/ {2,}/g, ' ').trim(), girintili: /^ {2,}\S/.test(x) }));
   const enUzun = Math.max(1, ...satirlar.map((x) => x.metin.length));
+  const ilk = ilkDolu ? satirlar.findIndex((x) => x.metin) : -1;
   const paragraflar = [];
   let cur = '', bos = 0;   // bos: art arda boş satır sayısı
   const bitir = () => { if (cur.trim()) paragraflar.push(cur.trim()); cur = ''; };
@@ -64,9 +67,11 @@ export function temizMetin(ham) {
     else if (/[A-Za-zÇĞİÖŞÜçğıöşü]-$/.test(cur) && /^[a-zçğıöşü]/.test(satir)) cur = cur.slice(0, -1) + satir;  // tireyle bölünmüş kelime
     else cur += ' ' + satir;
     // Paragraf sonu kararı
-    const kisa = satir.length < enUzun * 0.6;
+    const kisa = i !== ilk && satir.length < enUzun * 0.6;
     const noktali = NOKTALAMA_SONU.test(satir);
-    const sonrakiBaslik = BASLIK.test(sonraki) || /^[A-ZÇĞİÖŞÜ]{3,}/.test(sonraki);
+    // Büyük harfle başlayan satır başlık ya da kaynakça girdisidir ("TEKİNALP, Ünal"); kesme işaretiyle küçük harfle süren kısaltma
+    // ("HMK’ya", "TBK'nın") cümle başıdır (0.2.1)
+    const sonrakiBaslik = BASLIK.test(sonraki) || /^[A-ZÇĞİÖŞÜ]{3,}(?![A-ZÇĞİÖŞÜ]|['’][a-zçğıöşü])/.test(sonraki);
     if (!sonraki) bitir();
     else if (sonrakiK.girintili) bitir();
     else if (noktali && (kisa || sonrakiBaslik)) bitir();
