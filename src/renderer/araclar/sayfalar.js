@@ -701,20 +701,30 @@ export class SayfalarPenceresi {
     let tarif;
     try { tarif = this._yeniBelgeTarifi(); } catch (e) { this.pencere.hataGoster(hataMetni(e)); return false; }
     const hedef = this.kayit.hedef();
+    // İptal yazdıktan sonra ulaşırsa yalnızca yeni oluşan dosya silinir; var olanın (onaylanmış) yerine yazılmışsa sonuç kalır (0.2.1, Birleştir'deki gibi)
+    const hedefVardi = await baglam.pdefe.cagir('dosya:varMi', hedef).catch(() => true);
+    if (this.pencere.kapali) return false;
     this.pencere.el.classList.add('mesgul');
     this.pencere.dugmeAyarla('kaydet', { devre: true });
     let kilit = null;
+    const soruAyrintisi = 'Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.';
     try {
       const sonuc = await this.ilerleme.calistir(baglam, 'sayfalar_uygula', { yol: belge.yol, hedef, tarif }, { baslangicMesaji: 'Kaydediliyor…' });
       this.ilerleme.gizle();
       await this.pencere.kapat('tamam');
       // Var olan (bir sekmede açık) dosyanın üzerine yazıldıysa o sekme yeni haliyle yeniden açılır, yoksa yeni sekmede açılır
-      await ciktiyiAc(baglam, hedef, { cikti: this.kayit.cikti, soruAyrintisi: 'Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.' });
+      await ciktiyiAc(baglam, hedef, { cikti: this.kayit.cikti, soruAyrintisi });
       baglam.bildir(`Sayfa düzeni yeni belgeye kaydedildi: ${dosyaAdi(hedef)} · ${sonuc?.sayfa ?? tarif.length} sayfa`, 4000);
     } catch (e) {
       this.ilerleme.gizle();
-      if (e.iptal) {
-        // İptal geç ulaştıysa dosya yazılmıştır: yarım iş bırakılmasın (çekirdek yazmadan önce iptal ederse dosya oluşmaz)
+      if (e.iptal && e.sonuc && hedefVardi) {
+        // İptal dosya yazıldıktan sonra ulaştı (çekirdek yazdıktan sonra iptale bakmaz): var olan dosyanın yerine yazılmıştır, önceki içeriği
+        // gitti (0.2.1'e dek sonuç da çöp kutusuna gönderiliyordu)
+        await this.pencere.kapat('tamam');
+        baglam.bildir(`İptal edilemeden tamamlandı: "${dosyaAdi(hedef)}" üzerine yazıldı.`, 6000);
+        await ciktiyiAc(baglam, hedef, { cikti: this.kayit.cikti, soruAyrintisi });
+      } else if (e.iptal) {
+        // İptal geç ulaştıysa yeni dosya yazılmıştır: yarım iş bırakılmasın (çekirdek yazmadan önce iptal ederse dosya oluşmaz)
         if (e.sonuc) { try { await baglam.pdefe.cagir('dosya:sil', hedef); } catch { /* yok say */ } }
         baglam.bildir('Kaydetme iptal edildi.');
       } else if (kilitliHataMi(e)) kilit = e;

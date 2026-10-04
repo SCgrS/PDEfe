@@ -205,12 +205,21 @@ export class KucultPenceresi {
       if (hedefOnce && !e.sonuc) simdi = await baglam.pdefe.cagir('dosya:bilgi', hedef).catch(() => null);
       const degismedi = !!simdi && simdi.var === hedefOnce.var && (!simdi.var || (simdi.degisim === hedefOnce.degisim && simdi.boyut === hedefOnce.boyut));
       if (e.iptal && simdi?.var && !degismedi) e.sonuc = { boyut: simdi.boyut };
+      // Yeni belgenin hedefi işlemden önce var mıydı ("zaten var" sorusunda Üzerine yaz ya da Değiştir'de var olan dosya onaylandı);
+      // bilinmiyorsa var sayılır: dosya silinmez
+      const hedefVardi = hedefOnce ? !!hedefOnce.var : true;
       if (e.iptal && uzerine && e.sonuc && !e.sonuc.yazilmadi) {
         // İptal geç ulaştı ve dosyanın üzerine yazıldı (yedek yok, geri alınamaz): sonucu göster
         await this.sonucGoster(hedef, e.sonuc.boyut ?? await dosyaBoyutu(baglam.pdefe, hedef), uzerine, false);
+      } else if (e.iptal && hedefVardi && e.sonuc && !e.sonuc.yazilmadi) {
+        // İptal geç ulaştı, onaylanmış var olan dosyanın yerine yazıldı (önceki içeriği gitti; 0.2.1'e dek sonuç da çöp kutusuna
+        // gönderiliyordu): sonuç kalır ve açılır, açık sekmesi yenilenir (Birleştir'deki gibi)
+        await this.pencere.kapat('tamam');
+        baglam.bildir(`İptal edilemeden tamamlandı: "${dosyaAdi(hedef)}" üzerine yazıldı.`, 6000);
+        await ciktiyiAc(baglam, hedef, { cikti: this.kayit.cikti, soruAyrintisi: 'Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.' });
       } else if (e.iptal) {
-        // İş yine de bittiyse (iptal geç ulaştı) ve yeni dosya oluştuysa çöp kutusuna gönder
-        if (!uzerine && e.sonuc) { try { await baglam.pdefe.cagir('dosya:sil', hedef); } catch { /* yok say */ } }
+        // İş yine de bittiyse (iptal geç ulaştı) ve işlemden önce olmayan yeni dosya oluştuysa çöp kutusuna gönder
+        if (!uzerine && !hedefVardi && e.sonuc) { try { await baglam.pdefe.cagir('dosya:sil', hedef); } catch { /* yok say */ } }
         baglam.bildir('Sıkıştırma iptal edildi.' + (uzerine ? ' Özgün dosya değiştirilmedi.' : ''));
       } else if (kilitliHataMi(e)) {
         yeniden = true;   // soru finally'den sonra (düğmeler yeniden etkin) sorulur
