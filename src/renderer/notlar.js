@@ -747,7 +747,9 @@ export class NotYoneticisi extends EventTarget {
   }
 
   pointerDown(e) {
-    if (e.button !== 0) return;
+    // macOS'ta Ctrl+tık sağ tıktır: Chromium onu sol tık (button 0, ctrlKey) olarak iletip ardından sağ tık menüsünü açar. Sol tık gibi
+    // işlenince not eklenip menü de açılıyor, vurgu çubuğu ya da sürükleme başlıyordu (0.2.1); Windows'taki sağ tık gibi yalnızca menü
+    if (e.button !== 0 || (MAC && e.ctrlKey)) return;
     if (e.target.closest('.yazi-duzenleyici, .yazi-bicim, .yazi-tutamac, .yazi-boyut, .not-balonu, #secim-cubugu')) return;
     const hedef = e.target.closest('[data-id]');
     const i = this.sayfaIdx(e.target);

@@ -97,6 +97,26 @@ export default async function ({ evalJs }) {
     sil.win.birlestirBackspace === 'işlenmedi' && J(sil.win.birlestirDelete) === J([[7]]) && J(sil.mac.birlestirDelete) === J([[7]]), sil);
   sonuc('Birleştir listesindeki girdi kutusunda ⌫ kutunun kendisinde kalır (satır çıkarılmaz)', sil.mac.birlestirGirdide === 'işlenmedi' && sil.win.birlestirGirdide === 'işlenmedi', sil);
 
+  // ---------------------------------------------------------------- Not katmanında Ctrl+tık (notlar.js pointerDown)
+  // macOS'ta Ctrl+tık sağ tıktır (Chromium button 0 + ctrlKey iletir, ardından sağ tık menüsü): sol tık gibi işlenmemeli. Windows'ta Ctrl+tık
+  // sol tıktır. İşlev, her erişimde hata veren bir nesneyle çağrılır: işlemeye girdiyse "işlendi"
+  const ctrlTik = await evalJs(`(async () => { ${ORTAM}
+    const sonuc = {};
+    for (const mac of [true, false]) {
+      const o = ortam(mac), { NotYoneticisi } = await o.yukle('notlar.js');
+      const vekil = new Proxy({}, { get: () => { throw new Error('işlendi'); } });
+      const dene = (ozellik) => { const hedef = o.belge.createElement('div'); o.belge.body.append(hedef);
+        try { NotYoneticisi.prototype.pointerDown.call(vekil, { button: 0, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, target: hedef, preventDefault() {}, ...ozellik }); return 'işlenmedi'; }
+        catch (h) { return h.message === 'işlendi' ? 'işlendi' : 'hata: ' + h.message; } finally { hedef.remove(); } };
+      sonuc[mac ? 'mac' : 'win'] = { ctrl: dene({ ctrlKey: true }), duz: dene({}), sag: dene({ button: 2 }), cmd: dene({ metaKey: true }) };
+    }
+    return sonuc;
+  })()`);
+  sonuc('Not katmanı (macOS): Ctrl+tık sol tık gibi işlenmez (sağ tık); düz tık ve ⌘+tık işlenir',
+    ctrlTik.mac.ctrl === 'işlenmedi' && ctrlTik.mac.duz === 'işlendi' && ctrlTik.mac.cmd === 'işlendi' && ctrlTik.mac.sag === 'işlenmedi', ctrlTik.mac);
+  sonuc('Not katmanı (Windows): Ctrl+tık eskisi gibi sol tık; sağ tık işlenmez',
+    ctrlTik.win.ctrl === 'işlendi' && ctrlTik.win.duz === 'işlendi' && ctrlTik.win.sag === 'işlenmedi', ctrlTik.win);
+
   await evalJs(`(() => { document.querySelector('#mac-cerceve')?.remove(); document.querySelector('#win-cerceve')?.remove(); return true; })()`);
   console.log(`\n${tamam} tamam, ${hata} hata`);
 }
