@@ -64,7 +64,10 @@ export function temizMetin(ham, { ilkDolu = false } = {}) {
     const sonraki = sonrakiK ? sonrakiK.metin : '';
     if (girintili && cur) bitir();                                     // girintili satır yeni paragraf
     if (!cur) cur = satir;
-    else if (/[A-Za-zÇĞİÖŞÜçğıöşü]-$/.test(cur) && /^[a-zçğıöşü]/.test(satir)) cur = cur.slice(0, -1) + satir;  // tireyle bölünmüş kelime
+    else if (/[A-Za-zÇĞİÖŞÜçğıöşüâîûÂÎÛ]-$/.test(cur) && /^[a-zçğıöşüâîû]/.test(satir)) cur = cur.slice(0, -1) + satir;  // tireyle bölünmüş kelime ("hâ- / kim" de)
+    // Rakamdan sonraki tire sayı / tarih aralığıdır ("1/2/2018- / 7078/157", "s. 501- / 503"): tire kalır, boşluk girmez (0.2.1).
+    // Büyük harfle süren satır belirsizdir, boşlukla birleşir: "MADDE 5- / Bu Kanun" doğru, "ZEVK- / LİLER" hecedir
+    else if (/\d-$/.test(cur) && /^\d/.test(satir)) cur += satir;
     else cur += ' ' + satir;
     // Paragraf sonu kararı
     const kisa = i !== ilk && satir.length < enUzun * 0.6;

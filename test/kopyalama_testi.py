@@ -6,7 +6,7 @@ satırlar dağılıyordu. 0.1.10'a dek belgedeki boş satırlar (kanunda bölüm
 paragraf olarak gelmeli, paragraf aralığı ve çift satır aralığı boş satır sayılmamalı, sayfa geçişindeki boş paragraf da gelmeli.
 Kullanıcının belgesi (Masaüstü\\PDF DENEME\\1.5.6098.pdf) ve test\\pdf'teki kanun / makale PDF'leri varsa onlardaki seçimler de sınanır.
 0.2.1: satırın ortasından başlayan seçimde noktalamayla biten dolu ilk satır paragrafı bölmüyor (çekirdeğin ilk_dolu'su), "HMK’ya" gibi
-kesme işaretli kısaltmayla başlayan satır başlık sayılmıyor.
+kesme işaretli kısaltmayla başlayan satır başlık sayılmıyor; satır sonu tiresi şapkalı harften sonra da birleşir, sayı aralığında kalır.
 Çalıştırma: .venv\\Scripts\\python.exe test\\kopyalama_testi.py   (PDF'lerin klasörü: KOPYALAMA_KLASORU, yoksa test\\cikti\\kopyalama)
 """
 import os
@@ -321,6 +321,19 @@ def main():
         ]))
     else:
         print("ATLANDI dergipark_5104529_zamanasimi.pdf (test\\pdf'te yok)")
+
+    # 24–26) Satır sonu tiresi (0.2.1): şapkalı harften sonra bölünmüş sözcük birleşir ("hâ- / kim"), sayı aralığında tire kalır ve
+    # boşluk girmez ("1/2/2018- / 7078/157")
+    vakalar.append(("satır sonu tiresi: şapkalı harften sonra hece", "Bu davada hâ-\nkim karar verdi ve kâ-\ntip tutanağı imzaladı.", [
+        "Bu davada hâkim karar verdi ve kâtip tutanağı imzaladı.",
+    ]))
+    vakalar.append(("satır sonu tiresi: sayı aralığı", "Aynen kabul: 1/2/2018-\n7078/157 md.) hükmü ve s. 501-\n503 arasındaki açıklamalar", [
+        "Aynen kabul: 1/2/2018-7078/157 md.) hükmü ve s. 501-503 arasındaki açıklamalar",
+    ]))
+    if os.path.exists(TTK_BELGE):
+        vakalar.append(("mevzuat_6102_TTK.pdf s.8: satır sonunda tarih-sayı aralığı", secim(TTK_BELGE, 8, "MADDE", "sanayi"), [
+            "MADDE 24- (1) (Değişik: 15/8/2017-KHK-694/162 md.; Aynen kabul: 1/2/2018-7078/157 md.) Gümrük ve Ticaret Bakanlığı tarafından il merkezindeki ticaret ve sanayi",
+        ]))
 
     temizler = temiz([ham for _, ham, _ in vakalar])
     for (ad, ham, beklenen), metin in zip(vakalar, temizler):
