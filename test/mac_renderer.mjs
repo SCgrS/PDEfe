@@ -55,6 +55,48 @@ export default async function ({ evalJs }) {
   sonuc('Son açılanlar (macOS): klasör satırı eğik bölüyle (/Volumes/Arsiv/Belgeler)', J(son.mac) === J(BEKLENEN), son.mac);
   sonuc('Son açılanlar (Windows): klasör satırı eskisi gibi (C:\\Belgeler\\Dosyalar, \\\\sunucu\\paylasim)', J(son.win) === J(BEKLENEN), son.win);
 
+  // ---------------------------------------------------------------- ⌫ (Backspace) seçilenleri / satırı çıkarır (macOS)
+  // Mac klavyesinin ⌫ tuşu 'Backspace' üretir ('Delete' ancak fn+⌫); F1 › Kısayollar Mac'te bu işi ⌫ ile gösteriyor. Windows'ta Backspace
+  // eskisi gibi bir şey yapmaz, Delete iki sistemde de çıkarır
+  const sil = await evalJs(`(async () => { ${ORTAM}
+    const tusla = (o, el, key) => { const e = new o.pencere.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }); el.dispatchEvent(e); return e.defaultPrevented; };
+    const sonuc = {};
+    for (const mac of [true, false]) {
+      const o = ortam(mac), r = sonuc[mac ? 'mac' : 'win'] = {};
+      // Başlangıç ekranının Son açılanlar satırı
+      const { BaslangicEkrani } = await o.yukle('baslangic.js');
+      const kok = o.belge.createElement('div'); o.belge.body.append(kok);
+      const kaldirilan = [];
+      const b = new BaslangicEkrani({ kok, komutCalistir: () => {}, ac: () => {}, kaldir: (y) => kaldirilan.push(y), temizle: () => {}, pdefe: { cagir: async () => null }, bildir: () => {} });
+      b.listele(['C:\\\\a\\\\bir.pdf', 'C:\\\\a\\\\iki.pdf']);
+      const satirlar = kok.querySelectorAll('.karsilama-oge');
+      r.sonBackspace = tusla(o, satirlar[0], 'Backspace') ? [...kaldirilan] : 'işlenmedi';
+      kaldirilan.length = 0;
+      r.sonDelete = tusla(o, satirlar[1], 'Delete') ? [...kaldirilan] : 'işlenmedi';
+      kok.remove();
+      // Görüntü / PDF birleştir listesi: seçili satırlar (sil yerine kayıt tutulur)
+      const { BirlestirmePenceresi } = await o.yukle('araclar/gorselBirlestir.js');
+      const baglam = { pdefe: o.pencere.pdefe, ayar: () => ({}), cekirdek: { cagir: async () => null }, belgeler: new Map(), bildir: () => {}, mesajKutusu: async () => ({ secim: 1 }) };
+      const p = new BirlestirmePenceresi(baglam, {});
+      const silinen = [];
+      p.sil = (k) => silinen.push(k); p._secilenler = () => [7];
+      p.secim = new Set([7]);
+      r.birlestirBackspace = tusla(o, p.liste, 'Backspace') ? silinen.splice(0) : 'işlenmedi';
+      r.birlestirDelete = tusla(o, p.liste, 'Delete') ? silinen.splice(0) : 'işlenmedi';
+      const girdi = o.belge.createElement('input'); p.liste.append(girdi);
+      r.birlestirGirdide = tusla(o, girdi, 'Backspace') ? silinen.splice(0) : 'işlenmedi';
+      for (const el of o.belge.querySelectorAll('.arac-ortusu')) el.remove();
+    }
+    return sonuc;
+  })()`);
+  sonuc('Son açılanlar satırında ⌫ (macOS) satırı listeden kaldırır', J(sil.mac.sonBackspace) === J(['C:\\a\\bir.pdf']), sil.mac);
+  sonuc('Son açılanlar satırında Backspace (Windows) bir şey yapmaz, Delete iki sistemde de kaldırır',
+    sil.win.sonBackspace === 'işlenmedi' && J(sil.win.sonDelete) === J(['C:\\a\\iki.pdf']) && J(sil.mac.sonDelete) === J(['C:\\a\\iki.pdf']), sil);
+  sonuc('Birleştir listesinde ⌫ (macOS) seçilenleri çıkarır', J(sil.mac.birlestirBackspace) === J([[7]]), sil.mac);
+  sonuc('Birleştir listesinde Backspace (Windows) bir şey yapmaz, Delete iki sistemde de çıkarır',
+    sil.win.birlestirBackspace === 'işlenmedi' && J(sil.win.birlestirDelete) === J([[7]]) && J(sil.mac.birlestirDelete) === J([[7]]), sil);
+  sonuc('Birleştir listesindeki girdi kutusunda ⌫ kutunun kendisinde kalır (satır çıkarılmaz)', sil.mac.birlestirGirdide === 'işlenmedi' && sil.win.birlestirGirdide === 'işlenmedi', sil);
+
   await evalJs(`(() => { document.querySelector('#mac-cerceve')?.remove(); document.querySelector('#win-cerceve')?.remove(); return true; })()`);
   console.log(`\n${tamam} tamam, ${hata} hata`);
 }

@@ -11,6 +11,7 @@
 // dokunulmaz). "Son açılanları hatırla" kapalıyken Son açılanlar bölümü (başlık ve kutu) hiç görünmez (0.1.13, kullanıcı isteği).
 // 0.1.8'e dek boş #gorunumler katmanı bu ekranın üstünde kaldığı için PDF aç düğmesi ve son açılanlar tıklanamıyordu (stil.css: z-index).
 import { ARACLAR } from './aracPenceresi.js';
+import { MAC } from './platform.js';
 
 const simge = (ic, kutu = 24) => `<svg viewBox="0 0 ${kutu} ${kutu}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ic}</svg>`;
 const kacis = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -100,7 +101,8 @@ export class BaslangicEkrani {
       li.querySelector('.yol').textContent = klasor;
       oge.title = yol;
       oge.addEventListener('click', () => this.ac(yol));
-      oge.addEventListener('keydown', (e) => { if (e.key === 'Delete') { e.preventDefault(); this.kaldirVeOdakla(li, yol); } });
+      // macOS'ta ⌫ de (0.2.1): Mac klavyesinin ⌫ tuşu 'Backspace' üretir, 'Delete' ancak fn+⌫ ile gelir
+      oge.addEventListener('keydown', (e) => { if (e.key === 'Delete' || (MAC && e.key === 'Backspace')) { e.preventDefault(); this.kaldirVeOdakla(li, yol); } });
       oge.addEventListener('contextmenu', (e) => { e.preventDefault(); this.menu(li, yol); });
       li.querySelector('.karsilama-kaldir').addEventListener('click', () => this.kaldirVeOdakla(li, yol));
       ul.append(li);

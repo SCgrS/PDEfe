@@ -143,11 +143,12 @@ export class BirlestirmePenceresi {
       if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'v' || e.key === 'V') && !e.target.matches('input, textarea')) { e.preventDefault(); this.panodanEkle(); }
     });
     // Listede Delete seçilenleri çıkarır, Ctrl+A satırların hepsini seçer. Listenin kendi dinleyicisinde: pencerenin Ctrl+A'sından
-    // (ortak.js _tusIsle: pencerenin metnini seçer; işlenmiş olayı atlar) önce çalışsın
+    // (ortak.js _tusIsle: pencerenin metnini seçer; işlenmiş olayı atlar) önce çalışsın. macOS'ta ⌫ de çıkarır (0.2.1): Mac klavyesinin
+    // ⌫ tuşu 'Backspace' üretir ('Delete' ancak fn+⌫ ile gelir), F1 › Kısayollar Mac'te bu işi ⌫ ile gösteriyor
     this.liste.addEventListener('keydown', (e) => {
       // Satırdaki bir düğmeye (döndür, taşı) basıldıktan sonra da; satırdaki girdi ve seçim kutuları kendi tuşlarını alır
       if (this.ilerleme.calisiyor || e.target.closest('input, select, textarea')) return;
-      if (e.key === 'Delete' && this.secim.size) { e.preventDefault(); this.sil(this._secilenler()); if (!this.liste.contains(document.activeElement)) this.liste.focus({ preventScroll: true }); }
+      if ((e.key === 'Delete' || (MAC && e.key === 'Backspace')) && this.secim.size) { e.preventDefault(); this.sil(this._secilenler()); if (!this.liste.contains(document.activeElement)) this.liste.focus({ preventScroll: true }); }
       else if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); this.secim = new Set(this.ogeler.map((o) => o.kimlik)); this._secimiCiz(); }
     });
     // Listede ve bırakma alanında sağ tık: Yapıştır (Ctrl+V ile aynı), satırda sıralama/döndürme/çıkarma (seçiliyse seçilenlerin hepsine)
