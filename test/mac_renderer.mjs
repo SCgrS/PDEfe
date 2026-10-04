@@ -117,6 +117,35 @@ export default async function ({ evalJs }) {
   sonuc('Not katmanı (Windows): Ctrl+tık eskisi gibi sol tık; sağ tık işlenmez',
     ctrlTik.win.ctrl === 'işlendi' && ctrlTik.win.duz === 'işlendi' && ctrlTik.win.sag === 'işlenmedi', ctrlTik.win);
 
+  // ---------------------------------------------------------------- Yazı düzenleyicisinde sekme geçişi (notlar.js belgeKisayoluMu)
+  // Düzenleyici ve not balonu belgeye ait kısayolları yutmaz (stopPropagation yok; belgenin tuş işleyicisi işler). macOS'ta ⇧⌘[ / ⇧⌘]
+  // (fiziksel tuş) da bunlardan; Windows'ta Ctrl+PageUp/PageDown
+  const sekmeTusu = await evalJs(`(async () => { ${ORTAM}
+    const sonuc = {};
+    for (const mac of [true, false]) {
+      const o = ortam(mac), { NotYoneticisi } = await o.yukle('notlar.js');
+      const dene = (tus) => { const e = { key: '', code: '', ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, isComposing: false, durdu: false,
+        stopPropagation() { this.durdu = true; }, preventDefault() {}, ...tus };
+        NotYoneticisi.prototype.duzenleyiciTus.call({ duzenleyici: null }, e); return e.durdu ? 'yutuldu' : 'belgeye'; };
+      sonuc[mac ? 'mac' : 'win'] = {
+        sonraki: dene({ key: ']', code: 'BracketRight', metaKey: true, shiftKey: true }),
+        onceki: dene({ key: '[', code: 'BracketLeft', metaKey: true, shiftKey: true }),
+        trSonraki: dene({ key: 'ü', code: 'BracketRight', metaKey: true, shiftKey: true }),   // Türkçe Q'da aynı fiziksel tuş
+        shiftsiz: dene({ key: ']', code: 'BracketRight', metaKey: true }),
+        ctrlKoseli: dene({ key: ']', code: 'BracketRight', ctrlKey: true, shiftKey: true }),
+        ctrlPgDn: dene({ key: 'PageDown', code: 'PageDown', ctrlKey: true }),
+        cmdPgDn: dene({ key: 'PageDown', code: 'PageDown', metaKey: true }),
+        harf: dene({ key: 'a', code: 'KeyA' }),
+      };
+    }
+    return sonuc;
+  })()`);
+  const { ctrlPgDn: _macCtrl, ...macTus } = sekmeTusu.mac;   // macOS'ta ⌃PageDown bu denetimin konusu değil
+  sonuc('Yazı düzenleyicisi (macOS): ⇧⌘] / ⇧⌘[ belgeye geçer (sekme değişir), Türkçe klavyede de; ⌘] ve harf yutulur',
+    J(macTus) === J({ sonraki: 'belgeye', onceki: 'belgeye', trSonraki: 'belgeye', shiftsiz: 'yutuldu', ctrlKoseli: 'yutuldu', cmdPgDn: 'belgeye', harf: 'yutuldu' }), sekmeTusu.mac);
+  sonuc('Yazı düzenleyicisi (Windows): eskisi gibi yalnızca Ctrl+PageDown belgeye geçer',
+    J(sekmeTusu.win) === J({ sonraki: 'yutuldu', onceki: 'yutuldu', trSonraki: 'yutuldu', shiftsiz: 'yutuldu', ctrlKoseli: 'yutuldu', ctrlPgDn: 'belgeye', cmdPgDn: 'yutuldu', harf: 'yutuldu' }), sekmeTusu.win);
+
   await evalJs(`(() => { document.querySelector('#mac-cerceve')?.remove(); document.querySelector('#win-cerceve')?.remove(); return true; })()`);
   console.log(`\n${tamam} tamam, ${hata} hata`);
 }

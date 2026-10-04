@@ -33,10 +33,12 @@ const DUZENLEYICI_ADIMLARI = {
   yaz: 'Yazma', sil: 'Silme', kalin: 'Kalın', italik: 'İtalik', alti: 'Altı çizili', renk: 'Yazı rengi', arka: 'Dolgu rengi',
   tip: 'Yazı tipi', boyut: 'Boyut', dolgusuz: 'Dolgusuz', kenarlik: 'Kenarlık',
 };
-/** Yazı düzenleyicisinde ve not balonunda da belge düzeyinde işlenen Ctrl kısayolları (uygulama.js): sekme geçişi (Ctrl+PageUp/PageDown),
- *  yakınlaştırma (Ctrl++ / Ctrl+− / Ctrl+sayısal 0). Bunlar metin için anlam taşımaz; düzenleyici yutmaz, belgeye geçirir. */
+/** Yazı düzenleyicisinde ve not balonunda da belge düzeyinde işlenen Ctrl kısayolları (uygulama.js): sekme geçişi (Ctrl+PageUp/PageDown;
+ *  macOS'ta ⇧⌘[ / ⇧⌘] de, fiziksel tuşla: 0.2.1'e dek düzenleyici onu yutuyordu, Mac menüsü de kısayolu kaydetmediği için sekme
+ *  değişmiyordu), yakınlaştırma (Ctrl++ / Ctrl+− / Ctrl+sayısal 0). Bunlar metin için anlam taşımaz; düzenleyici yutmaz, belgeye geçirir. */
 const belgeKisayoluMu = (e) => birincil(e) && !e.altKey && (MAC || !e.metaKey) && (e.key === 'PageUp' || e.key === 'PageDown' || e.key === '+' || e.key === '='
-  || e.key === '-' || e.key === '_' || e.code === 'NumpadAdd' || e.code === 'NumpadSubtract' || (e.code === 'Numpad0' && e.key === '0'));
+  || e.key === '-' || e.key === '_' || e.code === 'NumpadAdd' || e.code === 'NumpadSubtract' || (e.code === 'Numpad0' && e.key === '0')
+  || (MAC && e.shiftKey && (e.code === 'BracketLeft' || e.code === 'BracketRight')));
 const NOT_RENGI = '#ffd100';                        // not (Text) ve renksiz not için PDF okuyucularının yaygın varsayılanı
 const METINLE_NOT_KONUSU = 'Metinle İlgili Yorum Yap';   // referans okuyucunun (Türkçe) notlu vurgu konusu; /IT /HighlightNote ile yazılır
 const BALON_GOSTER_MS = 120;                        // üzerine gelince notun gösterilme gecikmesi
