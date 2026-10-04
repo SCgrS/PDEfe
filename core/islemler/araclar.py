@@ -208,9 +208,11 @@ def _hedef_klasoru_hazirla(hedef):
 
 def _yerine_koy(gecici, hedef):
     """Geçici dosyayı hedefin yerine atomik olarak koyar. Hedef kilitliyse özgün dosya olduğu gibi kalır. macOS'ta hedefin izinleri ve
-    öznitelikleri (Finder etiketleri) korunur (0.2.0, notlar._ozellikleri_aktar)."""
+    öznitelikleri (Finder etiketleri) korunur (0.2.0, notlar._ozellikleri_aktar); yazma izni olmayan hedefe yazılmaz (0.2.1: rename klasörün
+    iznine baktığından salt okunur dosya değişirdi; ileti SALT_OKUNUR_METNI, notlar.salt_okunursa_dur)."""
     if os.name != "nt" and os.path.exists(hedef):
-        from .notlar import _ozellikleri_aktar
+        from .notlar import _ozellikleri_aktar, salt_okunursa_dur
+        salt_okunursa_dur(gecici, hedef)
         _ozellikleri_aktar(hedef, gecici)
     try:
         os.replace(gecici, hedef)

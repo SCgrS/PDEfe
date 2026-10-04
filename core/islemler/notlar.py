@@ -14,6 +14,7 @@ import json
 import math
 import os
 import re
+import stat
 import sys
 import time
 import shutil
@@ -1044,13 +1045,48 @@ def _ozellikleri_aktar(hedef, gecici):
             pass
 
 
+SALT_OKUNUR_METNI = "salt okunur"     # araclar.SALT_OKUNUR_METNI ile aynı: renderer bu ifadeyle salt okunur dosya hatasını tanır
+
+
+class SaltOkunurHatasi(PermissionError):
+    """Hedefe yazma izni yok (macOS / Linux; salt_okunursa_dur). İletisi program kilidi iletisiyle sarılmaz."""
+
+
+def yazma_izni_yok(yol):
+    """macOS / Linux (0.2.1): dosyaya yazma izni yok mu: izin bitleri ve erişim listesi (os.access; macOS'ta Finder'ın "Kilitli" işareti
+    de: değiştirilemez dosyada access EPERM verir) ya da değiştirilemez işareti (st_flags UF_IMMUTABLE / SF_IMMUTABLE). Dosya yoksa False."""
+    try:
+        st = os.stat(yol)
+    except OSError:
+        return False
+    if getattr(st, "st_flags", 0) & (stat.UF_IMMUTABLE | stat.SF_IMMUTABLE):
+        return True
+    return not os.access(yol, os.W_OK)
+
+
+def salt_okunursa_dur(gecici, hedef):
+    """macOS / Linux (0.2.1): hedefe yazma izni yoksa geçici dosya (verildiyse) silinir, SaltOkunurHatasi ("Dosya yazılamadı; salt okunur:
+    <ad>"). os.replace (rename) üzerine yazılan dosyanın değil klasörün iznine bakar: salt okunur PDF sorusuz baştan yazılırdı, içindeki
+    e-imza da sorulmadan bozulurdu. Windows'ta ReplaceFileW / os.replace salt okunur hedefi zaten reddeder; o yol değişmez."""
+    if os.name == "nt" or not os.path.exists(hedef) or not yazma_izni_yok(hedef):
+        return
+    if gecici:
+        try:
+            os.remove(gecici)
+        except OSError:
+            pass
+    raise SaltOkunurHatasi("Dosya yazılamadı; %s: %s" % (SALT_OKUNUR_METNI, os.path.basename(hedef)))
+
+
 def dosyayi_yerine_koy(gecici, hedef, deneme=6):
     """Geçici dosyayı hedefin yerine koyar (0.1.23). Hedef varsa Windows'ta ReplaceFileW (yukarıda): os.replace yeni dosyanın yan
     akışlarını ve izinlerini bırakırdı; internetten indirilmiş PDF'in işareti kalkar, başka okuyucular onu korumalı görünümde açmazdı.
-    macOS'ta aynı iş için önce öznitelikler aktarılır (_ozellikleri_aktar), sonra os.replace. Kısa süreli kilitlere (virüs tarayıcı,
-    dizin oluşturucu, eşitleme) karşı birkaç kez dener; olmazsa geçici dosyayı siler, Türkçe PermissionError."""
+    macOS'ta aynı iş için önce öznitelikler aktarılır (_ozellikleri_aktar), sonra os.replace; yazma izni olmayan hedefe yazılmaz
+    (salt_okunursa_dur). Kısa süreli kilitlere (virüs tarayıcı, dizin oluşturucu, eşitleme) karşı birkaç kez dener; olmazsa geçici
+    dosyayı siler, Türkçe PermissionError."""
     import gc
     son = None
+    salt_okunursa_dur(gecici, hedef)
     if os.name != "nt" and os.path.exists(hedef):
         _ozellikleri_aktar(hedef, gecici)
     for i in range(deneme):
@@ -1184,6 +1220,8 @@ def y_notlar_kaydet(p):
                 doc = None
                 dosyayi_yerine_koy(gecici, hedef)   # yan akışlar (internetten indirildi işareti), izinler korunur; kilitte yeniden dener
                 gecici = None
+        except SaltOkunurHatasi:
+            raise                                   # macOS: yazma izni yok; program kilidi değil (0.2.1)
         except PermissionError as e:
             raise PermissionError("Dosya yazılamadı; başka bir programda açık olabilir. (%s)" % e)
     finally:

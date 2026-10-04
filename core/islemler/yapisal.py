@@ -104,6 +104,9 @@ def y_yapisal_kaydet(p):
     anlik = p.get("anlik")
     yeni_anlik = None      # bu çağrıda oluşturulan anlık kopya
     gecici = None
+    # macOS: yazma izni olmayan hedefte belge kurulmadan durulur (0.2.1; _degistir de denetler). Anlık kopya da alınmaz: copy2 Finder'ın
+    # Kilitli işaretini kopyaya taşır, silinemeyen kopya kalırdı
+    notlar.salt_okunursa_dur(None, hedef)
     try:
         # 1) Özgün dosya tarifte kaynak olarak geçiyorsa anlık kopya al (kaynak değişmeden kalsın)
         kaynak_yollari = {e["kaynak"]["yol"] for e in tarif if e.get("kaynak")}
@@ -248,9 +251,10 @@ def y_yapisal_kaydet(p):
 
 def _degistir(gecici, hedef, deneme=6):
     """os.replace; Windows'ta kısa süreli kilitlere karşı birkaç kez dener. macOS'ta hedefin izinleri ve öznitelikleri (Finder
-    etiketleri) korunur (0.2.0, notlar._ozellikleri_aktar)."""
+    etiketleri) korunur (0.2.0, notlar._ozellikleri_aktar); yazma izni olmayan hedefe yazılmaz (0.2.1, notlar.salt_okunursa_dur)."""
     import time, gc
     son = None
+    notlar.salt_okunursa_dur(gecici, hedef)
     if os.name != "nt" and os.path.exists(hedef):
         notlar._ozellikleri_aktar(hedef, gecici)
     for i in range(deneme):

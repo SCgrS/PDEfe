@@ -100,6 +100,41 @@ try:
 except Exception as e:  # noqa: BLE001
     sonuc("baştan yazılan kayıt", False, repr(e))
 
+# ---------------------------------------------------------------- 2b) yazma izni olmayan dosyaya kayıt (0.2.1)
+# os.replace (rename) klasörün iznine baktığından macOS'ta salt okunur PDF sorusuz baştan yazılıyordu: kayıt "salt okunur" hatası vermeli,
+# dosya değişmemeli. Windows'ta salt okunur dosyayı ReplaceFileW reddeder (yol değişmedi).
+if os.name != "nt":
+    from islemler import yapisal  # noqa: E402
+    durumlar = [("izin 0444", lambda y: os.chmod(y, 0o444), lambda y: os.chmod(y, 0o644))]
+    if MAC:
+        durumlar.append(("Finder'da Kilitli (uchg)", lambda y: os.chflags(y, stat.UF_IMMUTABLE), lambda y: os.chflags(y, 0)))
+    NOT = {"islem": "ekle", "id": "n1", "not": {"tur": "Text", "sayfa": 1, "rect": [100, 100, 0, 0], "yazar": "Deneme Yazar", "icerik": "Not"}}
+    for i, (durum, kilitle, ac) in enumerate(durumlar):
+        for yontem, cagri in (
+                ("notlar_kaydet", lambda y: notlar.y_notlar_kaydet({"yol": y, "hedef": y, "artimli": True, "islemler": [NOT]})),
+                ("notlar_kaydet temiz", lambda y: notlar.y_notlar_kaydet({"yol": y, "hedef": y, "temiz": True, "islemler": [NOT]})),
+                ("yapisal_kaydet", lambda y: yapisal.y_yapisal_kaydet({"yol": y, "hedef": y, "tarif": [{"kaynak": {"yol": y, "sayfa": 1}}],
+                                                                       "anlikKlasor": os.path.join(CIKTI, "anlik")}))):
+            y = os.path.join(CIKTI, "salt-okunur-%d-%s.pdf" % (i, yontem.replace(" ", "-")))
+            ornek_pdf_uret.uret(y, 2, "Salt okunur denemesi")
+            with open(y, "rb") as f:
+                once = f.read()
+            kilitle(y)
+            try:
+                cagri(y)
+                sonuc(f"{durum}: {yontem} yazmaz", False, "hata beklenirdi")
+            except Exception as e:  # noqa: BLE001
+                with open(y, "rb") as f:
+                    ayni = f.read() == once
+                sonuc(f"{durum}: {yontem} yazmaz, 'salt okunur' der", isinstance(e, PermissionError) and "salt okunur" in str(e) and ayni,
+                      f"{type(e).__name__}: {e}; dosya aynı: {ayni}")
+            finally:
+                ac(y)
+            pdefe_core.onbellek.hepsini_birak()
+    artik = [a for a in os.listdir(CIKTI) if a.endswith(".pdefe-tmp")]
+    artik += os.listdir(os.path.join(CIKTI, "anlik")) if os.path.isdir(os.path.join(CIKTI, "anlik")) else []
+    sonuc("salt okunur kayıtta geçici dosya ya da anlık kopya kalmaz", not artik, artik)
+
 # ---------------------------------------------------------------- 3) görsellerdeki yazının tanınması
 klasor = os.path.join(CIKTI, "tanima")
 tanima_pdf_uret.uret(klasor)
