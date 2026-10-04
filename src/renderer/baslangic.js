@@ -89,8 +89,10 @@ export class BaslangicEkrani {
       return;
     }
     for (const yol of liste) {
-      const parca = yol.split(/[\\/]/);
-      const ad = parca.pop(), klasor = parca.join('\\');
+      // Klasör yolun kendisinden kesilir (araclar/ortak.js klasorAdi gibi): parçalar ters bölüyle birleştiriliyordu, macOS'ta
+      // '/Volumes/Arşiv' satırda '\Volumes\Arşiv' görünüyordu (0.2.1). Windows'ta gösterilen metin aynı
+      const i = Math.max(yol.lastIndexOf('/'), yol.lastIndexOf('\\'));
+      const ad = yol.slice(i + 1), klasor = i >= 0 ? yol.slice(0, i) : '';
       const li = document.createElement('li');
       li.innerHTML = `<button type="button" class="karsilama-oge"><span class="karsilama-oge-ikon">${simge(BELGE_IKON, 20)}</span><span class="karsilama-oge-metin"><span class="ad"></span><span class="yol"></span></span></button><button type="button" class="karsilama-kaldir" title="Listeden kaldır" aria-label="Listeden kaldır">${simge('<path d="m6 6 8 8M14 6l-8 8"/>', 20)}</button>`;
       const oge = li.querySelector('.karsilama-oge');
