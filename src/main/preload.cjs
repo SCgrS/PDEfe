@@ -18,7 +18,7 @@ const CAGRILAR = new Set([
   'yanit',
   'yazdir:hazirla', 'yazdir:sayfaEkle', 'yazdir:baslat', 'yazdir:iptal', 'yazdir:durum',
 ]);
-const GONDERIMLER = new Set(['uygulama:hazir', 'pencere:belgeler', 'sekme:surukleBasla', 'sekme:surukleCan', 'sekme:surukleIptal']);
+const GONDERIMLER = new Set(['uygulama:hazir', 'pencere:belgeler', 'pencere:kirli', 'sekme:surukleBasla', 'sekme:surukleCan', 'sekme:surukleIptal']);
 const DINLEMELER = new Set([
   'ayar:degisti', 'cekirdek:ilerleme', 'dosya:ac', 'hayalet:icerik', 'menu:komut', 'tema:sistem',
   'guncelleme:var', 'guncelleme:ilerleme', 'guncelleme:hazir', 'guncelleme:hata',

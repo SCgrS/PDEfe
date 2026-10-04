@@ -28,7 +28,7 @@ const AYIRMA_KAYMASI = 32;           // "Pencereye ayır" ile açılan pencereni
 
 /** @typedef {{ pencere: BrowserWindow, wc: Electron.WebContents, id: number, hazir: boolean, hazirSozu: Promise<void>, hazirCoz: () => void,
  *    coktu: boolean, kapatOnayli: boolean, kapatBekleyen: ((kapandi: boolean) => void)|null, bekleyenDosyalar: string[], yollar: Set<string>,
- *    kapanisDosyalari: {yollar: string[], anliklar: string[]}|null }} Kayit */
+ *    kirli: boolean, kapanisDosyalari: {yollar: string[], anliklar: string[]}|null }} Kayit */
 
 /** @type {Map<number, Kayit>} */
 const kayitlar = new Map();   // webContents.id → kayıt
@@ -38,6 +38,7 @@ let bagimli = null;           // kur() ile verilenler
 let istekSayac = 0;
 const bekleyenIstekler = new Map();   // istekId → { coz, wcId }
 let cikisNo = 0;
+let cikisSuruyor = false;     // Çıkış (cik) pencereleri sırayla kapatıyor
 let surukleme = null;       // süren sekme sürüklemesi (kaynak pencere şeridinin dışında)
 let hayalet = null;           // sürüklenen sekmenin önizleme penceresi
 let testImlec = null;         // test örneğinde imlecin yeri (gerçek imlece dokunulmaz)
@@ -151,7 +152,7 @@ export function pencereOlustur({ sinirlar = null, goster = true, dosyalar = [] }
   menuCubuguKur(pencere, menuGorunur);
   /** @type {Kayit} */
   const k = { pencere, wc: pencere.webContents, id: pencere.webContents.id, hazir: false, hazirSozu: null, hazirCoz: null, coktu: false,
-    kapatOnayli: false, kapatBekleyen: null, bekleyenDosyalar: [...dosyalar], yollar: new Set(), kapanisDosyalari: null };
+    kapatOnayli: false, kapatBekleyen: null, bekleyenDosyalar: [...dosyalar], yollar: new Set(), kirli: false, kapanisDosyalari: null };
   k.hazirSozu = new Promise((coz) => { k.hazirCoz = coz; });
   kayitlar.set(k.id, k);
   odakSirasi.push(k);   // gösterilince / etkinleşince öne geçer
@@ -172,6 +173,15 @@ export function pencereOlustur({ sinirlar = null, goster = true, dosyalar = [] }
     // Açılışta kullanılacak konum ve boyut: en son kapatılan pencereninki
     const s = pencere.getNormalBounds();
     ayarKoy('pencere', { x: s.x, y: s.y, genislik: s.width, yukseklik: s.height, buyutulmus: pencere.isMaximized() });
+  });
+  // Windows'ta oturum kapatma, yeniden başlatma ve kapatma pencerelere 'close' değil bu olayı verir (app 'before-quit' de gelmez): Windows
+  // yanıtı hemen ister. Penceredeki kaydedilmemiş değişiklik ('pencere:kirli') varsa oturumun bitmesi engellenir ve Çıkış gibi pencereler
+  // sırayla kapatılıp sorulur; olay her pencereye ayrı gelir, Çıkış bir kez başlar. Değişiklik yoksa engellenmez (0.2.1). Zorunlu (kritik)
+  // kapanış engellenemez
+  pencere.on('query-session-end', (e) => {
+    if (!k.hazir || k.kapatOnayli || !k.kirli) return;
+    e.preventDefault();
+    if (!cikisSuruyor) cik();
   });
   pencere.on('closed', () => {
     kayitlar.delete(k.id);
@@ -248,11 +258,14 @@ function kapatmayiIste(k) {
  *  o an en öndeki pencere alınır: çıkış sürerken açılan pencere (soru açıkken başka pencereden ayrılan sekme) de kapatılır. */
 export async function cik() {
   const no = ++cikisNo;
-  for (;;) {
-    const k = odakSirasi.find(canli);
-    if (!k || no !== cikisNo) return;
-    if (!(await kapatmayiIste(k))) return;
-  }
+  cikisSuruyor = true;
+  try {
+    for (;;) {
+      const k = odakSirasi.find(canli);
+      if (!k || no !== cikisNo) return;
+      if (!(await kapatmayiIste(k))) return;
+    }
+  } finally { if (no === cikisNo) cikisSuruyor = false; }
 }
 
 /**
@@ -431,7 +444,7 @@ export function pencereleriKur(b) {
   ipcMain.on('uygulama:hazir', (e) => {
     const k = kayitAl(e);
     if (!k) return;
-    k.hazir = true; k.coktu = false; k.hazirCoz();
+    k.hazir = true; k.coktu = false; k.kirli = false; k.hazirCoz();
     if (k.bekleyenDosyalar.length) { gonder(k, 'dosya:ac', k.bekleyenDosyalar); k.bekleyenDosyalar = []; }
   });
   // Döner: yanıt bekleniyor muydu. Süresi dolmuş isteğin yanıtı false alır ('sekme:al': kaynak pencere sekmeyi geri almıştır, hedef de
@@ -445,6 +458,8 @@ export function pencereleriKur(b) {
 
   // Pencerenin açık belgeleri: dosya yalnızca bir pencerede açık olur (aynı dosyanın iki kopyası birbirinin kaydını ezerdi)
   ipcMain.on('pencere:belgeler', (e, yollar) => { const k = kayitAl(e); if (k) k.yollar = new Set((Array.isArray(yollar) ? yollar : []).map(yolAnahtari)); });
+  // Pencerede kaydedilmemiş değişiklik var mı (renderer durum değiştikçe bildirir): oturum sonunda soru gerekip gerekmediği ('query-session-end')
+  ipcMain.on('pencere:kirli', (e, kirli) => { const k = kayitAl(e); if (k) k.kirli = !!kirli; });
   ipcMain.handle('pencere:kimlik', (e) => e.sender.id);
   ipcMain.handle('pencere:sayi', () => kayitlar.size);
   // Dosya başka bir pencerede açıksa o pencere öne gelir ve sekmesine geçer; true dönerse isteyen pencere dosyayı açmaz

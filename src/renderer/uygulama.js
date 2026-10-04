@@ -144,7 +144,7 @@ function belgeOlustur(yol) {
   belge.notlar.addEventListener('degisti', () => { kirliGuncelle(belge); if (aktifId === id) panel.yorumlariYenile(); });
   belge.notlar.addEventListener('arac', (e) => { if (aktifId === id) aracDugmeleriniGuncelle(e.detail.arac); });
   // Yazı düzenleyicisi açılınca, kapanınca ve geçmişi değişince Geri al / Yinele düğmeleri; kapanınca beklettiği otomatik kayıt yeniden kurulur
-  belge.notlar.addEventListener('duzenleyici', () => { if (!belge.notlar.duzenleyici && belge.degisti) kirliGuncelle(belge); else if (aktifId === id) geriAlDugmeleriniGuncelle(belge); });
+  belge.notlar.addEventListener('duzenleyici', () => { if (!belge.notlar.duzenleyici && belge.degisti) kirliGuncelle(belge); else if (aktifId === id) geriAlDugmeleriniGuncelle(belge); kirliBildir(); });
   belge.notlar.addEventListener('uyari', (e) => { if (aktifId === id) bildir(e.detail.metin, 6000); });
   belgeleriBildir();
   return belge;
@@ -158,6 +158,17 @@ function belgeleriBildir() {
   if (anahtar === _bildirilenBelgeler) return;
   _bildirilenBelgeler = anahtar;
   pdefe.gonder('pencere:belgeler', yollar);
+}
+
+/** Pencerede kaydedilmemiş değişiklik var mı, ana sürece bildirir (0.2.1): Windows oturumu kapanırken (oturum kapatma, yeniden başlatma)
+ *  ana süreç Windows'a hemen yanıt vermek zorundadır, soruyu ancak bunu önceden biliyorsa sorabilir (pencereler.js 'query-session-end').
+ *  Açık yazı kutusu da sayılır: yazılan metin kapatmada not olur (kapatmayaIzinAl), yazarken her harfte olay gelmez. Durum değişince çağrılır. */
+let _bildirilenKirli = false;
+function kirliBildir() {
+  const kirli = [...belgeler.values()].some((b) => b.degisti || !!b.notlar?.duzenleyici);
+  if (kirli === _bildirilenKirli) return;
+  _bildirilenKirli = kirli;
+  pdefe.gonder('pencere:kirli', kirli);
 }
 
 async function dosyaAc(yol, secenek = {}) {
@@ -266,6 +277,7 @@ function belgeDurumuYaz(b) {
 function kirliGuncelle(b) {
   b.degisti = !!(b.yigin?.kirli || b.gorunum.yapisalKirli() || (!b.gorunum.anlik && b.notlar?.kirli));
   sekmeler.guncelle(b.id, { degisti: b.degisti });
+  kirliBildir();
   if (aktifId === b.id) { durum.degisiklikYaz(b.degisti); geriAlDugmeleriniGuncelle(b); }
   $('#arac-cubugu [data-komut="dosya.kaydet"]').disabled = !aktif()?.degisti;
   // Yazı düzenlenirken otomatik kayıt beklenir (kayıt düzenlemeyi uygulayıp kutuyu yazarken kapatırdı); düzenleme bitince not
@@ -340,6 +352,7 @@ function belgeyiKaldir(b, { devredildi = false } = {}) {
   if (aktifId === id) { aktifId = null; sonrakiSekmeyeGec(); }
   sekmesizKalmasin();
   belgeleriBildir();
+  kirliBildir();
 }
 
 // ---------------------------------------------------------------- açılış sekmeleri (0.1.13, kullanıcı isteği)
