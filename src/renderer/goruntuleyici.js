@@ -137,6 +137,18 @@ const tabanAl = (pdfSayfa) => aciyaIndir(pdfSayfa?.rotate || 0);
 /** Yol anahtarı: büyük/küçük harf ve eğik çizgi farklarını yok sayar. */
 export const yolAnahtari = (yol) => (yol || '').replace(/\//g, '\\').toLowerCase();
 
+/** Sözü bekler; görünüm kapatılınca (yokEt, sinyal) beklemeden 'Görünüm kapatıldı.' hatasıyla biter (0.2.1). Bırakılan PDF.js görevinin
+ *  sözü hiç sonuçlanmayabilir (işçi belgeyi okurken sonlandırılırsa yanıt gelmez): yükleme beklemesi asılı kalıp birden çok dosya açılırken
+ *  sıradakileri durdurmasın. */
+function kapanmadan(soz, sinyal) {
+  return new Promise((coz, reddet) => {
+    const kapandi = () => reddet(new Error('Görünüm kapatıldı.'));
+    if (sinyal.aborted) { kapandi(); return; }
+    sinyal.addEventListener('abort', kapandi, { once: true });
+    soz.then(coz, reddet).finally(() => sinyal.removeEventListener('abort', kapandi));
+  });
+}
+
 /** PDF.js belge yükleme seçenekleri (veri: dosyanın baytları). */
 const belgeSecenekleri = (veri, parola) => ({
   data: veri,
@@ -198,6 +210,7 @@ export class Goruntuleyici extends EventTarget {
     this._istenen = null;        // son sayfayaGit hedefi ve o anki kaydırma konumu {no, st, sl} (kaydirmaIsle)
     this.koyuSayfa = false;
     this.yok = false;
+    this._kapanis = new AbortController();   // yokEt'te tetiklenir: süren yükleme beklemesi biter (kapanmadan)
     this.hazir = false;          // yukle / durumdanYukle bitince true
     this._tanimaBekleyen = new Set();   // görsellerindeki yazının tanınması bekleyen sayfa girdileri (tanimaIste)
     this._tanimaSuruyor = false;
@@ -240,17 +253,22 @@ export class Goruntuleyici extends EventTarget {
 
   // ------------------------------------------------------------ yükleme
   async yukle(veri, secenek = {}) {
+    if (this.yok) throw new Error('Görünüm kapatıldı.');
     const gorev = pdfjs.getDocument(belgeSecenekleri(veri, secenek.parola));
     // Girilen parola saklanır: sekme başka pencereye taşınınca orada yeniden sorulmaz (durumAl)
     this._parola = secenek.parola ?? null;
     if (secenek.parolaIste) gorev.onPassword = (cb, neden) => secenek.parolaIste(neden).then((p) => { this._parola = p; cb(p); }, () => cb(new Error('vazgeçildi')));
     this.yuklemeGorevi = gorev;
-    this.belge = await gorev.promise;
+    const belge = await kapanmadan(gorev.promise, this._kapanis.signal);
+    // Beklerken sekme kapatıldıysa (0.2.1): yokEt süren görevi bırakır ve bekleme biter; yine de çözüldüyse belge yok edilmiş görünümde
+    // kurulmaz, görev bırakılır (işçisi pencere kapanana dek yaşamasın)
+    if (this.yok) { try { gorev.destroy().catch(() => {}); } catch {} throw new Error('Görünüm kapatıldı.'); }
+    this.belge = belge;
     if (anaHatCizimi) yaziTipiYukleyicisiniSar(this.belge);   // ilk sayfa çizilmeden önce
     this.yol = secenek.yol || null;
     this.belgeler.set(yolAnahtari(this.yol), { yol: this.yol, belge: this.belge, gorev });
     const n = this.belge.numPages;
-    const ilk = await this.belge.getPage(1);
+    const ilk = await kapanmadan(this.belge.getPage(1), this._kapanis.signal);
     const vp = ilk.getViewport({ scale: 1 });
     this.sayfalar = [];
     for (let i = 0; i < n; i++) {
@@ -1732,6 +1750,7 @@ export class Goruntuleyici extends EventTarget {
   // ------------------------------------------------------------ kapatma
   yokEt() {
     this.yok = true; this.hazir = false;
+    this._kapanis.abort();
     this._gozlemci.disconnect();
     clearTimeout(this._boyutZamanlayici); clearTimeout(this._keskinZaman);
     this._dprSorgu?.removeEventListener('change', this._dprIsle); this._dprSorgu = null;
@@ -1740,7 +1759,9 @@ export class Goruntuleyici extends EventTarget {
     this._keskinHazirBirak?.();
     this._gorunurKume = new Set(); this._onKuyruk = [];
     for (let i = 0; i < this.sayfalar.length; i++) this.sayfaBosalt(i);
-    for (const k of this.belgeler.values()) { try { k.gorev.destroy().catch(() => {}); } catch {} }
+    // Süren yükleme (0.2.1): görev belge yüklenene dek this.belgeler'de değildir; bırakılmazsa işçisi pencere kapanana dek yaşardı
+    const gorevler = new Set([this.yuklemeGorevi, ...[...this.belgeler.values()].map((k) => k.gorev)].filter(Boolean));
+    for (const gorev of gorevler) { try { gorev.destroy().catch(() => {}); } catch {} }
     for (const k of this.bosBelgeler.values()) { try { k.gorev.destroy().catch(() => {}); } catch {} }
     this.belgeler.clear(); this.bosBelgeler.clear();
     this.yuklemeGorevi = null;

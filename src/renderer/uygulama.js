@@ -197,8 +197,11 @@ async function dosyaAc(yol, secenek = {}) {
   if (yerine) { baslangicSekmeleri.delete(yerine); sekmeler.kaldir(yerine); aktifId = null; }
   if (!secenek.arkaPlanda || !aktifId) sekmeSec(id);
 
+  // Sekme yüklenirken kapatılabilir (0.2.1): kapatıldıysa (belgeler'de yok) çekirdeğe yeni istek gitmez, dosya son açılanlara eklenmez, hata
+  // sorulmaz. Yoksa çekirdek dosyayı sekme kapandıktan (belge_birak) sonra yeniden açıp kilitli tutardı
   try {
     const { veri, boyut } = await pdefe.cagir('dosya:oku', yol);
+    if (!belgeler.has(id)) return null;
     belge.boyut = boyut;
     const sonSayfa = ayar.kaldigimSayfadanAc ? (ayar.sayfaKonumlari || {})[yol] : null;
     const zoom = ayar.varsayilanZoom;
@@ -211,10 +214,12 @@ async function dosyaAc(yol, secenek = {}) {
       sayfa: secenek.sayfa || sonSayfa || 1,
       parolaIste: (neden) => parolaSor(ad, neden),
     });
+    if (!belgeler.has(id)) return null;
     cekirdek('belge_bilgi', { yol }).then((bilgi) => { belge.bilgi = bilgi; }).catch(() => {});
     // notSozu: notların dosyadan ilk okunması (sekme başka pencereye taşınmadan önce beklenir, bkz. sekmePaketi)
     belge.notSozu = belge.notlar.yukle().catch((e2) => console.warn('Notlar yüklenemedi', e2));
   } catch (e) {
+    if (!belgeler.has(id)) return null;   // yüklenirken kapatıldı: görünüm yükleme görevini bıraktı (red bundan)
     console.error(e);
     // Açılamadı (bozuk dosya, parola sorusunda Vazgeç): yerini aldığı açılış sekmesi aynı yere geri gelir, kullanıcı orada kalır
     if (yerine && !baslangicSekmeleri.has(yerine) && sekmeler.bul(id)) {
