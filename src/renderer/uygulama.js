@@ -819,7 +819,12 @@ async function belgeKaydet(b, farkli = false, sessiz = false, { oneAl = false } 
         }
         const kilitli = /açık olabilir|yazılamadı|okunamadı|Failed to open|Permission|EBUSY|EPERM/i.test(e.message || '');
         if (oneAl) await soruIcinOneAl(b);
-        const { secim } = await mesajKutusu({ tur: 'error', mesaj: 'Belge kaydedilemedi', ayrinti: (kilitli ? 'Dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Onu kapatıp yeniden deneyin ya da farklı bir adla kaydedin.\n\n' : '') + hataMetni(e), dugmeler: kilitli ? ['Farklı kaydet', 'Vazgeç'] : ['Tamam'], iptal: kilitli ? 1 : 0 });
+        // macOS'ta (0.2.1) dosyayı başka programlar kilitlemez: yazılamayan dosyada neden çoğunlukla yazma izni ya da Finder'ın Kilitli
+        // işaretidir (çekirdek: "Dosya yazılamadı; salt okunur: …"); program kapatmak işe yaramaz. Windows'ta metin değişmedi
+        const kilitAciklamasi = MAC
+          ? 'Dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir: Finder\'da dosyayı seçip Dosya › Bilgi Al\'dan "Kilitli" işaretini ve Paylaşma ve İzinler bölümünü denetleyin ya da farklı bir adla kaydedin.\n\n'
+          : 'Dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Onu kapatıp yeniden deneyin ya da farklı bir adla kaydedin.\n\n';
+        const { secim } = await mesajKutusu({ tur: 'error', mesaj: 'Belge kaydedilemedi', ayrinti: (kilitli ? kilitAciklamasi : '') + hataMetni(e), dugmeler: kilitli ? ['Farklı kaydet', 'Vazgeç'] : ['Tamam'], iptal: kilitli ? 1 : 0 });
         if (!kilitli || secim !== 0) return false;
         farkli = true; sessiz = false;   // 'Farklı kaydet' aynı kaydın içinde: bekleyen kapatma akışı araya girmez
       }

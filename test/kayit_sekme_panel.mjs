@@ -343,6 +343,15 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
       sonuc('Otomatik kayıtta soru açılmadı', !kutular.length, kutular.map((k) => k.mesaj));
       const durum = await belgeIslemi('salt-okunur.pdf', `return { degisti: !!b.degisti, durdu: !!b._otoKayitDurdu };`);
       sonuc('Belge kaydedilmemiş kaldı, otomatik kayıt durdu', durum?.degisti && durum.durdu, durum);
+      // Elle kayıt: "Belge kaydedilemedi" sorusu (Farklı kaydet | Vazgeç); açıklama platforma göre
+      await yanitla('mesaj:kutu', [{ secim: 1, onay: false }]);
+      const r = await belgeIslemi('salt-okunur.pdf', `return await p.belgeKaydet(b);`);
+      const soru = (await mesajKutulari()).find((k) => k.mesaj === 'Belge kaydedilemedi');
+      const aciklama = mac
+        ? 'Dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir: Finder\'da dosyayı seçip Dosya › Bilgi Al\'dan "Kilitli" işaretini ve Paylaşma ve İzinler bölümünü denetleyin ya da farklı bir adla kaydedin.\n\n'
+        : 'Dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Onu kapatıp yeniden deneyin ya da farklı bir adla kaydedin.\n\n';
+      sonuc(`Elle kayıtta "Belge kaydedilemedi" (${mac ? 'macOS' : 'Windows'} açıklaması), Vazgeç: false`, r === false && !!soru && soru.ayrinti.startsWith(aciklama)
+        && J(soru.dugmeler) === J(['Farklı kaydet', 'Vazgeç']), soru && { r, ayrinti: soru.ayrinti.slice(0, 160) });
     } finally {
       await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'otomatikKaydet', false); window.__pdefe.ayar().otomatikKaydet = false; return true; })()`);
       await sekmeleriKapat();
