@@ -12,6 +12,8 @@
 //   5) İçindekiler'in (ve Bul'un yer imi sonuçlarının) yer imi sayfa düzeni değişince doğru sayfaya gider: hedef kaynak sayfasından
 //      bulunur (ilk sayfa silinince "Bolum 4" 3. sayfaya); sayfası silinmiş yer iminde görünüm kımıldamaz, "Yer iminin hedef sayfası bu
 //      belgede yok." bildirilir. Yapısal kayıttan (Üzerine yaz) sonra da doğru.
+//   6) Yazılamayan dosyada (salt okunur) otomatik kayıt bir kez bildirilir; bildirimdeki kısayol platformun yazımıyla (tus: macOS'ta ⌘S,
+//      orada neden "yazma izni olmayabilir ya da dosya kilitli olabilir"). Bu bilgisayarda Windows metni sınanır (değişmedi).
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9621      → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9621; node test\surucu.mjs betik test\kayit_sekme_panel.mjs
@@ -76,7 +78,7 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
   const mesajKutulari = async () => (await diyalogKaydi()).filter((d) => d.kanal === 'mesaj:kutu').map((d) => d.secenek);
   const hatalar = () => evalJs(`(() => { const h = window.__hatalar.slice(); window.__hatalar.length = 0; return h; })()`);
   const sekmeleriKapat = () => evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); await new Promise((r) => setTimeout(r, 300)); return p.belgeler.size; })()`);
-  const bolumler = (process.env.BOLUM || '1,2,3,4,5').split(',').map((s) => s.trim());
+  const bolumler = (process.env.BOLUM || '1,2,3,4,5,6').split(',').map((s) => s.trim());
   const bolum = (n) => bolumler.includes(String(n));
 
   // ------------------------------------------------------------ hazırlık
@@ -319,6 +321,34 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
     const h = await hatalar();
     sonuc('Konsolda hata yok', !h.length, h);
     await sekmeleriKapat();
+  }
+
+  // ------------------------------------------------------------ 6) Yazılamayan dosyada kayıt iletileri
+  if (bolum(6)) {
+    console.log('\n== 6) Yazılamayan dosyada kayıt iletileri');
+    const mac = await evalJs(`window.pdefe.platform === 'darwin'`);
+    const yol = uret('salt-okunur.pdf', 2, 'Salt okunur');
+    await ac(yol);
+    fs.chmodSync(yol, 0o444);   // Windows: Salt okunur özniteliği; macOS: yazma izni yok
+    try {
+      await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'otomatikKaydet', true); window.__pdefe.ayar().otomatikKaydet = true; return true; })()`);
+      await diyalogKaydi(); await hatalar();
+      await notEkle('salt-okunur.pdf', 'otomatik kayıt notu');
+      const bildirim = await kosul(`(() => { const el = document.querySelector('#bildirim'); return !el.hidden && /otomatik kaydedilemedi/.test(el.textContent) ? el.textContent : ''; })()`, 15000);
+      const beklenen = mac
+        ? '"salt-okunur.pdf" otomatik kaydedilemedi: dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir. Değişiklikler PDEfe\'de duruyor; ⌘S ile kaydedin ya da ⇧⌘S ile başka bir adla kaydedin.'
+        : '"salt-okunur.pdf" otomatik kaydedilemedi: dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Değişiklikler PDEfe\'de duruyor; o programı kapatıp Ctrl+S ile kaydedin.';
+      sonuc(`Otomatik kayıt hatası bildirildi (${mac ? 'macOS' : 'Windows'} metni)`, bildirim === beklenen, bildirim);
+      const kutular = await mesajKutulari();
+      sonuc('Otomatik kayıtta soru açılmadı', !kutular.length, kutular.map((k) => k.mesaj));
+      const durum = await belgeIslemi('salt-okunur.pdf', `return { degisti: !!b.degisti, durdu: !!b._otoKayitDurdu };`);
+      sonuc('Belge kaydedilmemiş kaldı, otomatik kayıt durdu', durum?.degisti && durum.durdu, durum);
+    } finally {
+      await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'otomatikKaydet', false); window.__pdefe.ayar().otomatikKaydet = false; return true; })()`);
+      await sekmeleriKapat();
+      fs.chmodSync(yol, 0o644);
+    }
+    await hatalar();
   }
 
   console.log(`\nSonuç: ${tamamSayisi} denetim geçti, ${hataSayisi} hata`);

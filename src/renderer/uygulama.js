@@ -810,7 +810,11 @@ async function belgeKaydet(b, farkli = false, sessiz = false, { oneAl = false } 
         if (sessiz && !farkli) {
           b._otoKayitDurdu = true;
           console.warn('Otomatik kayıt başarısız', b.yol, e);
-          bildir(`"${b.ad}" otomatik kaydedilemedi: dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Değişiklikler PDEfe'de duruyor; o programı kapatıp Ctrl+S ile kaydedin.`, 9000);
+          // Kısayol platformun yazımıyla (0.2.1: macOS'ta ⌘S). macOS'ta dosyayı başka programlar kilitlemez: neden çoğunlukla yazma izni ya da
+          // Finder'ın Kilitli işaretidir, kaydetmenin yolu Farklı kaydet. Windows'ta metin değişmedi
+          bildir(tus(MAC
+            ? `"${b.ad}" otomatik kaydedilemedi: dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir. Değişiklikler PDEfe'de duruyor; Ctrl+S ile kaydedin ya da Ctrl+Shift+S ile başka bir adla kaydedin.`
+            : `"${b.ad}" otomatik kaydedilemedi: dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Değişiklikler PDEfe'de duruyor; o programı kapatıp Ctrl+S ile kaydedin.`), 9000);
           return false;
         }
         const kilitli = /açık olabilir|yazılamadı|okunamadı|Failed to open|Permission|EBUSY|EPERM/i.test(e.message || '');
