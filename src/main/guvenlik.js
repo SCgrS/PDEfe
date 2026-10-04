@@ -96,6 +96,19 @@ export async function pdfDosyasiMi(yol) {
   } finally { await fh.close().catch(() => {}); }
 }
 
+/** macOS paket uzantıları: Finder bu klasörleri tek dosya gibi gösterir; uygulama, eklenti, kurulum paketi… */
+const PAKET_UZANTILARI = /\.(app|appex|bundle|framework|plugin|kext|prefpane|saver|workflow|xpc|qlgenerator|mdimporter|pkg|mpkg)$/i;
+
+/** Klasör bir macOS paketi mi (0.2.1): uygulama paketi (.app) de klasördür ve shell.openPath (NSWorkspace) onu açınca uygulamayı başlatır;
+ *  kabuk:klasorAc'ın "yalnızca klasör" sınırı Mac'te program başlatmayı engellemiyordu. Yol (bağlantıysa gösterdiği yer) paket uzantısıyla
+ *  bitiyorsa ya da içinde Contents/Info.plist varsa true. */
+export async function paketKlasoruMu(yol) {
+  const y = String(yol || '').replace(/(.)[\\/]+$/, '$1');
+  const gercek = await fs.promises.realpath(y).catch(() => y);
+  if (PAKET_UZANTILARI.test(y) || PAKET_UZANTILARI.test(gercek)) return true;
+  return fs.promises.access(path.join(gercek, 'Contents', 'Info.plist')).then(() => true, () => false);
+}
+
 /** Yol, anlık kopya klasöründeki bir anlık kopya mı (çekirdeğin adlandırması: 32 onaltılık karakter + .pdf). */
 export function anlikDosyasiMi(yol, anlikKlasor) {
   const y = String(yol || '');

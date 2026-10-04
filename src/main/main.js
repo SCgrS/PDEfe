@@ -12,7 +12,7 @@ import { panoyaDosyaKopyala, panoyaMetinYaz } from './pano.js';
 import { yazdirmaKur } from './yazdir.js';
 import { guncellemeKur } from './guncelleme.js';
 import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla, menuCubugunuUygula, pencereSayisi } from './pencereler.js';
-import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, YOLA_YAZANLAR, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasorleri, standartYaziTipleri, anlikDosyasiMi } from './guvenlik.js';
+import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, YOLA_YAZANLAR, paketKlasoruMu, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasorleri, standartYaziTipleri, anlikDosyasiMi } from './guvenlik.js';
 import electronUpdater from 'electron-updater';
 import { MacGuncelleyici, tarayicidaIndir } from './macGuncelleme.js';
 
@@ -375,10 +375,12 @@ function ipcKur(ipcMain) {
 
   ipcMain.handle('kabuk:klasordeGoster', (_e, yol) => { shell.showItemInFolder(yol); return true; });
   // Klasörü Gezgin'de açar (araç pencerelerindeki klasör çipi). Test örneğinde Gezgin açılmaz (bilgisayarı kullanan kişinin ekranı)
-  // Yalnızca klasör: shell.openPath dosyayı varsayılan programıyla açar, exe'yi çalıştırır (0.1.23)
+  // Yalnızca klasör: shell.openPath dosyayı varsayılan programıyla açar, exe'yi çalıştırır (0.1.23). macOS'ta uygulama paketi (.app) de
+  // klasördür ve açılınca uygulama başlar: paket klasörü açılmaz (0.2.1, guvenlik.js paketKlasoruMu)
   ipcMain.handle('kabuk:klasorAc', async (_e, klasor) => {
     const st = await fs.promises.stat(String(klasor || '')).catch(() => null);
     if (!st?.isDirectory()) return false;
+    if (MAC && await paketKlasoruMu(String(klasor))) return false;
     if (testDiyalog) return testDiyalog('kabuk:klasorAc', { klasor }, true);
     const hata = await shell.openPath(String(klasor));
     return !hata;
