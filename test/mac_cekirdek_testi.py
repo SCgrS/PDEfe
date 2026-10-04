@@ -131,6 +131,16 @@ if os.name != "nt":
             finally:
                 ac(y)
             pdefe_core.onbellek.hepsini_birak()
+        # Araçların ön denetimi (dosya_erisim): Kilitli dosya da salt okunur sayılır, "başka bir programda açık" denmez (0.2.1)
+        from islemler import araclar  # noqa: E402
+        y = os.path.join(CIKTI, "salt-okunur-%d-erisim.pdf" % i)
+        ornek_pdf_uret.uret(y, 1, "Salt okunur denemesi")
+        kilitle(y)
+        try:
+            erisim = araclar.y_dosya_erisim({"yol": y})
+            sonuc(f"{durum}: dosya_erisim saltOkunur", erisim.get("saltOkunur") is True and erisim.get("yazilir") is False, erisim)
+        finally:
+            ac(y)
     artik = [a for a in os.listdir(CIKTI) if a.endswith(".pdefe-tmp")]
     artik += os.listdir(os.path.join(CIKTI, "anlik")) if os.path.isdir(os.path.join(CIKTI, "anlik")) else []
     sonuc("salt okunur kayıtta geçici dosya ya da anlık kopya kalmaz", not artik, artik)

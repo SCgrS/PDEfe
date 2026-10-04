@@ -133,7 +133,9 @@ SALT_OKUNUR_METNI = "salt okunur"                       # renderer bu ifadeyle s
 
 
 def _salt_okunur_mu(yol):
-    """Dosyanın salt okunur özniteliği (Windows FILE_ATTRIBUTE_READONLY; başka sistemlerde yazma izni yok) açık mı?"""
+    """Dosyanın salt okunur özniteliği (Windows FILE_ATTRIBUTE_READONLY) açık mı; başka sistemlerde yazma izni yok mu: izin bitleri, erişim
+    listesi ya da macOS'ta Finder'ın "Kilitli" işareti (0.2.1, notlar.yazma_izni_yok; önceden yalnızca izin bitlerine bakılıyordu, Kilitli
+    dosya "başka bir programda açık olabilir" diye bildiriliyordu, yeniden denemek hep düşüyordu)?"""
     try:
         st = os.stat(yol)
     except OSError:
@@ -141,7 +143,8 @@ def _salt_okunur_mu(yol):
     oznitelik = getattr(st, "st_file_attributes", None)
     if oznitelik is not None:
         return bool(oznitelik & stat.FILE_ATTRIBUTE_READONLY)
-    return not (st.st_mode & stat.S_IWUSR)
+    from .notlar import yazma_izni_yok
+    return not (st.st_mode & stat.S_IWUSR) or yazma_izni_yok(yol)
 
 
 def _kilitli_mi(yol):
@@ -1348,7 +1351,8 @@ def y_dosya_erisim(p):
     """{yol} → {var, okunur, yazilir, saltOkunur}: üzerine yazmadan ÖNCE dosyanın başka bir programda kilitli ya da
     salt okunur olup olmadığına bakılır (uzun işlem bittikten sonra hata vermemek için). Dosyaya yazılmaz; 'r+b' açılıp
     kapatılır. Çekirdeğin kendi önbelleğindeki tanıtıcı paylaşımlı açıldığından sonucu etkilemez. saltOkunur: yazılamamanın
-    nedeni dosyanın salt okunur özniteliği (renderer kilit yerine bunu söyler)."""
+    nedeni dosyanın salt okunur özniteliği; macOS'ta yazma izninin olmaması ya da Finder'ın Kilitli işareti (renderer kilit yerine bunu
+    söyler; _salt_okunur_mu)."""
     yol = _mutlak(p.get("yol"))
     if not os.path.isfile(yol):
         return {"var": False, "okunur": False, "yazilir": False, "saltOkunur": False}
