@@ -79,6 +79,16 @@ async function ekranGoruntusu(ad) {
   }
   const belgeTurleri = calistir('/usr/bin/plutil', ['-extract', 'CFBundleDocumentTypes', 'json', '-o', '-', path.join(UYGULAMA, 'Contents/Info.plist')]);
   sonuc('PDF belge türü kayıtlı (Birlikte aç)', /"CFBundleTypeExtensions":\["pdf"\]/.test(belgeTurleri.cikti.replace(/\s/g, '')), belgeTurleri.cikti);
+  // En düşük macOS (0.2.1): Electron 44 en az macOS 13 Ventura ister; Info.plist'teki değer daha düşükse macOS 12 uygulamayı açmaya
+  // kalkar. Electron Framework'ün derlendiği en düşük sürüm (LC_BUILD_VERSION minos) de karşılaştırılır: Electron yükseltilince uyarır
+  const enDusuk = calistir('/usr/libexec/PlistBuddy', ['-c', 'Print :LSMinimumSystemVersion', path.join(UYGULAMA, 'Contents/Info.plist')]).cikti;
+  const cerceve = path.join(UYGULAMA, 'Contents/Frameworks/Electron Framework.framework/Electron Framework');
+  const minos = (calistir('/usr/bin/otool', ['-arch', 'arm64', '-l', cerceve]).cikti.match(/\bminos\s+(\d+(?:\.\d+)*)/) || [])[1] || '';
+  const surumParcalari = (s) => s.split('.').map(Number).concat(0, 0).slice(0, 3);
+  const enAzinda = (a, b) => { const x = surumParcalari(a), y = surumParcalari(b); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i]; return true; };
+  sonuc('en düşük macOS sürümü (LSMinimumSystemVersion) 13 ya da üstü', /^\d+(\.\d+)*$/.test(enDusuk) && enAzinda(enDusuk, '13.0'), enDusuk || 'yok');
+  sonuc('en düşük macOS sürümü Electron Framework\'ünkinden düşük değil', minos ? /^\d+(\.\d+)*$/.test(enDusuk) && enAzinda(enDusuk, minos) : null,
+    `Info.plist ${enDusuk || 'yok'} · Electron Framework ${minos || 'okunamadı'}`, false);
   const spctl = calistir('/usr/sbin/spctl', ['--assess', '--type', 'execute', '-vv', UYGULAMA]);
   sonuc('Gatekeeper değerlendirmesi (imzasız: ilk açılışta "Yine de Aç" gerekir)', null, (spctl.cikti + ' ' + spctl.hata).trim());
 }

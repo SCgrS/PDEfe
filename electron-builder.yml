@@ -119,7 +119,7 @@ mac:
         - universal
   icon: build/icon.png          # 512×512; electron-builder .icns'e çevirir
   category: public.app-category.productivity
-  minimumSystemVersion: "12.0"  # Electron 44'ün en düşük macOS sürümü
+  minimumSystemVersion: "13.0"  # Electron 44'ün en düşük macOS sürümü: 13 Ventura (Chromium macOS 12'yi bıraktı; 0.2.0'daki 12.0 yanlıştı, 0.2.1)
   darkModeSupport: true
   identity: "-"
   hardenedRuntime: false
