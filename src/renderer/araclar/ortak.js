@@ -2,7 +2,7 @@
 // yol yardımcıları, sürükleyerek sıralama, çıktı satırı (ad + klasör çipi), standart kaydetme seçimi
 // ("Yeni belge olarak kaydet" | "Üzerine yaz"), üzerine yazılan sekmeyi yenileme.
 // Bütün araçlar (kucult: Sıkıştır, sayfalar, ayir, gorselBirlestir, dondur) bu modülü kullanır.
-import { tus } from '../platform.js';
+import { tus, MAC } from '../platform.js';
 
 // ---------------------------------------------------------------- metin ve biçim
 const TR_SAYI_2 = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1032,27 +1032,44 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
     // Çekirdeğin iletisi okunamayan dosyanın adıyla biter ("…: Ek.pdf"; Birleştir'de listedeki herhangi bir dosya olabilir)
     const hatadakiAd = (/: ([^:\\/]+\.pdf)\s*$/i.exec(m) || [])[1];
     const programda = 'başka bir programda (örneğin bir PDF okuyucuda) açık olabilir';
+    // macOS (0.2.1): dosyaları başka programlar kilitlemez ve Gezgin'in Salt okunur özniteliği yoktur. Yazılamayan dosyada neden yazma izni
+    // ya da Finder'ın Kilitli işaretidir (çekirdek ikisini de "salt okunur" sayar), okunamayanda okuma izni: "programı kapatıp yeniden
+    // deneyin" işe yaramazdı. İletiler Finder'ın Bilgi Al penceresini anlatır (uygulama.js belgeKaydet'teki gibi); Windows metinleri değişmedi
+    const finderda = 'Finder\'da dosyayı seçip Dosya › Bilgi Al\'dan';
+    const kilitliMac = `${finderda} "Kilitli" işaretini kaldırıp ya da Paylaşma ve İzinler bölümünden yazma izni verip`;
     let mesaj, ayrinti, dugmeler, yanitlar;
     if (okunamadi) {
       mesaj = `"${hatadakiAd || ozgunAd || hedefAd}" okunamadı.`;
-      ayrinti = `Dosya ${programda}. Hiçbir dosya değiştirilmedi.\n\nDosyayı kullanan programı kapatıp yeniden deneyin.`;
+      ayrinti = MAC
+        ? `Dosyayı okuma izni olmayabilir. Hiçbir dosya değiştirilmedi.\n\n${finderda} Paylaşma ve İzinler bölümünü denetleyip yeniden deneyin.`
+        : `Dosya ${programda}. Hiçbir dosya değiştirilmedi.\n\nDosyayı kullanan programı kapatıp yeniden deneyin.`;
       dugmeler = ['Yeniden dene', 'Vazgeç']; yanitlar = ['tekrar', 'vazgec'];
     } else if (!uzerine && coklu) {
       // Birden çok dosyada araç var olan dosyaların üzerine yazmaz (ada "(2)" ekler): yazılamayan, seçilen klasördür
       mesaj = 'Dosyalar kaydedilemedi.';
-      ayrinti = `Seçilen klasöre yazılamadı; klasör salt okunur olabilir ya da bir dosya ${programda}. Var olan hiçbir dosya değiştirilmedi.\n\nBaşka bir klasör seçebilir ya da yeniden deneyebilirsiniz.`;
+      ayrinti = MAC
+        ? 'Seçilen klasöre yazılamadı; klasöre yazma izni olmayabilir ya da içindeki bir dosya kilitli olabilir. Var olan hiçbir dosya değiştirilmedi.\n\nBaşka bir klasör seçebilir ya da Finder\'da klasörün Bilgi Al penceresinden Paylaşma ve İzinler bölümünü denetleyip yeniden deneyebilirsiniz.'
+        : `Seçilen klasöre yazılamadı; klasör salt okunur olabilir ya da bir dosya ${programda}. Var olan hiçbir dosya değiştirilmedi.\n\nBaşka bir klasör seçebilir ya da yeniden deneyebilirsiniz.`;
       dugmeler = ['Yeniden dene', 'Vazgeç']; yanitlar = ['tekrar', 'vazgec'];
     } else if (uzerine) {
       mesaj = saltOkunur ? `"${hedefAd}" salt okunur olduğu için üzerine yazılamadı.` : `"${hedefAd}" dosyasının üzerine yazılamadı.`;
-      ayrinti = saltOkunur
-        ? 'Dosyanın Salt okunur özniteliği açık. Özgün dosya değiştirilmedi.\n\nDosya Gezgini\'nde dosyanın Özellikler penceresinden Salt okunur işaretini kaldırıp yeniden deneyebilir ya da sonucu yeni bir belge olarak kaydedebilirsiniz.'
-        : `Dosya ${programda}. Özgün dosya değiştirilmedi.\n\nDosyayı kullanan programı kapatıp yeniden deneyebilir ya da sonucu yeni bir belge olarak kaydedebilirsiniz.`;
+      if (MAC) {
+        ayrinti = `${saltOkunur ? 'Dosyaya yazma izni yok ya da dosya kilitli.' : 'Dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir.'} Özgün dosya değiştirilmedi.\n\n${kilitliMac} yeniden deneyebilir ya da sonucu yeni bir belge olarak kaydedebilirsiniz.`;
+      } else {
+        ayrinti = saltOkunur
+          ? 'Dosyanın Salt okunur özniteliği açık. Özgün dosya değiştirilmedi.\n\nDosya Gezgini\'nde dosyanın Özellikler penceresinden Salt okunur işaretini kaldırıp yeniden deneyebilir ya da sonucu yeni bir belge olarak kaydedebilirsiniz.'
+          : `Dosya ${programda}. Özgün dosya değiştirilmedi.\n\nDosyayı kullanan programı kapatıp yeniden deneyebilir ya da sonucu yeni bir belge olarak kaydedebilirsiniz.`;
+      }
       dugmeler = ['Yeni belge olarak kaydet', 'Yeniden dene', 'Vazgeç']; yanitlar = ['yeni', 'tekrar', 'vazgec'];
     } else {
       mesaj = saltOkunur ? `"${hedefAd}" salt okunur olduğu için kaydedilemedi.` : `"${hedefAd}" kaydedilemedi.`;
-      ayrinti = saltOkunur
-        ? 'Aynı adlı var olan dosyanın Salt okunur özniteliği açık; o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da Salt okunur işaretini kaldırıp yeniden deneyebilirsiniz.'
-        : `Aynı adlı var olan dosya ${programda}; o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da dosyayı kullanan programı kapatıp yeniden deneyebilirsiniz.`;
+      if (MAC) {
+        ayrinti = `${saltOkunur ? 'Aynı adlı var olan dosyaya yazma izni yok ya da dosya kilitli' : 'Aynı adlı var olan dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir'}; o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da ${kilitliMac} yeniden deneyebilirsiniz.`;
+      } else {
+        ayrinti = saltOkunur
+          ? 'Aynı adlı var olan dosyanın Salt okunur özniteliği açık; o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da Salt okunur işaretini kaldırıp yeniden deneyebilirsiniz.'
+          : `Aynı adlı var olan dosya ${programda}; o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da dosyayı kullanan programı kapatıp yeniden deneyebilirsiniz.`;
+      }
       dugmeler = ['Başka adla kaydet', 'Yeniden dene', 'Vazgeç']; yanitlar = ['baskaAd', 'tekrar', 'vazgec'];
     }
     const { secim: yanit } = await baglam.mesajKutusu({ tur: 'warning', mesaj, ayrinti, dugmeler, varsayilan: 0, iptal: dugmeler.length - 1 });

@@ -146,6 +146,55 @@ export default async function ({ evalJs }) {
   sonuc('Yazı düzenleyicisi (Windows): eskisi gibi yalnızca Ctrl+PageDown belgeye geçer',
     J(sekmeTusu.win) === J({ sonraki: 'yutuldu', onceki: 'yutuldu', trSonraki: 'yutuldu', shiftsiz: 'yutuldu', ctrlKoseli: 'yutuldu', ctrlPgDn: 'belgeye', cmdPgDn: 'yutuldu', harf: 'yutuldu' }), sekmeTusu.win);
 
+  // ---------------------------------------------------------------- Araçların yazılamayan dosya sorusu (araclar/ortak.js kayitSecimi.hataSor)
+  // macOS'ta dosyaları başka programlar kilitlemez, Gezgin'in Salt okunur özniteliği yoktur: neden yazma / okuma izni ya da Finder'ın Kilitli
+  // işareti; ileti Finder › Bilgi Al'ı anlatmalı. Windows metinleri değişmemeli. Her vakada sorunun metni ve düğmeleri kaydedilir (Vazgeç)
+  const hataSorusu = await evalJs(`(async () => { ${ORTAM}
+    const sonuc = {};
+    for (const mac of [true, false]) {
+      const o = ortam(mac), { kayitSecimi } = await o.yukle('araclar/ortak.js');
+      const sorular = [];
+      // Çıktı klasörü ayardan (var): bilinen klasörler sorulmaz (çerçevedeki modül onları önceki bölümde boş yanıtla önbelleğe aldı)
+      const baglam = { pdefe: { cagir: async (kanal, yol) => (kanal === 'dosya:varMi' ? yol === '/Volumes/Arsiv' : {}) }, ayar: () => ({ ciktiKlasoru: '/Volumes/Arsiv' }), bildir: () => {},
+        mesajKutusu: async (s) => { sorular.push({ mesaj: s.mesaj, ayrinti: s.ayrinti, dugmeler: s.dugmeler }); return { secim: s.dugmeler.length - 1 }; } };
+      const k = kayitSecimi({ baglam, belge: { yol: '/Volumes/Arsiv/Belge.pdf', ad: 'Belge.pdf' }, ad: 'Sıkıştırılmış' });
+      await k.hazir;
+      k.cikti.ayarla('/Volumes/Arsiv', 'Hedef', { elle: true });
+      const r = sonuc[mac ? 'mac' : 'win'] = {};
+      const sor = async (ad, ileti) => { sorular.length = 0; await k.hataSor(new Error(ileti)); r[ad] = sorular[0] || null; };
+      await sor('yeniSaltOkunur', 'Dosya salt okunur');
+      await sor('yeniYazilamadi', 'Dosya yazılamadı');
+      await sor('okunamadi', 'Dosya okunamadı; başka bir programda açık olabilir: Ek.pdf');
+      k.kipAyarla('uzerine');
+      await sor('uzerineSaltOkunur', 'Dosya yazılamadı; salt okunur: Belge.pdf');
+      await sor('uzerineYazilamadi', 'Dosya yazılamadı');
+      k.kipAyarla('yeni'); k.cokluAyarla(true);
+      await sor('coklu', 'Dosya yazılamadı');
+    }
+    return sonuc;
+  })()`);
+  const PROGRAMDA = 'başka bir programda (örneğin bir PDF okuyucuda) açık olabilir';
+  const WIN_AYRINTI = {
+    yeniSaltOkunur: 'Aynı adlı var olan dosyanın Salt okunur özniteliği açık; o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da Salt okunur işaretini kaldırıp yeniden deneyebilirsiniz.',
+    yeniYazilamadi: `Aynı adlı var olan dosya ${PROGRAMDA}; o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da dosyayı kullanan programı kapatıp yeniden deneyebilirsiniz.`,
+    okunamadi: `Dosya ${PROGRAMDA}. Hiçbir dosya değiştirilmedi.\n\nDosyayı kullanan programı kapatıp yeniden deneyin.`,
+    uzerineSaltOkunur: 'Dosyanın Salt okunur özniteliği açık. Özgün dosya değiştirilmedi.\n\nDosya Gezgini\'nde dosyanın Özellikler penceresinden Salt okunur işaretini kaldırıp yeniden deneyebilir ya da sonucu yeni bir belge olarak kaydedebilirsiniz.',
+    uzerineYazilamadi: `Dosya ${PROGRAMDA}. Özgün dosya değiştirilmedi.\n\nDosyayı kullanan programı kapatıp yeniden deneyebilir ya da sonucu yeni bir belge olarak kaydedebilirsiniz.`,
+    coklu: `Seçilen klasöre yazılamadı; klasör salt okunur olabilir ya da bir dosya ${PROGRAMDA}. Var olan hiçbir dosya değiştirilmedi.\n\nBaşka bir klasör seçebilir ya da yeniden deneyebilirsiniz.`,
+  };
+  const winFark = Object.entries(WIN_AYRINTI).filter(([ad, a]) => hataSorusu.win[ad]?.ayrinti !== a).map(([ad]) => ad);
+  sonuc('Araç sorusu (Windows): altı durumun açıklaması eskisi gibi', !winFark.length, winFark.map((ad) => ({ ad, ayrinti: hataSorusu.win[ad]?.ayrinti })));
+  const macHatali = Object.keys(WIN_AYRINTI).filter((ad) => {
+    const m = hataSorusu.mac[ad], w = hataSorusu.win[ad];
+    return !m || /Gezgin|Özellikler|başka bir programda|kullanan programı/.test(m.ayrinti) || !/Finder/.test(m.ayrinti) || !/Bilgi Al/.test(m.ayrinti)
+      || m.mesaj !== w?.mesaj || J(m.dugmeler) !== J(w?.dugmeler);
+  });
+  sonuc('Araç sorusu (macOS): altı durumda da Finder › Bilgi Al anlatılıyor, Gezgin / "başka programda açık" yok; başlık ve düğmeler Windows\'takiyle aynı',
+    !macHatali.length, macHatali.map((ad) => ({ ad, ...hataSorusu.mac[ad] })));
+  const kilitli = ['yeniSaltOkunur', 'yeniYazilamadi', 'uzerineSaltOkunur', 'uzerineYazilamadi'].filter((ad) => !/"Kilitli" işaretini/.test(hataSorusu.mac[ad]?.ayrinti || ''));
+  sonuc('Araç sorusu (macOS): yazılamayan dosyada Kilitli işareti ve Paylaşma ve İzinler söyleniyor', !kilitli.length && /Paylaşma ve İzinler/.test(hataSorusu.mac.okunamadi?.ayrinti || ''),
+    kilitli.map((ad) => hataSorusu.mac[ad]?.ayrinti));
+
   await evalJs(`(() => { document.querySelector('#mac-cerceve')?.remove(); document.querySelector('#win-cerceve')?.remove(); return true; })()`);
   console.log(`\n${tamam} tamam, ${hata} hata`);
 }
