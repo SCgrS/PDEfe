@@ -195,6 +195,31 @@ export default async function ({ evalJs }) {
   sonuc('Araç sorusu (macOS): yazılamayan dosyada Kilitli işareti ve Paylaşma ve İzinler söyleniyor', !kilitli.length && /Paylaşma ve İzinler/.test(hataSorusu.mac.okunamadi?.ayrinti || ''),
     kilitli.map((ad) => hataSorusu.mac[ad]?.ayrinti));
 
+  // ---------------------------------------------------------------- Ayarlar › Güncelleme (ayarlarPenceresi.js bolumGuncelleme)
+  // macOS'ta yeni sürüm tek tıkla kurulmaz: açıklama İndir'i ve Uygulamalar'a sürüklemeyi anlatmalı, "Şimdi denetle"nin çıkardığı düğme
+  // şeritteki gibi 'İndir'. Windows'ta metin ve 'Güncelle' düğmesi değişmemeli
+  const ayarGuncelleme = await evalJs(`(async () => { ${ORTAM}
+    const sonuc = {};
+    for (const mac of [true, false]) {
+      const o = ortam(mac), m = await o.yukle('ayarlarPenceresi.js');
+      const guncelleme = { denetle: async () => ({ durum: 'var', asama: 'var', surum: '9.9.9', mevcut: '0.2.1' }), durum: () => ({ asama: 'var' }), guncelle: () => {} };
+      const ortu = m.ayarlarPenceresiAc({ ayar: () => ({}), ayarKoy: () => {}, pdefe: { cagir: async () => null }, guncelleme }, { bolum: 'guncelleme' });
+      const aciklama = ortu.querySelector('.ayar-aciklama')?.textContent || '';
+      const denetle = [...ortu.querySelectorAll('button')].find((b) => b.textContent === 'Şimdi denetle');
+      denetle?.click();
+      for (let i = 0; i < 50 && !ortu.querySelector('.ayar-sonuc-var button'); i++) await new Promise((r) => setTimeout(r, 20));
+      sonuc[mac ? 'mac' : 'win'] = { aciklama, dugme: ortu.querySelector('.ayar-sonuc-var button')?.textContent || null };
+      m.ayarlarPenceresiKapat();
+    }
+    return sonuc;
+  })()`);
+  sonuc('Ayarlar › Güncelleme (Windows): açıklama ve "Şimdi denetle"nin düğmesi (Güncelle) eskisi gibi',
+    ayarGuncelleme.win.aciklama === 'Haftada bir, açılışta ya da PDEfe açık kalıyorsa gün içinde arka planda yeni sürüme bakılır; internet yoksa sonra yeniden denenir. Yeni sürüm varsa pencerenin üstünde bir şerit görünür; Güncelle\'ye tek tıkla indirilir, kurulur ve PDEfe yeniden açılır.'
+    && ayarGuncelleme.win.dugme === 'Güncelle', ayarGuncelleme.win);
+  sonuc('Ayarlar › Güncelleme (macOS): açıklama İndir\'i ve Uygulamalar\'a sürüklemeyi anlatıyor ("tek tıkla kurulur" yok), düğme İndir',
+    /İndir'e basınca yeni sürüm tarayıcıda iner/.test(ayarGuncelleme.mac.aciklama) && /Uygulamalar klasörüne sürükle/.test(ayarGuncelleme.mac.aciklama)
+    && !/tek tıkla|kurulur ve PDEfe yeniden açılır/.test(ayarGuncelleme.mac.aciklama) && ayarGuncelleme.mac.dugme === 'İndir', ayarGuncelleme.mac);
+
   await evalJs(`(() => { document.querySelector('#mac-cerceve')?.remove(); document.querySelector('#win-cerceve')?.remove(); return true; })()`);
   console.log(`\n${tamam} tamam, ${hata} hata`);
 }

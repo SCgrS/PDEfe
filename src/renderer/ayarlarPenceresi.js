@@ -360,7 +360,10 @@ function bolumGuncelleme(k) {
   const sonDenetim = el('div', { class: 'soluk' }, '');
   k.append(kart({
     baslik: 'Güncellemeleri otomatik denetle (haftada bir)',
-    aciklama: 'Haftada bir, açılışta ya da PDEfe açık kalıyorsa gün içinde arka planda yeni sürüme bakılır; internet yoksa sonra yeniden denenir. Yeni sürüm varsa pencerenin üstünde bir şerit görünür; Güncelle\'ye tek tıkla indirilir, kurulur ve PDEfe yeniden açılır.',
+    // macOS (0.2.1): yeni sürüm tek tıkla kurulmaz; şeritteki İndir paketi tarayıcıda indirir, kurulum kullanıcıda (renderer/guncelleme.js)
+    aciklama: 'Haftada bir, açılışta ya da PDEfe açık kalıyorsa gün içinde arka planda yeni sürüme bakılır; internet yoksa sonra yeniden denenir. ' + (MAC
+      ? 'Yeni sürüm varsa pencerenin üstünde bir şerit görünür; İndir\'e basınca yeni sürüm tarayıcıda iner, PDEfe\'den çıkıp inen dosyadaki PDEfe\'yi Uygulamalar klasörüne sürükleyerek kurarsınız.'
+      : 'Yeni sürüm varsa pencerenin üstünde bir şerit görünür; Güncelle\'ye tek tıkla indirilir, kurulur ve PDEfe yeniden açılır.'),
     kontrol: anahtar(a.otoGuncelle !== false, (v) => degistir('otoGuncelle', v)),
     alt: sonDenetim,
   }));
@@ -390,7 +393,8 @@ function bolumGuncelleme(k) {
         const metin = asama === 'var' || !r.mesaj ? `PDEfe ${r.surum || ''} hazır${r.mevcut ? ` (kullandığınız: ${r.mevcut})` : ''}.` : r.mesaj;
         sonuc.replaceChildren(el('span', {}, metin + ' '));
         if (guncelleme && asama !== 'indiriliyor') {
-          const g = el('button', { class: 'ikincil', type: 'button' }, asama === 'hazir' ? 'Kur ve yeniden başlat' : 'Güncelle');
+          // macOS'ta şeritteki gibi 'İndir' (paket tarayıcıda iner; 'hazir' aşaması Mac'te oluşmaz)
+          const g = el('button', { class: 'ikincil', type: 'button' }, asama === 'hazir' ? 'Kur ve yeniden başlat' : MAC ? 'İndir' : 'Güncelle');
           g.addEventListener('click', () => { ayarlarPenceresiKapat(); guncelleme.guncelle(); });
           sonuc.append(g);
         }
