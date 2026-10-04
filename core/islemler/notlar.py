@@ -51,9 +51,15 @@ else:
         ("Calibri", False, False): "calibri.ttf", ("Calibri", True, False): "calibrib.ttf",
         ("Calibri", False, True): "calibrii.ttf", ("Calibri", True, True): "calibriz.ttf",
     }
-# Gömülecek glif dağarcığı: ASCII, Latin-1, Latin Genişletilmiş-A (Türkçe dahil), genel noktalama, TL işareti
-DAGARCIK = (list(range(0x20, 0x7F)) + list(range(0xA0, 0x100)) + [0x11E, 0x11F, 0x130, 0x131, 0x15E, 0x15F, 0x152, 0x153, 0x178]
-            + list(range(0x2010, 0x2027)) + [0x20AC, 0x20BA, 0x2122, 0x2030, 0x2032, 0x2033])
+# Gömülecek glif dağarcığı: ASCII, Latin-1, Latin Genişletilmiş-A (Türkçe dahil), ƒ ˆ ˜, genel noktalama (satır / paragraf ayırıcıları
+# ve yön denetimleri hariç), € ₺ № ™, kesirler, oklar, matematik işaretleri. 0.2.1'de Latin Genişletilmiş-A tamamlandı, noktalama, oklar ve
+# matematik işaretleri eklendi (önceden yalnızca Türkçe harfler, Œ œ Ÿ ve U+2010-2026): alt küme değiştiği için var olan belgelerde font
+# bir sonraki yazı notunda bir kez yeniden gömülür (_pdefe_fontu_mu; eski notlar kendi fontlarıyla kalır). Dağarcıkta olmayan karakter
+# notun görünümünde '?' çizilir (_cizilen)
+DAGARCIK = (list(range(0x20, 0x7F)) + list(range(0xA0, 0x180)) + [0x192, 0x2C6, 0x2DC]
+            + list(range(0x2010, 0x2028)) + list(range(0x2030, 0x205F)) + [0x20AC, 0x20BA, 0x2116, 0x2122]
+            + list(range(0x2150, 0x2160)) + list(range(0x2190, 0x2300)))
+DAGARCIK_KUME = frozenset(DAGARCIK)
 BICIMLER = ("kalin", "italik", "alti", "ustu")          # parça (run) düzeyindeki biçimler; renk ayrıca
 HIZA_Q = {"sol": 0, "orta": 1, "sag": 2}
 HIZA_CSS = {"sol": "left", "orta": "center", "sag": "right"}
@@ -116,7 +122,7 @@ def _font_yukle(aile, kalin, italik=False):
     yol, sahte = _font_dosyasi(aile, kalin, italik)
     font = pymupdf.Font(fontfile=yol)
     olcu = {"yukari": font.ascender, "asagi": -font.descender, "altiKonum": -0.1, "altiKalinlik": 0.06,
-            "ustuKonum": 0.26, "ustuKalinlik": 0.05, "sahteItalik": sahte}
+            "ustuKonum": 0.26, "ustuKalinlik": 0.05, "sahteItalik": sahte, "altKume": False}
     altkume = None
     try:
         import logging
@@ -146,6 +152,7 @@ def _font_yukle(aile, kalin, italik=False):
         buf = io.BytesIO()
         tt.save(buf)
         altkume = buf.getvalue()
+        olcu["altKume"] = True              # gömülen fontta yalnızca DAGARCIK'ın glifleri var (_cizilen)
     except Exception:
         with open(yol, "rb") as f:
             altkume = f.read()
@@ -401,14 +408,20 @@ def _stilli_satirlar(kar, genislik, olc):
     return satirlar
 
 
-def _gid_hex(font, metin):
-    out = []
-    for ch in metin:
-        gid = font.has_glyph(ord(ch))
-        if not gid and ch != " ":
-            gid = font.has_glyph(ord("?"))
-        out.append("%04X" % (gid or 0))
-    return "".join(out)
+def _cizilen(font, olcu, ch):
+    """Karakterin notun görünüm akışında çizilen ve ölçülen hâli: gömülen fontta glifi olmayan karakter '?' (0.2.1). Önceden glif tam
+    fontta aranıyordu: tam fontta olup alt kümede boşaltılan karakter (→ ≤ ł α…) kaydedilen PDF'te, yazdırmada ve başka okuyucularda boş
+    çıkıyordu, '?' yedeği hiç devreye girmiyordu."""
+    if ch == " ":
+        return ch
+    kod = ord(ch)
+    if (kod in DAGARCIK_KUME or not olcu.get("altKume")) and font.has_glyph(kod):
+        return ch
+    return "?"
+
+
+def _gid_hex(font, metin, olcu):
+    return "".join("%04X" % (font.has_glyph(ord(_cizilen(font, olcu, ch))) or 0) for ch in metin)
 
 
 # ---------------------------------------------------------------- /RC (XHTML zengin metin) ve CSS
@@ -686,7 +699,8 @@ def freetext_gorunum_yaz(doc, page, annot, metin, stil):
     def olc(ch, st):
         a = (ch, bool(st.get("kalin")), bool(st.get("italik")))
         if a not in olculer:
-            olculer[a] = kaynak[a[1:]][1].text_length(ch, fontsize=boyut)
+            _, font, olcu, _ = kaynak[a[1:]]
+            olculer[a] = font.text_length(_cizilen(font, olcu, ch), fontsize=boyut)   # çizilen karakterle (gömülü değilse '?')
         return olculer[a]
 
     satirlar = _stilli_satirlar(kar, genislik, olc)
@@ -718,7 +732,7 @@ def freetext_gorunum_yaz(doc, page, annot, metin, stil):
             if parca.strip():
                 egim = SAHTE_ITALIK_EGIM if st.get("italik") and olcu["sahteItalik"] else 0
                 metin_ops.append("/%s %.2f Tf %.3f %.3f %.3f rg 1 0 %.4f 1 %.2f %.2f Tm <%s> Tj" % (
-                    ad, boyut, rr[0], rr[1], rr[2], egim, x, y, _gid_hex(font, parca)))
+                    ad, boyut, rr[0], rr[1], rr[2], egim, x, y, _gid_hex(font, parca, olcu)))
             x1 = min(x + pg, bitis)
             for acik, konum, kalinlik in ((st.get("alti"), duz_olcu["altiKonum"], duz_olcu["altiKalinlik"]),
                                           (st.get("ustu"), duz_olcu["ustuKonum"], duz_olcu["ustuKalinlik"])):

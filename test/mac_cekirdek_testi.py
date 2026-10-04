@@ -76,6 +76,32 @@ try:
 except Exception as e:  # noqa: BLE001
     sonuc("yazı notu kaydı", False, repr(e))
 
+# ---------------------------------------------------------------- 1b) gömülen alt kümenin dağarcığı (0.2.1)
+# Ok, matematik işareti ve Latin Genişletilmiş-A harfi notun görünümünde çizilir; dağarcıkta olmayan karakter boş değil '?' çıkar (önceden
+# glif tam fontta aranıyordu, alt kümede boş olan glif yazılıyordu: ikisi de boş çıkıyordu)
+pdf_d = os.path.join(CIKTI, "dagarcik.pdf")
+d = pymupdf.open()
+d.new_page(width=595, height=842)
+d.save(pdf_d)
+d.close()
+DENEMELER = [("aaaa", "aaaa"), ("→→→→", "→→→→"), ("≤≤≤≤", "≤≤≤≤"), ("łłłł", "łłłł"), ("αααα", "????")]
+try:
+    notlar.y_notlar_kaydet({"yol": pdf_d, "hedef": pdf_d, "artimli": True, "islemler": [
+        {"islem": "ekle", "id": "d%d" % i, "not": {"tur": "FreeText", "sayfa": 1, "rect": [70, 80 + 70 * i, 330, 140 + 70 * i], "icerik": m,
+                                                 "yazi": {"tip": "Arial", "boyut": 36, "renk": "#000000", "kenarlik": False}}}
+        for i, (m, _) in enumerate(DENEMELER)]})
+    doc = pymupdf.open(pdf_d)
+    pg = doc[0]
+    for a in pg.annots():
+        beklenen = dict(DENEMELER).get(a.info.get("content"))
+        pix = pg.get_pixmap(clip=a.rect, dpi=72, colorspace=pymupdf.csGRAY)
+        murekkep = sum(1 for v in pix.samples if v < 128)
+        okunan = pg.get_textbox(a.rect).strip()
+        sonuc(f"yazı notunda {a.info.get('content')} → {beklenen} çizilir", murekkep > 50 and okunan == beklenen, f"koyu piksel {murekkep}, metin {okunan!r}")
+    doc.close()
+except Exception as e:  # noqa: BLE001
+    sonuc("dağarcık denemesi", False, repr(e))
+
 # ---------------------------------------------------------------- 2) baştan yazılan kayıtta izinler ve öznitelikler
 pdf2 = os.path.join(CIKTI, "izin.pdf")
 ornek_pdf_uret.uret(pdf2, 1, "İzin denemesi")
