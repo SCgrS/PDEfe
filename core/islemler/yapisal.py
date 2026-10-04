@@ -121,6 +121,10 @@ def y_yapisal_kaydet(p):
             for op in islemler:
                 if op.get("kaynak") and op["kaynak"].get("yol") and _ayni_yol(op["kaynak"]["yol"], yol):
                     op["kaynak"] = dict(op["kaynak"], yol=anlik)
+                # Yanıtın üst notunun kaynağı da (0.2.1; önceden çevrilmediği için ilk yapısal kayıtta yanıt üstünü bulamıyordu)
+                yk = (op.get("not") or {}).get("yanitKaynak")
+                if yk and yk.get("yol") and _ayni_yol(yk["yol"], yol):
+                    op["not"] = dict(op["not"], yanitKaynak=dict(yk, yol=anlik))
         ilerleme(10, "Sayfalar düzenleniyor")
 
         acik = {}
@@ -148,24 +152,41 @@ def y_yapisal_kaydet(p):
                     k = (os.path.normcase(os.path.abspath(e[0])), e[1])
                     konum.setdefault(k, i)
 
+            def sayfa_anahtari(k):
+                if not k or not k.get("yol"):
+                    return None
+                return (os.path.normcase(os.path.abspath(k["yol"])), int(k["sayfa"]))
+
+            # Not eşlemesi (0.2.1): işlemlerin değindiği her kaynak sayfada kaynak not xref'i → yeni belgedeki not xref'i, HİÇBİR işlem
+            # uygulanmadan önce kurulur. Önceden hedef not her işlemde kaynak sayfadaki sırasıyla yeni sayfanın o anki not listesinde
+            # aranıyordu: aynı sayfada önceki bir silme listeyi kısaltınca sonraki silme / güncelleme bir sağdaki nota uygulanıyordu.
+            # insert_pdf yanıt (IRT) notlarını kopyalamaz (Link, Popup, Widget'ı annots() de vermez): kaynak listesinden çıkarılır,
+            # yanıtın kendisine yapılan işlem atlanır. Listelerin uzunluğu tutmazsa o sayfada eşleme kurulmaz ve işlemler atlanır:
+            # yanlış nota dokunmaktansa.
+            eslemeler = {}
+            for op in islemler:
+                for k in (op.get("kaynak"), (op.get("not") or {}).get("yanitKaynak")):
+                    anahtar = sayfa_anahtari(k)
+                    if anahtar is None or anahtar not in konum or anahtar in eslemeler:
+                        continue
+                    src = belge_al(k["yol"])
+                    src_xrefs = [a.xref for a in src[anahtar[1] - 1].annots() if src.xref_get_key(a.xref, "IRT")[0] == "null"]
+                    yeni_xrefs = [a.xref for a in yeni[konum[anahtar]].annots()]
+                    eslemeler[anahtar] = dict(zip(src_xrefs, yeni_xrefs)) if len(src_xrefs) == len(yeni_xrefs) else {}
+
             def hedef_annot(op):
-                k = op.get("kaynak") or {}
-                if not k.get("yol"):
-                    return None
-                anahtar = (os.path.normcase(os.path.abspath(k["yol"])), int(k["sayfa"]))
-                if anahtar not in konum:
+                anahtar = sayfa_anahtari(op.get("kaynak"))
+                if anahtar is None or anahtar not in konum:
                     return None                       # sayfa silinmiş; işlem gereksiz
-                src_page = belge_al(k["yol"])[int(k["sayfa"]) - 1]
-                src_xrefs = [a.xref for a in src_page.annots()]
                 xref = int(op.get("xref") or (op.get("not") or {}).get("xref") or 0)
-                if xref not in src_xrefs:
+                yeni_xref = eslemeler.get(anahtar, {}).get(xref)
+                if not yeni_xref:
                     return None
-                idx = src_xrefs.index(xref)
                 yeni_page = yeni[konum[anahtar]]
-                hedefler = list(yeni_page.annots())
-                if idx >= len(hedefler):
-                    return None
-                return yeni_page, hedefler[idx]
+                try:
+                    return yeni_page, notlar._annot_bul(yeni_page, yeni_xref)
+                except KeyError:
+                    return None                       # not, üstüyle birlikte silinmiş
 
             for op in islemler:
                 n = dict(op.get("not") or {})
