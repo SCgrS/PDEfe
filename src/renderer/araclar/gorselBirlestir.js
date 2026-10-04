@@ -28,7 +28,8 @@ export const KALITELER = [
   { id: 'orta', ad: 'Orta', aciklama: 'Ekranda okuma ve paylaşım için iyi kalite, daha küçük dosya. Sıkıştırınca küçülmeyen görsel olduğu gibi eklenir.' },
   { id: 'dusuk', ad: 'Düşük', aciklama: 'En küçük dosya; görsellerde belirgin kalite kaybı olabilir. Sıkıştırınca küçülmeyen görsel olduğu gibi eklenir.' },
 ];
-export const GORSEL_UZANTILAR = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'tif', 'tiff', 'webp', 'heic', 'heif'];
+// HEIC / HEIF listede yok (0.2.1): çekirdeğin onları açan kütüphanesi (pillow_heif) pakette yok; listede görünüp eklenince hata veriyordu
+export const GORSEL_UZANTILAR = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'tif', 'tiff', 'webp'];
 const UZANTILAR = ['pdf', ...GORSEL_UZANTILAR];
 const DOSYA_FILTRELERI = [
   { name: 'PDF ve görüntüler', extensions: UZANTILAR },
@@ -352,7 +353,8 @@ export class BirlestirmePenceresi {
   dosyaEkle(yollar, konum = null) {
     const kabul = [], red = [];
     for (const y of yollar) (this.uzantilar.includes(uzanti(y)) ? kabul : red).push(y);
-    if (red.length) this.baglam.bildir(`${red.length} dosya atlandı (desteklenmeyen tür): ${red.slice(0, 3).map(dosyaAdi).join(', ')}${red.length > 3 ? ` ve ${red.length - 3} dosya daha` : ''}`, 4000);
+    const heic = red.some((y) => uzanti(y) === 'heic' || uzanti(y) === 'heif');
+    if (red.length) this.baglam.bildir(`${red.length} dosya atlandı (desteklenmeyen tür): ${red.slice(0, 3).map(dosyaAdi).join(', ')}${red.length > 3 ? ` ve ${red.length - 3} dosya daha` : ''}${heic ? '. HEIC fotoğraflarını önce JPG ya da PNG\'ye çevirin.' : ''}`, heic ? 7000 : 4000);
     if (!kabul.length) return 0;
     const yeniler = kabul.map((yol) => ({
       kimlik: ++this.kimlikSayac, yol, ad: dosyaAdi(yol), tur: uzanti(yol) === 'pdf' ? 'pdf' : 'gorsel', sayfa: null, boyut: null,
@@ -558,7 +560,7 @@ export class BirlestirmePenceresi {
     this.liste.innerHTML = '';
     this.liste.classList.toggle('bos', !this.ogeler.length);
     if (!this.ogeler.length) {
-      this.liste.append(oge(`<div class="bos-mesaj"><b>Dosyaları buraya sürükleyin</b><span>ya da "Dosya ekle" düğmesini kullanın. ${MAC ? 'Finder\'dan' : 'Gezgin\'den'} kopyalanan dosyaları ve ekran görüntüsünü ${tus('Ctrl+V')} veya Yapıştır ile yapıştırabilirsiniz.</span><span class="soluk">PDF, JPG, PNG, BMP, GIF, TIFF, WEBP, HEIC</span></div>`));
+      this.liste.append(oge(`<div class="bos-mesaj"><b>Dosyaları buraya sürükleyin</b><span>ya da "Dosya ekle" düğmesini kullanın. ${MAC ? 'Finder\'dan' : 'Gezgin\'den'} kopyalanan dosyaları ve ekran görüntüsünü ${tus('Ctrl+V')} veya Yapıştır ile yapıştırabilirsiniz.</span><span class="soluk">PDF, JPG, PNG, BMP, GIF, TIFF, WEBP</span></div>`));
     }
     this.ogeler.forEach((o, i) => { const el = this._ogeOlustur(o); this.liste.append(el); this._ogeCiz(o, i); });
     this._uzerineDurumu();
