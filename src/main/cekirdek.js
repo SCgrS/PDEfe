@@ -49,6 +49,9 @@ export class Cekirdek {
       } catch (e) { reddet(e); return; }
       this.surec = p;
       p.on('error', (e) => { console.error('[çekirdek] hata:', e.message); reddet(e); });
+      // Süreç ölürken ('exit' gelmeden) yazılan istek EPIPE ile düşer: dinleyicisiz akış hatası ana süreçte yakalanmamış istisna olur
+      // (hata kutusu, bütün pencereler donar). Bekleyen istekler 'exit'te reddedilir, sonraki çağrı çekirdeği yeniden başlatır (0.2.1)
+      p.stdin.on('error', (e) => console.error('[çekirdek] stdin:', e.message));
       p.on('exit', (kod) => {
         console.error('[çekirdek] çıktı, kod:', kod);
         this.surec = null; this.hazirSozu = null;
