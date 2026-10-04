@@ -8,7 +8,7 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import { ayarlar, ayarKoy, ayarAl, VARSAYILANLAR } from './ayarlar.js';
 import { menuKur } from './menu.js';
 import { Cekirdek } from './cekirdek.js';
-import { panoyaDosyaKopyala } from './pano.js';
+import { panoyaDosyaKopyala, panoyaMetinYaz } from './pano.js';
 import { yazdirmaKur } from './yazdir.js';
 import { guncellemeKur } from './guncelleme.js';
 import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla, menuCubugunuUygula, pencereSayisi } from './pencereler.js';
@@ -390,13 +390,10 @@ function ipcKur(ipcMain) {
   });
   // Test örneğinde sistem panosuna yazılmaz (bilgisayarı kullanan kişinin panosu bozulmasın): yazılan test:diyalogKaydi'na düşer
   // secenek.yalnizcaPanodaysa: pano hâlâ bu metni taşıyorsa yazılır (kopyalamadan sonra gelen temiz metin; bu arada başka bir şey
-  // kopyalandıysa onun yerine geçmez, 0.1.23). Satır sonları karşılaştırmada eşitlenir
+  // kopyalandıysa onun yerine geçmez, 0.1.23; pano.js panoyaMetinYaz)
   ipcMain.handle('pano:metin', (_e, metin, secenek) => {
     if (testDiyalog) return testDiyalog('pano:metin', { uzunluk: metin?.length, bas: String(metin ?? '').slice(0, 200), kosullu: secenek?.yalnizcaPanodaysa != null }, true);
-    const esitle = (s) => String(s ?? '').replace(/\r\n/g, '\n');
-    if (secenek?.yalnizcaPanodaysa != null && esitle(clipboard.readText()) !== esitle(secenek.yalnizcaPanodaysa)) return false;
-    clipboard.writeText(String(metin ?? ''));
-    return true;
+    return panoyaMetinYaz(clipboard, metin, secenek?.yalnizcaPanodaysa);
   });
   ipcMain.handle('pano:oku', () => clipboard.readText());
   ipcMain.handle('pano:dosya', async (_e, yol) => {

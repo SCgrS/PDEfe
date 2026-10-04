@@ -42,6 +42,24 @@ const MAC_PANO_BETIGI = [
   '}',
 ].join('\n');
 
+/**
+ * Panoya metin yazar (pano: Electron'un clipboard'u). yalnizcaPanodaysa verilirse yalnızca pano hâlâ bu metni taşıyorsa yazılır (kopyalamadan
+ * sonra gelen temiz metin; bu arada başka bir şey kopyalandıysa onun yerine geçmez, 0.1.23); satır sonları karşılaştırmada eşitlenir.
+ * Electron 44'te readText / writeText Promise döndürür: beklenmeden karşılaştırılan "[object Promise]" hiç tutmuyor, temiz metin panoya
+ * hiç yazılmıyordu (0.2.1). Döner: yazıldıysa true.
+ */
+export async function panoyaMetinYaz(pano, metin, yalnizcaPanodaysa = null) {
+  const esitle = (s) => String(s ?? '').replace(/\r\n/g, '\n');
+  try {
+    if (yalnizcaPanodaysa != null && esitle(await pano.readText()) !== esitle(yalnizcaPanodaysa)) return false;
+    await pano.writeText(String(metin ?? ''));
+    return true;
+  } catch (e) {
+    console.error('[pano] metin yazılamadı:', e?.message || e);
+    return false;
+  }
+}
+
 function macPanoyaKopyala(yol) {
   return new Promise((coz) => {
     execFile('/usr/bin/osascript', ['-l', 'JavaScript', '-e', MAC_PANO_BETIGI, String(yol)], { timeout: 10000 }, (hata, cikti, stderr) => {
