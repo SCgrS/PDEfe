@@ -895,7 +895,9 @@ async function kayitYaz(b, farkli, sessiz, oneAl = false) {
   if (farkli && !yolAyni(hedef, b.yol)) {
     b.yol = hedef; b.ad = dosyaAdi(hedef);
     sekmeler.guncelle(b.id, { ad: b.ad, yol: hedef });
-    pdefe.cagir('pencere:baslik', b.ad);
+    // Pencere başlığı yalnızca belge öndeyse (0.2.1): arka plandaki belge de Farklı kaydet'le kaydedilebilir (kapatılırken "Belge
+    // kaydedilemedi" › Farklı kaydet); başlık öndeki belgenin kalır, belgeye geçilince sekmeSec yazar
+    if (aktifId === b.id) pdefe.cagir('pencere:baslik', b.ad);
     sonDosyalaraEkle(hedef);
     belgeleriBildir();   // yol değişti: dosyanın hangi pencerede açık olduğu kaydı
   }

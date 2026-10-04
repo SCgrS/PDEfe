@@ -5,6 +5,8 @@
 //   2) Farklı kaydet'in hedefi başka bir sekmede ya da başka bir PDEfe penceresinde açıksa yazılmaz: soru açılır ("… başka bir sekmede
 //      açık" / "… başka bir PDEfe penceresinde açık"), Vazgeç'te kayıt false döner, belge kaydedilmemiş kalır, hedef dosya değişmez;
 //      "Başka ad seç" kaydetme penceresini yeniden açar ve seçilen yeni ada kaydedilir. Belgenin kendi dosyasına Farklı kaydet sorusuz.
+//   3) Arka plandaki belge Farklı kaydet'le yeni ada kaydedilince pencere başlığı öndeki belgenin kalır (sekmenin adı değişir); öndeki
+//      belge yeni ada kaydedilince başlık yeni ad olur; arka plandaki belgeye geçilince başlık onun yeni adı olur.
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9621      → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9621; node test\surucu.mjs betik test\kayit_sekme_panel.mjs
@@ -69,7 +71,7 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
   const mesajKutulari = async () => (await diyalogKaydi()).filter((d) => d.kanal === 'mesaj:kutu').map((d) => d.secenek);
   const hatalar = () => evalJs(`(() => { const h = window.__hatalar.slice(); window.__hatalar.length = 0; return h; })()`);
   const sekmeleriKapat = () => evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); await new Promise((r) => setTimeout(r, 300)); return p.belgeler.size; })()`);
-  const bolumler = (process.env.BOLUM || '1,2').split(',').map((s) => s.trim());
+  const bolumler = (process.env.BOLUM || '1,2,3').split(',').map((s) => s.trim());
   const bolum = (n) => bolumler.includes(String(n));
 
   // ------------------------------------------------------------ hazırlık
@@ -199,6 +201,36 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
       for (let i = 0; i < 40 && (await pencereleriYenile()).length > 1; i++) await bekle(200);
     }
     P(null);
+    await sekmeleriKapat();
+  }
+
+  // ------------------------------------------------------------ 3) Arka plandaki belgenin Farklı kaydet'i ve pencere başlığı
+  if (bolum(3)) {
+    console.log('\n== 3) Arka plandaki belge Farklı kaydet\'le kaydedilince pencere başlığı');
+    const a = uret('baslik-a.pdf', 2), bYol = uret('baslik-b.pdf', 2), bYeni = path.join(K, 'baslik-b-yeni.pdf'), aYeni = path.join(K, 'baslik-a-yeni.pdf');
+    await ac(a); await ac(bYol);
+    const kimlik = await evalJs(`window.pdefe.cagir('pencere:kimlik')`);
+    const baslik = async () => { await bekle(200); return (await evalJs(`window.pdefe.cagir('test:pencereler')`)).find((p) => p.id === kimlik)?.baslik; };
+    await evalJs(`window.__pdefe.sekmeSec([...window.__pdefe.belgeler.values()].find((x) => x.ad === 'baslik-a.pdf').id)`);
+    await notEkle('baslik-b.pdf', 'arka plan notu');
+    sonuc('Öndeki belge baslik-a.pdf, başlık onun adı', (await baslik()) === 'baslik-a.pdf — PDEfe', await baslik());
+    await diyalogKaydi();
+    await yanitla('dosya:kaydetDiyalog', [bYeni]);
+    const r = await belgeIslemi('baslik-b.pdf', `return await p.belgeKaydet(b, true);`);
+    sonuc('Arka plandaki belge yeni ada kaydedildi', r === true && fs.existsSync(bYeni), r);
+    sonuc('Sekmenin adı değişti', J(await sekmeAdlari()) === J(['baslik-a.pdf', 'baslik-b-yeni.pdf']), await sekmeAdlari());
+    sonuc('Pencere başlığı öndeki belgenin kaldı', (await baslik()) === 'baslik-a.pdf — PDEfe', await baslik());
+    sonuc('Öndeki belge değişmedi', await evalJs(`window.__pdefe.aktif()?.ad`) === 'baslik-a.pdf');
+    await evalJs(`window.__pdefe.sekmeSec([...window.__pdefe.belgeler.values()].find((x) => x.ad === 'baslik-b-yeni.pdf').id)`);
+    sonuc('Arka plandaki belgeye geçilince başlık yeni adı', (await baslik()) === 'baslik-b-yeni.pdf — PDEfe', await baslik());
+    // Öndeki belge yeni ada kaydedilince başlık yeni ad (eskisi gibi)
+    await evalJs(`window.__pdefe.sekmeSec([...window.__pdefe.belgeler.values()].find((x) => x.ad === 'baslik-a.pdf').id)`);
+    await notEkle('baslik-a.pdf', 'ön not');
+    await yanitla('dosya:kaydetDiyalog', [aYeni]);
+    await belgeIslemi('baslik-a.pdf', `return await p.belgeKaydet(b, true);`);
+    sonuc('Öndeki belge yeni ada kaydedilince başlık yeni ad', (await baslik()) === 'baslik-a-yeni.pdf — PDEfe', await baslik());
+    const kutular = await mesajKutulari();
+    sonuc('Soru açılmadı', !kutular.length, kutular.map((k) => k.mesaj));
     await sekmeleriKapat();
   }
 
