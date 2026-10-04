@@ -971,6 +971,90 @@ def not_ekle(doc, page, n):
     return a.xref
 
 
+# Köşe noktalarıyla çizilen notlar (çizim, çizgi, çokgen, çoklu çizgi): MuPDF bunlara /Rect yazdırmaz ("… annotations have no Rect
+# property"; set_rect False döner). 0.2.1'e dek taşıma kayıtta sessizce kayboluyordu: arayüz notu yeni yerinde gösterip "Kaydedildi"
+# diyordu, dosyada not eski yerindeydi. Taşıma /Rect ve köşe noktaları (PDF 2.0'ın /Path'i dahil) aynı miktarda kaydırılarak yazılır
+# (_koseli_notu_tasi); görünüm akışı (/AP) /Rect'e eşlendiğinden çizim de taşınır, başka programın çizdiği görünüm (eğriler, uç
+# biçimleri) olduğu gibi kalır. MuPDF görünümü yeniden üretirse (not_guncelle'nin renk / saydamlık / bilgi yazımı notu kirletir; önceden
+# de böyleydi) kaydırılmış köşe noktalarından üretir: yer yine doğru.
+KOSELI_NOTLAR = {"Ink": ("InkList", "Path"), "Line": ("L",), "Polygon": ("Vertices", "Path"), "PolyLine": ("Vertices", "Path")}
+_PDF_SOZCUK = re.compile(r"\[|\]|[^\s\[\]]+")
+
+
+def _pdf_sayi_dizisi(doc, metin, derinlik=0):
+    """PDF dizisi metnini ("[1 2 [3 4]]", tek sayı da olur) iç içe float listesine çevirir; dolaylı başvurular ("12 0 R") çözülür. Sayı ve dizi
+    dışında bir öğe ValueError (taşınamayan not sessizce kaydedilmiş sayılmasın)."""
+    if derinlik > 4:
+        raise ValueError("çok derin dolaylı başvuru")
+    sozcukler = _PDF_SOZCUK.findall(metin or "")
+    i = 0
+
+    def oge():
+        nonlocal i
+        s = sozcukler[i]
+        i += 1
+        if s == "[":
+            liste = []
+            while sozcukler[i] != "]":
+                liste.append(oge())
+            i += 1
+            return liste
+        if s.isdigit() and i + 1 < len(sozcukler) and sozcukler[i].isdigit() and sozcukler[i + 1] == "R":
+            i += 2
+            return _pdf_sayi_dizisi(doc, doc.xref_object(int(s), compressed=True), derinlik + 1)
+        return float(s)
+
+    try:
+        sonuc = oge()
+    except (IndexError, ValueError):
+        raise ValueError("beklenmeyen PDF dizisi: %s" % (metin or "")[:80])
+    if i != len(sozcukler):
+        raise ValueError("beklenmeyen PDF dizisi: %s" % (metin or "")[:80])
+    return sonuc
+
+
+def _pdf_dizi_yaz(liste):
+    def sayi(v):
+        s = ("%.4f" % v).rstrip("0").rstrip(".")
+        return "0" if s in ("", "-0") else s
+    return "[" + " ".join(_pdf_dizi_yaz(x) if isinstance(x, list) else sayi(x) for x in liste) + "]"
+
+
+def _noktalari_kaydir(liste, dx, dy):
+    """Düz [x y x y …] ya da iç içe ([[x y …] …]) dizideki noktaları kaydırır."""
+    if liste and isinstance(liste[0], list):
+        return [_noktalari_kaydir(x, dx, dy) for x in liste]
+    return [v + (dx if k % 2 == 0 else dy) for k, v in enumerate(liste)]
+
+
+def _koseli_notu_tasi(doc, page, a, rect):
+    """Köşe noktalı notu (KOSELI_NOTLAR) rect'in sol üst köşesine taşır. rect ve a.rect PyMuPDF'in döndürülmemiş sayfa koordinatlarında
+    (y aşağı); dosyadaki değerler PDF koordinatlarında (y yukarı, /UserUnit ölçekli): kaydırma x'te dx / birim, y'de −dy / birim."""
+    eski = a.rect
+    dx, dy = float(rect[0]) - eski.x0, float(rect[1]) - eski.y0
+    if abs(dx) < 1e-3 and abs(dy) < 1e-3:
+        return
+    birim = 1.0
+    tur_b, deger = doc.xref_get_key(page.xref, "UserUnit")
+    if tur_b in ("int", "float", "xref"):
+        try:
+            birim = float(_pdf_sayi_dizisi(doc, deger)) or 1.0
+        except (TypeError, ValueError):
+            birim = 1.0
+    ux, uy = dx / birim, -dy / birim
+    for anahtar in ("Rect",) + KOSELI_NOTLAR[a.type[1]]:
+        tur_d, metin = doc.xref_get_key(a.xref, anahtar)
+        if tur_d == "null":
+            continue
+        dizi = _pdf_sayi_dizisi(doc, metin)
+        if not isinstance(dizi, list):
+            raise ValueError("beklenmeyen /%s" % anahtar)
+        doc.xref_set_key(a.xref, anahtar, _pdf_dizi_yaz(_noktalari_kaydir(dizi, ux, uy)))
+    yeni = a.rect
+    if abs(yeni.x0 - float(rect[0])) > 0.01 or abs(yeni.y0 - float(rect[1])) > 0.01:
+        raise ValueError("Not taşınamadı (%s); belge kaydedilmedi." % a.type[1])
+
+
 def not_guncelle(doc, page, n):
     a = _annot_bul(page, int(n["xref"]))
     tur = a.type[1]
@@ -983,7 +1067,14 @@ def not_guncelle(doc, page, n):
         elif ft_metin is None:
             ft_metin = a.info.get("content") or ""
     if n.get("rect") and tur != "Highlight":
-        a.set_rect(pymupdf.Rect(*n["rect"]))
+        if tur in KOSELI_NOTLAR:
+            _koseli_notu_tasi(doc, page, a, n["rect"])
+        elif a.set_rect(pymupdf.Rect(*n["rect"])) is False:
+            # MuPDF yazmadı (ör. vurgu ailesi: /Rect yazdırmaz). Not taşınmak istendiyse sessizce kaydedilmiş sayılmasın; değişmeyen
+            # rect (arayüz her güncellemede gönderir) yok sayılır
+            r = a.rect
+            if max(abs(r.x0 - n["rect"][0]), abs(r.y0 - n["rect"][1])) > 0.01:
+                raise ValueError("Not taşınamadı (%s); belge kaydedilmedi." % tur)
     if n.get("renk") and tur in ("Highlight", "Text", "Underline", "StrikeOut", "Squiggly", "Square", "Circle", "Line", "Ink"):
         a.set_colors(stroke=_renk(n["renk"]))
     if n.get("opaklik") is not None:
