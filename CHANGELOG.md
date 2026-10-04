@@ -3,11 +3,57 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
-## 0.2.1 — 2026-10-03
+## 0.2.1 — 2026-10-05
 
 ### Sağ tık menüsünde Kaydet
 - **Belgede sağ tık › Kaydet.** Sayfaya sağ tıklayınca açılan menünün en altında. Kaydedilmemiş değişiklik (not, vurgu, yazı, sayfa düzeni) yokken soluk görünür, araç çubuğundaki Kaydet düğmesi gibi. Bir yazı kutusuna yazarken de seçilebilir: yazı not olarak belgeye kaydedilir.
 - **Sekmede sağ tık › Kaydet.** Sağ tıkladığınız sekmenin belgesini kaydeder; o sekmeye geçmeniz gerekmez. Kaydederken bir şey sorulacaksa (örneğin e-imzalı belgede ya da dosya başka bir programda açıkken) soru açılmadan önce o belge öne gelir.
+
+### Kaydetme ve verilerin güvenliği
+- **Sayfası silinmiş, sıralanmış ya da sayfa eklenmiş belgede** aynı sayfadaki iki not silinip değiştirilince yanlış not silinebiliyordu. Düzeltildi.
+- **Windows oturumu kapatılırken ya da bilgisayar yeniden başlatılırken** kaydedilmemiş değişiklik artık soruluyor: Windows "PDEfe kapatmayı engelliyor" der, PDEfe'de Kaydet / Kaydetme / Vazgeç sorusu açılır. Önceden değişiklikler sorulmadan kayboluyordu.
+- **Farklı kaydet'te seçilen dosya PDEfe'de başka bir sekmede ya da pencerede açıksa** üzerine yazılmıyor; bunu söyleyen bir soru çıkıyor (Başka ad seç / Vazgeç).
+- **Sıkıştır ve Sayfaları düzenle'de "Kaydediliyor…" sırasında İptal'e basılınca** üzerine yazılması onaylanmış dosya artık çöp kutusuna gitmiyor; dosya yeni hâliyle kalıyor ve "İptal edilemeden tamamlandı" bildirimi çıkıyor.
+- **Yüklenirken kapatılan sekme** dosyayı kilitli bırakmıyor (dosya taşınabiliyor, silinebiliyor).
+- **Sayfaları düzenle'de 9 ve daha çok PDF'ten sayfa alınınca** kaydetme hata veriyordu. Düzeltildi.
+- PDF işleyen yardımcı süreç beklenmedik biçimde kapanırsa PDEfe artık hata kutusu açıp donmuyor.
+- Güvenlik: PDF işleyen yardımcı süreç yalnızca PDF dosyalarına yazıyor (daha önce denetlenmeyen bir yol kapatıldı).
+
+### Kopyalama
+- **Temiz kopya yeniden panoya yazılıyor.** 0.1.23'ten beri seçilen metnin temizlenmiş hâli (satırların birleştirilmesi, bozuk Türkçe harflerin düzeltilmesi) panoya geçmiyordu; panoda sayfadaki ham metin kalıyordu.
+- Satırın ortasından başlayan seçim kopyalanınca paragraf ikiye bölünmüyor.
+- Satır sonunda bölünen "hâ- / kim" gibi sözcükler birleşiyor; "1/2/2018-7078" gibi aralıklara boşluk girmiyor.
+
+### Notlar ve paneller
+- Yazı notunda **oklar, matematik işaretleri ve Latin harfleri** (→ ≤ ≠ ł ő) kaydedilen PDF'te ve yazdırmada görünüyor; önceden boş çıkıyordu. Desteklenmeyen bir karakter boş yerine "?" olarak çıkar.
+- Başka programda çizilmiş **çizim, çizgi, çokgen notları** taşınınca kayıtta yeni yerinde kalıyor.
+- Yazı kutusunda birleşimli girdiyle (ör. macOS'ta ölü tuşla â) yazılan harf, hemen ardından tıklanınca ya da yazınca silinmiyor.
+- **Sayfalar panelinin küçük resimleri** kayıttan sonra kaydedilen notları gösteriyor.
+- **İçindekiler** (ve Bul'un yer imi sonuçları) sayfalar silinip sıralandıktan sonra doğru sayfaya gidiyor; sayfası silinmiş yer iminde bildirim çıkıyor.
+
+### Sekmeler ve pencereler
+- İkinci ekran çıkarıldıktan sonra PDEfe ekranın dışında açılmıyor.
+- `Ctrl+Tab` seçicisi arka planda açılmış (hiç bakılmamış) sekmeleri de gösteriyor.
+- Dokunmatik yüzeyde sekme çubuğundaki tek kaydırma hareketi bir sekme geçiyor (önceden bütün sekmeleri atlıyordu).
+- Arka plandaki belge Farklı kaydet'le kaydedilince pencere başlığı öndeki belgenin adında kalıyor.
+
+### Görüntü / PDF birleştir
+- HEIC fotoğrafları desteklenen biçimler arasında görünüyor ama eklenince hata veriyordu: listeden çıktı, HEIC bırakılınca "önce JPG ya da PNG'ye çevirin" deniyor.
+
+### macOS
+- **En düşük sürüm macOS 13 Ventura.** PDEfe'nin üzerine kurulu olduğu Electron 44 macOS 13 istiyor; 0.2.0 notundaki "macOS 12" yanlıştı. macOS 12'de PDEfe açılmaya kalkmaz, macOS sürümün yetmediğini söyler.
+- Yazma izni olmayan ya da Finder'da **Kilitli** işaretli PDF ⌘S ile sorusuz baştan yazılıyordu; artık yazılmıyor. "Belge kaydedilemedi" sorusu ve araçların soruları Finder › Bilgi Al'dan Kilitli işaretini kaldırmayı ya da yazma izni vermeyi anlatıyor.
+- **Güncelleme:** şerit ve Ayarlar › Güncelleme, yeni sürümün tarayıcıda indiğini, önce PDEfe'den çıkıp (⌘Q) inen dosyadaki PDEfe'yi Uygulamalar'a sürüklemeyi ve macOS engellerse "Yine de Aç"ı anlatıyor; düğmenin adı İndir. Mac'te "Yine de Aç" onayı her yeni sürümde yeniden istenebilir (0.2.0 notunda "bir kez" yazıyordu).
+- ⌫ Görüntü / PDF birleştir listesinde seçilenleri, açılış ekranının Son açılanlar listesinde satırı çıkarıyor.
+- Belgede Ctrl+tık yalnızca sağ tık menüsünü açıyor; not eklemiyor, sürükleme başlatmıyor.
+- Yazı kutusu ve not balonu düzenlenirken ⇧⌘[ / ⇧⌘] sekme değiştiriyor.
+- Açılış ekranının Son açılanlar listesinde klasör yolu `/Users/…` biçiminde (önceden ters bölüyle).
+- Otomatik kayıt hatası bildirimi ⌘S diyor ve nedeni doğru söylüyor.
+- Dock › Çık'ta Vazgeç denince haftalık güncelleme denetimi durmuyor.
+- Güvenlik: araçlardaki klasör düğmesi bir uygulama paketini çalıştıramıyor.
+
+### README
+- 17 güncel ekran görüntüsü; belge ve sekme sağ tık menüleri, yazı kutusunun biçim çubuğu, Bul seçenekleri, yazdırma seçenekleri, macOS'ta güncelleme ve kullanım farkları gibi eksik bölümler eklendi, yanlış ya da eskimiş bilgiler düzeltildi.
 
 ## 0.2.0 — 2026-10-02
 

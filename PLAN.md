@@ -1386,9 +1386,9 @@ GitHub Actions'ın Mac makinelerinde (macos-15 Apple işlemcili, macos-15-intel,
     çıktısı ayrı Mac'lerde derlenip `pdefe-core-arm64` / `pdefe-core-x64` olarak ikisi de pakete girer; `cekirdek.js` `process.arch`'a
     göre seçer (Rosetta'yla çalışan uygulama x64 çekirdeği). İki ara pakette aynı dosyalar olduğundan @electron/universal onları lipo'lamaz:
     `x64ArchFiles` kuralı (`{**,**/.*/**}`: minimatch'te `**` Pillow'un `.dylibs` klasörüne girmiyordu, ilk derleme bu yüzden düştü).
-  - macOS en düşük 12 (Electron 44).
+  - macOS en düşük 13 Ventura (Electron 44; 0.2.0'da yanlışlıkla 12 yazıyordu, 0.2.1'de düzeltildi: electron-builder.yml minimumSystemVersion "13.0").
 - [x] **İmza**: yerinde (ad-hoc, `identity: "-"`), `hardenedRuntime: false` (yerinde imzada kitaplık doğrulaması çekirdeğin kitaplıklarını
-  reddeder), noter onayı yok. Apple işlemcili Mac imzasız kodu hiç çalıştırmaz; yerinde imzalı uygulama ilk açılışta bir kez Sistem
+  reddeder), noter onayı yok. Apple işlemcili Mac imzasız kodu hiç çalıştırmaz; yerinde imzalı uygulama ilk açılışta (ve her yeni sürümde yeniden) Sistem
   Ayarları › Gizlilik ve Güvenlik › "Yine de Aç" ister (macOS 15'ten beri sağ tık › Aç yolu yok). CI'da `codesign --verify --deep --strict`
   geçiyor, `spctl` "rejected" (beklenen).
 - [x] **Güncelleme**: Squirrel.Mac yeni paketin imzasını eskisininkiyle karşılaştırdığından imzasız uygulama kendini güncelleyemez.
@@ -1440,7 +1440,7 @@ GitHub Actions'ın Mac makinelerinde (macos-15 Apple işlemcili, macos-15-intel,
   Windows sürümü `gercek_fare.ps1 -Paketli` 9/9 (çekirdek `win.extraResources`'tan pakette).
 - [ ] Gerçek bir Mac'te elle deneme: docs/DOGRULAMA.md 35.
 
-### Revizyon 0.2.1 (2026-10-03, kullanıcı isteği)
+### Revizyon 0.2.1 (2026-10-03 – 10-05, kullanıcı istekleri: sağ tık Kaydet; genel kod taraması, README, ekran görüntüleri)
 Ayrıntı: CHANGELOG.md. Kullanıcı: "pdfefe'de sağ tık'a "kaydet" butonu ekleyelim."
 - [x] **Hangi menü**: istek menüyü adlandırmıyor; PDEfe'nin belgeyle ilgili iki sağ tık menüsü var (belge sayfası, sekme), ikisine de kondu
   (raporda söylendi). Araç pencerelerindeki listelerin, açılış ekranındaki son dosyaların ve vurgu düğmesinin menüleri belge kaydetmeyle
@@ -1472,3 +1472,62 @@ Ayrıntı: CHANGELOG.md. Kullanıcı: "pdfefe'de sağ tık'a "kaydet" butonu ekl
   senaryo22 (sekme menüsünün öğe listesi). Koşulanlar (ev, ekran dışı / görünmeyen masaüstü): senaryo28 38/38, senaryo22 101/101, senaryo23
   53/53, senaryo17 42/42, senaryo19 112/112, senaryo24 38/38, ortu_tiklama 156/156, kisayol_dosya 164/164.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 36.
+
+#### 0.2.1: genel kod taraması (2026-10-03 – 10-05, kullanıcı isteği)
+Kullanıcı: "şimdi kodları genel olarak tara, bir yanlışlık görürsen düzelt. mac'te de kullanılacağını unutma. daha sonra kodlarla readme'yi
+karşılaştır ve denetle. readmedeki eksik kısımları düzelt eklenmesi gereken kısımları ekle. uygulamadan güncel fotoğraflar koy bol bol."
+- [x] **Tarama**: kod 8 bölümde (ana süreç, çekirdek, uygulama/sekmeler, notlar/panel, görüntüleme/metin, araçlar/pencereler, paketleme/CI,
+  bütün kodda macOS merceği) salt okunur ajanlarla tarandı; her bölümün bulgularını ayrı bir ajan çürütmeye çalıştı. 43 onaylı bulgu,
+  yinelenenler birleşince 33 düzeltme. Düzeltmeler 7 grupta sırayla yapıldı, her biri ayrı commit ve değişiklik öncesi kodda düşen bir
+  sınamayla. Önemlileri ve kararları:
+  - **Yapısal kayıtta not eşlemesi** (`yapisal.py`): hedef not her işlemde kaynak sıradaki indeksle o anki listede aranıyordu; aynı sayfada
+    bir not silinince sonraki işlem komşu nota uygulanıyordu (veri kaybı). Kaynak xref → yeni xref eşlemesi işlemlerden önce kurulur, yanıt
+    (IRT) notları kaynak listesinden çıkarılır; uzunluk tutmazsa o sayfadaki işlemler atlanır (yanlış nota dokunmaktansa). Yanıtların
+    yapısal kayıtta kaybolması (Açık) değişmedi.
+  - **Windows oturum sonu** (`pencereler.js`): Electron oturum sonunda `close` ve `before-quit` vermiyor; `query-session-end`'de pencere
+    kirliyse kapanış engellenir ve olağan Çıkış akışı (`cik()`, bir kez) başlar. Ana süreç kirliliği önceden bilmeli (preventDefault
+    eşzamanlı): renderer `pencere:kirli` ile bildirir (değişmiş belge ya da açık yazı kutusu; araç pencerelerinin kaydedilmemiş işi sayılmaz).
+  - **Temiz kopya panoya** (`main.js` `pano:metin`, `pano.js panoyaMetinYaz`): Electron 44'te `clipboard.readText()` Promise döndürüyor;
+    0.1.23'teki Electron yükseltmesinden beri "pano hâlâ bu metni mi taşıyor" karşılaştırması hep yanlıştı, temiz metin hiç yazılmıyordu.
+  - **Farklı kaydet hedefi açıksa** (`uygulama.js hedefAcikMi`, salt okunur IPC `pencere:baskaPenceredeAcikMi`): çekirdeğe yazılmadan
+    "Başka ad seç / Vazgeç" sorusu. Yazıp açık sekmeyi yenilemek seçilmedi (sekmenin kaydedilmemiş durumu kaybolurdu).
+  - **Geç iptal** (`kucult.js`, `sayfalar.js`): kayıttan sonra gelen iptal, onaylanmış var olan hedefi çöpe atıyordu; artık yalnızca yeni
+    oluşan dosya silinir, yazılmış sonuç kalır ("İptal edilemeden tamamlandı", Birleştir'deki desen).
+  - **Yazı notu dağarcığı** (`notlar.py DAGARCIK`): Latin Genişletilmiş-A, genel noktalama, oklar ve matematik işaretleri eklendi; dışında
+    kalan karakter "?" çizilir ve ölçülür. Alt küme değişince var olan belgelerde font bir kez yeniden gömülür (~23 KB, /PDEfeFonts
+    düzeniyle; eski notlar kendi font nesneleriyle çizilir).
+  - **Köşe noktalı notlar** (Ink / Line / Polygon / PolyLine): taşıma kayıtta köşe noktaları kaydırılarak yazılır (`not_guncelle`); MuPDF
+    yazamazsa sessiz başarı yerine hata. Var olan nitelikleri yeniden yazan çağrıların başka programın görünümünü MuPDF'inkiyle değiştirmesi
+    (0.2.1 öncesinden) değişmedi; takip.
+  - **Temiz kopya**: çekirdeğin `metin_sec`'i `ilk_dolu` da döndürür, `temizMetin(ham, { ilkDolu })` ortadan başlayan seçimin dolu ilk
+    satırını kısa saymaz; kesme işaretli kısaltma başlık sayılmaz; tire kuralı âîû'yu ve rakam-tire-rakam aralığını kapsar (41.199 seçimlik
+    karşılaştırmada değişenlerin hepsi doğru yönde).
+  - **macOS**: yazma izni olmayan / Kilitli dosya (`notlar.yazma_izni_yok`, `SaltOkunurHatasi`) yazılmaz; iletiler Finder'a göre; en düşük
+    sürüm 13; güncelleme metinleri; ⌫, Ctrl+tık, ⇧⌘[ ], ölü tuş, `/` yolları; `kabuk:klasorAc` paketleri açmaz; `will-quit`.
+  - Ötekiler: ekran dışı pencere konumu (`sigdir` en yakın ekrana), yüklenirken kapatılan sekme (`AbortController`, görev `destroy`),
+    9+ kaynaklı Sayfaları düzenle (kaynaklar taze açılır), çekirdek stdin `error`, çekirdeğin hedefsiz yazan yöntemlerde de yalnızca
+    PDF'e yazması (`guvenlik.js YOLA_YAZANLAR`), İçindekiler'in kaynak sayfa eşlemesi, küçük resimlerin kayıttan sonra yenilenmesi,
+    Ctrl+Tab seçicisi, dokunmatik yüzey tekerleği (Windows fare çentiği eski davranışta), pencere başlığı.
+- [x] **README denetimi** (salt okunur ajan, kodla satır satır): 14 yanlış (macOS 12 → 13, Yazdır'da olmayan "kâğıt boyutu", Mac
+  güncelleme adımları, "görünen metinde" düzeltme, Mac'te menü çubuğu / Çıkış / Ayarlar farkları, standart yazı tipi adları, Birleştir'in
+  belge gerektirmediği, geçici klasörler, yazar adının varsayılanı) ve 23 eksik (sayfa ve sekme sağ tık menüleri, seçim ayrıntıları,
+  yazı kutusu biçim çubuğu, vurgu renkleri, Bul seçenekleri, yakınlaştırma aralığı, okuma modu, durum çubuğu, formlar, Hakkında, PDF'i
+  kopyala sorusu, araç ayrıntıları, koyu mod düğmesi, anlık kopya ve dosya öznitelikleri, e-imza, eksik kısayollar, Mac kullanım farkları,
+  Windows'ta Türkçe tanıyıcı yoksa, Geliştirme'deki sürümler ve yayım kuralları). README yeniden düzenlendi: "Ne yapar" alt başlıklara
+  bölündü, görüntüler anlattıkları özelliğin altında. Denetimin bulduğu kod kusuru: Birleştir HEIC'i desteklenir gösteriyordu ama
+  pillow_heif pakette yok; HEIC listeden çıktı (pakete eklemek seçilmedi: üç platformda yeni ikili bağımlılık).
+  - Bilerek değiştirilmeyen: `pdf-lib` package.json'da ve THIRD_PARTY'de duruyor ama kodda kullanılmıyor; pakete girdiği için README'deki
+    satırı kaldı. Bağımlılığı kaldırmak ayrı iş.
+- [x] **Ekran görüntüleri**: 17 görüntü (`docs/ekran-*.png`, 1280×800, açık tema, Windows, toplam ~2,4 MB) `test/readme_goruntuleri.mjs`
+  ile, `test/readme_ornek_uret.py`'nin ürettiği örneklerle (kamuya açık kanun metinleri yer imi eklenmiş kopyalar, kurgusal dilekçe ve
+  taranmış hâli, kurgusal makbuz; `C:\Users\Public\Documents\PDEfe Örnek`: açılış ekranındaki yol kullanıcı adı içermesin) ve kurgusal yazar
+  adıyla ("Av. Örnek Yazar"). Kanun metinleri yerelde `test/pdf`'te (git dışı); yoksa o görüntüler eksik kalır. Görüntüleri yenilemek için
+  betiğin başındaki kullanım satırları.
+- [x] **Son regresyon** (ev, bütün düzeltmelerden sonra HEAD; ekran dışı / görünmeyen masaüstü; 31 takım, 1.437 denetim, 0 hata): senaryo28 38, senaryo22 101, senaryo23 53, senaryo17 42, senaryo24 38, senaryo26 60, senaryo15 9, senaryo16 6, senaryo25 28, senaryo19 112, ortu_tiklama 156, kisayol_dosya 164, kisayol_gorunum 115, kisayol_araclar 92, sekme_genislik 35, kayit_sekme_panel 61, gec_iptal 20, mac_renderer 19, yazi_ime 8, oturum_sonu 25, pencere_konumu 5; pano_birim 6, guvenlik_birim 16, cekirdek_kopma 7, guncelleme birim 62; guvenlik_testi 43, mac_cekirdek_testi 14, kopyalama_testi 26, yapisal_esleme_testi 8, kose_notu_testi 49, tanima_testi 19. Paketli sürüm (npm run cekirdek:derle + electron-builder --dir): çekirdek ping, gercek_fare -Paketli 9/9. Koşulmayanlar: araclar_testi (bu bilgisayarda Masaüstü örnekleri yok; gruplar yer tutucuyla 116/122, kalan 6 hata yer tutucudan ve değişiklik öncesi kodda da aynı), senaryo13/14/27 (gruplar koştu: 65, 56, 20).
+- Açık / takip: macOS değişiklikleri Mac'te koşulmadı (`test/mac_renderer.mjs` Mac renderer yollarını Windows'ta `darwin` çerçevesinde
+  sınar; çekirdeğin Mac dalları `os.name` benzetimiyle); yayımdan önce `gh workflow run yayim.yml -f platform=mac` önerilir (mac_duman'a
+  LSMinimumSystemVersion denetimi eklendi). CI macOS 13 / 14'te sınamıyor (en düşük sürüm artık 13). v0.2.0 sürüm sayfasının gövdesi hâlâ
+  "macOS 12" ve "(bir kez)" diyor (`gh release edit` yayım adımıdır, onay ister). Yazı kutusu tutamaçları sağ tıkla da sürükleniyor;
+  Mac'te yazı düzenleyicisi ⌃PageUp/PageDown'u yutuyor; yapısal kayıttan sonra küçük resimler anlık kopyadan çizilir; parola sorusu
+  açıkken sekme kapatılırsa soru açık kalır; yeni testler: yapisal_esleme_testi, kose_notu_testi, kayit_sekme_panel, gec_iptal, oturum_sonu,
+  pencere_konumu, cekirdek_kopma, pano_birim, guvenlik_birim, mac_renderer (+ mac_cerceve.js), yazi_ime.

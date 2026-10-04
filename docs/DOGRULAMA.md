@@ -512,3 +512,31 @@ yanıtıyla verildi; menü ekranda açılmadı. Gerçek ekranda gözle denenmedi
    • işareti kalkmalı, öndeki belge değişmemeli. Değişikliksiz bir sekmede ve "Yeni sekme"de Kaydet soluk olmalı.
 4. **Soru açılırsa.** Aynı denemeyi, notlu belgenin kopyası başka bir programda açıkken yapın: "Belge kaydedilemedi" uyarısı açılmadan önce
    o belge öne gelmeli (uyarının hangi belge için olduğu görünsün).
+
+Genel kod taramasının düzeltmeleri (aynı sürüm). Her biri ekran dışındaki test örneğinde, değişiklik öncesi kodda düşen bir sınamayla
+doğrulandı; aşağıdakiler gerçek ekranda, gerçek panoyla ya da gerçek bir Mac'te denenmeli. Hep belgelerin kopyalarıyla çalışın.
+5. **Temiz kopya.** Bir UYAP belgesinden (özellikle Word 2010'dan çıkmış, "Ġ" gibi bozuk harfli olanlardan) birkaç satır seçip UYAP Doküman
+   Editörü'ne ya da Word'e yapıştırın: satırlar paragraf olarak birleşmeli, harfler İ, Ş, ş olmalı. Seçimi bir satırın ortasından başlatıp
+   sonraki satırda bitirin: tek paragraf gelmeli.
+6. **Windows'u yeniden başlatma.** Bir belgeye not ekleyip kaydetmeden Windows'u yeniden başlatın: Windows "PDEfe kapatmayı engelliyor"
+   ekranını göstermeli; İptal'e basınca PDEfe'nin Kaydet / Kaydetme / Vazgeç sorusu görünmeli. ("Yine de kapat" değişikliği kaybettirir.)
+7. **Farklı kaydet.** İki belge açıkken birini Farklı kaydet'le öbürünün adının üzerine kaydetmeyi deneyin: "PDEfe'de başka bir sekmede
+   açık" sorusu çıkmalı (Başka ad seç / Vazgeç), öbür belgeye dokunulmamalı.
+8. **İçindekiler.** Yer imli bir belgede Sayfaları düzenle'yle ilk sayfayı silin, İçindekiler'de bir başlığa tıklayın: doğru sayfaya gitmeli.
+9. **Küçük resimler.** Bir vurguyu silip kaydedin: Sayfalar panelindeki küçük resimde vurgu da kalkmalı.
+10. **Yüklenirken kapatma.** Büyük bir PDF açılırken sekmesini hemen kapatın, sonra dosyanın adını Gezgin'de değiştirin: değişmeli.
+11. **İkinci ekran.** PDEfe'yi ikinci ekranda (büyütülmemiş) kapatın, ekranı çıkarın, PDEfe'yi açın: görünen ekranda açılmalı.
+12. **Geç iptal.** Büyük bir PDF'te Sıkıştır'ı açın, yeni belgenin adını var olan bir dosyanın adı yapıp üzerine yazmayı onaylayın,
+    "Kaydediliyor…" görününce İptal'e basın: dosya yerinde kalmalı ve "İptal edilemeden tamamlandı" bildirimi çıkmalı.
+13. **Yazı notunda işaretler.** Bir yazı notuna "Madde 5 → 7, süre ≤ 2 hafta" yazıp kaydedin; dosyayı başka bir PDF okuyucuda açın: ok ve ≤
+    görünmeli.
+14. **Ctrl+Tab.** Ayır › birden çok dosya oluşturup hepsini açtırın, sonra Ctrl+Tab'ı basılı tutun: arka planda açılan sekmeler de listede
+    olmalı.
+15. **Birleştir'de HEIC.** iPhone'dan gelen bir .heic fotoğrafı Birleştir'e sürükleyin: "HEIC fotoğraflarını önce JPG ya da PNG'ye çevirin"
+    bildirimi çıkmalı.
+16. **Gerçek bir Mac'te** (yayımdan önce CI'da Mac sınaması da önerilir): macOS 13 ve üstünde açılmalı; Finder'da Kilitli işaretli bir PDF'in
+    kopyasında ⌘S: dosya değişmemeli, "Belge kaydedilemedi" sorusu Finder › Bilgi Al'ı anlatmalı; Birleştir listesinde ⌫ seçilenleri, Son
+    açılanlar'da satırı çıkarmalı; belgede Ctrl+tık yalnızca menüyü açmalı; yazı kutusu düzenlenirken ⇧⌘] sekme değiştirmeli; dokunmatik
+    yüzeyle sekme çubuğunda tek kaydırma bir sekme geçmeli; Son açılanlar'da yol /Users/… biçiminde olmalı; güncelleme şeridi ve Ayarlar ›
+    Güncelleme önce PDEfe'den çıkmayı anlatmalı, düğme İndir.
+17. **README.** GitHub'da (gönderildikten sonra) README'nin görüntüleri görünmeli ve anlattıkları bölümün altında olmalı.
