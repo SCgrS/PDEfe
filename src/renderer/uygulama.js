@@ -7,7 +7,7 @@ import { Arama } from './arama.js';
 import { temizMetin, sayfaMetinleriniBirlestir, secimDikdortgenleri, satirlaraBirlestir, paragrafSec, secimHamMetni, secimYapiliMetni, surukleSecimiBagla } from './metin.js';
 import { NotYoneticisi, VURGU_RENKLERI } from './notlar.js';
 import { KomutYigini, Komut } from './komutlar.js';
-import { ayarlarPenceresiAc, ayarlarPenceresiKapat } from './ayarlarPenceresi.js';
+import { ayarlarPenceresiAc, ayarlarPenceresiKapat, ayarlarPenceresiniGuncelle } from './ayarlarPenceresi.js';
 import { aracKomutlari, aracPencereleriniKapat, aracPenceresiKapaninca, acikAracPenceresiVar } from './araclar/index.js';
 import { sekmeyiYenile } from './araclar/ortak.js';
 import { AraclarPenceresi, ARACLAR } from './aracPenceresi.js';
@@ -521,6 +521,11 @@ let tasimaSozu = null;          // süren taşıma bitince çözülür (tasimaBi
 // yoksa izinden sonra yapılan değişiklik sorulmadan kaybolurdu (öteki pencerenin sorusu açıkken bu pencereye dönüp not eklemek).
 let kurulumKilidi = false;
 let _kapanis = false;           // pencere kapatma isteği işleniyor (kaydedilmemiş belge soruları dahil)
+let _kapanisCikis = false;      // işlenen kapatma Çıkış'tan geliyor ya da işlenirken Çıkış geldi (0.2.2; pencere:kapatIstegi)
+let _kapsamSorusu = null;       // açık "Geçerli sekme / Tüm sekmeler" sorusunun denetimi (mesajKutusu denetim; 0.2.2)
+let _kapsamHedefi = null;       // kapsam sorulurken etkin olan sekme: "Geçerli sekme" onu kapatır (gecerliSekmeyiKapat)
+const KAPSAM_TUM = 1;           // kapsam sorusunda "Tüm sekmeler" düğmesinin sırası (varsayılan, Enter)
+const PENCERE_KAPATMA = new Set(['sor', 'sekme', 'pencere']);   // ayar pencereKapatma (main/ayarlar.js)
 let _kapaniyor = false;         // kapatma onaylandı, pencere kapanmak üzere
 const girdiKilitli = () => tasimaSuruyor || kurulumKilidi;
 const tasimaOrtusu = document.createElement('div');
@@ -777,6 +782,7 @@ function ayarDisaridanDegisti(anahtar, deger) {
     case 'menuCubugu': menuDugmesiGuncelle(); break;
     default: break;   // panel genişliği, son yakınlaştırma, sayfa konumları vb.: yalnızca kopya güncellenir
   }
+  ayarlarPenceresiniGuncelle(anahtar);   // bu pencerede Ayarlar açıksa kartı yeni değeri göstersin (0.2.2: pencereyi kapatırken)
 }
 
 /** Sağ tık menülerindeki Kaydet etkin mi (0.2.1, kullanıcı isteği; belge sayfasında ve sekmede): araç çubuğundaki Kaydet gibi kaydedilmemiş
@@ -1353,16 +1359,84 @@ pdefe.dinle('pencere:tamEkran', (acik) => document.body.classList.toggle('tam-ek
 // Kapatma isteği yanıtsız bırakılmaz: Dosya › Çıkış pencereleri sırayla kapatır, vazgeçilen pencerede durur ('pencere:kapatVazgec').
 // Kapatma akışı sürerken gelen ikinci istek (× yeniden, Alt+F4, Çıkış) yalnızca açık soruyu gösterir; yanıtı süren akış verir (yoksa
 // ikinci istek "vazgeçildi" der, Çıkış yarıda kalırdı).
-pdefe.dinle('pencere:kapatIstegi', async () => {
-  if (_kapanis) { if (mesajKutusuAcik()) mesajKutusuUyar(); return; }
+// 0.2.2 (kullanıcı isteği: "iki sekme açıkken pencere kapatınca geçerli sekme mi tüm sekmeler mi diye sorsun. kaydet sorusuyla
+// çakışmasın. önce geçerli sekme mi tüm sekmeler mi sorusu sorulsun"): kaydetme sorularından önce kapsam sorulur (kapatmaKapsami). Soru
+// kapatmayaIzinAl'ın içinde değil: güncelleme kurulumunun izni de o işlevi kullanır, orada sorulmamalı. Sorular aynı _kapanis akışında
+// sırayla açılır, hiçbiri ötekinin üstüne açılmaz. istek.cikis (ana süreç: Dosya › Çıkış, ⌘Q, Windows oturum sonu) ise sorulmaz.
+// Geçerli sekme: yalnızca etkin sekme kapanır (kaydetme sorusu onunla), pencere açık kalır, ana sürece 'pencere:kapatVazgec' gider.
+// Yarış: soru açıkken Çıkış gelirse soru "Tüm sekmeler" seçilmiş gibi kapanır ve akış sürer (Çıkış takılı kalmasın, oturum sonu engelli
+// kalmasın); Geçerli sekmenin sorusu (araç ya da kaydetme sorusu) açıkken gelirse sekme kapanınca pencerenin geri kalanı da kapatılır.
+pdefe.dinle('pencere:kapatIstegi', async (istek) => {
+  const cikis = !!istek?.cikis;
+  if (_kapanis) {
+    if (cikis) {
+      _kapanisCikis = true;
+      if (_kapsamSorusu?.yanitla) { _kapsamSorusu.cikistan = true; _kapsamSorusu.yanitla(KAPSAM_TUM); return; }
+    }
+    if (mesajKutusuAcik()) mesajKutusuUyar();
+    return;
+  }
   if (mesajKutusuAcik() || girdiKilitli()) { if (mesajKutusuAcik()) mesajKutusuUyar(); pdefe.cagir('pencere:kapatVazgec'); return; }
-  _kapanis = true;
+  _kapanis = true; _kapanisCikis = cikis;
   let izin = false;
-  try { izin = await kapatmayaIzinAl({ degismeyenleriKapat: true }); }
-  catch (e) { console.error(e); }
-  finally { _kapanis = false; }
+  try {
+    let kapsam = cikis ? 'pencere' : await kapatmaKapsami();
+    if (kapsam === 'sekme') kapsam = (await gecerliSekmeyiKapat()) && _kapanisCikis ? 'pencere' : null;
+    if (kapsam === 'pencere') izin = await kapatmayaIzinAl({ degismeyenleriKapat: true });
+  } catch (e) { console.error(e); }
+  finally { _kapanis = false; _kapanisCikis = false; }
   if (izin) await kapanisiOnayla(); else pdefe.cagir('pencere:kapatVazgec');
 });
+
+/**
+ * Pencere kapatılırken ne kapanacak (0.2.2): 'pencere' (bütün sekmeler, bugünkü akış), 'sekme' (yalnızca geçerli sekme) ya da null
+ * (Vazgeç). Pencerede iki ya da daha çok sekme varsa ve en az birinde belge açıksa ayara (pencereKapatma) bakılır; 'sor' (ya da bilinmeyen
+ * değer) ise sorulur. Tek sekmede (kapatılamaz) ve yalnızca açılış sekmeleri varken (kapanacak belge yok) pencere sorusuz kapanır.
+ * "Bir daha sorma" yalnızca Geçerli sekme / Tüm sekmeler seçilince yazılır (Vazgeç'te yazılmaz: kullanıcı karar vermedi) ve yazılması
+ * beklenir; öteki pencerelere ana sürecin 'ayar:degisti' yayımıyla geçer. Soruyu Çıkış kapattıysa (kullanıcı seçmedi) yazılmaz.
+ * Soru açıkken Gezgin'den dosya açılırsa sayı eskiyebilir; kapanacak sekme soru açılırken etkin olandır (gecerliSekmeyiKapat).
+ */
+async function kapatmaKapsami() {
+  if (sekmeler.sekmeler.length < 2 || !belgeler.size) return 'pencere';
+  const tercih = PENCERE_KAPATMA.has(ayar.pencereKapatma) ? ayar.pencereKapatma : 'sor';
+  _kapsamHedefi = aktifId;
+  if (tercih !== 'sor') return tercih;
+  const ad = sekmeler.bul(aktifId)?.ad || 'Yeni sekme';
+  const kirli = [...belgeler.values()].some((b) => b.degisti || !!b.notlar?.duzenleyiciDegisti?.());
+  const denetim = {};
+  _kapsamSorusu = denetim;
+  let r;
+  try {
+    r = await mesajKutusu({
+      mesaj: `Bu pencerede ${sekmeler.sekmeler.length} sekme açık.`,
+      ayrinti: `Yalnızca geçerli sekme ("${ad}") mi kapatılsın, yoksa bu pencere bütün sekmeleriyle mi?` + (kirli ? '\nKaydedilmemiş değişiklikler ardından sorulur.' : ''),
+      dugmeler: ['Geçerli sekme', 'Tüm sekmeler', 'Vazgeç'], varsayilan: KAPSAM_TUM, iptal: 2, onayKutusu: 'Bir daha sorma', denetim,
+    });
+  } finally { if (_kapsamSorusu === denetim) _kapsamSorusu = null; }
+  if (denetim.cikistan) return 'pencere';
+  if (r.secim !== 0 && r.secim !== KAPSAM_TUM) return null;
+  const kapsam = r.secim === 0 ? 'sekme' : 'pencere';
+  if (r.onay) {
+    try { await ayarKoy('pencereKapatma', kapsam); } catch (e) { console.error('Ayar kaydedilemedi', e); }
+    ayarlarPenceresiniGuncelle('pencereKapatma');
+  }
+  return kapsam;
+}
+
+/** "Geçerli sekme" (0.2.2): yalnızca kapsam sorulurken etkin olan sekme kapanır, pencere açık kalır. Önce açık araç pencereleri kapanır
+ *  (araç belgenin önündedir ve ona bağlıdır; her aracın kendi sorusu, biri açık kalırsa durulur); yazdırma, parola ya da Kısayollar
+ *  penceresi açıksa sekme kapatılmaz (yazdırılan belge kapanmasın; Ctrl+W de o zaman çalışmaz), Ayarlar açık kalabilir. Belge değiştiyse
+ *  kaydetme sorusu belgeKapat'ta sorulur (açık yazı düzenlemesi önce uygulanır); orada Vazgeç sekmeyi açık bırakır. Etkin sekme açılış
+ *  sekmesiyse o kapanır. Döner: sekme kapandı mı (ya da soru açıkken başka yoldan kapanmış mı). */
+async function gecerliSekmeyiKapat() {
+  const id = _kapsamHedefi;
+  _kapsamHedefi = null;
+  if (!(await aracPencereleriniKapat())) return false;
+  if (document.querySelector('.diyalog-ortusu:not(.mesaj-ortusu):not(.ayarlar-ortusu)')) { bildir('Önce açık pencereyi kapatın.'); return false; }
+  if (!id || !sekmeler.bul(id)) return true;   // soru açıkken kapanmış (ör. Gezgin'den açılan dosya açılış sekmesinin yerini aldı)
+  return !!(await sekmeKapat(id));
+}
+
 // Başka bir pencere uygulamayı kapatacak (güncelleme kurulumu): bu pencerenin kaydedilmemiş belgeleri sorulur. İzin veren pencere
 // kurulum başlayana dek girdi almaz (kurulumKilidi); vazgeçilirse ya da kurulum başlatılamazsa 'pencere:izinBitti' kilidi açar.
 pdefe.dinle('pencere:izinIste', async (istekId) => {

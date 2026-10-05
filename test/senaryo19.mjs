@@ -434,6 +434,11 @@ export default async function (surucu) {
     const onceKapat = (await durum()).adlar;
     await evalJs(`window.pdefe.cagir('test:olayGonder', 'pencere:kapatIstegi')`);
     await kosul(`!!document.querySelector('.mesaj-kutusu')`, 6000); await bekle(300);
+    // 0.2.2: birden çok sekmede önce "Geçerli sekme / Tüm sekmeler" sorulur (senaryo29); Tüm sekmeler bugünkü akış
+    const kapsamK = await evalJs(`document.querySelector('.mesaj-kutusu .mesaj-ileti')?.textContent`);
+    sonuc('Pencere kapatma: önce "Bu pencerede 3 sekme açık." sorusu (0.2.2)', kapsamK === 'Bu pencerede 3 sekme açık.', kapsamK);
+    await tikl(`[...document.querySelectorAll('.mesaj-kutusu .dugmeler button')].find((b) => b.textContent === 'Tüm sekmeler')`);
+    await kosul(`!!document.querySelector('.mesaj-kutusu')`, 6000); await bekle(300);
     d = await durum();
     const soruK = await evalJs(`document.querySelector('.mesaj-kutusu .mesaj-ileti')?.textContent`);
     sonuc('Pencere kapatma: soru "b.pdf" için; değişmeyen a.pdf soru öncesi kapandı', soruK === '"b.pdf" belgesinde kaydedilmemiş değişiklikler var.' && !d.adlar.includes('a.pdf'), { onceKapat, sonra: d.adlar, soruK });

@@ -3,7 +3,8 @@
 //   1) Kaydedilmemiş değişikliği olmayan pencere oturumun bitmesini engellemez (yanıt 1), soru açılmaz.
 //   2) Kaydedilmemiş not varken engeller (yanıt 0) ve Çıkış gibi kapatma sorusu açılır; Vazgeç: pencere ve değişiklik yerinde. Oturumu
 //      kapatma nedeniyle de aynı.
-//   3) Yazı kutusunda henüz not olmamış yazı da kaydedilmemiş değişiklik sayılır.
+//   3) Yazı kutusunda henüz not olmamış yazı da kaydedilmemiş değişiklik sayılır. Çok sekmeli pencerede (0.2.2) "Geçerli sekme / Tüm
+//      sekmeler" sorulmaz (oturum sonu Çıkış gibidir), doğrudan kaydetme sorusu.
 //   4) İki pencere: değişikliksiz pencere engellemez; değişiklikli iki pencere aynı iletiyi alınca Çıkış bir kez başlar (öndeki pencere bir
 //      kez sorar, öteki sırasını bekler); soru açıkken yeniden gelen ileti Çıkış'ı yeniden başlatmaz. Vazgeç: ikisi de açık kalır.
 //   5) "Kaydetme" seçilince pencereler sırayla sorup kapanır, uygulama çıkar (oturum bitebilir).
@@ -103,6 +104,15 @@ export default async function ({ evalJs, bekle, tikla, yaz, hedefler, hedefSec }
   const s3 = await soruBekle();
   sonuc('Kapatma sorusu açıldı (c.pdf), Vazgeç: yazı not olarak sekmede', s3.includes('c.pdf') && J(await sekmeler()) === J(['c.pdf*']), { soru: s3, sekmeler: await sekmeler() });
   await evalJs(`(window.__pdefe.aktif().notlar.aracSec(null), true)`);
+
+  // ---- 3b) çok sekmeli pencere (0.2.2): oturum sonu Çıkış gibidir, "Geçerli sekme / Tüm sekmeler" sorulmaz; doğrudan kaydetme sorusu
+  // (soru sorulsaydı otomatik Vazgeç onda kalır, son soru o olurdu)
+  sonuc('a.pdf ikinci sekmede açıldı', await ac('a'));
+  await otoYanit(2);
+  r = ileti();
+  const s3b = await soruBekle();
+  sonuc('Çok sekmeli pencerede oturum sonu: sekme sorusu yok, kaydetme sorusu (c.pdf); değişmeyen a.pdf kapandı', r[0]?.sonuc === 0 && s3b.includes('c.pdf') && J(await sekmeler()) === J(['c.pdf*']),
+    { r, soru: s3b, sekmeler: await sekmeler() });
 
   // ---- 4) iki pencere
   sonuc('b.pdf açıldı', await ac('b'));

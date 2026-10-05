@@ -16,6 +16,10 @@ export const VARSAYILANLAR = {
   sonZoom: 100,
   varsayilanDuzen: 'surekli',     // 'tek' | 'surekli' | 'iki' | 'ikiSurekli'
   kapakAyri: false,
+  // Birden çok sekmeli pencerenin kapatma düğmesi (×, Alt+F4, Mac'te kırmızı düğme; 0.2.2, kullanıcı isteği): 'sor' ("Geçerli sekme /
+  // Tüm sekmeler" sorulur; sorudaki "Bir daha sorma" öteki ikisinden birini yazar) | 'sekme' (yalnızca geçerli sekme kapanır) | 'pencere'
+  // (pencere bütün sekmeleriyle kapanır). Bilinmeyen değer 'sor' sayılır (renderer/uygulama.js kapatmaKapsami)
+  pencereKapatma: 'sor',
   // Not ve vurgu
   yazarAdi: os.userInfo().username || 'Kullanıcı',
   vurguRengi: '#ffd100',          // PDF okuyucularında yaygın varsayılan vurgu rengi: /C [1 .819611 0]

@@ -1,5 +1,6 @@
 // Senaryo 17 (0.1.12, kullanıcı istekleri): pencere kapatmada değişmeyen sekmelerin önce kapanması ve yalnızca değişenlerin sorulması,
-// araç penceresi açıkken pencere kapatma (önce aracın sorusu), bütün kaydetmeden çıkış sorularının tek biçimi (Kaydet | Kaydetme |
+// araç penceresi açıkken pencere kapatma (önce aracın sorusu; 0.2.2'den beri birden çok sekmede ondan da önce "Geçerli sekme / Tüm
+// sekmeler" sorulur, burada Tüm sekmeler seçilir; ayrıntısı senaryo29'da), bütün kaydetmeden çıkış sorularının tek biçimi (Kaydet | Kaydetme |
 // Vazgeç; araçta Kaydet aracın kendi kaydı), araç çıktısında uzantısız ad ve Gezgin'de açılan klasör çipi, sekme ◀ ▶ uçta durması,
 // Ayarlar düğmesi ve kopyala simgeli Paylaş, Ayarlar'da "Açılış ve düzen" / "Not ve vurgu" / Kopyalama'nın kalkması / Zaten varsayılan /
 // Listeyi temizle / otomatik kaydetmenin varsayılan kapalı olması, seçim çubuğunda tek vurgu düğmesi ve ▾ renkler, not balonunda "Not" (0.1.14: "Not | yazar | tarih"),
@@ -66,7 +67,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   await tikla(...(await merkez(q('.ayarlar-bolumler [data-bolum="acilis"]')))); await bekle(400);
   const acilis = await evalJs(`({ h2: document.querySelector('.ayarlar-icerik h2')?.textContent, h3: [...document.querySelectorAll('.ayarlar-icerik h3')].map((e) => e.textContent),
     dugme: !document.querySelector('.ayarlar-icerik .ayar-kart button.ikincil')?.hidden, zaten: !document.querySelector('.ayar-zaten-varsayilan')?.hidden })`);
-  sonuc('Açılış ve düzen: Belge açılışı ve Sayfa düzeni alt başlıkları', acilis.h2 === 'Açılış ve düzen' && J(acilis.h3) === J(['Belge açılışı', 'Sayfa düzeni']), acilis);
+  sonuc('Açılış ve düzen: Belge açılışı, Sayfa düzeni ve Pencere (0.2.2) alt başlıkları', acilis.h2 === 'Açılış ve düzen' && J(acilis.h3) === J(['Belge açılışı', 'Sayfa düzeni', 'Pencere']), acilis);
   sonuc('Varsayılan okunamayınca (test örneği) "Varsayılan PDF görüntüleyici yap" düğmesi görünür, tik yok', acilis.dugme && !acilis.zaten, acilis);
   await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'kabuk:varsayilanMi', [{ varsayilan: true, progId: 'PDEfe.pdf' }]).then(() => { window.dispatchEvent(new Event('focus')); return true; })`);
   await bekle(500);
@@ -197,7 +198,11 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   await ac('c.pdf'); await ac('d.pdf');
   await kirlet('d.pdf');
   const once = await sekmeler();
+  // 0.2.2: birden çok sekmede önce "Geçerli sekme / Tüm sekmeler" sorulur (sekmelere dokunulmadan); Tüm sekmeler bugünkü akış
   await kapatIstegi(); await soruBekle();
+  k = await kutu();
+  sonuc('Pencere kapatma (0.2.2): önce "Geçerli sekme / Tüm sekmeler / Vazgeç" sorusu, sekmelere henüz dokunulmadı', /^Bu pencerede \d+ sekme açık\.$/.test(k?.ileti || '') && J(k.dugmeler) === J(['Geçerli sekme', 'Tüm sekmeler', 'Vazgeç']) && J(await sekmeler()) === J(once), k);
+  await kutuDugmesi('Tüm sekmeler'); await soruBekle();
   const sonra = await sekmeler(); k = await kutu();
   sonuc('Pencere kapatma: değişikliği olmayan sekmeler soru açılmadan kapandı, yalnızca değişenler kaldı', J(sonra) === J(['b.pdf*', 'd.pdf*']), { once, sonra });
   sonuc('Pencere kapatma sorusu ilk değişen belge için, fotoğraftaki biçimde', k?.ileti === '"b.pdf" belgesinde kaydedilmemiş değişiklikler var.' && k.ayrinti === 'Çıkmadan önce kaydetmek ister misiniz?' && J(k.dugmeler) === J(['Kaydet', 'Kaydetme', 'Vazgeç']), k);
@@ -209,12 +214,12 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   await evalJs(`window.__pdefe.komutCalistir('arac.gorselBirlestir', [${J(path.join(PDF, 'c.pdf'))}])`);
   await kosul(`document.querySelectorAll('.birlestir-oge').length > 0`); await bekle(800);
   const birlestirAd = await evalJs(`document.querySelector('.birlestir-pencere .arac-kayit-yeni .arac-cikti-ad').value`);
-  await kapatIstegi(); await soruBekle();
+  await kapatIstegi(); await soruBekle(); await kutuDugmesi('Tüm sekmeler'); await soruBekle();   // 0.2.2: önce kapsam sorusu
   k = await kutu();
   sonuc('Araç açıkken pencere kapatma: önce aracın sorusu ("Birleştirilmiş.pdf"; 0.1.25), sekmelere dokunulmadı', /^Birleştirilmiş( \(\d+\))?$/.test(birlestirAd) && k?.ileti === `"${birlestirAd}.pdf" belgesinde kaydedilmemiş değişiklikler var.` && J(await sekmeler()) === J(['b.pdf*', 'd.pdf*']), { k, birlestirAd });
   await kutuDugmesi('Vazgeç');
   sonuc('Aracın sorusunda Vazgeç: araç ve sekmeler açık, uygulama kapanmadı', await evalJs(`!!document.querySelector('.birlestir-pencere')`) && J(await sekmeler()) === J(['b.pdf*', 'd.pdf*']));
-  await kapatIstegi(); await soruBekle(); await kutuDugmesi('Kaydetme');
+  await kapatIstegi(); await soruBekle(); await kutuDugmesi('Tüm sekmeler'); await soruBekle(); await kutuDugmesi('Kaydetme');
   await soruBekle();
   k = await kutu();
   sonuc('Aracın sorusunda Kaydetme: araç kapanır, sıra belgelerin sorusuna gelir', !(await evalJs(`!!document.querySelector('.birlestir-pencere')`)) && k?.ileti === '"b.pdf" belgesinde kaydedilmemiş değişiklikler var.', k);

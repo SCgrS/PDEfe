@@ -220,6 +220,24 @@ export default async function ({ evalJs }) {
     /İndir'e basınca yeni sürüm tarayıcıda iner/.test(ayarGuncelleme.mac.aciklama) && /Uygulamalar klasörüne sürükle/.test(ayarGuncelleme.mac.aciklama)
     && !/tek tıkla|kurulur ve PDEfe yeniden açılır/.test(ayarGuncelleme.mac.aciklama) && ayarGuncelleme.mac.dugme === 'İndir', ayarGuncelleme.mac);
 
+  // ---------------------------------------------------------------- Ayarlar › Açılış ve düzen › Pencereyi kapatırken (0.2.2)
+  // Kapatma düğmesi Mac'te pencerenin kırmızı düğmesi (Alt+F4 yok); ⌘W sekmeyi kapatır, ⌘Q çıkar. Windows'ta × ve Alt+F4
+  const pencereKarti = await evalJs(`(async () => { ${ORTAM}
+    const sonuc = {};
+    for (const mac of [true, false]) {
+      const o = ortam(mac), m = await o.yukle('ayarlarPenceresi.js');
+      const ortu = m.ayarlarPenceresiAc({ ayar: () => ({ pencereKapatma: 'sekme' }), ayarKoy: () => {}, pdefe: { cagir: async () => null } }, { bolum: 'acilis' });
+      const k = [...ortu.querySelectorAll('.ayar-kart')].find((x) => x.querySelector('.ayar-baslik')?.textContent === 'Pencereyi kapatırken');
+      sonuc[mac ? 'mac' : 'win'] = { aciklama: k?.querySelector('.ayar-aciklama')?.textContent || '', deger: k?.querySelector('select')?.value || null };
+      m.ayarlarPenceresiKapat();
+    }
+    return sonuc;
+  })()`);
+  sonuc('Ayarlar › Pencereyi kapatırken (Windows): × ve Alt+F4, Ctrl+W; kayıtlı değer gösteriliyor',
+    /kapatma düğmesine \(×\) ya da Alt\+F4/.test(pencereKarti.win.aciklama) && /Ctrl\+W/.test(pencereKarti.win.aciklama) && !/⌘|kırmızı/.test(pencereKarti.win.aciklama) && pencereKarti.win.deger === 'sekme', pencereKarti.win);
+  sonuc('Ayarlar › Pencereyi kapatırken (macOS): kırmızı kapatma düğmesi, ⌘W ve ⌘Q; Alt+F4 / Ctrl yok',
+    /kırmızı kapatma düğmesine/.test(pencereKarti.mac.aciklama) && /⌘W/.test(pencereKarti.mac.aciklama) && /⌘Q/.test(pencereKarti.mac.aciklama) && !/Alt\+F4|Ctrl|×/.test(pencereKarti.mac.aciklama) && pencereKarti.mac.deger === 'sekme', pencereKarti.mac);
+
   // ---------------------------------------------------------------- Güncelleme şeridi (guncelleme.js)
   // macOS: İndir → paket tarayıcıda iner ('tarayicida'). Şerit önce PDEfe'den çıkmayı (Finder açık uygulamanın yerine koymaz) ve
   // engellenirse Sistem Ayarları › Gizlilik ve Güvenlik › Yine de Aç'ı söylemeli. Windows'ta düğme eskisi gibi Güncelle

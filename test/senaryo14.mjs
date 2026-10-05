@@ -20,7 +20,8 @@ const MARKA = /ado[b]e|acroba[t]/i;   // başka PDF programlarının adı (0.1.9
 const BEKLENEN = [
   ['gorunum', 'Görünüm', ['Tema', 'Sayfayı da koyulaştır', 'Yazı çizimi']],
   ['acilis', 'Açılış ve düzen', ['Varsayılan PDF görüntüleyici', 'Her belgeyi kaldığım sayfadan aç', 'Son açılanları hatırla',
-    'Varsayılan yakınlaştırma', 'Tek ya da iki sayfa', 'Kaydırmayı etkinleştir', 'Kapak sayfasını ayrı göster']],   // 'Döndür düğmesi' 0.1.27'de kaldırıldı
+    'Varsayılan yakınlaştırma', 'Tek ya da iki sayfa', 'Kaydırmayı etkinleştir', 'Kapak sayfasını ayrı göster',
+    'Pencereyi kapatırken']],   // 'Döndür düğmesi' 0.1.27'de kaldırıldı; 'Pencereyi kapatırken' 0.2.2
   ['notlar', 'Not ve vurgu', ['Yazar adı', 'Varsayılan vurgu rengi', 'Vurgu opaklığı', 'Yazı tipi', 'Yazı boyutu', 'Yazı rengi', 'Yazı arka planı']],
   ['kaydetme', 'Kaydetme', ['Otomatik kaydet', 'Araçların çıktı klasörü']],
   ['guncelleme', 'Güncelleme', ['Güncellemeleri otomatik denetle (haftada bir)', 'Şimdi denetle']],

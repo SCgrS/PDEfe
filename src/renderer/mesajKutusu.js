@@ -11,6 +11,8 @@
 //     iptal      Esc'in ve arka plana tıklamanın sonucu; verilmezse düğmeler verildiyse sonuncusu, verilmediyse 0 (yerel kutunun cancelId'si)
 //     onayKutusu onay kutusunun etiketi (ör. "Seçeneğimi hatırla"); onay: kutu kapanırken işaretli mi (hangi düğmeyle kapanırsa kapansın)
 //     baslik     yerel kutunun pencere başlığıydı; verilirse iletinin üstünde küçük yazılır
+//     denetim    (0.2.2) boş bir nesne verilirse kutu açıkken denetim.yanitla(secim) kutuyu o düğmeye basılmış gibi kapatır; kutu kapanınca
+//                yanitla kaldırılır. Pencere kapatma sorusu açıkken Çıkış gelince soru programla "Tüm sekmeler" yanıtlanır (uygulama.js)
 //   Klavye: Enter odaklı düğmeye, odak onay kutusundaysa varsayılan düğmeye basar; Tab / Shift+Tab düğmeler ve onay kutusu arasında
 //   döner, ← → düğmeler arasında gezer; Esc iptal. Kapanınca odak açılıştaki öğeye döner.
 // Test kancası (paketli uygulamada da): window.__pdefeOtoYanit = { secim, onay } verilmişse kutu açılmaz, bu yanıt döner; soru o.son'a yazılır.
@@ -97,9 +99,12 @@ export function mesajKutusu(secenek = {}) {
       },
     };
     let kapandi = false;
+    const denetim = secenek.denetim && typeof secenek.denetim === 'object' ? secenek.denetim : null;
+    if (denetim) denetim.yanitla = (secim) => kapat(Number.isInteger(secim) && secim >= 0 && secim < etiketler.length ? secim : iptal);
     function kapat(secim) {
       if (kapandi) return;
       kapandi = true;
+      if (denetim) delete denetim.yanitla;
       window.removeEventListener('keydown', tus, true);
       window.removeEventListener('keyup', tus, true);
       ortu.remove();

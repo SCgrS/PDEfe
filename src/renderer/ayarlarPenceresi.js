@@ -1,7 +1,7 @@
 // Ayarlar penceresi: solda bölüm listesi, sağda içerik (Windows 11 Ayarlar havası).
 // Her değişiklik anında kaydedilir (baglam.ayarKoy) ve canlı uygulanır (baglam.uygula).
 // Bölümler (0.1.12): Görünüm (tema, yazı çizimi), Açılış ve düzen (varsayılan uygulama, kaldığım sayfa, son açılanlar; yakınlaştırma,
-// tek/iki sayfa, kaydırma, kapak), Not ve vurgu, Kaydetme (otomatik kaydet, araçların çıktı klasörü), Güncelleme, Hakkında.
+// tek/iki sayfa, kaydırma, kapak; 0.2.2'den beri pencereyi kapatırken), Not ve vurgu, Kaydetme (otomatik kaydet, araçların çıktı klasörü), Güncelleme, Hakkında.
 // Sekme adı içeriğini söylesin: bir ayar eklerken ona göre yerleştirin. 0.1.12'de (kullanıcı isteği) Sayfa düzeni ile Belge açılışı
 // birleşti ("Açılış ve düzen"), Notlar'ın adı "Not ve vurgu" oldu, Kopyalama kalktı (kopyalama her zaman temiz metin).
 // Sayfa düzeni iki kontrolle (Tek/İki sayfa + Kaydırma) tek bir varsayilanDuzen değerine yazılır:
@@ -15,6 +15,7 @@
 //     secenek = { bolum?: 'gorunum'|'acilis'|'notlar'|'kaydetme'|'guncelleme'|'hakkinda' }
 //     (eski kimlikler ESKI_BOLUMLER'le eşlenir: 'sayfa', 'baslangic', 'dosya' → 'acilis'; 'kopyalama' → 'gorunum')
 //   ayarlarPenceresiKapat()               → açık pencereyi kapatır.
+//   ayarlarPenceresiniGuncelle(anahtar)   → ayar dışarıdan değişince açık penceredeki seçim kutusunu günceller (data-ayar işaretli).
 //   DURUM_ANAHTARLARI                     → "Varsayılanlara dön" ile sıfırlanmayan durum alanları.
 import { ortuTiklamasiBagla } from './ortu.js';
 import { mesajKutusu } from './mesajKutusu.js';
@@ -179,12 +180,43 @@ function bolumGorunum(k) {
 function duzenCoz(d) { return { iki: d === 'iki' || d === 'ikiSurekli', kaydir: d !== 'tek' && d !== 'iki' }; }
 function duzenBirlestir(iki, kaydir) { return iki ? (kaydir ? 'ikiSurekli' : 'iki') : (kaydir ? 'surekli' : 'tek'); }
 
-/** Açılış ve düzen (0.1.12'de Belge açılışı ile Sayfa düzeni birleşti): önce belgenin açılışı, sonra sayfaların dizilişi. */
+/** Açılış ve düzen (0.1.12'de Belge açılışı ile Sayfa düzeni birleşti): önce belgenin açılışı, sonra sayfaların dizilişi, en sonda
+ *  pencere (0.2.2: kapatma düğmesinin davranışı; yeni bir bölüm açılmadı, bölüm listesi aynı kaldı). */
 function bolumAcilisVeDuzen(k) {
   k.append(el('h3', {}, 'Belge açılışı'));
   acilisKartlari(k);
   k.append(el('h3', {}, 'Sayfa düzeni'));
   sayfaDuzeniKartlari(k);
+  k.append(el('h3', {}, 'Pencere'));
+  pencereKartlari(k);
+}
+
+// Pencereyi kapatırken (0.2.2, kullanıcı isteği: "ayarlardan değiştirilebilelim"): birden çok sekmeli pencerenin kapatma düğmesi. Sorudaki
+// "Bir daha sorma" da bu ayarı yazar; ayar pencerenin dışından değişince kart ayarlarPenceresiniGuncelle ile güncellenir
+const PENCERE_KAPATMA_ACIKLAMASI = MAC
+  ? 'Pencerede birden çok sekme açıkken pencerenin kırmızı kapatma düğmesine basılınca ne olacağı. Her seferinde sor: geçerli sekmenin mi, bütün sekmelerin mi kapatılacağı sorulur. Kaydedilmemiş değişiklikler her durumda sorulur. ⌘W yalnızca geçerli sekmeyi kapatır, ⌘Q PDEfe\'den çıkar.'
+  : 'Pencerede birden çok sekme açıkken pencerenin kapatma düğmesine (×) ya da Alt+F4\'e basılınca ne olacağı. Her seferinde sor: geçerli sekmenin mi, bütün sekmelerin mi kapatılacağı sorulur. Kaydedilmemiş değişiklikler her durumda sorulur. Ctrl+W yalnızca geçerli sekmeyi kapatır.';
+
+function pencereKartlari(k) {
+  const a = ayarlar();
+  // Bilinmeyen değer (elle değiştirilmiş ayar dosyası) ilk seçenek, yani "Her seferinde sor" görünür: uygulama da onu öyle sayar
+  const secim = secimKutusu(a.pencereKapatma ?? 'sor', [['sor', 'Her seferinde sor'], ['sekme', 'Yalnızca geçerli sekmeyi kapat'], ['pencere', 'Bütün sekmeleri kapat']],
+    (v) => degistir('pencereKapatma', v));
+  secim.dataset.ayar = 'pencereKapatma';
+  k.append(kart({ baslik: 'Pencereyi kapatırken', aciklama: PENCERE_KAPATMA_ACIKLAMASI, kontrol: secim }));
+}
+
+/** Ayar Ayarlar penceresinin dışından değişti (0.2.2: pencere kapatma sorusundaki "Bir daha sorma", başka pencerenin Ayarlar'ı): açık
+ *  penceredeki seçim kutusu güncel değeri göstersin (yoksa bölüm yeniden çizilene dek eskisini gösterirdi). Yalnızca data-ayar işaretli
+ *  seçim kutuları; değer seçeneklerde yoksa ilk seçenek. */
+export function ayarlarPenceresiniGuncelle(anahtar) {
+  if (!acik) return;
+  for (const s of acik.icerik.querySelectorAll('select[data-ayar]')) {
+    if (s.dataset.ayar !== anahtar) continue;
+    const deger = String(ayarlar()[anahtar] ?? '');
+    s.value = deger;
+    if (s.value !== deger && s.options.length) s.value = s.options[0].value;
+  }
 }
 
 function sayfaDuzeniKartlari(k) {

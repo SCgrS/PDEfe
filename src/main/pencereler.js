@@ -9,7 +9,8 @@
 //
 // Renderer'a giden olaylar:
 //   'dosya:ac'            [yollar], { yazildi }?     dosyaları aç (yazildi: dosya az önce yeniden yazıldı, açık sekmesi yenilenir)
-//   'pencere:kapatIstegi'                            pencere kapatılmak isteniyor (yanıt: 'pencere:kapatOnayla' ya da 'pencere:kapatVazgec')
+//   'pencere:kapatIstegi' { cikis }                  pencere kapatılmak isteniyor (yanıt: 'pencere:kapatOnayla' ya da 'pencere:kapatVazgec');
+//                                                    cikis: istek Çıkış'tan (cik) geliyor, "geçerli sekme / tüm sekmeler" sorulmaz (0.2.2)
 //   'pencere:izinIste'    istekId                    başka pencere uygulamayı kapatacak (güncelleme kurulumu): kaydedilmemişleri sor → 'yanit'
 //   'pencere:izinBitti'                              kurulumdan vazgeçildi ya da kurulum başlatılamadı: izin verirken kilitlenen pencere açılır
 //   'sekme:al'            istekId, paket, { x }      taşınan sekmeyi aç (x: bırakılan yerin pencere içi yatay konumu ya da null) → 'yanit'
@@ -179,7 +180,12 @@ export function pencereOlustur({ sinirlar = null, goster = true, dosyalar = [] }
   pencere.on('close', (e) => {
     if (!k.kapatOnayli && k.hazir) {
       e.preventDefault();
-      gonder(k, 'pencere:kapatIstegi');
+      // cikis (0.2.2, kullanıcı isteği: birden çok sekmeli pencere kapatılırken "Geçerli sekme / Tüm sekmeler" sorulur): kapatma Çıkış'tan
+      // mı geliyor. kapatBekleyen yalnızca kapatmayiIste'de kurulur, yani Dosya › Çıkış, macOS ⌘Q / Dock › Çık (before-quit), Windows
+      // oturum sonu (query-session-end) ve test:cik; bunlarda soru sorulmaz (bütün pencereler kapanacak; "yalnızca geçerli sekme"
+      // hatırlanmışsa Çıkış her pencerede bir sekme kapatıp dururdu). Kapatma düğmesi (×), Alt+F4, Mac'in kırmızı düğmesi ve görev
+      // çubuğunun "Pencereyi kapat"ı cikis: false. Güncelleme kurulumu kapatOnayli ile bu isteği hiç üretmez
+      gonder(k, 'pencere:kapatIstegi', { cikis: !!k.kapatBekleyen });
       return;
     }
     // Açılışta kullanılacak konum ve boyut: en son kapatılan pencereninki
