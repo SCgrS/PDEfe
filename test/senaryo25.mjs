@@ -1,4 +1,4 @@
-// Senaryo 25 (0.1.24): menü çubuğu düğmesi, belge görünümünün kalın kaydırma çubuğu, görsellerdeki yazının tanınması.
+// Senaryo 25 (0.1.24): menü çubuğu düğmesi, belge görünümünün kalın kaydırma çubuğu (0.2.2'de 16 → 20 px), görsellerdeki yazının tanınması.
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9425 -Veri "%TEMP%\pdefe-s25-9425"      → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9425; node test\surucu.mjs betik test\senaryo25.mjs
@@ -76,7 +76,7 @@ export default async function ({ evalJs, bekle, tikla, surukle }) {
     const o = document.createElement('div'); o.style.cssText = 'position:absolute;left:-999px;width:100px;height:100px;overflow:scroll'; document.body.append(o);
     const genel = o.offsetWidth - o.clientWidth; o.remove();
     return { belge: k.offsetWidth - k.clientWidth, yatayVar: k.scrollWidth > k.clientWidth, genel, zoom: window.__pdefe.aktif().gorunum.zoomModu }; })()`);
-  sonuc('Belgenin dikey çubuğu 16 px (önceden 12)', cubuk.belge === 16, cubuk);
+  sonuc('Belgenin dikey çubuğu 20 px (0.2.2; 0.1.24\'te 16, önceden 12)', cubuk.belge === 20, cubuk);
   sonuc('Öteki çubuklar (paneller) değişmedi: 12 px', cubuk.genel === 12, cubuk);
   sonuc('Genişliğe sığdırılmış belgede yatay çubuk yok', !cubuk.yatayVar, cubuk);
 

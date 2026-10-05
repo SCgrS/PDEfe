@@ -553,10 +553,15 @@ body.okuma-modu.ust-goster #arac-cubugu { display: flex; position: absolute; top
 ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.45); border-radius: 6px; border: 3px solid transparent; background-clip: padding-box; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(128,128,128,0.7); background-clip: padding-box; border: 3px solid transparent; }
 ::-webkit-scrollbar-track { background: transparent; }
-/* Belge görünümünün çubukları daha kalın (0.1.24, kullanıcı isteği: tutması kolay olsun; tutamak 6 → 10 px). Sığdırma hesabı kalınlığı
-   ölçer (goruntuleyici.js cubukKalinligi): ölçüm kutusu .kaydirma-olcer aynı kuralı alır */
-.kaydirici::-webkit-scrollbar, .kaydirma-olcer::-webkit-scrollbar { width: 16px; height: 16px; }
-.kaydirici::-webkit-scrollbar-thumb { border-radius: 8px; }
+/* Belge görünümünün çubukları daha kalın (0.1.24, kullanıcı isteği: tutması kolay olsun; tutamak 6 → 10 px; 0.2.2, kullanıcı isteği: 16 →
+   20 px, tutamak 10 → 14 px; saydam kenar 3 px kaldı). 20 px, %125 / %150 / %175 ölçekte tam cihaz pikseline düşer (25, 30, 35; 18 px %125'te
+   22,5 ederdi). Sığdırma hesabı kalınlığı ölçer (goruntuleyici.js cubukKalinligi): ölçüm kutusu .kaydirma-olcer aynı kuralı alır */
+.kaydirici::-webkit-scrollbar, .kaydirma-olcer::-webkit-scrollbar { width: 20px; height: 20px; }
+.kaydirici::-webkit-scrollbar-thumb { border-radius: 10px; }
+/* Uzun belgede tutamak en kısa boyuna iner (Chromium'da 17 px: görünen 11 px); 20 px'lik çubukta 14 px genişliğinde, 11 px boyunda yatık bir
+   hap gibi duruyordu. En kısa boy 28 px (görünen 22 px): tutamak çubuk yönünde uzun kalır, tutması kolay. Kalınlığı değiştirmez */
+.kaydirici::-webkit-scrollbar-thumb:vertical { min-height: 28px; }
+.kaydirici::-webkit-scrollbar-thumb:horizontal { min-width: 28px; }
 
 /* ---------- Not katmanı ---------- */
 .sayfa .not-katmani { position: absolute; inset: 0; z-index: 3; pointer-events: none; overflow: visible; }
