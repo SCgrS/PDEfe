@@ -251,8 +251,9 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
     const resim = () => evalJs(`(async () => {
       const alan = document.querySelector('#panel-sayfalar'), el = alan.querySelector('.kucuk-resim[data-sayfa="1"]');
       const img = el?.querySelector('img'); if (!img) return null;
-      const g = parseFloat(img.style.width);   // panelin istediği genişlik (alan kurulurken; kaydırma çubuğu sonradan çıkmış olabilir)
-      const r = await window.pdefe.cagir('cekirdek:cagir', 'kucuk_resim', { yol: ${J(yol)}, sayfa: 1, genislik: g * Math.min(2, window.devicePixelRatio || 1) }, 0);
+      // Panelin çekirdekten istediği genişlik (cihaz pikseli; 0.2.2'den beri resim hücreye CSS'le uyar, istenen genişlik resimde yazılı)
+      const istenen = +img.dataset.istenen;
+      const r = await window.pdefe.cagir('cekirdek:cagir', 'kucuk_resim', { yol: ${J(yol)}, sayfa: 1, genislik: istenen }, 0);
       return { src: img.src, isaret: el.__isaret === 1, taze: img.src === 'data:image/png;base64,' + r.png };
     })()`);
     await kosul(`!!document.querySelector('#panel-sayfalar .kucuk-resim[data-sayfa="1"] img')`);
