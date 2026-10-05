@@ -1,5 +1,5 @@
-// Sekme genişliği (0.1.21'e dek sabit 118 px; artık sekme sayısına göre 118–220 px, ayrıntısı senaryo23'te): dar pencerede 12 sekme en dar
-// genişlikte (118 px) ve kaydırılır; her sekme aynı genişlikte, uzun ad üç noktayla kısalır, ipucunda tam ad ve yol; etkin sekme görünür
+// Sekme genişliği (0.1.21'e dek sabit 118 px; artık sekme sayısına göre 128–220 px, 0.2.2'ye dek en dar 118, ayrıntısı senaryo23'te): dar
+// pencerede 12 sekme en dar genişlikte (128 px) ve kaydırılır; her sekme aynı genişlikte, uzun ad üç noktayla kısalır, ipucunda tam ad ve yol; etkin sekme görünür
 // kaydırılır; ◀ ▶, Ctrl+1–9, sürükleyerek sıralama (0.1.14'ten beri işaretçi olaylarıyla: sekme imleci izler, ötekiler kayarak yer
 // açar, Esc iptal eder, liste uçta kendiliğinden kayar), Ctrl+Tab seçicisi, açık belgeler listesi ve Farklı kaydet sonrası ipucu.
 // Ekran görüntüleri test/png/sekme altına.
@@ -51,7 +51,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare
   const genislikler = new Set(o.sekmeler.map((s) => Math.round(s.g)));
   denetle(`${o.sekmeler.length} sekmenin genişliği aynı`, genislikler.size === 1, [...genislikler].join(', ') + ' px');
   const kisa = (ad) => o.sekmeler.find((s) => s.ad === ad);
-  denetle('sığmayan sekmeler en dar genişlikte: 118 px (0.1.4\'teki 168 px\'ten %30 dar)', genislikler.size === 1 && genislikler.has(118), [...genislikler].join(', ') + ' px');
+  denetle('sığmayan sekmeler en dar genişlikte: 128 px (0.2.2; yazı 12 → 13 px olunca 118 → 128)', genislikler.size === 1 && genislikler.has(128), [...genislikler].join(', ') + ' px');
   denetle('"ustyazi (85).pdf" ve "ustyazi (86).pdf" tam görünür', !kisa('ustyazi (85).pdf').kisaldi && !kisa('ustyazi (86).pdf').kisaldi);
   denetle('"(2)TensipZapti (9).pdf" üç noktayla kısalır (tam adı ipucunda)', kisa('(2)TensipZapti (9).pdf').kisaldi);
   denetle('uzun ad üç noktayla kısalır', kisa('Bilirkişi Raporu - Ek 1 - Hesap Tablosu ve Açıklamalar (son hali).pdf').kisaldi && o.ustTasma === 'ellipsis');
@@ -129,7 +129,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare
   async function surukleBirak(kaynak, hedef, { disari = false, iptal = false, ekran = null, x = null } = {}) {
     await tus('1', ['ctrl']); await bekle(400);   // dar pencerede de ilk sekmeler görünsün
     const { ws, gonder } = await cdp();
-    const k = await evalJs(`[...document.querySelectorAll('.sekme')].map((s) => { const r = s.getBoundingClientRect(); return { x: Math.round(r.left + 40), y: Math.round(r.top + r.height / 2) }; })`);
+    const k = await evalJs(`[...document.querySelectorAll('.sekme')].map((s) => { const r = s.getBoundingClientRect(); return { x: Math.round(r.left + 40), y: Math.round(r.top + r.height / 2), ust: Math.round(r.top) }; })`);
     const [a, b] = [k[kaynak], k[hedef]];
     const cubukAlti = await evalJs(`Math.round(document.querySelector('#sekme-cubugu').getBoundingClientRect().bottom)`);
     // x: imlecin bırakılacağı yer; verilmezse hedef sekmenin tutma noktası: sürüklenen sekme hedefin tam üstüne gelir, hedefin dörtte
@@ -146,7 +146,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare
         kaymis: [...document.querySelectorAll('.sekme:not(.tasiniyor)')].filter((s) => s.style.transform).length,
         opak: t ? getComputedStyle(t).opacity === '1' && getComputedStyle(t).backgroundColor !== 'rgba(0, 0, 0, 0)' : false,
         draggable: [...document.querySelectorAll('.sekme')].some((s) => s.draggable) }; })()`);
-    ortada.solBeklenen = son.x - 40; ortada.ustBeklenen = Math.round(a.y - 15);
+    ortada.solBeklenen = son.x - 40; ortada.ustBeklenen = a.ust;   // sekme yukarı-aşağı oynamaz (0.2.2'ye dek a.y - 15: sekme 30 px yüksekti)
     if (ekran) await ekran();
     if (iptal) {
       await gonder('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });

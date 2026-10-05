@@ -15,7 +15,7 @@
   --golge: 0 2px 8px rgba(0, 0, 0, 0.16);
   --sayfa-golge: 0 1px 4px rgba(0, 0, 0, 0.25);
   --arac-yukseklik: 40px;
-  --sekme-yukseklik: 34px;
+  --sekme-yukseklik: 40px;   /* 0.2.2 (kullanıcı isteği): 34 → 40, araç çubuğuyla aynı yükseklik; sekmeler bundan türer (.sekme) */
   --durum-yukseklik: 24px;
 }
 html[data-tema="koyu"] {
@@ -77,13 +77,23 @@ button.ikon.acilir { width: 20px; }
 button.ikon.metinli { width: auto; gap: 5px; padding: 0 4px 0 7px; font-weight: 600; white-space: nowrap; }
 button.ikon.metinli svg.ok { width: 14px; height: 14px; opacity: 0.75; }
 button.ikon.metinli[aria-expanded="true"] { background: var(--basili); }
+/* Araç çubuğu daha büyük (0.2.2, kullanıcı isteği; dört boyut görselle gösterildi, kullanıcı ikincisini seçti): düğmeler 32 → 34 px, simgeler
+   20 → 22 px, açılır ok 20 → 21 px, Araçlar'ın oku 14 → 15 px; sayfa ve yakınlaştırma kutuları 24 → 28 px (aşağıda). Çubuğun yüksekliği
+   40 px kaldı. Yalnızca araç çubuğunda: button.ikon notlarda, Bul'da, araç pencerelerinde ve Ayarlar'da da kullanılır, onlar değişmez */
+#arac-cubugu button.ikon { width: 34px; height: 34px; }
+#arac-cubugu button.ikon svg { width: 22px; height: 22px; }
+#arac-cubugu button.ikon.acilir { width: 21px; }
+#arac-cubugu button.ikon.metinli { width: auto; }
+#arac-cubugu button.ikon.metinli svg.ok { width: 15px; height: 15px; }
 /* Dar pencerede araç çubuğu sığana kadar kademeli sıkışır (uygulama.js aracCubuguSigdir): 1) ayraç ve boşluklar, 2) Araçlar yalnızca simge,
    3) düğmeler ve kutular, 4) menü çubuğu düğmesi gizlenir (Alt menüyü yine gösterir), 5) PDF'i kopyala düğmesi gizlenir (Araçlar menüsünde
-   de var). Gruplar ve ayraçlar ezilmez, taşma ölçülebilir */
+   de var), 6) düğmeler ve simgeler biraz daha küçülür. Gruplar ve ayraçlar ezilmez, taşma ölçülebilir. 0.2.2: düğmeler 34 px'e büyüdü; 3.
+   kademede eskisi gibi 28 px olurlar (simge 22 px kalır), bu yüzden en dar pencerede (Windows'ta 720 px pencere, içi 704 px) çubuk 0.2.1'deki
+   kadar yer tutar. 6. kademe 0.2.2'de eklendi: 4 basamaklı sayfa sayısında 704 px'te yalnızca 1 px pay kalıyordu; 6. kademe ~40 px daha açar */
 #arac-cubugu > .grup, #arac-cubugu > .ayrac { flex-shrink: 0; }
 #arac-cubugu.sikisik-1, #arac-cubugu.sikisik-1 .grup { gap: 1px; }
 #arac-cubugu.sikisik-1 > .ayrac { margin: 0 2px; }
-#arac-cubugu.sikisik-2 button.ikon.metinli { width: 32px; padding: 0; }
+#arac-cubugu.sikisik-2 button.ikon.metinli { width: 34px; padding: 0; }
 #arac-cubugu.sikisik-2 button.ikon.metinli .etiket, #arac-cubugu.sikisik-2 button.ikon.metinli svg.ok { display: none; }
 #arac-cubugu.sikisik-3 button.ikon, #arac-cubugu.sikisik-3 button.ikon.metinli { width: 28px; }
 #arac-cubugu.sikisik-3 button.ikon.acilir { width: 18px; }
@@ -92,6 +102,9 @@ button.ikon.metinli[aria-expanded="true"] { background: var(--basili); }
 /* macOS (0.2.0): menü ekranın üstünde hep görünür; göster / gizle düğmesi yok (uygulama.js data-platform) */
 html[data-platform="mac"] #dugme-menu { display: none; }
 #arac-cubugu.sikisik-5 [data-komut="arac.paylas"] { display: none; }
+#arac-cubugu.sikisik-6 button.ikon, #arac-cubugu.sikisik-6 button.ikon.metinli { width: 26px; }
+#arac-cubugu.sikisik-6 button.ikon svg { width: 20px; height: 20px; }
+#arac-cubugu.sikisik-6 button.ikon.acilir { width: 16px; }
 /* Tema düğmesi şu anki temayı gösterir: açık temada güneş, koyu temada ay */
 #dugme-tema .ay { display: none; }
 html[data-tema="koyu"] #dugme-tema .gunes { display: none; }
@@ -101,11 +114,12 @@ html[data-tema="koyu"] #dugme-tema .ay { display: block; }
   background: var(--arka-yukseltilmis); text-align: center; padding: 0 4px; outline: none;
 }
 .kutu:focus { border-color: var(--vurgu); }
-#zoom-kutusu { width: 62px; height: 24px; }
+#zoom-kutusu { width: 62px; height: 28px; }
 /* Sayfa numarası kutusu (0.1.12, kullanıcı isteği: büyük görünüyordu): genişlik sayfa sayısının basamağına göre (uygulama.js sayfaGoster
-   --basamak), alçak, ince çerçeve; "/ N" hemen yanında. Dar pencerede ayrıca daralmaz */
+   --basamak), ince çerçeve; "/ N" hemen yanında. Dar pencerede ayrıca daralmaz. Yükseklik 0.2.2'de araç çubuğuyla birlikte 24 → 28 px
+   (yakınlaştırma kutusuyla aynı; kullanıcının seçtiği görseldeki gibi) */
 #sayfa-kutusu {
-  width: calc(var(--basamak, 1) * 1ch + 18px); min-width: 30px; height: 24px; padding: 0 3px; border-radius: 4px;
+  width: calc(var(--basamak, 1) * 1ch + 18px); min-width: 30px; height: 28px; padding: 0 3px; border-radius: 4px;
   font-variant-numeric: tabular-nums;
 }
 #sayfa-kutusu:hover:not(:focus) { border-color: color-mix(in srgb, var(--kenar) 55%, var(--metin) 30%); }
@@ -125,23 +139,28 @@ html[data-tema="koyu"] #dugme-tema .ay { display: block; }
 }
 /* Düğmeler daralmaz: sekmeler sığmayınca yalnızca liste daralır (0.1.21'e dek ◀ ▶ ve açık belgeler düğmesi de birkaç piksel eziliyordu,
    sekme kapanıp sekmeler sığınca bütün sekmeler sağa kayıyordu) */
-#sekme-cubugu > button.ikon { width: 28px; height: 28px; margin-bottom: 2px; flex-shrink: 0; }
+#sekme-cubugu > button.ikon { width: 30px; height: 30px; margin-bottom: 2px; flex-shrink: 0; }
+/* 0.2.2 (kullanıcı isteği, şerit 34 → 40 px): düğmeler 28 → 30 px, simgeler 22 px (◀ ▶ ve açık belgeler 20, + 16 px'ti; kullanıcının seçtiği
+   görseldeki gibi) */
+#sekme-cubugu > button.ikon svg { width: 22px; height: 22px; }
 /* Liste içeriği kadar geniş (+ düğmesi son sekmenin hemen sağında, tarayıcılardaki gibi); sığmazsa daralıp kaydırılır, + sağda kalır */
 #sekme-liste {
   flex: 0 1 auto; min-width: 0; display: flex; align-items: flex-end; overflow-x: auto; overflow-y: hidden;
   scrollbar-width: none; height: 100%; gap: 2px; padding: 4px 2px 0;
 }
 #sekme-cubugu > #sekme-yeni { margin-left: 1px; flex-shrink: 0; }
-#sekme-cubugu > #sekme-yeni svg { width: 16px; height: 16px; }
 #sekme-liste::-webkit-scrollbar { display: none; }
 /* Sekmeler ada göre değil sekme sayısına göre genişler; hepsi aynı genişliktedir (kapat düğmesi ve değişiklik noktası dahil). 0.1.21
-   (kullanıcı isteği): az sekme varken 220 px; sekmeler çubuğa sığmayınca birlikte daralır, en dar genişliğe (118 px) inince liste
+   (kullanıcı isteği): az sekme varken 220 px; sekmeler çubuğa sığmayınca birlikte daralır, en dar genişliğe (128 px; 0.2.2'ye dek 118) inince liste
    kaydırılır. 118 px 0.1.5'ten 0.1.20'ye dek sabit genişlikti (168 px'ten %30 dar): yazı 12 px, iç boşluklar sıkı; "ustyazi (85).pdf",
    "ustyazi (100).pdf" gibi UYAP adları yine tam görünür, uzun ad ("(2)TensipZapti (9).pdf" dahil) üç noktayla kısalır; tam ad ve yol
    ipucundadır (sekmeler.js). Sekme × ya da orta tıkla kapatılınca öteki sekmeler imleç çubuktan çıkana dek genişlemez (.genislik-kilitli):
-   sıradaki sekmenin × düğmesi imlecin altına gelir, art arda kapatılabilir. */
+   sıradaki sekmenin × düğmesi imlecin altına gelir, art arda kapatılabilir. 0.2.2 (kullanıcı isteği, şerit 34 → 40 px): sekme 30 → 36 px
+   yüksek (şeritten türer: üstte #sekme-liste'nin 4 px boşluğu), yazı 12 → 13 px, × düğmesi 18 → 20 px ve değişiklik noktası orantılı büyüdü;
+   en dar genişlik yazıyla aynı oranda 118 → 128 px (118 px'te 13 px'lik "ustyazi (85).pdf" kısalıyordu: ad alanı 83 px, ad 87 px; 128 px'te
+   "ustyazi (100).pdf" de tam görünür). */
 .sekme {
-  flex: 0 1 220px; width: 220px; min-width: 118px; height: 30px; font-size: 12px;
+  flex: 0 1 220px; width: 220px; min-width: 128px; height: calc(var(--sekme-yukseklik) - 4px); font-size: 13px;
   display: flex; align-items: center; gap: 3px; padding: 0 3px 0 7px;
   border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0;
   background: transparent; color: var(--metin-soluk); position: relative; cursor: default;
@@ -165,16 +184,16 @@ html[data-tema="koyu"] #sekme-liste.siralaniyor .sekme.tasiniyor { box-shadow: 0
    sürüklenen sekmenin bırakılacağı yer sekmelerin arasında dikey çizgiyle gösterilir (birakmaIsareti) */
 #sekme-liste .sekme.ayrildi { visibility: hidden; }
 #sekme-liste .sekme.askida { display: none; }
-.sekme-birakma { position: absolute; bottom: 1px; width: 3px; height: 28px; border-radius: 2px; background: var(--vurgu); pointer-events: none; z-index: 3; }
+.sekme-birakma { position: absolute; bottom: 1px; width: 3px; height: calc(var(--sekme-yukseklik) - 6px); border-radius: 2px; background: var(--vurgu); pointer-events: none; z-index: 3; }
 .sekme .ad { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sekme .nokta { color: var(--vurgu); font-size: 16px; line-height: 1; display: none; flex-shrink: 0; }
+.sekme .nokta { color: var(--vurgu); font-size: 18px; line-height: 1; display: none; flex-shrink: 0; }
 .sekme.degisti .nokta { display: inline; }
 .sekme .kapat {
-  width: 18px; height: 18px; flex-shrink: 0; border: none; background: transparent; border-radius: 4px;
+  width: 20px; height: 20px; flex-shrink: 0; border: none; background: transparent; border-radius: 4px;
   display: inline-flex; align-items: center; justify-content: center; padding: 0; opacity: 0.7;
 }
 .sekme .kapat:hover { background: var(--hover); opacity: 1; }
-.sekme .kapat svg { width: 13px; height: 13px; }
+.sekme .kapat svg { width: 15px; height: 15px; }
 /* Pencerenin tek sekmesi açılış sekmesiyse kapatılmaz (0.1.21: sekme çubuğu hiç boş kalmaz); yer tutsun, ad kaymasın */
 #sekme-liste.tek-acilis .sekme .kapat { visibility: hidden; }
 

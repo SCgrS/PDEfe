@@ -25,6 +25,13 @@ const SURUKLEME_ADIMI_MS = 16;       // sürüklenen sekmenin önizlemesi imleci
 const CAN_BEKLEME_MS = 3000;         // kaynak pencere bu süre ses vermezse sürükleme bırakılmış sayılır (önizleme ekranda kalmasın)
 const HAYALET_OMRU_MS = 30000;       // son sürüklemeden sonra önizleme penceresi bu kadar bekletilir (yeniden kullanılır), sonra yok edilir
 const AYIRMA_KAYMASI = 32;           // "Pencereye ayır" ile açılan pencerenin kaynak pencereye göre kayması (px)
+// Sekme sürüklemede arayüzün göndermediği değerlerin yerine (px, pencere içeriğine göre): sekmenin tutulduğu nokta (sekme 36 px yüksek;
+// 0.2.2'ye dek 30 px, y 14 idi) ve ilk sekmenin yeri (aşağı yukarı 40 px araç çubuğu + #sekme-liste'nin 4 px üst boşluğu; şerit büyüyünce
+// değişmedi)
+const YEDEK_TUTMA = { x: 40, y: 17 }, YEDEK_SEKME_YERI = { x: 4, y: 45 };
+// Önizlemenin başlığı (renderer/hayalet.html, uygulama.js ONIZLEME_BASLIK; 0.2.2'de 30 → 36 px): imleç başlığın içinde, alt kenarından en
+// az 8 px yukarıda kalır (sekmenin alt ucundan tutulsa da önizleme imlecin üstünden kaymaz)
+const HAYALET_BASLIK = 36, HAYALET_IMLEC_EN_ALT = HAYALET_BASLIK - 8;
 
 /** @typedef {{ pencere: BrowserWindow, wc: Electron.WebContents, id: number, hazir: boolean, hazirSozu: Promise<void>, hazirCoz: () => void,
  *    coktu: boolean, kapatOnayli: boolean, kapatBekleyen: ((kapandi: boolean) => void)|null, bekleyenDosyalar: string[], yollar: Set<string>,
@@ -312,7 +319,7 @@ function sigdir(s, nokta) {
  */
 function birakmaSinirlari(kaynak, hedef) {
   const p = kaynak.pencere, normal = p.getNormalBounds(), dis = p.getBounds(), ic = p.getContentBounds();
-  const tutma = hedef.tutma || { x: 40, y: 14 }, yer = hedef.sekmeYeri || { x: 4, y: 45 };
+  const tutma = hedef.tutma || YEDEK_TUTMA, yer = hedef.sekmeYeri || YEDEK_SEKME_YERI;
   return sigdir({
     x: hedef.nokta.x - (ic.x - dis.x) - yer.x - tutma.x,
     y: hedef.nokta.y - (ic.y - dis.y) - yer.y - tutma.y,
@@ -375,7 +382,7 @@ function suruklemeyiBitir() {
 
 /** Önizleme penceresi: çerçevesiz, odak almayan, fare olaylarını geçiren, her zaman üstte küçük pencere (renderer/hayalet.html). */
 function hayaletiGoster(veri, s) {
-  const w = Math.max(160, Math.min(320, Math.round(veri.genislik) || 240)), h = Math.max(30, Math.min(400, Math.round(veri.yukseklik) || 200));
+  const w = Math.max(160, Math.min(320, Math.round(veri.genislik) || 240)), h = Math.max(HAYALET_BASLIK, Math.min(400, Math.round(veri.yukseklik) || 200));
   if (!hayalet || hayalet.pencere.isDestroyed()) {
     const pencere = new BrowserWindow({
       width: w, height: h, show: false, frame: false, thickFrame: false, resizable: false, movable: false, minimizable: false,
@@ -409,7 +416,7 @@ function hayaletiGoster(veri, s) {
 function hayaletiKonumla(p, s) {
   const hy = hayalet;
   if (!hy || hy.pencere.isDestroyed()) return;
-  const x = Math.round(p.x - Math.min(s.tutma.x, hy.boyut.w - 24)), y = Math.round(p.y - Math.min(s.tutma.y, 22));
+  const x = Math.round(p.x - Math.min(s.tutma.x, hy.boyut.w - 24)), y = Math.round(p.y - Math.min(s.tutma.y, HAYALET_IMLEC_EN_ALT));
   if (hy.konum && hy.konum.x === x && hy.konum.y === y) return;
   hy.konum = { x, y };
   hy.pencere.setBounds({ x, y, width: hy.boyut.w, height: hy.boyut.h });
@@ -553,7 +560,8 @@ export function pencereleriKur(b) {
     suruklemeyiBitir();
     const s = surukleme = {
       kaynak, bantlar: new Map(), hedef: null, sonX: null, sonCan: Date.now(), zaman: null,
-      tutma: { x: +veri.tutma?.x || 40, y: +veri.tutma?.y || 14 }, sekmeYeri: { x: +veri.sekmeYeri?.x || 4, y: +veri.sekmeYeri?.y || 45 },
+      tutma: { x: +veri.tutma?.x || YEDEK_TUTMA.x, y: +veri.tutma?.y || YEDEK_TUTMA.y },
+      sekmeYeri: { x: +veri.sekmeYeri?.x || YEDEK_SEKME_YERI.x, y: +veri.sekmeYeri?.y || YEDEK_SEKME_YERI.y },
     };
     hayaletiGoster(veri, s);
     for (const k of kayitlar.values()) {
@@ -576,8 +584,8 @@ export function pencereleriKur(b) {
   ipcMain.handle('sekme:surukleBitti', (e, veri) => {
     const p = imlec();
     const s = surukleme && surukleme.kaynak.id === e.sender.id ? surukleme : null;
-    const tutma = s?.tutma || { x: +veri?.tutma?.x || 40, y: +veri?.tutma?.y || 14 };
-    const sekmeYeri = s?.sekmeYeri || { x: +veri?.sekmeYeri?.x || 4, y: +veri?.sekmeYeri?.y || 45 };
+    const tutma = s?.tutma || { x: +veri?.tutma?.x || YEDEK_TUTMA.x, y: +veri?.tutma?.y || YEDEK_TUTMA.y };
+    const sekmeYeri = s?.sekmeYeri || { x: +veri?.sekmeYeri?.x || YEDEK_SEKME_YERI.x, y: +veri?.sekmeYeri?.y || YEDEK_SEKME_YERI.y };
     const h = s ? hedefBul(s, p) : null;
     if (s) suruklemeyiBitir();
     if (h) { hayaletiGizle(); return { tur: 'pencere', pencere: h.k.id, x: h.x }; }

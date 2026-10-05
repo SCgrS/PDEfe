@@ -5,7 +5,7 @@
 //      0.1.22 (kullanıcı isteği): belgesiz pencerede de + / Ctrl+T yeni boş sekme açar; son belge kapanınca yanındaki açılış sekmeleri kalır
 //      (0.1.21'de teke iniyordu); birden çok açılış sekmesi varken arka planda açılan ya da taşınan belge onların yanına eklenir.
 //   2) Sürüklenen sekme komşusunun dörtte birine girince yer değiştirir (önceden ortası komşunun ortasına varınca: tam üstüne gelince).
-//   3) Sekme genişliği sekme sayısına göre: az sekmede 220 px, sığmayınca birlikte daralır, 118 px'e inince liste kaydırılır; × ile
+//   3) Sekme genişliği sekme sayısına göre: az sekmede 220 px, sığmayınca birlikte daralır, 128 px'e (0.2.2'ye dek 118) inince liste kaydırılır; × ile
 //      kapatırken genişlik imleç çubuktan çıkana dek kilitli (sıradaki sekmenin × düğmesi imlecin altına gelir).
 //   4) Sekmede sağ tık › PDF'i kopyala (Yolu kopyala'nın altında): dosya panoya; kaydedilmemiş değişiklik varsa önce sorulur.
 //   5) Kopyala düğmesinin sorusu ve adları "paylaş" değil "kopyala".
@@ -25,7 +25,7 @@ const K = path.join(KOK, 'test', 'cikti', 's23', new Date().toISOString().replac
 const PYTHON = path.join(KOK, '.venv', 'Scripts', 'python.exe'), URET = path.join(KOK, 'test', 'ornek_pdf_uret.py');
 const PORT = process.env.PDEFE_CDP_PORT || 9222;
 const J = (x) => JSON.stringify(x);
-const EN_GENIS = 220, EN_DAR = 118, YER_DEGISTIRME = 0.25;
+const EN_GENIS = 220, EN_DAR = 128, YER_DEGISTIRME = 0.25;   // en dar 0.2.2'de 118 → 128 px (sekme yazısı 12 → 13 px)
 
 let hataSayisi = 0, tamam = 0;
 const sonuc = (ad, ok, ayrinti = '') => {
@@ -252,9 +252,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
   const azalan = olcumler.every((o, i) => i === 0 || o.g[0] <= olcumler[i - 1].g[0] + 0.5);
   sonuc('Sekme çoğaldıkça genişlik azalır ya da aynı kalır', azalan, olcumler.map((o) => o.g[0]));
   const orta = olcumler.filter((o) => o.g[0] < EN_GENIS - 1 && o.g[0] > EN_DAR + 1);
-  sonuc('Sığmayınca daralan sekmeler kaydırma olmadan çubuğa sığar (118–220 px arası en az bir ölçüm)', orta.length >= 1 && orta.every((o) => !o.kayiyor), orta.map((o) => [o.n, o.g[0], o.kayiyor]));
+  sonuc(`Sığmayınca daralan sekmeler kaydırma olmadan çubuğa sığar (${EN_DAR}–${EN_GENIS} px arası en az bir ölçüm)`, orta.length >= 1 && orta.every((o) => !o.kayiyor), orta.map((o) => [o.n, o.g[0], o.kayiyor]));
   const dar = olcumler.filter((o) => o.kayiyor);
-  sonuc('Kaydırma yalnızca sekmeler en dar genişliğe (118 px) inince başlar', dar.length >= 1 && dar.every((o) => Math.abs(o.g[0] - EN_DAR) <= 0.5), dar.map((o) => [o.n, o.g[0]]));
+  sonuc(`Kaydırma yalnızca sekmeler en dar genişliğe (${EN_DAR} px) inince başlar`, dar.length >= 1 && dar.every((o) => Math.abs(o.g[0] - EN_DAR) <= 0.5), dar.map((o) => [o.n, o.g[0]]));
   sonuc('220 px\'lik sekmeler sığdıkça kaydırma yok', olcumler.filter((o) => Math.abs(o.g[0] - EN_GENIS) <= 0.5).every((o) => !o.kayiyor));
   console.log('     genişlikler:', olcumler.map((o) => `${o.n}:${o.g[0]}${o.kayiyor ? '(kayıyor)' : ''}`).join(' '), 'çubuk', olcumler[0].cubuk);
   await ekranGoruntusu(path.join(K, 'png', '3-cok-sekme.png'));

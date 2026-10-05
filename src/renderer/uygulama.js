@@ -674,7 +674,9 @@ async function sekmeyiAl(paket, { x = null } = {}, onayla = null) {
 // Sürükleyerek ayırma (sekmeler.js): sekme çubuğun dışına çıkınca ('ayrildi') imleci izleyen önizleme gösterilir. Önizleme ana süreçte
 // ayrı, odak almayan küçük bir penceredir (pencereler.js, hayalet.html): pencerenin dışında, başka ekranda da görünür; imleci ve altındaki
 // pencereyi ana süreç izler. Bu pencere yalnızca sürüklemenin sürdüğünü bildirir ('sekme:surukleCan'; ses kesilirse önizleme kalkar).
-const ONIZLEME_GENISLIK = 240, ONIZLEME_BASLIK = 30, ONIZLEME_EN_YUKSEK = 300;
+// Önizlemenin başlığı sekme kadar yüksek (hayalet.html #baslik + üst kenar; 0.2.2'de sekmeyle birlikte 30 → 36 px): sekme imlecin altında
+// tutulduğu yerden durur (pencereler.js hayaletiKonumla)
+const ONIZLEME_GENISLIK = 240, ONIZLEME_BASLIK = 36, ONIZLEME_EN_YUKSEK = 300;
 let _surukleCan = null;
 const surukleCaniDurdur = () => { clearInterval(_surukleCan); _surukleCan = null; };
 
@@ -1822,15 +1824,17 @@ document.addEventListener('mousemove', (e) => {
 });
 
 // ---------------------------------------------------------------- araç çubuğu: dar pencerede kademeli sıkıştırma
-// Sığana kadar sırayla (stil.css .sikisik-1 - 5): ayraç ve boşluklar daralır, Araçlar yalnızca simge olur, düğmeler ve kutular daralır,
-// menü çubuğu düğmesi gizlenir (Alt menüyü yine gösterir; 0.1.24), en son PDF'i kopyala gizlenir (Araçlar menüsünde de var). Gereken genişlik içeriğe
-// (ör. sayfa sayısının basamakları) bağlı olduğundan ölçülür.
+// Sığana kadar sırayla (stil.css .sikisik-1 - 6): ayraç ve boşluklar daralır, Araçlar yalnızca simge olur, düğmeler ve kutular daralır,
+// menü çubuğu düğmesi gizlenir (Alt menüyü yine gösterir; 0.1.24), PDF'i kopyala gizlenir (Araçlar menüsünde de var), en son düğmeler ve
+// simgeler biraz daha küçülür (0.2.2: düğmeler 34 px'e büyüyünce en dar pencerede pay kalsın diye). Gereken genişlik içeriğe (ör. sayfa
+// sayısının basamakları) bağlı olduğundan ölçülür.
 const aracCubugu = $('#arac-cubugu');
+const SIKISMA_KADEMESI = 6;
 function aracCubuguSigdir() {
-  for (let k = 1; k <= 5; k++) aracCubugu.classList.remove('sikisik-' + k);
+  for (let k = 1; k <= SIKISMA_KADEMESI; k++) aracCubugu.classList.remove('sikisik-' + k);
   if (!aracCubugu.clientWidth) return;   // okuma modunda gizli
   const sinir = aracCubugu.getBoundingClientRect().right - parseFloat(getComputedStyle(aracCubugu).paddingRight);
-  for (let k = 1; k <= 5 && aracCubugu.lastElementChild.getBoundingClientRect().right > sinir + 0.5; k++) aracCubugu.classList.add('sikisik-' + k);
+  for (let k = 1; k <= SIKISMA_KADEMESI && aracCubugu.lastElementChild.getBoundingClientRect().right > sinir + 0.5; k++) aracCubugu.classList.add('sikisik-' + k);
 }
 // Pencere genişliği ve okuma modunda görünme için çubuğun kendi boyutu izlenir (sıkıştırma onu değiştirmez; grupları izlemek
 // ResizeObserver döngü hatası verirdi). İçerik değişimi (öğe ekleme/gizleme, sayfa sayısı) MutationObserver ile çizimden önce yakalanır.
