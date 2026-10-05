@@ -478,7 +478,16 @@ button.ikincil:hover { background: var(--hover); }
 #durum-sayfa-kutusu { width: 40px; height: 18px; border: 1px solid transparent; border-radius: 3px; background: transparent; text-align: center; padding: 0 2px; outline: none; }
 #durum-sayfa-kutusu:hover, #durum-sayfa-kutusu:focus { border-color: var(--kenar); background: var(--arka-yukseltilmis); }
 #durum-zoom { cursor: default; }
-#durum-degisiklik { color: var(--vurgu); }
+/* "● Kaydedilmemiş değişiklikler" (0.2.2, kullanıcı isteği): tıklanınca son kayıttan bu yana yapılanların listesi açılır (gecmisListesi.js);
+   yazının yanında yazıyla aynı renkte (currentColor) liste simgesi. Düğme gibi görünmez: çerçevesiz, üzerine gelince hafif zemin */
+#durum-degisiklik {
+  display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 5px; margin: 0 -5px; border: none; border-radius: 4px;
+  background: transparent; color: var(--vurgu); font-size: 12px; cursor: default; white-space: nowrap; outline: none;
+}
+#durum-degisiklik:hover { background: var(--hover); }
+#durum-degisiklik.liste-acik { background: var(--basili); }
+#durum-degisiklik:focus-visible { box-shadow: inset 0 0 0 2px var(--vurgu); }
+#durum-degisiklik svg { width: 14px; height: 14px; flex: none; display: block; }
 
 /* Sekme seçici (Ctrl+Tab) */
 #sekme-secici {

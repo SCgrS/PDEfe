@@ -1,7 +1,7 @@
 // PDEfe arayüz girişi: sekmeler, komutlar, kısayollar, ayarlar, sürükle-bırak.
 import { Goruntuleyici, yolAnahtari, yaziCiziminiAyarla } from './goruntuleyici.js';
 import { SekmeCubugu } from './sekmeler.js';
-import { SolPanel } from './panel.js';
+import { SolPanel, turAdi } from './panel.js';
 import { DurumCubugu, boyutMetni, sayfaKutusuBagla, sayfaKutusuYaz } from './durum.js';
 import { Arama } from './arama.js';
 import { temizMetin, sayfaMetinleriniBirlestir, secimDikdortgenleri, satirlaraBirlestir, paragrafSec, secimHamMetni, secimYapiliMetni, surukleSecimiBagla } from './metin.js';
@@ -1212,9 +1212,10 @@ function geriAlYinele(geri) {
 }
 
 // ---------------------------------------------------------------- geçmiş listeleri (0.2.2, kullanıcı isteği)
-// "geri al simgesinin yanına bir ok işareti çıkartalım geri alınma adımlarını da oradan görelim. worddeki gibi olsun mekaniği ve görüntüsü."
-// Geri al'ın ▾ düğmesi geri alınabilecek bütün adımları gösterir (gecmisListesi.js); satıra tıklamak en üstten o satıra kadar olanları birden
-// geri alır (topluGeriAl).
+// "alttaki kaydedilmemiş değişiklikler yazısının yanına yeni bir simge ekleyelim … yazıyla aynı renk olsun simge. bir de geri al simgesinin
+// yanına bir ok işareti çıkartalım geri alınma adımlarını da oradan görelim. worddeki gibi olsun mekaniği ve görüntüsü … aşağıdakinin mekaniği
+// de benzer olabilir." İki liste aynı bileşenden (gecmisListesi.js): Geri al'ın ▾ düğmesi geri alınabilecek bütün adımları, durum çubuğundaki
+// yazı son kayıttan bu yana yapılanları gösterir; ikisinde de satıra tıklamak en üstten o satıra kadar olanları birden geri alır (topluGeriAl).
 // Yinele'ye ok konmadı (istenmedi). Liste açılırken açık yazı düzenlemesi uygulanır (araç çubuğuna gitmek düzenlemeyi bitirir; yazılan metin
 // listede en üstte bir adım olarak görünür).
 
@@ -1224,6 +1225,56 @@ const komutOgesi = (k, ek = {}) => ({ ad: k.ad, ayrinti: k.ayrinti || '', ...ek 
 function geriAlOgeleri(b) {
   if (!b || !belgeler.has(b.id)) return [];
   return b.yigin.yigin.slice(0, b.yigin.konum).reverse().map((k) => komutOgesi(k, { tiklanir: true }));
+}
+
+/**
+ * Durum çubuğundaki liste: son kayıttan bu yana yapılanlar, en yenisi önce. Üç durum (KomutYigini konum / kayitKonumu):
+ * - kayıttan sonra yapılanlar (konum > kayıt konumu): yigin[kayıt konumu .. konum), tıklanabilir (geri al yığınının tepesidir);
+ * - kaydedilip sonra geri alınanlar (konum < kayıt konumu): dosyada duruyorlar, ekranda yoklar; "(geri alındı)", tıklanamaz (kaydedince
+ *   dosyadan da kalkarlar);
+ * - kayıt konumu yok (-1: kaydedilen durum yeni komutla kesildi) ya da yığında fark yok ama belge değişmiş (başka pencereden geçmişi
+ *   taşınamayan sekme, komutsuz değişiklik): liste kaydedilen duruma göre net farktan çıkarılır, tıklanamaz (netFarkOgeleri).
+ */
+function kaydedilmemisOgeler(b) {
+  if (!b || !belgeler.has(b.id) || !b.degisti) return [];
+  const y = b.yigin;
+  if (y.kayitKonumu >= 0 && y.konum > y.kayitKonumu) return y.yigin.slice(y.kayitKonumu, y.konum).reverse().map((k) => komutOgesi(k, { tiklanir: true }));
+  if (y.kayitKonumu >= 0 && y.konum < y.kayitKonumu) return y.yigin.slice(y.konum, y.kayitKonumu).reverse().map((k) => komutOgesi(k, { geriAlindi: true, ek: '(geri alındı)' }));
+  return netFarkOgeleri(b);
+}
+
+/**
+ * Kaydedilen duruma göre net fark (tıklanamaz satırlar): sayfa düzeni (kayıttaki tarif ile şimdiki karşılaştırılır; yalnızca döndürmeyse
+ * döndürülen sayfalar) ve notlar (notlar.fark(): eklenen / değişen / silinen). Anlık (yapısal) kayıt kipinde notların kayıtlı temeli anlık
+ * kopyadadır, fark() kaydedilmiş notları da değişmiş gösterir (kirliGuncelle de saymaz): orada notlar listelenmez. Hiçbir şey
+ * çıkarılamazsa tek bir açıklama satırı.
+ */
+function netFarkOgeleri(b) {
+  const g = b.gorunum, ogeler = [];
+  if (g.kayitliTarif != null && g.yapisalKirli()) {
+    try {
+      const f = sayfaFarki(JSON.parse(g.kayitliTarif), JSON.parse(g.tarifJson()), (t) => t[0], (t) => t[1]);
+      if (f.yalnizDondurme) ogeler.push({ ad: f.dondurulen.length === 1 ? 'Sayfayı döndür' : 'Sayfaları döndür', ayrinti: sayfaListesi(f.dondurulen) });
+      else { const ozet = sayfaFarkiOzeti(f); if (ozet) ogeler.push({ ad: 'Sayfa düzeni', ayrinti: ozet }); }
+    } catch { /* kayıtlı tarif okunamadı: sayfa satırı yazılmaz */ }
+  }
+  if (!g.anlik && b.notlar) {
+    const ISLEM = { ekle: 'ekle', guncelle: 'düzenle', sil: 'sil' };
+    for (const op of b.notlar.fark()) {
+      const n = b.notlar.notlar.get(op.id);
+      const sayfa = n?.sayfa ?? op.not?.sayfa;
+      ogeler.push({ ad: `${turAdi(n?.tur || op.not?.tur)} ${ISLEM[op.islem] || op.islem}`, ayrinti: Number.isInteger(sayfa) ? `s. ${sayfa}` : '' });
+    }
+  }
+  if (!ogeler.length) ogeler.push({ ad: 'Değişikliklerin ayrıntısı gösterilemiyor', bilgi: true });
+  return ogeler;
+}
+
+/** Durum çubuğu listesinde boyama yokken alt yazı: değişiklik sayısı; yalnızca kaydedip geri alınanlar varsa ne olacakları. */
+function kaydedilmemisAltYazisi(ogeler) {
+  if (ogeler.every((o) => o.bilgi)) return '';
+  if (ogeler.every((o) => o.geriAlindi)) return 'Kaydedince dosyadan da kalkar';
+  return `${ogeler.length} değişiklik`;
 }
 
 /**
@@ -1260,9 +1311,22 @@ function geriAlListesiAc(klavyeyle) {
   });
 }
 
+/** Durum çubuğundaki liste: yazının üstünde, başlıklı; altta Kaydet (Ctrl+S ile aynı komut; liste kayıttan önce kapanır). */
+function kaydedilmemisListesiAc(klavyeyle) {
+  const b = listeIcinBelge(); if (!b) return;
+  gecmisListesi.ac({
+    kaynak: 'durum', acici: $('#durum-degisiklik'), yon: 'yukari', baslik: 'Kaydedilmemiş değişiklikler',
+    ogeler: () => kaydedilmemisOgeler(b), altYazi: (n) => `${n} değişikliği geri al`,
+    varsayilanAlt: kaydedilmemisAltYazisi,
+    uygula: (n) => topluGeriAl(b, n), odakBelgeye: () => { if (aktif() === b) b.gorunum.kaydirici.focus({ preventScroll: true }); },
+    kaydet: { etkin: () => kaydedilecekVar(b), calistir: () => { if (aktif() === b) komutCalistir('dosya.kaydet'); } },
+    ilkBoyali: klavyeyle,
+  });
+}
+
 // Düğme yeniden basılınca liste kapanır (dışarı tıklama sayılmaz). e.detail 0: klavyeyle basıldı. Klavyede Enter / Boşluk (▾'de aşağı ok
 // da) açar, ilk satır boyalı: tuş belgeye ulaşmaz (Boşluk sayfayı kaydırıp düğmenin tıklamasını engellerdi; Araçlar düğmesindeki gibi)
-for (const [dugme, kaynak, ac] of [[$('#dugme-geri-al-liste'), 'geri', geriAlListesiAc]]) {
+for (const [dugme, kaynak, ac] of [[$('#dugme-geri-al-liste'), 'geri', geriAlListesiAc], [$('#durum-degisiklik'), 'durum', kaydedilmemisListesiAc]]) {
   dugme.addEventListener('click', (e) => { if (gecmisListesi.acik === kaynak) gecmisListesi.kapat({ odakAciciya: true }); else ac(e.detail === 0); });
   dugme.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey || !(e.key === 'Enter' || e.key === ' ' || (e.key === 'ArrowDown' && kaynak === 'geri'))) return;

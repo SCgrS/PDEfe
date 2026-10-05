@@ -1,4 +1,5 @@
-// Senaryo 30 (0.2.2, kullanıcı isteği): geri alınacak adımların listesi (araç çubuğunda Geri al'ın yanındaki ▾; gecmisListesi.js). Word'deki gibi: satırlar en yenisi üstte, "ad · ayrıntı" ("Not ekle · s. 3");
+// Senaryo 30 (0.2.2, kullanıcı isteği): geri alınacak adımların listesi (araç çubuğunda Geri al'ın yanındaki ▾) ve durum çubuğundaki
+// "Kaydedilmemiş değişiklikler" listesi (gecmisListesi.js). Word'deki gibi: satırlar en yenisi üstte, "ad · ayrıntı" ("Not ekle · s. 3");
 // fare bir satıra gelince en üstten o satıra kadar boyanır, altta "N işlemi geri al"; tıklanınca o kadar adım birden geri alınır.
 //   1) ▾ düğmesi: Geri al'ın hemen sağında, ipucu "Geri alınacak adımlar"; geri alınacak bir şey yokken soluk (devre dışı). Yinele'de ok yok.
 //   2) Liste: sıra ve ayrıntılar (not: sayfası; Sayfayı döndür: s. N; Sayfaları döndür: s. 3–4; Sayfa düzenini uygula: farkın özeti); Geri al
@@ -7,6 +8,10 @@
 //   4) Klavye: Enter ile açılınca ilk satır boyalı; ↑ ↓ boyamayı değiştirir, Esc kapatır (odak ▾'de), Enter uygular. Kayıt sürerken uygulanmaz.
 //   5) Kapanma: dışarı tıklama, Esc, sekme değişimi (programla ve Ctrl+PageDown), pencerenin odağı kaybetmesi, Ctrl+Z (kısayol işini yapar).
 //   6) Uzun listede kaydırma (en çok pencerenin %60'ı), End son satırı boyar ve görünür yapar.
+//   7) Durum çubuğu: "● Kaydedilmemiş değişiklikler" yalnızca değişiklik varken görünür, yanında yazıyla aynı hesaplanmış renkte liste simgesi.
+//      Tıklanınca yukarı açılan liste: başlık, yalnızca son kayıttan sonraki değişiklikler, aynı boyama ("N değişikliği geri al"); kaydedip
+//      geri alınanlar "(geri alındı)" ve tıklanamaz; Kaydet düğmesi kaydeder (test/cikti altındaki kopya), liste kapanır.
+//   8) Kayıt konumu yokken (kaydedilen durum kesildi) liste net farktan çıkarılır, tıklanamaz.
 //   9) Sekme başka pencereye taşınırken ayrıntılar da taşınır (sekmePaketi'ndeki komut tarifleri).
 //  10) Koyu tema; konsolda hata yok.
 // Kullanım:
@@ -260,6 +265,73 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, fare, tus
   d = await durumu();
   sonuc('Uzun liste testinin notları geri alındı', d.konum === 5, d);
 
+  // ------------------------------------------------------------ 7) Durum çubuğu
+  console.log('\n== 7) Durum çubuğundaki liste');
+  const dd = await evalJs(`(() => { const e = document.querySelector('#durum-degisiklik'); const s = e.querySelector('svg'); const parca = s?.querySelector('path, circle');
+    return { gizli: e.hidden, metin: e.textContent.trim(), title: e.title, renk: getComputedStyle(e).color, simgeVar: !!s, simgeRengi: parca ? getComputedStyle(parca).stroke : null,
+      dolgu: s ? getComputedStyle(s.querySelector('circle')).fill : null, simgeGen: s ? Math.round(s.getBoundingClientRect().width) : 0, sagda: s ? s.getBoundingClientRect().left > e.querySelector('.metin').getBoundingClientRect().right - 1 : false }; })()`);
+  sonuc('Değişiklik varken "● Kaydedilmemiş değişiklikler" görünür, ipucu "Kaydedilmemiş değişiklikleri göster"', dd.gizli === false && dd.metin === '● Kaydedilmemiş değişiklikler' && dd.title === 'Kaydedilmemiş değişiklikleri göster', dd);
+  sonuc('Yazının sağında liste simgesi, yazıyla aynı hesaplanmış renkte (çizgi ve noktalar)', dd.simgeVar && dd.sagda && dd.simgeRengi === dd.renk && dd.dolgu === dd.renk && dd.simgeGen >= 12, dd);
+  await ss('durum-cubugu');
+  // Kaydedilir (kopya üzerinde), sonra iki değişiklik daha
+  const kaydedildi = await evalJs(`(async () => { const p = window.__pdefe; return await p.belgeKaydet(p.aktif()); })()`);
+  await bekle(500);
+  d = await durumu();
+  sonuc('Kaydedildi: durum çubuğu yazısı gizli, kayıt konumu 5', kaydedildi === true && d.durumGizli && d.kayit === 5 && !d.degisti, d);
+  await notEkle(2, 'Kayıttan sonra');
+  await dondur([5], 'Sayfayı döndür');
+  d = await durumu();
+  sonuc('Kayıttan sonra iki değişiklik: yazı yeniden görünür', !d.durumGizli && d.konum === 7, d);
+  await durumTikla();
+  l = await liste();
+  const yazi = await evalJs(`(() => { const r = document.querySelector('#durum-degisiklik').getBoundingClientRect(); return { t: Math.round(r.top), r: Math.round(r.right) }; })()`);
+  sonuc('Yazı tıklanınca liste yukarı doğru açılır (kaynak "durum"), sağ kenarı yazıyla hizalı', l?.kaynak === 'durum' && l.kutu.b <= yazi.t && l.kutu.b >= yazi.t - 6 && Math.abs(l.kutu.r - yazi.r) <= 1, { kutu: l?.kutu, yazi });
+  sonuc('Başlık "Kaydedilmemiş değişiklikler", yalnızca kayıttan sonrakiler, Kaydet etkin, alt yazı "2 değişiklik"',
+    l?.baslik === 'Kaydedilmemiş değişiklikler' && J(l.satirlar) === J(['Sayfayı döndür · s. 5', 'Not ekle · s. 2']) && l.kaydet && !l.kaydet.devre && l.alt === '2 değişiklik', l);
+  await hareket(await satirNoktasi(1));
+  l = await liste();
+  sonuc('Fare ikinci satırda: iki satır boyalı, "2 değişikliği geri al"', l?.boyali === 2 && l.alt === '2 değişikliği geri al', l && { boyali: l.boyali, alt: l.alt });
+  await ss('durum-listesi');
+  await tikla(...(await satirNoktasi(0))); await bekle(400);
+  d = await durumu();
+  sonuc('İlk satıra tıklamak bir değişikliği geri alır (konum 6), liste kapanır, yazı görünür kalır', d.konum === 6 && (await liste()) === null && !d.durumGizli, d);
+  await geriAl(2);   // konum 4: kaydedilen durumdaki son komut (Sayfa düzenini uygula) geri alındı
+  await durumTikla();
+  l = await liste();
+  sonuc('Kaydedip geri alınan "(geri alındı)" diye görünür ve tıklanamaz; alt yazı açıklar',
+    J(l?.satirlar) === J(['Sayfa düzenini uygula · 1 sayfa silindi, 1 sayfa eklendi, sıra değişti (geri alındı)']) && l.tiklanir === 0 && l.alt === 'Kaydedince dosyadan da kalkar', l);
+  await hareket(await satirNoktasi(0));
+  sonuc('Tıklanamayan satır boyanmaz', (await liste())?.boyali === 0);
+  await tikla(...(await satirNoktasi(0))); await bekle(300);
+  sonuc('Tıklanamayan satıra tıklamak bir şey geri almaz, liste açık kalır', (await durumu()).konum === 4 && !!(await liste()));
+  await tikla(...(await ogeNoktasi('.gecmis-listesi .gecmis-kaydet'))); await bekle(1500);
+  await kosul(`!window.__pdefe.aktif().kaydediliyor`);
+  d = await durumu();
+  sonuc('Kaydet düğmesi kaydeder: liste kapandı, belge temiz, yazı gizli, kayıt konumu 4', (await liste()) === null && !d.degisti && d.durumGizli && d.kayit === 4, d);
+  const oz = dosyaOzeti(yolA);
+  const fark = (i) => ((oz.dondurme[i] - ozIlk.dondurme[i]) % 360 + 360) % 360;
+  sonuc('Kopya dosyada kaydedilen durum: sayfa düzeni geri alınmış (özgün sayfa sayısı), 2–4. sayfalar döndürülmüş, iki not eklenmiş',
+    oz.sayfa === sayfaN && J([0, 1, 2, 3, 4].map(fark)) === J([0, 90, 90, 90, 0]) && oz.notlar.length === ozIlk.notlar.length + 2,
+    { sayfa: oz.sayfa, dondurme: oz.dondurme.slice(0, 5), notlar: oz.notlar.length, ilk: ozIlk.notlar.length });
+
+  // ------------------------------------------------------------ 8) Net fark (kayıt konumu yok)
+  console.log('\n== 8) Kayıt konumu yokken net fark');
+  await evalJs(`window.__pdefe.sekmeSec(${J(idB)})`); await bekle(400);
+  await notEkle(1, 'Kaydedilecek not');
+  await evalJs(`(async () => { const p = window.__pdefe; return await p.belgeKaydet(p.aktif()); })()`); await bekle(400);
+  await geriAl(1);
+  await notEkle(2, 'Dal kesen not');
+  d = await durumu();
+  sonuc('Kaydedilen durum kesildi: kayıt konumu -1, belge değişmiş', d.kayit === -1 && d.degisti, d);
+  await durumTikla();
+  l = await liste();
+  sonuc('Liste net farktan: "Not sil · s. 1" ve "Not ekle · s. 2", tıklanamaz', l && l.tiklanir === 0 && l.satirlar.length === 2 && l.satirlar.includes('Not sil · s. 1') && l.satirlar.includes('Not ekle · s. 2'), l);
+  await hareket(await satirNoktasi(0));
+  sonuc('Net fark satırları boyanmaz', (await liste())?.boyali === 0);
+  await tus('Escape'); await bekle(150);
+  sonuc('Esc durum listesini de kapatır, odak yazıda', (await liste()) === null && (await durumu()).odak === 'durum-degisiklik');
+  await evalJs(`(async () => { const p = window.__pdefe; return await p.belgeKapat(p.aktif().id, { zorla: true }); })()`); await bekle(400);
+
   // ------------------------------------------------------------ 10) Koyu tema
   console.log('\n== 10) Koyu tema');
   await evalJs(`window.__pdefe.sekmeSec(${J(idA)})`); await bekle(300);
@@ -276,6 +348,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, fare, tus
     return { tema: document.documentElement.dataset.tema, zemin: dz, satir: li ? getComputedStyle(li).backgroundColor : null, yazi: getComputedStyle(el).color }; })()`);
   sonuc('Koyu temada liste koyu zeminli, açık yazılı; boyalı satır zeminden ayrışır', koyu.tema === 'koyu' && koyu.zemin === 'rgb(43, 43, 43)' && koyu.yazi === 'rgb(240, 240, 240)' && koyu.satir && koyu.satir !== koyu.zemin, koyu);
   await ss('geri-al-listesi-koyu');
+  await kapat();
+  await durumTikla(); await hareket(await satirNoktasi(0));
+  await ss('durum-listesi-koyu');
   await kapat();
   await temaYap(eskiTema); await bekle(200);
 
