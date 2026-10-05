@@ -83,6 +83,8 @@ export default async function ({ evalJs, bekle }) {
         kutuKenar: us.borderTopWidth !== '0px' && us.backgroundColor !== 'rgba(0, 0, 0, 0)', kutuTasma: ul.scrollHeight - ul.clientHeight, kutuKaydirma: us.overflowY, sutun: us.columnCount,
         ogeler: ogeler.map((o) => ({ ad: o.querySelector('.ad').textContent, ...r(o) })),
         imza: r(document.querySelector('.karsilama-imza')), imzaMetin: document.querySelector('.karsilama-imza')?.innerText.replace(/\\s+/g, ' ').trim(), logo: r(document.querySelector('.karsilama-imza .karsilama-logo')),
+        imzaYazi: ['.karsilama-ad', '.karsilama-alt'].map((s) => parseFloat(getComputedStyle(document.querySelector(s)).fontSize)),
+        imzaAralik: Math.round((document.querySelector('.karsilama-baslik, .karsilama-ad').getBoundingClientRect().left - document.querySelector('.karsilama-logo').getBoundingClientRect().right) * 10) / 10,
         eskiBaslik: !!document.querySelector('.karsilama-ust'), eskiIpucu: !!document.querySelector('.karsilama-ipucu'),
         aciklama: document.querySelector('.karsilama-ac .karsilama-aciklama')?.textContent, docScroll: document.documentElement.scrollWidth - document.documentElement.clientWidth };
     })()`);
@@ -104,12 +106,15 @@ export default async function ({ evalJs, bekle }) {
       sonuc(`${e} Açılış ekranı kaydırılmadan sığıyor (10 belgeyle)`, o.alan.sh <= o.alan.h && o.alan.sw <= o.alan.w && o.docScroll <= 0, o.alan);
       const ust = o.karsilama.t - o.alan.t, alt = o.imza.t - o.karsilama.b;
       // Boş yer azsa boşluklar en az değerlerinde (üst 20, alt 28 px; 0.1.21'den beri 780 px'e dek alçak pencerede üst 12, alt 16 px: sekme
-      // çubuğu açılış ekranında da görünür) kalabilir; yoksa alt boşluk üsttekinin iki katı
-      const alcak = (await evalJs('innerHeight')) <= 780, enAzUst = alcak ? 12 : 20, enAzAlt = alcak ? 16 : 28;
+      // çubuğu açılış ekranında da görünür; 0.2.2'den beri alt 12 px: imza büyüdü) kalabilir; yoksa alt boşluk üsttekinin iki katı
+      const alcak = (await evalJs('innerHeight')) <= 780, enAzUst = alcak ? 12 : 20, enAzAlt = alcak ? 12 : 28;
       sonuc(`${e} İçerik ortanın üstünde: üst boşluk alttakinin yarısı kadar (tam ortada değil)`, ust >= enAzUst - 0.5 && ust < alt && (ust <= enAzUst + 0.5 || alt <= enAzAlt + 0.5 || Math.abs(alt - 2 * ust) < 3), { ust, alt, alcak });
       sonuc(`${e} Ad ve sürüm sağ altta: "PDEfe · PDF görüntüleyici ve düzenleyici · sürüm ${surum}", logo yanında`,
         Math.abs(o.imza.r - (o.alan.l + o.alan.w - o.alan.pr)) < 1.5 && Math.abs(o.imza.b - (o.alan.t + o.alan.h - o.alan.pb)) < 1.5 && o.imzaMetin === `PDEfe PDF görüntüleyici ve düzenleyici · sürüm ${surum}` && o.logo.w >= 24 && o.logo.r <= o.imza.l + o.logo.w + 1,
         { imza: o.imza, alan: o.alan, metin: o.imzaMetin });
+      // 0.2.2 (kullanıcı isteği, görselle seçildi): simge 50 px (30'du), ad 22 px (14), alt yazı 16 px (11), simge ile yazı arası 5 px (9)
+      sonuc(`${e} İmzanın ölçüleri: simge 50 px, ad 22 px, alt yazı 16 px, simge ile yazı arası 5 px`,
+        o.logo.w === 50 && o.logo.h === 50 && J(o.imzaYazi) === J([22, 16]) && Math.abs(o.imzaAralik - 5) < 0.6, { logo: o.logo, yazi: o.imzaYazi, aralik: o.imzaAralik });
       if (w === 1536) await ssIki('a-acilis-1536');
       if (w === 1920) await ss('a-acilis-1920-acik');
     }

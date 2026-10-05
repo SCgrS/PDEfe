@@ -112,6 +112,9 @@ export default async function ({ evalJs, bekle }) {
     })()`);
     const im = await imzaOlc();
     sonuc(`İmza aynı: "PDEfe PDF görüntüleyici ve düzenleyici · sürüm ${surum}", logo yanında`, im.metin === `PDEfe PDF görüntüleyici ve düzenleyici · sürüm ${surum}` && im.logo.r <= im.ad.l, { metin: im.metin });
+    // 0.2.2 (kullanıcı isteği): imza büyüdü (simge 30 → 50 px, ad 14 → 22, alt yazı 11 → 16 px), simge yazıya yakın (9 → 5 px)
+    sonuc('İmza büyük: simge 50×50 px, simge ile yazı arası 5 px, ad alt yazıdan büyük', im.logo.w === 50 && im.logo.h === 50 && Math.abs(im.ad.l - im.logo.r - 5) < 0.6 && im.ad.h > im.alt.h,
+      { logo: im.logo, ad: im.ad, alt: im.alt });
     sonuc('İmza düğme değil: çerçeve, zemin, gölge, anahat yok; imleç ok (el değil), metin seçilmez; Tab ile odaklanmaz, ipucu yok',
       im.etiket === 'FOOTER' && !im.rol && !im.odaklanir && !im.ipucu && im.stil.every((s) => (s.imlec === 'auto' || s.imlec === 'default') && /^0px/.test(s.cerceve) && s.zemin === 'rgba(0, 0, 0, 0)' && s.golge === 'none' && s.anahat === 'none' && s.secim === 'none'),
       { stil: im.stil, rol: im.rol, odaklanir: im.odaklanir, ipucu: im.ipucu });

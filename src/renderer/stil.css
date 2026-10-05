@@ -330,19 +330,23 @@ html.metin-seciliyor, html.metin-seciliyor * { cursor: text !important; }
 .karsilama-aciklama { font-size: 12px; color: var(--metin-soluk); line-height: 1.35; }
 /* Ad ve sürüm (imza): sağ altta, göze batmadan; pencereyle birlikte köşede kalır. Tıklanınca Ayarlar › Hakkında açılır (baslangic.js),
    ama düğme gibi görünmez: çerçeve, zemin, üzerine gelme ya da odak izi yok (0.1.15, kullanıcı isteği) */
-.karsilama-imza { grid-row: 4; justify-self: end; display: flex; align-items: center; gap: 9px; padding-top: 10px; user-select: none; }
+.karsilama-imza { grid-row: 4; justify-self: end; display: flex; align-items: center; gap: 5px; padding-top: 10px; user-select: none; }
 /* Alçak pencerede sıkı (0.1.21): sekme çubuğu artık açılış ekranında da görünür (belgesiz pencerede tek açılış sekmesi), açılış ekranı
    34 px kısaldı. 1280×700 pencerede 10 son açılan belgeyle kaydırmadan sığsın diye bölümler arası, üst / alt boşluklar ve imzanın üstü
-   daralır; yüksek pencerede görünüm değişmez */
+   daralır; yüksek pencerede görünüm değişmez. 0.2.2: imza 18 px uzadı (simge 50 px), sekme şeridi 6 px yükseldi; 1280×700'de 8 px taşıyordu.
+   Kullanıcının seçtiği imza ölçüleri küçültülmedi, yalnızca alçak pencerede boşluklar daraldı: bölümler arası 14 → 12 px, alt boşluk en az
+   16 → 12 px, imzanın üstü 4 → 0 px (14 px kazanç; üst boşluk 12 px kaldı) */
 @media (max-height: 780px) {
-  #baslangic { grid-template-rows: minmax(12px, 1fr) auto minmax(16px, 2fr) auto; }
-  .karsilama { gap: 14px; }
-  .karsilama-imza { padding-top: 4px; }
+  #baslangic { grid-template-rows: minmax(12px, 1fr) auto minmax(12px, 2fr) auto; }
+  .karsilama { gap: 12px; }
+  .karsilama-imza { padding-top: 0; }
 }
-.karsilama-logo { width: 30px; height: 30px; flex: none; }
+/* İmzanın ölçüleri (0.2.2, kullanıcı isteği: büyüsün; dört boyut görselle gösterildi, kullanıcı "simge ile yazılar birbirine daha yakın
+   olsun" dedi ve bu ölçüleri seçti): simge 30 → 50 px, ad 14 → 22 px, alt yazı 11 → 16 px, simge ile yazı arası 9 → 5 px (.karsilama-imza gap) */
+.karsilama-logo { width: 50px; height: 50px; flex: none; }
 .karsilama-baslik p { margin: 0; white-space: nowrap; }
-.karsilama-ad { font-size: 14px; font-weight: 600; line-height: 1.25; }
-.karsilama-alt { font-size: 11px; line-height: 1.3; color: var(--metin-soluk); }
+.karsilama-ad { font-size: 22px; font-weight: 600; line-height: 1.25; }
+.karsilama-alt { font-size: 16px; line-height: 1.3; color: var(--metin-soluk); }
 /* PDF aç: uygulamanın temel işi, araçlardan büyük ve vurgu renginde; sürükleyip bırakma da açıklamasında yazar. Genişliği yazısı kadar,
    sola yaslı (0.1.15, kullanıcı isteği: sütunun tamamını kaplayınca düğmeye benzemiyordu); dar pencerede açıklama alt satıra iner */
 .karsilama-ac {
