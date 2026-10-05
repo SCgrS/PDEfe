@@ -127,12 +127,10 @@ export default async function ({ evalJs, bekle }) {
       const d = document.createElement('button'); d.className = 'ikon acilir'; d.id = 'deneme-ek-ok'; d.innerHTML = '<svg viewBox="0 0 20 20"></svg>'; document.querySelector('#dugme-geri-al').after(d); return true; })()`);
     await genislik(720); await genislik(704);
     const s6 = await sigma();
-    sonuc(`[704 px, 1234 sayfa, geri al grubunda açılır ok${ekOk ? ' (denemelik)' : ''}] araç çubuğu taşmıyor`, s6.tasma <= 0.5 && s6.ust === 0 && s6.temaIcinde, s6);
+    sonuc(`[704 px, 1234 sayfa, geri al grubunda açılır ok${ekOk ? ' (denemelik)' : ' (geri alınacak adımlar, 0.2.2)'}] araç çubuğu taşmıyor`, s6.tasma <= 0.5 && s6.ust === 0 && s6.temaIcinde, s6);
     bilgi(`704 px, 4 basamak + açılır ok: kademe "${s6.sinif}", boş ${s6.esnek} px`);
-    if (ekOk) {
-      sonuc('6. kademe: düğmeler 26 px, simgeler 20 px', /sikisik-6/.test(s6.sinif) && (await evalJs(`[document.querySelector('#dugme-geri-al').getBoundingClientRect().width, document.querySelector('#dugme-geri-al svg').getBoundingClientRect().width]`)).join() === '26,20', s6.sinif);
-      await evalJs(`document.querySelector('#deneme-ek-ok').remove(), 1`);
-    }
+    sonuc('6. kademe: düğmeler 26 px, simgeler 20 px', /sikisik-6/.test(s6.sinif) && (await evalJs(`[document.querySelector('#dugme-geri-al').getBoundingClientRect().width, document.querySelector('#dugme-geri-al svg').getBoundingClientRect().width]`)).join() === '26,20', s6.sinif);
+    if (ekOk) await evalJs(`document.querySelector('#deneme-ek-ok').remove(), 1`);
     // macOS (menü düğmesi hiç yok): en dar pencerede (içi 720 px) sığar
     await evalJs(`document.documentElement.dataset.platform = 'mac', 1`);
     for (const w of [720]) {

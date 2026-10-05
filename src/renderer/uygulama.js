@@ -6,7 +6,8 @@ import { DurumCubugu, boyutMetni, sayfaKutusuBagla, sayfaKutusuYaz } from './dur
 import { Arama } from './arama.js';
 import { temizMetin, sayfaMetinleriniBirlestir, secimDikdortgenleri, satirlaraBirlestir, paragrafSec, secimHamMetni, secimYapiliMetni, surukleSecimiBagla } from './metin.js';
 import { NotYoneticisi, VURGU_RENKLERI } from './notlar.js';
-import { KomutYigini, Komut } from './komutlar.js';
+import { KomutYigini, Komut, sayfaFarki, sayfaFarkiOzeti, sayfaListesi } from './komutlar.js';
+import { GecmisListesi } from './gecmisListesi.js';
 import { ayarlarPenceresiAc, ayarlarPenceresiKapat, ayarlarPenceresiniGuncelle } from './ayarlarPenceresi.js';
 import { aracKomutlari, aracPencereleriniKapat, aracPenceresiKapaninca, acikAracPenceresiVar } from './araclar/index.js';
 import { sekmeyiYenile } from './araclar/ortak.js';
@@ -64,6 +65,8 @@ const durum = new DurumCubugu({
   degisiklik: $('#durum-degisiklik'), mesaj: $('#durum-mesaj'), onSayfayaGit: (no) => aktif()?.gorunum.sayfayaGit(no),
   onBirak: () => aktif()?.gorunum.kaydirici.focus(),
 });
+// Geri alınacak adımlar (Geri al'ın ▾ düğmesi) ve kaydedilmemiş değişiklikler (durum çubuğu) listesi (0.2.2); bkz. geçmiş listeleri bölümü
+const gecmisListesi = new GecmisListesi();
 
 function aktif() { return aktifId ? belgeler.get(aktifId) : null; }
 
@@ -241,6 +244,7 @@ async function sekmeSec(id) {
   const bas = baslangicSekmeleri.has(id);
   if (!b && !bas) return;
   if (aktifId && aktifId !== id) {
+    gecmisListesi.kapat();   // geri al / kaydedilmemiş değişiklikler listesi önceki belgenindir (0.2.2)
     const eski = belgeler.get(aktifId);
     if (eski) {
       eski.notlar?.balonKapat(); eski.notlar?.notCubuguKapat(); eski.notlar?.duzenleyiciBitir(true);
@@ -283,7 +287,7 @@ function kirliGuncelle(b) {
   b.degisti = !!(b.yigin?.kirli || b.gorunum.yapisalKirli() || (!b.gorunum.anlik && b.notlar?.kirli));
   sekmeler.guncelle(b.id, { degisti: b.degisti });
   kirliBildir();
-  if (aktifId === b.id) { durum.degisiklikYaz(b.degisti); geriAlDugmeleriniGuncelle(b); }
+  if (aktifId === b.id) { durum.degisiklikYaz(b.degisti); geriAlDugmeleriniGuncelle(b); gecmisListesi.yenile(); }   // açık geçmiş listesi güncel kalsın
   $('#arac-cubugu [data-komut="dosya.kaydet"]').disabled = !aktif()?.degisti;
   // Yazı düzenlenirken otomatik kayıt beklenir (kayıt düzenlemeyi uygulayıp kutuyu yazarken kapatırdı); düzenleme bitince not
   // değişikliği kirliGuncelle'yi yeniden çağırır. Otomatik kayıt başarısız olduysa (dosya başka programda açık) elle kaydedilene dek durur
@@ -311,6 +315,9 @@ function geriAlDugmeleriniGuncelle(b) {
   g.disabled = !ga; y.disabled = !yi;
   g.title = ga ? `Geri al: ${ga} (Ctrl+Z)` : 'Geri al (Ctrl+Z)';
   y.title = yi ? `Yinele: ${yi} (Ctrl+Y)` : 'Yinele (Ctrl+Y)';
+  // Geri alınacak adımların listesi (0.2.2): belgenin geri al yığını; yazı düzenlenirken düzenleme uygulanınca adım olacaksa da etkin
+  // (▾ basılınca düzenleme uygulanır, listede en üstte görünür)
+  $('#dugme-geri-al-liste').disabled = !(b?.yigin?.geriAlinacak || b?.notlar?.duzenleyiciDegisti?.());
 }
 
 function aracDugmeleriniGuncelle(arac) {
@@ -562,20 +569,24 @@ function tasimaEngeli(b, { kayitHaric = false } = {}) {
   return '';
 }
 
-/** Komutun başka pencereye taşınabilen tarifi (nesneler yerine numara ve kimlikler); tarifi yoksa null. */
+/** Komutun başka pencereye taşınabilen tarifi (nesneler yerine numara ve kimlikler); tarifi yoksa null. Geri al listelerindeki ayrıntı
+ *  (0.2.2) da taşınır: işlemin yapıldığı andaki sayfayı söyler, hedefte yeniden hesaplanmaz. */
 function komutDisari(b, k, girdiNo) {
   const t = k.tanim;
-  if (t?.tur === 'sayfalar') return { tur: 'sayfalar', ad: k.ad, eski: t.eski.map(girdiNo), yeni: t.yeni.map(girdiNo) };
-  return b.notlar.komutDisari(k);
+  const v = t?.tur === 'sayfalar' ? { tur: 'sayfalar', ad: k.ad, eski: t.eski.map(girdiNo), yeni: t.yeni.map(girdiNo) } : b.notlar.komutDisari(k);
+  if (v && k.ayrinti) v.ayrinti = k.ayrinti;
+  return v;
 }
 
 /** Taşınan tariften komutu bu pencerenin nesneleriyle kurar (çalıştırmaz); tarif eksikse null. */
 function komutIceri(b, veri, girdiAl, notBul) {
+  let k;
   if (veri?.tur === 'sayfalar') {
     const eski = (veri.eski || []).map(girdiAl), yeni = (veri.yeni || []).map(girdiAl);
-    return eski.every(Boolean) && yeni.every(Boolean) ? sayfaKomutu(b, veri.ad, eski, yeni) : null;
-  }
-  return b.notlar.komutIceri(veri, notBul);
+    k = eski.every(Boolean) && yeni.every(Boolean) ? sayfaKomutu(b, veri.ad, eski, yeni) : null;
+  } else k = b.notlar.komutIceri(veri, notBul);
+  if (k && typeof veri.ayrinti === 'string') k.ayrinti = veri.ayrinti;
+  return k;
 }
 
 /** Sekmenin bütün durumu (başka pencerede sekmeyiAl ile kurulur). Açık not balonu ve yazı düzenlemesi önce uygulanır, süren kayıt ve
@@ -1118,7 +1129,15 @@ async function sayfaTarifiUygula(b, tarif, ad = 'Sayfa düzenini uygula') {
  *  yığınının orada yeniden kurulmasını sağlar (komutDisari / komutIceri). */
 function sayfaKomutu(b, ad, eski, yeni) {
   const g = b.gorunum;
-  return new Komut(ad, () => g.sayfalariAyarla(yeni), () => g.sayfalariAyarla(eski), { tur: 'sayfalar', eski, yeni });
+  return new Komut(ad, () => g.sayfalariAyarla(yeni), () => g.sayfalariAyarla(eski), { tur: 'sayfalar', eski, yeni }, sayfaKomutuAyrintisi(ad, eski, yeni));
+}
+
+/** Sayfa komutunun geri al listelerindeki ayrıntısı (0.2.2), iki sayfa listesinin farkından (sayfalar kimlikleriyle eşlenir; döndürülmüş
+ *  sayfanın kopyası aynı kimliği taşır): yalnızca döndürmeyse döndürülen sayfalar ("s. 3–4"); Sayfaları düzenle'nin "Sayfa düzenini uygula"sında
+ *  ve yapısal değişiklikte özet ("1 sayfa silindi, 1 sayfa eklendi, sıra değişti"). */
+function sayfaKomutuAyrintisi(ad, eski, yeni) {
+  const f = sayfaFarki(eski, yeni, (s) => s.kimlik, (s) => s.dondurme);
+  return f.yalnizDondurme && ad !== 'Sayfa düzenini uygula' ? sayfaListesi(f.dondurulen) : sayfaFarkiOzeti(f);
 }
 
 /** Tek sayfa ya da tüm sayfaları kalıcı döndürme komutu. */
@@ -1190,6 +1209,66 @@ function geriAlYinele(geri) {
   if (d) { if (geri) n.duzenleyiciGeriAl(); else n.duzenleyiciYinele(); return; }
   const k = geri ? b.yigin.geriAl() : b.yigin.yinele();
   if (k) durum.mesajYaz((geri ? 'Geri alındı: ' : 'Yinelendi: ') + k.ad);
+}
+
+// ---------------------------------------------------------------- geçmiş listeleri (0.2.2, kullanıcı isteği)
+// "geri al simgesinin yanına bir ok işareti çıkartalım geri alınma adımlarını da oradan görelim. worddeki gibi olsun mekaniği ve görüntüsü."
+// Geri al'ın ▾ düğmesi geri alınabilecek bütün adımları gösterir (gecmisListesi.js); satıra tıklamak en üstten o satıra kadar olanları birden
+// geri alır (topluGeriAl).
+// Yinele'ye ok konmadı (istenmedi). Liste açılırken açık yazı düzenlemesi uygulanır (araç çubuğuna gitmek düzenlemeyi bitirir; yazılan metin
+// listede en üstte bir adım olarak görünür).
+
+const komutOgesi = (k, ek = {}) => ({ ad: k.ad, ayrinti: k.ayrinti || '', ...ek });
+
+/** Geri alınabilecek adımlar, en yenisi önce; hepsi tıklanabilir. */
+function geriAlOgeleri(b) {
+  if (!b || !belgeler.has(b.id)) return [];
+  return b.yigin.yigin.slice(0, b.yigin.konum).reverse().map((k) => komutOgesi(k, { tiklanir: true }));
+}
+
+/**
+ * Listeden n adım birden geri alır, Geri al'ın yoluyla (KomutYigini.geriAl) ve koşullarıyla: açık pencere (mesaj kutusu, araç penceresi,
+ * Ayarlar) ve pencere kilidi varken yapılmaz (ORTU_ACIKKEN_CALISMAYAN, girdiKilitli); açık yazı düzenlemesi önce uygulanır. Süren kayıtta
+ * yapılmaz: kayıt, başladığı andaki durumu kaydedilmiş sayar; birden çok adım geri almayı kayıt bitince yapmak daha anlaşılır (döndürme de
+ * kayıt sürerken yapılmıyor). Durum çubuğunda tek ileti: "Geri alındı: <ad>" ya da "Geri alındı: N işlem".
+ */
+function topluGeriAl(b, n) {
+  if (!b || aktif() !== b || !belgeler.has(b.id) || ortuAcik() || girdiKilitli()) return;
+  if (b.kaydediliyor) { bildir('Kaydediliyor, lütfen bekleyin.'); return; }
+  b.notlar?.duzenleyiciBitir(true);
+  let son = null, sayi = 0;
+  while (sayi < n) { const k = b.yigin.geriAl(); if (!k) break; son = k; sayi++; }
+  if (sayi) durum.mesajYaz('Geri alındı: ' + (sayi === 1 ? son.ad : `${sayi} işlem`));
+}
+
+/** Liste açılabilir mi: etkin belge var, önde pencere yok, pencere kilitli değil. Açık yazı düzenlemesi uygulanır. Döner: belge ya da null. */
+function listeIcinBelge() {
+  const b = aktif();
+  if (!b || ortuAcik() || girdiKilitli()) return null;
+  b.notlar?.duzenleyiciBitir(true);
+  return b;
+}
+
+/** Geri al'ın ▾ listesi: Geri al düğmesinin altında. klavyeyle (Enter / Boşluk): ilk satır boyalı açılır (Enter hemen bir adım geri alır). */
+function geriAlListesiAc(klavyeyle) {
+  const b = listeIcinBelge(); if (!b) return;
+  gecmisListesi.ac({
+    kaynak: 'geri', acici: $('#dugme-geri-al-liste'), capa: $('#dugme-geri-al'), yon: 'asagi', etiket: 'Geri alınacak adımlar',
+    ogeler: () => geriAlOgeleri(b), altYazi: (n) => `${n} işlemi geri al`, varsayilanAlt: () => 'Vazgeç', altVazgec: true,
+    uygula: (n) => topluGeriAl(b, n), odakBelgeye: () => { if (aktif() === b) b.gorunum.kaydirici.focus({ preventScroll: true }); },
+    ilkBoyali: klavyeyle,
+  });
+}
+
+// Düğme yeniden basılınca liste kapanır (dışarı tıklama sayılmaz). e.detail 0: klavyeyle basıldı. Klavyede Enter / Boşluk (▾'de aşağı ok
+// da) açar, ilk satır boyalı: tuş belgeye ulaşmaz (Boşluk sayfayı kaydırıp düğmenin tıklamasını engellerdi; Araçlar düğmesindeki gibi)
+for (const [dugme, kaynak, ac] of [[$('#dugme-geri-al-liste'), 'geri', geriAlListesiAc]]) {
+  dugme.addEventListener('click', (e) => { if (gecmisListesi.acik === kaynak) gecmisListesi.kapat({ odakAciciya: true }); else ac(e.detail === 0); });
+  dugme.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey || !(e.key === 'Enter' || e.key === ' ' || (e.key === 'ArrowDown' && kaynak === 'geri'))) return;
+    e.preventDefault(); e.stopPropagation();
+    if (gecmisListesi.acik !== kaynak) ac(true);
+  });
 }
 
 // ---------------------------------------------------------------- komutlar
@@ -1344,7 +1423,7 @@ pdefe.dinle('menu:komut', (id, veri) => {
   if (mesajKutusuAcik()) { mesajKutusuUyar(); return; }
   if (girdiKilitli()) return;   // sekme taşınırken ya da güncelleme kurulumu beklenirken pencere girdi almaz
   if (ORTU_ACIKKEN_CALISMAYAN.has(id) && (acikAracPenceresiVar() || document.querySelector('.diyalog-ortusu, .ayarlar-ortusu'))) return;
-  araclarPenceresi.kapat(); komutCalistir(id, veri);
+  araclarPenceresi.kapat(); gecmisListesi.kapat(); komutCalistir(id, veri);
 });
 // secenek.yazildi: dosya başka bir pencerede (araç çıktısı olarak) yeniden yazıldı; burada açık sekmesi diskteki yeni hâliyle yenilenir
 pdefe.dinle('dosya:ac', async (yollar, secenek) => {
@@ -1893,8 +1972,8 @@ function dosyaVarMi(e) { return e.dataTransfer && [...e.dataTransfer.types].incl
 // ---------------------------------------------------------------- okuma modu: üstten fareyle araç çubuğu
 document.addEventListener('mousemove', (e) => {
   if (!okumaModu) return;
-  // Araçlar penceresi açıkken çubuk gizlenmez (pencere düğmeye bağlı; fare karolara inince havada kalırdı)
-  document.body.classList.toggle('ust-goster', araclarPenceresi.acik || e.clientY < 6 || (document.body.classList.contains('ust-goster') && e.clientY < 48));
+  // Araçlar penceresi ve geri al listesi açıkken çubuk gizlenmez (pencere düğmeye bağlı; fare karolara / satırlara inince havada kalırdı)
+  document.body.classList.toggle('ust-goster', araclarPenceresi.acik || gecmisListesi.acik === 'geri' || e.clientY < 6 || (document.body.classList.contains('ust-goster') && e.clientY < 48));
 });
 
 // ---------------------------------------------------------------- araç çubuğu: dar pencerede kademeli sıkıştırma
@@ -2064,5 +2143,5 @@ document.addEventListener('click', (e) => {
   yeniSekme();
   pdefe.gonder('pencere:belgeler', []);   // arayüz yeniden yüklendiyse ana süreçteki açık belge kaydı bayat kalmasın
   pdefe.gonder('uygulama:hazir');
-  window.__pdefe = { belgeler, aktif, dosyaAc, belgeKapat, sekmeSec, komutCalistir, ayar: () => ayar, panel, sekmeler, arama, temizMetin, sayfaTarifiUygula, sayfalariDondur, belgeKaydet, mesajKutusu, sekmeyiTasi, sekmePaketi, tasimaSuruyor: () => tasimaSuruyor, kilitli: () => girdiKilitli() };
+  window.__pdefe = { belgeler, aktif, dosyaAc, belgeKapat, sekmeSec, komutCalistir, ayar: () => ayar, panel, sekmeler, arama, temizMetin, sayfaTarifiUygula, sayfalariDondur, belgeKaydet, mesajKutusu, sekmeyiTasi, sekmePaketi, tasimaSuruyor: () => tasimaSuruyor, kilitli: () => girdiKilitli(), gecmisListesi };
 })();

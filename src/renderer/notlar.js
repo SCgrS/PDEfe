@@ -53,6 +53,13 @@ let sayac = 0;
 const yeniId = () => 'n' + Date.now().toString(36) + '_' + (++sayac);
 const kacis = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const simdiPdfTarih = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); const o = -d.getTimezoneOffset(); const s = o >= 0 ? '+' : '-'; return `D:${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}${s}${p(Math.floor(Math.abs(o) / 60))}'${p(Math.abs(o) % 60)}'`; };
+/** Not komutunun geri al listelerindeki ayrıntısı (0.2.2): tarifteki notun sayfası; sayfası değişen düzenlemede eski → yeni. */
+const notKomutuAyrintisi = (t) => {
+  const n = t?.not; if (!n) return '';
+  const eski = t.v?.eskiSayfa, yeni = t.v?.yeni?.sayfa;
+  if (Number.isInteger(eski) && Number.isInteger(yeni) && eski !== yeni) return `s. ${eski} → ${yeni}`;
+  return Number.isInteger(n.sayfa) ? `s. ${n.sayfa}` : '';
+};
 
 // #secim-cubugu bütün belgelerce paylaşılır: seçimi izleyen (çubuğu açan) tek yönetici. Başka yöneticilerin kaydırma/yerleşim/
 // çizim olayları konumu sahibine hesaplatır: sekme değişip sahibin görünümü gizlenince çubuk gizlenir (izleme sürer, sahip
@@ -602,9 +609,10 @@ export class NotYoneticisi extends EventTarget {
   // ------------------------------------------------------------ komutlar
   // Not komutları üç kurucuyla kurulur (ekleKomutu / silKomutu / guncelleKomutu) ve tariflerini (tanim) taşır: sekme başka pencereye
   // taşınınca (0.1.19) geri al yığını oradaki tariflerden aynı kurucularla yeniden kurulur (komutDisari / komutIceri); komutun
-  // kapattığı bütün değerler bu yüzden tarifte durur.
+  // kapattığı bütün değerler bu yüzden tarifte durur. Ayrıntı (0.2.2, geri al listeleri): notun sayfası ("s. 3"); notu başka sayfaya
+  // götüren düzenlemede "s. 2 → 3". Komut kurulurken yazılır; taşınan sekmede uygulama.js komutIceri tariftekini koyar.
   komutKur(ad, uygula, geriAl, tanim) {
-    return new Komut(ad, () => { uygula(); this.degisti(); }, () => { geriAl(); this.degisti(); }, tanim);
+    return new Komut(ad, () => { uygula(); this.degisti(); }, () => { geriAl(); this.degisti(); }, tanim, notKomutuAyrintisi(tanim));
   }
 
   ekleKomutu(not, ad) {

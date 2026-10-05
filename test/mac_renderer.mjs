@@ -261,6 +261,35 @@ export default async function ({ evalJs }) {
     serit.mac.dugme === 'İndir' && serit.mac.asama === 'tarayicida' && /PDEfe'den çıkın \(⌘Q\)/.test(serit.mac.metin) && /\(Değiştir\)/.test(serit.mac.metin)
     && /Sistem Ayarları › Gizlilik ve Güvenlik › Yine de Aç/.test(serit.mac.metin), serit.mac);
 
+  // ---------------------------------------------------------------- Geri al listesi (gecmisListesi.js, 0.2.2)
+  // İki sistemde aynı: ↓ boyamayı genişletir, Enter uygular; birincil tuşlu kısayol (macOS ⌘Z, Windows Ctrl+Z) listeyi kapatıp olağan işine
+  // bırakılır (tuş belgeye ulaşır: varsayılanı engellenmez); Esc kapatır
+  const gecmis = await evalJs(`(async () => { ${ORTAM}
+    const sonuc = {};
+    for (const mac of [true, false]) {
+      const o = ortam(mac), { GecmisListesi } = await o.yukle('gecmisListesi.js'), r = sonuc[mac ? 'mac' : 'win'] = {};
+      const tusla = (key, ek = {}) => { const e = new o.pencere.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...ek }); o.belge.activeElement.dispatchEvent(e); return e.defaultPrevented; };
+      const dugme = o.belge.createElement('button'); dugme.textContent = '▾'; dugme.style.cssText = 'position:fixed;left:20px;top:20px;width:30px;height:30px'; o.belge.body.append(dugme);
+      const l = new GecmisListesi();
+      let uygulanan = null;
+      const ac = () => l.ac({ kaynak: 'geri', acici: dugme, yon: 'asagi', ogeler: () => [{ ad: 'Not ekle', ayrinti: 's. 3', tiklanir: true }, { ad: 'Sayfayı döndür', ayrinti: 's. 2', tiklanir: true }, { ad: 'Not ekle', ayrinti: 's. 1', tiklanir: true }],
+        altYazi: (n) => n + ' işlemi geri al', varsayilanAlt: () => 'Vazgeç', altVazgec: true, uygula: (n) => { uygulanan = n; }, ilkBoyali: true });
+      r.acildi = ac() && l.acik === 'geri';
+      r.ilk = l.n; tusla('ArrowDown'); r.asagi = l.n; r.alt = l.el.querySelector('.gecmis-alt-yazi').textContent;
+      r.satir = [...l.el.querySelectorAll('li')].map((x) => x.textContent);
+      tusla('Enter'); r.uygulanan = uygulanan; r.kapandiUygulayinca = l.acik === null;
+      ac(); r.kisayolEngellendi = tusla('z', mac ? { metaKey: true } : { ctrlKey: true }); r.kisayolKapatti = l.acik === null;
+      ac(); tusla('Escape'); r.escKapatti = l.acik === null;
+      l.el.remove(); dugme.remove();
+    }
+    return sonuc;
+  })()`);
+  for (const [ad, r] of [['macOS', gecmis.mac], ['Windows', gecmis.win]]) {
+    sonuc(`Geri al listesi (${ad}): ↓ ile iki satır, Enter iki adımı uygular; ${ad === 'macOS' ? '⌘Z' : 'Ctrl+Z'} kapatıp kısayola bırakır; Esc kapatır`,
+      r.acildi && r.ilk === 1 && r.asagi === 2 && r.alt === '2 işlemi geri al' && r.satir[0] === 'Not ekle · s. 3' && r.uygulanan === 2 && r.kapandiUygulayinca
+      && r.kisayolEngellendi === false && r.kisayolKapatti && r.escKapatti, r);
+  }
+
   await evalJs(`(() => { document.querySelector('#mac-cerceve')?.remove(); document.querySelector('#win-cerceve')?.remove(); return true; })()`);
   console.log(`\n${tamam} tamam, ${hata} hata`);
 }
