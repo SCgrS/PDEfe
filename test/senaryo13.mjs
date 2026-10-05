@@ -188,18 +188,20 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     const son = await secili();
     sonuc('sürüklerken canlı seçim ve dikdörtgen', dikdortgen && J(canli) === J(beklenen), { canli, beklenen });
     sonuc('bırakınca seçim kalır (bırakıştaki tıklama seçimi silmez)', J(son) === J(beklenen) && !(await evalJs(`!!document.querySelector('.sayfalar-alan-secimi')`)), son);
-    // b) Ctrl ile sürükleme önceki seçime ekler; değiştiricisiz sürükleme yerine koyar
-    const k10 = o.kartlar[9];
-    await tikla(Math.round((k10.x + k10.r) / 2), Math.round(k10.y + 20));
-    const kx = Math.round(o.iz.x + 6), ky = Math.round((o.kartlar[0].b + o.kartlar[5].y) / 2);   // 1. ve 2. satır arasındaki boşluk
+    // b) Ctrl ile sürükleme önceki seçime ekler; değiştiricisiz sürükleme yerine koyar. Önce 2. satırın son kartı seçilir (5 sütunda 10.
+    //    sayfa; 0.2.2'nin büyük kartlarıyla 1280 px pencerede 4 sütun: 8. sayfa; 3. satır ızgaranın görünen alanının dışında kalıyor)
+    const sutun = o.kartlar.filter((k) => Math.abs(k.y - o.kartlar[0].y) < 2).length;
+    const kEk = o.kartlar[2 * sutun - 1];
+    await tikla(Math.round((kEk.x + kEk.r) / 2), Math.round(kEk.y + 20));
+    const kx = Math.round(o.iz.x + 6), ky = Math.round((o.kartlar[0].b + o.kartlar[sutun].y) / 2);   // 1. ve 2. satır arasındaki boşluk
     const k2 = o.kartlar[1];
     await surukle(kx, ky, Math.round((k2.x + k2.r) / 2), Math.round(o.kartlar[0].y + 30), { degistiriciler: ['ctrl'] });
     const ctrlSecim = await secili();
-    const ctrlBeklenen = [...new Set([...kesisen(o, kx, ky, (k2.x + k2.r) / 2, o.kartlar[0].y + 30), 10])].sort((a, b) => a - b);
-    sonuc('Ctrl + sürükleme seçime ekler', J(ctrlSecim) === J(ctrlBeklenen), { ctrlSecim, ctrlBeklenen });
+    const ctrlBeklenen = [...new Set([...kesisen(o, kx, ky, (k2.x + k2.r) / 2, o.kartlar[0].y + 30), kEk.no])].sort((a, b) => a - b);
+    sonuc(`Ctrl + sürükleme seçime ekler (${kEk.no}. sayfa seçimde kalır)`, J(ctrlSecim) === J(ctrlBeklenen), { ctrlSecim, ctrlBeklenen, sutun });
     await surukle(kx, ky, Math.round((k2.x + k2.r) / 2), Math.round(o.kartlar[0].y + 30));
     const yalin = await secili();
-    sonuc('değiştiricisiz sürükleme seçimin yerini alır', !yalin.includes(10) && yalin.length > 0, yalin);
+    sonuc('değiştiricisiz sürükleme seçimin yerini alır', !yalin.includes(kEk.no) && yalin.length > 0, yalin);
     // c) Esc sürüklemeyi iptal eder, önceki seçim geri gelir; pencere kapanmaz
     const once = await secili();
     await fare([{ tur: 'hareket', x: bx, y: by }, { tur: 'bas', x: bx, y: by, bekle: 30 }, { tur: 'hareket', x: bx + 60, y: by + 60, bekle: 30 }, { tur: 'hareket', x: hx, y: hy, bekle: 60 }]);
@@ -213,15 +215,17 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     // d) Kıpırdamadan tıklama (boş alan): bugünkü gibi seçimi kaldırır
     await tikla(bx, by);
     sonuc('boş alana tıklama seçimi kaldırır', (await secili()).length === 0);
-    // e) Kenarda otomatik kaydırma: ızgaranın altına inip basılı tutunca kayar, yeni kartlar seçilir
+    // e) Kenarda otomatik kaydırma: ızgaranın altına inip basılı tutunca kayar, yeni kartlar seçilir (başlangıçta görünen son kartın
+    //    ötesindekiler; 0.2.1'e dek "20'den çok kart" deniyordu, 0.2.2'nin büyük kartlarıyla aynı kaydırmada daha az kart geçiyor)
     o = await olc();
+    const gorunenSon = Math.max(...o.kartlar.filter((k) => k.y < o.iz.y + o.iz.ch).map((k) => k.no));
     await fare([{ tur: 'hareket', x: bx, y: by }, { tur: 'bas', x: bx, y: by, bekle: 30 }, { tur: 'hareket', x: bx + 300, y: Math.round(o.iz.y + o.iz.h / 2), bekle: 50 },
       { tur: 'hareket', x: bx + 300, y: Math.round(o.iz.y + o.iz.h + 20), bekle: 1500 }]);
     const kay = await evalJs(`document.querySelector('.sayfalar-izgara').scrollTop`);
     await ss('03-alan-secimi-otomatik-kaydirma-koyu');
     await fare([{ tur: 'birak', x: bx + 300, y: Math.round(o.iz.y + o.iz.h + 20) }]);
     const oto = await secili();
-    sonuc('alt kenarda otomatik kaydırma ve seçim', kay > 300 && oto.length > 20 && oto[0] === 1, { scrollTop: kay, secili: oto.length, ilk: oto[0], son: oto[oto.length - 1] });
+    sonuc('alt kenarda otomatik kaydırma ve seçim', kay > 300 && oto.length > 10 && oto[0] === 1 && oto[oto.length - 1] > gorunenSon + 4, { scrollTop: kay, secili: oto.length, ilk: oto[0], son: oto[oto.length - 1], gorunenSon });
     await fare([{ tur: 'hareket', x: bx + 300, y: Math.round(o.iz.y + o.iz.h - 20) }]);
     // Yukarı kenar: aşağıdan başlayıp yukarı taşınca geri kayar
     o = await olc();
@@ -332,8 +336,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     const not_ = await evalJs(`(() => { const n = document.querySelector('.sayfalar-kayit .arac-kayit-uzerine'); return { gorunur: !n.hidden, sinif: n.className, metin: n.textContent.trim(), dugmeIpucu: document.querySelector('.arac-dugmeler [data-id="kaydet"]').title }; })()`);
     sonuc('üzerine yaz notu: Ctrl+Z ile geri alınabilir (bilgi)', not_.gorunur && not_.sinif.includes('bilgi') && /Belgeye uygulanıp "zengin_b\.pdf" dosyasına kaydedilir; Ctrl\+Z ile geri alınabilir\./.test(not_.metin), not_);
     // 7. ve 8. sayfayı sil (alan seçimiyle: 2. satırın sağ ucundaki boşluktan), 1. sayfayı döndür
-    const r = await evalJs(`(() => { const k = [...document.querySelectorAll('.sayfalar-izgara > .sayfa-karti')].map((x) => x.getBoundingClientRect()); const iz = document.querySelector('.sayfalar-izgara').getBoundingClientRect(); return { k7: [k[6].left, k[6].top], k8: [k[7].right, k[7].bottom], sag: iz.right - 20 }; })()`);
-    await surukle(Math.round(r.sag), Math.round(r.k8[1] - 20), Math.round(r.k7[0] + 20), Math.round(r.k7[1] + 30));
+    // Başlangıç noktası ızgaranın görünen alanında (0.2.2: kartlar büyük, 2. satırın altı görünen alanın dışında kalabiliyor)
+    const r = await evalJs(`(() => { const k = [...document.querySelectorAll('.sayfalar-izgara > .sayfa-karti')].map((x) => x.getBoundingClientRect()); const iz = document.querySelector('.sayfalar-izgara').getBoundingClientRect(); return { k7: [k[6].left, k[6].top], k8: [k[7].right, k[7].bottom], sag: iz.right - 20, alt: iz.bottom - 10 }; })()`);
+    await surukle(Math.round(r.sag), Math.round(Math.min(r.k8[1] - 20, r.alt)), Math.round(r.k7[0] + 20), Math.round(r.k7[1] + 30));
     const sec = await evalJs(`[...document.querySelectorAll('.sayfalar-izgara > .sayfa-karti.secili')].map((k) => +k.querySelector('.no').textContent)`);
     sonuc('alan seçimi 7-8. sayfaları seçti', J(sec) === J([7, 8]), sec);
     await tus('Delete');

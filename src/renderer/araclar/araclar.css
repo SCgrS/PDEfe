@@ -184,7 +184,10 @@ html[data-tema="koyu"] .arac-pencere .hata-metin, html[data-tema="koyu"] .kucult
 .kucult-sonuc-dugmeler { margin-top: 4px; }
 
 /* ---------- Sayfaları düzenle ---------- */
-.sayfalar-pencere { width: 980px; height: 88vh; }
+/* Kartlar büyük (0.2.2, kullanıcı isteği: "sayfa boyutları daha büyük, iyi gözüksün araçlarda"): --kart-resim resim kutusunun kenarı (0.2.1'e
+   dek 150 px); ızgara sütunu, resim ve yer tutucular bundan türer, sayfalar.js çözünürlüğü de buradan okur. Pencere genişledi (980 px →
+   en çok 1320 px): satırda yine 4–5 sayfa (1280 px pencerede 4, 1920 px ekranda 5). */
+.sayfalar-pencere { --kart-resim: 220px; width: min(1320px, 94vw); height: 88vh; }
 .sayfalar-pencere .arac-govde { padding: 0; gap: 0; overflow: hidden; flex: 1; }
 .sayfalar-arac-cubugu {
   display: flex; align-items: center; gap: 2px; padding: 6px 16px; border-top: 1px solid var(--kenar); border-bottom: 1px solid var(--kenar);
@@ -194,7 +197,7 @@ html[data-tema="koyu"] .arac-pencere .hata-metin, html[data-tema="koyu"] .kucult
 .sayfalar-arac-cubugu button.ikincil { padding: 5px 12px; }
 .sayfalar-arac-cubugu .sayac { color: var(--metin-soluk); font-size: 12px; margin-left: auto; padding-left: 8px; white-space: nowrap; user-select: text; }
 .sayfalar-izgara {
-  flex: 1; overflow: auto; padding: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px;
+  flex: 1; overflow: auto; padding: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--kart-resim) + 20px), 1fr)); gap: 12px;
   align-content: start; position: relative; outline: none;
 }
 .sayfa-karti {
@@ -205,10 +208,11 @@ html[data-tema="koyu"] .arac-pencere .hata-metin, html[data-tema="koyu"] .kucult
 .sayfa-karti.secili { border-color: var(--vurgu); background: var(--basili); }
 .sayfa-karti.odak { outline: 1px dashed var(--vurgu); outline-offset: 1px; }
 .sayfa-karti .resim-kutu {
-  width: 150px; height: 150px; display: flex; align-items: center; justify-content: center; position: relative;
+  width: var(--kart-resim); height: var(--kart-resim); display: flex; align-items: center; justify-content: center; position: relative;
 }
+/* Resmin ve yer tutucunun boyutunu sayfalar.js sayfanın oranından yazar (uzun kenar kutunun kenarı); sınır yalnızca güvenlik */
 .sayfa-karti .resim-kutu img, .sayfa-karti .resim-kutu .bos-sayfa {
-  max-width: 150px; max-height: 150px; box-shadow: var(--sayfa-golge); background: #fff; display: block; transition: transform 0.15s;
+  max-width: var(--kart-resim); max-height: var(--kart-resim); box-shadow: var(--sayfa-golge); background: #fff; display: block; transition: transform 0.15s;
 }
 .sayfa-karti .resim-kutu .bos-sayfa { display: flex; align-items: center; justify-content: center; color: #999; font-size: 11px; }
 .sayfa-karti .resim-kutu .yukleniyor { position: absolute; inset: 20px; border-radius: 4px; background: linear-gradient(90deg, var(--hover), transparent, var(--hover)); background-size: 200% 100%; animation: sayfa-yukleniyor 1.2s linear infinite; }
@@ -250,7 +254,9 @@ html[data-tema="koyu"] .arac-pencere .hata-metin, html[data-tema="koyu"] .kucult
 .arac-sonuc-liste li a:hover { text-decoration: underline; }
 
 /* ---------- Görüntü / PDF birleştir ---------- */
-.birlestir-pencere { width: 920px; height: 88vh; }
+/* Satırdaki önizleme büyük (0.2.2, kullanıcı isteği; Sayfaları düzenle'deki gibi): --birlestir-resim önizleme kutusunun kenarı (0.2.1'e dek
+   64 px); satırın sütunu, resim ve yer tutucu bundan türer, gorselBirlestir.js çözünürlüğü de buradan okur. */
+.birlestir-pencere { --birlestir-resim: 120px; width: 920px; height: 88vh; }
 .birlestir-pencere .arac-govde { overflow: hidden; flex: 1; }
 .birlestir-govde { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 12px; }
 .birlestir-ust { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -268,7 +274,7 @@ html[data-tema="koyu"] .arac-pencere .hata-metin, html[data-tema="koyu"] .kucult
 }
 .birlestir-liste .bos-mesaj b { color: var(--metin); font-size: 14px; }
 .birlestir-oge {
-  display: grid; grid-template-columns: 14px 18px 64px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 8px 6px 4px; border-radius: 8px;
+  display: grid; grid-template-columns: 14px 18px var(--birlestir-resim) minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 8px 6px 4px; border-radius: 8px;
   background: var(--arka-yukseltilmis); border: 1px solid var(--kenar); cursor: grab; position: relative;
 }
 .birlestir-oge:hover { border-color: color-mix(in srgb, var(--vurgu) 45%, var(--kenar)); }
@@ -277,9 +283,13 @@ html[data-tema="koyu"] .arac-pencere .hata-metin, html[data-tema="koyu"] .kucult
 .birlestir-oge .birlestir-tutamac { color: var(--metin-soluk); display: flex; justify-content: center; opacity: 0.7; }
 .birlestir-oge .birlestir-tutamac svg { width: 10px; height: 18px; fill: currentColor; }
 .birlestir-oge .sira { color: var(--metin-soluk); font-variant-numeric: tabular-nums; text-align: center; font-size: 12px; }
-.birlestir-oge .resim { width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; }
-.birlestir-oge .resim img { max-width: 64px; max-height: 64px; box-shadow: var(--sayfa-golge); background: #fff; transition: transform 0.15s; }
-.birlestir-oge .resim .yer { width: 46px; height: 60px; border: 1px solid var(--kenar); border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--metin-soluk); background: var(--arka); }
+.birlestir-oge .resim { width: var(--birlestir-resim); height: var(--birlestir-resim); display: flex; align-items: center; justify-content: center; }
+.birlestir-oge .resim img { max-width: var(--birlestir-resim); max-height: var(--birlestir-resim); box-shadow: var(--sayfa-golge); background: #fff; transition: transform 0.15s; }
+/* Yer tutucu (okunurken, okunamayınca) dikey sayfa biçiminde: kutunun %72 × %94'ü (eskiden 46 × 60 px) */
+.birlestir-oge .resim .yer {
+  width: calc(var(--birlestir-resim) * 0.72); height: calc(var(--birlestir-resim) * 0.94); border: 1px solid var(--kenar); border-radius: 3px; display: flex;
+  align-items: center; justify-content: center; font-size: 12px; color: var(--metin-soluk); background: var(--arka);
+}
 .birlestir-oge.yukleniyor .resim .yer { background: linear-gradient(90deg, var(--hover), transparent, var(--hover)); background-size: 200% 100%; animation: sayfa-yukleniyor 1.2s linear infinite; }
 .birlestir-oge .bilgi { display: flex; flex-direction: column; gap: 3px; min-width: 0; cursor: default; }
 .birlestir-oge .secilebilir { user-select: text; cursor: text; }

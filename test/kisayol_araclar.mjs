@@ -127,7 +127,7 @@ print(json.dumps({"ana": pdf("ana.pdf", 12, "Sayfa"), "ek": pdf("ek.pdf", 3, "Ek
     satirlar() { return [...document.querySelectorAll('.birlestir-liste > .birlestir-oge')]; },
     bDurum() { const s = this.satirlar(); const ad = (e) => e.querySelector('.ad').textContent; return { sira: s.map(ad), secili: s.filter((e) => e.classList.contains('secili')).map(ad),
       odakta: document.activeElement === document.querySelector('.birlestir-liste'), metinSecimi: getSelection().toString() }; },
-    satir(ad) { const e = this.satirlar().find((x) => x.querySelector('.ad').textContent === ad); if (!e) return null; const k = this.konum(e);
+    satir(ad) { const e = this.satirlar().find((x) => x.querySelector('.ad').textContent === ad); if (!e) return null; const k = this.konum(e, true);
       const p = (s) => { const b = e.querySelector(s).getBoundingClientRect(); return [Math.round(b.left + b.width / 2), Math.round(b.top + b.height / 2)]; };
       return { ...k, resim: p('.resim'), tutamac: p('.birlestir-tutamac') }; },
   }; return true; })()`);
@@ -197,12 +197,14 @@ print(json.dumps({"ana": pdf("ana.pdf", 12, "Sayfa"), "ek": pdf("ek.pdf", 3, "Ek
   sonuc('Shift+tık geriye: çapa (2) korunur, aralık 1-2', ayni(d.secili, ['1', '2']), d, S_CS);
   await ss('01-sayfalar-ctrl-shift');
 
-  // Boş alandan sürükle (alan seçimi)
+  // Boş alandan sürükle (alan seçimi): ızgaranın sol üstünden 2. satırın 2. sayfasına (5 sütunda 7, 0.2.2'nin büyük kartlarıyla 1280 px
+  // pencerede 4 sütun: 6); alan dört sayfayı kapsar. 10. sayfaya tıklama ızgarayı kaydırabilir: sonra başa dönülür.
   await evalJs(`document.querySelector('.sayfalar-izgara').scrollTop = 0`); await bekle(100);
   await sTikla('10');
+  await evalJs(`document.querySelector('.sayfalar-izgara').scrollTop = 0`); await bekle(100);
+  const k7 = await sKart(String(C + 2));
   const iz = await evalJs(`(() => { const r = document.querySelector('.sayfalar-izgara').getBoundingClientRect(); return { x: r.left, y: r.top, r: r.right, b: r.bottom }; })()`);
   const bx = Math.round(iz.x + 6), by = Math.round(iz.y + 6);
-  const k7 = await sKart('7');
   const tumKartlar = await evalJs(`window.__ka.kartlar().map((e) => ({ id: window.__ka.kartId(e), ...window.__ka.konum(e) }))`);
   const kesisen = (x0, y0, x1, y1) => tumKartlar.filter((k) => k.x < Math.max(x0, x1) && k.r > Math.min(x0, x1) && k.y < Math.max(y0, y1) && k.b > Math.min(y0, y1)).map((k) => k.id);
   const adimlar = [{ tur: 'hareket', x: bx, y: by }, { tur: 'bas', x: bx, y: by, bekle: 30 }];
@@ -484,7 +486,12 @@ print(json.dumps({"ana": pdf("ana.pdf", 12, "Sayfa"), "ek": pdf("ek.pdf", 3, "Ek
   sonuc('Karşılaştırma: kıpırdamadan sağ tık menüyü açar (Yapıştır … Listeden çıkar (3)), seçili satırda seçim korunur', kontrolMenu.length === 1
     && J(kontrolMenu[0].secenek).includes('Yapıştır') && J(kontrolMenu[0].secenek).includes('Listeden çıkar (3)') && ayni(b.secili, ['bir.pdf', 'iki.png', 'uc.png']), { menu: kontrolMenu.map((x) => x.secenek), secili: b.secili });
 
-  // Boş alandan sürükle (sol tuş)
+  // Boş alandan sürükle (sol tuş). 0.2.2: satırlar büyük önizlemeyle 134 px; 1000 px pencerede dört satır listeyi doldurur, altında boş alan
+  // kalmaz, birinci ve dördüncü satır birlikte görünmez. Liste, Kalite ve Kaydet bölümleri bu denetimle sıralama denetimleri süresince
+  // gizlenerek uzatılır (daha yüksek pencereyle aynı; 1080 px ekranda pencere 1000 px'ten yüksek açılamıyor); satırların boyutu değişmez.
+  // Kaydırılan listede sıralama arac_onizleme.mjs'te.
+  await evalJs(`(() => { document.querySelectorAll('.birlestir-kalite-bolumu, .birlestir-kayit').forEach((e) => { e.style.display = 'none'; }); document.querySelector('.birlestir-liste').scrollTop = 0; return true; })()`);
+  await bekle(150);
   await bTikla('bir.pdf');
   const li = await evalJs(`(() => { const l = document.querySelector('.birlestir-liste'); const r = l.getBoundingClientRect(); const s = window.__ka.satirlar().at(-1).getBoundingClientRect(); return { x: r.left, y: r.top, r: r.right, b: r.bottom, ch: l.clientHeight, sh: l.scrollHeight, sonAlt: s.bottom }; })()`);
   const bosY = Math.round(li.sonAlt + Math.min(40, (li.b - li.sonAlt) / 2));
@@ -520,6 +527,9 @@ print(json.dumps({"ana": pdf("ana.pdf", 12, "Sayfa"), "ek": pdf("ek.pdf", 3, "Ek
   b = await bDurum();
   sonuc('Satırı sürükle yukarı (dort → ilk satırın altı)', ayni(b.sira, tasiModel(once2, ['dort.pdf'], once2[0])), { sira: b.sira }, B_SUR);
   await ss('02-birlestir-siralama');
+  // Kalite ve Kaydet bölümleri geri gelir (dosya adı kutusu aşağıda Ctrl+V denetiminde kullanılır)
+  await evalJs(`(() => { document.querySelectorAll('.birlestir-kalite-bolumu, .birlestir-kayit').forEach((e) => { e.style.display = ''; }); return true; })()`);
+  await bekle(150);
 
   // Ctrl+A
   await bTikla(b.sira[1]);

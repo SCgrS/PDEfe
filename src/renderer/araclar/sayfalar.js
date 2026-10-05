@@ -16,7 +16,10 @@ import {
 import { kaydetmedenCikisSorusu } from '../mesajKutusu.js';
 import { tus } from '../platform.js';
 
-const KUCUK_RESIM_GENISLIK = 160;
+// Kart resimleri büyük (0.2.2, kullanıcı isteği: "araçlardaki dosyaların, görüntülerin boyutu büyük olsun ki görebilelim içeriğini"): resim
+// kutusunun kenarı araclar.css'teki --kart-resim (150 → 220 px); ızgara sütunu, boş sayfa ve hata yer tutucusu ondan türer. Resim çekirdekten
+// ekran ölçeğine göre keskin istenir (_resimGenisligi; 0.2.1'e dek ölçekten bağımsız 160 px, %125 / %150 ekranda yatay sayfa bulanıktı).
+const KART_RESIM_EN_FAZLA = 600;   // istenen genişliğin üst sınırı (cihaz pikseli): 220 px kutu × 2 = 440; CSS değişkeni büyütülse de PNG büyümesin
 const GECMIS_SINIRI = 200;
 const A4 = { w: 595.276, h: 841.89 };
 const aci = (d) => ((d || 0) % 360 + 360) % 360;
@@ -37,7 +40,7 @@ export class SayfalarPenceresi {
     this.gecmis = [];
     this.gecmisKonum = 0;
     this.ogeler = new Map();          // kimlik → kart öğesi
-    this.resimOnbellek = new Map();   // "yol|sayfa" → Promise<{png, genislik, yukseklik}>
+    this.resimOnbellek = new Map();   // "yol|sayfa|istenen genişlik" → Promise<{png, genislik, yukseklik}>
     this._alanTiki = false;           // alan seçimi bırakıldı: bırakışın tıklaması (sonraki basıştan önce gelir) seçimi değiştirmesin
     this.ilerleme = new IslemIlerleme();
     this._kur();
@@ -150,6 +153,7 @@ export class SayfalarPenceresi {
       dugmeler: [{ id: 'kaydet', etiket: 'Kaydet', birincil: true, tiklama: () => this.kaydet() }],
       kapatmadanOnce: (_p, sonuc) => this._kapatmaIzni(sonuc),
     });
+    this.kutu = this._kutuOlcusu();   // kartlar çizilmeden önce (boş sayfa yer tutucusu bu ölçüyle boyutlanır)
     this.pencere.govde.append(this.ilerleme.el);   // gövdenin doğrudan çocuğu: meşgulken soluklaşmaz, İptal tıklanabilir
     this.pencere.el.addEventListener('esc', (e) => { if (this.ilerleme.calisiyor) { e.preventDefault(); this.ilerleme.iptalIste(); } });
     this.kayit.onDegisti(() => this._kaydetIpucu());
@@ -175,6 +179,12 @@ export class SayfalarPenceresi {
     this.pencere.el.addEventListener('kapandi', () => { this.gozlemci.disconnect(); this.sirala(); });
     this.ciz();
     this.izgara.focus();
+  }
+
+  /** Kart resim kutusunun kenarı (CSS pikseli): araclar.css'teki --kart-resim. Izgara DOM'a girdikten sonra okunur. */
+  _kutuOlcusu() {
+    const v = parseFloat(getComputedStyle(this.izgara).getPropertyValue('--kart-resim'));
+    return Number.isFinite(v) && v > 0 ? v : 220;
   }
 
   /** Birincil düğmenin ipucu kaydetme seçimine göre. */
@@ -252,12 +262,11 @@ export class SayfalarPenceresi {
     if ((e.key === 'r' || e.key === 'R') && !ctrl) { e.preventDefault(); this.dondur([...this.secim], e.shiftKey ? -90 : 90); }
   }
 
+  /** Izgaranın sütun sayısı (↑ ↓ bir satır gezer): çözülmüş sütun listesinden. 0.2.1'e dek kartın genişliğinden bölmeyle bulunuyordu; sütunlar
+   *  1fr olduğu için kart genişliği kesirlidir, 0.2.2'nin büyük kartlarıyla 1280 px pencerede bölme 3,99 çıkıp 4 sütunda 3 sayıyordu. */
   _sutunSayisi() {
-    const ilk = this.izgara.querySelector(':scope > .sayfa-karti');
-    if (!ilk) return 1;
-    const w = ilk.getBoundingClientRect().width;
-    const alan = this.izgara.clientWidth - 28;
-    return Math.max(1, Math.floor((alan + 12) / (w + 12)));
+    const sutunlar = getComputedStyle(this.izgara).gridTemplateColumns.split(' ').filter((s) => parseFloat(s) > 0).length;
+    return Math.max(1, sutunlar);
   }
 
   _tikla(e) {
@@ -561,11 +570,26 @@ export class SayfalarPenceresi {
     }
   }
 
+  /** Öğeyi (boş sayfa, yüklenemedi yer tutucusu) sayfanın oranıyla kutuya sığdırır: uzun kenarı kutunun kenarı. */
   _bosBoyutla(el, k) {
-    const oran = k.genislik / k.yukseklik;
-    const w = oran >= 1 ? 150 : Math.round(150 * oran);
-    const h = oran >= 1 ? Math.round(150 / oran) : 150;
+    const oran = (k.genislik || A4.w) / (k.yukseklik || A4.h), K = this.kutu;
+    const w = oran >= 1 ? K : Math.round(K * oran);
+    const h = oran >= 1 ? Math.round(K / oran) : K;
     el.style.width = w + 'px'; el.style.height = h + 'px';
+  }
+
+  /**
+   * Kartın küçük resmi için çekirdekten istenecek genişlik (cihaz pikseli). Çekirdek sayfayı dosyadaki yönüyle bu genişliğe çizer, resim
+   * kutunun uzun kenarına sığdırılır: yatay sayfada genişlik kutunun kenarı, dikey sayfada kenar × genişlik / yükseklik. Ekran ölçeğiyle
+   * çarpılır (en çok 2, Sayfalar panelindeki gibi): %125 / %150 ekranda da keskin. Sayfanın ölçüsü sekmede açılıştaki yönüyledir; dosyaya
+   * artımlı kayıtla işlenmiş çeyrek tur döndürme (_diskDondurme) çizilen resmin yönünü çevirir. Oran tutmasa da resim kutuya sığar
+   * (_resimYukle boyutu çizilen resmin kendi oranından verir); yalnızca keskinlik etkilenir.
+   */
+  _resimGenisligi(k, yol, sayfa) {
+    let w = k.genislik || A4.w, h = k.yukseklik || A4.h;
+    if (k.sekme != null && this._diskDondurme(yol, sayfa) % 180) [w, h] = [h, w];
+    const cihaz = this.kutu * Math.min(2, window.devicePixelRatio || 1) * (w >= h ? 1 : w / h);
+    return Math.max(16, Math.min(KART_RESIM_EN_FAZLA, Math.ceil(cihaz)));
   }
 
   _secimiCiz() {
@@ -591,9 +615,10 @@ export class SayfalarPenceresi {
     if (!k || k.bos) return;
     el.dataset.yuklendi = '1';
     const { yol, sayfa } = this._kaynak(k);
-    const anahtar = `${yol}|${sayfa}`;
+    const genislik = this._resimGenisligi(k, yol, sayfa);
+    const anahtar = `${yol}|${sayfa}|${genislik}`;
     let soz = this.resimOnbellek.get(anahtar);
-    if (!soz) { soz = this.baglam.cekirdek('kucuk_resim', { yol, sayfa, genislik: KUCUK_RESIM_GENISLIK }); this.resimOnbellek.set(anahtar, soz); }
+    if (!soz) { soz = this.baglam.cekirdek('kucuk_resim', { yol, sayfa, genislik }); this.resimOnbellek.set(anahtar, soz); }
     soz.then((r) => {
       if (!this.ogeler.get(kimlik)) return;
       const kutu = el.querySelector('.resim-kutu');
@@ -602,13 +627,17 @@ export class SayfalarPenceresi {
       img.src = 'data:image/png;base64,' + r.png;
       img.alt = `Sayfa ${sayfa}`;
       img.draggable = false;
+      // Ekrandaki boyut çizilen resmin oranından, uzun kenarı kutunun kenarı: resim cihaz pikselinde çizildiği için doğal boyutu kutudan büyüktür
+      const m = Math.max(r.genislik || 0, r.yukseklik || 0);
+      if (m > 0) { img.style.width = Math.round(this.kutu * r.genislik / m) + 'px'; img.style.height = Math.round(this.kutu * r.yukseklik / m) + 'px'; }
       const kk = this.kartlar.find((x) => x.kimlik === kimlik);
       const d = kk ? this._gorunenDondurme(kk) : 0;
       if (d) img.style.transform = `rotate(${d}deg)`;
       kutu.append(img);
     }).catch((e) => {
       const kutu = el.querySelector('.resim-kutu');
-      kutu.innerHTML = `<div class="bos-sayfa" style="width:110px;height:150px;color:#d13438" title="${kacis(hataMetni(e))}">yüklenemedi</div>`;
+      kutu.innerHTML = `<div class="bos-sayfa" style="color:#d13438" title="${kacis(hataMetni(e))}">yüklenemedi</div>`;
+      this._bosBoyutla(kutu.firstElementChild, k);
       delete el.dataset.yuklendi;
       this.resimOnbellek.delete(anahtar);
     });

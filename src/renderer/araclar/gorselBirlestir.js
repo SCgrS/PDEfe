@@ -37,7 +37,9 @@ const DOSYA_FILTRELERI = [
   { name: 'Görüntüler', extensions: GORSEL_UZANTILAR },
   { name: 'Tüm dosyalar', extensions: ['*'] },
 ];
-const KUCUK_RESIM = 144;
+// Satırdaki önizleme büyük (0.2.2, kullanıcı isteği): kutu araclar.css'teki --birlestir-resim (64 → 120 px). Küçük resim çekirdekten en az
+// kutu × ekran ölçeği genişliğinde istenir (_kucukResimGenisligi); 0.2.1'deki sabit 144 px alt sınır olarak kalır.
+const KUCUK_RESIM_EN_AZ = 144;
 
 /** Satırda görünen dosya türü: kullanıcının tanıdığı uzantı ("JPG", "PNG"; çekirdeğin bicim'i "JPEG" gibi teknik ad olabilir). */
 function bicimEtiketi(o) {
@@ -368,9 +370,17 @@ export class BirlestirmePenceresi {
     return yeniler.length;
   }
 
+  /** gorsel_bilgi'den istenecek küçük resim genişliği (cihaz pikseli): önizleme kutusunun kenarı × ekran ölçeği (en çok 2), en az 144; çekirdek
+   *  1024'te keser. Yatay görsel kutuya genişliğiyle sığar (%125 / %150 ekranda da keskin); dikeyde fazlası keskinliğe gider. */
+  _kucukResimGenisligi() {
+    const v = parseFloat(getComputedStyle(this.liste).getPropertyValue('--birlestir-resim'));
+    const kutu = Number.isFinite(v) && v > 0 ? v : 120;
+    return Math.max(KUCUK_RESIM_EN_AZ, Math.ceil(kutu * Math.min(2, window.devicePixelRatio || 1)));
+  }
+
   async _bilgiYukle(o) {
     try {
-      const b = await this.baglam.cekirdek('gorsel_bilgi', { yol: o.yol, genislik: KUCUK_RESIM });
+      const b = await this.baglam.cekirdek('gorsel_bilgi', { yol: o.yol, genislik: this._kucukResimGenisligi() });
       if (this.pencere.kapali) return;
       Object.assign(o, {
         tur: b.tur || o.tur, sayfa: b.sayfa ?? (o.tur === 'gorsel' ? 1 : null), boyut: b.boyut ?? null,
