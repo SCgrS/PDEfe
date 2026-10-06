@@ -50,6 +50,14 @@ function py(kod) {
 /** Sayfaların ilk satırları ("Sayfa N"). */
 const ilkSatirlar = (yol) => py(`d = pymupdf.open(${J(yol)})\nprint(json.dumps([(p.get_text().strip().splitlines() or [''])[0] for p in d]))`);
 const dosyalar = () => fs.readdirSync(CIKTI).filter((a) => a.toLowerCase().endsWith('.pdf')).sort();
+/** Dosyayı siler. Windows'ta yeni yazılan PDF'i başka bir süreç (dizin oluşturucu, virüs tarayıcı) kısa süre tutunca EPERM / EBUSY gelir:
+ *  10 kez 300 ms arayla yeniden denenir (fs.rmSync'in maxRetries'ı yalnızca recursive'de geçerli; 5. bölümün başında betik çöküyordu). */
+const dosyaSil = async (yol) => {
+  for (let i = 0; ; i++) {
+    try { fs.rmSync(yol, { force: true }); return; } catch (e) { if (i >= 9 || !['EPERM', 'EBUSY'].includes(e.code)) throw e; }
+    await new Promise((r) => setTimeout(r, 300));
+  }
+};
 
 export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
   const kosul = async (ifade, sure = 10000) => {
@@ -117,7 +125,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
   fs.rmSync(CIKTI, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); fs.mkdirSync(CIKTI, { recursive: true });
   const zengin = {};
   for (const ad of ['a', 'b', 'c', 'd']) zengin[ad] = path.join(PDF, `zengin_${ad}.pdf`);
-  for (const ad of fs.readdirSync(PDF)) fs.rmSync(path.join(PDF, ad), { maxRetries: 10, retryDelay: 300 });
+  for (const ad of fs.readdirSync(PDF)) await dosyaSil(path.join(PDF, ad));
   py(`from araclar_testi import zengin_pdf_uret\nfor y in ${J(Object.values(zengin))}: zengin_pdf_uret(y)\nprint("1")`);
   await evalJs(`(() => { if (!window.__hatalar) { window.__hatalar = []; window.addEventListener('error', (e) => window.__hatalar.push('error: ' + e.message)); window.addEventListener('unhandledrejection', (e) => window.__hatalar.push('reject: ' + (e.reason?.message || e.reason))); const ce = console.error; console.error = (...a) => { window.__hatalar.push('console.error: ' + a.map(String).join(' ')); ce.apply(console, a); }; } return true; })()`);
   await evalJs(`(async () => { const a = { ciktiKlasoru: ${J(CIKTI)}, otomatikKaydet: false };
@@ -199,7 +207,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
   if (bolum(3)) {
     console.log('\n== 3) Ayır');
     await sekmeleriKapat();
-    for (const a of dosyalar()) fs.rmSync(path.join(CIKTI, a), { maxRetries: 10, retryDelay: 300 });
+    for (const a of dosyalar()) await dosyaSil(path.join(CIKTI, a));
     await ac(zengin.b);
     await aracAc('arac.ayir', 'ayir-pencere');
     await kosul(`document.querySelector('.arac-kayit-yeni .arac-cikti-ad')?.value === 'Ayrılmış'`, 4000);
@@ -290,7 +298,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
   if (bolum(4)) {
     console.log('\n== 4) Birleştir');
     await sekmeleriKapat();
-    for (const a of dosyalar()) fs.rmSync(path.join(CIKTI, a), { maxRetries: 10, retryDelay: 300 });
+    for (const a of dosyalar()) await dosyaSil(path.join(CIKTI, a));
     await ac(zengin.c);
     await aracAc('arac.gorselBirlestir', 'birlestir-pencere');
     await kosul(`document.querySelectorAll('.birlestir-oge').length === 1 && !document.querySelector('.birlestir-oge.yukleniyor')`, 8000);
@@ -372,7 +380,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
   if (bolum(5)) {
     console.log('\n== 5) Sıkıştırılmış, Döndürülmüş');
     await sekmeleriKapat();
-    for (const a of dosyalar()) fs.rmSync(path.join(CIKTI, a), { maxRetries: 10, retryDelay: 300 });
+    for (const a of dosyalar()) await dosyaSil(path.join(CIKTI, a));
     await ac(zengin.a);
     await aracAc('arac.kucult', 'kucult-pencere');
     await kosul(`document.querySelector('.arac-kayit-yeni .arac-cikti-ad')?.value === 'Sıkıştırılmış'`, 4000);
@@ -397,7 +405,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     console.log('\n== 6) İnceleme bulguları');
     await sekmeleriKapat();
     await bekle(300);
-    for (const a of dosyalar()) fs.rmSync(path.join(CIKTI, a), { maxRetries: 10, retryDelay: 300 });
+    for (const a of dosyalar()) await dosyaSil(path.join(CIKTI, a));
     const kaynak = path.join(CIKTI, 'kaynak_e.pdf');
     fs.copyFileSync(zengin.a, kaynak);
     const ozetMd5 = () => py(`import hashlib\nprint(json.dumps(hashlib.md5(open(${J(kaynak)}, 'rb').read()).hexdigest()))`);
