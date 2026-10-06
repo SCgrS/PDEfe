@@ -143,7 +143,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
   const notlar = await evalJs(`(async () => {
     const b = window.__pdefe.aktif(), n = b.notlar, rg = window.__rg, sonuc = [];
     if (rg.metinSec(1, 'Kanun, sözüyle', 'uygulanır.')) sonuc.push(n.vurguUygula('#ffd100'));
-    if (rg.metinSec(1, 'Herkes, haklarını', 'zorundadır.')) { const v = n.secimdenVurgular('#7ee07e', { notlu: true }); if (v[0]) { n.guncelle(v[0], { icerik: 'Dürüstlük kuralı: TBK m. 2 ile birlikte değerlendirilecek.' }, 'Not'); sonuc.push(true); } }
+    if (rg.metinSec(1, 'Herkes, haklarını', 'zorundadır.')) { const v = n.secimdenVurgular('#7ee07e', { notlu: true }); if (v[0]) { n.guncelle(v[0], { icerik: 'Dürüstlük kuralı: TBK m. 2 ile birlikte değerlendirilecek.' }, 'Not metnini düzenle'); sonuc.push(true); } }
     if (rg.metinSec(1, 'Hâkim, karar verirken', 'yararlanır.')) sonuc.push(n.vurguUygula('#8ecbff'));
     await new Promise((r) => setTimeout(r, 300));
     return sonuc;
