@@ -106,8 +106,8 @@ export default async function ({ evalJs, bekle }) {
       sonuc(`${e} Açılış ekranı kaydırılmadan sığıyor (10 belgeyle)`, o.alan.sh <= o.alan.h && o.alan.sw <= o.alan.w && o.docScroll <= 0, o.alan);
       const ust = o.karsilama.t - o.alan.t, alt = o.imza.t - o.karsilama.b;
       // Boş yer azsa boşluklar en az değerlerinde (üst 20, alt 28 px; 0.1.21'den beri 780 px'e dek alçak pencerede üst 12, alt 16 px: sekme
-      // çubuğu açılış ekranında da görünür; 0.2.2'den beri alt 12 px: imza büyüdü) kalabilir; yoksa alt boşluk üsttekinin iki katı
-      const alcak = (await evalJs('innerHeight')) <= 780, enAzUst = alcak ? 12 : 20, enAzAlt = alcak ? 12 : 28;
+      // çubuğu açılış ekranında da görünür; 0.2.2'den beri alt 12 px: imza büyüdü, eşik 860 px) kalabilir; yoksa alt boşluk üsttekinin iki katı
+      const alcak = (await evalJs('innerHeight')) <= 860, enAzUst = alcak ? 12 : 20, enAzAlt = alcak ? 12 : 28;
       sonuc(`${e} İçerik ortanın üstünde: üst boşluk alttakinin yarısı kadar (tam ortada değil)`, ust >= enAzUst - 0.5 && ust < alt && (ust <= enAzUst + 0.5 || alt <= enAzAlt + 0.5 || Math.abs(alt - 2 * ust) < 3), { ust, alt, alcak });
       sonuc(`${e} Ad ve sürüm sağ altta: "PDEfe · PDF görüntüleyici ve düzenleyici · sürüm ${surum}", logo yanında`,
         Math.abs(o.imza.r - (o.alan.l + o.alan.w - o.alan.pr)) < 1.5 && Math.abs(o.imza.b - (o.alan.t + o.alan.h - o.alan.pb)) < 1.5 && o.imzaMetin === `PDEfe PDF görüntüleyici ve düzenleyici · sürüm ${surum}` && o.logo.w >= 24 && o.logo.r <= o.imza.l + o.logo.w + 1,
@@ -133,6 +133,27 @@ export default async function ({ evalJs, bekle }) {
     const altta = await evalJs(`(() => { const b = document.querySelector('#baslangic').getBoundingClientRect(), i = document.querySelector('.karsilama-imza').getBoundingClientRect(); return { gorunur: i.bottom <= b.bottom + 0.5 && i.top >= b.top, sag: Math.round(b.right - i.right) }; })()`);
     sonuc('[520×520] En alta kaydırınca imza görünür, sağ altta', altta.gorunur && altta.sag >= 24, altta);
     await ss('a-acilis-520-alt-acik');
+    await evalJs(`document.querySelector('#baslangic').scrollTop = 0, 1`);
+    // 780 px'in hemen üstünde de (sıkı boşluklar 0.2.2'den beri 860 px'e dek) 10 belgeyle kaydırma yok; sol panel açıkken de (belge yokken de
+    // görünür). 780 px'te sığıp 790 px'te taşıyordu (bağımsız inceleme)
+    const panelKur = (acik, g = 240) => evalJs(`(() => { window.__pdefe.panel.acKapa(${acik}); window.__pdefe.panel.genislikAyarla(${g}); return 1; })()`);
+    for (const [w, h, panel] of [[760, 790, false], [900, 810, false], [900, 850, false], [1024, 790, true], [1024, 810, true], [1280, 830, true]]) {
+      await panelKur(panel); await boyut(w, h);
+      const o = await olc();
+      sonuc(`[${w}×${h}${panel ? ', panel açık' : ''}] Açılış ekranı kaydırılmadan sığıyor (10 belgeyle; 780 px'in üstünde de)`, o.alan.sh <= o.alan.h && o.alan.sw <= o.alan.w && o.docScroll <= 0, o.alan);
+    }
+    // Sol panel açık ve geniş: içerik alanı dar. İmza sola taşıp kırpılmaz (simge ve ad görünür, Hakkında'yı açan alan kaybolmaz), alanın
+    // sağına yaslı kalır, metnin tamamı görünür (alt yazı gerekirse satır kırar), yatay taşma yok (bağımsız inceleme)
+    for (const [w, h, g] of [[720, 800, 432], [900, 800, 540], [1024, 800, 614]]) {
+      await boyut(w, h); await panelKur(true, g); await bekle(150);
+      await evalJs(`(() => { const b = document.querySelector('#baslangic'); b.scrollTop = b.scrollHeight; return 1; })()`); await bekle(100);
+      const o = await olc();
+      sonuc(`[${w}×${h}, panel ${g} px] İmza alana sığıyor: sol kenarı alanın içinde, sağa yaslı, metnin tamamı var, yatay taşma yok`,
+        o.imza.l >= o.alan.l + o.alan.pl - 0.5 && o.logo.l >= o.alan.l + o.alan.pl - 0.5 && Math.abs(o.imza.r - (o.alan.l + o.alan.w - o.alan.pr)) < 1.5
+        && o.imzaMetin === `PDEfe PDF görüntüleyici ve düzenleyici · sürüm ${surum}` && o.alan.sw <= o.alan.w && o.docScroll <= 0, { imza: o.imza, logo: o.logo, alan: o.alan });
+      if (w === 720) await ss('a-acilis-720-panel-genis-acik');
+    }
+    await panelKur(false);
     await evalJs(`document.querySelector('#baslangic').scrollTop = 0, 1`);
     await boyut(0);
 

@@ -341,14 +341,18 @@ html.metin-seciliyor, html.metin-seciliyor * { cursor: text !important; }
 .karsilama-metin { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .karsilama-aciklama { font-size: 12px; color: var(--metin-soluk); line-height: 1.35; }
 /* Ad ve sürüm (imza): sağ altta, göze batmadan; pencereyle birlikte köşede kalır. Tıklanınca Ayarlar › Hakkında açılır (baslangic.js),
-   ama düğme gibi görünmez: çerçeve, zemin, üzerine gelme ya da odak izi yok (0.1.15, kullanıcı isteği) */
-.karsilama-imza { grid-row: 4; justify-self: end; display: flex; align-items: center; gap: 5px; padding-top: 10px; user-select: none; }
+   ama düğme gibi görünmez: çerçeve, zemin, üzerine gelme ya da odak izi yok (0.1.15, kullanıcı isteği).
+   Alandan geniş olamaz (0.2.2, bağımsız inceleme): sol panel açık ve genişken içerik alanı imzadan dardı; sağa yaslı imza kaydırılamayan
+   sol yöne taşıyor, simge ve ad kırpılıyordu. Artık alt yazı gerekirse satır kırar, imza alanın içinde sağa yaslı kalır */
+.karsilama-imza { grid-row: 4; justify-self: safe end; max-width: 100%; min-width: 0; display: flex; align-items: center; gap: 5px; padding-top: 10px; user-select: none; }
 /* Alçak pencerede sıkı (0.1.21): sekme çubuğu artık açılış ekranında da görünür (belgesiz pencerede tek açılış sekmesi), açılış ekranı
    34 px kısaldı. 1280×700 pencerede 10 son açılan belgeyle kaydırmadan sığsın diye bölümler arası, üst / alt boşluklar ve imzanın üstü
    daralır; yüksek pencerede görünüm değişmez. 0.2.2: imza 18 px uzadı (simge 50 px), sekme şeridi 6 px yükseldi; 1280×700'de 8 px taşıyordu.
    Kullanıcının seçtiği imza ölçüleri küçültülmedi, yalnızca alçak pencerede boşluklar daraldı: bölümler arası 14 → 12 px, alt boşluk en az
-   16 → 12 px, imzanın üstü 4 → 0 px (14 px kazanç; üst boşluk 12 px kaldı) */
-@media (max-height: 780px) {
+   16 → 12 px, imzanın üstü 4 → 0 px (14 px kazanç; üst boşluk 12 px kaldı). Eşik 780 → 860 px (0.2.2, bağımsız inceleme): 780 px'in hemen
+   üstünde sıkı boşluklar kalkınca (en çok ~54 px) 10 belgeyle ekran kaymaya başlıyordu (780 px sığıp 790 px taşıyordu; 760–1024 px genişlikte,
+   sol panel açıkken de); 860 px'in üstünde boşluklar sığıyor */
+@media (max-height: 860px) {
   #baslangic { grid-template-rows: minmax(12px, 1fr) auto minmax(12px, 2fr) auto; }
   .karsilama { gap: 12px; }
   .karsilama-imza { padding-top: 0; }
@@ -356,7 +360,9 @@ html.metin-seciliyor, html.metin-seciliyor * { cursor: text !important; }
 /* İmzanın ölçüleri (0.2.2, kullanıcı isteği: büyüsün; dört boyut görselle gösterildi, kullanıcı "simge ile yazılar birbirine daha yakın
    olsun" dedi ve bu ölçüleri seçti): simge 30 → 50 px, ad 14 → 22 px, alt yazı 11 → 16 px, simge ile yazı arası 9 → 5 px (.karsilama-imza gap) */
 .karsilama-logo { width: 50px; height: 50px; flex: none; }
+.karsilama-baslik { min-width: 0; }
 .karsilama-baslik p { margin: 0; white-space: nowrap; }
+.karsilama-baslik p.karsilama-alt { white-space: normal; }   /* dar alanda satır kırar; geniş alanda imza yazısı kadar geniş, tek satır */
 .karsilama-ad { font-size: 22px; font-weight: 600; line-height: 1.25; }
 .karsilama-alt { font-size: 16px; line-height: 1.3; color: var(--metin-soluk); }
 /* PDF aç: uygulamanın temel işi, araçlardan büyük ve vurgu renginde; sürükleyip bırakma da açıklamasında yazar. Genişliği yazısı kadar,
