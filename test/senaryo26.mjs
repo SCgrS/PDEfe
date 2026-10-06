@@ -308,17 +308,20 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await ss('04-birlestir-acik-pdf');
     // Pencerenin yeri (0.1.26): sekme şeridinin altında başlar, etkin sekmenin üstünde örtüden başka bir şey yok (pencere onu kapatmıyor);
     // yüksekliği 88vh, sığmazsa altta 12 px kalacak kadar. Okuma kipinde (şerit gizli) ve şeridin altında yer kalmayınca ortada.
+    // 0.2.3: sekme şeridi en üstte, araç çubuğu altında; pencere alttaki şeridin (araç çubuğunun) altında başlar, ikisi de görünür
     const yer = () => evalJs(`(() => {
       const o = document.querySelector('.arac-ortusu'), p = document.querySelector('.birlestir-pencere');
-      const s = document.getElementById('sekme-cubugu').getBoundingClientRect(), b = p.getBoundingClientRect();
+      const s = document.getElementById('sekme-cubugu').getBoundingClientRect(), a = document.getElementById('arac-cubugu').getBoundingClientRect(), b = p.getBoundingClientRect();
       const t = document.querySelector('#sekme-cubugu .sekme.aktif')?.getBoundingClientRect();
       const ustteki = t && t.height ? document.elementFromPoint(t.left + t.width / 2, t.top + t.height / 2) : null;
-      return { seritAlti: o.classList.contains('serit-alti'), seritAlt: Math.round(s.bottom), seritH: Math.round(s.height), ust: Math.round(b.top),
-        alt: Math.round(b.bottom), h: Math.round(b.height), ih: innerHeight, sekmeGorunur: !!ustteki && ustteki === o, ortaY: Math.round((b.top + b.bottom) / 2) };
+      const aracUstteki = a.height ? document.elementFromPoint(a.left + 200, a.top + a.height / 2) : null;
+      return { seritAlti: o.classList.contains('serit-alti'), seritAlt: Math.round(s.bottom), seritH: Math.round(s.height), aracAlt: Math.round(a.bottom), ust: Math.round(b.top),
+        alt: Math.round(b.bottom), h: Math.round(b.height), ih: innerHeight, sekmeGorunur: !!ustteki && ustteki === o, aracGorunur: !!aracUstteki && aracUstteki === o,
+        ortaY: Math.round((b.top + b.bottom) / 2) };
     })()`);
     let y = await yer();
-    sonuc('pencere sekme şeridinin altında başlar, etkin sekme görünür; yükseklik 88vh ya da sığacak kadar',
-      y.seritAlti && y.seritH > 0 && y.ust >= y.seritAlt + 7 && y.ust <= y.seritAlt + 9 && y.alt <= y.ih - 11 && y.sekmeGorunur
+    sonuc('pencere araç çubuğunun (alttaki şerit) altında başlar, etkin sekme ve araç çubuğu görünür; yükseklik 88vh ya da sığacak kadar',
+      y.seritAlti && y.seritH > 0 && y.aracAlt === y.seritAlt + 40 && y.ust >= y.aracAlt + 7 && y.ust <= y.aracAlt + 9 && y.alt <= y.ih - 11 && y.sekmeGorunur && y.aracGorunur
       && Math.abs(y.h - Math.min(0.88 * y.ih, y.ih - y.ust - 12)) <= 2, y);
     await evalJs(`window.__pdefe.komutCalistir('gorunum.okumaModu')`);
     await kosul(`!document.querySelector('.arac-ortusu').classList.contains('serit-alti')`, 3000);
@@ -327,7 +330,17 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await evalJs(`window.__pdefe.komutCalistir('gorunum.okumaModu')`);
     await kosul(`document.querySelector('.arac-ortusu').classList.contains('serit-alti')`, 3000);
     y = await yer();
-    sonuc('okuma kipinden çıkınca yeniden şeridin altında', y.seritAlti && y.ust >= y.seritAlt + 7 && y.sekmeGorunur, y);
+    sonuc('okuma kipinden çıkınca yeniden şeritlerin altında', y.seritAlti && y.ust >= y.aracAlt + 7 && y.sekmeGorunur && y.aracGorunur, y);
+    // Güncelleme şeridi (0.2.3'ten beri araç çubuğunun altında) görünürken pencere onun altında başlar, şerit örtülmez; kalkınca yeniden yukarı
+    const gs = () => evalJs(`(() => { const g = document.getElementById('guncelleme-seridi').getBoundingClientRect(), a = document.querySelector('.birlestir-pencere').getBoundingClientRect(); return { gUst: Math.round(g.top), gAlt: Math.round(g.bottom), gH: Math.round(g.height), ust: Math.round(a.top) }; })()`);
+    await evalJs(`(() => { const g = document.getElementById('guncelleme-seridi'); g.textContent = 'Deneme şeridi'; g.hidden = false; return true; })()`);
+    await kosul(`(() => { const g = document.getElementById('guncelleme-seridi').getBoundingClientRect(); return document.querySelector('.birlestir-pencere').getBoundingClientRect().top >= g.bottom + 7; })()`, 3000);
+    let g = await gs();
+    sonuc('güncelleme şeridi görünürken pencere onun altında başlar (şerit araç çubuğunun altında)', g.gH > 0 && g.gUst === y.aracAlt && g.ust >= g.gAlt + 7 && g.ust <= g.gAlt + 9, { ...g, aracAlt: y.aracAlt });
+    await evalJs(`(() => { const g = document.getElementById('guncelleme-seridi'); g.textContent = ''; g.hidden = true; return true; })()`);
+    await kosul(`document.querySelector('.birlestir-pencere').getBoundingClientRect().top <= document.getElementById('arac-cubugu').getBoundingClientRect().bottom + 9`, 3000);
+    g = await gs();
+    sonuc('güncelleme şeridi kalkınca pencere yeniden araç çubuğunun altında', g.ust >= y.aracAlt + 7 && g.ust <= y.aracAlt + 9, { ...g, aracAlt: y.aracAlt });
     await evalJs(`(() => { document.getElementById('sekme-cubugu').style.height = (innerHeight - 400) + 'px'; return true; })()`);
     await kosul(`!document.querySelector('.arac-ortusu').classList.contains('serit-alti')`, 3000);
     y = await yer();

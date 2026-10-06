@@ -53,11 +53,15 @@ input { font: inherit; color: inherit; }
 #uygulama { display: flex; flex-direction: column; height: 100%; }
 
 /* ---------- Araç çubuğu ---------- */
+/* 0.2.3 (kullanıcı isteği: "seçili sekmenin seçili olduğunu gösteren renk ile araç çubuğunun rengi eşit olsun. seçili sekme ile araç
+   çubuğu arasında herhangi bir çizgi olmasın. sekmenin parçasıymış gibi olsun"): araç çubuğu sekme çubuğunun altında ve seçili sekmenin
+   renginde (--sekme-aktif: açık temada beyaz, koyu temada #2b2b2b; önceden --arka). Üstünde çizgi yok: seçili sekme aşağıda araç çubuğuna
+   kesintisiz akar (tarayıcılardaki gibi; sekme çubuğunun alt çizgisi de kalktı). Alttaki çizgi belge alanından ayırır */
 #arac-cubugu {
   height: var(--arac-yukseklik);
   display: flex; align-items: center; gap: 2px;
   padding: 0 6px;
-  background: var(--arka);
+  background: var(--sekme-aktif);
   border-bottom: 1px solid var(--kenar);
   flex-shrink: 0;
 }
@@ -133,9 +137,14 @@ html[data-tema="koyu"] #dugme-tema .ay { display: block; }
 #guncelleme-seridi button { border: 1px solid currentColor; background: transparent; border-radius: 4px; padding: 3px 10px; }
 
 /* ---------- Sekme çubuğu ---------- */
+/* 0.2.3 (kullanıcı isteği): pencerenin en üstünde, araç çubuğunun üstünde. Zemini --arka (araç çubuğundan biraz koyu): seçili olmayan
+   sekmeler geride görünür, seçili sekme araç çubuğunun renginde öne çıkar. Alt çizgi yok (0.2.2'ye dek vardı; seçili sekmenin altından da
+   geçiyordu): sekme çubuğu ile araç çubuğu renkleriyle ayrılır. Sekmeler şeridin altına tam oturur (36 px sekme + 4 px üst boşluk = 40 px):
+   seçili sekmenin alt kenarı araç çubuğunun üst kenarıyla aynı piksel sınırında, %100 / %125 / %150 ölçekte de (40, 50, 60 cihaz pikseli;
+   test/serit_birlesim.mjs ekran görüntüsünden sayar) */
 #sekme-cubugu {
   height: var(--sekme-yukseklik); display: flex; align-items: flex-end; position: relative;
-  background: var(--arka); border-bottom: 1px solid var(--kenar); flex-shrink: 0; padding: 0 2px;
+  background: var(--arka); flex-shrink: 0; padding: 0 2px;
 }
 /* Düğmeler daralmaz: sekmeler sığmayınca yalnızca liste daralır (0.1.21'e dek ◀ ▶ ve açık belgeler düğmesi de birkaç piksel eziliyordu,
    sekme kapanıp sekmeler sığınca bütün sekmeler sağa kayıyordu) */
@@ -167,8 +176,9 @@ html[data-tema="koyu"] #dugme-tema .ay { display: block; }
 }
 #sekme-liste.genislik-kilitli .sekme { flex: 0 0 var(--sekme-kilit); width: var(--sekme-kilit); }
 .sekme:hover { background: var(--hover); }
+/* Seçili sekme araç çubuğunun renginde, üstte ve yanlarda ince kenarlı, altı açık: araç çubuğuyla tek parça (0.2.3). 0.2.2'ye dek alttaki
+   şerit çizgisini örtmek için ::after vardı; #sekme-liste taşanı kırptığı için örtmüyordu, çizgi seçili sekmenin altından da geçiyordu */
 .sekme.aktif { background: var(--sekme-aktif); color: var(--metin); border-color: var(--kenar); }
-.sekme.aktif::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: var(--sekme-aktif); }
 /* Sürükleyerek sıralama (sekmeler.js, 0.1.14): sürüklenen sekme gölgeyle öne çıkıp imleci izler, ötekiler kayarak yer açar; bırakınca
    sekme açılan yere kayar */
 #sekme-liste.siralaniyor .sekme { transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1); }
@@ -511,9 +521,10 @@ button.ikincil:hover { background: var(--hover); }
 #sekme-secici .aday .bos.baslangic svg { width: 40px; height: 40px; }
 #sekme-secici .aday .ad { font-size: 12px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
 
-/* Açık belgeler listesi */
+/* Açık belgeler listesi: sekme çubuğunun sağındaki düğmenin hemen altında. 0.2.3: sekme çubuğu en üstte, liste araç çubuğunun sağ ucunun
+   üstüne açılır (tarayıcılardaki gibi; önceden iki şeridin altındaydı) */
 #belge-listesi {
-  position: absolute; z-index: 50; top: calc(var(--arac-yukseklik) + var(--sekme-yukseklik)); right: 6px;
+  position: absolute; z-index: 50; top: var(--sekme-yukseklik); right: 6px;
   background: var(--arka-yukseltilmis); border: 1px solid var(--kenar); border-radius: 8px; box-shadow: var(--golge);
   width: 340px; max-height: 60vh; display: flex; flex-direction: column;
 }
@@ -585,7 +596,8 @@ button.ikincil:hover { background: var(--hover); }
 #tasima-ortusu { position: fixed; inset: 0; z-index: 1000; cursor: progress; }
 body:has(.mesaj-ortusu) #tasima-ortusu { display: none; }
 
-/* Okuma modu */
+/* Okuma modu: şeritler gizli; imleç pencerenin üst kenarına gelince araç çubuğu en üstte belgenin üstüne açılır (sekme çubuğu 0.2.3'ten
+   beri araç çubuğunun üstünde olsa da okuma kipinde gösterilmez) */
 body.okuma-modu #arac-cubugu, body.okuma-modu #sekme-cubugu, body.okuma-modu #durum-cubugu { display: none; }
 body.okuma-modu.ust-goster #arac-cubugu { display: flex; position: absolute; top: 0; left: 0; right: 0; z-index: 30; box-shadow: var(--golge); }
 

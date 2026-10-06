@@ -201,7 +201,7 @@ export async function aracPencereleriniKapat() {
  * @param {string} [s.anahtar] aynı anahtarla ikinci pencere açılmaz; var olan öne gelir
  * @param {string} [s.sinif] ek CSS sınıfı
  * @param {(p:Pencere)=>boolean|Promise<boolean>} [s.kapatmadanOnce] false dönerse kapatma iptal edilir
- * @param {boolean} [s.seritAlti] pencere ortada değil sekme şeridinin altında başlar (bkz. Pencere._seritAltinaYerlestir)
+ * @param {boolean} [s.seritAlti] pencere ortada değil şeritlerin (sekme şeridi ve altındaki araç çubuğu) altında başlar (bkz. Pencere._seritAltinaYerlestir)
  * @returns {Pencere}
  */
 export function pencereAc({ baslik, govde, dugmeler = [], genislik, anahtar, sinif, kapatmadanOnce, seritAlti = false }) {
@@ -290,23 +290,27 @@ export class Pencere {
    * 0.1.27 Sayfaları düzenle: arkadaki sekmeler görünsün, doğru belgede olunduğu denetlenebilsin). Örtü şeridi de karartır, tıklama yine
    * pencerenin dışına tıklamadır. Şerit gizliyse (okuma kipi) ya da altında yeterli yer yoksa pencere ortalanır. Uygulama penceresi
    * boyutlanınca, menü çubuğu açılıp kapanınca ya da okuma kipine girilince yeniden yerleşir.
+   * 0.2.3 (kullanıcı isteği: sekme şeridi en üstte, araç çubuğu altında): pencere alttaki şeridin, yani araç çubuğunun altında başlar
+   * (güncelleme şeridi görünüyorsa onun altında); iki şerit de kapanmaz. Sekme şeridinin altından başlasaydı araç çubuğunu örterdi.
    */
   _seritAltinaYerlestir() {
     const serit = document.getElementById('sekme-cubugu');
     if (!serit) return;
+    const alttakiler = ['arac-cubugu', 'guncelleme-seridi'].map((id) => document.getElementById(id)).filter(Boolean);
     const BOSLUK = 8, ALT_BOSLUK = 12, EN_AZ = 480;   // px: şeritle pencere arası, pencerenin altı, şeridin altında gereken en az yükseklik
     const yerlestir = () => {
       if (this.kapali) return;
       const k = serit.getBoundingClientRect();
-      const ust = Math.round(k.bottom + BOSLUK);
+      // Gizli öğenin (hidden güncelleme şeridi) kutusu boş; okuma kipinde sekme şeridi gizli (k.height 0), pencere ortada
+      const alt = Math.max(k.bottom, ...alttakiler.map((e) => { const r = e.getBoundingClientRect(); return r.height ? r.bottom : 0; }));
+      const ust = Math.round(alt + BOSLUK);
       const uygun = k.height > 0 && innerHeight - ust - ALT_BOSLUK >= EN_AZ;
       this.ortu.classList.toggle('serit-alti', uygun);
       this.ortu.style.setProperty('--arac-ust', uygun ? `${ust}px` : '');
     };
     const gozlemci = new ResizeObserver(yerlestir);
     gozlemci.observe(serit);
-    const cubuk = document.getElementById('arac-cubugu');
-    if (cubuk) gozlemci.observe(cubuk);
+    for (const e of alttakiler) gozlemci.observe(e);   // güncelleme şeridi açılıp kapanınca da (boyutu 0'a iner / 0'dan çıkar)
     addEventListener('resize', yerlestir);
     this.el.addEventListener('kapandi', () => { gozlemci.disconnect(); removeEventListener('resize', yerlestir); });
     yerlestir();

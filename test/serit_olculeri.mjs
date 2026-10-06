@@ -70,8 +70,10 @@ export default async function ({ evalJs, bekle }) {
       };
     })()`);
     const o = await olc();
-    sonuc('Araç çubuğu 40 px, sekme şeridi 40 px (0.2.1\'de 34), belge alanı şeridin altında', o.arac.h === 40 && o.serit.h === 40 && o.serit.t === o.arac.b && Math.abs(o.gorunum.t - o.serit.b) < 0.5, { arac: o.arac, serit: o.serit, gorunum: o.gorunum.t });
-    sonuc('Sekme 36 px yüksek (30\'du), şeridin altına oturur; yazı 13 px (12\'ydi)', o.sekme.h === 36 && Math.abs(o.sekme.b - (o.serit.b - 1)) < 0.5 && o.sekmeYazi === 13, { sekme: o.sekme, serit: o.serit, yazi: o.sekmeYazi });
+    // 0.2.3 (kullanıcı isteği): sekme şeridi en üstte, araç çubuğu altında; şeridin alt çizgisi yok, sekme şeridin altına tam oturur (0.2.2'de
+    // araç çubuğu üstteydi, sekme şeridin 1 px'lik alt çizgisinin üstünde biterdi). Ayrıntılı birleşim denetimi: test/serit_birlesim.mjs
+    sonuc('Sekme şeridi 40 px (0.2.1\'de 34) en üstte, araç çubuğu 40 px altında, belge alanı araç çubuğunun altında', o.arac.h === 40 && o.serit.h === 40 && o.serit.t === 0 && o.arac.t === o.serit.b && Math.abs(o.gorunum.t - o.arac.b) < 0.5, { arac: o.arac, serit: o.serit, gorunum: o.gorunum.t });
+    sonuc('Sekme 36 px yüksek (30\'du), şeridin altına tam oturur (araç çubuğunun üst kenarında); yazı 13 px (12\'ydi)', o.sekme.h === 36 && o.sekme.b === o.serit.b && o.sekme.b === o.arac.t && o.sekmeYazi === 13, { sekme: o.sekme, serit: o.serit, yazi: o.sekmeYazi });
     sonuc('Sekmenin × düğmesi 20 px (18\'di), simgesi 15 px; değişiklik noktası 18 px', o.kapat.w === 20 && o.kapat.h === 20 && o.kapatSvg.w === 15 && o.nokta === 18, { kapat: o.kapat, svg: o.kapatSvg, nokta: o.nokta });
     sonuc('Şeridin ◀ + ▶ ve açık belgeler düğmeleri 30 px (28\'di), simgeleri 22 px; dikeyde sekmeyle ortalı (±2 px)',
       o.seritDugmeleri.every((d) => d.w === 30 && d.h === 30 && d.svg === 22 && Math.abs((d.t + d.b) / 2 - (o.sekme.t + o.sekme.b) / 2) <= 2), o.seritDugmeleri);

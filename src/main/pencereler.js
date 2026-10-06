@@ -27,9 +27,9 @@ const CAN_BEKLEME_MS = 3000;         // kaynak pencere bu süre ses vermezse sü
 const HAYALET_OMRU_MS = 30000;       // son sürüklemeden sonra önizleme penceresi bu kadar bekletilir (yeniden kullanılır), sonra yok edilir
 const AYIRMA_KAYMASI = 32;           // "Pencereye ayır" ile açılan pencerenin kaynak pencereye göre kayması (px)
 // Sekme sürüklemede arayüzün göndermediği değerlerin yerine (px, pencere içeriğine göre): sekmenin tutulduğu nokta (sekme 36 px yüksek;
-// 0.2.2'ye dek 30 px, y 14 idi) ve ilk sekmenin yeri (aşağı yukarı 40 px araç çubuğu + #sekme-liste'nin 4 px üst boşluğu; şerit büyüyünce
-// değişmedi)
-const YEDEK_TUTMA = { x: 40, y: 17 }, YEDEK_SEKME_YERI = { x: 4, y: 45 };
+// 0.2.2'ye dek 30 px, y 14 idi) ve ilk sekmenin yeri (#sekme-liste'nin 4 px üst boşluğu; 0.2.3'ten beri sekme çubuğu en üstte, önceden
+// üstünde 40 px araç çubuğu vardı: y 45)
+const YEDEK_TUTMA = { x: 40, y: 17 }, YEDEK_SEKME_YERI = { x: 4, y: 4 };
 // Önizlemenin başlığı (renderer/hayalet.html, uygulama.js ONIZLEME_BASLIK; 0.2.2'de 30 → 36 px): imleç başlığın içinde, alt kenarından en
 // az 8 px yukarıda kalır (sekmenin alt ucundan tutulsa da önizleme imlecin üstünden kaymaz)
 const HAYALET_BASLIK = 36, HAYALET_IMLEC_EN_ALT = HAYALET_BASLIK - 8;

@@ -109,17 +109,20 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz, tus 
     await sekmeleriKapat();
     await ac(belge);
     await aracAc('arac.sayfalar', 'sayfalar-pencere');
+    // 0.2.3: sekme şeridi en üstte, araç çubuğu altında; pencere alttaki şeridin (araç çubuğunun) altında başlar, ikisi de görünür
     const yer = () => evalJs(`(() => {
       const o = document.querySelector('.arac-ortusu'), p = document.querySelector('.sayfalar-pencere');
-      const s = document.getElementById('sekme-cubugu').getBoundingClientRect(), b = p.getBoundingClientRect();
+      const s = document.getElementById('sekme-cubugu').getBoundingClientRect(), a = document.getElementById('arac-cubugu').getBoundingClientRect(), b = p.getBoundingClientRect();
       const t = document.querySelector('#sekme-cubugu .sekme.aktif')?.getBoundingClientRect();
       const ustteki = t && t.height ? document.elementFromPoint(t.left + t.width / 2, t.top + t.height / 2) : null;
-      return { seritAlti: o.classList.contains('serit-alti'), seritAlt: Math.round(s.bottom), seritH: Math.round(s.height), ust: Math.round(b.top),
-        alt: Math.round(b.bottom), h: Math.round(b.height), ih: innerHeight, sekmeGorunur: !!ustteki && ustteki === o, ortaY: Math.round((b.top + b.bottom) / 2) };
+      const aracUstteki = a.height ? document.elementFromPoint(a.left + 200, a.top + a.height / 2) : null;
+      return { seritAlti: o.classList.contains('serit-alti'), seritAlt: Math.round(s.bottom), seritH: Math.round(s.height), aracAlt: Math.round(a.bottom), ust: Math.round(b.top),
+        alt: Math.round(b.bottom), h: Math.round(b.height), ih: innerHeight, sekmeGorunur: !!ustteki && ustteki === o, aracGorunur: !!aracUstteki && aracUstteki === o,
+        ortaY: Math.round((b.top + b.bottom) / 2) };
     })()`);
     let y = await yer();
-    sonuc('Sayfaları düzenle sekme şeridinin altında başlar, etkin sekme görünür; yükseklik 88vh ya da sığacak kadar',
-      y.seritAlti && y.seritH > 0 && y.ust >= y.seritAlt + 7 && y.ust <= y.seritAlt + 9 && y.alt <= y.ih - 11 && y.sekmeGorunur
+    sonuc('Sayfaları düzenle araç çubuğunun (alttaki şerit) altında başlar, etkin sekme ve araç çubuğu görünür; yükseklik 88vh ya da sığacak kadar',
+      y.seritAlti && y.seritH > 0 && y.aracAlt === y.seritAlt + 40 && y.ust >= y.aracAlt + 7 && y.ust <= y.aracAlt + 9 && y.alt <= y.ih - 11 && y.sekmeGorunur && y.aracGorunur
       && Math.abs(y.h - Math.min(0.88 * y.ih, y.ih - y.ust - 12)) <= 2, y);
     await ss('02-sayfalar-yer');
     await evalJs(`window.__pdefe.komutCalistir('gorunum.okumaModu')`);
@@ -129,7 +132,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz, tus 
     await evalJs(`window.__pdefe.komutCalistir('gorunum.okumaModu')`);
     await kosul(`document.querySelector('.arac-ortusu').classList.contains('serit-alti')`, 3000);
     y = await yer();
-    sonuc('okuma kipinden çıkınca yeniden şeridin altında', y.seritAlti && y.ust >= y.seritAlt + 7 && y.sekmeGorunur, y);
+    sonuc('okuma kipinden çıkınca yeniden şeritlerin altında', y.seritAlti && y.ust >= y.aracAlt + 7 && y.sekmeGorunur && y.aracGorunur, y);
     await pencereKapat();
   }
 
