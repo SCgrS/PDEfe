@@ -16,6 +16,8 @@
 //  10) Koyu tema; konsolda hata yok.
 //  11) Etkin sekme kapanınca açık liste de kapanır: pencere kapatma yoluyla (× → "Yalnızca geçerli sekmeyi kapat"; kaydetme sorusu
 //      klavyeyle yanıtlanınca da) ve başka bir yoldan (bağımsız inceleme).
+//  12) Listeyi açan Enter / Boşluk basılı tutulunca yinelenen basış bir adımı geri almaz (bağımsız inceleme).
+//  13) Ekran okuyucu: odak listbox'ta, aria-activedescendant son boyalı satır, aria-multiselectable, alt yazı canlı bölge (bağımsız inceleme).
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9550      → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9550; node test\surucu.mjs betik test\senaryo30.mjs
@@ -405,6 +407,80 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, fare, tus
   lk = await listeKapali();
   sonuc('Etkin belge başka yoldan kapanınca da liste kapanır', kapaliMi(lk), lk);
   await evalJs(`(async () => { window.__pdefe.ayar().pencereKapatma = 'sor'; await window.pdefe.cagir('ayar:koy', 'pencereKapatma', 'sor'); return true; })()`);
+
+  // ------------------------------------------------------------ 12) Listeyi açan tuş basılı tutulunca (bağımsız inceleme)
+  // Enter / Boşluk biraz uzun basılınca Windows tuşu yineler (keydown, repeat: true). Liste ilk basışta klavyeyle açılır (ilk satır boyalı);
+  // yinelenen basış açık listede bir adımı sessizce geri almamalı (mesajKutusu.js'teki gibi yinelenen Enter / Boşluk yok sayılır).
+  console.log('\n== 12) Listeyi açan Enter / Boşluk basılı tutulunca');
+  const cdp = async () => {
+    const h = (await (await fetch(`http://127.0.0.1:${process.env.PDEFE_CDP_PORT || 9222}/json`)).json()).find((x) => x.type === 'page' && /index\.html/.test(x.url));
+    const ws = new WebSocket(h.webSocketDebuggerUrl);
+    await new Promise((c, r) => { ws.onopen = c; ws.onerror = r; });
+    let n = 0; const bek = new Map();
+    ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id && bek.has(d.id)) { bek.get(d.id)(d); bek.delete(d.id); } };
+    return { ws, gonder: (method, params = {}) => new Promise((c) => { const i = ++n; bek.set(i, c); ws.send(JSON.stringify({ id: i, method, params })); }) };
+  };
+  /** Tuşa basar, basılı tutar (yinelenen keydown'lar) ve bırakır. */
+  const basiliTut = async (ad, yineleme = 2) => {
+    const ortak = ad === 'Enter' ? { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 } : { key: ' ', code: 'Space', windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32 };
+    const metin = ad === 'Enter' ? { type: 'rawKeyDown' } : { type: 'keyDown', text: ' ', unmodifiedText: ' ' };
+    const { ws, gonder } = await cdp();
+    await gonder('Input.dispatchKeyEvent', { ...metin, ...ortak });
+    for (let i = 0; i < yineleme; i++) { await bekle(40); await gonder('Input.dispatchKeyEvent', { ...metin, ...ortak, autoRepeat: true }); }
+    await gonder('Input.dispatchKeyEvent', { type: 'keyUp', ...ortak });
+    ws.close();
+    await bekle(300);
+  };
+  const yolF = path.join(PDF, 'yineleme-f.pdf');
+  uret(yolF, 4, 'Yineleme F');
+  await ac(yolF);
+  await dondur([1], 'Sayfayı döndür'); await dondur([2], 'Sayfayı döndür'); await dondur([3], 'Sayfayı döndür');
+  for (const [sec, kaynak, ad] of [['#dugme-geri-al-liste', 'geri', '▾'], ['#durum-degisiklik', 'durum', 'durum yazısı']]) {
+    for (const t of ['Enter', ' ']) {
+      const once = (await durumu()).konum;
+      await evalJs(`(document.querySelector(${J(sec)}).focus(), true)`);
+      await basiliTut(t);
+      l = await liste();
+      const d = await durumu();
+      sonuc(`${ad}: ${t === 'Enter' ? 'Enter' : 'Boşluk'} basılı tutulunca liste açık kalır, hiçbir adım geri alınmaz (ilk satır boyalı)`, l?.kaynak === kaynak && l.boyali === 1 && d.konum === once, { l: l && { kaynak: l.kaynak, boyali: l.boyali }, konum: d.konum, once, mesaj: d.mesaj });
+      await kapat(); await bekle(150);
+    }
+  }
+  // Yinelenmeyen (yeni) basış açık listede yine uygular
+  await evalJs(`(document.querySelector('#dugme-geri-al-liste').focus(), true)`);
+  await tus('Enter'); await bekle(200);
+  const onceF = (await durumu()).konum;
+  await tus('Enter'); await bekle(300);
+  sonuc('Açık listede yeni Enter basışı ilk satırı uygular (bir adım geri alınır)', (await durumu()).konum === onceF - 1 && (await liste()) === null, { onceF, d: await durumu() });
+
+  // ------------------------------------------------------------ 13) Ekran okuyucu: boyanan satır ve alt yazı (bağımsız inceleme)
+  // Odak listbox'ta; aria-activedescendant son boyalı satırı gösterir, boyalı satırlar aria-selected (çok seçimli listbox), alt yazı
+  // ("N işlemi geri al") canlı bölge.
+  console.log('\n== 13) Ekran okuyucu bilgileri');
+  const aria = () => evalJs(`(() => { const el = document.querySelector('.gecmis-listesi'), ul = el.querySelector('.gecmis-ogeler'), od = document.activeElement;
+    const ad = od?.getAttribute('aria-activedescendant'), hedef = ad ? document.getElementById(ad) : null, li = [...ul.children];
+    return { odakRol: od?.getAttribute('role') || null, odakListede: el.contains(od), aktifSatir: hedef ? li.indexOf(hedef) : (ad ? 'yok:' + ad : null),
+      cok: ul.getAttribute('aria-multiselectable'), secili: li.filter((x) => x.getAttribute('aria-selected') === 'true').length,
+      idler: li.every((x) => x.id && document.querySelectorAll('#' + CSS.escape(x.id)).length === 1), canli: el.querySelector('.gecmis-alt-yazi').getAttribute('aria-live'),
+      etiket: ul.getAttribute('aria-label') || null }; })()`);
+  await dondur([4], 'Sayfayı döndür');
+  await evalJs(`(document.querySelector('#dugme-geri-al-liste').focus(), true)`);
+  await tus('Enter'); await bekle(200);
+  await tus('ArrowDown'); await bekle(150);
+  let ar = await aria();
+  sonuc('Klavyeyle açılıp ↓: odak listbox\'ta, aria-activedescendant 2. satırı gösterir, iki satır seçili, aria-multiselectable, satır kimlikleri tekil',
+    ar.odakRol === 'listbox' && ar.odakListede && ar.aktifSatir === 1 && ar.cok === 'true' && ar.secili === 2 && ar.idler && !!ar.etiket, ar);
+  sonuc('Alt yazı ("N işlemi geri al") canlı bölge (aria-live polite)', ar.canli === 'polite', ar);
+  await tus('ArrowUp'); await bekle(150);
+  ar = await aria();
+  sonuc('↑: aria-activedescendant 1. satırı gösterir, bir satır seçili', ar.aktifSatir === 0 && ar.secili === 1, ar);
+  await tus('Tab'); await bekle(100); await tus('Tab'); await bekle(100);
+  ar = await aria();
+  sonuc('Tab ile dönülünce odak yine listbox\'ta (geri al listesinde Kaydet yok)', ar.odakRol === 'listbox' && ar.aktifSatir === 0, ar);
+  await tus('Escape'); await bekle(150);
+  const okOdak = await evalJs(`document.activeElement?.id || null`);
+  sonuc('Esc: liste kapandı, odak ▾ düğmesinde', (await liste()) === null && okOdak === 'dugme-geri-al-liste', okOdak);
+  await sekmeleriKapat();
 
   // ------------------------------------------------------------ son
   const hatalar = await evalJs(`window.__hatalar || []`);

@@ -8,6 +8,9 @@
 // Kaydet düğmesine geçer. Dışarı tıklama, pencerenin odağı kaybetmesi, pencere boyutunun değişmesi ve Ctrl / Alt / ⌘'li tuşlar listeyi kapatır
 // (kısayol olağan işini yapar: Ctrl+Z geri alır, Ctrl+S kaydeder); sekme değişimini ve menü komutlarını uygulama bildirir (uygulama.js).
 // Liste açıkken belge kısayolları (sayfa çevirme, not silme, kaydırma) çalışmaz: tuşlar belgeye ulaşmaz (Araçlar penceresindeki gibi).
+// Yinelenen Enter / Boşluk (tuş basılı tutulunca) uygulamaz: listeyi açan basış biraz uzun tutulunca bir adımı sessizce geri alıyordu (bağımsız
+// inceleme; mesajKutusu.js'teki gibi). Ekran okuyucu: odak listbox'tadır (ul), aria-activedescendant son boyalı satırı gösterir, boyalı satırlar
+// seçilidir (çok seçimli listbox), alt yazı canlı bölgedir ("N işlemi geri al" okunur).
 
 const KAYDIRMA_ADIMI = 10;   // Page Up / Page Down ile boyanan satır sayısının değişimi
 
@@ -18,11 +21,11 @@ export class GecmisListesi {
     el.setAttribute('role', 'dialog');
     el.tabIndex = -1;
     el.hidden = true;
-    el.innerHTML = '<div class="gecmis-baslik"></div><ul class="gecmis-ogeler" role="listbox"></ul>'
-      + '<div class="gecmis-alt"><span class="gecmis-alt-yazi"></span><button type="button" class="birincil gecmis-kaydet">Kaydet</button></div>';
+    el.innerHTML = '<div class="gecmis-baslik"></div><ul class="gecmis-ogeler" role="listbox" aria-multiselectable="true" tabindex="-1"></ul>'
+      + '<div class="gecmis-alt"><span class="gecmis-alt-yazi" aria-live="polite"></span><button type="button" class="birincil gecmis-kaydet">Kaydet</button></div>';
     this.el = el;
     this.baslikEl = el.querySelector('.gecmis-baslik');
-    this.listeEl = el.querySelector('.gecmis-ogeler');
+    this.listeEl = el.querySelector('.gecmis-ogeler');   // odak burada (satırlar odak almaz; aria-activedescendant)
     this.altEl = el.querySelector('.gecmis-alt-yazi');
     this.kaydetEl = el.querySelector('.gecmis-kaydet');
     document.body.append(el);
@@ -77,6 +80,7 @@ export class GecmisListesi {
     this.s = s;
     if (!this.ciz()) { this.s = null; return false; }
     this.el.setAttribute('aria-label', s.etiket || s.baslik || '');
+    this.listeEl.setAttribute('aria-label', s.etiket || s.baslik || '');
     this.el.dataset.kaynak = s.kaynak;
     this.baslikEl.hidden = !s.baslik;
     this.baslikEl.textContent = s.baslik || '';
@@ -91,7 +95,7 @@ export class GecmisListesi {
     document.addEventListener('keydown', this._tus, true);
     window.addEventListener('resize', this._kapat);
     window.addEventListener('blur', this._kapat);
-    this.el.focus({ preventScroll: true });
+    this.listeEl.focus({ preventScroll: true });
     return true;
   }
 
@@ -142,6 +146,7 @@ export class GecmisListesi {
     ogeler.forEach((o, i) => {
       const li = document.createElement('li');
       li.dataset.i = String(i);
+      li.id = 'gecmis-oge-' + i;
       li.className = 'gecmis-oge' + (i < t ? ' tiklanir' : ' tiklanmaz');
       li.setAttribute('role', 'option');
       li.setAttribute('aria-selected', 'false');
@@ -168,6 +173,8 @@ export class GecmisListesi {
       satirlar[i].classList.toggle('boyali', boyali);
       satirlar[i].setAttribute('aria-selected', String(boyali));
     }
+    if (n && satirlar[n - 1]) this.listeEl.setAttribute('aria-activedescendant', satirlar[n - 1].id);
+    else this.listeEl.removeAttribute('aria-activedescendant');
     this.altEl.textContent = n ? this.s.altYazi(n) : (this.s.varsayilanAlt?.(this.ogeler) || '');
     this.altEl.classList.toggle('etkin', !!n || !!this.s.altVazgec);
     this.altEl.classList.toggle('sayili', !!n);
@@ -188,6 +195,7 @@ export class GecmisListesi {
     if (e.ctrlKey || e.altKey || e.metaKey || /^F\d+$/.test(e.key)) { this.kapat(); return; }
     if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key)) return;
     e.stopPropagation();
+    if (e.repeat && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); return; }   // basılı tutulan tuş: yalnızca ilk basış sayılır
     const kaydetteOdak = document.activeElement === this.kaydetEl;
     if (kaydetteOdak && (e.key === 'Enter' || e.key === ' ')) return;   // düğmenin kendi tıklaması (varsayılan eylem)
     e.preventDefault();
@@ -203,7 +211,7 @@ export class GecmisListesi {
       case 'Enter': case ' ': if (this.n) this.uygula(this.n); else this.kapat({ odakAciciya: true }); break;
       case 'Tab':
         if (!this.kaydetEl.hidden && !this.kaydetEl.disabled && !kaydetteOdak) this.kaydetEl.focus({ preventScroll: true });
-        else this.el.focus({ preventScroll: true });
+        else this.listeEl.focus({ preventScroll: true });
         break;
       default: break;
     }

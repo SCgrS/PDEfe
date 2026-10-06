@@ -543,7 +543,7 @@ button.ikincil:hover { background: var(--hover); }
 @keyframes gecmis-ac { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .gecmis-listesi { animation: none; } }
 .gecmis-baslik { padding: 9px 12px 7px; font-weight: 600; border-bottom: 1px solid var(--kenar); flex-shrink: 0; }
-.gecmis-ogeler { list-style: none; margin: 0; padding: 4px; overflow-y: auto; overflow-x: hidden; min-height: 0; flex: 1 1 auto; }
+.gecmis-ogeler { list-style: none; margin: 0; padding: 4px; overflow-y: auto; overflow-x: hidden; min-height: 0; flex: 1 1 auto; outline: none; }
 .gecmis-oge { padding: 5px 10px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 18px; }
 .gecmis-oge .ayrinti { color: var(--metin-soluk); }
 .gecmis-oge.boyali { background: color-mix(in srgb, var(--vurgu) 20%, transparent); }
