@@ -58,9 +58,10 @@ export async function evalJs(kod) {
   return r.result?.result?.value;
 }
 
-export async function ekranGoruntusu(dosya) {
+/** Sayfanın görüntüsü; kirp { x, y, width, height } (CSS pikseli) verilirse yalnızca o bölge. */
+export async function ekranGoruntusu(dosya, kirp = null) {
   const { ws, gonder } = await baglan();
-  const r = await gonder('Page.captureScreenshot', { format: 'png' });
+  const r = await gonder('Page.captureScreenshot', { format: 'png', ...(kirp ? { clip: { ...kirp, scale: 1 } } : {}) });
   ws.close();
   fs.mkdirSync(path.dirname(dosya), { recursive: true });
   fs.writeFileSync(dosya, Buffer.from(r.result.data, 'base64'));

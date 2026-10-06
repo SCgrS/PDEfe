@@ -18,7 +18,7 @@ const J = (x) => JSON.stringify(x);
 const Y = (ad) => path.join(ORNEK, ad);
 const DILEKCE = 'Dava dilekçesi.pdf', TMK = 'Türk Medeni Kanunu.pdf', TTK = 'Türk Ticaret Kanunu.pdf', TARANMIS = 'Taranmış dilekçe.pdf';
 
-export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, yaz, tus }) {
+export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, surukle, yaz, tus }) {
   const istenen = process.env.GORUNTU ? process.env.GORUNTU.split(',').map((s) => s.trim()) : null;
   const iste = (ad) => !istenen || istenen.includes(ad);
   fs.mkdirSync(PNG, { recursive: true });
@@ -30,12 +30,16 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
       await bekle(150);
     }
   };
-  const ss = async (ad) => {
+  /** kirp: { x, y, width, height } verilirse pencerenin yalnızca o bölgesi (liste gibi küçük öğeler README'de okunaklı kalsın) */
+  const ss = async (ad, kirp = null) => {
     await evalJs(`document.querySelector('#bildirim')?.setAttribute('hidden', ''); true`);
     await bekle(600);
-    await ekranGoruntusu(path.join(PNG, `ekran-${ad}.png`));
-    console.log('görüntü:', ad);
+    await ekranGoruntusu(path.join(PNG, `ekran-${ad}.png`), kirp);
+    console.log('görüntü:', ad, kirp ? J(kirp) : '');
   };
+  /** Öğenin ekrandaki kutusu (CSS pikseli) */
+  const kutuAl = (ifade) => evalJs(`(() => { const e = ${ifade}; if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, r: r.right, b: r.bottom }; })()`);
+  const pencereBoyutu = () => evalJs(`[innerWidth, innerHeight]`);
   const komut = (k, ...a) => evalJs(`(window.__pdefe.komutCalistir(${J(k)}${a.map((x) => ', ' + J(x)).join('')}), true)`);
   const ayarKoy = (anahtar, deger) => evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', ${J(anahtar)}, ${J(deger)}); window.__pdefe.ayar()[${J(anahtar)}] = ${J(deger)}; return true; })()`);
   const hepsiniKapat = () => evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true });
@@ -166,6 +170,38 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   if (iste('notlar')) await ss('notlar');
   await esc();
 
+  // ------------------------------------------------------------ 0.2.2: geri al listesi, kaydedilmemiş değişiklikler listesi, kapatma sorusu
+  // Notları eklenmiş (kaydedilmemiş) TMK'de. Listeler gerçek fareyle açılır, fare bir satıra getirilir (en üstten o satıra kadar boyanır,
+  // altta "N işlemi geri al"); görüntü listenin çevresinden kırpılır.
+  await panel(false);
+  await evalJs(`(document.activeElement?.blur(), true)`);
+  const [pg, py] = await pencereBoyutu();
+  const listeyiAc = async (dugme, kaynak, satirNo) => {
+    const d = await kutuAl(`document.querySelector(${J(dugme)})`);
+    if (!d) { console.log('düğme yok:', dugme); return null; }
+    await tikla(Math.round((d.x + d.r) / 2), Math.round((d.y + d.b) / 2));
+    await kosul(`window.__pdefe.gecmisListesi.acik === ${J(kaynak)}`, 3000);
+    const s = await kutuAl(`document.querySelectorAll('.gecmis-listesi .gecmis-ogeler li')[${satirNo}]`);
+    if (s) await fare([{ tur: 'hareket', x: Math.round(s.x + 40), y: Math.round((s.y + s.b) / 2) }]);
+    await bekle(400);
+    return kutuAl(`document.querySelector('.gecmis-listesi')`);
+  };
+  // Geri al'ın yanındaki ▾: geri alınabilecek adımlar, üçüncü satıra kadar boyalı
+  let l = await listeyiAc('#dugme-geri-al-liste', 'geri', 2);
+  if (iste('geri-al') && l) await ss('geri-al', { x: 0, y: 0, width: Math.min(pg, Math.ceil(l.r + 48)), height: Math.min(py, Math.ceil(l.b + 40)) });
+  await esc();
+  // Durum çubuğundaki "Kaydedilmemiş değişiklikler": son kayıttan bu yana yapılanlar, ikinci satıra kadar boyalı, altta Kaydet
+  l = await listeyiAc('#durum-degisiklik', 'durum', 1);
+  if (iste('kaydedilmemis') && l) { const x = Math.max(0, Math.floor(l.x - 48)), y = Math.max(0, Math.floor(l.y - 40)); await ss('kaydedilmemis', { x, y, width: pg - x, height: py - y }); }
+  await esc();
+  // Pencere kapatma sorusu (dört sekme açık, TMK'de kaydedilmemiş değişiklik var): ana sürecin kapatma isteği taklit edilir, Vazgeç
+  await evalJs(`window.pdefe.cagir('test:olayGonder', 'pencere:kapatIstegi')`);
+  await kosul(`!!document.querySelector('.mesaj-kutusu')`, 4000);
+  if (iste('kapatma')) await ss('kapatma');
+  await evalJs(`(() => { const b = [...document.querySelectorAll('.mesaj-kutusu button')].find((x) => x.textContent.trim() === 'Vazgeç'); b?.click(); return !!b; })()`);
+  await kosul(`!document.querySelector('.mesaj-kutusu')`, 4000);
+  await bekle(300);
+
   // ------------------------------------------------------------ yazı kutusu düzenleme (biçim çubuğu)
   await sec(DILEKCE);
   await panel(true, 'sayfalar');
@@ -253,6 +289,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   // Sayfaları düzenle (TMK)
   await sec(TMK);
   await komut('arac.sayfalar'); await kosul(`!!document.querySelector('.arac-pencere')`, 5000);
+  await fare([{ tur: 'hareket', x: 8, y: 755 }]);   // fare bir kartın üstünde kalmasın (kartın düğmeleri görünürdü)
   await bekle(5000);
   if (iste('sayfalar')) await ss('sayfalar');
   await hepsiniTemizle();
@@ -268,7 +305,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
 
   // ------------------------------------------------------------ Ayarlar, Yazdır, Kısayollar
   await sec(TMK);
-  await komut('duzen.ayarlar'); await bekle(1000);
+  // Ayarlar › Açılış ve düzen, sonuna kaydırılmış: Sayfa düzeni ve Pencere › Pencereyi kapatırken (0.2.2)
+  await komut('duzen.ayarlar', 'acilis'); await bekle(1000);
+  await evalJs(`(() => { const i = document.querySelector('.ayarlar-icerik'); if (i) i.scrollTop = i.scrollHeight; return !!i; })()`); await bekle(400);
   if (iste('ayarlar')) await ss('ayarlar');
   await hepsiniTemizle();
   await komut('dosya.yazdir'); await bekle(1200);

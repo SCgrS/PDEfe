@@ -31,9 +31,9 @@ Kısayollar aşağıda Windows'a göre yazıldı; macOS'ta `Ctrl` yerine `⌘` k
 
 Belge açık değilken ve yeni sekmede: büyük **PDF aç** düğmesi (PDF'ler pencereye sürüklenerek de açılır), bütün araçlar ve altlarında
 son açılan en çok 10 belge (tek tıkla açılır; × ya da sağ tıkla listeden kaldırılır, klasörde gösterilir; kutu kaydırılmaz, geniş
-pencerede iki sütun). Uygulamanın adı ve sürümü sağ altta (tıklanınca Ayarlar › Hakkında açılır). Belge gerektiren bir araç seçilince
-önce Aç penceresi gelir, araç seçilen PDF'le açılır. Liste istenirse hiç tutulmaz: Ayarlar › Açılış ve düzen › Son açılanları hatırla
-kapatılınca liste silinir, açılış ekranındaki kutu ve Dosya menüsündeki Son açılanlar kalkar.
+pencerede iki sütun). Uygulamanın simgesi, adı ve sürümü sağ altta (tıklanınca Ayarlar › Hakkında açılır). Belge gerektiren bir araç
+seçilince önce Aç penceresi gelir, araç seçilen PDF'le açılır. Liste istenirse hiç tutulmaz: Ayarlar › Açılış ve düzen › Son açılanları
+hatırla kapatılınca liste silinir, açılış ekranındaki kutu ve Dosya menüsündeki Son açılanlar kalkar.
 
 ![Açılış ekranı: PDF aç, araçlar ve son açılanlar](docs/ekran-acilis.png)
 
@@ -52,10 +52,15 @@ kapatılınca liste silinir, açılış ekranındaki kutu ve Dosya menüsündeki
 - **Sekmede sağ tık:** Kapat, Diğerlerini kapat, Sağdakileri kapat, **Kaydet** (sağ tıklanan sekmenin belgesini o sekmeye geçmeden
   kaydeder; kaydederken bir şey sorulacaksa önce belge öne gelir; kaydedilecek değişiklik yokken soluk), Pencereye ayır, Klasörde
   göster, Yolu kopyala, PDF'i kopyala.
-- **Kapatma.** Pencere kapatılırken değişikliği olmayan sekmeler hemen kapanır; kaydedilmemiş değişikliği olan her belge için "Çıkmadan
-  önce kaydetmek ister misiniz?" sorulur (Kaydet / Kaydetme / Vazgeç; Vazgeç'te o belgeler açık kalır). Açık bir araç penceresinde
-  kaydedilmemiş iş varsa önce onun sorusu gelir. Windows oturumu kapatılırken ya da bilgisayar yeniden başlatılırken de kaydedilmemiş
-  belge varsa Windows bekletilir ve aynı soru sorulur.
+- **Kapatma.** Pencerede birden çok sekme açıkken pencere kapatılınca (× ya da `Alt+F4`; macOS'ta kırmızı kapatma düğmesi) önce "Bu
+  pencerede N sekme açık." sorulur: **Geçerli sekme** yalnızca öndeki sekmeyi kapatır, pencere açık kalır; **Tüm sekmeler** (`Enter`)
+  pencereyi bütün sekmeleriyle kapatır; **Vazgeç** (`Esc`) hiçbir şeyi kapatmaz. **Bir daha sorma** işaretlenirse seçim hatırlanır, bütün
+  pencerelerde geçerli olur ve Ayarlar › Açılış ve düzen › Pencere › **Pencereyi kapatırken**'den değiştirilir (Her seferinde sor /
+  Yalnızca geçerli sekmeyi kapat / Bütün sekmeleri kapat). Tek sekmeli pencerede, **Dosya › Çıkış**'ta (macOS'ta `⌘Q`) ve Windows oturumu
+  kapanırken bu soru sorulmaz; `Ctrl+W` (`⌘W`) de sormaz, sekmeyi kapatır. Ardından değişikliği olmayan sekmeler hemen kapanır;
+  kaydedilmemiş değişikliği olan her belge için "Çıkmadan önce kaydetmek ister misiniz?" sorulur (Kaydet / Kaydetme / Vazgeç; Vazgeç'te o
+  belgeler açık kalır). Sorular sırayla gelir, üst üste açılmaz. Açık bir araç penceresinde kaydedilmemiş iş varsa önce onun sorusu gelir.
+  Windows oturumu kapatılırken ya da bilgisayar yeniden başlatılırken de kaydedilmemiş belge varsa Windows bekletilir ve aynı soru sorulur.
 - **Pencereler.** Sekme kendi penceresine ayrılır: sekmeyi sekme çubuğunun dışına sürükleyip bırakın (belgenin adı ve küçük görüntüsü
   imleci izler; bırakılan yerde, öteki ekranda da, yeni pencere açılır) ya da sekmede sağ tık › **Pencereye ayır**. Ayrılan sekme başka
   bir PDEfe penceresinin sekme çubuğuna bırakılınca o pencereye takılır (gireceği yer çizgiyle gösterilir); çubuğa geri getirilirse
@@ -64,8 +69,10 @@ kapatılınca liste silinir, açılış ekranındaki kutu ve Dosya menüsündeki
   pencerede açık olur: başka pencerede açık belge yeniden açılmak istenince o pencere öne gelir; Gezgin'de (macOS'ta Finder'da) çift
   tıklanan ya da Dock simgesine bırakılan PDF en son kullanılan pencerede açılır. Pencere kapatılırken yalnızca o pencerenin kaydedilmemiş
   belgeleri sorulur; **Dosya › Çıkış** (macOS'ta **PDEfe › PDEfe'den çık**, `⌘Q`, ya da Dock › Çık) bütün pencereleri sırayla kapatır,
-  `Alt+F4` yalnızca etkin pencereyi. PDEfe son kullanılan pencerenin yerinde açılır; o ekran artık bağlı değilse (ikinci ekran
-  çıkarıldıysa) pencere görünen bir ekrana alınır.
+  `Alt+F4` yalnızca etkin pencereyi (birden çok sekmede önce yukarıdaki soruyla). PDEfe son kullanılan pencerenin yerinde açılır; o ekran
+  artık bağlı değilse (ikinci ekran çıkarıldıysa) pencere görünen bir ekrana alınır.
+
+![Pencere kapatılırken: Geçerli sekme / Tüm sekmeler / Vazgeç ve Bir daha sorma](docs/ekran-kapatma.png)
 
 ### Görünüm
 
@@ -80,10 +87,13 @@ kapatılınca liste silinir, açılış ekranındaki kutu ve Dosya menüsündeki
   görünür alana sığdır ve hazır yüzdeler. Genişliğe sığdır, kaydırmalı düzende sayfaların çoğunun genişliğine göredir: birkaç geniş
   sayfa belgeyi küçültmez, yana taşar.
 - **Okuma modu ve tam ekran.** `Ctrl+H` okuma modu: araç, sekme ve durum çubukları gizlenir; fare pencerenin üst kenarına gelince araç
-  çubuğu görünür; `Ctrl+H` ya da `Esc` ile çıkılır. `F11` tam ekran. Sol panelde (`F4`) küçük resimler, İçindekiler (yer imleri) ve
-  Yorumlar.
+  çubuğu görünür; `Ctrl+H` ya da `Esc` ile çıkılır. `F11` tam ekran.
+- **Sol panel** (`F4`): Sayfalar (küçük resimler), İçindekiler (yer imleri) ve Yorumlar. Panel sağ kenarından sürüklenerek daraltılır ya
+  da genişletilir (en çok pencerenin %60'ı); küçük resimler panelin genişliğine uyar: daralınca kesilmeden küçülür, genişleyince büyür ve
+  bıraktıktan bir an sonra keskinleşir. Bulunulan sayfa panelde görünür kalır.
 - **Durum çubuğu.** Altta sayfa numarası (yazıp `Enter` ile o sayfaya gidilir), yakınlaştırma, dosya boyutu ve kaydedilmemiş değişiklik
-  işareti.
+  işareti. Belgede kaydedilmemiş değişiklik varken sağda **● Kaydedilmemiş değişiklikler** yazısı ve yanında aynı renkte bir liste simgesi
+  durur; tıklanınca son kayıttan bu yana yapılanların listesi açılır (bkz. [Geri al / yinele](#notlar)).
 - **Koyu mod.** Varsayılan olarak sistem temasını izler (Ayarlar › Görünüm › Tema: Açık / Koyu / Sistemi izle); araç çubuğunun
   sağındaki ay / güneş düğmesi ya da Görünüm › Koyu / açık tema ile hemen değişir. **Sayfayı da koyulaştır** açıksa sayfa da tam siyaha
   koyulaştırılır (görseller korunur; yazı kutuları sayfayla birlikte koyulaşır, dosyadaki renkleri değişmez; yazdırma ve kaydetme
@@ -152,11 +162,24 @@ aramada düzeltilir.
   Not ekleme ve sayfa döndürme dosyanın sonuna eklenerek kaydedilir, belgenin geri kalanına dokunulmaz, PDF'e gömülü e-imza bozulmaz.
   Kayıtlı bir not silinir ya da değişirse belge baştan yazılır, notun eski hâli dosyada kalmaz (belgede e-imza varsa imzayı korumak için
   sorulur). Sayfa silmek, sıralamak ya da sayfa eklemek belgeyi baştan yazar; bu durumda e-imza geçersiz görünür.
-- **Geri al / yinele.** Her not ve sayfa işlemi `Ctrl+Z` / `Ctrl+Y` ile geri alınır; kayıttan sonra bile.
+- **Geri al / yinele.** Her not ve sayfa işlemi `Ctrl+Z` / `Ctrl+Y` ile geri alınır; kayıttan sonra bile. Geri al düğmesinin yanındaki
+  **▾** geri alınabilecek adımları listeler: en yenisi üstte, her satırda işlem ve sayfası ("Not ekle · s. 3", "Sayfaları döndür · s. 3–4",
+  "Sayfa düzenini uygula · 1 sayfa silindi, sıra değişti"). Word'deki gibi fare bir satıra gelince en üstten o satıra kadar boyanır, altta
+  "3 işlemi geri al" gibi yazar; tıklanınca o kadar adım birlikte geri alınır. Klavyeyle: ▾'ye gelip `Enter`, `↑` `↓` boyamayı değiştirir,
+  `Enter` uygular, `Esc` kapatır. Geri alınacak bir şey yokken ▾ soluktur.
+- **Kaydedilmemiş değişiklikler listesi.** Durum çubuğundaki **● Kaydedilmemiş değişiklikler** yazısına (ya da yanındaki liste simgesine)
+  tıklanınca yalnızca son kayıttan bu yana yapılanlar listelenir; boyama ve birlikte geri alma aynı biçimde çalışır, listenin altındaki
+  **Kaydet** belgeyi kaydeder. Kaydedildikten sonra geri alınan adımlar "(geri alındı)" diye soluk görünür: dosyada hâlâ dururlar,
+  kaydedince dosyadan da kalkarlar.
 
 ![Vurgular, metinle ilgili yorum, not, yazı ve Yorumlar paneli](docs/ekran-notlar.png)
 
 ![Yazı kutusu düzenlenirken biçim çubuğu](docs/ekran-yazi.png)
+
+<p>
+  <img src="docs/ekran-geri-al.png" alt="Geri al listesi: en üstteki üç adım birlikte geri alınacak">
+  <img src="docs/ekran-kaydedilmemis.png" alt="Kaydedilmemiş değişiklikler listesi ve Kaydet düğmesi">
+</p>
 
 ### Araçlar
 
@@ -167,24 +190,26 @@ hariç). Pencerelerdeki fare ve tuş kullanımı `F1` Kısayollar'dadır.
 
 - **Sıkıştır:** Aşırı / İdeal / Düşük sıkıştırma, her birinde tahmini boyut; üzerine yazarken sonuç özgünden küçük değilse dosyaya
   dokunulmaz.
-- **Sayfaları düzenle:** küçük resim ızgarasında sürükleyerek sıralama, boş alandan sürükleyerek çoklu seçim, silme, döndürme, boş sayfa
-  ya da başka PDF'ten sayfa ekleme; pencere sekme şeridinin altında açılır.
+- **Sayfaları düzenle:** büyük sayfa önizlemeleriyle (ekran ölçeğine göre keskin; geniş pencerede satırda 4–5 sayfa) ızgarada sürükleyerek
+  sıralama, boş alandan sürükleyerek çoklu seçim, silme, döndürme, boş sayfa ya da başka PDF'ten sayfa ekleme; ok tuşları sayfalar
+  arasında gezer (`↑` `↓` bir satır). Pencere geniştir ve sekme şeridinin altında açılır.
 - **Döndür:** tüm sayfalar, geçerli sayfa ya da bir aralık; 90° saat yönünde, tersine ya da 180°.
 - **Ayır:** sayfa aralıklarına göre (örn. `1-3, 4-10, 11`; `-3` baştan 3. sayfaya, `8-` 8. sayfadan sona) ayrı ayrı dosya ya da tek
   dosya, ya da her sayfa ayrı dosya; oluşturulacak dosyalar adlarıyla önceden listelenir.
 - **Görüntü / PDF birleştir:** PDF, JPG, PNG, BMP, GIF, TIFF ve WEBP dosyalarından tek PDF (HEIC fotoğraflarını önce JPG ya da PNG'ye
-  çevirin). Bir PDF açıkken açılınca o PDF listenin başında gelir; pencere sekme şeridinin altında açılır, arkadaki sekmelerden doğru
-  belgede olunduğu görülür. Dosya ekle, sürükle-bırak, `Ctrl+V`, Panodan ekle ya da sağ tık Yapıştır; Orijinal / Yüksek / Orta / Düşük
-  kalite düğmelerinde toplam tahmini boyut; görüntünün sayfası "Orijinal" (varsayılan: sayfa tam görsel boyutunda) ya da "A4'e sığdır";
-  farenin sağ tuşuyla sürükleyerek, `Ctrl` / `Shift` ile tıklayarak çoklu seçim, seçilenler birlikte döndürülür, taşınır, `Delete`
-  (macOS'ta `⌫`) ile çıkarılır.
+  çevirin). Her dosyanın satırında büyük, keskin bir önizleme (PDF'in ilk sayfası ya da görüntünün kendisi) görünür. Bir PDF açıkken
+  açılınca o PDF listenin başında gelir; pencere sekme şeridinin altında açılır, arkadaki sekmelerden doğru belgede olunduğu görülür.
+  Dosya ekle, sürükle-bırak, `Ctrl+V`, Panodan ekle ya da sağ tık Yapıştır; Orijinal / Yüksek / Orta / Düşük kalite düğmelerinde toplam
+  tahmini boyut; görüntünün sayfası "Orijinal" (varsayılan: sayfa tam görsel boyutunda) ya da "A4'e sığdır"; farenin sağ tuşuyla
+  sürükleyerek, `Ctrl` / `Shift` ile tıklayarak çoklu seçim, seçilenler birlikte döndürülür, taşınır, `Delete` (macOS'ta `⌫`) ile
+  çıkarılır.
 
 <p>
   <img src="docs/ekran-sikistir.png" width="49%" alt="Sıkıştır: üç seviye ve tahmini boyutlar">
   <img src="docs/ekran-ayir.png" width="49%" alt="Ayır: sayfa aralıkları ve oluşturulacak dosyalar">
 </p>
 
-![Sayfaları düzenle: küçük resim ızgarası](docs/ekran-sayfalar.png)
+![Sayfaları düzenle: büyük sayfa önizlemeleri](docs/ekran-sayfalar.png)
 
 ![Görüntü / PDF birleştir: PDF'ler ve görüntüler tek PDF'te](docs/ekran-birlestir.png)
 
@@ -224,7 +249,8 @@ pencereye sürüklenerek açılır.
 - **Görünüm:** tema, sayfayı da koyulaştır, yazı çizimi (macOS'ta "macOS çizimi").
 - **Açılış ve düzen:** varsayılan PDF görüntüleyici (Windows'ta düğme; PDEfe zaten varsayılansa "Zaten varsayılan"; macOS'ta Finder ›
   Bilgi Al yolu anlatılır), kaldığım sayfa ve Hatırlanan sayfaları temizle, son açılanlar ve Listeyi temizle, yakınlaştırma, tek / iki
-  sayfa, kaydırma, kapak.
+  sayfa, kaydırma, kapak; Pencere başlığı altında **Pencereyi kapatırken** (birden çok sekmeli pencere kapatılınca: Her seferinde sor /
+  Yalnızca geçerli sekmeyi kapat / Bütün sekmeleri kapat; kapatma sorusundaki "Bir daha sorma" da bunu değiştirir).
 - **Not ve vurgu:** yazar adı, vurgu rengi ve opaklığı, yazı aracının yazı tipi, boyutu, rengi ve dolgusu.
 - **Kaydetme:** otomatik kaydet, araçların çıktı klasörü.
 - **Güncelleme** ve **Hakkında** (sürüm, geliştirici; Yardım › PDEfe hakkında, macOS'ta PDEfe › PDEfe hakkında).
@@ -232,7 +258,7 @@ pencereye sürüklenerek açılır.
 **Varsayılanlara dön** ayarları sıfırlar; son açılanlar, sayfa konumları ve pencere yerleşimi korunur. Kopyalama her zaman temiz metinle
 yapılır.
 
-![Ayarlar penceresi](docs/ekran-ayarlar.png)
+![Ayarlar › Açılış ve düzen: sayfa düzeni ve Pencereyi kapatırken](docs/ekran-ayarlar.png)
 
 ## Klavye kısayolları
 
@@ -270,7 +296,7 @@ yapılır.
 | `Delete` | `⌫` | Seçili notu sil |
 | `Esc` | `Esc` | Kapat / vazgeç; yazı kutusunda düzenlemeyi bitirir (yazılan korunur) |
 | `F1` | `F1` (`fn+F1`) | Kısayollar (araç pencerelerindeki fare ve tuş kullanımı dahil) |
-| `Alt+F4` | `⌘Q` | Çıkış (Windows'ta etkin pencereyi kapatır; macOS'ta bütün pencereleri sırayla kapatıp çıkar) |
+| `Alt+F4` | `⌘Q` | Windows'ta etkin pencereyi kapatır (birden çok sekme açıksa önce "Geçerli sekme / Tüm sekmeler" sorulur); macOS'ta çıkış: bütün pencereleri sırayla kapatır, bu soru sorulmaz |
 
 `F1` aşağıdaki pencereyi açar; araç pencerelerindeki fare ve tuş kullanımı da oradadır.
 
