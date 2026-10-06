@@ -32,8 +32,12 @@ $utf8Bom = New-Object System.Text.UTF8Encoding $true
 function Derle([string]$ad, [string]$metin) {
   $nsi = Join-Path $gecici "$ad.nsi"
   [System.IO.File]::WriteAllText($nsi, $metin, $utf8Bom)
-  $cikis = & $makensis.FullName -WX -V2 -INPUTCHARSET UTF8 $nsi 2>&1
-  if ($LASTEXITCODE -ne 0) { throw "makensis başarısız ($ad, çıkış $LASTEXITCODE):`n$($cikis -join "`n")" }
+  # makensis uyarıları stderr'e yazar; Windows PowerShell 5.1'de Stop altında bu bir hata kaydı olur, çıktı olduğu gibi alınsın
+  $eskiTercih = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+  $cikis = & $makensis.FullName -WX -V2 -INPUTCHARSET UTF8 $nsi 2>&1 | ForEach-Object { "$_" }
+  $kod = $LASTEXITCODE
+  $ErrorActionPreference = $eskiTercih
+  if ($kod -ne 0) { throw "makensis başarısız ($ad, çıkış $kod):`n$($cikis -join "`n")" }
 }
 
 # İşaretçi: penceresiz küçük exe. /ISARET=<dosya> komut satırını dosyaya yazar, /BEKLE=<ms> bekler. Kurulu klasördeki program ve kaldırıcı
@@ -68,6 +72,7 @@ function KosumDerle([string]$surum) {
   $exe = Join-Path $gecici "kosum-$surum.exe"
   Derle "kosum-$surum" @"
 Unicode true
+!addincludedir "$sablon"
 !addincludedir "$sablon\include"
 !addplugindir /x86-unicode "$($eklentiler.FullName)"
 !include "StdUtils.nsh"
@@ -88,6 +93,16 @@ InstallDir "`$LOCALAPPDATA\PDEfeSayfaSinama"
   StrCmp "`$R9" "true" "`${_t}" "`${_f}"
 !macroend
 !define isUpdated ``"" isUpdated ""``
+!macro _isForAllUsers _a _b _t _f
+  `${StdUtils.TestParameter} `$R9 "allusers"
+  StrCmp "`$R9" "true" "`${_t}" "`${_f}"
+!macroend
+!define isForAllUsers ``"" isForAllUsers ""``
+!macro _isForCurrentUser _a _b _t _f
+  `${StdUtils.TestParameter} `$R9 "currentuser"
+  StrCmp "`$R9" "true" "`${_t}" "`${_f}"
+!macroend
+!define isForCurrentUser ``"" isForCurrentUser ""``
 !define VERSION "$surum"
 !define APP_ID "com.cgrshn.kurucusinama"
 !define PRODUCT_NAME "PDEfe"
@@ -99,7 +114,13 @@ InstallDir "`$LOCALAPPDATA\PDEfeSayfaSinama"
 !define PDEFE_KAYIT_ADI "PDEfeSayfaSinama"
 !define PDEFE_PROGID "PDEfeSayfaSinama.pdf"
 !define HIDE_RUN_AFTER_FINISH
-Var installMode
+!define APP_FILENAME "PDEfeSayfaSinama"
+!define INSTALL_MODE_PER_ALL_USERS_REQUIRED
+; electron-builder'ın "Kimler için kurulsun?" sayfası olduğu gibi (multiUser.nsh, multiUserUi.nsh): build\installer.nsh onu customInstallMode ile atlar
+; tam yolla: NSIS'in kendi Include\MultiUser.nsh'i başka bir dosya (dosya adlarında harf ayrımı yok)
+!include "$sablon\include\UAC.nsh"
+!include "$sablon\multiUser.nsh"
+!include "$sablon\multiUserUi.nsh"
 
 ; common.nsh'teki skipPageIfUpdated'ın kopyası: lisans ve klasör sayfalarının atlanması electron-builder'daki gibi
 !macro skipPageIfUpdated
@@ -120,19 +141,37 @@ Var installMode
 
 !include "$Nsh"
 
+; assistedInstaller.nsh'teki sıra
 !insertmacro customWelcomePage
 !insertmacro skipPageIfUpdated
 !insertmacro licensePage
+!insertmacro PAGE_INSTALL_MODE
 !insertmacro skipPageIfUpdated
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro customPageAfterChangeDir
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "Turkish"
+; assistedMessages.yml'in Türkçesi (yalnızca installer.nsh'in üzerine yazmadıkları), sonra installer.nsh'in iletileri (installer.nsi'deki gibi)
+LangString chooseInstallationOptions `${LANG_TURKISH} "Yükleme Ayarlarını Seçin"
+LangString whoShouldThisApplicationBeInstalledFor `${LANG_TURKISH} "Bu Uygulama Kimler için Kurulsun?"
+!insertmacro customHeader
 
 Function .onInit
-  SetShellVarContext current
-  StrCpy `$installMode "CurrentUser"
   `${GetParameters} `$R0
+  ; /HERKES: yönetici olarak "herkes için" kurulmuş PDEfe bulunmuş gibi (initMultiUser kurulum kipini "all" yapar)
+  ClearErrors
+  `${GetOptions} `$R0 "/HERKES" `$R1
+  `${IfNot} `${Errors}
+    StrCpy `$installMode "all"
+    SetShellVarContext all
+    StrCpy `$hasPerMachineInstallation "1"
+    StrCpy `$hasPerUserInstallation "0"
+  `${Else}
+    StrCpy `$installMode "CurrentUser"
+    SetShellVarContext current
+    StrCpy `$hasPerMachineInstallation "0"
+    StrCpy `$hasPerUserInstallation "0"
+  `${EndIf}
   ClearErrors
   `${GetOptions} `$R0 "/SURUM=" `$R1
   `${IfNot} `${Errors}
@@ -460,6 +499,24 @@ try {
     Denetle "kurulu $($d[0]) → «$($d[1])», İleri «$($s.Ileri.Yazi)»" ($s.Baslik -eq $d[1]) "«$($s.Baslik)»"
     Kapat $s9
   }
+
+  # -------------------------------------------------------------- 10. "herkes için" kurulum (HKLM): sihirbaz bugünkü gibi, kip sayfası Türkçe
+  # Kip sayfasında İleri'ye basılmaz: yönetici izni (UAC) istenir, onay penceresi kullanıcının ekranında açılırdı. Yalnızca İptal.
+  Yaz '10. "herkes için" kurulmuş PDEfe (kurulum kipi all)'
+  $s10 = Kosum-Baslat $kosum "/HERKES /SURUM=0.2.2 /KLASOR=$klasorTam" $sonucDosyasi
+  $w = Sihirbaz-Bekle $s10
+  $s = Sayfa-Oku $w
+  Denetle 'kurulu sürüm sayfası gösterilmedi: ilk sayfa lisans, Geri gizli' ($s.Baslik -eq 'Lisans Sözleşmesi' -and -not $s.Geri.Gorunur) "«$($s.Baslik)»"
+  [KurucuSurucu]::Dugme($w, 1) | Out-Null
+  $s = Gecis-Bekle $s10 $w $s.Baslik
+  Denetle '"Kimler için kurulsun?" sayfası bu kipte görünüyor' ($s.Baslik -eq 'Yükleme Ayarlarını Seçin') "«$($s.Baslik)»"
+  $herkes = $s.Secenekler | Where-Object { $_.Yazi -match 'herkes' } | Select-Object -First 1
+  Denetle 'solgun seçenekte İngilizce "(must run as admin)" yok' ($herkes -and $herkes.Yazi -eq 'Bu bilgisayarı kullanan &herkes (yönetici olarak çalıştırılmalı)' -and -not $herkes.Etkin) "«$($herkes.Yazi)» etkin $($herkes.Etkin)"
+  Goruntu-Al $w 'surum-10-herkes-kip'
+  [KurucuSurucu]::Dugme($w, 2) | Out-Null
+  $kod = [KurucuSurucu]::Bekle($s10, 8000)
+  Denetle 'İptal: kurucu kapandı' ($kod -ge 0) "çıkış $kod"
+  Kapat $s10
 } finally {
   [KurucuSurucu]::MasaKapat()
   Remove-Item -Path 'HKCU:\Software\PDEfeSayfaSinama' -Recurse -Force -ErrorAction SilentlyContinue

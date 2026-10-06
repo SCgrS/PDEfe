@@ -46,6 +46,10 @@
 ;   8. "Bu uygulama kimler için kurulsun?" sayfası kalktı (0.2.3): PDEfe yalnızca kullanıcıya kurulur, "herkes için" seçeneği zaten
 ;      solgundu. Yönetici olarak "herkes için" kurulmuş bir PDEfe bulunursa (initMultiUser kurulum kipini "all" yapar) sayfa ve
 ;      sihirbaz bugünkü gibi kalır, kurulu sürüm sayfası gösterilmez: o kurulum ancak yönetici izniyle güncellenebilir.
+;   9. electron-builder'ın Türkçesi olmayan ya da yanlış çevrilmiş iletileri (0.2.3): customHeader'da LangString'lerin üzerine yazılır
+;      (kurucu ve kaldırıcı). Şablonlara gömülü İngilizce birkaç durum yazısı ("Waiting for … to close.", "File is busy, aborting") yalnızca
+;      kanca değiştirilerek (customCheckAppRunning / customRemoveFiles) Türkçeleşebilirdi; bu kancalar güncelleme yolunu da değiştirdiği için
+;      kullanılmadı.
 ;
 ; Kodlama: UTF-8 (electron-builder makensis'i -INPUTCHARSET UTF8 ile çağırır).
 
@@ -56,6 +60,41 @@
 !define /ifndef PDEFE_KAYIT_KOKU "Software\${PDEFE_KAYIT_ADI}"
 !define /ifndef PDEFE_PROGID "PDEfe.pdf"
 !define /ifndef PDEFE_VARSAYILAN_URL "ms-settings:defaultapps?registeredAppUser=${PDEFE_KAYIT_ADI}"
+
+; ---------------------------------------------------------------- Türkçe iletiler (madde 9)
+; customHeader, installer.nsi'de bütün içermelerden ve addLangs'ten (MUI_LANGUAGE "Turkish") sonra açılır: electron-builder'ın ileti
+; dosyalarındaki (messages.yml, assistedMessages.yml) LangString'lerin üzerine yazar; build\installer.nsh betikte o dosyalardan önce de sonra
+; da gelebildiği için burada. Aynı LangString'in yeniden tanımı uyarı 6030'dur; -WX'te yalnızca bu blokta kapatılır. Sessiz kurulumda
+; ileti kutuları gösterilmez (/SD); metinler dışında hiçbir şey değişmez.
+!macro customHeader
+  !pragma warning push
+  !pragma warning disable 6030
+  ; Kurucunun ve kaldırıcının açık PDEfe sorusu (_CHECK_APP_RUNNING; Tamam'da PDEfe Stop-Process ile kapatılır, İptal'de işlem durur)
+  LangString appRunning ${LANG_TURKISH} "${PRODUCT_NAME} açık. Devam etmek için kapatılması gerekiyor.$\r$\n$\r$\nTamam'a basarsanız ${PRODUCT_NAME} kapatılır; kaydedilmemiş değişiklikler kaybolur. Belgelerinizi kaydetmek için İptal'e basın, sonra yeniden deneyin."
+  ; Türkçe Windows'ta MB_RETRYCANCEL düğmesi "Yeniden Dene" (0.2.2'ye dek "Tekrar'a tıklayın" diyordu)
+  LangString appCannotBeClosed ${LANG_TURKISH} "${PRODUCT_NAME} kapatılamadı.$\r$\nLütfen ${PRODUCT_NAME}'yi elle kapatın, sonra Yeniden Dene'ye basın."
+  LangString appClosing ${LANG_TURKISH} "${PRODUCT_NAME} kapatılıyor..."
+  LangString decompressionFailed ${LANG_TURKISH} "Dosyalar açılamadı. Kurucuyu yeniden çalıştırmayı deneyin."
+  ; handleUninstallResult sonuna ": <çıkış kodu>" ekler
+  LangString uninstallFailed ${LANG_TURKISH} "Eski sürümün dosyaları kaldırılamadı (bir dosya kullanımda olabilir). ${PRODUCT_NAME}'yi kapatıp kurucuyu yeniden çalıştırın. Hata kodu"
+  LangString areYouSureToUninstall ${LANG_TURKISH} "${PRODUCT_NAME}'yi kaldırmak istediğinizden emin misiniz?"
+  ; "Kimler için kurulsun?" sayfası (yalnızca "herkes için" kipte) ve kaldırıcının eşi (iki kurulum birden varsa). Şablon kurulum
+  ; yazılarının sonuna boşluksuz "(<klasör>)" ve satır sonuyla reinstallUpgrade / uninstall ekler.
+  LangString forAll ${LANG_TURKISH} "Bu bilgisayarı kullanan &herkes"
+  LangString onlyForMe ${LANG_TURKISH} "Yalnızca &benim için"
+  LangString selectUserMode ${LANG_TURKISH} "${PRODUCT_NAME} bu bilgisayardaki herkes için mi, yalnızca sizin için mi kurulsun?"
+  LangString perUserInstallExists ${LANG_TURKISH} "Bu kullanıcı için zaten bir kurulum var "
+  LangString perMachineInstallExists ${LANG_TURKISH} "Herkes için zaten bir kurulum var "
+  LangString perUserInstall ${LANG_TURKISH} "Bu kullanıcı için bir kurulum var "
+  LangString perMachineInstall ${LANG_TURKISH} "Herkes için bir kurulum var "
+  LangString reinstallUpgrade ${LANG_TURKISH} "Üzerine yeniden kurulur ya da güncellenir."
+  LangString uninstall ${LANG_TURKISH} "Kaldırılacak."
+  LangString freshInstallForAll ${LANG_TURKISH} "Herkes için yeni kurulum (yönetici izni istenir)."
+  LangString freshInstallForCurrent ${LANG_TURKISH} "Yalnızca sizin için yeni kurulum."
+  LangString whichInstallationRemove ${LANG_TURKISH} "${PRODUCT_NAME} hem herkes için hem de yalnızca sizin için kurulu.$\r$\nHangisi kaldırılsın?"
+  LangString loginWithAdminAccount ${LANG_TURKISH} "Devam etmek için yönetici grubundaki bir hesapla oturum açmanız gerekiyor."
+  !pragma warning pop
+!macroend
 
 ; ---------------------------------------------------------------- kurulu sürüm sayfası (madde 7)
 ; customWelcomePage ilk sayfadır ve .onInit'ten, customPageAfterChangeDir'den önce açılır: kurucunun bütün değişkenleri burada bildirilir
@@ -343,6 +382,11 @@
     ${If} $installMode == "CurrentUser"
       StrCpy $isForceCurrentInstall "1"
     ${EndIf}
+    ; Sayfa gösterilirse ("herkes için" kip) solgun seçeneğe eklenen sabit İngilizce "(must run as admin)" Türkçesiyle değişsin: bu tanım
+    ; aynı ön işlevin sonundaki MUI_PAGE_FUNCTION_CUSTOM SHOW'da çağrıya döner (işlev customPageAfterChangeDir'de; o sayfanın Var'larından sonra)
+    !ifndef MULTIUSER_INSTALLMODE_ALLOW_ELEVATION
+      !define MUI_PAGE_CUSTOMFUNCTION_SHOW pdefeKipSayfasiGoster
+    !endif
   !endif
 !macroend
 
@@ -375,6 +419,18 @@
 
   Var pdefeEkGorevlerSayfa
   Var pdefeMasaustuKutusu
+
+  ; "Kimler için kurulsun?" sayfası yalnızca "herkes için" kipte görünür (madde 8); yönetici olmayan kullanıcıda solgun seçeneğin yazısı
+  ; (multiUserUi.nsh sabit İngilizce "(must run as admin)" ekliyor)
+  !ifmacrodef PAGE_INSTALL_MODE
+  !ifndef MULTIUSER_INSTALLMODE_ALLOW_ELEVATION
+    Function pdefeKipSayfasiGoster
+      ${IfNot} ${UAC_IsAdmin}
+        SendMessage $MultiUser.InstallModePage.AllUsers ${WM_SETTEXT} 0 "STR:$(forAll) (yönetici olarak çalıştırılmalı)"
+      ${EndIf}
+    FunctionEnd
+  !endif
+  !endif
 
   Function pdefeEkGorevlerOlustur
     ; Güncelleme kurulumunda sayfayı atla (önceki tercih korunur, kısayollar keepShortcuts ile taşınır)

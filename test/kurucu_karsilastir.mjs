@@ -86,7 +86,9 @@ function cozumle(gunluk, diller) {
 function dilTablosu(betik, nsh) {
   const tablo = new Map();
   for (const metin of [betik, fs.readFileSync(nsh, 'utf8')]) {
-    for (const m of metin.matchAll(/^\s*LangString\s+(\S+)\s+(\d+)\s+"(.*)"\s*$/gm)) tablo.set(`${m[1]} ${m[2]}`, m[3]);
+    for (const m of metin.matchAll(/^\s*LangString\s+(\S+)\s+(\d+|\$\{LANG_\w+\})\s+"(.*)"\s*$/gm)) {
+      tablo.set(`${m[1]} ${m[2] === '${LANG_TURKISH}' ? '1055' : m[2]}`, m[3]);
+    }
   }
   return tablo;
 }
