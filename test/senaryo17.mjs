@@ -101,7 +101,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   const kutuGen = await evalJs(`document.querySelector('#sayfa-kutusu').getBoundingClientRect().width`);
   await ac('buyuk.pdf');
   const kutuGen2 = await evalJs(`({ g: document.querySelector('#sayfa-kutusu').getBoundingClientRect().width, h: document.querySelector('#sayfa-kutusu').getBoundingClientRect().height, toplam: document.querySelector('#sayfa-toplam').textContent })`);
-  sonuc('Sayfa kutusu küçük (≤ 42 px, 24 px yükseklik) ve çok basamaklı belgede genişler', kutuGen <= 34 && kutuGen2.g > kutuGen && kutuGen2.g <= 42 && Math.round(kutuGen2.h) === 24, { kutuGen, kutuGen2 });
+  // Yükseklik 0.2.2'de araç çubuğuyla birlikte 24 → 28 px (yakınlaştırma kutusuyla aynı; stil.css #sayfa-kutusu); genişlik kuralı değişmedi
+  sonuc('Sayfa kutusu küçük (≤ 42 px, 28 px yükseklik: yakınlaştırma kutusuyla aynı) ve çok basamaklı belgede genişler', kutuGen <= 34 && kutuGen2.g > kutuGen && kutuGen2.g <= 42 && Math.round(kutuGen2.h) === 28
+    && Math.round(kutuGen2.h) === Math.round(await evalJs(`document.querySelector('#zoom-kutusu').getBoundingClientRect().height`)), { kutuGen, kutuGen2 });
 
   // ---------------------------------------------------------------- 18) döndürme simgeleri
   const simge = await evalJs(`(() => { const d = document.querySelector('[data-komut="gorunum.dondur"] svg'); return { yay: d.querySelector('path')?.getAttribute('d'), dolu: d.querySelectorAll('path')[1]?.getAttribute('fill') }; })()`);

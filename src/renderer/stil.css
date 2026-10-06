@@ -637,6 +637,8 @@ body.okuma-modu.ust-goster #arac-cubugu { display: flex; position: absolute; top
 ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.45); border-radius: 6px; border: 3px solid transparent; background-clip: padding-box; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(128,128,128,0.7); background-clip: padding-box; border: 3px solid transparent; }
 ::-webkit-scrollbar-track { background: transparent; }
+/* Yatay ve dikey çubuk birlikteyken sağ alt köşe de saydam (0.2.2): boyanmadığında Chromium beyaz kare çiziyordu (koyu temada da) */
+::-webkit-scrollbar-corner { background: transparent; }
 /* Belge görünümünün çubukları daha kalın (0.1.24, kullanıcı isteği: tutması kolay olsun; tutamak 6 → 10 px; 0.2.2, kullanıcı isteği: 16 →
    20 px, tutamak 10 → 14 px; saydam kenar 3 px kaldı). 20 px, %125 / %150 / %175 ölçekte tam cihaz pikseline düşer (25, 30, 35; 18 px %125'te
    22,5 ederdi). Sığdırma hesabı kalınlığı ölçer (goruntuleyici.js cubukKalinligi): ölçüm kutusu .kaydirma-olcer aynı kuralı alır */

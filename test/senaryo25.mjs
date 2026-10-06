@@ -1,4 +1,5 @@
-// Senaryo 25 (0.1.24): menü çubuğu düğmesi, belge görünümünün kalın kaydırma çubuğu (0.2.2'de 16 → 20 px), görsellerdeki yazının tanınması.
+// Senaryo 25 (0.1.24): menü çubuğu düğmesi, belge görünümünün kalın kaydırma çubuğu (0.2.2'de 16 → 20 px; iki çubuk birlikteyken sağ alt
+// köşe zemin renginde, açık ve koyu temada ekran görüntüsünden), görsellerdeki yazının tanınması.
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9425 -Veri "%TEMP%\pdefe-s25-9425"      → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9425; node test\surucu.mjs betik test\senaryo25.mjs
@@ -33,7 +34,7 @@ const katmanOgeleri = (n) => `(() => {
       x: r.left, y: r.top, w: r.width, h: r.height }; });
 })()`;
 
-export default async function ({ evalJs, bekle, tikla, surukle }) {
+export default async function ({ evalJs, bekle, tikla, surukle, ekranGoruntusu }) {
   const kosul = async (ifade, sure = 8000) => { const t0 = Date.now(); for (;;) { const v = await evalJs(ifade); if (v || Date.now() - t0 > sure) return v; await bekle(100); } };
   const menu = () => evalJs(`window.pdefe.cagir('test:menuCubugu')`);
   const dugme = () => evalJs(`(() => { const d = document.querySelector('#dugme-menu'); const r = d.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2,
@@ -79,6 +80,24 @@ export default async function ({ evalJs, bekle, tikla, surukle }) {
   sonuc('Belgenin dikey çubuğu 20 px (0.2.2; 0.1.24\'te 16, önceden 12)', cubuk.belge === 20, cubuk);
   sonuc('Öteki çubuklar (paneller) değişmedi: 12 px', cubuk.genel === 12, cubuk);
   sonuc('Genişliğe sığdırılmış belgede yatay çubuk yok', !cubuk.yatayVar, cubuk);
+  // İki çubuk birlikteyken sağ alt köşe (0.2.2): beyaz kare kalmamalı, zemin rengi (boş çubuk yolu gibi) görünmeli; açık ve koyu temada
+  const koseOlc = async () => {
+    await evalJs(`(() => { const g = window.__pdefe.aktif().gorunum; g.zoomAyarla(3); g.kaydirici.scrollTop = 0; g.kaydirici.scrollLeft = 0; return 1; })()`); await bekle(600);
+    const k = await evalJs(`(() => { const e = window.__pdefe.aktif().gorunum.kaydirici, r = e.getBoundingClientRect(), cw = e.offsetWidth - e.clientWidth, ch = e.offsetHeight - e.clientHeight;
+      return { dpr: devicePixelRatio, cw, ch, kose: [r.right - cw / 2, r.bottom - ch / 2], yol: [r.right - cw / 2, r.bottom - ch - 30], tema: document.documentElement.dataset.tema }; })()`);
+    const png = await ekranGoruntusu(path.join(CIKTI, `kose-${k.tema}.png`));
+    const p = (n) => n.map((v) => Math.round(v * k.dpr));
+    const [kose, yol] = JSON.parse(execFileSync(path.join(KOK, '.venv', 'Scripts', 'python.exe'), ['-c',
+      `import json,sys\nfrom PIL import Image\nim=Image.open(sys.argv[1]).convert('RGB')\nprint(json.dumps([im.getpixel(tuple(json.loads(sys.argv[2]))), im.getpixel(tuple(json.loads(sys.argv[3])))]))`,
+      png, J(p(k.kose)), J(p(k.yol))], { encoding: 'utf8' }));
+    return { ...k, renk: { kose, yol }, ayni: kose.every((v, i) => Math.abs(v - yol[i]) <= 6) };
+  };
+  for (let i = 0; i < 2; i++) {
+    const k = await koseOlc();
+    sonuc(`İki çubuk birlikteyken sağ alt köşe zemin renginde, beyaz kare yok (${k.tema} tema)`, k.cw === 20 && k.ch === 20 && k.ayni, k);
+    await evalJs(`(window.__pdefe.komutCalistir('gorunum.tema'), 1)`); await bekle(500);
+  }
+  await evalJs(`(window.__pdefe.komutCalistir('gorunum.zoom', 'genislik'), 1)`); await bekle(500);
 
   // ---------------------------------------------------------------- 3. Görsellerdeki yazı
   console.log('— Görsellerdeki yazı');
