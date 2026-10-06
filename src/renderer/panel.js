@@ -22,6 +22,14 @@ function diskDondurmesi(b, s) {
 const KUCUK_RESIM_KADEMESI = 64;     // istenen genişlik bu kadar cihaz pikseline yukarı yuvarlanır: her birkaç piksellik boy değişiminde yeniden istenmesin
 const KUCUK_RESIM_EN_FAZLA = 1200;   // istenen genişliğin üst sınırı (cihaz pikseli): panel 60vw'ye dek büyüyebiliyor, sayfa başına PNG büyümesin
 const BOYUT_DURULMA_MS = 250;        // panel genişliği bu kadar değişmeden kalınca (sürükleme bitti) çözünürlük denetlenir
+// Önbellek sınırı (0.2.2, bağımsız inceleme): panel en geniş hâline getirilip uzun belge baştan sona kaydırılınca her sayfanın 768–1200 px'lik
+// PNG'si önbellekte ve hücrede kalıyor, panel daraltılsa da belge kapanana dek bellekte duruyordu (410 sayfada ~86 MB data URL, süreç +151
+// MB). Bütün belgelerin resimlerinin toplam boyu (data URL karakteri) bu sınırı aşınca en uzun süredir kullanılmayanlar bırakılır: önce
+// panelde gösterilmeyen belgelerinkiler, sonra gösterilen belgede görünen alandan uzak hücrelerinkiler (hücre yer tutucuya döner, göründükçe
+// yeniden istenir: ilk açılıştaki gibi). Varsayılan genişlikte (240 px) yüzlerce sayfa sınırın altında kalır; görünen ve yakındaki
+// hücrelere dokunulmaz.
+const KUCUK_RESIM_BELLEK = 48 * 1024 * 1024;
+const UZAK_ALAN = 2;                 // görünen alandan en az bu kadar alan yüksekliği uzaktaki hücrelerin resmi bırakılabilir
 
 /** Küçük resim için çekirdekten istenecek genişlik (cihaz pikseli): ekrandaki genişlik (CSS pikseli) × ekran ölçeği (en çok 2, 0.2.1'deki
  *  gibi) × oran (resim ekranda 90/270° döndürülüyorsa resmin genişliği ekranda yükseklik olur: resmin genişliği / yüksekliği), kademeye
@@ -29,6 +37,14 @@ const BOYUT_DURULMA_MS = 250;        // panel genişliği bu kadar değişmeden 
 export function kucukResimIstegi(css, dpr, oran = 1) {
   const cihaz = Math.max(1, css) * Math.min(2, dpr || 1) * oran;
   return Math.min(KUCUK_RESIM_EN_FAZLA, Math.ceil(cihaz / KUCUK_RESIM_KADEMESI) * KUCUK_RESIM_KADEMESI);
+}
+
+/** Hücrenin yer tutucusu: ekrandaki yönde (taban /Rotate s.pt'de, üstüne göreli ve görünüm döndürmesi), genişliği CSS'ten (hücrenin içi),
+ *  yüksekliği bu orandan; boyutu henüz öğrenilmemiş sayfada resim gelince resmin kendi oranı geçerli olur. */
+function yerTutucuHtml(b, s) {
+  const d = aciyaIndir((s.dondurme || 0) + (b.gorunum.gorunumDondurme || 0));
+  const [w, h] = d % 180 === 0 ? [s.pt.w, s.pt.h] : [s.pt.h, s.pt.w];
+  return `<div class="bos" style="aspect-ratio:${+w} / ${+h}"></div>`;
 }
 
 export class SolPanel extends EventTarget {
@@ -40,7 +56,9 @@ export class SolPanel extends EventTarget {
     this.cekirdek = cekirdek;
     this.aktifSekme = 'sayfalar';
     this.belge = null;         // aktif sekmenin bilgileri {id, yol, gorunum}
-    this.kucukResimler = new Map();   // belgeId → Map(kaynak sayfa anahtarı → { src: dataURL, istenen: istenen genişlik, cihaz pikseli })
+    this.kucukResimler = new Map();   // belgeId → Map(kaynak sayfa anahtarı → { src: dataURL, istenen: istenen genişlik, cihaz pikseli, boy, zaman })
+    this.kucukResimSiniri = KUCUK_RESIM_BELLEK;   // önbelleğin toplam boyu (data URL karakteri) üst sınırı (bellegiSinirla)
+    this._kullanim = 0;        // önbellek kayıtlarının son kullanım sırası (en uzun süredir kullanılmayan önce bırakılır)
     this._gozlemci = null;
     this._sayfalarB = null;    // Sayfalar alanının küçük resimlerini gösterdiği belge (belgeUnut, çözünürlük denetimi)
     this._capa = null;         // kaydırma yerinin çapası (capaKaydet)
@@ -163,11 +181,7 @@ export class SolPanel extends EventTarget {
       const el = document.createElement('div');
       el.className = 'kucuk-resim' + (no === b.gorunum.gecerli ? ' gecerli' : '');
       el.dataset.sayfa = String(no);
-      // Yer tutucu ekrandaki yönde (taban /Rotate s.pt'de, üstüne göreli ve görünüm döndürmesi), genişliği CSS'ten (hücrenin içi), yüksekliği
-      // bu orandan; boyutu henüz öğrenilmemiş sayfada resim gelince resmin kendi oranı geçerli olur
-      const d = aciyaIndir((s.dondurme || 0) + (b.gorunum.gorunumDondurme || 0));
-      const [w, h] = d % 180 === 0 ? [s.pt.w, s.pt.h] : [s.pt.h, s.pt.w];
-      el.innerHTML = `<div class="bos" style="aspect-ratio:${+w} / ${+h}"></div><span class="no">${no}</span>`;
+      el.innerHTML = `${yerTutucuHtml(b, s)}<span class="no">${no}</span>`;
       el.addEventListener('click', () => this.dispatchEvent(new CustomEvent('sayfayaGit', { detail: { sayfa: no } })));
       alan.append(el);
       this._gozlemci.observe(el);
@@ -209,9 +223,11 @@ export class SolPanel extends EventTarget {
       let kayit = onbellek.get(anahtar);
       if (!kayit || kayit.istenen < istenen) {
         const r = await this.cekirdek('kucuk_resim', { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa, genislik: istenen });
-        kayit = { src: 'data:image/png;base64,' + r.png, istenen };
-        if (!(onbellek.get(anahtar)?.istenen >= istenen)) onbellek.set(anahtar, kayit);
+        const src = 'data:image/png;base64,' + r.png;
+        kayit = { src, istenen, boy: src.length, zaman: ++this._kullanim };
+        if (!(onbellek.get(anahtar)?.istenen >= istenen)) { onbellek.set(anahtar, kayit); this.bellegiSinirla(kayit); }
       }
+      kayit.zaman = ++this._kullanim;
       if (!el.isConnected || el._istek !== sira || el._kayit === kayit) return;   // panel yeniden kuruldu, yeni istek var ya da aynı resim yerinde
       const img = document.createElement('img');
       img.src = kayit.src; img.draggable = false;
@@ -240,6 +256,62 @@ export class SolPanel extends EventTarget {
       // Resim yoldayken panel genişlediyse (çözünürlük denetimi resmi henüz gelmemiş hücreyi atlar) daha büyüğü istenir
       if (!this._boyutlaniyor && this.yenidenIstenecekMi(el)) this._gozlemci?.observe(el);
     } catch (e) { console.warn('Küçük resim alınamadı', no, e.message); }
+  }
+
+  /** Önbellekteki resimlerin toplam boyu (data URL karakteri), bütün belgeler. */
+  kucukResimBellegi() {
+    let t = 0;
+    for (const ob of this.kucukResimler.values()) for (const k of ob.values()) t += k.boy || 0;
+    return t;
+  }
+
+  /** Önbellek sınırı aşıldıysa en uzun süredir kullanılmayan resimler bırakılır (KUCUK_RESIM_BELLEK), sınırın %90'ına inene dek (her yeni
+   *  resimde yeniden bırakma olmasın): önce panelde gösterilmeyen belgelerinkiler, sonra gösterilen belgede hiçbir hücrede olmayanlar, en son
+   *  görünen alandan uzak hücrelerinkiler (hücre yer tutucuya döner, gözlemciye yeniden verilir: göründükçe yeniden istenir). Hücrede kalan
+   *  ama önbellekte olmayan resimler (kayıttan sonra önbellek boşaltıldı, daha büyüğü geldi) de sayılır ve uzaktaysa bırakılır. Görünen ve
+   *  yakındaki hücrelere, yeni gelen kayda (korunan) dokunulmaz. */
+  bellegiSinirla(korunan = null) {
+    const sinir = this.kucukResimSiniri;
+    let toplam = this.kucukResimBellegi();
+    if (toplam <= sinir) return;
+    const b = this._sayfalarB, alan = this.alanlar.sayfalar;
+    // Gösterilen belgenin hücreleri: hangi resim hangi hücrelerde (aynı kaynak sayfa iki hücrede olabilir), hücre görünen alana yakın mı
+    const hucreler = new Map(), yakin = new Set();
+    const olcu = b && alan.clientHeight ? { ar: alan.getBoundingClientRect(), pay: UZAK_ALAN * alan.clientHeight } : null;
+    for (const el of b ? alan.children : []) {
+      if (!el._kayit) continue;
+      if (!hucreler.has(el._kayit)) hucreler.set(el._kayit, []);
+      hucreler.get(el._kayit).push(el);
+      const r = olcu && el.getBoundingClientRect();
+      if (!olcu || (r.bottom > olcu.ar.top - olcu.pay && r.top < olcu.ar.bottom + olcu.pay)) yakin.add(el._kayit);   // alan gizliyse hepsi
+    }
+    const adaylar = [], onbellekte = new Set();
+    for (const [id, ob] of this.kucukResimler) {
+      for (const [anahtar, k] of ob) {
+        onbellekte.add(k);
+        if (k === korunan || yakin.has(k)) continue;
+        adaylar.push({ ob, anahtar, k, oncelik: !(b && id === b.id) ? 0 : hucreler.has(k) ? 3 : 1 });
+      }
+    }
+    for (const k of hucreler.keys()) {   // yalnızca hücrede kalanlar
+      if (onbellekte.has(k)) continue;
+      toplam += k.boy || 0;
+      if (!yakin.has(k)) adaylar.push({ ob: null, k, oncelik: 2 });
+    }
+    adaylar.sort((x, y) => x.oncelik - y.oncelik || (x.k.zaman || 0) - (y.k.zaman || 0));
+    for (const a of adaylar) {
+      if (toplam <= sinir * 0.9) break;
+      a.ob?.delete(a.anahtar);
+      toplam -= a.k.boy || 0;
+      for (const el of hucreler.get(a.k) || []) {
+        const s = b.gorunum.sayfalar[+el.dataset.sayfa - 1], eski = el.querySelector(':scope > img, :scope > .donuk');
+        if (!s || !eski) continue;
+        el._istek = (el._istek || 0) + 1; el._kayit = null;   // yoldaki istek de geçersiz
+        eski.insertAdjacentHTML('beforebegin', yerTutucuHtml(b, s));
+        eski.remove();
+        this._gozlemci?.observe(el);
+      }
+    }
   }
 
   gecerliSayfaIsaretle(no, kaydir = false) {

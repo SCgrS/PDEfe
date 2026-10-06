@@ -12,6 +12,8 @@
 //      ("Sayfalar", "İçindekiler", "Yorumlar") panelin içinde ve kırpılmadan. Ekran ölçeği değişince (pencere başka ölçekli ekrana taşındı;
 //      Emulation ile, genişlik aynı) görünen resimler yeni ölçeğe göre yeniden istenir; panel kapalıyken değiştiyse panel açılınca.
 //   5) Konsolda hata yok ("ResizeObserver loop" dahil).
+//   6) Önbellek sınırı (testte küçültülür): aşılınca önce panelde gösterilmeyen belgenin resimleri, sonra görünen alandan uzak hücrelerinki
+//      bırakılır (yer tutucuya döner, başa dönünce yeniden istenir); görünen hücreler hep resimli, toplam boy sınırın içinde.
 // Kullanım (en az iki ekran ölçeğinde):
 //   powershell -File test\baslat.ps1 -Port 9520 [-Olcek 1.25]      → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9520; node test\surucu.mjs betik test\panel_kucuk_resim.mjs
@@ -333,6 +335,49 @@ export default async function ({ evalJs, bekle, fare, hedefler }) {
       await bekle(600);
     }
   } finally { ws.close(); }
+
+  // ------------------------------------------------------------ 6) Önbellek sınırı (bağımsız inceleme)
+  // Toplam boy sınırı aşınca en uzun süredir kullanılmayan resimler bırakılır: önce panelde gösterilmeyen belgeninkiler, sonra görünen
+  // alandan uzak hücrelerinki (yer tutucuya döner, göründükçe yeniden istenir). Görünen hücreler hep resimli. Sınır testte küçültülür.
+  console.log('\n== 6) Küçük resim önbelleğinin sınırı');
+  const idA = await evalJs(`window.__pdefe.aktif().id`);
+  const yol2 = path.join(K, 'panel-uzun.pdf');
+  execFileSync(PY, ['-X', 'utf8', path.join(KOK, 'test', 'ornek_pdf_uret.py'), yol2, '40', 'Uzun belge'], { encoding: 'utf8' });
+  await evalJs(`(async () => { await window.__pdefe.dosyaAc(${J(yol2)}); return true; })()`);
+  await kosul(`window.__pdefe.aktif()?.gorunum?.hazir && window.__pdefe.aktif().gorunum.sayfaSayisi === 40`);
+  await evalJs(`(() => { const p = window.__pdefe; p.panel.genislikAyarla(240); p.panel.acKapa(true); p.panel.sekmeSec('sayfalar'); document.querySelector('#panel-sayfalar').scrollTop = 0; return true; })()`);
+  await bekle(500); await yuklendi();
+  const bellek = () => evalJs(`(() => { const p = window.__pdefe.panel, b = window.__pdefe.aktif(), alan = document.querySelector('#panel-sayfalar'), ar = alan.getBoundingClientRect();
+    const ob = p.kucukResimler.get(b.id), kayitlar = [...ob.values()], hucreler = [...alan.children];
+    const yalnizHucrede = [...new Set(hucreler.map((el) => el._kayit).filter((k) => k && !kayitlar.includes(k)))];
+    return { toplam: p.kucukResimBellegi() + yalnizHucrede.reduce((t, k) => t + k.boy, 0), btoplam: kayitlar.reduce((t, k) => t + k.boy, 0), siniri: p.kucukResimSiniri, a: p.kucukResimler.get(${J(idA)})?.size ?? -1,
+      b: ob.size, ort: kayitlar.length ? kayitlar.reduce((t, k) => t + k.boy, 0) / kayitlar.length : 0, enBuyuk: Math.max(0, ...kayitlar.map((k) => k.boy)),
+      resimli: hucreler.filter((el) => el.querySelector(':scope > img, :scope > .donuk')).map((el) => +el.dataset.sayfa),
+      gorunen: hucreler.filter((el) => { const r = el.getBoundingClientRect(); return r.bottom > ar.top && r.top < ar.bottom; }).map((el) => +el.dataset.sayfa) }; })()`);
+  let m = await bellek();
+  sonuc('Hazırlık: öteki belgenin (9 sayfa) resimleri önbellekte, uzun belgenin görünenleri yüklendi', m.a > 0 && m.b > 0, m);
+  // Uzun belge (varsayılan sınırla: hiçbir şey bırakılmaz) baştan sona kaydırılır; sonra sınır uzun belgenin resimlerinin %60'ına indirilir
+  for (let i = 0; i < 60; i++) {
+    const son = await evalJs(`(() => { const a = document.querySelector('#panel-sayfalar'); a.scrollTop += a.clientHeight / 2; return a.scrollTop + a.clientHeight >= a.scrollHeight - 1; })()`);
+    await bekle(120); await yuklendi(4000);
+    if (son) break;
+  }
+  await bekle(300);
+  m = await bellek();
+  sonuc('Varsayılan sınırda hiçbir resim bırakılmadı (40 sayfanın hepsi resimli, öteki belgenin önbelleği duruyor)', m.resimli.length === 40 && m.b === 40 && m.a > 0, { resimli: m.resimli.length, a: m.a, b: m.b });
+  await evalJs(`(() => { const p = window.__pdefe.panel; p.kucukResimSiniri = ${Math.round(m.btoplam * 0.6)}; p.bellegiSinirla(); return true; })()`);
+  await bekle(200);
+  m = await bellek();
+  const gorunenResimli = m.gorunen.every((n) => m.resimli.includes(n));
+  sonuc('Sınır aşılınca önce gösterilmeyen belgenin resimleri bırakıldı', m.a === 0, { a: m.a });
+  sonuc('Toplam boy sınırın içinde; belgenin başındaki uzak hücreler yer tutucuya döndü, görünenler (sondakiler) resimli',
+    m.toplam <= m.siniri && !m.resimli.includes(1) && !m.resimli.includes(2) && gorunenResimli && m.gorunen.includes(40), m);
+  await evalJs(`(() => { document.querySelector('#panel-sayfalar').scrollTop = 0; return true; })()`);
+  await bekle(300); await yuklendi();
+  m = await bellek();
+  sonuc('Başa dönünce bırakılan resimler yeniden istendi (görünenler resimli), sınır korunuyor', m.gorunen.includes(1) && m.gorunen.every((n) => m.resimli.includes(n)) && m.toplam <= m.siniri + m.enBuyuk, m);
+  await evalJs(`(async () => { const p = window.__pdefe; p.panel.kucukResimSiniri = 48 * 1024 * 1024; await p.belgeKapat(p.aktif().id, { zorla: true }); return true; })()`);
+  await bekle(300);
 
   // ------------------------------------------------------------ 5) Konsol
   const h = await hatalar();
