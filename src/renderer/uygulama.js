@@ -1436,6 +1436,9 @@ try {
   const kurulumIzniAl = async () => {
     await tasimaBitmesiniBekle();
     if (kurulumKilidi || _kapaniyor) return false;   // başka pencerenin başlattığı kurulum için izin verildi ya da pencere kapanıyor
+    // Pencere kapatma "Geçerli sekme" ya da kapsam sorusu evresinde (0.2.2): izin akışı onunla aynı anda aynı belgeyi sorardı; kurulum
+    // ertelenir, şeritte "Kur ve yeniden başlat" kalır. Kapatma kaydetme sorularına geçtiyse (_kapatmaIzni) aynı izni bekler (0.2.1 gibi)
+    if (_kapanis && !_kapatmaIzni) return false;
     if (!(await kapatmayaIzinAl())) return false;
     kurulumKilidiKoy(true);
     let izin = false;
@@ -1527,7 +1530,10 @@ pdefe.dinle('pencere:kapatIstegi', async (istek) => {
   gecmisListesi.kapat();   // açık geri al / kaydedilmemiş değişiklikler listesi soruların arkasında kalmasın (mesaj kutusu tuşları yakalar)
   let izin = false;
   try {
-    let kapsam = cikis ? 'pencere' : await kapatmaKapsami();
+    // Güncelleme kurulumunun kapatma izni sürüyorsa (kapatmayaIzinAl: süren kaydı ya da kaydetme sorusunu bekliyor) kapsam sorulmaz,
+    // pencere o izni bekler (0.2.1'deki gibi; kapatmayaIzinAl aynı sözü döner). Sorulsaydı kapsam sorusu ile iznin kaydetme sorusu üst üste
+    // açılıyor, "Geçerli sekme" aynı belgeyi ikinci kez soruyordu (bağımsız inceleme)
+    let kapsam = cikis || _kapatmaIzni ? 'pencere' : await kapatmaKapsami();
     if (kapsam === 'sekme') kapsam = (await gecerliSekmeyiKapat()) && _kapanisCikis ? 'pencere' : null;
     if (kapsam === 'pencere') izin = await kapatmayaIzinAl({ degismeyenleriKapat: true });
   } catch (e) { console.error(e); }
@@ -1580,6 +1586,7 @@ async function gecerliSekmeyiKapat() {
   _kapsamHedefi = null;
   if (!(await aracPencereleriniKapat())) return false;
   if (document.querySelector('.diyalog-ortusu:not(.mesaj-ortusu):not(.ayarlar-ortusu)')) { bildir('Önce açık pencereyi kapatın.'); return false; }
+  if (kurulumKilidi) return false;   // güncelleme kurulumu için izin verildi: uygulama kapanmak üzere, sekme sorusu / kaydı başlamasın
   if (!id || !sekmeler.bul(id)) return true;   // soru açıkken kapanmış (ör. Gezgin'den açılan dosya açılış sekmesinin yerini aldı)
   return !!(await sekmeKapat(id));
 }

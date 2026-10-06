@@ -14,6 +14,7 @@
 //   - Çıkış'tan gelen kapatmada (cikis: true: Dosya › Çıkış, ⌘Q, Windows oturum sonu) soru yok; soru açıkken Çıkış gelirse soru "Tüm
 //     sekmeler" olarak kapanır ve akış sürer ("Bir daha sorma" yazılmaz); Geçerli sekmenin kaydetme sorusu açıkken Çıkış gelirse sekme
 //     kapanınca pencere de kapanır; soru açıkken ikinci olağan kapatma isteği yalnızca kutuyu belirginleştirir
+//   - güncelleme kurulumunun kapatma izni süren kaydı beklerken × kapsam sorusu açmaz, aynı izni bekler (bağımsız inceleme, 14b)
 //   - görünmeyen masaüstündeki örnekte gerçek Windows kapatma iletisi (× / Alt+F4'ün SC_CLOSE'u, WM_CLOSE; test/pencere_kapat.ps1)
 //   - son adım: soru açıkken Dosya › Çıkış (test:cik) → soru kapanır, kaydetme sorusunda Kaydetme → uygulama kapanır (Çıkış takılmaz)
 // Kullanım (temiz veri klasörlü örnek; ekran dışı ya da görünmeyen masaüstü):
@@ -306,6 +307,29 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, hede
   await kutuBekle((x) => /^"Birleştirilmiş/.test(x.ileti || '')); await kutuDugmesi('Kaydetme');
   await kosul(`!document.querySelector('.birlestir-pencere') && window.__pdefe.sekmeler.sekmeler.length === 1`, 5000); await bekle(300);
   sonuc('Aracın sorusunda Kaydetme: araç kapandı, ardından yalnızca etkin a.pdf kapandı', !(await evalJs(`!!document.querySelector('.birlestir-pencere')`)) && J(await sekmeAdlari()) === J(['b.pdf*']) && !(await kutu()), await sekmeAdlari());
+
+  // ================================================================ 14b) güncelleme izni süren kaydı beklerken × (bağımsız inceleme)
+  // Kurulumun kapatma izni (başka pencereden 'pencere:izinIste'; bu penceredeki "Kur ve yeniden başlat" da aynı yoldan) süren bir kaydı
+  // beklerken pencerenin × düğmesine basılınca kapsam sorusu açılmaz, pencere o izni bekler (0.2.1'deki gibi): sorular üst üste açılmaz,
+  // aynı belge iki kez sorulmaz. Süren kayıt b.kaydediliyor / b.kayitSozu ile taklit edilir (büyük belgede yapısal kayıt saniyeler sürer).
+  await ac('a.pdf'); await kirlet('a.pdf');   // b*, a* (etkin a)
+  await evalJs(`(() => { const b = window.__pdefe.aktif(); b.kaydediliyor = true; b.kayitSozu = new Promise((r) => { window.__s29KayitBitir = () => { b.kaydediliyor = false; r(); }; }); return true; })()`);
+  await gozcuKur();
+  await ana('test:olayGonder', 'pencere:izinIste', 's29-izin');
+  await bekle(300);
+  await kapatIstegi(); await bekle(600);
+  k = await kutu();
+  sonuc('Güncelleme izni süren kaydı beklerken ×: kapsam sorusu açılmaz (pencere aynı izni bekler)', !k, k);
+  await evalJs(`(window.__s29KayitBitir(), true)`);
+  k = await kutuBekle((x) => kaydetSorusuMu(x, 'b.pdf'));
+  sonuc('Kayıt bitince iznin kaydetme sorusu tek başına açılır (b.pdf)', kaydetSorusuMu(k, 'b.pdf') && k.sayi === 1, k);
+  await kutuDugmesi('Vazgeç'); await bekle(600);
+  sonuc('İznin sorusunda Vazgeç: başka soru açılmaz (iki soru hiçbir zaman üst üste değil), sekmeler ve pencere açık, kurulum kilidi yok',
+    !(await kutu()) && (await enFazlaKutu()) === 1 && J(await sekmeAdlari()) === J(['b.pdf*', 'a.pdf*']) && !(await evalJs(`window.__pdefe.kilitli()`)) && (await yenile()).includes(P1),
+    { kutu: await kutu(), enFazla: await enFazlaKutu(), sekmeler: await sekmeAdlari() });
+  for (let i = 0; i < 4 && (await kutu()); i++) { await tus('Escape'); await bekle(300); }   // düşerse kalan soruları kapat (sonraki bölümler için)
+  await evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find((x) => x.ad === 'a.pdf'); if (b) await p.belgeKapat(b.id, { zorla: true }); return true; })()`);
+  await bekle(300);
 
   // ================================================================ 15) iki pencere
   await ac('c.pdf');
