@@ -45,6 +45,7 @@ export class SolPanel extends EventTarget {
     this._sayfalarB = null;    // Sayfalar alanının küçük resimlerini gösterdiği belge (belgeUnut, çözünürlük denetimi)
     this._capa = null;         // kaydırma yerinin çapası (capaKaydet)
     this._sonGenislik = 0;     // Sayfalar alanının son bilinen iç genişliği (yalnızca genişlik değişimi işlenir)
+    this._sonOlcek = 0;        // o andaki ekran ölçeği (devicePixelRatio): ölçek değişimi de işlenir
 
     sekmeler.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => this.sekmeSec(b.dataset.panel)));
 
@@ -52,6 +53,12 @@ export class SolPanel extends EventTarget {
     // gözlemci yalnızca kaydırma yerini korur ve çözünürlük denetimini planlar. Boyut yazmaz: "ResizeObserver loop" döngüsü kurulmaz.
     new ResizeObserver(() => this.sayfalarBoyutlandi()).observe(sayfalar);
     sayfalar.addEventListener('scroll', () => { if (!this._boyutlaniyor) this.capaKaydet(); }, { passive: true });
+    // Ekran ölçeği değişince (pencere başka ölçekli ekrana taşındı) CSS genişliği aynı kaldığı için ResizeObserver gelmez: ölçeğe bağlı
+    // ortam sorgusu dinlenir (goruntuleyici.js dprDinle gibi), çözünürlük denetlenir. Panel kapalıyken değiştiyse panel açılınca (ölçek de
+    // sayfalarBoyutlandi'nin karşılaştırmasında; bağımsız inceleme)
+    const olcekDinle = () => matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`)
+      .addEventListener('change', () => { olcekDinle(); this.sayfalarBoyutlandi(); }, { once: true });
+    olcekDinle();
 
     // Genişlik sürükleme
     let baslangicX = 0, baslangicW = 0;
@@ -165,7 +172,7 @@ export class SolPanel extends EventTarget {
       alan.append(el);
       this._gozlemci.observe(el);
     }
-    this._sonGenislik = alan.clientWidth;
+    this._sonGenislik = alan.clientWidth; this._sonOlcek = window.devicePixelRatio || 1;
     this._capa = null;
     this.gecerliSayfaIsaretle(b.gorunum.gecerli, true);
   }
@@ -244,12 +251,14 @@ export class SolPanel extends EventTarget {
     if (!this._boyutlaniyor) this.capaKaydet();
   }
 
-  /** Sayfalar alanının boyutu değişti (ResizeObserver). Küçük resimler CSS'le kendiliğinden uyar; burada kaydırma yeri korunur (geçerli
-   *  sayfa görünüyorsa alanda aynı yerde kalır, görünmüyorsa üstteki sayfa) ve boyut durulunca çözünürlük denetlenir. */
+  /** Sayfalar alanının boyutu (ResizeObserver) ya da ekran ölçeği (ortam sorgusu) değişti. Küçük resimler CSS'le kendiliğinden uyar; burada
+   *  kaydırma yeri korunur (geçerli sayfa görünüyorsa alanda aynı yerde kalır, görünmüyorsa üstteki sayfa) ve boyut durulunca çözünürlük
+   *  denetlenir. */
   sayfalarBoyutlandi() {
-    const alan = this.alanlar.sayfalar, g = alan.clientWidth;
-    if (!g || !this._sayfalarB || g === this._sonGenislik) return;   // gizli (panel kapalı ya da başka sekmede), boş ya da yalnızca yükseklik değişti
-    this._sonGenislik = g;
+    const alan = this.alanlar.sayfalar, g = alan.clientWidth, olcek = window.devicePixelRatio || 1;
+    // gizli (panel kapalı ya da başka sekmede), boş ya da yalnızca yükseklik değişti
+    if (!g || !this._sayfalarB || (g === this._sonGenislik && olcek === this._sonOlcek)) return;
+    this._sonGenislik = g; this._sonOlcek = olcek;
     this.capaUygula();
     this._boyutlaniyor = true;   // bu arada (kendi kaydırmamızla gelen) kaydırma olayı çapayı değiştirmesin
     clearTimeout(this._boyutZamani);

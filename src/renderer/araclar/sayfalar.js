@@ -176,7 +176,12 @@ export class SayfalarPenceresi {
       onBirak: (ogeler, hedefIdx) => this.tasi(ogeler.map((o) => +o.dataset.kimlik), hedefIdx),
     });
     this._alanSecimiBagla();
-    this.pencere.el.addEventListener('kapandi', () => { this.gozlemci.disconnect(); this.sirala(); });
+    // Ekran ölçeği değişince (pencere başka ölçekli ekrana taşındı) yüklenmiş kartlar yeni ölçek için düşük çözünürlüklüyse yeniden istenir
+    // (görünenler hemen, ötekiler göründükçe; eski resim yenisi gelene dek yerinde). CSS boyutu değişmediği için başka olay gelmez; yoksa
+    // sonradan yüklenen keskin kartlarla eski bulanık kartlar karışık kalıyordu (bağımsız inceleme)
+    this._olcekDegisti = () => { this._olcekDinle(); this._resimleriTazele(); };
+    this._olcekDinle();
+    this.pencere.el.addEventListener('kapandi', () => { this.gozlemci.disconnect(); this.sirala(); this._olcekSorgu?.removeEventListener('change', this._olcekDegisti); });
     this.ciz();
     this.izgara.focus();
   }
@@ -608,6 +613,27 @@ export class SayfalarPenceresi {
     this.pencere.dugmeAyarla('kaydet', { devre: !this.degisti || this.ilerleme.calisiyor });
   }
 
+  /** Geçerli ekran ölçeğine bağlı ortam sorgusunu dinler; ölçek değişince sorgu eşleşmez olur, dinleyici yeni ölçekle yeniden kurulur. */
+  _olcekDinle() {
+    this._olcekSorgu?.removeEventListener('change', this._olcekDegisti);
+    this._olcekSorgu = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+    this._olcekSorgu.addEventListener('change', this._olcekDegisti);
+  }
+
+  /** Yüklenmiş kartlardan yeni ekran ölçeği için düşük çözünürlüklü kalanlar gözlemciye yeniden verilir (_resimYukle yeniden ister). */
+  _resimleriTazele() {
+    if (this.pencere.kapali) return;
+    for (const [kimlik, el] of this.ogeler) {
+      if (!el.dataset.yuklendi || !el.dataset.genislik) continue;
+      const k = this.kartlar.find((x) => x.kimlik === kimlik);
+      if (!k || k.bos) continue;
+      const { yol, sayfa } = this._kaynak(k);
+      if (this._resimGenisligi(k, yol, sayfa) <= +el.dataset.genislik) continue;
+      delete el.dataset.yuklendi;
+      this.gozlemci.unobserve(el); this.gozlemci.observe(el);   // yeniden gözlenen hücre için ilk bildirim gelir (görünüyorsa yüklenir)
+    }
+  }
+
   _resimYukle(el) {
     if (el.dataset.yuklendi) return;
     const kimlik = +el.dataset.kimlik;
@@ -616,13 +642,14 @@ export class SayfalarPenceresi {
     el.dataset.yuklendi = '1';
     const { yol, sayfa } = this._kaynak(k);
     const genislik = this._resimGenisligi(k, yol, sayfa);
+    el.dataset.genislik = String(genislik);
+    const sira = el._istek = (el._istek || 0) + 1;   // kartın sonraki isteği (ekran ölçeği değişti) öncekini geçersiz kılar: geç gelen eski resim yenisini ezmesin
     const anahtar = `${yol}|${sayfa}|${genislik}`;
     let soz = this.resimOnbellek.get(anahtar);
     if (!soz) { soz = this.baglam.cekirdek('kucuk_resim', { yol, sayfa, genislik }); this.resimOnbellek.set(anahtar, soz); }
-    soz.then((r) => {
-      if (!this.ogeler.get(kimlik)) return;
+    soz.then(async (r) => {
+      if (!this.ogeler.get(kimlik) || el._istek !== sira) return;
       const kutu = el.querySelector('.resim-kutu');
-      kutu.innerHTML = '';
       const img = document.createElement('img');
       img.src = 'data:image/png;base64,' + r.png;
       img.alt = `Sayfa ${sayfa}`;
@@ -630,11 +657,16 @@ export class SayfalarPenceresi {
       // Ekrandaki boyut çizilen resmin oranından, uzun kenarı kutunun kenarı: resim cihaz pikselinde çizildiği için doğal boyutu kutudan büyüktür
       const m = Math.max(r.genislik || 0, r.yukseklik || 0);
       if (m > 0) { img.style.width = Math.round(this.kutu * r.genislik / m) + 'px'; img.style.height = Math.round(this.kutu * r.yukseklik / m) + 'px'; }
-      const kk = this.kartlar.find((x) => x.kimlik === kimlik);
+      // Önceki resim (ya da yer tutucu) yenisi çözülene dek yerinde kalır: ölçek değişince yeniden istenen kartta boş kare görünmesin
+      await img.decode().catch(() => {});
+      if (!this.ogeler.get(kimlik) || el._istek !== sira) return;
+      const kk = this.kartlar.find((x) => x.kimlik === kimlik);   // döndürme çözülürken değişmiş olabilir: yerine konarken okunur
       const d = kk ? this._gorunenDondurme(kk) : 0;
       if (d) img.style.transform = `rotate(${d}deg)`;
+      kutu.innerHTML = '';
       kutu.append(img);
     }).catch((e) => {
+      if (el._istek !== sira) return;
       const kutu = el.querySelector('.resim-kutu');
       kutu.innerHTML = `<div class="bos-sayfa" style="color:#d13438" title="${kacis(hataMetni(e))}">yüklenemedi</div>`;
       this._bosBoyutla(kutu.firstElementChild, k);

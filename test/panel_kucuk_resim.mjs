@@ -9,7 +9,8 @@
 //   3) Döndürülmüş sayfalar: kaydedilmemiş döndürme 90° ve 180° (resim ekranda döner), dosyanın kendi /Rotate'i, diske işlenmiş döndürme
 //      (resim çekirdekten döndürülmüş gelir), görünüm döndürmesi; hepsi hücreye sığar, oran doğru.
 //   4) Pencere daralıp 60vw sınırı paneli kısınca (Emulation) resimler yine sığar, çözünürlük denetlenir; 140 px'te panel sekme başlıkları
-//      ("Sayfalar", "İçindekiler", "Yorumlar") panelin içinde ve kırpılmadan.
+//      ("Sayfalar", "İçindekiler", "Yorumlar") panelin içinde ve kırpılmadan. Ekran ölçeği değişince (pencere başka ölçekli ekrana taşındı;
+//      Emulation ile, genişlik aynı) görünen resimler yeni ölçeğe göre yeniden istenir; panel kapalıyken değiştiyse panel açılınca.
 //   5) Konsolda hata yok ("ResizeObserver loop" dahil).
 // Kullanım (en az iki ekran ölçeğinde):
 //   powershell -File test\baslat.ps1 -Port 9520 [-Olcek 1.25]      → PID=… yazar
@@ -304,6 +305,33 @@ export default async function ({ evalJs, bekle, fare, hedefler }) {
     o = await olc();
     sonuc('Pencere eski boyutunda: panel yeniden 480 px', Math.abs(o.panel - 480) <= 1, o.panel);
     denetle('Pencere eski boyutunda (480)', o, { cozunurluk: false });
+    // 4b) Ekran ölçeği değişince (pencere farklı ölçekli ekrana taşındı: CSS genişliği aynı kalır, ResizeObserver gelmez) görünen resimler
+    // yeni ölçeğe göre yeniden istenir; panel kapalıyken değiştiyse panel açılınca (bağımsız inceleme; Emulation ile)
+    const yeniDpr = Math.min(2, dpr + 0.5);
+    if (yeniDpr > dpr) {
+      await yuklendi();
+      const genislik = await evalJs('window.innerWidth');
+      await gonder('Emulation.setDeviceMetricsOverride', { width: genislik, height: yukseklik, deviceScaleFactor: yeniDpr, mobile: false });
+      await bekle(400);
+      let ok = await yuklendi(6000);
+      o = await olc();
+      sonuc(`Ekran ölçeği ${dpr} → ${yeniDpr} (genişlik aynı): görünen resimler yeni ölçeğe göre yeniden istendi`, !!ok && Math.abs(o.dpr - yeniDpr) < 0.01 && Math.abs(o.panel - 480) <= 1, { dpr: o.dpr, panel: o.panel });
+      denetle(`Ekran ölçeği ${yeniDpr} (480)`, o);
+      // Panel kapalıyken ölçek geri değişir, sonra yeniden yükselir: panel açılınca resimler yine yeni ölçeğe göre
+      await gonder('Emulation.setDeviceMetricsOverride', { width: genislik, height: yukseklik, deviceScaleFactor: dpr, mobile: false });
+      await bekle(400);
+      await evalJs(`(() => { window.__pdefe.panel.acKapa(false); return true; })()`); await bekle(200);
+      const ikinciDpr = Math.min(2, dpr + 0.75);
+      await gonder('Emulation.setDeviceMetricsOverride', { width: genislik, height: yukseklik, deviceScaleFactor: ikinciDpr, mobile: false });
+      await bekle(400);
+      await evalJs(`(() => { window.__pdefe.panel.acKapa(true); return true; })()`); await bekle(400);
+      ok = await yuklendi(6000);
+      o = await olc();
+      sonuc(`Panel kapalıyken ölçek ${ikinciDpr} oldu: panel açılınca görünen resimler yeni ölçeğe göre`, !!ok && Math.abs(o.dpr - ikinciDpr) < 0.01, { dpr: o.dpr });
+      denetle(`Ekran ölçeği ${ikinciDpr}, panel yeniden açıldı (480)`, o);
+      await gonder('Emulation.clearDeviceMetricsOverride');
+      await bekle(600);
+    }
   } finally { ws.close(); }
 
   // ------------------------------------------------------------ 5) Konsol

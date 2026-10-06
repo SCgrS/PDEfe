@@ -3,7 +3,8 @@
 //   1) Sayfaları düzenle: kart resim kutusu --kart-resim = 220 px (0.2.1'de 150); pencere min(1320 px, 94vw) genişliğinde, 88vh (ya da şeridin
 //      altına sığacak kadar); 1280 px pencerede satırda 4 sayfa. Resimlerin uzun kenarı kutunun kenarı, doğal boyutu en az ekrandaki boyut ×
 //      ekran ölçeği (en çok 2): dikey, yatay ve /Rotate 90'lı sayfada; önbellek anahtarı istenen genişliği içerir. Boş sayfa ve "yüklenemedi"
-//      yer tutucusu da sayfanın oranıyla kutuya sığar; R ile döndürülen resim kutudan taşmaz.
+//      yer tutucusu da sayfanın oranıyla kutuya sığar; R ile döndürülen resim kutudan taşmaz. Ekran ölçeği değişince (Emulation) görünen
+//      kartlar yeni ölçeğe göre yeniden istenir.
 //   2) Görüntü / PDF birleştir: satırdaki önizleme kutusu --birlestir-resim = 120 px (0.2.1'de 64), satırın üçüncü sütunu 120 px. Yatay görsel
 //      120 px genişlikte, dikey görsel ve PDF 120 px yükseklikte; doğal boyut en az kutu × ekran ölçeği (en çok 2). Okunamayan dosyanın yer
 //      tutucusu kutunun %72 × %94'ü. Döndür, sürükleyerek sıralama (gerçek fare) ve Listeden çıkar yeni ölçüde çalışır.
@@ -49,6 +50,15 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
     await evalJs(`window.__pdefe.dosyaAc(${J(yol)}).then(() => true)`);
     await kosul(`!!window.__pdefe.aktif()?.gorunum?.sayfaSayisi && window.__pdefe.aktif().notlar?.yuklendi`);
     await bekle(300);
+  };
+  /** Ekran ölçeği taklidi için CDP oturumu (ilk uygulama penceresi). */
+  const cdp = async () => {
+    const h = (await (await fetch(`http://127.0.0.1:${process.env.PDEFE_CDP_PORT || 9222}/json`)).json()).find((x) => x.type === 'page' && /index\.html/.test(x.url));
+    const ws = new WebSocket(h.webSocketDebuggerUrl);
+    await new Promise((c, r) => { ws.onopen = c; ws.onerror = r; });
+    let n = 0; const bek = new Map();
+    ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id && bek.has(d.id)) { bek.get(d.id)(d); bek.delete(d.id); } };
+    return { gonder: (method, params = {}) => new Promise((c) => { const i = ++n; bek.set(i, c); ws.send(JSON.stringify({ id: i, method, params })); }), kapat: () => ws.close() };
   };
   /** Açık araç penceresinin örneği: sınıfın _secimiCiz'i bir kez sarılır, ilk çağrıda örnek alınır, sonra eski hâline döner. */
   const ornekYakala = (modul, sinif) => evalJs(`(async () => { const m = await import('pdefe://app/src/renderer/araclar/${modul}'); const P = m.${sinif}.prototype; const asil = P._secimiCiz;
@@ -119,6 +129,20 @@ print(json.dumps({"ana": ana, "ek": ek, "yatay": gorsel("yatay.png", (1600, 1000
   const anahtarlar = await evalJs(`[...window.__oiOrnek.resimOnbellek.keys()].slice(0, 5).map((a) => a.split('|').slice(-2).join('|'))`);
   sonuc('önbellek anahtarı istenen genişliği içerir ("…|sayfa|genişlik")', anahtarlar.length > 0 && anahtarlar.every((a) => /^\d+\|\d+$/.test(a)) && anahtarlar.includes(`3|${Math.ceil(220 * olcek)}`), anahtarlar);
   await ss('01-sayfalar');
+  // Ekran ölçeği değişince (pencere başka ölçekli ekrana taşındı) açık penceredeki yüklenmiş kartlar da yeni ölçeğe göre yeniden istenir:
+  // sonradan yüklenen keskin kartlarla eski bulanık kartlar karışık kalmaz (bağımsız inceleme; Emulation ile, genişlik aynı)
+  const yeniDpr = Math.min(2, dpr + 0.5);
+  if (yeniDpr > dpr) {
+    const c = await cdp();
+    await c.gonder('Emulation.setDeviceMetricsOverride', { width: await evalJs('innerWidth'), height: await evalJs('innerHeight'), deviceScaleFactor: yeniDpr, mobile: false });
+    const yeniOlcek = Math.min(2, yeniDpr);
+    const ok = await kosul(`(() => { const iz = document.querySelector('.sayfalar-izgara'), ir = iz.getBoundingClientRect();
+      const g = [...iz.querySelectorAll(':scope > .sayfa-karti')].filter((k) => { const r = k.getBoundingClientRect(); return r.bottom > ir.top && r.top < ir.bottom; }).map((k) => k.querySelector('.resim-kutu img'));
+      return g.length > 0 && g.every((i) => i && i.complete && i.naturalWidth >= i.width * ${yeniOlcek} - 1 && i.naturalHeight >= i.height * ${yeniOlcek} - 1); })()`, 8000);
+    sonuc(`ekran ölçeği ${dpr} → ${yeniDpr}: görünen kartlar yeni ölçeğe göre yeniden istendi (doğal boyut ≥ ekrandaki × ${yeniOlcek})`, !!ok, (await resimler()).slice(0, 8).map((r) => [r.no, r.w, r.h, r.nw, r.nh]));
+    await c.gonder('Emulation.clearDeviceMetricsOverride'); c.kapat();
+    await bekle(500);
+  }
   // R ile döndürülen dikey resim kutudan taşmaz (görünen boyut: 220 × <220)
   const k1 = await merkez(`document.querySelectorAll('.sayfalar-izgara > .sayfa-karti')[0]`);
   await tikla(k1[0], k1[1] - 60);
