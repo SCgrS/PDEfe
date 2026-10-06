@@ -20,6 +20,7 @@
 ;                                                          APP_ASSOCIATE çağrısında FILECLASS = item.name || ext)
 ;        Software\RegisteredApplications                   PDEfe = Software\PDEfe\Capabilities
 ;      Böylece ms-settings:defaultapps?registeredAppUser=PDEfe sayfası PDEfe'yi listeler.
+;      Adlar aşağıdaki PDEFE_* tanımlarından gelir (0.2.3); kurucu sınaması (test\kurucu_sinama.nsh) onları ayrı adlarla tanımlar.
 ;   3. electron-builder'ın APP_ASSOCIATE makrosu HKCU\Software\Classes\.pdf varsayılan değerini de "PDEfe.pdf"
 ;      yapar. Windows 10/11'de varsayılan uygulama UserChoice ile seçilir; yine de başka bir uygulamanın
 ;      kullanıcı kaydı üzerine yazılmasın diye eski değer .onInit'te okunur ve kurulumdan sonra geri konur
@@ -37,9 +38,13 @@
 ;
 ; Kodlama: UTF-8 (electron-builder makensis'i -INPUTCHARSET UTF8 ile çağırır).
 
-!define PDEFE_KAYIT_KOKU "Software\PDEfe"
-!define PDEFE_PROGID "PDEfe.pdf"
-!define PDEFE_VARSAYILAN_URL "ms-settings:defaultapps?registeredAppUser=PDEfe"
+; 0.2.3: sabit kayıt adları /ifndef ile tanımlanır; gerçek derlemede değerler değişmedi (PDEfe, Software\PDEfe, PDEfe.pdf). Kurucu sınaması
+; (test\kurucu_sinama.nsh) bunları önceden ayrı adlarla tanımlar: deneme kopyası gerçek PDEfe'nin Varsayılan Programlar kaydına ve ProgId'sine
+; yazmaz, kaldırıcısı da onları silmez. PDEFE_PROGID, electron-builder yapılandırmasındaki fileAssociations.name ile aynı olmalı.
+!define /ifndef PDEFE_KAYIT_ADI "PDEfe"
+!define /ifndef PDEFE_KAYIT_KOKU "Software\${PDEFE_KAYIT_ADI}"
+!define /ifndef PDEFE_PROGID "PDEfe.pdf"
+!define /ifndef PDEFE_VARSAYILAN_URL "ms-settings:defaultapps?registeredAppUser=${PDEFE_KAYIT_ADI}"
 
 ; ---------------------------------------------------------------- .onInit
 ; Değişkenler customPageAfterChangeDir içinde bildirilir (assistedInstaller.nsh, .onInit'ten önce derlenir).
@@ -117,7 +122,7 @@
   WriteRegStr SHELL_CONTEXT "${PDEFE_KAYIT_KOKU}\Capabilities" "ApplicationDescription" "PDF görüntüleyici ve düzenleyici"
   WriteRegStr SHELL_CONTEXT "${PDEFE_KAYIT_KOKU}\Capabilities" "ApplicationIcon" "$INSTDIR\${APP_EXECUTABLE_FILENAME},0"
   WriteRegStr SHELL_CONTEXT "${PDEFE_KAYIT_KOKU}\Capabilities\FileAssociations" ".pdf" "${PDEFE_PROGID}"
-  WriteRegStr SHELL_CONTEXT "Software\RegisteredApplications" "PDEfe" "${PDEFE_KAYIT_KOKU}\Capabilities"
+  WriteRegStr SHELL_CONTEXT "Software\RegisteredApplications" "${PDEFE_KAYIT_ADI}" "${PDEFE_KAYIT_KOKU}\Capabilities"
 
   ; ProgId'ye açıklayıcı ad ve uygulama kimliği (Gezgin "Birlikte aç" listesinde düzgün görünsün)
   WriteRegStr SHELL_CONTEXT "Software\Classes\${PDEFE_PROGID}" "FriendlyTypeName" "PDF belgesi"
@@ -146,6 +151,9 @@
 
 ; ---------------------------------------------------------------- bitiş sayfası
 !macro customFinishPage
+  ; 0.2.3: runAfterFinish: false (HIDE_RUN_AFTER_FINISH; kurucu sınamasının deneme derlemesi) verilince işlev kullanılmaz ve makensis -WX
+  ; "kullanılmayan işlev" uyarısında durur
+  !ifndef HIDE_RUN_AFTER_FINISH
   Function pdefeBaslat
     ${if} ${isUpdated}
       StrCpy $1 "--updated"
@@ -154,6 +162,7 @@
     ${endif}
     ${StdUtils.ExecShellAsUser} $0 "$launchLink" "open" "$1"
   FunctionEnd
+  !endif
 
   Function pdefeVarsayilanUygulamalariAc
     ; Windows 10/11: Ayarlar > Uygulamalar > Varsayılan uygulamalar > PDEfe
@@ -182,7 +191,7 @@
 
 ; ---------------------------------------------------------------- kaldırma
 !macro customUnInstall
-  DeleteRegValue SHELL_CONTEXT "Software\RegisteredApplications" "PDEfe"
+  DeleteRegValue SHELL_CONTEXT "Software\RegisteredApplications" "${PDEFE_KAYIT_ADI}"
   DeleteRegKey SHELL_CONTEXT "${PDEFE_KAYIT_KOKU}"
   DeleteRegKey SHELL_CONTEXT "Software\Classes\Applications\${APP_EXECUTABLE_FILENAME}"
   ; ProgId (Software\Classes\PDEfe.pdf) ve .pdf\OpenWithProgids girdisini electron-builder'ın

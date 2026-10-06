@@ -1,0 +1,86 @@
+# Kurucu sınaması için deneme derlemesi (0.2.3). electron-builder.yml'nin Windows bölümünün kopyası; ayrıldığı yerler:
+#  - appId / productName / executableName / shortcutName / extraMetadata: gerçek PDEfe ile hiçbir kayıt (Uninstall ve Software\<GUID>), klasör,
+#    kısayol, süreç adı, tek örnek kilidi, ayar klasörü (%APPDATA%\<productName>) ve kurucu önbelleği (%LOCALAPPDATA%\<name>-updater) paylaşılmaz
+#  - fileAssociations ProgId ayrı (test\kurucu_sinama.nsh'teki PDEFE_PROGID ile aynı olmalı); nsis.include test\kurucu_sinama.nsh
+#  - Python çekirdeği yok (win.extraResources yok, core\dist gerekmez): deneme uygulaması hiç açılmaz
+#  - publish null (app-update.yml üretilmez), runAfterFinish false, compression store (hızlı derleme), differentialPackage false
+# test\kurucu_derle.mjs bu dosyanın nsis bölümünü electron-builder.yml'ninkiyle karşılaştırır (ayrılan alanlar dışında aynı olmalı).
+# Kullanım: node test\kurucu_derle.mjs --surum 90.0.1 --cikti <proje dışı klasör>
+appId: com.cgrshn.kurucusinama
+productName: KurucuSinama
+executableName: KurucuSinama
+copyright: "Kurucu sınaması (deneme derlemesi)"
+extraMetadata:
+  name: kurucu-sinama
+  productName: KurucuSinama
+
+directories:
+  buildResources: build
+
+electronDist: node_modules/electron/dist
+asar: true
+electronLanguages:
+  - tr
+  - en-US
+compression: store
+npmRebuild: false
+nodeGypRebuild: false
+publish: null
+
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  onlyLoadAppFromAsar: true
+  enableEmbeddedAsarIntegrityValidation: true
+
+files:
+  - "src/**/*"
+  - "build/icon.*"
+  - "package.json"
+  - "THIRD_PARTY.md"
+  - "!**/*.map"
+  - "!node_modules/pdfjs-dist/legacy/**"
+  - "!node_modules/pdfjs-dist/types/**"
+  - "!node_modules/pdfjs-dist/web/**"
+  - "!node_modules/pdfjs-dist/image_decoders/**"
+  - "!node_modules/pdfjs-dist/webpack.mjs"
+  - "!node_modules/pdfjs-dist/build/pdf.sandbox*"
+  - "!node_modules/@napi-rs/**"
+  - "!**/{CHANGELOG.md,README.md,CODE_OF_CONDUCT.md,.github,.editorconfig,.eslintrc*,tsconfig.json}"
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+  artifactName: "KurucuSinama-Setup-${version}.${ext}"
+  requestedExecutionLevel: asInvoker
+  fileAssociations:
+    - ext: pdf
+      name: KurucuSinama.pdf
+      description: PDF belgesi (kurucu sınaması)
+      role: Viewer
+      icon: build/icon.ico
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Kurucu Sinama
+  installerLanguages:
+    - tr_TR
+  language: "1055"
+  license: LICENSE
+  runAfterFinish: false
+  deleteAppDataOnUninstall: false
+  include: test/kurucu_sinama.nsh
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  uninstallDisplayName: Kurucu Sinama (PDEfe deneme)
+  artifactName: "KurucuSinama-Setup-${version}.${ext}"
+  differentialPackage: false
