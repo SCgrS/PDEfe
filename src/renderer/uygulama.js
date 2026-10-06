@@ -243,8 +243,10 @@ async function sekmeSec(id) {
   const b = belgeler.get(id);
   const bas = baslangicSekmeleri.has(id);
   if (!b && !bas) return;
+  // Geri al / kaydedilmemiş değişiklikler listesi önceki belgenindir (0.2.2). Etkin belge kaldırılınca da (aktifId null; belgeyiKaldir)
+  // kapanır: yoksa kapanan belgenin adımlarını yeni belgenin üstünde gösterip belge tuşlarını yutuyordu (bağımsız inceleme)
+  if (aktifId !== id) gecmisListesi.kapat();
   if (aktifId && aktifId !== id) {
-    gecmisListesi.kapat();   // geri al / kaydedilmemiş değişiklikler listesi önceki belgenindir (0.2.2)
     const eski = belgeler.get(aktifId);
     if (eski) {
       eski.notlar?.balonKapat(); eski.notlar?.notCubuguKapat(); eski.notlar?.duzenleyiciBitir(true);
@@ -361,7 +363,8 @@ function belgeyiKaldir(b, { devredildi = false } = {}) {
     kullanilmayanlariBirak(yollar);
     if (b.gorunum.anlik) cekirdek('anlik_sil', { yol: b.gorunum.anlik }).catch(() => {});
   }
-  if (aktifId === id) { aktifId = null; sonrakiSekmeyeGec(); }
+  // Açık geçmiş listesi etkin belgenindir: belgeyle birlikte kapanır (pencere kapatma yoluyla kapanan sekmede de; 0.2.2)
+  if (aktifId === id) { gecmisListesi.kapat(); aktifId = null; sonrakiSekmeyeGec(); }
   sekmesizKalmasin();
   belgeleriBildir();
   kirliBildir();
@@ -1521,6 +1524,7 @@ pdefe.dinle('pencere:kapatIstegi', async (istek) => {
   }
   if (mesajKutusuAcik() || girdiKilitli()) { if (mesajKutusuAcik()) mesajKutusuUyar(); pdefe.cagir('pencere:kapatVazgec'); return; }
   _kapanis = true; _kapanisCikis = cikis;
+  gecmisListesi.kapat();   // açık geri al / kaydedilmemiş değişiklikler listesi soruların arkasında kalmasın (mesaj kutusu tuşları yakalar)
   let izin = false;
   try {
     let kapsam = cikis ? 'pencere' : await kapatmaKapsami();
@@ -1611,6 +1615,7 @@ let _kapatmaIzni = null;
  *  açık kalır). Sürerken gelen ikinci istek (ör. ikinci kapatma isteği) aynı sonucu bekler; sorular iki kez açılmaz. */
 function kapatmayaIzinAl({ degismeyenleriKapat = false } = {}) {
   if (!_kapatmaIzni) _kapatmaIzni = (async () => {
+    gecmisListesi.kapat();   // kaydetme soruları ve sekme geçişleri listenin belgesini değiştirir (0.2.2)
     // Araç penceresi belgenin önünde açıktır ve belgeye bağlıdır (Sayfaları düzenle kaydederken sekmeye yazabilir): önce o
     if (!(await aracPencereleriniKapat())) return false;
     for (const b of belgeler.values()) b.notlar?.duzenleyiciBitir(true);   // açık yazı düzenlemesi kaydetme sorusunda sayılsın

@@ -14,6 +14,8 @@
 //   8) Kayıt konumu yokken (kaydedilen durum kesildi) liste net farktan çıkarılır, tıklanamaz.
 //   9) Sekme başka pencereye taşınırken ayrıntılar da taşınır (sekmePaketi'ndeki komut tarifleri).
 //  10) Koyu tema; konsolda hata yok.
+//  11) Etkin sekme kapanınca açık liste de kapanır: pencere kapatma yoluyla (× → "Yalnızca geçerli sekmeyi kapat"; kaydetme sorusu
+//      klavyeyle yanıtlanınca da) ve başka bir yoldan (bağımsız inceleme).
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9550      → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9550; node test\surucu.mjs betik test\senaryo30.mjs
@@ -353,6 +355,56 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, fare, tus
   await ss('durum-listesi-koyu');
   await kapat();
   await temaYap(eskiTema); await bekle(200);
+
+  // ------------------------------------------------------------ 11) Etkin sekme kapanınca açık liste de kapanır (bağımsız inceleme)
+  // Pencere kapatma yoluyla (× → "Yalnızca geçerli sekmeyi kapat"; pencerenin × düğmesi sayfaya basış göndermez, soru klavyeyle yanıtlanır)
+  // ya da başka bir yoldan etkin belge kapanınca liste kapanan belgenin adımlarını yeni belgenin üstünde göstermemeli, tuşları yutmamalı.
+  console.log('\n== 11) Etkin sekme kapanınca liste kapanır');
+  const listeKapali = () => evalJs(`(() => { const o = document.querySelector('#dugme-geri-al-liste'), dd = document.querySelector('#durum-degisiklik');
+    return { acik: window.__pdefe.gecmisListesi.acik, gorunur: !document.querySelector('.gecmis-listesi').hidden, okBasili: o.classList.contains('liste-acik') || o.getAttribute('aria-expanded') === 'true',
+      durumBasili: dd.classList.contains('liste-acik') || dd.getAttribute('aria-expanded') === 'true', aktif: window.__pdefe.aktif()?.ad || null }; })()`);
+  const kapaliMi = (x) => x.acik === null && !x.gorunur && !x.okBasili && !x.durumBasili;
+  await evalJs(`(async () => { window.__pdefe.ayar().pencereKapatma = 'sekme'; await window.pdefe.cagir('ayar:koy', 'pencereKapatma', 'sekme'); return true; })()`);
+  const yolC = path.join(PDF, 'kapatma-c.pdf'), yolD = path.join(PDF, 'kapatma-d.pdf'), yolE = path.join(PDF, 'kapatma-e.pdf');
+  uret(yolC, 3, 'Kapatma C'); uret(yolD, 3, 'Kapatma D'); uret(yolE, 3, 'Kapatma E');
+  // a) ▾ listesi açık, kaydedilmiş belge (geri alınabilir adımları var), × → soru sorulmadan yalnızca etkin sekme kapanır
+  const idC = await ac(yolC);
+  await dondur([1], 'Sayfayı döndür'); await dondur([2], 'Sayfayı döndür');
+  await evalJs(`(async () => { const p = window.__pdefe; return await p.belgeKaydet(p.aktif()); })()`); await bekle(400);
+  await okTikla();
+  l = await liste();
+  sonuc('Hazırlık: kapatma-c.pdf etkin ve kaydedilmiş, ▾ listesi açık (iki adım)', l?.kaynak === 'geri' && l.satirlar.length === 2 && !(await durumu()).degisti, l);
+  await evalJs(`window.pdefe.cagir('test:olayGonder', 'pencere:kapatIstegi')`);
+  await kosul(`!window.__pdefe.belgeler.has(${J(idC)})`, 6000); await bekle(300);
+  let lk = await listeKapali();
+  sonuc('× (Yalnızca geçerli sekmeyi kapat): sekme kapandı, liste de kapandı, ▾ basılı görünmüyor', kapaliMi(lk) && lk.aktif && lk.aktif !== 'kapatma-c.pdf', lk);
+  const kayOnce = await evalJs(`window.__pdefe.aktif().gorunum.kaydirici.scrollTop`);
+  await evalJs(`window.__pdefe.aktif().gorunum.kaydirici.focus(), 1`);
+  await tus('PageDown'); await bekle(400);
+  sonuc('Belge tuşları yeni etkin belgeye ulaşır (Page Down kaydırır)', (await evalJs(`window.__pdefe.aktif().gorunum.kaydirici.scrollTop`)) > kayOnce, { kayOnce });
+  await evalJs(`window.__pdefe.aktif().gorunum.kaydirici.scrollTop = ${kayOnce}, 1`);
+  // b) Durum çubuğu listesi açık, değişmiş belge; × → kaydetme sorusu klavyeyle (→, Enter: Kaydetme) yanıtlanır
+  const idD = await ac(yolD);
+  await dondur([1], 'Sayfayı döndür');
+  await durumTikla();
+  sonuc('Hazırlık: kapatma-d.pdf değişmiş, durum listesi açık', (await liste())?.kaynak === 'durum');
+  await evalJs(`(() => { window.__pdefeYerelKutu = false; return true; })()`);   // uygulama içi kutu: tuşları pencere düzeyinde yakalar
+  await evalJs(`window.pdefe.cagir('test:olayGonder', 'pencere:kapatIstegi')`);
+  const soru = await kosul(`document.querySelector('.mesaj-kutusu .mesaj-ileti')?.textContent || ''`, 4000);
+  await tus('ArrowRight'); await bekle(100); await tus('Enter');
+  await kosul(`!window.__pdefe.belgeler.has(${J(idD)})`, 6000); await bekle(300);
+  await evalJs(`(() => { window.__pdefeYerelKutu = true; return true; })()`);
+  lk = await listeKapali();
+  sonuc('Kaydetme sorusu klavyeyle "Kaydetme": sekme kapandı, durum listesi de kapandı', /kapatma-d\.pdf/.test(soru) && kapaliMi(lk) && !(await evalJs(`!!document.querySelector('.mesaj-kutusu')`)), { soru, lk });
+  // c) Başka bir yoldan (programla) etkin belge kapanır
+  const idE = await ac(yolE);
+  await dondur([1], 'Sayfayı döndür');
+  await okTikla();
+  sonuc('Hazırlık: kapatma-e.pdf, ▾ listesi açık', (await liste())?.kaynak === 'geri');
+  await evalJs(`window.__pdefe.belgeKapat(${J(idE)}, { zorla: true })`); await bekle(300);
+  lk = await listeKapali();
+  sonuc('Etkin belge başka yoldan kapanınca da liste kapanır', kapaliMi(lk), lk);
+  await evalJs(`(async () => { window.__pdefe.ayar().pencereKapatma = 'sor'; await window.pdefe.cagir('ayar:koy', 'pencereKapatma', 'sor'); return true; })()`);
 
   // ------------------------------------------------------------ son
   const hatalar = await evalJs(`window.__hatalar || []`);
