@@ -3,6 +3,35 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.2.2 — 2026-10-06
+
+### Pencere kapatılırken sekme sorusu
+- **Birden çok sekmeli pencere kapatılırken önce "Geçerli sekme / Tüm sekmeler" soruluyor.** Pencerede iki ya da daha çok sekme açıkken × düğmesi ya da `Alt+F4` (Mac'te kırmızı kapatma düğmesi) önce "Bu pencerede N sekme açık." diye sorar: **Geçerli sekme** yalnızca öndeki sekmeyi kapatır, pencere açık kalır; **Tüm sekmeler** (`Enter`) pencereyi bütün sekmeleriyle kapatır; **Vazgeç** (`Esc`) hiçbir şeyi kapatmaz. Kaydedilmemiş değişiklik varsa kaydetme sorusu bu sorudan sonra gelir; iki soru hiçbir zaman üst üste açılmaz.
+- **Bir daha sorma.** Sorudaki kutu işaretlenirse seçiminiz hatırlanır ve bütün pencerelerde geçerli olur. **Ayarlar › Açılış ve düzen › Pencere › Pencereyi kapatırken**'den değiştirilir: Her seferinde sor / Yalnızca geçerli sekmeyi kapat / Bütün sekmeleri kapat. Vazgeç'e basınca seçim kaydedilmez.
+- Tek sekmeli pencerede, **Dosya › Çıkış**'ta (Mac'te `⌘Q`), Windows oturumu kapanırken ve güncelleme kurulurken bu soru sorulmaz. İki PDEfe penceresi açıkken soru yalnızca kapatılan pencerede çıkar. `Ctrl+W` eskisi gibi sormadan sekmeyi kapatır.
+
+### Geri al listesi ve kaydedilmemiş değişiklikler
+- **Geri al düğmesinin yanında ▾.** Tıklanınca geri alınabilecek adımlar listelenir: en yenisi üstte, her satırda işlem ve sayfası ("Not ekle · s. 3", "Sayfaları döndür · s. 3–4", "Sayfa düzenini uygula · 1 sayfa silindi, sıra değişti"). Word'deki gibi: fare bir satıra gelince en üstten o satıra kadar boyanır, altta "3 işlemi geri al" yazar; tıklanınca o kadar adım birlikte geri alınır. Klavyeyle de kullanılır (`Enter` açar, `↑` `↓` seçer, `Enter` uygular, `Esc` kapatır).
+- **Durum çubuğundaki "Kaydedilmemiş değişiklikler" tıklanabiliyor.** Yanında yazıyla aynı renkte bir liste simgesi var; tıklanınca son kayıttan bu yana yaptıklarınızın listesi açılır. Burada da birden çok adım birlikte geri alınır; listenin altındaki **Kaydet** belgeyi kaydeder. Kaydettikten sonra geri aldığınız adımlar "(geri alındı)" diye soluk görünür: dosyada hâlâ dururlar, yeniden kaydedince dosyadan da kalkarlar.
+
+### Daha büyük, kolay tutulan arayüz
+- **Sekme şeridi ve araç çubuğu büyüdü, ikisi aynı yükseklikte.** Sekme adları biraz büyük, sekmenin × düğmesi daha kolay tıklanır; araç çubuğundaki simgeler ve sayfa / yakınlaştırma kutuları büyüdü. Dar pencerede araç çubuğu yine kademe kademe sıkışır; en dar pencerede PDF'i kopyala düğmesi gizlenebilir (Araçlar menüsünde duruyor). Sekmelerin en dar hâli de biraz genişledi: "ustyazi (85).pdf" gibi adlar büyüyen yazıyla da kısalmadan görünür.
+- **Belgenin sağdaki kaydırma çubuğu daha kalın** (16 → 20 piksel), tutması kolay; uzun belgede tutamak küçük bir daire değil, dikine bir hap. Yatay ve dikey kaydırma çubuğu birlikteyken sağ alt köşede kalan beyaz kare de giderildi.
+- **Açılış ekranının sağ altındaki PDEfe simgesi ve yazıları büyüdü** (seçtiğiniz C boyutu), simge yazılara daha yakın. Alçak ya da dar pencerede imza son açılanlar listesinin üstüne binmez, kesilmez.
+
+### Sayfalar paneli
+- **Küçük resimler panelin genişliğine uyuyor.** Sol paneli (`F4`) kenarından daraltınca sayfalar kesilmeden küçülür, altta yatay kaydırma çubuğu çıkmaz, bulunduğunuz sayfanın mavi çerçevesi sayfayı ve numarasını düzgün çevreler. Genişletince sayfalar büyür ve bıraktıktan bir an sonra keskinleşir; bulunduğunuz sayfa panelde görünür kalır. Pencere başka ölçekli bir ekrana taşınınca da keskinleşirler.
+- Panel en darken üstteki Sayfalar / İçindekiler / Yorumlar başlıkları panelin içinde kalıyor (Yorumlar dışarı taşıyordu).
+- Ekranda yan çevrilmiş (90°) yatay sayfanın küçük resmi artık bulanık değil.
+- Panel en geniş hâldeyken çok uzun bir belge baştan sona kaydırılınca bellek kullanımı sınırlı kalır; bu durumda başa dönünce uzaktaki sayfaların küçük resimleri ilk açılıştaki gibi kısa süre boş görünüp yeniden yüklenebilir.
+
+### Araçlarda büyük önizleme
+- **Sayfaları düzenle:** sayfalar yaklaşık 1,5 kat büyük ve ekranınızın ölçeğine göre keskin (%125 ekranda da); pencere daha geniş, satırda 4–5 sayfa. `↑` `↓` geniş pencerede de tam bir satır gidiyor (önceden 4 sütunda 3 sayfa atlayabiliyordu). Pencere başka ölçekli ekrana taşınınca resimler yeni ölçekte keskinleşir.
+- **Görüntü / PDF birleştir:** her dosyanın önizlemesi yaklaşık iki kat büyük ve keskin. Satırlar uzadığı için listede aynı anda daha az dosya görünür; liste kaydırılır.
+
+### README
+- Pencere kapatma sorusu, geri al listesi, kaydedilmemiş değişiklikler listesi, Sayfalar panelinin genişliğe uyması ve araçlardaki büyük önizlemeler eklendi; bütün ekran görüntüleri yenilendi, üç yeni görüntü (kapatma sorusu, iki liste).
+
 ## 0.2.1 — 2026-10-05
 
 ### Sağ tık menüsünde Kaydet

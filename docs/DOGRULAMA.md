@@ -250,9 +250,11 @@ Kapatma akışları, araç soruları, Ayarlar, seçim çubuğu, sekme okları ve
 (test/senaryo17.mjs). Test örneğinde Gezgin açılmaz ve Windows'un varsayılan uygulama kaydı okunmaz; kurulu sürümde denenmedi.
 1. **Pencere kapatma.** Üç belge açın, birinde bir not ekleyin (otomatik kaydetme kapalıyken). Pencerenin sağ üstündeki ×'e basın:
    değişikliği olmayan iki sekme hemen kapanmalı, kalan belge için "… belgesinde kaydedilmemiş değişiklikler var. Çıkmadan önce
-   kaydetmek ister misiniz?" sorulmalı. Vazgeç'te PDEfe açık kalmalı; Kaydetme'de kapanmalı.
+   kaydetmek ister misiniz?" sorulmalı. Vazgeç'te PDEfe açık kalmalı; Kaydetme'de kapanmalı. (0.2.2'den beri birden çok sekmeli
+   pencerede önce "Geçerli sekme / Tüm sekmeler" sorulur; bu adım **Tüm sekmeler** seçilince geçerli, bkz. 37.)
 2. **Araç açıkken kapatma.** Sayfaları düzenle'de bir sayfayı döndürüp pencereyi kapatmadan PDEfe'nin ×'ine basın: önce aracın
-   sorusu gelmeli; Vazgeç'te hiçbir şey kapanmamalı.
+   sorusu gelmeli; Vazgeç'te hiçbir şey kapanmamalı. (0.2.2'den beri birden çok sekme açıksa aracın sorusundan önce "Geçerli sekme /
+   Tüm sekmeler" sorulur, bkz. 37.)
 3. **Klasör çipi.** Bir araçta (ör. PDF küçült) adın yanındaki "Masaüstü"ne tıklayın: Masaüstü Gezgin'de açılmalı. Ad kutusunda
    ".pdf" görünmemeli; kaydedilen dosyanın adı ".pdf" ile bitmeli.
 4. **Zaten varsayılan.** Ayarlar › Açılış ve düzen: PDEfe varsayılan PDF görüntüleyiciyse yeşil tik ve "Zaten varsayılan" görünmeli.
@@ -344,7 +346,8 @@ görünüşü gözle denenmedi.
    pencere oraya gitmeli, boyutu bozulmamalı.
 7. **Görev çubuğu ve kapatma.** İki pencere görev çubuğunda aynı PDEfe simgesinin altında görünmeli. Kaydedilmemiş belgesi olan
    pencereyi × ile kapatın: soru yalnızca o pencerede çıkmalı. `Alt+F4` yalnızca öndeki pencereyi kapatmalı; **Dosya › Çıkış**
-   ikisini de (kaydedilmemiş belgeleri sorarak) kapatmalı.
+   ikisini de (kaydedilmemiş belgeleri sorarak) kapatmalı. (0.2.2'den beri × ve `Alt+F4` birden çok sekmeli pencerede önce "Geçerli
+   sekme / Tüm sekmeler" sorar; Dosya › Çıkış sormaz, bkz. 37.)
 8. **Gezgin.** İki pencere açıkken Gezgin'de bir PDF'e çift tıklayın: en son kullandığınız pencerede açılmalı. Öteki pencerede açık
    bir PDF'e çift tıklayın: o pencere öne gelmeli, belge ikinci kez açılmamalı.
 9. **Ayarlar.** Bir pencerede temayı değiştirin (ay / güneş düğmesi): öteki pencere de değişmeli.
@@ -540,3 +543,60 @@ doğrulandı; aşağıdakiler gerçek ekranda, gerçek panoyla ya da gerçek bir
     yüzeyle sekme çubuğunda tek kaydırma bir sekme geçmeli; Son açılanlar'da yol /Users/… biçiminde olmalı; güncelleme şeridi ve Ayarlar ›
     Güncelleme önce PDEfe'den çıkmayı anlatmalı, düğme İndir.
 17. **README.** GitHub'da (gönderildikten sonra) README'nin görüntüleri görünmeli ve anlattıkları bölümün altında olmalı.
+
+## 37. 0.2.2: otomatik testlerin sınayamadıkları
+Ekran dışındaki ve görünmeyen masaüstündeki test örneğinde, üretilmiş örnek PDF'lerle ve %100 / %125 / %150 ölçekte sınandı (test/serit_olculeri,
+panel_kucuk_resim, arac_onizleme, senaryo29, senaryo30; kapatma sorusu gerçek Windows kapatma iletisiyle de). Gerçek fareyle ve klavyeyle, ekranda
+gözle, gerçek ikinci ekranda, ekran okuyucuyla ve Mac'te denenmedi. Denemeleri belgelerin **kopyalarıyla** yapın.
+1. **Kaydırma çubuğu.** Belgenin sağındaki kaydırma çubuğu öncekinden kalın, kolay tutulur olmalı; çok sayfalı belgede tutamak küçük bir daire değil,
+   dikine bir hap. Belgeyi %300'e yakınlaştırın (yatay ve dikey çubuk birlikte): sağ alt köşede beyaz kare olmamalı, koyu temada da.
+2. **Sekme şeridi ve araç çubuğu.** İkisi aynı yükseklikte olmalı; sekme adları biraz büyük, sekmenin × düğmesi kolay tıklanır; araç çubuğundaki
+   simgeler, sayfa ve yakınlaştırma kutuları biraz büyük. Bul kutusu, not balonları, Ayarlar ve araç pencerelerindeki düğmeler eskisi gibi kalmalı.
+3. **Dar pencere.** Pencereyi sağ kenarından en dara kadar daraltın: araç çubuğu kademe kademe sıkışmalı, taşmamalı, tema düğmesi hep görünmeli (en
+   dar hâlde PDF'i kopyala düğmesi gizlenebilir, Araçlar menüsünde var). Çok sekme açıkken sekmeler en dar hâlde de "ustyazi (85).pdf" gibi adları
+   kısaltmamalı.
+4. **Sekme sürükleme.** Bir sekmeyi şeridin dışına sürükleyin: imlecin altındaki önizlemenin başlığı sekme boyunda olmalı, bırakınca yeni
+   pencerede sekme imlecin altında durmalı. Okuma kipinde (`Ctrl+H`) fare en üste gelince araç çubuğu açılmalı.
+5. **Açılış ekranı.** Bütün sekmeleri kapatın: sağ alttaki PDEfe simgesi ve yazıları seçtiğiniz C boyutunda, simge yazılara yakın olmalı;
+   tıklayınca Ayarlar › Hakkında açılmalı. Pencereyi alçaltın, sol paneli (`F4`) geniş açın: imza listenin altında kalmalı, üstüne binmemeli,
+   kesilmemeli.
+6. **Sayfalar paneli.** `F4` › Sayfalar; panelin sağ kenarını en dara çekin: küçük resimler kesilmeden küçülmeli, altta yatay çubuk çıkmamalı,
+   mavi çerçeve sayfayı ve numarasını çevrelemeli, üstteki üç başlık panelin içinde okunmalı. Ekranın yarısına kadar genişletin: sayfalar büyümeli
+   ve bıraktıktan bir an sonra keskinleşmeli, sürüklerken boş beyaz kutuya dönmemeli; bulunduğunuz sayfa görünür kalmalı.
+7. **Döndürülmüş sayfa panelde.** `Ctrl+R` ile bir sayfayı döndürün: paneldeki resim doğru yönde ve oranda olmalı; paneli daraltıp genişletince,
+   `Ctrl+S`'ten sonra ve sekme değiştirip dönünce de.
+8. **İkinci ekran (ofis, %150).** PDEfe'yi o ekrana taşıyın: Sayfalar panelindeki ve açıksa Sayfaları düzenle'deki küçük resimler kısa süre
+   sonra keskinleşmeli.
+9. **Sayfaları düzenle.** Çok sayfalı bir PDF'te Araçlar › Sayfaları düzenle: sayfalar belirgin büyük (yaklaşık 1,5 kat), pencere geniş, satırda
+   4–5 sayfa, yazılar keskin. Yatay ya da döndürülmüş sayfa çerçevesinde kalmalı, R ile döndürünce taşmamalı; Boş sayfa ekle öteki sayfalar
+   kadar büyük. `↓` `↑` tam bir satır gitmeli; sürükleyerek sıralama ve boş alandan seçim eskisi gibi.
+10. **Birleştir.** Görüntü / PDF birleştir'e bir PDF ve bir fotoğraf ekleyin: önizlemeler eskisinin yaklaşık iki katı ve keskin olmalı; döndür,
+    taşı, çıkar ve sürükleyerek sıralama eskisi gibi. Listede aynı anda daha az dosya görünür (liste kaydırılır): sizin için uygun mu? Sıkıştır,
+    Ayır ve Döndür değişmemeli.
+11. **Kapatma sorusu.** İki PDF açıp pencerenin ×'ine basın: "Bu pencerede 2 sekme açık." sorusu çıkmalı, açıklamada öndeki sekmenin adı,
+    düğmeler Geçerli sekme / Tüm sekmeler (mavi, `Enter`) / Vazgeç. Vazgeç (ya da `Esc`): hiçbir şey kapanmamalı. Geçerli sekme: yalnızca öndeki
+    sekme kapanmalı, pencere açık kalmalı.
+12. **Kaydet sorusuyla sıra.** Öndeki belgeye not ekleyip ×, Geçerli sekme: ardından kaydetme sorusu gelmeli (iki soru aynı anda görünmemeli);
+    orada Vazgeç sekmeyi açık bırakmalı. Bir belgede değişiklik varken ×, Tüm sekmeler: değişmemiş sekmeler sorusuz kapanmalı, değişen belge
+    sorulmalı.
+13. **Bir daha sorma.** İşaretleyip Geçerli sekme'yi seçin: sonraki ×'lerde soru çıkmadan yalnızca öndeki sekme kapanmalı. Ayarlar › Açılış ve
+    düzen › Pencere › Pencereyi kapatırken "Yalnızca geçerli sekmeyi kapat" göstermeli; "Her seferinde sor"a geri alın. İşaretleyip Vazgeç
+    derseniz ayar değişmemeli.
+14. **Alt+F4, Çıkış, iki pencere.** `Alt+F4` aynı soruyu açmalı; Dosya › Çıkış (menü çubuğu açıkken) bu soruyu sormamalı, yalnızca kaydedilmemiş
+    belgeler sorulmalı. Tek sekmeli pencerede × eskisi gibi. İki PDEfe penceresi açıkken (sekmeyi dışarı sürükleyip ayırın) birinde ×: soru
+    yalnızca o pencerede çıkmalı, Tüm sekmeler yalnızca o pencereyi kapatmalı; "Bir daha sorma" öbür pencerede de geçerli olmalı.
+15. **Geri al listesi.** 3. sayfaya bir not koyun, 2. sayfayı döndürün, bir not daha koyun; Geri al'ın hemen sağındaki ▾'ye tıklayın:
+    yaptıklarınız en yenisi üstte, sayfasıyla görünmeli ("Not ekle · s. 3", "Sayfayı döndür · s. 2"). Fareyi aşağı indirin: en üstten
+    farenin satırına kadar boyanmalı, altta "3 işlemi geri al" yazmalı; tıklayınca o kadarı birden geri alınmalı. Geri alınacak bir şey yokken
+    ▾ soluk olmalı; Yinele'nin yanında ok olmamalı.
+16. **Klavye.** ▾'ye `Tab` ile gelip `Enter`: ilk satır boyalı açılmalı; `↓` `↑` boyamayı değiştirmeli, `Enter` uygulamalı, `Esc` kapatmalı;
+    liste açıkken ok tuşları belgeyi kaydırmamalı. ▾'de `Enter`'ı basılı tutun: liste açılmalı, hiçbir adım kendiliğinden geri alınmamalı.
+17. **Liste kapanması.** Liste açıkken belgeye tıklayın, başka sekmeye ya da başka programa geçin: kapanmalı. Liste açıkken `Ctrl+Z`: liste
+    kapanıp bir adım geri alınmalı. Liste açıkken ×'e basıp Geçerli sekme'yi seçin: liste de kapanmalı, tuşlar belgeye gitmeli.
+18. **Kaydedilmemiş değişiklikler.** Değişiklik varken sağ alttaki mavi "● Kaydedilmemiş değişiklikler"in yanında aynı renkte bir liste simgesi
+    olmalı. Tıklayın: yukarı doğru başlıklı bir liste, içinde yalnızca son kayıttan sonra yaptıklarınız; boyama ("2 değişikliği geri al") ve
+    satıra tıklayınca geri alma çalışmalı; Kaydet düğmesi kaydetmeli, liste kapanmalı, mavi yazı kaybolmalı. Kaydettikten sonra Geri al ile bir
+    adım geri alıp yazıya tıklayın: o adım "(geri alındı)" diye soluk ve tıklanamaz olmalı.
+19. **Koyu tema.** İki liste ve kapatma sorusu koyu temada okunaklı olmalı.
+20. **Mac'te** (elinizde varsa): kırmızı düğme aynı soruyu sormalı, ⌘W yalnızca sekmeyi kapatmalı, ⌘Q soru sormadan (yalnızca kaydetme sorularıyla)
+    çıkmalı; liste açıkken ⌘Z listeyi kapatıp bir adım geri almalı.

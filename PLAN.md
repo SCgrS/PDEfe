@@ -1531,3 +1531,231 @@ karşılaştır ve denetle. readmedeki eksik kısımları düzelt eklenmesi gere
   Mac'te yazı düzenleyicisi ⌃PageUp/PageDown'u yutuyor; yapısal kayıttan sonra küçük resimler anlık kopyadan çizilir; parola sorusu
   açıkken sekme kapatılırsa soru açık kalır; yeni testler: yapisal_esleme_testi, kose_notu_testi, kayit_sekme_panel, gec_iptal, oturum_sonu,
   pencere_konumu, cekirdek_kopma, pano_birim, guvenlik_birim, mac_renderer (+ mac_cerceve.js), yazi_ime.
+
+### Revizyon 0.2.2 (2026-10-05 – 10-06, kullanıcı istekleri: kaydedilmemiş değişiklikler, büyük önizleme, kapatma sorusu, boyutlar)
+Ayrıntı: CHANGELOG.md. Kullanıcının istekleri (kendi sözleriyle):
+1. "kaydedilmemiş öğeleri göstersin işlemlerin ne olduğunu listelesin"
+2. "araçlardaki dosyaların, görüntülerin boyutu büyük olsun ki görebilelim içeriğini, sayfa boyutları daha büyük, iyi gözüksün araçlarda"
+3. "iki sekme açıkken pencere kapatınca geçerli sekme mi tüm sekmeler mi diye sorsun. kaydet sorusuyla çakışmasın. önce geçerli sekme mi tüm
+   sekmeler mi sorusu sorulsun. iki pencere açıkken de sorun çıkmasın. tekrar sorma butonu ekleyelim. ayarlardan değiştirilebilelim"
+4. "sağdaki kaydırma şeridini biraz daha büyültelim"
+5. "açılış ekranında sağ alttaki simge ve yazıyı büyütelim. büyütmeden önce ne kadar büyüyeceğine ilişkin bana görsellerle soru sor"
+6. "sekme şeridini birazcık daha genişletelim, çok ince şu an. bununla eşit olacak şekilde araçlar şeridini de genişletelim, simgeler de buna
+   uygun olarak büyüsün"
+7. Ekran görüntüsüyle: "pdefe sağ penceresi sıkıştırıldığında sayfalar da sıkışsın (tam görüntüleme bozulmadan küçülsün) ve mavi işaret düzgün
+   olsun. genişletildiğinde sayfalar da büyüsün". Görüntüdeki panel soldaki Sayfalar paneliydi; "sağ pencere" böyle yorumlandı (raporda söylendi).
+
+Sorular ve yanıtlar: imza için uygulamadan alınmış dört boyutlu görsel (A şimdiki, B 1,3×, C 1,6×, D 2×) → "C olsun ama simge ile yazılar birbirine
+daha yakın olsun", aralık 5 px görselle gösterildi; şerit için dört görsel (şimdiki 34, 40, 44, 48 px) → B, 40 px; kaydedilmemiş işlemlerin listesi
+nerede (kaydet sorusunda / sekme ipucunda / Kaydet düğmesi ipucunda önerildi) → kullanıcı: "alttaki kaydedilmemiş değişiklikler yazısının yanına yeni
+bir simge ekleyelim, yazıyla aynı renk olsun. bir de geri al simgesinin yanına bir ok işareti çıkartalım, geri alınma adımlarını oradan görelim,
+Word'deki gibi olsun mekaniği ve görüntüsü; aşağıdakinin mekaniği de benzer olabilir". Plan onaylandı ("onaylıyorum"). İş beş grupta sırayla yapıldı
+(aynı çalışma ağacı, madde başına commit: bb523e9…d8e3841), ardından bağımsız inceleme ve düzeltmeleri (d3cd25d…9b76052), README ve görüntüler.
+- [x] **Kaydedilmemiş değişiklikler ve geri al listesi** (`src/renderer/gecmisListesi.js`, `Komut.ayrinti`). Yerel menü (`menu:popup`; yakınlaştırma ve
+  düzen ▾'leri) satır boyayamıyor, alt yazı gösteremiyor, birden çok adım seçtiremiyor: sayfanın kendi bileşeni yazıldı (GecmisListesi; Araçlar
+  penceresinin deseni: dışarı basış, belge düzeyinde yakalama evresinde tuş, blur / resize'da kapanma). İki liste aynı bileşenden, aynı anda biri açık.
+  - Geri al'ın ▾'si (`#dugme-geri-al-liste`, 21 px, −2 px kenarla Geri al'a bitişik bölünmüş düğme, geri alınacak yokken soluk) düğmenin altında, sol
+    kenarı Geri al'la hizalı. Durum çubuğundaki `#durum-degisiklik` (yazı + aynı renkte liste simgesi) listesi yukarı açılır, sağ kenarı yazıyla
+    hizalı, başlıklı, altta Kaydet (Ctrl+S'in `dosya.kaydet`'i; liste kayıttan önce kapanır). En çok pencere yüksekliğinin %60'ı, uzun liste kendi
+    içinde kayar; satır sayısı sınırsız (50 satır sınandı).
+  - Mekanik (Word): satırlar en yenisi üstte "ad · ayrıntı"; fare satıra gelince en üstten o satıra kadar boyanır, alt yazı "N işlemi geri al" (her
+    sayıda aynı biçim; durum listesinde "N değişikliği geri al"); boyama yokken geri al listesinde "Vazgeç" (tıklanınca kapatır, Word'deki Cancel
+    gibi), durum listesinde "N değişiklik". Tıklama `topluGeriAl`: KomutYigini.geriAl n kez, durum çubuğuna tek ileti ("Geri alındı: 3 işlem");
+    açık pencere (mesaj kutusu, araç, Ayarlar) ya da pencere kilidi varken yapılmaz; kayıt sürerken listeden geri alınmaz ("Kaydediliyor, lütfen
+    bekleyin."; tek adımlık Ctrl+Z eskisi gibi). Liste açılırken açık yazı düzenlemesi uygulanır (yazı listede en üstte bir adım olur).
+  - Klavye: ▾ ve durum yazısında Enter, Boşluk (▾'de ↓ da) keydown'da işlenir (Boşluk belgeyi kaydırdığı için tıklamaya ulaşmıyordu; Araçlar
+    düğmesindeki gibi), klavyeyle açılan listede ilk satır boyalı; ↑ ↓, Home / End, Page Up / Down (10 satır) boyamayı değiştirir, Enter uygular, Esc
+    kapatır, Tab Kaydet'e geçer. Açıkken belge kısayolları belgeye ulaşmaz; Ctrl / Alt / ⌘'li tuşlar ve F tuşları listeyi kapatıp olağan işine
+    bırakılır (Ctrl+Z açık listede de geri alır). Kapanma: dışarı tıklama, sekme değişimi, menü komutu, pencere odağının kaybı, boyut değişimi;
+    belge değişince (kirliGuncelle) açık liste yeniden çizilir, satır kalmazsa kapanır. Okuma kipinde geri al listesi açıkken araç çubuğu gizlenmez.
+  - Satır ayrıntısı: Komut'un isteğe bağlı beşinci alanı (testler ve ipucu adı karşılaştırdığı için ad değişmedi), komut kurulurken bir kez yazılır,
+    işlemin yapıldığı andaki sayfayı söyler. Not komutlarında notun sayfası ("s. 3"; başka sayfaya götüren düzenlemede "s. 2 → 3",
+    `notlar.js notKomutuAyrintisi`). Sayfa komutlarında eski ve yeni sayfa listelerinin farkı (`komutlar.js sayfaFarki`, sayfalar girdi kimliğiyle
+    eşlenir): yalnızca döndürmeyse döndürülen sayfalar ("s. 3–4"; dörtten çok parça "s. 1, 3, 5 … (9 sayfa)"), yapısal değişiklikte ve "Sayfa
+    düzenini uygula"da özet ("2 sayfa silindi, 1 sayfa eklendi, sıra değişti, 1 sayfa döndürüldü"; silme ve ekleme tek başına "sıra değişti"
+    sayılmaz). Sekme başka pencereye taşınırken ayrıntı da taşınır (komutDisari / komutIceri). Seçilmeyen: notun bugünkü sayfasını canlı göstermek
+    (geri alınmış / silinmiş notlarda ve taşınan sekmede tutarsızlaşıyordu).
+  - Durum listesinin üç durumu (KomutYigini konum / kayitKonumu): kayıttan sonra yapılanlar (`yigin.slice(kayitKonumu, konum)`, tıklanabilir: geri al
+    yığınının tepesi); kaydedip geri alınanlar (konum < kayitKonumu: "(geri alındı)", soluk, tıklanamaz, alt yazı "Kaydedince dosyadan da kalkar");
+    kayıt konumu yok (−1) ya da yığında fark yok ama belge değişmiş (geçmişi taşınamamış sekme): net farktan (kayitliTarif ↔ tarifJson,
+    `notlar.fark()`), tıklanamaz; anlık (yapısal) kayıt kipinde yalnızca sayfa farkı (fark() kaydedilmiş notları da değişmiş gösterir); hiçbir şey
+    çıkmazsa tek açıklama satırı.
+  - Bağımsız incelemede düzeltilenler: listeyi açan Enter / Boşluk basılı tutulunca tuş yinelemesi bir adımı sessizce geri alıyordu (yinelenen
+    basış yok sayılır, mesajKutusu.js'teki gibi); etkin sekme pencere kapatma yoluyla kapanınca liste açık kalıp kapanan belgenin adımlarını
+    gösteriyor, tuşları yutuyordu (veri değişmiyordu; belgeyiKaldir aktifId'yi önce boşaltıyor, sekmeSec listeyi yalnızca aktifId doluyken
+    kapatıyordu): liste sekmeSec'te aktifId boşken de, belgeyiKaldir'de, pencere:kapatIstegi'nin ve kapatmayaIzinAl'ın başında kapanır; ekran
+    okuyucu boyanan satırı duymuyordu: odak role=listbox olan ul'de, satırlar kimlikli, aria-activedescendant son boyalı satır,
+    aria-multiselectable, alt yazı aria-live=polite (görünüm değişmedi; NVDA ile denenmedi).
+  - Araç çubuğu: ▾ +19 px; 1280 px'te sıkışma yok (269 px boş, önce 290), 1000 px'te 1. kademe (önce yok), 760 px'te 4. (önce 3.), 720 px'te 5.
+    (PDF'i kopyala gizlenir, Araçlar menüsünde var; önce 4.), 704 px'te 6. (36 px boş); 4 basamaklı sayfa sayısında 720 px'te ve Mac'te 0 px boş.
+  - Seçilmeyenler: Yinele'ye ok (istenmedi), Word gibi 100 satır sınırı, kapatma sorusuna değişiklik listesi (harita önerisiydi, istenmedi), satırın
+    üstüne gelince ilgili sayfaya gitmek (Word'de yok).
+- [x] **Araçlarda büyük önizleme.** Kök neden: boyutlar koda gömülüydü (Sayfaları düzenle'de kutu 150 px, ızgara minmax(170px), boş sayfa ve hata
+  yer tutucusu JS'te 150 / 110 px; Birleştir'de satır sütunu ve kutu 64 px, yer tutucu 46 × 60), çözünürlük ekran ölçeğinden bağımsızdı (kucuk_resim
+  hep 160 px, gorsel_bilgi 144 px): dikey A4 160 × 226 çizilip 106 × 150'ye küçültülüyor, yatay sayfa %125'te 188 cihaz pikseline gerilip
+  bulanıklaşıyordu.
+  - Kutu tek CSS değişkeninde: `.sayfalar-pencere --kart-resim: 220px`, `.birlestir-pencere --birlestir-resim: 120px`; ızgara sütunu
+    calc(var + 20px), resim sınırları, boş sayfa ve yer tutucular (Birleştir: kutunun %72 × %94'ü, 86 × 113) bundan türer; JS değeri getComputedStyle
+    ile okur (sayfalar.js `_kutuOlcusu`, gorselBirlestir.js `_kucukResimGenisligi`).
+  - Sayfaları düzenle penceresi 980 px yerine `min(1320px, 94vw)`; 88vh, şeridin altında açılma ve 1000 px altındaki 94vw korundu. 1280 px pencerede
+    4 sütun, kart 278 × 268 (önce 5 sütun, 178 × 198), 1536 ve 1920 px'te 5; 1280 × 800'de görünen satır 1,8 → 1,4.
+  - Çözünürlük (`_resimGenisligi`): kutu × min(2, dpr) × (yatayda 1, dikeyde en / boy), en çok 600 px (`KART_RESIM_EN_FAZLA`); diske artımlı
+    işlenmiş çeyrek tur (`_diskDondurme`) oranı çevirir. Ekrandaki boyut çekirdeğin döndürdüğü resmin oranından (uzun kenar = kutu): tahmin yalnızca
+    keskinliği etkiler. Önbellek anahtarı "yol|sayfa|genişlik". Birleştir: max(144, ceil(120 × min(2, dpr))) (%100 144, %125 150, %150 180, %200 240;
+    çekirdek 1024'te keser); küçük görsel büyütülmez.
+  - Büyük kartlarla ortaya çıkan eski kusur: `_sutunSayisi` sütun sayısını kart genişliğinden bölmeyle buluyordu; 1fr kartlar kesirli (277,53 px),
+    1280 px'te 3,9996 → 4 sütunda 3 sayılıyor, ↑ ↓ 3 kart atlıyordu. Artık gridTemplateColumns'tan.
+  - Ekran ölçeği değişince (bağımsız inceleme): yeni ölçek için düşük kalan kartlar yeniden istenir, eski resim yenisi çözülene dek kalır, geç gelen
+    eski istek yenisini ezmez. Birleştir'in önizlemesi dosya bilgisiyle bir kez alınır, yeniden istenmez (en az 144 px).
+  - Ölçümler: çekirdek (756 sayfalık belgeden 84 sayfa), küçük resim başına 160 px 3,6 ms / 13,4 KB; %100 dikey A4 156 px 3,5 ms / 12,8 KB; %125
+    194 px 4,2 ms / 18,5 KB; %150 233 px 5,1 ms / 24,1 KB; %200 311 px 6,3 ms / 34,9 KB (en kötü 1,75 kat). gorsel_bilgi 144 → 240 px: PDF'in 1.
+    sayfası 8,8 → 5,8 ms (gürültü), PNG 21,5 → 19,3 ms, JPEG 25,9 → 34,6 ms. Arayüz (%125, 1280 × 900): açılışta görünen kartlar 127–309 → 100–274
+    ms, ortaya atlama aynı, hızlı kaydırmadan sonra görünenler ortanca ~300 → ~100 ms (büyük kartta kaydırılan piksel başına daha az resim). Bellek:
+    base64 önbellek sayfa başına ~13 KB → %125'te ~18, %200'de ~35 KB (756 sayfa %200'de ~26 MB), pencere kapanınca bırakılır. Çekirdek değişmedi.
+  - Seçilmeyenler: çekirdeğe JPEG ya da görünen alanı öne alan kuyruk (ölçümde gerek çıkmadı), Küçük / Orta / Büyük seçimi ya da Ctrl+tekerlek
+    (istenmedi), kartı pencere yüksekliğine göre küçültmek ("büyük olsun"la çelişir), Birleştir penceresini büyütmek (satırlar 81 → 134 px; 1280 ×
+    800'de liste ~2 satır, önce 3,5; en az yükseklik 160 px bir satırı tam gösterir), panelin kucukResimIstegi yardımcısı (kutu sabit; araçlar
+    panele bağlı olmasın). Sıkıştır, Ayır, Döndür değişmedi.
+- [x] **Pencere kapatma sorusu** (`uygulama.js kapatmaKapsami`, `gecerliSekmeyiKapat`). Soru 'pencere:kapatIstegi' işleyicisinde, `_kapanis`
+  kurulduktan sonra, kapatmayaIzinAl'dan önce sorulur: güncelleme kurulumunun izni (kurulumIzniAl, pencere:izinIste) de kapatmayaIzinAl'ı kullanır,
+  orada sorulmamalı. Kapsam ve kaydetme soruları aynı akışta sırayla açılır (testte aynı anda açık kutu en çok 1, MutationObserver).
+  - Ön koşul, ana süreç Çıkış'ı bildirir: pencereler.js close olayı isteği `{ cikis: !!k.kapatBekleyen }` ile gönderir (kapatBekleyen yalnızca
+    kapatmayiIste'de: Dosya › Çıkış, ⌘Q, Dock › Çık, Windows query-session-end, test:cik). Olmasaydı Çıkış'ta ve oturum sonunda da sorulur, "yalnızca
+    geçerli sekme" hatırlanmışsa Çıkış her pencerede bir sekme kapatıp dururdu. Güncelleme kurulumu (kapatOnayli) bu isteği üretmez. Preload kanal
+    listesi değişmedi.
+  - Koşullar: 2+ sekme (açılış sekmeleri dahil) ve en az bir belge; tek sekmede (kapatılamaz) ve yalnızca açılış sekmeleri varken sorulmaz. Soru:
+    "Bu pencerede N sekme açık." / "Yalnızca geçerli sekme ("ad") mi kapatılsın, yoksa bu pencere bütün sekmeleriyle mi?" (+ kaydedilmemiş varsa
+    "Kaydedilmemiş değişiklikler ardından sorulur."); Geçerli sekme / Tüm sekmeler (varsayılan, Enter) / Vazgeç (Esc); "Bir daha sorma".
+  - Geçerli sekme: kapanan, soru açılırken etkin olan sekmedir (`_kapsamHedefi`; soru açıkken Gezgin'den açılan dosya etkin sekmeyi değiştirebilir,
+    kullanıcının görmediği sekme kapanmasın). Önce aracPencereleriniKapat (biri açık kalırsa durulur); yazdırma, parola ya da Kısayollar penceresi
+    açıksa sekme kapatılmaz, "Önce açık pencereyi kapatın." (Ctrl+W kuralı; Ayarlar açık kalabilir); sonra sekmeKapat(id): kaydetme sorusu burada,
+    Vazgeç sekmeyi açık bırakır. Her durumda pencere:kapatVazgec.
+  - Yarış: soru açıkken cikis gelirse mesajKutusu'na eklenen `denetim.yanitla` soruyu "Tüm sekmeler" olarak kapatır (Çıkış takılmaz, oturum sonu
+    engelli kalmaz; "Bir daha sorma" yazılmaz); Geçerli sekmenin araç / kaydetme sorusu açıkken Çıkış gelirse sekme kapanınca pencerenin geri kalanı
+    da kapatılır, orada Vazgeç Çıkış'ı durdurur (Çıkış'taki kaydetme sorusunda Vazgeç gibi); ikinci olağan × yalnızca kutuyu belirginleştirir; soru
+    açıkken sekme alınmaz, verilmez (kapanisSuruyor).
+  - Güncelleme izni (bağımsız inceleme): izin süren kaydı ya da kaydetme sorusunu beklerken × basılınca kapsam sorusu araya giriyor, sorular üst
+    üste açılıyor, aynı belge iki kez soruluyordu. Düzeltme: pencere:kapatIstegi `_kapatmaIzni` sürerken kapsam sormadan aynı izni bekler (0.2.1'deki
+    gibi); kurulumIzniAl kapatmanın kapsam sorusu ya da "Geçerli sekme" evresindeyse kurulumu erteler (şeritte "Kur ve yeniden başlat" kalır);
+    gecerliSekmeyiKapat kurulum kilidindeyken çalışmaz.
+  - Ayar `pencereKapatma`: 'sor' (varsayılan) | 'sekme' | 'pencere' (main/ayarlar.js; bilinmeyen değer 'sor'; DURUM_ANAHTARLARI'nda değil,
+    Varsayılanlara dön 'sor'a döndürür). "Bir daha sorma" yalnızca Geçerli sekme / Tüm sekmeler seçilince yazılır (Vazgeç'te ve soruyu Çıkış
+    kapattığında değil), ayarKoy beklenir, öteki pencerelere 'ayar:degisti' ile geçer; açık Ayarlar kartı `ayarlarPenceresiniGuncelle` ile güncellenir
+    (data-ayar işaretli seçim kutuları). Kart Ayarlar › Açılış ve düzen'de yeni "Pencere" alt başlığında (yeni bölüm açılmadı, bölüm listesi aynı);
+    açıklama platforma göre (Windows: ×, Alt+F4, Ctrl+W; Mac: kırmızı düğme, ⌘W, ⌘Q). Mac: kırmızı düğme close olayıdır (sorulur), ⌘W sekmeyi kapatır,
+    ⌘Q Çıkış'tır (sorulmaz).
+  - Bilerek kabul edilen: Windows görev çubuğundaki "Tüm pencereleri kapat" her pencereye ayrı WM_CLOSE gönderir, cikis taşımaz: her pencere kendi
+    sorusunu aynı anda sorar (kaydetme soruları da böyle); ayırmak zamanlamaya dayalı tahmin gerektirirdi.
+  - Seçilmeyenler: soruyu kapatmayaIzinAl'a koymak (güncelleme izninde de sorardı), global `cikisSuruyor` bayrağı (pencereye özgü değil, Çıkış
+    sürerken başka pencerede basılan ×'i de Çıkış sayardı), soru açıkken gelen Çıkış'ı yok saymak ("Geçerli sekme"de kapatVazgec Çıkış'ı durdurur,
+    oturum sonu engelli kalırdı).
+- [x] **Kaydırma çubuğu 16 → 20 px** (stil.css `.kaydirici`, `.kaydirma-olcer`; saydam kenar 3 px → görünen tutamak 14 px, köşe yarıçapı 10 px;
+  panellerin çubukları 12 px kaldı). 20 px %125 / %150 / %175'te tam cihaz pikseline düşer (25, 30, 35; 18 px %125'te 22,5). Sığdırma
+  (goruntuleyici.js `cubukKalinligi`) kalınlığı ölçüm kutusundan okur, JS değişmedi; sığdırma testleri üç ölçekte "çubuk 20 px" ölçtü. Chromium uzun
+  belgede tutamağı en kısa 17 px'e (görünen 11) indiriyor, 20 px'lik çubukta 14 × 11'lik yatık bir hap oluyordu: `::-webkit-scrollbar-thumb:vertical`
+  min-height, `:horizontal` min-width 28 px (görünen 22; planda yoktu). Yatay ve dikey çubuk birlikteyken sağ alt köşedeki beyaz kare (0.2.1'de de
+  vardı; geri al grubunun bildirdiği): genel `::-webkit-scrollbar-corner` saydam; açık ve koyu temada ekran görüntüsünden piksel denetimi.
+- [x] **Açılış ekranı imzası** (C + "daha yakın"): simge 30 → 50 px, ad 14 → 22, alt yazı 11 → 16 px, simge ile yazı arası 9 → 5 px. İmza ~32 → 50
+  px uzayıp sekme şeridi 6 px yükselince 1280 × 700'de 10 son belgeyle 8 px taşıyordu: seçilen ölçüler küçültülmedi (seçilmeyen yol: alçak pencerede
+  imzayı küçültmek), alçak pencerede boşluklar daraltıldı (bölümler arası 14 → 12, alt boşluk en az 16 → 12, imzanın üst dolgusu 4 → 0; 14 px).
+  Bağımsız incelemede iki kusur: dar içerik alanında (720 px pencere, 432 px panel) imza sola taşıp 122 px kırpılıyordu → `.karsilama-imza`
+  justify-self: safe end, max-width: 100%, min-width: 0, alt yazı dar alanda satır kırar (geniş alanda tek satır, görünüm aynı); 780 px eşiğinin hemen
+  üstünde sıkı boşluklar birden kalkınca 10 son belgeyle ~54 px'e dek kayma → eşik 860 px (kullanıcının pencereleri 1536 × 770 ve tam ekran 1920 ×
+  ~1000 etkilenmiyor; akışkan boşluk clamp / vh seçilmedi: aynı sonuç, daha karmaşık kod).
+- [x] **Sekme şeridi ve araç çubuğu 40 px** (B). `--sekme-yukseklik` 34 → 40 (= `--arac-yukseklik`); sekme calc(var − 4px) = 36, bırakma çizgisi
+  − 6px = 34; sekme yazısı 12 → 13 px, × 18 → 20 (simgesi 13 → 15), değişiklik noktası 16 → 18; şeridin ◀ ▶ + ve açık belgeler düğmeleri 28 → 30 px,
+  simgeler 22 px (+ simgesi bilerek 22 px: öngörüntüde öyle görünüyordu ve kullanıcı o görseli seçti; büyük bulunursa tek satırla 18). Araç
+  çubuğunda button.ikon 34 px, simgeler 22, `.acilir` 21, Araçlar oku 15, sayfa ve yakınlaştırma kutuları 24 → 28 px; kurallar `#arac-cubugu` /
+  `#sekme-cubugu` ile sınırlı (Bul, notlar, araç pencereleri ve Ayarlar değişmedi; testle).
+  - Sekmenin en dar genişliği 118 → 128 px (planda yoktu): 13 px yazıyla "ustyazi (85).pdf" 118 px'te kısalıyordu (ad alanı 83, ad 86,8 px); 128'de
+    "ustyazi (100).pdf" de sığar. Dar pencerede şerit kaymadan önce sığan sekme ~%8 az.
+  - Yükseklik sabitleri: ONIZLEME_BASLIK 30 → 36, hayalet.html #baslik 35 px; pencereler.js YEDEK_TUTMA {40, 17}, HAYALET_BASLIK 36,
+    HAYALET_IMLEC_EN_ALT 28, önizleme penceresinin en az yüksekliği 36; sekmeYeri.y (+4, #sekme-liste'nin dolgusu) ve okuma kipindeki clientY < 48
+    (araç çubuğu 40 kaldı) değişmedi.
+  - Dar pencere: 6. sıkışma kademesi (düğmeler 26 px, simgeler 20, ok 16; yakınlaştırma kutusu %6400 sığsın diye daralmaz; ~40 px açar). Ölçüm (410
+    sayfa, ▾'den önce): pencere içi 704 px 1–5. kademe (15 px boş), 720 px 1–4 (2), 760 px 1–3 (13), 900 px 1–2 (28), 1000 px ve üstü yok; 4 basamaklı
+    sayfa sayısında 704 px'te 0.2.1'de de yalnızca 1 px pay kalıyordu. Windows'ta en dar pencerenin içi 704 px, Mac'te 720. Seçilmeyenler: 3.
+    kademede düğmeleri 30 px tutmak (720 px'te taşardı), okuma kipi eşiğini ölçüye bağlamak.
+- [x] **Sayfalar panelinin küçük resimleri panel genişliğine uyar** (`panel.js`, `stil.css`). Kök neden: sayfalariDoldur küçük resim genişliğini
+  alan kurulurken bir kez (alan.clientWidth − 28) hesaplayıp satır içi px yazıyordu; tutamaç yalnızca panelin genişliğini değiştiriyor,
+  ResizeObserver yoktu, `_sayfalarHazir` erken dönüşü alanı yeniden kurmuyordu. Daralınca resim (align-items: center) hücrenin iki yanına taşıyor:
+  sol kırpılıyor, sağ yatay çubuk çıkarıyordu; mavi çerçeve hücreye outline olduğundan resmin içinden geçiyordu (140 px'te hücre içi 100 px, resim
+  211 px). Sekme değiştirip dönünce düzeliyor, F4 ile kapatıp açınca düzelmiyordu.
+  - Boyut CSS'ten: resim, yer tutucu ve döndürülen resmin kutusu hücre içinin tam genişliğinde (width: 100%), yükseklik doğal orandan ya da satır içi
+    aspect-ratio'dan; döndürülen resim kutunun ortasında translate(−50%, −50%) rotate(d), 90 / 270°'de en ve boy yüzdeyle. Satır içinde px yok,
+    sürüklerken JS çalışmadan her karede uyar. `#panel-sayfalar` scrollbar-gutter: stable ve overflow-x: hidden (dikey çubuk genişliği değiştirip
+    döngü kuramaz). ResizeObserver hiçbir boyut yazmaz ("loop" hatası çıkamaz), yalnızca kaydırma yerini düzeltir ve çözünürlük denetimini planlar.
+  - Çözünürlük `kucukResimIstegi(css, dpr, oran)`: hücre × min(2, dpr) × oran (ekranda 90 / 270° döndürülmüşse en / boy; diske işlenmiş döndürme
+    hesaba katılır), 64 cihaz pikseline yukarı, en çok 1200. 0.2.1'deki bir kusuru da giderir: ekranda 90° döndürülen yatay sayfa az çözünürlükle
+    isteniyordu. Genişlik 250 ms değişmeyince düşük kalanlar IntersectionObserver'a yeniden verilir (görünenler hemen; eski resim yenisi gelene dek
+    kalır; daralınca yeniden istenmez; istek sıra numarası geç gelen eski yanıtın yenisini ezmesini önler). Ölçek 1'de 140 / 240 / 480 px → 128 / 256 /
+    448; 1264 px'lik pencerede 60vw için 768.
+  - Önbellek: anahtar eskisi gibi yol#sayfa#disk, değer { src, istenen } (kademe anahtarda değil: aynı sayfanın birkaç çözünürlüğü birikmesin,
+    daraltınca büyüğü kullanılsın). Kaydırma yeri: tarayıcının kaydırma çapası geçerli sayfayı alanın dışına itebiliyordu; panel kendi çapasını tutar
+    (geçerli sayfa görünüyorsa ortası aynı oranda, görünmüyorsa üstteki sayfanın aynı noktası).
+  - Sekme başlıkları: 140 px'te üç başlık sığmıyordu (166 px; "Yorumlar" belge alanının altına taşıyordu) → `#sol-panel` container-type: inline-size;
+    190 px'ten darda yazı 11 px, iç boşluk 1 px, genişlik içeriğe göre, sığmazsa üç nokta (12 px yazıyla 167 px yeter; fark macOS yazı tipi payı).
+  - Bağımsız incelemede: ekran ölçeği değişince (pencere %150 ekrana) küçük resimler yeniden istenmiyordu (0.2.1'de de) → ölçeğe bağlı ortam sorgusu
+    dinlenir (goruntuleyici.js dprDinle gibi), sayfalarBoyutlandi genişlikle birlikte ölçeği de karşılaştırır (panel kapalıyken değişen ölçek, panel
+    açılınca işlenir). Panel en genişken uzun belge kaydırılınca önbellek büyüyüp belge kapanana dek kalıyordu (410 sayfada ~86 MB data URL, süreç
+    ağacı +151 MB) → toplam 48 MB sınır (data URL karakteri); aşılınca en uzun süredir kullanılmayanlar sınırın %90'ına inene dek bırakılır: önce
+    panelde gösterilmeyen belgelerinkiler, sonra hiçbir hücrede olmayanlar, en son görünen alandan iki alan yüksekliğinden uzak hücrelerinkiler
+    (hücre yer tutucuya döner, göründükçe yeniden istenir); görünen ve yakın hücrelere dokunulmaz. Varsayılan 240 px'te yüzlerce sayfa sınırın
+    altında. Ölçüm (410 sayfa, 758 px panel, ölçek 1, baştan sona): önbellek 46 MB / 218 sayfa (önce 86 MB / 410), JS yığını 98 → 62 MB, süreç ağacı
+    376 MB (inceleyicinin ölçümünde önce 518; 240 px panelde 367). Seçilmeyen: blob URL (ikili veri zaten ayrıca tutuluyor, kazanç küçük), 1200 px
+    sınırını düşürmek (en geniş panelde keskinlik görünür biçimde azalırdı).
+  - Seçilmeyenler: ResizeObserver ile tek CSS değişkeni (--kucuk-g) yazmak (yüzde ve aspect-ratio aynısını JS'siz verir), döndürülmüş resmi tuvalde
+    bir kez döndürmek (ek tuval / blob ve bellek yönetimi), cqw / cqh (contain: size gerekir), mavi çerçeveyi resme almak (görünüm değişmesin),
+    başlıkları her genişlikte içeriğe göre boyutlamak (240 px'te eşit genişlik bozulur). Ölçüm: 756 sayfada panel genişliği değişince yerleşim
+    ortancası 2,1 → 3,2 ms (en uzun 4,5 → 6,2).
+- [x] **Bağımsız inceleme** (iki salt okunur inceleyici: arayüz / mantık; 9 bulgu, hepsi doğrulandı ve gerçekti, her biri önce düşen bir test
+  denetimiyle düzeltildi; commit'ler d3cd25d…9b76052). Bulgular yukarıda maddelerinde: bayat geri al listesi (iki inceleyici ayrı ayrı), yinelenen
+  Enter / Boşluk, ekran okuyucu; güncelleme izni sürerken kapsam sorusu; imzanın kırpılması, 780 px eşiği; ekran ölçeği (panel ve Sayfaları
+  düzenle); küçük resim önbelleği. Bilinen işler de kapandı: senaryo17'nin sayfa kutusu beklentisi 28 px (yakınlaştırma kutusuyla eşitlik de
+  denetleniyor); kaydırma çubuğu köşesi; senaryo26'nın ana depodaki EPERM çöküşü (fs.rmSync'in maxRetries'ı yalnızca recursive silmede geçerli,
+  hiç yeniden denenmiyordu → `dosyaSil` yardımcısı EPERM / EBUSY'de 10 kez 300 ms; uygulama koduna dokunulmadı).
+- [x] **Testler** (yeni): serit_olculeri (24; eski kodda 10 denetimi düşer), panel_kucuk_resim (93), arac_onizleme (21), senaryo29 (ekran dışı 58;
+  görünmeyen masaüstünde `S29_GIZLI=1`, test/pencere_kapat.ps1 ile gerçek SC_CLOSE / WM_CLOSE 61), senaryo30 (81). Güncellenen: senaryo13, 14, 17,
+  19, 20, 21, 23, 25, 26, sekme_genislik, kisayol_araclar, kayit_sekme_panel, oturum_sonu, mac_renderer.
+- [x] **Son regresyon** (ev, 2026-10-06, HEAD 9b76052: 0.2.2'nin 8 commit'i ve 8 düzeltmesi; ekran dışı / görünmeyen masaüstü; 46 takım, 55 koşu,
+  2.449 denetim, 0 hata): 0.2.1 listesi 31 takım, 1.445 denetim (0.2.1'de 1.437; senaryo17 43, senaryo25 30, mac_renderer 23, oturum_sonu 27
+  0.2.2'nin denetimleriyle büyüdü; senaryo15 8: dosya 0.2.1'den beri aynı, en çok 8 denetim var, 0.2.1'deki 9 sayım hatasıydı): senaryo28 38,
+  senaryo22 101, senaryo23 53, senaryo17 43, senaryo24 38, senaryo26 60, senaryo15 8, senaryo16 6, senaryo25 30, senaryo19 112, ortu_tiklama 156,
+  kisayol_dosya 164, kisayol_gorunum 115, kisayol_araclar 92, sekme_genislik 35, kayit_sekme_panel 61, gec_iptal 20, mac_renderer 23, yazi_ime 8,
+  oturum_sonu 27, pencere_konumu 5; pano_birim 6, guvenlik_birim 16, cekirdek_kopma 7, guncelleme birim 62; guvenlik_testi 43, mac_cekirdek_testi
+  14, kopyalama_testi 26, yapisal_esleme_testi 8, kose_notu_testi 49, tanima_testi 19. 0.2.2'nin testleri: serit_olculeri 24, panel_kucuk_resim 93
+  (%100 / %125 / %150), arac_onizleme 21 (üç ölçekte), senaryo29 58 (ekran dışı) ve 61 (görünmeyen masaüstü), senaryo30 81; sigdirma_kararli 51 ve
+  sigdirma_rastgele 7 (420 örnek, 0 sorunlu) üç ölçekte; ek olarak senaryo20 50, senaryo21 40, senaryo13 65, senaryo14 56, senaryo18 10, senaryo27
+  20 (eski ayarla). senaryo21'in ilk koşusu görünmeyen masaüstünde ekran görüntüsü alınırken bir kez takıldı (yanıt gelmedi, o ana dek hata yoktu);
+  iki yeniden koşu 40/40, uygulama kusuru değil. Paketli sürüm (npm run cekirdek:derle + electron-builder --dir): çekirdek ping, gercek_fare
+  -Paketli 9/9, test kancası olmadan kısa denetim 14/14 (araç çubuğu ve şerit 40 px, sekme 36 px, ▾ listesi, iki sekmede WM_CLOSE / SC_CLOSE'un
+  sekme sorusu, Vazgeç, Geçerli sekme, tek sekmede sorusuz kapanma). Koşulmayanlar: araclar_testi (bu bilgisayarda Masaüstü örnekleri yok, 0.2.1'de
+  de koşulmadı), eski senaryo1–12, guncelleme-e2e/senaryo.mjs (kurulu deneme uygulaması ister), Mac CI.
+- [x] **README ve ekran görüntüleri**: README 0.2.2'nin koduyla karşılaştırıldı; kapatma sorusu ve Ayarlar kartı, geri al listesi, kaydedilmemiş
+  değişiklikler listesi, sol panelin genişliğe uyması, araçlardaki büyük önizlemeler eklendi; Alt+F4'ü anlatan iki yer düzeltildi. 17 görüntü yeni
+  arayüzle yenilendi (Ayarlar görüntüsü artık Açılış ve düzen'in sonunu, Pencereyi kapatırken'i gösteriyor), 3 yeni: `ekran-kapatma`,
+  `ekran-geri-al` ve `ekran-kaydedilmemis` (iki liste okunaklı kalsın diye kırpılmış; `test/surucu.mjs` ekranGoruntusu isteğe bağlı kırpma
+  bölgesi alır). 20 görüntü, ~2,5 MB. Açılış ekranı görüntüsü sürüm 0.2.2'yi göstersin diye package.json önce yükseltildi.
+- Açık / takip:
+  - Açılış ekranı: 900 × 790'da 6 px, sol panel açıkken 1280 × 700'de 13 px kaydırma kaldı (0.2.1'de 1 px; araç kartlarının açıklaması iki satıra
+    kırılıyor); kullanıcının koşulu (1280 × 700, panel kapalı) ve gerçek pencereleri sığıyor. Sıkı kipte alt boşluk birkaç piksel daha daraltılabilir
+    (görünür değişiklik olduğu için yapılmadı).
+  - Küçük resim önbelleği sınırı olağan kullanımda devreye girmez; çok uzun belgede panel en genişken sınır aşılırsa başa dönünce uzak sayfalar kısa
+    süre yer tutucu gösterip yeniden yüklenir (0.2.1'de yoktu; sürüm notunda ve kullanıcıya söylenir). Ölçüm yalnızca metin PDF'iyle; taranmış UYAP
+    sayfalarında PNG büyük olduğundan sınıra daha erken varılır. 1200 cihaz pikseli üst sınırı 2560 px ekranda panel en genişken (~1500 px) hafif
+    yumuşak gösterebilir (test penceresi ekrandan büyük olamadığı için ölçülemedi).
+  - Birleştir'in 120 px önizlemesi ekran ölçeği değişince yeniden istenmez (%150'de 180 px gerekirdi, hafif yumuşak kalabilir; pencere yeniden
+    açılınca düzelir). Birleştir'de satırlar 134 px: %125 ekranda (~780 px yüksek pencere) listede ~2 dosya görünür; kullanıcı sıkışık bulursa Kalite /
+    Kaydet bölümleri sıkılaştırılabilir ya da kutu 100 px'e indirilebilir.
+  - Gerçek ekranlar arası taşıma (ofisteki %150 ikinci ekran), gerçek klavyede Enter / Boşluk ve gerçek fareyle liste, NVDA gibi bir ekran okuyucu
+    denenmedi (ölçek değişimi CDP Emulation'la, girdi CDP olaylarıyla). Güncelleme kurulumu uçtan uca koşulmadı (guncelleme-e2e/senaryo.mjs kurulu
+    deneme uygulaması ister; izin isteği test:olayGonder ile, süren kayıt taklit edildi).
+  - Mac: değişikliklerin hepsi renderer'da; mac_renderer 23/23, Mac CI (platform=mac) koşulmadı. Gerçek Mac'te SF yazı tipiyle imza ve sekme
+    yazısının ölçüsü, Sayfalar paneli başlıklarının 140 px'te üç noktaya düşüp düşmediği görülmedi; yayımdan önce `platform=mac` sınaması önerilir.
+  - Planda olmayan, raporda söylenen küçük kararlar: + simgesi 22 px, sekmenin en dar genişliği 128 px, kaydırma tutamağının en kısa boyu 28 px; 720
+    px pencerede PDF'i kopyala düğmesi artık gizleniyor (Araçlar menüsünde).
+  - senaryo21'in ekran görüntüsü çağrısı görünmeyen masaüstünde yeniden takılırsa teste zaman aşımı konabilir. 0.2.1 son regresyonundaki senaryo15 9
+    yerine 8 olmalıydı (0.2.1 toplamı 1.437 bir fazla).
+  - Gözlem (doğrulanmadı, panelle ilgisiz): döndürülmüş yatay sayfası olan belgede genişliğe sığdır kipinde belge alanında yatay kaydırma çubuğu
+    görüldü; muhtemelen sığdırmanın geçerli dikey sayfaya göre yapılmasından, eski davranış olabilir.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 37.
