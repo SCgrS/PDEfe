@@ -6,7 +6,10 @@
 //   powershell -File test\baslat.ps1 -Port 9431 -Boyut "1280,800" -Olcek 1 -Tema acik      → PID=… yazar (temiz veri klasörüyle)
 //   $env:PDEFE_CDP_PORT=9431; $env:README_ORNEK="C:\Users\Public\Documents\PDEfe Örnek"; node test\surucu.mjs betik test\readme_goruntuleri.mjs
 //   powershell -File test\durdur.ps1 -SurecId <PID>
-// Yalnızca bazı görüntüler: $env:GORUNTU="ana,notlar" (adlar aşağıdaki GORUNTULER'de).
+// Yalnızca bazı görüntüler: $env:GORUNTU="ana,notlar" (adlar aşağıdaki ss(...) çağrılarında).
+// 0.2.3 (kullanıcı isteği: "koyu mod fotoğraflar da koyabilirsin"): ana görünüm, açılış ekranı ve Birleştir koyu temada da çekilir
+// (ana-koyu, acilis-koyu, birlestir-koyu; README'de açık temadakilerle yan yana). Tema betiğin sonunda değiştirilir, örnek açık temayla
+// başlatılır. Kurucunun kurulu sürüm sayfası (docs/ekran-kurulum.png) bu betikten değil, test\kurulum_surum.ps1'in surum-2-eski.png'sidir.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -329,7 +332,38 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
   await sayfayaGit(2, 0);
   if (iste('koyu')) await ss('koyu');
   await komut('gorunum.duzen', 'surekli'); await bekle(500);
-  await komut('gorunum.tema'); await ayarKoy('sayfayiKoyulastir', false);
+  // ayarKoy temayı yeniden uygulamaz (temaUygula'yı ayar penceresi ya da tema komutu çağırır): tema iki kez çevrilir, koyu kalır
+  await ayarKoy('sayfayiKoyulastir', false);
+  await komut('gorunum.tema'); await bekle(300); await komut('gorunum.tema'); await bekle(800);
+
+  // ------------------------------------------------------------ 0.2.3: koyu temada Birleştir, ana görünüm, açılış ekranı
+  // Açık temadakilerle aynı kurgu (README'de yan yana); sayfa koyulaştırılmaz (koyu temanın varsayılanı). Birleştir açık temadaki gibi
+  // notlu (kaydedilmemiş) belgelerle; ana görünüm için belgeler kaydedilmeden kapatılıp aynı sırayla yeniden açılır (açık temadaki gibi temiz).
+  await sec(DILEKCE);
+  await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'dosya:acDiyalog', [${J([Y('Makbuz.png'), Y('Dilekçe sayfa 2.jpg'), Y(TARANMIS)])}])`);
+  await komut('arac.gorselBirlestir'); await kosul(`!!document.querySelector('.arac-pencere')`, 5000);
+  await bekle(800);
+  await evalJs(`(() => { const d = [...document.querySelectorAll('.arac-pencere button')].find((x) => /Dosya ekle|Ekle/.test(x.textContent)); d?.click(); return !!d; })()`);
+  await bekle(5000);
+  await evalJs(`(document.querySelector('.birlestir-liste').scrollTop = 0, document.activeElement?.blur(), true)`); await bekle(400);
+  if (iste('birlestir-koyu')) await ss('birlestir-koyu');
+  await hepsiniTemizle();
+  await hepsiniKapat();
+  for (const ad of [DILEKCE, TMK, TTK, TARANMIS]) await ac(ad);
+  await sec(TMK);
+  await komut('gorunum.zoom', 'genislik'); await bekle(500);
+  await panel(true, 'icindekiler');
+  await sayfayaGit(23, 0);
+  await metneKaydir(23, 'İKİNCİ KİTAP', 40);
+  if (iste('ana-koyu')) await ss('ana-koyu');
+  await panel(false);
+  // Açılış ekranı: son açılanlar listesi açık temadakiyle aynı sırada olsun diye belgeler aynı sırayla yeniden açılıp kapatılır
+  await hepsiniKapat();
+  for (const ad of [TTK, TARANMIS, TMK, DILEKCE]) await ac(ad);
+  await hepsiniKapat();
+  await kosul(`!document.querySelector('#baslangic').hidden`, 5000);
+  if (iste('acilis-koyu')) await ss('acilis-koyu');
+  await komut('gorunum.tema'); await bekle(500);
 
   await hepsiniKapat();
   const hatalar = await evalJs(`window.__hatalar || []`);

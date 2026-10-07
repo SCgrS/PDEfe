@@ -10,7 +10,10 @@ UYAP'ta aynen görünür.
 
 Geliştirici: [x.com/CgrShn](https://x.com/CgrShn)
 
-![PDEfe: sekmelerde açık belgeler, sol panelde İçindekiler](docs/ekran-ana.png)
+<p>
+  <img src="docs/ekran-ana.png" width="49%" alt="PDEfe açık temada: en üstte sekmeler, altında araç çubuğu, sol panelde İçindekiler">
+  <img src="docs/ekran-ana-koyu.png" width="49%" alt="Aynı görünüm koyu temada">
+</p>
 
 ## Öne çıkanlar
 
@@ -29,16 +32,24 @@ Kısayollar aşağıda Windows'a göre yazıldı; macOS'ta `Ctrl` yerine `⌘` k
 
 ### Açılış ekranı
 
-Belge açık değilken ve yeni sekmede: büyük **PDF aç** düğmesi (PDF'ler pencereye sürüklenerek de açılır), bütün araçlar ve altlarında
-son açılan en çok 10 belge (tek tıkla açılır; × ya da sağ tıkla listeden kaldırılır, klasörde gösterilir; kutu kaydırılmaz, geniş
-pencerede iki sütun). Uygulamanın simgesi, adı ve sürümü sağ altta (tıklanınca Ayarlar › Hakkında açılır). Belge gerektiren bir araç
-seçilince önce Aç penceresi gelir, araç seçilen PDF'le açılır. Liste istenirse hiç tutulmaz: Ayarlar › Açılış ve düzen › Son açılanları
+Belge açık değilken ve yeni sekmede: **PDF aç** düğmesi (sağ kenarı alttaki Sayfaları düzenle karosuyla aynı hizada, pencere boyutu ve sol
+panel ne olursa olsun; araçlar tek sütuna inecek kadar dar alanda tam genişlik; PDF'ler pencereye sürüklenerek de açılır), bütün araçlar ve
+altlarında son açılan en çok 10 belge (tek tıkla açılır; × ya da sağ tıkla listeden kaldırılır, klasörde gösterilir; kutu kaydırılmaz, geniş
+pencerede iki sütun). Uygulamanın simgesi (kırmızı sayfa ve sarmal), adı ve sürümü sağ altta (tıklanınca Ayarlar › Hakkında açılır).
+Belge gerektiren bir araç seçilince önce Aç penceresi gelir, araç seçilen PDF'le açılır. Liste istenirse hiç tutulmaz: Ayarlar › Açılış ve düzen › Son açılanları
 hatırla kapatılınca liste silinir, açılış ekranındaki kutu ve Dosya menüsündeki Son açılanlar kalkar.
 
-![Açılış ekranı: PDF aç, araçlar ve son açılanlar](docs/ekran-acilis.png)
+<p>
+  <img src="docs/ekran-acilis.png" width="49%" alt="Açılış ekranı: PDF aç, araçlar ve son açılanlar">
+  <img src="docs/ekran-acilis-koyu.png" width="49%" alt="Açılış ekranı koyu temada">
+</p>
 
 ### Sekmeler ve pencereler
 
+- **Sekme şeridi ve araç çubuğu.** Sekme şeridi pencerenin en üstündedir, araç çubuğu onun altında, belge araç çubuğunun altında başlar.
+  Seçili sekme araç çubuğuyla aynı renktedir (açık temada beyaz, koyu temada koyu gri) ve aralarında çizgi yoktur: sekme araç çubuğunun bir
+  parçası gibi görünür, öteki sekmeler geride biraz koyu şeritte durur. Sekme şeridinin sağındaki **Açık belgeler** (≡) listesi düğmenin
+  hemen altında açılır. Güncelleme şeridi çıkarsa araç çubuğunun altında görünür.
 - **Sekmeler.** Birden çok PDF tek pencerede; sekmeler aynı genişliktedir: az sekmede geniş, çoğaldıkça birlikte daralır, en dar
   hâlde ("ustyazi (85).pdf" gibi adlar yine tam görünür, uzun ad üç noktayla kısalır, tam ad ve yol ipucunda) sekme çubuğu kaydırılır.
   Sekme çubuğu hiç kapanmaz: belge yokken "Yeni sekme" (açılış sayfası) durur, açılan ilk belge onun yerini alır; belge yokken de
@@ -82,15 +93,20 @@ hatırla kapatılınca liste silinir, açılış ekranındaki kutu ve Dosya men�
   Görünüm › Yazı çizimi: "Dengeli" ya da "Windows ClearType"). Görseller, karekodlar ve tablo çizgileri keskin çizilir; taranmış
   belgeler çok yakınlaştırıldığında da net ve hızlıdır. macOS'ta yazılar macOS'un kendi çizimiyle, gömülü olmayan standart yazılar
   Mac'teki Times New Roman, Arial ve Courier New'le çizilir.
+- **Akıcı kaydırma.** Sonraki sayfalar kaydırma yönünde önceden hazırlanır: logolu, kaşeli, karekodlu sayfalar ekrana net girer (önce
+  bulanık, sonra net görünmez); çok yakınlaştırılmış belgede (örneğin %600) kaydırırken de sayfa beyaz kalmaz; sayfa numarası yazıp ya da
+  yer imine tıklayıp atlanan sayfa doğrudan net gelir. Form alanlı belgede yüksek yakınlaştırmada kaydırmak PDEfe'yi yavaşlatmaz.
 - **Sayfa düzeni ve yakınlaştırma.** Tek sayfa / iki sayfa, kaydırma aç / kapa, iki sayfalı görünümde kapak ayrı (bütün sekmelere
   uygulanır). %25 ile %6400 arası yakınlaştırma: araç çubuğundaki kutuya yüzde yazılır; ▾ menüsünde gerçek boyut, sayfayı / genişliğe /
   görünür alana sığdır ve hazır yüzdeler. Genişliğe sığdır, kaydırmalı düzende sayfaların çoğunun genişliğine göredir: birkaç geniş
   sayfa belgeyi küçültmez, yana taşar.
 - **Okuma modu ve tam ekran.** `Ctrl+H` okuma modu: araç, sekme ve durum çubukları gizlenir; fare pencerenin üst kenarına gelince araç
   çubuğu görünür; `Ctrl+H` ya da `Esc` ile çıkılır. `F11` tam ekran.
-- **Sol panel** (`F4`): Sayfalar (küçük resimler), İçindekiler (yer imleri) ve Yorumlar. Panel sağ kenarından sürüklenerek daraltılır ya
-  da genişletilir (en çok pencerenin %60'ı); küçük resimler panelin genişliğine uyar: daralınca kesilmeden küçülür, genişleyince büyür ve
-  bıraktıktan bir an sonra keskinleşir. Bulunulan sayfa panelde görünür kalır.
+- **Sol panel** (`F4`): Sayfalar (küçük resimler), İçindekiler (yer imleri) ve Yorumlar. PDEfe ilk açılışta paneli kapalı açar; sonra
+  açık ya da kapalı nasıl bıraktıysanız öyle açılır (Pencereye ayır'la açılan pencerelerde de). Panel sağ kenarından sürüklenerek daraltılır
+  ya da genişletilir (en çok pencerenin %60'ı); küçük resimler panelin genişliğine uyar: daralınca kesilmeden küçülür, genişleyince büyür ve
+  bıraktıktan bir an sonra keskinleşir. Bulunulan sayfa panelde görünür kalır. Panelde hızla gezinince (kaydırma çubuğunu sürükleyip
+  bırakınca da) önce varılan yerin küçük resimleri gelir; taranmış sayfaların küçük resimleri çabuk hazırlanır ve az bellek tutar.
 - **Durum çubuğu.** Altta sayfa numarası (yazıp `Enter` ile o sayfaya gidilir), yakınlaştırma, dosya boyutu ve kaydedilmemiş değişiklik
   işareti. Belgede kaydedilmemiş değişiklik varken sağda **● Kaydedilmemiş değişiklikler** yazısı ve yanında aynı renkte bir liste simgesi
   durur; tıklanınca son kayıttan bu yana yapılanların listesi açılır (bkz. [Geri al / yinele](#notlar)).
@@ -162,8 +178,9 @@ aramada düzeltilir.
   Not ekleme ve sayfa döndürme dosyanın sonuna eklenerek kaydedilir, belgenin geri kalanına dokunulmaz, PDF'e gömülü e-imza bozulmaz.
   Kayıtlı bir not silinir ya da değişirse belge baştan yazılır, notun eski hâli dosyada kalmaz (belgede e-imza varsa imzayı korumak için
   sorulur). Sayfa silmek, sıralamak ya da sayfa eklemek belgeyi baştan yazar; bu durumda e-imza geçersiz görünür.
-- **Geri al / yinele.** Her not ve sayfa işlemi `Ctrl+Z` / `Ctrl+Y` ile geri alınır; kayıttan sonra bile. Geri al düğmesinin yanındaki
-  **▾** geri alınabilecek adımları listeler: en yenisi üstte, her satırda işlem ve sayfası ("Not ekle · s. 3", "Sayfaları döndür · s. 3–4",
+- **Geri al / yinele.** Her not ve sayfa işlemi `Ctrl+Z` / `Ctrl+Y` ile geri alınır; kayıttan sonra bile. Geri al düğmesi ile sağındaki
+  küçük **▾** Word'deki gibi tek düğme gibi durur (fare üstüne gelince ikisi birlikte vurgulanır, aralarında ince bir çizgi belirir); ▾
+  geri alınabilecek adımları listeler: en yenisi üstte, her satırda işlem ve sayfası ("Not ekle · s. 3", "Sayfaları döndür · s. 3–4",
   "Sayfa düzenini uygula · 1 sayfa silindi, sıra değişti"). Word'deki gibi fare bir satıra gelince en üstten o satıra kadar boyanır, altta
   "3 işlemi geri al" gibi yazar; tıklanınca o kadar adım birlikte geri alınır. Klavyeyle: ▾'ye gelip `Enter`, `↑` `↓` boyamayı değiştirir,
   `Enter` uygular, `Esc` kapatır. Geri alınacak bir şey yokken ▾ soluktur.
@@ -192,13 +209,14 @@ hariç). Pencerelerdeki fare ve tuş kullanımı `F1` Kısayollar'dadır.
   dokunulmaz.
 - **Sayfaları düzenle:** büyük sayfa önizlemeleriyle (ekran ölçeğine göre keskin; geniş pencerede satırda 4–5 sayfa) ızgarada sürükleyerek
   sıralama, boş alandan sürükleyerek çoklu seçim, silme, döndürme, boş sayfa ya da başka PDF'ten sayfa ekleme; ok tuşları sayfalar
-  arasında gezer (`↑` `↓` bir satır). Pencere geniştir ve sekme şeridinin altında açılır.
+  arasında gezer (`↑` `↓` bir satır). Pencere geniştir ve sekme şeridi ile araç çubuğunun altında açılır.
 - **Döndür:** tüm sayfalar, geçerli sayfa ya da bir aralık; 90° saat yönünde, tersine ya da 180°.
 - **Ayır:** sayfa aralıklarına göre (örn. `1-3, 4-10, 11`; `-3` baştan 3. sayfaya, `8-` 8. sayfadan sona) ayrı ayrı dosya ya da tek
   dosya, ya da her sayfa ayrı dosya; oluşturulacak dosyalar adlarıyla önceden listelenir.
 - **Görüntü / PDF birleştir:** PDF, JPG, PNG, BMP, GIF, TIFF ve WEBP dosyalarından tek PDF (HEIC fotoğraflarını önce JPG ya da PNG'ye
-  çevirin). Her dosyanın satırında büyük, keskin bir önizleme (PDF'in ilk sayfası ya da görüntünün kendisi) görünür. Bir PDF açıkken
-  açılınca o PDF listenin başında gelir; pencere sekme şeridinin altında açılır, arkadaki sekmelerden doğru belgede olunduğu görülür.
+  çevirin). Her dosyanın satırında büyük, keskin bir önizleme (PDF'in ilk sayfası ya da görüntünün kendisi; ekran ölçeğine göre keskin)
+  görünür. Bir PDF açıkken açılınca o PDF listenin başında gelir; pencere sekme şeridi ile araç çubuğunun altında açılır, arkadaki
+  sekmelerden doğru belgede olunduğu görülür.
   Dosya ekle, sürükle-bırak, `Ctrl+V`, Panodan ekle ya da sağ tık Yapıştır; Orijinal / Yüksek / Orta / Düşük kalite düğmelerinde toplam
   tahmini boyut; görüntünün sayfası "Orijinal" (varsayılan: sayfa tam görsel boyutunda) ya da "A4'e sığdır"; farenin sağ tuşuyla
   sürükleyerek, `Ctrl` / `Shift` ile tıklayarak çoklu seçim, seçilenler birlikte döndürülür, taşınır, `Delete` (macOS'ta `⌫`) ile
@@ -211,7 +229,10 @@ hariç). Pencerelerdeki fare ve tuş kullanımı `F1` Kısayollar'dadır.
 
 ![Sayfaları düzenle: büyük sayfa önizlemeleri](docs/ekran-sayfalar.png)
 
-![Görüntü / PDF birleştir: PDF'ler ve görüntüler tek PDF'te](docs/ekran-birlestir.png)
+<p>
+  <img src="docs/ekran-birlestir.png" width="49%" alt="Görüntü / PDF birleştir: PDF'ler ve görüntüler tek PDF'te, büyük önizlemelerle">
+  <img src="docs/ekran-birlestir-koyu.png" width="49%" alt="Görüntü / PDF birleştir koyu temada">
+</p>
 
 Her araçta Kaydet bölümü aynı düzendedir: "Yeni belge olarak kaydet" (varsayılan; önerilen ad "Sıkıştırılmış", "Düzenlenmiş",
 "Döndürülmüş", "Ayrılmış", "Birleştirilmiş"; klasör Masaüstü, Ayarlar › Kaydetme'den değiştirilir) ya da "Üzerine yaz" (yedeksiz,
@@ -310,9 +331,24 @@ yapılır.
 2. Dosyaya **çift tıklayın**.
 3. Dosya imzalı olmadığı için Windows SmartScreen uyarı gösterebilir: **Daha fazla bilgi** yazısına, sonra **Yine de çalıştır**
    düğmesine basın. Bu uyarı kod imzalama sertifikası olmadığından çıkar; her yeni sürümde tekrarlanabilir.
-4. Sihirbaz Türkçedir: lisans, kurulum klasörü (varsayılan `%LOCALAPPDATA%\Programs\PDEfe`), **Ek görevler** sayfasında masaüstü
-   kısayolu seçeneği. Başlat menüsüne **PDEfe** kısayolu eklenir ve `.pdf` dosyaları "Birlikte aç" menüsünde PDEfe ile görünür.
+4. Sihirbaz Türkçedir: lisans (**Kabul et**), kurulum klasörü (varsayılan `%LOCALAPPDATA%\Programs\PDEfe`), **Ek görevler** sayfasında
+   masaüstü kısayolu seçeneği (sonra **Kur**). PDEfe yalnızca sizin kullanıcınıza kurulur, "kimler için kurulsun" sorulmaz. Başlat menüsüne
+   **PDEfe** kısayolu eklenir ve `.pdf` dosyaları "Birlikte aç" menüsünde PDEfe ile görünür.
 5. Son sayfada **PDEfe'yi başlat** ve **PDEfe'yi varsayılan PDF görüntüleyici yap** seçenekleri vardır.
+
+**PDEfe zaten kuruluysa** kurucu bunu fark eder ve ilk sayfada kurulu sürümü yazıp ne yapılacağını sorar (sağ alttaki düğmenin adı
+seçime göre değişir):
+
+- **Eski bir sürüm kuruluysa:** **Güncelle** (önerilen; lisans, klasör ve Ek görevler sayfaları gelmeden doğrudan kurulur, ayarlarınız,
+  masaüstü kısayolunuzun bugünkü durumu ve kurulum klasörü korunur), **Seçenekleri değiştirerek kur** (sihirbazın sayfaları gösterilir)
+  ya da **Kaldır** (PDEfe'nin kendi kaldırıcısı açılır, ayarlarınız silinmez).
+- **Aynı sürüm kuruluysa** (ya da program dosyaları eksikse): **Onar** (yeniden kurar, ayarlar ve masaüstü kısayolu korunur) ya da
+  **Kaldır**.
+- **Daha yeni bir sürüm kuruluysa:** **Vazgeç** (önerilen; kurucu kapanır, hiçbir şey değişmez) ya da **Eski sürüme dön**.
+- **PDEfe açıksa** sayfanın altında uyarı çıkar; kurulumu başlatan seçimde bir kez daha sorulur (İptal'de sayfada kalınır). Kaydedilmemiş
+  değişiklik kaybolmasın diye önce belgelerinizi kaydedip PDEfe'yi kapatın.
+
+![Kurucu: PDEfe zaten kurulu, Güncelle / Seçenekleri değiştirerek kur / Kaldır](docs/ekran-kurulum.png)
 
 ### macOS
 
@@ -347,7 +383,8 @@ sürüm olup olmadığına bakar. Yeni sürüm varsa pencerenin üstünde **PDEf
 düğmesine bir kez basmak yeter: paket indirilir (yalnızca değişen kısımlar), kurulum sihirbazı açılmadan kurulur ve PDEfe kendiliğinden
 yeni sürümle açılır. Kaydedilmemiş belge varsa önce sorulur; ayarlarınıza dokunulmaz. **Daha sonra** şeridi o oturum için gizler.
 İstediğiniz an **Yardım › Güncellemeleri denetle** ya da **Ayarlar › Güncelleme › Şimdi denetle** ile hemen bakabilirsiniz; otomatik
-denetim aynı yerden kapatılır.
+denetim aynı yerden kapatılır. Yeni sürümün `PDEfe-Setup.exe`'sini elle de çalıştırabilirsiniz: kurucu kurulu sürümü tanır ve
+**Güncelle**'yi önerir (bkz. [Kurulum](#windows)).
 
 **macOS.** PDEfe yeni sürümü aynı şeritle haber verir; **İndir** yeni `PDEfe-Mac.dmg`'yi tarayıcıda indirir. PDEfe'den çıkın (`⌘Q`),
 indirilen dosyayı açıp PDEfe'yi yine Uygulamalar'a sürükleyin (**Değiştir**), sonra PDEfe'yi açın; macOS yeniden uyarırsa Kurulum'un 3.
@@ -357,8 +394,8 @@ Sürüm notları: [CHANGELOG.md](CHANGELOG.md) ve [Sürümler sayfası](https://
 
 ## Kaldırma
 
-**Windows:** **Ayarlar › Uygulamalar › Yüklü uygulamalar › PDEfe › Kaldır**. Ayarlarınız (`%APPDATA%\PDEfe\ayarlar.json`) silinmez;
-isterseniz o klasörü elle silebilirsiniz. Kurulum sistem klasörlerine ve HKLM'ye yazmaz.
+**Windows:** **Ayarlar › Uygulamalar › Yüklü uygulamalar › PDEfe › Kaldır** (ya da kurulu sürümün ya da daha yeni bir sürümün kurucusunu
+açıp **Kaldır**). Ayarlarınız (`%APPDATA%\PDEfe\ayarlar.json`) silinmez; isterseniz o klasörü elle silebilirsiniz. Kurulum sistem klasörlerine ve HKLM'ye yazmaz.
 
 **macOS:** Uygulamalar'dan PDEfe'yi Çöp Sepeti'ne sürükleyin; ayarlar `~/Library/Application Support/PDEfe` klasöründe kalır.
 
@@ -413,8 +450,11 @@ npm run test:araclar      # araçların çekirdek testleri
 - `core/pdefe_core.py` PyMuPDF tabanlı yardımcı süreçtir; ana süreçle stdio üzerinden satır başına bir JSON (JSON-RPC benzeri) konuşur.
   Uzun işler `progress` mesajları gönderir.
 - Testler `test/` altında: arayüz senaryoları (`test/senaryo*.mjs`, `test/baslat.ps1` ile açılan ekran dışı örnekte `test/surucu.mjs`
-  ile sürülür) ve çekirdek testleri (`test/*_testi.py`). README'deki ekran görüntüleri `test/readme_goruntuleri.mjs` ile üretilir.
-- Paketleme yapılandırması `electron-builder.yml`, kurulum sihirbazı eklemeleri `build/installer.nsh`.
+  ile sürülür) ve çekirdek testleri (`test/*_testi.py`). README'deki ekran görüntüleri `test/readme_goruntuleri.mjs` ile (açık ve koyu
+  temada), kurucunun görüntüsü `test/kurulum_surum.ps1` ile üretilir.
+- Paketleme yapılandırması `electron-builder.yml`, kurulum sihirbazı eklemeleri `build/installer.nsh`. Kurucu, gerçek PDEfe'ye dokunmayan bir
+  deneme kopyasıyla sınanır: `test/kurulum_surum.ps1` (kurulu sürüm sayfası, görünmeyen masaüstünde), `test/kurucu_akis.ps1` (bütün kurulum
+  yolları), `test/kurucu_karsilastir.mjs` (sessiz kurulum ve kaldırıcı kodu önceki sürümle aynı mı).
 - Sürüm çıkarma: `package.json` sürümünü yükselt, `CHANGELOG.md`'ye bölüm ekle, `git tag vX.Y.Z` ve push; `.github/workflows/yayim.yml`
   paketleri derleyip GitHub Releases'e yükler (`PDEfe-Setup.exe`, `.blockmap`, `latest.yml`, `PDEfe-Mac.dmg`). Etiket `package.json`
   sürümüyle aynı olmalı (iş akışı denetler); Windows ve macOS paketlerinin ikisi de derlenip sınanınca sürüm yayımlanır, biri düşerse
