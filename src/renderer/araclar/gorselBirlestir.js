@@ -37,9 +37,11 @@ const DOSYA_FILTRELERI = [
   { name: 'Görüntüler', extensions: GORSEL_UZANTILAR },
   { name: 'Tüm dosyalar', extensions: ['*'] },
 ];
-// Satırdaki önizleme büyük (0.2.2, kullanıcı isteği): kutu araclar.css'teki --birlestir-resim (64 → 120 px). Küçük resim çekirdekten en az
-// kutu × ekran ölçeği genişliğinde istenir (_kucukResimGenisligi); 0.2.1'deki sabit 144 px alt sınır olarak kalır.
+// Satırdaki önizleme büyük (0.2.2, kullanıcı isteği): kutu araclar.css'teki --birlestir-resim (64 → 120 px; 0.2.3, kullanıcı isteği: "biraz
+// daha büyük" → 150 px). Küçük resim çekirdekten en az kutu × ekran ölçeği genişliğinde istenir (_kucukResimGenisligi): %100'de 150, %125'te
+// 188, %150'de 225, %200'de 300 px. 0.2.1'deki sabit 144 px alt sınır olarak kalır (150 px kutuda devreye girmez).
 const KUCUK_RESIM_EN_AZ = 144;
+const KUTU_VARSAYILAN = 150;   // CSS değişkeni okunamazsa (araclar.css ile aynı)
 
 /** Satırda görünen dosya türü: kullanıcının tanıdığı uzantı ("JPG", "PNG"; çekirdeğin bicim'i "JPEG" gibi teknik ad olabilir). */
 function bicimEtiketi(o) {
@@ -374,7 +376,7 @@ export class BirlestirmePenceresi {
    *  1024'te keser. Yatay görsel kutuya genişliğiyle sığar (%125 / %150 ekranda da keskin); dikeyde fazlası keskinliğe gider. */
   _kucukResimGenisligi() {
     const v = parseFloat(getComputedStyle(this.liste).getPropertyValue('--birlestir-resim'));
-    const kutu = Number.isFinite(v) && v > 0 ? v : 120;
+    const kutu = Number.isFinite(v) && v > 0 ? v : KUTU_VARSAYILAN;
     return Math.max(KUCUK_RESIM_EN_AZ, Math.ceil(kutu * Math.min(2, window.devicePixelRatio || 1)));
   }
 

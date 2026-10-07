@@ -256,8 +256,9 @@ html[data-tema="koyu"] .arac-pencere .hata-metin, html[data-tema="koyu"] .kucult
 
 /* ---------- Görüntü / PDF birleştir ---------- */
 /* Satırdaki önizleme büyük (0.2.2, kullanıcı isteği; Sayfaları düzenle'deki gibi): --birlestir-resim önizleme kutusunun kenarı (0.2.1'e dek
-   64 px); satırın sütunu, resim ve yer tutucu bundan türer, gorselBirlestir.js çözünürlüğü de buradan okur. */
-.birlestir-pencere { --birlestir-resim: 120px; width: 920px; height: 88vh; }
+   64 px); satırın sütunu, resim ve yer tutucu bundan türer, gorselBirlestir.js çözünürlüğü de buradan okur.
+   0.2.3, kullanıcı isteği ("birleştirme aracında yüklenenlerin ön izlemesini biraz daha büyük görelim"): 120 → 150 px; satır 134 → 164 px */
+.birlestir-pencere { --birlestir-resim: 150px; width: 920px; height: 88vh; }
 .birlestir-pencere .arac-govde { overflow: hidden; flex: 1; }
 .birlestir-govde { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 12px; }
 .birlestir-ust { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

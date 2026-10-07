@@ -5,8 +5,9 @@
 //      ekran ölçeği (en çok 2): dikey, yatay ve /Rotate 90'lı sayfada; önbellek anahtarı istenen genişliği içerir. Boş sayfa ve "yüklenemedi"
 //      yer tutucusu da sayfanın oranıyla kutuya sığar; R ile döndürülen resim kutudan taşmaz. Ekran ölçeği değişince (Emulation) görünen
 //      kartlar yeni ölçeğe göre yeniden istenir.
-//   2) Görüntü / PDF birleştir: satırdaki önizleme kutusu --birlestir-resim = 120 px (0.2.1'de 64), satırın üçüncü sütunu 120 px. Yatay görsel
-//      120 px genişlikte, dikey görsel ve PDF 120 px yükseklikte; doğal boyut en az kutu × ekran ölçeği (en çok 2). Okunamayan dosyanın yer
+//   2) Görüntü / PDF birleştir: satırdaki önizleme kutusu --birlestir-resim = 150 px (0.2.1'de 64, 0.2.2'de 120), satırın üçüncü sütunu 150 px.
+//      Yatay görsel 150 px genişlikte, dikey görsel ve PDF 150 px yükseklikte; doğal boyut en az kutu × ekran ölçeği (en çok 2); satırın öteki
+//      öğeleri (sıra, ad, özet, Kalite, düğmeler) satırın içinde ve dikeyde ortalı, birbirine binmiyor. Okunamayan dosyanın yer
 //      tutucusu kutunun %72 × %94'ü. Döndür, sürükleyerek sıralama (gerçek fare) ve Listeden çıkar yeni ölçüde çalışır.
 //   3) Renderer'da hata yok.
 // Kullanım: boş veri klasörlü ekran dışı test örneği (baslat.ps1; 1280×900 varsayılan, istenirse -Olcek 1.25 / 1.5) açıkken
@@ -22,6 +23,7 @@ const K = path.join(KOK, 'test', 'cikti', 'onizleme', new Date().toISOString().r
 const PDF = path.join(K, 'pdf'), PNG = path.join(K, 'png');
 const PY = path.join(KOK, '.venv', 'Scripts', 'python.exe');
 const J = (x) => JSON.stringify(x);
+const BK = 150;   // Birleştir'in önizleme kutusu (araclar.css --birlestir-resim; 0.2.3'te 120 → 150)
 
 let hataSayisi = 0, denetimSayisi = 0;
 const sonuc = (ad, ok, ayrinti = '') => {
@@ -187,19 +189,32 @@ print(json.dumps({"ana": ana, "ek": ek, "yatay": gorsel("yatay.png", (1600, 1000
       gw: g ? Math.round(g.width) : 0, gh: g ? Math.round(g.height) : 0, sutun: getComputedStyle(e).gridTemplateColumns, donus: i?.style.transform || '', satirH: Math.round(e.getBoundingClientRect().height) }; })`);
   let S = await satirlar();
   const degisken = await evalJs(`getComputedStyle(document.querySelector('.birlestir-pencere')).getPropertyValue('--birlestir-resim').trim()`);
-  sonuc('önizleme kutusu --birlestir-resim = 120 px, her satırda 120 × 120; satırın üçüncü sütunu 120 px', degisken === '120px' && S.every((s) => J(s.kutu) === J([120, 120]) && s.sutun.split(' ')[2] === '120px'), { degisken, S: S.map((s) => [s.ad, s.kutu, s.sutun]) });
+  sonuc(`önizleme kutusu --birlestir-resim = ${BK} px, her satırda ${BK} × ${BK}; satırın üçüncü sütunu ${BK} px`, degisken === `${BK}px` && S.every((s) => J(s.kutu) === J([BK, BK]) && s.sutun.split(' ')[2] === `${BK}px`), { degisken, S: S.map((s) => [s.ad, s.kutu, s.sutun]) });
   const [sPdf, sYatay, sDikey, sBozuk] = S;
-  sonuc('PDF (dikey sayfa) ve dikey görsel 120 px yüksekliğinde, yatay görsel 120 px genişliğinde', sPdf.h === 120 && sPdf.w < 120 && sDikey.h === 120 && sDikey.w < 120 && sYatay.w === 120 && sYatay.h < 120, { sPdf, sYatay, sDikey });
-  const enAz = Math.max(144, Math.ceil(120 * olcek));
-  sonuc(`küçük resimler keskin: istenen genişlik max(144, 120 × ${olcek}) = ${enAz}, doğal boyut ≥ ekrandaki × ${olcek}`, [sPdf, sYatay, sDikey].every((s) => s.nw === enAz && s.nw >= s.w * olcek - 1 && s.nh >= s.h * olcek - 1), [sPdf, sYatay, sDikey].map((s) => [s.ad, s.w, s.h, s.nw, s.nh]));
-  sonuc('okunamayan dosyanın yer tutucusu kutunun %72 × %94\'ü (86 × 113 px), türü yazar', sBozuk.tur === 'yer' && yakin(sBozuk.w, 120 * 0.72, 1) && yakin(sBozuk.h, 120 * 0.94, 1), sBozuk);
-  sonuc('satır yüksekliği önizlemeye göre (120 + boşluk)', S.every((s) => s.satirH >= 120 && s.satirH <= 140), S.map((s) => s.satirH));
+  sonuc(`PDF (dikey sayfa) ve dikey görsel ${BK} px yüksekliğinde, yatay görsel ${BK} px genişliğinde`, sPdf.h === BK && sPdf.w < BK && sDikey.h === BK && sDikey.w < BK && sYatay.w === BK && sYatay.h < BK, { sPdf, sYatay, sDikey });
+  const enAz = Math.max(144, Math.ceil(BK * olcek));
+  sonuc(`küçük resimler keskin: istenen genişlik max(144, ${BK} × ${olcek}) = ${enAz}, doğal boyut ≥ ekrandaki × ${olcek}`, [sPdf, sYatay, sDikey].every((s) => s.nw === enAz && s.nw >= s.w * olcek - 1 && s.nh >= s.h * olcek - 1), [sPdf, sYatay, sDikey].map((s) => [s.ad, s.w, s.h, s.nw, s.nh]));
+  sonuc(`okunamayan dosyanın yer tutucusu kutunun %72 × %94'ü (${Math.round(BK * 0.72)} × ${Math.round(BK * 0.94)} px), türü yazar`, sBozuk.tur === 'yer' && yakin(sBozuk.w, BK * 0.72, 1) && yakin(sBozuk.h, BK * 0.94, 1), sBozuk);
+  sonuc(`satır yüksekliği önizlemeye göre (${BK} + boşluk)`, S.every((s) => s.satirH >= BK && s.satirH <= BK + 20), S.map((s) => s.satirH));
+  // 0.2.3: önizleme büyüyünce satırın öteki öğeleri yerinde: sıra numarası, tutamaç, bilgi ve düğmeler satırın içinde, dikeyde ortada; ad,
+  // özet ve Kalite alt alta, birbirine binmiyor; bilgi sütunu önizlemenin sağında, düğmeler bilginin sağında
+  const hiza = await evalJs(`[...document.querySelectorAll('.birlestir-liste > .birlestir-oge')].map((e) => {
+    const r = (x) => { if (!x || x.hidden) return null; const k = x.getBoundingClientRect(); return k.width || k.height ? { l: k.left, r: k.right, t: k.top, b: k.bottom, o: (k.top + k.bottom) / 2 } : null; };
+    const satir = r(e), resim = r(e.querySelector('.resim')), bilgi = r(e.querySelector('.bilgi')), dugmeler = r(e.querySelector('.dugmeler')), sira = r(e.querySelector('.sira')), tutamac = r(e.querySelector('.birlestir-tutamac'));
+    const parcalar = ['.ad', '.ozet', '.ayarlar', '.hata'].map((s) => r(e.querySelector('.bilgi ' + s))).filter(Boolean);
+    const icinde = [resim, bilgi, dugmeler, sira, tutamac].every((x) => x && x.t >= satir.t - 0.5 && x.b <= satir.b + 0.5 && x.l >= satir.l - 0.5 && x.r <= satir.r + 0.5);
+    const ortali = [bilgi, dugmeler, sira, tutamac].every((x) => Math.abs(x.o - resim.o) <= 1);
+    const sirali = parcalar.every((p, i) => i === 0 || p.t >= parcalar[i - 1].b - 0.5) && parcalar.every((p) => p.l >= bilgi.l - 0.5 && p.r <= bilgi.r + 0.5);
+    return { ad: e.querySelector('.ad').textContent, icinde, ortali, sirali, yanYana: resim.r <= bilgi.l && bilgi.r <= dugmeler.l, parca: parcalar.length };
+  })`);
+  sonuc('satırın öteki öğeleri yerinde: sıra, tutamaç, ad / özet / Kalite ve düğmeler satırın içinde, önizlemeyle dikeyde ortalı, birbirine binmiyor',
+    hiza.every((h) => h.icinde && h.ortali && h.sirali && h.yanYana && h.parca >= 2), hiza);
   await ss('02-birlestir');
   // Döndür: yatay görsel sağa döner, döndürülmüş resim kutudan taşmaz
   await evalJs(`document.querySelectorAll('.birlestir-oge')[1].querySelector('[data-komut="saga"]').click()`);
   await bekle(400);
   S = await satirlar();
-  sonuc('Sağa döndür: yatay görsel döner (rotate 90deg), görünen boyutu 75 × 120, kutudan taşmaz', S[1].donus === 'rotate(90deg)' && S[1].gh <= 121 && S[1].gw <= 121 && yakin(S[1].gh, 120, 2), S[1]);
+  sonuc(`Sağa döndür: yatay görsel döner (rotate 90deg), görünen boyutu ${Math.round(BK * 1000 / 1600)} × ${BK}, kutudan taşmaz`, S[1].donus === 'rotate(90deg)' && S[1].gh <= BK + 1 && S[1].gw <= BK + 1 && yakin(S[1].gh, BK, 2), S[1]);
   // Sürükleyerek sıralama (gerçek fare): ilk satır (PDF) önizlemesinden tutulup üçüncü satırın alt yarısına bırakılır (eklenen dosyalar
   // listeyi sona kaydırmıştı: önce başa dönülür)
   await evalJs(`document.querySelector('.birlestir-liste').scrollTop = 0`);
@@ -214,7 +229,7 @@ print(json.dumps({"ana": ana, "ek": ek, "yatay": gorsel("yatay.png", (1600, 1000
   await evalJs(`document.querySelectorAll('.birlestir-oge')[3].querySelector('[data-komut="sil"]').click()`);
   await bekle(300);
   S = await satirlar();
-  sonuc('Listeden çıkar: satır kalkar, kalanların kutusu 120 × 120', J(S.map((s) => s.ad)) === J(['yatay.png', 'dikey.jpg', 'ana.pdf']) && S.every((s) => J(s.kutu) === J([120, 120])), S.map((s) => [s.ad, s.kutu]));
+  sonuc(`Listeden çıkar: satır kalkar, kalanların kutusu ${BK} × ${BK}`, J(S.map((s) => s.ad)) === J(['yatay.png', 'dikey.jpg', 'ana.pdf']) && S.every((s) => J(s.kutu) === J([BK, BK])), S.map((s) => [s.ad, s.kutu]));
   await hepsiniKapat();
 
   // ---------------------------------------------------------------- 3) hata yok

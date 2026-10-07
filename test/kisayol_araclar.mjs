@@ -489,8 +489,9 @@ print(json.dumps({"ana": pdf("ana.pdf", 12, "Sayfa"), "ek": pdf("ek.pdf", 3, "Ek
   // Boş alandan sürükle (sol tuş). 0.2.2: satırlar büyük önizlemeyle 134 px; 1000 px pencerede dört satır listeyi doldurur, altında boş alan
   // kalmaz, birinci ve dördüncü satır birlikte görünmez. Liste, Kalite ve Kaydet bölümleri bu denetimle sıralama denetimleri süresince
   // gizlenerek uzatılır (daha yüksek pencereyle aynı; 1080 px ekranda pencere 1000 px'ten yüksek açılamıyor); satırların boyutu değişmez.
-  // Kaydırılan listede sıralama arac_onizleme.mjs'te.
-  await evalJs(`(() => { document.querySelectorAll('.birlestir-kalite-bolumu, .birlestir-kayit').forEach((e) => { e.style.display = 'none'; }); document.querySelector('.birlestir-liste').scrollTop = 0; return true; })()`);
+  // 0.2.3: önizleme 150 px, satırlar 164 px; dört satır yalnızca Kalite ve Kaydet gizliyken de listeyi aşıyordu (690 / 663 px), alttaki
+  // düğme şeridi (Birleştir) de gizlenir. Kaydırılan listede sıralama arac_onizleme.mjs'te.
+  await evalJs(`(() => { document.querySelectorAll('.birlestir-kalite-bolumu, .birlestir-kayit, .birlestir-pencere .arac-dugmeler').forEach((e) => { e.style.display = 'none'; }); document.querySelector('.birlestir-liste').scrollTop = 0; return true; })()`);
   await bekle(150);
   await bTikla('bir.pdf');
   const li = await evalJs(`(() => { const l = document.querySelector('.birlestir-liste'); const r = l.getBoundingClientRect(); const s = window.__ka.satirlar().at(-1).getBoundingClientRect(); return { x: r.left, y: r.top, r: r.right, b: r.bottom, ch: l.clientHeight, sh: l.scrollHeight, sonAlt: s.bottom }; })()`);
@@ -527,8 +528,8 @@ print(json.dumps({"ana": pdf("ana.pdf", 12, "Sayfa"), "ek": pdf("ek.pdf", 3, "Ek
   b = await bDurum();
   sonuc('Satırı sürükle yukarı (dort → ilk satırın altı)', ayni(b.sira, tasiModel(once2, ['dort.pdf'], once2[0])), { sira: b.sira }, B_SUR);
   await ss('02-birlestir-siralama');
-  // Kalite ve Kaydet bölümleri geri gelir (dosya adı kutusu aşağıda Ctrl+V denetiminde kullanılır)
-  await evalJs(`(() => { document.querySelectorAll('.birlestir-kalite-bolumu, .birlestir-kayit').forEach((e) => { e.style.display = ''; }); return true; })()`);
+  // Kalite ve Kaydet bölümleri ve düğme şeridi geri gelir (dosya adı kutusu aşağıda Ctrl+V denetiminde kullanılır)
+  await evalJs(`(() => { document.querySelectorAll('.birlestir-kalite-bolumu, .birlestir-kayit, .birlestir-pencere .arac-dugmeler').forEach((e) => { e.style.display = ''; }); return true; })()`);
   await bekle(150);
 
   // Ctrl+A
