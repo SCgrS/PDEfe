@@ -49,7 +49,8 @@
 ;   9. electron-builder'ın Türkçesi olmayan ya da yanlış çevrilmiş iletileri (0.2.3): customHeader'da LangString'lerin üzerine yazılır
 ;      (kurucu ve kaldırıcı). Şablonlara gömülü İngilizce birkaç durum yazısı ("Waiting for … to close.", "File is busy, aborting") yalnızca
 ;      kanca değiştirilerek (customCheckAppRunning / customRemoveFiles) Türkçeleşebilirdi; bu kancalar güncelleme yolunu da değiştirdiği için
-;      kullanılmadı.
+;      kullanılmadı. NSIS'in Türkçe dil dosyasındaki yazım hataları (kaldırıcının hoş geldiniz, Kaldırılıyor ve bitiş sayfaları, kurucunun
+;      klasör sayfası) da aynı yolla düzeltilir; lisans sayfasının sığmayan "Kabul Ediyorum" düğmesi "Kabul et" oldu (customWelcomePage).
 ;
 ; Kodlama: UTF-8 (electron-builder makensis'i -INPUTCHARSET UTF8 ile çağırır).
 
@@ -93,6 +94,23 @@
   LangString freshInstallForCurrent ${LANG_TURKISH} "Yalnızca sizin için yeni kurulum."
   LangString whichInstallationRemove ${LANG_TURKISH} "${PRODUCT_NAME} hem herkes için hem de yalnızca sizin için kurulu.$\r$\nHangisi kaldırılsın?"
   LangString loginWithAdminAccount ${LANG_TURKISH} "Devam etmek için yönetici grubundaki bir hesapla oturum açmanız gerekiyor."
+  ; 0.2.3: NSIS'in Türkçe dil dosyasındaki (Contrib\Language files\Turkish.nsh, NSIS 3.0.4) yazım hataları: "kadırılımı", "Kaldırım işlemeni",
+  ; "programlari" (kaldırıcının hoş geldiniz sayfası), "Litfen" (Kaldırılıyor), "Tamamlandır", "'bitir'e" (kaldırıcının bitişi), "şeçiniz"
+  ; (kurucunun klasör sayfası). Metinler dil dosyasındaki gibi, yalnızca hatalar düzeltildi. Dil dosyası bunları ancak sayfa kullanılıyorsa
+  ; tanımlar; burada da aynı koşulla (kurucu ve kaldırıcı ayrı derlenir).
+  !ifdef MUI_UNWELCOMEPAGE
+    LangString MUI_UNTEXT_WELCOME_INFO_TEXT ${LANG_TURKISH} "Bu sihirbaz size $(^NameDA) programının kaldırılması boyunca rehberlik edecektir.$\r$\n$\r$\nKaldırma işlemini başlatmadan önce çalışan diğer programları kapatmanızı öneririz. Böylece bilgisayarınızı yeniden başlatmadan bazı sistem dosyaları sorunsuz kaldırılabilir.$\r$\n$\r$\n$_CLICK"
+  !endif
+  !ifdef MUI_UNINSTFILESPAGE
+    LangString MUI_UNTEXT_UNINSTALLING_SUBTITLE ${LANG_TURKISH} "Lütfen $(^NameDA) programı sisteminizden kaldırılırken bekleyiniz."
+    LangString MUI_UNTEXT_FINISH_TITLE ${LANG_TURKISH} "Kaldırma İşlemi Tamamlandı"
+  !endif
+  !ifdef MUI_UNFINISHPAGE
+    LangString MUI_UNTEXT_FINISH_INFO_TEXT ${LANG_TURKISH} "$(^NameDA) programı sisteminizden kaldırıldı.$\r$\n$\r$\nSihirbazı kapatmak için 'Bitir'e basınız."
+  !endif
+  !ifdef MUI_DIRECTORYPAGE
+    LangString MUI_TEXT_DIRECTORY_SUBTITLE ${LANG_TURKISH} "$(^NameDA) programını kurmak istediğiniz dizini seçiniz."
+  !endif
   !pragma warning pop
 !macroend
 
@@ -379,6 +397,10 @@
       ${EndIf}
     FunctionEnd
     !define MUI_PAGE_CUSTOMFUNCTION_SHOW pdefeLisansGoster
+    ; 0.2.3: NSIS'in Türkçe düğme yazısı "Kabul Ediyorum" 75 px'lik İleri düğmesine sığmıyor, kenarlara değiyordu (84 px gerekiyor; 0.2.2'de
+    ; de böyleydi, test\kurulum_surum.ps1 ölçer). Kısa yazı ve onu anan alt metin; ikisi de MUI'nin lisans sayfası tanımları, yalnızca bu sayfa.
+    !define MUI_LICENSEPAGE_BUTTON "&Kabul et"
+    !define MUI_LICENSEPAGE_TEXT_BOTTOM "Sözleşme koşullarını kabul ediyorsanız 'Kabul et' düğmesine basın. ${PRODUCT_NAME}'yi kurmak için sözleşme koşullarını kabul etmeniz gerekir."
   !endif
 
   ; Lisans ve klasör sayfalarının atlama koşulu (yukarıdaki açıklama); customPageAfterChangeDir'de geri alınır

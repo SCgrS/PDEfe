@@ -5,7 +5,8 @@
 # Windows masaüstünde çalıştırılır (test\kurucu_surucu.cs): ekrana pencere açılmaz, odak çalınmaz. Durumlar: kurulu değil, eski, aynı,
 # bozuk (kayıt var, program dosyası yok), daha yeni, PDEfe açık, eski sürümde Kaldır (kaldırıcı var / yok); her birinde sayfanın görüntüsü
 # (PNG), başlıklar, İleri düğmesinin yazısı, metinlerin sığdığı ve üst üste binmediği, seçimden sonraki akış (hangi sayfaya gidildiği,
-# kip / masaüstü kısayolu kararı, kaldırıcının açılması, kapanış).
+# kip / masaüstü kısayolu kararı, kaldırıcının açılması, kapanış). Ayrıca lisans düğmesinin sığdığı ve NSIS'in Türkçe dil dosyasındaki
+# yazım hatalarının düzeldiği: kurucunun klasör sayfası ve ayrı küçük bir kaldırıcının hoş geldiniz, Kaldırılıyor ve bitiş sayfaları.
 # Kullanım: powershell -File test\kurulum_surum.ps1 -Cikti <klasör> [-Nsh <installer.nsh>] [-Bekle 1500]
 param(
   [Parameter(Mandatory = $true)][string]$Cikti,
@@ -210,6 +211,40 @@ SectionEnd
 $kosum = KosumDerle '0.2.3'
 $kosumSayisal = KosumDerle '0.2.10'
 
+# Kaldırıcının sayfaları (0.2.3, NSIS'in Türkçe dil dosyasındaki yazım hataları customHeader'da düzeltildi): electron-builder'ın kaldırıcısındaki
+# gibi hoş geldiniz, (kullanıcıya kurulumda atlanan) "Kimler için" sayfasının yerine atlanan boş bir sayfa, Kaldırılıyor ve bitiş sayfaları
+# (assistedInstaller.nsh, BUILD_UNINSTALLER; ayrıntılar düğmesi yok: common.nsh ShowUninstDetails nevershow), sonra MUI_LANGUAGE ve
+# customHeader. Sessiz koşum çalışınca yanına kaldirici.exe'yi yazar; kaldırma bölümü yalnızca bekler (Kaldırılıyor'un alt başlığı okunsun).
+$kaldiriciKosum = Join-Path $gecici 'kaldirici-kosum.exe'
+Derle 'kaldirici-kosum' @"
+Unicode true
+!include "MUI2.nsh"
+Name "PDEfe"
+OutFile "$kaldiriciKosum"
+RequestExecutionLevel user
+SilentInstall silent
+ShowUninstDetails nevershow
+!define MUI_UNWELCOMEFINISHPAGE_BITMAP "`${NSISDIR}\Contrib\Graphics\Wizard\nsis3-metro.bmp"
+!define MUI_UNICON "$(Join-Path $kok 'build\icon.ico')"
+!define PRODUCT_NAME "PDEfe"
+!include "$Nsh"
+Function un.pdefeAtlanan
+  Abort
+FunctionEnd
+!insertmacro MUI_UNPAGE_WELCOME
+UninstPage custom un.pdefeAtlanan
+!insertmacro MUI_UNPAGE_INSTFILES
+!insertmacro MUI_UNPAGE_FINISH
+!insertmacro MUI_LANGUAGE "Turkish"
+!insertmacro customHeader
+Section
+  WriteUninstaller "`$EXEDIR\kaldirici.exe"
+SectionEnd
+Section "Uninstall"
+  Sleep 2500
+SectionEnd
+"@
+
 # Kurulu klasörler: tam (program ve kaldırıcı var) ve boş (bozuk kurulum)
 $klasorTam = Join-Path $gecici 'kurulu'
 $klasorBos = Join-Path $gecici 'bozuk'
@@ -293,10 +328,9 @@ function Gecis-Bekle([int]$surec, [long]$hwnd, [string]$eskiBaslik, [int]$ms = 1
 function Goruntu-Al([long]$hwnd, [string]$ad) {
   $png = Join-Path $Cikti "$ad.png"
   $olcu = [KurucuSurucu]::Goruntu($hwnd, $png)
+  # 0.2.3'e dek NSIS'in Türkçe lisans düğmesi "Kabul Ediyorum" (84 px) burada bilinen istisnaydı; artık "Kabul et", istisna yok
   foreach ($satir in ($olcu -split "`r?`n" | Where-Object { $_ })) {
-    # NSIS'in kendi Türkçe lisans düğmesi (0.2.2'de de) bu ölçüye sığmıyor; bu iş kapsamında değil, bilgi olarak yazılır
-    if ($satir -match '^TAŞIYOR  düğme .*: Kabul Ediyorum$') { Yaz "  BİLİNEN $satir (NSIS'in stok metni)" }
-    elseif ($satir -match '^TAŞIYOR') { $script:hatalar++; Yaz "  HATA   $satir" }
+    if ($satir -match '^TAŞIYOR') { $script:hatalar++; Yaz "  HATA   $satir" }
     else { Yaz "         $satir" }
   }
   Yaz "         görüntü: $png"
@@ -352,14 +386,17 @@ try {
   Denetle 'ilk sayfa lisans' ($s.Baslik -eq 'Lisans Sözleşmesi') "başlık «$($s.Baslik)»"
   # 0.2.2'deki gibi Geri gizli: görünseydi basılınca sihirbaz kapanıyordu (atlanan kurulu sürüm sayfasının da önüne gidiliyordu)
   Denetle 'lisans ilk sayfa: Geri düğmesi gizli' (-not $s.Geri.Gorunur) "görünür $($s.Geri.Gorunur), etkin $($s.Geri.Etkin)"
+  # 0.2.3: NSIS'in "Kabul Ediyorum"u 75 px'lik düğmeye sığmıyordu; sığması Goruntu-Al'ın ölçüsünde (TAŞIYOR → HATA)
+  Denetle 'lisans düğmesi «Kabul et», alt metin onu anıyor' ($s.Ileri.Yazi -eq '&Kabul et' -and ($s.Etiketler -match "^Sözleşme koşullarını kabul ediyorsanız 'Kabul et' düğmesine basın\.").Count -eq 1) "«$($s.Ileri.Yazi)» / $($s.Etiketler -join ' | ')"
   Goruntu-Al $w 'surum-1-kurulu-degil-lisans'
   [KurucuSurucu]::Dugme($w, 3) | Out-Null
   Start-Sleep -Milliseconds 800
   $s2 = Sayfa-Oku $w
   Denetle 'gizli Geri''ye basılamaz: sihirbaz açık, lisans sayfasında' (([KurucuSurucu]::Bekle($s1, 0) -lt 0) -and $s2.Baslik -eq 'Lisans Sözleşmesi') "başlık «$($s2.Baslik)»"
-  [KurucuSurucu]::Dugme($w, 1) | Out-Null   # Kabul Ediyorum
+  [KurucuSurucu]::Dugme($w, 1) | Out-Null   # Kabul et
   $s = Gecis-Bekle $s1 $w 'Lisans Sözleşmesi'
   Denetle 'lisanstan sonra klasör sayfası' ($s.Baslik -eq 'Hedef dizini seçimi') "başlık «$($s.Baslik)»"
+  Denetle 'klasör sayfasının alt başlığı düzgün ("seçiniz")' ($s.AltBaslik -eq 'PDEfe programını kurmak istediğiniz dizini seçiniz.') "«$($s.AltBaslik)»"
   [KurucuSurucu]::Dugme($w, 1) | Out-Null
   $s = Gecis-Bekle $s1 $w $s.Baslik
   Denetle 'klasörden sonra Ek görevler' ($s.Baslik -eq 'Ek görevler') "başlık «$($s.Baslik)»"
@@ -592,6 +629,33 @@ try {
   $r = Sonuc-Oku $sonucDosyasi
   Denetle 'sonra Güncelle: doğrudan kurulum, kip=guncelle' ($s.Baslik -match '^Kurul' -and $r -match '^kip=guncelle') "«$($s.Baslik)» «$r»"
   Kapat $s11
+
+  # -------------------------------------------------------------- 12. kaldırıcının sayfaları: dil dosyasının yazım hataları düzeldi (0.2.3)
+  Yaz '12. kaldırıcının hoş geldiniz, Kaldırılıyor ve bitiş sayfaları'
+  $yazici = Kosum-Baslat $kaldiriciKosum '' ''
+  [KurucuSurucu]::Bekle($yazici, 15000) | Out-Null
+  $kaldirici = Join-Path $gecici 'kaldirici.exe'
+  Denetle 'koşum kaldırıcıyı yazdı' (Test-Path -LiteralPath $kaldirici)
+  # _?= : kaldırıcı kendini %TEMP%'e kopyalamadan, bu süreçte çalışır
+  $s12 = [KurucuSurucu]::Baslat("`"$kaldirici`" _?=$gecici", $gecici)
+  $w = Sihirbaz-Bekle $s12
+  $s = Sayfa-Oku $w
+  $metin = $s.Etiketler -join ' / '
+  Denetle 'hoş geldiniz: başlık; sonraki sayfa kaldırma değil (gerçek kaldırıcıdaki gibi "İleri")' ($s.Etiketler -contains 'PDEfe Programını Kaldırma Sihirbazına Hoş Geldiniz' -and $metin -match 'Devam etmek için İleri düğmesine basın' -and $s.Ileri.Yazi -eq $ileriYazisi) $metin
+  Denetle 'hoş geldiniz: "kaldırılması", "Kaldırma işlemini", "programları"; "kadırılımı" yok' ($metin -match 'programının kaldırılması boyunca' -and $metin -match 'Kaldırma işlemini başlatmadan' -and $metin -match 'diğer programları kapatmanızı' -and $metin -notmatch 'kadırılımı|Kaldırım|işlemeni|programlari') $metin
+  Goruntu-Al $w 'surum-12-kaldirici-hosgeldiniz'
+  [KurucuSurucu]::Dugme($w, 1) | Out-Null
+  $kal = $null; $son = [DateTime]::Now.AddSeconds(10)
+  while ([DateTime]::Now -lt $son -and -not $kal) { $t = Sayfa-Oku $w; if ($t.Baslik -eq 'Kaldırılıyor') { $kal = $t } else { Start-Sleep -Milliseconds 100 } }
+  Denetle 'Kaldırılıyor: alt başlık "Lütfen …" ("Litfen" değil)' ($kal -and $kal.AltBaslik -eq 'Lütfen PDEfe programı sisteminizden kaldırılırken bekleyiniz.') "«$($kal.AltBaslik)»"
+  if ($kal) { Goruntu-Al $w 'surum-12-kaldirici-kaldiriliyor' }
+  $bit = $null; $son = [DateTime]::Now.AddSeconds(15)
+  while ([DateTime]::Now -lt $son -and -not $bit) { $t = Sayfa-Oku $w; if ($t.Ileri.Yazi -eq '&Bitir') { Start-Sleep -Milliseconds 300; $bit = Sayfa-Oku $w } else { Start-Sleep -Milliseconds 150 } }
+  Denetle 'bitiş: "''Bitir''e basınız"' ($bit -and ($bit.Etiketler -join ' ') -match "kaldırıldı\..*Sihirbazı kapatmak için 'Bitir'e basınız\.") $(if ($bit) { $bit.Etiketler -join ' / ' })
+  if ($bit) { Goruntu-Al $w 'surum-12-kaldirici-bitis'; [KurucuSurucu]::Dugme($w, 1) | Out-Null }
+  $kod = [KurucuSurucu]::Bekle($s12, 8000)
+  Denetle 'Bitir: kaldırıcı kapandı' ($kod -ge 0) "çıkış $kod"
+  Kapat $s12
 } finally {
   [KurucuSurucu]::MasaKapat()
   Remove-Item -Path 'HKCU:\Software\PDEfeSayfaSinama' -Recurse -Force -ErrorAction SilentlyContinue

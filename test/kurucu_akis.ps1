@@ -245,9 +245,9 @@ function Akisi-Izle([int]$surec, [long]$hwnd, [string]$dur = '', [int]$ms = 2400
 function Goruntu-Al([long]$hwnd, [string]$ad) {
   $png = Join-Path $Cikti "$ad.png"
   $olcu = [KurucuSurucu]::Goruntu($hwnd, $png)
+  # 0.2.3'e dek NSIS'in Türkçe lisans düğmesi "Kabul Ediyorum" burada bilinen istisnaydı; artık "Kabul et" (build\installer.nsh), istisna yok
   foreach ($satir in ($olcu -split "`r?`n" | Where-Object { $_ })) {
-    if ($satir -match '^TAŞIYOR  düğme .*: Kabul Ediyorum$') { Yaz "  BİLİNEN $satir (NSIS'in stok metni)" }
-    elseif ($satir -match '^TAŞIYOR') { $script:hatalar++; Yaz "  HATA   $satir" }
+    if ($satir -match '^TAŞIYOR') { $script:hatalar++; Yaz "  HATA   $satir" }
   }
   Yaz "         görüntü: $png"
 }
@@ -293,6 +293,9 @@ function Kaldiriciyi-Sur([int]$kurucu, [string]$goruntu) {
     $sira = New-Object System.Collections.Generic.List[string]
     $s = Sayfa-Oku $k.Hwnd
     Goruntu-Al $k.Hwnd $goruntu
+    # 0.2.3: NSIS'in Türkçe dil dosyasındaki "kadırılımı", "Kaldırım işlemeni", "programlari" (build\installer.nsh customHeader)
+    $metin = $s.Etiketler -join ' / '
+    Denetle 'kaldırıcının hoş geldiniz metni yazım hatasız' ($metin -match 'programının kaldırılması boyunca' -and $metin -match 'Kaldırma işlemini' -and $metin -notmatch 'kadırılımı|Kaldırım|işlemeni|programlari') $metin
     $sira.Add("hoş geldiniz (İleri «$($s.Ileri.Yazi)»)")
     [KurucuSurucu]::Dugme($k.Hwnd, 1) | Out-Null
     $g = Akisi-Izle $k.Pid $k.Hwnd
@@ -320,6 +323,7 @@ try {
   $w = Sihirbaz-Bekle -surec $p
   $s = Sayfa-Oku $w.Hwnd
   Denetle 'ilk sayfa lisans, Geri gizli' ($s.Baslik -eq 'Lisans Sözleşmesi' -and -not $s.Geri.Gorunur) "«$($s.Baslik)»"
+  Denetle 'lisans düğmesi «Kabul et» (0.2.3; "Kabul Ediyorum" sığmıyordu)' ($s.Ileri.Yazi -eq '&Kabul et') "«$($s.Ileri.Yazi)»"
   Goruntu-Al $w.Hwnd 'akis-A1-lisans'
   [KurucuSurucu]::Dugme($w.Hwnd, 2) | Out-Null
   $kod = [KurucuSurucu]::Bekle($p, 10000)
