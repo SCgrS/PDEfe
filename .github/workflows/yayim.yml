@@ -27,7 +27,7 @@ on:
         options: [hepsi, windows, mac]
         default: hepsi
       cekirdek_calismasi:
-        description: macOS çekirdeklerini bu çalışmanın (run id) çıktısından al; boşsa yeniden derlenir (dakika tasarrufu, 3 gün saklanır)
+        description: macOS çekirdeklerini bu çalışmanın (run id) çıktısından al; boşsa yeniden derlenir (dakika tasarrufu, 1 gün saklanır)
         type: string
         default: ""
 
@@ -175,7 +175,7 @@ jobs:
             release/PDEfe-Setup.exe.blockmap
             release/latest.yml
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1
 
   mac-cekirdek:
     name: macOS çekirdek (${{ matrix.mimari }})
@@ -239,7 +239,7 @@ jobs:
           name: pdefe-core-mac-${{ matrix.mimari }}
           path: pdefe-core-mac-${{ matrix.mimari }}.tgz
           if-no-files-found: error
-          retention-days: 3
+          retention-days: 1
 
   mac:
     name: macOS DMG (evrensel)
@@ -331,7 +331,7 @@ jobs:
           name: mac-sinama-arm64-macos15
           path: ${{ runner.temp }}/duman
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 1
 
       - name: DMG'yi taslak sürüme yükle (etiket)
         if: startsWith(github.ref, 'refs/tags/')
@@ -345,7 +345,7 @@ jobs:
           name: PDEfe-Mac
           path: release/PDEfe-Mac.dmg
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1
 
   # Elle çalıştırmada: aynı DMG Intel Mac'te ve en yeni macOS'ta da sınanır (sürüm derlemesinde atlanır; dakika tasarrufu)
   mac-sina:
@@ -401,7 +401,7 @@ jobs:
           name: mac-sinama-${{ matrix.ad }}
           path: ${{ runner.temp }}/duman
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 1
 
   yayimla:
     name: Sürümü yayımla
