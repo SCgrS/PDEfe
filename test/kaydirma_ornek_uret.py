@@ -8,6 +8,9 @@ Kullanım:
   karisik.pdf  : 60 sayfa, gömülü yazı tipli metin + sayfa başına 600x600 renkli JPEG logo (kaydırırken işçide örneklenir, hızlı çizilir)
                  ve küçük karekod benzeri PNG: logolu, kaşeli, karekodlu üretilmiş belge benzeri.
   metin.pdf    : test/pdf/mevzuat_6102_TTK.pdf'in kopyası (410 sayfa, yalnızca metin); dosya yoksa 410 sayfalık yer tutucu metin üretilir.
+  formlu.pdf   : 20 sayfa, metin + sayfa başına 4 yazı alanı (form alanlı belge: form katmanı çekirdekten ayrıca istenir; 0.2.3).
+  karma.pdf    : 40 sayfa, tek sayfalar tam sayfa renkli fotoğraf (JPEG, kaydırırken işçide örneklenir), çift sayfalar yalnızca metin
+                 (ertelenecek görseli yok): eşzamanlı çizimde sayaçların sayfaya göre tutulduğunu sınamak için (0.2.3).
 """
 import io
 import os
@@ -109,4 +112,51 @@ else:
             y += 11.6
     doc.save(hedef, garbage=3, deflate=True)
     doc.close()
+
+doc = pymupdf.open()
+for i in range(20):
+    pg = doc.new_page(width=595, height=842)
+    y = 60
+    for s in range(40):
+        pg.insert_text((50, y), f"Sayfa {i + 1}, satır {s + 1}: örnek form metni, deneme paragrafı şçğıöü.", fontsize=10, **yazi)
+        y += 18
+    for k in range(4):
+        w = pymupdf.Widget()
+        w.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
+        w.field_name = f"alan_{i}_{k}"
+        w.rect = pymupdf.Rect(60, 100 + k * 170, 400, 130 + k * 170)
+        w.field_value = f"Değer {i + 1}-{k + 1}"
+        pg.add_widget(w)
+doc.save(os.path.join(cikti, "formlu.pdf"), garbage=3, deflate=True)
+doc.close()
+
+
+def foto(no):
+    w, h = 1400, 1980
+    img = Image.new("RGB", (w, h), (230, 220, 200))
+    d = ImageDraw.Draw(img)
+    r = random.Random(no)
+    for _ in range(400):
+        x, yy = r.randrange(w), r.randrange(h)
+        d.ellipse([x, yy, x + r.randrange(20, 200), yy + r.randrange(20, 200)], fill=(r.randrange(256), r.randrange(256), r.randrange(256)))
+    px = img.load()
+    for _ in range(60000):
+        px[r.randrange(w), r.randrange(h)] = (r.randrange(256), r.randrange(256), r.randrange(256))
+    b = io.BytesIO()
+    img.save(b, "JPEG", quality=80)
+    return b.getvalue()
+
+
+doc = pymupdf.open()
+for i in range(40):
+    pg = doc.new_page(width=595, height=842)
+    if i % 2 == 0:
+        pg.insert_image(pg.rect, stream=foto(i + 1))
+    else:
+        y = 80
+        for s in range(60):
+            pg.insert_text((72, y), f"Madde {s + 1} - örnek metin, sayfa {i + 1}, deneme paragrafı şçğıöü.", fontsize=10, **yazi)
+            y += 12
+doc.save(os.path.join(cikti, "karma.pdf"), garbage=3, deflate=True)
+doc.close()
 print("tamam", cikti)

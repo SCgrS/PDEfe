@@ -15,6 +15,13 @@
 //      üstünde, sayfaya gidince (yön bilinmez) iki yana eşit; bölgenin boyutu değişmez.
 //   5) Önden çizme bandı kaydırma yönünde: görünümün ortasından yönde 2, geride 1 ekran (yön bilinmiyorsa iki yana 1,5, önceki gibi);
 //      tuvali kalan sayfalar boşaltma sınırının (yönde 4, geride 3 ekran) içinde; bandın sayfa sayısı yönden bağımsız.
+//   6) Form alanlı belgede ek katmanlar yalnızca görünüm değişince kurulur (bağımsız incelemenin bulgusu): %600'de kaydırırken
+//      bölgesel yeniden çizimler çekirdekten form görüntüsü istemez, not katmanını baştan kurmaz (önceden her çizimde: kaydırma başına
+//      ~17 tam sayfa form görüntüsü, çekirdeğin sırası uzuyor, kaydırma durduktan sonraki küçük resim isteği ~6 sn bekliyordu); form
+//      katmanı yerinde kalır, ölçek değişince ve sayfa boşaltılıp yeniden çizilince yeniden kurulur.
+//   7) Hızlı çizim ve keskinleşme işareti çizimin kendi sayaçlarından (bağımsız incelemenin bulgusu): fotoğraflı ve yalnızca metinli iki
+//      sayfa kaydırma sürerken aynı anda çizilince metinli sayfa hızlı / keskinleşecek sayılmaz (önceden 3 denemenin 2'sinde sayılıyor,
+//      kaydırma sürerken boşuna yeniden çiziliyordu), fotoğraflı sayfa sayılır.
 // Kullanım (ev ekranı benzeri; sayfa 6 MP'yi aşar):
 //   .venv\Scripts\python.exe test\kaydirma_ornek_uret.py      (test\cikti\kaydirma\pdf yoksa betik kendisi üretir)
 //   powershell -File test\baslat.ps1 -Port 9643 -Boyut "1800,1050" -Olcek 1.25      → PID=… yazar
@@ -30,7 +37,7 @@ const KOK = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ORNEK = path.join(KOK, 'test', 'cikti', 'kaydirma', 'pdf');
 const PY = path.join(KOK, '.venv', 'Scripts', 'python.exe');
 const J = (x) => JSON.stringify(x);
-const BOLUMLER = (process.env.BOLUM || '1,2,3,4,5').split(',').map((s) => +s.trim()).filter(Boolean);
+const BOLUMLER = (process.env.BOLUM || '1,2,3,4,5,6,7').split(',').map((s) => +s.trim()).filter(Boolean);
 
 let hataSayisi = 0, denetimSayisi = 0;
 const sonuc = (ad, ok, ayrinti = '') => {
@@ -114,9 +121,9 @@ const SAYFA_KODU = `(async () => {
 })()`;
 
 export default async function ({ evalJs, bekle, hedefler }) {
-  const pdfler = ['metin', 'karisik', 'taranmis'].map((a) => path.join(ORNEK, a + '.pdf'));
+  const pdfler = ['metin', 'karisik', 'taranmis', 'formlu', 'karma'].map((a) => path.join(ORNEK, a + '.pdf'));
   if (pdfler.some((p) => !fs.existsSync(p))) execFileSync(PY, [path.join(KOK, 'test', 'kaydirma_ornek_uret.py'), ORNEK], { stdio: 'inherit' });
-  const [METIN, KARISIK] = pdfler;
+  const [METIN, KARISIK, , FORMLU, KARMA] = pdfler;
 
   // Tekerlek dizileri tek CDP bağlantısından, sabit aralıkla gönderilir
   const h = (await hedefler())[0];
@@ -354,6 +361,103 @@ export default async function ({ evalJs, bekle, hedefler }) {
     const gidince = await bant();
     sonuc('Sayfaya gidince yön bilinmez, bant yine ortalı', gidince.yon === 0 && Math.abs(gidince.ust - gidince.alt) <= 1 && gidince.ustUzak <= 1.5 && gidince.altUzak <= 1.5, gidince);
     await evalJs(`(async () => { const g = window.__kc.g(); g.kaydirici.style.bottom = ''; await g.zoomModuAyarla('genislik'); return true; })()`);
+    await durul();
+  }
+
+  if (BOLUMLER.includes(6)) {
+    console.log('--- 6) Form alanlı belge: ek katmanlar ve not katmanı yalnızca görünüm değişince kurulur');
+    await belgeAc(FORMLU);
+    // Çekirdek istekleri (yanıtı beklenenler dahil) ve not katmanı olayı (sayfaCizildi) görünümün örneğinde kaydedilir (belge kapanınca
+    // görünümle birlikte gider). %600'deki tam sayfa form görüntüsü yavaştır (saniyeler): sayım, önceki çizimlerin istekleri bitince başlar
+    await evalJs(`(() => { const K = window.__kc, g = K.g();
+      K.istekler = []; K.notCizim = 0; K.bekleyen = 0;
+      const ozgun = g.cekirdek;
+      g.cekirdek = async (y, p, ...a) => { K.istekler.push({ y, sayfa: p?.sayfa, olcek: p?.olcek }); K.bekleyen++; try { return await ozgun(y, p, ...a); } finally { K.bekleyen--; } };
+      g.addEventListener('sayfaCizildi', () => { K.notCizim++; });
+      return true; })()`);
+    const formIstekleri = () => evalJs('window.__kc.istekler.filter((r) => r.y === "form_gorunum")');
+    const katmanlar = () => evalJs(`(() => { const g = window.__kc.g(); return [...g._gorunurKume].map((s) => ({ no: s.no, form: s.el.querySelectorAll('.form-katmani').length,
+      bag: s.el.querySelectorAll('.baglanti-katmani').length })); })()`);
+    const sifirla = () => evalJs('(() => { const K = window.__kc; K.sifirla(); K.istekler = []; K.notCizim = 0; return true; })()');
+    const tamDurul = async () => {
+      await durul();
+      for (let ard = 0, t0 = Date.now(); Date.now() - t0 < 30000; await bekle(150)) if (await evalJs('window.__kc.bekleyen === 0')) { if (++ard >= 3) break; } else ard = 0;
+      await durul();
+    };
+    await evalJs(`(() => { const g = window.__kc.g(); g.zoomAyarla(6); g.sayfayaGit(2, { aninda: true }); return true; })()`);
+    await tamDurul();
+    const ilk = await katmanlar();
+    sonuc('%600: görünür sayfada form katmanı var', ilk.length >= 1 && ilk.every((s) => s.form === 1), ilk);
+    await sifirla();
+    await tekerlek(60, 100, 30);
+    await bekle(400);
+    // Kaydırma durduktan hemen sonra çekirdeğe giden sıradan bir istek (Sayfalar panelinin küçük resmi) form isteklerinin arkasında beklemez
+    const kucuk = await evalJs(`(async () => { const g = window.__kc.g(), b = window.__pdefe.aktif(), t = performance.now();
+      const r = await g.cekirdek('kucuk_resim', { yol: b.yol, sayfa: 15, genislik: 200 }); return { ms: Math.round(performance.now() - t), veri: !!r?.veri }; })()`);
+    await tamDurul();
+    const o = await evalJs('(() => { const K = window.__kc; return { olaylar: K.olaylar, notCizim: K.notCizim }; })()');
+    const form = await formIstekleri();
+    const yenileme = o.olaylar.filter((e) => e.tur === 'uygula' && e.tuvalliydi && !e.onizleme);
+    const ilkCizim = {};   // tuvalsiz sayfanın çizimi (görünüm ilk kez): ek katmanlar kurulmalı
+    for (const e of o.olaylar) if (e.tur === 'uygula' && !e.tuvalliydi && !e.onizleme) ilkCizim[e.no] = (ilkCizim[e.no] || 0) + 1;
+    const formSayfa = {};
+    for (const r of form) formSayfa[r.sayfa] = (formSayfa[r.sayfa] || 0) + 1;
+    sonuc('%600: kaydırma sürerken aynı ölçekte en az 3 yeniden çizim (durum kuruldu)', yenileme.length >= 3, { yenileme: yenileme.length });
+    sonuc('Aynı ölçekteki yeniden çizim form görüntüsü istemedi (yalnızca ilk kez çizilen sayfa için, sayfa başına en çok 1)',
+      Object.entries(formSayfa).every(([no, n]) => n <= (ilkCizim[no] || 0)), { form: formSayfa, ilkCizim, yenileme: yenileme.length });
+    const ilkToplam = Object.values(ilkCizim).reduce((a, n) => a + n, 0);
+    sonuc('Aynı ölçekteki yeniden çizim not katmanını baştan kurmadı (sayfaCizildi yalnızca ilk çizimde)', o.notCizim <= ilkToplam, { notCizim: o.notCizim, ilkCizim: ilkToplam });
+    sonuc('Kaydırma durduktan 0,4 sn sonra küçük resim isteği 1 sn içinde yanıtlandı', kucuk.veri && kucuk.ms < 1000, kucuk);
+    const sonra = await katmanlar();
+    sonuc('Kaydırmadan sonra görünür sayfalarda tek form katmanı', sonra.length >= 1 && sonra.every((s) => s.form === 1 && s.bag <= 1), sonra);
+    // Ölçek değişince katman yeni ölçekte yeniden kurulur
+    await sifirla();
+    const yeni = await evalJs(`(() => { const g = window.__kc.g(); g.zoomAyarla(2.5); return Math.min(6, 2.5 * 96 / 72 * devicePixelRatio); })()`);
+    await tamDurul();
+    const zf = await formIstekleri(), zk = await katmanlar();
+    sonuc('Ölçek değişince görünür sayfalar için form görüntüsü yeni ölçekte istendi, katman yerinde',
+      zk.length >= 1 && zk.every((s) => s.form === 1 && zf.some((r) => r.sayfa === s.no && Math.abs(r.olcek - yeni) < 1e-6)), { istek: zf, katman: zk });
+    // Sayfalar boşaltılıp yeniden çizilince (girdiBosalt katmanları siler) katman yeniden kurulur
+    await sifirla();
+    await evalJs('(() => { window.__kc.g().hepsiniYenidenCiz(); return true; })()');
+    await tamDurul();
+    const bf = await formIstekleri(), bk = await katmanlar();
+    sonuc('Boşaltılıp yeniden çizilen sayfada form katmanı yeniden kuruldu', bk.length >= 1 && bk.every((s) => s.form === 1 && bf.some((r) => r.sayfa === s.no)), { istek: bf.length, katman: bk });
+    await evalJs(`(async () => { await window.__kc.g().zoomModuAyarla('genislik'); return true; })()`);
+    await durul();
+  }
+
+  if (BOLUMLER.includes(7)) {
+    console.log('--- 7) Hızlı çizim ve keskinleşme işareti çizimin kendi sayaçlarından (eşzamanlı çizim)');
+    await belgeAc(KARMA);
+    // Görünümden uzak, hiç çizilmemiş bir fotoğraflı (tek) ve bir metinli (çift) sayfa kaydırma sürerken aynı anda çizilir: metinli sayfanın
+    // çizimi işlem listesini beklerken fotoğraflı sayfanın görseli ertelenip işçiden istenir. Fotoğraf (1400 px genişlik) küçültülerek
+    // çizilsin diye sayfa ~1000 cihaz pikseli genişliğe getirilir (büyütülen fotoğraf ertelenmez, Chromium yumuşatmasıyla çizilir)
+    await evalJs(`(() => { const g = window.__kc.g(); g.zoomAyarla(1000 / (595 * 96 / 72 * devicePixelRatio)); g.sayfayaGit(1, { aninda: true }); return true; })()`);
+    await durul();
+    const sonuclar = [];
+    for (const [a, b] of [[31, 34], [33, 36], [35, 38]]) {
+      sonuclar.push(await evalJs(`(async () => {
+        const K = window.__kc, g = K.g(), k = K.k, dpr = devicePixelRatio;
+        const iA = ${a} - 1, iB = ${b} - 1, sA = g.sayfalar[iA], sB = g.sayfalar[iB];
+        const pA = await g.sayfaAl(iA), pB = await g.sayfaAl(iB);
+        const yA = g.yerAl(iA), yB = g.yerAl(iB), tam = (y) => ({ x: 0, y: 0, w: y.w, h: y.h });
+        const zaman = setInterval(() => k.etkilesimBildir(), 50);
+        k.etkilesimBildir();
+        try {
+          const [rA, rB] = await Promise.all([
+            g.tuvalCiz(sA, pA, yA.olcek, g.toplamDondurme(sA), dpr, tam(yA), false),
+            g.tuvalCiz(sB, pB, yB.olcek, g.toplamDondurme(sB), dpr, tam(yB), false),
+          ]);
+          for (const r of [rA, rB]) if (r) { r.canvas.width = r.canvas.height = 0; }
+          return { a: ${a}, b: ${b}, A: rA && { hizli: rA.hizli, keskinlesir: rA.keskinlesir }, B: rB && { hizli: rB.hizli, keskinlesir: rB.keskinlesir } };
+        } finally { clearInterval(zaman); }
+      })()`));
+      await durul();
+    }
+    sonuc('Fotoğraflı sayfa kaydırırken hızlı çizildi ve keskinleşecek (kendi görseli işçide)', sonuclar.every((r) => r.A?.hizli && r.A?.keskinlesir), sonuclar);
+    sonuc('Aynı anda çizilen metinli sayfa hızlı / keskinleşecek sayılmadı', sonuclar.every((r) => r.B && !r.B.hizli && !r.B.keskinlesir), sonuclar);
+    await evalJs(`(async () => { await window.__kc.g().zoomModuAyarla('genislik'); return true; })()`);
     await durul();
   }
 

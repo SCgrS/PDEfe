@@ -1,7 +1,7 @@
 // Belge görüntüleyici: PDF.js ile tembel (lazy) sayfa çizimi, yakınlaştırma, sayfa düzenleri.
 // Her sekmenin kendi Goruntuleyici örneği vardır.
 import * as pdfjs from '../../node_modules/pdfjs-dist/build/pdf.min.mjs';
-import { keskinBaglam, KeskinTuvalFabrikasi, cizimGoreviHazirla, ETKILESIM_MS, etkilesimBildir, etkilesimBitir, keskinErtelenir, ertelenenSayisi, istenenSayisi, keskinHazirDinle, okumaSuruyor } from './keskinlik.js';
+import { keskinBaglam, KeskinTuvalFabrikasi, cizimGoreviHazirla, ETKILESIM_MS, etkilesimBildir, etkilesimBitir, keskinErtelenir, ertelenenSayisi, istenenSayisi, gorevSayaci, keskinHazirDinle, okumaSuruyor } from './keskinlik.js';
 import { anaHatSecenekleri, yaziTipiYukleyicisiniSar, yaziGoreviHazirla } from './yaziTipleri.js';
 import { MAC } from './platform.js';
 
@@ -585,6 +585,7 @@ export class Goruntuleyici extends EventTarget {
   /** Bir girdinin tuval/metin katmanı önbelleğini boşaltır (listede olmasa da). */
   girdiBosalt(s) {
     clearTimeout(s._zaman); s._planli = false;
+    s._katmanAnahtari = null;          // ek katmanlar aşağıda silinir: sonraki çizim onları ve not katmanını yeniden kurar (sayfaCiz)
     s.hedef = null;                    // süren çizim sonucunu bırakır
     if (s.gorev) { try { s.gorev.cancel(); } catch {} s.gorev = null; }
     const katmanVar = !!(s.cizim || s.textLayer || s.metinOlcek);
@@ -1236,10 +1237,13 @@ export class Goruntuleyici extends EventTarget {
     s.gorev = gorev;
     try {
       await gorev.promise;
-      // hizli: çizim sürerken (bu ya da eşzamanlı başka sayfada) görsel örneklemesi ertelendi; kaydırma bitince yeniden çizilir.
-      // keskinlesir: ertelenen görseller işçide örnekleniyor; örnekleme bitince kaydırma sürerken de keskin çizilebilir (yeterliMi)
-      const hizli = ertelenenSayisi() !== ertelenenOnce;
-      return { canvas, px, py, hizli, keskinlesir: hizli && istenenSayisi() !== istenenOnce };
+      // hizli: bu çizimde görsel örneklemesi ertelendi; kaydırma bitince yeniden çizilir. keskinlesir: ertelenen görseller işçide
+      // örnekleniyor; örnekleme bitince kaydırma sürerken de keskin çizilebilir (yeterliMi). Yalnızca bu çizimin ertelemeleri ve
+      // istekleri sayılır (0.2.3, gorevSayaci): önceden eşzamanlı çizilen başka sayfanınkiler de sayılıyor, ertelenecek bir şeyi olmayan
+      // sayfa hızlı ve keskinleşecek sayılıp kaydırma sürerken boşuna yeniden çiziliyordu. Görev sarılamadıysa pencerenin sayaçları
+      const sayac = gorevSayaci(gorev);
+      const hizli = sayac ? sayac.ertelenen > 0 : ertelenenSayisi() !== ertelenenOnce;
+      return { canvas, px, py, hizli, keskinlesir: hizli && (sayac ? sayac.istenen > 0 : istenenSayisi() !== istenenOnce) };
     } catch (e) {
       tuvalBirak(canvas);
       if (!(e instanceof pdfjs.RenderingCancelledException)) console.error('Sayfa çizilemedi', s.no, e);
@@ -1316,11 +1320,20 @@ export class Goruntuleyici extends EventTarget {
       if (son.hizli) { if (keskinErtelenir()) this.keskinlestirPlanla(); else if (!okumaSuruyor()) setTimeout(() => this.keskinHazir(s), 0); }
       s.el.classList.remove('yukleniyor');
       const j = this.idx(s);
+      // Ek katmanlar (bağlantı, form alanı) ve not katmanı (sayfaCizildi) yalnızca sayfanın görünümü (ölçek, döndürme, piksel oranı,
+      // koyuluk) değişince yeniden kurulur (0.2.3): aynı ölçekteki yeniden çizim (bölgesel çizimin kaydırılması, hızlı çizimin
+      // keskinleşmesi) yalnızca tuvali değiştirir, katmanlar sayfanın tamamını kapsar. Önceden her çizimde kuruluyordu; 0.2.3'te aynı
+      // ölçekteki yeniden çizim beklemeden geldiği için form alanlı belgede %600'de kaydırırken çekirdekten saniyede onlarca tam sayfa
+      // form görüntüsü isteniyor, çekirdeğin sırası uzuyor, Sayfalar panelinin küçük resimleri, arama ve kayıt 5–6 sn bekliyordu.
+      // girdiBosalt katmanları siler ve anahtarı sıfırlar. Metin katmanı aynı ölçekte zaten yeniden kurulmaz (metinKatmaniCiz).
+      const katmanAnahtari = `${hedef.olcek}|${dondurme}|${dpr}|${hedef.koyu}`;
+      const yeniGorunum = s._katmanAnahtari !== katmanAnahtari;
+      s._katmanAnahtari = katmanAnahtari;
       if (!s.bos) {
         this.metinKatmaniCiz(j, pdfSayfa, hedef.olcek, dondurme).catch((e) => console.error('Metin katmanı', e));
-        this.ekKatmanlar(j, pdfSayfa, hedef.olcek, dondurme).catch((e) => console.warn('Ek katmanlar', e));
+        if (yeniGorunum) this.ekKatmanlar(j, pdfSayfa, hedef.olcek, dondurme).catch((e) => console.warn('Ek katmanlar', e));
       }
-      this.dispatchEvent(new CustomEvent('sayfaCizildi', { detail: { sayfa: j + 1 } }));
+      if (yeniGorunum) this.dispatchEvent(new CustomEvent('sayfaCizildi', { detail: { sayfa: j + 1 } }));
     } catch (e) {
       console.error('Sayfa çizilemedi', i + 1, e);
     } finally {

@@ -48,6 +48,14 @@ export function ertelenenSayisi() { return ertelenen; }
  * Artmamışsa hızlı çizim ara tuvalin ertelenmesindendir: yeniden çizim de hızlı olur, sayfa ancak kaydırma bitince keskinleşir.
  */
 export function istenenSayisi() { return istenenSayac; }
+// Çizim görevine göre sayım (0.2.3, bağımsız incelemenin bulgusu): ertelenenSayisi ve istenenSayisi bütün pencerenin sayaçlarıdır.
+// Bant sayfaları birlikte çizilirken bir sayfanın çizimi sürerken (işlem listesini beklerken) başka sayfanın işlemleri yürür: yalnızca
+// metinli bir sayfa, aynı anda çizilen fotoğraflı sayfanın ertelemesini ve işçi isteğini kendi çizimininki sanıyor, hızlı ve
+// keskinleşecek sayılıyordu (sınamada 3 denemenin 2'sinde); işçi boşalınca kaydırma sürerken boşuna yeniden çiziliyordu. Görev işlem
+// listesini yürüttüğü sürece (InternalRenderTask _nextBound, eşzamanlı) etkin sayaç o görevinkidir; hizli ve iste ikisini de artırır.
+let etkinGorev = null;
+/** cizimGoreviHazirla'dan geçen görevin kendi sayaçları { ertelenen, istenen }; PDF.js iç yapısı değişip sarılamayan görevde null. */
+export function gorevSayaci(gorev) { return gorev?.__keskinSayac || null; }
 
 // ------------------------------------------------------------ yol kaydı
 // Path2D geometrisi okunamadığı için PDF.js'in yol kurarken çağırdığı yöntemler kaydedilir (yalnızca doğru parçalarından
@@ -585,6 +593,7 @@ function iscideKaydet(img, id, bayt) {
  */
 function iste(img, anahtar, geo) {
   istenenSayac++;
+  if (etkinGorev) etkinGorev.istenen++;
   let set = istenen.get(img);
   if (set?.has(anahtar)) return;
   if (!set) istenen.set(img, (set = new Set()));
@@ -962,6 +971,7 @@ export function keskinBaglam(ctx) {
   // değil) ve say; görüntüleyici sonra keskin yeniden çizer
   const hizli = (bag, arg) => {
     ertelenen++;
+    if (etkinGorev) etkinGorev.ertelenen++;
     yumusak(bag, arg, arg[7] < arg[3] && arg[8] < arg[4] ? 'low' : 'high');
   };
   // Dönüşüm ±1 ölçekli ve tam sayı ötelemeli mi (piksel kopyası: örnekleme yok)?
@@ -1147,10 +1157,23 @@ function maskeKirpmaKur(G) {
 
 /**
  * page.render() görevini alır: PDF.js'in çizim sınıfını ilk çizimden önce bulup görsel maskesi kırpmasını kurar (bir kez; ilk
- * görevin çizimi de kırpılır). PDF.js iç yapısı değişirse hiçbir şey yapmaz. Döner: görev.
+ * görevin çizimi de kırpılır) ve görevin ertelemelerini ve işçi isteklerini ayrıca sayar (gorevSayaci). PDF.js iç yapısı değişirse
+ * hiçbir şey yapmaz. Döner: görev.
  */
 export function cizimGoreviHazirla(gorev) {
-  const P = gorev?._internalRenderTask && Object.getPrototypeOf(gorev._internalRenderTask);
+  const ic = gorev?._internalRenderTask;
+  // _nextBound işlem listesini eşzamanlı yürütür (_scheduleNext her parçada onu çağırır); render() görevi eşzamanlı döndürür, ilk parça
+  // sonra (işlem listesi gelince) çalışır
+  if (ic && typeof ic._nextBound === 'function' && !gorev.__keskinSayac) {
+    const sayac = { ertelenen: 0, istenen: 0 }, ozgunSonraki = ic._nextBound;
+    Object.defineProperty(gorev, '__keskinSayac', { value: sayac });
+    ic._nextBound = function (...a) {
+      const onceki = etkinGorev;
+      etkinGorev = sayac;
+      try { return ozgunSonraki.apply(this, a); } finally { etkinGorev = onceki; }
+    };
+  }
+  const P = ic && Object.getPrototypeOf(ic);
   if (!P || Object.prototype.hasOwnProperty.call(P, '__keskinGorev') || typeof P.initializeGraphics !== 'function') return gorev;
   Object.defineProperty(P, '__keskinGorev', { value: true });
   const ozgun = P.initializeGraphics;
