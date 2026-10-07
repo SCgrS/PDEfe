@@ -19,25 +19,21 @@ boyutunu küçültebilir ve daha fazlasını yapabilirsiniz.
 - **Temiz kopyalama:** Satırlar paragraf olarak birleşir, tireler kalkar. Metin UYAP Doküman Editörü'ne ve Word'e düzgün yapışır.
 - **Araçlar:** Sıkıştır, Sayfaları düzenle, Döndür, Ayır, Görüntü / PDF birleştir.
 - **Taranmış belgede seçim:** Taranmış sayfadaki yazı da fareyle seçilip kopyalanır. Bunu bilgisayarın kendi yazı tanıyıcısı çevrim dışı yapar.
-- **Türkçe arama:** İ/ı ayrımı doğrudur. Bütün açık belgelerde birden aranabilir.
+- **Arama:** Bütün açık belgelerin hepsinde birden tek tuşla arama yapılabilir.
 - **Standart PDF notları:** Vurgu, not ve yazı başka PDF okuyucularında da görünür, e-imzayı bozmaz.
 
 ## Ne yapar
 
 Ekran görüntüleri Windows'ta alındı, macOS'ta görünüm aynıdır. Bütün kısayollar uygulamada `F1` ile açılan pencerededir.
 
-<p align="center">
-  <img src="docs/ekran-ana.png" width="90%" alt="PDEfe açık temada: en üstte sekmeler, altında araç çubuğu, sol panelde İçindekiler">
-</p>
 
 ### Açılış ekranı
 
 Belge açık değilken **PDF aç** düğmesi, bütün araçlar ve son açılan 10 belge görünür. PDF'ler pencereye sürüklenerek de açılır. Son
 açılanlar listesi istenmezse Ayarlar'dan kapatılır.
 
-<p>
-  <img src="docs/ekran-acilis.png" width="49%" alt="Açılış ekranı: PDF aç, araçlar ve son açılanlar">
-  <img src="docs/ekran-acilis-koyu.png" width="49%" alt="Açılış ekranı koyu temada">
+<p align="center">
+  <img src="docs/ekran-acilis.png" width="90%" alt="Açılış ekranı: PDF aç, araçlar ve son açılanlar">
 </p>
 
 ### Sekmeler ve pencereler
@@ -82,9 +78,12 @@ okur. Belge hiçbir yere gönderilmez. macOS 13–15'te Türkçe harfler (ş, ğ
 `Ctrl+F` ile aranır. İ/ı ayrımı doğrudur, tam sözcük ve büyük-küçük harf seçenekleri vardır. **Açık belgeler** (≡) listesindeki
 **Tüm belgelerde ara** kutusu her belgedeki eşleşme sayısını gösterir.
 
-<p>
-  <img src="docs/ekran-arama.png" width="49%" alt="Bul: Türkçe arama, eşleşme sayısı">
-  <img src="docs/ekran-belge-listesi.png" width="49%" alt="Açık belgeler listesi: tüm belgelerde arama">
+<p align="center">
+  <img src="docs/ekran-arama.png" width="90%" alt="Bul: Türkçe arama, eşleşme sayısı">
+</p>
+
+<p align="center">
+  <img src="docs/ekran-belge-listesi.png" width="90%" alt="Açık belgeler listesi: tüm belgelerde arama">
 </p>
 
 ### Notlar
@@ -118,16 +117,18 @@ Araçlar, araç çubuğundaki **Araçlar** düğmesinden ya da açılış ekran�
 
 Her araç sonucu yeni belge olarak kaydeder ya da istenirse özgün dosyanın üzerine yazar.
 
-<p>
-  <img src="docs/ekran-sikistir.png" width="49%" alt="Sıkıştır: üç seviye ve tahmini boyutlar">
-  <img src="docs/ekran-ayir.png" width="49%" alt="Ayır: sayfa aralıkları ve oluşturulacak dosyalar">
+<p align="center">
+  <img src="docs/ekran-sikistir.png" width="90%" alt="Sıkıştır: üç seviye ve tahminî boyutlar">
+</p>
+
+<p align="center">
+  <img src="docs/ekran-ayir.png" width="90%" alt="Ayır: sayfa aralıkları ve oluşturulacak dosyalar">
 </p>
 
 ![Sayfaları düzenle: büyük sayfa ön izlemeleri](docs/ekran-sayfalar.png)
 
-<p>
-  <img src="docs/ekran-birlestir.png" width="49%" alt="Görüntü / PDF birleştir: PDF'ler ve görüntüler tek PDF'te, büyük ön izlemelerle">
-  <img src="docs/ekran-birlestir-koyu.png" width="49%" alt="Görüntü / PDF birleştir koyu temada">
+<p align="center">
+  <img src="docs/ekran-birlestir-koyu.png" width="90%" alt="Görüntü / PDF birleştir koyu temada">
 </p>
 
 ### Yazdırma ve PDF'i kopyala
@@ -177,24 +178,21 @@ Windows'ta **Ayarlar › Uygulamalar › Yüklü uygulamalar › PDEfe › Kald�
 
 ## Verileriniz
 
-Bütün işlemler bilgisayarınızda yapılır. Belgeleriniz hiçbir yere gönderilmez, telemetri yoktur. PDEfe internete yalnızca yeni sürüm
-denetimi için çıkar. Ayarlar, son açılan belgeler ve kalınan sayfalar `%APPDATA%\PDEfe\ayarlar.json` dosyasında (macOS'ta
-`~/Library/Application Support/PDEfe`) tutulur.
+Bütün işlemler bilgisayarınızda yapılır. Belgeleriniz hiçbir yere gönderilmez, telemetri yoktur. PDEfe internete yalnızca yeni
+sürüm denetimi için haftada bir GitHub'a istek gönderir. Güncelleme denetimi Ayarlar'dan kapatılabilir (önerilmez).
 
 ## Üçüncü taraf projeler
 
 PDEfe şu açık kaynak projeler üzerine kuruludur: Electron, PDF.js, PyMuPDF / MuPDF, Python ve başkaları. Sürümler ve lisanslar
 [THIRD_PARTY.md](THIRD_PARTY.md) dosyasındadır.
 
-<!-- TEŞEKKÜR: kullanıcı onayı bekliyor — aşağıdaki bölüm proje sahibi onaylayınca yayımlanacak.
 ## Teşekkür
 
-Bu uygulama, yukarıdaki projelerin geliştiricilerinin emeği üzerine kuruludur; her biri kendi lisansıyla
-kullanıldı. Özellikle Mozilla'nın PDF.js ekibine ve Artifex'in MuPDF ekibine teşekkürler.
--->
+PDEfe, açık kaynak projelerin emeği üzerine kuruldu. Sayfaları çizen PDF.js için Mozilla'ya, belgeleri işleyen MuPDF ve
+PyMuPDF için Artifex'e, uygulamanın çatısı Electron'un geliştiricilerine ve adı burada geçmeyen bütün katkıcılara teşekkür ederim.
 
 ---
 
-Soru ve bildirimler için: [x.com/CgrShn](https://x.com/CgrShn)
+Soru ve geri bildirimler için: [x.com/CgrShn](https://x.com/CgrShn)
 
 Lisans: AGPL-3.0. Ayrıntılar için [LICENSE](LICENSE) dosyasına bakınız.
