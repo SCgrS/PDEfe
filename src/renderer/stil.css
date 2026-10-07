@@ -89,6 +89,28 @@ button.ikon.metinli[aria-expanded="true"] { background: var(--basili); }
 #arac-cubugu button.ikon.acilir { width: 21px; }
 #arac-cubugu button.ikon.metinli { width: auto; }
 #arac-cubugu button.ikon.metinli svg.ok { width: 15px; height: 15px; }
+/* Geri al ile geri alınacak adımların ▾'si tek bölünmüş düğme (0.2.3, kullanıcı isteği: "geri alınacak adım butonu geri al butonunun bir
+   parçası gibi durmalı, biraz daha küçük olmalı. wordde öyle"). 0.2.2'de ▾ ayrı bir 21 px'lik düğmeydi (−2 px kenarla bitişik), kendi
+   köşeleri ve vurgusu vardı. Artık iki yarı aralıksız bir kapta (index.html .bolunmus), dış köşeler yuvarlak, iç köşeler düz; ▾ 13 px,
+   oku 10 px (yakınlaştırmanın ▾'si 21 px kaldı). Word'deki gibi: imleç düğmenin üstüne gelince iki yarı birlikte açık renkle vurgulanır,
+   üzerinde olunan yarı biraz koyu, aralarında ince bir ayırıcı belirir; basılan yarı ve liste açıkken ▾ en koyu (öteki yarı açık vurgulu
+   kalır). Devre dışı yarı (button.ikon:disabled) soluk kalır, vurgulanmaz; geri alınacak bir şey yokken ikisi birlikte soluk. Düğmeler,
+   ipuçları, klavye ve aria-haspopup / aria-expanded değişmedi */
+#arac-cubugu .bolunmus { --yari-basili: rgba(0, 0, 0, 0.16); display: inline-flex; align-items: center; flex-shrink: 0; }
+html[data-tema="koyu"] #arac-cubugu .bolunmus { --yari-basili: rgba(255, 255, 255, 0.18); }
+#arac-cubugu .bolunmus > button.ikon:first-child { border-radius: 6px 0 0 6px; }
+#arac-cubugu .bolunmus > button.ikon:last-child { border-radius: 0 6px 6px 0; }
+#arac-cubugu #dugme-geri-al-liste { width: 13px; position: relative; }
+#arac-cubugu #dugme-geri-al-liste svg { width: 10px; height: 10px; }
+#arac-cubugu .bolunmus:is(:hover, :has(> .liste-acik)) > button.ikon:not(:disabled) { background: var(--hover); }
+#arac-cubugu .bolunmus > button.ikon:hover:not(:disabled) { background: var(--basili); }
+#arac-cubugu .bolunmus > button.ikon:active:not(:disabled), #arac-cubugu #dugme-geri-al-liste.liste-acik { background: var(--yari-basili); }
+/* Ayırıcı: ▾'nin sol kenarında, düğmenin dikeyde ortasında; yalnızca vurgu varken (düğme üstündeyken ya da liste açıkken) */
+#arac-cubugu #dugme-geri-al-liste::before {
+  content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 1px; background: color-mix(in srgb, var(--metin) 22%, transparent);
+  opacity: 0; pointer-events: none;
+}
+#arac-cubugu .bolunmus:is(:hover, :has(> .liste-acik)):has(> button.ikon:not(:disabled)) #dugme-geri-al-liste::before { opacity: 1; }
 /* Dar pencerede araç çubuğu sığana kadar kademeli sıkışır (uygulama.js aracCubuguSigdir): 1) ayraç ve boşluklar, 2) Araçlar yalnızca simge,
    3) düğmeler ve kutular, 4) menü çubuğu düğmesi gizlenir (Alt menüyü yine gösterir), 5) PDF'i kopyala düğmesi gizlenir (Araçlar menüsünde
    de var), 6) düğmeler ve simgeler biraz daha küçülür. Gruplar ve ayraçlar ezilmez, taşma ölçülebilir. 0.2.2: düğmeler 34 px'e büyüdü; 3.
@@ -109,6 +131,12 @@ html[data-platform="mac"] #dugme-menu { display: none; }
 #arac-cubugu.sikisik-6 button.ikon, #arac-cubugu.sikisik-6 button.ikon.metinli { width: 26px; }
 #arac-cubugu.sikisik-6 button.ikon svg { width: 20px; height: 20px; }
 #arac-cubugu.sikisik-6 button.ikon.acilir { width: 16px; }
+/* Geri al'ın ▾'si (0.2.3, 13 px) sıkışınca da küçülür ama tıklanır kalır: 3. kademeden başlayarak 12 px, 6. kademede 11 px (oku 9 px). 0.2.2'deki
+   21 / 18 / 16 px'lik ayrı düğmeye göre çubukta 5–8 px yer açılır: Windows'un en dar penceresinde (içi 704 px) 3 basamaklı sayfa sayısında 5.
+   kademe yetiyor (0.2.2'de 6.), 6. kademe 4 basamaklı sayfa sayısında gerekir */
+#arac-cubugu.sikisik-3 #dugme-geri-al-liste { width: 12px; }
+#arac-cubugu.sikisik-6 #dugme-geri-al-liste { width: 11px; }
+#arac-cubugu.sikisik-6 #dugme-geri-al-liste svg { width: 9px; height: 9px; }
 /* Tema düğmesi şu anki temayı gösterir: açık temada güneş, koyu temada ay */
 #dugme-tema .ay { display: none; }
 html[data-tema="koyu"] #dugme-tema .gunes { display: none; }
@@ -550,8 +578,7 @@ button.ikincil:hover { background: var(--hover); }
 /* Geçmiş listeleri (0.2.2, gecmisListesi.js): Geri al'ın ▾ düğmesinin listesi ve durum çubuğundaki "Kaydedilmemiş değişiklikler" listesi.
    Word'deki gibi: en üstten imlecin satırına kadar boyanır (açık ve koyu temada vurgu renginin hafif tonu), altta "N işlemi geri al".
    Tıklanamayan satırlar (kaydedilip geri alınanlar, net fark) soluk. Uzun liste kendi içinde kayar (en çok pencerenin %60'ı; konumla) */
-#dugme-geri-al-liste { margin-left: -2px; }   /* Geri al'a bitişik: bölünmüş düğmenin iki yarısı */
-#dugme-geri-al-liste.liste-acik { background: var(--basili); }
+/* Geri al'ın ▾'si bölünmüş düğmenin sağ yarısı: biçimi araç çubuğu bölümünde (#arac-cubugu .bolunmus) */
 .gecmis-listesi {
   position: fixed; z-index: 120; display: flex; flex-direction: column; width: max-content; min-width: 250px; max-width: min(440px, calc(100vw - 16px));
   color: var(--metin); background: var(--arka-yukseltilmis); border: 1px solid var(--kenar); border-radius: 8px; box-shadow: var(--golge);

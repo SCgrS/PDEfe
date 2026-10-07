@@ -35,7 +35,7 @@ const sonuc = (ad, ok, ayrinti = '') => {
 };
 const bilgi = (s) => console.log(`     · ${s}`);
 
-/** PNG çözücü (8 bit RGB / RGBA, taramasız; CDP'nin ekran görüntüsü böyledir). Döner: { en, boy, piksel(x, y) → [r, g, b] }. */
+/** PNG çözücü (8 bit RGB / RGBA, taramasız; CDP'nin ekran görüntüsü böyledir; test/geri_al_bolunmus.mjs de kullanır). Döner: { en, boy, piksel(x, y) → [r, g, b] }. */
 export function pngCoz(tampon) {
   if (tampon.readUInt32BE(0) !== 0x89504e47) throw new Error('PNG değil');
   let i = 8, en = 0, boy = 0, derinlik = 0, tur = 0, tarama = 0;

@@ -66,6 +66,7 @@ export default async function ({ evalJs, bekle }) {
         seritDugmeleri: ['#sekme-onceki', '#sekme-yeni', '#sekme-sonraki', '#sekme-acilir'].map((s) => ({ s, ...r(s), svg: svg(s)?.w })),
         dugmeler: dugmeler.map((d) => ({ k: d.dataset.komut || d.id, w: d.getBoundingClientRect().width, h: d.getBoundingClientRect().height, svg: [...d.querySelectorAll('svg')].map((s) => s.getBoundingClientRect().width).find((g) => g > 0) })),
         acilir: r('#dugme-zoom-secenek'), araclar: r('#dugme-araclar'), araclarOk: r('#dugme-araclar svg.ok'),
+        geriAl: r('#dugme-geri-al'), geriAlOk: r('#dugme-geri-al-liste'), geriAlOkSvg: svg('#dugme-geri-al-liste'),
         zoom: r('#zoom-kutusu'), sayfa: r('#sayfa-kutusu'), kutuYazi: yazi('#zoom-kutusu'), aracYazi: yazi('#arac-cubugu'), gorunum: r('#belge-alani'),
       };
     })()`);
@@ -79,6 +80,9 @@ export default async function ({ evalJs, bekle }) {
       o.seritDugmeleri.every((d) => d.w === 30 && d.h === 30 && d.svg === 22 && Math.abs((d.t + d.b) / 2 - (o.sekme.t + o.sekme.b) / 2) <= 2), o.seritDugmeleri);
     sonuc('Araç çubuğu düğmeleri 34×34 px (32\'ydi), simgeleri 22 px (20\'ydi)', o.dugmeler.length >= 17 && o.dugmeler.every((d) => d.w === 34 && d.h === 34 && d.svg === 22), o.dugmeler.filter((d) => d.w !== 34 || d.h !== 34 || d.svg !== 22));
     sonuc('Açılır ok 21 px (20\'ydi); Araçlar düğmesi yazılı, oku 15 px (14\'tü)', o.acilir.w === 21 && o.acilir.h === 34 && o.araclar.w > 80 && o.araclar.h === 34 && o.araclarOk?.w === 15, { acilir: o.acilir, araclar: o.araclar, ok: o.araclarOk });
+    // 0.2.3 (kullanıcı isteği): Geri al'ın ▾'si bölünmüş düğmenin küçük sağ yarısı (0.2.2'de 21 px'lik ayrı düğme); ayrıntı test/geri_al_bolunmus.mjs
+    sonuc('Geri al\'ın ▾\'si 13 px (0.2.2\'de 21), oku 10 px, Geri al\'a aralıksız bitişik, aynı yükseklikte', o.geriAlOk.w === 13 && o.geriAlOk.h === 34 && o.geriAlOkSvg?.w === 10
+      && Math.abs(o.geriAlOk.l - o.geriAl.r) < 0.01 && o.geriAlOk.t === o.geriAl.t, { geriAl: o.geriAl, ok: o.geriAlOk, svg: o.geriAlOkSvg });
     sonuc('Sayfa ve yakınlaştırma kutuları 28 px yüksek (24\'tü), yazı 13 px; çubukta dikey ortalı', o.zoom.h === 28 && o.sayfa.h === 28 && o.kutuYazi === 13 && o.aracYazi === 13
       && Math.abs((o.zoom.t + o.zoom.b) / 2 - (o.arac.t + o.arac.b - 1) / 2) <= 1, { zoom: o.zoom, sayfa: o.sayfa, yazi: o.kutuYazi });
 
