@@ -1,5 +1,6 @@
 // Başlangıç (karşılama) ekranı: açık belge yokken ve açılış sekmesinde (+ / Ctrl+T) belge alanında görünür. Tek sütun, yukarıdan aşağı:
-// büyük PDF aç düğmesi (uygulamanın temel işi; sürükle-bırak bilgisi düğmenin açıklamasında), bütün araçlar (Araçlar penceresindeki
+// büyük PDF aç düğmesi (uygulamanın temel işi; sürükle-bırak bilgisi düğmenin açıklamasında; 0.2.3'ten beri sağ kenarı Araçlar'ın
+// ikinci karosuyla hizalı), bütün araçlar (Araçlar penceresindeki
 // ARACLAR, aynı sıra ve renklerle) ve "Son açılanlar" başlığının altında kutu içinde son açılan belgeler (en çok 10; geniş pencerede iki
 // sütun, kaydırma çubuğu çıkmaz). Uygulamanın adı, "PDF görüntüleyici ve düzenleyici" ve sürüm sağ altta (0.1.14, kullanıcı isteği;
 // 0.1.13'te ad üstte, sürükle-bırak ipucu düğmenin altında, son açılanlar sağ sütunda ve 10 belgede kaydırmalıydı). Düğmeler uygulama
@@ -39,13 +40,16 @@ export class BaslangicEkrani {
             <span class="karsilama-arac-ikon">${simge(a.ikon)}</span>
             <span class="karsilama-metin"><span class="karsilama-arac-ad">${kacis(a.ad)}</span><span class="karsilama-aciklama">${kacis(a.aciklama)}</span></span>
           </button>`;
-    // .karsilama ve .karsilama-imza #baslangic ızgarasının satırlarıdır (stil.css): üstteki boşluk alttakinin yarısı, imza en altta
+    // .karsilama ve .karsilama-imza #baslangic ızgarasının satırlarıdır (stil.css): üstteki boşluk alttakinin yarısı, imza en altta.
+    // PDF aç kendi satırında (.karsilama-ac-satir), araç ızgarasının sütunlarıyla: sağ kenarı ikinci karonun sağ kenarında (0.2.3)
     kok.innerHTML = `
 <div class="karsilama">
-  <button type="button" class="karsilama-ac" data-eylem="dosya.ac">
-    <span class="karsilama-ac-ikon">${simge(AC_IKON)}</span>
-    <span class="karsilama-metin"><span class="karsilama-ac-ad">PDF aç</span><span class="karsilama-aciklama">Bilgisayarınızdaki bir ya da birkaç PDF'i seçin veya bu pencereye sürükleyin</span></span>
-  </button>
+  <div class="karsilama-ac-satir">
+    <button type="button" class="karsilama-ac" data-eylem="dosya.ac">
+      <span class="karsilama-ac-ikon">${simge(AC_IKON)}</span>
+      <span class="karsilama-metin"><span class="karsilama-ac-ad">PDF aç</span><span class="karsilama-aciklama">Bilgisayarınızdaki bir ya da birkaç PDF'i seçin veya bu pencereye sürükleyin</span></span>
+    </button>
+  </div>
   <section class="karsilama-araclar" aria-label="Araçlar">
     <h2>Araçlar</h2>
     <div class="karsilama-arac-izgara">${ARACLAR.map(aracKarti).join('')}

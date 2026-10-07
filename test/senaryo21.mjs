@@ -1,5 +1,6 @@
 // Senaryo 21 (0.1.15, kullanıcı istekleri): açılış ekranında PDF aç düğmesinin sütunun tamamını değil yalnızca yazısı kadar yer kaplaması
-// ("… sürükleyin"den sonra bitsin; sola yaslı, dar pencerede açıklama alt satıra iner, taşmaz) ve sağ alttaki simgeye ya da ada
+// ("… sürükleyin"den sonra bitsin; sola yaslı, dar pencerede açıklama alt satıra iner, taşmaz; 0.2.3'ten beri, kullanıcı isteği: sağ kenarı
+// Araçlar'ın ikinci karosunun sağ kenarında, açıklama gerekirse iki satır) ve sağ alttaki simgeye ya da ada
 // tıklanınca Ayarlar › Hakkında'nın açılması. İmza düğmeye dönüşmez: çerçeve, zemin, gölge, el imleci, üzerine gelince ya da basılıyken
 // değişen görüntü, odak izi yok; Tab ile odaklanmaz; imzanın dışındaki boş yere tıklamak bir şey açmaz. Açık ve koyu temada ekran
 // görüntüleri alınır.
@@ -76,26 +77,22 @@ export default async function ({ evalJs, bekle }) {
       return { ac: r(ac), ikon: r(ac.querySelector('.karsilama-ac-ikon')), ad: r(ac.querySelector('.karsilama-ac-ad')), aciklama: r(acik), aciklamaMetin: acik.textContent, satirlar, metinSag: Math.round(metinSag * 10) / 10,
         pl: parseFloat(cs.paddingLeft), pr: parseFloat(cs.paddingRight), kenar: parseFloat(cs.borderLeftWidth),
         karsilama: r(document.querySelector('.karsilama')), araclar: r(document.querySelector('.karsilama-araclar')), izgara: r(document.querySelector('.karsilama-arac-izgara')),
+        kart2: r(document.querySelectorAll('.karsilama-arac')[1]), sutun: getComputedStyle(document.querySelector('.karsilama-arac-izgara')).gridTemplateColumns.split(' ').length,
         alan: { w: bas.clientWidth, sw: bas.scrollWidth }, docScroll: document.documentElement.scrollWidth - document.documentElement.clientWidth };
     })()`);
-    let genis = null;
     for (const [w, h] of [[1920, 1000], [1536, 770], [1280, 700], [760, 560], [520, 520]]) {
       await boyut(w, h);
       const o = await olc();
       const e = `[${w}×${h}]`;
-      const sagBosluk = Math.round((o.ac.r - o.metinSag) * 10) / 10, solBosluk = Math.round((o.ikon.l - o.ac.l) * 10) / 10;
       sonuc(`${e} PDF aç açıklaması aynı: "${ACIKLAMA}"`, o.aciklamaMetin === ACIKLAMA, o.aciklamaMetin);
       sonuc(`${e} PDF aç sola yaslı (araçlarla aynı sol kenar), sütundan taşmıyor; ekran yatay kaymıyor`,
         Math.abs(o.ac.l - o.karsilama.l) < 1 && o.ac.r <= o.karsilama.r + 0.5 && o.alan.sw <= o.alan.w && o.docScroll <= 0, { ac: o.ac, karsilama: o.karsilama, alan: o.alan });
-      if (w >= 760) {
-        sonuc(`${e} PDF aç "sürükleyin"den sonra bitiyor: açıklama tek satır, sağdaki boşluk soldaki kadar (${sagBosluk} / ${solBosluk} px), sütunun tamamını kaplamıyor`,
-          o.satirlar === 1 && Math.abs(sagBosluk - solBosluk) <= 1.5 && o.ac.w < o.karsilama.w - 40, { satirlar: o.satirlar, sagBosluk, solBosluk, ac: o.ac, karsilama: o.karsilama });
-        if (!genis) genis = o.ac; else sonuc(`${e} Düğmenin boyutu pencereyle değişmiyor (${o.ac.w}×${o.ac.h})`, Math.abs(o.ac.w - genis.w) < 1 && Math.abs(o.ac.h - genis.h) < 1, { ac: o.ac, genis });
-      } else {
-        sonuc(`${e} Dar pencerede düğme sütun kadar, açıklama alt satıra iniyor, düğmenin içinde kalıyor`,
-          Math.abs(o.ac.w - o.karsilama.w) < 1 && o.satirlar >= 2 && o.aciklama.r <= o.ac.r - o.pr + 0.5 && o.aciklama.b <= o.ac.b, { ac: o.ac, aciklama: o.aciklama, satirlar: o.satirlar });
-      }
-      bilgi(`${e} PDF aç ${o.ac.w}×${o.ac.h}; sütun ${o.karsilama.w}`);
+      // 0.2.3 (kullanıcı isteği): genişliği yazısı kadar değil (0.1.15–0.2.2), sağ kenarı Araçlar'ın ikinci karosunun (Sayfaları düzenle)
+      // sağ kenarında; açıklama gerekirse alt satıra iner, düğmenin içinde kalır. Ayrıntılı genişlik taraması test/acilis_hizasi.mjs'te
+      sonuc(`${e} PDF aç'ın sağ kenarı ikinci araç karosunun sağ kenarında (${o.ac.r} / ${o.kart2.r}); açıklama düğmenin içinde (${o.satirlar} satır)`,
+        Math.abs(o.ac.r - o.kart2.r) <= 0.1 && (o.ac.w < o.karsilama.w - 40) === (o.sutun > 2) && o.aciklama.r <= o.ac.r - o.pr + 0.5 && o.aciklama.b <= o.ac.b && o.metinSag <= o.ac.r - o.pr + 0.5,
+        { ac: o.ac, kart2: o.kart2, karsilama: o.karsilama, sutun: o.sutun, aciklama: o.aciklama, satirlar: o.satirlar });
+      bilgi(`${e} PDF aç ${o.ac.w}×${o.ac.h}; sütun ${o.karsilama.w}; ızgara ${o.sutun} sütun`);
       if (w === 1536) await ssIki('a-acilis-1536');
       if (w === 520) await ss('a-acilis-520-koyu');
     }

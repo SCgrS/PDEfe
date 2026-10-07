@@ -185,8 +185,10 @@ export default async function (surucu) {
       await genislikTaklit(gen);
       const o = await olc();
       const enYuksek = Math.max(...o.kartlar.map((c) => c.h)), enGenis = Math.max(...o.kartlar.map((c) => c.w)), kartAlan = Math.max(...o.kartlar.map((c) => c.w * c.h));
-      sonuc(`[${gen}px] PDF aç düğmesi araç kartlarından belirgin büyük (yükseklik ≥ 1.3× en yüksek kart, alan ≥ 2.5×, en az kart kadar geniş, yazı büyük)`,
-        o.acAd === 'PDF aç' && o.ac.h >= 1.3 * enYuksek && o.ac.w * o.ac.h >= 2.5 * kartAlan && o.ac.w >= enGenis && o.acYazi > o.aracYazi,
+      // 0.2.3 (kullanıcı isteği: "biraz daha küçük olsun", sağ kenarı ikinci karonun sağ kenarında): yükseklik 1,3 → 1,2 kat, genişlik iki
+      // karo (ızgara iki ve daha çok sütunluyken; hizanın kendisi test/acilis_hizasi.mjs'te)
+      sonuc(`[${gen}px] PDF aç düğmesi araç kartlarından belirgin büyük (yükseklik ≥ 1.2× en yüksek kart, alan ≥ 2.4×, iki kart kadar geniş, yazı büyük)`,
+        o.acAd === 'PDF aç' && o.ac.h >= 1.2 * enYuksek && o.ac.w * o.ac.h >= 2.4 * kartAlan && o.ac.w >= 2 * enGenis && o.acYazi > o.aracYazi,
         { ac: o.ac, enYuksek, enGenis, oran: +(o.ac.h / enYuksek).toFixed(2), alanOrani: +((o.ac.w * o.ac.h) / kartAlan).toFixed(2), acYazi: o.acYazi, aracYazi: o.aracYazi });
       bilgi(`${gen}px: PDF aç ${o.ac.w}×${o.ac.h}, en büyük kart ${enGenis}×${enYuksek}`);
       // 0.1.14: sürükle-bırak bilgisi ayrı satır değil, PDF aç düğmesinin açıklamasında

@@ -137,7 +137,8 @@ export default async function ({ evalJs, bekle }) {
     // 780 px'in hemen üstünde de (sıkı boşluklar 0.2.2'den beri 860 px'e dek) 10 belgeyle kaydırma yok; sol panel açıkken de (belge yokken de
     // görünür). 780 px'te sığıp 790 px'te taşıyordu (bağımsız inceleme)
     const panelKur = (acik, g = 240) => evalJs(`(() => { window.__pdefe.panel.acKapa(${acik}); window.__pdefe.panel.genislikAyarla(${g}); return 1; })()`);
-    for (const [w, h, panel] of [[760, 790, false], [900, 810, false], [900, 850, false], [1024, 790, true], [1024, 810, true], [1280, 830, true]]) {
+    // 0.2.3: PDF aç 16 px alçaldı; 0.2.2'de kalan iki kayma (900 × 790'da 6 px, sol panel açıkken 1280 × 700'de 13 px) da kalktı
+    for (const [w, h, panel] of [[760, 790, false], [900, 790, false], [900, 810, false], [900, 850, false], [1024, 790, true], [1024, 810, true], [1280, 830, true], [1280, 700, true]]) {
       await panelKur(panel); await boyut(w, h);
       const o = await olc();
       sonuc(`[${w}×${h}${panel ? ', panel açık' : ''}] Açılış ekranı kaydırılmadan sığıyor (10 belgeyle; 780 px'in üstünde de)`, o.alan.sh <= o.alan.h && o.alan.sw <= o.alan.w && o.docScroll <= 0, o.alan);
