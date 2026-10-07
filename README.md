@@ -6,8 +6,8 @@
 Windows 11 (ve Windows 10) ile macOS için sade, tüm araçları ücretsiz, reklamsız bir **PDF görüntüleyici ve düzenleyici**.
 
 Hukukçuların ve her gün onlarca PDF açan herkesin işini görmek için yazıldı. Belgeler sekmelerde açılır, metin kopyalandığında satır
-sonları ve tireler temizlenir. PDF, JPEG ve PNG dosyalarını birleştirebilir, PDF'leri ayırabilir, döndürebilir, üzerine metin yazabilir,
-boyutunu küçültebilir ve daha fazlasını yapabilirsiniz.
+sonları ve tireler temizlenir. PDEfe ile PDF, JPEG ve PNG dosyalarını tek PDF'te birleştirebilir, PDF'leri ayırabilir ve döndürebilir, üzerlerine
+yazı ekleyebilir, boyutlarını küçültebilirsiniz.
 
 <p align="center">
   <img src="docs/ekran-acilis-koyu.png" width="90%" alt="Açılış ekranı koyu temada">
