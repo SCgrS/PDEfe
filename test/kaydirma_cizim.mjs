@@ -9,8 +9,8 @@
 //      (önceden 5 sayfanın 4'ü bulanık giriyor, kaydırma durduktan ~0,5 sn sonra netleşiyordu); sayfa başına çizim sınırlı (döngü yok).
 //      yeterliMi: ara tuvalden hızlı çizilmiş bant sayfası (keskinlesir yok) kaydırma bitene dek yeniden çizilmez.
 //   3) Önizleme (düşük çözünürlüklü ilk çizim) yalnızca görünen sayfada ve çok büyük (12 MP üstü) bölgesel çizimde: genişliğe sığdırılmış
-//      sayfada (6,7 MP) ve %370'teki tam çizimde (19 MP) yok, önden çizilen sayfada hiç yok; görünüm pencereden büyük yapılınca (4K ekran
-//      benzeri bölgesel çizim) görünen sayfada var.
+//      sayfada (6,7 MP) ve yakınlaştırılmış tam çizimde (19 MP: %125 ekranda %370, %100 ekranda %463) yok, önden çizilen sayfada hiç yok;
+//      görünüm pencereden büyük yapılınca (4K ekran benzeri bölgesel çizim) görünen sayfada var.
 //   4) Bölgesel çizimde pay kaydırma yönünde: %600'de aşağı kaydırınca bölgenin payının çoğu görünen kısmın altında, yukarı kaydırınca
 //      üstünde, sayfaya gidince (yön bilinmez) iki yana eşit; bölgenin boyutu değişmez.
 //   5) Önden çizme bandı kaydırma yönünde: görünümün ortasından yönde 2, geride 1 ekran (yön bilinmiyorsa iki yana 1,5, önceki gibi);
@@ -18,6 +18,7 @@
 // Kullanım (ev ekranı benzeri; sayfa 6 MP'yi aşar):
 //   .venv\Scripts\python.exe test\kaydirma_ornek_uret.py      (test\cikti\kaydirma\pdf yoksa betik kendisi üretir)
 //   powershell -File test\baslat.ps1 -Port 9643 -Boyut "1800,1050" -Olcek 1.25      → PID=… yazar
+//     (ofis ekranı: -Boyut "1900,1000" -Olcek 1; %150: -Boyut "1280,680" -Olcek 1.5; ölçüler ekran ölçeğinden bağımsız seçilir)
 //   $env:PDEFE_CDP_PORT=9643; node test\surucu.mjs betik test\kaydirma_cizim.mjs     [$env:BOLUM="1,3"]
 //   powershell -File test\durdur.ps1 -SurecId <PID>
 import { execFileSync } from 'node:child_process';
@@ -126,7 +127,9 @@ export default async function ({ evalJs, bekle, hedefler }) {
   ws.onmessage = (m) => { const d = JSON.parse(m.data); const b = bekleyen.get(d.id); if (b) { bekleyen.delete(d.id); b(d); } };
   const gonder = (method, params = {}) => new Promise((c) => { const i = ++id; bekleyen.set(i, c); ws.send(J({ id: i, method, params })); });
   const tekerlek = async (n, deltaY, ara, { ctrl = false } = {}) => {
-    const m = await evalJs(`(() => { const r = window.__kc.g().kaydirici.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`);
+    // Kaydırıcının ortası; kaydırıcı pencereden uzun yapıldıysa (5. bölüm) pencerenin içinde kalır
+    const m = await evalJs(`(() => { const r = window.__kc.g().kaydirici.getBoundingClientRect();
+      return { x: Math.round(Math.min(r.left + r.width / 2, innerWidth - 40)), y: Math.round(Math.min(r.top + r.height / 2, innerHeight - 40)) }; })()`);
     await gonder('Input.dispatchMouseEvent', { type: 'mouseMoved', x: m.x, y: m.y, button: 'none', buttons: 0 });
     const sozler = [], t0 = performance.now();
     for (let k = 0; k < n; k++) {
@@ -248,13 +251,13 @@ export default async function ({ evalJs, bekle, hedefler }) {
     const sayfaMP = Math.max(0, ...bas.filter((e) => e.gorunur && !e.onizleme).map((e) => e.mp));
     sonuc(`Genişliğe sığdırılmış sayfa (${sayfaMP.toFixed(1)} MP): önizleme yok, bant sayfaları doğrudan tam çizildi`,
       bas.length >= 6 && bas.every((e) => !e.onizleme) && bas.some((e) => !e.gorunur), { cizim: bas.length, onizleme: bas.filter((e) => e.onizleme).length });
-    await evalJs(`(() => { const g = window.__kc.g(); g.zoomAyarla(3.7); g.sayfayaGit(150, { aninda: true }); return true; })()`);
+    const yakinOlcek = await evalJs(`(() => { const g = window.__kc.g(); g.zoomAyarla(3.7 * 1.25 / devicePixelRatio); g.sayfayaGit(150, { aninda: true }); return g.olcek; })()`);
     await durul();
     await evalJs('window.__kc.sifirla()');
     await atla([250, 50]);
     bas = await oku();
     const buyukMP = Math.max(0, ...bas.filter((e) => e.gorunur && !e.onizleme).map((e) => e.mp));
-    sonuc(`%370 (${buyukMP.toFixed(1)} MP, tam çizim): önizleme yok`, buyukMP > 15 && bas.length >= 4 && bas.every((e) => !e.onizleme),
+    sonuc(`%${Math.round(yakinOlcek * 100)} (${buyukMP.toFixed(1)} MP, tam çizim): önizleme yok`, buyukMP > 15 && bas.length >= 4 && bas.every((e) => !e.onizleme),
       { cizim: bas.length, onizleme: bas.filter((e) => e.onizleme).length });
     // Çok büyük bölgesel çizim (4K ekran benzeri: görünüm pencereden büyük yapılır): görünen sayfanın ilk çiziminde önizleme korunur
     await evalJs(`(() => { const g = window.__kc.g(); g.kaydirici.style.right = '-1800px'; g.kaydirici.style.bottom = '-1000px'; g.zoomAyarla(6); return true; })()`);
@@ -309,6 +312,12 @@ export default async function ({ evalJs, bekle, hedefler }) {
   if (BOLUMLER.includes(5)) {
     console.log('--- 5) Önden çizme bandı kaydırma yönünde (toplamı aynı)');
     await belgeAc(METIN);
+    // Bandın sınırları ekran yüksekliğinin katı, sayfalar bütün sayılır: alçak görünümde (%150 ekranda 576 px) sayfa aralığı ~0,6 ekran
+    // olur, yönün etkisi bant sayfalarının sayısına yansımayabilir. Görünüm en az ev ekranındaki yüksekliğe (951 px) getirilir (kaydırıcı
+    // pencereden uzun olabilir, 3. bölümdeki gibi)
+    await evalJs(`(() => { const k = window.__kc.g().kaydirici, vh = k.clientHeight; if (vh < 951) k.style.bottom = (vh - 951) + 'px'; return true; })()`);
+    await bekle(300);
+    await durul();
     await evalJs(`(() => { const g = window.__kc.g(); g.zoomAyarla(0.3); g.sayfayaGit(100, { aninda: true }); return true; })()`);
     await durul();
     // Bant: görünür olmayıp ön çizim kuyruğunda olan sayfalar (geçerli sayfanın komşuları hariç); görünümün üstünde / altında kalanlar ve
@@ -344,7 +353,7 @@ export default async function ({ evalJs, bekle, hedefler }) {
     await durul();
     const gidince = await bant();
     sonuc('Sayfaya gidince yön bilinmez, bant yine ortalı', gidince.yon === 0 && Math.abs(gidince.ust - gidince.alt) <= 1 && gidince.ustUzak <= 1.5 && gidince.altUzak <= 1.5, gidince);
-    await evalJs(`(async () => { await window.__kc.g().zoomModuAyarla('genislik'); return true; })()`);
+    await evalJs(`(async () => { const g = window.__kc.g(); g.kaydirici.style.bottom = ''; await g.zoomModuAyarla('genislik'); return true; })()`);
     await durul();
   }
 
