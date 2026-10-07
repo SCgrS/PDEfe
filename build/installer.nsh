@@ -40,8 +40,8 @@
 ;   7. Kurulu sürüm sayfası (0.2.3, kullanıcı isteği: "uygulama yüklerken uygulamanın yüklü olup olmadığını yeni sürüm olup olmadığını
 ;      fark etsin ve ona göre seçenekler sunup yükleme yapsın"). Yalnızca elle (arayüzlü) çalıştırılan kurucuda ve bu kullanıcıya kurulu
 ;      bir PDEfe bulunursa görünür; kurulu değilse sihirbaz bugünkü gibi lisans sayfasıyla başlar. Eski sürüm kuruluysa Güncelle (lisans,
-;      klasör ve Ek görevler atlanıp doğrudan kurulur) / Seçenekleri değiştirerek kur; aynı sürüm ya da program dosyaları eksikse Onar /
-;      Kaldır; daha yeni sürüm kuruluysa Vazgeç / Eski sürüme dön. Sayfa işlevleri sessiz kurulumda (/S, --updated) hiç çağrılmaz:
+;      klasör ve Ek görevler atlanıp doğrudan kurulur) / Seçenekleri değiştirerek kur / Kaldır; aynı sürüm ya da program dosyaları eksikse
+;      Onar / Kaldır; daha yeni sürüm kuruluysa Vazgeç / Eski sürüme dön. Sayfa işlevleri sessiz kurulumda (/S, --updated) hiç çağrılmaz:
 ;      .onInit, kurulum bölümü ve kaldırıcı değişmedi (test\kurucu_karsilastir.mjs satır satır karşılaştırır).
 ;   8. "Bu uygulama kimler için kurulsun?" sayfası kalktı (0.2.3): PDEfe yalnızca kullanıcıya kurulur, "herkes için" seçeneği zaten
 ;      solgundu. Yönetici olarak "herkes için" kurulmuş bir PDEfe bulunursa (initMultiUser kurulum kipini "all" yapar) sayfa ve
@@ -112,6 +112,7 @@
   Var pdefeSurumSayfa
   Var pdefeSecenek1
   Var pdefeSecenek2
+  Var pdefeSecenek3           ; yalnızca eski sürüm kuruluyken: Kaldır
 
   ; Lisans ve klasör sayfalarını electron-builder, common.nsh'teki skipPageIfUpdated'ın ürettiği ön işlevle atlar; o yalnızca ${isUpdated}'a
   ; (komut satırında --updated) bakar. Makro içinde makro tanımlanamadığı için (makensis: "can't define a macro inside a macro") isUpdated
@@ -138,8 +139,11 @@
     GetDlgItem $1 $HWNDPARENT 1
     ${NSD_GetState} $pdefeSecenek1 $2
     ${If} $pdefeDurum == "eski"
+      ${NSD_GetState} $pdefeSecenek3 $3
       ${If} $2 == ${BST_CHECKED}
         SendMessage $1 ${WM_SETTEXT} 0 "STR:Güncelle"
+      ${ElseIf} $3 == ${BST_CHECKED}
+        SendMessage $1 ${WM_SETTEXT} 0 "STR:Kaldır"
       ${Else}
         SendMessage $1 ${WM_SETTEXT} 0 "STR:$(^NextBtn)"
       ${EndIf}
@@ -206,17 +210,23 @@
     ${EndIf}
 
     ; Yerleşim (DLU): üst metin 0–20, 1. seçenek 24, açıklaması 36–54, 2. seçenek 58, açıklaması 70–96, "açık" uyarısı 104–134.
-    ; Metinlerin sığdığı test\kurulum_surum.ps1 ile ölçülür.
+    ; Eski sürüm kuruluyken üç seçenek var: açıklamaları tek satırlık (11u), seçenekler 24 / 50 / 76'da, son açıklama 88–99; uyarı yine 104'te.
+    ; Sayfa 140u yüksekliğinde. Metinlerin sığdığı test\kurulum_surum.ps1 ile ölçülür.
     ${If} $pdefeDurum == "eski"
       ${NSD_CreateLabel} 0 0 100% 20u "Bilgisayarınızda ${PRODUCT_NAME} $pdefeKuruluSurum kurulu. Bu kurucu daha yeni olan ${VERSION} sürümünü kurar."
       Pop $0
       ${NSD_CreateRadioButton} 0 24u 100% 12u "&Güncelle (önerilen)"
       Pop $pdefeSecenek1
-      ${NSD_CreateLabel} 12u 36u -12u 18u "Ayarlarınız, kısayollarınız ve kurulum klasörü korunur; doğrudan kuruluma geçilir."
+      ${NSD_CreateLabel} 12u 36u -12u 11u "Ayarlarınız, kısayollarınız ve kurulum klasörü korunur; doğrudan kuruluma geçilir."
       Pop $0
-      ${NSD_CreateRadioButton} 0 58u 100% 12u "&Seçenekleri değiştirerek kur"
+      ${NSD_CreateRadioButton} 0 50u 100% 12u "&Seçenekleri değiştirerek kur"
       Pop $pdefeSecenek2
-      ${NSD_CreateLabel} 12u 70u -12u 26u "Lisans, kurulum klasörü ve masaüstü kısayolu sayfaları gösterilir."
+      ${NSD_CreateLabel} 12u 62u -12u 11u "Lisans, kurulum klasörü ve masaüstü kısayolu sayfaları gösterilir."
+      Pop $0
+      ; 0.2.3, kullanıcıya onaylatılan plan: eski sürüm kuruluyken de Kaldır (aynı sürümdeki gibi PDEfe'nin kendi kaldırıcısı açılır)
+      ${NSD_CreateRadioButton} 0 76u 100% 12u "&Kaldır"
+      Pop $pdefeSecenek3
+      ${NSD_CreateLabel} 12u 88u -12u 11u "${PRODUCT_NAME} kaldırıcısı açılır. Ayarlarınız silinmez."
       Pop $0
     ${ElseIf} $pdefeDurum == "yeni"
       ${NSD_CreateLabel} 0 0 100% 20u "Bilgisayarınızda daha yeni bir sürüm, ${PRODUCT_NAME} $pdefeKuruluSurum kurulu. Bu kurucu daha eski olan ${VERSION} sürümünü kurar."
@@ -270,6 +280,9 @@
     ${EndIf}
     ${NSD_OnClick} $pdefeSecenek1 pdefeSecenekDegisti
     ${NSD_OnClick} $pdefeSecenek2 pdefeSecenekDegisti
+    ${If} $pdefeDurum == "eski"
+      ${NSD_OnClick} $pdefeSecenek3 pdefeSecenekDegisti
+    ${EndIf}
     Push $pdefeSecenek1
     Call pdefeSecenekDegisti
 
@@ -278,11 +291,17 @@
 
   ; Kaldır: kurulu PDEfe'nin kendi kaldırıcısı arayüzüyle açılır (Windows Ayarlar › Uygulamalar'ın çalıştırdığı komut: UninstallString), kurucu
   ; kapanır. Kaldırıcı kendini %TEMP%'e kopyalayıp yeniden başlatır; ayarlar silinmez (deleteAppDataOnUninstall false). Dönerse başarısızdır.
+  ; Aynı sürüm, bozuk kurulum ve (0.2.3) eski sürüm durumunda; yeniden kurmayı öneren ileti o durumdaki seçeneğin adını söyler.
   Function pdefeKaldiriciyiAc
     ReadRegStr $1 SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" "UninstallString"
     ${If} $1 == ""
     ${OrIfNot} ${FileExists} "$pdefeKuruluKlasor\${UNINSTALL_FILENAME}"
-      MessageBox MB_OK|MB_ICONSTOP "${PRODUCT_NAME}'nin kaldırıcısı bulunamadı. Onar'ı seçip yeniden kurabilir ya da Windows Ayarlar › Uygulamalar'dan kaldırabilirsiniz."
+      ${If} $pdefeDurum == "eski"
+        StrCpy $2 "Güncelle'yi"
+      ${Else}
+        StrCpy $2 "Onar'ı"
+      ${EndIf}
+      MessageBox MB_OK|MB_ICONSTOP "${PRODUCT_NAME}'nin kaldırıcısı bulunamadı. $2 seçip yeniden kurabilir ya da Windows Ayarlar › Uygulamalar'dan kaldırabilirsiniz."
       Return
     ${EndIf}
     ; Kurucunun ve kaldırıcının çalışma klasörü kurulum klasörü olmasın (kaldırıcı onu silecek)
@@ -299,8 +318,12 @@
   Function pdefeSurumBirak
     ${NSD_GetState} $pdefeSecenek1 $0
     ${If} $pdefeDurum == "eski"
+      ${NSD_GetState} $pdefeSecenek3 $1
       ${If} $0 == ${BST_CHECKED}
         StrCpy $pdefeKip "guncelle"
+      ${ElseIf} $1 == ${BST_CHECKED}
+        Call pdefeKaldiriciyiAc
+        Abort                                ; kaldırıcı açılamadı: sayfada kal
       ${Else}
         StrCpy $pdefeKip "ozel"
       ${EndIf}

@@ -284,6 +284,32 @@ function Sessiz-Kur([string]$exe, [string]$arg) {
 function Gecici-Kisayol-Sil {
   if (Test-Path -LiteralPath $masaustuKisayolu) { Remove-Item -LiteralPath $masaustuKisayolu -Force }
 }
+# Kurulu sürüm sayfasında Kaldır seçildi ve kurucu kapandı: deneme kopyasının kendi kaldırıcısı aynı (görünmeyen) masaüstünde açılır;
+# hoş geldiniz → Kaldırılıyor → bitiş. Sonunda kayıt, klasör ve kısayollar kalmamalı.
+function Kaldiriciyi-Sur([int]$kurucu, [string]$goruntu) {
+  $k = Sihirbaz-Bekle -haric @($kurucu) -ms 20000
+  Denetle 'kaldırıcı aynı (görünmeyen) masaüstünde açıldı' ([bool]$k)
+  if ($k) {
+    $sira = New-Object System.Collections.Generic.List[string]
+    $s = Sayfa-Oku $k.Hwnd
+    Goruntu-Al $k.Hwnd $goruntu
+    $sira.Add("hoş geldiniz (İleri «$($s.Ileri.Yazi)»)")
+    [KurucuSurucu]::Dugme($k.Hwnd, 1) | Out-Null
+    $g = Akisi-Izle $k.Pid $k.Hwnd
+    $g | ForEach-Object { $sira.Add($_) }
+    Yaz "         kaldırıcı sayfaları: $($sira -join ' → ')"
+    Denetle 'kaldırıcı: hoş geldiniz → kaldırma → bitiş' ($sira[-1] -eq 'bitiş')
+    if ($sira[-1] -eq 'bitiş') {
+      $s = Sayfa-Oku $k.Hwnd
+      Denetle 'kaldırıcının bitişinde onay kutusu yok' ($s.OnayKutulari.Count -eq 0)
+      [KurucuSurucu]::Dugme($k.Hwnd, 1) | Out-Null
+      [KurucuSurucu]::Bekle($k.Pid, 20000) | Out-Null
+    }
+  }
+  $d = Deneme-Durumu; Durum-Yaz $d
+  Denetle 'kaldırıldı: kayıt, klasör, kısayollar ve Varsayılan Programlar kaydı yok' ($d.Surum -eq '<yok>' -and $d.Exe -eq '<yok>' -and -not $d.Masaustu -and -not $d.Baslat -and $d.Kayit -eq '<yok>' -and -not (Paket-Anahtar-Var 'Software\KurucuSinama'))
+  Gecici-Kisayol-Sil
+}
 
 $durum = [KurucuSurucu]::MasaKur('PDEfeKurucu' + $PID)
 if ($durum -ne 'tamam') { throw $durum }
@@ -391,28 +417,7 @@ try {
   [KurucuSurucu]::Dugme($w.Hwnd, 1) | Out-Null
   $kod = [KurucuSurucu]::Bekle($p, 10000)
   Denetle 'kurucu kapandı' ($kod -ge 0) "çıkış $kod"
-  $k = Sihirbaz-Bekle -haric @($p) -ms 20000
-  Denetle 'kaldırıcı aynı (görünmeyen) masaüstünde açıldı' ([bool]$k)
-  if ($k) {
-    $sira = New-Object System.Collections.Generic.List[string]
-    $s = Sayfa-Oku $k.Hwnd
-    Goruntu-Al $k.Hwnd 'akis-C2-kaldirici'
-    $sira.Add("hoş geldiniz (İleri «$($s.Ileri.Yazi)»)")
-    [KurucuSurucu]::Dugme($k.Hwnd, 1) | Out-Null
-    $g = Akisi-Izle $k.Pid $k.Hwnd
-    $g | ForEach-Object { $sira.Add($_) }
-    Yaz "         kaldırıcı sayfaları: $($sira -join ' → ')"
-    Denetle 'kaldırıcı: hoş geldiniz → kaldırma → bitiş' ($sira[-1] -eq 'bitiş')
-    if ($sira[-1] -eq 'bitiş') {
-      $s = Sayfa-Oku $k.Hwnd
-      Denetle 'kaldırıcının bitişinde onay kutusu yok' ($s.OnayKutulari.Count -eq 0)
-      [KurucuSurucu]::Dugme($k.Hwnd, 1) | Out-Null
-      [KurucuSurucu]::Bekle($k.Pid, 20000) | Out-Null
-    }
-  }
-  $d = Deneme-Durumu; Durum-Yaz $d
-  Denetle 'kaldırıldı: kayıt, klasör, kısayollar ve Varsayılan Programlar kaydı yok' ($d.Surum -eq '<yok>' -and $d.Exe -eq '<yok>' -and -not $d.Masaustu -and -not $d.Baslat -and $d.Kayit -eq '<yok>' -and -not (Paket-Anahtar-Var 'Software\KurucuSinama'))
-  Gecici-Kisayol-Sil
+  Kaldiriciyi-Sur $p 'akis-C2-kaldirici'
 
   # -------------------------------------------------------------- D. daha yeni kurulu: Vazgeç / Eski sürüme dön
   Yaz 'D0. tohum: 90.0.2 /S --no-desktop-shortcut'
@@ -442,6 +447,25 @@ try {
   Bitir $p $w.Hwnd
   $d = Deneme-Durumu; Durum-Yaz $d
   Denetle 'eski sürüme dönüldü: 90.0.1, masaüstü kısayolu yine yok' ($d.Surum -eq '90.0.1' -and $d.Exe -eq '90.0.1' -and -not $d.Masaustu -and $d.Baslat)
+
+  # -------------------------------------------------------------- D3. eski kurulu: Kaldır (0.2.3, onaylanan plandaki üçüncü seçenek)
+  Yaz 'D3. 90.0.1 kurulu, 90.0.2: Kaldır'
+  $p = Kurucu-Baslat $Yeni
+  $w = Sihirbaz-Bekle -surec $p
+  $s = Sayfa-Oku $w.Hwnd
+  Denetle 'eski sürüm: üç seçenek, sonuncusu Kaldır' ($s.Baslik -eq 'KurucuSinama zaten kurulu' -and $s.Secenekler.Count -eq 3 -and $s.Secenekler[0].Isaret -eq 1 -and $s.Secenekler[2].Yazi -eq '&Kaldır') "«$($s.Baslik)» $(($s.Secenekler | ForEach-Object Yazi) -join ', ')"
+  [KurucuSurucu]::Tikla($s.Secenekler[2].Hwnd) | Out-Null
+  Denetle 'İleri «Kaldır»' ((Sayfa-Oku $w.Hwnd).Ileri.Yazi -eq 'Kaldır')
+  Goruntu-Al $w.Hwnd 'akis-D3-eski-kaldir'
+  [KurucuSurucu]::Dugme($w.Hwnd, 1) | Out-Null
+  $kod = [KurucuSurucu]::Bekle($p, 10000)
+  Denetle 'kurucu kapandı, kurmadı' ($kod -ge 0 -and (Deneme-Durumu).Exe -ne '90.0.2') "çıkış $kod"
+  Kaldiriciyi-Sur $p 'akis-D3-kaldirici'
+  # E2 için 90.0.1 yeniden (masaüstü kısayolu yok, D2'den sonraki gibi)
+  Yaz 'D4. tohum: 90.0.1 /S --no-desktop-shortcut'
+  $r = Sessiz-Kur $Eski '/S --no-desktop-shortcut'
+  $d = Deneme-Durumu; Durum-Yaz $d
+  Denetle "pencere açılmadı, 90.0.1 kuruldu, masaüstü kısayolu yok ($($r.Sure) sn)" ($r.Kod -eq 0 -and $r.Pencereler.Count -eq 0 -and $d.Surum -eq '90.0.1' -and $d.Exe -eq '90.0.1' -and -not $d.Masaustu -and $d.Baslat)
 
   # -------------------------------------------------------------- E2. uygulama içi güncelleme yolu: --updated /S
   Yaz 'E2. 90.0.1 kurulu, 90.0.2 --updated /S (uygulama içi güncellemenin komutu, --force-run olmadan)'

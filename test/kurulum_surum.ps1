@@ -3,8 +3,9 @@
 # sayfaları electron-builder'daki gibi skipPageIfUpdated ile, Ek görevler sayfası, boş kurulum bölümü). Kurulu sürüm, koşumun kendi kayıt
 # anahtarından okunur (HKCU\Software\PDEfeSayfaSinama; .onInit /SURUM= ve /KLASOR= ile yazar, kapanışta silinir). Koşum görünmeyen ayrı bir
 # Windows masaüstünde çalıştırılır (test\kurucu_surucu.cs): ekrana pencere açılmaz, odak çalınmaz. Durumlar: kurulu değil, eski, aynı,
-# bozuk (kayıt var, program dosyası yok), daha yeni, PDEfe açık; her birinde sayfanın görüntüsü (PNG), başlıklar, İleri düğmesinin yazısı,
-# metinlerin sığdığı ve seçimden sonraki akış (hangi sayfaya gidildiği, kip / masaüstü kısayolu kararı, kaldırıcının açılması, kapanış).
+# bozuk (kayıt var, program dosyası yok), daha yeni, PDEfe açık, eski sürümde Kaldır (kaldırıcı var / yok); her birinde sayfanın görüntüsü
+# (PNG), başlıklar, İleri düğmesinin yazısı, metinlerin sığdığı ve üst üste binmediği, seçimden sonraki akış (hangi sayfaya gidildiği,
+# kip / masaüstü kısayolu kararı, kaldırıcının açılması, kapanış).
 # Kullanım: powershell -File test\kurulum_surum.ps1 -Cikti <klasör> [-Nsh <installer.nsh>] [-Bekle 1500]
 param(
   [Parameter(Mandatory = $true)][string]$Cikti,
@@ -212,9 +213,11 @@ $kosumSayisal = KosumDerle '0.2.10'
 # Kurulu klasörler: tam (program ve kaldırıcı var) ve boş (bozuk kurulum)
 $klasorTam = Join-Path $gecici 'kurulu'
 $klasorBos = Join-Path $gecici 'bozuk'
-New-Item -ItemType Directory -Force $klasorTam, $klasorBos | Out-Null
+$klasorKaldiricisiz = Join-Path $gecici 'kaldiricisiz'   # program var, kaldırıcı yok (eski sürümde Kaldır'ın iletisi)
+New-Item -ItemType Directory -Force $klasorTam, $klasorBos, $klasorKaldiricisiz | Out-Null
 Copy-Item $isaretci (Join-Path $klasorTam 'KurucuSinama.exe')
 Copy-Item $isaretci (Join-Path $klasorTam 'Uninstall KurucuSinama.exe')
+Copy-Item $isaretci (Join-Path $klasorKaldiricisiz 'KurucuSinama.exe')
 $acikKlasor = Join-Path $gecici 'acik'
 New-Item -ItemType Directory -Force $acikKlasor | Out-Null
 Copy-Item $isaretci (Join-Path $acikKlasor 'KurucuSinama.exe')
@@ -298,6 +301,26 @@ function Goruntu-Al([long]$hwnd, [string]$ad) {
   }
   Yaz "         görüntü: $png"
 }
+# Sayfadaki (iç iletişim kutusu) yazılı denetimler birbirinin üstüne binmiyor ve sayfanın içinde kalıyor: eski sürüm kuruluyken üç seçenek,
+# açıklamaları ve "PDEfe açık" uyarısı aynı sayfada (0.2.3). Bitişik denetimler (seçenek 24u + 12u, açıklaması 36u) DLU'dan piksele
+# yuvarlamada 1 px üst üste gelebilir; -12u genişlikli açıklamalar sayfanın sağ kenarını 1 px aşabilir: 1 px sayılmaz.
+function Yerlesim-Denetle($s, [string]$ad) {
+  $sayfa = $s.Denetimler | Where-Object { $_.Ust -eq $s.Hwnd -and $_.Sinif -eq '#32770' -and $_.Gorunur } | Select-Object -First 1
+  $ic = @($s.Denetimler | Where-Object { $sayfa -and $_.Ust -eq $sayfa.Hwnd -and $_.Gorunur -and $_.Yazi -and $_.Sinif -in 'Static', 'Button' } | Sort-Object Y)
+  $sorunlar = New-Object System.Collections.Generic.List[string]
+  for ($i = 0; $i -lt $ic.Count; $i++) {
+    $a = $ic[$i]
+    if ($a.Y + $a.Boy -gt $sayfa.Y + $sayfa.Boy + 1 -or $a.X + $a.En -gt $sayfa.X + $sayfa.En + 1) { $sorunlar.Add("sayfadan taşıyor: «$($a.Yazi)»") }
+    for ($j = $i + 1; $j -lt $ic.Count; $j++) {
+      $b = $ic[$j]
+      $en = [math]::Min($a.X + $a.En, $b.X + $b.En) - [math]::Max($a.X, $b.X)
+      $boy = [math]::Min($a.Y + $a.Boy, $b.Y + $b.Boy) - [math]::Max($a.Y, $b.Y)
+      if ($en -gt 1 -and $boy -gt 1) { $sorunlar.Add("«$($a.Yazi)» / «$($b.Yazi)» ($en x $boy px)") }
+    }
+  }
+  $alt = if ($ic.Count) { ($ic | ForEach-Object { $_.Y + $_.Boy } | Measure-Object -Maximum).Maximum - $sayfa.Y } else { 0 }
+  Denetle "${ad}: $($ic.Count) denetim üst üste binmiyor, sayfanın içinde (en alt $alt / $($sayfa.Boy) px)" ($sayfa -and $ic.Count -gt 0 -and $sorunlar.Count -eq 0) ($sorunlar -join '; ')
+}
 function Kosum-Baslat([string]$exe, [string]$arg, [string]$sonuc) {
   if ($sonuc) { Remove-Item -LiteralPath $sonuc -ErrorAction SilentlyContinue; $arg = "$arg /SONUC=$sonuc" }
   $surec = [KurucuSurucu]::Baslat("`"$exe`" $arg", $gecici)
@@ -353,10 +376,13 @@ try {
   $s = Sayfa-Oku $w
   Denetle 'başlık' ($s.Baslik -eq 'PDEfe zaten kurulu' -and $s.AltBaslik -eq 'Ne yapmak istediğinizi seçin.') "«$($s.Baslik)» / «$($s.AltBaslik)»"
   Denetle 'metin sürümleri söylüyor' ($s.Etiketler[0] -eq 'Bilgisayarınızda PDEfe 0.2.2 kurulu. Bu kurucu daha yeni olan 0.2.3 sürümünü kurar.') "«$($s.Etiketler[0])»"
-  Denetle 'iki seçenek, Güncelle seçili' ($s.Secenekler.Count -eq 2 -and $s.Secenekler[0].Isaret -eq 1 -and $s.Secenekler[1].Isaret -eq 0 -and $s.Secenekler[0].Yazi -eq '&Güncelle (önerilen)')
+  # 0.2.3, onaylanan plan: Güncelle (önerilen) / Seçenekleri değiştirerek kur / Kaldır
+  Denetle 'üç seçenek: Güncelle seçili, Seçenekleri değiştirerek kur, Kaldır' ($s.Secenekler.Count -eq 3 -and $s.Secenekler[0].Isaret -eq 1 -and $s.Secenekler[1].Isaret -eq 0 -and $s.Secenekler[2].Isaret -eq 0 -and $s.Secenekler[0].Yazi -eq '&Güncelle (önerilen)' -and $s.Secenekler[1].Yazi -eq '&Seçenekleri değiştirerek kur' -and $s.Secenekler[2].Yazi -eq '&Kaldır') (($s.Secenekler | ForEach-Object { "$($_.Yazi)=$($_.Isaret)" }) -join ', ')
+  Denetle 'Kaldır''ın açıklaması' ($s.Etiketler -contains 'PDEfe kaldırıcısı açılır. Ayarlarınız silinmez.') ($s.Etiketler -join ' | ')
   Denetle 'İleri düğmesi «Güncelle»' ($s.Ileri.Yazi -eq 'Güncelle') "«$($s.Ileri.Yazi)»"
   Denetle 'Geri düğmesi kapalı (ilk sayfa)' (-not ($s.Geri.Gorunur -and $s.Geri.Etkin))
   Denetle '"PDEfe açık" uyarısı yok' (-not ($s.Etiketler -match 'şu anda açık'))
+  Yerlesim-Denetle $s 'eski sürüm'
   Goruntu-Al $w 'surum-2-eski'
   [KurucuSurucu]::Dugme($w, 1) | Out-Null
   $s = Gecis-Bekle $s2 $w $s.Baslik
@@ -372,7 +398,7 @@ try {
   $s = Sayfa-Oku $w
   $isaret = [KurucuSurucu]::Tikla($s.Secenekler[1].Hwnd)
   $s = Sayfa-Oku $w
-  Denetle 'ikinci seçenek seçildi, İleri düğmesi «İleri >»' ($isaret -eq 1 -and $s.Secenekler[0].Isaret -eq 0 -and $s.Ileri.Yazi -eq $ileriYazisi) "«$($s.Ileri.Yazi)»"
+  Denetle 'ikinci seçenek seçildi, İleri düğmesi «İleri >»' ($isaret -eq 1 -and $s.Secenekler[0].Isaret -eq 0 -and $s.Secenekler[2].Isaret -eq 0 -and $s.Ileri.Yazi -eq $ileriYazisi) "«$($s.Ileri.Yazi)»"
   [KurucuSurucu]::Dugme($w, 1) | Out-Null
   $s = Gecis-Bekle $s3 $w $s.Baslik
   Denetle 'lisans sayfası' ($s.Baslik -eq 'Lisans Sözleşmesi') "başlık «$($s.Baslik)»"
@@ -400,7 +426,8 @@ try {
   $w = Sihirbaz-Bekle $s4
   $s = Sayfa-Oku $w
   Denetle 'başlık ve metin' ($s.Baslik -eq 'PDEfe zaten kurulu' -and $s.Etiketler[0] -eq 'PDEfe 0.2.3 bu bilgisayarda zaten kurulu.') "«$($s.Baslik)» «$($s.Etiketler[0])»"
-  Denetle 'Onar seçili, İleri «Onar»' ($s.Secenekler[0].Isaret -eq 1 -and $s.Secenekler[0].Yazi -eq '&Onar (yeniden kur)' -and $s.Ileri.Yazi -eq 'Onar') "«$($s.Ileri.Yazi)»"
+  Denetle 'iki seçenek, Onar seçili, İleri «Onar»' ($s.Secenekler.Count -eq 2 -and $s.Secenekler[0].Isaret -eq 1 -and $s.Secenekler[0].Yazi -eq '&Onar (yeniden kur)' -and $s.Secenekler[1].Yazi -eq '&Kaldır' -and $s.Ileri.Yazi -eq 'Onar') "«$($s.Ileri.Yazi)»"
+  Yerlesim-Denetle $s 'aynı sürüm'
   Goruntu-Al $w 'surum-4-ayni'
   [KurucuSurucu]::Tikla($s.Secenekler[1].Hwnd) | Out-Null
   $s = Sayfa-Oku $w
@@ -422,11 +449,12 @@ try {
   $s = Sayfa-Oku $w
   Denetle 'başlık ve metin' ($s.Baslik -eq 'PDEfe kurulumu eksik' -and $s.Etiketler[0] -eq 'PDEfe 0.2.2 kurulu görünüyor ama program dosyaları eksik.') "«$($s.Baslik)» «$($s.Etiketler[0])»"
   Denetle 'Onar açıklaması bu kurucunun sürümünü söylüyor' ($s.Etiketler[1] -match '^PDEfe 0\.2\.3 yeniden kurulur') "«$($s.Etiketler[1])»"
+  Yerlesim-Denetle $s 'bozuk kurulum'
   Goruntu-Al $w 'surum-5-bozuk'
   [KurucuSurucu]::Tikla($s.Secenekler[1].Hwnd) | Out-Null
   [KurucuSurucu]::Dugme($w, 1) | Out-Null
   $ileti = Ileti-Bekle $w
-  Denetle 'kaldırıcı yoksa ileti' ($ileti -and $ileti.Metin -match 'kaldırıcısı bulunamadı') "«$($ileti.Metin)»"
+  Denetle 'kaldırıcı yoksa ileti, Onar''ı öneriyor' ($ileti -and $ileti.Metin -match 'kaldırıcısı bulunamadı\. Onar''ı seçip') "«$($ileti.Metin)»"
   if ($ileti) { [KurucuSurucu]::IletiYanitla($ileti.Hwnd, 1) | Out-Null; Start-Sleep -Milliseconds 500 }
   $s = Sayfa-Oku $w
   Denetle 'ileti kapandı, sayfada kalındı' (-not (Ileti-Bekle $w 300) -and $s.Baslik -eq 'PDEfe kurulumu eksik' -and [KurucuSurucu]::Bekle($s5, 0) -lt 0)
@@ -445,6 +473,7 @@ try {
   Denetle 'başlık' ($s.Baslik -eq 'Daha yeni bir sürüm kurulu') "«$($s.Baslik)»"
   Denetle 'metin' ($s.Etiketler[0] -eq 'Bilgisayarınızda daha yeni bir sürüm, PDEfe 0.3.0 kurulu. Bu kurucu daha eski olan 0.2.3 sürümünü kurar.') "«$($s.Etiketler[0])»"
   Denetle 'Vazgeç seçili, İleri «Kapat»' ($s.Secenekler[0].Isaret -eq 1 -and $s.Ileri.Yazi -eq 'Kapat') "«$($s.Ileri.Yazi)»"
+  Yerlesim-Denetle $s 'daha yeni sürüm'
   Goruntu-Al $w 'surum-6-yeni'
   [KurucuSurucu]::Dugme($w, 1) | Out-Null
   $kod = [KurucuSurucu]::Bekle($s6, 8000)
@@ -473,7 +502,8 @@ try {
   $s8 = Kosum-Baslat $kosum "/SURUM=0.2.2 /KLASOR=$klasorTam" $sonucDosyasi
   $w = Sihirbaz-Bekle $s8
   $s = Sayfa-Oku $w
-  Denetle 'sayfada "açık" uyarısı' (@($s.Etiketler | Where-Object { $_ -match '^Dikkat: PDEfe şu anda açık' }).Count -eq 1)
+  Denetle 'sayfada "açık" uyarısı, üç seçenekle birlikte' (@($s.Etiketler | Where-Object { $_ -match '^Dikkat: PDEfe şu anda açık' }).Count -eq 1 -and $s.Secenekler.Count -eq 3)
+  Yerlesim-Denetle $s 'eski sürüm ve "açık" uyarısı'
   Goruntu-Al $w 'surum-8-acik'
   [KurucuSurucu]::Dugme($w, 1) | Out-Null
   $ileti = Ileti-Bekle $w
@@ -517,6 +547,51 @@ try {
   $kod = [KurucuSurucu]::Bekle($s10, 8000)
   Denetle 'İptal: kurucu kapandı' ($kod -ge 0) "çıkış $kod"
   Kapat $s10
+
+  # -------------------------------------------------------------- 11. eski sürüm kurulu: Kaldır (0.2.3, onaylanan plandaki üçüncü seçenek)
+  # Aynı sürümdeki Kaldır gibi: kurulu PDEfe'nin kaldırıcısı UninstallString ile açılır, kurucu kapanır; kaldırıcı yoksa ileti, sayfada kalınır.
+  Yaz '11. eski sürüm (0.2.2) kurulu, Kaldır'
+  $s11 = Kosum-Baslat $kosum "/SURUM=0.2.2 /KLASOR=$klasorTam" $sonucDosyasi
+  $w = Sihirbaz-Bekle $s11
+  $s = Sayfa-Oku $w
+  $isaret = [KurucuSurucu]::Tikla($s.Secenekler[2].Hwnd)
+  $s = Sayfa-Oku $w
+  Denetle 'Kaldır seçildi, ötekiler boş, İleri «Kaldır»' ($isaret -eq 1 -and $s.Secenekler[0].Isaret -eq 0 -and $s.Secenekler[1].Isaret -eq 0 -and $s.Ileri.Yazi -eq 'Kaldır') "«$($s.Ileri.Yazi)»"
+  Goruntu-Al $w 'surum-11-eski-kaldir'
+  [KurucuSurucu]::Tikla($s.Secenekler[1].Hwnd) | Out-Null
+  $y1 = (Sayfa-Oku $w).Ileri.Yazi
+  [KurucuSurucu]::Tikla($s.Secenekler[0].Hwnd) | Out-Null
+  $y2 = (Sayfa-Oku $w).Ileri.Yazi
+  Denetle 'seçim değişince İleri «İleri >» / «Güncelle»' ($y1 -eq $ileriYazisi -and $y2 -eq 'Güncelle') "«$y1» «$y2»"
+  [KurucuSurucu]::Tikla($s.Secenekler[2].Hwnd) | Out-Null
+  $isaretDosyasi = Join-Path $klasorTam 'kaldirici-calisti.txt'
+  Remove-Item -LiteralPath $isaretDosyasi -ErrorAction SilentlyContinue
+  [KurucuSurucu]::Dugme($w, 1) | Out-Null
+  $kod = [KurucuSurucu]::Bekle($s11, 8000)
+  Denetle 'kurucu kapandı' ($kod -ge 0) "çıkış $kod"
+  $k = Sonuc-Oku $isaretDosyasi
+  Denetle 'kurulu PDEfe''nin kaldırıcısı UninstallString ile açıldı' ($k -match '/currentuser') "«$k»"
+  Denetle 'kurulum bölümü çalışmadı' (-not (Test-Path -LiteralPath $sonucDosyasi))
+  Kapat $s11
+
+  Yaz '11b. eski sürüm kurulu, program var ama kaldırıcı yok: Kaldır'
+  $s11 = Kosum-Baslat $kosum "/SURUM=0.2.2 /KLASOR=$klasorKaldiricisiz" $sonucDosyasi
+  $w = Sihirbaz-Bekle $s11
+  $s = Sayfa-Oku $w
+  Denetle 'eski sürüm sayfası, üç seçenek' ($s.Baslik -eq 'PDEfe zaten kurulu' -and $s.Secenekler.Count -eq 3) "«$($s.Baslik)»"
+  [KurucuSurucu]::Tikla($s.Secenekler[2].Hwnd) | Out-Null
+  [KurucuSurucu]::Dugme($w, 1) | Out-Null
+  $ileti = Ileti-Bekle $w
+  Denetle 'kaldırıcı yoksa ileti, Güncelle''yi öneriyor' ($ileti -and $ileti.Metin -match 'kaldırıcısı bulunamadı\. Güncelle''yi seçip') "«$($ileti.Metin)»"
+  if ($ileti) { Goruntu-Al $ileti.Hwnd 'surum-11-kaldirici-yok-ileti'; [KurucuSurucu]::IletiYanitla($ileti.Hwnd, 1) | Out-Null; Start-Sleep -Milliseconds 500 }
+  $s = Sayfa-Oku $w
+  Denetle 'ileti kapandı, sayfada kalındı, Kaldır seçili' (-not (Ileti-Bekle $w 300) -and $s.Baslik -eq 'PDEfe zaten kurulu' -and $s.Secenekler[2].Isaret -eq 1 -and $s.Ileri.Yazi -eq 'Kaldır' -and [KurucuSurucu]::Bekle($s11, 0) -lt 0) "«$($s.Baslik)» «$($s.Ileri.Yazi)»"
+  [KurucuSurucu]::Tikla($s.Secenekler[0].Hwnd) | Out-Null
+  [KurucuSurucu]::Dugme($w, 1) | Out-Null
+  $s = Gecis-Bekle $s11 $w $s.Baslik
+  $r = Sonuc-Oku $sonucDosyasi
+  Denetle 'sonra Güncelle: doğrudan kurulum, kip=guncelle' ($s.Baslik -match '^Kurul' -and $r -match '^kip=guncelle') "«$($s.Baslik)» «$r»"
+  Kapat $s11
 } finally {
   [KurucuSurucu]::MasaKapat()
   Remove-Item -Path 'HKCU:\Software\PDEfeSayfaSinama' -Recurse -Force -ErrorAction SilentlyContinue
