@@ -956,8 +956,14 @@ export class Goruntuleyici extends EventTarget {
     const vt = this.kaydirici.scrollTop, vl = this.kaydirici.scrollLeft;
     const vh = this.kaydirici.clientHeight, vw = this.kaydirici.clientWidth;
     if (!vw || !vh) return;                                 // gizli sekme: çizme, geçerli sayfayı bozma
-    const ustSinir = vt - vh, altSinir = vt + 2 * vh;     // ön yükleme bandı
-    const uzakUst = vt - 3 * vh, uzakAlt = vt + 4 * vh;    // bunun dışındakiler boşaltılır
+    // Önden çizme bandı ve boşaltma sınırı görünümün ortasından ölçülür (0.2.3): bant kaydırma yönünde 2, gerisinde 1 ekran; bunun
+    // dışında yönde 4, geride 3 ekrandan uzaktakiler boşaltılır. Yön bilinmiyorsa (programatik kaydırma, açılış) iki yana eşit: bant 1,5,
+    // boşaltma 3,5 ekran, önceden hep olduğu gibi (görünümün iki kenarından birer ve üçer ekran). Toplamlar (bant 3, boşaltma 7 ekran)
+    // yönden bağımsız: tuval sayısı ve bellek artmaz.
+    const orta = vt + vh / 2, yon = this._yon.y;
+    const bantAlt = yon > 0 ? 2 : yon < 0 ? 1 : 1.5, uzakAltPay = yon > 0 ? 4 : yon < 0 ? 3 : 3.5;
+    const ustSinir = orta - (3 - bantAlt) * vh, altSinir = orta + bantAlt * vh;           // ön yükleme bandı
+    const uzakUst = orta - (7 - uzakAltPay) * vh, uzakAlt = orta + uzakAltPay * vh;      // bunun dışındakiler boşaltılır
     // sayfayaGit'in istediği sayfa: görünüm o andan beri kımıldamadıysa geçerli olabilir (ardından gelen kaydırma olayı da aynı sonucu versin)
     const ist = this._istenen && Math.abs(this._istenen.st - vt) < 1 && Math.abs(this._istenen.sl - vl) < 1 ? this._istenen.no - 1 : -1;
     if (ist < 0) this._istenen = null;
@@ -1016,7 +1022,8 @@ export class Goruntuleyici extends EventTarget {
   /**
    * Kaydırma yönü (0.2.3): kullanıcı girdisiyle kaydırılırken son hareketin yönü, eksen başına (aşağı / sağa 1, yukarı / sola −1).
    * Kaydırma durunca da kalır (sonraki hareket büyük olasılıkla aynı yönde); programatik kaydırmada (sayfaya gitme, yakınlaştırmanın
-   * konumlaması, boyut değişimi) bilinmez sayılır (0). Bölgesel çizimin payı (bolgeHesapla) bu yöne konur.
+   * konumlaması, boyut değişimi) bilinmez sayılır (0). Bölgesel çizimin payı (bolgeHesapla) ve önden çizme bandı (kaydirmaIsle) bu
+   * yöne konur.
    */
   yonIzle(girdi) {
     const st = this.kaydirici.scrollTop, sl = this.kaydirici.scrollLeft, o = this._yonKonum;

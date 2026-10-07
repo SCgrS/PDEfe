@@ -13,6 +13,8 @@
 //      benzeri bölgesel çizim) görünen sayfada var.
 //   4) Bölgesel çizimde pay kaydırma yönünde: %600'de aşağı kaydırınca bölgenin payının çoğu görünen kısmın altında, yukarı kaydırınca
 //      üstünde, sayfaya gidince (yön bilinmez) iki yana eşit; bölgenin boyutu değişmez.
+//   5) Önden çizme bandı kaydırma yönünde: görünümün ortasından yönde 2, geride 1 ekran (yön bilinmiyorsa iki yana 1,5, önceki gibi);
+//      tuvali kalan sayfalar boşaltma sınırının (yönde 4, geride 3 ekran) içinde; bandın sayfa sayısı yönden bağımsız.
 // Kullanım (ev ekranı benzeri; sayfa 6 MP'yi aşar):
 //   .venv\Scripts\python.exe test\kaydirma_ornek_uret.py      (test\cikti\kaydirma\pdf yoksa betik kendisi üretir)
 //   powershell -File test\baslat.ps1 -Port 9643 -Boyut "1800,1050" -Olcek 1.25      → PID=… yazar
@@ -27,7 +29,7 @@ const KOK = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ORNEK = path.join(KOK, 'test', 'cikti', 'kaydirma', 'pdf');
 const PY = path.join(KOK, '.venv', 'Scripts', 'python.exe');
 const J = (x) => JSON.stringify(x);
-const BOLUMLER = (process.env.BOLUM || '1,2,3,4').split(',').map((s) => +s.trim()).filter(Boolean);
+const BOLUMLER = (process.env.BOLUM || '1,2,3,4,5').split(',').map((s) => +s.trim()).filter(Boolean);
 
 let hataSayisi = 0, denetimSayisi = 0;
 const sonuc = (ad, ok, ayrinti = '') => {
@@ -300,6 +302,48 @@ export default async function ({ evalJs, bekle, hedefler }) {
     const gidince = await pay();
     sonuc('Sayfaya gidince (programatik kaydırma) yön bilinmez, pay yine eşit', gidince.yon === 0 && Math.abs(gidince.ust - gidince.alt) <= 2, gidince);
     await durul();
+    await evalJs(`(async () => { await window.__kc.g().zoomModuAyarla('genislik'); return true; })()`);
+    await durul();
+  }
+
+  if (BOLUMLER.includes(5)) {
+    console.log('--- 5) Önden çizme bandı kaydırma yönünde (toplamı aynı)');
+    await belgeAc(METIN);
+    await evalJs(`(() => { const g = window.__kc.g(); g.zoomAyarla(0.3); g.sayfayaGit(100, { aninda: true }); return true; })()`);
+    await durul();
+    // Bant: görünür olmayıp ön çizim kuyruğunda olan sayfalar (geçerli sayfanın komşuları hariç); görünümün üstünde / altında kalanlar ve
+    // görünümün ortasından en uzak bant sayfasının uzaklığı (ekran). Tuvali olan sayfaların en uzağı (boşaltma sınırının içinde mi)
+    const bant = () => evalJs(`(() => {
+      const g = window.__kc.g(), k = g.kaydirici, vt = k.scrollTop, vh = k.clientHeight, orta = vt + vh / 2;
+      const komsu = new Set(g.komsuSayfalar());
+      const sayfalar = g._onKuyruk.filter((i) => !komsu.has(i)).map((i) => g.yerlesim[i]).filter(Boolean);
+      const ust = sayfalar.filter((y) => y.y + y.h < vt), alt = sayfalar.filter((y) => y.y > vt + vh);
+      const uzak = (d) => +(Math.max(0, ...d) / vh).toFixed(2);
+      const tuvalli = g.sayfalar.map((s, i) => [s, i]).filter(([s, i]) => s.canvas && !komsu.has(i)).map(([, i]) => g.yerlesim[i]).filter(Boolean);
+      return { yon: g._yon.y, ust: ust.length, alt: alt.length, ustUzak: uzak(ust.map((y) => orta - (y.y + y.h))), altUzak: uzak(alt.map((y) => y.y - orta)),
+        tuvalUstUzak: uzak(tuvalli.map((y) => orta - (y.y + y.h))), tuvalAltUzak: uzak(tuvalli.map((y) => y.y - orta)), sayfaH: Math.round(g.yerlesim[0].h), vh };
+    })()`);
+    const ortali = await bant();
+    sonuc('Yön bilinmiyor: bant görünümün ortasından iki yana 1,5 ekran (önceki gibi)', ortali.yon === 0 && ortali.ust >= 1 && ortali.alt >= 1
+      && Math.abs(ortali.ust - ortali.alt) <= 1 && ortali.ustUzak <= 1.5 && ortali.altUzak <= 1.5, ortali);
+    await tekerlek(20, 100, 30);
+    await bekle(400);
+    await durul();
+    const asagi = await bant();
+    sonuc('Aşağı kaydırınca bant aşağıda 2, yukarıda 1 ekran', asagi.yon === 1 && asagi.alt > asagi.ust && asagi.altUzak > 1.5 && asagi.altUzak <= 2 && asagi.ustUzak <= 1, asagi);
+    sonuc('Aşağı kaydırınca tuvalli sayfalar boşaltma sınırının içinde (yukarıda 3, aşağıda 4 ekran)', asagi.tuvalUstUzak <= 3 && asagi.tuvalAltUzak <= 4, asagi);
+    await tekerlek(20, -100, 30);
+    await bekle(400);
+    await durul();
+    const yukari = await bant();
+    sonuc('Yukarı kaydırınca bant yukarıda 2, aşağıda 1 ekran', yukari.yon === -1 && yukari.ust > yukari.alt && yukari.ustUzak > 1.5 && yukari.ustUzak <= 2 && yukari.altUzak <= 1, yukari);
+    sonuc('Yukarı kaydırınca tuvalli sayfalar boşaltma sınırının içinde (yukarıda 4, aşağıda 3 ekran)', yukari.tuvalUstUzak <= 4 && yukari.tuvalAltUzak <= 3, yukari);
+    sonuc('Bandın sayfa sayısı yönden bağımsız (en çok 1 fark)', Math.abs((asagi.ust + asagi.alt) - (yukari.ust + yukari.alt)) <= 1 && Math.abs((asagi.ust + asagi.alt) - (ortali.ust + ortali.alt)) <= 1,
+      { ortali: ortali.ust + ortali.alt, asagi: asagi.ust + asagi.alt, yukari: yukari.ust + yukari.alt });
+    await evalJs(`(() => { window.__kc.g().sayfayaGit(200, { aninda: true }); return true; })()`);
+    await durul();
+    const gidince = await bant();
+    sonuc('Sayfaya gidince yön bilinmez, bant yine ortalı', gidince.yon === 0 && Math.abs(gidince.ust - gidince.alt) <= 1 && gidince.ustUzak <= 1.5 && gidince.altUzak <= 1.5, gidince);
     await evalJs(`(async () => { await window.__kc.g().zoomModuAyarla('genislik'); return true; })()`);
     await durul();
   }
