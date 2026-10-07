@@ -17,6 +17,7 @@ const KENAR = 16;                         // kenar boşluğu (px)
 const EN_KUCUK = 0.25, EN_BUYUK = 64;     // %25 – %6400
 const EN_FAZLA_PIKSEL = 24e6;             // tek tuvalde en fazla piksel; üstünde bölgesel çizim
 const BOLGE_PAYI = 0.25;                  // bölgesel çizimde görünür alanın her yanına eklenen pay (görünür boyutun oranı)
+const BOLGE_ONDE = 0.9;                   // kaydırılırken bölgesel çizimin toplam payının kaydırma yönüne konan kısmı (0.2.3)
 const ONIZLEME_ESIGI = 12e6;              // bundan büyük (cihaz pikseli) bölgesel ilk çizimde, sayfa görünüyorsa önce önizleme (0.2.3: 6e6, her ilk çizimde)
 const ONIZLEME_PIKSEL = 1.5e6;            // önizleme tuvalinin en fazla piksel sayısı
 const KOYU_YER_TUTUCU = '#000';            // beyazın invert(1) karşılığı: koyu sayfada henüz çizilmemiş sayfanın ve tuvalin kaplamadığı alanın rengi
@@ -221,6 +222,7 @@ export class Goruntuleyici extends EventTarget {
     this.kaydirici.addEventListener('wheel', (e) => this.tekerlek(e), { passive: false });
     // Kaydırma etkileşimi yalnızca kullanıcı girdisinden sayılır (etkilesimIzle): tekerlek (Ctrl'siz), dokunma, kaydırma çubuğu, tuşlar
     this._girdiZamani = -Infinity; this._cubukTutuluyor = false;
+    this._yon = { x: 0, y: 0 }; this._yonKonum = null;   // kaydırma yönü (yonIzle)
     this.kaydirici.addEventListener('wheel', (e) => {
       if (yakinlastirmaTekerlegi(e)) { this._girdiZamani = -Infinity; etkilesimBitir(); } else this._girdiZamani = performance.now();
     }, { passive: true });
@@ -1008,6 +1010,26 @@ export class Goruntuleyici extends EventTarget {
     const girdi = this._cubukTutuluyor || simdi - this._girdiZamani < GIRDI_MS;
     if (girdi && simdi - (this._sonKaydirmaOlayi ?? -Infinity) < 100) { etkilesimBildir(); this.keskinlestirPlanla(); }
     this._sonKaydirmaOlayi = simdi;
+    this.yonIzle(girdi);
+  }
+
+  /**
+   * Kaydırma yönü (0.2.3): kullanıcı girdisiyle kaydırılırken son hareketin yönü, eksen başına (aşağı / sağa 1, yukarı / sola −1).
+   * Kaydırma durunca da kalır (sonraki hareket büyük olasılıkla aynı yönde); programatik kaydırmada (sayfaya gitme, yakınlaştırmanın
+   * konumlaması, boyut değişimi) bilinmez sayılır (0). Bölgesel çizimin payı (bolgeHesapla) bu yöne konur.
+   */
+  yonIzle(girdi) {
+    const st = this.kaydirici.scrollTop, sl = this.kaydirici.scrollLeft, o = this._yonKonum;
+    if (!girdi) this._yon = { x: 0, y: 0 };
+    else if (o) this._yon = { x: sl !== o.sl ? Math.sign(sl - o.sl) : this._yon.x, y: st !== o.st ? Math.sign(st - o.st) : this._yon.y };
+    this._yonKonum = { st, sl };
+  }
+
+  /** Yön bilinmez olur ve şimdiki konum yönün çıkış noktası sayılır: sayfa çevrilip kaydırma yeni sayfanın başına (sonuna) atlayınca,
+   *  ardından gelen kaydırma olayı girdi süresinde olsa da atlamayı ters yönde bir hareket saymaz. */
+  yonSifirla() {
+    this._yon = { x: 0, y: 0 };
+    this._yonKonum = { st: this.kaydirici.scrollTop, sl: this.kaydirici.scrollLeft };
   }
 
   /**
@@ -1126,12 +1148,16 @@ export class Goruntuleyici extends EventTarget {
   bolgeHesapla(i, yer = this.yerAl(i)) {
     const dpr = pikselOrani();
     if (yer.w * yer.h * dpr * dpr <= EN_FAZLA_PIKSEL) return { x: 0, y: 0, w: yer.w, h: yer.h, tam: true };
-    // Görünür alan + her yandan BOLGE_PAYI; sayfaya kırpılır, bölge sayfanın dışına taşmaz (h negatif olamaz)
+    // Görünür alan + iki yanına toplam 2 × BOLGE_PAYI; sayfaya kırpılır, bölge sayfanın dışına taşmaz (h negatif olamaz). Pay kaydırma
+    // yönündeyse çoğu (BOLGE_ONDE) o yöne konur, yön bilinmiyorsa iki yana eşit (0.2.3; bölgenin boyutu, yani bellek aynı): yüksek
+    // yakınlaştırmada kaydırırken görünen kısım bölgeden daha geç çıkar, yeniden çizim yetişir (%600'de kaydırırken yeniden çizim ~%35
+    // azaldı; beyaz kalan alan %30–55, 4× yavaş işlemcide)
     const { vt, vl, vw, vh } = this.gorunurKisim(yer);
     const w = izgaraya(Math.min(yer.w, vw * (1 + 2 * BOLGE_PAYI)), dpr);
     const h = izgaraya(Math.min(yer.h, vh * (1 + 2 * BOLGE_PAYI)), dpr);
-    const x = izgaraya(Math.max(0, Math.min(vl - yer.x - vw * BOLGE_PAYI, yer.w - w)), dpr);
-    const y = izgaraya(Math.max(0, Math.min(vt - yer.y - vh * BOLGE_PAYI, yer.h - h)), dpr);
+    const geride = (yon) => (yon > 0 ? 1 - BOLGE_ONDE : yon < 0 ? BOLGE_ONDE : 0.5);   // payın görünen kısmın gerisinde (üstünde / solunda) kalanı
+    const x = izgaraya(Math.max(0, Math.min(vl - yer.x - Math.max(0, w - vw) * geride(this._yon.x), yer.w - w)), dpr);
+    const y = izgaraya(Math.max(0, Math.min(vt - yer.y - Math.max(0, h - vh) * geride(this._yon.y), yer.h - h)), dpr);
     return { x, y, w, h, tam: false };
   }
 
@@ -1653,6 +1679,7 @@ export class Goruntuleyici extends EventTarget {
     const onceki = this.gecerli;
     const sayfaOlayi = () => { if (this.gecerli !== onceki) this.dispatchEvent(new CustomEvent('sayfa', { detail: { sayfa: this.gecerli } })); };
     no = Math.max(1, Math.min(this.sayfalar.length, Math.round(no) || 1));
+    this._yon = { x: 0, y: 0 };   // programatik kaydırma: yön bilinmez (yonIzle); kaydırma olayı gelmeden çizilen sayfa da ortalı bölge alsın
     if (!this.surekli()) {
       // Tek/iki düzende gösterilen satır gecerli'ye bağlı: önce ata, sonra yerleştir (olay en sonda onceki ile karşılaştırılarak gider)
       this.gecerli = no;
@@ -1668,6 +1695,7 @@ export class Goruntuleyici extends EventTarget {
     if (secenek.x != null) this.kaydirici.scrollLeft = yer.x + secenek.x * this.olcek * CSS_BIRIM - 16;
     this.gecerli = no;
     this._istenen = { no, st: this.kaydirici.scrollTop, sl: this.kaydirici.scrollLeft };   // kaydırma sınırına dayanılmış olsa da (bkz. kaydirmaIsle)
+    this.yonSifirla();
     this.kaydirmaIsle(false);          // gecerli'yi en görünür sayfaya düzeltebilir; olayı aşağıda tek sefer gönder
     sayfaOlayi();
   }
@@ -1754,11 +1782,11 @@ export class Goruntuleyici extends EventTarget {
       const satir = this.ikili() ? this.ciftBul(this.gecerli - 1) : this.gecerli - 1;
       const son = this.ikili() ? this.ciftler().length - 1 : this.sayfalar.length - 1;
       if (miktar > 0 && k.scrollTop >= enAlt - 1) {
-        if (satir < son) { this.sonrakiSayfa(); k.scrollTop = 0; }
+        if (satir < son) { this.sonrakiSayfa(); k.scrollTop = 0; this.yonSifirla(); }
         return;
       }
       if (miktar < 0 && k.scrollTop <= 0) {
-        if (satir > 0) { this.oncekiSayfa(); k.scrollTop = k.scrollHeight; }
+        if (satir > 0) { this.oncekiSayfa(); k.scrollTop = k.scrollHeight; this.yonSifirla(); }
         return;
       }
     }

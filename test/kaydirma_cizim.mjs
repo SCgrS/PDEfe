@@ -11,6 +11,8 @@
 //   3) Önizleme (düşük çözünürlüklü ilk çizim) yalnızca görünen sayfada ve çok büyük (12 MP üstü) bölgesel çizimde: genişliğe sığdırılmış
 //      sayfada (6,7 MP) ve %370'teki tam çizimde (19 MP) yok, önden çizilen sayfada hiç yok; görünüm pencereden büyük yapılınca (4K ekran
 //      benzeri bölgesel çizim) görünen sayfada var.
+//   4) Bölgesel çizimde pay kaydırma yönünde: %600'de aşağı kaydırınca bölgenin payının çoğu görünen kısmın altında, yukarı kaydırınca
+//      üstünde, sayfaya gidince (yön bilinmez) iki yana eşit; bölgenin boyutu değişmez.
 // Kullanım (ev ekranı benzeri; sayfa 6 MP'yi aşar):
 //   .venv\Scripts\python.exe test\kaydirma_ornek_uret.py      (test\cikti\kaydirma\pdf yoksa betik kendisi üretir)
 //   powershell -File test\baslat.ps1 -Port 9643 -Boyut "1800,1050" -Olcek 1.25      → PID=… yazar
@@ -25,7 +27,7 @@ const KOK = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ORNEK = path.join(KOK, 'test', 'cikti', 'kaydirma', 'pdf');
 const PY = path.join(KOK, '.venv', 'Scripts', 'python.exe');
 const J = (x) => JSON.stringify(x);
-const BOLUMLER = (process.env.BOLUM || '1,2,3').split(',').map((s) => +s.trim()).filter(Boolean);
+const BOLUMLER = (process.env.BOLUM || '1,2,3,4').split(',').map((s) => +s.trim()).filter(Boolean);
 
 let hataSayisi = 0, denetimSayisi = 0;
 const sonuc = (ad, ok, ayrinti = '') => {
@@ -265,6 +267,40 @@ export default async function ({ evalJs, bekle, hedefler }) {
       bolgeMP > 12 && gorunenOnizleme.length >= 1 && gorunmeyenOnizleme.length === 0, { gorunen: gorunenOnizleme.map((e) => e.no), gorunmeyen: gorunmeyenOnizleme.map((e) => e.no) });
     await evalJs(`(async () => { const g = window.__kc.g(); g.kaydirici.style.right = ''; g.kaydirici.style.bottom = ''; await g.zoomModuAyarla('genislik'); return true; })()`);
     await bekle(300);
+    await durul();
+  }
+
+  if (BOLUMLER.includes(4)) {
+    console.log('--- 4) Bölgesel çizimde pay kaydırma yönünde (bölgenin boyutu aynı)');
+    await belgeAc(METIN);
+    await evalJs(`(() => { const g = window.__kc.g(); g.zoomAyarla(6); g.sayfayaGit(3, { oran: 0.3, aninda: true }); return true; })()`);
+    await durul();
+    // Görünür sayfanın şimdiki bölgesi (bolgeHesapla): görünen kısmın üstünde (geride) ve altında kalan pay, bölgenin boyutu
+    const pay = () => evalJs(`(() => { const g = window.__kc.g(), k = g.kaydirici, i = g.gecerli - 1, yer = g.yerlesim[i], b = g.bolgeHesapla(i, yer);
+      const ust = (k.scrollTop - yer.y) - b.y, alt = (b.y + b.h) - (k.scrollTop - yer.y + k.clientHeight);
+      return { yon: g._yon.y, ust: Math.round(ust), alt: Math.round(alt), w: Math.round(b.w), h: Math.round(b.h), tam: b.tam, vh: k.clientHeight }; })()`);
+    const ortali = await pay();
+    sonuc('Yön bilinmiyor (sayfaya gidildi): pay iki yana eşit', !ortali.tam && ortali.yon === 0 && Math.abs(ortali.ust - ortali.alt) <= 2 && ortali.ust > 100, ortali);
+    await evalJs('window.__kc.sifirla()');
+    await tekerlek(30, 100, 30);
+    await bekle(400);
+    const asagi = await pay();
+    sonuc('Aşağı kaydırınca payın çoğu aşağıda (alt ≈ 9 × üst), bölge boyutu aynı', asagi.yon === 1 && asagi.alt > 6 * asagi.ust && asagi.ust >= 0 && asagi.h === ortali.h && asagi.w === ortali.w, asagi);
+    const asagiCizimler = await evalJs(`window.__kc.olaylar.filter((e) => e.tur === 'bas' && e.gorunur && e.tuvalliydi && !e.onizleme && e.yerY != null)
+      .map((e) => ({ ust: Math.round(e.vt - e.yerY - e.bolge.y), alt: Math.round(e.bolge.y + e.bolge.h - (e.vt - e.yerY + e.vh)) }))`);
+    sonuc('Aşağı kaydırırken başlayan bölgesel çizimlerde pay aşağıda', asagiCizimler.length >= 2 && asagiCizimler.every((p) => p.alt > p.ust), asagiCizimler);
+    await durul();
+    await tekerlek(15, -100, 30);
+    await bekle(400);
+    const yukari = await pay();
+    sonuc('Yukarı kaydırınca payın çoğu yukarıda', yukari.yon === -1 && yukari.ust > 6 * yukari.alt && yukari.alt >= 0 && yukari.h === ortali.h, yukari);
+    await durul();
+    await evalJs(`(() => { window.__kc.g().sayfayaGit(4, { oran: 0.3, aninda: true }); return true; })()`);
+    await bekle(300);
+    const gidince = await pay();
+    sonuc('Sayfaya gidince (programatik kaydırma) yön bilinmez, pay yine eşit', gidince.yon === 0 && Math.abs(gidince.ust - gidince.alt) <= 2, gidince);
+    await durul();
+    await evalJs(`(async () => { await window.__kc.g().zoomModuAyarla('genislik'); return true; })()`);
     await durul();
   }
 
