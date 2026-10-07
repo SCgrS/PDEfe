@@ -330,7 +330,7 @@ function Goruntu-Al([long]$hwnd, [string]$ad) {
   $olcu = [KurucuSurucu]::Goruntu($hwnd, $png)
   # 0.2.3'e dek NSIS'in Türkçe lisans düğmesi "Kabul Ediyorum" (84 px) burada bilinen istisnaydı; artık "Kabul et", istisna yok
   foreach ($satir in ($olcu -split "`r?`n" | Where-Object { $_ })) {
-    if ($satir -match '^TAŞIYOR') { $script:hatalar++; Yaz "  HATA   $satir" }
+    if ($satir -match '^(TAŞIYOR|HATA)') { $script:hatalar++; Yaz "  HATA   $satir" }   # HATA: görüntü boş ya da alınamadı (kurucu_surucu.cs)
     else { Yaz "         $satir" }
   }
   Yaz "         görüntü: $png"

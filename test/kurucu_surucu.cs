@@ -226,10 +226,60 @@ public static class KurucuSurucu {
     return tekSatir ? olcu.right : olcu.bottom;
   }
 
+  static int SatirYuksekligi(IntPtr h) {
+    IntPtr dc = GetDC(h);
+    IntPtr yt = CreateFont(-(8 * 96 / 72), 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 0, 0, "MS Shell Dlg");
+    IntPtr eski = SelectObject(dc, yt);
+    var olcu = new RECT();
+    DrawText(dc, "Ağ", -1, ref olcu, 0x400u | 0x20u);
+    SelectObject(dc, eski); DeleteObject(yt); ReleaseDC(h, dc);
+    return olcu.bottom;
+  }
+
+  /** Seçeneğin / onay kutusunun yazı alanı (kutu simgesinin sağı), görüntü koordinatlarında. */
+  static RECT SecimAlani(IntPtr h, int ox, int oy) {
+    RECT r; GetWindowRect(h, out r);
+    return new RECT { left = r.left - ox + GetSystemMetrics(71) + 4, top = r.top - oy, right = r.right - ox, bottom = r.bottom - oy };
+  }
+
+  static bool SecimMi(IntPtr h) {
+    if (!IsWindowVisible(h) || Sinif(h) != "Button" || Yazi(h).Replace("&", "").Length == 0) return false;
+    int tur = GetWindowLong(h, -16) & 0xF;
+    return tur == 2 || tur == 3 || tur == 4 || tur == 9;
+  }
+
+  static bool KoyuVar(Bitmap bmp, RECT a) {
+    for (int y = Math.Max(0, a.top); y < Math.Min(bmp.Height, a.bottom); y++)
+      for (int x = Math.Max(0, a.left); x < Math.Min(bmp.Width, a.right); x++) { var c = bmp.GetPixel(x, y); if ((c.R + c.G + c.B) / 3 < 140) return true; }
+    return false;
+  }
+
+  /**
+   * Görüntü sayfa çizilmeden mi alındı (0.2.3, bağımsız incelemenin bulgusu): MUI başlığının (1037) ya da görünür, etkin bir seçeneğin / onay
+   * kutusunun yazı alanında hiç koyu piksel yoksa o yazı görüntüde yoktur; seçeneğin "kenarlara değmiyor" kararı da anlamsızdır (görünmeyen
+   * masaüstünde ilk yakalamada 16 görüntünün 7'si böyleydi, hepsi SIĞIYOR çıkmıştı). Döner: yazısı görünmeyen ilk denetimin metni ya da null.
+   */
+  static string BosAlan(IntPtr pencere, Bitmap bmp, int ox, int oy) {
+    IntPtr baslik = GetDlgItem(pencere, 1037);
+    if (baslik != IntPtr.Zero && IsWindowVisible(baslik) && Yazi(baslik).Length > 0) {
+      RECT r; GetWindowRect(baslik, out r);
+      if (!KoyuVar(bmp, new RECT { left = r.left - ox, top = r.top - oy, right = r.right - ox, bottom = r.bottom - oy })) return "başlık: " + Yazi(baslik);
+    }
+    string bos = null;
+    EnumChildWindows(pencere, (h, l) => {
+      if (!SecimMi(h) || !IsWindowEnabled(h)) return true;   // solgun yazı açık gri çizilebilir: boşluk ölçüsüne girmez
+      if (KoyuVar(bmp, SecimAlani(h, ox, oy))) return true;
+      bos = Yazi(h).Replace("&", "");
+      return false;
+    }, IntPtr.Zero);
+    return bos;
+  }
+
   /**
    * Görünür yazılı denetimlerin metni kutusuna sığıyor mu (test\kurulum_bitis.ps1'in ölçüsü, seçenekler ve düğmeler eklendi). Etiketler
    * PrintWindow'da her zaman çizilmediğinden ölçüyle: iletişim kutusu yazı tipi (MS Shell Dlg 8) ve daha büyük Segoe UI 9, büyük olanı.
-   * Onay kutusu / seçenek: görüntüde kutu simgesinin sağındaki alanın üst ya da alt satırında koyu piksel varsa metin kesiliyordur.
+   * Onay kutusu / seçenek: görüntüde kutu simgesinin sağındaki alanın üst ya da alt satırında koyu piksel varsa metin kesiliyordur; tek
+   * satırlık kutuda metnin tek satır genişliği yazı alanından büyükse de taşıyordur (0.2.3: önceden yalnızca rapora yazılıyordu).
    * Düğme: tek satır genişliği iç alana (kenarlar 6'şar px) sığmalı.
    */
   static string Sigma(IntPtr pencere, Bitmap bmp, int ox, int oy) {
@@ -257,8 +307,10 @@ public static class KurucuSurucu {
         };
         bool kesik = koyu(ust) || koyu(alt);
         int gerekli = Olc(h, s, 10000, "MS Shell Dlg", 8, true), alan = w - GetSystemMetrics(71) - 4;
-        satir = (kesik ? "TAŞIYOR  " : "SIĞIYOR  ") + (tur >= 4 ? "seçenek " : "onay kutusu ") + w + "x" + hgt + " px (görüntüden: metin " +
-          (kesik ? "üst/alt kenarda kesiliyor" : "kenarlara değmiyor") + "; tek satır " + gerekli + " / " + alan + " px): " + s;
+        bool tekSatir = hgt < 2 * SatirYuksekligi(h), genis = tekSatir && gerekli > alan;
+        satir = (kesik || genis ? "TAŞIYOR  " : "SIĞIYOR  ") + (tur >= 4 ? "seçenek " : "onay kutusu ") + w + "x" + hgt + " px (görüntüden: metin " +
+          (kesik ? "üst/alt kenarda kesiliyor" : "kenarlara değmiyor") + "; tek satır " + gerekli + " / " + alan + " px" +
+          (genis ? ", tek satırlık kutuya sığmıyor" : "") + "): " + s;
       } else if (dugme) {
         int gerekli = Math.Max(Olc(h, s, 10000, "MS Shell Dlg", 8, true), Olc(h, s, 10000, "Segoe UI", 9, true));
         satir = (gerekli <= w - 12 ? "SIĞIYOR  " : "TAŞIYOR  ") + "düğme " + w + "x" + hgt + " px, gereken genişlik " + gerekli + " px: " + s;
@@ -272,24 +324,33 @@ public static class KurucuSurucu {
     return sb.ToString();
   }
 
-  /** Pencerenin PrintWindow görüntüsünü PNG'ye yazar; metin sığma raporunu döner. */
+  /**
+   * Pencerenin PrintWindow görüntüsünü PNG'ye yazar; metin sığma raporunu döner. Sayfa çizilmeden yakalandıysa (BosAlan) artan beklemeyle
+   * 10 kez dek yeniden yakalar (ölçüldü: 2.–6. denemede doluyor); yine boşsa raporun başında "HATA" satırı olur (sınama betikleri HATA ve
+   * TAŞIYOR satırlarını hata sayar).
+   */
   public static string Goruntu(long pencere, string png) {
     return Yap(() => {
       IntPtr h = (IntPtr)pencere; IntPtr r;
       // Klavye odak çerçevesi (noktalı dikdörtgen) metnin çevresinde kenara değip kesilme sanılmasın
       SendMessageTimeout(h, WM_CHANGEUISTATE, (IntPtr)0x10001, IntPtr.Zero, SMTO_ABORTIFHUNG, 2000, out r);
       Thread.Sleep(150);
-      RECT dr; GetWindowRect(h, out dr);
-      int w = dr.right - dr.left, hgt = dr.bottom - dr.top;
-      if (w <= 0 || hgt <= 0) return "HATA pencere boyutu yok";
-      using (var bmp = new Bitmap(w, hgt, PixelFormat.Format32bppArgb))
-      using (var g = Graphics.FromImage(bmp)) {
-        IntPtr hdc = g.GetHdc();
-        bool tamam = PrintWindow(h, hdc, 2);   // PW_RENDERFULLCONTENT
-        g.ReleaseHdc(hdc);
-        if (!tamam) return "HATA PrintWindow başarısız";
-        bmp.Save(png, ImageFormat.Png);
-        return Sigma(h, bmp, dr.left, dr.top);
+      for (int deneme = 1; ; deneme++) {
+        RECT dr; GetWindowRect(h, out dr);
+        int w = dr.right - dr.left, hgt = dr.bottom - dr.top;
+        if (w <= 0 || hgt <= 0) return "HATA pencere boyutu yok";
+        using (var bmp = new Bitmap(w, hgt, PixelFormat.Format32bppArgb))
+        using (var g = Graphics.FromImage(bmp)) {
+          IntPtr hdc = g.GetHdc();
+          bool tamam = PrintWindow(h, hdc, 2);   // PW_RENDERFULLCONTENT
+          g.ReleaseHdc(hdc);
+          if (!tamam) return "HATA PrintWindow başarısız";
+          string bos = BosAlan(h, bmp, dr.left, dr.top);
+          if (bos != null && deneme < 10) { Thread.Sleep(Math.Min(250 * deneme, 1000)); continue; }
+          bmp.Save(png, ImageFormat.Png);
+          string on = bos == null ? "" : "HATA görüntü boş: sayfa " + deneme + " denemede de çizilmedi («" + Temiz(bos) + "» yazısı görüntüde yok); seçeneklerin sığma kararı verilemez\r\n";
+          return on + (deneme > 1 && bos == null ? "(görüntü " + deneme + ". denemede dolu)\r\n" : "") + Sigma(h, bmp, dr.left, dr.top);
+        }
       }
     });
   }

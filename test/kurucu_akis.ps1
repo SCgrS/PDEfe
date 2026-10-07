@@ -247,7 +247,7 @@ function Goruntu-Al([long]$hwnd, [string]$ad) {
   $olcu = [KurucuSurucu]::Goruntu($hwnd, $png)
   # 0.2.3'e dek NSIS'in Türkçe lisans düğmesi "Kabul Ediyorum" burada bilinen istisnaydı; artık "Kabul et" (build\installer.nsh), istisna yok
   foreach ($satir in ($olcu -split "`r?`n" | Where-Object { $_ })) {
-    if ($satir -match '^TAŞIYOR') { $script:hatalar++; Yaz "  HATA   $satir" }
+    if ($satir -match '^(TAŞIYOR|HATA)') { $script:hatalar++; Yaz "  HATA   $satir" }   # HATA: görüntü boş ya da alınamadı (kurucu_surucu.cs)
   }
   Yaz "         görüntü: $png"
 }
@@ -496,6 +496,19 @@ try {
   # -------------------------------------------------------------- temizlik
   Yaz 'T. temizlik'
   foreach ($w in (Pencereleri-Oku | Where-Object { $_.Gorunur })) { Yaz "         kalan pencere kapatılıyor: $($w.Sinif) «$($w.Baslik)» ($($w.Pid))"; [KurucuSurucu]::Sonlandir($w.Pid) }
+  # .pdf varsayılanı (0.2.3, bağımsız incelemenin bulgusu): deneme kurucusu onu önce KurucuSinama.pdf yapar (APP_ASSOCIATE), sonra eski değeri
+  # geri koyar (customInstall). Kurucu ikisinin arasında sonlandırıldıysa (Sessiz-Kur 300 sn sınırı, kalan pencere) değer deneme ProgId'sinde
+  # kalır; deneme kaldırıcısı da onu siler (customUnInstall) ve önceki değer (örneğin PDEfe.pdf) kaybolurdu. Kaldırıcıdan önce ön görüntüdeki
+  # değer geri yazılır. Kurucular bu PowerShell'in görünümünde çalışır: yalnızca paket görünümüne yazılır; gerçek kovanda deneme ProgId'si
+  # görülürse (olmamalı) yazılmaz, son görüntünün karşılaştırması HATA verir.
+  function Pdf-Varsayilani-Geri([string]$an) {
+    if ((Paket-Deger 'Software\Classes\.pdf' '') -ne 'KurucuSinama.pdf') { return }
+    $once = $onGoruntu['paket Classes\.pdf']
+    if ($once -eq '<yok>') { Remove-ItemProperty -LiteralPath 'Registry::HKEY_CURRENT_USER\Software\Classes\.pdf' -Name '(default)' -ErrorAction SilentlyContinue }
+    else { Set-ItemProperty -LiteralPath 'Registry::HKEY_CURRENT_USER\Software\Classes\.pdf' -Name '(default)' -Value $once }
+    Yaz "         .pdf varsayılanı deneme ProgId'sinde kalmıştı ($an): ön görüntüdeki «$once» geri yazıldı (paket görünümü)"
+  }
+  Pdf-Varsayilani-Geri 'kaldırmadan önce'
   $sessiz = Paket-Deger "$KALDIR_ANAHTARI\$DENEME_GUID" 'QuietUninstallString'
   if ($sessiz -ne '<yok>') {
     $kaldirici = [KurucuSurucu]::Baslat($sessiz, $env:TEMP)
@@ -510,6 +523,7 @@ try {
   Gecici-Kisayol-Sil
   if (Test-Path -LiteralPath $baslatKisayolu) { Remove-Item -LiteralPath $baslatKisayolu -Force }
   if (Test-Path -LiteralPath $denemeKlasoru) { Remove-Item -LiteralPath $denemeKlasoru -Recurse -Force }
+  Pdf-Varsayilani-Geri 'kaldırmadan sonra'
 }
 
 # ------------------------------------------------------------------ son görüntü

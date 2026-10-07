@@ -38,6 +38,19 @@ export function yapilandirmaFarklari() {
   }
   const ilisk = (l) => (l || []).map(({ ext, role, icon }) => ({ ext, role, icon }));
   if (!esit(ilisk(gercek.win.fileAssociations), ilisk(deneme.win.fileAssociations))) farklar.push('win.fileAssociations (ext / role / icon)');
+  // ProgId (0.2.3, bağımsız incelemenin bulgusu): fileAssociations.name kayıt defterindeki dosya sınıfıdır. Deneme ve gerçek aynı olursa deneme
+  // kurucusu gerçek PDEfe.pdf'in açma komutunun üzerine yazar, kaldırıcısı onu siler; kurucu_sinama.nsh'teki PDEFE_PROGID ile de aynı olmalı
+  // (customInstall / customUnInstall o adı kullanır). İki denetim de yalnızca bu alanı karşılaştırmıyordu.
+  const gercekSiniflar = new Set((gercek.win.fileAssociations || []).map((f) => String(f.name || f.ext).toLowerCase()));
+  const nsh = fs.readFileSync(path.join(proje, 'test', 'kurucu_sinama.nsh'), 'utf8');
+  const nshSinif = (/^\s*!define\s+PDEFE_PROGID\s+"([^"]+)"/m.exec(nsh) || [])[1] || null;
+  if (!nshSinif) farklar.push('test/kurucu_sinama.nsh: PDEFE_PROGID tanımı bulunamadı');
+  else if (gercekSiniflar.has(nshSinif.toLowerCase())) farklar.push(`test/kurucu_sinama.nsh: PDEFE_PROGID gerçek PDEfe'nin ProgId'si (${nshSinif})`);
+  for (const f of deneme.win.fileAssociations || []) {
+    const sinif = String(f.name || f.ext);
+    if (gercekSiniflar.has(sinif.toLowerCase())) farklar.push(`win.fileAssociations.name gerçek PDEfe'nin ProgId'si (${sinif}): deneme kurucusu onun kaydına yazıp kaldırıcısı onu silerdi`);
+    else if (nshSinif && sinif.toLowerCase() !== nshSinif.toLowerCase()) farklar.push(`win.fileAssociations.name (${sinif}) test/kurucu_sinama.nsh'teki PDEFE_PROGID'den (${nshSinif}) farklı`);
+  }
   for (const k of ['asar', 'electronLanguages', 'electronFuses', 'files', 'npmRebuild', 'nodeGypRebuild']) {
     if (!esit(gercek[k], deneme[k])) farklar.push(k);
   }

@@ -4,7 +4,11 @@
 ; Güvenlik: bu dosya gerçek kimlikle (appId com.cgrshn.pdefe, exe / kısayol / paket adı PDEfe) derlenirse makensis durur.
 
 !define PDEFE_KAYIT_ADI "KurucuSinama"
-!define PDEFE_PROGID "KurucuSinama.pdf"   ; test\kurucu_sinama.yml → win.fileAssociations.name ile aynı
+!define PDEFE_PROGID "KurucuSinama.pdf"   ; test\kurucu_sinama.yml → win.fileAssociations.name ile aynı (test\kurucu_derle.mjs denetler)
+
+!if "${PDEFE_PROGID}" == "PDEfe.pdf"
+  !error "Kurucu sınamasının ProgId'si PDEfe.pdf olamaz: deneme kurucusu gerçek PDEfe'nin .pdf kaydına yazar, kaldırıcısı onu silerdi"
+!endif
 
 !if "${APP_ID}" == "com.cgrshn.pdefe"
   !error "Kurucu sınaması gerçek appId (com.cgrshn.pdefe) ile derlenemez: Uninstall ve Software\<GUID> kayıtları gerçek PDEfe'ninkiyle aynı olurdu"

@@ -1,7 +1,8 @@
 # Kurucu sınaması için deneme derlemesi (0.2.3). electron-builder.yml'nin Windows bölümünün kopyası; ayrıldığı yerler:
 #  - appId / productName / executableName / shortcutName / extraMetadata: gerçek PDEfe ile hiçbir kayıt (Uninstall ve Software\<GUID>), klasör,
 #    kısayol, süreç adı, tek örnek kilidi, ayar klasörü (%APPDATA%\<productName>) ve kurucu önbelleği (%LOCALAPPDATA%\<name>-updater) paylaşılmaz
-#  - fileAssociations ProgId ayrı (test\kurucu_sinama.nsh'teki PDEFE_PROGID ile aynı olmalı); nsis.include test\kurucu_sinama.nsh
+#  - fileAssociations ProgId ayrı (test\kurucu_sinama.nsh'teki PDEFE_PROGID ile aynı olmalı, gerçek PDEfe.pdf olamaz; test\kurucu_derle.mjs
+#    denetler, test\kurucu_koruma.mjs sınar); nsis.include test\kurucu_sinama.nsh
 #  - Python çekirdeği yok (win.extraResources yok, core\dist gerekmez): deneme uygulaması hiç açılmaz
 #  - publish null (app-update.yml üretilmez), runAfterFinish false, compression store (hızlı derleme), differentialPackage false
 # test\kurucu_derle.mjs bu dosyanın nsis bölümünü electron-builder.yml'ninkiyle karşılaştırır (ayrılan alanlar dışında aynı olmalı).
