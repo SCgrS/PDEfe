@@ -17,7 +17,8 @@
 //   kümesi (test\surec_bellegi.ps1, OLCUM_PID gerekir) ve tuvallerin toplam boyu.
 //   panel-bellek: her belge tek başına, Sayfalar paneli 480 px ve önbelleği boş: panelin kaydırma çubuğu baştan sona hızla sürüklenir,
 //   sonra alan alan başa dönülür (her hücrenin resmi gelir); çekirdekten istenen küçük resim sayısı, önbelleğin boyu ve süreç ağacının
-//   belleği (OLCUM_PID gerekir).
+//   belleği: panel açılmadan önce ve sonda, farkı panelin payı (OLCUM_PID gerekir; aynı örnekteki tekrarlar belleği büyütebilir, temiz
+//   karşılaştırma için her tekrarı yeni örnekte koşun: OLCUM_TEKRAR=1).
 // OLCUM_OLCEK=<ölçek> (ör. 3.7): ana senaryolar sığdırma yerine bu yakınlaştırmada koşulur (yakin-* senaryoları yine %600).
 // OLCUM_CPU=4: renderer ana iş parçacığı 4 kat yavaş (CDP Emulation; yavaş bilgisayar benzetimi, çekirdek etkilenmez).
 // OLCUM_PROFIL=1: senaryo başına CPU profili (<çıktı>.<senaryo>.<n>.cpuprofile).
@@ -272,12 +273,28 @@ export default async function ({ evalJs, bekle, hedefler, tus }) {
     const onbellek = () => evalJs(`(() => { const p = window.__pdefe.panel; let n = 0; for (const ob of p.kucukResimler.values()) n += ob.size;
       return { mb: +(p.kucukResimBellegi() / 1048576).toFixed(1), kayit: n, resimli: document.querySelectorAll('#panel-sayfalar .kucuk-resim img').length }; })()`);
     const istekler = (o) => ({ n: o.cekirdek['panel:kucuk_resim']?.n || 0, ortanca: o.cekirdek['panel:kucuk_resim']?.ortanca ?? null, enFazla: o.cekirdek['panel:kucuk_resim']?.enFazla ?? null });
+    /** Çöp toplama sonrası süreç ağacının özel çalışma kümesi (üç ölçümün ortancası, MB) */
+    const surecBellegi = async () => {
+      await bekle(1500);
+      await gonder('HeapProfiler.enable'); await gonder('HeapProfiler.collectGarbage');
+      await bekle(1500);
+      const olcumler = [];
+      for (let k = 0; k < 3; k++) {
+        const cikis = execFileSync('powershell', ['-NoProfile', '-File', path.join(KOK, 'test', 'surec_bellegi.ps1'), '-SurecId', String(pid)], { encoding: 'utf8' });
+        olcumler.push(JSON.parse(cikis.trim()).toplamMB);
+        await bekle(700);
+      }
+      return { mb: olcumler.sort((x, y) => x - y)[1], olcumler };
+    };
     for (const pdf of PDFLER) {
       for (let t = 0; t < TEKRAR; t++) {
         await hepsiniKapat();
         await bekle(1000);
         await belgeAc(pdf);
         belgeAdi = path.basename(pdf, '.pdf');
+        await sayfayaGit(1);
+        await durul();
+        const taban = await surecBellegi();   // belge açık, panel kapalı: panelin payı son ölçümden bunun farkı
         await panelAc(true);
         await evalJs('(() => { window.__pdefe.panel.genislikAyarla(480); return true; })()');
         await bekle(500);
@@ -306,21 +323,13 @@ export default async function ({ evalJs, bekle, hedefler, tus }) {
         }
         const o2 = await evalJs('window.__olc.bitir()');
         const yavas = { ...(await onbellek()), istek: istekler(o2) };
-        await bekle(1500);
-        await gonder('HeapProfiler.enable'); await gonder('HeapProfiler.collectGarbage');
-        await bekle(1500);
-        const olcumler = [];
-        for (let k = 0; k < 3; k++) {
-          const cikis = execFileSync('powershell', ['-NoProfile', '-File', path.join(KOK, 'test', 'surec_bellegi.ps1'), '-SurecId', String(pid)], { encoding: 'utf8' });
-          olcumler.push(JSON.parse(cikis.trim()).toplamMB);
-          await bekle(700);
-        }
+        const son = await surecBellegi();
         const yigin = await evalJs('(() => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null)()');
-        const pb = { belge: belgeAdi, tekrar: t + 1, hizli, yavas, bellekMB: olcumler.sort((x, y) => x - y)[1], olcumler, jsYiginMB: yigin };
+        const pb = { belge: belgeAdi, tekrar: t + 1, hizli, yavas, tabanMB: taban.mb, bellekMB: son.mb, panelMB: +(son.mb - taban.mb).toFixed(1), olcumler: son.olcumler, jsYiginMB: yigin };
         panelBellekleri.push(pb);
         console.log(`panel-bellek ${belgeAdi} #${t + 1}: hızlı sürükleme ${hizli.istek.n} istek (gecikme ortanca ${hizli.istek.ortanca} en ${hizli.istek.enFazla} ms),`
           + ` önbellek ${hizli.mb} MB / ${hizli.kayit} kayıt; başa dönüş ${yavas.istek.n} istek, önbellek ${yavas.mb} MB / ${yavas.kayit} kayıt, resimli hücre ${yavas.resimli};`
-          + ` süreç ağacı ${pb.bellekMB} MB (${J(olcumler)}), JS yığını ${yigin} MB`);
+          + ` süreç ağacı ${pb.bellekMB} MB (panel kapalıyken ${pb.tabanMB}, fark ${pb.panelMB}), JS yığını ${yigin} MB`);
       }
     }
     await evalJs('(() => { window.__pdefe.panel.genislikAyarla(240); return true; })()');

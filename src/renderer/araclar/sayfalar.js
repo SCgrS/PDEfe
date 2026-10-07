@@ -7,8 +7,9 @@
 //  - Üzerine yaz: Döndür'deki gibi tarif sekmeye geri alınabilir komut olarak uygulanır (baglam.sayfaTarifiUygula) ve belge
 //    normal kayıt yoluyla kaydedilir (Ctrl+S ile aynı): Ctrl+Z ile geri alınıp yeniden kaydedilebilir. Sekmede kaydedilmemiş başka
 //    değişiklik varsa önce sorulur.
-// Çekirdek: kucuk_resim {yol, sayfa, genislik}, sayfa_boyutlari {yol} → {sayfalar:[{genislik, yukseklik}]} (yoksa belge_bilgi ile
-// sayfa sayısı alınır, boyut A4 varsayılır), sayfalar_uygula {yol, hedef, tarif} (ilerlemeli).
+// Çekirdek: kucuk_resim {yol, sayfa, genislik} → {veri, bicim ('png' | 'jpeg'), genislik, yukseklik}, sayfa_boyutlari {yol} →
+// {sayfalar:[{genislik, yukseklik}]} (yoksa belge_bilgi ile sayfa sayısı alınır, boyut A4 varsayılır), sayfalar_uygula {yol, hedef, tarif}
+// (ilerlemeli).
 import {
   pencereAc, pencereAcikMi, kacis, hataMetni, dosyaAdi, belgeTarifi, tarifDisari, anaKaynakMi, suruklemeSiralama, suruklemeKalintisi, oge,
   IslemIlerleme, kayitSecimi, degisiklikleriSor, kilitliHataMi, ciktiyiAc, yolAyni,
@@ -651,7 +652,7 @@ export class SayfalarPenceresi {
       if (!this.ogeler.get(kimlik) || el._istek !== sira) return;
       const kutu = el.querySelector('.resim-kutu');
       const img = document.createElement('img');
-      img.src = 'data:image/png;base64,' + r.png;
+      img.src = `data:image/${r.bicim === 'jpeg' ? 'jpeg' : 'png'};base64,${r.veri}`;   // 0.2.3: taranmış sayfa JPEG (çekirdek kucuk_resim_bicimi)
       img.alt = `Sayfa ${sayfa}`;
       img.draggable = false;
       // Ekrandaki boyut çizilen resmin oranından, uzun kenarı kutunun kenarı: resim cihaz pikselinde çizildiği için doğal boyutu kutudan büyüktür

@@ -9,7 +9,9 @@
 //   5) Belge sekmesi değişince eski belgenin bekleyen istekleri gönderilmez; yeni belge dolar; belge kapanınca öncekine dönülür, dolar.
 //   6) Ana görünüm hızla gezilince (panel geçerli sayfayı izler) varılan yer dolar, geçilenlerin çoğu istenmez.
 //   7) Panel genişleyince yüksek çözünürlüklü yeniden istekler de kuyruktan (en çok 2), görünenler yeterli çözünürlükte.
-//   8) Konsolda hata yok.
+//   8) Taranmış sayfanın küçük resmi JPEG, metin sayfasınınki PNG (çekirdek kucuk_resim_bicimi; 0.2.3): panelde, Sayfaları düzenle'de ve
+//      Ctrl+Tab seçicisinde resim yeni yanıtla (veri + bicim) doğru kuruluyor ve çözülüyor.
+//   9) Konsolda hata yok.
 // Kullanım (en az iki ekran ölçeğinde):
 //   powershell -File test\baslat.ps1 -Port 9682 [-Olcek 1.25]      → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9682; node test\surucu.mjs betik test\panel_kuyruk.mjs
@@ -62,7 +64,7 @@ const SARMA = `(() => {
   return true;
 })()`;
 
-export default async function ({ evalJs, bekle }) {
+export default async function ({ evalJs, bekle, tus }) {
   const kosul = async (ifade, sure = 15000) => { const t0 = Date.now(); for (;;) { const v = await evalJs(ifade); if (v || Date.now() - t0 > sure) return v; await bekle(100); } };
   const hatalar = () => evalJs(`(() => { const h = window.__hatalar.slice(); window.__hatalar.length = 0; return h; })()`);
   await evalJs(`(() => { if (!window.__hatalar) { window.__hatalar = []; window.addEventListener('error', (e) => window.__hatalar.push('error: ' + e.message)); window.addEventListener('unhandledrejection', (e) => window.__hatalar.push('reject: ' + (e.reason?.message || e.reason))); const ce = console.error; console.error = (...a) => { window.__hatalar.push('console.error: ' + a.map(String).join(' ')); ce.apply(console, a); }; } return true; })()`);
@@ -223,7 +225,41 @@ export default async function ({ evalJs, bekle }) {
   await kuyrukDenetle('480 px', ist);
   await evalJs(`(() => { window.__pdefe.panel.genislikAyarla(240); return true; })()`);
 
-  // ------------------------------------------------------------ 8) Konsol
+  // ------------------------------------------------------------ 8) Taranmış sayfanın küçük resmi JPEG (çekirdek kucuk_resim_bicimi)
+  console.log('\n== 8) Taranmış sayfa: panelde, Sayfaları düzenle\'de ve Ctrl+Tab seçicisinde JPEG, metin sayfası PNG');
+  const yolT = path.join(K, 'kuyruk-tarama.pdf');
+  execFileSync(PY, ['-X', 'utf8', '-c', [
+    'import io, random, sys, pymupdf', 'from PIL import Image, ImageDraw', 'random.seed(1)',
+    'img = Image.new("L", (1240, 1754), 245); d = ImageDraw.Draw(img)',
+    'for s in range(40): d.text((140, 120 + s * 38), "Satir %d: ornek taranmis metin" % (s + 1), fill=25)',
+    'px = img.load()', 'for _ in range(60000): px[random.randrange(1240), random.randrange(1754)] = random.randrange(150, 256)',
+    'b = io.BytesIO(); img.save(b, "JPEG", quality=75)',
+    'doc = pymupdf.open(sys.argv[1]); p = doc.new_page(0, width=595, height=842); p.insert_image(p.rect, stream=b.getvalue())',
+    'doc.save(sys.argv[2])',
+  ].join('\n'), yolB, yolT], { encoding: 'utf8' });
+  await evalJs(`(async () => { await window.__pdefe.dosyaAc(${J(yolT)}); return true; })()`);
+  await kosul(`window.__pdefe.aktif()?.gorunum?.hazir && window.__pdefe.aktif().yol.endsWith('kuyruk-tarama.pdf')`);
+  await evalJs(`(() => { window.__pdefe.panel.acKapa(true); window.__pdefe.panel.sekmeSec('sayfalar'); window.__pdefe.aktif().gorunum.sayfayaGit(1, { aninda: true }); return true; })()`);
+  await doldu(0);
+  const tur = (sec, n = 0) => evalJs(`(() => { const i = document.querySelectorAll(${J(sec)})[${n}]; return i ? { tur: i.src.slice(5, i.src.indexOf(';')), nw: i.naturalWidth } : null; })()`);
+  const p1 = await tur('#panel-sayfalar .kucuk-resim[data-sayfa="1"] img'), p2 = await tur('#panel-sayfalar .kucuk-resim[data-sayfa="2"] img');
+  sonuc('Panel: taranmış 1. sayfa JPEG, metin 2. sayfa PNG, ikisi de çözüldü', p1?.tur === 'image/jpeg' && p2?.tur === 'image/png' && p1.nw > 0 && p2.nw > 0, { p1, p2 });
+  await evalJs(`window.__pdefe.komutCalistir('arac.sayfalar')`);
+  await kosul(`document.querySelectorAll('.sayfalar-izgara > .sayfa-karti img').length >= 2 && [...document.querySelectorAll('.sayfalar-izgara img')].every((i) => i.complete && i.naturalWidth)`, 15000);
+  const s1 = await tur('.sayfalar-izgara > .sayfa-karti .resim-kutu img', 0), s2 = await tur('.sayfalar-izgara > .sayfa-karti .resim-kutu img', 1);
+  sonuc('Sayfaları düzenle: taranmış sayfa JPEG, metin sayfası PNG, ikisi de çözüldü', s1?.tur === 'image/jpeg' && s2?.tur === 'image/png' && s1.nw > 0 && s2.nw > 0, { s1, s2 });
+  await evalJs(`(async () => { window.__pdefeOtoYanit = { secim: 1 }; const m = await import('pdefe://app/src/renderer/araclar/ortak.js'); if (m.acikAracPenceresiVar()) await m.aracPencereleriniKapat(); delete window.__pdefeOtoYanit; return true; })()`);
+  await kosul(`!document.querySelector('.sayfalar-pencere')`, 5000);
+  // Ctrl+Tab seçicisi: sekmelerin ilk sayfaları (taranmış belge JPEG, ötekiler PNG). Ctrl bırakılmadığı için seçici açık kalır; Esc kapatır
+  await tus('Tab', ['ctrl']);
+  await kosul(`(() => { const a = [...document.querySelectorAll('#sekme-secici .aday')]; return a.length >= 2 && a.every((x) => x.querySelector('img')?.naturalWidth); })()`, 8000);
+  const adaylar = await evalJs(`[...document.querySelectorAll('#sekme-secici .aday')].map((a) => ({ ad: a.querySelector('.ad').textContent, tur: a.querySelector('img')?.src.slice(5, a.querySelector('img').src.indexOf(';')) }))`);
+  sonuc('Ctrl+Tab seçicisi: taranmış belge JPEG, metin belgesi PNG', adaylar.find((a) => a.ad === 'kuyruk-tarama.pdf')?.tur === 'image/jpeg' && adaylar.find((a) => a.ad === 'kuyruk-a.pdf')?.tur === 'image/png', adaylar);
+  await tus('Escape', ['ctrl']);
+  await evalJs(`(() => { const s = window.__pdefe.sekmeler; if (s.seciciAcik) s.seciciIptal(); return true; })()`);
+  await evalJs(`(async () => { const p = window.__pdefe; await p.belgeKapat(p.aktif().id, { zorla: true }); return true; })()`);
+
+  // ------------------------------------------------------------ 9) Konsol
   const h = await hatalar();
   sonuc('Konsolda hata yok', !h.length, h.slice(0, 5));
 

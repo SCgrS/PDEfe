@@ -254,7 +254,7 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
       // Panelin çekirdekten istediği genişlik (cihaz pikseli; 0.2.2'den beri resim hücreye CSS'le uyar, istenen genişlik resimde yazılı)
       const istenen = +img.dataset.istenen;
       const r = await window.pdefe.cagir('cekirdek:cagir', 'kucuk_resim', { yol: ${J(yol)}, sayfa: 1, genislik: istenen }, 0);
-      return { src: img.src, isaret: el.__isaret === 1, taze: img.src === 'data:image/png;base64,' + r.png };
+      return { src: img.src, isaret: el.__isaret === 1, taze: img.src === 'data:image/' + (r.bicim === 'jpeg' ? 'jpeg' : 'png') + ';base64,' + r.veri };   // 0.2.3: veri + bicim
     })()`);
     await kosul(`!!document.querySelector('#panel-sayfalar .kucuk-resim[data-sayfa="1"] img')`);
     const r0 = await resim();

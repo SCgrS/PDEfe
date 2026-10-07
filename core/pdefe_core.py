@@ -195,8 +195,39 @@ def y_belge_bilgi(p):
     }
 
 
+# Küçük resmin biçimi (0.2.3, kullanıcı isteği: "sayfaları kaydırırken daha hızlı yüklensin. hafif geç yükleniyor gibi oluyor"). 0.2.2'ye
+# dek her küçük resim PNG'ydi: taranmış sayfanın (gürültülü kâğıt dokusu) PNG'si büyük ve yavaştı (576 px'te 412 KB / 73 ms kodlama, JPEG
+# 125 KB / 24 ms), Sayfalar panelinin 48 MB'lık önbelleği de çabuk doluyordu. Görsel ağırlıklı sayfa (taranmış evrak, büyük fotoğraf)
+# artık JPEG; metin, çizim, küçük logo / kaşe / karekodlu sayfa PNG kalır: orada JPEG yazının çevresinde kusur bırakır ve çoğu zaman daha
+# büyüktür (logolu ve karekodlu üretilmiş evrakta 576 px'te 1,9–3,4 kat). Ölçüt ölçülerek seçildi (PLAN.md "Revizyon 0.2.3"): sayfanın
+# görselleri birlikte KUCUK_RESIM_GORSEL_PIKSEL'e ulaşmıyorsa (kaynak listesinden, içerik okunmadan) PNG; ulaşıyorsa çizilen görsellerin
+# kapladığı alan sayfanın KUCUK_RESIM_KAPLAMA'sına ulaşırsa JPEG. Kaynak listesi sayfanın çizmediği görselleri de içerebilir (kaynak
+# sözlüğünü sayfalarla paylaşan üreticiler): karar çizilenlerin alanıyla verilir. Satır içi (inline) görseller kaynak listesinde yok: öyle
+# taranmış sayfa PNG kalır (doğru, yalnızca büyük).
+KUCUK_RESIM_GORSEL_PIKSEL = 500_000   # sayfadaki görsellerin toplam piksel sayısı (ör. 72 dpi'lik A4 taraması 0,5 MP; 600×600 logo 0,36 MP)
+KUCUK_RESIM_KAPLAMA = 0.25            # çizilen görsellerin sayfaya oranı (sayfanın dörtte biri: fotoğraflı bilirkişi raporu sayfası ~0,3)
+KUCUK_RESIM_JPEG_KALITE = 85
+
+
+def kucuk_resim_bicimi(sayfa):
+    """Sayfanın küçük resminin biçimi: görsel ağırlıklıysa 'jpeg', değilse 'png' (KUCUK_RESIM_* ölçütü)."""
+    try:
+        if sum(g[2] * g[3] for g in sayfa.get_images(full=True)) < KUCUK_RESIM_GORSEL_PIKSEL:
+            return "png"
+        # Görsellerin kutuları sayfanın döndürülmemiş koordinatlarında: alan da döndürülmemiş sayfanınki (/Rotate'li sayfada sayfa.rect yan)
+        r = (sayfa.rect * sayfa.derotation_matrix).normalize()
+        kaplama = 0.0
+        for g in sayfa.get_image_info():
+            k = pymupdf.Rect(g["bbox"]) & r
+            if not k.is_empty:
+                kaplama += k.width * k.height
+        return "jpeg" if kaplama >= KUCUK_RESIM_KAPLAMA * max(r.width * r.height, 1) else "png"
+    except Exception:
+        return "png"
+
+
 def y_kucuk_resim(p):
-    """Bir sayfanın küçük resmi (PNG, base64)."""
+    """Bir sayfanın küçük resmi (base64): {veri, bicim ('png' | 'jpeg'), genislik, yukseklik}. 0.2.3'e dek yalnızca PNG ve alanı 'png'."""
     doc = onbellek.al(p["yol"])
     no = int(p.get("sayfa", 1)) - 1
     genislik = float(p.get("genislik", 160))
@@ -204,7 +235,9 @@ def y_kucuk_resim(p):
     r = sayfa.rect
     olcek = olcek_sinirla(r.width, r.height, genislik / max(r.width, 1))
     pix = sayfa.get_pixmap(matrix=pymupdf.Matrix(olcek, olcek), annots=True, alpha=False)
-    return {"png": png_base64(pix), "genislik": pix.width, "yukseklik": pix.height}
+    bicim = kucuk_resim_bicimi(sayfa)
+    veri = pix.tobytes("jpeg", jpg_quality=KUCUK_RESIM_JPEG_KALITE) if bicim == "jpeg" else pix.tobytes("png")
+    return {"veri": base64.b64encode(veri).decode("ascii"), "bicim": bicim, "genislik": pix.width, "yukseklik": pix.height}
 
 
 def y_sayfa_goruntu(p):

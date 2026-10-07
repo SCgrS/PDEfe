@@ -1,7 +1,7 @@
 // PDEfe arayüz girişi: sekmeler, komutlar, kısayollar, ayarlar, sürükle-bırak.
 import { Goruntuleyici, yolAnahtari, yaziCiziminiAyarla } from './goruntuleyici.js';
 import { SekmeCubugu } from './sekmeler.js';
-import { SolPanel, turAdi } from './panel.js';
+import { SolPanel, turAdi, kucukResimAdresi } from './panel.js';
 import { DurumCubugu, boyutMetni, sayfaKutusuBagla, sayfaKutusuYaz } from './durum.js';
 import { Arama } from './arama.js';
 import { temizMetin, sayfaMetinleriniBirlestir, secimDikdortgenleri, satirlaraBirlestir, paragrafSec, secimHamMetni, secimYapiliMetni, surukleSecimiBagla } from './metin.js';
@@ -1932,7 +1932,7 @@ window.addEventListener('blur', () => { if (sekmeler.seciciAcik) sekmeler.secici
 
 async function kucukResimAl(b) {
   if (!b) return null;
-  try { const r = await cekirdek('kucuk_resim', { yol: b.yol, sayfa: 1, genislik: 220 }); return 'data:image/png;base64,' + r.png; }
+  try { const r = await cekirdek('kucuk_resim', { yol: b.yol, sayfa: 1, genislik: 220 }); return kucukResimAdresi(r); }   // 0.2.3: JPEG ya da PNG
   catch { return null; }
 }
 

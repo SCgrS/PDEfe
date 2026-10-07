@@ -20,7 +20,7 @@ function diskDondurmesi(b, s) {
 // düşük çözünürlüklü kalan resimler durulunca daha yüksek çözünürlükte yeniden istenir, yeni resim gelene dek eskisi yerinde kalır;
 // daralınca yeniden istenmez (büyük resim küçültülerek gösterilir).
 const KUCUK_RESIM_KADEMESI = 64;     // istenen genişlik bu kadar cihaz pikseline yukarı yuvarlanır: her birkaç piksellik boy değişiminde yeniden istenmesin
-const KUCUK_RESIM_EN_FAZLA = 1200;   // istenen genişliğin üst sınırı (cihaz pikseli): panel 60vw'ye dek büyüyebiliyor, sayfa başına PNG büyümesin
+const KUCUK_RESIM_EN_FAZLA = 1200;   // istenen genişliğin üst sınırı (cihaz pikseli): panel 60vw'ye dek büyüyebiliyor, sayfa başına resim büyümesin
 const BOYUT_DURULMA_MS = 250;        // panel genişliği bu kadar değişmeden kalınca (sürükleme bitti) çözünürlük denetlenir
 // Önbellek sınırı (0.2.2, bağımsız inceleme): panel en geniş hâline getirilip uzun belge baştan sona kaydırılınca her sayfanın 768–1200 px'lik
 // PNG'si önbellekte ve hücrede kalıyor, panel daraltılsa da belge kapanana dek bellekte duruyordu (410 sayfada ~86 MB data URL, süreç +151
@@ -49,6 +49,12 @@ const GERI_AGIRLIK = 2;              // kaydırma yönünün tersindeki hücreni
 export function kucukResimIstegi(css, dpr, oran = 1) {
   const cihaz = Math.max(1, css) * Math.min(2, dpr || 1) * oran;
   return Math.min(KUCUK_RESIM_EN_FAZLA, Math.ceil(cihaz / KUCUK_RESIM_KADEMESI) * KUCUK_RESIM_KADEMESI);
+}
+
+/** Çekirdeğin 'kucuk_resim' yanıtının adresi (data URL). 0.2.3'ten beri görsel ağırlıklı sayfanın (taranmış evrak, büyük fotoğraf) resmi
+ *  JPEG, ötekiler PNG (core/pdefe_core.py kucuk_resim_bicimi); 0.2.2'ye dek hep PNG'ydi ve alanı 'png'di. */
+export function kucukResimAdresi(r) {
+  return `data:image/${r.bicim === 'jpeg' ? 'jpeg' : 'png'};base64,${r.veri}`;
 }
 
 /** Hücrenin yer tutucusu: ekrandaki yönde (taban /Rotate s.pt'de, üstüne göreli ve görünüm döndürmesi), genişliği CSS'ten (hücrenin içi),
@@ -304,7 +310,7 @@ export class SolPanel extends EventTarget {
       if (!kayit || kayit.istenen < istenen) {
         let r;
         try { r = await this.cekirdek('kucuk_resim', { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa, genislik: istenen }); } finally { cekirdektenSonra?.(); }
-        const src = 'data:image/png;base64,' + r.png;
+        const src = kucukResimAdresi(r);
         kayit = { src, istenen, boy: src.length, zaman: ++this._kullanim };
         if (!(onbellek.get(anahtar)?.istenen >= istenen)) { onbellek.set(anahtar, kayit); this.bellegiSinirla(kayit); }
       }

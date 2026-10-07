@@ -66,6 +66,7 @@ for (const belge of pbBelgeler) {
     ['hızlı gecikme en çok ms', (x) => x.hizli.istek.enFazla, 0], ['hızlı boş hücre·sn', (x) => x.hizli.panelBosHucreSn, 3],
     ['hızlıdan sonra önbellek MB', (x) => x.hizli.mb, 1], ['başa dönüş istek', (x) => x.yavas.istek.n, 1],
     ['sonda önbellek MB', (x) => x.yavas.mb, 1], ['sonda önbellek kayıt', (x) => x.yavas.kayit, 1],
-    ['süreç ağacı MB', (x) => x.bellekMB, 1], ['JS yığını MB', (x) => x.jsYiginMB, 1],
+    ['süreç ağacı MB', (x) => x.bellekMB, 1], ['panel kapalıyken MB', (x) => x.tabanMB ?? null, 1], ['panelin payı MB', (x) => x.panelMB ?? null, 1],
+    ['JS yığını MB', (x) => x.jsYiginMB, 1],
   ]) console.log(`  ${ad.padEnd(26)} ${g.map((x) => yaz(ort(x.map(al)), b).padStart(9)).join('  →')}`);
 }
