@@ -156,10 +156,6 @@ değiştirilir. PDEfe buradan varsayılan PDF görüntüleyici de yapılır.
 2. Windows SmartScreen uyarı gösterirse **Daha fazla bilgi**'ye, sonra **Yine de çalıştır**'a basın. Uyarı, uygulama imzalı olmadığı için çıkar.
 3. Kurulumu bitirin. Son sayfada PDEfe'yi varsayılan PDF görüntüleyici yapabilirsiniz.
 
-PDEfe zaten kuruluysa kurucu bunu fark eder ve **Güncelle**, **Onar** ya da **Kaldır** seçeneklerini sunar. Ayarlarınız korunur.
-
-![Kurucu: PDEfe zaten kurulu, Güncelle / Seçenekleri değiştirerek kur / Kaldır](docs/ekran-kurulum.png)
-
 ### macOS
 
 1. Yukarıdaki bağlantıdan `PDEfe-Mac.dmg` dosyasını indirin (macOS 13 ve sonrası, Apple işlemcili ve Intel Mac'ler).
