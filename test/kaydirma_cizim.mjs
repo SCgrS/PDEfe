@@ -4,6 +4,10 @@
 //      sürerken yenilenir, görünen alanın çoğu kaydırma boyunca çizili kalır (önceden 120 ms'lik bekleme her kaydırma olayında yeniden
 //      kuruluyor, yeniden çizim ancak kaydırma durunca geliyordu). Ölçek değişince (Ctrl+tekerlekle yakınlaştırma sürerken) tuvali olan
 //      sayfa yine son adımdan 120 ms sonra yeniden çizilir.
+//   2) Bant sayfaları kaydırırken keskinleşir: logolu, karekodlu belgede (görseller kaydırırken işçide örneklenir, sayfa önce hızlı
+//      çizilir) önden çizilen sayfalar işçi örneklemesi bitince kaydırma sürerken keskin yeniden çizilir, görünür alana keskin girer
+//      (önceden 5 sayfanın 4'ü bulanık giriyor, kaydırma durduktan ~0,5 sn sonra netleşiyordu); sayfa başına çizim sınırlı (döngü yok).
+//      yeterliMi: ara tuvalden hızlı çizilmiş bant sayfası (keskinlesir yok) kaydırma bitene dek yeniden çizilmez.
 // Kullanım (ev ekranı benzeri; sayfa 6 MP'yi aşar):
 //   .venv\Scripts\python.exe test\kaydirma_ornek_uret.py      (test\cikti\kaydirma\pdf yoksa betik kendisi üretir)
 //   powershell -File test\baslat.ps1 -Port 9643 -Boyut "1800,1050" -Olcek 1.25      → PID=… yazar
@@ -18,7 +22,7 @@ const KOK = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ORNEK = path.join(KOK, 'test', 'cikti', 'kaydirma', 'pdf');
 const PY = path.join(KOK, '.venv', 'Scripts', 'python.exe');
 const J = (x) => JSON.stringify(x);
-const BOLUMLER = (process.env.BOLUM || '1').split(',').map((s) => +s.trim()).filter(Boolean);
+const BOLUMLER = (process.env.BOLUM || '1,2').split(',').map((s) => +s.trim()).filter(Boolean);
 
 let hataSayisi = 0, denetimSayisi = 0;
 const sonuc = (ad, ok, ayrinti = '') => {
@@ -104,7 +108,7 @@ const SAYFA_KODU = `(async () => {
 export default async function ({ evalJs, bekle, hedefler }) {
   const pdfler = ['metin', 'karisik', 'taranmis'].map((a) => path.join(ORNEK, a + '.pdf'));
   if (pdfler.some((p) => !fs.existsSync(p))) execFileSync(PY, [path.join(KOK, 'test', 'kaydirma_ornek_uret.py'), ORNEK], { stdio: 'inherit' });
-  const [METIN] = pdfler;
+  const [METIN, KARISIK] = pdfler;
 
   // Tekerlek dizileri tek CDP bağlantısından, sabit aralıkla gönderilir
   const h = (await hedefler())[0];
@@ -180,6 +184,50 @@ export default async function ({ evalJs, bekle, hedefler }) {
     sonuc('Ctrl+tekerlek: tuvali olan sayfa yakınlaştırma sürerken çizilmedi, son adımdan ≥ 100 ms sonra yeni ölçekte çizildi',
       tuvalli.length >= 1 && ilkTuvalli >= 100 && tuvalli.every((e) => e.olcek === z.olcek), { ilkTuvalliMs: ilkTuvalli && Math.round(ilkTuvalli), cizim: tuvalli.length });
     await evalJs(`(async () => { await window.__kc.g().zoomModuAyarla('genislik'); return true; })()`);
+  }
+
+  if (BOLUMLER.includes(2)) {
+    console.log('--- 2) Bant sayfaları kaydırırken keskinleşir (logolu, karekodlu belge)');
+    await belgeAc(KARISIK);
+    await evalJs(`(() => { window.__kc.g().sayfayaGit(1, { aninda: true }); return true; })()`);
+    await durul();
+    await evalJs('(() => { window.__kc.sifirla(); return window.__kc.girisIzle(); })()');
+    await tekerlek(100, 100, 30);
+    await bekle(400);
+    await durul();
+    const o = await evalJs(`(() => { const K = window.__kc, g = K.g(); return { olaylar: K.olaylar, tekerlekler: K.tekerlekler, kaydirmalar: K.kaydirmalar, girisler: K.girisler,
+      sonda: [...g._gorunurKume].map((s) => ({ no: s.no, keskin: !!s.cizim && !s.cizim.hizli && !s.cizim.onizleme })) }; })()`);
+    const bas = o.tekerlekler[0], sonKaydirma = o.kaydirmalar[o.kaydirmalar.length - 1];
+    const girenler = o.girisler.filter((g) => g.t > bas + 300);   // ilk sayfalar ölçüm başlamadan çizilmişti
+    const hizliGiren = girenler.filter((g) => g.durum !== 'keskin');
+    sonuc('Kaydırırken görünür alana giren sayfalar keskin girdi (en çok 1 bulanık)', girenler.length >= 3 && hizliGiren.length <= 1,
+      { giren: girenler.length, durumlar: girenler.map((g) => g.no + ':' + g.durum) });
+    const bantKeskin = o.olaylar.filter((e) => e.tur === 'uygula' && !e.gorunur && e.tuvalliydi && !e.hizli && e.ertelenir && e.t < sonKaydirma);
+    sonuc('Kaydırma sürerken bant sayfaları keskin yeniden çizildi', bantKeskin.length >= 2, { yeniden: bantKeskin.map((e) => e.no) });
+    const sayfaBasina = {};
+    for (const e of o.olaylar) if (e.tur === 'bas' && !e.onizleme) sayfaBasina[e.no] = (sayfaBasina[e.no] || 0) + 1;
+    const enCok = Math.max(0, ...Object.values(sayfaBasina));
+    sonuc('Sayfa başına en çok 3 çizim (yeniden çizim döngüsü yok)', enCok <= 3, sayfaBasina);
+    const keskinlesme = o.olaylar.filter((e) => e.tur === 'uygula' && e.gorunur && !e.hizli && e.t > sonKaydirma).map((e) => e.t - sonKaydirma);
+    sonuc('Kaydırma durunca görünen sayfalar keskin; durduktan sonra en çok 250 ms içinde', o.sonda.every((s) => s.keskin) && keskinlesme.every((ms) => ms < 250),
+      { sonda: o.sonda, durdukranSonraMs: keskinlesme.map(Math.round) });
+    // Kaydırma sürerken bant sayfasının hızlı çizimi: görselleri işçide örneklendiyse yeterli değil (yeniden çizilir), örneklenmeyen ara
+    // tuvalden hızlıysa (keskinlesir yok) kaydırma bitene dek yeterli (her kaydırma olayında boşuna yeniden çizilmez)
+    const y = await evalJs(`(async () => {
+      const K = window.__kc, g = K.g(), k = K.k;
+      const i = g.sayfalar.findIndex((s) => s.canvas && s.cizim && !g._gorunurKume.has(s));
+      if (i < 0) return null;
+      const s = g.sayfalar[i], yer = g.yerAl(i), c = s.cizim;
+      const dene = (ek) => g.yeterliMi(i, { ...c, hizli: true, ...ek }, yer);
+      k.etkilesimBildir();
+      const r = { okuma: k.okumaSuruyor(), surerkenIscili: dene({ keskinlesir: true }), surerkenAra: dene({ keskinlesir: false }) };
+      await new Promise((c) => setTimeout(c, k.ETKILESIM_MS + 30));
+      r.bitinceAra = dene({ keskinlesir: false });
+      r.bitinceIscili = dene({ keskinlesir: true });
+      return r;
+    })()`);
+    sonuc('yeterliMi (bant, hızlı): işçili kaydırırken yeterli değil, ara tuvalli kaydırırken yeterli; kaydırma bitince ikisi de yeterli değil',
+      !!y && !y.okuma && y.surerkenIscili === false && y.surerkenAra === true && y.bitinceAra === false && y.bitinceIscili === false, y);
   }
 
   await gonder('Emulation.setCPUThrottlingRate', { rate: 1 });

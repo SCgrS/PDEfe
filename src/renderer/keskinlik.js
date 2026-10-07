@@ -29,10 +29,11 @@ const EPS = 1e-6;
 // ------------------------------------------------------------ etkileşim sırasında erteleme
 // Kullanıcı kaydırırken (goruntuleyici.js etkilesimIzle: yalnızca gerçek girdi) örnekleme sonucu önbellekte olmayan büyük görsel ve
 // ara tuval Chromium ile hızlı çizilir, sayılır; görüntüleyici kaydırma durunca (ve işçi örneklemesi bitince) görünür sayfaları keskin
-// yeniden çizer (yeterliMi, keskinHazir). Sonucu önbellekte olan görsel kaydırırken de keskin çizilir (1:1 kopya).
+// yeniden çizer (yeterliMi, keskinHazir). Sonucu önbellekte olan görsel kaydırırken de keskin çizilir (1:1 kopya): görünür olmayan (önden
+// çizilen) sayfalar işçi örneklemesi bitince kaydırma sürerken de yeniden çizilir, görünür alana keskin girer (0.2.3, istenenSayisi).
 export const ETKILESIM_MS = 250;
 const ERTELEME_ESIGI = 512 * 512;       // bundan küçük görseller (karekod, simge) erteleme olmadan hep keskin
-let sonEtkilesim = -Infinity, ertelenen = 0;
+let sonEtkilesim = -Infinity, ertelenen = 0, istenenSayac = 0;
 /** Kullanıcı sürekli kaydırıyor: ETKILESIM_MS boyunca büyük görsellerin keskin örneklemesi ertelenir. */
 export function etkilesimBildir() { sonEtkilesim = performance.now(); }
 /** Kaydırma dışı bir işlem (yakınlaştırma) başladı: süren erteleme hemen biter. */
@@ -41,6 +42,12 @@ export function etkilesimBitir() { sonEtkilesim = -Infinity; }
 export function keskinErtelenir() { return performance.now() - sonEtkilesim < ETKILESIM_MS; }
 /** Şimdiye kadar ertelenen görsel çizimi sayısı: bir çizimin öncesi ve sonrası karşılaştırılarak hızlı çizildiği anlaşılır. */
 export function ertelenenSayisi() { return ertelenen; }
+/**
+ * İşçiden istenen (ya da istenip sırada / işçide bekleyen) örnekleme sayısı (0.2.3). Hızlı çizim sürerken artmışsa çizimin görselleri
+ * işçide örnekleniyordur: örnekleme bitince sayfa kaydırma sürerken de keskin yeniden çizilebilir (sonuç önbellekten 1:1 kopyalanır).
+ * Artmamışsa hızlı çizim ara tuvalin ertelenmesindendir: yeniden çizim de hızlı olur, sayfa ancak kaydırma bitince keskinleşir.
+ */
+export function istenenSayisi() { return istenenSayac; }
 
 // ------------------------------------------------------------ yol kaydı
 // Path2D geometrisi okunamadığı için PDF.js'in yol kurarken çağırdığı yöntemler kaydedilir (yalnızca doğru parçalarından
@@ -457,7 +464,7 @@ function rgbaKaynagi(k, w) {
 // (VideoFrame kopyası ya da ImageBitmap kopyası aktarılır) ve tutar (en fazla EN_FAZLA_ISCI_KAYNAGI; ana iş parçacığı en uzun
 // süredir kullanılmayanları sildirir), aynı örnekleme kodunu (toString) çalıştırıp sonucu aktarır. Sonuçlar ana iş parçacığında
 // görsel ve geometri anahtarıyla önbelleğe alınır. Kuyrukta en yeni istek önce işlenir (kaydırırken görünür sayfa); kuyruk
-// boşalınca dinleyiciler (görüntüleyiciler) hızlı çizilmiş görünür sayfaları keskin yeniden çizer.
+// boşalınca dinleyiciler (görüntüleyiciler) hızlı çizilmiş sayfaları keskin yeniden çizer (görünürleri kaydırma bitince).
 const EN_FAZLA_KUYRUK = 12;
 const ISCI_BOSTA_MS = 10000;              // bu kadar süre istek gelmezse işçi kapatılır: tuttuğu pikseller ve yığını bırakılır
 const kuyruk = [];                        // [{ ref: WeakRef(görsel), anahtar, geo, w, h }] en yeni sonda
@@ -577,6 +584,7 @@ function iscideKaydet(img, id, bayt) {
  * (anahtar 'oku'). Aynı istek sırada ya da işçideyse yeniden eklenmez.
  */
 function iste(img, anahtar, geo) {
+  istenenSayac++;
   let set = istenen.get(img);
   if (set?.has(anahtar)) return;
   if (!set) istenen.set(img, (set = new Set()));

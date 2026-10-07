@@ -1,7 +1,7 @@
 // Belge görüntüleyici: PDF.js ile tembel (lazy) sayfa çizimi, yakınlaştırma, sayfa düzenleri.
 // Her sekmenin kendi Goruntuleyici örneği vardır.
 import * as pdfjs from '../../node_modules/pdfjs-dist/build/pdf.min.mjs';
-import { keskinBaglam, KeskinTuvalFabrikasi, cizimGoreviHazirla, ETKILESIM_MS, etkilesimBildir, etkilesimBitir, keskinErtelenir, ertelenenSayisi, keskinHazirDinle, okumaSuruyor } from './keskinlik.js';
+import { keskinBaglam, KeskinTuvalFabrikasi, cizimGoreviHazirla, ETKILESIM_MS, etkilesimBildir, etkilesimBitir, keskinErtelenir, ertelenenSayisi, istenenSayisi, keskinHazirDinle, okumaSuruyor } from './keskinlik.js';
 import { anaHatSecenekleri, yaziTipiYukleyicisiniSar, yaziGoreviHazirla } from './yaziTipleri.js';
 import { MAC } from './platform.js';
 
@@ -232,7 +232,7 @@ export class Goruntuleyici extends EventTarget {
     this._tusGirdisi = (e) => { if (KAYDIRMA_TUSLARI.has(e.key)) this._girdiZamani = performance.now(); };
     window.addEventListener('pointerup', this._cubukBirak);
     document.addEventListener('keydown', this._tusGirdisi, true);
-    // Arka planda okunan görseller hazır: hızlı çizilmiş görünür sayfalar keskin yeniden çizilir (yeterliMi)
+    // Arka planda okunan görseller hazır: hızlı çizilmiş sayfalar keskin yeniden çizilir (yeterliMi, keskinHazir)
     this._keskinHazirBirak = keskinHazirDinle(() => this.keskinHazir());
     this._gozlemci = new ResizeObserver(() => this.kutuDegisti());
     this._gozlemci.observe(this.kaydirici);
@@ -1012,11 +1012,13 @@ export class Goruntuleyici extends EventTarget {
 
   /**
    * İşçi örneklemeleri bitti (ya da hızlı çizim sırasında zaten bitmişti): hızlı çizilmiş ya da çizimi örneklemeyi bekleyen görünür
-   * sayfalar (yalnızca tek sayfa verilirse o) gecikmesiz yeniden çizilir; görseller artık önbellekten keskin çizilir.
+   * sayfalar (yalnızca tek sayfa verilirse o) gecikmesiz yeniden çizilir; görseller artık önbellekten keskin çizilir. Ardından hızlı
+   * çizilmiş bant ve komşu sayfalar, görünürlerin çizimi bitince (onYuklemeIsle): kaydırma sürerken de, görselleri işçide
+   * örneklendiyse (0.2.3, yeterliMi). Kaydırma sürerken görünür sayfalar kaydırma bitince çizilir (keskinlestirPlanla).
    */
   keskinHazir(tek = null) {
     if (this.yok || !this.belge || !this.kaydirici.clientWidth) return;   // gizli sekme: gösterilince kaydirmaIsle çizer
-    if (keskinErtelenir()) { this.keskinlestirPlanla(); return; }
+    if (keskinErtelenir()) { this.keskinlestirPlanla(); this.onYuklemeIsle(); return; }
     for (const s of tek ? [tek] : this._gorunurKume) {
       if (!s._okumaBekliyor && !s.cizim?.hizli) continue;
       s._okumaBekliyor = null;
@@ -1025,6 +1027,7 @@ export class Goruntuleyici extends EventTarget {
       clearTimeout(s._zaman); s._planli = false;
       this.sayfaCiz(i);
     }
+    this.onYuklemeIsle();
   }
 
   /** Etkileşim bitince (ETKILESIM_MS sonra) görünür sayfaların hızlı çizimini keskin çizimle değiştirmek için yeniden planlar. */
@@ -1139,8 +1142,13 @@ export class Goruntuleyici extends EventTarget {
   yeterliMi(i, c, yer) {
     const s = this.sayfalar[i];
     if (!c || !s || c.onizleme) return false;
-    // Hızlı çizilmiş (görsel örneklemesi ertelenmiş) sayfa, kaydırma ve arka plan okuması bitince görünüyorsa yeterli değil
-    if (c.hizli && !keskinErtelenir() && !okumaSuruyor() && this._gorunurKume.has(s)) return false;
+    // Hızlı çizilmiş (görsel örneklemesi ertelenmiş) sayfa, arka plan okuması bitince yeterli değil: görünüyorsa kaydırma da bitince;
+    // görünmüyorsa (bant ve komşu sayfa) kaydırma bitince ya da görselleri işçide örneklendiyse kaydırma sürerken de (0.2.3, kullanıcı
+    // isteği: "sayfaları kaydırırken daha hızlı yüklensin"). Önden çizilen sayfa böylece görünür alana keskin girer; önceden logolu,
+    // karekodlu sayfalar kaydırırken bulanık girip kaydırma durduktan ~0,5 sn sonra netleşiyordu. Görünür sayfa kaydırma sürerken
+    // yeniden çizilmez (yeni giren sayfanın çizimiyle yarışmasın). Ara tuvalden hızlı çizilen bant sayfası kaydırırken yeniden
+    // çizilmez (keskinlesir yok): yeniden çizim de hızlı olurdu, her kaydırma olayında boşuna çizilirdi.
+    if (c.hizli && !okumaSuruyor() && (this._gorunurKume.has(s) ? !keskinErtelenir() : !keskinErtelenir() || c.keskinlesir)) return false;
     if (!this.ayniGorunumMu(s, c, yer)) return false;
     if (c.tam) return true;
     const g = this.gorunurKisim(yer), b = c.bolge;
@@ -1186,7 +1194,7 @@ export class Goruntuleyici extends EventTarget {
     canvas.width = Math.max(1, Math.round(b.w * oran));
     canvas.height = Math.max(1, Math.round(b.h * oran));
     const viewport = pdfSayfa.getViewport({ scale: olcek * CSS_BIRIM * oran, rotation: dondurme });
-    const ertelenenOnce = ertelenenSayisi();
+    const ertelenenOnce = ertelenenSayisi(), istenenOnce = istenenSayisi();
     const gorev = yaziGoreviHazirla(cizimGoreviHazirla(pdfSayfa.render({
       canvasContext: keskinBaglam(canvas.getContext('2d', { alpha: koyu })), viewport,
       transform: [1, 0, 0, 1, -px, -py],
@@ -1195,8 +1203,10 @@ export class Goruntuleyici extends EventTarget {
     s.gorev = gorev;
     try {
       await gorev.promise;
-      // hizli: çizim sürerken (bu ya da eşzamanlı başka sayfada) görsel örneklemesi ertelendi; kaydırma bitince yeniden çizilir
-      return { canvas, px, py, hizli: ertelenenSayisi() !== ertelenenOnce };
+      // hizli: çizim sürerken (bu ya da eşzamanlı başka sayfada) görsel örneklemesi ertelendi; kaydırma bitince yeniden çizilir.
+      // keskinlesir: ertelenen görseller işçide örnekleniyor; örnekleme bitince kaydırma sürerken de keskin çizilebilir (yeterliMi)
+      const hizli = ertelenenSayisi() !== ertelenenOnce;
+      return { canvas, px, py, hizli, keskinlesir: hizli && istenenSayisi() !== istenenOnce };
     } catch (e) {
       tuvalBirak(canvas);
       if (!(e instanceof pdfjs.RenderingCancelledException)) console.error('Sayfa çizilemedi', s.no, e);
@@ -1264,7 +1274,7 @@ export class Goruntuleyici extends EventTarget {
       }
       const c = son.canvas;
       // CSS kutusu tuvalin cihaz pikseli boyutundan türetilir: 1 tuval pikseli = 1 cihaz pikseli
-      this.cizimUygula(s, c, { ...hedef, hizli: son.hizli, px: son.px, py: son.py, bolge: { x: son.px / dpr, y: son.py / dpr, w: c.width / dpr, h: c.height / dpr } });
+      this.cizimUygula(s, c, { ...hedef, hizli: son.hizli, keskinlesir: son.keskinlesir, px: son.px, py: son.py, bolge: { x: son.px / dpr, y: son.py / dpr, w: c.width / dpr, h: c.height / dpr } });
       if (son.hizli) { if (keskinErtelenir()) this.keskinlestirPlanla(); else if (!okumaSuruyor()) setTimeout(() => this.keskinHazir(s), 0); }
       s.el.classList.remove('yukleniyor');
       const j = this.idx(s);
