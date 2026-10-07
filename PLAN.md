@@ -1759,3 +1759,267 @@ Word'deki gibi olsun mekaniği ve görüntüsü; aşağıdakinin mekaniği de be
   - Gözlem (doğrulanmadı, panelle ilgisiz): döndürülmüş yatay sayfası olan belgede genişliğe sığdır kipinde belge alanında yatay kaydırma çubuğu
     görüldü; muhtemelen sığdırmanın geçerli dikey sayfaya göre yapılmasından, eski davranış olabilir.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 37.
+
+### Revizyon 0.2.3 (2026-10-07, kullanıcı istekleri: şeritlerin yeri, geri al, Sayfalar paneli, kaydırma hızı, Birleştir, kurucu, simge, açılış ekranı)
+Ayrıntı: CHANGELOG.md. Kullanıcının istekleri (kendi sözleriyle):
+1. "geri alınacak adım butonu geri al butonunun bir parçası gibi durmalı, biraz daha küçük olmalı. wordde öyle."
+2. "araç şeridi ile sekme şeridinin yerini değiştirelim."
+3. "seçili sekmenin seçili olduğunu gösteren renk ile araç çubuğunun rengi eşit olsun. seçili sekme ile araç çubuğu arasında herhangi bir çizgi
+   olmasın. sekmenin parçasıymış gibi olsun."
+4. "ilk yükleme başlangıcında sayfalar kısmı açık olmasın. ilk yüklemede varsayılan olarak gizli açılsın. daha sonra nasıl bırakıldıysa ayarı
+   korunsun."
+5. "sayfaları kaydırırken daha hızlı yüklensin. hafif geç yükleniyor gibi oluyor orada performans iyileştirmeleri yapabilisek yapalım."
+6. "birleştirme aracında yüklenenlerin ön izlemesini biraz daha büyük görelim."
+7. "uygulama yüklerken uygulamanın yüklü olup olmadığını yeni sürüm olup olmaıdğını fark etsin ve ona göre seçekenler sunup yükleme yapsın."
+8. "uygulama logusunu değiştirsin." (kullanıcının verdiği simge paketiyle: "Tek Su Dalgası")
+9. "ana ekrandaki PDF aç butonu biraz daha küçük olsun ve bitim sınırı sayfaları düzenle aracının bitim sınırıyla eşitlensin."
+
+Plan onaylandı. Kullanıcıya söylenen yorumlar: 3. maddede araç çubuğu seçili sekmenin rengini aldı (açık temada beyaz; önceki gri değil); 6. maddede
+önizleme 120 → 150 px; simge paketinin talimatı "sürüm yükseltme" diyordu, simge revizyonun parçası olduğu için sürüm 0.2.3'e yükseltildi. README
+görüntülerinin ara sürümünü görünce kullanıcı "koyu mod fotoğraflar da koyabilirsin" dedi. İş gruplar hâlinde yapıldı (aynı çalışma ağacı, madde
+başına commit; kurucu grubu arayüz gruplarıyla yan yana): simge 16f8f81; kurucu 9b1696e…76b7e92 ve ek dbca9b9, 0ca9dbf; şeritler ve geri al bfe14af,
+add7806; açılış ekranı, Birleştir, panel dbad771…5c8583d; ana görünümde kaydırma e53730f…dfefbc0; Sayfalar panelinde kaydırma d8e6133, 7d3d8ad. Ardından
+iki bağımsız inceleme (görüntüleyici / kurucu, salt okunur) ve düzeltmeleri (a4d931d…2382f98), README ve görüntüler (5aae1e7).
+- [x] **Yeni simge** (8. madde; `build/icon.ico`, `icon.png`, `icon.svg`). Paket olduğu gibi alındı (paketin talimatı: yeniden çizme, ICO boyutlarını
+  yeniden üretme): ICO paketteki (9 boyut 16–256, hepsi PNG girişli 32 bit; eskisinde 96 px de vardı), `icon.png` paketin 512 px'liği (depo düzeni
+  512; Mac .icns bundan), `icon.svg` paketteki (betik, dış bağlantı, üst veri yok). Üç dosyada üst veri yok. Yapılandırma aynı adları kullandığı
+  için değişmedi (electron-builder.yml, pencereler.js, baslangic.js, pdefe-core.spec, kurulum_bitis.ps1); eski simgenin başka kopyası yok (SHA-256
+  ile bütün izlenen dosyalar). Ölçüm: ICO 55.348 → 47.136 bayt, PNG 86.019 → 73.627, SVG 10.170 → 14.103. Seçilmeyenler: 96 px'i üretip eklemek
+  (talimat yasaklıyor; %150'de Windows 128'i küçültür), Mac için paketin 1024 px'liği (depo düzeni; Retina'da yumuşak görünürse tek satırla).
+- [x] **Sekme şeridi üstte, araç çubuğu altında, seçili sekme araç çubuğuyla tek parça** (2. ve 3. madde; `index.html`, `stil.css`,
+  `araclar/ortak.js`, `main/pencereler.js`). Kök neden (3. madde): 0.2.2'de araç çubuğunun zemini `--arka` (#f3f3f3) idi; sekme şeridinin 1 px'lik
+  alt çizgisi seçili sekmenin altından da geçiyordu: onu örtmesi gereken `.sekme.aktif::after`'ı #sekme-liste'nin overflow-y: hidden'ı kırpıyordu
+  (%125'te sekmenin altında 0,8 CSS px'lik #d9d9d9 satır ölçüldü).
+  - #sekme-cubugu #arac-cubugu'nun önüne alındı; #guncelleme-seridi araç çubuğunun ardında kaldı (artık onun altında). Araç çubuğunun zemini
+    `--sekme-aktif` (açık #ffffff, koyu #2b2b2b); şeridin alt çizgisi ve `.sekme.aktif::after` kalktı, seçili sekmenin üst ve yan ince kenarı
+    duruyor, altı açık. Sekme 36 px + üst boşluk 4 px = şerit 40 px: seçili sekmenin alt kenarı araç çubuğunun üst kenarıyla aynı cihaz pikseli
+    sınırında (%100 40, %125 50, %150 60).
+  - #belge-listesi top: var(--sekme-yukseklik): Açık belgeler listesi düğmesinin hemen altında açılır, araç çubuğunun sağ ucunu örter (tarayıcılardaki
+    gibi). `_seritAltinaYerlestir`: Birleştir ve Sayfaları düzenle'nin üstü sekme şeridi, araç çubuğu ve görünürse güncelleme şeridinin en altına
+    göre (+8 px; güncelleme şeridi yokken eskisi gibi 88 px, varken 124); ResizeObserver güncelleme şeridini de izler; okuma kipinde ortada.
+    YEDEK_SEKME_YERI.y 45 → 4 (yalnızca yedek; asıl değeri renderer gönderir). Sekme sürükleme, bırakma alanı, hayalet pencere, aracCubuguSigdir ve
+    okuma kipinin clientY eşikleri konumları DOM'dan ölçtüğü için değişmedi.
+  - Seçilmeyenler: seçili sekme dışında şeridin altına çizgi bırakmak (renk farkı yetiyor), araç çubuğundaki kutuları gri yapmak (istenmedi),
+    belge listesini iki şeridin altında bırakmak (düğmesinden kopuk görünürdü).
+  - Ölçüm: üç ölçekte, iki temada, seçili sekmenin üç sütununda sınırın 6 px üstünden 3 px altına dek her satır araç çubuğu renginde (0.2.2'de
+    çizgi satırı vardı). Test: `test/serit_birlesim.mjs` (59; kendi PNG çözücüsüyle piksel sayar; 0.2.2'de sıra, renk ve çizgi denetimleri düşer).
+- [x] **Geri al bölünmüş düğmesi** (1. madde; `index.html` `<span class="bolunmus">`, `stil.css`). Kimlikler, ipuçları ve aria değişmedi. Dış
+  köşeler yuvarlak (6 px), iç köşeler düz; ▾ 21 → 13 px, oku 10 birimlik çizgi (Word 365'teki gibi çizgi ok, dolu üçgen değil); eski margin-left:
+  −2px kalktı. İmleç düğmenin üstündeyken iki yarı `--hover`, üzerinde olunan yarı `--basili`; basılan yarı ve liste açıkken ▾ `--yari-basili`;
+  ayırıcı ▾'nin ::before'u (1 px, üstten ve alttan 8 px içeride, %22 metin rengi) yalnızca üstündeyken ya da liste açıkken, iki yarı da devre
+  dışıysa görünmez. Sıkışma kademelerinde ▾ 3. kademeden 12, 6. kademede 11 px. Yakınlaştırmanın ▾'si 21 px kaldı.
+  - Seçilmeyen: kap kullanmadan :has (.grup'ta Yinele de var, kurallar karışırdı).
+  - Ölçüm (serit_olculeri, 410 sayfa; araç çubuğunda boş yer önce → sonra): 1280 px 269 → 277; 1000 px 1. kademe 43 → 50; 760 px 1–4. kademe 25 →
+    1–3. kademe 1; 720 px 14 → 19; 704 px 1–6. kademe 36 → 1–5. kademe 3 (Windows'un en dar penceresinde düğmeler artık 26 değil 28 px); 4
+    basamaklı sayfa sayısında 720 px'te ve Mac'te 0 → 5 px. Piksel (%100, açık tema, zeminden uzaklık): imleç Geri al'deyken Geri al 78, ayırıcı 186,
+    ▾ 45; ▾'deyken 45 / 210 / 78 (koyu: 78 / 171 / 51, 51 / 192 / 78). Test: `test/geri_al_bolunmus.mjs` (%100 41, %125 / %150 37; 0.2.2'de 27
+    denetim düşer).
+- [x] **Açılış ekranında PDF aç** (9. madde; `stil.css`, `baslangic.js`). Kök neden: 0.1.15'ten beri düğme yazısı kadar genişti (1100 px sütunda
+  557,6 × 110 px), sağ kenarı hiçbir şeye bağlı değildi; araç ızgarası `repeat(auto-fill, minmax(185px, 1fr))` olduğundan Sayfaları düzenle'nin sağ
+  kenarı pencereyle değişiyor. Karar: düğme kendi satırında (`.karsilama-ac-satir`), satır araç ızgarasının sütun şablonunu kullanır
+  (`.karsilama`'daki `--karsilama-sutunlar` / `--karsilama-aralik`; aynı genişlikte iki ızgaranın sütunları aynıdır); düğme `grid-column: span 2`,
+  `grid-auto-columns: 0` ile ızgara tek sütuna inince örtük ikinci sütun 0 px, düğme tam genişlik; JS ölçümü yok. Ölçüler: iç boşluk 22/24 → 16/20,
+  simge kutusu 64 → 52 (köşe 12), simge 36 → 30, ad 20 → 18, aralık 18 → 16 px; açıklama 13 px kaldı, geniş düğmede iki satır; yükseklik 110 → 93,7 px.
+  - Seçilmeyenler: JS / ResizeObserver ile ölçmek; `.karsilama`'yı subgrid yapmak (alçak penceredeki gap kuralıyla çakışırdı); 185 / 8 sabitlerine
+    bağlı container query ya da CSS round() (kırılgan).
+  - Ölçüm: 87 durum (704–2560 px; panel kapalı, 240 px, geniş) × üç ölçek, sağ kenar farkı en çok 0,000 px; ızgaranın 1–5 sütunlu hâlleri. Yan kazanç
+    (10 son belgeyle): 0.2.2'den kalan kaymalar kalktı, sol panel açık 1280 × 700'de 13 → 0 px, 900 × 790'da 6 → 0. Test: `test/acilis_hizasi.mjs`
+    (10; aralık 1 px bozulunca düşer); senaryo19'un eşikleri 1,3 → 1,2 kat (yükseklik) ve 2,5 → 2,4 kat (alan), senaryo21'in "yazısı kadar"
+    denetimleri sağ kenar denetimine döndü, senaryo20'ye iki durum eklendi.
+- [x] **Birleştir önizlemesi 120 → 150 px** (6. madde; `araclar.css --birlestir-resim`, `gorselBirlestir.js KUTU_VARSAYILAN`). İstenen çözünürlük
+  max(144, ceil(150 × min(2, dpr))): %100 150, %125 188, %150 225, %200 300 px (144 alt sınırı artık devreye girmiyor). Satır 134 → 164 px; ad, özet,
+  Kalite, Sayfa ve düğmeler önizlemeyle dikeyde ortalı; dar pencerede taşma yok. Bedel, görünen satır: 1280 × 800 2,36 → 1,94; 1280 × 1000 3,64 →
+  3,00; 1536 × 770 2,14 → 1,76; 1280 × 700 1,64 → 1,35; 720 × 700 1,41 → 1,16. Seçilmeyenler: pencereyi uzatmak ya da Kalite / Kaydet'i sıkılaştırmak
+  (istenmedi; açık konu), satır yüksekliğini önizlemeden ayırmak. Testler: arac_onizleme (22, üç ölçekte; satır hizası eklendi), kisayol_araclar
+  (boş alan denetiminde düğme şeridi de gizleniyor: dört satır 690 px, liste 663 px'ti; gevşetilmedi).
+- [x] **Sayfalar paneli ilk açılışta gizli** (4. madde; `main/ayarlar.js`). Kök neden: `solPanelAcik`'in varsayılanı zaten false; eski kurulumda
+  açık bırakılan panel "açık" diye kayıtlı kaldığı için her açılışta açık geliyordu. Karar: vurguRengiTasindi / otomatikKaydetKapatildi düzeninde
+  tek seferlik taşıma: `solPanelKapatildi` bayrağı yoksa solPanelAcik=false yazılır, bayrak konur. Bayrak VARSAYILANLAR'da değil (Varsayılanlara dön
+  dokunmaz); DURUM_ANAHTARLARI değişmedi. Taşıma ana süreçte, ilk pencereden önce; Pencereye ayır'la açılan pencereler aynı kaydı okur.
+  Seçilmeyenler: her açılışta kapatmak ("nasıl bırakıldıysa korunsun"a aykırı), sürüm numarasına bağlı taşıma (bayrak düzeni yerleşik), taşımayı
+  renderer'da yapmak (her pencere ayrı yapardı). Test: `test/panel_ilk_acilis.mjs` (10; bayrak varken kayıtlı açık panel açık gelir).
+- [x] **Ana görünümde kaydırırken sayfalar hızlı ve net** (5. madde; `goruntuleyici.js`, `keskinlik.js`). Kök nedenler (ölçümle):
+  1. Aynı ölçekteki yeniden çizimin 120 ms'lik beklemesi her kaydırma olayında yeniden kuruluyordu, kaydırma sürdükçe hiç dolmuyordu: yüksek
+     yakınlaştırmada (%600, sayfanın yalnızca görünen kısmı çizilir) kaydırırken görünen alanın ~%90'ı beyaz kalıyordu.
+  2. Büyük görseller (logo, kaşe, karekod, tarama) kaydırırken önce yumuşak çiziliyor, keskin örnekleme işçide yapılıyordu; keskin yeniden çizim
+     yalnızca görünür sayfalarda ve kaydırma durunca geliyordu: önden çizilen sayfalar ekrana bulanık girip durduktan ~0,45 sn sonra netleşiyordu
+     (logolu belgede 5 sayfanın 4'ü). Kullanıcının "hafif geç yükleniyor gibi" dediği bu.
+  3. 6 MP'yi aşan her ilk çizimde önce düşük çözünürlüklü önizleme, sonra asıl görüntü çiziliyordu; 2560 px %125 ekranda genişliğe sığdırılmış her
+     sayfa 6,7 MP olduğu için görünmeyen sayfalar dahil her sayfaya uyuyordu (iki kat çizim, net görüntü 15–80 ms gecikmeli).
+  4. Bölgesel çizimin payı ve önden çizme bandı kaydırma yönüne bakmıyordu.
+  - Kararlar: ölçek aynıysa yeniden çizim beklemeden (0 ms) yapılır, bekleyen plan sıfırlanmaz (kısma); ölçek değişince (yakınlaştırma sürerken,
+    döndürme, koyu sayfa) eskisi gibi son adımdan 120 ms sonra (ortak denetim `ayniGorunumMu`). `keskinlik.js` çizim sırasında işçiden örnekleme
+    istendiyse çizimi "keskinleşir" işaretler; görünmeyen (bant / komşu) sayfa işçi bitince kaydırma sürerken de keskin yeniden çizilir
+    (keskinHazir → onYuklemeIsle). Görünür sayfa bilerek kaydırma bitince yenilenir (yeni giren sayfanın çizimiyle yarışmasın); ara tuvalden hızlı
+    çizilen sayfa kaydırırken yeniden çizilmez. Önizleme yalnızca çizim başlarken görünen sayfada ve 12 MP'yi aşan bölgesel çizimde
+    (`ONIZLEME_ESIGI`, 4K ekran benzeri). Bölgesel çizimde payın %90'ı kaydırma yönüne (`BOLGE_ONDE`; bölgenin boyutu, yani bellek aynı; sayfaya
+    gidince ve yakınlaştırınca yön bilinmez, eşit). Önden çizme bandı görünümün ortasından yönde 2, geride 1 ekran, boşaltma sınırı yönde 4,
+    geride 3 ekran; yön bilinmiyorsa eskisi gibi eşit; toplam alan aynı (0.1.18'deki "bandı daraltma" kararına uyuldu). Yön yalnızca kullanıcı
+    girdisinden izlenir (`yonIzle`), programatik kaydırmada sıfırlanır (`yonSifirla`).
+  - Seçilmeyenler: çizim önceliği / eşzamanlı çizim sınırı (orta risk; plan, hedef, bayat ve okuma koşullarıyla iç içe), bant sayfasının metin
+    katmanını ve çekirdek isteklerini ertelemek (küçük kazanç, Bul vurgusu ve bağlantı katmanı riski), ETKILESIM_MS 250 → 150 (bundan sonra kazancı
+    küçük, kısa duraklamada boşa çizim), alt önizleme tuvali (görünen sayfa başına ~6 MB).
+  - Ölçüm yöntemi: `test/kaydirma_olcum.mjs` (+ `kaydirma_olcum_sayfa.js`, `kaydirma_karsilastir.mjs`, `kaydirma_ornek_uret.py`, `surec_bellegi.ps1`):
+    gerçek CDP girdisiyle senaryolar (tekerlek, yukarı, PageDown, kaydırma çubuğu sürükleme, sayfaya atlama, %600), "sn·ekran" = görünen alanın boş
+    ya da bulanık kaldığı süre, alanla ağırlıklı. Önce = 5c8583d'nin çalışma ağacı (arayüz aynı); iki bağımsız takım, senaryo başına 4 tekrar, makine
+    boşta, gözcü süreçle; belgeler metin 410, logolu-karekodlu 60, taranmış 40 sayfa (üretilmiş).
+  - Ev ekranı (1800 × 1050, %125), 4 tekrar ortalaması: logolu belgede bulanık alan hızlı tekerlek 2,75 → 0 (bulanık giren sayfa 4/5 → 0), yukarı 3,21
+    → 0 (durunca keskinleşme 444 → 1 ms), PageDown 1,52 → 0, sürükleme 2,29 → 0; %600 tekerlekte boş alan metin 1,618 → 0,044, logolu 1,621 → 0,035,
+    taranmış 1,617 → 0,034, yukarı 1,30–1,36 → 0,032–0,038; metinde sayfaya atlama keskin 44 → 24 ms, çizim 24 → 12; sürükleme boş 2,04 → 1,36, çizim
+    süresi 3548 → 1801 ms, iptal 11 → 0; tekerlek ve PageDown'da çizim sayısı yarıya indi. Ofis ekranı (1900 × 1000, %100): logolu bulanık 2,77 / 3,24 /
+    1,78 / 2,43 → 0; %600 boş 1,61–1,66 → 0,021–0,026. 4× yavaş işlemci: %600 boş metin 1,62 → 0,11, logolu 1,63 → 0,045; sürüklemede durunca
+    740 → 293 ms, 50 ms'yi aşan kare 26,3 → 10,3. Bellek (3 belge, hızlı tekerlek, çöp toplamadan sonra süreç ağacı): ev 481,0 → 450,1 MB, ofis
+    455,5 → 441,9 MB (yönlü boşaltma geride kalan tuvali bir azaltıyor). Bedel: kaydırırken daha çok çizim (%600'de 1,8 sn'de 1–2 yerine 11–14,
+    +200–290 ms işlemci; ofiste logolu belgede 3 sn'de 4,5 → 8).
+  - Test: `test/kaydirma_cizim.mjs` (ekran ölçeğinden bağımsız: yakınlaştırılmış tam çizim her ölçekte 19 MP; ev, ofis ve %150'de 25/25; 0.2.2'de
+    1.–3. bölümde 9 HATA, 4. bölüm çöker).
+- [x] **Sayfalar panelinde kaydırırken hızlı yükleme** (5. madde; `panel.js`, `core/pdefe_core.py`).
+  - Kök neden 1: IntersectionObserver hücre göründüğü anda isteği doğrudan çekirdeğe gönderiyordu (sıra, öncelik, iptal yok); çekirdek tek iş
+    parçacığında geliş sırasıyla işler. Hızla gezinince geçilen her hücrenin isteği birikiyor, varılan yer onların hepsi üretilene dek boş kalıyordu
+    (410 sayfa, 480 px panel, bırakınca: istek gecikmesi ortancası 754 ms, en çok 1,43 sn; görünenlerin dolması ~1,1 sn).
+  - Karar 1, istek kuyruğu (`_kuyruk`): çekirdekte aynı anda en çok 2 istek (KUYRUK_ESZAMANLI; biri işlenirken öteki bekler, çekirdek boşta kalmaz);
+    sıra gönderilirken seçilir: görünen hücreler önce, sonra görünen alana en yakın; kaydırma yönünün tersindekilerin uzaklığı 2 katıyla
+    (GERI_AGIRLIK); görünen alandan 2 alan yüksekliğinden uzak hücrenin isteği gönderilmez, hücre gözlemciye geri verilir (DUSME_ALANI); panel
+    kapalıysa, başka panel sekmesi seçiliyse ya da alan 0 yükseklikteyse bekleyenlerin hepsi geri verilir. Gözlemcinin payı 300 px → bir alan
+    yüksekliği; önbellekte yeterli resim varsa hücre kuyruğa girmez (`_hucreGorundu`); istenen genişlik gönderme anında okunur; yer çekirdeğin yanıtı
+    gelince boşalır. Seçilmeyenler: yöne göre değişen rootMargin (gözlemciyi yeniden kurmak gerekirdi), çekirdekte iptal (en çok 2 istek varken
+    gereksiz), aynı kaynak sayfanın isteklerini birleştirmek (nadir), başarısız isteği yeniden denemek (sonsuz deneme riski).
+  - Kök neden 2 ve karar 2: her küçük resim PNG'ydi; taranmış sayfanın (kâğıt dokusu) PNG'si büyük ve yavaştı. `kucuk_resim_bicimi`: sayfanın
+    görselleri birlikte 0,5 MP'ye ulaşmıyorsa (get_images, içerik okunmadan) PNG; ulaşıyorsa çizilen görsellerin (get_image_info, döndürülmemiş
+    sayfa dikdörtgeniyle) kapladığı alan sayfanın %25'iyse JPEG (kalite 85), değilse PNG. Yanıt {veri, bicim, genislik, yukseklik} (eski 'png' alanı
+    kalktı; `kucukResimAdresi`; Sayfaları düzenle ve Ctrl+Tab seçicisi de kullanır; Birleştir'in gorsel_bilgi'si etkilenmez).
+  - Ölçüt için ölçüm (12 tür üretilmiş sayfa, 256 / 320 / 576 px, JPEG / PNG boy oranı): kâğıt dokulu gri, temiz renkli, 100 dpi, yazı katmanlı ve
+    boş tarama 0,11–0,30; metin + %29 fotoğraf 0,22–0,26; siyah-beyaz tarama 0,44–0,62; metin + %8 fotoğraf 0,61–0,70; logolu ve karekodlu evrak
+    1,9–3,4; çizim 1,1–1,4; sayfayı kaplayan küçük zemin görseli 0,5–1,37; saf metin 0,72–0,96 ama harflerin çevresinde kusur. Seçilmeyenler: her
+    sayfa JPEG (metinde kusur, logoluda 2–3 kat büyük), iki biçimi de kodlayıp küçüğünü seçmek (pahalı olan PNG kodlaması), zlib örneklemesi (boş
+    taranmış sayfada yanılır), yalnızca "≥ 1 MP görsel" (100 dpi tarama 0,97 MP), %8 fotoğraflı sayfayı JPEG yapmak. Bilinen sınır: satır içi
+    (inline) görselli tarama kaynak listesinde görünmez, PNG kalır.
+  - Ölçüm, çekirdek (20 sayfa ortalaması): taranmış 256 px 19,2 → 6,1 ms, 102 → 28 KB; 320 px 25,0 → 9,4 ms, 168 → 46 KB; 576 px 84,5 → 32,9 ms, 551 →
+    167 KB; siyah-beyaz 576 px 23,3 → 29,5 ms, 242 → 151 KB; fotoğraflı 576 px 20,2 → 23,1 ms, 521 → 117 KB; metin, logolu, orta fotoğraflı değişmedi;
+    PSNR 36–41 dB. Arayüz (önce → yalnız kuyruk → son, 2 tekrar): ev metin, 480 px panel: gecikme ortancası 754 → 35 → 36 ms, bırakınca dolma 1090 ms →
+    ≤ 0, boş hücre·sn 9,13 → 4,99 → 5,65; 240 px 2,39 → 0,24 → 0,22; taranmış: resimsiz giren hücre 21 → 0, atlamada gecikme 97 → 49 → 31 ms; ofis metin
+    189 → 26 → 26 ms. Panelin bellek payı: ev taranmış 122,9 → 98,1 MB, ofis taranmış 123,4 → 86,6, metin değişmedi; taranmışta önbellek ev 21,6 →
+    6,6 MB.
+  - Testler: `test/panel_kuyruk.mjs` (42, iki ölçekte), `test/kucuk_resim_testi.py` (50); `kaydirma_olcum.mjs`'e panel-bellek senaryosu,
+    `kayit_sekme_panel.mjs` yeni yanıt.
+- [x] **Kurucu, kurulu PDEfe'yi tanıyor** (7. madde; `build/installer.nsh`, yalnızca NSIS; Mac etkilenmez). Kök neden: electron-builder'ın
+  sihirbazında sürüm karşılaştırması yok; kurulu olduğunun tek ipucu "Kimler için" sayfasındaki yanlış çevrilmiş etiketti; elle çalıştırmada
+  lisans, kip, klasör ve Ek görevler sayfalarının hepsi geliyordu; eski sürüme dönüşte uyarı yoktu; masaüstü kutusu her seferinde işaretliydi
+  (silinen kısayol geri geliyordu).
+  - Kurulu sürüm sayfası customWelcomePage'de (ilk sayfa), yalnızca arayüzlü kurucuda ve bu kullanıcıya kurulu PDEfe bulunursa. HKCU
+    Uninstall\<GUID>'den DisplayVersion ve InstallLocation; program exe'si yoksa "bozuk". Eski: Güncelle (önerilen) / Seçenekleri değiştirerek kur /
+    Kaldır; aynı ya da bozuk: Onar / Kaldır; daha yeni: Vazgeç (önerilen, Quit) / Eski sürüme dön; sürüm okunamazsa "bilinmiyor": Onar / Kaldır.
+    İleri düğmesinin yazısı seçime göre (Güncelle, Onar, Kaldır, Kapat, Kur; "Eski sürümü kur" 84 px'ti, 75 px'lik düğmeye sığmadı); düğme yazılarına
+    kısayol harfi konmadı (seçeneklerin ve "< &Geri"nin kısayollarıyla çakışıyordu).
+  - Lisans ve klasör sayfalarının atlanması: isUpdated tanımı customWelcomePage'in sonundan customPageAfterChangeDir'in başına dek çevrilir, arada
+    yalnızca electron-builder'ın iki atlama işlevi derlenir (-V4 derlemede izlendi); Ek görevler kip denetimiyle atlanır. Masaüstü kısayolunun
+    bugünkü durumu sayfadan çıkarken okunur (ShortcutName + $DESKTOP). Kaldır: UninstallString Exec edilir, kurucu kapanır.
+  - "Kimler için kurulsun?" kalktı: customInstallMode yalnızca $installMode CurrentUser iken isForceCurrentInstall. Yönetici olarak "herkes için"
+    kurulmuş PDEfe bulunursa güvenli yol: sayfa gösterilmez, sihirbaz ve kip sayfası bugünkü gibi ("(must run as admin)" eki Türkçe).
+  - Sınamada bulunan: kurulu değilken lisans sayfasında "< Geri" görünüyor, basılınca sihirbaz kapanıyordu (NSIS atlanan ilk sayfanın da önüne
+    gidiyor): bu durumda Geri gizli (0.2.2'deki gibi).
+  - Türkçe iletiler customHeader'da (LangString ${LANG_TURKISH}, uyarı 6030 push / pop): İngilizce kalan uninstallFailed, decompressionFailed,
+    appClosing; yanlış ya da bozuk appRunning, appCannotBeClosed ("Yeniden Dene" Türkçe Windows'tan okundu), areYouSureToUninstall, kip sayfası. Ek
+    (dbca9b9, 0ca9dbf): eski sürüm durumuna da Kaldır (planda üç seçenek vardı; açıklamalar tek satır, "PDEfe açık" uyarısıyla en alt 218 / 228 px);
+    lisans düğmesi MUI_LICENSEPAGE_BUTTON "&Kabul et" (NSIS'in "Kabul Ediyorum"u 84 px, düğme 75) ve alt metni; NSIS 3.0.4 Turkish.nsh'in yazım
+    hataları ("kadırılımı", "Kaldırım işlemeni", "programlari", "Litfen", "Tamamlandır", "'bitir'e", "şeçiniz") dil dosyasındaki koşullarla üzerine
+    yazılarak (sıra yakalanan betikte doğrulandı: sayfalar → MUI_LANGUAGE → customHeader).
+  - Seçilmeyenler: customCheckAppRunning (güncelleme yolundaki bekle-kapat da değişirdi), göreli sayfa atlaması (sayfa sayısı yanlışsa kurulum
+    sayfası atlanabilirdi), Güncelle'de keepShortcuts (isUpdated'ı kurulum bölümüne taşımak sessiz kodu değiştirirdi), kurucunun kendini --updated
+    ile yeniden başlatması (arayüz olmaz, PDEfe sorusuz kapanırdı), customRemoveFiles ve customUnWelcomePage (kaldırıcıyı değiştirirdi), NSIS
+    önbelleğindeki dil dosyasını yamamak (CI'da yeniden üretilemez), arayüzlü kurucuyu WMI ile başlatmak (WinstationDesktop uygulanmıyor).
+  - Sınama düzeni (gerçek PDEfe'ye dokunmadan): `test/kurucu_sinama.yml` / `.nsh` "Kurucu Sinama" deneme kimliği (gerçek appId, exe, kısayol, paket
+    adı ya da ProgId'le derlenirse !error); `kurucu_yakala.cjs` + `kurucu_derle.mjs` deneme derlemesi (90.x, proje dışına) ve betik yakalama;
+    `kurucu_karsilastir.mjs`: son etiketin (v0.2.2) installer.nsh'iyle çalışma ağacındakini aynı betikle -WX -V4 derleyip sessiz kipte çalışan kodu
+    (.onInit, install bölümü ve çağırdıkları: 8 işlev, 869 satır) ve kaldırıcıyı (12 işlev, 1070 satır) satır satır karşılaştırır (her commit'ten
+    sonra 0 fark); `kurucu_surucu.cs` görünmeyen masaüstü sürücüsü (CreateProcess lpDesktop, PrintWindow, metin sığma ölçüsü);
+    `kurulum_surum.ps1` 1. düzey sayfa sınaması (installer.nsh electron-builder'ın gerçek sayfalarıyla; son hâliyle 88 TAMAM); `kurucu_akis.ps1`
+    2. düzey tam akış (deneme kurucuları 90.0.1 / 90.0.2: kurulu değil, tam sihirbaz, Seçenekleri değiştirerek, Güncelle, /S, Onar, Kaldır,
+    --no-desktop-shortcut, Vazgeç, Eski sürüme dön, --updated /S, bozuk; ön ve son görüntüde gerçek PDEfe'nin 27 değeri aynı, denemeden iz yok;
+    76b7e92'de 45 TAMAM). Ölçülen: paket içinden çalışan kurucunun HKCU yazımları paketin sanal kovanına gider, Programs\ ve Başlat menüsü yazımları
+    gerçek klasörlere.
+- [x] **Bağımsız inceleme** (iki salt okunur inceleyici: görüntüleyici / kurucu; 10 bulgu, 9'u gerçek çıktı ve önce düşen bir sınamayla düzeltildi,
+  1'i bir sınamanın koşulmamış olması; commit'ler a4d931d, 54903f7, 2382f98).
+  - Form alanlı belgede yüksek yakınlaştırmada kaydırınca çekirdek tıkanıyordu (orta): sayfaCiz her çizimden sonra ekKatmanlar'ı (form_gorunum:
+    tam sayfa RGBA PNG, bağlantı katmanı) çağırıyor ve 'sayfaCizildi' gönderiyordu (not katmanı baştan); 0.2.3'te aynı ölçekteki yeniden çizim
+    beklemesiz geldiği için kaydırma boyunca onlarca kez (formlu.pdf, %600: 19 çizim, 17 form_gorunum; kaydırma bitince küçük resim isteği 5957
+    ms, 0.2.2'de 384). Düzeltme: `s._katmanAnahtari` = ölçek|döndürme|dpr|koyu, ek katmanlar ve sayfaCizildi yalnızca anahtar değişince;
+    girdiBosalt sıfırlar. Sonra 0 form isteği, küçük resim isteği 4–11 ms.
+  - "keskinleşir" işareti pencerenin genel sayacından türüyordu (düşük; inceleme kanıtlayamamıştı): eşzamanlı çizimde (fotoğraflı A ile metinli B
+    birlikte) B 3 denemenin 2'sinde boşuna yeniden çiziliyordu. Düzeltme: `cizimGoreviHazirla` her görevin _nextBound'unu sarar, hizli() ve iste()
+    o görevin sayacını (`gorevSayaci`) artırır; sarılamazsa genel sayaç. Seçilmeyen: iste()'de yalnızca yeni istekte saymak (başka sayfanın
+    kuyruğa koyduğu ortak görsel de keskinleşecek sayılmalı). Sonra 0/3.
+  - Deneme kurucusunun korumaları .pdf ProgId'sini denetlemiyordu (orta): ProgId gerçeğiyle aynı yazılırsa deneme gerçek PDEfe'nin PDF kaydının
+    üzerine yazar, kaldırırken silerdi. `kurucu_derle.mjs` ProgId'nin gerçeğinden farklı (harf ayırmadan) ve PDEFE_PROGID ile aynı olduğunu
+    denetler, nsh'te ayrıca !error; `kurucu_akis.ps1`'in temizliği .pdf varsayılanı deneme ProgId'sinde kalmışsa ön görüntüdeki değeri geri yazar
+    (yalnızca paket görünümüne). Yeni `test/kurucu_koruma.mjs` (6; önce 1/6).
+  - Boş (çizilmemiş) görüntü "SIĞIYOR" sayılıyordu (koşumda 16 görüntünün 7'si boştu): BosAlan, boşsa RedrawWindow ve 10 kez dek artan beklemeyle
+    yeniden yakalama (6. denemeden sonra PW_RENDERFULLCONTENT'siz), yine boşsa HATA; tek satırlık seçenekte metin alandan genişse TAŞIYOR.
+  - "Kısayollarınız korunur" sözü elle güncellemede görev çubuğu sabitlemesi için doğru olmayabilir (eski kaldırıcı --keep-shortcuts'sız
+    WinShell::UninstShortcut / UninstAppUserModelId çağırır): açıklamalar "masaüstü kısayolu korunur" oldu (kanıtlanabilen); gerçek görev
+    çubuğunda denenmedi (DOGRULAMA 38).
+  - "PDEfe açık" denetimi süreç adına bakıyordu (kurucu PDEfe.exe adıyla kaydedilince kendini, başka klasördeki PDEfe.exe'yi de buluyordu):
+    `pdefeAcikMi` electron-builder'ın kapatma ölçütüyle, yolu kurulu klasörle başlayan süreç (Toolhelp + QueryFullProcessImageNameW + GetLongPathNameW,
+    harf ayırmadan; kurucunun kendisi ve başka kullanıcının süreci sayılmaz). Seçilmeyen: PowerShell + Get-CimInstance (bu bilgisayarda 10,9–12 sn;
+    sayfa o kadar geç açılırdı).
+  - Sayısal olmayan DisplayVersion "daha yeni sürüm kurulu" sayılıyordu (8 biçimin 6'sı): `pdefeSurumCekirdegi` "-" / "+"tan önceki çekirdeği alır,
+    yalnızca rakam ve nokta; çekirdeği aynı ön sürüm eski sayılır (0.2.3-beta.1 < 0.2.3); okunamazsa "bilinmiyor".
+  - Kaldırıcı InstallLocation'dan başka yerdeyken "bulunamadı" deniyordu: kaldırıcı UninstallString'in tırnak içindeki yolunda aranır (GetInQuotes
+    gibi); iletiden işe yaramayan Windows Ayarlar önerisi çıktı ("Güncelle'yi / Onar'ı seçip yeniden kurun…").
+  - Ek görevler sayfası "İleri'ye basın" diyordu, düğmenin adı Kur: "Kur'a basın".
+  - İnceleyicilerin sorun bulmadığı alanlar (özet): panel kuyruğunun bütün yolları, küçük resim biçiminin /Rotate'li sayfada doğru olması ve bütün
+    tüketicileri, bant / boşaltma toplamlarının yönden bağımsızlığı, sonsuz yeniden çizim ve iptal fırtınası olmaması, bellek, şeritler ve bölünmüş
+    düğme, açılış ızgarası, ICO biçimi, panel bayrağı; kurucuda sessiz yollar (0 fark), isUpdated çevirisinin sızmaması, sürüm karşılaştırması,
+    kayıt okuma, Geri / İptal, masaüstü kısayolu, uygulama içi güncelleme.
+- [x] **Testler** (yeni): serit_birlesim (59, üç ölçekte), geri_al_bolunmus (41), acilis_hizasi (10, üç ölçekte), panel_ilk_acilis (10), panel_kuyruk
+  (42), kucuk_resim_testi.py (50), kaydirma_cizim (35: 6. ve 7. bölüm form alanlı ve eşzamanlı çizim; ev, ofis, %150), kaydirma_olcum / _karsilastir
+  (ölçüm), kurulum_surum.ps1 (88), kurucu_akis.ps1, kurucu_karsilastir.mjs, kurucu_koruma.mjs (6); örnekler kaydirma_ornek_uret.py (formlu.pdf,
+  karma.pdf). Güncellenen: serit_olculeri (25), senaryo19, 20, 21, 26, 27, arac_onizleme, kisayol_araclar, kayit_sekme_panel. Grupların regresyonunda
+  (ekran dışı / görünmeyen masaüstü, kendi portlarında) geçenler: sigdirma_kararli 51 ve sigdirma_rastgele (420 örnek) üç ölçekte, kisayol_gorunum
+  115, kisayol_dosya 164, kisayol_araclar 92, senaryo13 65, 14 56, 17 43, 18 10, 19 113, 20 52, 21 37, 22 101, 23 53, 25 30, 26 62, 27 19 (eski
+  ayarla 20), 29 58 / 61, 30 81, senaryo6 ve 28 (hepsi), senaryo1 (yer tutucularla), ortu_tiklama 156, sekme_genislik 35, panel_kucuk_resim
+  93 (üç ölçekte), kayit_sekme_panel 61, arac_onizleme 22, gec_iptal 20, mac_renderer 23, yazi_dolgu_koyu, gercek_fare (kaynaktan) 9/9,
+  tanima_testi 19, guvenlik_testi 43, kurulum_bitis 4/4. Bilinen: vurgu_cubugu'nun "görünür bir vurgu var" denetimi 0.2.2'de de düşüyor; araclar_testi yer tutucularla 117/122 (aynı 5 hata değişiklik
+  öncesinde de); panel_kucuk_resim bir koşuda %100'de 1 HATA verdi, iki yeniden koşu 93/0 (kararsız).
+- [x] **README ve ekran görüntüleri**: README kodla karşılaştırıldı; şeritlerin yeri ve seçili sekme, bölünmüş geri al, açılış ekranındaki hiza ve
+  yeni simge, Sayfalar panelinin ilk açılışı ve hızlı yüklemesi, akıcı kaydırma, Birleştir ve Sayfaları düzenle'nin yeri, kurulumda kurulu sürüm
+  sayfası (Güncelleme ve Kaldırma bölümlerinde de) ve kurucu sınamaları yazıldı. 19 görüntü yeni düzenle yenilendi (ekran-kaydedilmemis bayt bayt
+  aynı çıktı), 4 yeni: kullanıcının isteğiyle ana görünüm, açılış ekranı ve Birleştir koyu temada (`ekran-*-koyu`, açık temadakilerle yan yana) ve
+  `ekran-kurulum` (kurulum_surum.ps1'in eski sürüm görüntüsü, yalnızca PDEfe adı ve sürümler). `test/readme_goruntuleri.mjs` koyu tema görüntülerini de
+  üretir (ana görünüm için belgeler kaydedilmeden kapatılıp aynı sırayla açılır; açılış ekranındaki son açılanlar aynı sırada). 24 görüntü, 2,7 MB.
+  Açılış ekranı görüntüsü sürüm 0.2.3'ü göstersin diye package.json önce yükseltildi (son commit'te).
+- [ ] **Yayım öncesi** (bu revizyonda koşulmadı): paketli derleme (npm run cekirdek:derle + electron-builder --dir; çekirdek ping, taranmış sayfada
+  kucuk_resim'in bicim'i 'jpeg', PDEfe.exe / PDEfe-Setup.exe / pdefe-core.exe'den simge çıkarma, gercek_fare -Paketli), `test/kurucu_akis.ps1` baştan
+  sona (ek ve düzeltme gruplarının adımları: eski sürümde Kaldır D3 / D4, A1'de "Kabul et", .pdf varsayılanını geri yazma, yeni metinler, yol ile
+  "açık PDEfe" denetimi), Mac CI (`platform=mac`; değişiklikler renderer ve çekirdekte platformdan bağımsız, mac_renderer 23/23).
+- Açık / takip:
+  - Görev çubuğu sabitlemesinin elle Güncelle'de kalkıp kalkmadığı gerçek Windows'ta denenmedi; kalkıyorsa sessiz yolu değiştirmeden önlenemez,
+    ancak uyarı metni eklenebilir (Güncelle açıklaması tek satır, yer yok).
+  - Kurucu dosyası PDEfe.exe adıyla kaydedilip PDEfe gerçekten açıkken çalıştırılırsa sayfa doğru biçimde "açık" der, ama electron-builder bu
+    adda kurucuda açık PDEfe'yi aramıyor ve kapatmıyor: "kurulum onu kapatır" sözü o durumda doğru değil (kurulum "dosya kullanımda" iletisiyle
+    durur). Önlemek customCheckAppRunning gerektirir (güncelleme yolunu da değiştirir).
+  - Şablonlara gömülü İngilizce yazılar kaldı ("Waiting for \"PDEfe\" to close.", "File is busy, aborting", "Uninstall was not successful…" vb.);
+    yalnızca customCheckAppRunning / customRemoveFiles ya da şablon değişikliğiyle. Dil dosyasından dokunulmayan iki metin: lisans sayfasındaki
+    "'page down' tuşuna" ve kurucunun bitiş başlığı "PDEfe Kurulum sihirbazı tamamlanıyor.".
+  - Ölçüm (bulgu değil): electron-builder'ın kendi "uygulama açık mı" denetimi (PowerShell + Get-CimInstance) bu bilgisayarda 10,9–12 sn; 0.2.2
+    kurulumunun 46 sn sürmesinin bir nedeni olabilir.
+  - Kaydırma: 410 sayfalık metinde kaydırma çubuğunu hızla sürüklerken sayfalar yine boş giriyor (ev 2,04 → 1,36, 4× işlemcide 3,88 → 2,57 sn·ekran;
+    çözümü çizim önceliği, bilerek dışarıda); yavaş bilgisayarda %600'de görünen alanın ~%6–7'si beyaz kalabiliyor (alt önizleme tuvali gerekir);
+    %600'de hızlı çizilmiş görünür sayfa kaydırma bitene dek keskinleşmiyor (bilerek). Ölçümler üretilmiş örneklerle; 4K'daki önizleme yolu yalnızca
+    benzetildi; kullanıcının gerçek ekranında elle denenmedi.
+  - Panel: çok hızlı sürüklemede geçilen hücrelerin çoğu boş geçer (istek başına ~35 ms, en çok 2 eşzamanlı), bırakınca görünenler hemen doluyor; hata
+    veren istek yeniden denenmez (0.2.2'deki gibi); orta boy fotoğraflı (< %25) ve satır içi görselli taramalar PNG kalır; siyah-beyaz taramada 576
+    px'te JPEG biraz yavaş (23 → 30 ms) ama %38 küçük. Yön ağırlığı ve paylar ölçümle seçildi; 4× işlemciyle panel senaryoları koşulmadı.
+  - Birleştir'de satırlar 164 px, 1280 × 700'de listede ~1,35 satır (DOGRULAMA 38'de soruluyor); önizleme ekran ölçeği değişince yeniden istenmez
+    (0.2.2'den); okunamayan PDF'in satırında çekirdeğin İngilizce ham iletisi tam yolla görünüyor (0.2.2'de de; kapsam dışı gözlem).
+  - Simge: ICO'da 96 px yok (%150'de orta simge 128'den küçültülür, Gezgin'de bakılmalı); Mac .icns 512 px'ten (Retina'da yumuşaksa mac.icon için
+    paketin 1024'lüğü).
+  - Ekran ölçekleri `--force-device-scale-factor` ile denendi; bölünmüş düğmenin 1 px'lik ayırıcısı kesirli ölçekte iki cihaz pikseline yayılabilir
+    (%125 / %150 görüntülerinde düzgün). Liste fareyle açılıp Esc ile kapatılınca odak halkası 13 px'lik okun çevresinde (0.2.2'den, koyu temada
+    belirgin; değiştirilmedi).
+  - Toplu koşularda iki geçici kesinti yeniden koşuda çıkmadı: test sürücüsü (node) iletisiz 0xC0000409 ile kesildi (senaryo29 görünmeyen masaüstü,
+    ortu_tiklama), senaryo22'nin çökme taklidinde bir kez zamanlama hatası.
+  - Notlara (ortak/notlar/pdefe.md) girecekler: kaydırma ölçüm düzeni (kaydirma_olcum, sn·ekran), kaydirma_cizim'in 6. ve 7. bölümü ve formlu / karma
+    örnekleri, kurucu sınama düzeni (kurulum_surum'un 8b / 8c / 9b / 11 / 11b / 11c / 12 durumları, kurucu_akis'in D3 / D4 adımları, kurucu_koruma,
+    görüntünün yeniden çizdirilerek alınması), WMI'nin masaüstünü uygulamaması ve bu bilgisayardaki yavaşlığı.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 38.

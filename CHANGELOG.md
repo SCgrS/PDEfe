@@ -3,6 +3,46 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.2.3 — 2026-10-07
+
+### Sekmeler en üstte, yeni simge
+- **Sekme şeridi pencerenin en üstünde, araç çubuğu onun altında.** Seçili sekme araç çubuğuyla aynı renkte (açık temada beyaz, koyu temada koyu gri) ve aralarında çizgi yok: sekme araç çubuğunun bir parçası gibi görünür, öteki sekmeler geride biraz koyu şeritte durur. Açık belgeler (≡) listesi düğmesinin hemen altında açılır; güncelleme şeridi çıkarsa araç çubuğunun altında görünür. Birleştir ve Sayfaları düzenle pencereleri iki şeridin de altında açılır.
+- **Geri al ile yanındaki ok tek düğme gibi** (Word'deki gibi). Ok küçüldü; fare üstüne gelince iki yarı birlikte vurgulanır, aralarında ince bir çizgi belirir, farenin üstünde olduğu yarı biraz koyu görünür. Ok küçüldüğü için dar pencerede araç çubuğunda biraz daha yer kaldı.
+- **Yeni uygulama simgesi** (kırmızı sayfa, beyaz çerçeve ve sarmal): kısayollarda, görev çubuğunda, pencere başlığında, kurucuda, açılış ekranında ve (PDEfe varsayılan PDF programıysa) PDF dosyalarında. Kurduktan sonra eski simge görünürse Windows'un simge önbelleği eskidir; oturumu kapatıp açınca düzelir.
+- **Açılış ekranındaki PDF aç düğmesi biraz küçüldü** ve sağ kenarı alttaki Sayfaları düzenle karosuyla aynı hizada; pencere boyutu ve sol panel ne olursa olsun hiza bozulmaz. Sol panel açıkken alçak pencerede açılış ekranında kalan küçük kayma da gitti.
+
+### Sayfalar paneli
+- **İlk açılışta kapalı.** 0.2.3 kurulunca PDEfe Sayfalar panelini bir kez kapalı açar (önceden açık bıraktıysanız da). Sonra açık ya da kapalı nasıl bırakırsanız öyle açılır; Ayarlar › Varsayılanlara dön buna dokunmaz.
+- **Hızla gezinince varılan yerin küçük resimleri önce geliyor.** Panelin kaydırma çubuğu sürüklenip bırakılınca ya da belgede uzak bir sayfaya gidilince, önceden yoldaki bütün sayfaların küçük resimleri hazırlanana dek (bir saniyeyi aşabiliyordu) varılan yer boş kalıyordu; artık önce görünen sayfalar hazırlanır.
+- **Taranmış sayfaların küçük resimleri 2,5–3 kat daha çabuk hazırlanıyor ve yaklaşık %70 daha az yer tutuyor** (panelde, Sayfaları düzenle'de ve `Ctrl+Tab` seçicisinde). Metin, logo, kaşe ve karekodlu sayfaların küçük resimleri eskisi gibi keskin.
+
+### Daha hızlı kaydırma
+- **Logolu, kaşeli, karekodlu sayfalar kaydırırken ekrana net giriyor.** Önceden önce bulanık girip kaydırma durduktan yarım saniye kadar sonra netleşiyordu.
+- **Yüksek yakınlaştırmada (örneğin %600) kaydırırken sayfa beyaz kalmıyor.** Önceden kaydırma durana dek ekranın büyük kısmı beyazdı.
+- **Atlanan sayfa doğrudan net geliyor.** Sayfa numarası yazıp ya da yer imine tıklayıp gidilen sayfa önce bulanık sonra net görünmüyor; geniş ekranlarda sayfalar gereksiz yere iki kez çizilmiyor.
+- Sonraki sayfalar kaydırma yönünde önceden hazırlanıyor; bellek kullanımı artmadı.
+- **Form alanlı (doldurulabilir) belgede yüksek yakınlaştırmada kaydırınca PDEfe birkaç saniye takılıyordu** (Sayfalar paneli, arama ve kaydetme bekliyordu). Düzeltildi.
+
+### Görüntü / PDF birleştir
+- Yüklenen dosyaların önizlemesi daha büyük (120 → 150 piksel) ve ekran ölçeğine göre keskin. Satırlar uzadığı için listede aynı anda biraz daha az dosya görünür; liste kaydırılır.
+
+### Kurulum
+- **Kurucu, PDEfe'nin kurulu olup olmadığını ve hangi sürümün kurulu olduğunu fark ediyor, ona göre soruyor.** Sağ alttaki düğmenin adı seçime göre değişir.
+  - Eski sürüm kuruluysa: **Güncelle** (önerilen; lisans, klasör ve Ek görevler sayfaları gelmeden doğrudan kurulur; ayarlarınız, masaüstü kısayolunun bugünkü durumu ve kurulum klasörü korunur), **Seçenekleri değiştirerek kur** ya da **Kaldır**.
+  - Aynı sürüm kuruluysa (ya da program dosyaları eksikse): **Onar** ya da **Kaldır**.
+  - Daha yeni bir sürüm kuruluysa: **Vazgeç** (önerilen; kurucu kapanır, hiçbir şey değişmez) ya da **Eski sürüme dön**.
+  - **Kaldır** PDEfe'nin kendi kaldırıcısını açar; ayarlarınız silinmez.
+  - PDEfe açıksa sayfanın altında uyarı çıkar ve kurulumu başlatan seçimde bir kez daha sorulur; İptal'de sayfada kalınır, belgelerinizi kaydedip PDEfe'yi kapatabilirsiniz.
+  - Bu sayfa 0.2.3 ve sonraki kurucularda var; 0.2.2 ya da daha eski bir kurucu açılırsa eskisi gibi sormadan kurar.
+- Elle çalıştırılan kurucuda masaüstü kısayolu kutusu bugünkü duruma göre gelir: kısayolu silmişseniz güncellemede geri gelmez (önceden kutu her seferinde işaretliydi).
+- "Bu uygulama kimler için kurulsun?" sayfası kalktı: PDEfe yalnızca sizin kullanıcınıza kurulur.
+- Kurulu değilken lisans sayfasında görünen ve basılınca sihirbazı kapatan "< Geri" düğmesi gizlendi.
+- Lisans düğmesi **Kabul et** (eski "Kabul Ediyorum" yazısı düğmeye sığmıyordu). İngilizce kalan iletiler (kaldırma başarısız, paket açılamadı, uygulama kapatılıyor) Türkçe; yanlış çevrilmiş iletiler ve Türkçe yazım hataları ("kadırılımı", "Litfen", "şeçiniz", "Tamamlandır") düzeltildi; Ek görevler sayfası "Kur'a basın" diyor (düğmenin adı Kur).
+- Uygulama içinden güncelleme ("Kur ve yeniden başlat") eskisi gibi pencere açmadan kurar.
+
+### README
+- Yeni düzen (sekmeler üstte, geri al, Sayfalar paneli, kaydırma, Birleştir, açılış ekranı) ve kurucunun kurulu sürüm sayfası yazıldı; bütün ekran görüntüleri yenilendi. Ana görünüm, açılış ekranı ve Birleştir koyu temada da var; kurucunun görüntüsü eklendi.
+
 ## 0.2.2 — 2026-10-06
 
 ### Pencere kapatılırken sekme sorusu

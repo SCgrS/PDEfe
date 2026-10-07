@@ -56,7 +56,8 @@ yatay sayfa döndürülmüş olmalı. "Notları yazdır" kutusu varsayılan olar
 kutu işaretlenince notlar basılmalı.
 
 ## 7. Kurulum ve varsayılan uygulama
-1. `release/PDEfe-Setup.exe`'yi çalıştırın (SmartScreen: Daha fazla bilgi → Yine de çalıştır). Sihirbaz Türkçe olmalı.
+1. `release/PDEfe-Setup.exe`'yi çalıştırın (SmartScreen: Daha fazla bilgi → Yine de çalıştır). Sihirbaz Türkçe olmalı. (0.2.3'ten
+   beri PDEfe kuruluyken önce kurulu sürüm sayfası gelir, bkz. 38.)
 2. Kurulumdan sonra Gezgin'de bir PDF'e sağ tık → Birlikte aç listesinde PDEfe görünmeli.
 3. Ayarlar → Dosya → **Varsayılan PDF görüntüleyici yap**: Windows Varsayılan Uygulamalar sayfası PDEfe ile açılmalı;
    .pdf için PDEfe seçildikten sonra çift tık PDEfe'yi açmalı.
@@ -295,7 +296,8 @@ olaylarıyla (CDP) ve not balonu başlığı test örneğinde sınandı (test/se
 hareketi, %125 ölçek ve gözle beğeni denenmedi.
 1. **Açılış ekranı.** Bütün sekmeleri kapatın. "Son açılanlar" başlığı araçların altında, belgeler altındaki kutuda olmalı; kutuda
    kaydırma çubuğu olmamalı, 10 belge iki sütunda görünmeli. PDF aç düğmesinde "Bilgisayarınızdaki bir ya da birkaç PDF'i seçin veya
-   bu pencereye sürükleyin" yazmalı, altında ayrı satır olmamalı. İçerik ortanın biraz üstünde durmalı.
+   bu pencereye sürükleyin" yazmalı, altında ayrı satır olmamalı. İçerik ortanın biraz üstünde durmalı. (0.2.3'ten beri PDF aç düğmesi
+   Sayfaları düzenle karosuyla aynı hizada biter, açıklama geniş pencerede iki satıra iner, bkz. 38.)
 2. **Ad ve sürüm.** PDEfe, "PDF görüntüleyici ve düzenleyici" ve sürüm sağ altta olmalı. Pencereyi büyütüp küçültün: yazı köşede
    kalmalı, içeriğin üstüne binmemeli.
 3. **Sekme sürükleme.** Üç dört belge açın, bir sekmeyi basılı tutup yana çekin: sekme imleçle birlikte kaymalı (yarı saydam kopya
@@ -309,7 +311,8 @@ PDF aç düğmesi beş pencere boyutunda ölçüldü; imzaya tık ve çift tık 
 değişmediği piksel karşılaştırmasıyla sınandı (test/senaryo21.mjs). Gerçek fare, %125 ölçek ve gözle beğeni denenmedi.
 1. **PDF aç.** Bütün sekmeleri kapatın: PDF aç kutusu "… bu pencereye sürükleyin" yazısından hemen sonra bitmeli, sola yaslı durmalı;
    sağdaki boşluk soldaki kadar olmalı. Sol paneli açıp (F4) pencereyi olabildiğince daraltın: açıklama alt satıra inmeli, kutu
-   taşmamalı (sol panel kapalıyken en dar pencerede de kutu sığar, açıklama tek satırda kalır).
+   taşmamalı (sol panel kapalıyken en dar pencerede de kutu sığar, açıklama tek satırda kalır). (0.2.3'ten beri kutu yazısıyla değil,
+   alttaki Sayfaları düzenle karosunun sağ kenarıyla biter, bkz. 38.)
 2. **Hakkında.** Sağ alttaki PDEfe simgesine, sonra "PDEfe" yazısına tıklayın: her seferinde Ayarlar › Hakkında açılmalı. Fareyle
    üzerine gelince ya da basılı tutunca hiçbir şey değişmemeli (çerçeve, zemin, el imleci yok).
 3. **Çift tık.** Simgeye çift tıklayın, sonra araç çubuğundaki dişliye çift tıklayın: Ayarlar açılıp açık kalmalı (önceden bir an
@@ -319,7 +322,8 @@ değişmediği piksel karşılaştırmasıyla sınandı (test/senaryo21.mjs). Ge
 Exe'lere gömülen simgeler çıkarılıp bakıldı, kurulumdan sonra kayıt defterindeki simge yolları okundu. Windows'un kendi gösterdiği
 yerler (masaüstü, görev çubuğu, Gezgin) denenmedi.
 1. **Simge.** PDEfe'yi açın: pencerenin sol üstünde ve görev çubuğunda yeni simge görünmeli (lacivert sayfa, ortada altın sarısı
-   dört yapraklı çiçek). Açılış ekranının sağ altında da yeni simge olmalı.
+   dört yapraklı çiçek). Açılış ekranının sağ altında da yeni simge olmalı. (0.2.3'te simge yeniden değişti: kırmızı sayfa, beyaz
+   çerçeve ve sarmal, bkz. 38.)
 2. **Gezgin ve kısayollar.** Bir PDF dosyasının, masaüstü kısayolunun ve Başlat menüsündeki PDEfe'nin simgesine bakın. Eski simge (mavi ya
    da süslemeli) görünüyorsa Windows'un simge önbelleğidir; bilgisayarı yeniden başlatınca düzelir.
 
@@ -600,3 +604,97 @@ gözle, gerçek ikinci ekranda, ekran okuyucuyla ve Mac'te denenmedi. Denemeleri
 19. **Koyu tema.** İki liste ve kapatma sorusu koyu temada okunaklı olmalı.
 20. **Mac'te** (elinizde varsa): kırmızı düğme aynı soruyu sormalı, ⌘W yalnızca sekmeyi kapatmalı, ⌘Q soru sormadan (yalnızca kaydetme sorularıyla)
     çıkmalı; liste açıkken ⌘Z listeyi kapatıp bir adım geri almalı.
+
+## 38. 0.2.3: otomatik testlerin sınayamadıkları
+Ekran dışındaki ve görünmeyen masaüstündeki test örneğinde, üretilmiş örnek PDF'lerle ve %100 / %125 / %150 ölçekte sınandı (test/serit_birlesim,
+geri_al_bolunmus, acilis_hizasi, panel_ilk_acilis, panel_kuyruk, kaydirma_cizim, kucuk_resim_testi; kaydırma hızı test/kaydirma_olcum ile ölçüldü).
+Kurucu, gerçek PDEfe'ye dokunmayan bir deneme kopyasıyla görünmeyen masaüstünde sınandı (test/kurulum_surum, kurucu_akis). Gerçek fareyle, ekranda
+gözle, gerçek UYAP belgeleriyle, gerçek kurulumla ve Mac'te denenmedi. Denemeleri belgelerin **kopyalarıyla** yapın.
+
+Görünüm
+1. **Yeni simge.** 0.2.3'ü kurduktan sonra masaüstü ve Başlat menüsündeki PDEfe kısayolu, görev çubuğu, pencere başlığı, kurucu dosyası
+   (PDEfe-Setup-0.2.3.exe) ve Uygulamalar listesindeki PDEfe yeni kırmızı simgeyi göstermeli; PDEfe varsayılan PDF programıysa Gezgin'de PDF
+   dosyaları da (küçük, orta ve büyük simge görünümünde ayrı ayrı bakın). Eski lacivert simge görünürse Windows'un simge önbelleği eskidir: oturumu
+   kapatıp açın. Açılış ekranının sağ altındaki simge açık ve koyu temada keskin olmalı.
+2. **Şeritlerin yeri ve rengi.** Sekme şeridi pencerenin en üstünde, araç çubuğu onun altında, belge araç çubuğunun altında başlamalı. Seçili sekme
+   araç çubuğuyla aynı renkte (açık temada beyaz, koyu temada koyu gri) olmalı ve aralarında hiçbir çizgi olmamalı: sekme araç çubuğunun parçası gibi;
+   seçili olmayan sekmeler biraz koyu gri şeritte, geride. Başka bir sekmeye ve "Yeni sekme"ye tıklayınca araç çubuğuyla birleşen sekme o olmalı.
+   Kendi ekran ölçeğinizde (%125 / %150 ekranda da), iki temada yakından bakın.
+3. **Şeritlere bağlı öteki yerler.** Sekme şeridinin sağındaki Açık belgeler (≡) listesi düğmenin hemen altında açılmalı. Birleştir ve Sayfaları
+   düzenle iki şeridin de altında açılmalı (arkada sekmeler ve araç çubuğu görünür). Güncelleme şeridi çıkarsa araç çubuğunun altında görünmeli.
+   Okuma kipinde (`Ctrl+H`) şeritler gizli, fare pencerenin üst kenarına gelince araç çubuğu açılmalı. Sekmeyi sürükleyerek sıralama, şeridin dışına
+   sürükleyip yeni pencereye ayırma ve başka pencereye bırakma eskisi gibi çalışmalı.
+4. **Geri al düğmesi.** Geri al ile yanındaki küçük ok tek düğme gibi görünmeli, ok eskisinden küçük. Fare Geri al'ın üstündeyken iki yarı birlikte
+   açık renkle vurgulanmalı, Geri al yarısı biraz koyu, aralarında ince bir çizgi belirmeli; fare okun üstündeyken ok yarısı koyu. Oka tıklayınca
+   geri alınacak adımların listesi açılmalı, liste açıkken ok basılı (koyu) görünmeli; geri alınacak bir şey yokken ikisi birlikte soluk. Pencereyi
+   en dara getirin: ok yine görünmeli ve tıklanınca liste açılmalı, araç çubuğu taşmamalı.
+5. **Açılış ekranı.** Bütün sekmeleri kapatın: PDF aç düğmesi eskisinden biraz küçük, sağ kenarı Araçlar'daki "Sayfaları düzenle" karosunun sağ
+   kenarıyla aynı hizada olmalı. Pencereyi daraltıp genişletin, sol paneli açıp kapatın: hiza bozulmamalı; panel çok genişken karolar tek sütuna
+   inince PDF aç da onlar gibi tam genişlik. Açıklaması geniş pencerede iki satıra iniyor: rahat okunuyor mu, düğme hâlâ belirgin mi? 10 son
+   belgeyle, sol panel açıkken 1280×700 civarındaki bir pencerede açılış ekranı kaymamalı, sağ alttaki imza kırpılmamalı.
+
+Sayfalar paneli
+6. **İlk açılışta kapalı.** 0.2.3 kurulduktan sonraki ilk açılışta Sayfalar paneli kapalı gelmeli (önceden açık bıraktıysanız da, yalnızca bir kez).
+   Paneli `F4` ya da düğmeyle açıp PDEfe'yi kapatıp yeniden açın: açık kalmalı; paneli kapatıp yeniden açın: kapalı kalmalı. Pencereye ayır ile
+   açılan yeni pencerede de aynı durum görülmeli. Ayarlar › Varsayılanlara dön paneli açıp kapatmamalı.
+7. **Hızlı gezinme.** Yüzlerce sayfalık bir belgede Sayfalar panelini açın, panelin kaydırma çubuğunu hızla aşağı sürükleyip bırakın: bırakılan
+   yerdeki küçük resimler hemen gelmeli, boş kare kalmamalı. Aynısını paneli tutamaçla iki katına genişletip deneyin. Belgenin kendisini hızla
+   kaydırın (tekerlek, kaydırma çubuğu, sayfa numarası yazıp atlama): durunca paneldeki görünen küçük resimlerin hepsi gelmiş olmalı.
+8. **Taranmış belge.** Taranmış bir UYAP evrakında paneldeki, Sayfaları düzenle'deki ve `Ctrl+Tab` (basılı tutunca çıkan) seçicideki küçük resimler
+   eskisi kadar net olmalı (leke, bulanıklık yok) ve daha çabuk gelmeli. Metin, logo, kaşe ya da karekod içeren evrakta küçük resimlerdeki yazı
+   eskisi gibi keskin olmalı.
+9. **Panelin geri kalanı.** Paneli kapatıp açın, İçindekiler / Yorumlar'a geçip Sayfalar'a dönün, belge sekmeleri arasında geçin, bir belgeyi
+   kapatın: hiçbir küçük resim boş kalmamalı. Bir sayfaya not ya da vurgu ekleyip kaydedin: paneldeki küçük resim notu göstermeli.
+
+Kaydırma
+10. **Logolu belge.** Logolu, kaşeli ya da karekodlu bir UYAP belgesinde (örneğin tebligat) fare tekerleğiyle hızla aşağı ve yukarı kaydırın, Page
+    Down ile sayfa sayfa inin, sağdaki kaydırma çubuğunu sürükleyin: sayfalar ekrana net girmeli; kaydırma durduktan sonra yarım saniye içinde
+    netleşme görülmemeli.
+11. **Yüksek yakınlaştırma.** Bir belgeyi %600'e yakınlaştırıp tekerlekle aşağı ve yukarı kaydırın: kaydırırken sayfa beyaz kalmamalı (kenarda bir
+    an ince beyaz şerit görülebilir; eskiden kaydırma durana dek ekranın çoğu beyazdı). `Ctrl`+tekerlekle yakınlaştırıp uzaklaştırın: eskisi gibi
+    akıcı olmalı, durunca sayfa net çizilmeli.
+12. **Sayfaya atlama.** Sayfa kutusuna uzak bir sayfa numarası yazın ya da bir yer imine tıklayın: sayfa önce bulanık sonra net değil, doğrudan net
+    gelmeli (özellikle evdeki 2560 px, %125 ekranda).
+13. **Form alanlı belge.** Doldurulabilir (form alanlı) bir PDF'i %400'ün üstüne yakınlaştırıp tekerlekle hızla kaydırın: kaydırma durunca PDEfe
+    takılmamalı; Sayfalar panelinin küçük resimleri, arama ve Kaydet beklemeden çalışmalı; form alanları yerinde ve okunur kalmalı.
+14. **Koyu sayfa ve taranmış belge.** Koyu sayfa kipinde ve taranmış bir belgede kaydırın: sayfalar eskisi gibi doğru renkte ve net girmeli; taranmış
+    sayfada yazı seçme çalışmalı.
+15. **Bellek.** Üç belge açıkken Görev Yöneticisi'nde PDEfe'nin belleğine bakın: 0.2.2'deki düzeyde ya da biraz altında olmalı (ev bilgisayarında
+    test örneğinde ölçülen ~440–480 MB).
+
+Birleştir
+16. **Önizleme.** Görüntü / PDF birleştir'e birkaç PDF ve fotoğraf ekleyin: önizlemeler eskisinden büyük (150 px) ve keskin olmalı, %125 ekranda da;
+    ad, özet, Kalite, Sayfa ve satırdaki düğmeler yerinde ve hizalı. Listede aynı anda görünen dosya biraz azaldı (1536×770 pencerede yaklaşık 1,8
+    satır, önce 2,1; liste kaydırılır): sıkışık bulursanız söyleyin.
+
+Kurucu (PDEfe 0.2.2 kuruluyken, kurucu dosyasına çift tıklayarak)
+17. **Eski sürüm kuruluyken.** İlk sayfa "PDEfe zaten kurulu" olmalı ve "Bilgisayarınızda PDEfe 0.2.2 kurulu. Bu kurucu daha yeni olan 0.2.3
+    sürümünü kurar." yazmalı. Üç seçenek: Güncelle (önerilen, seçili gelir; açıklaması "Ayarlarınız, masaüstü kısayolu ve kurulum klasörü korunur;
+    doğrudan kurulur."), Seçenekleri değiştirerek kur, Kaldır. Kaldır'ı seçince sağ alttaki düğme "Kaldır" yazmalı, Güncelle'ye dönünce "Güncelle".
+    Güncelle'ye basınca lisans, klasör ve Ek görevler sayfaları gelmeden kurulum başlamalı; masaüstü kısayolunuz önceki durumunda kalmalı
+    (silmişseniz geri gelmemeli). Bir sonraki maddeyi de bu kurulumda deneyin.
+18. **PDEfe açıkken.** Önce PDEfe kapalıyken kurucuyu açın: "Dikkat: PDEfe şu anda açık" uyarısı olmamalı ve ilk sayfa çabuk açılmalı (Vazgeç ile
+    kapatın). Sonra PDEfe'de bir belgede kaydedilmemiş değişiklik varken kurucuyu açın: uyarı görünmeli; üç seçenek, açıklamaları ve uyarı birbirine
+    değmeden sayfaya sığmalı. Güncelle'ye basınca "PDEfe hâlâ açık" sorusu (Tamam / İptal) gelmeli; İptal'de sayfada kalınmalı. Belgeyi kaydedip
+    PDEfe'yi kapatın, sonra Güncelle'ye yeniden basın.
+19. **Görev çubuğu sabitlemesi.** PDEfe görev çubuğuna sabitliyse Güncelle'den sonra sabit duruyor mu? Sınanamadı: elle çalıştırılan kurucuda eski
+    kaldırıcı Başlat kısayolunu kaldırırken sabitlemeyi de kaldırabilir (0.2.2'deki elle kurulumda da böyleydi). Sonucu söyleyin.
+20. **Aynı sürüm ve Kaldır.** 0.2.3 kuruluyken aynı kurucuyu yeniden açın: Onar ve Kaldır seçenekleri çıkmalı. Kaldır'a basınca PDEfe'nin kendi
+    kaldırıcısı açılmalı ve kurucu kapanmalı (gerçekten kaldırmak istemiyorsanız kaldırıcının ilk sayfasında Vazgeç'e basın). Ayarlarınız silinmez.
+21. **Kurulu değilken.** PDEfe'yi kaldırdığınız bir zamanda kurucu eskisi gibi sihirbazla gelmeli: lisans → klasör → Ek görevler → kurulum → bitiş;
+    "Bu uygulama kimler için kurulsun?" sayfası olmamalı. Lisans sayfasında "< Geri" görünmemeli, sağ alttaki düğme "Kabul et" yazmalı ve yazı
+    düğmenin kenarlarına değmemeli, üstteki metin "'Kabul et' düğmesine basın" demeli. Klasör sayfasının alt yazısı "PDEfe programını kurmak
+    istediğiniz dizini seçiniz." olmalı. Ek görevler sayfası (Seçenekleri değiştirerek kur'dan gelince de) "… işaretleyin, sonra Kur'a basın."
+    demeli, düğme "Kur".
+22. **Kaldırıcının yazıları.** PDEfe'yi kaldırdığınızda kaldırıcının ilk sayfasında "…PDEfe programının kaldırılması boyunca rehberlik edecektir" ve
+    "Kaldırma işlemini başlatmadan önce çalışan diğer programları…" yazmalı ("kadırılımı" yazmamalı); Kaldırılıyor sayfasında "Lütfen PDEfe
+    programı…", bitişte "Sihirbazı kapatmak için 'Bitir'e basınız.".
+23. **Uygulama içinden güncelleme.** 0.2.3'ten sonraki ilk güncellemede şeritteki "Kur ve yeniden başlat" eskisi gibi sessiz olmalı: hiçbir pencere
+    açılmadan kurulmalı, PDEfe yeniden açılmalı. (Not: kurulu sürüm sayfası yalnızca 0.2.3 ve sonraki kurucularda var; 0.2.2 ya da daha eski bir
+    kurucu açılırsa eskisi gibi sormadan kurar.)
+
+Öteki
+24. **Mac'te** (elinizde varsa): DMG'de ve Dock'ta yeni simge; sekme şeridi üstte, araç çubuğu altında, seçili sekmeyle araç çubuğu arasında çizgi
+    yok; açılış ekranında PDF aç'ın hizası; Sayfalar panelinin ilk açılışta kapalı gelmesi.
+25. **README.** GitHub'da (gönderildikten sonra) yeni ekran görüntüleri, koyu temadaki görüntüler (ana görünüm, açılış ekranı, Birleştir) ve
+    kurucunun görüntüsü görünmeli ve anlattıkları bölümün altında olmalı.
