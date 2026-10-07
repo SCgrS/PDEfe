@@ -1064,19 +1064,30 @@ export class Goruntuleyici extends EventTarget {
   }
 
   // ------------------------------------------------------------ çizim
+  /**
+   * Sayfanın çizimini planlar. Tuvali olmayan sayfa hemen çizilir. Tuvali olan sayfa iki türlü yeniden çizilir:
+   * - Ölçek değişti (yakınlaştırma sürerken, pencere boyutu, döndürme, koyu sayfa): 120 ms beklenir, her çağrıda bekleme yeniden kurulur;
+   *   yakınlaştırmanın her adımında yeniden çizilmez, bu arada eski tuval gerilmiş gösterilir.
+   * - Ölçek aynı (ayniGorunumMu), yeniden çizimin nedeni bölgesel çizimin görünen kısmı kapsamaması ya da önizleme / hızlı çizimin
+   *   keskinleşmesi: beklemeden (0 ms) ve kısılarak, bekleyen plan her çağrıda yeniden kurulmaz (0.2.3, kullanıcı isteği: "sayfaları
+   *   kaydırırken daha hızlı yüklensin"). 120 ms'lik bekleme her kaydırma olayında yeniden kurulduğu için kaydırma sürdükçe hiç dolmuyordu:
+   *   %600'de kaydırırken görünen alanın ~%90'ı beyaz kalıyor, yeniden çizim ancak kaydırma durunca geliyordu.
+   */
   sayfaCizPlanla(i) {
     const s = this.sayfalar[i], yer = this.yerAl(i);
     if (!s || !yer) return;
     if (!this.cizimGerekliMi(i)) { this.gereksizCizimiBirak(s, i, yer); return; }
     if (s.hedef && this.yeterliMi(i, s.hedef, yer)) return;   // süren çizim yeterli: yeniden başlatma (kaydırırken iptal fırtınası olmasın)
+    const gecikme = !s.canvas || (s.cizim && this.ayniGorunumMu(s, s.cizim, yer)) ? 0 : 120;
+    if (s._planli && gecikme === 0 && s._planGecikmesi === 0) return;   // bekleyen plan zaten hemen çizecek (kısma)
     s.el.classList.add('yukleniyor');
     clearTimeout(s._zaman);
-    s._planli = true;
+    s._planli = true; s._planGecikmesi = gecikme;
     s._zaman = setTimeout(() => {
       s._planli = false;
       const j = this.idx(s);
       if (j >= 0 && !this.yok) this.sayfaCiz(j);
-    }, s.canvas ? 120 : 0);
+    }, gecikme);
   }
 
   /**
@@ -1130,12 +1141,20 @@ export class Goruntuleyici extends EventTarget {
     if (!c || !s || c.onizleme) return false;
     // Hızlı çizilmiş (görsel örneklemesi ertelenmiş) sayfa, kaydırma ve arka plan okuması bitince görünüyorsa yeterli değil
     if (c.hizli && !keskinErtelenir() && !okumaSuruyor() && this._gorunurKume.has(s)) return false;
-    if (c.olcek !== yer.olcek || c.dondurme !== this.toplamDondurme(s) || c.dpr !== pikselOrani()) return false;
-    if (!!c.koyu !== !!this.koyuSayfa) return false;        // metin yumuşatması sayfa koyuluğuna göre (tuvalCiz)
-    if (Math.abs(c.w - yer.w) > 1e-3 || Math.abs(c.h - yer.h) > 1e-3) return false;
+    if (!this.ayniGorunumMu(s, c, yer)) return false;
     if (c.tam) return true;
     const g = this.gorunurKisim(yer), b = c.bolge;
     return g.x0 >= b.x - 1 && g.y0 >= b.y - 1 && g.x1 <= b.x + b.w + 1 && g.y1 <= b.y + b.h + 1;
+  }
+
+  /**
+   * Çizim tanımı c (bitmiş s.cizim ya da süren s.hedef) sayfanın şu anki görünümüyle aynı ölçekte mi: ölçek, döndürme, piksel oranı,
+   * koyuluk ve boyut aynı. Öyleyse c'nin yetmemesinin nedeni yalnızca önizleme / hızlı çizim ya da bölgenin görünen kısmı kapsamamasıdır.
+   */
+  ayniGorunumMu(s, c, yer) {
+    if (c.olcek !== yer.olcek || c.dondurme !== this.toplamDondurme(s) || c.dpr !== pikselOrani()) return false;
+    if (!!c.koyu !== !!this.koyuSayfa) return false;        // metin yumuşatması sayfa koyuluğuna göre (tuvalCiz)
+    return Math.abs(c.w - yer.w) <= 1e-3 && Math.abs(c.h - yer.h) <= 1e-3;
   }
 
   cizimGerekliMi(i) {
