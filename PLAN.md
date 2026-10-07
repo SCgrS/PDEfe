@@ -1988,10 +1988,16 @@ iki bağımsız inceleme (görüntüleyici / kurucu, salt okunur) ve düzeltmele
   `ekran-kurulum` (kurulum_surum.ps1'in eski sürüm görüntüsü, yalnızca PDEfe adı ve sürümler). `test/readme_goruntuleri.mjs` koyu tema görüntülerini de
   üretir (ana görünüm için belgeler kaydedilmeden kapatılıp aynı sırayla açılır; açılış ekranındaki son açılanlar aynı sırada). 24 görüntü, 2,7 MB.
   Açılış ekranı görüntüsü sürüm 0.2.3'ü göstersin diye package.json önce yükseltildi (son commit'te).
-- [ ] **Yayım öncesi** (bu revizyonda koşulmadı): paketli derleme (npm run cekirdek:derle + electron-builder --dir; çekirdek ping, taranmış sayfada
-  kucuk_resim'in bicim'i 'jpeg', PDEfe.exe / PDEfe-Setup.exe / pdefe-core.exe'den simge çıkarma, gercek_fare -Paketli), `test/kurucu_akis.ps1` baştan
-  sona (ek ve düzeltme gruplarının adımları: eski sürümde Kaldır D3 / D4, A1'de "Kabul et", .pdf varsayılanını geri yazma, yeni metinler, yol ile
-  "açık PDEfe" denetimi), Mac CI (`platform=mac`; değişiklikler renderer ve çekirdekte platformdan bağımsız, mac_renderer 23/23).
+- [x] **Son sınama** (belgelerden sonra, 0.2.3 sürümüyle): tam regresyon 59 takım, 3.123 denetim; ilk geçişte tek hata kaydirma_cizim'in ön koşulu
+  (60 tekerlek olayından 53'ü sayfaya ulaştı; uygulama doğru, 3 yeniden koşu 35/35; test gevşetilmedi). Eski testler (senaryo1–10, oto_kayit_kilit,
+  araclar_testi yer tutucularla 117/122) a2a9b50'yle aynı sonuç, gerileme yok; senaryo3, 11, 12 (gerçek pano) ve guncelleme-e2e/senaryo koşulmadı.
+  Paket: `npm run cekirdek:derle` (ping ok), `electron-builder --dir`, `gercek_fare -Paketli` 9/9, yeni `test/paket_duman.mjs` 18/18 (sürüm, şeritler,
+  bölünmüş geri al, panelin ilk açılışı, PDF aç hizası, Birleştir 150 px, paketli çekirdekte taranmış sayfa JPEG / metin sayfası PNG, kapatma sorusu).
+  Gerçek yapılandırmayla kurucu (LZMA, 136.161.282 bayt, sürüm 0.2.3; çalıştırılmadı). PDEfe.exe, PDEfe-Setup.exe, kaldırıcı ve pdefe-core.exe'den
+  çıkarılan 256 / 48 / 32 / 16 px simgelerin 16'sı da yeni simge (eskisiyle ortalama fark 53–59, yenisiyle 0,01–0,11). `test/kurucu_akis.ps1` baştan
+  sona 16 adım, 56 TAMAM, 0 HATA; gerçek PDEfe'nin 27 değeri önce ve sonra aynı, deneme kopyasından iz yok.
+- [ ] **Mac CI** (`platform=mac`; dal gönderme onayı gerekir; değişiklikler renderer ve çekirdekte platformdan bağımsız, mac_renderer 23/23). Yayım
+  derlemesi Mac DMG'yi de sınar.
 - Açık / takip:
   - Görev çubuğu sabitlemesinin elle Güncelle'de kalkıp kalkmadığı gerçek Windows'ta denenmedi; kalkıyorsa sessiz yolu değiştirmeden önlenemez,
     ancak uyarı metni eklenebilir (Güncelle açıklaması tek satır, yer yok).
