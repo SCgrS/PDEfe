@@ -17,7 +17,7 @@ const KENAR = 16;                         // kenar boşluğu (px)
 const EN_KUCUK = 0.25, EN_BUYUK = 64;     // %25 – %6400
 const EN_FAZLA_PIKSEL = 24e6;             // tek tuvalde en fazla piksel; üstünde bölgesel çizim
 const BOLGE_PAYI = 0.25;                  // bölgesel çizimde görünür alanın her yanına eklenen pay (görünür boyutun oranı)
-const ONIZLEME_ESIGI = 6e6;               // bundan büyük (cihaz pikseli) ilk çizimlerde önce önizleme
+const ONIZLEME_ESIGI = 12e6;              // bundan büyük (cihaz pikseli) bölgesel ilk çizimde, sayfa görünüyorsa önce önizleme (0.2.3: 6e6, her ilk çizimde)
 const ONIZLEME_PIKSEL = 1.5e6;            // önizleme tuvalinin en fazla piksel sayısı
 const KOYU_YER_TUTUCU = '#000';            // beyazın invert(1) karşılığı: koyu sayfada henüz çizilmemiş sayfanın ve tuvalin kaplamadığı alanın rengi
 const ZOOM_ADIMLARI = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64];
@@ -1247,8 +1247,13 @@ export class Goruntuleyici extends EventTarget {
       if (!gecerliMi()) return;
       const dondurme = hedef.dondurme;
 
-      // Pahalı ilk çizim: önce düşük çözünürlüklü tam sayfa önizleme (gerilmiş gösterilir), sonra tam çizim onun yerini alır
-      if (!s.canvas && !s.bos && bolge.w * bolge.h * dpr * dpr > ONIZLEME_ESIGI) {
+      // Pahalı ilk çizim: önce düşük çözünürlüklü tam sayfa önizleme (gerilmiş gösterilir), sonra tam çizim onun yerini alır. 0.2.3:
+      // yalnızca çizim başlarken görünen sayfada ve çok büyük bölgesel çizimde (ONIZLEME_ESIGI). Önceden 6 MP'yi aşan her ilk çizimde
+      // (2560 px %125 ekranda genişliğe sığdırılmış her sayfa, 6,7 MP) ve görünmeyen (önden çizilen) sayfada da yapılıyordu: önden çizilen
+      // sayfa iki kez çiziliyor, görünen sayfa önce bulanık sonra net geliyordu. Ölçümde (metin, logolu, taranmış; 6,7 ve 19 MP; 1× ve
+      // 4× yavaş işlemci) önizleme ilk görüntüyü hızlandırmadı (çizim süresi piksel sayısından çok çizim işlemlerine bağlı), keskin
+      // görüntüyü 15–80 ms geciktirdi, kaydırma çubuğunu sürüklerken çizim işini ~%35 artırdı.
+      if (!s.canvas && !s.bos && !bolge.tam && this._gorunurKume.has(s) && bolge.w * bolge.h * dpr * dpr > ONIZLEME_ESIGI) {
         const oran = Math.min(dpr, Math.sqrt(ONIZLEME_PIKSEL / (yer.w * yer.h)));
         const tamSayfa = { x: 0, y: 0, w: yer.w, h: yer.h };
         const on = await this.tuvalCiz(s, pdfSayfa, hedef.olcek, dondurme, oran, tamSayfa, hedef.koyu);

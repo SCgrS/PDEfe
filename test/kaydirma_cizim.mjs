@@ -8,6 +8,9 @@
 //      çizilir) önden çizilen sayfalar işçi örneklemesi bitince kaydırma sürerken keskin yeniden çizilir, görünür alana keskin girer
 //      (önceden 5 sayfanın 4'ü bulanık giriyor, kaydırma durduktan ~0,5 sn sonra netleşiyordu); sayfa başına çizim sınırlı (döngü yok).
 //      yeterliMi: ara tuvalden hızlı çizilmiş bant sayfası (keskinlesir yok) kaydırma bitene dek yeniden çizilmez.
+//   3) Önizleme (düşük çözünürlüklü ilk çizim) yalnızca görünen sayfada ve çok büyük (12 MP üstü) bölgesel çizimde: genişliğe sığdırılmış
+//      sayfada (6,7 MP) ve %370'teki tam çizimde (19 MP) yok, önden çizilen sayfada hiç yok; görünüm pencereden büyük yapılınca (4K ekran
+//      benzeri bölgesel çizim) görünen sayfada var.
 // Kullanım (ev ekranı benzeri; sayfa 6 MP'yi aşar):
 //   .venv\Scripts\python.exe test\kaydirma_ornek_uret.py      (test\cikti\kaydirma\pdf yoksa betik kendisi üretir)
 //   powershell -File test\baslat.ps1 -Port 9643 -Boyut "1800,1050" -Olcek 1.25      → PID=… yazar
@@ -22,7 +25,7 @@ const KOK = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ORNEK = path.join(KOK, 'test', 'cikti', 'kaydirma', 'pdf');
 const PY = path.join(KOK, '.venv', 'Scripts', 'python.exe');
 const J = (x) => JSON.stringify(x);
-const BOLUMLER = (process.env.BOLUM || '1,2').split(',').map((s) => +s.trim()).filter(Boolean);
+const BOLUMLER = (process.env.BOLUM || '1,2,3').split(',').map((s) => +s.trim()).filter(Boolean);
 
 let hataSayisi = 0, denetimSayisi = 0;
 const sonuc = (ad, ok, ayrinti = '') => {
@@ -228,6 +231,41 @@ export default async function ({ evalJs, bekle, hedefler }) {
     })()`);
     sonuc('yeterliMi (bant, hızlı): işçili kaydırırken yeterli değil, ara tuvalli kaydırırken yeterli; kaydırma bitince ikisi de yeterli değil',
       !!y && !y.okuma && y.surerkenIscili === false && y.surerkenAra === true && y.bitinceAra === false && y.bitinceIscili === false, y);
+  }
+
+  if (BOLUMLER.includes(3)) {
+    console.log('--- 3) Önizleme yalnızca görünen sayfada ve çok büyük bölgesel çizimde');
+    await belgeAc(METIN);
+    const atla = async (sayfalar) => { for (const no of sayfalar) { await evalJs(`(() => { window.__kc.g().sayfayaGit(${no}, { aninda: true }); return true; })()`); await durul(); } };
+    const oku = () => evalJs('window.__kc.olaylar.filter((e) => e.tur === "bas")');
+    await evalJs('window.__kc.sifirla()');
+    await atla([200, 100, 300]);
+    let bas = await oku();
+    const sayfaMP = Math.max(0, ...bas.filter((e) => e.gorunur && !e.onizleme).map((e) => e.mp));
+    sonuc(`Genişliğe sığdırılmış sayfa (${sayfaMP.toFixed(1)} MP): önizleme yok, bant sayfaları doğrudan tam çizildi`,
+      bas.length >= 6 && bas.every((e) => !e.onizleme) && bas.some((e) => !e.gorunur), { cizim: bas.length, onizleme: bas.filter((e) => e.onizleme).length });
+    await evalJs(`(() => { const g = window.__kc.g(); g.zoomAyarla(3.7); g.sayfayaGit(150, { aninda: true }); return true; })()`);
+    await durul();
+    await evalJs('window.__kc.sifirla()');
+    await atla([250, 50]);
+    bas = await oku();
+    const buyukMP = Math.max(0, ...bas.filter((e) => e.gorunur && !e.onizleme).map((e) => e.mp));
+    sonuc(`%370 (${buyukMP.toFixed(1)} MP, tam çizim): önizleme yok`, buyukMP > 15 && bas.length >= 4 && bas.every((e) => !e.onizleme),
+      { cizim: bas.length, onizleme: bas.filter((e) => e.onizleme).length });
+    // Çok büyük bölgesel çizim (4K ekran benzeri: görünüm pencereden büyük yapılır): görünen sayfanın ilk çiziminde önizleme korunur
+    await evalJs(`(() => { const g = window.__kc.g(); g.kaydirici.style.right = '-1800px'; g.kaydirici.style.bottom = '-1000px'; g.zoomAyarla(6); return true; })()`);
+    await bekle(300);
+    await durul();
+    await evalJs('window.__kc.sifirla()');
+    await atla([120]);
+    bas = await oku();
+    const bolgeMP = Math.max(0, ...bas.filter((e) => e.gorunur && !e.onizleme).map((e) => e.mp));
+    const gorunenOnizleme = bas.filter((e) => e.onizleme && e.gorunur), gorunmeyenOnizleme = bas.filter((e) => e.onizleme && !e.gorunur);
+    sonuc(`Çok büyük bölgesel çizim (${bolgeMP.toFixed(1)} MP): görünen sayfada önizleme var, görünmeyende yok`,
+      bolgeMP > 12 && gorunenOnizleme.length >= 1 && gorunmeyenOnizleme.length === 0, { gorunen: gorunenOnizleme.map((e) => e.no), gorunmeyen: gorunmeyenOnizleme.map((e) => e.no) });
+    await evalJs(`(async () => { const g = window.__kc.g(); g.kaydirici.style.right = ''; g.kaydirici.style.bottom = ''; await g.zoomModuAyarla('genislik'); return true; })()`);
+    await bekle(300);
+    await durul();
   }
 
   await gonder('Emulation.setCPUThrottlingRate', { rate: 1 });
