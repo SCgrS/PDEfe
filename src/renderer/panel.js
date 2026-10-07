@@ -30,6 +30,18 @@ const BOYUT_DURULMA_MS = 250;        // panel genişliği bu kadar değişmeden 
 // hücrelere dokunulmaz.
 const KUCUK_RESIM_BELLEK = 48 * 1024 * 1024;
 const UZAK_ALAN = 2;                 // görünen alandan en az bu kadar alan yüksekliği uzaktaki hücrelerin resmi bırakılabilir
+// İstek kuyruğu (0.2.3, kullanıcı isteği: "sayfaları kaydırırken daha hızlı yüklensin. hafif geç yükleniyor gibi oluyor"). 0.2.2'ye dek
+// gözlemci hücre göründüğü anda isteği çekirdeğe gönderiyordu: sıra, öncelik, iptal yoktu; çekirdek de istekleri tek iş parçacığında
+// geliş sırasıyla işler. Panelde hızla gezinince (kaydırma çubuğunu sürükleme, ana görünümü hızla kaydırma) geçilen her hücrenin isteği
+// çekirdekte birikiyor, varılan yerin resimleri onların hepsi üretilene dek boş kalıyordu (410 sayfalık belgede 480 px'lik panelin çubuğu
+// sürüklenip bırakılınca ~2 sn; istek gecikmesi ortancası 1,2–1,4 sn). Artık istekler panelin kuyruğunda bekler: çekirdekte aynı anda en
+// çok KUYRUK_ESZAMANLI istek; sıradaki, görünen alana en yakın hücre (kaydırma yönündekiler önce); görünen alandan uzaklaşan hücrenin isteği
+// hiç gönderilmez, hücre gözlemciye geri verilir (geri gelince yeniden istenir). Uzaktakiler düştüğü için gözlemcinin payı büyütüldü: hücre
+// bir alan yüksekliği önceden istenir (0.2.2'de 300 px), görünenler bitmeden önden yükleme başlamaz.
+const KUYRUK_ESZAMANLI = 2;          // biri çekirdekte işlenirken öteki onun ardında bekler: çekirdek boşta kalmaz, ardında sıra uzamaz
+const ON_YUKLEME_PAYI = '100% 0px';  // gözlemcinin payı (rootMargin): görünen alanın bir alan yüksekliği üstü ve altı
+const DUSME_ALANI = 2;               // görünen alandan bu kadar alan yüksekliğinden (pay + bir alan) uzaklaşan hücrenin isteği gönderilmez
+const GERI_AGIRLIK = 2;              // kaydırma yönünün tersindeki hücrenin uzaklığı bu kadar katıyla sayılır: önce gidilen yöndekiler
 
 /** Küçük resim için çekirdekten istenecek genişlik (cihaz pikseli): ekrandaki genişlik (CSS pikseli) × ekran ölçeği (en çok 2, 0.2.1'deki
  *  gibi) × oran (resim ekranda 90/270° döndürülüyorsa resmin genişliği ekranda yükseklik olur: resmin genişliği / yüksekliği), kademeye
@@ -64,13 +76,21 @@ export class SolPanel extends EventTarget {
     this._capa = null;         // kaydırma yerinin çapası (capaKaydet)
     this._sonGenislik = 0;     // Sayfalar alanının son bilinen iç genişliği (yalnızca genişlik değişimi işlenir)
     this._sonOlcek = 0;        // o andaki ekran ölçeği (devicePixelRatio): ölçek değişimi de işlenir
+    this._kuyruk = new Map();  // istek bekleyen hücre → { b, onbellek } (gözlemciden çıkarılmış; gönderilmezse geri verilir)
+    this._yolda = 0;           // çekirdekte yanıtı beklenen küçük resim isteği sayısı (en çok KUYRUK_ESZAMANLI)
+    this._yon = 0;             // Sayfalar alanının son kaydırma yönü (1 aşağı, −1 yukarı, 0 bilinmiyor): kuyruğun önceliği
+    this._sonKaydirma = 0;     // alanın son scrollTop'u (yön için)
 
     sekmeler.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => this.sekmeSec(b.dataset.panel)));
 
     // Sayfalar alanının genişliği değişince (tutamaç, pencere boyutu, 60vw sınırı, panel açılınca) küçük resimler CSS'le kendiliğinden uyar;
     // gözlemci yalnızca kaydırma yerini korur ve çözünürlük denetimini planlar. Boyut yazmaz: "ResizeObserver loop" döngüsü kurulmaz.
     new ResizeObserver(() => this.sayfalarBoyutlandi()).observe(sayfalar);
-    sayfalar.addEventListener('scroll', () => { if (!this._boyutlaniyor) this.capaKaydet(); }, { passive: true });
+    sayfalar.addEventListener('scroll', () => {
+      const st = sayfalar.scrollTop;
+      if (st !== this._sonKaydirma) { this._yon = st > this._sonKaydirma ? 1 : -1; this._sonKaydirma = st; }
+      if (!this._boyutlaniyor) this.capaKaydet();
+    }, { passive: true });
     // Ekran ölçeği değişince (pencere başka ölçekli ekrana taşındı) CSS genişliği aynı kaldığı için ResizeObserver gelmez: ölçeğe bağlı
     // ortam sorgusu dinlenir (goruntuleyici.js dprDinle gibi), çözünürlük denetlenir. Panel kapalıyken değiştiyse panel açılınca (ölçek de
     // sayfalarBoyutlandi'nin karşılaştırmasında; bağımsız inceleme)
@@ -126,6 +146,7 @@ export class SolPanel extends EventTarget {
    *  panel sekmesindeyken yeniden kurulmaz) gözlemci ve resimler de bırakılır: gözlemcinin geri çağrısı kapanan belgeyi tutuyordu. */
   belgeUnut(belgeId) {
     this.kucukResimler.delete(belgeId);
+    for (const [el, k] of this._kuyruk) if (k.b.id === belgeId) this._kuyruk.delete(el);   // kapanan belgenin bekleyen istekleri gönderilmez
     if (this._sayfalarB?.id !== belgeId) return;
     this._gozlemci?.disconnect(); this._gozlemci = null;
     this.alanlar.sayfalar.innerHTML = '';
@@ -147,6 +168,7 @@ export class SolPanel extends EventTarget {
     if (!this.belge) {
       for (const el of Object.values(this.alanlar)) el.innerHTML = '<p class="soluk">Açık belge yok.</p>';
       this._gozlemci?.disconnect(); this._gozlemci = null; this._sayfalarB = null; this._capa = null;   // kaldırılan küçük resimler belgeyi tutmasın
+      this._kuyruk.clear();
       return;
     }
     if (this.aktifSekme === 'sayfalar') this.sayfalariDoldur();
@@ -163,17 +185,20 @@ export class SolPanel extends EventTarget {
     this._sayfalarB = b;   // alanın küçük resimleri hangi belgenin (belgeUnut, çözünürlük denetimi)
     alan.innerHTML = '';
     if (this._gozlemci) this._gozlemci.disconnect();
+    this._kuyruk.clear();   // eski hücreler kalktı; yoldaki istekler sürer, yanıtları önbelleğe girer
+    this._yon = 0; this._sonKaydirma = alan.scrollTop;
     const onbellek = this.kucukResimler.get(b.id) || new Map();
     this.kucukResimler.set(b.id, onbellek);
-    // Görünen (ve 300 px yakınındaki) hücrenin resmi yüklenir; genişlik yükleme anında okunur (panel o arada boyutlanmış olabilir)
-    this._gozlemci = new IntersectionObserver((girdiler) => {
+    // Görünen (ve bir alan yüksekliği yakınındaki) hücrenin resmi önbellekten konur ya da kuyruğa girer (_hucreGorundu); genişlik istek
+    // gönderilirken okunur (panel o arada boyutlanmış olabilir)
+    this._gozlemci = new IntersectionObserver((girdiler, gozlemci) => {
       for (const g of girdiler) {
         if (!g.isIntersecting) continue;
-        const el = g.target; const no = +el.dataset.sayfa;
-        this._gozlemci.unobserve(el);
-        this.kucukResimYukle(b, no, el, onbellek);
+        gozlemci.unobserve(g.target);
+        this._hucreGorundu(b, g.target, onbellek);
       }
-    }, { root: alan, rootMargin: '300px' });
+      this._kuyrukIsle();   // bildirimin bütün hücreleri kuyruktayken: ilk gönderilen de en yakın olsun
+    }, { root: alan, rootMargin: ON_YUKLEME_PAYI });
 
     const n = b.gorunum.sayfaSayisi;
     for (let no = 1; no <= n; no++) {
@@ -209,20 +234,76 @@ export class SolPanel extends EventTarget {
     return !!(img && s && +img.dataset.istenen < this.istenenGenislik(b, s));
   }
 
-  async kucukResimYukle(b, no, el, onbellek) {
+  /** Sayfanın önbellek anahtarı ve istenecek genişliği. Çekirdek sayfayı diskteki /Rotate ile çizer: kayıtla diske işlenmiş döndürme
+   *  resimde vardır, anahtar ona göre ayrılır. */
+  _resimAnahtari(b, s) {
+    const disk = diskDondurmesi(b, s);
+    return { disk, anahtar: (s.kaynak.yol + '#' + s.kaynak.sayfa).toLowerCase() + '#' + disk, istenen: this.istenenGenislik(b, s, disk) };
+  }
+
+  /** Gözlemci hücrenin görünen alanın payına girdiğini bildirdi: önbellekte yeterli resim varsa hemen konur (çekirdeğe gitmez), yoksa hücre
+   *  kuyruğa girer (gözlemcinin geri çağrısı ardından _kuyrukIsle'yi çağırır). */
+  _hucreGorundu(b, el, onbellek) {
+    const s = b.gorunum.sayfalar[+el.dataset.sayfa - 1];
+    if (s && !s.bos) {
+      const { anahtar, istenen } = this._resimAnahtari(b, s);
+      if (!(onbellek.get(anahtar)?.istenen >= istenen)) { this._kuyruk.set(el, { b, onbellek }); return; }
+    }
+    this.kucukResimYukle(b, +el.dataset.sayfa, el, onbellek);
+  }
+
+  /** Kuyruktan çekirdeğe istek gönderir: yer oldukça (KUYRUK_ESZAMANLI) görünen alana en yakın hücreninkini; her yanıt geldiğinde sıradaki.
+   *  Seçim gönderme anında yapılır (hücrelerin o anki yeri); istenen genişlik de gönderilirken okunur. */
+  _kuyrukIsle() {
+    while (this._yolda < KUYRUK_ESZAMANLI && this._kuyruk.size) {
+      const el = this._kuyruktanSec();
+      if (!el) return;
+      const { b, onbellek } = this._kuyruk.get(el);
+      this._kuyruk.delete(el);
+      this._yolda++;
+      let birakildi = false;
+      const birak = () => { if (birakildi) return; birakildi = true; this._yolda--; this._kuyrukIsle(); };
+      this.kucukResimYukle(b, +el.dataset.sayfa, el, onbellek, birak).finally(birak);
+    }
+  }
+
+  /** Kuyruğun sıradaki hücresi: görünen hücreler (uzaklık 0) önce, sonra görünen alana en yakın; kaydırma yönünün tersindekilerin uzaklığı
+   *  GERI_AGIRLIK katıyla sayılır. Görünen alandan DUSME_ALANI alan yüksekliğinden uzaklaşmış ya da panelden kalkmış hücreler kuyruktan
+   *  düşer; uzaklaşanlar gözlemciye geri verilir (yeniden yaklaşınca yeniden istenir). Alan görünmüyorsa (panel kapandı, başka panel sekmesi
+   *  seçildi) bekleyenlerin hepsi geri verilir: alan görününce gözlemci yeniden bildirir. Kuyruk boşalınca null. */
+  _kuyruktanSec() {
+    const alan = this.alanlar.sayfalar, h = alan.clientHeight;
+    const geriVer = (el) => { this._kuyruk.delete(el); if (el.isConnected) this._gozlemci?.observe(el); };
+    if (!this.acik || this.aktifSekme !== 'sayfalar' || !h) { for (const el of [...this._kuyruk.keys()]) geriVer(el); return null; }
+    const ar = alan.getBoundingClientRect(), ust = ar.top + alan.clientTop, alt = ust + h;
+    let secilen = null, enIyi = Infinity;
+    for (const el of [...this._kuyruk.keys()]) {
+      if (!el.isConnected) { this._kuyruk.delete(el); continue; }
+      const r = el.getBoundingClientRect();
+      const asagida = r.top >= alt, yukarida = r.bottom <= ust;
+      const uzaklik = asagida ? r.top - alt : yukarida ? ust - r.bottom : 0;
+      if (uzaklik > DUSME_ALANI * h) { geriVer(el); continue; }
+      const puan = uzaklik * ((asagida && this._yon < 0) || (yukarida && this._yon > 0) ? GERI_AGIRLIK : 1);
+      if (puan < enIyi) { secilen = el; enIyi = puan; }
+    }
+    return secilen;
+  }
+
+  /** Hücrenin resmini koyar: önbellekte yeterlisi yoksa çekirdekten ister. cekirdektenSonra: çekirdeğin yanıtı (ya da hatası) gelince bir kez
+   *  çağrılır (kuyruğun yeri resim çözülmeyi beklemeden boşalır). */
+  async kucukResimYukle(b, no, el, onbellek, cekirdektenSonra = null) {
     try {
       const s = b.gorunum.sayfalar[no - 1];
       if (!s) return;
       if (s.bos) { el.querySelector('.bos')?.classList.add('bos-sayfa'); return; }
-      // Çekirdek sayfayı diskteki /Rotate ile çizer: kayıtla diske işlenmiş döndürme resimde vardır, anahtar ona göre ayrılır. Önbellekte
-      // sayfanın en büyük çözünürlüklü resmi durur: istenenden küçük değilse kullanılır (daralınca yeniden istenmez), küçükse yeniden istenir.
-      const disk = diskDondurmesi(b, s);
-      const anahtar = (s.kaynak.yol + '#' + s.kaynak.sayfa).toLowerCase() + '#' + disk;
-      const istenen = this.istenenGenislik(b, s, disk);
+      // Önbellekte sayfanın en büyük çözünürlüklü resmi durur: istenenden küçük değilse kullanılır (daralınca yeniden istenmez), küçükse
+      // yeniden istenir.
+      const { disk, anahtar, istenen } = this._resimAnahtari(b, s);
       const sira = el._istek = (el._istek || 0) + 1;   // hücrenin sonraki isteği öncekini geçersiz kılar: geç gelen düşük çözünürlük yenisini ezmesin
       let kayit = onbellek.get(anahtar);
       if (!kayit || kayit.istenen < istenen) {
-        const r = await this.cekirdek('kucuk_resim', { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa, genislik: istenen });
+        let r;
+        try { r = await this.cekirdek('kucuk_resim', { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa, genislik: istenen }); } finally { cekirdektenSonra?.(); }
         const src = 'data:image/png;base64,' + r.png;
         kayit = { src, istenen, boy: src.length, zaman: ++this._kullanim };
         if (!(onbellek.get(anahtar)?.istenen >= istenen)) { onbellek.set(anahtar, kayit); this.bellegiSinirla(kayit); }

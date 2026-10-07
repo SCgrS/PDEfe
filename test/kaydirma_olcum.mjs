@@ -15,6 +15,9 @@
 //   yakin-yukari (%600, yukarı), panel-tekerlek, panel-atlama, panel-surukle, panel-surukle-genis (Sayfalar paneli), ana-panel,
 //   bellek: bütün OLCUM_PDF belgeleri birlikte açılır, her birinde tekerlek-hizli; sonra test örneğinin süreç ağacının özel çalışma
 //   kümesi (test\surec_bellegi.ps1, OLCUM_PID gerekir) ve tuvallerin toplam boyu.
+//   panel-bellek: her belge tek başına, Sayfalar paneli 480 px ve önbelleği boş: panelin kaydırma çubuğu baştan sona hızla sürüklenir,
+//   sonra alan alan başa dönülür (her hücrenin resmi gelir); çekirdekten istenen küçük resim sayısı, önbelleğin boyu ve süreç ağacının
+//   belleği (OLCUM_PID gerekir).
 // OLCUM_OLCEK=<ölçek> (ör. 3.7): ana senaryolar sığdırma yerine bu yakınlaştırmada koşulur (yakin-* senaryoları yine %600).
 // OLCUM_CPU=4: renderer ana iş parçacığı 4 kat yavaş (CDP Emulation; yavaş bilgisayar benzetimi, çekirdek etkilenmez).
 // OLCUM_PROFIL=1: senaryo başına CPU profili (<çıktı>.<senaryo>.<n>.cpuprofile).
@@ -213,7 +216,7 @@ export default async function ({ evalJs, bekle, hedefler, tus }) {
   };
 
   const bellekler = [];
-  const anaSenaryolar = SENARYOLAR.filter((s) => s !== 'bellek');
+  const anaSenaryolar = SENARYOLAR.filter((s) => s !== 'bellek' && s !== 'panel-bellek');
   for (const pdf of anaSenaryolar.length ? PDFLER : []) {
     await hepsiniKapat();
     await belgeAc(pdf);
@@ -259,10 +262,74 @@ export default async function ({ evalJs, bekle, hedefler, tus }) {
     }
   }
 
+  const panelBellekleri = [];
+  if (SENARYOLAR.includes('panel-bellek')) {
+    // Sayfalar paneli 480 px (geniş panel önbelleği en çabuk doldurur), önbellek boş, belge tek başına açık. 1) Panelin kaydırma çubuğu
+    // baştan sona ~1,5 sn'de sürüklenir: geçilen hücrelerin kaçının resmi üretildi. 2) Alan alan başa dönülür, her adımda görünenler
+    // gelene dek beklenir: her hücrenin resmi üretilir (önbellek sınırı devreye girebilir). Sonra çöp toplama ve süreç ağacının belleği.
+    const pid = +process.env.OLCUM_PID;
+    if (!pid) throw new Error('panel-bellek senaryosu OLCUM_PID ister (baslat.ps1 PID=…).');
+    const onbellek = () => evalJs(`(() => { const p = window.__pdefe.panel; let n = 0; for (const ob of p.kucukResimler.values()) n += ob.size;
+      return { mb: +(p.kucukResimBellegi() / 1048576).toFixed(1), kayit: n, resimli: document.querySelectorAll('#panel-sayfalar .kucuk-resim img').length }; })()`);
+    const istekler = (o) => ({ n: o.cekirdek['panel:kucuk_resim']?.n || 0, ortanca: o.cekirdek['panel:kucuk_resim']?.ortanca ?? null, enFazla: o.cekirdek['panel:kucuk_resim']?.enFazla ?? null });
+    for (const pdf of PDFLER) {
+      for (let t = 0; t < TEKRAR; t++) {
+        await hepsiniKapat();
+        await bekle(1000);
+        await belgeAc(pdf);
+        belgeAdi = path.basename(pdf, '.pdf');
+        await panelAc(true);
+        await evalJs('(() => { window.__pdefe.panel.genislikAyarla(480); return true; })()');
+        await bekle(500);
+        await sayfayaGit(1);
+        await evalJs(`(() => { const p = window.__pdefe.panel, b = window.__pdefe.aktif(); p.kucukResimler.get(b.id)?.clear(); p._sayfalarHazir = null; p.yenile(); document.querySelector('#panel-sayfalar').scrollTop = 0; return true; })()`);
+        await evalJs('window.__olc.panelBagla()');
+        await durul();
+        // 1) Hızlı sürükleme baştan sona
+        await evalJs(`window.__olc.basla('panel-bellek-hizli')`);
+        const c = await evalJs(`(() => { const a = document.querySelector('#panel-sayfalar'), r = a.getBoundingClientRect();
+          const boy = Math.max(20, a.clientHeight * a.clientHeight / a.scrollHeight);
+          return { x: Math.round(r.left + a.clientLeft + a.clientWidth + (r.width - a.clientWidth - 2 * a.clientLeft) / 2), y: Math.round(r.top + boy / 2), yol: a.clientHeight - boy }; })()`);
+        await gonder('Input.dispatchMouseEvent', { type: 'mouseMoved', x: c.x, y: c.y, button: 'none', buttons: 0 });
+        await gonder('Input.dispatchMouseEvent', { type: 'mousePressed', x: c.x, y: c.y, button: 'left', buttons: 1, clickCount: 1 });
+        for (let k = 1; k <= 90; k++) { await gonder('Input.dispatchMouseEvent', { type: 'mouseMoved', x: c.x, y: Math.round(c.y + (c.yol + 10) * k / 90), button: 'left', buttons: 1 }); await bekle(16); }
+        await gonder('Input.dispatchMouseEvent', { type: 'mouseReleased', x: c.x, y: Math.round(c.y + c.yol + 10), button: 'left', buttons: 0, clickCount: 1 });
+        await durul(60000);
+        const o1 = await evalJs('window.__olc.bitir()');
+        const hizli = { ...(await onbellek()), istek: istekler(o1), panelBosHucreSn: o1.panel.bosHucreSn };
+        // 2) Alan alan başa dönüş
+        await evalJs(`window.__olc.basla('panel-bellek-yavas')`);
+        for (let k = 0; k < 2000; k++) {
+          const st = await evalJs(`(() => { const a = document.querySelector('#panel-sayfalar'); a.scrollTop = Math.max(0, a.scrollTop - a.clientHeight); return a.scrollTop; })()`);
+          await durul(15000);
+          if (st <= 0) break;
+        }
+        const o2 = await evalJs('window.__olc.bitir()');
+        const yavas = { ...(await onbellek()), istek: istekler(o2) };
+        await bekle(1500);
+        await gonder('HeapProfiler.enable'); await gonder('HeapProfiler.collectGarbage');
+        await bekle(1500);
+        const olcumler = [];
+        for (let k = 0; k < 3; k++) {
+          const cikis = execFileSync('powershell', ['-NoProfile', '-File', path.join(KOK, 'test', 'surec_bellegi.ps1'), '-SurecId', String(pid)], { encoding: 'utf8' });
+          olcumler.push(JSON.parse(cikis.trim()).toplamMB);
+          await bekle(700);
+        }
+        const yigin = await evalJs('(() => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null)()');
+        const pb = { belge: belgeAdi, tekrar: t + 1, hizli, yavas, bellekMB: olcumler.sort((x, y) => x - y)[1], olcumler, jsYiginMB: yigin };
+        panelBellekleri.push(pb);
+        console.log(`panel-bellek ${belgeAdi} #${t + 1}: hızlı sürükleme ${hizli.istek.n} istek (gecikme ortanca ${hizli.istek.ortanca} en ${hizli.istek.enFazla} ms),`
+          + ` önbellek ${hizli.mb} MB / ${hizli.kayit} kayıt; başa dönüş ${yavas.istek.n} istek, önbellek ${yavas.mb} MB / ${yavas.kayit} kayıt, resimli hücre ${yavas.resimli};`
+          + ` süreç ağacı ${pb.bellekMB} MB (${J(olcumler)}), JS yığını ${yigin} MB`);
+      }
+    }
+    await evalJs('(() => { window.__pdefe.panel.genislikAyarla(240); return true; })()');
+  }
+
   await gonder('Emulation.setCPUThrottlingRate', { rate: 1 });
   ws.close();
   fs.mkdirSync(path.dirname(CIKTI), { recursive: true });
-  fs.writeFileSync(CIKTI, JSON.stringify({ cpu: CPU, belgeler: ozetler, sonuclar, bellek: bellekler }, null, 1));
+  fs.writeFileSync(CIKTI, JSON.stringify({ cpu: CPU, belgeler: ozetler, sonuclar, bellek: bellekler, panelBellek: panelBellekleri }, null, 1));
   console.log('Yazıldı:', CIKTI);
   await hepsiniKapat().catch(() => {});
 }

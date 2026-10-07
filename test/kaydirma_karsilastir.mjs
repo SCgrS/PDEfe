@@ -26,6 +26,17 @@ const OLCULER = [
   ['önizleme (görünmeyen)', (o) => o.cizim.onizlemeGorunmeyen ?? null, 1],
   ['önizleme (hepsi)', (o) => o.cizim.onizleme ?? null, 1],
   ['iptal', (o) => o.cizim.iptal, 1],
+  // Sayfalar paneli (panel açık senaryolar): görünen hücrenin resimsiz kaldığı süre, resimsiz giren hücreler ve bekleyişleri, çekirdekten
+  // istenen küçük resimler ve istek başına süre, sürükleme bırakılınca görünenlerin dolması
+  ['panel boş hücre·sn', (o) => (o.panel.giren ? o.panel.bosHucreSn : null), 3],
+  ['panel giren hücre', (o) => (o.panel.giren ? o.panel.giren : null), 1],
+  ['panel resimsiz giren', (o) => (o.panel.giren ? o.panel.bosGiren : null), 1],
+  ['panel bekleme ortanca ms', (o) => (o.panel.giren ? o.panel.bekleme.ortanca : null), 0],
+  ['panel bekleme en çok ms', (o) => (o.panel.giren ? o.panel.bekleme.enFazla : null), 0],
+  ['küçük resim isteği', (o) => o.cekirdek?.['panel:kucuk_resim']?.n ?? null, 1],
+  ['küçük resim gecikme ort.', (o) => o.cekirdek?.['panel:kucuk_resim']?.ortanca ?? null, 0],
+  ['küçük resim gecikme en', (o) => o.cekirdek?.['panel:kucuk_resim']?.enFazla ?? null, 0],
+  ['bırakınca dolma ms', (o) => o.ek?.birakincaDolmaMs ?? null, 0],
 ];
 
 const anahtarlar = [];
@@ -44,4 +55,17 @@ for (const k of anahtarlar) {
 for (const [i, v] of veriler.entries()) {
   if (!v.bellek?.length) continue;
   console.log(`\nbellek (${path.basename(dosyalar[i])}): ${v.bellek.map((b) => `${b.bellekMB} MB, tuval ${b.tuval.sayi} / ${b.tuval.mp} MP`).join(' | ')}; ortalama ${yaz(ort(v.bellek.map((b) => b.bellekMB)), 1)} MB`);
+}
+// panel-bellek senaryosu: belge başına tekrarların ortalaması
+const pbBelgeler = [...new Set(veriler.flatMap((v) => (v.panelBellek || []).map((b) => b.belge)))];
+for (const belge of pbBelgeler) {
+  console.log(`\npanel-bellek / ${belge}`);
+  const g = veriler.map((v) => (v.panelBellek || []).filter((b) => b.belge === belge));
+  for (const [ad, al, b] of [
+    ['hızlı sürükleme istek', (x) => x.hizli.istek.n, 1], ['hızlı gecikme ortanca ms', (x) => x.hizli.istek.ortanca, 0],
+    ['hızlı gecikme en çok ms', (x) => x.hizli.istek.enFazla, 0], ['hızlı boş hücre·sn', (x) => x.hizli.panelBosHucreSn, 3],
+    ['hızlıdan sonra önbellek MB', (x) => x.hizli.mb, 1], ['başa dönüş istek', (x) => x.yavas.istek.n, 1],
+    ['sonda önbellek MB', (x) => x.yavas.mb, 1], ['sonda önbellek kayıt', (x) => x.yavas.kayit, 1],
+    ['süreç ağacı MB', (x) => x.bellekMB, 1], ['JS yığını MB', (x) => x.jsYiginMB, 1],
+  ]) console.log(`  ${ad.padEnd(26)} ${g.map((x) => yaz(ort(x.map(al)), b).padStart(9)).join('  →')}`);
 }
