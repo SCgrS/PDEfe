@@ -69,6 +69,18 @@ try {
     ayarlar.set('otomatikKaydetKapatildi', true);
   }
 } catch (e) { console.warn('Otomatik kaydetme ayarı taşınamadı', e); }
+// 0.2.3, kullanıcı isteği ("ilk yükleme başlangıcında sayfalar kısmı açık olmasın. ilk yüklemede varsayılan olarak gizli açılsın. daha sonra
+// nasıl bırakıldıysa ayarı korunsun"): varsayılan zaten kapalıydı (solPanelAcik: false), F4 / düğme durumu yazıyordu; kullanıcının kendi
+// kurulumunda eskiden açık bırakılan panel kayıtlı kaldığı için açık geliyordu. Bu sürümle panel bir kez kapanır (bayrak:
+// solPanelKapatildi); sonra açılırsa açık kalır. Bayrak VARSAYILANLAR'da değil, "Varsayılanlara dön" ona dokunmaz (öteki taşıma bayrakları
+// gibi; solPanelAcik da DURUM_ANAHTARLARI'nda, o da sıfırlanmaz). Taşıma ana süreçte, ilk pencere açılmadan bir kez: sonradan açılan
+// pencereler (Pencereye ayır, yeni pencere) aynı kaydı okur
+try {
+  if (!ayarlar.get('solPanelKapatildi')) {
+    ayarlar.set('solPanelAcik', false);
+    ayarlar.set('solPanelKapatildi', true);
+  }
+} catch (e) { console.warn('Sol panel ayarı taşınamadı', e); }
 // 0.1.8'e dek "Kaldığım sayfadan aç" kapalıyken de sayfa konumları (dosya yollarıyla) yazılıyordu: kapalı ayarın kaydı silinir.
 // Son açılanlar için de aynı (ayar dosyası elle değiştirilmişse)
 try {
