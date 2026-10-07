@@ -40,8 +40,8 @@
 ;   7. Kurulu sürüm sayfası (0.2.3, kullanıcı isteği: "uygulama yüklerken uygulamanın yüklü olup olmadığını yeni sürüm olup olmadığını
 ;      fark etsin ve ona göre seçenekler sunup yükleme yapsın"). Yalnızca elle (arayüzlü) çalıştırılan kurucuda ve bu kullanıcıya kurulu
 ;      bir PDEfe bulunursa görünür; kurulu değilse sihirbaz bugünkü gibi lisans sayfasıyla başlar. Eski sürüm kuruluysa Güncelle (lisans,
-;      klasör ve Ek görevler atlanıp doğrudan kurulur) / Seçenekleri değiştirerek kur / Kaldır; aynı sürüm ya da program dosyaları eksikse
-;      Onar / Kaldır; daha yeni sürüm kuruluysa Vazgeç / Eski sürüme dön. Sayfa işlevleri sessiz kurulumda (/S, --updated) hiç çağrılmaz:
+;      klasör ve Ek görevler atlanıp doğrudan kurulur) / Seçenekleri değiştirerek kur / Kaldır; aynı sürüm, program dosyaları eksik ya da
+;      kayıttaki sürüm okunamıyorsa Onar / Kaldır; daha yeni sürüm kuruluysa Vazgeç / Eski sürüme dön. Sayfa işlevleri sessiz kurulumda (/S, --updated) hiç çağrılmaz:
 ;      .onInit, kurulum bölümü ve kaldırıcı değişmedi (test\kurucu_karsilastir.mjs satır satır karşılaştırır).
 ;   8. "Bu uygulama kimler için kurulsun?" sayfası kalktı (0.2.3): PDEfe yalnızca kullanıcıya kurulur, "herkes için" seçeneği zaten
 ;      solgundu. Yönetici olarak "herkes için" kurulmuş bir PDEfe bulunursa (initMultiUser kurulum kipini "all" yapar) sayfa ve
@@ -124,7 +124,7 @@
   Var pdefeMasaustuKisayolu   ; "1" | "0": kurulumdan sonra masaüstü kısayolu olsun mu (customInstall)
   Var pdefeEskiPdfSinifi      ; .pdf'in kurulumdan önceki varsayılan dosya sınıfı (customInit → customInstall)
   Var pdefeKip                ; "" (sayfa gösterilmedi) | guncelle | onar | geri | ozel (Seçenekleri değiştirerek kur)
-  Var pdefeDurum              ; eski | ayni | yeni | bozuk (kayıt var, program dosyası yok)
+  Var pdefeDurum              ; eski | ayni | yeni | bozuk (kayıt var, program dosyası yok) | bilinmiyor (kayıttaki sürüm okunamadı)
   Var pdefeKuruluSurum
   Var pdefeKuruluKlasor
   Var pdefeSurumSayfa
@@ -180,6 +180,126 @@
     ${EndIf}
   FunctionEnd
 
+  ; Kayıttaki sürümün sayısal çekirdeği (0.2.3, bağımsız incelemenin bulgusu). WordFunc VersionCompare yalnızca rakam ve noktayı doğru
+  ; karşılaştırır: ön sürüm eki (0.3.0-beta.1), "v" öneki, boşluk ya da bozuk kayıt ("abc") "daha yeni sürüm kurulu" sayılıyordu (Vazgeç
+  ; önerilir, Onar'a ulaşılamazdı). Giriş $R0; çıkış $R1: ilk "-" ya da "+"tan önceki kısım, yalnızca rakam ve noktaysa (boş bölüm yok),
+  ; değilse ""; $R2: "1" ön sürüm / yapı eki vardı. electron-builder DisplayVersion'a package.json sürümünü düz x.y.z yazar.
+  Function pdefeSurumCekirdegi
+    StrCpy $R1 ""
+    StrCpy $R2 "0"
+    StrCpy $R3 0
+    StrCpy $R5 "."                           ; önceki karakter: başta nokta olamaz
+    ${Do}
+      StrCpy $R4 $R0 1 $R3
+      ${If} $R4 == ""
+        ${Break}
+      ${EndIf}
+      ${If} $R4 == "-"
+      ${OrIf} $R4 == "+"
+        StrCpy $R2 "1"
+        ${Break}
+      ${EndIf}
+      ${If} $R4 == "."
+        ${If} $R5 == "."
+          StrCpy $R1 ""
+          Return
+        ${EndIf}
+      ${Else}
+        StrCpy $R6 0                         ; rakam mı (StrCmp tam karşılaştırır; S< / S> yerel sıraya göre)
+        StrCpy $R7 0
+        ${Do}
+          StrCpy $R8 "0123456789" 1 $R7
+          ${If} $R8 == ""
+            ${Break}
+          ${EndIf}
+          ${If} $R8 == $R4
+            StrCpy $R6 1
+            ${Break}
+          ${EndIf}
+          IntOp $R7 $R7 + 1
+        ${Loop}
+        ${If} $R6 == 0
+          StrCpy $R1 ""
+          Return
+        ${EndIf}
+      ${EndIf}
+      StrCpy $R1 "$R1$R4"
+      StrCpy $R5 $R4
+      IntOp $R3 $R3 + 1
+    ${Loop}
+    ${If} $R5 == "."                         ; boş ya da noktayla biten
+      StrCpy $R1 ""
+    ${EndIf}
+  FunctionEnd
+
+  ; PDEfe açık mı (0.2.3, bağımsız incelemenin bulgusu): kurulumun açık PDEfe'yi kapatırken kullandığı ölçüt (allowOnlyOneInstallerInstance.nsh,
+  ; FIND_PROCESS / KILL_PROCESS: yolu kurulu klasörle başlayan süreç). Önceden süreç adına bakılıyordu (nsProcess): kurucu dosyası PDEfe.exe
+  ; adıyla kaydedilince kendini buluyordu; başka klasördeki (ör. release\win-unpacked) ya da başka Windows kullanıcısındaki PDEfe.exe de "açık"
+  ; sayılıyordu, kurulum onları kapatmaz. Süreçler Win32 ile taranır (Toolhelp, QueryFullProcessImageName; birkaç ms): electron-builder'ın
+  ; PowerShell / WMI sorgusu (Get-CimInstance Win32_Process) bu bilgisayarda 11 sn sürdü, sayfa o kadar geç açılırdı. Başka kullanıcının
+  ; süreci yönetici izni olmadan açılamaz, sayılmaz; kurucunun kendisi sayılmaz. Yollar uzun biçime çevrilip harf ayırmadan karşılaştırılır.
+  ; Çıkış $R1: 0 açık, 1 değil (öteki yazmaçlar korunur).
+  Function pdefeAcikMi
+    Push $R0
+    Push $R2
+    Push $R3
+    Push $R4
+    Push $R5
+    Push $R6
+    Push $R7
+    Push $R8
+    Push $R9
+    StrCpy $R1 1
+    StrCpy $R9 $pdefeKuruluKlasor
+    System::Call 'kernel32::GetLongPathNameW(w R9, w .R2, i ${NSIS_MAX_STRLEN}) i .R7'
+    ${If} $R7 > 0
+      StrCpy $R9 $R2
+    ${EndIf}
+    StrCpy $R9 "$R9\"
+    StrLen $R3 $R9
+    System::Call 'kernel32::GetCurrentProcessId() i .R4'
+    System::Call 'kernel32::CreateToolhelp32Snapshot(i 2, i 0) i .R5'   ; TH32CS_SNAPPROCESS; kurucu 32 bit: tutamaç i
+    ${If} $R5 != -1
+    ${AndIf} $R5 != 0
+      System::Call '*(&l4, i, i, p, i, i, i, i, i, &w260) p .R6'          ; PROCESSENTRY32W (dwSize kendiliğinden)
+      System::Call 'kernel32::Process32FirstW(i R5, p R6) i .R7'
+      ${DoWhile} $R7 != 0
+        System::Call '*$R6(i, i, i .R8)'                                 ; th32ProcessID
+        ${If} $R8 != $R4
+          System::Call 'kernel32::OpenProcess(i 0x1000, i 0, i R8) i .R0'  ; PROCESS_QUERY_LIMITED_INFORMATION
+          ${If} $R0 != 0
+            StrCpy $R2 ""
+            System::Call 'kernel32::QueryFullProcessImageNameW(i R0, i 0, w .R2, *i ${NSIS_MAX_STRLEN}) i .R7'
+            System::Call 'kernel32::CloseHandle(i R0)'
+            ${If} $R2 != ""
+              System::Call 'kernel32::GetLongPathNameW(w R2, w .R0, i ${NSIS_MAX_STRLEN}) i .R7'
+              ${If} $R7 > 0
+                StrCpy $R2 $R0
+              ${EndIf}
+              StrCpy $R2 $R2 $R3
+              ${If} $R2 == $R9
+                StrCpy $R1 0
+                ${Break}
+              ${EndIf}
+            ${EndIf}
+          ${EndIf}
+        ${EndIf}
+        System::Call 'kernel32::Process32NextW(i R5, p R6) i .R7'
+      ${Loop}
+      System::Free $R6
+      System::Call 'kernel32::CloseHandle(i R5)'
+    ${EndIf}
+    Pop $R9
+    Pop $R8
+    Pop $R7
+    Pop $R6
+    Pop $R5
+    Pop $R4
+    Pop $R3
+    Pop $R2
+    Pop $R0
+  FunctionEnd
+
   Function pdefeSurumOlustur
     StrCpy $pdefeDurum ""
     ; "Herkes için" (HKLM) kurulum: sihirbaz bugünkü gibi (madde 8)
@@ -202,14 +322,25 @@
     ${IfNot} ${FileExists} "$pdefeKuruluKlasor\${APP_EXECUTABLE_FILENAME}"
       StrCpy $pdefeDurum "bozuk"
     ${Else}
-      ; 0 eşit, 1 bu kurucu daha yeni, 2 kurulu sürüm daha yeni (sayısal: 0.2.10 > 0.2.9)
-      ${VersionCompare} "${VERSION}" "$pdefeKuruluSurum" $R0
-      ${If} $R0 == 1
-        StrCpy $pdefeDurum "eski"
-      ${ElseIf} $R0 == 2
-        StrCpy $pdefeDurum "yeni"
+      StrCpy $R0 $pdefeKuruluSurum
+      Call pdefeSurumCekirdegi
+      ${If} $R1 == ""
+        StrCpy $pdefeDurum "bilinmiyor"      ; sürüm okunamadı: Onar / Kaldır (aynı sürümdeki gibi)
       ${Else}
-        StrCpy $pdefeDurum "ayni"
+        ; 0 eşit, 1 bu kurucu daha yeni, 2 kurulu sürüm daha yeni (sayısal: 0.2.10 > 0.2.9). Çekirdeği aynı ön sürüm (0.3.0-beta.1) kuruluysa
+        ; bu kurucu daha yenidir (sürüm numaralandırmasının kuralı); PDEfe ön sürüm yayımlamıyor, kurucunun kendi sürümü hep x.y.z
+        ${VersionCompare} "${VERSION}" "$R1" $R0
+        ${If} $R0 == 0
+        ${AndIf} $R2 == "1"
+          StrCpy $R0 1
+        ${EndIf}
+        ${If} $R0 == 1
+          StrCpy $pdefeDurum "eski"
+        ${ElseIf} $R0 == 2
+          StrCpy $pdefeDurum "yeni"
+        ${Else}
+          StrCpy $pdefeDurum "ayni"
+        ${EndIf}
       ${EndIf}
     ${EndIf}
 
@@ -235,7 +366,12 @@
       Pop $0
       ${NSD_CreateRadioButton} 0 24u 100% 12u "&Güncelle (önerilen)"
       Pop $pdefeSecenek1
-      ${NSD_CreateLabel} 12u 36u -12u 11u "Ayarlarınız, kısayollarınız ve kurulum klasörü korunur; doğrudan kuruluma geçilir."
+      ; 0.2.3, bağımsız incelemenin bulgusu: "kısayollarınız korunur" denmez. Elle çalıştırılan kurucu eski kaldırıcıyı --keep-shortcuts'sız
+      ; çalıştırır (allowToChangeInstallationDirectory; installUtil.nsh setIsTryToKeepShortcuts); kaldırıcı kısayolları silerken
+      ; WinShell::UninstShortcut / UninstAppUserModelId ile görev çubuğu ve Başlat sabitlemesini de kaldırır (WinShell.dll'de
+      ; IStartMenuPinnedList), kurucu kısayolları yeniden oluşturur. Masaüstü kısayolunun bugünkü durumu korunur (pdefeSurumBirak). 0.2.2'deki
+      ; elle kurulumda da böyleydi; sessiz yolu değiştirmeden (--updated) keepShortcuts verilemiyor.
+      ${NSD_CreateLabel} 12u 36u -12u 11u "Ayarlarınız, masaüstü kısayolu ve kurulum klasörü korunur; doğrudan kurulur."
       Pop $0
       ${NSD_CreateRadioButton} 0 50u 100% 12u "&Seçenekleri değiştirerek kur"
       Pop $pdefeSecenek2
@@ -255,7 +391,7 @@
       Pop $0
       ${NSD_CreateRadioButton} 0 58u 100% 12u "&Eski sürüme dön: ${PRODUCT_NAME} ${VERSION} kur"
       Pop $pdefeSecenek2
-      ${NSD_CreateLabel} 12u 70u -12u 26u "Ayarlarınız ve kısayollarınız korunur. Yeni sürümde eklenen seçenekler eski sürümde görünmez; ${PRODUCT_NAME} güncellemeyi yeniden önerebilir."
+      ${NSD_CreateLabel} 12u 70u -12u 26u "Ayarlarınız ve masaüstü kısayolu korunur. Yeni sürümde eklenen seçenekler eski sürümde görünmez; ${PRODUCT_NAME} güncellemeyi yeniden önerebilir."
       Pop $0
     ${Else}
       ${If} $pdefeDurum == "bozuk"
@@ -263,14 +399,18 @@
         Pop $0
         ${NSD_CreateRadioButton} 0 24u 100% 12u "&Onar (yeniden kur)"
         Pop $pdefeSecenek1
-        ${NSD_CreateLabel} 12u 36u -12u 18u "${PRODUCT_NAME} ${VERSION} yeniden kurulur; ayarlarınız ve kısayollarınız korunur."
+        ${NSD_CreateLabel} 12u 36u -12u 18u "${PRODUCT_NAME} ${VERSION} yeniden kurulur; ayarlarınız ve masaüstü kısayolu korunur."
         Pop $0
       ${Else}
-        ${NSD_CreateLabel} 0 0 100% 20u "${PRODUCT_NAME} ${VERSION} bu bilgisayarda zaten kurulu."
+        ${If} $pdefeDurum == "bilinmiyor"
+          ${NSD_CreateLabel} 0 0 100% 20u "Bilgisayarınızda ${PRODUCT_NAME} kurulu, ama kurulu sürüm okunamadı («$pdefeKuruluSurum»). Bu kurucu ${VERSION} sürümünü kurar."
+        ${Else}
+          ${NSD_CreateLabel} 0 0 100% 20u "${PRODUCT_NAME} ${VERSION} bu bilgisayarda zaten kurulu."
+        ${EndIf}
         Pop $0
         ${NSD_CreateRadioButton} 0 24u 100% 12u "&Onar (yeniden kur)"
         Pop $pdefeSecenek1
-        ${NSD_CreateLabel} 12u 36u -12u 18u "Program dosyaları yeniden yazılır; ayarlarınız ve kısayollarınız korunur."
+        ${NSD_CreateLabel} 12u 36u -12u 18u "Program dosyaları yeniden yazılır; ayarlarınız ve masaüstü kısayolu korunur."
         Pop $0
       ${EndIf}
       ${NSD_CreateRadioButton} 0 58u 100% 12u "&Kaldır"
@@ -281,9 +421,8 @@
     ${NSD_AddStyle} $pdefeSecenek1 ${WS_GROUP}
 
     ; PDEfe açıksa uyarı: kurulum onu sormadan değil ama zorla kapatır (electron-builder _CHECK_APP_RUNNING, Stop-Process); kaydedilmemiş
-    ; değişiklikler kaybolur. Ada göre bakılır (nsProcess); başka klasördeki aynı adlı süreç de "açık" sayılır, kurulum onu kapatmaz.
-    ${nsProcess::FindProcess} "${APP_EXECUTABLE_FILENAME}" $R1
-    ${nsProcess::Unload}
+    ; değişiklikler kaybolur. Kurulumun kapatacağı süreçlere bakılır (pdefeAcikMi).
+    Call pdefeAcikMi
     ${If} $R1 == 0
       ${NSD_CreateLabel} 0 104u 100% 30u "Dikkat: ${PRODUCT_NAME} şu anda açık. Devam etmeden önce belgelerinizi kaydedip ${PRODUCT_NAME}'yi kapatın; açık kalırsa kurulum onu kapatır ve kaydedilmemiş değişiklikler kaybolur."
       Pop $0
@@ -310,16 +449,36 @@
   ; Kaldır: kurulu PDEfe'nin kendi kaldırıcısı arayüzüyle açılır (Windows Ayarlar › Uygulamalar'ın çalıştırdığı komut: UninstallString), kurucu
   ; kapanır. Kaldırıcı kendini %TEMP%'e kopyalayıp yeniden başlatır; ayarlar silinmez (deleteAppDataOnUninstall false). Dönerse başarısızdır.
   ; Aynı sürüm, bozuk kurulum ve (0.2.3) eski sürüm durumunda; yeniden kurmayı öneren ileti o durumdaki seçeneğin adını söyler.
+  ; Kaldırıcının varlığına çalıştırılacak yolda bakılır (0.2.3, bağımsız incelemenin bulgusu): UninstallString'in tırnak içindeki ilk parçası
+  ; (electron-builder "\"<klasör>\Uninstall PDEfe.exe\" /currentuser" yazar; uninstallOldVersion da onu böyle okur, GetInQuotes). Önceden
+  ; kurulu klasörde (InstallLocation; yoksa varsayılan klasör) aranıyordu: ikisi ayrışınca kaldırıcı varken "bulunamadı" denebilir ya da
+  ; denetlenen dosyadan başkası çalıştırılabilirdi. İleti Windows Ayarlar'ı önermez: Windows da aynı UninstallString'i çalıştırır.
   Function pdefeKaldiriciyiAc
     ReadRegStr $1 SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" "UninstallString"
+    StrCpy $3 $1
+    StrCpy $4 $1 1
+    ${If} $4 == '"'
+      StrCpy $5 1
+      ${Do}
+        StrCpy $4 $1 1 $5
+        ${If} $4 == '"'
+        ${OrIf} $4 == ""
+          ${Break}
+        ${EndIf}
+        IntOp $5 $5 + 1
+      ${Loop}
+      IntOp $5 $5 - 1
+      StrCpy $3 $1 $5 1
+    ${EndIf}
     ${If} $1 == ""
-    ${OrIfNot} ${FileExists} "$pdefeKuruluKlasor\${UNINSTALL_FILENAME}"
+    ${OrIf} $3 == ""
+    ${OrIfNot} ${FileExists} "$3"
       ${If} $pdefeDurum == "eski"
         StrCpy $2 "Güncelle'yi"
       ${Else}
         StrCpy $2 "Onar'ı"
       ${EndIf}
-      MessageBox MB_OK|MB_ICONSTOP "${PRODUCT_NAME}'nin kaldırıcısı bulunamadı. $2 seçip yeniden kurabilir ya da Windows Ayarlar › Uygulamalar'dan kaldırabilirsiniz."
+      MessageBox MB_OK|MB_ICONSTOP "${PRODUCT_NAME}'nin kaldırıcısı bulunamadı. $2 seçip yeniden kurun (kaldırıcı da kurulur); sonra kurucuyu yeniden açıp Kaldır'ı seçebilirsiniz."
       Return
     ${EndIf}
     ; Kurucunun ve kaldırıcının çalışma klasörü kurulum klasörü olmasın (kaldırıcı onu silecek)
@@ -374,8 +533,7 @@
     ; Kurulumu hemen başlatan seçimde PDEfe hâlâ açıksa sor (varsayılan İptal: sayfada kalınır). Seçenekleri değiştirerek kur'da kurulum
     ; sonraki sayfalardan sonra başlar; orada electron-builder'ın kendi sorusu gelir.
     ${If} $pdefeKip != "ozel"
-      ${nsProcess::FindProcess} "${APP_EXECUTABLE_FILENAME}" $R1
-      ${nsProcess::Unload}
+      Call pdefeAcikMi
       ${If} $R1 == 0
         MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION|MB_DEFBUTTON2 "${PRODUCT_NAME} hâlâ açık. Tamam'a basarsanız kurulum ${PRODUCT_NAME}'yi kapatır; kaydedilmemiş değişiklikler kaybolur.$\r$\n$\r$\nBelgelerinizi kaydetmek için İptal'e basın, ${PRODUCT_NAME}'yi kapatın, sonra yeniden deneyin." IDOK pdefeAcikDevam
         Abort
@@ -497,7 +655,8 @@
       Abort
     ${EndIf}
 
-    ${NSD_CreateLabel} 0 0 100% 24u "PDEfe kurulurken yapılmasını istediğiniz ek işleri işaretleyin, sonra İleri'ye basın."
+    ; Kurulumdan önceki son sayfa: NSIS İleri düğmesine "Kur" yazar (0.2.3; önceden metin "İleri'ye basın" diyordu)
+    ${NSD_CreateLabel} 0 0 100% 24u "PDEfe kurulurken yapılmasını istediğiniz ek işleri işaretleyin, sonra Kur'a basın."
     Pop $0
 
     ${NSD_CreateCheckbox} 0 30u 100% 12u "&Masaüstünde kısayol oluştur"

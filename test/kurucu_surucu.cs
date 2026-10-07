@@ -38,6 +38,7 @@ public static class KurucuSurucu {
   [DllImport("user32.dll")] static extern IntPtr SendMessageTimeout(IntPtr h, uint m, IntPtr w, IntPtr l, uint bayrak, uint ms, out IntPtr sonuc);
   [DllImport("user32.dll")] static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
   [DllImport("user32.dll")] static extern bool PrintWindow(IntPtr h, IntPtr hdc, uint bayrak);
+  [DllImport("user32.dll")] static extern bool RedrawWindow(IntPtr h, IntPtr r, IntPtr bolge, uint bayrak);
   [DllImport("user32.dll")] static extern IntPtr GetDC(IntPtr h);
   [DllImport("user32.dll")] static extern int ReleaseDC(IntPtr h, IntPtr dc);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int DrawText(IntPtr dc, string s, int n, ref RECT r, uint bicim);
@@ -325,9 +326,10 @@ public static class KurucuSurucu {
   }
 
   /**
-   * Pencerenin PrintWindow görüntüsünü PNG'ye yazar; metin sığma raporunu döner. Sayfa çizilmeden yakalandıysa (BosAlan) artan beklemeyle
-   * 10 kez dek yeniden yakalar (ölçüldü: 2.–6. denemede doluyor); yine boşsa raporun başında "HATA" satırı olur (sınama betikleri HATA ve
-   * TAŞIYOR satırlarını hata sayar).
+   * Pencerenin PrintWindow görüntüsünü PNG'ye yazar; metin sığma raporunu döner. Sayfa çizilmeden yakalandıysa (BosAlan) pencereyi yeniden
+   * çizdirip (RedrawWindow) artan beklemeyle 10 kez dek yeniden yakalar (ölçüldü: çoğu 2.–6. denemede doluyor, bir sayfa 10 denemede de
+   * dolmadı); 6. denemeden sonra PW_RENDERFULLCONTENT'siz (WM_PRINT ile, masaüstü birleştiricisinin yüzeyi olmadan) de dener. Yine boşsa
+   * raporun başında "HATA" satırı olur (sınama betikleri HATA ve TAŞIYOR satırlarını hata sayar).
    */
   public static string Goruntu(long pencere, string png) {
     return Yap(() => {
@@ -342,11 +344,15 @@ public static class KurucuSurucu {
         using (var bmp = new Bitmap(w, hgt, PixelFormat.Format32bppArgb))
         using (var g = Graphics.FromImage(bmp)) {
           IntPtr hdc = g.GetHdc();
-          bool tamam = PrintWindow(h, hdc, 2);   // PW_RENDERFULLCONTENT
+          bool tamam = PrintWindow(h, hdc, deneme > 6 && deneme % 2 == 1 ? 0u : 2u);   // PW_RENDERFULLCONTENT
           g.ReleaseHdc(hdc);
           if (!tamam) return "HATA PrintWindow başarısız";
           string bos = BosAlan(h, bmp, dr.left, dr.top);
-          if (bos != null && deneme < 10) { Thread.Sleep(Math.Min(250 * deneme, 1000)); continue; }
+          if (bos != null && deneme < 10) {
+            RedrawWindow(h, IntPtr.Zero, IntPtr.Zero, 0x1 | 0x4 | 0x80 | 0x100);   // RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW
+            Thread.Sleep(Math.Min(250 * deneme, 1000));
+            continue;
+          }
           bmp.Save(png, ImageFormat.Png);
           string on = bos == null ? "" : "HATA görüntü boş: sayfa " + deneme + " denemede de çizilmedi («" + Temiz(bos) + "» yazısı görüntüde yok); seçeneklerin sığma kararı verilemez\r\n";
           return on + (deneme > 1 && bos == null ? "(görüntü " + deneme + ". denemede dolu)\r\n" : "") + Sigma(h, bmp, dr.left, dr.top);

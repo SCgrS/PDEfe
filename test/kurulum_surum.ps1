@@ -3,7 +3,9 @@
 # sayfaları electron-builder'daki gibi skipPageIfUpdated ile, Ek görevler sayfası, boş kurulum bölümü). Kurulu sürüm, koşumun kendi kayıt
 # anahtarından okunur (HKCU\Software\PDEfeSayfaSinama; .onInit /SURUM= ve /KLASOR= ile yazar, kapanışta silinir). Koşum görünmeyen ayrı bir
 # Windows masaüstünde çalıştırılır (test\kurucu_surucu.cs): ekrana pencere açılmaz, odak çalınmaz. Durumlar: kurulu değil, eski, aynı,
-# bozuk (kayıt var, program dosyası yok), daha yeni, PDEfe açık, eski sürümde Kaldır (kaldırıcı var / yok); her birinde sayfanın görüntüsü
+# bozuk (kayıt var, program dosyası yok), daha yeni, PDEfe açık (kurulu klasörden; aynı adlı süreç başka klasörde ve kurucu uygulamanın exe
+# adıyla kaydedilmişken uyarı yok), kayıttaki sürüm sayısal değil (ön sürüm eki, bozuk), eski sürümde Kaldır (kaldırıcı var / yok / kurulu
+# klasörden başka yerde); her birinde sayfanın görüntüsü
 # (PNG), başlıklar, İleri düğmesinin yazısı, metinlerin sığdığı ve üst üste binmediği, seçimden sonraki akış (hangi sayfaya gidildiği,
 # kip / masaüstü kısayolu kararı, kaldırıcının açılması, kapanış). Ayrıca lisans düğmesinin sığdığı ve NSIS'in Türkçe dil dosyasındaki
 # yazım hatalarının düzeldiği: kurucunun klasör sayfası ve ayrı küçük bir kaldırıcının hoş geldiniz, Kaldırılıyor ve bitiş sayfaları.
@@ -184,7 +186,13 @@ Function .onInit
   `${IfNot} `${Errors}
     WriteRegStr HKCU "`${INSTALL_REGISTRY_KEY}" "InstallLocation" "`$R1"
     WriteRegStr HKCU "`${INSTALL_REGISTRY_KEY}" "ShortcutName" "PDEfeSayfaSinama-yok"
-    WriteRegStr HKCU "`${UNINSTALL_REGISTRY_KEY}" "UninstallString" '"`$R1\`${UNINSTALL_FILENAME}" /currentuser /ISARET=`$R1\kaldirici-calisti.txt'
+    ; /KALDIRICI=: kaldırıcı kurulu klasörden (InstallLocation) başka bir klasörde (0.2.3, 11c. durum)
+    ClearErrors
+    `${GetOptions} `$R0 "/KALDIRICI=" `$R2
+    `${If} `${Errors}
+      StrCpy `$R2 `$R1
+    `${EndIf}
+    WriteRegStr HKCU "`${UNINSTALL_REGISTRY_KEY}" "UninstallString" '"`$R2\`${UNINSTALL_FILENAME}" /currentuser /ISARET=`$R2\kaldirici-calisti.txt'
   `${EndIf}
   !insertmacro customInit
 FunctionEnd
@@ -401,6 +409,8 @@ try {
   $s = Gecis-Bekle $s1 $w $s.Baslik
   Denetle 'klasörden sonra Ek görevler' ($s.Baslik -eq 'Ek görevler') "başlık «$($s.Baslik)»"
   Denetle 'Ek görevler: masaüstü kutusu işaretli (yeni kurulum)' ($s.OnayKutulari.Count -eq 1 -and $s.OnayKutulari[0].Isaret -eq 1)
+  # 0.2.3: kurulumdan önceki son sayfada NSIS İleri düğmesine "Kur" yazar; metin önceden "İleri'ye basın" diyordu
+  Denetle 'Ek görevler: düğme «Kur», metin "Kur''a basın"' (($s.Ileri.Yazi -replace '&', '') -eq 'Kur' -and $s.Etiketler[0] -match "sonra Kur'a basın\.$") "«$($s.Ileri.Yazi)» / «$($s.Etiketler[0])»"
   [KurucuSurucu]::Dugme($w, 1) | Out-Null
   $r = Sonuc-Oku $sonucDosyasi
   Denetle 'kurulum bölümü: kip boş, masaüstü 1' ($r -match '^kip= masaustu=1') "«$r»"
@@ -533,8 +543,9 @@ try {
   Kapat $s7
 
   # -------------------------------------------------------------- 8. PDEfe açık: uyarı ve Tamam / İptal sorusu (varsayılan İptal)
+  # 0.2.3: "açık" sayılan, kurulumun kapatacağı süreçtir: yolu kurulu klasörle başlayan (electron-builder FIND_PROCESS); süreç kurulu klasörden
   Yaz '8. eski sürüm kurulu, PDEfe açık'
-  $acik = [KurucuSurucu]::Baslat("`"$(Join-Path $acikKlasor 'KurucuSinama.exe')`" /BEKLE=120000", $acikKlasor)
+  $acik = [KurucuSurucu]::Baslat("`"$(Join-Path $klasorTam 'KurucuSinama.exe')`" /BEKLE=120000", $klasorTam)
   Start-Sleep -Milliseconds 500
   $s8 = Kosum-Baslat $kosum "/SURUM=0.2.2 /KLASOR=$klasorTam" $sonucDosyasi
   $w = Sihirbaz-Bekle $s8
@@ -557,6 +568,35 @@ try {
   Kapat $s8
   [KurucuSurucu]::Sonlandir($acik)
 
+  # 8b / 8c (0.2.3, bağımsız incelemenin bulgusu): önceden süreç adına bakılıyordu. Başka klasördeki aynı adlı süreç (ör. release\win-unpacked)
+  # kurulumca kapatılmaz; kurucu dosyası uygulamanın exe adıyla kaydedilince kendini buluyordu. İkisinde de uyarı ve soru çıkmamalı.
+  Yaz '8b. eski sürüm kurulu, aynı adlı süreç başka klasörde'
+  $acik = [KurucuSurucu]::Baslat("`"$(Join-Path $acikKlasor 'KurucuSinama.exe')`" /BEKLE=120000", $acikKlasor)
+  Start-Sleep -Milliseconds 500
+  $s8 = Kosum-Baslat $kosum "/SURUM=0.2.2 /KLASOR=$klasorTam" $sonucDosyasi
+  $w = Sihirbaz-Bekle $s8
+  $s = Sayfa-Oku $w
+  Denetle 'başka klasördeki süreç: "açık" uyarısı yok' ($s.Secenekler.Count -eq 3 -and -not ($s.Etiketler -match 'şu anda açık')) ($s.Etiketler -join ' | ')
+  [KurucuSurucu]::Dugme($w, 1) | Out-Null
+  $ileti = Ileti-Bekle $w 2500
+  if ($ileti) { [KurucuSurucu]::IletiYanitla($ileti.Hwnd, 2) | Out-Null }
+  $s = Gecis-Bekle $s8 $w 'PDEfe zaten kurulu'
+  $r = Sonuc-Oku $sonucDosyasi
+  Denetle 'Güncelle: soru sorulmadan kurulum başladı' (-not $ileti -and $s.Baslik -match '^Kurul' -and $r -match '^kip=guncelle') "ileti «$($ileti.Metin)» «$($s.Baslik)» «$r»"
+  Kapat $s8
+  [KurucuSurucu]::Sonlandir($acik)
+
+  Yaz '8c. kurucu dosyası uygulamanın exe adıyla (KurucuSinama.exe) kaydedilmiş'
+  $adliKlasor = Join-Path $gecici 'adli'
+  New-Item -ItemType Directory -Force $adliKlasor | Out-Null
+  $adliKosum = Join-Path $adliKlasor 'KurucuSinama.exe'
+  Copy-Item $kosum $adliKosum
+  $s8 = Kosum-Baslat $adliKosum "/SURUM=0.2.2 /KLASOR=$klasorTam" $sonucDosyasi
+  $w = Sihirbaz-Bekle $s8
+  $s = Sayfa-Oku $w
+  Denetle 'kurucu kendini "açık PDEfe" saymadı: uyarı yok' ($s.Secenekler.Count -eq 3 -and -not ($s.Etiketler -match 'şu anda açık')) ($s.Etiketler -join ' | ')
+  Kapat $s8
+
   # -------------------------------------------------------------- 9. sürüm karşılaştırması sayısal (0.2.10 > 0.2.9)
   Yaz '9. sürüm karşılaştırması: kurucu 0.2.10'
   foreach ($d in @(@('0.2.9', 'PDEfe zaten kurulu'), @('0.2.11', 'Daha yeni bir sürüm kurulu'), @('0.2.10', 'PDEfe zaten kurulu'))) {
@@ -564,6 +604,23 @@ try {
     $w = Sihirbaz-Bekle $s9
     $s = Sayfa-Oku $w
     Denetle "kurulu $($d[0]) → «$($d[1])», İleri «$($s.Ileri.Yazi)»" ($s.Baslik -eq $d[1]) "«$($s.Baslik)»"
+    Kapat $s9
+  }
+  # 0.2.3, bağımsız incelemenin bulgusu: sayısal olmayan kayıt (ön sürüm eki, "v" öneki, bozuk) önceden "daha yeni sürüm kurulu" sayılıyordu.
+  # Ön sürüm, çekirdeği aynıysa eskidir (0.2.3-beta.1 < 0.2.3); okunamayan sürümde Onar / Kaldır (aynı sürümdeki gibi), metin bunu söyler.
+  Yaz '9b. kayıttaki sürüm sayısal değil: kurucu 0.2.3'
+  foreach ($d in @(@('0.2.3-beta.1', 'eski'), @('0.2.2+yapi.7', 'eski'), @('0.3.0-beta.1', 'yeni'), @('0.2.3-rc.2', 'eski'), @('abc', 'bilinmiyor'), @('v0.2.3', 'bilinmiyor'), @('0..2', 'bilinmiyor'), @('0.2.', 'bilinmiyor'))) {
+    $s9 = Kosum-Baslat $kosum "/SURUM=$($d[0]) /KLASOR=$klasorTam" ''
+    $w = Sihirbaz-Bekle $s9
+    $s = Sayfa-Oku $w
+    $bulunan = switch ($true) {
+      ($s.Baslik -eq 'Daha yeni bir sürüm kurulu') { 'yeni'; break }
+      ($s.Baslik -eq 'PDEfe zaten kurulu' -and $s.Secenekler.Count -eq 3 -and $s.Ileri.Yazi -eq 'Güncelle') { 'eski'; break }
+      ($s.Baslik -eq 'PDEfe zaten kurulu' -and $s.Secenekler.Count -eq 2 -and $s.Ileri.Yazi -eq 'Onar' -and $s.Etiketler[0] -eq "Bilgisayarınızda PDEfe kurulu, ama kurulu sürüm okunamadı («$($d[0])»). Bu kurucu 0.2.3 sürümünü kurar.") { 'bilinmiyor'; break }
+      default { "başka: «$($s.Baslik)» $($s.Secenekler.Count) seçenek, İleri «$($s.Ileri.Yazi)», «$($s.Etiketler[0])»" }
+    }
+    Denetle "kurulu «$($d[0])» → $($d[1])" ($bulunan -eq $d[1]) $bulunan
+    if ($d[0] -eq 'abc') { Yerlesim-Denetle $s 'okunamayan sürüm'; Goruntu-Al $w 'surum-9b-bilinmiyor' }
     Kapat $s9
   }
 
@@ -628,6 +685,24 @@ try {
   $s = Gecis-Bekle $s11 $w $s.Baslik
   $r = Sonuc-Oku $sonucDosyasi
   Denetle 'sonra Güncelle: doğrudan kurulum, kip=guncelle' ($s.Baslik -match '^Kurul' -and $r -match '^kip=guncelle') "«$($s.Baslik)» «$r»"
+  Kapat $s11
+
+  # 11c (0.2.3, bağımsız incelemenin bulgusu): kaldırıcının varlığına UninstallString'deki yolda bakılır (Windows'un ve electron-builder'ın
+  # çalıştırdığı). Önceden kurulu klasörde (InstallLocation) aranıyordu: ikisi ayrışınca kaldırıcı varken "bulunamadı" deniyordu.
+  Yaz '11c. kaldırıcı kurulu klasörden başka yerde (UninstallString ≠ InstallLocation): Kaldır'
+  $isaretDosyasi = Join-Path $klasorTam 'kaldirici-calisti.txt'
+  Remove-Item -LiteralPath $isaretDosyasi -ErrorAction SilentlyContinue
+  $s11 = Kosum-Baslat $kosum "/SURUM=0.2.2 /KLASOR=$klasorKaldiricisiz /KALDIRICI=$klasorTam" $sonucDosyasi
+  $w = Sihirbaz-Bekle $s11
+  $s = Sayfa-Oku $w
+  [KurucuSurucu]::Tikla($s.Secenekler[2].Hwnd) | Out-Null
+  [KurucuSurucu]::Dugme($w, 1) | Out-Null
+  $kod = [KurucuSurucu]::Bekle($s11, 8000)
+  $ileti = if ($kod -lt 0) { Ileti-Bekle $w 1000 } else { $null }
+  Denetle 'ileti yok, kurucu kapandı' (-not $ileti -and $kod -ge 0) "çıkış $kod, ileti «$($ileti.Metin)»"
+  if ($ileti) { [KurucuSurucu]::IletiYanitla($ileti.Hwnd, 1) | Out-Null }
+  $k = Sonuc-Oku $isaretDosyasi
+  Denetle 'UninstallString''deki kaldırıcı açıldı' ($k -match '/currentuser') "«$k»"
   Kapat $s11
 
   # -------------------------------------------------------------- 12. kaldırıcının sayfaları: dil dosyasının yazım hataları düzeldi (0.2.3)
