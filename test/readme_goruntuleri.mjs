@@ -9,6 +9,7 @@
 // Yalnızca bazı görüntüler: $env:GORUNTU="ana,notlar" (adlar aşağıdaki ss(...) çağrılarında). GORUNTU yalnızca "acilis", "acilis-koyu" ve
 // "ayarlar"dan oluşuyorsa betik kısa yoldan bunları çekip biter (kanun PDF'leri gerekmez: açılış ekranında yalnızca adları görünür, Ayarlar'ın
 // arkasında dilekçe açıktır). Keskin görüntü: $env:README_OLCEK=2 (pencere aynı, görüntü iki kat piksel); 2026-10-09'dan beri böyle çekilir.
+// İstenen görüntülerin hepsi çekilince betik durur (ör. GORUNTU=notlar yalnızca notlara kadar sürer).
 // Açılış ekranının imzasındaki alt satır (sürüm ve geliştirici) görüntülere girmez (kullanıcı isteği, 2026-10-09); yalnızca simge ve ad kalır.
 // 0.2.3 (kullanıcı isteği: "koyu mod fotoğraflar da koyabilirsin"): ana görünüm, açılış ekranı ve Birleştir koyu temada da çekilir
 // (ana-koyu, acilis-koyu, birlestir-koyu; README'de açık temadakilerle yan yana). Tema betiğin sonunda değiştirilir, örnek açık temayla
@@ -24,9 +25,16 @@ const J = (x) => JSON.stringify(x);
 const Y = (ad) => path.join(ORNEK, ad);
 const DILEKCE = 'Dava dilekçesi.pdf', TMK = 'Türk Medeni Kanunu.pdf', TTK = 'Türk Ticaret Kanunu.pdf', TARANMIS = 'Taranmış dilekçe.pdf';
 
-export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, surukle, yaz, tus }) {
+const TAMAM = Symbol('istenen görüntüler çekildi');
+
+export default async function (araclar) {
+  try { await calis(araclar); } catch (e) { if (e !== TAMAM) throw e; console.log('bitti (istenenlerin hepsi çekildi)'); }
+}
+
+async function calis({ evalJs, ekranGoruntusu, bekle, fare, tikla, surukle, yaz, tus }) {
   const istenen = process.env.GORUNTU ? process.env.GORUNTU.split(',').map((s) => s.trim()) : null;
   const iste = (ad) => !istenen || istenen.includes(ad);
+  const cekilen = new Set();
   fs.mkdirSync(PNG, { recursive: true });
   const kosul = async (ifade, sure = 15000) => {
     const t0 = Date.now();
@@ -43,6 +51,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     await bekle(600);
     await ekranGoruntusu(path.join(PNG, `ekran-${ad}.png`), kirp, OLCEK);
     console.log('görüntü:', ad, kirp ? J(kirp) : '');
+    cekilen.add(ad);
+    if (istenen && istenen.every((a) => cekilen.has(a))) throw TAMAM;
   };
   /** Öğenin ekrandaki kutusu (CSS pikseli) */
   const kutuAl = (ifade) => evalJs(`(() => { const e = ${ifade}; if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, r: r.right, b: r.bottom }; })()`);
@@ -120,6 +130,20 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     },
   }; return true; })()`);
 
+  /** Araçlar menüsü koyu temada, sayfa koyulaştırılmadan (dilekçe açık; kullanıcı isteği, 2026-10-09: "sayfa beyazlı koyu") */
+  const aracMenusuKoyu = async () => {
+    if (!(await evalJs(`[...window.__pdefe.belgeler.values()].some((x) => x.ad === ${J(DILEKCE)})`))) for (const ad of [DILEKCE, TMK, TTK, TARANMIS]) await ac(ad);
+    await sec(DILEKCE);
+    await panel(false);
+    await komut('gorunum.zoom', 'genislik'); await bekle(500);
+    await ayarKoy('sayfayiKoyulastir', false);
+    await komut('gorunum.tema'); await bekle(800);
+    await evalJs(`(document.querySelector('#dugme-araclar').click(), true)`); await bekle(700);
+    await ss('araclar-koyu');
+    await esc(); await hepsiniTemizle();
+    await komut('gorunum.tema'); await bekle(500);
+  };
+
   // ------------------------------------------------------------ hazırlık
   await hepsiniKapat();
   await ayarKoy('yazarAdi', 'Av. Örnek Yazar');
@@ -134,7 +158,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
   await hepsiniKapat();
   await kosul(`!document.querySelector('#baslangic').hidden`, 5000);
   if (iste('acilis')) await ss('acilis');
-  if (istenen && istenen.every((a) => ['acilis', 'acilis-koyu', 'ayarlar'].includes(a))) {
+  if (istenen && istenen.every((a) => ['acilis', 'acilis-koyu', 'ayarlar', 'araclar-koyu'].includes(a))) {
     if (iste('acilis-koyu')) {
       await komut('gorunum.tema'); await bekle(800);
       await ss('acilis-koyu');
@@ -149,6 +173,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
       await ss('ayarlar');
       await hepsiniTemizle(); await hepsiniKapat();
     }
+    if (iste('araclar-koyu')) await aracMenusuKoyu();
     console.log('bitti (kısa yol)');
     return;
   }
@@ -182,12 +207,14 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
   await bekle(500);
   await yaz('Yürürlük maddesine bakılacak (m. 1030).'); await bekle(300);
   await esc(); await esc();
-  // Yazı notu: yazı aracıyla sayfaya tıklayıp yaz, Esc ile bitir (renkli yazı, açık sarı dolgu: sayfa yazısından ayrılsın)
+  // Yazı notu: yazı aracıyla sayfada tek satırlık kutu çizip yaz, Esc ile bitir (renkli yazı, açık sarı dolgu: sayfa yazısından ayrılsın).
+  // Tek tıklama 200×44 pt'lik kutu açar; tek satırlık yazının altında sarı boşluk kalıyordu (kullanıcı, 2026-10-09), kutu yazının boyunda çizilir.
   await ayarKoy('yaziRengi', '#b42318'); await ayarKoy('yaziArka', '#fff4c2');
   await evalJs(`(window.__pdefe.aktif().notlar.aracSec('yazi'), true)`);
   const yk = await evalJs(`window.__rg.metinKutusu(1, 'iddiasında bulunamaz')`);
   const yaziYeri = await evalJs(`(() => { const r = window.__pdefe.aktif().gorunum.sayfalar[0].el.getBoundingClientRect(); return [Math.round(r.left + r.width * 0.12), ${Math.round(yk ? yk.b + 36 : 600)}]; })()`);
-  await tikla(yaziYeri[0], yaziYeri[1]); await bekle(400);
+  const ptpx = await evalJs(`window.__pdefe.aktif().notlar.ptPx()`);
+  await surukle(yaziYeri[0], yaziYeri[1], Math.round(yaziYeri[0] + 172 * ptpx), Math.round(yaziYeri[1] + 22 * ptpx), { adim: 10, araMs: 20 }); await bekle(400);
   await yaz('Müvekkile özet gönderilecek'); await bekle(200);
   await esc(); await esc();
   await evalJs(`(window.__pdefe.aktif().notlar.aracSec(null), true)`);
@@ -387,6 +414,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
   await kosul(`!document.querySelector('#baslangic').hidden`, 5000);
   if (iste('acilis-koyu')) await ss('acilis-koyu');
   await komut('gorunum.tema'); await bekle(500);
+  if (iste('araclar-koyu')) await aracMenusuKoyu();
 
   await hepsiniKapat();
   const hatalar = await evalJs(`window.__hatalar || []`);
