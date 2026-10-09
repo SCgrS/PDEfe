@@ -35,8 +35,7 @@ function sonAcilanlar(k, sonListe, son) {
 function duzenOgeleri(k, dz, iki, kaydirma) {
   return [
     { label: 'Sayfayı sığdır', click: k('gorunum.zoom', 'sayfa') },
-    { label: 'Genişliğe sığdır', click: k('gorunum.zoom', 'genislik') },
-    { label: 'Görünür alana sığdır', click: k('gorunum.zoom', 'gorunur') },
+    { label: 'Genişliğe sığdır', click: k('gorunum.zoom', 'genislik') },   // "Görünür alana sığdır" 0.2.4'te kalktı (kullanıcı isteği)
     { type: 'separator' },
     { label: 'Tek sayfa', type: 'radio', checked: !iki, click: k('gorunum.duzen', 'tek') },
     { label: 'İki sayfa', type: 'radio', checked: iki, click: k('gorunum.duzen', 'iki') },

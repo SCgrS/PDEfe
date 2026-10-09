@@ -109,8 +109,8 @@ export default async function ({ evalJs, bekle }) {
       // çubuğu açılış ekranında da görünür; 0.2.2'den beri alt 12 px: imza büyüdü, eşik 860 px) kalabilir; yoksa alt boşluk üsttekinin iki katı
       const alcak = (await evalJs('innerHeight')) <= 860, enAzUst = alcak ? 12 : 20, enAzAlt = alcak ? 12 : 28;
       sonuc(`${e} İçerik ortanın üstünde: üst boşluk alttakinin yarısı kadar (tam ortada değil)`, ust >= enAzUst - 0.5 && ust < alt && (ust <= enAzUst + 0.5 || alt <= enAzAlt + 0.5 || Math.abs(alt - 2 * ust) < 3), { ust, alt, alcak });
-      sonuc(`${e} Ad ve sürüm sağ altta: "PDEfe · PDF görüntüleyici ve düzenleyici · sürüm ${surum}", logo yanında`,
-        Math.abs(o.imza.r - (o.alan.l + o.alan.w - o.alan.pr)) < 1.5 && Math.abs(o.imza.b - (o.alan.t + o.alan.h - o.alan.pb)) < 1.5 && o.imzaMetin === `PDEfe PDF görüntüleyici ve düzenleyici · sürüm ${surum}` && o.logo.w >= 24 && o.logo.r <= o.imza.l + o.logo.w + 1,
+      sonuc(`${e} Ad ve sürüm sağ altta: "PDEfe · Sürüm ${surum} · Geliştirici: x.com/CgrShn", logo yanında`,
+        Math.abs(o.imza.r - (o.alan.l + o.alan.w - o.alan.pr)) < 1.5 && Math.abs(o.imza.b - (o.alan.t + o.alan.h - o.alan.pb)) < 1.5 && o.imzaMetin === `PDEfe Sürüm ${surum} · Geliştirici: x.com/CgrShn` && o.logo.w >= 24 && o.logo.r <= o.imza.l + o.logo.w + 1,
         { imza: o.imza, alan: o.alan, metin: o.imzaMetin });
       // 0.2.2 (kullanıcı isteği, görselle seçildi): simge 50 px (30'du), ad 22 px (14), alt yazı 16 px (11), simge ile yazı arası 5 px (9)
       sonuc(`${e} İmzanın ölçüleri: simge 50 px, ad 22 px, alt yazı 16 px, simge ile yazı arası 5 px`,
@@ -151,7 +151,7 @@ export default async function ({ evalJs, bekle }) {
       const o = await olc();
       sonuc(`[${w}×${h}, panel ${g} px] İmza alana sığıyor: sol kenarı alanın içinde, sağa yaslı, metnin tamamı var, yatay taşma yok`,
         o.imza.l >= o.alan.l + o.alan.pl - 0.5 && o.logo.l >= o.alan.l + o.alan.pl - 0.5 && Math.abs(o.imza.r - (o.alan.l + o.alan.w - o.alan.pr)) < 1.5
-        && o.imzaMetin === `PDEfe PDF görüntüleyici ve düzenleyici · sürüm ${surum}` && o.alan.sw <= o.alan.w && o.docScroll <= 0, { imza: o.imza, logo: o.logo, alan: o.alan });
+        && o.imzaMetin === `PDEfe Sürüm ${surum} · Geliştirici: x.com/CgrShn` && o.alan.sw <= o.alan.w && o.docScroll <= 0, { imza: o.imza, logo: o.logo, alan: o.alan });
       if (w === 720) await ss('a-acilis-720-panel-genis-acik');
     }
     await panelKur(false);

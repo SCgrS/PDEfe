@@ -12,8 +12,7 @@ export const VARSAYILANLAR = {
   // kaldigimSayfadanAc → sayfaKonumlari, sonAcilanlariHatirla → sonDosyalar
   kaldigimSayfadanAc: true,
   sonAcilanlariHatirla: true,
-  varsayilanZoom: 'genislik',     // 'son' | 'genislik' | 'sayfa' | 'gercek' | sayı (yüzde)
-  sonZoom: 100,
+  varsayilanZoom: 'genislik',     // 'genislik' | 'sayfa' | 'gercek' | sayı (yüzde); 0.2.4'te 'son' ve 'gorunur' kalktı (aşağıda taşınır)
   varsayilanDuzen: 'surekli',     // 'tek' | 'surekli' | 'iki' | 'ikiSurekli'
   kapakAyri: false,
   // Birden çok sekmeli pencerenin kapatma düğmesi (×, Alt+F4, Mac'te kırmızı düğme; 0.2.2, kullanıcı isteği): 'sor' ("Geçerli sekme /
@@ -47,11 +46,16 @@ export const VARSAYILANLAR = {
 
 /** Kaldırılmış ayarlar: eski sürümlerin yapılandırma dosyalarından silinir (0.1.8: 10 açılışta bir denetimin sayacı → haftalık denetim;
  *  0.1.12: Kopyalama ayarı ve 0.1.4'ün otomatik kaydetme taşımasının bayrağı; 0.1.27: Döndür düğmesinin kapsamı, düğme artık yalnızca
- *  geçerli sayfayı döndürür). */
-const KALDIRILAN_ANAHTARLAR = ['sekmeleriHatirla', 'acikSekmeler', 'sekmeDegisimindeSor', 'sonGuncellemeDenetimi', 'acilisSayaci', 'sonDenetimAcilisi', 'sonDenetimSurumu', 'temizMetin', 'otomatikKaydetTasindi', 'dondurmeKapsami'];
+ *  geçerli sayfayı döndürür; 0.2.4: "Son kullanılan" yakınlaştırmanın kaydı). */
+const KALDIRILAN_ANAHTARLAR = ['sekmeleriHatirla', 'acikSekmeler', 'sekmeDegisimindeSor', 'sonGuncellemeDenetimi', 'acilisSayaci', 'sonDenetimAcilisi', 'sonDenetimSurumu', 'temizMetin', 'otomatikKaydetTasindi', 'dondurmeKapsami', 'sonZoom'];
 
 export const ayarlar = new Store({ name: 'ayarlar', defaults: VARSAYILANLAR, clearInvalidConfig: true });
 for (const anahtar of KALDIRILAN_ANAHTARLAR) { try { if (ayarlar.has(anahtar)) ayarlar.delete(anahtar); } catch (e) { console.warn('Eski ayar silinemedi', anahtar, e); } }
+// 0.2.4 (kullanıcı isteği): varsayılan yakınlaştırmanın "Son kullanılan" ve "Görünür alana sığdır" seçenekleri kalktı; onları seçmiş olan
+// kullanıcıda varsayılana (genişliğe sığdır) döner
+try {
+  if (['son', 'gorunur'].includes(ayarlar.get('varsayilanZoom'))) ayarlar.set('varsayilanZoom', VARSAYILANLAR.varsayilanZoom);
+} catch (e) { console.warn('Yakınlaştırma ayarı taşınamadı', e); }
 // Eski varsayılan vurgu rengi (#ffeb3b) bugünkü varsayılana (#ffd100) bir kez taşınır; kullanıcının seçtiği başka renk korunur. Taşıma
 // bayrakla bir kez yapılır: sonradan bilerek #ffeb3b seçen kullanıcının rengi her açılışta değişmesin
 try {

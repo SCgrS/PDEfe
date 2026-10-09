@@ -9,6 +9,7 @@ import { NotYoneticisi, VURGU_RENKLERI } from './notlar.js';
 import { KomutYigini, Komut, sayfaFarki, sayfaFarkiOzeti, sayfaListesi } from './komutlar.js';
 import { GecmisListesi } from './gecmisListesi.js';
 import { ayarlarPenceresiAc, ayarlarPenceresiKapat, ayarlarPenceresiniGuncelle } from './ayarlarPenceresi.js';
+import { kisayolTablolariHtml } from './kisayolListesi.js';
 import { aracKomutlari, aracPencereleriniKapat, aracPenceresiKapaninca, acikAracPenceresiVar } from './araclar/index.js';
 import { sekmeyiYenile } from './araclar/ortak.js';
 import { AraclarPenceresi, ARACLAR } from './aracPenceresi.js';
@@ -209,8 +210,9 @@ async function dosyaAc(yol, secenek = {}) {
     const sonSayfa = ayar.kaldigimSayfadanAc ? (ayar.sayfaKonumlari || {})[yol] : null;
     const zoom = ayar.varsayilanZoom;
     // İki sayfa düzeninde belge her zaman sayfaya sığdırılarak açılır (bkz. Goruntuleyici.duzenAyarla)
-    const zoomModu = duzenIkiMi(genelDuzen()) ? 'sayfa' : ['genislik', 'sayfa', 'gercek', 'gorunur'].includes(zoom) ? zoom : 'serbest';
-    const olcek = zoom === 'son' ? (ayar.sonZoom || 100) / 100 : (typeof zoom === 'number' ? zoom / 100 : 1);
+    // 0.2.4: "Son kullanılan" ve "Görünür alana sığdır" Ayarlar'dan kalktı (main/ayarlar.js eski değeri genişliğe sığdır yapar)
+    const zoomModu = duzenIkiMi(genelDuzen()) ? 'sayfa' : ['genislik', 'sayfa', 'gercek'].includes(zoom) ? zoom : typeof zoom === 'number' ? 'serbest' : 'genislik';
+    const olcek = typeof zoom === 'number' ? zoom / 100 : 1;
     gorunum.koyuSayfa = koyuMu() && ayar.sayfayiKoyulastir;
     await gorunum.yukle(veri, {
       yol, duzen: genelDuzen(), kapakAyri: !!ayar.kapakAyri, zoomModu, olcek,
@@ -1042,13 +1044,9 @@ function zoomGoster(b) {
   const o = b.gorunum.olcek;
   durum.zoomYaz(o);
   if (document.activeElement !== $('#zoom-kutusu')) zoomKutusuYaz(o);   // kullanıcı kutuda yazarken üzerine yazılmaz
-  // Yüklenmemiş görünümün ölçeği (yeni sekme seçilirken %100) son kullanılan sayılmaz: belge onunla açılırdı
-  if (ayar.varsayilanZoom === 'son' && b.gorunum.belge) { ayar.sonZoom = Math.round(o * 100); zoomKaydetGecikmeli(); }
 }
 /** Yakınlaştırma kutusuna ölçeği Türkçe yüzde biçiminde ('%150') yazar. */
 function zoomKutusuYaz(olcek) { $('#zoom-kutusu').value = '%' + Math.round(olcek * 100); }
-let _zoomZaman = null;
-function zoomKaydetGecikmeli() { clearTimeout(_zoomZaman); _zoomZaman = setTimeout(() => ayarKoy('sonZoom', ayar.sonZoom), 800); }
 
 // ---------------------------------------------------------------- son dosyalar, oturum, sayfa konumu
 // "Son açılanları hatırla" ve "Her belgeyi kaldığım sayfadan aç" kapalıyken bu kayıtlar hiç yazılmaz (Ayarlar › Açılış ve düzen).
@@ -1106,7 +1104,7 @@ function duzenEsitle(b) {
 
 /** İki sayfalıdan tek sayfalıya geçişte yakınlaştırma: Başlangıç'taki varsayılan yakınlaştırma bir sığdırma seçeneğiyse o (belge
  *  açılışıyla tutarlı), değilse (son kullanılan, gerçek boyut, yüzde) genişliğe sığdır. */
-function tekSayfaZoomu() { return ['genislik', 'sayfa', 'gorunur'].includes(ayar.varsayilanZoom) ? ayar.varsayilanZoom : 'genislik'; }
+function tekSayfaZoomu() { return ['genislik', 'sayfa'].includes(ayar.varsayilanZoom) ? ayar.varsayilanZoom : 'genislik'; }
 
 /** Genel düzeni kaydeder; etkin sekmeye hemen, diğerlerine seçildiklerinde uygulanır. */
 function duzenDegistir(duzen, kapakAyri = !!ayar.kapakAyri) {
@@ -1728,6 +1726,10 @@ $('#zoom-kutusu').addEventListener('keydown', (e) => {
 $('#zoom-kutusu').addEventListener('focus', (e) => e.target.select());
 // Odak çıkınca (Enter, Esc, başka yere tıklama, sekme değişimi) kutu etkin belgenin ölçeğini '%N' olarak gösterir: yazılan '150' ya da geçersiz metin kalmaz
 $('#zoom-kutusu').addEventListener('blur', () => zoomKutusuYaz(aktif()?.gorunum.olcek ?? 1));
+// Yakınlaştırma okunun listesi (0.2.4, kullanıcı isteği): beş sabit değer (önceden %25–%6400 arası 13 değer: "çok uzun liste"); "Görünür
+// alana sığdır" listeden kalktı (kip görünümde duruyor: pencereler arası taşınan sekmenin durumu ve testler); sığdırma seçeneklerinin
+// altında Ayarlar'da varsayılan yakınlaştırmayı açan "Varsayılanı ayarla". Ctrl+tekerlek / Ctrl+± adımları ve %6400 sınırı değişmedi
+const ZOOM_LISTESI = [25, 50, 100, 400, 1000];
 $('#dugme-zoom-secenek').addEventListener('click', async () => {
   const b = aktif(); if (!b) return;
   const mod = b.gorunum.zoomModu;
@@ -1735,12 +1737,14 @@ $('#dugme-zoom-secenek').addEventListener('click', async () => {
     { id: 'gercek', etiket: 'Gerçek boyut (%100)', isaretli: mod === 'serbest' && Math.abs(b.gorunum.olcek - 1) < 0.001 },
     { id: 'sayfa', etiket: 'Sayfayı sığdır', isaretli: mod === 'sayfa' },
     { id: 'genislik', etiket: 'Genişliğe sığdır', isaretli: mod === 'genislik' },
-    { id: 'gorunur', etiket: 'Görünür alana sığdır', isaretli: mod === 'gorunur' },
     { ayirici: true },
-    ...[25, 50, 75, 100, 125, 150, 200, 300, 400, 800, 1600, 3200, 6400].map((y) => ({ id: 'y' + y, etiket: '%' + y })),
+    { id: 'varsayilan', etiket: 'Varsayılanı ayarla' },
+    { ayirici: true },
+    ...ZOOM_LISTESI.map((y) => ({ id: 'y' + y, etiket: '%' + y })),
   ]);
   if (!secim) return;
-  if (secim.startsWith('y')) b.gorunum.zoomAyarla(parseInt(secim.slice(1), 10) / 100);
+  if (secim === 'varsayilan') ayarlarPenceresiAc(ayarlarBaglami(), { bolum: 'acilis', ayar: 'varsayilanZoom' });
+  else if (secim.startsWith('y')) b.gorunum.zoomAyarla(parseInt(secim.slice(1), 10) / 100);
   else komutCalistir('gorunum.zoom', secim);
 });
 $('#dugme-duzen').addEventListener('click', async () => {
@@ -2143,47 +2147,10 @@ function diyalogAc({ baslik, govde, dugmeler, onSecim, genislik }) {
 }
 
 function kisayollarGoster() {
-  // Üç sütun (dar pencerede alt alta): bölüm başlığı tek öğeli dizi; birden çok tuş dizi olarak verilir (tuş kutuları arasında satır kırılabilir).
-  // Üçüncü sütun araç pencerelerinin fare ve tuş kullanımı: 0.1.13'e dek pencerelerin alt şeridinde yazıyordu (kullanıcı isteğiyle buraya taşındı).
-  const sutunlar = [[
-    ['Dosya ve sekmeler'],
-    ['Ctrl+O', 'Aç'], ['Ctrl+T', 'Yeni sekme (açılış sayfası)'], ['Ctrl+S', 'Kaydet'], ['Ctrl+Shift+S', 'Farklı kaydet'], ['Ctrl+P', 'Yazdır'],
-    ['Ctrl+W', 'Sekmeyi kapat'], [['Ctrl+PageUp / PageDown', 'Ctrl+← / →'], 'Önceki / sonraki sekme'],
-    ['Ctrl+Tab / Ctrl+Shift+Tab', 'Son kullanılan sekmeye geç (basılı tutunca seçici; içinde ← →)'],
-    ['Ctrl+1 – Ctrl+9', 'Sekme seç (9: son sekme)'],
-    ['Sekmeyi sürükle', 'Sırala; sekme çubuğunun dışına bırakınca belge kendi penceresinde açılır'],
-    ['Düzen'],
-    ['Ctrl+Z / Ctrl+Y', 'Geri al / yinele'], ['Ctrl+F', 'Bul'], ['F3 / Shift+F3', 'Sonraki / önceki eşleşme'],
-    ['Ctrl+A', 'Sayfadaki tüm metni seç'], ['Delete', 'Seçili notu sil'], ['Ctrl+,', 'Ayarlar'],
-    ['Genel'],
-    ['F1', 'Kısayollar'], ['Esc', 'Kapat / vazgeç'],
-  ], [
-    ['Gezinme'],
-    ['Ctrl+G', 'Sayfaya git'], ['← →', 'Önceki / sonraki sayfa (yakınlaştırılmışsa önce yana kaydırır)'],
-    ['PageUp / PageDown', 'Önceki / sonraki sayfa (kaydırma kapalıyken önce bir ekran)'],
-    ['↑ ↓', 'Kaydır (kaydırma kapalıyken sayfa sonunda çevirir)'], ['Boşluk / Shift+Boşluk', 'Bir ekran aşağı / yukarı kaydır'],
-    ['Home / End', 'İlk / son sayfa'], ['Ctrl+Home / End', 'Belge başı / sonu'], ['Shift+Fare tekerleği', 'Yatay kaydırma'],
-    ['Görünüm'],
-    [['Ctrl+Fare tekerleği', 'Ctrl++ / Ctrl+−'], 'Yakınlaştır / uzaklaştır'], ['Ctrl+0', 'Gerçek boyut'],
-    ['Ctrl+R / Ctrl+Shift+R', 'Geçerli sayfayı saat yönünde / tersine döndür'], ['F4', 'Sol panel'], ['Ctrl+H', 'Okuma modu'], ['F11', 'Tam ekran'],
-    ['Yazı kutusu'],
-    ['Ctrl+B / I / U', 'Kalın / italik / altı çizili'], ['Esc', 'Düzenlemeyi bitir (yazılan korunur)'],
-  ], [
-    ['Sayfaları düzenle'],
-    ['Tıkla', 'Sayfayı seç'], ['Ctrl+tık / Shift+tık', 'Seçime ekle / aralığı seç'], ['Boş alandan sürükle', 'Alandaki sayfaları seç'],
-    ['Sayfayı sürükle', 'Sırala (seçiliyse seçilenler birlikte)'], ['Delete', 'Seçilenleri sil'], ['Ctrl+A', 'Tümünü seç'],
-    [['← → ↑ ↓', 'Home / End'], 'Sayfalar arasında gez (Shift ile seçimi genişlet)'], ['R / Shift+R', 'Seçilenleri sağa / sola döndür'],
-    ['Ctrl+Z / Ctrl+Y', 'Geri al / yinele'],
-    ['Görüntü / PDF birleştir'],
-    ['Tıkla', 'Dosyayı seç'], ['Ctrl+tık / Shift+tık', 'Seçime ekle / aralığı seç'],
-    [['Sağ tuşla sürükle', 'Boş alandan sürükle'], 'Alandaki dosyaları seç'], ['Satırı sürükle', 'Sırala (seçiliyse seçilenler birlikte)'],
-    ['Delete', 'Seçilenleri çıkar'], ['Ctrl+A', 'Tümünü seç'], ['Ctrl+V', 'Panodaki dosyaları ya da görüntüyü ekle'],
-  ]];
-  const satir = ([k, a]) => (a == null ? `<tr class="bolum"><th colspan="2">${k}</th></tr>`
-    : `<tr><td>${[].concat(k).map((t) => `<kbd>${tus(t)}</kbd>`).join(' ')}</td><td>${a}</td></tr>`);
+  // Liste kisayolListesi.js'te: Ayarlar › Kısayollar da aynısını gösterir (0.2.4)
   diyalogAc({
     baslik: 'Kısayollar',
-    govde: '<div class="kisayol-sutunlar">' + sutunlar.map((s) => '<table class="kisayollar">' + s.map(satir).join('') + '</table>').join('') + '</div>',
+    govde: kisayolTablolariHtml(),
     dugmeler: [{ id: 'tamam', etiket: 'Tamam', birincil: true }],
     genislik: 1180,
   });

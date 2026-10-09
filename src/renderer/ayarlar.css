@@ -32,6 +32,18 @@
 .ayar-kart {
   background: var(--arka-yukseltilmis); border: 1px solid var(--kenar); border-radius: 6px; margin-bottom: 4px;
 }
+/* Başka yerden gelinen ayar (0.2.4: yakınlaştırma okunun "Varsayılanı ayarla"sı; ayarlarPenceresi.js ayaraGit): kenarı vurgu renginde
+   yanıp söner, sonra eski hâline döner */
+.ayar-kart-vurgu { animation: ayar-kart-vurgu 1.6s ease-out; }
+@keyframes ayar-kart-vurgu {
+  0%, 45% { border-color: var(--vurgu); box-shadow: 0 0 0 2px var(--vurgu); }
+  100% { border-color: var(--kenar); box-shadow: 0 0 0 0 transparent; }
+}
+/* Kısayollar bölümü (0.2.4): F1'deki tablolar (stil.css .kisayol-sutunlar, .kisayollar); bölüm dar olduğundan sütunlar alt alta */
+.ayar-kisayollar { padding: 2px 4px 8px; font-size: 13px; }
+.ayar-kisayollar .kisayol-sutunlar { grid-template-columns: 1fr; }
+.ayar-kisayollar .kisayollar { width: 100%; }
+.ayar-kisayollar .kisayollar + .kisayollar { margin-top: 10px; }
 .ayar-kart-ust { display: flex; align-items: center; gap: 16px; min-height: 60px; padding: 10px 16px; }
 .ayar-etiket { flex: 1; min-width: 0; }
 .ayar-baslik { font-size: 13px; }

@@ -1,7 +1,8 @@
 // Ayarlar penceresi: solda bölüm listesi, sağda içerik (Windows 11 Ayarlar havası).
 // Her değişiklik anında kaydedilir (baglam.ayarKoy) ve canlı uygulanır (baglam.uygula).
 // Bölümler (0.1.12): Görünüm (tema, yazı çizimi), Açılış ve düzen (varsayılan uygulama, kaldığım sayfa, son açılanlar; yakınlaştırma,
-// tek/iki sayfa, kaydırma, kapak; 0.2.2'den beri pencereyi kapatırken), Not ve vurgu, Kaydetme (otomatik kaydet, araçların çıktı klasörü), Güncelleme, Hakkında.
+// tek/iki sayfa, kaydırma, kapak; 0.2.2'den beri pencereyi kapatırken), Not ve vurgu, Kaydetme (otomatik kaydet, araçların çıktı klasörü), Güncelleme,
+// Kısayollar (0.2.4; F1'deki liste, ayar değil), Hakkında.
 // Sekme adı içeriğini söylesin: bir ayar eklerken ona göre yerleştirin. 0.1.12'de (kullanıcı isteği) Sayfa düzeni ile Belge açılışı
 // birleşti ("Açılış ve düzen"), Notlar'ın adı "Not ve vurgu" oldu, Kopyalama kalktı (kopyalama her zaman temiz metin).
 // Sayfa düzeni iki kontrolle (Tek/İki sayfa + Kaydırma) tek bir varsayilanDuzen değerine yazılır:
@@ -12,16 +13,19 @@
 //     baglam = { ayar: () => ayarlar, ayarKoy(anahtar, deger), uygula(anahtar, deger), pdefe, varsayilanlar, guncelleme?, sonTemizle? }
 //     (guncelleme: renderer/guncelleme.js şerit API'si; Güncelleme bölümündeki denetim ve Güncelle düğmesi onu kullanır.
 //     sonTemizle: son açılanlar listesini siler; menü ve başlangıç ekranı da güncellenir)
-//     secenek = { bolum?: 'gorunum'|'acilis'|'notlar'|'kaydetme'|'guncelleme'|'hakkinda' }
+//     secenek = { bolum?: 'gorunum'|'acilis'|'notlar'|'kaydetme'|'guncelleme'|'kisayollar'|'hakkinda', ayar?: anahtar }
 //     (eski kimlikler ESKI_BOLUMLER'le eşlenir: 'sayfa', 'baslangic', 'dosya' → 'acilis'; 'kopyalama' → 'gorunum')
+//     ayar (0.2.4): bölümdeki o ayarın kartı görünür alana kaydırılır, kısa süre vurgulanır, denetimi odaklanır (kartın data-hedef'i;
+//     yakınlaştırma okunun listesindeki "Varsayılanı ayarla" → { bolum: 'acilis', ayar: 'varsayilanZoom' })
 //   ayarlarPenceresiKapat()               → açık pencereyi kapatır.
 //   ayarlarPenceresiniGuncelle(anahtar)   → ayar dışarıdan değişince açık penceredeki seçim kutusunu günceller (data-ayar işaretli).
 //   DURUM_ANAHTARLARI                     → "Varsayılanlara dön" ile sıfırlanmayan durum alanları.
 import { ortuTiklamasiBagla } from './ortu.js';
 import { mesajKutusu } from './mesajKutusu.js';
 import { MAC, SISTEM } from './platform.js';
+import { kisayolTablolariHtml } from './kisayolListesi.js';
 
-export const DURUM_ANAHTARLARI = new Set(['sonDosyalar', 'sayfaKonumlari', 'pencere', 'solPanelGenislik', 'solPanelAcik', 'solPanelSekme', 'sonZoom', 'menuCubugu']);
+export const DURUM_ANAHTARLARI = new Set(['sonDosyalar', 'sayfaKonumlari', 'pencere', 'solPanelGenislik', 'solPanelAcik', 'solPanelSekme', 'menuCubugu']);
 
 const VURGU_RENKLERI = [
   { ad: 'Sarı', hex: '#ffd100' }, { ad: 'Kırmızı', hex: '#ff6e6e' }, { ad: 'Turuncu', hex: '#ffb74d' },
@@ -36,6 +40,7 @@ const BOLUMLER = [
   { id: 'notlar', ad: 'Not ve vurgu', simge: 'M3 4.5A1.5 1.5 0 0 1 4.5 3h11A1.5 1.5 0 0 1 17 4.5v8a1.5 1.5 0 0 1-1.5 1.5H9l-4 3v-3H4.5A1.5 1.5 0 0 1 3 12.5z' },
   { id: 'kaydetme', ad: 'Kaydetme', simge: 'M4 3h9l3 3v11H4zM7 3v4h5V3M6 17v-5h8v5' },
   { id: 'guncelleme', ad: 'Güncelleme', simge: 'M15 9A5.5 5.5 0 1 0 14 13.5M15 4v5h-5' },
+  { id: 'kisayollar', ad: 'Kısayollar', simge: 'M3.5 5.5h13a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1zM5.5 8.5h1M9.5 8.5h1M13.5 8.5h1M7 11.5h6' },
   { id: 'hakkinda', ad: 'Hakkında', simge: 'M10 3a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM10 9v5M10 6.5v.5' },
 ];
 // 0.1.8'e dek 'baslangic' ve 'dosya', 0.1.11'e dek 'sayfa' (Sayfa düzeni) ve 'kopyalama' vardı
@@ -52,6 +57,7 @@ export function ayarlarPenceresiAc(baglam, secenek = {}) {
   if (acik) {
     if (secenek.bolum) bolumSec(secenek.bolum);
     acik.ortu.querySelector('.ayarlar-bolumler button.secili')?.focus();
+    if (secenek.ayar) ayaraGit(secenek.ayar);
     return acik.ortu;
   }
   const ortu = document.createElement('div');
@@ -104,7 +110,20 @@ export function ayarlarPenceresiAc(baglam, secenek = {}) {
   acik = { ortu, baglam, bolum: null, icerik: ortu.querySelector('.ayarlar-icerik') };
   bolumSec(secenek.bolum || 'gorunum');
   nav.querySelector('button.secili')?.focus();
+  if (secenek.ayar) ayaraGit(secenek.ayar);
   return ortu;
+}
+
+/** Açık bölümde ayarın kartını (data-hedef) gösterir: ortaya kaydırır, kısa süre vurgular, denetimini odaklar. Kart yoksa bir şey yapmaz. */
+function ayaraGit(anahtar) {
+  const kartEl = acik?.icerik.querySelector(`.ayar-kart[data-hedef="${CSS.escape(anahtar)}"]`);
+  if (!kartEl) return;
+  kartEl.scrollIntoView({ block: 'center' });
+  kartEl.classList.remove('ayar-kart-vurgu');
+  void kartEl.offsetWidth;   // aynı kart art arda istenince canlandırma yeniden başlasın
+  kartEl.classList.add('ayar-kart-vurgu');
+  kartEl.addEventListener('animationend', () => kartEl.classList.remove('ayar-kart-vurgu'), { once: true });
+  kartEl.querySelector('.ayar-kontrol select, .ayar-kontrol input, .ayar-kontrol button')?.focus({ preventScroll: true });
 }
 
 export function ayarlarPenceresiKapat() {
@@ -127,7 +146,7 @@ function bolumSec(id) {
   const baslik = document.createElement('h2');
   baslik.textContent = BOLUMLER.find((b) => b.id === id).ad;
   icerik.append(baslik);
-  const ciz = { gorunum: bolumGorunum, acilis: bolumAcilisVeDuzen, notlar: bolumNotlar, kaydetme: bolumKaydetme, guncelleme: bolumGuncelleme, hakkinda: bolumHakkinda }[id];
+  const ciz = { gorunum: bolumGorunum, acilis: bolumAcilisVeDuzen, notlar: bolumNotlar, kaydetme: bolumKaydetme, guncelleme: bolumGuncelleme, kisayollar: bolumKisayollar, hakkinda: bolumHakkinda }[id];
   try { ciz(icerik); } catch (e) { console.error('Ayar bölümü çizilemedi', e); icerik.append(el('p', { class: 'soluk' }, 'Bu bölüm yüklenemedi: ' + hataMetni(e))); }
 }
 
@@ -221,20 +240,23 @@ export function ayarlarPenceresiniGuncelle(anahtar) {
 
 function sayfaDuzeniKartlari(k) {
   const a = ayarlar();
-  // Yakınlaştırma: 'son' | 'genislik' | 'sayfa' | 'gercek' | 'gorunur' | sayı (yüzde)
+  // Yakınlaştırma: 'genislik' | 'sayfa' | 'gercek' | sayı (yüzde). "Son kullanılan" ('son') ve "Görünür alana sığdır" ('gorunur') 0.2.4'te
+  // kalktı (kullanıcı isteği); eski değer main/ayarlar.js'te genişliğe sığdır olur
   const zoomDegeri = a.varsayilanZoom;
   const zoomSayi = typeof zoomDegeri === 'number';
-  const yuzde = el('input', { type: 'number', class: 'kutu ayar-sayi', min: '10', max: '6400', step: '5', value: String(zoomSayi ? zoomDegeri : (a.sonZoom || 100)), title: 'Yüzde' });
+  const yuzde = el('input', { type: 'number', class: 'kutu ayar-sayi', min: '10', max: '6400', step: '5', value: String(zoomSayi ? zoomDegeri : 100), title: 'Yüzde' });
   yuzde.hidden = !zoomSayi;
   const yuzdeYaz = () => { const v = Math.round(parseFloat(yuzde.value)); if (v >= 10 && v <= 6400) degistir('varsayilanZoom', v); else yuzde.value = String(typeof ayarlar().varsayilanZoom === 'number' ? ayarlar().varsayilanZoom : 100); };
   yuzde.addEventListener('change', yuzdeYaz);
   const zoomSecim = secimKutusu(zoomSayi ? 'yuzde' : (zoomDegeri || 'genislik'), [
-    ['son', 'Son kullanılan'], ['genislik', 'Genişliğe sığdır'], ['sayfa', 'Sayfayı sığdır'], ['gercek', 'Gerçek boyut'], ['gorunur', 'Görünür alana sığdır'], ['yuzde', 'Yüzde'],
+    ['genislik', 'Genişliğe sığdır'], ['sayfa', 'Sayfayı sığdır'], ['gercek', 'Gerçek boyut'], ['yuzde', 'Yüzde'],
   ], (v) => { yuzde.hidden = v !== 'yuzde'; if (v === 'yuzde') { yuzdeYaz(); yuzde.focus(); yuzde.select(); } else degistir('varsayilanZoom', v); });
-  k.append(kart({
-    baslik: 'Varsayılan yakınlaştırma', aciklama: 'Tek sayfa düzeninde belge açıldığında uygulanacak yakınlaştırma. İki sayfadan tek sayfaya geçerken de kullanılır; Son kullanılan, Gerçek boyut ya da yüzde seçiliyse tek sayfa genişliğe sığdırılır. İki sayfa düzeninde her zaman Sayfayı sığdır kullanılır.',
+  const zoomKarti = kart({
+    baslik: 'Varsayılan yakınlaştırma', aciklama: 'Tek sayfa düzeninde belge açıldığında uygulanacak yakınlaştırma. İki sayfadan tek sayfaya geçerken de kullanılır; Gerçek boyut ya da yüzde seçiliyse tek sayfa genişliğe sığdırılır. İki sayfa düzeninde her zaman Sayfayı sığdır kullanılır.',
     kontrol: el('div', { class: 'ayar-yanyana' }, [zoomSecim, yuzde]),
-  }));
+  });
+  zoomKarti.dataset.hedef = 'varsayilanZoom';   // yakınlaştırma okunun "Varsayılanı ayarla"sı buraya gelir (ayaraGit)
+  k.append(zoomKarti);
   // Sayfa düzeni: iki kontrol tek bir varsayilanDuzen değerine yazar; diğerinin güncel değeri ayarlardan okunur
   const duzen = duzenCoz(a.varsayilanDuzen ?? 'surekli');
   k.append(kart({
@@ -443,6 +465,13 @@ function bolumGuncelleme(k) {
   k.append(sonuc);
 }
 
+/** Kısayollar (0.2.4, kullanıcı isteği): F1'deki listenin aynısı (kisayolListesi.js); ayar değil, yalnızca gösterir. */
+function bolumKisayollar(k) {
+  const kap = el('div', { class: 'ayar-kisayollar' });
+  kap.innerHTML = kisayolTablolariHtml();   // sabit metin
+  k.append(kap);
+}
+
 function bolumHakkinda(k) {
   const { pdefe } = acik.baglam;
   const surumEl = el('span', {}, '…');
@@ -450,7 +479,7 @@ function bolumHakkinda(k) {
   const gelistirici = el('a', { href: 'https://x.com/CgrShn' }, 'x.com/CgrShn');
   k.append(el('div', { class: 'ayar-hakkinda' }, [
     el('div', { class: 'ayar-hakkinda-satir' }, ['Sürüm ', surumEl]),
-    el('div', { class: 'ayar-hakkinda-satir' }, ['Geliştirici: ', gelistirici]),
+    el('div', { class: 'ayar-hakkinda-satir' }, ['Geri bildirimler için: ', gelistirici]),   // 0.2.4'e dek "Geliştirici:" (kullanıcı isteği)
   ]));
   pdefe.cagir('uygulama:bilgi')
     .then((b) => { surumEl.textContent = b?.surum || '?'; })

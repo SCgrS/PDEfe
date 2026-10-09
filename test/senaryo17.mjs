@@ -63,7 +63,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   // ---------------------------------------------------------------- 10, 11, 9) Ayarlar sekmeleri
   const bolumler = await evalJs(`[...document.querySelectorAll('.ayarlar-bolumler button')].map((b) => [b.dataset.bolum, b.textContent.trim()])`);
   sonuc('Sekmeler: Görünüm, Açılış ve düzen, Not ve vurgu, Kaydetme, Güncelleme, Hakkında (Kopyalama yok)',
-    J(bolumler) === J([['gorunum', 'Görünüm'], ['acilis', 'Açılış ve düzen'], ['notlar', 'Not ve vurgu'], ['kaydetme', 'Kaydetme'], ['guncelleme', 'Güncelleme'], ['hakkinda', 'Hakkında']]), bolumler);
+    J(bolumler) === J([['gorunum', 'Görünüm'], ['acilis', 'Açılış ve düzen'], ['notlar', 'Not ve vurgu'], ['kaydetme', 'Kaydetme'], ['guncelleme', 'Güncelleme'], ['kisayollar', 'Kısayollar'], ['hakkinda', 'Hakkında']]), bolumler);
   await tikla(...(await merkez(q('.ayarlar-bolumler [data-bolum="acilis"]')))); await bekle(400);
   const acilis = await evalJs(`({ h2: document.querySelector('.ayarlar-icerik h2')?.textContent, h3: [...document.querySelectorAll('.ayarlar-icerik h3')].map((e) => e.textContent),
     dugme: !document.querySelector('.ayarlar-icerik .ayar-kart button.ikincil')?.hidden, zaten: !document.querySelector('.ayar-zaten-varsayilan')?.hidden })`);

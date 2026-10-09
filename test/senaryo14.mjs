@@ -25,6 +25,7 @@ const BEKLENEN = [
   ['notlar', 'Not ve vurgu', ['Yazar adı', 'Varsayılan vurgu rengi', 'Vurgu opaklığı', 'Yazı tipi', 'Yazı boyutu', 'Yazı rengi', 'Yazı arka planı']],
   ['kaydetme', 'Kaydetme', ['Otomatik kaydet', 'Araçların çıktı klasörü']],
   ['guncelleme', 'Güncelleme', ['Güncellemeleri otomatik denetle (haftada bir)', 'Şimdi denetle']],
+  ['kisayollar', 'Kısayollar', []],   // 0.2.4: F1'deki liste (kart değil, tablolar; senaryo32)
   ['hakkinda', 'Hakkında', []],
 ];
 

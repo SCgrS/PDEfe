@@ -2,12 +2,14 @@
 // büyük PDF aç düğmesi (uygulamanın temel işi; sürükle-bırak bilgisi düğmenin açıklamasında; 0.2.3'ten beri sağ kenarı Araçlar'ın
 // ikinci karosuyla hizalı), bütün araçlar (Araçlar penceresindeki
 // ARACLAR, aynı sıra ve renklerle) ve "Son açılanlar" başlığının altında kutu içinde son açılan belgeler (en çok 10; geniş pencerede iki
-// sütun, kaydırma çubuğu çıkmaz). Uygulamanın adı, "PDF görüntüleyici ve düzenleyici" ve sürüm sağ altta (0.1.14, kullanıcı isteği;
-// 0.1.13'te ad üstte, sürükle-bırak ipucu düğmenin altında, son açılanlar sağ sütunda ve 10 belgede kaydırmalıydı). Düğmeler uygulama
+// sütun, kaydırma çubuğu çıkmaz). Uygulamanın adı ve altında "Sürüm … · Geliştirici: x.com/CgrShn" sağ altta (0.1.14, kullanıcı isteği;
+// 0.1.13'te ad üstte, sürükle-bırak ipucu düğmenin altında, son açılanlar sağ sütunda ve 10 belgede kaydırmalıydı; 0.2.4'e dek alt satır
+// "PDF görüntüleyici ve düzenleyici · sürüm …"). Düğmeler uygulama
 // komutlarını çalıştırır: dosya.ac Windows'un Aç penceresi; belge gerektiren araç belge yokken önce Aç penceresini açar, seçilen PDF'le
 // açılır (uygulama.js); Görüntü / PDF birleştir belge gerektirmez. Sağ alttaki simgeye ya da ada tıklanınca Ayarlar › Hakkında açılır
 // (yardim.hakkinda; 0.1.15, kullanıcı isteği); imza düğme değildir, görünümü değişmez, Tab ile odaklanmaz (klavyeyle: Yardım › PDEfe
-// hakkında). Son açılanlar listesinde tıklama ya da Enter belgeyi açar; sağ tık
+// hakkında). Geliştiricinin bağlantısı (0.2.4, kullanıcı isteği) tarayıcıda açılır (uygulama.js'teki genel bağlantı dinleyicisi), Hakkında'yı
+// açmaz; rengi ve altı çizgisi yok, imzanın yazısı gibi görünür. Son açılanlar listesinde tıklama ya da Enter belgeyi açar; sağ tık
 // Aç / Klasörde göster / Yolu kopyala / Listeden kaldır menüsünü, satırdaki × ve Delete yalnızca listeden kaldırmayı yapar (dosyaya
 // dokunulmaz). "Son açılanları hatırla" kapalıyken Son açılanlar bölümü (başlık ve kutu) hiç görünmez (0.1.13, kullanıcı isteği).
 // 0.1.8'e dek boş #gorunumler katmanı bu ekranın üstünde kaldığı için PDF aç düğmesi ve son açılanlar tıklanamıyordu (stil.css: z-index).
@@ -67,15 +69,16 @@ export class BaslangicEkrani {
   <img class="karsilama-logo" src="../../build/icon.png" alt="" draggable="false">
   <div class="karsilama-baslik">
     <p class="karsilama-ad">PDEfe</p>
-    <p class="karsilama-alt">PDF görüntüleyici ve düzenleyici<span class="karsilama-surum"></span></p>
+    <p class="karsilama-alt"><span class="karsilama-surum"></span>Geliştirici: <a class="karsilama-baglanti" href="https://x.com/CgrShn" tabindex="-1" draggable="false">x.com/CgrShn</a></p>
   </div>
 </footer>`;
     this.son = kok.querySelector('.karsilama-son');
     this.liste = kok.querySelector('#son-dosyalar');
     this.temizleDugmesi = kok.querySelector('.karsilama-temizle');
-    for (const k of kok.querySelectorAll('[data-eylem]')) k.addEventListener('click', () => this.komutCalistir(k.dataset.eylem));
+    // İmzadaki bağlantı Hakkında'yı açmaz: tarayıcıda açılması belge düzeyindeki dinleyicide
+    for (const k of kok.querySelectorAll('[data-eylem]')) k.addEventListener('click', (e) => { if (!e.target.closest?.('a[href]')) this.komutCalistir(k.dataset.eylem); });
     this.temizleDugmesi.addEventListener('click', () => this.temizle());
-    pdefe.cagir('uygulama:bilgi').then((b) => { if (b?.surum) kok.querySelector('.karsilama-surum').textContent = ` · sürüm ${b.surum}`; }).catch(() => {});
+    pdefe.cagir('uygulama:bilgi').then((b) => { if (b?.surum) kok.querySelector('.karsilama-surum').textContent = `Sürüm ${b.surum} · `; }).catch(() => {});
   }
 
   /** Son açılanları (en çok 10) çizer. kapali: "Son açılanları hatırla" kapalı; bölüm (başlık ve kutu) hiç görünmez. */

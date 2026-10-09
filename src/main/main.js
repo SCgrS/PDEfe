@@ -388,6 +388,7 @@ function ipcKur(ipcMain) {
   // Yalnızca web ve e-posta adresleri (0.1.23; guvenlik.js disAdresMi): PDF'teki bağlantı buraya gelir, başka türler açılmaz
   ipcMain.handle('kabuk:disAc', async (_e, url) => {
     if (!disAdresMi(url)) return false;
+    if (testDiyalog) return testDiyalog('kabuk:disAc', { url: String(url) }, true);   // test örneğinde tarayıcı açılmaz (0.2.4)
     try { await shell.openExternal(String(url)); return true; } catch { return false; }
   });
   // Test örneğinde sistem panosuna yazılmaz (bilgisayarı kullanan kişinin panosu bozulmasın): yazılan test:diyalogKaydi'na düşer
