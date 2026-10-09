@@ -198,7 +198,7 @@ export default async function (surucu) {
       const sira = o.kartlar.map((c) => [c.eylem, c.ad]);
       const gorselSira = [...o.kartlar].sort((x, y) => (Math.abs(x.t - y.t) > 2 ? x.t - y.t : x.l - y.l)).map((c) => c.eylem);
       sonuc(`[${gen}px] Beş araç kartı ARACLAR sırasıyla (DOM ve görsel sıra)`, J(sira) === J(beklenenSira) && J(gorselSira) === J(beklenenSira.map((x) => x[0])) && o.araclarBaslik === 'Araçlar', { sira, gorselSira });
-      sonuc(`[${gen}px] Son açılanlar kutusu görünür, iki belge listeli`, !o.sonHidden && o.sonDisplay !== 'none' && o.sonBaslik === 'Son açılanlar' && J(o.sonOgeler) === J(['b.pdf', 'a.pdf']), { sonHidden: o.sonHidden, sonDisplay: o.sonDisplay, sonOgeler: o.sonOgeler });
+      sonuc(`[${gen}px] Son açılanlar kutusu görünür, iki belge listeli`, !o.sonHidden && o.sonDisplay !== 'none' && o.sonBaslik === 'Son açılanlar' && J(o.sonOgeler) === J(['b', 'a']), { sonHidden: o.sonHidden, sonDisplay: o.sonDisplay, sonOgeler: o.sonOgeler });
       // 0.1.14: tek sütun, Son açılanlar araçların altında (0.1.13'te geniş pencerede sağ sütundaydı)
       sonuc(`[${gen}px] Son açılanlar araçların altında, aynı sütunda; karşılama ortada`, o.son.t >= o.araclar.b && Math.abs(o.son.l - o.karsilama.l) < 2 && Math.abs(o.son.w - o.karsilama.w) < 2
         && Math.abs((o.karsilama.l - o.alan.l) - (o.alan.l + o.alan.w - o.karsilama.r)) < 2, { son: o.son, araclar: o.araclar, karsilama: o.karsilama, alan: o.alan });

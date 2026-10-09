@@ -47,10 +47,10 @@ export default async function ({ evalJs }) {
     return sonuc;
   })()`);
   const BEKLENEN = [
-    { ad: 'Dilekce.pdf', yol: '/Volumes/Arsiv/Belgeler', ipucu: '/Volumes/Arsiv/Belgeler/Dilekce.pdf' },
-    { ad: 'Tebligat.pdf', yol: 'C:\\Belgeler\\Dosyalar', ipucu: 'C:\\Belgeler\\Dosyalar\\Tebligat.pdf' },
-    { ad: 'ek.pdf', yol: '\\\\sunucu\\paylasim', ipucu: '\\\\sunucu\\paylasim\\ek.pdf' },
-    { ad: 'kok.pdf', yol: '', ipucu: '/kok.pdf' },
+    { ad: 'Dilekce', yol: '/Volumes/Arsiv/Belgeler', ipucu: '/Volumes/Arsiv/Belgeler/Dilekce.pdf' },
+    { ad: 'Tebligat', yol: 'C:\\Belgeler\\Dosyalar', ipucu: 'C:\\Belgeler\\Dosyalar\\Tebligat.pdf' },
+    { ad: 'ek', yol: '\\\\sunucu\\paylasim', ipucu: '\\\\sunucu\\paylasim\\ek.pdf' },
+    { ad: 'kok', yol: '', ipucu: '/kok.pdf' },
   ];
   sonuc('Son açılanlar (macOS): klasör satırı eğik bölüyle (/Volumes/Arsiv/Belgeler)', J(son.mac) === J(BEKLENEN), son.mac);
   sonuc('Son açılanlar (Windows): klasör satırı eskisi gibi (C:\\Belgeler\\Dosyalar, \\\\sunucu\\paylasim)', J(son.win) === J(BEKLENEN), son.win);

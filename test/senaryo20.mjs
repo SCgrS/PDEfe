@@ -101,7 +101,7 @@ export default async function ({ evalJs, bekle }) {
       sonuc(`${e} 10 belge kutuda, kutu kaydırılmıyor (taşma yok, kaydırma çubuğu yok), iki sütun`, o.ogeler.length === 10 && o.kutuTasma <= 0 && o.kutuKaydirma !== 'auto' && o.kutuKaydirma !== 'scroll' && o.sutun === '2'
         && o.ogeler.every((g) => g.b <= o.kutu.b + 0.5 && g.t >= o.kutu.t - 0.5 && g.r <= o.kutu.r + 0.5), { adet: o.ogeler.length, tasma: o.kutuTasma, kaydirma: o.kutuKaydirma, sutun: o.sutun });
       const solSutun = o.ogeler.slice(0, 5), sagSutun = o.ogeler.slice(5);
-      sonuc(`${e} Sıra yukarıdan aşağı: 1–5 sol sütunda, 6–10 sağ sütunda (en yenisi sol üstte)`, o.ogeler[0].ad === ADLAR[0] && solSutun.every((g, i) => i === 0 || g.t > solSutun[i - 1].t) && sagSutun.every((g) => g.l > solSutun[0].r - 1) && Math.abs(sagSutun[0].t - solSutun[0].t) < 1,
+      sonuc(`${e} Sıra yukarıdan aşağı: 1–5 sol sütunda, 6–10 sağ sütunda (en yenisi sol üstte)`, o.ogeler[0].ad === ADLAR[0].replace(/\.pdf$/i, '') && solSutun.every((g, i) => i === 0 || g.t > solSutun[i - 1].t) && sagSutun.every((g) => g.l > solSutun[0].r - 1) && Math.abs(sagSutun[0].t - solSutun[0].t) < 1,
         o.ogeler.map((g) => [g.ad, g.l, g.t]));
       sonuc(`${e} Açılış ekranı kaydırılmadan sığıyor (10 belgeyle)`, o.alan.sh <= o.alan.h && o.alan.sw <= o.alan.w && o.docScroll <= 0, o.alan);
       const ust = o.karsilama.t - o.alan.t, alt = o.imza.t - o.karsilama.b;
