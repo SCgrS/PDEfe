@@ -6,10 +6,10 @@
 //   powershell -File test\baslat.ps1 -Port 9431 -Boyut "1280,800" -Olcek 1 -Tema acik      → PID=… yazar (temiz veri klasörüyle)
 //   $env:PDEFE_CDP_PORT=9431; $env:README_ORNEK="C:\Users\Public\Documents\PDEfe Örnek"; node test\surucu.mjs betik test\readme_goruntuleri.mjs
 //   powershell -File test\durdur.ps1 -SurecId <PID>
-// Yalnızca bazı görüntüler: $env:GORUNTU="ana,notlar" (adlar aşağıdaki ss(...) çağrılarında). GORUNTU yalnızca "acilis" ve/veya
-// "acilis-koyu" ise betik açılış ekranlarını çekip biter (kanun PDF'leri gerekmez; son açılanlar listesinde yalnızca adları görünür).
-// Keskin görüntü: $env:README_OLCEK=2 (pencere aynı, görüntü iki kat piksel). 2026-10-09'dan beri açılış ekranları böyle çekilir.
-// Sürüm yazısı görüntülere girmez (kullanıcı isteği, 2026-10-09: her sürümde eskimesin); imzada yalnızca geliştirici bağlantısı kalır.
+// Yalnızca bazı görüntüler: $env:GORUNTU="ana,notlar" (adlar aşağıdaki ss(...) çağrılarında). GORUNTU yalnızca "acilis", "acilis-koyu" ve
+// "ayarlar"dan oluşuyorsa betik kısa yoldan bunları çekip biter (kanun PDF'leri gerekmez: açılış ekranında yalnızca adları görünür, Ayarlar'ın
+// arkasında dilekçe açıktır). Keskin görüntü: $env:README_OLCEK=2 (pencere aynı, görüntü iki kat piksel); 2026-10-09'dan beri böyle çekilir.
+// Açılış ekranının imzasındaki alt satır (sürüm ve geliştirici) görüntülere girmez (kullanıcı isteği, 2026-10-09); yalnızca simge ve ad kalır.
 // 0.2.3 (kullanıcı isteği: "koyu mod fotoğraflar da koyabilirsin"): ana görünüm, açılış ekranı ve Birleştir koyu temada da çekilir
 // (ana-koyu, acilis-koyu, birlestir-koyu; README'de açık temadakilerle yan yana). Tema betiğin sonunda değiştirilir, örnek açık temayla
 // başlatılır. Kurucunun kurulu sürüm sayfası (docs/ekran-kurulum.png) bu betikten değil, test\kurulum_surum.ps1'in surum-2-eski.png'sidir.
@@ -127,20 +127,29 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
   await ayarKoy('solPanelGenislik', 250);
   await evalJs(`(window.__pdefe.ayar().otoGuncelle = false, true)`);
   await evalJs(`(window.pdefe.cagir('ayar:koy', 'otoGuncelle', false), true)`);
-  await evalJs(`(() => { const st = document.createElement('style'); st.textContent = '.karsilama-surum { display: none !important; }'; document.head.append(st); return true; })()`);
+  await evalJs(`(() => { const st = document.createElement('style'); st.textContent = '.karsilama-alt { display: none !important; }'; document.head.append(st); return true; })()`);
 
   // ------------------------------------------------------------ açılış ekranı (son açılanlarla)
   for (const ad of [TTK, TARANMIS, TMK, DILEKCE]) await ac(ad);
   await hepsiniKapat();
   await kosul(`!document.querySelector('#baslangic').hidden`, 5000);
   if (iste('acilis')) await ss('acilis');
-  if (istenen && istenen.every((a) => a === 'acilis' || a === 'acilis-koyu')) {
+  if (istenen && istenen.every((a) => ['acilis', 'acilis-koyu', 'ayarlar'].includes(a))) {
     if (iste('acilis-koyu')) {
       await komut('gorunum.tema'); await bekle(800);
-      if (iste('acilis-koyu')) await ss('acilis-koyu');
+      await ss('acilis-koyu');
       await komut('gorunum.tema'); await bekle(500);
     }
-    console.log('bitti (yalnızca açılış ekranları)');
+    if (iste('ayarlar')) {
+      for (const ad of [DILEKCE, TMK, TTK, TARANMIS]) await ac(ad);
+      await sec(DILEKCE);
+      await komut('gorunum.zoom', 'genislik'); await bekle(500);
+      await komut('duzen.ayarlar', 'acilis'); await bekle(1000);
+      await evalJs(`(() => { const i = document.querySelector('.ayarlar-icerik'); if (i) i.scrollTop = i.scrollHeight; return !!i; })()`); await bekle(400);
+      await ss('ayarlar');
+      await hepsiniTemizle(); await hepsiniKapat();
+    }
+    console.log('bitti (kısa yol)');
     return;
   }
 
