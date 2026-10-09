@@ -58,15 +58,22 @@ export async function evalJs(kod) {
   return r.result?.result?.value;
 }
 
-/** Sayfanın görüntüsü; kirp { x, y, width, height } (CSS pikseli) verilirse yalnızca o bölge. olcek > 1: sayfa o katta yeniden çizilir
- *  (ör. 2: 1264×761'lik pencere 2528×1522 piksel; yerleşim değişmez, yazılar keskin kalır). */
+/** Sayfanın görüntüsü; kirp { x, y, width, height } (CSS pikseli) verilirse yalnızca o bölge. olcek ≠ 1: görüntü o katta piksel
+ *  (ör. 2: 1264×761'lik pencere 2528×1522; yerleşim değişmez). Ekran ölçeği (devicePixelRatio) o kata çekilir ve uygulama PDF sayfalarını
+ *  yeni ölçekte yeniden çizer; yalnızca captureScreenshot'ın clip.scale'i sayfa tuvalini büyütür, PDF yazısı bulanık kalırdı. */
 export async function ekranGoruntusu(dosya, kirp = null, olcek = 1) {
   const { ws, gonder } = await baglan();
-  if (olcek !== 1 && !kirp) {
+  let r;
+  if (olcek !== 1) {
     const m = (await gonder('Page.getLayoutMetrics')).result.cssLayoutViewport;
-    kirp = { x: 0, y: 0, width: m.clientWidth, height: m.clientHeight };
+    await gonder('Emulation.setDeviceMetricsOverride', { width: m.clientWidth, height: m.clientHeight, deviceScaleFactor: olcek, mobile: false });
+    await bekle(3500);   // sayfaların ve küçük resimlerin yeni ölçekte yeniden çizimi
+    r = await gonder('Page.captureScreenshot', { format: 'png', ...(kirp ? { clip: { ...kirp, scale: 1 } } : {}) });
+    await gonder('Emulation.clearDeviceMetricsOverride');
+    await bekle(800);
+  } else {
+    r = await gonder('Page.captureScreenshot', { format: 'png', ...(kirp ? { clip: { ...kirp, scale: 1 } } : {}) });
   }
-  const r = await gonder('Page.captureScreenshot', { format: 'png', ...(kirp ? { clip: { ...kirp, scale: olcek } } : {}) });
   ws.close();
   fs.mkdirSync(path.dirname(dosya), { recursive: true });
   fs.writeFileSync(dosya, Buffer.from(r.result.data, 'base64'));
