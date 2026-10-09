@@ -3,6 +3,18 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.2.5 — 2026-10-09
+
+### Güncelleme
+- **İndirme sürerken şeritte "İndirme bitene dek PDEfe'yi kapatmayın." yazıyor.**
+- **İndirme yarıda kalırsa (PDEfe kapatıldı ya da internet koptu) PDEfe yeniden açılınca şerit kendiliğinden yeniden çıkıyor.** Önceden bir hafta sonraki denetime dek görünmüyordu. Yarım kalan indirme sürdürülmez, baştan başlar; kurulu sürümle aynı kalan kısımlar yeniden indirilmez.
+- **İnternet bağlantısı kopmadan donarsa indirme takılı kalmıyor:** bir dakika hiç ilerlemezse kesilir, şeritte "İndirme ilerlemiyor; internet bağlantısını denetleyip yeniden deneyin." ve **Yeniden dene** çıkar. Önceden şerit "indiriliyor %…"da sonsuza dek kalabiliyordu.
+- **Güncelleme dosyaları gereksiz yere yer kaplamıyor:** yarıda kalan indirmenin dosyası ve güncelleme kurulduktan sonra artık işe yaramayan kurulum dosyası (yaklaşık 140 MB) PDEfe açılırken silinir.
+- Kaydedilmemiş belge varken güncelleme eskisi gibi kurulmadan önce sorar; **Vazgeç** derseniz indirilen sürüm saklanır, sonra **Kur ve yeniden başlat** yeniden indirmeden kurar.
+
+### Açılış ekranı
+- **Son açılanlarda belgelerin simgesi PDEfe'nin simgesi**, adlar ".pdf" uzantısı olmadan yazılıyor (fare üstüne gelince tam yol uzantısıyla görünür).
+
 ## 0.2.4 — 2026-10-09
 
 ### Yan ya da ters taranmış sayfada yazı seçme

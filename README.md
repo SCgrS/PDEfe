@@ -170,6 +170,10 @@ PDEfe haftada bir yeni sürüm olup olmadığına bakar. Yeni sürüm varsa penc
 yeter. PDEfe yeni sürümü kurup kendiliğinden yeniden açılır. macOS'ta **İndir** yeni dosyayı indirir, kurulumdaki gibi Uygulamalar'a
 sürüklenir. Sürüm notları [CHANGELOG.md](CHANGELOG.md) dosyasındadır.
 
+İndirme bitene dek PDEfe'yi kapatmayın. Kapatırsanız ya da internet bağlantısı koparsa indirme sonraki denemede baştan başlar; şerit
+PDEfe yeniden açılınca kendiliğinden yeniden çıkar. Kurulu sürümle aynı kalan kısımlar yeniden indirilmez. Kaydedilmemiş bir belgeniz
+varsa PDEfe kurmadan önce sorar.
+
 ## Kaldırma
 
 Windows'ta **Ayarlar › Uygulamalar › Yüklü uygulamalar › PDEfe › Kaldır**. macOS'ta PDEfe'yi Uygulamalar'dan Çöp Sepeti'ne sürükleyin.

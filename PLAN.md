@@ -2122,3 +2122,52 @@ yakınlaştırma oku altında çıkan seçenekleri değiştireceğiz", değerler
   ve koyu temada ekran görüntüsüyle denetlendi (imza, Kısayollar, vurgulu kart). README'deki ekran görüntüleri yenilenmedi (imzada ve Ayarlar'ın
   bölüm listesinde eski hâl; test/readme_goruntuleri.mjs evdeki örnek PDF'lerle).
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 39.
+
+### Revizyon 0.2.5 (2026-10-09, kullanıcı istekleri: güncelleme şeridi ve indirmenin yarıda kalması; son açılanlar)
+Ayrıntı: CHANGELOG.md. Kullanıcı (ofiste, 0.2.4'ü uygulama içinden kurduktan sonra): "güncelleme yüklenirken pdefe'yi kapatmayın yazsın o şeritte.
+bir de indirme devam ederken kapatınca ne oluyor, veri kaydediyor mu bakar mısın birkaç kez kapattım indirme yarımken bu pc'ye. veya indiren
+kişinin interneti kesintiye falan uğrarsa ne oluyor veya kaydedilmemiş öğe varsa ne oluyor? bu hususları inceleyip testlerini yapıp soracağın
+bir şey yoksa eksiklik bulursan düzeltelim. son açılanlar kısmındaki pdf'lerdeki simge de uygulamanın simgesi olsun. ayrıca buradaki evraklarda
+.pdf diye yazmasına gerek yok." "Yüklenirken" indirme sayıldı: kurulum sırasında PDEfe zaten kendisi kapanıyor.
+- [x] **İnceleme (electron-updater 6.8.9).** İndirme `pending/temp-PDEfe-Setup.exe`'ye yazılır, bitince adı değişir; yarım indirme sürdürülmez:
+  sonraki indirme geçici dosyayı silip baştan başlar (`createTempUpdateFile`). Hata ya da iptalde electron-updater bekleyen klasörünü kendisi
+  boşaltır; PDEfe kapatılınca (süreç biter) yarım dosya kalır. Kurucu kendini önbelleğin köküne (`installer.exe`) kopyalar: sonraki güncellemede
+  yalnızca değişen bloklar iner (GitHub'daki blok haritalarından: 0.2.1→0.2.2 8 MB / %6, 0.2.2→0.2.3 71 MB / %55, 0.2.3→0.2.4 95 MB / %73;
+  çekirdek ya da simge değişince çok). Bu bilgisayarda (WMI, gerçek disk) 0.2.4 kurulmuş, yarım dosya kalmamıştı (sonraki tam indirme silmişti),
+  ama bekleyen klasöründe kurulmuş 0.2.4'ün kurucusu (137 MB) duruyordu; bir sonraki güncellemeye dek kalıyordu.
+- [x] **Eksikler ve düzeltmeler** (main/guncelleme.js, renderer/guncelleme.js, main.js):
+  - İndirme yarıda kalınca şerit bir hafta görünmüyordu: denetim zamanı indirmeden önce yazıldığı için sonraki açılış denetlemiyordu.
+    `bekleyenGuncelleme` artık indirme başlarken yazılır (önceden yalnızca indirme bitince): sonraki açılışta süreye bakılmadan bir kez denetlenir.
+  - Donmuş bağlantıda indirme sonsuza dek "%N"de kalabiliyordu: builder-util-runtime'ın zaman aşımı `request.on('socket')` ile kuruluyor, Electron'un
+    `net` isteği bu olayı vermiyor. Bekçi: `download-progress` 60 sn gelmezse (`INDIRME_BEKLEME_MS`) indirme `CancellationToken` ile kesilir, ileti
+    `DONMUS_INDIRME`. Jeton sınıfını electron-updater dışa vermiyor; main.js onu electron-updater'ın kendi bağımlılığından alır (`iptalJetonuSinifi`,
+    aynı sınıf olsun). macOS ve sahte güncelleyicide jetonsuz (sahte güncelleyicinin kendi küçük jetonu ve `donma` senaryosu var, 3 sn).
+  - Önbellek temizliği (`onbellekTemizle`, açılışta, tek örnekte): yarım indirmenin "temp-…" dosyaları her açılışta, bekleyen sürüm bu açılışın
+    sürümüyse (`acilisDenetimi` → `kuruldu`) bütün bekleyen klasörü. Kök (`installer.exe`, `current.blockmap`) kalır. Güncellemeden sonraki ilk
+    açılışta kurucu bir an daha çalışıyor olabilir (dosyası kilitli): silinemeyen 3, 10, 30 sn sonra yeniden denenir; bu arada indirme başladıysa
+    dokunulmaz. İndirme ilk geçişi bekler. electron-updater'ın `getOrCreateDownloadHelper`'ı kullanılır (yoksa bir şey yapılmaz).
+  - Şerit: "PDEfe x indiriliyor %N (… / …). **İndirme bitene dek PDEfe'yi kapatmayın.**" (kalın).
+  - Kaydedilmemiş belge: değişiklik gerekmedi; indirme bitince sorulur, Vazgeç → "Kur ve yeniden başlat" (yeniden indirmeden), uygulama kapatılırsa
+    kurulmaz (autoInstallOnAppQuit false), sonraki açılışta şerit.
+  - Seçilmeyen: yarım indirmeyi sürdürmek (electron-updater desteklemiyor, değişen blok indirmesi zaten kısaltıyor), indirme sürerken kapatmayı
+    soruyla engellemek (Çıkış ve oturum sonu soru sormaz, 0.2.2; kullanıcı yazı istedi), kurulum aşamasına da "kapatmayın" (PDEfe kendisi kapanıyor).
+- [x] **Son açılanlar** (baslangic.js `BELGE_SIMGESI`, `uzantisiz`): simge build/icon.svg (22 px keskin; imzadaki büyük simge icon.png), ad sondaki
+  ".pdf" (büyük-küçük harf fark etmez) olmadan, ipucunda tam yol. Dosya › Son açılanlar menüsü ve sekmeler değişmedi (istek açılış ekranı içindi).
+- [x] **Sınama**:
+  - Birim (test/guncelleme-e2e/birim.mjs) 83: indirme başlayınca bekleyen kaydı ve sonraki açılışta şerit, bağlantı kopunca bekleyen kalır ve Yeniden
+    dene, donmuş indirmenin kesilmesi, yavaş ama ilerleyen indirmenin kesilmemesi, jetonsuz eski yol, önbellek temizliği (yarım dosyalar / kurulmuş
+    sürüm / kök kalır / ikinci örnek / yardımcı yok / klasör yok), kilitli dosyada yeniden deneme ve bırakma, indirme sürerken yeniden denememe.
+  - senaryo33 (yeni, 12; sahte güncelleyiciyle geliştirme örneği): son açılanlar (uzantısız adlar, ".PDF", addaki noktalar, simge, ipucu), şeritteki
+    uyarı, bekleyen kaydı, donan indirme (3,7 sn), bağlantı kopması, kaydedilmemiş belge → Vazgeç → Kur ve yeniden başlat → tek kurulum.
+  - Uçtan uca (guncelleme-e2e; deneme uygulaması 0.9.0 → 0.9.1, gerçek electron-updater, yerel sunucu 2,5 MB/sn; sunucuya `/__kes` ve `/__dur`
+    eklendi, senaryo.mjs'e `yarimKapat`, `seritBekle`, `kesinti`, `donma`): %20'de kapatınca 39 MB yarım dosya ve bekleyen kaydı kaldı; yeniden
+    açılınca şerit 4,4 sn'de geldi (son denetim 40 sn önceydi), yarım dosya silindi. Donmada bekçi 64 sn'de kesti. Kesintide ileti hemen, Yeniden dene
+    baştan indirip bitirdi, kaydedilmemiş belge soruldu, Vazgeç → hazır. Kurulum yapıldı (0.9.1, --updated ile yeniden açıldı); kurulumdan sonraki
+    açılış taklit edilince bekleyen klasörü boşaldı, kök kaldı.
+  - Deneme düzeninde öğrenilen: (1) değişen blok indirmesi 0.9.0→0.9.1'de 1,2 MB'tı (kurucu kendini önbelleğe kopyalıyor), yarıda kesmek için
+    önbellekteki installer.exe silinmeli; (2) uygulama ekran dışı pencereyi (-2600) ekrana çekiyor, deneme uygulaması görünmeyen masaüstünde
+    açılmalı (`baslat_gizli.ps1 -Paketli`; ilk denemede pencere kullanıcının ekranında göründü); (3) Claude'un kabuğunda önbellek klasörü sanal,
+    kurucunun yeniden açtığı uygulama gerçek oturumda: kurulumdan sonraki temizlik o yüzden aynı görünümde taklitle sınandı.
+  - Regresyon: senaryo19 112/112, senaryo20 52/52, mac_renderer 23/23 (son açılanların adı uzantısız beklendi), senaryo25 / 31 / 32 bu sürümde
+    değişmeyen kodda.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 40.

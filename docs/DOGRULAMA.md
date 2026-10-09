@@ -730,3 +730,21 @@ Yakınlaştırma, Ayarlar ve açılış ekranı
     açılmalı, Hakkında açılmamalı. Simgeye, "PDEfe"ye ya da sürüme tıklayınca Hakkında açılmalı. Açık ve koyu temada bakın.
 11. **Hakkında ve Kısayollar.** Ayarlar'da Hakkında'nın üstünde Kısayollar olmalı; içinde `F1`'deki listenin aynısı. Hakkında'da "Geri bildirimler
     için: x.com/CgrShn" yazmalı.
+
+## 40. 0.2.5: otomatik testlerin sınayamadıkları
+Güncelleme, kurulu PDEfe'ye dokunmayan bir deneme uygulamasıyla yerel bir sunucudan (indirme yarıda kapatılarak, bağlantı kesilerek ve dondurularak)
+sınandı. GitHub'dan gerçek güncelleme, gerçek internet kesintisi ve Mac denenmedi. Bu sürümü kurduktan sonraki ilk güncellemede (0.2.6) bakın.
+
+1. **Kapatma uyarısı.** Bir sonraki güncellemede Güncelle'ye basın: şeritte "PDEfe … indiriliyor %… (… MB / … MB). İndirme bitene dek PDEfe'yi
+   kapatmayın." yazmalı, uyarı kalın.
+2. **Yarıda kapatma.** İsterseniz indirme sürerken PDEfe'yi kapatıp yeniden açın: birkaç saniye içinde şerit kendiliğinden yeniden çıkmalı; Güncelle
+   indirmeyi baştan başlatır.
+3. **İnternet kesintisi.** İsterseniz indirme sürerken Wi-Fi'yi kapatın: şeritte "Güncelleme indirilemedi. Sunucuya ulaşılamadı; internet
+   bağlantısını denetleyin." (ya da en geç bir dakika sonra "İndirme ilerlemiyor; …") ve Yeniden dene çıkmalı. İnterneti açıp Yeniden dene'ye
+   basın: indirme bitmeli.
+4. **Kaydedilmemiş belge.** Bir belgede kaydetmediğiniz değişiklik varken güncelleyin: indirme bitince sorulmalı; Vazgeç derseniz şerit "Kur ve
+   yeniden başlat" demeli.
+5. **Yer.** Güncelleme kurulup PDEfe yeniden açıldıktan bir dakika kadar sonra `%LOCALAPPDATA%\pdefe-updater\pending` klasörü boş olmalı
+   (`installer.exe` üst klasörde kalır; bir sonraki güncellemede yalnızca değişen kısımların inmesini sağlar).
+6. **Son açılanlar.** Açılış ekranında son açılan belgelerin yanında PDEfe'nin kırmızı simgesi olmalı, adlarda ".pdf" yazmamalı; fareyle üstüne
+   gelince tam yol görünmeli. Açık ve koyu temada bakın.
