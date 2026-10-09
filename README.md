@@ -69,7 +69,8 @@ olmadan yapışır.
 ### Taranmış belgede seçim
 
 Taranmış sayfalardaki yazı, kaşe ve antet de fareyle seçilip kopyalanır. Yazıyı Windows'un (macOS'ta Apple'ın) kendi yazı tanıyıcısı
-okur. Belge hiçbir yere gönderilmez. macOS 13–15'te Türkçe harfler (ş, ğ, ı, İ) yanlış gelebilir.
+okur. Belge hiçbir yere gönderilmez. Yan yatırılarak ya da ters taranmış sayfadaki yazı da okunur; sayfayı döndürmeniz gerekmez.
+macOS 13–15'te Türkçe harfler (ş, ğ, ı, İ) yanlış gelebilir.
 
 ![Taranmış bir dilekçede yazı seçimi](docs/ekran-tarama.png)
 

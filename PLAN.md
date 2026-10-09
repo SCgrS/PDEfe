@@ -2029,3 +2029,59 @@ iki bağımsız inceleme (görüntüleyici / kurucu, salt okunur) ve düzeltmele
     örnekleri, kurucu sınama düzeni (kurulum_surum'un 8b / 8c / 9b / 11 / 11b / 11c / 12 durumları, kurucu_akis'in D3 / D4 adımları, kurucu_koruma,
     görüntünün yeniden çizdirilerek alınması), WMI'nin masaüstünü uygulamaması ve bu bilgisayardaki yavaşlığı.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 38.
+
+### Revizyon 0.2.4 (2026-10-09, kullanıcı isteği: yan ya da ters taranmış sayfada yazı seçme)
+Ayrıntı: CHANGELOG.md. Kullanıcı (ofiste): "pdefe uygulamam … belgesindeki metinleri okuyamıyor ancak [çevrim içi bir PDF yazı tanıma
+hizmetine] yükleyip indirdiğim belgeyi okuyabiliyor. neden okuyamıyor?" İnceleme (kod değişmeden) ve öneriden sonra kullanıcı sordu: "döndürme
+işlemini kullanıcı görecek mi arka planda mı yapılacak?" → arka planda; "Onaylıyorum, 0.2.4 olarak hazırla".
+- [x] **Kök neden.** Belge tek sayfalık taranmış görüntü: yatay bir tablo dik sayfaya yan yatırılmış (yazı aşağıdan yukarı okunuyor), sayfada
+  /Rotate yok. Windows.Media.Ocr yalnızca yataya yakın yazıyı okur: sayfa olduğu gibi 0 satır, 90° çevrilince 60 satırın hepsi doğru (çekirdeğin
+  tanıma yolu belgenin kopyasında değiştirilmeden koşuldu). Hizmetin çıktısı sayfaya görünmez bir yazı katmanı (GlyphLessFont) ekliyor; PDEfe'de
+  seçim o katmandan geliyordu, ama hizmet de yazıyı ters yönde okumuştu (katmandaki metin anlamsız: başlık "LLIAIS WINONYV …"). PDEfe'nin kendi
+  tanıyıcısı o dosyada da 0 satır buluyordu. 0.1.24'te bilinen sınır olarak yazılmıştı ("Ters (180°) taranmış yazı tanınmaz"; yan da).
+- [x] **Yazının yönü** (core/islemler/yazi_tanima.py `_yonlu_tani`, `_makul`, `_cevir`, `_geri_cevir`). Her tanıma bölgesi önce olduğu gibi
+  tanınır. Sonuçta en az 8 makul sözcük varsa ve sözcüklerin en az %70'i makulse (`YON_YETERLI`, `YON_ORAN`) yazı dik sayılır, başka yön denenmez.
+  Değilse çizim 90°, 270° ve 180° (saat yönünde; `YON_DENEME`) çevrilip (Pillow `transpose`) yeniden tanınır; net puanı (makul eksi makul olmayan
+  sözcük) dik okunuşunkinden en az 3 fazla, makul sözcüğü en az 3 olan en yüksek puanlı yön seçilir (`YON_FARK`, `YON_EN_AZ`); çevrilen okunuş
+  yeterliyse öteki yönler denenmez. Makul sözcük (`_MAKUL`): küçük harfli, baş harfi büyük ya da büyük harfli Türkçe harfli sözcük (kesmeyle ekli
+  de), kısaltma ("T.C."), sayı; baştaki / sondaki tırnak, ayraç ve noktalama sayılmaz. Sözlük değil biçim kuralı: ters okunan yazı ("NISYA
+  EJeIsnp") çoğunlukla harf / rakam / büyük-küçük harf karışıktır; yan duran yazıdan tanıyıcı ya hiç satır ya da birkaç kısa parça bulur.
+  Çevrilmiş çizimde okunan sözcük köşeleri çevrilmemiş çizime, oradan eskisi gibi PyMuPDF düzlemine çevrilir; renderer'a giden biçim aynı
+  (sözcük başına sol üst, sol alt, sağ üst köşe), sözcükler yazıyla birlikte dikey ya da ters durur. Sayfa, dosya ve ekran değişmez.
+- [x] **Ölçüm** (betikler depoda değil, oturumun geçici klasöründe; belge adı ve metni yazılmadan yalnızca sayılar). Kullanıcının indirdiği 1159
+  PDF'ten belge başına bir sayfa: 60 metinli sayfa taranmış gibi görüntüye çevrildi (150 dpi gri JPEG), 100 gerçek taranmış sayfa; her sayfanın
+  tanıma bölgesi dört yönde tanındı, kural her gerçek yön için benzetildi (160 × 4 = 640 durum; 153 sayfada dik okunuşta en az 5 makul sözcük).
+  - Dik okunuşta makul oranı (en az 10 sözcüklü sayfalar) en az 0,66, yüzdelik 5 / 50 = 0,75 / 0,87. Ters okunuşta en çok 0,59 (ortanca 0,37)
+    ama sözcük sayısı dik okunuşun %50–80'i; yan okunuşta çoğunlukla 0–40 sözcük, makul sözcüğü 8'i geçen ve oranı 0,7'yi aşan yan okunuş yok.
+  - Seçilen kural 640 durumun hiçbirinde yanılmadı. Dik sayfaların 12'sinde / 160'ında (az yazılı ya da kötü taranmış) öteki yönler de denendi:
+    sayfa başına ortalama +0,05 sn, en çok +1,9 sn. Tanıma süresi: dik sayfa ortalama 0,35 sn; yazısı aşağıdan yukarı okunan sayfa 0,70 sn (en çok
+    2,5), yukarıdan aşağı 1,14 sn (en çok 3,7), ters 1,44 sn (en çok 5,3). 100 gerçek taramanın birinin de yan taranmış olduğu çıktı (dik okunuşta
+    0, 90° çevrilince 125 makul sözcük); kural onu çevirdi.
+  - Seçilmeyen kurallar (ölçüldü): makul sözcük sayısıyla seçmek (ilk deneme; dik okunuştan 2 kat ve 5 fazla) ters sayfalarda 4–7 kez yanıldı:
+    ters okunuş çok sözcük verir. Oran eşiği 0,6 yan okunuşu (8 / 12) yeterli sayıp 1–3 kez yanıldı. Eşik 0,65 + en az 10 sözcük de yanılmadı
+    ama yan okunuşun en yüksek oranına (0,67) yakın.
+- [x] **Kopyanın sırası** (pdefe_core.py `_metin_duzlemi`, `_dondurme_matrisi`; yazi_tanima.py `satir_yonleri`). Tanınan satırların yazı yönü
+  önbellekte tutulur (döndürülmemiş düzlemde birim vektör). Seçim tanınan yazıya değince `_metin_duzlemi` dört düzlemi de aday alır ve PDF
+  metninin ve tanınan yazının satırlarından en çoğunun soldan sağa okunduğu düzlemi seçer (eşitlikte sayfanın kendi döndürmesi, sonra döndürülmemiş);
+  değmezse eskisi gibi yalnızca iki aday (`taninan` verilmezse davranış birebir aynı). Öteki düzlemlerin matrisi PyMuPDF'in kuralıyla görünür
+  kutunun boyutundan kurulur (testte dört açıda `rotation_matrix`'le karşılaştırıldı).
+- [x] **Ekrandaki seçim**: renderer değişmedi. `tanimaOgeleri` öğenin dönüşümünü sözcüğün yazı yönünden kurar; PDF.js öğeye `--rotate` verir;
+  metin.js'in okuma sırasındaki seçimi sayfanın ana yönünü öğelerin çoğunluğundan alır (`sayfaModeli`, `okumaKutusu` 90 / 180 / 270). Belgenin
+  kopyasıyla test örneğinde: 145 sözcük, hepsi 270°, açılış + tanıma 1,3 sn, başlık fareyle iki yakınlaştırmada tam seçildi. (İlk denemede
+  seçim yanlış göründü: sınama betiğinin sürüklemeye başladığı nokta pencerenin dışındaydı; başlık görünür alana kaydırılınca doğru.)
+- [x] **Sınırlar** (bilerek): dik okunan sayfanın kenarındaki dikey kısa şerit (kaşe, barkod yazısı) tanınmaz (sayfa yeterli okunduğu için öteki
+  yönler denenmez). Aynı sayfada farklı yönde iki görsel bölge kendi yönünde tanınır, ama kopyada sayfanın düzlemi çoğunluğa göre seçilir. Eğik
+  (ör. 45°) yazı ve Bul'da tanınan yazı (0.1.24'ten beri aranmaz) değişmedi.
+- [x] **Seçilmeyen yollar**: sayfayı gerçekten döndürmek (kullanıcı arka planda istedi; dosya değişir, kaydetmek gerekir, e-imza bozulabilir);
+  yön kestirimi için ayrı model (Tesseract OSD: ek bağımlılık ve model dosyası); her bölgeyi her zaman dört yönde tanımak (dik sayfada 4 kat süre);
+  yönü küçültülmüş görüntüyle yoklamak (küçük yazıda yanılma riski, ölçülmedi); sözlükle puanlamak (PDEfe'de sözlük yok, biçim kuralı yetti).
+- [x] **Testler**: tanima_testi 19 → 61 (makul sözcük kuralı 17, çevirme ve geri çevirme 3, üç yönde kopya sırası / satır yönü / "T.C."nin yeri /
+  sözcük sayısı 12, yazısız görsel, az sözcüklü dik kaşe, dik taranmış sayfa, düzlem 2, döndürme matrisleri 4; ilk koşuda "T.C." makul sayılmıyordu:
+  sondaki nokta atılınca kısaltma kalıbı tutmuyordu, kalıp düzeltildi); test/tanima_pdf_uret.py yan.pdf'i de üretir (üç yönde yan / ters
+  taranmış sayfa, yazısız görsel, dik kaşe; `yan_nokta`); senaryo31 (yeni, 25: sözcükler katmanda, yerinde ve yazıyla aynı yönde, çekirdeğin
+  kopyası, aşağıdan yukarı okunan sayfada gerçek fare sürüklemesiyle seçim ve kopya, çekirdeğin temiz metni (uzunluğuyla: test günlüğündeki `bas`
+  ilk 200 karakterdir), ekranda Ctrl+R ile döndürünce sözcükler dik ve kopya aynı, geri alma, yazısız görsel, dik kaşe, sayfa döndürülmedi; %100
+  ve %125 ekran ölçeğinde 25/25). Regresyon (ofis): senaryo25 30/30 (ilk koşuda menü çubuğu denetimi bir kez düştü, yeni örnekte geçti; tanımayla ilgisiz),
+  kopyalama_testi 22/22. Paketli sürüm bu bilgisayarda sınanmadı (PyInstaller yok); yeni bağımlılık yok (Pillow zaten paketli), çekirdek
+  modülleri aynı.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 39.

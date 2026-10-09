@@ -3,6 +3,14 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.2.4 — 2026-10-09
+
+### Yan ya da ters taranmış sayfada yazı seçme
+- **Yan yatırılarak ya da ters taranmış sayfadaki yazı da seçilip kopyalanıyor.** Yatay bir tablo dik sayfaya yan yatırılıp tarandığında ya da sayfa ters tarandığında PDEfe yazıyı hiç okumuyordu: yazı tanıyıcı yalnızca yatay yazıyı okuyabiliyor. Artık PDEfe yazıyı dik okuyamazsa sayfayı kendi içinde çevirip yeniden dener ve yazının okunduğu yönü seçer. Sayfa ekranda olduğu gibi kalır, dosyaya bir şey yazılmaz, sayfayı döndürmeniz gerekmez.
+- Seçim yazıyla birlikte dikey (ya da ters) durur; fareyle yazının okunduğu yönde sürükleyerek seçersiniz. Kopyalanan metin düz ve okuma sırasıyla gelir.
+- Böyle bir sayfanın yazısı yaklaşık 1 saniyede seçilebilir olur (dik sayfada yaklaşık 0,4 saniye). Yazısı dik olan sayfalarda değişiklik yok; yazısız fotoğraf gibi az yazılı sayfalarda tanıma en çok 2 saniye kadar uzayabilir.
+- Bilinen sınır: yazısı dik okunan bir sayfanın kenarına dikey yazılmış kısa bir şerit (kaşe, barkod yazısı) eskisi gibi tanınmaz.
+
 ## 0.2.3 — 2026-10-07
 
 ### Sekmeler en üstte, yeni simge

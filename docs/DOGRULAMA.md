@@ -698,3 +698,21 @@ Kurucu (PDEfe 0.2.2 kuruluyken, kurucu dosyasına çift tıklayarak)
     yok; açılış ekranında PDF aç'ın hizası; Sayfalar panelinin ilk açılışta kapalı gelmesi.
 25. **README.** GitHub'da (gönderildikten sonra) yeni ekran görüntüleri, koyu temadaki görüntüler (ana görünüm, açılış ekranı, Birleştir) ve
     kurucunun görüntüsü görünmeli ve anlattıkları bölümün altında olmalı.
+
+## 39. 0.2.4: otomatik testlerin sınayamadıkları
+Ekran dışındaki test örneğinde üretilmiş örnek PDF'lerle (yan, ters ve yazısız taranmış sayfa) ve sizin bildirdiğiniz yan taranmış belgenin bir
+**kopyasıyla** sınandı. Gerçek fareyle ekranda, kendi belgelerinizle, Mac'te ve kurulu sürümde denenmedi. Denemeleri belgelerin kopyalarıyla yapın.
+
+1. **Bildirdiğiniz belge.** Yan taranmış belgeyi (kopyasını) PDEfe'de açın: sayfa eskisi gibi yan durmalı, ekranda hiçbir şey dönmemeli. Bir
+   saniye kadar sonra yazının üstünden fareyle sürükleyin: seçim yazıyla birlikte dikey görünmeli. Başlığı seçerken yazının okunduğu yönde, aşağıdan
+   yukarı sürükleyin. Kopyalayıp Word'e ya da UDF'ye yapıştırın: başlık düz ve doğru yazılmış gelmeli. Sekmenin adında kaydedilmemiş değişiklik
+   işareti çıkmamalı.
+2. **Tablonun hücreleri.** Aynı belgede bir hücreyi (ad, adres, tutar) seçip kopyalayın: hücredeki satırlar doğru sırayla gelmeli. Bütün sayfayı
+   (`Ctrl+A`) kopyalayıp yapıştırın: tablonun yazısı eksiksiz gelmeli (sütunlar ayrı satırlar olur; tablo düzeni korunmaz).
+3. **Ekranda döndürünce.** Sayfayı `Ctrl+R` ile bir kez döndürün: yazı dik okunur hâle gelmeli, seçim yine yazının üstünde olmalı ve kopya aynı
+   gelmeli. Geri alın (`Ctrl+Z`).
+4. **Ters taranmış belge.** Elinizde ters (baş aşağı) taranmış bir belge varsa onu da deneyin: yazı seçilebilmeli, kopya düz gelmeli.
+5. **Olağan taranmış belgeler.** Dik taranmış bir UYAP evrakında yazı seçme eskisi gibi çalışmalı ve eskisi kadar çabuk gelmeli. Fotoğraf ya da
+   yalnızca imza / kaşe olan bir sayfada yazı çıkmamalı (ya da eskisi gibi yalnızca kaşedeki yazı).
+6. **Çevrim içi hizmetten geçen belge.** Hizmetin yazı katmanı eklediği dosyada seçim o katmandan gelir; katman yanlışsa kopya da yanlıştır
+   (PDEfe o katmanı değiştirmez). Böyle bir belgede asıl dosyayı PDEfe'de açmanız daha doğru sonuç verir.
