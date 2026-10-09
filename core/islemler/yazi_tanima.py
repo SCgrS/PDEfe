@@ -18,6 +18,12 @@ yaptığından görsel kendi çözünürlüğünde çizilir, büyütmeyi Pillow 
 Sonuç PyMuPDF sözcüklerinin düzlemine (döndürülmemiş, görünür kutunun üst-sol kökenli koordinatı) çevrilir. Çizim (PyMuPDF) işçi iş
 parçacığında, tanıma kendi iş parçacığında yapılır: tanıma sürerken işçi öteki isteklere (küçük resimler, kopyalama) geçer. Sonuçlar
 dosyanın değişme zamanı ve boyutuyla önbellekte tutulur.
+
+Yan ya da ters duran yazı (0.2.4): tanıyıcılar yalnızca aşağı yukarı yatay yazıyı okur; yatay tablo dik sayfaya yan yatırılıp taranınca
+ya da sayfa ters taranınca hiç satır bulmuyor ya da anlamsız sözcükler veriyordu. Yazı dik okunmazsa (makul sözcük az) çizim 90, 270 ve
+180 derece çevrilip yeniden tanınır, en çok makul sözcük veren yön seçilir (_yonlu_tani). Ekranda ve dosyada bir şey değişmez: sözcükler
+sayfadaki yerlerine geri çevrilir, metin katmanında yazıyla birlikte dikey ya da ters durur; kopyanın sırası için satırların yazı yönü
+önbellekte tutulur (satir_yonleri, pdefe_core._metin_duzlemi).
 """
 import asyncio
 import collections
@@ -46,8 +52,17 @@ EGIK = 1.0                     # derece; tanıyıcının ölçtüğü eğim bund
 BLOK_TABANI = 1_000_000        # tanınan satırların PyMuPDF blok numarası: satır başına bir blok, sayfanın bloklarından ayrı
 ONBELLEK_SAYFA = 400
 BEKLEME = 30                   # sn; metin_sec tanımayı en çok bu kadar bekler
+# Yazının yönü (0.2.4, _yonlu_tani; ölçüm PLAN.md "Revizyon 0.2.4"): sonuçta en az YON_YETERLI makul sözcük varsa ve sözcüklerin en az
+# YON_ORAN'ı makulse yazı o yönde okunmuş sayılır. Dik okunuş yetmezse öteki yönler denenir; net puanı (makul eksi makul olmayan
+# sözcük) dik okunuşunkinden en az YON_FARK fazla, makul sözcüğü en az YON_EN_AZ olan en yüksek puanlı yön seçilir. Ters okunan yazı
+# çok sözcük verir ama yarısından çoğu anlamsızdır: makul sözcük sayısıyla seçmek 180°'de yanılıyordu, net puanla yanılmıyor.
+YON_YETERLI = 8
+YON_ORAN = 0.7
+YON_FARK = 3
+YON_EN_AZ = 3
+YON_DENEME = (90, 270, 180)    # saat yönünde derece; yan taranmış sayfa ters taranmıştan çok daha sık
 
-_BOS = {"satirlar": [], "sozcukler": []}
+_BOS = {"satirlar": [], "sozcukler": [], "yonler": []}
 
 # ---------------------------------------------------------------- önbellek
 _onbellek = collections.OrderedDict()   # (yol, değişme zamanı, boyut, sayfa) → {"satirlar", "sozcukler"}
@@ -239,6 +254,74 @@ def _tani_calistir(motor, c, dongu):
     return dongu.run_until_complete(_tani(motor, c["gri"], c["genislik"], c["yukseklik"]))
 
 
+# ---------------------------------------------------------------- yazının yönü (0.2.4)
+_KUCUK, _BUYUK = "a-zçğıöşüâîû", "A-ZÇĞİÖŞÜÂÎÛ"
+# Makul sözcük: küçük harfli, baş harfi büyük ya da büyük harfli sözcük (kesmeyle ekli de: "Ankara'da", "TBK'nın"), kısaltma ("T.C."),
+# sayı ("2099/123", "01.10.2026", "1.250,00"). Ters okunan yazı ("NISYA EJeIsnp") çoğunlukla büyük-küçük harf karışık, harf ve rakam
+# karışık ya da noktalama içinde çıkar; yan duran yazıdan tanıyıcı ya hiç satır ya da birkaç kısa parça bulur.
+_MAKUL = re.compile(r"^(?:[{k}]{{2,}}|[{b}][{k}]+|[{b}]{{2,}}|[{b}]?[{k}]+['’][{k}]+|[{b}]{{2,}}['’][{k}]+|\d[\d.,/:-]*\d|[{b}](?:\.[{b}]){{1,3}}\.?)$"
+                    .format(k=_KUCUK, b=_BUYUK))
+_UC_ISARETLERI = re.compile(r"^[\"'“‘(\[«]+|[\"'”’)\].,;:!?»]+$")
+_CEVIRME = {90: "ROTATE_270", 180: "ROTATE_180", 270: "ROTATE_90"}   # saat yönünde derece → Pillow'un adı (Pillow saat yönünün tersine sayar)
+
+
+def _makul(sonuc):
+    """Tanıyıcı sonucundaki makul sözcüklerin (bkz. _MAKUL; baştaki ve sondaki tırnak, ayraç, noktalama sayılmaz) ve bütün sözcüklerin
+    sayısı."""
+    makul = toplam = 0
+    for satir in sonuc.lines:
+        for w in satir.words:
+            metin = (w.text or "").strip()
+            if not metin:
+                continue
+            toplam += 1
+            ozu = _UC_ISARETLERI.sub("", metin)
+            if len(ozu) >= 2 and _MAKUL.match(ozu):
+                makul += 1
+    return makul, toplam
+
+
+def _cevir(c, aci):
+    """Çizimin saat yönünde aci derece çevrilmiş kopyası (gri, genislik, yukseklik)."""
+    from PIL import Image
+    im = Image.frombytes("L", (c["genislik"], c["yukseklik"]), c["gri"]).transpose(getattr(Image.Transpose, _CEVIRME[aci]))
+    return {"gri": im.tobytes(), "genislik": im.width, "yukseklik": im.height}
+
+
+def _geri_cevir(aci, genislik, yukseklik):
+    """Saat yönünde aci derece çevrilmiş çizimdeki noktayı (piksel) çevrilmemiş çizimdeki noktaya götüren işlev."""
+    if aci == 90:
+        return lambda x, y: (y, yukseklik - x)
+    if aci == 180:
+        return lambda x, y: (genislik - x, yukseklik - y)
+    if aci == 270:
+        return lambda x, y: (genislik - y, x)
+    return lambda x, y: (x, y)
+
+
+def _yonlu_tani(motor, c, dongu):
+    """Çizimi tanır; yazı dik okunmadıysa (bkz. YON_YETERLI) çizimi YON_DENEME sırasıyla çevirip yeniden tanır, net puanı en yüksek yönü
+    seçer. Çeviri yalnızca dik okunuştan açıkça iyiyse seçilir (YON_FARK, YON_EN_AZ): yazısız görselde, az yazılı kaşede ve kötü
+    taramada dik sonuç kalır; o zaman yalnızca süre uzar. Çevrilen okunuş yeterliyse öteki yönler denenmez.
+    Döner: (sonuç, açı): açı, sonucun okunduğu çizimin saat yönünde çevrildiği derece (0 = çevrilmedi)."""
+    yeterli = lambda makul, toplam: makul >= YON_YETERLI and makul >= YON_ORAN * toplam
+    sonuc = _tani_calistir(motor, c, dongu)
+    makul, toplam = _makul(sonuc)
+    if yeterli(makul, toplam):
+        return sonuc, 0
+    en, en_aci, en_net = sonuc, 0, 2 * makul - toplam
+    esik = en_net + YON_FARK
+    for aci in YON_DENEME:
+        s = _tani_calistir(motor, _cevir(c, aci), dongu)
+        makul, toplam = _makul(s)
+        net = 2 * makul - toplam
+        if net >= esik and makul >= YON_EN_AZ and net > en_net:
+            en, en_aci, en_net = s, aci, net
+            if yeterli(makul, toplam):
+                break
+    return en, en_aci
+
+
 # ---------------------------------------------------------------- bölgeler ve çizim (işçi iş parçacığı)
 def _birlestir(kutular):
     """Değen ya da örtüşen kutuları birleştirir (şeritler hâlinde saklanmış taranmış sayfa tek bölge olur)."""
@@ -384,12 +467,17 @@ def _tamamla(anahtar, hazirlik, dongu):
     if motor is None:
         return {"satirlar": [], "desteklenmiyor": True}
     derot, gercekler = hazirlik["derot"], hazirlik["sozcukler"]
-    satirlar, sozcukler = [], []
+    satirlar, sozcukler, yonler = [], [], []
     yuvarla = lambda v: round(v, 2)
     for c in hazirlik["cizimler"]:
-        sonuc = _tani_calistir(motor, c, dongu)
+        sonuc, aci = _yonlu_tani(motor, c, dongu)
         zx, zy, ox, oy = c["z"], c.get("zy", c["z"]), c["x"], c["y"]
-        nokta = lambda px, py: pymupdf.Point((ox + px) / zx, (oy + py) / zy) * derot
+        # Çevrilmiş çizimde okunan noktalar önce çevrilmemiş çizime, oradan PyMuPDF düzlemine
+        geri = _geri_cevir(aci, c["genislik"], c["yukseklik"])
+
+        def nokta(px, py):
+            gx, gy = geri(px, py)
+            return pymupdf.Point((ox + gx) / zx, (oy + gy) / zy) * derot
         egik = abs(sonuc.text_angle or 0.0) >= EGIK
         for satir in sonuc.lines:
             kel = [(w.bounding_rect, _rakamlari_duzelt(w.text)) for w in satir.words if (w.text or "").strip()]
@@ -414,8 +502,15 @@ def _tamamla(anahtar, hazirlik, dongu):
             satirlar.append([o for _, o in ogeler])
             for j, (kutu, o) in enumerate(ogeler):
                 sozcukler.append((kutu.x0, kutu.y0, kutu.x1, kutu.y1, o[0], blok, 0, j))
+            # Satırın yazı yönü (0.2.4; metin_sec'in düzlemi için): ilk sözcüğün sol üstünden sağ üstüne
+            o = ogeler[0][1]
+            dx, dy = o[5] - o[1], o[6] - o[2]
+            if math.hypot(dx, dy) < 0.01:   # genişliksiz sözcük: yazı yönü satırın yukarısına dik
+                dx, dy = o[4] - o[2], o[1] - o[3]
+            u = math.hypot(dx, dy) or 1.0
+            yonler.append((round(dx / u, 3), round(dy / u, 3)))
         c["gri"] = None
-    _onbellege(anahtar, {"satirlar": satirlar, "sozcukler": sozcukler})
+    _onbellege(anahtar, {"satirlar": satirlar, "sozcukler": sozcukler, "yonler": yonler})
     return {"satirlar": satirlar}
 
 
@@ -474,6 +569,17 @@ def sozcukler(doc, yol, sayfa, kutular=None):
     except Exception as e:
         print("[yazi_tanima] sözcükler alınamadı: %s" % e, file=sys.stderr)
         return []
+
+
+def satir_yonleri(yol, sayfa):
+    """Önbellekteki tanınan satırların yazı yönleri (0.2.4): döndürülmemiş düzlemde birim vektör, satır başına; tanınmamışsa boş.
+    metin_sec, seçim tanınan yazıya değince kopyayı hangi düzlemde sıralayacağına bunlarla karar verir (yan taranmış sayfada satırlar
+    döndürülmemiş düzlemde dikeydir)."""
+    try:
+        k = _onbellekten(_anahtar(yol, sayfa))
+    except OSError:
+        return []
+    return list(k.get("yonler", ())) if k else []
 
 
 def kaydol(yontemler):

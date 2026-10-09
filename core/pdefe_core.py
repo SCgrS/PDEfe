@@ -393,22 +393,40 @@ def _bos_paragraflar(pg, donusum=None):
     return kutular
 
 
-def _metin_duzlemi(pg):
+def _dondurme_matrisi(pg, aci):
+    """Döndürülmemiş düzlemden, sayfa saat yönünde aci derece döndürülmüş olsaydı ekranda görünecek düzleme matris (0.2.4): sayfanın kendi
+    döndürmesi için rotation_matrix, ötekiler için PyMuPDF'in aynı kuralıyla (görünür kutunun boyutundan)."""
+    aci %= 360
+    if aci == pg.rotation % 360:
+        return pymupdf.Matrix(pg.rotation_matrix)
+    w, h = pg.cropbox.width, pg.cropbox.height
+    return {0: pymupdf.Matrix(1, 0, 0, 1, 0, 0), 90: pymupdf.Matrix(0, 1, -1, 0, h, 0), 180: pymupdf.Matrix(-1, 0, 0, -1, w, h),
+            270: pymupdf.Matrix(0, -1, 1, 0, 0, w)}[aci]
+
+
+def _metin_duzlemi(pg, taninan=None):
     """metin_sec'in döndürülmüş sayfada çalışacağı düzlem (0.1.24): PDF metninin satırlarının çoğu ekranda soldan sağa okunuyorsa (sayfanın
     yazısı ekranda düz) sayfanın döndürme matrisi, döndürülmemiş düzlemde soldan sağa okunuyorsa (sayfa ekranda yan duruyor; 0.1.23'teki
-    gibi) None. Sayfada PDF metni yoksa (yalnızca tanınan yazı: tanıyıcı ekrandaki düz yazıyı okur) döndürme matrisi."""
-    if not pg.rotation % 360:
+    gibi) None. Sayfada PDF metni yoksa (yalnızca tanınan yazı: tanıyıcı ekrandaki düz yazıyı okur) döndürme matrisi.
+    taninan (0.2.4): seçime katılan tanınan satırların yazı yönleri (yazi_tanima.satir_yonleri; döndürülmemiş düzlemde birim vektör).
+    Verilince dört düzlem de adaydır: PDF metninin ve tanınan yazının satırlarından en çoğunun soldan sağa okunduğu düzlem (eşitlikte
+    sayfanın kendi döndürmesi, sonra döndürülmemiş düzlem). Yan ya da ters taranmış sayfada tanıyıcı yazıyı çevirip okur; satırlar
+    ekranda dikey ya da ters durur, y'ye göre sıralanınca karışıyordu. Verilmezse eskisi gibi yalnızca iki aday."""
+    donme = pg.rotation % 360
+    if not donme and not taninan:
         return None
-    m = pymupdf.Matrix(pg.rotation_matrix)
-    ekranda = donmeden = 0
-    for b in pg.get_text("dict", flags=pymupdf.TEXTFLAGS_TEXT)["blocks"]:
-        for ln in b.get("lines", ()):
-            dx, dy = ln["dir"]
-            if dx > 0.9:
-                donmeden += 1
-            if dx * m.a + dy * m.c > 0.9:
-                ekranda += 1
-    return m if ekranda >= donmeden else None
+    yonler = [ln["dir"] for b in pg.get_text("dict", flags=pymupdf.TEXTFLAGS_TEXT)["blocks"] for ln in b.get("lines", ())]
+    adaylar = (donme, 0)
+    if taninan:
+        yonler += list(taninan)
+        adaylar = (donme,) + tuple(a for a in (0, 90, 180, 270) if a != donme)
+    en, en_oy = donme, -1
+    for aci in adaylar:
+        m = _dondurme_matrisi(pg, aci)
+        oy = sum(1 for dx, dy in yonler if dx * m.a + dy * m.c > 0.9)
+        if oy > en_oy:
+            en, en_oy = aci, oy
+    return _dondurme_matrisi(pg, en) if en else None
 
 
 def y_metin_sec(p):
@@ -438,16 +456,19 @@ def y_metin_sec(p):
     # Her satır ayrı bloktur; alt alta tam satırlar aşağıdaki "satır başına blok" kuralıyla paragrafta birleşir. Yalnızca seçim tanınan
     # bir sözcüğe değiyorsa katılırlar: yalnızca PDF metni seçilmişken sayfanın sol kenarı, sütunlar ve satır aralığı tanınan yazıdan
     # (ör. kenardaki bir kaşe) etkilenmesin; her satır girintili çıkıp ayrı paragraf oluyordu (bağımsız incelemede bulundu)
+    taninan_yonleri = None
     try:
         from islemler import yazi_tanima
         taninan = yazi_tanima.sozcukler(doc, p["yol"], int(p["sayfa"]), kutular)
         if any(secimde(w) for w in taninan):
             tum = tum + taninan
+            taninan_yonleri = yazi_tanima.satir_yonleri(p["yol"], int(p["sayfa"]))
     except ImportError:
         pass
     # Döndürülmüş sayfada (/Rotate) satırlar ekranda okundukları düzlemde sıralanır (0.1.24): sözcükler ve kutular döndürülmemiş
-    # düzlemdedir; ekranda düz okunan yazı orada dikeydir ve satırlar karışık sırayla çıkıyordu (yan çevrilmiş taranmış sayfa, yatay sayfa)
-    donusum = _metin_duzlemi(pg)
+    # düzlemdedir; ekranda düz okunan yazı orada dikeydir ve satırlar karışık sırayla çıkıyordu (yan çevrilmiş taranmış sayfa, yatay sayfa).
+    # Tanınan yazı yan ya da ters duruyorsa (0.2.4) o yazının okunduğu düzlemde
+    donusum = _metin_duzlemi(pg, taninan_yonleri)
     if donusum:
         tum = [(*tuple(pymupdf.Rect(w[:4]) * donusum), *w[4:]) for w in tum]
         kutular = [k * donusum for k in kutular]

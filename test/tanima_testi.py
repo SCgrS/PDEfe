@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 """Çekirdeğin görsellerdeki yazıyı tanıması ve tanınan yazıyla kopyalama (0.1.24): rakam kuralı, yalnızca PDF metni seçilince kenardaki
 kaşenin etkisi, döndürülmüş sayfada kopya sırası (yazısı ekranda düz ve yan duran), çok görselli ve büyük sayfada süre ve bellek sınırları,
-çıkışta bekleyen yanıt. Belgeler test/cikti/tanima_testi altında üretilir. Tanıma Windows'un yazı tanıyıcısını (Türkçe dil paketi) ister.
+çıkışta bekleyen yanıt. 0.2.4: yan ve ters taranmış sayfa (yazı çevrilip tanınır; sözcüklerin yeri, satırların yönü, kopya sırası),
+yazısız görsel, az sözcüklü dik kaşe, makul sözcük kuralı, çevirme ve geri çevirme. Belgeler test/cikti/tanima_testi altında üretilir.
+Tanıma Windows'un yazı tanıyıcısını (Türkçe dil paketi) ister.
 Kullanım: .venv\\Scripts\\python.exe test\\tanima_testi.py"""
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -139,6 +142,78 @@ satir = (p.stdout.strip().splitlines() or [""])[0]
 yanit = json.loads(satir) if satir.startswith("{") else {}
 sonuc("girdi kapanınca sıradaki tanımanın yanıtı yazılır, çıkış kodu 0",
       p.returncode == 0 and len((yanit.get("result") or {}).get("satirlar", [])) >= 5, (p.returncode, satir[:200], p.stderr[-300:]))
+
+# ---------------------------------------------------------------- 6. yan ve ters taranmış sayfa (0.2.4)
+sys.path.insert(0, os.path.join(KOK, "test"))
+import tanima_pdf_uret  # noqa: E402
+
+for metin, beklenen in {"Borçlu": True, "müzekkere": True, "T.C.": True, "DAİRESİ": True, "2099/123": True, "01.10.2026": True,
+                        "İstanbul,": True, "Ankara'da": True, "TBK'nın": True, "(Esas)": True, "NISYA": True,
+                        "EJeIsnp": False, "1UWlSB8": False, "au!yau": False, "u¿e": False, "3A": False, "x": False}.items():
+    s = yt._Sonuc([yt._Satir([yt._Sozcuk(metin, yt._Kutu(0, 0, 10, 10))])], 0.0)
+    sonuc("makul sözcük: %s → %s" % (metin, beklenen), yt._makul(s) == ((1, 1) if beklenen else (0, 1)), yt._makul(s))
+
+# Çevirme ve geri çevirme: 7×4'lük görüntüde (5, 1) pikseli her açıda yerine döner
+gri = bytearray(28)
+gri[1 * 7 + 5] = 255
+for aci in (90, 180, 270):
+    d = yt._cevir({"gri": bytes(gri), "genislik": 7, "yukseklik": 4}, aci)
+    i = d["gri"].index(255)
+    px, py = i % d["genislik"] + 0.5, i // d["genislik"] + 0.5
+    sonuc("çevir %d°: boyut ve geri çevrilen piksel" % aci, (d["genislik"], d["yukseklik"]) == ((7, 4) if aci == 180 else (4, 7))
+          and yt._geri_cevir(aci, 7, 4)(px, py) == (5.5, 1.5), (d["genislik"], d["yukseklik"], yt._geri_cevir(aci, 7, 4)(px, py)))
+
+yan = os.path.join(KOK, "test", "cikti", "tanima", "yan.pdf")
+if not os.path.exists(yan):
+    subprocess.run([sys.executable, uret, os.path.dirname(yan)], check=True)
+SIRA = r"^Bu belge elektronik[\s\S]*T\.C\. DENEME[\s\S]*Dosya No[\s\S]*Borçlu[\s\S]*malların[\s\S]*ödeme[\s\S]*İstanbul"
+for n, (donme, yon) in enumerate(zip(tanima_pdf_uret.YAN_DONMELER, ((0.0, -1.0), (-1.0, 0.0), (0.0, 1.0))), start=1):
+    ad = {90: "saat yönünün tersine 90°", 180: "ters (180°)", -90: "saat yönünde 90°"}[donme]
+    t = time.time()
+    m = pdefe_core.y_metin_sec({"yol": yan, "sayfa": n, "kutular": [[0, 0, 900, 900]]})["metin"]
+    sure = time.time() - t
+    sonuc("%s: kopya okuma sırasıyla (%.1f sn)" % (ad, sure), re.search(SIRA, m) is not None and sure < 10, m[:300])
+    k = yt._onbellekten(yt._anahtar(yan, n))
+    sonuc("%s: satırların yazı yönü %s" % (ad, yon), k and k["yonler"] and all(y == yon for y in k["yonler"]), k and k["yonler"][:5])
+    tc = [w for w in (k["sozcukler"] if k else []) if w[4] == "T.C."]
+    bx, by = tanima_pdf_uret.yan_nokta(donme, 192, 105)   # dik içerikte "T.C."nin ortası (başlık x 180, taban çizgisi 110, 16 pt)
+    sonuc("%s: \"T.C.\" görseldeki yerinde (beklenen ~%d, %d)" % (ad, bx, by), len(tc) == 1 and abs((tc[0][0] + tc[0][2]) / 2 - bx) < 20
+          and abs((tc[0][1] + tc[0][3]) / 2 - by) < 20, tc)
+    sonuc("%s: sözcük sayısı dik sayfadakine yakın" % ad, k and len(k["sozcukler"]) >= 35, k and len(k["sozcukler"]))
+d = pymupdf.open(yan)
+sonuc("yan.pdf'te sayfalar döndürülmemiş", all(p.rotation == 0 for p in d), [p.rotation for p in d])
+d.close()
+m = pdefe_core.y_metin_sec({"yol": yan, "sayfa": 4, "kutular": [[0, 0, 900, 900]]})["metin"]
+k = yt._onbellekten(yt._anahtar(yan, 4))
+sonuc("yazısız görsel: hiçbir yönde yazı bulunmaz", m == "" and k is not None and not k["satirlar"], (m, k and k["satirlar"][:3]))
+m = pdefe_core.y_metin_sec({"yol": yan, "sayfa": 5, "kutular": [[0, 0, 900, 900]]})["metin"]
+k = yt._onbellekten(yt._anahtar(yan, 5))
+sonuc("az sözcüklü dik kaşe: dik okunur, yön değişmez", "GİBİDİR" in m and "Kâtibi" in m and k and all(y == (1.0, 0.0) for y in k["yonler"]),
+      (m, k and k["yonler"]))
+# Dik taranmış sayfa: yön değişmez, satırlar soldan sağa
+ornek = os.path.join(KOK, "test", "cikti", "tanima", "taranmis.pdf")
+m = pdefe_core.y_metin_sec({"yol": ornek, "sayfa": 1, "kutular": [[0, 0, 900, 900]]})["metin"]
+k = yt._onbellekten(yt._anahtar(ornek, 1))
+sonuc("dik taranmış sayfa: satırlar soldan sağa, sıra aynı", k and all(y == (1.0, 0.0) for y in k["yonler"]) and "Borçlu hakkında" in m
+      and m.index("DENEME") < m.index("Borçlu") < m.index("ödeme"), (k and k["yonler"][:3], m[:200]))
+# Seçim tanınan yazıya değmiyorsa PDF metninin düzlemi eskisi gibi (döndürülmemiş sayfada None)
+d = pymupdf.open(yan)
+sonuc("tanınan yazı yokken döndürülmemiş sayfanın düzlemi değişmez", pdefe_core._metin_duzlemi(d[0]) is None
+      and pdefe_core._metin_duzlemi(d[0], []) is None, None)
+sonuc("tanınan yazı aşağıdan yukarı okununca düzlem 90°", pdefe_core._metin_duzlemi(d[0], [(0.0, -1.0)] * 3)
+      == pymupdf.Matrix(0, 1, -1, 0, d[0].cropbox.height, 0), pdefe_core._metin_duzlemi(d[0], [(0.0, -1.0)] * 3))
+ref = pymupdf.open(yan)
+for aci in (0, 90, 180, 270):
+    d[0].set_rotation(aci)
+    farkli = []
+    for b in (0, 90, 180, 270):   # sayfa aci kadar döndürülmüşken her açının matrisi, o açıyla döndürülmüş sayfanınkiyle aynı
+        rp = ref[0]
+        rp.set_rotation(b)
+        if pdefe_core._dondurme_matrisi(d[0], b) != pymupdf.Matrix(rp.rotation_matrix):
+            farkli.append((b, tuple(pdefe_core._dondurme_matrisi(d[0], b)), tuple(rp.rotation_matrix)))
+    sonuc("döndürme matrisleri PyMuPDF'inkiyle aynı (sayfa %d°)" % aci, not farkli, farkli)
+ref.close()
+d.close()
 
 print("\nSonuç: %d/%d geçti%s." % (toplam - hata, toplam, ", %d HATA" % hata if hata else ""))
 sys.exit(1 if hata else 0)

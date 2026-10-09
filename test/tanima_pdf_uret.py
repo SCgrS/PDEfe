@@ -1,11 +1,17 @@
 # -*- coding: utf-8 -*-
-# Görsellerdeki yazının tanınması testinin (test/senaryo25.mjs) örnek PDF'ini üretir (0.1.24).
+# Görsellerdeki yazının tanınması testlerinin (test/senaryo25.mjs, test/senaryo31.mjs, test/tanima_testi.py) örnek PDF'lerini üretir
+# (0.1.24; yan.pdf 0.2.4).
 # Kullanım: .venv\Scripts\python.exe test\tanima_pdf_uret.py <çıktı klasörü>
 #   taranmis.pdf  1) taranmış sayfa (tam sayfa görsel) + üstte görselde de yazan bir satır PDF metni olarak (e-imza satırı gibi)
 #                 2) aynı içerik yan çevrilmiş taranmış sayfa (/Rotate 90; ekranda düz görünür)
 #                 3) görselsiz, yalnızca PDF metni
 #                 4) daha önce tanınmış taranmış sayfa (görselin üstünde görünmez yazı): yeniden tanınmamalı
 #                 5) karışık: PDF metni, ortada yazılı bir görsel şeridi (kaşe), küçük bir simge görseli (tanınmamalı)
+#   yan.pdf       yazısı ekranda yan ya da ters duran taranmış sayfalar, /Rotate yok (yatay belge dik sayfaya yatırılıp taranmış gibi);
+#                 tanıyıcı yazıyı çevirerek okumalı (0.2.4):
+#                 1) saat yönünün tersine 90° (yazı aşağıdan yukarı okunur)  2) 180° (ters)  3) saat yönünde 90° (yukarıdan aşağı)
+#                 4) yazısız görsel (yumuşak geçişli gri): hiçbir yönde yazı bulunmamalı
+#                 5) dik taranmış kaşe (az sözcük): dik okunmalı, yön değişmemeli
 import io
 import os
 import sys
@@ -94,6 +100,41 @@ def uret(klasor):
     simge.set_rect(simge.irect, (90,))
     s5.insert_image(pymupdf.Rect(500, 60, 520, 80), pixmap=simge)
     yol = os.path.join(klasor, "taranmis.pdf")
+    doc.save(yol, garbage=3, deflate=True)
+    doc.close()
+    print("Üretildi:", yol)
+    uret_yan(klasor)
+
+
+# Yan / ters taranmış sayfalarda dik içeriğin (595×842 pt) bir noktasının sayfadaki yeri (yan.pdf'in sayfa boyutlarıyla); testler
+# tanınan sözcüğün yerini bununla denetler
+YAN_DONMELER = (90, 180, -90)   # PIL Image.rotate açısı (saat yönünün tersine)
+
+
+def yan_nokta(donme, x, y):
+    if donme == 90:
+        return y, 595 - x
+    if donme == 180:
+        return 595 - x, 842 - y
+    return 842 - y, x
+
+
+def uret_yan(klasor):
+    doc = pymupdf.open()
+    for donme in YAN_DONMELER:
+        yatay = donme % 180 != 0
+        s = doc.new_page(width=842 if yatay else 595, height=595 if yatay else 842)
+        s.insert_image(s.rect, stream=taranmis_png(donme))
+    # 4) yazısız görsel
+    gecis = Image.linear_gradient("L").resize((1000, 1400))
+    b = io.BytesIO()
+    gecis.save(b, "PNG")
+    s = doc.new_page(width=595, height=842)
+    s.insert_image(s.rect, stream=b.getvalue())
+    # 5) dik kaşe tek başına
+    s = doc.new_page(width=595, height=842)
+    s.insert_image(pymupdf.Rect(72, 200, 272, 270), stream=kase_png())
+    yol = os.path.join(klasor, "yan.pdf")
     doc.save(yol, garbage=3, deflate=True)
     doc.close()
     print("Üretildi:", yol)
