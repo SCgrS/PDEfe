@@ -7,7 +7,8 @@
 //
 // Akış (UDF Resimcisi'ndeki gibi tek düğme):
 //   main 'guncelleme:var' (haftada bir otomatik ya da elle denetim) → "PDEfe x hazır (kullandığınız: y)." [Güncelle] [Sürüm notları] [Daha sonra]
-//   Güncelle → 'guncelleme:indir' ("PDEfe x indiriliyor %N") → "PDEfe x indirildi." ve kapatmadanOnce() (kaydedilmemiş belgeler
+//   Güncelle → 'guncelleme:indir' ("PDEfe x indiriliyor %N. İndirme bitene dek PDEfe'yi kapatmayın.") → "PDEfe x indirildi." ve
+//   kapatmadanOnce() (kaydedilmemiş belgeler
 //   sorulur) → "PDEfe x kuruluyor" ve 'guncelleme:kur': uygulama kapanır, sihirbazsız kurulur ve yeniden açılır.
 //   Soru Vazgeç ile kapatılırsa indirilen paket saklanır: "[Kur ve yeniden başlat]" yeniden indirmeden kurar.
 //   Hata → kısa Türkçe ileti ve [Yeniden dene]. Daha sonra → bu oturumda gizlenir (elle denetim yeniden gösterir).
@@ -92,8 +93,11 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce, kuru
       );
       serit.append(metin, dugmeler);
     } else if (durum.asama === 'indiriliyor') {
+      // 0.2.5 (kullanıcı isteği): indirme sürerken kapatılırsa yarım kalır, sonraki indirme baştan başlar (main/guncelleme.js başlığı)
       const ek = durum.toplam ? ` (${boyutMetni(durum.aktarilan)} / ${boyutMetni(durum.toplam)})` : '';
-      metin.textContent = `PDEfe ${durum.surum} indiriliyor %${durum.yuzde}${ek}`;
+      metin.textContent = `PDEfe ${durum.surum} indiriliyor %${durum.yuzde}${ek}. `;
+      const uyari = document.createElement('b'); uyari.className = 'uyari'; uyari.textContent = 'İndirme bitene dek PDEfe\'yi kapatmayın.';
+      metin.append(uyari);
       const cubuk = document.createElement('span'); cubuk.className = 'ilerleme';
       cubuk.setAttribute('role', 'progressbar'); cubuk.setAttribute('aria-valuemin', '0'); cubuk.setAttribute('aria-valuemax', '100'); cubuk.setAttribute('aria-valuenow', String(durum.yuzde));
       const ic = document.createElement('i'); ic.style.width = `${durum.yuzde}%`; cubuk.append(ic);

@@ -32,16 +32,20 @@ function surumKarsilastir(a, b) {
 /**
  * Geliştirme örneğinde güncelleme şeridini ve haftalık denetimi denemek için electron-updater yerine geçen sahte güncelleyici
  * (PDEFE_TEST_GUNCELLEME verilmişse; paketli uygulamada ve değişken yokken null). Ağa çıkmaz, hiçbir şey kurmaz, uygulamayı kapatmaz.
- * Senaryo 'test:guncellemeSenaryosu' ile değiştirilir: { surum, hata: null|'denetim'|'indirme'|'kurulum', hataMesaji?, sureMs }
- * (hataMesaji: electron-updater'ın vereceği ileti; verilmezse ağ ya da spawn hatası).
- * 'test:guncellemeKaydi' → { denetimler, indirmeler, kurulumlar: [{ isSilent, isForceRunAfter }] }.
+ * Senaryo 'test:guncellemeSenaryosu' ile değiştirilir: { surum, hata: null|'denetim'|'indirme'|'kurulum'|'donma', hataMesaji?, sureMs }
+ * (hataMesaji: electron-updater'ın vereceği ileti; verilmezse ağ ya da spawn hatası; donma (0.2.5): indirme %30'da veri gelmeden durur,
+ * ana sürecin bekçisi g.indirmeBeklemeMs sonra jetonla keser).
+ * 'test:guncellemeKaydi' → { denetimler, indirmeler, iptaller, kurulumlar: [{ isSilent, isForceRunAfter }] }.
  */
 export function sahteGuncelleyiciKur(ipcMain) {
   if (!TEST.guncelleme) return null;
   const senaryo = { surum: TEST.guncelleme, hata: TEST.guncellemeHata || null, hataMesaji: '', sureMs: 1500 };
-  const kayit = { denetimler: 0, indirmeler: 0, kurulumlar: [] };
+  const kayit = { denetimler: 0, indirmeler: 0, iptaller: 0, kurulumlar: [] };
   let indirilen = null;
   const g = new EventEmitter();
+  // electron-updater'ın CancellationToken'ının kullanılan kısmı (guncelleme.js yalnızca oluşturup cancel() çağırır)
+  g.IptalJetonu = class { constructor() { this.cancelled = false; } cancel() { this.cancelled = true; } };
+  g.indirmeBeklemeMs = 3000;
   const bilgi = () => ({ version: senaryo.surum, releaseNotes: 'Sahte sürüm notu', releaseDate: new Date().toISOString(), files: [] });
   const hataVer = (mesaj) => { const e = new Error(mesaj); g.emit('error', e); return e; };
   g.checkForUpdates = async () => {
@@ -53,13 +57,18 @@ export function sahteGuncelleyiciKur(ipcMain) {
     g.emit(var_ ? 'update-available' : 'update-not-available', bilgi());
     return { isUpdateAvailable: var_, updateInfo: bilgi(), versionInfo: bilgi() };
   };
-  g.downloadUpdate = async () => {
+  g.downloadUpdate = async (jeton) => {
     kayit.indirmeler++;
     if (indirilen === senaryo.surum) { g.emit('update-downloaded', bilgi()); return []; }
     const toplam = 80 * 1024 * 1024, adim = 10;
     for (let i = 1; i <= adim; i++) {
       await new Promise((c) => setTimeout(c, senaryo.sureMs / adim));
       if (senaryo.hata === 'indirme' && i === 4) throw hataVer(senaryo.hataMesaji || 'net::ERR_CONNECTION_RESET');
+      if (senaryo.hata === 'donma' && i === 4) {   // veri gelmiyor: jeton kesene dek bekler (electron-updater gibi CancellationError)
+        while (!jeton?.cancelled) await new Promise((c) => setTimeout(c, 100));
+        kayit.iptaller++;
+        throw Object.assign(new Error('cancelled'), { name: 'CancellationError' });
+      }
       g.emit('download-progress', { percent: (i * 100) / adim, transferred: (toplam * i) / adim, total: toplam, bytesPerSecond: toplam / (senaryo.sureMs / 1000) });
     }
     indirilen = senaryo.surum;

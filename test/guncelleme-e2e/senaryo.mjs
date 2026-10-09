@@ -1,6 +1,7 @@
 // Güncelleme uçtan uca testi: kurulu deneme uygulamasında (CDP) şerit adımları. surucu.mjs ile çalışır:
 //   $env:PDEFE_CDP_PORT=9911; $env:ADIM='serit'; node test/surucu.mjs betik test/guncelleme-e2e/senaryo.mjs
 // ADIM: serit | dahaSonra | hataIndir | ertele (PDF=<yol>) | kur | ayarlarDenetle | erteleAyarlar (PDF=<yol>) | kapat | eskiKur
+//   0.2.5: yarimKapat (YUZDE) | seritBekle (SURE) | kesinti (PDF=<yol>; sunucu /__kes) | donma (sunucu /__dur)
 //   erteleAyarlar: kaydedilmemiş belgeyle Güncelle; indirme sürerken ve Vazgeç'ten sonra Ayarlar › Şimdi denetle sonucu
 //   kapat: kaydedilmemiş belge varsa Kaydetme yanıtıyla pencereyi kapatır (indirilmiş paket kurulmaz; autoInstallOnAppQuit false)
 //   eskiKur: 0.1.2 ve öncesinin şeridi (Güncellemeyi yükle → Şimdi yeniden başlat ve kur; quitAndInstall(false, true))
@@ -152,5 +153,50 @@ export default async function ({ evalJs, bekle, tikla, ekranGoruntusu }) {
     if (process.env.SS) await ekranGoruntusu(process.env.SS);
     await evalJs(`document.querySelector('.ayarlar-ortusu [data-id="kapat2"]').click()`); await bekle(200);
     console.log('şerit:', ozet(await serit()));
+  } else if (adim === 'yarimKapat') {
+    // 0.2.5: indirme sürerken (YUZDE, varsayılan %15) durur; kapatma dışarıdan (uygulama.ps1 -Islem kapat). Şeritte kapatma uyarısı
+    await bas('Güncelle', 'Yeniden dene');
+    const r = await izle((s) => yuzde(s) >= Number(process.env.YUZDE || 15) || s.asama === 'hata', 180000, 150);
+    console.log('akış:', r.gorulen.join('\n   → '));
+    console.log('kapatma uyarısı:', /İndirme bitene dek PDEfe'yi kapatmayın\./.test(r.s?.metin || '') ? 'var' : 'YOK');
+    console.log('denetim kaydı:', JSON.stringify(sayac()));
+    if (process.env.SS) await ekranGoruntusu(process.env.SS);
+  } else if (adim === 'seritBekle') {
+    // 0.2.5: açılıştan sonra şeridin (otomatik denetimle) görünmesini bekler
+    const t0 = Date.now();
+    const r = await izle((s) => !s.gizli, Number(process.env.SURE || 25000), 200);
+    console.log(`açılış: ${r.zamanAsimi ? 'şerit görünmedi' : `şerit ${((Date.now() - t0) / 1000).toFixed(1)} sn sonra`}:`, r.gorulen.join('  →  '));
+    console.log('denetim kaydı:', JSON.stringify(sayac()));
+  } else if (adim === 'kesinti') {
+    // 0.2.5: indirme %10'dayken bağlantı ortasında kesilir (internet kopması); kaydedilmemiş belge var (Vazgeç). Yeniden dene baştan indirir,
+    // bitince belge sorulur, Vazgeç → hazır
+    console.log('belge:', JSON.stringify(await belgeDegistir()));
+    await evalJs(`window.__pdefeOtoYanit = { secim: 2 }; true`);
+    await bas('Güncelle', 'Yeniden dene');
+    const r1 = await izle((s) => yuzde(s) >= 10 || s.asama === 'hata', 180000, 150);
+    console.log('kesiliyor:', await (await fetch(`${SUNUCU}/__kes`)).text());
+    const t0 = Date.now();
+    const r2 = await izle((s) => s.asama === 'hata', 120000, 150);
+    console.log(`akış (hata ${((Date.now() - t0) / 1000).toFixed(1)} sn sonra):`, [...r1.gorulen, ...r2.gorulen].join('\n   → '));
+    if (process.env.SS_DIR) await ekranGoruntusu(path.join(process.env.SS_DIR, 'kesinti-hata.png'));
+    await bas('Yeniden dene');
+    const r3 = await izle((s) => s.asama === 'hazir' || s.asama === 'hata', 600000, 300);
+    console.log('Yeniden dene:', r3.gorulen.join('\n   → '));
+    console.log('sorulan:', await evalJs(`JSON.stringify(window.__pdefeOtoYanit.son?.mesaj || null)`));
+    console.log('durum:', JSON.stringify(await evalJs(`pdefe.cagir('guncelleme:durum')`)));
+    console.log('denetim kaydı:', JSON.stringify(sayac()));
+  } else if (adim === 'donma') {
+    // 0.2.5: indirme %10'dayken sunucu veri göndermeyi keser, bağlantı açık kalır; bekçi ~60 sn sonra indirmeyi keser
+    await bas('Güncelle', 'Yeniden dene');
+    const r1 = await izle((s) => yuzde(s) >= 10 || s.asama === 'hata', 180000, 150);
+    console.log('donduruluyor:', await (await fetch(`${SUNUCU}/__dur?acik=1`)).text());
+    const t0 = Date.now();
+    const r2 = await izle((s) => s.asama === 'hata', 150000, 500);
+    console.log(`akış (hata ${((Date.now() - t0) / 1000).toFixed(1)} sn sonra):`, [...r1.gorulen, ...r2.gorulen].join('\n   → '));
+    if (process.env.SS_DIR) await ekranGoruntusu(path.join(process.env.SS_DIR, 'donma-hata.png'));
+    console.log('sunucu:', await (await fetch(`${SUNUCU}/__dur?acik=0`)).text());
   }
 }
+
+/** Şeritteki indirme yüzdesi ("indiriliyor %N"); indirme sürmüyorsa -1. */
+function yuzde(s) { return s.asama === 'indiriliyor' ? Number(/%(\d+)/.exec(s.metin)?.[1] ?? 0) : -1; }

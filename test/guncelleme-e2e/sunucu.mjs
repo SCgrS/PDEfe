@@ -6,6 +6,8 @@
 //                                      gibi sürüm yolda: eski sürümün blockmap'i v<eski>/PDEfe-Setup.exe.blockmap'ten bulunur)
 //   GET /v<sürüm>/PDEfe-Setup.exe[.blockmap]   (Range ve çok aralıklı multipart/byteranges desteklenir)
 //   Denetim: /__yayinla?surum=0.9.1   /__hata?acik=1|0 (açıkken /v… istekleri bağlantı kesilerek düşer)   /__gunluk   /__kapat
+//            /__kes (0.2.5: süren indirmelerin bağlantısı ortasında kesilir; internet kopması)
+//            /__dur?acik=1|0 (0.2.5: açıkken süren indirmelere veri gönderilmez, bağlantı açık kalır; donmuş bağlantı)
 // Her istek <gunluk>'e bir JSON satırı olarak yazılır: { t, yontem, yol, aralik, durum, bayt }.
 import http from 'node:http';
 import fs from 'node:fs';
@@ -44,16 +46,22 @@ function aralikCoz(baslik, boyut) {
   return araliklar;
 }
 
-/** Dosya parçasını (hız sınırıyla) yazar. */
+let durModu = false;
+const etkinler = new Set();   // süren /v… yanıtları (/__kes)
+
+/** Dosya parçasını (hız sınırıyla) yazar. durModu açıkken yazmaz, bağlantı açık bekler. */
 function parcaYaz(res, dosya, bas, son) {
   return new Promise((coz, reddet) => {
     const akis = fs.createReadStream(dosya, { start: bas, end: son, highWaterMark: 256 * 1024 });
+    const surdur = () => { if (durModu && !res.destroyed) setTimeout(surdur, 200); else akis.resume(); };
     akis.on('data', (parca) => {
       const devam = res.write(parca);
-      if (HIZ > 0) { akis.pause(); setTimeout(() => akis.resume(), (parca.length / HIZ) * 1000); }
+      if (durModu) { akis.pause(); setTimeout(surdur, 200); }
+      else if (HIZ > 0) { akis.pause(); setTimeout(surdur, (parca.length / HIZ) * 1000); }
       else if (!devam) { akis.pause(); res.once('drain', () => akis.resume()); }
     });
     akis.on('end', coz);
+    akis.on('close', coz);   // bağlantı kesilince akış yok edilir: bekleyen gönderim de biter
     akis.on('error', reddet);
     res.on('close', () => akis.destroy());
   });
@@ -95,6 +103,8 @@ const sunucu = http.createServer(async (req, res) => {
   try {
     if (url.pathname === '/__yayinla') { yayinda = url.searchParams.get('surum'); res.end(JSON.stringify({ yayinda })); return; }
     if (url.pathname === '/__hata') { hataModu = url.searchParams.get('acik') === '1'; res.end(JSON.stringify({ hataModu })); return; }
+    if (url.pathname === '/__dur') { durModu = url.searchParams.get('acik') === '1'; res.end(JSON.stringify({ durModu, etkin: etkinler.size })); return; }
+    if (url.pathname === '/__kes') { const n = etkinler.size; for (const r of etkinler) r.socket?.destroy(); etkinler.clear(); res.end(JSON.stringify({ kesilen: n })); return; }
     if (url.pathname === '/__gunluk') { res.end(fs.existsSync(GUNLUK) ? fs.readFileSync(GUNLUK) : ''); return; }
     if (url.pathname === '/__kapat') { res.end('kapanıyor'); setTimeout(() => process.exit(0), 100); return; }
     if (url.pathname === '/latest.yml') {
@@ -107,7 +117,10 @@ const sunucu = http.createServer(async (req, res) => {
     const m = /^\/v(\d+\.\d+\.\d+)\/(PDEfe-Setup\.exe(?:\.blockmap)?)$/.exec(url.pathname);
     if (m && surumler.has(m[1])) {
       if (hataModu) { kayit.durum = 'kesildi'; req.socket.destroy(); return; }
+      etkinler.add(res);
+      res.on('close', () => etkinler.delete(res));
       await dosyaGonder(req, res, path.join(surumler.get(m[1]).klasor, m[2]), kayit);
+      if (res.destroyed && !res.writableFinished) kayit.durum = 'yarida';
       return;
     }
     res.writeHead(404); res.end(); kayit.durum = 404;

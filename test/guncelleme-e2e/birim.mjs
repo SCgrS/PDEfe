@@ -2,9 +2,11 @@
 // Kullanım (depo kökünden): node test/guncelleme-e2e/birim.mjs      çıkış kodu: hata varsa 1
 // Kapsam: haftalık denetim (ilk açılış, 7 gün, saat geri alınması), başarısız otomatik denetimin süreyi başlatmaması, elle denetimin süreyi
 // başlatması, açık kalan uygulamada saatlik bakış, bekleyen (indirilip kurulmamış) sürümün sonraki açılışta bir kez denetlenmesi, elle
-// denetimin indirme/hazır aşamasını bildirmesi, Türkçe hata metinleri, tek quitAndInstall.
+// denetimin indirme/hazır aşamasını bildirmesi, Türkçe hata metinleri, tek quitAndInstall. 0.2.5: indirme başlayınca bekleyen kaydı (yarım
+// kalan indirme sonraki açılışta yeniden önerilir), bağlantı kopunca bekleyen kalır ve Yeniden dene, donmuş indirmenin bekçisi (jetonla
+// kesilir; ilerleyen yavaş indirme kesilmez; jeton sınıfı yoksa eskisi gibi), önbellek temizliği (yarım dosyalar, kurulmuş sürümün kurucusu).
 import { EventEmitter } from 'node:events';
-import { guncellemeKur, acilisDenetimi, sirasiGeldiMi, hataMetni, AYAR_SON_DENETIM, DENETIM_ARALIGI_MS } from '../../src/main/guncelleme.js';
+import { guncellemeKur, acilisDenetimi, sirasiGeldiMi, hataMetni, onbellekTemizle, AYAR_SON_DENETIM, DENETIM_ARALIGI_MS, DONMUS_INDIRME } from '../../src/main/guncelleme.js';
 
 const bekle = (ms) => new Promise((c) => setTimeout(c, ms));
 let hata = 0;
@@ -31,7 +33,7 @@ const GUN = 24 * 3600 * 1000, T0 = Date.UTC(2026, 8, 23, 9, 0, 0);
 }
 
 // ---- guncellemeKur
-function kurulum({ surum = '0.9.0', ayar = {}, ilkOrnek = true, simdi = T0, bakisAraligiMs = 1e9, kurulumBeklemeMs = 30000 } = {}) {
+function kurulum({ surum = '0.9.0', ayar = {}, ilkOrnek = true, simdi = T0, bakisAraligiMs = 1e9, kurulumBeklemeMs = 30000, IptalJetonu = null, indirmeBeklemeMs, yardimci = null, temizlikYeniden = [20, 40], temizlikFs = null } = {}) {
   const depo = new Map(Object.entries(ayar));
   const ipc = new Map();
   const giden = [];
@@ -54,10 +56,12 @@ function kurulum({ surum = '0.9.0', ayar = {}, ilkOrnek = true, simdi = T0, baki
     au.kayit.kurulum.push([sessiz, calistir]);
     if (au.s.kurulumHatasi) au.emit('error', au.s.kurulumHatasi());   // BaseUpdater.install → dispatchError (senkron)
   };
+  if (yardimci) au.getOrCreateDownloadHelper = async () => yardimci;   // electron-updater'ın önbellek yardımcısı (0.2.5, onbellekTemizle)
   const sayac = { kapatmayaHazirla: 0, kapatmaIptal: 0 };
   const saat = { simdi };
   const g = guncellemeKur({
     app, ipcMain: { handle: (k, f) => ipc.set(k, f) }, autoUpdater: au, etkin: true, ilkOrnek, acilisGecikmesiMs: 20, bakisAraligiMs, kurulumBeklemeMs,
+    IptalJetonu, ...(indirmeBeklemeMs != null ? { indirmeBeklemeMs } : {}), temizlikYeniden, temizlikFs,
     saat: () => saat.simdi,
     pencereyeGonder: (k, v) => giden.push([k, v]), ayarAl: (k) => depo.get(k), ayarKoy: (k, v) => depo.set(k, v),
     kapatmayaHazirla: () => sayac.kapatmayaHazirla++, kapatmaIptal: () => sayac.kapatmaIptal++,
@@ -261,6 +265,145 @@ const ayar = (k) => JSON.stringify({ son: k.depo.get(AYAR_SON_DENETIM), bekleyen
   k2.au.s.indirmeHatasi = () => new Error('Unexpected end of JSON input');
   const r = await k2.cagir('guncelleme:indir');
   kontrol('tanınmayan indirme hatası → Türkçe', r.tamam === false && r.mesaj === 'Beklenmeyen bir hata oluştu; biraz sonra yeniden deneyin.', JSON.stringify(r));
+}
+
+// ---- 0.2.5: yarım kalan indirme, donmuş indirme, önbellek temizliği
+{
+  // İndirme başlayınca bekleyen yazılır: PDEfe indirme sürerken kapatılırsa sonraki açılış (hafta dolmadan) denetler, şerit yeniden görünür
+  const k = kurulum({ ayar: { [AYAR_SON_DENETIM]: T0 } });
+  k.au.s.indirmeMs = 400;
+  await k.cagir('guncelleme:denetle');
+  const indirme = k.cagir('guncelleme:indir');
+  await bekle(60);
+  kontrol('indirme başlayınca bekleyenGuncelleme yazıldı (indirme sürerken)', k.depo.get('bekleyenGuncelleme') === '0.9.1', ayar(k));
+  const yarim = k.ayar();   // bu anda "PDEfe kapatıldı"
+  await indirme;
+  const k2 = kurulum({ ayar: yarim, simdi: T0 + GUN });
+  await otomatik(k2);
+  kontrol('yarım kalan indirmeden sonraki açılış (1 gün sonra) denetler, şerit olayı', k2.au.kayit.denetim === 1 && k2.giden.some(([x]) => x === 'guncelleme:var'), ayar(k2));
+  kontrol('yarım indirmenin hatırlatmasından sonra bekleyen silinir (bir kez)', k2.depo.get('bekleyenGuncelleme') === '', ayar(k2));
+  // İndirme hatası (bağlantı koptu) da bekleyeni bırakır: kapatılıp açılınca yeniden önerilir
+  const k3 = kurulum({ ayar: { [AYAR_SON_DENETIM]: T0 } });
+  await k3.cagir('guncelleme:denetle');
+  k3.au.s.indirmeHatasi = () => new Error('net::ERR_CONNECTION_RESET');
+  const r3 = await k3.cagir('guncelleme:indir');
+  kontrol('bağlantı koptu: Türkçe ileti, bekleyen kalır', r3.tamam === false && r3.mesaj === 'Sunucuya ulaşılamadı; internet bağlantısını denetleyin.' && k3.depo.get('bekleyenGuncelleme') === '0.9.1', JSON.stringify(r3) + ' ' + ayar(k3));
+  k3.au.s.indirmeHatasi = null;
+  const r3b = await k3.cagir('guncelleme:indir');
+  kontrol('Yeniden dene: indirme tamamlanır', r3b.tamam === true && k3.au.kayit.indirme === 2, JSON.stringify(r3b));
+}
+{
+  // Donmuş indirme: veri gelmezse bekçi indirmeyi jetonla keser, Türkçe ileti; ilerleyen indirme kesilmez
+  class Jeton { constructor() { this.cancelled = false; } cancel() { this.cancelled = true; } }
+  const donan = (k, { ilerlemeAdim = 0, ilerlemeMs = 0 } = {}) => {
+    k.au.downloadUpdate = async (jeton) => {
+      k.au.kayit.indirme++; k.au.jeton = jeton;
+      for (let i = 0; i < ilerlemeAdim; i++) { await bekle(ilerlemeMs); k.saat.simdi += ilerlemeMs; k.au.emit('download-progress', { percent: i * 10, transferred: i, total: 10 }); }
+      // ilerleme bitti; veri gelmiyor: saat ilerler, jeton kesene dek bekle
+      for (let n = 0; n < 200 && !jeton?.cancelled; n++) { await bekle(10); k.saat.simdi += 50; }
+      if (jeton?.cancelled) throw Object.assign(new Error('cancelled'), { name: 'CancellationError' });
+      k.au.emit('update-downloaded', { version: '0.9.1' }); return ['x'];
+    };
+  };
+  const k = kurulum({ IptalJetonu: Jeton, indirmeBeklemeMs: 1000 });
+  donan(k);
+  await k.cagir('guncelleme:denetle');
+  const r = await k.cagir('guncelleme:indir');
+  kontrol('donmuş indirme kesilir, Türkçe ileti', r.tamam === false && r.mesaj === DONMUS_INDIRME && k.au.jeton?.cancelled === true, JSON.stringify(r));
+  kontrol('indirme jetonla başlatıldı (CancellationToken)', k.au.jeton instanceof Jeton);
+  const d = await k.cagir('guncelleme:durum');
+  kontrol('kesildikten sonra indirme sürmüyor (Yeniden dene yeni indirme başlatır)', d.indiriliyor === false);
+  // Yavaş ama ilerleyen indirme: her adım bekleme süresinden kısa → kesilmez (bitince update-downloaded)
+  const k2 = kurulum({ IptalJetonu: Jeton, indirmeBeklemeMs: 1000 });
+  k2.au.downloadUpdate = async (jeton) => {
+    k2.au.kayit.indirme++;
+    for (let i = 1; i <= 8; i++) { await bekle(15); k2.saat.simdi += 600; k2.au.emit('download-progress', { percent: i * 12, transferred: i, total: 8 }); if (jeton?.cancelled) throw new Error('cancelled'); }
+    k2.au.emit('update-downloaded', { version: '0.9.1' }); return ['x'];
+  };
+  await k2.cagir('guncelleme:denetle');
+  const r2 = await k2.cagir('guncelleme:indir');
+  kontrol('yavaş ama ilerleyen indirme kesilmez (8 × 0,6 sn > 1 sn bekleme)', r2.tamam === true, JSON.stringify(r2));
+  // Jeton sınıfı yoksa (sahte / macOS) indirme eskisi gibi jetonsuz başlar
+  const k3 = kurulum();
+  let arguman = 'yok';
+  const asil = k3.au.downloadUpdate;
+  k3.au.downloadUpdate = (...a) => { arguman = a.length; return asil(...a); };
+  await k3.cagir('guncelleme:denetle');
+  await k3.cagir('guncelleme:indir');
+  kontrol('jeton sınıfı yokken downloadUpdate argümansız çağrılır', arguman === 0, String(arguman));
+}
+{
+  // Önbellek temizliği: yarım indirmenin geçici dosyaları her açılışta, kurulmuş sürümün kurucusu (kuruldu) bütün bekleyen klasörüyle
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const kok = fs.mkdtempSync(path.join(os.tmpdir(), 'pdefe-onbellek-'));
+  const bekleyenKlasor = path.join(kok, 'pending');
+  const doldur = (adlar) => { fs.mkdirSync(bekleyenKlasor, { recursive: true }); for (const a of adlar) fs.writeFileSync(path.join(bekleyenKlasor, a), 'x'); };
+  const yardimci = { cacheDirForPendingUpdate: bekleyenKlasor };
+  fs.writeFileSync(path.join(kok, 'installer.exe'), 'eski'); fs.writeFileSync(path.join(kok, 'current.blockmap'), 'b');
+  doldur(['temp-PDEfe-Setup.exe', '0-temp-PDEfe-Setup.exe', 'PDEfe-Setup.exe', 'update-info.json']);
+  const k = kurulum({ ayar: { [AYAR_SON_DENETIM]: T0, bekleyenGuncelleme: '0.9.1' }, yardimci });
+  const silinen = await k.g.temizlik;   // silinen dosyaların adları
+  kontrol('bekleyen sürüm kurulmamış: yalnızca yarım indirmenin geçici dosyaları silinir', JSON.stringify(silinen.sort()) === JSON.stringify(['0-temp-PDEfe-Setup.exe', 'temp-PDEfe-Setup.exe'])
+    && JSON.stringify(fs.readdirSync(bekleyenKlasor).sort()) === JSON.stringify(['PDEfe-Setup.exe', 'update-info.json']), JSON.stringify(silinen));
+  const k2 = kurulum({ surum: '0.9.1', ayar: { [AYAR_SON_DENETIM]: T0, bekleyenGuncelleme: '0.9.1' }, yardimci });
+  await k2.g.temizlik;
+  kontrol('bekleyen sürüm kurulmuş: bekleyen klasörü boşalır, önbellek kökü (installer.exe, current.blockmap) kalır',
+    fs.readdirSync(bekleyenKlasor).length === 0 && fs.existsSync(path.join(kok, 'installer.exe')) && fs.existsSync(path.join(kok, 'current.blockmap')), fs.readdirSync(bekleyenKlasor).join(','));
+  doldur(['temp-PDEfe-Setup.exe']);
+  const k3 = kurulum({ ilkOrnek: false, yardimci });
+  kontrol('ikinci örnek temizlemez', (await k3.g.temizlik).length === 0 && fs.existsSync(path.join(bekleyenKlasor, 'temp-PDEfe-Setup.exe')));
+  const bos = await onbellekTemizle({}, { kuruldu: true });
+  kontrol('önbellek yardımcısı yoksa (sahte, macOS) bir şey yapılmaz', bos.silinen.length === 0 && bos.kalan.length === 0);
+  fs.rmSync(path.join(kok, 'yok'), { recursive: true, force: true });
+  kontrol('bekleyen klasörü yoksa hata vermez', (await onbellekTemizle({ getOrCreateDownloadHelper: async () => ({ cacheDirForPendingUpdate: path.join(kok, 'yok') }) })).silinen.length === 0);
+  // Güncellemeden sonraki ilk açılışta kurucu bir an daha çalışıyor: dosyası kilitli → yeniden denenir, sonra silinir
+  fs.rmSync(path.join(bekleyenKlasor, 'temp-PDEfe-Setup.exe'), { force: true });   // ikinci örnek denemesinden kaldı
+  doldur(['PDEfe-Setup.exe', 'update-info.json']);
+  const asilFs = await import('node:fs/promises');
+  let kilitli = 2;
+  const kilitFs = { readdir: asilFs.readdir, rm: async (y, o) => { if (path.basename(y) === 'PDEfe-Setup.exe' && kilitli-- > 0) throw Object.assign(new Error('EBUSY: resource busy or locked'), { code: 'EBUSY' }); return asilFs.rm(y, o); } };
+  const kilit = await onbellekTemizle({ getOrCreateDownloadHelper: async () => yardimci }, { kuruldu: true, fsp: kilitFs });
+  kontrol('kilitli dosya: öteki dosyalar silinir, kilitli olan "kalan"da', JSON.stringify(kilit) === JSON.stringify({ silinen: ['update-info.json'], kalan: ['PDEfe-Setup.exe'] }), JSON.stringify(kilit));
+  // guncellemeKur: kurulmuş sürümün ilk açılışında kurucu iki deneme boyunca kilitli → üçüncüde silinir, bekleyen klasörü boşalır
+  kilitli = 2;
+  const k5 = kurulum({ surum: '0.9.1', ayar: { [AYAR_SON_DENETIM]: T0, bekleyenGuncelleme: '0.9.1' }, yardimci, temizlikYeniden: [20, 40, 80], temizlikFs: kilitFs });
+  const silinen5 = await k5.g.temizlik;
+  kontrol('kurucu kilitliyken açılış: yeniden denemeyle bekleyen klasörü boşalır', fs.readdirSync(bekleyenKlasor).length === 0 && silinen5.includes('PDEfe-Setup.exe') && kilitli < 0, JSON.stringify(silinen5) + ' kilitli=' + kilitli);
+  // Hep kilitli: deneme sayısı kadar denenir, sonra bırakılır (açılış sürer, hata yok)
+  doldur(['PDEfe-Setup.exe']);
+  kilitli = 99;
+  const k5b = kurulum({ surum: '0.9.1', ayar: { [AYAR_SON_DENETIM]: T0, bekleyenGuncelleme: '0.9.1' }, yardimci, temizlikYeniden: [10, 10], temizlikFs: kilitFs });
+  await k5b.g.temizlik;
+  kontrol('hep kilitli: üç geçişten sonra bırakılır, dosya kalır', kilitli === 96 && fs.existsSync(path.join(bekleyenKlasor, 'PDEfe-Setup.exe')), 'kilitli=' + kilitli);
+  fs.rmSync(path.join(bekleyenKlasor, 'PDEfe-Setup.exe'), { force: true });
+  // Yeniden deneme beklerken indirme başladıysa dokunulmaz (yarım dosyası yeni indirmenin dosyası olabilir)
+  doldur(['temp-PDEfe-Setup.exe']);
+  let tempKilit = 1, tempSilme = 0;
+  const tempFs = { readdir: asilFs.readdir, rm: async (y, o) => { if (y.endsWith('temp-PDEfe-Setup.exe')) { tempSilme++; if (tempKilit-- > 0) throw Object.assign(new Error('EBUSY'), { code: 'EBUSY' }); } return asilFs.rm(y, o); } };
+  const k6 = kurulum({ ayar: { [AYAR_SON_DENETIM]: T0 }, yardimci, temizlikYeniden: [150, 150], temizlikFs: tempFs });
+  k6.au.s.indirmeMs = 500;
+  await k6.cagir('guncelleme:denetle');
+  const ind6 = k6.cagir('guncelleme:indir');
+  await k6.g.temizlik;
+  kontrol('indirme sürerken yeniden deneme yapılmaz (yeni indirmenin dosyasına dokunulmaz)', tempSilme === 1 && fs.existsSync(path.join(bekleyenKlasor, 'temp-PDEfe-Setup.exe')), 'silme denemesi=' + tempSilme);
+  await ind6;
+  fs.rmSync(path.join(bekleyenKlasor, 'temp-PDEfe-Setup.exe'), { force: true });
+  // İndirme, açılıştaki temizliği bekler (geçici dosyası silinmesin)
+  doldur(['temp-PDEfe-Setup.exe']);
+  let sira = [];
+  const yavasYardimci = { get cacheDirForPendingUpdate() { return bekleyenKlasor; } };
+  const k4 = kurulum({ ayar: { [AYAR_SON_DENETIM]: T0 }, yardimci: yavasYardimci });
+  k4.g.temizlik.then(() => sira.push('temizlik'));
+  const asil = k4.au.downloadUpdate;
+  k4.au.downloadUpdate = (...a) => { sira.push('indirme'); return asil(...a); };
+  await k4.cagir('guncelleme:denetle');
+  await k4.cagir('guncelleme:indir');
+  kontrol('indirme açılış temizliğinden sonra başlar', JSON.stringify(sira) === JSON.stringify(['temizlik', 'indirme']), JSON.stringify(sira));
+  kontrol('acilisDenetimi kurulmuş sürümü bildirir', acilisDenetimi({ ayarAl: () => '0.9.1', ayarKoy: () => {}, surum: '0.9.1', simdi: T0 }).kuruldu === true
+    && acilisDenetimi({ ayarAl: (x) => (x === 'bekleyenGuncelleme' ? '0.9.2' : T0), ayarKoy: () => {}, surum: '0.9.1', simdi: T0 }).kuruldu === false);
+  fs.rmSync(kok, { recursive: true, force: true });
 }
 
 console.log(hata ? `${hata} denetim başarısız.` : 'Bütün denetimler geçti.');

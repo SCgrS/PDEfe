@@ -14,7 +14,18 @@ import { guncellemeKur } from './guncelleme.js';
 import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla, menuCubugunuUygula, pencereSayisi } from './pencereler.js';
 import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, YOLA_YAZANLAR, paketKlasoruMu, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasorleri, standartYaziTipleri, anlikDosyasiMi } from './guvenlik.js';
 import electronUpdater from 'electron-updater';
+import { createRequire } from 'node:module';
 import { MacGuncelleyici, tarayicidaIndir } from './macGuncelleme.js';
+
+/** electron-updater'ın indirmeyi kesmekte kullandığı CancellationToken sınıfı (0.2.5: donmuş indirmenin bekçisi, guncelleme.js). electron-updater
+ *  onu dışa vermiyor; aynı sınıf olsun diye electron-updater'ın kendi bağımlılığından (builder-util-runtime) alınır. Bulunamazsa null: indirme
+ *  eskisi gibi kesilmeden sürer. */
+function iptalJetonuSinifi() {
+  try {
+    const gerek = createRequire(import.meta.url);
+    return createRequire(gerek.resolve('electron-updater'))('builder-util-runtime').CancellationToken || null;
+  } catch (e) { console.warn('[güncelleme] CancellationToken bulunamadı:', e?.message || e); return null; }
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const KOK = app.getAppPath();                   // package.json'un bulunduğu kök
@@ -455,6 +466,8 @@ app.whenReady().then(() => {
       // (macGuncelleme.js). electron-updater yalnızca Windows'ta yüklenir (autoUpdater erişimi platformun güncelleyicisini kurar)
       app, ipcMain: ipc, autoUpdater: sahte || (MAC ? new MacGuncelleyici(app.getVersion()) : electronUpdater.autoUpdater), etkin: PAKETLI || !!sahte,
       tarayiciIndir: MAC && !sahte ? tarayicidaIndir : null, ilkOrnek: kilit, pencereyeGonder: herkese, ayarAl, ayarKoy,
+      IptalJetonu: sahte ? sahte.IptalJetonu : MAC ? null : iptalJetonuSinifi(),
+      ...(sahte ? { indirmeBeklemeMs: sahte.indirmeBeklemeMs } : {}),
       // Kurulum uygulamayı kapatır: pencereler kaydedilmemiş değişiklikleri önceden sorduğu için (isteyen pencere kendininkini,
       // öteki pencereler 'pencere:digerlerindenIzinAl' ile) pencere kapatma yeniden sormasın
       kapatmayaHazirla: () => kapatmaOnayiAyarla(true),
