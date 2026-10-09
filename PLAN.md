@@ -2030,7 +2030,7 @@ iki bağımsız inceleme (görüntüleyici / kurucu, salt okunur) ve düzeltmele
     görüntünün yeniden çizdirilerek alınması), WMI'nin masaüstünü uygulamaması ve bu bilgisayardaki yavaşlığı.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 38.
 
-### Revizyon 0.2.4 (2026-10-09, kullanıcı isteği: yan ya da ters taranmış sayfada yazı seçme)
+### Revizyon 0.2.4 (2026-10-09, kullanıcı istekleri: yan ya da ters taranmış sayfada yazı seçme; yakınlaştırma listesi, Ayarlar, imza)
 Ayrıntı: CHANGELOG.md. Kullanıcı (ofiste): "pdefe uygulamam … belgesindeki metinleri okuyamıyor ancak [çevrim içi bir PDF yazı tanıma
 hizmetine] yükleyip indirdiğim belgeyi okuyabiliyor. neden okuyamıyor?" İnceleme (kod değişmeden) ve öneriden sonra kullanıcı sordu: "döndürme
 işlemini kullanıcı görecek mi arka planda mı yapılacak?" → arka planda; "Onaylıyorum, 0.2.4 olarak hazırla".
@@ -2084,4 +2084,41 @@ işlemini kullanıcı görecek mi arka planda mı yapılacak?" → arka planda; 
   ve %125 ekran ölçeğinde 25/25). Regresyon (ofis): senaryo25 30/30 (ilk koşuda menü çubuğu denetimi bir kez düştü, yeni örnekte geçti; tanımayla ilgisiz),
   kopyalama_testi 22/22. Paketli sürüm bu bilgisayarda sınanmadı (PyInstaller yok); yeni bağımlılık yok (Pillow zaten paketli), çekirdek
   modülleri aynı.
+
+İkinci istek listesi (aynı gün, üç ekran görüntüsüyle: yakınlaştırma okunun listesi, açılış ekranının imzası, Ayarlar'ın bölüm listesi):
+"1) fotosunu attığım yerde max 5 sabit zoom değeri olsun çok uzun liste. … 2) … görünür alana sığdırın altında varsayılanı ayarla diye bir buton
+olsun. basınca ayarları açıp ilgili ayarı getirsin. 3) açılış zoom ayarlardan son kullanılan'ı kaldıralım. 4) her iki ayardan da görünür alana
+sığdır seçeneğini kaldıralım. 5) … "PDF görüntüleyici ve düzenleyici" yazısını ve küçük noktayı kaldıralım. "Sürüm … [nokta] Geliştirici:
+x.com/CgrShn" yazsın. linke tıklanabilir olsun ama link renkli altı çizili falan olmasın. diğer tıklanabilirler aynı kalsın hakkındaya
+yönlendirsin. 6) hakkındadaki geliştirici kelimesi yerine Geri bildirimler için: yazalım. 7) … hakkındanın üstüne kısayollar sekmesi olsun".
+Beş değer sorulunca (ilk yorum "en büyük yakınlaştırma %1000" idi) kullanıcı düzeltti: "elle yakınlaştırma 6400'de kalabilir … sadece küçük
+yakınlaştırma oku altında çıkan seçenekleri değiştireceğiz", değerler "25 50 100 400 1000"; Ctrl+± ayarına dokunulmayacak.
+- [x] **Yakınlaştırma okunun listesi** (uygulama.js `ZOOM_LISTESI`): Gerçek boyut (%100), Sayfayı sığdır, Genişliğe sığdır, ayırıcı, "Varsayılanı
+  ayarla", ayırıcı, %25 %50 %100 %400 %1000 ("Gerçek boyut (%100)" ile %100 ikisi de var: kullanıcının değerleri). `EN_BUYUK` (%6400) ve
+  `ZOOM_ADIMLARI` değişmedi. "Varsayılanı ayarla" kipler gibi işaretli olmasın diye iki ayırıcı arasında (kullanıcı "altında" dedi).
+- [x] **"Varsayılanı ayarla"** (ayarlarPenceresi.js `ayaraGit`, seçenek `ayar`): Ayarlar › Açılış ve düzen; kartın `data-hedef`'i
+  (varsayilanZoom) ortaya kaydırılır, kenarı 1,6 sn vurgu renginde yanıp söner (ayarlar.css `.ayar-kart-vurgu`), seçim kutusu odaklanır.
+  Seçim kutusuna `data-ayar` verilmedi: `ayarlarPenceresiniGuncelle` sayıyı (yüzde) seçeneklerde bulamayıp ilk seçeneği gösterirdi.
+- [x] **"Son kullanılan" ve "Görünür alana sığdır" kalktı**: Ayarlar'ın seçim kutusundan, okun listesinden ve menü çubuğundaki Görünüm menüsünden
+  (menu.js; kullanıcı iki yeri saydı, üçüncüsü tutarlılık için, raporda söylendi). `sonZoom` kaydı ve kaydı yazan kod (`zoomKaydetGecikmeli`)
+  kalktı; main/ayarlar.js açılışta 'son' / 'gorunur' değerini 'genislik' yapar, `sonZoom`'u siler (KALDIRILAN_ANAHTARLAR). Görünümdeki 'gorunur'
+  kipi (goruntuleyici.js, çekirdeğin `icerik_kutusu`'su) bilerek kaldı: pencereler arası taşınan sekmenin durumu ve testler (senaryo22,
+  sigdirma_*) kullanıyor; arayüzden artık ulaşılmıyor. Belge açılırken bilinmeyen yakınlaştırma değeri genişliğe sığdır sayılır.
+- [x] **Açılış ekranının imzası** (baslangic.js, stil.css `.karsilama-baglanti`): "PDEfe" ve altında "Sürüm 0.2.4 · Geliştirici: x.com/CgrShn".
+  Bağlantı `<a href>` (renk inherit, çizgisiz, üstüne gelince de), uygulama.js'teki genel bağlantı dinleyicisiyle tarayıcıda açılır; imzanın
+  tıklama işleyicisi bağlantıdan gelen tıklamada Hakkında'yı açmaz. İmzanın öteki yerleri (simge, ad, sürüm) eskisi gibi Hakkında. Bağlantı
+  `tabindex="-1"`: imza 0.1.15'ten beri Tab ile odaklanmıyor (klavyeyle Yardım › PDEfe hakkında).
+- [x] **Hakkında**: "Geri bildirimler için: x.com/CgrShn".
+- [x] **Kısayollar bölümü** (yeni kisayolListesi.js; ayarlarPenceresi.js `bolumKisayollar`): liste uygulama.js `kisayollarGoster`'dan taşındı, F1
+  penceresi ve Ayarlar aynı listeyi gösterir (testte satır satır karşılaştırıldı). Bölüm dar olduğundan sütunlar alt alta; tuşlar F1'deki gibi
+  kutulu (stil.css). Simge klavye. F1 değişmedi.
+- [x] **Test örneğinde dış bağlantı** (main.js `kabuk:disAc`): test örneğinde tarayıcı açılmaz, istek test:diyalogKaydi'na düşer (bağlantıya
+  gerçek fareyle tıklayan senaryo32 için; kullanıcının tarayıcısında x.com açılmasın).
+- [x] **Testler**: senaryo32 (yeni, 21: imza metni ve bağlantının görünüşü, bağlantıya tıklayınca dış açma ve Hakkında'nın açılmaması, ada ve
+  sürüme tıklayınca Hakkında, "Geri bildirimler için", bölüm sırası, Kısayollar = F1, okun listesi ve seçimi, Ctrl+± adımları ve %6400, "Varsayılanı
+  ayarla", seçenekler, vurgunun kalkması, menü çubuğu, ayarın taşınması; ayrıca eski 'son' ve 'gorunur' ayarıyla başlatılan iki örnekte 21/21).
+  Güncellenen: senaryo14 (bölümler; hepsi geçti), senaryo17 (bölümler; yer tutucudan bilinen 2 düşüş: sayfa kutusu, tek tık vurgu),
+  senaryo20 (imza; 52/52), senaryo21 (imza; 37/37). Regresyon: kisayol_gorunum 115/115, senaryo27, senaryo25 30/30, senaryo31 25/25. Görünüş açık
+  ve koyu temada ekran görüntüsüyle denetlendi (imza, Kısayollar, vurgulu kart). README'deki ekran görüntüleri yenilenmedi (imzada ve Ayarlar'ın
+  bölüm listesinde eski hâl; test/readme_goruntuleri.mjs evdeki örnek PDF'lerle).
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 39.

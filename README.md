@@ -24,7 +24,8 @@ yazı ekleyebilir, boyutlarını küçültebilirsiniz.
 
 ## Ne yapar
 
-Ekran görüntüleri Windows'ta alındı, macOS'ta görünüm aynıdır. Bütün kısayollar uygulamada `F1` ile açılan pencerededir.
+Ekran görüntüleri Windows'ta alındı, macOS'ta görünüm aynıdır. Bütün kısayollar uygulamada `F1` ile açılan pencerede ve Ayarlar ›
+Kısayollar'da listelenir.
 
 
 ### Açılış ekranı

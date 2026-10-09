@@ -11,6 +11,16 @@ otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 - Böyle bir sayfanın yazısı yaklaşık 1 saniyede seçilebilir olur (dik sayfada yaklaşık 0,4 saniye). Yazısı dik olan sayfalarda değişiklik yok; yazısız fotoğraf gibi az yazılı sayfalarda tanıma en çok 2 saniye kadar uzayabilir.
 - Bilinen sınır: yazısı dik okunan bir sayfanın kenarına dikey yazılmış kısa bir şerit (kaşe, barkod yazısı) eskisi gibi tanınmaz.
 
+### Yakınlaştırma
+- **Yakınlaştırma kutusunun yanındaki okla açılan liste kısaldı:** sığdırma seçeneklerinin altında beş sabit değer var: %25, %50, %100, %400, %1000 (önceden %25'ten %6400'e 13 değer). `Ctrl`+tekerlek, `Ctrl++` / `Ctrl+−` ve kutuya yazarak yakınlaştırma eskisi gibi; en çok %6400.
+- **Listede "Varsayılanı ayarla":** Ayarlar › Açılış ve düzen açılır, "Varsayılan yakınlaştırma" ayarı kısa süre vurgulanarak gösterilir.
+- **"Görünür alana sığdır" kalktı:** listeden, Ayarlar'dan ve menü çubuğundaki Görünüm menüsünden. Varsayılan yakınlaştırmanın **"Son kullanılan"** seçeneği de kalktı. Bu ikisinden birini seçmişseniz varsayılan yakınlaştırmanız "Genişliğe sığdır" olur.
+
+### Ayarlar ve açılış ekranı
+- **Ayarlar'da Kısayollar bölümü** (Hakkında'nın üstünde): `F1` ile açılan listenin aynısı.
+- **Hakkında'da** "Geliştirici:" yerine "Geri bildirimler için:" yazıyor.
+- **Açılış ekranının sağ altında** adın altında "Sürüm … · Geliştirici: x.com/CgrShn" yazıyor ("PDF görüntüleyici ve düzenleyici" kalktı). Bağlantı tarayıcıda açılır; rengi ve altı çizgisi yok, yazının geri kalanı gibi görünür. Simgeye, ada ya da sürüme tıklayınca eskisi gibi Hakkında açılır.
+
 ## 0.2.3 — 2026-10-07
 
 ### Sekmeler en üstte, yeni simge

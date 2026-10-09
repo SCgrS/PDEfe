@@ -716,3 +716,17 @@ Ekran dışındaki test örneğinde üretilmiş örnek PDF'lerle (yan, ters ve y
    yalnızca imza / kaşe olan bir sayfada yazı çıkmamalı (ya da eskisi gibi yalnızca kaşedeki yazı).
 6. **Çevrim içi hizmetten geçen belge.** Hizmetin yazı katmanı eklediği dosyada seçim o katmandan gelir; katman yanlışsa kopya da yanlıştır
    (PDEfe o katmanı değiştirmez). Böyle bir belgede asıl dosyayı PDEfe'de açmanız daha doğru sonuç verir.
+
+Yakınlaştırma, Ayarlar ve açılış ekranı
+7. **Yakınlaştırma listesi.** Bir belge açıkken yakınlaştırma kutusunun yanındaki küçük oka tıklayın: Gerçek boyut (%100), Sayfayı sığdır,
+   Genişliğe sığdır, çizgi, Varsayılanı ayarla, çizgi, %25, %50, %100, %400, %1000 görünmeli; "Görünür alana sığdır" olmamalı. Her değeri seçip
+   deneyin. `Ctrl`+tekerlekle ve `Ctrl++` / `Ctrl+−` ile yakınlaştırma eskisi gibi olmalı (en çok %6400).
+8. **Varsayılanı ayarla.** Listeden "Varsayılanı ayarla"yı seçin: Ayarlar › Açılış ve düzen açılmalı, "Varsayılan yakınlaştırma" ortada görünmeli,
+   çerçevesi bir an mavi yanıp sönmeli. Seçenekler: Genişliğe sığdır, Sayfayı sığdır, Gerçek boyut, Yüzde ("Son kullanılan" ve "Görünür alana
+   sığdır" yok). Önceden bunlardan birini seçtiyseniz "Genişliğe sığdır" görünmeli.
+9. **Menü çubuğu.** Menü çubuğunu açıp Görünüm menüsüne bakın: "Görünür alana sığdır" olmamalı.
+10. **Açılış ekranının imzası.** Bütün sekmeleri kapatın: sağ altta "PDEfe" ve altında "Sürüm 0.2.4 · Geliştirici: x.com/CgrShn" yazmalı. Bağlantı
+    yazının geri kalanıyla aynı renkte ve altı çizgisiz olmalı, fare üstüne gelince el işareti çıkmalı. Bağlantıya tıklayınca tarayıcıda x.com
+    açılmalı, Hakkında açılmamalı. Simgeye, "PDEfe"ye ya da sürüme tıklayınca Hakkında açılmalı. Açık ve koyu temada bakın.
+11. **Hakkında ve Kısayollar.** Ayarlar'da Hakkında'nın üstünde Kısayollar olmalı; içinde `F1`'deki listenin aynısı. Hakkında'da "Geri bildirimler
+    için: x.com/CgrShn" yazmalı.
