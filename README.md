@@ -13,6 +13,20 @@ yazı ekleyebilir, boyutlarını küçültebilirsiniz.
   <img src="docs/ekran-acilis-koyu.png" width="90%" alt="Açılış ekranı koyu temada">
 </p>
 
+## Kurulum
+
+### Windows
+
+1. Yukarıdaki bağlantıdan `PDEfe-Setup.exe` dosyasını indirin ve çift tıklayın. Yönetici hakkı gerekmez.
+2. Windows SmartScreen uyarı gösterirse **Daha fazla bilgi**'ye, sonra **Yine de çalıştır**'a basın. Uyarı, uygulama imzalı olmadığı için çıkar.
+3. Kurulumu bitirin. Son sayfada PDEfe'yi varsayılan PDF görüntüleyici yapabilirsiniz.
+
+### macOS
+
+1. Yukarıdaki bağlantıdan `PDEfe-Mac.dmg` dosyasını indirin (macOS 13 ve sonrası, Apple işlemcili ve Intel Mac'ler).
+2. Dosyayı açın, **PDEfe**'yi **Uygulamalar** klasörüne sürükleyin.
+3. macOS ilk açılışta uyarı verirse **Sistem Ayarları › Gizlilik ve Güvenlik**'te "PDEfe engellendi" satırındaki **Yine de Aç**'a basın.
+
 ## Öne çıkanlar
 
 - **Sekmeler ve pencereler:** Birden çok PDF tek pencerede açılır. Sekme sürüklenerek kendi penceresine ayrılır.
@@ -149,20 +163,6 @@ değiştirilir. PDEfe buradan varsayılan PDF görüntüleyici de yapılır.
 ![Ayarlar › Açılış ve düzen: sayfa düzeni ve Pencereyi kapatırken](docs/ekran-ayarlar.png)
 
 ![Kısayollar penceresi (F1)](docs/ekran-kisayollar.png)
-
-## Kurulum
-
-### Windows
-
-1. Yukarıdaki bağlantıdan `PDEfe-Setup.exe` dosyasını indirin ve çift tıklayın. Yönetici hakkı gerekmez.
-2. Windows SmartScreen uyarı gösterirse **Daha fazla bilgi**'ye, sonra **Yine de çalıştır**'a basın. Uyarı, uygulama imzalı olmadığı için çıkar.
-3. Kurulumu bitirin. Son sayfada PDEfe'yi varsayılan PDF görüntüleyici yapabilirsiniz.
-
-### macOS
-
-1. Yukarıdaki bağlantıdan `PDEfe-Mac.dmg` dosyasını indirin (macOS 13 ve sonrası, Apple işlemcili ve Intel Mac'ler).
-2. Dosyayı açın, **PDEfe**'yi **Uygulamalar** klasörüne sürükleyin.
-3. macOS ilk açılışta uyarı verirse **Sistem Ayarları › Gizlilik ve Güvenlik**'te "PDEfe engellendi" satırındaki **Yine de Aç**'a basın.
 
 ## Güncelleme
 
