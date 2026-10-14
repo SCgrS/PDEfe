@@ -150,11 +150,14 @@ def y_yapisal_kaydet(p):
 
             # 2) Not işlemleri
             xrefler = {}
-            konum = {}   # (yol_normal, sayfa) → yeni belgede ilk konum (0-tabanlı)
+            # (yol_normal, sayfa) → yeni belgedeki konumları (0-tabanlı, sırayla). Aynı kaynak sayfa tarifte birden çok kez geçebilir
+            # (Sayfaları düzenle'de kopyala, 0.2.6; "PDF ekle" ile aynı dosya): insert_pdf notları her kopyaya ayrı nesnelerle koyar.
+            # Silme ve güncelleme her kopyaya uygulanır; 0.2.5'e dek yalnızca ilk kopyaya uygulanıyor, silinen not kopya sayfada kalıyordu.
+            konum = {}
             for i, e in enumerate(esleme):
                 if e:
                     k = (os.path.normcase(os.path.abspath(e[0])), e[1])
-                    konum.setdefault(k, i)
+                    konum.setdefault(k, []).append(i)
 
             def sayfa_anahtari(k):
                 if not k or not k.get("yol"):
@@ -165,9 +168,9 @@ def y_yapisal_kaydet(p):
             # uygulanmadan önce kurulur. Önceden hedef not her işlemde kaynak sayfadaki sırasıyla yeni sayfanın o anki not listesinde
             # aranıyordu: aynı sayfada önceki bir silme listeyi kısaltınca sonraki silme / güncelleme bir sağdaki nota uygulanıyordu.
             # insert_pdf yanıt (IRT) notlarını kopyalamaz (Link, Popup, Widget'ı annots() de vermez): kaynak listesinden çıkarılır,
-            # yanıtın kendisine yapılan işlem atlanır. Listelerin uzunluğu tutmazsa o sayfada eşleme kurulmaz ve işlemler atlanır:
-            # yanlış nota dokunmaktansa.
-            eslemeler = {}
+            # yanıtın kendisine yapılan işlem atlanır. Listelerin uzunluğu tutmazsa o kopyada eşleme kurulmaz ve işlemler atlanır:
+            # yanlış nota dokunmaktansa. Eşleme kaynak sayfanın her kopyası için ayrı kurulur (0.2.6).
+            eslemeler = {}   # anahtar → {konum: {kaynak xref: yeni xref}}
             for op in islemler:
                 for k in (op.get("kaynak"), (op.get("not") or {}).get("yanitKaynak")):
                     anahtar = sayfa_anahtari(k)
@@ -175,22 +178,29 @@ def y_yapisal_kaydet(p):
                         continue
                     src = belge_al(k["yol"])
                     src_xrefs = [a.xref for a in src[anahtar[1] - 1].annots() if src.xref_get_key(a.xref, "IRT")[0] == "null"]
-                    yeni_xrefs = [a.xref for a in yeni[konum[anahtar]].annots()]
-                    eslemeler[anahtar] = dict(zip(src_xrefs, yeni_xrefs)) if len(src_xrefs) == len(yeni_xrefs) else {}
+                    eslemeler[anahtar] = {}
+                    for i in konum[anahtar]:
+                        yeni_xrefs = [a.xref for a in yeni[i].annots()]
+                        eslemeler[anahtar][i] = dict(zip(src_xrefs, yeni_xrefs)) if len(src_xrefs) == len(yeni_xrefs) else {}
 
-            def hedef_annot(op):
+            def hedef_annotlar(op):
+                """İşlemin hedef notu yeni belgedeki her kopyada: [(konum, yeni xref)] (kopyaların sırasıyla); sayfa silinmişse ya da
+                not eşlenemediyse boş."""
                 anahtar = sayfa_anahtari(op.get("kaynak"))
                 if anahtar is None or anahtar not in konum:
-                    return None                       # sayfa silinmiş; işlem gereksiz
+                    return []                         # sayfa silinmiş; işlem gereksiz
                 xref = int(op.get("xref") or (op.get("not") or {}).get("xref") or 0)
-                yeni_xref = eslemeler.get(anahtar, {}).get(xref)
-                if not yeni_xref:
-                    return None
-                yeni_page = yeni[konum[anahtar]]
-                try:
-                    return yeni_page, notlar._annot_bul(yeni_page, yeni_xref)
-                except KeyError:
-                    return None                       # not, üstüyle birlikte silinmiş
+                bulunan = []
+                for i in konum[anahtar]:
+                    yeni_xref = eslemeler.get(anahtar, {}).get(i, {}).get(xref)
+                    if not yeni_xref:
+                        continue
+                    try:
+                        notlar._annot_bul(yeni[i], yeni_xref)
+                    except KeyError:
+                        continue                      # not, üstüyle birlikte silinmiş
+                    bulunan.append((i, yeni_xref))
+                return bulunan
 
             for op in islemler:
                 n = dict(op.get("not") or {})
@@ -201,24 +211,24 @@ def y_yapisal_kaydet(p):
                     if n.get("yanitId") and n["yanitId"] in xrefler:
                         n["yanitXref"] = xrefler[n["yanitId"]]
                     elif n.get("yanitKaynak"):
-                        ha = hedef_annot({"kaynak": n["yanitKaynak"], "xref": n.get("yanitXref")})
+                        # Yanıt, üst notun yanıtın eklendiği sayfadaki kopyasına bağlanır (yoksa ilk kopyaya)
+                        ha = hedef_annotlar({"kaynak": n["yanitKaynak"], "xref": n.get("yanitXref")})
+                        ha = [h for h in ha if h[0] == sayfa - 1] or ha
                         if ha:
-                            n["yanitXref"] = ha[1].xref
+                            n["yanitXref"] = ha[0][1]
                         else:
                             n.pop("yanitXref", None)
                     xrefler[op["id"]] = notlar.not_ekle(yeni, yeni[sayfa - 1], n)
                 elif op["islem"] in ("guncelle", "sil"):
-                    ha = hedef_annot(op)
-                    if not ha:
-                        continue
-                    page, annot = ha
-                    if op["islem"] == "sil":
-                        notlar.not_sil(yeni, page, annot.xref)
-                    else:
-                        n["xref"] = annot.xref
-                        n.pop("rect", None) if n.get("rectDegismedi") else None
-                        notlar.not_guncelle(yeni, page, n)
-                        xrefler[op["id"]] = annot.xref
+                    for i, yeni_xref in hedef_annotlar(op):
+                        page = yeni[i]
+                        if op["islem"] == "sil":
+                            notlar.not_sil(yeni, page, yeni_xref)
+                        else:
+                            m = dict(n, xref=yeni_xref)
+                            m.pop("rect", None) if m.get("rectDegismedi") else None
+                            notlar.not_guncelle(yeni, page, m)
+                            xrefler.setdefault(op["id"], yeni_xref)   # ilk kopyanınki
             ilerleme(80, "Kaydediliyor")
 
             # 3) Kaydet

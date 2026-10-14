@@ -136,5 +136,50 @@ yol, x = belge_kur("yanitli-yanit-silme.pdf", yanitli=True)
 n, _ = kaydet(yol, [sil(yol, x["Yanit B"])])
 sonuc("yalnızca yanıt silinince başka not silinmez", icerikler(n) == ["Ust not A", "Vurgu C", "Vurgu D"], n)
 
+
+def kaydet_tarif(yol, sayfalar, islemler):
+    """Tarif kaynak sayfa numaralarının listesi (aynı sayfa birden çok kez geçebilir: Sayfaları düzenle'de kopyala, 0.2.6).
+    Döner: (her sayfanın notları [[(içerik, renk, irt)]], her sayfanın not xref'leri, sonuç)."""
+    r = yapisal.y_yapisal_kaydet({"yol": yol, "hedef": yol, "tarif": [{"kaynak": {"yol": yol, "sayfa": s}} for s in sayfalar],
+                                  "islemler": islemler, "anlikKlasor": os.path.join(CIKTI, "anlik")})
+    pdefe_core.onbellek.hepsini_birak()
+    doc = pymupdf.open(yol)
+    notlar = [[(a.info.get("content"), tuple(round(c, 2) for c in (a.colors.get("stroke") or ())), a.irt_xref) for a in pg.annots()] for pg in doc]
+    xrefler = [[a.xref for a in pg.annots()] for pg in doc]
+    doc.close()
+    return notlar, xrefler, r
+
+
+def sayfa_icerikleri(notlar):
+    return [[n[0] for n in s] for s in notlar]
+
+
+print("— Kopya sayfa: aynı kaynak sayfa tarifte birden çok kez (0.2.6; önceden işlem yalnızca ilk kopyaya uygulanıyordu)")
+yol, x = belge_kur("kopya-silme.pdf")
+n, xr, r = kaydet_tarif(yol, [1, 1, 2], [sil(yol, x["Vurgu A"])])
+sonuc("1. sayfa iki kez: A iki kopyadan da silinir", sayfa_icerikleri(n) == [["Vurgu C", "Vurgu D", "Vurgu E"]] * 2 + [[]], n)
+sonuc("iki kopyanın notları ayrı nesneler (xref'ler ayrı)", len(xr) == 3 and xr[0] and not set(xr[0]) & set(xr[1]), xr)
+
+yol, x = belge_kur("kopya-guncelleme.pdf")
+n, _, r = kaydet_tarif(yol, [1, 2, 1], [guncelle(yol, x["Vurgu D"], "D DEGISTI", "#ff0000"), sil(yol, x["Vurgu C"])])
+beklenen = [("Vurgu A", SARI), ("D DEGISTI", KIRMIZI), ("Vurgu E", SARI)]
+sonuc("ayrık kopyalar (1, 2, 1): D iki kopyada da değişir, C ikisinden de silinir",
+      [[(c, rr) for c, rr, _ in s] for s in n] == [beklenen, [], beklenen], n)
+
+yol, x = belge_kur("kopya-yanit.pdf")
+yanit = {"islem": "ekle", "id": "yanit", "not": {"tur": "Text", "sayfa": 3, "rect": [400, 200, 420, 220], "icerik": "D'ye yanit",
+                                                "yanitXref": x["Vurgu D"], "yanitKaynak": {"yol": yol, "sayfa": 1}}}
+n, xr, r = kaydet_tarif(yol, [1, 2, 1], [sil(yol, x["Vurgu A"]), yanit])
+doc = pymupdf.open(yol)
+d3 = next((a.xref for a in doc[2].annots() if a.info.get("content") == "Vurgu D"), None)
+irt3 = next((a.irt_xref for a in doc[2].annots() if a.info.get("content") == "D'ye yanit"), None)
+doc.close()
+sonuc("A iki kopyadan da silinir; 3. sayfaya (ikinci kopya) eklenen yanıt o sayfadaki D'ye bağlanır",
+      sayfa_icerikleri(n)[0] == ["Vurgu C", "Vurgu D", "Vurgu E"] and irt3 == d3 and d3, {"notlar": sayfa_icerikleri(n), "irt": irt3, "d3": d3})
+
+yol, x = belge_kur("kopya-yanitli.pdf", yanitli=True)
+n, _, r = kaydet_tarif(yol, [1, 1], [sil(yol, x["Vurgu C"])])
+sonuc("yanıtlı sayfanın iki kopyası: C ikisinden de silinir, D kalır", sayfa_icerikleri(n) == [["Ust not A", "Vurgu D"]] * 2, n)
+
 print("\n%d denetim, %d hata" % (toplam, hata))
 sys.exit(1 if hata else 0)
