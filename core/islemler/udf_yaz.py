@@ -39,6 +39,11 @@ import pymupdf
 from . import araclar
 from .donustur import OgeHatasi
 
+# PyMuPDF find_tables'ı ilk çağrıda standart çıktıya bir öneri yazıyor (print): çekirdeğin JSON kanalını bozar. Öneri kapatılır
+if hasattr(pymupdf, "no_recommend_layout"):
+    pymupdf.no_recommend_layout()
+os.environ.setdefault("PYMUPDF_SUGGEST_LAYOUT_ANALYZER", "0")
+
 ONSOZ = '<?xml version="1.0" encoding="UTF-8" ?> \n\n<template format_id="1.8" >\n'
 STILLER = ('<styles><style name="default" description="Geçerli" family="Dialog" size="12" bold="false" italic="false" '
            'foreground="-13421773" FONT_ATTRIBUTE_KEY="javax.swing.plaf.FontUIResource[family=Dialog,name=Dialog,style=plain,size=12]" />'

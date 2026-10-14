@@ -724,6 +724,28 @@ def test_pdf_udf(c, k, ude_var):
             sonuc("UDE tabloyu çizgili tablo olarak çizdi (9 × 3)", (9, 3) in tablolar, tablolar)
 
 
+def test_json_kanali(exe, k):
+    """Çekirdek süreci (betik ya da exe) PDF → UDF'te standart çıktıya yalnızca JSON yazar (PyMuPDF'in find_tables'ı ilk çağrıda bir
+    öneri yazdırıyordu: ana süreçle konuşulan kanalı bozardı)."""
+    pdf = tablolu_pdf(os.path.join(k, "kanal.pdf"))
+    komut = [exe] if exe else [sys.executable, "-X", "utf8", os.path.join(CORE, "pdefe_core.py")]
+    p = subprocess.Popen(komut, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=dict(os.environ, PYTHONIOENCODING="utf-8"))
+    istek = {"id": 1, "method": "bicim_donustur", "params": {"ogeler": [{"yol": pdf, "hedef": os.path.join(k, "kanal.udf"), "hedefBicim": "udf"}]}}
+    cikti, _ = p.communicate((json.dumps(istek, ensure_ascii=False) + "\n").encode("utf-8"), timeout=300)
+    satirlar = [x for x in cikti.decode("utf-8", "replace").splitlines() if x.strip()]
+    bozuk = []
+    yanit = None
+    for x in satirlar:
+        try:
+            m = json.loads(x)
+            if m.get("id") == 1 and "result" in m:
+                yanit = m["result"]
+        except ValueError:
+            bozuk.append(x[:80])
+    sonuc("çekirdeğin standart çıktısı PDF → UDF (tablolu) sırasında yalnızca JSON", not bozuk and yanit is not None and yanit.get("basarili") == 1,
+          bozuk or (yanit or {}).get("sonuclar"))
+
+
 def test_taranmis(c, k, ude_var):
     r, _ = c.cagir("donusum_yetenekleri", {})
     if not (r["donusumler"].get("pdf>udf") or {}).get("var"):
@@ -825,7 +847,7 @@ def main():
     else:
         atlandi("UDF → PDF", "UDE ya da Java bu bilgisayarda yok")
     testler += [lambda: test_pdf_udf(c, temiz_klasor("pdf_udf"), ude_var), lambda: test_taranmis(c, temiz_klasor("taranmis"), ude_var),
-                lambda: test_ude_yok(c, g, k)]
+                lambda: test_ude_yok(c, g, k), lambda: test_json_kanali(exe, temiz_klasor("kanal"))]
     if ude_var:
         testler += [lambda: test_derlem(c)]
     for t in testler:
