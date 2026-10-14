@@ -32,6 +32,7 @@ const SUTUNLAR = [[
   ['Sayfaları düzenle'],
   ['Tıkla', 'Sayfayı seç'], ['Ctrl+tık / Shift+tık', 'Seçime ekle / aralığı seç'], ['Boş alandan sürükle', 'Alandaki sayfaları seç'],
   ['Sayfayı sürükle', 'Sırala (seçiliyse seçilenler birlikte)'], ['Delete', 'Seçilenleri sil'], ['Ctrl+A', 'Tümünü seç'],
+  ['Ctrl+C / Ctrl+V', 'Seçilenleri kopyala / seçili sayfanın arkasına yapıştır'],
   [['← → ↑ ↓', 'Home / End'], 'Sayfalar arasında gez (Shift ile seçimi genişlet)'], ['R / Shift+R', 'Seçilenleri sağa / sola döndür'],
   ['Ctrl+Z / Ctrl+Y', 'Geri al / yinele'],
   ['Görüntü / PDF birleştir'],

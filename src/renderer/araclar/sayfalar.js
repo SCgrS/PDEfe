@@ -1,5 +1,6 @@
 // Sayfaları düzenle: küçük resim ızgarası, çoklu seçim (tıklama, Ctrl/Shift, boş alandan sürükleyerek alan seçimi), sürükleyerek
-// sıralama, sil, döndür, başka PDF'ten sayfa ekle, boş sayfa ekle, pencere içi geri al/yinele; standart kaydetme seçimi (ortak.js
+// sıralama, sil, döndür, kopyala (kartın düğmesi ve sağ tık: kopyası hemen sağına; Ctrl+C / Ctrl+V pencere içi panoyla; 0.2.6),
+// başka PDF'ten sayfa ekle, boş sayfa ekle, sağ tık menüsü, pencere içi geri al/yinele; standart kaydetme seçimi (ortak.js
 // kayitSecimi; varsayılan "Yeni belge olarak kaydet"):
 //  - Yeni belge: düzen çekirdek sayfalar_uygula ile yeni bir PDF'e yazılır (notlar, form alanları, bağlantılar ve korunan sayfaların
 //    yer imleri yapısal kayıttaki gibi kopyalanır; geçici dosya + os.replace); özgün dosya ve sekme değişmez, yeni dosya yeni sekmede
@@ -24,6 +25,11 @@ const KART_RESIM_EN_FAZLA = 600;   // istenen genişliğin üst sınırı (cihaz
 const GECMIS_SINIRI = 200;
 const A4 = { w: 595.276, h: 841.89 };
 const aci = (d) => ((d || 0) % 360 + 360) % 360;
+/** Kısayol harfi klavye düzeninden bağımsız (notlar.js duzenleyiciTus'taki gibi): tuşun ürettiği Latin harfi, harf değilse fiziksel tuş. */
+const kisayolHarfi = (e) => {
+  const k = (e.key || '').toLocaleLowerCase('tr');
+  return /^[a-z]$/.test(k) ? k : k === 'ı' ? 'i' : /^Key[A-Z]$/.test(e.code || '') ? e.code.slice(3).toLowerCase() : '';
+};
 
 export class SayfalarPenceresi {
   constructor(baglam, belge) {
@@ -40,6 +46,9 @@ export class SayfalarPenceresi {
     this.odak = null;
     this.gecmis = [];
     this.gecmisKonum = 0;
+    // Pencere içi pano (Ctrl+C / Kopyala): kopyalanan kartların anlık görüntüleri, sayfa sırasıyla. Pencereye bağlıdır, sistem panosuna
+    // yazılmaz: sekmeden gelen kart sayfasını sekmedeki sırasıyla (k.sekme) gösterir, başka belgede anlamı yoktur. Geri al yığınına girmez.
+    this.pano = null;
     this.ogeler = new Map();          // kimlik → kart öğesi
     this.resimOnbellek = new Map();   // "yol|sayfa|istenen genişlik" → Promise<{png, genislik, yukseklik}>
     this._alanTiki = false;           // alan seçimi bırakıldı: bırakışın tıklaması (sonraki basıştan önce gelir) seçimi değiştirmesin
@@ -177,6 +186,7 @@ export class SayfalarPenceresi {
       onBirak: (ogeler, hedefIdx) => this.tasi(ogeler.map((o) => +o.dataset.kimlik), hedefIdx),
     });
     this._alanSecimiBagla();
+    this.pencere.baglamMenusuEkle((e) => this._kartMenusu(e));
     // Ekran ölçeği değişince (pencere başka ölçekli ekrana taşındı) yüklenmiş kartlar yeni ölçek için düşük çözünürlüklüyse yeniden istenir
     // (görünenler hemen, ötekiler göründükçe; eski resim yenisi gelene dek yerinde). CSS boyutu değişmediği için başka olay gelmez; yoksa
     // sonradan yüklenen keskin kartlarla eski bulanık kartlar karışık kalıyordu (bağımsız inceleme)
@@ -243,6 +253,11 @@ export class SayfalarPenceresi {
     if (ctrl && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); this.geriAl(); return; }
     if (ctrl && ((e.key === 'y' || e.key === 'Y') || (e.shiftKey && (e.key === 'z' || e.key === 'Z')))) { e.preventDefault(); this.yinele(); return; }
     if (ctrl && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); this.komut('tumunuSec'); return; }
+    // Ctrl+C / Ctrl+V pencere içi panoyla (macOS'ta ⌘). preventDefault şart: engellenmeyen tuş copy / paste olayı doğurur, olay belgenin
+    // dinleyicisine ulaşıp arkadaki belgede seçili metni panoya yazar (uygulama.js 'copy'). Ctrl+Alt (AltGr) kısayol değil
+    const harf = ctrl && !e.altKey && !e.shiftKey ? kisayolHarfi(e) : '';
+    if (harf === 'c') { e.preventDefault(); this.kopyala([...this.secim]); return; }
+    if (harf === 'v') { e.preventDefault(); this.yapistir(); return; }
     if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); this.sil([...this.secim]); return; }
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Home' || e.key === 'End') {
       if (!this.kartlar.length) return;
@@ -288,6 +303,7 @@ export class SayfalarPenceresi {
       const hedefler = this.secim.has(kimlik) ? [...this.secim] : [kimlik];
       if (k === 'sola') this.dondur(hedefler, -90);
       else if (k === 'saga') this.dondur(hedefler, 90);
+      else if (k === 'kopyala') this.cogalt(hedefler);
       else if (k === 'sil') this.sil(hedefler);
       return;
     }
@@ -399,6 +415,35 @@ export class SayfalarPenceresi {
     iz.addEventListener('keydown', (e) => { if (e.key === 'Escape' && a?.basladi) { e.preventDefault(); e.stopPropagation(); durdur(true); } }, true);
   }
 
+  /**
+   * Sağ tık menüsü (0.2.6, kullanıcı isteği: "sağ tık: kopyala, döndür, sil"; Birleştir'in _listeMenusu deseni). Kartta: Kopyala (kartın
+   * düğmesiyle aynı: kopyası hemen sağına; pencerenin panosuna da alınır), Yapıştır (pano boşsa devre dışı), Sola / Sağa döndür, Sil (bütün
+   * sayfaları silecekse devre dışı). Seçili karta sağ tık seçimi korur, işlemler seçilenlerin hepsine (etikette "(n)"); seçili olmayana sağ
+   * tık yalnızca onu seçer. Boş alanda: Yapıştır, Tümünü seç. Yapıştır, Ctrl+V gibi son seçili sayfanın arkasına (seçim yoksa sona) ekler.
+   */
+  _kartMenusu(e) {
+    if (!this.izgara.contains(e.target) || this.ilerleme.calisiyor || this.pencere.el.classList.contains('mesgul')) return null;
+    const yapistir = { id: 'yapistir', etiket: 'Yapıştır', devre: !this.pano?.length, calistir: () => this.yapistir() };
+    const el = e.target.closest('.sayfa-karti');
+    if (!el) {
+      const hepsi = this.kartlar.length > 0 && this.secim.size === this.kartlar.length;
+      return [yapistir, { ayirici: true }, { id: 'tumunuSec', etiket: 'Tümünü seç', devre: hepsi, calistir: () => this.komut('tumunuSec') }];
+    }
+    const kimlik = +el.dataset.kimlik;
+    if (!this.secim.has(kimlik)) { this.secim = new Set([kimlik]); this.capa = this.odak = kimlik; this._secimiCiz(); }
+    const hedefler = this.kartlar.filter((k) => this.secim.has(k.kimlik)).map((k) => k.kimlik);
+    const n = hedefler.length, ek = n > 1 ? ` (${n})` : '';
+    return [
+      { id: 'kopyala', etiket: 'Kopyala' + ek, calistir: () => this.cogalt(hedefler) },
+      yapistir,
+      { ayirici: true },
+      { id: 'sola', etiket: 'Sola döndür' + ek, calistir: () => this.dondur(hedefler, -90) },
+      { id: 'saga', etiket: 'Sağa döndür' + ek, calistir: () => this.dondur(hedefler, 90) },
+      { ayirici: true },
+      { id: 'sil', etiket: 'Sil' + ek, devre: n >= this.kartlar.length, calistir: () => this.sil(hedefler) },
+    ];
+  }
+
   _toggle(kimlik) { if (this.secim.has(kimlik)) this.secim.delete(kimlik); else this.secim.add(kimlik); }
   _aralikSec(a, b) {
     const i = this.kartlar.findIndex((k) => k.kimlik === a), j = this.kartlar.findIndex((k) => k.kimlik === b);
@@ -443,6 +488,44 @@ export class SayfalarPenceresi {
     this.kartlar = yeni;
     this.secim = new Set(kimlikler);
     this.ciz();
+  }
+
+  /**
+   * Kartları (sayfa sırasıyla) pencerenin panosuna alır (Ctrl+C); Ctrl+V ile eklenir. Pano kopyalama anındaki hâli tutar (sonradan
+   * döndürülen kart panodakini değiştirmez). sessiz: bildirim yok (Kopyala düğmesi hemen yapıştırır). Kopyalanacak kart yoksa false.
+   */
+  kopyala(kimlikler, { sessiz = false } = {}) {
+    const set = new Set(kimlikler);
+    const secilen = this.kartlar.filter((k) => set.has(k.kimlik));
+    if (!secilen.length) { this.baglam.bildir('Kopyalanacak sayfayı seçin.'); return false; }
+    this.pano = secilen.map((k) => ({ ...k }));
+    if (!sessiz) this.baglam.bildir(tus(`${secilen.length} sayfa kopyalandı; eklemek için Ctrl+V.`));
+    return true;
+  }
+
+  /**
+   * Panodaki kartların kopyalarını idx'e (verilmezse son seçili sayfanın arkasına, seçim yoksa sona) ekler (Ctrl+V); eklenenler seçili kalır,
+   * art arda yapıştırılabilir. Kopya, kartın yeni kimlikli eşidir: sekme indeksi, kaynak ve döndürme aynı (tarif aynı sayfayı iki kez
+   * içerir; kayıt ve sekmenin görünümü bunu destekler), küçük resim aynı önbellekten gelir.
+   */
+  yapistir(idx = this._eklemeKonumu()) {
+    if (!this.pano?.length) { this.baglam.bildir(tus('Yapıştırılacak sayfa yok; önce sayfaları seçip Ctrl+C ile kopyalayın.')); return; }
+    this._anlikGoruntuAl();
+    const yeni = this.pano.map((k) => ({ ...k, kimlik: ++this.kimlikSayac }));
+    this.kartlar.splice(Math.max(0, Math.min(idx, this.kartlar.length)), 0, ...yeni);
+    this.secim = new Set(yeni.map((k) => k.kimlik));
+    this.odak = this.capa = yeni[0].kimlik;
+    this.ciz();
+    this.ogeler.get(yeni[0].kimlik)?.scrollIntoView({ block: 'nearest' });
+  }
+
+  /** Kartın Kopyala düğmesi ve sağ tık › Kopyala (0.2.6): kartların kopyası, sırasıyla, sonuncusunun hemen sağına eklenir; pano da dolar. */
+  cogalt(kimlikler) {
+    if (!this.kopyala(kimlikler, { sessiz: true })) return;
+    const set = new Set(kimlikler);
+    let son = -1;
+    this.kartlar.forEach((k, i) => { if (set.has(k.kimlik)) son = i; });
+    this.yapistir(son + 1);
   }
 
   _eklemeKonumu() {
@@ -537,6 +620,7 @@ export class SayfalarPenceresi {
         <span class="kart-dugmeler">
           <button class="ikon" data-kart-komut="sola" title="Sola döndür"><svg viewBox="0 0 20 20"><path d="M13.1 15.8A6.2 6.2 0 1 0 5.1 13.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2.8 15.5 7.4 12.3 6.8 16.4z" fill="currentColor"/></svg></button>
           <button class="ikon" data-kart-komut="saga" title="Sağa döndür"><svg viewBox="0 0 20 20"><path d="M6.9 15.8A6.2 6.2 0 1 1 14.9 13.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M17.2 15.5 12.6 12.3 13.2 16.4z" fill="currentColor"/></svg></button>
+          <button class="ikon" data-kart-komut="kopyala" title="Kopyala (sağına ekler)"><svg viewBox="0 0 20 20"><rect x="7" y="7" width="9" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M13 7V4.5A1.5 1.5 0 0 0 11.5 3h-6A1.5 1.5 0 0 0 4 4.5v8A1.5 1.5 0 0 0 5.5 14H7" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></button>
           <button class="ikon" data-kart-komut="sil" title="Sil"><svg viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.5"/></svg></button>
         </span></div>
       <span class="kaynak" hidden></span>

@@ -385,6 +385,38 @@ export default async function ({ evalJs }) {
   sonuc('Bütün belge seçimi (Windows): Ctrl+tık ve tık seçimi kaldırır, sağ tık bırakmaz; Kısayollar "Ctrl+A Belgedeki tüm metni seç"',
     !tumSecim.win.ctrlTik && tumSecim.win.sagTik && !tumSecim.win.tik && tumSecim.win.kisayol === 'Ctrl+A', tumSecim.win);
 
+  // ---------------------------------------------------------------- Sayfaları düzenle: kopyala / yapıştır (araclar/sayfalar.js, kisayolListesi.js; 0.2.6)
+  // macOS'ta ⌘C / ⌘V pencere içi panoyla kopyalar ve seçilenin arkasına yapıştırır; tuş engellenir (copy / paste olayı doğmaz, arkadaki belgeye
+  // sızmaz). Bildirim ve Kısayollar Mac yazımıyla ("⌘V", "⌘C / ⌘V"). Çekirdek ve ana süreç sahte (küçük resimler "yüklenemedi" kalır)
+  const sayfalarPano = await evalJs(`(async () => { ${ORTAM}
+    const sonuc = {};
+    for (const mac of [true, false]) {
+      const o = ortam(mac), { SayfalarPenceresi } = await o.yukle('araclar/sayfalar.js'), { kisayolTablolariHtml } = await o.yukle('kisayolListesi.js');
+      const bildirimler = [];
+      const yol = mac ? '/Volumes/Arsiv/Belge.pdf' : 'C:/Arsiv/Belge.pdf';
+      const sayfalar = [1, 2, 3].map((i) => ({ kimlik: i, kaynak: { yol, sayfa: i }, dondurme: 0, pt: { w: 595, h: 842 } }));
+      const baglam = { cekirdek: async () => { throw new Error('çekirdek yok'); }, pdefe: { cagir: async () => null }, bildir: (m) => bildirimler.push(m),
+        mesajKutusu: async () => ({ secim: 1 }), aktif: () => null };
+      const p = new SayfalarPenceresi(baglam, { ad: 'Belge.pdf', yol, gorunum: { sayfalar } });
+      const tusla = (key, birincil) => { const e = new o.pencere.KeyboardEvent('keydown', { key, code: 'Key' + key.toUpperCase(), bubbles: true, cancelable: true,
+        metaKey: mac && birincil, ctrlKey: !mac && birincil }); p.izgara.dispatchEvent(e); return e.defaultPrevented; };
+      p.secim = new Set([2]); p._secimiCiz();
+      const r = { c: tusla('c', true), bildirim: bildirimler.at(-1) || '', v: tusla('v', true) };
+      r.sira = p.kartlar.map((k) => k.sayfa);
+      r.secili = p.kartlar.map((k, i) => (p.secim.has(k.kimlik) ? i : -1)).filter((i) => i >= 0);
+      const html = kisayolTablolariHtml();
+      r.kisayol = ['⌘C / ⌘V', 'Ctrl+C / Ctrl+V'].find((k) => html.includes('<kbd>' + k + '</kbd></td><td>Seçilenleri kopyala')) || null;
+      await p.pencere.kapat('tamam');
+      sonuc[mac ? 'mac' : 'win'] = r;
+    }
+    return sonuc;
+  })()`);
+  sonuc('Sayfaları düzenle (macOS): ⌘C / ⌘V seçili 2. sayfayı arkasına kopyalar (1 2 2 3), tuşlar engellenir; bildirim ve Kısayollar "⌘V", "⌘C / ⌘V"',
+    sayfalarPano.mac.c && sayfalarPano.mac.v && J(sayfalarPano.mac.sira) === '[1,2,2,3]' && J(sayfalarPano.mac.secili) === '[2]' && /eklemek için ⌘V\./.test(sayfalarPano.mac.bildirim)
+    && sayfalarPano.mac.kisayol === '⌘C / ⌘V', sayfalarPano.mac);
+  sonuc('Sayfaları düzenle (Windows): Ctrl+C / Ctrl+V aynı; bildirim ve Kısayollar "Ctrl+V", "Ctrl+C / Ctrl+V"', sayfalarPano.win.c && sayfalarPano.win.v
+    && J(sayfalarPano.win.sira) === '[1,2,2,3]' && J(sayfalarPano.win.secili) === '[2]' && /eklemek için Ctrl\+V\./.test(sayfalarPano.win.bildirim) && sayfalarPano.win.kisayol === 'Ctrl+C / Ctrl+V', sayfalarPano.win);
+
   await evalJs(`(() => { document.querySelector('#mac-cerceve')?.remove(); document.querySelector('#win-cerceve')?.remove(); return true; })()`);
   console.log(`\n${tamam} tamam, ${hata} hata`);
 }

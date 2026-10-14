@@ -25,13 +25,14 @@ const J = (x) => JSON.stringify(x);
 // F1 satırlarının kapsam anahtarları: "<bölüm> › <tuşlar | ile>"
 const S = 'Sayfaları düzenle › ', B = 'Görüntü / PDF birleştir › ';
 const S_TIK = S + 'Tıkla', S_CS = S + 'Ctrl+tık / Shift+tık', S_ALAN = S + 'Boş alandan sürükle', S_SUR = S + 'Sayfayı sürükle', S_DEL = S + 'Delete',
-  S_CA = S + 'Ctrl+A', S_OK = S + '← → ↑ ↓ | Home / End', S_R = S + 'R / Shift+R', S_ZY = S + 'Ctrl+Z / Ctrl+Y';
+  S_CA = S + 'Ctrl+A', S_CV = S + 'Ctrl+C / Ctrl+V', S_OK = S + '← → ↑ ↓ | Home / End', S_R = S + 'R / Shift+R', S_ZY = S + 'Ctrl+Z / Ctrl+Y';
 const B_TIK = B + 'Tıkla', B_CS = B + 'Ctrl+tık / Shift+tık', B_ALAN = B + 'Sağ tuşla sürükle | Boş alandan sürükle', B_SUR = B + 'Satırı sürükle',
   B_DEL = B + 'Delete', B_CA = B + 'Ctrl+A', B_CV = B + 'Ctrl+V';
 const F1_BEKLENEN = [
   ['Sayfaları düzenle'],
   [['Tıkla'], 'Sayfayı seç'], [['Ctrl+tık / Shift+tık'], 'Seçime ekle / aralığı seç'], [['Boş alandan sürükle'], 'Alandaki sayfaları seç'],
   [['Sayfayı sürükle'], 'Sırala (seçiliyse seçilenler birlikte)'], [['Delete'], 'Seçilenleri sil'], [['Ctrl+A'], 'Tümünü seç'],
+  [['Ctrl+C / Ctrl+V'], 'Seçilenleri kopyala / seçili sayfanın arkasına yapıştır'],
   [['← → ↑ ↓', 'Home / End'], 'Sayfalar arasında gez (Shift ile seçimi genişlet)'], [['R / Shift+R'], 'Seçilenleri sağa / sola döndür'],
   [['Ctrl+Z / Ctrl+Y'], 'Geri al / yinele'],
   ['Görüntü / PDF birleştir'],
@@ -119,6 +120,7 @@ print(json.dumps({"ana": pdf("ana.pdf", 12, "Sayfa"), "ek": pdf("ek.pdf", 3, "Ek
     kartlar() { return [...document.querySelectorAll('.sayfalar-izgara > .sayfa-karti')]; },
     sDurum() { const k = this.kartlar(); const id = (e) => this.kartId(e); const r = (e) => { const z = e.querySelector('.rozet.dondurme'); return z.hidden ? 0 : parseInt(z.textContent, 10); };
       return { sira: k.map(id), secili: k.filter((e) => e.classList.contains('secili')).map(id), odak: k.filter((e) => e.classList.contains('odak')).map(id)[0] ?? null,
+        seciliSira: k.map((e, i) => (e.classList.contains('secili') ? i : -1)).filter((i) => i >= 0),
         rozet: Object.fromEntries(k.map((e) => [id(e), r(e)])), sayac: document.querySelector('.sayfalar-arac-cubugu .sayac')?.textContent,
         odakta: document.activeElement === document.querySelector('.sayfalar-izgara') }; },
     konum(e, kaydir) { if (!e) return null; const kap = e.parentElement; if (kaydir) e.scrollIntoView({ block: 'nearest' }); const b = e.getBoundingClientRect(), r = kap.getBoundingClientRect();
@@ -381,6 +383,57 @@ print(json.dumps({"ana": pdf("ana.pdf", 12, "Sayfa"), "ek": pdf("ek.pdf", 3, "Ek
   await bekle(150);
   d = await sDurum();
   if (!ayni(d.sira, bir(12)) || !Object.values(d.rozet).every((x) => x === 0)) throw new Error('Sayfaları düzenle başlangıç düzenine dönmedi: ' + J(d));
+
+  // Ctrl+C / Ctrl+V (0.2.6): pencere içi pano. Tuşlar copy / paste olayı doğurmaz (keydown engellenir): arkadaki belgenin kopyalama
+  // dinleyicisine ulaşmaz, sistem panosuna dokunulmaz. Olaylar pencere düzeyinde (yakalama evresinde) yalnızca sayılır
+  await evalJs(`(() => { getSelection().removeAllRanges(); window.__kaOlay = { copy: 0, paste: 0 }; if (!window.__kaOlayDinleyici) { window.__kaOlayDinleyici = true;
+    for (const t of ['copy', 'paste']) addEventListener(t, () => { if (window.__kaOlay) window.__kaOlay[t]++; }, true); } return true; })()`);
+  await sTikla('1');
+  await tus('v', ['ctrl']); await bekle(150);
+  d = await sDurum();
+  sonuc('Ctrl+V pano boşken: bir şey eklenmez, "Yapıştırılacak sayfa yok" bildirimi', ayni(d.sira, bir(12)) && /Yapıştırılacak sayfa yok/.test(await bildirim()), { sira: d.sira, bildirim: await bildirim() }, S_CV);
+  await sTikla('2');
+  await sTikla('5', ['ctrl']);
+  await tus('c', ['ctrl']); await bekle(150);
+  d = await sDurum();
+  const kopyaBildirim = await bildirim();
+  sonuc('Ctrl+C (2, 5 seçili): düzen değişmez, "2 sayfa kopyalandı" bildirimi', ayni(d.sira, bir(12)) && ayni(d.secili, ['2', '5']) && !/değişti/.test(d.sayac) && /^2 sayfa kopyalandı/.test(kopyaBildirim), { d, kopyaBildirim }, S_CV);
+  await sTikla('7');
+  await tus('v', ['ctrl']); await bekle(200);
+  d = await sDurum();
+  const yap1 = [...bir(7), '2', '5', ...bir(12).slice(7)];
+  sonuc('Ctrl+V (7 seçili): 2 ve 5 sırasıyla 7\'nin arkasına eklenir, eklenenler seçili, sayaç "14 sayfa · 2 seçili · değişti"', ayni(d.sira, yap1) && ayni(d.seciliSira, [7, 8])
+    && d.sayac === '14 sayfa · 2 seçili · değişti' && d.odakta, d, S_CV);
+  await tus('v', ['ctrl']); await bekle(200);
+  d = await sDurum();
+  const yap2 = [...bir(7), '2', '5', '2', '5', ...bir(12).slice(7)];
+  sonuc('Ctrl+V bir kez daha: yapıştırılanların arkasına yine eklenir (art arda yapıştırma)', ayni(d.sira, yap2) && ayni(d.seciliSira, [9, 10]) && /^16 sayfa/.test(d.sayac), d, S_CV);
+  await tus('z', ['ctrl']); await bekle(150);
+  const cz1 = await sDurum();
+  await tus('z', ['ctrl']); await bekle(150);
+  const cz2 = await sDurum();
+  await tus('y', ['ctrl']); await bekle(150);
+  const cy1 = await sDurum();
+  sonuc('Ctrl+Z / Ctrl+Y yapıştırmaları adım adım geri alır / yineler', ayni(cz1.sira, yap1) && ayni(cz2.sira, bir(12)) && ayni(cz2.secili, ['7']) && ayni(cy1.sira, yap1),
+    { cz1: cz1.sira, cz2: cz2.sira, cz2Secili: cz2.secili, cy1: cy1.sira }, [S_CV, S_ZY]);
+  await tus('z', ['ctrl']); await bekle(150);
+  // Odak araç çubuğundaki düğmedeyken de çalışır (ızgara kısayolları gibi); döndürülmüş sayfanın kopyası döndürülmüştür
+  await sTikla('1');
+  await tikla(...(await merkez(`document.querySelector('.sayfalar-arac-cubugu [data-komut="sagaDondur"]')`))); await bekle(150);
+  const cvOdak = await evalJs(`document.activeElement?.dataset?.komut || ''`);
+  await tus('c', ['ctrl']); await bekle(120);
+  await tus('v', ['ctrl']); await bekle(200);
+  d = await sDurum();
+  const cvImg = await evalJs(`window.__ka.kartlar()[1].querySelector('.resim-kutu img')?.style.transform || ''`);
+  sonuc('Ctrl+C / Ctrl+V odak araç çubuğundaki düğmedeyken: döndürülmüş 1. sayfanın kopyası arkasına, 90° rozeti ve dönük küçük resimle', cvOdak === 'sagaDondur'
+    && ayni(d.sira, ['1', '1', ...bir(12).slice(1)]) && d.rozet['1'] === 90 && ayni(d.seciliSira, [1]) && cvImg === 'rotate(90deg)', { cvOdak, sira: d.sira, rozet: d.rozet['1'], seciliSira: d.seciliSira, cvImg }, S_CV);
+  const olay = await evalJs(`(() => { const o = window.__kaOlay; window.__kaOlay = null; return o; })()`);
+  sonuc('Ctrl+C / Ctrl+V copy / paste olayı doğurmaz (arkadaki belgeye sızmaz), belge değişmez', olay.copy === 0 && olay.paste === 0 && !(await belgeSayfa()).degisti, olay, S_CV);
+  await sTikla('1');
+  for (let i = 0; i < 4; i++) await tus('z', ['ctrl']);
+  await bekle(150);
+  d = await sDurum();
+  if (!ayni(d.sira, bir(12)) || !Object.values(d.rozet).every((x) => x === 0)) throw new Error('Sayfaları düzenle başlangıç düzenine dönmedi (Ctrl+C / Ctrl+V): ' + J(d));
 
   // PDF ekle
   await diyalogKaydi();
