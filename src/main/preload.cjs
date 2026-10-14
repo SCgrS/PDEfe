@@ -16,7 +16,7 @@ const CAGRILAR = new Set([
   'sekme:surukleBitti', 'sekme:tasi',
   'uygulama:bilgi', 'uygulama:geciciKlasor', 'uygulama:klasorler', 'uygulama:sonDosyalar', 'uygulama:veriKlasoru',
   'yanit',
-  'yazdir:hazirla', 'yazdir:sayfaEkle', 'yazdir:baslat', 'yazdir:iptal', 'yazdir:durum',
+  'yazdir:hazirla', 'yazdir:sayfaEkle', 'yazdir:baslat', 'yazdir:iptal', 'yazdir:durum', 'yazdir:yazicilar', 'yazdir:yaziciDurumu', 'yazdir:tercihler',
 ]);
 const GONDERIMLER = new Set(['uygulama:hazir', 'pencere:belgeler', 'pencere:kirli', 'sekme:surukleBasla', 'sekme:surukleCan', 'sekme:surukleIptal']);
 const DINLEMELER = new Set([

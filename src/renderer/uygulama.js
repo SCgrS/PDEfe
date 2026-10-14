@@ -1360,7 +1360,7 @@ const komutlar = {
   'not.arac': (arac) => { const b = aktif(); if (b) b.notlar.aracSec(arac); },
   'not.sil': () => aktif()?.notlar.silSecili(),
   'dosya.klasordeGoster': () => { const b = aktif(); if (b) pdefe.cagir('kabuk:klasordeGoster', b.yol); },
-  'dosya.yazdir': () => { const b = aktif(); if (!b) { bildir('Yazdırılacak belge yok.'); return; } return yazdir({ cekirdek, pdefe, mesajKutusu, bildir, kaydet: (belge) => belgeKaydet(belge) }, b); },
+  'dosya.yazdir': () => { const b = aktif(); if (!b) { bildir('Yazdırılacak belge yok.'); return; } return yazdir({ cekirdek, pdefe, mesajKutusu, bildir, kaydet: (belge) => belgeKaydet(belge), ayar: () => ayar }, b); },
   // Pencerenin tek sekmesi açılış sekmesiyse (kapatılmaz) Ctrl+W pencereyi kapatır
   'sekme.kapat': () => { if (aktifId && tekAcilisSekmesi() !== aktifId) sekmeKapat(aktifId); else pdefe.cagir('pencere:kapat'); },
   'sekme.yeni': () => yeniSekme(),

@@ -306,6 +306,55 @@ export default async function ({ evalJs }) {
   })()`);
   sonuc('Araç çubuğundaki Yazdır: ipucu macOS\'ta "Yazdır (⌘P)", Windows\'ta "Yazdır (Ctrl+P)"', yazdirIpucu.kaynak === 'Yazdır (Ctrl+P)' && yazdirIpucu.mac === 'Yazdır (⌘P)' && yazdirIpucu.win === 'Yazdır (Ctrl+P)', yazdirIpucu);
 
+  // ---------------------------------------------------------------- Yazdırma penceresi (yazdir.js, 0.2.6)
+  // macOS'ta yazıcının tercihleri yerine Sistem Ayarları › Yazıcılar ve Tarayıcılar ("Yazıcı ayarları"), yedek yol "macOS yazdırma penceresiyle
+  // yazdır"; yazıcı CUPS kuyruğunun adıyla seçilir (pencerede görünen ad), Yazdır o adı gönderir. Ana süreç ve çekirdek sahte.
+  const yazdirPenceresi = await evalJs(`(async () => { ${ORTAM}
+    const sonuc = {};
+    for (const mac of [true, false]) {
+      const o = ortam(mac), { yazdir } = await o.yukle('yazdir.js');
+      const cagrilar = [], bildirimler = [];
+      const pdefe = { cagir: async (k, a) => {
+        cagrilar.push({ k, a });
+        if (k === 'dosya:varMi') return true;
+        if (k === 'ayar:al') return {};
+        if (k === 'yazdir:yazicilar') return { yazicilar: [{ ad: 'Lazer_Yazici', gorunenAd: 'Lazer Yazıcı', varsayilan: true }], varsayilan: 'Lazer_Yazici' };
+        if (k === 'yazdir:yaziciDurumu') return { durumlar: {} };
+        if (k === 'yazdir:tercihler') return { basarili: true };
+        if (k === 'yazdir:hazirla') return { basarili: true, is: 'deneme' };
+        if (k === 'yazdir:sayfaEkle') return { basarili: true, dosya: 's0001.jpg', toplamBayt: 3 };
+        if (k === 'yazdir:baslat') return { basarili: true };
+        return null;
+      } };
+      const cekirdek = async (y) => (y === 'sayfa_boyutlari' ? { sayfa: 1, sayfalar: [{ genislik: 595, yukseklik: 842 }] }
+        : y === 'sayfa_goruntu' ? { veri: 'AAAA', bicim: 'jpeg', genislikPt: 595, yukseklikPt: 842 } : null);
+      const is = yazdir({ cekirdek, pdefe, mesajKutusu: async () => ({ secim: 0 }), bildir: (m) => bildirimler.push(m), kaydet: async () => true },
+        { yol: '/Volumes/Arsiv/Belge.pdf', ad: 'Belge.pdf', degisti: false, gorunum: { gecerli: 1, sayfaSayisi: 1 } });
+      const b = o.belge, t0 = Date.now();
+      while (Date.now() - t0 < 5000 && !(b.querySelector('.yazdir-diyalog [name="yazici"]')?.value)) await new Promise((c) => setTimeout(c, 50));
+      const tercih = b.querySelector('.yazdir-diyalog [data-id="tercihler"]');
+      const r = { tercih: tercih?.textContent, tercihIpucu: tercih?.title, sistem: b.querySelector('.yazdir-diyalog [data-id="sistem"]')?.textContent,
+        yazici: b.querySelector('.yazdir-diyalog [name="yazici"]')?.value, yaziciMetni: b.querySelector('.yazdir-diyalog [name="yazici"]')?.selectedOptions[0]?.textContent };
+      tercih?.click(); await new Promise((c) => setTimeout(c, 100));
+      r.tercihIstegi = cagrilar.find((c) => c.k === 'yazdir:tercihler')?.a;
+      b.querySelector('.yazdir-diyalog [data-id="yazdir"]').click();
+      await Promise.race([is, new Promise((c) => setTimeout(c, 5000))]);
+      r.baslat = cagrilar.find((c) => c.k === 'yazdir:baslat')?.a?.secenekler || null;
+      r.bildirim = bildirimler.at(-1) || null;
+      r.acikKaldi = !!b.querySelector('.yazdir-ortusu');
+      sonuc[mac ? 'mac' : 'win'] = r;
+    }
+    return sonuc;
+  })()`);
+  sonuc('Yazdırma penceresi (macOS): "Yazıcı ayarları" (Sistem Ayarları), "macOS yazdırma penceresiyle yazdır"', yazdirPenceresi.mac.tercih === 'Yazıcı ayarları'
+    && /Sistem Ayarları › Yazıcılar ve Tarayıcılar/.test(yazdirPenceresi.mac.tercihIpucu) && yazdirPenceresi.mac.sistem === 'macOS yazdırma penceresiyle yazdır', yazdirPenceresi.mac);
+  sonuc('Yazdırma penceresi (Windows): "Yazıcı tercihleri", "Windows yazdırma penceresiyle yazdır"', yazdirPenceresi.win.tercih === 'Yazıcı tercihleri'
+    && yazdirPenceresi.win.sistem === 'Windows yazdırma penceresiyle yazdır', yazdirPenceresi.win);
+  for (const [ad, r] of [['macOS', yazdirPenceresi.mac], ['Windows', yazdirPenceresi.win]]) {
+    sonuc(`Yazdırma penceresi (${ad}): yazıcı kuyruk adıyla seçili, görünen adı yazılı; tercihler ve Yazdır o adı gönderir`, r.yazici === 'Lazer_Yazici' && r.yaziciMetni === 'Lazer Yazıcı (varsayılan)'
+      && r.tercihIstegi?.yazici === 'Lazer_Yazici' && r.baslat?.yazici === 'Lazer_Yazici' && r.baslat?.sistemPenceresi === false && r.bildirim === '"Lazer Yazıcı" yazıcısına gönderildi: 1 sayfa' && !r.acikKaldi, r);
+  }
+
   await evalJs(`(() => { document.querySelector('#mac-cerceve')?.remove(); document.querySelector('#win-cerceve')?.remove(); return true; })()`);
   console.log(`\n${tamam} tamam, ${hata} hata`);
 }

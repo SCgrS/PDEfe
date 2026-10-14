@@ -139,6 +139,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
 
   // ---------------------------------------------------------------- Yazdır: seçenek penceresi
   const YZ = '.yazdir-ortusu';
+  await evalJs(`window.pdefe.cagir('test:yazicilar', '1')`);   // sahte yazıcılar (0.2.6): yazıcısı olmayan bilgisayarda da Yazdır etkin
   const yazdirAc = async () => { await komut('dosya.yazdir'); return beklet(`!!document.querySelector('.yazdir-diyalog')`); };
   denetle('Yazdır: seçenek penceresi açıldı', await yazdirAc());
   await kapatmayanlar('Yazdır', YZ, '.yazdir-diyalog .baslik');

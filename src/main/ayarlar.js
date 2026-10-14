@@ -41,6 +41,9 @@ export const VARSAYILANLAR = {
   solPanelAcik: false,
   solPanelSekme: 'sayfalar',
   menuCubugu: false,              // pencerenin menü çubuğu (Dosya, Düzen…) görünür mü; 0.1.24'ten beri varsayılan gizli, araç çubuğundaki düğmeyle açılır
+  // Yazdırma penceresinin son seçimleri (0.2.6, renderer/yazdir.js): { yazici, harmanla, kagit, olcek, renk, ciftTarafli }. Kopya sayısı,
+  // sayfa aralığı ve "Notları yazdır" kalıcı değil (bir sonraki yazdırmada kendiliğinden 5 kopya ya da notlar basılmasın)
+  yazdirma: {},
   pencere: {},
 };
 

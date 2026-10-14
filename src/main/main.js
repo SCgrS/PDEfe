@@ -437,7 +437,7 @@ function ipcKur(ipcMain) {
   });
   ipcMain.handle('cekirdek:iptal', (e, istekId) => cekirdek.iptal(`${e.sender.id}:${istekId}`));
   ipcMain.handle('ayar:varsayilanlar', () => VARSAYILANLAR);
-  yazdirmaKur({ ipcMain, BrowserWindow, pencereAl });
+  yazdirmaKur({ ipcMain, BrowserWindow, pencereAl, testDiyalog, TEST });   // test örneğinde yazıcıya gitmez (yazdir.js)
 }
 
 // ---------- Yaşam döngüsü ----------

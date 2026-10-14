@@ -1,28 +1,41 @@
-// Yazdırma (ana süreç): renderer'ın sayfa sayfa gönderdiği görüntüleri geçici bir iş klasörüne
-// yazar, küçük bir HTML iskeletini gizli bir pencerede yükler ve Windows yazdırma diyaloğuyla
-// (silent:false) yazdırır.
+// Yazdırma (ana süreç): renderer'ın sayfa sayfa gönderdiği görüntüleri geçici bir iş klasörüne yazar, küçük bir HTML iskeletini gizli
+// bir pencerede yükler ve seçilen yazıcıya yazdırır.
 //
-// Neden sayfa başına dosya? Bütün belgeyi tek base64 HTML dizesi olarak taşımak V8'in
-// 512 MB dize sınırına ve Chromium'un IPC ileti sınırına takılır (756 sayfa ≈ 500 MB).
-// Her sayfa ayrı bir IPC iletisiyle gelir (≈0,5–1,5 MB) ve diske yazılır; HTML yalnızca
+// 0.2.6: Yazdırma PDEfe'nin kendi penceresinden (renderer/yazdir.js: yazıcı, kopya, kâğıt, renk, çift taraflı, ön izleme) Windows'un
+// yazdırma kutusu açılmadan yapılır (webContents.print silent:true + deviceName). Neden: silent:false iken Chromium PrintDlgEx çağırıyor;
+// Windows 11 22H2'den beri bu Win32 çağrısı birleşik (modern) yazdırma kutusuna gidiyor. O kutuda Win32 uygulamalarının ön izlemesi hep boş
+// ("Bu uygulama yazdırma önizlemesini desteklemiyor"), kutu uygulamanın verdiği kâğıdı / yönü / çift taraflıyı yok sayabiliyor ve sayfa
+// seçimi PDEfe'dekiyle ikinci kez yapılıyordu. Windows'un (macOS'un) yazdırma penceresi yedek yol olarak duruyor (sistemPenceresi).
+//
+// Neden sayfa başına dosya? Bütün belgeyi tek base64 HTML dizesi olarak taşımak V8'in 512 MB dize sınırına ve Chromium'un IPC ileti
+// sınırına takılır (756 sayfa ≈ 500 MB). Her sayfa ayrı bir IPC iletisiyle gelir (≈0,5–1,5 MB) ve diske yazılır; HTML yalnızca
 // <img src="s0001.jpg"> satırlarından oluşur, göreli yollar file:// üzerinden aynı klasörden yüklenir.
 //
 // Kanallar (hepsi { basarili, hata } ya da doğrudan sonuç döner; hata iletileri Türkçe):
-//   'yazdir:hazirla'  {}                                   → { is: string, klasor: string }
-//   'yazdir:sayfaEkle' { is, sira, veri(base64), bicim }   → { dosya: 's0001.jpg', bayt, toplamBayt }
-//   'yazdir:baslat'   { is, html, secenekler: { ciftTarafli: 'tek'|'uzun'|'kisa',
-//                       sayfaBoyutu: { genislikMikron, yukseklikMikron } | 'A4'|'A3'|'A5'|'Letter'|'Legal'|'Tabloid' } }
-//                                                          → { basarili: true } | { basarili: false, iptal: true } | { basarili: false, hata }
-//   'yazdir:iptal'    { is? }                              → true  (hazırlık aşamasında klasörü siler; diyalog
-//                                                             açıkken gizli pencereyi yok eder → diyalog kapanır)
-//   'yazdir:durum'    {}                                   → { suruyor: boolean, asama: 'yok'|'hazirlik'|'yazdirma' }
+//   'yazdir:yazicilar'   {}                                 → { yazicilar: [{ ad, gorunenAd, varsayilan }], varsayilan: ad | null }
+//   'yazdir:yaziciDurumu' {}                                → { durumlar: { <ad>: { cevrimDisi, ciftTarafli, dosyayaYazar, varsayilan } } }
+//                          (Windows: Win32_Printer, ~1 sn, pencere açıldıktan sonra arkadan; macOS'ta boş)
+//   'yazdir:tercihler'   { yazici }                         → { basarili, hata? }  (Windows: yazıcının "Yazdırma tercihleri" penceresi;
+//                          macOS: Sistem Ayarları › Yazıcılar ve Tarayıcılar)
+//   'yazdir:hazirla'     {}                                 → { is: string, klasor: string }
+//   'yazdir:sayfaEkle'   { is, sira, veri(base64), bicim }  → { dosya: 's0001.jpg', bayt, toplamBayt }
+//   'yazdir:baslat'      { is, html, secenekler: { yazici, kopya, harmanla, renk, ciftTarafli, sayfaBoyutu, sistemPenceresi } }
+//                                                           → { basarili: true } | { basarili: false, iptal: true } | { basarili: false, hata }
+//   'yazdir:iptal'       { is? }                            → true  (hazırlık aşamasında klasörü siler; yazdırma sürerken gizli pencereyi
+//                                                             yok eder → iş / Windows kutusu kapanır)
+//   'yazdir:durum'       {}                                 → { suruyor: boolean, asama: 'yok'|'hazirlik'|'yazdirma' }
 //
-// Aynı anda tek iş yürür. İş klasörü: app.getPath('temp')/PDEfe/yazdir-<zaman>-<pid>/ ; iş bitince,
-// iptal edilince, ana pencere kapanınca ve uygulama çıkarken silinir. Önceki oturumlardan kalan
-// (çökme vb.) bir günden eski iş klasörleri açılışta temizlenir.
+// Test örneğinde (gelistirme.js testDiyalogKur) yazıcıya hiçbir şey gitmez: print çağrısı ve tercihler penceresi test:diyalogKaydi'na düşer
+// ('yazdir:yazdir', 'yazdir:tercihler'). PDEFE_TEST_YAZICILAR sahte yazıcı listesi verir ("1": yerleşik liste, ya da JSON dizi), test:yazicilar
+// onu sonradan değiştirir. Görünmeyen masaüstündeki örnekte PDEFE_TEST_GERCEK_YAZDIR=1 gerçek yazdırmayı açar (test/yazdir_gercek.mjs).
+//
+// Aynı anda tek iş yürür. İş klasörü: app.getPath('temp')/PDEfe/yazdir-<zaman>-<pid>/ ; iş bitince, iptal edilince, ana pencere kapanınca
+// ve uygulama çıkarken silinir. Önceki oturumlardan kalan (çökme vb.) bir günden eski iş klasörleri açılışta temizlenir.
 import path from 'node:path';
 import fs from 'node:fs';
-import { app } from 'electron';
+import { execFile, spawn } from 'node:child_process';
+import { app, shell } from 'electron';
+import { secenekleriHazirla, nedenTurkce, varsayilanYaziciCoz, lpstatCoz, yaziciListesiHazirla, yaziciDurumlariniCoz, dosyayaYazarMi } from './yazdirSecenek.js';
 
 const EN_BUYUK_HTML_BAYT = 32 * 1024 * 1024;          // HTML artık yalnızca iskelet; 32 MB üstü bozukluk işaretidir
 const EN_BUYUK_SAYFA_BAYT = 64 * 1024 * 1024;         // tek sayfa görüntüsü (200 dpi A3 PNG bile 20 MB'ı geçmez)
@@ -30,10 +43,19 @@ const EN_BUYUK_TOPLAM_BAYT = 4 * 1024 * 1024 * 1024;  // iş başına disk kulla
 const EN_FAZLA_SAYFA = 5000;
 const YUKLEME_ZAMAN_ASIMI_MS = 300_000;               // binlerce görselin çözülmesi uzun sürebilir
 const ESKI_IS_OMRU_MS = 24 * 60 * 60 * 1000;
-
-const CIFT_TARAFLI = { tek: 'simplex', uzun: 'longEdge', kisa: 'shortEdge' };
-const STANDART_BOYUTLAR = new Set(['A3', 'A4', 'A5', 'Legal', 'Letter', 'Tabloid']);
+const DURUM_OMRU_MS = 15_000;                         // Win32_Printer sorgusu bu kadar süre yeniden kullanılır (pencere art arda açılınca)
 const BICIM_UZANTI = { jpeg: 'jpg', jpg: 'jpg', png: 'png' };
+const WIN = process.platform === 'win32';
+const MAC = process.platform === 'darwin';
+const SISTEM32 = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32');
+
+/** Test örneğinin yerleşik sahte yazıcıları (PDEFE_TEST_YAZICILAR=1): çift taraflı basan varsayılan yazıcı, dosyaya yazan, çevrim dışı. */
+const SAHTE_YAZICILAR = [
+  { ad: 'Lazer Yazıcı', varsayilan: true, ciftTarafli: true },
+  { ad: 'Microsoft Print to PDF', dosyayaYazar: true },
+  { ad: 'Kat 2 Yazıcısı', cevrimDisi: true, ciftTarafli: true },
+];
+const SAHTE_DURUM_GECIKMESI_MS = 400;   // Win32_Printer gibi arkadan gelsin
 
 /** @type {{ id: string, klasor: string, asama: 'hazirlik'|'yazdirma', sayfaSayisi: number, toplamBayt: number, pencere: any, bitir: Function|null, iptalEdildi: boolean, sahipBirak: Function|null } | null} */
 let aktif = null;
@@ -41,10 +63,45 @@ let sayac = 0;
 
 /**
  * Yazdırma IPC işleyicilerini kurar.
- * @param {{ ipcMain: Electron.IpcMain, BrowserWindow: typeof Electron.BrowserWindow, pencereAl: (e: Electron.IpcMainInvokeEvent) => Electron.BrowserWindow|null }} p
- *   pencereAl: isteği gönderen uygulama penceresi (birden çok pencere olabilir)
+ * @param {{ ipcMain: Electron.IpcMain, BrowserWindow: typeof Electron.BrowserWindow, pencereAl: (e: Electron.IpcMainInvokeEvent) => Electron.BrowserWindow|null,
+ *   testDiyalog?: Function|null, TEST?: { yazicilar?: string, gercekYazdir?: boolean } }} p
+ *   pencereAl: isteği gönderen uygulama penceresi (birden çok pencere olabilir); testDiyalog: test örneğinde yerel pencerelerin yerine (main.js)
  */
-export function yazdirmaKur({ ipcMain, BrowserWindow, pencereAl }) {
+export function yazdirmaKur({ ipcMain, BrowserWindow, pencereAl, testDiyalog = null, TEST = {} }) {
+  const test = testDiyalog ? { diyalog: testDiyalog, gercekYazdir: !!TEST.gercekYazdir, yazicilar: sahteYazicilariCoz(TEST.yazicilar) } : null;
+  if (test) ipcMain.handle('test:yazicilar', (_e, liste) => { test.yazicilar = liste == null ? null : sahteYazicilariCoz(liste); return true; });
+
+  /** İsteği gönderen pencereden yazıcı listesi (test örneğinde sahte liste verilmişse o). */
+  const yazicilar = (e) => (test?.yazicilar ? sahteListe(test.yazicilar) : yazicilariOku(e.sender));
+  /** Yazıcının durumu (çevrim dışı, çift taraflı, dosyaya yazar). */
+  const durumlar = () => (test?.yazicilar ? sahteDurumlar(test.yazicilar) : yaziciDurumlariOku());
+
+  ipcMain.handle('yazdir:yazicilar', async (e) => {
+    try { return await yazicilar(e); } catch (h) { return { yazicilar: [], varsayilan: null, hata: hataMetni(h) }; }
+  });
+  ipcMain.handle('yazdir:yaziciDurumu', async () => ({ durumlar: await durumlar().catch(() => ({})) }));
+
+  ipcMain.handle('yazdir:tercihler', async (e, istek) => {
+    const ad = String(istek?.yazici || '');
+    let liste = [];
+    try { liste = (await yazicilar(e)).yazicilar; } catch { /* aşağıda bulunamadı */ }
+    if (!ad || !liste.some((y) => y.ad === ad)) return { basarili: false, hata: 'Yazıcı bulunamadı (kaldırılmış ya da adı değişmiş olabilir).' };
+    if (test) return test.diyalog('yazdir:tercihler', { yazici: ad, platform: process.platform }, { basarili: true });
+    try {
+      if (WIN) {
+        // Yazıcının kendi "Yazdırma tercihleri" penceresi (ayrı süreç, kipsiz): kabuk yok, ad yukarıda listeden doğrulandı
+        const surec = spawn(path.join(SISTEM32, 'rundll32.exe'), ['printui.dll,PrintUIEntry', '/e', '/n', ad], { detached: true, stdio: 'ignore', windowsHide: false });
+        surec.on('error', (h) => console.warn('[yazdır] tercihler açılamadı:', h?.message || h));
+        surec.unref();
+      } else if (MAC) {
+        await shell.openExternal('x-apple.systempreferences:com.apple.Print-Scan-Settings.extension');
+      }
+      return { basarili: true };
+    } catch (h) {
+      return { basarili: false, hata: 'Yazıcı tercihleri açılamadı: ' + hataMetni(h) };
+    }
+  });
+
   ipcMain.handle('yazdir:hazirla', async (e) => {
     if (aktif) return { basarili: false, hata: 'Bir yazdırma işlemi zaten sürüyor. Önce onu bitirin ya da iptal edin.' };
     const id = `${Date.now().toString(36)}-${process.pid}-${++sayac}`;
@@ -101,7 +158,7 @@ export function yazdirmaKur({ ipcMain, BrowserWindow, pencereAl }) {
     if (is.asama !== 'hazirlik') return { basarili: false, hata: 'Bu yazdırma işi zaten başlatıldı.' };
     is.asama = 'yazdirma';
     try {
-      return await yazdir({ BrowserWindow, pencereAl: () => pencereAl?.(e) || null }, is, { html, secenekler });   // diyaloğun sahibi: yazdıran pencere
+      return await yazdir({ BrowserWindow, pencereAl: () => pencereAl?.(e) || null, test, durumlar }, is, { html, secenekler });   // sahip: yazdıran pencere
     } catch (e) {
       return { basarili: false, hata: hataMetni(e) };
     } finally {
@@ -131,10 +188,70 @@ export function yazdirmaKur({ ipcMain, BrowserWindow, pencereAl }) {
   eskiIsleriTemizle().catch(() => { /* yalnızca bakım */ });
 }
 
+// ---------------------------------------------------------------- yazıcılar
+/** Electron'un yazıcı listesi + varsayılan yazıcı. */
+async function yazicilariOku(wc) {
+  const [liste, varsayilan] = await Promise.all([
+    wc.getPrintersAsync().catch(() => []),
+    varsayilanYaziciOku().catch(() => null),
+  ]);
+  const yazicilar = yaziciListesiHazirla(liste, varsayilan);
+  return { yazicilar, varsayilan: yazicilar.find((y) => y.varsayilan)?.ad ?? null };
+}
+
+/** Varsayılan yazıcının adı: Windows'ta kayıt defterinden (~35 ms; Electron'un listesinde bu bilgi yok), macOS'ta lpstat -d. */
+function varsayilanYaziciOku() {
+  return new Promise((coz) => {
+    if (WIN) {
+      // reg.exe tam yoluyla: çıplak ad sürecin çalışma klasöründe aranabilirdi (main.js progIdOku ile aynı)
+      execFile(path.join(SISTEM32, 'reg.exe'), ['query', 'HKCU\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Windows', '/v', 'Device'],
+        { windowsHide: true, timeout: 5000 }, (hata, cikti) => coz(hata ? null : varsayilanYaziciCoz(cikti)));
+    } else if (MAC) {
+      execFile('/usr/bin/lpstat', ['-d'], { timeout: 5000, env: { ...process.env, LANG: 'C', LC_ALL: 'C' } }, (hata, cikti) => coz(hata ? null : lpstatCoz(cikti)));
+    } else {
+      coz(null);
+    }
+  });
+}
+
+let durumOnbellegi = null;   // { zaman, soz }
+/** Windows'ta yazıcıların durumu (Win32_Printer; PowerShell ~1 sn). Kısa süre önbellekte; hata ya da başka sistemde {}. */
+function yaziciDurumlariOku() {
+  if (!WIN) return Promise.resolve({});
+  if (durumOnbellegi && Date.now() - durumOnbellegi.zaman < DURUM_OMRU_MS) return durumOnbellegi.soz;
+  const komut = '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; '
+    + 'Get-CimInstance -ClassName Win32_Printer | Select-Object Name, Default, WorkOffline, PrinterStatus, ExtendedPrinterStatus, PortName, CapabilityDescriptions | ConvertTo-Json -Compress -Depth 3';
+  const soz = new Promise((coz) => {
+    execFile(path.join(SISTEM32, 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoProfile', '-NonInteractive', '-Command', komut],
+      { windowsHide: true, timeout: 20_000, maxBuffer: 4 * 1024 * 1024, encoding: 'utf8' },
+      (hata, cikti) => coz(hata ? {} : yaziciDurumlariniCoz(cikti)));
+  });
+  durumOnbellegi = { zaman: Date.now(), soz };
+  soz.then((d) => { if (!Object.keys(d).length && durumOnbellegi?.soz === soz) durumOnbellegi = null; });   // başarısız sorgu önbellekte kalmasın
+  return soz;
+}
+
+/** PDEFE_TEST_YAZICILAR / test:yazicilar: "1" ya da boş olmayan herhangi bir değer dışı JSON → yerleşik liste; JSON dizi → o liste. */
+function sahteYazicilariCoz(deger) {
+  if (deger == null || deger === '') return null;
+  if (Array.isArray(deger)) return deger;
+  try { const d = JSON.parse(String(deger)); if (Array.isArray(d)) return d; } catch { /* yerleşik liste */ }
+  return SAHTE_YAZICILAR;
+}
+function sahteListe(liste) {
+  const yazicilar = yaziciListesiHazirla(liste.map((y) => ({ name: y.ad, displayName: y.gorunenAd || y.ad })), liste.find((y) => y.varsayilan)?.ad ?? null);
+  return Promise.resolve({ yazicilar, varsayilan: yazicilar.find((y) => y.varsayilan)?.ad ?? null });
+}
+function sahteDurumlar(liste) {
+  const durumlar = {};
+  for (const y of liste) durumlar[y.ad] = { cevrimDisi: !!y.cevrimDisi, ciftTarafli: !!y.ciftTarafli, dosyayaYazar: !!y.dosyayaYazar, varsayilan: !!y.varsayilan };
+  return new Promise((coz) => setTimeout(() => coz(durumlar), SAHTE_DURUM_GECIKMESI_MS));
+}
+
 // ---------------------------------------------------------------- iş yaşam döngüsü
 function kokKlasor() { return path.join(app.getPath('temp'), 'PDEfe'); }
 
-/** Diyalog açıksa gizli pencereyi yok eder (diyalog kapanır, print geri çağrısı iptalle döner). */
+/** Yazdırma sürüyorsa gizli pencereyi yok eder (iş ya da Windows kutusu kapanır, print geri çağrısı iptalle döner). */
 function iptalEt(is) {
   is.iptalEdildi = true;
   const p = is.pencere;
@@ -172,20 +289,23 @@ async function eskiIsleriTemizle() {
 }
 
 // ---------------------------------------------------------------- yazdırma
-async function yazdir({ BrowserWindow, pencereAl }, is, { html, secenekler }) {
+async function yazdir({ BrowserWindow, pencereAl, test, durumlar }, is, { html, secenekler }) {
   if (typeof html !== 'string' || !html.trim()) return { basarili: false, hata: 'Yazdırılacak içerik boş.' };
   if (Buffer.byteLength(html, 'utf8') > EN_BUYUK_HTML_BAYT) return { basarili: false, hata: 'Yazdırma sayfası beklenmedik biçimde büyük. Daha az sayfa seçin.' };
   if (!is.sayfaSayisi) return { basarili: false, hata: 'Yazdırılacak sayfa görüntüsü eklenmedi.' };
 
-  const yazdirmaSecenekleri = secenekleriHazirla(secenekler || {});
+  const s = secenekler || {};
+  const yazdirmaSecenekleri = secenekleriHazirla(s);
+  // Dosyaya yazan yazıcı (Microsoft Print to PDF, XPS) sessiz yazdırmada da "Çıktıyı Farklı Kaydet" kutusunu açar
+  const dosyaKutusu = !s.sistemPenceresi && (WIN || !!test?.yazicilar) && ((await durumlar().catch(() => ({})))[s.yazici]?.dosyayaYazar ?? dosyayaYazarMi(s.yazici));
 
   // 1) HTML iskeleti iş klasörüne (görseller aynı klasörde, göreli yol)
   const dosya = path.join(is.klasor, 'yazdir.html');
   await fs.promises.writeFile(dosya, html, 'utf8');
   if (is.iptalEdildi) return { basarili: false, iptal: true };
 
-  // 2) Gizli pencere: diyaloğun sahibi bu pencere olur; ana pencerenin konumuna oturtulur ki
-  //    Windows diyaloğu ana pencerenin ortasında açılsın.
+  // 2) Gizli pencere: Windows kutusunun (yedek yol) sahibi bu pencere olur; ana pencerenin konumuna oturtulur ki kutu ana pencerenin
+  //    ortasında açılsın.
   const ana = pencereAl?.() || null;
   const anaGecerli = ana && !ana.isDestroyed() ? ana : null;
   const pencere = new BrowserWindow({
@@ -211,15 +331,32 @@ async function yazdir({ BrowserWindow, pencereAl }, is, { html, secenekler }) {
   try {
     await yukle(pencere, dosya);
     if (pencere.isDestroyed() || is.iptalEdildi) return { basarili: false, iptal: true };
-    const sonuc = await webContentsYazdir(pencere, is, yazdirmaSecenekleri);
-    return sonuc;
+    if (test && !test.gercekYazdir) return await testYazdir(test, pencere, is, yazdirmaSecenekleri, { dosyaKutusu });
+    return await webContentsYazdir(pencere, is, yazdirmaSecenekleri);
   } finally {
     try { anaGecerli?.removeListener('closed', anaKapandi); } catch { /* yok say */ }
     try { if (!pencere.isDestroyed()) pencere.destroy(); } catch { /* yok say */ }
     is.pencere = null;
-    // Diyaloğun sahibi gizli pencereydi; kapanınca Windows odağı başka bir uygulamaya verebilir
-    try { if (anaGecerli && !anaGecerli.isDestroyed() && !anaGecerli.isMinimized()) anaGecerli.focus(); } catch { /* yok say */ }
+    // Kutunun (Windows yazdırma penceresi, "Çıktıyı Farklı Kaydet") ardından Windows odağı başka bir uygulamaya verebilir. Kutusuz sessiz
+    // yazdırmada odağa dokunulmaz: kullanıcı bu arada başka bir pencereye geçmiş olabilir. Test örneğinde hiç (kişinin ekranındaki odak)
+    if (!test && (s.sistemPenceresi || dosyaKutusu)) {
+      try { if (anaGecerli && !anaGecerli.isDestroyed() && !anaGecerli.isMinimized()) anaGecerli.focus(); } catch { /* yok say */ }
+    }
   }
+}
+
+/** Test örneği: yazıcıya gitmez. Seçenekler ve yüklenen sayfa test:diyalogKaydi'na düşer; yanıt test kuyruğundan
+ *  ({ basarili: true } varsayılan; { basarili: false, neden } Chromium'un hata iletisi; { iptal: true }). */
+async function testYazdir(test, pencere, is, secenek, ek) {
+  let sayfa = null;
+  try {
+    sayfa = await pencere.webContents.executeJavaScript(`(() => ({ sayfa: document.querySelectorAll('.sayfa').length, gorsel: [...document.images].filter((i) => i.complete && i.naturalWidth > 0).length,
+      kagit: (document.styleSheets[0]?.cssRules[0]?.cssText || '').replace(/\\s+/g, ' ') }))()`, true);
+  } catch { /* yok say */ }
+  const yanit = test.diyalog('yazdir:yazdir', { secenek, sayfaSayisi: is.sayfaSayisi, sayfa, ...ek }, { basarili: true }) || {};
+  if (yanit.iptal) return { basarili: false, iptal: true };
+  if (yanit.basarili === false) return /cancel/i.test(String(yanit.neden || '')) ? { basarili: false, iptal: true } : { basarili: false, hata: nedenTurkce(String(yanit.neden || '')) };
+  return { basarili: true };
 }
 
 /** Geçici dosyayı yükler; did-finish-load / did-fail-load / çökme / kapanma / zaman aşımı. */
@@ -235,30 +372,6 @@ function yukle(pencere, dosya) {
     pencere.once('closed', () => bitir(Object.assign(new Error('Yazdırma vazgeçildi.'), { iptal: true })));
     pencere.loadFile(dosya).catch((e) => bitir(e));
   });
-}
-
-/** Renderer'dan gelen seçenekleri Electron webContents.print() biçimine çevirir. */
-function secenekleriHazirla(s) {
-  const secenek = {
-    silent: false,                 // Windows yazdırma diyaloğu açılır (yazıcı, kopya sayısı vb. orada seçilir)
-    printBackground: true,
-    color: true,
-    margins: { marginType: 'none' },
-    landscape: false,
-    duplexMode: CIFT_TARAFLI[s.ciftTarafli] || 'simplex',
-  };
-  const b = s.sayfaBoyutu;
-  if (typeof b === 'string' && STANDART_BOYUTLAR.has(b)) {
-    secenek.pageSize = b;
-  } else if (b && Number.isFinite(b.genislikMikron) && Number.isFinite(b.yukseklikMikron) && b.genislikMikron > 0 && b.yukseklikMikron > 0) {
-    // Electron mikron ister; tam sayıya yuvarla. Çok küçük değerler sürücüde hata verir; 30 mm altına inme.
-    const g = Math.max(30_000, Math.round(b.genislikMikron));
-    const y = Math.max(30_000, Math.round(b.yukseklikMikron));
-    secenek.pageSize = { width: g, height: y };
-  } else {
-    secenek.pageSize = 'A4';
-  }
-  return secenek;
 }
 
 /**
@@ -281,24 +394,9 @@ function webContentsYazdir(pencere, is, secenek) {
         bitir({ basarili: false, hata: nedenTurkce(n) });
       });
     } catch (e) {
-      bitir({ basarili: false, hata: hataMetni(e) });
+      bitir({ basarili: false, hata: nedenTurkce(hataMetni(e)) });
     }
   });
-}
-
-/** Electron/Chromium'un İngilizce yazdırma hatalarını Türkçeye çevirir. */
-function nedenTurkce(neden) {
-  if (!neden) return 'Yazdırma başarısız oldu.';
-  if (/no printers|printer not found|no valid printers|printer_not_found/i.test(neden)) {
-    return process.platform === 'darwin' ? 'Kurulu yazıcı bulunamadı. Sistem Ayarları > Yazıcılar ve Tarayıcılar bölümünden bir yazıcı ekleyin.'
-      : 'Kurulu yazıcı bulunamadı. Windows Ayarlar > Yazıcılar ve tarayıcılar bölümünden bir yazıcı ekleyin.';
-  }
-  if (/invalid printer settings|invalid settings|invalid_settings/i.test(neden)) return 'Yazıcı ayarları geçersiz. Sayfa boyutu ya da çift taraflı seçeneği bu yazıcıda desteklenmiyor olabilir.';
-  if (/print job failed|^failed$/i.test(neden)) return 'Yazdırma işi başarısız oldu. Yazıcının açık ve bağlı olduğundan emin olun.';
-  if (/failed to print|printing failed/i.test(neden)) return 'Yazdırma işi başarısız oldu. Yazıcının açık ve bağlı olduğundan emin olun.';
-  if (/access denied|permission/i.test(neden)) return 'Yazıcıya erişim izni verilmedi.';
-  if (/out of memory|oom/i.test(neden)) return 'Yazdırma için yeterli bellek yok. Daha az sayfa seçin.';
-  return `Yazdırma başarısız oldu (yazıcı yanıtı: ${neden}).`;
 }
 
 function mb(bayt) { return (bayt / 1024 / 1024).toFixed(1).replace('.', ','); }

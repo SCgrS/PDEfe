@@ -363,6 +363,8 @@ async function calis({ evalJs, ekranGoruntusu, bekle, fare, tikla, surukle, yaz,
   await evalJs(`(() => { const i = document.querySelector('.ayarlar-icerik'); if (i) i.scrollTop = i.scrollHeight; return !!i; })()`); await bekle(400);
   if (iste('ayarlar')) await ss('ayarlar');
   await hepsiniTemizle();
+  // Yazdırma penceresinde (0.2.6) bilgisayarın kendi yazıcıları değil sahte liste: görüntüde kişisel yazıcı / sunucu adı olmasın
+  await evalJs(`window.pdefe.cagir('test:yazicilar', [{ ad: 'Ofis Yazıcısı', varsayilan: true, ciftTarafli: true }, { ad: 'Microsoft Print to PDF', dosyayaYazar: true }])`);
   await komut('dosya.yazdir'); await bekle(1200);
   await evalJs(`(() => { const b = [...document.querySelectorAll('.mesaj-kutusu button')].find((x) => /Kaydetmeden/.test(x.textContent)); b?.click(); return !!b; })()`);
   await bekle(2500);

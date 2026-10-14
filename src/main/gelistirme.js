@@ -9,6 +9,10 @@
 //   PDEFE_TEST_GUNCELLEME  "x.y.z": güncelleme akışı sahte güncelleyiciyle denenir (sunucuda x.y.z var sayılır; bkz. sahteGuncelleyiciKur).
 //   PDEFE_TEST_GUNCELLEME_HATA  sahte güncelleyicinin başlangıç senaryosu: denetim | indirme | kurulum (açılıştaki otomatik denetimi
 //                       denemek için; sonradan test:guncellemeSenaryosu ile değiştirilir).
+//   PDEFE_TEST_YAZICILAR  yazdırma penceresinin yazıcıları sahte (0.2.6; main/yazdir.js): "1" yerleşik liste (çift taraflı basan varsayılan
+//                       "Lazer Yazıcı", dosyaya yazan, çevrim dışı), ya da JSON dizi [{ ad, varsayilan, ciftTarafli, cevrimDisi, dosyayaYazar }].
+//   PDEFE_TEST_GERCEK_YAZDIR  "1": test örneğinde de gerçekten yazdırılır (0.2.6, test/yazdir_gercek.mjs). Yalnızca görünmeyen masaüstündeki
+//                       örnekte (PDEFE_TEST_GIZLI_MASAUSTU=1): "Çıktıyı Farklı Kaydet" kutusu orada açılır, kişinin ekranına çıkmaz.
 // Paketli uygulamada hiçbiri okunmaz.
 import { app, BrowserWindow, Menu } from 'electron';
 import { EventEmitter } from 'node:events';
@@ -20,7 +24,9 @@ export const TEST = !app.isPackaged ? {
   boyut: (process.env.PDEFE_TEST_BOYUT || '').split(',').map(Number).filter((n) => n > 0),
   guncelleme: process.env.PDEFE_TEST_GUNCELLEME || '',
   guncellemeHata: process.env.PDEFE_TEST_GUNCELLEME_HATA || '',
-} : { veri: '', konum: [], boyut: [], guncelleme: '', guncellemeHata: '' };
+  yazicilar: process.env.PDEFE_TEST_YAZICILAR || '',
+  gercekYazdir: process.env.PDEFE_TEST_GERCEK_YAZDIR === '1' && process.env.PDEFE_TEST_GIZLI_MASAUSTU === '1',
+} : { veri: '', konum: [], boyut: [], guncelleme: '', guncellemeHata: '', yazicilar: '', gercekYazdir: false };
 
 /** "1.2.3" karşılaştırması (yalnızca sayısal parçalar): a > b → 1, eşit → 0, küçük → -1. */
 function surumKarsilastir(a, b) {

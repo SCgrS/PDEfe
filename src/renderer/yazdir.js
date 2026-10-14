@@ -1,47 +1,56 @@
-// Yazdırma (renderer): seçenek penceresi → çekirdekten sayfa görüntüleri (200 dpi JPEG), her biri
-// ayrı IPC iletisiyle ana sürece ('yazdir:sayfaEkle') → küçük HTML iskeleti ('yazdir:baslat')
-// → Windows yazdırma diyaloğu.
+// Yazdırma (renderer): PDEfe'nin yazdırma penceresi (yazıcı, kopya, sayfalar, kâğıt, boyut, renk, çift taraflı, notlar ve büyük ön
+// izleme) → çekirdekten sayfa görüntüleri (200 dpi JPEG), her biri ayrı IPC iletisiyle ana sürece ('yazdir:sayfaEkle') → küçük HTML
+// iskeleti ('yazdir:baslat') → seçilen yazıcı.
 //
-// Sayfalar görüntü olarak basıldığından Türkçe karakterler ve gömülü olmayan fontlar ekranda
-// göründüğü gibi çıkar; yazıcı sürücüsünün font eşlemesine bağımlılık yoktur. "Notları yazdır"
-// varsayılan kapalıdır; kapalıyken çekirdek sayfayı get_pixmap(annots=False) ile yalnızca içerikten
-// çizer, bu yüzden notlar, damgalar ve form alanları (widget) da basılmaz.
+// 0.2.6: Windows'un yazdırma kutusu açılmaz (ana süreç webContents.print silent:true + deviceName; gerekçe main/yazdir.js'te). Yazıcı ve
+// öteki seçimler bu pencerede yapılır, ön izleme basılacak kâğıdı gösterir (yerleşim yazdirYerlesim.js'te, HTML'le aynı işlev). Windows'un
+// (macOS'un) yazdırma penceresi alttaki bağlantıyla yedek yol olarak durur.
 //
-// Görüntüler tek bir HTML dizesinde toplanmaz: her sayfa ana süreçte geçici iş klasörüne dosya
-// olarak yazılır ve HTML yalnızca <img src="s0001.jpg"> satırlarından oluşur. Böylece 756 sayfalık
-// belgeler bile V8 dize sınırına (512 MB) ya da IPC ileti sınırına takılmaz.
+// Sayfalar görüntü olarak basıldığından Türkçe karakterler ve gömülü olmayan fontlar ekranda göründüğü gibi çıkar; yazıcı sürücüsünün font
+// eşlemesine bağımlılık yoktur. "Notları yazdır" varsayılan kapalıdır; kapalıyken çekirdek sayfayı get_pixmap(annots=False) ile yalnızca
+// içerikten çizer, bu yüzden notlar, damgalar ve form alanları (widget) da basılmaz. Ön izleme de aynı çekirdek yöntemiyle (sayfa_goruntu,
+// notlar seçimiyle) çizilir; küçük resim (kucuk_resim) her zaman notlu çizdiği için kullanılmaz.
+//
+// Görüntüler tek bir HTML dizesinde toplanmaz: her sayfa ana süreçte geçici iş klasörüne dosya olarak yazılır ve HTML yalnızca
+// <img src="s0001.jpg"> satırlarından oluşur. Böylece 756 sayfalık belgeler bile V8 dize sınırına (512 MB) ya da IPC ileti sınırına takılmaz.
+//
+// Hatırlananlar: yazıcı, harmanla, kâğıt, boyut, renk ve çift taraflı kalıcıdır (ayar 'yazdirma'); sayfa seçimi ve "Notları yazdır" yalnızca
+// oturum boyunca, kopya sayısı her pencerede 1'den başlar.
 //
 // Dışa verilen API:
 //   yazdir(baglam, belge)                          → Promise<void>
 //     baglam = { cekirdek, pdefe, mesajKutusu, bildir, kaydet(belge), ayar?: () => ayarlar }
 //     belge  = { yol, ad, degisti, kaydediliyor?, gorunum: { gecerli, sayfaSayisi, yapisalKirli?() } }
-//   sayfaAraligiCoz(metin, toplam)                 → { sayfalar: number[] } | { hata: string }
-//   yazdirmaHtmlOlustur(sayfalar, secenek)         → { html, sayfaBoyutu: { genislikMikron, yukseklikMikron }, kagit: { genislikMm, yukseklikMm, ad } }
-//     sayfalar[i] = { no, kaynak: 's0001.jpg' } (göreli dosya) ya da { no, veri: base64 } (data: URL), + genislikPt, yukseklikPt, bicim
-// Son ikisi saf işlevdir (DOM kullanmaz), Node'da sınanabilir.
+//   sayfaAraligiCoz, yazdirmaHtmlOlustur           → yazdirYerlesim.js'ten (saf işlevler, Node'da sınanır)
 import { ayarlarPenceresiKapat } from './ayarlarPenceresi.js';
 import { ortuTiklamasiBagla } from './ortu.js';
-import { SISTEM } from './platform.js';
+import { MAC, SISTEM } from './platform.js';
+import { secilenSayfalar, kagitSec, sayfaYerlesimi, yazdirmaHtmlOlustur, kagitEtiketi, ozetMetni, onizlemeDpi, KAGITLAR, kacis } from './yazdirYerlesim.js';
 
-const PT_MM = 25.4 / 72;            // 1 pt = 0,352778 mm
-const PT_MIKRON = 25400 / 72;       // 1 pt = 352,778 mikron
+export { sayfaAraligiCoz, yazdirmaHtmlOlustur } from './yazdirYerlesim.js';
+
 const DPI = 200;                    // yazdırma çözünürlüğü
 const JPEG_KALITE = 92;
-const GUVENLI_KENAR_MM = 4;         // "Sayfaya sığdır" için yazıcıların basamadığı kenar payı
-const SAYFA_KISALTMA_MM = 0.2;      // sayfa kutusunu kâğıttan bir tık kısa tut: yüksek DPI'de yuvarlama taşması boş sayfa üretmesin
+const ONIZLEME_KALITE = 80;
+const ONIZLEME_ONBELLEK = 40;       // ön izleme görüntüsü (sayfa × notlar × dpi); her biri ~50–150 KB
 const COK_SAYFA_UYARISI = 150;      // bunun üstünde onay sor (süre ve yazıcı kuyruğu belleği)
 const KAYIT_BEKLEME_MS = 30_000;    // süren bir kaydetme için en çok bu kadar beklenir
-
-const KAGIT_ADLARI = [
-  { ad: 'A4', g: 595.276, y: 841.89 }, { ad: 'A3', g: 841.89, y: 1190.55 }, { ad: 'A5', g: 419.528, y: 595.276 },
-  { ad: 'Letter', g: 612, y: 792 }, { ad: 'Legal', g: 612, y: 1008 }, { ad: 'Tabloid', g: 792, y: 1224 },
-];
+const EN_FAZLA_KOPYA = 99;
 
 const GEZINME_TUSLARI = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Delete', 'Backspace', 'Enter']);
 const ODAKLANABILIR = 'button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
 
-/** Oturum boyunca hatırlanan son seçenekler. */
-let sonSecenek = { aralik: 'tumu', aralikMetni: '', olcek: 'sigdir', ciftTarafli: 'tek', notlar: false };
+/** Kalıcı seçimlerin (ayar 'yazdirma') geçerli değerleri; ilki varsayılan. */
+const SECENEKLER = {
+  kagit: ['belge', ...KAGITLAR.map((k) => k.ad)],
+  olcek: ['sigdir', 'gercek'],
+  renk: ['renkli', 'siyahBeyaz'],
+  ciftTarafli: ['yazici', 'tek', 'uzun', 'kisa'],
+};
+const CIFT_TARAFLI_ADLARI = { yazici: 'Yazıcının ayarı', tek: 'Tek taraflı', uzun: 'Çift taraflı (uzun kenardan çevir)', kisa: 'Çift taraflı (kısa kenardan çevir)' };
+
+/** Oturum boyunca hatırlanan seçimler (pencere başına). */
+let sonSecenek = { aralik: 'tumu', aralikMetni: '', notlar: false };
 let acikPencere = null;
 
 // ---------------------------------------------------------------- ana akış
@@ -61,7 +70,7 @@ export async function yazdir(baglam, belge) {
   // 0) Süren bir kaydetme (otomatik kaydet) varsa bitmesini bekle: yarım yazılmış dosya okunmasın
   if (!(await kaydetmeyiBekle(belge))) { bildir?.('Kaydetme bitmediği için yazdırılamadı; biraz sonra yeniden deneyin.'); return; }
 
-  // 1) Dosya diskte mi? (yazdırma dosyadaki halden yapılır)
+  // 1) Dosya diskte mi? (yazdırma dosyadaki hâlden yapılır)
   let diskteVar = true;
   try { diskteVar = await pdefe.cagir('dosya:varMi', belge.yol); } catch { diskteVar = true; /* denetlenemedi; çekirdek hatası yakalanır */ }
   if (!diskteVar) {
@@ -69,7 +78,7 @@ export async function yazdir(baglam, belge) {
     return;
   }
 
-  // 2) Kaydedilmemiş değişiklik: yazdırma dosyadaki halden yapılır
+  // 2) Kaydedilmemiş değişiklik: yazdırma dosyadaki hâlden yapılır
   if (belge.degisti) {
     const yapisal = yapisalKirliMi(belge);
     const otomatik = !yapisal && !!baglam.ayar?.()?.otomatikKaydet;
@@ -79,14 +88,14 @@ export async function yazdir(baglam, belge) {
     } else if (yapisal) {
       ({ secim } = await mesajKutusu({
         mesaj: 'Yazdırmadan önce kaydedilmesi gerekiyor',
-        ayrinti: `"${belge.ad}" belgesinde sayfa yapısı değişti (sayfa ekleme, silme, sıralama ya da döndürme). Yazdırma dosyanın diskteki halinden yapılır; kaydetmeden yazdırılırsa eski sayfa düzeni basılır.`,
+        ayrinti: `"${belge.ad}" belgesinde sayfa yapısı değişti (sayfa ekleme, silme, sıralama ya da döndürme). Yazdırma dosyanın diskteki hâlinden yapılır; kaydetmeden yazdırılırsa eski sayfa düzeni basılır.`,
         dugmeler: ['Kaydet ve yazdır', 'Vazgeç'], varsayilan: 0, iptal: 1,
       }));
       if (secim !== 0) return;
     } else {
       ({ secim } = await mesajKutusu({
         mesaj: 'Yazdırmadan önce kaydedilsin mi?',
-        ayrinti: `"${belge.ad}" belgesinde kaydedilmemiş değişiklikler var. Yazdırma, dosyanın diskteki halinden yapılır; kaydetmezseniz yeni notlar çıktıda görünmez.`,
+        ayrinti: `"${belge.ad}" belgesinde kaydedilmemiş değişiklikler var. Yazdırma, dosyanın diskteki hâlinden yapılır; kaydetmezseniz yeni notlar çıktıda görünmez.`,
         dugmeler: ['Kaydet ve yazdır', 'Kaydetmeden yazdır', 'Vazgeç'], varsayilan: 0, iptal: 2,
       }));
       if (secim === 2) return;
@@ -99,14 +108,22 @@ export async function yazdir(baglam, belge) {
     }
   }
 
-  // 3) Sayfa sayısı DİSKTEKİ dosyadan (görünümle farklı olabilir)
+  // 3) Sayfa sayısı ve ölçüleri DİSKTEKİ dosyadan (görünümle farklı olabilir). Ölçüler ön izlemenin ve "Belgeye göre" kâğıdın içindir;
+  //    okunamazsa sayfa sayısı belge bilgisinden, ölçüler ön izleme görüntülerinden gelir
   let toplam = 0;
+  const boyutlar = new Map();   // sayfa no → { genislikPt, yukseklikPt } (döndürme uygulanmış)
   try {
-    const bilgi = await cekirdek('belge_bilgi', { yol: belge.yol });
-    toplam = Number(bilgi?.sayfa) || 0;
-  } catch (e) {
-    await mesajKutusu({ tur: 'error', mesaj: 'Yazdırılamadı', ayrinti: 'Belge bilgisi okunamadı: ' + cekirdekHataMetni(e) });
-    return;
+    const r = await cekirdek('sayfa_boyutlari', { yol: belge.yol });
+    toplam = Number(r?.sayfa) || 0;
+    (r?.sayfalar || []).forEach((s, i) => boyutlar.set(i + 1, { genislikPt: Number(s.genislik), yukseklikPt: Number(s.yukseklik) }));
+  } catch {
+    try {
+      const bilgi = await cekirdek('belge_bilgi', { yol: belge.yol });
+      toplam = Number(bilgi?.sayfa) || 0;
+    } catch (e) {
+      await mesajKutusu({ tur: 'error', mesaj: 'Yazdırılamadı', ayrinti: 'Belge bilgisi okunamadı: ' + cekirdekHataMetni(e) });
+      return;
+    }
   }
   if (!toplam) { bildir?.('Belgede yazdırılacak sayfa yok.'); return; }
   const gorunumSayisi = Number(belge.gorunum?.sayfaSayisi) || toplam;
@@ -116,9 +133,16 @@ export async function yazdir(baglam, belge) {
     : '';
 
   // 4) Seçenekler
-  const secenek = await secenekPenceresi(belge, { toplam, gecerli, uyari, gecerliDevre: gorunumSayisi !== toplam });
+  let kayitli = {};
+  try { kayitli = (await pdefe.cagir('ayar:al', 'yazdirma')) || {}; } catch { kayitli = {}; }
+  const secenek = await secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre: gorunumSayisi !== toplam, boyutlar, kayitli });
   if (!secenek) return;
-  sonSecenek = { ...secenek, aralikMetni: secenek.aralikMetni };
+  sonSecenek = { aralik: secenek.aralik, aralikMetni: secenek.aralikMetni, notlar: secenek.notlar };
+  if (!secenek.sistemPenceresi) {
+    const kayit = { yazici: secenek.yazici, harmanla: secenek.harmanla, kagit: secenek.kagit, olcek: secenek.olcek, renk: secenek.renk, ciftTarafli: secenek.ciftTarafli };
+    pdefe.cagir('ayar:koy', 'yazdirma', kayit).catch(() => {});
+    try { const a = baglam.ayar?.(); if (a) a.yazdirma = kayit; } catch { /* önemsiz */ }
+  }
 
   const sayfaNolari = secenek.sayfalar;
   if (sayfaNolari.length > COK_SAYFA_UYARISI) {
@@ -167,16 +191,26 @@ export async function yazdir(baglam, belge) {
     }
     if (ilerleme.iptal) { await vazgec(); return; }
 
-    // 6) HTML iskeletini kur, ana sürece gönder; Vazgeç artık diyaloğu kapatır
-    const { html, sayfaBoyutu } = yazdirmaHtmlOlustur(sayfalar, { olcek: secenek.olcek, baslik: belge.ad });
-    ilerleme.guncelle(100, `${SISTEM} yazdırma penceresi açılıyor… (${sayfalar.length} sayfa, ${mb(toplamBayt)} MB)`);
+    // 6) HTML iskeletini kur, ana sürece gönder; Vazgeç artık işi (ya da Windows'un penceresini) kapatır
+    const { html, sayfaBoyutu } = yazdirmaHtmlOlustur(sayfalar, { olcek: secenek.olcek, kagit: secenek.kagit, baslik: belge.ad });
+    const ozet = ozetMetni(sayfalar.length, secenek.sistemPenceresi ? 1 : secenek.kopya);
+    let asamaMetni;
+    if (secenek.sistemPenceresi) asamaMetni = `${SISTEM} yazdırma penceresi açılıyor… (${sayfalar.length} sayfa, ${mb(toplamBayt)} MB)`;
+    else if (secenek.dosyayaYazar) asamaMetni = `"${secenek.yaziciAdi}" çıktıyı dosyaya kaydeder: kaydedileceği yer soruluyor. "Çıktıyı Farklı Kaydet" penceresi görünmüyorsa görev çubuğuna bakın.`;
+    else asamaMetni = `"${secenek.yaziciAdi}" yazıcısına gönderiliyor… (${ozet}, ${mb(toplamBayt)} MB)`;
+    ilerleme.guncelle(100, asamaMetni);
     const isId = is;
     ilerleme.diyalogAsamasi(() => pdefe.cagir('yazdir:iptal', { is: isId }).catch(() => {}));
-    const sonuc = await pdefe.cagir('yazdir:baslat', { is, html, secenekler: { ciftTarafli: secenek.ciftTarafli, sayfaBoyutu } });
+    const sonuc = await pdefe.cagir('yazdir:baslat', {
+      is, html,
+      secenekler: { yazici: secenek.yazici, kopya: secenek.kopya, harmanla: secenek.harmanla, renk: secenek.renk, ciftTarafli: secenek.ciftTarafli, sayfaBoyutu, sistemPenceresi: !!secenek.sistemPenceresi },
+    });
     is = null;   // ana süreç işi bitirdi ve klasörü sildi
     ilerleme.kapat();
-    if (sonuc?.basarili) bildir?.(`Yazıcıya gönderildi: ${sayfalar.length} sayfa`);
-    else if (sonuc?.iptal || ilerleme.iptal) bildir?.('Yazdırma vazgeçildi.');
+    if (sonuc?.basarili) {
+      if (secenek.sistemPenceresi) bildir?.(`Yazıcıya gönderildi: ${sayfalar.length} sayfa`);
+      else bildir?.(`"${secenek.yaziciAdi}" yazıcısına gönderildi: ${ozet}${secenek.cevrimDisi ? ' (yazıcı çevrim dışı görünüyor; iş, yazıcı açılınca basılır)' : ''}`);
+    } else if (sonuc?.iptal || ilerleme.iptal) bildir?.('Yazdırma vazgeçildi.');
     else await mesajKutusu({ tur: 'error', mesaj: 'Yazdırılamadı', ayrinti: sonuc?.hata || 'Bilinmeyen hata' });
   } catch (e) {
     const iptaldi = ilerleme.iptal;
@@ -202,179 +236,94 @@ async function kaydetmeyiBekle(belge) {
   return true;
 }
 
-// ---------------------------------------------------------------- sayfa aralığı
+// ---------------------------------------------------------------- yazdırma penceresi
+const OK_SOL = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 4-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+const OK_SAG = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 4 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+
+/** Kayıtlı değer geçerliyse o, değilse varsayılan (listenin ilki). */
+function gecerliDeger(ad, deger) { return SECENEKLER[ad].includes(deger) ? deger : SECENEKLER[ad][0]; }
+
 /**
- * "1-3,5, 8-" biçimindeki aralık metnini sayfa listesine çevirir (sıralı, tekrarsız).
- * Hatalıysa { hata } döner.
+ * Yazdırma penceresi. Yazdır'la { aralik, aralikMetni, sayfalar, yazici, yaziciAdi, kopya, harmanla, kagit, olcek, renk, ciftTarafli,
+ * notlar, sistemPenceresi, dosyayaYazar, cevrimDisi }, Vazgeç / Esc / dışarı tıklamayla null döner.
  */
-export function sayfaAraligiCoz(metin, toplam) {
-  const t = String(metin || '').replace(/\s+/g, '').replace(/;/g, ',').replace(/–|—/g, '-');
-  if (!t) return { hata: 'Sayfa aralığı boş. Örnek: 1-3,5' };
-  const kume = new Set();
-  for (const parca of t.split(',')) {
-    if (!parca) continue;
-    const m = /^(\d*)-(\d*)$/.exec(parca);
-    let bas, son;
-    if (m) {
-      if (!m[1] && !m[2]) return { hata: `Geçersiz aralık: "${parca}"` };
-      bas = m[1] ? parseInt(m[1], 10) : 1;
-      son = m[2] ? parseInt(m[2], 10) : toplam;
-    } else if (/^\d+$/.test(parca)) {
-      bas = son = parseInt(parca, 10);
-    } else {
-      return { hata: `Geçersiz ifade: "${parca}". Örnek: 1-3,5` };
-    }
-    if (bas < 1 || son < 1) return { hata: 'Sayfa numaraları 1\'den başlar.' };
-    if (bas > toplam || son > toplam) return { hata: `Belgede ${toplam} sayfa var; ${Math.max(bas, son)} numaralı sayfa yok.` };
-    if (bas > son) [bas, son] = [son, bas];
-    for (let i = bas; i <= son; i++) kume.add(i);
-  }
-  if (!kume.size) return { hata: 'Yazdırılacak sayfa seçilmedi.' };
-  return { sayfalar: [...kume].sort((a, b) => a - b) };
-}
-
-// ---------------------------------------------------------------- yazdırma HTML'i
-/**
- * Yazdırma belgesini kurar.
- *
- * Kâğıt: seçilen sayfalar arasında en sık görülen (dikey yönelimli) boyut tek kâğıt boyutu olarak
- * kullanılır; Windows yazdırma işinde kâğıt boyutu tektir ve sürücüler sayfa başına yön değişimini
- * güvenilir biçimde desteklemez. Yatay sayfalar (g > y) kâğıt üzerinde 90° döndürülerek basılır
- * (PDF okuyucularının "otomatik döndür" davranışı). Böylece karışık yönlü belgeler de tek işte, kesilmeden çıkar.
- *
- * "sigdir": görüntü, kâğıda (GUVENLI_KENAR_MM payıyla) oranı korunarak sığdırılır.
- * "gercek": görüntü PDF'teki pt boyutlarıyla basılır, kâğıt ortasına yerleşir; taşan kısım kesilir.
- *
- * Sayfa sonu: her sayfa kutusu kâğıttan SAYFA_KISALTMA_MM kısa tutulur ve ikinci sayfadan itibaren
- * break-before kullanılır; böylece yüksek yazıcı DPI'sinde mm→piksel yuvarlaması bir pikselle taşsa
- * bile araya boş sayfa girmez, sonda da boş sayfa çıkmaz.
- *
- * @param {Array<{no:number, kaynak?:string, veri?:string, bicim?:string, genislikPt:number, yukseklikPt:number}>} sayfalar
- * @param {{ olcek: 'sigdir'|'gercek', baslik?: string }} secenek
- */
-export function yazdirmaHtmlOlustur(sayfalar, secenek = {}) {
-  if (!Array.isArray(sayfalar) || !sayfalar.length) throw new Error('Yazdırılacak sayfa yok.');
-  const olcekModu = secenek.olcek === 'gercek' ? 'gercek' : 'sigdir';
-  const kagit = kagitSec(sayfalar);
-  const KG = kagit.genislikMm, KY = kagit.yukseklikMm;
-  const mm = (v) => (Math.round(v * 1000) / 1000).toFixed(3);
-
-  const parcalar = [];
-  for (const s of sayfalar) {
-    const g = Number(s.genislikPt) || 595.276, y = Number(s.yukseklikPt) || 841.89;
-    const yatay = g > y;
-    // Kâğıt üzerindeki kaplama kutusu (döndürülmüşse en/boy yer değiştirir)
-    const kutuG = (yatay ? y : g) * PT_MM, kutuY = (yatay ? g : y) * PT_MM;
-    let olcek = 1;
-    if (olcekModu === 'sigdir') {
-      olcek = Math.min((KG - 2 * GUVENLI_KENAR_MM) / kutuG, (KY - 2 * GUVENLI_KENAR_MM) / kutuY);
-      if (!Number.isFinite(olcek) || olcek <= 0) olcek = 1;
-    }
-    const imgG = g * PT_MM * olcek, imgY = y * PT_MM * olcek;
-    const src = gorselKaynagi(s);
-    parcalar.push(
-      `<div class="sayfa" data-no="${Number(s.no) || 0}"><img class="${yatay ? 'don' : ''}" alt="Sayfa ${Number(s.no) || 0}" style="width:${mm(imgG)}mm;height:${mm(imgY)}mm" src="${src}"></div>`,
-    );
-  }
-
-  const baslik = kacis(secenek.baslik ? `${secenek.baslik} — PDEfe` : 'PDEfe yazdırma');
-  const html = `<!DOCTYPE html>
-<html lang="tr"><head><meta charset="utf-8"><title>${baslik}</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' file: data:; style-src 'unsafe-inline';">
-<style>
-@page { size: ${mm(KG)}mm ${mm(KY)}mm; margin: 0; }
-html, body { margin: 0; padding: 0; background: #fff; }
-body { width: ${mm(KG)}mm; }
-.sayfa { position: relative; width: ${mm(KG)}mm; height: ${mm(KY - SAYFA_KISALTMA_MM)}mm; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
-.sayfa + .sayfa { break-before: page; page-break-before: always; }
-.sayfa img { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: block; image-rendering: auto; }
-.sayfa img.don { transform: translate(-50%, -50%) rotate(90deg); }
-@media screen { body { background: #888; } .sayfa { margin: 8mm auto; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.4); } }
-@media print { html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-</style></head><body>
-${parcalar.join('\n')}
-</body></html>`;
-
-  return {
-    html,
-    sayfaBoyutu: { genislikMikron: Math.round(kagit.genislikPt * PT_MIKRON), yukseklikMikron: Math.round(kagit.yukseklikPt * PT_MIKRON) },
-    kagit: { genislikMm: KG, yukseklikMm: KY, ad: kagit.ad },
-  };
-}
-
-/** <img src> değeri: göreli dosya adı (iş klasöründeki sNNNN.jpg) ya da geriye uyumluluk için data: URL. */
-function gorselKaynagi(s) {
-  if (s.kaynak != null) {
-    const ad = String(s.kaynak);
-    if (!/^[A-Za-z0-9_.-]+$/.test(ad) || ad.startsWith('.')) throw new Error(`Geçersiz görüntü dosya adı: ${ad}`);
-    return ad;
-  }
-  if (typeof s.veri === 'string' && s.veri) {
-    const mime = s.bicim === 'png' ? 'image/png' : 'image/jpeg';
-    return `data:${mime};base64,${s.veri}`;
-  }
-  throw new Error(`Sayfa ${s.no} için görüntü kaynağı yok.`);
-}
-
-/** Seçilen sayfalar arasında en sık görülen dikey (portre) boyutu kâğıt olarak seçer. */
-function kagitSec(sayfalar) {
-  const sayim = new Map();
-  for (const s of sayfalar) {
-    const g = Number(s.genislikPt) || 595.276, y = Number(s.yukseklikPt) || 841.89;
-    const kisa = Math.min(g, y), uzun = Math.max(g, y);
-    const anahtar = `${Math.round(kisa * 2) / 2}x${Math.round(uzun * 2) / 2}`;
-    const k = sayim.get(anahtar) || { kisa, uzun, adet: 0 };
-    k.adet++;
-    sayim.set(anahtar, k);
-  }
-  // En çok tekrar eden; eşitlikte daha büyük olan (küçük sayfalar büyük kâğıda sığar, tersi kesilir)
-  let secili = null;
-  for (const k of sayim.values()) {
-    if (!secili || k.adet > secili.adet || (k.adet === secili.adet && k.kisa * k.uzun > secili.kisa * secili.uzun)) secili = k;
-  }
-  // Standart kâğıda çok yakınsa (±2 pt) tam standart ölçüyü kullan: sürücü bilinen boyutu daha iyi tanır
-  let ad = null, kisa = secili.kisa, uzun = secili.uzun;
-  for (const k of KAGIT_ADLARI) {
-    if (Math.abs(k.g - kisa) <= 2 && Math.abs(k.y - uzun) <= 2) { ad = k.ad; kisa = k.g; uzun = k.y; break; }
-  }
-  return { ad, genislikPt: kisa, yukseklikPt: uzun, genislikMm: kisa * PT_MM, yukseklikMm: uzun * PT_MM };
-}
-
-// ---------------------------------------------------------------- seçenek penceresi
-function secenekPenceresi(belge, { toplam, gecerli, uyari, gecerliDevre }) {
+function secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre, boyutlar, kayitli }) {
+  const { pdefe, cekirdek } = baglam;
   return new Promise((coz) => {
     const ortu = document.createElement('div');
     ortu.className = 'diyalog-ortusu yazdir-ortusu';
+    const kagitSecenekleri = SECENEKLER.kagit.map((k) => `<option value="${k}">${k === 'belge' ? 'Belgeye göre' : k}</option>`).join('');
+    const ciftSecenekleri = SECENEKLER.ciftTarafli.map((k) => `<option value="${k}">${CIFT_TARAFLI_ADLARI[k]}</option>`).join('');
+    const tercihEtiketi = MAC ? 'Yazıcı ayarları' : 'Yazıcı tercihleri';
+    const tercihIpucu = MAC ? 'Sistem Ayarları › Yazıcılar ve Tarayıcılar bölümünü açar.'
+      : 'Yazıcının kendi ayarları (kâğıt kaynağı, baskı kalitesi, toner tasarrufu…). Orada yapılan değişiklik bu yazıcının varsayılanı olur; buradaki kâğıt, renk, kopya ve çift taraflı seçimi yine geçerlidir.';
     ortu.innerHTML = `
 <div class="diyalog yazdir-diyalog" role="dialog" aria-modal="true" aria-label="Yazdır">
   <div class="baslik">Yazdır</div>
-  <div class="govde">
-    <div class="yazdir-belge" title="${kacis(belge.yol || '')}">${kacis(belge.ad || '')} <span class="soluk">· ${toplam} sayfa</span></div>
-    <div class="yazdir-uyari" hidden></div>
-    <fieldset class="yazdir-grup">
-      <legend>Sayfalar</legend>
-      <label><input type="radio" name="aralik" value="tumu"> Tümü</label>
-      <label><input type="radio" name="aralik" value="gecerli"> Geçerli sayfa <span class="soluk">(${gecerli})</span></label>
-      <label class="yazdir-aralik"><input type="radio" name="aralik" value="aralik"> Aralık: <input type="text" name="aralikMetni" class="kutu" placeholder="1-3,5" spellcheck="false"></label>
-      <div class="yazdir-hata" hidden></div>
-    </fieldset>
-    <fieldset class="yazdir-grup">
-      <legend>Boyut</legend>
-      <label><input type="radio" name="olcek" value="sigdir"> Sayfaya sığdır</label>
-      <label><input type="radio" name="olcek" value="gercek"> Gerçek boyut</label>
-    </fieldset>
-    <fieldset class="yazdir-grup">
-      <legend>Çift taraflı</legend>
-      <label><input type="radio" name="ciftTarafli" value="tek"> Tek taraflı</label>
-      <label><input type="radio" name="ciftTarafli" value="uzun"> Çift taraflı (uzun kenardan çevir)</label>
-      <label><input type="radio" name="ciftTarafli" value="kisa"> Çift taraflı (kısa kenardan çevir)</label>
-    </fieldset>
-    <label class="yazdir-notlar"><input type="checkbox" name="notlar"> Notları yazdır</label>
-    <p class="soluk yazdir-aciklama">Yazıcı, kopya sayısı ve kâğıt kaynağı bir sonraki adımda ${SISTEM} yazdırma penceresinden seçilir; orada yapılan kâğıt ve çift taraflı seçimi buradakinin yerine geçer. Sayfalar görüntü olarak basılır; Türkçe karakterler ekranda göründüğü gibi çıkar. "Notları yazdır" kapalıyken notlar, damgalar ve form alanları basılmaz.</p>
+  <div class="govde yazdir-govde">
+    <div class="yazdir-sol">
+      <div class="yazdir-belge" title="${kacis(belge.yol || '')}">${kacis(belge.ad || '')} <span class="soluk">· ${toplam} sayfa</span></div>
+      <div class="yazdir-uyari" hidden></div>
+      <div class="yazdir-satir">
+        <label class="yazdir-etiket" for="yazdir-yazici">Yazıcı</label>
+        <select id="yazdir-yazici" name="yazici" class="ayar-secim yazdir-secim"><option value="">Yazıcılar okunuyor…</option></select>
+      </div>
+      <div class="yazdir-yazici-alt">
+        <span class="yazdir-yazici-bilgi soluk"></span>
+        <button type="button" class="ikincil yazdir-tercih" data-id="tercihler" title="${kacis(tercihIpucu)}" disabled>${tercihEtiketi}</button>
+      </div>
+      <div class="yazdir-satir">
+        <label class="yazdir-etiket" for="yazdir-kopya">Kopya</label>
+        <div class="yazdir-yanyana">
+          <input id="yazdir-kopya" type="number" name="kopya" class="kutu ayar-sayi yazdir-kopya" min="1" max="${EN_FAZLA_KOPYA}" step="1" value="1">
+          <label class="yazdir-harmanla" title="Birden çok kopyada her kopya baştan sona sırayla basılır (1, 2, 3, 1, 2, 3)"><input type="checkbox" name="harmanla"> Harmanla</label>
+        </div>
+      </div>
+      <fieldset class="yazdir-grup">
+        <legend>Sayfalar</legend>
+        <label><input type="radio" name="aralik" value="tumu"> Tümü</label>
+        <label><input type="radio" name="aralik" value="gecerli"> Geçerli sayfa <span class="soluk">(${gecerli})</span></label>
+        <label class="yazdir-aralik"><input type="radio" name="aralik" value="aralik"> Aralık: <input type="text" name="aralikMetni" class="kutu" placeholder="1-3,5" spellcheck="false"></label>
+        <div class="yazdir-hata" hidden></div>
+      </fieldset>
+      <div class="yazdir-satir">
+        <label class="yazdir-etiket" for="yazdir-kagit">Kâğıt</label>
+        <select id="yazdir-kagit" name="kagit" class="ayar-secim yazdir-secim">${kagitSecenekleri}</select>
+      </div>
+      <div class="yazdir-satir">
+        <span class="yazdir-etiket">Boyut</span>
+        <div class="yazdir-radyolar"><label><input type="radio" name="olcek" value="sigdir"> Sayfaya sığdır</label><label><input type="radio" name="olcek" value="gercek"> Gerçek boyut</label></div>
+      </div>
+      <div class="yazdir-satir">
+        <span class="yazdir-etiket">Renk</span>
+        <div class="yazdir-radyolar"><label><input type="radio" name="renk" value="renkli"> Renkli</label><label><input type="radio" name="renk" value="siyahBeyaz"> Siyah beyaz</label></div>
+      </div>
+      <div class="yazdir-satir">
+        <label class="yazdir-etiket" for="yazdir-cift">Çift taraflı</label>
+        <select id="yazdir-cift" name="ciftTarafli" class="ayar-secim yazdir-secim">${ciftSecenekleri}</select>
+      </div>
+      <div class="yazdir-cift-bilgi soluk" hidden></div>
+      <label class="yazdir-notlar"><input type="checkbox" name="notlar"> Notları yazdır</label>
+      <p class="soluk yazdir-aciklama">Sayfalar görüntü olarak basılır; Türkçe karakterler ekranda göründüğü gibi çıkar. "Notları yazdır" kapalıyken notlar, damgalar ve form alanları basılmaz.</p>
+    </div>
+    <div class="yazdir-onizleme" aria-label="Ön izleme">
+      <div class="yazdir-onizleme-alan"><div class="yazdir-kagit"><img class="yazdir-onizleme-sayfa" alt="" draggable="false"></div><div class="yazdir-onizleme-durum soluk" hidden></div></div>
+      <div class="yazdir-gezinme">
+        <button type="button" class="yazdir-ok" data-id="onceki" title="Önceki sayfa (Page Up)" aria-label="Önceki sayfa">${OK_SOL}</button>
+        <span class="yazdir-sayfa-no">–</span>
+        <button type="button" class="yazdir-ok" data-id="sonraki" title="Sonraki sayfa (Page Down)" aria-label="Sonraki sayfa">${OK_SAG}</button>
+      </div>
+      <div class="yazdir-ozet soluk"></div>
+    </div>
   </div>
-  <div class="dugmeler"><button class="birincil" data-id="yazdir">Yazdır</button><button class="ikincil" data-id="iptal">Vazgeç</button></div>
+  <div class="dugmeler yazdir-dugmeler">
+    <button type="button" class="yazdir-sistem" data-id="sistem" title="Yazıcı, kopya, renk ve çift taraflı ${kacis(SISTEM)}'un penceresinde seçilir; buradaki sayfa seçimi, kâğıt ve boyut geçerlidir.">${kacis(SISTEM)} yazdırma penceresiyle yazdır</button>
+    <span class="yazdir-bosluk"></span>
+    <button class="birincil" data-id="yazdir">Yazdır</button><button class="ikincil" data-id="iptal">Vazgeç</button>
+  </div>
 </div>`;
     const sec = (ad) => ortu.querySelector(`[name="${ad}"]`);
+    const secili = (ad) => ortu.querySelector(`[name="${ad}"]:checked`)?.value;
     const radyoKoy = (ad, deger) => { const el = ortu.querySelector(`[name="${ad}"][value="${deger}"]:not([disabled])`) || ortu.querySelector(`[name="${ad}"]:not([disabled])`); if (el) el.checked = true; };
     if (uyari) { const u = ortu.querySelector('.yazdir-uyari'); u.textContent = uyari; u.hidden = false; }
     if (gecerliDevre) {
@@ -383,42 +332,252 @@ function secenekPenceresi(belge, { toplam, gecerli, uyari, gecerliDevre }) {
       g.disabled = true; g.closest('label').classList.add('devre'); g.closest('label').title = 'Görünümdeki sayfa numarası dosyadakiyle eşleşmiyor olabilir.';
     }
     radyoKoy('aralik', sonSecenek.aralik);
-    radyoKoy('olcek', sonSecenek.olcek);
-    radyoKoy('ciftTarafli', sonSecenek.ciftTarafli);
+    radyoKoy('olcek', gecerliDeger('olcek', kayitli.olcek));
+    radyoKoy('renk', gecerliDeger('renk', kayitli.renk));
+    sec('kagit').value = gecerliDeger('kagit', kayitli.kagit);
+    sec('ciftTarafli').value = gecerliDeger('ciftTarafli', kayitli.ciftTarafli);
+    sec('harmanla').checked = kayitli.harmanla !== false;
     sec('notlar').checked = sonSecenek.notlar === true;   // varsayılan kapalı; oturumda açılırsa hatırlanır
     const aralikGirdi = sec('aralikMetni');
     aralikGirdi.value = sonSecenek.aralikMetni || '';
     const hataEl = ortu.querySelector('.yazdir-hata');
+    const yaziciSec = sec('yazici'), kopyaGirdi = sec('kopya'), harmanla = sec('harmanla'), ciftSec = sec('ciftTarafli');
+    const yaziciBilgi = ortu.querySelector('.yazdir-yazici-bilgi'), ciftBilgi = ortu.querySelector('.yazdir-cift-bilgi');
+    const tercihDugme = ortu.querySelector('[data-id="tercihler"]'), yazdirDugme = ortu.querySelector('[data-id="yazdir"]');
+    let kapandi = false;
 
-    // Aralık kutusuna yazınca "Aralık" seçilsin
-    aralikGirdi.addEventListener('focus', () => { radyoKoy('aralik', 'aralik'); });
-    aralikGirdi.addEventListener('input', () => { radyoKoy('aralik', 'aralik'); hataEl.hidden = true; });
-    ortu.querySelectorAll('[name="aralik"]').forEach((r) => r.addEventListener('change', () => { hataEl.hidden = true; }));
-
-    const kapat = (sonuc) => { ortu.remove(); if (acikPencere === ortu) acikPencere = null; coz(sonuc); };
-    const onayla = () => {
-      const aralik = ortu.querySelector('[name="aralik"]:checked')?.value || 'tumu';
-      let sayfalar;
-      if (aralik === 'tumu') sayfalar = Array.from({ length: toplam }, (_, i) => i + 1);
-      else if (aralik === 'gecerli') sayfalar = [Math.min(Math.max(1, gecerli), toplam)];
-      else {
-        const r = sayfaAraligiCoz(aralikGirdi.value, toplam);
-        if (r.hata) { hataEl.textContent = r.hata; hataEl.hidden = false; aralikGirdi.focus(); aralikGirdi.select(); return; }
-        sayfalar = r.sayfalar;
+    // ---------------------------------------------------------- yazıcılar
+    // Liste pencere açılırken istenir (Electron'un listesi + varsayılan yazıcı); durum (çevrim dışı, çift taraflı, dosyaya yazar) Windows'ta
+    // ~1 sn sonra arkadan gelir. Liste gelmeden Yazdır'a basılırsa liste beklenir.
+    let yazicilar = null, durumlar = {}, kayitliBulunamadi = null, yaziciElleSecildi = false;
+    const yaziciAl = (ad) => (yazicilar || []).find((y) => y.ad === ad) || null;
+    const yaziciEtiketi = (y) => `${y.gorunenAd}${y.varsayilan || durumlar[y.ad]?.varsayilan ? ' (varsayılan)' : ''}${durumlar[y.ad]?.cevrimDisi ? ' (çevrim dışı)' : ''}`;
+    const yaziciListesiniYaz = () => {
+      const deger = yaziciSec.value;
+      yaziciSec.innerHTML = '';
+      if (!yazicilar.length) {
+        yaziciSec.append(new Option('Yazıcı bulunamadı', ''));
+        yaziciSec.disabled = true;
+        return;
       }
-      kapat({
-        aralik, aralikMetni: aralikGirdi.value.trim(), sayfalar,
-        olcek: ortu.querySelector('[name="olcek"]:checked')?.value || 'sigdir',
-        ciftTarafli: ortu.querySelector('[name="ciftTarafli"]:checked')?.value || 'tek',
-        notlar: sec('notlar').checked,
-      });
+      for (const y of yazicilar) yaziciSec.append(new Option(yaziciEtiketi(y), y.ad));
+      yaziciSec.disabled = false;
+      if (deger && yaziciAl(deger)) yaziciSec.value = deger;
     };
-    ortu.querySelector('[data-id="yazdir"]').addEventListener('click', onayla);
+    const yaziciBilgisiniYaz = () => {
+      const ad = yaziciSec.value, d = durumlar[ad] || {};
+      let metin = '', tur = '';
+      if (yazicilar && !yazicilar.length) {
+        metin = MAC ? 'Kurulu yazıcı yok. Sistem Ayarları › Yazıcılar ve Tarayıcılar bölümünden bir yazıcı ekleyin.'
+          : 'Kurulu yazıcı yok. Windows Ayarlar › Yazıcılar ve tarayıcılar bölümünden bir yazıcı ekleyin.';
+        tur = 'uyari';
+      } else if (d.cevrimDisi) { metin = 'Yazıcı çevrim dışı görünüyor; iş, yazıcı açılınca basılır.'; tur = 'uyari'; }
+      else if (d.dosyayaYazar) metin = 'Bu yazıcı çıktıyı dosyaya kaydeder; Yazdır\'a basınca kaydedileceği yer sorulur.';
+      else if (kayitliBulunamadi && !yaziciElleSecildi) { metin = `Son kullanılan yazıcı ("${kayitliBulunamadi}") bulunamadı; ${yaziciAl(ad)?.varsayilan ? 'varsayılan yazıcı' : 'başka bir yazıcı'} seçildi.`; tur = 'uyari'; }
+      yaziciBilgi.textContent = metin;
+      yaziciBilgi.classList.toggle('uyari', tur === 'uyari');
+      tercihDugme.disabled = !ad;
+      // Çift taraflı: yazıcı desteklemiyorsa (Windows'un bildirdiği yetenek) iki çift taraflı seçeneği soluk
+      const destekYok = d.ciftTarafli === false;
+      for (const o of ciftSec.options) if (o.value === 'uzun' || o.value === 'kisa') o.disabled = destekYok;
+      if (destekYok && (ciftSec.value === 'uzun' || ciftSec.value === 'kisa')) ciftSec.value = 'yazici';
+      ciftBilgi.textContent = destekYok ? 'Bu yazıcı çift taraflı basmayı desteklemiyor görünüyor.' : '';
+      ciftBilgi.hidden = !destekYok;
+      const odakYazdirda = document.activeElement === yazdirDugme;
+      yazdirDugme.disabled = !!yazicilar && !yazicilar.length;
+      // Soluklaşan düğme odağı bırakır (odak sayfaya düşer, Esc pencereye ulaşmaz): odak Windows penceresi bağlantısına
+      if (yazdirDugme.disabled && (odakYazdirda || !ortu.contains(document.activeElement))) ortu.querySelector('[data-id="sistem"]').focus();
+    };
+    const yazicilarHazir = pdefe.cagir('yazdir:yazicilar').catch(() => ({ yazicilar: [] })).then((r) => {
+      if (kapandi) return;
+      yazicilar = Array.isArray(r?.yazicilar) ? r.yazicilar : [];
+      yaziciListesiniYaz();
+      const istenen = kayitli.yazici && yaziciAl(kayitli.yazici) ? kayitli.yazici : null;
+      if (kayitli.yazici && !istenen) kayitliBulunamadi = kayitli.yazici;
+      const secim = istenen || (r?.varsayilan && yaziciAl(r.varsayilan) ? r.varsayilan : yazicilar[0]?.ad) || '';
+      if (secim) yaziciSec.value = secim;
+      yaziciBilgisiniYaz();
+    });
+    pdefe.cagir('yazdir:yaziciDurumu').catch(() => ({ durumlar: {} })).then(async (r) => {
+      await yazicilarHazir;
+      if (kapandi || !yazicilar?.length) return;
+      durumlar = r?.durumlar || {};
+      // Varsayılan Electron'un listesinden ya da kayıt defterinden okunamadıysa Windows'un bildirdiği; kullanıcı yazıcıyı seçmediyse ona geçilir
+      if (!yazicilar.some((y) => y.varsayilan)) {
+        const v = yazicilar.find((y) => durumlar[y.ad]?.varsayilan);
+        if (v) { v.varsayilan = true; if (!yaziciElleSecildi && !(kayitli.yazici && yaziciAl(kayitli.yazici))) yaziciSec.value = v.ad; }
+      }
+      yaziciListesiniYaz();
+      yaziciBilgisiniYaz();
+    });
+    yaziciSec.addEventListener('change', () => { yaziciElleSecildi = true; yaziciBilgisiniYaz(); });
+    tercihDugme.addEventListener('click', async () => {
+      const ad = yaziciSec.value;
+      if (!ad) return;
+      const r = await pdefe.cagir('yazdir:tercihler', { yazici: ad }).catch((e) => ({ basarili: false, hata: hataMetni(e) }));
+      if (!r?.basarili && !kapandi) { yaziciBilgi.textContent = r?.hata || 'Yazıcı tercihleri açılamadı.'; yaziciBilgi.classList.add('uyari'); }
+    });
+
+    // ---------------------------------------------------------- kopya
+    const kopyaDegeri = () => { const n = Math.floor(Number(kopyaGirdi.value)); return Number.isFinite(n) && n >= 1 ? Math.min(EN_FAZLA_KOPYA, n) : 1; };
+    const kopyaGuncelle = () => { harmanla.disabled = kopyaDegeri() <= 1; harmanla.closest('label').classList.toggle('devre', harmanla.disabled); ozetYaz(); };
+    kopyaGirdi.addEventListener('input', kopyaGuncelle);
+    kopyaGirdi.addEventListener('change', () => { kopyaGirdi.value = String(kopyaDegeri()); kopyaGuncelle(); });
+
+    // ---------------------------------------------------------- sayfa seçimi
+    let sayfalar = [], secimHatasi = null, indeks = 0;
+    const secimiGuncelle = () => {
+      const r = secilenSayfalar({ aralik: secili('aralik') || 'tumu', aralikMetni: aralikGirdi.value, toplam, gecerli });
+      const onceki = sayfalar[indeks];
+      sayfalar = r.sayfalar || [];
+      secimHatasi = r.hata || null;
+      const yeni = sayfalar.indexOf(onceki);
+      indeks = yeni >= 0 ? yeni : 0;
+      kagitEtiketiniYaz();
+      onizlemeCiz();
+    };
+    let secimZamani = null;
+    // Aralık kutusuna yazınca "Aralık" seçilsin
+    aralikGirdi.addEventListener('focus', () => { if (secili('aralik') !== 'aralik') { radyoKoy('aralik', 'aralik'); secimiGuncelle(); } });
+    aralikGirdi.addEventListener('input', () => {
+      radyoKoy('aralik', 'aralik'); hataEl.hidden = true;
+      clearTimeout(secimZamani); secimZamani = setTimeout(secimiGuncelle, 200);
+    });
+    ortu.querySelectorAll('[name="aralik"]').forEach((r) => r.addEventListener('change', () => { hataEl.hidden = true; secimiGuncelle(); }));
+
+    // ---------------------------------------------------------- kâğıt, boyut, renk, notlar
+    const secilenBoyutlar = () => {
+      const liste = [];
+      for (const no of sayfalar) { const b = boyutlar.get(no); if (b) liste.push(b); }
+      return liste;
+    };
+    const kagitAl = () => kagitSec(secilenBoyutlar(), sec('kagit').value);
+    const kagitEtiketiniYaz = () => {
+      const o = sec('kagit').querySelector('option[value="belge"]');
+      const boy = secilenBoyutlar();
+      o.textContent = boy.length ? `Belgeye göre (${kagitEtiketi(kagitSec(boy, 'belge'))})` : 'Belgeye göre';
+    };
+    sec('kagit').addEventListener('change', onizlemeCiz);
+    ortu.querySelectorAll('[name="olcek"], [name="renk"]').forEach((r) => r.addEventListener('change', onizlemeCiz));
+    sec('notlar').addEventListener('change', onizlemeCiz);
+
+    // ---------------------------------------------------------- ön izleme
+    const alan = ortu.querySelector('.yazdir-onizleme-alan'), kagitEl = ortu.querySelector('.yazdir-kagit'), gorsel = ortu.querySelector('.yazdir-onizleme-sayfa');
+    const durumEl = ortu.querySelector('.yazdir-onizleme-durum'), sayfaNo = ortu.querySelector('.yazdir-sayfa-no'), ozetEl = ortu.querySelector('.yazdir-ozet');
+    const onceki = ortu.querySelector('[data-id="onceki"]'), sonraki = ortu.querySelector('[data-id="sonraki"]');
+    const onbellek = new Map();   // "no|notlar|dpi" → { url, genislikPt, yukseklikPt }
+    const bekleyen = new Map();   // aynı görüntü için ikinci istek yapılmaz
+    let sira = 0;
+    function ozetYaz() {
+      ozetEl.textContent = secimHatasi ? '' : ozetMetni(sayfalar.length, kopyaDegeri());
+    }
+    function onizlemeCiz() {
+      if (kapandi) return;
+      ozetYaz();
+      const n = sayfalar.length;
+      onceki.disabled = !n || indeks <= 0;
+      sonraki.disabled = !n || indeks >= n - 1;
+      if (secimHatasi || !n) {
+        sayfaNo.textContent = '–'; sayfaNo.title = '';
+        kagitEl.hidden = true;
+        durumEl.textContent = secimHatasi || 'Yazdırılacak sayfa yok.'; durumEl.hidden = false;
+        return;
+      }
+      const no = sayfalar[indeks];
+      sayfaNo.textContent = `${indeks + 1} / ${n}` + (secili('aralik') === 'tumu' ? '' : ` (s. ${no})`);
+      sayfaNo.title = `Belgenin ${no}. sayfası`;
+      const kagit = kagitAl();
+      const olcek = secili('olcek') || 'sigdir';
+      // Kâğıt, alana oranı korunarak sığar (ekranda kâğıdın gölgesi için birkaç piksel pay)
+      const W = Math.max(40, alan.clientWidth - 24), H = Math.max(40, alan.clientHeight - 24);
+      const oran = kagit.genislikMm / kagit.yukseklikMm;
+      let kh = H, kw = kh * oran;
+      if (kw > W) { kw = W; kh = kw / oran; }
+      kagitEl.hidden = false;
+      kagitEl.style.width = `${Math.round(kw)}px`; kagitEl.style.height = `${Math.round(kh)}px`;
+      kagitEl.classList.toggle('gri', secili('renk') === 'siyahBeyaz');
+      kagitEl.dataset.kagit = kagitEtiketi(kagit);
+      const boyut = boyutlar.get(no) || null;
+      const yer = sayfaYerlesimi(boyut || {}, kagit, olcek);
+      gorsel.classList.toggle('don', yer.yatay);
+      gorsel.style.width = `${(yer.genislikMm / kagit.genislikMm) * 100}%`;
+      gorsel.style.height = `${(yer.yukseklikMm / kagit.yukseklikMm) * 100}%`;
+      const notlar = !!sec('notlar').checked;
+      const dpi = onizlemeDpi({ sayfa: boyut || {}, kagit, olcek, kagitPikselGenislik: kw, ekranOlcegi: window.devicePixelRatio || 1 });
+      const anahtar = `${no}|${notlar ? 1 : 0}|${dpi}`;
+      gorsel.dataset.no = String(no); gorsel.dataset.notlar = notlar ? '1' : '0';
+      const hazir = onbellek.get(anahtar);
+      if (hazir) {
+        onbellek.delete(anahtar); onbellek.set(anahtar, hazir);   // en son kullanılan sona
+        if (gorsel.dataset.anahtar !== anahtar) { gorsel.src = hazir.url; gorsel.dataset.anahtar = anahtar; }
+        gorsel.classList.remove('yukleniyor');
+        durumEl.hidden = true;
+        return;
+      }
+      gorsel.classList.add('yukleniyor');
+      const benim = ++sira;
+      let soz = bekleyen.get(anahtar);
+      if (!soz) {
+        soz = cekirdek('sayfa_goruntu', { yol: belge.yol, sayfa: no, dpi, notlar, bicim: 'jpeg', kalite: ONIZLEME_KALITE }).then((r) => {
+          if (!r?.veri) throw new Error('Görüntü alınamadı.');
+          const k = { url: `data:image/${r.bicim === 'png' ? 'png' : 'jpeg'};base64,${r.veri}`, genislikPt: r.genislikPt, yukseklikPt: r.yukseklikPt };
+          onbellek.set(anahtar, k);
+          while (onbellek.size > ONIZLEME_ONBELLEK) onbellek.delete(onbellek.keys().next().value);
+          if (Number(r.genislikPt) > 0 && Number(r.yukseklikPt) > 0 && !boyutlar.has(no)) { boyutlar.set(no, { genislikPt: Number(r.genislikPt), yukseklikPt: Number(r.yukseklikPt) }); kagitEtiketiniYaz(); }
+          return k;
+        }).finally(() => bekleyen.delete(anahtar));
+        bekleyen.set(anahtar, soz);
+      }
+      soz.then(() => { if (benim === sira) onizlemeCiz(); }).catch((e) => {
+        if (benim !== sira || kapandi) return;
+        durumEl.textContent = 'Ön izleme çizilemedi: ' + cekirdekHataMetni(e); durumEl.hidden = false;
+      });
+    }
+    const git = (fark) => { const yeni = Math.min(Math.max(0, indeks + fark), sayfalar.length - 1); if (yeni !== indeks && yeni >= 0) { indeks = yeni; onizlemeCiz(); } };
+    onceki.addEventListener('click', () => git(-1));
+    sonraki.addEventListener('click', () => git(1));
+    const gozlemci = new ResizeObserver(() => onizlemeCiz());
+
+    // ---------------------------------------------------------- Yazdır / Vazgeç
+    const kapat = (sonuc) => {
+      if (kapandi) return;
+      kapandi = true;
+      clearTimeout(secimZamani);
+      gozlemci.disconnect();
+      ortu.remove();
+      if (acikPencere === ortu) acikPencere = null;
+      coz(sonuc);
+    };
+    let onaylaniyor = false;
+    const onayla = async ({ sistemPenceresi = false } = {}) => {
+      if (onaylaniyor || kapandi) return;
+      const aralik = secili('aralik') || 'tumu';
+      const r = secilenSayfalar({ aralik, aralikMetni: aralikGirdi.value, toplam, gecerli });
+      if (r.hata) { hataEl.textContent = r.hata; hataEl.hidden = false; aralikGirdi.focus(); aralikGirdi.select(); return; }
+      onaylaniyor = true;
+      try {
+        if (!sistemPenceresi) {
+          await yazicilarHazir;
+          if (kapandi) return;
+          if (!yazicilar?.length || !yaziciSec.value) { yaziciBilgisiniYaz(); yaziciSec.focus(); return; }
+        }
+        const ad = yaziciSec.value, y = yaziciAl(ad), d = durumlar[ad] || {};
+        kapat({
+          aralik, aralikMetni: aralikGirdi.value.trim(), sayfalar: r.sayfalar,
+          yazici: ad, yaziciAdi: y?.gorunenAd || ad, kopya: kopyaDegeri(), harmanla: harmanla.checked,
+          kagit: sec('kagit').value, olcek: secili('olcek') || 'sigdir', renk: secili('renk') || 'renkli', ciftTarafli: ciftSec.value || 'yazici',
+          notlar: sec('notlar').checked, sistemPenceresi, dosyayaYazar: !!d.dosyayaYazar, cevrimDisi: !!d.cevrimDisi,
+        });
+      } finally { onaylaniyor = false; }
+    };
+    yazdirDugme.addEventListener('click', () => onayla());
+    ortu.querySelector('[data-id="sistem"]').addEventListener('click', () => onayla({ sistemPenceresi: true }));
     ortu.querySelector('[data-id="iptal"]').addEventListener('click', () => kapat(null));
     ortu.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { e.stopPropagation(); kapat(null); return; }
       if (e.key === 'Tab') { odakTuzagi(ortu, e); return; }
-      if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') { e.preventDefault(); onayla(); }
+      if ((e.key === 'PageUp' || e.key === 'PageDown') && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); e.stopPropagation(); git(e.key === 'PageDown' ? 1 : -1); return; }
+      if (e.key === 'Enter' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'SELECT') { e.preventDefault(); onayla(); }
       if (GEZINME_TUSLARI.has(e.key)) e.stopPropagation();   // belge kısayollarına sızmasın
     });
     // Dışarı tıklamak Vazgeç / Esc gibi kapatır; basış odağı diyalogdan almaz
@@ -426,7 +585,10 @@ function secenekPenceresi(belge, { toplam, gecerli, uyari, gecerliDevre }) {
     ortuTiklamasiBagla(ortu, () => kapat(null));
     document.body.append(ortu);
     acikPencere = ortu;
-    ortu.querySelector('[data-id="yazdir"]').focus();
+    kopyaGuncelle();
+    secimiGuncelle();
+    gozlemci.observe(alan);
+    yazdirDugme.focus();
   });
 }
 
@@ -434,7 +596,7 @@ function secenekPenceresi(belge, { toplam, gecerli, uyari, gecerliDevre }) {
 /**
  * İki aşamalı ilerleme penceresi:
  *  - hazırlık: Vazgeç → durum.iptal = true (döngü sonraki adımda durur, iş klasörü silinir)
- *  - diyalog:  diyalogAsamasi(cb) sonrası Vazgeç → cb() (ana süreç gizli pencereyi yok eder, Windows diyaloğu kapanır)
+ *  - yazdırma: diyalogAsamasi(cb) sonrası Vazgeç → cb() (ana süreç gizli pencereyi yok eder; iş ya da Windows'un penceresi kapanır)
  */
 function ilerlemePenceresi(baslik) {
   const ortu = document.createElement('div');
@@ -456,7 +618,7 @@ function ilerlemePenceresi(baslik) {
   const durum = {
     iptal: false,
     guncelle(yuzde, metin) { cubuk.style.width = Math.max(0, Math.min(100, yuzde)).toFixed(1) + '%'; if (metin != null) mesaj.textContent = metin; },
-    /** Windows diyaloğu aşaması: Vazgeç düğmesi ana süreçteki işi iptal eder. */
+    /** Yazdırma aşaması: Vazgeç düğmesi ana süreçteki işi iptal eder. */
     diyalogAsamasi(cb) { diyalogIptal = cb; iptalDugme.disabled = false; iptalDugme.textContent = 'Vazgeç'; },
     kapat() { ortu.remove(); if (acikPencere === ortu) acikPencere = null; },
   };
@@ -471,7 +633,7 @@ function ilerlemePenceresi(baslik) {
     if (e.key === 'Tab') { odakTuzagi(ortu, e); return; }
     if (GEZINME_TUSLARI.has(e.key)) e.stopPropagation();
   });
-  // Dışarı tıklamak Esc gibi Vazgeç'e basar (hazırlıkta döngü durur, Windows diyaloğu aşamasında diyalog kapanır); basış odağı almaz
+  // Dışarı tıklamak Esc gibi Vazgeç'e basar (hazırlıkta döngü durur, yazdırma aşamasında iş / Windows'un penceresi kapanır); basış odağı almaz
   ortu.addEventListener('mousedown', (e) => { if (e.target === ortu) e.preventDefault(); });
   ortuTiklamasiBagla(ortu, () => { if (!iptalDugme.disabled) iptalDugme.click(); });
   document.body.append(ortu);
@@ -501,7 +663,6 @@ function stilYukle() {
   document.head.append(link);
 }
 
-function kacis(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function mb(bayt) { return (bayt / 1024 / 1024).toFixed(1).replace('.', ','); }
 
 /** IPC sarmalayıcısının eklediği "Error invoking remote method…" önekini atar. */
