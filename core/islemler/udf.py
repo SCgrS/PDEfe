@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-"""UDF → PDF (0.2.6, "Dosya Formatını Değiştir" aracı): bilgisayardaki UYAP Doküman Editörü'nün (UDE) kendi sayfa düzeniyle.
-donustur.py'nin çatısına kaydolur (islemler/__init__.py onu donustur'dan sonra yükler).
+"""UDF ↔ PDF (0.2.6, "Dosya Formatını Değiştir" aracı): UDF → PDF bilgisayardaki UYAP Doküman Editörü'nün (UDE) kendi sayfa
+düzeniyle, PDF → UDF düzenlenebilir belge olarak (udf_yaz.py). donustur.py'nin çatısına kaydolur (islemler/__init__.py onu donustur'dan
+sonra yükler).
 
 UDF → PDF: UDE'nin "PDF olarak kaydet"i bazı belgeleri bozuk kaydediyor (kök nedenler PLAN.md "Revizyon 0.2.6"): sayfa genişliğini
 "2 × sol kenar + yazı alanı" alıyor (sol ve sağ kenarı farklı belgede sayfa A4 olmuyor, yazı kayıyor), yazı tiplerini gömmüyor (başka
@@ -1127,7 +1128,11 @@ def kaydol(yontemler):
     return None
 
 
+# PDF → UDF (düzenlenebilir): udf_yaz.py (UDE gerekmez)
+from . import udf_yaz  # noqa: E402
+
 donustur.donusturucu_kaydet("udf", "pdf", _udf_pdf, _udf_hazir)
+donustur.donusturucu_kaydet("pdf", "udf", udf_yaz.pdf_udf, udf_yaz.hazir)
 donustur.yetenek_kaydet("udf", _yetenek)
 donustur.bilgi_kaydet("udf", _udf_bilgi)
 donustur.ayar_kaydet(ayar_uygula)

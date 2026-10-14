@@ -609,7 +609,8 @@ def test_tiff_pdf(c, g):
     r, _ = c.cagir("donusum_bilgi", {"yol": g["etiketsiz_g4"], "genislik": 180})
     sonuc("donusum_bilgi TIFF: 3 sayfa, 200 dpi (A4 kuralı), ön izleme, ilk sayfanın ölçüsü",
           r["tur"] == "tiff" and r["sayfa"] == 3 and r["dpi"] == 200 and r["dpiKaynagi"] == "a4" and r["pngGenislik"] == 180
-          and abs(r["genislik"] - a4_200[0]) < 0.1 and [h["bicim"] for h in r["hedefler"]] == ["pdf"], {a: r[a] for a in r if a != "png"})
+          and abs(r["genislik"] - a4_200[0]) < 0.1 and [h["bicim"] for h in r["hedefler"]][:1] == ["pdf"]
+          and "tiff" not in [h["bicim"] for h in r["hedefler"]], {a: r[a] for a in r if a != "png"})
     r, _ = c.cagir("donusum_bilgi", {"yol": g["metin_pdf"]})
     sonuc("donusum_bilgi PDF: sayfa, ön izleme, hedefler TIFF", r["tur"] == "pdf" and r["sayfa"] == 3 and r["pngGenislik"] == 220
           and "tiff" in [h["bicim"] for h in r["hedefler"]], {a: r[a] for a in r if a != "png"})
