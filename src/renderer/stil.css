@@ -634,9 +634,10 @@ button.ikincil:hover { background: var(--hover); }
 .gecmis-listesi button.gecmis-kaydet:disabled { opacity: 0.45; filter: none; }
 .gecmis-listesi button.gecmis-kaydet:focus-visible { outline: 2px solid var(--vurgu); outline-offset: 2px; }
 
-/* Bildirim */
+/* Bildirim. Tıklamayı almaz (0.2.6): yalnızca metindir; araç penceresi açıkken pencerenin alt şeridine (Sayfaları düzenle'nin Kaydet
+   düğmesi) denk gelir, görünürken (3 sn) düğmeye tıklamak bildirime gidiyordu */
 #bildirim {
-  position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 200;
+  position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 200; pointer-events: none;
   background: var(--metin); color: var(--arka); padding: 8px 16px; border-radius: 8px; box-shadow: var(--golge);
 }
 
