@@ -579,6 +579,29 @@ def word_benzeri_pdf(yol, sayfa_no=True, yatay=False, ek_metin="", sayfa=3):
     return yol
 
 
+def tablolu_pdf(yol):
+    """Çizgili tablolu belge (Word'ün tablosu gibi: başlık satırı, 8 satır, 3 sütun, ince çerçeve)."""
+    arsiv = pymupdf.Archive(r"C:\Windows\Fonts") if WINDOWS else None
+    css = ('@font-face {font-family: tnr; src: url(times.ttf);} @font-face {font-family: tnr; src: url(timesbd.ttf); font-weight: bold;} '
+           'body {font-family: tnr; font-size: 12pt; margin: 0;} p {text-align: justify; margin: 0 0 6pt 0;} '
+           'table {border-collapse: collapse; width: 100%;} td, th {border: 0.75pt solid black; padding: 2pt 4pt; font-size: 11pt; '
+           'vertical-align: top;}') if WINDOWS else ""
+    satirlar = "".join("<tr><td>%d</td><td>%s</td><td>%s</td></tr>" % (i + 1, cumleler(500 + i, 1)[:40 + 7 * i], "2099/%d" % (100 + i))
+                       for i in range(8))
+    html = ("<p>%s</p>" % cumleler(1, 3) + "<table><tr><th>Sıra</th><th>Delil</th><th>Dosya</th></tr>%s</table>" % satirlar +
+            "<p>%s</p>" % cumleler(2, 4))
+    story = pymupdf.Story(html=html, user_css=css, archive=arsiv)
+    yazici = pymupdf.DocumentWriter(yol)
+    devam = True
+    while devam:
+        aygit = yazici.begin_page(pymupdf.Rect(0, 0, 595.28, 841.89))
+        devam, _ = story.place(pymupdf.Rect(70.87, 70.87, 524.41, 770.87))
+        story.draw(aygit)
+        yazici.end_page()
+    yazici.close()
+    return yol
+
+
 def taranmis_pdf(yol):
     """Tek sayfalık taranmış (yazısız, 200 dpi) belge: yazı görüntü olarak."""
     kaynak = word_benzeri_pdf(yol + ".kaynak.pdf", sayfa_no=False, sayfa=1)
@@ -628,6 +651,7 @@ def test_pdf_udf(c, k, ude_var):
         "ozel": word_benzeri_pdf(os.path.join(k, "ozel.pdf"), sayfa_no=False, sayfa=1,
                                  ek_metin="Köşeli ]]> ayraç ve emoji %s %s yazısı." % (chr(0x1F600), chr(0x1F44D))),
         "yatay": word_benzeri_pdf(os.path.join(k, "yatay.pdf"), sayfa_no=False, yatay=True, sayfa=1),
+        "tablolu": tablolu_pdf(os.path.join(k, "tablolu.pdf")),
     }
     ogeler = [{"yol": y, "hedef": os.path.join(k, a + ".udf"), "hedefBicim": "udf"} for a, y in girdiler.items()]
     r, _ = donustur(c, ogeler)
@@ -646,6 +670,11 @@ def test_pdf_udf(c, k, ude_var):
                   alt.attrib.get("pageNumber-spec") == "BSP32_2120", alt.attrib if alt is not None else None)
             sonuc("kenarlar 2,5 cm (70,87)", abs(float(pf["leftMargin"]) - 70.866) < 0.6 and abs(float(pf["rightMargin"]) - 70.866) < 1.1,
                   (pf["leftMargin"], pf["rightMargin"]))
+        if a == "tablolu":
+            tablo = kok.find("elements/table")
+            sonuc("çizgili tablo UDF tablosu oldu (3 sütun, 9 satır, kenarlıklı)", tablo is not None and tablo.attrib.get("columnCount") == "3"
+                  and len(tablo.findall("row")) == 9 and tablo.attrib.get("border") == "borderCell" and len(tablo.findall("row/cell")) == 27,
+                  tablo.attrib if tablo is not None else None)
         if a == "ozel":
             havuz = kok.find("content").text
             sonuc("]]> metinde kaldı (araya sıfır genişlikli boşluk)", "]]" + chr(0x200B) + ">" in havuz)
@@ -670,6 +699,11 @@ def test_pdf_udf(c, k, ude_var):
         if a == "yatay":
             boy = pdf_ozeti(cizim)["boylar"][0]
             sonuc("yatay UDF UDE'de yatay çizildi", boy[0] > boy[1], boy)
+        if a == "tablolu":
+            d = pymupdf.open(cizim)
+            tablolar = [(t.row_count, t.col_count) for t in d[0].find_tables().tables]
+            d.close()
+            sonuc("UDE tabloyu çizgili tablo olarak çizdi (9 × 3)", (9, 3) in tablolar, tablolar)
 
 
 def test_taranmis(c, k, ude_var):

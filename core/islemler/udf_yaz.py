@@ -315,13 +315,39 @@ class _Gorsel:
 
 
 class _Sayfa:
-    __slots__ = ("no", "g", "y", "satirlar", "gorseller", "taranmis", "tanindi", "dusen")
+    __slots__ = ("no", "g", "y", "satirlar", "gorseller", "taranmis", "tanindi", "dusen", "tablolar")
 
     def __init__(self, no, g, y):
         self.no, self.g, self.y = no, g, y
-        self.satirlar, self.gorseller = [], []
+        self.satirlar, self.gorseller, self.tablolar = [], [], []
         self.taranmis, self.tanindi = False, False
         self.dusen = 0
+
+
+class _Hucre:
+    __slots__ = ("x0", "y0", "x1", "y1", "bas", "span", "satirlar", "paragraflar", "icerik")
+
+    def __init__(self, kutu, bas, span):
+        self.x0, self.y0, self.x1, self.y1 = kutu
+        self.bas, self.span = bas, span
+        self.satirlar, self.paragraflar, self.icerik = [], [], 0
+
+
+class _TabloSatiri:
+    __slots__ = ("y0", "y1", "hucreler", "yuk")
+
+    def __init__(self, y0, y1):
+        self.y0, self.y1, self.hucreler, self.yuk = y0, y1, [], 0
+
+
+class _Tablo:
+    """Çizgili tablo (PyMuPDF find_tables): sütun sınırları (x), satırlar ve hücreleri (birleşik hücre birden çok sütun kaplar)."""
+    __slots__ = ("x0", "y0", "x1", "y1", "sinirlar", "satirlar", "sayfa", "sa", "yukseklik", "tam_sayfa", "kenarlik")
+
+    def __init__(self, kutu, sinirlar, sayfa):
+        self.x0, self.y0, self.x1, self.y1 = kutu
+        self.sinirlar, self.satirlar, self.sayfa = sinirlar, [], sayfa
+        self.sa, self.yukseklik, self.tam_sayfa, self.kenarlik = 0, 0, False, "borderCell"
 
 
 def _yatay_cizgiler(pg, mat):
@@ -449,8 +475,96 @@ def sayfa_oku(doc, pg, no):
     s.taranmis = yazi < 3 and kaplama >= TARAMA_GORSEL
     if not s.taranmis:
         parcalar += _resim_parcalari(s, parcalar)
+        s.tablolar, parcalar = _tablolar(pg, parcalar, no)
     s.satirlar = _satirlara(parcalar, no)
     return s
+
+
+def _cizgi_var(pg):
+    """Sayfada tablo çizgisi olabilecek en az üç yatay ve üç dikey ince çizgi var mı (find_tables pahalı: sayfa başına ~0,3 sn)."""
+    try:
+        cizimler = pg.get_drawings()
+    except Exception:
+        return False
+    if len(cizimler) > EN_FAZLA_CIZIM:
+        return False
+    yatay = dikey = 0
+    for dr in cizimler:
+        for it in dr.get("items") or ():
+            if it[0] == "re":
+                r = pymupdf.Rect(it[1])
+                if r.height < 1.6 and r.width > 15:
+                    yatay += 1
+                elif r.width < 1.6 and r.height > 6:
+                    dikey += 1
+                elif r.width > 15 and r.height > 6 and dr.get("type") in ("s", "fs"):
+                    yatay, dikey = yatay + 2, dikey + 2   # çerçeveli dikdörtgen (hücre)
+            elif it[0] == "l":
+                p, q = it[1], it[2]
+                if abs(p.y - q.y) < 0.5 and abs(p.x - q.x) > 15:
+                    yatay += 1
+                elif abs(p.x - q.x) < 0.5 and abs(p.y - q.y) > 6:
+                    dikey += 1
+        if yatay >= 3 and dikey >= 3:
+            return True
+    return False
+
+
+def _kumele(degerler, tolerans=1.5):
+    out = []
+    for v in sorted(degerler):
+        if out and v - out[-1][-1] <= tolerans:
+            out[-1].append(v)
+        else:
+            out.append([v])
+    return [sum(k) / len(k) for k in out]
+
+
+def _tablolar(pg, parcalar, no):
+    """Sayfanın çizgili tabloları (en az 2 × 2) ve tabloların dışında kalan parçalar. Parça (yazı ya da satır içi resim) ortası hangi
+    hücredeyse oraya gider. Döndürülmüş sayfada aranmaz."""
+    if pg.rotation or not _cizgi_var(pg):
+        return [], parcalar
+    try:
+        bulunan = pg.find_tables().tables
+    except Exception:
+        return [], parcalar
+    tablolar, kalan = [], list(parcalar)
+    for t in bulunan:
+        if t.row_count < 2 or t.col_count < 2:
+            continue
+        kutular = [c for r in t.rows for c in r.cells if c]
+        sinirlar = _kumele([x for c in kutular for x in (c[0], c[2])])
+        if len(sinirlar) < 3:
+            continue
+        tablo = _Tablo(tuple(t.bbox), sinirlar, no)
+        atanan = set()
+        for r in t.rows:
+            hucreler = [c for c in r.cells if c]
+            if not hucreler:
+                continue
+            satir = _TabloSatiri(min(c[1] for c in hucreler), max(c[3] for c in hucreler))
+            for c in hucreler:
+                bas = min(range(len(sinirlar)), key=lambda i: abs(sinirlar[i] - c[0]))
+                son = min(range(len(sinirlar)), key=lambda i: abs(sinirlar[i] - c[2]))
+                h = _Hucre(c, bas, max(1, son - bas))
+                for i, p in enumerate(kalan):
+                    if i in atanan:
+                        continue
+                    ox, oy = (p.x0 + p.x1) / 2, (p.ust + p.alt) / 2
+                    if c[0] - 0.5 <= ox <= c[2] + 0.5 and c[1] - 0.5 <= oy <= c[3] + 0.5:
+                        h.satirlar.append(p)
+                        atanan.add(i)
+                satir.hucreler.append(h)
+            satir.hucreler.sort(key=lambda h: h.bas)
+            tablo.satirlar.append(satir)
+        if not atanan:
+            continue   # yazısız çizgi ızgarası (form çizgileri): tablo değil
+        for h in (h for st in tablo.satirlar for h in st.hucreler):
+            h.satirlar = _satirlara(h.satirlar, no)
+        kalan = [p for i, p in enumerate(kalan) if i not in atanan]
+        tablolar.append(tablo)
+    return tablolar, kalan
 
 
 def _resim_parcalari(sf, parcalar):
@@ -602,11 +716,11 @@ def _sayfa_numarasi(liste, W):
 # ---------------------------------------------------------------- paragraflar
 class _Paragraf:
     """Gövdede bir paragraf (satırları bir ya da birkaç sayfada) ve UDE'deki öznitelikleri."""
-    __slots__ = ("satirlar", "hiza", "li", "fi", "ri", "ls", "E", "sa", "K", "C", "aile", "boy", "sekmeler")
+    __slots__ = ("satirlar", "hiza", "li", "fi", "ri", "ls", "E", "sa", "sb", "K", "C", "aile", "boy", "sekmeler")
 
     def __init__(self, satirlar):
         self.satirlar = satirlar
-        self.hiza, self.li, self.fi, self.ri, self.ls, self.E, self.sa = 0, 0.0, 0.0, 0.0, 0.0, 0, 0
+        self.hiza, self.li, self.fi, self.ri, self.ls, self.E, self.sa, self.sb = 0, 0.0, 0.0, 0.0, 0.0, 0, 0, 0
         agirlik = collections.Counter()
         for s in satirlar:
             agirlik[(s.aile, s.boy)] += len(s.metin)
@@ -801,6 +915,8 @@ class _Yazici:
             oz["LineSpacing"] = repr(p.ls)
         if p.sa > 0:
             oz["SpaceAbove"] = "%d.0" % p.sa
+        if p.sb > 0:
+            oz["SpaceBelow"] = "%d.0" % p.sb
         taban = sol_kenar_x + int(math.floor(p.li + 1e-9))
         satir_icleri = [self.satir_ici(s, taban) for s in p.satirlar]
         sekmeler = sorted({round(x, 1) for _, sek in satir_icleri for x in sek if x > 1})
@@ -863,6 +979,30 @@ class _Yazici:
         self.xml.append('<paragraph %s><image imageData="%s" width="%s" height="%s" startOffset="%d" length="1" />'
                         '<content startOffset="%d" length="%d" family="Times New Roman" size="1" /></paragraph>'
                         % (_xml_ozn(oz), base64.b64encode(veri).decode("ascii"), _sayi(genislik), _sayi(yukseklik), bas, bas2, n2))
+
+    def tablo(self, t, no):
+        """Tablo öğesi: sütun genişlikleri (columnSpans, göreli; UDE tabloyu yazı alanının genişliğine yayar), birleşik hücreli satırın
+        kendi columnSpans'ı; hücre paragrafları satır satır, soldan sağa (havuz sırası)."""
+        n = len(t.sinirlar) - 1
+        genislikler = [max(1, int(round(t.sinirlar[i + 1] - t.sinirlar[i]))) for i in range(n)]
+        xml = ['<table tableName="Tablo%d" columnCount="%d" columnSpans="%s" border="%s">'
+               % (no, n, ",".join(str(g) for g in genislikler), t.kenarlik)]
+        for ri, satir in enumerate(t.satirlar):
+            oz = 'rowName="row%d" rowType="dataRow"' % (ri + 1)
+            if len(satir.hucreler) != n or any(h.span > 1 for h in satir.hucreler):
+                oz += ' columnSpans="%s"' % ",".join(str(sum(genislikler[h.bas:h.bas + h.span])) for h in satir.hucreler)
+            xml.append("<row %s>" % oz)
+            for h in satir.hucreler:
+                parca = []
+                if h.paragraflar:
+                    for p in h.paragraflar:
+                        self.paragraf(p, h.x0, hedef=parca)
+                else:
+                    self.bos_paragraf(hedef=parca)
+                xml.append("<cell>" + "".join(parca) + "</cell>")
+            xml.append("</row>")
+        xml.append("</table>")
+        self.xml.append("".join(xml))
 
     def sayfa_sonu(self):
         bas, n = self.metin(SIFIR_BOSLUK + "\n")
@@ -1038,6 +1178,10 @@ def _udf_kur(sayfalar, uyarilar):
         _paragraf_ozellikleri(p, yer, sol_kenar_x, sag_kenar_x)
     ogeler = [("p", p, p.ilk.sayfa, p.ilk.y) for p in paragraflar]
     for sf in sayfalar:
+        for t in sf.tablolar:
+            _tablo_hazirla(t, W)
+            ogeler.append(("t", t, sf.no, t.y0))
+    for sf in sayfalar:
         for g in sf.gorseller:
             if g.zemin and sf.satirlar and sf.no == 1:
                 continue   # zemin resmi (antet): bgImage
@@ -1056,13 +1200,14 @@ def _udf_kur(sayfalar, uyarilar):
             if tur == "p" and o_tur == "p" and ayni:
                 oge.sa = max(0, _bosluk_hesapla(o_oge, oge))
                 boslukla[(oge.aile, oge.boy, oge.hiza)].append(oge.sa)
-            elif tur == "p" and o_tur == "g" and ayni:
-                oge.sa = max(0, int(round(oge.ilk.y - oge.E // 2 - oge.C - o_oge.y1)))
-            elif tur == "g" and o_tur == "p" and ayni:
-                oge.sa = max(0, int(round(oge.y0 - (o_oge.son.y + (o_oge.K - o_oge.C) + o_oge.E // 2))))
-            elif tur == "g" and o_tur == "g" and ayni:
+            elif tur == "p" and o_tur in ("g", "t") and ayni:
+                oge.sa = max(0, int(round(oge.ilk.y - oge.E // 2 - oge.C - o_oge.y1 - (1 if o_tur == "t" else 0))))
+            elif tur in ("g", "t") and o_tur == "p" and ayni:
+                oge.sa = max(0, int(round(oge.y0 + (1 if tur == "t" else 0) - (o_oge.son.y + (o_oge.K - o_oge.C) + o_oge.E // 2))))
+            elif tur in ("g", "t") and o_tur in ("g", "t") and ayni:
                 oge.sa = max(0, int(round(oge.y0 - o_oge.y1)))
         onceki = (tur, oge, oge.son.sayfa if tur == "p" else sayfa)
+    tablo_say = 0
     onceki = None
     for tur, oge, sayfa, _ in ogeler:
         if tur == "p" and (onceki is None or onceki[0] != "p" or onceki[1].son.sayfa != oge.ilk.sayfa) and onceki is not None:
@@ -1154,7 +1299,11 @@ def _udf_kur(sayfalar, uyarilar):
     for tur, oge, sayfa, _ in ogeler:
         if son_sayfa is not None and sayfa != son_sayfa and (son_sayfa in sonlar):
             yz.sayfa_sonu()
-        son_sayfa = sayfa if tur == "g" else oge.son.sayfa
+        son_sayfa = oge.son.sayfa if tur == "p" else sayfa
+        if tur == "t":
+            tablo_say += 1
+            yz.tablo(oge, tablo_say)
+            continue
         if tur == "g":
             g = oge
             gen, yuk = g.x1 - g.x0, g.y1 - g.y0
@@ -1207,6 +1356,35 @@ def _udf_kur(sayfalar, uyarilar):
     return {"xml": xml, "paragraf": paragraf_say}
 
 
+def _tablo_hazirla(t, W):
+    """Hücrelerin paragrafları (girinti hücrenin soluna göre) ve UDE'deki satır yükseklikleri: hücrenin içeriği SpaceAbove (üst iç pay) +
+    satırlar; satır kaynaktaki yüksekliğe SpaceBelow ile tamamlanır (UDE satır yüksekliği özniteliğini okumuyor; köprüyle ölçüldü).
+    Tablo bloğunun yüksekliği satırların toplamı + 1 (çerçeve)."""
+    for satir in t.satirlar:
+        hedef = int(round(satir.y1 - satir.y0))
+        for h in satir.hucreler:
+            if not h.satirlar:
+                h.paragraflar, h.icerik = [], _kutu(VARSAYILAN_AILE, 12)
+                continue
+            yer_h = _yerlesim(h.satirlar, W)
+            yer_h.sag = min(yer_h.sag, h.x1)
+            h.paragraflar = _paragraflara(h.satirlar, yer_h)
+            for i, p in enumerate(h.paragraflar):
+                _paragraf_ozellikleri(p, yer_h, h.x0, h.x1)
+                if p.hiza == 3 or len(p.satirlar) > 1:
+                    p.ri = max(p.ri, round(max(0.0, h.x1 - yer_h.sag - 0.5), 1))
+                if i:
+                    p.sa = max(0, _bosluk_hesapla(h.paragraflar[i - 1], p))
+            ilk = h.paragraflar[0]
+            ilk.sa = max(0, int(round(ilk.ilk.y - ilk.E // 2 - ilk.C - (satir.y0 + 1))))
+            h.icerik = sum(p.sa + len(p.satirlar) * (p.K + p.E) for p in h.paragraflar)
+        satir.yuk = max([hedef] + [h.icerik for h in satir.hucreler])
+        for h in satir.hucreler:
+            if h.paragraflar and satir.yuk > h.icerik:
+                h.paragraflar[-1].sb = satir.yuk - h.icerik
+    t.yukseklik = sum(st.yuk for st in t.satirlar) + 1
+
+
 def _sayfala(ogeler, sayfalar, H, tepe_al, alt_ust_kenar):
     """Alt kenar (bottomMargin) ve sayfa sonu konacak sayfalar. Her kaynak sayfanın içeriği UDE'nin modeliyle yerleştirilir: son satırın
     kutusunun altı (B) ve sonraki sayfanın ilk öğesi bu sayfada kalsaydı onun altı (N). UDE'de satır, kutusunun altı H − ⌊bm⌋'i geçmiyorsa
@@ -1217,7 +1395,7 @@ def _sayfala(ogeler, sayfalar, H, tepe_al, alt_ust_kenar):
     sayfa_ogeleri = collections.defaultdict(list)   # sayfa → [(tür, öğe, satır, devam mı)]
     zorla = set()
     for tur, oge, sayfa, _ in ogeler:
-        if tur == "g":
+        if tur in ("g", "t"):
             sayfa_ogeleri[sayfa].append(("g", oge, None, False))
             if oge.tam_sayfa:
                 zorla.update((sayfa - 1, sayfa))
@@ -1236,7 +1414,7 @@ def _sayfala(ogeler, sayfalar, H, tepe_al, alt_ust_kenar):
         govde_tepe = tepe_al(no)
         for tur, p, s, devam in ogeler_k:
             if tur == "g":
-                yuk = int(math.floor(p.y1 - p.y0))
+                yuk = p.yukseklik if isinstance(p, _Tablo) else int(math.floor(p.y1 - p.y0))
                 y = (y + p.sa if y is not None else govde_tepe) + yuk
                 taban, onceki_p = None, None
                 continue
@@ -1253,7 +1431,7 @@ def _sayfala(ogeler, sayfalar, H, tepe_al, alt_ust_kenar):
         if sonraki:
             tur, p, s, devam = sonraki[0]
             if tur == "g":
-                N = y + p.sa + int(math.floor(p.y1 - p.y0))
+                N = y + p.sa + (p.yukseklik if isinstance(p, _Tablo) else int(math.floor(p.y1 - p.y0)))
             elif onceki_p is p:
                 N, paragraf_sonu = y + p.K + p.E, False
             else:
