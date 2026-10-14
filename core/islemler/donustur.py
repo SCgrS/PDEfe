@@ -46,7 +46,11 @@ Dönüştürücü yazmak (UDF, Word modülleri): donusturucu_kaydet(kaynak, hede
   hazir() → (bool, neden | None): dönüştürmenin bu bilgisayarda yapılıp yapılamayacağı (ör. "Word kurulu değil"); sonucu ön belleğe almak
   hazir'in işidir (her donusum_bilgi ve donusum_yetenekleri çağrısında sorulur).
   yetenek_kaydet(ad, islev): islev() → dict, donusum_yetenekleri'nde ad anahtarıyla (udf, word).
-  bilgi_kaydet(tur, islev): islev(yol, alt, genislik) → dict (sayfa, png, uyari…), donusum_bilgi'nin yanıtına eklenir.
+  bilgi_kaydet(tur, islev): islev(yol, alt, genislik[, p]) → dict (sayfa, png, uyari…), donusum_bilgi'nin yanıtına eklenir (p: isteğin
+  parametreleri; dört parametreli işleve verilir). Sözlükte ERTELE anahtarı varsa değeri baslat(tamamla) işlevidir: yanıt beklemeden
+  dönmez, baslat işi kendi iş parçacığında yapar ve tamamla(ek) ile bitirir (ek sözlüğü yanıta eklenir; işçi beklemez, Ertelenmis).
+  ayar_kaydet(islev): islev(p) üç yöntemin her isteğinde parametrelerle çağrılır (ör. UDF modülü ayarlardaki UDE yolunu, udeYolu, alır).
+  kapanis_kaydet(islev): çekirdek kapanırken (kapanirken) çağrılır (ör. boştaki dış süreçlerin kapatılması).
   Dönüştürme iş parçacığı yalnızca bu işler içindir: Windows'ta COM gerekirse (Word) CoInitialize(STA) bu iş parçacığında bir kez yapılabilir.
 
 TIFF → PDF: kayıpsız; sayfa ölçüsü taramanın gerçek ölçüsü (tiff_dpi_coz: etiket geçerliyse, 50–1200 dpi, onu; yoksa uzun kenarı A4'ün
@@ -294,7 +298,10 @@ class _Donusturucu:
 
 _DONUSTURUCULER = {}   # (kaynak, hedef) → _Donusturucu
 _YETENEKLER = {}       # ad → islev() → dict
-_BILGILER = {}         # tür → islev(yol, alt, genislik) → dict
+_BILGILER = {}         # tür → islev(yol, alt, genislik[, p]) → dict
+_AYARLAR = []          # islev(p): isteğin parametrelerindeki ayarlar
+_KAPANISLAR = []       # islev(): çekirdek kapanırken
+ERTELE = "_ertele"     # bilgi işlevinin sözlüğünde: baslat(tamamla) (bkz. modül belgesi)
 
 
 def donusturucu_kaydet(kaynak, hedef, islev, hazir=None):
@@ -310,6 +317,32 @@ def yetenek_kaydet(ad, islev):
 
 def bilgi_kaydet(tur, islev):
     _BILGILER[tur] = islev
+
+
+def ayar_kaydet(islev):
+    if islev not in _AYARLAR:
+        _AYARLAR.append(islev)
+
+
+def kapanis_kaydet(islev):
+    if islev not in _KAPANISLAR:
+        _KAPANISLAR.append(islev)
+
+
+def _ayarlari_uygula(p):
+    for islev in _AYARLAR:
+        try:
+            islev(p)
+        except Exception as e:   # bozuk ayar isteği düşürmesin
+            print("[donustur] ayar uygulanamadı: %s" % e, file=sys.stderr)
+
+
+def _parametre_sayisi(islev):
+    try:
+        import inspect
+        return len(inspect.signature(islev).parameters)
+    except (TypeError, ValueError):
+        return 3
 
 
 def _plan(kaynak, hedef):
@@ -402,11 +435,14 @@ def _bosta_bekle(sure):
 def kapanirken(bekle=2.0, temizlik=3.0):
     """Çekirdek kapanırken (pdefe_core.main): süren dönüştürme en çok `bekle` sn beklenir; bitmezse iptal edilir ve geçici dosyaların
     silinmesi için en çok `temizlik` sn daha beklenir."""
-    if _is_parcacigi is None:
-        return
-    if not _bosta_bekle(bekle):
+    if _is_parcacigi is not None and not _bosta_bekle(bekle):
         _kapaniyor.set()
         _bosta_bekle(temizlik)
+    for islev in _KAPANISLAR:
+        try:
+            islev()
+        except Exception as e:
+            print("[donustur] kapanış işi: %s" % e, file=sys.stderr)
 
 
 # ---------------------------------------------------------------- ilerleme ve bağlam
@@ -516,6 +552,7 @@ def _genislik(p):
 
 
 def y_donusum_yetenekleri(p):
+    _ayarlari_uygula(p)
     donusumler = {}
     for k in TURLER:
         for h in HEDEF_SIRASI:
@@ -589,6 +626,7 @@ def _tiff_bilgi(yol, genislik):
 
 
 def y_donusum_bilgi(p):
+    _ayarlari_uygula(p)
     yol = araclar._mutlak(p.get("yol"))
     genislik = _genislik(p)
     tur, alt = tur_bul(yol)
@@ -596,6 +634,7 @@ def y_donusum_bilgi(p):
     if tur == "bilinmeyen":
         sonuc["uyari"] = "Dosyanın biçimi tanınmadı. PDF, UDF, TIFF ve Word dosyaları dönüştürülebilir."
         return sonuc
+    ertele = None
     try:
         _girdi_denetle(yol, tur, alt)
         if tur == "pdf":
@@ -604,7 +643,9 @@ def y_donusum_bilgi(p):
             sonuc.update(_tiff_bilgi(yol, genislik))
         islev = _BILGILER.get(tur)
         if islev is not None:
-            sonuc.update(islev(yol, alt, genislik) or {})
+            ek = (islev(yol, alt, genislik, p) if _parametre_sayisi(islev) >= 4 else islev(yol, alt, genislik)) or {}
+            ertele = ek.pop(ERTELE, None)
+            sonuc.update(ek)
     except PermissionError:
         raise
     except OgeHatasi as e:
@@ -614,7 +655,18 @@ def y_donusum_bilgi(p):
                 h["var"], h["neden"] = False, str(e)
     except Exception as e:
         sonuc["uyari"] = "Dosya okunamadı: %s" % e
-    return sonuc
+    if ertele is None:
+        return sonuc
+
+    def baslat(bitir):
+        def tamamla(ek):
+            bitir(dict(sonuc, **(ek or {})), None)
+        try:
+            ertele(tamamla)
+        except Exception as e:   # ertelenen iş başlatılamazsa bilgi yine döner
+            print("[donustur] ertelenen bilgi başlatılamadı: %s" % e, file=sys.stderr)
+            bitir(sonuc, None)
+    return _cekirdek().Ertelenmis(baslat)
 
 
 def _yol_anahtari(yol):
@@ -795,6 +847,7 @@ def _isi_yap(ogeler, il):
 
 
 def y_bicim_donustur(p):
+    _ayarlari_uygula(p)
     ogeler = _ogeleri_hazirla(p.get("ogeler"))
     il = _Ilerleme(p)
     Ertelenmis = _cekirdek().Ertelenmis

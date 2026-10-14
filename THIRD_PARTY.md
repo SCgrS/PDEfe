@@ -35,6 +35,13 @@ PDEfe, serbest yazı notlarında kullanıcının Windows'unda kurulu fontların 
 Calibri; macOS'ta sistemle gelen Arial ve Times New Roman) yalnızca kullanılan glifleri içeren alt kümesini belgeye gömer. Bu fontlar
 PDEfe ile dağıtılmaz; işletim sisteminin kendi lisans koşullarına tabidir.
 
+## UYAP Doküman Editörü (UDF → PDF, 0.2.6)
+
+UDF → PDF dönüştürmesi bilgisayarda kurulu UYAP Doküman Editörü'nü ve onunla gelen kitaplıkları (UDE'nin `jai_hvl.jar` dosyasındaki
+iText 2.1.7 dâhil) yalnızca çalışma anında, bilgisayardaki kurulumdan kullanır; bunlar PDEfe ile dağıtılmaz, depoya ve kurulum
+paketine girmez. Paketteki `resources/ude-kopru/ude-kopru.jar` PDEfe'nin kendi kodudur (AGPL-3.0, kaynağı `core/ude_kopru/src`): UDE'nin ve
+iText'in sınıflarına yalnızca yansımayla (reflection) erişir, onların bayt kodunu içermez ve çözmez.
+
 ## Lisans metinleri
 
 - GNU AGPL-3.0: `LICENSE` (PDEfe, PyMuPDF, MuPDF)

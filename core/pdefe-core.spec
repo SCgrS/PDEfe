@@ -28,6 +28,7 @@ gizli = [
     "islemler.yapisal",
     "islemler.yazi_tanima",
     "islemler.donustur",
+    "islemler.udf",
     "fontTools.subset",
     "fontTools.ttLib",
     "PIL",

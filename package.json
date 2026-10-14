@@ -12,6 +12,7 @@
   "scripts": {
     "start": "electron .",
     "cekirdek:derle": "node build/cekirdek-derle.mjs",
+    "ude-kopru:derle": "node build/ude-kopru-derle.mjs",
     "dist": "electron-builder --win",
     "yayim:hazirla": "npm run cekirdek:derle && npm run dist",
     "dist:yayimla": "electron-builder --win --publish always",

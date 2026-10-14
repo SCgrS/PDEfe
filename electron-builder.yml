@@ -59,6 +59,10 @@ win:
   extraResources:
     - from: core/dist/pdefe-core
       to: pdefe-core
+    # UYAP Doküman Editörü köprüsü (0.2.6, UDF → PDF; core/islemler/udf.py resources/ude-kopru/'da arar). Jar depoda hazır (npm run
+    # ude-kopru:derle); UDE'nin ve iText'in jar'ları pakete girmez, bilgisayardaki UDE'den çalışma anında gelir
+    - from: core/ude_kopru/ude-kopru.jar
+      to: ude-kopru/ude-kopru.jar
   target:
     - target: nsis
       arch:
@@ -132,6 +136,8 @@ mac:
       to: pdefe-core-arm64
     - from: core/dist/pdefe-core-x64
       to: pdefe-core-x64
+    - from: core/ude_kopru/ude-kopru.jar   # UDE köprüsü (iki mimaride aynı dosya; bkz. win.extraResources)
+      to: ude-kopru/ude-kopru.jar
   # Finder'da "Birlikte aç" listesinde görünür; varsayılan uygulamayı kullanıcı Bilgi Al'dan seçer (Alternate: sistemin PDF görüntüleyicisinin
   # yerine kendiliğinden geçmez). Uzantıyla tanımlanır (CFBundleTypeExtensions): PDF'in sistem tür kimliğinde bir marka adı geçer
   fileAssociations:
