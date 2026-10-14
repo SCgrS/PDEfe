@@ -265,6 +265,7 @@ public final class UdeKopru {
 
     /** Belgeyi UDE'de açar (EDT'de), sayfalayıcısını döner. duz: saydam resimler önce beyaza düzleştirilir. */
     static Pageable yukle(final File girdi, boolean duz) throws Exception {
+        yorumlarAtlandi = false;
         byte[] veri = oku(girdi);
         if (duz) veri = duzlestir(veri);
         final byte[] v = veri;
@@ -372,6 +373,7 @@ public final class UdeKopru {
         s.put("sayfa", n);
         s.put("boylar", boylar(p));
         s.put("cizim", "itext");
+        if (yorumlarAtlandi) s.put("yorumlarAtlandi", true);
         return s;
     }
 
@@ -744,6 +746,7 @@ public final class UdeKopru {
         s.put("sayfa", n);
         s.put("boylar", boylar(p));
         s.put("cizim", "yazici");
+        if (yorumlarAtlandi) s.put("yorumlarAtlandi", true);
         return s;
     }
 
@@ -823,6 +826,13 @@ public final class UdeKopru {
     static final Pattern RESIM = Pattern.compile("(bgImageData|imageData)=\"([^\"]*)\"");
 
     /** content.xml'deki saydam resimleri (bgImageData, imageData) beyaz zemine oturtur. Zip (UDF) ya da düz XML (format 1.7). */
+    /**
+     * Yorumlu (comments.xml) belge: UDE yorumları kendi vurgulayıcısıyla işaretliyor; bu vurgulayıcı yalnızca editörün penceresinde
+     * kuruluyor, belge paneli tek başına yüklenince ClassCastException verip belgeyi açmıyordu. Yorumlar yazdırılan sayfanın parçası
+     * değil (kenar işaretleri): yüklemeden önce atılır, sonuçta "yorumlarAtlandi" bildirilir.
+     */
+    static boolean yorumlarAtlandi;
+
     static byte[] duzlestir(byte[] udf) throws IOException {
         if (udf.length > 3 && udf[0] == 'P' && udf[1] == 'K') {
             ZipInputStream zi = new ZipInputStream(new ByteArrayInputStream(udf));
@@ -832,6 +842,11 @@ public final class UdeKopru {
             boolean degisti = false;
             while ((e = zi.getNextEntry()) != null) {
                 byte[] veri = hepsiniOku(zi);
+                if (e.getName().equalsIgnoreCase("comments.xml")) {
+                    yorumlarAtlandi = true;
+                    degisti = true;
+                    continue;
+                }
                 if (e.getName().equals("content.xml")) {
                     byte[] yeni = xmlDuzlestir(veri);
                     if (yeni != veri) degisti = true;

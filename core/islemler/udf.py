@@ -980,6 +980,7 @@ def _udf_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
             cizim = "yazici"
     except KopruHatasi as e:
         if e.tur == "yukleme":
+            print("[udf] %s: %s" % (ad, e), file=sys.stderr)   # UDE'nin nedeni (tanı için; kullanıcıya kısa ileti)
             raise OgeHatasi("bozuk", "UYAP Doküman Editörü belgeyi açamadı: %s" % ad)
         if e.tur == "bos":
             raise OgeHatasi("bozuk", "Belgede sayfa yok: %s" % ad)
@@ -1006,6 +1007,8 @@ def _udf_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
         raise OgeHatasi("hata", "Üretilen PDF'in sayfa sayısı UYAP Doküman Editörü'nünkinden farklı: %s" % ad)
     if cizim == "yazici" and metinsiz:
         uyarilar.append("%d sayfa resim olarak çizildi (yazısı seçilemez)." % metinsiz)
+    if sonuc.get("yorumlarAtlandi"):
+        uyarilar.append("Belgedeki yorumlar (açıklama notları) PDF'e alınmadı.")
     try:
         if udf_ozeti(kaynak, baglam.alt or ("zip" if zipfile.is_zipfile(kaynak) else "xml")).get("imzali"):
             uyarilar.append("Belgedeki e-imza PDF'e taşınmaz.")

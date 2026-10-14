@@ -281,6 +281,17 @@ def udf_girdileri(k):
     for i in range(500):
         u.paragraf(METIN * 3)
     g["buyuk"] = u.yaz(os.path.join(k, "buyuk.udf"))
+    # Yorumlu belge (comments.xml; UDE yorumları kendi vurgulayıcısıyla işaretliyor, belge paneli tek başına yüklenince açmıyordu)
+    u = UdfYaz()
+    for i in range(3):
+        u.paragraf(METIN)
+    yorumlu = u.yaz(os.path.join(k, "yorumlu.udf"))
+    yorum = (ONSOZ + "<content><![CDATA[Deneme yorumu\n]]></content>\n<elements resolver=\"hvl-default\" >\n"
+             '<comment type="1" strtOffs="10" endOffs="40" indx="0" time="1791402367083" usr="Deneme Kullanıcı"><paragraph>'
+             '<content startOffset="0" length="14" /></paragraph></comment>\n</elements>' + STILLER + "\n</template>\n")
+    with zipfile.ZipFile(yorumlu, "a", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("comments.xml", yorum.encode("utf-8"))
+    g["yorumlu"] = yorumlu
     with zipfile.ZipFile(os.path.join(k, "bozuk.udf"), "w") as z:
         z.writestr("content.xml", ONSOZ + "<content><![CDATA[abc]]></content><elements><paragraph><content startOffset=\"0\" "
                    "length=\"999\" /></paragraph></elements></template>")
@@ -475,6 +486,13 @@ def test_yazici_konum(c, g, k):
         return
     sonuc("satır konumları yazıcı yoluyla aynı (≤ 0,5 pt), sözcükler aynı", sap is not None and sap <= 0.5 and kel >= 0.99 and es >= na - 1,
           {"eşleşen": es, "satır": (na, nb), "sapma": sap and round(sap, 2), "sözcük": round(kel, 3)})
+
+
+def test_yorumlu(c, g, k):
+    r, _ = donustur(c, [{"yol": g["yorumlu"], "hedef": os.path.join(k, "yorumlu.pdf"), "hedefBicim": "pdf"}])
+    o = r["sonuclar"][0]
+    sonuc("yorumlu UDF dönüşüyor, yorumların alınmadığı söyleniyor", "hata" not in o and "yorumlar" in (o.get("uyari") or ""),
+          o.get("hata") or o.get("uyari"))
 
 
 def test_hatalar(c, g, k):
@@ -801,7 +819,8 @@ def main():
     g = udf_girdileri(temiz_klasor("girdi"))
     testler = []
     if ude_var:
-        testler += [lambda: test_udf_pdf(c, g, k), lambda: test_yazici_konum(c, g, k), lambda: test_hatalar(c, g, k),
+        testler += [lambda: test_udf_pdf(c, g, k), lambda: test_yazici_konum(c, g, k), lambda: test_yorumlu(c, g, k),
+                    lambda: test_hatalar(c, g, k),
                     lambda: test_iptal(c, g, temiz_klasor("iptal"))]
     else:
         atlandi("UDF → PDF", "UDE ya da Java bu bilgisayarda yok")
