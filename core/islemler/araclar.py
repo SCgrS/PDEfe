@@ -778,13 +778,15 @@ def _kareler(im):
     return [im]
 
 
-def _duzlestir(im):
-    """EXIF yönünü uygular, saydamlığı beyaz zemine bindirir, kipi RGB/L/1'e indirger."""
+def _duzlestir(im, exif=True):
+    """EXIF yönünü uygular, saydamlığı beyaz zemine bindirir, kipi RGB/L/1'e indirger. exif=False: yön uygulanmaz (0.2.6, dönüştürme:
+    çok sayfalı TIFF'in karesinin yönünü çağıran kendi etiketinden uygular; Pillow'un EXIF'i karenin değil ilk karenin olabilir)."""
     Image, ImageOps, _ = _pillow()
-    try:
-        im = ImageOps.exif_transpose(im) or im
-    except Exception:
-        pass
+    if exif:
+        try:
+            im = ImageOps.exif_transpose(im) or im
+        except Exception:
+            pass
     kip = im.mode
     if kip == "P":
         im = im.convert("RGBA" if "transparency" in im.info else "RGB")

@@ -12,5 +12,8 @@ def kaydol(yontemler):
     try:
         from . import araclar
         araclar.kaydol(yontemler)
+        # Dosya biçimi dönüştürme (0.2.6): çatı ve TIFF ↔ PDF; UDF ve Word dönüştürücüleri donustur'un kaydına kendileri eklenir
+        from . import donustur
+        donustur.kaydol(yontemler)
     except ImportError:
         pass

@@ -375,5 +375,31 @@ try:
 except Exception as e:  # noqa: BLE001
     sonuc("ana süreç hedefsiz yazan yöntemlerde yol'u denetler", False, repr(e))
 
+# ---------------------------------------------------------------- 8. dosya biçimi dönüştürme (0.2.6, islemler/donustur.py)
+# Hedefin uzantısı istenen biçimle eşleşmeli (.cmd / .exe'ye PDF ya da TIFF baytı yazılmaz); türü içerikten bulunur, MuPDF'e yalnızca
+# içeriği PDF olan dosya verilir (uzantısı .pdf olan HTML / SVG okunamaz). Ayrıntılı sınama: test/donustur_testi.py
+print("— Dönüştürme: biçimin uzantısına yazma, MuPDF'e yalnızca PDF")
+from islemler import donustur  # noqa: E402
+for ad, hedef, bicim in (("PDF hedefi .cmd", "donustur-zararli.cmd", "pdf"), ("TIFF hedefi .exe", "donustur-zararli.exe", "tiff"),
+                         ("Word hedefi .bat", "donustur-zararli.bat", "word")):
+    hedef = os.path.join(CIKTI, hedef)
+    try:
+        donustur.y_bicim_donustur({"ogeler": [{"yol": kaynak_pdf, "hedef": hedef, "hedefBicim": bicim}]})
+        sonuc("dönüştürme: %s reddedilir" % ad, False, "kabul edildi")
+    except ValueError as e:
+        sonuc("dönüştürme: %s reddedilir" % ad, not os.path.exists(hedef), e)
+kandirma = os.path.join(CIKTI, "kandirma.pdf")
+with open(kandirma, "w", encoding="utf-8") as f:
+    f.write('<svg xmlns="http://www.w3.org/2000/svg"><text>%s</text></svg>' % GIZLI)
+acilan = []
+asil_ac = pymupdf.open
+pymupdf.open = lambda *a, **k: (acilan.append(a[0]) if a and isinstance(a[0], str) else None, asil_ac(*a, **k))[1]
+try:
+    bilgi = donustur.y_donusum_bilgi({"yol": kandirma})
+finally:
+    pymupdf.open = asil_ac
+sonuc("dönüştürme: uzantısı .pdf olan SVG tanınmaz, MuPDF'e verilmez", bilgi["tur"] == "bilinmeyen" and kandirma not in acilan
+      and GIZLI not in json.dumps(bilgi), (bilgi["tur"], acilan))
+
 print("\nSonuç: %d/%d geçti%s." % (toplam - hata, toplam, ", %d HATA" % hata if hata else ""))
 sys.exit(1 if hata else 0)

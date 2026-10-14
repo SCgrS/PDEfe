@@ -587,7 +587,9 @@ class IptalEdildi(Exception):
 
 class Ertelenmis:
     """Yanıtı başka bir iş parçacığında hazırlanan isteğin dönüş değeri (0.1.24, yazı tanıma): işçi beklemeden sıradaki isteğe geçer.
-    baslat(bitir) işi başlatır; iş bitince bitir(sonuc, hata) bir kez çağrılır ve yanıt oradan yazılır."""
+    baslat(bitir) işi başlatır; iş bitince bitir(sonuc, hata) bir kez çağrılır ve yanıt oradan yazılır. İsteğin iptal bayrağı iş bitene
+    dek durur (0.2.6): params["_ilerleme"] ve params["_iptal_mi"] öteki iş parçacığında da iptali görür; iptal edilen iş IptalEdildi
+    fırlatırsa yanıt "İşlem iptal edildi." (-32800) olur."""
 
     def __init__(self, baslat):
         self.baslat = baslat
@@ -595,6 +597,12 @@ class Ertelenmis:
 
 _iptal_bayraklari = set()
 _iptal_kilidi = threading.Lock()
+
+# MuPDF tek iş parçacığından kullanılmalı (PyMuPDF iş parçacığı güvenli değil; aynı anda iki iş parçacığından çağrılınca çökebilir).
+# İşçi her isteği bu kilitle işler; MuPDF'i kendi iş parçacığında kullanan uzun işler (0.2.6, islemler/donustur.py) her MuPDF adımını
+# bu kilidin içinde yapar, aradaki Pillow ve dış süreç işi kilitsiz sürer: dönüştürme sürerken küçük resim ve kopyalama istekleri
+# sayfa arasında yanıtlanır. Yazı tanıma iş parçacığı MuPDF'e girmez (yalnızca Python düzeyindeki Point / Rect / Matrix).
+mupdf_kilidi = threading.RLock()
 
 
 def y_iptal(p):
@@ -643,14 +651,25 @@ def yaz_guvenli(obj):
         yaz(obj)
 
 
-def ilerleme_yap(istek_id):
-    def f(yuzde, mesaj=""):
+def iptal_denetcisi(istek_id):
+    """İsteğin iptal bayrağına bakan işlev (0.2.6): ilerleme bildirmeden iptali denetlemek için (params["_iptal_mi"])."""
+    def iptal_mi():
         with _iptal_kilidi:
-            iptal = istek_id in _iptal_bayraklari
-        if iptal:
+            return istek_id in _iptal_bayraklari
+    return iptal_mi
+
+
+def ilerleme_yap(istek_id):
+    iptal_mi = iptal_denetcisi(istek_id)
+
+    def f(yuzde, mesaj=""):
+        if iptal_mi():
             raise IptalEdildi()
         yaz_guvenli({"id": istek_id, "progress": {"yuzde": yuzde, "mesaj": mesaj}})
     return f
+
+
+IPTAL_YANITI = {"code": -32800, "message": "İşlem iptal edildi."}
 
 
 def _istek_isle(istek):
@@ -661,28 +680,40 @@ def _istek_isle(istek):
     if not f:
         yaz_guvenli({"id": istek_id, "error": {"code": -32601, "message": "Bilinmeyen yöntem: %s" % yontem}})
         return
+    ertelendi = False
     try:
         params["_ilerleme"] = ilerleme_yap(istek_id)
+        params["_iptal_mi"] = iptal_denetcisi(istek_id)
         sonuc = f(params)
         if isinstance(sonuc, Ertelenmis):
             sonuc.baslat(lambda r, hata: _ertelenmis_yanit(istek_id, r, hata))
+            # İptal bayrağı iş bitince _ertelenmis_yanit'ta silinir (0.2.6): burada silinseydi, iş başlamadan (istek kuyruktayken ya da
+            # işçi istek denetimini yaparken) gelen iptal kaybolur, öteki iş parçacığındaki iş sonuna dek sürerdi
+            ertelendi = True
             return
         yaz_guvenli({"id": istek_id, "result": sonuc})
     except IptalEdildi:
-        yaz_guvenli({"id": istek_id, "error": {"code": -32800, "message": "İşlem iptal edildi."}})
+        yaz_guvenli({"id": istek_id, "error": dict(IPTAL_YANITI)})
     except Exception as e:
         yaz_guvenli({"id": istek_id, "error": {"code": -32000, "message": str(e), "data": traceback.format_exc()}})
     finally:
-        with _iptal_kilidi:
-            _iptal_bayraklari.discard(istek_id)
+        if not ertelendi:
+            with _iptal_kilidi:
+                _iptal_bayraklari.discard(istek_id)
 
 
 def _ertelenmis_yanit(istek_id, sonuc, hata):
-    if hata is None:
-        yaz_guvenli({"id": istek_id, "result": sonuc})
-    else:
-        yaz_guvenli({"id": istek_id, "error": {"code": -32000, "message": str(hata),
-                                               "data": "".join(traceback.format_exception(hata))}})
+    try:
+        if hata is None:
+            yaz_guvenli({"id": istek_id, "result": sonuc})
+        elif isinstance(hata, (IptalEdildi, InterruptedError)):
+            yaz_guvenli({"id": istek_id, "error": dict(IPTAL_YANITI)})
+        else:
+            yaz_guvenli({"id": istek_id, "error": {"code": -32000, "message": str(hata),
+                                                   "data": "".join(traceback.format_exception(hata))}})
+    finally:
+        with _iptal_kilidi:
+            _iptal_bayraklari.discard(istek_id)
 
 
 def _isci(kuyruk):
@@ -690,7 +721,8 @@ def _isci(kuyruk):
         istek = kuyruk.get()
         if istek is None:
             return
-        _istek_isle(istek)
+        with mupdf_kilidi:
+            _istek_isle(istek)
 
 
 def main():
@@ -721,6 +753,13 @@ def main():
         kuyruk.put(istek)
     kuyruk.put(None)
     isci.join(timeout=5)
+    # Süren dönüştürme (0.2.6) kısa süre beklenir, bitmezse iptal edilir: yarım çıktı ve geçici dosya kalmasın (ana süreç çekirdeği
+    # girdisini kapattıktan 8 sn sonra zorla kapatır, cekirdek.js durdur)
+    try:
+        from islemler import donustur
+        donustur.kapanirken()
+    except ImportError:
+        pass
     # Tanıma iş parçacığı çalıştıysa yorumlayıcı olağan yoldan kapatılmaz (0.1.24): süren bir WinRT işinin geri çağrısı kapanmakta olan
     # yorumlayıcıya girip çıkışta çökme penceresi açabilirdi. Yazılanlar boşaltılıp süreç hemen sonlandırılır
     try:
