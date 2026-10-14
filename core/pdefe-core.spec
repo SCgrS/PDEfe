@@ -30,6 +30,7 @@ gizli = [
     "islemler.donustur",
     "islemler.udf",
     "islemler.udf_yaz",
+    "islemler.word",
     "fontTools.subset",
     "fontTools.ttLib",
     "PIL",
@@ -63,6 +64,12 @@ if WINDOWS:
         ikili += collect_dynamic_libs("winrt")
     except ImportError:
         print("UYARI: winrt paketleri yok; çekirdek görsellerdeki yazıyı tanıyamayacak")
+    # Word → PDF (0.2.6, islemler/word.py): Word'e COM ile (comtypes; işlev içinde yüklenir). comtypes.client kullanılmaz
+    try:
+        import comtypes  # noqa: F401
+        gizli += ["comtypes", "comtypes.automation"]
+    except ImportError:
+        print("UYARI: comtypes yok; Word → PDF Word'le yapılamayacak (LibreOffice varsa onunla)")
 else:
     # macOS: Apple yazı tanıyıcısının Python bağları (0.2.0; pyobjc-framework-Vision, -Quartz, -Cocoa). Modüller işlev içinde yüklenir
     try:

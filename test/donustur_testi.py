@@ -530,7 +530,11 @@ def test_mupdf_yalnizca_pdf(c):
     sonuc("MuPDF yalnızca PDF içerikli dosyaları filetype='pdf' ile açtı", not yanlis and kayit, yanlis or "%d açılış" % len(kayit))
     s = r["sonuclar"]
     sonuc("PDF adlı TIFF TIFF olarak dönüştürüldü", "hata" not in s[0] and s[0]["kaynakTur"] == "tiff", s[0])
-    sonuc("docx → TIFF yapılamıyor (Word dönüştürücüsü yok)", s[1].get("kod") == "desteklenmiyor", s[1])
+    y, _ = c.cagir("donusum_yetenekleri", {})
+    if (y.get("donusumler") or {}).get("word>tiff", {}).get("var"):   # Word → PDF (0.2.6, islemler/word.py) varsa zincirle yapılır
+        sonuc("bozuk docx → TIFF: Word açamadı (kod bozuk), MuPDF'e gitmedi", s[1].get("kod") == "bozuk", s[1])
+    else:
+        sonuc("docx → TIFF yapılamıyor (Word dönüştürücüsü yok)", s[1].get("kod") == "desteklenmiyor", s[1])
     sonuc("tanınmayan dosya dönüştürülmez", s[2].get("kod") == "taninmadi", s[2])
 
 
