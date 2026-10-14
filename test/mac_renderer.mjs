@@ -417,6 +417,38 @@ export default async function ({ evalJs }) {
   sonuc('Sayfaları düzenle (Windows): Ctrl+C / Ctrl+V aynı; bildirim ve Kısayollar "Ctrl+V", "Ctrl+C / Ctrl+V"', sayfalarPano.win.c && sayfalarPano.win.v
     && J(sayfalarPano.win.sira) === '[1,2,2,3]' && J(sayfalarPano.win.secili) === '[2]' && /eklemek için Ctrl\+V\./.test(sayfalarPano.win.bildirim) && sayfalarPano.win.kisayol === 'Ctrl+C / Ctrl+V', sayfalarPano.win);
 
+  // ---------------------------------------------------------------- Yazı kutusu kopyala-yapıştır (notlar.js tikKaydet, kisayolListesi.js; 0.2.6)
+  // Sağ tık › Yapıştır sağ tıklanan yere: macOS'ta sağ tık Ctrl+tıktır (button 0 + ctrlKey). Basışın yeri iki sistemde de kaydedilir (tikKaydet;
+  // pointerDown onu sol tık gibi işlemez, yukarıdaki denetim); yazının üzerindeki basış "notun üzerinde" sayılır (yapıştırma köşeye). Kısayollar
+  // ve bildirim ⌘C / ⌘V ile. Sayfa ve görünüm sahte: tek A4 sayfa, ölçek 1,5 (pdfToPx / pxToPdf PDF.js'siz)
+  const yaziPano = await evalJs(`(async () => { ${ORTAM}
+    const sonuc = {};
+    for (const mac of [true, false]) {
+      const o = ortam(mac), { NotYoneticisi } = await o.yukle('notlar.js'), { kisayolTablolariHtml } = await o.yukle('kisayolListesi.js'), { tus } = await o.yukle('platform.js');
+      const sayfaEl = o.belge.createElement('div'); sayfaEl.className = 'sayfa'; sayfaEl.dataset.sayfa = '1';
+      sayfaEl.style.cssText = 'position:absolute;left:10px;top:20px;width:892px;height:1263px';
+      const yazi = o.belge.createElement('div'); yazi.className = 'not-oge not-freetext'; yazi.dataset.id = 'y1'; sayfaEl.append(yazi);
+      o.belge.body.append(sayfaEl);
+      const vp = { rotation: 0, convertToPdfPoint: (x, y) => [x / 1.5, 842 - y / 1.5] };
+      const n = Object.create(NotYoneticisi.prototype);
+      Object.assign(n, { g: { sayfalar: [{ el: sayfaEl, kimlik: 'g1', pdfSayfa: { view: [0, 0, 595, 842] } }], viewportAl: () => vp }, notlar: new Map([['y1', { id: 'y1', tur: 'FreeText' }]]), _sonTik: null });
+      const bas = (hedef, x, y) => { n.tikKaydet({ target: hedef, clientX: x, clientY: y, button: 0, ctrlKey: true }); return n._sonTik; };
+      const bos = bas(sayfaEl, 10 + 150, 20 + 300), ust = bas(yazi, 10 + 3, 20 + 3);
+      const html = kisayolTablolariHtml();
+      sonuc[mac ? 'mac' : 'win'] = { bos: { girdi: bos?.girdi, nokta: bos?.nokta, notUstunde: bos?.notUstunde }, ustunde: ust?.notUstunde,
+        kisayol: ['⌘C / ⌘V', 'Ctrl+C / Ctrl+V'].find((k) => html.includes('<kbd>' + k + '</kbd></td><td>Seçili yazı kutusunu kopyala / tıklanan yere yapıştır<')) || null,
+        bildirim: tus('Yazı kutusu kopyalandı; tıkladığınız yere Ctrl+V ile yapıştırılır.') };
+      sayfaEl.remove();
+    }
+    return sonuc;
+  })()`);
+  for (const [ad, r] of [['macOS', yaziPano.mac], ['Windows', yaziPano.win]]) {
+    const k = ad === 'macOS' ? '⌘' : 'Ctrl+';
+    sonuc(`Yazı kutusu yapıştırma yeri (${ad}): Ctrl+tıkın yeri sayfa noktası olarak kaydedilir, yazının üzerindeki basış "notun üzerinde"; Kısayollar ve bildirim ${k}C / ${k}V`,
+      r.bos.girdi === 'g1' && J(r.bos.nokta) === J([100, 200]) && r.bos.notUstunde === false && r.ustunde === true && r.kisayol === (ad === 'macOS' ? '⌘C / ⌘V' : 'Ctrl+C / Ctrl+V')
+      && r.bildirim === `Yazı kutusu kopyalandı; tıkladığınız yere ${k}V ile yapıştırılır.`, r);
+  }
+
   await evalJs(`(() => { document.querySelector('#mac-cerceve')?.remove(); document.querySelector('#win-cerceve')?.remove(); return true; })()`);
   console.log(`\n${tamam} tamam, ${hata} hata`);
 }

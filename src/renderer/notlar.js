@@ -48,6 +48,11 @@ const ISARET = new Set(['Highlight', 'Underline', 'StrikeOut', 'Squiggly']);
 // Çekirdeğin (not_ekle) yeniden oluşturabildiği türler: dosyadan kalkmış başka türde bir not (ör. kayıttan sonra silmesi geri alınan,
 // başka programda eklenmiş bir damga) 'ekle' olarak gönderilirse kayıt bütünüyle hata verir; böyle not oturumda görünür ama dosyaya yazılamaz.
 const EKLENEBILIR = new Set(['Highlight', 'Text', 'FreeText']);
+// Yazı kutusu kopyala-yapıştır (0.2.6): panodaki kopyanın özel türü (yaziKopyaVerisi'nin JSON'u; düz metin de yazılır) ve yapıştırma yeri
+export const YAZI_PANO_TURU = 'application/x-pdefe-yazi';
+const BILINEN_YAZI_TIPLERI = ['Segoe UI', 'Arial', 'Times New Roman', 'Calibri'];   // panodaki yazı tipi bunlardan biri değilse varsayılan
+const YAPISTIR_KENAR_PT = 18;   // tıklanan yer yoksa kutu sayfanın görünen sağ üst köşesine, kenarlardan bu kadar içeri
+const YAPISTIR_KAYMA_PT = 12;   // aynı yere art arda yapıştırılan her kopya bu kadar kayar
 
 let sayac = 0;
 const yeniId = () => 'n' + Date.now().toString(36) + '_' + (++sayac);
@@ -60,6 +65,37 @@ const notKomutuAyrintisi = (t) => {
   if (Number.isInteger(eski) && Number.isInteger(yeni) && eski !== yeni) return `s. ${eski} → ${yeni}`;
   return Number.isInteger(n.sayfa) ? `s. ${n.sayfa}` : '';
 };
+
+/**
+ * Panodan okunan yazı kopyası (YAZI_PANO_TURU; yaziKopyaVerisi'nin JSON'u) doğrulanır: pano içeriği güvenilmez (başka bir PDEfe penceresi ya da
+ * sürümü yazmış, elle de yazılmış olabilir). Metin boşsa ya da 20.000 karakteri, kutu 14.400 pt'yi (PDF'in sayfa sınırı) aşıyorsa null.
+ * Biçimdeki geçersiz değer yapıştırmayı engellemez, varsayılana döner (yaziYapistir): yazı tipi bilinen dört aileden biri (macOS'ta da: Windows'ta
+ * yazılmış not orada Arial'le gösterilir ve kaydedilir), boyut 4–200 pt'ye sınırlanır, renkler #rrggbb; parçalar yaziKanonik'te metne uydurulur.
+ */
+export function yaziVerisiDogrula(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const metin = typeof v.metin === 'string' ? v.metin.replace(/\r\n?/g, '\n') : '';
+  if (!metin.trim() || metin.length > 20000) return null;
+  const wPt = +v.wPt, hPt = +v.hPt;
+  if (!(wPt >= 1 && wPt <= 14400 && hPt >= 1 && hPt <= 14400)) return null;
+  const hex = (r) => (typeof r === 'string' && /^#[0-9a-f]{6}$/i.test(r) ? r.toLowerCase() : null);
+  let yazi = null;
+  const y = v.yazi;
+  if (y && typeof y === 'object' && !Array.isArray(y)) {
+    const boyut = +y.boyut;
+    const parcalar = Array.isArray(y.parcalar) && y.parcalar.length <= 20000
+      && y.parcalar.reduce((t, p) => t + (typeof p?.metin === 'string' ? p.metin.length : 0), 0) <= 20000 ? y.parcalar : null;
+    yazi = {
+      tip: BILINEN_YAZI_TIPLERI.includes(y.tip) ? y.tip : null, boyut: Number.isFinite(boyut) && boyut > 0 ? Math.min(200, Math.max(4, boyut)) : null,
+      renk: hex(y.renk) || '#000000', arka: hex(y.arka), kenarlik: y.kenarlik === true,
+      ...(hex(y.kenarlikRengi) ? { kenarlikRengi: hex(y.kenarlikRengi) } : {}), ...(y.hiza === 'orta' || y.hiza === 'sag' ? { hiza: y.hiza } : {}),
+      ...(parcalar ? { parcalar } : {}),
+    };
+  }
+  const egim = Number.isFinite(+v.egim) ? ((Math.round(+v.egim / 90) * 90) % 360 + 360) % 360 : 0;
+  const opaklik = Number.isFinite(+v.opaklik) && v.opaklik != null ? Math.min(1, Math.max(0.05, +v.opaklik)) : 1;
+  return { metin, wPt, hPt, yazi, egim, opaklik, ...(typeof v.kimlik === 'string' && v.kimlik.length <= 64 ? { kimlik: v.kimlik } : {}) };
+}
 
 // #secim-cubugu bütün belgelerce paylaşılır: seçimi izleyen (çubuğu açan) tek yönetici. Başka yöneticilerin kaydırma/yerleşim/
 // çizim olayları konumu sahibine hesaplatır: sekme değişip sahibin görünümü gizlenince çubuk gizlenir (izleme sürer, sahip
@@ -105,17 +141,20 @@ export class NotYoneticisi extends EventTarget {
     this.notCubugu = null;        // vurgu çubuğu (vurguya tıklayınca: renkler, not, kaldır); notCubuguId açık olduğu notun kimliği
     this.notCubuguId = null;
     this.yuklendi = false;
+    this._sonTik = null;          // son basışın yeri (tikYeri): yapıştırılan yazı kutusu oraya konur
+    this._sonYapistirma = null;   // {anahtar, sayi}: aynı yere art arda yapıştırılan kopyalar kaydırılır
+    this._yaziStilleri = new WeakMap();   // başka programın yazısı → dosyadaki biçimi {xref, yol, stil, icerik} (kopyalama için)
 
     this.g.addEventListener('sayfaCizildi', (e) => { this.cizSayfa(e.detail.sayfa); this._cubukOnbellek = null; this.secimCubuguKonumla(); });
     this.g.addEventListener('metinKatmani', () => { if (this.balon) this.balonKonumla(); });
     this.g.addEventListener('sayfalar', () => this.sayfalarDegisti());
     this.g.addEventListener('yerlesim', () => { this.hepsiniCiz(); this.balonKonumla(); this.duzenleyiciKonumla(); this._cubukOnbellek = null; this.secimCubuguKonumla(); this.notCubuguKonumla(); });
-    this.g.alan.addEventListener('pointerdown', (e) => this.pointerDown(e));
+    this.g.alan.addEventListener('pointerdown', (e) => { this.tikKaydet(e); this.pointerDown(e); });
     // Kısa belgede tuval alanının altında kalan boş kaydırıcı alanına basış da "başka yere tıklama"dır (kaydırma çubukları hariç)
     this.g.kaydirici.addEventListener('pointerdown', (e) => {
       const k = this.g.kaydirici; if (e.target !== k) return;
       const r = k.getBoundingClientRect();
-      if (e.clientX - r.left - k.clientLeft < k.clientWidth && e.clientY - r.top - k.clientTop < k.clientHeight) this.pointerDown(e);
+      if (e.clientX - r.left - k.clientLeft < k.clientWidth && e.clientY - r.top - k.clientTop < k.clientHeight) { this.tikKaydet(e); this.pointerDown(e); }
     });
     this.g.alan.addEventListener('dblclick', (e) => this.ciftTik(e));
     this.g.alan.addEventListener('pointerover', (e) => this.pointerOver(e));
@@ -602,6 +641,7 @@ export class NotYoneticisi extends EventTarget {
   sec(id) {
     if (this.notCubuguId && this.notCubuguId !== id) this.notCubuguKapat();
     this.secili = id;
+    this.yaziStiliHazirla(id && this.notlar.get(id));   // başka programın yazısı: kopyalanırsa biçimi hazır olsun (copy olayı beklemez)
     this.seciliIsaretle();
     this.dispatchEvent(new CustomEvent('secim', { detail: { id } }));
   }
@@ -1403,6 +1443,145 @@ export class NotYoneticisi extends EventTarget {
       if (n.silindi || this.notlar.get(n.id) !== n) return;
     }
     this.duzenleyiciAc(n, false, { yazi, icerik, nokta });
+  }
+
+  // ------------------------------------------------------------ yazı kutusu kopyala-yapıştır (0.2.6)
+  /**
+   * Basışın yeri: sayfa girdisinin kalıcı kimliği, sayfa içi PDF noktası (yakınlaştırma ve döndürmeden etkilenmez) ve bir notun ya da yazı
+   * düzenleyicisinin üzerine mi basıldığı (vurgunun kendisi sayılmaz: altındaki metne basılmıştır). Sayfa dışında { girdi: null }.
+   * Basış başına tek getBoundingClientRect; fare hareketi izlenmez (görüntüleme ve kaydırma yoluna eklenen iş yok).
+   */
+  tikYeri(e) {
+    const i = this.sayfaIdx(e.target);
+    const s = this.g.sayfalar[i];
+    if (!s || !this.vp(i)) return { girdi: null };
+    const k = s.el.getBoundingClientRect();
+    const hedef = e.target.closest('[data-id]'), n = hedef && this.notlar.get(hedef.dataset.id);
+    const notUstunde = !!e.target.closest('.yazi-duzenleyici, .yazi-tutamac, .yazi-boyut')
+      || (!!hedef && !(n && ISARET.has(n.tur) && !hedef.classList.contains('not-simge')));
+    return { girdi: s.kimlik, nokta: this.pxToPdf(i, e.clientX - k.left, e.clientY - k.top), notUstunde };
+  }
+
+  /** Belgedeki her basışta (sağ tık ve macOS'ta Ctrl+tık da: pointerDown onları işlemez) yapıştırılacak yazı kutusunun yeri kaydedilir.
+   *  Biçim çubuğu, not balonu ve seçim / vurgu çubukları sayfada değildir: onlara basış yeri değiştirmez. */
+  tikKaydet(e) {
+    if (!e.target?.closest?.('.yazi-bicim, .not-balonu, #secim-cubugu, .not-cubugu')) this._sonTik = this.tikYeri(e);
+  }
+
+  /** Başka programın yazısının (n.yazi yok) dosyadan okunmuş biçimi { stil, icerik } ya da null. Kayıt xref'i ya da kaynağı değiştirince eskir. */
+  yaziStiliOnbellekte(n) {
+    const o = n && this._yaziStilleri.get(n);
+    return o && o.stil && o.xref === n.xref && o.yol === n.kaynak?.yol ? o : null;
+  }
+
+  /** Başka programın yazısının biçimini çekirdekten okuyup önbelleğe alır (seçilince, sağ tık menüsü açılınca): copy olayı eş zamanlıdır,
+   *  beklemez. Yazı değilse ya da PDEfe'nin kendi yazısıysa (n.yazi) bir şey yapmaz. */
+  yaziStiliHazirla(n) {
+    if (!n || n.tur !== 'FreeText' || n.yazi || !n.xref || !n.kaynak?.yol) return;
+    const o = this._yaziStilleri.get(n);
+    if (o && o.xref === n.xref && o.yol === n.kaynak.yol) return;   // hazır ya da isteniyor
+    const kayit = { xref: n.xref, yol: n.kaynak.yol, stil: null, icerik: null };
+    this._yaziStilleri.set(n, kayit);
+    this.cekirdek('freetext_stil', { yol: n.kaynak.yol, sayfa: n.kaynak.sayfa, xref: n.xref })
+      .then((r) => { kayit.stil = r.stil; kayit.icerik = r.icerik ?? null; })
+      .catch(() => { if (this._yaziStilleri.get(n) === kayit) this._yaziStilleri.delete(n); });
+  }
+
+  /**
+   * Yazının (FreeText) pano kopyası: { metin, yazi (kanonik biçim, metin yönü donus'suz), egim (ekrandaki eğimi), wPt, hPt (ekrandaki kutusu, pt),
+   * opaklik }. Yapıştırılan kopya ekranda kaynağıyla aynı görünür (yaziYapistir). Başka programın yazısında biçim dosyadan okunur (yaziStiliHazirla);
+   * henüz gelmediyse yazi null, kopya {kaynak, kaynakAci} taşır ve yapıştırırken çözülür (yaziVerisiTamamla). Yazı değilse ya da metni boşsa null.
+   */
+  yaziKopyaVerisi(n) {
+    if (!n || n.tur !== 'FreeText' || n.silindi || n.sayfaYok) return null;
+    const i = n.sayfa - 1;
+    if (!this.vp(i)) return null;
+    const hazir = n.yazi ? null : this.yaziStiliOnbellekte(n);
+    const stil = n.yazi || hazir?.stil || null;
+    const metin = String((hazir?.icerik || n.icerik) ?? '').replace(/\r\n?/g, '\n');
+    if (!metin.trim()) return null;
+    const r = this.rectToPx(i, n.rect), k = this.ptPx();
+    const veri = { metin, wPt: r.w / k, hPt: r.h / k, opaklik: +n.opaklik > 0 && +n.opaklik <= 1 ? +n.opaklik : 1 };
+    if (stil) { const { donus, ...yazi } = yaziKanonik(stil, metin); return { ...veri, yazi, egim: this.yaziEgimi(i, stil) }; }
+    // Biçim yokken eğim tahmini: metin yönü yok sayılır (yazı sayfayla birlikte döner; başka pencerede yapıştırılırsa böyle kalır)
+    if (n.xref && n.kaynak?.yol) return { ...veri, yazi: null, egim: this.sayfaAcisi(i), kaynak: { yol: n.kaynak.yol, sayfa: n.kaynak.sayfa, xref: n.xref }, kaynakAci: this.sayfaAcisi(i) };
+    return { ...veri, yazi: null, egim: 0 };
+  }
+
+  /** Biçimi henüz okunmamış kopyayı (kaynak) tamamlar: biçim, metin ve eğim dosyadan. Okunamazsa kopya varsayılan biçimle yapıştırılır. */
+  async yaziVerisiTamamla(veri) {
+    if (!veri?.kaynak) return veri;
+    const { kaynak, kaynakAci, ...gerisi } = veri;
+    try {
+      const r = await this.cekirdek('freetext_stil', { yol: kaynak.yol, sayfa: kaynak.sayfa, xref: kaynak.xref });
+      const okunan = String(r.icerik ?? '').replace(/\r\n?/g, '\n');
+      const metin = okunan.trim() ? okunan : gerisi.metin;
+      const { donus, ...yazi } = yaziKanonik(r.stil, metin);
+      return { ...gerisi, metin, yazi, egim: (((kaynakAci || 0) - (+r.stil?.donus || 0)) % 360 + 360) % 360 };
+    } catch { return gerisi; }
+  }
+
+  /**
+   * Yapıştırmanın yeri (sayfa içi px): { i, x, y, kose, anahtar }. Son basış (yer) bir sayfanın boş yerine ya da metnine yapıldıysa ve o nokta
+   * görünür alandaysa nokta kutunun sol üst köşesidir. Değilse (nota basıldı, basış yok ya da sayfa dışına, nokta görünmüyor) tıklanan sayfanın,
+   * o da görünmüyorsa geçerli sayfanın görünen bölümünün sağ üst köşesi (kose: x kutunun sağ kenarı). anahtar: aynı yere art arda yapıştırma.
+   */
+  yapistirmaYeri(yer) {
+    const g = this.g, kay = g.kaydirici;
+    if (!kay.clientWidth || !kay.clientHeight) return null;   // sekme gizli
+    const kk = kay.getBoundingClientRect();
+    const gl = kk.left + kay.clientLeft, gt = kk.top + kay.clientTop, gr = gl + kay.clientWidth, gb = gt + kay.clientHeight;   // kaydırma çubukları hariç
+    const gorunur = (r) => Math.min(r.right, gr) - Math.max(r.left, gl) > 1 && Math.min(r.bottom, gb) - Math.max(r.top, gt) > 1;
+    let i = yer?.girdi ? g.sayfalar.findIndex((s) => s.kimlik === yer.girdi) : -1;
+    if (i >= 0 && this.vp(i)) {
+      const k = g.sayfalar[i].el.getBoundingClientRect();
+      if (!yer.notUstunde && Array.isArray(yer.nokta)) {
+        const [x, y] = this.pdfToPx(i, yer.nokta[0], yer.nokta[1]);
+        if (k.left + x >= gl && k.left + x <= gr && k.top + y >= gt && k.top + y <= gb) return { i, x, y, kose: false, anahtar: `n${i}:${yer.nokta.map((v) => v.toFixed(1))}` };
+      }
+      if (!gorunur(k)) i = -1;
+    } else i = -1;
+    if (i < 0) i = g.gecerli - 1;
+    const s = g.sayfalar[i];
+    if (!s || !this.vp(i)) return null;
+    const k = s.el.getBoundingClientRect(), m = YAPISTIR_KENAR_PT * this.ptPx();
+    const x = Math.min(k.right, gr) - k.left - m, y = Math.max(k.top, gt) - k.top + m;
+    return { i, x, y, kose: true, anahtar: `k${i}:${Math.round(x / this.ptPx())},${Math.round(y / this.ptPx())}` };
+  }
+
+  /**
+   * Panodaki yazı kopyasını (yaziKopyaVerisi ya da yaziVerisiDogrula) yeni yazı olarak ekler ve seçer; eklenen notu döndürür (eklenemezse null).
+   * yer: son basış (tikYeri), verilmezse bu belgedeki son basış; kuralı yapistirmaYeri'nde. Aynı yere art arda yapıştırılan her kopya
+   * YAPISTIR_KAYMA_PT kayar (noktada sağa-aşağı, köşede sola-aşağı); kutu sayfanın içine itilir. Yazı ekranda kaynağıyla aynı görünür: kutusu ve
+   * eğimi aynı, metin yönü hedef sayfanın açısından (donus = açı − eğim; döndürülmüş, yatay, kaydırılmış MediaBox'lı sayfada yaziBaslat'ın
+   * dönüşümü). Yapıştırılan PDEfe'nin kendi yazısıdır: çift tıkla düzenlenir, taşınır, silinir, geri alınır. Yazar ayardaki ad, tarih yeni;
+   * kaynağın xref'i, yanıtları, kilidi ve açıklama çizgisi kopyalanmaz.
+   */
+  async yaziYapistir(veri, yer = this._sonTik) {
+    veri = await this.yaziVerisiTamamla(veri);
+    if (!veri?.metin || !this.yuklendi) return null;
+    const gi = this.g.gecerli - 1;
+    if (this.g.sayfalar[gi] && !this.vp(gi)) await this.g.sayfaAl(gi).catch(() => null);
+    const hedef = this.yapistirmaYeri(yer);
+    if (!hedef) return null;
+    const { i } = hedef, s = this.g.sayfalar[i], k = this.ptPx();
+    const W = s.el.clientWidth || this.vp(i).width, H = s.el.clientHeight || this.vp(i).height;
+    const w = Math.min(veri.wPt * k, W), h = Math.min(veri.hPt * k, H);
+    const sayi = this._sonYapistirma?.anahtar === hedef.anahtar ? this._sonYapistirma.sayi + 1 : 0;
+    this._sonYapistirma = { anahtar: hedef.anahtar, sayi };
+    const kay = sayi * YAPISTIR_KAYMA_PT * k;
+    const x = Math.max(0, Math.min(W - w, hedef.kose ? hedef.x - w - kay : hedef.x + kay));
+    const y = Math.max(0, Math.min(H - h, hedef.y + kay));
+    const rect = this.pxRectToPdf(i, x, y, w, h);
+    const temel = this.varsayilanYazi(), kaynakYazi = veri.yazi ? { ...veri.yazi, tip: veri.yazi.tip || temel.tip, boyut: veri.yazi.boyut || temel.boyut } : temel;
+    const donus = ((this.sayfaAcisi(i) - (+veri.egim || 0)) % 360 + 360) % 360;
+    const a = this.ayar();
+    const not = { id: yeniId(), tur: 'FreeText', sayfa: i + 1, rect, icerik: veri.metin, yazar: a.yazarAdi, renk: null, opaklik: veri.opaklik ?? 1,
+      yazi: yaziKanonik({ ...kaynakYazi, donus }, veri.metin), konu: 'Yazı' };
+    this.duzenleyiciBitir(true); this.balonKapat(); this.notCubuguKapat();
+    this.ekle(not, 'Yazı yapıştır');
+    this.sec(not.id);
+    return not;
   }
 
   /**

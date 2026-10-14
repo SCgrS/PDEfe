@@ -5,7 +5,7 @@ import { SolPanel, turAdi, kucukResimAdresi } from './panel.js';
 import { DurumCubugu, boyutMetni, sayfaKutusuBagla, sayfaKutusuYaz } from './durum.js';
 import { Arama } from './arama.js';
 import { temizMetin, sayfaMetinleriniBirlestir, secimDikdortgenleri, satirlaraBirlestir, paragrafSec, secimHamMetni, secimYapiliMetni, surukleSecimiBagla } from './metin.js';
-import { NotYoneticisi, VURGU_RENKLERI } from './notlar.js';
+import { NotYoneticisi, VURGU_RENKLERI, YAZI_PANO_TURU, yaziVerisiDogrula } from './notlar.js';
 import { KomutYigini, Komut, sayfaFarki, sayfaFarkiOzeti, sayfaListesi } from './komutlar.js';
 import { GecmisListesi } from './gecmisListesi.js';
 import { ayarlarPenceresiAc, ayarlarPenceresiKapat, ayarlarPenceresiniGuncelle } from './ayarlarPenceresi.js';
@@ -1998,8 +1998,18 @@ function metinOlaylariBagla(belge) {
     // yalnızca çapa sayfasına uygulanırdı: devre dışı. Not ekle tıklanan yere not koyar (seçime vurgulu not değil)
     const tum = tumSecim.menuIcinGecerli(belge);
     const seciliVar = tum || (sec && !sec.isCollapsed && katman);
+    // Yazı kutusunun üzerinde (0.2.6): Kopyala o yazıyı kopyalar (metin ya da bütün belge seçili olsa da); başka programın yazısının biçimi
+    // menü açıkken dosyadan okunur. Yapıştır, bu pencerede kopyalanan yazı kutusu panoda duruyorsa (pano o kopyanın metnini taşıyor; arada
+    // başka bir şey kopyalandıysa soluk) sağ tıklanan yere yapıştırır (yer kuralı notlar.js yapistirmaYeri)
+    const yaziEl = e.target.closest('.not-oge[data-id]'), yaziNotu = yaziEl && belge.notlar?.notlar.get(yaziEl.dataset.id);
+    const yaziHedefi = yaziNotu?.tur === 'FreeText' && !yaziNotu.silindi ? yaziNotu : null;
+    if (yaziHedefi) belge.notlar.yaziStiliHazirla(yaziHedefi);
+    const yer = belge.notlar?.tikYeri(e);
+    const pano = yaziPanosu;
+    const yapistirilir = !!pano && !belge.tasiniyor && panoMetniAyni(await pdefe.cagir('pano:oku'), pano.metin);
     const secim = await pdefe.cagir('menu:popup', [
-      { id: 'kopyala', etiket: 'Kopyala', devre: !seciliVar },
+      { id: 'kopyala', etiket: 'Kopyala', devre: !seciliVar && !yaziHedefi },
+      { id: 'yapistir', etiket: 'Yapıştır', devre: !yapistirilir },
       { id: 'vurgula', etiket: 'Vurgula', devre: !seciliVar || tum },
       { id: 'not', etiket: 'Not ekle' },
       { id: 'ara', etiket: 'Ara', devre: !seciliVar || tum },
@@ -2013,7 +2023,10 @@ function metinOlaylariBagla(belge) {
     ]);
     if (secim === 'kaydet') { if (belgeler.has(belge.id)) await belgeKaydet(belge); }   // menü açıkken sekme kapatılmış olabilir
     else if (secim === 'yazdir') await belgeyiYazdir(belge);
-    else if (secim === 'kopyala') document.execCommand('copy');
+    else if (secim === 'kopyala') {
+      if (yaziHedefi && belgeler.has(belge.id)) { belge.notlar.sec(yaziHedefi.id); menuYazisi = { belge, not: yaziHedefi }; }
+      try { document.execCommand('copy'); } finally { menuYazisi = null; }
+    } else if (secim === 'yapistir') { if (pano && belgeler.has(belge.id)) belge.notlar.yaziYapistir(pano.veri, yer).catch((err) => console.warn('Yazı yapıştırılamadı', err)); }
     else if (secim === 'ara') komutCalistir('duzen.bul', secimHamMetni().trim().split('\n')[0]);
     else if (secim === 'tumunuSec') tumunuSec();
     else if (secim === 'vurgula') belge.notlar.vurguUygula(ayar.vurguRengi || VURGU_RENKLERI[0].hex);
@@ -2021,10 +2034,68 @@ function metinOlaylariBagla(belge) {
   });
 }
 
+// ---------------------------------------------------------------- yazı kutusu kopyala-yapıştır (0.2.6)
+// Kopyalanan yazı kutusu panoya düz metin ve özel türle (YAZI_PANO_TURU, JSON) yazılır: Ctrl+V başka sekmede ve başka PDEfe penceresinde de
+// yapıştırır. Bu penceredeki son kopyanın tam verisi yaziPanosu'nda: sağ tık › Yapıştır (menüden paste olayı doğmaz) ve dosyadan biçimi henüz
+// okunmamış yazı (dosya yolu panoya yazılmaz) onu kullanır.
+let yaziPanosu = null;   // { kimlik, veri, metin }
+let menuYazisi = null;   // sağ tık › Kopyala yazı kutusunun üzerinde: { belge, not } (execCommand'ın copy olayı süresince)
+
+const panoMetniAyni = (a, b) => String(a ?? '').replace(/\r\n?/g, '\n') === String(b ?? '').replace(/\r\n?/g, '\n');
+
+/** Yazı kutusunu copy olayının panosuna yazar; kopyalanamıyorsa (yazı değil, metni boş) false ve olay olduğu gibi kalır. */
+function yaziKopyala(e, b, n) {
+  const veri = b.notlar.yaziKopyaVerisi(n);
+  if (!veri || !e.clipboardData) return false;
+  e.preventDefault();
+  const kimlik = 'y' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const { kaynak, kaynakAci, ...disari } = veri;
+  e.clipboardData.setData('text/plain', veri.metin);
+  e.clipboardData.setData(YAZI_PANO_TURU, JSON.stringify({ surum: 1, kimlik, ...disari }));
+  const pano = yaziPanosu = { kimlik, veri, metin: veri.metin };
+  if (kaynak) b.notlar.yaziVerisiTamamla(veri).then((v) => { pano.veri = v; }).catch(() => {});
+  bildir(tus('Yazı kutusu kopyalandı; tıkladığınız yere Ctrl+V ile yapıştırılır.'));
+  return true;
+}
+
+/** Ctrl+C / Düzen › Kopyala, metin seçili değilken: seçili yazı kutusu (düzenlenmiyorken; girdide ve açık pencerede değil). */
+function seciliYaziyiKopyala(e) {
+  if (girdideMi() || ortuAcik() || girdiKilitli()) return false;
+  const b = aktif(), n = b?.notlar;
+  if (!n || n.duzenleyici || !n.secili || b.tasiniyor) return false;
+  const not = n.notlar.get(n.secili);
+  return not?.tur === 'FreeText' ? yaziKopyala(e, b, not) : false;
+}
+
+/** Panodaki PDEfe yazısı (yaziVerisiDogrula'dan geçmiş) ya da null. Bu pencerenin son kopyasıysa onun tam verisi. */
+function panodakiYazi(veri) {
+  let ham = null;
+  try { const s = veri?.getData(YAZI_PANO_TURU); if (s && s.length <= 2_000_000) ham = JSON.parse(s); } catch { return null; }
+  if (!ham) return null;
+  if (yaziPanosu && ham.kimlik === yaziPanosu.kimlik) return yaziPanosu.veri;
+  return yaziVerisiDogrula(ham);
+}
+
+// Ctrl+V (macOS'ta ⌘V ve Düzen › Yapıştır): panoda PDEfe'nin yazı kutusu varsa etkin belgede son tıklanan yere yapıştırılır. Panoda yoksa
+// olaya dokunulmaz (belgede başka yapıştırma yok). Girdi kutusunda, açık pencerede (araç pencereleri paste olayını durdurmaz: Sayfaları
+// düzenle'nin Ctrl+V'si kendi tuşudur), yazı düzenlenirken ve sekme taşınırken yapıştırma onlarındır.
+document.addEventListener('paste', (e) => {
+  if (e.defaultPrevented || girdideMi() || ortuAcik() || girdiKilitli()) return;
+  const b = aktif();
+  if (!b?.notlar?.yuklendi || b.notlar.duzenleyici || b.tasiniyor) return;
+  const veri = panodakiYazi(e.clipboardData);
+  if (!veri) return;
+  e.preventDefault();
+  b.notlar.yaziYapistir(veri).catch((err) => console.warn('Yazı yapıştırılamadı', err));
+});
+
 document.addEventListener('copy', (e) => {
+  // Sağ tık › Kopyala yazı kutusunun üzerinde: o yazı (seçili metin ya da bütün belge seçimi olsa da)
+  if (menuYazisi) { const { belge, not } = menuYazisi; menuYazisi = null; if (belgeler.has(belge.id) && yaziKopyala(e, belge, not)) return; }
   if (tumSecim.kopyala(e)) return;   // bütün belge seçili (Ctrl+A): metni çekirdek sayfa sayfa verir (tumSecim.js)
   const sec = window.getSelection();
-  if (!sec || sec.isCollapsed || !sec.anchorNode) return;
+  // Metin seçimi her zaman önce gelir; seçim yoksa seçili yazı kutusu kopyalanır
+  if (!sec || sec.isCollapsed || !sec.anchorNode) { seciliYaziyiKopyala(e); return; }
   const katman = (sec.anchorNode.nodeType === 1 ? sec.anchorNode : sec.anchorNode.parentElement)?.closest('.textLayer');
   if (!katman) return;
   e.preventDefault();

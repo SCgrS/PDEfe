@@ -95,7 +95,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, tus
   const SINANAN = {
     Gezinme: ['Ctrl+G', '← →', 'PageUp / PageDown', '↑ ↓', 'Boşluk / Shift+Boşluk', 'Home / End', 'Ctrl+Home / End', 'Shift+Fare tekerleği'],
     'Görünüm': ['Ctrl+Fare tekerleği | Ctrl++ / Ctrl+−', 'Ctrl+0', 'Ctrl+R / Ctrl+Shift+R', 'F4', 'Ctrl+H', 'F11'],
-    'Yazı kutusu': ['Ctrl+B / I / U', 'Esc'],
+    // Ctrl+C / Ctrl+V (0.2.6): gerçek tuş kullanıcının panosuna yazar; sahte pano olaylarıyla test/senaryo36.mjs'te sınanır
+    'Yazı kutusu': ['Ctrl+B / I / U', 'Esc', 'Ctrl+C / Ctrl+V'],
   };
   await tusG('F1', [], 500);
   const f1 = await evalJs(`(() => { const o = [...document.querySelectorAll('.diyalog-ortusu')].at(-1); if (!o) return null; const b = {}; let ad = null;

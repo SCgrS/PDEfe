@@ -409,7 +409,8 @@ function ipcKur(ipcMain) {
     if (testDiyalog) return testDiyalog('pano:metin', { uzunluk: metin?.length, bas: String(metin ?? '').slice(0, 200), kosullu: secenek?.yalnizcaPanodaysa != null }, true);
     return panoyaMetinYaz(clipboard, metin, secenek?.yalnizcaPanodaysa);
   });
-  ipcMain.handle('pano:oku', () => clipboard.readText());
+  // Test örneğinde sistem panosu okunmaz (sağ tık › Yapıştır'ın etkinliği, 0.2.6): yanıt test:diyalogYanitlari kuyruğundan, varsayılan boş
+  ipcMain.handle('pano:oku', () => (testDiyalog ? testDiyalog('pano:oku', {}, '') : clipboard.readText()));
   ipcMain.handle('pano:dosya', async (_e, yol) => {
     try { if (!(await pdfDosyasiMi(yol))) return { tamam: false, hata: 'Bu dosya bir PDF belgesi değil.' }; }   // yalnızca PDF panoya konur (0.1.23)
     catch (e) { return { tamam: false, hata: e?.message || String(e) }; }

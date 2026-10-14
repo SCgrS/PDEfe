@@ -28,6 +28,7 @@ const SUTUNLAR = [[
   ['Ctrl+R / Ctrl+Shift+R', 'Geçerli sayfayı saat yönünde / tersine döndür'], ['F4', 'Sol panel'], ['Ctrl+H', 'Okuma modu'], ['F11', 'Tam ekran'],
   ['Yazı kutusu'],
   ['Ctrl+B / I / U', 'Kalın / italik / altı çizili'], ['Esc', 'Düzenlemeyi bitir (yazılan korunur)'],
+  ['Ctrl+C / Ctrl+V', 'Seçili yazı kutusunu kopyala / tıklanan yere yapıştır'],
 ], [
   ['Sayfaları düzenle'],
   ['Tıkla', 'Sayfayı seç'], ['Ctrl+tık / Shift+tık', 'Seçime ekle / aralığı seç'], ['Boş alandan sürükle', 'Alandaki sayfaları seç'],
