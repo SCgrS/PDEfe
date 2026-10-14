@@ -770,12 +770,25 @@ def _gorsel_ac(yol):
         raise ValueError("Görsel açılamadı (%s): %s" % (os.path.basename(yol), e))
 
 
-def _kareler(im):
-    """Çok sayfalı TIFF'te bütün kareler; GIF ve diğerlerinde yalnızca ilk kare."""
-    _, _, ImageSequence = _pillow()
-    if (im.format or "").upper() == "TIFF" and getattr(im, "n_frames", 1) > 1:
+def _tiff_mi(im):
+    return (im.format or "").upper() == "TIFF"
+
+
+def _kareler(im, akisli=False):
+    """Çok sayfalı TIFF'te bütün kareler; GIF ve diğerlerinde yalnızca ilk kare. akisli (0.2.6): kareler sırayla çözülen bir üreteçten
+    gelir, bellekte bir kare durur (147 sayfalık taramayı birleştirmek bütün kareleri birlikte tutarken 1,16 GB'tı)."""
+    if _tiff_mi(im) and getattr(im, "n_frames", 1) > 1:
+        if akisli:
+            return _kare_akisi(im)
+        _, _, ImageSequence = _pillow()
         return [k.copy() for k in ImageSequence.Iterator(im)]
     return [im]
+
+
+def _kare_akisi(im):
+    for i in range(im.n_frames):
+        im.seek(i)
+        yield im.copy()
 
 
 def _duzlestir(im, exif=True):
@@ -844,15 +857,23 @@ def _gorsel_sayfa_olcusu(gen_px, yuk_px, sayfa_boyutu, kenar, dondurme, dpi_bilg
     görünen en/boyu yer değiştirir. Döner: (sayfa_g, sayfa_y, Rect).
     'orijinal': sayfa görselin kendisidir; kenar boşluğu yoktur (kenar yalnızca A4'te kullanılır). Ölçü tam pt'ye yuvarlanır ve
     görsel dikdörtgeni sayfa kutusunun aynısıdır: kesirli ölçüde sayfa ile görsel arasında kıl payı beyaz çizgi kalmaz (yuvarlama
-    görseli en çok yarım pt gerer; bkz. _gorsel_sayfasi_ekle)."""
+    görseli en çok yarım pt gerer; bkz. _gorsel_sayfasi_ekle).
+    dpi_bilgisi (0.2.6, yalnızca TIFF karesi): görselin (yatay, dikey) çözünürlüğü, donustur.tiff_dpi_coz'un kuralıyla (geçerli etiket ya da
+    A4 kuralı): sayfa taramanın gerçek ölçüsünde. Öteki görsellerde eski kural (72 dpi; uzun kenarı 2500 pikseli geçerse 300): 72 dpi
+    etiketli telefon fotoğrafının ölçüsü değişmesin. 0.2.5'e dek TIFF de 72 dpi sayılıyordu: etiketsiz 200 dpi A4 tarama 58 × 82 cm'lik
+    sayfa oluyordu (UYAP taramalarının çoğu etiketsiz)."""
     kenar = max(0.0, float(kenar or 0))
     gorunen_g, gorunen_y = (yuk_px, gen_px) if dondurme in (90, 270) else (gen_px, yuk_px)
     if sayfa_boyutu == "orijinal":
-        # Piksel → pt: 72 dpi varsay; çok büyükse 300 dpi
-        dpi = 72.0
-        if max(gorunen_g, gorunen_y) > 2500:
-            dpi = 300.0
-        g_pt, y_pt = gorunen_g * 72.0 / dpi, gorunen_y * 72.0 / dpi
+        if dpi_bilgisi:
+            xd, yd = (dpi_bilgisi[1], dpi_bilgisi[0]) if dondurme in (90, 270) else (dpi_bilgisi[0], dpi_bilgisi[1])
+            g_pt, y_pt = gorunen_g * 72.0 / xd, gorunen_y * 72.0 / yd
+        else:
+            # Piksel → pt: 72 dpi varsay; çok büyükse 300 dpi
+            dpi = 72.0
+            if max(gorunen_g, gorunen_y) > 2500:
+                dpi = 300.0
+            g_pt, y_pt = gorunen_g * 72.0 / dpi, gorunen_y * 72.0 / dpi
         if max(g_pt, y_pt) > PDF_EN_BUYUK_KENAR:
             oran = PDF_EN_BUYUK_KENAR / max(g_pt, y_pt)
             g_pt, y_pt = g_pt * oran, y_pt * oran
@@ -884,13 +905,49 @@ def _gorsel_sayfasi_ekle(doc, bayt, sayfa_g, sayfa_y, rect, dondurme):
     return pg
 
 
-_cozulmus_gorseller = {}   # (yol, mtime, boyut) → (bicim, exif_yon, alt_ornekleme, [(kare_kipi, duz)]); yalnızca tahminde, en çok 2 görsel
+_cozulmus_gorseller = {}   # (yol, mtime, boyut) → (bicim, exif_yon, alt_ornekleme, [(kare_kipi, duz)], dpiler); yalnızca tahminde, en çok 2 görsel
+
+
+def _tiff_dpileri(im):
+    """TIFF'in karelerinin (yatay, dikey) çözünürlüğü, görünen yönde (donustur.tiff_dpi_coz; 0.2.6). Yalnızca kare başlıkları okunur;
+    görsel ilk karesine döner."""
+    from . import donustur
+    olculer = donustur._tiff_olculeri(im)
+    dpiler = donustur.tiff_dpi_coz([(g, y, e) for g, y, e, _ in olculer])
+    im.seek(0)
+    return [donustur._yona_gore_dpi(d, o[3])[:2] for d, o in zip(dpiler, olculer)]
+
+
+class _SikiKareler:
+    """Ön bellekteki çok sayfalı TIFF'in düzleştirilmiş kareleri (0.2.6, boyut tahmini): 1 bit kare paketlenmiş baytlarıyla tutulur
+    (Pillow'un 1 bit görüntüsü piksel başına 1 bayt, paketlisi 1 bit) ve her dolaşımda yeniden kurulur; karenin PNG kodu (_ozgun_png)
+    dolaşımlar arasında korunur. 150 sayfalık taramanın dört düzeyli tahmini önceden 1,17 GB'a çıkıyor, 611 MB'ı ön bellekte tutuyordu."""
+
+    def __init__(self, kareler):
+        self._ogeler = []   # [kare_kipi, ("1", ölçü, bayt) ya da görüntü, PNG kodu listesi | None]
+        for kip, duz in kareler:
+            self._ogeler.append([kip, ("1", duz.size, duz.tobytes()) if duz.mode == "1" else duz, None])
+
+    def __iter__(self):
+        Image = _pillow()[0]
+        for oge in self._ogeler:
+            kip, veri, png = oge
+            if not isinstance(veri, tuple):
+                yield kip, veri
+                continue
+            im = Image.frombytes(*veri)
+            if png is not None:
+                im._pdefe_png = png
+            yield kip, im
+            oge[2] = getattr(im, "_pdefe_png", None)
 
 
 def _gorsel_kareleri(yol, onbellekli=False):
-    """Görseli açıp düzleştirilmiş karelerini verir: (bicim, exif_yon, alt_ornekleme, [(kare_kipi, duz)]); alt_ornekleme JPEG'in
-    renk alt örneklemesi (bkz. _gorsel_kodla), JPEG değilse -1.
-    onbellekli: aynı görselin her kalite seviyesi için yeniden çözülmemesi için son iki görsel bellekte tutulur."""
+    """Görseli açıp düzleştirilmiş karelerini verir: (bicim, exif_yon, alt_ornekleme, kareler, dpiler); kareler [(kare_kipi, duz)];
+    alt_ornekleme JPEG'in renk alt örneklemesi (bkz. _gorsel_kodla), JPEG değilse -1; dpiler TIFF'te karelerin çözünürlüğü (sayfa ölçüsü
+    için, _gorsel_sayfa_olcusu), başka biçimde None.
+    onbellekli: aynı görselin her kalite seviyesi için yeniden çözülmemesi için son iki görsel bellekte tutulur. Önbelleksiz (birleştirme)
+    çok sayfalı TIFF'in kareleri sırayla çözülür (üreteç; 0.2.6)."""
     anahtar = None
     if onbellekli:
         st = os.stat(yol)
@@ -911,8 +968,14 @@ def _gorsel_kareleri(yol, onbellekli=False):
             alt_ornekleme = JpegImagePlugin.get_sampling(im)
         except Exception:
             pass
-    kareler = [(kare.mode, _duzlestir(kare)) for kare in _kareler(im)]
-    sonuc = (bicim, exif_yon, alt_ornekleme, kareler)
+    dpiler = _tiff_dpileri(im) if _tiff_mi(im) else None
+    if not onbellekli:
+        kareler = ((kare.mode, _duzlestir(kare)) for kare in _kareler(im, akisli=True))
+    elif dpiler and len(dpiler) > 1:
+        kareler = _SikiKareler((kare.mode, _duzlestir(kare)) for kare in _kareler(im, akisli=True))
+    else:
+        kareler = [(kare.mode, _duzlestir(kare)) for kare in _kareler(im)]
+    sonuc = (bicim, exif_yon, alt_ornekleme, kareler, dpiler)
     if anahtar is not None:
         while len(_cozulmus_gorseller) >= 2:
             _cozulmus_gorseller.pop(next(iter(_cozulmus_gorseller)))
@@ -921,8 +984,8 @@ def _gorsel_kareleri(yol, onbellekli=False):
 
 
 def _gorsel_hazirla(oge, genel_kalite=None, onbellekli=False):
-    """Bir görsel öğesini PDF'e gömülecek karelere çevirir.
-    Döner: [(bayt, sayfa_g, sayfa_y, rect, dondurme)]"""
+    """Bir görsel öğesini PDF'e gömülecek karelere çevirir. Üreteç (0.2.6; önceden liste): kareler sırayla hazırlanır.
+    Verir: (bayt, sayfa_g, sayfa_y, rect, dondurme)"""
     yol = _mutlak(oge.get("yol"))
     kalite = oge.get("kalite") or genel_kalite or "orijinal"
     if kalite not in GORSEL_KALITE and kalite != "orijinal":
@@ -932,18 +995,18 @@ def _gorsel_hazirla(oge, genel_kalite=None, onbellekli=False):
         raise ValueError("Bilinmeyen sayfa boyutu: %r" % (sayfa_boyutu,))
     kenar = float(oge.get("kenar") or 0)
     dondurme = _dondurme(oge.get("dondurme"))
-    bicim, exif_yon, alt_ornekleme, kareler = _gorsel_kareleri(yol, onbellekli)
-    sonuc = []
-    for kare_kipi, duz in kareler:
+    bicim, exif_yon, alt_ornekleme, kareler, dpiler = _gorsel_kareleri(yol, onbellekli)
+    for sira, (kare_kipi, duz) in enumerate(kareler):
         # Dokunulmadan gömülebilen JPEG (ilk kare, kip değişmedi; EXIF yönü yok ya da yalnızca döndürme): "Orijinal"in kendisi, öteki
         # seviyelerin ölçüsü. Yön bilgili telefon fotoğrafı da olduğu gibi gömülür, dönüş PDF'te yapılır: önceden çözülüp PNG'ye
         # çevriliyordu (WhatsApp fotoğrafı 364 KB → 3,1 MB). Aynalı yönler (2, 4, 5, 7) çözülür.
         ozgun_jpeg = None
-        if bicim == "JPEG" and exif_yon in EXIF_DONUSU and len(sonuc) == 0 and duz.mode == kare_kipi:
+        if bicim == "JPEG" and exif_yon in EXIF_DONUSU and sira == 0 and duz.mode == kare_kipi:
             with open(yol, "rb") as f:
                 ozgun_jpeg = f.read()
         # duz EXIF'e göre çevrilmiş (görünen) karedir: sayfa ölçüsü ve yeniden kodlama onunla, özgün JPEG'e EXIF dönüşü de eklenir
-        sayfa_g, sayfa_y, rect = _gorsel_sayfa_olcusu(duz.width, duz.height, sayfa_boyutu, kenar, dondurme)
+        sayfa_g, sayfa_y, rect = _gorsel_sayfa_olcusu(duz.width, duz.height, sayfa_boyutu, kenar, dondurme,
+                                                      dpiler[sira] if dpiler and sira < len(dpiler) else None)
         if kalite == "orijinal":
             bayt = ozgun_jpeg if ozgun_jpeg is not None else _ozgun_png(duz)[0]
         else:
@@ -954,8 +1017,7 @@ def _gorsel_hazirla(oge, genel_kalite=None, onbellekli=False):
             bayt, _, _, _ = _gorsel_kodla(duz, kalite, hedef_px, kaynak_alt_ornekleme=alt_ornekleme)
             bayt = _buyutmeyen(bayt, duz, bicim, ozgun_jpeg, sayfa_g, sayfa_y, rect, dondurme)
         kare_donusu = (EXIF_DONUSU[exif_yon] + dondurme) % 360 if ozgun_jpeg is not None and bayt is ozgun_jpeg else dondurme
-        sonuc.append((bayt, sayfa_g, sayfa_y, rect, kare_donusu))
-    return sonuc
+        yield bayt, sayfa_g, sayfa_y, rect, kare_donusu
 
 
 # EXIF yönü → görünen görsele ulaşmak için saklanan pikselleri saat yönünde döndürme (Pillow exif_transpose ile denetlendi)

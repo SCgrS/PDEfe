@@ -525,6 +525,122 @@ def test_birlestir_uzerine(c):
     kaydet_sonuc("birlestir/üzerine", "a + b → a", ok, "sayfa=%d klasör=%s son ilerleme=%s" % (len(sayfalar), sorted(os.listdir(klasor)), il[-1] if il else None))
 
 
+def test_birlestir_tiff(c):
+    """Görüntü / PDF birleştir "Orijinal boyut"ta TIFF sayfası taramanın gerçek ölçüsünde (0.2.6): çözünürlük etiketi geçerliyse onunla,
+    etiketsizse A4 kuralıyla (uzun kenar A4'ün uzun kenarı; donustur.tiff_dpi_coz). 0.2.5'e dek 72 dpi sayılıyordu: etiketsiz 200 dpi A4
+    tarama 1654 × 2339 pt'lik (58 × 82 cm) sayfa oluyordu. Öteki görsellerin ölçüsü değişmez (72 dpi etiketli fotoğraf, PNG). Çok sayfalı
+    TIFF kare kare çözülür: 150 sayfada birleştirmenin ve dört düzeyli boyut tahmininin tepe belleği düşük (0.2.5'te 1,17 GB)."""
+    from PIL import Image, ImageDraw, TiffImagePlugin
+    klasor = os.path.join(CIKTI, "birlestir_tiff")
+    shutil.rmtree(klasor, ignore_errors=True)
+    os.makedirs(klasor)
+
+    def tarama(g, h, tohum):
+        im = Image.new("1", (g, h), 1)
+        d = ImageDraw.Draw(im)
+        for i in range(40):
+            y = 120 + i * (h - 240) // 40
+            d.rectangle((150, y, 150 + (tohum * 37 + i * 53) % (g - 300), y + 12), fill=0)
+        return im
+
+    def tiff(ad, kareler):
+        yol = os.path.join(klasor, ad)
+        with TiffImagePlugin.AppendingTiffWriter(yol, new=True) as tf:
+            for im, secenek in kareler:
+                im.save(tf, format="TIFF", **secenek)
+                tf.newFrame()
+        return yol
+    etiketsiz = tiff("etiketsiz_200.tif", [(tarama(1654, 2339, 1), {"compression": "group4"}), (tarama(1654, 2339, 2), {"compression": "group4"})])
+    letter = tiff("letter_150.tif", [(Image.new("RGB", (1275, 1650), (200, 220, 240)), {"compression": "tiff_lzw", "dpi": (150, 150)})])
+    kucuk = tiff("kucuk.tif", [(Image.new("RGB", (300, 200), (90, 160, 220)), {"compression": "tiff_lzw"})])
+    foto = os.path.join(klasor, "foto_72dpi.jpg")
+    Image.new("RGB", (3000, 4000), (180, 120, 60)).save(foto, quality=85, dpi=(72, 72))
+    vakalar = [({"yol": etiketsiz}, [(595, 842), (595, 842)], "etiketsiz 200 dpi G4 → A4"),
+               ({"yol": letter}, [(612, 792)], "150 dpi etiketli Letter"),
+               ({"yol": letter, "dondurme": 90}, [(792, 612)], "150 dpi Letter 90° döndürülmüş"),
+               ({"yol": kucuk}, [(300, 200)], "küçük TIFF (A4 kuralı 50 dpi'den az: 72 dpi)"),
+               ({"yol": foto}, [(720, 960)], "72 dpi etiketli fotoğraf (eski kural, değişmedi)")]
+    ogeler = [dict({"tur": "gorsel", "kalite": "orijinal", "sayfaBoyutu": "orijinal"}, **o) for o, _, _ in vakalar]
+    hedef = os.path.join(klasor, "tiff_orijinal.pdf")
+    c.cagir("birlestir", {"ogeler": ogeler, "hedef": hedef, "genelKalite": "orijinal"})
+    d = pymupdf.open(hedef)
+    olculer = [(round(pg.rect.width), round(pg.rect.height)) for pg in d]
+    d.close()
+    i = 0
+    for _, beklenen, ad in vakalar:
+        gercek = olculer[i:i + len(beklenen)]
+        i += len(beklenen)
+        kaydet_sonuc("birlestir/tiff ölçü", ad, gercek == beklenen, "sayfa %s, beklenen %s" % (gercek, beklenen))
+    # A4'e sığdır değişmedi
+    hedef = os.path.join(klasor, "tiff_a4.pdf")
+    c.cagir("birlestir", {"ogeler": [{"yol": letter, "tur": "gorsel", "sayfaBoyutu": "a4", "kenar": 0}], "hedef": hedef, "genelKalite": "orijinal"})
+    d = pymupdf.open(hedef)
+    a4 = (round(d[0].rect.width), round(d[0].rect.height))
+    d.close()
+    kaydet_sonuc("birlestir/tiff ölçü", "A4'e sığdır (değişmedi)", a4 == (595, 842), "sayfa %s" % (a4,))
+    # 150 sayfa: kare kare çözülür, tepe bellek
+    akis = os.path.join(klasor, "akis_150.tif")
+    with TiffImagePlugin.AppendingTiffWriter(akis, new=True) as tf:
+        for k in range(150):
+            tarama(1654, 2339, k).save(tf, format="TIFF", compression="group4")
+            tf.newFrame()
+    betik = os.path.join(klasor, "tepe.py")
+    with open(betik, "w", encoding="utf-8") as f:
+        f.write(TEPE_BETIGI)
+    hedef = os.path.join(klasor, "akis_150.pdf")
+    oge = {"yol": akis, "tur": "gorsel", "kalite": "orijinal", "sayfaBoyutu": "orijinal"}
+    for ad, yontem, params in (("150 sayfa birleştirme (orijinal)", "birlestir", {"ogeler": [oge], "hedef": hedef}),
+                               ("150 sayfa boyut tahmini (dört düzey)", "tahmin", {"oge": oge})):
+        p = subprocess.run([sys.executable, "-X", "utf8", betik, os.path.join(KOK, "core"), yontem, json.dumps(params)], capture_output=True,
+                           timeout=900)
+        try:
+            olcu = json.loads(p.stdout.decode("utf-8").strip().splitlines()[-1])
+            ok, ek = olcu["tepe"] < 300, ""
+            if yontem == "birlestir":
+                d = pymupdf.open(hedef)
+                sayfa, ilk = d.page_count, (round(d[0].rect.width), round(d[0].rect.height))
+                d.close()
+                ok, ek = ok and sayfa == 150 and ilk == (595, 842), ", %d sayfa, ilk %s" % (sayfa, ilk)
+            kaydet_sonuc("birlestir/tiff bellek", ad, ok, "tepe %.0f MB (başta %.0f), %.1f sn%s" % (olcu["tepe"], olcu["once"], olcu["sure"], ek))
+        except Exception as e:  # noqa: BLE001
+            kaydet_sonuc("birlestir/tiff bellek", ad, False, "%r %s" % (e, p.stderr.decode("utf-8", "replace")[-300:]))
+
+
+# Ayrı süreçte birleştirme ya da boyut tahmini ve tepe çalışma kümesi (Windows; macOS'ta en büyük yerleşik bellek)
+TEPE_BETIGI = r"""
+import json, sys, time
+sys.path.insert(0, sys.argv[1])
+import pdefe_core
+from islemler import araclar
+
+def tepe():
+    if sys.platform == "win32":
+        import ctypes
+        class PMC(ctypes.Structure):
+            _fields_ = [("cb", ctypes.c_ulong), ("PageFaultCount", ctypes.c_ulong), ("PeakWorkingSetSize", ctypes.c_size_t),
+                        ("WorkingSetSize", ctypes.c_size_t)] + [("x%d" % i, ctypes.c_size_t) for i in range(7)]
+        p = PMC(); p.cb = ctypes.sizeof(PMC)
+        k = ctypes.windll.kernel32
+        k.GetCurrentProcess.restype = ctypes.c_void_p
+        k.K32GetProcessMemoryInfo.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_ulong]
+        k.K32GetProcessMemoryInfo(k.GetCurrentProcess(), ctypes.byref(p), p.cb)
+        return p.PeakWorkingSetSize / 2**20
+    import resource
+    r = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return r / 2**20 if sys.platform == "darwin" else r / 1024
+
+once = tepe()
+t = time.perf_counter()
+params = json.loads(sys.argv[3])
+if sys.argv[2] == "birlestir":
+    araclar.y_birlestir(params)
+else:   # Birleştir'in her öğe için sorduğu dört düzeyin tahmini
+    for kalite in ("orijinal", "yuksek", "orta", "dusuk"):
+        araclar.y_boyut_tahmini({"oge": dict(params["oge"], kalite=kalite)})
+print(json.dumps({"once": once, "tepe": tepe(), "sure": time.perf_counter() - t}))
+"""
+
+
 def test_dondur_kaydet(c):
     kopya = os.path.join(CIKTI, "dondur_yerinde_yatay.pdf")
     shutil.copy(YATAY, kopya)
@@ -935,6 +1051,7 @@ def main():
         ("birlestir/kalite büyütmez", lambda: test_kalite_buyutmez(c)),
         ("birlestir/yön", lambda: test_gorsel_yonu(c)),
         ("birlestir/üzerine", lambda: test_birlestir_uzerine(c)),
+        ("birlestir/tiff", lambda: test_birlestir_tiff(c)),
         ("dondur_kaydet", lambda: test_dondur_kaydet(c)),
     ]
     for ad, f in testler:
