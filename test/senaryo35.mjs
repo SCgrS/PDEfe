@@ -13,12 +13,15 @@
 //      var); özgün dosya değişmez.
 //   5) "Üzerine yaz": sekmenin sayfa listesinde aynı sayfa iki kez, dosyada 7 sayfa ve iki kopyada da notlar. Özgün sayfadaki not sekmede
 //      silinip kaydedilince iki kopyadan da silinir (0.2.6 yapisal.py; önceden kopyada kalıyordu). Ctrl+Z not silmeyi, sonra düzeni geri alır.
+//   6) Yalnızca görünmeyen masaüstündeki örnekte (S35_GIZLI=1): gerçek Ctrl+C / Ctrl+V tarayıcı sürecinin girdi yolundan (test:tusGonder):
+//      Windows menüsünün Düzen › Kopyala hızlandırıcısı çalışmaz, copy / paste olayı doğmaz, sayfa kopyalanır.
 // Girdiler test/cikti/s35/<zaman>/pdf altında PyMuPDF ile üretilir (gerçek belge yok); menü seçimi pencerenin test kancasıyla
 // (window.__pdefeMenuYaniti), tıklamalar ve tuşlar gerçek fare / tuş olayıyla. Sistem panosuna dokunulmaz.
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9435 -Veri "%TEMP%\pdefe-s35-9435" -Boyut "1280,1000"      → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9435; node test\surucu.mjs betik test\senaryo35.mjs
 //   powershell -File test\durdur.ps1 -SurecId <PID>
+// 6. bölümle: powershell -File test\baslat_gizli.ps1 -Port 9435 -Veri "%TEMP%\pdefe-s35g-9435" -Boyut "1280,1000"; ayrıca $env:S35_GIZLI="1"
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -318,6 +321,33 @@ print(json.dumps({"ana": pdf("ana.pdf"), "uzerine": pdf("uzerine.pdf")}))`);
   await kosul(`window.__pdefe.aktif().gorunum.sayfaSayisi === 6`, 5000);
   const z2 = await evalJs(`(() => { const b = window.__pdefe.aktif(); return { sayfalar: b.gorunum.sayfalar.map((s) => s.kaynak?.sayfa), degisti: b.degisti }; })()`);
   sonuc('Ctrl+Z: önce vurgu geri gelir (7 sayfa), sonra kopya sayfa kalkar (6 sayfa, kaydedilmemiş)', z1.vurgu && z1.sayfa === 7 && z1.degisti && ayni(z2.sayfalar, [1, 2, 3, 4, 5, 6]) && z2.degisti, { z1, z2 });
+
+  // ---------------------------------------------------------------- 6) Gerçek tuş yolu (yalnızca görünmeyen masaüstündeki örnekte)
+  // CDP tuşu menü hızlandırıcısına ulaşmaz; test:tusGonder tarayıcı sürecinin girdi yolundan gönderir: Windows menüsündeki Düzen › Kopyala
+  // (Ctrl+C, rol copy) keydown engellenince çalışmamalı. Örnek baslat_gizli.ps1 ile başlatılmış olmalı: $env:S35_GIZLI="1"
+  if (process.env.S35_GIZLI === '1') {
+    console.log('\n== 6) Gerçek Ctrl+C / Ctrl+V (menü hızlandırıcısının yolu)');
+    await evalJs(`(async () => { for (const id of [...window.__pdefe.belgeler.keys()]) await window.__pdefe.belgeKapat(id, { zorla: true }); return true; })()`);
+    await ac(Y.ana);
+    await sayfalariAc();
+    await evalJs(`(() => { getSelection().removeAllRanges(); window.__s35Olay = { copy: 0, paste: 0 }; if (!window.__s35OlayDinleyici) { window.__s35OlayDinleyici = true;
+      for (const t of ['copy', 'paste']) addEventListener(t, () => { if (window.__s35Olay) window.__s35Olay[t]++; }, true); } return true; })()`);
+    await kartTikla(1);
+    const gercekTus = async (harf) => {
+      const odak = await evalJs(`window.pdefe.cagir('test:odakla')`);
+      await evalJs(`window.pdefe.cagir('test:tusGonder', ${J([{ type: 'keyDown', keyCode: harf, modifiers: ['control'] }, { type: 'keyUp', keyCode: harf, modifiers: ['control'] }])})`);
+      await bekle(450);
+      return odak;
+    };
+    const odak = await gercekTus('C');
+    await gercekTus('V');
+    d = await durum();
+    const olay = await evalJs(`(() => { const o = window.__s35Olay; window.__s35Olay = null; return o; })()`);
+    sonuc('Gerçek Ctrl+C / Ctrl+V: 2. sayfa arkasına eklenir; Düzen › Kopyala çalışmaz, copy / paste olayı doğmaz', odak?.gizliMasaustu && odak.odak
+      && ayni(d.sira, ['1', '2', '2', '3', '4', '5', '6']) && ayni(d.secili, [2]) && olay.copy === 0 && olay.paste === 0, { odak, d, olay });
+    await tus('Escape');
+    if (await kosul(`!!document.querySelector('.mesaj-kutusu')`, 1500)) await kutuDugmesi('Kaydetme');
+  }
 
   // ---------------------------------------------------------------- son
   const hatalar = await evalJs(`window.__s35Hatalar || []`);
