@@ -14,6 +14,7 @@ const CAGRILAR = new Set([
   'pencere:baskaPenceredeAc', 'pencere:baskaPenceredeAcikMi', 'pencere:baslik', 'pencere:digerlerindenIzinAl', 'pencere:izinBirak', 'pencere:kapat',
   'pencere:kapatOnayla', 'pencere:kapatVazgec', 'pencere:kimlik', 'pencere:sayi', 'pencere:tamEkran', 'pencere:tasi',
   'sekme:surukleBitti', 'sekme:tasi',
+  'udf:yaklasikBilgi', 'udf:yaklasikDonustur', 'udf:yaklasikIptal',
   'uygulama:bilgi', 'uygulama:geciciKlasor', 'uygulama:klasorler', 'uygulama:sonDosyalar', 'uygulama:veriKlasoru',
   'yanit',
   'yazdir:hazirla', 'yazdir:sayfaEkle', 'yazdir:baslat', 'yazdir:iptal', 'yazdir:durum', 'yazdir:yazicilar', 'yazdir:yaziciDurumu', 'yazdir:tercihler',
@@ -24,6 +25,7 @@ const DINLEMELER = new Set([
   'guncelleme:var', 'guncelleme:ilerleme', 'guncelleme:hazir', 'guncelleme:hata',
   'pencere:izinIste', 'pencere:izinBitti', 'pencere:kapatIstegi', 'pencere:tamEkran',
   'sekme:al', 'sekme:bant', 'sekme:disSurukle',
+  'udf:yaklasikIlerleme',
 ]);
 const testMi = (kanal) => typeof kanal === 'string' && kanal.startsWith('test:');
 const izinYok = (kanal) => new Error(`İzin verilmeyen kanal: ${kanal}`);

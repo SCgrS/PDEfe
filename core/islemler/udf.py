@@ -404,7 +404,10 @@ def _itext_var(jarlar):
 
 def ude_bul(elle=None):
     """UDE: {klasor, jarlar, exe, surum, kaynak ('ayar' | 'kayit' | 'kurulum' | 'varsayilan' | 'uygulamalar'), javaTercihi, itext} ya
-    da None. elle: kullanıcının ayarlarda gösterdiği yol (önce o)."""
+    da None. elle: kullanıcının ayarlarda gösterdiği yol (önce o). Geliştirme sürümünde PDEFE_UDE_YOK=1 UDE'yi hiç bulunmamış sayar: UDE kurulu
+    bir bilgisayarda "UDE yok" yolunun (aracın yaklaşık çizimi, test/udf_yaklasik.mjs) sınanması için; paketli çekirdek bu değişkeni okumaz."""
+    if os.environ.get("PDEFE_UDE_YOK") == "1" and not getattr(sys, "frozen", False):
+        return None
     adaylar = []
     if elle:
         adaylar.append((elle, "ayar"))

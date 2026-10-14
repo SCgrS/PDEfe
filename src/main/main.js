@@ -10,6 +10,7 @@ import { menuKur } from './menu.js';
 import { Cekirdek } from './cekirdek.js';
 import { panoyaDosyaKopyala, panoyaMetinYaz } from './pano.js';
 import { yazdirmaKur } from './yazdir.js';
+import { udfYaklasikKur } from './udfYaklasik.js';
 import { guncellemeKur } from './guncelleme.js';
 import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla, menuCubugunuUygula, pencereSayisi } from './pencereler.js';
 import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, DENETLENEN_YONTEMLER, paketKlasoruMu, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasorleri, standartYaziTipleri, anlikDosyasiMi } from './guvenlik.js';
@@ -480,6 +481,14 @@ function ipcKur(ipcMain) {
       istekId == null ? null : `${gonderen.id}:${istekId}`));
   });
   ipcMain.handle('cekirdek:iptal', (e, istekId) => cekirdek.iptal(`${e.sender.id}:${istekId}`));
+  // Dosya Formatını Değiştir (0.2.6): UYAP Doküman Editörü yokken UDF → PDF'in yaklaşık çizimi (gizli pencere + printToPDF; udfYaklasik.js).
+  // TIFF / Word hedefinde yaklaşık PDF çekirdeğe verilir: çağrılar arayüzünkiler gibi cekirdekParametreleri'nden geçer
+  udfYaklasikKur({
+    ipcMain, KOK,
+    cekirdekCagir: async (yontem, params, ilerleme, anahtar) => cekirdek.cagir(yontem,
+      await cekirdekParametreleri(yontem, params, anlikKlasoru(), { udeYolu: ayarAl('udeYolu') }), ilerleme, anahtar ?? null),
+    cekirdekIptal: (anahtar) => cekirdek.iptal(anahtar),
+  });
   ipcMain.handle('ayar:varsayilanlar', () => VARSAYILANLAR);
   yazdirmaKur({ ipcMain, BrowserWindow, pencereAl, testDiyalog, TEST });   // test örneğinde yazıcıya gitmez (yazdir.js)
 }

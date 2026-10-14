@@ -162,20 +162,151 @@ async function donusumParametreleri(yontem, p, { udeYolu = null } = {}) {
   }
   if (yontem === 'bicim_donustur') {
     if (!Array.isArray(p.ogeler) || !p.ogeler.length || p.ogeler.length > EN_FAZLA_OGE) throw izinYok();
-    p.ogeler = p.ogeler.map((o) => {
-      if (!o || typeof o !== 'object' || Array.isArray(o) || !dolu(o.yol) || !dolu(o.hedef)) throw izinYok();
-      const uzantilar = Object.prototype.hasOwnProperty.call(HEDEF_UZANTILARI, o.hedefBicim) ? HEDEF_UZANTILARI[o.hedefBicim] : null;
-      if (!uzantilar) throw izinYok();
-      if (!uzantilar.includes(path.extname(o.hedef).toLowerCase())) throw new Error(`Hedef dosyanın uzantısı ${uzantilar.join(' ya da ')} olmalı.`);
-      const s = o.secenekler && typeof o.secenekler === 'object' && !Array.isArray(o.secenekler) ? o.secenekler : {};
-      const secenekler = {};
-      if (s.dpi != null) { if (!TIFF_DPILERI.has(s.dpi)) throw izinYok(); secenekler.dpi = s.dpi; }
-      if (s.renk != null) { if (!TIFF_RENKLERI.has(s.renk)) throw izinYok(); secenekler.renk = s.renk; }
-      if (s.kip != null) { if (!UDF_KIPLERI.has(s.kip)) throw izinYok(); secenekler.kip = s.kip; }
-      return { yol: o.yol, hedef: o.hedef, hedefBicim: o.hedefBicim, secenekler };
-    });
+    p.ogeler = p.ogeler.map((o) => donusumOgesi(o));
   }
   return p;
+}
+
+/** bicim_donustur'un (ve UDF'nin yaklaşık çiziminin) bir öğesi: yol ve hedef dolu metin, hedefBicim bilinen biçim, hedefin uzantısı biçimle
+ *  eşleşir, seçeneklerde yalnızca bilinen anahtarlar ve değerler. Uymayan öğede hata fırlatır. */
+function donusumOgesi(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o) || !dolu(o.yol) || !dolu(o.hedef)) throw izinYok();
+  const uzantilar = Object.prototype.hasOwnProperty.call(HEDEF_UZANTILARI, o.hedefBicim) ? HEDEF_UZANTILARI[o.hedefBicim] : null;
+  if (!uzantilar) throw izinYok();
+  if (!uzantilar.includes(path.extname(o.hedef).toLowerCase())) throw new Error(`Hedef dosyanın uzantısı ${uzantilar.join(' ya da ')} olmalı.`);
+  const s = o.secenekler && typeof o.secenekler === 'object' && !Array.isArray(o.secenekler) ? o.secenekler : {};
+  const secenekler = {};
+  if (s.dpi != null) { if (!TIFF_DPILERI.has(s.dpi)) throw izinYok(); secenekler.dpi = s.dpi; }
+  if (s.renk != null) { if (!TIFF_RENKLERI.has(s.renk)) throw izinYok(); secenekler.renk = s.renk; }
+  if (s.kip != null) { if (!UDF_KIPLERI.has(s.kip)) throw izinYok(); secenekler.kip = s.kip; }
+  return { yol: o.yol, hedef: o.hedef, hedefBicim: o.hedefBicim, secenekler };
+}
+
+// ---------------------------------------------------------------- UDF'nin yaklaşık çizimi (0.2.6, main/udfYaklasik.js)
+const MiB = 1024 * 1024;
+/** Yaklaşık çizime verilen .udf'nin sınırları: dosya, açılmış content.xml ve zip'in öğe sayısı çizim sayfasındaki motorunkilerle aynı
+ *  (udf-cizim/udf-motoru.js SINIR.paket, icerik, girdi); zip'in bütün öğelerinin beyan edilen açılmış boyutlarının toplamı ayrıca sınırlı. Ana
+ *  süreç baytları açmaz, yalnızca merkezî dizindeki beyana bakar; motor açarken gerçekten açılan baytı sayar ve beyanı ya da sınırı aşan akışı
+ *  durdurur (zip bombası). */
+export const UDF_SINIRI = Object.freeze({ dosya: 40 * MiB, icerik: 20 * MiB, girdi: 1000, acikToplam: 64 * MiB });
+
+const hataKodlu = (kod, ileti) => Object.assign(new Error(ileti), { kod });
+
+/**
+ * .udf'nin baytları yaklaşık çizime verilebilir mi (eş zamanlı; baytlar açılmaz). Zip ise: imza, merkezî dizin (ZIP64 ve çok parçalı arşiv
+ * yok), en çok 1000 öğe, şifreli öğe yok, sıkıştırma yalnızca saklama ya da deflate, tam bir content.xml (motorun ad kuralıyla: baştaki ./ ve /
+ * atılır, büyük / küçük harf ayrılmaz) ve onun beyan edilen açılmış boyutu 20 MB'ı, bütün öğelerinki 64 MB'ı geçmez. Zip değilse düz XML
+ * (UDE'nin sıkıştırılmamış UDF'si: BOM ya da boşluktan sonra "<"), en çok 20 MB. Döner: 'zip' | 'xml'; uymayan baytta kodlu hata fırlatır
+ * (kod: 'bozuk' | 'parolali' | 'guvensiz' | 'buyuk'; çekirdeğin bicim_donustur kodlarıyla aynı adlar).
+ */
+export function udfIcerigiDenetle(bayt) {
+  if (!bayt || !bayt.length) throw hataKodlu('bozuk', 'Dosya boş.');
+  const b = Buffer.isBuffer(bayt) ? bayt : Buffer.from(bayt.buffer, bayt.byteOffset, bayt.byteLength);
+  if (b.length > UDF_SINIRI.dosya) throw hataKodlu('buyuk', `Dosya çok büyük (${Math.round(b.length / MiB)} MB; en çok ${UDF_SINIRI.dosya / MiB} MB).`);
+  if (b.length >= 4 && b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04) {
+    const bozuk = () => hataKodlu('bozuk', 'Dosya açılamadı: bozuk ya da UDF değil.');
+    if (b.length < 22) throw bozuk();
+    let eocd = -1;
+    for (let i = b.length - 22, alt = Math.max(0, b.length - 22 - 65535); i >= alt; i--) {
+      if (b.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0 || b.readUInt16LE(eocd + 4) || b.readUInt16LE(eocd + 6) || b.readUInt16LE(eocd + 8) !== b.readUInt16LE(eocd + 10)) throw bozuk();
+    const adet = b.readUInt16LE(eocd + 10), mdBoyut = b.readUInt32LE(eocd + 12), mdOfset = b.readUInt32LE(eocd + 16);
+    if (adet === 0xffff || mdBoyut === 0xffffffff || mdOfset === 0xffffffff || mdOfset + mdBoyut > eocd) throw bozuk();
+    if (adet > UDF_SINIRI.girdi) throw hataKodlu('guvensiz', `UDF paketinde çok fazla öğe var (${adet}); güvenlik nedeniyle dönüştürülmedi.`);
+    let p = mdOfset, icerik = 0, toplam = 0;
+    for (let k = 0; k < adet; k++) {
+      if (p + 46 > mdOfset + mdBoyut || b.readUInt32LE(p) !== 0x02014b50) throw bozuk();
+      const bayrak = b.readUInt16LE(p + 8), yontem = b.readUInt16LE(p + 10), acik = b.readUInt32LE(p + 24);
+      const adUz = b.readUInt16LE(p + 28), ekUz = b.readUInt16LE(p + 30), notUz = b.readUInt16LE(p + 32);
+      if (p + 46 + adUz + ekUz + notUz > mdOfset + mdBoyut) throw bozuk();
+      const ad = b.toString(bayrak & 0x800 ? 'utf8' : 'latin1', p + 46, p + 46 + adUz).replace(/^(\.?\/)+/, '').toLowerCase();
+      if (bayrak & 1) throw hataKodlu('parolali', 'UDF paketi parolayla korunuyor; dönüştürülemez.');
+      if (yontem !== 0 && yontem !== 8) throw bozuk();
+      toplam += acik;
+      if (ad === 'content.xml') {
+        icerik++;
+        if (acik > UDF_SINIRI.icerik) throw hataKodlu('buyuk', `Belgenin içeriği çok büyük (açılınca ${Math.round(acik / MiB)} MB; en çok ${UDF_SINIRI.icerik / MiB} MB).`);
+      }
+      if (toplam > UDF_SINIRI.acikToplam) throw hataKodlu('guvensiz', 'UDF paketi açılınca çok büyüyor; güvenlik nedeniyle dönüştürülmedi.');
+      p += 46 + adUz + ekUz + notUz;
+    }
+    if (!icerik) throw hataKodlu('bozuk', 'UDF paketinde belge içeriği (content.xml) yok.');
+    if (icerik > 1) throw hataKodlu('guvensiz', 'UDF paketi birden çok içerik dosyası taşıyor; güvenlik nedeniyle dönüştürülmedi.');
+    return 'zip';
+  }
+  let i = b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf ? 3 : 0;
+  const utf16 = (b[0] === 0xff && b[1] === 0xfe) || (b[0] === 0xfe && b[1] === 0xff);
+  while (!utf16 && i < b.length && i < 4096 && (b[i] === 0x20 || b[i] === 0x09 || b[i] === 0x0a || b[i] === 0x0d)) i++;
+  if (!utf16 && b[i] !== 0x3c) throw hataKodlu('bozuk', 'Dosya bir UDF belgesi değil.');
+  if (b.length > UDF_SINIRI.icerik) throw hataKodlu('buyuk', `Belgenin içeriği çok büyük (${Math.round(b.length / MiB)} MB; en çok ${UDF_SINIRI.icerik / MiB} MB).`);
+  return 'xml';
+}
+
+/** .udf'yi ana süreç kendisi okur (arayüzün dosya:oku'su yalnızca PDF okur, değişmedi): olağan dosya, boyut sınırı, udfIcerigiDenetle.
+ *  Döner: Buffer; olmayan / kilitli dosyada kodlu hata ('bulunamadi' | 'kilitli'; ileti kilitte çekirdeğinkiyle aynı ifadeyi taşır). */
+export async function udfDosyasiOku(yol) {
+  const ad = path.basename(String(yol || ''));
+  const kilitli = (e) => /^(EBUSY|EPERM|EACCES)$/.test(e?.code || '');
+  let st;
+  try { st = await fs.promises.stat(yol); } catch (e) {
+    if (kilitli(e)) throw hataKodlu('kilitli', `Dosya okunamadı; başka bir programda açık olabilir: ${ad}`);
+    throw hataKodlu('bulunamadi', `Dosya bulunamadı: ${ad}`);
+  }
+  if (!st.isFile()) throw hataKodlu('bozuk', 'Dosya bir UDF belgesi değil.');
+  if (st.size > UDF_SINIRI.dosya) throw hataKodlu('buyuk', `Dosya çok büyük (${Math.round(st.size / MiB)} MB; en çok ${UDF_SINIRI.dosya / MiB} MB).`);
+  let veri;
+  try { veri = await fs.promises.readFile(yol); } catch (e) {
+    if (kilitli(e)) throw hataKodlu('kilitli', `Dosya okunamadı; başka bir programda açık olabilir: ${ad}`);
+    throw hataKodlu('hata', 'Dosya okunamadı: ' + (e?.message || e));
+  }
+  udfIcerigiDenetle(veri);
+  return veri;
+}
+
+const mutlakYol = (s) => dolu(s) && path.isAbsolute(s);
+/** UDF'nin yaklaşık çiziminin hedef biçimleri: PDF (ana süreç yerine koyar), TIFF ve Word (yaklaşık PDF'ten çekirdek dönüştürür). */
+const YAKLASIK_HEDEFLER = new Set(['pdf', 'tiff', 'word']);
+
+/**
+ * UDF'nin yaklaşık çiziminin kanallarına arayüzden gelen parametreler (main/udfYaklasik.js). Döner: yalnızca bilinen anahtarlar; uymayan
+ * istekte hata fırlatır. Geçici dosyaların yolları arayüze hiç verilmez, arayüzden de alınmaz (çizim, zincirleme ve yerine koyma ana süreçte).
+ *  - udf:yaklasikBilgi { yol (mutlak), genislik? 16–1024 (verilmezse 220) }
+ *  - udf:yaklasikDonustur { ogeler: 1–500 öğe [{ yol (mutlak), hedef (mutlak), hedefBicim: 'pdf' | 'tiff' | 'word', secenekler? }], istekId? };
+ *    öğe bicim_donustur'unkiyle aynı denetimden geçer (donusumOgesi: hedefin uzantısı biçimle eşleşir, seçenekler bilinen değerler); hedef
+ *    öğenin kendi girdisi olamaz
+ *  - udf:yaklasikIptal { istekId }
+ */
+export function udfYaklasikParametreleri(kanal, p) {
+  if (!p || typeof p !== 'object' || Array.isArray(p)) throw izinYok();
+  const kimlik = (v) => (v == null ? null : Number.isSafeInteger(v) && v >= 0 ? v : (() => { throw izinYok(); })());
+  if (kanal === 'udf:yaklasikBilgi') {
+    if (!mutlakYol(p.yol)) throw izinYok();
+    const g = p.genislik == null ? 220 : Math.round(Number(p.genislik));
+    return { yol: p.yol, genislik: Number.isFinite(g) ? Math.max(16, Math.min(1024, g)) : 220 };
+  }
+  if (kanal === 'udf:yaklasikDonustur') {
+    if (!Array.isArray(p.ogeler) || !p.ogeler.length || p.ogeler.length > EN_FAZLA_OGE) throw izinYok();
+    const ogeler = p.ogeler.map((o) => {
+      const d = donusumOgesi(o);
+      if (!YAKLASIK_HEDEFLER.has(d.hedefBicim) || !mutlakYol(d.yol) || !mutlakYol(d.hedef)) throw izinYok();
+      if (ayniYol(d.yol, d.hedef)) throw new Error('Hedef dosya, dönüştürülen dosyanın kendisi olamaz.');
+      return d;
+    });
+    const hedefler = new Set();
+    for (const d of ogeler) {
+      const a = path.resolve(d.hedef).toLowerCase();
+      if (hedefler.has(a)) throw new Error('Aynı hedef dosya iki kez verildi: ' + path.basename(d.hedef));
+      hedefler.add(a);
+    }
+    return { ogeler, istekId: kimlik(p.istekId) };
+  }
+  if (kanal === 'udf:yaklasikIptal') {
+    const id = kimlik(p.istekId);
+    if (id == null) throw izinYok();
+    return { istekId: id };
+  }
+  throw izinYok();
 }
 
 /**

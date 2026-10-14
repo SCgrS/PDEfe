@@ -4,12 +4,15 @@
 //   bağımsızdır (main.js yalnızca macOS'ta çağırır), bu yüzden Windows'ta da sınanır.
 //   cekirdekParametreleri (0.2.6, Dosya Formatını Değiştir): bicim_donustur'da her öğenin hedefi biçimin uzantısıyla, seçenekler bilinen
 //   değerler; UYAP Doküman Editörü'nün klasörü ana sürecin ayarından (arayüzün verdiği yok sayılır).
+//   UDF'nin yaklaşık çizimi (0.2.6, main/udfYaklasik.js): udfIcerigiDenetle (zip'in merkezî dizini: öğe sayısı, şifre, sıkıştırma yöntemi,
+//   content.xml'in tekliği ve beyan edilen açılmış boyutlar; düz XML), udfDosyasiOku, udfYaklasikParametreleri (kanalların parametreleri).
 // Kullanım (depo kökünden): node test/guvenlik_birim.mjs   (geçici klasör: $env:GUVENLIK_BIRIM_KLASORU, varsayılan test\cikti\guvenlik_birim;
 // iş bitince silinir)      çıkış kodu: hata varsa 1
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { paketKlasoruMu, cekirdekParametreleri } from '../src/main/guvenlik.js';
+import zlib from 'node:zlib';
+import { paketKlasoruMu, cekirdekParametreleri, udfIcerigiDenetle, udfDosyasiOku, udfYaklasikParametreleri } from '../src/main/guvenlik.js';
 
 const KOK = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const K = process.env.GUVENLIK_BIRIM_KLASORU || path.join(KOK, 'test', 'cikti', 'guvenlik_birim');
@@ -76,6 +79,78 @@ try {
   kontrol('donusum_bilgi: ön izleme verilmezse açık (çekirdeğin varsayılanı)', ude4.onizleme === true);
   await reddedilir('donusum_bilgi: yolsuz istek reddedilir', 'donusum_bilgi', {});
   await reddedilir('eski kural değişmedi: Sıkıştır\'ın .bat hedefi reddedilir', 'kucult', { yol: path.join(K, 'a.pdf'), hedef: path.join(K, 'x.bat') });
+
+  // ------------------------------------------------------------ UDF'nin yaklaşık çizimi (0.2.6): udfIcerigiDenetle
+  // En küçük zip yazıcısı: öğe { ad, veri?, yontem? (0 saklama, 8 deflate), bayrak?, beyan? (merkezî dizindeki açılmış boyut), zip64? }
+  const zip = (ogeler) => {
+    const yereller = [], merkez = [];
+    let ofset = 0;
+    for (const o of ogeler) {
+      const ad = Buffer.from(o.ad, 'utf8'), ham = Buffer.from(o.veri ?? '<template/>', 'utf8');
+      const yontem = o.yontem ?? 8, veri = yontem === 8 ? zlib.deflateRawSync(ham) : ham;
+      const acik = o.zip64 ? 0xffffffff : (o.beyan ?? ham.length), bayrak = (o.bayrak ?? 0) | 0x800;
+      const y = Buffer.alloc(30); y.writeUInt32LE(0x04034b50, 0); y.writeUInt16LE(20, 4); y.writeUInt16LE(bayrak, 6); y.writeUInt16LE(yontem, 8);
+      y.writeUInt32LE(veri.length, 18); y.writeUInt32LE(acik, 22); y.writeUInt16LE(ad.length, 26);
+      const m = Buffer.alloc(46); m.writeUInt32LE(0x02014b50, 0); m.writeUInt16LE(20, 4); m.writeUInt16LE(20, 6); m.writeUInt16LE(bayrak, 8); m.writeUInt16LE(yontem, 10);
+      m.writeUInt32LE(veri.length, 20); m.writeUInt32LE(acik, 24); m.writeUInt16LE(ad.length, 28); m.writeUInt32LE(ofset, 42);
+      yereller.push(y, ad, veri); merkez.push(m, ad);
+      ofset += 30 + ad.length + veri.length;
+    }
+    const md = Buffer.concat(merkez), son = Buffer.alloc(22);
+    son.writeUInt32LE(0x06054b50, 0); son.writeUInt16LE(ogeler.length, 8); son.writeUInt16LE(ogeler.length, 10); son.writeUInt32LE(md.length, 12); son.writeUInt32LE(ofset, 16);
+    return Buffer.concat([...yereller, md, son]);
+  };
+  const MB = 1024 * 1024;
+  const denetimKodu = (bayt) => { try { return udfIcerigiDenetle(bayt); } catch (e) { return 'hata:' + e.kod; } };
+  const icerik = { ad: 'content.xml', veri: '<?xml version="1.0"?><template><content><![CDATA[a\n]]></content><elements/></template>' };
+  kontrol('UDF: content.xml\'li zip kabul ("zip")', denetimKodu(zip([icerik, { ad: 'documentproperties.xml' }])) === 'zip');
+  kontrol('UDF: saklanmış (sıkıştırılmamış) öğe kabul', denetimKodu(zip([{ ...icerik, yontem: 0 }])) === 'zip');
+  kontrol('UDF: baştaki "./" ve büyük harf motorun kuralıyla content.xml sayılır', denetimKodu(zip([{ ...icerik, ad: './Content.XML' }])) === 'zip');
+  kontrol('UDF: düz XML (BOM ve boşluktan sonra "<") kabul ("xml")', denetimKodu(Buffer.from('﻿ \r\n<?xml version="1.0"?><template/>', 'utf8')) === 'xml');
+  kontrol('UDF: boş dosya reddedilir (bozuk)', denetimKodu(Buffer.alloc(0)) === 'hata:bozuk');
+  kontrol('UDF: XML de zip de olmayan bayt reddedilir (bozuk)', denetimKodu(Buffer.from('%PDF-1.7 deneme')) === 'hata:bozuk');
+  kontrol('UDF: imzası zip, merkezî dizini olmayan bayt reddedilir (bozuk)', denetimKodu(Buffer.concat([Buffer.from([0x50, 0x4b, 3, 4]), Buffer.alloc(200, 7)])) === 'hata:bozuk');
+  kontrol('UDF: content.xml\'siz paket reddedilir (bozuk)', denetimKodu(zip([{ ad: 'baska.xml' }])) === 'hata:bozuk');
+  kontrol('UDF: iki content.xml ("content.xml", "./CONTENT.xml") reddedilir (guvensiz)', denetimKodu(zip([icerik, { ...icerik, ad: './CONTENT.xml' }])) === 'hata:guvensiz');
+  kontrol('UDF: 1001 öğeli paket reddedilir (guvensiz)', denetimKodu(zip([icerik, ...Array.from({ length: 1000 }, (_, i) => ({ ad: `e/${i}`, veri: 'x' }))])) === 'hata:guvensiz');
+  kontrol('UDF: şifreli öğe reddedilir (parolali)', denetimKodu(zip([{ ...icerik, bayrak: 1 }])) === 'hata:parolali');
+  kontrol('UDF: bilinmeyen sıkıştırma (bzip2, 12) reddedilir (bozuk)', denetimKodu(zip([{ ...icerik, yontem: 12 }])) === 'hata:bozuk');
+  kontrol('UDF: content.xml\'in beyanı 21 MB: reddedilir (buyuk)', denetimKodu(zip([{ ...icerik, beyan: 21 * MB }])) === 'hata:buyuk');
+  kontrol('UDF: öğelerin beyanı toplam 65 MB (zip bombası): reddedilir (guvensiz)', denetimKodu(zip([icerik, ...Array.from({ length: 5 }, (_, i) => ({ ad: `e${i}.bin`, beyan: 13 * MB }))])) === 'hata:guvensiz');
+  kontrol('UDF: ZIP64 beyanı (0xFFFFFFFF) reddedilir', /^hata:(buyuk|bozuk)$/.test(denetimKodu(zip([{ ...icerik, zip64: true }]))));
+  kontrol('UDF: 41 MB dosya reddedilir (buyuk)', denetimKodu(Buffer.concat([Buffer.from('<x>'), Buffer.alloc(41 * MB, 0x20)])) === 'hata:buyuk');
+  kontrol('UDF: 21 MB düz XML reddedilir (buyuk)', denetimKodu(Buffer.concat([Buffer.from('<x>'), Buffer.alloc(21 * MB, 0x20)])) === 'hata:buyuk');
+  const udfYolu = path.join(K, 'deneme.udf');
+  fs.writeFileSync(udfYolu, zip([icerik]));
+  const okunan = await udfDosyasiOku(udfYolu);
+  kontrol('udfDosyasiOku: denetimden geçen dosyanın baytları', Buffer.isBuffer(okunan) && okunan.length === fs.statSync(udfYolu).size);
+  const okumaKodu = async (y) => { try { await udfDosyasiOku(y); return 'okundu'; } catch (e) { return e.kod; } };
+  kontrol('udfDosyasiOku: olmayan dosya "bulunamadi"', (await okumaKodu(path.join(K, 'yok.udf'))) === 'bulunamadi');
+  kontrol('udfDosyasiOku: klasör "bozuk"', (await okumaKodu(klasor('Klasor.udf'))) === 'bozuk');
+  fs.writeFileSync(path.join(K, 'pdf.udf'), '%PDF-1.7\n');
+  kontrol('udfDosyasiOku: içeriği UDF olmayan dosya "bozuk"', (await okumaKodu(path.join(K, 'pdf.udf'))) === 'bozuk');
+
+  // ------------------------------------------------------------ UDF'nin yaklaşık çizimi: kanal parametreleri (udfYaklasikParametreleri)
+  const yp = (kanal, p) => { try { return udfYaklasikParametreleri(kanal, p); } catch { return null; } };
+  const yoge = (hedef, hedefBicim, ek = {}) => ({ yol: udfYolu, hedef: path.join(K, hedef), hedefBicim, ...ek });
+  const b1 = yp('udf:yaklasikBilgi', { yol: udfYolu, genislik: 5000, fazla: 1 });
+  kontrol('yaklasikBilgi: mutlak yol, genişlik 1024\'e çekilir, bilinmeyen anahtar atılır', JSON.stringify(b1) === JSON.stringify({ yol: udfYolu, genislik: 1024 }));
+  kontrol('yaklasikBilgi: genişlik verilmezse 220', yp('udf:yaklasikBilgi', { yol: udfYolu })?.genislik === 220);
+  kontrol('yaklasikBilgi: göreli yol reddedilir', yp('udf:yaklasikBilgi', { yol: 'deneme.udf' }) === null);
+  const d1 = yp('udf:yaklasikDonustur', { ogeler: [yoge('a.pdf', 'pdf'), yoge('b.tif', 'tiff', { secenekler: { dpi: 300, renk: 'renkli', x: 1 } }), yoge('c.docx', 'word')], istekId: 7 });
+  kontrol('yaklasikDonustur: PDF / TIFF / Word hedefleri ve istek kimliği geçer; bilinmeyen seçenek atılır', d1?.ogeler?.length === 3 && d1.istekId === 7
+    && JSON.stringify(d1.ogeler[1].secenekler) === JSON.stringify({ dpi: 300, renk: 'renkli' }));
+  kontrol('yaklasikDonustur: UDF hedefi reddedilir (UDF → UDF yok)', yp('udf:yaklasikDonustur', { ogeler: [yoge('a.udf', 'udf')] }) === null);
+  kontrol('yaklasikDonustur: .bat hedef reddedilir', yp('udf:yaklasikDonustur', { ogeler: [yoge('a.bat', 'pdf')] }) === null);
+  kontrol('yaklasikDonustur: hedef girdinin kendisi olamaz', yp('udf:yaklasikDonustur', { ogeler: [{ yol: path.join(K, 'x.pdf'), hedef: path.join(K, 'X.PDF'), hedefBicim: 'pdf' }] }) === null);
+  kontrol('yaklasikDonustur: aynı hedef iki kez reddedilir', yp('udf:yaklasikDonustur', { ogeler: [yoge('a.pdf', 'pdf'), { ...yoge('A.pdf', 'pdf'), yol: path.join(K, 'baska.udf') }] }) === null);
+  kontrol('yaklasikDonustur: göreli hedef reddedilir', yp('udf:yaklasikDonustur', { ogeler: [{ yol: udfYolu, hedef: 'a.pdf', hedefBicim: 'pdf' }] }) === null);
+  kontrol('yaklasikDonustur: 501 öğe reddedilir', yp('udf:yaklasikDonustur', { ogeler: Array.from({ length: 501 }, (_, i) => yoge(`x${i}.pdf`, 'pdf')) }) === null);
+  kontrol('yaklasikDonustur: TIFF çözünürlüğü 250 reddedilir', yp('udf:yaklasikDonustur', { ogeler: [yoge('a.tif', 'tiff', { secenekler: { dpi: 250 } })] }) === null);
+  kontrol('yaklasikDonustur: istek kimliği -1 / metin reddedilir', yp('udf:yaklasikDonustur', { ogeler: [yoge('a.pdf', 'pdf')], istekId: -1 }) === null
+    && yp('udf:yaklasikDonustur', { ogeler: [yoge('a.pdf', 'pdf')], istekId: '3' }) === null);
+  kontrol('yaklasikIptal: istek kimliği gerekir', yp('udf:yaklasikIptal', {}) === null && yp('udf:yaklasikIptal', { istekId: 3 })?.istekId === 3);
+  kontrol('bilinmeyen kanal ve dizi parametresi reddedilir', yp('udf:yaklasikKoy', { gecici: udfYolu, hedef: udfYolu }) === null && yp('udf:yaklasikBilgi', [udfYolu]) === null);
 } finally {
   try { fs.rmSync(K, { recursive: true, force: true }); } catch { console.log('Not: ' + K + ' silinemedi.'); }
 }
