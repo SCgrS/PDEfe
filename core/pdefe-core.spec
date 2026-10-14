@@ -10,11 +10,13 @@ Derleme: build/cekirdek-derle.mjs (npm run cekirdek:derle) ya da doğrudan
 """
 import os
 import sys
-from PyInstaller.utils.hooks import collect_dynamic_libs, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 WINDOWS = sys.platform == "win32"
 
 KOK = os.path.abspath(SPECPATH)            # core/
+if KOK not in sys.path:                    # collect_submodules("ucuncu") core/ altındaki paketi bulsun
+    sys.path.insert(0, KOK)
 
 # PyMuPDF'nin yerel kütüphaneleri (mupdfcpp64.dll, _mupdf.pyd, _extra.pyd) — hooks-contrib'de pymupdf
 # kancası olmadığından açıkça toplanır; pyd'ler analizle gelir, dll burada garantiye alınır.
@@ -31,6 +33,7 @@ gizli = [
     "islemler.udf",
     "islemler.udf_yaz",
     "islemler.word",
+    "islemler.pdf_word",
     "fontTools.subset",
     "fontTools.ttLib",
     "PIL",
@@ -48,6 +51,11 @@ gizli = [
 ]
 # Pillow'un bütün eklentileri (HEIC hariç; pillow_heif kuruluysa o da paketlenir)
 gizli += collect_submodules("PIL")
+
+# PDF → Word (0.2.6, islemler/pdf_word.py): PDEfe'ye alınan pdf2docx (core/ucuncu/pdf2docx; işlev içinde yüklenir) ve bağımlılıkları
+# python-docx (boş belge şablonu docx/templates veri dosyası olarak), lxml, numpy (opencv kaldırıldı; THIRD_PARTY.md)
+gizli += collect_submodules("ucuncu") + collect_submodules("docx") + ["lxml", "lxml.etree", "numpy"]
+veriler = collect_data_files("docx")
 try:
     import pillow_heif  # noqa: F401
     gizli.append("pillow_heif")
@@ -83,15 +91,15 @@ else:
     except ImportError:
         print("UYARI: pyobjc Vision paketleri yok; çekirdek görsellerdeki yazıyı tanıyamayacak")
 
-# Gereksiz büyük paketler dışarıda
-haric = ["tkinter", "_tkinter", "matplotlib", "numpy", "scipy", "pandas", "IPython", "jupyter",
+# Gereksiz büyük paketler dışarıda (numpy 0.2.6'dan beri gerekli: PDF → Word)
+haric = ["tkinter", "_tkinter", "matplotlib", "cv2", "scipy", "pandas", "IPython", "jupyter",
          "unittest", "pydoc_data", "test", "distutils", "setuptools", "pip", "pymupdf.mupdf-devel"]
 
 a = Analysis(
     [os.path.join(KOK, "pdefe_core.py")],
     pathex=[KOK],
     binaries=ikili,
-    datas=[],
+    datas=veriler,
     hiddenimports=gizli,
     hookspath=[],
     hooksconfig={},

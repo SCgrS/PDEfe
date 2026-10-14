@@ -19,6 +19,10 @@ kullanılan MuPDF / PyMuPDF'in AGPL-3.0 olmasıdır; bu bileşenler için Artife
 | Python | 3.12.14 | PSF-2.0 | Çekirdek sürecinin dili (PyInstaller ile exe'ye gömülür) | https://www.python.org/ |
 | fontTools | 4.65.0 | MIT | FreeText notları için Windows fontlarının GID koruyan alt kümesini çıkarma | https://github.com/fonttools/fonttools |
 | Pillow | 12.3.0 | MIT-CMU (HPND) | Görüntü işleme (görüntü → PDF, küçük resimler) | https://github.com/python-pillow/Pillow |
+| pdf2docx | 0.5.13, **değiştirilmiş kopya** (`core/ucuncu/pdf2docx`, lisansı yanında) | MIT (Artifex) | PDF → Word (0.2.6): düzenlenebilir .docx. Değişiklikler: opencv kaldırıldı (kontur ağacı, gri ton, döndürme numpy ve Pillow ile), stdout'a yazan ve süreci sonlandıran yerler düzeltildi, PDF yalnızca `filetype="pdf"` ile açılır; komut satırı ve tkinter arayüzü alınmadı (ayrıntı `core/ucuncu/__init__.py`) | https://github.com/ArtifexSoftware/pdf2docx |
+| python-docx | 1.2.0 | MIT | pdf2docx'in .docx yazması (PDF → Word) | https://github.com/python-openxml/python-docx |
+| lxml | 6.1.3 | BSD-3-Clause; paketle gelen libxml2 ve libxslt MIT, zlib zlib lisansı, iconv LGPL-2.1 | python-docx'in XML işleme kitaplığı (PDF → Word) | https://github.com/lxml/lxml |
+| NumPy | 2.5.4 | BSD-3-Clause (ve bileşenleri: 0BSD, MIT, Zlib, CC0-1.0); paketle gelen OpenBLAS BSD-3-Clause, libgfortran GPL-3.0 GCC çalışma zamanı istisnasıyla | pdf2docx'in görüntü dizisi işlemleri (PDF → Word) | https://github.com/numpy/numpy |
 | comtypes | 1.4.17 | MIT | Yalnız Windows: Word → PDF (0.2.6) için bilgisayardaki Word'e COM ile erişim | https://github.com/enthought/comtypes |
 | pywinrt (`winrt-runtime`, `winrt-Windows.Media.Ocr`, `winrt-Windows.Graphics.Imaging`, `winrt-Windows.Storage.Streams`, `winrt-Windows.Globalization`, `winrt-Windows.Foundation`, `winrt-Windows.Foundation.Collections`) | 3.2.1 | MIT | Windows'un yerleşik yazı tanıyıcısına (Windows.Media.Ocr) erişim: görsellerdeki yazının seçilebilmesi (0.1.24). Tanıyıcının kendisi Windows'un parçasıdır, PDEfe ile dağıtılmaz; paketle gelen `msvcp140.dll` Microsoft Visual C++ çalışma zamanıdır (Microsoft'un yeniden dağıtım koşulları) | https://github.com/pywinrt/pywinrt |
 | PyObjC (`pyobjc-core`, `pyobjc-framework-Vision`, `-Quartz`, `-Cocoa`, `-CoreML`) | 12.2.2 | MIT | macOS'ta (0.2.0) Apple'ın yerleşik yazı tanıyıcısına (Vision) erişim: görsellerdeki yazının seçilebilmesi. Tanıyıcının kendisi macOS'un parçasıdır, PDEfe ile dağıtılmaz | https://github.com/ronaldoussoren/pyobjc |
@@ -54,3 +58,4 @@ koşullarına tabidir.
 - GNU AGPL-3.0: `LICENSE` (PDEfe, PyMuPDF, MuPDF)
 - MIT (pywinrt ve PyObjC dahil), Apache-2.0, BSD, PSF, HPND ve zlib lisans metinleri ilgili paketlerin dağıtım dosyalarında bulunur
   (`node_modules/<paket>/LICENSE*`, Python paketlerinde `*.dist-info/licenses/`).
+- pdf2docx'in MIT lisansı değiştirilmiş kopyasının yanında: `core/ucuncu/pdf2docx/LICENSE`.

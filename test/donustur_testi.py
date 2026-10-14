@@ -1093,7 +1093,8 @@ def test_zincir(c, g):
     try:
         k = temiz_klasor("zincir")
         r, _ = c.cagir("donusum_bilgi", {"yol": g["serit8"]})
-        sonuc("TIFF'in hedeflerinde zincirle UDF görünür", [h["bicim"] for h in r["hedefler"]] == ["pdf", "udf"], r["hedefler"])
+        beklenen = ["pdf", "udf"] + (["word"] if ("pdf", "word") in d._DONUSTURUCULER else [])   # PDF → Word (0.2.6) de zincirlenir
+        sonuc("TIFF'in hedeflerinde zincirle UDF görünür", [h["bicim"] for h in r["hedefler"]] == beklenen, r["hedefler"])
         r, _ = donustur(c, [{"yol": g["serit8"], "hedef": os.path.join(k, "zincir.udf"), "hedefBicim": "udf"}])
         s = r["sonuclar"][0]
         ara_silindi = gorulen and not os.path.exists(gorulen[0][2])

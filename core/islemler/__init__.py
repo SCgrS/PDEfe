@@ -17,7 +17,8 @@ def kaydol(yontemler):
         donustur.kaydol(yontemler)
         # UDF ↔ PDF (0.2.6): dönüştürücüleri donustur'un kaydına modül yüklenirken eklenir (UDE köprüsü, PDF → UDF yazıcısı)
         from . import udf  # noqa: F401
-        # Word → PDF (0.2.6): Word'ün kendisiyle (ya da LibreOffice); donustur'un kaydına
+        # Word ↔ PDF (0.2.6): Word → PDF Word'ün kendisiyle (ya da LibreOffice), PDF → Word pdf2docx ile; ikisi de donustur'un kaydına
         from . import word  # noqa: F401
+        from . import pdf_word  # noqa: F401
     except ImportError:
         pass

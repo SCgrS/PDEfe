@@ -734,6 +734,12 @@ def main():
         pymupdf.set_messages(stream=sys.stderr)
     except Exception:
         pass
+    # Windows: numpy'nin OpenBLAS DLL'i girdi okunmaya başlamadan yüklenir (0.2.6, PDF → Word; neden islemler/pdf_word.onden_yukle)
+    try:
+        from islemler import pdf_word
+        pdf_word.onden_yukle()
+    except Exception as e:
+        print("[cekirdek] ön yükleme: %s" % e, file=sys.stderr)
     kuyruk = queue.Queue()
     isci = threading.Thread(target=_isci, args=(kuyruk,), daemon=True)
     isci.start()

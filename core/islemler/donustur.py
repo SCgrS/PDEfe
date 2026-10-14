@@ -3,9 +3,9 @@
 modüllerde eklenir (donusturucu_kaydet, yetenek_kaydet, bilgi_kaydet; islemler/__init__.py onları bu modülden sonra yükler).
 
 Yöntemler (kaydol):
-  donusum_yetenekleri {} → {tiff: bool (iki yön de var), udf: {...}, word: {...} (o modüllerin yetenek_kaydet'le verdiği; yoksa
-      {var: false, neden}), donusumler: {"<kaynak>><hedef>": {var, neden?}} (ör. "tiff>pdf"), uzantilar: {hedefBicim: [uzantılar]},
-      girdiUzantilari: {tür: [uzantılar]} (yalnızca dönüştürülebilen türler; dosya seçme süzgeci için)}
+  donusum_yetenekleri {} → {tiff: bool (iki yön de var), udf: {...}, word: {...} (Word → PDF), pdf_word: {...} (PDF → Word) (o modüllerin
+      yetenek_kaydet'le verdiği; yoksa {var: false, neden}), donusumler: {"<kaynak>><hedef>": {var, neden?}} (ör. "tiff>pdf"),
+      uzantilar: {hedefBicim: [uzantılar]}, girdiUzantilari: {tür: [uzantılar]} (yalnızca dönüştürülebilen türler; dosya seçme süzgeci için)}
   donusum_bilgi {yol, genislik?=220} → {tur, alt, boyut, sayfa, hedefler: [{bicim, uzantilar, var, neden?}], uyari?, png?,
       pngGenislik?, pngYukseklik?, genislik?, yukseklik? (ilk sayfanın pt ölçüsü), dpi? / dpiKaynagi? (TIFF: 'etiket' | 'a4' |
       'varsayilan')}. Tür UZANTIDAN DEĞİL DOSYANIN İÇERİĞİNDEN (tur_bul): 'pdf' | 'udf' | 'tiff' | 'word' | 'bilinmeyen'; alt: udf 'zip' |
@@ -572,7 +572,7 @@ def y_donusum_yetenekleri(p):
         "donusumler": donusumler,
         "tiff": bool(donusumler.get("tiff>pdf", {}).get("var") and donusumler.get("pdf>tiff", {}).get("var")),
     }
-    for ad in ("udf", "word"):
+    for ad in ("udf", "word", "pdf_word"):
         islev = _YETENEKLER.get(ad)
         if islev is None:
             sonuc[ad] = {"var": False, "neden": "Bu sürümde yok."}
