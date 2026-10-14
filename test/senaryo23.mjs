@@ -79,8 +79,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
     return { g: s.map((r) => Math.round(r.width * 10) / 10), kayiyor: l.scrollWidth > l.clientWidth + 1, liste: Math.round(lr.width), yeniBitisik: Math.abs(yeni.left - lr.right) <= 3,
       bosluk: parseFloat(getComputedStyle(l).columnGap) || 0, cubuk: Math.round(document.querySelector('#sekme-cubugu').getBoundingClientRect().width) }; })()`);
   const sekmeKutusu = (i) => evalJs(`(() => { const s = [...document.querySelectorAll('#sekme-liste .sekme')][${i}]; const r = s.getBoundingClientRect(), k = s.querySelector('.kapat').getBoundingClientRect();
-    return { sol: r.left, sag: r.right, g: r.width, y: Math.round(r.top + r.height / 2), kapatX: Math.round(k.left + k.width / 2), kapatY: Math.round(k.top + k.height / 2), ad: s.querySelector('.ad').textContent }; })()`);
-  const kayanlar = () => evalJs(`[...document.querySelectorAll('#sekme-liste .sekme:not(.tasiniyor)')].filter((s) => s.style.transform).map((s) => s.querySelector('.ad').textContent)`);
+    return { sol: r.left, sag: r.right, g: r.width, y: Math.round(r.top + r.height / 2), kapatX: Math.round(k.left + k.width / 2), kapatY: Math.round(k.top + k.height / 2), ad: window.__pdefe.sekmeler.sekmeler.find((x) => x.el === s)?.ad ?? null }; })()`);
+  // Adlar sekme modelinden (uzantılı; 0.2.6'dan beri sekmede ".pdf" yazılmaz)
+  const kayanlar = () => evalJs(`[...document.querySelectorAll('#sekme-liste .sekme:not(.tasiniyor)')].filter((s) => s.style.transform).map((s) => window.__pdefe.sekmeler.sekmeler.find((x) => x.el === s)?.ad ?? null)`);
   const sekmeAdlari = () => evalJs(`window.__pdefe.sekmeler.sekmeler.map((s) => s.ad)`);
   const hatalariTopla = () => evalJs(`(() => { if (!window.__s23Hatalar) { window.__s23Hatalar = []; addEventListener('error', (e) => window.__s23Hatalar.push(String(e.message))); addEventListener('unhandledrejection', (e) => window.__s23Hatalar.push(String(e.reason?.message || e.reason))); } return true; })()`);
 

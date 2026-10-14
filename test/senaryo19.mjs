@@ -308,7 +308,7 @@ export default async function (surucu) {
     await tikl(`window.__pdefe.sekmeler.sekmeler.find((s) => s.ad === 'a.pdf').el.querySelector('.ad')`); await bekle(300);
     await tikl(q('#sekme-acilir')); await bekle(300);
     const liste1 = await evalJs(`[...document.querySelectorAll('#belge-listesi li')].map((li) => [li.querySelector('.ad').textContent, li.querySelector('.yol').textContent, li.classList.contains('aktif')])`);
-    sonuc('Açık belgeler listesinde açılış sekmesi ("Yeni sekme", yolsuz) da var', liste1.length === 3 && J(liste1[2]) === J(['Yeni sekme', '', false]) && liste1[1][0] === '• b.pdf', liste1);
+    sonuc('Açık belgeler listesinde açılış sekmesi ("Yeni sekme", yolsuz) da var; belge adları ".pdf"siz (0.2.6)', liste1.length === 3 && J(liste1[2]) === J(['Yeni sekme', '', false]) && liste1[1][0] === '• b' && liste1[0][0] === 'a', liste1);
     await yaz('ticaret'); await bekle(400);
     await kosul(`[...document.querySelectorAll('#belge-listesi li .rozet')].every((r) => !r.hidden && /eşleşme$/.test(r.textContent))`, 12000);
     const liste2 = await evalJs(`[...document.querySelectorAll('#belge-listesi li')].map((li) => [li.querySelector('.ad').textContent, li.querySelector('.rozet').textContent])`);
@@ -332,7 +332,7 @@ export default async function (surucu) {
     const s2 = await secici();
     await tusOlaylari([{ type: 'keyUp', keyCode: 'Control', modifiers: [] }]); await bekle(500);
     d = await durum();
-    const beklenenAdaylar = mru0.map((x) => (x === '+' ? 'Yeni sekme' : x));
+    const beklenenAdaylar = mru0.map((x) => (x === '+' ? 'Yeni sekme' : x.replace(/\.pdf$/i, '')));   // seçicide ad ".pdf"siz (0.2.6)
     sonuc('Ctrl+Tab seçicisi açılış sekmesiyle açılır (MRU sırası, açılış sekmesi küçük resimsiz)', s1.acik && s1.gorunur && J(s1.adaylar) === J(beklenenAdaylar) && s1.secili === 1 && s1.resimsiz.includes('Yeni sekme'), { s1, mru0 });
     sonuc('Seçicide → sonraki adaya geçer; Ctrl bırakılınca o sekme seçilir', s2.secili === 2 && !(await evalJs(`window.__pdefe.sekmeler.seciciAcik`)) && d.aktif === mru0[2], { s2, d, mru0 });
     // Esc ile vazgeç

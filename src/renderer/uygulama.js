@@ -18,6 +18,7 @@ import { yazdir } from './yazdir.js';
 import { ortuTiklamasiBagla } from './ortu.js';
 import { mesajKutusu as mesajKutusuAc, mesajKutusuAcik, mesajKutusuUyar, kaydetmedenCikisSorusu } from './mesajKutusu.js';
 import { BaslangicEkrani } from './baslangic.js';
+import { uzantisiz } from './adlar.js';
 import { MAC, birincil, tus, ipuclariniCevir, DOSYA_YONETICISI } from './platform.js';
 
 const $ = (s) => document.querySelector(s);
@@ -736,7 +737,8 @@ sekmeler.addEventListener('ayrildi', (e) => {
   if (!b) return;
   const liste = $('#sekme-liste').getBoundingClientRect();
   _surukleYeri = { tutma: e.detail.tutma, sekmeYeri: { x: Math.round(liste.left + 2), y: Math.round(liste.top + 4) } };
-  pdefe.gonder('sekme:surukleBasla', { ad: b.ad, koyu: koyuMu(), ...sekmeOnizlemesi(b), ..._surukleYeri });
+  // Ön izlemede ad sekmedeki gibi ".pdf"siz (0.2.6; adlar.js)
+  pdefe.gonder('sekme:surukleBasla', { ad: uzantisiz(b.ad), koyu: koyuMu(), ...sekmeOnizlemesi(b), ..._surukleYeri });
   surukleCaniDurdur();
   _surukleCan = setInterval(() => pdefe.gonder('sekme:surukleCan'), 500);
 });

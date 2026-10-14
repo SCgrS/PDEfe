@@ -253,7 +253,8 @@ export default async function ({ evalJs, bekle, tus }) {
   // Ctrl+Tab seçicisi: sekmelerin ilk sayfaları (taranmış belge JPEG, ötekiler PNG). Ctrl bırakılmadığı için seçici açık kalır; Esc kapatır
   await tus('Tab', ['ctrl']);
   await kosul(`(() => { const a = [...document.querySelectorAll('#sekme-secici .aday')]; return a.length >= 2 && a.every((x) => x.querySelector('img')?.naturalWidth); })()`, 8000);
-  const adaylar = await evalJs(`[...document.querySelectorAll('#sekme-secici .aday')].map((a) => ({ ad: a.querySelector('.ad').textContent, tur: a.querySelector('img')?.src.slice(5, a.querySelector('img').src.indexOf(';')) }))`);
+  // Ad sekmenin modelinden (uzantılı; seçicide 0.2.6'dan beri ".pdf"siz yazılır)
+  const adaylar = await evalJs(`[...document.querySelectorAll('#sekme-secici .aday')].map((a) => ({ ad: window.__pdefe.sekmeler.bul(a.dataset.id)?.ad ?? null, tur: a.querySelector('img')?.src.slice(5, a.querySelector('img').src.indexOf(';')) }))`);
   sonuc('Ctrl+Tab seçicisi: taranmış belge JPEG, metin belgesi PNG', adaylar.find((a) => a.ad === 'kuyruk-tarama.pdf')?.tur === 'image/jpeg' && adaylar.find((a) => a.ad === 'kuyruk-a.pdf')?.tur === 'image/png', adaylar);
   await tus('Escape', ['ctrl']);
   await evalJs(`(() => { const s = window.__pdefe.sekmeler; if (s.seciciAcik) s.seciciIptal(); return true; })()`);

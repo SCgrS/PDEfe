@@ -43,8 +43,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare
 
   const olc = () => evalJs(`(() => {
     const liste = document.querySelector('#sekme-liste'), lr = liste.getBoundingClientRect();
+    // ad: sekmenin (uzantılı) adı modelden; yazi: sekmede görünen ad (0.2.6'dan beri ".pdf"siz)
     const sekmeler = [...document.querySelectorAll('.sekme')].map((s) => { const a = s.querySelector('.ad'), r = s.getBoundingClientRect();
-      return { ad: a.textContent, g: r.width, kisaldi: a.scrollWidth > a.clientWidth, ipucu: s.title, gorunur: r.left >= lr.left - 0.5 && r.right <= lr.right + 0.5, aktif: s.classList.contains('aktif') }; });
+      return { ad: window.__pdefe.sekmeler.sekmeler.find((x) => x.el === s)?.ad ?? null, yazi: a.textContent, g: r.width, kisaldi: a.scrollWidth > a.clientWidth, ipucu: s.title, gorunur: r.left >= lr.left - 0.5 && r.right <= lr.right + 0.5, aktif: s.classList.contains('aktif') }; });
     return { sekmeler, genislik: innerWidth, tema: document.documentElement.dataset.tema, ustTasma: getComputedStyle(document.querySelector('.sekme .ad')).textOverflow };
   })()`);
   let o = await olc();
@@ -55,7 +56,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare
   denetle('"ustyazi (85).pdf" ve "ustyazi (86).pdf" tam görünür', !kisa('ustyazi (85).pdf').kisaldi && !kisa('ustyazi (86).pdf').kisaldi);
   denetle('"(2)TensipZapti (9).pdf" üç noktayla kısalır (tam adı ipucunda)', kisa('(2)TensipZapti (9).pdf').kisaldi);
   denetle('uzun ad üç noktayla kısalır', kisa('Bilirkişi Raporu - Ek 1 - Hesap Tablosu ve Açıklamalar (son hali).pdf').kisaldi && o.ustTasma === 'ellipsis');
-  denetle('ipucu: tam ad + yol', o.sekmeler.every((s) => s.ipucu === `${s.ad}\n${K}${path.sep}${s.ad}`), js(o.sekmeler[3].ipucu));
+  denetle('ipucu: tam ad (uzantısıyla) + yol', o.sekmeler.every((s) => s.ipucu === `${s.ad}\n${K}${path.sep}${s.ad}`), js(o.sekmeler[3].ipucu));
+  denetle('sekmede ad ".pdf"siz yazılır (0.2.6)', o.sekmeler.every((s) => s.yazi === s.ad.replace(/\.pdf$/i, '')) && kisa('ustyazi (85).pdf').yazi === 'ustyazi (85)', js(o.sekmeler.map((s) => s.yazi)));
   denetle('etkin (son açılan) sekme görünür', o.sekmeler.find((s) => s.aktif)?.gorunur);
   await ekranGoruntusu(`test/png/sekme/sekmeler-12${EK}.png`);
 
@@ -123,7 +125,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare
   // sürükle-bırakı yok (draggable değil). disari: imleç çubuğun biraz altına (belge alanının üst kenarına) inip orada bırakılır; 0.1.19'dan
   // beri çubuktan 24 px'ten çok uzaklaşan sekme çubuktan ayrılır ve dışarıda bırakılınca yeni pencerede açılır (test/senaryo22.mjs),
   // eşiğin içinde kalan sekme eskisi gibi çubukta kalır. iptal: bırakmadan önce Esc.
-  const durum = () => evalJs(`({ model: window.__pdefe.sekmeler.sekmeler.map((s) => s.ad), dom: [...document.querySelectorAll('.sekme .ad')].map((a) => a.textContent),
+  // dom: sekme öğelerinin ekrandaki sırası, adları modelden (0.2.6'dan beri sekmede ".pdf" yazılmaz)
+  const durum = () => evalJs(`({ model: window.__pdefe.sekmeler.sekmeler.map((s) => s.ad), dom: [...document.querySelectorAll('.sekme')].map((el) => window.__pdefe.sekmeler.sekmeler.find((s) => s.el === el)?.ad ?? null),
     kalan: [...document.querySelectorAll('.sekme')].filter((s) => s.style.transform || s.classList.contains('tasiniyor') || s.classList.contains('yerlesiyor')).length
       + (document.querySelector('#sekme-liste').classList.contains('siralaniyor') ? 1 : 0) })`);
   async function surukleBirak(kaynak, hedef, { disari = false, iptal = false, ekran = null, x = null } = {}) {
@@ -142,7 +145,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare
     for (let i = 1; i <= 10; i++) await fareOlayi('mouseMoved', a.x + ((son.x - a.x) * i) / 10, a.y + ((son.y - a.y) * i) / 10, 1);
     await bekle(300);   // öteki sekmelerin kayması (0,15 sn) bitsin
     const ortada = await evalJs(`(() => { const t = document.querySelector('.sekme.tasiniyor'), r = t?.getBoundingClientRect();
-      return { tasinan: t?.querySelector('.ad').textContent ?? null, sol: r ? Math.round(r.left) : null, ust: r ? Math.round(r.top) : null,
+      return { tasinan: window.__pdefe.sekmeler.sekmeler.find((x) => x.el === t)?.ad ?? null, sol: r ? Math.round(r.left) : null, ust: r ? Math.round(r.top) : null,
         kaymis: [...document.querySelectorAll('.sekme:not(.tasiniyor)')].filter((s) => s.style.transform).length,
         opak: t ? getComputedStyle(t).opacity === '1' && getComputedStyle(t).backgroundColor !== 'rgba(0, 0, 0, 0)' : false,
         draggable: [...document.querySelectorAll('.sekme')].some((s) => s.draggable) }; })()`);
@@ -210,6 +213,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare
   await tikla(...(await evalJs(`(() => { const r = document.querySelector('#sekme-acilir').getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]; })()`)));
   await bekle(300);
   denetle('açık belgeler listesi açıldı', await evalJs(`!document.querySelector('#belge-listesi').hidden && document.querySelectorAll('#belge-listesi li').length === ${ADLAR.length}`));
+  const listeAdlari = await evalJs(`[...document.querySelectorAll('#belge-listesi li .ad')].map((a) => a.textContent)`);
+  const modelSirasi = await evalJs(`window.__pdefe.sekmeler.sekmeler.map((s) => s.ad)`);
+  denetle('açık belgeler listesinde adlar ".pdf"siz (0.2.6)', js(listeAdlari) === js(modelSirasi.map((a) => a.replace(/\.pdf$/i, ''))), js(listeAdlari.slice(0, 3)));
   await ekranGoruntusu(`test/png/sekme/belge-listesi${EK}.png`);
   await tus('Escape'); await bekle(200);
 
@@ -225,20 +231,23 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, fare
   if (fs.existsSync(yeni)) fs.unlinkSync(yeni);
   await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'dosya:kaydetDiyalog', [${js(yeni)}])`);
   const kayit = await evalJs(`(async () => { const p = window.__pdefe; const ok = await p.belgeKaydet(p.aktif(), true); const s = p.sekmeler.bul(p.aktif().id); return { ok, ad: s.ad, yol: s.yol, ipucu: s.el.title, dom: s.el.querySelector('.ad').textContent }; })()`);
-  denetle('Farklı kaydet: sekme adı, yolu ve ipucu güncellendi', kayit.ok && kayit.ad === path.basename(yeni) && kayit.yol === yeni && kayit.ipucu === `${path.basename(yeni)}\n${yeni}` && kayit.dom === kayit.ad, js(kayit));
+  denetle('Farklı kaydet: sekme adı, yolu ve ipucu güncellendi; sekmede ".pdf"siz', kayit.ok && kayit.ad === path.basename(yeni) && kayit.yol === yeni && kayit.ipucu === `${path.basename(yeni)}\n${yeni}` && kayit.dom === 'farkli kaydedilen uzun bir belge adı (1)', js(kayit));
 
   // Ctrl+Tab seçicisi arka planda açılmış (hiç etkin olmamış) sekmeleri de gösterir: son kullanım sırasından sonra (0.2.1; önceden
   // yalnızca etkin olmuş sekmeler, tek etkin sekme varken Ctrl+Tab hiçbir şey yapmıyordu). Ayır › Tümünü aç böyle açar
   await evalJs(`(async () => { const p = window.__pdefe; for (const s of [...p.sekmeler.sekmeler]) await p.belgeKapat(s.id, { zorla: true });
     await p.dosyaAc(${js(path.join(K, ADLAR[2]))}); await p.dosyaAc(${js(path.join(K, ADLAR[0]))}, { arkaPlanda: true }); await p.dosyaAc(${js(path.join(K, ADLAR[1]))}, { arkaPlanda: true });
     await new Promise((r) => setTimeout(r, 800)); return true; })()`);
-  const secici = () => evalJs(`(() => { const s = window.__pdefe.sekmeler; return { acik: s.seciciAcik, adaylar: [...document.querySelectorAll('#sekme-secici .aday .ad')].map((x) => x.textContent),
-    secili: document.querySelector('#sekme-secici .aday.secili .ad')?.textContent ?? null, aktif: s.bul(s.aktifId)?.ad, mru: s.mru.map((id) => s.bul(id)?.ad) }; })()`);
+  // Adaylar sekmelerin (uzantılı) adlarıyla; seçicide görünen ad (yazilan) 0.2.6'dan beri ".pdf"siz
+  const secici = () => evalJs(`(() => { const s = window.__pdefe.sekmeler, ad = (a) => (a ? s.bul(a.dataset.id)?.ad ?? null : null);
+    return { acik: s.seciciAcik, adaylar: [...document.querySelectorAll('#sekme-secici .aday')].map(ad), yazilan: [...document.querySelectorAll('#sekme-secici .aday .ad')].map((x) => x.textContent),
+    secili: ad(document.querySelector('#sekme-secici .aday.secili')), aktif: s.bul(s.aktifId)?.ad, mru: s.mru.map((id) => s.bul(id)?.ad) }; })()`);
   let sc = await secici();
   denetle('Ctrl+Tab hazırlık: biri önde, ikisi arka planda açıldı (son kullanım sırasında yalnızca öndeki)', sc.aktif === ADLAR[2] && js(sc.mru) === js([ADLAR[2]]), js(sc));
   await tus('Tab', ['ctrl']); await bekle(400);
   sc = await secici();
   denetle('Ctrl+Tab seçicisi arka planda açılmış sekmeleri de gösterir; ikinci aday seçili', sc.acik && js(sc.adaylar) === js([ADLAR[2], ADLAR[0], ADLAR[1]]) && sc.secili === ADLAR[0], js(sc));
+  denetle('Ctrl+Tab seçicisinde adlar ".pdf"siz (0.2.6)', js(sc.yazilan) === js([ADLAR[2], ADLAR[0], ADLAR[1]].map((a) => a.replace(/\.pdf$/i, ''))), js(sc.yazilan));
   await tus('Control'); await bekle(500);
   sc = await secici();
   denetle('Ctrl bırakılınca seçilen (hiç etkin olmamış) sekmeye geçilir', !sc.acik && sc.aktif === ADLAR[0] && js(sc.mru) === js([ADLAR[0], ADLAR[2]]), js(sc));

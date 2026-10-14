@@ -13,6 +13,7 @@
 // Aç / Klasörde göster / Yolu kopyala / Listeden kaldır menüsünü, satırdaki × ve Delete yalnızca listeden kaldırmayı yapar (dosyaya
 // dokunulmaz). "Son açılanları hatırla" kapalıyken Son açılanlar bölümü (başlık ve kutu) hiç görünmez (0.1.13, kullanıcı isteği).
 // 0.1.8'e dek boş #gorunumler katmanı bu ekranın üstünde kaldığı için PDF aç düğmesi ve son açılanlar tıklanamıyordu (stil.css: z-index).
+import { uzantisiz } from './adlar.js';
 import { ARACLAR } from './aracPenceresi.js';
 import { MAC } from './platform.js';
 
@@ -22,9 +23,9 @@ const kacis = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': 
 // Açık klasör ve önündeki sayfa
 const AC_IKON = '<path d="M2.75 7.25V18a1.75 1.75 0 0 0 1.75 1.75h15A1.75 1.75 0 0 0 21.25 18V9.5a1.75 1.75 0 0 0-1.75-1.75h-7.1L10.3 5.25H4.5A1.75 1.75 0 0 0 2.75 7v.25z"/><path d="M2.75 11.25h18.5"/>';
 // Son açılan belgenin simgesi uygulamanın simgesi (0.2.5, kullanıcı isteği; önceden sayfa ve kırmızı PDF şeridi çizimi). Küçük boyutta keskin
-// olsun diye vektör sürümü (build/icon.svg; imzadaki büyük simge icon.png). Belgenin adı uzantısız gösterilir ("Dilekçe", "Dilekçe.pdf" değil)
+// olsun diye vektör sürümü (build/icon.svg; imzadaki büyük simge icon.png). Belgenin adı uzantısız gösterilir ("Dilekçe", "Dilekçe.pdf" değil;
+// adlar.js uzantisiz, 0.2.6'dan beri sekmeler de)
 const BELGE_SIMGESI = '<img class="karsilama-oge-logo" src="../../build/icon.svg" alt="" draggable="false">';
-const uzantisiz = (ad) => ad.replace(/\.pdf$/i, '') || ad;
 
 export class BaslangicEkrani {
   /**

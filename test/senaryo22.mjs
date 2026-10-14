@@ -123,7 +123,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
   const tasimaBitti = () => kosul(`!window.__pdefe.tasimaSuruyor() && !document.querySelector('.sekme.askida')`, 8000);
   const sekmeYeri = (ad) => evalJs(`(() => { const s = window.__pdefe.sekmeler.sekmeler.find((x) => x.ad === ${J(ad)}); if (!s) return null; const r = s.el.getBoundingClientRect(); return { x: Math.round(r.left + 40), y: Math.round(r.top + r.height / 2), sol: r.left, ust: r.top, sag: r.right }; })()`);
   const cubuk = () => evalJs(`(() => { const r = document.querySelector('#sekme-cubugu').getBoundingClientRect(); return { ust: r.top, alt: r.bottom }; })()`);
-  const sekmeSiniflari = () => evalJs(`Object.fromEntries([...document.querySelectorAll('.sekme')].map((s) => [s.querySelector('.ad').textContent, [...s.classList].filter((c) => c !== 'sekme' && c !== 'aktif').join('+') + (s.style.transform ? '~' : '')]))`);
+  // Sekmenin (uzantılı) adı modelden: sekmede 0.2.6'dan beri ".pdf" yazılmaz
+  const sekmeSiniflari = () => evalJs(`Object.fromEntries([...document.querySelectorAll('.sekme')].map((s) => [window.__pdefe.sekmeler.sekmeler.find((x) => x.el === s)?.ad ?? s.querySelector('.ad').textContent, [...s.classList].filter((c) => c !== 'sekme' && c !== 'aktif').join('+') + (s.style.transform ? '~' : '')]))`);
   const hatalariTopla = () => evalJs(`(() => { if (!window.__s22Hatalar) { window.__s22Hatalar = []; addEventListener('error', (e) => window.__s22Hatalar.push(String(e.message))); addEventListener('unhandledrejection', (e) => window.__s22Hatalar.push(String(e.reason?.message || e.reason))); } return true; })()`);
   const kutu = () => evalJs(`(() => { const k = [...document.querySelectorAll('.mesaj-kutusu')].at(-1); return k ? { ileti: k.querySelector('.mesaj-ileti')?.textContent, dugmeler: [...k.querySelectorAll('.dugmeler button')].map((b) => b.textContent) } : null; })()`);
   const kutuDugmesi = (metin) => evalJs(`(() => { const b = [...([...document.querySelectorAll('.mesaj-kutusu')].at(-1)?.querySelectorAll('.dugmeler button') || [])].find((x) => x.textContent === ${J(metin)}); if (!b) return false; b.click(); return true; })()`);
@@ -314,7 +315,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
   sinif = await sekmeSiniflari();
   let hy = await ana('test:hayalet'), sur = await ana('test:surukleme');
   sonuc('Eşiği geçince sekme çubuktan ayrıldı: çubukta görünmez, sonraki sekme yerini kapattı', sinif['c.pdf'].includes('ayrildi') && sinif['d.pdf'] === '~' && sinif['b.pdf'] === '' && getVis(await evalJs(`getComputedStyle(window.__pdefe.sekmeler.sekmeler.find((s) => s.ad === 'c.pdf').el).visibility`)), sinif);
-  sonuc('Önizleme penceresi göründü: sekmenin adı ve sayfa görüntüsü, imlecin altında', hayaletGorundu && hy.icerik.ad === 'c.pdf' && hy.icerik.onizleme === true && hy.sinirlar.width === 240 && hy.sinirlar.height > 100 && sur?.kaynak === P1, { hy, sur });
+  sonuc('Önizleme penceresi göründü: sekmenin adı (".pdf"siz, 0.2.6) ve sayfa görüntüsü, imlecin altında', hayaletGorundu && hy.icerik.ad === 'c' && hy.icerik.onizleme === true && hy.sinirlar.width === 240 && hy.sinirlar.height > 100 && sur?.kaynak === P1, { hy, sur });
   await ekranGoruntusu(path.join(K, 'png', 'ayrildi-kaynak.png'));
   // Önizleme imleci izler
   await ana('test:imlec', { x: -1700, y: 500 }); await bekle(200);

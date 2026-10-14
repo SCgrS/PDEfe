@@ -185,7 +185,8 @@ export default async function ({ evalJs, bekle }) {
 
     // ================================================================ (c) sekme sürükleme
     for (const ad of ADLAR.slice(1, 5)) await evalJs(`window.__pdefe.dosyaAc(${J(path.join(PDF, ad))}).then(() => new Promise((r) => setTimeout(r, 400)))`);
-    const sekmeler = () => evalJs(`({ model: window.__pdefe.sekmeler.sekmeler.map((s) => s.ad), dom: [...document.querySelectorAll('.sekme .ad')].map((a) => a.textContent) })`);
+    // dom: sekme öğelerinin ekrandaki sırası, adları modelden (0.2.6'dan beri sekmede ".pdf" yazılmaz)
+    const sekmeler = () => evalJs(`({ model: window.__pdefe.sekmeler.sekmeler.map((s) => s.ad), dom: [...document.querySelectorAll('.sekme')].map((el) => window.__pdefe.sekmeler.sekmeler.find((s) => s.el === el)?.ad ?? null) })`);
     const once = await sekmeler();
     await evalJs(`window.__pdefe.sekmeSec(window.__pdefe.sekmeler.sekmeler[0].id), 1`); await bekle(300);
     const k = await evalJs(`[...document.querySelectorAll('.sekme')].map((s) => { const r = s.getBoundingClientRect(); return { x: Math.round(r.left + 40), y: Math.round(r.top + r.height / 2), l: r.left, t: r.top, sag: Math.round(r.right - 20) }; })`);

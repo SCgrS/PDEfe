@@ -1,11 +1,15 @@
 // Sekme çubuğu: sekme listesi, sürükleyerek sıralama ve çubuğun dışına sürükleyerek ayırma (işaretçi olaylarıyla; aşağıda
 // surukleHazirla), tekerlekle geçiş, ◀ ▶ düğmeleri, + (yeni sekme; uygulama.js açılış sayfası sekmesi açar), "Açık belgeler" listesi ve
 // Ctrl+Tab son-kullanım sırasına göre sekme seçici.
+import { uzantisiz } from './adlar.js';
 import { ortuTiklamasiBagla } from './ortu.js';
 import { MAC } from './platform.js';
 
-/** Sekmenin ipucu: sabit genişlikte kısalabilen tam ad ve dosyanın yolu. */
+/** Sekmenin ipucu: sabit genişlikte kısalabilen tam ad (uzantısıyla) ve dosyanın yolu. */
 const ipucu = (ad, yol) => (yol && yol !== ad ? `${ad}\n${yol}` : ad);
+// Sekmede, Ctrl+Tab seçicisinde ve Açık belgeler listesinde ad ".pdf"siz yazılır (0.2.6, kullanıcı isteği: "sekmelerdeki .pdf yazısı
+// kalksın"; adlar.js). Sekmenin adı (s.ad) belgeninki (belge.ad) gibi uzantılı kalır: ipucu ve listenin süzmesi onu kullanır; pencere
+// başlığı ve sorular belgenin uzantılı adını
 
 // Sürüklenen sekme, imleç sekme çubuğunun üstünden ya da altından (ya da pencerenin yanlarından) bu kadar uzaklaşınca çubuktan ayrılır
 // (sıralarken elin biraz kayması sekmeyi ayırmasın); ayrılmış sekme çubuğa bunun yarısı kadar yaklaşınca geri takılır (kıyıda gidip gelmesin)
@@ -94,7 +98,7 @@ export class SekmeCubugu extends EventTarget {
     el.className = 'sekme' + (baslangic ? ' baslangic-sekmesi' : '');
     el.title = ipucu(ad, yol);
     el.innerHTML = `<span class="nokta">•</span><span class="ad"></span><button class="kapat" title="Kapat (Ctrl+W)"><svg viewBox="0 0 16 16"><path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5"/></svg></button>`;
-    el.querySelector('.ad').textContent = ad;
+    el.querySelector('.ad').textContent = uzantisiz(ad);
     const sekme = { id, ad, yol, el, degisti: false, baslangic };
     const sonraki = once ? this.sekmeler.findIndex((s) => s.id === once) : -1;
     if (sonraki >= 0) { this.sekmeler.splice(sonraki, 0, sekme); this.liste.insertBefore(el, this.sekmeler[sonraki + 1].el); }
@@ -365,7 +369,7 @@ export class SekmeCubugu extends EventTarget {
   guncelle(id, { ad, yol, degisti }) {
     const s = this.bul(id);
     if (!s) return;
-    if (ad != null) { s.ad = ad; s.el.querySelector('.ad').textContent = ad; }
+    if (ad != null) { s.ad = ad; s.el.querySelector('.ad').textContent = uzantisiz(ad); }
     if (yol != null) s.yol = yol;
     if (ad != null || yol != null) s.el.title = ipucu(s.ad, s.yol);
     if (degisti != null) { s.degisti = degisti; s.el.classList.toggle('degisti', degisti); }
@@ -412,7 +416,7 @@ export class SekmeCubugu extends EventTarget {
       a.dataset.id = id;
       a.innerHTML = s.baslangic ? '<div class="bos baslangic"><svg viewBox="0 0 20 20"><path d="M10 4.5v11M4.5 10h11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div><div class="ad"></div>'
         : '<div class="bos"></div><div class="ad"></div>';
-      a.querySelector('.ad').textContent = s.ad;
+      a.querySelector('.ad').textContent = uzantisiz(s.ad);
       a.addEventListener('click', () => { this.seciciKapat(id); });
       ic.append(a);
       kucukResim(id).then((src) => {
@@ -483,7 +487,7 @@ export class SekmeCubugu extends EventTarget {
       const li = document.createElement('li');
       if (s.id === this.aktifId) li.classList.add('aktif');
       li.innerHTML = '<span class="ad"></span><span class="rozet" hidden></span><span class="yol"></span>';
-      li.querySelector('.ad').textContent = (s.degisti ? '• ' : '') + s.ad;
+      li.querySelector('.ad').textContent = (s.degisti ? '• ' : '') + uzantisiz(s.ad);
       li.querySelector('.yol').textContent = s.yol;
       const r = { s, li, rozet: li.querySelector('.rozet'), sayi: null, sonSayi: null };   // sayi null: sayılıyor; sonSayi: sıralama için son bilinen
       li.addEventListener('click', () => sec(r));

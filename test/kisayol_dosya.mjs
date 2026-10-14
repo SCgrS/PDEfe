@@ -72,7 +72,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, tusH
   const kutu = () => evalJs(`(() => { const k = [...document.querySelectorAll('.mesaj-kutusu')].at(-1); return k ? { ileti: k.querySelector('.mesaj-ileti')?.textContent, dugmeler: [...k.querySelectorAll('.dugmeler button')].map((b) => b.textContent) } : null; })()`);
   const kutuDugmesi = async (metin) => { const m = await merkez(`[...[...document.querySelectorAll('.mesaj-kutusu')].at(-1)?.querySelectorAll('.dugmeler button') || []].find((b) => b.textContent === ${J(metin)})`); if (!m) throw new Error('Düğme yok: ' + metin); await tikla(...m); await bekle(400); };
   const seciciDurumu = () => evalJs(`(() => { const s = window.__pdefe.sekmeler, el = document.querySelector('#sekme-secici'); const ad = [...el.querySelectorAll('.aday')];
-    return { acik: s.seciciAcik, gorunur: !el.hidden, idx: s.seciciIdx, adaylar: ad.map((a) => a.querySelector('.ad')?.textContent), secili: ad.findIndex((a) => a.classList.contains('secili')) }; })()`);
+    return { acik: s.seciciAcik, gorunur: !el.hidden, idx: s.seciciIdx, adaylar: ad.map((a) => s.bul(a.dataset.id)?.ad ?? null), yazilan: ad.map((a) => a.querySelector('.ad')?.textContent), secili: ad.findIndex((a) => a.classList.contains('secili')) }; })()`);
+  // adaylar: sekmenin (uzantılı) adı; yazilan: seçicide görünen ad (0.2.6'dan beri ".pdf"siz)
   const mruAdlari = () => evalJs(`window.__pdefe.sekmeler.mru.map((id) => window.__pdefe.sekmeler.bul(id)?.ad)`);
   const bulSayac = () => evalJs(`document.querySelector('#bul-sayac').textContent`);
 
@@ -274,7 +275,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, tusH
     const kay0 = await evalJs(`window.__pdefe.aktif().gorunum.kaydirici.scrollTop`);
     await yol.ctrlTab(); await bekle(500);
     const sc1 = await seciciDurumu();
-    sonuc(`Ctrl+Tab basılı: seçici görünür, adaylar son kullanım sırasıyla, ikinci aday seçili (${yol.ad})`, sc1.acik && sc1.gorunur && J(sc1.adaylar) === J(['d.pdf', 'b.pdf', 'c.pdf', 'a.pdf']) && sc1.secili === 1, sc1);
+    sonuc(`Ctrl+Tab basılı: seçici görünür, adaylar son kullanım sırasıyla, ikinci aday seçili (${yol.ad})`, sc1.acik && sc1.gorunur && J(sc1.adaylar) === J(['d.pdf', 'b.pdf', 'c.pdf', 'a.pdf']) && J(sc1.yazilan) === J(['d', 'b', 'c', 'a']) && sc1.secili === 1, sc1);
     if (yol === YOL.G) await ss('ctrl-tab-secici');
     await yol.bas('Right', ['control'], 250);
     const sc2 = await seciciDurumu();
