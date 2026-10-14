@@ -10,7 +10,8 @@
 //      Liste açıkken ▾ en koyu, Geri al açık vurgulu, ayırıcı görünür (imleç listedeyken de); Esc kapatır, vurgu kalkar.
 //   5) Klavye ve ekran okuyucu değişmedi: ▾'de Enter listeyi açar (aria-expanded true), Esc kapatır, odak ▾'de; aria-haspopup "dialog".
 //   6) Dar pencerede ▾ küçülür ama tıklanır kalır: 3. sıkışma kademesinden başlayarak 12 px, 6. kademede 11 px, oku 9 px; gerçek tıklama
-//      listeyi açar. Windows'un en dar penceresinde (içi 704 px) 5. kademe yetiyor. Araç çubuğu taşmaz (ayrıntı test/serit_olculeri.mjs).
+//      listeyi açar. Windows'un en dar penceresinde (içi 704 px) 0.2.6'dan beri (Yazdır düğmesi) 6. kademe gerekir. Araç çubuğu taşmaz
+//      (ayrıntı test/serit_olculeri.mjs).
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9640 -Veri "%TEMP%\pdefe-gb-9640" -Boyut "1280,800" -Olcek 1      → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9640; node test\surucu.mjs betik test\geri_al_bolunmus.mjs
@@ -191,9 +192,10 @@ export default async function ({ evalJs, bekle, fare, tikla, tus }) {
     sonuc('Klavye: Esc kapatır, odak ▾\'de, hiçbir şey geri alınmaz', !k.liste && k.o.expanded === 'false' && k.odak === 'dugme-geri-al-liste' && k.konum === 2, k);
 
     // ------------------------------------------------------------ 6) Dar pencere
-    // 760 px: 3. kademe. 704 px (Windows'ta en dar pencerenin içi): bu belgede 5. kademe (▾ daralınca 6. kademe gerekmiyor; 0.2.2'de 6.
-    // kademeydi). 6. kademe 4 basamaklı sayfa sayısında ya da daha dar alanda: 660 px taklidiyle sınanır
-    for (const [w, kademe, yok, gen, ok] of [[760, 'sikisik-3', 'sikisik-4', 12, 10], [704, 'sikisik-5', 'sikisik-6', 12, 10], [660, 'sikisik-6', null, 11, 9]]) {
+    // 0.2.6: araç çubuğunda Kaydet'in yanında Yazdır da var (bir düğme fazla): bu belgede (206 sayfa) 800 px 3. kademe, 740 px 5. kademe,
+    // 704 px (Windows'ta en dar pencerenin içi) 6. kademe. 0.2.3–0.2.5'te 760 px 3., 704 px 5. kademeydi (▾ daralınca 6. gerekmiyordu;
+    // 0.2.2'de 6.), 6. kademe 660 px taklidiyle sınanıyordu
+    for (const [w, kademe, yok, gen, ok] of [[800, 'sikisik-3', 'sikisik-4', 12, 10], [740, 'sikisik-5', 'sikisik-6', 12, 10], [704, 'sikisik-6', null, 11, 9]]) {
       await genislik(w);
       const n = await durum();
       sonuc(`[${w} px] ${kademe.replace('sikisik-', '')}. kademede${yok ? ` (${yok.replace('sikisik-', '')}. değil)` : ''} ▾ ${gen} px, oku ${ok} px; Geri al'a bitişik`,

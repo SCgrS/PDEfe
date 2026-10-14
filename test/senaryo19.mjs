@@ -256,10 +256,11 @@ export default async function (surucu) {
     await tikl(q('#sekme-yeni')); await bekle(500);
     d = await durum();
     const arac1 = await evalJs(`({ sayfaKutusu: document.querySelector('#sayfa-kutusu').value, toplam: document.querySelector('#sayfa-toplam').textContent, kaydet: document.querySelector('#arac-cubugu [data-komut="dosya.kaydet"]').disabled,
+      yazdir: document.querySelector('#arac-cubugu [data-komut="dosya.yazdir"]').disabled,
       sinif: window.__pdefe.sekmeler.sekmeler.at(-1).el.className, sekmeAd: window.__pdefe.sekmeler.sekmeler.at(-1).el.querySelector('.ad').textContent, ipucu: window.__pdefe.sekmeler.sekmeler.at(-1).el.title })`);
     sonuc('+ tıklanınca "Yeni sekme" açılır ve etkin olur, açılış ekranı görünür, belge görünümleri gizli',
       J(d.adlar) === J(['a.pdf', 'b.pdf', '+']) && d.aktif === '+' && d.belge === null && d.acilisGorunur && d.gorunurBelgeler === 0 && arac1.sekmeAd === 'Yeni sekme' && /baslangic-sekmesi/.test(arac1.sinif) && /aktif/.test(arac1.sinif), { d, arac1 });
-    sonuc('Açılış sekmesinde araç çubuğu belgesiz: sayfa kutusu boş, "/ 0", Kaydet devre dışı', arac1.sayfaKutusu === '' && arac1.toplam === '/ 0' && arac1.kaydet === true, arac1);
+    sonuc('Açılış sekmesinde araç çubuğu belgesiz: sayfa kutusu boş, "/ 0", Kaydet ve Yazdır devre dışı', arac1.sayfaKutusu === '' && arac1.toplam === '/ 0' && arac1.kaydet === true && arac1.yazdir === true, arac1);
     const baslikY = pencereBasligi();
     if (baslikY == null) bilgi('S19_PID / S19_MASAUSTU verilmedi: pencere başlığı denetlenmedi');
     else sonuc('Pencere başlığı sade: "PDEfe" (belge sekmesinde "b.pdf — PDEfe" idi)', baslikY === 'PDEfe' && baslikB === 'b.pdf — PDEfe', { once: baslikB, sonra: baslikY });
@@ -269,9 +270,9 @@ export default async function (surucu) {
     // Belge sekmesine dönüş ve geri
     await tikl(`window.__pdefe.sekmeler.sekmeler.find((s) => s.ad === 'a.pdf').el.querySelector('.ad')`); await bekle(400);
     d = await durum();
-    const arac2 = await evalJs(`({ sayfaKutusu: document.querySelector('#sayfa-kutusu').value, toplam: document.querySelector('#sayfa-toplam').textContent })`);
+    const arac2 = await evalJs(`({ sayfaKutusu: document.querySelector('#sayfa-kutusu').value, toplam: document.querySelector('#sayfa-toplam').textContent, yazdir: document.querySelector('#arac-cubugu [data-komut="dosya.yazdir"]').disabled })`);
     const baslikA = pencereBasligi();
-    sonuc('Belge sekmesine dönülünce araç çubuğu belgeyi gösterir, açılış ekranı gizlenir', d.aktif === 'a.pdf' && d.belge === 'a.pdf' && !d.acilisGorunur && arac2.sayfaKutusu === '1' && arac2.toplam !== '/ 0' && (baslikA == null || baslikA === 'a.pdf — PDEfe'), { d, arac2, baslikA });
+    sonuc('Belge sekmesine dönülünce araç çubuğu belgeyi gösterir (Yazdır etkin), açılış ekranı gizlenir', d.aktif === 'a.pdf' && d.belge === 'a.pdf' && !d.acilisGorunur && arac2.sayfaKutusu === '1' && arac2.toplam !== '/ 0' && arac2.yazdir === false && (baslikA == null || baslikA === 'a.pdf — PDEfe'), { d, arac2, baslikA });
     await tikl(`window.__pdefe.sekmeler.sekmeler.find((s) => s.baslangic).el.querySelector('.ad')`); await bekle(400);
     sonuc('Açılış sekmesine tıklayınca yine açılış ekranı', (await durum()).aktif === '+' && (await durum()).acilisGorunur);
 
@@ -294,8 +295,8 @@ export default async function (surucu) {
     const menuA = (await kayit()).filter((k) => k.kanal === 'menu:popup').at(-1)?.secenek || [];
     const ogeDurum = (m) => Object.fromEntries(m.filter((o) => o.id).map((o) => [o.id, o.devre ? 'devre' : 'etkin']));
     // 0.1.19: Pencereye ayır (açılış sekmesinde devre dışı; belge sekmesinde, pencerede başka sekme varken etkin)
-    sonuc('Açılış sekmesinde sağ tık: Klasörde göster / Yolu kopyala / Pencereye ayır devre dışı, Kapat ve Diğerlerini kapat etkin', J(ogeDurum(menuY)) === J({ kapat: 'etkin', digerleri: 'etkin', sagdakiler: 'devre', kaydet: 'devre', ayir: 'devre', klasor: 'devre', yol: 'devre', pdf: 'devre' }) && menuY.find((o) => o.id === 'klasor')?.etiket === 'Klasörde göster' && menuY.find((o) => o.id === 'yol')?.etiket === 'Yolu kopyala', menuY);
-    sonuc('Belge sekmesinde sağ tık: Klasörde göster / Yolu kopyala / Pencereye ayır etkin', ogeDurum(menuA).klasor === 'etkin' && ogeDurum(menuA).yol === 'etkin' && ogeDurum(menuA).ayir === 'etkin', menuA);
+    sonuc('Açılış sekmesinde sağ tık: Klasörde göster / Yolu kopyala / Pencereye ayır devre dışı, Kapat ve Diğerlerini kapat etkin', J(ogeDurum(menuY)) === J({ kapat: 'etkin', digerleri: 'etkin', sagdakiler: 'devre', kaydet: 'devre', yazdir: 'devre', ayir: 'devre', klasor: 'devre', yol: 'devre', pdf: 'devre' }) && menuY.find((o) => o.id === 'klasor')?.etiket === 'Klasörde göster' && menuY.find((o) => o.id === 'yol')?.etiket === 'Yolu kopyala', menuY);
+    sonuc('Belge sekmesinde sağ tık: Klasörde göster / Yolu kopyala / Pencereye ayır / Yazdır etkin', ogeDurum(menuA).klasor === 'etkin' && ogeDurum(menuA).yol === 'etkin' && ogeDurum(menuA).ayir === 'etkin' && ogeDurum(menuA).yazdir === 'etkin', menuA);
     // Sağ tık menüsünden Kapat (açılış sekmesi) — test yanıtıyla; sonra yeniden aç
     await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'menu:popup', ['kapat'])`);
     await sagTikl(`window.__pdefe.sekmeler.bul(${J(birinciId)}).el.querySelector('.ad')`); await bekle(500);

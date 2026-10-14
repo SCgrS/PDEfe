@@ -273,7 +273,7 @@ async function sekmeSec(id) {
 }
 
 /** Araç çubuğunda ve durum çubuğunda belgeye bağlı her şeyi (sayfa kutusu ve toplam, yakınlaştırma, boyut, kaydedilmemiş değişiklik,
- *  Kaydet, Geri al / Yinele ve ipuçları, not araçları) etkin sekmeye göre yazar; b yoksa (başlangıç ekranı) ilk duruma döndürür. */
+ *  Kaydet, Yazdır, Geri al / Yinele ve ipuçları, not araçları) etkin sekmeye göre yazar; b yoksa (başlangıç ekranı) ilk duruma döndürür. */
 function belgeDurumuYaz(b) {
   if (b) { sayfaGoster(b); zoomGoster(b); }
   else {
@@ -283,6 +283,8 @@ function belgeDurumuYaz(b) {
   }
   durum.boyutYaz(b ? b.boyut : null); durum.degisiklikYaz(!!b?.degisti);
   $('#arac-cubugu [data-komut="dosya.kaydet"]').disabled = !b?.degisti;
+  // Yazdır (0.2.6): belgede her zaman etkin (kaydedilmemiş değişikliği yazdir() kendisi sorar), açılış sekmesinde soluk
+  $('#arac-cubugu [data-komut="dosya.yazdir"]').disabled = !b;
   geriAlDugmeleriniGuncelle(b);
   aracDugmeleriniGuncelle(b?.notlar?.arac || null);
 }
@@ -810,6 +812,16 @@ function kaydedilecekVar(b) { return !!b && !b.kaydediliyor && !b.tasiniyor && (
 /** Belgeyle ilgili bir soru açılmadan önce, belge önde değilse sekmesine geçilir (0.2.1: sekmede sağ tık › Kaydet etkin olmayan sekmeyi
  *  kaydeder; e-imza ve "kaydedilemedi" soruları belgenin adını vermez, hangi belge için sorulduğu görünsün; PDF'i kopyala gibi). */
 async function soruIcinOneAl(b) { if (aktifId !== b.id && belgeler.has(b.id)) await sekmeSec(b.id); }
+
+/** Sağ tık menülerindeki Yazdır (0.2.6, kullanıcı isteği; belge sayfasında Kaydet'in altında, sekmede de). Yazdırma etkin belgeyle çalışır:
+ *  belge önde değilse önce sekmesine geçilir (seçenek penceresi ve kaydetme sorusu belgenin adını verse de hangi belgenin yazdırıldığı
+ *  görünsün; soruIcinOneAl'daki gibi), sonra araç çubuğundaki Yazdır ve Ctrl+P'nin komutu çalışır: açık yazı düzenlemesi önce uygulanır
+ *  (DUZENLEMEYI_UYGULAYAN). Menü açıkken sekme kapatılmış ya da başka pencereye taşınmaya başlamış olabilir: o zaman bir şey yapılmaz. */
+async function belgeyiYazdir(b) {
+  if (!b || b.tasiniyor || !belgeler.has(b.id)) return;
+  await soruIcinOneAl(b);
+  if (aktifId === b.id && !b.tasiniyor) komutCalistir('dosya.yazdir');
+}
 
 /** Belgeyi kaydeder. farkli=true ise yeni yol sorar. Başarılıysa true döner.
  *  Çağrı sürdükçe (Farklı kaydet diyaloğu ve hata sorusu dahil) b.kaydediliyor true'dur ve b.kayitSozu çağrı bitince çözülür
@@ -1774,11 +1786,12 @@ sekmeler.addEventListener('sagTik', async (e) => {
   const id = e.detail.id; const b = belgeler.get(id); if (!b && !baslangicSekmeleri.has(id)) return;
   // Pencereye ayır (0.1.19, kullanıcı isteği): sekme kendi penceresinde açılır. Pencerenin tek sekmesinde (ayrılacak başka sekme yok)
   // ve açılış sekmesinde devre dışı. Kaydet (0.2.1, kullanıcı isteği): sağ tıklanan sekmenin belgesini kaydeder (etkin sekme olmasa da;
-  // birden çok sekme kapatılırken kaydetme de böyle çalışır); kaydedilecek değişiklik yokken devre dışı
+  // birden çok sekme kapatılırken kaydetme de böyle çalışır); kaydedilecek değişiklik yokken devre dışı. Yazdır (0.2.6, kullanıcı isteği)
+  // Kaydet'in hemen altında: arka plandaki sekmede önce o sekmeye geçilir (belgeyiYazdir); açılış sekmesinde ve taşınan sekmede devre dışı
   const secim = await pdefe.cagir('menu:popup', [
     { id: 'kapat', etiket: 'Kapat', devre: tekAcilisSekmesi() === id }, { id: 'digerleri', etiket: 'Diğerlerini kapat', devre: sekmeler.sekmeler.length < 2 },
     { id: 'sagdakiler', etiket: 'Sağdakileri kapat', devre: sekmeler.sekmeler.findIndex((s) => s.id === id) >= sekmeler.sekmeler.length - 1 },
-    { ayirici: true }, { id: 'kaydet', etiket: 'Kaydet', devre: !kaydedilecekVar(b) },
+    { ayirici: true }, { id: 'kaydet', etiket: 'Kaydet', devre: !kaydedilecekVar(b) }, { id: 'yazdir', etiket: 'Yazdır', devre: !b || !!b.tasiniyor },
     { ayirici: true }, { id: 'ayir', etiket: 'Pencereye ayır', devre: !b || sekmeler.sekmeler.length < 2 },
     { ayirici: true }, { id: 'klasor', etiket: 'Klasörde göster', devre: !b }, { id: 'yol', etiket: 'Yolu kopyala', devre: !b },
     { id: 'pdf', etiket: 'PDF\'i kopyala', devre: !b },   // 0.1.21 (kullanıcı isteği): dosyanın kendisi panoya (araç çubuğundaki kopyala düğmesi gibi)
@@ -1791,6 +1804,7 @@ sekmeler.addEventListener('sagTik', async (e) => {
   else if (secim === 'yol' && b) { await pdefe.cagir('pano:metin', b.yol); bildir('Yol panoya kopyalandı'); }
   else if (secim === 'pdf' && b) await pdfKopyala(b);
   else if (secim === 'kaydet' && b && belgeler.has(id)) await belgeKaydet(b, false, false, { oneAl: true });   // menü açıkken sekme kapatılmış olabilir
+  else if (secim === 'yazdir' && b) await belgeyiYazdir(b);
 });
 
 // Panel olayları
@@ -1979,11 +1993,14 @@ function metinOlaylariBagla(belge) {
       { id: 'ara', etiket: 'Ara', devre: !seciliVar },
       { ayirici: true },
       { id: 'tumunuSec', etiket: 'Tümünü seç' },
-      // 0.2.1 (kullanıcı isteği): en altta, sık kullanılan Kopyala'nın yerinde değil (alışkanlıkla yanlışlıkla kaydedilmesin)
+      // 0.2.1 (kullanıcı isteği): en altta, sık kullanılan Kopyala'nın yerinde değil (alışkanlıkla yanlışlıkla kaydedilmesin). Yazdır (0.2.6,
+      // kullanıcı isteği) aynı grupta, Kaydet'in hemen altında (araç çubuğundaki sırayla)
       { ayirici: true },
       { id: 'kaydet', etiket: 'Kaydet', devre: !kaydedilecekVar(belge) },
+      { id: 'yazdir', etiket: 'Yazdır', devre: !!belge.tasiniyor },
     ]);
     if (secim === 'kaydet') { if (belgeler.has(belge.id)) await belgeKaydet(belge); }   // menü açıkken sekme kapatılmış olabilir
+    else if (secim === 'yazdir') await belgeyiYazdir(belge);
     else if (secim === 'kopyala') document.execCommand('copy');
     else if (secim === 'ara') komutCalistir('duzen.bul', secimHamMetni().trim().split('\n')[0]);
     else if (secim === 'tumunuSec') tumunuSec();
@@ -2059,7 +2076,7 @@ document.addEventListener('mousemove', (e) => {
 // ---------------------------------------------------------------- araç çubuğu: dar pencerede kademeli sıkıştırma
 // Sığana kadar sırayla (stil.css .sikisik-1 - 6): ayraç ve boşluklar daralır, Araçlar yalnızca simge olur, düğmeler ve kutular daralır,
 // menü çubuğu düğmesi gizlenir (Alt menüyü yine gösterir; 0.1.24), PDF'i kopyala gizlenir (Araçlar menüsünde de var), en son düğmeler ve
-// simgeler biraz daha küçülür (0.2.2: düğmeler 34 px'e büyüyünce en dar pencerede pay kalsın diye). Gereken genişlik içeriğe (ör. sayfa
+// simgeler biraz daha küçülür (0.2.2: düğmeler 34 px'e büyüyünce en dar pencerede pay kalsın diye), ayraçlar daralır (0.2.6: Yazdır düğmesi). Gereken genişlik içeriğe (ör. sayfa
 // sayısının basamakları) bağlı olduğundan ölçülür.
 const aracCubugu = $('#arac-cubugu');
 const SIKISMA_KADEMESI = 6;

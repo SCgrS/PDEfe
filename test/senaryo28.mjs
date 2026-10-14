@@ -1,5 +1,5 @@
 // Senaryo 28 (0.2.1, kullanıcı isteği): sağ tık menülerinde "Kaydet".
-//   1) Belge sayfasında sağ tık: menünün en altında, Tümünü seç'ten ayraçla ayrılmış "Kaydet"; kaydedilecek değişiklik yokken devre dışı,
+//   1) Belge sayfasında sağ tık: menünün en altında (0.2.6'dan beri altında yalnızca Yazdır), Tümünü seç'ten ayraçla ayrılmış "Kaydet"; kaydedilecek değişiklik yokken devre dışı,
 //      not eklenince etkin; seçilince belge kaydedilir (dosyada not var, sekme kaydedilmiş görünür, araç çubuğundaki Kaydet devre dışı).
 //   2) Yazı kutusu düzenlenirken sağ tık: yazı yazılmışsa Kaydet etkin (yeni yazı henüz not değil), seçilince yazı not olarak dosyaya yazılır;
 //      boş yeni kutuda ve değiştirilmeden açılmış kayıtlı yazıda devre dışı, yazı değişince etkin.
@@ -115,14 +115,15 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz }) {
     let menu = await sagTikMenu(x, y);
     let m = menuMetni(menu);
     sonuc('Sayfada sağ tık menüsü açıldı', !!menu, m);
-    sonuc('Kaydet en altta, Tümünü seç\'ten ayraçla ayrılmış', m && m.at(-1)?.startsWith('Kaydet') && m.at(-2) === '-' && m.at(-3) === 'Tümünü seç', m);
-    sonuc('Değişiklik yokken Kaydet devre dışı', m?.at(-1) === 'Kaydet (devre dışı)', m);
+    // 0.2.6: son grup "Kaydet, Yazdır" (Yazdır en altta; ayrıntı test/senaryo34.mjs)
+    sonuc('Kaydet son grupta (altında yalnızca Yazdır), Tümünü seç\'ten ayraçla ayrılmış', m && m.at(-2)?.startsWith('Kaydet') && m.at(-1) === 'Yazdır' && m.at(-3) === '-' && m.at(-4) === 'Tümünü seç', m);
+    sonuc('Değişiklik yokken Kaydet devre dışı', m?.at(-2) === 'Kaydet (devre dışı)', m);
     sonuc('Öteki öğeler yerinde (Kopyala ilk sırada)', m?.[0]?.startsWith('Kopyala') && m.includes('Not ekle') && m.includes('Tümünü seç'), m);
 
     const dosyaOnce = fs.statSync(yol).mtimeMs;
     sonuc('Not eklendi: belge kaydedilmemiş', await notEkle('sayfa.pdf', 'sağ tık notu'));
     menu = await sagTikMenu(x, y);
-    sonuc('Kaydedilmemiş not varken Kaydet etkin', menuMetni(menu)?.at(-1) === 'Kaydet', menuMetni(menu));
+    sonuc('Kaydedilmemiş not varken Kaydet etkin', menuMetni(menu)?.at(-2) === 'Kaydet', menuMetni(menu));
     await mesajKutulari();
     await sagTikMenu(x, y, 'kaydet');
     await kosul(`(() => { const b = window.__pdefe.aktif(); return b && !b.degisti && !b.kaydediliyor; })()`, 8000);
@@ -136,7 +137,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz }) {
     const durumMesaji = await evalJs(`document.querySelector('#durum-mesaj')?.textContent || ''`);
     sonuc('Durum çubuğunda "Kaydedildi"', /Kaydedildi/.test(durumMesaji), durumMesaji);
     menu = await sagTikMenu(x, y);
-    sonuc('Kayıttan sonra Kaydet yeniden devre dışı', menuMetni(menu)?.at(-1) === 'Kaydet (devre dışı)', menuMetni(menu));
+    sonuc('Kayıttan sonra Kaydet yeniden devre dışı', menuMetni(menu)?.at(-2) === 'Kaydet (devre dışı)', menuMetni(menu));
     await ss('01-sayfa-kaydedildi');
 
     // ---------------------------------------------------------- 2) Yazı kutusu düzenlenirken
@@ -147,7 +148,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz }) {
     // Boş yeni kutu: kaydedilecek bir şey yok (boş yazı not olmaz)
     const bos = await evalJs(`(() => { const d = window.__pdefe.aktif().notlar.duzenleyici; if (!d) return null; const r = d.el.getBoundingClientRect(); return [Math.round(r.left + Math.min(8, r.width / 2)), Math.round(r.top + r.height / 2)]; })()`);
     menu = bos ? await sagTikMenu(bos[0], bos[1]) : null;
-    sonuc('Boş yeni yazı kutusunda sağ tık: Kaydet devre dışı, kutu açık kalır', menuMetni(menu)?.at(-1) === 'Kaydet (devre dışı)' && await evalJs(`!!window.__pdefe.aktif().notlar.duzenleyici`), menuMetni(menu));
+    sonuc('Boş yeni yazı kutusunda sağ tık: Kaydet devre dışı, kutu açık kalır', menuMetni(menu)?.at(-2) === 'Kaydet (devre dışı)' && await evalJs(`!!window.__pdefe.aktif().notlar.duzenleyici`), menuMetni(menu));
     await yaz('Sağ tık yazısı');
     await bekle(200);
     const acik = await evalJs(`(() => { const b = window.__pdefe.aktif(); const d = b.notlar.duzenleyici; return { duzenleyici: d ? d.el.textContent : null, degisti: !!b.degisti }; })()`);
@@ -156,7 +157,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz }) {
     const ic = await evalJs(`(() => { const r = window.__pdefe.aktif().notlar.duzenleyici.el.getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]; })()`);
     menu = await sagTikMenu(ic[0], ic[1]);
     const duzenleyiciSonra = await evalJs(`(() => { const d = window.__pdefe.aktif().notlar.duzenleyici; return d ? d.el.textContent : null; })()`);
-    sonuc('Düzenlenirken sağ tık: Kaydet etkin', menuMetni(menu)?.at(-1) === 'Kaydet', { menu: menuMetni(menu), duzenleyici: duzenleyiciSonra, degistiOnce: acik.degisti });
+    sonuc('Düzenlenirken sağ tık: Kaydet etkin', menuMetni(menu)?.at(-2) === 'Kaydet', { menu: menuMetni(menu), duzenleyici: duzenleyiciSonra, degistiOnce: acik.degisti });
     await ss('02-yazi-duzenlenirken');
     await mesajKutulari();
     await sagTikMenu(ic[0], ic[1], 'kaydet');
@@ -177,11 +178,11 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz }) {
     sonuc('Kayıtlı yazı çift tıkla düzenlemeye açıldı', acildi && !acildi.yeni && acildi.metin === 'Sağ tık yazısı', acildi);
     const ic2 = await evalJs(`(() => { const d = window.__pdefe.aktif().notlar.duzenleyici; if (!d) return null; const r = d.el.getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]; })()`);
     menu = ic2 ? await sagTikMenu(ic2[0], ic2[1]) : null;
-    sonuc('Değiştirilmeden açılmış yazıda Kaydet devre dışı', menuMetni(menu)?.at(-1) === 'Kaydet (devre dışı)', menuMetni(menu));
+    sonuc('Değiştirilmeden açılmış yazıda Kaydet devre dışı', menuMetni(menu)?.at(-2) === 'Kaydet (devre dışı)', menuMetni(menu));
     await evalJs(`(() => { const d = window.__pdefe.aktif().notlar.duzenleyici; if (!d) return false; d.el.focus(); const s = window.getSelection(); s.selectAllChildren(d.el); s.collapseToEnd(); return true; })()`);
     await yaz('!'); await bekle(200);
     menu = ic2 ? await sagTikMenu(ic2[0], ic2[1]) : null;
-    sonuc('Yazı değişince Kaydet etkin', menuMetni(menu)?.at(-1) === 'Kaydet', { menu: menuMetni(menu), metin: await evalJs(`window.__pdefe.aktif().notlar.duzenleyici?.el.textContent ?? null`) });
+    sonuc('Yazı değişince Kaydet etkin', menuMetni(menu)?.at(-2) === 'Kaydet', { menu: menuMetni(menu), metin: await evalJs(`window.__pdefe.aktif().notlar.duzenleyici?.el.textContent ?? null`) });
     if (ic2) await sagTikMenu(ic2[0], ic2[1], 'kaydet');
     await kosul(`(() => { const b = window.__pdefe.aktif(); return b && !b.notlar.duzenleyici && !b.degisti && !b.kaydediliyor; })()`, 8000);
     const notlar3 = dosyaNotlari(yol);
@@ -199,7 +200,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz }) {
     let menu = await sekmeSagTik('a.pdf');
     let m = menuMetni(menu);
     sonuc('Sekme menüsünde Kaydet, Sağdakileri kapat\'tan sonra ayraçlar arasında',
-      J(m) === J(['Kapat', 'Diğerlerini kapat', 'Sağdakileri kapat', '-', 'Kaydet (devre dışı)', '-', 'Pencereye ayır', '-', 'Klasörde göster', 'Yolu kopyala', 'PDF\'i kopyala']), m);
+      J(m) === J(['Kapat', 'Diğerlerini kapat', 'Sağdakileri kapat', '-', 'Kaydet (devre dışı)', 'Yazdır', '-', 'Pencereye ayır', '-', 'Klasörde göster', 'Yolu kopyala', 'PDF\'i kopyala']), m);   // Yazdır: 0.2.6
 
     sonuc('Etkin olmayan a.pdf\'e not eklendi', await notEkle('a.pdf', 'sekme notu'));
     let da = await belgeDurumu('a.pdf'), db = await belgeDurumu('b.pdf');
@@ -226,7 +227,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz }) {
     menu = await sekmeSagTik('b.pdf');
     const sayfaMenu = await sagTikMenu(...(await sayfaNoktasi(300, 200)));
     await evalJs(`([...window.__pdefe.belgeler.values()].find((x) => x.ad === 'b.pdf').kaydediliyor = false, true)`);
-    sonuc('Kaydı süren belgede Kaydet devre dışı (sekmede ve sayfada)', menuMetni(menu)?.includes('Kaydet (devre dışı)') && menuMetni(sayfaMenu)?.at(-1) === 'Kaydet (devre dışı)', { sekme: menuMetni(menu), sayfa: menuMetni(sayfaMenu) });
+    sonuc('Kaydı süren belgede Kaydet devre dışı (sekmede ve sayfada)', menuMetni(menu)?.includes('Kaydet (devre dışı)') && menuMetni(sayfaMenu)?.at(-2) === 'Kaydet (devre dışı)', { sekme: menuMetni(menu), sayfa: menuMetni(sayfaMenu) });
     menu = await sekmeSagTik('b.pdf');
     sonuc('Kayıt bitince yeniden etkin', menuMetni(menu)?.includes('Kaydet'), menuMetni(menu));
 

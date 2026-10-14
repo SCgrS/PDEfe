@@ -78,7 +78,7 @@ export default async function ({ evalJs, bekle }) {
     sonuc('Sekmenin × düğmesi 20 px (18\'di), simgesi 15 px; değişiklik noktası 18 px', o.kapat.w === 20 && o.kapat.h === 20 && o.kapatSvg.w === 15 && o.nokta === 18, { kapat: o.kapat, svg: o.kapatSvg, nokta: o.nokta });
     sonuc('Şeridin ◀ + ▶ ve açık belgeler düğmeleri 30 px (28\'di), simgeleri 22 px; dikeyde sekmeyle ortalı (±2 px)',
       o.seritDugmeleri.every((d) => d.w === 30 && d.h === 30 && d.svg === 22 && Math.abs((d.t + d.b) / 2 - (o.sekme.t + o.sekme.b) / 2) <= 2), o.seritDugmeleri);
-    sonuc('Araç çubuğu düğmeleri 34×34 px (32\'ydi), simgeleri 22 px (20\'ydi)', o.dugmeler.length >= 17 && o.dugmeler.every((d) => d.w === 34 && d.h === 34 && d.svg === 22), o.dugmeler.filter((d) => d.w !== 34 || d.h !== 34 || d.svg !== 22));
+    sonuc('Araç çubuğu düğmeleri 34×34 px (32\'ydi), simgeleri 22 px (20\'ydi); Yazdır dâhil (0.2.6)', o.dugmeler.length >= 18 && o.dugmeler.some((d) => d.k === 'dosya.yazdir') && o.dugmeler.every((d) => d.w === 34 && d.h === 34 && d.svg === 22), o.dugmeler.filter((d) => d.w !== 34 || d.h !== 34 || d.svg !== 22));
     sonuc('Açılır ok 21 px (20\'ydi); Araçlar düğmesi yazılı, oku 15 px (14\'tü)', o.acilir.w === 21 && o.acilir.h === 34 && o.araclar.w > 80 && o.araclar.h === 34 && o.araclarOk?.w === 15, { acilir: o.acilir, araclar: o.araclar, ok: o.araclarOk });
     // 0.2.3 (kullanıcı isteği): Geri al'ın ▾'si bölünmüş düğmenin küçük sağ yarısı (0.2.2'de 21 px'lik ayrı düğme); ayrıntı test/geri_al_bolunmus.mjs
     sonuc('Geri al\'ın ▾\'si 13 px (0.2.2\'de 21), oku 10 px, Geri al\'a aralıksız bitişik, aynı yükseklikte', o.geriAlOk.w === 13 && o.geriAlOk.h === 34 && o.geriAlOkSvg?.w === 10

@@ -113,7 +113,7 @@ html[data-tema="koyu"] #arac-cubugu .bolunmus { --yari-basili: rgba(255, 255, 25
 #arac-cubugu .bolunmus:is(:hover, :has(> .liste-acik)):has(> button.ikon:not(:disabled)) #dugme-geri-al-liste::before { opacity: 1; }
 /* Dar pencerede araç çubuğu sığana kadar kademeli sıkışır (uygulama.js aracCubuguSigdir): 1) ayraç ve boşluklar, 2) Araçlar yalnızca simge,
    3) düğmeler ve kutular, 4) menü çubuğu düğmesi gizlenir (Alt menüyü yine gösterir), 5) PDF'i kopyala düğmesi gizlenir (Araçlar menüsünde
-   de var), 6) düğmeler ve simgeler biraz daha küçülür. Gruplar ve ayraçlar ezilmez, taşma ölçülebilir. 0.2.2: düğmeler 34 px'e büyüdü; 3.
+   de var), 6) düğmeler ve simgeler biraz daha küçülür, ayraçlar daralır (0.2.6). Gruplar ve ayraçlar ezilmez, taşma ölçülebilir. 0.2.2: düğmeler 34 px'e büyüdü; 3.
    kademede eskisi gibi 28 px olurlar (simge 22 px kalır), bu yüzden en dar pencerede (Windows'ta 720 px pencere, içi 704 px) çubuk 0.2.1'deki
    kadar yer tutar. 6. kademe 0.2.2'de eklendi: 4 basamaklı sayfa sayısında 704 px'te yalnızca 1 px pay kalıyordu; 6. kademe ~40 px daha açar */
 #arac-cubugu > .grup, #arac-cubugu > .ayrac { flex-shrink: 0; }
@@ -131,9 +131,12 @@ html[data-platform="mac"] #dugme-menu { display: none; }
 #arac-cubugu.sikisik-6 button.ikon, #arac-cubugu.sikisik-6 button.ikon.metinli { width: 26px; }
 #arac-cubugu.sikisik-6 button.ikon svg { width: 20px; height: 20px; }
 #arac-cubugu.sikisik-6 button.ikon.acilir { width: 16px; }
+/* 0.2.6: Kaydet'in yanına Yazdır düğmesi gelince (34 px; 6. kademede 26) en dar pencerede 4 basamaklı sayfa sayısında 0,7 px taşıyordu. 6. kademede
+   ayraçların kenar boşluğu da 2 → 1 px: altı ayraçta 12 px açılır, hiçbir düğme gizlenmez (7. kademe Sayfa düzeni düğmesini gizlerdi) */
+#arac-cubugu.sikisik-6 > .ayrac { margin: 0 1px; }
 /* Geri al'ın ▾'si (0.2.3, 13 px) sıkışınca da küçülür ama tıklanır kalır: 3. kademeden başlayarak 12 px, 6. kademede 11 px (oku 9 px). 0.2.2'deki
    21 / 18 / 16 px'lik ayrı düğmeye göre çubukta 5–8 px yer açılır: Windows'un en dar penceresinde (içi 704 px) 3 basamaklı sayfa sayısında 5.
-   kademe yetiyor (0.2.2'de 6.), 6. kademe 4 basamaklı sayfa sayısında gerekir */
+   kademe yetiyordu (0.2.2'de 6.); 0.2.6'dan beri (Yazdır düğmesi) orada da 6. kademe gerekir */
 #arac-cubugu.sikisik-3 #dugme-geri-al-liste { width: 12px; }
 #arac-cubugu.sikisik-6 #dugme-geri-al-liste { width: 11px; }
 #arac-cubugu.sikisik-6 #dugme-geri-al-liste svg { width: 9px; height: 9px; }

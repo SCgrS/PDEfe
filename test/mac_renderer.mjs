@@ -290,6 +290,22 @@ export default async function ({ evalJs }) {
       && r.kisayolEngellendi === false && r.kisayolKapatti && r.escKapatti, r);
   }
 
+  // ---------------------------------------------------------------- Araç çubuğundaki Yazdır (index.html, 0.2.6)
+  // İpucu Windows yazımıyla ("Yazdır (Ctrl+P)"); macOS'ta ipuclariniCevir onu Mac kısayoluna çevirir (menüdeki Yazdır… ⌘P ile aynı)
+  const yazdirIpucu = await evalJs(`(async () => { ${ORTAM}
+    const kaynak = document.querySelector('#arac-cubugu [data-komut="dosya.yazdir"]')?.getAttribute('title') ?? null, sonuc = { kaynak };
+    for (const mac of [true, false]) {
+      const o = ortam(mac), { ipuclariniCevir } = await o.yukle('platform.js');
+      const kok = o.belge.createElement('div'), d = o.belge.createElement('button');
+      d.setAttribute('title', kaynak || ''); kok.append(d); o.belge.body.append(kok);
+      ipuclariniCevir(kok);
+      sonuc[mac ? 'mac' : 'win'] = d.getAttribute('title');
+      kok.remove();
+    }
+    return sonuc;
+  })()`);
+  sonuc('Araç çubuğundaki Yazdır: ipucu macOS\'ta "Yazdır (⌘P)", Windows\'ta "Yazdır (Ctrl+P)"', yazdirIpucu.kaynak === 'Yazdır (Ctrl+P)' && yazdirIpucu.mac === 'Yazdır (⌘P)' && yazdirIpucu.win === 'Yazdır (Ctrl+P)', yazdirIpucu);
+
   await evalJs(`(() => { document.querySelector('#mac-cerceve')?.remove(); document.querySelector('#win-cerceve')?.remove(); return true; })()`);
   console.log(`\n${tamam} tamam, ${hata} hata`);
 }
