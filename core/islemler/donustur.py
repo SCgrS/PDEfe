@@ -624,7 +624,7 @@ def _yol_anahtari(yol):
 
 
 def _ogeleri_hazirla(ogeler):
-    """bicim_donustur'un parametre denetimi (eşzamanlı; hata bütün isteği reddeder). Döner: [{yol, hedef, hedefBicim, secenekler}]."""
+    """bicim_donustur'un parametre denetimi (eş zamanlı; hata bütün isteği reddeder). Döner: [{yol, hedef, hedefBicim, secenekler}]."""
     if not isinstance(ogeler, list) or not ogeler:
         raise ValueError("Dönüştürülecek dosya yok.")
     if len(ogeler) > EN_FAZLA_OGE:
