@@ -460,6 +460,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await kosul(`window.__pdefe.belgeler.size >= 1`, 8000);
     sonuc('Sonuçtaki Aç PDF\'i yeni sekmede açar (pencere açık kalır)', (await evalJs(`[...window.__pdefe.belgeler.values()].some((b) => /Tarama örneği \\(2\\)\\.pdf$|Düz biçim\\.pdf$/.test(b.yol))`))
       && (await evalJs(`!!document.querySelector('.donustur-pencere')`)));
+    await tikSecici('.donustur-pencere .donustur-temizle');
+    sonuc('Listeyi temizle: satırlar ve sonuç listesi kalkar, Dönüştür soluk', await evalJs(`document.querySelectorAll('.donustur-oge').length === 0
+      && document.querySelector('.donustur-sonuc').hidden && document.querySelector('.donustur-pencere .arac-dugmeler .birincil').disabled`));
     await pencereKapat();
     await sekmeleriKapat();
   }

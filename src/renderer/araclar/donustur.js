@@ -144,7 +144,7 @@ export class DonusturPenceresi {
     kayitBolumu.append(this.adlarEl);
 
     govde.querySelector('.donustur-ekle').addEventListener('click', () => this.dosyaSec());
-    govde.querySelector('.donustur-temizle').addEventListener('click', () => { if (this.ogeler.length && !this.ilerleme.calisiyor) { this.ogeler = []; this.ciz(); } });
+    govde.querySelector('.donustur-temizle').addEventListener('click', () => { if (this.ogeler.length && !this.ilerleme.calisiyor) { this.ogeler = []; this.sonucEl.hidden = true; this.ciz(); } });
 
     // Pencere sekme şeridinin altında başlar (Birleştir ve Sayfaları düzenle gibi; arkadaki sekmeler görünür)
     this.pencere = pencereAc({
