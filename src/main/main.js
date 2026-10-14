@@ -75,11 +75,16 @@ const MIME = {
   '.map': 'application/json',
 };
 
-function argvdenPdfler(argv, cwd) {
+/** Komut satırından (Gezgin'de "Birlikte aç", PDEfe'nin simgesine bırakma) ve macOS'ta open-file olayıyla açılabilen dosyalar: PDF sekmede
+ *  açılır; UDF, TIFF ve Word dosyaları (0.2.6) Dosya Formatını Değiştir aracını açar (renderer/uygulama.js acilacaklariAyir). PDEfe kurulumu
+ *  bu uzantılara dosya ilişkisi eklemez (.udf UYAP Doküman Editörü'nündür). */
+const ACILAN_UZANTILAR = /\.(pdf|udf|tiff?|docx?|rtf|odt)$/i;
+
+function argvdenDosyalar(argv, cwd) {
   const sonuc = [];
   for (const a of argv.slice(1)) {
     if (!a || a.startsWith('-') || a === '.') continue;
-    if (!/\.pdf$/i.test(a)) continue;
+    if (!ACILAN_UZANTILAR.test(a)) continue;
     const tam = path.isAbsolute(a) ? a : path.resolve(cwd || process.cwd(), a);
     if (fs.existsSync(tam)) sonuc.push(tam);
   }
@@ -107,9 +112,10 @@ async function pdfVarsayilaniOku() {
   return { varsayilan: progId ? progId.toLowerCase() === 'pdefe.pdf' : null, progId };
 }
 
-// Gezgin'de çift tıklanan PDF (ikinci örnek): bir pencerede zaten açıksa o pencerede, değilse en son etkin pencerede açılır
+// Gezgin'de çift tıklanan PDF (ikinci örnek): bir pencerede zaten açıksa o pencerede, değilse en son etkin pencerede açılır (UDF, TIFF, Word:
+// o pencerenin Dosya Formatını Değiştir aracında)
 app.on('second-instance', (_e, argv, cwd) => {
-  const k = dosyalariAc(argvdenPdfler(argv, cwd)) || etkinKayit();
+  const k = dosyalariAc(argvdenDosyalar(argv, cwd)) || etkinKayit();
   if (k) odakla(k);
 });
 
@@ -119,7 +125,7 @@ const acilisDosyalari = [];
 let pencerelerKuruldu = false;
 app.on('open-file', (e, yol) => {
   e.preventDefault();
-  if (!/\.pdf$/i.test(String(yol || ''))) return;
+  if (!ACILAN_UZANTILAR.test(String(yol || ''))) return;   // 0.2.6: UDF, TIFF, Word de (Dosya Formatını Değiştir)
   if (!pencerelerKuruldu) { acilisDosyalari.push(yol); return; }
   const k = dosyalariAc([yol]);
   if (k) odakla(k); else pencereOlustur({ dosyalar: [yol] });
@@ -513,7 +519,7 @@ app.whenReady().then(() => {
     });
   } catch (e) { console.error('[güncelleme] kurulamadı:', e); }
   uygulamaMenusuKur();
-  pencereOlustur({ dosyalar: [...argvdenPdfler(process.argv, process.cwd()), ...acilisDosyalari.splice(0)] });
+  pencereOlustur({ dosyalar: [...argvdenDosyalar(process.argv, process.cwd()), ...acilisDosyalari.splice(0)] });
   pencerelerKuruldu = true;
   cekirdek.baslat().catch((e) => console.error('[çekirdek] başlatılamadı:', e));
 });

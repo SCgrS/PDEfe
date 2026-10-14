@@ -16,13 +16,16 @@
 //      listesi, Klasörde göster, PDF'ler için Aç, var olan adda "(2)".
 //   7) İptal: uzun TIFF'in dönüştürmesi İptal'le durur, hedef klasörde dosya ve geçici dosya kalmaz; geç gelen iptal (benzetim) yeni dosyayı
 //      çöp kutusuna gönderir (sınamada kaydedilir, gönderilmez), onaylanıp üzerine yazılan dosyayı bırakır; dönüştürme sürerken X sorar.
+//   8) Açma yolları: ana pencereye bırakılan PDF sekmede, UDF / TIFF / Word araçta açılır (araç açıksa listesine eklenir); Ctrl+O'nun
+//      süzgecinde desteklenen türler, seçilen UDF araçta; komut satırı (ikinci örnek, Gezgin'de "Birlikte aç") ve ana sürecin dosya:ac'ı;
+//      sürükleme örtüsü "Dosyaları bırakın".
 // Girdiler test/donustur_arayuz_uret.py ile test/cikti/s37/girdi altında üretilir (gerçek belge yok); çıktılar test/cikti/s37/cikti.
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9437 -Veri "$env:TEMP\pdefe-s37-9437" -Boyut "1280,1000"      → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9437; node test\surucu.mjs betik test\senaryo37.mjs
 //   powershell -File test\durdur.ps1 -SurecId <PID>
 // Yalnızca bazı bölümler: $env:BOLUM="3,5". Ekran görüntüleri test/cikti/s37/png altına.
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -115,7 +118,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await bekle(400);
   };
   const ciktiDosyalari = () => fs.readdirSync(CIKTI).sort();
-  const bolumler = (process.env.BOLUM || '1,2,3,4,5,6,7').split(',').map((s) => s.trim());
+  const bolumler = (process.env.BOLUM || '1,2,3,4,5,6,7,8').split(',').map((s) => s.trim());
   const bolum = (n) => bolumler.includes(String(n));
 
   // ------------------------------------------------------------ hazırlık
@@ -520,6 +523,73 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     sonuc('Geç iptal, onaylanıp üzerine yazılan dosya: silinmez, "İptal edilemeden tamamlandı" bildirilir, sonuç sekmede açılır', !silinen2.length && o7.sayfa === 3
       && b2.some((b) => /İptal edilemeden tamamlandı: "Var olan\.pdf" üzerine yazıldı/.test(b)), { silinen2, b2, o7 });
     await sekmeleriKapat();
+  }
+
+  // ------------------------------------------------------------ 8) Açma yolları
+  if (bolum(8)) {
+    console.log('\n== 8) Ana pencereye bırakma, Ctrl+O, komut satırı');
+    await pencereKapat();
+    await sekmeleriKapat();
+    // Sürükle-bırak gerçek dosya yollarıyla: CDP Input.dispatchDragEvent (sayfa File nesnesinden yolu webUtils ile okur)
+    const h = (await (await fetch(`http://127.0.0.1:${process.env.PDEFE_CDP_PORT || 9222}/json`)).json()).find((x) => x.type === 'page' && /index\.html/.test(x.url));
+    const ws = new WebSocket(h.webSocketDebuggerUrl);
+    await new Promise((c, r) => { ws.onopen = c; ws.onerror = r; });
+    let n = 0; const bek = new Map();
+    ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id && bek.has(d.id)) { bek.get(d.id)(d); bek.delete(d.id); } };
+    const gonder = (method, params = {}) => new Promise((c) => { const i = ++n; bek.set(i, c); ws.send(JSON.stringify({ id: i, method, params })); });
+    const birak = async (dosyalar, x = 640, y = 520) => {
+      const data = { items: [], files: dosyalar, dragOperationsMask: 1 };
+      for (const type of ['dragEnter', 'dragOver']) await gonder('Input.dispatchDragEvent', { type, x, y, data });
+      await bekle(150);
+      const ortu = await evalJs(`(() => { const o = document.querySelector('#surukle-ortusu'); return o.hidden ? null : o.textContent; })()`);
+      await gonder('Input.dispatchDragEvent', { type: 'drop', x, y, data });
+      return ortu;
+    };
+    const ortuMetni = await birak([G.udf, G.pdf, G.tiff, G.txt]);
+    await kosul(`!!document.querySelector('.donustur-pencere') && document.querySelectorAll('.donustur-oge').length === 2 && !document.querySelector('.donustur-oge.yukleniyor')`, 15000);
+    await kosul(`window.__pdefe.belgeler.size === 1`, 8000);
+    let S = await satirlar();
+    const sekmeler = await evalJs(`[...window.__pdefe.belgeler.values()].map((b) => b.ad)`);
+    sonuc('Ana pencereye bırakma: sürükleme örtüsü "Dosyaları bırakın"; PDF sekmede açılır, UDF ve TIFF araçta (sırayla), tanınmayan uzantı yok sayılır', ortuMetni === 'Dosyaları bırakın'
+      && J(sekmeler) === J(['Dilekçe örneği.pdf']) && J(S.map((x) => x.ad)) === J(['Karar örneği.udf', 'Tarama örneği.tif']), { ortuMetni, sekmeler, satirlar: S.map((x) => x.ad) });
+    await ss('08-birakma');
+    // Araç açıkken bırakılan Word dosyası araca eklenir (aracın örtüsü pencereyi kaplar)
+    await birak([G.docx]);
+    await kosul(`document.querySelectorAll('.donustur-oge').length === 3 && !document.querySelector('.donustur-oge.yukleniyor')`, 15000);
+    S = await satirlar();
+    sonuc('Araç açıkken bırakılan Word dosyası listeye eklenir', S.length === 3 && S[2].ad === 'Word örneği.docx' && S[2].tur === 'word', S.map((x) => [x.ad, x.tur]));
+    // Ana sürecin dosya:ac'ı (komut satırı / macOS open-file): araç açıksa listeye eklenir
+    await evalJs(`window.pdefe.cagir('test:olayGonder', 'dosya:ac', ${J([G.udf_xml])})`);
+    await kosul(`document.querySelectorAll('.donustur-oge').length === 4 && !document.querySelector('.donustur-oge.yukleniyor')`, 15000);
+    S = await satirlar();
+    sonuc('Ana sürecin dosya:ac\'ı (UDF): açık aracın listesine eklenir, sekme açılmaz', S.length === 4 && S[3].ad === 'Düz biçim.udf' && (await evalJs(`window.__pdefe.belgeler.size`)) === 1, S.map((x) => x.ad));
+    ws.close();
+    await pencereKapat();
+    await sekmeleriKapat();
+    // Ctrl+O: süzgeçte desteklenen türler; seçilen PDF sekmede, UDF araçta
+    await yanitla('dosya:acDiyalog', [[G.udf, G.pdf]]);
+    await kayit();
+    await evalJs(`window.__pdefe.komutCalistir('dosya.ac')`);
+    await kosul(`!!document.querySelector('.donustur-pencere') && document.querySelectorAll('.donustur-oge').length === 1 && !document.querySelector('.donustur-oge.yukleniyor')`, 15000);
+    await kosul(`window.__pdefe.belgeler.size === 1`, 8000);
+    const ck = (await kayit()).find((x) => x.kanal === 'dosya:acDiyalog');
+    S = await satirlar();
+    sonuc('Ctrl+O: ilk süzgeç "Desteklenen dosyalar" (PDF, UDF, TIFF, Word), çoklu seçim; seçilen PDF sekmede, UDF araçta', ck?.secenek?.filtreler?.[0]?.name === 'Desteklenen dosyalar'
+      && ck.secenek.filtreler[0].extensions.includes('udf') && ck.secenek.filtreler[0].extensions.includes('pdf') && ck.secenek.coklu !== false
+      && J(S.map((x) => x.ad)) === J(['Karar örneği.udf']) && J(await evalJs(`[...window.__pdefe.belgeler.values()].map((b) => b.ad)`)) === J(['Dilekçe örneği.pdf']), { ck: ck?.secenek, S: S.map((x) => x.ad) });
+    await pencereKapat();
+    await sekmeleriKapat();
+    // Komut satırı: ikinci örnek (Gezgin'de "Birlikte aç" ya da PDEfe'nin simgesine bırakma) TIFF'i ilk örneğe verir, araç açılır
+    const veri = await evalJs(`window.pdefe.cagir('uygulama:veriKlasoru')`);
+    const ikinci = await new Promise((coz) => {
+      const s = spawn(path.join(KOK, 'node_modules', 'electron', 'dist', 'electron.exe'), ['.', G.tiff], { cwd: KOK, env: { ...process.env, PDEFE_VERI_KLASORU: veri, PDEFE_TEST_KONUM: '-2600,0' }, stdio: 'ignore' });
+      s.on('exit', () => coz(true)); setTimeout(() => coz(false), 15000);
+    });
+    await kosul(`!!document.querySelector('.donustur-pencere') && document.querySelectorAll('.donustur-oge').length === 1 && !document.querySelector('.donustur-oge.yukleniyor')`, 15000);
+    S = await satirlar();
+    sonuc('Komut satırı (ikinci örnek): TIFF ilk örneğin Dosya Formatını Değiştir aracında açılır, sekme açılmaz', ikinci && J(S.map((x) => x.ad)) === J(['Tarama örneği.tif'])
+      && (await evalJs(`window.__pdefe.belgeler.size`)) === 0, { ikinci, S: S.map((x) => x.ad) });
+    await pencereKapat();
   }
 
   // ------------------------------------------------------------ son

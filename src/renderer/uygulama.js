@@ -10,7 +10,8 @@ import { KomutYigini, Komut, sayfaFarki, sayfaFarkiOzeti, sayfaListesi } from '.
 import { GecmisListesi } from './gecmisListesi.js';
 import { ayarlarPenceresiAc, ayarlarPenceresiKapat, ayarlarPenceresiniGuncelle } from './ayarlarPenceresi.js';
 import { kisayolTablolariHtml } from './kisayolListesi.js';
-import { aracKomutlari, aracPencereleriniKapat, aracPenceresiKapaninca, acikAracPenceresiVar } from './araclar/index.js';
+import { aracKomutlari, aracPencereleriniKapat, aracPenceresiKapaninca, acikAracPenceresiVar, DONUSTURULEN_UZANTILAR } from './araclar/index.js';
+import { DOSYA_FILTRELERI as DONUSTURME_FILTRELERI } from './araclar/donustur.js';
 import { sekmeyiYenile } from './araclar/ortak.js';
 import { AraclarPenceresi, ARACLAR } from './aracPenceresi.js';
 import { guncellemeSeridiKur } from './guncelleme.js';
@@ -1358,7 +1359,8 @@ for (const [dugme, kaynak, ac] of [[$('#dugme-geri-al-liste'), 'geri', geriAlLis
 
 // ---------------------------------------------------------------- komutlar
 const komutlar = {
-  'dosya.ac': async () => { const yollar = await pdefe.cagir('dosya:acDiyalog'); for (const y of yollar) await dosyaAc(y); },
+  // Ctrl+O ve açılış ekranının PDF aç'ı: süzgeçte PDF'in yanında UDF, TIFF ve Word de (0.2.6); onlar Dosya Formatını Değiştir'de açılır
+  'dosya.ac': async () => { const yollar = await pdefe.cagir('dosya:acDiyalog', { baslik: 'Aç', filtreler: DONUSTURME_FILTRELERI }); await yollariAc(yollar); },
   'dosya.acYol': (yol) => dosyaAc(yol),
   'dosya.sonTemizle': () => { ayar.sonDosyalar = []; pdefe.cagir('uygulama:sonDosyalar', []); sonDosyalariListele(); },
   'dosya.kaydet': () => { const b = aktif(); if (b) belgeKaydet(b); },
@@ -1513,14 +1515,36 @@ pdefe.dinle('menu:komut', (id, veri) => {
   if (ORTU_ACIKKEN_CALISMAYAN.has(id) && (acikAracPenceresiVar() || document.querySelector('.diyalog-ortusu, .ayarlar-ortusu'))) return;
   araclarPenceresi.kapat(); gecmisListesi.kapat(); komutCalistir(id, veri);
 });
+/** Açılacak dosyaları ayırır (0.2.6): UDF, TIFF ve Word uzantılı dosyalar Dosya Formatını Değiştir aracına (araç açıksa listesine) gider,
+ *  öteki dosyalar eskisi gibi sekmede açılır (PDF olmayan dosya "PDF açılamadı" der). */
+function acilacaklariAyir(yollar) {
+  const sekme = [], donustur = [];
+  for (const y of yollar || []) {
+    if (typeof y !== 'string' || !y) continue;
+    const m = /\.([^.\\/]+)$/.exec(y);
+    (m && DONUSTURULEN_UZANTILAR.includes(m[1].toLowerCase()) ? donustur : sekme).push(y);
+  }
+  return { sekme, donustur };
+}
+
+/** Komut satırı, ana pencereye bırakma ve Ctrl+O'yla gelen dosyalar: PDF'ler sırayla sekmede, UDF / TIFF / Word dosyaları araçta. */
+async function yollariAc(yollar) {
+  const { sekme, donustur } = acilacaklariAyir(yollar);
+  for (const y of sekme) await dosyaAc(y);
+  if (donustur.length) komutCalistir('arac.donustur', donustur);
+}
+
 // secenek.yazildi: dosya başka bir pencerede (araç çıktısı olarak) yeniden yazıldı; burada açık sekmesi diskteki yeni hâliyle yenilenir
 pdefe.dinle('dosya:ac', async (yollar, secenek) => {
   // Taşınmakta olan sekme yenilenmez, kapatılmaz: taşıma bitince dosya hangi penceredeyse orada işlenir (dosyaAc öteki pencereye sorar)
   await tasimaBitmesiniBekle();
-  for (const y of yollar) {
+  const { sekme, donustur } = secenek?.yazildi ? { sekme: yollar, donustur: [] } : acilacaklariAyir(yollar);
+  for (const y of sekme) {
     const acik = secenek?.yazildi ? [...belgeler.values()].find((b) => yolAyni(b.yol, y)) : null;
     if (acik) await yazilanSekmeyiYenile(acik); else await dosyaAc(y, { yazildi: !!secenek?.yazildi });
   }
+  // UDF, TIFF, Word (komut satırı, macOS'ta Finder): Dosya Formatını Değiştir (0.2.6)
+  if (donustur.length) komutCalistir('arac.donustur', donustur);
 });
 pdefe.dinle('pencere:tamEkran', (acik) => document.body.classList.toggle('tam-ekran', acik));
 // Kapatma isteği yanıtsız bırakılmaz: Dosya › Çıkış pencereleri sırayla kapatır, vazgeçilen pencerede durur ('pencere:kapatVazgec').
@@ -2145,8 +2169,11 @@ window.addEventListener('drop', async (e) => {
   surukleSayac = 0; $('#surukle-ortusu').hidden = true;
   if (!dosyaVarMi(e)) return;
   e.preventDefault();
-  const yollar = [...e.dataTransfer.files].map((f) => pdefe.dosyaYolu(f)).filter((y) => /\.pdf$/i.test(y));
-  for (const y of yollar) await dosyaAc(y);
+  // PDF'ler sekmede açılır; UDF, TIFF ve Word dosyaları Dosya Formatını Değiştir aracını açar (0.2.6; araç açıksa listesine eklenir)
+  const yollar = [...e.dataTransfer.files].map((f) => pdefe.dosyaYolu(f)).filter(Boolean);
+  const { sekme, donustur } = acilacaklariAyir(yollar);
+  for (const y of sekme.filter((x) => /\.pdf$/i.test(x))) await dosyaAc(y);
+  if (donustur.length) komutCalistir('arac.donustur', donustur);
 });
 function dosyaVarMi(e) { return e.dataTransfer && [...e.dataTransfer.types].includes('Files'); }
 
@@ -2287,5 +2314,5 @@ document.addEventListener('click', (e) => {
   yeniSekme();
   pdefe.gonder('pencere:belgeler', []);   // arayüz yeniden yüklendiyse ana süreçteki açık belge kaydı bayat kalmasın
   pdefe.gonder('uygulama:hazir');
-  window.__pdefe = { belgeler, aktif, dosyaAc, belgeKapat, sekmeSec, komutCalistir, ayar: () => ayar, panel, sekmeler, arama, temizMetin, sayfaTarifiUygula, sayfalariDondur, belgeKaydet, mesajKutusu, sekmeyiTasi, sekmePaketi, tasimaSuruyor: () => tasimaSuruyor, kilitli: () => girdiKilitli(), gecmisListesi, tumSecim };
+  window.__pdefe = { belgeler, aktif, dosyaAc, yollariAc, belgeKapat, sekmeSec, komutCalistir, ayar: () => ayar, panel, sekmeler, arama, temizMetin, sayfaTarifiUygula, sayfalariDondur, belgeKaydet, mesajKutusu, sekmeyiTasi, sekmePaketi, tasimaSuruyor: () => tasimaSuruyor, kilitli: () => girdiKilitli(), gecmisListesi, tumSecim };
 })();
