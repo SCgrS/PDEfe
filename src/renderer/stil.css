@@ -365,6 +365,13 @@ html.metin-seciliyor, html.metin-seciliyor * { cursor: text !important; }
 .koyu-sayfa .textLayer br::highlight(pdefe-secim) { background-color: transparent; }
 .koyu-sayfa .textLayer .highlight { background: #6b5500; }
 .koyu-sayfa .textLayer .highlight.selected { background: #b35400; }
+/* Belgedeki tüm metnin seçimi (0.2.6, Ctrl+A; tumSecim.js): tarayıcı seçimi yalnızca geçerli sayfadadır (çapa); bütün sayfaların metin öğeleri
+   (kaydırınca sonradan kurulan katmanlar, tanınan sözcükler dâhil) seçim renginde boyanır. Çapa sayfasında tarayıcının seçimi boyanmaz (iki
+   kat koyulaşmasın); renkler yukarıdaki seçimle aynı, karışım katmanda (multiply / screen) */
+.tum-secili .textLayer span[role="presentation"] { background-color: rgba(0, 103, 192, 0.35); }
+.koyu-sayfa.tum-secili .textLayer span[role="presentation"] { background-color: rgba(60, 150, 255, 0.45); }
+.tum-secili .textLayer ::selection { background: transparent; }
+.tum-secili .textLayer ::highlight(pdefe-secim) { background-color: transparent; }
 
 /* Başlangıç ekranı (baslangic.js). #gorunumler de belge alanını kaplar ve DOM'da sonra gelirse üstte kalır: boşken bile tıklamaları
    yutuyordu (PDF aç ve son açılanlar tıklanamıyordu). Başlangıç ekranı kendi yığın katmanında, görünümlerin üstündedir.

@@ -50,11 +50,15 @@ export function temizMetin(ham, { ilkDolu = false } = {}) {
   // Satırlar: girinti (baştaki boşluk) paragraf başlangıcı ipucudur
   const hamSatirlar = s.split('\n');
   const satirlar = hamSatirlar.map((x) => ({ metin: x.replace(/ {2,}/g, ' ').trim(), girintili: /^ {2,}\S/.test(x) }));
-  const enUzun = Math.max(1, ...satirlar.map((x) => x.metin.length));
+  // Döngüyle: bütün belgenin metninde (Ctrl+A, 0.2.6) satır sayısı yayılımla (Math.max(...)) çağrının argüman sınırını aşabilir
+  let enUzun = 1;
+  for (const x of satirlar) if (x.metin.length > enUzun) enUzun = x.metin.length;
   const ilk = ilkDolu ? satirlar.findIndex((x) => x.metin) : -1;
   const paragraflar = [];
-  let cur = '', bos = 0;   // bos: art arda boş satır sayısı
-  const bitir = () => { if (cur.trim()) paragraflar.push(cur.trim()); cur = ''; };
+  // bos: art arda boş satır sayısı. son: cur'un son iki karakteri; sondaki tire ona bakılarak aranır (0.2.6): düzenli ifade "-$" bütün
+  // paragrafı baştan tarıyordu, bütün belgenin metninde (Ctrl+A) uzun paragrafta süre satır sayısının karesiyle artıyordu
+  let cur = '', son = '', bos = 0;
+  const bitir = () => { if (cur.trim()) paragraflar.push(cur.trim()); cur = ''; son = ''; };
   for (let i = 0; i < satirlar.length; i++) {
     const { metin: satir, girintili } = satirlar[i];
     if (!satir) { bitir(); if (!hamSatirlar[i]) bos++; continue; }
@@ -63,12 +67,12 @@ export function temizMetin(ham, { ilkDolu = false } = {}) {
     const sonrakiK = satirlar[i + 1];
     const sonraki = sonrakiK ? sonrakiK.metin : '';
     if (girintili && cur) bitir();                                     // girintili satır yeni paragraf
-    if (!cur) cur = satir;
-    else if (/[A-Za-zÇĞİÖŞÜçğıöşüâîûÂÎÛ]-$/.test(cur) && /^[a-zçğıöşüâîû]/.test(satir)) cur = cur.slice(0, -1) + satir;  // tireyle bölünmüş kelime ("hâ- / kim" de)
+    if (!cur) { cur = satir; son = satir.slice(-2); }
+    else if (/[A-Za-zÇĞİÖŞÜçğıöşüâîûÂÎÛ]-$/.test(son) && /^[a-zçğıöşüâîû]/.test(satir)) { cur = cur.slice(0, -1) + satir; son = (son.slice(0, -1) + satir).slice(-2); }  // tireyle bölünmüş kelime ("hâ- / kim" de)
     // Rakamdan sonraki tire sayı / tarih aralığıdır ("1/2/2018- / 7078/157", "s. 501- / 503"): tire kalır, boşluk girmez (0.2.1).
     // Büyük harfle süren satır belirsizdir, boşlukla birleşir: "MADDE 5- / Bu Kanun" doğru, "ZEVK- / LİLER" hecedir
-    else if (/\d-$/.test(cur) && /^\d/.test(satir)) cur += satir;
-    else cur += ' ' + satir;
+    else if (/\d-$/.test(son) && /^\d/.test(satir)) { cur += satir; son = (son + satir).slice(-2); }
+    else { cur += ' ' + satir; son = (' ' + satir).slice(-2); }
     // Paragraf sonu kararı
     const kisa = i !== ilk && satir.length < enUzun * 0.6;
     const noktali = NOKTALAMA_SONU.test(satir);

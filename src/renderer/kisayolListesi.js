@@ -14,7 +14,7 @@ const SUTUNLAR = [[
   ['Sekmeyi sürükle', 'Sırala; sekme çubuğunun dışına bırakınca belge kendi penceresinde açılır'],
   ['Düzen'],
   ['Ctrl+Z / Ctrl+Y', 'Geri al / yinele'], ['Ctrl+F', 'Bul'], ['F3 / Shift+F3', 'Sonraki / önceki eşleşme'],
-  ['Ctrl+A', 'Sayfadaki tüm metni seç'], ['Delete', 'Seçili notu sil'], ['Ctrl+,', 'Ayarlar'],
+  ['Ctrl+A', 'Belgedeki tüm metni seç'], ['Delete', 'Seçili notu sil'], ['Ctrl+,', 'Ayarlar'],
   ['Genel'],
   ['F1', 'Kısayollar'], ['Esc', 'Kapat / vazgeç'],
 ], [

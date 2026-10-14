@@ -355,6 +355,36 @@ export default async function ({ evalJs }) {
       && r.tercihIstegi?.yazici === 'Lazer_Yazici' && r.baslat?.yazici === 'Lazer_Yazici' && r.baslat?.sistemPenceresi === false && r.bildirim === '"Lazer Yazıcı" yazıcısına gönderildi: 1 sayfa' && !r.acikKaldi, r);
   }
 
+  // ---------------------------------------------------------------- Ctrl+A belgenin bütün sayfaları (tumSecim.js, kisayolListesi.js; 0.2.6)
+  // Bütün belge seçiliyken sayfa alanında tıklama seçimi kaldırır; sağ tık kaldırmaz (menünün Kopyala'sı bütün belgeyi kopyalar). macOS'ta
+  // Ctrl+tık sağ tıktır: seçim kalmalı. Windows'ta Ctrl+tık olağan tıklamadır (seçim kalkar). Kısayol listesi ⌘A / Ctrl+A ile yazılır
+  const tumSecim = await evalJs(`(async () => { ${ORTAM}
+    const sonuc = {};
+    for (const mac of [true, false]) {
+      const o = ortam(mac), { TumSecim } = await o.yukle('tumSecim.js'), { kisayolTablolariHtml } = await o.yukle('kisayolListesi.js');
+      const alan = o.belge.createElement('div'), kok = o.belge.createElement('div'); o.belge.body.append(kok, alan);
+      const t = new TumSecim({ cekirdek: async () => null, panoyaYaz: async () => true, bildir: () => {} });
+      const belge = { gorunum: { alan, kok } };
+      t.bagla(belge);
+      const bas = (secenek) => alan.dispatchEvent(new o.pencere.MouseEvent('mousedown', { bubbles: true, cancelable: true, ...secenek }));
+      const kur = () => { t.durum = { belge, kok, aralik: null }; kok.classList.add('tum-secili'); };
+      const r = {};
+      kur(); bas({ button: 0, ctrlKey: true }); r.ctrlTik = !!t.durum && kok.classList.contains('tum-secili');
+      await new Promise((c) => setTimeout(c, 0));
+      kur(); bas({ button: 2 }); r.sagTik = !!t.durum;
+      kur(); bas({ button: 0 }); r.tik = !!t.durum || kok.classList.contains('tum-secili');
+      const html = kisayolTablolariHtml();
+      r.kisayol = ['⌘A', 'Ctrl+A'].find((k) => html.includes('<kbd>' + k + '</kbd></td><td>Belgedeki tüm metni seç<')) || null;
+      sonuc[mac ? 'mac' : 'win'] = r;
+      kok.remove(); alan.remove();
+    }
+    return sonuc;
+  })()`);
+  sonuc('Bütün belge seçimi (macOS): Ctrl+tık (sağ tık) ve sağ tık seçimi bırakmaz, tık kaldırır; Kısayollar "⌘A Belgedeki tüm metni seç"',
+    tumSecim.mac.ctrlTik && tumSecim.mac.sagTik && !tumSecim.mac.tik && tumSecim.mac.kisayol === '⌘A', tumSecim.mac);
+  sonuc('Bütün belge seçimi (Windows): Ctrl+tık ve tık seçimi kaldırır, sağ tık bırakmaz; Kısayollar "Ctrl+A Belgedeki tüm metni seç"',
+    !tumSecim.win.ctrlTik && tumSecim.win.sagTik && !tumSecim.win.tik && tumSecim.win.kisayol === 'Ctrl+A', tumSecim.win);
+
   await evalJs(`(() => { document.querySelector('#mac-cerceve')?.remove(); document.querySelector('#win-cerceve')?.remove(); return true; })()`);
   console.log(`\n${tamam} tamam, ${hata} hata`);
 }

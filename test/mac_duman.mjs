@@ -192,8 +192,9 @@ if (!deneme.ok) {
   await degerlendir('document.activeElement?.blur?.(); window.__pdefe.aktif()?.gorunum.kaydirici.focus(); true');
   tus('a', 'command');
   await bekle(500);
-  const secim = await degerlendir('window.getSelection().toString().length');
-  sonuc('⌘A belgede sayfanın metnini seçer', secim > 50, secim);
+  // 0.2.6: ⌘A belgenin bütün sayfalarını seçer; tarayıcı seçimi geçerli sayfanın metnidir (çapa; tumSecim.js)
+  const secim = await degerlendir('({ uzunluk: window.getSelection().toString().length, tum: !!window.__pdefe.tumSecim?.gecerli() })');
+  sonuc('⌘A belgenin bütün sayfalarını seçer (çapa: geçerli sayfanın metni)', secim?.uzunluk > 50 && secim?.tum, JSON.stringify(secim));
   const olcek0 = await degerlendir('window.__pdefe.aktif().gorunum.olcek');
   tus('0', 'command');   // gerçek boyut (menü)
   await bekle(800);

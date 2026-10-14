@@ -335,6 +335,21 @@ def main():
             "MADDE 24- (1) (Değişik: 15/8/2017-KHK-694/162 md.; Aynen kabul: 1/2/2018-7078/157 md.) Gümrük ve Ticaret Bakanlığı tarafından il merkezindeki ticaret ve sanayi",
         ]))
 
+    # 27–28) Belgenin bütün metni (0.2.6, Ctrl+A; src/renderer/tumSecim.js): her sayfa sayfayı kaplayan tek kutuyla seçilir. Satır kutularıyla
+    # seçilen sayfayla (uygulama.js'in olağan kopyası gibi: tum_sayfa) aynı sonucu vermeli. Bütün belgenin metninde satır sayısı çok olur:
+    # temizMetin 0.2.5'te en uzun satırı yayılımla (Math.max(...)) arıyordu, ~125 bin satırdan sonra çağrının argüman sınırına takılıyordu
+    if os.path.exists(TTK_BELGE):
+        for sayfa in (1, 8, 55, 300):
+            a = pdefe_core.y_metin_sec({"yol": TTK_BELGE, "sayfa": sayfa, "kutular": [[-1e5, -1e5, 1e5, 1e5]]})
+            b = tum_sayfa(TTK_BELGE, sayfa)[0]
+            sonuc(f"mevzuat_6102_TTK.pdf s.{sayfa}: sayfayı kaplayan kutu satır kutularıyla aynı metni verir (bütün belge)", a == b and len(a["metin"]) > 500,
+                  "" if a == b else "\n  kaplayan: " + json.dumps(a, ensure_ascii=False)[:300] + "\n  satırlar: " + json.dumps(b, ensure_ascii=False)[:300])
+    try:
+        cok = temiz(["\n".join(["Bu satır paragrafın içindedir ve uzun bir satırdır"] * 200000)])[0]
+        sonuc("200 bin satırlık metin (bütün belge) temizMetin'den geçer", cok.count("\n") == 0 and len(cok) == 200000 * 51 - 1, f"uzunluk {len(cok)}")
+    except RuntimeError as e:
+        sonuc("200 bin satırlık metin (bütün belge) temizMetin'den geçer", False, next((l.strip() for l in str(e).splitlines() if "Error" in l), str(e)[-200:]))
+
     temizler = temiz([ham for _, ham, _ in vakalar])
     for (ad, ham, beklenen), metin in zip(vakalar, temizler):
         paragraflar = metin.split("\n")

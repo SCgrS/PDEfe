@@ -463,20 +463,23 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, tusH
   }
 
   // ================================================================ 10) Ctrl+A
+  // 0.2.6: belgenin bütün sayfaları seçilir (tumSecim.js): görünüm kökünde tum-secili; tarayıcı seçimi yalnızca geçerli sayfadadır (çapa),
+  // öteki sayfalar DOM'da seçilmez, CSS ile boyanır (ayrıntılı sınama test/tum_secim.mjs)
   for (const yol of [YOL.CDP, YOL.G]) {
     await evalJs(`getSelection().removeAllRanges()`);
     await odakBelgede();
     await yol.bas('a', ['control'], 400);
     const sa = await evalJs(`(() => { const g = window.__pdefe.aktif().gorunum; const katman = g.sayfalar[g.gecerli - 1].el.querySelector('.textLayer'); const s = getSelection();
       return { uzunluk: s.toString().length, icinde: !!katman && katman.contains(s.anchorNode) && katman.contains(s.focusNode), sayfa: g.gecerli,
+        tum: window.__pdefe.tumSecim.gecerli(), sinif: g.kok.classList.contains('tum-secili'),
         baskaSayfa: [...document.querySelectorAll('.textLayer')].some((t) => t !== katman && s.containsNode(t, true)) }; })()`);
-    sonuc(`Ctrl+A: geçerli sayfanın (${sa.sayfa}) bütün metni seçilir, başka sayfa seçilmez (${yol.ad})`, sa.uzunluk > 200 && sa.icinde && !sa.baskaSayfa, sa);
+    sonuc(`Ctrl+A: belgenin bütün sayfaları seçilir (tum-secili), tarayıcı seçimi geçerli sayfada (${sa.sayfa}; çapa) (${yol.ad})`, sa.tum && sa.sinif && sa.uzunluk > 200 && sa.icinde && !sa.baskaSayfa, sa);
   }
   await evalJs(`getSelection().removeAllRanges()`);
   await tikla(...(await merkez(`document.querySelector('#sayfa-kutusu')`))); await bekle(200);
   await tusC('a', ['ctrl'], 300);
-  const sk = await evalJs(`(() => { const k = document.querySelector('#sayfa-kutusu'); const katmanlar = [...document.querySelectorAll('.textLayer')]; return { odak: document.activeElement === k, tumu: k.selectionStart === 0 && k.selectionEnd === k.value.length, sayfaMetni: katmanlar.some((t) => getSelection().containsNode(t, true)) }; })()`);
-  sonuc('Sayfa kutusundayken Ctrl+A yalnızca kutunun metnini seçer, sayfa metnini seçmez', sk.odak && sk.tumu && !sk.sayfaMetni, sk);
+  const sk = await evalJs(`(() => { const k = document.querySelector('#sayfa-kutusu'); const katmanlar = [...document.querySelectorAll('.textLayer')]; return { odak: document.activeElement === k, tumu: k.selectionStart === 0 && k.selectionEnd === k.value.length, sayfaMetni: katmanlar.some((t) => getSelection().containsNode(t, true)), tumBelge: window.__pdefe.tumSecim.gecerli() || !!document.querySelector('.gorunum.tum-secili') }; })()`);
+  sonuc('Sayfa kutusundayken Ctrl+A yalnızca kutunun metnini seçer, sayfa ve belge metnini seçmez', sk.odak && sk.tumu && !sk.sayfaMetni && !sk.tumBelge, sk);
   await tusC('Escape');
 
   // ================================================================ 11) Delete (seçili not)

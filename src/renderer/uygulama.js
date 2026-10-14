@@ -19,6 +19,7 @@ import { ortuTiklamasiBagla } from './ortu.js';
 import { mesajKutusu as mesajKutusuAc, mesajKutusuAcik, mesajKutusuUyar, kaydetmedenCikisSorusu } from './mesajKutusu.js';
 import { BaslangicEkrani } from './baslangic.js';
 import { uzantisiz } from './adlar.js';
+import { TumSecim } from './tumSecim.js';
 import { MAC, birincil, tus, ipuclariniCevir, DOSYA_YONETICISI } from './platform.js';
 
 const $ = (s) => document.querySelector(s);
@@ -69,6 +70,9 @@ const durum = new DurumCubugu({
 });
 // Geri alınacak adımlar (Geri al'ın ▾ düğmesi) ve kaydedilmemiş değişiklikler (durum çubuğu) listesi (0.2.2); bkz. geçmiş listeleri bölümü
 const gecmisListesi = new GecmisListesi();
+// Ctrl+A: belgenin bütün sayfalarının metni (0.2.6, tumSecim.js); kopyalanan metin panoya ana süreçte yazılır (main.js 'pano:metin')
+const tumSecim = new TumSecim({ cekirdek, bildir: (metin, sure) => bildir(metin, sure),
+  panoyaYaz: (metin, yalnizcaPanodaysa) => pdefe.cagir('pano:metin', metin, { yalnizcaPanodaysa }) });
 
 function aktif() { return aktifId ? belgeler.get(aktifId) : null; }
 
@@ -140,7 +144,7 @@ function belgeOlustur(yol) {
   gorunum.addEventListener('sayfa', (e) => { if (aktifId === id) { sayfaGoster(belge); } sayfaKonumuKaydet(belge); gizlenenNotuBirak(belge); });
   gorunum.addEventListener('zoom', (e) => { if (aktifId === id) zoomGoster(belge); });
   gorunum.addEventListener('metinKatmani', (e) => arama.katmanCizildi(gorunum, e.detail.sayfa));
-  gorunum.addEventListener('sayfalar', () => { arama.belgeUnut(gorunum); if (aktifId === id) { sayfaGoster(belge); panel.belgeAyarla(belge); } kirliGuncelle(belge); });
+  gorunum.addEventListener('sayfalar', () => { arama.belgeUnut(gorunum); tumSecim.duzenDegisti(belge); if (aktifId === id) { sayfaGoster(belge); panel.belgeAyarla(belge); } kirliGuncelle(belge); });
   gorunum.addEventListener('baglanti', (e) => baglantiyaGit(belge, e.detail));
   metinOlaylariBagla(belge);
   belge.yigin = new KomutYigini();
@@ -249,6 +253,7 @@ async function sekmeSec(id) {
   // Geri al / kaydedilmemiş değişiklikler listesi önceki belgenindir (0.2.2). Etkin belge kaldırılınca da (aktifId null; belgeyiKaldir)
   // kapanır: yoksa kapanan belgenin adımlarını yeni belgenin üstünde gösterip belge tuşlarını yutuyordu (bağımsız inceleme)
   if (aktifId !== id) gecmisListesi.kapat();
+  if (aktifId !== id) tumSecim.kaldir({ secimiBirak: true });   // bütün belge seçimi (Ctrl+A) önceki belgenindir; kopyalaması istenmişse sürer
   if (aktifId && aktifId !== id) {
     const eski = belgeler.get(aktifId);
     if (eski) {
@@ -357,6 +362,7 @@ function belgeyiKaldir(b, { devredildi = false } = {}) {
   const id = b.id;
   clearTimeout(b._otoKayit); b._otoKayit = null;
   const yollar = sekmeninYollari(b);   // görünüm yok edilmeden: başka PDF'ten eklenmiş sayfaların dosyaları da
+  tumSecim.belgeKapandi(b);            // bütün belge metninin hazırlığı durur (çekirdek bırakılan dosyayı yeniden açmasın)
   b.notlar?.yokEt();
   belgeler.delete(id);
   sekmeler.kaldir(id);
@@ -1113,7 +1119,7 @@ function gorunenKapak() { const g = aktif()?.gorunum; return g?.belge ? !!g.kapa
 function duzenEsitle(b) {
   if (!b || !b.gorunum.belge) return;
   const d = genelDuzen(), kapak = !!ayar.kapakAyri;
-  if (b.gorunum.duzen !== d || b.gorunum.kapakAyri !== kapak) b.gorunum.duzenAyarla(d, kapak, tekSayfaZoomu());
+  if (b.gorunum.duzen !== d || b.gorunum.kapakAyri !== kapak) { tumSecim.duzenDegisti(b); b.gorunum.duzenAyarla(d, kapak, tekSayfaZoomu()); }
 }
 
 /** İki sayfalıdan tek sayfalıya geçişte yakınlaştırma: Başlangıç'taki varsayılan yakınlaştırma bir sığdırma seçeneğiyse o (belge
@@ -1897,6 +1903,7 @@ document.addEventListener('keydown', (e) => {
     if (!$('#belge-listesi').hidden) { sekmeler.belgeListesiKapat(); return; }
     if (document.querySelector('.ayarlar-ortusu')) { ayarlarPenceresiKapat(); return; }
     if (document.querySelector('.arac-pencere, .diyalog-ortusu')) return;   // pencere kendi Esc'ini işler
+    if (tumSecim.escIsle()) return;   // süren bütün belge kopyalaması durur ya da bütün belge seçimi (Ctrl+A) kalkar
     const n = aktif()?.notlar;
     // Odak düzenleyicinin dışındayken (belge, araç çubuğu düğmesi) basılan Esc de düzenlemeyi uygulayıp bitirir. Başka bir girdideki
     // Esc (Bul, sayfa kutusu) o girdinindir (odak girdiye geçerken düzenleme zaten uygulanır)
@@ -1956,26 +1963,26 @@ async function kucukResimAl(b) {
   catch { return null; }
 }
 
-/** Belgedeki (metin katmanındaki) seçimin metni; seçim başka yerdeyse (ör. sayfa kutusunun odakta seçtiği numara) boş. */
+/** Belgedeki (metin katmanındaki) seçimin metni; seçim başka yerdeyse (ör. sayfa kutusunun odakta seçtiği numara) boş. Bütün belge
+ *  seçiliyken (Ctrl+A, 0.2.6) de boş: Bul çapa sayfasının metniyle dolardı. */
 function belgeSecimMetni() {
+  if (tumSecim.gecerli()) return '';
   const d = window.getSelection()?.anchorNode;
   return (d?.nodeType === 1 ? d : d?.parentElement)?.closest('.textLayer') ? secimHamMetni() : '';
 }
 
+/** Ctrl+A: girdide girdinin metni, belgede belgenin bütün sayfalarının metni (0.2.6; 0.2.5'e dek yalnızca geçerli sayfa; tumSecim.js). */
 function tumunuSec() {
   if (girdideMi()) { document.execCommand('selectAll'); return; }
   const b = aktif(); if (!b) return;
-  const g = b.gorunum;
-  const katman = g.sayfalar[g.gecerli - 1]?.el.querySelector('.textLayer');
-  if (!katman) return;
-  const sec = window.getSelection(); const r = document.createRange();
-  r.selectNodeContents(katman); sec.removeAllRanges(); sec.addRange(r);
+  tumSecim.sec(b).catch((e) => console.warn('Tümünü seç', e));
 }
 
 // ---------------------------------------------------------------- metin: sağ tık, üç tık, kopyalama
 function metinOlaylariBagla(belge) {
   const alan = belge.gorunum.alan;
   surukleSecimiBagla(belge.gorunum, { aracAl: () => belge.notlar?.arac });   // boşluktan da sürükleyerek seçim
+  tumSecim.bagla(belge);   // bütün belge seçimi (Ctrl+A) sayfa alanına tıklayınca kalkar
   alan.addEventListener('mousedown', (e) => {
     if (e.button !== 0 || e.detail !== 3) return;
     const span = e.target.closest('.textLayer span');
@@ -1987,12 +1994,15 @@ function metinOlaylariBagla(belge) {
     if (!sayfaEl) return;
     e.preventDefault();
     const sec = window.getSelection();
-    const seciliVar = sec && !sec.isCollapsed && katman;
+    // Bütün belge seçiliyken (Ctrl+A, 0.2.6) Kopyala her yerde etkin, bütün belgeyi kopyalar; Vurgula ve Ara tarayıcı seçimiyle çalışır,
+    // yalnızca çapa sayfasına uygulanırdı: devre dışı. Not ekle tıklanan yere not koyar (seçime vurgulu not değil)
+    const tum = tumSecim.menuIcinGecerli(belge);
+    const seciliVar = tum || (sec && !sec.isCollapsed && katman);
     const secim = await pdefe.cagir('menu:popup', [
       { id: 'kopyala', etiket: 'Kopyala', devre: !seciliVar },
-      { id: 'vurgula', etiket: 'Vurgula', devre: !seciliVar },
+      { id: 'vurgula', etiket: 'Vurgula', devre: !seciliVar || tum },
       { id: 'not', etiket: 'Not ekle' },
-      { id: 'ara', etiket: 'Ara', devre: !seciliVar },
+      { id: 'ara', etiket: 'Ara', devre: !seciliVar || tum },
       { ayirici: true },
       { id: 'tumunuSec', etiket: 'Tümünü seç' },
       // 0.2.1 (kullanıcı isteği): en altta, sık kullanılan Kopyala'nın yerinde değil (alışkanlıkla yanlışlıkla kaydedilmesin). Yazdır (0.2.6,
@@ -2007,11 +2017,12 @@ function metinOlaylariBagla(belge) {
     else if (secim === 'ara') komutCalistir('duzen.bul', secimHamMetni().trim().split('\n')[0]);
     else if (secim === 'tumunuSec') tumunuSec();
     else if (secim === 'vurgula') belge.notlar.vurguUygula(ayar.vurguRengi || VURGU_RENKLERI[0].hex);
-    else if (secim === 'not') { if (!(seciliVar && belge.notlar.secimeNotKoy())) belge.notlar.sayfayaNotKoy(+sayfaEl.dataset.sayfa - 1, e); }
+    else if (secim === 'not') { if (!(seciliVar && !tum && belge.notlar.secimeNotKoy())) belge.notlar.sayfayaNotKoy(+sayfaEl.dataset.sayfa - 1, e); }
   });
 }
 
 document.addEventListener('copy', (e) => {
+  if (tumSecim.kopyala(e)) return;   // bütün belge seçili (Ctrl+A): metni çekirdek sayfa sayfa verir (tumSecim.js)
   const sec = window.getSelection();
   if (!sec || sec.isCollapsed || !sec.anchorNode) return;
   const katman = (sec.anchorNode.nodeType === 1 ? sec.anchorNode : sec.anchorNode.parentElement)?.closest('.textLayer');
@@ -2205,5 +2216,5 @@ document.addEventListener('click', (e) => {
   yeniSekme();
   pdefe.gonder('pencere:belgeler', []);   // arayüz yeniden yüklendiyse ana süreçteki açık belge kaydı bayat kalmasın
   pdefe.gonder('uygulama:hazir');
-  window.__pdefe = { belgeler, aktif, dosyaAc, belgeKapat, sekmeSec, komutCalistir, ayar: () => ayar, panel, sekmeler, arama, temizMetin, sayfaTarifiUygula, sayfalariDondur, belgeKaydet, mesajKutusu, sekmeyiTasi, sekmePaketi, tasimaSuruyor: () => tasimaSuruyor, kilitli: () => girdiKilitli(), gecmisListesi };
+  window.__pdefe = { belgeler, aktif, dosyaAc, belgeKapat, sekmeSec, komutCalistir, ayar: () => ayar, panel, sekmeler, arama, temizMetin, sayfaTarifiUygula, sayfalariDondur, belgeKaydet, mesajKutusu, sekmeyiTasi, sekmePaketi, tasimaSuruyor: () => tasimaSuruyor, kilitli: () => girdiKilitli(), gecmisListesi, tumSecim };
 })();
