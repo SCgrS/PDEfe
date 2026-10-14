@@ -93,6 +93,8 @@
 .ayar-renk.secili { border-color: var(--metin); }
 .ayar-renk:focus-visible { outline: 2px solid var(--vurgu); outline-offset: 2px; }
 .ayar-yol { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: text; }
+/* UYAP Doküman Editörü'nün durumu (0.2.6): bulunan yol ve sürüm, Java, neden; satır satır */
+.ayar-ude-durum { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 12px; }
 .ayar-sonuc { padding: 8px 4px; font-size: 12px; }
 .ayar-sonuc-var { color: var(--vurgu); font-weight: 600; }
 .ayar-sonuc-hata { color: #d13438; }

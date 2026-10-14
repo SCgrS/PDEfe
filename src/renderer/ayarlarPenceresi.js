@@ -1,7 +1,8 @@
 // Ayarlar penceresi: solda bölüm listesi, sağda içerik (Windows 11 Ayarlar havası).
 // Her değişiklik anında kaydedilir (baglam.ayarKoy) ve canlı uygulanır (baglam.uygula).
 // Bölümler (0.1.12): Görünüm (tema, yazı çizimi), Açılış ve düzen (varsayılan uygulama, kaldığım sayfa, son açılanlar; yakınlaştırma,
-// tek/iki sayfa, kaydırma, kapak; 0.2.2'den beri pencereyi kapatırken), Not ve vurgu, Kaydetme (otomatik kaydet, araçların çıktı klasörü), Güncelleme,
+// tek/iki sayfa, kaydırma, kapak; 0.2.2'den beri pencereyi kapatırken), Not ve vurgu, Kaydetme (otomatik kaydet, araçların çıktı klasörü;
+// 0.2.6'dan beri Dosya Formatını Değiştir'in kullandığı UYAP Doküman Editörü'nün yeri), Güncelleme,
 // Kısayollar (0.2.4; F1'deki liste, ayar değil), Hakkında.
 // Sekme adı içeriğini söylesin: bir ayar eklerken ona göre yerleştirin. 0.1.12'de (kullanıcı isteği) Sayfa düzeni ile Belge açılışı
 // birleşti ("Açılış ve düzen"), Notlar'ın adı "Not ve vurgu" oldu, Kopyalama kalktı (kopyalama her zaman temiz metin).
@@ -404,9 +405,68 @@ function bolumKaydetme(k) {
   });
   temizle.addEventListener('click', () => { degistir('ciktiKlasoru', ''); yolEl.textContent = 'Masaüstü'; yolEl.classList.add('soluk'); temizle.disabled = true; });
   k.append(kart({
-    baslik: 'Araçların çıktı klasörü', aciklama: 'Araçların (Sıkıştır, Sayfaları düzenle, Döndür, Ayır, Görüntü / PDF birleştir) yeni belge olarak kaydettiği dosyalar için önerilen klasör; araç penceresinde değiştirilebilir. Boşsa Masaüstü kullanılır.',
+    baslik: 'Araçların çıktı klasörü', aciklama: 'Araçların (Sıkıştır, Sayfaları düzenle, Döndür, Ayır, Görüntü / PDF birleştir, Dosya Formatını Değiştir) yeni belge olarak kaydettiği dosyalar için önerilen klasör; araç penceresinde değiştirilebilir. Boşsa Masaüstü kullanılır.',
     kontrol: el('div', { class: 'ayar-yanyana' }, [sec, temizle]), alt: yolEl,
   }));
+  k.append(el('h3', {}, 'Dosya Formatını Değiştir'));
+  udeKarti(k);
+}
+
+/**
+ * UYAP Doküman Editörü'nün yeri (0.2.6, Dosya Formatını Değiştir): UDF → PDF bilgisayardaki editörle çizilir. "Otomatik bul" ayarı temizler
+ * (udeYolu null: çekirdek editörü kendisi arar), "Klasörü seç…" ana sürecin klasör seçme penceresini açar (ayar:udeKlasoruSec; klasörde
+ * editör bulunursa ayarı ana süreç yazar, arayüz udeYolu'nu yalnızca temizleyebilir). Altında bulunan editörün yolu ve sürümü, Java'nın
+ * sürümü ya da bulunamama nedeni (çekirdeğin donusum_yetenekleri'nden). macOS'ta da aynı (UYAP uygulamasının paketi seçilebilir).
+ */
+function udeKarti(k) {
+  const { pdefe } = acik.baglam;
+  const durum = el('div', { class: 'ayar-ude-durum' }, 'Aranıyor…');
+  const otomatik = el('button', { class: 'ikincil', type: 'button' }, 'Otomatik bul');
+  const sec = el('button', { class: 'ikincil', type: 'button' }, 'Klasörü seç…');
+  const kartEl = kart({
+    baslik: 'UYAP Doküman Editörü',
+    aciklama: 'UDF dosyaları PDF\'e bilgisayardaki UYAP Doküman Editörü\'yle (pencere açılmadan) dönüştürülür. Otomatik bul: kurulu editör kendiliğinden bulunur. Bulunamıyorsa ya da başka bir kurulum kullanılacaksa editörün klasörünü seçin.',
+    kontrol: el('div', { class: 'ayar-yanyana' }, [otomatik, sec]), alt: durum,
+  });
+  kartEl.dataset.hedef = 'udeYolu';
+  k.append(kartEl);
+  /** Çekirdeğe sorar, durum satırını yazar. hata: seçilen klasörde bulunamadı gibi bir ileti (durum satırının başında). */
+  const yenile = async (hata = '') => {
+    durum.className = 'ayar-ude-durum soluk';
+    durum.textContent = 'Aranıyor…';
+    let y = null;
+    try { y = await acik?.baglam.cekirdek?.('donusum_yetenekleri', {}); } catch (e) { console.warn('UYAP Doküman Editörü durumu alınamadı', e); }
+    if (!kartEl.isConnected) return;
+    const udf = y?.udf, ude = udf?.ude, java = udf?.java;
+    const elle = ayarlar().udeYolu || null;
+    const satirlar = [];
+    if (hata) satirlar.push(hata);
+    if (!y) satirlar.push('Durum alınamadı.');
+    else if (ude?.var) {
+      const kaynak = ude.kaynak === 'ayar' ? 'seçtiğiniz klasör' : elle ? 'seçtiğiniz klasörde bulunamadı, kendiliğinden bulundu' : 'kendiliğinden bulundu';
+      satirlar.push(`Bulunan: ${ude.yol}${ude.surum ? ` · sürüm ${ude.surum}` : ''} (${kaynak})`);
+      satirlar.push(java?.var ? `Java ${java.surum || ''}`.trim() : (udf.neden || 'UYAP Doküman Editörü\'nün çalıştığı Java (8) bulunamadı.'));
+      if (java?.var && udf.neden) satirlar.push(udf.neden);
+    } else satirlar.push(udf?.neden || 'Bu bilgisayarda UYAP Doküman Editörü bulunamadı.');
+    durum.replaceChildren(...satirlar.map((s) => el('div', { class: 'ayar-yol' }, s)));
+    durum.title = satirlar.join('\n');
+    durum.className = `ayar-ude-durum ${hata || !udf?.var ? 'ayar-sonuc-hata' : 'soluk'}`;
+    otomatik.disabled = sec.disabled = false;
+  };
+  otomatik.addEventListener('click', async () => {
+    otomatik.disabled = sec.disabled = true;
+    degistir('udeYolu', null);
+    await yenile();
+  });
+  sec.addEventListener('click', async () => {
+    otomatik.disabled = sec.disabled = true;
+    let r = null;
+    try { r = await pdefe.cagir('ayar:udeKlasoruSec'); } catch (e) { console.error(e); }
+    if (!acik || !kartEl.isConnected) return;
+    if (r?.kaydedildi) { const a = acik.baglam.ayar(); if (a) a.udeYolu = r.yol; }   // ayarı ana süreç yazdı; bu pencerenin kopyası
+    await yenile(r && !r.kaydedildi ? (r.neden || 'Seçilen klasörde UYAP Doküman Editörü bulunamadı.') : '');
+  });
+  yenile();
 }
 
 function bolumGuncelleme(k) {

@@ -19,6 +19,9 @@
 //   8) Açma yolları: ana pencereye bırakılan PDF sekmede, UDF / TIFF / Word araçta açılır (araç açıksa listesine eklenir); Ctrl+O'nun
 //      süzgecinde desteklenen türler, seçilen UDF araçta; komut satırı (ikinci örnek, Gezgin'de "Birlikte aç") ve ana sürecin dosya:ac'ı;
 //      sürükleme örtüsü "Dosyaları bırakın".
+//   9) Ayarlar › Kaydetme › Dosya Formatını Değiştir › "UYAP Doküman Editörü": bulunan editörün yolu, sürümü ve Java; "Klasörü seç…" (ana
+//      sürecin penceresi; editörün olmadığı klasör ayarı değiştirmez, nedeni yazar; editörün klasörü ayara yazılır), "Otomatik bul" ayarı
+//      temizler; çıktı klasörü kartının açıklamasında yeni araç.
 // Girdiler test/donustur_arayuz_uret.py ile test/cikti/s37/girdi altında üretilir (gerçek belge yok); çıktılar test/cikti/s37/cikti.
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9437 -Veri "$env:TEMP\pdefe-s37-9437" -Boyut "1280,1000"      → PID=… yazar
@@ -118,7 +121,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await bekle(400);
   };
   const ciktiDosyalari = () => fs.readdirSync(CIKTI).sort();
-  const bolumler = (process.env.BOLUM || '1,2,3,4,5,6,7,8').split(',').map((s) => s.trim());
+  const bolumler = (process.env.BOLUM || '1,2,3,4,5,6,7,8,9').split(',').map((s) => s.trim());
   const bolum = (n) => bolumler.includes(String(n));
 
   // ------------------------------------------------------------ hazırlık
@@ -590,6 +593,47 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     sonuc('Komut satırı (ikinci örnek): TIFF ilk örneğin Dosya Formatını Değiştir aracında açılır, sekme açılmaz', ikinci && J(S.map((x) => x.ad)) === J(['Tarama örneği.tif'])
       && (await evalJs(`window.__pdefe.belgeler.size`)) === 0, { ikinci, S: S.map((x) => x.ad) });
     await pencereKapat();
+  }
+
+  // ------------------------------------------------------------ 9) Ayarlar › UYAP Doküman Editörü
+  if (bolum(9)) {
+    console.log('\n== 9) Ayarlar: UYAP Doküman Editörü');
+    await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'udeYolu', null); window.__pdefe.ayar().udeYolu = null; window.__pdefe.komutCalistir('duzen.ayarlar', 'kaydetme'); return true; })()`);
+    await kosul(`!!document.querySelector('.ayarlar-ortusu .ayar-kart[data-hedef="udeYolu"]')`, 5000);
+    const KART = `document.querySelector('.ayarlar-ortusu .ayar-kart[data-hedef="udeYolu"]')`;
+    const kartDurumu = () => evalJs(`(() => { const k = ${KART}; return { baslik: k.querySelector('.ayar-baslik').textContent, aciklama: k.querySelector('.ayar-aciklama').textContent,
+      dugmeler: [...k.querySelectorAll('.ayar-kontrol button')].map((b) => [b.textContent, b.disabled]), durum: [...k.querySelectorAll('.ayar-ude-durum > div')].map((d) => d.textContent),
+      hata: k.querySelector('.ayar-ude-durum').classList.contains('ayar-sonuc-hata'), bolum: [...document.querySelectorAll('.ayarlar-icerik h3')].map((h) => h.textContent),
+      cikti: [...document.querySelectorAll('.ayarlar-icerik .ayar-kart')].find((x) => /çıktı klasörü/.test(x.textContent))?.querySelector('.ayar-aciklama').textContent }; })()`);
+    await kosul(`!${KART}.querySelector('.ayar-ude-durum').textContent.includes('Aranıyor')`, 15000);
+    let d = await kartDurumu();
+    sonuc('Ayarlar › Kaydetme: "Dosya Formatını Değiştir" başlığı altında "UYAP Doküman Editörü" kartı; Otomatik bul ve Klasörü seç… düğmeleri; çıktı klasörü açıklamasında yeni araç',
+      d.bolum.includes('Dosya Formatını Değiştir') && d.baslik === 'UYAP Doküman Editörü' && J(d.dugmeler.map((x) => x[0])) === J(['Otomatik bul', 'Klasörü seç…']) && /Dosya Formatını Değiştir/.test(d.cikti || ''), d);
+    if (UDE_VAR) sonuc('Durum: kendiliğinden bulunan editörün yolu ve sürümü, Java\'nın sürümü', d.durum[0]?.startsWith(`Bulunan: ${YET.udf.ude.yol}`) && /kendiliğinden bulundu/.test(d.durum[0]) && /^Java /.test(d.durum[1] || '') && !d.hata, d.durum);
+    else sonuc('Durum: editör bulunamadı, nedeni yazar', d.hata && /bulunamadı/.test(d.durum.join(' ')), d.durum);
+    await ss('09-ayarlar-ude');
+    // Editörün olmadığı klasör: ayar değişmez, durumda neden
+    const bosKlasor = path.join(UI, 'bos-klasor');
+    fs.mkdirSync(bosKlasor, { recursive: true });
+    await yanitla('dosya:klasorSec', [bosKlasor]);
+    await tikSecici(`[...${KART}.querySelectorAll('.ayar-kontrol button')].find((b) => b.textContent === 'Klasörü seç…')`);
+    await kosul(`${KART}.querySelector('.ayar-ude-durum').textContent.includes('Seçilen klasörde')`, 15000);
+    d = await kartDurumu();
+    sonuc('Klasörü seç… (editörsüz klasör): ayar değişmez; durumda "Seçilen klasörde UYAP Doküman Editörü bulunamadı."', d.hata && d.durum[0] === 'Seçilen klasörde UYAP Doküman Editörü bulunamadı.'
+      && (await evalJs(`window.pdefe.cagir('ayar:al', 'udeYolu')`)) == null, d.durum);
+    if (UDE_VAR) {
+      await yanitla('dosya:klasorSec', [YET.udf.ude.yol]);
+      await tikSecici(`[...${KART}.querySelectorAll('.ayar-kontrol button')].find((b) => b.textContent === 'Klasörü seç…')`);
+      await kosul(`${KART}.querySelector('.ayar-ude-durum').textContent.includes('seçtiğiniz klasör')`, 15000);
+      d = await kartDurumu();
+      sonuc('Klasörü seç… (editörün klasörü): ayara yazılır, durumda "(seçtiğiniz klasör)"', /\(seçtiğiniz klasör\)/.test(d.durum[0] || '') && !d.hata
+        && (await evalJs(`window.pdefe.cagir('ayar:al', 'udeYolu')`)) === YET.udf.ude.yol && (await evalJs(`window.__pdefe.ayar().udeYolu`)) === YET.udf.ude.yol, d.durum);
+      await tikSecici(`[...${KART}.querySelectorAll('.ayar-kontrol button')].find((b) => b.textContent === 'Otomatik bul')`);
+      await kosul(`${KART}.querySelector('.ayar-ude-durum').textContent.includes('kendiliğinden bulundu')`, 15000);
+      d = await kartDurumu();
+      sonuc('Otomatik bul: ayar temizlenir, durumda "(kendiliğinden bulundu)"', /\(kendiliğinden bulundu\)/.test(d.durum[0] || '') && (await evalJs(`window.pdefe.cagir('ayar:al', 'udeYolu')`)) == null, d.durum);
+    } else atlandi('Editörün klasörü ve Otomatik bul', 'bu bilgisayarda UYAP Doküman Editörü yok');
+    await evalJs(`(async () => { const m = await import('pdefe://app/src/renderer/ayarlarPenceresi.js'); m.ayarlarPenceresiKapat(); return true; })()`);
   }
 
   // ------------------------------------------------------------ son
