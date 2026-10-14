@@ -119,6 +119,65 @@ export function anlikDosyasiMi(yol, anlikKlasor) {
  *  de denetlenir (main.js cekirdek:cagir). */
 export const YOLA_YAZANLAR = new Set(['notlar_kaydet', 'yapisal_kaydet', 'sayfalar_uygula', 'kucult', 'dondur_kaydet', 'ayir']);
 
+/** Dosya Formatını Değiştir'in çekirdek yöntemleri (0.2.6, core/islemler/donustur.py): parametreleri her zaman denetlenir. */
+export const DONUSUM_YONTEMLERI = new Set(['donusum_yetenekleri', 'donusum_bilgi', 'bicim_donustur']);
+
+/** Parametreleri hedef verilmese de denetlenen yöntemler (main.js cekirdek:cagir). */
+export const DENETLENEN_YONTEMLER = new Set([...YOLA_YAZANLAR, ...DONUSUM_YONTEMLERI, 'anlik_sil']);
+
+/** bicim_donustur: hedef biçime göre izinli uzantılar (çekirdeğin HEDEF_UZANTILARI ile aynı; Word hedefi .docx). */
+export const HEDEF_UZANTILARI = { pdf: ['.pdf'], udf: ['.udf'], tiff: ['.tif', '.tiff'], word: ['.docx'] };
+const EN_FAZLA_OGE = 500;
+const TIFF_DPILERI = new Set([200, 300]);
+const TIFF_RENKLERI = new Set(['sb', 'gri', 'renkli']);
+const UDF_KIPLERI = new Set(['otomatik', 'pdf', 'yazici']);
+
+/** Klasör var mı (bağlantıysa gösterdiği yer). */
+async function klasorMu(yol) {
+  if (typeof yol !== 'string' || !yol.trim()) return false;
+  const st = await fs.promises.stat(yol).catch(() => null);
+  return !!st?.isDirectory();
+}
+
+const izinYok = () => new Error('İzin verilmeyen istek.');
+const dolu = (s) => typeof s === 'string' && s.trim().length > 0 && !s.includes('\0');
+
+/**
+ * Dosya Formatını Değiştir'in parametreleri (0.2.6). Çekirdek de denetler; bu katman, arayüzde kod çalışsa bile çekirdeğin .bat / .cmd / .exe
+ * gibi bir dosyaya yazmamasını ve kullanıcının seçmediği bir klasördeki programı çalıştırmamasını sağlar.
+ *  - udeYolu: arayüzün verdiği yok sayılır; ana sürecin ayarındaki klasör (yalnızca ana sürecin klasör seçme penceresinden yazılır,
+ *    main.js ayar:udeKlasoruSec) var olan bir klasörse o, değilse null (çekirdek UYAP Doküman Editörü'nü kendisi arar). Çekirdek bu
+ *    klasördeki Java'yı çalıştırır: arayüz başka bir klasörü gösterememeli.
+ *  - donusum_bilgi: yol dolu bir metin, onizleme mantıksal değer, genislik 16–1024.
+ *  - bicim_donustur: ogeler en çok 500 öğe; her öğede yol (okunacak girdi) ve hedef dolu metin, hedefBicim bilinen biçim ve hedefin
+ *    uzantısı biçimle eşleşmeli (pdf → .pdf, udf → .udf, tiff → .tif / .tiff, word → .docx); secenekler yalnızca bilinen anahtarlar ve
+ *    değerler (dpi 200 | 300, renk sb | gri | renkli, kip otomatik | pdf | yazici; bilinmeyen anahtarlar atılır). Uyuşmazlıkta istek reddedilir.
+ */
+async function donusumParametreleri(yontem, p, { udeYolu = null } = {}) {
+  p.udeYolu = (await klasorMu(udeYolu)) ? udeYolu : null;
+  if (yontem === 'donusum_bilgi') {
+    if (!dolu(p.yol)) throw izinYok();
+    p.onizleme = p.onizleme == null ? true : p.onizleme === true;
+    if (p.genislik != null) { const g = Math.round(Number(p.genislik)); p.genislik = Number.isFinite(g) ? Math.max(16, Math.min(1024, g)) : 220; }
+  }
+  if (yontem === 'bicim_donustur') {
+    if (!Array.isArray(p.ogeler) || !p.ogeler.length || p.ogeler.length > EN_FAZLA_OGE) throw izinYok();
+    p.ogeler = p.ogeler.map((o) => {
+      if (!o || typeof o !== 'object' || Array.isArray(o) || !dolu(o.yol) || !dolu(o.hedef)) throw izinYok();
+      const uzantilar = Object.prototype.hasOwnProperty.call(HEDEF_UZANTILARI, o.hedefBicim) ? HEDEF_UZANTILARI[o.hedefBicim] : null;
+      if (!uzantilar) throw izinYok();
+      if (!uzantilar.includes(path.extname(o.hedef).toLowerCase())) throw new Error(`Hedef dosyanın uzantısı ${uzantilar.join(' ya da ')} olmalı.`);
+      const s = o.secenekler && typeof o.secenekler === 'object' && !Array.isArray(o.secenekler) ? o.secenekler : {};
+      const secenekler = {};
+      if (s.dpi != null) { if (!TIFF_DPILERI.has(s.dpi)) throw izinYok(); secenekler.dpi = s.dpi; }
+      if (s.renk != null) { if (!TIFF_RENKLERI.has(s.renk)) throw izinYok(); secenekler.renk = s.renk; }
+      if (s.kip != null) { if (!UDF_KIPLERI.has(s.kip)) throw izinYok(); secenekler.kip = s.kip; }
+      return { yol: o.yol, hedef: o.hedef, hedefBicim: o.hedefBicim, secenekler };
+    });
+  }
+  return p;
+}
+
 /**
  * Çekirdek çağrısının parametreleri (renderer'dan gelir) denetlenir, gerekirse düzeltilir; izin verilmeyen çağrıda hata fırlatır.
  *  - yazılacak dosya (hedef; hedef verilmezse YOLA_YAZANLAR'da yol): çekirdek yalnızca .pdf uzantılı dosyaya ya da zaten var olan bir PDF'in
@@ -127,8 +186,9 @@ export const YOLA_YAZANLAR = new Set(['notlar_kaydet', 'yapisal_kaydet', 'sayfal
  *    yapisal_kaydet ve sayfalar_uygula hedefsiz çağrılınca var olması gerekmeyen yol'a yazıyordu.
  *  - yapisal_kaydet: anlık kopyanın klasörünü ana süreç verir (renderer'ın verdiği yok sayılır).
  *  - anlik_sil: yalnızca anlık kopya klasöründeki anlık kopyalar silinir.
+ *  - Dosya Formatını Değiştir'in yöntemleri (0.2.6): donusumParametreleri. ana.udeYolu: ana sürecin ayarındaki UYAP Doküman Editörü klasörü.
  */
-export async function cekirdekParametreleri(yontem, params, anlikKlasor) {
+export async function cekirdekParametreleri(yontem, params, anlikKlasor, ana = {}) {
   const p = params && typeof params === 'object' && !Array.isArray(params) ? { ...params } : {};
   const yazilacak = p.hedef != null ? p.hedef : (YOLA_YAZANLAR.has(yontem) && (yontem !== 'ayir' || p.uzerine) ? p.yol : null);
   if (yazilacak != null && !/\.pdf$/i.test(String(yazilacak)) && !(await pdfDosyasiMi(yazilacak).catch(() => false))) {
@@ -136,5 +196,6 @@ export async function cekirdekParametreleri(yontem, params, anlikKlasor) {
   }
   if (yontem === 'yapisal_kaydet') p.anlikKlasor = anlikKlasor;
   if (yontem === 'anlik_sil' && !anlikDosyasiMi(p.yol, anlikKlasor)) throw new Error('İzin verilmeyen istek.');
+  if (DONUSUM_YONTEMLERI.has(yontem)) return donusumParametreleri(yontem, p, ana);
   return p;
 }

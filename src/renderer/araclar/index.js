@@ -22,19 +22,22 @@ import { sayfalarAc } from './sayfalar.js';
 import { ayirAc } from './ayir.js';
 import { gorselBirlestirAc } from './gorselBirlestir.js';
 import { dondurAc } from './dondur.js';
+import { donusturAc } from './donustur.js';
 
 export { KucultPenceresi } from './kucult.js';
 export { SayfalarPenceresi } from './sayfalar.js';
 export { AyirPenceresi } from './ayir.js';
 export { BirlestirmePenceresi } from './gorselBirlestir.js';
 export { DondurPenceresi } from './dondur.js';
+export { DonusturPenceresi, DONUSTURULEN_UZANTILAR } from './donustur.js';
 export { boyutMetni, pencereAc, IslemIlerleme, aracPencereleriniKapat, aracPenceresiKapaninca, acikAracPenceresiVar } from './ortak.js';
 
 const GEREKLI = ['aktif', 'cekirdek', 'dosyaAc', 'kaydet', 'mesajKutusu', 'bildir', 'pdefe', 'ayar'];
 
 /**
  * Menü komut kimliklerini araç açan işlevlere bağlar.
- * @returns {{ 'arac.kucult': Function, 'arac.sayfalar': Function, 'arac.ayir': Function, 'arac.gorselBirlestir': Function, 'arac.dondurKaydet': Function }}
+ * @returns {{ 'arac.kucult': Function, 'arac.sayfalar': Function, 'arac.ayir': Function, 'arac.gorselBirlestir': Function, 'arac.dondurKaydet': Function,
+ *   'arac.donustur': Function }}  arac.donustur'un verisi dosya yolları dizisidir (araç açıksa listeye eklenir; 0.2.6)
  */
 export function aracKomutlari(baglam) {
   for (const k of GEREKLI) if (baglam?.[k] == null) throw new Error(`aracKomutlari: baglam.${k} eksik`);
@@ -48,5 +51,6 @@ export function aracKomutlari(baglam) {
     'arac.ayir': sar(ayirAc),
     'arac.gorselBirlestir': sar((b, veri) => gorselBirlestirAc(b, Array.isArray(veri) ? veri : [])),
     'arac.dondurKaydet': sar(dondurAc),
+    'arac.donustur': sar((b, veri) => donusturAc(b, Array.isArray(veri) ? veri : [])),
   };
 }

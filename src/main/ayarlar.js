@@ -30,6 +30,9 @@ export const VARSAYILANLAR = {
   // Kaydetme
   otomatikKaydet: false,          // 0.1.4–0.1.11 varsayılan açıktı; 0.1.12'de kullanıcı isteğiyle kapalı (aşağıdaki taşıma)
   ciktiKlasoru: '',               // araçların yeni belge çıktıları; boşsa Masaüstü (app.getPath('desktop'))
+  // Dosya Formatını Değiştir (0.2.6): UYAP Doküman Editörü'nün klasörü (null: kendiliğinden bulunur; Ayarlar › Kaydetme). Yalnızca ana
+  // sürecin klasör seçme penceresinden (ayar:udeKlasoruSec) yazılır, arayüz yalnızca null yapabilir: çekirdek bu klasördeki Java'yı çalıştırır
+  udeYolu: null,
   // Kopyalama ayarı (temizMetin) 0.1.12'de kalktı: kopyalama her zaman temiz metin
   // Güncelleme: haftada bir otomatik denetle. Son denetimin zamanı (sonDenetimZamani) main/guncelleme.js'te; varsayılanı yoktur,
   // "Varsayılanlara dön" ona dokunmaz.
@@ -44,6 +47,9 @@ export const VARSAYILANLAR = {
   // Yazdırma penceresinin son seçimleri (0.2.6, renderer/yazdir.js): { yazici, harmanla, kagit, olcek, renk, ciftTarafli }. Kopya sayısı,
   // sayfa aralığı ve "Notları yazdır" kalıcı değil (bir sonraki yazdırmada kendiliğinden 5 kopya ya da notlar basılmasın)
   yazdirma: {},
+  // Dosya Formatını Değiştir'in son seçimleri (0.2.6, renderer/araclar/donustur.js): { hedefler: { <girdinin türü>: <hedef biçim> } }; yeni
+  // eklenen dosyada o türün son seçilen hedefi önerilir (ilk kez: PDF'te UDF, ötekilerde PDF)
+  donusturme: {},
   pencere: {},
 };
 

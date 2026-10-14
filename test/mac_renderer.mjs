@@ -195,6 +195,40 @@ export default async function ({ evalJs }) {
   sonuc('Araç sorusu (macOS): yazılamayan dosyada Kilitli işareti ve Paylaşma ve İzinler söyleniyor', !kilitli.length && /Paylaşma ve İzinler/.test(hataSorusu.mac.okunamadi?.ayrinti || ''),
     kilitli.map((ad) => hataSorusu.mac[ad]?.ayrinti));
 
+  // ---------------------------------------------------------------- Dosya Formatını Değiştir (0.2.6, araclar/donustur.js)
+  // Satırın sağ tık menüsünde ve sonuç listesinde macOS'ta "Finder'da göster", Windows'ta "Klasörde göster"; kilitli dosya sorusunun örnek
+  // programı çıktının türüne göre (Windows'ta UDF'de "UYAP Doküman Editörü'nde"; PDF'te eskisi gibi "bir PDF okuyucuda", yukarıda)
+  const donustur = await evalJs(`(async () => { ${ORTAM}
+    const sonuc = {};
+    for (const mac of [true, false]) {
+      const o = ortam(mac), { DonusturPenceresi } = await o.yukle('araclar/donustur.js'), { kayitSecimi } = await o.yukle('araclar/ortak.js');
+      const sorular = [];
+      const baglam = {
+        cekirdek: async (y) => (y === 'donusum_bilgi' ? { tur: 'pdf', alt: null, boyut: 1000, sayfa: 1, hedefler: [{ bicim: 'udf', var: true }, { bicim: 'tiff', var: true }] } : {}),
+        pdefe: { cagir: async (kanal, yol) => (kanal === 'dosya:varMi' ? yol === '/Volumes/Arsiv' : null), dosyaYolu: () => '' },
+        ayar: () => ({ ciktiKlasoru: '/Volumes/Arsiv' }), ayarKoy: () => {}, bildir: () => {}, aktif: () => null, dosyaAc: async () => null,
+        mesajKutusu: async (s) => { sorular.push(s); return { secim: s.dugmeler ? s.dugmeler.length - 1 : 0 }; },
+      };
+      const w = new DonusturPenceresi(baglam, { ilkDosyalar: ['/Volumes/Arsiv/Belge.pdf'] });
+      for (let i = 0; i < 50 && w.ogeler[0]?.yukleniyor; i++) await new Promise((c) => setTimeout(c, 20));
+      const satir = w.liste.querySelector('.donustur-oge');
+      const menu = w._listeMenusu({ target: satir }).filter((m) => !m.ayirici).map((m) => m.etiket);
+      await w._sonucGoster([{ yol: '/Volumes/Arsiv/Belge.pdf', hedef: '/Volumes/Arsiv/Belge.udf', hedefBicim: 'udf', boyut: 10 }, { yol: '/Volumes/Arsiv/Belge.pdf', hedef: '/Volumes/Arsiv/Belge.tif', hedefBicim: 'tiff', boyut: 10 }], { tek: false });
+      const goster = w.sonucEl.querySelector('.donustur-goster')?.textContent;
+      await w.pencere.kapat('tamam');
+      const k = kayitSecimi({ baglam, belge: null, ad: 'Belge', uzanti: 'udf' });
+      await k.hazir;
+      k.cikti.ayarla('/Volumes/Arsiv', 'Hedef', { elle: true });
+      await k.hataSor(new Error('Dosya yazılamadı; başka bir programda açık: Hedef.udf'));
+      sonuc[mac ? 'mac' : 'win'] = { menu, goster, ad: k.cikti.ad(), soru: sorular.at(-1)?.ayrinti || '' };
+    }
+    return sonuc;
+  })()`);
+  sonuc('Dosya Formatını Değiştir (macOS): satır menüsünde ve sonuçta "Finder\'da göster"', J(donustur.mac.menu) === J(['Finder\'da göster', 'Listeden çıkar']) && donustur.mac.goster === 'Finder\'da göster', donustur.mac);
+  sonuc('Dosya Formatını Değiştir (Windows): satır menüsünde ve sonuçta "Klasörde göster"', J(donustur.win.menu) === J(['Klasörde göster', 'Listeden çıkar']) && donustur.win.goster === 'Klasörde göster', donustur.win);
+  sonuc('Kaydet bölümü UDF çıktısında ad "Hedef.udf"; kilitli dosya sorusu Windows\'ta "UYAP Doküman Editörü\'nde" der, macOS\'ta Finder\'ı anlatır',
+    donustur.win.ad === 'Hedef.udf' && donustur.mac.ad === 'Hedef.udf' && /örneğin UYAP Doküman Editörü'nde\) açık olabilir/.test(donustur.win.soru) && /Finder/.test(donustur.mac.soru) && !/başka bir programda/.test(donustur.mac.soru), donustur);
+
   // ---------------------------------------------------------------- Ayarlar › Güncelleme (ayarlarPenceresi.js bolumGuncelleme)
   // macOS'ta yeni sürüm tek tıkla kurulmaz: açıklama İndir'i ve Uygulamalar'a sürüklemeyi anlatmalı, "Şimdi denetle"nin çıkardığı düğme
   // şeritteki gibi 'İndir'. Windows'ta metin ve 'Güncelle' düğmesi değişmemeli

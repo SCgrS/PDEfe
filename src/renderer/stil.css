@@ -474,11 +474,13 @@ html[data-tema="koyu"] .karsilama-ac-ikon { color: #0b1a2a; }
 .karsilama-arac[data-renk="mor"] { --renk: #7a3fd1; }
 .karsilama-arac[data-renk="turuncu"] { --renk: #c3501a; }
 .karsilama-arac[data-renk="pembe"] { --renk: #b4278f; }
+.karsilama-arac[data-renk="turkuaz"] { --renk: #00766c; }   /* 0.2.6: Dosya Formatını Değiştir */
 html[data-tema="koyu"] .karsilama-arac[data-renk="yesil"] { --renk: #6ccb8f; }
 html[data-tema="koyu"] .karsilama-arac[data-renk="mavi"] { --renk: #60b8ff; }
 html[data-tema="koyu"] .karsilama-arac[data-renk="mor"] { --renk: #b894ff; }
 html[data-tema="koyu"] .karsilama-arac[data-renk="turuncu"] { --renk: #ff9d66; }
 html[data-tema="koyu"] .karsilama-arac[data-renk="pembe"] { --renk: #f08ad6; }
+html[data-tema="koyu"] .karsilama-arac[data-renk="turkuaz"] { --renk: #4fd1c5; }
 /* Son açılanlar (0.1.14, kullanıcı isteği): araçların altında; başlık kutunun dışında (Araçlar gibi), belgeler kutunun içinde. En çok 10
    belge; kutu kaydırılmaz, belgeler geniş pencerede iki sütuna (en yenisi sol üstte, yukarıdan aşağı) dağılır, dar pencerede tek sütun */
 .karsilama-son { display: flex; flex-direction: column; gap: 8px; min-width: 0; }

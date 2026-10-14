@@ -178,7 +178,7 @@ export default async function (surucu) {
         gorunurMetin: bas.innerText, tasan, kartTasan };
     })()`);
     const ARACLAR_SIRA = await evalJs(`import('./aracPenceresi.js').then((m) => m.ARACLAR.map((a) => [a.komut, a.ad])).catch(() => null)`);
-    const beklenenSira = ARACLAR_SIRA || [['arac.kucult', 'Sıkıştır'], ['arac.sayfalar', 'Sayfaları düzenle'], ['arac.dondurKaydet', 'Döndür'], ['arac.ayir', 'Ayır'], ['arac.gorselBirlestir', 'Görüntü / PDF birleştir']];
+    const beklenenSira = ARACLAR_SIRA || [['arac.kucult', 'Sıkıştır'], ['arac.sayfalar', 'Sayfaları düzenle'], ['arac.dondurKaydet', 'Döndür'], ['arac.ayir', 'Ayır'], ['arac.gorselBirlestir', 'Görüntü / PDF birleştir'], ['arac.donustur', 'Dosya Formatını Değiştir']];
     if (!ARACLAR_SIRA) bilgi('ARACLAR modülü içe aktarılamadı; beklenen sıra elle yazıldı');
 
     for (const gen of [1280, 700]) {
@@ -197,7 +197,7 @@ export default async function (surucu) {
         { ac: o.ac, ipucu: o.ipucu, metin: o.ipucuMetin, eskiIpucu: o.eskiIpucu });
       const sira = o.kartlar.map((c) => [c.eylem, c.ad]);
       const gorselSira = [...o.kartlar].sort((x, y) => (Math.abs(x.t - y.t) > 2 ? x.t - y.t : x.l - y.l)).map((c) => c.eylem);
-      sonuc(`[${gen}px] Beş araç kartı ARACLAR sırasıyla (DOM ve görsel sıra)`, J(sira) === J(beklenenSira) && J(gorselSira) === J(beklenenSira.map((x) => x[0])) && o.araclarBaslik === 'Araçlar', { sira, gorselSira });
+      sonuc(`[${gen}px] Altı araç kartı ARACLAR sırasıyla (DOM ve görsel sıra; 0.2.6: Dosya Formatını Değiştir)`, J(sira) === J(beklenenSira) && J(gorselSira) === J(beklenenSira.map((x) => x[0])) && o.araclarBaslik === 'Araçlar', { sira, gorselSira });
       sonuc(`[${gen}px] Son açılanlar kutusu görünür, iki belge listeli`, !o.sonHidden && o.sonDisplay !== 'none' && o.sonBaslik === 'Son açılanlar' && J(o.sonOgeler) === J(['b', 'a']), { sonHidden: o.sonHidden, sonDisplay: o.sonDisplay, sonOgeler: o.sonOgeler });
       // 0.1.14: tek sütun, Son açılanlar araçların altında (0.1.13'te geniş pencerede sağ sütundaydı)
       sonuc(`[${gen}px] Son açılanlar araçların altında, aynı sütunda; karşılama ortada`, o.son.t >= o.araclar.b && Math.abs(o.son.l - o.karsilama.l) < 2 && Math.abs(o.son.w - o.karsilama.w) < 2
@@ -504,8 +504,8 @@ export default async function (surucu) {
     // Araçlar penceresi (belge yok)
     await tikl(q('#dugme-araclar')); await kosul(`!document.querySelector('.araclar-penceresi').hidden`, 3000); await bekle(300);
     const karolar = await evalJs(`(() => { const p = document.querySelector('.araclar-penceresi'); return { karolar: [...p.querySelectorAll('.araclar-karo')].map((k) => ({ komut: k.dataset.aracKomut, ariaDisabled: k.getAttribute('aria-disabled'), disabled: k.disabled, opaklik: getComputedStyle(k).opacity, tabIndex: k.tabIndex, title: k.title })), not: !!p.querySelector('.araclar-not'), metin: p.innerText }; })()`);
-    sonuc('Araçlar penceresi belge yokken: beş karo, hiçbiri soluk / aria-disabled değil, "önce bir PDF açın" notu yok',
-      karolar.karolar.length === 5 && karolar.karolar.every((k) => k.ariaDisabled !== 'true' && !k.disabled && +k.opaklik === 1 && k.tabIndex === 0 && k.title && !/önce bir PDF/.test(k.title)) && !karolar.not && !/önce bir PDF/i.test(karolar.metin), karolar);
+    sonuc('Araçlar penceresi belge yokken: altı karo (0.2.6), hiçbiri soluk / aria-disabled değil, "önce bir PDF açın" notu yok',
+      karolar.karolar.length === 6 && karolar.karolar.every((k) => k.ariaDisabled !== 'true' && !k.disabled && +k.opaklik === 1 && k.tabIndex === 0 && k.title && !/önce bir PDF/.test(k.title)) && !karolar.not && !/önce bir PDF/i.test(karolar.metin), karolar);
     await ssIki('c-araclar-penceresi-belgesiz');
     if (await evalJs(`document.querySelector('.araclar-penceresi').hidden`)) { await tikl(q('#dugme-araclar')); await bekle(300); }
     await kayit();

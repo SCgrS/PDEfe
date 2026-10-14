@@ -12,7 +12,7 @@ import { panoyaDosyaKopyala, panoyaMetinYaz } from './pano.js';
 import { yazdirmaKur } from './yazdir.js';
 import { guncellemeKur } from './guncelleme.js';
 import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla, menuCubugunuUygula, pencereSayisi } from './pencereler.js';
-import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, YOLA_YAZANLAR, paketKlasoruMu, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasorleri, standartYaziTipleri, anlikDosyasiMi } from './guvenlik.js';
+import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, DENETLENEN_YONTEMLER, paketKlasoruMu, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasorleri, standartYaziTipleri, anlikDosyasiMi } from './guvenlik.js';
 import electronUpdater from 'electron-updater';
 import { createRequire } from 'node:module';
 import { MacGuncelleyici, tarayicidaIndir } from './macGuncelleme.js';
@@ -246,6 +246,9 @@ function ipcKur(ipcMain) {
   const MENU_AYARLARI = new Set(['varsayilanDuzen', 'kapakAyri', 'sonAcilanlariHatirla']);   // menüde görünen ayarlar
   // Ayarlar bütün pencerelerde ortaktır: değişiklik öteki pencerelere bildirilir ('ayar:degisti'; kendi kopyalarını güncelleyip uygularlar)
   ipcMain.handle('ayar:koy', (e, anahtar, deger) => {
+    // UYAP Doküman Editörü'nün klasörü (0.2.6) arayüzden yalnızca temizlenir (kendiliğinden bul); klasör yalnızca ayar:udeKlasoruSec'teki
+    // pencereden seçilir: çekirdek o klasördeki Java'yı çalıştırır, arayüzde kod çalışsa bile başka bir klasör gösterilemesin (guvenlik.js)
+    if (anahtar === 'udeYolu' && deger != null) throw new Error('İzin verilmeyen istek.');
     ayarKoy(anahtar, deger);
     if (MENU_AYARLARI.has(anahtar)) uygulamaMenusuKur();
     if (anahtar === 'menuCubugu') menuCubugunuUygula(!!deger);
@@ -275,6 +278,35 @@ function ipcKur(ipcMain) {
     return s.canceled ? null : s.filePaths[0];
   });
 
+  // Dosya Formatını Değiştir (0.2.6): UYAP Doküman Editörü'nün klasörü. Pencereyi ana süreç açar; seçilen klasörde çekirdek UYAP Doküman
+  // Editörü'nü bulursa (donusum_yetenekleri: udf.ude.kaynak 'ayar') ayara kendisi yazar (arayüz udeYolu'nu yalnızca temizleyebilir: ayar:koy),
+  // öteki pencereler 'ayar:degisti' alır. Döner: null (vazgeçildi) | { yol, kaydedildi: true, yetenekler } | { yol, kaydedildi: false,
+  // neden } (klasörde bulunamadı; ayar değişmez). macOS'ta UYAP uygulaması bir paket (.app) olduğundan paketin içi de gezilebilir. Test
+  // örneğinde pencere açılmaz, yanıt 'dosya:klasorSec' kuyruğundan
+  ipcMain.handle('ayar:udeKlasoruSec', async (e) => {
+    const baslik = "UYAP Doküman Editörü'nün klasörünü seçin";
+    const onceki = ayarAl('udeYolu');
+    let klasor;
+    if (testDiyalog) klasor = testDiyalog('dosya:klasorSec', { baslik, ude: true }, null);
+    else {
+      const s = await dialog.showOpenDialog(pencereAl(e), { title: baslik, defaultPath: onceki || undefined, properties: ['openDirectory', ...(MAC ? ['treatPackageAsDirectory'] : [])] });
+      klasor = s.canceled ? null : s.filePaths[0];
+    }
+    if (typeof klasor !== 'string' || !klasor) return null;
+    const st = await fs.promises.stat(klasor).catch(() => null);
+    if (!st?.isDirectory()) return null;
+    let yetenekler = null;
+    try { yetenekler = await cekirdek.cagir('donusum_yetenekleri', { udeYolu: klasor }); } catch (h) { return { yol: klasor, kaydedildi: false, neden: 'Denetlenemedi: ' + (h?.message || h) }; }
+    if (yetenekler?.udf?.ude?.kaynak !== 'ayar') {
+      // Çekirdek her istekte ayardaki yolu alır: denenen klasör sonraki istekle yine ayardakine döner (guvenlik.js donusumParametreleri)
+      cekirdek.cagir('donusum_yetenekleri', { udeYolu: onceki || null }).catch(() => {});
+      return { yol: klasor, kaydedildi: false, neden: 'Seçilen klasörde UYAP Doküman Editörü bulunamadı.' };
+    }
+    ayarKoy('udeYolu', klasor);
+    digerlerine(e, 'ayar:degisti', 'udeYolu', klasor);
+    return { yol: klasor, kaydedildi: true, yetenekler };
+  });
+
   ipcMain.handle('dosya:kaydetDiyalog', async (e, secenek) => {
     if (testDiyalog) return testDiyalog('dosya:kaydetDiyalog', secenek, null);
     const filtreler = secenek?.filtreler || [{ name: 'PDF belgesi', extensions: ['pdf'] }];
@@ -285,11 +317,13 @@ function ipcKur(ipcMain) {
       properties: sonKullanilanlar(),
     });
     if (s.canceled || !s.filePath) return null;
-    // Yalnızca PDF süzgeci varken başka uzantılı ad yazılırsa (ör. "rapor.txt") .pdf eklenir: çekirdek yalnızca .pdf'e yazar (guvenlik.js).
-    // Windows'un "değiştirilsin mi" sorusu diyalogdaki ada göre sorulduğundan, eklenmiş adla dosya varsa burada sorulur
-    const yalnizPdf = filtreler.every((f) => (f.extensions || []).every((x) => String(x).toLowerCase() === 'pdf'));
-    if (!yalnizPdf || /\.pdf$/i.test(s.filePath)) return s.filePath;
-    const yol = s.filePath + '.pdf';
+    // Süzgeçlerde "Tüm dosyalar" (*) yoksa ve yazılan adın uzantısı süzgeçlerinkinden biri değilse (ör. PDF süzgecinde "rapor.txt") ilk
+    // süzgecin ilk uzantısı eklenir: çekirdek yalnızca .pdf'e (0.2.6'dan beri Dosya Formatını Değiştir'de biçimin uzantısına: .udf, .tif,
+    // .docx) yazar (guvenlik.js). Windows'un "değiştirilsin mi" sorusu diyalogdaki ada göre sorulduğundan, eklenmiş adla dosya varsa burada sorulur
+    const uzantilar = filtreler.flatMap((f) => f.extensions || []).map((x) => String(x).toLowerCase());
+    const uz = path.extname(s.filePath).slice(1).toLowerCase();
+    if (!uzantilar.length || uzantilar.includes('*') || uzantilar.includes(uz)) return s.filePath;
+    const yol = `${s.filePath}.${uzantilar[0]}`;
     if (fs.existsSync(yol)) {
       const r = await dialog.showMessageBox(pencereAl(e), {
         type: 'warning', title: secenek?.baslik || 'Farklı kaydet', message: `${path.basename(yol)} zaten var.`, detail: 'Değiştirmek istiyor musunuz?',
@@ -300,9 +334,10 @@ function ipcKur(ipcMain) {
     return yol;
   });
 
-  // Araçların yarım kalan / istenmeyen çıktısı: yalnızca .pdf dosyası ve yalnızca Geri Dönüşüm Kutusu'na (0.1.23: kalıcı silme yok)
+  // Araçların yarım kalan / istenmeyen çıktısı: yalnızca .pdf dosyası (0.2.6'dan beri Dosya Formatını Değiştir'in çıktıları için .udf, .tif,
+  // .tiff, .docx de) ve yalnızca Geri Dönüşüm Kutusu'na (0.1.23: kalıcı silme yok)
   ipcMain.handle('dosya:sil', async (_e, yol) => {
-    if (!/\.pdf$/i.test(String(yol || ''))) return false;
+    if (!/\.(pdf|udf|tiff?|docx)$/i.test(String(yol || ''))) return false;
     try { await shell.trashItem(String(yol)); return true; } catch { return false; }
   });
   ipcMain.handle('uygulama:veriKlasoru', () => app.getPath('userData'));
@@ -384,7 +419,8 @@ function ipcKur(ipcMain) {
     m.popup({ window: pencereAl(e) || undefined, callback: () => coz(secilen) });
   }));
 
-  ipcMain.handle('kabuk:klasordeGoster', (_e, yol) => { shell.showItemInFolder(yol); return true; });
+  // Test örneğinde Gezgin açılmaz (bilgisayarı kullanan kişinin ekranı; 0.2.6, Dosya Formatını Değiştir'in sonuç listesi): istek kaydedilir
+  ipcMain.handle('kabuk:klasordeGoster', (_e, yol) => { if (testDiyalog) return testDiyalog('kabuk:klasordeGoster', { yol }, true); shell.showItemInFolder(yol); return true; });
   // Klasörü Gezgin'de açar (araç pencerelerindeki klasör çipi). Test örneğinde Gezgin açılmaz (bilgisayarı kullanan kişinin ekranı)
   // Yalnızca klasör: shell.openPath dosyayı varsayılan programıyla açar, exe'yi çalıştırır (0.1.23). macOS'ta uygulama paketi (.app) de
   // klasördür ve açılınca uygulama başlar: paket klasörü açılmaz (0.2.1, guvenlik.js paketKlasoruMu)
@@ -429,10 +465,11 @@ function ipcKur(ipcMain) {
   // Çekirdek (PyMuPDF) çağrıları. Çekirdek bütün pencerelerce paylaşılır: istek kimliği pencereye göre ayrılır (her pencere kendi
   // sayacından verir), ilerleme yalnızca isteği yapan pencereye gider
   // Parametreler denetlenir (guvenlik.js cekirdekParametreleri): çekirdek yalnızca .pdf'e yazar, anlık kopya klasörünü ana süreç verir.
-  // Hedef verilmeyince yol'a yazan yöntemler de (YOLA_YAZANLAR; 0.2.1)
+  // Hedef verilmeyince yol'a yazan yöntemler de (YOLA_YAZANLAR; 0.2.1) ve Dosya Formatını Değiştir'in yöntemleri (0.2.6: her öğenin hedefi
+  // biçimin uzantısıyla; UYAP Doküman Editörü'nün klasörü ana sürecin ayarından)
   ipcMain.handle('cekirdek:cagir', (e, yontem, params, istekId) => {
     const gonderen = e.sender;
-    const p = (yontem === 'anlik_sil' || params?.hedef != null || YOLA_YAZANLAR.has(yontem)) ? cekirdekParametreleri(yontem, params, anlikKlasoru()) : params;
+    const p = (DENETLENEN_YONTEMLER.has(yontem) || params?.hedef != null) ? cekirdekParametreleri(yontem, params, anlikKlasoru(), { udeYolu: ayarAl('udeYolu') }) : params;
     return Promise.resolve(p).then((guvenli) => cekirdek.cagir(yontem, guvenli, (ilerleme) => { if (!gonderen.isDestroyed()) gonderen.send('cekirdek:ilerleme', istekId, ilerleme); },
       istekId == null ? null : `${gonderen.id}:${istekId}`));
   });

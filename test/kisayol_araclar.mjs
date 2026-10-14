@@ -4,7 +4,7 @@
 // okunur; sonda her satır için hangi denetimlerin geçtiği (kapsam tablosu) yazılır.
 // Ayrıca: araç pencerelerinde alt şeritte ipucu metni (.arac-alt-metin) yok; Sayfaları düzenle'de "PDF ekle" düğmesi var ("PDF'ten sayfa
 // ekle" yok) ve test diyaloğuyla seçilen PDF'in sayfalarını ekler; Sıkıştır, Sayfaları düzenle, Döndür, Ayır (ve Görüntü /
-// PDF birleştir) pencerelerinde bölüm başlığı "Kaydet" ("Kaydetme" başlığı yok).
+// PDF birleştir, 0.2.6'dan beri Dosya Formatını Değiştir) pencerelerinde bölüm başlığı "Kaydet" ("Kaydetme" başlığı yok).
 // Görüntü / PDF birleştir'de Ctrl+V sistem panosuna dokunmadan sınanır: açık pencerenin panodanEkle işlevi örnek üzerinde geçici olarak
 // sarılıp çağrılar sayılır (asıl işlev çağrılmaz, pano okunmaz; örneğe modülün dinamik içe aktarımıyla, _secimiCiz bir kez sarılarak
 // ulaşılır). Girdi kutusundaki Ctrl+V'nin yapıştırma olayı engellenir (kutuya pano içeriği yazılmaz).
@@ -660,8 +660,8 @@ print(json.dumps({"ana": pdf("ana.pdf", 12, "Sayfa"), "ek": pdf("ek.pdf", 3, "Ek
   sonuc('Görüntü / PDF birleştir Esc → Kaydetme ile kapanır, çıktı klasörüne dosya yazılmadı', await kosul(`!document.querySelector('.birlestir-pencere')`, 4000) && fs.readdirSync(CIKTI).length === 0, fs.readdirSync(CIKTI));
 
   // ---------------------------------------------------------------- 3) Diğer araç pencereleri: alt şerit ve "Kaydet" başlığı
-  console.log('\n== 3) Sıkıştır, Döndür, Ayır');
-  for (const [komut, sinif, ad] of [['arac.kucult', 'kucult-pencere', 'Sıkıştır'], ['arac.dondurKaydet', 'dondur-pencere', 'Döndür'], ['arac.ayir', 'ayir-pencere', 'Ayır']]) {
+  console.log('\n== 3) Sıkıştır, Döndür, Ayır, Dosya Formatını Değiştir');
+  for (const [komut, sinif, ad] of [['arac.kucult', 'kucult-pencere', 'Sıkıştır'], ['arac.dondurKaydet', 'dondur-pencere', 'Döndür'], ['arac.ayir', 'ayir-pencere', 'Ayır'], ['arac.donustur', 'donustur-pencere', 'Dosya Formatını Değiştir']]) {
     await evalJs(`window.__pdefe.komutCalistir(${J(komut)})`);
     await kosul(`!!document.querySelector('.${sinif}')`);
     await bekle(500);

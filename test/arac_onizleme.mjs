@@ -9,6 +9,7 @@
 //      Yatay görsel 150 px genişlikte, dikey görsel ve PDF 150 px yükseklikte; doğal boyut en az kutu × ekran ölçeği (en çok 2); satırın öteki
 //      öğeleri (sıra, ad, özet, Kalite, düğmeler) satırın içinde ve dikeyde ortalı, birbirine binmiyor. Okunamayan dosyanın yer
 //      tutucusu kutunun %72 × %94'ü. Döndür, sürükleyerek sıralama (gerçek fare) ve Listeden çıkar yeni ölçüde çalışır.
+//   2b) Dosya Formatını Değiştir (0.2.6): satırdaki küçük resim kutusu --donustur-resim = 120 px, doğal boyutu en az kutu × ekran ölçeği.
 //   3) Renderer'da hata yok.
 // Kullanım: boş veri klasörlü ekran dışı test örneği (baslat.ps1; 1280×900 varsayılan, istenirse -Olcek 1.25 / 1.5) açıkken
 //   $env:PDEFE_CDP_PORT=9531; node test/surucu.mjs betik test/arac_onizleme.mjs
@@ -230,6 +231,27 @@ print(json.dumps({"ana": ana, "ek": ek, "yatay": gorsel("yatay.png", (1600, 1000
   await bekle(300);
   S = await satirlar();
   sonuc(`Listeden çıkar: satır kalkar, kalanların kutusu ${BK} × ${BK}`, J(S.map((s) => s.ad)) === J(['yatay.png', 'dikey.jpg', 'ana.pdf']) && S.every((s) => J(s.kutu) === J([BK, BK])), S.map((s) => [s.ad, s.kutu]));
+  await hepsiniKapat();
+
+  // ---------------------------------------------------------------- 2b) Dosya Formatını Değiştir (0.2.6)
+  // Satırdaki küçük resim kutusu --donustur-resim = 120 px; dikey PDF 120 px yükseklikte, doğal boyutu en az kutu × ekran ölçeği (en çok 2),
+  // en az 120 px; ön izlemesi olmayan dosyanın (tanınmayan biçim) yer tutucusu kutunun %72 × %94'ü, türün adını yazar
+  console.log('\n== 2b) Dosya Formatını Değiştir');
+  const DK = 120;
+  const txt = path.join(PDF, 'notlar.txt');
+  fs.writeFileSync(txt, 'PDF değil');
+  await evalJs(`window.__pdefe.komutCalistir('arac.donustur', ${J([Y.ana, txt])})`);
+  await kosul(`document.querySelectorAll('.donustur-oge').length === 2 && !document.querySelector('.donustur-oge.yukleniyor')`, 15000);
+  await bekle(400);
+  const D = await evalJs(`[...document.querySelectorAll('.donustur-liste > .donustur-oge')].map((e) => { const k = e.querySelector('.resim').getBoundingClientRect(); const i = e.querySelector('.resim img'), y = e.querySelector('.resim .yer');
+    return { ad: e.querySelector('.ad').textContent, kutu: [Math.round(k.width), Math.round(k.height)], tur: i ? 'img' : y ? 'yer' : '', w: i ? i.width : y ? y.offsetWidth : 0, h: i ? i.height : y ? y.offsetHeight : 0,
+      nw: i?.naturalWidth || 0, nh: i?.naturalHeight || 0, metin: y?.textContent || '' }; })`);
+  const dDegisken = await evalJs(`getComputedStyle(document.querySelector('.donustur-pencere')).getPropertyValue('--donustur-resim').trim()`);
+  const dEnAz = Math.max(120, Math.ceil(DK * olcek));
+  sonuc(`Dönüştür: kutu --donustur-resim = ${DK} px; dikey PDF ${DK} px yüksekliğinde, doğal genişliği max(120, ${DK} × ${olcek}) = ${dEnAz}`,
+    dDegisken === `${DK}px` && D[0]?.tur === 'img' && J(D[0].kutu) === J([DK, DK]) && D[0].h === DK && D[0].nw === dEnAz && D[0].nh >= D[0].h * olcek - 1, { dDegisken, D });
+  sonuc(`Dönüştür: tanınmayan dosyanın yer tutucusu kutunun %72 × %94'ü, türün adını yazar`, D[1]?.tur === 'yer' && yakin(D[1].w, DK * 0.72, 1) && yakin(D[1].h, DK * 0.94, 1) && D[1].metin === 'TXT', D[1]);
+  await ss('02b-donustur');
   await hepsiniKapat();
 
   // ---------------------------------------------------------------- 3) hata yok

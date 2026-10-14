@@ -25,7 +25,7 @@ import { mesajKutusu } from './mesajKutusu.js';
 import { MAC, SISTEM } from './platform.js';
 import { kisayolTablolariHtml } from './kisayolListesi.js';
 
-export const DURUM_ANAHTARLARI = new Set(['sonDosyalar', 'sayfaKonumlari', 'pencere', 'solPanelGenislik', 'solPanelAcik', 'solPanelSekme', 'menuCubugu', 'yazdirma']);
+export const DURUM_ANAHTARLARI = new Set(['sonDosyalar', 'sayfaKonumlari', 'pencere', 'solPanelGenislik', 'solPanelAcik', 'solPanelSekme', 'menuCubugu', 'yazdirma', 'donusturme']);
 
 const VURGU_RENKLERI = [
   { ad: 'Sarı', hex: '#ffd100' }, { ad: 'Kırmızı', hex: '#ff6e6e' }, { ad: 'Turuncu', hex: '#ffb74d' },

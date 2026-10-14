@@ -2,7 +2,7 @@
 // açık PDF, üzerine yazma ve pencerenin yeri, araç adları.
 //   1) Araç adlarında "PDF" yok (0.1.26): "Sıkıştır" (önce "PDF küçült", 0.1.25'te "PDF Sıkıştırma") ve "Ayır" ("PDF ayır") Araçlar
 //      penceresinde, Araçlar menüsünde, açılış ekranında ve pencere başlıklarında; "Sıkıştır" düğmesi, "Sıkıştırma seçenekleri" başlığı.
-//   2) Beş araçta Kaydet bölümü aynı düzende: başlık, altında Yeni belge olarak kaydet | Üzerine yaz, altında ad + klasör + Değiştir
+//   2) Beş araçta (0.2.6'dan beri Dosya Formatını Değiştir'de de; orada "Üzerine yaz" seçilemez) Kaydet bölümü aynı düzende: başlık, altında Yeni belge olarak kaydet | Üzerine yaz, altında ad + klasör + Değiştir
 //      (alt alta, sola hizalı); varsayılan ad parantezsiz, baş harfi büyük, Türkçe harfli: Sıkıştırılmış, Düzenlenmiş, Döndürülmüş,
 //      Ayrılmış, Birleştirilmiş. "Üzerine yaz" seçilince satır kaybolmaz: yerinde üzerine yazılacak dosyanın adı ve klasörü soluk
 //      (değiştirilemez) durur, altında not.
@@ -201,6 +201,18 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
       if (komut === 'arac.gorselBirlestir') await diyalogYanitla([{ secim: 1 }]);
       await pencereKapat();
     }
+    // 0.2.6: Dosya Formatını Değiştir aynı düzende; açık PDF ilk girdi, önerilen ad girdinin adı (uzantısı hedefin: .udf), "Üzerine yaz"
+    // seçilemez, nedeni seçimin altında (dönüştürülen dosya her zaman yeni dosya)
+    await aracAc('arac.donustur', 'donustur-pencere');
+    await kosul(`document.querySelector('.donustur-pencere .arac-kayit-yeni .arac-cikti-ad')?.value === 'zengin_a'`, 8000);
+    const dn = await kayitDurumu();
+    const dnSirali = dn.baslikKutu && dn.baslikKutu.y < dn.secimKutu.y && dn.secimKutu.y + dn.secimKutu.h <= dn.satirKutu.y && Math.abs(dn.secimKutu.x - dn.satirKutu.x) <= 2;
+    sonuc('donustur-pencere: Kaydet başlığı, altında seçim, kısıt satırı, ad + klasör + Değiştir; önerilen ad girdinin adı; Üzerine yaz seçilemez, nedeni altında',
+      dn.sonraki && J(dn.sira) === J(['arac-segmentli', 'arac-kayit-kisit', 'arac-kayit-yeni', 'arac-kayit-sabit', 'arac-kayit-uzerine']) && dnSirali
+      && dn.secenekler[0].secili && dn.secenekler[1].devre && dn.kisit === 'Dönüştürülen dosya her zaman yeni dosya olarak kaydedilir.'
+      && dn.ad === 'zengin_a' && dn.klasor === CIKTI && !dn.adDevre, dn);
+    await ss('02-donustur-pencere-yeni');
+    await pencereKapat();
   }
 
   // ------------------------------------------------------------ 3) Ayır

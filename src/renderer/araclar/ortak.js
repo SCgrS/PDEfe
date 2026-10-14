@@ -1,7 +1,7 @@
 // Araç pencereleri için ortak parçalar: pencere iskeleti, ilerleme çubuğu, boyut biçimleme,
 // yol yardımcıları, sürükleyerek sıralama, çıktı satırı (ad + klasör çipi), standart kaydetme seçimi
 // ("Yeni belge olarak kaydet" | "Üzerine yaz"), üzerine yazılan sekmeyi yenileme.
-// Bütün araçlar (kucult: Sıkıştır, sayfalar, ayir, gorselBirlestir, dondur) bu modülü kullanır.
+// Bütün araçlar (kucult: Sıkıştır, sayfalar, ayir, gorselBirlestir, dondur, donustur: Dosya Formatını Değiştir) bu modülü kullanır.
 import { tus, MAC } from '../platform.js';
 
 // ---------------------------------------------------------------- metin ve biçim
@@ -724,6 +724,21 @@ function klasorCipi() {
   };
 }
 
+/** Kaydetme diyaloğunun süzgeç adı ve uzantıları, çıktının uzantısına göre (0.2.6: Dosya Formatını Değiştir'in UDF, TIFF ve Word
+ *  çıktıları; öteki araçlar yalnızca PDF yazar). TIFF'te .tif ve .tiff ikisi de geçerlidir. */
+export function kayitSuzgeci(uz) {
+  const u = String(uz || 'pdf').toLowerCase();
+  const ad = { pdf: 'PDF belgesi', udf: 'UDF belgesi', tif: 'TIFF görüntüsü', tiff: 'TIFF görüntüsü', docx: 'Word belgesi' }[u] || `${u.toUpperCase()} dosyası`;
+  return { name: ad, extensions: u === 'tif' || u === 'tiff' ? ['tif', 'tiff'] : [u] };
+}
+
+/** Adın sonundaki çıktı uzantısını tanıyan desen (TIFF'te .tif ve .tiff). */
+function uzantiDeseniAl(uz) {
+  if (!uz) return null;
+  const u = String(uz).toLowerCase();
+  return new RegExp('\\.' + (u === 'tif' || u === 'tiff' ? 'tiff?' : u.replace(/[^a-z0-9]/g, '')) + '$', 'i');
+}
+
 /**
  * Yeni dosya çıktısı satırı: kısa dosya adı kutusu + klasör çipi (Masaüstü; tam yol ipucunda, tıklanınca Gezgin'de açılır) + Değiştir.
  * Kutuda ad uzantısız görünür (0.1.12, kullanıcı isteği); ad() ve yol() uzantıyla döner, ayarla() uzantılı ya da uzantısız ad alır.
@@ -731,8 +746,11 @@ function klasorCipi() {
  * sorusunu Windows sorar, dolayısıyla o yol için araç ayrıca sormaz: onayli()).
  * onayla/onaylandi: aracın kendi "zaten var" sorusunda üzerine yazma onaylanan hedef ("Yeniden dene"de yeniden sorulmaz);
  * ad ya da klasör değişince ikisi de sıfırlanır.
+ * 0.2.6 (Dosya Formatını Değiştir): uzantiAyarla(uz) çıktının uzantısını değiştirir (kutudaki ad olduğu gibi kalır); klasorKipi(true) ad
+ * kutusunu gizler, Değiştir yalnızca klasör seçtirir (birden çok dosya: adları araç verir).
  * @returns {{el:HTMLElement, yol:()=>string, klasor:()=>string, ad:()=>string, ayarla:(klasor:string|null, ad:string|null, s?:{elle?:boolean})=>void,
- *   onDegisti:(cb)=>void, elleDegisti:()=>boolean, onayli:(yol:string)=>boolean, onayla:(yol:string)=>void, onaylandi:(yol:string)=>boolean}}
+ *   onDegisti:(cb)=>void, elleDegisti:()=>boolean, onayli:(yol:string)=>boolean, onayla:(yol:string)=>void, onaylandi:(yol:string)=>boolean,
+ *   uzantiAyarla:(uz:string)=>void, uzanti:()=>string, klasorKipi:(evet:boolean)=>void}}
  */
 export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasligi = 'Farklı kaydet' }) {
   const el = oge(`<div class="arac-cikti">
@@ -748,10 +766,11 @@ export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasl
   let elle = false;             // kullanıcı adı ya da klasörü kendisi değiştirdi (varsayılan ad artık önerilmez)
   let onayliYol = null;         // Farklı kaydet diyaloğunda seçilen (Windows üzerine yazmayı sordu)
   let aracOnayi = null;         // araç "zaten var" sorusunda onaylanan hedef
+  let yalnizKlasor = false;     // klasorKipi: ad kutusu yok, Değiştir klasör seçtirir
   const bildir = () => dinleyiciler.forEach((f) => f());
   const yaz = () => { cip.yaz(mevcutKlasor, pdefe); };
   // Kutudaki ad uzantısızdır; kullanıcı uzantıyı yazarsa odak çıkınca silinir, kaydederken ad() ekler
-  const uzantiDeseni = uz ? new RegExp('\\.' + uz + '$', 'i') : null;
+  let uzantiDeseni = uzantiDeseniAl(uz);
   const govdesi = (a) => (uzantiDeseni ? String(a ?? '').trim().replace(uzantiDeseni, '') : String(a ?? '').trim());
   // Uzantı yalnızca bir kez silinir: kutuGovde, kutudaki değerin uzantısı zaten silinmiş gövde olduğunu söyler ("dilekce.pdf.pdf"
   // seçilince kutuda "dilekce.pdf" kalır, ad() yine "dilekce.pdf.pdf")
@@ -767,10 +786,20 @@ export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasl
     kutuGovde = true;
     if (v !== adEl.value) { adEl.value = v; bildir(); }
   });
-  el.querySelector('.arac-cikti-degistir').addEventListener('click', async () => {
+  const degistirDugmesi = el.querySelector('.arac-cikti-degistir');
+  degistirDugmesi.addEventListener('click', async () => {
+    // Birden çok dosyada (klasorKipi) yalnızca klasör seçilir: adları araç verir
+    if (yalnizKlasor) {
+      const k = await pdefe.cagir('dosya:klasorSec', { baslik: diyalogBasligi, varsayilan: mevcutKlasor || undefined });
+      if (!k) return;
+      mevcutKlasor = k;
+      elle = true; onayliYol = null; aracOnayi = null;
+      yaz(); bildir();
+      return;
+    }
     const secilen = await pdefe.cagir('dosya:kaydetDiyalog', {
       baslik: diyalogBasligi, varsayilan: yolBirlestir(mevcutKlasor, tamAd()),
-      filtreler: [{ name: 'PDF belgesi', extensions: [uz] }],
+      filtreler: [kayitSuzgeci(uz)],
     });
     if (!secilen) return;
     mevcutKlasor = klasorAdi(secilen);
@@ -790,6 +819,26 @@ export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasl
     onayla: (yol) => { aracOnayi = yol; },
     onaylandi: (yol) => !!aracOnayi && yolAyni(aracOnayi, yol),
     odakla: () => { adEl.focus(); adEl.select(); },
+    /** Çıktının uzantısı (0.2.6): kutudaki ad değişmez, ad() ve yol() yeni uzantıyla döner. Değişince onaylar sıfırlanır (başka dosya). */
+    uzantiAyarla: (yeni) => {
+      const u = String(yeni || '').toLowerCase();
+      if (u === uz) return;
+      // Yazılmakta olan ad (odak çıkmadan) eski uzantıdan arındırılır ve odak çıkışındaki gibi temizlenir
+      const ham = govdesi(adEl.value);
+      const g = kutuGovde ? String(adEl.value).trim() : (ham ? guvenliAd(ham) : '');
+      uz = u; uzantiDeseni = uzantiDeseniAl(uz);
+      adEl.value = g; kutuGovde = true;
+      onayliYol = null; aracOnayi = null;
+      bildir();
+    },
+    uzanti: () => uz,
+    /** Birden çok dosya (0.2.6): ad kutusu gizlenir, Değiştir klasör seçtirir; false: olağan satır. */
+    klasorKipi: (evet) => {
+      yalnizKlasor = !!evet;
+      adEl.hidden = yalnizKlasor;
+      degistirDugmesi.title = yalnizKlasor ? 'Dosyaların kaydedileceği klasörü seçin' : 'Kaydedilecek klasörü ve dosya adını seçin';
+      el.classList.toggle('yalniz-klasor', yalnizKlasor);
+    },
   };
 }
 
@@ -890,11 +939,15 @@ const BILGI_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" c
  * @param {'yeni'|'uzerine'} [s.kip]
  * @param {boolean} [s.geriAlinabilir]  "Üzerine yaz" sonucu Ctrl+Z ile geri alınabiliyor mu (varsayılan: hayır → uyarı)
  * @param {string} [s.belgesizNeden]   belge yokken "Üzerine yaz"ın altında yazan neden
+ * @param {string} [s.uzanti]          çıktının uzantısı (varsayılan 'pdf'; 0.2.6 Dosya Formatını Değiştir: 'udf' | 'tif' | 'docx' de)
+ * 0.2.6: uzantiAyarla(uz) ve adAyarla(ad) varsayılan adı yeni uzantı / yeni temel adla yeniden önerir (elle değiştirilmiş ad kalır, uzantısı
+ * değişir); klasorKipi(true) birden çok dosyada ad kutusunu gizler (cokluAyarla(true) ile birlikte; adları araç verir).
  * @returns {{el:HTMLElement, kip:()=>string, kipAyarla:(k:string)=>void, hedef:()=>string, uzerineMi:()=>boolean, cikti:object,
  *   hazir:Promise<void>, adYenile:()=>Promise<void>, denetle:()=>Promise<'devam'|'vazgec'|Error>, hataSor:(e:Error)=>Promise<boolean>,
- *   uzerineKullanilabilir:(evet:boolean, neden?:string)=>void, cokluAyarla:(evet:boolean)=>void, coklu:()=>boolean, onDegisti:(cb)=>void}}
+ *   uzerineKullanilabilir:(evet:boolean, neden?:string)=>void, cokluAyarla:(evet:boolean)=>void, coklu:()=>boolean, onDegisti:(cb)=>void,
+ *   uzantiAyarla:(uz:string)=>void, adAyarla:(ad:string)=>void, klasorKipi:(evet:boolean)=>void}}
  */
-export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', kip = 'yeni', diyalogBasligi = 'Yeni belge olarak kaydet', geriAlinabilir = false, belgesizNeden = '' }) {
+export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', kip = 'yeni', diyalogBasligi = 'Yeni belge olarak kaydet', geriAlinabilir = false, belgesizNeden = '', uzanti: uz = 'pdf' }) {
   const el = oge(`<div class="arac-kayit">
       <div class="arac-kayit-kip"></div>
       <div class="arac-kayit-kisit arac-aciklama" hidden></div>
@@ -905,10 +958,11 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
   const dinleyiciler = [];
   const bildir = () => dinleyiciler.forEach((f) => f());
   const ozgunAd = belge ? dosyaAdi(belge.yol) : '';
-  const oneriAd = () => `${guvenliAd(varsayilanAd)}.pdf`;
+  const oneriAd = () => `${guvenliAd(varsayilanAd)}.${uz}`;
   let coklu = false;            // birden çok dosya (Ayır): ad dosya adlarının ortak başı
+  let yalnizKlasor = false;     // klasorKipi (0.2.6): ad kutusu gizli, adları araç verir
   let uzerineIzinli = !!belge;  // "Üzerine yaz" seçilebilir mi (uzerineKullanilabilir)
-  const cikti = ciktiSecici({ pdefe: baglam.pdefe, klasor: '', ad: oneriAd(), diyalogBasligi });
+  const cikti = ciktiSecici({ pdefe: baglam.pdefe, klasor: '', ad: oneriAd(), uzanti: uz, diyalogBasligi });
   cikti.onDegisti(bildir);
   const yeniEl = el.querySelector('.arac-kayit-yeni');
   yeniEl.append(cikti.el);
@@ -986,6 +1040,20 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
     coklu = evet;
     adYenile();
   }
+  /** Çıktının uzantısı değişti (0.2.6): elle yazılmış ad kalır (uzantısı değişir), önerilen ad yeni uzantıyla yeniden aranır ("(2)"). */
+  function uzantiAyarla(yeni) {
+    const u = String(yeni || 'pdf').toLowerCase();
+    if (u === uz) return;
+    uz = u;
+    cikti.uzantiAyarla(u);
+    adYenile();
+  }
+  /** Önerilen adın temeli değişti (0.2.6: girdinin adı); elle yazılmış ad kalır. */
+  function adAyarla(yeni) {
+    if (!yeni || yeni === varsayilanAd) return;
+    varsayilanAd = yeni;
+    adYenile();
+  }
   /** Yeni belge adını aynı klasörde boş bir ada çevirir ("… (2).pdf"); elle yazılmış ad da değiştirilir. */
   async function baskaAdSec(temel) {
     const klasor = cikti.klasor() || await varsayilanCiktiKlasoru(baglam);
@@ -1005,7 +1073,7 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
     const uzerine = uzerineMi();
     // Yeni belge (adı ve klasörü özgün dosyanın kendisi olsa da: üzerine yazma ancak sorulup onaylanınca); "Üzerine yaz" seçiliyse sorulmaz
     if (secim.deger() !== 'uzerine') {
-      if (!cikti.ad()) { baglam.bildir('Dosya adı girin.'); cikti.odakla(); return 'vazgec'; }
+      if (!yalnizKlasor && !cikti.ad()) { baglam.bildir('Dosya adı girin.'); cikti.odakla(); return 'vazgec'; }
       if (!cikti.klasor()) {
         const k = await baglam.pdefe.cagir('dosya:klasorSec', { baslik: diyalogBasligi }).catch(() => null);
         if (!k) return 'vazgec';
@@ -1033,9 +1101,12 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
     const okunamadi = /okunamadı/i.test(m);
     const saltOkunur = /salt okunur/i.test(m);
     const hedefAd = dosyaAdi(uzerine ? belge.yol : coklu ? '' : cikti.yol());
-    // Çekirdeğin iletisi okunamayan dosyanın adıyla biter ("…: Ek.pdf"; Birleştir'de listedeki herhangi bir dosya olabilir)
-    const hatadakiAd = (/: ([^:\\/]+\.pdf)\s*$/i.exec(m) || [])[1];
-    const programda = 'başka bir programda (örneğin bir PDF okuyucuda) açık olabilir';
+    // Çekirdeğin iletisi okunamayan dosyanın adıyla biter ("…: Ek.pdf"; Birleştir'de listedeki herhangi bir dosya olabilir; 0.2.6'dan beri
+    // uzantı PDF olmayabilir: Dosya Formatını Değiştir'in UDF, TIFF ve Word çıktıları)
+    const hatadakiAd = (/: ([^:\\/]+\.[a-z0-9]{2,5})\s*$/i.exec(m) || [])[1];
+    // Dosyayı kilitleyen programın örneği dosyanın türüne göre (PDF'te eskisi gibi "bir PDF okuyucuda")
+    const ornekProgram = { udf: 'UYAP Doküman Editörü\'nde', docx: 'Word\'de', doc: 'Word\'de', tif: 'bir görüntü programında', tiff: 'bir görüntü programında' }[uzanti(hatadakiAd || hedefAd)] || 'bir PDF okuyucuda';
+    const programda = `başka bir programda (örneğin ${ornekProgram}) açık olabilir`;
     // macOS (0.2.1): dosyaları başka programlar kilitlemez ve Gezgin'in Salt okunur özniteliği yoktur. Yazılamayan dosyada neden yazma izni
     // ya da Finder'ın Kilitli işaretidir (çekirdek ikisini de "salt okunur" sayar), okunamayanda okuma izni: "programı kapatıp yeniden
     // deneyin" işe yaramazdı. İletiler Finder'ın Bilgi Al penceresini anlatır (uygulama.js belgeKaydet'teki gibi); Windows metinleri değişmedi
@@ -1088,7 +1159,8 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
   }
 
   return {
-    el, cikti, adYenile, kipAyarla, uzerineMi, uzerineKullanilabilir, cokluAyarla, denetle, hataSor,
+    el, cikti, adYenile, kipAyarla, uzerineMi, uzerineKullanilabilir, cokluAyarla, denetle, hataSor, uzantiAyarla, adAyarla,
+    klasorKipi: (evet) => { yalnizKlasor = !!evet; cikti.klasorKipi(yalnizKlasor); },
     /** Varsayılan ad önerisi bitti (son adYenile). */
     get hazir() { return adSozu; },
     kip: () => secim.deger(),
