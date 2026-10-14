@@ -22,6 +22,10 @@
 //     gelirse (sonuç döner) yeni oluşan dosyalar çöp kutusuna atılır, onaylanıp üzerine yazılan dosya kalır (Birleştir'deki gibi).
 //   UYAP Doküman Editörü'nün klasörünü (udeYolu) ana süreç kendi ayarından verir; satırdaki "UYAP Doküman Editörü'nün yerini göster"
 //   bağlantısı ayar:udeKlasoruSec ile klasör seçtirir (Ayarlar › Kaydetme'deki satırla aynı yol).
+// UYAP Doküman Editörü yokken (yetenekler.udf.var false: editör, Java ya da köprü bulunamadı) UDF satırının PDF hedefi (ve PDF → TIFF / Word
+// yapılabiliyorsa TIFF / Word hedefi) ana sürecin yaklaşık çizimiyle yapılır (main/udfYaklasik.js: gizli pencere + printToPDF; kanallar
+// udf:yaklasikBilgi, udf:yaklasikDonustur, udf:yaklasikIptal): satırda ve sonuçta "görünüm yaklaşık" uyarısı, küçük resim de bu çizimden.
+// Editör bulunduğu hâlde çekirdek bir UDF'yi "desteklenmiyor" diye dönüştüremezse o öğe yaklaşık çizimle yeniden denenir.
 // Sonuç: tek çıktı PDF ise sekmede açılır (ciktiyiAc) ve pencere kapanır; öbür durumlarda pencerede sonuç listesi (Ayır'daki gibi; PDF'ler
 // için Aç) ve Klasörde göster. Çekirdeğin uyarıları (e-imza taşınmadı, yorumlar alınmadı, resimler alınmadı…) gösterilir.
 import {
@@ -56,6 +60,21 @@ const TUR_ADI = { pdf: 'PDF', udf: 'UDF', tiff: 'TIFF', word: 'Word' };
 /** Uzantıdan beklenen tür (satırda "içeriği … uzantısı …" uyarısı için). */
 const UZANTI_TURU = { pdf: 'pdf', udf: 'udf', tif: 'tiff', tiff: 'tiff', doc: 'word', docx: 'word', docm: 'word', rtf: 'word', odt: 'word' };
 const UDE_YOK_IPUCU = 'UYAP Doküman Editörü kuruluysa klasörünü gösterin';
+
+// UDF'nin yaklaşık çizimi (ana süreç, main/udfYaklasik.js): istek kimliği bu pencerenin sayacından, ilerleme 'udf:yaklasikIlerleme' ile
+let yaklasikSayac = 0;
+let yaklasikDinleme = null;
+const yaklasikDinleyiciler = new Map();
+/** Ana süreçte yaklaşık çizimle dönüştürür; döner: sözü ({ sonuclar, basarili, hatali } | { iptal: true }) ve iptal() işlevi. */
+function yaklasikDonustur(pdefe, ogeler, ilerleme) {
+  if (!yaklasikDinleme) yaklasikDinleme = pdefe.dinle('udf:yaklasikIlerleme', (id, p) => yaklasikDinleyiciler.get(id)?.(p));
+  const istekId = ++yaklasikSayac;
+  if (ilerleme) yaklasikDinleyiciler.set(istekId, ilerleme);
+  const soz = pdefe.cagir('udf:yaklasikDonustur', { ogeler, istekId }).finally(() => yaklasikDinleyiciler.delete(istekId));
+  soz.iptal = () => pdefe.cagir('udf:yaklasikIptal', { istekId }).catch(() => false);
+  return soz;
+}
+const iptalHatasi = () => Object.assign(new Error('İşlem iptal edildi.'), { iptal: true });
 
 // TIFF seçenekleri PDEfe açık kaldıkça hatırlanır (kalıcı değil: bir sonraki açılışta UYAP'ın kendi taramaları gibi 200 dpi siyah beyaz)
 const tiffSecimi = { dpi: 200, renk: 'sb' };
@@ -206,6 +225,32 @@ export class DonusturPenceresi {
   /** UYAP Doküman Editörü bulunamadı mı (yetenek bilgisi geldiyse). */
   _udeYok() { const u = this.yetenekler?.udf?.ude; return !!u && u.var === false; }
 
+  /** UDF → PDF bu bilgisayarda UYAP Doküman Editörü'yle yapılamıyor mu (editör, Java ya da köprü yok): UDF'ler yaklaşık çizilir. */
+  _udfYaklasik() { return this.yetenekler?.udf?.var === false; }
+
+  /** Yaklaşık PDF'ten bu hedefe gidilebilir mi: PDF'in kendisi, TIFF ve Word çekirdeğin PDF → TIFF / Word'üyle. */
+  _yaklasikHedefVar(bicim) { return bicim === 'pdf' || ((bicim === 'tiff' || bicim === 'word') && this.yetenekler?.donusumler?.[`pdf>${bicim}`]?.var === true); }
+
+  /** Satırda ve sonuçta gösterilen uyarı. neden: çekirdeğin "desteklenmiyor" nedeni (editör bulunduğu hâlde dönüştüremediyse). */
+  _yaklasikUyarisi(neden = null) {
+    const n = neden || (this._udeYok() ? null : this.yetenekler?.udf?.neden);
+    const bas = n ? String(n).trim().replace(/[.\s]+$/, '') : 'UYAP Doküman Editörü bulunamadı';
+    return `${bas}; görünüm yaklaşık (satır ve sayfa kırılımları editördekinden farklı olabilir).`;
+  }
+
+  /** UDF satırının bu hedefi yaklaşık çizimle mi yapılır: { var: true, yaklasik: true } | { var: false, neden } (yaklaşık PDF'ten bu hedefe
+   *  gidilemiyor) | null (yaklaşık yol bu satır için değil: editör kullanılabiliyor ya da satıra özgü neden var: bozuk, güvensiz paket). */
+  _yaklasikDurumu(o, bicim, h) {
+    const udf = this.yetenekler?.udf;
+    if (o.tur !== 'udf' || bicim === 'udf' || !udf || udf.var !== false) return null;
+    if (h?.neden && udf.neden && h.neden !== udf.neden) return null;
+    if (this._yaklasikHedefVar(bicim)) return { var: true, neden: null, yaklasik: true };
+    const d = this.yetenekler?.donusumler?.[`pdf>${bicim}`];
+    const parca = bicim === 'word' ? (this.yetenekler?.pdf_word || this.yetenekler?.word) : null;
+    const neden = d?.neden || (parca?.neden && !/^Bu sürümde yok\.?$/.test(parca.neden) ? parca.neden : null);
+    return { var: false, neden: neden || (bicim === 'word' ? 'Word dönüştürmesi bu sürümde yok.' : `UDF → ${BICIM[bicim]?.ad || bicim} dönüştürmesi yapılamıyor.`) };
+  }
+
   /** Satırdaki "UYAP Doküman Editörü'nün yerini göster": ana süreç klasör seçtirir, çekirdek o klasörde bulursa ayara yazar. Sonra
    *  yetenekler ve UDF satırları yenilenir. */
   async udeYeriniGoster() {
@@ -274,7 +319,10 @@ export class DonusturPenceresi {
     }
     this._ogeCiz(o);
     this._durumGuncelle();
-    if (!o.hata && !o.png && o.tur === 'udf' && !this._udeYok()) this._onizlemeYukle(o);
+    if (!o.hata && !o.png && o.tur === 'udf') {
+      if (this._udfYaklasik()) this._yaklasikOnizlemeYukle(o);
+      else if (!this._udeYok()) this._onizlemeYukle(o);
+    }
   }
 
   _bilgiUygula(o, b) {
@@ -305,12 +353,37 @@ export class DonusturPenceresi {
     this._ogeCiz(o);
   }
 
+  /** UYAP Doküman Editörü kullanılamıyorken UDF'nin küçük resmi ve sayfa sayısı yaklaşık çizimden (ana süreç). Belge çizilemezse nedeni
+   *  satırda ("Belge açılamadı: …"). */
+  async _yaklasikOnizlemeYukle(o) {
+    if (o.onizleniyor) return;
+    o.onizleniyor = true;
+    this._ogeCiz(o);
+    try {
+      const b = await this.baglam.pdefe.cagir('udf:yaklasikBilgi', { yol: o.yol, genislik: this._kucukResimGenisligi() });
+      if (this.pencere.kapali || !this.ogeler.includes(o)) return;
+      if (b?.png) o.png = b.png;
+      if (b?.sayfa != null) o.sayfa = b.sayfa;
+      o.onizlemeUyarisi = null;
+      o.acilmadi = false;
+    } catch (e) {
+      if (this.pencere.kapali || !this.ogeler.includes(o)) return;
+      o.onizlemeUyarisi = 'Belge açılamadı: ' + hataMetni(e);
+      o.acilmadi = true;
+    } finally { o.onizleniyor = false; }
+    this._ogeCiz(o);
+  }
+
   // ---------------------------------------------------------------- hedefler
   /** Hedefin bu satır için durumu: {var, neden}. Çekirdek bu dönüştürmeyi hiç sunmuyorsa (ör. Word dönüştürücüsü bu sürümde yok) neden
    *  yeteneklerden. */
   _hedefDurumu(o, bicim) {
     const h = o.hedefler?.get(bicim);
-    if (h) return { var: h.var !== false, neden: h.var !== false ? null : (h.neden || 'Bu dönüştürme bu bilgisayarda yapılamıyor.') };
+    if (h && h.var !== false) return { var: true, neden: null };
+    // UYAP Doküman Editörü'yle yapılamıyorsa UDF'nin yaklaşık çizimi (PDF; TIFF ve Word yaklaşık PDF'ten)
+    const yd = this._yaklasikDurumu(o, bicim, h);
+    if (yd) return yd;
+    if (h) return { var: false, neden: h.neden || 'Bu dönüştürme bu bilgisayarda yapılamıyor.' };
     const y = this.yetenekler;
     const d = y?.donusumler?.[`${o.tur}>${bicim}`];
     let neden = d?.neden || null;
@@ -446,17 +519,19 @@ export class DonusturPenceresi {
         const d = this._hedefDurumu(o, b.id);
         o.secim.etkin(b.id, d.var && !this.ilerleme.calisiyor);
         const dg = o.secim.dugme(b.id);
-        if (dg) { dg.title = d.var ? `${b.yonelme} dönüştür (.${b.uzanti})` : d.neden; dg.classList.toggle('yapilamaz', !d.var); }
+        if (dg) { dg.title = d.var ? `${b.yonelme} dönüştür (.${b.uzanti})${d.yaklasik ? '; görünüm yaklaşık' : ''}` : d.neden; dg.classList.toggle('yapilamaz', !d.var); }
       }
       if (o.hedefBicim) o.secim.sec(o.hedefBicim);
     }
-    // Seçili hedef yapılamıyorsa nedeni; UYAP Doküman Editörü bulunamadıysa yerini gösterme bağlantısı
+    // Seçili hedef yapılamıyorsa nedeni, yaklaşık çizimle yapılacaksa uyarısı; UYAP Doküman Editörü bulunamadıysa yerini gösterme bağlantısı
     const nedenEl = el.querySelector('.neden');
     const durum = goster && o.hedefBicim ? this._hedefDurumu(o, o.hedefBicim) : { var: true };
-    nedenEl.hidden = durum.var;
-    if (!durum.var) {
+    const yaklasik = !!(durum.var && durum.yaklasik);
+    nedenEl.hidden = durum.var && !yaklasik;
+    nedenEl.classList.toggle('yaklasik', yaklasik);
+    if (!durum.var || yaklasik) {
       nedenEl.innerHTML = `<span class="metin"></span>`;
-      nedenEl.querySelector('.metin').textContent = `${BICIM[o.hedefBicim]?.yonelme || ''} dönüştürülemez: ${durum.neden}`;
+      nedenEl.querySelector('.metin').textContent = yaklasik ? this._yaklasikUyarisi() : `${BICIM[o.hedefBicim]?.yonelme || ''} dönüştürülemez: ${durum.neden}`;
       if (o.tur === 'udf' && this._udeYok()) nedenEl.append(oge(`<button type="button" class="donustur-baglanti" data-komut="ude" title="${kacis(UDE_YOK_IPUCU)}">UYAP Doküman Editörü'nün yerini göster</button>`));
     }
     // Uyarılar: çekirdeğin (e-imza, açılamayan UDF), uzantısı içeriğiyle uyuşmayan dosya
@@ -570,6 +645,7 @@ export class DonusturPenceresi {
       isler = await this._hedefYollari(hazir, this.kayit.cikti.klasor());
     }
     if (this.pencere.kapali) return false;
+    for (const x of isler) x.yaklasik = this._hedefDurumu(x.o, x.o.hedefBicim).yaklasik === true;
     // İptal dosyalar yazıldıktan sonra ulaşırsa yalnızca yeni oluşan dosyalar silinir; var olanın (onaylanmış) yerine yazılmışsa sonuç kalır
     const vardi = new Map();
     for (const { hedef } of isler) vardi.set(hedef, await baglam.pdefe.cagir('dosya:varMi', hedef).catch(() => true));
@@ -580,9 +656,9 @@ export class DonusturPenceresi {
     this._durumGuncelle();
     let sonuc = null, gecIptal = false;
     try {
-      sonuc = await this.ilerleme.calistir(baglam, 'bicim_donustur', {
-        ogeler: isler.map(({ o, hedef }) => ({ yol: o.yol, hedef, hedefBicim: o.hedefBicim, secenekler: this._secenekler(o) })),
-      }, { baslangicMesaji: isler.length > 1 ? `${sayiMetni(isler.length)} dosya dönüştürülüyor…` : 'Dönüştürülüyor…' });
+      // Çekirdeğin bicim_donustur'u ve UDF'nin yaklaşık çizimi tek iş olarak (ilerleme ve iptal IslemIlerleme'nin; _karmaDonustur)
+      sonuc = await this.ilerleme.calistir({ cekirdek: (_yontem, _p, ilerleme) => this._karmaDonustur(isler, ilerleme) }, 'bicim_donustur', null,
+        { baslangicMesaji: isler.length > 1 ? `${sayiMetni(isler.length)} dosya dönüştürülüyor…` : 'Dönüştürülüyor…' });
     } catch (e) {
       this.ilerleme.gizle();
       if (e.iptal && e.sonuc) { sonuc = e.sonuc; gecIptal = true; }
@@ -613,6 +689,64 @@ export class DonusturPenceresi {
       return this.kayit.hataSor(new Error(sonuclar[0].hata));
     }
     return this._sonucGoster(sonuclar, { tek: !coklu });
+  }
+
+  /**
+   * Dönüştürme işi: yaklaşık olmayan öğeler çekirdeğin bicim_donustur'una, UDF'nin yaklaşık çizimi gereken öğeler (x.yaklasik) ve çekirdeğin
+   * "desteklenmiyor" diye dönüştüremediği UDF'ler ana sürecin udf:yaklasikDonustur'una. Döner: çekirdeğinkiyle aynı biçimde { sonuclar (isler
+   * sırasıyla), basarili, hatali } sözü ve iptal() işlevi (süren adıma iletilir). İptal ilk adım yazmadan önce gelirse söz iptal hatasıyla
+   * reddedilir; çekirdek dosyalarını yazdıktan sonra gelirse kalan yaklaşık öğeler "İptal edildi" sonucu alır (araç geç iptalde yeni oluşan
+   * dosyaları çöp kutusuna gönderir).
+   */
+  _karmaDonustur(isler, ilerleme) {
+    const { baglam } = this;
+    let iptal = false, suren = null;
+    const sonuclar = new Map();
+    const param = (x) => ({ yol: x.o.yol, hedef: x.hedef, hedefBicim: x.o.hedefBicim, secenekler: this._secenekler(x.o) });
+    const hataSonucu = (x, hata, kod = 'hata') => ({ yol: x.o.yol, hedef: x.hedef, hedefBicim: x.o.hedefBicim, hata, kod });
+    const olagan = isler.filter((x) => !x.yaklasik);
+    const yaklasikIlk = isler.filter((x) => x.yaklasik);
+    const pay = olagan.length / Math.max(1, olagan.length + yaklasikIlk.length);   // ilerleme çubuğunda çekirdeğin payı
+    const aralik = (bas, son) => (p) => ilerleme?.({ yuzde: (bas + ((son - bas) * Math.max(0, Math.min(100, Number(p?.yuzde) || 0))) / 100) * 100, mesaj: p?.mesaj });
+    const is = (async () => {
+      let yedek = [];
+      if (olagan.length) {
+        suren = baglam.cekirdek('bicim_donustur', { ogeler: olagan.map(param) }, aralik(0, pay));
+        const r = await suren;
+        const rs = Array.isArray(r?.sonuclar) ? r.sonuclar : [];
+        olagan.forEach((x, i) => sonuclar.set(x, rs[i] || hataSonucu(x, 'Dönüştürme sonucu alınamadı.')));
+        // UYAP Doküman Editörü bulundu ama bu belgeyi dönüştüremedi ("desteklenmiyor"): yaklaşık çizimle yeniden denenir
+        yedek = olagan.filter((x) => x.o.tur === 'udf' && sonuclar.get(x)?.kod === 'desteklenmiyor' && this._yaklasikHedefVar(x.o.hedefBicim));
+      }
+      const yaklasik = [...yaklasikIlk, ...yedek];
+      if (yaklasik.length) {
+        const nedenler = new Map(yedek.map((x) => [x, sonuclar.get(x)?.hata || null]));
+        const iptalSonucu = () => { if (!olagan.length) throw iptalHatasi(); for (const x of yaklasik) sonuclar.set(x, hataSonucu(x, 'İptal edildi.', 'iptal')); };
+        if (iptal) iptalSonucu();
+        else {
+          suren = yaklasikDonustur(baglam.pdefe, yaklasik.map(param), aralik(pay, 1));
+          let r = null;
+          try { r = await suren; } catch (e) {
+            if (!olagan.length) throw e;
+            for (const x of yaklasik) sonuclar.set(x, hataSonucu(x, hataMetni(e)));
+          }
+          if (r?.iptal) iptalSonucu();
+          else if (r) {
+            const rs = Array.isArray(r.sonuclar) ? r.sonuclar : [];
+            yaklasik.forEach((x, i) => {
+              const s = rs[i];
+              if (!s) sonuclar.set(x, hataSonucu(x, 'Dönüştürme sonucu alınamadı.'));
+              else sonuclar.set(x, s.hata ? s : { ...s, uyari: [this._yaklasikUyarisi(nedenler.get(x)), s.uyari].filter(Boolean).join(' ') });
+            });
+          }
+        }
+      }
+      const liste = isler.map((x) => sonuclar.get(x) || hataSonucu(x, 'Dönüştürülemedi.'));
+      const basarili = liste.filter((r) => !r.hata).length;
+      return { sonuclar: liste, basarili, hatali: liste.length - basarili };
+    })();
+    is.iptal = () => { iptal = true; try { suren?.iptal?.(); } catch { /* yok say */ } };
+    return is;
   }
 
   /** Sonuç: tek çıktı PDF ise sekmede açılır ve pencere kapanır; değilse pencerede sonuç listesi. Döner: false (yeniden denenmez). */

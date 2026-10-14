@@ -4,8 +4,9 @@
 //   2) Açık PDF ilk girdi; hedefi UDF, önerilen ad PDF'in adı + .udf.
 //   3) Tür dosyanın içeriğinden (uzantısı .udf olan PDF "PDF" sayılır, uyarı); hedef seçiminde kendi türü yok; varsayılan hedef PDF'te UDF,
 //      ötekilerde PDF, son seçim kalıcı (yeni eklenen aynı türden dosyada önerilir); tanınmayan dosya satırda hatayla, Word dönüştürmesi
-//      yoksa Word hedefi soluk ve nedeni ipucunda; aynı dosya iki kez eklenmez. UYAP Doküman Editörü (UDE) bulunamadı benzetimi: hedefler
-//      soluk, satırda neden ve "UYAP Doküman Editörü'nün yerini göster" bağlantısı; bağlantı klasör seçtirir (ana süreç ayar:udeKlasoruSec),
+//      yoksa Word hedefi soluk ve nedeni ipucunda; aynı dosya iki kez eklenmez. UYAP Doküman Editörü (UDE) bulunamadı benzetimi: PDF hedefi
+//      yaklaşık çizimle seçilebilir (C2; ayrıntısı test/udf_yaklasik.mjs), satırda "görünüm yaklaşık" uyarısı ve "UYAP Doküman Editörü'nün yerini
+//      göster" bağlantısı; bağlantı klasör seçtirir (ana süreç ayar:udeKlasoruSec),
 //      klasörde UDE yoksa ayar değişmez; arayüz ayar:koy ile udeYolu'nu klasöre yazamaz (yalnızca null).
 //   4) TIFF seçenekleri yalnızca TIFF hedefi varken görünür; varsayılan 200 dpi, Siyah beyaz.
 //   5) Kaydet bölümü: tek dosyada ad girdinin adı, uzantı hedefe göre değişir, klasörde varsa "(2)"; "Üzerine yaz" seçilemez, nedeni altında;
@@ -278,8 +279,12 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
       a._durumGuncelle(); return true; })()`);
     S = await satirlar();
     const u = S.find((x) => x.ad === 'Karar örneği.udf');
-    sonuc('UDE yok: UDF satırının hedefleri soluk (ipucunda neden), satırda neden ve "UYAP Doküman Editörü\'nün yerini göster" bağlantısı', u.hedefler.every((h) => h.devre && h.ipucu === UDE_YOK)
-      && u.neden === `PDF'e dönüştürülemez: ${UDE_YOK}` && u.bag === 'UYAP Doküman Editörü\'nün yerini göster', u);
+    // 0.2.6 (C2): UDE yokken UDF yaklaşık çizimle dönüştürülür: PDF hedefi (ve PDF → TIFF / Word yapılabiliyorsa TIFF / Word) seçilebilir, satırda
+    // neden değil "görünüm yaklaşık" uyarısı; bağlantı yine var
+    const yh = (id) => u.hedefler.find((h) => h.id === id);
+    sonuc('UDE yok: UDF satırının PDF hedefi yaklaşık çizimle seçilebilir (TIFF / Word, PDF\'ten dönüştürülebiliyorsa); satırda "görünüm yaklaşık" uyarısı ve "UYAP Doküman Editörü\'nün yerini göster" bağlantısı',
+      !yh('pdf')?.devre && /görünüm yaklaşık/.test(yh('pdf')?.ipucu || '') && yh('tiff')?.devre === !YET?.donusumler?.['pdf>tiff']?.var && yh('word')?.devre === !WORD_VAR
+      && /^UYAP Doküman Editörü bulunamadı; görünüm yaklaşık/.test(u.neden) && u.bag === 'UYAP Doküman Editörü\'nün yerini göster', u);
     await ss('03-ude-yok');
     // Bağlantı: klasör seçtirir; seçilen klasörde UDE yoksa ayar değişmez
     const bosKlasor = path.join(UI, 'bos-klasor');
