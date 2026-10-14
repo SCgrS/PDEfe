@@ -422,9 +422,12 @@ def test_udf_pdf(c, g, k):
         sonuc("sol ve sağ kenarı farklı belgede yazı sol kenardan başlıyor (⌊85,04⌋ + 1 = 86)", 86.0 in sollar, sollar[:3])
         sonuc("…ve sağ kenarı aşmıyor (595,28 − 42,52 + 1,5)", saglar[-1] <= A4[0] - 42.52 + 1.5, saglar[-1])
         d = pymupdf.open(yol)
-        sonuc("sayfa numarası (alt bilgi) her sayfada çiziliyor", all(any(dr["rect"].y0 > 780 for dr in s.get_drawings()) or
-                                                                     any(b[1] > 780 for i, b, _ in sat if i == s.number) for s in d), d.page_count)
+        n = d.page_count
+        numaralar = [[t for i, b, t in sat if i == k and b[1] > 780] for k in range(n)]
         d.close()
+        # UDE sayfa numarasını glif dizisiyle çiziyor; köprü onu yazıya çevirir (iText şekil yazıyordu: görünür ama seçilemezdi)
+        sonuc("sayfa numarası her sayfada yazı olarak (seçilebilir, \"n/N\")", n >= 2 and all("%d/%d" % (k + 1, n) in numaralar[k] for k in range(n)),
+              numaralar)
     yol = os.path.join(k, "bg.pdf")
     if os.path.exists(yol):
         d = pymupdf.open(yol)

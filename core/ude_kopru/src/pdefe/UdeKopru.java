@@ -65,7 +65,8 @@ import javax.swing.SwingUtilities;
  * UDE'nin kendi "PDF olarak kaydet"inden farkları (kök nedenler PDEfe PLAN.md "Revizyon 0.2.6"):
  *  - sayfa boyu PageFormat'tan (UDE sayfa genişliğini "2 × sol kenar + yazı alanı" alıyor; sol ve sağ kenarı farklı belgede yanlış);
  *  - yazı tipleri gömülü (Identity-H, alt küme; UDE gömmüyor, başka okuyucu yerine başka yazı tipi koyuyordu);
- *  - antet ve resimlerin saydamlığı önceden beyaza düzleştirilir (UDE saydam resmi küçültürken kenarda gri çerçeve bırakıyor).
+ *  - antet ve resimlerin saydamlığı önceden beyaza düzleştirilir (UDE saydam resmi küçültürken kenarda gri çerçeve bırakıyor);
+ *  - sayfa numarası yazı olarak (UDE onu glif dizisiyle çiziyor, iText şekle çeviriyordu: MetinGrafik).
  *
  * Çalıştırma (PDEfe çekirdeği, core/islemler/udf.py):
  *   java -Djava.awt.headless=true -Dpdefe.ev=<geçici klasör> [-Dpdefe.gunluk=<dosya>] [-Dpdefe.yazitipleri=<klasör;klasör>]
@@ -338,7 +339,7 @@ public final class UdeKopru {
                             if (i > 0) it.yeniSayfa(doc);
                             Object cb = it.icerik(w);
                             Object sablon = it.sablon(cb, gw, gh);
-                            Graphics2D g = it.grafik(sablon, gw, gh, esl);
+                            Graphics2D g = new MetinGrafik(it.grafik(sablon, gw, gh, esl));
                             try {
                                 p.getPrintable(i).print(g, pf, i);
                             } finally {
@@ -549,6 +550,160 @@ public final class UdeKopru {
         if (bf == null) bf = IText.cagir(it.varsayilanEsleyiciS.getMethod("awtToPdf", Font.class), d, f);
         onbellek.put(anahtar, bf);
         return bf;
+    }
+
+    // ---------------------------------------------------------------- glif dizisi → yazı (sayfa numarası)
+
+    /**
+     * iText'in çizim yüzeyini saran Graphics2D: her şeyi olduğu gibi iletir, yalnızca glif dizisini (GlyphVector) yazıya çevirir. UDE sayfa
+     * numarasını TextLayout'la çiziyor; iText glif dizisini yazı olarak değil şekil olarak yazıyor (numara görünür ama seçilemez, aranamaz,
+     * kopyalanamaz). Gliflerin karakterleri yazı tipinden geri bulunabiliyor ve konumları yazının kendi ilerleyişiyle aynıysa (sıradan yazı)
+     * drawString'e çevrilir; bulunamazsa (karmaşık yazım, bilinmeyen glif) olduğu gibi şekil kalır.
+     */
+    static final class MetinGrafik extends Graphics2D {
+        static final String ADAYLAR = " 0123456789/-.,:;()[]%+*#abcçdefgğhıijklmnoöprsştuüvyzqwxABCÇDEFGĞHIİJKLMNOÖPRSŞTUÜVYZQWX";
+        static final Map<Font, Map<Integer, Character>> TERS = new HashMap<Font, Map<Integer, Character>>();
+        final Graphics2D g;
+
+        MetinGrafik(Graphics2D g) { this.g = g; }
+
+        static String metneCevir(java.awt.font.GlyphVector gv) {
+            int n = gv.getNumGlyphs();
+            if (n == 0 || n > 64) return null;
+            Font f = gv.getFont();
+            java.awt.font.FontRenderContext frc = gv.getFontRenderContext();
+            Map<Integer, Character> m = TERS.get(f);
+            if (m == null) {
+                m = new HashMap<Integer, Character>();
+                java.awt.font.GlyphVector a = f.createGlyphVector(frc, ADAYLAR.toCharArray());
+                if (a.getNumGlyphs() == ADAYLAR.length())
+                    for (int i = 0; i < ADAYLAR.length(); i++)
+                        if (!m.containsKey(a.getGlyphCode(i))) m.put(a.getGlyphCode(i), ADAYLAR.charAt(i));
+                TERS.put(f, m);
+            }
+            StringBuilder sb = new StringBuilder(n);
+            for (int i = 0; i < n; i++) {
+                Character c = m.get(gv.getGlyphCode(i));
+                if (c == null) return null;
+                sb.append(c.charValue());
+            }
+            java.awt.font.GlyphVector b = f.createGlyphVector(frc, sb.toString());
+            if (b.getNumGlyphs() != n) return null;
+            java.awt.geom.Point2D a0 = gv.getGlyphPosition(0), b0 = b.getGlyphPosition(0);
+            for (int i = 1; i <= n; i++) {
+                java.awt.geom.Point2D ai = gv.getGlyphPosition(i), bi = b.getGlyphPosition(i);
+                if (Math.abs((ai.getX() - a0.getX()) - (bi.getX() - b0.getX())) > 0.6 || Math.abs(ai.getY() - a0.getY()) > 0.01) return null;
+            }
+            return sb.toString();
+        }
+
+        public void drawGlyphVector(java.awt.font.GlyphVector gv, float x, float y) {
+            String s = null;
+            try {
+                s = metneCevir(gv);
+            } catch (RuntimeException e) {
+                s = null;
+            }
+            if (s == null) {
+                g.drawGlyphVector(gv, x, y);
+                return;
+            }
+            Font eski = g.getFont();
+            java.awt.geom.Point2D p0 = gv.getGlyphPosition(0);
+            g.setFont(gv.getFont());
+            g.drawString(s, x + (float) p0.getX(), y + (float) p0.getY());
+            g.setFont(eski);
+        }
+
+        // Graphics
+        public Graphics create() { return new MetinGrafik((Graphics2D) g.create()); }
+        public Graphics create(int x, int y, int w, int h) { return new MetinGrafik((Graphics2D) g.create(x, y, w, h)); }
+        public void translate(int x, int y) { g.translate(x, y); }
+        public Color getColor() { return g.getColor(); }
+        public void setColor(Color c) { g.setColor(c); }
+        public void setPaintMode() { g.setPaintMode(); }
+        public void setXORMode(Color c) { g.setXORMode(c); }
+        public Font getFont() { return g.getFont(); }
+        public void setFont(Font f) { g.setFont(f); }
+        public java.awt.FontMetrics getFontMetrics() { return g.getFontMetrics(); }
+        public java.awt.FontMetrics getFontMetrics(Font f) { return g.getFontMetrics(f); }
+        public java.awt.Rectangle getClipBounds() { return g.getClipBounds(); }
+        public java.awt.Rectangle getClipBounds(java.awt.Rectangle r) { return g.getClipBounds(r); }
+        public boolean hitClip(int x, int y, int w, int h) { return g.hitClip(x, y, w, h); }
+        public void clipRect(int x, int y, int w, int h) { g.clipRect(x, y, w, h); }
+        public void setClip(int x, int y, int w, int h) { g.setClip(x, y, w, h); }
+        public java.awt.Shape getClip() { return g.getClip(); }
+        public void setClip(java.awt.Shape s) { g.setClip(s); }
+        public void copyArea(int x, int y, int w, int h, int dx, int dy) { g.copyArea(x, y, w, h, dx, dy); }
+        public void drawLine(int x1, int y1, int x2, int y2) { g.drawLine(x1, y1, x2, y2); }
+        public void fillRect(int x, int y, int w, int h) { g.fillRect(x, y, w, h); }
+        public void drawRect(int x, int y, int w, int h) { g.drawRect(x, y, w, h); }
+        public void clearRect(int x, int y, int w, int h) { g.clearRect(x, y, w, h); }
+        public void drawRoundRect(int x, int y, int w, int h, int aw, int ah) { g.drawRoundRect(x, y, w, h, aw, ah); }
+        public void fillRoundRect(int x, int y, int w, int h, int aw, int ah) { g.fillRoundRect(x, y, w, h, aw, ah); }
+        public void draw3DRect(int x, int y, int w, int h, boolean r) { g.draw3DRect(x, y, w, h, r); }
+        public void fill3DRect(int x, int y, int w, int h, boolean r) { g.fill3DRect(x, y, w, h, r); }
+        public void drawOval(int x, int y, int w, int h) { g.drawOval(x, y, w, h); }
+        public void fillOval(int x, int y, int w, int h) { g.fillOval(x, y, w, h); }
+        public void drawArc(int x, int y, int w, int h, int a, int b) { g.drawArc(x, y, w, h, a, b); }
+        public void fillArc(int x, int y, int w, int h, int a, int b) { g.fillArc(x, y, w, h, a, b); }
+        public void drawPolyline(int[] xs, int[] ys, int n) { g.drawPolyline(xs, ys, n); }
+        public void drawPolygon(int[] xs, int[] ys, int n) { g.drawPolygon(xs, ys, n); }
+        public void drawPolygon(java.awt.Polygon p) { g.drawPolygon(p); }
+        public void fillPolygon(int[] xs, int[] ys, int n) { g.fillPolygon(xs, ys, n); }
+        public void fillPolygon(java.awt.Polygon p) { g.fillPolygon(p); }
+        public void drawChars(char[] d, int o, int n, int x, int y) { g.drawChars(d, o, n, x, y); }
+        public void drawBytes(byte[] d, int o, int n, int x, int y) { g.drawBytes(d, o, n, x, y); }
+        public boolean drawImage(java.awt.Image i, int x, int y, java.awt.image.ImageObserver o) { return g.drawImage(i, x, y, o); }
+        public boolean drawImage(java.awt.Image i, int x, int y, int w, int h, java.awt.image.ImageObserver o) { return g.drawImage(i, x, y, w, h, o); }
+        public boolean drawImage(java.awt.Image i, int x, int y, Color b, java.awt.image.ImageObserver o) { return g.drawImage(i, x, y, b, o); }
+        public boolean drawImage(java.awt.Image i, int x, int y, int w, int h, Color b, java.awt.image.ImageObserver o) {
+            return g.drawImage(i, x, y, w, h, b, o);
+        }
+        public boolean drawImage(java.awt.Image i, int a, int b, int c, int d, int e, int f, int h, int j, java.awt.image.ImageObserver o) {
+            return g.drawImage(i, a, b, c, d, e, f, h, j, o);
+        }
+        public boolean drawImage(java.awt.Image i, int a, int b, int c, int d, int e, int f, int h, int j, Color k, java.awt.image.ImageObserver o) {
+            return g.drawImage(i, a, b, c, d, e, f, h, j, k, o);
+        }
+        public void dispose() { g.dispose(); }
+        // Graphics2D
+        public void draw(java.awt.Shape s) { g.draw(s); }
+        public boolean drawImage(java.awt.Image i, java.awt.geom.AffineTransform t, java.awt.image.ImageObserver o) { return g.drawImage(i, t, o); }
+        public void drawImage(BufferedImage i, java.awt.image.BufferedImageOp op, int x, int y) { g.drawImage(i, op, x, y); }
+        public void drawRenderedImage(java.awt.image.RenderedImage i, java.awt.geom.AffineTransform t) { g.drawRenderedImage(i, t); }
+        public void drawRenderableImage(java.awt.image.renderable.RenderableImage i, java.awt.geom.AffineTransform t) { g.drawRenderableImage(i, t); }
+        public void drawString(String s, int x, int y) { g.drawString(s, x, y); }
+        public void drawString(String s, float x, float y) { g.drawString(s, x, y); }
+        public void drawString(java.text.AttributedCharacterIterator i, int x, int y) { g.drawString(i, x, y); }
+        public void drawString(java.text.AttributedCharacterIterator i, float x, float y) { g.drawString(i, x, y); }
+        public void fill(java.awt.Shape s) { g.fill(s); }
+        public boolean hit(java.awt.Rectangle r, java.awt.Shape s, boolean o) { return g.hit(r, s, o); }
+        public java.awt.GraphicsConfiguration getDeviceConfiguration() { return g.getDeviceConfiguration(); }
+        public void setComposite(java.awt.Composite c) { g.setComposite(c); }
+        public void setPaint(java.awt.Paint p) { g.setPaint(p); }
+        public void setStroke(java.awt.Stroke s) { g.setStroke(s); }
+        public void setRenderingHint(RenderingHints.Key k, Object v) { g.setRenderingHint(k, v); }
+        public Object getRenderingHint(RenderingHints.Key k) { return g.getRenderingHint(k); }
+        public void setRenderingHints(Map<?, ?> m) { g.setRenderingHints(m); }
+        public void addRenderingHints(Map<?, ?> m) { g.addRenderingHints(m); }
+        public RenderingHints getRenderingHints() { return g.getRenderingHints(); }
+        public void translate(double x, double y) { g.translate(x, y); }
+        public void rotate(double a) { g.rotate(a); }
+        public void rotate(double a, double x, double y) { g.rotate(a, x, y); }
+        public void scale(double x, double y) { g.scale(x, y); }
+        public void shear(double x, double y) { g.shear(x, y); }
+        public void transform(java.awt.geom.AffineTransform t) { g.transform(t); }
+        public void setTransform(java.awt.geom.AffineTransform t) { g.setTransform(t); }
+        public java.awt.geom.AffineTransform getTransform() { return g.getTransform(); }
+        public java.awt.Paint getPaint() { return g.getPaint(); }
+        public java.awt.Composite getComposite() { return g.getComposite(); }
+        public void setBackground(Color c) { g.setBackground(c); }
+        public Color getBackground() { return g.getBackground(); }
+        public java.awt.Stroke getStroke() { return g.getStroke(); }
+        public void clip(java.awt.Shape s) { g.clip(s); }
+        public java.awt.font.FontRenderContext getFontRenderContext() { return g.getFontRenderContext(); }
+        public String toString() { return "MetinGrafik[" + g + "]"; }
     }
 
     // ---------------------------------------------------------------- yazıcı (yedek yol, yalnızca Windows)

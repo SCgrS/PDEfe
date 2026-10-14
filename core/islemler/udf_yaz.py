@@ -591,10 +591,12 @@ def _sayfa_numarasi(liste, W):
             return None
     no, s = liste[0]
     m = _SAYFA_NO.match(s.metin.strip())
-    orta = (s.x0 + s.x1) / 2
+    yazili = [p for p in s.parcalar if p.metin.strip()] or s.parcalar
+    orta = (min(p.x0 for p in yazili) + max(p.x1 for p in yazili)) / 2
     hiza = "orta" if abs(orta - W / 2) < 0.08 * W else ("sag" if orta > W / 2 else "sol")
+    rakamli = next((p for p in yazili if re.search(r"\d", p.metin)), yazili[0])
     return {"hiza": hiza, "on": m.group("on") or "", "son": m.group("son") or "", "toplam": m.group("toplam") is not None,
-            "ayrac": (m.group("ayrac") or "/").strip() or "/", "satir": s}
+            "ayrac": (m.group("ayrac") or "/").strip() or "/", "satir": s, "parca": rakamli}
 
 
 # ---------------------------------------------------------------- paragraflar
@@ -966,7 +968,10 @@ def _ust_alt_ayir(sayfalar, W):
     def ilk_sayfadakiler(grup, tur):
         ilk_no = min((no for no, s in grup if s.tur == tur), default=None)
         return sorted((s for no, s in grup if no == ilk_no and s.tur == tur), key=lambda s: (s.y, s.x0))
-    return ilk_sayfadakiler(ust, "ust"), ilk_sayfadakiler(alt, "alt"), numara
+    ust_ilk = ilk_sayfadakiler(ust, "ust")
+    # Üst bilgi ilk sayfada yoksa (UDE'de startPage="2": ilk sayfada mahkeme başlığı, sonrakilerde esas numarası gibi)
+    ikinciden = bool(ust_ilk) and len(sayfalar) > 1 and not any(no == 1 for no, s in ust if s.tur == "ust")
+    return ust_ilk, ilk_sayfadakiler(alt, "alt"), numara, ikinciden
 
 
 def _ayrik_alt_satirlar(sf):
@@ -988,7 +993,7 @@ def _ayrik_alt_satirlar(sf):
 def _udf_kur(sayfalar, uyarilar):
     W, H = sayfalar[0].g, sayfalar[0].y
     medya, yon, kagit = _sayfa_bicimi(W, H)
-    ust_satirlar, alt_satirlar, numara = _ust_alt_ayir(sayfalar, W)
+    ust_satirlar, alt_satirlar, numara, ust_ikinciden = _ust_alt_ayir(sayfalar, W)
     if len(sayfalar) == 1 and not alt_satirlar:
         alt_satirlar = _ayrik_alt_satirlar(sayfalar[0])
     govde = [s for sf in sayfalar for s in sf.satirlar if s.tur == "govde"]
@@ -1095,6 +1100,8 @@ def _udf_kur(sayfalar, uyarilar):
                     sa = 0 if i else (oge.sa if s.sayfa != 1 else 0)
                     tepeler.append((s.sayfa, int(round(s.y - oge.E // 2 - oge.C - sa)), oge, i))
     ilk_p = next((o[1] for o in ogeler if o[0] == "p"), None)
+    if ust_ikinciden:
+        tepeler = [t for t in tepeler if t[0] == 1] or tepeler
     if tepeler:
         tepe = min(t[1] for t in tepeler) if len(tepeler) > 1 else tepeler[0][1]
         if ilk_p is not None:
@@ -1105,6 +1112,7 @@ def _udf_kur(sayfalar, uyarilar):
     tepe = max(int(EN_AZ_KENAR), min(tepe, int(H * 0.45)))
     tm = _guzel(tepe + 0.5, alt=tepe, ust=tepe + 1)
     govde_tepe = max(tepe, ust_alt_kenar)
+    tepeler_sayfa = {1: tepe if ust_ikinciden else govde_tepe}   # _sayfala: sayfanın gövdesinin başladığı y (UDE'de)
 
     # Alt bilgi ve sayfa numarası: son satırın kutusunun altı ⌊H − footerFOffset⌋
     alt_par = _paragraflara(alt_satirlar, yer) if alt_satirlar else []
@@ -1115,22 +1123,24 @@ def _udf_kur(sayfalar, uyarilar):
     ff = 20.0
     alt_ust_kenar = None
     if alt_par or numara:
+        diplar = []
         if numara:
             s = numara["satir"]
-            dip = s.y + (s.K - s.C)
-        else:
+            diplar.append(s.y + (s.K - s.C))
+        if alt_par:
             son = alt_par[-1]
-            dip = son.son.y + (son.K - son.C) + son.E // 2
+            diplar.append(son.son.y + (son.K - son.C) + son.E // 2)
+        dip = max(diplar)
         dip_int = int(round(dip))
         ff = max(1.0, round(H - dip_int - 0.5, 2))
         yuk = sum((p.sa if i else 0) + len(p.satirlar) * (p.K + p.E) for i, p in enumerate(alt_par))
         if numara:
-            p0 = numara["satir"].parcalar[0]
+            p0 = numara["parca"]
             yuk += _kutu(p0.aile, p0.boy)
         alt_ust_kenar = int(math.floor(H - ff)) - yuk
 
     # Alt kenar ve sayfa sonları: kaynağın her dolu sayfası UDE'de aynı satırda bitsin
-    bm, sonlar = _sayfala(ogeler, sayfalar, H, govde_tepe, alt_ust_kenar)
+    bm, sonlar = _sayfala(ogeler, sayfalar, H, lambda no: tepeler_sayfa.get(no, govde_tepe), alt_ust_kenar)
 
     # ---- XML
     yz = _Yazici()
@@ -1138,7 +1148,7 @@ def _udf_kur(sayfalar, uyarilar):
         parca = []
         for p in ust_par:
             yz.paragraf(p, sol_kenar_x, hedef=parca)
-        yz.xml.append("<header>" + "".join(parca) + "</header>")
+        yz.xml.append(('<header startPage="2">' if ust_ikinciden else "<header>") + "".join(parca) + "</header>")
     paragraf_say = 0
     son_sayfa = None
     for tur, oge, sayfa, _ in ogeler:
@@ -1171,7 +1181,7 @@ def _udf_kur(sayfalar, uyarilar):
             yz.paragraf(p, sol_kenar_x, hedef=parca)
         oz = {}
         if numara:
-            p0 = numara["satir"].parcalar[0]
+            p0 = numara["parca"]
             spec = 8 | {"orta": 32, "sag": 64, "sol": 0}[numara["hiza"]] | (2048 if numara["toplam"] else 0)
             oz = collections.OrderedDict([
                 ("pageNumber-spec", "BSP32_%d" % spec), ("pageNumber-seperator", numara["ayrac"] if numara["toplam"] else "/"),
@@ -1197,7 +1207,7 @@ def _udf_kur(sayfalar, uyarilar):
     return {"xml": xml, "paragraf": paragraf_say}
 
 
-def _sayfala(ogeler, sayfalar, H, govde_tepe, alt_ust_kenar):
+def _sayfala(ogeler, sayfalar, H, tepe_al, alt_ust_kenar):
     """Alt kenar (bottomMargin) ve sayfa sonu konacak sayfalar. Her kaynak sayfanın içeriği UDE'nin modeliyle yerleştirilir: son satırın
     kutusunun altı (B) ve sonraki sayfanın ilk öğesi bu sayfada kalsaydı onun altı (N). UDE'de satır, kutusunun altı H − ⌊bm⌋'i geçmiyorsa
     sığar: bütün sayfalarda B ≤ H − ⌊bm⌋ ve dolu sayfalarda H − ⌊bm⌋ < N olacak tam sayı ⌊bm⌋ aranır (en çok sayfayı tutan; eşitlerin
@@ -1223,6 +1233,7 @@ def _sayfala(ogeler, sayfalar, H, govde_tepe, alt_ust_kenar):
         y = None          # son öğenin kutusunun altı
         taban = None
         onceki_p = None
+        govde_tepe = tepe_al(no)
         for tur, p, s, devam in ogeler_k:
             if tur == "g":
                 yuk = int(math.floor(p.y1 - p.y0))
