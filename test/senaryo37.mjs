@@ -307,6 +307,13 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
         && !u2.neden && !u2.hedefler.find((h) => h.id === 'pdf').devre, { udeAyari2, y2, u2 });
       await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'udeYolu', null); window.__pdefe.ayar().udeYolu = null; return true; })()`);
     } else atlandi('UDE\'nin gerçek klasörüyle bağlantı', 'bu bilgisayarda UYAP Doküman Editörü yok');
+    // PDF → Word dönüştürücüsü yok benzetimi: çekirdek bu hedefi hiç sunmuyorsa neden pdf_word yeteneğinden (Word → PDF'inki değil)
+    const wb = await evalJs(`(() => { const a = ${A}; const d = { ...(a.yetenekler?.donusumler || {}) }; delete d['pdf>word'];
+      a.yetenekler = { ...(a.yetenekler || {}), donusumler: d, pdf_word: { var: false, neden: 'PDF → Word dönüştürücüsü bu sürümde eksik.' }, word: { var: true } };
+      const o = a.ogeler.find((x) => x.ad === 'Dilekçe örneği.pdf'); o.hedefler.delete('word'); a._ogeCiz(o);
+      const b = [...document.querySelectorAll('.donustur-oge')].find((e) => e.querySelector('.ad').textContent === 'Dilekçe örneği.pdf').querySelector('.donustur-hedef-secim > button[data-id="word"]');
+      return { devre: b.disabled, ipucu: b.title }; })()`);
+    sonuc('PDF → Word dönüştürücüsü yokken Word hedefi soluk, nedeni pdf_word yeteneğinden', wb.devre && wb.ipucu === 'PDF → Word dönüştürücüsü bu sürümde eksik.', wb);
     await pencereKapat();
     await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);
     fs.rmSync(kopya, { force: true });

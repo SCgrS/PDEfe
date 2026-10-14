@@ -314,8 +314,10 @@ export class DonusturPenceresi {
     const y = this.yetenekler;
     const d = y?.donusumler?.[`${o.tur}>${bicim}`];
     let neden = d?.neden || null;
-    if (!neden && (bicim === 'word' || o.tur === 'word') && y?.word && y.word.var === false) {
-      neden = y.word.neden && !/^Bu sürümde yok\.?$/.test(y.word.neden) ? y.word.neden : 'Word dönüştürmesi bu sürümde yok.';
+    // Word → PDF'in yeteneği word (Word ya da LibreOffice), PDF → Word'ünkü pdf_word (çekirdeğin donusum_yetenekleri'nde)
+    const parca = o.tur === 'word' ? y?.word : bicim === 'word' ? (y?.pdf_word || y?.word) : null;
+    if (!neden && parca && parca.var === false) {
+      neden = parca.neden && !/^Bu sürümde yok\.?$/.test(parca.neden) ? parca.neden : 'Word dönüştürmesi bu sürümde yok.';
     }
     return { var: false, neden: neden || `${TUR_ADI[o.tur] || 'Bu dosya'} → ${BICIM[bicim]?.ad || bicim} dönüştürmesi yapılamıyor.` };
   }
