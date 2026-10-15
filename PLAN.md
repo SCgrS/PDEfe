@@ -31,6 +31,9 @@ src/main/               ana süreç (ESM)
   pano.js               Paylaş: dosyayı CF_HDROP olarak panoya koyar (PowerShell)
   gelistirme.js         test örneği kancaları (ayrı veri klasörü, ekran dışı pencere/boyut, yerel diyalog kuyruğu); paketlide kapalı
   guvenlik.js           0.1.23: dış adres süzgeci, IPC gönderen denetimi, gezinme koruması, dosya yolu ve çekirdek parametre denetimleri
+  yazdir.js             yazdırma (0.2.6: Windows'un kutusu açılmadan seçilen yazıcıya; yazıcı listesi, durumu ve tercihleri);
+                        yazdirSecenek.js: pencerenin seçeneklerinden Electron'un yazdırma seçeneklerine (saf işlev)
+  udfYaklasik.js        0.2.6: UYAP Doküman Editörü yokken UDF'nin yaklaşık çizimi (gizli, yalıtılmış pencere + printToPDF)
   preload.cjs           contextBridge: cagir / dinle / gonder / dosyaYolu (kanal izin listesi, 0.1.23)
 src/renderer/           arayüz (ES modülleri; derleme adımı yok, pdefe://app/ üzerinden sunulur)
   uygulama.js           giriş: sekmeler, komutlar, kısayollar, açma/kapatma/kaydetme, sürükle-bırak, araç çubuğu sıkıştırma
@@ -46,17 +49,26 @@ src/renderer/           arayüz (ES modülleri; derleme adımı yok, pdefe://app
   notlar.js             not katmanı: okuma/çizim/etkileşim/balon/simge/araçlar, yazı düzenleyicisi, kaydetme farkı (diff)
   yaziParcalari.js      yazı parçaları (kalın/italik/altı/üstü/renk): işlemler, kanonik biçim, DOM çizme/okuma, seçim ofseti
   aracPenceresi.js/.css Araçlar düğmesinin karolu penceresi
-  araclar/              araç pencereleri (kucult, sayfalar, dondur, ayir, gorselBirlestir; birlestir.js 0.1.2'de kaldırıldı);
+  araclar/              araç pencereleri (kucult, sayfalar, dondur, ayir, gorselBirlestir, donustur 0.2.6; birlestir.js 0.1.2'de kaldırıldı);
                         ortak.js: pencere, çıktı satırı, standart kaydetme seçimi, üzerine yazma / kilit soruları
   komutlar.js           komut deseni: KomutYigini (geri al/yinele, kayıt konumu); komut tarifi (tanim): sekme başka pencereye taşınınca
                         yığın tariflerden yeniden kurulur
   durum.js              durum çubuğu
+  adlar.js              0.2.6: gösterilen ad (sondaki .pdf atılır: sekme, seçici, Açık belgeler, son açılanlar)
+  tumSecim.js           0.2.6: Ctrl+A ile belgenin bütün sayfalarının metni (sanal seçim, arka planda hazırlanan kopya)
+  yazdir.js             yazdırma penceresi (0.2.6: yazıcı seçimi, ön izleme); yazdirYerlesim.js: sayfanın kâğıttaki yeri (saf işlev)
+src/udf-cizim/          0.2.6: UDF çizim motoru (Drive UDF Okuyucu'nun kopyası, iki PDEfe değişikliğiyle) ve yaklaşık çizimin sayfası
 core/                   Python 3.12 (proje içi .venv, uv ile kurulu; PyInstaller ile tek klasör core/dist/pdefe-core/)
   pdefe_core.py         JSON-RPC döngüsü, belge önbelleği, temel yöntemler
   islemler/notlar.py    not yazma: Highlight/Text (referans okuyucu yapısı)/FreeText (gömülü Türkçe yüzler, parçalı /RC), kaydet
   islemler/araclar.py   küçült, sayfa düzenle, ayır, görüntü/PDF birleştir, döndür; geçici dosya + atomik yer değiştirme
   islemler/yapisal.py   sayfa tarifinden belge kurma, anlık kopya, konumsal not eşleme, içerik kutusu
   islemler/yazi_tanima.py  0.1.24: görsellerdeki yazının tanınması (Windows.Media.Ocr, pywinrt); kendi iş parçacığı, sayfa önbelleği
+  islemler/donustur.py  0.2.6: Dosya Formatını Değiştir'in çatısı (içerikten tür, toplu dönüştürme, iptal, PDF üzerinden zincir) ve TIFF ↔ PDF
+  islemler/udf.py       0.2.6: UDF → PDF, UYAP Doküman Editörü'nün sayfalayıcısıyla (ude_kopru/ude-kopru.jar: Java 8, yalnızca yansıma)
+  islemler/udf_yaz.py   0.2.6: PDF → UDF (düzenlenebilir; editörün ölçülmüş yerleşim modeli)
+  islemler/word.py      0.2.6: Word → PDF (görünmez ayrı Word örneği, iş nesnesi; yoksa LibreOffice)
+  islemler/pdf_word.py  0.2.6: PDF → Word (ucuncu/pdf2docx: pdf2docx 0.5.13, opencv'siz, PDEfe değişiklikleriyle)
 test/                   surucu.mjs (CDP ile uygulamayı sürer; gerçek fare/klavye girdisi; hedefler / hedefSec: birden çok pencere),
                         baslat.ps1 / durdur.ps1, kurulum_bitis.ps1 (ayrı veri klasörlü, ekran dışı test örneği), senaryo*.mjs,
                         incele.py, not_testi.py, ornek_pdf_uret.py (yer tutucu PDF üretir ve PDF özetini verir),
@@ -2171,3 +2183,638 @@ bir şey yoksa eksiklik bulursan düzeltelim. son açılanlar kısmındaki pdf'l
   - Regresyon: senaryo19 112/112, senaryo20 52/52, mac_renderer 23/23 (son açılanların adı uzantısız beklendi), senaryo25 / 31 / 32 bu sürümde
     değişmeyen kodda.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 40.
+
+### Revizyon 0.2.6 (2026-10-14 – 10-15, kullanıcı istekleri: Yazdır düğmesi ve yazdırma penceresi; Dosya Formatını Değiştir; Sayfaları düzenle'de kopyalama; Ctrl+A; sekme adları; yazı kutusu kopyala-yapıştır)
+Ayrıntı: CHANGELOG.md. Kullanıcının yedi maddelik isteği (özet): (1) Kaydet'in yanına Yazdır düğmesi, sağ tık menüsüne Yazdır; (2) yazdırma bazı
+bilgisayarlarda düzgün çalışmıyor (Windows 11'in yazdırma kutusunda ön izleme yok); (3) yeni araç "Dosya Formatını Değiştir" (ad harfiyen bu): UDF ↔
+PDF, TIFF ↔ PDF, Word ↔ PDF, gerçeğine olabildiğince yakın; PDF → UDF'te resim tabanlı ile düzenlenebilir arasında soruldu, kullanıcı yalnızca
+düzenlenebiliri seçti; (4) Sayfaları düzenle'de kartın altında döndürmenin sağına, silmenin soluna kopyala simgesi (kopya hemen sağına), Ctrl+C /
+Ctrl+V, sağ tıkta kopyala, döndür, sil; (5) "Ctrl+A açık tüm sayfalardaki metni seçsin"; (6) "Sekmelerdeki .pdf yazısı kalksın"; (7) yazı kutusu
+kopyala-yapıştır, yapıştırılan düzenlenebilir olsun; yeri tıklanan sayfanın sağ üst köşesi, tıklama noktasını izlemek görüntülemeyi yavaşlatmıyorsa
+tıklanan yer; farklı sayfa tipleriyle denensin. Gönderme, etiket ve sürüm yayımı yok: bu revizyon yalnızca yerel commit'ler.
+Düzen: salt okunur keşif (arayüz, sayfa / not, yazdırma, araç çerçevesi, UDF, TIFF / Word); iki şerit aynı çalışma ağacında sırayla (arayüz A1–A5;
+çekirdek B1–B3); aracın arayüzü (C1); UYAP Doküman Editörü yokken yaklaşık UDF (C2); bağımsız inceleme ve düzeltme turu; belgeler. Her grup küçük
+commit'ler, önce düşen testlerle. Ölçümlerde gerçek belgeler yalnızca kopyalarıyla ve yalnızca sayılarıyla kullanıldı; kopyalar iş bitince silindi.
+Electron yalnızca ekran dışındaki (`test/baslat.ps1`) ya da görünmeyen masaüstündeki (`test/baslat_gizli.ps1`) örnekte başlatıldı: önceki bir
+denemenin deney betiği olağan masaüstünde başlatılınca kullanıcının ekranında Electron'un hata kutusu açılmıştı (yolu file:// URL'sinden pathname ile
+çeviriyordu).
+
+#### 0.2.6: Yazdır düğmesi, sağ tık menülerinde Yazdır, sekme adlarında ".pdf" yok (madde 1 ve 6)
+- [x] **Durum.** Yazdırma komutu vardı (`dosya.yazdir` → yazdir.js; Ctrl+P, Dosya › Yazdır, Mac'te Yazdır… ⌘P); araç çubuğunda ve sağ tık menülerinde
+  yoktu. Sekme adı belgenin dosya adı (`belge.ad`, uzantılı); 0.2.5'te yalnızca açılış ekranının Son açılanlar listesi uzantısız yapılmıştı.
+- [x] **Araç çubuğu** (index.html, uygulama.js `belgeDurumuYaz`): Kaydet'in hemen sağında, aynı grupta Yazdır (`data-komut="dosya.yazdir"`, ipucu
+  "Yazdır (Ctrl+P)", Mac'te ⌘P), simge Kaydet'le aynı çizgi stilinde yazıcı. Açılış sekmesinde soluk, belgede her zaman etkin: kaydedilmemiş
+  değişikliği `yazdir()` kendisi sorar. Tıklama komut yolundan (`komutCalistir`): açık yazı düzenlemesi önce uygulanır, açık seçenek penceresi ikinci
+  kez açılmaz.
+- [x] **Menüler**: belge sayfasında son grup "Kaydet, Yazdır"; sekmede Kaydet'in hemen altında. Açılış sekmesinde ve başka pencereye taşınan sekmede
+  devre dışı. Arka plandaki sekmeden seçilince önce o sekmeye geçilir (`soruIcinOneAl` → `sekmeSec`, `belgeyiYazdir`): yazdırma penceresi ve kaydetme
+  sorusu hangi belge için açıldığı görünsün (0.2.1'de Kaydet'teki gerekçe). Etiket üç noktasız "Yazdır" (Mac menüsündeki "Yazdır…" değişmedi).
+- [x] **Şerit sığdırma** (stil.css): Yazdır (34 px; 6. kademede 26 px) en dar pencerede (Windows'ta içi 704 px) 4 basamaklı sayfa sayısıyla araç
+  çubuğunu 0,7 px taşırıyordu (serit_olculeri'nin eşiği 0,5 px); 6. kademede ayraçların kenar boşluğu 2 → 1 px (`#arac-cubugu.sikisik-6 > .ayrac`),
+  hiçbir düğme gizlenmedi. Kademeler erkene kaydı: 900 px'te düğmeler 28 px (0.2.5'te 34), 760 px'te menü çubuğu düğmesi gizli, 704 px 6. kademe
+  (geri_al_bolunmus'un sınırları 800 / 740 / 704; 0.2.5'te 760 / 704 / 660).
+- [x] **Sekme adı** (yeni src/renderer/adlar.js `uzantisiz`; sekmeler.js, uygulama.js, baslangic.js): sondaki ".pdf" (büyük / küçük harf fark etmez)
+  yalnızca gösterilen addan atılır: sekme, Ctrl+Tab seçicisi, Açık belgeler listesi, sürüklenen sekmenin ön izlemesi. "karar.v2.pdf" → "karar.v2";
+  ".pdf" ve "rapor.pdf.yedek" olduğu gibi. Model adı (`belge.ad`, `s.ad`) uzantılı kaldı; ipucu (tam ad + yol), pencere başlığı, sorular, yazdırma
+  penceresi ve Dosya › Son açılanlar menüsü uzantılı (istek sekmeler içindi; kullanıcıya söylendi). Son açılanlar (0.2.5) da ortak işlevi kullanıyor.
+- [x] **Seçilmeyen yollar**: 7. sıkışma kademesi (Sayfa düzeni düğmesini gizlemek: görünür bir düğme kaybolurdu); Yazdır'ı değişiklik yokken soluk
+  yapmak (yazdırma değişiklikten bağımsız); menüden `yazdir()`'ı doğrudan çağırmak (açık yazı düzenlemesi uygulanmazdı); sekme adını modelde uzantısız
+  tutmak (ipucu, başlık, sorular ve testler uzantılı ada dayanıyor); pencere başlığını da uzantısız yapmak (görev çubuğu ve Alt+Tab tam adı
+  göstersin).
+- [x] **Testler**: senaryo34 (yeni, 41: düğmenin yeri, ölçüsü, ipucu, solukluk, yazdırma penceresinin açılması, ikinci basış, yazı düzenlemesi, iki
+  menü, taşınan ve arka plandaki sekme, sekme adları); 0.2.5'in kodunda (git worktree + node_modules / .venv bağlantısı) dört bölümde düşüyor, şimdi
+  41/41 (%100 ve %125). Güncellenen ve geçen: senaryo28, senaryo22 101/101, senaryo19 113/113, senaryo20 52/52, senaryo23 53/53, serit_olculeri 25/25,
+  geri_al_bolunmus 41/41, mac_renderer (⌘P), sekme_genislik 38/38, kisayol_dosya 164/164, panel_kuyruk 42/42.
+
+#### 0.2.6: yazdırma PDEfe'nin kendi penceresinde (madde 2)
+- [x] **Kök neden.** Seçenek penceresinden sonra `webContents.print({ silent: false })` Windows'un yazdırma kutusunu açıyordu. Chromium bu yolda
+  `PrintDlgEx` çağırır; Windows 11 22H2'den beri Win32 uygulamalarının bu çağrısı birleşik (modern) kutuya gider ve o kutudaki ön izleme yalnızca
+  WinRT PrintManager kullanan uygulamalarda çalışır (Win32'de, ör. Notepad++'ta da hep boş): Electron'da o alanı dolduracak API yok, PDEfe'nin
+  düzeltebileceği bir hata değil. Aynı kutu uygulamanın verdiği kâğıdı, yönü ve çift taraflıyı yok sayabiliyor (yazıcının varsayılanı A5 iken A4 sayfa
+  0,7 ölçekle basıldı), çift taraflı seçimi kutuya geçmiyor, sayfa seçimi iki kez yapılıyordu (PDEfe'nin seçtiği sayfalardan sonra kutuda yeniden
+  aralık yazılınca boş iş). "Bazı bilgisayarlar": Windows 10, Windows 11 21H2, bazı uzak masaüstü oturumları ve `PreferLegacyPrintDialog=1` olanlarda
+  eski kutu çıkıyor.
+- [x] **Karar: Windows'un kutusu hiç açılmaz** (main/yazdir.js): `webContents.print({ silent: true, deviceName, copies, collate, color, duplexMode?,
+  pageSize, margins: none, printBackground })`. `pageRanges` (sessiz yazdırmada Chromium işi iptal ediyor: "Print job canceled"), `landscape` (yatay
+  sayfayı PDEfe döndürür) ve `dpi` gönderilmez; "Yazıcının ayarı"nda `duplexMode` da gönderilmez (yazıcının ayarı korunur). Kâğıt standartsa adıyla
+  (`'A4'`), değilse mikronla. Eşleme saf modülde (main/yazdirSecenek.js `secenekleriHazirla`; Electron'u içe aktarmaz, Node'da sınanır).
+- [x] **Pencere** (renderer/yazdir.js, ayarlar.css; iki sütun, en dar pencerede sol sütun kayar). Solda Yazıcı ("(varsayılan)", "(çevrim dışı)";
+  açıklama satırı; Yazıcı tercihleri), Kopya 1–99 ve Harmanla (1 kopyada soluk), Sayfalar (Tümü / Geçerli / Aralık), Kâğıt ("Belgeye göre": seçilen
+  sayfaların en sık boyutu; A4, A3, A5, Letter, Legal), Boyut (Sayfaya sığdır / Gerçek boyut), Renk (Renkli / Siyah beyaz; TDK'ya göre ayrı ve kısa
+  çizgisiz), Çift taraflı (Yazıcının ayarı / Tek taraflı / uzun kenar / kısa kenar), Notları yazdır. Sağda büyük ön izleme (beyaz kâğıt, temadan
+  bağımsız; sayfa basılacağı yerde ve yönde), ◀ n / N ▶ (Page Up / Page Down), özet "3 sayfa × 2 kopya", hatalı aralıkta ön izlemede hata yazısı.
+  Altta "Windows yazdırma penceresiyle yazdır" (macOS'ta "macOS …"; eski `silent:false` yolu: yazıcı ve kopya orada seçilir, sayfa seçimi, kâğıt ve
+  boyut PDEfe'ninki), Yazdır, Vazgeç.
+- [x] **Yazıcılar** (yeni kanallar, preload izin listesi + `guvenliIpc`): `yazdir:yazicilar` (isteği gönderen pencerenin `getPrintersAsync()`'i +
+  varsayılan yazıcı: Windows'ta kayıt defterinden reg.exe'nin tam yoluyla, macOS'ta `LANG=C lpstat -d`; Electron'un listesinde varsayılan bilgisi
+  yok), `yazdir:yaziciDurumu` (Windows'ta PowerShell `Get-CimInstance Win32_Printer`, pencere açıldıktan sonra arkadan ~1,3 sn, 15 sn önbellek: çevrim
+  dışı, çift taraflı, dosyaya yazan), `yazdir:tercihler` (System32\rundll32.exe `printui.dll,PrintUIEntry /e /n <ad>`, kabuksuz, ad listeden
+  doğrulanır; macOS'ta Sistem Ayarları › Yazıcılar ve Tarayıcılar). Çift taraflı basmayan yazıcıda iki seçenek soluk ve "Yazıcının ayarı"na döner;
+  çevrim dışıda uyarı (iş kuyrukta bekler); dosyaya yazanda "kaydedileceği yer sorulur". macOS'ta durum okunmaz (seçenekler hep açık); yazıcı CUPS
+  kuyruğunun adıyla gönderilir, pencerede görünen adı yazılır.
+- [x] **Yazıcı tercihleri**: yazıcının kendi "Yazdırma tercihleri" penceresi (ayrı süreç); orada yapılan değişiklik o yazıcının kullanıcıya ait
+  varsayılanı olur ve sessiz yazdırma onu temel alır (tepsi, kalite, toner tasarrufu); PDEfe'nin kâğıt, renk, kopya ve çift taraflı seçimi onun üstüne
+  yazılır (ipucunda söylenir).
+- [x] **Ön izleme**: çekirdeğin `sayfa_goruntu`'su (notlar seçimiyle; `kucuk_resim` hep notlu çizer), çözünürlük kâğıdın ekrandaki pikselinden
+  (`onizlemeDpi`: ekran ölçeği dâhil, 24–200 dpi), JPEG; 40 görüntülük önbellek, aynı görüntü için ikinci istek yok, hızlı gezinmede eski yanıtlar
+  sıra sayacıyla çizilmez; siyah beyaz CSS `grayscale(1)`. Sayfa ölçüleri pencere açılmadan `sayfa_boyutlari` ile (756 sayfada 88 ms). Yerleşim saf
+  işlevde (renderer/yazdirYerlesim.js `sayfaYerlesimi`) ve yazdırma HTML'i de onu kullanır: pencerede görülen, kâğıda çıkanın küçüğüdür.
+- [x] **Hatırlama**: yazıcı, harmanla, kâğıt, boyut, renk, çift taraflı kalıcı (ayar `yazdirma`, `DURUM_ANAHTARLARI`'nda: Varsayılanlara dön silmez);
+  kopya her pencerede 1'den başlar, sayfa seçimi ve "Notları yazdır" yalnızca oturumda: bir sonraki yazdırmada kendiliğinden 5 kopya ya da notlar
+  basılmasın (isteğin "kalıcı hatırlansın" kısmı böyle yorumlandı, kullanıcıya söylendi). Hatırlanan yazıcı kaldırılmışsa varsayılan seçilir ve "Son
+  kullanılan yazıcı (…) bulunamadı"; hiç yazıcı yoksa Yazdır soluk, odak Windows penceresi bağlantısına geçer (soluklaşan düğme odağı bırakıyor, Esc
+  pencereye ulaşmıyordu).
+- [x] **İlerleme ve bildirim**: "\"Lazer Yazıcı\" yazıcısına gönderiliyor… (3 sayfa × 2 kopya, 1,2 MB)"; dosyaya yazan yazıcıda kaydedileceği yerin
+  sorulduğu ve "Çıktıyı Farklı Kaydet" penceresi görünmüyorsa görev çubuğuna bakılacağı; bitince "gönderildi" (çevrim dışıysa "iş, yazıcı açılınca
+  basılır"). Kutusuz sessiz yazdırmadan sonra odağa dokunulmaz. `nedenTurkce`: "Invalid deviceName provided" → "Yazıcı bulunamadı (kaldırılmış ya da
+  adı değişmiş olabilir). …".
+- [x] **Yanında düzeltilen**: `uygulama.js` `yazdir()` çağrısına ayar verilmiyordu: "otomatik kaydet açıkken sormadan kaydet" dalı hiç çalışmıyordu.
+  `test/yazdir_html_testi.mjs` 0.2.0'dan beri "window is not defined" ile düşüyordu (yazdir.js DOM'a bağlı modülleri yüklüyor): saf işlevler DOM'suz
+  modüllere taşındı, test onarıldı ve genişledi.
+- [x] **Test örneği yazıcıya gitmez** (gelistirme.js `testDiyalog`): print çağrısı ve tercihler `test:diyalogKaydi`'na düşer, yanıtı test kuyruğundan;
+  `PDEFE_TEST_YAZICILAR` ("1": yerleşik sahte liste — çift taraflı basan varsayılan "Lazer Yazıcı", dosyaya yazan "Microsoft Print to PDF", çevrim
+  dışı bir yazıcı —, ya da JSON) ve `test:yazicilar` sahte liste verir (README görüntüsünde bilgisayarın yazıcı adları olmasın);
+  `PDEFE_TEST_GERCEK_YAZDIR=1` yalnızca görünmeyen masaüstündeki örnekte gerçek yazdırmayı açar.
+- [x] **Seçilmeyen yollar**: "Çıktıyı Farklı Kaydet" kutusunu öne getirmek (Electron'da yabancı pencereye erişim yok; her yazdırmada PowerShell +
+  Add-Type, ~2 sn; görünmeyen masaüstünde kutu sahipsiz ama PDEfe'nin önünde açıldı, gerçek ekranda denenmedi: DOGRULAMA); belgelenmemiş `mediaSize` +
+  `vendor_id` ile kâğıt kimliği (DMPAPER; Electron'un iç ayrıntısı, sürümle bozulabilir; belgelenen `pageSize` kaldı, ofisteki yazıcıda denenecek); ön izlemede
+  `kucuk_resim`; kopya, aralık ve notları kalıcı hatırlamak; Harmanla'yı yalnızca kopya > 1 iken göstermek (pencere zıplamasın, soluk); renk ve
+  harmanlama yeteneğine göre seçenek kapatmak (istenmedi); yatay sayfanın dönme yönünü değiştirmek (0.1.x'ten beri saat yönünde; /Rotate 90'lı dikey
+  sayfa kâğıtta ters görünür, ön izleme artık bunu gösteriyor: ayrı karar).
+- [x] **Ölçüm** (ev, Windows 11 25H2): yazıcı listesi + varsayılan 26 ms, Win32_Printer 1,3–1,5 sn. Görünmeyen masaüstünde Microsoft Print to PDF'e
+  gerçek yazdırma (PyMuPDF ölçümü): karışık 4 sayfa (A4 dikey, A4 yatay, /Rotate 90'lı A4, A5) → 4 sayfa A4 dikey, yatay ve döndürülmüş sayfa kâğıda
+  döndürülmüş, A5 sığdırılınca büyüdü; siyah beyazda renkli piksel 0; notlar açıkken notun dolgusu var, kapalıyken yok; 2 kopya → 4 sayfa, sıra 1, 2,
+  1, 2; kâğıt A5 → 419,5 × 595,3 pt; gerçek boyutta A5 sayfa A4'te büyütülmeden; kaydetme kutusunda Vazgeç → dosya yok, "Yazdırma vazgeçildi.". Ön
+  izleme 1280 × 900 pencerede kâğıt 318 × 450 px.
+- [x] **Testler**: yazdir_html_testi 90/90; yazdir_pencere (yeni, sahte yazıcılar, temiz veri klasörü) 43/43 %100 ve %125 (önceki commit'te
+  `test:yazicilar` yok, ilk adımda düşüyor); yazdir_gercek (yeni, görünmeyen masaüstü; `test/yazdir_kaydet.ps1` kaydetme kutusunu o masaüstünde
+  doldurur: kutunun alt pencereleri yalnızca o masaüstüne bağlı iş parçacığından görünüyor; `yazdir_ornek_uret.py`, `yazdir_pdf_olc.py`) 15/15;
+  mac_renderer 28/28 (macOS'ta "Yazıcı ayarları", "macOS yazdırma penceresiyle yazdır", kuyruk adı); senaryo34 41/41, ortu_tiklama 156/156,
+  kisayol_dosya 164/164, senaryo22 101/101.
+
+#### 0.2.6: Ctrl+A belgenin bütün sayfalarındaki metni seçer (madde 5)
+- [x] **Yorum** (kullanıcıya söylendi): etkin belgenin bütün sayfaları; bütün sekmelerdeki belgeler değil.
+- [x] **Kök neden.** `tumunuSec()` (uygulama.js) yalnızca geçerli sayfanın metin katmanını seçiyordu; katmanlar yalnızca görünür sayfalarda ve
+  yakınlarında kurulur, uzaktakiler boşaltılır. Bütün katmanları kurup DOM'da seçmek ölçüldü: 410 sayfalık TTK'da 55,5 sn, 37.381 öğe; seçim varken
+  hiçbir katman boşaltılmıyor.
+- [x] **Sanal "bütün belge" seçimi** (yeni src/renderer/tumSecim.js): geçerli sayfanın tamamlanmış katmanı DOM'da seçilir (çapa: tarayıcının kopyala
+  olayı, sağ tık menüsü ve klavye bir seçim görür; katman yoksa kurulması en çok 3 sn beklenir, boş sayfada görünür alanda katmanı olan ilk sayfa),
+  görünüm köküne `tum-secili` sınıfı. CSS bütün katmanların öğelerini seçim renginde boyar: sonradan kurulan katmanlar, tanınan (OCR) sözcükler,
+  koyulaştırılmış sayfa dâhil; çapa sayfası iki kat koyulaşmaz. Seçim `selectionchange` (tarayıcı seçimi çapadan farklıysa), sayfa alanına sol tık,
+  Esc, sekme değişimi, belgenin kapanması / taşınması, sayfa listesinin değişmesi (sil, sırala, döndür, ekle) ve görünüm düzeninin değişmesiyle
+  kalkar.
+- [x] **Kopya** (`TumSecim.kopyala`, copy işleyicisinin başında): Ctrl+A anında arka planda, sayfa sayfa sırayla: görselli sayfada önce `ocr_sayfa`
+  (ertelenen istek, işçiyi tutmaz), sonra sayfayı kaplayan tek kutuyla `metin_sec`; ardından `sayfaMetinleriniBirlestir` + `temizMetin`: paragraf
+  kuralı olağan kopyanınki, çekirdek değişmedi. Sonuçlar sayfa girdisine bağlı önbellekte. Kopyalama geldiğinde hazır değilse pano boşaltılır (eski
+  içerik yapıştırılıp bütün belge sanılmasın), "Metin hazırlanıyor (N/M)… Durdurmak için Esc", hazır olunca `pano:metin` + `yalnizcaPanodaysa: ''`
+  (0.1.23 kuralı: bu arada başka bir şey kopyalandıysa ezilmez, "… panoya yazılmadı" bildirimi), sonra "Belgenin metni kopyalandı (N sayfa)".
+  Kopyalaması istenmiş hazırlık seçim kalksa da biter; Esc ve belgenin kapanması durdurur. Tanıyıcı yoksa yalnızca PDF metni.
+- [x] **Sağ tık ve Bul**: bütün belge seçiliyken Kopyala her yerde etkin, Vurgula ve Ara soluk (yalnızca çapa sayfasına uygulanırlardı), Not ekle
+  tıklanan yere. macOS'ta sağ tık seçimin dışındaki sözcüğü seçer: sağ tuşa bütün belge seçiliyken basıldıysa çapa yeniden kurulur; Ctrl+tık sağ tık
+  sayılır. Ctrl+F seçimden doldurmaz; seçim çubuğu gizlenir. Kısayollar'da "Ctrl+A Belgedeki tüm metni seç" (macOS'ta ⌘A).
+- [x] **temizMetin** (metin.js; sonuç aynı): en uzun satır `Math.max(...dizi)` yayılımıyla aranıyordu, ~125 bin satırdan sonra "Maximum call stack
+  size exceeded": döngüye çevrildi. Satır sonu tiresi bütün paragrafta düzenli ifadeyle aranıyordu: süre satır sayısının karesiyle artıyordu (200 bin
+  satırlık tek paragraf 2 dakikada bitmedi); paragrafın son iki karakteri ayrıca tutuluyor, 0,9 sn.
+- [x] **Seçilmeyen yollar**: bütün katmanları DOM'da kurmak (55 sn ve bellek); bütün belgeyi tek çekirdek isteğiyle almak (tek işçinin kuyruğunu ~6 sn
+  tıkardı); çekirdekte `metin_sec`'e `tum: true` (kaplayan kutu aynı sonucu veriyor, ölçüldü); hazırlığı Ctrl+C anında başlatmak (her kopyada
+  bekletirdi); hazır değilken panoya yer tutucu yazı (erken yapıştırılırsa belgeye girerdi); Vurgula'yı bütün belgeye uygulamak (binlerce vurgu notu);
+  temizMetin'i Worker'da çalıştırmak (TTK'da 68 ms); macOS'ta sağ tuşun varsayılanını engellemek (Chromium sözcüğü menü olayında seçiyor).
+- [x] **Ölçüm** (ekran dışı örnek, test/pdf'teki kamuya açık kanun metinleri): TTK 410 sayfada hazır olmaya 5,1–5,9 sn; hazırlık sürerken olay
+  döngüsünde en uzun boşluk 54–82 ms, çekirdeğe ping 5–20 ms; bütün metin 962.132 karakter (çekirdeğin get_text'iyle %0,16 fark); bütün belge yolu ile
+  tek sayfanın olağan kopyası 3 belgede 9 sayfada birebir; kaydırınca DOM'da 2–8 katman (yalnızca çapa tutuluyor); temizMetin 200 bin satır 906 ms
+  (0.2.5'te RangeError).
+- [x] **Testler**: tum_secim (yeni, 52; sistem panosu kullanılmaz: sahte copy olayı, çekirdeğin metni `test:diyalogKaydi`'nda) 52/52 %100 ve %125
+  (önceki commit'te 13/48); kopyalama_testi 31/31 (yeni 200 bin satır denetimi eski metin.js'te RangeError ile düşüyor); mac_renderer 30/30;
+  görünmeyen masaüstünde kisayol_dosya 164/164, kisayol_gorunum 115/115, senaryo19 112/112; senaryo25 30/30, senaryo31 25/25, senaryo15, 16, 17, 28
+  geçti, senaryo34 41/41, senaryo24 38/38. mac_duman güncellendi (⌘A; yalnızca Mac CI'da koşar).
+
+#### 0.2.6: Sayfaları düzenle'de kopyala düğmesi, Ctrl+C / Ctrl+V, sağ tık menüsü (madde 4)
+- [x] **Yorumlar** (kullanıcıya söylendi): menüdeki Kopyala düğmeyle aynı işi yapar (kopya hemen sağına) ve sayfayı pencerenin panosuna da alır;
+  menüye Yapıştır da kondu (pano boşken soluk); "döndür" menüde iki öğe (Sola / Sağa döndür); birden çok sayfa seçiliyken kopyalar sırasıyla
+  sonuncusunun sağına (1, 2 seçili → 1 2 1 2), her kopya kendi özgününün yanına gitmez; Ctrl+C / Ctrl+V sistem panosunu kullanmaz, pano pencere
+  kapanınca biter.
+- [x] **Durum.** Aynı sayfanın düzende iki kez geçmesi zaten destekleniyordu ("PDF ekle" ile aynı dosya): kart modeli, tarif, `tarifHazirla`, küçük
+  resim önbelleği ve çekirdeğin `sayfalar_uygula`'sı. Kopya kart `{...k, kimlik: yeni}`: sekme indeksi, kaynak ve döndürme korunur.
+- [x] **Kart düğmesi** (`_kartOlustur`): Sola döndür, Sağa döndür, Kopyala, Sil; simge araç çubuğundaki "PDF'i kopyala"nınki, ipucu "Kopyala (sağına
+  ekler)"; 220 px kartta dört 24 px düğme sığar (%100 ve %125). **Model** (sayfalar.js): `kopyala` (kartların kopyalama anındaki anlık görüntüsü),
+  `yapistir` (geri alınır, eklenenler seçili), `cogalt` (kopyala + son hedefin hemen sağına); pano pencere örneğine bağlı, geri al yığınına girmez;
+  boş sayfanın kopyası boş sayfa.
+- [x] **Klavye** (`_tus`): Ctrl+C / Ctrl+V (macOS'ta ⌘; harf klavye düzeninden bağımsız, Ctrl+Alt = AltGr kısayol değil), ikisinde de
+  `preventDefault`: 0.2.5 kodunda tuşlar arkadaki belgenin `copy` / `paste` dinleyicisine ulaşıyordu (testte 2 copy, 4 paste olayı; arkadaki belgede
+  seçili metin varsa o panoya yazılırdı), şimdi 0. Bildirimler "N sayfa kopyalandı; eklemek için Ctrl+V." ve "Yapıştırılacak sayfa yok; …". Dosya adı
+  kutusunda olağan kopyala / yapıştır. F1'de "Ctrl+C / Ctrl+V — Seçilenleri kopyala / seçili sayfanın arkasına yapıştır".
+- [x] **Sağ tık** (`pencere.baglamMenusuEkle`; Birleştir'in deseni): kartta Kopyala, Yapıştır, —, Sola döndür, Sağa döndür, —, Sil (bütün sayfaları
+  silecekse soluk); çok seçimde etiketlerde "(n)"; seçili olmayan karta sağ tık yalnızca onu seçer. Boş alanda Yapıştır, —, Tümünü seç. Kayıt sürerken
+  menü açılmaz.
+- [x] **Kopya sayfalarda notlar** (core/islemler/yapisal.py, seçenek D): "Üzerine yaz"dan sonra yapısal kayıt bir notu silerken ya da değiştirirken
+  yalnızca kaynak sayfanın ilk kopyasına dokunuyordu (`konum.setdefault`): silinen not kopya sayfada kalıyordu (0.1.23'ün "silinen not dosyada
+  kalmasın" ilkesine ters; kopyalamadan önce de "PDF ekle" ile aynı dosyada oluyordu). `konum` artık kaynak sayfa başına konum listesi; not eşlemesi
+  her kopya için ayrı; silme ve güncelleme her kopyaya; kopya sayfaya eklenen yanıt, üst notun o sayfadaki kopyasına bağlanır.
+- [x] **Bulunan ikinci kusur** (önceden vardı): ekranın altında 3 sn görünen bildirim (`#bildirim`) araç penceresinin alt şeridine denk geliyor ve
+  tıklamayı alıyordu (pencere içi 961 px: bildirim 888–921 px, Sayfaları düzenle'nin Kaydet'i 886–919 px; bildirim görünürken Kaydet'e tıklamak bir
+  şey yapmıyordu). `pointer-events: none` (bildirimde düğme ya da bağlantı yok).
+- [x] **Seçilmeyen yollar**: C: kopyalar çekirdekte notsuz, renderer notları kopyaya yeni not olarak çoğaltır (sayfa ve not komutlarını tek komutta
+  birleştirmek gerekirdi; damga, çizim gibi türler kaybolurdu); B: notsuz kopya (ön izleme ile sonuç tutmazdı); sistem panosu (kart sekmedeki sayfayı
+  sekme indeksiyle gösterir, başka belgede anlamı yok; kullanıcının panosundaki metni silerdi); her kopyayı kendi özgününün yanına koymak; araç
+  çubuğunda kopyala düğmesi (istenmedi); copy / paste olay dinleyicisi (macOS'ta ⌘V'nin menü rolüyle ikinci kez yapıştırma riski); bildirimi
+  pencerenin içine taşımak.
+- [x] **Testler**: yapisal_esleme_testi 13/13 (5 yeni kopya sayfa durumu; düzeltmeden önce 4 HATA); senaryo35 (yeni, 37: kart düğmeleri, kopyala
+  düğmesi, döndürülmüş ve boş sayfanın kopyası, sağ tık, "Yeni belge" ve "Üzerine yaz" kaydı PyMuPDF ölçümüyle, özgündeki notun silinmesi iki kopyada,
+  Ctrl+Z, bildirim görünürken Kaydet) %100 ve %125 37/37 (0.2.5 kodunda ilk bölümde düşüyor); görünmeyen masaüstünde gerçek Ctrl+C / Ctrl+V
+  tarayıcının girdi yolundan (`S35_GIZLI=1`; Windows menüsünün Düzen › Kopyala hızlandırıcısı çalışmadı, copy / paste olayı doğmadı) 38/38;
+  kisayol_araclar 99/99 (0.2.5 kodunda 8 HATA); mac_renderer 32/32; gec_iptal 20/20, kayit_sekme_panel 61/61, senaryo17, 18, 26, 27, ortu_tiklama
+  156/156, senaryo19 113/113, arac_onizleme 22/22 geçti. senaryo13'ün 7 HATA'sı 0.2.5 kodunda birebir aynı (eski test). Her takım temiz örnekte
+  koşulmalı: art arda koşulan testlerden biri yarıda çökerse soru kuyruğu dolu kalır, sonrakiler yanlış düşer.
+
+#### 0.2.6: yazı kutusu kopyala-yapıştır; yapıştırılan kutu tıklanan yere gelir (madde 7)
+- [x] **Yorumlar** (kullanıcıya söylendi): tıklama noktasını izlemek görüntülemeyi yavaşlatmıyor (aşağıda): kutu son tıklanan yere gelir. Sağ üst köşe
+  yedek kural: hiç tıklanmamışsa, sayfanın dışına (gri alana) ya da bir notun üzerine (ör. kopyalamak için yazının kendisine) tıklanmışsa, tıklanan
+  yer ekranda görünmüyorsa; köşe sayfanın ekranda görünen bölümünün köşesi (sayfa büyütülüp kaydırılmışsa da kutu görünür yere gelir), kenarlardan 18
+  pt içeride. Art arda yapıştırılan her kopya 12 pt kayar (tıklanan yerde sağa-aşağı, köşede sola-aşağı), sayfaya sığmayan kutu içeri itilir.
+  Kopyalarken bildirim: "Yazı kutusu kopyalandı; tıkladığınız yere Ctrl+V ile yapıştırılır." (macOS'ta ⌘V; eklendi, istenmezse kaldırılır). Ctrl+V
+  başka sekmede ve başka PDEfe penceresinde de yapıştırır, Word'e düz metin gider; sağ tık › Yapıştır yalnızca kopyalanan penceredeki menüde etkin.
+- [x] **Kök neden / durum.** 0.2.5'te yazı kutusu kopyalanamıyordu: belgenin `copy` dinleyicisi yalnızca metin seçimini işliyordu, `paste` dinleyicisi
+  yoktu. Koordinat dönüşümü hazırdı (`yaziBaslat`'ın `pxRectToPdf`'i: döndürülmüş, yatay ve MediaBox'ı kaydırılmış sayfalar), metin yönü kuralı da
+  (ekrandaki eğim = sayfanın açısı − `donus`). Keşifteki deney: düzenlenemez öğe odaktayken Ctrl+C / Ctrl+V, Windows menüsünün Düzen › Kopyala'sı ve
+  macOS'un menü rolleri `copy` / `paste` olayı doğuruyor: tuş değil DOM olayları dinlendi.
+- [x] **Kopya verisi** (notlar.js `yaziKopyaVerisi`): kanonik biçim, ekrandaki eğim, ekrandaki kutu (pt), opaklık; panoya düz metin ve PDEfe'nin özel
+  türü `application/x-pdefe-yazi` (JSON, `surum`, `kimlik`); dosya yolu yazılmaz. Başka programın yazısının biçimi (görünümü dosyada) önceden okunur:
+  not seçilince ve sağ tık menüsü açılınca `freetext_stil` (copy olayı eş zamanlı), nota bağlı WeakMap'te (not nesnesine yazılsaydı belge kirli
+  görünürdü); henüz okunmadıysa yapıştırırken okunur. **Copy dinleyicisinde sıra**: sağ tık › Kopyala'nın hedefi → bütün belge seçimi (madde 5) →
+  metin seçimi → seçili yazı kutusu (düzenlenmiyorken; girdi kutusunda, açık pencerede, sekme taşınırken değil): metin seçimi her zaman önce.
+- [x] **Paste dinleyicisi** (yeni, `document`): girdi kutusunda (Bul, sayfa kutusu, not balonu), açık pencerede (araç pencereleri dâhil: Sayfaları
+  düzenle'nin ve Birleştir'in Ctrl+V'si kendi tuşlarıdır), yazı düzenlenirken, sekme taşınırken ve panoda PDEfe yazısı yokken olaya dokunulmaz.
+  **Doğrulama** (`yaziVerisiDogrula`; pano içeriği güvenilmez): metin boşsa ya da 20.000 karakteri, kutu 14.400 pt'yi aşıyorsa yapıştırılmaz; yazı
+  tipi bilinen dört aileden biri (değilse varsayılan), boyut 4–200 pt'ye sınırlanır, renkler `#rrggbb`, opaklık 0,05–1, eğim çeyrek dönüşe yuvarlanır.
+- [x] **Yapıştırma** (`yaziYapistir`): kutu `pxRectToPdf` ile, `donus = (sayfa açısı − eğim + 360) % 360`: döndürülmüş ve yatay sayfaya yapıştırınca
+  metin ekranda aynı yönde; `ekle(not, 'Yazı yapıştır')`. Yazar ayardaki ad, tarih yeni; kaynağın xref'i, yanıtları, kilidi ve açıklama çizgisi
+  kopyalanmaz.
+- [x] **Yer kuralı** (`tikKaydet`, `tikYeri`, `yapistirmaYeri`): her basışta (sağ tık ve macOS'ta Ctrl+tık dâhil) sayfa girdisinin kalıcı kimliği,
+  sayfa içi PDF noktası (px değil: arada yakınlaştırma ya da döndürme olsa da doğru yer) ve notun üzerine basılıp basılmadığı. Vurgunun kendisi "notun
+  üzerinde" sayılmaz (altındaki metne basılmıştır). Kayıt `pointerDown`'dan ayrı adım: `pointerDown` sağ tıkı ve macOS'un Ctrl+tıkını yine işlemez
+  (mac_renderer'daki 0.2.1 denetimi değişmedi).
+- [x] **Sağ tık**: Kopyala'nın hemen altında Yapıştır (bu pencerede kopyalanan kutu var ve `pano:oku` metni onunla aynıysa etkin; sağ tıklanan yere);
+  yazının üzerinde Kopyala o yazıyı seçip kopyalar. Ana süreç: test örneğinde `pano:oku` sistem panosunu okumaz, test kuyruğundan yanıtlanır; yeni
+  kanal yok. F1 "Yazı kutusu": "Ctrl+C / Ctrl+V — Seçili yazı kutusunu kopyala / tıklanan yere yapıştır".
+- [x] **Seçilmeyen yollar**: hep sağ üst köşe (ölçümde basış başına ~2–3 µs); fare hareketini (pointermove) izleyip imlecin son yerine (kaydırma ve
+  çizim yoluna iş eklerdi); kopyayı yalnızca pencere içi panoda tutmak (madde 4'teki gibi; Word'e, başka sekme ve pencereye gitmezdi); kopyaya dosya
+  yolu yazmak (yapıştırma çekirdeğe panodan gelen yolu açtırırdı); copy dinleyicisinde açık araç penceresi varken arkadaki seçili metni engellemek
+  (`preventDefault` + boş veri Chromium'da kullanıcının panosunu boşaltabilir); yazı tipini yalnızca o sistemin listesinden kabul etmek (Windows'tan
+  Mac'e kopyalanan Segoe UI reddedilirdi).
+- [x] **Ölçüm**: `tikKaydet` (bir `closest`, bir `getBoundingClientRect`, PDF.js görünüm dönüşümü) 5.000 çağrının ortalaması %100 ve %125'te 2,1–3,1
+  µs; `pointermove` dinleyicisi eklenmedi, kaydırma, çizim ve yerleşim koduna dokunulmadı.
+- [x] **Testler**: senaryo36 (yeni, 59) ve `test/yazi_kopya_pdf_uret.py` (A4 dik, A4 yatay, /Rotate 90, /Rotate 270 + kaydırılmış MediaBox, A5, A3; 1.
+  sayfada başka programın yazısı; `olc` kipi kayıttan sonra kutuları PyMuPDF'le çekirdekten bağımsız ölçer): %100 ve %125 59/59; önceki kodda 1–3.
+  bölümlerde 17 HATA, 4. bölümde durma. Gerçek sistem panosu kullanılmadı. mac_renderer 34/34; senaryo27 19/19, senaryo28 38/38, senaryo34 41/41,
+  tum_secim 52/52, yazi_ime 8/8, yazi_dolgu_koyu 13/13, kisayol_gorunum 115/115.
+
+#### 0.2.6: Dosya Formatını Değiştir: dönüştürme çekirdeği ve TIFF ↔ PDF (madde 3)
+- [x] **Kök nedenler (bugünkü durum).** Görüntü / PDF birleştir'in "Orijinal" boyutu her görseli 72 dpi sayıyordu (uzun kenarı 2500 pikseli geçerse
+  300): İndirilenler'deki 13 benzersiz TIFF'in 11'inde çözünürlük etiketi yok; etiketsiz 200 dpi A4 tarama 1653 × 2338 pt (58 × 82 cm), 250 dpi elle
+  tarama 441 × 709 pt oluyordu (MuPDF'in kendi dönüştürmesi 96 dpi varsayıyor). MuPDF'in yolları 1 bit sayfayı Flate'e çeviriyor, G4'ü korumuyor; UYAP
+  taramaları 8 satırlık şeritli G4 (olduğu gibi kopyalanamaz). Birleştir çok sayfalı TIFF'in bütün karelerini birlikte çözüyordu (147 sayfada tepe
+  1,16 GB; dört düzeyli boyut tahmini 1,17 GB). Çekirdekte ertelenmiş istekte iptal bayrağı işçi Ertelenmis'i döndürür döndürmez siliniyordu: iş
+  başlamadan gelen iptal kayboluyor, iptal edilen iş "iptal edildi" (-32800) yerine boş iletili genel hata (-32000) dönüyordu. PyMuPDF iş parçacığı
+  güvenli değil.
+- [x] **Yeni modül** `core/islemler/donustur.py` (`islemler/__init__.py`'de araclar'dan sonra; spec'in gizli listesinde): `donusum_yetenekleri`,
+  `donusum_bilgi {yol, genislik}` (tür içerikten, uzantıdan değil: `%PDF-`, TIFF / BigTIFF, zip'te docx / docm / odt / UDF, OLE2'de doc ve parolalı
+  docx, rtf, düz XML UDF; ön izleme yalnızca PDF (MuPDF) ve TIFF (Pillow); UDF / Word baytı ne MuPDF'e ne arayüze gider), `bicim_donustur {ogeler:
+  [{yol, hedef, hedefBicim, secenekler}]}` (ertelenmiş, ayrı dönüştürme iş parçacığında). Parametre hatası (uzantı biçimle eşleşmiyor, aynı hedef iki
+  kez, hedef bir kaynağın kendisi, bilinmeyen biçim) bütün isteği reddeder; içerik hatası yalnızca o öğenin sonucuna kodla (bulunamadi, kilitli,
+  salt_okunur, parolali, bozuk, taninmadi, desteklenmiyor, guvensiz, buyuk, zaman_asimi, bellek…; kilitli / salt okunur iletisi arayüzün
+  `hataSor`'unun tanıdığı metni içerir).
+- [x] **Güvenlik**: MuPDF'e yalnızca içeriği PDF olan dosya `filetype="pdf"` ile; TIFF Pillow'la (kare başına piksel sınırı); zip girdi önce
+  `zip_denetle` (öğe sayısı 10.000, açılmış toplam 300 MB, 1 MB'tan büyük öğede oran 200) ve içerik `zip_oku` ile sınırlı açılır (bildirilen boyutu
+  yalan zip bombasına karşı); hedefin uzantısı biçimle eşleşmeli.
+- [x] **Yazım düzeni**: her öğe hedefin klasöründe geçici dosyaya (`<hedef>.<pid>-<sıra>.pdefe-tmp<uzantı>`; uzantı doğru: Word gibi dış programlar ad
+  değiştirmesin), BÜTÜN öğeler bitince sırayla yerine konur. İptal o ana dek gelirse hiçbir hedef değişmez, geçici dosya kalmaz; yerine koyma
+  başlayınca iptale bakılmaz (Birleştir / Ayır'daki "geç gelen iptal yazılmış dosyayı yazılmamış göstermesin" kuralı). PDF olmayan → PDF olmayan (ör.
+  Word → UDF) geçici PDF üzerinden iki adım. Dönüştürücü kaydı (UDF ve Word modülleri için) `donusturucu_kaydet(kaynak, hedef, islev, hazir)`; bağlam:
+  `mupdf()` kilidi, `denetle()`, `gecici_klasor()`, `dis_surec()` (penceresiz; iptalde ve süre dolunca süreç ağacıyla öldürülür); `hazir()`
+  yapılamayan hedefi nedeniyle bildirir.
+- [x] **İş parçacıkları** (pdefe_core.py): dönüştürmeler tek dönüştürme iş parçacığında sırayla; `mupdf_kilidi` (RLock): işçi her isteği, dönüştürme
+  her MuPDF adımını (sayfa başına) bu kilitle yapar; Pillow ve dış süreç kilitsiz: dönüştürme sürerken küçük resim, kopyalama, ping yanıtlanır
+  (sınandı). İptal bayrağı iş bitene dek durur ve -32800'e çevrilir. Çekirdek kapanırken süren dönüştürme 2 sn beklenir, bitmezse iptal edilip
+  temizlenir.
+- [x] **TIFF → PDF**: çözünürlük etiketi geçerliyse (inç / cm, 50–1200 dpi) o; yoksa uzun kenar A4'ün uzun kenarına (11,69 inç) oturtulur, standart
+  değere (100, 150, 200, 240, 250, 300, 400, 600) %3 yakınsa ona yuvarlanır; etiketsiz karelerde dosya başına TEK değer (ortanca: elle beslenen
+  taramada sayfaların gerçek ölçüsü kalsın). 1 bit sayfa: tek şerit G4 ile Flate'ten (düzey 6) sayfa başına küçüğü, XObject elle (`/CCITTFaxDecode /K
+  -1 /BlackIs1 true`; ters verilince sayfa negatif çıkar, MuPDF'te ve pdf.js'te sınandı). Gri ve renkli sayfa kayıpsız PNG yolu. Kareler sırayla,
+  bellekte bir kare; yön etiketi bir kez uygulanır (Pillow 12 kendisi uyguluyor).
+- [x] **PDF → TIFF**: tek dosyada çok sayfa. Seçenekler 200 | 300 dpi, siyah beyaz | gri | renkli; varsayılan 200 dpi siyah beyaz (sabit eşik 160,
+  titreşimsiz, G4; UYAP'ın kendi TIFF'leri gibi), gri ve renkli LZW, dpi etiketli. Sayfayı tek görsel kaplıyorsa (%95; taranmış evrak) görselin kendi
+  çözünürlüğünde çizilir (50–600 dpi): pikseller yeniden örneklenmez, 300 seçilse de 200 dpi tarama 200 kalır. MuPDF ön belleği 8 sayfada bir
+  boşaltılır.
+- [x] **Birleştir** (araclar.py): "Orijinal"de yalnızca TIFF karesi aynı çözünürlük kuralıyla (`_gorsel_sayfa_olcusu`); JPEG / PNG ve ötekiler eski
+  kural (72 dpi etiketli telefon fotoğrafı gerilemesin); "A4'e sığdır" değişmedi. Çok sayfalı TIFF kare kare çözülür, boyut tahmininin ön belleğinde 1
+  bit kareler paketli. Sıkıştırma değişmedi (Birleştir'de G4 yok; ayrı karar).
+- [x] **Seçilmeyen yollar**: `pymupdf.open(tif).convert_to_pdf()` (96 dpi, G4'ü Flate'e çeviriyor, TIFF'i MuPDF'e vermek 0.1.23 kuralına aykırı);
+  Pillow'un PDF yazıcısı (renkli LZW sayfayı JPEG'e çeviriyor: kayıplı, 35 → 151 KB); yalnızca G4 (gürültülü 250 dpi taramada Flate %30 küçük) ya da
+  yalnızca Flate (13 dosyada %24 büyük); zlib düzey 9 (%6 küçük, 10 kat yavaş); siyah beyazda Floyd–Steinberg titreşimi (okunurluğu düşürüyor, dosyayı
+  iki katına çıkarıyor); dönüştürmeyi işçide eş zamanlı yapmak (bütün pencerelerin küçük resim ve kopyalama istekleri beklerdi); toplu işte öğeyi
+  bitince hemen yerine koymak (iptalde yarısı yazılmış olurdu); etiketsiz karelerde sayfa başına dpi.
+- [x] **Ölçüm** (İndirilenler'deki 13 benzersiz TIFF'in kopyaları; yalnızca sayılar, kopyalar silindi): 400/400 sayfa kayıpsız; gidiş-dönüşte 1 bit
+  sayfalar 399/399 birebir; toplam 38,7 MB TIFF → 24,7 MB PDF (−%36; bugünkü Birleştir 30,6 MB, yanlış ölçülerle); sayfalar A4 (595 × 841–842),
+  Letter, 147 sayfalık tarama 593 × 852–854 (taranan kâğıt A4'ten uzun), elle taramalar gerçek ölçüde; 147 sayfa 3,6 sn. Birleştir "Orijinal" aynı
+  ölçüleri veriyor (13/13). Sentetik 150 sayfa: TIFF → PDF tepe 70 MB, 5,1 sn; PDF → TIFF tepe 95 MB (ön bellek boşaltılmadan 321 MB); Birleştir tepe
+  1.169 → 139 MB, boyut tahmini 1.168 → 136 MB. 200 dpi siyah beyaz TIFF'te yazı tanıma sözcük F1 0,976.
+- [x] **Testler**: donustur_testi (yeni; yalnızca üretilmiş girdiler; `--exe` paketli çekirdekle, `--hizli` 150 sayfayı atlar) 108/108, paketli 91/91;
+  iptal bayrağı denetimlerinin 3/5'i eski pdefe_core'da düşüyor; guvenlik_testi 47/47 (dönüştürme bölümü); araclar_testi birlestir/tiff 8/8 (eski
+  kodda 3/8), toplam 137/139 (iki kucult_tahmin süre denetimi yer tutucu belgeyle eski kodda da düşüyor); tanima_testi 61/61, kucuk_resim_testi 50/50,
+  kose_notu_testi 49/49, yapisal_esleme_testi, mac_cekirdek_testi 14/14; `npm run cekirdek:derle` geçti.
+
+#### 0.2.6: UDF ↔ PDF (madde 3)
+- [x] **İstek ayrıntısı.** UYAP Doküman Editörü'nün (UDE) "PDF olarak kaydet"i bazı UDF'leri kötü kaydediyor, "Yazdır → PDF" düzgün.
+- [x] **Kök nedenler.** UDE'nin "PDF olarak kaydet"i (iText 2.1.7; yalnızca sabit havuzundaki atıflara bakıldı, bayt kodu çözülmedi): (1) sayfa
+  genişliğini "2 × sol kenar + yazı alanı" alıyor (`PageFormat.getWidth()` doğru): sol ve sağ kenarı farklı belgede sayfa A4 olmuyor
+  (İndirilenler'deki 277 zip UDF'nin 26'sı), sol kenar küçükse sağ taraf kırpılıyor; (2) yazı tiplerini gömmüyor: başka okuyucular yerine başka yazı
+  tipi koyuyor, iki yana yaslı satırlar bozuluyor; (3) saydam antetin saydam piksellerinin %96,9'u RGB 0,0,0: UDE resmi saydamlığı hesaba katmadan
+  küçültünce kenarda yarı saydam koyu pikseller kalıyor (gri çerçeve). "Yazdır → PDF" aynı sayfalayıcıyı (Printable) yazıcıya çiziyor: satır kırılımı
+  iki yolda aynı, bozukluk yalnızca çizim katmanında. Ayrıca: UDE sayfa numarasını glif dizisiyle çiziyor, iText bunu şekil yazıyor (görünür ama
+  seçilemez, aranamaz); yorumlu UDF pencere dışında açılamıyordu (yorum vurgulayıcısı yalnızca editörün penceresinde kuruluyor: ClassCastException);
+  PyMuPDF'in find_tables'ı ilk çağrıda standart çıktıya öneri yazdırıp çekirdeğin JSON kanalını bozuyordu (paketli çekirdekle bulundu).
+- [x] **UDF → PDF: Java köprüsü** (`core/ude_kopru/src/pdefe/UdeKopru.java` → `ude-kopru.jar`, Java 8 bayt kodu, ~28 KB; `npm run ude-kopru:derle`,
+  `build/ude-kopru-derle.mjs`; jar depoda, CI'ın Java'ya ihtiyacı yok, içinde kaynağın SHA-256'sı; electron-builder.yml Windows ve macOS için
+  `resources/ude-kopru/`). UDE'nin ve iText'in sınıflarına yalnızca yansımayla erişir (derleme bağımlılığı yok, test denetler); UDE'nin karartılmış
+  yöntemleri adla değil imzayla bulunur. UDE ve iText jar'ları depoya ve pakete girmez (THIRD_PARTY.md'ye not).
+- [x] **PDF kipi** (birincil): sayfa sayfa iText `PdfTemplate.createGraphics(W, H, FontMapper)` + `Printable.print`; sayfa boyu PageFormat'tan; yazı
+  tipi eşleyicisi süreç başına bir kez: Windows'un ve kullanıcının yazı tipi klasörleri (macOS'ta sistem, kullanıcı ve Word'ün klasörleri), hepsi
+  Identity-H ve gömülü; ad bulunamazsa ailenin biçemli adı, aile, Java'nın mantıksal yazı tipinin karşılığı (Dialog / SansSerif → Arial, Serif → Times
+  New Roman, Monospaced → Courier New), son olarak Arial (iText'in kendi yedeği gömülmeyen Helvetica Cp1252 idi: 45 belgenin ikisinde Türkçe harfler
+  düşüyordu). Saydam resimler yüklemeden önce beyaza düzleştirilir. Çizim yüzeyi `MetinGrafik` ile sarılır: glif dizisinin karakterleri yazı tipinden
+  geri bulunursa drawString (sayfa numarası yazı olur). **Yazıcı kipi** (yedek, yalnızca Windows): UDE'nin iText'i yoksa ya da çizemezse aynı
+  sayfalayıcı Java'nın PrinterJob'ıyla "Microsoft Print to PDF"e, pencere açmadan, kırpma alanı sayfaya genişletilerek; sonuçta uyarı (Java bu yolda
+  bazı belgeleri resme çeviriyor).
+- [x] **Süreç (oturum)**: bir JVM birden çok belgeyi çizer (standart girdiden satır başına iş, yollar UTF-8: Java 8'in komut satırı ANSI kod
+  sayfasıyla okunur; Java, jar ve geçici klasör yolları o kod sayfasına sığmazsa 8.3 kısa adlarıyla); çıktı satır başına JSON. Boşta 45 sn, 60 belge
+  ya da ölümcül hatada yenilenir; iptalde ve süre dolunca (180 sn + 20 sn/MB) öldürülür; girdisi kapanınca kendisi çıkar. `CREATE_NO_WINDOW`,
+  `java.awt.headless=true`, geçici `user.home` ve `java.io.tmpdir` (kullanıcının `.uki` ve `.sertifikadeposu` klasörlerine dokunulmaz, sınandı),
+  `JAVA_TOOL_OPTIONS` / `_JAVA_OPTIONS` / `JDK_JAVA_OPTIONS` / `CLASSPATH` temizlenir, -Xmx 2 GB (32 bit Java'da 1 GB).
+- [x] **UDE'yi ve Java'yı bulmak**: ayardaki yol (istek parametresi `udeYolu`: klasör, exe, .ini, macOS'ta .app) önce; sonra `.udf`'nin ProgID
+  kayıtları ve açma komutunun exe'si, Uninstall kaydı, bilinen kurulum klasörü; macOS'ta /Applications ve ~/Applications'taki UYAP uygulaması. Sınıf
+  yolu UDE'nin .ini dosyasındaki "Class Path"ten; sürüm exe'nin dosya sürümünden. Java: UDE klasöründeki jre, Java 8 kurulumları, JAVA_HOME, kayıt
+  defteri, PATH; macOS'ta Java eklentisinin JRE'si ve JavaVirtualMachines (`/usr/bin/java` çağrılmaz: Java yoksa kurulum penceresi açar). 15'ten
+  büyükler elenir (UDE Java 16+ ile çalışmıyor; Java 25'le satırlar 1 pt kayıyordu); önce 8. Bulunan ön bellekte, bulunamayan 30 sn sonra yeniden
+  aranır.
+- [x] **Yöntemler**: `donusum_yetenekleri.udf` (UDE ve Java'nın yolu, sürümü, nereden bulunduğu, kip); `donusum_bilgi` UDF için sayfa boyu ve kenarlar
+  (UDE'siz), e-imza bilgisi ve UDE ile sayfa sayısı ve ön izleme (ayrı iş parçacığında, ertelenmiş yanıt, ön bellekli); `bicim_donustur` UDF → PDF
+  kipi otomatik | pdf | yazici. Yorumlu UDF'de yorumlar yüklemeden önce çıkarılır (yazdırılan sayfanın parçası değil), sonuçta uyarı; e-imza taşınmaz
+  (uyarı).
+- [x] **PDF → UDF** (`core/islemler/udf_yaz.py`, UDE gerekmez; yalnızca düzenlenebilir, kullanıcının seçimi): keşif prototipinin üretim koduna
+  çevrilmiş, büyük ölçüde yeniden yazılmış hâli. Yazı katmanı satırlara (taban çizgisi ±1,5 pt), satırlar paragraflara; sayfa sınırında süren paragraf
+  tek paragraf. Yazı ailesi PDF yazı tipi adından (19 aile; bilinmeyen ad bu bilgisayarda kuruluysa ölçüleri dosyasından), boyut tam punto (UDE
+  "10.5"i okuyamıyor, 12 sayıyor), kalın / italik / renk, altı çizili (ince yatay çizgiden).
+- [x] **UDE'nin yerleşim modeli** (köprüyle ölçüldü: 17 yazı tipi × 6–28 punto × kalın / düz × iki metin = 391 çizim; ayrıca girinti, kenar, sayfa
+  sonu, tablo denemeleri): satır kutusu K = ⌊hhea yüksekliği × punto⌋ + 1 (391/391 tuttu); taban çizgisi kutunun tepesinden sabit; LineSpacing satıra
+  2 × ⌊LS × K / 2⌋ ekler, yarısı üstte (24/24); paragraflar arası, SpaceAbove / Below (tam puntoya aşağı), yazının x'i (⌊leftMargin⌋ + 1 + girinti),
+  gövdenin ilk taban çizgisi, sayfaya sığma ve üst / alt bilginin yerleri formülle. Kaynağın konumları bu modelle geri çözülür: kenarlar (varsa
+  yuvarlak cm / inç değeri), girintiler, LineSpacing, SpaceAbove. Alt kenar ve sayfa sonları (`_sayfala`): bütün sayfalarda son satır sığacak, dolu
+  sayfalarda sonraki sayfanın ilk satırı sığmayacak tam sayı aranır; tutmayan dolu sayfa paragraf sonunda bitiyorsa oraya sayfa sonu.
+- [x] **Üst / alt bilgi, resim, tablo, tarama**: sayfaların %60'ında aynı yerde aynı metin üst / alt bilgi (ilk sayfada yoksa `startPage="2"`); sayfa
+  numarası ("n", "n/N", ön ek / son ekli) UDE'nin kendi numarası (`pageNumber-spec`; yazı tipi, boyutu, rengi numaranın kendisinden). Satır içi
+  resimler ve kendi satırındaki resimler; sayfanın %85'ini kaplayan görsel ilk sayfada zemin resmi (antet; payları tam sayı: UDE ondalığı okuyamıyor).
+  Yazıyla üst üste binen ya da yazı satırlarının yanında duran resim (imza, kaşe, doğrulama kodu) alınmaz: UDE'de resim yalnızca satır içinde
+  durabiliyor; sonuçta sayısıyla söylenir. Sayfada en az üç yatay ve üç dikey çizgi varsa PyMuPDF find_tables; en az 2 × 2 çizgili tablo UDF tablosu
+  (sütun genişlikleri, birleşik hücre, hücre girintisi; UDE tabloyu yazı alanının genişliğine yayıyor). Taranmış sayfa (yazı < 3 karakter, görsel ≥
+  %50) yazı tanımayla satırlara; tanıyıcı yoksa sayfanın resmi, uyarı. Döndürülmüş yazı (filigran, kenar notu) alınmaz.
+- [x] **UDF kuralları**: format 1.8, tek CDATA; "]]>" araya U+200B ile (UDE "]]>" içeren belgeyi açamıyor), BMP dışı karakter U+FFFD, XML'de geçersiz
+  denetim karakterleri atılır; ofsetler UTF-16 birimi ve belge sırasıyla; `paperOrientation` 0 = yatay (prototipte 2 yazılıyordu); kâğıt UDE'nin
+  kodlarından en yakını.
+- [x] **Seçilmeyen yollar**: kendi UDF çizicimiz (Swing'in satır kırma kuralları, alanlar, tablolar, listeler baştan yazılmak zorunda kalırdı, birebir
+  olmazdı; yalnızca UDE yokken yaklaşık çizim: aşağıda); yazıcı yolu birincil (45 belgenin 16'sını tümüyle resme çevirdi, bir belgede alt bilgi
+  kırpıldı, 89 sn); iText'e derleme bağımlılığı (FontMapper arayüzü için Proxy yetti); UDE'nin kendi yazı tipi eşleyicisi (gömmüyor); belge başına
+  ayrı JVM (ilk belge ~3 sn, oturumla sonrakiler 0,2–1,5 sn); resim tabanlı PDF → UDF (kullanıcı seçmedi); her sayfa sonuna sayfa sonu öğesi (araya
+  yazı eklenince yarım boş sayfa); sayfa sınırında paragrafı bölmek (ilk parçanın son satırı iki yana yaslanmaz); yanında yazı duran resmi satır içine
+  almak (yazıyı resmin yüksekliği kadar iterdi; çizgisiz tabloyla kurmak sonraki iş); find_tables'ı `contextlib.redirect_stdout` ile susturmak
+  (sys.stdout süreç geneli, işçinin yanıtı kaybolurdu).
+- [x] **Ölçüm** (gerçek belgelerin kopyaları, yalnızca sayılar; kopyalar silindi): kullanıcının örnek dilekçesi (4 sayfa) kendi "Yazdır → PDF"
+  çıktısıyla: 149 satırın 149'u aynı yerde, fark en çok 0,08 pt, sözcük benzerliği 1,000, A4, yazı tipleri 17/17 gömülü, SMask yok (köprünün ilk
+  sürümünde 145/149: sayfa numaraları şekildi); UDE'nin "PDF olarak kaydet"i: 623,6 × 841,9 pt, 0/13 gömülü, 4 SMask. 45 belgelik derlem (7 antetli,
+  10 kenarları farklı, 12 tablolu, 4 düz XML, 6 resimli) 45/45, 17,6 sn, 154 sayfanın hepsi A4, 641/641 yazı tipi gömülü. İndirilenler'deki 317
+  benzersiz UDF 316/317 (biri bozuk zip), 114 sn (belge başına ~0,36 sn). PDF → UDF → UDE'de PDF (yerleşim modelinin sınaması): 45 belgede UDE 45'ini
+  açtı, sayfa sayısı aynı 45/45 (prototip 30), sıralı sözcük benzerliği ≥ 0,99 31 (23), ≥ 0,95 45 (38), ortalama 0,991 (0,975); 316 belgede UDE
+  316'sını açtı, sayfa sayısı aynı 305, yazılı 312 belgenin sözcük torbası F1'i ≥ 0,99 304 (sıralı benzerliği düşük belgelerde fark okuma sırası: yan
+  yana sütunlar, üst bilgi); PDF → UDF 316 belge 25,6 sn. Sentetik "Word benzeri" dilekçe: sayfa sayısı aynı, sözcük 0,998, sayfa numarası UDE'nin
+  numarası, 9 × 3 tablo UDE'de 9 × 3 tablo; taranmış sayfa yazı tanımayla sözcük 0,987.
+- [x] **Testler**: udf_donusum_testi (yeni; UDE ya da Java yoksa UDE gerektirenler "ATLANDI"; `--exe` paketli çekirdekle; `PDEFE_UDF_DERLEM` /
+  `PDEFE_UDF_ORNEK` ile gerçek belgeler, yalnızca sayılar) 93/93, paketli 84/84: jar–kaynak tutarlılığı ve Java 8 bayt kodu, yansımadan başka erişim
+  yok; 6 sentetik UDF'de sayfa boyu, gömülü yazı tipi, SMask, sol kenar, sayfa numarasının yazı olması ve yorumlu UDF (eski jar'la düşüyor), gri
+  çerçeve yok, ön izleme, yazıcı yoluyla satır konumları ≤ 0,5 pt (0,08), açılamayan UDF yalnızca kendi öğesinde hata, iptal, zaman aşımı, UDE yokken
+  anlaşılır neden; PDF → UDF'te yapı, sayfa numarası, kenarlar, "]]>", emoji, yatay, tablo, UDE'nin açması, taranmış sayfa, JSON kanalı (eski kodla
+  düşüyor); `.uki` / `.sertifikadeposu` değişmedi. donustur_testi --hizli 105/105, guvenlik_testi 47/47, mac_cekirdek_testi 14/14, tanima_testi 61/61.
+  `npx electron-builder --win --dir`: jar `resources/ude-kopru/` altında, paketli çekirdek onu ortam değişkeni olmadan buldu.
+
+#### 0.2.6: Word ↔ PDF (madde 3)
+- [x] **İstek ayrıntısı.** Word ↔ PDF gerçeğine olabildiğince yakın, Word → PDF çevrim içi dönüştürme hizmetleri kadar sağlıklı; UDF ↔ Word de (PDF
+  üzerinden).
+- [x] **Word → PDF** (core/islemler/word.py): Windows'ta Word'ün kendisi (`ExportAsFixedFormat`: baskı için iyileştir, bütün belge, belge içeriği,
+  başlıklardan yer imi, etiketli PDF, gömülemeyen yazı tipi bit eşlem; PDF/A değil): Word belgesinin "gerçeği" Word'ün kendi dizgisi. `IncludeDocProps
+  = False`: belgenin yazar adı, şirketi ve başlığı PDF'e geçmez (PDF'i UYAP'a ya da karşı tarafa gönderen kullanıcı bunu beklemez; sınamada yazar ve
+  başlık boş).
+- [x] **Kullanıcının Word'üne dokunmamak**: kayıt defterinden algılama (başlatmadan); ayrı STA iş parçacığında `CoCreateInstance(LOCAL_SERVER)`, her
+  zaman yeni süreç, `GetActiveObject` hiç; süreç Caption'a verilen benzersiz etiketle `FindWindowW("OpusApp")` ile bulunur ve `KILL_ON_JOB_CLOSE` iş
+  nesnesine bağlanır (bağlanamazsa belge Word'e verilmez); belge açılmadan önce `AutomationSecurity = 3` (makrolar kapalı), DisplayAlerts = 0, Visible
+  = False, ScreenUpdating = False; `Options.*` değiştirilmez. Documents.Open: ConfirmConversions = False, salt okunur, AddToRecentFiles = False,
+  uydurma parola, görünmez. Girdi önce geçici klasöre doğru uzantıyla kopyalanır (yalnızca içerik: Korumalı Görünüm açılmaz). Toplu işte tek Word
+  örneği; 5 sn boş kalınca Quit (15 sn'de kapanmazsa iş nesnesiyle); kullanıcının Gezgin'den açtığı belge bizim örneğe düştüyse örnek kapatılmaz,
+  ayarlar geri alınır, iş nesnesinden KILL_ON_JOB_CLOSE kaldırılır. Süre: başlatma 45 sn, belge 60 sn + sayfa başına 2 sn; iptal ve süre aşımında
+  yalnızca bizim Word sürecimiz sonlandırılır. Parolalı .docx Word başlatılmadan reddedilir. Geç bağlama kendi `IDispatch.Invoke` sarmalayıcımızla:
+  `comtypes.client` içe aktarılınca paketli uygulamada program klasörüne ya da %TEMP%'e önbellek klasörü yazıyor.
+- [x] **Word yoksa LibreOffice** (`soffice --headless --convert-to pdf`, PDEfe'nin geçici profili, resimleri küçültmeyen süzgeç seçenekleri); macOS'ta
+  Word otomasyonu yok: yalnızca LibreOffice; ikisi de yoksa yetenek kapalı ("Word ya da LibreOffice gerekir"). Bu bilgisayarda LibreOffice yok: yol
+  sınanmadı. Arayüz sınaması için geliştirmede `PDEFE_WORD_YOK=1`.
+- [x] **PDF → Word** (core/islemler/pdf_word.py, core/ucuncu/pdf2docx): pdf2docx 0.5.13 (MIT; LICENSE yanında; komut satırı ve tkinter arayüzü
+  alınmadı; artık Artifex'in bakımında değil, kaynağın depoya alınmasını destekliyor). Değişiklikler kodda "PDEfe:" notuyla (liste
+  core/ucuncu/__init__.py): opencv kaldırıldı (kontur ağacı satır koşularından birleşim-bul'la, sıra OpenCV'nin gezintisiyle aynı; gri ton cvtColor'ın
+  tam sayı katsayıları; döndürme Pillow); `import fitz` → `import pymupdf as fitz` (fitz kısayolu içe aktarılınca standart çıktıya uyarı basıyor:
+  çekirdeğin JSON kanalı); PyMuPDF sürüm denetimindeki SystemExit ve `logging.basicConfig` (kök günlükçü) kaldırıldı; PDF `filetype="pdf"` ile; print
+  → günlükçü; yorumlardaki iki marka adı kaldırıldı. Akış Converter.convert'in aynısı ama adım adım: her sayfa adımı MuPDF kilidinin içinde, sayfa
+  sayfa ilerleme ve iptal; hatalı sayfa atlanır (uyarı); taranmış sayfa resim olarak aktarılır ("metni Word'de düzenlenemez" uyarısı).
+- [x] **Kök neden (yeni bulundu): Windows'ta numpy'nin OpenBLAS DLL'i** ilk yüklenişinde sürecin girdi tutamacını sorguluyor; ana iş parçacığı o
+  borudan eş zamanlı okurken sorgu okuma bitene dek bekliyor: numpy dönüştürme iş parçacığında ilk kez yüklenince PDF → Word ana süreçten yeni satır
+  gelene dek donuyordu (modül içi sınamada görünmez). SetStdHandle(NUL) işe yaramadı. Karar: `pdefe_core.main` girdiyi okumadan önce
+  `pdf_word.onden_yukle()` OpenBLAS DLL'ini yükler, `OPENBLAS_NUM_THREADS=1`.
+- [x] **Zincir**: Word → UDF = Word → PDF + PDF → UDF; UDF → Word = UDF → PDF + PDF → Word (çatının planı, ek kod yok).
+- [x] **Paket**: .venv'e comtypes 1.4.17, python-docx 1.2.0, lxml 6.1.3, numpy 2.5.4; spec'te yeni modüller, `ucuncu` ve `docx` alt modülleri, docx
+  şablonları (veri dosyası), comtypes (yalnızca Windows), numpy (dışlaması kalktı), cv2 dışlandı. `.github/workflows/yayim.yml`: Windows çekirdek
+  işinin paket listesine python-docx, lxml, numpy, comtypes; Mac'inkine python-docx, lxml, numpy. THIRD_PARTY.md: pdf2docx (değiştirildiği notuyla),
+  python-docx, lxml (libxml2, libxslt, zlib, iconv), numpy (OpenBLAS, libgfortran), comtypes; Word ve LibreOffice dağıtılmaz. Çekirdek klasörü 116,3
+  MB; kurucuya etki tahmini ~+9,5 MB (LZMA), diskte ~+38 MB.
+- [x] **Seçilmeyen yollar**: Word'ün kendi PDF açması (PDF Reflow) PDF → Word için (UYAP PDF'inde sayfaları resme çeviriyor, konumlu metinde
+  sözcüklerin %19'unu kaybediyordu); pdf2docx'i opencv'yle almak (kurucuya ~+41 MB); PowerShell ile Word (iş nesnesi kurulamaz, PDEfe çökerse Word
+  açık kalırdı); Word sürecini önce / sonra süreç farkından bulmak (aynı anda başka Word açılabilir; yalnızca tek yeni WINWORD varsa yedek);
+  `comtypes.client.CreateObject` (önbellek klasörü yazımı); kontur için scipy.ndimage (+30 MB).
+- [x] **Ölçüm**: Word → PDF (Word 16; sentetik 3 sayfalık docx / rtf / odt ve uzantısı .pdf olan docx): 3 → 3 sayfa, yazı tipleri gömülü, sözcük geri
+  çağırma 1,00, 3 yer imi, etiketli, yazar / başlık yok; 4 belge tek Word örneğiyle 2,1 sn (Word'ün başlaması dâhil). Çekirdek öldürülünce boştaki
+  Word 0,6 sn'de kapandı; 400 sayfalık belgede çevirme sırasında iptal 2,6 sn, yalnızca bizim Word'ümüz sonlandı, hedef ve geçici dosya yok. PDF →
+  Word (keşif yöntemi: docx Word'le PDF'e, özgünle karşılaştırma): 13 PDF'te özgün pdf2docx ile PDEfe'ninki aynı docx'i verdi; döndürülmüş görselli
+  PDF'te PDEfe daha doğru (90° ve 180° görselde ortalama piksel farkı özgünde 2,2 / 4,5, PDEfe'de 0,0). Kontur ağacı 400 rastgele görüntüde OpenCV 5.0
+  findContours(RETR_TREE) ile düzey, kutu ve sıra birebir.
+- [x] **Testler**: word_donusum_testi (yeni; Word yoksa Word denetimleri "ATLANDI") modül 75/76 (düşen: "Bölüm N" başlıklı belgenin Word → UDF → Word
+  zinciri; düzeltme turunda giderildi), `--exe` 57/57; donustur_testi 105/105 ve --exe 91/91 (iki beklenti güncellendi), udf_donusum_testi 93/93,
+  guvenlik_testi 47/47, tanima_testi 61/61, mac_cekirdek_testi 14/14.
+
+#### 0.2.6: Dosya Formatını Değiştir'in penceresi, açma yolları, Ayarlar (madde 3)
+- [x] **Araç** (`src/renderer/araclar/donustur.js`, komut `arac.donustur`): `ARACLAR`'da 6. karo (ad "Dosya Formatını Değiştir", açıklama "PDF ↔ UDF,
+  Word, TIFF", ipucu uzun hâli, yeni renk turkuaz: açık #00766c, koyu #4fd1c5); açılış ekranı, Araçlar penceresi (3 + 3), Araçlar menüsü (Windows ve
+  Mac aynı, Birleştir'in altında). Belge yokken boş listeyle açılır, Aç penceresi açılmaz; açık bir PDF varsa ilk girdi odur (Birleştir'deki gibi).
+  Pencere Birleştir düzeninde, sekme şeridinin altında. Açıklama kısa tutuldu: "PDF, UDF, Word ve TIFF arasında dönüştürür" açılış ekranında kartı iki
+  satıra indirip 91 px yapıyordu (ötekiler 74 px; acilis_hizasi'nin "PDF aç kartlardan yüksek" denetimi düştü); şimdi 75 px.
+- [x] **Girdiler**: Dosya ekle (ilk süzgeç "Desteklenen dosyalar": pdf, udf, tif, tiff, doc, docx, rtf, odt; sonra türlerin süzgeçleri ve Tüm
+  dosyalar; çoklu seçim), pencereye sürükle-bırak; aynı dosya ikinci kez eklenmez. Tür çekirdeğin `donusum_bilgi`'sinden (içerikten): tanınmayan dosya
+  satırda "Dosyanın biçimi tanınmadı…" hatasıyla durur; uzantısı içeriğiyle uyuşmayan dosyada uyarı.
+- [x] **Satır**: küçük resim (yoksa türün adı yer tutucuda: UDF kırmızı, Word mavi); ad (ipucunda yol); "TÜR · N sayfa · boyut"; Hedef bölümlü seçimi
+  (PDF | UDF | Word | TIFF, kendi türü hariç; yapılamayan soluk, nedeni ipucunda; seçili hedef yapılamıyorsa satırda nedeni); ×; sağ tık (Klasörde
+  göster / Finder'da göster, Listeden çıkar). UDF satırında UDE bulunamadıysa "UYAP Doküman Editörü'nün yerini göster" (ana sürecin klasör seçme
+  penceresi). UDF'nin ön izlemesi (UDE ile, ilk belgede birkaç saniye) ikinci bir `donusum_bilgi { onizleme: true }` isteğiyle sonradan gelir: tür ve
+  hedefler hemen görünür, Dönüştür ön izlemeyi beklemez.
+- [x] **Varsayılan hedef**: o türün son seçilen hedefi (kalıcı: ayar `donusturme.hedefler`, `DURUM_ANAHTARLARI`'nda), ilk kez PDF girdide UDF,
+  ötekilerde PDF; yapılamıyorsa sıradaki yapılabilen. **TIFF seçenekleri** yalnızca TIFF hedefli satır varken: Çözünürlük 200 / 300 dpi, Renk Siyah
+  beyaz / Gri / Renkli; bütün TIFF hedeflerine; "Taranmış sayfalar kendi çözünürlüğünde kalır."; PDEfe açık kaldıkça hatırlanır, kalıcı değil.
+- [x] **Kaydet** (`ortak.js` `kayitSecimi` genelleştirildi; öteki araçların davranışı değişmedi): `uzanti` parametresi, `uzantiAyarla` / `adAyarla` /
+  `klasorKipi`; Değiştir'in süzgeci biçime göre (PDF belgesi, UDF belgesi, TIFF görüntüsü, Word belgesi); klasör kipinde ad kutusu gizli. Tek dosyada
+  klasör + ad (girdinin adı + yeni uzantı, klasörde varsa "(2)"; hedef değişince uzantı değişir, elle yazılan ad kalır); birden çok dosyada yalnızca
+  klasör, adlar girdilerin adı; var olan dosyanın, listedeki bir dosyanın ya da aynı istekteki başka bir hedefin adı "(2)", "(3)" alır. "Üzerine yaz"
+  soluk: "Dönüştürülen dosya her zaman yeni dosya olarak kaydedilir." `hataSor` kilitli dosyanın adını uzantıdan bağımsız yakalar, örnek program
+  dosyanın türüne göre ("UYAP Doküman Editörü'nde", "Word'de").
+- [x] **Dönüştürme ve sonuç**: `bicim_donustur` IslemIlerleme ile (ilerleme ve İptal; Esc de iptal); dönüştürülemeyen satır varsa "N dosya
+  dönüştürülemiyor. … Öteki dosyalar dönüştürülsün mü?" (Atla ve devam et | Vazgeç); listedeki PDF PDEfe'de kaydedilmemiş değişiklikle açıksa önce
+  sorulur. Geç gelen iptalde (sonuç döndükten sonra) yeni oluşan dosyalar çöp kutusuna, onaylanıp üzerine yazılan dosya kalır, "İptal edilemeden
+  tamamlandı" (Birleştir'deki kural); sürerken × "Dönüştürme sürüyor." (İptal et ve kapat | Sürdür). Tek çıktı PDF ise sekmede açılır, pencere
+  kapanır, bildirimde ad, sayfa, boyut ve varsa çekirdeğin uyarısı (9 sn); öbür durumlarda pencerede sonuç listesi (Ayır'daki gibi; PDF'ler için Aç,
+  Klasörde göster). Listeyi temizle, dosya ekleme, satır çıkarma ve hedef değiştirme sonuç listesini kaldırır.
+- [x] **Ana süreç denetimi** (`guvenlik.js` `donusumParametreleri`; `main.js` cekirdek:cagir bu üç yöntemi her zaman denetler): `bicim_donustur`'da en
+  çok 500 öğe, yol ve hedef dolu metin, `hedefBicim` bilinen biçim (`hasOwnProperty`; `__proto__` reddedilir), hedefin uzantısı biçimle eşleşmeli (pdf
+  → .pdf, udf → .udf, tiff → .tif / .tiff, word → .docx); .bat / .cmd / .exe ve uyuşmazlık bütün isteği reddeder; seçeneklerde yalnızca dpi 200 | 300,
+  renk sb | gri | renkli, kip otomatik | pdf | yazici. `kaydetDiyalog`: yazılan adın uzantısı süzgeçlerinkinden biri değilse ilk süzgecin uzantısı
+  eklenir (önceden yalnızca PDF'te .pdf). Test örneğinde `kabuk:klasordeGoster` Gezgin'i açmaz.
+- [x] **Şartnameden sapma: `udeYolu` ana sürecin ayarından** (gerekçe). Şartname "udeYolu null ya da var olan klasör, doğrulanır" diyordu. Çekirdek bu
+  klasördeki Java'yı (UDE'nin `jre`'si) ve jar'ları çalıştırır; arayüzde kod çalışsa bile ana süreç program çalıştırmamalı (0.1.23'ün güvenlik
+  kuralı). Bu yüzden arayüzün verdiği `udeYolu` yok sayılır, ana sürecin ayarındaki klasör (var olan klasörse; yoksa null: çekirdek kendisi arar)
+  verilir; ayar yalnızca ana sürecin klasör seçme penceresinden yazılır (`ayar:udeKlasoruSec`: seçilen klasörde çekirdek UDE'yi bulursa; bulamazsa
+  ayar değişmez, `{kaydedildi: false, neden}`), `ayar:koy` udeYolu'nu yalnızca null yapabilir (düzeltme turunda sıkılaştırıldı).
+- [x] **Açma yolları**: komut satırı (Gezgin'de "Birlikte aç", PDEfe'nin simgesine bırakma, ikinci örnek), macOS `open-file`, ana pencereye
+  sürükle-bırak, Ctrl+O / ⌘O ve açılış ekranının PDF aç'ı: .pdf sekmede (eskisi gibi); .udf, .tif, .tiff, .doc, .docx, .rtf, .odt aracı o dosyalarla
+  açar, araç açıksa listesine ekler (`uygulama.js` `acilacaklariAyir` / `yollariAc`). Ctrl+O'nun süzgeci aracınkiyle aynı. Bırakma örtüsünün yazısı
+  "PDF'i bırakın" → "Dosyaları bırakın". Windows dosya ilişkisi eklenmedi (.udf UDE'nin).
+- [x] **Ayarlar › Kaydetme**: "Dosya Formatını Değiştir" başlığı altında "UYAP Doküman Editörü" kartı: Otomatik bul (ayarı temizler) / Klasörü seç…
+  (ana sürecin penceresi; macOS'ta paketin içi gezilebilir: `treatPackageAsDirectory`); altında bulunan editörün yolu ve sürümü ("kendiliğinden
+  bulundu", "seçtiğiniz klasör" ya da "seçtiğiniz klasörde bulunamadı, kendiliğinden bulundu"), Java'nın sürümü, bulunamazsa nedeni. Çıktı klasörü
+  kartının açıklamasında yeni araç.
+- [x] **Seçilmeyen yollar**: UDF / TIFF / Word'ü doğrudan sekmede açmak (her sekme diskteki bir PDF'e bağlı: kayıt, son açılanlar, taşıma; büyük
+  değişiklik); satırdaki "yerini göster" bağlantısının Ayarlar'ı açması (araç penceresinin üstünde Ayarlar; doğrudan klasör seçimi aynı ana süreç
+  yolu); bütün satırların hedefini birlikte değiştiren üst seçim (son seçimin hatırlanması aynı işi görüyor); TIFF seçeneklerini kalıcı hatırlamak
+  (bir kez 300 dpi renkli seçilince sonraki UYAP yüklemeleri büyük dosya olurdu); Word'ün ön izlemesi; kapatırken "kaydedilmemiş iş" sorusu (listeyi
+  yeniden kurmak ucuz; yalnızca süren dönüştürmede sorulur).
+- [x] **Ölçüm**: UDE bu bilgisayarda bulundu (sürüm 5.4.20, Java 1.8.0_361). Açılış ekranı kartları: yeni kart 75,2 px, ötekiler 74,4 px (1280 ve 1920
+  px); PDF aç 93,7 px.
+- [x] **Testler**: senaryo37 (yeni; baslat.ps1; diyaloglar test kuyruğundan; girdiler `test/donustur_arayuz_uret.py`) 59/59 %100 (1280 × 1000) ve %125
+  (1280 × 800); PDF → Word gerçek dönüşümü `$env:S37_WORD="1"` ile isteğe bağlı. Önceki kodda düşüyor: araçtan önceki commit'te hazırlıkta (modül
+  yok), aracın commit'inde 8. bölüm 6/6 HATA (bırakma, Ctrl+O, komut satırı), açma yollarının commit'inde 9. bölüm (Ayarlar kartı yok). guvenlik_birim
+  21 yeni durum (eski guvenlik.js'le 18'i düşüyor). mac_renderer 37/37, senaryo26 63/63, senaryo27 19/19, ortu_tiklama 164/164, kisayol_araclar
+  102/102, arac_onizleme 24/24 üç ölçekte, acilis_hizasi 10/10, serit_olculeri 25/25, senaryo19 112/112 (görünmeyen masaüstü; "Altı araç"), gec_iptal
+  20/20, senaryo22 101/101, kisayol_dosya 164/164, senaryo29 58/58.
+
+#### 0.2.6: UYAP Doküman Editörü yokken UDF → PDF yaklaşık çizimle (madde 3)
+- [x] **İstek / durum.** UDF → PDF'in birincil yolu UDE'nin kendi sayfalayıcısı; UDE (ya da çalıştığı Java, ya da köprü) yoksa da UDF
+  dönüştürülebilsin: kullanıcının kendi Drive UDF Okuyucu motoruyla yaklaşık çizim, açık uyarıyla. UDE kurulu değilken `udf>pdf` (ve onun üzerinden
+  `udf>tiff`, `udf>word`) hiç yapılamıyordu. Kullanım sınırında kesilen önceki deneme `guvenlik.js`'e içerik denetimini ve `src/udf-cizim/`'e motorun
+  kopyasını bırakmıştı; ana süreç modülü, kanallar, araç bağlantısı, test ve lisans bildirimi yoktu.
+- [x] **Mimari** (`src/main/udfYaklasik.js`): .udf'yi ana süreç kendisi okur ve denetler (`guvenlik.js` `udfDosyasiOku` / `udfIcerigiDenetle`: 40 MB
+  dosya; zip'in merkezî dizini: en çok 1000 öğe, şifreli öğe yok, yalnızca saklama / deflate, tek content.xml, content.xml'in beyanı ≤ 20 MB, bütün
+  öğelerin beyanı ≤ 64 MB; düz XML ≤ 20 MB); `dosya:oku` değişmedi. Gizli (show: false), yalıtılmış (sandbox), Node erişimi ve ön yükleme betiği
+  olmayan, `disableDialogs`'lu pencere ayrı bellek içi oturumda `pdefe://udf-cizim/sayfa.html`'i yükler; o oturumun protokol işleyicisi yalnızca üç
+  dosyayı verir (CSP üst bilgisiyle), izin isteği, indirme, pencere açma, gezinme reddedilir, `webRequest` yalnızca kendi dosyalarına ve blob:'a izin
+  verir. Baytlar 3 MB'lık base64 dilimleriyle `executeJavaScript` üzerinden; sayfa (`cizim.js`) motorla DOM'u kurar, yalnızca sayılardan oluşan özet
+  döner (belge metni ana sürece dönmez), `printToPDF({ preferCSSPageSize })`. Süre sınırları (yükleme 20 sn, çizim 60 sn + 6 sn/MB, PDF 120 sn), çökme
+  / yanıt vermeme / iptal yarışında pencere her durumda yok edilir. Çizimler sırayla; dönüştürme bekleyen küçük resimlerin önüne geçer.
+- [x] **Kanallar** (preload izin listesi + `guvenliIpc`; parametreler `guvenlik.js` `udfYaklasikParametreleri`): `udf:yaklasikBilgi {yol, genislik,
+  istekId?}` (küçük resim: yaklaşık PDF'in ilk sayfası, ön bellekli), `udf:yaklasikDonustur {ogeler, istekId}` (ilerleme `udf:yaklasikIlerleme`),
+  `udf:yaklasikIptal {istekId}`. **Şartnameden sapma** (gerekçe): önceki denemenin taslağı `udf:yaklasikCiz / Koy / Birak` ile geçici dosya yolunu
+  arayüze veriyordu; geçici yol arayüze hiç verilmesin, ana süreç arayüzden gelen bir yolu "geçici" diye taşımasın diye çizim, zincirleme ve yerine
+  koyma tek kanalda ana süreçte. Öğe denetimi `bicim_donustur`'unkiyle aynı; hedef biçim yalnızca pdf / tiff / word.
+- [x] **Yazım düzeni**: önce bütün öğeler geçici PDF'e (%TEMP%\PDEfe; düzeltme turundan beri PDF hedefi için de), sonra TIFF / Word hedefleri
+  çekirdeğin `bicim_donustur`'una (çağrı arayüzünkiler gibi denetlenir; çekirdek kendi hedeflerini yerine koyar), sonra PDF hedefleri hedefin yanına
+  kopyalanıp aynı klasörde ad değiştirilerek. İptal yerine koymadan önce gelirse hiçbir dosya yok; çekirdek bitirdikten sonra gelirse onun yazdıkları
+  sonuçta, PDF hedefleri yazılmaz. Kilitli / salt okunur hedef çizimden önce denetlenir. Bir günden eski geçici PDF'ler açılışta, canlı olanlar
+  kapanışta silinir.
+- [x] **Araç** (`donustur.js`): `yetenekler.udf.var === false` (editör, Java ya da köprü yok) iken UDF satırının PDF hedefi ve PDF → TIFF / Word
+  yapılabiliyorsa TIFF / Word hedefi seçilebilir (satıra özgü neden — bozuk, güvensiz paket — varsa değil). Satırda uyarı rengiyle "UYAP Doküman
+  Editörü bulunamadı; görünüm yaklaşık (satır ve sayfa kırılımları editördekinden farklı olabilir)." ve "UYAP Doküman Editörü'nün yerini göster";
+  hedef düğmesinin ipucunda "görünüm yaklaşık"; küçük resim ve sayfa sayısı yaklaşık çizimden. Dönüştürme `_karmaDonustur`: çekirdek öğeleri
+  `bicim_donustur`'a, yaklaşık öğeler ana sürece, tek ilerleme ve İptal. Editör bulunduğu hâlde çekirdek bir UDF'yi "desteklenmiyor" diye
+  dönüştüremezse o öğe yaklaşık çizimle yeniden denenir. Sonuçta aynı uyarı + motorun notları (yorumlar alınmadı, e-imza taşınmaz, resim çizilemedi).
+  **Uyarı metninde sapma** (gerekçe): görev "satır kırılımları UDE'den farklı olabilir" diyordu; kullanıcı "UDE" kısaltmasını bilmeyebilir ve sayfa
+  kırılımları da farklı olabiliyor. Ayarlar'daki kartta editörle yapılamıyorsa "UDF'ler yine dönüştürülür: PDEfe'nin yaklaşık çizimiyle (…)".
+- [x] **Motorun kopyası** (`src/udf-cizim/udf-motoru.js`, Drive UDF Okuyucu 0.3.2) iki yerde değişti ("PDEfe değişikliği" yorumları; LICENSE.txt ve
+  THIRD_PARTY.md), ikisi de UDE'nin kendi çizimiyle ölçülerek: (1) yatay sayfada kenarlar Java'nın PageFormat'ı gibi döndürülür (pageFormat'taki
+  kenarlar kâğıdın dikey hâline göre): önceden dört kenarı farklı yatay belgede yazı alanı ~56 pt kayıyordu, şimdi ±1,5 pt; (2) UYAP erişim satırı:
+  `<webID>` taşıyan belgede UDE her sayfanın en altına "UYAP Bilişim Sistemindeki bu dokümana … adresinden <kimlik> ile erişebilirsiniz." basıyor (45
+  gerçek belgenin 18'inde var; yaklaşık PDF'te eksikti); `@bottom-center` kenar kutusunda 7 pt. `sayfa.html`'de yazı aralığı (kerning) ve bitişik
+  harfler kapalı (UDE'nin Java çizimi uygulamıyor): aynı satır oranı %83 → %89. Geliştirme sürümünde `PDEFE_UDE_YOK=1` UDE'yi bulunmamış sayar
+  (paketli çekirdek okumaz).
+- [x] **Seçilmeyen yollar**: geçici dosyayı arayüze veren `Koy` / `Birak` kanalları; baytları protokolden `fetch` ile vermek (CSP'de `connect-src`
+  açmak gerekirdi); sayfayı ana oturumda `pdefe://app/` altında açmak (uygulamanın kökeniyle aynı köken; ayrı oturum seçildi); `file://` + `loadFile`;
+  erişim satırını `position: fixed` öğeyle (Chromium yazdırırken kırpıyor, denendi) ya da `footerTemplate` ile basmak; UDE'nin görünmez filigranını
+  taklit etmek (`documentproperties.xml` taşıyan belgede kişinin sicil numarası %2 saydamlıkla her sayfaya döşeniyor; görünüme etkisi yok, kişinin
+  sicilini görünmez biçimde PDF'e gömmek istenmeyebilir); her belge için yeni pencere yerine pencereyi yeniden kullanmak (fark pencere başına ~0,2
+  sn).
+- [x] **Ölçüm** (UDE 5.4.20'nin köprü çizimiyle yaklaşık PDF; gerçek belgelerden yalnızca sayılar): sentetik 8 belgede sayfa sayısı 8/8 (77 sayfalık
+  belge dâhil), sözcük benzerliği ortanca 1,000 (en düşük 0,9985), aynı satır oranı ortanca %100. İndirilenler'deki 350 UDF'den sabit tohumla seçilen
+  45'inin kopyası (iş bitince silindi): sayfa sayısı aynı 41/45 (4'ünde son sayfaya 1–6 satır taşıyor), sözcük benzerliği ortanca 1,000, ≥ 0,99: 34, ≥
+  0,95: 40 (değişikliklerden önce 26 / 35); aynı satır oranı ortanca %89,3 (önce %83,3); çok sayfalı ve sayfa sayısı aynı 16 belgede sayfaların ilk
+  satırı aynı ortanca %100; 45 belge UDE 10,3 sn, yaklaşık 16,0 sn. Kalan farkın kaynağı satır yüksekliği: UDE Java'nın tam sayıya yuvarlanmış yazı
+  tipi ölçüleriyle çiziyor (Times New Roman 11 pt → 13 pt), motor CSS satır yüksekliğiyle; uzun belgede birikip sayfa taşmasına yol açıyor.
+- [x] **Testler** (görünmeyen masaüstü; electron yalnızca baslat_gizli.ps1 ile): udf_yaklasik (yeni, `$env:PDEFE_UDE_YOK="1"`; girdiler
+  `test/udf_yaklasik_uret.py`, gerçek belge yok) 55/55: kanal (A4, yatay, kenarları farklı, alt bilgide sayfa numarası, erişim satırı, gömülü yazı
+  tipleri, "]]>" ve betik / HTML yazısı yazı olarak ve betik çalışmadan, UDF → TIFF), kötü niyetli 10 belge (40 MB üstü, zip bombası, beyanı büyük,
+  1500 öğe, iki içerik, dış varlık, milyar gülüş, parolalı, UDF olmayan, boş: her biri kendi koduyla, çıktı yok, ana süreç ve arayüz çökmedi,
+  `test/hata_kutusu_say.ps1` ile iletişim kutusu 0, gizli sayfa ve geçici dosya kalmadı), iptal, küçük resim, araç. Altyapı commit'inin ağacında 5.
+  bölüm 10 denetimde düşüp durdu; yatay kenar ve erişim satırı motor değişikliğinden önce tutmuyordu. guvenlik_birim 72/72 (37 yeni); senaryo37 54/54
+  (8. bölüm hariç: ikinci örneği node'dan olağan masaüstünde başlatıyor, ekran kuralı gereği koşulmadı); mac_renderer 37/37, kisayol_araclar 102/102.
+
+#### 0.2.6: bağımsız inceleme ve düzeltme turu
+Her bulgu önce yeniden üretildi ya da kod izlendi; gerçekse önce düşen test, sonra düzeltme, sonra ilgili eski testler.
+- [x] **`ayar:koy`'daki udeYolu koruması nesne anahtarıyla aşılıyordu** (kritik): arayüz `ayar:koy` kanalına `{ udeYolu: … }` nesnesi ya da
+  `'udeYolu.x'` gibi noktalı yol verince koruma (`anahtar === 'udeYolu'`) atlanıyor, electron-store yazıyordu; çekirdek o klasördeki
+  `jre\bin\java.exe`'yi çalıştırırdı. Karar: izin listesi (`guvenlik.js` `ayarYazimiDenetle`): anahtar metin, noktasız ve `VARSAYILANLAR`'ın kendi
+  anahtarı; udeYolu yalnızca null; arayüzün yazdığı bütün anahtarlar VARSAYILANLAR'da, ana sürecin kendi yazdıkları (bekleyen güncelleme, son denetim
+  zamanı, taşıma bayrakları) artık arayüzden yazılamaz; test örneği için `test:ayarKoy`. Seçilmeyen: kara liste (başka bir electron-store davranışı
+  yine kapı bırakırdı).
+- [x] **UDF zip bombası köprüde**: content.xml'i 900 bayt diye beyan eden, gerçekte 400 MB açılan .udf; Java'nın ZipInputStream'i öğeyi beyana
+  bakmadan açıyor, Python'un zipfile'ı merkezî dizindeki boyut kadar: ikisi aynı dosyayı farklı görüyordu (OutOfMemoryError → yazıcı yolu → ikinci
+  yükleme). Karar: zip UDF köprüye hiç verilmez; öğeler Python'la sınırlı açılıp geçici klasörde aynı adla yeniden paketlenir (`udf._kopru_girdisi`,
+  dönüştürme ve ön izleme), iş bitince silinir; OutOfMemory içeren hata yazıcı yoluna geçirilmez. Bomba 0,8 sn'de "UYAP Doküman Editörü belgeyi
+  açamadı"; olağan UDF'de kopya bayt bayt aynı. Seçilmeyen: köprüde öğe başına okuma sınırı (jar yeniden derlenir, UDE'nin kendi okuyucusunu korumaz).
+- [x] **PDF → UDF: sayfa başındaki "Bölüm N" başlıkları sayfa numarası sanılıyordu**: rakamı her sayfada değişen satır üst bölgede de kabul ediliyor,
+  numara her zaman alt bilgiye yazılıyordu; alt bilgi uzaklığı sayfanın tepesinden ölçülünce gövde alanı ters dönüyor, UDE yerleşimde takılıyordu (60
+  sn'de yanıt vermedi). Karar: sayfa numarası yalnızca alt bölgede (sayfanın son %16'sı) ve alt bilgiden aranır; üstteki "Bölüm 1" ya da "Sayfa 2" üst
+  bilgisi gövdede, kendi sayfasının başında kalır. Seçilmeyen: numarayı UDE'nin üst bilgisine koymak (UDE'nin sayfa numarası alanı yalnızca alt
+  bilgide); "Bölüm" gibi sözcükleri kara listeye almak.
+- [x] **PDF → UDF: yazısının hepsi tabloda olan belge** "çevrilecek yazı bulunamadı" diyordu (boşluk denetimi tabloları saymıyordu): denetime tablolar
+  katıldı, gövde yoksa yazı alanı tabloların kutusu. **İki parçaya bölünen "]]>"** (ör. "a]]" düz + "> sonu" kalın) CDATA'yı kapatıyor, XML bozuluyor,
+  sonuç yine başarılı görünüyordu: yazıcı havuzun son iki karakterini tutar, sınırda "]]>" oluşacaksa yeni parçanın başına sıfır genişlikli boşluk.
+- [x] **Kaydet penceresinde seçilen "ad.tiff" "ad.tif" olarak yazılıyordu** (`ciktiSecici` seçilen addaki uzantıyı desenle silip aracın uzantısını
+  ekliyordu): Değiştir'den dönen ad aynı biçimin öbür yazımıysa çıktının uzantısı o olur (kutuya elle yazılan ".tiff" eskisi gibi .tif'e döner). **Çok
+  dosyada klasör değiştirilip tek dosyaya dönülünce ad başka girdinin adı kalıyordu**: klasör seçimi adı "elle" saymaz.
+- [x] **Kopya sayfa özgünün önüne konunca notlar kopyaya geçiyordu**: notlar.js dosya notunu kaynağın ilk geçişine, `tarifHazirla` var olan girdiyi
+  tarifteki ilk geçişe bağlıyordu. Karar: dosyadan gelen not ilk eşlendiği girdiyi kimliğiyle izler (`n.girdiKimlik`; anlık görüntüye ve kayıt
+  karşılaştırmasına girmez, sekme taşınırken taşınan numarasıyla gider); Sayfaları düzenle'nin tarifi aynı sekme sayfasının en eski kartına (özgün;
+  kopyalar büyük kimlikle doğar) girdinin kimliğini koyar. Kalan bilinen sınır: oturumda kopya sayfanın kendisi notsuz görünür (tam çözüm not
+  katmanının çizim ve tıklama düzenini değiştirir, bu turda yapılmadı).
+- [x] **macOS 13'te PDF → Word numpy'yi yükleyemeyebilirdi** (Mac'te çalıştırılamadı): numpy 2.5.4'ün cp312 tekerlekleri macosx_10_13_x86_64,
+  11_0_arm64, 14_0_arm64, 14_0_x86_64; pip macOS 15 koşucusunda 14_0'ı seçer. Karar: iş akışında numpy `pip download --platform macosx_13_0_$(uname
+  -m) --only-binary=:all:` ile; çekirdek derlendikten sonra `build/mac_minos_denetle.py core/dist/pdefe-core --en-cok 13.0`: 13.0'ı aşan Mach-O
+  dosyası varsa adları yazılır, derleme durur. Seçilmeyen: MACOSX_DEPLOYMENT_TARGET (tekerlek seçimini etkilemez); denetimi yalnızca uyarı yapmak.
+- [x] **Dönüştürme kanalları**: `dosya:sil` her yerdeki .udf / .tif / .tiff / .docx'i çöpe atabiliyordu: ana süreç bu oturumda `bicim_donustur`'un
+  oluşturduğu, istekten önce var olmayan PDF dışı hedefleri kaydeder, `dosya:sil` PDF dışı dosyayı yalnızca bunlardan biriyse çöpe atar. Yapılmayan:
+  var olan PDF dışı hedefin üzerine yazmayı ana süreçte onaya bağlamak (araç kendi penceresinde soruyor; ana süreç doğrulayamaz, ikinci bir Windows
+  sorusu gerekirdi; aynı tehdit modelinde .pdf'in üzerine yazma 0.1.x'ten beri açık).
+- [x] **Yaklaşık küçük resimler** sıraya girmeden belleğe okunuyor, araç kapanınca sürüyordu (eski kodda altı istek iptal edilemedi, araç kapanınca
+  altı gizli çizim penceresi açıldı): dosya sırası gelince okunur, küçük resim de istek kimliği alır ve iptal edilir. **Yaklaşık PDF'in geçici dosyası
+  hedef klasörde kalıyordu** (çizim sürerken 14 yoklamanın 9'unda): çizim %TEMP%\PDEfe'ye, yerine koyarken hedefin yanına kopyalanıp aynı klasörde ad
+  değiştirme (kopya hedef klasörün izinlerini alır; %TEMP%'ten taşınan dosya paylaşılan klasörde başkasınca okunamayabilirdi).
+- [x] **Çekirdek çökünce köprünün JVM'i sürüyor, hedefin yanında .pdefe-tmp kalıyordu**: Windows'ta JVM de Word'deki gibi `KILL_ON_JOB_CLOSE` iş
+  nesnesine bağlanır; donustur.py hedef klasörlere açtığı her geçici dosyayı `<TEMP>/pdefe-donustur-kayit/<pid>.txt`'ye yazar, çekirdek açılışta pid'i
+  çalışmayanların kayıttaki dosyalarını (yalnızca geçici dosya kalıbındakileri) siler; bağlamın geçici klasörü `pdefe-donustur-<pid>-*`, ölü
+  pid'lerinki ve bir günden eskiler açılışta silinir (B3'ün açık konusu kapandı). macOS'ta iş nesnesi yok: yetim JVM o anki belgeyi bitirip çıkar.
+- [x] **PDF → Word: kontur ağacı MuPDF kilidinin içinde saniyelerce sürüyordu** (20 × 30 ayrık daireli sayfa: dönüştürme 2,7 sn, işçinin kilit
+  beklemesi 2,5 sn; her dış bölge için sayfa boyunda dizi): ağaç yalnızca bölgenin kırpığında (`bolge_agaci`; ağaç, kutular ve sıra aynı): 0,4 sn,
+  kilit beklemesi 0,1 sn.
+- [x] **Değerlendirilip değiştirilmeyenler**: ayardaki UDE klasörü geçersizse çekirdeğin kendiliğinden aramaya düşmesi (bilinçli: UDE güncellemesi
+  yeni klasöre kurarsa dönüştürme sürer, Ayarlar "kendiliğinden bulundu" der; güvenlik açısından boş ayarla aynı); araç penceresi açıkken Düzen ›
+  Kopyala'nın arkadaki seçili metni kopyalaması (panoyu boşaltmadan çözülemiyor; yalnızca menü fareyle seçilince); Word'de iptal ya da süre aşımında
+  bizim görünmez Word sürecimizin bütünüyle öldürülmesi (o sırada kullanıcının Gezgin'den açtığı bir belgenin bu örneğe düşmesi olasılığı düşük;
+  kullanıcının Word'üyle sınanmadı).
+- [x] **Testler**: guvenlik_birim 77/77 (5 yeni; önce içe aktarma hatasıyla düştü), senaryo37 63/63 (3. bölümde gerçek kanalla nesne anahtarı /
+  noktalı yol / bilinmeyen ayar; 5. bölümde .tiff ve klasör kipi, eski kodla 2 HATA; 7. bölümde dönüştürmenin oluşturmadığı dosyaların `dosya:sil`
+  reddi), senaryo33 12/12, senaryo29 58/58, panel_ilk_acilis 10/10; udf_donusum_testi 120/120 (zip bombası, `bolumlu_pdf`, `yalniz_tablo_pdf`,
+  `bolunmus_cdata_pdf`, yetim JVM: eski kodla düşüyor), donustur_testi 108/108, word_donusum_testi 80/80 (`test_bolge_agaci`: 360 rastgele bölgede
+  eski yolla aynı); senaryo35 41/41 (5b: kopya öne konunca not özgünde; eski kodla HATA), senaryo22 101/101, kayit_sekme_panel 61/61, gec_iptal 20/20,
+  kisayol_araclar 102/102, senaryo26; udf_yaklasik 58/58; mac_minos_testi 12/12 (Windows'ta üretilmiş Mach-O dosyalarıyla; iş akışı js-yaml ile
+  ayrıştırıldı).
+
+#### 0.2.6: belgeler
+- [x] Sürüm 0.2.6 (package.json, package-lock.json); CHANGELOG; docs/DOGRULAMA.md 41; README: Öne çıkanlar, Açılış ekranı, Sekmeler, Metin seçme
+  (Ctrl+A), Notlar (yazı kutusu kopyala-yapıştır), Araçlar (Sayfaları düzenle'de kopyalama, Dosya Formatını Değiştir ve gereksinimleri), Yazdırma,
+  Ayarlar, Verileriniz; ekran görüntüleri yenilendi (araç çubuğunda Yazdır, sekmeler ".pdf"siz, yeni yazdırma penceresi, Sayfaları düzenle'nin dört
+  düğmeli kartı, altı araç), yeni `docs/ekran-donustur.png` (sentetik girdilerle).
+- [ ] **Açık konular**:
+  - Gerçek yazıcı (ofisteki yazıcı: kâğıt ve tepsi, çift taraflının yönü, harmansız kopya, Yazıcı tercihleri), "Çıktıyı Farklı Kaydet" penceresinin
+    gerçek ekranda PDEfe'nin önünde açılması, gerçek sistem panosu (Ctrl+A kopyası, yazı kutusu iki pencere arasında ve Word'e; Chromium'un iptal
+    edilen copy olayında panoyu boşalttığı varsayımı), kullanıcının açık Word'ü ve UDE'siyle birlikte kullanım, kurulu (paketli) sürüm denenmedi:
+    DOGRULAMA 41.
+  - Gerçek Mac'te hiçbiri denenmedi (yalnızca mac_renderer'ın darwin çerçevesi): yazıcı listesi ve varsayılan yazıcı, Yazıcı ayarları, sessiz yazdırma
+    (Mac'te yazıcı durumu okunmuyor); ⌘A / ⌘C / ⌘V; open-file ile UDF / TIFF / Word; UDE'nin jar klasörü ve Java'nın bulunması (CI'da UDE yok, testler
+    atlar); yaklaşık çizim; PDF → Word'ün macOS 13'te açılması. Kurucu ve Mac paketi derlenmedi, CI koşulmadı (gönderme yok): ilk Mac derlemesinde
+    numpy tekerleğinin adı ve `mac_minos_denetle` günlüğüne bakılmalı.
+  - Yazdırma: /Rotate 90'lı dikey sayfa kâğıtta ters çıkar (0.1.x'ten beri; ön izleme gösteriyor), yön kuralını değiştirmek ayrı karar.
+  - Ctrl+A: çapa sayfasının tanınan sözcükleri bütün belge seçiliyken katmana sonradan eklenmiyor (kopyaya giriyor, ekranda boyanmamış görünebilir);
+    çok büyük belgede temizMetin hazırlığın sonunda bir kez eş zamanlı (10 MB'ta ~0,9 sn); Ctrl+A anında hazırlık kopyalanmasa da başlıyor (TTK'da ~5
+    sn çekirdek işi); tanıyıcı yokken yolu test örneğinde sınanamadı.
+  - Sayfaları düzenle: "Üzerine yaz"dan sonra açık sekmede kopya sayfanın notları belge yeniden açılana dek görünmez (dosyada var); tam çözüm not
+    katmanının kopyalara salt okunur yansı çizmesi (C seçeneği). Düzen menüsündeki Kopyala fareyle seçilirse sayfaları kopyalamaz (yalnızca tuşlar).
+  - Yazı kutusu: biçimi okunmadan (seçimle aynı anda) kopyalanan başka program yazısı başka PDEfe penceresinde varsayılan biçimle yapıştırılır; sağ
+    tık › Yapıştır başka pencerede kopyalanan kutu için soluk (Ctrl+V çalışır); açıklama çizgili (callout) yazının çizgisi kopyalanmaz; test örneğinde
+    `pano:oku` sistem panosunu okumadığı için eski `test/senaryo3.mjs` boş metin görür.
+  - TIFF: etiketsiz A5 ya da Letter tarama A4 sayılır; 72 dpi etiketli büyük TIFF (fotoğraf) büyük sayfa olur; JPEG sıkıştırmalı renkli TIFF kayıpsız
+    PNG yoluyla gömülür (PDF TIFF'ten büyük çıkabilir); Birleştir'de çok sayfalı TIFF öğesinin içinde ilerleme ve iptal yok, dört düzeyli boyut
+    tahmini 150 sayfada hâlâ ~18 sn.
+  - UDF → PDF: UDE güncellenip sınıf ya da yöntem imzaları değişirse "desteklenmiyor" (araç yaklaşık çizimle yeniden dener; iText yoksa Windows'ta
+    yazıcı yedeği); UDE'nin günlüğüne bazı belgelerde IllegalStateException yazılıyor (çıktı tam); ilk belge ~3 sn, boştaki JVM 45 sn açık kalır
+    (~150–250 MB).
+  - PDF → UDF: yanında yazı duran resim (imza bloğu) alınmıyor (çizgisiz tabloyla kurmak sonraki iş); tablo UDE'de yazı alanına yayılıyor; filigran
+    alınmıyor; ilk sayfası tabloyla başlayan belgede üst kenar ilk paragraftan; Word'ün 13,8 pt satır adımı UDE'de 14 olur (uzun belgede birkaç satır
+    kayabilir); Word'den gelen PDF'lerle ölçüm yalnızca sentetik belgelerle (Word benzeri PDF'ler ve Word'ün dışa aktardığı sentetik docx'ler)
+    yapıldı.
+  - Yaklaşık çizim: paketli sürümde (app.asar içinden `pdefe://udf-cizim/`) denenmedi; satır yüksekliği farkı (45 belgenin 4'ünde bir sayfa fazla);
+    erişim satırı tek yazı tipiyle (UDE kimliği 10 pt Consolas'la basıyor); yatay sayfa kenarı ve erişim satırı düzeltmeleri kullanıcının Drive UDF
+    Okuyucu eklentisinde de yok (o depoya dokunulmadı).
+  - Word: LibreOffice yolu sınanmadı (süreci iş nesnesine bağlanmıyor, PDEfe çökerse açık kalabilir; PDF'e belge özellikleri geçebilir); .docm
+    makrosunun çalışmadığı makrolu belgeyle sınanmadı (Word'de VBA erişim güveni ayarını değiştirmek gerekirdi; yerine AutomationSecurity'nin belge
+    açılmadan 3 olduğu okundu); izlenen değişiklikli ve yorumlu belgede sonuç denetlenmedi.
+  - Dönüştürme kanalları: var olan PDF dışı hedefin üzerine yazmayı ana süreç onaya bağlamıyor (araç soruyor).
+  - Açılış ekranında geniş pencerede araçlar 5 + 1 diziliyor (ızgara otomatik sütunlu; Araçlar penceresinde 3 + 3); değiştirmek PDF aç'ın ikinci
+    karoyla hizasını (0.2.3 isteği) etkiler, karar kullanıcının.
+  - senaryo37'nin 8. bölümü ikinci örneği olağan masaüstünde başlatıyor: ekran kuralı gereği koşulmadı; görünmeyen masaüstüne taşınmalı.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 41.

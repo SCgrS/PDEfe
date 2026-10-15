@@ -748,3 +748,117 @@ sınandı. GitHub'dan gerçek güncelleme, gerçek internet kesintisi ve Mac den
    (`installer.exe` üst klasörde kalır; bir sonraki güncellemede yalnızca değişen kısımların inmesini sağlar).
 6. **Son açılanlar.** Açılış ekranında son açılan belgelerin yanında PDEfe'nin kırmızı simgesi olmalı, adlarda ".pdf" yazmamalı; fareyle üstüne
    gelince tam yol görünmeli. Açık ve koyu temada bakın.
+
+## 41. 0.2.6: otomatik testlerin sınayamadıkları
+Ekran dışındaki ve görünmeyen masaüstündeki test örneğinde, üretilmiş örnek belgelerle ve %100 / %125 ölçekte sınandı. Yazdırma sahte yazıcı
+listesiyle ve görünmeyen masaüstünde Microsoft Print to PDF'e gerçek yazdırmayla; kopyala-yapıştır sahte pano olaylarıyla (bilgisayarın panosuna
+dokunulmadı); UDF dönüştürme ev bilgisayarındaki UYAP Doküman Editörü 5.4.20 ile, sentetik UDF'lerle ve İndirilenler'deki belgelerin kopyalarıyla
+(yalnızca sayılar ölçüldü); Word → PDF görünmeyen ayrı bir Word örneğiyle, sentetik belgelerle. Gerçek yazıcı, gerçek pano, açık Word ve UYAP
+Doküman Editörü'nüzle birlikte kullanım, LibreOffice, kurulu (paketli) sürüm ve Mac denenmedi. Denemeleri belgelerin **kopyalarıyla** yapın.
+
+Yazdırma
+1. **Yazdır düğmesi.** Araç çubuğunda Kaydet'in hemen sağında yazıcı simgesi olmalı; üstüne gelince "Yazdır (Ctrl+P)". Açılış ekranında soluk.
+   Belgede sağ tık: menünün en altında Kaydet, onun altında Yazdır. Sekmede sağ tık: Kaydet'in hemen altında Yazdır; arkadaki bir sekmede seçince
+   önce o sekmeye geçmeli, sonra yazdırma penceresi açılmalı. Pencereyi en dara getirin: araç çubuğu taşmamalı, Yazdır görünmeli.
+2. **Yazdırma penceresi.** `Ctrl+P`: Windows'un yazdırma penceresi açılmamalı; PDEfe'nin penceresinde varsayılan yazıcınız "(varsayılan)" yazısıyla
+   seçili, sağda sayfa kâğıda basılacağı gibi büyük görünmeli. ◀ ▶ ve `Page Up` / `Page Down` ile sayfalar arasında gezin; Sayfalar'da "Aralık"
+   seçip "2-3" yazın: ön izleme yalnızca o sayfaları göstermeli, altta "2 sayfa × 1 kopya". Siyah beyaz seçince ön izleme griye dönmeli. Yatay bir
+   sayfa kâğıda döndürülmüş görünmeli. Koyu temada da okunaklı olmalı.
+3. **Ofisteki yazıcıda (Lazer Yazıcı) gerçek kâğıtla.** A4 belge: doğru tepsiden, doğru boyutta (kenarlarda birkaç mm boşluk), yazıcıda "kâğıt
+   uyuşmazlığı / özel kâğıt" uyarısı olmadan çıkmalı. Çift taraflı (uzun kenardan çevir): arka yüz doğru yönde; kısa kenardan çevir; "Yazıcının
+   ayarı" seçiliyken yazıcının kendi ayarıyla. 3 sayfalık belgede 2 kopya Harmanla işaretliyken 1-2-3, 1-2-3; işaretsizken 1-1, 2-2, 3-3. Siyah
+   beyaz renkli sayfayı gri basmalı. Yatay sayfa kâğıda sığarak (döndürülmüş) basılmalı. **Yazıcı tercihleri** yazıcının kendi tercih penceresini
+   açmalı. Yazıcı kapalıyken pencerede "çevrim dışı" uyarısı çıkmalı.
+4. **Microsoft Print to PDF.** Bu yazıcıyı seçip yazdırın: "Çıktıyı Farklı Kaydet" penceresi **PDEfe'nin önünde** açılmalı (bunu gerçek ekranda
+   deneyemedim; arkada açılırsa söyleyin). Bir ad verip kaydedin: PDF'te sayfalar A4 ve doğru sırada olmalı. Bir kez de Vazgeç'e basın: dosya
+   yazılmamalı, PDEfe "Yazdırma vazgeçildi." demeli.
+5. **Hatırlama.** Başka bir yazıcı, A5 ve siyah beyaz seçip yazdırın; PDEfe'yi kapatıp açın: aynı yazıcı ve seçenekler gelmeli, kopya 1 olmalı.
+6. **Windows penceresiyle.** Alttaki "Windows yazdırma penceresiyle yazdır"a basın: Windows'un penceresi açılmalı (ön izleme alanı orada boş
+   kalabilir; bu Windows'un kısıtıdır), yazıcı ve kopya oradan seçilir, sayfa seçimi PDEfe'deki gibi kalır.
+7. **Otomatik kaydet.** Ayarlar › Kaydetme › Otomatik kaydet açıkken bir belgeye not ekleyip yazdırın: kaydetme sorusu çıkmadan belge
+   kaydedilmeli. Kapalıyken eskisi gibi sorulmalı.
+
+Sekmeler
+8. **Sekme adları.** Sekmelerde ".pdf" yazmamalı ("Dilekçe.pdf" → "Dilekçe"); `Ctrl+Tab` seçicisinde, sağdaki ≡ listesinde ve sekmeyi dışarı
+   sürüklerken çıkan küçük pencerede de. Sekmenin üstüne gelince ipucunda tam ad ve yol, pencere başlığında ve görev çubuğunda uzantılı ad olmalı.
+
+Ctrl+A ve kopyalama
+9. **Bütün belgeyi kopyalama.** Uzun bir belgede `Ctrl+A`: bütün sayfalar mavi seçili görünmeli, aşağı kaydırınca da. `Ctrl+C`'ye basıp UYAP
+   Doküman Editörü'ne ve Word'e yapıştırın: belgenin bütün metni gelmeli, paragraflar tek sayfa kopyasındaki gibi birleşik. Büyük belgede `Ctrl+A`'dan
+   hemen sonra kopyalayın: "Metin hazırlanıyor (N/M)" yazmalı, bitince "Belgenin metni kopyalandı (N sayfa)"; bu yazı çıkınca yapıştırın.
+   "Bu arada başka bir şey kopyalandığı için belgenin metni panoya yazılmadı" çıkarsa söyleyin (ikinci `Ctrl+C` metni hemen verir).
+10. **Taranmış belgede.** Taranmış bir UYAP evrakında `Ctrl+A`, `Ctrl+C`: görsellerdeki yazı da gelmeli (sayfa başına yaklaşık yarım saniye).
+11. **Seçimin kalkması.** Sayfaya tıklayınca, `Esc` ile, sekme değiştirince seçim kalkmalı. Seçiliyken sağ tık: Kopyala etkin, Vurgula ve Ara soluk.
+    `Ctrl+A`'dan sonra `Ctrl+F`: Bul kutusu sayfanın ilk satırıyla dolmamalı.
+
+Yazı kutusu kopyala-yapıştır (gerçek pano)
+12. **Ctrl+C / Ctrl+V.** Bir yazı kutusuna tıklayın, `Ctrl+C`; sayfada boş bir yere tıklayıp `Ctrl+V`: kutu tıkladığınız yere, aynı görünümle
+    gelmeli ve seçili olmalı. `Ctrl+V`'ye yeniden basın: yeni kopya biraz sağa-aşağı kaymalı. Kutuya tıklayıp başka yere tıklamadan `Ctrl+V`:
+    kopya sayfanın sağ üst köşesine gelmeli.
+13. **Yapıştırılanı kullanma.** Yapıştırılanı çift tıklayıp düzenleyin, sürükleyin, `Delete` ile silin, `Ctrl+Z` ile geri getirin.
+14. **Sayfa türleri.** Yatay ve `Ctrl+R` ile döndürülmüş sayfalara yapıştırın, kaydedip başka bir PDF okuyucuda açın: kutular aynı yerde ve yönde.
+15. **Başka programın yazısı.** Başka bir PDF programında eklenmiş bir yazı kutusunu kopyalayıp yapıştırın: yazı tipi, boyut, renk ve dolgu korunmalı.
+16. **Sağ tık.** Kutunun üzerinde sağ tık › Kopyala; boş yerde sağ tık › Yapıştır: sağ tıkladığınız yere gelmeli. Arada başka bir şey (örneğin bir
+    sözcük) kopyalayınca Yapıştır soluk olmalı.
+17. **Pencereler ve Word.** Kutuyu kopyalayıp başka bir sekmede ve başka bir PDEfe penceresinde `Ctrl+V`: kutu gelmeli. Word'e `Ctrl+V`: kutunun
+    düz metni gelmeli. Sayfada metin seçiliyken `Ctrl+C` metni kopyalamalı; Bul kutusunda `Ctrl+V` olağan çalışmalı.
+
+Sayfaları düzenle
+18. **Kopyala düğmesi.** Bir kartın altında dört düğme olmalı: Sola döndür, Sağa döndür, Kopyala, Sil. Kopyala'ya basın: sayfanın kopyası hemen
+    sağına gelmeli, kopya seçili; `Ctrl+Z` kaldırmalı. Birkaç sayfa seçip birinin Kopyala'sına basın: seçilenlerin kopyası, sırasıyla,
+    sonuncusunun sağına gelmeli.
+19. **Ctrl+C / Ctrl+V.** Sayfaları seçip `Ctrl+C`, başka bir sayfayı seçip `Ctrl+V`: kopyalar o sayfanın arkasına gelmeli; `Ctrl+V`'ye yeniden
+    basınca bir kez daha. Arkadaki belgede metin seçiliyken de `Ctrl+C` sayfaları kopyalamalı; bilgisayarın panosundaki metin değişmemeli (Word'e
+    yapıştırarak bakın).
+20. **Sağ tık.** Kartta Kopyala, Yapıştır, Sola döndür, Sağa döndür, Sil; birden çok sayfa seçiliyken "(3)" gibi; boş alanda Yapıştır ve Tümünü seç.
+21. **Kaydetme ve notlar.** Notlu sayfaların kopyalarıyla düzeni "Yeni belge olarak kaydet" ve "Üzerine yaz" ile kaydedin: kopya sayfalarda da notlar
+    olmalı (başka bir PDF okuyucuda bakın). Notlu bir sayfanın kopyasını özgünün **önüne** koyup Üzerine yaz: sekmede not özgün sayfada kalmalı.
+    Bilinen sınır: Üzerine yaz ile kaydettikten sonra açık sekmede kopya sayfanın notları görünmez; belgeyi kapatıp açınca görünür.
+22. **Bildirim ve Kaydet.** `Ctrl+C`'nin bildirimi ekranın altında görünürken Kaydet'e tıklayın: kayıt başlamalı.
+
+Dosya Formatını Değiştir
+23. **Açılış.** Araçlar penceresinde altı karo (3 + 3), açılış ekranında ve Araçlar menüsünde "Dosya Formatını Değiştir" olmalı. Bir PDF açıkken
+    aracı açın: PDF listede, hedefi UDF, önerilen ad PDF'in adı.
+24. **UDF → PDF.** UYAP'tan indirilmiş bir UDF'yi listeye sürükleyin: küçük resmi birkaç saniyede gelmeli, hedef PDF. Dönüştür: PDF sekmede açılmalı.
+    UYAP Doküman Editörü'nün "PDF olarak kaydet"ini bozduğu bir dilekçede (sol ve sağ kenarı farklı, saydam antetli): sayfa A4, yazılar keskin,
+    antetin çevresinde gri çerçeve yok, sayfa numarası fareyle seçilebilmeli; editörün "Yazdır → PDF" çıktınızla aynı satırlarda kırılmalı.
+    Antetli, tablolu ve uzun bir dilekçeyi de deneyin. Editör kapalıyken de çalışmalı ve hiçbir pencere açılmamalı; editör **açıkken**
+    dönüştürün: açık editör ve belgeleri etkilenmemeli, editörün ayarları değişmemeli.
+25. **E-imzalı ve yorumlu UDF.** Sonuçta "imza dönüştürülen dosyaya taşınmaz" / "yorumlar alınmadı" uyarısı çıkmalı.
+26. **Açma yolları.** Gezgin'den bir UDF'yi PDEfe'nin penceresine sürükleyin: araç o dosyayla açılmalı. UDF'ye çift tıklamak eskisi gibi UYAP
+    Doküman Editörü'nü açmalı. `Ctrl+O`'da süzgeç "Desteklenen dosyalar" olmalı: UDF seçince araç, PDF seçince sekme açılmalı.
+27. **PDF → UDF.** Bir UYAP PDF'ini ve Word'den kaydedilmiş bir PDF'i UDF'ye çevirip UYAP Doküman Editörü'nde açın: yazılar düzenlenebilir,
+    sayfalar ve satırlar kaynağa yakın, sayfa numarası editörün kendi numarası, çizgili tablo editörün tablosu olmalı. Sayfa başlarında "Bölüm 1",
+    "Bölüm 2" gibi başlıkları olan bir PDF ve tablolu bir form (masraf listesi) de deneyin: editör açmalı, başlıklar metinde kalmalı. Taranmış bir
+    PDF'i UDF'ye çevirin: yazı tanınmış ve düzenlenebilir olmalı (yanlış okunan harflere bakın). İmza, kaşe ve karekod resimlerinin alınmadığını
+    sonuç uyarısı söylemeli.
+28. **Word → PDF.** Kendi bir dilekçenizi (.docx) PDF'e çevirip Word'ün "PDF olarak kaydet"iyle karşılaştırın: sayfa kırılımları ve yazı tipleri
+    aynı olmalı. Word **açıkken** (içinde belge varken) dönüştürün: açık Word ve belgeleri etkilenmemeli, ekranda yeni Word penceresi açılmamalı,
+    iş bitince Görev Yöneticisi'nde fazladan Word kalmamalı. PDF'in Özellikler'inde yazar adınız olmamalı. Bir .doc ve bir .rtf dosyası da deneyin.
+29. **PDF → Word.** Bir UYAP PDF'ini Word'e çevirip Word'de açın: metin düzenlenebilir olmalı. Taranmış bir belgede "düzenlenemez" uyarısı çıkmalı.
+30. **Word ↔ UDF.** Bir .docx'i UDF'ye ve bir UDF'yi Word'e çevirin (PDEfe arada PDF'ten geçer); sonuçları UYAP Doküman Editörü'nde ve Word'de açın.
+31. **TIFF ↔ PDF.** UYAP'tan indirilen bir TIFF'i PDF'e çevirin: sayfalar A4 ölçüsünde, görüntü taramayla aynı keskinlikte, dosya çoğunlukla
+    TIFF'ten küçük. Aynı PDF'i TIFF'e çevirin (TIFF seçenekleri görünmeli; varsayılan 200 dpi siyah beyaz): tek dosya, sayfa sayısı aynı, UYAP'a
+    yüklenebilmeli. Görüntü / PDF birleştir'de bir TIFF'i "Orijinal" boyutla ekleyin: sayfa A4 ölçüsünde olmalı (önceden çok büyüktü).
+32. **Birden çok dosya ve İptal.** UDF, TIFF ve PDF'i birlikte dönüştürün: yalnızca klasör sorulmalı, adlar dosyaların adı; sonuç listesinde PDF'ler
+    için Aç ve Klasörde göster. Uzun bir dönüştürmede İptal'e basın: klasörde yeni ya da yarım dosya kalmamalı.
+33. **Ayarlar.** Ayarlar › Kaydetme › UYAP Doküman Editörü: bulunan klasör ve sürüm, Java'nın sürümü görünmeli. "Klasörü seç…" ile editörün olmadığı
+    bir klasör seçince ayar değişmemeli, "bulunamadı" yazmalı; "Otomatik bul" eski duruma döndürmeli. Öteki ayarlar eskisi gibi kaydedilmeli,
+    "Varsayılanlara dön" çalışmalı.
+34. **Editör yokken (yaklaşık çizim).** UYAP Doküman Editörü'nün kurulu olmadığı bir bilgisayarda (ya da Mac'te) bir UDF ekleyin: küçük resim gelmeli,
+    hedef PDF seçilebilmeli, altında "UYAP Doküman Editörü bulunamadı; görünüm yaklaşık …" uyarısı. Dönüştürün, editördeki görünümle karşılaştırın
+    (satır ve sayfa kırılımları biraz farklı olabilir). UYAP'tan indirilmiş belgede her sayfanın altında "UYAP Bilişim Sistemindeki bu dokümana …
+    erişebilirsiniz." satırı olmalı; yatay sayfalı bir UDF'de kenar boşlukları editördekiyle aynı olmalı. Ayarlar'daki kartta "UDF'ler yine
+    dönüştürülür: PDEfe'nin yaklaşık çizimiyle …" yazmalı.
+35. **Kurulu sürüm.** 0.2.6 kurulduktan sonra (geliştirme örneğinde değil, kurulu PDEfe'de) bir kez UDF → PDF, PDF → UDF, Word → PDF ve PDF → Word
+    deneyin: dönüştürmenin parçaları kurulu sürümde ilk kez çalışacak.
+36. **Koyu tema.** Yazdırma penceresi ve Dosya Formatını Değiştir koyu temada okunaklı olmalı.
+
+Mac (elinizde varsa)
+37. **Yazdırma.** `⌘P`: PDEfe'nin penceresinde Mac'in yazıcıları ve varsayılan yazıcı; "Yazıcı ayarları" Sistem Ayarları › Yazıcılar ve
+    Tarayıcılar'ı açmalı; yazdırma çalışmalı; "macOS yazdırma penceresiyle yazdır" Mac'in penceresini açmalı.
+38. **Kopyalama.** `⌘A` bütün belgeyi seçmeli, `⌘C` bütün metni kopyalamalı (seçili olmayan bir sözcüğe sağ tık ya da Ctrl+tık sonrası menüdeki
+    Kopyala da). Yazı kutusunda ve Sayfaları düzenle'de `⌘C` / `⌘V`; Düzen › Kopyala / Yapıştır menüsüyle de yazı kutusu.
+39. **Dosya Formatını Değiştir.** Finder'dan bir UDF / TIFF / Word dosyası PDEfe ile açılınca araç açılmalı. UYAP Doküman Editörü Mac'te kuruluysa
+    UDF → PDF onunla (Ayarlar'daki kartta bulunan klasör ve sürüm; "Klasörü seç…" penceresinde UYAP uygulamasının içi gezilebilmeli), değilse yaklaşık
+    çizimle. Word → PDF için LibreOffice gerekir (yoksa Word hedefi soluk). PDF → Word macOS 13'te de çalışmalı. Sonuç listesindeki "Finder'da göster".

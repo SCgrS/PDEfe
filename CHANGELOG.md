@@ -3,6 +3,59 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.2.6 — 2026-10-15
+
+### Yazdırma
+- **Araç çubuğunda Kaydet'in yanında Yazdır düğmesi** (`Ctrl+P`). Belgede sağ tıklayınca menünün en altında Kaydet'in altında, sekmede sağ tıklayınca Kaydet'in hemen altında da Yazdır var; arkadaki bir sekmede seçilince önce o sekmeye geçilir. Açılış ekranında soluk görünür.
+- **Yazdırma artık PDEfe'nin kendi penceresinde; Windows'un yazdırma penceresi açılmıyor.** Windows 11'in yeni yazdırma penceresi ön izleme alanında "Bu uygulama yazdırma önizlemesini desteklemiyor" diyordu; aynı pencere bazı bilgisayarlarda seçilen kâğıdı, yönü ve çift taraflı seçimini yok sayıyor (A4 belge küçültülerek basılabiliyordu), sayfa seçimini ikinci kez soruyordu. Bu, o pencerenin Windows'ta bilinen bir kısıtı; PDEfe artık ona başvurmuyor.
+- Pencerede: **Yazıcı** (varsayılan ve çevrim dışı olanlar işaretli), **Kopya** ve **Harmanla**, **Sayfalar** (tümü, geçerli sayfa, aralık), **Kâğıt** (belgeye göre, A4, A3, A5, Letter, Legal), **Boyut** (sayfaya sığdır, gerçek boyut), **Renk** (renkli, siyah beyaz), **Çift taraflı** (yazıcının ayarı, tek taraflı, uzun ya da kısa kenardan çevir) ve **Notları yazdır**. Sağda sayfanın kâğıda nasıl basılacağı büyük olarak görünür; ◀ ▶ (ya da `Page Up` / `Page Down`) ile sayfalar arasında gezilir.
+- **Yazıcı tercihleri** düğmesi yazıcının kendi ayar penceresini açar (kâğıt kaynağı, baskı kalitesi, toner tasarrufu…). Orada yapılan değişiklik o yazıcının varsayılanı olur; PDEfe'deki kâğıt, renk, kopya ve çift taraflı seçimi yine geçerlidir.
+- Yazıcı çift taraflı basmıyorsa çift taraflı seçenekleri soluk görünür; yazıcı çevrim dışıysa uyarı çıkar (iş, yazıcı açılınca basılır). Microsoft Print to PDF gibi dosyaya yazan yazıcıda dosyanın kaydedileceği yer sorulur.
+- **Son seçilen yazıcı ve seçenekler (kâğıt, boyut, renk, çift taraflı, harmanla) hatırlanır.** Kopya sayısı her seferinde 1'den başlar; sayfa seçimi ve "Notları yazdır" PDEfe açık kaldıkça hatırlanır. Hatırlanan yazıcı kaldırılmışsa varsayılan yazıcı seçilir ve bu söylenir.
+- **Çift taraflının ilk değeri "Yazıcının ayarı"** (önceden "Tek taraflı"): PDEfe karışmaz, yazıcı kendi ayarıyla basar.
+- Windows'un penceresini isteyenler için altta **Windows yazdırma penceresiyle yazdır** bağlantısı var (Mac'te macOS'unki): yazıcı ve kopya orada seçilir; sayfa seçimi, kâğıt ve boyut PDEfe'deki gibi kalır.
+- **Ayarlar › Kaydetme › Otomatik kaydet** açıksa, kaydedilmemiş değişikliği olan belge yazdırılmadan önce sorulmadan kaydediliyor (bu ayar yazdırmada uygulanmıyordu).
+
+### Yeni araç: Dosya Formatını Değiştir
+- **UDF ↔ PDF, Word ↔ PDF, TIFF ↔ PDF.** Araçlar penceresinde, açılış ekranında ve Araçlar menüsünde. Dosyalar **Dosya ekle**'yle ya da pencereye sürüklenerek eklenir, birden çok dosya birlikte dönüştürülür. Her satırda dosyanın küçük resmi, türü, sayfa sayısı ve hedef biçim (PDF, UDF, Word, TIFF) görünür. PDF olmayan iki biçim arasında da (örneğin Word → UDF, UDF → Word) dönüştürülür; PDEfe arada PDF'ten geçer.
+- Bir PDF açıkken araç açılırsa o PDF listede hazırdır. UDF, TIFF ve Word dosyaları PDEfe'nin penceresine bırakılınca, Gezgin'de "Birlikte aç" ile ya da `Ctrl+O` ile açılınca araç o dosyalarla açılır (PDF'ler eskisi gibi sekmede açılır). UDF'ye çift tıklamak eskisi gibi UYAP Doküman Editörü'nü açar.
+- Dosyanın türü uzantısından değil içeriğinden anlaşılır; tanınmayan dosya dönüştürülmez, satırda nedeni yazar. Her türün son seçtiğiniz hedefi hatırlanır.
+- Tek dosyada ad ve klasör, birden çok dosyada yalnızca klasör seçilir. Dönüştürülen dosya her zaman yeni dosyadır: var olan dosyanın üzerine yazılmaz, adına "(2)" eklenir. Tek PDF çıktısı sekmede açılır; ötekiler pencerede listelenir (**Aç**, **Klasörde göster**). İptal edilirse hiçbir dosya yazılmaz, yarım dosya kalmaz.
+- **UDF → PDF** bilgisayarınızdaki UYAP Doküman Editörü'nün kendi sayfa düzeniyle, editörün penceresi açılmadan yapılır: satırlar ve sayfalar editördeki gibi kırılır, sonuç editörün "Yazdır → PDF" çıktısıyla aynıdır. Editörün kendi "PDF olarak kaydet"inden farklı olarak sayfa her zaman A4, yazı tipleri PDF'e gömülü, saydam antetin çevresinde gri çerçeve yok, sayfa numarası seçilebilen yazı. E-imza ve yorumlar PDF'e taşınmaz; sonuçta bu söylenir. Editörün ayarlarına ve açık belgelerine dokunulmaz.
+- **UYAP Doküman Editörü bulunamazsa** (örneğin Mac'te ya da editörün kurulu olmadığı bir bilgisayarda) UDF yine PDF'e dönüştürülür, PDEfe'nin yaklaşık çizimiyle: satırda ve sonuçta "görünüm yaklaşık (satır ve sayfa kırılımları editördekinden farklı olabilir)" yazar. Editör başka bir yere kuruluysa yeri satırdaki **UYAP Doküman Editörü'nün yerini göster** bağlantısından ya da **Ayarlar › Kaydetme › UYAP Doküman Editörü**'nden gösterilir.
+- **PDF → UDF** düzenlenebilir UDF üretir; UYAP Doküman Editörü gerekmez. Yazılar, paragraflar, kenar boşlukları, üst ve alt bilgi, satır içindeki resimler ve antet alınır; sayfa numarası editörün kendi sayfa numarası, çizgili tablolar editörün tablosu olur. Taranmış sayfa yazı tanımayla düzenlenebilir yazıya çevrilir (yanlış okunan harfler olabilir). Yazının yanında ya da üstünde duran resimler (imza, kaşe, doğrulama kodu) ve eğik yazılar (filigran) alınmaz; kaç tane olduğu sonuçta yazar.
+- **Word → PDF** bilgisayardaki Word'ün kendisiyle yapılır: görünmeyen, ayrı bir Word kullanılır, açık Word'ünüze ve belgelerinize dokunulmaz. Sayfa kırılımları ve yazı tipleri Word'deki gibidir, başlıklar yer imi olur. Belgenin yazar adı ve başlığı PDF'e geçmez, belgedeki makrolar çalışmaz. .docx, .doc, .rtf ve .odt dosyaları dönüştürülür. Word yoksa LibreOffice kullanılır (Mac'te yalnızca LibreOffice); ikisi de yoksa Word hedefi soluk görünür.
+- **PDF → Word** (.docx) Word gerektirmez. Metin Word'de düzenlenebilir; taranmış sayfalar resim olarak aktarılır ve bu söylenir.
+- **TIFF → PDF** kayıpsızdır: UYAP taramaları doğru sayfa ölçüsünde (A4) ve çoğunlukla TIFF'ten küçük dosya olur. **PDF → TIFF** tek dosyada çok sayfa üretir; varsayılan, UYAP'ın kendi taramaları gibi 200 dpi siyah beyaz; 300 dpi, gri ve renkli de seçilebilir. Taranmış sayfa kendi çözünürlüğünde kalır.
+
+### Sayfaları düzenle
+- **Kartın altında Kopyala düğmesi** (döndürme düğmelerinin sağında, Sil'in solunda): sayfanın kopyası hemen sağına eklenir. Birden çok sayfa seçiliyse seçilenlerin kopyası, sırasıyla, sonuncusunun sağına eklenir. `Ctrl+Z` geri alır.
+- **`Ctrl+C` / `Ctrl+V`:** seçili sayfalar kopyalanır, son seçili sayfanın arkasına yapıştırılır; art arda basılabilir. Sayfalar pencerenin içinde kopyalanır, bilgisayarın panosu değişmez; pencere kapanınca kopya unutulur.
+- **Sağ tık menüsü:** kartta Kopyala, Yapıştır, Sola döndür, Sağa döndür, Sil; boş alanda Yapıştır ve Tümünü seç. Birden çok sayfa seçiliyken menüde kaç sayfa olduğu yazar.
+- Kopya sayfalardaki notlar kaydedilen dosyada her kopyada durur. Özgün sayfadaki bir not silinip ya da değiştirilip kaydedilince her kopyada silinir ya da değişir; önceden yalnızca ilk kopyada oluyordu (aynı dosyanın sayfası "PDF ekle" ile eklendiğinde de). Kopya özgünün önüne konunca notlar özgün sayfada kalır.
+- Bilinen sınır: "Üzerine yaz"la kaydettikten sonra açık sekmede kopya sayfaların notları görünmez; dosyada ve çıktıda vardır, belge kapatılıp açılınca görünür.
+
+### Kopyalama ve yapıştırma
+- **`Ctrl+A` belgenin bütün sayfalarındaki metni seçer** (önceden yalnızca geçerli sayfayı): bütün sayfalar mavi seçili görünür, `Ctrl+C` ile bütün belgenin metni panoya gider, paragraflar tek sayfa kopyasındaki gibi birleşir. Taranmış sayfalardaki yazı da kopyalanır. Büyük belgede metin birkaç saniyede hazırlanır (410 sayfalık bir kanunda yaklaşık 5 saniye); hemen kopyalarsanız "Metin hazırlanıyor (N/M)" yazar, bitince "Belgenin metni kopyalandı". `Esc` durdurur. Seçilen, etkin belgenin sayfalarıdır; öteki sekmelerdeki belgeler seçilmez.
+- Bütün belge seçiliyken sağ tıkta Kopyala etkin, Vurgula ve Ara soluktur; seçim sayfaya tıklayınca, `Esc` ile ya da sekme değişince kalkar.
+- **Yazı kutusu kopyala-yapıştır:** yazı kutusuna tıklayıp `Ctrl+C`, sonra sayfada bir yere tıklayıp `Ctrl+V`: kopya tıkladığınız yere, aynı görünümle (yazı tipi, boyut, renk, dolgu, kenarlık, kalın ve italik parçalar) gelir. Yapıştırılan PDEfe'nin kendi yazı kutusudur: çift tıkla düzenlenir, taşınır, `Delete` ile silinir, `Ctrl+Z` ile geri alınır. Hiç tıklanmamışsa ya da tıklanan yer ekranda görünmüyorsa kopya sayfanın görünen bölümünün sağ üst köşesine konur; art arda yapıştırılan kopyalar üst üste binmesin diye biraz kayar.
+- Yazı kutusu başka sekmeye ve başka PDEfe penceresine de yapıştırılır; Word'e yapıştırılınca düz metni gelir. Başka bir programda eklenmiş yazı kutusu da biçimiyle kopyalanır. Sağ tık menüsünde Kopyala'nın altında Yapıştır var (sağ tıkladığınız yere yapıştırır). Sayfada metin seçiliyken `Ctrl+C` her zaman metni kopyalar.
+
+### Sekmeler
+- **Sekme adlarında ".pdf" uzantısı yazmıyor** ("Dilekçe.pdf" → "Dilekçe"); `Ctrl+Tab` seçicisinde, Açık belgeler (≡) listesinde ve dışarı sürüklenen sekmede de. Sekmenin üstüne gelince çıkan ipucunda, pencere başlığında ve sorularda ad uzantısıyla kalır.
+
+### Görüntü / PDF birleştir
+- **TIFF'ler "Orijinal" boyutta taramanın gerçek ölçüsünde ekleniyor:** çözünürlük bilgisi olmayan UYAP taramaları artık A4 ölçüsünde (önceden 58 × 82 cm gibi çok büyük sayfalar oluyordu). JPEG, PNG ve öteki görsellerin ölçüsü değişmedi. Çok sayfalı TIFF eklenirken bellek kullanımı çok azaldı (150 sayfada yaklaşık 1,2 GB'tan 140 MB'a).
+
+### Düzeltmeler
+- Ekranın altında kısa süre görünen bildirim, araç penceresinin Kaydet düğmesinin üstüne düşüyor, o sürede Kaydet'e tıklamak işe yaramıyordu. Düzeltildi.
+- Yüz binlerce satırlık bir metni kopyalamak hata veriyor ya da çok uzun sürüyordu. Düzeltildi; kopyalanan metin aynı.
+- Araç çubuğu Yazdır düğmesiyle en dar pencereye de sığıyor; dar pencerede düğmeler biraz daha erken küçülür.
+- Güvenlik: ayarların uygulama içinden yazılması sıkılaştırıldı; bozuk ya da kötü niyetli bir UDF dosyası (açılınca dev boyuta çıkan sıkıştırılmış dosya gibi) anlaşılır bir hatayla reddedilir.
+
+### README
+- Yazdırma penceresi, Dosya Formatını Değiştir ve gereksinimleri, Sayfaları düzenle'de kopyalama, `Ctrl+A` ve yazı kutusu kopyala-yapıştır eklendi; ekran görüntüleri yenilendi, yeni aracın görüntüsü eklendi.
+
 ## 0.2.5 — 2026-10-09
 
 ### Güncelleme

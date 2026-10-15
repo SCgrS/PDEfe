@@ -7,7 +7,7 @@ Windows 11 (ve Windows 10) ile macOS için sade, tüm araçları ücretsiz, rekl
 
 Hukukçuların ve her gün onlarca PDF açan herkesin işini görmek için yazıldı. Belgeler sekmelerde açılır, metin kopyalandığında satır
 sonları ve tireler temizlenir. PDEfe ile PDF, JPEG ve PNG dosyalarını tek PDF'te birleştirebilir, PDF'leri ayırabilir ve döndürebilir, üzerlerine
-yazı ekleyebilir, boyutlarını küçültebilirsiniz.
+yazı ekleyebilir, boyutlarını küçültebilir, UDF, Word ve TIFF dosyalarını PDF'e (PDF'leri de onlara) dönüştürebilirsiniz.
 
 <p align="center">
   <img src="docs/ekran-acilis-koyu.png" width="90%" alt="Açılış ekranı koyu temada">
@@ -31,7 +31,10 @@ yazı ekleyebilir, boyutlarını küçültebilirsiniz.
 
 - **Sekmeler ve pencereler:** Birden çok PDF tek pencerede açılır. Sekme sürüklenerek kendi penceresine ayrılır.
 - **Temiz kopyalama:** Satırlar paragraf olarak birleşir, tireler kalkar. Metin UYAP Doküman Editörü'ne ve Word'e düzgün yapışır.
-- **Araçlar:** Sıkıştır, Sayfaları düzenle, Döndür, Ayır, Görüntü / PDF birleştir.
+- **Araçlar:** Sıkıştır, Sayfaları düzenle, Döndür, Ayır, Görüntü / PDF birleştir, Dosya Formatını Değiştir.
+- **Dosya Formatını Değiştir:** UDF, Word ve TIFF ↔ PDF. UDF, UYAP Doküman Editörü'nün kendi sayfa düzeniyle PDF olur; PDF düzenlenebilir
+  UDF'ye çevrilir.
+- **Yazdırma:** PDEfe'nin kendi penceresinde yazıcı, kâğıt, renk ve çift taraflı seçilir; sayfanın kâğıda nasıl basılacağı önceden görünür.
 - **Taranmış belgede seçim:** Taranmış sayfadaki yazı da fareyle seçilip kopyalanır. Bunu bilgisayarın kendi yazı tanıyıcısı çevrim dışı yapar.
 - **Arama:** Bütün açık belgelerin hepsinde birden tek tuşla arama yapılabilir.
 - **Standart PDF notları:** Vurgu, not ve yazı başka PDF okuyucularında da görünür, e-imzayı bozmaz.
@@ -44,8 +47,8 @@ Kısayollar'da listelenir.
 
 ### Açılış ekranı
 
-Belge açık değilken **PDF aç** düğmesi, bütün araçlar ve son açılan 10 belge görünür. PDF'ler pencereye sürüklenerek de açılır. Son
-açılanlar listesi istenmezse Ayarlar'dan kapatılır.
+Belge açık değilken **PDF aç** düğmesi, bütün araçlar ve son açılan 10 belge görünür. PDF'ler pencereye sürüklenerek de açılır; UDF,
+Word ve TIFF dosyaları bırakılınca Dosya Formatını Değiştir açılır. Son açılanlar listesi istenmezse Ayarlar'dan kapatılır.
 
 <p align="center">
   <img src="docs/ekran-acilis.png" width="90%" alt="Açılış ekranı: PDF aç, araçlar ve son açılanlar">
@@ -54,8 +57,9 @@ açılanlar listesi istenmezse Ayarlar'dan kapatılır.
 ### Sekmeler ve pencereler
 
 - **Sekmeler:** Birden çok PDF tek pencerede açılır. Sekmeler sürüklenerek sıralanır, orta tıkla kapanır. Kaydedilmemiş değişikliği olan
-  sekmenin adının önünde nokta (•) durur. Belge yeniden açılınca kalınan sayfadan devam edilir.
-- **Sağ tık:** Sekmede sağ tıkla belge kaydedilir, pencereye ayrılır, klasörde gösterilir ya da dosya olarak kopyalanır.
+  sekmenin adının önünde nokta (•) durur. Sekme adında ".pdf" uzantısı yazmaz; tam ad ve yol sekmenin üstüne gelince görünür. Belge
+  yeniden açılınca kalınan sayfadan devam edilir.
+- **Sağ tık:** Sekmede sağ tıkla belge kaydedilir, yazdırılır, pencereye ayrılır, klasörde gösterilir ya da dosya olarak kopyalanır.
 - **Pencereler:** Sekme, sekme çubuğunun dışına sürüklenince kendi penceresinde açılır. Başka bir PDEfe penceresine bırakılınca oraya
   geçer. Notlar ve geri al geçmişi sekmeyle birlikte taşınır.
 - **Kapatma:** Birden çok sekmeli pencere kapatılırken yalnızca geçerli sekmenin mi, bütün sekmelerin mi kapanacağı sorulur. Seçim
@@ -77,7 +81,7 @@ açılanlar listesi istenmezse Ayarlar'dan kapatılır.
 
 Metin sürüklenerek seçilir. Seçimin yanında çıkan çubukla vurgulanır, not eklenir ya da kopyalanır. Kopyalanan metinde paragrafın
 satırları birleşir ve satır sonu tireleri kalkar ("hâ- / kim" → "hâkim"). Metin UYAP Doküman Editörü'ne ve Word'e fazladan boş satır
-olmadan yapışır.
+olmadan yapışır. `Ctrl+A` belgenin bütün sayfalarındaki metni seçer; `Ctrl+C` ile bütün belgenin metni aynı temizlikle kopyalanır.
 
 ![Seçim çubuğu: vurgula, not ekle, kopyala](docs/ekran-secim.png)
 
@@ -106,6 +110,7 @@ macOS 13–15'te Türkçe harfler (ş, ğ, ı, İ) yanlış gelebilir.
 
 - **Notlar:** Altı renkte vurgu, seçili metne yorum, not ve serbest yazı eklenir. Notlar standarttır, başka PDF okuyucularında da aynı görünür.
 - **Yazı kutusu:** Yazı tipi, boyut, renk, dolgu, kalın, italik ve altı çizili seçilebilir. Türkçe karakterler belgeye gömülür.
+  Yazı kutusu `Ctrl+C` ile kopyalanır, `Ctrl+V` ile tıklanan yere aynı görünümle yapıştırılır; başka sekmeye ve pencereye de.
 - **Kaydetme:** Notlar `Ctrl+S` ile kaydedilir. Not eklemek PDF'teki e-imzayı bozmaz.
 - **Geri al:** Her işlem `Ctrl+Z` ile geri alınır. Geri al düğmesinin yanındaki ▾ listesinden birkaç adım birlikte geri alınabilir.
   Durum çubuğundaki **● Kaydedilmemiş değişiklikler** yazısı son kayıttan bu yana yapılanları listeler.
@@ -126,12 +131,17 @@ Araçlar, araç çubuğundaki **Araçlar** düğmesinden ya da açılış ekran�
 ![Araçlar penceresi](docs/ekran-araclar.png)
 
 - **Sıkıştır:** Üç seviye vardır, her birinde tahminî boyut gösterilir.
-- **Sayfaları düzenle:** Sayfalar büyük ön izlemelerle sürüklenerek sıralanır, silinir, döndürülür. Boş sayfa ya da başka PDF'ten sayfa eklenir.
+- **Sayfaları düzenle:** Sayfalar büyük ön izlemelerle sürüklenerek sıralanır, silinir, döndürülür, kopyalanır. Kartın altındaki
+  kopyala düğmesi sayfanın kopyasını hemen sağına ekler; `Ctrl+C` / `Ctrl+V` ve sağ tık menüsü de var. Boş sayfa ya da başka PDF'ten
+  sayfa eklenir.
 - **Döndür:** Tüm sayfalar, geçerli sayfa ya da bir aralık döndürülür.
 - **Ayır:** Belge sayfa aralıklarına göre (örneğin `1-3, 4-10`) ya da her sayfa ayrı olacak şekilde ayrılır.
-- **Görüntü / PDF birleştir:** PDF, JPG, PNG ve başka görüntüler tek PDF'te birleşir. Dosyalar sürüklenerek ya da panodan eklenir.
+- **Görüntü / PDF birleştir:** PDF, JPG, PNG, TIFF ve başka görüntüler tek PDF'te birleşir. Dosyalar sürüklenerek ya da panodan eklenir.
+  UYAP taramaları (TIFF) gerçek ölçüsünde, A4 olarak eklenir.
+- **Dosya Formatını Değiştir:** UDF, Word ve TIFF dosyalarını PDF'e, PDF'leri bunlara dönüştürür (aşağıda).
 
-Her araç sonucu yeni belge olarak kaydeder ya da istenirse özgün dosyanın üzerine yazar.
+Her araç sonucu yeni belge olarak kaydeder ya da istenirse özgün dosyanın üzerine yazar (Dosya Formatını Değiştir her zaman yeni dosya
+oluşturur).
 
 <p align="center">
   <img src="docs/ekran-sikistir.png" width="90%" alt="Sıkıştır: üç seviye ve tahminî boyutlar">
@@ -147,10 +157,41 @@ Her araç sonucu yeni belge olarak kaydeder ya da istenirse özgün dosyanın ü
   <img src="docs/ekran-birlestir-koyu.png" width="90%" alt="Görüntü / PDF birleştir koyu temada">
 </p>
 
+### Dosya Formatını Değiştir
+
+Dosyalar **Dosya ekle** ile ya da pencereye sürüklenerek eklenir; birden çok dosya birlikte dönüştürülür. Her satırda dosyanın küçük
+resmi, türü, sayfa sayısı ve hedef biçim (PDF, UDF, Word, TIFF) görünür. Bir PDF açıkken araç açılırsa o PDF listede hazırdır. UDF,
+Word ve TIFF dosyaları PDEfe'nin penceresine bırakılınca ya da `Ctrl+O` ile seçilince de araç açılır.
+
+- **UDF → PDF:** UYAP Doküman Editörü'nün kendi sayfa düzeniyle, editörün penceresi açılmadan. Satırlar ve sayfalar editördeki gibi
+  kırılır, sonuç editörün "Yazdır → PDF" çıktısıyla aynıdır. Sayfa her zaman A4, yazı tipleri PDF'e gömülü, antetin çevresinde gri
+  çerçeve yok, sayfa numarası seçilebilir. E-imza ve yorumlar PDF'e taşınmaz.
+- **PDF → UDF:** Düzenlenebilir UDF. Paragraflar, kenar boşlukları, üst ve alt bilgi, antet ve çizgili tablolar alınır; sayfa numarası
+  editörün kendi numarası olur. Taranmış sayfa yazı tanımayla düzenlenebilir yazıya çevrilir. İmza, kaşe gibi yazının yanında duran
+  resimler alınmaz; sonuçta söylenir.
+- **Word → PDF:** Word'ün kendisiyle; görünmeyen, ayrı bir Word kullanılır, açık Word'ünüze dokunulmaz. Belgenin yazar adı PDF'e geçmez.
+  .docx, .doc, .rtf ve .odt dönüştürülür.
+- **PDF → Word:** Metni düzenlenebilir .docx. Taranmış sayfalar resim olarak aktarılır.
+- **TIFF → PDF:** Kayıpsız; UYAP taramaları doğru ölçüde (A4) ve çoğunlukla TIFF'ten küçük. **PDF → TIFF:** Tek dosyada çok sayfa;
+  varsayılan UYAP'ın taramaları gibi 200 dpi siyah beyaz, istenirse 300 dpi, gri ya da renkli.
+- UDF ↔ Word gibi PDF olmayan iki biçim arasında da dönüştürülür; PDEfe arada PDF'ten geçer.
+
+Gereksinimler:
+
+| Dönüştürme | Bilgisayarda gereken |
+|---|---|
+| UDF → PDF | UYAP Doküman Editörü ve kullandığı Java 8. Bulunamazsa UDF yine dönüştürülür, PDEfe'nin yaklaşık çizimiyle: satır ve sayfa kırılımları editördekinden farklı olabilir. Editörün yeri Ayarlar › Kaydetme'den gösterilebilir. |
+| Word → PDF | Windows'ta Word ya da LibreOffice, macOS'ta LibreOffice. |
+| PDF → UDF, PDF → Word, TIFF ↔ PDF | Bir şey gerekmez. |
+
+Dönüştürülen dosya her zaman yeni dosyadır; var olan dosyanın üzerine yazılmaz. İptal edilirse hiçbir dosya yazılmaz.
+
 ### Yazdırma ve PDF'i kopyala
 
-- **Yazdır** (`Ctrl+P`): Tüm sayfalar, geçerli sayfa ya da bir aralık yazdırılır. Tek ya da çift taraflı basılabilir. Türkçe karakterler
-  ekrandaki gibi çıkar.
+- **Yazdır** (`Ctrl+P`, araç çubuğunda Kaydet'in yanındaki düğme ya da sağ tık): PDEfe'nin kendi penceresinde yazıcı, kopya ve harmanlama,
+  sayfalar (tümü, geçerli sayfa, aralık), kâğıt, boyut (sayfaya sığdır, gerçek boyut), renkli ya da siyah beyaz, tek ya da çift taraflı
+  seçilir. Sağda sayfanın kâğıda nasıl basılacağı büyük olarak görünür. **Yazıcı tercihleri** yazıcının kendi ayarlarını açar. Son
+  seçilen yazıcı ve seçenekler hatırlanır. Türkçe karakterler ekrandaki gibi çıkar.
 - **PDF'i kopyala:** Belge dosya olarak panoya kopyalanır. UYAP'a, e-postaya ya da bir klasöre `Ctrl+V` ile yapıştırılır.
 
 ![Yazdır penceresi](docs/ekran-yazdir.png)
@@ -158,7 +199,8 @@ Her araç sonucu yeni belge olarak kaydeder ya da istenirse özgün dosyanın ü
 ### Ayarlar
 
 Ayarlar `Ctrl+,` ile ya da araç çubuğundaki dişliyle açılır. Tema, açılış düzeni, not renkleri, otomatik kaydetme ve güncelleme buradan
-değiştirilir. PDEfe buradan varsayılan PDF görüntüleyici de yapılır.
+değiştirilir. PDEfe buradan varsayılan PDF görüntüleyici de yapılır. **Kaydetme** bölümünde UYAP Doküman Editörü'nün bulunduğu yer ve
+sürümü görünür; editör kendiliğinden bulunamazsa klasörü buradan seçilir.
 
 ![Ayarlar › Açılış ve düzen: sayfa düzeni ve Pencereyi kapatırken](docs/ekran-ayarlar.png)
 
@@ -180,12 +222,13 @@ Windows'ta **Ayarlar › Uygulamalar › Yüklü uygulamalar › PDEfe › Kald�
 
 ## Verileriniz
 
-Bütün işlemler bilgisayarınızda yapılır. Belgeleriniz hiçbir yere gönderilmez, telemetri yoktur. PDEfe internete yalnızca yeni
+Bütün işlemler bilgisayarınızda yapılır. Belgeleriniz hiçbir yere gönderilmez, telemetri yoktur. Dosya dönüştürme de bilgisayarınızda
+yapılır: UYAP Doküman Editörü ve Word pencere açılmadan kullanılır, ayarlarına ve açık belgelerine dokunulmaz. PDEfe internete yalnızca yeni
 sürüm denetimi için haftada bir GitHub'a istek gönderir. Güncelleme denetimi Ayarlar'dan kapatılabilir (önerilmez).
 
 ## Üçüncü taraf projeler
 
-PDEfe şu açık kaynak projeler üzerine kuruludur: Electron, PDF.js, PyMuPDF / MuPDF, Python ve başkaları. Sürümler ve lisanslar
+PDEfe şu açık kaynak projeler üzerine kuruludur: Electron, PDF.js, PyMuPDF / MuPDF, Python, pdf2docx, python-docx ve başkaları. Sürümler ve lisanslar
 [THIRD_PARTY.md](THIRD_PARTY.md) dosyasındadır.
 
 ## Teşekkür
