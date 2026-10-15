@@ -29,7 +29,7 @@
 //   $env:PDEFE_CDP_PORT=9437; node test\surucu.mjs betik test\senaryo37.mjs
 //   powershell -File test\durdur.ps1 -SurecId <PID>
 // Yalnızca bazı bölümler: $env:BOLUM="3,5". Ekran görüntüleri test/cikti/s37/png altına.
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,7 +61,7 @@ const tiffOzeti = (yol) => py(`im = Image.open(${J(yol)})\nprint(json.dumps({"sa
 const zipOzeti = (yol) => py(`z = zipfile.ZipFile(${J(yol)})\nadlar = z.namelist()\nx = z.read("content.xml").decode("utf-8") if "content.xml" in adlar else ""\nw = "word/document.xml" in adlar\nprint(json.dumps({"adlar": adlar, "template": "<template" in x, "word": w}))`);
 const A4 = (o) => Math.abs(o[0] - 595.3) <= 1.5 && Math.abs(o[1] - 841.9) <= 1.5;
 
-export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
+export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler, hedefSec }) {
   const kosul = async (ifade, sure = 10000) => {
     const t0 = Date.now();
     for (;;) {
@@ -499,10 +499,22 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
       && s6.goster === 'Klasörde göster' && s6.ac === beklenen.filter((a) => a.endsWith('.pdf')).length && new RegExp(`${beklenen.length} dosya dönüştürüldü`).test(s6.metin), { yeni, s6 });
     await ss('06-coklu-sonuc');
     await evalJs(`window.__s37b.length = 0`);
+    // 0.2.7 (kullanıcı isteği): araç penceresi açıkken belge yeni pencerede önde açılır, araç olduğu gibi kalır. Komutlar bu pencereye
+    // gitsin (seçilmemiş hedef, CDP listesinin ilki, yeni pencere olabilir)
+    const buHedef = (await hedefler())[0].id;
+    hedefSec(buHedef);
+    const buPencere = await evalJs(`window.pdefe.cagir('pencere:kimlik')`);
     await tikSecici('.donustur-sonuc [data-ac]');
-    await kosul(`window.__pdefe.belgeler.size >= 1`, 8000);
-    sonuc('Sonuçtaki Aç PDF\'i yeni sekmede açar (pencere açık kalır)', (await evalJs(`[...window.__pdefe.belgeler.values()].some((b) => /Tarama örneği \\(2\\)\\.pdf$|Düz biçim\\.pdf$/.test(b.yol))`))
-      && (await evalJs(`!!document.querySelector('.donustur-pencere')`)));
+    const acilan = await kosul(`window.pdefe.cagir('test:pencereler').then((l) => l.length === 2 && l.some((p) => p.id !== ${buPencere} && p.yollar.some((y) => /Tarama örneği \\(2\\)\\.pdf$|Düz biçim\\.pdf$/i.test(y))) && l.map((p) => ({ id: p.id, yollar: p.yollar })))`, 15000);
+    sonuc('Sonuçtaki Aç PDF\'i yeni pencerede açar (araç penceresi açık kalır; 0.2.7)', !!acilan && (await evalJs(`window.__pdefe.belgeler.size`)) === 0
+      && (await evalJs(`!!document.querySelector('.donustur-pencere')`)), acilan);
+    for (const h of await hedefler()) {
+      hedefSec(h.id);
+      let k = null; try { k = await evalJs(`window.pdefe ? window.pdefe.cagir('pencere:kimlik') : null`); } catch { /* yükleniyor */ }
+      if (k != null && k !== buPencere) await evalJs(`(window.pdefe.cagir('pencere:kapatOnayla', null), true)`);
+    }
+    await bekle(600);
+    hedefSec(buHedef);
     await tikSecici('.donustur-pencere .donustur-temizle');
     sonuc('Listeyi temizle: satırlar ve sonuç listesi kalkar, Dönüştür soluk', await evalJs(`document.querySelectorAll('.donustur-oge').length === 0
       && document.querySelector('.donustur-sonuc').hidden && document.querySelector('.donustur-pencere .arac-dugmeler .birincil').disabled`));
@@ -636,12 +648,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
       && J(S.map((x) => x.ad)) === J(['Karar örneği.udf']) && J(await evalJs(`[...window.__pdefe.belgeler.values()].map((b) => b.ad)`)) === J(['Dilekçe örneği.pdf']), { ck: ck?.secenek, S: S.map((x) => x.ad) });
     await pencereKapat();
     await sekmeleriKapat();
-    // Komut satırı: ikinci örnek (Gezgin'de "Birlikte aç" ya da PDEfe'nin simgesine bırakma) TIFF'i ilk örneğe verir, araç açılır
-    const veri = await evalJs(`window.pdefe.cagir('uygulama:veriKlasoru')`);
-    const ikinci = await new Promise((coz) => {
-      const s = spawn(path.join(KOK, 'node_modules', 'electron', 'dist', 'electron.exe'), ['.', G.tiff], { cwd: KOK, env: { ...process.env, PDEFE_VERI_KLASORU: veri, PDEFE_TEST_KONUM: '-2600,0' }, stdio: 'ignore' });
-      s.on('exit', () => coz(true)); setTimeout(() => coz(false), 15000);
-    });
+    // Komut satırı: ikinci örnek (Gezgin'de "Birlikte aç" ya da PDEfe'nin simgesine bırakma) TIFF'i ilk örneğe verir, araç açılır. 0.2.7: ikinci
+    // bir Electron başlatılmaz (olağan masaüstünde Electron başlatılmaz); ana sürecin 'second-instance' olayı test kancasıyla verilir
+    const ikinci = await evalJs(`window.pdefe.cagir('test:uygulamaOlayi', 'second-instance', [${J(G.tiff)}])`);
     await kosul(`!!document.querySelector('.donustur-pencere') && document.querySelectorAll('.donustur-oge').length === 1 && !document.querySelector('.donustur-oge.yukleniyor')`, 15000);
     S = await satirlar();
     sonuc('Komut satırı (ikinci örnek): TIFF ilk örneğin Format Değiştir aracında açılır, sekme açılmaz', ikinci && J(S.map((x) => x.ad)) === J(['Tarama örneği.tif'])

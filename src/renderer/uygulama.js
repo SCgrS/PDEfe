@@ -11,7 +11,7 @@ import { GecmisListesi } from './gecmisListesi.js';
 import { ayarlarPenceresiAc, ayarlarPenceresiKapat, ayarlarPenceresiniGuncelle } from './ayarlarPenceresi.js';
 import { kisayolTablolariHtml } from './kisayolListesi.js';
 import { aracKomutlari, aracPencereleriniKapat, aracPenceresiKapaninca, acikAracPenceresiVar, DONUSTURULEN_UZANTILAR } from './araclar/index.js';
-import { DOSYA_FILTRELERI as DONUSTURME_FILTRELERI } from './araclar/donustur.js';
+import { DOSYA_FILTRELERI as DONUSTURME_FILTRELERI, acikDonusturPenceresi } from './araclar/donustur.js';
 import { sekmeyiYenile } from './araclar/ortak.js';
 import { AraclarPenceresi, ARACLAR } from './aracPenceresi.js';
 import { guncellemeSeridiKur } from './guncelleme.js';
@@ -186,10 +186,17 @@ async function dosyaAc(yol, secenek = {}) {
   // diskteki yeni hâliyle yeniden açıyor (ortak.js sekmeyiYenile, küçült): kapanan sekmenin yerine geçici olarak seçilmiş açılış
   // sekmesi tüketilmez
   const acilistan = !secenek.arkaPlanda && !secenek.yenile && baslangicSekmeleri.has(aktifId);
+  // 0.2.7 (kullanıcı isteği: "Bir araç ekranı açıkken PDEfe arkada açmaya devam ediyor. Eğer araç ekranı açıksa yeni açılacak evrakı yeni
+  // pencerede açsın"): araç penceresi açıkken belge bu pencerede aracın arkasında açılmaz; yeni pencerede önde açılır, araç olduğu gibi kalır
+  // (Gezgin'den çift tıklama ve ikinci örnek, macOS'ta Finder, araç sonuçlarındaki Aç). Aracın kendi işi bu kurala girmez: üzerine yazılan
+  // sekmeyi aynı yerde yeniden açma (yenile) ve başka pencerede yeniden yazılan dosyanın sekmesini yenileme (yazildi)
+  const aracArkasinda = acikAracPenceresiVar() && !secenek.yenile && !secenek.yazildi;
   for (const b of belgeler.values()) if (yolAyni(b.yol, yol)) {
     const bos = acilistan ? aktifId : null;
     sekmeSec(b.id);
     if (bos) baslangicSekmesiniKapat(bos);
+    // Belge bu pencerede zaten açık (aynı dosya iki pencerede açılamaz): sekmesi seçilir, araç kapanınca görünür
+    if (aracArkasinda) bildir(`"${uzantisiz(b.ad)}" bu pencerede zaten açık; araç penceresi kapanınca görünür.`, 6000);
     return b;
   }
   // Başka bir pencerede açıksa o pencere öne gelir ve sekmesine geçer; burada ikinci kez açılmaz (iki kopya birbirinin kaydını ezerdi).
@@ -197,6 +204,8 @@ async function dosyaAc(yol, secenek = {}) {
   if (!secenek.yenile && await pdefe.cagir('pencere:baskaPenceredeAc', yol, { yazildi: !!secenek.yazildi }).catch(() => false)) return null;
   const varMi = await pdefe.cagir('dosya:varMi', yol);
   if (!varMi) { bildir('Dosya bulunamadı: ' + yol); sonDosyalardanCikar(yol); return null; }
+  // Araç penceresi açık (0.2.7): yeni pencerede (ana süreç; bu pencereden art arda gelen istekler aynı yeni pencereye gider)
+  if (aracArkasinda && acikAracPenceresiVar()) { yeniPenceredeAc([yol]); return null; }
 
   const belge = belgeOlustur(yol);
   const { id, ad, gorunum } = belge;
@@ -1531,7 +1540,21 @@ function acilacaklariAyir(yollar) {
 async function yollariAc(yollar) {
   const { sekme, donustur } = acilacaklariAyir(yollar);
   for (const y of sekme) await dosyaAc(y);
-  if (donustur.length) komutCalistir('arac.donustur', donustur);
+  if (donustur.length) donusturAracindaAc(donustur);
+}
+
+/** UDF, TIFF ve Word dosyaları Format Değiştir'de: araç açıksa listesine eklenir. 0.2.7: başka bir araç penceresi açıksa (Format Değiştir
+ *  onun üstünde açılmaz) dosyalar yeni pencerede, oradaki Format Değiştir'de açılır. */
+function donusturAracindaAc(yollar) {
+  if (acikAracPenceresiVar() && !acikDonusturPenceresi()) yeniPenceredeAc(yollar);
+  else komutCalistir('arac.donustur', yollar);
+}
+
+/** Dosyaları yeni bir pencerede açar (0.2.7; araç penceresi açıkken). Ana süreç pencereyi bu pencerenin biraz sağında ve altında, önde
+ *  açar; bu pencereden sonraki istekler (pencere açık kaldıkça) aynı pencereye gider. */
+function yeniPenceredeAc(yollar) {
+  pdefe.cagir('pencere:yeniPenceredeAc', yollar).then((r) => { if (!r) bildir('Yeni pencere açılamadı.'); })
+    .catch((e) => bildir('Yeni pencere açılamadı: ' + hataMetni(e)));
 }
 
 // secenek.yazildi: dosya başka bir pencerede (araç çıktısı olarak) yeniden yazıldı; burada açık sekmesi diskteki yeni hâliyle yenilenir
@@ -1543,8 +1566,8 @@ pdefe.dinle('dosya:ac', async (yollar, secenek) => {
     const acik = secenek?.yazildi ? [...belgeler.values()].find((b) => yolAyni(b.yol, y)) : null;
     if (acik) await yazilanSekmeyiYenile(acik); else await dosyaAc(y, { yazildi: !!secenek?.yazildi });
   }
-  // UDF, TIFF, Word (komut satırı, macOS'ta Finder): Dosya Formatını Değiştir (0.2.6)
-  if (donustur.length) komutCalistir('arac.donustur', donustur);
+  // UDF, TIFF, Word (komut satırı, macOS'ta Finder): Format Değiştir (0.2.6; başka araç açıksa yeni pencerede, 0.2.7)
+  if (donustur.length) donusturAracindaAc(donustur);
 });
 pdefe.dinle('pencere:tamEkran', (acik) => document.body.classList.toggle('tam-ekran', acik));
 // Kapatma isteği yanıtsız bırakılmaz: Dosya › Çıkış pencereleri sırayla kapatır, vazgeçilen pencerede durur ('pencere:kapatVazgec').

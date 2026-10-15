@@ -106,6 +106,14 @@ export function testDiyalogKur(ipcMain) {
   // Ana süreçten gelen olayı taklit eder (fareyle seçilen menü komutu 'menu:komut', pencere kapatma isteği 'pencere:kapatIstegi'):
   // aynı kanaldan renderer'a geri gönderilir. CDP tuş olayı menü hızlandırıcısını tetiklemediğinden bu yolla sınanır.
   ipcMain.handle('test:olayGonder', (e, kanal, ...args) => { e.sender.send(kanal, ...args); return true; });
+  // Komut satırından gelen dosya (0.2.7): ikinci örneğin ('second-instance': Gezgin'de çift tıklama, "Birlikte aç") ve macOS'un 'open-file'
+  // olayının ana süreç yolu, ikinci bir Electron başlatmadan. olay: 'second-instance' (argv, cwd) | 'open-file' (yol)
+  ipcMain.handle('test:uygulamaOlayi', (_e, olay, ...args) => {
+    if (olay === 'second-instance') app.emit('second-instance', {}, ['pdefe', ...(Array.isArray(args[0]) ? args[0] : [])], args[1] || process.cwd());
+    else if (olay === 'open-file') app.emit('open-file', { preventDefault() {} }, String(args[0] || ''));
+    else return false;
+    return true;
+  });
   // Tuş olayını tarayıcı sürecinin girdi yolundan gönderir (webContents.sendInputEvent): sayfa işlemediği tuş menü hızlandırıcısına
   // da ulaşır (CDP tuş olayı ulaşmaz). olaylar: [{ type: 'keyDown'|'char'|'keyUp', keyCode, modifiers }]; aralarında 30 ms
   ipcMain.handle('test:tusGonder', async (e, olaylar) => {

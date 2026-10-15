@@ -363,7 +363,7 @@ export class AyirPenceresi {
       dugmeler: `<button class="ikincil ayir-goster">${MAC ? 'Finder\'da göster' : 'Klasörde göster'}</button>
         <button class="ikincil ayir-ilk-ac">${tek ? 'Yeni sekmede aç' : 'İlkini yeni sekmede aç'}</button>
         ${tek ? '' : '<label><input type="checkbox" class="ayir-hepsi-ac"> Hepsini aç</label>'}`,
-      acIpucu: 'Yeni sekmede aç',
+      acIpucu: 'Yeni pencerede aç',   // 0.2.7: araç penceresi açıkken belge yeni pencerede önde açılır (uygulama.js dosyaAc)
       ac: (i) => baglam.dosyaAc(dosyalar[i].yol, { arkaPlanda: true }),
     });
     this.sonucEl.querySelector('.arac-sonuc-baslik').title = this.klasor || '';

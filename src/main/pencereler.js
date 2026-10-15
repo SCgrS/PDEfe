@@ -18,7 +18,7 @@
 //   'sekme:disSurukle'    { x, y } | null            başka pencerenin sekmesi bu pencerenin şeridi üzerinde sürükleniyor / ayrıldı
 import { BrowserWindow, screen, shell } from 'electron';
 import path from 'node:path';
-import { disAdresMi } from './guvenlik.js';
+import { disAdresMi, acilacakYollar } from './guvenlik.js';
 
 const HAZIR_BEKLEME_MS = 20000;      // yeni pencerenin arayüzü bu sürede hazır olmazsa taşıma vazgeçilir
 const ISTEK_BEKLEME_MS = 120000;     // renderer'dan beklenen yanıt (büyük belgenin açılması dahil)
@@ -36,7 +36,7 @@ const HAYALET_BASLIK = 36, HAYALET_IMLEC_EN_ALT = HAYALET_BASLIK - 8;
 
 /** @typedef {{ pencere: BrowserWindow, wc: Electron.WebContents, id: number, hazir: boolean, hazirSozu: Promise<void>, hazirCoz: () => void,
  *    coktu: boolean, kapatOnayli: boolean, kapatBekleyen: ((kapandi: boolean) => void)|null, bekleyenDosyalar: string[], yollar: Set<string>,
- *    kirli: boolean, kapanisDosyalari: {yollar: string[], anliklar: string[]}|null }} Kayit */
+ *    kirli: boolean, kapanisDosyalari: {yollar: string[], anliklar: string[]}|null, yeniPencere?: Kayit }} Kayit */
 
 /** @type {Map<number, Kayit>} */
 const kayitlar = new Map();   // webContents.id → kayıt
@@ -494,6 +494,23 @@ export function pencereleriKur(b) {
     if (!k) return false;
     gonder(k, 'dosya:ac', [yol], { yazildi: !!secenek?.yazildi });
     odakla(k);
+    return true;
+  });
+  // Araç penceresi açıkken açılan belge (0.2.7, kullanıcı isteği: "Eğer araç ekranı açıksa yeni açılacak evrakı yeni pencerede açsın"):
+  // isteyen pencerede aracın arkasında açılmaz, onun biraz sağında ve altında açılan yeni pencerede önde açılır (araç olduğu gibi kalır).
+  // Aynı pencereden sonraki istekler (art arda çift tıklanan belgeler, sonuç listesindeki öbür Aç) o yeni pencere açık kaldıkça oraya gider;
+  // orada da bir araç açıksa o pencere de kendi yeni penceresini ister. Döner: true (açılıyor) | false
+  ipcMain.handle('pencere:yeniPenceredeAc', (e, yollar) => {
+    const kaynak = kayitAl(e);
+    if (!kaynak) return false;
+    const liste = acilacakYollar(yollar);
+    const onceki = kaynak.yeniPencere;
+    if (canli(onceki) && !onceki.coktu && onceki !== kaynak) {
+      if (onceki.hazir) gonder(onceki, 'dosya:ac', liste); else onceki.bekleyenDosyalar.push(...liste);
+      odakla(onceki);
+      return true;
+    }
+    kaynak.yeniPencere = pencereOlustur({ sinirlar: ayirmaSinirlari(kaynak), dosyalar: liste });
     return true;
   });
   // Dosya başka bir pencerede açık mı (0.2.1; salt okunur, pencereye dokunmaz): Farklı kaydet başka pencerede açık belgenin üzerine yazmaz

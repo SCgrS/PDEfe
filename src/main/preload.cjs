@@ -12,7 +12,7 @@ const CAGRILAR = new Set([
   'menu:popup', 'mesaj:kutu',
   'pano:dosya', 'pano:icerik', 'pano:metin', 'pano:oku',
   'pencere:baskaPenceredeAc', 'pencere:baskaPenceredeAcikMi', 'pencere:baslik', 'pencere:digerlerindenIzinAl', 'pencere:izinBirak', 'pencere:kapat',
-  'pencere:kapatOnayla', 'pencere:kapatVazgec', 'pencere:kimlik', 'pencere:sayi', 'pencere:tamEkran', 'pencere:tasi',
+  'pencere:kapatOnayla', 'pencere:kapatVazgec', 'pencere:kimlik', 'pencere:sayi', 'pencere:tamEkran', 'pencere:tasi', 'pencere:yeniPenceredeAc',
   'sekme:surukleBitti', 'sekme:tasi',
   'udf:yaklasikBilgi', 'udf:yaklasikDonustur', 'udf:yaklasikIptal',
   'uygulama:bilgi', 'uygulama:geciciKlasor', 'uygulama:klasorler', 'uygulama:sonDosyalar', 'uygulama:veriKlasoru',

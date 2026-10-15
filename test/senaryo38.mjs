@@ -47,7 +47,7 @@ const KUTU = `window.__s38kutu = (e) => { if (typeof e === 'string') e = documen
   return { sol: r.left, sag: r.right, ust: r.top, alt: r.bottom, w: r.width, h: r.height, ortaX: r.left + r.width / 2, ortaY: r.top + r.height / 2,
     ustBosluk: cs.marginTop, kenarRengi: cs.borderTopColor, kenarKalinligi: cs.borderTopWidth, zemin: cs.backgroundColor }; }; true`;
 
-export default async function ({ evalJs, ekranGoruntusu, bekle }) {
+export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefSec }) {
   const kosul = async (ifade, sure = 10000) => {
     const t0 = Date.now();
     for (;;) {
@@ -373,6 +373,97 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
     sonuc('4) Sıkıştır: seçili seviyeye yeniden tıklanınca etkin', (await devre('kucult-pencere')) === false);
     await araclariKapat(); await sekmeleriKapat();
     await ciktiKlasoruAyarla(path.join(UI, 'cikti'));
+  }
+
+  // ------------------------------------------------------------ 5) Araç penceresi açıkken açılan belge yeni pencerede
+  if (bolum(5)) {
+    console.log('\n== 5) Araç penceresi açıkken açılan belge yeni pencerede, önde; araç olduğu gibi kalır');
+    await araclariKapat(); await sekmeleriKapat();
+    // Pencereler: ana süreçteki kimlik → CDP hedefi
+    let harita = new Map();
+    // Yüklenmekte olan pencerenin (köprüsü henüz yok) kimliği sonraki yenilemede alınır
+    const yenile = async () => {
+      const m = new Map();
+      for (const h of await hedefler()) { hedefSec(h.id); try { const k = await evalJs(`window.pdefe ? window.pdefe.cagir('pencere:kimlik') : null`); if (k != null) m.set(k, h.id); } catch { /* yükleniyor */ } }
+      harita = m; return [...m.keys()].sort((a, b) => a - b);
+    };
+    const P = (kimlik) => hedefSec(harita.get(kimlik));
+    const ana = (kanal, ...args) => evalJs(`window.pdefe.cagir(${J(kanal)}, ...${J(args)})`);
+    const pencereler = () => ana('test:pencereler');
+    const ad = (y) => path.basename(y).toLowerCase();
+    const pencereYollari = async (kimlik) => ((await pencereler()).find((p) => p.id === kimlik)?.yollar || []).map(ad);
+    const ilk = (await yenile())[0];
+    // Önceki koşumlardan kalan pencereler kapatılır
+    for (const k of (await yenile()).filter((x) => x !== ilk)) { P(k); await evalJs(`(window.pdefe.cagir('pencere:kapatOnayla', null), true)`); }
+    await bekle(500); await yenile(); P(ilk);
+    await evalJs(`(window.pdefe.cagir('test:oneAl'), true)`);
+    const A = ornekPdf('pencere-a.pdf', 1, 'A belgesi'), B = ornekPdf('pencere-b.pdf', 1, 'B belgesi'), C = ornekPdf('pencere-c.pdf', 1, 'C belgesi');
+    const D = ornekPdf('pencere-d.pdf', 1, 'D belgesi'), E = ornekPdf('pencere-e.pdf', 1, 'E belgesi'), F = ornekPdf('pencere-f.pdf', 1, 'F belgesi');
+    await evalJs(`(async () => { await window.__pdefe.dosyaAc(${J(A)}); return true; })()`);
+    await kosul(`!!window.__pdefe.aktif()?.gorunum?.sayfaSayisi`);
+    await evalJs(`(async () => { window.__s38m = window.__s38m || {}; window.__s38m.d = await import('pdefe://app/src/renderer/araclar/donustur.js'); return true; })()`);
+    const ARAC = 'window.__s38m.d.acikDonusturPenceresi()';
+    await evalJs(`(window.__pdefe.komutCalistir('arac.donustur'), true)`);
+    await kosul(`!!${ARAC} && ${ARAC}.ogeler.length === 1 && !${ARAC}.ogeler[0].yukleniyor`, 15000);
+    const aracListesi = () => evalJs(`${ARAC} ? ${ARAC}.ogeler.map((o) => o.ad) : null`);
+    // a) Gezgin'de çift tıklama (ikinci örnek): ana süreç dosyayı en son etkin pencereye verir; araç açık olduğu için yeni pencere
+    await ana('test:uygulamaOlayi', 'second-instance', [B]);
+    const yeniPencereyiBekle = async (once) => { const t0 = Date.now(); for (;;) { const k = (await yenile()).filter((x) => !once.includes(x)); if (k.length) { const p = (await pencereler()).find((x) => x.id === k[0]); if (p?.gorunur && p.yollar.length) return k[0]; } if (Date.now() - t0 > 15000) return null; await bekle(200); } };
+    const P2 = await yeniPencereyiBekle([ilk]);
+    P(ilk);
+    let liste = await pencereler();
+    sonuc('5a) Araç açıkken Gezgin\'den açılan PDF yeni pencerede açılır; yeni pencere önde', P2 != null && J(await pencereYollari(P2)) === J([ad(B)]) && liste[0].id === P2, { P2, liste: liste.map((p) => [p.id, p.yollar.map(ad), p.gorunur]) });
+    sonuc('5a) İlk pencerede araç açık kalır, listesi değişmez; belge orada açılmaz', J(await pencereYollari(ilk)) === J([ad(A)]) && J(await aracListesi()) === J(['pencere-a.pdf'])
+      && (await evalJs('window.__pdefe.sekmeler.sekmeler.length')) === 1, { yollar: await pencereYollari(ilk), arac: await aracListesi() });
+    if (P2 != null) {
+      const s1 = (await pencereler()).find((p) => p.id === ilk).sinirlar, s2 = (await pencereler()).find((p) => p.id === P2).sinirlar;
+      sonuc('5a) Yeni pencere ilk pencerenin biraz sağında ve altında, aynı boyutta', s2.x === s1.x + 32 && s2.y === s1.y + 32 && s2.width === s1.width && s2.height === s1.height, { s1, s2 });
+    }
+    // b) İkinci belge (ilk pencere yine önde): aynı yeni pencereye, yeni sekme olarak
+    await evalJs(`(window.pdefe.cagir('test:oneAl'), true)`);
+    await ana('test:uygulamaOlayi', 'second-instance', [C]);
+    await bekle(400);
+    const tB = Date.now(); while (Date.now() - tB < 10000 && !(await pencereYollari(P2)).includes(ad(C))) await bekle(200);
+    liste = await pencereler();
+    sonuc('5b) Araç açıkken ikinci belge aynı yeni pencerede açılır (üçüncü pencere yok), o pencere öne gelir', liste.length === 2 && J((await pencereYollari(P2)).sort()) === J([ad(B), ad(C)].sort()) && liste[0].id === P2,
+      liste.map((p) => [p.id, p.yollar.map(ad)]));
+    // c) macOS'un open-file olayı (Finder) da aynı yoldan
+    P(ilk); await evalJs(`(window.pdefe.cagir('test:oneAl'), true)`);
+    await ana('test:uygulamaOlayi', 'open-file', D);
+    const tD = Date.now(); while (Date.now() - tD < 10000 && !(await pencereYollari(P2)).includes(ad(D))) await bekle(200);
+    sonuc('5c) Finder\'dan açılan (open-file) belge de yeni pencerede', (await pencereYollari(P2)).includes(ad(D)) && J(await pencereYollari(ilk)) === J([ad(A)]), { p2: await pencereYollari(P2), ilk: await pencereYollari(ilk) });
+    // d) Bu pencerede zaten açık belge: sekmesi seçilir, kullanıcıya söylenir; yeni pencere açılmaz
+    P(ilk); await evalJs(`(window.pdefe.cagir('test:oneAl'), true)`);
+    await ana('test:uygulamaOlayi', 'second-instance', [A]);
+    await bekle(800);
+    const bildirim = await evalJs(`document.querySelector('#bildirim')?.hidden === false ? document.querySelector('#bildirim').textContent : ''`);
+    sonuc('5d) Araç penceresinin arkasında zaten açık belge: yeni pencere yok, "zaten açık" bildirimi', (await pencereler()).length === 2 && /pencere-a" bu pencerede zaten açık; araç penceresi kapanınca görünür/.test(bildirim), bildirim);
+    // e) Aracın sonuç listesindeki Aç: yeni pencerede (araç açık kalır)
+    await evalJs(`(async () => { const p = ${ARAC}; await p._sonucGoster([{ yol: ${J(A)}, hedef: ${J(E)}, hedefBicim: 'pdf' }, { yol: ${J(A)}, hedef: ${J(F)}, hedefBicim: 'pdf' }], { tek: false }); return true; })()`);
+    sonuc('5e) Sonuçtaki Aç\'ın ipucu "Yeni pencerede aç"', (await evalJs(`document.querySelector('.donustur-sonuc [data-ac]')?.title`)) === 'Yeni pencerede aç');
+    await evalJs(`(document.querySelectorAll('.donustur-sonuc [data-ac]')[0].click(), true)`);
+    const tE = Date.now(); while (Date.now() - tE < 10000 && !(await pencereYollari(P2)).includes(ad(E))) await bekle(200);
+    sonuc('5e) Sonuçtaki Aç belgeyi yeni pencerede açar; araç penceresi açık kalır', (await pencereYollari(P2)).includes(ad(E)) && !(await pencereYollari(ilk)).includes(ad(E))
+      && (await evalJs(`!!document.querySelector('.donustur-pencere')`)), { p2: await pencereYollari(P2), ilk: await pencereYollari(ilk) });
+    await ss('05-arac-acik');
+    // f) Yeni pencere kapandıysa sonraki istek yine yeni bir pencere açar
+    P(P2); await evalJs(`(window.pdefe.cagir('pencere:kapatOnayla', null), true)`);
+    const tK = Date.now(); while (Date.now() - tK < 8000 && (await yenile()).includes(P2)) await bekle(200);
+    P(ilk); await evalJs(`(window.pdefe.cagir('test:oneAl'), true)`);
+    await evalJs(`(document.querySelectorAll('.donustur-sonuc [data-ac]')[1].click(), true)`);
+    const P3 = await yeniPencereyiBekle([ilk]);
+    sonuc('5f) Yeni pencere kapandıktan sonra Aç yeniden yeni pencere açar', P3 != null && P3 !== P2 && J(await pencereYollari(P3)) === J([ad(F)]), { P3 });
+    // g) Araç kapanınca belgeler yine bu pencerede açılır
+    P(ilk); await araclariKapat();
+    await evalJs(`(window.pdefe.cagir('test:oneAl'), true)`);
+    await ana('test:uygulamaOlayi', 'second-instance', [C]);
+    await bekle(1500); await yenile(); P(ilk);
+    // C, P2 kapandığı için hiçbir pencerede açık değil
+    sonuc('5g) Araç kapalıyken belge aynı pencerede sekmede açılır', (await pencereYollari(ilk)).includes(ad(C)) && (await yenile()).length === 2, { ilk: await pencereYollari(ilk), pencereler: await yenile() });
+    // Temizlik: ek pencereler kapanır
+    for (const k of (await yenile()).filter((x) => x !== ilk)) { P(k); await evalJs(`(window.pdefe.cagir('pencere:kapatOnayla', null), true)`); }
+    await bekle(500); await yenile(); P(ilk);
+    await sekmeleriKapat();
   }
 
   const hatalar = await evalJs('window.__hatalar || []');

@@ -823,12 +823,9 @@ export class DonusturPenceresi {
       baslik, tur: basarili.length ? 'basari' : 'uyari', tek: sonuclar.length === 1,
       satirlar: sonuclar.map((r) => (r.hata ? { yol: r.yol, ad: dosyaAdi(r.yol), hata: r.hata } : { yol: r.hedef, ad: dosyaAdi(r.hedef), ac: r.hedefBicim === 'pdf', uyari: r.uyari || '' })),
       dugmeler: basarili.length ? `<button class="ikincil donustur-goster">${MAC ? 'Finder\'da göster' : 'Klasörde göster'}</button>` : '',
-      acIpucu: 'Yeni sekmede aç',
-      ac: async (i) => {
-        const r = sonuclar[i];
-        await baglam.dosyaAc(r.hedef, { arkaPlanda: true });
-        baglam.bildir(`"${dosyaAdi(r.hedef)}" yeni sekmede açıldı.`, 3000);
-      },
+      // 0.2.7: araç penceresi açıkken belge yeni pencerede önde açılır (uygulama.js dosyaAc), araç olduğu gibi kalır
+      acIpucu: 'Yeni pencerede aç',
+      ac: (i) => baglam.dosyaAc(sonuclar[i].hedef, { arkaPlanda: true }),
     });
     s.querySelector('.donustur-goster')?.addEventListener('click', () => baglam.pdefe.cagir('kabuk:klasordeGoster', basarili[0].hedef));
     s.scrollIntoView({ block: 'nearest' });

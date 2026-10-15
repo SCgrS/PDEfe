@@ -16,7 +16,7 @@
 // Son adım (Çıkış) test örneğini kapatır.
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const KOK = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -444,8 +444,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
   P(P2);
   sonuc('Başka pencerede açık dosya burada ikinci kez açılmaz; açık olduğu pencere öne gelir ve sekmesine geçer', acma.donen === null && J(acma.sekmeler) === J(['b.pdf']) && (await ana('test:pencereler'))[0].id === P2 && (await evalJs(`window.__pdefe.aktif().ad`)) === 'notlu.pdf', acma);
   // İkinci örnek (Gezgin'de çift tık): açık dosya açık olduğu pencerede, yeni dosya en son etkin pencerede
-  const veri = await ana('uygulama:veriKlasoru');
-  const ikinciOrnek = (dosya) => new Promise((coz) => { const s = spawn(path.join(KOK, 'node_modules', 'electron', 'dist', 'electron.exe'), ['.', dosya], { cwd: KOK, env: { ...process.env, PDEFE_VERI_KLASORU: veri, PDEFE_TEST_KONUM: '-2600,0' }, stdio: 'ignore' }); s.on('exit', () => coz(true)); setTimeout(() => coz(false), 15000); });
+  // 0.2.7: ikinci bir Electron başlatılmaz (olağan masaüstünde Electron başlatılmaz; görünmeyen masaüstündeki örnekte de çalışır): ana sürecin
+  // 'second-instance' olayı test kancasıyla verilir
+  const ikinciOrnek = async (dosya) => { await ana('test:uygulamaOlayi', 'second-instance', [dosya]); await bekle(300); return true; };
   P(P4); await oneAl();   // en öndeki pencere P4; b.pdf P1'de açık
   await ikinciOrnek(path.join(K, 'b.pdf'));
   const onde = await kosul(`window.pdefe.cagir('test:pencereler').then((p) => p[0].id === ${P1})`, 6000);

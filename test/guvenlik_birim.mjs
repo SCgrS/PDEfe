@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
-import { paketKlasoruMu, cekirdekParametreleri, udfIcerigiDenetle, udfDosyasiOku, udfYaklasikParametreleri, ayarYazimiDenetle } from '../src/main/guvenlik.js';
+import { paketKlasoruMu, cekirdekParametreleri, udfIcerigiDenetle, udfDosyasiOku, udfYaklasikParametreleri, ayarYazimiDenetle, acilacakYollar } from '../src/main/guvenlik.js';
 
 const KOK = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const K = process.env.GUVENLIK_BIRIM_KLASORU || path.join(KOK, 'test', 'cikti', 'guvenlik_birim');
@@ -167,6 +167,13 @@ try {
   kontrol('ayar:koy: noktalı yol reddedilir (udeYolu.x, yazdirma.yazici)', ayarSonucu('udeYolu.x', 'C:\\x') === 'red' && ayarSonucu('yazdirma.yazici', 'X') === 'red');
   kontrol('ayar:koy: bilinmeyen anahtar, dizi, sayı, boş ve __proto__ reddedilir', ['bilinmeyen', '', '__proto__', 'constructor', 'toString'].every((a) => ayarSonucu(a, 1) === 'red')
     && ayarSonucu(['udeYolu'], 'C:\\x') === 'red' && ayarSonucu(5, 1) === 'red' && ayarSonucu(null, 1) === 'red');
+
+  // ------------------------------------------------------------ pencere:yeniPenceredeAc (0.2.7): yeni pencerede açılacak dosyalar
+  const yolSonucu = (y) => { try { return acilacakYollar(y); } catch { return 'red'; } };
+  const mutlak = path.join(K, 'Belge.pdf');
+  kontrol('yeniPenceredeAc: mutlak yollar geçer (kopyası döner)', JSON.stringify(yolSonucu([mutlak, mutlak + '.udf'])) === JSON.stringify([mutlak, mutlak + '.udf']));
+  kontrol('yeniPenceredeAc: göreli yol, boş, NUL, dizi olmayan, boş dizi ve 100\'den çok yol reddedilir', yolSonucu(['Belge.pdf']) === 'red' && yolSonucu(['']) === 'red'
+    && yolSonucu([mutlak + '\0x']) === 'red' && yolSonucu(mutlak) === 'red' && yolSonucu([]) === 'red' && yolSonucu([5]) === 'red' && yolSonucu(Array(101).fill(mutlak)) === 'red');
 } finally {
   try { fs.rmSync(K, { recursive: true, force: true }); } catch { console.log('Not: ' + K + ' silinemedi.'); }
 }
