@@ -317,8 +317,8 @@ const YAKLASIK_HEDEFLER = new Set(['pdf', 'tiff', 'word', 'gorsel']);
  *    öğe bicim_donustur'unkiyle aynı denetimden geçer (donusumOgesi: hedefin uzantısı biçimle eşleşir, seçenekler bilinen değerler); hedef
  *    öğenin kendi girdisi olamaz
  *  - udf:yaklasikIptal { istekId }
- *  - udf:yaklasikBirlestir (0.2.7, Birleştir) { ogeler: 1–500 birlestir öğesi (birlestirOgesi; en az biri yaklasik UDF), hedef (mutlak .pdf; öğelerin
- *    hiçbiri olamaz), genelKalite?, istekId? }
+ *  - udf:yaklasikBirlestir (0.2.7, Birleştir) { ogeler: 1–500 birlestir öğesi (birlestirOgesi; en az biri yaklasik UDF), hedef (mutlak .pdf; yaklaşık
+ *    çizilen UDF'lerden biri olamaz, listedeki bir PDF olabilir: Üzerine yaz), genelKalite?, istekId? }
  */
 export function udfYaklasikParametreleri(kanal, p) {
   if (!p || typeof p !== 'object' || Array.isArray(p)) throw izinYok();
@@ -356,7 +356,9 @@ export function udfYaklasikParametreleri(kanal, p) {
     if (p.genelKalite != null && !BIRLESTIR_KALITELERI.has(p.genelKalite)) throw izinYok();
     const ogeler = p.ogeler.map(birlestirOgesi);
     if (!ogeler.some((o) => o.yaklasik)) throw izinYok();   // yaklaşık çizilecek UDF yoksa çekirdeğin birlestir'i
-    if (ogeler.some((o) => ayniYol(o.yol, p.hedef))) throw new Error('Kaydedilecek dosya, birleştirilen dosyalardan biri olamaz.');
+    // Hedef listedeki bir PDF olabilir (0.2.7 inceleme: Birleştir'in "Üzerine yaz"ı açık PDF'in yerine yazar; çekirdeğin birlestir'i bütün girdileri
+    // okuduktan sonra yazar, kural onunkiyle aynı). Yaklaşık çizilen UDF'nin kendisi olamaz: UDF'nin yerine PDF yazılırdı
+    if (ogeler.some((o) => o.yaklasik && ayniYol(o.yol, p.hedef))) throw new Error('Kaydedilecek dosya, birleştirilen UDF belgelerinden biri olamaz.');
     return { ogeler, hedef: p.hedef, ...(p.genelKalite != null ? { genelKalite: p.genelKalite } : {}), istekId: kimlik(p.istekId) };
   }
   throw izinYok();

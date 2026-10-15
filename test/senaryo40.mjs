@@ -2,12 +2,14 @@
 //   1) "Zaten var" sorusunun "Yeni belge olarak kaydet"i adı "(1)"e çevirir ama bu ad elle yazılmış sayılmaz: Format Değiştir'de dönüştürme
 //      → ayar değişir → "A.tif zaten var" → Yeni belge ("A (1).tif") → Listeyi temizle → B.pdf: ad kutusu "B", hedef "B.tif" (önceden "A (1)"
 //      kalıyor, B "A (2).tif" adıyla kaydediliyordu). Kullanıcının kendi yazdığı ad ise (0.2.6'daki gibi) girdi değişince de kalır.
+//   2) Birleştir, UYAP Doküman Editörü yokken (PDEFE_UDE_YOK=1): açık PDF + UDF (yaklaşık çizim), "Üzerine yaz": PDF birleşik hâliyle yazılır,
+//      sekmesi yeni hâliyle açılır (önceden "Kaydedilecek dosya, birleştirilen dosyalardan biri olamaz" hatasıyla hiç çalışmıyordu).
 // Girdiler bu betikte üretilir (Python, proje .venv; gerçek belge yok): test/cikti/s40/girdi; çıktılar test/cikti/s40/<bölüm>-<koşum>.
-// Kullanım (görünmeyen masaüstü):
-//   powershell -ExecutionPolicy Bypass -File test\baslat_gizli.ps1 -Port 9440 -Veri "$env:TEMP\pdefe-s40-9440" -Boyut "1280,1000"   → PID=… yazar
+// Kullanım (görünmeyen masaüstü; 2. bölüm için editör yok benzetimi):
+//   $env:PDEFE_UDE_YOK="1"; powershell -ExecutionPolicy Bypass -File test\baslat_gizli.ps1 -Port 9440 -Veri "$env:TEMP\pdefe-s40-9440" -Boyut "1280,1000"   → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9440; node test\surucu.mjs betik test\senaryo40.mjs
 //   powershell -ExecutionPolicy Bypass -File test\durdur.ps1 -SurecId <PID>
-// Yalnızca bazı bölümler: $env:BOLUM="1".
+// Yalnızca bazı bölümler: $env:BOLUM="1,2".
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -129,6 +131,54 @@ export default async function ({ evalJs, bekle }) {
     sonuc('1) Elle yazılan ad girdi değişince kalır ("Özel ad (1)")', (await adKutusu()) === 'Özel ad (1)', await adKutusu());
     await evalJs(`(${D}.dpiSecim.dugme('300').click(), true)`);   // İdeal'e geri (seçim modülde kalır)
     await araclariKapat(); await sekmeleriKapat();
+  }
+
+  // ------------------------------------------------------------ 2) Birleştir: editör yokken UDF + "Üzerine yaz"
+  if (bolum(2)) {
+    console.log('\n== 2) Birleştir: UYAP Doküman Editörü yokken UDF + "Üzerine yaz"');
+    const YET = await evalJs(`window.pdefe.cagir('cekirdek:cagir', 'donusum_yetenekleri', {}, null)`);
+    if (YET?.udf?.var !== false) atlandi('2) Birleştir, editör yokken', 'UYAP Doküman Editörü bulundu: test örneğini $env:PDEFE_UDE_YOK="1" ile başlatın');
+    else {
+      await araclariKapat(); await sekmeleriKapat();
+      const k = yeniKlasor('birlestir');
+      const acik = path.join(k, 'Açık belge.pdf');
+      pdfUret(acik, 2, 11);
+      const udf = py(`import udf_donusum_testi as ut
+u = ut.UdfYaz()
+u.paragraf("DENEME DİLEKÇESİ", hiza=1, kalin=True)
+u.paragraf(ut.cumleler(1, 2))
+print(json.dumps(u.yaz(${J(path.join(GIRDI, 'Dilekçe.udf'))})))`);
+      await ayarla({ ciktiKlasoru: k, otomatikKaydet: false, udeYolu: null });
+      await evalJs(`(async () => { await window.__pdefe.dosyaAc(${J(acik)}); return true; })()`);
+      await kosul(`window.__pdefe.aktif()?.yol === ${J(acik)} && window.__pdefe.aktif()?.gorunum?.sayfaSayisi === 2`, 15000);
+      const B = 'window.__s40.b.acikBirlestirmePenceresi()';
+      await evalJs(`(window.__pdefe.komutCalistir('arac.gorselBirlestir'), true)`);
+      await kosul(`!!${B}`, 10000);
+      await evalJs(`(${B}.dosyaEkle(${J([udf])}), true)`);
+      await kosul(`${B}.ogeler.length === 2 && ${B}.ogeler.every((o) => !o.yukleniyor) && !${B}.ogeler.some((o) => o.onizleniyor)`, 30000);
+      await bekle(400);
+      const satirlar = await evalJs(`${B}.ogeler.map((o) => ({ ad: o.ad, tur: o.tur, yaklasik: !!o.yaklasik, hata: o.hata || null }))`);
+      await evalJs(`(${B}.kayit.kipAyarla('uzerine'), true)`);
+      const uzerine = await evalJs(`${B}.kayit.uzerineMi()`);
+      sonuc('2) Satırlar: açık PDF ve yaklaşık çizilecek UDF; "Üzerine yaz" seçili', satirlar.length === 2 && satirlar[0].tur === 'pdf' && satirlar[1].tur === 'udf' && satirlar[1].yaklasik && uzerine,
+        { satirlar, uzerine });
+      await evalJs(`(window.__s40Bildirim.length = 0, true)`);
+      await evalJs(`(() => { window.__pdefeOtoYanit = { secim: 0 }; ${B}.birlestir(); return true; })()`);
+      await kosul(`!${B} || !!document.querySelector('.birlestir-pencere .arac-hata:not(:empty)')`, 90000);
+      await bekle(800);
+      await evalJs(`(delete window.__pdefeOtoYanit, true)`);
+      const hata = await evalJs(`document.querySelector('.birlestir-pencere .arac-hata')?.textContent || null`);
+      const sayfa = py(`print(json.dumps([" ".join(p.get_text().split())[:40] for p in pymupdf.open(${J(acik)})]))`);
+      await kosul(`window.__pdefe.aktif()?.yol === ${J(acik)} && window.__pdefe.aktif()?.gorunum?.sayfaSayisi === ${sayfa.length}`, 15000);
+      const sekme = await evalJs(`({ yol: window.__pdefe.aktif()?.yol, sayfa: window.__pdefe.aktif()?.gorunum?.sayfaSayisi, sekme: window.__pdefe.belgeler.size })`);
+      const bildirim = await evalJs(`window.__s40Bildirim.slice()`);
+      sonuc('2) Birleştirme başarılı: hata yok, pencere kapandı', !hata && !(await evalJs(`!!${B}`)), hata);
+      sonuc('2) Açık PDF birleşik hâliyle yazıldı (2 + UDF sayfası; ilk sayfalar PDF\'in, sonra UDF\'nin metni)', sayfa.length >= 3 && /DENEME D/.test(sayfa[2] || ''), sayfa);
+      sonuc('2) Sekme yeni hâliyle yeniden açıldı (aynı sekme, yeni sayfa sayısı)', path.resolve(sekme.yol || '') === path.resolve(acik) && sekme.sayfa === sayfa.length && sekme.sekme === 1, sekme);
+      sonuc('2) Bildirim "Birleştirildi ve üzerine yazıldı", UDF\'nin adıyla "görünüm yaklaşık"', bildirim.some((b) => /^Birleştirildi ve üzerine yazıldı: Açık belge\.pdf/.test(b)
+        && /Dilekçe\.udf: UYAP Doküman Editörü bulunamadı; görünüm yaklaşık/.test(b)), bildirim);
+      await araclariKapat(); await sekmeleriKapat();
+    }
   }
 
   // ------------------------------------------------------------ son

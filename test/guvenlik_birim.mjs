@@ -184,7 +184,11 @@ try {
     && yp('udf:yaklasikBirlestir', { ogeler: [{ yol: 'a.udf', tur: 'udf', yaklasik: true }], hedef: bh }) === null);
   kontrol('yaklasikBirlestir: bilinmeyen tür, kalite, döndürme, sayfa boyutu ve 51 mm kenar reddedilir', [{ tur: 'exe' }, { kalite: 'en iyi' }, { dondurme: 45 }, { sayfaBoyutu: 'A3' }, { kenar: 51 }]
     .every((ek) => yp('udf:yaklasikBirlestir', { ogeler: [bo('a.udf', { tur: 'udf', yaklasik: true }), bo('b.jpg', ek)], hedef: bh }) === null));
-  kontrol('yaklasikBirlestir: hedef birleştirilen dosyalardan biri olamaz; 501 öğe reddedilir', yp('udf:yaklasikBirlestir', { ogeler: [bo('a.udf', { tur: 'udf', yaklasik: true }), bo('Birlesik.PDF', { tur: 'pdf' })], hedef: bh }) === null
+  // "Üzerine yaz" (0.2.7 inceleme): hedef listedeki açık PDF'tir; çekirdeğin birlestir'i bütün girdileri okuduktan sonra yazar (kural onunkiyle aynı).
+  // Yaklaşık çizilen UDF'nin kendisi hedef olamaz (UDF'nin yerine PDF yazılırdı)
+  const uz = yp('udf:yaklasikBirlestir', { ogeler: [bo('Birlesik.PDF', { tur: 'pdf' }), bo('a.udf', { tur: 'udf', yaklasik: true })], hedef: bh });
+  kontrol('yaklasikBirlestir: hedef listedeki PDF olabilir (Üzerine yaz)', uz?.hedef === bh && uz.ogeler.length === 2);
+  kontrol('yaklasikBirlestir: hedef yaklaşık çizilen UDF olamaz; 501 öğe reddedilir', yp('udf:yaklasikBirlestir', { ogeler: [bo('Birlesik.pdf', { tur: 'udf', yaklasik: true }), bo('c.pdf', { tur: 'pdf' })], hedef: bh }) === null
     && yp('udf:yaklasikBirlestir', { ogeler: Array.from({ length: 501 }, (_, i) => bo(`x${i}.udf`, { tur: 'udf', yaklasik: true })), hedef: bh }) === null);
   kontrol('yaklasikDonustur: .bat hedef reddedilir', yp('udf:yaklasikDonustur', { ogeler: [yoge('a.bat', 'pdf')] }) === null);
   kontrol('yaklasikDonustur: hedef girdinin kendisi olamaz', yp('udf:yaklasikDonustur', { ogeler: [{ yol: path.join(K, 'x.pdf'), hedef: path.join(K, 'X.PDF'), hedefBicim: 'pdf' }] }) === null);
