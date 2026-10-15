@@ -674,10 +674,10 @@ def test_pdf_tiff(c, g):
     bekl_200 = (math.ceil(A4[0] * 200 / 72 - 0.001), math.ceil(A4[1] * 200 / 72 - 0.001))
     bekl_300 = (math.ceil(A4[0] * 300 / 72 - 0.001), math.ceil(A4[1] * 300 / 72 - 0.001))
     for ad, secenek, kip, sikistirma, dpi, olcu in (
-            ("varsayılan (200 dpi siyah-beyaz)", {}, "1", "group4", 200, bekl_200),
-            ("300 dpi", {"dpi": 300}, "1", "group4", 300, bekl_300),
-            ("gri", {"renk": "gri"}, "L", "tiff_lzw", 200, bekl_200),
-            ("renkli", {"renk": "renkli"}, "RGB", "tiff_lzw", 200, bekl_200)):
+            ("varsayılan (0.2.7: 300 dpi siyah-beyaz)", {}, "1", "group4", 300, bekl_300),
+            ("200 dpi (Düşük)", {"dpi": 200}, "1", "group4", 200, bekl_200),
+            ("gri", {"renk": "gri"}, "L", "tiff_lzw", 300, bekl_300),
+            ("renkli", {"renk": "renkli"}, "RGB", "tiff_lzw", 300, bekl_300)):
         hedef = os.path.join(k, "metinli_%s.tif" % (secenek.get("renk") or secenek.get("dpi") or "varsayilan"))
         r, _ = donustur(c, [{"yol": kaynak, "hedef": hedef, "hedefBicim": "tiff", "secenekler": secenek}])
         s = r["sonuclar"][0]
@@ -695,8 +695,8 @@ def test_pdf_tiff(c, g):
     # Taranmış sayfada gidiş-dönüş: TIFF → PDF → TIFF pikseller aynı, kendi dpi'ı (300 seçilse de)
     ara = os.path.join(k, "gidis.pdf")
     donustur(c, [{"yol": g["etiketsiz_g4"], "hedef": ara, "hedefBicim": "pdf"}])
-    for secenek in ({}, {"dpi": 300}):
-        donus = os.path.join(k, "donus_%s.tif" % (secenek.get("dpi") or 200))
+    for secenek in ({}, {"dpi": 200}):
+        donus = os.path.join(k, "donus_%s.tif" % (secenek.get("dpi") or "varsayilan"))
         donustur(c, [{"yol": ara, "hedef": donus, "hedefBicim": "tiff", "secenekler": secenek}])
         kareler = kare_listesi(donus)
         esit = [ayni(kr, kaynak_kare) for (kr, _, _), kaynak_kare in zip(kareler, g["kareler_g4"])]
@@ -711,8 +711,8 @@ def test_pdf_tiff(c, g):
     kareler = kare_listesi(donus)
     sonuc("renkli gidiş-dönüş: 150 dpi sayfa 150 dpi, pikseller aynı", ayni(kareler[1][0], g["karisik_kareler"][1])
           and tuple(round(float(v)) for v in kareler[1][1]["dpi"]) == (150, 150), [kr.size for kr, _, _ in kareler])
-    # Yazı tanıma (Windows'un tanıyıcısı): 200 dpi siyah-beyaz TIFF'te sözcük F1 ≥ 0,97
-    f1 = tanima_f1(kaynak, os.path.join(k, "metinli_varsayilan.tif"))
+    # Yazı tanıma (Windows'un tanıyıcısı): 200 dpi ("Düşük") siyah-beyaz TIFF'te sözcük F1 ≥ 0,97
+    f1 = tanima_f1(kaynak, os.path.join(k, "metinli_200.tif"))
     if f1 is None:
         atlandi("yazı tanıma F1", "Windows yazı tanıyıcısı (Türkçe) yok")
     else:

@@ -19,7 +19,8 @@ Yöntemler (kaydol):
       öğeler sürer. kod: 'bulunamadi' | 'kilitli' | 'salt_okunur' | 'parolali' | 'bozuk' | 'taninmadi' | 'ayni_bicim' |
       'desteklenmiyor' | 'guvensiz' | 'buyuk' | 'gecersiz' | 'zaman_asimi' | 'bellek' | 'hata'. İleti kilitli dosyada
       araclar.KILITLI_METNI'ni, salt okunurda SALT_OKUNUR_METNI'ni içerir (arayüzün hataSor'u bunlarla tanır).
-      TIFF hedefinin secenekler'i: {dpi: 200 | 300 (varsayılan 200), renk: 'sb' (siyah-beyaz, G4; varsayılan) | 'gri' | 'renkli' (LZW)}.
+      TIFF hedefinin secenekler'i: {dpi: 300 | 200 (varsayılan 300; 0.2.7'den beri, arayüzde "İdeal" 300, "Düşük" 200), renk: 'sb'
+      (siyah-beyaz, G4; varsayılan) | 'gri' | 'renkli' (LZW)}.
 
 Yazım düzeni: her öğe önce hedefin klasöründe geçici dosyaya ("<hedef>.<pid>-<sıra>.pdefe-tmp<uzantı>": uzantı doğru, Word gibi dış
 programlar ad değiştirmez) dönüştürülür; BÜTÜN öğeler bitince geçici dosyalar sırayla hedeflerin yerine konur (os.replace; macOS'ta
@@ -107,7 +108,7 @@ FLATE_DUZEYI = 6                          # 9 ölçümde ~%6 küçük, 10 kat ya
 
 # ---------------------------------------------------------------- PDF → TIFF
 TIFF_DPILERI = (200, 300)
-VARSAYILAN_TIFF_DPI = 200
+VARSAYILAN_TIFF_DPI = 300                 # 0.2.7 (kullanıcının isteği): "İdeal" 300 standart, "Düşük" 200 (UYAP'ın kendi TIFF'leri gibi)
 TIFF_RENKLERI = ("sb", "gri", "renkli")
 ESIK = 160                                # siyah-beyaz: gri değer bundan büyükse beyaz (128 ve titreşim 150 dpi'de okunurluğu düşürüyordu)
 ESIK_TABLOSU = [0] * (ESIK + 1) + [255] * (255 - ESIK)
