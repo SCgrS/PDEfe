@@ -793,7 +793,8 @@ export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasl
       const k = await pdefe.cagir('dosya:klasorSec', { baslik: diyalogBasligi, varsayilan: mevcutKlasor || undefined });
       if (!k) return;
       mevcutKlasor = k;
-      elle = true; onayliYol = null; aracOnayi = null;
+      // Klasör seçimi adı "elle" saymaz: tek dosyaya dönülünce önerilen ad (kalan dosyanın adı) seçilen klasörde yeniden aranır (0.2.6)
+      onayliYol = null; aracOnayi = null;
       yaz(); bildir();
       return;
     }
@@ -803,6 +804,9 @@ export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasl
     });
     if (!secilen) return;
     mevcutKlasor = klasorAdi(secilen);
+    // Aynı biçimin öbür yazımı seçildiyse (TIFF'te .tif / .tiff) o korunur: Windows "değiştirilsin mi"yi o ad için sordu (0.2.6)
+    const secilenUz = (/\.([^.\\/]+)$/.exec(dosyaAdi(secilen)) || [])[1]?.toLowerCase();
+    if (secilenUz && secilenUz !== uz && uzantiDeseni?.test(dosyaAdi(secilen))) { uz = secilenUz; uzantiDeseni = uzantiDeseniAl(uz); }
     govdeYaz(dosyaAdi(secilen));
     elle = true; onayliYol = secilen; aracOnayi = null;
     yaz(); bildir();

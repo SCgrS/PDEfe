@@ -399,6 +399,30 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     const kt = (await kayit()).find((x) => x.kanal === 'dosya:kaydetDiyalog');
     sonuc('TIFF hedefinde ad "Dilekçe örneği.tif", süzgeç "TIFF görüntüsü" (.tif, .tiff)', kt?.secenek?.filtreler?.[0]?.name === 'TIFF görüntüsü' && J(kt.secenek.filtreler[0].extensions) === J(['tif', 'tiff'])
       && (await evalJs(`${A}.kayit.cikti.ad()`)) === 'Dilekçe örneği.tif', kt?.secenek);
+    // Kaydetme penceresinde ".tiff" seçilince (Windows "değiştirilsin mi"yi o ad için sordu) çıktı o ad olur, ".tif"e çevrilmez
+    const secilenTiff = path.join(CIKTI, 'Seçilen tarama.tiff');
+    await yanitla('dosya:kaydetDiyalog', [secilenTiff]);
+    await tikSecici('.donustur-pencere .arac-kayit-yeni .arac-cikti-degistir');
+    await bekle(300);
+    const tiffDurum = await evalJs(`(() => { const c = ${A}.kayit.cikti; return { ad: c.ad(), yol: c.yol(), hedef: ${A}.kayit.hedef(), onayli: c.onayli(c.yol()),
+      kutu: document.querySelector('.donustur-pencere .arac-kayit-yeni .arac-cikti-ad').value }; })()`);
+    sonuc('Kaydetme penceresinde seçilen "….tiff" korunur: hedef o dosya (onaylı), kutuda uzantısız ad', tiffDurum.ad === 'Seçilen tarama.tiff' && tiffDurum.hedef === secilenTiff
+      && tiffDurum.onayli && tiffDurum.kutu === 'Seçilen tarama', tiffDurum);
+    await pencereKapat();
+    // Birden çok dosyada klasör değiştirilip tek dosyaya dönülünce ad kalan dosyanın adı olur (klasör seçimi adı "elle" saymaz), klasör kalır
+    await aracAc([G.tiff, G.pdf]);
+    await kosul(`${A}.ogeler.length === 2 && !document.querySelector('.donustur-oge.yukleniyor')`, 15000);
+    await bekle(300);
+    const baskaKlasor = path.join(UI, 'baska-klasor');
+    fs.mkdirSync(baskaKlasor, { recursive: true });
+    await yanitla('dosya:klasorSec', [baskaKlasor]);
+    await tikSecici('.donustur-pencere .arac-kayit-yeni .arac-cikti-degistir');
+    await bekle(300);
+    await tikSecici(`[...document.querySelectorAll('.donustur-oge')][0].querySelector('[data-komut="sil"]')`);
+    await bekle(600);
+    const tekDurum = await evalJs(`(() => { const c = ${A}.kayit.cikti; return { ad: c.ad(), klasor: c.klasor(), kalan: ${A}.ogeler.map((o) => o.ad) }; })()`);
+    sonuc('Çok dosyada klasör seçilip tek dosyaya dönülünce: ad kalan dosyanın adı ("Dilekçe örneği" + hedefin uzantısı), seçilen klasör kalır', /^Dilekçe örneği\.(udf|tif)$/.test(tekDurum.ad)
+      && path.resolve(tekDurum.klasor) === path.resolve(baskaKlasor) && J(tekDurum.kalan) === J(['Dilekçe örneği.pdf']), tekDurum);
     await pencereKapat();
     await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);
     fs.rmSync(path.join(CIKTI, 'Tarama örneği.pdf'), { force: true });
