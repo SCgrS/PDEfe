@@ -199,16 +199,25 @@ export class NotYoneticisi extends EventTarget {
   /** Sayfa listesi değişince (silme/sıralama/ekleme) notların konumlarını yeniden eşler. */
   sayfalarDegisti(ciz = true) {
     const konum = new Map();
-    this.g.sayfalar.forEach((s, i) => { if (!s.bos) { const k = yolAnahtari(s.kaynak.yol) + '#' + s.kaynak.sayfa; if (!konum.has(k)) konum.set(k, i + 1); } });
-    for (const n of this.notlar.values()) {
-      if (!n.kaynak || n.kaynak.bos) continue;   // boş sayfaya eklenen notlar sayfa nesnesini izler (kaynakGirdi)
-      const yeniSayfa = konum.get(yolAnahtari(n.kaynak.yol) + '#' + n.kaynak.sayfa);
-      n.sayfaYok = !yeniSayfa;
-      if (yeniSayfa) n.sayfa = yeniSayfa;
-    }
+    const anahtar = (s) => (s && !s.bos ? yolAnahtari(s.kaynak.yol) + '#' + s.kaynak.sayfa : null);
+    this.g.sayfalar.forEach((s, i) => { const k = anahtar(s); if (k && !konum.has(k)) konum.set(k, i + 1); });
     // Bu oturumda eklenen notlar girdiyi nesneyle değil kalıcı kimlikle izler: döndürme girdinin kopyasını koyar (girdiKopyala), not kaybolmasın.
     // Bir listede aynı kimlik iki kez olamaz (tarifHazirla her girdiyi bir kez kullanır, çoğaltılan sayfa yeni kimlik alır).
     const sira = new Map(this.g.sayfalar.map((s, i) => [s.kimlik, i]));
+    for (const n of this.notlar.values()) {
+      if (!n.kaynak || n.kaynak.bos) continue;   // boş sayfaya eklenen notlar sayfa nesnesini izler (kaynakGirdi)
+      const k = yolAnahtari(n.kaynak.yol) + '#' + n.kaynak.sayfa;
+      // Dosyadan gelen not, ilk eşlendiği girdiyi (kaynağın o anki ilk geçişi: özgün sayfa) kimliğiyle izler: Sayfaları düzenle'de kopyası
+      // önüne konan sayfanın notları kopyaya geçmez (0.2.6). Girdi listede yoksa (özgünü silinmiş) kaynağın ilk geçişi
+      let i = n.girdiKimlik != null ? sira.get(n.girdiKimlik) : undefined;
+      if (i != null && anahtar(this.g.sayfalar[i]) !== k) i = undefined;
+      if (i == null && konum.has(k)) {
+        i = konum.get(k) - 1;
+        if (n.girdiKimlik == null) n.girdiKimlik = this.g.sayfalar[i].kimlik;
+      }
+      n.sayfaYok = i == null;
+      if (i != null) n.sayfa = i + 1;
+    }
     for (const n of this.notlar.values()) {
       if (n.kaynakGirdi) { const i = sira.get(n.kaynakGirdi.kimlik) ?? -1; n.sayfaYok = i < 0; if (i >= 0) n.sayfa = i + 1; }
     }
@@ -226,7 +235,7 @@ export class NotYoneticisi extends EventTarget {
   }
 
   anlik(not) {
-    const { id, yeni, silindi, yanitlar, ustId, kaynak, kaynakGirdi, sayfaYok, sayfa, ...gerisi } = not;
+    const { id, yeni, silindi, yanitlar, ustId, kaynak, kaynakGirdi, girdiKimlik, sayfaYok, sayfa, ...gerisi } = not;
     return JSON.stringify(gerisi);
   }
 
@@ -743,7 +752,13 @@ export class NotYoneticisi extends EventTarget {
    * (kaynakGirdi nesnesi taşınamaz). Açık balon ve yazı düzenlemesi çağrıdan önce kapatılmış olmalıdır.
    */
   durumAl(girdiNo, ekNotlar = []) {
-    const disari = (n) => { const { kaynakGirdi, ...gerisi } = n; return kaynakGirdi ? { ...gerisi, kaynakGirdi: girdiNo(kaynakGirdi) } : gerisi; };
+    // Dosyadan gelen notun izlediği girdi (girdiKimlik, sayfalarDegisti) kimlikle değil taşınan numarasıyla gider: kimlikler pencereye özgü
+    const disari = (n) => {
+      const { kaynakGirdi, girdiKimlik, ...gerisi } = n;
+      const d = kaynakGirdi ? { ...gerisi, kaynakGirdi: girdiNo(kaynakGirdi) } : gerisi;
+      const s = girdiKimlik != null ? this.g.sayfalar.find((x) => x.kimlik === girdiKimlik) : null;
+      return s ? { ...d, girdiSirasi: girdiNo(s) } : d;
+    };
     const modelde = new Set(this.notlar.values()), cikanlar = new Set();
     for (const r of this._cikanlar) { const n = r.deref(); if (n && !modelde.has(n)) cikanlar.add(n); }
     for (const n of ekNotlar) if (n && !modelde.has(n)) cikanlar.add(n);
@@ -760,6 +775,8 @@ export class NotYoneticisi extends EventTarget {
     const iceri = (v) => {
       const n = { ...v };
       if (v.kaynakGirdi != null) { const s = girdiAl(v.kaynakGirdi); if (s) n.kaynakGirdi = s; else delete n.kaynakGirdi; }
+      delete n.girdiSirasi;
+      if (v.girdiSirasi != null) { const s = girdiAl(v.girdiSirasi); if (s) n.girdiKimlik = s.kimlik; }
       return n;
     };
     const hepsi = new Map();

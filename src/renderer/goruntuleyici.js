@@ -529,19 +529,29 @@ export class Goruntuleyici extends EventTarget {
       if (!havuz.has(k)) havuz.set(k, []);
       havuz.get(k).push(s);
     }
+    // Tarif girdinin kimliğini taşıyorsa (t.girdi; Sayfaları düzenle'de aynı sayfanın kartlarından özgünü, 0.2.6) o girdi oraya gider:
+    // kopya özgünün önüne konunca var olan girdi (notları ve kimliğiyle) kopyaya değil özgün sayfaya kalır
+    const anahtarAl = (t) => (t.kaynak ? yolAnahtari(t.kaynak.yol) + '#' + t.kaynak.sayfa : `bos${Math.round(t.genislik || 595.28)}x${Math.round(t.yukseklik || 841.89)}`);
+    const ayrilan = new Map();   // tarifteki sıra → girdi
+    tarif.forEach((t, i) => {
+      if (t.girdi == null) return;
+      const liste = havuz.get(anahtarAl(t));
+      const j = liste ? liste.findIndex((s) => s.kimlik === t.girdi) : -1;
+      if (j >= 0) ayrilan.set(i, liste.splice(j, 1)[0]);
+    });
     const yeni = [];
-    for (const t of tarif) {
+    for (const [i, t] of tarif.entries()) {
       if (!t.kaynak) {
         const w = t.genislik || 595.28, h = t.yukseklik || 841.89;
         const k = `bos${Math.round(w)}x${Math.round(h)}`;
-        let s = havuz.get(k)?.shift();
+        let s = ayrilan.get(i) ?? havuz.get(k)?.shift();
         if (!s) s = this.girdiOlustur({ bos: true, w, h }, t.dondurme || 0, { w, h });
         else if (s.dondurme !== (t.dondurme || 0)) s = this.girdiKopyala(s, t.dondurme || 0);   // girdiler değişmez: döndürme farklıysa kopya
         yeni.push(s);
         continue;
       }
       const k = yolAnahtari(t.kaynak.yol) + '#' + t.kaynak.sayfa;
-      let s = havuz.get(k)?.shift();
+      let s = ayrilan.get(i) ?? havuz.get(k)?.shift();
       if (!s) {
         const belge = await this.belgeAl(t.kaynak.yol);
         const p = await belge.getPage(t.kaynak.sayfa);

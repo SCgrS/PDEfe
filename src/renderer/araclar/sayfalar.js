@@ -763,10 +763,15 @@ export class SayfalarPenceresi {
   // ---------------------------------------------------------------- tarifler
   /** baglam.sayfaTarifiUygula biçiminde tarif (sekmedeki anlamıyla): [{kaynak:{yol,sayfa}, dondurme} | {kaynak:null, genislik, yukseklik, dondurme}] */
   tarif() {
+    // Sekmeden gelen sayfanın birden çok kartı varsa (Kopyala) sekmedeki girdisi en eski karta (özgün sayfa: kopyalar sonra, büyük kimlikle
+    // doğar) gider (girdi: girdinin kimliği, goruntuleyici.tarifHazirla): kopya özgünün önüne konunca notlar kopyaya geçmez (0.2.6)
+    const ozgun = new Map();   // sekme sırası → en eski kartın kimliği
+    for (const k of this.kartlar) if (k.sekme != null && !(ozgun.get(k.sekme) <= k.kimlik)) ozgun.set(k.sekme, k.kimlik);
+    const girdi = (k) => (k.sekme != null && ozgun.get(k.sekme) === k.kimlik ? this.sekmeGirdileri[k.sekme]?.kimlik : undefined);
     return tarifDisari(this.kartlar.map((k) => {
-      if (k.bos) return { kaynak: null, sayfa: null, genislik: k.genislik, yukseklik: k.yukseklik, dondurme: k.dondurme || 0 };
+      if (k.bos) return { kaynak: null, sayfa: null, genislik: k.genislik, yukseklik: k.yukseklik, dondurme: k.dondurme || 0, girdi: girdi(k) };
       const { yol, sayfa } = this._kaynak(k);
-      return { kaynak: yol, sayfa, dondurme: k.dondurme };
+      return { kaynak: yol, sayfa, dondurme: k.dondurme, girdi: girdi(k) };
     }));
   }
 

@@ -1289,8 +1289,9 @@ export function belgeTarifi(belge) {
 export function tarifDisari(icTarif) {
   return icTarif.map((t) => {
     const dondurme = ((t.dondurme || 0) % 360 + 360) % 360;
-    if (!t.kaynak) return { kaynak: null, genislik: t.genislik || t.pt?.w || A4_PT.w, yukseklik: t.yukseklik || t.pt?.h || A4_PT.h, dondurme };
-    return { kaynak: { yol: t.kaynak, sayfa: t.sayfa }, dondurme };
+    const girdi = t.girdi != null ? { girdi: t.girdi } : {};   // sekmedeki girdinin kimliği (isteğe bağlı; goruntuleyici.tarifHazirla)
+    if (!t.kaynak) return { kaynak: null, genislik: t.genislik || t.pt?.w || A4_PT.w, yukseklik: t.yukseklik || t.pt?.h || A4_PT.h, dondurme, ...girdi };
+    return { kaynak: { yol: t.kaynak, sayfa: t.sayfa }, dondurme, ...girdi };
   });
 }
 

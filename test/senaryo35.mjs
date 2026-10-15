@@ -13,6 +13,7 @@
 //      var); özgün dosya değişmez.
 //   5) "Üzerine yaz": sekmenin sayfa listesinde aynı sayfa iki kez, dosyada 7 sayfa ve iki kopyada da notlar. Özgün sayfadaki not sekmede
 //      silinip kaydedilince iki kopyadan da silinir (0.2.6 yapisal.py; önceden kopyada kalıyordu). Ctrl+Z not silmeyi, sonra düzeni geri alır.
+//   5b) Notlu sayfanın kopyası özgünün önüne konup "Üzerine yaz"la uygulanınca sekmede not özgün sayfada kalır, kopyaya geçmez.
 //   6) Yalnızca görünmeyen masaüstündeki örnekte (S35_GIZLI=1): gerçek Ctrl+C / Ctrl+V tarayıcı sürecinin girdi yolundan (test:tusGonder):
 //      Windows menüsünün Düzen › Kopyala hızlandırıcısı çalışmaz, copy / paste olayı doğmaz, sayfa kopyalanır.
 // Girdiler test/cikti/s35/<zaman>/pdf altında PyMuPDF ile üretilir (gerçek belge yok); menü seçimi pencerenin test kancasıyla
@@ -92,7 +93,7 @@ def pdf(ad):
     t = s2.add_text_annot((450, 300), "Not 2"); t.update()
     f = d[3].add_freetext_annot(pymupdf.Rect(72, 400, 400, 460), "Yazi 4", fontsize=18); f.update()
     y = os.path.join(k, ad); d.save(y); d.close(); return y
-print(json.dumps({"ana": pdf("ana.pdf"), "uzerine": pdf("uzerine.pdf")}))`);
+print(json.dumps({"ana": pdf("ana.pdf"), "uzerine": pdf("uzerine.pdf"), "one": pdf("one.pdf")}))`);
   await tus('Escape');
   await hepsiniKapat();
   await evalJs(`(() => { window.__s35Hatalar = []; if (window.__s35Dinleyici) return true; window.__s35Dinleyici = true;
@@ -321,6 +322,35 @@ print(json.dumps({"ana": pdf("ana.pdf"), "uzerine": pdf("uzerine.pdf")}))`);
   await kosul(`window.__pdefe.aktif().gorunum.sayfaSayisi === 6`, 5000);
   const z2 = await evalJs(`(() => { const b = window.__pdefe.aktif(); return { sayfalar: b.gorunum.sayfalar.map((s) => s.kaynak?.sayfa), degisti: b.degisti }; })()`);
   sonuc('Ctrl+Z: önce vurgu geri gelir (7 sayfa), sonra kopya sayfa kalkar (6 sayfa, kaydedilmemiş)', z1.vurgu && z1.sayfa === 7 && z1.degisti && ayni(z2.sayfalar, [1, 2, 3, 4, 5, 6]) && z2.degisti, { z1, z2 });
+
+  // ---------------------------------------------------------------- 5b) Kopya özgünün önüne: notlar özgün sayfada kalır (0.2.6 incelemesi)
+  // Notlu 4. sayfanın kopyası 1. sayfanın arkasına yapıştırılıp "Üzerine yaz"la uygulanır: sekmede not özgün sayfada (5. sırada) görünür,
+  // kopyaya (2. sıraya) geçmez (önceden kaynağın ilk geçişine, yani kopyaya bağlanıyordu); dosyada iki kopyada da var. Ctrl+Z ile not 4. sayfada.
+  console.log('\n== 5b) Kopya özgünün önüne');
+  await hepsiniKapat();
+  await ac(Y.one);
+  await sayfalariAc();
+  await tikla(...(await merkez(`document.querySelector('.sayfalar-pencere .arac-kayit-secim button[data-id="uzerine"]')`))); await bekle(150);
+  await kartTikla(3);                              // 4. sayfa (yazı kutusu)
+  await tus('c', ['ctrl']); await bekle(120);
+  await kartTikla(0);                              // 1. sayfa
+  await tus('v', ['ctrl']); await bekle(200);      // → 1 4 2 3 4 5 6
+  d = await durum();
+  sonuc('Kopya 1. sayfanın arkasında: 1 4 2 3 4 5 6', ayni(d.sira, ['1', '4', '2', '3', '4', '5', '6']), d);
+  await tikla(...(await merkez(`document.querySelector('.sayfalar-pencere .arac-dugmeler [data-id="kaydet"]')`)));
+  await kosul(`!document.querySelector('.sayfalar-pencere')`, 15000);
+  await kosul(`!window.__pdefe.aktif()?.kaydediliyor && !window.__pdefe.aktif()?.degisti`, 15000);
+  await bekle(300);
+  const one = await evalJs(`(() => { const b = window.__pdefe.aktif(); return { sayfalar: b.gorunum.sayfalar.map((s) => s.bos ? 'bos' : s.kaynak.sayfa),
+    kopya: b.notlar.sayfaNotlari(2).map((n) => n.icerik), ozgun: b.notlar.sayfaNotlari(5).map((n) => n.icerik), degisti: b.degisti }; })()`);
+  const oneOzet = dosyaOzeti(Y.one);
+  sonuc('Sekmede yazı kutusu özgün sayfada (5. sıra), kopyada (2. sıra) değil; belge kaydedilmiş', ayni(one.sayfalar, [1, 4, 2, 3, 4, 5, 6]) && ayni(one.ozgun, ['Yazi 4'])
+    && !one.kopya.length && !one.degisti, one);
+  sonuc('Dosyada iki kopyada da yazı kutusu (2. ve 5. sayfa), 3. sayfada vurgu + not', ayni(oneOzet.notlar, [[], NOT4, NOT2, [], NOT4, [], []]), oneOzet.notlar);
+  await evalJs(`window.__pdefe.komutCalistir('duzen.geriAl')`);
+  await kosul(`window.__pdefe.aktif().gorunum.sayfaSayisi === 6`, 5000);
+  const oneGeri = await evalJs(`(() => { const b = window.__pdefe.aktif(); return { yazi: b.notlar.sayfaNotlari(4).map((n) => n.icerik), vurgu: b.notlar.sayfaNotlari(2).length }; })()`);
+  sonuc('Ctrl+Z: düzen geri alınır, yazı kutusu 4. sayfada, vurgu ve not 2. sayfada', ayni(oneGeri.yazi, ['Yazi 4']) && oneGeri.vurgu === 2, oneGeri);
 
   // ---------------------------------------------------------------- 6) Gerçek tuş yolu (yalnızca görünmeyen masaüstündeki örnekte)
   // CDP tuşu menü hızlandırıcısına ulaşmaz; test:tusGonder tarayıcı sürecinin girdi yolundan gönderir: Windows menüsündeki Düzen › Kopyala
