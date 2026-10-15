@@ -566,6 +566,113 @@ def test_ude_yok(c, g, k):
         c.cagir("donusum_yetenekleri", {"udeYolu": None})
 
 
+def bomba_udf(yol, gercek, bildirilen=900):
+    """content.xml'i bildirilen bayt diye beyan eden (CRC de o kadarına göre), gerçekte gercek bayt açılan UDF (zip bombası)."""
+    import zlib
+    bas = b'<?xml version="1.0" encoding="UTF-8" ?> \n\n<template format_id="1.8" >\n<content><![CDATA['
+    co = zlib.compressobj(9, zlib.DEFLATED, -15)
+    blok = b" " * (1 << 20)
+    parca = [co.compress(bas)] + [co.compress(blok) for _ in range(gercek // len(blok))] + [co.flush()]
+    veri = b"".join(parca)
+    crc = zlib.crc32((bas + blok)[:bildirilen]) & 0xFFFFFFFF
+    ad = b"content.xml"
+    yerel = struct.pack("<4sHHHHHIIIHH", b"PK\x03\x04", 20, 0, 8, 0, 0, crc, len(veri), bildirilen, len(ad), 0) + ad
+    merkez = struct.pack("<4sHHHHHHIIIHHHHHII", b"PK\x01\x02", 20, 20, 0, 8, 0, 0, crc, len(veri), bildirilen, len(ad), 0, 0, 0, 0, 0, 0) + ad
+    son = struct.pack("<4sHHHHIIH", b"PK\x05\x06", 0, 0, 1, 1, len(merkez), len(yerel) + len(veri), 0)
+    with open(yol, "wb") as f:
+        f.write(yerel + veri + merkez + son)
+    return yol
+
+
+def sinirsiz_acilan(yol):
+    """Java'nın ZipInputStream'i gibi: yerel başlıkları sırayla okur, deflate öğesini akış bitene dek açar (bildirilen boyuta bakmadan).
+    Döner: {ad: açılan bayt}."""
+    import zlib
+    with open(yol, "rb") as f:
+        b = f.read()
+    p, boylar = 0, {}
+    while b[p:p + 4] == b"PK\x03\x04":
+        bayrak, yontem = struct.unpack("<HH", b[p + 6:p + 10])
+        sik, acik, adu, eku = struct.unpack("<IIHH", b[p + 18:p + 30])
+        ad = b[p + 30:p + 30 + adu].decode("utf-8", "replace")
+        v = p + 30 + adu + eku
+        if yontem == 8:
+            d, n, girdi = zlib.decompressobj(-15), 0, b[v:]
+            while girdi and not d.eof:
+                n += len(d.decompress(girdi, 1 << 20))
+                girdi = d.unconsumed_tail
+            boylar[ad] = n
+            # akışın sonundan sonraki baytlar unused_data'da ya da (açma sınırı yüzünden) unconsumed_tail'de kalır
+            p = len(b) - len(d.unused_data) - len(d.unconsumed_tail) if d.eof else len(b)
+        else:
+            boylar[ad] = acik
+            p = v + sik
+        if bayrak & 8:   # veri tanımlayıcısı (imzalı ya da imzasız)
+            p += 16 if b[p:p + 4] == b"PK\x07\x08" else 12
+    return boylar
+
+
+def test_zip_bombasi(c, k, ude_var):
+    """Boyutu küçük bildirilen content.xml (zip bombası): köprüye (ve UDE'nin kendi okuyucusuna) özgün zip değil, merkezî dizindeki boyutlarla
+    yeniden paketlenmiş kopya verilir; Java'nın akış okuyucusu da bildirilenden fazlasını açamaz. UDE varsa (doğrudan modülle): JVM
+    -Xmx128m ile başlatılır, bomba bellek hatası değil 'bozuk' verir ve yazıcı yoluna geçilmez."""
+    from islemler import udf as U
+    yol = bomba_udf(os.path.join(k, "bomba.udf"), 64 * 1024 * 1024)
+    sonuc("bomba: özgün dosyada akış okuyucusu 64 MB açıyor (deneme girdisi doğru)", sinirsiz_acilan(yol).get("content.xml", 0) >= 64 * 1024 * 1024)
+    kopru_girdisi = getattr(U, "_kopru_girdisi", None)
+    if kopru_girdisi is None:
+        sonuc("bomba: köprü girdisi yeniden paketleniyor (_kopru_girdisi)", False, "yok")
+        return
+    with kopru_girdisi(yol) as girdi:
+        boylar = sinirsiz_acilan(girdi)
+        klasor = os.path.dirname(girdi)
+        sonuc("bomba: köprüye verilen kopyada content.xml bildirilen boyutta (900 bayt), adı aynı", girdi != yol and boylar.get("content.xml") == 900
+              and os.path.basename(girdi) == "bomba.udf", (girdi, boylar))
+    sonuc("bomba: geçici kopya iş bitince silindi", not os.path.exists(klasor), klasor)
+    olagan = UdfYaz()
+    olagan.paragraf("Olağan belge")
+    oyol = olagan.yaz(os.path.join(k, "olagan.udf"))
+    with zipfile.ZipFile(oyol) as z:
+        once = {a: z.read(a) for a in z.namelist()}
+    with kopru_girdisi(oyol) as girdi:
+        with zipfile.ZipFile(girdi) as z:
+            sonra = {a: z.read(a) for a in z.namelist()}
+    sonuc("olağan UDF: kopyada bütün öğeler bayt bayt aynı", once == sonra and len(once) >= 1, (sorted(once), sorted(sonra)))
+    duz = os.path.join(k, "duz.udf")
+    with open(duz, "wb") as f:
+        f.write(b'<?xml version="1.0" encoding="UTF-8" ?>\n<template format_id="1.7"></template>')
+    with kopru_girdisi(duz) as girdi:
+        sonuc("düz XML UDF olduğu gibi verilir", girdi == duz, girdi)
+    if not ude_var or c.exe:
+        atlandi("bomba: uçtan uca (UDE, -Xmx128m)", "UDE yok" if not ude_var else "yalnızca doğrudan modülle (JVM'in belleği değiştirilir)")
+        return
+    asil = U.subprocess.Popen
+
+    def kucuk_yigin(komut, *a, **kw):
+        if isinstance(komut, list) and any(str(x) == "pdefe.UdeKopru" for x in komut):
+            komut = [("-Xmx128m" if str(x).startswith("-Xmx") else x) for x in komut]
+        return asil(komut, *a, **kw)
+    buyuk = bomba_udf(os.path.join(k, "buyuk_bomba.udf"), 256 * 1024 * 1024)
+    U._oturumlar.hepsini_kapat()
+    U.subprocess.Popen = kucuk_yigin
+    eski_hata = sys.stderr
+    yakala = io.StringIO()
+    try:
+        sys.stderr = yakala
+        t0 = time.monotonic()
+        r, _ = donustur(c, [{"yol": buyuk, "hedef": os.path.join(k, "bomba.pdf"), "hedefBicim": "pdf"}])
+        sure = time.monotonic() - t0
+    finally:
+        sys.stderr = eski_hata
+        U.subprocess.Popen = asil
+        U._oturumlar.hepsini_kapat()
+    o = r["sonuclar"][0]
+    gunluk = yakala.getvalue()
+    sonuc("bomba (uçtan uca, -Xmx128m): öğe 'bozuk' ile biter, bellek hatası yok, yazıcı yoluna geçilmez (%.1f sn)" % sure,
+          o.get("kod") == "bozuk" and "OutOfMemory" not in gunluk and "yazıcıya geçiliyor" not in gunluk and not os.path.exists(os.path.join(k, "bomba.pdf")),
+          (o.get("kod"), o.get("hata"), gunluk[-300:]))
+
+
 # ---------------------------------------------------------------- PDF → UDF
 def word_benzeri_pdf(yol, sayfa_no=True, yatay=False, ek_metin="", sayfa=3):
     """Word'ün dilekçe çıktısına benzeyen PDF (PyMuPDF'in yerleşimiyle; Times New Roman, iki yana yaslı, 2,5 cm kenar, sayfa numarası)."""
@@ -847,7 +954,8 @@ def main():
     else:
         atlandi("UDF → PDF", "UDE ya da Java bu bilgisayarda yok")
     testler += [lambda: test_pdf_udf(c, temiz_klasor("pdf_udf"), ude_var), lambda: test_taranmis(c, temiz_klasor("taranmis"), ude_var),
-                lambda: test_ude_yok(c, g, k), lambda: test_json_kanali(exe, temiz_klasor("kanal"))]
+                lambda: test_ude_yok(c, g, k), lambda: test_json_kanali(exe, temiz_klasor("kanal")),
+                lambda: test_zip_bombasi(c, temiz_klasor("bomba"), ude_var)]
     if ude_var:
         testler += [lambda: test_derlem(c)]
     for t in testler:

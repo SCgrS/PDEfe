@@ -38,6 +38,7 @@ izleme iş parçacığından gelir, sonuç dosyanın değişme zamanı ve boyutu
 """
 import base64
 import collections
+import contextlib
 import json
 import os
 import queue
@@ -49,6 +50,7 @@ import tempfile
 import threading
 import time
 import zipfile
+import zlib
 
 import pymupdf
 
@@ -894,6 +896,45 @@ def _belge_suresi(yol):
     return BELGE_SURESI + BELGE_SURESI_MB * mb
 
 
+@contextlib.contextmanager
+def _kopru_girdisi(yol):
+    """Köprüye (ve UDE'nin kendi okuyucusuna) verilecek UDF. Zip ise özgün dosya verilmez: her öğe Python'un zipfile'ıyla merkezî dizinde
+    bildirilen boyut kadar (zip_denetle'nin sınırlarıyla) açılıp gerçek boyutlarıyla yeniden paketlenir. Java'nın ZipInputStream'i yerel
+    başlıkları sırayla okur ve deflate öğesini bildirilen boyuta bakmadan akış bitene dek açar: boyutu küçük bildirilen content.xml (0,4 MB'lık
+    dosyada 400 MB) JVM'i belleksiz bırakıyordu (0.2.6 incelemesi); merkezî dizinde olmayan gizli öğeler de böylece düşer. Kopya, çekirdeğin
+    pid'iyle adlanan geçici klasörde (çekirdek çökerse sonraki çekirdek _eski_evleri_sil ile siler), adı özgün dosyanınki; iş bitince silinir.
+    Düz XML (zip'siz UDF) olduğu gibi verilir: okunan bayt dosyanın kendi boyutu."""
+    with open(yol, "rb") as f:
+        zip_mi = f.read(2) == b"PK"
+    if not zip_mi:
+        yield yol
+        return
+    donustur.zip_denetle(yol)
+    klasor = tempfile.mkdtemp(prefix="%s%d-girdi-" % (EV_ONEKI, os.getpid()))
+    try:
+        kopya = os.path.join(klasor, os.path.basename(yol))
+        kalan = donustur.EN_FAZLA_ACIK_BOYUT
+        try:
+            with zipfile.ZipFile(yol) as zk, zipfile.ZipFile(kopya, "w", zipfile.ZIP_DEFLATED, compresslevel=1) as zh:
+                for b in zk.infolist():
+                    if b.is_dir():
+                        continue
+                    with zk.open(b) as oku, zh.open(b.filename, "w") as yaz:
+                        while True:
+                            parca = oku.read(1 << 20)
+                            if not parca:
+                                break
+                            kalan -= len(parca)
+                            if kalan < 0:
+                                raise OgeHatasi("guvensiz", "Dosya açılınca çok büyüyor; güvenli açılamaz: %s" % os.path.basename(yol))
+                            yaz.write(parca)
+        except (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError, RuntimeError) as e:
+            raise OgeHatasi("bozuk", "Dosya bozuk; açılamadı (%s): %s" % (os.path.basename(yol), e))
+        yield kopya
+    finally:
+        _sil_klasor(klasor)
+
+
 def _kopru_isi(amac, komut, alanlar, sure, iptal_mi=None, ilerleme=None):
     """Köprüde bir iş: oturumu alır, işi yapar, oturumu bırakır (ölümcül hata, süre aşımı ya da iptalde süreç öldürülür)."""
     o = _oturumlar.al(amac, iptal_mi)
@@ -965,22 +1006,24 @@ def _udf_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
     cizim = None
     sonuc = None
     try:
-        if kip in ("otomatik", "pdf"):
-            try:
-                sonuc, _ = _kopru_isi("donustur", "pdf", [kaynak, cikti, "1"], sure, iptal_mi, il)
-                cizim = "ude"
-            except KopruHatasi as e:
-                if kip == "pdf" or not WINDOWS or e.tur in ("yukleme", "bos", "surum", "baslatma"):
-                    raise
-                print("[udf] PDF kitaplığıyla çizilemedi, yazıcıya geçiliyor: %s" % e, file=sys.stderr)
-                uyarilar.append("UYAP Doküman Editörü'nün PDF kitaplığı kullanılamadı; belge Windows'un PDF yazıcısıyla çizildi. Bazı sayfalar "
-                                "resim olarak çıkabilir (yazısı seçilemez).")
-        if cizim is None:
-            if not WINDOWS:
-                raise OgeHatasi("desteklenmiyor", "Yazıcı yolu yalnızca Windows'ta var.")
-            araclar_sil(cikti)
-            sonuc, _ = _kopru_isi("donustur", "yazici", [kaynak, cikti, VARSAYILAN_YAZICI, "1"], sure, iptal_mi, il)
-            cizim = "yazici"
+        with _kopru_girdisi(kaynak) as girdi:   # zip: merkezî dizindeki boyutlarla yeniden paketlenmiş kopya (zip bombası)
+            if kip in ("otomatik", "pdf"):
+                try:
+                    sonuc, _ = _kopru_isi("donustur", "pdf", [girdi, cikti, "1"], sure, iptal_mi, il)
+                    cizim = "ude"
+                except KopruHatasi as e:
+                    # Bellek yetmezliği yazıcı yolunda da yeter (aynı belge yeniden yüklenir): yazıcıya geçilmez
+                    if kip == "pdf" or not WINDOWS or e.tur in ("yukleme", "bos", "surum", "baslatma") or (e.tur == "olumcul" and "OutOfMemory" in str(e)):
+                        raise
+                    print("[udf] PDF kitaplığıyla çizilemedi, yazıcıya geçiliyor: %s" % e, file=sys.stderr)
+                    uyarilar.append("UYAP Doküman Editörü'nün PDF kitaplığı kullanılamadı; belge Windows'un PDF yazıcısıyla çizildi. Bazı sayfalar "
+                                    "resim olarak çıkabilir (yazısı seçilemez).")
+            if cizim is None:
+                if not WINDOWS:
+                    raise OgeHatasi("desteklenmiyor", "Yazıcı yolu yalnızca Windows'ta var.")
+                araclar_sil(cikti)
+                sonuc, _ = _kopru_isi("donustur", "yazici", [girdi, cikti, VARSAYILAN_YAZICI, "1"], sure, iptal_mi, il)
+                cizim = "yazici"
     except KopruHatasi as e:
         if e.tur == "yukleme":
             print("[udf] %s: %s" % (ad, e), file=sys.stderr)   # UDE'nin nedeni (tanı için; kullanıcıya kısa ileti)
@@ -1071,7 +1114,8 @@ def _onizleme_yap(yol, genislik, anahtar, iptal_mi):
             _onizleme_onbellek.move_to_end(anahtar)
             return dict(k)
     try:
-        r, _ = _kopru_isi("onizleme", "bilgi", [yol, int(genislik)], _belge_suresi(yol), iptal_mi)
+        with _kopru_girdisi(yol) as girdi:   # zip: yeniden paketlenmiş kopya (zip bombası)
+            r, _ = _kopru_isi("onizleme", "bilgi", [girdi, int(genislik)], _belge_suresi(yol), iptal_mi)
     except KopruHatasi as e:
         if e.tur == "yukleme":
             return {"onizlemeUyarisi": "UYAP Doküman Editörü belgeyi açamadı.", "acilmadi": True}
