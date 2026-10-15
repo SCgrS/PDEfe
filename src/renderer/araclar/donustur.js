@@ -729,7 +729,7 @@ export class DonusturPenceresi {
       }
       const metin = `${t.eksik.length ? '≥ ' : ''}${boyutMetni(t[c.anahtar])}`;
       b.textContent = ` · ${metin}`;
-      d.title = `${c.baslik}\nTahmini boyut: ${metin}${not}`;
+      d.title = `${c.baslik}\nTahminî boyut: ${metin}${not}`;
     }
   }
 

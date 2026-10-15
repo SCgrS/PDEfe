@@ -129,7 +129,7 @@ export class BirlestirmePenceresi {
     this.ozetEl = govde.querySelector('.birlestir-ozet');
     this.kaliteNotEl = govde.querySelector('.birlestir-kalite-not');
 
-    // Genel kalite: her seviye bir düğme; düğmede o seviyenin toplam tahmini boyutu
+    // Genel kalite: her seviye bir düğme; düğmede o seviyenin toplam tahminî boyutu
     this.kaliteSecim = segmentliSecim({
       etiket: 'Genel kalite', deger: this.genelKalite, sinif: 'birlestir-kalite-secim',
       secenekler: KALITELER.map((k) => ({ id: k.id, baslik: k.aciklama, html: `<span class="ad">${kacis(k.ad)}</span><span class="boyut"></span>` })),
@@ -936,13 +936,13 @@ export class BirlestirmePenceresi {
       const s = toplam(() => k.id);
       bSpan.textContent = ' · ' + metin(s);
       bSpan.classList.toggle('bekliyor', s.eksik);
-      d.title = `${k.aciklama}${s.eksik ? '' : `\nTahmini boyut: ${metin(s)}`}${s.hatali ? `\n${s.hatali} dosya için tahmin alınamadı` : ''}${belgeVar ? `\n${BELGE_TAHMIN_NOTU}` : ''}`;
+      d.title = `${k.aciklama}${s.eksik ? '' : `\nTahminî boyut: ${metin(s)}`}${s.hatali ? `\n${s.hatali} dosya için tahmin alınamadı` : ''}${belgeVar ? `\n${BELGE_TAHMIN_NOTU}` : ''}`;
     }
     const ozelVar = this.ogeler.some((o) => o.kalite && !o.hata);
     this.kaliteNotEl.hidden = !ozelVar;
     if (ozelVar) {
       const s = toplam((o) => this.etkinKalite(o));
-      this.kaliteNotEl.querySelector('.toplam').textContent = ` · Tahmini boyut: ${metin(s)}`;
+      this.kaliteNotEl.querySelector('.toplam').textContent = ` · Tahminî boyut: ${metin(s)}`;
     }
   }
 

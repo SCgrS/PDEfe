@@ -368,7 +368,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     const bolumMetni = await evalJs(`document.querySelector('.donustur-secenekler').innerText`);
     sonuc('TIFF: Çözünürlük "İdeal" (seçili, varsayılan) ve "Düşük"; yanlarında yaklaşık boyut (" · … KB / MB"); bölümde ve ipuçlarında "dpi" yok',
       J(D.map((x) => [x.id, x.ad, x.secili])) === J([['300', 'İdeal', true], ['200', 'Düşük', false]]) && D.every((x) => /^ · [\d.,]+ (KB|MB)$/.test(x.boyut))
-      && bayt(D[0].boyut) > bayt(D[1].boyut) && !/dpi/i.test(bolumMetni) && D.every((x) => !/dpi/i.test(x.ipucu) && /Tahmini boyut: /.test(x.ipucu)), { D, bolumMetni });
+      && bayt(D[0].boyut) > bayt(D[1].boyut) && !/dpi/i.test(bolumMetni) && D.every((x) => !/dpi/i.test(x.ipucu) && /Tahminî boyut: /.test(x.ipucu)), { D, bolumMetni });
     await ss('04-ideal-dusuk');
     // Renk değişince yeniden hesaplanır
     const sb = bayt(D[0].boyut);
