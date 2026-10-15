@@ -3,7 +3,8 @@
 üretilir, gerçek belge kullanılmaz (üreticiler test/udf_donusum_testi.py'den).
 
 Olağan belgeler: sol ve sağ kenarı farklı A4 (alt bilgide sayfa numarası), yatay sayfa, tablolu, düz XML (zip'siz), uzun (üst bilgide resim,
-birkaç sayfa), yorumlu, metninde "]]>" ve HTML / betik benzeri yazı geçen belge.
+birkaç sayfa), yorumlu, metninde "]]>" ve HTML / betik benzeri yazı geçen belge; dört kenarı farklı yatay sayfa (UYAP Doküman Editörü
+kenarları döndürür); UYAP erişim kimliği (webID) taşıyan iki sayfalık belge (her sayfanın altına erişim satırı).
 Kötü niyetli ya da bozuk: 40 MB'tan büyük dosya, açılmış boyutunu küçük beyan eden zip bombası (gerçekte 300 MB), açılmış boyutu büyük beyan
 eden paket, 1500 öğeli paket, iki content.xml'li paket, dış varlıklı (SYSTEM) ve iç içe varlıklı (milyar gülüş) XML, parolalı (şifreli
 bayraklı) öğe, UDF olmayan dosya, boş dosya, 100 kat iç içe tablo.
@@ -54,6 +55,31 @@ def ozel_metinli(yol):
         havuz += s + "\n"
         uz += len(s) + 1
     return zip_yaz(yol, [("content.xml", icerik_xml("\n".join(govde), cdata(havuz)).encode("utf-8"))])
+
+
+ERISIM_KIMLIGI = "AbC1dEf  -  gHiJkLm  -  NoP2qRs  -  TuVwXy="   # uydurma; gerçek kimliklerin biçiminde
+
+
+def yatay_kenarli(yol):
+    """Dört kenarı farklı yatay (LANDSCAPE, 0) sayfa: Editör'de görünen sol = kâğıdın alt kenarı (28,35), üst = sol kenarı (85,04)."""
+    u = ut.UdfYaz()
+    for i in range(6):
+        u.paragraf(ut.METIN, hiza=0)
+    return u.yaz(yol, lm=85.04, rm=42.52, tm=56.69, bm=28.35, yon=0)
+
+
+def erisimli(yol):
+    """UYAP erişim kimliği (<webID id="…">) taşıyan, alt bilgisinde sayfa numarası olan iki sayfalık belge."""
+    u = ut.UdfYaz()
+    for i in range(40):
+        u.paragraf(ut.cumleler(i, 2))
+    alt = []
+    u.paragraf("", hiza=0, hedef=alt)
+    u.yaz(yol, alt=alt, alt_oz=ut.SAYFA_NO)
+    with zipfile.ZipFile(yol) as z:
+        x = z.read("content.xml").decode("utf-8")
+    x = x.replace("</template>", '<webID id="%s" resolver="hvl-default">\n</webID></template>' % ERISIM_KIMLIGI)
+    return zip_yaz(yol, [("content.xml", x.encode("utf-8"))])
 
 
 def zip_bombasi(yol, gercek=300 * 1024 * 1024, beyan=4096):
@@ -130,6 +156,8 @@ def main():
     except OSError:
         pass
     g["ozel"] = ozel_metinli(os.path.join(k, "ozel_metin.udf"))
+    g["yatay_kenar"] = yatay_kenarli(os.path.join(k, "yatay_kenar.udf"))
+    g["erisimli"] = erisimli(os.path.join(k, "erisimli.udf"))
     # Kötü niyetli ya da bozuk
     cok = os.path.join(k, "cok_buyuk.udf")
     if not os.path.isfile(cok) or os.path.getsize(cok) <= 40 * 1024 * 1024:

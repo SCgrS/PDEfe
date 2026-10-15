@@ -1,7 +1,8 @@
 // UYAP Doküman Editörü (UDE) yokken UDF'nin yaklaşık çizimi (0.2.6; src/main/udfYaklasik.js, src/udf-cizim, araclar/donustur.js).
-//   1) Kanal: UDF → PDF gizli pencerede çizilir; sayfa boyu ve kenarlar UDF'nin pageFormat'ından (A4, yatay, sol ve sağ kenarı farklı), alt
-//      bilgideki sayfa numarası, metin, yazı tipleri gömülü, PDF'in başlığı dosyanın adı; UDF → TIFF (yaklaşık PDF çekirdeğe); motorun
-//      notları uyarıda (yorumlar, kesilen kısım); geçici dosya kalmaz.
+//   1) Kanal: UDF → PDF gizli pencerede çizilir; sayfa boyu ve kenarlar UDF'nin pageFormat'ından (A4, yatay, sol ve sağ kenarı farklı; yatay
+//      sayfada kenarlar UYAP Doküman Editörü'ndeki gibi döndürülür), alt bilgideki sayfa numarası, UYAP erişim satırı (webID) her sayfanın
+//      altında, metin, yazı tipleri gömülü, PDF'in başlığı dosyanın adı; UDF → TIFF (yaklaşık PDF çekirdeğe); motorun notları uyarıda
+//      (yorumlar, kesilen kısım); geçici dosya kalmaz.
 //   2) Kötü niyetli ya da bozuk belge (40 MB üstü, zip bombası, beyanı büyük paket, 1500 öğe, iki içerik, dış varlık, milyar gülüş, parolalı,
 //      UDF olmayan, boş): her biri kendi hatasıyla döner, çıktı yazılmaz; ana süreç ve arayüz çökmez, hiçbir iletişim kutusu açılmaz, gizli
 //      çizim sayfası kalmaz. "]]>" ve betik / HTML benzeri yazı yazı olarak çizilir, betik çalışmaz.
@@ -156,7 +157,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
   // ------------------------------------------------------------ 1) Kanal: olağan belgeler
   if (bolum(1)) {
     console.log('\n== 1) UDF → PDF / TIFF (kanal)');
-    const adlar = ['kenar_farkli', 'yatay', 'tablolu', 'duz_xml', 'uzun', 'ozel_metin', 'yorumlu', 'ic_ice_tablo', 'saydam_antet'];
+    const adlar = ['kenar_farkli', 'yatay', 'tablolu', 'duz_xml', 'uzun', 'ozel_metin', 'yorumlu', 'ic_ice_tablo', 'saydam_antet', 'yatay_kenar', 'erisimli'];
     const ogeler = adlar.map((a) => ({ yol: path.join(GIRDI, a + '.udf'), hedef: path.join(CIKTI, a + '.pdf'), hedefBicim: 'pdf' }));
     if (TIFF_VAR) ogeler.push({ yol: G.kenar, hedef: path.join(CIKTI, 'kenar_farkli.tif'), hedefBicim: 'tiff', secenekler: { dpi: 200, renk: 'sb' } });
     const t0 = Date.now();
@@ -172,6 +173,20 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     sonuc('Yazı tiplerinin hepsi gömülü; PDF\'in başlığı dosyanın adı', k.font > 0 && k.gomulu === k.font && k.baslik === 'kenar_farkli', { font: k.font, gomulu: k.gomulu, baslik: k.baslik });
     const y = pdfOzeti(path.join(CIKTI, 'yatay.pdf'));
     sonuc('Yatay sayfa: 842 × 595', y.olcu.length >= 1 && y.olcu.every(A4Yatay), y.olcu);
+    const yk = py(`d = pymupdf.open(${J(path.join(CIKTI, 'yatay_kenar.pdf'))}, filetype="pdf")
+bb = [l["bbox"] for b in d[0].get_text("dict")["blocks"] for l in b.get("lines", [])]
+print(json.dumps({"olcu": [round(d[0].rect.width, 1), round(d[0].rect.height, 1)], "sol": round(min(x[0] for x in bb), 1), "ust": round(min(x[1] for x in bb), 1)}))`);
+    sonuc('Dört kenarı farklı yatay sayfa: kenarlar UYAP Doküman Editörü\'ndeki gibi döndürülür (sol = kâğıdın alt kenarı 28 pt, üst = sol kenarı 85 pt)',
+      A4Yatay(yk.olcu) && Math.abs(yk.sol - 28.35) <= 3 && Math.abs(yk.ust - 85.04) <= 3, yk);
+    const ERISIM = 'UYAP Bilişim Sistemindeki bu dokümana http://vatandas.uyap.gov.tr adresinden AbC1dEf - gHiJkLm - NoP2qRs - TuVwXy= ile erişebilirsiniz.';
+    const er = py(`d = pymupdf.open(${J(path.join(CIKTI, 'erisimli.pdf'))}, filetype="pdf")
+out = []
+for p in d:
+    sat = [(l["bbox"][1], " ".join("".join(s["text"] for s in l["spans"]).split())) for b in p.get_text("dict")["blocks"] for l in b.get("lines", [])]
+    out.append([[round(y, 1), t] for y, t in sat if "vatandas.uyap.gov.tr" in t])
+print(json.dumps({"sayfa": d.page_count, "satirlar": out}, ensure_ascii=False))`);
+    sonuc('UYAP erişim kimliği (webID): her sayfanın en altında erişim satırı (sayfa numarasıyla birlikte)', er.sayfa >= 2 && er.satirlar.every((s) => s.length === 1 && s[0][1] === ERISIM && s[0][0] > 820)
+      && /(^|\n)1\/\d+(\n|$)/.test(pdfOzeti(path.join(CIKTI, 'erisimli.pdf')).metin[0]), er);
     const u = pdfOzeti(path.join(CIKTI, 'uzun.pdf'));
     sonuc('Uzun belge kâğıda göre sayfalara bölünür (birden çok sayfa, son paragraf metinde)', u.sayfa >= 2 && S['uzun.pdf']?.sayfa === u.sayfa && /Paragraf 110:/.test(u.metin.join('\n')), { sayfa: u.sayfa, sonucSayfa: S['uzun.pdf']?.sayfa });
     const x = pdfOzeti(path.join(CIKTI, 'duz_xml.pdf'));

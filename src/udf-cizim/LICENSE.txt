@@ -1,7 +1,9 @@
 udf-motoru.js — UDF okuma ve çizim motoru
 =========================================
 
-Bu klasördeki udf-motoru.js, Drive UDF Okuyucu eklentisinin motor/udf-motoru.js dosyasının değiştirilmemiş kopyasıdır (0.3.2). PDEfe onu
+Bu klasördeki udf-motoru.js, Drive UDF Okuyucu eklentisinin motor/udf-motoru.js dosyasının (0.3.2) kopyasıdır. Değişiklikler ("PDEfe
+değişikliği" yorumlarıyla işaretli), ikisi de UYAP Doküman Editörü'nün yazdırmasına uymak için: yatay sayfada kenar boşlukları döndürülür
+(sayfaAyari); UYAP erişim kimliği (webID) taşıyan belgede her sayfanın altına erişim satırı basılır (erisimKimligi, yazdirmaCss). PDEfe onu
 UYAP Doküman Editörü bulunamadığında UDF → PDF'in yaklaşık çizimi için kullanır (0.2.6; main/udfYaklasik.js, sayfa.html, cizim.js).
 Drive UDF Okuyucu'nun kendi kodu MIT lisanslıdır:
 

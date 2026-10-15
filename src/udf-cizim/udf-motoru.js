@@ -464,17 +464,30 @@
     1: [595.28, 841.89], A4: [595.28, 841.89], 2: [419.53, 595.28], A5: [419.53, 595.28], 3: [612, 792], LETTER: [612, 792],
     4: [515.91, 728.5], B5: [515.91, 728.5], 5: [612, 1008], LEGAL: [612, 1008], 6: [522, 756], EXECUTIVE: [522, 756]
   };
+  // PDEfe değişikliği (0.2.6): UYAP'ın erişim kimliği (<webID id="…">, styles'tan sonra). Editör, onu taşıyan belgeyi yazdırırken her sayfanın
+  // altına erişim satırı basar (yazdirmaCss). Yalnız base64 harfleri, boşluk ve tire; boşluklar teke indirilir (Editör'ün bastığı gibi).
+  function erisimKimligi(kok) {
+    const v = kisa(oz(cocuk(kok, 'webid'), 'id'), 100).replace(/\s+/g, ' ').trim();
+    return /^[A-Za-z0-9+/= -]{8,100}$/.test(v) ? v : null;
+  }
   function sayfaAyari(props) {
     const pf = cocuk(props, 'pageformat');
     const kod = String(oz(pf, 'mediaSizeName') || '1').trim().toUpperCase();
     let [en, boy] = KAGIT[kod] || KAGIT[1];
     const yon = String(oz(pf, 'paperOrientation') || '1').trim().toLowerCase();
-    if (yon === '0' || yon === '2' || yon === 'landscape') [en, boy] = [boy, en];
+    const yatay = yon === '0' || yon === '2' || yon === 'landscape';
+    if (yatay) [en, boy] = [boy, en];
     const kenar = (a, vars, olcu) => { const v = sayi(oz(pf, a)); return Number.isFinite(v) && v >= 0 ? Math.min(v, olcu * 0.4) : vars; };
     const pay = a => { const v = sayi(oz(pf, a)); return Number.isFinite(v) && v >= 0 ? Math.min(v, 200) : null; };
+    // PDEfe değişikliği (0.2.6): pageFormat'taki kenarlar kâğıdın dikey hâline göredir; Editör yatay sayfada onları Java'nın PageFormat'ı gibi
+    // döndürür (Editör'ün kendi çizimiyle ölçüldü): LANDSCAPE (0) görünen sol = kâğıdın alt kenarı, üst = sol, sağ = üst, alt = sağ;
+    // REVERSE_LANDSCAPE (2) sol = üst, üst = sağ, sağ = alt, alt = sol.
+    const ozler = { sol: ['leftMargin', 42.52], sag: ['rightMargin', 28.35], ust: ['topMargin', 42.52], alt: ['bottomMargin', 14.17] };
+    const esle = !yatay ? { sol: 'sol', sag: 'sag', ust: 'ust', alt: 'alt' } : yon === '2' ? { sol: 'ust', ust: 'sag', sag: 'alt', alt: 'sol' }
+      : { sol: 'alt', ust: 'sol', sag: 'ust', alt: 'sag' };
+    const gorunen = g => { const [a, vars] = ozler[esle[g]]; return kenar(a, vars, g === 'sol' || g === 'sag' ? en : boy); };
     return {
-      en, boy, sol: kenar('leftMargin', 42.52, en), sag: kenar('rightMargin', 28.35, en),
-      ust: kenar('topMargin', 42.52, boy), alt: kenar('bottomMargin', 14.17, boy),
+      en, boy, sol: gorunen('sol'), sag: gorunen('sag'), ust: gorunen('ust'), alt: gorunen('alt'),
       ustPay: pay('headerFOffset'), altPay: pay('footerFOffset')
     };
   }
@@ -1003,7 +1016,7 @@
     }
     return {
       sayfa, metinEn, taban, bolumler, ust: s.header, alt: s.footer, filigran,
-      sablon: !!veri, kesildi: s.kesildi, kokAdi: s.kokAdi, bicimSurumu: kisa(oz(kok, 'format_id'), 16) || null,
+      sablon: !!veri, kesildi: s.kesildi, kokAdi: s.kokAdi, bicimSurumu: kisa(oz(kok, 'format_id'), 16) || null, webKimlik: erisimKimligi(kok),
       notlar: veri ? [] : notlar,
       sayac: { paragraf: s.paragraf, tablo: s.tablo, resim: s.resimSayisi, resimReddi: s.resimReddi, sayfaSonu: s.sayfaSonu, ofsetSorunu: s.ofsetSorunu, bilinmeyen: s.bilinmeyen, veriSatiri: s.veriSatiri, blok: s.blok }
     };
@@ -1535,6 +1548,14 @@
     const kenar = { ust: s.ust, alt: s.alt };
     const satirlar = [];
     const yer = { ust: 'top', alt: 'bottom' };
+    // PDEfe değişikliği (0.2.6): UYAP erişim satırı. Editör webID taşıyan belgeyi yazdırırken her sayfanın en altına (kâğıdın alt kenarından
+    // ~5 punto yukarıda, ortalı) "UYAP Bilişim Sistemindeki bu dokümana http://vatandas.uyap.gov.tr adresinden <kimlik> ile erişebilirsiniz."
+    // basar (7 punto Times New Roman, kimlik 10 punto Consolas; Editör'ün kendi çizimiyle ölçüldü). Kenar kutusunda tek yazı tipi olduğundan
+    // satırın hepsi 7 punto. Alt bilginin orta kutusu doluysa satır onun altına eklenir.
+    const erisim = model.webKimlik ? `UYAP Bilişim Sistemindeki bu dokümana http://vatandas.uyap.gov.tr adresinden ${model.webKimlik} ile erişebilirsiniz.` : null;
+    const damga = erisim ? `@bottom-center { content: ${cssDize(erisim)}; white-space: pre; text-align: center; vertical-align: bottom; padding-bottom: 3pt; ` +
+      'font-family: "Times New Roman", serif; font-size: 7pt; font-weight: 400; font-style: normal; color: rgb(0, 0, 0); }' : '';
+    if (erisim) { kenar.alt = Math.max(kenar.alt, 14); satirlar.push(`@page { ${damga} }`); }
     for (const tur of ['ust', 'alt']) {
       const ek = model[tur];
       if (!ek || !kenarAraligi(ek)) continue;
@@ -1553,11 +1574,13 @@
           if (no.son) parcalar.push(cssDize(no.son));
         }
         if (!parcalar.length) continue;
+        const damgali = tur === 'alt' && !!erisim && hiza === 'center';
+        if (damgali) parcalar.push(cssDize('\n' + erisim));
         const pay = tur === 'ust' ? s.ustPay : s.altPay;
         const payPt = kistir(tur === 'ust' ? (pay == null ? 20 : pay) : (pay == null ? 14 : pay / 2), 4, Math.max(4, Math.max(s[tur], 24) - 16));
         const dikey = tur === 'ust' ? `vertical-align: top; padding-top: ${pt(payPt)};` : `vertical-align: bottom; padding-bottom: ${pt(payPt)};`;
         const yaziStili = no && no.hiza === hiza && !icerik[hiza] ? no.stil : (stil || model.taban);
-        const satirSayisi = (icerik[hiza] ? icerik[hiza].split('\n').length : 0) + (no && no.hiza === hiza ? 1 : 0);
+        const satirSayisi = (icerik[hiza] ? icerik[hiza].split('\n').length : 0) + (no && no.hiza === hiza ? 1 : 0) + (damgali ? 1 : 0);
         kenar[tur] = Math.max(kenar[tur], 24, Math.min(s.boy * 0.4, payPt + satirSayisi * ((yaziStili && yaziStili.punto) || 12) * 1.2 + 4));
         kurallar.push(`@${yer[tur]}-${hiza} { content: ${parcalar.join(' ')}; white-space: pre; text-align: ${hiza}; ${dikey} ${yaziKurali(yaziStili)} }`);
       }
@@ -1567,6 +1590,7 @@
       else {
         satirlar.push(`@page { ${kurallar.join(' ')} }`);
         if (ek.bas >= 2) satirlar.push(`@page :first { ${bos} }`);
+        if (ek.bas >= 2 && tur === 'alt' && erisim) satirlar.push(`@page :first { ${damga} }`);
       }
     }
     satirlar.unshift(`@page { size: ${pt(s.en)} ${pt(s.boy)}; margin: ${pt(kenar.ust)} ${pt(s.sag)} ${pt(kenar.alt)} ${pt(s.sol)}; }`);

@@ -8,7 +8,12 @@
      yalnızca kendi betiklerini ve belgenin blob: resimlerini yükler. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src blob:; font-src 'none'; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'">
 <title>UDF</title>
-<style>html, body { margin: 0; padding: 0; background: #fff; color: #000; }</style>
+<!-- Yazı aralığı (kerning) ve bitişik harfler (ligature) kapalı: UYAP Doküman Editörü'nün Java çizimi bunları uygulamaz; açıkken satırlar
+     daralıyor, satır kırılımları editördekinden daha çok ayrılıyordu (45 belgede aynı satır oranı ortanca %83 → %89). -->
+<style>
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+.udf-gorunum .udf-sayfa { font-kerning: none !important; font-variant-ligatures: none !important; text-rendering: optimizeSpeed !important; }
+</style>
 </head>
 <body>
 <main id="alan" class="udf-gorunum"></main>
