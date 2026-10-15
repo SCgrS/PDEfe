@@ -1496,6 +1496,52 @@ def test_cakisma(c, g):
     sonuc("geçici dosya kalmadı", not gecici_kalintilar(k), gecici_kalintilar(k))
 
 
+def test_kalan_sayfalar(c, g):
+    """0.2.7 inceleme: JPG'de önceki daha uzun dönüştürmenin fazla sayfaları. "Üzerine yaz"da yazılmaz ve silinmez, sonucun kalanlar alanında
+    söylenir; "yeni ad"da ad dizisi önceki dönüştürmenin sonraki sayfasıyla sürüyorsa o ad dolu sayılır (sayfalar karışmaz)."""
+    print("— JPG: önceki dönüştürmeden kalan sayfalar (0.2.7 inceleme)")
+    k = temiz_klasor("kalan_sayfalar")
+    uc = sentetik_pdf(os.path.join(k, "uc.pdf"), sayfa=3, tohum=21)
+    iki = sentetik_pdf(os.path.join(k, "iki.pdf"), sayfa=2, tohum=22)
+    alt = os.path.join(k, "cikti")
+    os.makedirs(alt)
+    hedef = os.path.join(alt, "Dilekce.jpg")
+    donustur(c, [{"yol": uc, "hedef": hedef, "hedefBicim": "gorsel"}])
+    ucuncu = os.path.join(alt, "Dilekce - Sayfa 3.jpg")
+    once = md5(ucuncu)
+    r, _ = donustur(c, [{"yol": iki, "hedef": hedef, "hedefBicim": "gorsel", "cakisma": "uzerineYaz"}])
+    o = r["sonuclar"][0]
+    sonuc("üzerine yaz, belge 3 → 2 sayfa: Sayfa 1 ve 2 yazıldı, önceki Sayfa 3 silinmedi ve sonuçta kalanlar'da",
+          "hata" not in o and [os.path.basename(x) for x in o.get("hedefler") or []] == ["Dilekce - Sayfa 1.jpg", "Dilekce - Sayfa 2.jpg"]
+          and md5(ucuncu) == once and o.get("kalanlar") == [ucuncu], (o.get("hata"), o.get("hedefler"), o.get("kalanlar")))
+    r, _ = donustur(c, [{"yol": uc, "hedef": hedef, "hedefBicim": "gorsel", "cakisma": "uzerineYaz"}])
+    sonuc("üzerine yaz, sayfa sayısı aynı: kalanlar yok", "hata" not in r["sonuclar"][0] and "kalanlar" not in r["sonuclar"][0], r["sonuclar"][0].get("kalanlar"))
+    # Yeni ad: Sayfa 1 ve 2 yok ama önceki dönüştürmenin Sayfa 3'ü var → ad dizisi sürüyor, "(1)"
+    alt2 = os.path.join(k, "cikti2")
+    os.makedirs(alt2)
+    with open(os.path.join(alt2, "Dilekce - Sayfa 3.jpg"), "wb") as f:
+        f.write(b"eski")
+    r, _ = donustur(c, [{"yol": iki, "hedef": os.path.join(alt2, "Dilekce.jpg"), "hedefBicim": "gorsel", "cakisma": "yeniAd"}])
+    o = r["sonuclar"][0]
+    sonuc("yeni ad: ad dizisinin sonraki sayfası (Sayfa 3) varsa \"(1)\" adları; var olana dokunulmaz",
+          [os.path.basename(x) for x in o.get("hedefler") or []] == ["Dilekce (1) - Sayfa 1.jpg", "Dilekce (1) - Sayfa 2.jpg"]
+          and o.get("istenenHedef") == os.path.join(alt2, "Dilekce.jpg") and md5(os.path.join(alt2, "Dilekce - Sayfa 3.jpg")) == hashlib.md5(b"eski").hexdigest(),
+          (o.get("hata"), [os.path.basename(x) for x in o.get("hedefler") or []]))
+    # Tek sayfada (hedefin kendisi) sonraki sayfa sayılmaz: "Dilekce.jpg" adı boş
+    r, _ = donustur(c, [{"yol": _tek_sayfa(k, uc), "hedef": os.path.join(alt2, "Tek.jpg"), "hedefBicim": "gorsel", "cakisma": "yeniAd"}])
+    sonuc("yeni ad, tek sayfa: \"<ad>.jpg\" boşsa o ad", [os.path.basename(x) for x in r["sonuclar"][0].get("hedefler") or []] == ["Tek.jpg"], r["sonuclar"][0].get("hedefler"))
+    sonuc("geçici dosya kalmadı", not gecici_kalintilar(alt) and not gecici_kalintilar(alt2), (gecici_kalintilar(alt), gecici_kalintilar(alt2)))
+
+
+def _tek_sayfa(k, kaynak):
+    tek = os.path.join(k, "tek.pdf")
+    d = pymupdf.open(kaynak)
+    d.select([0])
+    d.save(tek)
+    d.close()
+    return tek
+
+
 def test_tahmin(c, g, gg):
     """0.2.7 (madde 8): donusum_tahmini, "İdeal" (300 dpi) ve "Düşük" (200 dpi) boyutları. Az sayfalı belgede kesin (dönüştürücünün kendi
     çizim ve kodlama yolu), çok sayfalıda örneklenmiş."""
@@ -1596,7 +1642,7 @@ def main():
                ("hedef_erisim", lambda: test_hedef_erisim(c, g)), ("parametreler", lambda: test_parametreler(c, g)), ("zip_bombasi", lambda: test_zip_bombasi(c)),
                ("dis_surec", lambda: test_dis_surec(c)), ("zincir", lambda: test_zincir(c, g)), ("surec", lambda: test_surec(exe, g)),
                ("gorsel_imza", lambda: test_gorsel_imza(c, gg)), ("gorsel_pdf", lambda: test_gorsel_pdf(c, gg)), ("gri16", lambda: test_gri16(c)),
-               ("pdf_jpg", lambda: test_pdf_jpg(c, g)), ("cakisma", lambda: test_cakisma(c, g)), ("kalite_notlari", lambda: test_kalite_notlari(c, g)),
+               ("pdf_jpg", lambda: test_pdf_jpg(c, g)), ("cakisma", lambda: test_cakisma(c, g)), ("kalan_sayfalar", lambda: test_kalan_sayfalar(c, g)), ("kalite_notlari", lambda: test_kalite_notlari(c, g)),
                ("tahmin", lambda: test_tahmin(c, g, gg))]
     if not exe:
         testler.insert(6, ("iptal_bayragi", test_iptal_bayragi))

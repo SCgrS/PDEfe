@@ -7,12 +7,14 @@
 //   3) PDF → JPG, tek girdi, sayfa sayısı bilinmiyor (Word / ön izlemesi gelmemiş UDF satırının durumu): klasörde yalnızca "<ad> - Sayfa 2.jpg"
 //      ve "Sayfa 3" varken (sınanan adlar "<ad>.jpg", "Sayfa 1" yok) onlar ezilmez: çekirdek ilk boş "(1)" adını seçer, sonuçta not
 //      (önceden soru çıkmadan üzerlerine yazılıyordu).
+//   4) PDF → JPG, önceki daha uzun dönüştürmeden kalan sayfa: 3 sayfalık "Dilekce" → JPG, sonra aynı adlı 2 sayfalık belge → "zaten var"
+//      sorusu "Sayfa 3"ün kalacağını söyler; Üzerine yaz: Sayfa 1 ve 2 yenilenir, Sayfa 3 silinmez, sonuçta not (önceden hiç söylenmiyordu).
 // Girdiler bu betikte üretilir (Python, proje .venv; gerçek belge yok): test/cikti/s40/girdi; çıktılar test/cikti/s40/<bölüm>-<koşum>.
 // Kullanım (görünmeyen masaüstü; 2. bölüm için editör yok benzetimi):
 //   $env:PDEFE_UDE_YOK="1"; powershell -ExecutionPolicy Bypass -File test\baslat_gizli.ps1 -Port 9440 -Veri "$env:TEMP\pdefe-s40-9440" -Boyut "1280,1000"   → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9440; node test\surucu.mjs betik test\senaryo40.mjs
 //   powershell -ExecutionPolicy Bypass -File test\durdur.ps1 -SurecId <PID>
-// Yalnızca bazı bölümler: $env:BOLUM="1,3".
+// Yalnızca bazı bölümler: $env:BOLUM="1,4".
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -207,6 +209,34 @@ print(json.dumps(u.yaz(${J(path.join(GIRDI, 'Dilekçe.udf'))})))`);
     const satirlar = await sonucSatirlari();
     sonuc('3) Sonuçta yazılan adlar ve "yeni adla kaydedildi" notu', J(satirlar.map((x) => x.ad)) === J([1, 2, 3].map((n) => `W (1) - Sayfa ${n}.jpg`)) && /yeni adla kaydedildi/.test(satirlar[0]?.uyari || ''),
       satirlar);
+    await araclariKapat(); await sekmeleriKapat();
+  }
+
+  // ------------------------------------------------------------ 4) JPG "Üzerine yaz": önceki dönüştürmeden kalan sayfa söylenir
+  if (bolum(4)) {
+    console.log('\n== 4) JPG: önceki daha uzun dönüştürmeden kalan sayfa');
+    await araclariKapat(); await sekmeleriKapat();
+    const k = yeniKlasor('jpg-kalan');
+    const uc = path.join(GIRDI, 'uc', 'Dilekce.pdf'), iki = path.join(GIRDI, 'iki', 'Dilekce.pdf');
+    fs.mkdirSync(path.dirname(uc), { recursive: true }); fs.mkdirSync(path.dirname(iki), { recursive: true });
+    pdfUret(uc, 3, 31); pdfUret(iki, 2, 32);
+    await ayarla({ ciktiKlasoru: k, otomatikKaydet: false, donusturme: { hedefler: { pdf: 'gorsel' } } });
+    await donusturAc([uc]);
+    let soru = await donustur(1);
+    sonuc('4) 3 sayfalık belge → "Dilekce - Sayfa 1..3.jpg"', !soru && [1, 2, 3].every((n) => dosyalar(k).includes(`Dilekce - Sayfa ${n}.jpg`)), { soru, dosyalar: dosyalar(k) });
+    const ucuncu = path.join(k, 'Dilekce - Sayfa 3.jpg');
+    const once = fs.readFileSync(ucuncu);
+    const birinciOnce = fs.readFileSync(path.join(k, 'Dilekce - Sayfa 1.jpg'));
+    await listeyiDegistir([iki]);
+    soru = await donustur(0);   // Üzerine yaz
+    sonuc('4) Aynı adlı 2 sayfalık belge: "zaten var" sorusu kalan "Dilekce - Sayfa 3.jpg"ü ve silinmeyeceğini söyler',
+      /zaten var\.$/.test(soru?.mesaj || '') && (soru?.ayrinti || '').includes('Klasörde önceki bir dönüştürmeden kalan "Dilekce - Sayfa 3.jpg" dosyası da var.')
+      && (soru?.ayrinti || '').includes('Bu belge 2 sayfa; üzerine yazılırsa o dosya silinmez'), soru);
+    sonuc('4) Üzerine yaz: Sayfa 1 ve 2 yenilendi, önceki Sayfa 3 değişmedi', !fs.readFileSync(path.join(k, 'Dilekce - Sayfa 1.jpg')).equals(birinciOnce)
+      && fs.readFileSync(ucuncu).equals(once), dosyalar(k));
+    const satirlar = await sonucSatirlari();
+    sonuc('4) Sonuçta iki satır, ilkinde kalan sayfanın notu', J(satirlar.map((x) => x.ad)) === J(['Dilekce - Sayfa 1.jpg', 'Dilekce - Sayfa 2.jpg'])
+      && /Önceki bir dönüştürmeden kalan "Dilekce - Sayfa 3\.jpg" klasörde duruyor/.test(satirlar[0]?.uyari || ''), satirlar);
     await araclariKapat(); await sekmeleriKapat();
   }
 

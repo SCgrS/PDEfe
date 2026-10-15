@@ -1060,26 +1060,45 @@ def sayfa_adlari(hedef, n):
     return ["%s - Sayfa %d%s" % (kok, i, uz) for i in range(1, n + 1)]
 
 
+def sonraki_sayfalar(hedef, n, en_cok=10000):
+    """Çok sayfalı hedefin (n > 1) ad dizisinde n'den sonra var olan "<ad> - Sayfa k.jpg" dosyaları (k = n + 1, n + 2… ilk eksiğe dek; 0.2.7
+    inceleme): önceki, daha uzun bir dönüştürmeden kalanlar. Tek sayfada (hedefin kendisi) dizi yok: boş liste."""
+    if n <= 1:
+        return []
+    kok, uz = os.path.splitext(hedef)
+    kalan = []
+    for k in range(n + 1, n + 1 + en_cok):
+        a = "%s - Sayfa %d%s" % (kok, k, uz)
+        if not os.path.exists(a):
+            break
+        kalan.append(a)
+    return kalan
+
+
 def bos_ad(hedef, n=1, dolu=os.path.exists):
     """Hedefin dosyalarından (sayfa_adlari) hiçbiri doluysa (var olan dosya; dolu işlevi) aynı adların ilk boş "(1)", "(2)"… biçimi (0.2.7,
     "yeni belge olarak kaydet": "Sigorta Başvuru (1).tif"; ad zaten "(n)" ile bitiyorsa, n 1–3 basamaklıysa, n + 1'den sürer). Döner: dosya
-    adları listesi."""
-    adlar = sayfa_adlari(hedef, n)
-    if not any(dolu(a) for a in adlar):
-        return adlar
+    adları listesi. Çok sayfalı hedefte ad dizisi sonraki sayfayla ("<ad> - Sayfa n+1.jpg") sürüyorsa da dolu sayılır (0.2.7 inceleme): önceki,
+    daha uzun bir dönüştürmenin sayfası yeni sayfalarla aynı dizide kalmasın."""
+    def bos(h):   # çok sayfada dizinin sonraki sayfası da sınanır (sayfa_adlari(h, n + 1)'in sonuncusu)
+        return not any(dolu(a) for a in sayfa_adlari(h, n + 1 if n > 1 else n))
+    if bos(hedef):
+        return sayfa_adlari(hedef, n)
     kok, uz = os.path.splitext(hedef)
     m = re.fullmatch(r"(.*) \((\d{1,3})\)", kok)   # 1–3 basamak: "Rapor (2023)" gibi yıllar sayı sayılmaz (arayüzün numaraliAdBul'u gibi)
     taban, ilk = (m.group(1), int(m.group(2)) + 1) if m else (kok, 1)
     for k in range(ilk, ilk + 10000):
-        adlar = sayfa_adlari("%s (%d)%s" % (taban, k, uz), n)
-        if not any(dolu(a) for a in adlar):
-            return adlar
+        h = "%s (%d)%s" % (taban, k, uz)
+        if bos(h):
+            return sayfa_adlari(h, n)
     raise OgeHatasi("gecersiz", "Boş bir dosya adı bulunamadı: %s" % os.path.basename(hedef))
 
 
 def _yerine_koy_oge(oge, gecici, yazilan, kaynaklar):
     """Bir öğenin geçici çıktısını (dosya ya da çok dosyalı hedefin klasörü) hedefine koyar. yazilan: bu istekte yazılmış dosyaların anahtarları
-    (güncellenir), kaynaklar: istekteki kaynakların anahtarları. Döner: yazılan dosyaların yolları."""
+    (güncellenir), kaynaklar: istekteki kaynakların anahtarları. Döner: (yazılan dosyaların yolları, sonuca eklenecek alanlar). "Üzerine yaz"da
+    önceki, daha uzun dönüştürmeden kalan sayfalar (sonraki_sayfalar) yazılmaz, silinmez: sonucun kalanlar alanında söylenir (0.2.7 inceleme;
+    arayüz soruda ve sonuçta gösterir)."""
     def dolu(a):
         return os.path.exists(a) or _yol_anahtari(a) in yazilan or _yol_anahtari(a) in kaynaklar
     if os.path.isdir(gecici):
@@ -1103,7 +1122,8 @@ def _yerine_koy_oge(oge, gecici, yazilan, kaynaklar):
         except Exception as e:   # yarıda kaldı (ör. dosya bu arada kilitlendi): yazılmış olanlar sonuçta söylenir
             e.yazilanlar = konan
             raise
-        return adlar
+        kalan = sonraki_sayfalar(oge["hedef"], n) if oge.get("cakisma") != "yeniAd" else []
+        return adlar, ({"kalanlar": kalan} if kalan else {})
     hedef = oge["hedef"]
     if oge.get("cakisma") == "yeniAd":
         hedef = bos_ad(hedef, 1, dolu)[0]
@@ -1111,7 +1131,7 @@ def _yerine_koy_oge(oge, gecici, yazilan, kaynaklar):
         araclar._onbellekten_birak(hedef)   # hedef açık bir sekmenin PDF'i olabilir (Windows'ta açık tanıtıcı yer değiştirmeyi engeller)
     araclar._yerine_koy(gecici, hedef)
     yazilan.add(_yol_anahtari(hedef))
-    return [hedef]
+    return [hedef], {}
 
 
 def _isi_yap(ogeler, il):
@@ -1144,9 +1164,10 @@ def _isi_yap(ogeler, il):
     for i, gecici, bilgi in hazirlar:
         oge = ogeler[i]
         try:
-            yollar = _yerine_koy_oge(oge, gecici, yazilan, kaynaklar)
+            yollar, ek = _yerine_koy_oge(oge, gecici, yazilan, kaynaklar)
             s = dict({"yol": oge["yol"], "hedef": yollar[0], "hedefBicim": oge["hedefBicim"],
                       "boyut": sum(os.path.getsize(y) for y in yollar)}, **bilgi)
+            s.update(ek)
             coklu = oge["hedefBicim"] in COKLU_HEDEFLER
             if coklu:
                 s["hedefler"] = yollar

@@ -429,8 +429,10 @@ export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal }) {
           const o = ogeler[c.k], s = rs[i];
           if (!r) return;
           if (!s) { sonuclar[c.k] = hataSonucu(o, kodlu('hata', 'Dönüştürme sonucu alınamadı.')); return; }
-          // Çekirdeğin yazdığı adlar (0.2.7): "(1)" adı (hedef, istenenHedef) ve JPG'nin sayfa dosyaları (hedefler); yol arayüzün verdiği UDF
-          const adlar = { ...(Array.isArray(s.hedefler) ? { hedefler: s.hedefler } : {}), ...(s.istenenHedef ? { istenenHedef: s.istenenHedef } : {}) };
+          // Çekirdeğin yazdığı adlar (0.2.7): "(1)" adı (hedef, istenenHedef), JPG'nin sayfa dosyaları (hedefler) ve önceki dönüştürmeden kalan
+          // sayfalar (kalanlar; inceleme); yol arayüzün verdiği UDF
+          const adlar = { ...(Array.isArray(s.hedefler) ? { hedefler: s.hedefler } : {}), ...(s.istenenHedef ? { istenenHedef: s.istenenHedef } : {}),
+            ...(Array.isArray(s.kalanlar) && s.kalanlar.length ? { kalanlar: s.kalanlar } : {}) };
           sonuclar[c.k] = s.hata ? { yol: o.yol, hedef: o.hedef, hedefBicim: o.hedefBicim, hata: s.hata, kod: s.kod || 'hata', ...adlar }
             : { yol: o.yol, hedef: s.hedef || o.hedef, hedefBicim: o.hedefBicim, kaynakTur: 'udf', boyut: s.boyut ?? null, sayfa: s.sayfa ?? c.sayfa, uyari: [c.uyari, s.uyari].filter(Boolean).join(' ') || null, yaklasik: true, ...adlar };
         });

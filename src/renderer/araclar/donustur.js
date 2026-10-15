@@ -829,19 +829,32 @@ export class DonusturPenceresi {
     for (const ad of adlar) if (await varMi(ad)) olanlar.push(ad);
     const vardi = new Set(olanlar.map((a) => yolBirlestir(klasor, a).replace(/\//g, '\\').toLowerCase()));
     if (!olanlar.length) return { cakisma: 'yeniAd', vardi };
+    // Önceki, daha uzun bir dönüştürmeden kalan sayfalar (0.2.7 inceleme): "Üzerine yaz" onları yazmaz ve silmez; soruda söylenir
+    const fazla = [];
+    if (o.sayfa > 1 && o.sayfa <= JPG_DENETIM_SAYFASI) {
+      for (let i = o.sayfa + 1; i <= o.sayfa + JPG_DENETIM_SAYFASI; i++) {
+        const ad = sayfaAdi(govde, i, uz);
+        if (!(await varMi(ad))) break;
+        fazla.push(ad);
+      }
+    }
     // Yeni adın önerisi: "<ad> (n)" adlarından hiçbiri yoksa (çekirdek yazarken yeniden bakar)
     const m = / \((\d{1,3})\)$/.exec(govde);
     const kok = m ? govde.slice(0, m.index) : govde;
     let yeni = null;
     for (let i = m ? +m[1] + 1 : 1; i < 1000 && !yeni; i++) {
       const g = `${kok} (${i})`;
-      const denenecek = o.sayfa === 1 ? [`${g}.${uz}`] : [`${g}.${uz}`, sayfaAdi(g, 1, uz)];
+      // Çok sayfada dizinin sonraki sayfası da (çekirdeğin bos_ad'ı gibi: önceki uzun dönüştürmenin sayfası yeni sayfalarla karışmasın)
+      const denenecek = o.sayfa === 1 ? [`${g}.${uz}`] : [`${g}.${uz}`, sayfaAdi(g, 1, uz), ...(o.sayfa > 1 ? [sayfaAdi(g, o.sayfa + 1, uz)] : [])];
       if (!(await Promise.all(denenecek.map(varMi))).some(Boolean)) yeni = o.sayfa === 1 ? `${g}.${uz}` : o.sayfa > 1 ? sayfaAdi(g, 1, uz) : `${g}.${uz}`;
     }
     const liste = olanlar.slice(0, 3).map((a) => `"${a}"`).join(', ') + (olanlar.length > 3 ? ` ve ${sayiMetni(olanlar.length - 3)} dosya daha` : '');
+    const kalanNotu = !fazla.length ? ''
+      : `\n\nKlasörde önceki bir dönüştürmeden kalan ${fazla.length === 1 ? `"${fazla[0]}" dosyası` : `${sayiMetni(fazla.length)} sayfa dosyası ("${fazla[0]}" … "${fazla.at(-1)}")`} da var. `
+        + `Bu belge ${sayiMetni(o.sayfa)} sayfa; üzerine yazılırsa ${fazla.length === 1 ? 'o dosya' : 'o dosyalar'} silinmez, yeni sayfalarla aynı ad dizisinde kalır.`;
     const { secim } = await baglam.mesajKutusu({
       tur: 'warning', mesaj: olanlar.length === 1 ? `"${olanlar[0]}" zaten var.` : `${liste} zaten var.`,
-      ayrinti: `${klasor}\n\nVar olan dosyaların yerine kaydedilsin mi?${yeni ? ` Yeni belge olarak kaydedilirse adı "${yeni}"${o.sayfa > 1 ? ' (ve sonraki sayfalar)' : ''} olur.` : ''}`,
+      ayrinti: `${klasor}\n\nVar olan dosyaların yerine kaydedilsin mi?${yeni ? ` Yeni belge olarak kaydedilirse adı "${yeni}"${o.sayfa > 1 ? ' (ve sonraki sayfalar)' : ''} olur.` : ''}${kalanNotu}`,
       dugmeler: ['Üzerine yaz', 'Yeni belge olarak kaydet', 'Vazgeç'], varsayilan: 1, iptal: 2,
     });
     if (secim === 0) return { cakisma: 'uzerineYaz', vardi };
@@ -1036,7 +1049,12 @@ export class DonusturPenceresi {
       const dosyalar = Array.isArray(r.hedefler) && r.hedefler.length ? r.hedefler : [r.hedef];
       // Çekirdek var olan dosyalar yüzünden "(1)" adını seçtiyse (istenenHedef; 0.2.7 inceleme) ilk satırda söylenir
       const yeniAd = r.istenenHedef ? YENI_AD_NOTU : '';
-      dosyalar.forEach((y, i) => satirlar.push({ yol: y, ad: dosyaAdi(y), ac: r.hedefBicim === 'pdf', uyari: i === 0 ? [r.uyari, yeniAd].filter(Boolean).join(' ') : '' }));
+      // "Üzerine yaz"da önceki, daha uzun dönüştürmeden kalan sayfalar (çekirdeğin kalanlar'ı) ilk satırda söylenir
+      const kalanlar = Array.isArray(r.kalanlar) ? r.kalanlar : [];
+      const kalan = !kalanlar.length ? '' : kalanlar.length === 1
+        ? `Önceki bir dönüştürmeden kalan "${dosyaAdi(kalanlar[0])}" klasörde duruyor; bu belgenin sayfası değil.`
+        : `Önceki bir dönüştürmeden kalan ${sayiMetni(kalanlar.length)} sayfa dosyası ("${dosyaAdi(kalanlar[0])}" … "${dosyaAdi(kalanlar.at(-1))}") klasörde duruyor; bu belgenin sayfaları değil.`;
+      dosyalar.forEach((y, i) => satirlar.push({ yol: y, ad: dosyaAdi(y), ac: r.hedefBicim === 'pdf', uyari: i === 0 ? [r.uyari, yeniAd, kalan].filter(Boolean).join(' ') : '' }));
     }
     const dosyaSayisi = (r) => (Array.isArray(r.hedefler) && r.hedefler.length ? r.hedefler.length : 1);
     const jpgDosyasi = basarili.length === 1 && dosyaSayisi(basarili[0]) > 1 ? ` · ${sayiMetni(dosyaSayisi(basarili[0]))} görüntü dosyası` : '';
