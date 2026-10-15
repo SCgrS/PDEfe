@@ -239,6 +239,23 @@ print(json.dumps({"sayfa": d.page_count, "satirlar": out}, ensure_ascii=False))`
   // ------------------------------------------------------------ 3) İptal
   if (bolum(3)) {
     console.log('\n== 3) İptal');
+    // Çizim sürerken hedef klasörde geçici dosya durmaz (0.2.6 incelemesi: çizim hedefin yanına yapılıyordu, çökmede kalıyordu): geçici PDF
+    // %TEMP%\PDEfe'de, hedefin yanına yalnızca yerine koyarken kopyalanır
+    const cizimOgeleri = Array.from({ length: 3 }, (_, i) => ({ yol: G.uzun, hedef: path.join(CIKTI, `sirada-${i + 1}.pdf`), hedefBicim: 'pdf' }));
+    await evalJs(`(() => { window.__uyFaz = ''; window.__uyFazDinle ||= window.pdefe.dinle('udf:yaklasikIlerleme', (id, p) => { if (id === 302) window.__uyFaz = p?.mesaj || ''; });
+      window.__uyCizim = window.pdefe.cagir('udf:yaklasikDonustur', { ogeler: ${J(cizimOgeleri)}, istekId: 302 }).then((r) => (window.__uyCizimSonuc = r), (e) => (window.__uyCizimSonuc = { e: String(e?.message || e) }));
+      window.__uyCizimSonuc = null; return true; })()`);
+    let cizerkenGecici = 0, yoklama = 0;
+    for (let t0 = Date.now(); Date.now() - t0 < 120000; yoklama++) {
+      const durum = await evalJs(`({ bitti: !!window.__uyCizimSonuc, faz: window.__uyFaz })`);
+      if (durum.bitti) break;
+      if (!/Kaydediliyor/.test(durum.faz) && fs.readdirSync(CIKTI).some((a) => /^sirada-.*pdefe-tmp/i.test(a))) cizerkenGecici++;
+      await bekle(40);
+    }
+    const cizimSonuc = await evalJs('window.__uyCizimSonuc');
+    sonuc('Çizim sürerken hedef klasörde geçici dosya yok; üç PDF yazıldı, geçici dosya kalmadı', cizerkenGecici === 0 && yoklama > 3 && cizimSonuc?.basarili === 3
+      && cizimOgeleri.every((o) => fs.existsSync(o.hedef)) && !geciciler().length, { cizerkenGecici, yoklama, basarili: cizimSonuc?.basarili, e: cizimSonuc?.e, gecici: geciciler() });
+    for (const o of cizimOgeleri) fs.rmSync(o.hedef, { force: true });
     const ogeler = Array.from({ length: 12 }, (_, i) => ({ yol: G.uzun, hedef: path.join(CIKTI, `iptal-${i + 1}.pdf`), hedefBicim: 'pdf' }));
     const r = await evalJs(`(async () => { const s = window.pdefe.cagir('udf:yaklasikDonustur', { ogeler: ${J(ogeler)}, istekId: 301 });
       await new Promise((c) => setTimeout(c, 250)); const ip = await window.pdefe.cagir('udf:yaklasikIptal', { istekId: 301 }); return { ip, r: await s }; })()`);
@@ -257,6 +274,42 @@ print(json.dumps({"sayfa": d.page_count, "satirlar": out}, ensure_ascii=False))`
     const b2 = await cagir('udf:yaklasikBilgi', { yol: G.kenar, genislik: 240 });
     sonuc('Aynı dosyanın ikinci isteği ön bellekten (hızlı, aynı sonuç)', b2.r?.png === b.r?.png && Date.now() - t0 < 300, Date.now() - t0);
     sonuc('Geçici dosya kalmadı', !geciciler().length, geciciler());
+    // İstek kimlikli küçük resimler udf:yaklasikIptal ile iptal edilir: sıradakiler çizilmez (0.2.6 incelemesi: araç kapansa da sürüyordu;
+    // dosya da sırası gelince okunur)
+    const kopyalar = Array.from({ length: 6 }, (_, i) => { const y = path.join(GIRDI, `kucuk-resim-${i + 1}.udf`); fs.copyFileSync(G.uzun, y); return y; });
+    const ip = await evalJs(`(async () => {
+      const istekler = ${J(kopyalar)}.map((yol, i) => window.pdefe.cagir('udf:yaklasikBilgi', { yol, genislik: 200, istekId: 400 + i })
+        .then(() => 'bitti', (e) => (/ptal edildi/.test(String(e?.message || e)) ? 'iptal' : 'hata: ' + (e?.message || e))));
+      await new Promise((c) => setTimeout(c, 300));
+      const t0 = performance.now();
+      const ip = await Promise.all(${J(kopyalar)}.map((_, i) => window.pdefe.cagir('udf:yaklasikIptal', { istekId: 400 + i })));
+      const sonuclar = await Promise.all(istekler);
+      return { ip, sonuclar, ms: Math.round(performance.now() - t0) };
+    })()`);
+    await bekle(400);
+    // İlki iptalden önce bitmiş olabilir (kısa belge); sıradakilerin hepsi iptal
+    const iptalOlan = ip.sonuclar.filter((x) => x === 'iptal').length;
+    sonuc('Küçük resim istekleri istek kimliğiyle iptal edilir: sıradakiler "iptal" döner, kısa sürede; geçici dosya kalmaz', iptalOlan >= 5
+      && ip.sonuclar.every((x, i) => x === 'bitti' || (x === 'iptal' && ip.ip[i] === true)) && ip.ms < 5000 && !geciciler().length, { ...ip, gecici: geciciler() });
+    // Araç: satırların küçük resimleri çizilirken pencere kapatılınca hepsi iptal edilir
+    // (gizli çizim pencereleri CDP'den sayılır: kapatmadan sonra en çok o an çizilmekte olan bir tanesi görünür, sıradakiler hiç açılmaz)
+    const bekleyen = await evalJs(`(async () => {
+      window.__pdefe.komutCalistir('arac.donustur', ${J(kopyalar)});
+      const bek = () => (window.__uy.m.acikDonusturPenceresi()?.ogeler || []).filter((o) => o.onizleniyor).length;
+      for (let i = 0; i < 100 && bek() < 4; i++) await new Promise((c) => setTimeout(c, 50));
+      const n = bek();
+      const m = await import('pdefe://app/src/renderer/araclar/ortak.js'); await m.aracPencereleriniKapat();
+      return n;
+    })()`);
+    const cizimPencereleri = new Set();
+    for (let t0 = Date.now(); Date.now() - t0 < 4000;) {
+      try { for (const h of await (await fetch(`http://127.0.0.1:${PORT}/json`)).json()) if (/udf-cizim/.test(h.url)) cizimPencereleri.add(h.id); } catch { /* yok say */ }
+      await bekle(60);
+    }
+    sonuc('Araç kapatılınca sıradaki küçük resimler çizilmez (iptal): en çok bir çizim penceresi görünür', bekleyen >= 4 && cizimPencereleri.size <= 1,
+      { bekleyen, cizimPenceresi: cizimPencereleri.size });
+    await pencereKapat();
+    for (const y of kopyalar) fs.rmSync(y, { force: true });
   }
 
   // ------------------------------------------------------------ 5) Araç

@@ -163,7 +163,9 @@ export class DonusturPenceresi {
     kayitBolumu.append(this.adlarEl);
 
     govde.querySelector('.donustur-ekle').addEventListener('click', () => this.dosyaSec());
-    govde.querySelector('.donustur-temizle').addEventListener('click', () => { if (this.ogeler.length && !this.ilerleme.calisiyor) { this.ogeler = []; this.sonucEl.hidden = true; this.ciz(); } });
+    govde.querySelector('.donustur-temizle').addEventListener('click', () => {
+      if (this.ogeler.length && !this.ilerleme.calisiyor) { this._yaklasikIptal(this.ogeler); this.ogeler = []; this.sonucEl.hidden = true; this.ciz(); }
+    });
 
     // Pencere sekme şeridinin altında başlar (Birleştir ve Sayfaları düzenle gibi; arkadaki sekmeler görünür)
     this.pencere = pencereAc({
@@ -173,7 +175,7 @@ export class DonusturPenceresi {
     });
     this.pencere.govde.append(this.ilerleme.el);   // meşgulken soluklaşmasın, İptal tıklanabilsin
     this.pencere.el.addEventListener('esc', (e) => { if (this.ilerleme.calisiyor) { e.preventDefault(); this.ilerleme.iptalIste(); } });
-    this.pencere.el.addEventListener('kapandi', () => { if (acikPencere === this) acikPencere = null; });
+    this.pencere.el.addEventListener('kapandi', () => { this._yaklasikIptal(this.ogeler); if (acikPencere === this) acikPencere = null; });
 
     // Sürükle-bırak (Pencere örtüsü olayları yakalar ve 'dosyaBirakildi' yayar)
     this.pencere.ortu.addEventListener('dragenter', () => this.liste.classList.add('surukle-uzerinde'));
@@ -359,8 +361,10 @@ export class DonusturPenceresi {
     if (o.onizleniyor) return;
     o.onizleniyor = true;
     this._ogeCiz(o);
+    // İstek kimliğiyle: satır çıkarılınca, liste temizlenince ya da pencere kapanınca sıradaki çizim iptal edilir (_yaklasikIptal)
+    const istekId = o.yaklasikIstek = ++yaklasikSayac;
     try {
-      const b = await this.baglam.pdefe.cagir('udf:yaklasikBilgi', { yol: o.yol, genislik: this._kucukResimGenisligi() });
+      const b = await this.baglam.pdefe.cagir('udf:yaklasikBilgi', { yol: o.yol, genislik: this._kucukResimGenisligi(), istekId });
       if (this.pencere.kapali || !this.ogeler.includes(o)) return;
       if (b?.png) o.png = b.png;
       if (b?.sayfa != null) o.sayfa = b.sayfa;
@@ -370,8 +374,17 @@ export class DonusturPenceresi {
       if (this.pencere.kapali || !this.ogeler.includes(o)) return;
       o.onizlemeUyarisi = 'Belge açılamadı: ' + hataMetni(e);
       o.acilmadi = true;
-    } finally { o.onizleniyor = false; }
+    } finally { o.onizleniyor = false; if (o.yaklasikIstek === istekId) o.yaklasikIstek = null; }
     this._ogeCiz(o);
+  }
+
+  /** Satırların süren / sıradaki yaklaşık küçük resim çizimlerini iptal eder (ana süreç udf:yaklasikIptal). */
+  _yaklasikIptal(ogeler) {
+    for (const o of ogeler) {
+      if (o.yaklasikIstek == null) continue;
+      this.baglam.pdefe.cagir('udf:yaklasikIptal', { istekId: o.yaklasikIstek }).catch(() => false);
+      o.yaklasikIstek = null;
+    }
   }
 
   // ---------------------------------------------------------------- hedefler
@@ -427,6 +440,7 @@ export class DonusturPenceresi {
 
   sil(o) {
     if (this.ilerleme.calisiyor) return;
+    this._yaklasikIptal([o]);
     this.ogeler = this.ogeler.filter((x) => x !== o);
     this.sonucEl.hidden = true;
     this.ciz();

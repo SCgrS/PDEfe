@@ -12,18 +12,18 @@
 // Çizimler sırayla yapılır (tek gizli pencere); dönüştürme, bekleyen küçük resimlerin önüne geçer.
 //
 // Kanallar (renderer/araclar/donustur.js; parametreler guvenlik.js udfYaklasikParametreleri). Geçici dosyaların yolu arayüze verilmez:
-//   'udf:yaklasikBilgi'    { yol, genislik? } → { sayfa, png, pngGenislik, pngYukseklik, genislik, yukseklik, uyari? }   (satırın küçük
+//   'udf:yaklasikBilgi'    { yol, genislik?, istekId? } → { sayfa, png, pngGenislik, pngYukseklik, genislik, yukseklik, uyari? }   (satırın küçük
 //        resmi: yaklaşık PDF'in ilk sayfası, çekirdeğin donusum_bilgi'siyle; sonuç dosyanın boyutu ve değişme zamanıyla ön bellekte)
 //   'udf:yaklasikDonustur' { ogeler: [{ yol, hedef, hedefBicim: 'pdf' | 'tiff' | 'word', secenekler? }], istekId? }
 //        → { sonuclar: [{ yol, hedef, hedefBicim, kaynakTur: 'udf', boyut, sayfa, uyari?, yaklasik: true } | { yol, hedef, hedefBicim, hata, kod }],
 //            basarili, hatali } | { iptal: true } (iptal yerine koymadan önce geldi: hiçbir dosya yazılmadı)
-//        Her öğe önce geçici PDF'e çizilir: hedef PDF ise hedefin klasöründe ("<hedef>.<pid>-y<sıra>.pdefe-tmp.pdf"), TIFF ya da Word ise
-//        %TEMP%\PDEfe'de. Bütün öğeler çizilince TIFF / Word hedefleri çekirdeğin bicim_donustur'una verilir (PDF → TIFF / Word; çekirdek kendi
-//        hedeflerini yerine koyar), sonra PDF hedefleri yerine konur (rename). Çekirdek iptalden önce bitirmişse (geç iptal) onun yazdığı
+//        Her öğe önce %TEMP%\PDEfe'de geçici PDF'e çizilir. Bütün öğeler çizilince TIFF / Word hedefleri çekirdeğin bicim_donustur'una verilir
+//        (PDF → TIFF / Word; çekirdek kendi hedeflerini yerine koyar), sonra PDF hedefleri yerine konur (hedefin yanına kopya
+//        "<hedef>.<pid>-y<sıra>.pdefe-tmp.pdf", ardından rename; 0.2.6'dan beri çizim sürerken hedef klasörde geçici dosya yok). Çekirdek iptalden önce bitirmişse (geç iptal) onun yazdığı
 //        dosyalar sonuçta kalır, PDF hedefleri yazılmaz; araç geç iptalde yeni oluşan dosyaları çöp kutusuna gönderir (Birleştir'deki kural).
 //        İlerleme 'udf:yaklasikIlerleme' (istekId, { yuzde, mesaj }) ile isteyen pencereye; sonuçların uyarısı motorun notlarıdır (resim,
 //        yorum, e-imza, kesilen kısım), "görünüm yaklaşık" uyarısını araç ekler.
-//   'udf:yaklasikIptal'    { istekId } → true | false
+//   'udf:yaklasikIptal'    { istekId } → true | false   (dönüştürmeyi ya da istekId'li küçük resmi iptal eder)
 // İsteyen pencere kapanırsa onun işleri iptal edilir; uygulama kapanırken gizli pencereler yok edilir, geçici dosyalar silinir.
 import { app, BrowserWindow, session } from 'electron';
 import fs from 'node:fs';
@@ -238,18 +238,33 @@ async function hedefDenetle(hedef) {
   } finally { await fh?.close().catch(() => {}); }
 }
 
-/** Geçici PDF'i hedefin yerine koyar (aynı klasör: rename). Hedef açık bir sekmenin PDF'iyse çekirdek önce dosyayı bırakır. */
+/**
+ * Geçici PDF'i (%TEMP%\PDEfe) hedefin yerine koyar: önce hedefin yanına kopyalanır ("<hedef>.<pid>-y<n>.pdefe-tmp.pdf"; kopya hedef klasörün
+ * izinlerini alır, taşınan dosya %TEMP%'inkini taşırdı), sonra aynı klasörde rename. Çizim sürerken hedef klasörde geçici dosya durmaz:
+ * PDEfe bu arada çökerse kalan dosya %TEMP%'tedir, eskileriTemizle siler (0.2.6 incelemesi; önceden çizim hedefin yanına yapılıyordu).
+ * Hedef açık bir sekmenin PDF'iyse çekirdek önce dosyayı bırakır.
+ */
 async function yerineKoy(gecici, hedef, cekirdekBirak) {
   const ad = path.basename(hedef);
   await cekirdekBirak(hedef);
   if (MAC && await saltOkunurMu(hedef)) throw kodlu('salt_okunur', `Dosya yazılamadı; salt okunur: ${ad}`);   // rename klasörün iznine bakar
-  for (let deneme = 0; ; deneme++) {
-    try { await fs.promises.rename(gecici, hedef); geciciler.delete(gecici); return; } catch (e) {
-      if (kilitKodu(e) && deneme < 2) { await new Promise((c) => setTimeout(c, 250)); continue; }
-      if (await saltOkunurMu(hedef)) throw kodlu('salt_okunur', `Dosya yazılamadı; salt okunur: ${ad}`);
-      if (kilitKodu(e)) throw kodlu('kilitli', `Dosya yazılamadı; başka bir programda açık olabilir: ${ad} (${e.code})`);
-      throw kodlu('hata', `Dosya yazılamadı: ${ad} (${hataMetni(e)})`);
+  const yan = hedefYaninda(hedef);
+  try { await fs.promises.copyFile(gecici, yan, fs.constants.COPYFILE_EXCL); } catch (e) {
+    await fs.promises.rm(yan, { force: true }).catch(() => {});
+    throw kodlu('hata', `Dosya yazılamadı: ${ad} (${hataMetni(e)})`);
+  }
+  geciciler.add(yan);
+  try {
+    for (let deneme = 0; ; deneme++) {
+      try { await fs.promises.rename(yan, hedef); geciciler.delete(yan); return; } catch (e) {
+        if (kilitKodu(e) && deneme < 2) { await new Promise((c) => setTimeout(c, 250)); continue; }
+        if (await saltOkunurMu(hedef)) throw kodlu('salt_okunur', `Dosya yazılamadı; salt okunur: ${ad}`);
+        if (kilitKodu(e)) throw kodlu('kilitli', `Dosya yazılamadı; başka bir programda açık olabilir: ${ad} (${e.code})`);
+        throw kodlu('hata', `Dosya yazılamadı: ${ad} (${hataMetni(e)})`);
+      }
     }
+  } finally {
+    if (geciciler.has(yan)) await geciciSil(yan);
   }
 }
 
@@ -302,17 +317,24 @@ export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal }) {
 
   // ---------------------------------------------------- küçük resim
   ipcMain.handle('udf:yaklasikBilgi', async (e, p) => {
-    const { yol, genislik } = udfYaklasikParametreleri('udf:yaklasikBilgi', p);
+    const { yol, genislik, istekId } = udfYaklasikParametreleri('udf:yaklasikBilgi', p);
     let st = null;
     try { st = await fs.promises.stat(yol); } catch { /* udfDosyasiOku anlaşılır hatayı verir */ }
     const anahtar = st ? `${path.resolve(yol).toLowerCase()}|${st.size}|${st.mtimeMs}|${genislik}` : null;
     if (anahtar && onbellek.has(anahtar)) return onbellek.get(anahtar);
-    const veri = await udfDosyasiOku(yol);
     const d = { istendi: false, durdur: null, cekirdekAnahtari: null };
+    // İptal (udf:yaklasikIptal): araç kapanınca ya da satır çıkarılınca sıradaki küçük resim çizilmez (0.2.6 incelemesi)
+    const isAnahtari = istekId == null ? null : `${e.sender.id}:${istekId}`;
+    if (isAnahtari) isler.set(isAnahtari, d);
     const birak = sahibeBagla(e.sender, d);
     let gecici = null;
     try {
-      const { pdf, ozet } = await siraya(false, () => ciz(veri, path.parse(yol).name, d));
+      // Dosya sırası gelince okunur: sırada bekleyen küçük resimlerin baytları (her biri en çok 40 MB) birlikte bellekte durmasın
+      const { pdf, ozet } = await siraya(false, async () => {
+        if (d.istendi) throw iptalHatasi();
+        return ciz(await udfDosyasiOku(yol), path.parse(yol).name, d);
+      });
+      if (d.istendi) throw iptalHatasi();
       gecici = geciciYol();
       await geciciYaz(gecici, pdf);
       const b = await cekirdekCagir('donusum_bilgi', { yol: gecici, genislik, onizleme: false });
@@ -324,6 +346,7 @@ export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal }) {
       return sonuc;
     } finally {
       birak();
+      if (isAnahtari && isler.get(isAnahtari) === d) isler.delete(isAnahtari);
       if (gecici) { await cekirdekBirak(gecici); await geciciSil(gecici); }
     }
   });
@@ -355,7 +378,7 @@ export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal }) {
           if (o.hedefBicim === 'pdf') await hedefDenetle(o.hedef);
           const veri = await udfDosyasiOku(o.yol);
           const { pdf, ozet } = await siraya(true, () => ciz(veri, path.parse(o.yol).name, d));
-          const gecici = o.hedefBicim === 'pdf' ? hedefYaninda(o.hedef) : geciciYol();
+          const gecici = geciciYol();   // PDF hedefi de: hedefin yanına yalnızca yerine koyarken kopyalanır (yerineKoy)
           await geciciYaz(gecici, pdf);
           cizilen.push({ k, gecici, boyut: pdf.length, sayfa: sayfaSay(pdf), uyari: ozetUyarisi(ozet) });
         } catch (h) {

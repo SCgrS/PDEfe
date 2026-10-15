@@ -283,7 +283,7 @@ const YAKLASIK_HEDEFLER = new Set(['pdf', 'tiff', 'word']);
 /**
  * UDF'nin yaklaşık çiziminin kanallarına arayüzden gelen parametreler (main/udfYaklasik.js). Döner: yalnızca bilinen anahtarlar; uymayan
  * istekte hata fırlatır. Geçici dosyaların yolları arayüze hiç verilmez, arayüzden de alınmaz (çizim, zincirleme ve yerine koyma ana süreçte).
- *  - udf:yaklasikBilgi { yol (mutlak), genislik? 16–1024 (verilmezse 220) }
+ *  - udf:yaklasikBilgi { yol (mutlak), genislik? 16–1024 (verilmezse 220), istekId? (udf:yaklasikIptal ile iptal için) }
  *  - udf:yaklasikDonustur { ogeler: 1–500 öğe [{ yol (mutlak), hedef (mutlak), hedefBicim: 'pdf' | 'tiff' | 'word', secenekler? }], istekId? };
  *    öğe bicim_donustur'unkiyle aynı denetimden geçer (donusumOgesi: hedefin uzantısı biçimle eşleşir, seçenekler bilinen değerler); hedef
  *    öğenin kendi girdisi olamaz
@@ -295,7 +295,9 @@ export function udfYaklasikParametreleri(kanal, p) {
   if (kanal === 'udf:yaklasikBilgi') {
     if (!mutlakYol(p.yol)) throw izinYok();
     const g = p.genislik == null ? 220 : Math.round(Number(p.genislik));
-    return { yol: p.yol, genislik: Number.isFinite(g) ? Math.max(16, Math.min(1024, g)) : 220 };
+    const sonuc = { yol: p.yol, genislik: Number.isFinite(g) ? Math.max(16, Math.min(1024, g)) : 220 };
+    const id = kimlik(p.istekId);   // isteğe bağlı (0.2.6): küçük resim de udf:yaklasikIptal ile iptal edilebilir
+    return id == null ? sonuc : { ...sonuc, istekId: id };
   }
   if (kanal === 'udf:yaklasikDonustur') {
     if (!Array.isArray(p.ogeler) || !p.ogeler.length || p.ogeler.length > EN_FAZLA_OGE) throw izinYok();

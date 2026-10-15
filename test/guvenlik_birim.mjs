@@ -136,6 +136,8 @@ try {
   const b1 = yp('udf:yaklasikBilgi', { yol: udfYolu, genislik: 5000, fazla: 1 });
   kontrol('yaklasikBilgi: mutlak yol, genişlik 1024\'e çekilir, bilinmeyen anahtar atılır', JSON.stringify(b1) === JSON.stringify({ yol: udfYolu, genislik: 1024 }));
   kontrol('yaklasikBilgi: genişlik verilmezse 220', yp('udf:yaklasikBilgi', { yol: udfYolu })?.genislik === 220);
+  kontrol('yaklasikBilgi: istek kimliği (iptal için) geçer, -1 / metin reddedilir', yp('udf:yaklasikBilgi', { yol: udfYolu, istekId: 5 })?.istekId === 5
+    && yp('udf:yaklasikBilgi', { yol: udfYolu, istekId: -1 }) === null && yp('udf:yaklasikBilgi', { yol: udfYolu, istekId: '5' }) === null);
   kontrol('yaklasikBilgi: göreli yol reddedilir', yp('udf:yaklasikBilgi', { yol: 'deneme.udf' }) === null);
   const d1 = yp('udf:yaklasikDonustur', { ogeler: [yoge('a.pdf', 'pdf'), yoge('b.tif', 'tiff', { secenekler: { dpi: 300, renk: 'renkli', x: 1 } }), yoge('c.docx', 'word')], istekId: 7 });
   kontrol('yaklasikDonustur: PDF / TIFF / Word hedefleri ve istek kimliği geçer; bilinmeyen seçenek atılır', d1?.ogeler?.length === 3 && d1.istekId === 7
