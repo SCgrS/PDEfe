@@ -299,11 +299,9 @@ def inner_contours(img_binary:np.array, bbox:tuple, min_w:float, min_h:float):
     '''
 
     # find both external and inner contours of current region
-    # PDEfe: cv.findContours(RETR_TREE) + cv.boundingRect yerine contour_tree (aynı ağaç, aynı kutular, aynı sıra)
-    x0, y0, x1, y1 = bbox
-    arr = np.zeros(img_binary.shape, dtype=np.uint8)
-    arr[y0:y1, x0:x1] = img_binary[y0:y1, x0:x1]
-    tree = contour_tree(arr)
+    # PDEfe: cv.findContours(RETR_TREE) + cv.boundingRect yerine contour_tree (aynı ağaç, aynı kutular, aynı sıra); 0.2.6'dan beri yalnızca
+    # bölgenin kırpığında (bolge_agaci)
+    tree = bolge_agaci(img_binary, bbox)
 
     # check first three level contours:
     # * level-0, i.e. table bbox
@@ -345,6 +343,24 @@ def inner_contours(img_binary:np.array, bbox:tuple, min_w:float, min_h:float):
         res.append(level_2_bbox)
 
     return res
+
+
+def bolge_agaci(img_binary: np.array, bbox: tuple):
+    '''PDEfe (0.2.6): ``contour_tree``'nin bölge dışı sıfırlanmış görüntüdeki sonucunun aynısı, yalnızca bölgenin kırpığında kurularak.
+
+    contour_tree görüntüyü kendisi sıfırla çevirir; bölgenin dışı zaten sıfır olduğu için ağaç (düzeyler, kutular, sıra) kırpıkta aynıdır,
+    kutular görüntünün koordinatına kaydırılır. Önceden her dış bölge için sayfa boyunda bir dizi kurulup ağaç bütün görüntüde çıkarılıyordu:
+    çok sayıda ayrık şekli olan sayfada saniyeler sürüyor, iş MuPDF kilidi içinde yapıldığından öteki sekmelerin çizimi bekliyordu.
+    Bölge sınırları numpy dilimlemesinin kuralıyla (``img[y0:y1, x0:x1]``) yorumlanır.
+    '''
+    h, w = img_binary.shape[:2]
+    x0, y0, x1, y1 = bbox
+    sx, ex, _ = slice(x0, x1).indices(w)
+    sy, ey, _ = slice(y0, y1).indices(h)
+    parca = img_binary[sy:max(sy, ey), sx:max(sx, ex)]
+    if not parca.size:
+        return []
+    return [(duzey, (x + sx, y + sy, rw, rh)) for duzey, (x, y, rw, rh) in contour_tree(parca)]
 
 
 def contour_tree(img_binary: np.array):

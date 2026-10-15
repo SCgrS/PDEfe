@@ -799,6 +799,48 @@ def test_kontur():
     sonuc("kontur ağacı: tek piksel", contour_tree(b) == [(0, (2, 2, 1, 1))], contour_tree(b))
 
 
+def test_bolge_agaci():
+    """inner_contours'un bölge ağacı (0.2.6): yalnızca bölgenin kırpığında kurulan ağaç, bölge dışı sıfırlanmış bütün görüntüdekiyle aynı
+    (rastgele görüntüler ve kenara değen / boş / taşan bölgeler); çok sayıda küçük bölgede süre bölge boyuyla orantılı."""
+    import numpy as np
+    from ucuncu.pdf2docx.common.algorithm import bolge_agaci, contour_tree
+
+    def eski(img, bbox):   # 0.2.5'e dek: sayfa boyunda maske
+        x0, y0, x1, y1 = bbox
+        arr = np.zeros(img.shape, dtype=np.uint8)
+        arr[y0:y1, x0:x1] = img[y0:y1, x0:x1]
+        return contour_tree(arr)
+    rnd = np.random.RandomState(26)
+    farkli = []
+    for n in range(60):
+        h, w = rnd.randint(8, 70), rnd.randint(8, 90)
+        img = ((rnd.rand(h, w) > rnd.uniform(0.3, 0.8)) * 255).astype(np.uint8)
+        for _ in range(6):
+            x0, y0 = rnd.randint(0, w), rnd.randint(0, h)
+            bbox = (x0, y0, rnd.randint(x0, w + 3), rnd.randint(y0, h + 3))
+            if bolge_agaci(img, bbox) != eski(img, bbox):
+                farkli.append((n, bbox))
+        if bolge_agaci(img, (0, 0, w, h)) != contour_tree(img):
+            farkli.append((n, "tam"))
+    sonuc("bölge ağacı: 360 rastgele bölgede ve tam görüntüde eski yolla aynı", not farkli, farkli[:5])
+    sonuc("bölge ağacı: boş ve ters bölge", bolge_agaci(np.ones((5, 5), np.uint8), (3, 3, 3, 3)) == [] and bolge_agaci(np.ones((5, 5), np.uint8), (4, 4, 2, 2)) == [])
+    # Süre: 1700 × 2200 piksellik sayfada 60 küçük bölge (vektör çizimli sayfanın dış bölgeleri gibi)
+    sayfa = np.zeros((2200, 1700), np.uint8)
+    bolgeler = []
+    for i in range(60):
+        x, y = 40 + (i % 10) * 160, 60 + (i // 10) * 340
+        sayfa[y:y + 20, x:x + 20] = 255
+        sayfa[y + 6:y + 14, x + 6:x + 14] = 0
+        bolgeler.append((x, y, x + 20, y + 20))
+    t = time.monotonic()
+    yeni = [bolge_agaci(sayfa, b) for b in bolgeler]
+    t_yeni = time.monotonic() - t
+    t = time.monotonic()
+    esk = [eski(sayfa, b) for b in bolgeler[:6]]
+    t_eski = (time.monotonic() - t) * 10
+    sonuc("bölge ağacı: 60 küçük bölgede %.3f sn (eski yol ~%.1f sn)" % (t_yeni, t_eski), yeni[:6] == esk and t_yeni * 5 < t_eski, (t_yeni, t_eski))
+
+
 def test_dondurme():
     """pdf2docx'in görsel döndürmesi (Pillow): 90'ın katlarında yeniden örneklemeden, piksel piksel eşit."""
     from PIL import Image
@@ -846,7 +888,7 @@ def main():
     testler += [lambda: test_word_yok(exe, g), lambda: test_pdf_word(c, g, word_var), lambda: test_pdf_word_iptal(c, g),
                 lambda: test_kanal(exe, g, word_var), lambda: test_zincir(c, g, exe)]
     if not exe:
-        testler += [test_kontur, test_dondurme]
+        testler += [test_kontur, test_bolge_agaci, test_dondurme]
     for t in testler:
         try:
             t()
