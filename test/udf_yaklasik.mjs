@@ -210,6 +210,20 @@ print(json.dumps({"sayfa": d.page_count, "satirlar": out}, ensure_ascii=False))`
       const ti = tiffOzeti(path.join(CIKTI, 'kenar_farkli.tif'));
       sonuc('UDF → TIFF (yaklaşık PDF çekirdeğe): 2 sayfa, 200 dpi, siyah beyaz', ti.sayfa === 2 && J(ti.dpi) === J([200, 200]) && ti.kip === '1' && S['kenar_farkli.tif']?.sayfa === 2, { ti, s: S['kenar_farkli.tif'] });
     }
+    // 0.2.7: UDF → JPG (yaklaşık PDF çekirdeğe; iki sayfalı belgede sayfa başına dosya) ve "yeni belge olarak kaydet" (cakisma: yeniAd; PDF
+    // hedefi var: "(1)" adına yazılır, var olan değişmez)
+    if (YET?.donusumler?.['pdf>gorsel']?.var) {
+      const onceki = fs.statSync(path.join(CIKTI, 'kenar_farkli.pdf')).mtimeMs;
+      const jr = await cagir('udf:yaklasikDonustur', { ogeler: [{ yol: G.kenar, hedef: path.join(CIKTI, 'kenar_farkli.jpg'), hedefBicim: 'gorsel', secenekler: { dpi: 200 } },
+        { yol: G.kenar, hedef: path.join(CIKTI, 'kenar_farkli.pdf'), hedefBicim: 'pdf', cakisma: 'yeniAd' }], istekId: 103 });
+      const [sj, sp] = jr.r?.sonuclar || [];
+      const j1 = path.join(CIKTI, 'kenar_farkli - Sayfa 1.jpg');
+      const jo = fs.existsSync(j1) ? py(`im = Image.open(${J(j1)})\nprint(json.dumps({"bicim": im.format, "dpi": [round(float(x)) for x in im.info.get("dpi", (0, 0))]}))`) : null;
+      sonuc('UDF → JPG (0.2.7): iki sayfa dosyası ("kenar_farkli - Sayfa 1.jpg", "… - Sayfa 2.jpg"), sonuçta hedefler, 200 dpi JPEG', !!sj && !sj.hata && sj.yaklasik === true
+        && J((sj.hedefler || []).map((y) => path.basename(y))) === J(['kenar_farkli - Sayfa 1.jpg', 'kenar_farkli - Sayfa 2.jpg']) && jo?.bicim === 'JPEG' && J(jo.dpi) === J([200, 200]), { sj, jo, e: jr.e });
+      sonuc('Yeni belge olarak kaydet (cakisma: yeniAd): var olan PDF değişmez, "kenar_farkli (1).pdf" yazılır, sonuçta istenen ad', !!sp && !sp.hata && path.basename(sp.hedef) === 'kenar_farkli (1).pdf'
+        && path.basename(sp.istenenHedef || '') === 'kenar_farkli.pdf' && fs.existsSync(path.join(CIKTI, 'kenar_farkli (1).pdf')) && fs.statSync(path.join(CIKTI, 'kenar_farkli.pdf')).mtimeMs === onceki, sp);
+    } else console.log('ATLANDI UDF → JPG — çekirdekte PDF → JPG yok');
     sonuc('Geçici dosya kalmadı (%TEMP%\\PDEfe\\udf-yaklasik-*, hedef klasöründe *.pdefe-tmp.pdf)', !geciciler().length, geciciler());
     sonuc('Gizli çizim sayfası kalmadı', !(await sayfalar()).some((u2) => /udf-cizim/.test(u2)), await sayfalar());
   }
@@ -334,6 +348,9 @@ print(json.dumps({"sayfa": d.page_count, "satirlar": out}, ensure_ascii=False))`
     sonuc('UDF satırı: PDF hedefi seçili ve seçilebilir, ipucunda "görünüm yaklaşık"', k?.tur === 'udf' && h(k, 'pdf')?.secili && !h(k, 'pdf').devre && /görünüm yaklaşık/.test(h(k, 'pdf').ipucu), k);
     sonuc(`TIFF hedefi ${TIFF_VAR ? 'seçilebilir' : 'soluk'}, Word hedefi ${WORD_VAR ? 'seçilebilir' : 'soluk (nedeni ipucunda)'}`, !!h(k, 'tiff') && h(k, 'tiff').devre === !TIFF_VAR && !!h(k, 'word')
       && h(k, 'word').devre === !WORD_VAR && (WORD_VAR || !!h(k, 'word').ipucu), k?.hedefler);
+    const JPG_VAR = !!YET?.donusumler?.['pdf>gorsel']?.var;
+    sonuc(`JPG hedefi (0.2.7) ${JPG_VAR ? 'seçilebilir, ipucunda "görünüm yaklaşık"' : 'soluk'}`, !!h(k, 'gorsel') && h(k, 'gorsel').devre === !JPG_VAR
+      && (!JPG_VAR || /görünüm yaklaşık/.test(h(k, 'gorsel').ipucu)), k?.hedefler);
     sonuc('Satırda yaklaşık uyarısı (uyarı rengiyle) ve "UYAP Doküman Editörü\'nün yerini göster" bağlantısı', k?.neden === UYARI && k.nedenYaklasik && k.bag === 'UYAP Doküman Editörü\'nün yerini göster', k);
     sonuc('Küçük resim ve sayfa sayısı yaklaşık çizimden ("UDF · 2 sayfa")', k?.resim === 'img' && /^UDF · 2 sayfa/.test(k.ozet) && s['uzun.udf']?.resim === 'img' && /sayfa/.test(s['uzun.udf'].ozet), S.map((x) => [x.ad, x.resim, x.ozet]));
     sonuc('Dönüştür düğmesi etkin', !(await evalJs(`document.querySelector('.donustur-pencere .arac-dugmeler .birincil').disabled`)));

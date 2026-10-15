@@ -1524,8 +1524,8 @@ pdefe.dinle('menu:komut', (id, veri) => {
   if (ORTU_ACIKKEN_CALISMAYAN.has(id) && (acikAracPenceresiVar() || document.querySelector('.diyalog-ortusu, .ayarlar-ortusu'))) return;
   araclarPenceresi.kapat(); gecmisListesi.kapat(); komutCalistir(id, veri);
 });
-/** Açılacak dosyaları ayırır (0.2.6): UDF, TIFF ve Word uzantılı dosyalar Dosya Formatını Değiştir aracına (araç açıksa listesine) gider,
- *  öteki dosyalar eskisi gibi sekmede açılır (PDF olmayan dosya "PDF açılamadı" der). */
+/** Açılacak dosyaları ayırır (0.2.6): UDF, TIFF ve Word uzantılı dosyalar (0.2.7: görüntüler de; JPG, PNG…) Format Değiştir aracına (araç
+ *  açıksa listesine) gider, öteki dosyalar eskisi gibi sekmede açılır (PDF olmayan dosya "PDF açılamadı" der). */
 function acilacaklariAyir(yollar) {
   const sekme = [], donustur = [];
   for (const y of yollar || []) {
@@ -2192,7 +2192,7 @@ window.addEventListener('drop', async (e) => {
   surukleSayac = 0; $('#surukle-ortusu').hidden = true;
   if (!dosyaVarMi(e)) return;
   e.preventDefault();
-  // PDF'ler sekmede açılır; UDF, TIFF ve Word dosyaları Dosya Formatını Değiştir aracını açar (0.2.6; araç açıksa listesine eklenir)
+  // PDF'ler sekmede açılır; UDF, TIFF, Word dosyaları ve (0.2.7) görüntüler Format Değiştir aracını açar (0.2.6; araç açıksa listesine eklenir)
   const yollar = [...e.dataTransfer.files].map((f) => pdefe.dosyaYolu(f)).filter(Boolean);
   const { sekme, donustur } = acilacaklariAyir(yollar);
   for (const y of sekme.filter((x) => /\.pdf$/i.test(x))) await dosyaAc(y);

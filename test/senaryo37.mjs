@@ -169,7 +169,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
       return { sayi: k.length, satirlar: satir.map((y) => r.filter((x) => Math.round(x.top) === y).length), komut: s.dataset.aracKomut, ad: s.querySelector('.araclar-ad').textContent,
         aciklama: s.querySelector('.araclar-aciklama').textContent, ipucu: s.title, renk: getComputedStyle(s).getPropertyValue('--renk').trim(), ikon: !!s.querySelector('svg rect') }; })()`);
     sonuc('Araçlar penceresi: altı karo 3 + 3; sonuncusu "Format Değiştir", açıklama, ipucu, simge ve turkuaz renk', karo.sayi === 6 && J(karo.satirlar) === J([3, 3])
-      && karo.komut === 'arac.donustur' && karo.ad === 'Format Değiştir' && karo.aciklama === 'PDF ↔ UDF, Word, TIFF' && /UDF, TIFF ve Word/.test(karo.ipucu) && karo.ikon && !!karo.renk, karo);
+      && karo.komut === 'arac.donustur' && karo.ad === 'Format Değiştir' && karo.aciklama === 'PDF ↔ UDF, Word, TIFF, JPG' && /UDF, TIFF, Word ve görüntü/.test(karo.ipucu) && karo.ikon && !!karo.renk, karo);
     await ss('01-araclar-penceresi');
     // Belge yokken karo: Aç penceresi açılmaz, araç boş listeyle açılır
     await kayit();
@@ -212,7 +212,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
     await kosul(`document.querySelector('.donustur-pencere .arac-kayit-yeni .arac-cikti-ad')?.value === 'Dilekçe örneği'`, 5000);
     const S = await satirlar(), k = await kayitDurumu();
     sonuc('Açık PDF listenin ilk (tek) girdisi; türü PDF, 2 sayfa, küçük resmi var; hedefte PDF yok, UDF seçili', S.length === 1 && S[0].ad === 'Dilekçe örneği.pdf' && S[0].tur === 'pdf'
-      && /^PDF · 2 sayfa/.test(S[0].ozet) && S[0].resim === 'img' && J(S[0].hedefler.map((h) => h.id)) === J(['udf', 'word', 'tiff']) && S[0].hedefler.find((h) => h.secili)?.id === 'udf', S);
+      && /^PDF · 2 sayfa/.test(S[0].ozet) && S[0].resim === 'img' && J(S[0].hedefler.map((h) => h.id)) === J(['udf', 'word', 'tiff', 'gorsel']) && S[0].hedefler.find((h) => h.secili)?.id === 'udf', S);
     sonuc('Kaydet: önerilen ad PDF\'in adı, uzantı .udf, klasör çıktı klasörü', k.ad === 'Dilekçe örneği' && k.cikti === 'Dilekçe örneği.udf' && k.klasor === CIKTI && !k.coklu && !k.donusturDevre, k);
     await ss('02-acik-pdf');
     await pencereKapat();
@@ -228,9 +228,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
     await kosul(`document.querySelectorAll('.donustur-oge').length === 7 && !document.querySelector('.donustur-oge.yukleniyor')`, 20000);
     await bekle(600);
     const dk = (await kayit()).find((x) => x.kanal === 'dosya:acDiyalog');
-    sonuc('Dosya ekle: çoklu seçim, ilk süzgeç "Desteklenen dosyalar" (pdf, udf, tif, tiff, doc, docx, rtf, odt), ayrıca tek tek ve Tüm dosyalar', dk?.secenek?.coklu === true
-      && dk.secenek.filtreler?.[0]?.name === 'Desteklenen dosyalar' && J(dk.secenek.filtreler[0].extensions) === J(['pdf', 'udf', 'tif', 'tiff', 'doc', 'docx', 'rtf', 'odt'])
-      && J(dk.secenek.filtreler.map((f) => f.name)) === J(['Desteklenen dosyalar', 'PDF belgeleri', 'UDF belgeleri', 'TIFF görüntüleri', 'Word belgeleri', 'Tüm dosyalar']), dk?.secenek);
+    sonuc('Dosya ekle: çoklu seçim, ilk süzgeç "Desteklenen dosyalar" (pdf, udf, tif, tiff, doc, docx, rtf, odt; 0.2.7: görüntüler), ayrıca tek tek ve Tüm dosyalar', dk?.secenek?.coklu === true
+      && dk.secenek.filtreler?.[0]?.name === 'Desteklenen dosyalar' && J(dk.secenek.filtreler[0].extensions) === J(['pdf', 'udf', 'tif', 'tiff', 'doc', 'docx', 'rtf', 'odt', 'jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp'])
+      && J(dk.secenek.filtreler.map((f) => f.name)) === J(['Desteklenen dosyalar', 'PDF belgeleri', 'UDF belgeleri', 'TIFF görüntüleri', 'Word belgeleri', 'Görüntüler', 'Tüm dosyalar']), dk?.secenek);
     let S = await satirlar();
     const s = Object.fromEntries(S.map((x) => [x.ad, x]));
     const hedefIdleri = (x) => x.hedefler.map((h) => h.id).join(',');
@@ -238,8 +238,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
     sonuc('Türler içerikten: PDF, TIFF (3 sayfa), UDF (zip ve düz XML), Word (DOCX); uzantısı .udf olan PDF "PDF"', s['Dilekçe örneği.pdf']?.tur === 'pdf' && s['Tarama örneği.tif']?.tur === 'tiff'
       && /TIFF · 3 sayfa/.test(s['Tarama örneği.tif'].ozet) && s['Karar örneği.udf']?.tur === 'udf' && s['Düz biçim.udf']?.tur === 'udf' && s['Word örneği.docx']?.tur === 'word'
       && /^DOCX/.test(s['Word örneği.docx'].ozet) && s['Yanlış uzantı.udf']?.tur === 'pdf', S.map((x) => [x.ad, x.tur, x.ozet]));
-    sonuc('Hedef seçiminde kendi türü yok: PDF → UDF, Word, TIFF; TIFF → PDF, UDF, Word; UDF → PDF, Word, TIFF; Word → PDF, UDF, TIFF', hedefIdleri(s['Dilekçe örneği.pdf']) === 'udf,word,tiff'
-      && hedefIdleri(s['Tarama örneği.tif']) === 'pdf,udf,word' && hedefIdleri(s['Karar örneği.udf']) === 'pdf,word,tiff' && hedefIdleri(s['Word örneği.docx']) === 'pdf,udf,tiff', S.map((x) => [x.ad, hedefIdleri(x)]));
+    sonuc('Hedef seçiminde kendi türü yok (0.2.7: JPG de): PDF → UDF, Word, TIFF, JPG; TIFF → PDF, UDF, Word, JPG; UDF → PDF, Word, TIFF, JPG; Word → PDF, UDF, TIFF, JPG', hedefIdleri(s['Dilekçe örneği.pdf']) === 'udf,word,tiff,gorsel'
+      && hedefIdleri(s['Tarama örneği.tif']) === 'pdf,udf,word,gorsel' && hedefIdleri(s['Karar örneği.udf']) === 'pdf,word,tiff,gorsel' && hedefIdleri(s['Word örneği.docx']) === 'pdf,udf,tiff,gorsel', S.map((x) => [x.ad, hedefIdleri(x)]));
     sonuc('Varsayılan hedef: PDF\'te UDF, TIFF ve UDF\'de PDF', secili(s['Dilekçe örneği.pdf']) === 'udf' && secili(s['Tarama örneği.tif']) === 'pdf' && (secili(s['Karar örneği.udf']) === 'pdf' || !UDE_VAR), S.map((x) => [x.ad, secili(x)]));
     sonuc('Tanınmayan dosya: satırda anlaşılır hata, hedef seçimi yok, türün adı yer tutucuda', /biçimi tanınmadı/.test(s['notlar.txt']?.hata || '') && !s['notlar.txt'].hedefGorunur && s['notlar.txt'].resim === 'TXT', s['notlar.txt']);
     sonuc('Uzantısı içeriğiyle uyuşmayan dosyada uyarı ("içeriği PDF (uzantısı .udf)")', /içeriği PDF \(uzantısı \.udf\)/.test(s['Yanlış uzantı.udf']?.uyari || ''), s['Yanlış uzantı.udf']);

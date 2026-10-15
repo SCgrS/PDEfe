@@ -1,0 +1,397 @@
+// Senaryo 39 (0.2.7, kullanıcının revizyonu, U2: çekirdeğe bağlı arayüz maddeleri). Format Değiştir (araclar/donustur.js) ve Birleştir
+// (araclar/gorselBirlestir.js):
+//   1) Görüntü girdileri (madde 3): satırda tür "Görüntü (JPG)" / "Görüntü (PNG)", piksel ölçüsü, küçük resim; hedefler PDF, UDF, Word, TIFF
+//      (kendi türü yok), varsayılan PDF; Dosya ekle süzgecinde görüntüler; boş listede "görüntü".
+//   2) Görüntü → PDF (gerçek dönüşüm): 300 dpi etiketli taranmış JPG → A4 dikey (sonuç sekmede açılır); dpi etiketsiz PNG → uzun kenar A4'ün
+//      uzun kenarı; iki görüntü birlikte → iki PDF, sonuç listesi.
+//   3) PDF → JPG (madde 3): JPG hedefinde ad kutusu kalır (ad dosyaların ortak başı), altında adların notu, "JPG seçenekleri" (renk satırı yok);
+//      iki sayfalı PDF → "<ad> - Sayfa 1.jpg", "<ad> - Sayfa 2.jpg" (seçilen çözünürlükte piksel ölçüsü ve dpi etiketi), tek sayfalı → "<ad>.jpg";
+//      sonuçta her dosya bir satır, Aç yok, KB / sayfa yok, Klasörde göster; dosyalar varken "zaten var" sorusu (Üzerine yaz | Yeni belge
+//      olarak kaydet | Vazgeç): yeni belge "(1)" adlarıyla, var olanlar değişmez; üzerine yaz var olanları yeniler; vazgeç hiçbir şey yazmaz;
+//      birden çok girdide var olan adlar "(2)"; geç iptalde bütün sayfa dosyaları çöp kutusuna (sınamada kaydedilir); ana süreç elle yazılmış
+//      .jpg'yi silmez.
+//   5) Açma yolları (madde 3): Ctrl+O'nun süzgecinde görüntüler, seçilen JPG araçta; ana sürecin dosya:ac'ı (PNG) ve ikinci örnek (JPG)
+//      aracı açar; ana pencereye bırakılan görüntü araçta açılır.
+//   6) Açılamayan görüntü (HEIC; açıcısı pakette yok): satırda nedeni, hedefler soluk, dönüştürülmez.
+// Girdiler bu betikte üretilir (Python, proje .venv; gerçek belge yok): test/cikti/s39/girdi; çıktılar test/cikti/s39/cikti.
+// Kullanım (görünmeyen masaüstü):
+//   powershell -ExecutionPolicy Bypass -File test\baslat_gizli.ps1 -Port 9439 -Veri "$env:TEMP\pdefe-s39-9439" -Boyut "1280,1000"   → PID=… yazar
+//   $env:PDEFE_CDP_PORT=9439; node test\surucu.mjs betik test\senaryo39.mjs
+//   powershell -ExecutionPolicy Bypass -File test\durdur.ps1 -SurecId <PID>
+// Yalnızca bazı bölümler: $env:BOLUM="1,3". Ekran görüntüleri test/cikti/s39/png altına (görünmeyen masaüstünde alınamayabilir).
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const KOK = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const UI = path.join(KOK, 'test', 'cikti', 's39');
+const GIRDI = path.join(UI, 'girdi');
+const CIKTI = path.join(UI, 'cikti');
+const PNG = path.join(UI, 'png');
+const PY = path.join(KOK, '.venv', 'Scripts', 'python.exe');
+const J = (x) => JSON.stringify(x);
+
+let hataSayisi = 0, denetim = 0;
+const sonuc = (ad, ok, ayrinti = '') => {
+  denetim++;
+  if (!ok) hataSayisi++;
+  console.log(`${ok ? 'OK  ' : 'HATA'} ${ad}${ayrinti !== '' && !ok ? ' — ' + (typeof ayrinti === 'string' ? ayrinti : J(ayrinti)) : ''}`);
+};
+const atlandi = (ad, neden) => console.log(`ATLANDI ${ad} — ${neden}`);
+
+/** Python (proje .venv) çalıştırır; son satırı JSON olarak döner. test/ klasörü içe aktarma yolunda (donustur_testi'nin üreticileri). */
+function py(kod) {
+  const on = `import sys, json, os, zipfile\nsys.path.insert(0, ${J(path.join(KOK, 'test'))})\nimport pymupdf\nfrom PIL import Image\n`;
+  const cikti = execFileSync(PY, ['-X', 'utf8', '-c', on + kod], { encoding: 'utf8' });
+  return JSON.parse(cikti.trim().split(/\r?\n/).pop());
+}
+const pdfOzeti = (yol) => py(`d = pymupdf.open(${J(yol)}, filetype="pdf")\nprint(json.dumps({"sayfa": d.page_count, "olcu": [[round(p.rect.width, 1), round(p.rect.height, 1)] for p in d], "resim": len(d[0].get_images())}))`);
+const jpgOzeti = (yol) => py(`im = Image.open(${J(yol)})\nprint(json.dumps({"bicim": im.format, "olcu": list(im.size), "dpi": [round(float(x)) for x in im.info.get("dpi", (0, 0))]}))`);
+const A4 = (o) => Math.abs(o[0] - 595.3) <= 1.5 && Math.abs(o[1] - 841.9) <= 1.5;
+/** Piksel ölçüsü beklenene ±1 piksel (A4'ün 300 dpi'de 2480,3 piksel: çizim yukarı yuvarlar). */
+const olcuYakin = (o, b) => Array.isArray(o) && Math.abs(o[0] - b[0]) <= 1 && Math.abs(o[1] - b[1]) <= 1;
+
+/** Girdiler: iki sayfalı ve tek sayfalı PDF, 300 dpi etiketli taranmış JPG (A4), dpi etiketsiz PNG (yatay), sahte HEIC. */
+function girdileriUret() {
+  fs.mkdirSync(GIRDI, { recursive: true });
+  return py(`import donustur_testi as dt
+from PIL import ImageDraw
+k = ${J(GIRDI)}
+g = {}
+g["pdf2"] = dt.sentetik_pdf(os.path.join(k, "Dilekçe örneği.pdf"), sayfa=2)
+g["pdf1"] = dt.sentetik_pdf(os.path.join(k, "Tek sayfa.pdf"), sayfa=1)
+im = Image.new("RGB", (2480, 3508), "white")
+c = ImageDraw.Draw(im)
+for i in range(30):
+    c.rectangle([200, 300 + i * 100, 2000 - (i % 5) * 200, 340 + i * 100], fill=(30, 30, 30))
+g["jpg"] = os.path.join(k, "Taranmış dilekçe.jpg")
+im.save(g["jpg"], "JPEG", quality=80, dpi=(300, 300))
+im2 = Image.new("RGB", (1654, 1240), (240, 240, 250))
+ImageDraw.Draw(im2).ellipse([300, 200, 1300, 1000], fill=(200, 40, 40))
+g["png"] = os.path.join(k, "Ekran görüntüsü.png")
+im2.save(g["png"], "PNG")
+g["heic"] = os.path.join(k, "Telefon fotoğrafı.heic")
+with open(g["heic"], "wb") as f:
+    f.write(b"\\x00\\x00\\x00\\x18ftypheic\\x00\\x00\\x00\\x00mif1heic" + b"\\x00" * 64)
+print(json.dumps(g, ensure_ascii=False))`);
+}
+
+export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
+  const kosul = async (ifade, sure = 10000) => {
+    const t0 = Date.now();
+    for (;;) {
+      const v = await evalJs(ifade);
+      if (v || Date.now() - t0 > sure) return v;
+      await bekle(150);
+    }
+  };
+  const ss = async (ad) => { await bekle(250); try { await ekranGoruntusu(path.join(PNG, ad + '.png')); } catch { /* görünmeyen masaüstü */ } };
+  const yanitla = (kanal, yanitlar) => evalJs(`window.pdefe.cagir('test:diyalogYanitlari', ${J(kanal)}, ${J(yanitlar)})`);
+  const kayit = () => evalJs(`window.pdefe.cagir('test:diyalogKaydi')`);
+  const bildirimler = () => evalJs(`window.__s39b.splice(0)`);
+  const tikSecici = async (secici) => {
+    const r = await evalJs(`(() => { const e = ${secici.startsWith('[') || secici.startsWith('document') ? secici : `document.querySelector(${J(secici)})`}; if (!e) return null; e.scrollIntoView({ block: 'nearest' }); const b = e.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; })()`);
+    if (!r) return false;
+    await tikla(r.x, r.y);
+    await bekle(250);
+    return true;
+  };
+  const A = 'window.__s39.d.acikDonusturPenceresi()';
+  const pencereKapat = async () => {
+    await evalJs(`(async () => { window.__pdefeOtoYanit = { secim: 0 }; try { const m = await import('pdefe://app/src/renderer/araclar/ortak.js'); if (m.acikAracPenceresiVar()) await m.aracPencereleriniKapat(); }
+      finally { delete window.__pdefeOtoYanit; } return true; })()`);
+    return kosul(`!document.querySelector('.arac-ortusu')`, 5000);
+  };
+  const sekmeleriKapat = () => evalJs(`(async () => { for (const id of [...window.__pdefe.belgeler.keys()]) await window.__pdefe.belgeKapat(id, { zorla: true }); return window.__pdefe.belgeler.size; })()`);
+  const aracAc = async (yollar = [], sure = 20000) => {
+    await evalJs(`window.__pdefe.komutCalistir('arac.donustur', ${J(yollar)})`);
+    await kosul(`!!document.querySelector('.donustur-pencere')`, 5000);
+    await kosul(`!document.querySelector('.donustur-oge.yukleniyor')`, sure);
+    await bekle(300);
+  };
+  const satirlar = () => evalJs(`[...document.querySelectorAll('.donustur-pencere .donustur-oge')].map((e) => ({
+    ad: e.querySelector('.ad').textContent, tur: e.dataset.tur, ozet: e.querySelector('.ozet').textContent,
+    turEtiketi: e.querySelector('.ozet .tur')?.textContent || '',
+    hedefler: [...e.querySelectorAll('.donustur-hedef-secim > button')].map((b) => ({ id: b.dataset.id, ad: b.textContent, secili: b.classList.contains('secili'), devre: b.disabled, ipucu: b.title })),
+    neden: e.querySelector('.neden').hidden ? '' : (e.querySelector('.neden .metin')?.textContent || ''),
+    uyari: e.querySelector('.uyari').hidden ? '' : e.querySelector('.uyari').textContent, hata: e.querySelector('.hata').hidden ? '' : e.querySelector('.hata').textContent,
+    resim: e.querySelector('.resim img') ? 'img' : (e.querySelector('.resim .yer')?.textContent || '') }))`);
+  const hedefTikla = (ad, bicim) => tikSecici(`[...document.querySelectorAll('.donustur-oge')].find((e) => e.querySelector('.ad').textContent === ${J(ad)}).querySelector('.donustur-hedef-secim > button[data-id="${bicim}"]')`);
+  const donusturDevre = () => evalJs(`document.querySelector('.donustur-pencere .arac-dugmeler .birincil').disabled`);
+  const donusturBas = () => tikSecici('.donustur-pencere .arac-dugmeler .birincil');
+  const donusturVeBekle = async (sure = 90000) => {
+    await evalJs(`(() => { const s = document.querySelector('.donustur-sonuc'); if (s) s.hidden = true; return true; })()`);
+    await donusturBas();
+    await kosul(`!document.querySelector('.donustur-pencere') || !document.querySelector('.donustur-sonuc')?.hidden || !!document.querySelector('.donustur-pencere .arac-hata:not(:empty)')`, sure);
+    await bekle(400);
+  };
+  const sonucKutusu = () => evalJs(`(() => { const s = document.querySelector('.donustur-sonuc'); return s && !s.hidden ? { baslik: s.querySelector('.arac-sonuc-baslik').innerText,
+    satirlar: [...s.querySelectorAll('li')].map((l) => ({ ad: l.querySelector('.ad').textContent, ac: !!l.querySelector('[data-ac]'), uyari: l.querySelector('.uyari-metin')?.textContent || '' })),
+    metin: s.innerText, goster: s.querySelector('.donustur-goster')?.textContent || '', tek: s.classList.contains('arac-sonuc-tek') } : null; })()`);
+  const ciktilar = () => (fs.existsSync(CIKTI) ? fs.readdirSync(CIKTI).sort() : []);
+  const bolumler = (process.env.BOLUM || '1,2,3,5,6').split(',').map((s) => s.trim());
+  const bolum = (n) => bolumler.includes(String(n));
+
+  // ------------------------------------------------------------ hazırlık
+  await pencereKapat();
+  await sekmeleriKapat();
+  fs.mkdirSync(PNG, { recursive: true });
+  fs.rmSync(CIKTI, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); fs.mkdirSync(CIKTI, { recursive: true });
+  const G = girdileriUret();
+  await evalJs(`(async () => {
+    window.__s39 = { d: await import('pdefe://app/src/renderer/araclar/donustur.js') };
+    window.__s39b = [];
+    if (!window.__s39Gozlem) {
+      window.__s39Gozlem = new MutationObserver(() => { const t = document.querySelector('#bildirim')?.textContent; if (t && window.__s39b.at(-1) !== t) window.__s39b.push(t); });
+      window.__s39Gozlem.observe(document.querySelector('#bildirim'), { childList: true, characterData: true, subtree: true });
+      window.__s39Hatalar = [];
+      addEventListener('error', (e) => window.__s39Hatalar.push('error: ' + e.message));
+      addEventListener('unhandledrejection', (e) => window.__s39Hatalar.push('reject: ' + (e.reason?.message || e.reason)));
+      const ce = console.error; console.error = (...a) => { window.__s39Hatalar.push('console.error: ' + a.map(String).join(' ')); ce.apply(console, a); };
+    }
+    for (const [k, v] of Object.entries({ ciktiKlasoru: ${J(CIKTI)}, otomatikKaydet: false, donusturme: {} })) { await window.pdefe.cagir('ayar:koy', k, v); window.__pdefe.ayar()[k] = v; }
+    window.__pdefeYerelKutu = true;
+    return true;
+  })()`);
+  for (let i = 0; i < 20 && (await evalJs(`window.pdefe.cagir('dosya:acDiyalog', { baslik: 'test kuyruğu boşaltma' })`))?.length; i++);
+  for (let i = 0; i < 20 && (await evalJs(`window.pdefe.cagir('mesaj:kutu', { mesaj: 'test kuyruğu boşaltma', dugmeler: ['a', 'b'], varsayilan: 7 })`))?.secim !== 7; i++);
+  await kayit();
+  const YET = await evalJs(`window.pdefe.cagir('cekirdek:cagir', 'donusum_yetenekleri', {}, null)`);
+  const GORSEL_VAR = !!YET?.gorsel?.var;
+  console.log(`     Görüntü dönüştürmesi: ${GORSEL_VAR ? 'var' : 'yok'}; HEIC: ${YET?.gorsel?.heic ? 'açılabiliyor' : 'açılamıyor'}`);
+  if (!GORSEL_VAR) sonuc('Ön koşul: çekirdekte görüntü ↔ PDF dönüştürmesi var (donusum_yetenekleri.gorsel.var)', false, YET?.gorsel);
+
+  // ------------------------------------------------------------ 1) Görüntü girdileri
+  if (bolum(1)) {
+    console.log('\n== 1) Görüntü girdileri');
+    await aracAc([]);
+    const bos = await evalJs(`document.querySelector('.donustur-liste .bos-mesaj')?.innerText || ''`);
+    sonuc('Boş listede desteklenen türler arasında görüntü (JPG, PNG…)', /görüntü \(JPG, PNG/.test(bos), bos);
+    await yanitla('dosya:acDiyalog', [[G.jpg, G.png]]);
+    await tikSecici('.donustur-pencere .donustur-ekle');
+    await kosul(`document.querySelectorAll('.donustur-oge').length === 2 && !document.querySelector('.donustur-oge.yukleniyor')`, 20000);
+    await bekle(400);
+    const dk = (await kayit()).find((x) => x.kanal === 'dosya:acDiyalog');
+    const f = dk?.secenek?.filtreler || [];
+    sonuc('Dosya ekle: "Desteklenen dosyalar"da görüntüler (jpg, jpeg, png, bmp, gif, webp); ayrıca "Görüntüler" süzgeci', ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp'].every((u) => f[0]?.extensions?.includes(u))
+      && f[0].extensions.includes('pdf') && f[0].extensions.includes('udf') && J(f.find((x) => x.name === 'Görüntüler')?.extensions) === J(['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp'])
+      && f.at(-1)?.name === 'Tüm dosyalar', f);
+    const S = await satirlar();
+    const s = Object.fromEntries(S.map((x) => [x.ad, x]));
+    const j = s['Taranmış dilekçe.jpg'], p = s['Ekran görüntüsü.png'];
+    sonuc('Tür içerikten: "Görüntü (JPG)" ve "Görüntü (PNG)", piksel ölçüsü özette (sayfa yok), küçük resim var', j?.tur === 'gorsel' && j.turEtiketi === 'Görüntü (JPG)'
+      && /2\.480 × 3\.508 piksel/.test(j.ozet) && !/sayfa/.test(j.ozet) && j.resim === 'img' && p?.tur === 'gorsel' && p.turEtiketi === 'Görüntü (PNG)' && /1\.654 × 1\.240 piksel/.test(p.ozet), S);
+    sonuc('Görüntünün hedefleri PDF, UDF, Word, TIFF (JPG yok: kendi türü); varsayılan PDF; PDF ve TIFF seçilebilir', J(j?.hedefler.map((h) => h.id)) === J(['pdf', 'udf', 'word', 'tiff'])
+      && j.hedefler.find((h) => h.secili)?.id === 'pdf' && !j.hedefler.find((h) => h.id === 'pdf').devre && !j.hedefler.find((h) => h.id === 'tiff').devre, j?.hedefler);
+    const k = await evalJs(`(() => { const a = ${A}; return { coklu: a.kayit.coklu(), klasor: a.kayit.cikti.klasor() }; })()`);
+    sonuc('İki görüntü: Kaydet bölümü klasör kipinde (adlar girdilerin adı)', k.coklu === true && k.klasor === CIKTI, k);
+    await ss('01-goruntuler');
+    await pencereKapat();
+  }
+
+  // ------------------------------------------------------------ 2) Görüntü → PDF
+  if (bolum(2) && GORSEL_VAR) {
+    console.log('\n== 2) Görüntü → PDF');
+    await aracAc([G.jpg]);
+    await evalJs(`window.__s39b.length = 0`);
+    await donusturVeBekle();
+    const h1 = path.join(CIKTI, 'Taranmış dilekçe.pdf');
+    const o1 = fs.existsSync(h1) ? pdfOzeti(h1) : null;
+    const akt = await evalJs(`window.__pdefe.aktif()?.yol || null`);
+    sonuc('300 dpi etiketli taranmış JPG → PDF: tek sayfa, A4 dikey, tek resim; sonuç sekmede açıldı, pencere kapandı', !!o1 && o1.sayfa === 1 && A4(o1.olcu[0]) && o1.resim === 1
+      && !!akt && path.resolve(akt) === path.resolve(h1) && !(await evalJs(`!!document.querySelector('.donustur-pencere')`)), { o1, akt });
+    await sekmeleriKapat();
+    // İki görüntü birlikte: sonuç listesi; dpi etiketsiz PNG'nin uzun kenarı A4'ün uzun kenarı
+    fs.rmSync(h1, { force: true });
+    await aracAc([G.jpg, G.png]);
+    await donusturVeBekle();
+    const h2 = path.join(CIKTI, 'Ekran görüntüsü.pdf');
+    const o2 = fs.existsSync(h2) ? pdfOzeti(h2) : null;
+    const sk = await sonucKutusu();
+    sonuc('İki görüntü → iki PDF; dpi etiketsiz PNG: yatay sayfa, uzun kenar A4\'ün uzun kenarı (841,9 pt); sonuç listesinde iki satır, Aç\'lar',
+      fs.existsSync(h1) && !!o2 && o2.sayfa === 1 && Math.abs(o2.olcu[0][0] - 841.9) <= 1.5 && o2.olcu[0][1] < o2.olcu[0][0] && sk?.satirlar.length === 2 && sk.satirlar.every((x) => x.ac)
+      && /2 dosya dönüştürüldü/.test(sk.baslik), { o2, sk });
+    await pencereKapat();
+  }
+
+  // ------------------------------------------------------------ 3) PDF → JPG
+  if (bolum(3) && GORSEL_VAR) {
+    console.log('\n== 3) PDF → JPG');
+    const sayfa1 = path.join(CIKTI, 'Dilekçe örneği - Sayfa 1.jpg'), sayfa2 = path.join(CIKTI, 'Dilekçe örneği - Sayfa 2.jpg');
+    await aracAc([G.pdf2]);
+    let S = await satirlar();
+    sonuc('PDF\'in hedeflerinde JPG (son sırada), ipucunda "her sayfa ayrı dosya"', J(S[0]?.hedefler.map((h) => h.id)) === J(['udf', 'word', 'tiff', 'gorsel'])
+      && S[0].hedefler.at(-1).ad === 'JPG' && /JPG'ye dönüştür \(\.jpg; çok sayfalı belgede her sayfa ayrı dosya\)/.test(S[0].hedefler.at(-1).ipucu), S[0]?.hedefler);
+    await hedefTikla('Dilekçe örneği.pdf', 'gorsel');
+    await kosul(`${A}.kayit.cikti.ad() === 'Dilekçe örneği.jpg'`, 5000);
+    const k = await evalJs(`(() => { const p = document.querySelector('.donustur-pencere'); const a = ${A};
+      return { ad: a.kayit.cikti.ad(), adGizli: p.querySelector('.arac-kayit-yeni .arac-cikti-ad').hidden, not: p.querySelector('.donustur-jpg-adlari').hidden ? '' : p.querySelector('.donustur-jpg-adlari').textContent,
+        adlar: !p.querySelector('.donustur-adlar').hidden, secenek: !p.querySelector('.donustur-secenekler').hidden, baslik: p.querySelector('.donustur-secenekler .arac-bolum-baslik').textContent,
+        renk: !p.querySelector('.donustur-renk-satiri').hidden, secenekNotu: p.querySelector('.donustur-secenek-notu').textContent }; })()`);
+    sonuc('JPG hedefi (tek girdi): ad kutusu görünür ("Dilekçe örneği"), altında sayfa dosyalarının adları; "JPG seçenekleri", renk satırı yok', k.ad === 'Dilekçe örneği.jpg' && !k.adGizli
+      && k.not === 'Her sayfa ayrı bir JPG dosyası olur: "Dilekçe örneği - Sayfa 1.jpg" … "Dilekçe örneği - Sayfa 2.jpg".' && !k.adlar && k.secenek && k.baslik === 'JPG seçenekleri' && !k.renk
+      && /büyütülmez/.test(k.secenekNotu), k);
+    await yanitla('dosya:kaydetDiyalog', [null]);
+    await tikSecici('.donustur-pencere .arac-kayit-yeni .arac-cikti-degistir');
+    const kd = (await kayit()).find((x) => x.kanal === 'dosya:kaydetDiyalog');
+    sonuc('Değiştir: kaydetme penceresinin süzgeci "JPG görüntüsü" (.jpg, .jpeg)', kd?.secenek?.filtreler?.[0]?.name === 'JPG görüntüsü' && J(kd.secenek.filtreler[0].extensions) === J(['jpg', 'jpeg']), kd?.secenek);
+    await tikSecici('.donustur-pencere .donustur-secenekler .arac-segmentli[aria-label="Çözünürlük"] > button[data-id="200"]');
+    await evalJs(`window.__s39b.length = 0`);
+    await donusturVeBekle();
+    const j1 = fs.existsSync(sayfa1) ? jpgOzeti(sayfa1) : null, j2 = fs.existsSync(sayfa2) ? jpgOzeti(sayfa2) : null;
+    sonuc('İki sayfalı PDF → "Dilekçe örneği - Sayfa 1.jpg" ve "… - Sayfa 2.jpg"; 200 dpi: 1654 × 2339 piksel, dpi etiketi 200; "Dilekçe örneği.jpg" yok',
+      j1?.bicim === 'JPEG' && olcuYakin(j1.olcu, [1654, 2339]) && J(j1.dpi) === J([200, 200]) && j2?.bicim === 'JPEG' && !fs.existsSync(path.join(CIKTI, 'Dilekçe örneği.jpg')), { j1, j2 });
+    let sk = await sonucKutusu();
+    sonuc('Sonuç: "Dosya dönüştürüldü · 2 görüntü dosyası", her dosya bir satır, Aç yok, KB / sayfa yok, Klasörde göster', !!sk && /^Dosya dönüştürüldü · 2 görüntü dosyası$/.test(sk.baslik.trim())
+      && J(sk.satirlar.map((x) => x.ad)) === J(['Dilekçe örneği - Sayfa 1.jpg', 'Dilekçe örneği - Sayfa 2.jpg']) && sk.satirlar.every((x) => !x.ac) && !/KB|sayfa ·/.test(sk.metin)
+      && sk.goster === 'Klasörde göster' && !sk.tek, sk);
+    sonuc('Bildirim "Dönüştürüldü: 2 görüntü dosyası"; Dönüştür soluk', (await bildirimler()).includes('Dönüştürüldü: 2 görüntü dosyası') && (await donusturDevre()), await bildirimler());
+    await ss('03-pdf-jpg-sonuc');
+    await kayit();
+    await tikSecici('.donustur-sonuc .donustur-goster');
+    const kg = (await kayit()).find((x) => x.kanal === 'kabuk:klasordeGoster');
+    sonuc('Klasörde göster ilk dosyayı gösterir', !!kg && path.resolve(kg.secenek.yol) === path.resolve(sayfa1), kg);
+    // Dosyalar varken: "zaten var" sorusu
+    const zaman = (y) => fs.statSync(y).mtimeMs;
+    const once1 = zaman(sayfa1);
+    await bekle(1100);
+    await tikSecici('.donustur-pencere .donustur-secenekler .arac-segmentli[aria-label="Çözünürlük"] > button[data-id="300"]');   // ayar değişti: Dönüştür yeniden etkin
+    await yanitla('mesaj:kutu', [{ secim: 2 }]);
+    await kayit();
+    await donusturBas();
+    await bekle(1200);
+    const soru = (await kayit()).find((x) => x.kanal === 'mesaj:kutu');
+    sonuc('Var olan sayfa dosyaları: "zaten var" sorusu (Üzerine yaz | Yeni belge olarak kaydet | Vazgeç; varsayılan yeni belge); yeni ad soruda', !!soru
+      && J(soru.secenek.dugmeler) === J(['Üzerine yaz', 'Yeni belge olarak kaydet', 'Vazgeç']) && soru.secenek.varsayilan === 1 && soru.secenek.iptal === 2
+      && /zaten var/.test(soru.secenek.mesaj) && /"Dilekçe örneği \(1\) - Sayfa 1\.jpg" \(ve sonraki sayfalar\) olur/.test(soru.secenek.ayrinti), soru?.secenek);
+    sonuc('Vazgeç: hiçbir dosya yazılmaz', J(ciktilar().filter((a) => a.endsWith('.jpg'))) === J(['Dilekçe örneği - Sayfa 1.jpg', 'Dilekçe örneği - Sayfa 2.jpg']) && zaman(sayfa1) === once1, ciktilar());
+    await yanitla('mesaj:kutu', [{ secim: 1 }]);
+    await donusturVeBekle();
+    const yeni1 = path.join(CIKTI, 'Dilekçe örneği (1) - Sayfa 1.jpg');
+    sk = await sonucKutusu();
+    sonuc('Yeni belge olarak kaydet: "Dilekçe örneği (1) - Sayfa 1.jpg", "(1) - Sayfa 2.jpg" (300 dpi: 2480 × 3508); var olanlar değişmedi', fs.existsSync(yeni1)
+      && fs.existsSync(path.join(CIKTI, 'Dilekçe örneği (1) - Sayfa 2.jpg')) && olcuYakin(jpgOzeti(yeni1).olcu, [2480, 3508]) && zaman(sayfa1) === once1
+      && J(sk?.satirlar.map((x) => x.ad)) === J(['Dilekçe örneği (1) - Sayfa 1.jpg', 'Dilekçe örneği (1) - Sayfa 2.jpg']), { dosyalar: ciktilar(), sk });
+    // Üzerine yaz: var olanlar yenilenir, yeni ad yok
+    await tikSecici('.donustur-pencere .donustur-secenekler .arac-segmentli[aria-label="Çözünürlük"] > button[data-id="200"]');
+    await yanitla('mesaj:kutu', [{ secim: 0 }]);
+    const sayi = ciktilar().length;
+    await donusturVeBekle();
+    sonuc('Üzerine yaz: var olan sayfa dosyaları yenilenir (değişme zamanı), yeni dosya yok', zaman(sayfa1) > once1 && ciktilar().length === sayi && olcuYakin(jpgOzeti(sayfa1).olcu, [1654, 2339]), ciktilar());
+    await pencereKapat();
+    // Tek sayfalı PDF → "<ad>.jpg"
+    await aracAc([G.pdf1]);
+    await evalJs(`${A}.hedefSec(${A}.ogeler[0], 'gorsel')`);
+    await kosul(`${A}.kayit.cikti.ad() === 'Tek sayfa.jpg'`, 5000);
+    const not1 = await evalJs(`document.querySelector('.donustur-jpg-adlari').textContent`);
+    await tikSecici('.donustur-pencere .donustur-secenekler .arac-segmentli[aria-label="Çözünürlük"] > button[data-id="300"]');
+    await donusturVeBekle();
+    const t1 = path.join(CIKTI, 'Tek sayfa.jpg');
+    sk = await sonucKutusu();
+    sonuc('Tek sayfalı PDF → "Tek sayfa.jpg" (sayfa eki yok; 300 dpi: 2480 × 3508); not "… adıyla kaydedilir"; sonuç ortalı tek satır', fs.existsSync(t1) && olcuYakin(jpgOzeti(t1).olcu, [2480, 3508])
+      && !fs.existsSync(path.join(CIKTI, 'Tek sayfa - Sayfa 1.jpg')) && not1 === 'Görüntü "Tek sayfa.jpg" adıyla kaydedilir.' && sk?.tek && /^Dosya dönüştürüldü$/.test(sk.baslik.trim()), { not1, sk });
+    await pencereKapat();
+    // Birden çok girdi: adları araç verir; var olan adlarda "(2)"
+    const once = new Set(ciktilar());
+    await aracAc([G.pdf2, G.pdf1]);
+    for (const ad of ['Dilekçe örneği.pdf', 'Tek sayfa.pdf']) await hedefTikla(ad, 'gorsel');
+    await bekle(300);
+    const adlarNotu = await evalJs(`(() => { const e = document.querySelector('.donustur-adlar'); return e.hidden ? '' : e.textContent; })()`);
+    await donusturVeBekle();
+    const yeniler = ciktilar().filter((a) => !once.has(a));
+    sonuc('Birden çok girdi → JPG: var olan adlarda "(2)" ("Dilekçe örneği (2) - Sayfa 1.jpg", "… - Sayfa 2.jpg", "Tek sayfa (2).jpg"); not her sayfanın ayrı dosya olduğunu söyler',
+      J(yeniler) === J(['Dilekçe örneği (2) - Sayfa 1.jpg', 'Dilekçe örneği (2) - Sayfa 2.jpg', 'Tek sayfa (2).jpg']) && /her sayfası ayrı bir JPG dosyası olur/.test(adlarNotu), { yeniler, adlarNotu });
+    sk = await sonucKutusu();
+    sonuc('Sonuç listesinde üç satır (bütün dosyalar), başlık "2 dosya dönüştürüldü"', sk?.satirlar.length === 3 && /^2 dosya dönüştürüldü/.test(sk.baslik.trim()), sk);
+    await pencereKapat();
+    // Geç iptal (benzetim): çekirdek sonucu döndürdükten sonra iptal; JPG'nin bütün sayfa dosyaları dosya:sil'e (sınamada yalnızca kaydedilir)
+    for (const a of ciktilar()) fs.rmSync(path.join(CIKTI, a), { force: true });
+    await aracAc([G.pdf2]);
+    await evalJs(`${A}.hedefSec(${A}.ogeler[0], 'gorsel')`);
+    await evalJs(`${A}.kayit.hazir.then(() => true)`);
+    await evalJs(`(() => { const a = ${A}; window.__s39Silinen = []; const b = a.baglam, k = b.pdefe;
+      a.baglam = { ...b, pdefe: { platform: k.platform, dinle: (x, c) => k.dinle(x, c), gonder: (...x) => k.gonder(...x), dosyaYolu: (f) => k.dosyaYolu(f),
+        cagir: (x, ...y) => (x === 'dosya:sil' ? (window.__s39Silinen.push(y[0]), Promise.resolve(true)) : k.cagir(x, ...y)) } };
+      const asil = a.ilerleme.calistir.bind(a.ilerleme);
+      a.ilerleme.calistir = async (...g) => { const r = await asil(...g); const e = new Error('İşlem iptal edildi.'); e.iptal = true; e.sonuc = r; throw e; };
+      window.__s39b.length = 0; return true; })()`);
+    await donusturBas();
+    await bekle(4000);
+    const silinen = (await evalJs(`window.__s39Silinen`)).map((y) => path.basename(y)).sort();
+    sonuc('Geç iptal: iki sayfa dosyası da dosya:sil\'e (çöp kutusu) verilir, "Dönüştürme iptal edildi."', J(silinen) === J(['Dilekçe örneği - Sayfa 1.jpg', 'Dilekçe örneği - Sayfa 2.jpg'])
+      && (await bildirimler()).includes('Dönüştürme iptal edildi.'), silinen);
+    await pencereKapat();
+    // Ana süreç: dönüştürmenin oluşturmadığı .jpg silinmez
+    const elle = path.join(CIKTI, 'Elle konmuş.jpg');
+    fs.writeFileSync(elle, 'yer tutucu');
+    sonuc('dosya:sil: dönüştürmenin oluşturmadığı .jpg reddedilir, dosya yerinde', (await evalJs(`window.pdefe.cagir('dosya:sil', ${J(elle)})`)) === false && fs.existsSync(elle));
+    fs.rmSync(elle, { force: true });
+  }
+
+  // ------------------------------------------------------------ 5) Açma yolları
+  if (bolum(5)) {
+    console.log('\n== 5) Açma yolları');
+    await pencereKapat();
+    await sekmeleriKapat();
+    await yanitla('dosya:acDiyalog', [[G.jpg]]);
+    await kayit();
+    await evalJs(`window.__pdefe.komutCalistir('dosya.ac')`);
+    await kosul(`!!document.querySelector('.donustur-pencere') && document.querySelectorAll('.donustur-oge').length === 1 && !document.querySelector('.donustur-oge.yukleniyor')`, 15000);
+    const ck = (await kayit()).find((x) => x.kanal === 'dosya:acDiyalog');
+    let S = await satirlar();
+    sonuc('Ctrl+O: süzgeçte görüntüler; seçilen JPG Format Değiştir\'de açılır (sekme açılmaz)', ck?.secenek?.filtreler?.[0]?.extensions?.includes('jpg') && ck.secenek.filtreler.some((x) => x.name === 'Görüntüler')
+      && J(S.map((x) => x.ad)) === J(['Taranmış dilekçe.jpg']) && (await evalJs(`window.__pdefe.belgeler.size`)) === 0, { f: ck?.secenek?.filtreler, S: S.map((x) => x.ad) });
+    await evalJs(`window.pdefe.cagir('test:olayGonder', 'dosya:ac', ${J([G.png])})`);
+    await kosul(`document.querySelectorAll('.donustur-oge').length === 2 && !document.querySelector('.donustur-oge.yukleniyor')`, 15000);
+    S = await satirlar();
+    sonuc('Ana sürecin dosya:ac\'ı (PNG): açık aracın listesine eklenir', S.length === 2 && S[1].ad === 'Ekran görüntüsü.png', S.map((x) => x.ad));
+    await pencereKapat();
+    const ikinci = await evalJs(`window.pdefe.cagir('test:uygulamaOlayi', 'second-instance', [${J(G.jpg)}])`);
+    await kosul(`!!document.querySelector('.donustur-pencere') && document.querySelectorAll('.donustur-oge').length === 1 && !document.querySelector('.donustur-oge.yukleniyor')`, 15000);
+    S = await satirlar();
+    sonuc('Komut satırı (ikinci örnek): JPG Format Değiştir\'de açılır (ana süreç görüntü uzantısını tanır)', ikinci && J(S.map((x) => x.ad)) === J(['Taranmış dilekçe.jpg'])
+      && (await evalJs(`window.__pdefe.belgeler.size`)) === 0, { ikinci, S: S.map((x) => x.ad) });
+    await pencereKapat();
+    // Ana pencereye bırakma (CDP sürükle-bırak: sayfa File nesnesinden yolu okur)
+    const h = (await (await fetch(`http://127.0.0.1:${process.env.PDEFE_CDP_PORT || 9222}/json`)).json()).find((x) => x.type === 'page' && /index\.html/.test(x.url));
+    const ws = new WebSocket(h.webSocketDebuggerUrl);
+    await new Promise((c, r) => { ws.onopen = c; ws.onerror = r; });
+    let n = 0; const bek = new Map();
+    ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id && bek.has(d.id)) { bek.get(d.id)(d); bek.delete(d.id); } };
+    const gonder = (method, params = {}) => new Promise((c) => { const i = ++n; bek.set(i, c); ws.send(JSON.stringify({ id: i, method, params })); });
+    const data = { items: [], files: [G.png, G.pdf1], dragOperationsMask: 1 };
+    for (const type of ['dragEnter', 'dragOver', 'drop']) { await gonder('Input.dispatchDragEvent', { type, x: 640, y: 520, data }); await bekle(100); }
+    await kosul(`!!document.querySelector('.donustur-pencere') && document.querySelectorAll('.donustur-oge').length === 1 && !document.querySelector('.donustur-oge.yukleniyor')`, 15000);
+    await kosul(`window.__pdefe.belgeler.size === 1`, 8000);
+    S = await satirlar();
+    sonuc('Ana pencereye bırakma: PNG Format Değiştir\'de (Birleştir\'de değil), PDF sekmede', J(S.map((x) => x.ad)) === J(['Ekran görüntüsü.png'])
+      && !(await evalJs(`!!document.querySelector('.birlestir-pencere')`)) && J(await evalJs(`[...window.__pdefe.belgeler.values()].map((b) => b.ad)`)) === J(['Tek sayfa.pdf']), S.map((x) => x.ad));
+    ws.close();
+    await pencereKapat();
+    await sekmeleriKapat();
+  }
+
+  // ------------------------------------------------------------ 6) Açılamayan görüntü (HEIC)
+  if (bolum(6)) {
+    console.log('\n== 6) HEIC');
+    await aracAc([G.heic]);
+    const S = await satirlar();
+    const h = S[0];
+    if (YET?.gorsel?.heic) atlandi('HEIC açılamıyor', 'bu çekirdekte HEIC açıcısı var');
+    else {
+      sonuc('HEIC (açıcısı yok): satırda tür "Görüntü (HEIC)", hedefler soluk, seçili hedefin nedeni satırda, Dönüştür soluk', h?.tur === 'gorsel' && h.turEtiketi === 'Görüntü (HEIC)'
+        && h.hedefler.every((x) => x.devre) && /dönüştürülemez/.test(h.neden) && (await donusturDevre()), h);
+    }
+    await pencereKapat();
+  }
+
+  // ------------------------------------------------------------ son
+  await pencereKapat();
+  await sekmeleriKapat();
+  await evalJs(`(async () => { delete window.__pdefeYerelKutu; for (const [k, v] of Object.entries({ ciktiKlasoru: '', donusturme: {} })) { await window.pdefe.cagir('ayar:koy', k, v); window.__pdefe.ayar()[k] = v; } return true; })()`);
+  const hatalar = await evalJs(`window.__s39Hatalar || []`);
+  sonuc('Renderer konsolunda hata yok', hatalar.length === 0, hatalar);
+  console.log(`\n${denetim} denetim; ${hataSayisi ? hataSayisi + ' HATA' : 'hepsi geçti'}  (ekran görüntüleri: ${PNG})`);
+  if (hataSayisi) process.exitCode = 1;
+}

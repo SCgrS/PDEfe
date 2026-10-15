@@ -1,5 +1,8 @@
 // Format Değiştir (0.2.6, kullanıcı isteği; 0.2.7'ye dek adı "Dosya Formatını Değiştir", kullanıcı kısalttı): UDF ↔ PDF, TIFF ↔ PDF, Word ↔ PDF. PDF olmayan iki biçim
 // arasında (ör. Word → UDF) çekirdek PDF üzerinden iki adımda dönüştürür. PDF → UDF yalnızca düzenlenebilir belge üretir (kullanıcının seçimi).
+// 0.2.7 (kullanıcı isteği: "Format değiştirmenin kapsamını biraz daha genişletelim ve görüntüde yaptığı evrakları da PDF olarak kaydedebilelim";
+// iki yön): görüntü (JPG, PNG, BMP, GIF, WEBP) → PDF (ve PDF üzerinden UDF, Word, TIFF); PDF (ve UDF, Word, TIFF) → JPG: tek sayfada "<ad>.jpg",
+// çok sayfada her sayfa ayrı dosya ("<ad> - Sayfa 1.jpg"…; ad kutusundaki ad dosyaların ortak başı, var olan dosya sorusu _jpgCakismasi).
 // Girdi: Dosya ekle düğmesi ("Desteklenen dosyalar" süzgeci), pencereye sürükle-bırak; ana pencereye bırakılan, komut satırından (Windows'ta
 // "Birlikte aç", macOS'ta Finder) ya da Ctrl+O ile açılan UDF, TIFF ve Word dosyaları aracı o dosyalarla açar, araç açıksa listeye ekler
 // (uygulama.js acilacaklariAyir). Bir PDF açıkken açılan araçta o PDF ilk girdidir (Birleştir'deki gibi).
@@ -30,15 +33,18 @@
 // için Aç) ve Klasörde göster. Çekirdeğin uyarıları (yorumlar alınmadı, resimler alınmadı…) gösterilir; e-imza uyarısı 0.2.7'de kalktı
 // (kullanıcı isteği).
 import {
-  pencereAc, pencereAcikMi, IslemIlerleme, kayitSecimi, boyutMetni, sayiMetni, kacis, hataMetni, dosyaAdi, adGovdesi, uzanti, yolAyni,
+  pencereAc, pencereAcikMi, IslemIlerleme, kayitSecimi, boyutMetni, sayiMetni, kacis, hataMetni, dosyaAdi, klasorAdi, adGovdesi, uzanti, yolAyni,
   yolBirlestir, guvenliAd, oge, segmentliSecim, kilitliHataMi, ciktiyiAc, acikBelge, degisiklikleriSor, sonucKutusuCiz,
 } from './ortak.js';
 import { MAC } from '../platform.js';
 
+/** Görüntüler (0.2.7, kullanıcı isteği: "görüntüde yaptığı evrakları da PDF olarak kaydedebilelim"): Dosya ekle süzgecindekiler. HEIC / HEIF
+ *  ve AVIF süzgeçte yok (HEIC'in açıcısı pakette yok); bırakılırsa ya da komut satırından gelirse satırda nedeni yazar. */
+export const GORSEL_UZANTILARI = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp'];
 /** PDF dışında, ana pencereye bırakılınca (komut satırı, Ctrl+O) sekmede değil bu araçta açılan uzantılar. Windows'ta .udf'nin dosya ilişkisi
- *  UYAP Doküman Editörü'nündür; PDEfe kurulumu bu uzantılara ilişki eklemez. */
-export const DONUSTURULEN_UZANTILAR = ['udf', 'tif', 'tiff', 'doc', 'docx', 'rtf', 'odt'];
-const GIRDI_UZANTILARI = ['pdf', ...DONUSTURULEN_UZANTILAR];
+ *  UYAP Doküman Editörü'nündür; PDEfe kurulumu bu uzantılara ilişki eklemez. 0.2.7: görüntüler de. */
+export const DONUSTURULEN_UZANTILAR = ['udf', 'tif', 'tiff', 'doc', 'docx', 'rtf', 'odt', ...GORSEL_UZANTILARI, 'avif', 'heic', 'heif'];
+const GIRDI_UZANTILARI = ['pdf', 'udf', 'tif', 'tiff', 'doc', 'docx', 'rtf', 'odt', ...GORSEL_UZANTILARI];
 /** Dosya ekle ve Ctrl+O (uygulama.js) süzgeçleri: ilki desteklenen bütün türler. */
 export const DOSYA_FILTRELERI = [
   { name: 'Desteklenen dosyalar', extensions: GIRDI_UZANTILARI },
@@ -46,21 +52,33 @@ export const DOSYA_FILTRELERI = [
   { name: 'UDF belgeleri', extensions: ['udf'] },
   { name: 'TIFF görüntüleri', extensions: ['tif', 'tiff'] },
   { name: 'Word belgeleri', extensions: ['doc', 'docx', 'rtf', 'odt'] },
+  { name: 'Görüntüler', extensions: GORSEL_UZANTILARI },
   { name: 'Tüm dosyalar', extensions: ['*'] },
 ];
 
-/** Hedef biçimler, seçimdeki sırayla. uzanti: çıktının uzantısı (Word hedefi .docx; TIFF .tif). */
+/** Hedef biçimler, seçimdeki sırayla. uzanti: çıktının uzantısı (Word hedefi .docx; TIFF .tif). 0.2.7: JPG (çekirdekte 'gorsel'; çok sayfalı
+ *  belgede her sayfa ayrı dosya: "<ad> - Sayfa 1.jpg"…). */
 export const BICIMLER = [
   { id: 'pdf', ad: 'PDF', uzanti: 'pdf', yonelme: 'PDF\'e' },
   { id: 'udf', ad: 'UDF', uzanti: 'udf', yonelme: 'UDF\'ye' },
   { id: 'word', ad: 'Word', uzanti: 'docx', yonelme: 'Word\'e' },
   { id: 'tiff', ad: 'TIFF', uzanti: 'tif', yonelme: 'TIFF\'e' },
+  { id: 'gorsel', ad: 'JPG', uzanti: 'jpg', yonelme: 'JPG\'ye' },
 ];
 const BICIM = Object.fromEntries(BICIMLER.map((b) => [b.id, b]));
-const TUR_ADI = { pdf: 'PDF', udf: 'UDF', tiff: 'TIFF', word: 'Word' };
+const TUR_ADI = { pdf: 'PDF', udf: 'UDF', tiff: 'TIFF', word: 'Word', gorsel: 'Görüntü' };
+/** Görüntünün alt türünün kullanıcının tanıdığı adı (çekirdeğin 'jpeg' gibi teknik adı yerine uzantı). */
+const GORSEL_ALT_ADI = { jpeg: 'JPG', png: 'PNG', gif: 'GIF', bmp: 'BMP', webp: 'WEBP', avif: 'AVIF', heif: 'HEIC' };
 /** Uzantıdan beklenen tür (satırda "içeriği … uzantısı …" uyarısı için). */
-const UZANTI_TURU = { pdf: 'pdf', udf: 'udf', tif: 'tiff', tiff: 'tiff', doc: 'word', docx: 'word', docm: 'word', rtf: 'word', odt: 'word' };
+const UZANTI_TURU = {
+  pdf: 'pdf', udf: 'udf', tif: 'tiff', tiff: 'tiff', doc: 'word', docx: 'word', docm: 'word', rtf: 'word', odt: 'word',
+  ...Object.fromEntries([...GORSEL_UZANTILARI, 'avif', 'heic', 'heif'].map((u) => [u, 'gorsel'])),
+};
 const UDE_YOK_IPUCU = 'UYAP Doküman Editörü kuruluysa klasörünü gösterin';
+/** JPG hedefinin (tek girdide) "zaten var" sorusu için sınanan sayfa dosyalarının en çoğu. */
+const JPG_DENETIM_SAYFASI = 200;
+/** JPG hedefinin sayfa dosyasının adı (çekirdeğin sayfa_adlari'yla aynı: "<ad> - Sayfa n.jpg"). */
+const sayfaAdi = (govde, n, uz = 'jpg') => `${govde} - Sayfa ${n}.${uz}`;
 
 // UDF'nin yaklaşık çizimi (ana süreç, main/udfYaklasik.js): istek kimliği bu pencerenin sayacından, ilerleme 'udf:yaklasikIlerleme' ile
 let yaklasikSayac = 0;
@@ -92,12 +110,16 @@ let acikPencere = null;
 /** Açık Format Değiştir penceresi (yoksa null); testler ve uygulama.js'in yönlendirmesi için. */
 export function acikDonusturPenceresi() { return acikPencere && !acikPencere.pencere.kapali ? acikPencere : null; }
 
-/** Satırda görünen tür: "UDF", "PDF", "TIFF"; Word'de alt tür ("DOCX", "DOC", "RTF", "ODT"). */
+/** Satırda görünen tür: "UDF", "PDF", "TIFF"; Word'de alt tür ("DOCX", "DOC", "RTF", "ODT"); görüntüde (0.2.7) "Görüntü (JPG)". */
 function turEtiketi(o) {
   if (!o.tur || o.tur === 'bilinmeyen') return (uzanti(o.yol) || 'Dosya').toUpperCase();
   if (o.tur === 'word') return o.alt && o.alt !== 'sifreli' ? o.alt.toUpperCase() : 'Word';
+  if (o.tur === 'gorsel') return GORSEL_ALT_ADI[o.alt] ? `Görüntü (${GORSEL_ALT_ADI[o.alt]})` : 'Görüntü';
   return TUR_ADI[o.tur] || o.tur.toUpperCase();
 }
+
+/** Küçük resim yokken yer tutucudaki kısa ad (görüntüde alt türün adı: kutu dar). */
+function yerEtiketi(o) { return o.tur === 'gorsel' ? GORSEL_ALT_ADI[o.alt] || 'Görüntü' : turEtiketi(o); }
 
 export class DonusturPenceresi {
   /**
@@ -128,8 +150,8 @@ export class DonusturPenceresi {
       <div class="arac-bolum donustur-secenekler" hidden>
         <div class="arac-bolum-baslik">TIFF seçenekleri</div>
         <div class="donustur-secenek-satiri"><span class="donustur-secenek-ad">Çözünürlük</span><span class="donustur-dpi"></span></div>
-        <div class="donustur-secenek-satiri"><span class="donustur-secenek-ad">Renk</span><span class="donustur-renk"></span></div>
-        <div class="arac-aciklama">Taranmış sayfalar kendi çözünürlüğünde kalır.</div>
+        <div class="donustur-secenek-satiri donustur-renk-satiri"><span class="donustur-secenek-ad">Renk</span><span class="donustur-renk"></span></div>
+        <div class="arac-aciklama donustur-secenek-notu">Taranmış sayfalar kendi çözünürlüğünde kalır.</div>
       </div>
       <div class="arac-bolum donustur-kayit"><div class="arac-bolum-baslik">Kaydet</div></div>
       <div class="donustur-sonuc" hidden></div>
@@ -162,8 +184,11 @@ export class DonusturPenceresi {
     kayitBolumu.append(this.kayit.el);
     // Kaydet bölümünde ad, klasör ya da kayıt biçimi değişince Dönüştür yeniden etkin olabilir (0.2.7; _dugmeGuncelle)
     this.kayit.onDegisti(() => this._dugmeGuncelle());
-    this.adlarEl = oge('<div class="arac-aciklama donustur-adlar" hidden>Dosyalar girdilerin adıyla kaydedilir. Var olan dosyaların üzerine yazılmaz; aynı adlı dosya varsa ada "(2)" eklenir.</div>');
-    kayitBolumu.append(this.adlarEl);
+    this.adlarEl = oge('<div class="arac-aciklama donustur-adlar" hidden>Dosyalar girdilerin adıyla kaydedilir. Var olan dosyaların üzerine yazılmaz; aynı adlı dosya varsa ada "(2)" eklenir.<span class="jpg-notu" hidden> Çok sayfalı belgenin her sayfası ayrı bir JPG dosyası olur.</span></div>');
+    // Tek girdinin JPG hedefi (0.2.7): ad dosya adlarının ortak başıdır; çok sayfalı belgede "<ad> - Sayfa 1.jpg"…
+    this.jpgNotEl = oge('<div class="arac-aciklama donustur-jpg-adlari" hidden></div>');
+    kayitBolumu.append(this.adlarEl, this.jpgNotEl);
+    this.kayit.onDegisti(() => this._jpgNotuYaz());
 
     govde.querySelector('.donustur-ekle').addEventListener('click', () => this.dosyaSec());
     govde.querySelector('.donustur-temizle').addEventListener('click', () => {
@@ -233,8 +258,8 @@ export class DonusturPenceresi {
   /** UDF → PDF bu bilgisayarda UYAP Doküman Editörü'yle yapılamıyor mu (editör, Java ya da köprü yok): UDF'ler yaklaşık çizilir. */
   _udfYaklasik() { return this.yetenekler?.udf?.var === false; }
 
-  /** Yaklaşık PDF'ten bu hedefe gidilebilir mi: PDF'in kendisi, TIFF ve Word çekirdeğin PDF → TIFF / Word'üyle. */
-  _yaklasikHedefVar(bicim) { return bicim === 'pdf' || ((bicim === 'tiff' || bicim === 'word') && this.yetenekler?.donusumler?.[`pdf>${bicim}`]?.var === true); }
+  /** Yaklaşık PDF'ten bu hedefe gidilebilir mi: PDF'in kendisi; TIFF, Word ve (0.2.7) JPG çekirdeğin PDF → TIFF / Word / JPG'siyle. */
+  _yaklasikHedefVar(bicim) { return bicim === 'pdf' || (['tiff', 'word', 'gorsel'].includes(bicim) && this.yetenekler?.donusumler?.[`pdf>${bicim}`]?.var === true); }
 
   /** Satırda ve sonuçta gösterilen uyarı. neden: çekirdeğin "desteklenmiyor" nedeni (editör bulunduğu hâlde dönüştüremediyse). */
   _yaklasikUyarisi(neden = null) {
@@ -288,7 +313,7 @@ export class DonusturPenceresi {
       if (this.ogeler.some((o) => yolAyni(o.yol, yol)) || yeniler.some((o) => yolAyni(o.yol, yol))) { zatenVar++; continue; }
       yeniler.push({
         kimlik: ++this.kimlikSayac, yol, ad: dosyaAdi(yol), tur: null, alt: null, boyut: null, sayfa: null, png: null, hedefler: new Map(),
-        hedefBicim: null, uyari: null, onizlemeUyarisi: null, acilmadi: false, hata: null, yukleniyor: true, onizleniyor: false,
+        hedefBicim: null, uyari: null, onizlemeUyarisi: null, acilmadi: false, hata: null, yukleniyor: true, onizleniyor: false, piksel: null,
       });
     }
     if (zatenVar) this.baglam.bildir(zatenVar === 1 ? 'Dosya zaten listede.' : `${zatenVar} dosya zaten listede.`, 3000);
@@ -336,8 +361,10 @@ export class DonusturPenceresi {
       tur: b?.tur || 'bilinmeyen', alt: b?.alt || b?.udfAlt || null, boyut: b?.boyut ?? null, sayfa: b?.sayfa ?? null, png: b?.png || null,
       uyari: b?.uyari || null, onizlemeUyarisi: b?.onizlemeUyarisi || null, acilmadi: !!b?.acilmadi, yukleniyor: false, hata: null,
       hedefler: new Map((Array.isArray(b?.hedefler) ? b.hedefler : []).map((h) => [h.bicim, h])),
+      // Görüntünün görünen yöndeki piksel ölçüsü (0.2.7; satırın özetinde sayfa sayısı yerine)
+      piksel: b?.pikselGenislik && b?.pikselYukseklik ? [b.pikselGenislik, b.pikselYukseklik] : null,
     });
-    if (o.tur === 'bilinmeyen') { o.hata = b?.uyari || 'Dosyanın biçimi tanınmadı. PDF, UDF, TIFF ve Word dosyaları dönüştürülebilir.'; o.uyari = null; return; }
+    if (o.tur === 'bilinmeyen') { o.hata = b?.uyari || 'Dosyanın biçimi tanınmadı. PDF, UDF, TIFF, Word ve görüntü (JPG, PNG…) dosyaları dönüştürülebilir.'; o.uyari = null; return; }
     if (!o.hedefBicim || o.hedefBicim === o.tur || !this._hedefDurumu(o, o.hedefBicim).var) o.hedefBicim = this._varsayilanHedef(o);
   }
 
@@ -437,8 +464,12 @@ export class DonusturPenceresi {
   /** Dönüştürülebilecek satırlar (tür bilinen, hatasız, seçili hedefi bu bilgisayarda yapılabilen), liste sırasıyla. */
   _donusecekler() { return this.ogeler.filter((o) => !o.yukleniyor && !o.hata && o.tur && o.hedefBicim && this._hedefDurumu(o, o.hedefBicim).var); }
 
-  /** Seçili hedefin çekirdek seçenekleri (yalnızca TIFF: çözünürlük ve renk). */
-  _secenekler(o) { return o.hedefBicim === 'tiff' ? { dpi: tiffSecimi.dpi, renk: tiffSecimi.renk } : {}; }
+  /** Seçili hedefin çekirdek seçenekleri (TIFF: çözünürlük ve renk; JPG, 0.2.7: çözünürlük). */
+  _secenekler(o) {
+    if (o.hedefBicim === 'tiff') return { dpi: tiffSecimi.dpi, renk: tiffSecimi.renk };
+    if (o.hedefBicim === 'gorsel') return { dpi: tiffSecimi.dpi };
+    return {};
+  }
 
   // ---------------------------------------------------------------- liste işlemleri
   _oge(kimlik) { return this.ogeler.find((o) => o.kimlik === kimlik); }
@@ -466,7 +497,7 @@ export class DonusturPenceresi {
     this.liste.innerHTML = '';
     this.liste.classList.toggle('bos', !this.ogeler.length);
     if (!this.ogeler.length) {
-      this.liste.append(oge(`<div class="bos-mesaj"><b>Dosyaları buraya sürükleyin</b><span>ya da "Dosya ekle" düğmesini kullanın.</span><span class="soluk">PDF, UDF, TIFF, Word (DOC, DOCX, RTF, ODT)</span></div>`));
+      this.liste.append(oge(`<div class="bos-mesaj"><b>Dosyaları buraya sürükleyin</b><span>ya da "Dosya ekle" düğmesini kullanın.</span><span class="soluk">PDF, UDF, TIFF, Word (DOC, DOCX, RTF, ODT), görüntü (JPG, PNG, BMP, GIF, WEBP)</span></div>`));
     }
     for (const o of this.ogeler) { this.liste.append(this._ogeOlustur(o)); this._ogeCiz(o); }
     this._durumGuncelle();
@@ -505,15 +536,16 @@ export class DonusturPenceresi {
         resim.append(img);
       }
     } else {
-      resim.innerHTML = `<div class="yer" data-tur="${kacis(o.tur || '')}">${o.yukleniyor ? '' : kacis(turEtiketi(o))}</div>`;
+      resim.innerHTML = `<div class="yer" data-tur="${kacis(o.tur || '')}">${o.yukleniyor ? '' : kacis(yerEtiketi(o))}</div>`;
     }
     resim.classList.toggle('onizleniyor', !!o.onizleniyor && !o.png);
-    // Özet: tür · sayfa · boyut
+    // Özet: tür · sayfa · boyut (görüntüde sayfa yerine piksel ölçüsü: hep tek sayfa)
     const parcalar = [];
     if (o.yukleniyor) parcalar.push('okunuyor…');
     else {
       parcalar.push(`<span class="tur">${kacis(turEtiketi(o))}</span>`);
-      if (o.sayfa != null) parcalar.push(`${sayiMetni(o.sayfa)} sayfa`);
+      if (o.tur === 'gorsel') { if (o.piksel) parcalar.push(`${sayiMetni(o.piksel[0])} × ${sayiMetni(o.piksel[1])} piksel`); }
+      else if (o.sayfa != null) parcalar.push(`${sayiMetni(o.sayfa)} sayfa`);
       else if (o.onizleniyor) parcalar.push('sayfalar sayılıyor…');
       if (o.boyut != null) parcalar.push(boyutMetni(o.boyut));
     }
@@ -539,7 +571,8 @@ export class DonusturPenceresi {
         const d = this._hedefDurumu(o, b.id);
         o.secim.etkin(b.id, d.var && !this.ilerleme.calisiyor);
         const dg = o.secim.dugme(b.id);
-        if (dg) { dg.title = d.var ? `${b.yonelme} dönüştür (.${b.uzanti})${d.yaklasik ? '; görünüm yaklaşık' : ''}` : d.neden; dg.classList.toggle('yapilamaz', !d.var); }
+        const ek = b.id === 'gorsel' ? '; çok sayfalı belgede her sayfa ayrı dosya' : '';
+        if (dg) { dg.title = d.var ? `${b.yonelme} dönüştür (.${b.uzanti}${ek})${d.yaklasik ? '; görünüm yaklaşık' : ''}` : d.neden; dg.classList.toggle('yapilamaz', !d.var); }
       }
       if (o.hedefBicim) o.secim.sec(o.hedefBicim);
     }
@@ -576,19 +609,45 @@ export class DonusturPenceresi {
     this.ozetEl.textContent = n ? `${sayiMetni(n)} dosya${donusecek.length !== n && !yukleniyor ? ` · ${sayiMetni(donusecek.length)} dosya dönüştürülebilir` : ''}` : '';
     this.govde.querySelector('.donustur-temizle').disabled = !n || this.ilerleme.calisiyor;
     this.govde.querySelector('.donustur-ekle').disabled = this.ilerleme.calisiyor;
-    this.seceneklerEl.hidden = !donusecek.some((o) => o.hedefBicim === 'tiff');
+    // Seçenekler TIFF ya da JPG hedefi varken (0.2.7: çözünürlük ikisinde de, renk yalnızca TIFF'te)
+    const tiffVar = donusecek.some((o) => o.hedefBicim === 'tiff'), jpgVar = donusecek.some((o) => o.hedefBicim === 'gorsel');
+    this.seceneklerEl.hidden = !tiffVar && !jpgVar;
+    this.seceneklerEl.querySelector('.arac-bolum-baslik').textContent = tiffVar && jpgVar ? 'TIFF ve JPG seçenekleri' : jpgVar ? 'JPG seçenekleri' : 'TIFF seçenekleri';
+    this.seceneklerEl.querySelector('.donustur-renk-satiri').hidden = !tiffVar;
+    // TIFF'te taranmış sayfa kendi çözünürlüğünde; JPG'de seçilenden düşükse büyütülmez (seçilenden yüksekse seçilene küçülür: boyut seçimi)
+    this.seceneklerEl.querySelector('.donustur-secenek-notu').textContent = tiffVar ? 'Taranmış sayfalar kendi çözünürlüğünde kalır.'
+      : 'Taranmış sayfalar büyütülmez; düşük çözünürlüklü tarama kendi çözünürlüğünde kalır.';
     // Tek dosyada önerilen ad girdinin adı + yeni uzantı; birden çok dosyada adları araç verir
     const adaylar = donusecek.length ? donusecek : this.ogeler.filter((o) => !o.hata && o.tur && o.hedefBicim);
     const coklu = adaylar.length > 1;
-    this.kayit.cokluAyarla(coklu);
+    const ilk = adaylar[0];
+    // Tek girdinin JPG hedefi (0.2.7): ad kutusu kalır, ad sayfa dosyalarının ortak başıdır (Ayır'daki gibi: "(2)" eklenmez, var olan
+    // dosyaları araç sorar; _jpgCakismasi)
+    this._cokluGirdi = coklu;
+    this._jpgTek = !coklu && ilk?.hedefBicim === 'gorsel';
+    this.kayit.cokluAyarla(coklu || this._jpgTek);
     this.kayit.klasorKipi(coklu);
     this.adlarEl.hidden = !coklu;
-    const ilk = adaylar[0];
+    this.adlarEl.querySelector('.jpg-notu').hidden = !jpgVar;
     if (!coklu && ilk) {
       this.kayit.adAyarla(adGovdesi(ilk.ad) || 'Dönüştürülmüş');
       this.kayit.uzantiAyarla(BICIM[ilk.hedefBicim]?.uzanti || 'pdf');
     }
+    this._jpgNotuYaz();
     this._dugmeGuncelle();
+  }
+
+  /** Tek girdinin JPG hedefinde dosyaların adları: tek sayfada "<ad>.jpg", çok sayfada "<ad> - Sayfa 1.jpg"… (sayfa sayısı bilinmiyorsa ikisi). */
+  _jpgNotuYaz() {
+    if (!this.jpgNotEl) return;
+    const ilk = this._jpgTek ? this._donusecekler()[0] : null;
+    this.jpgNotEl.hidden = !ilk;
+    if (!ilk) return;
+    const govde = adGovdesi(this.kayit.cikti.ad()) || adGovdesi(ilk.ad);
+    const uz = this.kayit.cikti.uzanti() || 'jpg';
+    this.jpgNotEl.textContent = ilk.sayfa === 1 ? `Görüntü "${govde}.${uz}" adıyla kaydedilir.`
+      : ilk.sayfa > 1 ? `Her sayfa ayrı bir JPG dosyası olur: "${sayfaAdi(govde, 1, uz)}" … "${sayfaAdi(govde, ilk.sayfa, uz)}".`
+        : `Tek sayfalı belge "${govde}.${uz}", çok sayfalı belgenin her sayfası ayrı dosya ("${sayfaAdi(govde, 1, uz)}"…) olarak kaydedilir.`;
   }
 
   /**
@@ -608,8 +667,9 @@ export class DonusturPenceresi {
    *  hedef (tek dosyada dosya, birden çok dosyada klasör). */
   _imza() {
     const d = this._donusecekler();
-    return JSON.stringify([d.map((o) => [String(o.yol).toLowerCase(), o.hedefBicim]), d.some((o) => o.hedefBicim === 'tiff') ? [tiffSecimi.dpi, tiffSecimi.renk] : null,
-      this.kayit.kip(), String(this.kayit.coklu() ? this.kayit.cikti.klasor() : this.kayit.hedef()).toLowerCase()]);
+    const tiff = d.some((o) => o.hedefBicim === 'tiff'), jpg = d.some((o) => o.hedefBicim === 'gorsel');
+    return JSON.stringify([d.map((o) => [String(o.yol).toLowerCase(), o.hedefBicim]), tiff || jpg ? [tiffSecimi.dpi, tiff ? tiffSecimi.renk : null] : null,
+      this.kayit.kip(), String(this._cokluGirdi ? this.kayit.cikti.klasor() : this.kayit.hedef()).toLowerCase()]);
   }
 
   /** TIFF seçeneği değişti: son dönüştürmeden sonra Dönüştür yeniden etkin. */
@@ -626,26 +686,66 @@ export class DonusturPenceresi {
   }
 
   /** Birden çok dosyanın hedefleri: seçilen klasörde girdinin adı + uzantı; var olan dosya, listedeki bir dosya ya da aynı istekteki başka
-   *  bir hedef varsa "(2)", "(3)"… */
+   *  bir hedef varsa "(2)", "(3)"… JPG hedefinde (0.2.7) ad sayfa dosyalarının ortak başıdır: "<ad>.jpg" ya da "<ad> - Sayfa 1.jpg" varsa
+   *  "(2)"; sonraki sayfalardan biri varsa çekirdek ilk boş "(n)"ü seçer (cakisma: yeniAd, var olan hiçbir dosyanın üzerine yazılmaz). */
   async _hedefYollari(ogeler, klasor) {
-    const kullanilan = new Set(this.ogeler.map((o) => o.yol.replace(/\//g, '\\').toLowerCase()));
+    const anahtarAl = (y) => y.replace(/\//g, '\\').toLowerCase();
+    const kullanilan = new Set(this.ogeler.map((o) => anahtarAl(o.yol)));
+    const varMi = (y) => this.baglam.pdefe.cagir('dosya:varMi', y).catch(() => false);
     const sonuc = [];
     for (const o of ogeler) {
       const uz = BICIM[o.hedefBicim].uzanti;
+      const jpg = o.hedefBicim === 'gorsel';
       const govde = guvenliAd(adGovdesi(o.ad));
       let yol = null;
       for (let i = 1; i < 1000 && !yol; i++) {
-        const aday = yolBirlestir(klasor, `${govde}${i > 1 ? ` (${i})` : ''}.${uz}`);
-        const anahtar = aday.replace(/\//g, '\\').toLowerCase();
-        if (kullanilan.has(anahtar)) continue;
-        if (await this.baglam.pdefe.cagir('dosya:varMi', aday).catch(() => false)) continue;
+        const ad = `${govde}${i > 1 ? ` (${i})` : ''}`;
+        const aday = yolBirlestir(klasor, `${ad}.${uz}`);
+        const adaylar = jpg ? [aday, yolBirlestir(klasor, sayfaAdi(ad, 1, uz))] : [aday];
+        if (adaylar.some((a) => kullanilan.has(anahtarAl(a)))) continue;
+        if ((await Promise.all(adaylar.map(varMi))).some(Boolean)) continue;
         yol = aday;
-        kullanilan.add(anahtar);
+        for (const a of adaylar) kullanilan.add(anahtarAl(a));
       }
-      if (!yol) { yol = yolBirlestir(klasor, `${govde}_${Date.now()}.${uz}`); kullanilan.add(yol.toLowerCase()); }
-      sonuc.push({ o, hedef: yol });
+      if (!yol) { yol = yolBirlestir(klasor, `${govde}_${Date.now()}.${uz}`); kullanilan.add(anahtarAl(yol)); }
+      sonuc.push({ o, hedef: yol, ...(jpg ? { cakisma: 'yeniAd' } : {}) });
     }
     return sonuc;
+  }
+
+  /**
+   * Tek girdinin JPG hedefi (0.2.7): yazılacak dosyalardan ("<ad>.jpg"; çok sayfada "<ad> - Sayfa n.jpg", sayfa sayısı bilinmiyorsa ikisinin
+   * de ilki) biri varsa öteki araçlardaki "zaten var" sorusu: Üzerine yaz | Yeni belge olarak kaydet (varsayılan; çekirdek ilk boş "(1)"
+   * adını seçer, var olan dosyaya dokunulmaz) | Vazgeç. Döner: { cakisma, vardi: Set (var olan adların anahtarları) } | null (vazgeçildi).
+   */
+  async _jpgCakismasi(o, hedef) {
+    const { baglam } = this;
+    const klasor = klasorAdi(hedef), govde = adGovdesi(hedef), uz = uzanti(hedef) || 'jpg';
+    const n = Math.min(JPG_DENETIM_SAYFASI, o.sayfa > 1 ? o.sayfa : 1);
+    const adlar = o.sayfa === 1 ? [dosyaAdi(hedef)] : o.sayfa > 1 ? Array.from({ length: n }, (_, i) => sayfaAdi(govde, i + 1, uz)) : [dosyaAdi(hedef), sayfaAdi(govde, 1, uz)];
+    const varMi = (ad) => baglam.pdefe.cagir('dosya:varMi', yolBirlestir(klasor, ad)).catch(() => false);
+    const olanlar = [];
+    for (const ad of adlar) if (await varMi(ad)) olanlar.push(ad);
+    const vardi = new Set(olanlar.map((a) => yolBirlestir(klasor, a).replace(/\//g, '\\').toLowerCase()));
+    if (!olanlar.length) return { cakisma: 'uzerineYaz', vardi };
+    // Yeni adın önerisi: "<ad> (n)" adlarından hiçbiri yoksa (çekirdek yazarken yeniden bakar)
+    const m = / \((\d{1,3})\)$/.exec(govde);
+    const kok = m ? govde.slice(0, m.index) : govde;
+    let yeni = null;
+    for (let i = m ? +m[1] + 1 : 1; i < 1000 && !yeni; i++) {
+      const g = `${kok} (${i})`;
+      const denenecek = o.sayfa === 1 ? [`${g}.${uz}`] : [`${g}.${uz}`, sayfaAdi(g, 1, uz)];
+      if (!(await Promise.all(denenecek.map(varMi))).some(Boolean)) yeni = o.sayfa === 1 ? `${g}.${uz}` : o.sayfa > 1 ? sayfaAdi(g, 1, uz) : `${g}.${uz}`;
+    }
+    const liste = olanlar.slice(0, 3).map((a) => `"${a}"`).join(', ') + (olanlar.length > 3 ? ` ve ${sayiMetni(olanlar.length - 3)} dosya daha` : '');
+    const { secim } = await baglam.mesajKutusu({
+      tur: 'warning', mesaj: olanlar.length === 1 ? `"${olanlar[0]}" zaten var.` : `${liste} zaten var.`,
+      ayrinti: `${klasor}\n\nVar olan dosyaların yerine kaydedilsin mi?${yeni ? ` Yeni belge olarak kaydedilirse adı "${yeni}"${o.sayfa > 1 ? ' (ve sonraki sayfalar)' : ''} olur.` : ''}`,
+      dugmeler: ['Üzerine yaz', 'Yeni belge olarak kaydet', 'Vazgeç'], varsayilan: 1, iptal: 2,
+    });
+    if (secim === 0) return { cakisma: 'uzerineYaz', vardi };
+    if (secim === 1) return { cakisma: 'yeniAd', vardi: new Set() };
+    return null;
   }
 
   /** Listedeki, PDEfe'de kaydedilmemiş değişiklikle açık PDF'ler (her biri bir kez): dönüştürme dosyadaki kayıtlı sürümle yapılır. */
@@ -679,20 +779,28 @@ export class DonusturPenceresi {
     const denetim = await this.kayit.denetle();
     if (this.pencere.kapali || denetim === 'vazgec') return false;
     if (denetim instanceof Error) return this.kayit.hataSor(denetim);
-    const coklu = this.kayit.coklu();
+    // Birden çok girdi mi (kayıt seçimi tek girdinin JPG hedefinde de "çoklu" çalışır: ad sayfa dosyalarının ortak başı; 0.2.7)
+    const coklu = !!this._cokluGirdi;
+    // İptal dosyalar yazıldıktan sonra ulaşırsa yalnızca yeni oluşan dosyalar silinir; var olanın (onaylanmış) yerine yazılmışsa sonuç kalır.
+    // Anahtar: dosyanın küçük harfli yolu (JPG'de sayfa dosyaları)
+    const vardi = new Set();
+    const anahtarAl = (y) => String(y).replace(/\//g, '\\').toLowerCase();
     let isler;
     if (!coklu) {
       const hedef = this.kayit.hedef();
       if (this.ogeler.some((o) => yolAyni(o.yol, hedef))) { baglam.bildir('Kaydedilecek dosya, listedeki dosyalardan biriyle aynı olamaz. Başka bir ad seçin.', 4000); return false; }
       isler = [{ o: hazir[0], hedef }];
+      if (hazir[0].hedefBicim === 'gorsel') {
+        const c = await this._jpgCakismasi(hazir[0], hedef);
+        if (!c || this.pencere.kapali) return false;
+        isler[0].cakisma = c.cakisma;
+        for (const a of c.vardi) vardi.add(a);
+      } else if (await baglam.pdefe.cagir('dosya:varMi', hedef).catch(() => true)) vardi.add(anahtarAl(hedef));
     } else {
-      isler = await this._hedefYollari(hazir, this.kayit.cikti.klasor());
+      isler = await this._hedefYollari(hazir, this.kayit.cikti.klasor());   // var olan dosyanın üzerine yazılmaz
     }
     if (this.pencere.kapali) return false;
     for (const x of isler) x.yaklasik = this._hedefDurumu(x.o, x.o.hedefBicim).yaklasik === true;
-    // İptal dosyalar yazıldıktan sonra ulaşırsa yalnızca yeni oluşan dosyalar silinir; var olanın (onaylanmış) yerine yazılmışsa sonuç kalır
-    const vardi = new Map();
-    for (const { hedef } of isler) vardi.set(hedef, await baglam.pdefe.cagir('dosya:varMi', hedef).catch(() => true));
     this.pencere.hataGoster('');
     this.sonucEl.hidden = true;
     this.pencere.el.classList.add('mesgul');
@@ -720,8 +828,12 @@ export class DonusturPenceresi {
       const kalan = [];
       for (const r of sonuclar) {
         if (r.hata) continue;
-        if (vardi.get(r.hedef)) kalan.push(r);
-        else { try { await baglam.pdefe.cagir('dosya:sil', r.hedef); } catch { /* yok say */ } }
+        let kaldi = false;
+        for (const y of Array.isArray(r.hedefler) ? r.hedefler : [r.hedef]) {
+          if (vardi.has(anahtarAl(y))) kaldi = true;
+          else { try { await baglam.pdefe.cagir('dosya:sil', y); } catch { /* yok say */ } }
+        }
+        if (kaldi) kalan.push(r);
       }
       if (!kalan.length) { baglam.bildir('Dönüştürme iptal edildi.', 4000); return false; }
       baglam.bildir(`İptal edilemeden tamamlandı: "${dosyaAdi(kalan[0].hedef)}" üzerine yazıldı.`, 6000);
@@ -746,7 +858,7 @@ export class DonusturPenceresi {
     const { baglam } = this;
     let iptal = false, suren = null;
     const sonuclar = new Map();
-    const param = (x) => ({ yol: x.o.yol, hedef: x.hedef, hedefBicim: x.o.hedefBicim, secenekler: this._secenekler(x.o) });
+    const param = (x) => ({ yol: x.o.yol, hedef: x.hedef, hedefBicim: x.o.hedefBicim, secenekler: this._secenekler(x.o), ...(x.cakisma ? { cakisma: x.cakisma } : {}) });
     const hataSonucu = (x, hata, kod = 'hata') => ({ yol: x.o.yol, hedef: x.hedef, hedefBicim: x.o.hedefBicim, hata, kod });
     const olagan = isler.filter((x) => !x.yaklasik);
     const yaklasikIlk = isler.filter((x) => x.yaklasik);
@@ -815,22 +927,32 @@ export class DonusturPenceresi {
     // En az bir dosya dönüştürüldüyse Dönüştür, bir şey değişene dek soluk kalır (0.2.7; _dugmeGuncelle). Hiçbiri olmadıysa yeniden denenebilir
     if (basarili.length) this._sonImza = this._imza();
     // Sonuç kutusu (0.2.7, kullanıcı isteği; ortak.js sonucKutusuCiz): tek dosyada ortalı, birden çok dosyada Aç sabit sütunda; boyut ve
-    // sayfa sayısı yazılmaz
+    // sayfa sayısı yazılmaz. JPG hedefinde (0.2.7) oluşan her dosya bir satır (çok sayfada "<ad> - Sayfa n.jpg"), uyarı ilk satırında
     const s = this.sonucEl;
+    const satirlar = [];
+    for (const r of sonuclar) {
+      if (r.hata) { satirlar.push({ yol: r.yol, ad: dosyaAdi(r.yol), hata: r.hata }); continue; }
+      const dosyalar = Array.isArray(r.hedefler) && r.hedefler.length ? r.hedefler : [r.hedef];
+      dosyalar.forEach((y, i) => satirlar.push({ yol: y, ad: dosyaAdi(y), ac: r.hedefBicim === 'pdf', uyari: i === 0 ? r.uyari || '' : '' }));
+    }
+    const dosyaSayisi = (r) => (Array.isArray(r.hedefler) && r.hedefler.length ? r.hedefler.length : 1);
+    const jpgDosyasi = basarili.length === 1 && dosyaSayisi(basarili[0]) > 1 ? ` · ${sayiMetni(dosyaSayisi(basarili[0]))} görüntü dosyası` : '';
     const baslik = !basarili.length ? '<b>Hiçbir dosya dönüştürülemedi.</b>'
-      : basarili.length === 1 && !hatali.length ? '<b>Dosya dönüştürüldü</b>'
+      : basarili.length === 1 && !hatali.length ? `<b>Dosya dönüştürüldü</b>${jpgDosyasi}`
         : `<b>${sayiMetni(basarili.length)} dosya dönüştürüldü</b>${hatali.length ? ` · ${sayiMetni(hatali.length)} dosya dönüştürülemedi` : ''}`;
     sonucKutusuCiz(s, {
-      baslik, tur: basarili.length ? 'basari' : 'uyari', tek: sonuclar.length === 1,
-      satirlar: sonuclar.map((r) => (r.hata ? { yol: r.yol, ad: dosyaAdi(r.yol), hata: r.hata } : { yol: r.hedef, ad: dosyaAdi(r.hedef), ac: r.hedefBicim === 'pdf', uyari: r.uyari || '' })),
+      baslik, tur: basarili.length ? 'basari' : 'uyari', tek: satirlar.length === 1, satirlar,
       dugmeler: basarili.length ? `<button class="ikincil donustur-goster">${MAC ? 'Finder\'da göster' : 'Klasörde göster'}</button>` : '',
       // 0.2.7: araç penceresi açıkken belge yeni pencerede önde açılır (uygulama.js dosyaAc), araç olduğu gibi kalır
       acIpucu: 'Yeni pencerede aç',
-      ac: (i) => baglam.dosyaAc(sonuclar[i].hedef, { arkaPlanda: true }),
+      ac: (i) => baglam.dosyaAc(satirlar[i].yol, { arkaPlanda: true }),
     });
     s.querySelector('.donustur-goster')?.addEventListener('click', () => baglam.pdefe.cagir('kabuk:klasordeGoster', basarili[0].hedef));
     s.scrollIntoView({ block: 'nearest' });
-    if (basarili.length) baglam.bildir(basarili.length === 1 ? `Dönüştürüldü: ${dosyaAdi(basarili[0].hedef)}` : `${sayiMetni(basarili.length)} dosya dönüştürüldü.`, 4000);
+    if (basarili.length) {
+      baglam.bildir(basarili.length > 1 ? `${sayiMetni(basarili.length)} dosya dönüştürüldü.`
+        : dosyaSayisi(basarili[0]) > 1 ? `Dönüştürüldü: ${sayiMetni(dosyaSayisi(basarili[0]))} görüntü dosyası` : `Dönüştürüldü: ${dosyaAdi(basarili[0].hedef)}`, 4000);
+    }
     return false;
   }
 }

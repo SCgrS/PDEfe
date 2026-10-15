@@ -403,6 +403,7 @@ html[data-tema="koyu"] .donustur-oge .hata { color: #ff8c8c; }
 .donustur-secenekler, .donustur-kayit { flex-shrink: 0; }
 .donustur-secenekler[hidden] { display: none; }
 .donustur-secenek-satiri { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.donustur-secenek-satiri[hidden] { display: none; }   /* Renk yalnızca TIFF hedefinde (0.2.7: JPG'de yalnızca çözünürlük) */
 .donustur-secenek-ad { min-width: 82px; color: var(--metin-soluk); }
 .donustur-secenekler .arac-segmentli > button { padding: 4px 14px; }
 .arac-cikti.yalniz-klasor .arac-klasor-cip { max-width: 420px; }

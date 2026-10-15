@@ -44,8 +44,9 @@ export const ARACLAR = [
     // 0.2.6 (kullanıcı isteği; ad kullanıcının yazdığı gibi): UDF ↔ PDF, TIFF ↔ PDF, Word ↔ PDF (araclar/donustur.js). Belge gerektirmez: girdi
     // UDF, TIFF ya da Word olabilir; açık bir PDF varsa ilk girdi olarak gelir (Birleştir'deki gibi). Açıklama kısa: adı iki satıra kırılan
     // açılış ekranı kartı ötekilerden uzun olmasın (iki satır açıklamayla 91 px, ötekiler 74 px). 0.2.7 (kullanıcı isteği): adı "Format Değiştir"
-    komut: 'arac.donustur', ad: 'Format Değiştir', aciklama: 'PDF ↔ UDF, Word, TIFF', renk: 'turkuaz', belge: false,
-    ipucu: 'UDF, TIFF ve Word dosyalarını PDF\'e; PDF\'i UDF\'ye, Word\'e ya da TIFF\'e dönüştürür',
+    komut: 'arac.donustur', ad: 'Format Değiştir', aciklama: 'PDF ↔ UDF, Word, TIFF, JPG', renk: 'turkuaz', belge: false,
+    // 0.2.7: görüntüler de (görüntü → PDF, PDF → JPG)
+    ipucu: 'UDF, TIFF, Word ve görüntü dosyalarını PDF\'e; PDF\'i UDF\'ye, Word\'e, TIFF\'e ya da JPG\'ye dönüştürür',
     // Çapraz duran iki sayfa ve aralarında birbirine dönen iki ok
     ikon: '<rect x="2.75" y="2.75" width="8" height="10.5" rx="1.2"/><rect x="13.25" y="10.75" width="8" height="10.5" rx="1.2"/><path d="M13.75 4.5h2.5a3 3 0 0 1 3 3v1.25"/><path d="m17.5 7.25 1.75 1.75L21 7.25"/><path d="M10.25 19.5h-2.5a3 3 0 0 1-3-3v-1.25"/><path d="m3 16.75 1.75-1.75 1.75 1.75"/>',
   },

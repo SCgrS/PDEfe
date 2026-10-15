@@ -728,15 +728,16 @@ function klasorCipi() {
  *  çıktıları; öteki araçlar yalnızca PDF yazar). TIFF'te .tif ve .tiff ikisi de geçerlidir. */
 export function kayitSuzgeci(uz) {
   const u = String(uz || 'pdf').toLowerCase();
-  const ad = { pdf: 'PDF belgesi', udf: 'UDF belgesi', tif: 'TIFF görüntüsü', tiff: 'TIFF görüntüsü', docx: 'Word belgesi' }[u] || `${u.toUpperCase()} dosyası`;
-  return { name: ad, extensions: u === 'tif' || u === 'tiff' ? ['tif', 'tiff'] : [u] };
+  const ad = { pdf: 'PDF belgesi', udf: 'UDF belgesi', tif: 'TIFF görüntüsü', tiff: 'TIFF görüntüsü', docx: 'Word belgesi', jpg: 'JPG görüntüsü', jpeg: 'JPG görüntüsü' }[u]
+    || `${u.toUpperCase()} dosyası`;
+  return { name: ad, extensions: u === 'tif' || u === 'tiff' ? ['tif', 'tiff'] : u === 'jpg' || u === 'jpeg' ? ['jpg', 'jpeg'] : [u] };
 }
 
-/** Adın sonundaki çıktı uzantısını tanıyan desen (TIFF'te .tif ve .tiff). */
+/** Adın sonundaki çıktı uzantısını tanıyan desen (TIFF'te .tif ve .tiff; 0.2.7: JPG'de .jpg ve .jpeg). */
 function uzantiDeseniAl(uz) {
   if (!uz) return null;
   const u = String(uz).toLowerCase();
-  return new RegExp('\\.' + (u === 'tif' || u === 'tiff' ? 'tiff?' : u.replace(/[^a-z0-9]/g, '')) + '$', 'i');
+  return new RegExp('\\.' + (u === 'tif' || u === 'tiff' ? 'tiff?' : u === 'jpg' || u === 'jpeg' ? 'jpe?g' : u.replace(/[^a-z0-9]/g, '')) + '$', 'i');
 }
 
 /**
@@ -1110,7 +1111,8 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
     // uzantı PDF olmayabilir: Dosya Formatını Değiştir'in UDF, TIFF ve Word çıktıları)
     const hatadakiAd = (/: ([^:\\/]+\.[a-z0-9]{2,5})\s*$/i.exec(m) || [])[1];
     // Dosyayı kilitleyen programın örneği dosyanın türüne göre (PDF'te eskisi gibi "bir PDF okuyucuda")
-    const ornekProgram = { udf: 'UYAP Doküman Editörü\'nde', docx: 'Word\'de', doc: 'Word\'de', tif: 'bir görüntü programında', tiff: 'bir görüntü programında' }[uzanti(hatadakiAd || hedefAd)] || 'bir PDF okuyucuda';
+    const ornekProgram = { udf: 'UYAP Doküman Editörü\'nde', docx: 'Word\'de', doc: 'Word\'de', tif: 'bir görüntü programında', tiff: 'bir görüntü programında',
+      jpg: 'bir görüntü programında', jpeg: 'bir görüntü programında' }[uzanti(hatadakiAd || hedefAd)] || 'bir PDF okuyucuda';
     const programda = `başka bir programda (örneğin ${ornekProgram}) açık olabilir`;
     // macOS (0.2.1): dosyaları başka programlar kilitlemez ve Gezgin'in Salt okunur özniteliği yoktur. Yazılamayan dosyada neden yazma izni
     // ya da Finder'ın Kilitli işaretidir (çekirdek ikisini de "salt okunur" sayar), okunamayanda okuma izni: "programı kapatıp yeniden
