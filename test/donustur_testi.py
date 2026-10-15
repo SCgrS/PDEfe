@@ -439,6 +439,12 @@ def test_yetenekler(c):
     sonuc("uzantılar ve girdi süzgeci", r["uzantilar"]["tiff"] == [".tif", ".tiff"] and r["uzantilar"]["word"] == [".docx"]
           and ".tif" in r["girdiUzantilari"].get("tiff", []) and ".pdf" in r["girdiUzantilari"].get("pdf", []), r["girdiUzantilari"])
     sonuc("UDF ve Word alanları var", isinstance(r.get("udf"), dict) and isinstance(r.get("word"), dict), (r.get("udf"), r.get("word")))
+    gv = r.get("gorsel") or {}
+    sonuc("0.2.7: görüntü → PDF ve PDF → JPG var, JPG uzantıları, görüntü süzgeci", gv.get("var") is True and r["uzantilar"].get("gorsel") == [".jpg", ".jpeg"]
+          and r["donusumler"].get("gorsel>pdf", {}).get("var") and r["donusumler"].get("pdf>gorsel", {}).get("var")
+          and {".jpg", ".png", ".bmp", ".gif", ".webp"} <= set(r["girdiUzantilari"].get("gorsel", [])) and gv.get("varsayilanDpi") == 300,
+          (gv, r["girdiUzantilari"].get("gorsel")))
+    sonuc("HEIC açıcısı yoksa süzgeçte .heic yok", gv.get("heic") or ".heic" not in r["girdiUzantilari"].get("gorsel", []), gv.get("heic"))
 
 
 def imza_ornekleri():
@@ -1093,7 +1099,8 @@ def test_zincir(c, g):
     try:
         k = temiz_klasor("zincir")
         r, _ = c.cagir("donusum_bilgi", {"yol": g["serit8"]})
-        beklenen = ["pdf", "udf"] + (["word"] if ("pdf", "word") in d._DONUSTURUCULER else [])   # PDF → Word (0.2.6) de zincirlenir
+        beklenen = (["pdf", "udf"] + (["word"] if ("pdf", "word") in d._DONUSTURUCULER else [])   # PDF → Word (0.2.6) de zincirlenir
+                    + (["gorsel"] if ("pdf", "gorsel") in d._DONUSTURUCULER else []))                # PDF → JPG (0.2.7) de
         sonuc("TIFF'in hedeflerinde zincirle UDF görünür", [h["bicim"] for h in r["hedefler"]] == beklenen, r["hedefler"])
         r, _ = donustur(c, [{"yol": g["serit8"], "hedef": os.path.join(k, "zincir.udf"), "hedefBicim": "udf"}])
         s = r["sonuclar"][0]
@@ -1113,6 +1120,307 @@ def test_zincir(c, g):
             d._DONUSTURUCULER[("pdf", "udf")] = eski
 
 
+# ---------------------------------------------------------------- görüntü ↔ PDF (0.2.7)
+def renkli_evrak(g, h, tohum):
+    """Renkli antetli, yazılı evrak görüntüsü (fotoğraf ya da tarama gibi; kayıpsız karşılaştırma için keskin kenarlı)."""
+    im = Image.new("RGB", (g, h), (252, 251, 248))
+    d = ImageDraw.Draw(im)
+    d.rectangle((int(g * 0.08), int(h * 0.04), int(g * 0.92), int(h * 0.08)), fill=(160, 20, 30))
+    gri = metin_karesi(g, h, tohum, kip="L")
+    im.paste((30, 30, 60), mask=gri.point(lambda v: 255 if v < 128 else 0))
+    return im
+
+
+def gorsel_girdileri():
+    k = os.path.join(GIRDI, "gorsel")
+    shutil.rmtree(k, ignore_errors=True)
+    os.makedirs(k)
+    gg = {}
+
+    def yol(ad):
+        return os.path.join(k, ad)
+    # PNG: 300 dpi etiketli A4 (2480 × 3508), etiketsiz A4 150 dpi kadar (1240 × 1754), 96 dpi ekran görüntüsü
+    gg["png300_im"] = renkli_evrak(2480, 3508, 101)
+    gg["png300_im"].save(yol("a4_300.png"), dpi=(300, 300))
+    gg["png300"] = yol("a4_300.png")
+    gg["png_etiketsiz_im"] = renkli_evrak(1240, 1754, 102)
+    gg["png_etiketsiz_im"].save(yol("a4_etiketsiz.png"))
+    gg["png_etiketsiz"] = yol("a4_etiketsiz.png")
+    gg["ekran_im"] = renkli_evrak(1920, 1080, 103)
+    gg["ekran_im"].save(yol("ekran_96.png"), dpi=(96, 96))
+    gg["ekran"] = yol("ekran_96.png")
+    # JPEG: JFIF 200 dpi A4; EXIF yönü 6 (yatay saklanmış, dik görünür) 200 dpi; 72 dpi telefon fotoğrafı (4:3)
+    renkli_evrak(1654, 2339, 104).save(yol("a4_200.jpg"), quality=85, dpi=(200, 200))
+    gg["jpg200"] = yol("a4_200.jpg")
+    dik = renkli_evrak(1654, 2339, 105)
+    gg["jpg_yon6_gorunen"] = dik
+    exif = Image.Exif()
+    exif[0x0112] = 6
+    dik.transpose(Image.Transpose.ROTATE_90).save(yol("yon6.jpg"), quality=85, dpi=(200, 200), exif=exif.tobytes())
+    gg["jpg_yon6"] = yol("yon6.jpg")
+    renkli_evrak(2016, 1512, 106).save(yol("telefon_72.jpg"), quality=85, dpi=(72, 72))
+    gg["jpg72"] = yol("telefon_72.jpg")
+    # Küçük görüntü (A4 kuralı 50 dpi'den az verir → 72 dpi), BMP, GIF (hareketli), WEBP (kayıplı / kayıpsız), AVIF, HEIC taklidi
+    Image.new("RGB", (300, 200), (90, 160, 220)).save(yol("kucuk.png"))
+    gg["kucuk"] = yol("kucuk.png")
+    renkli_evrak(827, 1169, 107).save(yol("evrak.bmp"))
+    gg["bmp"] = yol("evrak.bmp")
+    kareler = [renkli_evrak(600, 848, 108).convert("P", palette=Image.Palette.ADAPTIVE), Image.new("P", (600, 848), 3)]
+    kareler[0].save(yol("hareketli.gif"), save_all=True, append_images=kareler[1:], duration=200, loop=0)
+    gg["gif"] = yol("hareketli.gif")
+    renkli_evrak(827, 1169, 109).save(yol("kayipli.webp"), "WEBP", quality=80)
+    gg["webp"] = yol("kayipli.webp")
+    renkli_evrak(827, 1169, 110).save(yol("kayipsiz.webp"), "WEBP", lossless=True)
+    gg["webp_kayipsiz"] = yol("kayipsiz.webp")
+    from PIL import features
+    if features.check("avif"):
+        renkli_evrak(827, 1169, 111).save(yol("foto.avif"), "AVIF", quality=70)
+        gg["avif"] = yol("foto.avif")
+    with open(yol("foto.heic"), "wb") as f:   # HEIC'in kutu yapısının başı (açıcı yoksa yalnızca türü tanınır)
+        f.write(b"\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic" + b"\x00" * 200)
+    gg["heic"] = yol("foto.heic")
+    with open(yol("metin_bm.txt"), "wb") as f:
+        f.write(b"BM ile baslayan duz metin, goruntu degil.\n" * 3)
+    gg["bm_metin"] = yol("metin_bm.txt")
+    return gg
+
+
+def test_gorsel_imza(c, gg):
+    print("— Görüntünün türü imzasından")
+    beklenen = [("png300", "png"), ("jpg200", "jpeg"), ("jpg_yon6", "jpeg"), ("bmp", "bmp"), ("gif", "gif"), ("webp", "webp"),
+                ("avif", "avif"), ("heic", "heif")]
+    for ad, alt in beklenen:
+        if ad not in gg:
+            atlandi("imza: %s" % ad, "Pillow'da AVIF yok")
+            continue
+        r, _ = c.cagir("donusum_bilgi", {"yol": gg[ad], "genislik": 160})
+        sonuc("imza: %s → gorsel/%s" % (ad, alt), r["tur"] == "gorsel" and r["alt"] == alt, (r["tur"], r["alt"], r.get("uyari")))
+    r, _ = c.cagir("donusum_bilgi", {"yol": gg["bm_metin"]})
+    sonuc("\"BM\" ile başlayan düz metin görüntü sayılmaz", r["tur"] == "bilinmeyen", (r["tur"], r["alt"]))
+    r, _ = c.cagir("donusum_bilgi", {"yol": gg["png300"], "genislik": 160})
+    hedefler = [h["bicim"] for h in r["hedefler"]]
+    sonuc("görüntünün hedefleri PDF, UDF, Word, TIFF (görüntü değil)", hedefler == ["pdf", "udf", "word", "tiff"]
+          and next(h for h in r["hedefler"] if h["bicim"] == "pdf")["var"], r["hedefler"])
+    sonuc("donusum_bilgi görüntü: sayfa 1, ölçü (300 dpi etiket → A4), küçük resim", r["sayfa"] == 1 and abs(r["genislik"] - A4[0]) < 1
+          and abs(r["yukseklik"] - A4[1]) < 1 and r["dpi"] == 300 and r["dpiKaynagi"] == "etiket" and r["pngGenislik"] == 160
+          and r["pikselGenislik"] == 2480, {x: r.get(x) for x in ("sayfa", "genislik", "yukseklik", "dpi", "dpiKaynagi", "pngGenislik")})
+    r, _ = c.cagir("donusum_bilgi", {"yol": gg["jpg_yon6"], "genislik": 120})
+    sonuc("donusum_bilgi EXIF yönlü JPEG: görünen yönde dik ölçü ve küçük resim", r["pikselGenislik"] == 1654 and r["pikselYukseklik"] == 2339
+          and r["pngYukseklik"] > r["pngGenislik"] and r["yukseklik"] > r["genislik"], {x: r.get(x) for x in ("pikselGenislik", "genislik", "pngGenislik", "pngYukseklik")})
+    r, _ = c.cagir("donusum_bilgi", {"yol": gg["gif"]})
+    sonuc("hareketli GIF: ilk karenin dönüştürüleceği söylenir", "ilk kare" in (r.get("uyari") or ""), r.get("uyari"))
+    r, _ = c.cagir("donusum_bilgi", {"yol": gg["heic"]})
+    heic_var = bool((c.cagir("donusum_yetenekleri", {})[0].get("gorsel") or {}).get("heic"))
+    if heic_var:
+        atlandi("HEIC açıcısı yokken", "bu ortamda pillow-heif kurulu")
+    else:
+        pdf = next((h for h in r["hedefler"] if h["bicim"] == "pdf"), {})
+        sonuc("HEIC (açıcı yok): hedefler yapılamaz, nedeni söylenir", pdf.get("var") is False and "HEIC" in (pdf.get("neden") or ""), pdf)
+        k = temiz_klasor("heic")
+        r2, _ = donustur(c, [{"yol": gg["heic"], "hedef": os.path.join(k, "foto.pdf"), "hedefBicim": "pdf"}])
+        sonuc("HEIC (açıcı yok): dönüştürmede öğe hatası 'desteklenmiyor'", r2["sonuclar"][0].get("kod") == "desteklenmiyor", r2["sonuclar"][0])
+
+
+def _gomulu_gorsel(yol):
+    """PDF'in ilk sayfasındaki görselin (filtre, ham akış)."""
+    d = pymupdf.open(yol, filetype="pdf")
+    try:
+        x = d[0].get_images(full=True)[0][0]
+        return d.xref_get_key(x, "Filter")[1], d.xref_stream_raw(x)
+    finally:
+        d.close()
+
+
+def test_gorsel_pdf(c, gg):
+    print("— Görüntü → PDF")
+    k = temiz_klasor("gorsel_pdf")
+    vakalar = [
+        # ad, girdi, (genişlik pt, yükseklik pt), dpi kaynağı, gömme
+        ("300 dpi etiketli PNG (A4)", "png300", A4, "etiket", "kayipsiz"),
+        ("etiketsiz PNG: uzun kenar A4 (150 dpi)", "png_etiketsiz", (1240 * 72 / 150.0, 1754 * 72 / 150.0), "a4", "kayipsiz"),
+        ("96 dpi ekran görüntüsü: etiket sayılmaz, A4 kuralı", "ekran", (A4[1], 1080 * A4[1] / 1920), "a4", "kayipsiz"),
+        ("200 dpi JPEG: olduğu gibi gömülü", "jpg200", (1654 * 72 / 200.0, 2339 * 72 / 200.0), "etiket", "ozgun"),
+        ("EXIF yönü 6 JPEG: dik sayfa, olduğu gibi gömülü", "jpg_yon6", (1654 * 72 / 200.0, 2339 * 72 / 200.0), "etiket", "ozgun"),
+        ("72 dpi telefon fotoğrafı: A4 kuralı (yatay)", "jpg72", (A4[1], 1512 * A4[1] / 2016), "a4", "ozgun"),
+        ("küçük görüntü: 72 dpi", "kucuk", (300.0, 200.0), "varsayilan", "kayipsiz"),
+        ("BMP: kayıpsız", "bmp", (827 * A4[1] / 1169, A4[1]), "a4", "kayipsiz"),
+        ("kayıplı WEBP: JPEG 92", "webp", (827 * A4[1] / 1169, A4[1]), "a4", "jpeg"),
+        ("kayıpsız WEBP: kayıpsız", "webp_kayipsiz", (827 * A4[1] / 1169, A4[1]), "a4", "kayipsiz"),
+        ("hareketli GIF: ilk kare", "gif", (600 * A4[1] / 848, A4[1]), "a4", "kayipsiz"),
+    ]
+    if "avif" in gg:
+        vakalar.append(("AVIF: JPEG 92", "avif", (827 * A4[1] / 1169, A4[1]), "a4", "jpeg"))
+    ogeler = [{"yol": gg[v[1]], "hedef": os.path.join(k, v[1] + ".pdf"), "hedefBicim": "pdf"} for v in vakalar]
+    r, il = donustur(c, ogeler)
+    sonuc("%d görüntü tek istekte PDF'e: hepsi başarılı" % len(ogeler), r["basarili"] == len(ogeler),
+          [(o["yol"], o.get("hata")) for o in r["sonuclar"] if "hata" in o])
+    for v, o in zip(vakalar, r["sonuclar"]):
+        if "hata" in o:
+            continue
+        ad, anahtar, olcu, kaynak, gomme = v
+        oz = pdf_ozeti(o["hedef"])
+        sonuc("%s: 1 sayfa %.1f × %.1f pt, dpi kaynağı %s, gömme %s" % (ad, olcu[0], olcu[1], kaynak, gomme),
+              len(oz) == 1 and abs(oz[0]["g"] - olcu[0]) < 1 and abs(oz[0]["y"] - olcu[1]) < 1 and o.get("dpiKaynagi") == kaynak
+              and o.get("gomme") == gomme and o.get("sayfa") == 1 and o.get("kaynakTur") == "gorsel",
+              (round(oz[0]["g"], 1), round(oz[0]["y"], 1), o.get("dpiKaynagi"), o.get("gomme")))
+    # Kayıpsız: PNG kendi çözünürlüğünde piksel piksel aynı
+    yol = os.path.join(k, "png_etiketsiz.pdf")
+    if os.path.exists(yol):
+        sonuc("kayıpsız PNG: kendi çözünürlüğünde pikseller aynı", ayni(pdf_sayfa_goruntusu(yol, 0, 1240, 1754, renkli=True), gg["png_etiketsiz_im"]))
+    # Özgün JPEG yeniden kodlanmadan: gömülü akış dosyanın baytları
+    for anahtar in ("jpg200", "jpg_yon6"):
+        yol = os.path.join(k, anahtar + ".pdf")
+        if os.path.exists(yol):
+            filtre, ham = _gomulu_gorsel(yol)
+            with open(gg[anahtar], "rb") as f:
+                ozgun = f.read()
+            sonuc("%s: JPEG olduğu gibi gömülü (DCT, baytlar aynı)" % anahtar, filtre == "/DCTDecode" and ham == ozgun, (filtre, len(ham), len(ozgun)))
+    # EXIF yönü: sayfa görünen görüntüyü gösterir (JPEG çözücü farkı küçük)
+    yol = os.path.join(k, "jpg_yon6.pdf")
+    if os.path.exists(yol):
+        cizim = pdf_sayfa_goruntusu(yol, 0, 1654, 2339, renkli=True)
+        fark = sum(ImageChops.difference(cizim, gg["jpg_yon6_gorunen"]).convert("L").getdata()) / (1654.0 * 2339)
+        sonuc("EXIF yönü 6: sayfa görünen yönde (ortalama fark < 6)", fark < 6, round(fark, 2))
+    o = r["sonuclar"][[v[1] for v in vakalar].index("gif")]
+    sonuc("hareketli GIF: sonuçta ilk kare uyarısı", "ilk kare" in (o.get("uyari") or ""), o.get("uyari"))
+    # Zincirler: görüntü → TIFF, → UDF, → Word (PDF üzerinden)
+    r, _ = donustur(c, [{"yol": gg["png_etiketsiz"], "hedef": os.path.join(k, "zincir.tif"), "hedefBicim": "tiff", "secenekler": {"renk": "gri"}},
+                        {"yol": gg["jpg200"], "hedef": os.path.join(k, "zincir.udf"), "hedefBicim": "udf"},
+                        {"yol": gg["jpg200"], "hedef": os.path.join(k, "zincir.docx"), "hedefBicim": "word"}])
+    durum = [(os.path.basename(o["hedef"]), o.get("hata") or "tamam") for o in r["sonuclar"]]
+    sonuc("görüntü → TIFF / UDF / Word zinciri (PDF üzerinden)", r["sonuclar"][0].get("sayfa") == 1 and "hata" not in r["sonuclar"][0]
+          and all("hata" not in o or o.get("kod") == "desteklenmiyor" for o in r["sonuclar"][1:]), durum)
+    if "hata" not in r["sonuclar"][0]:
+        kr = kare_listesi(os.path.join(k, "zincir.tif"))
+        sonuc("görüntü → TIFF: 1 kare, gri, 150 dpi kalır (taranmış sayfa kendi çözünürlüğünde)", len(kr) == 1 and kr[0][0].mode == "L"
+              and tuple(round(float(v)) for v in kr[0][1].get("dpi", (0, 0))) == (150, 150), [(x[0].mode, x[0].size, x[1].get("dpi")) for x in kr])
+    sonuc("geçici dosya kalmadı", not gecici_kalintilar(k), gecici_kalintilar(k))
+
+
+def test_pdf_jpg(c, g):
+    print("— PDF → JPG")
+    k = temiz_klasor("pdf_jpg")
+    bekl_300 = (math.ceil(A4[0] * 300 / 72 - 0.001), math.ceil(A4[1] * 300 / 72 - 0.001))
+    bekl_200 = (math.ceil(A4[0] * 200 / 72 - 0.001), math.ceil(A4[1] * 200 / 72 - 0.001))
+    for ad, secenek, dpi, olcu in (("varsayılan (300 dpi)", {}, 300, bekl_300), ("200 dpi (Düşük)", {"dpi": 200}, 200, bekl_200)):
+        alt = os.path.join(k, str(dpi))
+        os.makedirs(alt)
+        hedef = os.path.join(alt, "metinli.jpg")
+        r, _ = donustur(c, [{"yol": g["metin_pdf"], "hedef": hedef, "hedefBicim": "gorsel", "secenekler": secenek}])
+        o = r["sonuclar"][0]
+        beklenen = [os.path.join(alt, "metinli - Sayfa %d.jpg" % i) for i in (1, 2, 3)]
+        sonuc("PDF → JPG %s: 3 sayfa üç dosya \"<ad> - Sayfa n.jpg\", sonuçta hedefler" % ad,
+              "hata" not in o and o.get("hedefler") == beklenen and o.get("hedef") == beklenen[0] and sorted(os.listdir(alt)) == sorted(map(os.path.basename, beklenen)),
+              (o.get("hata"), o.get("hedefler") and [os.path.basename(x) for x in o["hedefler"]], os.listdir(alt)))
+        if "hata" in o:
+            continue
+        bilgi = []
+        for y in beklenen:
+            with Image.open(y) as im:
+                bilgi.append((im.format, im.mode, im.size, tuple(round(float(v)) for v in im.info.get("dpi", (0, 0)))))
+        sonuc("PDF → JPG %s: JPEG, RGB, %s, %d dpi etiketli" % (ad, olcu, dpi), all(b == ("JPEG", "RGB", olcu, (dpi, dpi)) for b in bilgi), bilgi)
+        sonuc("PDF → JPG %s: sonuçta boyut ve sayfa" % ad, o.get("boyut") == sum(os.path.getsize(y) for y in beklenen) and o.get("sayfa") == 3,
+              (o.get("boyut"), o.get("sayfa")))
+    # Tek sayfa: hedefin kendisi
+    tek = os.path.join(k, "tek.pdf")
+    d = pymupdf.open(g["metin_pdf"])
+    d.select([0])
+    d.save(tek)
+    d.close()
+    r, _ = donustur(c, [{"yol": tek, "hedef": os.path.join(k, "tek.jpg"), "hedefBicim": "gorsel"}])
+    o = r["sonuclar"][0]
+    sonuc("tek sayfalı PDF → JPG: \"<ad>.jpg\"", o.get("hedefler") == [os.path.join(k, "tek.jpg")] and os.path.isfile(os.path.join(k, "tek.jpg")), o)
+    # Taranmış sayfa (200 dpi tarama): 300 seçilse de büyütülmez
+    ara = os.path.join(k, "tarama.pdf")
+    donustur(c, [{"yol": g["etiketsiz_g4"], "hedef": ara, "hedefBicim": "pdf"}])
+    r, _ = donustur(c, [{"yol": ara, "hedef": os.path.join(k, "tarama.jpg"), "hedefBicim": "gorsel", "secenekler": {"dpi": 300}}])
+    o = r["sonuclar"][0]
+    if "hata" in o:
+        sonuc("taranmış PDF → JPG", False, o)
+    else:
+        with Image.open(o["hedefler"][0]) as im:
+            sonuc("taranmış 200 dpi sayfa 300 seçilince 200 dpi kalır (büyütülmez)", im.size == (1654, 2339)
+                  and tuple(round(float(v)) for v in im.info.get("dpi", (0, 0))) == (200, 200), (im.size, im.info.get("dpi")))
+    # Zincir: TIFF → JPG
+    r, _ = donustur(c, [{"yol": g["etiketsiz_g4"], "hedef": os.path.join(k, "tiff_zincir.jpg"), "hedefBicim": "gorsel"}])
+    o = r["sonuclar"][0]
+    sonuc("TIFF → JPG zinciri (PDF üzerinden): 3 dosya", len(o.get("hedefler") or []) == 3, o.get("hata") or [os.path.basename(x) for x in o.get("hedefler") or []])
+    # Seçenek ve uzantı denetimi
+    r, _ = donustur(c, [{"yol": g["metin_pdf"], "hedef": os.path.join(k, "x.jpg"), "hedefBicim": "gorsel", "secenekler": {"dpi": 150}}])
+    sonuc("geçersiz JPG çözünürlüğü öğe hatası", r["sonuclar"][0].get("kod") == "gecersiz", r["sonuclar"][0])
+    try:
+        donustur(c, [{"yol": g["metin_pdf"], "hedef": os.path.join(k, "x.png"), "hedefBicim": "gorsel"}])
+        sonuc("JPG hedefinin uzantısı .jpg / .jpeg olmalı", False, "kabul edildi")
+    except CagriHatasi as e:
+        sonuc("JPG hedefinin uzantısı .jpg / .jpeg olmalı", "JPG" in str(e) and ".jpg" in str(e), str(e))
+    # İptal: hiçbir dosya ve geçici klasör kalmaz
+    alt = os.path.join(k, "iptal")
+    os.makedirs(alt)
+    try:
+        donustur(c, [{"yol": g["metin_pdf"], "hedef": os.path.join(alt, "i.jpg"), "hedefBicim": "gorsel"}], iptal_sonra=2)
+        sonuc("PDF → JPG iptal", False, "iptal edilmedi")
+    except CagriHatasi as e:
+        sonuc("PDF → JPG iptal: -32800, dosya ve geçici klasör yok", e.kod == -32800 and not os.listdir(alt), (e.kod, os.listdir(alt)))
+    sonuc("geçici dosya kalmadı", not gecici_kalintilar(k), gecici_kalintilar(k))
+
+
+def test_cakisma(c, g):
+    print("— Var olan hedef: üzerine yaz / yeni ad (0.2.7)")
+    k = temiz_klasor("cakisma")
+    var_olan = os.path.join(k, "metinli - Sayfa 2.jpg")
+    with open(var_olan, "wb") as f:
+        f.write(b"eski")
+    r, _ = donustur(c, [{"yol": g["metin_pdf"], "hedef": os.path.join(k, "metinli.jpg"), "hedefBicim": "gorsel", "cakisma": "yeniAd"}])
+    o = r["sonuclar"][0]
+    beklenen = [os.path.join(k, "metinli (1) - Sayfa %d.jpg" % i) for i in (1, 2, 3)]
+    sonuc("JPG, yeni ad: bir sayfa dosyası varsa bütün dosyalar \"(1)\" kökünde, var olana dokunulmaz",
+          o.get("hedefler") == beklenen and md5(var_olan) == hashlib.md5(b"eski").hexdigest() and o.get("istenenHedef") == os.path.join(k, "metinli.jpg"),
+          (o.get("hata"), [os.path.basename(x) for x in o.get("hedefler") or []]))
+    r, _ = donustur(c, [{"yol": g["metin_pdf"], "hedef": os.path.join(k, "metinli.jpg"), "hedefBicim": "gorsel", "cakisma": "yeniAd"}])
+    o = r["sonuclar"][0]
+    sonuc("JPG, yeni ad ikinci kez: \"(2)\"", [os.path.basename(x) for x in o.get("hedefler") or []] == ["metinli (2) - Sayfa %d.jpg" % i for i in (1, 2, 3)],
+          [os.path.basename(x) for x in o.get("hedefler") or []])
+    r, _ = donustur(c, [{"yol": g["metin_pdf"], "hedef": os.path.join(k, "metinli.jpg"), "hedefBicim": "gorsel"}])
+    o = r["sonuclar"][0]
+    sonuc("JPG, üzerine yaz (varsayılan): var olan sayfa dosyası yenisiyle değişir", "hata" not in o and md5(var_olan) != hashlib.md5(b"eski").hexdigest()
+          and "istenenHedef" not in o, o.get("hata"))
+    tif = os.path.join(k, "belge.tif")
+    with open(tif, "wb") as f:
+        f.write(b"eski")
+    r, _ = donustur(c, [{"yol": g["metin_pdf"], "hedef": tif, "hedefBicim": "tiff", "cakisma": "yeniAd"}])
+    o = r["sonuclar"][0]
+    sonuc("tek dosya, yeni ad: \"belge (1).tif\", var olana dokunulmaz", o.get("hedef") == os.path.join(k, "belge (1).tif") and md5(tif) == hashlib.md5(b"eski").hexdigest()
+          and o.get("istenenHedef") == tif, (o.get("hata"), o.get("hedef")))
+    r, _ = donustur(c, [{"yol": g["metin_pdf"], "hedef": os.path.join(k, "belge (1).tif"), "hedefBicim": "tiff", "cakisma": "yeniAd"}])
+    sonuc("\"(1)\" ile biten ad varsa \"(2)\"", r["sonuclar"][0].get("hedef") == os.path.join(k, "belge (2).tif"), r["sonuclar"][0].get("hedef"))
+    if WINDOWS:
+        once = md5(os.path.join(k, "metinli - Sayfa 1.jpg"))
+        with kilitli(var_olan):
+            r, _ = donustur(c, [{"yol": g["metin_pdf"], "hedef": os.path.join(k, "metinli.jpg"), "hedefBicim": "gorsel"}])
+        o = r["sonuclar"][0]
+        sonuc("JPG, üzerine yaz, bir sayfa dosyası başka programda açık: öğe hatası, hiçbir dosya değişmedi",
+              o.get("kod") == "kilitli" and md5(os.path.join(k, "metinli - Sayfa 1.jpg")) == once, (o.get("kod"), o.get("hata")))
+    try:
+        donustur(c, [{"yol": g["metin_pdf"], "hedef": os.path.join(k, "z.jpg"), "hedefBicim": "gorsel", "cakisma": "sor"}])
+        sonuc("bilinmeyen çakışma seçeneği isteği reddeder", False, "kabul edildi")
+    except CagriHatasi as e:
+        sonuc("bilinmeyen çakışma seçeneği isteği reddeder", "çakışma" in str(e), str(e))
+    # Çökmeden kalan çok dosyalı geçici klasör (pid'i çalışmayan çekirdek) sonraki açılışta silinir
+    if not c.exe:
+        from islemler import donustur as D
+        olu_pid = 4000000 + random.Random().randint(1, 99999)
+        kalan = os.path.join(k, "x.jpg.%d-0.pdefe-tmp" % olu_pid)
+        os.makedirs(kalan)
+        with open(os.path.join(kalan, "1.jpg"), "wb") as f:
+            f.write(b"yarim")
+        os.makedirs(os.path.dirname(D._kayit_dosyasi(olu_pid)), exist_ok=True)
+        with open(D._kayit_dosyasi(olu_pid), "w", encoding="utf-8") as f:
+            f.write(kalan + "\n")
+        D.kalintilari_temizle()
+        sonuc("çökmeden kalan çok dosyalı geçici klasör silindi", not os.path.exists(kalan) and not os.path.exists(D._kayit_dosyasi(olu_pid)))
+    sonuc("geçici dosya kalmadı", not gecici_kalintilar(k), gecici_kalintilar(k))
+
+
 def main():
     exe = None
     if "--exe" in sys.argv:
@@ -1124,13 +1432,15 @@ def main():
     os.makedirs(CIKTI, exist_ok=True)
     print("Girdiler üretiliyor…")
     g = girdileri_uret()
+    gg = gorsel_girdileri()
     if not hizli:
         akis_dosyasi(150)
     c = Cagirici(exe)
     print("Çağrı yolu:", exe or "doğrudan modül")
     testler = [lambda: test_yetenekler(c), lambda: test_imza(c), lambda: test_mupdf_yalnizca_pdf(c), lambda: test_tiff_pdf(c, g),
                lambda: test_pdf_tiff(c, g), lambda: test_iptal(c, g), lambda: test_hedef_erisim(c, g), lambda: test_parametreler(c, g),
-               lambda: test_zip_bombasi(c), lambda: test_dis_surec(c), lambda: test_zincir(c, g), lambda: test_surec(exe, g)]
+               lambda: test_zip_bombasi(c), lambda: test_dis_surec(c), lambda: test_zincir(c, g), lambda: test_surec(exe, g),
+               lambda: test_gorsel_imza(c, gg), lambda: test_gorsel_pdf(c, gg), lambda: test_pdf_jpg(c, g), lambda: test_cakisma(c, g)]
     if not exe:
         testler.insert(6, test_iptal_bayragi)
     if not hizli:

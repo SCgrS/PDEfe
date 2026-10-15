@@ -1,19 +1,36 @@
 # -*- coding: utf-8 -*-
-"""Dosya biçimi dönüştürme (0.2.6, "Dosya Formatını Değiştir" aracı): TIFF ↔ PDF bu modülde; UDF ↔ PDF ve Word ↔ PDF bu çatıya ayrı
-modüllerde eklenir (donusturucu_kaydet, yetenek_kaydet, bilgi_kaydet; islemler/__init__.py onları bu modülden sonra yükler).
+"""Dosya biçimi dönüştürme (0.2.6, "Dosya Formatını Değiştir" aracı; 0.2.7'de adı "Format Değiştir"): TIFF ↔ PDF ve (0.2.7) görüntü →
+PDF, PDF → JPG bu modülde; UDF ↔ PDF ve Word ↔ PDF bu çatıya ayrı modüllerde eklenir (donusturucu_kaydet, yetenek_kaydet, bilgi_kaydet;
+islemler/__init__.py onları bu modülden sonra yükler).
 
 Yöntemler (kaydol):
   donusum_yetenekleri {} → {tiff: bool (iki yön de var), udf: {...}, word: {...} (Word → PDF), pdf_word: {...} (PDF → Word) (o modüllerin
       yetenek_kaydet'le verdiği; yoksa {var: false, neden}), donusumler: {"<kaynak>><hedef>": {var, neden?}} (ör. "tiff>pdf"),
-      uzantilar: {hedefBicim: [uzantılar]}, girdiUzantilari: {tür: [uzantılar]} (yalnızca dönüştürülebilen türler; dosya seçme süzgeci için)}
+      uzantilar: {hedefBicim: [uzantılar]}, girdiUzantilari: {tür: [uzantılar]} (yalnızca dönüştürülebilen türler ve açılabilen görüntü
+      alt türleri; dosya seçme süzgeci için), gorsel: {var (görüntü → PDF ve PDF → JPG), heic (HEIC / HEIF açılabiliyor mu), dpiler:
+      [200, 300], varsayilanDpi: 300} (0.2.7)}
   donusum_bilgi {yol, genislik?=220} → {tur, alt, boyut, sayfa, hedefler: [{bicim, uzantilar, var, neden?}], uyari?, png?,
-      pngGenislik?, pngYukseklik?, genislik?, yukseklik? (ilk sayfanın pt ölçüsü), dpi? / dpiKaynagi? (TIFF: 'etiket' | 'a4' |
-      'varsayilan')}. Tür UZANTIDAN DEĞİL DOSYANIN İÇERİĞİNDEN (tur_bul): 'pdf' | 'udf' | 'tiff' | 'word' | 'bilinmeyen'; alt: udf 'zip' |
-      'xml', word 'docx' | 'docm' | 'doc' | 'rtf' | 'odt' | 'sifreli', tiff 'tiff' | 'bigtiff'. Ön izleme yalnızca PDF (MuPDF) ve TIFF
-      (Pillow) için; öteki türlerin baytı ne MuPDF'e ne arayüze gider.
-  bicim_donustur {ogeler: [{yol, hedef, hedefBicim, secenekler?}]} → (Ertelenmis; dönüştürme iş parçacığında)
-      {sonuclar: [{yol, hedef, hedefBicim, kaynakTur, boyut, sayfa?, ...} | {yol, hedef, hedefBicim, hata, kod}], basarili, hatali}.
-      hedefBicim: 'pdf' | 'udf' | 'tiff' | 'word' (Word hedefi .docx); hedefin uzantısı biçimle eşleşmeli (HEDEF_UZANTILARI). Parametre
+      pngGenislik?, pngYukseklik?, genislik?, yukseklik? (ilk sayfanın pt ölçüsü; görüntüde PDF'teki sayfanın), dpi? / dpiKaynagi? (TIFF ve
+      görüntü: 'etiket' | 'a4' | 'varsayilan'), pikselGenislik? / pikselYukseklik? / gorselBicimi? (görüntü, görünen yönde)}. Tür UZANTIDAN
+      DEĞİL DOSYANIN İÇERİĞİNDEN (tur_bul): 'pdf' | 'udf' | 'tiff' | 'word' | 'gorsel' | 'bilinmeyen'; alt: udf 'zip' | 'xml', word 'docx' |
+      'docm' | 'doc' | 'rtf' | 'odt' | 'sifreli', tiff 'tiff' | 'bigtiff', gorsel 'jpeg' | 'png' | 'gif' | 'bmp' | 'webp' | 'avif' | 'heif'
+      (HEIC / HEIF açıcısı yoksa hedefler yapılamaz, neden HEIF_YOK). Ön izleme yalnızca PDF (MuPDF), TIFF ve görüntü (Pillow) için; öteki
+      türlerin baytı ne MuPDF'e ne arayüze gider. Hareketli GIF / WEBP'de uyari (yalnızca ilk kare).
+  bicim_donustur {ogeler: [{yol, hedef, hedefBicim, secenekler?, cakisma?}]} → (Ertelenmis; dönüştürme iş parçacığında)
+      {sonuclar: [{yol, hedef, hedefBicim, kaynakTur, boyut, sayfa?, hedefler?, istenenHedef?, ...} | {yol, hedef, hedefBicim, hata, kod,
+      hedefler?}], basarili, hatali}.
+      hedefBicim: 'pdf' | 'udf' | 'tiff' | 'word' (Word hedefi .docx) | 'gorsel' (JPG, 0.2.7); hedefin uzantısı biçimle eşleşmeli
+      (HEDEF_UZANTILARI; gorsel .jpg ya da .jpeg).
+      JPG hedefi (çok dosyalı, COKLU_HEDEFLER): hedef "<klasör>/<ad>.jpg" ad köküdür; tek sayfalı belge "<ad>.jpg", çok sayfalı belge
+      "<ad> - Sayfa 1.jpg", "<ad> - Sayfa 2.jpg"… (sayfa_adlari) olarak yazılır; sonucun hedefler'i yazılan dosyaların listesi, hedef ilki,
+      boyut toplamı. secenekler: {dpi: 300 | 200 (varsayılan 300)}; JPEG kalitesi 90, dpi etiketli; taranmış sayfa seçilenden düşük
+      çözünürlükteyse kendi çözünürlüğünde (büyütülmez).
+      cakisma (0.2.7, bütün hedeflerde): 'uzerineYaz' (varsayılan; var olan hedef yenisiyle değişir) | 'yeniAd' (hedef ya da JPG'nin sayfa
+      dosyalarından biri varsa ilk boş "(1)", "(2)"… adına yazılır, var olana dokunulmaz: "Belge.tif" → "Belge (1).tif", JPG'de bütün sayfalar
+      aynı kökte: "<ad> (1) - Sayfa n.jpg"; bos_ad). Ad değiştiyse sonuçta istenenHedef (istenen ad) ve hedef (yazılan ad). JPG'de bir sayfa
+      dosyası salt okunur ya da başka programda açıksa öğe hata alır, hiçbir sayfa dosyası değişmez; yarıda kalırsa (çok seyrek) yazılanlar
+      hatanın hedefler'inde.
+      Parametre
       hatası (öğe biçimi, uzantı, aynı hedef iki kez, hedef bir kaynağın kendisi) bütün isteği reddeder; içerikle ilgili hata (biçim
       tanınmadı, dönüştürme yok, dosya bozuk / parolalı / kilitli / salt okunur, güvensiz zip) yalnızca o öğenin sonucuna yazılır, öteki
       öğeler sürer. kod: 'bulunamadi' | 'kilitli' | 'salt_okunur' | 'parolali' | 'bozuk' | 'taninmadi' | 'ayni_bicim' |
@@ -62,6 +79,10 @@ Kareler sırayla okunur, yalnızca biri bellekte durur (150 sayfada tepe ~70 MB;
 PDF → TIFF: tek dosyada çok sayfa (AppendingTiffWriter, sayfa sayfa); siyah-beyazda sabit eşik (ESIK, titreşimsiz: yazı tanıma ölçümü),
 G4; gri / renkli LZW; dpi etiketli. Tek tam sayfa görselden oluşan (taranmış) sayfa görselin kendi çözünürlüğünde çizilir (50–600 dpi):
 pikseller yeniden örneklenmez. Ölçümler PLAN.md "Revizyon 0.2.6".
+Görüntü → PDF (0.2.7): tek sayfa, görüntü sayfayı kaplar; sayfa ölçüsü gorsel_sayfa_olcusu (geçerli dpi etiketi, 100–1200; yoksa TIFF'in
+A4 kuralı), EXIF yönü uygulanır. Dokunulmadan gömülebilen JPEG olduğu gibi (yön PDF'te döndürülür), öteki kayıplı kaynak JPEG 92, kayıpsız
+kaynak PNG (_gorsel_gomulecek). Görüntü → UDF / Word / TIFF PDF üzerinden (UDF'te taranmış sayfa yazı tanımayla; Word'de resim olarak).
+PDF → JPG: sayfa başına JPEG; çatı geçici klasördeki 1.jpg, 2.jpg… dosyalarını sayfa_adlari'yla yerine koyar.
 """
 import base64
 import io
@@ -85,10 +106,14 @@ from . import araclar
 from .araclar import KAYIT_SECENEKLERI, KILITLI_METNI, PDF_EN_BUYUK_KENAR, SALT_OKUNUR_METNI
 
 # ---------------------------------------------------------------- biçimler
-TURLER = ("pdf", "udf", "tiff", "word")
-HEDEF_SIRASI = ("pdf", "udf", "word", "tiff")   # donusum_bilgi'nin hedefler listesinin sırası (aracın biçim seçimi)
-HEDEF_UZANTILARI = {"pdf": (".pdf",), "udf": (".udf",), "tiff": (".tif", ".tiff"), "word": (".docx",)}
-GIRDI_UZANTILARI = {"pdf": (".pdf",), "udf": (".udf",), "tiff": (".tif", ".tiff"), "word": (".docx", ".docm", ".doc", ".rtf", ".odt")}
+TURLER = ("pdf", "udf", "tiff", "word", "gorsel")
+HEDEF_SIRASI = ("pdf", "udf", "word", "tiff", "gorsel")   # donusum_bilgi'nin hedefler listesinin sırası (aracın biçim seçimi)
+HEDEF_UZANTILARI = {"pdf": (".pdf",), "udf": (".udf",), "tiff": (".tif", ".tiff"), "word": (".docx",), "gorsel": (".jpg", ".jpeg")}
+GIRDI_UZANTILARI = {"pdf": (".pdf",), "udf": (".udf",), "tiff": (".tif", ".tiff"), "word": (".docx", ".docm", ".doc", ".rtf", ".odt"),
+                    "gorsel": (".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".avif", ".heic", ".heif")}
+GORSEL_ALT_UZANTILARI = {"webp": (".webp",), "avif": (".avif",), "heif": (".heic", ".heif")}   # açılabilmesi kitaplığa bağlı alt türler
+COKLU_HEDEFLER = ("gorsel",)   # bir girdiden birden çok dosya (sayfa başına bir JPG; bkz. modül belgesi)
+CAKISMALAR = ("uzerineYaz", "yeniAd")
 EN_FAZLA_OGE = 500
 
 # ---------------------------------------------------------------- güvenlik sınırları
@@ -116,6 +141,16 @@ TARAMA_KAPLAMA = 0.95                     # en büyük görsel sayfanın bu kada
 TARAMA_DPI_EN_AZ, TARAMA_DPI_EN_COK = 50.0, 600.0
 ONBELLEK_BOSALTMA = 8                     # PDF → TIFF: bu kadar sayfada bir MuPDF'in ön belleği boşaltılır. Çözülen sayfa görselleri
                                           # orada kalıyor (sınırı 256 MB): 150 sayfalık taramada tepe 321 → 95 MB; her görsel bir kez çizilir
+
+# ---------------------------------------------------------------- görüntü (0.2.7)
+GORSEL_DPI_EN_AZ = 100.0                  # görüntünün çözünürlük etiketi bundan azsa (72, 96: fotoğraf makinesinin ve ekran görüntüsünün
+                                          # varsayılanı, taramanın gerçek çözünürlüğü değil) sayfa ölçüsü A4 kuralıyla (tiff_dpi_coz)
+JPG_DPILERI = TIFF_DPILERI                # PDF → JPG: "İdeal" 300, "Düşük" 200
+VARSAYILAN_JPG_DPI = 300
+JPG_KALITESI = 90                         # PDF → JPG
+YENIDEN_KODLAMA_KALITESI = 92             # görüntü → PDF: olduğu gibi gömülemeyen kayıplı kaynak (HEIC, AVIF, kayıplı WEBP, CMYK JPEG)
+KAYIPLI_GORSELLER = ("JPEG", "MPO", "HEIF", "HEIC", "AVIF")
+HEIF_YOK = "HEIC / HEIF görüntüleri bu bilgisayarda açılamıyor; görüntüyü önce JPG ya da PNG olarak kaydedin."
 
 YAZIM_PAYI = 95                           # yüzde: dönüştürme 0–95; yerine koyma bildirilmez
 
@@ -197,8 +232,36 @@ def _ole2_turu(yol):
     return None
 
 
+HEIF_MARKALARI = (b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis", b"hevm", b"hevs", b"mif1", b"msf1")
+
+
+def _gorsel_imzasi(bas):
+    """Görüntünün alt türü dosyanın ilk baytlarından (0.2.7): 'jpeg' | 'png' | 'gif' | 'bmp' | 'webp' | 'avif' | 'heif' ya da None.
+    BMP'de "BM"den sonra bilgi başlığının boyutu da denetlenir (düz metin "BM" ile başlayabilir); HEIF / AVIF ISO BMFF 'ftyp' kutusunun
+    markalarından (AVIF markası varsa AVIF: 'mif1' iki türde de geçer)."""
+    if bas[:3] == b"\xff\xd8\xff":
+        return "jpeg"
+    if bas[:8] == b"\x89PNG\r\n\x1a\n":
+        return "png"
+    if bas[:6] in (b"GIF87a", b"GIF89a"):
+        return "gif"
+    if bas[:2] == b"BM" and len(bas) >= 18 and int.from_bytes(bas[14:18], "little") in (12, 16, 40, 52, 56, 64, 108, 124):
+        return "bmp"
+    if bas[:4] == b"RIFF" and bas[8:12] == b"WEBP":
+        return "webp"
+    if bas[4:8] == b"ftyp" and len(bas) >= 16:
+        uzunluk = max(16, min(int.from_bytes(bas[:4], "big"), len(bas)))
+        markalar = [bas[8:12]] + [bas[i:i + 4] for i in range(16, uzunluk - 3, 4)]
+        if b"avif" in markalar or b"avis" in markalar:
+            return "avif"
+        if any(m in HEIF_MARKALARI for m in markalar):
+            return "heif"
+    return None
+
+
 def tur_bul(yol):
-    """Dosyanın türü içeriğinden (uzantıya bakılmaz): (tur, alt). tur 'pdf' | 'udf' | 'tiff' | 'word' | 'bilinmeyen'.
+    """Dosyanın türü içeriğinden (uzantıya bakılmaz): (tur, alt). tur 'pdf' | 'udf' | 'tiff' | 'word' | 'gorsel' | 'bilinmeyen'.
+    Görüntü (0.2.7, _gorsel_imzasi): JPEG, PNG, GIF, BMP, WEBP, AVIF, HEIC / HEIF; TIFF ayrı tür (çok sayfalı tarama).
     PDF: ilk 1024 baytta '%PDF-' (MuPDF başta çöp kabul eder). TIFF: 'II*\\0' / 'MM\\0*' (BigTIFF '+'). Zip: mimetype ODF metni → odt,
     word/document.xml → docx (vbaProject.bin varsa docm), content.xml'de <template → UDF. OLE2 → doc. '{\\rtf' → rtf. Düz XML'de
     <template → UDF (format 1.7'nin zip'siz biçimi). Kilitli dosyada PermissionError (KILITLI_METNI)."""
@@ -212,6 +275,9 @@ def tur_bul(yol):
         return "tiff", "tiff"
     if bas[:4] in (b"II+\x00", b"MM\x00+"):
         return "tiff", "bigtiff"
+    gorsel = _gorsel_imzasi(bas)
+    if gorsel:
+        return "gorsel", gorsel
     if b"%PDF-" in bas[:1024]:
         return "pdf", None
     if bas[:4] in (b"PK\x03\x04", b"PK\x05\x06"):
@@ -293,11 +359,12 @@ class _Donusturucu:
     def __init__(self, kaynak, hedef, islev, hazir):
         self.kaynak, self.hedef, self.islev, self._hazir = kaynak, hedef, islev, hazir
 
-    def hazir(self):
+    def hazir(self, alt=None):
+        """(bool, neden). alt: kaynağın alt türü (0.2.7; ör. görüntüde 'heif'): hazırlık işlevinin 'alt' adlı parametresi varsa verilir."""
         if self._hazir is None:
             return True, None
         try:
-            sonuc = self._hazir()
+            sonuc = self._hazir(alt=alt) if _parametre_adi_var(self._hazir, "alt") else self._hazir()
         except Exception as e:   # hazırlık denetimi bozuksa dönüştürme kapalı görünür, çekirdek düşmez
             return False, "Denetlenemedi: %s" % e
         if isinstance(sonuc, tuple):
@@ -346,6 +413,14 @@ def _ayarlari_uygula(p):
             print("[donustur] ayar uygulanamadı: %s" % e, file=sys.stderr)
 
 
+def _parametre_adi_var(islev, ad):
+    try:
+        import inspect
+        return ad in inspect.signature(islev).parameters
+    except (TypeError, ValueError):
+        return False
+
+
 def _parametre_sayisi(islev):
     try:
         import inspect
@@ -365,21 +440,23 @@ def _plan(kaynak, hedef):
         a, b = _DONUSTURUCULER.get((kaynak, "pdf")), _DONUSTURUCULER.get(("pdf", hedef))
         if a and b:
             return [a, b]
-    raise OgeHatasi("desteklenmiyor", "Bu dönüştürme yapılamıyor: %s → %s." % (_TUR_ADLARI.get(kaynak, kaynak), _TUR_ADLARI.get(hedef, hedef)))
+    raise OgeHatasi("desteklenmiyor", "Bu dönüştürme yapılamıyor: %s → %s." % (_TUR_ADLARI.get(kaynak, kaynak), _HEDEF_ADLARI.get(hedef, hedef)))
 
 
-_TUR_ADLARI = {"pdf": "PDF", "udf": "UDF", "tiff": "TIFF", "word": "Word", "bilinmeyen": "tanınmayan biçim"}
+_TUR_ADLARI = {"pdf": "PDF", "udf": "UDF", "tiff": "TIFF", "word": "Word", "gorsel": "görüntü", "bilinmeyen": "tanınmayan biçim"}
+_HEDEF_ADLARI = dict(_TUR_ADLARI, gorsel="JPG")   # hedef olarak görüntü JPG'dir
 
 
-def _plan_hazir(plan):
-    for d in plan:
-        ok, neden = d.hazir()
+def _plan_hazir(plan, alt=None):
+    """Planın adımları bu bilgisayarda yapılabiliyor mu; alt (kaynağın alt türü) yalnızca ilk adıma verilir."""
+    for k, d in enumerate(plan):
+        ok, neden = d.hazir(alt if k == 0 else None)
         if not ok:
             return False, neden
     return True, None
 
 
-def _hedefler(tur):
+def _hedefler(tur, alt=None):
     """Bu türden yapılabilen dönüştürmeler: [{bicim, uzantilar, var, neden?}] (HEDEF_SIRASI sırasıyla)."""
     sonuc = []
     for h in HEDEF_SIRASI:
@@ -389,7 +466,7 @@ def _hedefler(tur):
             plan = _plan(tur, h)
         except OgeHatasi:
             continue
-        ok, neden = _plan_hazir(plan)
+        ok, neden = _plan_hazir(plan, alt)
         oge = {"bicim": h, "uzantilar": list(HEDEF_UZANTILARI[h]), "var": ok}
         if neden:
             oge["neden"] = neden
@@ -574,12 +651,18 @@ def y_donusum_yetenekleri(p):
             ok, neden = _plan_hazir(plan)
             donusumler["%s>%s" % (k, h)] = dict({"var": ok}, **({"neden": neden} if neden else {}))
     girdiler = {t: list(GIRDI_UZANTILARI[t]) for t in TURLER if any(a.startswith(t + ">") and v["var"] for a, v in donusumler.items())}
+    if "gorsel" in girdiler:   # açılamayan alt türlerin uzantıları dosya seçme süzgecine girmez (ör. HEIC, kitaplığı yoksa)
+        acilamayan = {u for alt, uz in GORSEL_ALT_UZANTILARI.items() if not _gorsel_alt_hazir(alt)[0] for u in uz}
+        girdiler["gorsel"] = [u for u in girdiler["gorsel"] if u not in acilamayan]
     sonuc = {
         "turler": list(TURLER),
         "uzantilar": {b: list(u) for b, u in HEDEF_UZANTILARI.items()},
         "girdiUzantilari": girdiler,
         "donusumler": donusumler,
         "tiff": bool(donusumler.get("tiff>pdf", {}).get("var") and donusumler.get("pdf>tiff", {}).get("var")),
+        # 0.2.7: görüntü → PDF ve PDF → JPG; heic: HEIC / HEIF açılabiliyor mu (pillow-heif)
+        "gorsel": {"var": bool(donusumler.get("gorsel>pdf", {}).get("var") and donusumler.get("pdf>gorsel", {}).get("var")),
+                   "heic": _gorsel_alt_hazir("heif")[0], "dpiler": list(JPG_DPILERI), "varsayilanDpi": VARSAYILAN_JPG_DPI},
     }
     for ad in ("udf", "word", "pdf_word"):
         islev = _YETENEKLER.get(ad)
@@ -639,9 +722,9 @@ def y_donusum_bilgi(p):
     yol = araclar._mutlak(p.get("yol"))
     genislik = _genislik(p)
     tur, alt = tur_bul(yol)
-    sonuc = {"tur": tur, "alt": alt, "boyut": os.path.getsize(yol), "sayfa": None, "hedefler": _hedefler(tur)}
+    sonuc = {"tur": tur, "alt": alt, "boyut": os.path.getsize(yol), "sayfa": None, "hedefler": _hedefler(tur, alt)}
     if tur == "bilinmeyen":
-        sonuc["uyari"] = "Dosyanın biçimi tanınmadı. PDF, UDF, TIFF ve Word dosyaları dönüştürülebilir."
+        sonuc["uyari"] = "Dosyanın biçimi tanınmadı. PDF, UDF, TIFF, Word ve görüntü (JPG, PNG…) dosyaları dönüştürülebilir."
         return sonuc
     ertele = None
     try:
@@ -650,6 +733,8 @@ def y_donusum_bilgi(p):
             sonuc.update(_pdf_bilgi(yol, genislik))
         elif tur == "tiff":
             sonuc.update(_tiff_bilgi(yol, genislik))
+        elif tur == "gorsel":
+            sonuc.update(_gorsel_bilgi(yol, alt, genislik))
         islev = _BILGILER.get(tur)
         if islev is not None:
             ek = (islev(yol, alt, genislik, p) if _parametre_sayisi(islev) >= 4 else islev(yol, alt, genislik)) or {}
@@ -685,7 +770,8 @@ def _yol_anahtari(yol):
 
 
 def _ogeleri_hazirla(ogeler):
-    """bicim_donustur'un parametre denetimi (eş zamanlı; hata bütün isteği reddeder). Döner: [{yol, hedef, hedefBicim, secenekler}]."""
+    """bicim_donustur'un parametre denetimi (eş zamanlı; hata bütün isteği reddeder). Döner: [{yol, hedef, hedefBicim, secenekler,
+    cakisma}]."""
     if not isinstance(ogeler, list) or not ogeler:
         raise ValueError("Dönüştürülecek dosya yok.")
     if len(ogeler) > EN_FAZLA_OGE:
@@ -701,16 +787,19 @@ def _ogeleri_hazirla(ogeler):
             raise ValueError("Bilinmeyen hedef biçimi: %r" % (bicim,))
         uzantilar = HEDEF_UZANTILARI[bicim]
         if os.path.splitext(hedef)[1].lower() not in uzantilar:
-            raise ValueError("%s dosyasının uzantısı %s olmalı: %s" % (_TUR_ADLARI[bicim], " ya da ".join(uzantilar), os.path.basename(hedef)))
+            raise ValueError("%s dosyasının uzantısı %s olmalı: %s" % (_HEDEF_ADLARI[bicim], " ya da ".join(uzantilar), os.path.basename(hedef)))
         secenekler = oge.get("secenekler") or {}
         if not isinstance(secenekler, dict):
             raise ValueError("Öğe %d: seçenekler geçersiz." % (i + 1))
+        cakisma = oge.get("cakisma") or "uzerineYaz"
+        if cakisma not in CAKISMALAR:
+            raise ValueError("Öğe %d: bilinmeyen çakışma seçeneği: %r" % (i + 1, cakisma))
         anahtar = _yol_anahtari(hedef)
         if anahtar in hedefler:
             raise ValueError("Aynı hedef dosya iki kez verildi: %s" % os.path.basename(hedef))
         hedefler.add(anahtar)
         kaynaklar.add(_yol_anahtari(yol))
-        hazir.append({"yol": yol, "hedef": hedef, "hedefBicim": bicim, "secenekler": dict(secenekler)})
+        hazir.append({"yol": yol, "hedef": hedef, "hedefBicim": bicim, "secenekler": dict(secenekler), "cakisma": cakisma})
     # Hedef hiçbir kaynağın yerine yazılamaz (aynı dosyanın başka yazımı ya da bağlantısı dâhil): kaynak dönüştürülmeden ezilirdi
     kimlikler = set()
     for oge in hazir:
@@ -729,10 +818,25 @@ def _ogeleri_hazirla(ogeler):
     return hazir
 
 
-def _gecici_cikti(hedef, sira):
+def _gecici_cikti(hedef, sira, klasor=False):
+    """Hedefin klasöründe geçici çıktı: dosya "<hedef>.<pid>-<sıra>.pdefe-tmp<uzantı>" ya da (çok dosyalı hedefte, 0.2.7) klasör
+    "<hedef>.<pid>-<sıra>.pdefe-tmp" (dönüştürücü içine 1.jpg, 2.jpg… yazar). İkisi de çökme kaydına yazılır (kalintilari_temizle)."""
+    if klasor:
+        yol = "%s.%d-%d.pdefe-tmp" % (hedef, os.getpid(), sira)
+        _geciciyi_kaydet(yol)
+        os.makedirs(yol, exist_ok=True)
+        return yol
     yol = "%s.%d-%d.pdefe-tmp%s" % (hedef, os.getpid(), sira, os.path.splitext(hedef)[1])
     _geciciyi_kaydet(yol)
     return yol
+
+
+def _sil_hepsi(yol):
+    """Geçici çıktıyı siler: dosya ya da (çok dosyalı hedefin) klasörü."""
+    if yol and os.path.isdir(yol):
+        shutil.rmtree(yol, ignore_errors=True)
+    else:
+        _sil(yol)
 
 
 # ---------------------------------------------------------------- çökmeden kalanlar (0.2.6)
@@ -790,12 +894,17 @@ def kalintilari_temizle(gun=1.0):
         except OSError:
             continue
         for y in yollar:
-            if desen.search(y) and os.path.isfile(y):
+            if not desen.search(y):
+                continue
+            if os.path.isfile(y):
                 try:
                     os.remove(y)
                     silinen += 1
                 except OSError:
                     pass
+            elif os.path.isdir(y):   # çok dosyalı hedefin geçici klasörü (0.2.7, PDF → JPG)
+                shutil.rmtree(y, ignore_errors=True)
+                silinen += 1
         _sil(kayit)
     try:
         adlar = os.listdir(kok)
@@ -859,18 +968,24 @@ def _hata_metni(e, ad):
 
 
 def _ogeyi_donustur(oge, sira, il):
-    """Bir öğeyi geçici çıktıya dönüştürür. Döner: (geçici yol, bilgi dict). Hata ya da iptalde geçici dosyalar silinir."""
+    """Bir öğeyi geçici çıktıya dönüştürür. Döner: (geçici yol, bilgi dict); çok dosyalı hedefte geçici yol bir klasördür. Hata ya da
+    iptalde geçici dosyalar silinir."""
     tur, alt = tur_bul(oge["yol"])
     if tur == "bilinmeyen":
         raise OgeHatasi("taninmadi", "Dosyanın biçimi tanınmadı: %s" % os.path.basename(oge["yol"]))
     _girdi_denetle(oge["yol"], tur, alt)
     plan = _plan(tur, oge["hedefBicim"])
-    ok, neden = _plan_hazir(plan)
+    ok, neden = _plan_hazir(plan, alt)
     if not ok:
         raise OgeHatasi("desteklenmiyor", neden or "Bu dönüştürme bu bilgisayarda yapılamıyor.")
-    _hedef_denetle(oge["hedef"])
+    coklu = oge["hedefBicim"] in COKLU_HEDEFLER
+    # Var olan hedef yazılabilir mi: yeni adla kaydedilecekse (yeniAd) ona yazılmaz; çok dosyalı hedefin dosyaları yerine koymadan önce
+    if not coklu and not (oge.get("cakisma") == "yeniAd" and os.path.exists(oge["hedef"])):
+        _hedef_denetle(oge["hedef"])
+    elif os.path.isdir(oge["hedef"]):
+        raise OgeHatasi("gecersiz", "Hedef bir klasör: %s" % os.path.basename(oge["hedef"]))
     araclar._hedef_klasoru_hazirla(oge["hedef"])
-    gecici = _gecici_cikti(oge["hedef"], sira)
+    gecici = _gecici_cikti(oge["hedef"], sira, klasor=coklu)
     baglam = Baglam(alt, il)
     bilgi = {"kaynakTur": tur}
     try:
@@ -878,7 +993,8 @@ def _ogeyi_donustur(oge, sira, il):
         il.adim_sayisi = len(plan)
         for k, d in enumerate(plan):
             il.adim = k
-            if k < len(plan) - 1:
+            son = k == len(plan) - 1
+            if not son:
                 cikti = os.path.join(baglam.gecici_klasor(), "ara-%d%s" % (k, HEDEF_UZANTILARI[d.hedef][0]))
             else:
                 cikti = gecici
@@ -886,16 +1002,79 @@ def _ogeyi_donustur(oge, sira, il):
             r = d.islev(kaynak, cikti, oge["secenekler"], il.bildir, baglam)
             if isinstance(r, dict):
                 bilgi.update(r)
-            if not os.path.isfile(cikti):
+            uretti = (os.path.isdir(cikti) and bool(os.listdir(cikti))) if (son and coklu) else os.path.isfile(cikti)
+            if not uretti:
                 raise OgeHatasi("hata", "Dönüştürme çıktı üretmedi: %s" % os.path.basename(oge["yol"]))
             kaynak = cikti
         il.bildir(1.0)
         return gecici, bilgi
     except BaseException:
-        _sil(gecici)
+        _sil_hepsi(gecici)
         raise
     finally:
         baglam.temizle()
+
+
+def sayfa_adlari(hedef, n):
+    """Çok dosyalı hedefin (PDF → JPG, 0.2.7) dosya adları: tek sayfada hedefin kendisi; çok sayfada "<ad> - Sayfa 1.jpg", "<ad> - Sayfa 2.jpg"…
+    (hedefin klasöründe, hedefin uzantısıyla; Ayır'ın "Ayrılmış - Sayfa 1-3.pdf" deyişi)."""
+    if n <= 1:
+        return [hedef]
+    kok, uz = os.path.splitext(hedef)
+    return ["%s - Sayfa %d%s" % (kok, i, uz) for i in range(1, n + 1)]
+
+
+def bos_ad(hedef, n=1, dolu=os.path.exists):
+    """Hedefin dosyalarından (sayfa_adlari) hiçbiri doluysa (var olan dosya; dolu işlevi) aynı adların ilk boş "(1)", "(2)"… biçimi (0.2.7,
+    "yeni belge olarak kaydet": "Sigorta Başvuru (1).tif"; ad zaten "(n)" ile bitiyorsa n + 1'den sürer). Döner: dosya adları listesi."""
+    adlar = sayfa_adlari(hedef, n)
+    if not any(dolu(a) for a in adlar):
+        return adlar
+    kok, uz = os.path.splitext(hedef)
+    m = re.fullmatch(r"(.*) \((\d+)\)", kok)
+    taban, ilk = (m.group(1), int(m.group(2)) + 1) if m else (kok, 1)
+    for k in range(ilk, ilk + 10000):
+        adlar = sayfa_adlari("%s (%d)%s" % (taban, k, uz), n)
+        if not any(dolu(a) for a in adlar):
+            return adlar
+    raise OgeHatasi("gecersiz", "Boş bir dosya adı bulunamadı: %s" % os.path.basename(hedef))
+
+
+def _yerine_koy_oge(oge, gecici, yazilan, kaynaklar):
+    """Bir öğenin geçici çıktısını (dosya ya da çok dosyalı hedefin klasörü) hedefine koyar. yazilan: bu istekte yazılmış dosyaların anahtarları
+    (güncellenir), kaynaklar: istekteki kaynakların anahtarları. Döner: yazılan dosyaların yolları."""
+    def dolu(a):
+        return os.path.exists(a) or _yol_anahtari(a) in yazilan or _yol_anahtari(a) in kaynaklar
+    if os.path.isdir(gecici):
+        parcalar = sorted((int(m.group(1)), a) for a in os.listdir(gecici) for m in [re.fullmatch(r"(\d+)\.[A-Za-z]+", a)] if m)
+        n = len(parcalar)
+        if oge.get("cakisma") == "yeniAd":
+            adlar = bos_ad(oge["hedef"], n, dolu)
+        else:
+            adlar = sayfa_adlari(oge["hedef"], n)
+            for a in adlar:
+                if _yol_anahtari(a) in yazilan or _yol_anahtari(a) in kaynaklar:
+                    raise OgeHatasi("gecersiz", "Dosya, bu dönüştürmedeki başka bir dosyanın yerine yazılamaz: %s" % os.path.basename(a))
+        for a in adlar:   # hepsi yazılabilir mi (hiçbiri değişmeden önce)
+            _hedef_denetle(a)
+        konan = []
+        try:
+            for (_, parca), a in zip(parcalar, adlar):
+                araclar._yerine_koy(os.path.join(gecici, parca), a)
+                yazilan.add(_yol_anahtari(a))
+                konan.append(a)
+        except Exception as e:   # yarıda kaldı (ör. dosya bu arada kilitlendi): yazılmış olanlar sonuçta söylenir
+            e.yazilanlar = konan
+            raise
+        return adlar
+    hedef = oge["hedef"]
+    if oge.get("cakisma") == "yeniAd":
+        hedef = bos_ad(hedef, 1, dolu)[0]
+    with _mupdf_kilidi():
+        araclar._onbellekten_birak(hedef)   # hedef açık bir sekmenin PDF'i olabilir (Windows'ta açık tanıtıcı yer değiştirmeyi engeller)
+    araclar._yerine_koy(gecici, hedef)
+    yazilan.add(_yol_anahtari(hedef))
+    return [hedef]
 
 
 def _isi_yap(ogeler, il):
@@ -919,23 +1098,31 @@ def _isi_yap(ogeler, il):
                                "hata": _hata_metni(e, os.path.basename(oge["yol"])), "kod": _hata_kodu(e)}
     except BaseException:
         for _, gecici, _ in hazirlar:
-            _sil(gecici)
+            _sil_hepsi(gecici)
         _kaydi_sil()
         raise
     # Yerine koyma: bundan sonra iptale bakılmaz, ilerleme bildirilmez
+    yazilan = set()
+    kaynaklar = {_yol_anahtari(o["yol"]) for o in ogeler}
     for i, gecici, bilgi in hazirlar:
         oge = ogeler[i]
         try:
-            with _mupdf_kilidi():
-                araclar._onbellekten_birak(oge["hedef"])   # hedef açık bir sekmenin PDF'i olabilir (Windows'ta açık tanıtıcı yer değiştirmeyi engeller)
-            araclar._yerine_koy(gecici, oge["hedef"])
-            sonuclar[i] = dict({"yol": oge["yol"], "hedef": oge["hedef"], "hedefBicim": oge["hedefBicim"],
-                                "boyut": os.path.getsize(oge["hedef"])}, **bilgi)
+            yollar = _yerine_koy_oge(oge, gecici, yazilan, kaynaklar)
+            s = dict({"yol": oge["yol"], "hedef": yollar[0], "hedefBicim": oge["hedefBicim"],
+                      "boyut": sum(os.path.getsize(y) for y in yollar)}, **bilgi)
+            coklu = oge["hedefBicim"] in COKLU_HEDEFLER
+            if coklu:
+                s["hedefler"] = yollar
+            if _yol_anahtari(yollar[0]) != _yol_anahtari(sayfa_adlari(oge["hedef"], len(yollar))[0] if coklu else oge["hedef"]):
+                s["istenenHedef"] = oge["hedef"]   # yeni adla kaydedildi (cakisma: yeniAd)
+            sonuclar[i] = s
         except Exception as e:
             sonuclar[i] = {"yol": oge["yol"], "hedef": oge["hedef"], "hedefBicim": oge["hedefBicim"],
                            "hata": _hata_metni(e, os.path.basename(oge["yol"])), "kod": _hata_kodu(e)}
+            if getattr(e, "yazilanlar", None):
+                sonuclar[i]["hedefler"] = e.yazilanlar
         finally:
-            _sil(gecici)
+            _sil_hepsi(gecici)
     _kaydi_sil()   # geçici dosyaların hepsi yerine kondu ya da silindi
     basarili = sum(1 for s in sonuclar if "hata" not in s)
     return {"sonuclar": sonuclar, "basarili": basarili, "hatali": n - basarili}
@@ -1255,8 +1442,266 @@ def _pdf_tiff(kaynak, cikti, secenekler, ilerleme, baglam):
     return {"sayfa": len(dpiler), "dpi": statistics.mode(dpiler) if dpiler else None}
 
 
+# ---------------------------------------------------------------- görüntü → PDF, PDF → JPG (0.2.7)
+def _heif_destegi():
+    """HEIC / HEIF açıcısı (pillow-heif) kurulu mu; kuruluysa Pillow'a kaydeder."""
+    try:
+        import pillow_heif
+        pillow_heif.register_heif_opener()
+        return True
+    except Exception:   # ImportError ya da kitaplığın kendi hatası: HEIC açılamaz
+        return False
+
+
+def _gorsel_alt_hazir(alt=None):
+    """Görüntünün alt türü bu bilgisayarda açılabiliyor mu: (bool, neden). HEIC / HEIF pillow-heif ister (pakette yok: 0.2.1'den beri
+    Birleştir de almıyor); WEBP ve AVIF Pillow'un kendi kitaplıklarıyla."""
+    try:
+        araclar._pillow()
+        from PIL import features
+    except (RuntimeError, ImportError) as e:
+        return False, str(e)
+    if alt == "heif" and not _heif_destegi():
+        return False, HEIF_YOK
+    if alt in ("webp", "avif"):
+        try:
+            var = features.check(alt)
+        except Exception:
+            var = True
+        if not var:
+            return False, "%s görüntüleri bu bilgisayarda açılamıyor; görüntüyü önce JPG ya da PNG olarak kaydedin." % alt.upper()
+    return True, None
+
+
+def _gorsel_hazir(alt=None):
+    return _gorsel_alt_hazir(alt)
+
+
+def _gorsel_ac(yol, alt=None):
+    """Görüntüyü açar (pikseller henüz çözülmez). Açılamazsa OgeHatasi: 'desteklenmiyor' (kitaplık yok) ya da 'bozuk'."""
+    ok, neden = _gorsel_alt_hazir(alt)
+    if not ok:
+        raise OgeHatasi("desteklenmiyor", neden)
+    Image = araclar._pillow()[0]
+    try:
+        return Image.open(yol)
+    except Exception as e:
+        raise OgeHatasi("bozuk", "Görüntü okunamadı (%s): %s" % (os.path.basename(yol), e))
+
+
+def _exif_yonu(im):
+    try:
+        return int(im.getexif().get(0x0112, 1) or 1)
+    except Exception:
+        return 1
+
+
+def gorsel_sayfa_olcusu(g_px, y_px, dpi_bilgisi, yon=1):
+    """Görüntünün PDF'teki sayfa ölçüsü ve çözünürlüğü (0.2.7). g_px, y_px: görünen yöndeki (EXIF yönü uygulanmış) piksel ölçüsü;
+    dpi_bilgisi: Pillow'un info['dpi']'ı (dosyanın eksenlerinde; yön 5–8'de eksenler yer değiştirir). Etiket geçerliyse (GORSEL_DPI_EN_AZ –
+    DPI_EN_COK; 72 ve 96 fotoğraf makinesinin ve ekran görüntüsünün varsayılanıdır, taramanın çözünürlüğü değil) o; değilse TIFF'in A4 kuralı
+    (tiff_dpi_coz: uzun kenar A4'ün uzun kenarı, standart değere %3 yakınsa ona yuvarlanır; çok küçük görüntü 72 dpi): taranmış ya da
+    fotoğraflanmış A4 evrak A4 boyunda çıkar. Döner: (sayfa_g pt, sayfa_y pt, x dpi, y dpi, kaynak 'etiket' | 'a4' | 'varsayilan')."""
+    xd = yd = None
+    try:
+        x, y = float(dpi_bilgisi[0]), float(dpi_bilgisi[1])
+        if math.isfinite(x) and math.isfinite(y) and GORSEL_DPI_EN_AZ <= x <= DPI_EN_COK and GORSEL_DPI_EN_AZ <= y <= DPI_EN_COK:
+            xd, yd = (y, x) if yon in (5, 6, 7, 8) else (x, y)
+    except (TypeError, ValueError, IndexError):
+        pass
+    if xd is not None:
+        kaynak = "etiket"
+    else:
+        xd, yd, kaynak = tiff_dpi_coz([(g_px, y_px, None)])[0]
+    sg, sy = _tiff_sayfa_olcusu(g_px, y_px, xd, yd)
+    return sg, sy, xd, yd, kaynak
+
+
+def _webp_kayipli(yol):
+    """WEBP'nin kayıplı mı olduğu: kayıpsız WEBP'de görüntü parçası 'VP8L', kayıplıda 'VP8 '."""
+    try:
+        with open(yol, "rb") as f:
+            bas = f.read(64 * 1024)
+    except OSError:
+        return True
+    return b"VP8L" not in bas[12:]
+
+
+def _gorsel_gomulecek(yol, im, duz, kare_kipi, yon, bicim):
+    """PDF'e gömülecek bayt: (bayt, dondurme (saat yönünde), gomme). Dokunulmadan gömülebilen JPEG (EXIF yönü yok ya da yalnızca döndürme,
+    kip değişmedi): dosyanın kendisi, yön PDF'te döndürülür ('ozgun'; Birleştir'in kuralı, yeniden kodlanmaz). Öteki kayıplı kaynak (HEIC,
+    AVIF, kayıplı WEBP, CMYK ya da aynalı yönlü JPEG) JPEG kalite 92 ('jpeg'): kayıpsız PNG bir telefon fotoğrafında 15–25 MB olurdu. Kayıpsız
+    kaynak (PNG, BMP, GIF, kayıpsız WEBP) kayıpsız PNG ('kayipsiz'; MuPDF Flate yazar)."""
+    if bicim == "JPEG" and yon in araclar.EXIF_DONUSU and duz.mode == kare_kipi:
+        with open(yol, "rb") as f:
+            return f.read(), araclar.EXIF_DONUSU[yon], "ozgun"
+    if (bicim in KAYIPLI_GORSELLER or (bicim == "WEBP" and _webp_kayipli(yol))) and duz.mode in ("RGB", "L"):
+        alt = 2   # HEIC, AVIF, WEBP neredeyse hep 4:2:0
+        if bicim in ("JPEG", "MPO"):
+            try:
+                from PIL import JpegImagePlugin
+                alt = JpegImagePlugin.get_sampling(im)
+            except Exception:
+                alt = 0
+        buf = io.BytesIO()
+        duz.save(buf, format="JPEG", quality=YENIDEN_KODLAMA_KALITESI, optimize=True, subsampling=alt if alt in (0, 1, 2) else 0)
+        return buf.getvalue(), 0, "jpeg"
+    return araclar._gorsel_kodla(duz, "orijinal")[0], 0, "kayipsiz"
+
+
+def _gorsel_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
+    """Görüntü → PDF (tek sayfa): sayfa ölçüsü gorsel_sayfa_olcusu, görüntü sayfayı kenardan kenara kaplar, EXIF yönü uygulanır. Hareketli
+    GIF / WEBP'de ilk kare (uyarıyla)."""
+    ilerleme(0, "Görüntü okunuyor…")
+    im = _gorsel_ac(kaynak, baglam.alt)
+    try:
+        bicim = (im.format or "").upper()
+        kareler = getattr(im, "n_frames", 1) or 1
+        _kare_sinirla(im, 1)
+        yon = _exif_yonu(im)
+        kare_kipi = im.mode
+        try:
+            im.load()
+            duz = araclar._duzlestir(im)
+        except (MemoryError, OgeHatasi):
+            raise
+        except Exception as e:
+            raise OgeHatasi("bozuk", "Görüntü okunamadı (%s): %s" % (os.path.basename(kaynak), e))
+        sg, sy, xd, yd, dpi_kaynagi = gorsel_sayfa_olcusu(duz.width, duz.height, im.info.get("dpi"), yon)
+        ilerleme(0.4, "PDF'e yazılıyor…")
+        bayt, dondurme, gomme = _gorsel_gomulecek(kaynak, im, duz, kare_kipi, yon, bicim)
+        del duz
+    finally:
+        im.close()
+    with baglam.mupdf():
+        doc = pymupdf.open()
+        try:
+            araclar._gorsel_sayfasi_ekle(doc, bayt, sg, sy, pymupdf.Rect(0, 0, sg, sy), dondurme)
+            try:
+                doc.set_metadata({"producer": "PDEfe", "creator": "PDEfe"})
+            except Exception:
+                pass
+            doc.save(cikti, **KAYIT_SECENEKLERI)
+        finally:
+            araclar._kapat(doc)
+    r = {"sayfa": 1, "dpi": round(xd, 1), "dpiKaynagi": dpi_kaynagi, "gomme": gomme}
+    if kareler > 1:
+        r["uyari"] = "Hareketli görüntünün yalnızca ilk karesi alındı."
+    return r
+
+
+def _gorsel_bilgi(yol, alt, genislik):
+    """donusum_bilgi'nin görüntü bölümü: sayfa 1, PDF'teki sayfa ölçüsü (pt), dpi, dpiKaynagi, pikselGenislik / pikselYukseklik (görünen
+    yönde), gorselBicimi, küçük resim (JPEG'de taslak çözümle: 12 MP fotoğrafta onda biri sürede)."""
+    im = _gorsel_ac(yol, alt)
+    try:
+        Image = araclar._pillow()[0]
+        bicim = (im.format or "").upper()
+        yon = _exif_yonu(im)
+        g, y = im.size
+        if yon in (5, 6, 7, 8):
+            g, y = y, g
+        sg, sy, xd, yd, kaynak = gorsel_sayfa_olcusu(g, y, im.info.get("dpi"), yon)
+        _kare_sinirla(im, 1)
+        kareler = getattr(im, "n_frames", 1) or 1
+        if bicim == "JPEG":
+            try:
+                im.draft("RGB", (2 * genislik, 2 * genislik))
+            except Exception:
+                pass
+        im.load()
+        kucuk = araclar._duzlestir(im)
+        if kucuk.mode not in ("RGB", "L"):
+            kucuk = kucuk.convert("RGB" if kucuk.mode != "1" else "L")
+        if kucuk.width > genislik:
+            kat = kucuk.width // (2 * genislik)
+            if kat >= 2:
+                kucuk = kucuk.reduce(kat)
+            kucuk = kucuk.resize((genislik, max(1, int(round(kucuk.height * genislik / kucuk.width)))), Image.LANCZOS)
+        buf = io.BytesIO()
+        kucuk.save(buf, format="PNG", optimize=True)
+        s = {"sayfa": 1, "genislik": round(sg, 2), "yukseklik": round(sy, 2), "dpi": round(xd, 1), "dpiKaynagi": kaynak,
+             "pikselGenislik": g, "pikselYukseklik": y, "gorselBicimi": bicim.lower(),
+             "png": base64.b64encode(buf.getvalue()).decode("ascii"), "pngGenislik": kucuk.width, "pngYukseklik": kucuk.height}
+        if kareler > 1:
+            s["uyari"] = "Hareketli görüntü: yalnızca ilk karesi dönüştürülür."
+        return s
+    except (OgeHatasi, MemoryError):
+        raise
+    except Exception as e:
+        raise OgeHatasi("bozuk", "Görüntü okunamadı (%s): %s" % (os.path.basename(yol), e))
+    finally:
+        im.close()
+
+
+def _jpg_yazici_hazir():
+    try:
+        araclar._pillow()
+        from PIL import features
+        if not features.check("jpg"):
+            return False, "JPEG yazıcısı yok."
+    except (RuntimeError, ImportError) as e:
+        return False, str(e)
+    return True, None
+
+
+def _jpg_dpi(secenekler):
+    try:
+        dpi = int(secenekler.get("dpi") or VARSAYILAN_JPG_DPI)
+    except (TypeError, ValueError):
+        dpi = 0
+    if dpi not in JPG_DPILERI:
+        raise OgeHatasi("gecersiz", "JPG çözünürlüğü %s dpi olmalı." % " ya da ".join(str(d) for d in JPG_DPILERI))
+    return dpi
+
+
+def _jpg_olcegi(pg, dpi):
+    """PDF → JPG'de sayfanın çizim ölçeği: seçilen dpi; tek görselden oluşan (taranmış) sayfada görselin kendi çözünürlüğü seçilenden
+    küçükse o (büyütmek yalnızca dosyayı büyütür; TIFF'ten farkı: seçilenden büyük tarama seçilene küçültülür, kullanıcı boyutu seçti)."""
+    t = _tarama_dpi(pg)
+    return (min(t, dpi) if t else dpi) / 72.0
+
+
+def _pdf_gorsel(kaynak, cikti, secenekler, ilerleme, baglam):
+    """PDF → JPG: her sayfa ayrı JPEG (kalite JPG_KALITESI, dpi etiketli, notlar dâhil), çıktı klasörüne 1.jpg, 2.jpg…; adları çatı koyar
+    (sayfa_adlari). secenekler: {dpi: 300 | 200 (varsayılan 300)}."""
+    dpi = _jpg_dpi(secenekler)
+    Image = araclar._pillow()[0]
+    olcek_sinirla = _cekirdek().olcek_sinirla
+    with baglam.mupdf():
+        doc = araclar._pdf_ac(kaynak)   # yalnızca PDF (filetype="pdf"), parolalıysa PermissionError
+    dpiler = []
+    try:
+        n = doc.page_count
+        if n == 0:
+            raise OgeHatasi("bozuk", "Belgede sayfa yok: %s" % os.path.basename(kaynak))
+        os.makedirs(cikti, exist_ok=True)
+        for i in range(n):
+            ilerleme(i / n, "Sayfa %d/%d" % (i + 1, n))
+            with baglam.mupdf():
+                pg = doc[i]
+                olcek = olcek_sinirla(pg.rect.width, pg.rect.height, _jpg_olcegi(pg, dpi))
+                pix = pg.get_pixmap(matrix=pymupdf.Matrix(olcek, olcek), colorspace=pymupdf.csRGB, alpha=False, annots=True)
+                sayfa = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+                del pix
+            d = round(72.0 * olcek, 2)
+            sayfa.save(os.path.join(cikti, "%d.jpg" % (i + 1)), format="JPEG", quality=JPG_KALITESI, optimize=True, dpi=(d, d))
+            dpiler.append(d)
+            del sayfa
+            if (i + 1) % ONBELLEK_BOSALTMA == 0:
+                with baglam.mupdf():
+                    pymupdf.TOOLS.store_shrink(100)
+        ilerleme(1.0, "Kaydediliyor…")
+    finally:
+        with baglam.mupdf():
+            araclar._kapat(doc)
+    return {"sayfa": len(dpiler), "dpi": statistics.mode(dpiler) if dpiler else None}
+
+
 donusturucu_kaydet("tiff", "pdf", _tiff_pdf, _tiff_hazir)
 donusturucu_kaydet("pdf", "tiff", _pdf_tiff, _tiff_yazici_hazir)
+donusturucu_kaydet("gorsel", "pdf", _gorsel_pdf, _gorsel_hazir)
+donusturucu_kaydet("pdf", "gorsel", _pdf_gorsel, _jpg_yazici_hazir)
 
 
 def kaydol(yontemler):
