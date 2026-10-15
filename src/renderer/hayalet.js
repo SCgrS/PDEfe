@@ -8,7 +8,7 @@ window.pdefe.dinle('hayalet:icerik', (icerik) => {
 });
 
 // Ekran kareleri (0.2.7): sürükleme sürerken her ekran karesinde ana sürece 'hayalet:kare' gider, ana süreç imlecin yerini okuyup pencereyi
-// taşır. Böylece önizleme ekran tazelemesiyle aynı düzende kayar (ana süreçteki zamanlayıcı Windows'ta ~31 ms'de bir çalışıyordu). İçerik
+// taşır. Böylece ön izleme ekran tazelemesiyle aynı düzende kayar (ana süreçteki zamanlayıcı Windows'ta ~31 ms'de bir çalışıyordu). İçerik
 // bir kez çizilir; kareler yalnızca zamanlama içindir.
 let kareler = false;
 const kare = () => {

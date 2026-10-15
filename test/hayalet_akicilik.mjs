@@ -1,17 +1,17 @@
-// Sürüklenen sekmenin önizleme penceresinin akıcılığı (0.2.7, kullanıcı isteği: "Sekmeleri kaldırınca biraz kasmaya başlıyor, basılı
+// Sürüklenen sekmenin ön izleme penceresinin akıcılığı (0.2.7, kullanıcı isteği: "Sekmeleri kaldırınca biraz kasmaya başlıyor, basılı
 // tuttuğumuz küçük kare şeklindeki sekme. Bunu daha sakin, daha akışkan yapabilir miyiz?").
-// Sekme şeridin dışına sürüklenir (CDP fare olayları; düğme basılı kalır), önizleme görününce ana sürecin imleci test kancasıyla
+// Sekme şeridin dışına sürüklenir (CDP fare olayları; düğme basılı kalır), ön izleme görününce ana sürecin imleci test kancasıyla
 // (test:imlecYolu) sabit hızla kaydırılır ve şu ölçülür:
-//   - ana sürecin önizlemeyi taşıyan adımlarının aralıkları (test:hayaletOlcum: ortalama, ortanca, %95, en çok; 25 ms'den uzun aralık sayısı)
+//   - ana sürecin ön izlemeyi taşıyan adımlarının aralıkları (test:hayaletOlcum: ortalama, ortanca, %95, en çok; 25 ms'den uzun aralık sayısı)
 //   - pencerenin yerinin değiştirilmesinin süresi (setBounds / setPosition)
 //   - pencerenin ekrandaki yerinin dışarıdan okunan değişme aralıkları (test/hayalet_izle.ps1, GetWindowRect; $env:PDEFE_HA_PID verilirse)
-//   - önizlemenin gösterilme süresi (sürükleme başlayınca pencerenin görünmesine dek)
+//   - ön izlemenin gösterilme süresi (sürükleme başlayınca pencerenin görünmesine dek)
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9481 -Veri "$env:TEMP\pdefe-ha-9481"      → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9481; $env:PDEFE_HA_PID=<PID>; node test\surucu.mjs betik test\hayalet_akicilik.mjs
 //   powershell -File test\durdur.ps1 -SurecId <PID>
-// Ek: $env:HA_SURE (ms, varsayılan 3000), $env:HA_TEKRAR (varsayılan 2: ilk sürükleme önizleme penceresini kurar, sonrakiler yeniden kullanır).
-// Sonuçlar test/cikti/hayalet/sonuc-<zaman>.json'a da yazılır. Ekran dışındaki örnekte önizleme de ekran dışındadır (kişinin ekranına çıkmaz).
+// Ek: $env:HA_SURE (ms, varsayılan 3000), $env:HA_TEKRAR (varsayılan 2: ilk sürükleme ön izleme penceresini kurar, sonrakiler yeniden kullanır).
+// Sonuçlar test/cikti/hayalet/sonuc-<zaman>.json'a da yazılır. Ekran dışındaki örnekte ön izleme de ekran dışındadır (kişinin ekranına çıkmaz).
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -108,7 +108,7 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
     if (izleyici) {
       const t0 = Date.now(); while (Date.now() - t0 < SURE + 8000 && !/^BITTI/.test(fs.readFileSync(izDosya, 'utf8'))) await bekle(200);
       const satirlar = fs.readFileSync(izDosya, 'utf8').split(/\r?\n/).slice(1).filter(Boolean).map((s) => s.split(' ').map(Number));
-      // Ölçüm penceresindeki hareketler: imleç yolunun x aralığında (önizleme imlecin solunda, tutma noktası kadar)
+      // Ölçüm penceresindeki hareketler: imleç yolunun x aralığında (ön izleme imlecin solunda, tutma noktası kadar)
       const xs = o.konumlar.map((k) => k.x);
       const enAz = Math.min(...xs), enCok = Math.max(...xs);
       const hareket = satirlar.filter(([, x]) => x >= enAz && x <= enCok).map(([t]) => t);
@@ -120,7 +120,7 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
     const gosterim = o.gosterim?.gorunur != null ? Math.round(o.gosterim.gorunur - o.gosterim.istek) : null;
     const kayit = { tur, gorundu: !!gorundu, adimAraligi: adim, konumAraligi: konum, tasimaSuresi: tasima, disAralik: dis, gosterimMs: gosterim };
     tumOlcumler.push(kayit);
-    console.log(`\n== Tur ${tur}${tur === 1 ? ' (önizleme penceresi kuruluyor)' : ' (pencere yeniden kullanılıyor)'}`);
+    console.log(`\n== Tur ${tur}${tur === 1 ? ' (ön izleme penceresi kuruluyor)' : ' (pencere yeniden kullanılıyor)'}`);
     console.log('adım aralığı (ms)      ', J(adim));
     console.log('konum değişimi (ms)    ', J(konum));
     console.log('yer değiştirme süresi  ', J(tasima));
@@ -130,7 +130,7 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
   fs.writeFileSync(path.join(K, `sonuc-${new Date().toISOString().replace(/\D/g, '').slice(0, 14)}.json`), J(tumOlcumler, null, 1));
   // Ölçütler (0.2.7 düzeltmesinden sonra): ekran tazelemesine bağlı adımlar ~16,7 ms aralıkla, düzenli
   const son = tumOlcumler.at(-1);
-  sonuc('Önizleme sürükleyince göründü', tumOlcumler.every((x) => x.gorundu));
+  sonuc('Ön izleme sürükleyince göründü', tumOlcumler.every((x) => x.gorundu));
   sonuc('Konum güncellemeleri düzenli: ortanca 14–19 ms, %95 ≤ 22 ms, 25 ms\'den uzun aralık yok denecek kadar az (≤ %2)',
     son.konumAraligi.ortanca >= 14 && son.konumAraligi.ortanca <= 19 && son.konumAraligi.p95 <= 22 && son.konumAraligi.uzun25 <= Math.ceil(son.konumAraligi.n * 0.02), son.konumAraligi);
   if (son.disAralik) sonuc('Dışarıdan görülen hareket de düzenli: %95 ≤ 22 ms', son.disAralik.aralik.p95 <= 22 && son.disAralik.aralik.n >= SURE / 25, son.disAralik);

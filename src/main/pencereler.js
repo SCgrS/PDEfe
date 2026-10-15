@@ -22,13 +22,13 @@ import { disAdresMi, acilacakYollar } from './guvenlik.js';
 
 const HAZIR_BEKLEME_MS = 20000;      // yeni pencerenin arayüzü bu sürede hazır olmazsa taşıma vazgeçilir
 const ISTEK_BEKLEME_MS = 120000;     // renderer'dan beklenen yanıt (büyük belgenin açılması dahil)
-// Sürüklenen sekmenin önizlemesi imleci önizleme penceresinin ekran karesiyle (requestAnimationFrame → 'hayalet:kare') izler (0.2.7, kullanıcı
+// Sürüklenen sekmenin ön izlemesi imleci ön izleme penceresinin ekran karesiyle (requestAnimationFrame → 'hayalet:kare') izler (0.2.7, kullanıcı
 // isteği: "sekmeleri kaldırınca biraz kasmaya başlıyor … daha sakin, daha akışkan"). Ölçülen kök neden: ana süreçteki 16 ms'lik setInterval
 // Windows'un 15,6 ms'lik zamanlayıcı çözünürlüğüne yuvarlanıp ~31 ms'de bir (saniyede ~32 kez, düzensiz) çalışıyordu; pencere ekran
-// tazelemesinin (60 Hz) yarısı kadar sık ve düzensiz kayıyordu (test/hayalet_akicilik.mjs). Kare gelmezken (önizleme henüz görünmüyor)
+// tazelemesinin (60 Hz) yarısı kadar sık ve düzensiz kayıyordu (test/hayalet_akicilik.mjs). Kare gelmezken (ön izleme henüz görünmüyor)
 // zamanlayıcı yedek olarak izler. Yüksek tazeleme hızlı ekranda adımlar en çok EN_KISA_ADIM_MS'de bir.
 const SURUKLEME_ADIMI_MS = 16;       // yedek zamanlayıcının aralığı (Windows'ta gerçekte ~15,6 / 31 ms)
-const KARE_BEKLEME_MS = 40;          // önizleme penceresinden bu süre kare gelmediyse yedek zamanlayıcı adım atar
+const KARE_BEKLEME_MS = 40;          // ön izleme penceresinden bu süre kare gelmediyse yedek zamanlayıcı adım atar
 const EN_KISA_ADIM_MS = 7;           // iki adım arası en az (144 Hz ekranda her kare, daha hızlısında bir atlanır)
 const CAN_BEKLEME_MS = 3000;         // kaynak pencere bu süre ses vermezse sürükleme bırakılmış sayılır (önizleme ekranda kalmasın)
 const HAYALET_OMRU_MS = 30000;       // son sürüklemeden sonra önizleme penceresi bu kadar bekletilir (yeniden kullanılır), sonra yok edilir
@@ -57,9 +57,9 @@ let cikisSuruyor = false;     // Çıkış (cik) pencereleri sırayla kapatıyor
 let surukleme = null;       // süren sekme sürüklemesi (kaynak pencere şeridinin dışında)
 let hayalet = null;           // sürüklenen sekmenin önizleme penceresi
 let testImlec = null;         // test örneğinde imlecin yeri (gerçek imlece dokunulmaz)
-let testImlecYolu = null;     // test örneğinde zamanla doğrusal kayan imleç { t0, x, y, vx, vy } (px, px/sn; önizlemenin akıcılık ölçümü, 0.2.7)
-let olcum = null;             // test örneğinde önizlemenin konum güncellemeleri { adimlar: [{ t, sure }], konumlar: [{ t, sure, x, y }] } (0.2.7)
-let sonGosterim = null;       // test örneğinde son önizlemenin gösterilme süresi { istek, gorunur } (performance.now, ms)
+let testImlecYolu = null;     // test örneğinde zamanla doğrusal kayan imleç { t0, x, y, vx, vy } (px, px/sn; ön izlemenin akıcılık ölçümü, 0.2.7)
+let olcum = null;             // test örneğinde ön izlemenin konum güncellemeleri { adimlar: [{ t, sure }], konumlar: [{ t, sure, x, y }] } (0.2.7)
+let sonGosterim = null;       // test örneğinde son ön izlemenin gösterilme süresi { istek, gorunur } (performance.now, ms)
 
 const yolAnahtari = (yol) => String(yol || '').replace(/\//g, '\\').toLowerCase();
 const hataMetni = (h) => (h && (h.message || String(h))) || 'Bilinmeyen hata';
@@ -404,7 +404,7 @@ function suruklemeyiBitir() {
   karelerAyarla(false);
 }
 
-/** Önizleme penceresinin her ekran karesinde 'hayalet:kare' göndermesini başlatır / durdurur (renderer/hayalet.js). */
+/** Ön izleme penceresinin her ekran karesinde 'hayalet:kare' göndermesini başlatır / durdurur (renderer/hayalet.js). */
 function karelerAyarla(acik) {
   const hy = hayalet;
   if (!hy || hy.pencere.isDestroyed() || hy.kareler === !!acik) return;
@@ -441,7 +441,7 @@ function hayaletiGoster(veri, s) {
     hy.pencere.webContents.send('hayalet:icerik', { ad: String(veri.ad || ''), onizleme: veri.onizleme || '', koyu: !!veri.koyu });
     hayaletiKonumla(imlec(), s);
     hy.pencere.showInactive();
-    karelerAyarla(true);   // konum bundan sonra önizlemenin ekran karesiyle güncellenir
+    karelerAyarla(true);   // konum bundan sonra ön izlemenin ekran karesiyle güncellenir
     if (sonGosterim && ekranDisi()) sonGosterim.gorunur = performance.now();
     hy.gorunur = true;
   });
@@ -623,11 +623,11 @@ export function pencereleriKur(b) {
       if (k === kaynak || !canli(k) || !k.hazir) continue;
       rendererdanIste(k, 'sekme:bant').then((bant) => { if (surukleme === s && bant) s.bantlar.set(k, bant); }).catch(() => {});
     }
-    // Yedek: önizleme penceresinin kareleri gelmiyorsa (pencere kuruluyor, henüz görünmüyor) imleç zamanlayıcıyla izlenir
+    // Yedek: ön izleme penceresinin kareleri gelmiyorsa (pencere kuruluyor, henüz görünmüyor) imleç zamanlayıcıyla izlenir
     s.zaman = setInterval(() => { if (performance.now() - (s.sonKare || 0) > KARE_BEKLEME_MS) suruklemeAdimi(s); }, SURUKLEME_ADIMI_MS);
     suruklemeAdimi(s);
   });
-  // Önizleme penceresinin ekran karesi (0.2.7): yalnızca önizleme penceresinden, sürükleme sürerken; adımlar arası en az EN_KISA_ADIM_MS
+  // Ön izleme penceresinin ekran karesi (0.2.7): yalnızca ön izleme penceresinden, sürükleme sürerken; adımlar arası en az EN_KISA_ADIM_MS
   ipcMain.on('hayalet:kare', (e) => {
     const s = surukleme, hy = hayalet;
     if (!s || !hy || hy.pencere.isDestroyed() || e.sender.id !== hy.pencere.webContents.id) return;
@@ -693,7 +693,7 @@ export function pencereleriKur(b) {
       id: k.id, sinirlar: k.pencere.getBounds(), icerik: k.pencere.getContentBounds(), gorunur: k.pencere.isVisible(), baslik: k.pencere.getTitle(),
       yollar: [...k.yollar], hazir: k.hazir,
     })));
-    // Önizlemenin akıcılığı (0.2.7, test/hayalet_akicilik.mjs): imleç zamanla doğrusal kayar (yol: { x, y, vx, vy } | null); 'basla' ölçümü
+    // Ön izlemenin akıcılığı (0.2.7, test/hayalet_akicilik.mjs): imleç zamanla doğrusal kayar (yol: { x, y, vx, vy } | null); 'basla' ölçümü
     // başlatır, 'bitir' konum güncellemelerinin ve sürükleme adımlarının zamanlarını döner
     ipcMain.handle('test:imlecYolu', (_e, yol) => { testImlecYolu = yol ? { t0: performance.now(), x: +yol.x || 0, y: +yol.y || 0, vx: +yol.vx || 0, vy: +yol.vy || 0 } : null; return true; });
     ipcMain.handle('test:hayaletOlcum', (_e, komut) => {

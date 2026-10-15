@@ -1,4 +1,4 @@
-﻿# Sürüklenen sekmenin önizleme penceresini dışarıdan izler (0.2.7, test/hayalet_akicilik.mjs): PDEfe ana sürecinin fare olaylarını geçiren
+﻿# Sürüklenen sekmenin ön izleme penceresini dışarıdan izler (0.2.7, test/hayalet_akicilik.mjs): PDEfe ana sürecinin fare olaylarını geçiren
 # (WS_EX_TRANSPARENT) üst düzey penceresinin yerini (GetWindowRect) -SureMs boyunca yarım milisaniyeden sık okur, yeri her değiştiğinde
 # "<ms> <x> <y>" satırını yazar. Pencerenin ekrandaki hareketinin ne sıklıkla ve ne düzende güncellendiği böyle ölçülür (ana sürecin kendi
 # ölçümünden bağımsız). Yalnızca okur; pencereye, fareye ve odağa dokunmaz. Aynı masaüstündeki pencereleri görür (test/baslat.ps1'in ekran
@@ -26,7 +26,7 @@ public static class HayaletIzle {
       uint p; GetWindowThreadProcessId(h, out p);
       if (p != pid || !IsWindowVisible(h)) return true;
       long ex = GetWindowLongPtr(h, -20).ToInt64();
-      if ((ex & 0x20) != 0) { bulunan = h; return false; }   // WS_EX_TRANSPARENT: önizleme penceresi
+      if ((ex & 0x20) != 0) { bulunan = h; return false; }   // WS_EX_TRANSPARENT: ön izleme penceresi
       return true;
     }, IntPtr.Zero);
     return bulunan;
