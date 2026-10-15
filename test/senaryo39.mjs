@@ -15,6 +15,8 @@
 //   5) Açma yolları (madde 3): Ctrl+O'nun süzgecinde görüntüler, seçilen JPG araçta; ana sürecin dosya:ac'ı (PNG) ve ikinci örnek (JPG)
 //      aracı açar; ana pencereye bırakılan görüntü araçta açılır.
 //   6) Açılamayan görüntü (HEIC; açıcısı pakette yok): satırda nedeni, hedefler soluk, dönüştürülmez.
+//   7) Kalite notu (madde 10): seçili hedefin notu satırın altında hemen (UDF → Word, TIFF → Word, görüntü → UDF, PDF → UDF), notsuz yönlerde yok,
+//      sakin renkte.
 //   8) Birleştir (madde 2): Dosya ekle süzgecinde UDF ve Word; satırlarda tür (UDF küçük resmiyle, Word mavi yer tutucuyla), tahmin yok, özet "en az …
 //      sayfa", kalite toplamı "≥"; açıkken bırakılan dosya Birleştir'in listesine; belgeler çevrilirken İptal (hedef yazılmaz); UDF + PDF + TIFF
 //      (+ Word, $env:S39_WORD="1" ile) + JPG → tek PDF, sıra listedeki gibi. UYAP Doküman Editörü yok benzetimi (PDEFE_UDE_YOK=1): UDF yaklaşık çizimle,
@@ -146,7 +148,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     satirlar: [...s.querySelectorAll('li')].map((l) => ({ ad: l.querySelector('.ad').textContent, ac: !!l.querySelector('[data-ac]'), uyari: l.querySelector('.uyari-metin')?.textContent || '' })),
     metin: s.innerText, goster: s.querySelector('.donustur-goster')?.textContent || '', tek: s.classList.contains('arac-sonuc-tek') } : null; })()`);
   const ciktilar = () => (fs.existsSync(CIKTI) ? fs.readdirSync(CIKTI).sort() : []);
-  const bolumler = (process.env.BOLUM || '1,2,3,4,5,6,8').split(',').map((s) => s.trim());
+  const bolumler = (process.env.BOLUM || '1,2,3,4,5,6,7,8').split(',').map((s) => s.trim());
   const bolum = (n) => bolumler.includes(String(n));
 
   // ------------------------------------------------------------ hazırlık
@@ -473,6 +475,42 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
         && h.hedefler.every((x) => x.devre) && /dönüştürülemez/.test(h.neden) && (await donusturDevre()), h);
     }
     await pencereKapat();
+  }
+
+  // ------------------------------------------------------------ 7) Kalite notu (madde 10)
+  if (bolum(7)) {
+    console.log('\n== 7) Kalite notu');
+    await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);
+    await aracAc([G.udf, G.tiff, G.jpg, G.pdf2]);
+    const not = (ad) => evalJs(`(() => { const e = [...document.querySelectorAll('.donustur-oge')].find((x) => x.querySelector('.ad').textContent === ${J(ad)});
+      const k = e.querySelector('.kalite'); return k.hidden ? '' : k.querySelector('.metin').textContent; })()`);
+    const D = YET?.donusumler || {};
+    const UDF = 'Karar örneği.udf', TIF = 'Tarama örneği.tif', JPG = 'Taranmış dilekçe.jpg', PDF = 'Dilekçe örneği.pdf';
+    sonuc('Varsayılan hedeflerde: UDF → PDF, TIFF → PDF, görüntü → PDF notsuz; PDF → UDF\'de not ("Satır ve sayfa düzeni UDF\'de kayabilir; …")', (await not(UDF)) === '' && (await not(TIF)) === ''
+      && (await not(JPG)) === '' && (await not(PDF)) === 'Satır ve sayfa düzeni UDF\'de kayabilir; imza, kaşe gibi resimler alınmayabilir.', [await not(UDF), await not(TIF), await not(JPG), await not(PDF)]);
+    if (D['udf>word']?.var) {
+      await hedefTikla(UDF, 'word');
+      sonuc('UDF seçiliyken Word\'e tıklanınca hemen satırın altında not: "Sayfa düzeni Word\'de birebir korunmayabilir."', (await not(UDF)) === 'Sayfa düzeni Word\'de birebir korunmayabilir.', await not(UDF));
+      await ss('07-kalite-udf-word');
+      await hedefTikla(UDF, 'pdf');
+      sonuc('UDF → PDF\'e dönülünce not kalkar', (await not(UDF)) === '', await not(UDF));
+    } else atlandi('UDF → Word notu', 'UDF → Word bu bilgisayarda yapılamıyor (not yalnızca yapılabilen hedefte)');
+    if (D['tiff>word']?.var) {
+      await hedefTikla(TIF, 'word');
+      sonuc('TIFF → Word: "Taranmış sayfalar Word\'e resim olarak geçer; yazıları düzenlenemez."', (await not(TIF)) === 'Taranmış sayfalar Word\'e resim olarak geçer; yazıları düzenlenemez.', await not(TIF));
+    } else atlandi('TIFF → Word notu', 'TIFF → Word bu bilgisayarda yapılamıyor');
+    await hedefTikla(JPG, 'udf');
+    sonuc('Görüntü → UDF: "Yazılar görüntüden tanınarak çıkarılır; …"', (await not(JPG)) === 'Yazılar görüntüden tanınarak çıkarılır; harf yanlışları ve düzen kayması olabilir.', await not(JPG));
+    await hedefTikla(PDF, 'tiff');
+    const pdfTiff = await not(PDF);
+    await hedefTikla(PDF, 'gorsel');
+    sonuc('PDF → TIFF ve PDF → JPG notsuz (sayfanın birebir resmi)', pdfTiff === '' && (await not(PDF)) === '', [pdfTiff, await not(PDF)]);
+    const renk = await evalJs(`(() => { const e = [...document.querySelectorAll('.donustur-oge')].find((x) => x.querySelector('.ad').textContent === ${J(JPG)});
+      const k = getComputedStyle(e.querySelector('.kalite')).color, o = getComputedStyle(e.querySelector('.ozet')).color, u = getComputedStyle(e.querySelector('.uyari')).color;
+      return { k, o, u, simge: !!e.querySelector('.kalite svg') }; })()`);
+    sonuc('Not sakin renkte (satırın özetiyle aynı soluk renk, uyarı renginden farklı), bilgi simgesiyle', renk.k === renk.o && renk.k !== renk.u && renk.simge, renk);
+    await pencereKapat();
+    await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);
   }
 
   // ------------------------------------------------------------ 8) Birleştir: UDF, Word, TIFF, görüntü, PDF → tek PDF (madde 2)

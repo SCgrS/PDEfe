@@ -396,6 +396,10 @@ html[data-tema="koyu"] .donustur-oge .neden { color: #ffc46b; }
 /* UYAP Doküman Editörü yokken yaklaşık çizim: neden değil uyarı (seçili hedef yapılabilir) */
 .donustur-oge .neden.yaklasik { color: #7a3e00; }
 html[data-tema="koyu"] .donustur-oge .neden.yaklasik { color: #ffd98a; }
+/* Kalite notu (0.2.7): seçili hedefin sonucu kaynağından farklı olabilecekse; uyarıdan sakin (soluk metin rengi, bilgi simgesi) */
+.donustur-oge .kalite { display: flex; align-items: flex-start; gap: 5px; font-size: 12px; color: var(--metin-soluk); align-self: flex-start; }
+.donustur-oge .kalite[hidden] { display: none; }
+.donustur-oge .kalite svg { width: 13px; height: 13px; flex-shrink: 0; margin-top: 2px; }
 .donustur-oge .uyari { font-size: 12px; color: #7a3e00; align-self: flex-start; }
 html[data-tema="koyu"] .donustur-oge .uyari { color: #ffd98a; }
 .donustur-oge .hata { color: #d13438; font-size: 12px; align-self: flex-start; }

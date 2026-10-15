@@ -111,6 +111,7 @@ const SVG = {
   ekle: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
   sil: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.5"/></svg>',
   ok: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 10h12M11.5 6l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  bilgi: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.25" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10 9v5M10 6.2v.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
 };
 
 let acikPencere = null;
@@ -454,6 +455,17 @@ export class DonusturPenceresi {
     return { var: false, neden: neden || `${TUR_ADI[o.tur] || 'Bu dosya'} → ${BICIM[bicim]?.ad || bicim} dönüştürmesi yapılamıyor.` };
   }
 
+  /**
+   * Hedefin kalite notu (0.2.7, kullanıcı isteği: "Bazı dönüştürme işlevlerinin kaliteli, yerinde, hoş olarak gerçekleşmeyeceğini belirtecek
+   * bir uyarı yazısı koyalım. Mesela UDF'den Word'e … UDF seçiliyken Word'e tıklandığı anda böyle bir uyarı çıksın altında. Mesela TIF → Word"):
+   * çekirdeğin notu (core/islemler/donustur.py KALITE_NOTLARI; satırın donusum_bilgi'si, yoksa donusum_yetenekleri) ya da ''. Notsuz yönler
+   * (UDF → PDF, TIFF / görüntü → PDF, PDF → TIFF / JPG…) sonuç kaynağının birebir çizimidir.
+   */
+  _kaliteNotu(o, bicim) {
+    const h = o.hedefler?.get(bicim);
+    return String(h?.kalite || this.yetenekler?.donusumler?.[`${o.tur}>${bicim}`]?.kalite || '').trim();
+  }
+
   /** Önerilen hedef: o türün son seçilen hedefi, yoksa PDF girdide UDF, ötekilerde PDF; yapılamıyorsa sıradaki yapılabilen. */
   _varsayilanHedef(o) {
     const kayitli = this.baglam.ayar?.()?.donusturme?.hedefler?.[o.tur];
@@ -526,6 +538,7 @@ export class DonusturPenceresi {
         <span class="ozet secilebilir"></span>
         <div class="hedef-satiri" hidden><span class="hedef-etiket">${SVG.ok}<span>Hedef</span></span><span class="hedef-secimi"></span></div>
         <span class="neden" hidden></span>
+        <span class="kalite" hidden>${SVG.bilgi}<span class="metin secilebilir"></span></span>
         <span class="uyari secilebilir" hidden></span>
         <span class="hata secilebilir" hidden></span>
       </div>
@@ -602,6 +615,11 @@ export class DonusturPenceresi {
       nedenEl.querySelector('.metin').textContent = yaklasik ? this._yaklasikUyarisi() : `${BICIM[o.hedefBicim]?.yonelme || ''} dönüştürülemez: ${durum.neden}`;
       if (o.tur === 'udf' && this._udeYok()) nedenEl.append(oge(`<button type="button" class="donustur-baglanti" data-komut="ude" title="${kacis(UDE_YOK_IPUCU)}">UYAP Doküman Editörü'nün yerini göster</button>`));
     }
+    // Kalite notu (0.2.7, madde 10): seçili hedef yapılabiliyorsa ve sonucu kaynağından belirgin biçimde farklı olabilecekse çekirdeğin kısa notu
+    const kaliteEl = el.querySelector('.kalite');
+    const kalite = goster && o.hedefBicim && durum.var ? this._kaliteNotu(o, o.hedefBicim) : '';
+    kaliteEl.hidden = !kalite;
+    kaliteEl.querySelector('.metin').textContent = kalite;
     // Uyarılar: çekirdeğin (açılamayan UDF, hareketli görüntünün ilk karesi…), uzantısı içeriğiyle uyuşmayan dosya
     const uyarilar = [];
     if (!o.hata && o.uyari) uyarilar.push(o.uyari);
