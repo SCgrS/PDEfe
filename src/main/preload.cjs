@@ -14,7 +14,7 @@ const CAGRILAR = new Set([
   'pencere:baskaPenceredeAc', 'pencere:baskaPenceredeAcikMi', 'pencere:baslik', 'pencere:digerlerindenIzinAl', 'pencere:izinBirak', 'pencere:kapat',
   'pencere:kapatOnayla', 'pencere:kapatVazgec', 'pencere:kimlik', 'pencere:sayi', 'pencere:tamEkran', 'pencere:tasi', 'pencere:yeniPenceredeAc',
   'sekme:surukleBitti', 'sekme:tasi',
-  'udf:yaklasikBilgi', 'udf:yaklasikDonustur', 'udf:yaklasikIptal',
+  'udf:yaklasikBilgi', 'udf:yaklasikDonustur', 'udf:yaklasikBirlestir', 'udf:yaklasikIptal',
   'uygulama:bilgi', 'uygulama:geciciKlasor', 'uygulama:klasorler', 'uygulama:sonDosyalar', 'uygulama:veriKlasoru',
   'yanit',
   'yazdir:hazirla', 'yazdir:sayfaEkle', 'yazdir:baslat', 'yazdir:iptal', 'yazdir:durum', 'yazdir:yazicilar', 'yazdir:yaziciDurumu', 'yazdir:tercihler',

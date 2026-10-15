@@ -170,6 +170,22 @@ try {
   const d2 = yp('udf:yaklasikDonustur', { ogeler: [yoge('a.jpg', 'gorsel', { secenekler: { dpi: 300 }, cakisma: 'yeniAd' }), yoge('b.pdf', 'pdf', { cakisma: 'yeniAd' })] });
   kontrol('yaklasikDonustur (0.2.7): JPG hedefi ve cakisma geçer', d2?.ogeler?.length === 2 && d2.ogeler[0].hedefBicim === 'gorsel' && d2.ogeler[0].cakisma === 'yeniAd' && d2.ogeler[1].cakisma === 'yeniAd');
   kontrol('yaklasikDonustur: bilinmeyen cakisma reddedilir', yp('udf:yaklasikDonustur', { ogeler: [yoge('a.pdf', 'pdf', { cakisma: 1 })] }) === null);
+  // udf:yaklasikBirlestir (0.2.7, Birleştir'de UDE yokken): birlestir öğelerinin bilinen alanları, en az bir yaklaşık UDF, hedef mutlak .pdf
+  const bh = path.join(K, 'Birlesik.pdf');
+  const bo = (yol, ek = {}) => ({ yol: path.join(K, yol), ...ek });
+  const b2 = yp('udf:yaklasikBirlestir', { ogeler: [bo('a.udf', { tur: 'udf', yaklasik: true, kalite: 'orta', dondurme: 90, fazla: 1 }), bo('b.jpg', { tur: 'gorsel', sayfaBoyutu: 'a4', kenar: 10 }),
+    bo('c.pdf', { tur: 'pdf' })], hedef: bh, genelKalite: 'yuksek', istekId: 9, gecici: 'x' });
+  kontrol('yaklasikBirlestir: öğeler, hedef, genel kalite ve istek kimliği geçer; bilinmeyen anahtarlar atılır', b2?.ogeler?.length === 3 && b2.hedef === bh && b2.genelKalite === 'yuksek' && b2.istekId === 9
+    && !('gecici' in b2) && JSON.stringify(b2.ogeler[0]) === JSON.stringify({ yol: path.join(K, 'a.udf'), tur: 'udf', kalite: 'orta', dondurme: 90, yaklasik: true }));
+  kontrol('yaklasikBirlestir: yaklaşık UDF yoksa reddedilir (çekirdeğin birlestir\'i)', yp('udf:yaklasikBirlestir', { ogeler: [bo('c.pdf', { tur: 'pdf' })], hedef: bh }) === null);
+  kontrol('yaklasikBirlestir: UDF olmayan öğede yaklasik reddedilir', yp('udf:yaklasikBirlestir', { ogeler: [bo('a.udf', { tur: 'udf', yaklasik: true }), bo('c.pdf', { tur: 'pdf', yaklasik: true })], hedef: bh }) === null);
+  kontrol('yaklasikBirlestir: .bat hedef, göreli hedef ve göreli yol reddedilir', yp('udf:yaklasikBirlestir', { ogeler: [bo('a.udf', { tur: 'udf', yaklasik: true })], hedef: path.join(K, 'x.bat') }) === null
+    && yp('udf:yaklasikBirlestir', { ogeler: [bo('a.udf', { tur: 'udf', yaklasik: true })], hedef: 'x.pdf' }) === null
+    && yp('udf:yaklasikBirlestir', { ogeler: [{ yol: 'a.udf', tur: 'udf', yaklasik: true }], hedef: bh }) === null);
+  kontrol('yaklasikBirlestir: bilinmeyen tür, kalite, döndürme, sayfa boyutu ve 51 mm kenar reddedilir', [{ tur: 'exe' }, { kalite: 'en iyi' }, { dondurme: 45 }, { sayfaBoyutu: 'A3' }, { kenar: 51 }]
+    .every((ek) => yp('udf:yaklasikBirlestir', { ogeler: [bo('a.udf', { tur: 'udf', yaklasik: true }), bo('b.jpg', ek)], hedef: bh }) === null));
+  kontrol('yaklasikBirlestir: hedef birleştirilen dosyalardan biri olamaz; 501 öğe reddedilir', yp('udf:yaklasikBirlestir', { ogeler: [bo('a.udf', { tur: 'udf', yaklasik: true }), bo('Birlesik.PDF', { tur: 'pdf' })], hedef: bh }) === null
+    && yp('udf:yaklasikBirlestir', { ogeler: Array.from({ length: 501 }, (_, i) => bo(`x${i}.udf`, { tur: 'udf', yaklasik: true })), hedef: bh }) === null);
   kontrol('yaklasikDonustur: .bat hedef reddedilir', yp('udf:yaklasikDonustur', { ogeler: [yoge('a.bat', 'pdf')] }) === null);
   kontrol('yaklasikDonustur: hedef girdinin kendisi olamaz', yp('udf:yaklasikDonustur', { ogeler: [{ yol: path.join(K, 'x.pdf'), hedef: path.join(K, 'X.PDF'), hedefBicim: 'pdf' }] }) === null);
   kontrol('yaklasikDonustur: aynı hedef iki kez reddedilir', yp('udf:yaklasikDonustur', { ogeler: [yoge('a.pdf', 'pdf'), { ...yoge('A.pdf', 'pdf'), yol: path.join(K, 'baska.udf') }] }) === null);

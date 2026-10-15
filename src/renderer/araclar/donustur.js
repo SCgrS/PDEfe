@@ -34,7 +34,7 @@
 // (kullanıcı isteği).
 import {
   pencereAc, pencereAcikMi, IslemIlerleme, kayitSecimi, boyutMetni, sayiMetni, kacis, hataMetni, dosyaAdi, klasorAdi, adGovdesi, uzanti, yolAyni,
-  yolBirlestir, guvenliAd, oge, segmentliSecim, kilitliHataMi, ciktiyiAc, acikBelge, degisiklikleriSor, sonucKutusuCiz,
+  yolBirlestir, guvenliAd, oge, segmentliSecim, kilitliHataMi, ciktiyiAc, acikBelge, degisiklikleriSor, sonucKutusuCiz, yaklasikIstekId, yaklasikIlerlemeDinle,
 } from './ortak.js';
 import { MAC } from '../platform.js';
 
@@ -80,16 +80,13 @@ const JPG_DENETIM_SAYFASI = 200;
 /** JPG hedefinin sayfa dosyasının adı (çekirdeğin sayfa_adlari'yla aynı: "<ad> - Sayfa n.jpg"). */
 const sayfaAdi = (govde, n, uz = 'jpg') => `${govde} - Sayfa ${n}.${uz}`;
 
-// UDF'nin yaklaşık çizimi (ana süreç, main/udfYaklasik.js): istek kimliği bu pencerenin sayacından, ilerleme 'udf:yaklasikIlerleme' ile
-let yaklasikSayac = 0;
-let yaklasikDinleme = null;
-const yaklasikDinleyiciler = new Map();
+// UDF'nin yaklaşık çizimi (ana süreç, main/udfYaklasik.js): istek kimliği bu penceredeki ortak sayaçtan (0.2.7: Birleştir de kullanır;
+// ortak.js yaklasikIstekId), ilerleme 'udf:yaklasikIlerleme' ile
 /** Ana süreçte yaklaşık çizimle dönüştürür; döner: sözü ({ sonuclar, basarili, hatali } | { iptal: true }) ve iptal() işlevi. */
 function yaklasikDonustur(pdefe, ogeler, ilerleme) {
-  if (!yaklasikDinleme) yaklasikDinleme = pdefe.dinle('udf:yaklasikIlerleme', (id, p) => yaklasikDinleyiciler.get(id)?.(p));
-  const istekId = ++yaklasikSayac;
-  if (ilerleme) yaklasikDinleyiciler.set(istekId, ilerleme);
-  const soz = pdefe.cagir('udf:yaklasikDonustur', { ogeler, istekId }).finally(() => yaklasikDinleyiciler.delete(istekId));
+  const istekId = yaklasikIstekId();
+  const birak = ilerleme ? yaklasikIlerlemeDinle(pdefe, istekId, ilerleme) : () => {};
+  const soz = pdefe.cagir('udf:yaklasikDonustur', { ogeler, istekId }).finally(birak);
   soz.iptal = () => pdefe.cagir('udf:yaklasikIptal', { istekId }).catch(() => false);
   return soz;
 }
@@ -393,7 +390,7 @@ export class DonusturPenceresi {
     o.onizleniyor = true;
     this._ogeCiz(o);
     // İstek kimliğiyle: satır çıkarılınca, liste temizlenince ya da pencere kapanınca sıradaki çizim iptal edilir (_yaklasikIptal)
-    const istekId = o.yaklasikIstek = ++yaklasikSayac;
+    const istekId = o.yaklasikIstek = yaklasikIstekId();
     try {
       const b = await this.baglam.pdefe.cagir('udf:yaklasikBilgi', { yol: o.yol, genislik: this._kucukResimGenisligi(), istekId });
       if (this.pencere.kapali || !this.ogeler.includes(o)) return;

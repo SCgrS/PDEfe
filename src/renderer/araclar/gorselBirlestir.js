@@ -1,9 +1,15 @@
-// Görüntü / PDF belgeleri birleştirerek PDF oluştur (PDF'leri de birleştirir; ayrı "PDF birleştir" aracı kaldırıldı).
+// Birleştir (0.2.7'ye dek "Görüntü / PDF birleştir"): PDF, görüntü ve (0.2.7) UDF, Word belgelerini tek PDF'te birleştirir (ayrı "PDF birleştir"
+// aracı kaldırıldı). 0.2.7 (kullanıcı isteği: "Bu araca, görüntü formatları dahil, UDF, Word ve TIF attığımızda da tek bir birleşik PDF indirelim
+// direkt"): UDF ve Word (DOC, DOCX, DOCM, RTF, ODT) listeye eklenir; çekirdek onları önce geçici PDF'e çevirir (UDF'yi UYAP Doküman Editörü'yle,
+// Word'ü Word'le; ilerlemenin %0–60'ı), sonra birleştirir. Editör yoksa UDF'ler ana sürecin yaklaşık çizimiyle (main/udfYaklasik.js,
+// udf:yaklasikBirlestir; satırda "görünüm yaklaşık"); Word (ya da LibreOffice) yoksa Word satırı soluk, nedeni satırda, birleştirmede atlanır.
+// Ana pencereye bırakılan PDF dışı belgeler bu aracı değil Format Değiştir'i açar (0.2.6 kuralı, değişmedi).
 // Girdi: Dosya ekle düğmesi, sürükle-bırak (pdefe.dosyaYolu), Ctrl+V / Panodan ekle / listede sağ tık Yapıştır (pano:icerik:
 // Gezgin'den kopyalanan dosyalar, ekran görüntüsü ya da tarayıcıdan kopyalanan görsel, metin olarak kopyalanmış dosya yolları;
 // ana süreçte Electron pano API'siyle okunur, görsel %TEMP%\PDEfe altına PNG olarak yazılır).
 // Çekirdek (core/islemler/araclar.py):
-//   gorsel_bilgi {yol} → {tur:'pdf'|'gorsel', sayfa, boyut, genislik, yukseklik, png(base64, küçük resim), bicim (görselde)}
+//   gorsel_bilgi {yol, onizleme?} → {tur:'pdf'|'gorsel', sayfa, boyut, genislik, yukseklik, png(base64, küçük resim), bicim (görselde)} | UDF / Word
+//     (0.2.7): {tur:'udf'|'word', alt, boyut, sayfa (UDF'de editörün ön izlemesiyle), png? (UDF, onizleme: true), pdfeCevrilebilir, neden?}
 //   boyut_tahmini {oge:{yol, tur, kalite, sayfaBoyutu, kenar, dondurme}} → {boyut, tahmin, ozet, tekrar}   (öğe × kalite başına
 //     bir çağrı; çekirdek sonucu ve çözülmüş görseli önbellekte tutar). Aynı ozet'li öğeler (aynı dosya birden çok kez ya da
 //     kopyası) çıktıda bir kez saklanır: toplamlarda ilki boyut, sonrakiler yalnızca tekrar kadar sayılır.
@@ -15,7 +21,7 @@
 import {
   pencereAc, pencereAcikMi, IslemIlerleme, kayitSecimi, boyutMetni, sayiMetni, kacis, hataMetni, dosyaAdi, uzanti,
   yolAyni, suruklemeSiralama, suruklemeKalintisi, geciktir, oge, segmentliSecim, kilitliHataMi, ciktiyiAc, acikBelge,
-  degisiklikleriSor,
+  degisiklikleriSor, yaklasikIstekId, yaklasikIlerlemeDinle,
 } from './ortak.js';
 import { kaydetmedenCikisSorusu } from '../mesajKutusu.js';
 import { MAC, tus } from '../platform.js';
@@ -30,22 +36,36 @@ export const KALITELER = [
 ];
 // HEIC / HEIF listede yok (0.2.1): çekirdeğin onları açan kütüphanesi (pillow_heif) pakette yok; listede görünüp eklenince hata veriyordu
 export const GORSEL_UZANTILAR = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'tif', 'tiff', 'webp'];
-const UZANTILAR = ['pdf', ...GORSEL_UZANTILAR];
+/** Belgeler (0.2.7): çekirdek birleştirmeden önce PDF'e çevirir. */
+const WORD_UZANTILARI = ['doc', 'docx', 'docm', 'rtf', 'odt'];
+const UZANTILAR = ['pdf', ...GORSEL_UZANTILAR, 'udf', ...WORD_UZANTILARI];
 const DOSYA_FILTRELERI = [
-  { name: 'PDF ve görüntüler', extensions: UZANTILAR },
+  { name: 'Desteklenen dosyalar', extensions: UZANTILAR },
   { name: 'PDF belgeleri', extensions: ['pdf'] },
   { name: 'Görüntüler', extensions: GORSEL_UZANTILAR },
+  { name: 'UDF belgeleri', extensions: ['udf'] },
+  { name: 'Word belgeleri', extensions: WORD_UZANTILARI },
   { name: 'Tüm dosyalar', extensions: ['*'] },
 ];
+/** Uzantıdan ilk tür (çekirdek gorsel_bilgi'de içerikten belirler). */
+const ilkTur = (yol) => { const u = uzanti(yol); return u === 'pdf' ? 'pdf' : u === 'udf' ? 'udf' : WORD_UZANTILARI.includes(u) ? 'word' : 'gorsel'; };
+const BELGE = new Set(['udf', 'word']);
 // Satırdaki önizleme büyük (0.2.2, kullanıcı isteği): kutu araclar.css'teki --birlestir-resim (64 → 120 px; 0.2.3, kullanıcı isteği: "biraz
 // daha büyük" → 150 px). Küçük resim çekirdekten en az kutu × ekran ölçeği genişliğinde istenir (_kucukResimGenisligi): %100'de 150, %125'te
 // 188, %150'de 225, %200'de 300 px. 0.2.1'deki sabit 144 px alt sınır olarak kalır (150 px kutuda devreye girmez).
 const KUCUK_RESIM_EN_AZ = 144;
 const KUTU_VARSAYILAN = 150;   // CSS değişkeni okunamazsa (araclar.css ile aynı)
 
+/** UDF ve Word satırlarının boyut tahmini (0.2.7): çekirdek de tahmin etmez (tahminYok). */
+const BELGE_TAHMIN_NOTU = 'UDF ve Word belgelerinin boyutu PDF\'e çevrilmeden kestirilemiyor; toplama katılmadı.';
+/** UYAP Doküman Editörü yokken UDF satırındaki uyarı (Format Değiştir'deki söyleyiş). */
+const YAKLASIK_UYARISI = 'UYAP Doküman Editörü bulunamadı; görünüm yaklaşık (satır ve sayfa kırılımları editördekinden farklı olabilir).';
+
 /** Satırda görünen dosya türü: kullanıcının tanıdığı uzantı ("JPG", "PNG"; çekirdeğin bicim'i "JPEG" gibi teknik ad olabilir). */
 function bicimEtiketi(o) {
   if (o.tur === 'pdf') return 'PDF';
+  if (o.tur === 'udf') return 'UDF';
+  if (o.tur === 'word') return o.alt && o.alt !== 'sifreli' ? o.alt.toUpperCase() : 'Word';   // 0.2.7: DOCX, DOC, RTF, ODT
   const u = (uzanti(o.yol) || o.bicim || '').toUpperCase();
   return u === 'JPEG' || u === 'JPE' || u === 'JFIF' ? 'JPG' : u === 'TIFF' ? 'TIF' : u === 'HEIF' ? 'HEIC' : (u || 'Görüntü');
 }
@@ -54,6 +74,10 @@ const SVG = {
   pano: '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4.5" y="4" width="11" height="13.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M7.5 4V3.2c0-.4.3-.7.7-.7h3.6c.4 0 .7.3.7.7V4" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M7.5 9h5M7.5 12h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
   tutamac: '<svg viewBox="0 0 12 20" aria-hidden="true"><circle cx="4" cy="6" r="1.2"/><circle cx="8" cy="6" r="1.2"/><circle cx="4" cy="10" r="1.2"/><circle cx="8" cy="10" r="1.2"/><circle cx="4" cy="14" r="1.2"/><circle cx="8" cy="14" r="1.2"/></svg>',
 };
+
+let acikPencere = null;
+/** Açık Birleştir penceresi (yoksa null; testler için). */
+export function acikBirlestirmePenceresi() { return acikPencere && !acikPencere.pencere.kapali ? acikPencere : null; }
 
 export class BirlestirmePenceresi {
   /**
@@ -76,6 +100,8 @@ export class BirlestirmePenceresi {
     this.tahminGeciktir = geciktir(() => this.tahminAl(), 150);
     this.ilerleme = new IslemIlerleme();
     this._kur(baslik || 'Birleştir');   // 0.2.7 (kullanıcı isteği): araç adı "Birleştir"
+    acikPencere = this;
+    this.pencere.el.addEventListener('kapandi', () => { if (acikPencere === this) acikPencere = null; });
     if (ilkDosyalar.length) this.dosyaEkle(ilkDosyalar);
   }
 
@@ -121,7 +147,7 @@ export class BirlestirmePenceresi {
 
     govde.querySelector('.birlestir-ekle').addEventListener('click', () => this.dosyaSec());
     govde.querySelector('.birlestir-yapistir').addEventListener('click', () => this.panodanEkle());
-    govde.querySelector('.birlestir-temizle').addEventListener('click', () => { if (this.ogeler.length) { this.ogeler = []; this.secim.clear(); this.capa = null; this.ciz(); } });
+    govde.querySelector('.birlestir-temizle').addEventListener('click', () => { if (this.ogeler.length) { this._yaklasikIptal(this.ogeler); this.ogeler = []; this.secim.clear(); this.capa = null; this.ciz(); } });
 
     // Pencere sekme şeridinin altında başlar: arkadaki sekmelerden doğru belgede olunduğu görülür (0.1.26, kullanıcı isteği)
     this.pencere = pencereAc({
@@ -177,7 +203,82 @@ export class BirlestirmePenceresi {
     this._alanSecimiBagla();
     // Fare ve tuş kullanımı (tıkla: seç, Delete: çıkar…) pencerede yazmaz, F1 Kısayollar penceresinde (0.1.13, kullanıcı isteği)
     this.pencere.el.addEventListener('kapandi', () => this.sirala());
+    // UDF'lerin yaklaşık küçük resimleri (editör yokken; ana süreç sırayla çizer) pencere kapanınca çizilmez
+    this.pencere.el.addEventListener('kapandi', () => this._yaklasikIptal(this.ogeler));
     this.ciz();
+  }
+
+  // ---------------------------------------------------------------- UDF / Word (0.2.7)
+  /** UDF ve Word'ün bu bilgisayarda PDF'e çevrilip çevrilemeyeceği (Format Değiştir'in donusum_yetenekleri'yle; bir kez sorulur). */
+  _yetenekAl() {
+    this._yetenekSozu ||= this.baglam.cekirdek('donusum_yetenekleri', {}).catch((e) => { console.warn('[birleştir] yetenekler alınamadı', e); return null; });
+    return this._yetenekSozu;
+  }
+
+  /** UDF satırı editör yerine yaklaşık çizimle mi çevrilir: editör, Java ya da köprü yok (udf.var false) ve satırın nedeni bu genel neden
+   *  (bozuk, parolalı gibi belgeye özgü neden değil; Format Değiştir'in _yaklasikDurumu kuralı). */
+  _yaklasikMi(o, b, yet) {
+    const udf = yet?.udf;
+    return o.tur === 'udf' && b?.pdfeCevrilebilir === false && udf?.var === false && (!b.neden || !udf.neden || b.neden === udf.neden);
+  }
+
+  /** Satırın yaklaşık küçük resmi ve sayfa sayısı (ana süreç: udf:yaklasikBilgi; çizilemezse belge birleştirilemez, neden satırda). */
+  async _yaklasikOnizlemeYukle(o) {
+    const istekId = o.yaklasikIstek = yaklasikIstekId();
+    o.onizleniyor = true;
+    this._ogeCiz(o);
+    try {
+      const b = await this.baglam.pdefe.cagir('udf:yaklasikBilgi', { yol: o.yol, genislik: this._kucukResimGenisligi(), istekId });
+      if (this.pencere.kapali || !this.ogeler.includes(o)) return;
+      if (b?.png) o.png = b.png;
+      if (b?.sayfa != null) o.sayfa = b.sayfa;
+      if (b?.genislik && b?.yukseklik) { o.genislik = b.genislik; o.yukseklik = b.yukseklik; }
+    } catch (e) {
+      if (this.pencere.kapali || !this.ogeler.includes(o)) return;
+      if (!/ptal edildi/.test(hataMetni(e))) Object.assign(o, { cevrilemez: true, yaklasik: false, neden: 'Belge açılamadı: ' + hataMetni(e) });
+    } finally { o.onizleniyor = false; if (o.yaklasikIstek === istekId) o.yaklasikIstek = null; }
+    this._ogeCiz(o);
+    this._ozetYaz();
+  }
+
+  /** UDF'nin editörle ön izlemesi (küçük resim, sayfa sayısı; ilk belgede birkaç saniye): satır beklemeden kullanılabilir. */
+  async _onizlemeYukle(o) {
+    o.onizleniyor = true;
+    this._ogeCiz(o);
+    try {
+      const b = await this.baglam.cekirdek('gorsel_bilgi', { yol: o.yol, genislik: this._kucukResimGenisligi(), onizleme: true });
+      if (this.pencere.kapali || !this.ogeler.includes(o)) return;
+      if (b?.png) o.png = b.png;
+      if (b?.sayfa != null) o.sayfa = b.sayfa;
+    } catch { /* küçük resim yok: türün yer tutucusu kalır */ } finally { o.onizleniyor = false; }
+    if (this.pencere.kapali) return;
+    this._ogeCiz(o);
+    this._ozetYaz();
+  }
+
+  /** Satırların süren / sıradaki yaklaşık küçük resim çizimlerini iptal eder. */
+  _yaklasikIptal(ogeler) {
+    for (const o of ogeler) {
+      if (o.yaklasikIstek == null) continue;
+      this.baglam.pdefe.cagir('udf:yaklasikIptal', { istekId: o.yaklasikIstek }).catch(() => false);
+      o.yaklasikIstek = null;
+    }
+  }
+
+  /** UYAP Doküman Editörü yokken birleştirme (UDF'ler yaklaşık çizimle; ana süreç udf:yaklasikBirlestir). IslemIlerleme'nin çekirdek çağrısı
+   *  biçiminde: söz ve iptal(); iptal yazmadan önce gelirse iptal hatası, yazdıktan sonra gelirse sonucu taşıyan iptal hatası. */
+  _yaklasikBirlestir(p, ilerleme) {
+    const { pdefe } = this.baglam;
+    const istekId = yaklasikIstekId();
+    const birak = yaklasikIlerlemeDinle(pdefe, istekId, (x) => ilerleme?.(x));
+    const iptalHatasi = (sonuc) => Object.assign(new Error('İşlem iptal edildi.'), { iptal: true }, sonuc ? { sonuc } : {});
+    const soz = pdefe.cagir('udf:yaklasikBirlestir', { ...p, istekId }).then((r) => {
+      if (r?.iptal) throw iptalHatasi();
+      if (r?.gecIptal) throw iptalHatasi(r);
+      return r;
+    }).finally(birak);
+    soz.iptal = () => pdefe.cagir('udf:yaklasikIptal', { istekId }).catch(() => false);
+    return soz;
   }
 
   /** "Üzerine yaz" yalnızca araç açılırken açık olan PDF listede ve okunabilirken (kullanıcı onu çıkarmadıysa) seçilebilir: okunamayan öğe
@@ -360,9 +461,12 @@ export class BirlestirmePenceresi {
     const heic = red.some((y) => uzanti(y) === 'heic' || uzanti(y) === 'heif');
     if (red.length) this.baglam.bildir(`${red.length} dosya atlandı (desteklenmeyen tür): ${red.slice(0, 3).map(dosyaAdi).join(', ')}${red.length > 3 ? ` ve ${red.length - 3} dosya daha` : ''}${heic ? '. HEIC fotoğraflarını önce JPG ya da PNG\'ye çevirin.' : ''}`, heic ? 7000 : 4000);
     if (!kabul.length) return 0;
+    // UDF / Word (0.2.7): alt (Word'ün DOCX…), cevrilemez + neden (bu bilgisayarda PDF'e çevrilemiyor: satır soluk, birleştirmede atlanır),
+    // yaklasik (editör yok: ana süreç çizer), onizleniyor (küçük resim sonradan)
     const yeniler = kabul.map((yol) => ({
-      kimlik: ++this.kimlikSayac, yol, ad: dosyaAdi(yol), tur: uzanti(yol) === 'pdf' ? 'pdf' : 'gorsel', sayfa: null, boyut: null,
+      kimlik: ++this.kimlikSayac, yol, ad: dosyaAdi(yol), tur: ilkTur(yol), alt: null, sayfa: null, boyut: null,
       genislik: null, yukseklik: null, png: null, dondurme: 0, kalite: null, sayfaBoyutu: 'orijinal', kenar: 10, hata: null, yukleniyor: true,
+      cevrilemez: false, neden: null, yaklasik: false, onizleniyor: false, yaklasikIstek: null,
     }));
     const idx = konum == null ? this.ogeler.length : Math.max(0, Math.min(konum, this.ogeler.length));
     this.ogeler.splice(idx, 0, ...yeniler);
@@ -381,13 +485,24 @@ export class BirlestirmePenceresi {
   }
 
   async _bilgiYukle(o) {
+    let sonra = null;
     try {
-      const b = await this.baglam.cekirdek('gorsel_bilgi', { yol: o.yol, genislik: this._kucukResimGenisligi() });
+      // onizleme: false (0.2.7): UDF'de editörün ön izlemesini beklemeden tür ve çevrilebilirlik hemen (ön izleme ayrı istekle)
+      const b = await this.baglam.cekirdek('gorsel_bilgi', { yol: o.yol, genislik: this._kucukResimGenisligi(), onizleme: false });
       if (this.pencere.kapali) return;
+      const tur = b.tur || o.tur;
       Object.assign(o, {
-        tur: b.tur || o.tur, sayfa: b.sayfa ?? (o.tur === 'gorsel' ? 1 : null), boyut: b.boyut ?? null,
+        tur, alt: b.alt || null, sayfa: b.sayfa ?? (tur === 'gorsel' ? 1 : null), boyut: b.boyut ?? null,
         genislik: b.genislik ?? null, yukseklik: b.yukseklik ?? null, png: b.png || null, bicim: b.bicim || uzanti(o.yol), yukleniyor: false, hata: null,
       });
+      if (BELGE.has(tur)) {
+        const yet = b.pdfeCevrilebilir === false ? await this._yetenekAl() : null;
+        if (this.pencere.kapali) return;
+        if (b.pdfeCevrilebilir !== false) sonra = tur === 'udf' && !o.png ? () => this._onizlemeYukle(o) : null;
+        else if (this._yaklasikMi(o, b, yet)) { o.yaklasik = true; sonra = () => this._yaklasikOnizlemeYukle(o); }
+        else Object.assign(o, { cevrilemez: true, neden: b.neden || (tur === 'word' ? 'Bu bilgisayarda Word belgesi PDF\'e çevrilemiyor.' : 'UDF bu bilgisayarda PDF\'e çevrilemiyor.') });
+        if (b.uyari && !o.cevrilemez) o.uyari = b.uyari;
+      }
       if (b.boyut == null) { const bi = await this.baglam.pdefe.cagir('dosya:bilgi', o.yol).catch(() => null); if (bi?.var) o.boyut = bi.boyut; }
     } catch (e) {
       o.yukleniyor = false;
@@ -397,6 +512,7 @@ export class BirlestirmePenceresi {
     this._uzerineDurumu();
     this._ozetYaz();
     this.tahminGeciktir();
+    sonra?.();
   }
 
   /** Ctrl+V, Panodan ekle ve sağ tık Yapıştır: panodaki dosyalar, yoksa görüntü, yoksa metin olarak kopyalanmış dosya yolları. */
@@ -412,7 +528,7 @@ export class BirlestirmePenceresi {
       this.sonPanoSuresi = Math.round(performance.now() - t0);
       if (r?.tur === 'dosyalar') {
         const n = this.dosyaEkle(r.dosyalar);
-        if (!n && r.dosyalar.length) this.baglam.bildir('Panodaki dosyalar eklenemedi: yalnızca PDF ve görüntü dosyaları eklenebilir.', 4000);
+        if (!n && r.dosyalar.length) this.baglam.bildir('Panodaki dosyalar eklenemedi: yalnızca PDF, görüntü, UDF ve Word dosyaları eklenebilir.', 4000);
       } else if (r?.tur === 'gorsel' && r.yol) {
         this.dosyaEkle([r.yol]);
       } else if (r?.tur === 'metin') {
@@ -443,6 +559,7 @@ export class BirlestirmePenceresi {
     const kume = new Set([].concat(kimlikler));
     const ilk = this.ogeler.findIndex((o) => kume.has(o.kimlik));
     if (ilk < 0) return;
+    this._yaklasikIptal(this.ogeler.filter((o) => kume.has(o.kimlik)));
     this.ogeler = this.ogeler.filter((o) => !kume.has(o.kimlik));
     for (const k of kume) this.secim.delete(k);
     if (!this.secim.size) {
@@ -572,7 +689,7 @@ export class BirlestirmePenceresi {
     this.liste.innerHTML = '';
     this.liste.classList.toggle('bos', !this.ogeler.length);
     if (!this.ogeler.length) {
-      this.liste.append(oge(`<div class="bos-mesaj"><b>Dosyaları buraya sürükleyin</b><span>ya da "Dosya ekle" düğmesini kullanın. ${MAC ? 'Finder\'dan' : 'Gezgin\'den'} kopyalanan dosyaları ve ekran görüntüsünü ${tus('Ctrl+V')} veya Yapıştır ile yapıştırabilirsiniz.</span><span class="soluk">PDF, JPG, PNG, BMP, GIF, TIFF, WEBP</span></div>`));
+      this.liste.append(oge(`<div class="bos-mesaj"><b>Dosyaları buraya sürükleyin</b><span>ya da "Dosya ekle" düğmesini kullanın. ${MAC ? 'Finder\'dan' : 'Gezgin\'den'} kopyalanan dosyaları ve ekran görüntüsünü ${tus('Ctrl+V')} veya Yapıştır ile yapıştırabilirsiniz.</span><span class="soluk">PDF, JPG, PNG, BMP, GIF, TIFF, WEBP, UDF, Word (DOC, DOCX, RTF, ODT)</span></div>`));
     }
     this.ogeler.forEach((o, i) => { const el = this._ogeOlustur(o); this.liste.append(el); this._ogeCiz(o, i); });
     this._uzerineDurumu();
@@ -589,6 +706,7 @@ export class BirlestirmePenceresi {
       <div class="bilgi">
         <span class="ad secilebilir" title="${kacis(o.yol)}">${kacis(o.ad)}</span>
         <span class="ozet secilebilir"></span>
+        <span class="neden secilebilir" hidden></span>
         <div class="ayarlar">
           <label>Kalite <select class="arac-girdi oge-kalite"><option value="">Genel</option>${KALITELER.map((k) => `<option value="${k.id}">${k.ad}</option>`).join('')}</select></label>
           <span class="tahmin secilebilir"></span>
@@ -622,6 +740,8 @@ export class BirlestirmePenceresi {
     el.querySelector('.sira').textContent = String(i + 1);
     el.classList.toggle('secili', this.secim.has(o.kimlik));
     el.classList.toggle('yukleniyor', !!o.yukleniyor);
+    el.classList.toggle('cevrilemez', !!o.cevrilemez);   // 0.2.7: bu bilgisayarda PDF'e çevrilemeyen UDF / Word (soluk; birleştirmede atlanır)
+    el.dataset.tur = o.tur || '';
     el.querySelector('[data-komut="yukari"]').disabled = i <= 0;
     el.querySelector('[data-komut="asagi"]').disabled = i >= this.ogeler.length - 1;
     const resim = el.querySelector('.resim');
@@ -630,22 +750,31 @@ export class BirlestirmePenceresi {
       const img = document.createElement('img'); img.src = 'data:image/png;base64,' + o.png; img.alt = o.ad; img.draggable = false;
       resim.append(img);
     } else if (!o.png && !o.yukleniyor) {
-      resim.innerHTML = `<div class="yer">${kacis(bicimEtiketi(o))}</div>`;
+      // Word'ün küçük resmi yok; UDF'ninki ön izlemeden sonra gelir: türün yer tutucusu (Format Değiştir'deki renklerle)
+      resim.innerHTML = `<div class="yer" data-tur="${kacis(o.tur || '')}">${kacis(bicimEtiketi(o))}</div>`;
     }
+    resim.classList.toggle('onizleniyor', !!o.onizleniyor && !o.png);
     const img = resim.querySelector('img');
     if (img) img.style.transform = o.dondurme ? `rotate(${o.dondurme}deg)` : '';
     const parcalar = [`<span class="tur">${kacis(bicimEtiketi(o))}</span>`];
     if (o.yukleniyor) parcalar.push('okunuyor…');
     else {
-      if (o.tur === 'pdf' && o.sayfa != null) parcalar.push(`${sayiMetni(o.sayfa)} sayfa`);
-      if (o.genislik && o.yukseklik) parcalar.push(o.tur === 'pdf' ? `${Math.round(o.genislik)}×${Math.round(o.yukseklik)} pt` : `${o.genislik}×${o.yukseklik} px`);
+      if (o.tur !== 'gorsel' && o.sayfa != null) parcalar.push(`${sayiMetni(o.sayfa)} sayfa`);
+      else if (o.tur === 'udf' && o.onizleniyor) parcalar.push('sayfalar sayılıyor…');
+      if (o.genislik && o.yukseklik) parcalar.push(o.tur === 'gorsel' ? `${o.genislik}×${o.yukseklik} px` : `${Math.round(o.genislik)}×${Math.round(o.yukseklik)} pt`);
       if (o.boyut != null) parcalar.push(boyutMetni(o.boyut));
       if (o.dondurme) parcalar.push(`${o.dondurme}° döndürülmüş`);
     }
     el.querySelector('.ozet').innerHTML = parcalar.join(' · ');
+    // UDF / Word (0.2.7): çevrilemiyorsa nedeni; editör yokken yaklaşık çizim uyarısı; çekirdeğin satır uyarısı
+    const nedenEl = el.querySelector('.neden');
+    const neden = o.hata ? '' : o.cevrilemez ? `PDF'e çevrilemiyor: ${o.neden}` : [o.yaklasik ? YAKLASIK_UYARISI : '', o.uyari || ''].filter(Boolean).join(' ');
+    nedenEl.hidden = !neden;
+    nedenEl.textContent = neden;
+    nedenEl.classList.toggle('yaklasik', !!o.yaklasik && !o.cevrilemez);
     const hata = el.querySelector('.hata');
     hata.hidden = !o.hata; hata.textContent = o.hata || '';
-    el.querySelector('.ayarlar').hidden = !!o.hata;
+    el.querySelector('.ayarlar').hidden = !!o.hata || !!o.cevrilemez;
     el.querySelector('.gorsel-ayar').hidden = o.tur !== 'gorsel';
     // "Orijinal"de (varsayılan) sayfa görselin kendisidir, kenar boşluğu yoktur: kenar yalnızca "A4'e sığdır"da ayarlanır
     el.querySelector('.oge-kenar-alani').hidden = o.sayfaBoyutu === 'orijinal';
@@ -658,9 +787,11 @@ export class BirlestirmePenceresi {
     const n = this.ogeler.length;
     const sayfa = this.ogeler.reduce((t, o) => t + (o.sayfa || 0), 0);
     const boyut = this.ogeler.reduce((t, o) => t + (o.boyut || 0), 0);
+    // Word'ün (ve ön izlemesi gelmemiş UDF'nin) sayfa sayısı dönüştürmeden bilinmez (0.2.7): toplam "en az"
+    const eksikSayfa = this.ogeler.some((o) => !o.hata && !o.cevrilemez && BELGE.has(o.tur) && o.sayfa == null);
     if (!this._panoSuruyor || !this.ozetEl.classList.contains('bekliyor')) {
-      this.ozetEl.textContent = n ? `${n} dosya · ${sayiMetni(sayfa)} sayfa · ${boyutMetni(boyut)}` : '';
-      this.ozetEl.title = n ? 'Eklenen dosyaların toplam sayfa sayısı ve boyutu' : '';
+      this.ozetEl.textContent = n ? `${n} dosya · ${eksikSayfa ? 'en az ' : ''}${sayiMetni(sayfa)} sayfa · ${boyutMetni(boyut)}` : '';
+      this.ozetEl.title = n ? `Eklenen dosyaların toplam sayfa sayısı ve boyutu${eksikSayfa ? '\nWord belgelerinin sayfa sayısı PDF\'e çevrilince belli olur' : ''}` : '';
     }
     const hazir = n >= 1 && !this.ogeler.some((o) => o.yukleniyor) && !this.ilerleme.calisiyor;
     this.pencere.dugmeAyarla('birlestir', { devre: !hazir });
@@ -696,7 +827,8 @@ export class BirlestirmePenceresi {
   async tahminAl() {
     if (this.pencere.kapali) return;
     const sayac = ++this.tahminSayac;
-    const hazir = this.ogeler.filter((o) => !o.yukleniyor && !o.hata);
+    // UDF / Word'ün boyutu dönüştürmeden kestirilemez (0.2.7; çekirdek de tahminYok der): sorulmaz
+    const hazir = this.ogeler.filter((o) => !o.yukleniyor && !o.hata && !BELGE.has(o.tur));
     const isler = [];
     const ekle = (o, kalite) => { if (this._tahmin(o, kalite) === undefined && !isler.some((x) => x.o === o && x.kalite === kalite)) isler.push({ o, kalite }); };
     for (const o of hazir) ekle(o, this.etkinKalite(o));
@@ -760,7 +892,8 @@ export class BirlestirmePenceresi {
     if (!t) return;
     t.classList.toggle('ozel', !!o.kalite);
     t.title = o.kalite ? 'Bu dosyaya özel kalite' : '';
-    if (o.hata || o.yukleniyor) { t.textContent = ''; return; }
+    if (o.hata || o.yukleniyor || o.cevrilemez) { t.textContent = ''; return; }
+    if (BELGE.has(o.tur)) { t.textContent = 'tahmin yok'; t.title = BELGE_TAHMIN_NOTU; return; }
     const b = this._tahmin(o, this.etkinKalite(o));
     if (b === null) { t.textContent = 'tahmin alınamadı'; t.title = this.tahminler.get(this._tahminAnahtari(o))?.hata[this.etkinKalite(o)] || ''; return; }
     if (b === undefined) { t.textContent = 'tahmin: hesaplanıyor…'; return; }
@@ -775,12 +908,14 @@ export class BirlestirmePenceresi {
   _tahminleriYaz() {
     if (this.pencere?.kapali) return;
     for (const o of this.ogeler) this._ogeTahminYaz(o);
-    const gecerli = this.ogeler.filter((o) => !o.hata);
+    const gecerli = this.ogeler.filter((o) => !o.hata && !o.cevrilemez);
+    const belgeVar = gecerli.some((o) => BELGE.has(o.tur));   // UDF / Word: toplamda yok, toplam "≥"
     const toplam = (kaliteAl) => {
       let bayt = 0, eksik = false, hatali = 0;
       const gorulen = new Set();   // içerik özetleri: aynı içerik ikinci kez yalnızca kendi sayfa nesneleri kadar yer tutar
       for (const o of gecerli) {
         if (o.yukleniyor) { eksik = true; continue; }
+        if (BELGE.has(o.tur)) continue;
         const kalite = kaliteAl(o);
         const b = this._tahmin(o, kalite);
         if (b === undefined) eksik = true;
@@ -793,15 +928,15 @@ export class BirlestirmePenceresi {
       }
       return { bayt, eksik, hatali };
     };
-    const metin = ({ bayt, eksik, hatali }) => (eksik ? 'hesaplanıyor…' : hatali ? `≥ ${boyutMetni(bayt)}` : boyutMetni(bayt));
+    const metin = ({ bayt, eksik, hatali }) => (eksik ? 'hesaplanıyor…' : hatali || belgeVar ? `≥ ${boyutMetni(bayt)}` : boyutMetni(bayt));
     for (const k of KALITELER) {
       const d = this.kaliteSecim.dugme(k.id);
       const bSpan = d.querySelector('.boyut');
-      if (!gecerli.length) { bSpan.textContent = ''; d.title = k.aciklama; continue; }
+      if (!gecerli.some((o) => !BELGE.has(o.tur))) { bSpan.textContent = ''; d.title = `${k.aciklama}${belgeVar ? `\n${BELGE_TAHMIN_NOTU}` : ''}`; continue; }
       const s = toplam(() => k.id);
       bSpan.textContent = ' · ' + metin(s);
       bSpan.classList.toggle('bekliyor', s.eksik);
-      d.title = `${k.aciklama}${s.eksik ? '' : `\nTahmini boyut: ${metin(s)}`}${s.hatali ? `\n${s.hatali} dosya için tahmin alınamadı` : ''}`;
+      d.title = `${k.aciklama}${s.eksik ? '' : `\nTahmini boyut: ${metin(s)}`}${s.hatali ? `\n${s.hatali} dosya için tahmin alınamadı` : ''}${belgeVar ? `\n${BELGE_TAHMIN_NOTU}` : ''}`;
     }
     const ozelVar = this.ogeler.some((o) => o.kalite && !o.hata);
     this.kaliteNotEl.hidden = !ozelVar;
@@ -834,9 +969,17 @@ export class BirlestirmePenceresi {
     const { baglam } = this;
     // Birleştir düğmesi dosyalar okunurken devre dışıdır; kapatma sorusundaki Kaydet de buraya gelir: okuma bitmeden birleştirilmez
     if (this.ogeler.some((o) => o.yukleniyor)) { baglam.bildir('Dosyalar hâlâ okunuyor; bitince yeniden deneyin.'); return false; }
-    const ogeler = this.ogeler.filter((o) => !o.hata);
-    if (this.ogeler.some((o) => o.hata)) {
+    const ogeler = this.ogeler.filter((o) => !o.hata && !o.cevrilemez);
+    if (this.ogeler.some((o) => o.hata) && !this.ogeler.some((o) => o.cevrilemez)) {
       const { secim } = await baglam.mesajKutusu({ mesaj: 'Bazı dosyalar okunamadı.', ayrinti: 'Okunamayan dosyalar atlanarak devam edilsin mi?', dugmeler: ['Atla ve devam et', 'Vazgeç'], varsayilan: 0, iptal: 1 });
+      if (secim !== 0 || this.pencere.kapali) return false;
+    } else if (this.ogeler.some((o) => o.cevrilemez)) {
+      // 0.2.7: bu bilgisayarda PDF'e çevrilemeyen UDF / Word (ör. Word yok) ve okunamayanlar birlikte sorulur, adlarıyla
+      const atlanan = this.ogeler.filter((o) => o.hata || o.cevrilemez);
+      const adlar = atlanan.slice(0, 6).map((o) => `${o.ad}: ${o.cevrilemez ? `PDF'e çevrilemiyor (${String(o.neden || '').replace(/[.\s]+$/, '')})` : 'okunamadı'}`).join('\n')
+        + (atlanan.length > 6 ? `\nve ${sayiMetni(atlanan.length - 6)} dosya daha` : '');
+      const { secim } = await baglam.mesajKutusu({ mesaj: atlanan.length === 1 ? 'Bir dosya birleştirilemiyor.' : `${sayiMetni(atlanan.length)} dosya birleştirilemiyor.`,
+        ayrinti: `${adlar}\n\nBu dosyalar atlanarak devam edilsin mi?`, dugmeler: ['Atla ve devam et', 'Vazgeç'], varsayilan: 0, iptal: 1 });
       if (secim !== 0 || this.pencere.kapali) return false;
     }
     if (ogeler.length < 1) { baglam.bildir('En az bir dosya ekleyin.'); return false; }
@@ -865,14 +1008,17 @@ export class BirlestirmePenceresi {
     let kilit = null;
     const soruAyrintisi = 'Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.';
     try {
-      // Çekirdek sonucu: {boyut, sayfa}
-      const sonuc = await this.ilerleme.calistir(baglam, 'birlestir', {
-        ogeler: ogeler.map((o) => this._ogeParametresi(o)), hedef, genelKalite: this.genelKalite,
-      }, { baslangicMesaji: 'Birleştiriliyor…' });
+      // Çekirdek sonucu: {boyut, sayfa, uyari?}. UYAP Doküman Editörü yokken UDF'ler ana süreçte yaklaşık çizilir (0.2.7: udf:yaklasikBirlestir;
+      // ilerleme ve iptal aynı IslemIlerleme'de); UDF ve Word'ü editörle / Word'le çekirdek çevirir (ilerlemenin ilk %60'ı)
+      const params = { ogeler: ogeler.map((o) => ({ ...this._ogeParametresi(o), ...(o.yaklasik ? { yaklasik: true } : {}) })), hedef, genelKalite: this.genelKalite };
+      const calistirici = ogeler.some((o) => o.yaklasik) ? { cekirdek: (_y, p, ilerleme) => this._yaklasikBirlestir(p, ilerleme) } : baglam;
+      const belgeVar = ogeler.some((o) => BELGE.has(o.tur));
+      const sonuc = await this.ilerleme.calistir(calistirici, 'birlestir', params, { baslangicMesaji: belgeVar ? 'Belgeler PDF\'e çevriliyor…' : 'Birleştiriliyor…' });
       const boyut = sonuc?.boyut ?? (await baglam.pdefe.cagir('dosya:bilgi', hedef).catch(() => null))?.boyut;
       this.ilerleme.gizle();
       await this.pencere.kapat('tamam');
-      baglam.bildir(`${uzerine ? 'Birleştirildi ve üzerine yazıldı' : 'Birleştirildi'}: ${dosyaAdi(hedef)}${boyut != null ? ' · ' + boyutMetni(boyut) : ''}${sonuc?.sayfa ? ' · ' + sonuc.sayfa + ' sayfa' : ''}`, 4000);
+      // Dönüştürmenin uyarıları (yorumlar alınmadı, görünüm yaklaşık…) belgenin adıyla bildirimde
+      baglam.bildir(`${uzerine ? 'Birleştirildi ve üzerine yazıldı' : 'Birleştirildi'}: ${dosyaAdi(hedef)}${boyut != null ? ' · ' + boyutMetni(boyut) : ''}${sonuc?.sayfa ? ' · ' + sonuc.sayfa + ' sayfa' : ''}${sonuc?.uyari ? '. ' + sonuc.uyari : ''}`, sonuc?.uyari ? 9000 : 4000);
       // Açık bir sekmenin dosyasına yazıldıysa (üzerine yazma ya da var olan dosya) o sekme yeni haliyle yeniden açılır, yoksa yeni sekmede açılır
       await ciktiyiAc(baglam, hedef, { cikti: this.cikti, soruAyrintisi });
     } catch (e) {

@@ -1143,6 +1143,9 @@ def _belgeli_birlestir(p, ogeler, turler, hedef, genel, ilerleme):
     """UDF / Word öğeli Birleştir (0.2.7): dönüştürme iş parçacığında belgeler geçici PDF'e (donustur.pdf_e_cevir), sonra MuPDF kilidiyle
     birleştirme (_birlestir_yap). Döner: Ertelenmis."""
     from . import donustur
+    # UYAP Doküman Editörü'nün klasörü (udeYolu; ana süreç ayarından verir) bu istekte de uygulanır: Format Değiştir'in yöntemleri gibi. Yoksa
+    # editörün klasörü yalnızca daha önce gelen bir gorsel_bilgi / donusum_* isteğinden kalırdı (0.2.7, U2)
+    donustur._ayarlari_uygula(p)
     iptal_mi = p.get("_iptal_mi")
     sayi = sum(1 for t in turler if t in BELGE_TURLERI)
 

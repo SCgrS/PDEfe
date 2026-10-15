@@ -317,6 +317,8 @@ const YAKLASIK_HEDEFLER = new Set(['pdf', 'tiff', 'word', 'gorsel']);
  *    öğe bicim_donustur'unkiyle aynı denetimden geçer (donusumOgesi: hedefin uzantısı biçimle eşleşir, seçenekler bilinen değerler); hedef
  *    öğenin kendi girdisi olamaz
  *  - udf:yaklasikIptal { istekId }
+ *  - udf:yaklasikBirlestir (0.2.7, Birleştir) { ogeler: 1–500 birlestir öğesi (birlestirOgesi; en az biri yaklasik UDF), hedef (mutlak .pdf; öğelerin
+ *    hiçbiri olamaz), genelKalite?, istekId? }
  */
 export function udfYaklasikParametreleri(kanal, p) {
   if (!p || typeof p !== 'object' || Array.isArray(p)) throw izinYok();
@@ -349,7 +351,36 @@ export function udfYaklasikParametreleri(kanal, p) {
     if (id == null) throw izinYok();
     return { istekId: id };
   }
+  if (kanal === 'udf:yaklasikBirlestir') {
+    if (!Array.isArray(p.ogeler) || !p.ogeler.length || p.ogeler.length > EN_FAZLA_OGE || !mutlakYol(p.hedef) || !/\.pdf$/i.test(p.hedef)) throw izinYok();
+    if (p.genelKalite != null && !BIRLESTIR_KALITELERI.has(p.genelKalite)) throw izinYok();
+    const ogeler = p.ogeler.map(birlestirOgesi);
+    if (!ogeler.some((o) => o.yaklasik)) throw izinYok();   // yaklaşık çizilecek UDF yoksa çekirdeğin birlestir'i
+    if (ogeler.some((o) => ayniYol(o.yol, p.hedef))) throw new Error('Kaydedilecek dosya, birleştirilen dosyalardan biri olamaz.');
+    return { ogeler, hedef: p.hedef, ...(p.genelKalite != null ? { genelKalite: p.genelKalite } : {}), istekId: kimlik(p.istekId) };
+  }
   throw izinYok();
+}
+
+/** Birleştir'in kalite seviyeleri (çekirdeğin GORSEL_KALITE'si ve "orijinal"). */
+const BIRLESTIR_KALITELERI = new Set(['orijinal', 'yuksek', 'orta', 'dusuk']);
+const BIRLESTIR_TURLERI = new Set(['pdf', 'gorsel', 'udf', 'word']);
+
+/**
+ * udf:yaklasikBirlestir'in (0.2.7, UYAP Doküman Editörü yokken Birleştir'deki UDF) bir öğesi: çekirdeğin birlestir öğesinin bilinen alanları
+ * (yol mutlak; tur pdf | gorsel | udf | word; kalite bilinen seviye ya da yok; sayfaBoyutu a4 | orijinal; kenar 0–50 mm; dondurme 0 / 90 / 180 /
+ * 270) ve yaklasik (yalnızca UDF'de: ana süreç çizer, çekirdeğe geçici PDF olarak verir). Bilinmeyen alanlar atılır; uymayan öğede hata.
+ */
+function birlestirOgesi(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o) || !mutlakYol(o.yol)) throw izinYok();
+  const s = { yol: o.yol };
+  if (o.tur != null) { if (!BIRLESTIR_TURLERI.has(o.tur)) throw izinYok(); s.tur = o.tur; }
+  if (o.kalite != null) { if (!BIRLESTIR_KALITELERI.has(o.kalite)) throw izinYok(); s.kalite = o.kalite; }
+  if (o.sayfaBoyutu != null) { if (o.sayfaBoyutu !== 'a4' && o.sayfaBoyutu !== 'orijinal') throw izinYok(); s.sayfaBoyutu = o.sayfaBoyutu; }
+  if (o.kenar != null) { const k = Number(o.kenar); if (!Number.isFinite(k) || k < 0 || k > 50) throw izinYok(); s.kenar = k; }
+  if (o.dondurme != null) { if (![0, 90, 180, 270].includes(o.dondurme)) throw izinYok(); s.dondurme = o.dondurme; }
+  if (o.yaklasik === true) { if (s.tur !== 'udf') throw izinYok(); s.yaklasik = true; }
+  return s;
 }
 
 /**

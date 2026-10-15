@@ -1399,6 +1399,21 @@ export function sonucKutusuCiz(kap, { baslik, tur = 'basari', satirlar, tek = sa
   return kap;
 }
 
+// ---------------------------------------------------------------- UDF'nin yaklaşık çizimi (ana süreç, main/udfYaklasik.js)
+// UYAP Doküman Editörü yokken Format Değiştir ve (0.2.7) Birleştir aynı kanalları kullanır; ana süreç işleri pencere + istek kimliğiyle tutar:
+// kimlikler bu penceredeki tek sayaçtan (iki araç aynı kimliği verip birbirinin işini iptal etmesin), ilerleme 'udf:yaklasikIlerleme' ile
+let yaklasikSayac = 0;
+let yaklasikDinleme = null;
+const yaklasikDinleyiciler = new Map();
+/** Yaklaşık çizim kanallarının (udf:yaklasikBilgi, udf:yaklasikDonustur, udf:yaklasikBirlestir, udf:yaklasikIptal) yeni istek kimliği. */
+export function yaklasikIstekId() { return ++yaklasikSayac; }
+/** İsteğin ilerlemesini dinler ({ yuzde, mesaj }); döner: dinlemeyi bırakan işlev. */
+export function yaklasikIlerlemeDinle(pdefe, istekId, cb) {
+  if (!yaklasikDinleme) yaklasikDinleme = pdefe.dinle('udf:yaklasikIlerleme', (id, p) => yaklasikDinleyiciler.get(id)?.(p));
+  yaklasikDinleyiciler.set(istekId, cb);
+  return () => yaklasikDinleyiciler.delete(istekId);
+}
+
 /** Küçük yardımcı: HTML dizesinden tek öğe. */
 export function oge(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }
 

@@ -13,6 +13,11 @@
 //   5) Açma yolları (madde 3): Ctrl+O'nun süzgecinde görüntüler, seçilen JPG araçta; ana sürecin dosya:ac'ı (PNG) ve ikinci örnek (JPG)
 //      aracı açar; ana pencereye bırakılan görüntü araçta açılır.
 //   6) Açılamayan görüntü (HEIC; açıcısı pakette yok): satırda nedeni, hedefler soluk, dönüştürülmez.
+//   8) Birleştir (madde 2): Dosya ekle süzgecinde UDF ve Word; satırlarda tür (UDF küçük resmiyle, Word mavi yer tutucuyla), tahmin yok, özet "en az …
+//      sayfa", kalite toplamı "≥"; açıkken bırakılan dosya Birleştir'in listesine; belgeler çevrilirken İptal (hedef yazılmaz); UDF + PDF + TIFF
+//      (+ Word, $env:S39_WORD="1" ile) + JPG → tek PDF, sıra listedeki gibi. UYAP Doküman Editörü yok benzetimi (PDEFE_UDE_YOK=1): UDF yaklaşık çizimle,
+//      satırda ve bildirimde "görünüm yaklaşık"; Word yok benzetimi (PDEFE_WORD_YOK=1): Word satırı soluk, nedeni satırda, birleştirmeden önce
+//      "Bir dosya birleştirilemiyor." sorusu, atlanarak birleştirilir.
 // Girdiler bu betikte üretilir (Python, proje .venv; gerçek belge yok): test/cikti/s39/girdi; çıktılar test/cikti/s39/cikti.
 // Kullanım (görünmeyen masaüstü):
 //   powershell -ExecutionPolicy Bypass -File test\baslat_gizli.ps1 -Port 9439 -Veri "$env:TEMP\pdefe-s39-9439" -Boyut "1280,1000"   → PID=… yazar
@@ -52,7 +57,7 @@ const A4 = (o) => Math.abs(o[0] - 595.3) <= 1.5 && Math.abs(o[1] - 841.9) <= 1.5
 /** Piksel ölçüsü beklenene ±1 piksel (A4'ün 300 dpi'de 2480,3 piksel: çizim yukarı yuvarlar). */
 const olcuYakin = (o, b) => Array.isArray(o) && Math.abs(o[0] - b[0]) <= 1 && Math.abs(o[1] - b[1]) <= 1;
 
-/** Girdiler: iki sayfalı ve tek sayfalı PDF, 300 dpi etiketli taranmış JPG (A4), dpi etiketsiz PNG (yatay), sahte HEIC. */
+/** Girdiler: iki sayfalı ve tek sayfalı PDF, 300 dpi etiketli taranmış JPG (A4), dpi etiketsiz PNG (yatay), sahte HEIC; UDF, Word, TIFF. */
 function girdileriUret() {
   fs.mkdirSync(GIRDI, { recursive: true });
   return py(`import donustur_testi as dt
@@ -71,6 +76,15 @@ im2 = Image.new("RGB", (1654, 1240), (240, 240, 250))
 ImageDraw.Draw(im2).ellipse([300, 200, 1300, 1000], fill=(200, 40, 40))
 g["png"] = os.path.join(k, "Ekran görüntüsü.png")
 im2.save(g["png"], "PNG")
+# Birleştir (8. bölüm): UDF, Word (en küçük .docx), iki sayfalı TIFF
+import udf_donusum_testi as ut
+import donustur_arayuz_uret as dau
+u = ut.UdfYaz()
+u.paragraf("DENEME DİLEKÇESİ", hiza=1, kalin=True)
+u.paragraf(ut.cumleler(1, 3), oz='FirstLineIndent="35.4"')
+g["udf"] = u.yaz(os.path.join(k, "Karar örneği.udf"))
+g["docx"] = dau.docx_yaz(os.path.join(k, "Word örneği.docx"), ["Deneme paragrafı; ğüşıöç İ.", "İkinci paragraf."])
+g["tiff"] = dt.tiff_yaz(os.path.join(k, "Tarama örneği.tif"), [(dt.metin_karesi(1654, 2339, t), {"compression": "group4"}) for t in (1, 2)])
 g["heic"] = os.path.join(k, "Telefon fotoğrafı.heic")
 with open(g["heic"], "wb") as f:
     f.write(b"\\x00\\x00\\x00\\x18ftypheic\\x00\\x00\\x00\\x00mif1heic" + b"\\x00" * 64)
@@ -130,7 +144,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     satirlar: [...s.querySelectorAll('li')].map((l) => ({ ad: l.querySelector('.ad').textContent, ac: !!l.querySelector('[data-ac]'), uyari: l.querySelector('.uyari-metin')?.textContent || '' })),
     metin: s.innerText, goster: s.querySelector('.donustur-goster')?.textContent || '', tek: s.classList.contains('arac-sonuc-tek') } : null; })()`);
   const ciktilar = () => (fs.existsSync(CIKTI) ? fs.readdirSync(CIKTI).sort() : []);
-  const bolumler = (process.env.BOLUM || '1,2,3,5,6').split(',').map((s) => s.trim());
+  const bolumler = (process.env.BOLUM || '1,2,3,5,6,8').split(',').map((s) => s.trim());
   const bolum = (n) => bolumler.includes(String(n));
 
   // ------------------------------------------------------------ hazırlık
@@ -141,6 +155,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
   const G = girdileriUret();
   await evalJs(`(async () => {
     window.__s39 = { d: await import('pdefe://app/src/renderer/araclar/donustur.js') };
+    { const m = await import('pdefe://app/src/renderer/araclar/gorselBirlestir.js'); window.__s39.b = { acik: () => m.acikBirlestirmePenceresi() }; }
     window.__s39b = [];
     if (!window.__s39Gozlem) {
       window.__s39Gozlem = new MutationObserver(() => { const t = document.querySelector('#bildirim')?.textContent; if (t && window.__s39b.at(-1) !== t) window.__s39b.push(t); });
@@ -384,6 +399,124 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
         && h.hedefler.every((x) => x.devre) && /dönüştürülemez/.test(h.neden) && (await donusturDevre()), h);
     }
     await pencereKapat();
+  }
+
+  // ------------------------------------------------------------ 8) Birleştir: UDF, Word, TIFF, görüntü, PDF → tek PDF (madde 2)
+  if (bolum(8)) {
+    console.log('\n== 8) Birleştir');
+    const UDE_VAR = !!YET?.donusumler?.['udf>pdf']?.var;
+    const WORD_VAR = !!YET?.donusumler?.['word>pdf']?.var;
+    const WORD_SINA = WORD_VAR && process.env.S39_WORD === '1';
+    console.log(`     UYAP Doküman Editörü: ${UDE_VAR ? 'var' : 'yok (yaklaşık çizim)'}; Word → PDF: ${WORD_VAR ? (WORD_SINA ? 'var, sınanıyor' : 'var; birleştirmede sınamak için $env:S39_WORD="1"') : 'yok'}`);
+    const BA = `document.querySelector('.birlestir-pencere')`;
+    const bSatirlar = () => evalJs(`[...document.querySelectorAll('.birlestir-pencere .birlestir-oge')].map((e) => ({
+      ad: e.querySelector('.ad').textContent, tur: e.dataset.tur, ozet: e.querySelector('.ozet').textContent, cevrilemez: e.classList.contains('cevrilemez'),
+      neden: e.querySelector('.neden').hidden ? '' : e.querySelector('.neden').textContent, hata: e.querySelector('.hata').hidden ? '' : e.querySelector('.hata').textContent,
+      tahmin: e.querySelector('.tahmin')?.textContent || '', ayarlar: !e.querySelector('.ayarlar').hidden,
+      resim: e.querySelector('.resim img') ? 'img' : (e.querySelector('.resim .yer')?.textContent || ''), yerTur: e.querySelector('.resim .yer')?.dataset.tur || '' }))`);
+    const bAc = async (yollar) => {
+      await evalJs(`window.__pdefe.komutCalistir('arac.gorselBirlestir', ${J(yollar)})`);
+      await kosul(`!!${BA}`, 5000);
+      await kosul(`!document.querySelector('.birlestir-oge.yukleniyor') && document.querySelectorAll('.birlestir-oge').length === ${yollar.length}`, 30000);
+      // UDF'nin küçük resmi (editörün ön izlemesi ya da yaklaşık çizim) gelene dek
+      await kosul(`[...document.querySelectorAll('.birlestir-oge[data-tur="udf"]')].every((e) => !e.querySelector('.resim.onizleniyor'))`, 40000);
+      await bekle(400);
+    };
+    const bKapat = async () => {
+      await evalJs(`(async () => { window.__pdefeOtoYanit = { secim: 1 }; try { const m = await import('pdefe://app/src/renderer/araclar/ortak.js'); if (m.acikAracPenceresiVar()) await m.aracPencereleriniKapat(); }
+        finally { delete window.__pdefeOtoYanit; } return true; })()`);
+      await kosul(`!document.querySelector('.arac-ortusu')`, 5000);
+    };
+    // Dosya ekle süzgeci
+    await bAc([]);
+    await yanitla('dosya:acDiyalog', [[G.udf, G.pdf2, G.tiff, G.docx, G.jpg]]);
+    await kayit();
+    await tikSecici('.birlestir-pencere .birlestir-ekle');
+    await kosul(`document.querySelectorAll('.birlestir-oge').length === 5 && !document.querySelector('.birlestir-oge.yukleniyor')`, 30000);
+    await kosul(`[...document.querySelectorAll('.birlestir-oge[data-tur="udf"]')].every((e) => !e.querySelector('.resim.onizleniyor'))`, 40000);
+    await bekle(500);
+    const dk = (await kayit()).find((x) => x.kanal === 'dosya:acDiyalog');
+    const f = dk?.secenek?.filtreler || [];
+    sonuc('Dosya ekle: "Desteklenen dosyalar"da PDF, görüntüler, TIFF, UDF ve Word (doc, docx, docm, rtf, odt); "UDF belgeleri" ve "Word belgeleri" süzgeçleri', f[0]?.name === 'Desteklenen dosyalar'
+      && ['pdf', 'jpg', 'png', 'tif', 'tiff', 'udf', 'doc', 'docx', 'docm', 'rtf', 'odt'].every((u) => f[0].extensions.includes(u)) && J(f.find((x) => x.name === 'UDF belgeleri')?.extensions) === J(['udf'])
+      && J(f.find((x) => x.name === 'Word belgeleri')?.extensions) === J(['doc', 'docx', 'docm', 'rtf', 'odt']), f);
+    let S = await bSatirlar();
+    const s = Object.fromEntries(S.map((x) => [x.ad, x]));
+    const u = s['Karar örneği.udf'], w = s['Word örneği.docx'];
+    sonuc('Satırlar sırayla: UDF, PDF, TIFF, Word, JPG; türler içerikten (udf, pdf, gorsel, word, gorsel)', J(S.map((x) => x.tur)) === J(['udf', 'pdf', 'gorsel', 'word', 'gorsel']), S.map((x) => [x.ad, x.tur]));
+    sonuc(`UDF satırı: tür "UDF", küçük resim (${UDE_VAR ? 'editörün ön izlemesi' : 'yaklaşık çizim'}), sayfa sayısı; tahmin yok`, /^UDF · 1 sayfa/.test(u?.ozet || '') && u.resim === 'img' && u.tahmin === 'tahmin yok'
+      && !u.cevrilemez && u.ayarlar, u);
+    if (!UDE_VAR) sonuc('UDE yok: UDF satırında "görünüm yaklaşık" uyarısı', /^UYAP Doküman Editörü bulunamadı; görünüm yaklaşık/.test(u?.neden || ''), u);
+    else sonuc('UDE var: UDF satırında uyarı yok', !u?.neden, u);
+    if (WORD_VAR) sonuc('Word satırı: tür "DOCX", mavi yer tutucu ("DOCX"), sayfa sayısı yok, tahmin yok; çevrilebilir', /^DOCX · /.test(w?.ozet || '') && !/sayfa/.test(w.ozet) && w.resim === 'DOCX' && w.yerTur === 'word'
+      && w.tahmin === 'tahmin yok' && !w.cevrilemez, w);
+    else sonuc('Word yok: Word satırı soluk, "PDF\'e çevrilemiyor: …" nedeni satırda, ayarlar gizli', w?.cevrilemez && /^PDF'e çevrilemiyor: /.test(w.neden) && !w.ayarlar, w);
+    await kosul(`![...document.querySelectorAll('.birlestir-kalite-secim .boyut')].some((b) => /hesaplanıyor/.test(b.textContent))`, 30000);
+    const ozet = await evalJs(`document.querySelector('.birlestir-ozet').textContent`);
+    const kd = await evalJs(`[...document.querySelectorAll('.birlestir-kalite-secim > button')].map((b) => [b.querySelector('.boyut').textContent, b.title])`);
+    // Word çevrilebiliyorsa sayfa sayısı dönüştürmeden bilinmez: "en az"; çevrilemiyorsa (Word yok) satır toplamlarda yok
+    sonuc(`Özet: ${WORD_VAR ? 'Word\'ün sayfa sayısı bilinmediği için "en az … sayfa"' : 'çevrilemeyen Word sayılmaz (6 sayfa)'}; kalite düğmelerinde toplam "≥" ve ipucunda UDF / Word notu`,
+      (WORD_VAR ? /^5 dosya · en az \d+ sayfa · /.test(ozet) : /^5 dosya · 6 sayfa · /.test(ozet)) && kd.every(([b, t]) => /^ · ≥ /.test(b) && /UDF ve Word belgelerinin boyutu/.test(t)), { ozet, kd });
+    await ss('08-birlestir-satirlar');
+    // Birleştir'e bırakılan Word dosyası Birleştir'in listesine eklenir (aracın örtüsü)
+    const h = (await (await fetch(`http://127.0.0.1:${process.env.PDEFE_CDP_PORT || 9222}/json`)).json()).find((x) => x.type === 'page' && /index\.html/.test(x.url));
+    const ws = new WebSocket(h.webSocketDebuggerUrl);
+    await new Promise((c, r) => { ws.onopen = c; ws.onerror = r; });
+    let n = 0; const bek = new Map();
+    ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id && bek.has(d.id)) { bek.get(d.id)(d); bek.delete(d.id); } };
+    const gonder = (method, params = {}) => new Promise((c) => { const i = ++n; bek.set(i, c); ws.send(JSON.stringify({ id: i, method, params })); });
+    const data = { items: [], files: [G.pdf1], dragOperationsMask: 1 };
+    for (const type of ['dragEnter', 'dragOver', 'drop']) { await gonder('Input.dispatchDragEvent', { type, x: 640, y: 420, data }); await bekle(100); }
+    ws.close();
+    await kosul(`document.querySelectorAll('.birlestir-oge').length === 6 && !document.querySelector('.birlestir-oge.yukleniyor')`, 15000);
+    S = await bSatirlar();
+    sonuc('Birleştir açıkken bırakılan dosya Birleştir\'in listesine eklenir (Format Değiştir açılmaz)', S.length === 6 && S[5].ad === 'Tek sayfa.pdf' && !(await evalJs(`!!document.querySelector('.donustur-pencere')`)), S.map((x) => x.ad));
+    await evalJs(`(() => { const p = window.__s39.b.acik(); p.sil([p.ogeler[5].kimlik]); return true; })()`);
+    if (WORD_VAR && !WORD_SINA) await evalJs(`(() => { const p = window.__s39.b.acik(); p.sil([p.ogeler[3].kimlik]); return true; })()`);   // Word'ü kullanmadan
+    // İptal: belgeler PDF'e çevrilirken İptal; hedef yazılmaz
+    const hedef = path.join(CIKTI, 'Birleştirilmiş.pdf');
+    fs.rmSync(hedef, { force: true });
+    await evalJs(`window.__s39b.length = 0`);
+    if (!WORD_VAR) await yanitla('mesaj:kutu', [{ secim: 0 }]);   // "1 dosya birleştirilemiyor": Atla ve devam et
+    await kayit();
+    // İlerleme iletileri kaydedilir; UDF'nin çevrildiğini (ya da çizildiğini) söyleyen ileti gelince (sayfanın içinde bekleyip) İptal: belgenin
+    // çevrilmesi kısa sürebilir
+    await evalJs(`(() => { window.__s39Mesajlar = []; const p = window.__s39.b.acik(); const asil = p.ilerleme.ayarla.bind(p.ilerleme);
+      p.ilerleme.ayarla = (y, m) => { if (m) window.__s39Mesajlar.push(m); return asil(y, m); }; return true; })()`);
+    await tikSecici('.birlestir-pencere .arac-dugmeler .birincil');
+    const ilerlemeMesaji = await evalJs(`(async () => { const p = window.__s39.b.acik(); const bul = () => window.__s39Mesajlar.find((m) => /Karar örneği\\.udf (çiziliyor|PDF'e çevriliyor)/.test(m));
+      for (let i = 0; i < 2000 && p && !p.pencere.kapali && !bul(); i++) await new Promise((c) => setTimeout(c, 10));
+      if (p && !p.pencere.kapali) p.ilerleme.iptalIste(); return bul() || window.__s39Mesajlar.join(' | '); })()`);
+    await kosul(`!${BA} || ${BA}.querySelector('.arac-ilerleme').hidden`, 60000);
+    await bekle(800);
+    const atlaSorusu = (await kayit()).find((x) => x.kanal === 'mesaj:kutu');
+    sonuc('İptal (belgeler PDF\'e çevrilirken): birleştirme durur, hedef yazılmaz, "Birleştirme iptal edildi."; pencere açık', !fs.existsSync(hedef) && !!(await evalJs(`!!${BA}`))
+      && (await bildirimler()).some((b) => /Birleştirme iptal edildi/.test(b)), { ilerlemeMesaji, var: fs.existsSync(hedef) });
+    sonuc(`İlerleme UDF'nin ${UDE_VAR ? 'PDF\'e çevrildiğini' : 'çizildiğini'} adıyla söyler`, new RegExp(`^Karar örneği\\.udf ${UDE_VAR ? "PDF'e çevriliyor" : 'çiziliyor'} \\(1/\\d\\)$`).test(ilerlemeMesaji || ''), ilerlemeMesaji);
+    if (!WORD_VAR) sonuc('Word yokken birleştirmeden önce "1 dosya birleştirilemiyor." sorusu (adı ve nedeniyle; Atla ve devam et | Vazgeç)', atlaSorusu?.secenek?.mesaj === 'Bir dosya birleştirilemiyor.'
+      && /Word örneği\.docx: PDF'e çevrilemiyor/.test(atlaSorusu.secenek.ayrinti) && J(atlaSorusu.secenek.dugmeler) === J(['Atla ve devam et', 'Vazgeç']), atlaSorusu?.secenek);
+    // Birleştirme: tek PDF, sıra listedeki gibi
+    if (!WORD_VAR) await yanitla('mesaj:kutu', [{ secim: 0 }]);
+    await evalJs(`window.__s39b.length = 0`);
+    await tikSecici('.birlestir-pencere .arac-dugmeler .birincil');
+    await kosul(`!${BA}`, 240000);
+    await bekle(600);
+    const o = fs.existsSync(hedef) ? py(`d = pymupdf.open(${J(hedef)}, filetype="pdf")
+print(json.dumps([{"metin": " ".join(p.get_text().split())[:60], "resim": len(p.get_images())} for p in d], ensure_ascii=False))`) : null;
+    const wordli = WORD_SINA;
+    // Beklenen: UDF (1 sayfa, "DENEME DİLEKÇESİ"), PDF (2 sayfa, "SAYIN MAHKEMESİ'NE"), TIFF (2 sayfa, resim), [Word (1 sayfa, "Deneme paragrafı")], JPG (1 sayfa, resim)
+    const beklenen = ['udf', 'pdf', 'pdf', 'tif', 'tif', ...(wordli ? ['word'] : []), 'jpg'];
+    const tanı = (x) => (/DENEME D/.test(x.metin) ? 'udf' : /SAYIN MAHKEMES/.test(x.metin) ? 'pdf' : /Deneme paragraf/.test(x.metin) ? 'word' : x.resim && !x.metin ? 'resim' : '?');
+    const gercek = (o || []).map(tanı);
+    const akt = await evalJs(`window.__pdefe.aktif()?.yol || null`);
+    const bl = await bildirimler();
+    sonuc(`Birleştirme: tek PDF, ${beklenen.length} sayfa, sıra listedeki gibi (UDF, PDF ×2, TIFF ×2${wordli ? ', Word' : ''}, JPG); sekmede açıldı`, !!o && o.length === beklenen.length
+      && J(gercek) === J(beklenen.map((b) => (b === 'tif' || b === 'jpg' ? 'resim' : b))) && !!akt && path.resolve(akt) === path.resolve(hedef), { gercek, akt });
+    if (!UDE_VAR) sonuc('UDE yokken bildirimde UDF\'nin adıyla "görünüm yaklaşık"', bl.some((b) => /Karar örneği\.udf: UYAP Doküman Editörü bulunamadı; görünüm yaklaşık/.test(b)), bl);
+    else sonuc('Bildirim "Birleştirildi: Birleştirilmiş.pdf"', bl.some((b) => /^Birleştirildi: Birleştirilmiş\.pdf/.test(b)), bl);
+    await sekmeleriKapat();
+    await bKapat();
+    if (!WORD_SINA && WORD_VAR) atlandi('Birleştirmede Word belgesi', 'Word\'ü kullanmak için $env:S39_WORD="1"');
   }
 
   // ------------------------------------------------------------ son

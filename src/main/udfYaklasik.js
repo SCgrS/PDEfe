@@ -25,7 +25,9 @@
 //        dosyalar sonuçta kalır, PDF hedefleri yazılmaz; araç geç iptalde yeni oluşan dosyaları çöp kutusuna gönderir (Birleştir'deki kural).
 //        İlerleme 'udf:yaklasikIlerleme' (istekId, { yuzde, mesaj }) ile isteyen pencereye; sonuçların uyarısı motorun notlarıdır (resim,
 //        yorum, kesilen kısım; e-imza uyarısı 0.2.7'de kalktı), "görünüm yaklaşık" uyarısını araç ekler.
-//   'udf:yaklasikIptal'    { istekId } → true | false   (dönüştürmeyi ya da istekId'li küçük resmi iptal eder)
+//   'udf:yaklasikBirlestir' (0.2.7, Birleştir) { ogeler: birlestir öğeleri (UDF'ler yaklasik: true), hedef, genelKalite?, istekId? } → çekirdeğin
+//        birlestir sonucu (+ uyari, gecIptal?) | { iptal: true }; ayrıntı işleyicinin başında
+//   'udf:yaklasikIptal'    { istekId } → true | false   (dönüştürmeyi, birleştirmeyi ya da istekId'li küçük resmi iptal eder)
 // İsteyen pencere kapanırsa onun işleri iptal edilir; uygulama kapanırken gizli pencereler yok edilir, geçici dosyalar silinir.
 import { app, BrowserWindow, session } from 'electron';
 import fs from 'node:fs';
@@ -460,6 +462,69 @@ export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal }) {
         if (ogeler[c.k].hedefBicim !== 'pdf') await cekirdekBirak(c.gecici);
         await geciciSil(c.gecici);
       }
+    }
+  });
+
+  // ---------------------------------------------------- Birleştir (0.2.7)
+  // UYAP Doküman Editörü yokken Birleştir'deki UDF'ler (yaklasik: true) önce geçici PDF'e çizilir (%TEMP%\PDEfe; yolları arayüze verilmez), sonra
+  // bütün liste çekirdeğin birlestir'ine (o öğeler PDF olarak). İlerlemenin ilk yarısı çizim, ikinci yarısı çekirdek. Döner: çekirdeğin sonucu
+  // ({ boyut, sayfa, yol, uyari? }; uyarıda belgenin adıyla "görünüm yaklaşık" ve motorun notları) | { iptal: true } (iptal birleştirme
+  // yazılmadan geldi) | sonuç + gecIptal: true (iptal çekirdek yazdıktan sonra geldi: araç yeni dosyayı çöp kutusuna gönderir). Bir UDF çizilemezse
+  // istek "<ad>: <neden>" iletisiyle reddedilir (çekirdeğin belge kuralı), hedef yazılmaz.
+  ipcMain.handle('udf:yaklasikBirlestir', async (e, p) => {
+    const { ogeler, hedef, genelKalite, istekId } = udfYaklasikParametreleri('udf:yaklasikBirlestir', p);
+    const gonderen = e.sender;
+    const anahtar = istekId == null ? null : `${gonderen.id}:${istekId}`;
+    const d = { istendi: false, durdur: null, cekirdekAnahtari: null };
+    if (anahtar) isler.set(anahtar, d);
+    const birak = sahibeBagla(gonderen, d);
+    const ilerle = (yuzde, mesaj) => {
+      try { if (istekId != null && !gonderen.isDestroyed()) gonderen.send('udf:yaklasikIlerleme', istekId, { yuzde: Math.round(Math.max(0, Math.min(100, yuzde)) * 10) / 10, mesaj }); } catch { /* yok say */ }
+    };
+    const geciciler_ = [];
+    const CIZIM = 50;
+    try {
+      const cizilecek = ogeler.filter((o) => o.yaklasik);
+      const hazir = [], uyarilar = [];
+      let j = 0;
+      for (const o of ogeler) {
+        if (!o.yaklasik) { hazir.push(o); continue; }
+        if (d.istendi) return { iptal: true };
+        const ad = path.basename(o.yol);
+        ilerle((j / cizilecek.length) * CIZIM, `${ad} çiziliyor (${j + 1}/${cizilecek.length})`);
+        let pdf, ozet;
+        try {
+          const veri = await udfDosyasiOku(o.yol);
+          ({ pdf, ozet } = await siraya(true, () => ciz(veri, path.parse(o.yol).name, d)));
+        } catch (h) {
+          if (h?.iptal || d.istendi) return { iptal: true };
+          throw new Error(`${ad}: ${hataMetni(h)}`);
+        }
+        const gecici = geciciYol();
+        await geciciYaz(gecici, pdf);
+        geciciler_.push(gecici);
+        const not = ozetUyarisi(ozet);
+        uyarilar.push(`${ad}: UYAP Doküman Editörü bulunamadı; görünüm yaklaşık.${not ? ' ' + not : ''}`);
+        const { yaklasik: _y, ...kalan } = o;
+        hazir.push({ ...kalan, yol: gecici, tur: 'pdf' });
+        j++;
+      }
+      if (d.istendi) return { iptal: true };
+      d.cekirdekAnahtari = `udf-yaklasik:${++sayac}`;
+      let r;
+      try {
+        r = await cekirdekCagir('birlestir', { ogeler: hazir, hedef, ...(genelKalite ? { genelKalite } : {}) },
+          (il) => ilerle(CIZIM + ((Number(il?.yuzde) || 0) * (100 - CIZIM)) / 100, il?.mesaj), d.cekirdekAnahtari);
+      } catch (h) {
+        if (d.istendi) return { iptal: true };   // çekirdek yazmadan durdu
+        throw h;
+      } finally { d.cekirdekAnahtari = null; }
+      const uyari = [...uyarilar, r?.uyari].filter(Boolean).join(' ') || undefined;
+      return { ...r, ...(uyari ? { uyari } : {}), ...(d.istendi ? { gecIptal: true } : {}) };
+    } finally {
+      birak();
+      if (anahtar) isler.delete(anahtar);
+      for (const g of geciciler_) { await cekirdekBirak(g); await geciciSil(g); }
     }
   });
 
