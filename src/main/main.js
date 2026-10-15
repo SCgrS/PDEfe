@@ -49,15 +49,42 @@ const ipc = guvenliIpc(ipcMain);
 /** Yapısal kayıttaki anlık kopyaların klasörü (çekirdeğe ana süreç verir; açılışta temizlenir). */
 function anlikKlasoru() { return path.join(app.getPath('userData'), 'anlik'); }
 
-// Dosya Formatını Değiştir'in bu oturumda oluşturduğu (istekten önce var olmayan) PDF dışı hedefler (0.2.6): dosya:sil .udf / .tif / .docx'i
-// yalnızca bunlardan biriyse çöpe atar (arayüzün geç iptal temizliği); arayüzde kod çalışsa da kullanıcının başka belgeleri çöpe gitmesin
+// Format Değiştir'in bu oturumda oluşturduğu (istekten önce var olmayan) PDF dışı dosyalar (0.2.6): dosya:sil .udf / .tif / .docx / (0.2.7) .jpg'yi
+// yalnızca bunlardan biriyse çöpe atar (arayüzün geç iptal temizliği); arayüzde kod çalışsa da kullanıcının başka belgeleri çöpe gitmesin.
+// 0.2.7: JPG hedefinin sayfa dosyaları ("<ad> - Sayfa n.jpg") ve "yeni belge olarak kaydet"in "(1)" adı ancak sonuçta belli olur: istekten önce
+// hedef klasörlerindeki dosyalar okunur, sonuçtaki dosyalardan (hedef / hedefler) önceden olmayanlar kaydedilir
 const olusturulanHedefler = new Set();
 const hedefAnahtari = (y) => path.resolve(String(y)).toLowerCase();
-function donusumHedefleriniKaydet(yontem, p) {
-  if (yontem !== 'bicim_donustur' || !Array.isArray(p?.ogeler)) return;
-  for (const o of p.ogeler) {
-    if (typeof o?.hedef === 'string' && !/\.pdf$/i.test(o.hedef) && !fs.existsSync(o.hedef)) olusturulanHedefler.add(hedefAnahtari(o.hedef));
+const PDF_DISI_HEDEF = /\.(udf|tiff?|docx|jpe?g)$/i;
+
+/** bicim_donustur'dan önce: PDF dışı hedeflerin klasörlerinde var olan PDF dışı dosyalar (anahtar kümesi); başka yöntemde null. */
+async function donusumOncesi(yontem, p) {
+  if (yontem !== 'bicim_donustur' || !Array.isArray(p?.ogeler)) return null;
+  const klasorler = new Set(p.ogeler.filter((o) => typeof o?.hedef === 'string' && PDF_DISI_HEDEF.test(o.hedef)).map((o) => path.dirname(path.resolve(o.hedef))));
+  const vardi = new Set();
+  for (const k of klasorler) {
+    let adlar = [];
+    try { adlar = await fs.promises.readdir(k); } catch { /* klasör yok: hepsi yeni */ }
+    for (const ad of adlar) if (PDF_DISI_HEDEF.test(ad)) vardi.add(hedefAnahtari(path.join(k, ad)));
   }
+  return vardi;
+}
+
+/** bicim_donustur'un sonucu: yazılan PDF dışı dosyalardan (hata sonucunda yarıda yazılanlar dâhil) istekten önce olmayanlar kaydedilir. */
+function donusumSonrasi(vardi, sonuc) {
+  if (!vardi) return;
+  for (const r of Array.isArray(sonuc?.sonuclar) ? sonuc.sonuclar : []) {
+    const dosyalar = Array.isArray(r?.hedefler) ? r.hedefler : r?.hata ? [] : [r?.hedef];
+    for (const y of dosyalar) if (typeof y === 'string' && PDF_DISI_HEDEF.test(y) && !vardi.has(hedefAnahtari(y))) olusturulanHedefler.add(hedefAnahtari(y));
+  }
+}
+
+/** Denetlenmiş parametrelerle çekirdek çağrısı; bicim_donustur'da oluşturulan dosyalar kaydedilir (dosya:sil). */
+async function cekirdekDonusumCagir(yontem, guvenli, ilerleme, anahtar) {
+  const vardi = await donusumOncesi(yontem, guvenli);
+  const sonuc = await cekirdek.cagir(yontem, guvenli, ilerleme, anahtar);
+  donusumSonrasi(vardi, sonuc);
+  return sonuc;
 }
 
 /**
@@ -355,12 +382,12 @@ function ipcKur(ipcMain) {
     return yol;
   });
 
-  // Araçların yarım kalan / istenmeyen çıktısı: yalnızca .pdf dosyası (0.2.6'dan beri Dosya Formatını Değiştir'in bu oturumda oluşturduğu
-  // .udf, .tif, .tiff, .docx çıktıları da: olusturulanHedefler) ve yalnızca Geri Dönüşüm Kutusu'na (0.1.23: kalıcı silme yok)
+  // Araçların yarım kalan / istenmeyen çıktısı: yalnızca .pdf dosyası (0.2.6'dan beri Format Değiştir'in bu oturumda oluşturduğu .udf, .tif,
+  // .tiff, .docx ve 0.2.7'den beri .jpg çıktıları da: olusturulanHedefler) ve yalnızca Geri Dönüşüm Kutusu'na (0.1.23: kalıcı silme yok)
   ipcMain.handle('dosya:sil', async (_e, yol) => {
     const y = String(yol || '');
     const pdf = /\.pdf$/i.test(y);
-    if (!pdf && !(/\.(udf|tiff?|docx)$/i.test(y) && olusturulanHedefler.has(hedefAnahtari(y)))) return false;
+    if (!pdf && !(PDF_DISI_HEDEF.test(y) && olusturulanHedefler.has(hedefAnahtari(y)))) return false;
     try { await shell.trashItem(y); if (!pdf) olusturulanHedefler.delete(hedefAnahtari(y)); return true; } catch { return false; }
   });
   ipcMain.handle('uygulama:veriKlasoru', () => app.getPath('userData'));
@@ -493,11 +520,9 @@ function ipcKur(ipcMain) {
   ipcMain.handle('cekirdek:cagir', (e, yontem, params, istekId) => {
     const gonderen = e.sender;
     const p = (DENETLENEN_YONTEMLER.has(yontem) || params?.hedef != null) ? cekirdekParametreleri(yontem, params, anlikKlasoru(), { udeYolu: ayarAl('udeYolu') }) : params;
-    return Promise.resolve(p).then((guvenli) => {
-      donusumHedefleriniKaydet(yontem, guvenli);
-      return cekirdek.cagir(yontem, guvenli, (ilerleme) => { if (!gonderen.isDestroyed()) gonderen.send('cekirdek:ilerleme', istekId, ilerleme); },
-        istekId == null ? null : `${gonderen.id}:${istekId}`);
-    });
+    return Promise.resolve(p).then((guvenli) => cekirdekDonusumCagir(yontem, guvenli,
+      (ilerleme) => { if (!gonderen.isDestroyed()) gonderen.send('cekirdek:ilerleme', istekId, ilerleme); },
+      istekId == null ? null : `${gonderen.id}:${istekId}`));
   });
   ipcMain.handle('cekirdek:iptal', (e, istekId) => cekirdek.iptal(`${e.sender.id}:${istekId}`));
   // Dosya Formatını Değiştir (0.2.6): UYAP Doküman Editörü yokken UDF → PDF'in yaklaşık çizimi (gizli pencere + printToPDF; udfYaklasik.js).
@@ -506,8 +531,7 @@ function ipcKur(ipcMain) {
     ipcMain, KOK,
     cekirdekCagir: async (yontem, params, ilerleme, anahtar) => {
       const guvenli = await cekirdekParametreleri(yontem, params, anlikKlasoru(), { udeYolu: ayarAl('udeYolu') });
-      donusumHedefleriniKaydet(yontem, guvenli);
-      return cekirdek.cagir(yontem, guvenli, ilerleme, anahtar ?? null);
+      return cekirdekDonusumCagir(yontem, guvenli, ilerleme, anahtar ?? null);
     },
     cekirdekIptal: (anahtar) => cekirdek.iptal(anahtar),
   });

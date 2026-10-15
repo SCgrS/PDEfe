@@ -14,11 +14,13 @@
 // Kanallar (renderer/araclar/donustur.js; parametreler guvenlik.js udfYaklasikParametreleri). Geçici dosyaların yolu arayüze verilmez:
 //   'udf:yaklasikBilgi'    { yol, genislik?, istekId? } → { sayfa, png, pngGenislik, pngYukseklik, genislik, yukseklik, uyari? }   (satırın küçük
 //        resmi: yaklaşık PDF'in ilk sayfası, çekirdeğin donusum_bilgi'siyle; sonuç dosyanın boyutu ve değişme zamanıyla ön bellekte)
-//   'udf:yaklasikDonustur' { ogeler: [{ yol, hedef, hedefBicim: 'pdf' | 'tiff' | 'word', secenekler? }], istekId? }
-//        → { sonuclar: [{ yol, hedef, hedefBicim, kaynakTur: 'udf', boyut, sayfa, uyari?, yaklasik: true } | { yol, hedef, hedefBicim, hata, kod }],
-//            basarili, hatali } | { iptal: true } (iptal yerine koymadan önce geldi: hiçbir dosya yazılmadı)
-//        Her öğe önce %TEMP%\PDEfe'de geçici PDF'e çizilir. Bütün öğeler çizilince TIFF / Word hedefleri çekirdeğin bicim_donustur'una verilir
-//        (PDF → TIFF / Word; çekirdek kendi hedeflerini yerine koyar), sonra PDF hedefleri yerine konur (hedefin yanına kopya
+//   'udf:yaklasikDonustur' { ogeler: [{ yol, hedef, hedefBicim: 'pdf' | 'tiff' | 'word' | 'gorsel', secenekler?, cakisma? }], istekId? }
+//        → { sonuclar: [{ yol, hedef, hedefBicim, kaynakTur: 'udf', boyut, sayfa, uyari?, yaklasik: true, hedefler?, istenenHedef? } | { yol, hedef,
+//            hedefBicim, hata, kod, hedefler? }], basarili, hatali } | { iptal: true } (iptal yerine koymadan önce geldi: hiçbir dosya yazılmadı)
+//        0.2.7: JPG hedefi (gorsel; çok sayfada "<ad> - Sayfa n.jpg", sonucun hedefler'i) ve cakisma: 'yeniAd' (hedef varsa "<ad> (1)"; sonucun
+//        hedef'i yazılan ad, istenenHedef istenen) çekirdeğinkiyle aynı.
+//        Her öğe önce %TEMP%\PDEfe'de geçici PDF'e çizilir. Bütün öğeler çizilince TIFF / Word / JPG hedefleri çekirdeğin bicim_donustur'una verilir
+//        (PDF → TIFF / Word / JPG; çekirdek kendi hedeflerini yerine koyar), sonra PDF hedefleri yerine konur (hedefin yanına kopya
 //        "<hedef>.<pid>-y<sıra>.pdefe-tmp.pdf", ardından rename; 0.2.6'dan beri çizim sürerken hedef klasörde geçici dosya yok). Çekirdek iptalden önce bitirmişse (geç iptal) onun yazdığı
 //        dosyalar sonuçta kalır, PDF hedefleri yazılmaz; araç geç iptalde yeni oluşan dosyaları çöp kutusuna gönderir (Birleştir'deki kural).
 //        İlerleme 'udf:yaklasikIlerleme' (istekId, { yuzde, mesaj }) ile isteyen pencereye; sonuçların uyarısı motorun notlarıdır (resim,
@@ -268,6 +270,20 @@ async function yerineKoy(gecici, hedef, cekirdekBirak) {
   }
 }
 
+/** "Yeni belge olarak kaydet" (0.2.7, cakisma: 'yeniAd'): hedef varsa klasörde olmayan ilk "<ad> (1).pdf", "(2)"…; ad "(n)" ile bitiyorsa (1–3
+ *  basamak; "Rapor (2023)" yıl) n + 1'den (çekirdeğin bos_ad'ı ve arayüzün numaraliAdBul'u ile aynı kural). Hedef yoksa kendisi. */
+function bosAd(hedef) {
+  if (!fs.existsSync(hedef)) return hedef;
+  const { dir, name, ext } = path.parse(hedef);
+  const m = / \((\d{1,3})\)$/.exec(name);
+  const kok = m ? name.slice(0, m.index) : name;
+  for (let i = m ? +m[1] + 1 : 1; i < 1000; i++) {
+    const aday = path.join(dir, `${kok} (${i})${ext}`);
+    if (!fs.existsSync(aday)) return aday;
+  }
+  return path.join(dir, `${kok}_${Date.now()}${ext}`);
+}
+
 /** Önceki oturumlardan (çökme) kalan bir günden eski geçici PDF'ler (%TEMP%\PDEfe\udf-yaklasik-*.pdf). */
 async function eskileriTemizle() {
   let adlar = [];
@@ -375,7 +391,8 @@ export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal }) {
         const o = ogeler[k];
         ilerle((k / n) * pay, `${path.basename(o.yol)} çiziliyor…` + (n > 1 ? ` (${k + 1}/${n})` : ''));
         try {
-          if (o.hedefBicim === 'pdf') await hedefDenetle(o.hedef);
+          // "Yeni belge olarak kaydet"te (0.2.7) var olan hedefe yazılmaz: yerine koyarken boş ad seçilir, onu denetlemek gerekmez
+          if (o.hedefBicim === 'pdf' && o.cakisma !== 'yeniAd') await hedefDenetle(o.hedef);
           const veri = await udfDosyasiOku(o.yol);
           const { pdf, ozet } = await siraya(true, () => ciz(veri, path.parse(o.yol).name, d));
           const gecici = geciciYol();   // PDF hedefi de: hedefin yanına yalnızca yerine koyarken kopyalanır (yerineKoy)
@@ -387,7 +404,7 @@ export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal }) {
         }
       }
       if (d.istendi) return { iptal: true };
-      // 2) TIFF / Word hedefleri: yaklaşık PDF çekirdeğe (PDF → TIFF / Word); çekirdek hedefleri kendisi yerine koyar
+      // 2) TIFF / Word / JPG hedefleri: yaklaşık PDF çekirdeğe (PDF → TIFF / Word / JPG); çekirdek hedefleri kendisi yerine koyar
       const zincir = cizilen.filter((c) => ogeler[c.k].hedefBicim !== 'pdf');
       let gecIptal = false;
       if (zincir.length) {
@@ -396,7 +413,10 @@ export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal }) {
         let r = null;
         try {
           r = await cekirdekCagir('bicim_donustur', {
-            ogeler: zincir.map((c) => ({ yol: c.gecici, hedef: ogeler[c.k].hedef, hedefBicim: ogeler[c.k].hedefBicim, secenekler: ogeler[c.k].secenekler })),
+            ogeler: zincir.map((c) => {
+              const o = ogeler[c.k];
+              return { yol: c.gecici, hedef: o.hedef, hedefBicim: o.hedefBicim, secenekler: o.secenekler, ...(o.cakisma ? { cakisma: o.cakisma } : {}) };
+            }),
           }, (il) => ilerle(pay + ((Number(il?.yuzde) || 0) * (100 - pay)) / 100, il?.mesaj), d.cekirdekAnahtari);
         } catch (h) {
           if (d.istendi) return { iptal: true };   // çekirdek yerine koymadan önce durdu: hiçbir dosya yazılmadı
@@ -407,8 +427,10 @@ export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal }) {
           const o = ogeler[c.k], s = rs[i];
           if (!r) return;
           if (!s) { sonuclar[c.k] = hataSonucu(o, kodlu('hata', 'Dönüştürme sonucu alınamadı.')); return; }
-          sonuclar[c.k] = s.hata ? { yol: o.yol, hedef: o.hedef, hedefBicim: o.hedefBicim, hata: s.hata, kod: s.kod || 'hata' }
-            : { yol: o.yol, hedef: o.hedef, hedefBicim: o.hedefBicim, kaynakTur: 'udf', boyut: s.boyut ?? null, sayfa: s.sayfa ?? c.sayfa, uyari: [c.uyari, s.uyari].filter(Boolean).join(' ') || null, yaklasik: true };
+          // Çekirdeğin yazdığı adlar (0.2.7): "(1)" adı (hedef, istenenHedef) ve JPG'nin sayfa dosyaları (hedefler); yol arayüzün verdiği UDF
+          const adlar = { ...(Array.isArray(s.hedefler) ? { hedefler: s.hedefler } : {}), ...(s.istenenHedef ? { istenenHedef: s.istenenHedef } : {}) };
+          sonuclar[c.k] = s.hata ? { yol: o.yol, hedef: o.hedef, hedefBicim: o.hedefBicim, hata: s.hata, kod: s.kod || 'hata', ...adlar }
+            : { yol: o.yol, hedef: s.hedef || o.hedef, hedefBicim: o.hedefBicim, kaynakTur: 'udf', boyut: s.boyut ?? null, sayfa: s.sayfa ?? c.sayfa, uyari: [c.uyari, s.uyari].filter(Boolean).join(' ') || null, yaklasik: true, ...adlar };
         });
         gecIptal = d.istendi;
       }
@@ -420,8 +442,10 @@ export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal }) {
         const o = ogeler[c.k];
         if (gecIptal || d.istendi) { sonuclar[c.k] = hataSonucu(o, kodlu('iptal', 'İptal edildi.')); continue; }
         try {
-          await yerineKoy(c.gecici, o.hedef, cekirdekBirak);
-          sonuclar[c.k] = { yol: o.yol, hedef: o.hedef, hedefBicim: 'pdf', kaynakTur: 'udf', boyut: c.boyut, sayfa: c.sayfa, uyari: c.uyari, yaklasik: true };
+          const hedef = o.cakisma === 'yeniAd' ? bosAd(o.hedef) : o.hedef;   // ad yerine koyma anında seçilir (çekirdekteki gibi)
+          await yerineKoy(c.gecici, hedef, cekirdekBirak);
+          sonuclar[c.k] = { yol: o.yol, hedef, hedefBicim: 'pdf', kaynakTur: 'udf', boyut: c.boyut, sayfa: c.sayfa, uyari: c.uyari, yaklasik: true,
+            ...(hedef !== o.hedef ? { istenenHedef: o.hedef } : {}) };
         } catch (h) { sonuclar[c.k] = hataSonucu(o, h); }
       }
       const liste = sonuclar.map((s, k) => s || hataSonucu(ogeler[k], kodlu('hata', 'Dönüştürülemedi.')));

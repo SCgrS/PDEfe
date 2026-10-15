@@ -129,18 +129,27 @@ export function anlikDosyasiMi(yol, anlikKlasor) {
  *  de denetlenir (main.js cekirdek:cagir). */
 export const YOLA_YAZANLAR = new Set(['notlar_kaydet', 'yapisal_kaydet', 'sayfalar_uygula', 'kucult', 'dondur_kaydet', 'ayir']);
 
-/** Dosya Formatını Değiştir'in çekirdek yöntemleri (0.2.6, core/islemler/donustur.py): parametreleri her zaman denetlenir. */
-export const DONUSUM_YONTEMLERI = new Set(['donusum_yetenekleri', 'donusum_bilgi', 'bicim_donustur']);
+/** Format Değiştir'in çekirdek yöntemleri (0.2.6, core/islemler/donustur.py; 0.2.7: donusum_tahmini): parametreleri her zaman denetlenir. */
+export const DONUSUM_YONTEMLERI = new Set(['donusum_yetenekleri', 'donusum_bilgi', 'bicim_donustur', 'donusum_tahmini']);
+
+/** UYAP Doküman Editörü'nün klasörünü ana sürecin ayarından alan öteki yöntemler (0.2.7: Birleştir UDF'yi de alır; çekirdek gorsel_bilgi'de
+ *  ve birlestir'de UDF'yi editörle çevirir). Parametrelerin geri kalanı değişmez. */
+export const UDE_YOLLU_YONTEMLER = new Set(['gorsel_bilgi', 'birlestir']);
 
 /** Parametreleri hedef verilmese de denetlenen yöntemler (main.js cekirdek:cagir). */
-export const DENETLENEN_YONTEMLER = new Set([...YOLA_YAZANLAR, ...DONUSUM_YONTEMLERI, 'anlik_sil']);
+export const DENETLENEN_YONTEMLER = new Set([...YOLA_YAZANLAR, ...DONUSUM_YONTEMLERI, ...UDE_YOLLU_YONTEMLER, 'anlik_sil']);
 
-/** bicim_donustur: hedef biçime göre izinli uzantılar (çekirdeğin HEDEF_UZANTILARI ile aynı; Word hedefi .docx). */
-export const HEDEF_UZANTILARI = { pdf: ['.pdf'], udf: ['.udf'], tiff: ['.tif', '.tiff'], word: ['.docx'] };
+/** bicim_donustur: hedef biçime göre izinli uzantılar (çekirdeğin HEDEF_UZANTILARI ile aynı; Word hedefi .docx; 0.2.7: görüntü hedefi JPG,
+ *  hedef ad köküdür, çok sayfalı belgede çekirdek "<ad> - Sayfa n.jpg" yazar). */
+export const HEDEF_UZANTILARI = { pdf: ['.pdf'], udf: ['.udf'], tiff: ['.tif', '.tiff'], word: ['.docx'], gorsel: ['.jpg', '.jpeg'] };
 const EN_FAZLA_OGE = 500;
 const TIFF_DPILERI = new Set([200, 300]);
 const TIFF_RENKLERI = new Set(['sb', 'gri', 'renkli']);
 const UDF_KIPLERI = new Set(['otomatik', 'pdf', 'yazici']);
+/** Hedef zaten varsa (0.2.7, "zaten var" sorusunun "Yeni belge olarak kaydet"i): 'uzerineYaz' (varsayılan) | 'yeniAd' (çekirdek "(1)" adını seçer). */
+const CAKISMALAR = new Set(['uzerineYaz', 'yeniAd']);
+/** donusum_tahmini'nin (0.2.7) hedef biçimleri: boyutu "İdeal" / "Düşük" çözünürlüğe bağlı olanlar. */
+const TAHMIN_HEDEFLERI = new Set(['tiff', 'gorsel']);
 
 /** Klasör var mı (bağlantıysa gösterdiği yer). */
 async function klasorMu(yol) {
@@ -186,11 +195,20 @@ async function donusumParametreleri(yontem, p, { udeYolu = null } = {}) {
     if (!Array.isArray(p.ogeler) || !p.ogeler.length || p.ogeler.length > EN_FAZLA_OGE) throw izinYok();
     p.ogeler = p.ogeler.map((o) => donusumOgesi(o));
   }
+  // 0.2.7: "İdeal" / "Düşük"ün yaklaşık boyutu (yalnızca okur): yollar 1–500 dolu metin (tek metin de olur), hedef TIFF ya da JPG, renk bilinen
+  if (yontem === 'donusum_tahmini') {
+    const yollar = typeof p.yollar === 'string' ? [p.yollar] : p.yollar;
+    if (!Array.isArray(yollar) || !yollar.length || yollar.length > EN_FAZLA_OGE || !yollar.every(dolu)) throw izinYok();
+    if (!TAHMIN_HEDEFLERI.has(p.hedefBicim)) throw izinYok();
+    if (p.renk != null && !TIFF_RENKLERI.has(p.renk)) throw izinYok();
+    return { yollar: [...yollar], hedefBicim: p.hedefBicim, ...(p.renk != null ? { renk: p.renk } : {}) };
+  }
   return p;
 }
 
 /** bicim_donustur'un (ve UDF'nin yaklaşık çiziminin) bir öğesi: yol ve hedef dolu metin, hedefBicim bilinen biçim, hedefin uzantısı biçimle
- *  eşleşir, seçeneklerde yalnızca bilinen anahtarlar ve değerler. Uymayan öğede hata fırlatır. */
+ *  eşleşir, seçeneklerde yalnızca bilinen anahtarlar ve değerler; cakisma (0.2.7) 'uzerineYaz' | 'yeniAd' (verilmezse alan yok: çekirdekte
+ *  uzerineYaz). Uymayan öğede hata fırlatır. */
 function donusumOgesi(o) {
   if (!o || typeof o !== 'object' || Array.isArray(o) || !dolu(o.yol) || !dolu(o.hedef)) throw izinYok();
   const uzantilar = Object.prototype.hasOwnProperty.call(HEDEF_UZANTILARI, o.hedefBicim) ? HEDEF_UZANTILARI[o.hedefBicim] : null;
@@ -201,7 +219,8 @@ function donusumOgesi(o) {
   if (s.dpi != null) { if (!TIFF_DPILERI.has(s.dpi)) throw izinYok(); secenekler.dpi = s.dpi; }
   if (s.renk != null) { if (!TIFF_RENKLERI.has(s.renk)) throw izinYok(); secenekler.renk = s.renk; }
   if (s.kip != null) { if (!UDF_KIPLERI.has(s.kip)) throw izinYok(); secenekler.kip = s.kip; }
-  return { yol: o.yol, hedef: o.hedef, hedefBicim: o.hedefBicim, secenekler };
+  if (o.cakisma != null && !CAKISMALAR.has(o.cakisma)) throw izinYok();
+  return { yol: o.yol, hedef: o.hedef, hedefBicim: o.hedefBicim, secenekler, ...(o.cakisma != null ? { cakisma: o.cakisma } : {}) };
 }
 
 // ---------------------------------------------------------------- UDF'nin yaklaşık çizimi (0.2.6, main/udfYaklasik.js)
@@ -287,8 +306,8 @@ export async function udfDosyasiOku(yol) {
 }
 
 const mutlakYol = (s) => dolu(s) && path.isAbsolute(s);
-/** UDF'nin yaklaşık çiziminin hedef biçimleri: PDF (ana süreç yerine koyar), TIFF ve Word (yaklaşık PDF'ten çekirdek dönüştürür). */
-const YAKLASIK_HEDEFLER = new Set(['pdf', 'tiff', 'word']);
+/** UDF'nin yaklaşık çiziminin hedef biçimleri: PDF (ana süreç yerine koyar), TIFF, Word ve (0.2.7) JPG (yaklaşık PDF'ten çekirdek dönüştürür). */
+const YAKLASIK_HEDEFLER = new Set(['pdf', 'tiff', 'word', 'gorsel']);
 
 /**
  * UDF'nin yaklaşık çiziminin kanallarına arayüzden gelen parametreler (main/udfYaklasik.js). Döner: yalnızca bilinen anahtarlar; uymayan
@@ -352,5 +371,7 @@ export async function cekirdekParametreleri(yontem, params, anlikKlasor, ana = {
   if (yontem === 'yapisal_kaydet') p.anlikKlasor = anlikKlasor;
   if (yontem === 'anlik_sil' && !anlikDosyasiMi(p.yol, anlikKlasor)) throw new Error('İzin verilmeyen istek.');
   if (DONUSUM_YONTEMLERI.has(yontem)) return donusumParametreleri(yontem, p, ana);
+  // Birleştir'in UDF'leri (0.2.7): editörün klasörü yalnızca ana sürecin ayarından (arayüzün verdiği yok sayılır; donusumParametreleri gibi)
+  if (UDE_YOLLU_YONTEMLER.has(yontem)) p.udeYolu = (await klasorMu(ana.udeYolu)) ? ana.udeYolu : null;
   return p;
 }

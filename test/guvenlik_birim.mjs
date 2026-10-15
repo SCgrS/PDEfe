@@ -79,6 +79,30 @@ try {
   kontrol('donusum_bilgi: ön izleme verilmezse açık (çekirdeğin varsayılanı)', ude4.onizleme === true);
   await reddedilir('donusum_bilgi: yolsuz istek reddedilir', 'donusum_bilgi', {});
   await reddedilir('eski kural değişmedi: Sıkıştır\'ın .bat hedefi reddedilir', 'kucult', { yol: path.join(K, 'a.pdf'), hedef: path.join(K, 'x.bat') });
+  // 0.2.7: görüntü hedefi (JPG; ad kökü), çakışma seçeneği ("yeni belge olarak kaydet"), İdeal / Düşük tahmini, Birleştir'in UDF'leri
+  const jpg = await cekirdekParametreleri('bicim_donustur', { ogeler: [oge('g.jpg', 'gorsel', { dpi: 200 }), { ...oge('h.JPEG', 'gorsel'), cakisma: 'yeniAd' },
+    { ...oge('i.tif', 'tiff'), cakisma: 'uzerineYaz' }, oge('j.pdf', 'pdf')] }, K);
+  kontrol('bicim_donustur: JPG hedefi (.jpg, .JPEG) ve çözünürlüğü (200) geçer', jpg.ogeler.length === 4 && jpg.ogeler[0].hedefBicim === 'gorsel' && jpg.ogeler[0].secenekler.dpi === 200);
+  kontrol('bicim_donustur: cakisma ("yeniAd", "uzerineYaz") geçer; verilmezse alan yok', jpg.ogeler[1].cakisma === 'yeniAd' && jpg.ogeler[2].cakisma === 'uzerineYaz'
+    && !('cakisma' in jpg.ogeler[3]));
+  await reddedilir('bicim_donustur: bilinmeyen cakisma ("sil") bütün isteği reddeder', 'bicim_donustur', { ogeler: [oge('a.pdf', 'pdf'), { ...oge('b.jpg', 'gorsel'), cakisma: 'sil' }] });
+  await reddedilir('bicim_donustur: JPG hedefinde .png reddedilir (yalnızca .jpg / .jpeg)', 'bicim_donustur', { ogeler: [oge('x.png', 'gorsel')] });
+  await reddedilir('bicim_donustur: JPG hedefinde .exe reddedilir', 'bicim_donustur', { ogeler: [oge('x.exe', 'gorsel')] });
+  await reddedilir('bicim_donustur: JPG çözünürlüğü 72 reddedilir', 'bicim_donustur', { ogeler: [oge('x.jpg', 'gorsel', { dpi: 72 })] });
+  const th = await cekirdekParametreleri('donusum_tahmini', { yollar: [path.join(K, 'a.pdf'), path.join(K, 'b.tif')], hedefBicim: 'tiff', renk: 'gri', fazla: 1, hedef: undefined }, K);
+  kontrol('donusum_tahmini: yollar, TIFF ve renk geçer; bilinmeyen anahtar atılır', JSON.stringify(th) === JSON.stringify({ yollar: [path.join(K, 'a.pdf'), path.join(K, 'b.tif')], hedefBicim: 'tiff', renk: 'gri' }));
+  const th2 = await cekirdekParametreleri('donusum_tahmini', { yollar: path.join(K, 'a.pdf'), hedefBicim: 'gorsel' }, K);
+  kontrol('donusum_tahmini: tek yol metni ve JPG (gorsel) hedefi geçer', JSON.stringify(th2) === JSON.stringify({ yollar: [path.join(K, 'a.pdf')], hedefBicim: 'gorsel' }));
+  await reddedilir('donusum_tahmini: PDF hedefi reddedilir (yalnızca TIFF ve JPG)', 'donusum_tahmini', { yollar: [path.join(K, 'a.pdf')], hedefBicim: 'pdf' });
+  await reddedilir('donusum_tahmini: bilinmeyen renk reddedilir', 'donusum_tahmini', { yollar: [path.join(K, 'a.pdf')], hedefBicim: 'tiff', renk: 'mor' });
+  await reddedilir('donusum_tahmini: boş liste reddedilir', 'donusum_tahmini', { yollar: [], hedefBicim: 'tiff' });
+  await reddedilir('donusum_tahmini: boş yol reddedilir', 'donusum_tahmini', { yollar: [''], hedefBicim: 'tiff' });
+  await reddedilir('donusum_tahmini: 501 yol reddedilir', 'donusum_tahmini', { yollar: Array.from({ length: 501 }, (_, i) => path.join(K, `x${i}.pdf`)), hedefBicim: 'tiff' });
+  const gb = await cekirdekParametreleri('gorsel_bilgi', { yol: path.join(K, 'a.udf'), udeYolu: 'C:\\Baska\\Klasor', genislik: 150 }, K, { udeYolu: udeKlasor });
+  const br = await cekirdekParametreleri('birlestir', { ogeler: [{ yol: path.join(K, 'a.udf') }], hedef: path.join(K, 'B.pdf'), udeYolu: 'C:\\Baska' }, K, {});
+  kontrol('Birleştir (gorsel_bilgi, birlestir): udeYolu ana sürecin ayarından (arayüzünki yok sayılır), öteki parametreler değişmez', gb.udeYolu === udeKlasor && gb.genislik === 150
+    && br.udeYolu === null && br.ogeler.length === 1);
+  await reddedilir('birlestir: .bat hedefi yine reddedilir', 'birlestir', { ogeler: [{ yol: path.join(K, 'a.udf') }], hedef: path.join(K, 'x.bat') });
 
   // ------------------------------------------------------------ UDF'nin yaklaşık çizimi (0.2.6): udfIcerigiDenetle
   // En küçük zip yazıcısı: öğe { ad, veri?, yontem? (0 saklama, 8 deflate), bayrak?, beyan? (merkezî dizindeki açılmış boyut), zip64? }
@@ -143,6 +167,9 @@ try {
   kontrol('yaklasikDonustur: PDF / TIFF / Word hedefleri ve istek kimliği geçer; bilinmeyen seçenek atılır', d1?.ogeler?.length === 3 && d1.istekId === 7
     && JSON.stringify(d1.ogeler[1].secenekler) === JSON.stringify({ dpi: 300, renk: 'renkli' }));
   kontrol('yaklasikDonustur: UDF hedefi reddedilir (UDF → UDF yok)', yp('udf:yaklasikDonustur', { ogeler: [yoge('a.udf', 'udf')] }) === null);
+  const d2 = yp('udf:yaklasikDonustur', { ogeler: [yoge('a.jpg', 'gorsel', { secenekler: { dpi: 300 }, cakisma: 'yeniAd' }), yoge('b.pdf', 'pdf', { cakisma: 'yeniAd' })] });
+  kontrol('yaklasikDonustur (0.2.7): JPG hedefi ve cakisma geçer', d2?.ogeler?.length === 2 && d2.ogeler[0].hedefBicim === 'gorsel' && d2.ogeler[0].cakisma === 'yeniAd' && d2.ogeler[1].cakisma === 'yeniAd');
+  kontrol('yaklasikDonustur: bilinmeyen cakisma reddedilir', yp('udf:yaklasikDonustur', { ogeler: [yoge('a.pdf', 'pdf', { cakisma: 1 })] }) === null);
   kontrol('yaklasikDonustur: .bat hedef reddedilir', yp('udf:yaklasikDonustur', { ogeler: [yoge('a.bat', 'pdf')] }) === null);
   kontrol('yaklasikDonustur: hedef girdinin kendisi olamaz', yp('udf:yaklasikDonustur', { ogeler: [{ yol: path.join(K, 'x.pdf'), hedef: path.join(K, 'X.PDF'), hedefBicim: 'pdf' }] }) === null);
   kontrol('yaklasikDonustur: aynı hedef iki kez reddedilir', yp('udf:yaklasikDonustur', { ogeler: [yoge('a.pdf', 'pdf'), { ...yoge('A.pdf', 'pdf'), yol: path.join(K, 'baska.udf') }] }) === null);
