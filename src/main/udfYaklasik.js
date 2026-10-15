@@ -207,7 +207,10 @@ function hedefYaninda(hedef) { return `${hedef}.${process.pid}-y${++sayac}.pdefe
 
 async function geciciYaz(yol, pdf) {
   await fs.promises.mkdir(path.dirname(yol), { recursive: true });
-  await fs.promises.writeFile(yol, pdf, { flag: 'wx' });
+  try { await fs.promises.writeFile(yol, pdf, { flag: 'wx' }); } catch (e) {
+    if (e?.code !== 'EEXIST') await fs.promises.rm(yol, { force: true }).catch(() => {});   // yarım yazılmış (disk dolu): kalmasın
+    throw e;
+  }
   geciciler.add(yol);
 }
 async function geciciSil(yol) {
@@ -273,6 +276,7 @@ export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal }) {
   sayfaKlasoru = path.join(KOK, 'src', 'udf-cizim');
   const isler = new Map();         // "<gönderen>:<istekId>" → denetim
   const denetimler = new Set();    // bütün süren işlerin denetimleri (kapanışta iptal)
+  const sahipler = new Map();      // gönderenin kimliği → süren işlerinin denetimleri (pencere başına tek 'destroyed' dinleyicisi)
   const onbellek = new Map();      // küçük resim: anahtar → sonuç
   const cekirdekBirak = (yol) => cekirdekCagir('belge_birak', { yol }).catch(() => {});
 
@@ -282,12 +286,18 @@ export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal }) {
     try { d.durdur?.(); } catch { /* yok say */ }
     if (d.cekirdekAnahtari) cekirdekIptal(d.cekirdekAnahtari).catch(() => {});
   };
-  /** İş, isteyen pencere kapanınca iptal edilir. Döner: bırakma işlevi. */
+  /** İş, isteyen pencere kapanınca iptal edilir (sıradaki küçük resimler dâhil). Döner: bırakma işlevi. */
   const sahibeBagla = (gonderen, d) => {
     denetimler.add(d);
-    const gitti = () => iptalEt(d);
-    try { gonderen.once('destroyed', gitti); } catch { /* yok say */ }
-    return () => { denetimler.delete(d); try { if (!gonderen.isDestroyed()) gonderen.removeListener('destroyed', gitti); } catch { /* yok say */ } };
+    const id = gonderen.id;
+    let kume = sahipler.get(id);
+    if (!kume) {
+      kume = new Set();
+      sahipler.set(id, kume);
+      try { gonderen.once('destroyed', () => { for (const x of kume) iptalEt(x); sahipler.delete(id); }); } catch { /* yok say */ }
+    }
+    kume.add(d);
+    return () => { denetimler.delete(d); kume.delete(d); };
   };
 
   // ---------------------------------------------------- küçük resim
