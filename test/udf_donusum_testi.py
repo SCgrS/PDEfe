@@ -10,8 +10,10 @@ Denetlenenler: köprü jar'ının kaynakla tutarlılığı ve Java 8 bayt kodu; 
 kenarı farklı belgede de A4), yazı tiplerinin hepsi gömülü, SMask yok, saydam antetin çevresinde gri çerçeve yok, sayfa sayısı UDE'ninkiyle
 aynı, düz XML (zip'siz) UDF, yatay sayfa, tablo, satır konumları yazıcı yoluyla ≤ 0,5 pt; donusum_bilgi yanıtının ön izlemesi; iptal (süreç
 öldürülür, çıktı kalmaz), zaman aşımı, açılamayan belge, UDE bulunamayınca anlaşılır neden; kullanıcının .uki / .sertifikadeposu
-klasörlerinin değişmemesi, geçici ev klasörlerinin silinmesi. PDF → UDF: content.xml'in yapısı (format_id 1.8, ofsetler, tam punto, "]]>",
-BMP dışı karakter, yatay sayfa), UDE'nin açması, sözcük benzerliği, sayfa sayısı, üst / alt bilgi ve sayfa numarası, taranmış sayfa.
+klasörlerinin değişmemesi, geçici ev klasörlerinin silinmesi; zip bombası (köprüye yeniden paketlenmiş kopya), çekirdek çizim sürerken
+çökünce JVM'in sonlanması ve kalıntıların sonraki çekirdekte silinmesi. PDF → UDF: content.xml'in yapısı (format_id 1.8, ofsetler, tam
+punto, "]]>" (iki biçimli parçaya bölünmüşü de), BMP dışı karakter, yatay sayfa), UDE'nin açması, sözcük benzerliği, sayfa sayısı, üst / alt
+bilgi ve sayfa numarası ("Bölüm N" başlıkları sayfa numarası sayılmaz), yalnızca tablodan oluşan belge, taranmış sayfa.
 """
 import base64
 import difflib
