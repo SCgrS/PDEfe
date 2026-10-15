@@ -23,7 +23,7 @@ const BEKLENEN = [
     'Varsayılan yakınlaştırma', 'Tek ya da iki sayfa', 'Kaydırmayı etkinleştir', 'Kapak sayfasını ayrı göster',
     'Pencereyi kapatırken']],   // 'Döndür düğmesi' 0.1.27'de kaldırıldı; 'Pencereyi kapatırken' 0.2.2
   ['notlar', 'Not ve vurgu', ['Yazar adı', 'Varsayılan vurgu rengi', 'Vurgu opaklığı', 'Yazı tipi', 'Yazı boyutu', 'Yazı rengi', 'Yazı arka planı']],
-  ['kaydetme', 'Kaydetme', ['Otomatik kaydet', 'Araçların çıktı klasörü']],
+  ['kaydetme', 'Kaydetme', ['Otomatik kaydet', 'Araçların çıktı klasörü', 'UYAP Doküman Editörü']],   // 0.2.6: Dosya Formatını Değiştir
   ['guncelleme', 'Güncelleme', ['Güncellemeleri otomatik denetle (haftada bir)', 'Şimdi denetle']],
   ['kisayollar', 'Kısayollar', []],   // 0.2.4: F1'deki liste (kart değil, tablolar; senaryo32)
   ['hakkinda', 'Hakkında', []],
@@ -166,8 +166,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus }) {
       ortaFark: Math.round(Math.abs((r.left + r.right) / 2 - (b.left + b.right) / 2)), genislik: Math.round(r.width), pdfAc: !!document.querySelector('.karsilama-ac'),
       araclar: document.querySelectorAll('.karsilama-arac').length, liste: document.querySelector('#son-dosyalar').innerText, tum: document.querySelector('#baslangic').innerText }; })()`);
   const bas = await baslangicDurumu();
-  sonuc('Başlangıç ekranı: Son açılanlar kutusu hiç görünmüyor (bilgi satırı / Ayarlar bağlantısı yok), PDF aç ve 5 araç ortada',
-    bas.sonGizli && !bas.baglanti && !/Son açılanlar|hatırlanmıyor/.test(bas.tum) && bas.ortaFark <= 10 && bas.pdfAc && bas.araclar === 5, bas);
+  sonuc('Başlangıç ekranı: Son açılanlar kutusu hiç görünmüyor (bilgi satırı / Ayarlar bağlantısı yok), PDF aç ve 6 araç ortada',
+    bas.sonGizli && !bas.baglanti && !/Son açılanlar|hatırlanmıyor/.test(bas.tum) && bas.ortaFark <= 10 && bas.pdfAc && bas.araclar === 6, bas);
   sonuc('Başlangıç ekranı: marka adı geçmiyor', !MARKA.test(bas.tum));
   await ss('baslangic-kapali-koyu');
   // 0.1.12'ye dek başlangıç ekranındaki bağlantı Ayarlar › Açılış ve düzen'i açıyordu; bağlantı kutuyla birlikte kalktı, Ayarlar komutla açılır

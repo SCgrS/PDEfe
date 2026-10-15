@@ -93,7 +93,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
   await diyalogKaydi();
   await sekmeleriKapat();
 
-  // ------------------------------------------------------------ 1) Araçlar penceresi: 5 karo, klavye
+  // ------------------------------------------------------------ 1) Araçlar penceresi: 6 karo (0.2.6: 3 + 3), klavye
   if (bolum(1)) {
     console.log('\n== 1) Araçlar penceresi');
     await ac(path.join(PDF, 'fdsafsd.pdf'));
@@ -102,23 +102,24 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
       await evalJs(`document.querySelector('#dugme-araclar').click()`);
       await kosul(`!document.querySelector('#araclar-penceresi').hidden`);
       const k = await evalJs(`[...document.querySelectorAll('.araclar-karo')].map((x) => x.dataset.aracKomut)`);
-      sonuc(`karolar (${t})`, k.length === 5 && !k.includes('arac.paylas'), k);
+      sonuc(`karolar (${t})`, k.length === 6 && k.at(-1) === 'arac.donustur' && !k.includes('arac.paylas'), k);
       await ss(`01-araclar-5-karo-${t}`);
       if (t === 'koyu') {
         const odak = () => evalJs(`document.activeElement?.dataset?.aracKomut || document.activeElement?.id`);
         const adimlar = [];
-        // Alt satır (Ayır, Görüntü / PDF birleştir) ortalı: aşağı ok yatayda en yakın karoya, eşitlikte aşağıda sağdakine, yukarıda soldakine
-        for (const [tus_, bekl] of [['ArrowRight', 'arac.sayfalar'], ['ArrowRight', 'arac.dondurKaydet'], ['ArrowDown', 'arac.gorselBirlestir'], ['ArrowDown', 'arac.gorselBirlestir'],
-          ['ArrowUp', 'arac.sayfalar'], ['ArrowDown', 'arac.gorselBirlestir'], ['ArrowLeft', 'arac.ayir'], ['ArrowUp', 'arac.kucult'], ['ArrowDown', 'arac.ayir'],
-          ['ArrowRight', 'arac.gorselBirlestir'], ['ArrowRight', 'arac.kucult'], ['End', 'arac.gorselBirlestir'], ['ArrowUp', 'arac.sayfalar'], ['Home', 'arac.kucult'],
-          ['ArrowLeft', 'arac.gorselBirlestir'], ['Tab', 'arac.kucult']]) {
+        // 0.2.6: iki tam satır (Sıkıştır, Sayfaları düzenle, Döndür / Ayır, Görüntü / PDF birleştir, Dosya Formatını Değiştir): aşağı ok
+        // altındaki karoya, son satırda yerinde kalır; sağ / sol ok sarar
+        for (const [tus_, bekl] of [['ArrowRight', 'arac.sayfalar'], ['ArrowRight', 'arac.dondurKaydet'], ['ArrowDown', 'arac.donustur'], ['ArrowDown', 'arac.donustur'],
+          ['ArrowUp', 'arac.dondurKaydet'], ['ArrowLeft', 'arac.sayfalar'], ['ArrowDown', 'arac.gorselBirlestir'], ['ArrowLeft', 'arac.ayir'], ['ArrowUp', 'arac.kucult'],
+          ['ArrowDown', 'arac.ayir'], ['ArrowRight', 'arac.gorselBirlestir'], ['ArrowRight', 'arac.donustur'], ['ArrowRight', 'arac.kucult'], ['End', 'arac.donustur'],
+          ['ArrowUp', 'arac.dondurKaydet'], ['Home', 'arac.kucult'], ['ArrowLeft', 'arac.donustur'], ['Tab', 'arac.kucult']]) {
           await tus(tus_);
           const o = await odak();
           adimlar.push(`${tus_}→${o}${o === bekl ? '' : ' (beklenen ' + bekl + ')'}`);
           if (o !== bekl) hataSayisi++;
         }
         console.log('     klavye: ' + adimlar.join(', '));
-        sonuc('karolar arasında klavyeyle gezinme (3 + ortalı 2, sarma)', !adimlar.some((a) => a.includes('beklenen')));
+        sonuc('karolar arasında klavyeyle gezinme (3 + 3, sarma)', !adimlar.some((a) => a.includes('beklenen')));
       }
       await tus('Escape');
       sonuc(`Esc kapatır (${t})`, await kosul(`document.querySelector('#araclar-penceresi').hidden`, 2000));

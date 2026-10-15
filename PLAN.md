@@ -2825,7 +2825,13 @@ Her bulgu önce yeniden üretildi ya da kod izlendi; gerçekse önce düşen tes
     makrosunun çalışmadığı makrolu belgeyle sınanmadı (Word'de VBA erişim güveni ayarını değiştirmek gerekirdi; yerine AutomationSecurity'nin belge
     açılmadan 3 olduğu okundu); izlenen değişiklikli ve yorumlu belgede sonuç denetlenmedi.
   - Dönüştürme kanalları: var olan PDF dışı hedefin üzerine yazmayı ana süreç onaya bağlamıyor (araç soruyor).
-  - Açılış ekranında geniş pencerede araçlar 5 + 1 diziliyor (ızgara otomatik sütunlu; Araçlar penceresinde 3 + 3); değiştirmek PDF aç'ın ikinci
-    karoyla hizasını (0.2.3 isteği) etkiler, karar kullanıcının.
+  - (Çözüldü, kullanıcı kararı: "6 tanesi toplam iki satır olsun, 2 2 2 şeklinde; hafif büyüt butonlarını; son açılanları da 2 2 2'nin
+    toplam uzunluğuna uydur, hafif daralabilir") Açılış ekranında araçlar artık her genişlikte üç sütun × iki satır (alan 600 px'ten darsa iki,
+    400 px'ten darsa tek sütun; container query). Sütun 1100 → 820 px; son açılanlar aynı sütunda, aynı genişlikte. Karolar: iç boşluk
+    10/12 → 13/15 px, simge kutusu 38 → 42, simge 24 → 26, ad 13 → 14 px, açıklama 12 → 12,5 px. PDF aç yine iki sütun kaplar, sağ kenarı
+    Sayfaları düzenle'nin sağ kenarında (acilis_hizasi). İki satır ve büyük karolarla 1280×700'de 10 belgeyle 62 px taşıyordu: alçak pencerede
+    (≤ 860 px) bölümler arası 12 → 8, başlık–kutu 8 → 6, karoların üst / alt iç boşluğu 9 px, son açılan satırı 46 → 38 px; senaryo20 52/52.
+    Beklentisi eski üç test güncellendi: senaryo13 (6 karo, 3 + 3 klavye yolu), senaryo14 (6 araç, Kaydetme'de UYAP Doküman Editörü kartı),
+    paket_duman (0.2.4'ten beri imza "Sürüm X · ").
   - senaryo37'nin 8. bölümü ikinci örneği olağan masaüstünde başlatıyor: ekran kuralı gereği koşulmadı; görünmeyen masaüstüne taşınmalı.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 41.

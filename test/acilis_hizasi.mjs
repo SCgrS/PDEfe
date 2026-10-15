@@ -107,7 +107,8 @@ export default async function ({ evalJs, bekle }) {
     sonuc(`${durumlar.length} durumda (704–2560 px, panel kapalı / 240 px / geniş) PDF aç'ın sağ kenarı ikinci karonun sağ kenarında, sol kenarı sütunun solunda; düğmenin içi ve ekran taşmıyor`,
       hatali.length === 0, hatali.slice(0, 5));
     bilgi(`en büyük fark ${enBuyukFark.toFixed(3)} px; ızgaranın sütun sayıları: ${[...sutunlar].sort().join(', ')}; tek sütunlu ${tekSutun} durum`);
-    sonuc('Tarama ızgaranın bütün sütun sayılarını (1–5) kapsıyor', [1, 2, 3, 4, 5].every((n) => sutunlar.has(n)), [...sutunlar]);
+    // 0.2.6: altı araç üç sütun × iki satır; alan daralınca iki, çok dar alanda tek sütun
+    sonuc('Tarama ızgaranın bütün sütun sayılarını (1–3) kapsıyor', [1, 2, 3].every((n) => sutunlar.has(n)) && [...sutunlar].every((n) => n <= 3), [...sutunlar]);
     // Tek sütunda düğme sütunun tamamı (karolar gibi), ekran görüntüsü
     await panelKur(true, 432); await boyut(720, 800);
     let o = await olc();

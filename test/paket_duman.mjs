@@ -64,7 +64,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tus }) {
   sonuc(`Uygulama sürümü ${SURUM}`, bilgi?.surum === SURUM, bilgi?.surum);
   await kosul(`(document.querySelector('.karsilama-surum')?.textContent || '').includes(${J(SURUM)})`, 5000);
   const imza = await evalJs(`document.querySelector('.karsilama-surum')?.textContent || ''`);
-  sonuc(`Açılış ekranında "sürüm ${SURUM}"`, imza === ` · sürüm ${SURUM}`, imza);
+  sonuc(`Açılış ekranında "Sürüm ${SURUM}"`, imza === `Sürüm ${SURUM} · `, imza);   // 0.2.4'ten beri "Sürüm … · Geliştirici: …"
   await ekranGoruntusu(path.join(PNG, '1-acilis.png'));
 
   // 2) Şeritler

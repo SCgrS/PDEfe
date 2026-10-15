@@ -17,6 +17,7 @@ otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 - **Ayarlar › Kaydetme › Otomatik kaydet** açıksa, kaydedilmemiş değişikliği olan belge yazdırılmadan önce sorulmadan kaydediliyor (bu ayar yazdırmada uygulanmıyordu).
 
 ### Yeni araç: Dosya Formatını Değiştir
+- **Açılış ekranında altı araç iki satırda, üçer üçer** (Araçlar penceresindeki gibi); karolar biraz büyüdü. Son açılanlar listesi araçlarla aynı genişlikte, biraz daha dar. Alçak pencerede boşluklar biraz sıkışır, 10 son açılan belge yine kaydırmadan sığar.
 - **UDF ↔ PDF, Word ↔ PDF, TIFF ↔ PDF.** Araçlar penceresinde, açılış ekranında ve Araçlar menüsünde. Dosyalar **Dosya ekle**'yle ya da pencereye sürüklenerek eklenir, birden çok dosya birlikte dönüştürülür. Her satırda dosyanın küçük resmi, türü, sayfa sayısı ve hedef biçim (PDF, UDF, Word, TIFF) görünür. PDF olmayan iki biçim arasında da (örneğin Word → UDF, UDF → Word) dönüştürülür; PDEfe arada PDF'ten geçer.
 - Bir PDF açıkken araç açılırsa o PDF listede hazırdır. UDF, TIFF ve Word dosyaları PDEfe'nin penceresine bırakılınca, Gezgin'de "Birlikte aç" ile ya da `Ctrl+O` ile açılınca araç o dosyalarla açılır (PDF'ler eskisi gibi sekmede açılır). UDF'ye çift tıklamak eskisi gibi UYAP Doküman Editörü'nü açar.
 - Dosyanın türü uzantısından değil içeriğinden anlaşılır; tanınmayan dosya dönüştürülmez, satırda nedeni yazar. Her türün son seçtiğiniz hedefi hatırlanır.
