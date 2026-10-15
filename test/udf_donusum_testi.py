@@ -490,6 +490,72 @@ def test_yazici_konum(c, g, k):
           {"eşleşen": es, "satır": (na, nb), "sapma": sap and round(sap, 2), "sözcük": round(kel, 3)})
 
 
+def paletli_antet(bit=4):
+    """Az renkli (paletli PNG, 4 ya da 1 bit) kurgusal antet: beyaz zeminde 93 / 110 / 127 grisi şeritler ve harf benzeri kutular (bit=4,
+    12 renk) ya da siyah-beyaz (bit=1). 0.2.7: ImageIO bu PNG'leri 1–4 bitlik paletli (TYPE_BYTE_BINARY) okur, iText 2.1.7 onları
+    siyah-beyaza çevirirken 93, 110, 127 grisi beyaza düşüyordu: yalnızca antetli UDF'den boş PDF çıkıyordu."""
+    im = Image.new("RGB", (1256, 132), (255, 255, 255))
+    d = ImageDraw.Draw(im)
+    if bit == 1:
+        d.rectangle((40, 30, 1216, 34), fill=(0, 0, 0))
+        for i in range(24):
+            d.rectangle((60 + 46 * i, 50, 90 + 46 * i, 100), fill=(0, 0, 0))
+        im = im.convert("1")
+    else:
+        renkler = [(93, 93, 93), (110, 110, 110), (127, 127, 126), (244, 244, 243), (230, 229, 228), (200, 200, 199), (170, 170, 170),
+                   (150, 150, 150), (190, 189, 188), (215, 215, 214), (240, 240, 240)]
+        d.rectangle((40, 112, 1216, 116), fill=renkler[2])
+        for i in range(24):
+            d.rectangle((60 + 46 * i, 20, 90 + 46 * i, 70), fill=renkler[i % 2])
+            d.rectangle((60 + 46 * i, 76, 70 + 46 * i, 100), fill=renkler[3 + i % 8])
+        im = im.convert("P", palette=Image.Palette.ADAPTIVE, colors=12)
+    b = io.BytesIO()
+    im.save(b, "PNG")
+    return b.getvalue()
+
+
+def test_paletli_antet(c, k):
+    """0.2.7, kullanıcının "yalnızca antetli UDF'ler boş PDF'e dönüşüyor" şikâyeti: üst bilgisinde 4 bitlik paletli PNG antet olan, gövdesi
+    boş UDF'nin PDF'inde antet görünmeli (UDE'nin yazdırmasında olduğu gibi). Ölçü: aynı antetin 8 bitlik RGB kopyasıyla çizilen PDF'le piksel
+    farkı ve antet bölgesindeki koyu piksel sayısı. Siyah-beyaz 1 bitlik resim iText'in G4'üyle (küçük, doğru) kalmalı."""
+    def antetli(ad, png_bayt):
+        u = UdfYaz()
+        ust = []
+        u.resim(png_bayt, 453.54, 47.67, hiza=1, hedef=ust)
+        u.paragraf("", hiza=0)
+        return u.yaz(os.path.join(k, ad), tm=79.37, bm=42.52, ust=ust)
+    paletli = paletli_antet(4)
+    with Image.open(io.BytesIO(paletli)) as im:
+        bit = struct.unpack(">B", paletli[24:25])[0]
+        sonuc("deneme anteti 4 bitlik paletli PNG (kullanıcının antetleri gibi)", im.mode == "P" and bit == 4, (im.mode, bit))
+        rgb = io.BytesIO()
+        im.convert("RGB").save(rgb, "PNG")
+    girdiler = {"paletli": antetli("paletli_antet.udf", paletli), "rgb": antetli("rgb_antet.udf", rgb.getvalue()),
+                "sb": antetli("sb_antet.udf", paletli_antet(1))}
+    r, _ = donustur(c, [{"yol": y, "hedef": os.path.join(k, a + "_antet.pdf"), "hedefBicim": "pdf"} for a, y in girdiler.items()])
+    sonuc("üç antetli UDF dönüştü", r["basarili"] == 3, [o.get("hata") for o in r["sonuclar"] if "hata" in o])
+    if r["basarili"] != 3:
+        return
+
+    def ust_bolge(a):
+        d = pymupdf.open(os.path.join(k, a + "_antet.pdf"))
+        try:
+            pix = d[0].get_pixmap(dpi=150, clip=pymupdf.Rect(0, 0, d[0].rect.width, 160), colorspace=pymupdf.csGRAY)
+            filtreler = [d.xref_get_key(x, "Filter")[1] for x in range(1, d.xref_length()) if d.xref_get_key(x, "Subtype")[1] == "/Image"]
+            return Image.frombytes("L", (pix.w, pix.h), pix.samples), filtreler
+        finally:
+            d.close()
+    p, pf = ust_bolge("paletli")
+    q, _ = ust_bolge("rgb")
+    s, sf = ust_bolge("sb")
+    koyu = lambda im: sum(1 for v in im.getdata() if v < 160)   # noqa: E731
+    fark = sum(abs(a - b) for a, b in zip(p.getdata(), q.getdata())) / float(p.width * p.height)
+    sonuc("paletli antet PDF'te görünüyor (koyu piksel RGB kopyasınınkinin ≥ %90'ı)", koyu(p) >= 0.9 * koyu(q) > 0, (koyu(p), koyu(q)))
+    sonuc("paletli antet RGB kopyasıyla aynı çiziliyor (ortalama gri farkı < 1)", fark < 1.0, round(fark, 3))
+    sonuc("paletli antet renkli (Flate) gömülü, siyah-beyaza (CCITT) çevrilmedi", pf and all(f == "/FlateDecode" for f in pf), pf)
+    sonuc("siyah-beyaz 1 bitlik antet görünüyor ve G4 (CCITT) kaldı", koyu(s) > 1000 and sf == ["/CCITTFaxDecode"], (koyu(s), sf))
+
+
 def test_yorumlu(c, g, k):
     r, _ = donustur(c, [{"yol": g["yorumlu"], "hedef": os.path.join(k, "yorumlu.pdf"), "hedefBicim": "pdf"}])
     o = r["sonuclar"][0]
@@ -1102,7 +1168,8 @@ def main():
     g = udf_girdileri(temiz_klasor("girdi"))
     testler = []
     if ude_var:
-        testler += [lambda: test_udf_pdf(c, g, k), lambda: test_yazici_konum(c, g, k), lambda: test_yorumlu(c, g, k),
+        testler += [lambda: test_udf_pdf(c, g, k), lambda: test_paletli_antet(c, temiz_klasor("antet")),
+                    lambda: test_yazici_konum(c, g, k), lambda: test_yorumlu(c, g, k),
                     lambda: test_hatalar(c, g, k),
                     lambda: test_iptal(c, g, temiz_klasor("iptal"))]
     else:

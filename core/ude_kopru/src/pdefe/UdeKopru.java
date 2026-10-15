@@ -66,7 +66,9 @@ import javax.swing.SwingUtilities;
  *  - sayfa boyu PageFormat'tan (UDE sayfa genişliğini "2 × sol kenar + yazı alanı" alıyor; sol ve sağ kenarı farklı belgede yanlış);
  *  - yazı tipleri gömülü (Identity-H, alt küme; UDE gömmüyor, başka okuyucu yerine başka yazı tipi koyuyordu);
  *  - antet ve resimlerin saydamlığı önceden beyaza düzleştirilir (UDE saydam resmi küçültürken kenarda gri çerçeve bırakıyor);
- *  - sayfa numarası yazı olarak (UDE onu glif dizisiyle çiziyor, iText şekle çeviriyordu: MetinGrafik).
+ *  - sayfa numarası yazı olarak (UDE onu glif dizisiyle çiziyor, iText şekle çeviriyordu: MetinGrafik);
+ *  - 1, 2 ya da 4 bitlik paletli resim (ör. az renkli PNG antet) renkleriyle (0.2.7; iText onu siyah-beyaza çevirip çoğu kez bütünüyle
+ *    beyaz bırakıyordu: yalnızca antetli UDF'den boş PDF çıkıyordu; MetinGrafik.itextIcin).
  *
  * Çalıştırma (PDEfe çekirdeği, core/islemler/udf.py):
  *   java -Djava.awt.headless=true -Dpdefe.ev=<geçici klasör> [-Dpdefe.gunluk=<dosya>] [-Dpdefe.yazitipleri=<klasör;klasör>]
@@ -557,17 +559,60 @@ public final class UdeKopru {
     // ---------------------------------------------------------------- glif dizisi → yazı (sayfa numarası)
 
     /**
-     * iText'in çizim yüzeyini saran Graphics2D: her şeyi olduğu gibi iletir, yalnızca glif dizisini (GlyphVector) yazıya çevirir. UDE sayfa
-     * numarasını TextLayout'la çiziyor; iText glif dizisini yazı olarak değil şekil olarak yazıyor (numara görünür ama seçilemez, aranamaz,
-     * kopyalanamaz). Gliflerin karakterleri yazı tipinden geri bulunabiliyor ve konumları yazının kendi ilerleyişiyle aynıysa (sıradan yazı)
-     * drawString'e çevrilir; bulunamazsa (karmaşık yazım, bilinmeyen glif) olduğu gibi şekil kalır.
+     * iText'in çizim yüzeyini saran Graphics2D: her şeyi olduğu gibi iletir, yalnızca glif dizisini (GlyphVector) yazıya ve paletli düşük
+     * bitli resmi renkli resme çevirir. UDE sayfa numarasını TextLayout'la çiziyor; iText glif dizisini yazı olarak değil şekil olarak
+     * yazıyor (numara görünür ama seçilemez, aranamaz, kopyalanamaz). Gliflerin karakterleri yazı tipinden geri bulunabiliyor ve konumları
+     * yazının kendi ilerleyişiyle aynıysa (sıradan yazı) drawString'e çevrilir; bulunamazsa (karmaşık yazım, bilinmeyen glif) olduğu gibi şekil
+     * kalır. Resimler için bkz. itextIcin.
      */
     static final class MetinGrafik extends Graphics2D {
         static final String ADAYLAR = " 0123456789/-.,:;()[]%+*#abcçdefgğhıijklmnoöprsştuüvyzqwxABCÇDEFGĞHIİJKLMNOÖPRSŞTUÜVYZQWX";
         static final Map<Font, Map<Integer, Character>> TERS = new HashMap<Font, Map<Integer, Character>>();
+        /** Paletli resmin renkli kopyası, özgün resim nesnesine bağlı (BufferedImage eşitliği kimliktir; özgün bırakılınca kopya da gider). */
+        static final Map<BufferedImage, BufferedImage> RENKLI = new java.util.WeakHashMap<BufferedImage, BufferedImage>();
         final Graphics2D g;
 
         MetinGrafik(Graphics2D g) { this.g = g; }
+
+        /**
+         * iText 2.1.7, TYPE_BYTE_BINARY resmi (ImageIO 1, 2 ve 4 bitlik paletli PNG'yi böyle okur) her zaman 1 bitlik siyah-beyaz resme
+         * çevirir (Image.getInstance'ta forceBW) ve pikselin siyah mı beyaz mı olacağına rengin birkaç bitine bakarak karar verir
+         * ((rgb &amp; 0x888) != 0 → beyaz): gri 93, 110, 127 gibi değerler beyaza düşer. 12 renkli gri bir PNG antet PDF'te bütünüyle beyaz
+         * (boş) çıkıyordu, 6 renklisinin yalnızca bir rengi kalıyordu (0.2.7, kullanıcının antetli UDF'leri). UDE'nin yazdırması (Java2D)
+         * paleti doğru çiziyor. Paletinde siyah ve beyazdan başka renk olan böyle resim, iText'e verilmeden aynı boyda renkli resme
+         * çevrilir (iText onu kayıpsız Flate yazar); yalnızca siyah ve beyazdan oluşan 1 bitlik resim olduğu gibi kalır (iText'in G4'ü
+         * küçük ve doğru).
+         */
+        static java.awt.Image itextIcin(java.awt.Image i) {
+            if (!(i instanceof BufferedImage)) return i;
+            BufferedImage b = (BufferedImage) i;
+            if (b.getType() != BufferedImage.TYPE_BYTE_BINARY || yalnizSiyahBeyaz(b)) return i;
+            synchronized (RENKLI) {
+                BufferedImage r = RENKLI.get(b);
+                if (r == null) {
+                    r = new BufferedImage(b.getWidth(), b.getHeight(),
+                            b.getColorModel().hasAlpha() ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
+                    Graphics2D gr = r.createGraphics();
+                    try {
+                        gr.drawImage(b, 0, 0, null);
+                    } finally {
+                        gr.dispose();
+                    }
+                    RENKLI.put(b, r);
+                }
+                return r;
+            }
+        }
+
+        static boolean yalnizSiyahBeyaz(BufferedImage b) {
+            if (!(b.getColorModel() instanceof java.awt.image.IndexColorModel)) return false;
+            java.awt.image.IndexColorModel p = (java.awt.image.IndexColorModel) b.getColorModel();
+            for (int k = 0; k < p.getMapSize(); k++) {
+                int rgb = p.getRGB(k) & 0xFFFFFF;
+                if (rgb != 0 && rgb != 0xFFFFFF) return false;
+            }
+            return true;
+        }
 
         static String metneCevir(java.awt.font.GlyphVector gv) {
             int n = gv.getNumGlyphs();
@@ -656,24 +701,26 @@ public final class UdeKopru {
         public void fillPolygon(java.awt.Polygon p) { g.fillPolygon(p); }
         public void drawChars(char[] d, int o, int n, int x, int y) { g.drawChars(d, o, n, x, y); }
         public void drawBytes(byte[] d, int o, int n, int x, int y) { g.drawBytes(d, o, n, x, y); }
-        public boolean drawImage(java.awt.Image i, int x, int y, java.awt.image.ImageObserver o) { return g.drawImage(i, x, y, o); }
-        public boolean drawImage(java.awt.Image i, int x, int y, int w, int h, java.awt.image.ImageObserver o) { return g.drawImage(i, x, y, w, h, o); }
-        public boolean drawImage(java.awt.Image i, int x, int y, Color b, java.awt.image.ImageObserver o) { return g.drawImage(i, x, y, b, o); }
+        public boolean drawImage(java.awt.Image i, int x, int y, java.awt.image.ImageObserver o) { return g.drawImage(itextIcin(i), x, y, o); }
+        public boolean drawImage(java.awt.Image i, int x, int y, int w, int h, java.awt.image.ImageObserver o) { return g.drawImage(itextIcin(i), x, y, w, h, o); }
+        public boolean drawImage(java.awt.Image i, int x, int y, Color b, java.awt.image.ImageObserver o) { return g.drawImage(itextIcin(i), x, y, b, o); }
         public boolean drawImage(java.awt.Image i, int x, int y, int w, int h, Color b, java.awt.image.ImageObserver o) {
-            return g.drawImage(i, x, y, w, h, b, o);
+            return g.drawImage(itextIcin(i), x, y, w, h, b, o);
         }
         public boolean drawImage(java.awt.Image i, int a, int b, int c, int d, int e, int f, int h, int j, java.awt.image.ImageObserver o) {
-            return g.drawImage(i, a, b, c, d, e, f, h, j, o);
+            return g.drawImage(itextIcin(i), a, b, c, d, e, f, h, j, o);
         }
         public boolean drawImage(java.awt.Image i, int a, int b, int c, int d, int e, int f, int h, int j, Color k, java.awt.image.ImageObserver o) {
-            return g.drawImage(i, a, b, c, d, e, f, h, j, k, o);
+            return g.drawImage(itextIcin(i), a, b, c, d, e, f, h, j, k, o);
         }
         public void dispose() { g.dispose(); }
         // Graphics2D
         public void draw(java.awt.Shape s) { g.draw(s); }
-        public boolean drawImage(java.awt.Image i, java.awt.geom.AffineTransform t, java.awt.image.ImageObserver o) { return g.drawImage(i, t, o); }
-        public void drawImage(BufferedImage i, java.awt.image.BufferedImageOp op, int x, int y) { g.drawImage(i, op, x, y); }
-        public void drawRenderedImage(java.awt.image.RenderedImage i, java.awt.geom.AffineTransform t) { g.drawRenderedImage(i, t); }
+        public boolean drawImage(java.awt.Image i, java.awt.geom.AffineTransform t, java.awt.image.ImageObserver o) { return g.drawImage(itextIcin(i), t, o); }
+        public void drawImage(BufferedImage i, java.awt.image.BufferedImageOp op, int x, int y) { g.drawImage((BufferedImage) itextIcin(i), op, x, y); }
+        public void drawRenderedImage(java.awt.image.RenderedImage i, java.awt.geom.AffineTransform t) {
+            g.drawRenderedImage(i instanceof BufferedImage ? (BufferedImage) itextIcin((BufferedImage) i) : i, t);
+        }
         public void drawRenderableImage(java.awt.image.renderable.RenderableImage i, java.awt.geom.AffineTransform t) { g.drawRenderableImage(i, t); }
         public void drawString(String s, int x, int y) { g.drawString(s, x, y); }
         public void drawString(String s, float x, float y) { g.drawString(s, x, y); }
