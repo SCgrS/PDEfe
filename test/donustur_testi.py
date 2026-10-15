@@ -1616,6 +1616,41 @@ def test_mupdf_kilidi(c, g):
     sonuc("get_image_info her çağrıda MuPDF kilidinin içinde", not kilitsiz, "%d / %d kilitsiz: %s" % (len(kilitsiz), len(kayit), sorted({x[0] for x in kilitsiz})))
 
 
+def test_tahmin_kapanis(c):
+    """0.2.7 inceleme: çekirdek kapanırken (kapanirken) süren boyut tahmini durur ve yanıtı yazılmaz; kapanirken onun bitmesini kısa süre bekler.
+    Önceden tahmin iş parçacığı (daemon) kapanışta durdurulmuyordu: yorumlayıcı kapanırken stdout'a yazarsa Python ölümcül hatayla çıkabilirdi
+    (yazi_tanima'nın os._exit yolunun nedeni). Modülün içinde sınanır; kapanış bayrağı sonra kaldırılır."""
+    if c.exe:
+        atlandi("tahmin kapanışta durur", "exe kipinde modülün içi görülmüyor")
+        return
+    print("— Boyut tahmini çekirdek kapanırken durur (0.2.7 inceleme)")
+    import pdefe_core
+    from islemler import donustur as D
+    k = temiz_klasor("tahmin_kapanis")
+    yollar = [sentetik_pdf(os.path.join(k, "t%d.pdf" % i), sayfa=6, tohum=40 + i) for i in range(8)]
+    ilerleme, yanit = threading.Event(), []
+    p = {"yollar": yollar, "hedefBicim": "tiff", "renk": "renkli", "_ilerleme": lambda y, m="": ilerleme.set()}
+    r = D.y_donusum_tahmini(p)
+    t0 = time.monotonic()
+    r.baslat(lambda sn, h: yanit.append((sn is not None, type(h).__name__ if h else None)))
+    ilerleme.wait(30)
+    sure_baslama = time.monotonic() - t0
+    try:
+        t1 = time.monotonic()
+        D.kapanirken(bekle=0.2, temizlik=0.2)
+        kapanis = time.monotonic() - t1
+        time.sleep(1.5)   # tahmin sürseydi bu arada biterdi ya da sürerdi
+        bitti = getattr(D, "_tahmin_bekleyen", None) == 0
+    finally:
+        D._kapaniyor.clear()
+    sonuc("tahmin başlamıştı (ilerleme geldi)", ilerleme.is_set(), round(sure_baslama, 2))
+    sonuc("kapanirken süren tahmini durdurdu ve bitmesini bekledi (< 1,5 sn), tahmin iş parçacığı boş", bitti and kapanis < 1.5, (round(kapanis, 2), getattr(D, "_tahmin_bekleyen", None)))
+    # Kapanış bayrağı kalkınca tahmin yeniden çalışır (tahminler sırayla: bu yanıt gelince önceki tahmin de bitmiştir)
+    r2, _ = c.cagir("donusum_tahmini", {"yollar": [yollar[0]], "hedefBicim": "tiff"})
+    sonuc("bayrak kalkınca tahmin olağan çalışır", (r2.get("ideal") or 0) > 0, r2.get("ideal"))
+    sonuc("kapanırken süren tahminin yanıtı yazılmadı", yanit == [], yanit)
+
+
 def _tek_sayfa(k, kaynak):
     tek = os.path.join(k, "tek.pdf")
     d = pymupdf.open(kaynak)
@@ -1726,7 +1761,7 @@ def main():
                ("dis_surec", lambda: test_dis_surec(c)), ("zincir", lambda: test_zincir(c, g)), ("surec", lambda: test_surec(exe, g)),
                ("gorsel_imza", lambda: test_gorsel_imza(c, gg)), ("gorsel_pdf", lambda: test_gorsel_pdf(c, gg)), ("gri16", lambda: test_gri16(c)),
                ("pdf_jpg", lambda: test_pdf_jpg(c, g)), ("cakisma", lambda: test_cakisma(c, g)), ("kalan_sayfalar", lambda: test_kalan_sayfalar(c, g)), ("ayni_istekte_ad", lambda: test_ayni_istekte_ad(c, g)), ("bayat_gecici", lambda: test_bayat_gecici(c, g)), ("mupdf_kilidi", lambda: test_mupdf_kilidi(c, g)), ("kalite_notlari", lambda: test_kalite_notlari(c, g)),
-               ("tahmin", lambda: test_tahmin(c, g, gg))]
+               ("tahmin", lambda: test_tahmin(c, g, gg)), ("tahmin_kapanis", lambda: test_tahmin_kapanis(c))]
     if not exe:
         testler.insert(6, ("iptal_bayragi", test_iptal_bayragi))
     if not hizli:

@@ -553,12 +553,17 @@ def _bosta_bekle(sure):
         return _durum.wait_for(lambda: _bekleyen == 0, timeout=sure)
 
 
-def kapanirken(bekle=2.0, temizlik=3.0):
+def kapanirken(bekle=2.0, temizlik=3.0, tahmin=1.0):
     """Çekirdek kapanırken (pdefe_core.main): süren dönüştürme en çok `bekle` sn beklenir; bitmezse iptal edilir ve geçici dosyaların
-    silinmesi için en çok `temizlik` sn daha beklenir."""
+    silinmesi için en çok `temizlik` sn daha beklenir. Süren ve sıradaki boyut tahminleri (0.2.7 inceleme) durur (ilerleme bildiriminde
+    kapanışa bakar), yanıtları yazılmaz; bitmeleri en çok `tahmin` sn beklenir. Önceden tahmin iş parçacığı (daemon) durdurulmuyordu:
+    yorumlayıcı kapanırken stdout'a yazarsa Python ölümcül hatayla çıkabilirdi (yazi_tanima'nın os._exit yolunun nedeni)."""
     if _is_parcacigi is not None and not _bosta_bekle(bekle):
         _kapaniyor.set()
         _bosta_bekle(temizlik)
+    _kapaniyor.set()
+    with _tahmin_durum:
+        _tahmin_durum.wait_for(lambda: _tahmin_bekleyen == 0, timeout=tahmin)
     for islev in _KAPANISLAR:
         try:
             islev()
@@ -1895,6 +1900,8 @@ _tahmin_onbellegi = {}
 _tahmin_kuyrugu = queue.Queue()
 _tahmin_is_parcacigi = None
 _tahmin_kilidi = threading.Lock()
+_tahmin_durum = threading.Condition()
+_tahmin_bekleyen = 0               # sıradaki + süren tahmin sayısı (kapanirken bitmelerini bekler)
 
 
 def _ornek_sayfalar(n, k):
@@ -1904,6 +1911,7 @@ def _ornek_sayfalar(n, k):
 
 
 def _tahmin_dongu():
+    global _tahmin_bekleyen
     while True:
         is_, bitir = _tahmin_kuyrugu.get()
         try:
@@ -1911,17 +1919,24 @@ def _tahmin_dongu():
         except Exception as e:
             sonuc, hata = None, e
         try:
-            bitir(sonuc, hata)
+            if not _kapaniyor.is_set():   # çekirdek kapanıyor: yanıt yazılmaz (ana iş parçacığı yorumlayıcıyı kapatırken stdout'a yazılmasın)
+                bitir(sonuc, hata)
         except Exception as e:
             print("[donustur] tahmin yanıtı yazılamadı: %s" % e, file=sys.stderr)
+        finally:
+            with _tahmin_durum:
+                _tahmin_bekleyen -= 1
+                _tahmin_durum.notify_all()
 
 
 def _tahmin_calistir(is_, bitir):
-    global _tahmin_is_parcacigi
+    global _tahmin_is_parcacigi, _tahmin_bekleyen
     with _tahmin_kilidi:
         if _tahmin_is_parcacigi is None:
             _tahmin_is_parcacigi = threading.Thread(target=_tahmin_dongu, name="donusum-tahmini", daemon=True)
             _tahmin_is_parcacigi.start()
+    with _tahmin_durum:
+        _tahmin_bekleyen += 1
     _tahmin_kuyrugu.put((is_, bitir))
 
 
