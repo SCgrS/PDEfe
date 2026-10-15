@@ -678,6 +678,7 @@ def _tekrarlayanlar(sayfalar):
         return set()
     say = collections.Counter()
     ham = collections.defaultdict(collections.Counter)   # anahtar → kaynak metinlerin sayısı (rakamlar dâhil)
+    altta = set()                                        # alt bölgede görülen anahtarlar
     for sf in sayfalar:
         gor = set()
         for s in sf.satirlar:
@@ -686,15 +687,19 @@ def _tekrarlayanlar(sayfalar):
                 if k not in gor:
                     ham[k[1]][s.metin] += 1
                 gor.add(k)
+                if s.y > sf.y * ALT_BOLGE:
+                    altta.add(k)
         say.update(gor)
     esik = max(2, math.ceil(n * TEKRAR_ORANI))
     tekrar = set()
     for k in list(say):
         if sum(say.get((k[0] + d, k[1]), 0) for d in (-2, -1, 0, 1, 2)) < esik:
             continue
-        # Metin sayfadan sayfaya aynı olmalı; yalnızca sayfa numarası satırı (rakamı her sayfada değişen) ayrık
+        # Metin sayfadan sayfaya aynı olmalı; yalnızca sayfa numarası satırı (rakamı her sayfada değişen) ayrık. Sayfa numarası yalnızca alt
+        # bölgede aranır: UDE numarayı alt bilgiye koyar, üstteki "Bölüm 1", "Bölüm 2"… (Word'de her bölüm yeni sayfada başlayan belge)
+        # sayfa numarası sanılıp gövdeden atılıyor, alt bilgi sayfanın tepesine konunca UDE belgede yanıt vermiyordu (0.2.6)
         ayni = max(ham[k[1]].values()) >= esik
-        numara = all(_SAYFA_NO.match(m.strip()) for m in ham[k[1]])
+        numara = k in altta and all(_SAYFA_NO.match(m.strip()) for m in ham[k[1]])
         if ayni or numara:
             tekrar.add(k)
     return tekrar
@@ -858,9 +863,15 @@ class _Yazici:
         self.havuz = []
         self.uzunluk = 0
         self.xml = []
+        self._son = ""   # havuzun son iki karakteri
 
     def metin(self, s):
         s = s.replace("]]>", "]]" + SIFIR_BOSLUK + ">")
+        # Havuz tek CDATA'dır: "]]" ile biten parçanın ardından ">" ile (ya da "]" ile bitenin ardından "]>" ile) başlayan parça (ör. kalın
+        # "> …") da CDATA'yı kapatırdı; araya sıfır genişlikli boşluk (0.2.6 incelemesi: UDE belgeyi açamıyor, sonuç başarılı görünüyordu)
+        if s and "]]>" in self._son + s[:2]:
+            s = SIFIR_BOSLUK + s
+        self._son = (self._son + s)[-2:]
         bas = self.uzunluk
         self.havuz.append(s)
         self.uzunluk += len(s.encode("utf-16-le")) // 2
@@ -1096,7 +1107,7 @@ def _ust_alt_ayir(sayfalar, W):
         s.tur = bolge
         (ust if bolge == "ust" else alt).append((no, s))
     numara = None
-    for grup in (alt, ust):
+    for grup in (alt,):   # sayfa numarası yalnızca alt bilgiden (UDE'nin numarası alt bilgide; üstteki numara gövdede kalır)
         adaylar = collections.defaultdict(list)
         for no, s in grup:
             if _SAYFA_NO.match(s.metin.strip()):
@@ -1142,9 +1153,16 @@ def _udf_kur(sayfalar, uyarilar):
     if len(sayfalar) == 1 and not alt_satirlar:
         alt_satirlar = _ayrik_alt_satirlar(sayfalar[0])
     govde = [s for sf in sayfalar for s in sf.satirlar if s.tur == "govde"]
-    if not govde and not any(sf.gorseller for sf in sayfalar):
+    tablolar = [t for sf in sayfalar for t in sf.tablolar]
+    # Yazısının hepsi çizgili tablo hücrelerinde olan belge (masraf listesi, tablolu form) de çevrilir: hücre satırları gövdeden çıkarılır
+    if not govde and not tablolar and not any(sf.gorseller for sf in sayfalar):
         raise OgeHatasi("bozuk", "Belgede çevrilecek yazı bulunamadı.")
-    yer = _yerlesim(govde or ust_satirlar + alt_satirlar or [], W) if (govde or ust_satirlar or alt_satirlar) else _Yerlesim(70.87, W - 70.87)
+    if govde or ust_satirlar or alt_satirlar:
+        yer = _yerlesim(govde or ust_satirlar + alt_satirlar, W)
+    elif tablolar:   # yalnızca tablo: yazı alanı tabloların kutusu (UDE tabloyu yazı alanının genişliğine yayar)
+        yer = _Yerlesim(min(t.x0 for t in tablolar), max(t.x1 for t in tablolar))
+    else:
+        yer = _Yerlesim(70.87, W - 70.87)
 
     # Sol kenar: UDE yazıyı ⌊leftMargin⌋ + 1'e koyar; kaynağın sol x'inden yarım punto aşağısı (aralıkta yuvarlak değer varsa o)
     lm_ham = yer.sol - 0.5
@@ -1258,7 +1276,7 @@ def _udf_kur(sayfalar, uyarilar):
             birinci = next((t for t in tepeler if t[2] is ilk_p and t[3] == 0), None)
             ilk_p.sa = max(0, birinci[1] - tepe) if birinci else 0
     else:
-        tepe = int(round(min((g.y0 for sf in sayfalar for g in sf.gorseller), default=56.69)))
+        tepe = int(round(min([g.y0 for sf in sayfalar for g in sf.gorseller] + [t.y0 for t in tablolar], default=56.69)))
     tepe = max(int(EN_AZ_KENAR), min(tepe, int(H * 0.45)))
     tm = _guzel(tepe + 0.5, alt=tepe, ust=tepe + 1)
     govde_tepe = max(tepe, ust_alt_kenar)

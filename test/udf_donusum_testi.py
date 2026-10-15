@@ -727,6 +727,57 @@ def tablolu_pdf(yol):
     return yol
 
 
+def bolumlu_pdf(yol, bolum=3):
+    """Her bölümü yeni sayfada başlayan, sayfa başlığı "Bölüm N" olan belge (Word'de bölüm başına sayfa sonu): başlıktaki sayı sayfa
+    numarasıyla aynı, ama sayfa numarası değil (gövdenin başlığı)."""
+    arsiv = pymupdf.Archive(r"C:\Windows\Fonts") if WINDOWS else None
+    css = ('@font-face {font-family: tnr; src: url(times.ttf);} @font-face {font-family: tnr; src: url(timesbd.ttf); font-weight: bold;} '
+           'body {font-family: tnr; font-size: 12pt; line-height: 1.15; margin: 0;} p {text-align: justify; margin: 0 0 6pt 0; text-indent: 35pt;} '
+           'h1 {text-align: left; font-size: 14pt; font-weight: bold; margin: 0 0 12pt 0;}') if WINDOWS else ""
+    yazici = pymupdf.DocumentWriter(yol)
+    for i in range(bolum):
+        html = "<h1>Bölüm %d</h1>" % (i + 1) + "".join("<p>%s</p>" % cumleler(300 + i * 5 + j, 3) for j in range(5))
+        story = pymupdf.Story(html=html, user_css=css, archive=arsiv)
+        devam = True
+        while devam:
+            aygit = yazici.begin_page(pymupdf.Rect(0, 0, 595.28, 841.89))
+            devam, _ = story.place(pymupdf.Rect(70.87, 70.87, 524.41, 770.87))
+            story.draw(aygit)
+            yazici.end_page()
+    yazici.close()
+    return yol
+
+
+def yalniz_tablo_pdf(yol):
+    """Yazısının hepsi çizgili 3 × 3 tablonun hücrelerinde olan tek sayfa."""
+    d = pymupdf.open()
+    pg = d.new_page(width=595.28, height=841.89)
+    xs, ys = (72, 222, 372, 522), (100, 130, 160, 190)
+    for y in ys:
+        pg.draw_line((xs[0], y), (xs[-1], y))
+    for x in xs:
+        pg.draw_line((x, ys[0]), (x, ys[-1]))
+    for i in range(3):
+        for j in range(3):
+            pg.insert_text((xs[j] + 6, ys[i] + 20), "Hücre %d-%d" % (i + 1, j + 1), fontname="tiro", fontsize=11)
+    d.save(yol)
+    d.close()
+    return yol
+
+
+def bolunmus_cdata_pdf(yol):
+    """"]]>" iki ayrı biçimli parçaya bölünmüş: "a]]" düz, ardından "> sonu" kalın."""
+    d = pymupdf.open()
+    pg = d.new_page(width=595.28, height=841.89)
+    pg.insert_text((72, 100), "Dizi a]]", fontname="helv", fontsize=12)
+    w = pymupdf.get_text_length("Dizi a]]", fontname="helv", fontsize=12)
+    pg.insert_text((72 + w, 100), "> sonu", fontname="hebo", fontsize=12)
+    pg.insert_text((72, 130), "İkinci satır olağan metin.", fontname="helv", fontsize=12)
+    d.save(yol)
+    d.close()
+    return yol
+
+
 def taranmis_pdf(yol):
     """Tek sayfalık taranmış (yazısız, 200 dpi) belge: yazı görüntü olarak."""
     kaynak = word_benzeri_pdf(yol + ".kaynak.pdf", sayfa_no=False, sayfa=1)
@@ -749,7 +800,11 @@ def udf_xml(yol):
 def xml_denetle(ad, x):
     """content.xml'in yapısı: ön söz, format_id, CDATA'da ]]> yok, ofsetler havuzu kaplıyor ve geri gitmiyor, punto tam sayı."""
     sonuc("%s: ön söz ve format_id 1.8" % ad, x.startswith('<?xml version="1.0" encoding="UTF-8" ?> \n\n<template format_id="1.8" >'))
-    kok = ET.fromstring(x.encode("utf-8"))
+    try:
+        kok = ET.fromstring(x.encode("utf-8"))
+    except ET.ParseError as e:
+        sonuc("%s: XML iyi biçimli" % ad, False, e)
+        return None
     havuz = kok.find("content").text or ""
     sonuc("%s: XML geçerli, tek havuz, ]]> yok" % ad, x.count("<![CDATA[") == 1 and "]]>" not in havuz)
     ofsetler = []
@@ -777,6 +832,9 @@ def test_pdf_udf(c, k, ude_var):
                                  ek_metin="Köşeli ]]> ayraç ve emoji %s %s yazısı." % (chr(0x1F600), chr(0x1F44D))),
         "yatay": word_benzeri_pdf(os.path.join(k, "yatay.pdf"), sayfa_no=False, yatay=True, sayfa=1),
         "tablolu": tablolu_pdf(os.path.join(k, "tablolu.pdf")),
+        "bolumlu": bolumlu_pdf(os.path.join(k, "bolumlu.pdf")),
+        "yalniz_tablo": yalniz_tablo_pdf(os.path.join(k, "yalniz_tablo.pdf")),
+        "cdata": bolunmus_cdata_pdf(os.path.join(k, "cdata.pdf")),
     }
     ogeler = [{"yol": y, "hedef": os.path.join(k, a + ".udf"), "hedefBicim": "udf"} for a, y in girdiler.items()]
     r, _ = donustur(c, ogeler)
@@ -786,6 +844,8 @@ def test_pdf_udf(c, k, ude_var):
         if not os.path.exists(yol):
             continue
         kok = xml_denetle(a, udf_xml(yol))
+        if kok is None:
+            continue
         pf = kok.find("properties/pageFormat").attrib
         if a == "yatay":
             sonuc("yatay PDF → paperOrientation 0", pf.get("paperOrientation") == "0", pf.get("paperOrientation"))
@@ -803,6 +863,24 @@ def test_pdf_udf(c, k, ude_var):
         if a == "ozel":
             havuz = kok.find("content").text
             sonuc("]]> metinde kaldı (araya sıfır genişlikli boşluk)", "]]" + chr(0x200B) + ">" in havuz)
+        if a == "cdata":
+            havuz = kok.find("content").text
+            sonuc("iki biçimli parçaya bölünmüş ]]> CDATA'yı kapatmıyor (araya sıfır genişlikli boşluk)", "]]" + chr(0x200B) + ">" in havuz
+                  and "sonu" in havuz, havuz[:60])
+        if a == "bolumlu":
+            havuz = kok.find("content").text or ""
+            alt = kok.find("elements/footer")
+            sonuc("'Bölüm N' başlıkları sayfa numarası sayılmıyor: gövdede kalır, alt bilgide sayfa numarası alanı yok",
+                  all("Bölüm %d" % n in havuz for n in (1, 2, 3)) and (alt is None or "pageNumber-spec" not in alt.attrib),
+                  alt.attrib if alt is not None else None)
+            sonuc("'Bölüm N': alt bilgi uzaklığı sayfanın alt bölgesinde (footerFOffset ≤ %16 sayfa)", float(pf["footerFOffset"]) <= 0.16 * 841.89,
+                  pf["footerFOffset"])
+        if a == "yalniz_tablo":
+            havuz = kok.find("content").text or ""
+            tablo = kok.find("elements/table")
+            sonuc("yalnızca tablodan oluşan belge çevrilir: 3 × 3 tablo, hücre yazıları", tablo is not None and tablo.attrib.get("columnCount") == "3"
+                  and len(tablo.findall("row")) == 3 and all("Hücre %d-%d" % (i, j) in havuz for i in (1, 2, 3) for j in (1, 2, 3)),
+                  tablo.attrib if tablo is not None else havuz[:80])
     if not c.exe:
         from islemler import udf_yaz as Y
         sonuc("BMP dışı karakter (emoji) U+FFFD olur, XML'de geçersiz denetim karakteri atılır",
@@ -811,11 +889,18 @@ def test_pdf_udf(c, k, ude_var):
         atlandi("PDF → UDF → UDE", "UDE ya da Java yok")
         return
     geri = [{"yol": os.path.join(k, a + ".udf"), "hedef": os.path.join(k, a + "_ude.pdf"), "hedefBicim": "pdf"} for a in girdiler]
-    r, _ = donustur(c, geri)
+    if not c.exe:   # UDE'yi kilitleyen bir UDF (sayfanın tepesindeki alt bilgi) 180 sn beklemesin
+        from islemler import udf as U
+        eski_sure, U.BELGE_SURESI = U.BELGE_SURESI, 60.0
+    try:
+        r, _ = donustur(c, geri)
+    finally:
+        if not c.exe:
+            U.BELGE_SURESI = eski_sure
     sonuc("üretilen UDF'lerin hepsini UDE açtı", r["basarili"] == len(geri), [o.get("hata") for o in r["sonuclar"] if "hata" in o])
     for a, kaynak in girdiler.items():
         cizim = os.path.join(k, a + "_ude.pdf")
-        if not os.path.exists(cizim):
+        if not os.path.exists(cizim) or a == "cdata":   # cdata: sözcüğün içinde sıfır genişlikli boşluk (sözcük benzerliği ölçülmez)
             continue
         es, sap, kel, na, nb = satir_karsilastir(kaynak, cizim)
         ka, kb = pdf_ozeti(kaynak)["sayfa"], pdf_ozeti(cizim)["sayfa"]

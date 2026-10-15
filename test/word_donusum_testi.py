@@ -760,8 +760,8 @@ def test_zincir(c, g, exe):
             return
     _zincir(c, g["dilekce"], g["dilekce_sayfalar"], klasor, "dilekce", "")
     if not exe:
-        # Başlıkları "Bölüm 1", "Bölüm 2"… olan belge: PDF → UDF bunları sayfa numarası sanıp altbilgiye sayfa numarası alanı yazıyor,
-        # UDE o UDF'te yanıt vermiyor (udf_yaz.py'nin açık konusu; burada 30 sn sınırla, bilerek)
+        # Başlıkları "Bölüm 1", "Bölüm 2"… olan belge: PDF → UDF bunları sayfa numarası sanıp alt bilgiyi sayfanın tepesine koyuyordu, UDE o
+        # UDF'te yanıt vermiyordu (0.2.6'da düzeldi: sayfa numarası yalnızca alt bölgede aranır). Gerilerse 180 sn beklenmesin: 30 sn sınır
         from islemler import udf as udf_modulu
         eski = udf_modulu.BELGE_SURESI
         udf_modulu.BELGE_SURESI = 30.0
