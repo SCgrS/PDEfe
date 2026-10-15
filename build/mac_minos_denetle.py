@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """macOS çekirdeğinin en düşük macOS sürümü denetimi (0.2.6). PDEfe'nin en düşük macOS'u 13.0 (electron-builder.yml minimumSystemVersion):
 çekirdekteki her Mach-O dosyası (çalıştırılabilir, .so, .dylib; ince ya da çok mimarili) daha yeni bir macOS için derlenmişse macOS 13'te
-yüklenemeyebilir. Örnek: numpy 2.5.4'ün Accelerate'li macosx_14_0 tekerleği; macos-15 koşucusunda pip onu seçer, PDF → Word macOS 13'te
+yüklenemeyebilir. Örnek: numpy 2.5.4'ün Apple Accelerate kullanan macosx_14_0 tekerleği; macos-15 koşucusunda pip onu seçer, PDF → Word macOS 13'te
 düşerdi. Sürüm Mach-O'nun yükleme komutlarından okunur: LC_BUILD_VERSION (minos) ya da eski LC_VERSION_MIN_MACOSX. otool gerekmez (Windows'ta
 da sınanır: test/mac_minos_testi.py).
 
