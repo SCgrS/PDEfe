@@ -142,13 +142,13 @@ export class DonusturPenceresi {
     this.dpiSecim = segmentliSecim({
       etiket: 'Çözünürlük', deger: String(tiffSecimi.dpi), sinif: 'donustur-dpi-secim',
       secenekler: [{ id: '200', etiket: '200 dpi', baslik: 'Daha küçük dosya; yazılı belgeler için yeterli' }, { id: '300', etiket: '300 dpi', baslik: 'Daha keskin, daha büyük dosya' }],
-      degisti: (id) => { tiffSecimi.dpi = +id; },
+      degisti: (id) => { tiffSecimi.dpi = +id; this._ayarDegisti(); },
     });
     govde.querySelector('.donustur-dpi').replaceWith(this.dpiSecim.el);
     this.renkSecim = segmentliSecim({
       etiket: 'Renk', deger: tiffSecimi.renk, sinif: 'donustur-renk-secim',
       secenekler: [{ id: 'sb', etiket: 'Siyah beyaz', baslik: 'En küçük dosya' }, { id: 'gri', etiket: 'Gri' }, { id: 'renkli', etiket: 'Renkli' }],
-      degisti: (id) => { tiffSecimi.renk = id; },
+      degisti: (id) => { tiffSecimi.renk = id; this._ayarDegisti(); },
     });
     govde.querySelector('.donustur-renk').replaceWith(this.renkSecim.el);
 
@@ -159,12 +159,14 @@ export class DonusturPenceresi {
     });
     const kayitBolumu = govde.querySelector('.donustur-kayit');
     kayitBolumu.append(this.kayit.el);
+    // Kaydet bölümünde ad, klasör ya da kayıt biçimi değişince Dönüştür yeniden etkin olabilir (0.2.7; _dugmeGuncelle)
+    this.kayit.onDegisti(() => this._dugmeGuncelle());
     this.adlarEl = oge('<div class="arac-aciklama donustur-adlar" hidden>Dosyalar girdilerin adıyla kaydedilir. Var olan dosyaların üzerine yazılmaz; aynı adlı dosya varsa ada "(2)" eklenir.</div>');
     kayitBolumu.append(this.adlarEl);
 
     govde.querySelector('.donustur-ekle').addEventListener('click', () => this.dosyaSec());
     govde.querySelector('.donustur-temizle').addEventListener('click', () => {
-      if (this.ogeler.length && !this.ilerleme.calisiyor) { this._yaklasikIptal(this.ogeler); this.ogeler = []; this.sonucEl.hidden = true; this.ciz(); }
+      if (this.ogeler.length && !this.ilerleme.calisiyor) { this._yaklasikIptal(this.ogeler); this.ogeler = []; this.sonucEl.hidden = true; this._sonImza = null; this.ciz(); }
     });
 
     // Pencere sekme şeridinin altında başlar (Birleştir ve Sayfaları düzenle gibi; arkadaki sekmeler görünür)
@@ -291,6 +293,7 @@ export class DonusturPenceresi {
     if (zatenVar) this.baglam.bildir(zatenVar === 1 ? 'Dosya zaten listede.' : `${zatenVar} dosya zaten listede.`, 3000);
     if (!yeniler.length) return 0;
     this.sonucEl.hidden = true;
+    this._sonImza = null;
     this.ogeler.push(...yeniler);
     this.ciz();
     this.liste.querySelector(`.donustur-oge[data-kimlik="${yeniler[yeniler.length - 1].kimlik}"]`)?.scrollIntoView({ block: 'nearest' });
@@ -425,6 +428,7 @@ export class DonusturPenceresi {
       try { this.baglam.ayarKoy?.('donusturme', { ...onceki, hedefler: { ...(onceki.hedefler || {}), [o.tur]: bicim } }); } catch (e) { console.warn('[dönüştür] seçim kaydedilemedi', e); }
     }
     this.sonucEl.hidden = true;
+    this._sonImza = null;
     this._ogeCiz(o);
     this._durumGuncelle();
   }
@@ -443,6 +447,7 @@ export class DonusturPenceresi {
     this._yaklasikIptal([o]);
     this.ogeler = this.ogeler.filter((x) => x !== o);
     this.sonucEl.hidden = true;
+    this._sonImza = null;
     this.ciz();
   }
 
@@ -570,7 +575,6 @@ export class DonusturPenceresi {
     this.ozetEl.textContent = n ? `${sayiMetni(n)} dosya${donusecek.length !== n && !yukleniyor ? ` · ${sayiMetni(donusecek.length)} dosya dönüştürülebilir` : ''}` : '';
     this.govde.querySelector('.donustur-temizle').disabled = !n || this.ilerleme.calisiyor;
     this.govde.querySelector('.donustur-ekle').disabled = this.ilerleme.calisiyor;
-    this.pencere?.dugmeAyarla('donustur', { devre: !donusecek.length || yukleniyor || this.ilerleme.calisiyor });
     this.seceneklerEl.hidden = !donusecek.some((o) => o.hedefBicim === 'tiff');
     // Tek dosyada önerilen ad girdinin adı + yeni uzantı; birden çok dosyada adları araç verir
     const adaylar = donusecek.length ? donusecek : this.ogeler.filter((o) => !o.hata && o.tur && o.hedefBicim);
@@ -583,7 +587,32 @@ export class DonusturPenceresi {
       this.kayit.adAyarla(adGovdesi(ilk.ad) || 'Dönüştürülmüş');
       this.kayit.uzantiAyarla(BICIM[ilk.hedefBicim]?.uzanti || 'pdf');
     }
+    this._dugmeGuncelle();
   }
+
+  /**
+   * Dönüştür düğmesi: dönüştürülecek dosya yoksa, dosyalar okunurken ve dönüştürme sürerken soluk. 0.2.7 (kullanıcı isteği: "Dönüştürdükten
+   * sonra yeni bir şey eklenmediği veya herhangi bir ayar değiştirilmediği sürece Dönüştür tuşu tekrar aktif olmasın"): başarılı bir
+   * dönüştürmeden sonra da soluk; dosya eklenince ya da çıkarılınca, liste temizlenince, bir satırın hedefi ya da TIFF seçenekleri değişince
+   * (_sonImza silinir) ya da Kaydet bölümünde ad, klasör veya kayıt biçimi değişince (imza farklı) yeniden etkin.
+   */
+  _dugmeGuncelle() {
+    if (!this.pencere || this.pencere.kapali) return;
+    const donusecek = this._donusecekler();
+    const yapildi = !!this._sonImza && this._imza() === this._sonImza;
+    this.pencere.dugmeAyarla('donustur', { devre: !donusecek.length || this.ogeler.some((o) => o.yukleniyor) || this.ilerleme.calisiyor || yapildi });
+  }
+
+  /** Dönüştürmenin girdileri ve ayarları: dönüştürülecek dosyalar ve hedefleri, TIFF seçenekleri (TIFF hedefi varsa), kayıt biçimi ve
+   *  hedef (tek dosyada dosya, birden çok dosyada klasör). */
+  _imza() {
+    const d = this._donusecekler();
+    return JSON.stringify([d.map((o) => [String(o.yol).toLowerCase(), o.hedefBicim]), d.some((o) => o.hedefBicim === 'tiff') ? [tiffSecimi.dpi, tiffSecimi.renk] : null,
+      this.kayit.kip(), String(this.kayit.coklu() ? this.kayit.cikti.klasor() : this.kayit.hedef()).toLowerCase()]);
+  }
+
+  /** TIFF seçeneği değişti: son dönüştürmeden sonra Dönüştür yeniden etkin. */
+  _ayarDegisti() { this._sonImza = null; this._dugmeGuncelle(); }
 
   // ---------------------------------------------------------------- dönüştürme
   /** Dönüştürür; tek dosyada kilitli / salt okunur hedef sorusunda "Yeniden dene" ya da "Başka adla kaydet" seçilirse yeniden çalışır. */
@@ -782,6 +811,8 @@ export class DonusturPenceresi {
       this.pencere.hataGoster(`"${dosyaAdi(hatali[0].yol)}" dönüştürülemedi: ${hatali[0].hata}`);
       return false;
     }
+    // En az bir dosya dönüştürüldüyse Dönüştür, bir şey değişene dek soluk kalır (0.2.7; _dugmeGuncelle). Hiçbiri olmadıysa yeniden denenebilir
+    if (basarili.length) this._sonImza = this._imza();
     // Sonuç kutusu (0.2.7, kullanıcı isteği; ortak.js sonucKutusuCiz): tek dosyada ortalı, birden çok dosyada Aç sabit sütunda; boyut ve
     // sayfa sayısı yazılmaz
     const s = this.sonucEl;

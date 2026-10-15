@@ -30,6 +30,9 @@ const sonuc = (ad, ok, ayrinti = '') => {
   console.log(`${ok ? 'OK  ' : 'HATA'} ${ad}${ayrinti !== '' && !ok ? ' — ' + (typeof ayrinti === 'string' ? ayrinti : J(ayrinti)) : ''}`);
   return ok;
 };
+/** Bu koşum için boş çıktı klasörü (test/cikti/s38/<ad>-<zaman>; eski koşumların dosyaları test örneğinde açık kalabilir, silinmez). */
+const KOSUM = Date.now().toString(36);
+const yeniKlasor = (ad) => { const k = path.join(UI, `${ad}-${KOSUM}`); fs.mkdirSync(k, { recursive: true }); return k; };
 const yakin = (a, b, pay = 0.5) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= pay;
 
 /** Örnek PDF (sayfa sayısı, başlık); var olanı yeniden üretmez. */
@@ -168,7 +171,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
     sonuc('2) Aç tıklanan satırın dosyasını açar', acilan.length === 1 && path.resolve(acilan[0][0]) === path.resolve(coklu[1].hedef), acilan);
     await araclariKapat();
     // Ayır: gerçek ayırma (iki dosya), sonra tek dosya
-    const cikti = path.join(UI, 'ayir'); fs.rmSync(cikti, { recursive: true, force: true }); fs.mkdirSync(cikti, { recursive: true });
+    const cikti = yeniKlasor('ayir');
     await ciktiKlasoruAyarla(cikti);
     await evalJs(`(async () => { await window.__pdefe.dosyaAc(${J(pdf)}); return true; })()`);
     await kosul(`!!window.__pdefe.aktif()?.gorunum?.sayfaSayisi`);
@@ -200,7 +203,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   if (bolum(3)) {
     console.log('\n== 3) "zaten var" sorusu: Üzerine yaz | Yeni belge olarak kaydet | Vazgeç');
     await araclariKapat(); await sekmeleriKapat();
-    const klasor = path.join(UI, 'zatenvar'); fs.rmSync(klasor, { recursive: true, force: true }); fs.mkdirSync(klasor, { recursive: true });
+    const klasor = yeniKlasor('zatenvar');
     await ciktiKlasoruAyarla(klasor);
     const pdf = ornekPdf('zatenvar.pdf', 2, 'Zaten var örneği');
     fs.writeFileSync(path.join(klasor, 'Sigorta Başvuru.udf'), 'eski');
@@ -263,6 +266,111 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
     sonuc('3) Döndür: "Hedef.pdf zaten var" → Yeni belge olarak kaydet: "Hedef (1).pdf" oluşur, "Hedef.pdf" değişmez, özgün dosya değişmez',
       !!soru && soru.mesaj === '"Hedef.pdf" zaten var.' && fs.existsSync(yeni) && fs.readFileSync(path.join(klasor, 'Hedef.pdf'), 'utf8') === 'eski içerik'
       && fs.statSync(path.join(klasor, 'Döndürülecek.pdf')).size === eskiBoyut, { soru, yeni: fs.existsSync(yeni), dosyalar: fs.readdirSync(klasor) });
+    await araclariKapat(); await sekmeleriKapat();
+    await ciktiKlasoruAyarla(path.join(UI, 'cikti'));
+  }
+
+  // ------------------------------------------------------------ 4) İşlemden sonra birincil düğme, bir şey değişene dek soluk
+  if (bolum(4)) {
+    console.log('\n== 4) Dönüştür (ve Ayır, Sıkıştır) işlemden sonra soluk; bir şey değişince etkin');
+    await araclariKapat(); await sekmeleriKapat();
+    const klasor = yeniKlasor('yeniden');
+    await ciktiKlasoruAyarla(klasor);
+    const pdf = ornekPdf('yeniden.pdf', 3, 'Yeniden örneği'), pdf2 = ornekPdf('yeniden2.pdf', 1, 'İkinci örnek');
+    await evalJs(`(async () => { window.__s38m = window.__s38m || {}; window.__s38m.d = await import('pdefe://app/src/renderer/araclar/donustur.js'); return true; })()`);
+    const A = 'window.__s38m.d.acikDonusturPenceresi()';
+    const devre = (sinif) => evalJs(`document.querySelector('.${sinif} .arac-dugmeler .birincil')?.disabled`);
+    // Format Değiştir: gerçek dönüştürme (PDF → TIFF)
+    await evalJs(`(window.__pdefe.komutCalistir('arac.donustur', [${J(pdf)}]), true)`);
+    await kosul(`!!${A} && ${A}.ogeler.length === 1 && !${A}.ogeler[0].yukleniyor`, 15000);
+    await evalJs(`(${A}.hedefSec(${A}.ogeler[0], 'tiff'), true)`);
+    await kosul(`${A}.kayit.hedef().endsWith('.tif')`, 4000);
+    sonuc('4) Format Değiştir: dönüştürmeden önce Dönüştür etkin', (await devre('donustur-pencere')) === false);
+    await evalJs(`(document.querySelector('.donustur-pencere .arac-dugmeler .birincil').click(), true)`);
+    await kosul(`!document.querySelector('.donustur-sonuc').hidden || !!document.querySelector('.donustur-pencere .arac-hata:not(:empty)')`, 60000);
+    await kosul(`!${A}.ilerleme.calisiyor`, 10000); await bekle(300);
+    const tif = path.join(klasor, 'yeniden.tif');
+    sonuc('4) Dönüştürme bitti (TIFF yazıldı), Dönüştür soluk', fs.existsSync(tif) && (await devre('donustur-pencere')) === true, { tif: fs.existsSync(tif), devre: await devre('donustur-pencere'), hata: await evalJs(`document.querySelector('.donustur-pencere .arac-hata')?.textContent || ''`) });
+    await evalJs(`(document.querySelector('.donustur-pencere .arac-dugmeler .birincil').click(), true)`);
+    await bekle(400);
+    sonuc('4) Soluk Dönüştür\'e tıklamak bir şey yapmaz (ikinci dosya yok)', !fs.existsSync(path.join(klasor, 'yeniden (2).tif')) && !(await evalJs(`!!document.querySelector('.mesaj-kutusu')`)));
+    /** Sonuç gösterilmiş gibi (dönüştürme bitti) işaretler: _sonucGoster + donustur()'ün sonundaki _durumGuncelle */
+    const bitmisSay = () => evalJs(`(async () => { const p = ${A}; await p._sonucGoster([{ yol: p.ogeler[0].yol, hedef: p.kayit.coklu() ? p.kayit.cikti.klasor() + '\\\\x.tif' : p.kayit.hedef(), hedefBicim: p.ogeler[0].hedefBicim }], { tek: !p.kayit.coklu() }); p._durumGuncelle(); return document.querySelector('.donustur-pencere .arac-dugmeler .birincil').disabled; })()`);
+    // TIFF seçeneği değişince etkin
+    // Seçenekler PDEfe açık kaldıkça hatırlanır: seçili olmayan değere tıklanır
+    await evalJs(`(document.querySelector('.donustur-dpi-secim > button:not(.secili):not([aria-checked="true"])').click(), true)`);
+    sonuc('4) TIFF çözünürlüğü değişince Dönüştür etkin', (await devre('donustur-pencere')) === false);
+    sonuc('4) (yeniden bitmiş sayıldı) soluk', (await bitmisSay()) === true);
+    await evalJs(`(document.querySelector('.donustur-renk-secim > button:not(.secili):not([aria-checked="true"])').click(), true)`);
+    sonuc('4) TIFF rengi değişince etkin', (await devre('donustur-pencere')) === false);
+    await bitmisSay();
+    // Hedef biçim değişince
+    await evalJs(`(${A}.hedefSec(${A}.ogeler[0], 'udf'), true)`);
+    sonuc('4) Hedef biçim değişince etkin', (await devre('donustur-pencere')) === false);
+    await bekle(300); await bitmisSay();
+    // Kaydet'te ad değişince (kutuya yazmak) etkin; aynı ada dönünce yine soluk (imza)
+    await evalJs(`(() => { const e = document.querySelector('.donustur-pencere .arac-kayit-yeni .arac-cikti-ad'); window.__s38ad = e.value; e.value = e.value + ' yeni'; e.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+    sonuc('4) Kaydet\'te ad değişince etkin', (await devre('donustur-pencere')) === false);
+    await evalJs(`(() => { const e = document.querySelector('.donustur-pencere .arac-kayit-yeni .arac-cikti-ad'); e.value = window.__s38ad; e.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+    sonuc('4) Ad eski hâline dönünce yine soluk (yeni bir şey yok)', (await devre('donustur-pencere')) === true);
+    // Klasör değişince (Kaydet bölümünün çıktı satırı)
+    await evalJs(`(${A}.kayit.cikti.ayarla(${J(GIRDI)}, null, { elle: true }), true)`);
+    sonuc('4) Kaydet\'te klasör değişince etkin', (await devre('donustur-pencere')) === false);
+    await evalJs(`(${A}.kayit.cikti.ayarla(${J(klasor)}, null, { elle: true }), true)`);
+    sonuc('4) Klasör eski hâline dönünce yine soluk', (await devre('donustur-pencere')) === true);
+    // Dosya eklenince / çıkarılınca / liste temizlenince
+    await evalJs(`(${A}.dosyaEkle([${J(pdf2)}]), true)`);
+    await kosul(`${A}.ogeler.length === 2 && !${A}.ogeler.some((o) => o.yukleniyor)`, 15000);
+    sonuc('4) Dosya eklenince etkin', (await devre('donustur-pencere')) === false);
+    await bekle(300); await bitmisSay();
+    await evalJs(`(${A}.sil(${A}.ogeler[1]), true)`);
+    await bekle(300);
+    sonuc('4) Dosya çıkarılınca etkin', (await devre('donustur-pencere')) === false);
+    await bitmisSay();
+    await evalJs(`(document.querySelector('.donustur-pencere .donustur-temizle').click(), true)`);
+    await evalJs(`(${A}.dosyaEkle([${J(pdf)}]), true)`);
+    await kosul(`${A}.ogeler.length === 1 && !${A}.ogeler[0].yukleniyor`, 15000);
+    await bekle(300);
+    sonuc('4) Liste temizlenip aynı dosya yeniden eklenince etkin', (await devre('donustur-pencere')) === false);
+    await araclariKapat();
+    // Ayır: ayırmadan sonra soluk; aralık değişince etkin; aynı aralığa dönünce soluk
+    await evalJs(`(async () => { await window.__pdefe.dosyaAc(${J(pdf)}); return true; })()`);
+    await kosul(`!!window.__pdefe.aktif()?.gorunum?.sayfaSayisi`);
+    await evalJs(`(window.__pdefe.komutCalistir('arac.ayir'), true)`);
+    await kosul(`!!document.querySelector('.ayir-pencere .ayir-aralik')`);
+    const aralik = (m) => evalJs(`(() => { const a = document.querySelector('.ayir-pencere .ayir-aralik'); a.value = ${J(m)}; a.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+    await aralik('1, 2-3'); await bekle(400);
+    await evalJs(`(document.querySelector('.ayir-pencere .arac-dugmeler .birincil').click(), true)`);
+    await kosul(`!document.querySelector('.ayir-sonuc').hidden`, 15000); await bekle(300);
+    sonuc('4) Ayır: ayırmadan sonra Ayır soluk', (await devre('ayir-pencere')) === true);
+    await aralik('1-2'); await bekle(200);
+    sonuc('4) Ayır: aralık değişince etkin', (await devre('ayir-pencere')) === false);
+    await aralik('1, 2-3'); await bekle(200);
+    sonuc('4) Ayır: aynı aralığa dönünce soluk', (await devre('ayir-pencere')) === true);
+    await evalJs(`(document.querySelector('.ayir-dosya-kipi-secim > button[data-id="tek"]').click(), true)`); await bekle(200);
+    sonuc('4) Ayır: dosya sayısı değişince etkin', (await devre('ayir-pencere')) === false);
+    await araclariKapat();
+    // Sıkıştır: sonuç pencerede kalınca (dosya küçülmedi: başarılı sonuç sekmede açılır, pencere kapanır) soluk; bir seviyeye (seçili olana
+    // da) tıklanınca etkin. Küçülmeyen dosya için sıkıştırılmış sonucu (sekmede açılır) bir kez daha sıkıştır
+    let kucultAcik = false;
+    const kucuk = path.join(GIRDI, 'kucuk.pdf');
+    if (!fs.existsSync(kucuk)) {
+      execFileSync(PY, ['-X', 'utf8', '-c', `import pymupdf\nd = pymupdf.open()\np = d.new_page(width=200, height=200)\np.insert_text((20, 40), "a")\nd.save(${J(kucuk)}, garbage=4, deflate=True, use_objstms=1, no_new_id=True)`], { encoding: 'utf8' });
+    }
+    await sekmeleriKapat();
+    await evalJs(`(async () => { await window.__pdefe.dosyaAc(${J(kucuk)}); return true; })()`);
+    await kosul(`!!window.__pdefe.aktif()?.gorunum?.sayfaSayisi`);
+    for (let i = 0; i < 2 && !kucultAcik; i++) {
+      await evalJs(`(window.__pdefe.komutCalistir('arac.kucult'), true)`);
+      await kosul(`!!document.querySelector('.kucult-pencere .kucult-kart')`);
+      await kosul(`!document.querySelector('.kucult-pencere .tahmin.bekliyor')`, 20000);
+      await evalJs(`(document.querySelector('.kucult-pencere .arac-dugmeler .birincil').click(), true)`);
+      await kosul(`!document.querySelector('.kucult-sonuc')?.hidden || !document.querySelector('.kucult-pencere')`, 30000); await bekle(600);
+      kucultAcik = await evalJs(`!!document.querySelector('.kucult-pencere')`);
+    }
+    sonuc('4) Sıkıştır: sonuç gösterilince Sıkıştır soluk', kucultAcik && (await devre('kucult-pencere')) === true, { kucultAcik, devre: kucultAcik && await devre('kucult-pencere') });
+    await evalJs(`(document.querySelector('.kucult-pencere .kucult-kart.secili').click(), true)`); await bekle(200);
+    sonuc('4) Sıkıştır: seçili seviyeye yeniden tıklanınca etkin', (await devre('kucult-pencere')) === false);
     await araclariKapat(); await sekmeleriKapat();
     await ciktiKlasoruAyarla(path.join(UI, 'cikti'));
   }

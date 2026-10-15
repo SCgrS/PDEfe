@@ -195,15 +195,25 @@ export class AyirPenceresi {
       this.onizleme.innerHTML = kalan > 0
         ? `<b>"${ad}"</b> dosyasında yalnızca ${sayiMetni(p.sayfalar.length)} sayfa kalır <span class="soluk">(${kacis(kisaListe(p.sayfalar))})</span>; diğer ${sayiMetni(kalan)} sayfa silinir.`
         : `Bütün sayfalar seçili: <b>"${ad}"</b> aynı sayfalarla yeniden yazılır.`;
-      this.pencere?.dugmeAyarla('ayir', { devre: false });
+      this.pencere?.dugmeAyarla('ayir', { devre: this._yapildi() });
       return;
     }
     const enFazla = 12;
     const satirlar = parcalar.slice(0, enFazla).map((p) => `<li>${kacis(p.ad)} <span class="soluk">(${p.sayfalar.length} sayfa${p.sayfalar.length <= 12 ? ': ' + kacis(kisaListe(p.sayfalar)) : ''})</span></li>`);
     if (parcalar.length > enFazla) satirlar.push(`<li>ve ${sayiMetni(parcalar.length - enFazla)} dosya daha</li>`);
     this.onizleme.innerHTML = `<b>${parcalar.length} dosya</b> oluşturulacak:<ul>${satirlar.join('')}</ul>`;
-    this.pencere?.dugmeAyarla('ayir', { devre: false });
+    this.pencere?.dugmeAyarla('ayir', { devre: this._yapildi() });
   }
+
+  /** Ayırmanın ayarları: biçim, dosya sayısı, sayfa aralığı, kayıt biçimi ve hedef (birden çok dosyada klasör ve ortak ad). */
+  _imza() {
+    return JSON.stringify([this.mod, this.dosyaKipi, this.mod === 'aralik' ? this.aralikEl.value.replace(/\s+/g, '') : '', this.kayit.kip(),
+      String(this.kayit.hedef()).toLowerCase()]);
+  }
+
+  /** 0.2.7 (Format Değiştir'deki kullanıcı isteğinin aynısı: işlemden sonra bir şey değişmedikçe düğme yeniden etkin olmasın): son başarılı
+   *  ayırmanın ayarları değişmediyse Ayır soluk; sayfa aralığı, biçim, dosya sayısı, ad, klasör ya da kayıt biçimi değişince etkin. */
+  _yapildi() { return !!this._sonImza && this._imza() === this._sonImza; }
 
   /** Ayırır; kilitli / salt okunur dosya sorusunda "Yeniden dene", "Yeni belge olarak kaydet" ya da "Başka adla kaydet" seçilirse yeniden çalışır. */
   async ayir() {
@@ -270,7 +280,7 @@ export class AyirPenceresi {
     } finally {
       if (!this.pencere.kapali) {
         this.pencere.el.classList.remove('mesgul');
-        this.pencere.dugmeAyarla('ayir', { devre: false });
+        this.onizle();   // Ayır düğmesi: başarılı ayırmadan sonra bir şey değişene dek soluk (_yapildi)
       }
     }
     // Soru yazılamayan dosyayı (tek dosyada var olan hedef) ya da klasörü söyler; seçime göre adı değiştirir
@@ -343,6 +353,7 @@ export class AyirPenceresi {
     this.sonucEl.hidden = false;
     if (!dosyalar.length) { this.sonucEl.className = 'ayir-sonuc arac-uyari'; this.sonucEl.textContent = 'Hiç dosya oluşmadı.'; return; }
     if (this.pencere.kapali) return;
+    this._sonImza = this._imza();   // 0.2.7: bir şey değişene dek Ayır soluk (_yapildi)
     // Sonuç kutusu (0.2.7; Format Değiştir'deki gibi, ortak.js sonucKutusuCiz): tek dosyada ortalı, birden çok dosyada her satırda Aç sabit
     // sütunda; boyut ve sayfa sayısı yazılmaz (0.2.6'ya dek satırda ve başlıkta vardı; ad sayfaları zaten söyler)
     const tek = dosyalar.length === 1;

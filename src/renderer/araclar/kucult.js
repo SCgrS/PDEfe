@@ -52,6 +52,9 @@ export class KucultPenceresi {
     this.kayit = kayitSecimi({ baglam: this.baglam, belge: b, ad: 'Sıkıştırılmış', kip: 'yeni', diyalogBasligi: 'Sıkıştırılmış PDF' });
     govde.querySelector('.kucult-kayit').append(this.kayit.el);
     this.sonucEl = govde.querySelector('.kucult-sonuc');
+    // 0.2.7 (Format Değiştir'deki kullanıcı isteğinin aynısı): sıkıştırmadan sonra Sıkıştır, bir seviye seçilene (aynı seviyeye yeniden
+    // tıklamak da: "yeniden sıkıştırmak isterseniz bir seviye seçin") ya da Kaydet bölümünde ad, klasör veya kayıt biçimi değişene dek soluk
+    this.kayit.onDegisti(() => { if (this._sonImza && this._imza() !== this._sonImza) this._yeniden(); });
 
     this.pencere = pencereAc({
       baslik: 'Sıkıştır', govde, genislik: 700, anahtar: 'kucult', sinif: 'kucult-pencere',
@@ -86,8 +89,18 @@ export class KucultPenceresi {
   _kart(id, ad, aciklama) {
     const k = oge(`<label class="kucult-kart" data-seviye="${id}"><input type="radio" name="kucult-seviye" value="${id}"><span class="ad">${kacis(ad)}</span><span class="aciklama">${kacis(aciklama)}</span><span class="tahmin bekliyor">hesaplanıyor…</span></label>`);
     k.querySelector('input').addEventListener('change', () => this.seviyeSec(id));
-    k.addEventListener('click', () => this._tahminleriTazele());
+    k.addEventListener('click', () => { this._tahminleriTazele(); this._yeniden(); });
     return k;
+  }
+
+  /** Sıkıştırmanın ayarları: seviye, kayıt biçimi ve hedef dosya (0.2.7). */
+  _imza() { return JSON.stringify([this.seviye, this.kayit.kip(), String(this.kayit.hedef()).toLowerCase()]); }
+
+  /** Bir ayar değişti ya da seviye seçildi: Sıkıştır yeniden etkin (sürmekte olan iş yoksa). */
+  _yeniden() {
+    if (!this._sonImza) return;
+    this._sonImza = null;
+    if (!this.ilerleme.calisiyor && this.pencere && !this.pencere.kapali) this.pencere.dugmeAyarla('kucult', { devre: false });
   }
 
   seviyeSec(id) {
@@ -229,7 +242,8 @@ export class KucultPenceresi {
       }
     } finally {
       this.pencere.el.classList.remove('mesgul');
-      this.pencere.dugmeAyarla('kucult', { devre: false });
+      // Sonuç gösterildiyse (sonucGoster: _sonImza) bir şey değişene dek soluk (0.2.7)
+      this.pencere.dugmeAyarla('kucult', { devre: !!this._sonImza });
     }
     // Kilit/salt okunur sorusu yazılamayan dosyayı (özgün ya da yeni belge) adıyla söyler; seçime göre kaydetme seçimini değiştirir
     return yeniden && !this.pencere.kapali ? this.kayit.hataSor(this._sonHata) : false;
@@ -241,6 +255,7 @@ export class KucultPenceresi {
     const buyuk = yazilmadi || (yeniBoyut != null && eski && yeniBoyut >= eski);
     const fark = `${kacis(boyutMetni(eski))} → <b>${kacis(boyutMetni(yeniBoyut))}</b> (${kacis(farkMetni(eski, yeniBoyut))})`;
     this.ilerleme.gizle();
+    this._sonImza = this._imza();   // 0.2.7: bir seviye seçilene ya da Kaydet'te bir şey değişene dek Sıkıştır soluk
     this.sonucEl.hidden = false;
     this.sonucEl.className = 'kucult-sonuc ' + (buyuk ? 'arac-uyari' : 'arac-basari');
     if (uzerine && yazilmadi) {

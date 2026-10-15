@@ -266,6 +266,12 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     sonuc('ayrı ayrı: diskte üç dosya, sayfaları doğru', J(liste) === J(['Ayrılmış - Sayfa 1-3.pdf', 'Ayrılmış - Sayfa 5.pdf', 'Ayrılmış - Sayfa 7-8.pdf'])
       && J(ilkSatirlar(path.join(CIKTI, 'Ayrılmış - Sayfa 1-3.pdf'))) === J(['Sayfa 1', 'Sayfa 2', 'Sayfa 3']) && J(ilkSatirlar(path.join(CIKTI, 'Ayrılmış - Sayfa 7-8.pdf'))) === J(['Sayfa 7', 'Sayfa 8']), liste);
     await ss('03-ayir-sonuc');
+    // 0.2.7: ayırmadan sonra Ayır bir şey değişene dek soluk; aynı ayırmayı yinelemek için pencere yeniden açılır
+    sonuc('ayırmadan sonra Ayır soluk (0.2.7)', await evalJs(`document.querySelector('.ayir-pencere .arac-dugmeler .birincil').disabled`));
+    await pencereKapat();
+    await aracAc('arac.ayir', 'ayir-pencere');
+    await tikSecici('.ayir-dosya-kipi-secim > button[data-id="ayri"]');
+    await yazAralik('1-3, 5, 7-8');
     // Yeniden: var olanlar korunur, "(2)" eklenir (önce sorulur)
     await diyalogYanitla([{ secim: 0 }]);   // Devam et
     await evalJs(`document.querySelector('.arac-dugmeler .birincil').click()`);
@@ -446,7 +452,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await adYaz('kaynak_e');
     await bekle(200);
     await diyalogKaydi();
-    await diyalogYanitla([{ secim: 1 }]);   // Vazgeç
+    await diyalogYanitla([{ secim: 2 }]);   // "zaten var": Üzerine yaz | Yeni belge olarak kaydet | Vazgeç (0.2.7)
     await tikla_('.arac-dugmeler .birincil');
     await bekle(1500);
     let s = await sorular();
@@ -470,7 +476,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await adYaz('kaynak_e');
     await bekle(200);
     await diyalogKaydi();
-    await diyalogYanitla([{ secim: 1 }]);   // Vazgeç
+    await diyalogYanitla([{ secim: 2 }]);   // "zaten var": Üzerine yaz | Yeni belge olarak kaydet | Vazgeç (0.2.7)
     await tikla_('.arac-dugmeler .birincil');
     await bekle(1500);
     s = await sorular();
@@ -482,7 +488,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await kosul(`document.querySelectorAll('.birlestir-oge').length === 1 && !document.querySelector('.birlestir-oge.yukleniyor')`, 8000);
     let d = await kayitDurumu();
     await diyalogKaydi();
-    await diyalogYanitla([{ secim: 1 }]);   // Vazgeç
+    await diyalogYanitla([{ secim: 2 }]);   // "zaten var": Üzerine yaz | Yeni belge olarak kaydet | Vazgeç (0.2.7)
     await tikla_('.arac-dugmeler .birincil');
     await bekle(1500);
     s = await sorular();
