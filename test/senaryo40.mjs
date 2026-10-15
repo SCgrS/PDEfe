@@ -9,12 +9,15 @@
 //      (önceden soru çıkmadan üzerlerine yazılıyordu).
 //   4) PDF → JPG, önceki daha uzun dönüştürmeden kalan sayfa: 3 sayfalık "Dilekce" → JPG, sonra aynı adlı 2 sayfalık belge → "zaten var"
 //      sorusu "Sayfa 3"ün kalacağını söyler; Üzerine yaz: Sayfa 1 ve 2 yenilenir, Sayfa 3 silinmez, sonuçta not (önceden hiç söylenmiyordu).
+//   5) İptal, istek çekirdeğe gönderilmeden (ana süreç parametreleri denetleyip hedef klasörleri okurken) gelirse kaybolmaz: istek iptal
+//      hatasıyla biter, hiçbir dosya yazılmaz (önceden iptal çekirdeğe ulaşmıyor, dönüştürme sonuna dek sürüyordu). Aynı kimlikle sonraki
+//      istek iptal edilmiş sayılmaz.
 // Girdiler bu betikte üretilir (Python, proje .venv; gerçek belge yok): test/cikti/s40/girdi; çıktılar test/cikti/s40/<bölüm>-<koşum>.
 // Kullanım (görünmeyen masaüstü; 2. bölüm için editör yok benzetimi):
 //   $env:PDEFE_UDE_YOK="1"; powershell -ExecutionPolicy Bypass -File test\baslat_gizli.ps1 -Port 9440 -Veri "$env:TEMP\pdefe-s40-9440" -Boyut "1280,1000"   → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9440; node test\surucu.mjs betik test\senaryo40.mjs
 //   powershell -ExecutionPolicy Bypass -File test\durdur.ps1 -SurecId <PID>
-// Yalnızca bazı bölümler: $env:BOLUM="1,4".
+// Yalnızca bazı bölümler: $env:BOLUM="1,5".
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -238,6 +241,33 @@ print(json.dumps(u.yaz(${J(path.join(GIRDI, 'Dilekçe.udf'))})))`);
     sonuc('4) Sonuçta iki satır, ilkinde kalan sayfanın notu', J(satirlar.map((x) => x.ad)) === J(['Dilekce - Sayfa 1.jpg', 'Dilekce - Sayfa 2.jpg'])
       && /Önceki bir dönüştürmeden kalan "Dilekce - Sayfa 3\.jpg" klasörde duruyor/.test(satirlar[0]?.uyari || ''), satirlar);
     await araclariKapat(); await sekmeleriKapat();
+  }
+
+  // ------------------------------------------------------------ 5) Hazırlık sürerken gelen iptal kaybolmaz
+  if (bolum(5)) {
+    console.log('\n== 5) Çekirdeğe gönderilmeden gelen iptal');
+    await araclariKapat(); await sekmeleriKapat();
+    const k = yeniKlasor('iptal');
+    // Hedef klasörde birkaç yüz dosya: ana süreç dönüştürmeden önce klasörü okur (donusumOncesi)
+    for (let i = 0; i < 400; i++) fs.writeFileSync(path.join(k, `dolgu ${i}.tif`), '');
+    const A = path.join(GIRDI, 'A.pdf');
+    if (!fs.existsSync(A)) pdfUret(A, 1, 3);
+    const hedef = path.join(k, 'İptal edilen.tif');
+    // Aynı görev döngüsünde istek ve iptal: iptal, ana süreç isteği hazırlarken (çekirdeğe göndermeden) ulaşır
+    const r = await evalJs(`(async () => {
+      const id = 900000 + Math.floor(Math.random() * 90000);
+      const istek = window.pdefe.cagir('cekirdek:cagir', 'bicim_donustur', { ogeler: [{ yol: ${J(A)}, hedef: ${J(hedef)}, hedefBicim: 'tiff' }] }, id);
+      const iptal = window.pdefe.cagir('cekirdek:iptal', id);
+      const [a, b] = await Promise.allSettled([istek, iptal]);
+      // Aynı kimlikle sonraki istek (iptal tutulmaz, yalnızca hazırlanan isteğe uygulanır)
+      let sonraki;
+      try { sonraki = await window.pdefe.cagir('cekirdek:cagir', 'ping', {}, id); } catch (e) { sonraki = 'hata: ' + (e?.message || e); }
+      return { istek: a.status === 'fulfilled' ? { sonuc: a.value?.basarili } : { hata: String(a.reason?.message || a.reason) }, iptal: b.value ?? String(b.reason), sonraki };
+    })()`);
+    await bekle(1500);   // iptal ulaşmadıysa dönüştürme sürüyordur: dosyanın yazılmadığı bundan sonra denetlenir
+    sonuc('5) İstek iptal hatasıyla biter, iptal kabul edildi', /iptal edildi/i.test(r.istek?.hata || '') && r.iptal === true, r);
+    sonuc('5) Hedef yazılmadı, geçici dosya yok', !fs.existsSync(hedef) && !fs.readdirSync(k).some((a) => /pdefe-tmp/i.test(a)), fs.readdirSync(k).filter((a) => !/^dolgu/.test(a)));
+    sonuc('5) Aynı kimlikle sonraki istek iptal edilmiş sayılmaz', r.sonraki && typeof r.sonraki === 'object', r.sonraki);
   }
 
   // ------------------------------------------------------------ son

@@ -79,10 +79,18 @@ function donusumSonrasi(vardi, sonuc) {
   }
 }
 
-/** Denetlenmiş parametrelerle çekirdek çağrısı; bicim_donustur'da oluşturulan dosyalar kaydedilir (dosya:sil). */
-async function cekirdekDonusumCagir(yontem, guvenli, ilerleme, anahtar) {
-  const vardi = await donusumOncesi(yontem, guvenli);
-  const sonuc = await cekirdek.cagir(yontem, guvenli, ilerleme, anahtar);
+/**
+ * Denetlenmiş parametrelerle çekirdek çağrısı; bicim_donustur'da oluşturulan dosyalar kaydedilir (dosya:sil). hazirla(): denetlenmiş
+ * parametreleri veren söz (guvenlik.js cekirdekParametreleri). Denetim ve hedef klasörlerin okunması çekirdeğin hazırlığıdır (cekirdek.cagir):
+ * bu sürede gelen iptal kaybolmaz (0.2.7 inceleme; büyük ya da ağdaki klasörde okuma saniyeler sürebilir).
+ */
+async function cekirdekDonusumCagir(yontem, hazirla, ilerleme, anahtar) {
+  let vardi = null;
+  const sonuc = await cekirdek.cagir(yontem, async () => {
+    const guvenli = await hazirla();
+    vardi = await donusumOncesi(yontem, guvenli);
+    return guvenli;
+  }, ilerleme, anahtar);
   donusumSonrasi(vardi, sonuc);
   return sonuc;
 }
@@ -520,20 +528,19 @@ function ipcKur(ipcMain) {
   // biçimin uzantısıyla; UYAP Doküman Editörü'nün klasörü ana sürecin ayarından)
   ipcMain.handle('cekirdek:cagir', (e, yontem, params, istekId) => {
     const gonderen = e.sender;
-    const p = (DENETLENEN_YONTEMLER.has(yontem) || params?.hedef != null) ? cekirdekParametreleri(yontem, params, anlikKlasoru(), { udeYolu: ayarAl('udeYolu') }) : params;
-    return Promise.resolve(p).then((guvenli) => cekirdekDonusumCagir(yontem, guvenli,
+    const hazirla = async () => ((DENETLENEN_YONTEMLER.has(yontem) || params?.hedef != null)
+      ? cekirdekParametreleri(yontem, params, anlikKlasoru(), { udeYolu: ayarAl('udeYolu') }) : params);
+    return cekirdekDonusumCagir(yontem, hazirla,
       (ilerleme) => { if (!gonderen.isDestroyed()) gonderen.send('cekirdek:ilerleme', istekId, ilerleme); },
-      istekId == null ? null : `${gonderen.id}:${istekId}`));
+      istekId == null ? null : `${gonderen.id}:${istekId}`);
   });
   ipcMain.handle('cekirdek:iptal', (e, istekId) => cekirdek.iptal(`${e.sender.id}:${istekId}`));
   // Dosya Formatını Değiştir (0.2.6): UYAP Doküman Editörü yokken UDF → PDF'in yaklaşık çizimi (gizli pencere + printToPDF; udfYaklasik.js).
   // TIFF / Word hedefinde yaklaşık PDF çekirdeğe verilir: çağrılar arayüzünkiler gibi cekirdekParametreleri'nden geçer
   udfYaklasikKur({
     ipcMain, KOK,
-    cekirdekCagir: async (yontem, params, ilerleme, anahtar) => {
-      const guvenli = await cekirdekParametreleri(yontem, params, anlikKlasoru(), { udeYolu: ayarAl('udeYolu') });
-      return cekirdekDonusumCagir(yontem, guvenli, ilerleme, anahtar ?? null);
-    },
+    cekirdekCagir: (yontem, params, ilerleme, anahtar) => cekirdekDonusumCagir(yontem,
+      () => cekirdekParametreleri(yontem, params, anlikKlasoru(), { udeYolu: ayarAl('udeYolu') }), ilerleme, anahtar ?? null),
     cekirdekIptal: (anahtar) => cekirdek.iptal(anahtar),
   });
   ipcMain.handle('ayar:varsayilanlar', () => VARSAYILANLAR);

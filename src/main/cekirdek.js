@@ -14,6 +14,7 @@ export class Cekirdek {
     this.sayac = 0;
     this.bekleyen = new Map();     // id → {coz, reddet, ilerleme}
     this.istekEslemesi = new Map(); // renderer istek kimliği → çekirdek kimliği
+    this.hazirlananlar = new Map(); // renderer istek kimliği → { iptal }: çekirdeğe henüz gönderilmemiş istekler (cagir)
     this.hazirSozu = null;
     this.kapaniyor = false;
   }
@@ -91,15 +92,31 @@ export class Cekirdek {
     });
   }
 
+  /**
+   * Çekirdek çağrısı. params bir işlevse çağrının hazırlığıdır (0.2.7 inceleme): sözü parametreleri verir (ana sürecin denetimi, Format
+   * Değiştir'de hedef klasörlerin okunması). Hazırlık ve çekirdeğin başlatılması sürerken gelen iptal (iptal(istekId)) kaybolmaz: istek
+   * çekirdeğe gönderilmeden "İşlem iptal edildi." hatasıyla biter. Önceden iptal, istek kimliği çekirdeğinkiyle eşleşmeden (gonder) geldiyse
+   * hiçbir yerde tutulmuyordu; dönüştürme sonuna dek sürüyordu. İptal yalnızca o an hazırlanan isteğe uygulanır, saklanmaz: aynı kimlikle
+   * sonraki istek (sayfa yenilenince sayaç baştan başlar) etkilenmez.
+   */
   async cagir(yontem, params, ilerleme, istekId = null) {
     if (this.kapaniyor) throw new Error('Çekirdek çalışmıyor.');   // uygulama kapanıyor: çekirdek yeniden başlatılmaz
-    await this.baslat();
-    try { return await this.gonder(yontem, params, ilerleme, istekId); }
+    const hazirlik = istekId != null ? { iptal: false } : null;
+    if (hazirlik) this.hazirlananlar.set(istekId, hazirlik);
+    let p;
+    try {
+      p = typeof params === 'function' ? await params() : params;
+      await this.baslat();
+    } finally { if (hazirlik && this.hazirlananlar.get(istekId) === hazirlik) this.hazirlananlar.delete(istekId); }
+    if (hazirlik?.iptal) throw Object.assign(new Error('İşlem iptal edildi.'), { kod: -32800 });
+    try { return await this.gonder(yontem, p, ilerleme, istekId); }
     finally { if (istekId != null) this.istekEslemesi.delete(istekId); }
   }
 
-  /** Renderer istek kimliğine karşılık gelen çalışan işi iptal eder. */
+  /** Renderer istek kimliğine karşılık gelen işi iptal eder: çalışıyorsa çekirdeğe iptal isteği, henüz hazırlanıyorsa gönderilmez (cagir). */
   iptal(istekId) {
+    const h = this.hazirlananlar.get(istekId);
+    if (h) { h.iptal = true; return Promise.resolve(true); }
     const id = this.istekEslemesi.get(istekId);
     if (id == null) return Promise.resolve(false);
     return this.gonder('iptal', { id }).then(() => true).catch(() => false);
