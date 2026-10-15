@@ -22,7 +22,7 @@
 //        "<hedef>.<pid>-y<sıra>.pdefe-tmp.pdf", ardından rename; 0.2.6'dan beri çizim sürerken hedef klasörde geçici dosya yok). Çekirdek iptalden önce bitirmişse (geç iptal) onun yazdığı
 //        dosyalar sonuçta kalır, PDF hedefleri yazılmaz; araç geç iptalde yeni oluşan dosyaları çöp kutusuna gönderir (Birleştir'deki kural).
 //        İlerleme 'udf:yaklasikIlerleme' (istekId, { yuzde, mesaj }) ile isteyen pencereye; sonuçların uyarısı motorun notlarıdır (resim,
-//        yorum, e-imza, kesilen kısım), "görünüm yaklaşık" uyarısını araç ekler.
+//        yorum, kesilen kısım; e-imza uyarısı 0.2.7'de kalktı), "görünüm yaklaşık" uyarısını araç ekler.
 //   'udf:yaklasikIptal'    { istekId } → true | false   (dönüştürmeyi ya da istekId'li küçük resmi iptal eder)
 // İsteyen pencere kapanırsa onun işleri iptal edilir; uygulama kapanırken gizli pencereler yok edilir, geçici dosyalar silinir.
 import { app, BrowserWindow, session } from 'electron';
@@ -187,14 +187,14 @@ function sayfaSay(pdf) {
   return n || null;
 }
 
-/** Motorun özetinden kullanıcıya uyarı (UDE'nin yolundaki iletilerle aynı söyleyiş). */
+/** Motorun özetinden kullanıcıya uyarı (UDE'nin yolundaki iletilerle aynı söyleyiş). 0.2.7 (kullanıcı isteği: "Belgedeki e-imza PDF'e
+ *  taşınmaz uyarısını kaldıralım"): e-imza uyarısı yok (çekirdeğin UDE yolunda da kalktı). */
 function ozetUyarisi(ozet) {
   const u = [];
   const resim = Math.max(ozet.gosterilemeyenResim | 0, ozet.resimReddi | 0);
   if (ozet.kesildi) u.push('Belge çok büyük ya da karmaşık; bir kısmı çizilemedi.');
   if (resim) u.push(resim === 1 ? 'Bir resim çizilemedi.' : `${resim} resim çizilemedi.`);
   if (ozet.notSayisi > 0) u.push('Belgedeki yorumlar (açıklama notları) PDF\'e alınmadı.');
-  if (ozet.imza) u.push('Belgedeki e-imza PDF\'e taşınmaz.');
   return u.join(' ') || null;
 }
 

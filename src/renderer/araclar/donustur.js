@@ -27,7 +27,8 @@
 // udf:yaklasikBilgi, udf:yaklasikDonustur, udf:yaklasikIptal): satırda ve sonuçta "görünüm yaklaşık" uyarısı, küçük resim de bu çizimden.
 // Editör bulunduğu hâlde çekirdek bir UDF'yi "desteklenmiyor" diye dönüştüremezse o öğe yaklaşık çizimle yeniden denenir.
 // Sonuç: tek çıktı PDF ise sekmede açılır (ciktiyiAc) ve pencere kapanır; öbür durumlarda pencerede sonuç listesi (Ayır'daki gibi; PDF'ler
-// için Aç) ve Klasörde göster. Çekirdeğin uyarıları (e-imza taşınmadı, yorumlar alınmadı, resimler alınmadı…) gösterilir.
+// için Aç) ve Klasörde göster. Çekirdeğin uyarıları (yorumlar alınmadı, resimler alınmadı…) gösterilir; e-imza uyarısı 0.2.7'de kalktı
+// (kullanıcı isteği).
 import {
   pencereAc, pencereAcikMi, IslemIlerleme, kayitSecimi, boyutMetni, sayiMetni, kacis, hataMetni, dosyaAdi, adGovdesi, uzanti, yolAyni,
   yolBirlestir, guvenliAd, oge, segmentliSecim, kilitliHataMi, ciktiyiAc, acikBelge, degisiklikleriSor, sonucKutusuCiz,
@@ -553,7 +554,7 @@ export class DonusturPenceresi {
       nedenEl.querySelector('.metin').textContent = yaklasik ? this._yaklasikUyarisi() : `${BICIM[o.hedefBicim]?.yonelme || ''} dönüştürülemez: ${durum.neden}`;
       if (o.tur === 'udf' && this._udeYok()) nedenEl.append(oge(`<button type="button" class="donustur-baglanti" data-komut="ude" title="${kacis(UDE_YOK_IPUCU)}">UYAP Doküman Editörü'nün yerini göster</button>`));
     }
-    // Uyarılar: çekirdeğin (e-imza, açılamayan UDF), uzantısı içeriğiyle uyuşmayan dosya
+    // Uyarılar: çekirdeğin (açılamayan UDF, hareketli görüntünün ilk karesi…), uzantısı içeriğiyle uyuşmayan dosya
     const uyarilar = [];
     if (!o.hata && o.uyari) uyarilar.push(o.uyari);
     if (!o.hata && o.acilmadi && o.onizlemeUyarisi) uyarilar.push(o.onizlemeUyarisi);

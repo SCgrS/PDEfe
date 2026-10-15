@@ -161,6 +161,10 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     const adlar = ['kenar_farkli', 'yatay', 'tablolu', 'duz_xml', 'uzun', 'ozel_metin', 'yorumlu', 'ic_ice_tablo', 'saydam_antet', 'yatay_kenar', 'erisimli'];
     const ogeler = adlar.map((a) => ({ yol: path.join(GIRDI, a + '.udf'), hedef: path.join(CIKTI, a + '.pdf'), hedefBicim: 'pdf' }));
     if (TIFF_VAR) ogeler.push({ yol: G.kenar, hedef: path.join(CIKTI, 'kenar_farkli.tif'), hedefBicim: 'tiff', secenekler: { dpi: 200, renk: 'sb' } });
+    // 0.2.7 (madde 9, kullanıcı isteği: "Belgedeki e-imza PDF'e taşınmaz uyarısını kaldıralım"): e-imzalı belge (pakette sign.sgn) uyarısız
+    const imzali = path.join(GIRDI, 'imzali.udf');
+    py(`import shutil, zipfile\nshutil.copyfile(${J(G.kenar)}, ${J(imzali)})\nz = zipfile.ZipFile(${J(imzali)}, "a")\nz.writestr("sign.sgn", b"0")\nz.close()\nprint(json.dumps(1))`);
+    ogeler.push({ yol: imzali, hedef: path.join(CIKTI, 'imzali.pdf'), hedefBicim: 'pdf' });
     const t0 = Date.now();
     const r = await cagir('udf:yaklasikDonustur', { ogeler, istekId: 101 });
     const sure = Date.now() - t0;
@@ -196,6 +200,9 @@ print(json.dumps({"sayfa": d.page_count, "satirlar": out}, ensure_ascii=False))`
     sonuc('"]]>" ve betik / HTML benzeri yazı yazı olarak çizilir; betik çalışmaz (PDF\'in başlığı değişmedi)', /CDATA sonu \]\]> geçiyor; sonrası da okunmalı\./.test(o.metin[0])
       && o.metin[0].includes('<script>document.title') && o.metin[0].includes('onerror="alert(1)"') && o.metin[0].includes('&amp;') && o.baslik === 'ozel_metin', o);
     sonuc('Yorumlu belgede uyarı: yorumlar PDF\'e alınmadı', /yorumlar \(açıklama notları\) PDF'e alınmadı/.test(S['yorumlu.pdf']?.uyari || ''), S['yorumlu.pdf']);
+    const imzaBilgi = await cagir('udf:yaklasikBilgi', { yol: imzali, genislik: 160 });
+    sonuc('E-imzalı belge (0.2.7): dönüştürülür, sonuçta ve küçük resim kanalında e-imza uyarısı yok', !!S['imzali.pdf'] && !S['imzali.pdf'].hata && !/imza/i.test(S['imzali.pdf'].uyari || '')
+      && !!imzaBilgi.r?.png && !/imza/i.test(imzaBilgi.r?.uyari || ''), { s: S['imzali.pdf'], bilgi: imzaBilgi.e || imzaBilgi.r?.uyari });
     sonuc('100 kat iç içe tablo: çizilir, uyarıda "bir kısmı çizilemedi"', S['ic_ice_tablo.pdf'] && !S['ic_ice_tablo.pdf'].hata && /bir kısmı çizilemedi/.test(S['ic_ice_tablo.pdf'].uyari || ''), S['ic_ice_tablo.pdf']);
     const t = pdfOzeti(path.join(CIKTI, 'tablolu.pdf'));
     sonuc('Tablolu belge: hücre metinleri', /Hücre 1-1 deneme/.test(t.metin[0]) && /Hücre 3-3 deneme/.test(t.metin[0]), t.metin[0]?.slice(0, 120));
