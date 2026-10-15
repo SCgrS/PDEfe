@@ -9,6 +9,12 @@ hata durumunda exception fırlatır (ana döngü bunu JSON-RPC error'a çevirir)
 Kayıt: kaydol(yontemler) → kucult_tahmin, kucult, sayfalar_uygula, ayir, birlestir, gorsel_bilgi,
 boyut_tahmini, dondur_kaydet, sayfa_boyutlari, dosya_erisim.
 
+Birleştir (0.2.7): PDF ve görüntülerin (TIFF dâhil) yanında UDF ve Word belgeleri (doc, docx, docm, rtf, odt) de; öğenin türü içerikten
+(donustur.tur_bul), yoksa uzantıdan. Belgeler önce dönüştürme iş parçacığında geçici PDF'e çevrilir (UDF: UYAP Doküman Editörü'yle, Word:
+Word'le ya da LibreOffice'le; donustur.pdf_e_cevir), sonra birleştirilir; yanıt ertelenir (Ertelenmis), ilerleme ve iptal bütün iş boyunca,
+geçici PDF'ler iş bitince (çökmede sonraki çekirdek) silinir. UDE / Word yoksa istek o belgenin adıyla ve nedeniyle reddedilir (arayüz UDF'yi
+ana süreçte yaklaşık çizimle PDF'e çevirip PDF olarak verebilir). gorsel_bilgi UDF / Word için donusum_bilgi'nin bilgisini verir.
+
 Üzerine yazma: yedek alınmaz; sonuç hedefin klasöründe geçici dosyaya yazılır ve os.replace ile atomik olarak yerine konur.
 Hedef başka bir programda kilitliyse özgün dosya değişmez ve hata iletisi KILITLI_METNI'ni, salt okunursa SALT_OKUNUR_METNI'ni içerir.
 """
@@ -52,6 +58,9 @@ TEKRAR_SAYFA_BAYT = 20
 GORSEL_SAYFA_PAYI = 600
 
 GORSEL_UZANTILAR = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tif", ".tiff", ".webp", ".heic", ".heif"}
+WORD_UZANTILARI = {".doc", ".docx", ".docm", ".rtf", ".odt"}
+BELGE_TURLERI = ("udf", "word")   # Birleştir'de önce PDF'e çevrilen türler (0.2.7)
+BELGE_DONUSUM_PAYI = 60           # yüzde: belgeli Birleştir'de dönüştürme 0–60, birleştirme 60–100
 
 # Not: use_objstms=1 nesne akışlarını korur (Word ve PDF yazıcılarının çıktıları buna dayanır; kapalıyken dosya %25 büyüyebilir).
 # clean=True ölçümlerde boyutu %3 artırıp süreyi uzattığı için kullanılmıyor.
@@ -1055,15 +1064,31 @@ def _buyutmeyen(aday, duz, bicim, ozgun_jpeg, sayfa_g, sayfa_y, rect, dondurme):
 
 
 def _oge_turu(oge):
+    """Birleştir öğesinin türü: 'pdf' | 'gorsel' | 'udf' | 'word'. Öğede tür verilmişse o; değilse dosyanın içeriğinden (0.2.7,
+    donustur.tur_bul: TIFF ve görüntü 'gorsel'), içerik okunamazsa ya da tanınmazsa uzantıdan."""
     tur = oge.get("tur")
-    if tur in ("pdf", "gorsel"):
+    if tur in ("pdf", "gorsel") + BELGE_TURLERI:
         return tur
-    uz = os.path.splitext(oge.get("yol") or "")[1].lower()
+    yol = oge.get("yol") or ""
+    try:
+        from . import donustur
+        icerik = donustur.tur_bul(_mutlak(yol))[0]
+    except Exception:   # yok, okunamıyor: uzantı kuralı (hata, dosya açılırken anlaşılır iletiyle)
+        icerik = None
+    if icerik in ("pdf", "udf", "word"):
+        return icerik
+    if icerik in ("gorsel", "tiff"):
+        return "gorsel"
+    uz = os.path.splitext(yol)[1].lower()
     if uz == ".pdf":
         return "pdf"
     if uz in GORSEL_UZANTILAR:
         return "gorsel"
-    raise ValueError("Öğenin türü belirlenemedi: %s" % os.path.basename(oge.get("yol") or "?"))
+    if uz == ".udf":
+        return "udf"
+    if uz in WORD_UZANTILARI:
+        return "word"
+    raise ValueError("Öğenin türü belirlenemedi: %s" % os.path.basename(yol or "?"))
 
 
 def _pdf_ogesi_hazirla(oge, genel_kalite=None):
@@ -1093,14 +1118,78 @@ def _pdf_ogesi_hazirla(oge, genel_kalite=None):
 
 # ---------------------------------------------------------------- 5) birlestir
 def y_birlestir(p):
-    """{ogeler:[{yol, tur, kalite, sayfaBoyutu, kenar, dondurme}], hedef, genelKalite?|kalite?}
-    → {boyut, sayfa, yol}"""
+    """{ogeler:[{yol, tur?, kalite, sayfaBoyutu, kenar, dondurme}], hedef, genelKalite?|kalite?}
+    → {boyut, sayfa, yol, uyari?}. tur: 'pdf' | 'gorsel' | 'udf' | 'word' (verilmezse içerikten). UDF / Word öğesi varsa (0.2.7) yanıt
+    ertelenir: belgeler dönüştürme iş parçacığında geçici PDF'e çevrilir (ilerlemenin %0–60'ı), sonra birleştirilir (%60–100); belge PDF'e
+    çevrilemezse (UDE / Word yok, açılamıyor) istek "<ad>: <neden>" iletisiyle reddedilir; dönüştürücünün uyarıları (ör. yorumlar alınmadı)
+    sonucun uyari'sında, belgenin adıyla."""
     ilerleme = _ilerleme(p)
     ogeler = p.get("ogeler")
     if not isinstance(ogeler, list) or not ogeler:
         raise ValueError("Birleştirilecek öğe yok.")
     hedef = _mutlak(p.get("hedef"), "hedef")
     genel = p.get("genelKalite") or p.get("kalite") or None
+    for i, oge in enumerate(ogeler):
+        if not isinstance(oge, dict):
+            raise ValueError("Öğe %d geçersiz." % (i + 1))
+    turler = [_oge_turu(oge) for oge in ogeler]
+    ogeler = [dict(oge, tur=t) for oge, t in zip(ogeler, turler)]   # tür bir kez (içerikten) bulunur
+    if not any(t in BELGE_TURLERI for t in turler):
+        return _birlestir_yap(ogeler, hedef, genel, ilerleme)
+    return _belgeli_birlestir(p, ogeler, turler, hedef, genel, ilerleme)
+
+
+def _belgeli_birlestir(p, ogeler, turler, hedef, genel, ilerleme):
+    """UDF / Word öğeli Birleştir (0.2.7): dönüştürme iş parçacığında belgeler geçici PDF'e (donustur.pdf_e_cevir), sonra MuPDF kilidiyle
+    birleştirme (_birlestir_yap). Döner: Ertelenmis."""
+    from . import donustur
+    iptal_mi = p.get("_iptal_mi")
+    sayi = sum(1 for t in turler if t in BELGE_TURLERI)
+
+    def is_():
+        klasor = donustur.gecici_klasor_ac()
+        try:
+            hazir, uyarilar, j = [], [], 0
+            for i, (oge, tur) in enumerate(zip(ogeler, turler)):
+                if tur not in BELGE_TURLERI:
+                    hazir.append(oge)
+                    continue
+                yol = _mutlak(oge.get("yol"))
+                ad = os.path.basename(yol)
+                _dosya_var(yol)
+                il = donustur.AsamaIlerlemesi(ilerleme, iptal_mi, BELGE_DONUSUM_PAYI * j / sayi, BELGE_DONUSUM_PAYI / float(sayi),
+                                              "%s PDF'e çevriliyor (%d/%d)" % (ad, j + 1, sayi))
+                il.bildir(0)
+                cikti = os.path.join(klasor, "%d.pdf" % i)
+                try:
+                    r = donustur.pdf_e_cevir(yol, cikti, il)
+                except donustur.OgeHatasi as e:
+                    raise ValueError("%s: %s" % (ad, e))
+                if r.get("uyari"):
+                    uyarilar.append("%s: %s" % (ad, r["uyari"]))
+                hazir.append(dict(oge, yol=cikti, tur="pdf"))
+                j += 1
+            birlesim = lambda y, m="": ilerleme(BELGE_DONUSUM_PAYI + int(y * (100 - BELGE_DONUSUM_PAYI) / 100.0), m)   # noqa: E731
+            with _cekirdek().mupdf_kilidi:
+                sonuc = _birlestir_yap(hazir, hedef, genel, birlesim)
+            if uyarilar:
+                sonuc["uyari"] = " ".join(uyarilar)
+            return sonuc
+        finally:
+            shutil.rmtree(klasor, ignore_errors=True)
+
+    def baslat(bitir):
+        onceki = donustur.arka_planda(is_, bitir)
+        if onceki:
+            try:
+                ilerleme(0, "Önceki dönüştürme bitince başlayacak…")
+            except Exception:
+                pass   # iptal: iş başlayınca görür
+    return _cekirdek().Ertelenmis(baslat)
+
+
+def _birlestir_yap(ogeler, hedef, genel, ilerleme):
+    """Birleştirmenin kendisi (PDF ve görüntü öğeleri; işçide ya da kilitle dönüştürme iş parçacığında). Döner: {boyut, sayfa, yol}."""
     yeni = pymupdf.open()
     toc_toplam = []
     ilk_pdf = None
@@ -1112,6 +1201,8 @@ def y_birlestir(p):
             ad = os.path.basename(oge.get("yol") or "?")
             ilerleme(int(90 * i / toplam), "%s ekleniyor (%d/%d)" % (ad, i + 1, toplam))
             tur = _oge_turu(oge)
+            if tur in BELGE_TURLERI:
+                raise ValueError("Belge önce PDF'e çevrilmeli: %s" % ad)   # _belgeli_birlestir çevirir
             if tur == "pdf":
                 kaynak, toc = _pdf_ogesi_hazirla(oge, genel)
                 try:
@@ -1150,13 +1241,36 @@ def y_birlestir(p):
 
 
 # ---------------------------------------------------------------- 6) gorsel_bilgi
+def _belge_bilgisi(p, yol):
+    """gorsel_bilgi'nin UDF / Word yanıtı (0.2.7): donusum_bilgi'nin bilgisi (tur 'udf' | 'word', alt, boyut, sayfa, genislik / yukseklik,
+    png? (UDF'de UYAP Doküman Editörü'yle, ertelenmiş), uyari?, imzali? …) + pdfeCevrilebilir (Birleştir bu bilgisayarda PDF'e
+    çevirebiliyor mu) ve neden. Word'ün küçük resmi yok (arayüz türün yer tutucusunu gösterir)."""
+    from . import donustur
+    r = donustur.y_donusum_bilgi(dict(p, yol=yol))
+
+    def bicimle(b):
+        b = dict(b)
+        pdf = next((h for h in b.get("hedefler") or [] if h.get("bicim") == "pdf"), None)
+        b["pdfeCevrilebilir"] = bool(pdf and pdf.get("var"))
+        if pdf and not pdf.get("var") and pdf.get("neden"):
+            b["neden"] = pdf["neden"]
+        return b
+    Ertelenmis = _cekirdek().Ertelenmis
+    if isinstance(r, Ertelenmis):
+        ic = r
+        return Ertelenmis(lambda bitir: ic.baslat(lambda s, h: bitir(bicimle(s) if h is None else None, h)))
+    return bicimle(r)
+
+
 def y_gorsel_bilgi(p):
     """{yol, genislik?=220} → {tur, genislik, yukseklik, boyut, sayfa?, png (küçük resim, base64),
-    pngGenislik, pngYukseklik}"""
+    pngGenislik, pngYukseklik}. UDF / Word (0.2.7): _belge_bilgisi (UDF'nin ön izlemesi ertelenir; onizleme: false ile hızlı yanıt)."""
     yol = _mutlak(p.get("yol"))
     _dosya_var(yol)
     boyut = os.path.getsize(yol)
     tur = _oge_turu({"yol": yol, "tur": p.get("tur")})
+    if tur in BELGE_TURLERI:
+        return _belge_bilgisi(p, yol)
     try:
         kucuk_g = int(p.get("genislik") or 220)
     except (TypeError, ValueError):
@@ -1209,6 +1323,10 @@ def y_boyut_tahmini(p):
                 if not isinstance(oge, dict):
                     raise ValueError("Öğe %d geçersiz." % (i + 1))
                 r = _oge_boyut_tahmini(oge, genel)
+                if r.get("tahminYok"):   # UDF / Word (0.2.7): toplama girmez
+                    sonuclar.append(r)
+                    ilerleme(int(100 * (i + 1) / max(len(ogeler), 1)), "%d/%d öğe ölçüldü" % (i + 1, len(ogeler)))
+                    continue
                 toplam += r["tekrar"] if r["ozet"] in gorulen else r["boyut"]
                 gorulen.add(r["ozet"])
                 sonuclar.append(r)
@@ -1282,6 +1400,9 @@ def _oge_boyut_tahmini(oge, genel):
     _dosya_var(yol)
     st = os.stat(yol)
     dosya = (os.path.normcase(yol), st.st_mtime, st.st_size)
+    if tur in BELGE_TURLERI:   # 0.2.7: UDF / Word'ün PDF boyutu dönüştürmeden (UDE / Word) kestirilemez; toplama girmez
+        return {"boyut": None, "tahmin": False, "tahminYok": True, "ozet": "belge:" + _dosya_ozeti(yol, dosya), "tekrar": 0,
+                "neden": "UDF'nin boyutu dönüştürülmeden kestirilemiyor." if tur == "udf" else "Word belgesinin boyutu dönüştürülmeden kestirilemiyor."}
     sayfa_boyutu = oge.get("sayfaBoyutu") or "a4"
     kenar = float(oge.get("kenar") or 0) if sayfa_boyutu != "orijinal" else 0.0   # orijinal boyutta kenar yok
     anahtar = dosya + (tur, kalite) + ((sayfa_boyutu, kenar, _dondurme(oge.get("dondurme"))) if tur == "gorsel" else ())

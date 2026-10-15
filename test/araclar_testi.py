@@ -164,26 +164,58 @@ class Cagirici:
             import pdefe_core
             self.yontemler = pdefe_core.YONTEMLER
 
-    def cagir(self, yontem, params):
+    def cagir(self, yontem, params, iptal_sonra=None, sure=600):
+        """iptal_sonra=N: N. ilerleme bildiriminden sonra iptal (exe'de 'iptal' isteği, modülde _iptal_mi). Ertelenmiş yanıt (0.2.7:
+        UDF / Word öğeli birlestir, UDF'nin gorsel_bilgi'si) beklenir."""
         ilerlemeler = []
         if self.surec:
             self.sayac += 1
-            self.surec.stdin.write(json.dumps({"id": self.sayac, "method": yontem, "params": params}, ensure_ascii=False) + "\n")
+            kimlik = self.sayac
+            self.surec.stdin.write(json.dumps({"id": kimlik, "method": yontem, "params": params}, ensure_ascii=False) + "\n")
             self.surec.stdin.flush()
             while True:
                 satir = self.surec.stdout.readline()
                 if not satir:
                     raise RuntimeError("exe kapandı: " + self.surec.stderr.read())
                 msg = json.loads(satir)
+                if msg.get("id") != kimlik:
+                    continue
                 if "progress" in msg:
                     ilerlemeler.append(msg["progress"])
+                    if iptal_sonra is not None and len(ilerlemeler) == iptal_sonra:
+                        self.sayac += 1
+                        self.surec.stdin.write(json.dumps({"id": self.sayac, "method": "iptal", "params": {"id": kimlik}}) + "\n")
+                        self.surec.stdin.flush()
                     continue
                 if "error" in msg:
                     raise RuntimeError(msg["error"]["message"] + "\n" + (msg["error"].get("data") or ""))
                 return msg["result"], ilerlemeler
+        import pdefe_core
+        iptal_mi = lambda: iptal_sonra is not None and len(ilerlemeler) >= iptal_sonra   # noqa: E731
+
+        def ilerleme(y, m=""):
+            if iptal_mi():
+                raise pdefe_core.IptalEdildi()
+            ilerlemeler.append({"yuzde": y, "mesaj": m})
         p = dict(params)
-        p["_ilerleme"] = lambda y, m="": ilerlemeler.append({"yuzde": y, "mesaj": m})
-        return self.yontemler[yontem](p), ilerlemeler
+        p["_ilerleme"] = ilerleme
+        p["_iptal_mi"] = iptal_mi
+        try:
+            r = self.yontemler[yontem](p)
+        except pdefe_core.IptalEdildi:
+            raise RuntimeError("İşlem iptal edildi.")
+        if isinstance(r, pdefe_core.Ertelenmis):
+            import threading
+            olay, kutu = threading.Event(), {}
+            r.baslat(lambda s, h: (kutu.update(s=s, h=h), olay.set()))
+            if not olay.wait(sure):
+                raise RuntimeError("ertelenmiş yanıt gelmedi")
+            if kutu["h"] is not None:
+                if isinstance(kutu["h"], (pdefe_core.IptalEdildi, InterruptedError)):
+                    raise RuntimeError("İşlem iptal edildi.")
+                raise kutu["h"]
+            r = kutu["s"]
+        return r, ilerlemeler
 
     def kapat(self):
         if self.surec:
@@ -1012,6 +1044,142 @@ def test_gorsel_yonu(c):
                  "tahmin %d, dosya %d bayt" % (t["boyut"], os.path.getsize(yollar[6])))
 
 
+# ---------------------------------------------------------------- Birleştir: UDF ve Word belgeleri (0.2.7)
+def kurgusal_udf(yol, paragraflar, baslik="DENEME BELGESİ"):
+    """Kişisel veri içermeyen sentetik UDF (udf_donusum_testi.UdfYaz'ın kısa hâli): başlık + paragraflar, A4, kenarlar 2,5 cm."""
+    import zipfile
+    havuz, xml = [], []
+    uz = 0
+    for i, metin in enumerate([baslik] + paragraflar):
+        havuz.append(metin + "\n")
+        hiza = 1 if i == 0 else 3
+        xml.append('<paragraph Alignment="%d"><content startOffset="%d" length="%d" family="Times New Roman" size="12"%s /><content '
+                   'startOffset="%d" length="1" family="Times New Roman" size="12" /></paragraph>'
+                   % (hiza, uz, len(metin), ' bold="true"' if i == 0 else "", uz + len(metin)))
+        uz += len(metin) + 1
+    x = ('<?xml version="1.0" encoding="UTF-8" ?> \n\n<template format_id="1.8" >\n<content><![CDATA[' + "".join(havuz) + ']]></content>'
+         '<properties><pageFormat mediaSizeName="1" leftMargin="70.87" rightMargin="70.87" topMargin="70.87" bottomMargin="70.87" '
+         'paperOrientation="1" headerFOffset="20.0" footerFOffset="20.0" /></properties>\n<elements resolver="hvl-default" >\n'
+         + "\n".join(xml) + '\n</elements><styles><style name="default" description="Geçerli" family="Dialog" size="12" bold="false" '
+         'italic="false" foreground="-13421773" /><style name="hvl-default" family="Times New Roman" size="12" description="Gövde" />'
+         '</styles>\n</template>\n')
+    with zipfile.ZipFile(yol, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("content.xml", x.encode("utf-8"))
+    return yol
+
+
+def kurgusal_docx(yol, paragraflar):
+    import docx
+    belge = docx.Document()
+    belge.add_heading("Deneme Word belgesi", level=1)
+    for p in paragraflar:
+        belge.add_paragraph(p)
+    belge.save(yol)
+    return yol
+
+
+PARAGRAF = ("Birleştirme deneme paragrafı: dilekçe ekleri tek PDF olarak gönderilir; Türkçe harfler ğüşıöç İĞÜŞÖÇ ve sayılar 2099/123 "
+            "yerinde kalmalı. ")
+
+
+def gecici_donustur_klasorleri():
+    import tempfile
+    on = "pdefe-donustur-%d-" % os.getpid()
+    return sorted(a for a in os.listdir(tempfile.gettempdir()) if a.startswith(on))
+
+
+def test_birlestir_belgeler(c, g):
+    """0.2.7 (madde 2): Birleştir UDF ve Word belgelerini de alır; önce PDF'e çevirir, sonra sırasıyla birleştirir. UDE / Word bu bilgisayarda
+    yoksa istek belgenin adıyla reddedilir."""
+    klasor = os.path.join(CIKTI, "birlestir_belgeler")
+    shutil.rmtree(klasor, ignore_errors=True)
+    os.makedirs(klasor)
+    udf = kurgusal_udf(os.path.join(klasor, "ek-udf.udf"), [PARAGRAF * 3, PARAGRAF * 2])
+    docx_yol = kurgusal_docx(os.path.join(klasor, "ek-word.docx"), [PARAGRAF * 2])
+    yetenek, _ = c.cagir("donusum_yetenekleri", {})
+    ude_var = bool((yetenek.get("udf") or {}).get("var"))
+    word_var = bool((yetenek.get("word") or {}).get("var"))
+    # Tür içerikten: uzantısı yanıltıcı dosyalar
+    png_adi_pdf = os.path.join(klasor, "aslinda_png.pdf")
+    shutil.copyfile(g["webp"], png_adi_pdf)
+    r, _ = c.cagir("gorsel_bilgi", {"yol": png_adi_pdf})
+    kaydet_sonuc("birlestir/belge tür", "görüntü .pdf adıyla", r.get("tur") == "gorsel", r.get("tur"))
+    r, _ = c.cagir("gorsel_bilgi", {"yol": udf, "onizleme": False})
+    kaydet_sonuc("gorsel_bilgi/udf", "ek-udf.udf (ön izlemesiz)", r.get("tur") == "udf" and r.get("alt") == "zip" and r.get("pdfeCevrilebilir") is ude_var
+                 and abs((r.get("genislik") or 0) - 595.28) < 1 and "png" not in r, {k: r.get(k) for k in ("tur", "alt", "pdfeCevrilebilir", "genislik", "neden")})
+    if ude_var:
+        r, _ = c.cagir("gorsel_bilgi", {"yol": udf, "genislik": 160})
+        kaydet_sonuc("gorsel_bilgi/udf", "ek-udf.udf (UDE ön izlemesi)", r.get("sayfa") == 1 and r.get("pngGenislik") == 160 and r.get("png"),
+                     {k: r.get(k) for k in ("sayfa", "pngGenislik", "onizlemeUyarisi")})
+    r, _ = c.cagir("gorsel_bilgi", {"yol": docx_yol})
+    kaydet_sonuc("gorsel_bilgi/word", "ek-word.docx", r.get("tur") == "word" and r.get("alt") == "docx" and r.get("pdfeCevrilebilir") is word_var,
+                 {k: r.get(k) for k in ("tur", "alt", "pdfeCevrilebilir", "neden")})
+    t, _ = c.cagir("boyut_tahmini", {"ogeler": [{"yol": udf}, {"yol": YATAY, "tur": "pdf"}], "kalite": "orijinal"})
+    kaydet_sonuc("boyut_tahmini/belge", "UDF tahmin edilmez, toplama girmez", t["ogeler"][0].get("tahminYok") is True and t["ogeler"][0].get("neden")
+                 and t["toplam"] == t["ogeler"][1]["boyut"], {"udf": t["ogeler"][0], "toplam": t["toplam"]})
+    # Karışık birleştirme: PDF + UDF + görüntü + Word (öğede tür verilmeden: içerikten)
+    hedef = os.path.join(klasor, "birlesik.pdf")
+    ogeler = [{"yol": YATAY}, {"yol": udf}, {"yol": g["bmp"], "sayfaBoyutu": "a4"}] + ([{"yol": docx_yol}] if word_var else [])
+    once = gecici_donustur_klasorleri()
+    if not ude_var:
+        try:
+            c.cagir("birlestir", {"ogeler": ogeler, "hedef": hedef})
+            kaydet_sonuc("birlestir/belge", "UDE yok", False, "hata beklenirdi")
+        except Exception as e:
+            kaydet_sonuc("birlestir/belge", "UDE yok: belgenin adıyla reddedilir", "ek-udf.udf" in str(e) and not os.path.exists(hedef), str(e).splitlines()[0])
+        return
+    t0 = time.time()
+    r, il = c.cagir("birlestir", {"ogeler": ogeler, "hedef": hedef, "genelKalite": "orijinal"})
+    sure = time.time() - t0
+    d = pymupdf.open(hedef)
+    try:
+        n = d.page_count
+        yatay_n = belge_ozet(YATAY)["sayfa"]
+        udf_metni = d[yatay_n].get_text()
+        word_metni = d[yatay_n + 2].get_text() if word_var and n > yatay_n + 2 else ""
+        yazi_tipleri = [f for pg in d for f in pg.get_fonts(full=True)]
+    finally:
+        d.close()
+    beklenen = yatay_n + 1 + 1 + (1 if word_var else 0)
+    yuzdeler = [x["yuzde"] for x in il]
+    kaydet_sonuc("birlestir/belge", "PDF + UDF + BMP%s: sırayla, sayfa %d" % (" + Word" if word_var else "", beklenen),
+                 n == beklenen and r.get("sayfa") == beklenen and "ğüşıöç" in udf_metni and "DENEME BELGESİ" in udf_metni
+                 and (not word_var or "Deneme Word belgesi" in word_metni),
+                 "sayfa %d/%d, UDF metni %s, Word metni %s, %.1f sn" % (n, beklenen, "ğüşıöç" in udf_metni, "Deneme Word" in word_metni, sure))
+    kaydet_sonuc("birlestir/belge", "ilerleme: dönüştürme %0–60, birleştirme %60–100, artan",
+                 yuzdeler == sorted(yuzdeler) and any(y < 60 for y in yuzdeler) and any(y >= 60 for y in yuzdeler)
+                 and any("PDF'e çevriliyor" in x["mesaj"] for x in il), "%d bildirim, %s…%s" % (len(il), yuzdeler[:3], yuzdeler[-3:]))
+    kaydet_sonuc("birlestir/belge", "UDF'nin yazı tipleri gömülü", yazi_tipleri and all(f[1] not in ("n/a", "") for f in yazi_tipleri
+                 if "Times" in f[3] or "Arial" in f[3]), len(yazi_tipleri))
+    kaydet_sonuc("birlestir/belge", "geçici PDF'ler silindi", gecici_donustur_klasorleri() == once, gecici_donustur_klasorleri())
+    # İptal: belge dönüştürülürken
+    hedef2 = os.path.join(klasor, "iptal.pdf")
+    buyuk = kurgusal_udf(os.path.join(klasor, "buyuk.udf"), [PARAGRAF * 6] * 300)
+    try:
+        c.cagir("birlestir", {"ogeler": [{"yol": YATAY}, {"yol": buyuk}], "hedef": hedef2}, iptal_sonra=2)
+        kaydet_sonuc("birlestir/belge iptal", "buyuk.udf", False, "iptal edilmedi")
+    except Exception as e:
+        kaydet_sonuc("birlestir/belge iptal", "dönüştürürken iptal: hedef yok, geçici PDF yok", "iptal" in str(e).lower() and not os.path.exists(hedef2)
+                     and gecici_donustur_klasorleri() == once, str(e).splitlines()[0])
+    # UDE yokken (benzetim): istek belgenin adıyla ve nedeniyle reddedilir
+    if not c.surec:
+        from islemler import donustur as D
+        donusturucu = D._DONUSTURUCULER[("udf", "pdf")]
+        eski = donusturucu._hazir
+        donusturucu._hazir = lambda: (False, "Bu bilgisayarda UYAP Doküman Editörü bulunamadı.")
+        try:
+            r, _ = c.cagir("gorsel_bilgi", {"yol": udf, "onizleme": False})
+            kaydet_sonuc("gorsel_bilgi/udf", "UDE yok: PDF'e çevrilemez, nedeni", r.get("pdfeCevrilebilir") is False and "UYAP" in (r.get("neden") or ""), r.get("neden"))
+            try:
+                c.cagir("birlestir", {"ogeler": [{"yol": YATAY}, {"yol": udf}], "hedef": hedef2})
+                kaydet_sonuc("birlestir/belge", "UDE yok", False, "hata beklenirdi")
+            except Exception as e:
+                kaydet_sonuc("birlestir/belge", "UDE yok: \"ek-udf.udf: … bulunamadı\", hedef yazılmadı", "ek-udf.udf" in str(e) and "bulunamadı" in str(e)
+                             and not os.path.exists(hedef2), str(e).splitlines()[0])
+        finally:
+            donusturucu._hazir = eski
+
+
 def main():
     global NOTLU
     exe = None
@@ -1052,6 +1220,7 @@ def main():
         ("birlestir/yön", lambda: test_gorsel_yonu(c)),
         ("birlestir/üzerine", lambda: test_birlestir_uzerine(c)),
         ("birlestir/tiff", lambda: test_birlestir_tiff(c)),
+        ("birlestir/belgeler", lambda: test_birlestir_belgeler(c, g)),
         ("dondur_kaydet", lambda: test_dondur_kaydet(c)),
     ]
     for ad, f in testler:

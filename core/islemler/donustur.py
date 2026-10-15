@@ -1768,6 +1768,75 @@ donusturucu_kaydet("gorsel", "pdf", _gorsel_pdf, _gorsel_hazir)
 donusturucu_kaydet("pdf", "gorsel", _pdf_gorsel, _jpg_yazici_hazir)
 
 
+# ---------------------------------------------------------------- başka araçlar için: belgeyi PDF'e (0.2.7, Birleştir)
+class AsamaIlerlemesi:
+    """Başka bir aracın işindeki dönüştürme adımının ilerlemesi (Baglam'a verilir): oran (0–1) yüzdeye çevrilir (taban + aralık × oran),
+    bildirim seyreltilir (yüzde değişince ya da 0,25 sn'de bir); her çağrıda iptale (iptal_mi) ve çekirdeğin kapanışına bakılır."""
+
+    def __init__(self, yaz, iptal_mi, taban, aralik, on=""):
+        self._yaz, self._iptal_mi = yaz, iptal_mi
+        self.taban, self.aralik, self.on = float(taban), float(aralik), on
+        self._son_yuzde, self._son_zaman = -1, 0.0
+
+    def denetle(self):
+        if _kapaniyor.is_set() or (callable(self._iptal_mi) and self._iptal_mi()):
+            raise _cekirdek().IptalEdildi()
+
+    def bildir(self, oran, mesaj=""):
+        self.denetle()
+        yuzde = int(self.taban + self.aralik * min(max(float(oran or 0), 0.0), 1.0))
+        simdi = time.monotonic()
+        if not callable(self._yaz) or (yuzde == self._son_yuzde and simdi - self._son_zaman < 0.25):
+            return
+        self._son_yuzde, self._son_zaman = yuzde, simdi
+        self._yaz(yuzde, self.on + (": " + mesaj if mesaj and self.on else mesaj))
+
+
+def pdf_e_cevir(yol, cikti, il):
+    """PDF olmayan belgeyi (UDF, Word, TIFF, görüntü) cikti'ye PDF olarak yazar (0.2.7, Birleştir'de belgeler önce PDF'e). il: bildir(oran,
+    mesaj) ve denetle() taşıyan nesne (AsamaIlerlemesi). DÖNÜŞTÜRME İŞ PARÇACIĞINDA çağrılır (arka_planda): Word'ün COM'u ve UDE köprüsünün
+    oturumu oraya bağlı. Döner: dönüştürücünün sonucu ({sayfa?, uyari?, ...}). Yapılamazsa OgeHatasi ('desteklenmiyor': UDE / Java / Word
+    yok, nedeniyle; 'taninmadi', 'bozuk', …)."""
+    tur, alt = tur_bul(yol)
+    ad = os.path.basename(yol)
+    if tur == "bilinmeyen":
+        raise OgeHatasi("taninmadi", "Dosyanın biçimi tanınmadı: %s" % ad)
+    if tur == "pdf":
+        raise OgeHatasi("ayni_bicim", "Dosya zaten PDF: %s" % ad)
+    _girdi_denetle(yol, tur, alt)
+    plan = _plan(tur, "pdf")
+    ok, neden = _plan_hazir(plan, alt)
+    if not ok:
+        raise OgeHatasi("desteklenmiyor", neden or "Bu dönüştürme bu bilgisayarda yapılamıyor.")
+    baglam = Baglam(alt, il)
+    try:
+        r = plan[0].islev(yol, cikti, {}, il.bildir, baglam)
+    finally:
+        baglam.temizle()
+    if not os.path.isfile(cikti):
+        raise OgeHatasi("hata", "Dönüştürme çıktı üretmedi: %s" % ad)
+    return r if isinstance(r, dict) else {}
+
+
+def pdf_e_cevrilebilir(tur, alt=None):
+    """Bu türden PDF'e çevirme bu bilgisayarda yapılabiliyor mu: (bool, neden)."""
+    try:
+        return _plan_hazir(_plan(tur, "pdf"), alt)
+    except OgeHatasi as e:
+        return False, str(e)
+
+
+def arka_planda(is_, bitir):
+    """is_() dönüştürme iş parçacığında, sıradaki dönüştürmelerden sonra çalışır; bitince bitir(sonuc, hata). Döner: önünde bekleyen iş
+    sayısı (0.2.7, Birleştir'in belgeli işi)."""
+    return _calistir(is_, bitir)
+
+
+def gecici_klasor_ac():
+    """Çekirdeğin pid'iyle adlanan geçici klasör (çökme olursa sonraki çekirdek kalintilari_temizle ile siler); işi biten siler."""
+    return tempfile.mkdtemp(prefix="%s%d-" % (GECICI_ONEKI, os.getpid()))
+
+
 # ---------------------------------------------------------------- boyut tahmini (0.2.7, madde 8)
 # donusum_tahmini {yollar: [yol] (ya da yol), hedefBicim: 'tiff' | 'gorsel', renk?: 'sb' | 'gri' | 'renkli' (TIFF; varsayılan 'sb')}
 #   → (Ertelenmis; tahmin iş parçacığında) {ideal: bayt (300 dpi), dusuk: bayt (200 dpi), sayfa, tahmin (örneklendi mi), eksik: [yol],
