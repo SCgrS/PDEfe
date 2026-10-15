@@ -1232,7 +1232,10 @@ export async function varOlanaYazmaSor(baglam, cikti, hedef) {
   });
   if (secim === 0) { cikti?.onayla?.(hedef); return true; }
   if (secim !== 1) return false;
-  cikti.ayarla(klasorAdi(hedef), yeniAd, { elle: true });
+  // Numaralı ad elle yazılmış sayılmaz (0.2.7 inceleme): girdi değişince (Format Değiştir'de listeyi temizleyip başka dosya) araç yine yeni
+  // girdinin adını önerir. Elle sayılsaydı "A (1)" sonraki dosyada da kalır, B "A (2)" adıyla kaydedilirdi. Kullanıcının kendi yazdığı ad
+  // elle kalır (bayrak yalnızca kurulur, burada kalkmaz)
+  cikti.ayarla(klasorAdi(hedef), yeniAd);
   return true;
 }
 
