@@ -196,6 +196,77 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
     await araclariKapat(); await sekmeleriKapat();
   }
 
+  // ------------------------------------------------------------ 3) "zaten var" sorusunda "Yeni belge olarak kaydet"
+  if (bolum(3)) {
+    console.log('\n== 3) "zaten var" sorusu: Üzerine yaz | Yeni belge olarak kaydet | Vazgeç');
+    await araclariKapat(); await sekmeleriKapat();
+    const klasor = path.join(UI, 'zatenvar'); fs.rmSync(klasor, { recursive: true, force: true }); fs.mkdirSync(klasor, { recursive: true });
+    await ciktiKlasoruAyarla(klasor);
+    const pdf = ornekPdf('zatenvar.pdf', 2, 'Zaten var örneği');
+    fs.writeFileSync(path.join(klasor, 'Sigorta Başvuru.udf'), 'eski');
+    await evalJs(`(window.__s38m = window.__s38m || {}, true)`);
+    await evalJs(`(async () => { window.__s38m.d = await import('pdefe://app/src/renderer/araclar/donustur.js'); return true; })()`);
+    const A = 'window.__s38m.d.acikDonusturPenceresi()';
+    await evalJs(`(window.__pdefe.komutCalistir('arac.donustur', [${J(pdf)}]), true)`);
+    await kosul(`!!${A} && ${A}.ogeler.length === 1 && !${A}.ogeler[0].yukleniyor`, 15000);
+    await evalJs(`(async () => { const p = ${A}; await p.kayit.hazir; p.kayit.cikti.ayarla(${J(klasor)}, 'Sigorta Başvuru', { elle: true }); return true; })()`);
+    /** Kaydet denetimini sorunun yanıtıyla çalıştırır: { sonuc, soru, hedef, kutu } */
+    const denetle = (secim) => evalJs(`(async () => { const p = ${A}; const o = { secim: ${secim} }; window.__pdefeOtoYanit = o;
+      let sonuc; try { sonuc = await p.kayit.denetle(); } finally { delete window.__pdefeOtoYanit; }
+      return { sonuc: sonuc instanceof Error ? 'hata: ' + sonuc.message : sonuc, soru: o.son ? { mesaj: o.son.mesaj, ayrinti: o.son.ayrinti, dugmeler: o.son.dugmeler, varsayilan: o.son.varsayilan, iptal: o.son.iptal } : null,
+        hedef: p.kayit.hedef(), kutu: document.querySelector('.donustur-pencere .arac-kayit-yeni .arac-cikti-ad').value }; })()`);
+    let r = await denetle(2);
+    sonuc('3) Soru: "… zaten var.", düğmeler Üzerine yaz | Yeni belge olarak kaydet | Vazgeç; varsayılan Yeni belge, Esc Vazgeç; yeni ad soruda',
+      !!r.soru && r.soru.mesaj === '"Sigorta Başvuru.udf" zaten var.' && J(r.soru.dugmeler) === J(['Üzerine yaz', 'Yeni belge olarak kaydet', 'Vazgeç']) && r.soru.varsayilan === 1 && r.soru.iptal === 2
+      && r.soru.ayrinti.includes('"Sigorta Başvuru (1).udf"'), r);
+    sonuc('3) Vazgeç: işlem yapılmaz, ad değişmez', r.sonuc === 'vazgec' && path.basename(r.hedef) === 'Sigorta Başvuru.udf' && r.kutu === 'Sigorta Başvuru', r);
+    // Kutunun kendisi: üç düğme aynı satırda, odak (Enter) Yeni belge olarak kaydet'te; Esc Vazgeç
+    await evalJs(`(window.__s38d = ${A}.kayit.denetle(), true)`);
+    await kosul(`!!document.querySelector('.mesaj-kutusu .dugmeler button')`);
+    const kutuDugmeleri = await evalJs(`(() => { const d = [...document.querySelectorAll('.mesaj-kutusu .dugmeler button')]; return { metin: d.map((b) => b.textContent), odak: document.activeElement?.textContent, birincil: d.map((b) => b.classList.contains('birincil')), ust: d.map((b) => Math.round(b.getBoundingClientRect().top)) }; })()`);
+    await ss('03-zaten-var-sorusu');
+    await evalJs(`(document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })), true)`);
+    const escSonucu = await evalJs(`window.__s38d.then((x) => x)`);
+    sonuc('3) Kutuda üç düğme aynı satırda, Yeni belge olarak kaydet odakta (birincil); Esc Vazgeç gibi', J(kutuDugmeleri.metin) === J(['Üzerine yaz', 'Yeni belge olarak kaydet', 'Vazgeç'])
+      && kutuDugmeleri.odak === 'Yeni belge olarak kaydet' && J(kutuDugmeleri.birincil) === J([false, true, false]) && new Set(kutuDugmeleri.ust).size === 1 && escSonucu === 'vazgec', { kutuDugmeleri, escSonucu });
+    r = await denetle(1);
+    sonuc('3) Yeni belge olarak kaydet: hedef "Sigorta Başvuru (1).udf", ad kutusunda "Sigorta Başvuru (1)", işlem sürer', r.sonuc === 'devam' && path.resolve(r.hedef) === path.resolve(path.join(klasor, 'Sigorta Başvuru (1).udf')) && r.kutu === 'Sigorta Başvuru (1)', r);
+    // "(1)" de varsa "(2)"; ad "(1)" ile bitiyorsa sayı artar
+    fs.writeFileSync(path.join(klasor, 'Sigorta Başvuru (1).udf'), 'eski');
+    await evalJs(`(${A}.kayit.cikti.ayarla(${J(klasor)}, 'Sigorta Başvuru', { elle: true }), true)`);
+    r = await denetle(1);
+    sonuc('3) "(1)" de varsa "(2)"', r.sonuc === 'devam' && path.basename(r.hedef) === 'Sigorta Başvuru (2).udf' && r.soru?.ayrinti.includes('"Sigorta Başvuru (2).udf"'), r);
+    await evalJs(`(${A}.kayit.cikti.ayarla(${J(klasor)}, 'Sigorta Başvuru (1)', { elle: true }), true)`);
+    r = await denetle(1);
+    sonuc('3) Ad "(1)" ile bitiyorsa sayı artar: "Sigorta Başvuru (1)" → "Sigorta Başvuru (2)"', r.sonuc === 'devam' && path.basename(r.hedef) === 'Sigorta Başvuru (2).udf', r);
+    await evalJs(`(${A}.kayit.cikti.ayarla(${J(klasor)}, 'Sigorta Başvuru', { elle: true }), true)`);
+    r = await denetle(0);
+    sonuc('3) Üzerine yaz: ad değişmez, işlem sürer', r.sonuc === 'devam' && path.basename(r.hedef) === 'Sigorta Başvuru.udf', r);
+    await araclariKapat();
+    // Uçtan uca: Döndür, var olan adla kaydet → "(1)" adlı yeni dosya, var olan dosya değişmez
+    fs.copyFileSync(pdf, path.join(klasor, 'Döndürülecek.pdf'));
+    const eskiBoyut = fs.statSync(path.join(klasor, 'Döndürülecek.pdf')).size;
+    fs.writeFileSync(path.join(klasor, 'Hedef.pdf'), 'eski içerik');
+    await evalJs(`(async () => { await window.__pdefe.dosyaAc(${J(path.join(klasor, 'Döndürülecek.pdf'))}); return true; })()`);
+    await kosul(`!!window.__pdefe.aktif()?.gorunum?.sayfaSayisi`);
+    await evalJs(`(window.__pdefe.komutCalistir('arac.dondurKaydet'), true)`);
+    await kosul(`!!document.querySelector('.dondur-pencere .arac-kayit-yeni .arac-cikti-ad')`);
+    await bekle(400);
+    await evalJs(`(() => { const e = document.querySelector('.dondur-pencere .arac-kayit-yeni .arac-cikti-ad'); e.value = 'Hedef'; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('blur')); return true; })()`);
+    await evalJs(`(window.__s38oto = window.__pdefeOtoYanit = { secim: 1 }, true)`);
+    await evalJs(`(document.querySelector('.dondur-pencere .arac-dugmeler .birincil').click(), true)`);
+    const yeni = path.join(klasor, 'Hedef (1).pdf');
+    await kosul(`!document.querySelector('.dondur-pencere')`, 15000);
+    await evalJs(`(delete window.__pdefeOtoYanit, true)`);
+    const soru = await evalJs(`window.__s38oto?.son ? { mesaj: window.__s38oto.son.mesaj, dugmeler: window.__s38oto.son.dugmeler } : null`);
+    await bekle(500);
+    sonuc('3) Döndür: "Hedef.pdf zaten var" → Yeni belge olarak kaydet: "Hedef (1).pdf" oluşur, "Hedef.pdf" değişmez, özgün dosya değişmez',
+      !!soru && soru.mesaj === '"Hedef.pdf" zaten var.' && fs.existsSync(yeni) && fs.readFileSync(path.join(klasor, 'Hedef.pdf'), 'utf8') === 'eski içerik'
+      && fs.statSync(path.join(klasor, 'Döndürülecek.pdf')).size === eskiBoyut, { soru, yeni: fs.existsSync(yeni), dosyalar: fs.readdirSync(klasor) });
+    await araclariKapat(); await sekmeleriKapat();
+    await ciktiKlasoruAyarla(path.join(UI, 'cikti'));
+  }
+
   const hatalar = await evalJs('window.__hatalar || []');
   sonuc('Renderer konsolunda hata yok', !hatalar.length, hatalar);
   console.log(`\n${denetim} denetim; ${hataSayisi ? hataSayisi + ' HATA' : 'hepsi geçti'}  (ekran görüntüleri: ${PNG})`);

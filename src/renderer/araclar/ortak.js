@@ -1074,7 +1074,7 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
    */
   async function denetle() {
     await adSozu;
-    const uzerine = uzerineMi();
+    let uzerine = uzerineMi();
     // Yeni belge (adı ve klasörü özgün dosyanın kendisi olsa da: üzerine yazma ancak sorulup onaylanınca); "Üzerine yaz" seçiliyse sorulmaz
     if (secim.deger() !== 'uzerine') {
       if (!yalnizKlasor && !cikti.ad()) { baglam.bildir('Dosya adı girin.'); cikti.odakla(); return 'vazgec'; }
@@ -1085,6 +1085,7 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
       }
       if (coklu) return 'devam';   // dosya adlarını ve var olan dosyaları araç kendisi yönetir
       if (!(await varOlanaYazmaSor(baglam, cikti, cikti.yol()))) return 'vazgec';
+      uzerine = uzerineMi();   // "Yeni belge olarak kaydet" (0.2.7) adı "(1)"e çevirdiyse özgün dosyanın üzerine yazma da kalkar
       if (!uzerine && !(await baglam.pdefe.cagir('dosya:varMi', cikti.yol()).catch(() => false))) return 'devam';
     }
     const erisim = await yazilabilirMi(baglam, uzerine ? belge.yol : cikti.yol());
@@ -1182,10 +1183,30 @@ export function acikBelge(baglam, yol) {
 }
 
 /**
+ * Numaralı yeni ad (0.2.7, "zaten var" sorusunun "Yeni belge olarak kaydet"i): "ad.pdf" → klasörde olmayan ilk "ad (1).pdf", "ad (2).pdf" …
+ * Ad zaten "(n)" ile bitiyorsa (1–3 basamak; "Rapor (2023)" gibi yıllar sayılmaz) sayı artar: "ad (1).pdf" varsa "ad (2).pdf".
+ * (bosAdBul'dan farkı: varsayılan adlar "(2)"den başlar, bu soru kullanıcının istediği gibi "(1)"den.)
+ */
+export async function numaraliAdBul(pdefe, klasor, ad) {
+  const uz = uzanti(ad), govde = adGovdesi(ad);
+  const m = / \((\d{1,3})\)$/.exec(govde);
+  const kok = m ? govde.slice(0, m.index) : govde;
+  for (let i = m ? +m[1] + 1 : 1; i < 1000; i++) {
+    const aday = `${kok} (${i})${uz ? '.' + uz : ''}`;
+    if (!(await pdefe.cagir('dosya:varMi', yolBirlestir(klasor, aday)))) return aday;
+  }
+  return `${kok}_${Date.now()}${uz ? '.' + uz : ''}`;
+}
+
+/**
  * Yeni belge çıktısı var olan bir dosyanın üzerine gelecekse sorar. Farklı kaydet diyaloğunda Windows zaten sorduysa ya da bu hedef
  * araçta onaylandıysa ("Yeniden dene") yeniden sormaz; hedef PDEfe'de kaydedilmemiş değişiklikli bir sekmede açıksa Windows sormuş
  * olsa da sorar (kayıttan sonra sekme yeni haliyle yeniden açılır, o değişiklikler atılır). Onaylanınca cikti.onayla(hedef).
- * Döner: true (devam) | false (vazgeç).
+ * 0.2.7 (kullanıcı isteği: "seçenek olarak 'yeni belge olarak da kaydet' olsun ve 1 olarak parantez içinde yazsın yeni evrakı"; bütün araçlar
+ * bu soruyu kayitSecimi.denetle'den sorar): Üzerine yaz | Yeni belge olarak kaydet | Vazgeç. "Yeni belge olarak kaydet" (varsayılan, Enter;
+ * hiçbir dosyanın üzerine yazmaz) çıktının adını klasörde olmayan "<ad> (1)"e çevirir ("(1)" de varsa "(2)"…; numaraliAdBul), ad kutusu
+ * yeni adı gösterir; yeni ad soruda yazar. Esc ve Vazgeç işlemi yapmaz. cikti verilmezse (ad değiştirilemez) yalnızca Üzerine yaz | Vazgeç.
+ * Döner: true (devam; yeni ad seçildiyse cikti.yol() artık o) | false (vazgeç).
  */
 export async function varOlanaYazmaSor(baglam, cikti, hedef) {
   if (cikti?.onaylandi?.(hedef)) return true;
@@ -1195,9 +1216,21 @@ export async function varOlanaYazmaSor(baglam, cikti, hedef) {
   const sekme = !acik ? ''
     : acik.degisti ? '\n\nDosya PDEfe\'de açık ve kaydedilmemiş değişiklikleri var: kayıttan sonra sekmesi yeni haliyle yeniden açılır, bu değişiklikler atılır.'
       : '\n\nDosya PDEfe\'de açık; kayıttan sonra sekmesi yeni haliyle yeniden açılır.';
-  const { secim } = await baglam.mesajKutusu({ tur: 'warning', mesaj: `"${dosyaAdi(hedef)}" zaten var.`, ayrinti: `${hedef}\n\nVar olan dosyanın yerine kaydedilsin mi?${sekme}`, dugmeler: ['Üzerine yaz', 'Vazgeç'], varsayilan: 1, iptal: 1 });
-  if (secim !== 0) return false;
-  cikti?.onayla?.(hedef);
+  const yeniAd = cikti?.ayarla ? await numaraliAdBul(baglam.pdefe, klasorAdi(hedef), dosyaAdi(hedef)).catch(() => null) : null;
+  if (!yeniAd) {
+    const { secim } = await baglam.mesajKutusu({ tur: 'warning', mesaj: `"${dosyaAdi(hedef)}" zaten var.`, ayrinti: `${hedef}\n\nVar olan dosyanın yerine kaydedilsin mi?${sekme}`, dugmeler: ['Üzerine yaz', 'Vazgeç'], varsayilan: 1, iptal: 1 });
+    if (secim !== 0) return false;
+    cikti?.onayla?.(hedef);
+    return true;
+  }
+  const { secim } = await baglam.mesajKutusu({
+    tur: 'warning', mesaj: `"${dosyaAdi(hedef)}" zaten var.`,
+    ayrinti: `${hedef}\n\nVar olan dosyanın yerine kaydedilsin mi? Yeni belge olarak kaydedilirse adı "${yeniAd}" olur.${sekme}`,
+    dugmeler: ['Üzerine yaz', 'Yeni belge olarak kaydet', 'Vazgeç'], varsayilan: 1, iptal: 2,
+  });
+  if (secim === 0) { cikti?.onayla?.(hedef); return true; }
+  if (secim !== 1) return false;
+  cikti.ayarla(klasorAdi(hedef), yeniAd, { elle: true });
   return true;
 }
 
