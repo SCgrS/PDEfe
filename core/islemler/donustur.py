@@ -5,11 +5,12 @@ islemler/__init__.py onları bu modülden sonra yükler).
 
 Yöntemler (kaydol):
   donusum_yetenekleri {} → {tiff: bool (iki yön de var), udf: {...}, word: {...} (Word → PDF), pdf_word: {...} (PDF → Word) (o modüllerin
-      yetenek_kaydet'le verdiği; yoksa {var: false, neden}), donusumler: {"<kaynak>><hedef>": {var, neden?}} (ör. "tiff>pdf"),
+      yetenek_kaydet'le verdiği; yoksa {var: false, neden}), donusumler: {"<kaynak>><hedef>": {var, neden?, kalite?}} (ör. "tiff>pdf";
+      kalite: 0.2.7, sonucu kaynağından belirgin biçimde farklı olabilecek dönüştürmenin kısa notu, KALITE_NOTLARI),
       uzantilar: {hedefBicim: [uzantılar]}, girdiUzantilari: {tür: [uzantılar]} (yalnızca dönüştürülebilen türler ve açılabilen görüntü
       alt türleri; dosya seçme süzgeci için), gorsel: {var (görüntü → PDF ve PDF → JPG), heic (HEIC / HEIF açılabiliyor mu), dpiler:
       [200, 300], varsayilanDpi: 300} (0.2.7)}
-  donusum_bilgi {yol, genislik?=220} → {tur, alt, boyut, sayfa, hedefler: [{bicim, uzantilar, var, neden?}], uyari?, png?,
+  donusum_bilgi {yol, genislik?=220} → {tur, alt, boyut, sayfa, hedefler: [{bicim, uzantilar, var, neden?, kalite?}], uyari?, png?,
       pngGenislik?, pngYukseklik?, genislik?, yukseklik? (ilk sayfanın pt ölçüsü; görüntüde PDF'teki sayfanın), dpi? / dpiKaynagi? (TIFF ve
       görüntü: 'etiket' | 'a4' | 'varsayilan'), pikselGenislik? / pikselYukseklik? / gorselBicimi? (görüntü, görünen yönde)}. Tür UZANTIDAN
       DEĞİL DOSYANIN İÇERİĞİNDEN (tur_bul): 'pdf' | 'udf' | 'tiff' | 'word' | 'gorsel' | 'bilinmeyen'; alt: udf 'zip' | 'xml', word 'docx' |
@@ -81,7 +82,7 @@ G4; gri / renkli LZW; dpi etiketli. Tek tam sayfa görselden oluşan (taranmış
 pikseller yeniden örneklenmez. Ölçümler PLAN.md "Revizyon 0.2.6".
 Görüntü → PDF (0.2.7): tek sayfa, görüntü sayfayı kaplar; sayfa ölçüsü gorsel_sayfa_olcusu (geçerli dpi etiketi, 100–1200; yoksa TIFF'in
 A4 kuralı), EXIF yönü uygulanır. Dokunulmadan gömülebilen JPEG olduğu gibi (yön PDF'te döndürülür), öteki kayıplı kaynak JPEG 92, kayıpsız
-kaynak PNG (_gorsel_gomulecek). Görüntü → UDF / Word / TIFF PDF üzerinden (UDF'te taranmış sayfa yazı tanımayla; Word'de resim olarak).
+kaynak PNG (_gorsel_gomulecek). Görüntü → UDF / Word / TIFF PDF üzerinden (UDF'de taranmış sayfa yazı tanımayla; Word'de resim olarak).
 PDF → JPG: sayfa başına JPEG; çatı geçici klasördeki 1.jpg, 2.jpg… dosyalarını sayfa_adlari'yla yerine koyar.
 """
 import base64
@@ -447,6 +448,35 @@ _TUR_ADLARI = {"pdf": "PDF", "udf": "UDF", "tiff": "TIFF", "word": "Word", "gors
 _HEDEF_ADLARI = dict(_TUR_ADLARI, gorsel="JPG")   # hedef olarak görüntü JPG'dir
 
 
+# 0.2.7 (madde 10): sonucu kaynağından belirgin biçimde farklı olabilecek dönüştürmelerin kısa notu ("kaynak>hedef"; arayüz hedef seçilince
+# satırın altında gösterir). Zincirlerde (ör. udf>word = udf>pdf + pdf>word) not bütün yolu anlatır. UDF → PDF / TIFF / JPG ve Word → PDF
+# kaynağın kendi programıyla (UDE, Word) çizildiği için notsuz; TIFF / görüntü → PDF kayıpsız. Word → … LibreOffice'le yapılıyorsa ek not.
+KALITE_NOTLARI = {
+    "pdf>word": "Sayfa düzeni Word'de birebir korunmayabilir.",
+    "udf>word": "Sayfa düzeni Word'de birebir korunmayabilir.",
+    "tiff>word": "Taranmış sayfalar Word'e resim olarak geçer; yazıları düzenlenemez.",
+    "gorsel>word": "Görüntü Word'e resim olarak geçer; yazısı düzenlenemez.",
+    "pdf>udf": "Satır ve sayfa düzeni UDF'de kayabilir; imza, kaşe gibi resimler alınmayabilir.",
+    "word>udf": "Satır ve sayfa düzeni UDF'de kayabilir; imza, kaşe gibi resimler alınmayabilir.",
+    "tiff>udf": "Yazılar görüntüden tanınarak çıkarılır; harf yanlışları ve düzen kayması olabilir.",
+    "gorsel>udf": "Yazılar görüntüden tanınarak çıkarılır; harf yanlışları ve düzen kayması olabilir.",
+}
+LIBREOFFICE_NOTU = "Bu bilgisayarda Word yok: belge LibreOffice'le çevrilir, düzeni Word'dekinden biraz farklı olabilir."
+
+
+def _kalite_notu(kaynak, hedef):
+    """Dönüştürmenin kalite notu ya da None (KALITE_NOTLARI; Word kaynağı LibreOffice'le çevriliyorsa LIBREOFFICE_NOTU eklenir)."""
+    notlar = [KALITE_NOTLARI[k] for k in ["%s>%s" % (kaynak, hedef)] if k in KALITE_NOTLARI]
+    if kaynak == "word":
+        islev = _YETENEKLER.get("word")
+        try:
+            if islev is not None and (islev() or {}).get("motor") == "libreoffice":
+                notlar.append(LIBREOFFICE_NOTU)
+        except Exception:
+            pass
+    return " ".join(notlar) or None
+
+
 def _plan_hazir(plan, alt=None):
     """Planın adımları bu bilgisayarda yapılabiliyor mu; alt (kaynağın alt türü) yalnızca ilk adıma verilir."""
     for k, d in enumerate(plan):
@@ -470,6 +500,9 @@ def _hedefler(tur, alt=None):
         oge = {"bicim": h, "uzantilar": list(HEDEF_UZANTILARI[h]), "var": ok}
         if neden:
             oge["neden"] = neden
+        kalite = _kalite_notu(tur, h)
+        if kalite:
+            oge["kalite"] = kalite
         sonuc.append(oge)
     return sonuc
 
@@ -649,7 +682,8 @@ def y_donusum_yetenekleri(p):
             except OgeHatasi:
                 continue
             ok, neden = _plan_hazir(plan)
-            donusumler["%s>%s" % (k, h)] = dict({"var": ok}, **({"neden": neden} if neden else {}))
+            kalite = _kalite_notu(k, h)
+            donusumler["%s>%s" % (k, h)] = dict({"var": ok}, **({"neden": neden} if neden else {}), **({"kalite": kalite} if kalite else {}))
     girdiler = {t: list(GIRDI_UZANTILARI[t]) for t in TURLER if any(a.startswith(t + ">") and v["var"] for a, v in donusumler.items())}
     if "gorsel" in girdiler:   # açılamayan alt türlerin uzantıları dosya seçme süzgecine girmez (ör. HEIC, kitaplığı yoksa)
         acilamayan = {u for alt, uz in GORSEL_ALT_UZANTILARI.items() if not _gorsel_alt_hazir(alt)[0] for u in uz}

@@ -447,6 +447,25 @@ def test_yetenekler(c):
     sonuc("HEIC açıcısı yoksa süzgeçte .heic yok", gv.get("heic") or ".heic" not in r["girdiUzantilari"].get("gorsel", []), gv.get("heic"))
 
 
+def test_kalite_notlari(c, g):
+    """0.2.7 (madde 10): sonucu kaynağından belirgin biçimde farklı olabilecek dönüştürmelerde kısa not (donusumler ve satırın hedefleri)."""
+    print("— Kalite notları")
+    r, _ = c.cagir("donusum_yetenekleri", {})
+    d = r["donusumler"]
+    notlu = ["udf>word", "pdf>word", "tiff>word", "gorsel>word", "pdf>udf", "word>udf", "tiff>udf", "gorsel>udf"]
+    notsuz = ["udf>pdf", "tiff>pdf", "gorsel>pdf", "pdf>tiff", "pdf>gorsel", "udf>tiff"]
+    sonuc("notlu dönüştürmelerde kalite notu var", all(d.get(k, {}).get("kalite") for k in notlu), {k: d.get(k, {}).get("kalite") for k in notlu})
+    sonuc("UDE / Word'ün kendi çizdiği ve kayıpsız dönüştürmelerde not yok", not any(d.get(k, {}).get("kalite") for k in notsuz),
+          {k: d.get(k, {}).get("kalite") for k in notsuz if d.get(k, {}).get("kalite")})
+    sonuc("TIFF → Word notu: taranmış sayfa resim olarak (yazı tanıma yok)", "resim" in d["tiff>word"]["kalite"], d["tiff>word"]["kalite"])
+    sonuc("görüntü → UDF notu: yazı tanıma, harf yanlışı", "tanın" in d["gorsel>udf"]["kalite"] and "harf" in d["gorsel>udf"]["kalite"],
+          d["gorsel>udf"]["kalite"])
+    b, _ = c.cagir("donusum_bilgi", {"yol": g["etiketsiz_g4"], "genislik": 120})
+    h = {x["bicim"]: x for x in b["hedefler"]}
+    sonuc("satırın hedeflerinde de not (TIFF: Word ve UDF notlu, PDF notsuz)", h["word"].get("kalite") == d["tiff>word"]["kalite"]
+          and h["udf"].get("kalite") == d["tiff>udf"]["kalite"] and "kalite" not in h["pdf"], {k: v.get("kalite") for k, v in h.items()})
+
+
 def imza_ornekleri():
     k = temiz_klasor("imza")
     o = {}
@@ -1440,7 +1459,8 @@ def main():
     testler = [lambda: test_yetenekler(c), lambda: test_imza(c), lambda: test_mupdf_yalnizca_pdf(c), lambda: test_tiff_pdf(c, g),
                lambda: test_pdf_tiff(c, g), lambda: test_iptal(c, g), lambda: test_hedef_erisim(c, g), lambda: test_parametreler(c, g),
                lambda: test_zip_bombasi(c), lambda: test_dis_surec(c), lambda: test_zincir(c, g), lambda: test_surec(exe, g),
-               lambda: test_gorsel_imza(c, gg), lambda: test_gorsel_pdf(c, gg), lambda: test_pdf_jpg(c, g), lambda: test_cakisma(c, g)]
+               lambda: test_gorsel_imza(c, gg), lambda: test_gorsel_pdf(c, gg), lambda: test_pdf_jpg(c, g), lambda: test_cakisma(c, g),
+               lambda: test_kalite_notlari(c, g)]
     if not exe:
         testler.insert(6, test_iptal_bayragi)
     if not hizli:
