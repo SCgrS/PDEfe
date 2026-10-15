@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <!-- UDF'nin yaklaşık çizimi (0.2.6, Dosya Formatını Değiştir; UYAP Doküman Editörü yokken): ana süreç (main/udfYaklasik.js) bu sayfayı
-     gizli, sandbox'lı, Node'suz ve önyükleme betiksiz bir pencerede açar, UDF'nin baytlarını executeJavaScript ile verir (cizim.js), sayfayı
+     gizli, yalıtılmış (sandbox), Node erişimi ve ön yükleme betiği olmayan bir pencerede açar, UDF'nin baytlarını executeJavaScript ile verir (cizim.js), sayfayı
      webContents.printToPDF ile PDF'e çevirir. Belge içeriği HTML olarak işlenmez (udf-motoru.js); sayfa ağa çıkmaz, başka sayfaya gidemez,
      yalnızca kendi betiklerini ve belgenin blob: resimlerini yükler. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src blob:; font-src 'none'; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'">

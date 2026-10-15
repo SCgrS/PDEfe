@@ -3,7 +3,7 @@
 // kullanır; sonuçta "görünüm yaklaşık" uyarısı verilir: satır ve sayfa kırılımları UDE'ninki değil Chromium'unkidir.
 //
 // Nasıl: ana süreç .udf'yi kendisi okur ve denetler (guvenlik.js udfDosyasiOku: boyut, zip'in merkezî dizini, düz XML; arayüzün dosya:oku'su
-// değişmedi). Gizli (show: false), sandbox'lı, Node'suz, önyükleme betiksiz ve iletişim kutusu açamayan (disableDialogs) bir pencere, ayrı bir
+// değişmedi). Gizli (show: false), yalıtılmış (sandbox), Node erişimi ve ön yükleme betiği olmayan, iletişim kutusu açamayan (disableDialogs) bir pencere, ayrı bir
 // bellek içi oturumda (BOLUM) pdefe://udf-cizim/sayfa.html'i yükler (src/udf-cizim). Baytlar base64 dilimleriyle executeJavaScript üzerinden
 // verilir; sayfa belgeyi Drive UDF Okuyucu'nun motoruyla kurar (udf-motoru.js: belge içeriği HTML olarak işlenmez, XML'de DTD ve varlık
 // tanımı reddedilir, açılan baytlar sayılır). Sayfa boyu, kenarlar, üst / alt bilgi ve sayfa numarası UDF'nin pageFormat'ından (@page);
@@ -30,7 +30,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { udfDosyasiOku, udfYaklasikParametreleri } from './guvenlik.js';
 
-const BOLUM = 'pdefe-udf-cizim';               // bellek içi oturum ("persist:" öneki yok: diske hiçbir şey yazılmaz)
+const BOLUM = 'pdefe-udf-cizim';               // bellek içi oturum ("persist:" ön eki yok: diske hiçbir şey yazılmaz)
 const KAYNAK = 'pdefe://udf-cizim/';
 const SAYFA_DOSYALARI = Object.freeze({ 'sayfa.html': 'text/html; charset=utf-8', 'udf-motoru.js': 'text/javascript; charset=utf-8', 'cizim.js': 'text/javascript; charset=utf-8' });
 // sayfa.html'deki meta etiketiyle aynı; yanıt üst bilgisi olarak da verilir
