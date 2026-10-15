@@ -11,8 +11,9 @@
 // türü hariç; bu bilgisayarda yapılamayan dönüştürme soluk, nedeni ipucunda ve seçiliyse satırda), satırı kaldırma. Tanınmayan dosya satırda
 // anlaşılır hatayla durur, dönüştürülmez.
 // Varsayılan hedef: o türün son seçilen hedefi (kalıcı: ayar donusturme.hedefler), ilk kez PDF girdide UDF, ötekilerde PDF.
-// Seçenekler yalnızca TIFF hedefinde: Çözünürlük 200 / 300 dpi, Renk Siyah beyaz / Gri / Renkli (varsayılan 200, siyah beyaz; PDEfe açık
-// kaldıkça hatırlanır); bütün TIFF hedeflerine uygulanır.
+// Seçenekler yalnızca TIFF ve (0.2.7) JPG hedefinde: Çözünürlük İdeal / Düşük (0.2.7: 300 / 200 dpi, yanlarında yaklaşık boyut; 0.2.6'da "200
+// dpi" / "300 dpi", varsayılan 200), Renk Siyah beyaz / Gri / Renkli (yalnızca TIFF; varsayılan İdeal, siyah beyaz; PDEfe açık kaldıkça
+// hatırlanır); bütün TIFF ve JPG hedeflerine uygulanır.
 // Kaydet: öteki araçlardaki standart seçim (ortak.js kayitSecimi). Tek dosyada klasör ve ad (girdinin adı + yeni uzantı; klasörde varsa
 // "(2)"), birden çok dosyada yalnızca klasör (adlar girdilerin adı; var olan dosyanın üzerine yazılmaz, "(2)" eklenir). Varsayılan klasör
 // öteki araçlarla aynı kural (Ayarlar › Kaydetme'deki çıktı klasörü, yoksa Masaüstü). "Üzerine yaz" soluk: dönüştürülen dosya her zaman
@@ -35,6 +36,7 @@
 import {
   pencereAc, pencereAcikMi, IslemIlerleme, kayitSecimi, boyutMetni, sayiMetni, kacis, hataMetni, dosyaAdi, klasorAdi, adGovdesi, uzanti, yolAyni,
   yolBirlestir, guvenliAd, oge, segmentliSecim, kilitliHataMi, ciktiyiAc, acikBelge, degisiklikleriSor, sonucKutusuCiz, yaklasikIstekId, yaklasikIlerlemeDinle,
+  geciktir,
 } from './ortak.js';
 import { MAC } from '../platform.js';
 
@@ -92,8 +94,16 @@ function yaklasikDonustur(pdefe, ogeler, ilerleme) {
 }
 const iptalHatasi = () => Object.assign(new Error('İşlem iptal edildi.'), { iptal: true });
 
-// TIFF seçenekleri PDEfe açık kaldıkça hatırlanır (kalıcı değil: bir sonraki açılışta UYAP'ın kendi taramaları gibi 200 dpi siyah beyaz)
-const tiffSecimi = { dpi: 200, renk: 'sb' };
+// TIFF ve JPG seçenekleri PDEfe açık kaldıkça hatırlanır (kalıcı değil). 0.2.7 (kullanıcı isteği: "TIF dönüştürmedeki çözünürlüğü 'İdeal' ve
+// 'Düşük' şeklinde yapalım, DPI kafa karıştırabilir. 300 dpi standart olsun. Yaklaşık MB yazsın iki ayarın yanında da, Birleştirme aracındaki
+// gibi"): İdeal = 300 dpi (varsayılan; çekirdeğin de varsayılanı), Düşük = 200 dpi (UYAP'ın kendi TIFF'leri gibi); dpi yazısı görünmez. Yanlarında
+// çekirdeğin donusum_tahmini'nin yaklaşık boyutu (_tahminAl). 0.2.6'da varsayılan 200 dpi, düğmelerde "200 dpi" / "300 dpi" yazıyordu
+const tiffSecimi = { dpi: 300, renk: 'sb' };
+const COZUNURLUKLER = [
+  { id: '300', ad: 'İdeal', anahtar: 'ideal', baslik: 'Standart çözünürlük: yazılar ve resimler keskin' },
+  { id: '200', ad: 'Düşük', anahtar: 'dusuk', baslik: 'Daha küçük dosya; yazılı belgeler için yeterli' },
+];
+const BELGE_TAHMIN_NOTU = 'UDF ve Word dosyalarının boyutu dönüştürülmeden kestirilemiyor; toplama katılmadı.';
 const KUCUK_RESIM_EN_AZ = 120;
 const KUTU_VARSAYILAN = 120;   // araclar.css --donustur-resim
 
@@ -161,15 +171,19 @@ export class DonusturPenceresi {
 
     this.dpiSecim = segmentliSecim({
       etiket: 'Çözünürlük', deger: String(tiffSecimi.dpi), sinif: 'donustur-dpi-secim',
-      secenekler: [{ id: '200', etiket: '200 dpi', baslik: 'Daha küçük dosya; yazılı belgeler için yeterli' }, { id: '300', etiket: '300 dpi', baslik: 'Daha keskin, daha büyük dosya' }],
+      secenekler: COZUNURLUKLER.map((c) => ({ id: c.id, baslik: c.baslik, html: `<span class="ad">${kacis(c.ad)}</span><span class="boyut"></span>` })),
       degisti: (id) => { tiffSecimi.dpi = +id; this._ayarDegisti(); },
     });
     govde.querySelector('.donustur-dpi').replaceWith(this.dpiSecim.el);
     this.renkSecim = segmentliSecim({
       etiket: 'Renk', deger: tiffSecimi.renk, sinif: 'donustur-renk-secim',
       secenekler: [{ id: 'sb', etiket: 'Siyah beyaz', baslik: 'En küçük dosya' }, { id: 'gri', etiket: 'Gri' }, { id: 'renkli', etiket: 'Renkli' }],
-      degisti: (id) => { tiffSecimi.renk = id; this._ayarDegisti(); },
+      degisti: (id) => { tiffSecimi.renk = id; this._ayarDegisti(); this.tahminGeciktir(); },   // TIFF'in boyutu renge bağlı
     });
+    // "İdeal" / "Düşük"ün yaklaşık boyutu (0.2.7): dosyalar, hedefler ya da renk değişince yeniden (önceki istek iptal)
+    this._tahmin = null;
+    this._tahminSayac = 0;
+    this.tahminGeciktir = geciktir(() => this._tahminAl(), 200);
     govde.querySelector('.donustur-renk').replaceWith(this.renkSecim.el);
 
     // Kaydetme: öteki araçlardaki standart seçim; "Üzerine yaz" hiç seçilemez (belge yok), nedeni altında
@@ -200,7 +214,11 @@ export class DonusturPenceresi {
     });
     this.pencere.govde.append(this.ilerleme.el);   // meşgulken soluklaşmasın, İptal tıklanabilsin
     this.pencere.el.addEventListener('esc', (e) => { if (this.ilerleme.calisiyor) { e.preventDefault(); this.ilerleme.iptalIste(); } });
-    this.pencere.el.addEventListener('kapandi', () => { this._yaklasikIptal(this.ogeler); if (acikPencere === this) acikPencere = null; });
+    this.pencere.el.addEventListener('kapandi', () => {
+      this._yaklasikIptal(this.ogeler);
+      try { this._tahminSuren?.iptal?.(); } catch { /* yok say */ }
+      if (acikPencere === this) acikPencere = null;
+    });
 
     // Sürükle-bırak (Pencere örtüsü olayları yakalar ve 'dosyaBirakildi' yayar)
     this.pencere.ortu.addEventListener('dragenter', () => this.liste.classList.add('surukle-uzerinde'));
@@ -632,6 +650,69 @@ export class DonusturPenceresi {
     }
     this._jpgNotuYaz();
     this._dugmeGuncelle();
+    if (!this.seceneklerEl.hidden || this._tahmin) this.tahminGeciktir();
+  }
+
+  /**
+   * "İdeal" / "Düşük"ün yaklaşık boyutu (0.2.7, madde 8): dönüştürülecek satırlardan TIFF hedefliler (seçili renkle) ve JPG hedefliler çekirdeğin
+   * donusum_tahmini'sine (iki istek; ikisinin toplamı). Aynı istek yeniden sorulmaz; değişince önceki istek iptal edilir. UDF ve Word
+   * satırlarının boyutu dönüştürmeden kestirilemez (çekirdeğin eksik'i): toplam "≥" ve ipucunda not; hiçbiri kestirilemiyorsa sayı yok.
+   */
+  async _tahminAl() {
+    if (!this.pencere || this.pencere.kapali) return;
+    const d = this._donusecekler();
+    const istekler = [];
+    const tiff = d.filter((o) => o.hedefBicim === 'tiff').map((o) => o.yol), jpg = d.filter((o) => o.hedefBicim === 'gorsel').map((o) => o.yol);
+    if (tiff.length) istekler.push({ yollar: tiff, hedefBicim: 'tiff', renk: tiffSecimi.renk });
+    if (jpg.length) istekler.push({ yollar: jpg, hedefBicim: 'gorsel' });
+    const anahtar = JSON.stringify(istekler);
+    if (anahtar === this._tahminAnahtari) return;   // aynı istek: sonucu gösteriliyor ya da sürüyor
+    this._tahminAnahtari = anahtar;
+    const sayac = ++this._tahminSayac;
+    try { this._tahminSuren?.iptal?.(); } catch { /* yok say */ }
+    this._tahminSuren = null;
+    if (!istekler.length) { this._tahmin = null; this._tahminYaz(); return; }
+    this._tahmin = { bekliyor: true };
+    this._tahminYaz();
+    const t = { ideal: 0, dusuk: 0, eksik: [], tahminli: 0 };
+    try {
+      for (const p of istekler) {
+        const soz = this.baglam.cekirdek('donusum_tahmini', p);
+        this._tahminSuren = soz;
+        const r = await soz;
+        if (sayac !== this._tahminSayac || this.pencere.kapali) return;
+        t.ideal += r?.ideal || 0;
+        t.dusuk += r?.dusuk || 0;
+        t.eksik.push(...(Array.isArray(r?.eksik) ? r.eksik : []));
+        t.tahminli += (Array.isArray(r?.ogeler) ? r.ogeler : []).filter((x) => !x.tahminYok).length;
+      }
+      this._tahmin = t;
+    } catch (e) {
+      if (sayac !== this._tahminSayac || this.pencere.kapali) return;
+      this._tahmin = { hata: hataMetni(e) };
+      this._tahminAnahtari = null;   // sonraki değişiklikte yeniden denensin
+    } finally { if (sayac === this._tahminSayac) this._tahminSuren = null; }
+    this._tahminYaz();
+  }
+
+  /** Çözünürlük düğmelerinde yaklaşık boyut (Birleştir'in kalite düğmelerindeki biçim: "İdeal · 1,20 MB"). */
+  _tahminYaz() {
+    const t = this._tahmin;
+    for (const c of COZUNURLUKLER) {
+      const d = this.dpiSecim.dugme(c.id);
+      const b = d?.querySelector('.boyut');
+      if (!b) continue;
+      b.classList.toggle('bekliyor', !!t?.bekliyor);
+      const not = t?.eksik?.length ? `\n${BELGE_TAHMIN_NOTU}` : '';
+      if (!t || t.bekliyor || t.hata || !t.tahminli) {
+        b.textContent = t?.bekliyor ? ' · hesaplanıyor…' : '';
+        d.title = `${c.baslik}${t?.hata ? `\nBoyut tahmin edilemedi: ${t.hata}` : not}`;
+        continue;
+      }
+      const metin = `${t.eksik.length ? '≥ ' : ''}${boyutMetni(t[c.anahtar])}`;
+      b.textContent = ` · ${metin}`;
+      d.title = `${c.baslik}\nTahmini boyut: ${metin}${not}`;
+    }
   }
 
   /** Tek girdinin JPG hedefinde dosyaların adları: tek sayfada "<ad>.jpg", çok sayfada "<ad> - Sayfa 1.jpg"… (sayfa sayısı bilinmiyorsa ikisi). */

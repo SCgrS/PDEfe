@@ -10,6 +10,8 @@
 //      olarak kaydet | Vazgeç): yeni belge "(1)" adlarıyla, var olanlar değişmez; üzerine yaz var olanları yeniler; vazgeç hiçbir şey yazmaz;
 //      birden çok girdide var olan adlar "(2)"; geç iptalde bütün sayfa dosyaları çöp kutusuna (sınamada kaydedilir); ana süreç elle yazılmış
 //      .jpg'yi silmez.
+//   4) İdeal / Düşük (madde 8): TIFF ve JPG hedefinde "İdeal" (varsayılan, 300 dpi) ve "Düşük" (200 dpi), dpi yazısı yok; yanlarında yaklaşık
+//      boyut, renk değişince yeniden; dönüştürülen dosyanın boyutu tahmine yakın; yalnızca UDF'de sayı yok, UDF + PDF'te "≥".
 //   5) Açma yolları (madde 3): Ctrl+O'nun süzgecinde görüntüler, seçilen JPG araçta; ana sürecin dosya:ac'ı (PNG) ve ikinci örnek (JPG)
 //      aracı açar; ana pencereye bırakılan görüntü araçta açılır.
 //   6) Açılamayan görüntü (HEIC; açıcısı pakette yok): satırda nedeni, hedefler soluk, dönüştürülmez.
@@ -144,7 +146,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     satirlar: [...s.querySelectorAll('li')].map((l) => ({ ad: l.querySelector('.ad').textContent, ac: !!l.querySelector('[data-ac]'), uyari: l.querySelector('.uyari-metin')?.textContent || '' })),
     metin: s.innerText, goster: s.querySelector('.donustur-goster')?.textContent || '', tek: s.classList.contains('arac-sonuc-tek') } : null; })()`);
   const ciktilar = () => (fs.existsSync(CIKTI) ? fs.readdirSync(CIKTI).sort() : []);
-  const bolumler = (process.env.BOLUM || '1,2,3,5,6,8').split(',').map((s) => s.trim());
+  const bolumler = (process.env.BOLUM || '1,2,3,4,5,6,8').split(',').map((s) => s.trim());
   const bolum = (n) => bolumler.includes(String(n));
 
   // ------------------------------------------------------------ hazırlık
@@ -342,6 +344,78 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     fs.writeFileSync(elle, 'yer tutucu');
     sonuc('dosya:sil: dönüştürmenin oluşturmadığı .jpg reddedilir, dosya yerinde', (await evalJs(`window.pdefe.cagir('dosya:sil', ${J(elle)})`)) === false && fs.existsSync(elle));
     fs.rmSync(elle, { force: true });
+  }
+
+  // ------------------------------------------------------------ 4) İdeal / Düşük ve yaklaşık boyut (madde 8)
+  if (bolum(4) && GORSEL_VAR) {
+    console.log('\n== 4) İdeal / Düşük');
+    for (const a of ciktilar()) fs.rmSync(path.join(CIKTI, a), { force: true });
+    await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);
+    const dugmeler = () => evalJs(`[...document.querySelectorAll('.donustur-dpi-secim > button')].map((b) => ({ id: b.dataset.id, ad: b.querySelector('.ad').textContent,
+      boyut: b.querySelector('.boyut').textContent, secili: b.classList.contains('secili'), ipucu: b.title }))`);
+    const tahminBitti = (sure = 30000) => kosul(`(() => { const b = [...document.querySelectorAll('.donustur-dpi-secim .boyut')]; return b.length && b.every((x) => !/hesaplanıyor/.test(x.textContent)); })()`, sure);
+    /** " · 1,20 MB" / " · ≥ 356 KB" → bayt */
+    const bayt = (s) => { const m = /([\d.,]+)\s*(KB|MB)/.exec(s || ''); if (!m) return null; const n = parseFloat(m[1].replace(/\./g, '').replace(',', '.')); return m[2] === 'MB' ? n * 1048576 : n * 1024; };
+    const yakin = (a, b, oran = 0.1) => a > 0 && b > 0 && Math.abs(a - b) / b <= oran;
+    // Varsayılan İdeal: görünmesi, boyutlar, dpi yazısının olmaması
+    await aracAc([G.pdf2]);
+    await evalJs(`${A}.hedefSec(${A}.ogeler[0], 'tiff')`);
+    await bekle(300);
+    await tahminBitti();
+    let D = await dugmeler();
+    const bolumMetni = await evalJs(`document.querySelector('.donustur-secenekler').innerText`);
+    sonuc('TIFF: Çözünürlük "İdeal" (seçili, varsayılan) ve "Düşük"; yanlarında yaklaşık boyut (" · … KB / MB"); bölümde ve ipuçlarında "dpi" yok',
+      J(D.map((x) => [x.id, x.ad, x.secili])) === J([['300', 'İdeal', true], ['200', 'Düşük', false]]) && D.every((x) => /^ · [\d.,]+ (KB|MB)$/.test(x.boyut))
+      && bayt(D[0].boyut) > bayt(D[1].boyut) && !/dpi/i.test(bolumMetni) && D.every((x) => !/dpi/i.test(x.ipucu) && /Tahmini boyut: /.test(x.ipucu)), { D, bolumMetni });
+    await ss('04-ideal-dusuk');
+    // Renk değişince yeniden hesaplanır
+    const sb = bayt(D[0].boyut);
+    await tikSecici('.donustur-renk-secim > button[data-id="gri"]');
+    await kosul(`(() => { const b = document.querySelector('.donustur-dpi-secim > button[data-id="300"] .boyut').textContent; return !!b && !/hesaplanıyor/.test(b) && b !== ${J(D[0].boyut)}; })()`, 30000);
+    D = await dugmeler();
+    sonuc('Renk "Gri" seçilince boyut yeniden hesaplanır (siyah beyazdan büyük)', bayt(D[0].boyut) > sb, { sb: D[0].boyut });
+    // Dönüştürmenin gerçek boyutu tahmine yakın; İdeal 300 dpi
+    await donusturVeBekle();
+    const t1 = path.join(CIKTI, 'Dilekçe örneği.tif');
+    const g1 = fs.existsSync(t1) ? fs.statSync(t1).size : 0;
+    const o1 = g1 ? py(`im = Image.open(${J(t1)})\nprint(json.dumps({"dpi": [round(float(x)) for x in im.info.get("dpi", (0, 0))], "kip": im.mode}))`) : null;
+    console.log(`     ölçüm: TIFF İdeal gri tahmini ${D[0].boyut.replace(' · ', '')}, gerçek ${g1} bayt`);
+    sonuc('İdeal: TIFF 300 dpi, gri; dosyanın boyutu "İdeal"in tahminine yakın (±%10)', J(o1?.dpi) === J([300, 300]) && o1.kip === 'L' && yakin(g1, bayt(D[0].boyut)), { o1, gercek: g1, tahmin: D[0].boyut });
+    await tikSecici('.donustur-renk-secim > button[data-id="sb"]');
+    await pencereKapat();
+    // JPG: aynı iki seçenek ve tahmin; Düşük'ün gerçek boyutu
+    await aracAc([G.pdf2]);
+    await evalJs(`${A}.hedefSec(${A}.ogeler[0], 'gorsel')`);
+    await bekle(300);
+    await tahminBitti();
+    D = await dugmeler();
+    sonuc('JPG: İdeal / Düşük ve yanlarında yaklaşık boyut', J(D.map((x) => x.ad)) === J(['İdeal', 'Düşük']) && D.every((x) => /^ · [\d.,]+ (KB|MB)$/.test(x.boyut)), D);
+    await tikSecici('.donustur-pencere .donustur-secenekler .arac-segmentli[aria-label="Çözünürlük"] > button[data-id="200"]');
+    await donusturVeBekle();
+    const jpgler = ciktilar().filter((a) => /^Dilekçe örneği - Sayfa \d\.jpg$/.test(a));
+    const g2 = jpgler.reduce((t, a) => t + fs.statSync(path.join(CIKTI, a)).size, 0);
+    console.log(`     ölçüm: JPG Düşük tahmini ${D[1].boyut.replace(' · ', '')}, gerçek ${g2} bayt`);
+    sonuc('Düşük: iki JPG (200 dpi), toplam boyut "Düşük"ün tahminine yakın (±%10)', jpgler.length === 2 && J(jpgOzeti(path.join(CIKTI, jpgler[0])).dpi) === J([200, 200]) && yakin(g2, bayt(D[1].boyut)),
+      { jpgler, gercek: g2, tahmin: D[1].boyut });
+    await tikSecici('.donustur-pencere .donustur-secenekler .arac-segmentli[aria-label="Çözünürlük"] > button[data-id="300"]');
+    await pencereKapat();
+    // UDF / Word: tahmin yok. Yalnızca UDF → TIFF: sayı yok, ipucunda not; UDF + PDF: toplam "≥"
+    await aracAc([G.udf]);
+    await evalJs(`${A}.hedefSec(${A}.ogeler[0], 'tiff')`);
+    await bekle(300);
+    await tahminBitti();
+    await bekle(400);
+    D = await dugmeler();
+    sonuc('Yalnızca UDF → TIFF: boyut yazmaz, ipucunda "UDF ve Word dosyalarının boyutu dönüştürülmeden kestirilemiyor"', D.every((x) => x.boyut === '' && /UDF ve Word dosyalarının boyutu dönüştürülmeden kestirilemiyor/.test(x.ipucu)), D);
+    await evalJs(`${A}.dosyaEkle(${J([G.pdf2])})`);
+    await kosul(`!document.querySelector('.donustur-oge.yukleniyor')`, 15000);
+    await evalJs(`(() => { const a = ${A}; a.hedefSec(a.ogeler[1], 'tiff'); return true; })()`);
+    await bekle(300);
+    await tahminBitti();
+    D = await dugmeler();
+    sonuc('UDF + PDF → TIFF: toplam "≥ …" (UDF katılmadı), ipucunda not', D.every((x) => /^ · ≥ [\d.,]+ (KB|MB)$/.test(x.boyut) && /UDF ve Word/.test(x.ipucu)), D);
+    await pencereKapat();
+    await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);
   }
 
   // ------------------------------------------------------------ 5) Açma yolları

@@ -8,7 +8,7 @@
 //      yaklaşık çizimle seçilebilir (C2; ayrıntısı test/udf_yaklasik.mjs), satırda "görünüm yaklaşık" uyarısı ve "UYAP Doküman Editörü'nün yerini
 //      göster" bağlantısı; bağlantı klasör seçtirir (ana süreç ayar:udeKlasoruSec),
 //      klasörde UDE yoksa ayar değişmez; arayüz ayar:koy ile udeYolu'nu klasöre yazamaz (yalnızca null).
-//   4) TIFF seçenekleri yalnızca TIFF hedefi varken görünür; varsayılan 200 dpi, Siyah beyaz.
+//   4) TIFF seçenekleri yalnızca TIFF hedefi varken görünür; varsayılan İdeal (0.2.7: 300 dpi; 0.2.6'da 200 dpi), Siyah beyaz.
 //   5) Kaydet bölümü: tek dosyada ad girdinin adı, uzantı hedefe göre değişir, klasörde varsa "(2)"; "Üzerine yaz" seçilemez, nedeni altında;
 //      Değiştir'in kaydetme penceresi süzgeci biçime göre; birden çok dosyada ad kutusu yok, Değiştir klasör seçtirir, adlar notu görünür.
 //   6) Gerçek dönüşümler (PyMuPDF / PIL ile ölçülür): TIFF → PDF (A4, sayfa sayısı; sonuç sekmede açılır, pencere kapanır), PDF → TIFF
@@ -269,8 +269,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
     S = await satirlar();
     const yeniPdf = S.find((x) => x.ad === 'Dilekçe kopyası.pdf');
     sonuc('Son seçim kalıcı: PDF\'in hedefi TIFF seçilince ayara yazılır, yeni eklenen PDF\'te TIFF önerilir', ayar1?.hedefler?.pdf === 'tiff' && secili(yeniPdf || { hedefler: [] }) === 'tiff', { ayar1, yeniPdf });
-    sonuc('TIFF hedefi varken TIFF seçenekleri görünür: 200 dpi ve Siyah beyaz seçili', await evalJs(`(() => { const p = document.querySelector('.donustur-secenekler'); return !p.hidden
-      && p.querySelector('.donustur-dpi-secim .secili')?.textContent === '200 dpi' && p.querySelector('.donustur-renk-secim .secili')?.textContent === 'Siyah beyaz'; })()`));
+    sonuc('TIFF hedefi varken TIFF seçenekleri görünür: İdeal (0.2.7; 300 dpi) ve Siyah beyaz seçili', await evalJs(`(() => { const p = document.querySelector('.donustur-secenekler'); return !p.hidden
+      && p.querySelector('.donustur-dpi-secim .secili .ad')?.textContent === 'İdeal' && p.querySelector('.donustur-dpi-secim .secili')?.dataset.id === '300'
+      && p.querySelector('.donustur-renk-secim .secili')?.textContent === 'Siyah beyaz'; })()`));
     await ss('03-tiff-secenekleri');
     // UDE bulunamadı benzetimi: çekirdeğin bu bilgisayardaki yanıtı yerine UDE'siz yetenek ve satır hedefleri
     const UDE_YOK = 'Bu bilgisayarda UYAP Doküman Editörü bulunamadı.';
@@ -339,10 +340,10 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
     sonuc('TIFF hedefi yokken (TIFF → PDF, PDF → UDF) seçenekler görünmez', gizli === true);
     await tikSecici(`[...document.querySelectorAll('.donustur-oge')].find((e) => e.querySelector('.ad').textContent === 'Dilekçe örneği.pdf').querySelector('.donustur-hedef-secim > button[data-id="tiff"]')`);
     const s4 = await evalJs(`(() => { const p = document.querySelector('.donustur-secenekler'); return { gorunur: !p.hidden, baslik: p.querySelector('.arac-bolum-baslik').textContent,
-      dpi: [...p.querySelectorAll('.donustur-dpi-secim > button')].map((b) => [b.textContent, b.classList.contains('secili')]),
+      dpi: [...p.querySelectorAll('.donustur-dpi-secim > button')].map((b) => [b.querySelector('.ad').textContent, b.classList.contains('secili')]),
       renk: [...p.querySelectorAll('.donustur-renk-secim > button')].map((b) => [b.textContent, b.classList.contains('secili')]), not: p.querySelector('.arac-aciklama').textContent }; })()`);
-    sonuc('PDF\'in hedefi TIFF: "TIFF seçenekleri" görünür; Çözünürlük 200 / 300 dpi (200 seçili), Renk Siyah beyaz / Gri / Renkli (Siyah beyaz seçili)', s4.gorunur && s4.baslik === 'TIFF seçenekleri'
-      && J(s4.dpi) === J([['200 dpi', true], ['300 dpi', false]]) && J(s4.renk) === J([['Siyah beyaz', true], ['Gri', false], ['Renkli', false]]) && /kendi çözünürlüğünde/.test(s4.not), s4);
+    sonuc('PDF\'in hedefi TIFF: "TIFF seçenekleri" görünür; Çözünürlük İdeal / Düşük (0.2.7; İdeal seçili), Renk Siyah beyaz / Gri / Renkli (Siyah beyaz seçili)', s4.gorunur && s4.baslik === 'TIFF seçenekleri'
+      && J(s4.dpi) === J([['İdeal', true], ['Düşük', false]]) && J(s4.renk) === J([['Siyah beyaz', true], ['Gri', false], ['Renkli', false]]) && /kendi çözünürlüğünde/.test(s4.not), s4);
     await ss('04-tiff-secenekleri');
     await pencereKapat();
     await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);

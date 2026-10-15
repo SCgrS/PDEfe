@@ -388,7 +388,7 @@ print(json.dumps({"sayfa": d.page_count, "satirlar": out}, ensure_ascii=False))`
     sonuc(`Birden çok dosya: ${TIFF_VAR ? 'UDF → TIFF ve ' : ''}UDF → PDF yazıldı, açılamayan belge hatasıyla sonuç listesinde`, fs.existsSync(uzunHedef) && fs.existsSync(path.join(CIKTI, 'tablolu.pdf'))
       && /2 dosya dönüştürüldü/.test(sonucMetni) && /dis_varlik\.udf/.test(sonucMetni) && /güvenlik nedeniyle/.test(sonucMetni), sonucMetni);
     sonuc('Sonuç listesindeki her dönüştürülen dosyada "görünüm yaklaşık" uyarısı', (sonucMetni.match(/görünüm yaklaşık/g) || []).length === 2, sonucMetni);
-    if (TIFF_VAR) { const ti = tiffOzeti(uzunHedef); sonuc('UDF → TIFF: birden çok sayfa, 200 dpi', ti.sayfa >= 2 && J(ti.dpi) === J([200, 200]), ti); }
+    if (TIFF_VAR) { const ti = tiffOzeti(uzunHedef); sonuc('UDF → TIFF: birden çok sayfa, 300 dpi (0.2.7: arayüzün varsayılanı İdeal)', ti.sayfa >= 2 && J(ti.dpi) === J([300, 300]), ti); }
     await ss('05-sonuc');
     await pencereKapat();
 
