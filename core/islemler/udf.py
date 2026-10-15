@@ -670,6 +670,29 @@ def _yazi_tipi_klasorleri():
     return [x for x in k if os.path.isdir(x)]
 
 
+def _ise_bagla(p):
+    """Windows'ta JVM'i "kapanınca sonlandır" (KILL_ON_JOB_CLOSE) iş nesnesine bağlar (word.py'deki Word gibi): çekirdek çöker ya da zorla
+    kapatılırsa tutamaç kapanır, JVM de sonlanır; hedef klasöre yarım çıktı yazmayı sürdürmez (0.2.6 incelemesi: JVM yaşıyor, geçici çıktı
+    kalıyordu). Döner: iş nesnesi tutamacı ya da None (bağlanamadı ya da Windows değil: eski davranış)."""
+    if not WINDOWS:
+        return None
+    try:
+        from . import word
+        return word._is_nesnesi_kur(int(p._handle))
+    except Exception as e:
+        print("[udf] JVM iş nesnesine bağlanamadı: %r" % e, file=sys.stderr)
+        return None
+
+
+def _is_kapat(j):
+    if j:
+        try:
+            from . import word
+            word._w32().k32.CloseHandle(j)
+        except Exception:
+            pass
+
+
 class _Oturum:
     """Köprünün bir JVM'i (sunucu kipi). Tek iş parçacığından kullanılır (dönüştürme ya da ön izleme)."""
 
@@ -701,6 +724,7 @@ class _Oturum:
             self._hata_akisi.close()
             _sil_klasor(self.ev)
             raise KopruHatasi("baslatma", "Java başlatılamadı (%s): %s" % (java["yol"], e))
+        self._is = _ise_bagla(self.p)
         threading.Thread(target=self._oku, name="ude-kopru-okuyucu", daemon=True).start()
         try:
             bas = self._bekle(lambda m: "hazir" in m, BASLAMA_SURESI, iptal_mi)
@@ -806,6 +830,8 @@ class _Oturum:
             self._hata_akisi.close()
         except (OSError, AttributeError):
             pass
+        _is_kapat(getattr(self, "_is", None))   # JVM bitti (ya da öldürüldü): iş nesnesinin tutamacı bırakılır
+        self._is = None
         _sil_klasor(self.ev)
 
     def oldur(self):

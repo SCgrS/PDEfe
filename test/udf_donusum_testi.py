@@ -673,6 +673,73 @@ def test_zip_bombasi(c, k, ude_var):
           (o.get("kod"), o.get("hata"), gunluk[-300:]))
 
 
+def java_cocuklari(ebeveyn):
+    """Ebeveyni ebeveyn olan java.exe / javaw.exe süreçlerinin kimlikleri (Toolhelp; ebeveyn ölmüş olsa da kayıt durur)."""
+    from islemler import word
+    a = word._w32()
+    anlik = a.k32.CreateToolhelp32Snapshot(word.TH32CS_SNAPPROCESS, 0)
+    sonuc = []
+    try:
+        g = a.SUREC_GIRDISI()
+        g.dwSize = a.ctypes.sizeof(g)
+        ok = a.k32.Process32FirstW(anlik, a.ctypes.byref(g))
+        while ok:
+            if g.szExeFile.lower() in ("java.exe", "javaw.exe") and int(g.th32ParentProcessID) == ebeveyn:
+                sonuc.append(int(g.th32ProcessID))
+            ok = a.k32.Process32NextW(anlik, a.ctypes.byref(g))
+    finally:
+        a.k32.CloseHandle(anlik)
+    return sonuc
+
+
+def test_yetim_jvm(c, k, ude_var):
+    """Çekirdek UDF → PDF sürerken zorla kapanırsa (os._exit): köprünün JVM'i de sonlanır (Windows: KILL_ON_JOB_CLOSE iş nesnesi); hedef
+    klasörde kalan geçici çıktıyı sonraki çekirdek siler (donustur.kalintilari_temizle, kayıttan)."""
+    if c.exe or not WINDOWS or not ude_var:
+        atlandi("çekirdek çökünce JVM ve geçici çıktı", "yalnızca doğrudan modülle, Windows'ta ve UDE varken")
+        return
+    u = UdfYaz()
+    for i in range(1500):
+        u.paragraf(cumleler(i, 4))
+    girdi = u.yaz(os.path.join(k, "yetim.udf"))
+    hedef = os.path.join(k, "yetim.pdf")
+    kod = ("import os, sys, threading, time\nsys.path.insert(0, %r)\nimport pdefe_core\nfrom islemler import donustur\n"
+           "ogeler = donustur._ogeleri_hazirla([{'yol': %r, 'hedef': %r, 'hedefBicim': 'pdf'}])\n"
+           "threading.Thread(target=lambda: donustur._isi_yap(ogeler, donustur._Ilerleme({})), daemon=True).start()\n"
+           "for _ in range(480):\n    time.sleep(0.25)\n    if any(a.endswith('.pdefe-tmp.pdf') for a in os.listdir(%r)):\n        break\n"
+           "print('HAZIR', os.getpid(), flush=True)\ntime.sleep(0.5)\nos._exit(1)\n") % (CORE, girdi, hedef, k)
+    p = subprocess.Popen([sys.executable, "-X", "utf8", "-c", kod], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                         creationflags=subprocess.CREATE_NO_WINDOW)
+    try:
+        satir = p.stdout.readline().split()   # "HAZIR <çekirdeğin pid'i>" (.venv'in python.exe'si asıl yorumlayıcıyı başlatan bir başlatıcı)
+        hazir = len(satir) == 2 and satir[0] == "HAZIR"
+        cekirdek_pid = int(satir[1]) if hazir else p.pid
+        p.wait(timeout=60)
+    finally:
+        if p.poll() is None:
+            p.kill()
+    time.sleep(2.0)
+    yetimler = java_cocuklari(cekirdek_pid)
+    gecici = [a for a in os.listdir(k) if ".pdefe-tmp" in a]
+    sonuc("çekirdek çizim sürerken çökünce köprünün JVM'i de sonlanır (2 sn içinde)", hazir and not yetimler, {"hazir": hazir, "yasayan_jvm": yetimler})
+    for j in yetimler:   # gerilemede yetim JVM bırakılmasın
+        subprocess.run(["taskkill", "/PID", str(j), "/F"], capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
+    time.sleep(0.5)
+    from islemler import donustur as D
+    temizle = getattr(D, "kalintilari_temizle", None)
+    silinen = temizle() if temizle else 0
+    kalan = [a for a in os.listdir(k) if ".pdefe-tmp" in a]
+    sonuc("sonraki çekirdek hedef klasörde kalan geçici çıktıyı kayıttan siler", bool(gecici) and not kalan and silinen >= 1
+          and temizle is not None and not os.path.exists(D._kayit_dosyasi(cekirdek_pid)), {"cokmede": gecici, "kalan": kalan, "silinen": silinen})
+    sonuc("hedef dosya yazılmadı (yarım çıktı yerine konmadı)", not os.path.exists(hedef))
+    # Çöken çekirdeğin köprü ev klasörü ve girdi kopyasının klasörü (pdefe-ude-<pid>-*): sonraki çekirdeğin ilk köprü oturumu siler
+    from islemler import udf as U
+    U._eski_evler_silindi = False
+    U._eski_evleri_sil()
+    kalan_ev = [a for a in os.listdir(tempfile.gettempdir()) if a.startswith("%s%d-" % (U.EV_ONEKI, cekirdek_pid))]
+    sonuc("çöken çekirdeğin köprü klasörleri (ev, girdi kopyası) sonraki çekirdekte silinir", not kalan_ev, kalan_ev)
+
+
 # ---------------------------------------------------------------- PDF → UDF
 def word_benzeri_pdf(yol, sayfa_no=True, yatay=False, ek_metin="", sayfa=3):
     """Word'ün dilekçe çıktısına benzeyen PDF (PyMuPDF'in yerleşimiyle; Times New Roman, iki yana yaslı, 2,5 cm kenar, sayfa numarası)."""
@@ -1040,7 +1107,7 @@ def main():
         atlandi("UDF → PDF", "UDE ya da Java bu bilgisayarda yok")
     testler += [lambda: test_pdf_udf(c, temiz_klasor("pdf_udf"), ude_var), lambda: test_taranmis(c, temiz_klasor("taranmis"), ude_var),
                 lambda: test_ude_yok(c, g, k), lambda: test_json_kanali(exe, temiz_klasor("kanal")),
-                lambda: test_zip_bombasi(c, temiz_klasor("bomba"), ude_var)]
+                lambda: test_zip_bombasi(c, temiz_klasor("bomba"), ude_var), lambda: test_yetim_jvm(c, temiz_klasor("yetim"), ude_var)]
     if ude_var:
         testler += [lambda: test_derlem(c)]
     for t in testler:

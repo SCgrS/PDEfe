@@ -67,6 +67,7 @@ import io
 import math
 import os
 import queue
+import re
 import shutil
 import statistics
 import subprocess
@@ -140,6 +141,13 @@ def _mupdf_kilidi():
 
 
 _yedek_kilit = threading.RLock()
+
+
+def _sessiz(islev):
+    try:
+        islev()
+    except Exception as e:   # bakım işi: hata çekirdeği düşürmesin
+        print("[donustur] bakım: %r" % e, file=sys.stderr)
 
 
 def _sil(yol):
@@ -492,7 +500,7 @@ class Baglam:
 
     def gecici_klasor(self):
         if self._gecici is None:
-            self._gecici = tempfile.mkdtemp(prefix="pdefe-donustur-")
+            self._gecici = tempfile.mkdtemp(prefix="%s%d-" % (GECICI_ONEKI, os.getpid()))   # çökmede kalırsa: kalintilari_temizle
         return self._gecici
 
     def temizle(self):
@@ -721,7 +729,91 @@ def _ogeleri_hazirla(ogeler):
 
 
 def _gecici_cikti(hedef, sira):
-    return "%s.%d-%d.pdefe-tmp%s" % (hedef, os.getpid(), sira, os.path.splitext(hedef)[1])
+    yol = "%s.%d-%d.pdefe-tmp%s" % (hedef, os.getpid(), sira, os.path.splitext(hedef)[1])
+    _geciciyi_kaydet(yol)
+    return yol
+
+
+# ---------------------------------------------------------------- çökmeden kalanlar (0.2.6)
+# Çekirdek dönüştürürken çöker ya da zorla kapatılırsa hedef klasörlerde "<hedef>.<pid>-<sıra>.pdefe-tmp<uzantı>" ve %TEMP%'te
+# pdefe-donustur-<pid>-* kalırdı. Hedef klasörlere açılan geçici dosyalar <TEMP>/pdefe-donustur-kayit/<pid>.txt'ye yazılır (iş bitince kayıt
+# silinir); sonraki çekirdek açılışta pid'i artık çalışmayanların kayıttaki dosyalarını (yalnızca o pid'in geçici adı kalıbındakileri) ve
+# geçici klasörlerini siler (kalintilari_temizle).
+KAYIT_KLASORU = "pdefe-donustur-kayit"
+GECICI_ONEKI = "pdefe-donustur-"
+_kayit_kilidi = threading.Lock()
+
+
+def _kayit_dosyasi(pid=None):
+    return os.path.join(tempfile.gettempdir(), KAYIT_KLASORU, "%d.txt" % (pid if pid is not None else os.getpid()))
+
+
+def _geciciyi_kaydet(yol):
+    try:
+        with _kayit_kilidi:
+            os.makedirs(os.path.dirname(_kayit_dosyasi()), exist_ok=True)
+            with open(_kayit_dosyasi(), "a", encoding="utf-8") as f:
+                f.write(os.path.abspath(yol) + "\n")
+    except OSError:
+        pass   # kayıt yalnızca bakım içindir
+
+
+def _kaydi_sil():
+    with _kayit_kilidi:
+        _sil(_kayit_dosyasi())
+
+
+def kalintilari_temizle(gun=1.0):
+    """Çöken / zorla kapatılan çekirdeklerin (pid'i artık çalışmayan) kalıntıları: kayıttaki geçici dosyalar (adı o pid'in geçici adı
+    kalıbına uyuyorsa), pdefe-donustur-<pid>-* klasörleri ve pid'siz eski adlı geçici klasörlerden gun'den eskiler. Döner: silinen sayısı."""
+    from .udf import _surec_yasiyor
+    kok = tempfile.gettempdir()
+    silinen = 0
+    kayitlar = os.path.join(kok, KAYIT_KLASORU)
+    try:
+        adlar = os.listdir(kayitlar)
+    except OSError:
+        adlar = []
+    for ad in adlar:
+        m = re.fullmatch(r"(\d+)\.txt", ad)
+        if not m:
+            continue
+        pid = int(m.group(1))
+        if pid == os.getpid() or _surec_yasiyor(pid):
+            continue
+        kayit = os.path.join(kayitlar, ad)
+        desen = re.compile(r"\.%d-\d+\.pdefe-tmp(\.[A-Za-z0-9]{1,8})?$" % pid)
+        try:
+            with open(kayit, encoding="utf-8", errors="replace") as f:
+                yollar = [s.strip() for s in f if s.strip()]
+        except OSError:
+            continue
+        for y in yollar:
+            if desen.search(y) and os.path.isfile(y):
+                try:
+                    os.remove(y)
+                    silinen += 1
+                except OSError:
+                    pass
+        _sil(kayit)
+    try:
+        adlar = os.listdir(kok)
+    except OSError:
+        adlar = []
+    simdi = time.time()
+    for ad in adlar:
+        if not ad.startswith(GECICI_ONEKI) or ad == KAYIT_KLASORU:
+            continue
+        yol = os.path.join(kok, ad)
+        m = re.match(re.escape(GECICI_ONEKI) + r"(\d+)-", ad)
+        try:
+            eski = (not _surec_yasiyor(int(m.group(1)))) if m else (simdi - os.path.getmtime(yol) > gun * 86400)
+        except OSError:
+            continue
+        if eski and os.path.isdir(yol):
+            shutil.rmtree(yol, ignore_errors=True)
+            silinen += 1
+    return silinen
 
 
 def _hedef_denetle(hedef):
@@ -827,6 +919,7 @@ def _isi_yap(ogeler, il):
     except BaseException:
         for _, gecici, _ in hazirlar:
             _sil(gecici)
+        _kaydi_sil()
         raise
     # Yerine koyma: bundan sonra iptale bakılmaz, ilerleme bildirilmez
     for i, gecici, bilgi in hazirlar:
@@ -842,6 +935,7 @@ def _isi_yap(ogeler, il):
                            "hata": _hata_metni(e, os.path.basename(oge["yol"])), "kod": _hata_kodu(e)}
         finally:
             _sil(gecici)
+    _kaydi_sil()   # geçici dosyaların hepsi yerine kondu ya da silindi
     basarili = sum(1 for s in sonuclar if "hata" not in s)
     return {"sonuclar": sonuclar, "basarili": basarili, "hatali": n - basarili}
 
@@ -1165,6 +1259,8 @@ donusturucu_kaydet("pdf", "tiff", _pdf_tiff, _tiff_yazici_hazir)
 
 
 def kaydol(yontemler):
+    # Önceki çekirdeklerin çökmede bıraktıkları (kalintilari_temizle) açılışı geciktirmeden silinir
+    threading.Thread(target=lambda: _sessiz(kalintilari_temizle), name="donustur-bakim", daemon=True).start()
     yontemler["donusum_yetenekleri"] = y_donusum_yetenekleri
     yontemler["donusum_bilgi"] = y_donusum_bilgi
     yontemler["bicim_donustur"] = y_bicim_donustur
