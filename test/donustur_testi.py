@@ -1412,6 +1412,12 @@ def test_cakisma(c, g):
           and o.get("istenenHedef") == tif, (o.get("hata"), o.get("hedef")))
     r, _ = donustur(c, [{"yol": g["metin_pdf"], "hedef": os.path.join(k, "belge (1).tif"), "hedefBicim": "tiff", "cakisma": "yeniAd"}])
     sonuc("\"(1)\" ile biten ad varsa \"(2)\"", r["sonuclar"][0].get("hedef") == os.path.join(k, "belge (2).tif"), r["sonuclar"][0].get("hedef"))
+    yil = os.path.join(k, "Rapor (2023).tif")
+    with open(yil, "wb") as f:
+        f.write(b"eski")
+    r, _ = donustur(c, [{"yol": g["metin_pdf"], "hedef": yil, "hedefBicim": "tiff", "cakisma": "yeniAd"}])
+    sonuc("\"(2023)\" gibi yıl sayı sayılmaz: \"Rapor (2023) (1).tif\" (arayüzün kuralı)", r["sonuclar"][0].get("hedef") == os.path.join(k, "Rapor (2023) (1).tif"),
+          r["sonuclar"][0].get("hedef"))
     if WINDOWS:
         once = md5(os.path.join(k, "metinli - Sayfa 1.jpg"))
         with kilitli(var_olan):

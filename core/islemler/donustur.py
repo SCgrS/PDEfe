@@ -1062,12 +1062,13 @@ def sayfa_adlari(hedef, n):
 
 def bos_ad(hedef, n=1, dolu=os.path.exists):
     """Hedefin dosyalarından (sayfa_adlari) hiçbiri doluysa (var olan dosya; dolu işlevi) aynı adların ilk boş "(1)", "(2)"… biçimi (0.2.7,
-    "yeni belge olarak kaydet": "Sigorta Başvuru (1).tif"; ad zaten "(n)" ile bitiyorsa n + 1'den sürer). Döner: dosya adları listesi."""
+    "yeni belge olarak kaydet": "Sigorta Başvuru (1).tif"; ad zaten "(n)" ile bitiyorsa, n 1–3 basamaklıysa, n + 1'den sürer). Döner: dosya
+    adları listesi."""
     adlar = sayfa_adlari(hedef, n)
     if not any(dolu(a) for a in adlar):
         return adlar
     kok, uz = os.path.splitext(hedef)
-    m = re.fullmatch(r"(.*) \((\d+)\)", kok)
+    m = re.fullmatch(r"(.*) \((\d{1,3})\)", kok)   # 1–3 basamak: "Rapor (2023)" gibi yıllar sayı sayılmaz (arayüzün numaraliAdBul'u gibi)
     taban, ilk = (m.group(1), int(m.group(2)) + 1) if m else (kok, 1)
     for k in range(ilk, ilk + 10000):
         adlar = sayfa_adlari("%s (%d)%s" % (taban, k, uz), n)
