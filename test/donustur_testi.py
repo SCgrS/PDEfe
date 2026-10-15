@@ -1440,6 +1440,85 @@ def test_cakisma(c, g):
     sonuc("geçici dosya kalmadı", not gecici_kalintilar(k), gecici_kalintilar(k))
 
 
+def test_tahmin(c, g, gg):
+    """0.2.7 (madde 8): donusum_tahmini, "İdeal" (300 dpi) ve "Düşük" (200 dpi) boyutları. Az sayfalı belgede kesin (dönüştürücünün kendi
+    çizim ve kodlama yolu), çok sayfalıda örneklenmiş."""
+    print("— Boyut tahmini (İdeal / Düşük)")
+    k = temiz_klasor("tahmin")
+
+    def gercek(yol, hedef, secenek):
+        uz = ".tif" if hedef == "tiff" else ".jpg"
+        alt = os.path.join(k, "g%d" % random.Random().randint(0, 10 ** 9))
+        os.makedirs(alt)
+        r, _ = donustur(c, [{"yol": yol, "hedef": os.path.join(alt, "c" + uz), "hedefBicim": hedef, "secenekler": secenek}])
+        o = r["sonuclar"][0]
+        return o.get("boyut")
+
+    def yakin(a, b, pay):
+        return a is not None and b is not None and abs(a - b) <= pay * max(b, 1)
+    vakalar = [("3 sayfalı PDF → TIFF siyah-beyaz", g["metin_pdf"], "tiff", "sb", 0.03),
+               ("3 sayfalı PDF → TIFF gri", g["metin_pdf"], "tiff", "gri", 0.03),
+               ("3 sayfalı PDF → JPG", g["metin_pdf"], "gorsel", None, 0.01),
+               ("TIFF (3 kare) → JPG", g["etiketsiz_g4"], "gorsel", None, 0.03),
+               ("görüntü → TIFF renkli", gg["png_etiketsiz"], "tiff", "renkli", 0.03)]
+    for ad, yol, hedef, renk, pay in vakalar:
+        t0 = time.time()
+        r, _ = c.cagir("donusum_tahmini", dict({"yollar": [yol], "hedefBicim": hedef}, **({"renk": renk} if renk else {})))
+        sure = time.time() - t0
+        secenek = {"renk": renk} if renk else {}
+        ideal, dusuk = gercek(yol, hedef, dict(secenek, dpi=300)), gercek(yol, hedef, dict(secenek, dpi=200))
+        sonuc("%s: kesin (örneklenmedi), İdeal ve Düşük gerçeğe %%%d yakın" % (ad, round(pay * 100)), r.get("tahmin") is False
+              and yakin(r.get("ideal"), ideal, pay) and yakin(r.get("dusuk"), dusuk, pay) and r.get("eksik") == [],
+              {"tahmin": (r.get("ideal"), r.get("dusuk")), "gerçek": (ideal, dusuk), "sn": round(sure, 2)})
+    # Çok sayfalı belge: örneklenir
+    uzun = sentetik_pdf(os.path.join(k, "uzun.pdf"), sayfa=24, tohum=17)
+    t0 = time.time()
+    r, il = c.cagir("donusum_tahmini", {"yollar": [uzun], "hedefBicim": "tiff"})
+    sure = time.time() - t0
+    ideal, dusuk = gercek(uzun, "tiff", {"dpi": 300}), gercek(uzun, "tiff", {"dpi": 200})
+    o = r["ogeler"][0]
+    sonuc("24 sayfalı PDF → TIFF: 5 sayfa örneklendi, gerçeğe %25 yakın, ilerleme bildirildi", r.get("tahmin") is True and o.get("ornek") == 5
+          and o.get("sayfa") == 24 and yakin(r.get("ideal"), ideal, 0.25) and yakin(r.get("dusuk"), dusuk, 0.25) and il,
+          {"tahmin": (r.get("ideal"), r.get("dusuk")), "gerçek": (ideal, dusuk), "sn": round(sure, 2), "ilerleme": len(il)})
+    sonuc("24 sayfalı tahmin hızlı (< 6 sn)", sure < 6, round(sure, 2))
+    t0 = time.time()
+    r2, _ = c.cagir("donusum_tahmini", {"yollar": [uzun], "hedefBicim": "tiff"})
+    sonuc("aynı tahmin ön bellekten (aynı sonuç, < 0,5 sn)", r2.get("ideal") == r.get("ideal") and time.time() - t0 < 0.5, round(time.time() - t0, 3))
+    # Taranmış PDF: iki çözünürlükte aynı (sayfa kendi çözünürlüğünde kalır)
+    ara = os.path.join(k, "tarama.pdf")
+    donustur(c, [{"yol": g["etiketsiz_g4"], "hedef": ara, "hedefBicim": "pdf"}])
+    r, _ = c.cagir("donusum_tahmini", {"yollar": [ara], "hedefBicim": "tiff"})
+    sonuc("taranmış PDF → TIFF: İdeal = Düşük (tarama kendi çözünürlüğünde)", r.get("ideal") == r.get("dusuk") and r.get("ideal"),
+          (r.get("ideal"), r.get("dusuk")))
+    # Birden çok dosya, tahmin edilemeyenler
+    udf = os.path.join(k, "belge.udf")
+    with zipfile.ZipFile(udf, "w") as z:
+        z.writestr("content.xml", '<?xml version="1.0" encoding="UTF-8" ?><template format_id="1.8"><content><![CDATA[x]]></content></template>')
+    bos = os.path.join(k, "bilinmeyen.dat")
+    with open(bos, "wb") as f:
+        f.write(b"\x00" * 64)
+    r, _ = c.cagir("donusum_tahmini", {"yollar": [g["metin_pdf"], udf, bos, g["metin_pdf"]], "hedefBicim": "gorsel"})
+    tek, _ = c.cagir("donusum_tahmini", {"yollar": [g["metin_pdf"]], "hedefBicim": "gorsel"})
+    sonuc("birden çok dosya: toplam tahmin edilenlerin toplamı, UDF ve tanınmayan dosya eksik'te nedeniyle",
+          r.get("ideal") == 2 * tek.get("ideal") and r.get("sayfa") == 6 and r.get("eksik") == [os.path.abspath(udf), os.path.abspath(bos)]
+          and all(o.get("neden") for o in r["ogeler"][1:3]), {"eksik": r.get("eksik"), "nedenler": [o.get("neden") for o in r["ogeler"]]})
+    # Parametre denetimi ve iptal
+    for ad, p in (("hedef PDF olamaz", {"yollar": [g["metin_pdf"]], "hedefBicim": "pdf"}),
+                  ("bilinmeyen renk", {"yollar": [g["metin_pdf"]], "hedefBicim": "tiff", "renk": "mavi"}),
+                  ("dosya yok", {"yollar": [], "hedefBicim": "tiff"})):
+        try:
+            c.cagir("donusum_tahmini", p)
+            sonuc("tahmin parametresi reddedilir: %s" % ad, False, "kabul edildi")
+        except CagriHatasi as e:
+            sonuc("tahmin parametresi reddedilir: %s" % ad, e.kod == -32000, str(e))
+    uzun2 = sentetik_pdf(os.path.join(k, "uzun2.pdf"), sayfa=30, tohum=19)
+    try:
+        c.cagir("donusum_tahmini", {"yollar": [uzun2], "hedefBicim": "tiff", "renk": "renkli"}, iptal_sonra=1)
+        sonuc("tahmin iptal edilir", False, "iptal edilmedi")
+    except CagriHatasi as e:
+        sonuc("tahmin iptal edilir (-32800)", e.kod == -32800, (e.kod, str(e)))
+
+
 def main():
     exe = None
     if "--exe" in sys.argv:
@@ -1460,7 +1539,7 @@ def main():
                lambda: test_pdf_tiff(c, g), lambda: test_iptal(c, g), lambda: test_hedef_erisim(c, g), lambda: test_parametreler(c, g),
                lambda: test_zip_bombasi(c), lambda: test_dis_surec(c), lambda: test_zincir(c, g), lambda: test_surec(exe, g),
                lambda: test_gorsel_imza(c, gg), lambda: test_gorsel_pdf(c, gg), lambda: test_pdf_jpg(c, g), lambda: test_cakisma(c, g),
-               lambda: test_kalite_notlari(c, g)]
+               lambda: test_kalite_notlari(c, g), lambda: test_tahmin(c, g, gg)]
     if not exe:
         testler.insert(6, test_iptal_bayragi)
     if not hizli:

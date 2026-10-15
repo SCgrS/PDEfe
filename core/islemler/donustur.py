@@ -39,6 +39,8 @@ Yöntemler (kaydol):
       araclar.KILITLI_METNI'ni, salt okunurda SALT_OKUNUR_METNI'ni içerir (arayüzün hataSor'u bunlarla tanır).
       TIFF hedefinin secenekler'i: {dpi: 300 | 200 (varsayılan 300; 0.2.7'den beri, arayüzde "İdeal" 300, "Düşük" 200), renk: 'sb'
       (siyah-beyaz, G4; varsayılan) | 'gri' | 'renkli' (LZW)}.
+  donusum_tahmini {yollar: [yol] | yol, hedefBicim: 'tiff' | 'gorsel', renk?: 'sb' | 'gri' | 'renkli'} → (Ertelenmis) {ideal (300 dpi),
+      dusuk (200 dpi): bayt, sayfa, tahmin, eksik: [yol], ogeler, sure} (0.2.7; ayrıntı "boyut tahmini" bölümünde).
 
 Yazım düzeni: her öğe önce hedefin klasöründe geçici dosyaya ("<hedef>.<pid>-<sıra>.pdefe-tmp<uzantı>": uzantı doğru, Word gibi dış
 programlar ad değiştirmez) dönüştürülür; BÜTÜN öğeler bitince geçici dosyalar sırayla hedeflerin yerine konur (os.replace; macOS'ta
@@ -1333,6 +1335,31 @@ def _tiff_hazir():
     return True, None
 
 
+def _tiff_karesi_ekle(doc, im, i, olculer, dpiler, kilit):
+    """TIFF'in i. karesini belgenin sonuna sayfa olarak ekler (TIFF → PDF'in ve tahminin ortak yolu). kilit: MuPDF kilidi (bağlam). Döner:
+    kare G4 olarak gömüldüyse True."""
+    im.seek(i)
+    _kare_sinirla(im, i + 1)
+    kare = _yon_uygula(im)
+    xd, yd, _ = _yona_gore_dpi(dpiler[i], olculer[i][3])
+    sg, sy = _tiff_sayfa_olcusu(kare.width, kare.height, xd, yd)
+    if kare.mode == "1":
+        g4 = _g4_kodla(kare)
+        flate = zlib.compress(kare.tobytes(), FLATE_DUZEYI)
+        ccitt = g4 is not None and len(g4[0]) < len(flate)
+        veri = g4[0] if ccitt else flate
+        with kilit():
+            _bit_sayfasi_ekle(doc, kare.width, kare.height, sg, sy, veri, ccitt, g4[1] if ccitt else True)
+        return ccitt
+    duz = araclar._duzlestir(kare, exif=False)
+    png = araclar._gorsel_kodla(duz, "orijinal")[0]
+    del duz, kare
+    with kilit():
+        pg = doc.new_page(width=sg, height=sy)
+        pg.insert_image(pg.rect, stream=png, keep_proportion=False)
+    return False
+
+
 def _tiff_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
     im = _tiff_ac(kaynak)
     doc = None
@@ -1345,30 +1372,7 @@ def _tiff_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
         g4_sayisi = 0
         for i in range(n):
             ilerleme(i / n, "Sayfa %d/%d" % (i + 1, n))
-            im.seek(i)
-            _kare_sinirla(im, i + 1)
-            yon = olculer[i][3]
-            kare = _yon_uygula(im)
-            xd, yd, _ = _yona_gore_dpi(dpiler[i], yon)
-            sg, sy = _tiff_sayfa_olcusu(kare.width, kare.height, xd, yd)
-            if kare.mode == "1":
-                g4 = _g4_kodla(kare)
-                flate = zlib.compress(kare.tobytes(), FLATE_DUZEYI)
-                ccitt = g4 is not None and len(g4[0]) < len(flate)
-                veri = g4[0] if ccitt else flate
-                g4_sayisi += 1 if ccitt else 0
-                with baglam.mupdf():
-                    _bit_sayfasi_ekle(doc, kare.width, kare.height, sg, sy, veri, ccitt, g4[1] if ccitt else True)
-                del g4, flate, veri
-            else:
-                duz = araclar._duzlestir(kare, exif=False)
-                png = araclar._gorsel_kodla(duz, "orijinal")[0]
-                del duz
-                with baglam.mupdf():
-                    pg = doc.new_page(width=sg, height=sy)
-                    pg.insert_image(pg.rect, stream=png, keep_proportion=False)
-                del png
-            del kare
+            g4_sayisi += 1 if _tiff_karesi_ekle(doc, im, i, olculer, dpiler, baglam.mupdf) else 0
         ilerleme(1.0, "Kaydediliyor…")
         with baglam.mupdf():
             try:
@@ -1427,7 +1431,7 @@ def _tarama_dpi(pg):
     return d if TARAMA_DPI_EN_AZ <= d <= TARAMA_DPI_EN_COK else None
 
 
-def _pdf_tiff(kaynak, cikti, secenekler, ilerleme, baglam):
+def _tiff_secenekleri(secenekler):
     try:
         dpi = int(secenekler.get("dpi") or VARSAYILAN_TIFF_DPI)
     except (TypeError, ValueError):
@@ -1437,9 +1441,37 @@ def _pdf_tiff(kaynak, cikti, secenekler, ilerleme, baglam):
     renk = secenekler.get("renk") or "sb"
     if renk not in TIFF_RENKLERI:
         raise OgeHatasi("gecersiz", "Bilinmeyen renk seçeneği: %r" % (renk,))
+    return dpi, renk
+
+
+def _tiff_olcegi(pg, dpi):
+    """PDF → TIFF'te sayfanın çizim ölçeği: seçilen dpi; taranmış sayfada görselin kendi çözünürlüğü (yeniden örneklenmez)."""
+    return (_tarama_dpi(pg) or dpi) / 72.0
+
+
+def _sayfa_ciz(pg, olcek, kip, kilit):
+    """Sayfayı (notlarıyla) Pillow görüntüsüne çizer; MuPDF adımları kilitle. olcek piksel sınırına göre küçültülür. Döner: (görüntü, dpi)."""
     Image = araclar._pillow()[0]
+    with kilit():
+        olcek = _cekirdek().olcek_sinirla(pg.rect.width, pg.rect.height, olcek)
+        pix = pg.get_pixmap(matrix=pymupdf.Matrix(olcek, olcek), colorspace=pymupdf.csRGB if kip == "RGB" else pymupdf.csGRAY,
+                            alpha=False, annots=True)
+        sayfa = Image.frombytes(kip, (pix.width, pix.height), pix.samples)
+        del pix
+    return sayfa, round(72.0 * olcek, 2)
+
+
+def _tiff_sayfasi(pg, dpi, renk, kilit):
+    """PDF → TIFF'in bir sayfası: (görüntü (sb'de 1 bit, eşikli), dpi, save seçenekleri)."""
+    sayfa, d = _sayfa_ciz(pg, _tiff_olcegi(pg, dpi), "RGB" if renk == "renkli" else "L", kilit)
+    if renk == "sb":
+        sayfa = sayfa.point(ESIK_TABLOSU, "1")
+    return sayfa, d, {"format": "TIFF", "compression": "group4" if renk == "sb" else "tiff_lzw", "dpi": (d, d)}
+
+
+def _pdf_tiff(kaynak, cikti, secenekler, ilerleme, baglam):
+    dpi, renk = _tiff_secenekleri(secenekler)
     from PIL import TiffImagePlugin
-    olcek_sinirla = _cekirdek().olcek_sinirla
     with baglam.mupdf():
         doc = araclar._pdf_ac(kaynak)   # yalnızca PDF (filetype="pdf"), parolalıysa PermissionError
     dpiler = []
@@ -1447,22 +1479,13 @@ def _pdf_tiff(kaynak, cikti, secenekler, ilerleme, baglam):
         n = doc.page_count
         if n == 0:
             raise OgeHatasi("bozuk", "Belgede sayfa yok: %s" % os.path.basename(kaynak))
-        kip = "RGB" if renk == "renkli" else "L"
         with TiffImagePlugin.AppendingTiffWriter(cikti, new=True) as tf:
             for i in range(n):
                 ilerleme(i / n, "Sayfa %d/%d" % (i + 1, n))
                 with baglam.mupdf():
                     pg = doc[i]
-                    olcek = (_tarama_dpi(pg) or dpi) / 72.0
-                    olcek = olcek_sinirla(pg.rect.width, pg.rect.height, olcek)
-                    pix = pg.get_pixmap(matrix=pymupdf.Matrix(olcek, olcek), colorspace=pymupdf.csRGB if kip == "RGB" else pymupdf.csGRAY,
-                                        alpha=False, annots=True)
-                    sayfa = Image.frombytes(kip, (pix.width, pix.height), pix.samples)
-                    del pix
-                if renk == "sb":
-                    sayfa = sayfa.point(ESIK_TABLOSU, "1")
-                d = round(72.0 * olcek, 2)
-                sayfa.save(tf, format="TIFF", compression="group4" if renk == "sb" else "tiff_lzw", dpi=(d, d))
+                sayfa, d, kayit = _tiff_sayfasi(pg, dpi, renk, baglam.mupdf)
+                sayfa.save(tf, **kayit)
                 tf.newFrame()
                 dpiler.append(d)
                 del sayfa
@@ -1587,7 +1610,24 @@ def _gorsel_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
     """Görüntü → PDF (tek sayfa): sayfa ölçüsü gorsel_sayfa_olcusu, görüntü sayfayı kenardan kenara kaplar, EXIF yönü uygulanır. Hareketli
     GIF / WEBP'de ilk kare (uyarıyla)."""
     ilerleme(0, "Görüntü okunuyor…")
-    im = _gorsel_ac(kaynak, baglam.alt)
+    bayt, sg, sy, dondurme, r = _gorsel_sayfasi_hazirla(kaynak, baglam.alt, lambda: ilerleme(0.4, "PDF'e yazılıyor…"))
+    with baglam.mupdf():
+        doc = pymupdf.open()
+        try:
+            araclar._gorsel_sayfasi_ekle(doc, bayt, sg, sy, pymupdf.Rect(0, 0, sg, sy), dondurme)
+            try:
+                doc.set_metadata({"producer": "PDEfe", "creator": "PDEfe"})
+            except Exception:
+                pass
+            doc.save(cikti, **KAYIT_SECENEKLERI)
+        finally:
+            araclar._kapat(doc)
+    return r
+
+
+def _gorsel_sayfasi_hazirla(kaynak, alt, okundu=None):
+    """Görüntünün PDF sayfası (görüntü → PDF'in ve tahminin ortak yolu): (gömülecek bayt, sayfa_g, sayfa_y, dondurme, sonuç bilgisi)."""
+    im = _gorsel_ac(kaynak, alt)
     try:
         bicim = (im.format or "").upper()
         kareler = getattr(im, "n_frames", 1) or 1
@@ -1602,26 +1642,16 @@ def _gorsel_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
         except Exception as e:
             raise OgeHatasi("bozuk", "Görüntü okunamadı (%s): %s" % (os.path.basename(kaynak), e))
         sg, sy, xd, yd, dpi_kaynagi = gorsel_sayfa_olcusu(duz.width, duz.height, im.info.get("dpi"), yon)
-        ilerleme(0.4, "PDF'e yazılıyor…")
+        if okundu is not None:
+            okundu()
         bayt, dondurme, gomme = _gorsel_gomulecek(kaynak, im, duz, kare_kipi, yon, bicim)
         del duz
     finally:
         im.close()
-    with baglam.mupdf():
-        doc = pymupdf.open()
-        try:
-            araclar._gorsel_sayfasi_ekle(doc, bayt, sg, sy, pymupdf.Rect(0, 0, sg, sy), dondurme)
-            try:
-                doc.set_metadata({"producer": "PDEfe", "creator": "PDEfe"})
-            except Exception:
-                pass
-            doc.save(cikti, **KAYIT_SECENEKLERI)
-        finally:
-            araclar._kapat(doc)
     r = {"sayfa": 1, "dpi": round(xd, 1), "dpiKaynagi": dpi_kaynagi, "gomme": gomme}
     if kareler > 1:
         r["uyari"] = "Hareketli görüntünün yalnızca ilk karesi alındı."
-    return r
+    return bayt, sg, sy, dondurme, r
 
 
 def _gorsel_bilgi(yol, alt, genislik):
@@ -1696,12 +1726,16 @@ def _jpg_olcegi(pg, dpi):
     return (min(t, dpi) if t else dpi) / 72.0
 
 
+def _jpg_sayfasi(pg, dpi, kilit):
+    """PDF → JPG'nin bir sayfası: (görüntü, dpi, save seçenekleri)."""
+    sayfa, d = _sayfa_ciz(pg, _jpg_olcegi(pg, dpi), "RGB", kilit)
+    return sayfa, d, {"format": "JPEG", "quality": JPG_KALITESI, "optimize": True, "dpi": (d, d)}
+
+
 def _pdf_gorsel(kaynak, cikti, secenekler, ilerleme, baglam):
     """PDF → JPG: her sayfa ayrı JPEG (kalite JPG_KALITESI, dpi etiketli, notlar dâhil), çıktı klasörüne 1.jpg, 2.jpg…; adları çatı koyar
     (sayfa_adlari). secenekler: {dpi: 300 | 200 (varsayılan 300)}."""
     dpi = _jpg_dpi(secenekler)
-    Image = araclar._pillow()[0]
-    olcek_sinirla = _cekirdek().olcek_sinirla
     with baglam.mupdf():
         doc = araclar._pdf_ac(kaynak)   # yalnızca PDF (filetype="pdf"), parolalıysa PermissionError
     dpiler = []
@@ -1714,12 +1748,8 @@ def _pdf_gorsel(kaynak, cikti, secenekler, ilerleme, baglam):
             ilerleme(i / n, "Sayfa %d/%d" % (i + 1, n))
             with baglam.mupdf():
                 pg = doc[i]
-                olcek = olcek_sinirla(pg.rect.width, pg.rect.height, _jpg_olcegi(pg, dpi))
-                pix = pg.get_pixmap(matrix=pymupdf.Matrix(olcek, olcek), colorspace=pymupdf.csRGB, alpha=False, annots=True)
-                sayfa = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-                del pix
-            d = round(72.0 * olcek, 2)
-            sayfa.save(os.path.join(cikti, "%d.jpg" % (i + 1)), format="JPEG", quality=JPG_KALITESI, optimize=True, dpi=(d, d))
+            sayfa, d, kayit = _jpg_sayfasi(pg, dpi, baglam.mupdf)
+            sayfa.save(os.path.join(cikti, "%d.jpg" % (i + 1)), **kayit)
             dpiler.append(d)
             del sayfa
             if (i + 1) % ONBELLEK_BOSALTMA == 0:
@@ -1738,9 +1768,188 @@ donusturucu_kaydet("gorsel", "pdf", _gorsel_pdf, _gorsel_hazir)
 donusturucu_kaydet("pdf", "gorsel", _pdf_gorsel, _jpg_yazici_hazir)
 
 
+# ---------------------------------------------------------------- boyut tahmini (0.2.7, madde 8)
+# donusum_tahmini {yollar: [yol] (ya da yol), hedefBicim: 'tiff' | 'gorsel', renk?: 'sb' | 'gri' | 'renkli' (TIFF; varsayılan 'sb')}
+#   → (Ertelenmis; tahmin iş parçacığında) {ideal: bayt (300 dpi), dusuk: bayt (200 dpi), sayfa, tahmin (örneklendi mi), eksik: [yol],
+#      ogeler: [{yol, tur, sayfa, ideal, dusuk, ornek, tahmin} | {yol, tur?, tahminYok: true, neden}], sure}
+#   Aracın "İdeal ≈ x MB / Düşük ≈ y MB" yazısı için (Birleştir'in kucult_tahmin / boyut_tahmini deseni). Belgeden en çok TAHMIN_ORNEK
+#   sayfa (gri / renkli TIFF'te TAHMIN_ORNEK_RENKLI; baştan sona eşit aralıklı) dönüştürücünün kendi çizim ve kodlama yoluyla (_tiff_sayfasi,
+#   _jpg_sayfasi) bellekte kodlanır, toplam sayfa sayısına oranlanır; az sayfalı belgede bütün sayfalar (tahmin false: kesin). TIFF kaynağı
+#   (TIFF → JPG) ve görüntü kaynağı önce yalnızca örnek kareleri bellekte PDF sayfasına çevrilir (_tiff_karesi_ekle, _gorsel_sayfasi_hazirla).
+#   UDF ve Word kaynağı tahmin edilmez (önce dönüştürülmeleri gerekir: UDE / Word; tahminYok, eksik'e yazılır). Açılamayan dosya yalnızca kendi
+#   öğesinde hata (neden). Sonuç dosyanın değişme zamanı ve boyutuyla ön bellekte; iptal sayfa aralarında (-32800). Tahmin iş parçacığı
+#   dönüştürmeden ayrıdır (süren dönüştürme tahmini bekletmez); MuPDF adımları mupdf_kilidi içinde.
+TAHMIN_ORNEK = 5
+TAHMIN_ORNEK_RENKLI = 3
+TAHMIN_DPILERI = (("ideal", 300), ("dusuk", 200))
+_tahmin_onbellegi = {}
+_tahmin_kuyrugu = queue.Queue()
+_tahmin_is_parcacigi = None
+_tahmin_kilidi = threading.Lock()
+
+
+def _ornek_sayfalar(n, k):
+    if n <= k:
+        return list(range(n))
+    return sorted({int(round(j * (n - 1) / float(k - 1))) for j in range(k)})
+
+
+def _tahmin_dongu():
+    while True:
+        is_, bitir = _tahmin_kuyrugu.get()
+        try:
+            sonuc, hata = is_(), None
+        except Exception as e:
+            sonuc, hata = None, e
+        try:
+            bitir(sonuc, hata)
+        except Exception as e:
+            print("[donustur] tahmin yanıtı yazılamadı: %s" % e, file=sys.stderr)
+
+
+def _tahmin_calistir(is_, bitir):
+    global _tahmin_is_parcacigi
+    with _tahmin_kilidi:
+        if _tahmin_is_parcacigi is None:
+            _tahmin_is_parcacigi = threading.Thread(target=_tahmin_dongu, name="donusum-tahmini", daemon=True)
+            _tahmin_is_parcacigi.start()
+    _tahmin_kuyrugu.put((is_, bitir))
+
+
+def _ornek_belgesi(yol, tur, alt, k, kilit):
+    """Örneklenecek PDF ve sayfaları: (doc, örnek sayfa numaraları, toplam sayfa). PDF'te belgenin kendisi; TIFF'te yalnızca örnek kareler,
+    görüntüde tek sayfa bellekteki yeni belgeye. doc çağıranca kapatılır."""
+    if tur == "pdf":
+        with kilit():
+            doc = araclar._pdf_ac(yol)
+        n = doc.page_count
+        return doc, _ornek_sayfalar(n, k), n
+    with kilit():
+        doc = pymupdf.open()
+    try:
+        if tur == "tiff":
+            im = _tiff_ac(yol)
+            try:
+                olculer = _tiff_olculeri(im)
+                dpiler = tiff_dpi_coz([(g, y, e) for g, y, e, _ in olculer])
+                n = len(olculer)
+                for i in _ornek_sayfalar(n, k):
+                    _tiff_karesi_ekle(doc, im, i, olculer, dpiler, kilit)
+            finally:
+                im.close()
+            return doc, list(range(doc.page_count)), n
+        bayt, sg, sy, dondurme, _ = _gorsel_sayfasi_hazirla(yol, alt)
+        with kilit():
+            araclar._gorsel_sayfasi_ekle(doc, bayt, sg, sy, pymupdf.Rect(0, 0, sg, sy), dondurme)
+        return doc, [0], 1
+    except BaseException:
+        with kilit():
+            araclar._kapat(doc)
+        raise
+
+
+def _oge_tahmini(yol, hedef, renk, il):
+    """Bir dosyanın iki çözünürlükteki çıktı boyutu: {tur, sayfa, ideal, dusuk, ornek, tahmin}."""
+    st = os.stat(yol)
+    tur, alt = tur_bul(yol)
+    anahtar = (_yol_anahtari(yol), st.st_mtime_ns, st.st_size, hedef, renk if hedef == "tiff" else None)
+    with _tahmin_kilidi:
+        k = _tahmin_onbellegi.get(anahtar)
+    if k is not None:
+        return dict(k)
+    if tur in ("udf", "word") or tur == "bilinmeyen" or tur == hedef:
+        neden = {"udf": "UDF'nin boyutu dönüştürülmeden kestirilemiyor.", "word": "Word belgesinin boyutu dönüştürülmeden kestirilemiyor.",
+                 "bilinmeyen": "Dosyanın biçimi tanınmadı."}.get(tur, "Dosya zaten bu biçimde.")
+        return {"tur": tur, "tahminYok": True, "neden": neden}
+    _girdi_denetle(yol, tur, alt)
+    if tur == "gorsel":
+        ok, neden = _gorsel_alt_hazir(alt)
+        if not ok:
+            return {"tur": tur, "tahminYok": True, "neden": neden}
+    kilit = _mupdf_kilidi
+    sayi = TAHMIN_ORNEK_RENKLI if (hedef == "tiff" and renk != "sb") else TAHMIN_ORNEK
+    doc, ornekler, n = _ornek_belgesi(yol, tur, alt, sayi, kilit)
+    try:
+        toplam = {ad: 0 for ad, _ in TAHMIN_DPILERI}
+        for j, no in enumerate(ornekler):
+            il(j / max(len(ornekler), 1))
+            with kilit():
+                pg = doc[no]
+            onceki = None
+            for ad, dpi in TAHMIN_DPILERI:
+                olcek = (_tiff_olcegi(pg, dpi) if hedef == "tiff" else _jpg_olcegi(pg, dpi))
+                if onceki is not None and abs(olcek - onceki[0]) < 1e-9:
+                    toplam[ad] += onceki[1]   # taranmış sayfa: iki çözünürlükte aynı çizim
+                    continue
+                sayfa, d, kayit = _tiff_sayfasi(pg, dpi, renk, kilit) if hedef == "tiff" else _jpg_sayfasi(pg, dpi, kilit)
+                buf = io.BytesIO()
+                sayfa.save(buf, **kayit)
+                del sayfa
+                toplam[ad] += buf.tell()
+                onceki = (olcek, buf.tell())
+                il(j / max(len(ornekler), 1))
+    finally:
+        with kilit():
+            araclar._kapat(doc)
+    m = len(ornekler)
+    s = {"tur": tur, "sayfa": n, "ornek": m, "tahmin": m < n}
+    for ad, _ in TAHMIN_DPILERI:
+        s[ad] = int(round(toplam[ad] * n / float(max(m, 1)))) if m else 0
+    with _tahmin_kilidi:
+        while len(_tahmin_onbellegi) >= 128:
+            _tahmin_onbellegi.pop(next(iter(_tahmin_onbellegi)))
+        _tahmin_onbellegi[anahtar] = dict(s)
+    return s
+
+
+def y_donusum_tahmini(p):
+    yollar = p.get("yollar")
+    if yollar is None and p.get("yol") is not None:
+        yollar = [p.get("yol")]
+    if not isinstance(yollar, list) or not yollar:
+        raise ValueError("Tahmin edilecek dosya yok.")
+    if len(yollar) > EN_FAZLA_OGE:
+        raise ValueError("Bir seferde en çok %d dosya." % EN_FAZLA_OGE)
+    yollar = [araclar._mutlak(y, "yol") for y in yollar]
+    hedef = p.get("hedefBicim")
+    if hedef not in ("tiff", "gorsel"):
+        raise ValueError("Boyut tahmini yalnızca TIFF ve JPG için: %r" % (hedef,))
+    renk = p.get("renk") or "sb"
+    if hedef == "tiff" and renk not in TIFF_RENKLERI:
+        raise ValueError("Bilinmeyen renk seçeneği: %r" % (renk,))
+    il = _Ilerleme(p)
+
+    def is_():
+        bas = time.monotonic()
+        ogeler, eksik = [], []
+        toplam = {"ideal": 0, "dusuk": 0, "sayfa": 0}
+        tahmin = False
+        n = len(yollar)
+        for i, yol in enumerate(yollar):
+            il.oge(i, n, os.path.basename(yol))
+            il.bildir(0)
+            try:
+                s = _oge_tahmini(yol, hedef, renk, il.bildir)
+            except _iptal_siniflari():
+                raise
+            except Exception as e:
+                s = {"tahminYok": True, "neden": _hata_metni(e, os.path.basename(yol)), "kod": _hata_kodu(e)}
+            s["yol"] = yol
+            ogeler.append(s)
+            if s.get("tahminYok"):
+                eksik.append(yol)
+                continue
+            for a in toplam:
+                toplam[a] += s[a]
+            tahmin = tahmin or s["tahmin"]
+        return dict(toplam, tahmin=tahmin, eksik=eksik, ogeler=ogeler, sure=round(time.monotonic() - bas, 2))
+    return _cekirdek().Ertelenmis(lambda bitir: _tahmin_calistir(is_, bitir))
+
+
 def kaydol(yontemler):
     # Önceki çekirdeklerin çökmede bıraktıkları (kalintilari_temizle) açılışı geciktirmeden silinir
     threading.Thread(target=lambda: _sessiz(kalintilari_temizle), name="donustur-bakim", daemon=True).start()
     yontemler["donusum_yetenekleri"] = y_donusum_yetenekleri
     yontemler["donusum_bilgi"] = y_donusum_bilgi
     yontemler["bicim_donustur"] = y_bicim_donustur
+    yontemler["donusum_tahmini"] = y_donusum_tahmini
