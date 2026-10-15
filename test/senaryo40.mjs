@@ -4,12 +4,15 @@
 //      kalıyor, B "A (2).tif" adıyla kaydediliyordu). Kullanıcının kendi yazdığı ad ise (0.2.6'daki gibi) girdi değişince de kalır.
 //   2) Birleştir, UYAP Doküman Editörü yokken (PDEFE_UDE_YOK=1): açık PDF + UDF (yaklaşık çizim), "Üzerine yaz": PDF birleşik hâliyle yazılır,
 //      sekmesi yeni hâliyle açılır (önceden "Kaydedilecek dosya, birleştirilen dosyalardan biri olamaz" hatasıyla hiç çalışmıyordu).
+//   3) PDF → JPG, tek girdi, sayfa sayısı bilinmiyor (Word / ön izlemesi gelmemiş UDF satırının durumu): klasörde yalnızca "<ad> - Sayfa 2.jpg"
+//      ve "Sayfa 3" varken (sınanan adlar "<ad>.jpg", "Sayfa 1" yok) onlar ezilmez: çekirdek ilk boş "(1)" adını seçer, sonuçta not
+//      (önceden soru çıkmadan üzerlerine yazılıyordu).
 // Girdiler bu betikte üretilir (Python, proje .venv; gerçek belge yok): test/cikti/s40/girdi; çıktılar test/cikti/s40/<bölüm>-<koşum>.
 // Kullanım (görünmeyen masaüstü; 2. bölüm için editör yok benzetimi):
 //   $env:PDEFE_UDE_YOK="1"; powershell -ExecutionPolicy Bypass -File test\baslat_gizli.ps1 -Port 9440 -Veri "$env:TEMP\pdefe-s40-9440" -Boyut "1280,1000"   → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9440; node test\surucu.mjs betik test\senaryo40.mjs
 //   powershell -ExecutionPolicy Bypass -File test\durdur.ps1 -SurecId <PID>
-// Yalnızca bazı bölümler: $env:BOLUM="1,2".
+// Yalnızca bazı bölümler: $env:BOLUM="1,3".
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -179,6 +182,32 @@ print(json.dumps(u.yaz(${J(path.join(GIRDI, 'Dilekçe.udf'))})))`);
         && /Dilekçe\.udf: UYAP Doküman Editörü bulunamadı; görünüm yaklaşık/.test(b)), bildirim);
       await araclariKapat(); await sekmeleriKapat();
     }
+  }
+
+  /** Sonuç kutusunun satırları: [{ ad, uyari }] */
+  const sonucSatirlari = () => evalJs(`[...document.querySelectorAll('.donustur-sonuc li')].map((e) => ({ ad: e.querySelector('.ad')?.textContent, uyari: e.querySelector('.uyari-metin')?.textContent || '' }))`);
+
+  // ------------------------------------------------------------ 3) JPG: sayfa sayısı bilinmezken var olan "Sayfa n" dosyaları ezilmez
+  if (bolum(3)) {
+    console.log('\n== 3) JPG: sayfa sayısı bilinmiyor, yalnızca "Sayfa 2" ve "Sayfa 3" var');
+    await araclariKapat(); await sekmeleriKapat();
+    const k = yeniKlasor('jpg-bilinmeyen');
+    const W = path.join(GIRDI, 'W.pdf');
+    pdfUret(W, 3, 13);
+    await ayarla({ ciktiKlasoru: k, otomatikKaydet: false, donusturme: { hedefler: { pdf: 'gorsel' } } });
+    await donusturAc([W]);
+    // Word satırında olduğu gibi sayfa sayısı yok (çekirdeğin donusum_bilgi'si Word'de sayfa vermez)
+    await evalJs(`(() => { const p = ${D}; p.ogeler[0].sayfa = null; p._durumGuncelle(); return true; })()`);
+    for (const n of [2, 3]) fs.writeFileSync(path.join(k, `W - Sayfa ${n}.jpg`), 'ESKI DOSYA ' + n);
+    const soru = await donustur(1);
+    const d = dosyalar(k);
+    sonuc('3) Var olan "W - Sayfa 2.jpg" ve "Sayfa 3" değişmedi, "W - Sayfa 1.jpg" yazılmadı', [2, 3].every((n) => fs.readFileSync(path.join(k, `W - Sayfa ${n}.jpg`), 'utf8') === 'ESKI DOSYA ' + n)
+      && !d.includes('W - Sayfa 1.jpg'), { soru, dosyalar: d });
+    sonuc('3) Sayfalar ilk boş "(1)" adıyla yazıldı', [1, 2, 3].every((n) => d.includes(`W (1) - Sayfa ${n}.jpg`)), d);
+    const satirlar = await sonucSatirlari();
+    sonuc('3) Sonuçta yazılan adlar ve "yeni adla kaydedildi" notu', J(satirlar.map((x) => x.ad)) === J([1, 2, 3].map((n) => `W (1) - Sayfa ${n}.jpg`)) && /yeni adla kaydedildi/.test(satirlar[0]?.uyari || ''),
+      satirlar);
+    await araclariKapat(); await sekmeleriKapat();
   }
 
   // ------------------------------------------------------------ son

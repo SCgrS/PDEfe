@@ -103,6 +103,8 @@ const COZUNURLUKLER = [
   { id: '300', ad: 'İdeal', anahtar: 'ideal', baslik: 'Standart çözünürlük: yazılar ve resimler keskin' },
   { id: '200', ad: 'Düşük', anahtar: 'dusuk', baslik: 'Daha küçük dosya; yazılı belgeler için yeterli' },
 ];
+/** Çekirdek var olan dosyalar yüzünden ilk boş "(1)" adını seçti (sonucun istenenHedef'i; 0.2.7 inceleme). */
+const YENI_AD_NOTU = 'Aynı adlı dosyalar vardı; onlara dokunulmadı, yeni adla kaydedildi.';
 const BELGE_TAHMIN_NOTU = 'UDF ve Word dosyalarının boyutu dönüştürülmeden kestirilemiyor; toplama katılmadı.';
 const KUCUK_RESIM_EN_AZ = 120;
 const KUTU_VARSAYILAN = 120;   // araclar.css --donustur-resim
@@ -813,6 +815,9 @@ export class DonusturPenceresi {
    * Tek girdinin JPG hedefi (0.2.7): yazılacak dosyalardan ("<ad>.jpg"; çok sayfada "<ad> - Sayfa n.jpg", sayfa sayısı bilinmiyorsa ikisinin
    * de ilki) biri varsa öteki araçlardaki "zaten var" sorusu: Üzerine yaz | Yeni belge olarak kaydet (varsayılan; çekirdek ilk boş "(1)"
    * adını seçer, var olan dosyaya dokunulmaz) | Vazgeç. Döner: { cakisma, vardi: Set (var olan adların anahtarları) } | null (vazgeçildi).
+   * Sınanan adların hiçbiri yoksa da çekirdeğe "yeniAd" gider (0.2.7 inceleme): sayfa sayısı bilinmeyen satırda (Word, ön izlemesi
+   * gelmemiş UDF) ya da 200 sayfadan uzun belgede sınanmayan bir "Sayfa n" doluysa o dosya ezilmez, sayfalar "(1)" adıyla yazılır
+   * (sonuçta not). Olağan durumda (hiçbiri yok) çekirdeğin seçtiği adlar aynıdır. "Üzerine yaz" yalnızca soruda açıkça seçilince.
    */
   async _jpgCakismasi(o, hedef) {
     const { baglam } = this;
@@ -823,7 +828,7 @@ export class DonusturPenceresi {
     const olanlar = [];
     for (const ad of adlar) if (await varMi(ad)) olanlar.push(ad);
     const vardi = new Set(olanlar.map((a) => yolBirlestir(klasor, a).replace(/\//g, '\\').toLowerCase()));
-    if (!olanlar.length) return { cakisma: 'uzerineYaz', vardi };
+    if (!olanlar.length) return { cakisma: 'yeniAd', vardi };
     // Yeni adın önerisi: "<ad> (n)" adlarından hiçbiri yoksa (çekirdek yazarken yeniden bakar)
     const m = / \((\d{1,3})\)$/.exec(govde);
     const kok = m ? govde.slice(0, m.index) : govde;
@@ -1029,7 +1034,9 @@ export class DonusturPenceresi {
     for (const r of sonuclar) {
       if (r.hata) { satirlar.push({ yol: r.yol, ad: dosyaAdi(r.yol), hata: r.hata }); continue; }
       const dosyalar = Array.isArray(r.hedefler) && r.hedefler.length ? r.hedefler : [r.hedef];
-      dosyalar.forEach((y, i) => satirlar.push({ yol: y, ad: dosyaAdi(y), ac: r.hedefBicim === 'pdf', uyari: i === 0 ? r.uyari || '' : '' }));
+      // Çekirdek var olan dosyalar yüzünden "(1)" adını seçtiyse (istenenHedef; 0.2.7 inceleme) ilk satırda söylenir
+      const yeniAd = r.istenenHedef ? YENI_AD_NOTU : '';
+      dosyalar.forEach((y, i) => satirlar.push({ yol: y, ad: dosyaAdi(y), ac: r.hedefBicim === 'pdf', uyari: i === 0 ? [r.uyari, yeniAd].filter(Boolean).join(' ') : '' }));
     }
     const dosyaSayisi = (r) => (Array.isArray(r.hedefler) && r.hedefler.length ? r.hedefler.length : 1);
     const jpgDosyasi = basarili.length === 1 && dosyaSayisi(basarili[0]) > 1 ? ` · ${sayiMetni(dosyaSayisi(basarili[0]))} görüntü dosyası` : '';
