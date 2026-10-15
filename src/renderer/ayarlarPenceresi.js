@@ -417,7 +417,9 @@ function bolumKaydetme(k) {
  * (udeYolu null: çekirdek editörü kendisi arar), "Klasörü seç…" ana sürecin klasör seçme penceresini açar (ayar:udeKlasoruSec; klasörde
  * editör bulunursa ayarı ana süreç yazar, arayüz udeYolu'nu yalnızca temizleyebilir). Altında bulunan editörün yolu ve sürümü, Java'nın
  * sürümü ya da bulunamama nedeni (çekirdeğin donusum_yetenekleri'nden). macOS'ta da aynı (UYAP uygulamasının paketi seçilebilir).
+ * Editörle dönüştürme yapılamıyorsa durumun son satırı UDF'lerin yaklaşık çizimle dönüştürüleceğini söyler (main/udfYaklasik.js).
  */
+const YAKLASIK_NOTU = 'UDF\'ler yine dönüştürülür: PDEfe\'nin yaklaşık çizimiyle (satır ve sayfa kırılımları editördekinden farklı olabilir).';
 function udeKarti(k) {
   const { pdefe } = acik.baglam;
   const durum = el('div', { class: 'ayar-ude-durum' }, 'Aranıyor…');
@@ -425,7 +427,7 @@ function udeKarti(k) {
   const sec = el('button', { class: 'ikincil', type: 'button' }, 'Klasörü seç…');
   const kartEl = kart({
     baslik: 'UYAP Doküman Editörü',
-    aciklama: 'UDF dosyaları PDF\'e bilgisayardaki UYAP Doküman Editörü\'yle (pencere açılmadan) dönüştürülür. Otomatik bul: kurulu editör kendiliğinden bulunur. Bulunamıyorsa ya da başka bir kurulum kullanılacaksa editörün klasörünü seçin.',
+    aciklama: 'UDF dosyaları PDF\'e bilgisayardaki UYAP Doküman Editörü\'yle (pencere açılmadan) dönüştürülür. Otomatik bul: kurulu editör kendiliğinden bulunur. Bulunamıyorsa ya da başka bir kurulum kullanılacaksa editörün klasörünü seçin. Editör yoksa UDF\'ler PDEfe\'nin yaklaşık çizimiyle dönüştürülür.',
     kontrol: el('div', { class: 'ayar-yanyana' }, [otomatik, sec]), alt: durum,
   });
   kartEl.dataset.hedef = 'udeYolu';
@@ -448,6 +450,7 @@ function udeKarti(k) {
       satirlar.push(java?.var ? `Java ${java.surum || ''}`.trim() : (udf.neden || 'UYAP Doküman Editörü\'nün çalıştığı Java (8) bulunamadı.'));
       if (java?.var && udf.neden) satirlar.push(udf.neden);
     } else satirlar.push(udf?.neden || 'Bu bilgisayarda UYAP Doküman Editörü bulunamadı.');
+    if (udf && udf.var === false) satirlar.push(YAKLASIK_NOTU);
     durum.replaceChildren(...satirlar.map((s) => el('div', { class: 'ayar-yol' }, s)));
     durum.title = satirlar.join('\n');
     durum.className = `ayar-ude-durum ${hata || !udf?.var ? 'ayar-sonuc-hata' : 'soluk'}`;

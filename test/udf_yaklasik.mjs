@@ -11,6 +11,7 @@
 //   5) Araç: UDF satırında hedefler seçilebilir, "görünüm yaklaşık" uyarısı ve "UYAP Doküman Editörü'nün yerini göster" bağlantısı, küçük
 //      resim yaklaşık çizimden; tek UDF → PDF sekmede açılır, bildirimde uyarı; birden çok dosyada UDF → TIFF ve UDF → PDF, açılamayan belge
 //      hatasıyla, sonuç listesinde uyarı; editör bulunduğu hâlde çekirdek "desteklenmiyor" derse yaklaşık çizimle yeniden denenir; İptal.
+//      Ayarlar › Kaydetme › UYAP Doküman Editörü: durumun son satırı yaklaşık çizimi söyler.
 // UDE kurulu bilgisayarda "UDE yok" benzetimi: çekirdeğe PDEFE_UDE_YOK=1 (geliştirme sürümü, core/islemler/udf.py ude_bul). Girdiler
 // test/udf_yaklasik_uret.py ile test/cikti/udf_yaklasik/girdi altında üretilir (gerçek belge yok); çıktılar test/cikti/udf_yaklasik/cikti.
 // Kullanım (PowerShell; görünmeyen masaüstü: iletişim kutusu açılsa bile kişinin ekranına çıkmaz, sayılır):
@@ -342,10 +343,23 @@ print(json.dumps({"sayfa": d.page_count, "satirlar": out}, ensure_ascii=False))`
     await kosul(`!document.querySelector('.donustur-pencere .arac-ilerleme') || document.querySelector('.donustur-pencere .arac-ilerleme').hidden`, 30000);
     await bekle(800);
     const bl3 = await bildirimler();
+    // Satırların küçük resimleri (yaklaşık çizim, sırada dönüştürmenin arkasında) iptalden sonra da çizilir: geçici dosyaları onlar bitince silinir
+    await kosul(`!document.querySelector('.donustur-oge .resim.onizleniyor')`, 30000);
+    for (let i = 0; i < 40 && geciciler().length; i++) await bekle(250);
     sonuc('Araçta İptal: "hiçbir dosya kaydedilmedi", klasörde iptal dosyası ve geçici dosya yok', bl3.some((b) => /iptal edildi/.test(b)) && !ciktilar().some((a) => /^iptal \d+/.test(a)) && !geciciler().length,
       { bl3, dosyalar: ciktilar(), gecici: geciciler() });
     await pencereKapat();
     for (const y of kopyalar) fs.rmSync(y, { force: true });
+
+    // Ayarlar › Kaydetme › UYAP Doküman Editörü
+    await evalJs(`window.__pdefe.komutCalistir('duzen.ayarlar', 'kaydetme')`);
+    const KART = `document.querySelector('.ayarlar-ortusu .ayar-kart[data-hedef="udeYolu"]')`;
+    await kosul(`!!${KART} && !${KART}.querySelector('.ayar-ude-durum').textContent.includes('Aranıyor')`, 15000);
+    const kd = await evalJs(`(() => { const k = ${KART}; return { aciklama: k.querySelector('.ayar-aciklama').textContent, durum: [...k.querySelectorAll('.ayar-ude-durum > div')].map((d) => d.textContent) }; })()`);
+    sonuc('Ayarlar: durumda neden ve "yaklaşık çizimiyle" satırı; açıklamada yaklaşık çizim', kd.durum[0] === YET.udf.neden && /yaklaşık çizimiyle \(satır ve sayfa kırılımları/.test(kd.durum.at(-1) || '')
+      && /Editör yoksa UDF'ler PDEfe'nin yaklaşık çizimiyle dönüştürülür\./.test(kd.aciklama), kd);
+    await ss('05-ayarlar');
+    await evalJs(`(async () => { const m = await import('pdefe://app/src/renderer/ayarlarPenceresi.js'); m.ayarlarPenceresiKapat(); return true; })()`);
   }
 
   // ------------------------------------------------------------ son denetim
