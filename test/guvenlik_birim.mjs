@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
-import { paketKlasoruMu, cekirdekParametreleri, udfIcerigiDenetle, udfDosyasiOku, udfYaklasikParametreleri } from '../src/main/guvenlik.js';
+import { paketKlasoruMu, cekirdekParametreleri, udfIcerigiDenetle, udfDosyasiOku, udfYaklasikParametreleri, ayarYazimiDenetle } from '../src/main/guvenlik.js';
 
 const KOK = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const K = process.env.GUVENLIK_BIRIM_KLASORU || path.join(KOK, 'test', 'cikti', 'guvenlik_birim');
@@ -151,6 +151,20 @@ try {
     && yp('udf:yaklasikDonustur', { ogeler: [yoge('a.pdf', 'pdf')], istekId: '3' }) === null);
   kontrol('yaklasikIptal: istek kimliği gerekir', yp('udf:yaklasikIptal', {}) === null && yp('udf:yaklasikIptal', { istekId: 3 })?.istekId === 3);
   kontrol('bilinmeyen kanal ve dizi parametresi reddedilir', yp('udf:yaklasikKoy', { gecici: udfYolu, hedef: udfYolu }) === null && yp('udf:yaklasikBilgi', [udfYolu]) === null);
+
+  // ------------------------------------------------------------ ayar:koy (0.2.6): arayüzün yazabileceği ayarlar (ayarYazimiDenetle)
+  // Yalnızca bilinen üst düzey ayar (VARSAYILANLAR'ın anahtarı); udeYolu yalnızca null. Nesne anahtarı (conf bütün girdilerini yazar) ve
+  // noktalı yol ('udeYolu.x' udeYolu'nu nesneye çevirir) reddedilir: çekirdek udeYolu klasöründeki Java'yı çalıştırır
+  const VARSAYILAN = { tema: 'sistem', udeYolu: null, yazdirma: {}, sonDosyalar: [] };
+  const ayarSonucu = (anahtar, deger) => { try { ayarYazimiDenetle(anahtar, deger, VARSAYILAN); return 'izin'; } catch { return 'red'; } };
+  kontrol('ayar:koy: bilinen ayar yazılır (tema, yazdirma nesnesi, sonDosyalar dizisi)', ayarSonucu('tema', 'koyu') === 'izin' && ayarSonucu('yazdirma', { yazici: 'X' }) === 'izin'
+    && ayarSonucu('sonDosyalar', []) === 'izin');
+  kontrol('ayar:koy: udeYolu yalnızca null (temizleme)', ayarSonucu('udeYolu', null) === 'izin' && ayarSonucu('udeYolu', undefined) === 'izin' && ayarSonucu('udeYolu', 'C:\\x') === 'red'
+    && ayarSonucu('udeYolu', '\\\\sunucu\\pay\\UDE') === 'red');
+  kontrol('ayar:koy: nesne anahtarı reddedilir ({ udeYolu: … } ve zararsız görünen { tema: … })', ayarSonucu({ udeYolu: '\\\\sunucu\\pay\\UDE' }) === 'red' && ayarSonucu({ tema: 'koyu' }) === 'red');
+  kontrol('ayar:koy: noktalı yol reddedilir (udeYolu.x, yazdirma.yazici)', ayarSonucu('udeYolu.x', 'C:\\x') === 'red' && ayarSonucu('yazdirma.yazici', 'X') === 'red');
+  kontrol('ayar:koy: bilinmeyen anahtar, dizi, sayı, boş ve __proto__ reddedilir', ['bilinmeyen', '', '__proto__', 'constructor', 'toString'].every((a) => ayarSonucu(a, 1) === 'red')
+    && ayarSonucu(['udeYolu'], 'C:\\x') === 'red' && ayarSonucu(5, 1) === 'red' && ayarSonucu(null, 1) === 'red');
 } finally {
   try { fs.rmSync(K, { recursive: true, force: true }); } catch { console.log('Not: ' + K + ' silinemedi.'); }
 }

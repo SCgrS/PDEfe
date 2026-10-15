@@ -63,7 +63,7 @@ export default async function ({ evalJs, bekle, tikla }) {
   await evalJs(`(window.__pdefe.komutCalistir('yardim.guncelle'), 1)`);
   const s0 = await bekleSerit((s) => s.asama === 'var');
   sonuc('Elle denetim: şerit "PDEfe 9.9.9 hazır", Güncelle düğmesi', s0.asama === 'var' && /PDEfe 9\.9\.9 hazır/.test(s0.metin) && s0.dugmeler.some((d) => d.ad === 'Güncelle'), s0);
-  await evalJs(`window.pdefe.cagir('ayar:koy', 'bekleyenGuncelleme', '')`);
+  await evalJs(`window.pdefe.cagir('test:ayarKoy', 'bekleyenGuncelleme', '')`);
   // Donan indirme: bekçi (sahte güncelleyicide 3 sn) keser
   await senaryo({ hata: 'donma', sureMs: 2000 });
   await bas('Güncelle');

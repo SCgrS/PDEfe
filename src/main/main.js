@@ -13,7 +13,7 @@ import { yazdirmaKur } from './yazdir.js';
 import { udfYaklasikKur } from './udfYaklasik.js';
 import { guncellemeKur } from './guncelleme.js';
 import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla, menuCubugunuUygula, pencereSayisi } from './pencereler.js';
-import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, DENETLENEN_YONTEMLER, paketKlasoruMu, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasorleri, standartYaziTipleri, anlikDosyasiMi } from './guvenlik.js';
+import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, DENETLENEN_YONTEMLER, paketKlasoruMu, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasorleri, standartYaziTipleri, anlikDosyasiMi, ayarYazimiDenetle } from './guvenlik.js';
 import electronUpdater from 'electron-updater';
 import { createRequire } from 'node:module';
 import { MacGuncelleyici, tarayicidaIndir } from './macGuncelleme.js';
@@ -253,9 +253,10 @@ function ipcKur(ipcMain) {
   const MENU_AYARLARI = new Set(['varsayilanDuzen', 'kapakAyri', 'sonAcilanlariHatirla']);   // menüde görünen ayarlar
   // Ayarlar bütün pencerelerde ortaktır: değişiklik öteki pencerelere bildirilir ('ayar:degisti'; kendi kopyalarını güncelleyip uygularlar)
   ipcMain.handle('ayar:koy', (e, anahtar, deger) => {
-    // UYAP Doküman Editörü'nün klasörü (0.2.6) arayüzden yalnızca temizlenir (kendiliğinden bul); klasör yalnızca ayar:udeKlasoruSec'teki
-    // pencereden seçilir: çekirdek o klasördeki Java'yı çalıştırır, arayüzde kod çalışsa bile başka bir klasör gösterilemesin (guvenlik.js)
-    if (anahtar === 'udeYolu' && deger != null) throw new Error('İzin verilmeyen istek.');
+    // Yalnızca bilinen üst düzey ayarlar (nesne anahtarı ve noktalı yol yok). UYAP Doküman Editörü'nün klasörü (0.2.6) arayüzden yalnızca
+    // temizlenir (kendiliğinden bul); klasör yalnızca ayar:udeKlasoruSec'teki pencereden seçilir: çekirdek o klasördeki Java'yı çalıştırır,
+    // arayüzde kod çalışsa bile başka bir klasör gösterilemesin (guvenlik.js ayarYazimiDenetle)
+    ayarYazimiDenetle(anahtar, deger, VARSAYILANLAR);
     ayarKoy(anahtar, deger);
     if (MENU_AYARLARI.has(anahtar)) uygulamaMenusuKur();
     if (anahtar === 'menuCubugu') menuCubugunuUygula(!!deger);
@@ -266,6 +267,8 @@ function ipcKur(ipcMain) {
 
   // secenek: {baslik, filtreler:[{name, extensions}], coklu, varsayilan}
   const testDiyalog = testDiyalogKur(ipcMain);   // test örneğinde yerel diyaloglar ekrana çıkmaz (gelistirme.js)
+  // Test örneğinde ana sürecin kendi yazdığı ayarlar da (ör. bekleyenGuncelleme) kurulabilsin: ayar:koy yalnızca arayüzün ayarlarını yazar
+  if (testDiyalog) ipcMain.handle('test:ayarKoy', (_e, anahtar, deger) => { ayarKoy(anahtar, deger); return true; });
   // "Son açılanları hatırla" kapalıyken Aç / Kaydet pencereleri seçilen dosyayı Windows'un son kullanılanlar listesine de eklemez
   const sonKullanilanlar = () => (ayarAl('sonAcilanlariHatirla') === false ? ['dontAddToRecent'] : []);
   ipcMain.handle('dosya:acDiyalog', async (e, secenek) => {

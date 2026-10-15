@@ -300,6 +300,13 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     let reddedildi = false;
     try { await evalJs(`window.pdefe.cagir('ayar:koy', 'udeYolu', ${J(bosKlasor)})`); } catch { reddedildi = true; }
     sonuc('Arayüz ayar:koy ile udeYolu\'nu bir klasöre yazamaz (yalnızca null)', reddedildi && (await evalJs(`window.pdefe.cagir('ayar:al', 'udeYolu')`)) == null);
+    // Nesne anahtarı (electron-store bütün girdileri yazar) ve noktalı yol da reddedilir (0.2.6 incelemesi: korumayı aşıyordu)
+    const redSayisi = await evalJs(`(async () => { let n = 0;
+      for (const [a, d] of [[{ udeYolu: ${J(bosKlasor)} }, undefined], ['udeYolu.x', ${J(bosKlasor)}], ['bilinmeyenAyar', 1]]) { try { await window.pdefe.cagir('ayar:koy', a, d); } catch { n++; } }
+      return n; })()`);
+    const udeAyari3 = await evalJs(`window.pdefe.cagir('ayar:al', 'udeYolu')`);
+    sonuc('ayar:koy: nesne anahtarı, noktalı yol ve bilinmeyen ayar reddedilir; udeYolu değişmez', redSayisi === 3 && udeAyari3 == null
+      && (await evalJs(`window.pdefe.cagir('ayar:al', 'bilinmeyenAyar')`)) == null, { redSayisi, udeAyari3 });
     if (UDE_VAR && YET.udf?.ude?.yol) {
       await yanitla('dosya:klasorSec', [YET.udf.ude.yol]);
       await tikSecici(`[...document.querySelectorAll('.donustur-oge')].find((e) => e.querySelector('.ad').textContent === 'Karar örneği.udf').querySelector('[data-komut="ude"]')`);

@@ -143,6 +143,18 @@ const izinYok = () => new Error('İzin verilmeyen istek.');
 const dolu = (s) => typeof s === 'string' && s.trim().length > 0 && !s.includes('\0');
 
 /**
+ * ayar:koy (main.js): arayüzün yazabileceği ayar. Yalnızca bilinen üst düzey ayarlar (varsayilanlar: ayarlar.js VARSAYILANLAR; arayüz
+ * başkasını yazmaz) ve udeYolu yalnızca null (temizleme; klasörü yalnızca ana sürecin ayar:udeKlasoruSec penceresi yazar: çekirdek o
+ * klasördeki Java'yı çalıştırır). Anahtar metin olmalı: electron-store (conf) nesne anahtarında bütün girdileri yazar ({ udeYolu: … }),
+ * noktalı yolu iç içe alan sayar ('udeYolu.x' udeYolu'nu nesneye çevirir); ikisi de bu denetimi aşardı (0.2.6 incelemesi). Uymayan istekte
+ * hata fırlatır.
+ */
+export function ayarYazimiDenetle(anahtar, deger, varsayilanlar) {
+  if (typeof anahtar !== 'string' || !anahtar || anahtar.includes('.') || !Object.prototype.hasOwnProperty.call(varsayilanlar || {}, anahtar)) throw izinYok();
+  if (anahtar === 'udeYolu' && deger != null) throw izinYok();
+}
+
+/**
  * Dosya Formatını Değiştir'in parametreleri (0.2.6). Çekirdek de denetler; bu katman, arayüzde kod çalışsa bile çekirdeğin .bat / .cmd / .exe
  * gibi bir dosyaya yazmamasını ve kullanıcının seçmediği bir klasördeki programı çalıştırmamasını sağlar.
  *  - udeYolu: arayüzün verdiği yok sayılır; ana sürecin ayarındaki klasör (yalnızca ana sürecin klasör seçme penceresinden yazılır,
