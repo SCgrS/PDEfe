@@ -14,6 +14,9 @@
 // 0.2.3 (kullanıcı isteği: "koyu mod fotoğraflar da koyabilirsin"): ana görünüm, açılış ekranı ve Birleştir koyu temada da çekilir
 // (ana-koyu, acilis-koyu, birlestir-koyu; README'de açık temadakilerle yan yana). Tema betiğin sonunda değiştirilir, örnek açık temayla
 // başlatılır. Kurucunun kurulu sürüm sayfası (docs/ekran-kurulum.png) bu betikten değil, test\kurulum_surum.ps1'in surum-2-eski.png'sidir.
+// 0.2.6: Kısayollar listesi uzadığı için ekran-kisayollar 1280×900 pencerede çekilir (1280×800'de alt satırlar kesiliyordu): ikinci örnek
+// baslat.ps1 -Boyut "1280,900" ile açılır, $env:GORUNTU="kisayollar". Dosya Formatını Değiştir (ekran-donustur) kurgusal UDF / TIFF / Word
+// girdilerle (readme_ornek_uret.py); UDF'nin küçük resmi bilgisayardaki UYAP Doküman Editörü'yle çizilir.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +27,8 @@ const ORNEK = process.env.README_ORNEK || 'C:\\Users\\Public\\Documents\\PDEfe �
 const J = (x) => JSON.stringify(x);
 const Y = (ad) => path.join(ORNEK, ad);
 const DILEKCE = 'Dava dilekçesi.pdf', TMK = 'Türk Medeni Kanunu.pdf', TTK = 'Türk Ticaret Kanunu.pdf', TARANMIS = 'Taranmış dilekçe.pdf';
+/** Dosya Formatını Değiştir'in girdileri (0.2.6; readme_ornek_uret.py donusturme_ornekleri: kurgusal UDF, taranmış evrak, Word) */
+const DONUSTURULECEK = ['Cevap dilekçesi.udf', 'Taranmış evrak.tif', 'Bilirkişi raporu.docx'];
 
 const TAMAM = Symbol('istenen görüntüler çekildi');
 
@@ -342,8 +347,12 @@ async function calis({ evalJs, ekranGoruntusu, bekle, fare, tikla, surukle, yaz,
   // Sayfaları düzenle (TMK)
   await sec(TMK);
   await komut('arac.sayfalar'); await kosul(`!!document.querySelector('.arac-pencere')`, 5000);
-  await fare([{ tur: 'hareket', x: 8, y: 755 }]);   // fare bir kartın üstünde kalmasın (kartın düğmeleri görünürdü)
+  await fare([{ tur: 'hareket', x: 8, y: 755 }]);
   await bekle(5000);
+  // 0.2.6: fare ikinci kartın üstünde: kartın dört düğmesi (Sola döndür, Sağa döndür, Kopyala, Sil) görünür
+  const kart2 = await kutuAl(`document.querySelectorAll('.sayfa-karti')[1]`);
+  if (kart2) await fare([{ tur: 'hareket', x: Math.round((kart2.x + kart2.r) / 2), y: Math.round((kart2.y + kart2.b) / 2) }]);
+  await bekle(600);
   if (iste('sayfalar')) await ss('sayfalar');
   await hepsiniTemizle();
 
@@ -354,6 +363,19 @@ async function calis({ evalJs, ekranGoruntusu, bekle, fare, tikla, surukle, yaz,
   await evalJs(`(() => { const g = [...document.querySelectorAll('.arac-pencere input[type="text"]')].find((x) => /1-3/.test(x.placeholder || '')); g?.focus(); return !!g; })()`);
   await yaz('1-24, 25-120, 121-'); await bekle(1200);
   if (iste('ayir')) await ss('ayir');
+  await hepsiniTemizle();
+
+  // Dosya Formatını Değiştir (0.2.6): açık dilekçe (hedefi UDF) + kurgusal UDF, taranmış evrak (TIFF) ve Word belgesi (hedefleri PDF).
+  // UDF'nin küçük resmi bilgisayardaki UYAP Doküman Editörü'yle (editör yoksa PDEfe'nin yaklaşık çizimiyle) birkaç saniyede gelir.
+  await sec(DILEKCE);
+  await komut('arac.donustur'); await kosul(`!!document.querySelector('.donustur-pencere')`, 5000);
+  await komut('arac.donustur', DONUSTURULECEK.map(Y));
+  await kosul(`document.querySelectorAll('.donustur-oge').length >= 4 && !document.querySelector('.donustur-oge.yukleniyor')`, 30000);
+  await bekle(6000);   // UDF'nin ön izlemesi
+  await evalJs(`(document.querySelector('.donustur-liste').scrollTop = 0, document.activeElement?.blur(), true)`);   // ilk satırlar: PDF → UDF, UDF → PDF
+  await fare([{ tur: 'hareket', x: 8, y: 755 }]);
+  await bekle(400);
+  if (iste('donustur')) await ss('donustur');
   await hepsiniTemizle();
 
   // ------------------------------------------------------------ Ayarlar, Yazdır, Kısayollar
@@ -368,6 +390,11 @@ async function calis({ evalJs, ekranGoruntusu, bekle, fare, tikla, surukle, yaz,
   await komut('dosya.yazdir'); await bekle(1200);
   await evalJs(`(() => { const b = [...document.querySelectorAll('.mesaj-kutusu button')].find((x) => /Kaydetmeden/.test(x.textContent)); b?.click(); return !!b; })()`);
   await bekle(2500);
+  // Ön izleme görüntüsü açılıştaki ekran ölçeğinde istenir; büyük görüntüde (README_OLCEK) ekran ölçeği yalnızca çekim sırasında büyüdüğü
+  // için ön izleme, ölçek büyüdükten sonra sayfa değiştirilip geri gelinerek yeni ölçekte yeniden istenir (çekim 3,5 sn bekler).
+  if (OLCEK !== 1) await evalJs(`(() => { const o = document.querySelector('.yazdir-ortusu'); const s = o?.querySelector('[data-id="sonraki"]'), g = o?.querySelector('[data-id="onceki"]');
+    const yazdir = [...(o?.querySelectorAll('button') || [])].find((x) => x.textContent.trim() === 'Yazdır');
+    setTimeout(() => s?.click(), 1400); setTimeout(() => { g?.click(); yazdir?.focus(); }, 2100); return !!(s && g); })()`);
   if (iste('yazdir')) await ss('yazdir');
   await hepsiniTemizle();
   await komut('yardim.kisayollar'); await bekle(1000);

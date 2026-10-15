@@ -120,8 +120,8 @@ macOS 13–15'te Türkçe harfler (ş, ğ, ı, İ) yanlış gelebilir.
 ![Yazı kutusu düzenlenirken biçim çubuğu](docs/ekran-yazi.png)
 
 <p>
-  <img src="docs/ekran-geri-al.png" alt="Geri al listesi: en üstteki üç adım birlikte geri alınacak">
-  <img src="docs/ekran-kaydedilmemis.png" alt="Kaydedilmemiş değişiklikler listesi ve Kaydet düğmesi">
+  <img src="docs/ekran-geri-al.png" width="423" alt="Geri al listesi: en üstteki üç adım birlikte geri alınacak">
+  <img src="docs/ekran-kaydedilmemis.png" width="311" alt="Kaydedilmemiş değişiklikler listesi ve Kaydet düğmesi">
 </p>
 
 ### Araçlar
@@ -151,7 +151,7 @@ oluşturur).
   <img src="docs/ekran-ayir.png" width="90%" alt="Ayır: sayfa aralıkları ve oluşturulacak dosyalar">
 </p>
 
-![Sayfaları düzenle: büyük sayfa ön izlemeleri](docs/ekran-sayfalar.png)
+![Sayfaları düzenle: büyük sayfa ön izlemeleri; kartın altında döndür, kopyala ve sil düğmeleri](docs/ekran-sayfalar.png)
 
 <p align="center">
   <img src="docs/ekran-birlestir-koyu.png" width="90%" alt="Görüntü / PDF birleştir koyu temada">
@@ -162,6 +162,8 @@ oluşturur).
 Dosyalar **Dosya ekle** ile ya da pencereye sürüklenerek eklenir; birden çok dosya birlikte dönüştürülür. Her satırda dosyanın küçük
 resmi, türü, sayfa sayısı ve hedef biçim (PDF, UDF, Word, TIFF) görünür. Bir PDF açıkken araç açılırsa o PDF listede hazırdır. UDF,
 Word ve TIFF dosyaları PDEfe'nin penceresine bırakılınca ya da `Ctrl+O` ile seçilince de araç açılır.
+
+![Dosya Formatını Değiştir: PDF → UDF, UDF → PDF, TIFF ve Word dosyaları](docs/ekran-donustur.png)
 
 - **UDF → PDF:** UYAP Doküman Editörü'nün kendi sayfa düzeniyle, editörün penceresi açılmadan. Satırlar ve sayfalar editördeki gibi
   kırılır, sonuç editörün "Yazdır → PDF" çıktısıyla aynıdır. Sayfa her zaman A4, yazı tipleri PDF'e gömülü, antetin çevresinde gri
@@ -194,7 +196,7 @@ Dönüştürülen dosya her zaman yeni dosyadır; var olan dosyanın üzerine ya
   seçilen yazıcı ve seçenekler hatırlanır. Türkçe karakterler ekrandaki gibi çıkar.
 - **PDF'i kopyala:** Belge dosya olarak panoya kopyalanır. UYAP'a, e-postaya ya da bir klasöre `Ctrl+V` ile yapıştırılır.
 
-![Yazdır penceresi](docs/ekran-yazdir.png)
+![Yazdır penceresi: yazıcı, kopya, sayfalar, kâğıt, renk, çift taraflı ve sayfanın ön izlemesi](docs/ekran-yazdir.png)
 
 ### Ayarlar
 

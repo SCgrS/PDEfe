@@ -2779,6 +2779,15 @@ Her bulgu önce yeniden üretildi ya da kod izlendi; gerçekse önce düşen tes
   (Ctrl+A), Notlar (yazı kutusu kopyala-yapıştır), Araçlar (Sayfaları düzenle'de kopyalama, Dosya Formatını Değiştir ve gereksinimleri), Yazdırma,
   Ayarlar, Verileriniz; ekran görüntüleri yenilendi (araç çubuğunda Yazdır, sekmeler ".pdf"siz, yeni yazdırma penceresi, Sayfaları düzenle'nin dört
   düğmeli kartı, altı araç), yeni `docs/ekran-donustur.png` (sentetik girdilerle).
+- [x] **Ekran görüntüleri** (`README_OLCEK=2`, temiz veri klasörü, kurgusal yazar adı, belgeler `C:\Users\Public\Documents\PDEfe Örnek`'te;
+  hepsine tek tek bakıldı): `test/readme_ornek_uret.py` Dosya Formatını Değiştir için kurgusal UDF, taranmış evrak (dilekçenin sayfaları 200 dpi
+  siyah beyaz TIFF) ve Word belgesi de üretir (sınamaların üreticileriyle); `test/readme_goruntuleri.mjs` aracı açık dilekçe ve bu üç dosyayla
+  çeker (UDF'nin küçük resmi UYAP Doküman Editörü'yle), Sayfaları düzenle'de fare ikinci kartın üstünde (dört düğme görünür). Yazdırma
+  penceresinin ön izlemesi açılıştaki ekran ölçeğinde istendiği için iki kat görüntüde bulanıktı: çekim sırasında sayfa değiştirilip geri
+  gelinerek yeni ölçekte yeniden istenir. Kısayollar listesi uzadığından 1280 × 800'de alt satırlar kesiliyordu: bu görüntü 1280 × 900
+  pencerede çekildi. geri-al ve kaydedilmemis iki kat piksel olduğu için README'de genişlikleri yazıldı. Bilinen: yazı kutusu görüntüsünde
+  kutu dilekçenin başlığının üstüne biniyor (0.2.5'teki görüntüde de); Birleştir'de önerilen ad "Birleştirilmiş (2)" (görüntünün çekildiği
+  bilgisayarın Masaüstü'nde aynı adlı dosya var).
 - [ ] **Açık konular**:
   - Gerçek yazıcı (ofisteki yazıcı: kâğıt ve tepsi, çift taraflının yönü, harmansız kopya, Yazıcı tercihleri), "Çıktıyı Farklı Kaydet" penceresinin
     gerçek ekranda PDEfe'nin önünde açılması, gerçek sistem panosu (Ctrl+A kopyası, yazı kutusu iki pencere arasında ve Word'e; Chromium'un iptal
@@ -2788,7 +2797,9 @@ Her bulgu önce yeniden üretildi ya da kod izlendi; gerçekse önce düşen tes
     (Mac'te yazıcı durumu okunmuyor); ⌘A / ⌘C / ⌘V; open-file ile UDF / TIFF / Word; UDE'nin jar klasörü ve Java'nın bulunması (CI'da UDE yok, testler
     atlar); yaklaşık çizim; PDF → Word'ün macOS 13'te açılması. Kurucu ve Mac paketi derlenmedi, CI koşulmadı (gönderme yok): ilk Mac derlemesinde
     numpy tekerleğinin adı ve `mac_minos_denetle` günlüğüne bakılmalı.
-  - Yazdırma: /Rotate 90'lı dikey sayfa kâğıtta ters çıkar (0.1.x'ten beri; ön izleme gösteriyor), yön kuralını değiştirmek ayrı karar.
+  - Yazdırma: /Rotate 90'lı dikey sayfa kâğıtta ters çıkar (0.1.x'ten beri; ön izleme gösteriyor), yön kuralını değiştirmek ayrı karar. Yazdırma
+    penceresi açıkken pencere başka ölçekli bir ekrana taşınırsa ön izleme yeniden istenmez (sayfa değiştirilene dek bulanık kalabilir;
+    README görüntüsü çekilirken görüldü).
   - Ctrl+A: çapa sayfasının tanınan sözcükleri bütün belge seçiliyken katmana sonradan eklenmiyor (kopyaya giriyor, ekranda boyanmamış görünebilir);
     çok büyük belgede temizMetin hazırlığın sonunda bir kez eş zamanlı (10 MB'ta ~0,9 sn); Ctrl+A anında hazırlık kopyalanmasa da başlıyor (TTK'da ~5
     sn çekirdek işi); tanıyıcı yokken yolu test örneğinde sınanamadı.

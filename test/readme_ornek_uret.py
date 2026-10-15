@@ -10,6 +10,8 @@ Kullanım:
   Dava dilekçesi.pdf                               kurgusal, iki sayfa (Times New Roman; Windows'ta gömülü)
   Taranmış dilekçe.pdf                             dilekçenin iki sayfası görüntü olarak (taranmış belge gibi; metin katmanı yok)
   Makbuz.png, Dilekçe sayfa 2.jpg                  Görüntü / PDF birleştir için görseller
+  Cevap dilekçesi.udf, Taranmış evrak.tif,         Dosya Formatını Değiştir için (0.2.6): kurgusal UDF, dilekçenin sayfaları 200 dpi siyah
+  Bilirkişi raporu.docx                            beyaz TIFF olarak (UYAP taraması gibi), kurgusal Word belgesi
 """
 import io
 import os
@@ -182,6 +184,61 @@ def makbuz(hedef):
     im.save(hedef, "PNG", optimize=True)
 
 
+CEVAP_DILEKCESI = [
+    ("baslik", "İSTANBUL (   ). ASLİYE TİCARET MAHKEMESİ'NE"),
+    ("alan", "DAVALI : Deneme Lojistik Ltd. Şti."),
+    ("alan", "VEKİLİ : Av. Örnek Yazar"),
+    ("alan", "DAVACI : Örnek Ticaret A.Ş."),
+    ("alan", "KONU : Davaya karşı cevaplarımızın sunulmasıdır."),
+    ("ara", "AÇIKLAMALAR"),
+    ("paragraf", "1. Davacının iddia ettiği gecikme, yükün davacı tarafından sözleşmede belirlenen tarihten sonra teslim edilmesinden "
+                 "kaynaklanmıştır. Taşıma süresi, yükün teslim alındığı tarihten başlar."),
+    ("paragraf", "2. Teslim tutanağında hasara ilişkin herhangi bir çekince yazılmamıştır. Ekspertiz raporu tek taraflı olarak "
+                 "düzenlenmiş olup müvekkile tebliğ edilmemiştir; bu rapora itiraz ediyoruz."),
+    ("paragraf", "3. Talep edilen faiz türü ve başlangıç tarihi de yerinde değildir. Bu nedenle davanın reddi gerekmektedir."),
+    ("ara", "SONUÇ VE İSTEM"),
+    ("paragraf", "Yukarıda açıklanan nedenlerle haksız ve yersiz açılan davanın reddine, yargılama giderleri ile vekâlet ücretinin "
+                 "davacıya yükletilmesine karar verilmesini saygıyla arz ve talep ederiz."),
+    ("imza", "Davalı Vekili"),
+    ("imza", "Av. Örnek Yazar"),
+]
+
+
+def donusturme_ornekleri(cikti, dilekce_pdf):
+    """Dosya Formatını Değiştir'in görüntüsü için (0.2.6) kurgusal UDF, taranmış evrak (TIFF) ve Word belgesi. UDF ve Word üreticileri
+    sınamalarınkiyle aynı (test/udf_donusum_testi.py UdfYaz, test/donustur_arayuz_uret.py docx_yaz)."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import udf_donusum_testi as ut
+    from donustur_arayuz_uret import docx_yaz
+    u = ut.UdfYaz()
+    for tur, metin in CEVAP_DILEKCESI:
+        if tur == "baslik":
+            u.paragraf(metin, hiza=1, kalin=True, oz='SpaceBelow="12.0"')
+        elif tur == "ara":
+            u.paragraf(metin, hiza=0, kalin=True, oz='SpaceAbove="12.0" SpaceBelow="6.0"')
+        elif tur == "alan":
+            u.paragraf(metin, hiza=0)
+        elif tur == "imza":
+            u.paragraf(metin, hiza=2, kalin=True, oz='RightIndent="30.0"')
+        else:
+            u.paragraf(metin, oz='FirstLineIndent="35.4" SpaceBelow="6.0"')
+    u.yaz(os.path.join(cikti, "Cevap dilekçesi.udf"))
+    doc = pymupdf.open(dilekce_pdf)
+    kareler = []
+    for pg in doc:
+        pix = pg.get_pixmap(dpi=200, colorspace=pymupdf.csGRAY)
+        im = Image.open(io.BytesIO(pix.tobytes("png"))).convert("L")
+        kareler.append(im.point(lambda v: 255 if v >= 160 else 0).convert("1"))
+    doc.close()
+    kareler[0].save(os.path.join(cikti, "Taranmış evrak.tif"), save_all=True, append_images=kareler[1:], compression="group4")
+    docx_yaz(os.path.join(cikti, "Bilirkişi raporu.docx"), [
+        "BİLİRKİŞİ RAPORU",
+        "Mahkemenizce dosyanın incelenmesi için görevlendirildim. Dosyadaki taşıma sözleşmesi, teslim tutanağı ve faturalar incelenmiştir.",
+        "Teslim tarihine göre gecikme on dört gündür. Hasar tutarının hesabı ekli tabloda gösterilmiştir.",
+        "Takdir Sayın Mahkemenizindir.",
+    ])
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__); sys.exit(2)
@@ -198,6 +255,7 @@ def main():
     dilekce(d)
     taranmis(d, os.path.join(cikti, "Taranmış dilekçe.pdf"), os.path.join(cikti, "Dilekçe sayfa 2.jpg"))
     makbuz(os.path.join(cikti, "Makbuz.png"))
+    donusturme_ornekleri(cikti, d)
     print("yazıldı:", cikti)
 
 
