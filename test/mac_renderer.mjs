@@ -220,7 +220,17 @@ export default async function ({ evalJs }) {
       await k.hazir;
       k.cikti.ayarla('/Volumes/Arsiv', 'Hedef', { elle: true });
       await k.hataSor(new Error('Dosya yazılamadı; başka bir programda açık: Hedef.udf'));
-      sonuc[mac ? 'mac' : 'win'] = { menu, goster, ad: k.cikti.ad(), soru: sorular.at(-1)?.ayrinti || '' };
+      // 0.2.7: JPG hedefinin sonucu (her sayfa bir satır, Finder'da / Klasörde göster) ve JPG'nin kilitli dosya sorusu
+      const w2 = new DonusturPenceresi(baglam, { ilkDosyalar: ['/Volumes/Arsiv/Belge.pdf'] });
+      for (let i = 0; i < 50 && w2.ogeler[0]?.yukleniyor; i++) await new Promise((c) => setTimeout(c, 20));
+      await w2._sonucGoster([{ yol: '/Volumes/Arsiv/Belge.pdf', hedef: '/Volumes/Arsiv/Belge - Sayfa 1.jpg', hedefBicim: 'gorsel', hedefler: ['/Volumes/Arsiv/Belge - Sayfa 1.jpg', '/Volumes/Arsiv/Belge - Sayfa 2.jpg'] }], { tek: true });
+      const jpgSonuc = { goster: w2.sonucEl.querySelector('.donustur-goster')?.textContent, satir: [...w2.sonucEl.querySelectorAll('li .ad')].map((x) => x.textContent) };
+      await w2.pencere.kapat('tamam');
+      const kj = kayitSecimi({ baglam, belge: null, ad: 'Belge', uzanti: 'jpg' });
+      await kj.hazir;
+      kj.cikti.ayarla('/Volumes/Arsiv', 'Hedef', { elle: true });
+      await kj.hataSor(new Error('Dosya yazılamadı; başka bir programda açık: Hedef.jpg'));
+      sonuc[mac ? 'mac' : 'win'] = { menu, goster, ad: k.cikti.ad(), soru: sorular.at(-2)?.ayrinti || '', jpgSonuc, jpgAd: kj.cikti.ad(), jpgSoru: sorular.at(-1)?.ayrinti || '' };
     }
     return sonuc;
   })()`);
@@ -228,6 +238,10 @@ export default async function ({ evalJs }) {
   sonuc('Format Değiştir (Windows): satır menüsünde ve sonuçta "Klasörde göster"', J(donustur.win.menu) === J(['Klasörde göster', 'Listeden çıkar']) && donustur.win.goster === 'Klasörde göster', donustur.win);
   sonuc('Kaydet bölümü UDF çıktısında ad "Hedef.udf"; kilitli dosya sorusu Windows\'ta "UYAP Doküman Editörü\'nde" der, macOS\'ta Finder\'ı anlatır',
     donustur.win.ad === 'Hedef.udf' && donustur.mac.ad === 'Hedef.udf' && /örneğin UYAP Doküman Editörü'nde\) açık olabilir/.test(donustur.win.soru) && /Finder/.test(donustur.mac.soru) && !/başka bir programda/.test(donustur.mac.soru), donustur);
+  sonuc('Format Değiştir, JPG hedefi (0.2.7): sonuçta her sayfa bir satır; macOS\'ta "Finder\'da göster", Windows\'ta "Klasörde göster"', J(donustur.mac.jpgSonuc?.satir) === J(['Belge - Sayfa 1.jpg', 'Belge - Sayfa 2.jpg'])
+    && donustur.mac.jpgSonuc.goster === 'Finder\'da göster' && J(donustur.win.jpgSonuc?.satir) === J(donustur.mac.jpgSonuc.satir) && donustur.win.jpgSonuc.goster === 'Klasörde göster', donustur);
+  sonuc('JPG çıktısı: ad "Hedef.jpg"; kilitli dosya sorusu Windows\'ta "bir görüntü programında" der, macOS\'ta Finder\'ı anlatır', donustur.win.jpgAd === 'Hedef.jpg' && donustur.mac.jpgAd === 'Hedef.jpg'
+    && /örneğin bir görüntü programında\) açık olabilir/.test(donustur.win.jpgSoru) && /Finder/.test(donustur.mac.jpgSoru) && !/başka bir programda/.test(donustur.mac.jpgSoru), donustur);
 
   // ---------------------------------------------------------------- Ayarlar › Güncelleme (ayarlarPenceresi.js bolumGuncelleme)
   // macOS'ta yeni sürüm tek tıkla kurulmaz: açıklama İndir'i ve Uygulamalar'a sürüklemeyi anlatmalı, "Şimdi denetle"nin çıkardığı düğme
