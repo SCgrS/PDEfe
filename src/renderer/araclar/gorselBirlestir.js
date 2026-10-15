@@ -75,7 +75,7 @@ export class BirlestirmePenceresi {
     this.tahminSurenler = new Map();  // "anahtar|kalite" → Promise; aynı tahmin iki kez sorulmaz
     this.tahminGeciktir = geciktir(() => this.tahminAl(), 150);
     this.ilerleme = new IslemIlerleme();
-    this._kur(baslik || 'Görüntü / PDF belgeleri birleştirerek PDF oluştur');
+    this._kur(baslik || 'Birleştir');   // 0.2.7 (kullanıcı isteği): araç adı "Birleştir"
     if (ilkDosyalar.length) this.dosyaEkle(ilkDosyalar);
   }
 

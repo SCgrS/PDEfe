@@ -314,7 +314,7 @@ print(json.dumps({"sayfa": d.page_count, "satirlar": out}, ensure_ascii=False))`
 
   // ------------------------------------------------------------ 5) Araç
   if (bolum(5)) {
-    console.log('\n== 5) Dosya Formatını Değiştir aracı');
+    console.log('\n== 5) Format Değiştir aracı');
     await sekmeleriKapat();
     fs.rmSync(CIKTI, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); fs.mkdirSync(CIKTI, { recursive: true });
     await bildirimler();

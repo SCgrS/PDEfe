@@ -74,7 +74,7 @@ export default async function ({ evalJs }) {
       kaldirilan.length = 0;
       r.sonDelete = tusla(o, satirlar[1], 'Delete') ? [...kaldirilan] : 'işlenmedi';
       kok.remove();
-      // Görüntü / PDF birleştir listesi: seçili satırlar (sil yerine kayıt tutulur)
+      // Birleştir listesi: seçili satırlar (sil yerine kayıt tutulur)
       const { BirlestirmePenceresi } = await o.yukle('araclar/gorselBirlestir.js');
       const baglam = { pdefe: o.pencere.pdefe, ayar: () => ({}), cekirdek: { cagir: async () => null }, belgeler: new Map(), bildir: () => {}, mesajKutusu: async () => ({ secim: 1 }) };
       const p = new BirlestirmePenceresi(baglam, {});
@@ -195,7 +195,7 @@ export default async function ({ evalJs }) {
   sonuc('Araç sorusu (macOS): yazılamayan dosyada Kilitli işareti ve Paylaşma ve İzinler söyleniyor', !kilitli.length && /Paylaşma ve İzinler/.test(hataSorusu.mac.okunamadi?.ayrinti || ''),
     kilitli.map((ad) => hataSorusu.mac[ad]?.ayrinti));
 
-  // ---------------------------------------------------------------- Dosya Formatını Değiştir (0.2.6, araclar/donustur.js)
+  // ---------------------------------------------------------------- Format Değiştir (0.2.6, araclar/donustur.js)
   // Satırın sağ tık menüsünde ve sonuç listesinde macOS'ta "Finder'da göster", Windows'ta "Klasörde göster"; kilitli dosya sorusunun örnek
   // programı çıktının türüne göre (Windows'ta UDF'de "UYAP Doküman Editörü'nde"; PDF'te eskisi gibi "bir PDF okuyucuda", yukarıda)
   const donustur = await evalJs(`(async () => { ${ORTAM}
@@ -224,8 +224,8 @@ export default async function ({ evalJs }) {
     }
     return sonuc;
   })()`);
-  sonuc('Dosya Formatını Değiştir (macOS): satır menüsünde ve sonuçta "Finder\'da göster"', J(donustur.mac.menu) === J(['Finder\'da göster', 'Listeden çıkar']) && donustur.mac.goster === 'Finder\'da göster', donustur.mac);
-  sonuc('Dosya Formatını Değiştir (Windows): satır menüsünde ve sonuçta "Klasörde göster"', J(donustur.win.menu) === J(['Klasörde göster', 'Listeden çıkar']) && donustur.win.goster === 'Klasörde göster', donustur.win);
+  sonuc('Format Değiştir (macOS): satır menüsünde ve sonuçta "Finder\'da göster"', J(donustur.mac.menu) === J(['Finder\'da göster', 'Listeden çıkar']) && donustur.mac.goster === 'Finder\'da göster', donustur.mac);
+  sonuc('Format Değiştir (Windows): satır menüsünde ve sonuçta "Klasörde göster"', J(donustur.win.menu) === J(['Klasörde göster', 'Listeden çıkar']) && donustur.win.goster === 'Klasörde göster', donustur.win);
   sonuc('Kaydet bölümü UDF çıktısında ad "Hedef.udf"; kilitli dosya sorusu Windows\'ta "UYAP Doküman Editörü\'nde" der, macOS\'ta Finder\'ı anlatır',
     donustur.win.ad === 'Hedef.udf' && donustur.mac.ad === 'Hedef.udf' && /örneğin UYAP Doküman Editörü'nde\) açık olabilir/.test(donustur.win.soru) && /Finder/.test(donustur.mac.soru) && !/başka bir programda/.test(donustur.mac.soru), donustur);
 

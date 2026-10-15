@@ -169,7 +169,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
 
   // ---------------------------------------------------------------- araç pencereleri
   const AR = '.arac-ortusu';
-  for (const [id, ad] of [['arac.kucult', 'Sıkıştırma'], ['arac.sayfalar', 'Sayfaları düzenle'], ['arac.dondurKaydet', 'Döndür'], ['arac.ayir', 'Ayır'], ['arac.gorselBirlestir', 'Görüntü / PDF birleştir'], ['arac.donustur', 'Dosya Formatını Değiştir']]) {
+  for (const [id, ad] of [['arac.kucult', 'Sıkıştırma'], ['arac.sayfalar', 'Sayfaları düzenle'], ['arac.dondurKaydet', 'Döndür'], ['arac.ayir', 'Ayır'], ['arac.gorselBirlestir', 'Birleştir'], ['arac.donustur', 'Format Değiştir']]) {
     await evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find((x) => x.ad === 'ustyazi (85).pdf'); await p.sekmeSec(b.id); return true; })()`);
     await komut(id); await beklet(`!!document.querySelector('.arac-pencere')`); await bekle(600);
     await kapatmayanlar(ad, AR, '.arac-baslik-metin');
@@ -192,7 +192,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, surukle, 
   await yanit(1); await disariTikla(AR);
   denetle('Sayfaları düzenle: "Kaydetme" ile kapanır, belge değişmez', !(await acikMi(AR)) && !(await evalJs(`window.__pdefe.aktif().degisti`)));
 
-  // Görüntü / PDF birleştir: dolu liste sorulur
+  // Birleştir: dolu liste sorulur
   await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'dosya:acDiyalog', [[${js(B)}]])`);
   await komut('arac.gorselBirlestir'); await beklet(`!!document.querySelector('.birlestir-ekle')`); await bekle(300);
   await tikla(...(await evalJs(`__t.merkez('.birlestir-ekle')`)));

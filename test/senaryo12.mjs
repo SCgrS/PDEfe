@@ -20,7 +20,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   await ekranGoruntusu('test/png/s12-01-ayir-sonuc.png');
   await evalJs(`document.querySelectorAll('.arac-pencere').forEach(e => e.remove())`);
 
-  // Görüntü/PDF birleştir: panodaki görsel + PDF (dosya diyaloğu yerine sürükle-bırak taklidi zor; Panodan ekle ile görsel, ardından pencereye PDF'yi 'dosyalar' arayüzü varsa ekle)
+  // Birleştir: panodaki görsel + PDF (dosya diyaloğu yerine sürükle-bırak taklidi zor; Panodan ekle ile görsel, ardından pencereye PDF'yi 'dosyalar' arayüzü varsa ekle)
   execFileSync('powershell.exe', ['-NoProfile', '-STA', '-Command', `Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile('C:\\Projeler\\PDEfe\\test\\png\\s4-04-uc-not.png'); [System.Windows.Forms.Clipboard]::SetImage($img)`]);
   await evalJs(`window.__pdefe.komutCalistir('arac.gorselBirlestir')`); await bekle(1200);
   console.log('panodan ekle:', await evalJs(dugmeTikla('/Panodan ekle/')));

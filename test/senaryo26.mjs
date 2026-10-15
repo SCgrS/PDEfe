@@ -2,7 +2,7 @@
 // açık PDF, üzerine yazma ve pencerenin yeri, araç adları.
 //   1) Araç adlarında "PDF" yok (0.1.26): "Sıkıştır" (önce "PDF küçült", 0.1.25'te "PDF Sıkıştırma") ve "Ayır" ("PDF ayır") Araçlar
 //      penceresinde, Araçlar menüsünde, açılış ekranında ve pencere başlıklarında; "Sıkıştır" düğmesi, "Sıkıştırma seçenekleri" başlığı.
-//   2) Beş araçta (0.2.6'dan beri Dosya Formatını Değiştir'de de; orada "Üzerine yaz" seçilemez) Kaydet bölümü aynı düzende: başlık, altında Yeni belge olarak kaydet | Üzerine yaz, altında ad + klasör + Değiştir
+//   2) Beş araçta (0.2.6'dan beri Format Değiştir'de de; orada "Üzerine yaz" seçilemez) Kaydet bölümü aynı düzende: başlık, altında Yeni belge olarak kaydet | Üzerine yaz, altında ad + klasör + Değiştir
 //      (alt alta, sola hizalı); varsayılan ad parantezsiz, baş harfi büyük, Türkçe harfli: Sıkıştırılmış, Düzenlenmiş, Döndürülmüş,
 //      Ayrılmış, Birleştirilmiş. "Üzerine yaz" seçilince satır kaybolmaz: yerinde üzerine yazılacak dosyanın adı ve klasörü soluk
 //      (değiştirilemez) durur, altında not.
@@ -137,7 +137,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
   // ------------------------------------------------------------ 1) Araç adları
   if (bolum(1)) {
     console.log('\n== 1) Araç adları: Sıkıştır, Ayır');
-    // "PDF" ile başlayan araç adı ve eski "küçült" adı yok ("PDF'i kopyala" ve "Görüntü / PDF birleştir" bu kurala girmez)
+    // "PDF" ile başlayan araç adı ve eski "küçült" adı yok ("PDF'i kopyala" ve "Birleştir" bu kurala girmez)
     const pdfsiz = (liste) => !liste.some((k) => typeof k === 'string' && (/^PDF\s/.test(k) || /küçült/i.test(k)));
     await ac(zengin.a);
     await evalJs(`document.querySelector('#dugme-araclar').click()`);
@@ -201,7 +201,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
       if (komut === 'arac.gorselBirlestir') await diyalogYanitla([{ secim: 1 }]);
       await pencereKapat();
     }
-    // 0.2.6: Dosya Formatını Değiştir aynı düzende; açık PDF ilk girdi, önerilen ad girdinin adı (uzantısı hedefin: .udf), "Üzerine yaz"
+    // 0.2.6: Format Değiştir aynı düzende; açık PDF ilk girdi, önerilen ad girdinin adı (uzantısı hedefin: .udf), "Üzerine yaz"
     // seçilemez, nedeni seçimin altında (dönüştürülen dosya her zaman yeni dosya)
     await aracAc('arac.donustur', 'donustur-pencere');
     await kosul(`document.querySelector('.donustur-pencere .arac-kayit-yeni .arac-cikti-ad')?.value === 'zengin_a'`, 8000);

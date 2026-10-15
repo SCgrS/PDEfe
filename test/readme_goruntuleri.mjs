@@ -15,7 +15,7 @@
 // (ana-koyu, acilis-koyu, birlestir-koyu; README'de açık temadakilerle yan yana). Tema betiğin sonunda değiştirilir, örnek açık temayla
 // başlatılır. Kurucunun kurulu sürüm sayfası (docs/ekran-kurulum.png) bu betikten değil, test\kurulum_surum.ps1'in surum-2-eski.png'sidir.
 // 0.2.6: Kısayollar listesi uzadığı için ekran-kisayollar 1280×900 pencerede çekilir (1280×800'de alt satırlar kesiliyordu): ikinci örnek
-// baslat.ps1 -Boyut "1280,900" ile açılır, $env:GORUNTU="kisayollar". Dosya Formatını Değiştir (ekran-donustur) kurgusal UDF / TIFF / Word
+// baslat.ps1 -Boyut "1280,900" ile açılır, $env:GORUNTU="kisayollar". Format Değiştir (ekran-donustur) kurgusal UDF / TIFF / Word
 // girdilerle (readme_ornek_uret.py); UDF'nin küçük resmi bilgisayardaki UYAP Doküman Editörü'yle çizilir.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -27,7 +27,7 @@ const ORNEK = process.env.README_ORNEK || 'C:\\Users\\Public\\Documents\\PDEfe �
 const J = (x) => JSON.stringify(x);
 const Y = (ad) => path.join(ORNEK, ad);
 const DILEKCE = 'Dava dilekçesi.pdf', TMK = 'Türk Medeni Kanunu.pdf', TTK = 'Türk Ticaret Kanunu.pdf', TARANMIS = 'Taranmış dilekçe.pdf';
-/** Dosya Formatını Değiştir'in girdileri (0.2.6; readme_ornek_uret.py donusturme_ornekleri: kurgusal UDF, taranmış evrak, Word) */
+/** Format Değiştir'in girdileri (0.2.6; readme_ornek_uret.py donusturme_ornekleri: kurgusal UDF, taranmış evrak, Word) */
 const DONUSTURULECEK = ['Cevap dilekçesi.udf', 'Taranmış evrak.tif', 'Bilirkişi raporu.docx'];
 
 const TAMAM = Symbol('istenen görüntüler çekildi');
@@ -333,7 +333,7 @@ async function calis({ evalJs, ekranGoruntusu, bekle, fare, tikla, surukle, yaz,
   if (iste('sikistir')) await ss('sikistir');
   await hepsiniTemizle();
 
-  // Görüntü / PDF birleştir (açık dilekçe + görseller + taranmış)
+  // Birleştir (açık dilekçe + görseller + taranmış)
   await sec(DILEKCE);
   await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'dosya:acDiyalog', [${J([Y('Makbuz.png'), Y('Dilekçe sayfa 2.jpg'), Y(TARANMIS)])}])`);
   await komut('arac.gorselBirlestir'); await kosul(`!!document.querySelector('.arac-pencere')`, 5000);
@@ -365,7 +365,7 @@ async function calis({ evalJs, ekranGoruntusu, bekle, fare, tikla, surukle, yaz,
   if (iste('ayir')) await ss('ayir');
   await hepsiniTemizle();
 
-  // Dosya Formatını Değiştir (0.2.6): açık dilekçe (hedefi UDF) + kurgusal UDF, taranmış evrak (TIFF) ve Word belgesi (hedefleri PDF).
+  // Format Değiştir (0.2.6): açık dilekçe (hedefi UDF) + kurgusal UDF, taranmış evrak (TIFF) ve Word belgesi (hedefleri PDF).
   // UDF'nin küçük resmi bilgisayardaki UYAP Doküman Editörü'yle (editör yoksa PDEfe'nin yaklaşık çizimiyle) birkaç saniyede gelir.
   await sec(DILEKCE);
   await komut('arac.donustur'); await kosul(`!!document.querySelector('.donustur-pencere')`, 5000);

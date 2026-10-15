@@ -405,10 +405,10 @@ function bolumKaydetme(k) {
   });
   temizle.addEventListener('click', () => { degistir('ciktiKlasoru', ''); yolEl.textContent = 'Masaüstü'; yolEl.classList.add('soluk'); temizle.disabled = true; });
   k.append(kart({
-    baslik: 'Araçların çıktı klasörü', aciklama: 'Araçların (Sıkıştır, Sayfaları düzenle, Döndür, Ayır, Görüntü / PDF birleştir, Dosya Formatını Değiştir) yeni belge olarak kaydettiği dosyalar için önerilen klasör; araç penceresinde değiştirilebilir. Boşsa Masaüstü kullanılır.',
+    baslik: 'Araçların çıktı klasörü', aciklama: 'Araçların (Sıkıştır, Sayfaları düzenle, Döndür, Ayır, Birleştir, Format Değiştir) yeni belge olarak kaydettiği dosyalar için önerilen klasör; araç penceresinde değiştirilebilir. Boşsa Masaüstü kullanılır.',
     kontrol: el('div', { class: 'ayar-yanyana' }, [sec, temizle]), alt: yolEl,
   }));
-  k.append(el('h3', {}, 'Dosya Formatını Değiştir'));
+  k.append(el('h3', {}, 'Format Değiştir'));
   udeKarti(k);
 }
 

@@ -1,4 +1,4 @@
-// Dosya Formatını Değiştir (0.2.6, kullanıcı isteği; ad kullanıcının yazdığı gibi): UDF ↔ PDF, TIFF ↔ PDF, Word ↔ PDF. PDF olmayan iki biçim
+// Format Değiştir (0.2.6, kullanıcı isteği; 0.2.7'ye dek adı "Dosya Formatını Değiştir", kullanıcı kısalttı): UDF ↔ PDF, TIFF ↔ PDF, Word ↔ PDF. PDF olmayan iki biçim
 // arasında (ör. Word → UDF) çekirdek PDF üzerinden iki adımda dönüştürür. PDF → UDF yalnızca düzenlenebilir belge üretir (kullanıcının seçimi).
 // Girdi: Dosya ekle düğmesi ("Desteklenen dosyalar" süzgeci), pencereye sürükle-bırak; ana pencereye bırakılan, komut satırından (Windows'ta
 // "Birlikte aç", macOS'ta Finder) ya da Ctrl+O ile açılan UDF, TIFF ve Word dosyaları aracı o dosyalarla açar, araç açıksa listeye ekler
@@ -88,7 +88,7 @@ const SVG = {
 };
 
 let acikPencere = null;
-/** Açık Dosya Formatını Değiştir penceresi (yoksa null); testler ve uygulama.js'in yönlendirmesi için. */
+/** Açık Format Değiştir penceresi (yoksa null); testler ve uygulama.js'in yönlendirmesi için. */
 export function acikDonusturPenceresi() { return acikPencere && !acikPencere.pencere.kapali ? acikPencere : null; }
 
 /** Satırda görünen tür: "UDF", "PDF", "TIFF"; Word'de alt tür ("DOCX", "DOC", "RTF", "ODT"). */
@@ -169,7 +169,7 @@ export class DonusturPenceresi {
 
     // Pencere sekme şeridinin altında başlar (Birleştir ve Sayfaları düzenle gibi; arkadaki sekmeler görünür)
     this.pencere = pencereAc({
-      baslik: 'Dosya Formatını Değiştir', govde, anahtar: 'donustur', sinif: 'donustur-pencere', seritAlti: true,
+      baslik: 'Format Değiştir', govde, anahtar: 'donustur', sinif: 'donustur-pencere', seritAlti: true,
       dugmeler: [{ id: 'donustur', etiket: 'Dönüştür', birincil: true, devre: true, tiklama: () => this.donustur() }],
       kapatmadanOnce: () => this._kapatmaIzni(),
     });

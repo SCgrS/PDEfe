@@ -5,11 +5,11 @@
 //      ekran ölçeği (en çok 2): dikey, yatay ve /Rotate 90'lı sayfada; önbellek anahtarı istenen genişliği içerir. Boş sayfa ve "yüklenemedi"
 //      yer tutucusu da sayfanın oranıyla kutuya sığar; R ile döndürülen resim kutudan taşmaz. Ekran ölçeği değişince (Emulation) görünen
 //      kartlar yeni ölçeğe göre yeniden istenir.
-//   2) Görüntü / PDF birleştir: satırdaki önizleme kutusu --birlestir-resim = 150 px (0.2.1'de 64, 0.2.2'de 120), satırın üçüncü sütunu 150 px.
+//   2) Birleştir: satırdaki önizleme kutusu --birlestir-resim = 150 px (0.2.1'de 64, 0.2.2'de 120), satırın üçüncü sütunu 150 px.
 //      Yatay görsel 150 px genişlikte, dikey görsel ve PDF 150 px yükseklikte; doğal boyut en az kutu × ekran ölçeği (en çok 2); satırın öteki
 //      öğeleri (sıra, ad, özet, Kalite, düğmeler) satırın içinde ve dikeyde ortalı, birbirine binmiyor. Okunamayan dosyanın yer
 //      tutucusu kutunun %72 × %94'ü. Döndür, sürükleyerek sıralama (gerçek fare) ve Listeden çıkar yeni ölçüde çalışır.
-//   2b) Dosya Formatını Değiştir (0.2.6): satırdaki küçük resim kutusu --donustur-resim = 120 px, doğal boyutu en az kutu × ekran ölçeği.
+//   2b) Format Değiştir (0.2.6): satırdaki küçük resim kutusu --donustur-resim = 120 px, doğal boyutu en az kutu × ekran ölçeği.
 //   3) Renderer'da hata yok.
 // Kullanım: boş veri klasörlü ekran dışı test örneği (baslat.ps1; 1280×900 varsayılan, istenirse -Olcek 1.25 / 1.5) açıkken
 //   $env:PDEFE_CDP_PORT=9531; node test/surucu.mjs betik test/arac_onizleme.mjs
@@ -175,8 +175,8 @@ print(json.dumps({"ana": ana, "ek": ek, "yatay": gorsel("yatay.png", (1600, 1000
   await ss('01-sayfalar-bos-hata');
   await hepsiniKapat();
 
-  // ---------------------------------------------------------------- 2) Görüntü / PDF birleştir
-  console.log('\n== 2) Görüntü / PDF birleştir');
+  // ---------------------------------------------------------------- 2) Birleştir
+  console.log('\n== 2) Birleştir');
   await ac(Y.ana);
   await evalJs(`window.__pdefe.komutCalistir('arac.gorselBirlestir')`);
   await kosul(`!!document.querySelector('.birlestir-pencere') && document.querySelectorAll('.birlestir-oge').length === 1 && !document.querySelector('.birlestir-oge.yukleniyor')`);
@@ -233,10 +233,10 @@ print(json.dumps({"ana": ana, "ek": ek, "yatay": gorsel("yatay.png", (1600, 1000
   sonuc(`Listeden çıkar: satır kalkar, kalanların kutusu ${BK} × ${BK}`, J(S.map((s) => s.ad)) === J(['yatay.png', 'dikey.jpg', 'ana.pdf']) && S.every((s) => J(s.kutu) === J([BK, BK])), S.map((s) => [s.ad, s.kutu]));
   await hepsiniKapat();
 
-  // ---------------------------------------------------------------- 2b) Dosya Formatını Değiştir (0.2.6)
+  // ---------------------------------------------------------------- 2b) Format Değiştir (0.2.6)
   // Satırdaki küçük resim kutusu --donustur-resim = 120 px; dikey PDF 120 px yükseklikte, doğal boyutu en az kutu × ekran ölçeği (en çok 2),
   // en az 120 px; ön izlemesi olmayan dosyanın (tanınmayan biçim) yer tutucusu kutunun %72 × %94'ü, türün adını yazar
-  console.log('\n== 2b) Dosya Formatını Değiştir');
+  console.log('\n== 2b) Format Değiştir');
   const DK = 120;
   const txt = path.join(PDF, 'notlar.txt');
   fs.writeFileSync(txt, 'PDF değil');

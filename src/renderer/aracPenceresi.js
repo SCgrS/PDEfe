@@ -1,5 +1,6 @@
 // Araçlar penceresi: araç çubuğundaki "Araçlar" düğmesinin altında açılan karolar (Sıkıştır, Sayfaları düzenle, Döndür,
-// Ayır, Görüntü / PDF birleştir, Dosya Formatını Değiştir; 0.2.6'dan beri 3 + 3). Her karoda büyük simge, araç adı ve tek satırlık açıklama vardır; seçilen araç Araçlar menüsündeki
+// Ayır, Birleştir, Format Değiştir; 0.2.6'dan beri 3 + 3; 0.2.7'de kullanıcı isteğiyle adlar kısaldı: "Görüntü / PDF birleştir" → "Birleştir",
+// "Dosya Formatını Değiştir" → "Format Değiştir"; komut kimlikleri aynı). Her karoda büyük simge, araç adı ve tek satırlık açıklama vardır; seçilen araç Araçlar menüsündeki
 // (menu.js) komut kimliğiyle çalıştırılır. PDF'i kopyala'nın (0.1.21'e dek Paylaş) karosu yok: araç çubuğundaki düğmesi ve Araçlar menüsündeki öğesiyle çalışır.
 // Esc, dışarı tıklama ya da araç seçimi pencereyi kapatır; ok tuşları, Tab, Home ve End karolar arasında gezer, Enter / Boşluk seçer.
 
@@ -33,16 +34,17 @@ export const ARACLAR = [
     ikon: '<rect x="2.75" y="3.75" width="6.75" height="16.5" rx="1.2"/><rect x="14.5" y="3.75" width="6.75" height="16.5" rx="1.2"/><path d="M12 2.5v19" stroke-dasharray="2.2 2.6"/>',
   },
   {
-    komut: 'arac.gorselBirlestir', ad: 'Görüntü / PDF birleştir', aciklama: 'Dosyalardan tek PDF oluşturur', renk: 'pembe', belge: false,
-    ipucu: 'Görüntü ve PDF belgelerini birleştirerek tek bir PDF oluşturur',
+    // 0.2.7 (kullanıcı isteği): adı "Birleştir"; görüntülerin ve PDF'lerin yanında UDF, Word ve TIFF dosyaları da tek PDF'te birleşir
+    komut: 'arac.gorselBirlestir', ad: 'Birleştir', aciklama: 'Dosyaları tek PDF\'te birleştirir', renk: 'pembe', belge: false,
+    ipucu: 'PDF, görüntü, UDF, Word ve TIFF dosyalarını birleştirerek tek bir PDF oluşturur',
     // Görüntü çerçevesi ve önünde artılı sayfa (sayfa dolgusu arkadaki çizgileri örter)
     ikon: '<rect x="2.5" y="3" width="11.5" height="9.5" rx="1.5"/><path d="m2.75 11 3.5-3.5 3 3 1.75-1.75 2.75 2.75"/><circle cx="10.25" cy="6.25" r="1"/><path class="dolgu" d="M10.25 9.25h6.5l4.25 4.25v8h-10.75z"/><path d="M16.75 9.25v4.25H21M15.6 15v4.5M13.35 17.25h4.5"/>',
   },
   {
     // 0.2.6 (kullanıcı isteği; ad kullanıcının yazdığı gibi): UDF ↔ PDF, TIFF ↔ PDF, Word ↔ PDF (araclar/donustur.js). Belge gerektirmez: girdi
     // UDF, TIFF ya da Word olabilir; açık bir PDF varsa ilk girdi olarak gelir (Birleştir'deki gibi). Açıklama kısa: adı iki satıra kırılan
-    // açılış ekranı kartı ötekilerden uzun olmasın (iki satır açıklamayla 91 px, ötekiler 74 px)
-    komut: 'arac.donustur', ad: 'Dosya Formatını Değiştir', aciklama: 'PDF ↔ UDF, Word, TIFF', renk: 'turkuaz', belge: false,
+    // açılış ekranı kartı ötekilerden uzun olmasın (iki satır açıklamayla 91 px, ötekiler 74 px). 0.2.7 (kullanıcı isteği): adı "Format Değiştir"
+    komut: 'arac.donustur', ad: 'Format Değiştir', aciklama: 'PDF ↔ UDF, Word, TIFF', renk: 'turkuaz', belge: false,
     ipucu: 'UDF, TIFF ve Word dosyalarını PDF\'e; PDF\'i UDF\'ye, Word\'e ya da TIFF\'e dönüştürür',
     // Çapraz duran iki sayfa ve aralarında birbirine dönen iki ok
     ikon: '<rect x="2.75" y="2.75" width="8" height="10.5" rx="1.2"/><rect x="13.25" y="10.75" width="8" height="10.5" rx="1.2"/><path d="M13.75 4.5h2.5a3 3 0 0 1 3 3v1.25"/><path d="m17.5 7.25 1.75 1.75L21 7.25"/><path d="M10.25 19.5h-2.5a3 3 0 0 1-3-3v-1.25"/><path d="m3 16.75 1.75-1.75 1.75 1.75"/>',

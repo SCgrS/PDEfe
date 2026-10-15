@@ -3,7 +3,7 @@
 // sürükleyerek alan seçimi (gerçek fare: canlı seçim, Ctrl ile ekleme, kenarda otomatik kaydırma, Esc, düz tıklama, kartla sıralama),
 // "Yeni belge olarak kaydet" (notlar/bağlantılar/yer imleri, bekleyen not sorusu) ve "Üzerine yaz" (kayıt, Ctrl+Z, yeniden kayıt);
 // Ayır "Üzerine yaz" (tek dosya kuralı canlı, seçili sayfalar ve tek aralık, sekmenin yenilenmesi, bekleyen değişiklik soruları);
-// Görüntü / PDF birleştir: varsayılan "Orijinal" (kenar alanı gizli, çıktıda kenar boşluğu yok), "A4'e sığdır"da kenar alanı.
+// Birleştir: varsayılan "Orijinal" (kenar alanı gizli, çıktıda kenar boşluğu yok), "A4'e sığdır"da kenar alanı.
 // 0.1.25: varsayılan adlar "Düzenlenmiş", "Birleşik" (0.1.26'dan "Birleştirilmiş"; klasörde varsa "(2)"; hedef addan okunur); Ayır'da
 // "Seçili sayfaları çıkart" yerine Sayfa aralıklarına göre + Tek dosya, "Her N sayfada bir" yok (6. bölüm).
 // 0.1.13: araç pencerelerinin alt şeridindeki fare/tuş ipucu kalktı (F1 "Kısayollar" penceresine taşındı; 3. bölüm), araçlardaki
@@ -107,7 +107,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
       if (t === 'koyu') {
         const odak = () => evalJs(`document.activeElement?.dataset?.aracKomut || document.activeElement?.id`);
         const adimlar = [];
-        // 0.2.6: iki tam satır (Sıkıştır, Sayfaları düzenle, Döndür / Ayır, Görüntü / PDF birleştir, Dosya Formatını Değiştir): aşağı ok
+        // 0.2.6: iki tam satır (Sıkıştır, Sayfaları düzenle, Döndür / Ayır, Birleştir, Format Değiştir): aşağı ok
         // altındaki karoya, son satırda yerinde kalır; sağ / sol ok sarar
         for (const [tus_, bekl] of [['ArrowRight', 'arac.sayfalar'], ['ArrowRight', 'arac.dondurKaydet'], ['ArrowDown', 'arac.donustur'], ['ArrowDown', 'arac.donustur'],
           ['ArrowUp', 'arac.dondurKaydet'], ['ArrowLeft', 'arac.sayfalar'], ['ArrowDown', 'arac.gorselBirlestir'], ['ArrowLeft', 'arac.ayir'], ['ArrowUp', 'arac.kucult'],
@@ -257,8 +257,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     await evalJs(`window.__pdefe.komutCalistir('yardim.kisayollar')`);
     await kosul(`!!document.querySelector('.diyalog-ortusu')`, 3000);
     const kys = await evalJs(`(() => { const o = document.querySelector('.diyalog-ortusu'); return o ? { baslik: o.querySelector('.baslik').textContent, bolumler: [...o.querySelectorAll('tr.bolum th')].map((e) => e.textContent), metin: o.querySelector('.govde').innerText } : null; })()`);
-    sonuc('F1 "Kısayollar": Sayfaları düzenle ve Görüntü / PDF birleştir bölümleri (alan seçimi, sıralama)', kys?.baslik === 'Kısayollar' && kys.bolumler.includes('Sayfaları düzenle')
-      && kys.bolumler.includes('Görüntü / PDF birleştir') && /Boş alandan sürükle/.test(kys.metin) && /Sayfayı sürükle/.test(kys.metin), kys && { baslik: kys.baslik, bolumler: kys.bolumler });
+    sonuc('F1 "Kısayollar": Sayfaları düzenle ve Birleştir bölümleri (alan seçimi, sıralama)', kys?.baslik === 'Kısayollar' && kys.bolumler.includes('Sayfaları düzenle')
+      && kys.bolumler.includes('Birleştir') && /Boş alandan sürükle/.test(kys.metin) && /Sayfayı sürükle/.test(kys.metin), kys && { baslik: kys.baslik, bolumler: kys.bolumler });
     await ss('03-kisayollar-koyu');
     await tus('Escape');
     sonuc('Kısayollar Esc ile kapanır', !!(await kosul(`!document.querySelector('.diyalog-ortusu')`, 2000)));
@@ -494,7 +494,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     await pencereKapat();
   }
 
-  // ------------------------------------------------------------ 7) Görüntü / PDF birleştir: varsayılan Orijinal, kenarsız
+  // ------------------------------------------------------------ 7) Birleştir: varsayılan Orijinal, kenarsız
   if (bolum(7)) {
     console.log('\n== 7) Görüntü birleştir: Orijinal');
     await sekmeleriKapat();

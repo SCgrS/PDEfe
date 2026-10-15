@@ -53,8 +53,8 @@ function araclarMenusu(k) {
       { label: 'Sayfaları düzenle', click: k('arac.sayfalar') },
       { label: 'Döndür', click: k('arac.dondurKaydet') },
       { label: 'Ayır', click: k('arac.ayir') },
-      { label: 'Görüntü / PDF belgeleri birleştirerek PDF oluştur', click: k('arac.gorselBirlestir') },
-      { label: 'Dosya Formatını Değiştir', click: k('arac.donustur') },   // 0.2.6: UDF, TIFF, Word ↔ PDF
+      { label: 'Birleştir', click: k('arac.gorselBirlestir') },          // 0.2.7: adı kısaldı (önceden "Görüntü / PDF belgeleri birleştirerek PDF oluştur")
+      { label: 'Format Değiştir', click: k('arac.donustur') },            // 0.2.6: UDF, TIFF, Word ↔ PDF; 0.2.7: adı kısaldı
       { type: 'separator' },
       { label: 'PDF\'i kopyala (dosyayı panoya)', click: k('arac.paylas') },
     ],

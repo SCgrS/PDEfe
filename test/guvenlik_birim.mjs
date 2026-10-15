@@ -2,7 +2,7 @@
 //   paketKlasoruMu (0.2.1): macOS'ta kabuk:klasorAc uygulama paketini (.app; klasördür, açılınca uygulama başlar) açmamalı. Uzantıdan, bağlantının
 //   gösterdiği yerden ve Contents/Info.plist'ten tanınır; olağan klasörler (adında nokta olanlar dahil) paket sayılmaz. İşlev platformdan
 //   bağımsızdır (main.js yalnızca macOS'ta çağırır), bu yüzden Windows'ta da sınanır.
-//   cekirdekParametreleri (0.2.6, Dosya Formatını Değiştir): bicim_donustur'da her öğenin hedefi biçimin uzantısıyla, seçenekler bilinen
+//   cekirdekParametreleri (0.2.6, Format Değiştir): bicim_donustur'da her öğenin hedefi biçimin uzantısıyla, seçenekler bilinen
 //   değerler; UYAP Doküman Editörü'nün klasörü ana sürecin ayarından (arayüzün verdiği yok sayılır).
 //   UDF'nin yaklaşık çizimi (0.2.6, main/udfYaklasik.js): udfIcerigiDenetle (zip'in merkezî dizini: öğe sayısı, şifre, sıkıştırma yöntemi,
 //   content.xml'in tekliği ve beyan edilen açılmış boyutlar; düz XML), udfDosyasiOku, udfYaklasikParametreleri (kanalların parametreleri).
@@ -42,7 +42,7 @@ try {
   kontrol('adı ".app" ile biten olmayan klasör (Uygulama apps) paket değil', !(await paketKlasoruMu(klasor('Uygulama apps'))));
   kontrol('olmayan yol paket değil', !(await paketKlasoruMu(path.join(K, 'yok'))));
 
-  // ------------------------------------------------------------ Dosya Formatını Değiştir (0.2.6): cekirdekParametreleri
+  // ------------------------------------------------------------ Format Değiştir (0.2.6): cekirdekParametreleri
   // Her öğenin hedefi biçimin uzantısıyla (pdf → .pdf, udf → .udf, tiff → .tif / .tiff, word → .docx); .bat / .cmd / .exe ve uyuşmazlık
   // reddedilir; seçenekler yalnızca bilinen değerler; UYAP Doküman Editörü'nün klasörü arayüzün verdiği değil ana sürecin ayarındaki
   const reddedilir = async (ad, yontem, p, ana) => {

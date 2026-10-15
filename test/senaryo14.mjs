@@ -23,7 +23,7 @@ const BEKLENEN = [
     'Varsayılan yakınlaştırma', 'Tek ya da iki sayfa', 'Kaydırmayı etkinleştir', 'Kapak sayfasını ayrı göster',
     'Pencereyi kapatırken']],   // 'Döndür düğmesi' 0.1.27'de kaldırıldı; 'Pencereyi kapatırken' 0.2.2
   ['notlar', 'Not ve vurgu', ['Yazar adı', 'Varsayılan vurgu rengi', 'Vurgu opaklığı', 'Yazı tipi', 'Yazı boyutu', 'Yazı rengi', 'Yazı arka planı']],
-  ['kaydetme', 'Kaydetme', ['Otomatik kaydet', 'Araçların çıktı klasörü', 'UYAP Doküman Editörü']],   // 0.2.6: Dosya Formatını Değiştir
+  ['kaydetme', 'Kaydetme', ['Otomatik kaydet', 'Araçların çıktı klasörü', 'UYAP Doküman Editörü']],   // 0.2.6: Format Değiştir
   ['guncelleme', 'Güncelleme', ['Güncellemeleri otomatik denetle (haftada bir)', 'Şimdi denetle']],
   ['kisayollar', 'Kısayollar', []],   // 0.2.4: F1'deki liste (kart değil, tablolar; senaryo32)
   ['hakkinda', 'Hakkında', []],

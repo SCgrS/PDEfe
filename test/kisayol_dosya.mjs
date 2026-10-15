@@ -528,8 +528,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, tus, tusH
     await tusG('F1', [], 500);
     const kp = await kisayolPenceresi();
     sonuc(`F1: "Kısayollar" penceresi, üç sütun yan yana [Esc: ${etiket}]`, kp?.baslik === 'Kısayollar' && kp.sutun === 3 && kp.yanYana, kp && { baslik: kp.baslik, sutun: kp.sutun, yanYana: kp.yanYana });
-    sonuc(`F1 bölümleri: 1) Dosya ve sekmeler, Düzen, Genel 2) Gezinme, Görünüm, Yazı kutusu 3) Sayfaları düzenle, Görüntü / PDF birleştir`,
-      J(kp?.bolumler) === J([['Dosya ve sekmeler', 'Düzen', 'Genel'], ['Gezinme', 'Görünüm', 'Yazı kutusu'], ['Sayfaları düzenle', 'Görüntü / PDF birleştir']]), kp?.bolumler);
+    sonuc(`F1 bölümleri: 1) Dosya ve sekmeler, Düzen, Genel 2) Gezinme, Görünüm, Yazı kutusu 3) Sayfaları düzenle, Birleştir`,
+      J(kp?.bolumler) === J([['Dosya ve sekmeler', 'Düzen', 'Genel'], ['Gezinme', 'Görünüm', 'Yazı kutusu'], ['Sayfaları düzenle', 'Birleştir']]), kp?.bolumler);
     if (etiket === 'tusGonder') {
       const ilk = kp?.tuslar?.[0] || [];
       const gerekli = ['Ctrl+O', 'Ctrl+T', 'Ctrl+S', 'Ctrl+Shift+S', 'Ctrl+P', 'Ctrl+W', 'Ctrl+PageUp / PageDown', 'Ctrl+← / →', 'Ctrl+Tab / Ctrl+Shift+Tab', 'Ctrl+1 – Ctrl+9', 'Ctrl+Z / Ctrl+Y', 'Ctrl+F', 'F3 / Shift+F3', 'Ctrl+A', 'Delete', 'Ctrl+,'];

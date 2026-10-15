@@ -178,7 +178,7 @@ export default async function (surucu) {
         gorunurMetin: bas.innerText, tasan, kartTasan };
     })()`);
     const ARACLAR_SIRA = await evalJs(`import('./aracPenceresi.js').then((m) => m.ARACLAR.map((a) => [a.komut, a.ad])).catch(() => null)`);
-    const beklenenSira = ARACLAR_SIRA || [['arac.kucult', 'Sıkıştır'], ['arac.sayfalar', 'Sayfaları düzenle'], ['arac.dondurKaydet', 'Döndür'], ['arac.ayir', 'Ayır'], ['arac.gorselBirlestir', 'Görüntü / PDF birleştir'], ['arac.donustur', 'Dosya Formatını Değiştir']];
+    const beklenenSira = ARACLAR_SIRA || [['arac.kucult', 'Sıkıştır'], ['arac.sayfalar', 'Sayfaları düzenle'], ['arac.dondurKaydet', 'Döndür'], ['arac.ayir', 'Ayır'], ['arac.gorselBirlestir', 'Birleştir'], ['arac.donustur', 'Format Değiştir']];
     if (!ARACLAR_SIRA) bilgi('ARACLAR modülü içe aktarılamadı; beklenen sıra elle yazıldı');
 
     for (const gen of [1280, 700]) {
@@ -197,7 +197,7 @@ export default async function (surucu) {
         { ac: o.ac, ipucu: o.ipucu, metin: o.ipucuMetin, eskiIpucu: o.eskiIpucu });
       const sira = o.kartlar.map((c) => [c.eylem, c.ad]);
       const gorselSira = [...o.kartlar].sort((x, y) => (Math.abs(x.t - y.t) > 2 ? x.t - y.t : x.l - y.l)).map((c) => c.eylem);
-      sonuc(`[${gen}px] Altı araç kartı ARACLAR sırasıyla (DOM ve görsel sıra; 0.2.6: Dosya Formatını Değiştir)`, J(sira) === J(beklenenSira) && J(gorselSira) === J(beklenenSira.map((x) => x[0])) && o.araclarBaslik === 'Araçlar', { sira, gorselSira });
+      sonuc(`[${gen}px] Altı araç kartı ARACLAR sırasıyla (DOM ve görsel sıra; 0.2.6: Format Değiştir)`, J(sira) === J(beklenenSira) && J(gorselSira) === J(beklenenSira.map((x) => x[0])) && o.araclarBaslik === 'Araçlar', { sira, gorselSira });
       sonuc(`[${gen}px] Son açılanlar kutusu görünür, iki belge listeli`, !o.sonHidden && o.sonDisplay !== 'none' && o.sonBaslik === 'Son açılanlar' && J(o.sonOgeler) === J(['b', 'a']), { sonHidden: o.sonHidden, sonDisplay: o.sonDisplay, sonOgeler: o.sonOgeler });
       // 0.1.14: tek sütun, Son açılanlar araçların altında (0.1.13'te geniş pencerede sağ sütundaydı)
       sonuc(`[${gen}px] Son açılanlar araçların altında, aynı sütunda; karşılama ortada`, o.son.t >= o.araclar.b && Math.abs(o.son.l - o.karsilama.l) < 2 && Math.abs(o.son.w - o.karsilama.w) < 2
@@ -558,16 +558,16 @@ export default async function (surucu) {
     if (r.p) await aracKapat();
     await hepsiniKapat(); await bekle(300);
 
-    // Görüntü / PDF birleştir: belge gerektirmez, Aç penceresi olmadan açılır
+    // Birleştir: belge gerektirmez, Aç penceresi olmadan açılır
     await kayit();
     await tikl(q('.karsilama-arac[data-eylem="arac.gorselBirlestir"]'));
     const birlestirAcildi = await kosul(`!!document.querySelector('.arac-pencere.birlestir-pencere')`, 8000); await bekle(700);
     kk = (await kayit()).filter((k) => k.kanal === 'dosya:acDiyalog');
     const pb = await pencereBilgi();
-    sonuc('Görüntü / PDF birleştir kartı: Aç penceresi olmadan araç açılır, belge açılmaz', !!birlestirAcildi && kk.length === 0 && (await evalJs(`window.__pdefe.belgeler.size`)) === 0, { birlestirAcildi, kk });
+    sonuc('Birleştir kartı: Aç penceresi olmadan araç açılır, belge açılmaz', !!birlestirAcildi && kk.length === 0 && (await evalJs(`window.__pdefe.belgeler.size`)) === 0, { birlestirAcildi, kk });
     if (pb) {
-      sonuc('Görüntü / PDF birleştir alt şeridinde ipucu metni yok', ipucuYok(pb), { dugmeler: pb.dugmelerMetin, sol: pb.solMetin, altMetin: pb.altMetin });
-      sonuc('Görüntü / PDF birleştir bölüm başlığı "Kaydet"', pb.bolumBasliklari.includes('Kaydet') && !pb.bolumBasliklari.includes('Kaydetme'), pb.bolumBasliklari);
+      sonuc('Birleştir alt şeridinde ipucu metni yok', ipucuYok(pb), { dugmeler: pb.dugmelerMetin, sol: pb.solMetin, altMetin: pb.altMetin });
+      sonuc('Birleştir bölüm başlığı "Kaydet"', pb.bolumBasliklari.includes('Kaydet') && !pb.bolumBasliklari.includes('Kaydetme'), pb.bolumBasliklari);
       await ssIki('c-birlestir');
       await aracKapat();
     }
@@ -575,7 +575,7 @@ export default async function (surucu) {
     await evalJs(`window.__pdefe.komutCalistir('arac.gorselBirlestir', [${J(path.join(PDF, 'a.pdf'))}])`);
     await kosul(`document.querySelectorAll('.birlestir-oge').length > 0`, 8000); await bekle(600);
     const pb2 = await pencereBilgi();
-    sonuc('Görüntü / PDF birleştir (liste dolu) alt şeridinde de ipucu yok', pb2 && ipucuYok(pb2), pb2 && { dugmeler: pb2.dugmelerMetin, sol: pb2.solMetin });
+    sonuc('Birleştir (liste dolu) alt şeridinde de ipucu yok', pb2 && ipucuYok(pb2), pb2 && { dugmeler: pb2.dugmelerMetin, sol: pb2.solMetin });
     if (pb2) { await tikl(q('.arac-ortusu .arac-kapat')); await bekle(500); if (await evalJs(`!!document.querySelector('.mesaj-kutusu')`)) { const m = await merkez(`[...document.querySelectorAll('.mesaj-kutusu .dugmeler button')].find((b) => b.textContent === 'Kaydetme')`); if (m) await tikla(...m); } await kosul(`!document.querySelector('.arac-ortusu')`, 8000); }
     await hepsiniKapat(); await bekle(300);
 
@@ -586,7 +586,7 @@ export default async function (surucu) {
         bolumler: tablolar.map((t) => [...t.querySelectorAll('tr.bolum th')].map((e) => e.textContent)), metin: d.innerText,
         tasma: d.querySelector('.govde').scrollWidth - d.querySelector('.govde').clientWidth, dikeyTasma: d.querySelector('.govde').scrollHeight - d.querySelector('.govde').clientHeight, diyalogSag: d.getBoundingClientRect().right, gen: innerWidth, diyalogSayisi: document.querySelectorAll('.diyalog-ortusu').length }; })()`);
     sonuc('F1 (menü kısayolu) "Kısayollar" penceresini bir kez açar', f1?.baslik === 'Kısayollar' && f1.diyalogSayisi === 1, f1 && { baslik: f1.baslik, sayi: f1.diyalogSayisi });
-    sonuc('Kısayollar: üçüncü sütunda "Sayfaları düzenle" ve "Görüntü / PDF birleştir" bölümleri', f1?.sutun === 3 && J(f1.bolumler[2]) === J(['Sayfaları düzenle', 'Görüntü / PDF birleştir']), f1?.bolumler);
+    sonuc('Kısayollar: üçüncü sütunda "Sayfaları düzenle" ve "Birleştir" bölümleri', f1?.sutun === 3 && J(f1.bolumler[2]) === J(['Sayfaları düzenle', 'Birleştir']), f1?.bolumler);
     sonuc('Kısayollar: araç ipuçlarının içeriği (Tıkla / Delete / Ctrl+V…) ve Ctrl+T burada', f1 && /Seçilenleri sil/.test(f1.metin) && /Seçilenleri çıkar/.test(f1.metin) && /Panodaki dosyaları/.test(f1.metin) && /Ctrl\+T/.test(f1.metin) && !/Klavye kısayolları/.test(f1.metin), f1 && f1.metin.slice(0, 200));
     sonuc('Kısayollar: 1264 px pencerede üç sütun yan yana, taşma yok', f1 && new Set(f1.ustler).size === 1 && f1.tasma <= 0 && f1.diyalogSag <= f1.gen, f1 && { ustler: f1.ustler, tasma: f1.tasma, sag: f1.diyalogSag, gen: f1.gen });
     if (f1?.dikeyTasma > 0) bilgi(`Kısayollar penceresi ${f1.gen}×795 px pencerede dikey kaydırmalı (${f1.dikeyTasma} px taşan içerik; Yazı kutusu / Genel bölümleri aşağıda)`);

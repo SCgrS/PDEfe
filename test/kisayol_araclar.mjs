@@ -1,11 +1,11 @@
 // Kısayollar — araç pencereleri (0.1.13, kullanıcı isteği): F1 Kısayollar penceresinin üçüncü sütununda ("Sayfaları düzenle",
-// "Görüntü / PDF birleştir") yazan her fare ve tuş kullanımı gerçek girdiyle (CDP fare ve tuş olayları) sınanır; bu satırlar 0.1.13'te
+// "Birleştir") yazan her fare ve tuş kullanımı gerçek girdiyle (CDP fare ve tuş olayları) sınanır; bu satırlar 0.1.13'te
 // araç pencerelerinin alt şeridinden F1'e taşındı, burada yazılanın gerçekten çalıştığı doğrulanır. Sütundaki satırlar F1 penceresinden
 // okunur; sonda her satır için hangi denetimlerin geçtiği (kapsam tablosu) yazılır.
 // Ayrıca: araç pencerelerinde alt şeritte ipucu metni (.arac-alt-metin) yok; Sayfaları düzenle'de "PDF ekle" düğmesi var ("PDF'ten sayfa
 // ekle" yok) ve test diyaloğuyla seçilen PDF'in sayfalarını ekler; Sıkıştır, Sayfaları düzenle, Döndür, Ayır (ve Görüntü /
-// PDF birleştir, 0.2.6'dan beri Dosya Formatını Değiştir) pencerelerinde bölüm başlığı "Kaydet" ("Kaydetme" başlığı yok).
-// Görüntü / PDF birleştir'de Ctrl+V sistem panosuna dokunmadan sınanır: açık pencerenin panodanEkle işlevi örnek üzerinde geçici olarak
+// PDF birleştir, 0.2.6'dan beri Format Değiştir) pencerelerinde bölüm başlığı "Kaydet" ("Kaydetme" başlığı yok).
+// Birleştir'de Ctrl+V sistem panosuna dokunmadan sınanır: açık pencerenin panodanEkle işlevi örnek üzerinde geçici olarak
 // sarılıp çağrılar sayılır (asıl işlev çağrılmaz, pano okunmaz; örneğe modülün dinamik içe aktarımıyla, _secimiCiz bir kez sarılarak
 // ulaşılır). Girdi kutusundaki Ctrl+V'nin yapıştırma olayı engellenir (kutuya pano içeriği yazılmaz).
 // Kullanım: boş veri klasörlü ekran dışı test örneği (baslat.ps1 -Boyut "1280,1000") açıkken  $env:PDEFE_CDP_PORT=9413; node test/surucu.mjs betik test/kisayol_araclar.mjs
@@ -23,7 +23,7 @@ const PY = path.join(KOK, '.venv', 'Scripts', 'python.exe');
 const J = (x) => JSON.stringify(x);
 
 // F1 satırlarının kapsam anahtarları: "<bölüm> › <tuşlar | ile>"
-const S = 'Sayfaları düzenle › ', B = 'Görüntü / PDF birleştir › ';
+const S = 'Sayfaları düzenle › ', B = 'Birleştir › ';
 const S_TIK = S + 'Tıkla', S_CS = S + 'Ctrl+tık / Shift+tık', S_ALAN = S + 'Boş alandan sürükle', S_SUR = S + 'Sayfayı sürükle', S_DEL = S + 'Delete',
   S_CA = S + 'Ctrl+A', S_CV = S + 'Ctrl+C / Ctrl+V', S_OK = S + '← → ↑ ↓ | Home / End', S_R = S + 'R / Shift+R', S_ZY = S + 'Ctrl+Z / Ctrl+Y';
 const B_TIK = B + 'Tıkla', B_CS = B + 'Ctrl+tık / Shift+tık', B_ALAN = B + 'Sağ tuşla sürükle | Boş alandan sürükle', B_SUR = B + 'Satırı sürükle',
@@ -35,7 +35,7 @@ const F1_BEKLENEN = [
   [['Ctrl+C / Ctrl+V'], 'Seçilenleri kopyala / seçili sayfanın arkasına yapıştır'],
   [['← → ↑ ↓', 'Home / End'], 'Sayfalar arasında gez (Shift ile seçimi genişlet)'], [['R / Shift+R'], 'Seçilenleri sağa / sola döndür'],
   [['Ctrl+Z / Ctrl+Y'], 'Geri al / yinele'],
-  ['Görüntü / PDF birleştir'],
+  ['Birleştir'],
   [['Tıkla'], 'Dosyayı seç'], [['Ctrl+tık / Shift+tık'], 'Seçime ekle / aralığı seç'],
   [['Sağ tuşla sürükle', 'Boş alandan sürükle'], 'Alandaki dosyaları seç'], [['Satırı sürükle'], 'Sırala (seçiliyse seçilenler birlikte)'],
   [['Delete'], 'Seçilenleri çıkar'], [['Ctrl+A'], 'Tümünü seç'], [['Ctrl+V'], 'Panodaki dosyaları ya da görüntüyü ekle'],
@@ -149,7 +149,7 @@ print(json.dumps({"ana": pdf("ana.pdf", 12, "Sayfa"), "ek": pdf("ek.pdf", 3, "Ek
   const f1 = await evalJs(`(() => { const d = document.querySelector('.diyalog-ortusu'); const t = d.querySelectorAll('table.kisayollar');
     return { baslik: d.querySelector('.baslik').textContent, sutun: t.length, satirlar: t[2] ? [...t[2].rows].map((r) => r.classList.contains('bolum') ? [r.textContent.trim()] : [[...r.cells[0].querySelectorAll('kbd')].map((k) => k.textContent), r.cells[1].textContent]) : [] }; })()`);
   sonuc('F1 penceresinin başlığı "Kısayollar", üç sütun', f1.baslik === 'Kısayollar' && f1.sutun === 3, { baslik: f1.baslik, sutun: f1.sutun });
-  sonuc('Üçüncü sütun: Sayfaları düzenle ve Görüntü / PDF birleştir satırları (sınanan liste)', ayni(f1.satirlar, F1_BEKLENEN), f1.satirlar);
+  sonuc('Üçüncü sütun: Sayfaları düzenle ve Birleştir satırları (sınanan liste)', ayni(f1.satirlar, F1_BEKLENEN), f1.satirlar);
   await ss('00-f1-kisayollar');
   await tus('Escape');
   sonuc('F1 penceresi Esc ile kapanır', await kosul(`!document.querySelector('.diyalog-ortusu')`, 2000));
@@ -463,12 +463,12 @@ print(json.dumps({"ana": pdf("ana.pdf", 12, "Sayfa"), "ek": pdf("ek.pdf", 3, "Ek
   if (await kosul(`!!document.querySelector('.mesaj-kutusu')`, 800)) await kutuDugmesi('Kaydetme');
   sonuc('Sayfaları düzenle Esc ile kapanır (değişiklik kalmadı)', await kosul(`!document.querySelector('.sayfalar-pencere')`, 4000));
 
-  // ---------------------------------------------------------------- 2) Görüntü / PDF birleştir
-  console.log('\n== 2) Görüntü / PDF birleştir');
+  // ---------------------------------------------------------------- 2) Birleştir
+  console.log('\n== 2) Birleştir');
   await evalJs(`window.__pdefe.komutCalistir('arac.gorselBirlestir')`);
   await kosul(`!!document.querySelector('.birlestir-pencere')`);
   await bekle(300);
-  cerceveDenetle('Görüntü / PDF birleştir', await cerceve('birlestir-pencere'));
+  cerceveDenetle('Birleştir', await cerceve('birlestir-pencere'));
   // 0.1.25: açık PDF (ana.pdf) listenin başında gelir; bu bölümün sınamaları dört dosyalık listeyle yapılır, ana.pdf çıkarılır
   await kosul(`window.__ka.satirlar().length === 1 && !document.querySelector('.birlestir-oge.yukleniyor')`, 8000);
   const acikIlk = (await bDurum()).sira;
@@ -657,11 +657,11 @@ print(json.dumps({"ana": pdf("ana.pdf", 12, "Sayfa"), "ek": pdf("ek.pdf", 3, "Ek
   // Kapat: liste dolu → çıkış sorusu → Kaydetme; hiçbir dosya yazılmaz
   await tus('Escape');
   if (await kosul(`!!document.querySelector('.mesaj-kutusu')`, 2000)) await kutuDugmesi('Kaydetme');
-  sonuc('Görüntü / PDF birleştir Esc → Kaydetme ile kapanır, çıktı klasörüne dosya yazılmadı', await kosul(`!document.querySelector('.birlestir-pencere')`, 4000) && fs.readdirSync(CIKTI).length === 0, fs.readdirSync(CIKTI));
+  sonuc('Birleştir Esc → Kaydetme ile kapanır, çıktı klasörüne dosya yazılmadı', await kosul(`!document.querySelector('.birlestir-pencere')`, 4000) && fs.readdirSync(CIKTI).length === 0, fs.readdirSync(CIKTI));
 
   // ---------------------------------------------------------------- 3) Diğer araç pencereleri: alt şerit ve "Kaydet" başlığı
-  console.log('\n== 3) Sıkıştır, Döndür, Ayır, Dosya Formatını Değiştir');
-  for (const [komut, sinif, ad] of [['arac.kucult', 'kucult-pencere', 'Sıkıştır'], ['arac.dondurKaydet', 'dondur-pencere', 'Döndür'], ['arac.ayir', 'ayir-pencere', 'Ayır'], ['arac.donustur', 'donustur-pencere', 'Dosya Formatını Değiştir']]) {
+  console.log('\n== 3) Sıkıştır, Döndür, Ayır, Format Değiştir');
+  for (const [komut, sinif, ad] of [['arac.kucult', 'kucult-pencere', 'Sıkıştır'], ['arac.dondurKaydet', 'dondur-pencere', 'Döndür'], ['arac.ayir', 'ayir-pencere', 'Ayır'], ['arac.donustur', 'donustur-pencere', 'Format Değiştir']]) {
     await evalJs(`window.__pdefe.komutCalistir(${J(komut)})`);
     await kosul(`!!document.querySelector('.${sinif}')`);
     await bekle(500);

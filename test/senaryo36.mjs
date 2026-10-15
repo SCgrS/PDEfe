@@ -439,14 +439,14 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz, tus,
     sonuc('Sayfaları düzenle açıkken paste belgeye yazı eklemez (olaya dokunulmaz)', (await sayi()) === once && !onlendiS, { onlendiS });
     await evalJs(`document.querySelector('.arac-pencere .arac-kapat')?.click()`);
     await kosul(`!document.querySelector('.arac-ortusu')`, 4000); await bekle(400);
-    // Görüntü / PDF birleştir'in Ctrl+V'si ("Panodan ekle") kendi tuşudur: belgenin paste dinleyicisi açık pencerede olaya dokunmaz
+    // Birleştir'in Ctrl+V'si ("Panodan ekle") kendi tuşudur: belgenin paste dinleyicisi açık pencerede olaya dokunmaz
     await evalJs(`window.__pdefe.komutCalistir('arac.gorselBirlestir')`);
     await kosul(`!!document.querySelector('.arac-ortusu')`, 6000); await bekle(800);
     once = await sayi();
     const listeOnce = await evalJs(`document.querySelectorAll('.arac-pencere .birlestir-oge').length`);
     const onlendiB = await evalJs(`window.__s36.yapistir(undefined, document.querySelector('.arac-pencere') || document)`); await bekle(300);
     const listeSonra = await evalJs(`document.querySelectorAll('.arac-pencere .birlestir-oge').length`);
-    sonuc('Görüntü / PDF birleştir açıkken paste belgeye yazı eklemez, pencerenin listesi değişmez', (await sayi()) === once && !onlendiB && listeSonra === listeOnce, { onlendiB, listeOnce, listeSonra });
+    sonuc('Birleştir açıkken paste belgeye yazı eklemez, pencerenin listesi değişmez', (await sayi()) === once && !onlendiB && listeSonra === listeOnce, { onlendiB, listeOnce, listeSonra });
     if (listeSonra) await kuyruk('mesaj:kutu', [{ secim: 1, onay: false }]);   // listede açık belge var: "kaydedilsin mi?" → Kaydetme
     await evalJs(`document.querySelector('.arac-pencere .arac-kapat')?.click()`);
     await kosul(`!document.querySelector('.arac-ortusu')`, 4000); await bekle(400);

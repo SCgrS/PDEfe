@@ -1,4 +1,4 @@
-// Senaryo 18 (0.1.12): çekirdeğin belge önbelleği araç kapanınca bırakılır. Araç penceresinin okuttuğu dosya (Görüntü / PDF birleştir
+// Senaryo 18 (0.1.12): çekirdeğin belge önbelleği araç kapanınca bırakılır. Araç penceresinin okuttuğu dosya (Birleştir
 // listesi, Sayfaları düzenle'de PDF ekle; 0.1.12'de adı "PDF'ten sayfa ekle") araç açıkken çekirdekte açıktır (Windows'ta adı
 // değiştirilemez); son araç penceresi kapanınca bırakılır. Açık bir sekmenin dosyası bırakılmaz; sekme kapanınca bırakılır. Dosyanın açık olup olmadığı adını değiştirmeyi
 // deneyerek ölçülür (değiştirilebildiyse geri alınır).
@@ -50,7 +50,7 @@ export default async function ({ evalJs, bekle, tus }) {
   await evalJs(`(() => { window.__s18Hatalar = []; addEventListener('error', (e) => window.__s18Hatalar.push(String(e.message))); addEventListener('unhandledrejection', (e) => window.__s18Hatalar.push(String(e.reason?.message || e.reason))); return true; })()`);
   await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'ciktiKlasoru', ${J(K)}); window.__pdefe.ayar().ciktiKlasoru = ${J(K)}; return true; })()`);
 
-  // ---------------------------------------------------------------- Görüntü / PDF birleştir: liste dosyası
+  // ---------------------------------------------------------------- Birleştir: liste dosyası
   await evalJs(`window.__pdefe.komutCalistir('arac.gorselBirlestir', [${J(X)}])`);
   await kosul(`document.querySelectorAll('.birlestir-oge').length === 1 && !document.querySelector('.birlestir-oge.yukleniyor')`);
   await bekle(500);

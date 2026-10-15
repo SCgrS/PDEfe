@@ -1,4 +1,4 @@
-// Senaryo 37 (0.2.6, kullanıcı isteği): "Dosya Formatını Değiştir" aracı (araclar/donustur.js) — UDF ↔ PDF, TIFF ↔ PDF, Word ↔ PDF.
+// Senaryo 37 (0.2.6, kullanıcı isteği): "Format Değiştir" aracı (araclar/donustur.js) — UDF ↔ PDF, TIFF ↔ PDF, Word ↔ PDF.
 //   1) Araçlar penceresinde 6. karo (3 + 3), açılış ekranında ve Araçlar menüsünde (Birleştir'in hemen altında); belge gerektirmez: belge
 //      yokken boş listeyle açılır (Aç penceresi açılmaz).
 //   2) Açık PDF ilk girdi; hedefi UDF, önerilen ad PDF'in adı + .udf.
@@ -20,7 +20,7 @@
 //   8) Açma yolları: ana pencereye bırakılan PDF sekmede, UDF / TIFF / Word araçta açılır (araç açıksa listesine eklenir); Ctrl+O'nun
 //      süzgecinde desteklenen türler, seçilen UDF araçta; komut satırı (ikinci örnek, Gezgin'de "Birlikte aç") ve ana sürecin dosya:ac'ı;
 //      sürükleme örtüsü "Dosyaları bırakın".
-//   9) Ayarlar › Kaydetme › Dosya Formatını Değiştir › "UYAP Doküman Editörü": bulunan editörün yolu, sürümü ve Java; "Klasörü seç…" (ana
+//   9) Ayarlar › Kaydetme › Format Değiştir › "UYAP Doküman Editörü": bulunan editörün yolu, sürümü ve Java; "Klasörü seç…" (ana
 //      sürecin penceresi; editörün olmadığı klasör ayarı değiştirmez, nedeni yazar; editörün klasörü ayara yazılır), "Otomatik bul" ayarı
 //      temizler; çıktı klasörü kartının açıklamasında yeni araç.
 // Girdiler test/donustur_arayuz_uret.py ile test/cikti/s37/girdi altında üretilir (gerçek belge yok); çıktılar test/cikti/s37/cikti.
@@ -160,7 +160,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     console.log('\n== 1) Karo, açılış ekranı, Araçlar menüsü');
     const tanim = await evalJs(`import('pdefe://app/src/renderer/aracPenceresi.js').then((m) => m.ARACLAR.map((a) => ({ komut: a.komut, ad: a.ad, aciklama: a.aciklama, renk: a.renk, belge: a.belge })))`);
     const t = tanim.at(-1);
-    sonuc('ARACLAR: 6. araç "Dosya Formatını Değiştir" (arac.donustur), belge gerektirmez, kendi rengi', tanim.length === 6 && t.komut === 'arac.donustur' && t.ad === 'Dosya Formatını Değiştir'
+    sonuc('ARACLAR: 6. araç "Format Değiştir" (arac.donustur), belge gerektirmez, kendi rengi', tanim.length === 6 && t.komut === 'arac.donustur' && t.ad === 'Format Değiştir'
       && t.belge === false && !tanim.slice(0, 5).some((x) => x.renk === t.renk), tanim);
     await tikSecici('#dugme-araclar');
     await kosul(`!document.querySelector('#araclar-penceresi').hidden`);
@@ -168,8 +168,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
       const satir = [...new Set(r.map((x) => Math.round(x.top)))]; const s = k.at(-1);
       return { sayi: k.length, satirlar: satir.map((y) => r.filter((x) => Math.round(x.top) === y).length), komut: s.dataset.aracKomut, ad: s.querySelector('.araclar-ad').textContent,
         aciklama: s.querySelector('.araclar-aciklama').textContent, ipucu: s.title, renk: getComputedStyle(s).getPropertyValue('--renk').trim(), ikon: !!s.querySelector('svg rect') }; })()`);
-    sonuc('Araçlar penceresi: altı karo 3 + 3; sonuncusu "Dosya Formatını Değiştir", açıklama, ipucu, simge ve turkuaz renk', karo.sayi === 6 && J(karo.satirlar) === J([3, 3])
-      && karo.komut === 'arac.donustur' && karo.ad === 'Dosya Formatını Değiştir' && karo.aciklama === 'PDF ↔ UDF, Word, TIFF' && /UDF, TIFF ve Word/.test(karo.ipucu) && karo.ikon && !!karo.renk, karo);
+    sonuc('Araçlar penceresi: altı karo 3 + 3; sonuncusu "Format Değiştir", açıklama, ipucu, simge ve turkuaz renk', karo.sayi === 6 && J(karo.satirlar) === J([3, 3])
+      && karo.komut === 'arac.donustur' && karo.ad === 'Format Değiştir' && karo.aciklama === 'PDF ↔ UDF, Word, TIFF' && /UDF, TIFF ve Word/.test(karo.ipucu) && karo.ikon && !!karo.renk, karo);
     await ss('01-araclar-penceresi');
     // Belge yokken karo: Aç penceresi açılmaz, araç boş listeyle açılır
     await kayit();
@@ -180,7 +180,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
       bosMesaj: document.querySelector('.donustur-liste .bos-mesaj')?.innerText || '', devre: document.querySelector('.donustur-pencere .arac-dugmeler .birincil').disabled,
       dugme: document.querySelector('.donustur-pencere .arac-dugmeler .birincil').textContent })`);
     const acKaydi = (await kayit()).filter((x) => x.kanal === 'dosya:acDiyalog');
-    sonuc('Belge yokken karo: Aç penceresi açılmaz, araç boş listeyle açılır ("Dosyaları buraya sürükleyin"), Dönüştür soluk', !acKaydi.length && bos.baslik === 'Dosya Formatını Değiştir'
+    sonuc('Belge yokken karo: Aç penceresi açılmaz, araç boş listeyle açılır ("Dosyaları buraya sürükleyin"), Dönüştür soluk', !acKaydi.length && bos.baslik === 'Format Değiştir'
       && bos.satir === 0 && /Dosyaları buraya sürükleyin/.test(bos.bosMesaj) && /UDF, TIFF, Word/.test(bos.bosMesaj) && bos.devre && bos.dugme === 'Dönüştür', { acKaydi, bos });
     await ss('01-bos-pencere');
     await pencereKapat();
@@ -188,7 +188,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     const acilis = await evalJs(`(async () => { if (window.__pdefe.belgeler.size) await window.__pdefe.komutCalistir('sekme.yeni'); await new Promise((c) => setTimeout(c, 400));
       const k = document.querySelector('.karsilama-arac[data-eylem="arac.donustur"]'); return k ? { ad: k.querySelector('.karsilama-arac-ad').textContent, aciklama: k.querySelector('.karsilama-aciklama').textContent,
         sira: [...document.querySelectorAll('.karsilama-arac')].indexOf(k), renk: getComputedStyle(k).getPropertyValue('--renk').trim() } : null; })()`);
-    sonuc('Açılış ekranı: 6. kart "Dosya Formatını Değiştir" (aynı açıklama ve renk)', acilis?.ad === 'Dosya Formatını Değiştir' && acilis.sira === 5 && acilis.aciklama === t.aciklama && acilis.renk === karo.renk, acilis);
+    sonuc('Açılış ekranı: 6. kart "Format Değiştir" (aynı açıklama ve renk)', acilis?.ad === 'Format Değiştir' && acilis.sira === 5 && acilis.aciklama === t.aciklama && acilis.renk === karo.renk, acilis);
     await tikSecici('.karsilama-arac[data-eylem="arac.donustur"]');
     sonuc('Açılış ekranındaki kart aracı açar', !!(await kosul(`!!document.querySelector('.donustur-pencere')`, 5000)));
     await ss('01-acilis');
@@ -196,8 +196,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     // Araçlar menüsü (Windows şablonu; Mac şablonu aynı araclarMenusu'nu kullanır)
     const menu = await evalJs(`window.pdefe.cagir('test:menu')`);
     const araclar = (menu || []).find((m) => m?.etiket === '&Araçlar' || m?.etiket === 'Araçlar')?.alt || [];
-    const i = araclar.indexOf('Dosya Formatını Değiştir');
-    sonuc('Araçlar menüsü: "Dosya Formatını Değiştir" Birleştir\'in hemen altında', i > 0 && /birleştir/i.test(araclar[i - 1]), araclar);
+    const i = araclar.indexOf('Format Değiştir');
+    sonuc('Araçlar menüsü: "Format Değiştir" Birleştir\'in hemen altında', i > 0 && /birleştir/i.test(araclar[i - 1]), araclar);
     await evalJs(`window.pdefe.cagir('test:olayGonder', 'menu:komut', 'arac.donustur')`);
     sonuc('Araçlar menüsünden seçilince araç açılır', !!(await kosul(`!!document.querySelector('.donustur-pencere')`, 5000)));
     await pencereKapat();
@@ -644,7 +644,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     });
     await kosul(`!!document.querySelector('.donustur-pencere') && document.querySelectorAll('.donustur-oge').length === 1 && !document.querySelector('.donustur-oge.yukleniyor')`, 15000);
     S = await satirlar();
-    sonuc('Komut satırı (ikinci örnek): TIFF ilk örneğin Dosya Formatını Değiştir aracında açılır, sekme açılmaz', ikinci && J(S.map((x) => x.ad)) === J(['Tarama örneği.tif'])
+    sonuc('Komut satırı (ikinci örnek): TIFF ilk örneğin Format Değiştir aracında açılır, sekme açılmaz', ikinci && J(S.map((x) => x.ad)) === J(['Tarama örneği.tif'])
       && (await evalJs(`window.__pdefe.belgeler.size`)) === 0, { ikinci, S: S.map((x) => x.ad) });
     await pencereKapat();
   }
@@ -661,8 +661,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
       cikti: [...document.querySelectorAll('.ayarlar-icerik .ayar-kart')].find((x) => /çıktı klasörü/.test(x.textContent))?.querySelector('.ayar-aciklama').textContent }; })()`);
     await kosul(`!${KART}.querySelector('.ayar-ude-durum').textContent.includes('Aranıyor')`, 15000);
     let d = await kartDurumu();
-    sonuc('Ayarlar › Kaydetme: "Dosya Formatını Değiştir" başlığı altında "UYAP Doküman Editörü" kartı; Otomatik bul ve Klasörü seç… düğmeleri; çıktı klasörü açıklamasında yeni araç',
-      d.bolum.includes('Dosya Formatını Değiştir') && d.baslik === 'UYAP Doküman Editörü' && J(d.dugmeler.map((x) => x[0])) === J(['Otomatik bul', 'Klasörü seç…']) && /Dosya Formatını Değiştir/.test(d.cikti || ''), d);
+    sonuc('Ayarlar › Kaydetme: "Format Değiştir" başlığı altında "UYAP Doküman Editörü" kartı; Otomatik bul ve Klasörü seç… düğmeleri; çıktı klasörü açıklamasında yeni araç',
+      d.bolum.includes('Format Değiştir') && d.baslik === 'UYAP Doküman Editörü' && J(d.dugmeler.map((x) => x[0])) === J(['Otomatik bul', 'Klasörü seç…']) && /Format Değiştir/.test(d.cikti || ''), d);
     if (UDE_VAR) sonuc('Durum: kendiliğinden bulunan editörün yolu ve sürümü, Java\'nın sürümü', d.durum[0]?.startsWith(`Bulunan: ${YET.udf.ude.yol}`) && /kendiliğinden bulundu/.test(d.durum[0]) && /^Java /.test(d.durum[1] || '') && !d.hata, d.durum);
     else sonuc('Durum: editör bulunamadı, nedeni yazar', d.hata && /bulunamadı/.test(d.durum.join(' ')), d.durum);
     await ss('09-ayarlar-ude');
