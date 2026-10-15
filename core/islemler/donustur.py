@@ -1439,7 +1439,8 @@ def _tiff_yazici_hazir():
 
 def _tarama_dpi(pg):
     """Sayfanın tamamını tek bir görsel kaplıyorsa (taranmış evrak) o görselin çözünürlüğü (dpi; TARAMA_DPI_EN_AZ–EN_COK), değilse
-    None. Kare olmayan pikselde (yatay ve dikey çözünürlük farklı) None: seçilen dpi'de çizilir."""
+    None. Kare olmayan pikselde (yatay ve dikey çözünürlük farklı) None: seçilen dpi'de çizilir. MuPDF'e girer (get_image_info sayfanın
+    içerik akışını çalıştırır; rect, derotation_matrix): MuPDF kilidinin içinde çağrılır (0.2.7 inceleme; _sayfa_ciz, _oge_tahmini)."""
     try:
         bilgiler = pg.get_image_info()
     except Exception:
@@ -1486,9 +1487,12 @@ def _tiff_olcegi(pg, dpi):
 
 
 def _sayfa_ciz(pg, olcek, kip, kilit):
-    """Sayfayı (notlarıyla) Pillow görüntüsüne çizer; MuPDF adımları kilitle. olcek piksel sınırına göre küçültülür. Döner: (görüntü, dpi)."""
+    """Sayfayı (notlarıyla) Pillow görüntüsüne çizer; MuPDF adımları kilitle. olcek: sayı ya da sayfadan ölçeği hesaplayan işlev (taranmış
+    görselin çözünürlüğü MuPDF'e girer: kilidin içinde hesaplanır; 0.2.7 inceleme). olcek piksel sınırına göre küçültülür. Döner: (görüntü, dpi)."""
     Image = araclar._pillow()[0]
     with kilit():
+        if callable(olcek):
+            olcek = olcek(pg)
         olcek = _cekirdek().olcek_sinirla(pg.rect.width, pg.rect.height, olcek)
         pix = pg.get_pixmap(matrix=pymupdf.Matrix(olcek, olcek), colorspace=pymupdf.csRGB if kip == "RGB" else pymupdf.csGRAY,
                             alpha=False, annots=True)
@@ -1499,7 +1503,7 @@ def _sayfa_ciz(pg, olcek, kip, kilit):
 
 def _tiff_sayfasi(pg, dpi, renk, kilit):
     """PDF → TIFF'in bir sayfası: (görüntü (sb'de 1 bit, eşikli), dpi, save seçenekleri)."""
-    sayfa, d = _sayfa_ciz(pg, _tiff_olcegi(pg, dpi), "RGB" if renk == "renkli" else "L", kilit)
+    sayfa, d = _sayfa_ciz(pg, lambda p: _tiff_olcegi(p, dpi), "RGB" if renk == "renkli" else "L", kilit)
     if renk == "sb":
         sayfa = sayfa.point(ESIK_TABLOSU, "1")
     return sayfa, d, {"format": "TIFF", "compression": "group4" if renk == "sb" else "tiff_lzw", "dpi": (d, d)}
@@ -1764,7 +1768,7 @@ def _jpg_olcegi(pg, dpi):
 
 def _jpg_sayfasi(pg, dpi, kilit):
     """PDF → JPG'nin bir sayfası: (görüntü, dpi, save seçenekleri)."""
-    sayfa, d = _sayfa_ciz(pg, _jpg_olcegi(pg, dpi), "RGB", kilit)
+    sayfa, d = _sayfa_ciz(pg, lambda p: _jpg_olcegi(p, dpi), "RGB", kilit)
     return sayfa, d, {"format": "JPEG", "quality": JPG_KALITESI, "optimize": True, "dpi": (d, d)}
 
 
@@ -1982,7 +1986,8 @@ def _oge_tahmini(yol, hedef, renk, il):
                 pg = doc[no]
             onceki = None
             for ad, dpi in TAHMIN_DPILERI:
-                olcek = (_tiff_olcegi(pg, dpi) if hedef == "tiff" else _jpg_olcegi(pg, dpi))
+                with kilit():   # taranmış görselin çözünürlüğü MuPDF'e girer (0.2.7 inceleme)
+                    olcek = (_tiff_olcegi(pg, dpi) if hedef == "tiff" else _jpg_olcegi(pg, dpi))
                 if onceki is not None and abs(olcek - onceki[0]) < 1e-9:
                     toplam[ad] += onceki[1]   # taranmış sayfa: iki çözünürlükte aynı çizim
                     continue

@@ -1582,6 +1582,40 @@ def test_bayat_gecici(c, g):
     sonuc("geçici klasör kalmadı", not gecici_kalintilar(k), gecici_kalintilar(k))
 
 
+def test_mupdf_kilidi(c, g):
+    """0.2.7 inceleme: PDF → TIFF, PDF → JPG ve İdeal / Düşük tahmininde sayfanın taranmış görselini ölçen MuPDF çağrıları (get_image_info:
+    sayfanın içerik akışını çalıştırır) MuPDF kilidinin içinde. PyMuPDF iş parçacığı güvenli değil; işçi aynı anda başka sayfa çizebilir."""
+    if c.exe:
+        atlandi("MuPDF kilidi", "exe kipinde modülün içi görülmüyor")
+        return
+    print("— MuPDF çağrıları kilidin içinde (0.2.7 inceleme)")
+    import pdefe_core
+    kilit = pdefe_core.mupdf_kilidi
+    kayit = []
+    asil = pymupdf.Page.get_image_info
+
+    def izleyen(self, *a, **k):
+        kayit.append((threading.current_thread().name, kilit._is_owned()))
+        return asil(self, *a, **k)
+    k = temiz_klasor("mupdf_kilidi")
+    ara = os.path.join(k, "tarama.pdf")
+    donustur(c, [{"yol": g["etiketsiz_g4"], "hedef": ara, "hedefBicim": "pdf"}])
+    pymupdf.Page.get_image_info = izleyen
+    try:
+        r, _ = donustur(c, [{"yol": g["metin_pdf"], "hedef": os.path.join(k, "a.tif"), "hedefBicim": "tiff"},
+                            {"yol": ara, "hedef": os.path.join(k, "b.jpg"), "hedefBicim": "gorsel"}])
+        dt = {x[0] for x in kayit}
+        n_donusum = len(kayit)
+        c.cagir("donusum_tahmini", {"yollar": [sentetik_pdf(os.path.join(k, "t.pdf"), sayfa=2, tohum=29)], "hedefBicim": "tiff", "renk": "gri"})
+        c.cagir("donusum_tahmini", {"yollar": [ara], "hedefBicim": "gorsel"})
+    finally:
+        pymupdf.Page.get_image_info = asil
+    kilitsiz = [x for x in kayit if not x[1]]
+    sonuc("dönüştürme başarılı (PDF → TIFF, taranmış PDF → JPG)", r["basarili"] == 2, [o.get("hata") for o in r["sonuclar"]])
+    sonuc("get_image_info dönüştürmede ve tahminde çağrıldı", n_donusum > 0 and len(kayit) > n_donusum, (n_donusum, len(kayit), sorted(dt)))
+    sonuc("get_image_info her çağrıda MuPDF kilidinin içinde", not kilitsiz, "%d / %d kilitsiz: %s" % (len(kilitsiz), len(kayit), sorted({x[0] for x in kilitsiz})))
+
+
 def _tek_sayfa(k, kaynak):
     tek = os.path.join(k, "tek.pdf")
     d = pymupdf.open(kaynak)
@@ -1691,7 +1725,7 @@ def main():
                ("hedef_erisim", lambda: test_hedef_erisim(c, g)), ("parametreler", lambda: test_parametreler(c, g)), ("zip_bombasi", lambda: test_zip_bombasi(c)),
                ("dis_surec", lambda: test_dis_surec(c)), ("zincir", lambda: test_zincir(c, g)), ("surec", lambda: test_surec(exe, g)),
                ("gorsel_imza", lambda: test_gorsel_imza(c, gg)), ("gorsel_pdf", lambda: test_gorsel_pdf(c, gg)), ("gri16", lambda: test_gri16(c)),
-               ("pdf_jpg", lambda: test_pdf_jpg(c, g)), ("cakisma", lambda: test_cakisma(c, g)), ("kalan_sayfalar", lambda: test_kalan_sayfalar(c, g)), ("ayni_istekte_ad", lambda: test_ayni_istekte_ad(c, g)), ("bayat_gecici", lambda: test_bayat_gecici(c, g)), ("kalite_notlari", lambda: test_kalite_notlari(c, g)),
+               ("pdf_jpg", lambda: test_pdf_jpg(c, g)), ("cakisma", lambda: test_cakisma(c, g)), ("kalan_sayfalar", lambda: test_kalan_sayfalar(c, g)), ("ayni_istekte_ad", lambda: test_ayni_istekte_ad(c, g)), ("bayat_gecici", lambda: test_bayat_gecici(c, g)), ("mupdf_kilidi", lambda: test_mupdf_kilidi(c, g)), ("kalite_notlari", lambda: test_kalite_notlari(c, g)),
                ("tahmin", lambda: test_tahmin(c, g, gg))]
     if not exe:
         testler.insert(6, ("iptal_bayragi", test_iptal_bayragi))
