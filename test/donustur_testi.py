@@ -1533,6 +1533,32 @@ def test_kalan_sayfalar(c, g):
     sonuc("geçici dosya kalmadı", not gecici_kalintilar(alt) and not gecici_kalintilar(alt2), (gecici_kalintilar(alt), gecici_kalintilar(alt2)))
 
 
+def test_ayni_istekte_ad(c, g):
+    """0.2.7 inceleme: tek dosyalı hedefte "yeni ad"ın seçtiği "(1)" adı aynı istekteki başka bir öğenin açık hedefiyle çakışırsa sessizce üzerine
+    yazılmaz (çok dosyalı yoldaki gibi öğe hatası); sıra tersse "yeni ad" bir sonraki boş adı seçer."""
+    print("— Aynı istekte yeni ad ile açık hedefin çakışması (0.2.7 inceleme)")
+    k = temiz_klasor("ayni_istekte_ad")
+    tek = _tek_sayfa(k, g["metin_pdf"])
+    with open(os.path.join(k, "X.tif"), "wb") as f:
+        f.write(b"eski")
+    r, _ = donustur(c, [{"yol": tek, "hedef": os.path.join(k, "X.tif"), "hedefBicim": "tiff", "cakisma": "yeniAd"},
+                        {"yol": g["metin_pdf"], "hedef": os.path.join(k, "X (1).tif"), "hedefBicim": "tiff"}])
+    a, b = r["sonuclar"]
+    with Image.open(os.path.join(k, "X (1).tif")) as im:
+        kare = getattr(im, "n_frames", 1)
+    sonuc("A yeni adla \"X (1).tif\" yazdı; B'nin açık hedefi aynı ad: B öğe hatası, A'nın dosyası (1 kare) kaldı",
+          a.get("hedef") == os.path.join(k, "X (1).tif") and "hata" not in a and b.get("kod") == "gecersiz" and "başka bir dosyanın yerine" in (b.get("hata") or "")
+          and kare == 1, (a.get("hedef"), a.get("hata"), b.get("kod"), b.get("hata"), kare))
+    k2 = temiz_klasor("ayni_istekte_ad2")
+    with open(os.path.join(k2, "X.tif"), "wb") as f:
+        f.write(b"eski")
+    r, _ = donustur(c, [{"yol": g["metin_pdf"], "hedef": os.path.join(k2, "X (1).tif"), "hedefBicim": "tiff"},
+                        {"yol": tek, "hedef": os.path.join(k2, "X.tif"), "hedefBicim": "tiff", "cakisma": "yeniAd"}])
+    a, b = r["sonuclar"]
+    sonuc("sıra tersse: açık hedef \"X (1).tif\", yeni ad \"X (2).tif\"; ikisi de başarılı", a.get("hedef") == os.path.join(k2, "X (1).tif")
+          and b.get("hedef") == os.path.join(k2, "X (2).tif") and "hata" not in a and "hata" not in b, (a.get("hedef"), b.get("hedef"), a.get("hata"), b.get("hata")))
+
+
 def _tek_sayfa(k, kaynak):
     tek = os.path.join(k, "tek.pdf")
     d = pymupdf.open(kaynak)
@@ -1642,7 +1668,7 @@ def main():
                ("hedef_erisim", lambda: test_hedef_erisim(c, g)), ("parametreler", lambda: test_parametreler(c, g)), ("zip_bombasi", lambda: test_zip_bombasi(c)),
                ("dis_surec", lambda: test_dis_surec(c)), ("zincir", lambda: test_zincir(c, g)), ("surec", lambda: test_surec(exe, g)),
                ("gorsel_imza", lambda: test_gorsel_imza(c, gg)), ("gorsel_pdf", lambda: test_gorsel_pdf(c, gg)), ("gri16", lambda: test_gri16(c)),
-               ("pdf_jpg", lambda: test_pdf_jpg(c, g)), ("cakisma", lambda: test_cakisma(c, g)), ("kalan_sayfalar", lambda: test_kalan_sayfalar(c, g)), ("kalite_notlari", lambda: test_kalite_notlari(c, g)),
+               ("pdf_jpg", lambda: test_pdf_jpg(c, g)), ("cakisma", lambda: test_cakisma(c, g)), ("kalan_sayfalar", lambda: test_kalan_sayfalar(c, g)), ("ayni_istekte_ad", lambda: test_ayni_istekte_ad(c, g)), ("kalite_notlari", lambda: test_kalite_notlari(c, g)),
                ("tahmin", lambda: test_tahmin(c, g, gg))]
     if not exe:
         testler.insert(6, ("iptal_bayragi", test_iptal_bayragi))

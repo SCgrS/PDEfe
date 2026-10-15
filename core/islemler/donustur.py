@@ -1127,6 +1127,10 @@ def _yerine_koy_oge(oge, gecici, yazilan, kaynaklar):
     hedef = oge["hedef"]
     if oge.get("cakisma") == "yeniAd":
         hedef = bos_ad(hedef, 1, dolu)[0]
+    elif _yol_anahtari(hedef) in yazilan:
+        # Aynı istekte önce yazılan bir öğenin dosyası (ör. onun "yeni ad"ı "X (1).tif" seçti): üzerine yazılmaz (0.2.7 inceleme; çok dosyalı
+        # yoldaki gibi). Önceden o öğenin çıktısı sessizce kayboluyordu, iki sonuç da aynı dosyayı gösteriyordu
+        raise OgeHatasi("gecersiz", "Dosya, bu dönüştürmedeki başka bir dosyanın yerine yazılamaz: %s" % os.path.basename(hedef))
     with _mupdf_kilidi():
         araclar._onbellekten_birak(hedef)   # hedef açık bir sekmenin PDF'i olabilir (Windows'ta açık tanıtıcı yer değiştirmeyi engeller)
     araclar._yerine_koy(gecici, hedef)
