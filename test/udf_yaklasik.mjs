@@ -224,6 +224,32 @@ print(json.dumps({"sayfa": d.page_count, "satirlar": out}, ensure_ascii=False))`
       sonuc('Yeni belge olarak kaydet (cakisma: yeniAd): var olan PDF değişmez, "kenar_farkli (1).pdf" yazılır, sonuçta istenen ad', !!sp && !sp.hata && path.basename(sp.hedef) === 'kenar_farkli (1).pdf'
         && path.basename(sp.istenenHedef || '') === 'kenar_farkli.pdf' && fs.existsSync(path.join(CIKTI, 'kenar_farkli (1).pdf')) && fs.statSync(path.join(CIKTI, 'kenar_farkli.pdf')).mtimeMs === onceki, sp);
     } else console.log('ATLANDI UDF → JPG — çekirdekte PDF → JPG yok');
+    // Madde 4 (0.2.7) yaklaşık yolda: üst bilgisinde 4 bitlik paletli PNG antet (kullanıcının antetleri gibi) olan, gövdesi boş UDF; antet aynı
+    // resmin RGB kopyasıyla neredeyse aynı çizilmeli (UDE'nin yolundaki hata: gri tonlar beyaza düşüyordu; Chromium'un <img>'i paletli PNG'yi çizer)
+    const antet = py(`sys.path.insert(0, ${J(path.join(KOK, 'test'))})
+import io, udf_donusum_testi as ut
+def antetli(ad, png):
+    u = ut.UdfYaz()
+    ust = []
+    u.resim(png, 453.54, 47.67, hiza=1, hedef=ust)
+    u.paragraf("", hiza=0)
+    return u.yaz(os.path.join(${J(GIRDI)}, ad), tm=79.37, bm=42.52, ust=ust)
+p = ut.paletli_antet(4)
+b = io.BytesIO()
+Image.open(io.BytesIO(p)).convert("RGB").save(b, "PNG")
+print(json.dumps({"paletli": antetli("paletli_antet.udf", p), "rgb": antetli("rgb_antet.udf", b.getvalue()), "bit": p[24]}))`);
+    const ar = await cagir('udf:yaklasikDonustur', { ogeler: [{ yol: antet.paletli, hedef: path.join(CIKTI, 'paletli_antet.pdf'), hedefBicim: 'pdf' },
+      { yol: antet.rgb, hedef: path.join(CIKTI, 'rgb_antet.pdf'), hedefBicim: 'pdf' }], istekId: 104 });
+    const olc = ar.r?.basarili === 2 ? py(`def bolge(y):
+    d = pymupdf.open(y, filetype="pdf")
+    pg = d[0]
+    pix = pg.get_pixmap(dpi=150, clip=pymupdf.Rect(0, 0, pg.rect.width, 160), colorspace=pymupdf.csGRAY)
+    return list(pix.samples)
+a, b = bolge(${J(path.join(CIKTI, 'paletli_antet.pdf'))}), bolge(${J(path.join(CIKTI, 'rgb_antet.pdf'))})
+print(json.dumps({"koyuP": sum(1 for v in a if v < 200), "koyuR": sum(1 for v in b if v < 200), "fark": round(sum(abs(x - y) for x, y in zip(a, b)) / max(1, len(a)), 2), "n": [len(a), len(b)]}))`) : null;
+    console.log(`     ölçüm (paletli antet, yaklaşık çizim): ${J(olc)}`);
+    sonuc('Paletli (4 bit) antetli, gövdesi boş UDF (madde 4): yaklaşık çizimde antet görünür, RGB kopyasıyla neredeyse aynı (koyu piksel ±%5, ortalama fark < 2/255)',
+      antet.bit === 4 && !!olc && olc.koyuP > 100 && Math.abs(olc.koyuP - olc.koyuR) <= olc.koyuR * 0.05 && olc.fark < 2, { olc, e: ar.e, s: ar.r?.sonuclar });
     sonuc('Geçici dosya kalmadı (%TEMP%\\PDEfe\\udf-yaklasik-*, hedef klasöründe *.pdefe-tmp.pdf)', !geciciler().length, geciciler());
     sonuc('Gizli çizim sayfası kalmadı', !(await sayfalar()).some((u2) => /udf-cizim/.test(u2)), await sayfalar());
   }
