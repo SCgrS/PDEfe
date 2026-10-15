@@ -556,6 +556,26 @@ def test_paletli_antet(c, k):
     sonuc("siyah-beyaz 1 bitlik antet görünüyor ve G4 (CCITT) kaldı", koyu(s) > 1000 and sf == ["/CCITTFaxDecode"], (koyu(s), sf))
 
 
+def test_imza_uyarisi(c, k, ude_var):
+    """0.2.7 (kullanıcının isteği): imzalı UDF'de "e-imza PDF'e taşınmaz" uyarısı yok; imzalı olduğu bilgi olarak (imzali) kalır."""
+    u = UdfYaz()
+    for i in range(2):
+        u.paragraf(METIN)
+    yol = u.yaz(os.path.join(k, "imzali.udf"))
+    with zipfile.ZipFile(yol, "a", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("sign.sgn", b"\x30\x82\x01\x00" + bytes(range(256)))   # kurgusal imza baytları (içeriğine bakılmaz)
+    r, _ = c.cagir("donusum_bilgi", {"yol": yol, "onizleme": False})
+    sonuc("imzalı UDF: donusum_bilgi imzali alanı doğru, e-imza uyarısı yok", r.get("imzali") is True and "imza" not in (r.get("uyari") or ""),
+          (r.get("imzali"), r.get("uyari")))
+    if not ude_var:
+        atlandi("imzalı UDF → PDF uyarısı", "UDE ya da Java bu bilgisayarda yok")
+        return
+    r, _ = donustur(c, [{"yol": yol, "hedef": os.path.join(k, "imzali.pdf"), "hedefBicim": "pdf"},
+                        {"yol": yol, "hedef": os.path.join(k, "imzali.tif"), "hedefBicim": "tiff"}])
+    sonuc("imzalı UDF → PDF ve → TIFF: dönüştü, sonuçta e-imza uyarısı yok", r["basarili"] == 2 and
+          not any("imza" in (o.get("uyari") or "") for o in r["sonuclar"]), [(o.get("hata"), o.get("uyari")) for o in r["sonuclar"]])
+
+
 def test_yorumlu(c, g, k):
     r, _ = donustur(c, [{"yol": g["yorumlu"], "hedef": os.path.join(k, "yorumlu.pdf"), "hedefBicim": "pdf"}])
     o = r["sonuclar"][0]
@@ -1174,7 +1194,8 @@ def main():
                     lambda: test_iptal(c, g, temiz_klasor("iptal"))]
     else:
         atlandi("UDF → PDF", "UDE ya da Java bu bilgisayarda yok")
-    testler += [lambda: test_pdf_udf(c, temiz_klasor("pdf_udf"), ude_var), lambda: test_taranmis(c, temiz_klasor("taranmis"), ude_var),
+    testler += [lambda: test_imza_uyarisi(c, temiz_klasor("imza"), ude_var),
+                lambda: test_pdf_udf(c, temiz_klasor("pdf_udf"), ude_var), lambda: test_taranmis(c, temiz_klasor("taranmis"), ude_var),
                 lambda: test_ude_yok(c, g, k), lambda: test_json_kanali(exe, temiz_klasor("kanal")),
                 lambda: test_zip_bombasi(c, temiz_klasor("bomba"), ude_var), lambda: test_yetim_jvm(c, temiz_klasor("yetim"), ude_var)]
     if ude_var:

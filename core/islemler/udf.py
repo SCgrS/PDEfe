@@ -1081,11 +1081,8 @@ def _udf_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
         uyarilar.append("%d sayfa resim olarak çizildi (yazısı seçilemez)." % metinsiz)
     if sonuc.get("yorumlarAtlandi"):
         uyarilar.append("Belgedeki yorumlar (açıklama notları) PDF'e alınmadı.")
-    try:
-        if udf_ozeti(kaynak, baglam.alt or ("zip" if zipfile.is_zipfile(kaynak) else "xml")).get("imzali"):
-            uyarilar.append("Belgedeki e-imza PDF'e taşınmaz.")
-    except Exception:
-        pass
+    # 0.2.7: "Belgedeki e-imza PDF'e taşınmaz." uyarısı kullanıcının isteğiyle kalktı (her imzalı UDF'de çıkıyor, bilinen bir şeyi
+    # söylüyordu); imzalı olduğu donusum_bilgi'nin imzali alanında durur.
     r = {"sayfa": n, "cizim": cizim}
     if uyarilar:
         r["uyari"] = " ".join(uyarilar)
@@ -1176,9 +1173,7 @@ def _onizleme_baslat(yol, genislik, iptal_mi, bitir):
 def _udf_bilgi(yol, alt, genislik, p=None):
     s = {"udfAlt": alt}
     s.update(udf_ozeti(yol, alt))
-    s["sayfa"] = None
-    if s.get("imzali"):
-        s["uyari"] = "Belge e-imzalı; imza dönüştürülen dosyaya taşınmaz."
+    s["sayfa"] = None   # imzali yalnızca bilgi: 0.2.7'den beri "imza taşınmaz" uyarısı verilmez (kullanıcının isteği)
     p = p or {}
     if p.get("onizleme") is False:
         return s
