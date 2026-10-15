@@ -49,6 +49,17 @@ const ipc = guvenliIpc(ipcMain);
 /** Yapısal kayıttaki anlık kopyaların klasörü (çekirdeğe ana süreç verir; açılışta temizlenir). */
 function anlikKlasoru() { return path.join(app.getPath('userData'), 'anlik'); }
 
+// Dosya Formatını Değiştir'in bu oturumda oluşturduğu (istekten önce var olmayan) PDF dışı hedefler (0.2.6): dosya:sil .udf / .tif / .docx'i
+// yalnızca bunlardan biriyse çöpe atar (arayüzün geç iptal temizliği); arayüzde kod çalışsa da kullanıcının başka belgeleri çöpe gitmesin
+const olusturulanHedefler = new Set();
+const hedefAnahtari = (y) => path.resolve(String(y)).toLowerCase();
+function donusumHedefleriniKaydet(yontem, p) {
+  if (yontem !== 'bicim_donustur' || !Array.isArray(p?.ogeler)) return;
+  for (const o of p.ogeler) {
+    if (typeof o?.hedef === 'string' && !/\.pdf$/i.test(o.hedef) && !fs.existsSync(o.hedef)) olusturulanHedefler.add(hedefAnahtari(o.hedef));
+  }
+}
+
 /**
  * %TEMP%\PDEfe'deki pano görüntülerini ("Pano görüntüsü …png", ekran görüntüleri) ve yazdırma iş klasörlerini (yazdir-*, belge
  * sayfalarının görüntüleri) siler (0.1.23, güvenlik denetimi): önceden bir günden eskileri yalnızca yeni bir yapıştırmada / yazdırmada
@@ -344,11 +355,13 @@ function ipcKur(ipcMain) {
     return yol;
   });
 
-  // Araçların yarım kalan / istenmeyen çıktısı: yalnızca .pdf dosyası (0.2.6'dan beri Dosya Formatını Değiştir'in çıktıları için .udf, .tif,
-  // .tiff, .docx de) ve yalnızca Geri Dönüşüm Kutusu'na (0.1.23: kalıcı silme yok)
+  // Araçların yarım kalan / istenmeyen çıktısı: yalnızca .pdf dosyası (0.2.6'dan beri Dosya Formatını Değiştir'in bu oturumda oluşturduğu
+  // .udf, .tif, .tiff, .docx çıktıları da: olusturulanHedefler) ve yalnızca Geri Dönüşüm Kutusu'na (0.1.23: kalıcı silme yok)
   ipcMain.handle('dosya:sil', async (_e, yol) => {
-    if (!/\.(pdf|udf|tiff?|docx)$/i.test(String(yol || ''))) return false;
-    try { await shell.trashItem(String(yol)); return true; } catch { return false; }
+    const y = String(yol || '');
+    const pdf = /\.pdf$/i.test(y);
+    if (!pdf && !(/\.(udf|tiff?|docx)$/i.test(y) && olusturulanHedefler.has(hedefAnahtari(y)))) return false;
+    try { await shell.trashItem(y); if (!pdf) olusturulanHedefler.delete(hedefAnahtari(y)); return true; } catch { return false; }
   });
   ipcMain.handle('uygulama:veriKlasoru', () => app.getPath('userData'));
   ipcMain.handle('uygulama:geciciKlasor', () => { const k = path.join(app.getPath('temp'), 'PDEfe'); fs.mkdirSync(k, { recursive: true }); return k; });
@@ -480,16 +493,22 @@ function ipcKur(ipcMain) {
   ipcMain.handle('cekirdek:cagir', (e, yontem, params, istekId) => {
     const gonderen = e.sender;
     const p = (DENETLENEN_YONTEMLER.has(yontem) || params?.hedef != null) ? cekirdekParametreleri(yontem, params, anlikKlasoru(), { udeYolu: ayarAl('udeYolu') }) : params;
-    return Promise.resolve(p).then((guvenli) => cekirdek.cagir(yontem, guvenli, (ilerleme) => { if (!gonderen.isDestroyed()) gonderen.send('cekirdek:ilerleme', istekId, ilerleme); },
-      istekId == null ? null : `${gonderen.id}:${istekId}`));
+    return Promise.resolve(p).then((guvenli) => {
+      donusumHedefleriniKaydet(yontem, guvenli);
+      return cekirdek.cagir(yontem, guvenli, (ilerleme) => { if (!gonderen.isDestroyed()) gonderen.send('cekirdek:ilerleme', istekId, ilerleme); },
+        istekId == null ? null : `${gonderen.id}:${istekId}`);
+    });
   });
   ipcMain.handle('cekirdek:iptal', (e, istekId) => cekirdek.iptal(`${e.sender.id}:${istekId}`));
   // Dosya Formatını Değiştir (0.2.6): UYAP Doküman Editörü yokken UDF → PDF'in yaklaşık çizimi (gizli pencere + printToPDF; udfYaklasik.js).
   // TIFF / Word hedefinde yaklaşık PDF çekirdeğe verilir: çağrılar arayüzünkiler gibi cekirdekParametreleri'nden geçer
   udfYaklasikKur({
     ipcMain, KOK,
-    cekirdekCagir: async (yontem, params, ilerleme, anahtar) => cekirdek.cagir(yontem,
-      await cekirdekParametreleri(yontem, params, anlikKlasoru(), { udeYolu: ayarAl('udeYolu') }), ilerleme, anahtar ?? null),
+    cekirdekCagir: async (yontem, params, ilerleme, anahtar) => {
+      const guvenli = await cekirdekParametreleri(yontem, params, anlikKlasoru(), { udeYolu: ayarAl('udeYolu') });
+      donusumHedefleriniKaydet(yontem, guvenli);
+      return cekirdek.cagir(yontem, guvenli, ilerleme, anahtar ?? null);
+    },
     cekirdekIptal: (anahtar) => cekirdek.iptal(anahtar),
   });
   ipcMain.handle('ayar:varsayilanlar', () => VARSAYILANLAR);

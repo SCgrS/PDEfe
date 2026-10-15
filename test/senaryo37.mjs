@@ -513,6 +513,14 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
   // ------------------------------------------------------------ 7) İptal
   if (bolum(7)) {
     console.log('\n== 7) İptal');
+    // Ana sürecin dosya:sil'i PDF dışı dosyayı yalnızca bu oturumda dönüştürmenin oluşturduğuysa çöpe atar (0.2.6 incelemesi: arayüzde kod
+    // çalışırsa her yerdeki .docx / .udf / .tif çöpe gidebiliyordu). Dönüştürmenin oluşturmadığı dosyalar: istek reddedilir, dosya yerinde
+    const elleDosyalar = ['Elle yazılmış.docx', 'Elle yazılmış.udf', 'Elle yazılmış.tif'].map((a) => path.join(CIKTI, a));
+    for (const y of elleDosyalar) fs.writeFileSync(y, 'yer tutucu');
+    const silYanitlari = [];
+    for (const y of elleDosyalar) silYanitlari.push(await evalJs(`window.pdefe.cagir('dosya:sil', ${J(y)})`));
+    sonuc('dosya:sil: dönüştürmenin oluşturmadığı .docx / .udf / .tif reddedilir, dosyalar yerinde', silYanitlari.every((x) => x === false) && elleDosyalar.every((y) => fs.existsSync(y)), silYanitlari);
+    for (const y of elleDosyalar) fs.rmSync(y, { force: true });
     const geciciVar = () => fs.readdirSync(CIKTI).filter((a) => /pdefe-tmp/i.test(a));
     // Erken iptal: uzun TIFF'in dönüştürmesi İptal'le durur; hedef klasörde dosya ve geçici dosya kalmaz
     const once = new Set(ciktiDosyalari());
