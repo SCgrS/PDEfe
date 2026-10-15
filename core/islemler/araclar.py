@@ -822,7 +822,14 @@ def _duzlestir(im, exif=True):
     elif kip in ("CMYK", "YCbCr", "HSV", "LAB"):
         im = im.convert("RGB")
     elif kip in ("I;16", "I;16B", "I;16L", "I", "F"):
-        im = im.convert("I").point(lambda v: v / 256 if v > 255 else v).convert("L")
+        # 16 bitlik gri (tarayıcının "16 bit gri" ayarı) 8 bite: değerler 255'i aşıyorsa 256'ya bölünür. Değer aralığı önceden ölçülür (0.2.7
+        # inceleme): Pillow 12'de I kipinin point()'i işleve sayı değil ImagePointTransform verir, yalnızca çarpma ve toplama yapılabilir
+        # (eski "v / 256 if v > 255 else v" TypeError veriyordu; görüntü hiçbir yolda açılmıyordu)
+        ust = im.getextrema()[1]
+        im = im.convert("I")
+        if ust is not None and ust > 255:
+            im = im.point(lambda v: v * (1 / 256.0))
+        im = im.convert("L")
     elif kip not in ("RGB", "L", "1"):
         im = im.convert("RGB")
     return im

@@ -1316,6 +1316,56 @@ def test_gorsel_pdf(c, gg):
     sonuc("geçici dosya kalmadı", not gecici_kalintilar(k), gecici_kalintilar(k))
 
 
+def test_gri16(c):
+    """0.2.7 inceleme: 16 bitlik gri görüntü (tarayıcının "16 bit gri" ayarı; PNG ve TIFF, kip I;16). Pillow 12'de I kipinin point()'i işleve
+    sayı değil ImagePointTransform verir (karşılaştırma yapılamaz): araclar._duzlestir değer aralığını önceden ölçer. Format Değiştir'de bilgi
+    ve dönüştürme, Birleştir'de birleştirme; 8 bite indirgeme 256'ya bölmek (yalnızca 255'i aşan görüntüde)."""
+    print("— 16 bitlik gri görüntü (0.2.7 inceleme)")
+    k = temiz_klasor("gri16")
+    im = Image.new("I;16", (400, 500), 40000)
+    ImageDraw.Draw(im).rectangle((0, 0, 199, 499), fill=10000)   # sol yarı koyu (10000 / 256 ≈ 39), sağ yarı açık (40000 / 256 ≈ 156)
+    png, tif = os.path.join(k, "gri16.png"), os.path.join(k, "gri16.tif")
+    im.save(png)
+    im.save(tif)
+    dusuk = os.path.join(k, "gri16_dusuk.png")   # 16 bitlik kipte ama değerler 0–255 arası: bölünmez
+    Image.new("I;16", (300, 200), 200).save(dusuk)
+    with Image.open(png) as a, Image.open(tif) as b, Image.open(dusuk) as d:
+        kipler = (a.mode, b.mode, d.mode)
+    sonuc("girdiler 16 bitlik gri (I;16)", kipler == ("I;16", "I;16", "I;16"), kipler)
+    for ad, yol in (("PNG", png), ("TIFF", tif)):
+        try:
+            r, _ = c.cagir("donusum_bilgi", {"yol": yol, "genislik": 120})
+            pdf = next((h for h in r["hedefler"] if h["bicim"] == "pdf"), {})
+            sonuc("16 bit %s: donusum_bilgi'de PDF hedefi yapılabilir, uyarı yok" % ad, pdf.get("var") is True and not r.get("hata") and not r.get("uyari"), (pdf, r.get("hata"), r.get("uyari")))
+        except CagriHatasi as e:
+            sonuc("16 bit %s: donusum_bilgi" % ad, False, str(e))
+    r, _ = donustur(c, [{"yol": png, "hedef": os.path.join(k, "png.pdf"), "hedefBicim": "pdf"},
+                        {"yol": tif, "hedef": os.path.join(k, "tif.pdf"), "hedefBicim": "pdf"},
+                        {"yol": dusuk, "hedef": os.path.join(k, "dusuk.pdf"), "hedefBicim": "pdf"}])
+    sonuc("16 bit PNG, TIFF ve 0–255 değerli 16 bit PNG → PDF: üçü de dönüştürüldü", r["basarili"] == 3, [(os.path.basename(o["yol"]), o.get("hata")) for o in r["sonuclar"]])
+
+    def grilik(pdf, g_px, y_px, noktalar):
+        if not os.path.exists(pdf):
+            return None
+        sayfa = pdf_sayfa_goruntusu(pdf, 0, g_px, y_px).convert("L")
+        return [sayfa.getpixel(n) for n in noktalar]
+    noktalar = [(100, 250), (300, 250)]
+    for ad, pdf in (("PNG", "png.pdf"), ("TIFF", "tif.pdf")):
+        v = grilik(os.path.join(k, pdf), 400, 500, noktalar)
+        sonuc("16 bit %s → PDF: gri düzeyler 256'ya bölünmüş (koyu ≈ 39, açık ≈ 156)" % ad, v is not None and abs(v[0] - 39) <= 3 and abs(v[1] - 156) <= 3, v)
+    v = grilik(os.path.join(k, "dusuk.pdf"), 300, 200, [(150, 100)])
+    sonuc("0–255 değerli 16 bit PNG → PDF: değer olduğu gibi (200; bölünmez)", v is not None and abs(v[0] - 200) <= 3, v)
+    r, _ = donustur(c, [{"yol": png, "hedef": os.path.join(k, "png.tif"), "hedefBicim": "tiff", "secenekler": {"renk": "gri"}}])
+    sonuc("16 bit PNG → TIFF zinciri (PDF üzerinden)", "hata" not in r["sonuclar"][0], r["sonuclar"][0].get("hata"))
+    try:
+        r, _ = c.cagir("birlestir", {"ogeler": [{"yol": png, "tur": "gorsel"}, {"yol": tif, "tur": "gorsel"}], "hedef": os.path.join(k, "birlesik.pdf")})
+        oz = pdf_ozeti(os.path.join(k, "birlesik.pdf"))
+        sonuc("Birleştir: 16 bit PNG ve TIFF tek PDF'te (2 sayfa)", len(oz) == 2, oz)
+    except CagriHatasi as e:
+        sonuc("Birleştir: 16 bit PNG ve TIFF tek PDF'te", False, str(e))
+    sonuc("geçici dosya kalmadı", not gecici_kalintilar(k), gecici_kalintilar(k))
+
+
 def test_pdf_jpg(c, g):
     print("— PDF → JPG")
     k = temiz_klasor("pdf_jpg")
@@ -1541,16 +1591,22 @@ def main():
         akis_dosyasi(150)
     c = Cagirici(exe)
     print("Çağrı yolu:", exe or "doğrudan modül")
-    testler = [lambda: test_yetenekler(c), lambda: test_imza(c), lambda: test_mupdf_yalnizca_pdf(c), lambda: test_tiff_pdf(c, g),
-               lambda: test_pdf_tiff(c, g), lambda: test_iptal(c, g), lambda: test_hedef_erisim(c, g), lambda: test_parametreler(c, g),
-               lambda: test_zip_bombasi(c), lambda: test_dis_surec(c), lambda: test_zincir(c, g), lambda: test_surec(exe, g),
-               lambda: test_gorsel_imza(c, gg), lambda: test_gorsel_pdf(c, gg), lambda: test_pdf_jpg(c, g), lambda: test_cakisma(c, g),
-               lambda: test_kalite_notlari(c, g), lambda: test_tahmin(c, g, gg)]
+    testler = [("yetenekler", lambda: test_yetenekler(c)), ("imza", lambda: test_imza(c)), ("mupdf_yalnizca_pdf", lambda: test_mupdf_yalnizca_pdf(c)),
+               ("tiff_pdf", lambda: test_tiff_pdf(c, g)), ("pdf_tiff", lambda: test_pdf_tiff(c, g)), ("iptal", lambda: test_iptal(c, g)),
+               ("hedef_erisim", lambda: test_hedef_erisim(c, g)), ("parametreler", lambda: test_parametreler(c, g)), ("zip_bombasi", lambda: test_zip_bombasi(c)),
+               ("dis_surec", lambda: test_dis_surec(c)), ("zincir", lambda: test_zincir(c, g)), ("surec", lambda: test_surec(exe, g)),
+               ("gorsel_imza", lambda: test_gorsel_imza(c, gg)), ("gorsel_pdf", lambda: test_gorsel_pdf(c, gg)), ("gri16", lambda: test_gri16(c)),
+               ("pdf_jpg", lambda: test_pdf_jpg(c, g)), ("cakisma", lambda: test_cakisma(c, g)), ("kalite_notlari", lambda: test_kalite_notlari(c, g)),
+               ("tahmin", lambda: test_tahmin(c, g, gg))]
     if not exe:
-        testler.insert(6, test_iptal_bayragi)
+        testler.insert(6, ("iptal_bayragi", test_iptal_bayragi))
     if not hizli:
-        testler.append(lambda: test_akis(c))
-    for t in testler:
+        testler.append(("akis", lambda: test_akis(c)))
+    # --yalniz ad1,ad2: yalnızca bu testler (adlar test_ önekisiz işlev adları: gri16, cakisma…)
+    if "--yalniz" in sys.argv:
+        secilen = set(sys.argv[sys.argv.index("--yalniz") + 1].split(","))
+        testler = [x for x in testler if x[0] in secilen]
+    for _, t in testler:
         try:
             t()
         except Exception as e:  # noqa: BLE001
