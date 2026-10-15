@@ -22,7 +22,14 @@ import { disAdresMi, acilacakYollar } from './guvenlik.js';
 
 const HAZIR_BEKLEME_MS = 20000;      // yeni pencerenin arayüzü bu sürede hazır olmazsa taşıma vazgeçilir
 const ISTEK_BEKLEME_MS = 120000;     // renderer'dan beklenen yanıt (büyük belgenin açılması dahil)
-const SURUKLEME_ADIMI_MS = 16;       // sürüklenen sekmenin önizlemesi imleci bu aralıkla izler
+// Sürüklenen sekmenin önizlemesi imleci önizleme penceresinin ekran karesiyle (requestAnimationFrame → 'hayalet:kare') izler (0.2.7, kullanıcı
+// isteği: "sekmeleri kaldırınca biraz kasmaya başlıyor … daha sakin, daha akışkan"). Ölçülen kök neden: ana süreçteki 16 ms'lik setInterval
+// Windows'un 15,6 ms'lik zamanlayıcı çözünürlüğüne yuvarlanıp ~31 ms'de bir (saniyede ~32 kez, düzensiz) çalışıyordu; pencere ekran
+// tazelemesinin (60 Hz) yarısı kadar sık ve düzensiz kayıyordu (test/hayalet_akicilik.mjs). Kare gelmezken (önizleme henüz görünmüyor)
+// zamanlayıcı yedek olarak izler. Yüksek tazeleme hızlı ekranda adımlar en çok EN_KISA_ADIM_MS'de bir.
+const SURUKLEME_ADIMI_MS = 16;       // yedek zamanlayıcının aralığı (Windows'ta gerçekte ~15,6 / 31 ms)
+const KARE_BEKLEME_MS = 40;          // önizleme penceresinden bu süre kare gelmediyse yedek zamanlayıcı adım atar
+const EN_KISA_ADIM_MS = 7;           // iki adım arası en az (144 Hz ekranda her kare, daha hızlısında bir atlanır)
 const CAN_BEKLEME_MS = 3000;         // kaynak pencere bu süre ses vermezse sürükleme bırakılmış sayılır (önizleme ekranda kalmasın)
 const HAYALET_OMRU_MS = 30000;       // son sürüklemeden sonra önizleme penceresi bu kadar bekletilir (yeniden kullanılır), sonra yok edilir
 const AYIRMA_KAYMASI = 32;           // "Pencereye ayır" ile açılan pencerenin kaynak pencereye göre kayması (px)
@@ -50,6 +57,9 @@ let cikisSuruyor = false;     // Çıkış (cik) pencereleri sırayla kapatıyor
 let surukleme = null;       // süren sekme sürüklemesi (kaynak pencere şeridinin dışında)
 let hayalet = null;           // sürüklenen sekmenin önizleme penceresi
 let testImlec = null;         // test örneğinde imlecin yeri (gerçek imlece dokunulmaz)
+let testImlecYolu = null;     // test örneğinde zamanla doğrusal kayan imleç { t0, x, y, vx, vy } (px, px/sn; önizlemenin akıcılık ölçümü, 0.2.7)
+let olcum = null;             // test örneğinde önizlemenin konum güncellemeleri { adimlar: [{ t, sure }], konumlar: [{ t, sure, x, y }] } (0.2.7)
+let sonGosterim = null;       // test örneğinde son önizlemenin gösterilme süresi { istek, gorunur } (performance.now, ms)
 
 const yolAnahtari = (yol) => String(yol || '').replace(/\//g, '\\').toLowerCase();
 const hataMetni = (h) => (h && (h.message || String(h))) || 'Bilinmeyen hata';
@@ -343,6 +353,10 @@ function ayirmaSinirlari(kaynak) {
 // ---------------------------------------------------------------- sekme sürükleme: imleç, hedef, önizleme
 /** İmlecin ekrandaki yeri. Ekran dışındaki test örneğinde test verir (test:imlec); verilmemişse test penceresinin yakınında bir nokta. */
 function imlec() {
+  if (testImlecYolu) {
+    const s = (performance.now() - testImlecYolu.t0) / 1000;
+    return { x: Math.round(testImlecYolu.x + testImlecYolu.vx * s), y: Math.round(testImlecYolu.y + testImlecYolu.vy * s) };
+  }
   if (testImlec) return testImlec;
   if (ekranDisi()) return { x: bagimli.TEST.konum[0] + 400, y: bagimli.TEST.konum[1] + 300 };
   return screen.getCursorScreenPoint();
@@ -368,13 +382,16 @@ function hedefBul(s, p) {
 
 function suruklemeAdimi(s) {
   if (surukleme !== s) return;
+  s.sonAdim = performance.now();
   if (!canli(s.kaynak) || Date.now() - s.sonCan > CAN_BEKLEME_MS) { suruklemeyiBitir(); hayaletiGizle(); return; }
+  const t = olcum ? performance.now() : 0;
   const p = imlec();
   hayaletiKonumla(p, s);
   const h = hedefBul(s, p);
   if (s.hedef && s.hedef !== h?.k) gonder(s.hedef, 'sekme:disSurukle', null);
   if (h && (s.hedef !== h.k || s.sonX !== h.x)) gonder(h.k, 'sekme:disSurukle', { x: h.x, y: h.y });
   s.hedef = h?.k || null; s.sonX = h?.x ?? null;
+  if (olcum) olcum.adimlar.push({ t, sure: performance.now() - t });
 }
 
 /** Süren sürüklemeyi bırakır: imleç izlenmez, hedef penceredeki bırakma işareti kalkar. Önizleme penceresine dokunmaz. */
@@ -384,10 +401,20 @@ function suruklemeyiBitir() {
   surukleme = null;
   clearInterval(s.zaman);
   if (s.hedef) gonder(s.hedef, 'sekme:disSurukle', null);
+  karelerAyarla(false);
+}
+
+/** Önizleme penceresinin her ekran karesinde 'hayalet:kare' göndermesini başlatır / durdurur (renderer/hayalet.js). */
+function karelerAyarla(acik) {
+  const hy = hayalet;
+  if (!hy || hy.pencere.isDestroyed() || hy.kareler === !!acik) return;
+  hy.kareler = !!acik;
+  hy.pencere.webContents.send('hayalet:kareler', !!acik);
 }
 
 /** Önizleme penceresi: çerçevesiz, odak almayan, fare olaylarını geçiren, her zaman üstte küçük pencere (renderer/hayalet.html). */
 function hayaletiGoster(veri, s) {
+  if (ekranDisi()) sonGosterim = { istek: performance.now(), gorunur: null };
   const w = Math.max(160, Math.min(320, Math.round(veri.genislik) || 240)), h = Math.max(HAYALET_BASLIK, Math.min(400, Math.round(veri.yukseklik) || 200));
   if (!hayalet || hayalet.pencere.isDestroyed()) {
     const pencere = new BrowserWindow({
@@ -399,7 +426,7 @@ function hayaletiGoster(veri, s) {
     pencere.removeMenu();
     pencere.setIgnoreMouseEvents(true);
     pencere.setOpacity(0.92);
-    const hy = { pencere, hazir: null, gorunur: false, boyut: { w, h }, icerik: null, gizleZaman: null, yokEtZaman: null, konum: null };
+    const hy = { pencere, hazir: null, gorunur: false, boyut: { w, h }, icerik: null, gizleZaman: null, yokEtZaman: null, konum: null, kareler: false };
     hy.hazir = new Promise((coz) => pencere.webContents.once('did-finish-load', coz));
     pencere.on('closed', () => { if (hayalet === hy) hayalet = null; });
     pencere.loadURL('pdefe://app/src/renderer/hayalet.html');
@@ -414,6 +441,8 @@ function hayaletiGoster(veri, s) {
     hy.pencere.webContents.send('hayalet:icerik', { ad: String(veri.ad || ''), onizleme: veri.onizleme || '', koyu: !!veri.koyu });
     hayaletiKonumla(imlec(), s);
     hy.pencere.showInactive();
+    karelerAyarla(true);   // konum bundan sonra önizlemenin ekran karesiyle güncellenir
+    if (sonGosterim && ekranDisi()) sonGosterim.gorunur = performance.now();
     hy.gorunur = true;
   });
 }
@@ -425,13 +454,16 @@ function hayaletiKonumla(p, s) {
   const x = Math.round(p.x - Math.min(s.tutma.x, hy.boyut.w - 24)), y = Math.round(p.y - Math.min(s.tutma.y, HAYALET_IMLEC_EN_ALT));
   if (hy.konum && hy.konum.x === x && hy.konum.y === y) return;
   hy.konum = { x, y };
+  const t = olcum ? performance.now() : 0;
   hy.pencere.setBounds({ x, y, width: hy.boyut.w, height: hy.boyut.h });
+  if (olcum) olcum.konumlar.push({ t, sure: performance.now() - t, x, y });
 }
 
 function hayaletiGizle() {
   const hy = hayalet;
   if (!hy || hy.pencere.isDestroyed()) return;
   clearTimeout(hy.gizleZaman); clearTimeout(hy.yokEtZaman);
+  karelerAyarla(false);
   if (hy.gorunur || hy.pencere.isVisible()) hy.pencere.hide();
   hy.gorunur = false; hy.konum = null;
   // Pencere yeniden kullanılır: sonraki sürüklemenin ilk karesinde önceki sekmenin adı ve görüntüsü görünmesin
@@ -591,8 +623,17 @@ export function pencereleriKur(b) {
       if (k === kaynak || !canli(k) || !k.hazir) continue;
       rendererdanIste(k, 'sekme:bant').then((bant) => { if (surukleme === s && bant) s.bantlar.set(k, bant); }).catch(() => {});
     }
-    s.zaman = setInterval(() => suruklemeAdimi(s), SURUKLEME_ADIMI_MS);
+    // Yedek: önizleme penceresinin kareleri gelmiyorsa (pencere kuruluyor, henüz görünmüyor) imleç zamanlayıcıyla izlenir
+    s.zaman = setInterval(() => { if (performance.now() - (s.sonKare || 0) > KARE_BEKLEME_MS) suruklemeAdimi(s); }, SURUKLEME_ADIMI_MS);
     suruklemeAdimi(s);
+  });
+  // Önizleme penceresinin ekran karesi (0.2.7): yalnızca önizleme penceresinden, sürükleme sürerken; adımlar arası en az EN_KISA_ADIM_MS
+  ipcMain.on('hayalet:kare', (e) => {
+    const s = surukleme, hy = hayalet;
+    if (!s || !hy || hy.pencere.isDestroyed() || e.sender.id !== hy.pencere.webContents.id) return;
+    const t = performance.now();
+    s.sonKare = t;
+    if (t - (s.sonAdim || 0) >= EN_KISA_ADIM_MS) suruklemeAdimi(s);
   });
   ipcMain.on('sekme:surukleCan', (e) => { if (surukleme?.kaynak.id === e.sender.id) surukleme.sonCan = Date.now(); });
   // Sekme şeride geri döndü, sürükleme bırakıldı (Esc, pencere odağı kaybetti) ya da dışarıda bırakılan sekme taşınamadı: önizleme kalkar
@@ -652,6 +693,14 @@ export function pencereleriKur(b) {
       id: k.id, sinirlar: k.pencere.getBounds(), icerik: k.pencere.getContentBounds(), gorunur: k.pencere.isVisible(), baslik: k.pencere.getTitle(),
       yollar: [...k.yollar], hazir: k.hazir,
     })));
+    // Önizlemenin akıcılığı (0.2.7, test/hayalet_akicilik.mjs): imleç zamanla doğrusal kayar (yol: { x, y, vx, vy } | null); 'basla' ölçümü
+    // başlatır, 'bitir' konum güncellemelerinin ve sürükleme adımlarının zamanlarını döner
+    ipcMain.handle('test:imlecYolu', (_e, yol) => { testImlecYolu = yol ? { t0: performance.now(), x: +yol.x || 0, y: +yol.y || 0, vx: +yol.vx || 0, vy: +yol.vy || 0 } : null; return true; });
+    ipcMain.handle('test:hayaletOlcum', (_e, komut) => {
+      if (komut === 'basla') { olcum = { adimlar: [], konumlar: [] }; return true; }
+      const o = olcum; olcum = null;
+      return { ...(o || { adimlar: [], konumlar: [] }), gosterim: sonGosterim };
+    });
     ipcMain.handle('test:hayalet', () => (hayalet && !hayalet.pencere.isDestroyed()
       ? { gorunur: hayalet.pencere.isVisible(), sinirlar: hayalet.pencere.getBounds(), icerik: hayalet.icerik } : null));
     ipcMain.handle('test:surukleme', () => (surukleme ? { kaynak: surukleme.kaynak.id, hedef: surukleme.hedef?.id ?? null, bantlar: [...surukleme.bantlar].map(([k, bant]) => ({ id: k.id, bant })) } : null));

@@ -6,3 +6,18 @@ window.pdefe.dinle('hayalet:icerik', (icerik) => {
   const resim = document.getElementById('onizleme');
   if (icerik?.onizleme) { resim.src = icerik.onizleme; resim.hidden = false; } else { resim.removeAttribute('src'); resim.hidden = true; }
 });
+
+// Ekran kareleri (0.2.7): sürükleme sürerken her ekran karesinde ana sürece 'hayalet:kare' gider, ana süreç imlecin yerini okuyup pencereyi
+// taşır. Böylece önizleme ekran tazelemesiyle aynı düzende kayar (ana süreçteki zamanlayıcı Windows'ta ~31 ms'de bir çalışıyordu). İçerik
+// bir kez çizilir; kareler yalnızca zamanlama içindir.
+let kareler = false;
+const kare = () => {
+  if (!kareler) return;
+  window.pdefe.gonder('hayalet:kare');
+  requestAnimationFrame(kare);
+};
+window.pdefe.dinle('hayalet:kareler', (acik) => {
+  const onceki = kareler;
+  kareler = !!acik;
+  if (kareler && !onceki) requestAnimationFrame(kare);
+});
