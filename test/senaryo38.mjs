@@ -61,6 +61,11 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
   const olcek = await evalJs('devicePixelRatio');
   const sekmeleriKapat = () => evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); return true; })()`);
   // Görünüm › Koyu tema komutu açık ↔ koyu arasında geçer
+  // Araçların çıktı klasörü test klasörü (Masaüstüne hiçbir şey yazılmaz)
+  const ciktiKlasoruAyarla = (k) => evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'ciktiKlasoru', ${J(k)}); window.__pdefe.ayar().ciktiKlasoru = ${J(k)}; return true; })()`);
+  const araclariKapat = () => evalJs(`(async () => { const eski = window.__pdefeOtoYanit; window.__pdefeOtoYanit = { secim: 0 }; try { const m = await import('pdefe://app/src/renderer/araclar/ortak.js'); if (m.acikAracPenceresiVar()) await m.aracPencereleriniKapat(); } finally { window.__pdefeOtoYanit = eski; } return true; })()`);
+  fs.mkdirSync(path.join(UI, 'cikti'), { recursive: true });
+  await ciktiKlasoruAyarla(path.join(UI, 'cikti'));
   const temaAyarla = async (tema) => { if ((await evalJs('document.documentElement.dataset.tema')) !== tema) await evalJs(`(window.__pdefe.komutCalistir('gorunum.tema'), true)`); await bekle(300); return evalJs('document.documentElement.dataset.tema'); };
 
   // ------------------------------------------------------------ 1) Yazdırma penceresinin alt satırı ve ön izleme gezinmesi
@@ -105,6 +110,90 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
       }
       await sekmeleriKapat();
     }
+  }
+
+  // ------------------------------------------------------------ 2) Sonuç kutuları (Format Değiştir, Ayır)
+  if (bolum(2)) {
+    console.log('\n== 2) Sonuç kutuları: tek dosyada ortalı, birden çok dosyada Aç sabit sütunda, boyut ve sayfa yok');
+    await araclariKapat(); await sekmeleriKapat();
+    const pdf = ornekPdf('sonuc.pdf', 4, 'Sonuç örneği');
+    await evalJs(`(window.__s38m = window.__s38m || {}, true)`);
+    await evalJs(`(async () => { window.__s38m.d = await import('pdefe://app/src/renderer/araclar/donustur.js'); return true; })()`);
+    const A = 'window.__s38m.d.acikDonusturPenceresi()';
+    await evalJs(`(window.__pdefe.komutCalistir('arac.donustur', [${J(pdf)}]), true)`);
+    await kosul(`!!${A} && ${A}.ogeler.length === 1 && !${A}.ogeler[0].yukleniyor`, 15000);
+    const klasor = GIRDI;
+    const kutu = () => evalJs(`(() => { const s = document.querySelector('.donustur-sonuc'); if (!s || s.hidden) return null; const k = window.__s38kutu;
+      const satirlar = [...s.querySelectorAll('li')].map((li) => { const ad = li.querySelector('.ad'), ac = li.querySelector('[data-ac]');
+        return { ad: ad.textContent, adKutu: k(ad), kisaldi: ad.scrollWidth > ad.clientWidth + 1, ac: ac ? k(ac) : null, acSutun: k(li.querySelector('.ac-sutun')), uyari: li.querySelector('.uyari-metin')?.textContent || '', uyariKutu: k(li.querySelector('.uyari-metin')), hata: li.querySelector('.hata-metin')?.textContent || '' }; });
+      const baslik = s.querySelector('.arac-sonuc-baslik'), dugme = s.querySelector('.donustur-goster');
+      const baslikMetin = document.createRange(); baslikMetin.selectNodeContents(baslik); const bm = baslikMetin.getBoundingClientRect();
+      const adMetin = s.querySelector('li .ad'); const am = adMetin ? (() => { const r = document.createRange(); r.selectNodeContents(adMetin); return r.getBoundingClientRect(); })() : null;
+      return { metin: s.innerText, sinif: s.className, kutu: k(s), baslikOrtaX: bm.left + bm.width / 2, adOrtaX: am ? am.left + am.width / 2 : null, dugme: dugme && k(dugme), satirlar,
+        hizalama: getComputedStyle(s).textAlign }; })()`);
+    // Tek dosya (PDF olmayan çıktı; görüntüdeki gibi Word)
+    await evalJs(`(async () => { const p = ${A}; await p._sonucGoster([{ yol: ${J(pdf)}, hedef: ${J(path.join(klasor, 'Birleştirilmiş (2).docx'))}, hedefBicim: 'word', boyut: 120832, sayfa: 4 }], { tek: true }); return true; })()`);
+    let s = await kutu();
+    await ss('02-tek-sonuc');
+    sonuc('2) Tek dosya: başlık "Dosya dönüştürüldü", ad ve Klasörde göster; boyut ve sayfa sayısı yok', !!s && /^Dosya dönüştürüldü\s*$/m.test(s.metin) && s.satirlar.length === 1 && s.satirlar[0].ad === 'Birleştirilmiş (2).docx'
+      && !!s.dugme && !/KB|MB|sayfa/.test(s.metin), s);
+    sonuc('2) Tek dosya: başlık, dosya adı ve düğme kutunun ortasında', !!s && s.hizalama === 'center' && yakin(s.baslikOrtaX, s.kutu.ortaX, 1.5) && yakin(s.adOrtaX, s.kutu.ortaX, 1.5) && yakin(s.dugme.ortaX, s.kutu.ortaX, 1.5),
+      s && { kutu: s.kutu.ortaX, baslik: s.baslikOrtaX, ad: s.adOrtaX, dugme: s.dugme?.ortaX });
+    // Birden çok dosya: kısa ve uzun adlar, PDF olmayan çıktı (Aç yok), uyarılı ve hatalı satır
+    const uzun = 'Çok uzun bir dosya adı ' + 'uzun '.repeat(30) + 'son.pdf';
+    const coklu = [
+      { yol: pdf, hedef: path.join(klasor, 'a.pdf'), hedefBicim: 'pdf', boyut: 1000, sayfa: 1 },
+      { yol: pdf, hedef: path.join(klasor, 'Orta uzunlukta bir ad.pdf'), hedefBicim: 'pdf', boyut: 125952, sayfa: 3, uyari: 'Belgedeki bir ayrıntı aktarılmadı.' },
+      { yol: pdf, hedef: path.join(klasor, uzun), hedefBicim: 'pdf', boyut: 2048, sayfa: 2 },
+      { yol: pdf, hedef: path.join(klasor, 'Dilekçe.udf'), hedefBicim: 'udf', boyut: 4096 },
+      { yol: path.join(klasor, 'Bozuk.tif'), hedef: path.join(klasor, 'Bozuk.pdf'), hedefBicim: 'pdf', hata: 'Dosya açılamadı.', kod: 'hata' },
+    ];
+    await evalJs(`(async () => { await ${A}._sonucGoster(${J(coklu)}, { tek: false }); return true; })()`);
+    s = await kutu();
+    await ss('02-coklu-sonuc');
+    const acler = s ? s.satirlar.filter((x) => x.ac).map((x) => x.ac) : [];
+    sonuc('2) Birden çok dosya: başlıkta toplam boyut yok ("4 dosya dönüştürüldü · 1 dosya dönüştürülemedi"); satırlarda boyut ve sayfa yok', !!s
+      && /^4 dosya dönüştürüldü · 1 dosya dönüştürülemedi$/m.test(s.metin) && !/KB|MB|toplam|\d sayfa/.test(s.metin), s?.metin);
+    sonuc('2) PDF satırlarında Aç (3), PDF olmayanda ve hatalıda yok', acler.length === 3 && !s.satirlar[3].ac && !s.satirlar[4].ac, s?.satirlar.map((x) => [x.ad.slice(0, 20), !!x.ac]));
+    sonuc('2) Aç düğmeleri aynı sütunda (sol kenarları eşit), adın uzunluğundan bağımsız', acler.length === 3 && acler.every((a) => yakin(a.sol, acler[0].sol, 0.5)), acler.map((a) => a.sol));
+    sonuc('2) Uzun ad "…" ile kısalır, Aç kutunun içinde kalır; Aç sütunu kutunun sağında', !!s && s.satirlar[2].kisaldi && acler.every((a) => a.sag <= s.kutu.sag) && acler[0].sol > s.kutu.ortaX,
+      s && { kisaldi: s.satirlar[2].kisaldi, ac: acler.map((a) => [a.sol, a.sag]), kutu: [s.kutu.sol, s.kutu.sag] });
+    sonuc('2) Uyarı adın altında, hata metni hatalı satırda', !!s && s.satirlar[1].uyari === 'Belgedeki bir ayrıntı aktarılmadı.' && s.satirlar[1].uyariKutu.ust >= s.satirlar[1].adKutu.alt - 0.5 && s.satirlar[4].hata === 'Dosya açılamadı.',
+      s?.satirlar[1]);
+    // Aç (yeni sekmede; dosya yoksa "bulunamadı" bildirimi) yerine: düğme ac işlevini satırın sırasıyla çağırır
+    await evalJs(`(() => { const p = ${A}; window.__s38acilan = []; p.__eskiDosyaAc = p.baglam.dosyaAc; p.baglam.dosyaAc = async (y, o) => { window.__s38acilan.push([y, o]); return null; }; return true; })()`);
+    await evalJs(`(document.querySelectorAll('.donustur-sonuc [data-ac]')[1].click(), true)`);
+    await bekle(200);
+    const acilan = await evalJs(`(() => { const p = ${A}; p.baglam.dosyaAc = p.__eskiDosyaAc; return window.__s38acilan; })()`);
+    sonuc('2) Aç tıklanan satırın dosyasını açar', acilan.length === 1 && path.resolve(acilan[0][0]) === path.resolve(coklu[1].hedef), acilan);
+    await araclariKapat();
+    // Ayır: gerçek ayırma (iki dosya), sonra tek dosya
+    const cikti = path.join(UI, 'ayir'); fs.rmSync(cikti, { recursive: true, force: true }); fs.mkdirSync(cikti, { recursive: true });
+    await ciktiKlasoruAyarla(cikti);
+    await evalJs(`(async () => { await window.__pdefe.dosyaAc(${J(pdf)}); return true; })()`);
+    await kosul(`!!window.__pdefe.aktif()?.gorunum?.sayfaSayisi`);
+    await evalJs(`(window.__pdefe.komutCalistir('arac.ayir'), true)`);
+    await kosul(`!!document.querySelector('.ayir-pencere .ayir-aralik')`);
+    await evalJs(`(() => { const a = document.querySelector('.ayir-pencere .ayir-aralik'); a.value = '1, 2-4'; a.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+    await kosul(`document.querySelector('.ayir-pencere .arac-klasor-cip')?.title?.includes(${J(path.basename(cikti))})`, 5000);
+    await bekle(300);
+    await evalJs(`(document.querySelector('.ayir-pencere .arac-dugmeler .birincil').click(), true)`);
+    await kosul(`!document.querySelector('.ayir-sonuc').hidden && document.querySelectorAll('.ayir-sonuc li').length === 2`, 15000);
+    let a = await evalJs(`(() => { const s = document.querySelector('.ayir-sonuc'), k = window.__s38kutu; return { metin: s.innerText, sinif: s.className, ac: [...s.querySelectorAll('[data-ac]')].map((x) => k(x)), kutu: k(s) }; })()`);
+    await ss('02-ayir-coklu');
+    sonuc('2) Ayır (iki dosya): "2 dosya oluşturuldu", her satırda Aç aynı sütunda; boyut ve sayfa yok', /^2 dosya oluşturuldu$/m.test(a.metin) && a.ac.length === 2 && yakin(a.ac[0].sol, a.ac[1].sol, 0.5)
+      && !/KB|MB|toplam|\d sayfa\b/.test(a.metin.replace(/Sayfa \d[-\d]*/g, '')) && /arac-sonuc-liste/.test(a.sinif), a);
+    await evalJs(`(document.querySelector('.ayir-dosya-kipi-secim > button[data-id="tek"]').click(), true)`);
+    await bekle(200);
+    await evalJs(`(document.querySelector('.ayir-pencere .arac-dugmeler .birincil').click(), true)`);
+    await kosul(`document.querySelectorAll('.ayir-sonuc li').length === 1`, 15000);
+    a = await evalJs(`(() => { const s = document.querySelector('.ayir-sonuc'), k = window.__s38kutu; const r = document.createRange(); r.selectNodeContents(s.querySelector('li .ad')); const am = r.getBoundingClientRect();
+      return { metin: s.innerText, sinif: s.className, ac: s.querySelectorAll('[data-ac]').length, kutu: k(s), adOrtaX: am.left + am.width / 2, dugmeler: [...s.querySelectorAll('.arac-sonuc-dugmeler button')].map((b) => k(b)) }; })()`);
+    await ss('02-ayir-tek');
+    const dOrta = a.dugmeler.length ? (a.dugmeler[0].sol + a.dugmeler.at(-1).sag) / 2 : NaN;
+    sonuc('2) Ayır (tek dosya): "Dosya oluşturuldu", ad ve düğmeler ortalı, satırda Aç yok, boyut yok', /^Dosya oluşturuldu$/m.test(a.metin) && /arac-sonuc-tek/.test(a.sinif) && a.ac === 0
+      && yakin(a.adOrtaX, a.kutu.ortaX, 1.5) && yakin(dOrta, a.kutu.ortaX, 1.5) && !/KB|MB/.test(a.metin), { ...a, dOrta });
+    await araclariKapat(); await sekmeleriKapat();
   }
 
   const hatalar = await evalJs('window.__hatalar || []');

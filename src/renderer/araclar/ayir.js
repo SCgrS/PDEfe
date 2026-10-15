@@ -15,8 +15,9 @@
 import {
   pencereAc, pencereAcikMi, IslemIlerleme, boyutMetni, kacis, hataMetni, dosyaAdi, adGovdesi, yolBirlestir, guvenliAd,
   sayfaAraliklariCoz, degisiklikleriSor, oge, kayitSecimi, kilitliHataMi, ciktiyiAc, sayiMetni, segmentliSecim, acikBelge,
-  sekmeyiYenile, numaralarDosyaylaAyni, NUMARA_UYUSMAZ,
+  sekmeyiYenile, numaralarDosyaylaAyni, NUMARA_UYUSMAZ, sonucKutusuCiz,
 } from './ortak.js';
+import { MAC } from '../platform.js';
 
 const VARSAYILAN_AD = 'Ayrılmış';
 const COKLU_DOSYA_NEDENI = 'Birden çok dosya üreten ayırmada yalnızca yeni belge olarak kaydedilir.';
@@ -340,22 +341,22 @@ export class AyirPenceresi {
     const { baglam } = this;
     this.ilerleme.gizle();
     this.sonucEl.hidden = false;
-    this.sonucEl.className = 'ayir-sonuc arac-basari arac-sonuc-liste';
     if (!dosyalar.length) { this.sonucEl.className = 'ayir-sonuc arac-uyari'; this.sonucEl.textContent = 'Hiç dosya oluşmadı.'; return; }
-    // Boyutu gelmeyenleri dosya sisteminden sor
-    for (const d of dosyalar) if (d.boyut == null) { try { const b = await baglam.pdefe.cagir('dosya:bilgi', d.yol); if (b?.var) d.boyut = b.boyut; } catch { /* yok say */ } }
     if (this.pencere.kapali) return;
-    const toplam = dosyalar.reduce((t, d) => t + (d.boyut || 0), 0);
+    // Sonuç kutusu (0.2.7; Format Değiştir'deki gibi, ortak.js sonucKutusuCiz): tek dosyada ortalı, birden çok dosyada her satırda Aç sabit
+    // sütunda; boyut ve sayfa sayısı yazılmaz (0.2.6'ya dek satırda ve başlıkta vardı; ad sayfaları zaten söyler)
     const tek = dosyalar.length === 1;
-    this.sonucEl.innerHTML = `<div title="${kacis(this.klasor)}"><b>${dosyalar.length} dosya oluşturuldu</b> · toplam ${kacis(boyutMetni(toplam))}</div>
-      <ul>${dosyalar.map((d, i) => `<li><a data-i="${i}" title="Yeni sekmede aç">${kacis(dosyaAdi(d.yol))}</a><span class="soluk">${d.sayfa ? d.sayfa + ' sayfa' : ''}</span><span class="boyut">${kacis(boyutMetni(d.boyut))}</span></li>`).join('')}</ul>
-      <div class="arac-satir" style="margin-top:6px">
-        <button class="ikincil ayir-goster">Klasörde göster</button>
+    sonucKutusuCiz(this.sonucEl, {
+      baslik: tek ? '<b>Dosya oluşturuldu</b>' : `<b>${sayiMetni(dosyalar.length)} dosya oluşturuldu</b>`,
+      satirlar: dosyalar.map((d) => ({ yol: d.yol, ad: dosyaAdi(d.yol), ac: true })),
+      dugmeler: `<button class="ikincil ayir-goster">${MAC ? 'Finder\'da göster' : 'Klasörde göster'}</button>
         <button class="ikincil ayir-ilk-ac">${tek ? 'Yeni sekmede aç' : 'İlkini yeni sekmede aç'}</button>
-        ${tek ? '' : '<label><input type="checkbox" class="ayir-hepsi-ac"> Hepsini aç</label>'}
-      </div>`;
+        ${tek ? '' : '<label><input type="checkbox" class="ayir-hepsi-ac"> Hepsini aç</label>'}`,
+      acIpucu: 'Yeni sekmede aç',
+      ac: (i) => baglam.dosyaAc(dosyalar[i].yol, { arkaPlanda: true }),
+    });
+    this.sonucEl.querySelector('.arac-sonuc-baslik').title = this.klasor || '';
     this.sonucEl.querySelector('.ayir-goster').addEventListener('click', () => baglam.pdefe.cagir('kabuk:klasordeGoster', dosyalar[0].yol));
-    this.sonucEl.querySelectorAll('a[data-i]').forEach((a) => a.addEventListener('click', () => baglam.dosyaAc(dosyalar[+a.dataset.i].yol, { arkaPlanda: true })));
     this.sonucEl.querySelector('.ayir-ilk-ac').addEventListener('click', async () => {
       const hepsi = !!this.sonucEl.querySelector('.ayir-hepsi-ac')?.checked;
       await this.pencere.kapat('tamam');

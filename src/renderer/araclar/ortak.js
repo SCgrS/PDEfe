@@ -1332,6 +1332,38 @@ export async function degisiklikleriSor(baglam, belge, islemAdi, { yalnizKaydet 
   return 'devam';
 }
 
+// ---------------------------------------------------------------- sonuç kutusu
+/**
+ * Araç penceresindeki sonuç kutusu (0.2.7, kullanıcı isteği; Format Değiştir ve Ayır aynı düzende). Tek dosyada başlık, dosyanın adı, uyarı
+ * ve düğmeler ortalı ("yazılar ve buton ortalı şekilde olsun"). Birden çok dosyada her satırda ad (uzunsa "…" ile kısalır, tam yol ipucunda)
+ * ve sağda sabit sütunda Aç ("Aç butonları sabit bir yerde olsun, dosyanın ismine göre farklı yerlerde olabiliyor"); Aç'ı olmayan satırda
+ * sütun boş kalır, uyarı ve hata adın altında. Boyut ve sayfa sayısı yazılmaz ("kilobayt ve sayfa bilgisini belirtmeye gerek yok"; 0.2.6'ya
+ * dek her satırda ve başlıkta vardı).
+ * @param {HTMLElement} kap   sonuç kutusu (sınıfının ilki korunur: donustur-sonuc, ayir-sonuc)
+ * @param {object} s
+ * @param {string} s.baslik   başlık (HTML; çağıran kaçırır)
+ * @param {'basari'|'uyari'} [s.tur]
+ * @param {Array<{yol?:string, ad:string, ac?:boolean, uyari?:string, hata?:string}>} s.satirlar
+ * @param {boolean} [s.tek]   tek dosya düzeni (ortalı); verilmezse tek satırda
+ * @param {string} [s.dugmeler]  düğme satırının HTML'i (Klasörde göster…)
+ * @param {(i:number)=>void} [s.ac]  satırın Aç'ı tıklanınca
+ * @param {string} [s.acIpucu]
+ */
+export function sonucKutusuCiz(kap, { baslik, tur = 'basari', satirlar, tek = satirlar.length === 1, dugmeler = '', ac = null, acIpucu = 'Aç' }) {
+  const kok = String(kap.className || '').split(/\s+/).filter(Boolean)[0] || '';
+  kap.className = `${kok} arac-sonuc ${tek ? 'arac-sonuc-tek' : 'arac-sonuc-liste'} arac-${tur}`;
+  kap.hidden = false;
+  const satir = (r, i) => {
+    const ad = `<span class="ad"${r.yol ? ` title="${kacis(r.yol)}"` : ''}>${kacis(r.ad)}</span>`;
+    const acSutunu = tek ? '' : `<span class="ac-sutun">${r.ac && !r.hata ? `<button type="button" class="donustur-baglanti" data-ac="${i}" title="${kacis(acIpucu)}">Aç</button>` : ''}</span>`;
+    const ek = r.hata ? `<span class="hata-metin">${kacis(r.hata)}</span>` : r.uyari ? `<span class="uyari-metin">${kacis(r.uyari)}</span>` : '';
+    return `<li${r.hata ? ' class="hatali"' : ''}>${ad}${acSutunu}${ek}</li>`;
+  };
+  kap.innerHTML = `<div class="arac-sonuc-baslik">${baslik}</div><ul>${satirlar.map(satir).join('')}</ul>${dugmeler ? `<div class="arac-satir arac-sonuc-dugmeler">${dugmeler}</div>` : ''}`;
+  if (ac) for (const d of kap.querySelectorAll('[data-ac]')) d.addEventListener('click', () => ac(+d.dataset.ac));
+  return kap;
+}
+
 /** Küçük yardımcı: HTML dizesinden tek öğe. */
 export function oge(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }
 

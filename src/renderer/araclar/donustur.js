@@ -30,7 +30,7 @@
 // için Aç) ve Klasörde göster. Çekirdeğin uyarıları (e-imza taşınmadı, yorumlar alınmadı, resimler alınmadı…) gösterilir.
 import {
   pencereAc, pencereAcikMi, IslemIlerleme, kayitSecimi, boyutMetni, sayiMetni, kacis, hataMetni, dosyaAdi, adGovdesi, uzanti, yolAyni,
-  yolBirlestir, guvenliAd, oge, segmentliSecim, kilitliHataMi, ciktiyiAc, acikBelge, degisiklikleriSor,
+  yolBirlestir, guvenliAd, oge, segmentliSecim, kilitliHataMi, ciktiyiAc, acikBelge, degisiklikleriSor, sonucKutusuCiz,
 } from './ortak.js';
 import { MAC } from '../platform.js';
 
@@ -782,27 +782,24 @@ export class DonusturPenceresi {
       this.pencere.hataGoster(`"${dosyaAdi(hatali[0].yol)}" dönüştürülemedi: ${hatali[0].hata}`);
       return false;
     }
+    // Sonuç kutusu (0.2.7, kullanıcı isteği; ortak.js sonucKutusuCiz): tek dosyada ortalı, birden çok dosyada Aç sabit sütunda; boyut ve
+    // sayfa sayısı yazılmaz
     const s = this.sonucEl;
-    s.hidden = false;
-    s.className = `donustur-sonuc arac-sonuc-liste ${basarili.length ? 'arac-basari' : 'arac-uyari'}`;
-    const toplam = basarili.reduce((t, r) => t + (r.boyut || 0), 0);
     const baslik = !basarili.length ? '<b>Hiçbir dosya dönüştürülemedi.</b>'
-      : basarili.length === 1 && !hatali.length ? `<b>Dosya dönüştürüldü</b> · ${kacis(boyutMetni(toplam))}`
-        : `<b>${sayiMetni(basarili.length)} dosya dönüştürüldü</b> · toplam ${kacis(boyutMetni(toplam))}${hatali.length ? ` · ${sayiMetni(hatali.length)} dosya dönüştürülemedi` : ''}`;
-    const satirlar = sonuclar.map((r, i) => {
-      if (r.hata) return `<li class="hatali"><span class="ad">${kacis(dosyaAdi(r.yol))}</span><span class="hata-metin">${kacis(r.hata)}</span></li>`;
-      const ac = r.hedefBicim === 'pdf' ? `<button type="button" class="donustur-baglanti" data-ac="${i}" title="Yeni sekmede aç">Aç</button>` : '';
-      return `<li><span class="ad" title="${kacis(r.hedef)}">${kacis(dosyaAdi(r.hedef))}</span><span class="soluk">${r.sayfa ? sayiMetni(r.sayfa) + ' sayfa' : ''}</span><span class="boyut">${kacis(boyutMetni(r.boyut))}</span>${ac}${r.uyari ? `<span class="uyari-metin">${kacis(r.uyari)}</span>` : ''}</li>`;
-    });
-    s.innerHTML = `<div>${baslik}</div><ul>${satirlar.join('')}</ul>${basarili.length ? `<div class="arac-satir" style="margin-top:6px"><button class="ikincil donustur-goster">${MAC ? 'Finder\'da göster' : 'Klasörde göster'}</button></div>` : ''}`;
-    s.querySelector('.donustur-goster')?.addEventListener('click', () => baglam.pdefe.cagir('kabuk:klasordeGoster', basarili[0].hedef));
-    for (const d of s.querySelectorAll('[data-ac]')) {
-      d.addEventListener('click', async () => {
-        const r = sonuclar[+d.dataset.ac];
+      : basarili.length === 1 && !hatali.length ? '<b>Dosya dönüştürüldü</b>'
+        : `<b>${sayiMetni(basarili.length)} dosya dönüştürüldü</b>${hatali.length ? ` · ${sayiMetni(hatali.length)} dosya dönüştürülemedi` : ''}`;
+    sonucKutusuCiz(s, {
+      baslik, tur: basarili.length ? 'basari' : 'uyari', tek: sonuclar.length === 1,
+      satirlar: sonuclar.map((r) => (r.hata ? { yol: r.yol, ad: dosyaAdi(r.yol), hata: r.hata } : { yol: r.hedef, ad: dosyaAdi(r.hedef), ac: r.hedefBicim === 'pdf', uyari: r.uyari || '' })),
+      dugmeler: basarili.length ? `<button class="ikincil donustur-goster">${MAC ? 'Finder\'da göster' : 'Klasörde göster'}</button>` : '',
+      acIpucu: 'Yeni sekmede aç',
+      ac: async (i) => {
+        const r = sonuclar[i];
         await baglam.dosyaAc(r.hedef, { arkaPlanda: true });
         baglam.bildir(`"${dosyaAdi(r.hedef)}" yeni sekmede açıldı.`, 3000);
-      });
-    }
+      },
+    });
+    s.querySelector('.donustur-goster')?.addEventListener('click', () => baglam.pdefe.cagir('kabuk:klasordeGoster', basarili[0].hedef));
     s.scrollIntoView({ block: 'nearest' });
     if (basarili.length) baglam.bildir(basarili.length === 1 ? `Dönüştürüldü: ${dosyaAdi(basarili[0].hedef)}` : `${sayiMetni(basarili.length)} dosya dönüştürüldü.`, 4000);
     return false;
