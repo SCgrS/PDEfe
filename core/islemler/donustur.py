@@ -860,6 +860,11 @@ def _gecici_cikti(hedef, sira, klasor=False):
     if klasor:
         yol = "%s.%d-%d.pdefe-tmp" % (hedef, os.getpid(), sira)
         _geciciyi_kaydet(yol)
+        # Aynı adla kalmış klasör (çöken çekirdeğin pid'i yeniden kullanıldı ya da önceki iş bir dosyayı silemedi; 0.2.7 inceleme) önce
+        # boşaltılır: eski "k.jpg" dosyaları sayfa sayılıp kullanıcının klasörüne yazılırdı. Silinemeyen kalırsa yerine koyma yalnızca
+        # dönüştürücünün bildirdiği sayfaları alır (_yerine_koy_oge)
+        if os.path.exists(yol):
+            _sil_hepsi(yol)
         os.makedirs(yol, exist_ok=True)
         return yol
     yol = "%s.%d-%d.pdefe-tmp%s" % (hedef, os.getpid(), sira, os.path.splitext(hedef)[1])
@@ -1094,15 +1099,20 @@ def bos_ad(hedef, n=1, dolu=os.path.exists):
     raise OgeHatasi("gecersiz", "Boş bir dosya adı bulunamadı: %s" % os.path.basename(hedef))
 
 
-def _yerine_koy_oge(oge, gecici, yazilan, kaynaklar):
+def _yerine_koy_oge(oge, gecici, yazilan, kaynaklar, sayfa=None):
     """Bir öğenin geçici çıktısını (dosya ya da çok dosyalı hedefin klasörü) hedefine koyar. yazilan: bu istekte yazılmış dosyaların anahtarları
     (güncellenir), kaynaklar: istekteki kaynakların anahtarları. Döner: (yazılan dosyaların yolları, sonuca eklenecek alanlar). "Üzerine yaz"da
     önceki, daha uzun dönüştürmeden kalan sayfalar (sonraki_sayfalar) yazılmaz, silinmez: sonucun kalanlar alanında söylenir (0.2.7 inceleme;
-    arayüz soruda ve sonuçta gösterir)."""
+    arayüz soruda ve sonuçta gösterir). sayfa: dönüştürücünün yazdığı sayfa sayısı (bilgi); çok dosyalı geçici klasörden yalnızca 1…sayfa alınır
+    (klasörde kalmış başka dosyalar sonuca girmez; 0.2.7 inceleme)."""
     def dolu(a):
         return os.path.exists(a) or _yol_anahtari(a) in yazilan or _yol_anahtari(a) in kaynaklar
     if os.path.isdir(gecici):
         parcalar = sorted((int(m.group(1)), a) for a in os.listdir(gecici) for m in [re.fullmatch(r"(\d+)\.[A-Za-z]+", a)] if m)
+        if isinstance(sayfa, int) and sayfa > 0:
+            parcalar = [p for p in parcalar if p[0] <= sayfa]
+            if [p[0] for p in parcalar] != list(range(1, sayfa + 1)):
+                raise OgeHatasi("hata", "Dönüştürme çıktısı eksik: %s" % os.path.basename(oge["yol"]))
         n = len(parcalar)
         if oge.get("cakisma") == "yeniAd":
             adlar = bos_ad(oge["hedef"], n, dolu)
@@ -1168,7 +1178,7 @@ def _isi_yap(ogeler, il):
     for i, gecici, bilgi in hazirlar:
         oge = ogeler[i]
         try:
-            yollar, ek = _yerine_koy_oge(oge, gecici, yazilan, kaynaklar)
+            yollar, ek = _yerine_koy_oge(oge, gecici, yazilan, kaynaklar, bilgi.get("sayfa"))
             s = dict({"yol": oge["yol"], "hedef": yollar[0], "hedefBicim": oge["hedefBicim"],
                       "boyut": sum(os.path.getsize(y) for y in yollar)}, **bilgi)
             s.update(ek)

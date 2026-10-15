@@ -1559,6 +1559,29 @@ def test_ayni_istekte_ad(c, g):
           and b.get("hedef") == os.path.join(k2, "X (2).tif") and "hata" not in a and "hata" not in b, (a.get("hedef"), b.get("hedef"), a.get("hata"), b.get("hata")))
 
 
+def test_bayat_gecici(c, g):
+    """0.2.7 inceleme: JPG'nin geçici klasörü ("<hedef>.<pid>-<sıra>.pdefe-tmp") önceden kalmışsa (çöken çekirdeğin pid'i yeniden kullanıldı,
+    önceki işin silemediği dosya) içindeki eski sayfalar sonuca girmez: klasör boşaltılır, yerine yalnızca dönüştürücünün yazdığı sayfalar konur."""
+    print("— JPG: önceden kalmış geçici klasör (0.2.7 inceleme)")
+    if c.exe:
+        atlandi("bayat geçici klasör", "pid çekirdek sürecinin; yalnızca doğrudan modülde")
+        return
+    k = temiz_klasor("bayat_gecici")
+    iki = sentetik_pdf(os.path.join(k, "iki.pdf"), sayfa=2, tohum=23)
+    hedef = os.path.join(k, "Belge.jpg")
+    bayat = "%s.%d-0.pdefe-tmp" % (hedef, os.getpid())
+    os.makedirs(bayat)
+    for ad in ("3.jpg", "5.jpg"):
+        with open(os.path.join(bayat, ad), "wb") as f:
+            f.write(b"\xff\xd8\xff\xe0eski")
+    r, _ = donustur(c, [{"yol": iki, "hedef": hedef, "hedefBicim": "gorsel"}])
+    o = r["sonuclar"][0]
+    sonuc("2 sayfalık PDF → JPG: yalnızca 2 dosya, kalmış geçici klasörün eski sayfaları sonuca girmedi",
+          "hata" not in o and [os.path.basename(x) for x in o.get("hedefler") or []] == ["Belge - Sayfa 1.jpg", "Belge - Sayfa 2.jpg"]
+          and sorted(a for a in os.listdir(k) if a.endswith(".jpg")) == ["Belge - Sayfa 1.jpg", "Belge - Sayfa 2.jpg"], (o.get("hata"), os.listdir(k)))
+    sonuc("geçici klasör kalmadı", not gecici_kalintilar(k), gecici_kalintilar(k))
+
+
 def _tek_sayfa(k, kaynak):
     tek = os.path.join(k, "tek.pdf")
     d = pymupdf.open(kaynak)
@@ -1668,7 +1691,7 @@ def main():
                ("hedef_erisim", lambda: test_hedef_erisim(c, g)), ("parametreler", lambda: test_parametreler(c, g)), ("zip_bombasi", lambda: test_zip_bombasi(c)),
                ("dis_surec", lambda: test_dis_surec(c)), ("zincir", lambda: test_zincir(c, g)), ("surec", lambda: test_surec(exe, g)),
                ("gorsel_imza", lambda: test_gorsel_imza(c, gg)), ("gorsel_pdf", lambda: test_gorsel_pdf(c, gg)), ("gri16", lambda: test_gri16(c)),
-               ("pdf_jpg", lambda: test_pdf_jpg(c, g)), ("cakisma", lambda: test_cakisma(c, g)), ("kalan_sayfalar", lambda: test_kalan_sayfalar(c, g)), ("ayni_istekte_ad", lambda: test_ayni_istekte_ad(c, g)), ("kalite_notlari", lambda: test_kalite_notlari(c, g)),
+               ("pdf_jpg", lambda: test_pdf_jpg(c, g)), ("cakisma", lambda: test_cakisma(c, g)), ("kalan_sayfalar", lambda: test_kalan_sayfalar(c, g)), ("ayni_istekte_ad", lambda: test_ayni_istekte_ad(c, g)), ("bayat_gecici", lambda: test_bayat_gecici(c, g)), ("kalite_notlari", lambda: test_kalite_notlari(c, g)),
                ("tahmin", lambda: test_tahmin(c, g, gg))]
     if not exe:
         testler.insert(6, ("iptal_bayragi", test_iptal_bayragi))
