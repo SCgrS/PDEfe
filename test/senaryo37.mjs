@@ -441,8 +441,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
     const hTiff = path.join(CIKTI, 'Tarama örneği.pdf');
     const o1 = fs.existsSync(hTiff) ? pdfOzeti(hTiff) : null;
     const akt = await evalJs(`window.__pdefe.aktif()?.yol || null`);
-    sonuc('TIFF → PDF: 3 sayfa, hepsi A4; pencere kapandı, sonuç sekmede açıldı, bildirim', !!o1 && o1.sayfa === 3 && o1.olcu.every(A4) && !(await evalJs(`!!document.querySelector('.donustur-pencere')`))
-      && akt && path.resolve(akt) === path.resolve(hTiff) && (await bildirimler()).some((b) => /^Dönüştürüldü: Tarama örneği\.pdf · 3 sayfa/.test(b)), { o1, akt });
+    sonuc('TIFF → PDF: 3 sayfa, hepsi A4; pencere kapandı, sonuç sekmede açıldı, kısa bildirim (0.2.8: sayfa ve boyut yok)', !!o1 && o1.sayfa === 3 && o1.olcu.every(A4) && !(await evalJs(`!!document.querySelector('.donustur-pencere')`))
+      && akt && path.resolve(akt) === path.resolve(hTiff) && (await bildirimler()).includes('Dönüştürüldü: Tarama örneği.pdf'), { o1, akt });
     await sekmeleriKapat();
     // PDF → TIFF, 300 dpi, gri
     await aracAc([G.pdf]);

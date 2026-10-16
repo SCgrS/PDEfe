@@ -266,7 +266,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     sonuc('Sonuç: "Dosya dönüştürüldü · 2 görüntü dosyası", her dosya bir satır, Aç yok, KB / sayfa yok, Klasörde göster', !!sk && /^Dosya dönüştürüldü · 2 görüntü dosyası$/.test(sk.baslik.trim())
       && J(sk.satirlar.map((x) => x.ad)) === J(['Dilekçe örneği - Sayfa 1.jpg', 'Dilekçe örneği - Sayfa 2.jpg']) && sk.satirlar.every((x) => !x.ac) && !/KB|sayfa ·/.test(sk.metin)
       && sk.goster === 'Klasörde göster' && !sk.tek, sk);
-    sonuc('Bildirim "Dönüştürüldü: 2 görüntü dosyası"; Dönüştür soluk', (await bildirimler()).includes('Dönüştürüldü: 2 görüntü dosyası') && (await donusturDevre()), await bildirimler());
+    // 0.2.8 (kullanıcı isteği): sonuç pencerede gösterilince alttaki bildirim yok (yalnızca sonuç kendiliğinden açılınca)
+    sonuc('Bildirim yok (0.2.8; sonuç pencerede); Dönüştür soluk', !(await bildirimler()).some((b) => /^Dönüştürüldü/.test(b)) && (await donusturDevre()), await bildirimler());
     await ss('03-pdf-jpg-sonuc');
     await kayit();
     await tikSecici('.donustur-sonuc .donustur-goster');

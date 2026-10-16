@@ -12,6 +12,8 @@
 //      yalnızca araçların bu oturumda yazdığı dosyalar açılır.
 //   5) Sonuç satırında uyarı (madde 7): adın altında paragraf yok; uyarılı satırda adın yanında ⚠ (role="img", uyarı renginde), ipucu "<Kaynak> →
 //      <Hedef>: <kalite notu>" ve dosyaya özgü uyarılar; "(1)" adının notu adın ipucunda; kalite notlarında "kaşe" yok, tablolar var; gerçek PDF → UDF.
+//   6) Alttaki bildirim (madde 11): Format Değiştir'de (PDF → UDF, PDF → JPG) ve Ayır'da sonuç pencerede gösterilince bildirim yok; görüntü → PDF
+//      sekmede kendiliğinden açılınca kısa bildirim "Dönüştürüldü: <ad>"; Birleştir'in (sekmede açılır) bildirimi duruyor.
 // Girdiler test/ornek_pdf_uret.py ile test/cikti/s41/girdi altında üretilir (gerçek belge yok). Araçların çıktı klasörü test klasörüdür.
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9441 -Veri "$env:TEMP\pdefe-s41-9441" -Boyut "1280,1000" [-Olcek 1.25]
@@ -484,6 +486,84 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
       && d.satirlar[0].simge && d.satirlar[0].ipucu.startsWith('PDF → UDF: Satır, sayfa düzeni ve tablolar UDF\'de kayabilir') && /\n1 resim \(imza, doğrulama kodu gibi\) alınmadı: /.test(d.satirlar[0].ipucu)
       && d.paragraf === 0 && d.satirlar[0].metin === 'imzali.udf' && !/kaşe/i.test(d.ipuclari), d?.satirlar);
     await araclariKapat();
+    await ciktiKlasoruAyarla(path.join(UI, 'cikti'));
+    await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);
+  }
+
+  // ------------------------------------------------------------ 6) Alttaki bildirim yalnızca sonuç kendiliğinden açılınca (madde 11)
+  if (bolum(6)) {
+    console.log('\n== 6) Bildirim: sonuç sekmede kendiliğinden açılınca kısa bildirim; pencerede sonuç listesi gösterilince bildirim yok');
+    await araclariKapat(); await sekmeleriKapat();
+    await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);
+    const klasor = yeniKlasor('bildirim');
+    await ciktiKlasoruAyarla(klasor);
+    const pdf = ornekPdf('bildirim.pdf', 3, 'Bildirim örneği');
+    const png = path.join(GIRDI, 'bildirim.png');
+    if (!fs.existsSync(png)) execFileSync(PY, ['-X', 'utf8', '-c', `from PIL import Image, ImageDraw\nim = Image.new("RGB", (1240, 1754), "white")\nImageDraw.Draw(im).rectangle((100, 100, 1100, 300), outline="black", width=6)\nim.save(${J(png)}, dpi=(150, 150))`], { encoding: 'utf8' });
+    // #bildirim'in her yeni metni kaydedilir (senaryo37'deki gibi)
+    await evalJs(`(() => { window.__s41b = []; if (!window.__s41BG) { window.__s41BG = new MutationObserver(() => { const e = document.querySelector('#bildirim'); const t = e && !e.hidden ? e.textContent : '';
+      if (t && window.__s41b.at(-1) !== t) window.__s41b.push(t); }); window.__s41BG.observe(document.querySelector('#bildirim'), { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['hidden'] }); } return true; })()`);
+    const bildirimler = () => evalJs('window.__s41b.slice()');
+    const temizle = () => evalJs('(window.__s41b.length = 0, true)');
+    await evalJs(`(async () => { window.__s41d = await import('pdefe://app/src/renderer/araclar/donustur.js'); return true; })()`);
+    const A = 'window.__s41d.acikDonusturPenceresi()';
+    const donusturVeBekle = async () => {
+      await evalJs(`(document.querySelector('.donustur-sonuc').hidden = true, document.querySelector('.donustur-pencere .arac-dugmeler .birincil').click(), true)`);
+      await kosul(`!document.querySelector('.donustur-pencere') || !document.querySelector('.donustur-sonuc').hidden || !!document.querySelector('.donustur-pencere .arac-hata:not(:empty)')`, 60000);
+      await bekle(800);
+    };
+    // a) PDF → UDF (sonuç pencerede): bildirim yok
+    await evalJs(`(window.__pdefe.komutCalistir('arac.donustur', [${J(pdf)}]), true)`);
+    await kosul(`!!${A} && ${A}.ogeler.length === 1 && !${A}.ogeler[0].yukleniyor`, 15000);
+    await evalJs(`(${A}.hedefSec(${A}.ogeler[0], 'udf'), true)`);
+    await bekle(300); await temizle();
+    await donusturVeBekle();
+    let b = await bildirimler();
+    sonuc('6a) PDF → UDF: sonuç pencerede (dosya yazıldı), alttaki bildirim çıkmadı', fs.existsSync(path.join(klasor, 'bildirim.udf')) && !(await evalJs(`document.querySelector('.donustur-sonuc').hidden`)) && !b.length, b);
+    // b) PDF → JPG (üç sayfa dosyası; sonuç pencerede): bildirim yok
+    await evalJs(`(${A}.hedefSec(${A}.ogeler[0], 'gorsel'), true)`);
+    await bekle(300);
+    await evalJs(`(document.querySelector('.donustur-pencere .donustur-secenekler .arac-segmentli[aria-label="Çözünürlük"] > button[data-id="200"]').click(), true)`);
+    await temizle();
+    await donusturVeBekle();
+    b = await bildirimler();
+    sonuc('6b) PDF → JPG (3 dosya): sonuç pencerede, bildirim çıkmadı', fs.existsSync(path.join(klasor, 'bildirim - Sayfa 3.jpg')) && !b.length, b);
+    await araclariKapat();
+    // c) Görüntü → PDF (tek PDF: sekmede kendiliğinden açılır): kısa bildirim "Dönüştürüldü: bildirim.pdf" (sayfa ve boyut yok)
+    await evalJs(`(window.__pdefe.komutCalistir('arac.donustur', [${J(png)}]), true)`);
+    await kosul(`!!${A} && ${A}.ogeler.length === 1 && !${A}.ogeler[0].yukleniyor`, 15000);
+    await evalJs(`(${A}.hedefSec(${A}.ogeler[0], 'pdf'), true)`);
+    await bekle(300); await temizle();
+    await donusturVeBekle();
+    await kosul(`!!window.__pdefe.aktif()?.gorunum?.sayfaSayisi`, 10000);
+    b = await bildirimler();
+    const akt = await evalJs(`window.__pdefe.aktif()?.yol || ''`);
+    sonuc('6c) Görüntü → PDF: sonuç sekmede açıldı, kısa bildirim "Dönüştürüldü: bildirim.pdf" (sayfa / KB yok)', path.basename(akt) === 'bildirim.pdf' && J(b) === J(['Dönüştürüldü: bildirim.pdf']), { akt, b });
+    await sekmeleriKapat();
+    // d) Ayır (iki dosya; sonuç pencerede): bildirim yok
+    await evalJs(`(async () => { await window.__pdefe.dosyaAc(${J(pdf)}); return true; })()`);
+    await kosul(`!!window.__pdefe.aktif()?.gorunum?.sayfaSayisi`);
+    await evalJs(`(window.__pdefe.komutCalistir('arac.ayir'), true)`);
+    await kosul(`!!document.querySelector('.ayir-pencere .ayir-aralik')`);
+    await evalJs(`(() => { const a = document.querySelector('.ayir-pencere .ayir-aralik'); a.value = '1, 2-3'; a.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+    await bekle(400); await temizle();
+    await evalJs(`(document.querySelector('.ayir-pencere .arac-dugmeler .birincil').click(), true)`);
+    await kosul(`!document.querySelector('.ayir-sonuc').hidden`, 20000);
+    await bekle(800);
+    b = await bildirimler();
+    sonuc('6d) Ayır (iki dosya): sonuç pencerede, bildirim çıkmadı', !b.length, b);
+    await araclariKapat();
+    // e) Birleştir (sonuç sekmede kendiliğinden açılır): bildirim çıkar
+    await evalJs(`(window.__pdefe.komutCalistir('arac.gorselBirlestir'), true)`);
+    await kosul(`!!document.querySelector('.birlestir-pencere')`, 5000);
+    await kosul(`document.querySelectorAll('.birlestir-oge').length >= 1 && !document.querySelector('.birlestir-oge.yukleniyor')`, 15000);
+    await bekle(800); await temizle();
+    await evalJs(`(document.querySelector('.birlestir-pencere .arac-dugmeler .birincil').click(), true)`);
+    await kosul(`!document.querySelector('.birlestir-pencere')`, 30000);
+    await bekle(1000);
+    b = await bildirimler();
+    sonuc('6e) Birleştir: sonuç sekmede açıldı, "Birleştirildi: …" bildirimi çıktı', b.some((x) => /^Birleştirildi: Birleştirilmiş( \(\d+\))?\.pdf/.test(x)), b);
+    await sekmeleriKapat();
     await ciktiKlasoruAyarla(path.join(UI, 'cikti'));
     await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);
   }

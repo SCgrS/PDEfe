@@ -1078,7 +1078,9 @@ export class DonusturPenceresi {
       const r = basarili[0];
       this.ilerleme.gizle();
       await this.pencere.kapat('tamam');
-      baglam.bildir(`Dönüştürüldü: ${dosyaAdi(r.hedef)}${r.sayfa ? ' · ' + sayiMetni(r.sayfa) + ' sayfa' : ''}${r.boyut != null ? ' · ' + boyutMetni(r.boyut) : ''}${r.uyari ? '. ' + r.uyari : ''}`, r.uyari ? 9000 : 4000);
+      // Sonuç kendiliğinden sekmede açılınca kısa bildirim (0.2.8: sayfa sayısı ve boyut yok, sonuç kutusundaki gibi; uyarı varsa onu da söyler:
+      // sonuç listesi gösterilmez). Pencerede sonuç listesi gösterilince bildirim yok (_sonucGoster'in sonu)
+      baglam.bildir(`Dönüştürüldü: ${dosyaAdi(r.hedef)}${r.uyari ? '. ' + r.uyari : ''}`, r.uyari ? 9000 : 4000);
       await ciktiyiAc(baglam, r.hedef, { cikti: this.kayit.cikti });
       return false;
     }
@@ -1121,10 +1123,8 @@ export class DonusturPenceresi {
     });
     s.querySelector('.donustur-goster')?.addEventListener('click', () => baglam.pdefe.cagir('kabuk:klasordeGoster', basarili[0].hedef));
     s.scrollIntoView({ block: 'nearest' });
-    if (basarili.length) {
-      baglam.bildir(basarili.length > 1 ? `${sayiMetni(basarili.length)} dosya dönüştürüldü.`
-        : dosyaSayisi(basarili[0]) > 1 ? `Dönüştürüldü: ${sayiMetni(dosyaSayisi(basarili[0]))} görüntü dosyası` : `Dönüştürüldü: ${dosyaAdi(basarili[0].hedef)}`, 4000);
-    }
+    // 0.2.8 (kullanıcı isteği: "Beyaz bilgilendirme uyarısı sadece otomatik açtığında yazsın. Otomatik açılmayanlarda herhangi bir beyaz bilgilendirme
+    // popup çıkmasın. Zaten dönüştürme bilgisini görüyor kullanıcı"): sonuç listesi gösterilince alttaki bildirim yok (0.2.7'de "Dönüştürüldü: …")
     return false;
   }
 }

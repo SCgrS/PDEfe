@@ -367,7 +367,8 @@ export class AyirPenceresi {
     });
     this.sonucEl.querySelector('.arac-sonuc-baslik').title = this.klasor || '';
     this.sonucEl.querySelector('.ayir-goster').addEventListener('click', () => baglam.pdefe.cagir('kabuk:klasordeGoster', dosyalar[0].yol));
-    baglam.bildir(`${dosyalar.length} dosya oluşturuldu.`);
+    // 0.2.8 (Format Değiştir'deki kullanıcı isteğiyle aynı: bildirim yalnızca sonuç kendiliğinden açılınca): sonuç kutusu gösterilince bildirim yok
+    // (0.2.7'de "N dosya oluşturuldu."); "Üzerine yaz"da belge sekmede yeniden açılır ve bildirim kalır (_uzerineYaz)
   }
 }
 
