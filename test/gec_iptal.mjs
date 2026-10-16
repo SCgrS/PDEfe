@@ -2,7 +2,8 @@
 // çekirdek dosyayı yine de yazmış olabilir (Sıkıştır: kayıttan sonraki ilerleme bildiriminde iptal hatası; Sayfaları düzenle: kayıttan
 // sonra iptale bakılmaz, sonuç döner). "Yeni belge olarak kaydet"te "zaten var" sorusunda "Üzerine yaz"la onaylanmış var olan hedef
 // önceden çöp kutusuna gönderiliyordu (önceki içeriği os.replace ile zaten gitmişti). Artık yalnızca yeni oluşan dosya silinir; var
-// olanın yerine yazılmışsa sonuç kalır ve "İptal edilemeden tamamlandı" denir (Birleştir'deki gibi).
+// olanın yerine yazılmışsa sonuç kalır ve "İptal edilemeden tamamlandı" denir (Birleştir'deki gibi). 0.2.9 denetimi: Format Değiştir'de tek
+// PDF hedefinin geç iptali (vaka Var-olan-format): bu bildirim sekmede açılan sonucun "Format değiştirildi" bildirimiyle ezilmez.
 // Araç pencereleri uygulamanın kendi sayfasında, gerçek çekirdekle ve gerçek dosyalarla kurulur; yalnızca bağlamın 'dosya:sil' çağrısı
 // kaydedilir (çöp kutusuna gerçekten gönderilmez) ve bildirimler toplanır.
 // Kullanım: powershell -File test\baslat.ps1 -Port <port> -Veri <klasör>; $env:PDEFE_CDP_PORT=<port>; node test\surucu.mjs betik test\gec_iptal.mjs
@@ -171,6 +172,50 @@ export default async function ({ evalJs, bekle }) {
       // İptal kayıttan önce ulaştı: dosya hiç oluşmadı
       sonuc(`${ad}: iptal kayıttan önce ulaştı, dosya oluşmadı ve "iptal edildi" denildi`, !silindi && iptal && !gecIptal, { silinen: r.silinen, bildirimler: r.bildirimler });
     }
+  }
+
+  // Format Değiştir (0.2.9 denetimi): tek görüntü → PDF, var olan hedef ("zaten var" › Üzerine yaz). İptal çekirdek dosyayı yazdıktan sonra
+  // ulaşınca "İptal edilemeden tamamlandı: … üzerine yazıldı." bildirimi hemen ardından gelen "Format değiştirildi: …" ile eziliyordu. Geç iptalin
+  // zamanlaması için yalnızca _karmaDonustur'un sözü 800 ms geciktirilir (dönüştürmenin kendisi gerçek); İptal o arada
+  if (!secilen.length || secilen.includes('Var-olan-format')) {
+    await sekmeleriKapat();
+    const png = path.join(K, 'format-resim.png');
+    execFileSync(PY, ['-I', '-c', 'import sys; from PIL import Image; Image.new("RGB", (800, 600), (200, 30, 30)).save(sys.argv[1])', png]);
+    const hedef = hazirla('Var-olan-format', true);
+    const once = durumu(hedef);
+    const r = await evalJs(`(async () => {
+      const kayit = window.__gi.kayit; kayit.silinen = []; kayit.bildirimler = [];
+      const baglam = window.__gi.baglam();
+      const m = await import('pdefe://app/src/renderer/araclar/donustur.js');
+      const w = new m.DonusturPenceresi(baglam, { ilkDosyalar: [${J(png)}] });
+      for (let i = 0; i < 100 && !(w.ogeler.length === 1 && !w.ogeler[0].yukleniyor && w.ogeler[0].hedefBicim); i++) await new Promise((c) => setTimeout(c, 100));
+      await w.kayit.hazir;
+      w.kayit.cikti.ayarla(${J(K)}, 'Var-olan-format', { elle: true });
+      const orj = w._karmaDonustur.bind(w);
+      w._karmaDonustur = (isler, il) => { const s = orj(isler, il); const p = s.then(async (x) => { await new Promise((c) => setTimeout(c, 800)); return x; }); p.iptal = () => {}; return p; };
+      window.__pdefeOtoYanit = { secim: 0 };   // "zaten var" → Üzerine yaz
+      const is = w.donustur();
+      for (let i = 0; i < 100 && !w.ilerleme.calisiyor; i++) await new Promise((c) => setTimeout(c, 50));
+      await new Promise((c) => setTimeout(c, 350));
+      const calisiyordu = w.ilerleme.calisiyor;
+      w.ilerleme.iptalIste();
+      await is;
+      await new Promise((c) => setTimeout(c, 800));
+      if (!w.pencere.kapali) await w.pencere.kapat('tamam');
+      window.__pdefeOtoYanit = { secim: 1 };
+      return { calisiyordu, hedefBicim: w.ogeler[0]?.hedefBicim, bildirimler: kayit.bildirimler, silinen: kayit.silinen,
+        sekmeler: [...window.__pdefe.belgeler.values()].map((b) => b.ad) };
+    })()`);
+    const sonra = durumu(hedef);
+    const ad = 'Format Değiştir · görüntü → PDF · var olan hedef (Üzerine yaz onaylı)';
+    sonuc(`${ad}: iptal dönüştürme sürerken istendi, hedef PDF`, r.calisiyordu && r.hedefBicim === 'pdf', r);
+    sonuc(`${ad}: var olan hedef çöp kutusuna gönderilmedi, yeni içerik yerinde (${once} → ${sonra} B)`,
+      !r.silinen.some((y) => path.resolve(y) === hedef) && sonra != null && sonra !== once, { silinen: r.silinen, once, sonra });
+    sonuc(`${ad}: son bildirim "İptal edilemeden tamamlandı: \\"Var-olan-format.pdf\\" üzerine yazıldı.", "Format değiştirildi" ile ezilmedi`,
+      r.bildirimler.at(-1)?.startsWith('İptal edilemeden tamamlandı: "Var-olan-format.pdf" üzerine yazıldı.') && !r.bildirimler.some((x) => x.startsWith('Format değiştirildi')),
+      r.bildirimler);
+    sonuc(`${ad}: sonuç PDEfe'de açıldı`, r.sekmeler.includes('Var-olan-format.pdf'), r.sekmeler);
+    try { fs.rmSync(png, { force: true }); } catch { /* yok say */ }
   }
 
   await sekmeleriKapat();

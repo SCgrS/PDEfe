@@ -986,8 +986,8 @@ export class DonusturPenceresi {
         if (kaldi) kalan.push(r);
       }
       if (!kalan.length) { baglam.bildir('Dönüştürme iptal edildi.', 4000); return false; }
-      baglam.bildir(`İptal edilemeden tamamlandı: "${dosyaAdi(kalan[0].hedef)}" üzerine yazıldı.`, 6000);
-      return this._sonucGoster(kalan, { tek: !coklu });
+      // Bildirimi _sonucGoster verir (0.2.9 denetimi): tek PDF sekmede açılınca "Format değiştirildi" bildirimi bunu eziyordu
+      return this._sonucGoster(kalan, { tek: !coklu, onBildirim: `İptal edilemeden tamamlandı: "${dosyaAdi(kalan[0].hedef)}" üzerine yazıldı.` });
     }
     if (this.pencere.kapali) return false;
     // Tek dosya kilitli ya da salt okunur hedefe yazılamadı: kaydetme seçimi sorar (Yeniden dene, Başka adla kaydet); hiçbir dosya değişmedi
@@ -1073,8 +1073,13 @@ export class DonusturPenceresi {
     return `${kaynak} → ${hedef}: ${satirlar.join('\n')}`;
   }
 
-  /** Sonuç: tek çıktı PDF ise sekmede açılır ve pencere kapanır; değilse pencerede sonuç listesi. Döner: false (yeniden denenmez). */
-  async _sonucGoster(sonuclar, { tek }) {
+  /**
+   * Sonuç: tek çıktı PDF ise sekmede açılır ve pencere kapanır; değilse pencerede sonuç listesi. Döner: false (yeniden denenmez).
+   * onBildirim (0.2.9 denetimi; geç iptal: "İptal edilemeden tamamlandı: … üzerine yazıldı."): alttaki bildirim bu olur (sekmede açılan tek PDF'te
+   * "Format değiştirildi" yerine, uyarısıyla birlikte; sonuç listesinde de verilir). Önceden ayrı verilen bu bildirim hemen ardından gelen
+   * "Format değiştirildi" bildirimiyle eziliyordu: kullanıcı iptalin işlemediğini öğrenmiyordu.
+   */
+  async _sonucGoster(sonuclar, { tek, onBildirim = '' }) {
     const { baglam } = this;
     const basarili = sonuclar.filter((r) => !r.hata);
     const hatali = sonuclar.filter((r) => r.hata);
@@ -1085,10 +1090,12 @@ export class DonusturPenceresi {
       // Sonuç kendiliğinden sekmede açılınca kısa bildirim (0.2.8: sayfa sayısı ve boyut yok, sonuç kutusundaki gibi; uyarı varsa onu da söyler:
       // sonuç listesi gösterilmez). Pencerede sonuç listesi gösterilince bildirim yok (_sonucGoster'in sonu). 0.2.9 (kullanıcı isteği: "Format
       // değiştirmenin beyaz uyarı yazısında dönüştürüldü yazıyor onu format değiştirildi olarak düzeltelim"): "Format değiştirildi: <ad>"
-      baglam.bildir(`Format değiştirildi: ${dosyaAdi(r.hedef)}${r.uyari ? '. ' + r.uyari : ''}`, r.uyari ? 9000 : 4000);
+      const ilk = onBildirim || `Format değiştirildi: ${dosyaAdi(r.hedef)}`;
+      baglam.bildir(`${ilk}${r.uyari ? (onBildirim ? ' ' : '. ') + r.uyari : ''}`, r.uyari ? 9000 : onBildirim ? 6000 : 4000);
       await ciktiyiAc(baglam, r.hedef, { cikti: this.kayit.cikti });
       return false;
     }
+    if (onBildirim) baglam.bildir(onBildirim, 6000);
     if (this.pencere.kapali) return false;
     this.ilerleme.gizle();
     if (tek && !basarili.length && hatali.length === 1) {
