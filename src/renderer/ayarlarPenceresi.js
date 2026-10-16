@@ -19,7 +19,8 @@
 //     ayar (0.2.4): bölümdeki o ayarın kartı görünür alana kaydırılır, kısa süre vurgulanır, denetimi odaklanır (kartın data-hedef'i;
 //     yakınlaştırma okunun listesindeki "Varsayılanı ayarla" → { bolum: 'acilis', ayar: 'varsayilanZoom' })
 //   ayarlarPenceresiKapat()               → açık pencereyi kapatır.
-//   ayarlarPenceresiniGuncelle(anahtar)   → ayar dışarıdan değişince açık penceredeki seçim kutusunu günceller (data-ayar işaretli).
+//   ayarlarPenceresiniGuncelle(anahtar)   → ayar dışarıdan değişince açık penceredeki seçim kutusunu (data-ayar işaretli) ya da kartı
+//                                           (bölümün kaydettiği güncelleyici: çıktı klasörü) günceller.
 //   DURUM_ANAHTARLARI                     → "Varsayılanlara dön" ile sıfırlanmayan durum alanları.
 import { ortuTiklamasiBagla } from './ortu.js';
 import { mesajKutusu } from './mesajKutusu.js';
@@ -50,7 +51,7 @@ const ESKI_BOLUMLER = { baslangic: 'acilis', dosya: 'acilis', sayfa: 'acilis', k
 
 const GEZINME_TUSLARI = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Delete', 'Backspace', 'Enter']);
 
-let acik = null;   // { ortu, baglam, bolum, icerik }
+let acik = null;   // { ortu, baglam, bolum, icerik, guncelleyiciler }
 
 // ---------------------------------------------------------------- açma / kapatma
 export function ayarlarPenceresiAc(baglam, secenek = {}) {
@@ -141,6 +142,7 @@ function bolumSec(id) {
   id = ESKI_BOLUMLER[id] || id;
   if (!BOLUMLER.some((b) => b.id === id)) id = 'gorunum';
   acik.bolum = id;
+  acik.guncelleyiciler = new Map();   // anahtar → kartı ayarın güncel değeriyle yeniden yazan işlev (ayarlarPenceresiniGuncelle; yalnızca bu bölüm)
   acik.ortu.querySelectorAll('.ayarlar-bolumler button').forEach((b) => b.classList.toggle('secili', b.dataset.bolum === id));
   const icerik = acik.icerik;
   icerik.innerHTML = '';
@@ -228,8 +230,9 @@ function pencereKartlari(k) {
 }
 
 /** Ayar Ayarlar penceresinin dışından değişti (0.2.2: pencere kapatma sorusundaki "Bir daha sorma", başka pencerenin Ayarlar'ı): açık
- *  penceredeki seçim kutusu güncel değeri göstersin (yoksa bölüm yeniden çizilene dek eskisini gösterirdi). Yalnızca data-ayar işaretli
- *  seçim kutuları; değer seçeneklerde yoksa ilk seçenek. */
+ *  penceredeki seçim kutusu güncel değeri göstersin (yoksa bölüm yeniden çizilene dek eskisini gösterirdi). data-ayar işaretli seçim
+ *  kutuları (değer seçeneklerde yoksa ilk seçenek) ve bölümün kaydettiği güncelleyiciler: 0.2.8 inceleme, çıktı klasörü başka bir
+ *  penceredeki araçta da değişir (Değiştir; araclar/ortak.js ciktiKlasorunuHatirla), kartın yolu, Temizle ve "bulunamadı" notu yenilenir. */
 export function ayarlarPenceresiniGuncelle(anahtar) {
   if (!acik) return;
   for (const s of acik.icerik.querySelectorAll('select[data-ayar]')) {
@@ -238,6 +241,7 @@ export function ayarlarPenceresiniGuncelle(anahtar) {
     s.value = deger;
     if (s.value !== deger && s.options.length) s.value = s.options[0].value;
   }
+  try { acik.guncelleyiciler?.get(anahtar)?.(); } catch (e) { console.error('Ayar kartı güncellenemedi', anahtar, e); }
 }
 
 function sayfaDuzeniKartlari(k) {
@@ -409,6 +413,7 @@ function bolumKaydetme(k) {
     if (yol && acik) klasorVarMi(acik.baglam.pdefe, yol).then((v) => { if (n === denetimNo) notEl.hidden = v; });
   };
   yolGoster(a.ciktiKlasoru);
+  acik.guncelleyiciler?.set('ciktiKlasoru', () => yolGoster(ayarlar().ciktiKlasoru));   // başka pencerenin aracında Değiştir (0.2.8 inceleme)
   sec.addEventListener('click', async () => {
     const yol = await acik.baglam.pdefe.cagir('dosya:klasorSec', { baslik: 'Çıktı klasörü seç', varsayilan: ayarlar().ciktiKlasoru || undefined });
     if (!yol || !acik) return;

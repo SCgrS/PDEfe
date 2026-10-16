@@ -12,6 +12,8 @@
 //   7) Ayardaki klasör ulaşılamayan bir ağ paylaşımında (sunucu kapalı, VPN yok; Windows'un yanıtı 20–40 sn sürer): denetim sürerken ana süreç
 //      yanıt verir (uygulama donmaz); araç ve Ayarlar kartı kısa sürede Masaüstü'ne düşer. Yanıt vermeyen adres özel ağ aralığındandır
 //      (10.255.255.x); her çalıştırmada başka adres seçilir (Windows olumsuz sonucu kısa süre önbellekte tutar).
+//   8) Bu pencerede Ayarlar › Kaydetme açıkken başka bir pencerede (araçta Değiştir) klasör değişince kart yeni klasörü gösterir; ayar orada
+//      boşaltılınca kart "Masaüstü"nü gösterir, Temizle soluk (0.2.8 inceleme; önceden kart eski yolu göstermeye devam ediyordu).
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9442 -Veri "$env:TEMP\pdefe-s42-9442"
 //   $env:PDEFE_CDP_PORT=9442; node test\surucu.mjs betik test\senaryo42.mjs
@@ -36,7 +38,7 @@ const sonuc = (ad, ok, ayrinti = '') => {
 };
 const ayni = (a, b) => String(a || '').replace(/[\\/]+$/, '').toLowerCase() === String(b || '').replace(/[\\/]+$/, '').toLowerCase();
 
-export default async function ({ evalJs, bekle }) {
+export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
   const kosul = async (ifade, sure = 10000) => {
     const t0 = Date.now();
     for (;;) {
@@ -246,6 +248,63 @@ export default async function ({ evalJs, bekle }) {
   kart = await ayarlarKarti({ notBekle: 4000 });
   const sure7b = Date.now() - t7b;
   sonuc('7) Ayarlar kartı yolu gösteriyor, 4 sn içinde "bulunamadı; yerine Masaüstü kullanılır" notu', kart && ayni(kart.yol, AG3) && /bulunamadı/.test(kart.not) && sure7b < 5000, { kart, sure7b });
+
+  // ------------------------------------------------------------ 8) Başka pencerede değişen klasör, bu penceredeki açık Ayarlar kartında
+  console.log('\n== 8) Başka pencerede klasör değişince bu penceredeki açık Ayarlar kartı yeni klasörü gösterir');
+  // Komutlar bu pencereye gitsin: CDP listesinin ilki yeni pencere açılınca değişebilir
+  const ilkHedef = (await hedefler())[0].id;
+  hedefSec(ilkHedef);
+  const ilkKimlik = await evalJs(`window.pdefe.cagir('pencere:kimlik')`);
+  await ayarYaz('ciktiKlasoru', A);
+  await evalJs(`(window.__pdefe.komutCalistir('duzen.ayarlar', 'kaydetme'), true)`);
+  await kosul(`!!document.querySelector('.ayarlar-ortusu')`);
+  await bekle(500);
+  const kartOku = () => evalJs(`(() => { const k = [...document.querySelectorAll('.ayarlar-icerik .ayar-kart')].find((x) => x.querySelector('.ayar-baslik')?.textContent === 'Araçların çıktı klasörü');
+    if (!k) return null; const n = k.querySelector('.ayar-yol-not'); const temizle = [...k.querySelectorAll('button')].find((b) => b.textContent === 'Temizle');
+    return { yol: k.querySelector('.ayar-yol')?.firstChild?.textContent || '', soluk: k.querySelector('.ayar-yol')?.classList.contains('soluk'), not: n && !n.hidden ? n.textContent : '', temizleSoluk: !!temizle?.disabled }; })()`);
+  let k8 = await kartOku();
+  sonuc('8) Bu pencerede Ayarlar kartı "Klasör A"yı gösteriyor', k8 && ayni(k8.yol, A) && !k8.soluk && !k8.not, k8);
+  // İkinci pencere (ikinci.pdf ile); hazır olunca orada Sıkıştır › Değiştir › "Klasör C"
+  await evalJs(`window.pdefe.cagir('pencere:yeniPenceredeAc', [${J(pdf2)}])`);
+  let ikinciHedef = null;
+  for (let i = 0; i < 80 && !ikinciHedef; i++) {
+    for (const h of await hedefler()) {
+      if (h.id === ilkHedef) continue;
+      hedefSec(h.id);
+      try { if (await evalJs(`!!window.__pdefe?.aktif()?.gorunum?.sayfaSayisi`)) ikinciHedef = h.id; } catch { /* yükleniyor */ }
+    }
+    if (!ikinciHedef) await bekle(250);
+  }
+  sonuc('8) İkinci pencere açıldı, ikinci belge yüklü', !!ikinciHedef);
+  if (ikinciHedef) {
+    hedefSec(ikinciHedef);
+    await aracAc('arac.kucult', 'kucult-pencere');
+    await yanitla('dosya:kaydetDiyalog', path.join(C, 'Sıkıştırılmış.pdf'));
+    await degistir('kucult-pencere');
+    await araclariKapat();
+    hedefSec(ilkHedef);
+    await kosul(`window.__pdefe.ayar().ciktiKlasoru === ${J(C)}`, 4000);
+    await bekle(300);
+    k8 = await kartOku();
+    a = await ayarlar();
+    sonuc('8) Öbür pencerede Değiştir › "Klasör C": bu penceredeki açık kart "Klasör C"yi gösteriyor', k8 && ayni(k8.yol, C) && !k8.soluk && !k8.not && !k8.temizleSoluk && ayni(a.pencere, C), { k8, a });
+    // Öbür pencerede ayar boşaltılınca (Ayarlar'daki Temizle'nin yazdığı) kart "Masaüstü"nü soluk gösterir, Temizle soluk
+    hedefSec(ikinciHedef);
+    await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'ciktiKlasoru', ''); window.__pdefe.ayar().ciktiKlasoru = ''; return true; })()`);
+    hedefSec(ilkHedef);
+    await kosul(`window.__pdefe.ayar().ciktiKlasoru === ''`, 4000);
+    await bekle(300);
+    k8 = await kartOku();
+    sonuc('8) Öbür pencerede ayar boşaltıldı: kart "Masaüstü" (soluk), Temizle soluk', k8 && k8.yol === 'Masaüstü' && k8.soluk && k8.temizleSoluk && !k8.not, k8);
+    // İkinci pencere kapanır (kaydedilmemiş değişiklik yok)
+    hedefSec(ikinciHedef);
+    try { await evalJs(`(window.pdefe.cagir('pencere:kapatOnayla', null), true)`); } catch { /* kapandı */ }
+    await bekle(800);
+  }
+  hedefSec(ilkHedef);
+  sonuc('8) Komutlar yine ilk pencereye gidiyor', (await evalJs(`window.pdefe.cagir('pencere:kimlik')`)) === ilkKimlik);
+  await evalJs(`(document.querySelector('.ayarlar-ortusu [data-id="kapat2"]')?.click(), true)`);
+  await kosul(`!document.querySelector('.ayarlar-ortusu')`);
 
   // Temizlik: ayar boş, belgeler kapalı
   await ayarYaz('ciktiKlasoru', '');
