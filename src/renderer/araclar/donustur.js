@@ -32,7 +32,7 @@
 // Editör bulunduğu hâlde çekirdek bir UDF'yi "desteklenmiyor" diye dönüştüremezse o öğe yaklaşık çizimle yeniden denenir.
 // Sonuç: tek çıktı PDF ise sekmede açılır (ciktiyiAc) ve pencere kapanır; öbür durumlarda pencerede sonuç listesi (Ayır'daki gibi; 0.2.8'den
 // beri ortalı), Klasörde göster ve "Tümünü aç" / "Aç" (varsayılan programla; satırlardaki küçük "Aç"lar kalktı). Çekirdeğin uyarıları (yorumlar
-// alınmadı, resimler alınmadı…) gösterilir; e-imza uyarısı 0.2.7'de kalktı (kullanıcı isteği).
+// alınmadı, resimler alınmadı…) 0.2.8'den beri satırın ⚠ simgesinin ipucunda (_sonucUyarisi); e-imza uyarısı 0.2.7'de kalktı (kullanıcı isteği).
 import {
   pencereAc, pencereAcikMi, IslemIlerleme, kayitSecimi, boyutMetni, sayiMetni, kacis, hataMetni, dosyaAdi, klasorAdi, adGovdesi, uzanti, yolAyni,
   yolBirlestir, guvenliAd, oge, segmentliSecim, kilitliHataMi, ciktiyiAc, acikBelge, degisiklikleriSor, sonucKutusuCiz, yaklasikIstekId, yaklasikIlerlemeDinle,

@@ -1424,15 +1424,15 @@ export async function varsayilanProgramdaAc(baglam, yollar) {
  * sola dayalı, Aç'lar sağda sabit sütundaydı). Satırlardaki küçük "Aç"lar kalktı. Düğme satırında çağıranın düğmeleri (Klasörde göster), sağında
  * "Tümünü aç" (tek dosyada "Aç"): dosyalar varsayılan programlarıyla açılır (varsayilanProgramdaAc). Çok dosyada yalnızca liste kaydırılır (başlık ve
  * düğmeler görünür kalır; kaydırma çubuğunun yeri iki yanda ayrılır, satırlar ortada kalır); uzun ad "…" ile kısalır, tam yol ipucunda.
+ * 0.2.8 (kullanıcı isteği: "Böyle uyarıları kaldıralım. Dönüştürme sonucu ekranında uyarı olmasın. Sağlıklı dönüştüremediğini fark ettiğinde bir
+ * üçgen içinde ünlem uyarı simgesi olsun. Üstünde durunca hangi dönüşümse onu belirterek … uyarıyı tekrar edelim"): satırın uyarısı adın altında
+ * paragraf olarak yazılmaz; adın yanında ⚠ simgesi (üçgen içinde ünlem, uyarı renginde), uyarı simgenin ipucunda ve erişilebilir adında. Hata
+ * (dosya dönüştürülemedi) adın altında yazmaya devam eder.
  * @param {HTMLElement} kap   sonuç kutusu (sınıfının ilki korunur: donustur-sonuc, ayir-sonuc)
  * @param {object} s
  * @param {object} [s.baglam]   araç bağlamı ("Tümünü aç" için)
  * @param {string} s.baslik   başlık (HTML; çağıran kaçırır)
  * @param {'basari'|'uyari'} [s.tur]
- * 0.2.8 (kullanıcı isteği: "Böyle uyarıları kaldıralım. Dönüştürme sonucu ekranında uyarı olmasın. Sağlıklı dönüştüremediğini fark ettiğinde bir
- * üçgen içinde ünlem uyarı simgesi olsun. Üstünde durunca hangi dönüşümse onu belirterek … uyarıyı tekrar edelim"): satırın uyarısı adın altında
- * paragraf olarak yazılmaz; adın yanında ⚠ simgesi (üçgen içinde ünlem, uyarı renginde), uyarı simgenin ipucunda ve erişilebilir adında. Hata
- * (dosya dönüştürülemedi) adın altında yazmaya devam eder.
  * @param {Array<{yol?:string, ad:string, ipucu?:string, uyari?:string, hata?:string}>} s.satirlar   ipucu: adın ipucu (verilmezse tam yol); uyari:
  *   ⚠ simgesinin ipucu (satırlara "\n" ile bölünebilir)
  * @param {boolean} [s.tek]   tek dosya düzeni (ad satır kırar); verilmezse tek satırda
