@@ -1,6 +1,7 @@
 // Geliştirme/test kancaları. main.js'te ayarlar.js'ten ÖNCE içe aktarılır: electron-store veri klasörünü kurulurken okur.
 //   PDEFE_VERI_KLASORU  userData (ayarlar, tek örnek kilidi, önbellekler) bu klasöre alınır; kurulu PDEfe ile test
-//                       örnekleri birbirinin ayarını ve kilidini paylaşmaz, aynı anda birden çok test örneği çalışabilir.
+//                       örnekleri birbirinin ayarını ve kilidini paylaşmaz, aynı anda birden çok test örneği çalışabilir. 0.2.9: Masaüstü,
+//                       Belgeler ve İndirilenler de bu klasörün test-klasorleri\ alt klasörlerine (araçlar gerçek Masaüstü'ne yazamaz).
 //   PDEFE_TEST_KONUM    "x,y": pencere bu konumda açılır (ör. "-3000,0" ekran dışı). Windows pencere örtülme hesabı
 //                       kapatılır; ekran dışındaki pencere çizmeye ve CDP ekran görüntüsü vermeye devam eder.
 //   PDEFE_TEST_BOYUT    "genişlik,yükseklik": pencere boyutu (kayıtlı boyut yerine).
@@ -17,6 +18,7 @@
 import { app, BrowserWindow, Menu } from 'electron';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
+import path from 'node:path';
 
 export const TEST = !app.isPackaged ? {
   veri: process.env.PDEFE_VERI_KLASORU || '',
@@ -148,5 +150,13 @@ export function testDiyalogKur(ipcMain) {
 if (TEST.veri) {
   fs.mkdirSync(TEST.veri, { recursive: true });
   app.setPath('userData', TEST.veri);
+  // 0.2.9 denetimi: test örneğinde Masaüstü, Belgeler ve İndirilenler de veri klasörünün altında (test-klasorleri\). Çıktı klasörü ayarı boşken
+  // araçlar Masaüstü'ne yazar (ortak.js varsayilanCiktiKlasoru, uygulama:klasorler): bir betik ayarı boşaltıp sonraki betik araç penceresini
+  // "Kaydet"le kapatınca çıktı kullanıcının gerçek Masaüstü'ne düşebiliyordu (0.2.8 sınamasında bir test dosyası düştü)
+  for (const [ad, klasor] of [['desktop', 'Masaustu'], ['documents', 'Belgeler'], ['downloads', 'Indirilenler']]) {
+    const yol = path.join(TEST.veri, 'test-klasorleri', klasor);
+    fs.mkdirSync(yol, { recursive: true });
+    app.setPath(ad, yol);
+  }
 }
 if (TEST.konum.length === 2) app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');

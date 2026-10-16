@@ -1,5 +1,6 @@
 // Senaryo 42 (0.2.8, kullanıcı isteği: "Tüm araçlar için: dosyanın kaydedileceği yeri bir kez değiştirince hep aynı yere kaydetsin, tekrar
 // değiştirilene kadar"): araçların çıktı klasörü.
+//   0) 0.2.9 denetimi: test örneğinde Masaüstü, Belgeler ve İndirilenler veri klasörünün altında; gerçek Masaüstü'ne yeni dosya düşmez.
 //   1) Varsayılan: Ayarlar'daki "Araçların çıktı klasörü" boşken araçlar Masaüstü'nü önerir. Değiştir'de vazgeçmek ya da yalnızca adı değiştirmek
 //      (klasör aynı) ayarı değiştirmez.
 //   2) Tek dosyalı araçta (Sıkıştır) Değiştir › kaydetme penceresinde başka klasör seçilince o klasör ayara yazılır (bu pencerenin kopyası ve ana
@@ -21,6 +22,7 @@
 // Girdiler test/ornek_pdf_uret.py ile test/cikti/s42 altında üretilir; araçlar çalıştırılmaz (yalnızca Kaydet bölümü ve ayar sınanır).
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -95,6 +97,15 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
   const bilinen = await evalJs(`window.pdefe.cagir('uygulama:klasorler')`);
   const MASAUSTU = bilinen?.masaustu || '';
   const masaustuOnce = MASAUSTU ? fs.readdirSync(MASAUSTU) : [];
+  // 0.2.9 denetimi: test örneğinde Masaüstü, Belgeler ve İndirilenler veri klasörünün altında (gelistirme.js): araçlar hangi sırayla
+  // çalışırsa çalışsın gerçek Masaüstü'ne yazamaz. Gerçek Masaüstü de baştan sona sayılır
+  const veri = await evalJs(`window.pdefe.cagir('uygulama:veriKlasoru')`);
+  const altinda = (y) => !!y && !!veri && path.resolve(y).toLowerCase().startsWith(path.join(path.resolve(veri), 'test-klasorleri').toLowerCase() + path.sep);
+  sonuc('0) Test örneğinde Masaüstü, Belgeler ve İndirilenler veri klasörünün altında (gerçek klasörler değil)',
+    altinda(bilinen?.masaustu) && altinda(bilinen?.belgeler) && altinda(bilinen?.indirilenler),
+    { masaustu: altinda(bilinen?.masaustu), belgeler: altinda(bilinen?.belgeler), indirilenler: altinda(bilinen?.indirilenler) });
+  const GERCEK_MASAUSTU = path.join(os.homedir(), 'Desktop');
+  const gercekOnce = fs.existsSync(GERCEK_MASAUSTU) ? fs.readdirSync(GERCEK_MASAUSTU) : [];
   await evalJs(`(async () => { await window.__pdefe.dosyaAc(${J(pdf)}); return true; })()`);
   await kosul(`!!window.__pdefe.aktif()?.gorunum?.sayfaSayisi`);
   await bekle(400);
@@ -311,6 +322,8 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
   await evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); return true; })()`);
   const masaustuSonra = MASAUSTU ? fs.readdirSync(MASAUSTU) : [];
   sonuc('Masaüstü\'ne dosya yazılmadı (araçlar çalıştırılmadı)', masaustuSonra.length === masaustuOnce.length && masaustuSonra.every((x) => masaustuOnce.includes(x)), masaustuSonra.filter((x) => !masaustuOnce.includes(x)).length);
+  const gercekSonra = fs.existsSync(GERCEK_MASAUSTU) ? fs.readdirSync(GERCEK_MASAUSTU) : [];
+  sonuc('Gerçek Masaüstü\'nde yeni dosya yok', gercekSonra.every((x) => gercekOnce.includes(x)), gercekSonra.filter((x) => !gercekOnce.includes(x)).length);
   const hatalar = await evalJs(`(window.__hatalar || []).slice(0, 5)`);
   sonuc('Sayfada hata yok', !hatalar?.length, hatalar);
   console.log(hataSayisi ? `\n${hataSayisi} HATA / ${denetim}` : `\nBÜTÜN DENETİMLER GEÇTİ (${denetim})`);

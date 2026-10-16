@@ -79,5 +79,7 @@ print('ilk sayfa metin var:', len(d[0].get_text()) > 50, '| 2. sayfa boş:', len
   await bekle(2000);
   await ekranGoruntusu('test/png/s5-04-koyu-sayfa.png');
   await evalJs(`(() => { const p = window.__pdefe; p.ayar().sayfayiKoyulastir = false; p.aktif().gorunum.koyuSayfaAyarla(false); p.komutCalistir('gorunum.tema'); })()`);
+  // 0.2.9 denetimi: başta konan kalıcı "ilk düğme" yanıtı kaldırılır (aynı örnekte sonra koşan betiğin sorularına "Kaydet" / "Üzerine yaz" gitmesin)
+  await evalJs(`(delete window.__pdefeOtoYanit, true)`);
   console.log('bitti');
 }
