@@ -3,6 +3,45 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.2.7 — 2026-10-16
+
+### Araç adları
+- **"Görüntü / PDF birleştir" artık "Birleştir", "Dosya Formatını Değiştir" artık "Format Değiştir".** Araçlar menüsünde, Araçlar penceresinde, açılış ekranında, pencere başlıklarında, Ayarlar'da ve Kısayollar listesinde. Birleştir'in karosunda "Dosyaları tek PDF'te birleştirir" yazıyor; üstüne gelince "PDF, görüntü, UDF, Word ve TIFF dosyalarını birleştirerek tek bir PDF oluşturur". Format Değiştir'in karosunda "PDF ↔ UDF, Word, TIFF, JPG".
+
+### Birleştir
+- **UDF ve Word belgeleri de birleştiriliyor.** PDF, görüntü (JPG, PNG, BMP, GIF, WEBP), TIFF, UDF ve Word (.docx, .doc, .docm, .rtf, .odt) dosyaları pencereye bırakılınca ya da **Dosya ekle**'yle eklenince listedeki sırayla tek PDF olur; sonuç eskisi gibi sekmede açılır. UDF bilgisayardaki UYAP Doküman Editörü'yle, Word belgesi Word'ün kendisiyle (görünmez, açık Word'ünüze dokunulmadan) önce PDF'e çevrilir. İlerlemede "… PDF'e çevriliyor (1/3)" yazar; İptal her an durdurur, yarım dosya kalmaz.
+- UDF satırında belgenin küçük resmi görünür, Word belgesinin satırında mavi "DOCX" simgesi. Word belgesinin sayfa sayısı ve boyutu dönüştürmeden bilinemediği için özette "en az … sayfa", kalite düğmelerindeki tahminî boyutta "≥" yazar.
+- UYAP Doküman Editörü yoksa UDF, Format Değiştir'deki gibi PDEfe'nin yaklaşık çizimiyle eklenir (satırda "görünüm yaklaşık"). Word (ya da LibreOffice) yoksa Word satırı soluk görünür ve nedeni yazar; Birleştir'e basınca o dosyanın atlanıp atlanmayacağı sorulur.
+
+### Format Değiştir
+- **Görüntüler PDF'e çevriliyor:** JPG, PNG, BMP, GIF ve WEBP dosyaları PDF'e (PDF üzerinden UDF'ye, Word'e ve TIFF'e de). Taranmış görüntü, tarayıcının dosyaya yazdığı çözünürlükle gerçek boyutunda sayfa olur; fotoğraf ve ekran görüntüsü A4 boyunda (uzun kenarı A4'ün uzun kenarı), beyaz kenar eklenmeden. Yan ya da ters çekilmiş telefon fotoğrafı doğru yönde gelir. JPG çoğunlukla yeniden sıkıştırılmadan, olduğu gibi PDF'e konur. Hareketli GIF'in yalnızca ilk karesi alınır ve bu söylenir. iPhone'un HEIC fotoğrafları bu sürümde de açılamıyor; satırda nedeni yazar.
+- Görüntü PDEfe'nin penceresine bırakılınca, `Ctrl+O` ile seçilince ya da Gezgin'de "Birlikte aç" ile açılınca Format Değiştir o görüntüyle açılır.
+- **PDF JPG'ye çevriliyor** (UDF, Word ve TIFF de). JPG tek sayfa taşıyabildiği için çok sayfalı belgenin her sayfası ayrı dosya olur: "Dilekçe - Sayfa 1.jpg", "Dilekçe - Sayfa 2.jpg"…; tek sayfalı belge "Dilekçe.jpg" olur. Notlar da görüntüye girer. Sonuç listesinde oluşan her dosya ayrı satırdadır.
+- **TIFF ve JPG'de çözünürlük "İdeal" ve "Düşük"** ("200 dpi" / "300 dpi" yerine). Varsayılan artık İdeal (300 dpi; önceden 200 dpi). Düşük, UYAP'ın kendi taramaları gibi 200 dpi. İki düğmenin yanında dönüştürülecek dosyaların yaklaşık boyutu yazar ("İdeal · 1,03 MB"), Birleştir'deki gibi. UDF ve Word dosyalarının boyutu dönüştürmeden kestirilemiyor: listede onlar da varsa sayının önünde "≥" yazar. Taranmış sayfa TIFF'te kendi çözünürlüğünde kalır, JPG'de büyütülmez.
+- **Kalitesi düşebilecek dönüştürmede satırın altında kısa not**, hedef seçildiği anda. Örneğin UDF ya da PDF → Word: "Sayfa düzeni Word'de birebir korunmayabilir."; TIFF → Word: "Taranmış sayfalar Word'e resim olarak geçer; yazıları düzenlenemez."; PDF ya da Word → UDF: "Satır ve sayfa düzeni UDF'de kayabilir; imza, kaşe gibi resimler alınmayabilir."; TIFF ya da görüntü → UDF: "Yazılar görüntüden tanınarak çıkarılır; harf yanlışları ve düzen kayması olabilir." Word'ün kurulu olmadığı bilgisayarda Word belgesinin LibreOffice'le çevrileceği de söylenir.
+- **"Belgedeki e-imza PDF'e taşınmaz." uyarısı kalktı** (UYAP Doküman Editörü yokken de). Yorumların alınmadığı gibi öteki uyarılar duruyor.
+- **Dönüştür, dönüştürmeden sonra soluk kalır**: aynı dosyalar yanlışlıkla ikinci kez "(2)" adıyla dönüştürülmez. Dosya ekleyince ya da çıkarınca, bir satırın hedefini, TIFF / JPG seçeneklerini, adı ya da klasörü değiştirince yeniden etkinleşir; ad ya da klasör eski hâline dönerse yine soluk. Hiçbir dosya dönüştürülemediyse etkin kalır. Aynı kural Ayır'da ve (dosya küçülmediğinde) Sıkıştır'da da geçerli.
+- **Sonuç kutusu:** tek dosyada başlık, dosyanın adı ve düğmeler ortalı. Birden çok dosyada **Aç** düğmeleri sağda aynı sütunda; uzun ad "…" ile kısalır, tam yolu üstüne gelince görünür. Kilobayt ve sayfa sayısı yazmıyor. Ayır'ın sonucu da aynı düzende.
+- **Yalnızca antetli UDF'ler boş PDF'e dönüşüyordu.** Anteti az renkli (gri tonlu) bir resim olan UDF'lerde UYAP Doküman Editörü'nün PDF kitaplığı resmi siyah beyaza çevirirken gri tonları beyaza düşürüyordu; gövdesi dolu belgelerde de antet kayboluyordu. Düzeltildi: antet editörün "Yazdır → PDF" çıktısındaki gibi çıkar. Editör yokken kullanılan yaklaşık çizim bu antetleri zaten doğru çiziyordu.
+
+### "Zaten var" sorusu
+- **Var olan bir dosyanın adıyla kaydederken üçüncü seçenek: "Yeni belge olarak kaydet".** Yeni dosya "Dilekçe (1).tif" gibi bir adla kaydedilir ("(1)" de varsa "(2)"…), var olan dosya değişmez; yeni ad soruda yazar. Bu düğme varsayılan (`Enter`); **Üzerine yaz** ve **Vazgeç** duruyor. Bütün araçlarda aynı soru. Ad zaten "(2)" gibi bir sayıyla bitiyorsa sayı artar; "Rapor (2023)" gibi yıllar sayı sayılmaz.
+- JPG'de (her sayfa ayrı dosya) aynı adlı sayfa dosyaları varsa da sorulur; "Yeni belge olarak kaydet" bütün sayfaları "Dilekçe (1) - Sayfa 1.jpg"… adıyla yazar. Sayfa sayısı önceden bilinmeyen Word ya da UDF belgesinde var olan bir sayfa dosyasının üzerine sorulmadan yazılmaz; yeni adla kaydedilir ve bu sonuçta söylenir. Kısa bir belge önceki uzun çıktının üzerine yazılırsa eski fazla sayfa dosyaları silinmez; soru ve sonuç bunları adlarıyla söyler.
+
+### Pencereler ve sekmeler
+- **Bir araç penceresi açıkken açılan belge yeni pencerede açılıyor.** Gezgin'den çift tıklanan ya da "Birlikte aç" ile açılan PDF ve aracın sonuç listesindeki **Aç** artık araç penceresinin arkasında, görünmeden açılmıyor: PDEfe aynı boyda yeni bir pencere açar, belge orada önde açılır; araç arkadaki pencerede açık kalır. Araç açıkken art arda açılan belgeler aynı yeni pencereye gider. Belge araç açık pencerede zaten açıksa sekmesi seçilir ve "araç penceresi kapanınca görünür" denir. UDF, TIFF, Word ve görüntü dosyaları Format Değiştir açıksa onun listesine eklenir, başka bir araç açıksa yeni pencerede Format Değiştir'de açılır.
+- **Sekme şeridin dışına sürüklenirken imleci izleyen küçük ön izleme akıcı kayıyor:** ekranın tazeleme hızıyla (60 Hz ekranda saniyede 60 kez; önceden yaklaşık 32 kez ve düzensiz).
+
+### Yazdırma
+- **Yazdırma penceresinde Yazdır ve Vazgeç aynı boyutta ve aynı hizada**, soldaki "Windows yazdırma penceresiyle yazdır" bağlantısıyla aynı satırda. Parola sorusunun ve Kısayollar penceresinin düğmeleri de aynı düzende.
+
+### Düzeltmeler
+- Tarayıcının 16 bit gri ayarıyla kaydettiği PNG ve TIFF görüntüleri Format Değiştir'de "okunamadı" diye geliyor, Birleştir'de hata veriyordu. Düzeltildi.
+- Dönüştür'e basar basmaz basılan İptal bazen yok sayılıyordu; artık dönüştürme hemen duruyor.
+
+### README
+- Araç adları (Birleştir, Format Değiştir), Birleştir'in UDF ve Word girdisi, Format Değiştir'de görüntü → PDF ve PDF → JPG, TIFF / JPG'de İdeal / Düşük, araç açıkken açılan belgenin yeni pencerede açılması eklendi; araçların göründüğü ekran görüntüleri yenilendi.
+
 ## 0.2.6 — 2026-10-15
 
 ### Yazdırma

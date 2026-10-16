@@ -2835,3 +2835,350 @@ Her bulgu önce yeniden üretildi ya da kod izlendi; gerçekse önce düşen tes
     paket_duman (0.2.4'ten beri imza "Sürüm X · ").
   - senaryo37'nin 8. bölümü ikinci örneği olağan masaüstünde başlatıyor: ekran kuralı gereği koşulmadı; görünmeyen masaüstüne taşınmalı.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 41.
+
+### Revizyon 0.2.7 (2026-10-15 – 10-16, kullanıcı istekleri: araç adları; Birleştir'e UDF ve Word; Format Değiştir'de görüntü ↔ PDF; antetli UDF; yazdırma ve sonuç düğmeleri; "zaten var" sorusunda yeni ad; araç açıkken yeni pencere; sekme sürükleme; kısayol simgeleri)
+Ayrıntı: CHANGELOG.md. Kullanıcının 14 maddelik isteği (bir Word belgesi ve dört ekran görüntüsü; özet): (1) yazdırma penceresinde düğmeler
+boyutta ve yerde uyumsuz; (2) "Görüntü PDF Birleştir"in adı "Birleştir" olsun, görüntülerin yanında UDF, Word ve TIF bırakılınca da doğrudan tek
+birleşik PDF çıksın, açıklaması ona göre; (3) "Dosya formatını değiştirin"in adı "Format Değiştir" olsun, kapsamı görüntüleri de PDF'e alacak
+biçimde genişlesin (soruldu, kullanıcı iki yönü seçti: görüntü → PDF, ve PDF üzerinden UDF / Word / TIFF; PDF → her sayfa ayrı JPG); (4)
+"sadece antetli" UDF'ler PDF'e boş çıkıyor (örnekler Masaüstü'nde); (5) dönüştürmeden sonra yeni bir şey eklenmedikçe ya da bir ayar
+değişmedikçe Dönüştür yeniden etkin olmasın; (6) tek sonuçta yazılar ve düğme ortalı; (7) çok sonuçta Aç düğmeleri sabit yerde, kilobayt ve
+sayfa bilgisi gereksiz; (8) TIFF çözünürlüğü "İdeal" / "Düşük" olsun, 300 dpi standart, yanlarında Birleştir'deki gibi yaklaşık MB (karar: İdeal
+300, Düşük 200 dpi, UYAP'ın kendi TIFF'leri gibi); (9) "Belgedeki e-imza PDF'e taşınmaz" uyarısı kalksın; (10) kalitesi düşebilecek
+dönüştürmede satırın altında uyarı ("UDF seçiliyken Word'e tıklandığı anda", "TIF → Word"); (11) araç penceresi açıkken açılan belge arkada
+açılıyor, yeni pencerede açılsın; (12) "zaten var" sorusunda "yeni belge olarak da kaydet" seçeneği, yeni belge "(1)" ekiyle; (13) şeritten
+çıkarılan sekmenin küçük penceresi kasıyor, daha akışkan olsun; (14) kısayol simgelerinde sağ alttaki küçük ok yerine ortada yeşil ok çıkıyor,
+PDEfe'den mi? Gönderme, etiket ve sürüm yayımı yok: bu revizyon yalnızca yerel commit'ler (0.2.6 da asıl depoya gönderilmedi).
+Düzen: dört grup aynı çalışma ağacında: çekirdek (madde 2, 3, 4, 8, 9, 10 ve 12'nin çekirdek tarafı), kısayol araştırması (madde 14, salt
+okunur), çekirdekten bağımsız arayüz (madde 1, 2 ve 3'ün adları, 5, 6–7, 11, 12, 13), çekirdeğe bağlı arayüz (madde 2, 3, 8, 9, 10 ve ana
+sürecin güvenlik denetimleri); sonra bağımsız inceleme ve düzeltme turu; belgeler. Her madde ayrı commit'ler, önce düşen testlerle. Gerçek
+belgeler yalnızca kopyalarıyla (scratch, nötr adlarla) ve yalnızca sayılarıyla kullanıldı; kopyalar iş bitince silindi. Electron yalnızca ekran
+dışındaki (`test/baslat.ps1`) ya da görünmeyen masaüstündeki (`test/baslat_gizli.ps1`) örnekte başlatıldı; kullanıcının açık PDEfe'sine,
+Word'üne ve UYAP Doküman Editörü'ne dokunulmadı.
+
+#### 0.2.7: araç adları "Birleştir" ve "Format Değiştir" (madde 2 ve 3)
+- [x] **Karar** (aracPenceresi.js ARACLAR, menu.js araclarMenusu, araç pencerelerinin başlıkları, ayarlarPenceresi.js, Kısayollar listesi): Araçlar
+  penceresi ve açılış ekranının karoları, Araçlar menüsü (Windows ve Mac aynı), pencere başlıkları, Ayarlar › Kaydetme (çıktı klasörünün
+  açıklaması, "Format Değiştir" başlığı), `F1` / Ayarlar › Kısayollar'ın bölüm başlığı. Birleştir'in karo açıklaması "Dosyaları tek PDF'te
+  birleştirir" (eski "Dosyalardan tek PDF oluşturur" kadar kısa: karo tek satır kalır), ipucu "PDF, görüntü, UDF, Word ve TIFF dosyalarını
+  birleştirerek tek bir PDF oluşturur"; menüde de öbür araçlar gibi yalnızca kısa ad (önceden "Görüntü / PDF belgeleri birleştirerek PDF
+  oluştur"). Format Değiştir'in açıklaması "PDF ↔ UDF, Word, TIFF, JPG" (madde 3'ün JPG hedefiyle).
+- [x] **Değişmeyenler**: komut kimlikleri (`arac.gorselBirlestir`, `arac.donustur`), dosya adları ve CSS sınıfları; kod yorumlarındaki eski adlar
+  (0.2.6 geçmişi).
+- [x] **Ölçüm**: açılış ekranı 1280 px'te karolar 267 × 84 / 267 × 70 px (birinci satır "Sayfaları düzenle"nin iki satırlık açıklaması yüzünden 84,
+  değişmedi); Araçlar penceresinde 200 × 130 / 200 × 114; yeni açıklama tek satır.
+- [x] **Testler**: adları denetleyen 17 test dosyası yeni adlara çevrildi; senaryo37 1. bölüm 8/8.
+
+#### 0.2.7: yazdırma penceresinin düğmeleri (madde 1)
+- [x] **Ölçüm ve kök neden** (önce, koyu tema, %100): Yazdır 67 × 33 px, üst kenarı 692,5; Vazgeç 70 × 31, üst kenarı 687,5; bağlantının ortası 703,
+  Yazdır'ın ortası 709. Genel `button.birincil` kuralı (margin-top 12 px, iç boşluk 8 / 16, kenarsız) yazdırma penceresinde geçersiz kılınmamıştı;
+  mesaj kutusu kendi kuralıyla (en az 88 px, 6 / 16, 1 px kenar) düzeltiyordu, `.diyalog` pencereleri değil.
+- [x] **Karar** (stil.css): `.diyalog .dugmeler button.birincil / ikincil` için mesaj kutusunun düzeni; bütün `.diyalog` pencerelerine uygulanır
+  (yazdırma, yazdırma ilerlemesi, parola sorusu, Kısayollar'ın Tamam'ı): aynı sorun parola sorusunda da vardı (orada yalnızca üst boşluk elle
+  sıfırlanmıştı). Ön izleme gezinmesi (◀ n / N ▶ ve "N sayfa") ölçüldü, zaten ortalı (ok aralıkları 10 / 10 px); değişmedi.
+- [x] **Seçilmeyen yol**: yalnızca yazdırma penceresine özel kural (parola sorusunda sorun kalırdı).
+- [x] **Testler**: senaryo38 1. bölüm: açık / koyu tema, %100 ve %125 (19 + 19 denetim); eski CSS ile 10 denetim düşüyordu.
+
+#### 0.2.7: yalnızca antetli UDF'ler boş PDF'e dönüşüyordu (madde 4)
+- [x] **Yeniden üretme**: Masaüstü'ndeki 1.448 baytlık boş PDF'lerin kaynakları (antetli UDF'ler, Masaüstü ve İndirilenler; 7 kopya): üçü her
+  zaman 1.448 baytlık PDF verdi (antet bölgesinde koyu piksel 0; köprünün Java2D çiziminde, yani UDE'nin yazdırma yolunda 2.246), ikisinde antet
+  kısmen görünüyordu (koyu piksel 715 / 1.674: yalnızca en koyu renk). PDF'teki resim `/CCITTFaxDecode`, 1256 × 132, 41 bayt, bütünüyle beyaz.
+- [x] **Kök neden**: antetler 4 bitlik paletli PNG (12 ya da 6 gri ton). Java'nın ImageIO'su 1, 2 ve 4 bitlik paletli PNG'yi `TYPE_BYTE_BINARY`
+  okuyor; UDE'nin PDF kitaplığı iText 2.1.7 `Image.getInstance(java.awt.Image, Color)` böyle bir resmi her zaman 1 bitlik siyah beyaza çeviriyor
+  (`forceBW`) ve pikselin beyaz olacağına `(rgb & 0x888) != 0` ile karar veriyor: 93, 110, 127 grisi beyaza düşüyor. Boş gövde, üst bilgi,
+  arka plan resmi, kırpma ilgisiz: gövdesi dolu belgede de antet kayboluyordu (kullanıcı antetsiz belgede görmediği için "sadece antetli" dedi).
+  8 bitlik paletli ve RGB antetler etkilenmiyordu.
+- [x] **Karar** (core/ude_kopru): köprünün iText'e çizdiren sarmalayıcısı (`MetinGrafik`) bütün `drawImage` / `drawRenderedImage` çağrılarında
+  `TYPE_BYTE_BINARY` olan ve paletinde siyah ve beyazdan başka renk bulunan resmi aynı boyda `TYPE_INT_RGB` (saydamsa ARGB) kopyaya çevirir;
+  kopya özgün resme `WeakHashMap` ile bağlı (üst bilgide her sayfada aynı nesne, bir kez çevrilir). iText onu kayıpsız Flate yazar. Yalnızca siyah
+  beyaz 1 bitlik resim olduğu gibi kalır (G4 küçük ve doğru). jar yeniden derlendi (`--release 8`).
+- [x] **Seçilmeyen yollar**: content.xml'deki resmi önceden 8 bit RGB PNG'ye çevirmek (UDE'nin belge modelini değiştirir, yalnızca imageData /
+  bgImageData'yı kapsar, iText'e başka yoldan gelen resmi kapsamaz); Python'da (Pillow) yeniden kodlamak (aynı nedenler); yazıcı yoluna geçmek
+  (bazı belgeleri resme çeviriyor).
+- [x] **Ölçüm**: aynı antetin RGB ve 4 bit paletli UDF'lerinin PDF'leri arasında 150 dpi'de ortalama renk farkı 0,13 / 255 (önce 3,8); boş çıkan
+  üç belge 1.448 → 20.453 bayt, antet bölgesinde koyu piksel 0 → 935 (RGB kopyası 944); 6 renkli antet 715 → 848, filtre CCITT → Flate.
+- [x] **Yaklaşık çizim** (UDE yokken, src/udf-cizim): Chromium paletli PNG'yi doğru çiziyor; 4 bitlik paletli antetli, gövdesi boş UDF RGB
+  kopyasıyla birebir (antet bölgesinde koyu piksel 27.039 / 27.039, ortalama fark 0).
+- [x] **Testler**: udf_donusum_testi `test_paletli_antet` (kurgusal 4 bitlik paletli antet, gövdesi boş; aynı antetin RGB kopyası; siyah beyaz 1
+  bitlik antet): eski jar'la 3/6 HATA, yeni jar'la 6/6; udf_yaklasik 1. bölüm 23/23.
+
+#### 0.2.7: e-imza uyarısı (madde 9)
+- [x] **Karar**: udf.py'de iki uyarı kalktı: `_udf_pdf` sonucundaki "Belgedeki e-imza PDF'e taşınmaz." ve satır bilgisinin "Belge e-imzalı; imza
+  dönüştürülen dosyaya taşınmaz."; bilgi alanı `imzali` duruyor. Zincirler (UDF → TIFF / Word / JPG) aynı dönüştürücüden geçtiği için onlarda da
+  yok. UDE yokken yaklaşık çizimin kendi özeti (`udfYaklasik.js` ozetUyarisi) de artık söylemiyor. Öteki uyarılar (yorumlar alınmadı, yazıcı yolu,
+  resim çizilemedi) değişmedi.
+- [x] **Testler**: udf_donusum_testi `test_imza_uyarisi` (kurgusal imzalı UDF, `sign.sgn`): eski kodla 0/2, yeni 2/2; udf_yaklasik 1. bölümde imzalı
+  belge (eski kodla HATA).
+
+#### 0.2.7: Format Değiştir'de görüntü ↔ PDF ve JPG hedefi (madde 3)
+- [x] **Tür** (core/islemler/donustur.py): `tur_bul` görüntüyü içerikten tanır (`_gorsel_imzasi`): tür `gorsel`, alt tür jpeg | png | gif | bmp |
+  webp | avif | heif. TIFF ayrı tür kaldı. BMP'de "BM"den sonra bilgi başlığının boyutuna da bakılır ("BM" ile başlayan düz metin görüntü
+  sayılmaz); HEIF / AVIF ISO BMFF `ftyp` markalarından. Pakette HEIC açıcısı (pillow-heif) yok: HEIC'in hedefleri yapılamaz, nedeni satırda.
+- [x] **Görüntü → PDF** (`_gorsel_pdf`): tek sayfa, görüntü sayfayı kenardan kenara kaplar. Sayfa ölçüsü (`gorsel_sayfa_olcusu`): dpi etiketi 100–1200
+  ise o (72 ve 96 fotoğraf makinesinin ve ekran görüntüsünün varsayılanı, sayılmaz); değilse TIFF'in A4 kuralı (`tiff_dpi_coz`: uzun kenar A4'ün
+  uzun kenarı, standart değere %3 yakınsa ona; 50 dpi'den az çıkarsa 72 dpi). EXIF yönü uygulanır. Gömme: dokunulmadan gömülebilen JPEG'in
+  baytları olduğu gibi, yön PDF'te döndürülür (Birleştir'in kuralı); öteki kayıplı kaynak (kayıplı WEBP, AVIF, CMYK ya da aynalı JPEG) JPEG kalite
+  92; kayıpsız kaynak PNG. Hareketli GIF / WEBP'de ilk kare, uyarıyla. Görüntü → UDF / Word / TIFF çatının zinciriyle (PDF üzerinden): UDF'te
+  yazı tanımayla satırlar (0.2.6 kuralı); Word'de (pdf2docx) görüntü resim olarak geçer, yazı tanıma yok.
+- [x] **PDF → JPG** (`_pdf_gorsel`; hedef biçim `gorsel`): sayfa başına JPEG kalite 90, dpi etiketli, notlar dâhil; İdeal 300 / Düşük 200 dpi
+  (varsayılan 300). Tek görselden oluşan (taranmış) sayfa seçilenden düşük çözünürlükteyse kendi çözünürlüğünde (büyütmek yalnızca dosyayı
+  büyütür); seçilenden yüksekse seçilene küçültülür (TIFF'ten farkı: kullanıcı boyut seçiyor). UDF / Word / TIFF → JPG zincirle.
+- [x] **Çok dosyalı hedefin çatısı**: dönüştürücü geçici klasöre (`<hedef>.<pid>-<sıra>.pdefe-tmp`, çökme kaydında) 1.jpg, 2.jpg… yazar; yerine
+  koyarken adlar (`sayfa_adlari`): tek sayfada hedefin kendisi, çok sayfada "<ad> - Sayfa n.jpg" (Ayır'ın deyişi). Önce bütün sayfa dosyalarının
+  yazılabilirliği denetlenir (biri kilitliyse hiçbiri değişmez). Sonuçta `hedefler` (bütün dosyalar), `boyut` toplam.
+- [x] **Çakışma** (madde 12'nin çekirdek tarafı): öğede `cakisma: 'uzerineYaz'` (varsayılan) | `'yeniAd'`; yeniAd'da hedef (JPG'de sayfa
+  dosyalarından biri) varsa ilk boş "(1)", "(2)"… (`bos_ad`; ad "(n)" ile bitiyorsa n + 1'den, yalnızca 1–3 basamak: "Rapor (2023)" yıl), JPG'de
+  bütün sayfalar aynı kökte. Ad yerine koyma anında seçilir; sonuçta `hedef` yazılan ad, `istenenHedef` istenen ad (değiştiyse).
+- [x] **Arayüz** (src/renderer/araclar/donustur.js): Dosya ekle süzgecine JPG, JPEG, PNG, BMP, GIF, WEBP ("Görüntüler" süzgeci); ana pencereye
+  bırakma, `Ctrl+O`, "Birlikte aç" / Finder (main.js ACILAN_UZANTILAR) görüntüyü Format Değiştir'e verir (0.2.6'nın "PDF dışı belge Format
+  Değiştir'i açar" kuralı; Birleştir'e değil). HEIC / HEIF / AVIF süzgeçte yok ama bırakılırsa satır nedeni söyler. Satırda tür "Görüntü (JPG)",
+  özet "2.480 × 3.508 piksel · 270 KB", hedefler PDF | UDF | Word | TIFF, varsayılan PDF. JPG hedefi BICIMLER'in sonunda "JPG": tek girdide ad
+  kutusu kalır, ad dosyaların ortak başı (Ayır'ın düzeni, "(2)" eklenmez), altında not (tek sayfada "Görüntü "X.jpg" adıyla kaydedilir.", çok
+  sayfada "Her sayfa ayrı bir JPG dosyası olur: …"). Seçenekler TIFF ya da JPG hedefi varken ("TIFF seçenekleri" / "JPG seçenekleri" / "TIFF ve
+  JPG seçenekleri"; renk yalnızca TIFF'te). Sonuçta oluşan her dosya bir satır, başlık "Dosya dönüştürüldü · 2 görüntü dosyası"; Klasörde göster
+  ilk dosyayı seçer; geç iptalde bütün sayfa dosyaları çöpe (var olup üzerine yazılanlar kalır). Kaydetme süzgeci "JPG görüntüsü"; kilitli dosya
+  sorusunda "bir görüntü programında".
+- [x] **Ana süreç** (guvenlik.js, main.js, udfYaklasik.js): `HEDEF_UZANTILARI.gorsel` (.jpg, .jpeg); `donusumOgesi` `cakisma`'yı geçirir (başka değer
+  bütün isteği reddeder); `dosya:sil`'in "bu oturumda oluşturulan PDF dışı dosyalar" kaydı artık sonuçtan: istekten önce hedef klasörlerindeki
+  PDF dışı dosyalar okunur, sonuçtaki `hedef` / `hedefler`'den önceden olmayanlar kaydedilir (sayfa dosyaları ve "(1)" adı ancak sonuçta belli).
+  UDE yokken UDF → JPG yaklaşık çizimin zincirinde.
+- [x] **Şartnameden sapma** (gerekçeli): hedefin adı "Görüntü" değil "JPG": hedef seçiminde PDF | UDF | Word | TIFF | JPG biçim adları yan yana,
+  TIFF de bir görüntü biçimi olduğu için "Görüntü" iki seçeneği karıştırırdı. Girdi satırındaki tür "Görüntü (JPG)". Görüntü → Word'de yazı
+  tanıma yok (pdf2docx taranmış sayfayı resim aktarır); kalite notu bunu söyler.
+- [x] **Seçilmeyen yollar**: Birleştir'in "Orijinal" boyut kuralı (72 dpi: telefon fotoğrafı 56 × 42 inçlik sayfa olurdu); görüntüyü A4 sayfaya
+  kenar boşluklu oturtmak (fotoğrafta bant kalır); kayıplı kaynağı kayıpsız PNG gömmek (12 MP fotoğrafta 15–25 MB); sayfa adlarında sıfır doldurma
+  ("Sayfa 01"; Gezgin doğal sıralıyor); JPG'yi yalnızca klasör kipinde istemek (tek girdide ad seçilemezdi); "zaten var"ı yalnızca "<ad>.jpg" için
+  sormak (çok sayfada o dosya hiç yazılmaz); çok dosyalı sonucu tek satır + "N dosya" göstermek.
+- [x] **Ölçüm**: A4 300 dpi'de JPG 2481 × 3508 piksel, 200 dpi'de 1654 × 2339.
+- [x] **Testler**: donustur_testi `test_gorsel_imza`, `test_gorsel_pdf` (12 durumun sayfa ölçüsü, dpi kaynağı, gömme biçimi; PNG piksel, JPEG bayt
+  eşitliği; EXIF yönü; TIFF / UDF / Word zinciri), `test_pdf_jpg`, `test_cakisma` 10/10 (eski kodla 11 HATA + istisna); senaryo39 (yeni) 1–3, 5, 6.
+  bölümler 29/29 (eski donustur.js'le 1. ve 3. bölüm düşüyor); guvenlik_birim'e 17 denetim; udf_yaklasik (UDF → JPG, "(1)" adı); mac_renderer
+  (JPG sonucunda "Finder'da göster", kilitli JPG sorusu macOS'ta Finder) 39/39.
+
+#### 0.2.7: Birleştir'e UDF ve Word (madde 2)
+- [x] **Durum**: görüntü (JPG, PNG, BMP, GIF, WEBP) ve TIFF Birleştir'de zaten vardı; UDF ve Word "desteklenmeyen tür" diye atlanıyordu.
+- [x] **Çekirdek** (core/islemler/araclar.py `birlestir`): öğenin türü önce içerikten (`donustur.tur_bul`), okunamazsa uzantıdan: pdf | gorsel |
+  udf | word. UDF / Word öğesi varsa yanıt ertelenir: dönüştürme iş parçacığında (Word'ün COM'u ve UDE köprüsünün oturumu orada) her belge
+  `donustur.pdf_e_cevir` ile geçici PDF'e (`pdefe-donustur-<pid>-…`; iş bitince, çökmede sonraki çekirdek siler), ilerlemenin %0–60'ı "<ad>
+  PDF'e çevriliyor (j/k)"; sonra MuPDF kilidiyle olağan birleştirme (%60–100). Sıra korunur, öğenin döndürme ve kalite seçimi dönüştürülen PDF'e
+  uygulanır. Belge PDF'e çevrilemezse istek "<ad>: <neden>" iletisiyle reddedilir, hedef yazılmaz; dönüştürücünün uyarıları sonucun `uyari`'sında
+  belgenin adıyla. Belgesiz istek eskisi gibi işçide eş zamanlı. Birleştir'in belge dönüştürmesi UDE'nin ayardaki klasörünü de alır
+  (`donustur._ayarlari_uygula`; ana süreç `gorsel_bilgi` ve `birlestir`'e `udeYolu`'nu kendi ayarından verir, arayüzünkü yok sayılır).
+- [x] **`gorsel_bilgi` / `boyut_tahmini`**: UDF / Word için `donusum_bilgi`'nin yanıtı + `pdfeCevrilebilir` ve `neden`; `onizleme: false` ile UDE'yi
+  beklemeden hızlı yanıt, sonra UDF'nin ön izlemesi. Boyut tahmininde UDF / Word `tahminYok` (dönüştürmeden kestirilemiyor; toplama girmez).
+- [x] **Arayüz** (gorselBirlestir.js): süzgeç "Desteklenen dosyalar" (PDF, görüntüler, TIFF, UDF, DOC, DOCX, DOCM, RTF, ODT) + "UDF belgeleri", "Word
+  belgeleri"; sürükle-bırak ve pano aynı kabul. Ana pencereye bırakılan PDF dışı belge yine Format Değiştir'i açar. Word'ün küçük resmi yok: Format
+  Değiştir'deki mavi "DOCX" yer tutucusu; özet "en az N sayfa", kalite düğmelerinde toplam "≥" ve ipucunda not. UDE yokken satır yaklaşık çizimle
+  (küçük resim `udf:yaklasikBilgi`, satırda "görünüm yaklaşık"); birleştirmede yeni kanal `udf:yaklasikBirlestir` (ana süreç UDF'leri %TEMP%'te
+  geçici PDF'e çizer, yollar arayüze verilmez, sonra çekirdeğin `birlestir`'i; iptal `udf:yaklasikIptal`): preload izin listesi, `guvenliIpc`,
+  guvenlik.js `udfYaklasikParametreleri`. Yaklaşık çizim istek kimlikleri Format Değiştir'le ortak sayaçtan (iki araç birbirinin işini iptal
+  etmesin). Word (ya da LibreOffice) yoksa satır soluk, "PDF'e çevrilemiyor: <neden>"; Birleştir'e basınca "Bir dosya birleştirilemiyor." (Atla ve
+  devam et | Vazgeç).
+- [x] **Seçilmeyen yollar**: Birleştir'in TIFF yolunu Format Değiştir'in TIFF → PDF'iyle değiştirmek (kalite seçenekleri ve boyut tahmini görsel
+  yoluna bağlı); UDF / Word'ü işçide eş zamanlı çevirmek (UDE / Word saniyeler sürer, bütün pencerelerin küçük resimleri beklerdi; Word'ün COM'u
+  dönüştürme iş parçacığına bağlı); boyut tahmininde belgeyi dönüştürmek; UDE yokken UDF'yi satırda engellemek (Format Değiştir yaklaşık çiziyor);
+  geçici PDF yolunu arayüze vermek (0.2.6'nın "geçici yollar arayüze verilmez" kuralı); Word'süz satırı listeye hiç almamak (kullanıcı neden
+  eklenmediğini görmezdi).
+- [x] **Testler**: araclar_testi `test_birlestir_belgeler` 12/12 (yer tutucu ev klasörüyle; kurgusal UDF ve docx; PDF + UDF + BMP + Word → 6 sayfa
+  sırayla, ilerleme, yazı tipleri gömülü, geçici PDF'ler silindi, iptal, UDE yok benzetimi); senaryo39 8. bölüm üç düzende: UDE ve Word var 12/12;
+  `S39_WORD=1` ile UDF + PDF × 2 + TIFF × 2 + Word + JPG = 7 sayfa doğru sırayla 12/12; `PDEFE_UDE_YOK=1` + `PDEFE_WORD_YOK=1` 13/13; guvenlik_birim'e
+  yeni kanalın 6 denetimi. Word'ün kendi görünmez örneği kullanıldı.
+
+#### 0.2.7: İdeal / Düşük ve yaklaşık boyut (madde 8)
+- [x] **Çekirdek**: `VARSAYILAN_TIFF_DPI = 300` ("İdeal"; 0.2.6'da 200); 200 dpi ("Düşük") seçenek; seçenek kümesi (200 | 300) ve taranmış sayfanın
+  kendi çözünürlüğünde kalması değişmedi. Yeni `donusum_tahmini {yollar, hedefBicim: tiff | gorsel, renk?}` → ertelenmiş `{ideal, dusuk, sayfa,
+  tahmin, eksik, ogeler, sure}`: dönüştürücünün kendi çizim ve kodlama işlevleri (`_tiff_sayfasi`, `_jpg_sayfasi`) örnek sayfaları bellekte kodlar,
+  toplam sayfaya oranlanır (en çok 5 örnek, gri / renkli TIFF'te 3, eşit aralıklı); taranmış sayfa iki çözünürlükte bir kez çizilir. UDF / Word
+  `tahminYok`. Ön bellek (yol, değişme zamanı, boyut, hedef, renk; 128 kayıt); ayrı tahmin iş parçacığı (süren dönüştürme beklemez), MuPDF
+  adımları kilitle; iptal edilebilir.
+- [x] **Arayüz**: düğmeler "İdeal" (300, varsayılan) / "Düşük" (200); ekranda ve ipuçlarında "dpi" yok (düğme kimlikleri '300' / '200' kaldı). JPG
+  hedefinde aynı iki seçenek. Yanlarında Birleştir'in biçimi: "İdeal · 1,03 MB" (hesaplanırken "hesaplanıyor…"); dosyalar, hedefler ya da renk
+  değişince 200 ms gecikmeyle, önceki istek iptal. UDF / Word varsa "≥" ve ipucunda not; yalnızca onlar varsa sayı yok. guvenlik.js
+  `DONUSUM_YONTEMLERI`: `yollar` 1–500 dolu metin, `hedefBicim` tiff | gorsel, renk bilinen.
+- [x] **Seçilmeyen yollar**: bütün belgeyi kodlamak (150 sayfalık gri TIFF'te saniyeler); UDF / Word için sayfa başına ortalama bayt varsayımı
+  (yanlış güven verirdi); boyutu dpi oranının karesiyle ölçeklemek (siyah beyaz G4'te 300 / 200 = 1,51, kare oranı 2,25); tahmini her düğmeye
+  ayrı istekle almak.
+- [x] **Ölçüm**: 3 sayfalı PDF → siyah beyaz TIFF tahmini 207.080 / 137.312, gerçek 207.088 / 137.328 bayt (0,15 sn); JPG birebir; 24 sayfada 5
+  örnekle %1,3 sapma (0,23 sn), ikinci istek ön bellekten 1 ms. Arayüzde 2 sayfalı PDF → gri TIFF İdeal tahmini 1,03 MB, gerçek 1.075.216 bayt.
+- [x] **Testler**: donustur_testi `test_pdf_tiff` (varsayılan 300; eski kodla 3 HATA) ve `test_tahmin` 14/14; senaryo39 4. bölüm 8/8 (eski kodla
+  istisna); senaryo37'de seçeneklerin adı; udf_yaklasik'te UDF → TIFF'in varsayılanı 300.
+
+#### 0.2.7: kalitesi düşebilecek dönüştürmenin notu (madde 10)
+- [x] **Karar**: çekirdekte `KALITE_NOTLARI` ("kaynak>hedef" → kısa not; `donusum_yetenekleri.donusumler[k].kalite` ve satırın
+  `hedefler[].kalite`'si): UDF / PDF → Word "Sayfa düzeni Word'de birebir korunmayabilir."; TIFF → Word "Taranmış sayfalar Word'e resim olarak
+  geçer; yazıları düzenlenemez."; görüntü → Word "Görüntü Word'e resim olarak geçer; yazısı düzenlenemez."; PDF / Word → UDF "Satır ve sayfa
+  düzeni UDF'de kayabilir; imza, kaşe gibi resimler alınmayabilir."; TIFF / görüntü → UDF "Yazılar görüntüden tanınarak çıkarılır; harf
+  yanlışları ve düzen kayması olabilir."; Word kaynağı LibreOffice'le çevrilecekse ek not. Notsuz: UDF → PDF / TIFF / JPG (UDE'nin kendi çizimi),
+  Word → PDF / TIFF / JPG (Word'ün kendisi), TIFF / görüntü → PDF (kayıpsız), PDF → TIFF / JPG (sayfanın birebir resmi). Arayüzde hedef seçiminin
+  altında `.kalite` (bilgi simgesi, satırın özetiyle aynı soluk renk; uyarı renginde değil), hedefe tıklanınca hemen; yapılamayan hedefte not
+  yerine neden.
+- [x] **Seçilmeyen yollar**: tanıyıcının varlığına göre değişen not (tanıyıcı yalnızca tanıma iş parçacığında kurulabiliyor; yoksa sonuçtaki uyarı
+  söylüyor); PDF → TIFF / JPG'ye "yazı seçilemez" notu (istenen sonuç; gürültü olurdu).
+- [x] **Testler**: donustur_testi `test_kalite_notlari` (notlu 8 yön, notsuz 6 yön); senaryo39 7. bölüm 7/7.
+
+#### 0.2.7: Dönüştür, dönüştürmeden sonra soluk (madde 5)
+- [x] **Kök neden**: `_durumGuncelle` düğmeyi yalnızca "dönüştürülecek dosya var mı / okunuyor mu / sürüyor mu"ya göre ayarlıyordu; dönüştürme
+  bitince yeniden etkinleşiyor, ikinci basış aynı dosyaları "(2)" adıyla yeniden üretiyordu.
+- [x] **Karar**: "imza" (dönüştürülecek dosyalar ve hedefleri, TIFF / JPG seçenekleri, kayıt biçimi, hedef dosya / klasör). En az bir dosya
+  dönüştürülünce `_sonImza` = imza; imza aynıysa düğme soluk. Açık kullanıcı eylemleri (dosya ekle, çıkar, listeyi temizle, satırın hedefi, TIFF /
+  JPG seçeneği) `_sonImza`'yı siler (aynı dosyayı temizleyip yeniden eklemek de "yeni bir şey"); Kaydet bölümündeki değişiklik imzayla
+  karşılaştırılır (kod içinden gelen ad önerileri yanlışlıkla etkinleştirmesin; ad eski hâline dönerse yine soluk). Hiçbir dosya
+  dönüştürülemediyse düğme etkin kalır. İşlemden sonra penceresi açık kalan öbür araçlara da: Ayır (imza: biçim, dosya sayısı, boşluksuz aralık,
+  kayıt biçimi, hedef) ve dosya küçülmediğinde Sıkıştır (seviye, kayıt biçimi, hedef; seviye kartına tıklamak, seçili olana da, etkinleştirir).
+  Döndür, Sayfaları düzenle ve Birleştir işlem bitince kapanıyor.
+- [x] **Testler**: senaryo38 4. bölüm 21 denetim (gerçek PDF → TIFF; soluk düğmeye tıklamak ikinci dosya üretmez; her değişiklik ve geri dönüşü;
+  Ayır; Sıkıştır); senaryo26 güncellendi (aynı ayırmayı yinelemek için pencere yeniden açılır) 64/64.
+
+#### 0.2.7: sonuç kutusu (madde 6 ve 7)
+- [x] **Kök neden**: satır flex'ti (ad · sayfa · boyut · Aç), Aç adın uzunluğuna göre kayıyordu; tek sonuç da aynı sola dayalı listeydi.
+- [x] **Karar** (ortak.js `sonucKutusuCiz`; Format Değiştir ve Ayır aynı bileşen): tek dosyada başlık, ad, uyarı ve düğmeler ortalı. Birden çok dosyada
+  ızgara (ad | Aç), uzun ad "…" ile kısalır (tam yol ipucunda), Aç sağda sabit sütunda; Aç'ı olmayan satırda (UDF / Word / TIFF / JPG çıktısı, hata)
+  sütun boş; uyarı ya da hata adın altında satırın tamamında. Kilobayt ve sayfa hiç yok (başlıktaki "toplam …" de kalktı). Ayır'ın sonucunda da aynı
+  (tek dosyada "Dosya oluşturuldu"); Ayır'ın düğmesi Mac'te "Finder'da göster" (önceden her yerde "Klasörde göster").
+- [x] **Dokunulmayanlar**: Sıkıştır'ın sonucu (boyut farkı aracın amacı); bildirimdeki "Dönüştürüldü: ad · 3 sayfa · 118 KB" (senaryo37 bekliyor;
+  istenirse kısaltılır); Birleştir (sonuç kutusu yok, sonucu sekmede açar).
+- [x] **Testler**: senaryo38 2. bölüm 11 denetim (tek sonuçta başlık, ad, düğme kutunun ortasında ±1,5 px; çoklu listede Aç'ların sol kenarı eşit;
+  uzun ad kısalır; KB / sayfa / "toplam" yok; Ayır gerçek ayırmayla); eski kodla bölüm düştü.
+
+#### 0.2.7: "zaten var" sorusunda "Yeni belge olarak kaydet" (madde 12)
+- [x] **Karar** (ortak.js `varOlanaYazmaSor`; bütün araçların `kayitSecimi.denetle`'si buradan sorar): Üzerine yaz | Yeni belge olarak kaydet |
+  Vazgeç; varsayılan (Enter, birincil) "Yeni belge olarak kaydet" (hiçbir dosyanın üzerine yazmaz), Esc = Vazgeç. Yeni ad `numaraliAdBul`: "<ad>
+  (1).<uz>", varsa (2), (3)…; ad " (n)" ile bitiyorsa (1–3 basamak) sayı artar. Yeni ad soruda yazar ve ad kutusuna geçer; numaralı ad elle yazılmış
+  sayılmaz (inceleme turu: girdi değişince araç yine yeni girdinin adını önerir). `denetle`, ad değişince "üzerine mi" kararını yeniden hesaplar
+  (Değiştir'de özgün dosya seçilmişse yeni adla artık üzerine yazma değil). Windows'un Farklı kaydet penceresi zaten sorduysa yeniden sorulmaz
+  (0.2.6 kuralı).
+- [x] **JPG'de** (çok dosya): yazılacak adlardan biri varsa aynı soru, önerilen ad "X (1) - Sayfa 1.jpg"; "Yeni belge" `cakisma: 'yeniAd'` (çekirdek bütün
+  sayfa adları boş olan ilk "(n)" kökünü seçer). Format Değiştir'in birden çok girdisi ve Ayır'ın birden çok dosyası bu soruyu sormaz (zaten "(2)"
+  ekliyorlar); JPG'de `_hedefYollari` "<ad>.jpg" ve "<ad> - Sayfa 1.jpg"ye bakıp "(2)" seçer, ayrıca `cakisma: 'yeniAd'`.
+- [x] **Seçilmeyen yol**: `bosAdBul`'u kullanmak (o "(2)"den başlar; varsayılan önerilen adlar öyle kalır, soru kullanıcının istediği gibi "(1)"den).
+- [x] **Testler**: senaryo38 3. bölüm 9 denetim (soru metni ve düğmeler, Vazgeç / Esc, (1), (2), "(1)" ile biten ad, Üzerine yaz; üç düğme aynı
+  satırda, odak Yeni belge'de; Döndür'le uçtan uca: "Hedef (1).pdf" oluşur, "Hedef.pdf" değişmez).
+
+#### 0.2.7: araç açıkken açılan belge yeni pencerede (madde 11)
+- [x] **Kök neden**: ana süreç Gezgin'den, ikinci örnekten ya da open-file'dan gelen dosyayı en son etkin pencereye veriyor (`dosya:ac`), pencere de araç
+  örtüsünün arkasında sekme açıyordu; aracın sonuç listesindeki Aç da arkada sekme açıyordu.
+- [x] **Karar**: kural renderer'ın `dosyaAc`'ında (bütün yollar oradan geçer): araç penceresi açıkken ve dosya hiçbir pencerede açık değilken ana
+  sürece `pencere:yeniPenceredeAc` [yollar]; ana süreç isteyen pencerenin +32 / +32 kaymasıyla (Pencereye ayır'daki gibi) aynı boyda yeni pencere
+  açar (önde), sonraki istekler o pencere yaşadıkça oraya gider. Dosya araç açık pencerede zaten açıksa sekmesi seçilir ve "… bu pencerede zaten açık;
+  araç penceresi kapanınca görünür" (bir dosya iki pencerede açılamaz); başka pencerede açıksa eskisi gibi o pencere öne gelir. Aracın kendi işi
+  kurala girmez (üzerine yazılan sekmeyi yenileme). UDF / TIFF / Word / görüntü: Format Değiştir açıksa listesine, başka araç açıksa yeni pencerede
+  Format Değiştir'de. Sürükle-bırak araç örtüsüne gider, değişmedi. Sonuçtaki Aç'ın ipucu "Yeni pencerede aç".
+- [x] **Güvenlik**: preload izin listesi + `guvenliIpc` + guvenlik.js `acilacakYollar` (en çok 100 mutlak yol, NUL yok); pencere yalnızca yolları kendi
+  arayüzüne verir, dosya olağan yoldan okunur.
+- [x] **Test kancası**: gelistirme.js `test:uygulamaOlayi` (`second-instance` argv / `open-file` yol): ana sürecin gerçek yolu, ikinci Electron
+  başlatmadan. senaryo22 ve senaryo37'nin "ikinci örnek" denetimleri artık bunu kullanıyor (önceden olağan masaüstünde electron.exe başlatıyordu;
+  ekran kuralına aykırıydı, görünmeyen masaüstünde de düşüyordu: 0.2.6'nın açık konusu kapandı).
+- [x] **Seçilmeyen yollar**: araç durumunu ana süreçte tutmak (renderer zaten biliyor; ek durum ve yarış); var olan başka bir pencereye göndermek
+  (kullanıcı "yeni pencere" dedi); açık sekmeyi yeni pencereye taşımak (araç o belgeyle çalışıyor olabilir).
+- [x] **Testler**: senaryo38 5. bölüm 11 denetim (eski arayüzle 6 düştü); senaryo37 6. ve 8. bölüm.
+
+#### 0.2.7: sürüklenen sekmenin ön izlemesi (madde 13)
+- [x] **Ölçüm yöntemi** (test/hayalet_akicilik.mjs, test/hayalet_izle.ps1): ekran dışındaki test örneğinde sekme CDP fare olaylarıyla şeridin dışına
+  sürüklenir, ön izleme görününce ana sürecin imleci test kancasıyla (`test:imlecYolu`) 400 px/sn sabit hızla kaydırılır; 3 sn boyunca ana sürecin
+  adım zamanları ve setBounds süreleri (`test:hayaletOlcum`) ve pencerenin yeri dışarıdan (GetWindowRect, ~0,5 ms'den sık) ölçülür. Görünmeyen
+  masaüstünde gerçek imleç okunamıyor; gerçek fare yolu (gercek_fare.ps1) yakalama ve odak içindir.
+- [x] **Kök neden**: `setInterval(…, 16)` ana süreçte Windows'un varsayılan 15,6 ms zamanlayıcı çözünürlüğüne yuvarlanıp ~31 ms'de bir çalışıyor: ön
+  izleme saniyede ~32 kez ve düzensiz kayıyordu (60 Hz ekranda iki karede bir, arada bir hiç). setBounds, saydamlık, gölge, IPC ya da içerik çizimi
+  değil (ölçüldü: setBounds ortanca ~1 ms).
+- [x] **Karar** (renderer/hayalet.*, main/pencereler.js): ön izleme penceresinin kendi requestAnimationFrame'i (görünürken her ekran karesi) ana sürece
+  `hayalet:kare` gönderir; ana süreç o anda imleci okuyup pencereyi taşır (aynı `suruklemeAdimi`). Kare gelmezken (pencere kuruluyor, görünmüyor)
+  eski zamanlayıcı yedek: son kareden 40 ms geçtiyse adım atar. Yüksek tazeleme hızlı ekranda adımlar en az 7 ms arayla. Kanal yalnızca ön izleme
+  penceresinden ve sürükleme sürerken işlenir (preload GONDERIMLER / DINLEMELER).
+- [x] **Ölçüm**: önce adım aralığı ortanca 31,2 / 31,3 ms, %95 32,0 / 32,2 ms, 25 ms'den uzun aralık 88/102 ve 94/96; sonra ortanca 16,69 / 16,68 ms,
+  %95 16,8 ms, en çok 17,1 / 18,6 ms, 25 ms'den uzun 0; dışarıdan ortanca 16,7 ms, %95 17,0 ms.
+- [x] **Seçilmeyen yollar**: Windows zamanlayıcı çözünürlüğünü yükseltmek (timeBeginPeriod; Node'dan erişim yok, yerel modül gerekir, bütün süreci
+  etkiler); kaynak pencerenin pointermove'undan konum göndermek (kaynak arayüz meşgulken takılır); setImmediate döngüsü (işlemci); setPosition
+  (Electron Windows'ta onu da setBounds'a çeviriyor).
+- [x] **Testler**: hayalet_akicilik 4/4 (ölçütler: ortanca 14–19 ms, %95 ≤ 22 ms, 25 ms'den uzun ≤ %2; dış ölçüm %95 ≤ 22 ms; setBounds %95 ≤ 4 ms),
+  senaryo22 101/0, gercek_fare 9/9.
+
+#### 0.2.7: kısayol simgelerindeki yeşil ok (madde 14, araştırma; kod değişikliği yok)
+- [x] **Sonuç**: PDEfe kısayollara ve okun görünüşünü belirleyen ayarlara dokunmuyor. Araştırma salt okunurdu: Gezgin yeniden başlatılmadı, simge ön
+  belleği silinmedi, hiçbir kısayola yazılmadı, ekrana pencere açılmadı.
+- [x] **Ölçüm**: Gezgin'in masaüstünde gerçekten çizdiği görüntü (pencere açmadan, PrintWindow ile) 8 masaüstü kısayolunun 8'inde olağan küçük
+  kısayol okunu gösteriyor; yeşil ok yok (ara ara görülen bir durum). Kısayolların içeriği (hedef, simge yolu, kimlik listesi, başlıktaki hedef
+  bilgileri) oluşturuldukları günkü gibi. `Explorer\Shell Icons` ayarı yok (HKLM'de ve WMI ile gerçek HKCU'da). 13 simge kaplama işleyicisinin
+  (OneDrive, Google Drive, EnhancedStorage, Çevrim Dışı Dosyalar) hiçbiri masaüstü kısayollarını üstlenmiyor (`IsMemberOf` S_FALSE);
+  `SHGetFileInfo` kaplama indeksi hepsinde 2 (Windows'un kısayol oku).
+- [x] **Gözlem**: 15 Ekim akşamı (20.43–20.53) bir şey masaüstündeki 5 kısayolu içeriğini değiştirmeden 4 kez yeniden yazdı; o dakikalarda kurulu 0.2.6'yla
+  masaüstünde Word → TIFF dönüştürmeleri yapılıyordu (her TIFF çıktısından 2–3 sn sonra Windows'un kısayol dizini 5 kısayolu "güncellendi" diye
+  kaydetti; Gezgin her yazımdan sonra simgeleri yeniden çizer). 28 Eylül'den beri birden çok kısayolun birlikte güncellendiği başka an yok; Word'ün öteki
+  başlangıçları ve PDF / Word / UDF çıktıları yazım doğurmamış. Yazan süreç bulunamadı (yönetici izniyle süreç izlemesi gerekir).
+- [x] **Yeniden üretme**: depodaki çekirdekle 12 dönüştürme (PDF, UDF ve Word → TIFF / PDF; dördü kısayol kopyalarının durduğu klasörde) ve Windows Fotoğraf
+  Görüntüleyicisi'yle bir TIFF görünmeyen masaüstünde açıldı: ne gerçek masaüstündeki kısayollar ne kopyalar değişti. Kaynak kodda kısayol yazan tek
+  yer kurucu (yalnızca kendi kısayolu; `SHChangeNotify(SHCNE_ASSOCCHANGED)`, dosya ilişkisi değişen her kurucunun olağan bildirimi).
+- [x] **"Ortadan yeşil ok"** yeniden üretilemedi. Adaylar: masaüstündeki "İndirilenler - Kısayol"un küçük boyuttaki yeşil-turkuaz aşağı oku, Çevrim Dışı
+  Dosyalar'ın yeşil daire içindeki eşitleme oku, OneDrive / Google Drive'ın yeşil işaretleri; Gezgin'in toplu yenilemede bir simgeye kısa süre başka
+  görüntü koyması. Ekran görüntüsü olmadan kesinleşmez (DOGRULAMA 42).
+- [x] **Seçilmeyen yollar**: Gezgin'i yeniden başlatmak, simge ön belleğini silmek (istek dışı; simgeler şu an doğru); gerçek masaüstüne deneme dosyası
+  koyarak yeniden üretmek (kullanıcının onayıyla yapılabilecek ilk deneme); Process Monitor / USN günlüğü (yönetici izni ve kurulum ister).
+
+#### 0.2.7: bağımsız inceleme ve düzeltme turu
+Her bulgu önce yeniden üretildi ya da kod izlendi; gerçekse önce düşen test, sonra düzeltme. 10 bulgunun 10'u düzeltildi.
+- [x] **"(1)" adı sonraki dosyada kalıyordu** (orta): `varOlanaYazmaSor` yeni adı `{ elle: true }` ile yazıyordu, `adYenile` yeni girdinin adını
+  öneremiyordu. Numaralı ad elle sayılmaz. senaryo40 1. bölüm (önce 2 HATA).
+- [x] **16 bitlik gri görüntü** (orta; 0.2.6'da da vardı): `araclar._duzlestir` I kipinde `point(lambda v: v / 256 if v > 255 else v)`; Pillow 12'de
+  işleve ImagePointTransform geliyor, karşılaştırma TypeError: Format Değiştir ve Birleştir düşüyordu. `getextrema()` ile üst değer ölçülür, 255'i
+  aşarsa doğrusal `point(lambda v: v * (1/256))`, sonra L. donustur_testi gri16 10 denetim (önce 7 HATA); donustur_testi.py'ye `--yalniz`.
+- [x] **Birleştir: UDE yokken UDF + "Üzerine yaz"** (orta): `udfYaklasikParametreleri` hedefin öğelerden biri olmasını reddediyordu, "Üzerine yaz"da
+  hedef tanımı gereği listedeki açık PDF. Kural çekirdekle aynı: yalnızca yaklaşık çizilen UDF'nin kendisi hedef olamaz. senaryo40 2. bölüm
+  (`PDEFE_UDE_YOK=1`, önce 3 HATA).
+- [x] **JPG: sayfa sayısı bilinmezken "Sayfa n" sorusuz eziliyordu** (orta): `_jpgCakismasi` sınanan adlar ("<ad>.jpg", "Sayfa 1"; uzun belgede ilk 200)
+  yoksa `uzerineYaz` gönderiyordu. Sınanan adların hiçbiri yoksa `yeniAd` (olağan durumda aynı adlar; sınanmayan bir sayfa doluysa "(1)");
+  "Üzerine yaz" yalnızca soruda açıkça seçilince. Çekirdek adı değiştirdiyse sonucun ilk satırında "Aynı adlı dosyalar vardı; onlara dokunulmadı,
+  yeni adla kaydedildi.". Seçilmeyen: Word'ün sayfa sayısını önceden ölçmek (Word'ü açmak gerekir). senaryo40 3. bölüm (önce 3 HATA).
+- [x] **JPG "Üzerine yaz": önceki daha uzun dönüştürmenin sayfaları kalıyordu** (orta): silinmez, söylenir: soru (sayfa sayısı biliniyorsa) kalan
+  dosyayı adıyla söyler, çekirdek `kalanlar` alanını verir, sonucun ilk satırında not; "Yeni belge"de dizinin sonraki sayfası varsa ad dolu sayılır.
+  Seçilmeyen: kalanları çöpe göndermek (ana süreç yalnızca bu oturumda oluşan dosyaları çöpe atar; kullanıcının başka belgeleri çöpe gitmesin;
+  kullanıcı isterse sonraki sürümde). donustur_testi kalan_sayfalar (önce 2 HATA), senaryo40 4. bölüm (önce 2 HATA).
+- [x] **Hazırlık sürerken gelen İptal kayboluyordu** (düşük): `cekirdekDonusumCagir` önce hedef klasörleri okuyor, istek kimliği çekirdeğinkiyle ancak
+  gönderirken eşleşiyordu. `Cekirdek.cagir` parametreyi işlev olarak da alır (hazırlık); kimlik hazırlık ve başlatma süresince `hazirlananlar`da,
+  iptal oraya işaret koyar, istek gönderilmeden "İşlem iptal edildi." (-32800). Seçilmeyen: ana süreçte ayrı "bekleyen iptaller" kümesi (sınırsız
+  büyür, kimlik yeniden kullanımında yanlış iptal). test/cekirdek_iptal.mjs 7 denetim (Electron gerekmez), senaryo40 5. bölüm (önce 2 HATA).
+- [x] **MuPDF kilidinin dışında MuPDF çağrısı** (düşük; 0.2.7'nin gerilemesi): `_tiff_sayfasi` / `_jpg_sayfasi` ve tahmin ölçeği kilitsiz
+  hesaplıyordu; `_sayfa_ciz` ölçeği işlev olarak da alır, kilidin içinde hesaplar. donustur_testi mupdf_kilidi 3 denetim.
+- [x] **JPG geçici klasörü yeniden kullanılınca bayat dosyalar** (düşük): klasör varsa önce boşaltılır; yerine koyma yalnızca bildirilen 1…sayfa
+  dosyasını alır. donustur_testi bayat_gecici.
+- [x] **Tek dosyada yeni ad başka öğenin hedefiyle çakışıyordu** (düşük; arayüzün olağan yolundan erişilmiyor): tek dosya yolunda da "bu istekte
+  yazılanlar" denetimi. donustur_testi ayni_istekte_ad.
+- [x] **Tahmin iş parçacığı kapanışta durdurulmuyordu** (düşük): kapanış bayrağı her durumda kurulur, tahmin en çok 1 sn beklenir, kapanıştan sonra
+  yanıt yazılmaz. donustur_testi tahmin_kapanis (önce 2 HATA).
+
+#### 0.2.7: belgeler
+- [x] Sürüm 0.2.7 (package.json, package-lock.json); CHANGELOG; docs/DOGRULAMA.md 42; README: giriş, Öne çıkanlar, Açılış ekranı, Sekmeler ve
+  pencereler, Araçlar (Birleştir), Format Değiştir (görüntü → PDF, PDF → JPG, İdeal / Düşük, "zaten var" sorusu, gereksinimler); ekran görüntüleri.
+
+#### 0.2.7: sınama özeti
+- [x] Python (çekirdek): donustur_testi 214/214 (akış dâhil), udf_donusum_testi 132/132, word_donusum_testi 32/32 (`PDEFE_WORD_YOK=1`), araclar_testi
+  149/151 (iki `kucult_tahmin` süre denetimi yer tutucu belgeyle; 0.2.6'da da düşüyordu, kod değişmedi), guvenlik_testi 47/47, mac_cekirdek_testi
+  14/14. Paketli çekirdek (`npm run cekirdek:derle`; sonra core/dist silindi): donustur_testi `--exe --hizli` 166/166, udf_donusum_testi `--exe`
+  118/118, araclar_testi `test_birlestir_belgeler` + `test_gorsel_bilgi` `--exe` 10/10 + 4/4.
+- [x] Arayüz (her test kendi temiz örneğinde, görünmeyen masaüstünde ya da ekran dışında): senaryo40 23/23 (`PDEFE_UDE_YOK=1`) ve 18/18, senaryo39 54/54
+  (UDE ve Word yok düzeninde 53/53; `S39_WORD=1` ile 8. bölüm 12/12), senaryo38 67/67 (%100) ve 29/29 (%125, 1–2. bölüm), senaryo37 63/63 (Word
+  dönüştürmesi `S37_WORD` olmadan atlandı), udf_yaklasik 63/63, guvenlik_birim 103, cekirdek_iptal 7/7, mac_renderer 39/39, arac_onizleme 24/24,
+  kisayol_araclar 102/102, senaryo26 64/64, senaryo27 19/19, senaryo13 65/65, senaryo14 60/60, gec_iptal 20/20, ortu_tiklama 164/164, senaryo23
+  53/53, senaryo36 59/59, senaryo18 10/10, yazdir_pencere 43/43, sekme_genislik 38/38, serit_olculeri 25/25, acilis_hizasi 10/10, hayalet_akicilik
+  4/4, senaryo22 101/0, kisayol_dosya 164/164, gercek_fare 9/9. Kalan WINWORD / java / electron süreci yok; çöp kutusuna bir şey gönderilmedi
+  (testlerin `dosya:sil`'i sahte).
+- [x] Düşenler (bu işin kodundan değil): senaryo19 111/112: "[1280px] PDF aç düğmesi araç kartlarından belirgin büyük (≥ 1,2×)" (oran 1,13: PDF aç
+  86 px, en yüksek kart 75,8 px "Sayfaları düzenle"); 0.2.6'nın son commit'indeki 3 × 2 açılış düzeninden (2566f53). senaryo37'de `PDEFE_UDE_YOK=1`
+  ile 1 HATA: eski beklenti, UDE yokken UDF'nin dönüşmeyeceğini sanıyor (0.2.6'dan beri yaklaşık çizimle dönüşüyor; UDE varken 6. bölüm 9/9).
+- [ ] **Açık konular**:
+  - senaryo19'un 1,2 kat ölçütü: testin ölçütü mü güncellenecek, PDF aç mı büyüyecek (düzen kararı; dokunulmadı). senaryo37'nin UDE yok
+    beklentisi güncellenmeli.
+  - Gerçek Mac'te görüntü dönüştürmeleri, PDF → JPG ve Birleştir'in UDF / Word yolu denenmedi (yalnızca mac_renderer'ın darwin çerçevesi; Word
+    otomasyonu Mac'te yok, LibreOffice yolu sınanmadı). Kurucu ve Mac paketi derlenmedi.
+  - TIFF / görüntü → Word'de yazı tanıma yok (pdf2docx taranmış sayfayı resim aktarıyor); istenirse ayrı iş: tanınan satırları Word'e metin olarak
+    yazmak (UDF yolundaki gibi).
+  - HEIC (iPhone fotoğrafı) açılamıyor: açıcı (pillow-heif) pakette yok.
+  - UDF / Word için Birleştir'de ve TIFF / JPG'de boyut tahmini yok; Birleştir'de Word belgesinin sayfa sayısı dönüştürmeden bilinmiyor ("en az",
+    "≥"). Birleştir açıkken UDE'nin klasörü gösterilirse satırlar kendiliğinden yenilenmez (Format Değiştir'deki "yerini göster" bağlantısı
+    Birleştir'de yok).
+  - JPG "Üzerine yaz"da önceki uzun çıktının fazla sayfaları silinmez, yalnızca söylenir (kullanıcı isterse sorulup çöpe gönderilebilir).
+  - Format Değiştir'in tek PDF sonucundaki bildirimde hâlâ KB ve sayfa ("Dönüştürüldü: ad · 3 sayfa · 118 KB").
+  - Sürükleme akıcılığı test örneğinde programla yürütülen imleçle ölçüldü; gerçek fareyle ve 60 Hz dışı ekranda denenmedi.
+  - Kısayollar: yeniden yazan süreç bilinmiyor; kesinleştirmek için kullanıcının onayıyla gerçek masaüstünde deneme ya da yönetici izniyle süreç
+    izlemesi. PDEfe'nin kurucu testi (`test/kurucu_akis`) gerçek masaüstüne geçici "Kurucu Sinama" kısayolu koyuyor (07.10'da 10 kez): sahte bir
+    masaüstü klasörüyle çalışacak biçimde değiştirilebilir.
+  - Kurulu (paketli) sürümde arayüz denenmedi (paketli çekirdekle Python testleri geçti).
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 42.

@@ -6,8 +6,9 @@
 Windows 11 (ve Windows 10) ile macOS için sade, tüm araçları ücretsiz, reklamsız bir **PDF görüntüleyici ve düzenleyici**.
 
 Hukukçuların ve her gün onlarca PDF açan herkesin işini görmek için yazıldı. Belgeler sekmelerde açılır, metin kopyalandığında satır
-sonları ve tireler temizlenir. PDEfe ile PDF, JPEG ve PNG dosyalarını tek PDF'te birleştirebilir, PDF'leri ayırabilir ve döndürebilir, üzerlerine
-yazı ekleyebilir, boyutlarını küçültebilir, UDF, Word ve TIFF dosyalarını PDF'e (PDF'leri de onlara) dönüştürebilirsiniz.
+sonları ve tireler temizlenir. PDEfe ile PDF, görüntü, TIFF, UDF ve Word dosyalarını tek PDF'te birleştirebilir, PDF'leri ayırabilir ve
+döndürebilir, üzerlerine yazı ekleyebilir, boyutlarını küçültebilir, UDF, Word, TIFF ve görüntü dosyalarını PDF'e (PDF'leri de onlara ve
+JPG'ye) dönüştürebilirsiniz.
 
 <p align="center">
   <img src="docs/ekran-acilis-koyu.png" width="90%" alt="Açılış ekranı koyu temada">
@@ -31,9 +32,10 @@ yazı ekleyebilir, boyutlarını küçültebilir, UDF, Word ve TIFF dosyaların�
 
 - **Sekmeler ve pencereler:** Birden çok PDF tek pencerede açılır. Sekme sürüklenerek kendi penceresine ayrılır.
 - **Temiz kopyalama:** Satırlar paragraf olarak birleşir, tireler kalkar. Metin UYAP Doküman Editörü'ne ve Word'e düzgün yapışır.
-- **Araçlar:** Sıkıştır, Sayfaları düzenle, Döndür, Ayır, Görüntü / PDF birleştir, Dosya Formatını Değiştir.
-- **Dosya Formatını Değiştir:** UDF, Word ve TIFF ↔ PDF. UDF, UYAP Doküman Editörü'nün kendi sayfa düzeniyle PDF olur; PDF düzenlenebilir
-  UDF'ye çevrilir.
+- **Araçlar:** Sıkıştır, Sayfaları düzenle, Döndür, Ayır, Birleştir, Format Değiştir.
+- **Birleştir:** PDF, görüntü, TIFF, UDF ve Word dosyaları listedeki sırayla tek PDF olur.
+- **Format Değiştir:** UDF, Word, TIFF ve görüntü ↔ PDF; PDF'in her sayfası JPG olarak da kaydedilir. UDF, UYAP Doküman Editörü'nün kendi
+  sayfa düzeniyle PDF olur; PDF düzenlenebilir UDF'ye çevrilir.
 - **Yazdırma:** PDEfe'nin kendi penceresinde yazıcı, kâğıt, renk ve çift taraflı seçilir; sayfanın kâğıda nasıl basılacağı önceden görünür.
 - **Taranmış belgede seçim:** Taranmış sayfadaki yazı da fareyle seçilip kopyalanır. Bunu bilgisayarın kendi yazı tanıyıcısı çevrim dışı yapar.
 - **Arama:** Bütün açık belgelerin hepsinde birden tek tuşla arama yapılabilir.
@@ -48,7 +50,7 @@ Kısayollar'da listelenir.
 ### Açılış ekranı
 
 Belge açık değilken **PDF aç** düğmesi, bütün araçlar ve son açılan 10 belge görünür. PDF'ler pencereye sürüklenerek de açılır; UDF,
-Word ve TIFF dosyaları bırakılınca Dosya Formatını Değiştir açılır. Son açılanlar listesi istenmezse Ayarlar'dan kapatılır.
+Word, TIFF ve görüntü dosyaları bırakılınca Format Değiştir açılır. Son açılanlar listesi istenmezse Ayarlar'dan kapatılır.
 
 <p align="center">
   <img src="docs/ekran-acilis.png" width="90%" alt="Açılış ekranı: PDF aç, araçlar ve son açılanlar">
@@ -61,7 +63,8 @@ Word ve TIFF dosyaları bırakılınca Dosya Formatını Değiştir açılır. S
   yeniden açılınca kalınan sayfadan devam edilir.
 - **Sağ tık:** Sekmede sağ tıkla belge kaydedilir, yazdırılır, pencereye ayrılır, klasörde gösterilir ya da dosya olarak kopyalanır.
 - **Pencereler:** Sekme, sekme çubuğunun dışına sürüklenince kendi penceresinde açılır. Başka bir PDEfe penceresine bırakılınca oraya
-  geçer. Notlar ve geri al geçmişi sekmeyle birlikte taşınır.
+  geçer. Notlar ve geri al geçmişi sekmeyle birlikte taşınır. Bir araç penceresi açıkken Gezgin'den açılan belge yeni bir pencerede,
+  önde açılır; araç arkadaki pencerede açık kalır.
 - **Kapatma:** Birden çok sekmeli pencere kapatılırken yalnızca geçerli sekmenin mi, bütün sekmelerin mi kapanacağı sorulur. Seçim
   hatırlanabilir. Kaydedilmemiş belge varsa kaydetmek isteyip istemediğiniz sorulur.
 
@@ -136,12 +139,15 @@ Araçlar, araç çubuğundaki **Araçlar** düğmesinden ya da açılış ekran�
   sayfa eklenir.
 - **Döndür:** Tüm sayfalar, geçerli sayfa ya da bir aralık döndürülür.
 - **Ayır:** Belge sayfa aralıklarına göre (örneğin `1-3, 4-10`) ya da her sayfa ayrı olacak şekilde ayrılır.
-- **Görüntü / PDF birleştir:** PDF, JPG, PNG, TIFF ve başka görüntüler tek PDF'te birleşir. Dosyalar sürüklenerek ya da panodan eklenir.
-  UYAP taramaları (TIFF) gerçek ölçüsünde, A4 olarak eklenir.
-- **Dosya Formatını Değiştir:** UDF, Word ve TIFF dosyalarını PDF'e, PDF'leri bunlara dönüştürür (aşağıda).
+- **Birleştir:** PDF, görüntü (JPG, PNG, BMP, GIF, WEBP), TIFF, UDF ve Word dosyaları listedeki sırayla tek PDF'te birleşir; sonuç
+  sekmede açılır. Dosyalar sürüklenerek ya da panodan eklenir. UYAP taramaları (TIFF) gerçek ölçüsünde, A4 olarak eklenir. UDF ve Word
+  belgeleri önce PDF'e çevrilir (aşağıda, Format Değiştir'in gereksinimleri); Word belgesinin sayfa sayısı ve boyutu birleştirmeden önce
+  bilinmez.
+- **Format Değiştir:** UDF, Word, TIFF ve görüntü dosyalarını PDF'e, PDF'leri bunlara ve JPG'ye dönüştürür (aşağıda).
 
-Her araç sonucu yeni belge olarak kaydeder ya da istenirse özgün dosyanın üzerine yazar (Dosya Formatını Değiştir her zaman yeni dosya
-oluşturur).
+Her araç sonucu yeni belge olarak kaydeder ya da istenirse özgün dosyanın üzerine yazar (Format Değiştir özgün dosyaya dokunmaz, her
+zaman ayrı bir dosya oluşturur). Kaydedilecek ad var olan bir dosyanın adıysa sorulur: **Üzerine yaz**, **Yeni belge olarak kaydet**
+(varsayılan; adına "(1)" eklenir, var olan dosya değişmez) ya da **Vazgeç**.
 
 <p align="center">
   <img src="docs/ekran-sikistir.png" width="90%" alt="Sıkıştır: üç seviye ve tahminî boyutlar">
@@ -154,29 +160,36 @@ oluşturur).
 ![Sayfaları düzenle: büyük sayfa ön izlemeleri; kartın altında döndür, kopyala ve sil düğmeleri](docs/ekran-sayfalar.png)
 
 <p align="center">
-  <img src="docs/ekran-birlestir-koyu.png" width="90%" alt="Görüntü / PDF birleştir koyu temada">
+  <img src="docs/ekran-birlestir-koyu.png" width="90%" alt="Birleştir koyu temada">
 </p>
 
-### Dosya Formatını Değiştir
+### Format Değiştir
 
 Dosyalar **Dosya ekle** ile ya da pencereye sürüklenerek eklenir; birden çok dosya birlikte dönüştürülür. Her satırda dosyanın küçük
-resmi, türü, sayfa sayısı ve hedef biçim (PDF, UDF, Word, TIFF) görünür. Bir PDF açıkken araç açılırsa o PDF listede hazırdır. UDF,
-Word ve TIFF dosyaları PDEfe'nin penceresine bırakılınca ya da `Ctrl+O` ile seçilince de araç açılır.
+resmi, türü, sayfa sayısı ve hedef biçim (PDF, UDF, Word, TIFF, JPG) görünür. Bir PDF açıkken araç açılırsa o PDF listede hazırdır. UDF,
+Word, TIFF ve görüntü dosyaları PDEfe'nin penceresine bırakılınca ya da `Ctrl+O` ile seçilince de araç açılır. Kalitesi düşebilecek bir
+dönüştürmede (örneğin UDF → Word, TIFF → Word) hedef seçilince satırın altında kısa bir not çıkar.
 
-![Dosya Formatını Değiştir: PDF → UDF, UDF → PDF, TIFF ve Word dosyaları](docs/ekran-donustur.png)
+![Format Değiştir: PDF → UDF, UDF → PDF, TIFF ve Word dosyaları](docs/ekran-donustur.png)
 
 - **UDF → PDF:** UYAP Doküman Editörü'nün kendi sayfa düzeniyle, editörün penceresi açılmadan. Satırlar ve sayfalar editördeki gibi
   kırılır, sonuç editörün "Yazdır → PDF" çıktısıyla aynıdır. Sayfa her zaman A4, yazı tipleri PDF'e gömülü, antetin çevresinde gri
-  çerçeve yok, sayfa numarası seçilebilir. E-imza ve yorumlar PDF'e taşınmaz.
+  çerçeve yok, sayfa numarası seçilebilir. Antet editörün yazdırmasındaki gibi çıkar. E-imza ve yorumlar PDF'e taşınmaz.
 - **PDF → UDF:** Düzenlenebilir UDF. Paragraflar, kenar boşlukları, üst ve alt bilgi, antet ve çizgili tablolar alınır; sayfa numarası
   editörün kendi numarası olur. Taranmış sayfa yazı tanımayla düzenlenebilir yazıya çevrilir. İmza, kaşe gibi yazının yanında duran
   resimler alınmaz; sonuçta söylenir.
 - **Word → PDF:** Word'ün kendisiyle; görünmeyen, ayrı bir Word kullanılır, açık Word'ünüze dokunulmaz. Belgenin yazar adı PDF'e geçmez.
   .docx, .doc, .rtf ve .odt dönüştürülür.
 - **PDF → Word:** Metni düzenlenebilir .docx. Taranmış sayfalar resim olarak aktarılır.
-- **TIFF → PDF:** Kayıpsız; UYAP taramaları doğru ölçüde (A4) ve çoğunlukla TIFF'ten küçük. **PDF → TIFF:** Tek dosyada çok sayfa;
-  varsayılan UYAP'ın taramaları gibi 200 dpi siyah beyaz, istenirse 300 dpi, gri ya da renkli.
-- UDF ↔ Word gibi PDF olmayan iki biçim arasında da dönüştürülür; PDEfe arada PDF'ten geçer.
+- **TIFF → PDF:** Kayıpsız; UYAP taramaları doğru ölçüde (A4) ve çoğunlukla TIFF'ten küçük. **PDF → TIFF:** Tek dosyada çok sayfa,
+  siyah beyaz, gri ya da renkli.
+- **Görüntü → PDF:** JPG, PNG, BMP, GIF ve WEBP. Taranmış görüntü, tarayıcının yazdığı çözünürlükle gerçek boyutunda sayfa olur;
+  fotoğraf ve ekran görüntüsü A4 boyunda (uzun kenarı A4'ün uzun kenarı), beyaz kenar eklenmeden. Telefon fotoğrafının yönü
+  düzeltilir. iPhone'un HEIC fotoğrafları açılamaz.
+- **PDF → JPG:** Her sayfa ayrı bir JPG dosyası olur ("Dilekçe - Sayfa 1.jpg", "Dilekçe - Sayfa 2.jpg"…); tek sayfalı belge "Dilekçe.jpg".
+- **Çözünürlük:** TIFF ve JPG'de **İdeal** (standart, 300 dpi) ya da **Düşük** (UYAP'ın kendi taramaları gibi 200 dpi, daha küçük dosya).
+  İkisinin yanında dönüştürülecek dosyaların yaklaşık boyutu yazar. Taranmış sayfalar büyütülmez.
+- UDF ↔ Word, görüntü → UDF gibi PDF olmayan iki biçim arasında da dönüştürülür; PDEfe arada PDF'ten geçer.
 
 Gereksinimler:
 
@@ -184,9 +197,12 @@ Gereksinimler:
 |---|---|
 | UDF → PDF | UYAP Doküman Editörü ve kullandığı Java 8. Bulunamazsa UDF yine dönüştürülür, PDEfe'nin yaklaşık çizimiyle: satır ve sayfa kırılımları editördekinden farklı olabilir. Editörün yeri Ayarlar › Kaydetme'den gösterilebilir. |
 | Word → PDF | Windows'ta Word ya da LibreOffice, macOS'ta LibreOffice. |
-| PDF → UDF, PDF → Word, TIFF ↔ PDF | Bir şey gerekmez. |
+| PDF → UDF, PDF → Word, TIFF ↔ PDF, görüntü → PDF, PDF → JPG | Bir şey gerekmez. |
 
-Dönüştürülen dosya her zaman yeni dosyadır; var olan dosyanın üzerine yazılmaz. İptal edilirse hiçbir dosya yazılmaz.
+Birleştir'deki UDF ve Word belgeleri için de aynı gereksinimler geçerlidir.
+
+Dönüştürülen dosya her zaman ayrı bir dosyadır; özgün dosya değişmez. Önerilen ad klasörde varsa adına "(2)" eklenir; var olan bir
+dosyanın adını kendiniz seçerseniz üzerine yazmadan önce sorulur. İptal edilirse hiçbir dosya yazılmaz.
 
 ### Yazdırma ve PDF'i kopyala
 

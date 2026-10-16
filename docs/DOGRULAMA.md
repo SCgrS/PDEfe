@@ -862,3 +862,75 @@ Mac (elinizde varsa)
 39. **Dosya Formatını Değiştir.** Finder'dan bir UDF / TIFF / Word dosyası PDEfe ile açılınca araç açılmalı. UYAP Doküman Editörü Mac'te kuruluysa
     UDF → PDF onunla (Ayarlar'daki kartta bulunan klasör ve sürüm; "Klasörü seç…" penceresinde UYAP uygulamasının içi gezilebilmeli), değilse yaklaşık
     çizimle. Word → PDF için LibreOffice gerekir (yoksa Word hedefi soluk). PDF → Word macOS 13'te de çalışmalı. Sonuç listesindeki "Finder'da göster".
+
+## 42. 0.2.7: otomatik testlerin sınayamadıkları
+Ekran dışındaki ve görünmeyen masaüstündeki test örneğinde, üretilmiş örnek belgelerle ve %100 / %125 ölçekte sınandı. UDF dönüştürme ev
+bilgisayarındaki UYAP Doküman Editörü 5.4.20 ile; antet sorunu Masaüstü ve İndirilenler'deki antetli UDF'lerin kopyalarıyla (yalnızca sayılar
+ölçüldü); Word görünmeyen ayrı bir Word örneğiyle. Sürüklenen sekmenin akıcılığı test örneğinde, programla yürütülen imleçle ölçüldü. Gerçek
+fareyle sürükleme, Gezgin'den gerçek açma, açık Word'ünüz ve UYAP Doküman Editörü'nüzle birlikte kullanım, LibreOffice, kurulu (paketli) sürüm
+ve Mac denenmedi. Denemeleri belgelerin **kopyalarıyla** yapın.
+
+Adlar ve yazdırma
+1. **Araç adları.** Araçlar menüsünde, Araçlar penceresinde ve açılış ekranında "Birleştir" ve "Format Değiştir" yazmalı; Birleştir'in karosunda
+   "Dosyaları tek PDF'te birleştirir", Format Değiştir'inkinde "PDF ↔ UDF, Word, TIFF, JPG". `F1` listesinde bölüm başlığı "Birleştir"; Ayarlar ›
+   Kaydetme'de "Format Değiştir". Pencere başlıkları da yeni adlarla.
+2. **Yazdırma penceresi.** `Ctrl+P`: altta Yazdır ve Vazgeç aynı boyutta, yan yana aynı hizada; soldaki "Windows yazdırma penceresiyle yazdır"
+   bağlantısı aynı satırda. Windows'un ekran ölçeği %100 ve %125'te, açık ve koyu temada bakın. Parolalı bir PDF açarken çıkan sorunun düğmeleri
+   de aynı düzende olmalı.
+
+Birleştir
+3. **UDF, Word, TIFF, görüntü ve PDF birlikte.** Birleştir'e bir PDF, bir UDF, bir Word belgesi, bir UYAP TIFF'i ve bir telefon fotoğrafı bırakın:
+   UDF'nin küçük resmi birkaç saniyede gelmeli; Word satırında mavi "DOCX" simgesi ve "en az … sayfa". Birleştir'e basın: ilerlemede "… PDF'e
+   çevriliyor" yazmalı, tek PDF sekmede açılmalı; sayfalar listedeki sırayla, UDF ve Word sayfaları yazılarıyla. Word **açıkken** (içinde belge
+   varken) deneyin: açık Word'ünüz etkilenmemeli, ekranda yeni Word penceresi açılmamalı, iş bitince Görev Yöneticisi'nde fazladan Word kalmamalı.
+   Bir kez de belgeler çevrilirken İptal'e basın: PDF yazılmamalı.
+4. **Üzerine yaz.** Bir PDF açıkken Birleştir'i açın, listeye bir UDF ekleyin, Kaydet'te Üzerine yaz seçip birleştirin: açık PDF'in sonuna UDF'nin
+   sayfaları eklenmeli. Ofisteki bilgisayarda (UYAP Doküman Editörü kurulu değilse) de deneyin.
+
+Format Değiştir
+5. **Antetli UDF'ler.** Masaüstündeki, önceden boş PDF'e dönüşen yalnızca antetli UDF'leri yeniden PDF'e çevirin: antet görünmeli, UYAP Doküman
+   Editörü'nün Yazdır → PDF çıktısıyla aynı yerde ve aynı tonda. Antetli bir dilekçeyi de deneyin.
+6. **Görüntü → PDF.** Telefonla çekilmiş bir fotoğrafı (dik ve yatay), bir ekran görüntüsünü ve taranmış bir JPG / PNG'yi PDF'e çevirin: sayfa A4
+   boyunda (fotoğrafta uzun kenar A4'ün uzun kenarı), yönü doğru, görüntü bozulmamış olmalı. Bir görüntüyü PDEfe'nin penceresine bırakın:
+   Format Değiştir o görüntüyle açılmalı. Aynı görüntüden UDF (yazı tanımayla, harf yanlışlarına bakın) ve TIFF de deneyin.
+7. **PDF → JPG.** Çok sayfalı bir PDF'i JPG'ye çevirin: "<ad> - Sayfa 1.jpg", "<ad> - Sayfa 2.jpg"… dosyaları oluşmalı, sonuç listesinde her biri
+   ayrı satırda; tek sayfalı PDF'te "<ad>.jpg". İdeal ve Düşük'le birer kez çevirip dosyaları açın: Düşük'te yazılar yine okunur olmalı.
+8. **İdeal / Düşük.** TIFF hedefinde İdeal seçili gelmeli; iki düğmenin yanında yaklaşık boyut yazmalı ve dönüştürmeden sonra Gezgin'de görülen
+   boyuta yakın olmalı. Düşük'le çevrilen bir TIFF'i UYAP'a yüklemeyi deneyin.
+9. **Kalite notu.** Bir UDF ekleyip hedefi Word yapın: satırın altında hemen "Sayfa düzeni Word'de birebir korunmayabilir." çıkmalı; hedefi PDF'e
+   döndürünce kalkmalı. TIFF → Word'de ve görüntü → UDF'de de not çıkmalı; PDF → TIFF'te çıkmamalı.
+10. **E-imzalı UDF.** E-imzalı bir UDF'yi PDF'e çevirin: "e-imza PDF'e taşınmaz" uyarısı çıkmamalı.
+11. **Dönüştür soluk.** Bir dönüştürmeden sonra Dönüştür soluk kalmalı; İdeal / Düşük'ü değiştirince, bir dosya ekleyince ya da adı değiştirince
+    yeniden etkinleşmeli. Ayır'da aynı aralıkla ikinci kez ayırmak ve Sıkıştır'da küçülmeyen bir dosyayı aynı seviyeyle yeniden sıkıştırmak da
+    soluk olmalı.
+12. **Sonuç kutusu.** Tek dosyada (ör. bir PDF'i Word'e) "Dosya dönüştürüldü", dosyanın adı ve Klasörde göster ortalı olmalı; kilobayt ve sayfa
+    sayısı yazmamalı. Adları farklı uzunlukta üç UDF'yi PDF'e çevirin: Aç düğmeleri alt alta aynı yerde olmalı.
+13. **16 bit gri tarama** (elinizde varsa). Tarayıcının 16 bit gri ayarıyla kaydedilmiş bir PNG ya da TIFF'i Format Değiştir'e ve Birleştir'e
+    ekleyin: açılmalı ve dönüştürülmeli.
+
+"Zaten var" sorusu
+14. **Yeni belge olarak kaydet.** Format Değiştir'de bir PDF'i Word'e çevirin. Listeyi temizleyip aynı PDF'i yeniden ekleyin (PDEfe adın
+    sonuna " (2)" ekler), ad kutusuna ilk dosyanın adını yazın ve Dönüştür'e basın: "… zaten var" sorusunda Üzerine yaz, Yeni belge olarak kaydet ve Vazgeç olmalı, yeni ad soruda
+    yazmalı. `Enter`'a basın: "<ad> (1).docx" oluşmalı, var olan dosya değişmemeli; bir kez daha yapınca "(2)" olmalı. Ardından listeyi temizleyip
+    başka bir dosya ekleyin: ad kutusunda yeni dosyanın adı olmalı. Döndür, Sıkıştır ve Birleştir'de de ad kutusuna var olan bir dosyanın adını
+    yazınca aynı soru çıkmalı.
+15. **JPG'de.** 3 sayfalık bir PDF'i JPG'ye çevirin. Sonra 2 sayfalık bir PDF'i, ad kutusuna ilkinin adını yazarak aynı klasöre JPG'ye çevirin:
+    soru çıkmalı ve kalacak "… - Sayfa 3.jpg"yi söylemeli. Üzerine yaz deyin: sonuçta da söylenmeli, "Sayfa 3" silinmemeli.
+
+Pencereler ve sekmeler
+16. **Araç açıkken açılan belge.** Bir araç (ör. Sıkıştır) açıkken Gezgin'den bir PDF'e çift tıklayın: yeni bir PDEfe penceresi önde açılmalı,
+    belge orada; araç arkadaki pencerede açık kalmalı. Araç açıkken ikinci bir PDF'e çift tıklayın: aynı yeni pencereye gelmeli. Format
+    Değiştir'in sonuç listesindeki Aç da yeni pencerede açmalı. Araç kapalıyken eskisi gibi aynı pencerede sekme açılmalı.
+17. **Sekmeyi dışarı sürükleme.** Bir sekmeyi sekme şeridinin dışına sürükleyip basılı tutarak fareyi yavaş ve hızlı gezdirin: küçük ön izleme
+    imleci takılmadan izlemeli. Bırakınca belge kendi penceresinde açılmalı.
+
+Kısayol simgeleri
+18. **Yeşil ok.** Masaüstündeki kısayollarda olağan küçük ok yerine ortada yeşil bir ok yeniden görülürse `Win+Shift+S` ile ekran görüntüsü alın
+    ve o anda ne yaptığınızı (dönüştürme, kurulum, güncelleme) not edin. Masaüstünde boş bir yere tıklayıp `F5`'e basın; geçmezse oturumu kapatıp
+    açın.
+
+Kurulu sürüm ve Mac
+19. **Kurulu sürüm.** 0.2.7 kurulduktan sonra kurulu PDEfe'de bir kez görüntü → PDF, PDF → JPG, antetli UDF → PDF ve Birleştir'de UDF + Word
+    deneyin.
+20. **Mac** (elinizde varsa). Format Değiştir'de görüntü → PDF ve PDF → JPG; sonuçta "Finder'da göster". Birleştir'de UDF (UYAP Doküman Editörü
+    yoksa yaklaşık çizimle) ve LibreOffice kuruluysa Word belgesi.
