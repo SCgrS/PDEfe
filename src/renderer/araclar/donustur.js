@@ -36,7 +36,7 @@
 import {
   pencereAc, pencereAcikMi, IslemIlerleme, kayitSecimi, boyutMetni, sayiMetni, kacis, hataMetni, dosyaAdi, klasorAdi, adGovdesi, uzanti, yolAyni,
   yolBirlestir, guvenliAd, oge, segmentliSecim, kilitliHataMi, ciktiyiAc, acikBelge, degisiklikleriSor, sonucKutusuCiz, yaklasikIstekId, yaklasikIlerlemeDinle,
-  geciktir,
+  yaklasikIptal, numaraliGovdeler, geciktir,
 } from './ortak.js';
 import { MAC } from '../platform.js';
 
@@ -429,14 +429,8 @@ export class DonusturPenceresi {
     this._ogeCiz(o);
   }
 
-  /** Satırların süren / sıradaki yaklaşık küçük resim çizimlerini iptal eder (ana süreç udf:yaklasikIptal). */
-  _yaklasikIptal(ogeler) {
-    for (const o of ogeler) {
-      if (o.yaklasikIstek == null) continue;
-      this.baglam.pdefe.cagir('udf:yaklasikIptal', { istekId: o.yaklasikIstek }).catch(() => false);
-      o.yaklasikIstek = null;
-    }
-  }
+  /** Satırların süren / sıradaki yaklaşık küçük resim çizimlerini iptal eder (ortak.js yaklasikIptal). */
+  _yaklasikIptal(ogeler) { yaklasikIptal(this.baglam.pdefe, ogeler); }
 
   // ---------------------------------------------------------------- hedefler
   /** Hedefin bu satır için durumu: {var, neden}. Çekirdek bu dönüştürmeyi hiç sunmuyorsa (ör. Word dönüştürücüsü bu sürümde yok) neden
@@ -874,15 +868,12 @@ export class DonusturPenceresi {
         fazla.push(ad);
       }
     }
-    // Yeni adın önerisi: "<ad> (n)" adlarından hiçbiri yoksa (çekirdek yazarken yeniden bakar)
-    const m = / \((\d{1,3})\)$/.exec(govde);
-    const kok = m ? govde.slice(0, m.index) : govde;
+    // Yeni adın önerisi: "<ad> (n)" adlarından hiçbiri yoksa (çekirdek yazarken yeniden bakar; "(n)" kuralı ortak.js numaraliGovdeler)
     let yeni = null;
-    for (let i = m ? +m[1] + 1 : 1; i < 1000 && !yeni; i++) {
-      const g = `${kok} (${i})`;
+    for (const g of numaraliGovdeler(govde)) {
       // Çok sayfada dizinin sonraki sayfası da (çekirdeğin bos_ad'ı gibi: önceki uzun dönüştürmenin sayfası yeni sayfalarla karışmasın)
       const denenecek = o.sayfa === 1 ? [`${g}.${uz}`] : [`${g}.${uz}`, sayfaAdi(g, 1, uz), ...(o.sayfa > 1 ? [sayfaAdi(g, o.sayfa + 1, uz)] : [])];
-      if (!(await Promise.all(denenecek.map(varMi))).some(Boolean)) yeni = o.sayfa === 1 ? `${g}.${uz}` : o.sayfa > 1 ? sayfaAdi(g, 1, uz) : `${g}.${uz}`;
+      if (!(await Promise.all(denenecek.map(varMi))).some(Boolean)) { yeni = o.sayfa === 1 ? `${g}.${uz}` : o.sayfa > 1 ? sayfaAdi(g, 1, uz) : `${g}.${uz}`; break; }
     }
     const liste = olanlar.slice(0, 3).map((a) => `"${a}"`).join(', ') + (olanlar.length > 3 ? ` ve ${sayiMetni(olanlar.length - 3)} dosya daha` : '');
     const kalanNotu = !fazla.length ? ''

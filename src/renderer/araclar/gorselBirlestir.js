@@ -24,7 +24,7 @@
 import {
   pencereAc, pencereAcikMi, IslemIlerleme, kayitSecimi, boyutMetni, sayiMetni, kacis, hataMetni, dosyaAdi, uzanti,
   yolAyni, suruklemeSiralama, suruklemeKalintisi, geciktir, oge, segmentliSecim, kilitliHataMi, ciktiyiAc, acikBelge,
-  degisiklikleriSor, yaklasikIstekId, yaklasikIlerlemeDinle,
+  degisiklikleriSor, yaklasikIstekId, yaklasikIlerlemeDinle, yaklasikIptal,
 } from './ortak.js';
 import { kaydetmedenCikisSorusu } from '../mesajKutusu.js';
 import { MAC, tus } from '../platform.js';
@@ -258,14 +258,8 @@ export class BirlestirmePenceresi {
     this._ozetYaz();
   }
 
-  /** Satırların süren / sıradaki yaklaşık küçük resim çizimlerini iptal eder. */
-  _yaklasikIptal(ogeler) {
-    for (const o of ogeler) {
-      if (o.yaklasikIstek == null) continue;
-      this.baglam.pdefe.cagir('udf:yaklasikIptal', { istekId: o.yaklasikIstek }).catch(() => false);
-      o.yaklasikIstek = null;
-    }
-  }
+  /** Satırların süren / sıradaki yaklaşık küçük resim çizimlerini iptal eder (ortak.js yaklasikIptal). */
+  _yaklasikIptal(ogeler) { yaklasikIptal(this.baglam.pdefe, ogeler); }
 
   /** UYAP Doküman Editörü yokken birleştirme (UDF'ler yaklaşık çizimle; ana süreç udf:yaklasikBirlestir). IslemIlerleme'nin çekirdek çağrısı
    *  biçiminde: söz ve iptal(); iptal yazmadan önce gelirse iptal hatası, yazdıktan sonra gelirse sonucu taşıyan iptal hatası. */

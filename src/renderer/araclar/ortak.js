@@ -1233,14 +1233,24 @@ export function acikBelge(baglam, yol) {
  * (bosAdBul'dan farkı: varsayılan adlar "(2)"den başlar, bu soru kullanıcının istediği gibi "(1)"den.)
  */
 export async function numaraliAdBul(pdefe, klasor, ad) {
-  const uz = uzanti(ad), govde = adGovdesi(ad);
-  const m = / \((\d{1,3})\)$/.exec(govde);
-  const kok = m ? govde.slice(0, m.index) : govde;
-  for (let i = m ? +m[1] + 1 : 1; i < 1000; i++) {
-    const aday = `${kok} (${i})${uz ? '.' + uz : ''}`;
-    if (!(await pdefe.cagir('dosya:varMi', yolBirlestir(klasor, aday)))) return aday;
+  const uz = uzanti(ad) ? '.' + uzanti(ad) : '';
+  for (const g of numaraliGovdeler(adGovdesi(ad))) {
+    if (!(await pdefe.cagir('dosya:varMi', yolBirlestir(klasor, g + uz)))) return g + uz;
   }
-  return `${kok}_${Date.now()}${uz ? '.' + uz : ''}`;
+  return `${numaraliKok(adGovdesi(ad))}_${Date.now()}${uz}`;
+}
+
+/** "(n)" kuralının kökü: "Rapor (2)" → "Rapor"; 1–3 basamaklı olmayan ("Rapor (2023)") ya da sayısız ad olduğu gibi. */
+function numaraliKok(govde) { const m = / \((\d{1,3})\)$/.exec(govde); return m ? govde.slice(0, m.index) : govde; }
+
+/**
+ * "(n)" yeni ad kuralı (0.2.7; 0.2.9 denetimi: numaraliAdBul ve Format Değiştir'in JPG sorusu bu tek üreteci kullanır; çekirdeğin bos_ad'ı aynı
+ * kural): gövde "(n)" ile bitiyorsa (1–3 basamak) "<kök> (n + 1)"den, yoksa "<gövde> (1)"den başlayan gövdeler (en çok 999).
+ */
+export function* numaraliGovdeler(govde) {
+  const m = / \((\d{1,3})\)$/.exec(govde);
+  const kok = numaraliKok(govde);
+  for (let i = m ? +m[1] + 1 : 1; i < 1000; i++) yield `${kok} (${i})`;
 }
 
 /**
@@ -1519,6 +1529,15 @@ export function yaklasikIlerlemeDinle(pdefe, istekId, cb) {
   if (!yaklasikDinleme) yaklasikDinleme = pdefe.dinle('udf:yaklasikIlerleme', (id, p) => yaklasikDinleyiciler.get(id)?.(p));
   yaklasikDinleyiciler.set(istekId, cb);
   return () => yaklasikDinleyiciler.delete(istekId);
+}
+/** Satırların süren / sıradaki yaklaşık küçük resim çizimlerini iptal eder (udf:yaklasikIptal; satırın yaklasikIstek'i boşalır). Format Değiştir ve
+ *  Birleştir'in ortak işi (0.2.9 denetimi: iki araçta birebir aynı kopyası vardı). */
+export function yaklasikIptal(pdefe, ogeler) {
+  for (const o of ogeler) {
+    if (o.yaklasikIstek == null) continue;
+    pdefe.cagir('udf:yaklasikIptal', { istekId: o.yaklasikIstek }).catch(() => false);
+    o.yaklasikIstek = null;
+  }
 }
 
 /** Küçük yardımcı: HTML dizesinden tek öğe. */
