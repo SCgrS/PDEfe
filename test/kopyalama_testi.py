@@ -4,7 +4,7 @@ son metin. Her satırı ayrı PyMuPDF bloğu olan belgeler (mevzuat PDF'leri gib
 insert_text ayrı blok verir. 0.1.9'a dek bu belgelerde her satır ayrı paragraf çıkıyor, UDF'ye yapıştırınca girintili paragrafta
 satırlar dağılıyordu. 0.1.10'a dek belgedeki boş satırlar (kanunda bölüm başlığından önceki boşluk) kayboluyordu: boş satır boş
 paragraf olarak gelmeli, paragraf aralığı ve çift satır aralığı boş satır sayılmamalı, sayfa geçişindeki boş paragraf da gelmeli.
-Kullanıcının belgesi (Masaüstü\\PDF DENEME\\1.5.6098.pdf) ve test\\pdf'teki kanun / makale PDF'leri varsa onlardaki seçimler de sınanır.
+Kullanıcının belgesi (PDEFE_TEST_PDF_KLASORU ya da Masaüstü\\PDF DENEME\\1.5.6098.pdf) ve test\\pdf'teki kanun / makale PDF'leri varsa onlardaki seçimler de sınanır.
 0.2.1: satırın ortasından başlayan seçimde noktalamayla biten dolu ilk satır paragrafı bölmüyor (çekirdeğin ilk_dolu'su), "HMK’ya" gibi
 kesme işaretli kısaltmayla başlayan satır başlık sayılmıyor; satır sonu tiresi şapkalı harften sonra da birleşir, sayı aralığında kalır.
 Çalıştırma: .venv\\Scripts\\python.exe test\\kopyalama_testi.py   (PDF'lerin klasörü: KOPYALAMA_KLASORU, yoksa test\\cikti\\kopyalama)
@@ -20,10 +20,11 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 import pymupdf  # noqa: E402
 import pdefe_core  # noqa: E402
+from ev_denetimi import ornek_klasoru  # noqa: E402
 
 CIKTI = os.environ.get("KOPYALAMA_KLASORU") or os.path.join(KOK, "test", "cikti", "kopyalama")
 FONT = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "times.ttf")
-MASAUSTU_BELGE = os.path.join(os.path.expanduser("~"), "Desktop", "PDF DENEME", "1.5.6098.pdf")
+MASAUSTU_BELGE = os.path.join(ornek_klasoru(), "1.5.6098.pdf")   # PDEFE_TEST_PDF_KLASORU ya da Masaüstü\PDF DENEME (USERPROFILE değiştirilmez)
 TMK_BELGE = os.path.join(KOK, "test", "pdf", "mevzuat_4721_TMK.pdf")
 TTK_BELGE = os.path.join(KOK, "test", "pdf", "mevzuat_6102_TTK.pdf")
 MAKALE_BELGE = os.path.join(KOK, "test", "pdf", "dergipark_5104529_zamanasimi.pdf")

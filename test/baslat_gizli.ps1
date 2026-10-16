@@ -35,6 +35,11 @@ if ($Paketli) {   # (PowerShell değişken adları büyük/küçük harf ayırma
 if (-not (Test-Path $exe)) { throw "electron.exe yok: $exe (node_modules bağlantısını kurun)" }
 # Ortam değişkenleri alt sürece geçer (CreateProcess ortamı devralır). Konum verilir: test diyalogları (gelistirme.js testDiyalogKur) açık olsun
 $env:PDEFE_VERI_KLASORU = $Veri
+# 0.2.9 denetimi: USERPROFILE gerçek profil klasörü değilse (sahte ev) örnekte Word kullanılmaz (baslat.ps1'deki gibi)
+if ($env:USERPROFILE -and -not (Test-Path -LiteralPath (Join-Path $env:USERPROFILE 'NTUSER.DAT'))) {
+  $env:PDEFE_WORD_YOK = '1'
+  Write-Warning 'USERPROFILE gerçek profil klasörü değil (sahte ev): bu örnekte Word kullanılmıyor (PDEFE_WORD_YOK=1).'
+}
 if ($GercekEkran -or $Paketli) {
   foreach ($ad in 'PDEFE_TEST_KONUM', 'PDEFE_TEST_BOYUT', 'PDEFE_TEST_GIZLI_MASAUSTU') { Remove-Item "Env:$ad" -ErrorAction SilentlyContinue }
 } else {

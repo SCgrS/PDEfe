@@ -15,6 +15,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { D } from './test_klasoru.mjs';
 
 const KOK = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const UI = path.join(KOK, 'test', 'cikti', 'ui');
@@ -23,7 +24,7 @@ const CIKTI = path.join(UI, 'cikti');
 const GORSEL = path.join(UI, 'gorsel');
 const PNG = path.join(UI, 'png');
 const PY = path.join(KOK, '.venv', 'Scripts', 'python.exe');
-const MASAUSTU_DENEME = path.join(process.env.USERPROFILE || '', 'Desktop', 'PDF DENEME');
+const MASAUSTU_DENEME = D;   // örnek PDF klasörü: PDEFE_TEST_PDF_KLASORU ya da Masaüstü\PDF DENEME (0.2.9: USERPROFILE değiştirilmez)
 const J = (x) => JSON.stringify(x);
 
 let hataSayisi = 0;

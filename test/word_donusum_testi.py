@@ -35,6 +35,7 @@ sys.path.insert(0, CORE)
 sys.stdout.reconfigure(encoding="utf-8")
 
 import pymupdf  # noqa: E402
+from ev_denetimi import word_icin_denetle  # noqa: E402
 
 CIKTI = os.path.join(KOK, "test", "cikti", "word_donusum")
 GIRDI = os.path.join(CIKTI, "girdi")
@@ -870,6 +871,7 @@ def main():
         if not os.path.isfile(exe):
             print("exe bulunamadı:", exe)
             return 2
+    word_icin_denetle()   # 0.2.9 denetimi: USERPROFILE değiştirilmişse Word başlatılmaz (Word'ün "Son kullanılanlar" listesi bozulurdu)
     BASTA.update(word_surecleri())
     print("Girdiler üretiliyor…")
     g = girdileri_uret()

@@ -25,6 +25,12 @@ if ($Tema) {
 $exe = Join-Path $kok 'node_modules\electron\dist\electron.exe'
 if (-not (Test-Path $exe)) { throw "electron.exe yok: $exe (node_modules bağlantısını kurun)" }
 $env:PDEFE_VERI_KLASORU = $Veri
+# 0.2.9 denetimi: USERPROFILE gerçek profil klasörü değilse (sahte ev: içinde NTUSER.DAT yok) örnekte Word kullanılmaz. Word bu ortamla başlayınca
+# "Son kullanılanlar" listesindeki Masaüstü / Belgeler yollarını sahte eve çevirip yazıyordu. Örnek PDF klasörü için PDEFE_TEST_PDF_KLASORU verin
+if ($env:USERPROFILE -and -not (Test-Path -LiteralPath (Join-Path $env:USERPROFILE 'NTUSER.DAT'))) {
+  $env:PDEFE_WORD_YOK = '1'
+  Write-Warning 'USERPROFILE gerçek profil klasörü değil (sahte ev): bu örnekte Word kullanılmıyor (PDEFE_WORD_YOK=1).'
+}
 $env:PDEFE_TEST_KONUM = $Konum
 $env:PDEFE_TEST_BOYUT = $Boyut
 $arguman = @('.', "--remote-debugging-port=$Port")

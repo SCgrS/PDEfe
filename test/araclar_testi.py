@@ -22,8 +22,12 @@ sys.path.insert(0, os.path.join(KOK, "core"))
 sys.stdout.reconfigure(encoding="utf-8")
 
 import pymupdf  # noqa: E402
+from ev_denetimi import ornek_klasoru, word_icin_denetle  # noqa: E402
 
-MASAUSTU = os.path.join(os.path.expanduser("~"), "Desktop", "PDF DENEME")
+# Örnek PDF klasörü: PDEFE_TEST_PDF_KLASORU ya da Masaüstü\PDF DENEME. 0.2.9 denetimi: bunun için USERPROFILE değiştirilmez (Birleştir'in Word
+# adımı sahte ev klasörüyle başlayan Word'ün "Son kullanılanlar" listesini bozar); değiştirilmişse bu sınamada Word kullanılmaz
+MASAUSTU = ornek_klasoru()
+word_icin_denetle()
 TEST_PDF = os.path.join(KOK, "test", "pdf")
 CIKTI = os.path.join(KOK, "test", "cikti", "araclar")
 
