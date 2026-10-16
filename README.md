@@ -141,7 +141,8 @@ Araçlar, araç çubuğundaki **Araçlar** düğmesinden ya da açılış ekran�
 - **Ayır:** Belge sayfa aralıklarına göre (örneğin `1-3, 4-10`) ya da her sayfa ayrı olacak şekilde ayrılır. Sonuçtaki **Tümünü aç**
   parçaları PDEfe'de yeni sekmelerde açar.
 - **Birleştir:** PDF, görüntü (JPG, PNG, BMP, GIF, WEBP), TIFF, UDF ve Word dosyaları listedeki sırayla tek PDF'te birleşir; sonuç
-  sekmede açılır. Dosyalar sürüklenerek ya da panodan eklenir. UYAP taramaları (TIFF) gerçek ölçüsünde, A4 olarak eklenir. UDF ve Word
+  sekmede açılır. Dosyalar sürüklenerek ya da panodan eklenir. Görüntü ve TIFF sayfaları A4 boyutunda eklenir: oranı korunarak A4'e sığan
+  en büyük ölçüde (dikey görüntü dikey, yatay görüntü yatay A4'ün içine), beyaz kenar eklenmeden; çözünürlükleri değişmez. UDF ve Word
   belgeleri önce PDF'e çevrilir (aşağıda, Format Değiştir'in gereksinimleri); Word belgesinin sayfa sayısı ve boyutu birleştirmeden önce
   bilinmez.
 - **Format Değiştir:** UDF, Word, TIFF ve görüntü dosyalarını PDF'e, PDF'leri bunlara ve JPG'ye dönüştürür (aşağıda).
@@ -183,14 +184,15 @@ dönüştürmede (örneğin UDF → Word, TIFF → Word) hedef seçilince satır
 - **PDF → UDF:** Düzenlenebilir UDF. Paragraflar, kenar boşlukları, üst ve alt bilgi, antet ve çizgili tablolar alınır; sayfa numarası
   editörün kendi numarası olur. Taranmış sayfa yazı tanımayla düzenlenebilir yazıya çevrilir. Satır, sayfa düzeni ve tablolar
   kayabilir. İmza gibi yazının üstünde ya da yanında duran resimler alınmaz; sonuçta dosyanın yanındaki ⚠ simgesi bunu söyler.
+  Görüntüden ve TIFF'ten yapılan UDF'nin kâğıdı A4'tür.
 - **Word → PDF:** Word'ün kendisiyle; görünmeyen, ayrı bir Word kullanılır, açık Word'ünüze dokunulmaz. Belgenin yazar adı PDF'e geçmez.
   .docx, .doc, .rtf ve .odt dönüştürülür.
 - **PDF → Word:** Metni düzenlenebilir .docx. Taranmış sayfalar resim olarak aktarılır. Sayfa düzeni ve tablolar birebir korunmayabilir.
-- **TIFF → PDF:** Kayıpsız; UYAP taramaları doğru ölçüde (A4) ve çoğunlukla TIFF'ten küçük. **PDF → TIFF:** Tek dosyada çok sayfa,
+- **TIFF → PDF:** Kayıpsız; her sayfa A4'e sığan en büyük ölçüde (UYAP'ın A4 taramaları tam A4) ve çoğunlukla TIFF'ten küçük. **PDF → TIFF:** Tek dosyada çok sayfa,
   siyah beyaz, gri ya da renkli.
-- **Görüntü → PDF:** JPG, PNG, BMP, GIF ve WEBP. Taranmış görüntü, tarayıcının yazdığı çözünürlükle gerçek boyutunda sayfa olur;
-  fotoğraf ve ekran görüntüsü A4 boyunda (uzun kenarı A4'ün uzun kenarı), beyaz kenar eklenmeden. Telefon fotoğrafının yönü
-  düzeltilir. iPhone'un HEIC fotoğrafları açılamaz.
+- **Görüntü → PDF:** JPG, PNG, BMP, GIF ve WEBP. Her görüntü A4 boyutunda sayfa olur: oranı korunarak A4'e sığan en büyük ölçüde (dikey
+  görüntü dikey, yatay görüntü yatay A4'ün içine; küçük görüntü büyür, büyüğü küçülür), beyaz kenar eklenmeden; çözünürlüğü değişmez.
+  Telefon fotoğrafının yönü düzeltilir. iPhone'un HEIC fotoğrafları açılamaz.
 - **PDF → JPG:** Her sayfa ayrı bir JPG dosyası olur ("Dilekçe - Sayfa 1.jpg", "Dilekçe - Sayfa 2.jpg"…); tek sayfalı belge "Dilekçe.jpg".
 - **Çözünürlük:** TIFF ve JPG'de **İdeal** (standart, 300 dpi) ya da **Düşük** (UYAP'ın kendi taramaları gibi 200 dpi, daha küçük dosya).
   İkisinin yanında dönüştürülecek dosyaların yaklaşık boyutu yazar. Taranmış sayfalar büyütülmez.

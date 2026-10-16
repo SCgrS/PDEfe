@@ -175,6 +175,7 @@ Ekran dışı test örneği %100 ölçekte çalıştı: %125 ölçekli ekranda g
 4. **Araçlar penceresi.** Alttaki iki araç ortalı; ok tuşlarıyla karolar arasında gezinin.
 5. **Dolgu düğmesi.** Yazı aracıyla kutu açın: Dolgu rengi düğmesindeki kare, yazı rengi karesiyle aynı boyda ve hizada.
 6. **Görüntü birleştir.** Bir fotoğraf ekleyin: Sayfa seçiminde "Orijinal" seçili gelmeli, seçenekler "A4'e sığdır" ve "Orijinal".
+   (Eski: 0.2.9'da değişti. Sayfa seçimi kalktı; görüntü sayfası her zaman A4'e sığan en büyük ölçüde.)
 
 ## 15. 0.1.6
 1. **Görüntü birleştir kalitesi.** Birkaç tarama / telefon fotoğrafı ve bir ekran görüntüsü ekleyin: kalite düğmelerinde Orijinal ≥ Yüksek
@@ -764,7 +765,7 @@ Yazdırma
    seçili, sağda sayfa kâğıda basılacağı gibi büyük görünmeli. ◀ ▶ ve `Page Up` / `Page Down` ile sayfalar arasında gezin; Sayfalar'da "Aralık"
    seçip "2-3" yazın: ön izleme yalnızca o sayfaları göstermeli, altta "2 sayfa × 1 kopya". Siyah beyaz seçince ön izleme griye dönmeli. Yatay bir
    sayfa kâğıda döndürülmüş görünmeli. Koyu temada da okunaklı olmalı.
-3. **Ofisteki yazıcıda (Lazer Yazıcı) gerçek kâğıtla.** A4 belge: doğru tepsiden, doğru boyutta (kenarlarda birkaç mm boşluk), yazıcıda "kâğıt
+3. **Ofisteki yazıcıda gerçek kâğıtla.** A4 belge: doğru tepsiden, doğru boyutta (kenarlarda birkaç mm boşluk), yazıcıda "kâğıt
    uyuşmazlığı / özel kâğıt" uyarısı olmadan çıkmalı. Çift taraflı (uzun kenardan çevir): arka yüz doğru yönde; kısa kenardan çevir; "Yazıcının
    ayarı" seçiliyken yazıcının kendi ayarıyla. 3 sayfalık belgede 2 kopya Harmanla işaretliyken 1-2-3, 1-2-3; işaretsizken 1-1, 2-2, 3-3. Siyah
    beyaz renkli sayfayı gri basmalı. Yatay sayfa kâğıda sığarak (döndürülmüş) basılmalı. **Yazıcı tercihleri** yazıcının kendi tercih penceresini
@@ -964,7 +965,8 @@ Format Değiştir
 6. **⚠ simgesi.** İmzalı ya da karekodlu bir PDF'i ve taranmış bir PDF'i UDF'ye çevirin: sonuç listesinde uyarı paragrafı olmamalı; dosyanın
    adının yanında ⚠ çıkmalı, üstüne gelince "PDF → UDF: …" ile başlayan uyarı ve altında alınmayan resimler ya da yazı tanıma yazmalı. Sorunsuz
    bir PDF → Word'de ⚠ çıkmamalı. Hiçbir notta "kaşe" geçmemeli; UDF ve Word notlarında tablolar anılmalı.
-7. **Bildirim.** Bir UDF'yi PDF'e çevirin (tek dosya): PDF sekmede açılmalı, altta kısa "Dönüştürüldü: <ad>" çıkmalı. Bir PDF'i Word'e, birden
+7. **Bildirim.** Bir UDF'yi PDF'e çevirin (tek dosya): PDF sekmede açılmalı, altta kısa "Dönüştürüldü: <ad>" çıkmalı (0.2.9'da değişti:
+   "Format değiştirildi: <ad>"). Bir PDF'i Word'e, birden
    çok dosyayı ya da JPG'yi çevirince altta beyaz bildirim çıkmamalı.
 
 Ayır
