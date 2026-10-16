@@ -41,9 +41,8 @@ CIKTI = os.path.join(KOK, "test", "cikti", "word_donusum")
 GIRDI = os.path.join(CIKTI, "girdi")
 WINDOWS = sys.platform == "win32"
 hata = toplam = 0
-# paketli çekirdek UDE köprüsünü uygulamanın resources/ude-kopru klasöründe arar; sınamada depodaki jar
-UDE_KOPRU = {"PDEFE_UDE_KOPRU": os.path.join(CORE, "ude_kopru", "ude-kopru.jar")} if os.path.isfile(
-    os.path.join(CORE, "ude_kopru", "ude-kopru.jar")) else {}
+# Paketli çekirdek UDE köprüsünü resources/ude-kopru'da, derleme düzeninde (core/dist/pdefe-core) core/ude_kopru'da bulur; 0.2.9 denetiminden
+# beri PDEFE_UDE_KOPRU'yu okumaz (udf.kopru_jari)
 BASTA = set()   # testten önce çalışan Word süreçleri (kullanıcının); bizim örneğimiz kapanınca bu kümeye dönülmeli
 
 
@@ -74,7 +73,7 @@ class Cagirici:
         self.sayac = 0
         if exe:
             self.surec = subprocess.Popen([exe], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
-                                          encoding="utf-8", bufsize=1, env=dict(os.environ, **UDE_KOPRU))
+                                          encoding="utf-8", bufsize=1)
         else:
             import pdefe_core
             self.cekirdek = pdefe_core
@@ -144,7 +143,7 @@ class Surec:
     def __init__(self, exe=None, ortam=None):
         komut = [exe] if exe else [sys.executable, "-X", "utf8", os.path.join(CORE, "pdefe_core.py")]
         self.p = subprocess.Popen(komut, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                                  env=dict(os.environ, PYTHONIOENCODING="utf-8", **dict(UDE_KOPRU, **(ortam or {}))))
+                                  env=dict(os.environ, PYTHONIOENCODING="utf-8", **(ortam or {})))
         self.satirlar = queue.Queue()
         self.ham = []
         self.bozuk = []

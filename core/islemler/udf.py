@@ -600,13 +600,17 @@ def _hazirlik(yenile=False):
 
 
 def kopru_jari():
-    """ude-kopru.jar: PDEFE_UDE_KOPRU, paketli uygulamada resources/ude-kopru/ (çekirdeğin klasörünün yanı), geliştirmede core/ude_kopru/."""
+    """ude-kopru.jar: paketli çekirdekte resources/ude-kopru/ (çekirdeğin klasörünün yanı; derleme düzeninde core/dist/pdefe-core'un yanındaki
+    core/ude_kopru/: sınamaların --exe kipi), geliştirmede PDEFE_UDE_KOPRU ya da core/ude_kopru/. 0.2.9 denetimi: paketli çekirdek
+    PDEFE_UDE_KOPRU'yu okumaz (ortam değişkenine yazabilen bir program her UDF dönüştürmesinde PDEfe'ye kendi jar'ını UDE'nin sınıf yoluyla
+    çalıştırtamasın; PDEFE_UDE_YOK gibi yalnızca geliştirme sürümünün sınama kancası)."""
     adaylar = []
-    if os.environ.get("PDEFE_UDE_KOPRU"):
-        adaylar.append(os.environ["PDEFE_UDE_KOPRU"])
     if getattr(sys, "frozen", False):
         kaynaklar = os.path.dirname(os.path.dirname(os.path.abspath(sys.executable)))   # resources/pdefe-core/pdefe-core.exe → resources
         adaylar.append(os.path.join(kaynaklar, "ude-kopru", KOPRU_JAR))
+        adaylar.append(os.path.join(os.path.dirname(kaynaklar), "ude_kopru", KOPRU_JAR))   # core/dist/pdefe-core/… → core/ude_kopru
+    elif os.environ.get("PDEFE_UDE_KOPRU"):
+        adaylar.append(os.environ["PDEFE_UDE_KOPRU"])
     adaylar.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ude_kopru", KOPRU_JAR))
     for a in adaylar:
         if a and os.path.isfile(a):

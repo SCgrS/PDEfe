@@ -45,6 +45,7 @@ from PIL import Image, ImageDraw  # noqa: E402
 CIKTI = os.path.join(KOK, "test", "cikti", "udf_donusum")
 WINDOWS = sys.platform == "win32"
 A4 = (595.28, 841.89)
+SAHTE_KOPRU = os.path.join(CIKTI, "sahte-kopru.jar")
 hata = toplam = 0
 
 
@@ -72,7 +73,12 @@ class Cagirici:
         self.exe = exe
         self.sayac = 0
         if exe:
-            ortam = dict(os.environ, PDEFE_UDE_KOPRU=os.path.join(CORE, "ude_kopru", "ude-kopru.jar"))
+            # 0.2.9 denetimi: paketli çekirdek PDEFE_UDE_KOPRU'yu okumaz (jar'ı resources/ude-kopru'da, derleme düzeninde core/ude_kopru'da bulur).
+            # Bilerek sahte bir jar verilir: okusaydı UDF → PDF'ler düşerdi (test_sahte_kopru)
+            os.makedirs(CIKTI, exist_ok=True)
+            with open(SAHTE_KOPRU, "wb") as f:
+                f.write(b"PK\x03\x04 sahte kopru")
+            ortam = dict(os.environ, PDEFE_UDE_KOPRU=SAHTE_KOPRU)
             self.surec = subprocess.Popen([exe], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
                                           encoding="utf-8", bufsize=1, env=ortam)
         else:
@@ -466,6 +472,15 @@ def test_udf_pdf(c, g, k):
     r, _ = c.cagir("donusum_bilgi", {"yol": g["yatay"], "onizleme": False})
     sonuc("donusum_bilgi: yatay sayfa (paperOrientation 0) genişlik > yükseklik", r.get("yatay") is True and r.get("genislik", 0) > r.get("yukseklik", 0),
           (r.get("genislik"), r.get("yukseklik")))
+
+
+def test_sahte_kopru(c, g, k):
+    """0.2.9 denetimi (yalnızca --exe): paketli çekirdek PDEFE_UDE_KOPRU'daki sahte jar'ı kullanmaz; UDF → PDF UDE'nin kendisiyle yapılır."""
+    hedef = os.path.join(k, "sahte_kopru_denemesi.pdf")
+    r, _ = donustur(c, [{"yol": g["kenar"], "hedef": hedef, "hedefBicim": "pdf"}])
+    o = r["sonuclar"][0]
+    sonuc("paketli çekirdek PDEFE_UDE_KOPRU'yu okumadı (sahte jar verildi): UDF → PDF UDE'yle yapıldı", "hata" not in o and o.get("cizim") != "yaklasik"
+          and os.path.isfile(hedef) and pdf_ozeti(hedef)["sayfa"] >= 1, o.get("hata") or o.get("cizim"))
 
 
 def test_yazici_konum(c, g, k):
@@ -1294,6 +1309,8 @@ def main():
                     lambda: test_yazici_konum(c, g, k), lambda: test_yorumlu(c, g, k),
                     lambda: test_hatalar(c, g, k),
                     lambda: test_iptal(c, g, temiz_klasor("iptal"))]
+        if exe:
+            testler.insert(0, lambda: test_sahte_kopru(c, g, k))
     else:
         atlandi("UDF → PDF", "UDE ya da Java bu bilgisayarda yok")
     testler += [lambda: test_imza_uyarisi(c, temiz_klasor("imza"), ude_var),
