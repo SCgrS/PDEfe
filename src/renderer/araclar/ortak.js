@@ -712,8 +712,9 @@ export async function varsayilanCiktiKlasoru(baglam) {
 /**
  * Kullanıcının bir araçta seçtiği kayıt klasörü (0.2.8, kullanıcı isteği: "dosyanın kaydedileceği yeri bir kez değiştirince hep aynı yere
  * kaydetsin, tekrar değiştirilene kadar"): Ayarlar'daki "Araçların çıktı klasörü" olur; bütün araçlar, öteki pencereler (ana süreç 'ayar:degisti')
- * ve sonraki açılışlar onu önerir. Klasör ayardakiyle aynıysa (ayar boşken Masaüstü) yazılmaz: yalnızca adı değiştiren Değiştir ayarı
- * değiştirmez. Ayardaki klasör artık yoksa (araçlar Masaüstü'nü önerirken) seçilen Masaüstü de yazılır.
+ * ve sonraki açılışlar onu önerir. Klasör ayardakiyle aynıysa (ayar boşken Masaüstü) yazılmaz. Değiştir'de klasör aracın önerdiğiyle aynı
+ * kaldıysa (yalnızca ad değişti) hiç çağrılmaz (ciktiSecici; 0.2.8 inceleme): ayardaki klasör o an yoksa ya da ulaşılamıyorsa (araç Masaüstü'nü
+ * öneriyor) ayar korunur, klasör geri gelince (çıkarılabilir disk yeniden takıldı) araçlar yine onu önerir.
  */
 export async function ciktiKlasorunuHatirla(baglam, klasor) {
   if (!klasor || typeof baglam?.ayarKoy !== 'function') return;
@@ -779,7 +780,8 @@ function uzantiDeseniAl(uz) {
  * ad ya da klasör değişince ikisi de sıfırlanır.
  * 0.2.6 (Dosya Formatını Değiştir): uzantiAyarla(uz) çıktının uzantısını değiştirir (kutudaki ad olduğu gibi kalır); klasorKipi(true) ad
  * kutusunu gizler, Değiştir yalnızca klasör seçtirir (birden çok dosya: adları araç verir).
- * 0.2.8: klasorSecildi(klasor) Değiştir'de klasör (ya da klasör ve ad) seçilince çağrılır (kayitSecimi onu Ayarlar'daki çıktı klasörüne yazar).
+ * 0.2.8: klasorSecildi(klasor) Değiştir'de başka bir klasör seçilince çağrılır (kayitSecimi onu Ayarlar'daki çıktı klasörüne yazar). Klasör
+ * önerilenle aynı kaldıysa (kaydetme penceresinde yalnızca ad değişti) çağrılmaz: kullanıcı kayıt yerini değiştirmedi.
  * @returns {{el:HTMLElement, yol:()=>string, klasor:()=>string, ad:()=>string, ayarla:(klasor:string|null, ad:string|null, s?:{elle?:boolean})=>void,
  *   onDegisti:(cb)=>void, elleDegisti:()=>boolean, onayli:(yol:string)=>boolean, onayla:(yol:string)=>void, onaylandi:(yol:string)=>boolean,
  *   uzantiAyarla:(uz:string)=>void, uzanti:()=>string, klasorKipi:(evet:boolean)=>void}}
@@ -820,6 +822,7 @@ export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasl
   });
   const degistirDugmesi = el.querySelector('.arac-cikti-degistir');
   degistirDugmesi.addEventListener('click', async () => {
+    const onceki = mevcutKlasor;   // klasör değişmediyse (yalnızca ad) klasorSecildi çağrılmaz
     // Birden çok dosyada (klasorKipi) yalnızca klasör seçilir: adları araç verir
     if (yalnizKlasor) {
       const k = await pdefe.cagir('dosya:klasorSec', { baslik: diyalogBasligi, varsayilan: mevcutKlasor || undefined });
@@ -828,7 +831,7 @@ export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasl
       // Klasör seçimi adı "elle" saymaz: tek dosyaya dönülünce önerilen ad (kalan dosyanın adı) seçilen klasörde yeniden aranır (0.2.6)
       onayliYol = null; aracOnayi = null;
       yaz(); bildir();
-      klasorSecildi?.(k);
+      if (!yolAyni(onceki, k)) klasorSecildi?.(k);
       return;
     }
     const secilen = await pdefe.cagir('dosya:kaydetDiyalog', {
@@ -843,7 +846,7 @@ export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasl
     govdeYaz(dosyaAdi(secilen));
     elle = true; onayliYol = secilen; aracOnayi = null;
     yaz(); bildir();
-    klasorSecildi?.(mevcutKlasor);
+    if (!yolAyni(onceki, mevcutKlasor)) klasorSecildi?.(mevcutKlasor);
   });
   return {
     el,

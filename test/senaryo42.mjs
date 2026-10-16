@@ -7,6 +7,7 @@
 //   3) Birden çok dosyada (Format Değiştir, klasör seçme penceresi) seçilen klasör de ayara yazılır; Ayır ve Birleştir onu önerir.
 //   4) Ayarlar › Kaydetme: kart seçilen klasörü gösterir, açıklama yeni davranışı anlatır.
 //   5) Klasör silinince araçlar Masaüstü'ne düşer (ayar silinmez); Ayarlar kartı klasörün bulunamadığını söyler. Yeniden seçilince düzelir.
+//      Klasör yokken yalnızca adı değiştiren Değiştir (klasör aracın önerdiği Masaüstü) ayarı değiştirmez; klasör geri gelince yine kullanılır.
 //   6) Klasör seçilmemişken (varsayılan klasör bilinmiyor) işlemden önce sorulan klasör de ayara yazılır.
 //   7) Ayardaki klasör ulaşılamayan bir ağ paylaşımında (sunucu kapalı, VPN yok; Windows'un yanıtı 20–40 sn sürer): denetim sürerken ana süreç
 //      yanıt verir (uygulama donmaz); araç ve Ayarlar kartı kısa sürede Masaüstü'ne düşer. Yanıt vermeyen adres özel ağ aralığındandır
@@ -174,13 +175,19 @@ export default async function ({ evalJs, bekle }) {
   await araclariKapat();
   kart = await ayarlarKarti();
   sonuc('5) Ayarlar kartı "Klasör C"yi notsuz gösteriyor', kart && ayni(kart.yol, C) && !kart.not, kart);
-  // Silinen klasördeyken Masaüstü'nü seçmek de (ayar o an Masaüstü'nü göstermese de) ayara yazılır: klasör geri gelse de Masaüstü kalır
+  // Ayardaki klasör yokken (araç Masaüstü'nü öneriyor) Değiştir'de yalnızca ad değişirse (klasör aracın önerdiği Masaüstü) ayar değişmez:
+  // klasör geri gelince (çıkarılabilir disk yeniden takıldı) araçlar yine onu önerir (0.2.8 inceleme; önceden ayar Masaüstü oluyordu)
   fs.rmSync(C, { recursive: true, force: true });
-  await aracAc('arac.kucult', 'kucult-pencere');
-  await yanitla('dosya:kaydetDiyalog', path.join(MASAUSTU, 'Sıkıştırılmış.pdf'));
+  k = await aracAc('arac.kucult', 'kucult-pencere');
+  await yanitla('dosya:kaydetDiyalog', path.join(MASAUSTU, 'Başka ad.pdf'));
   await degistir('kucult-pencere');
   a = await ayarlar();
-  sonuc('5) Ayardaki klasör yokken Masaüstü seçildi: ayar Masaüstü', ayni(a.pencere, MASAUSTU) && ayni(a.ana, MASAUSTU), a);
+  sonuc('5) Ayardaki klasör yokken yalnızca ad değişti (klasör önerilen Masaüstü): ayar "Klasör C" kaldı', ayni(k, MASAUSTU) && ayni(a.pencere, C) && ayni(a.ana, C)
+    && (await evalJs(`document.querySelector('.kucult-pencere .arac-kayit-yeni .arac-cikti-ad').value`)) === 'Başka ad', { k, a });
+  await araclariKapat();
+  fs.mkdirSync(C, { recursive: true });
+  k = await aracAc('arac.kucult', 'kucult-pencere');
+  sonuc('5) "Klasör C" geri gelince Sıkıştır yine onu öneriyor', ayni(k, C), k);
   await araclariKapat();
 
   // ------------------------------------------------------------ 6) İşlemden önce sorulan klasör
@@ -228,6 +235,10 @@ export default async function ({ evalJs, bekle }) {
   const sure7 = Date.now() - t7;
   a = await ayarlar();
   sonuc('7) Sıkıştır 4 sn içinde Masaüstü\'nü öneriyor; ayar silinmedi', ayni(k, MASAUSTU) && sure7 < 4000 && ayni(a.ana, AG2), { k, sure7, a });
+  await yanitla('dosya:kaydetDiyalog', path.join(MASAUSTU, 'Ağ denemesi.pdf'));
+  await degistir('kucult-pencere');
+  a = await ayarlar();
+  sonuc('7) Yalnızca adı değiştiren Değiştir ağ klasörü ayarını değiştirmiyor', ayni(a.pencere, AG2) && ayni(a.ana, AG2), a);
   await araclariKapat();
   const AG3 = agYolu();
   await ayarYaz('ciktiKlasoru', AG3);
