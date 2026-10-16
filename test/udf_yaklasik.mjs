@@ -210,19 +210,21 @@ print(json.dumps({"sayfa": d.page_count, "satirlar": out}, ensure_ascii=False))`
       const ti = tiffOzeti(path.join(CIKTI, 'kenar_farkli.tif'));
       sonuc('UDF → TIFF (yaklaşık PDF çekirdeğe): 2 sayfa, 200 dpi, siyah beyaz', ti.sayfa === 2 && J(ti.dpi) === J([200, 200]) && ti.kip === '1' && S['kenar_farkli.tif']?.sayfa === 2, { ti, s: S['kenar_farkli.tif'] });
     }
-    // 0.2.7: UDF → JPG (yaklaşık PDF çekirdeğe; iki sayfalı belgede sayfa başına dosya) ve "yeni belge olarak kaydet" (cakisma: yeniAd; PDF
-    // hedefi var: "(1)" adına yazılır, var olan değişmez)
+    // 0.2.7: UDF → JPG (yaklaşık PDF çekirdeğe; iki sayfalı belgede sayfa başına dosya). 0.2.9 denetimi: PDF hedefinin "yeni belge olarak kaydet"i
+    // (cakisma: yeniAd) bu kanalda yok (adı arayüz seçer): istek reddedilir, var olan PDF değişmez, "(1)" adı yazılmaz
     if (YET?.donusumler?.['pdf>gorsel']?.var) {
       const onceki = fs.statSync(path.join(CIKTI, 'kenar_farkli.pdf')).mtimeMs;
-      const jr = await cagir('udf:yaklasikDonustur', { ogeler: [{ yol: G.kenar, hedef: path.join(CIKTI, 'kenar_farkli.jpg'), hedefBicim: 'gorsel', secenekler: { dpi: 200 } },
-        { yol: G.kenar, hedef: path.join(CIKTI, 'kenar_farkli.pdf'), hedefBicim: 'pdf', cakisma: 'yeniAd' }], istekId: 103 });
-      const [sj, sp] = jr.r?.sonuclar || [];
+      const jr = await cagir('udf:yaklasikDonustur', { ogeler: [{ yol: G.kenar, hedef: path.join(CIKTI, 'kenar_farkli.jpg'), hedefBicim: 'gorsel', secenekler: { dpi: 200 } }], istekId: 103 });
+      const [sj] = jr.r?.sonuclar || [];
+      const yeniAdli = path.join(CIKTI, 'kenar_farkli (1).pdf');
+      fs.rmSync(yeniAdli, { force: true });
+      const pr = await cagir('udf:yaklasikDonustur', { ogeler: [{ yol: G.kenar, hedef: path.join(CIKTI, 'kenar_farkli.pdf'), hedefBicim: 'pdf', cakisma: 'yeniAd' }], istekId: 104 });
       const j1 = path.join(CIKTI, 'kenar_farkli - Sayfa 1.jpg');
       const jo = fs.existsSync(j1) ? py(`im = Image.open(${J(j1)})\nprint(json.dumps({"bicim": im.format, "dpi": [round(float(x)) for x in im.info.get("dpi", (0, 0))]}))`) : null;
       sonuc('UDF → JPG (0.2.7): iki sayfa dosyası ("kenar_farkli - Sayfa 1.jpg", "… - Sayfa 2.jpg"), sonuçta hedefler, 200 dpi JPEG', !!sj && !sj.hata && sj.yaklasik === true
         && J((sj.hedefler || []).map((y) => path.basename(y))) === J(['kenar_farkli - Sayfa 1.jpg', 'kenar_farkli - Sayfa 2.jpg']) && jo?.bicim === 'JPEG' && J(jo.dpi) === J([200, 200]), { sj, jo, e: jr.e });
-      sonuc('Yeni belge olarak kaydet (cakisma: yeniAd): var olan PDF değişmez, "kenar_farkli (1).pdf" yazılır, sonuçta istenen ad', !!sp && !sp.hata && path.basename(sp.hedef) === 'kenar_farkli (1).pdf'
-        && path.basename(sp.istenenHedef || '') === 'kenar_farkli.pdf' && fs.existsSync(path.join(CIKTI, 'kenar_farkli (1).pdf')) && fs.statSync(path.join(CIKTI, 'kenar_farkli.pdf')).mtimeMs === onceki, sp);
+      sonuc('PDF hedefinde cakisma: yeniAd (0.2.9 denetimi): istek reddedilir, var olan PDF değişmez, "kenar_farkli (1).pdf" yazılmaz', !!pr.e && !pr.r
+        && !fs.existsSync(yeniAdli) && fs.statSync(path.join(CIKTI, 'kenar_farkli.pdf')).mtimeMs === onceki, pr);
     } else console.log('ATLANDI UDF → JPG — çekirdekte PDF → JPG yok');
     // Madde 4 (0.2.7) yaklaşık yolda: üst bilgisinde 4 bitlik paletli PNG antet (kullanıcının antetleri gibi) olan, gövdesi boş UDF; antet aynı
     // resmin RGB kopyasıyla neredeyse aynı çizilmeli (UDE'nin yolundaki hata: gri tonlar beyaza düşüyordu; Chromium'un <img>'i paletli PNG'yi çizer)

@@ -18,7 +18,9 @@
 //        → { sonuclar: [{ yol, hedef, hedefBicim, kaynakTur: 'udf', boyut, sayfa, uyari?, yaklasik: true, hedefler?, istenenHedef? } | { yol, hedef,
 //            hedefBicim, hata, kod, hedefler? }], basarili, hatali } | { iptal: true } (iptal yerine koymadan önce geldi: hiçbir dosya yazılmadı)
 //        0.2.7: JPG hedefi (gorsel; çok sayfada "<ad> - Sayfa n.jpg", sonucun hedefler'i) ve cakisma: 'yeniAd' (hedef varsa "<ad> (1)"; sonucun
-//        hedef'i yazılan ad, istenenHedef istenen) çekirdeğinkiyle aynı.
+//        hedef'i yazılan ad, istenenHedef istenen) çekirdeğinkiyle aynı; yalnızca çekirdeğe giden hedeflerde (TIFF / Word / JPG). PDF hedefinde
+//        "Yeni belge olarak kaydet"in adını arayüz seçer (ortak.js numaraliAdBul): PDF + yeniAd istek düzeyinde reddedilir (0.2.9 denetimi: ana
+//        süreçteki eş zamanlı bosAd yolu arayüzden ulaşılamıyordu, ağ klasöründe bütün pencereleri dondurabilirdi; kaldırıldı).
 //        Her öğe önce %TEMP%\PDEfe'de geçici PDF'e çizilir. Bütün öğeler çizilince TIFF / Word / JPG hedefleri çekirdeğin bicim_donustur'una verilir
 //        (PDF → TIFF / Word / JPG; çekirdek kendi hedeflerini yerine koyar), sonra PDF hedefleri yerine konur (hedefin yanına kopya
 //        "<hedef>.<pid>-y<sıra>.pdefe-tmp.pdf", ardından rename; 0.2.6'dan beri çizim sürerken hedef klasörde geçici dosya yok). Çekirdek iptalden önce bitirmişse (geç iptal) onun yazdığı
@@ -272,20 +274,6 @@ async function yerineKoy(gecici, hedef, cekirdekBirak) {
   }
 }
 
-/** "Yeni belge olarak kaydet" (0.2.7, cakisma: 'yeniAd'): hedef varsa klasörde olmayan ilk "<ad> (1).pdf", "(2)"…; ad "(n)" ile bitiyorsa (1–3
- *  basamak; "Rapor (2023)" yıl) n + 1'den (çekirdeğin bos_ad'ı ve arayüzün numaraliAdBul'u ile aynı kural). Hedef yoksa kendisi. */
-function bosAd(hedef) {
-  if (!fs.existsSync(hedef)) return hedef;
-  const { dir, name, ext } = path.parse(hedef);
-  const m = / \((\d{1,3})\)$/.exec(name);
-  const kok = m ? name.slice(0, m.index) : name;
-  for (let i = m ? +m[1] + 1 : 1; i < 1000; i++) {
-    const aday = path.join(dir, `${kok} (${i})${ext}`);
-    if (!fs.existsSync(aday)) return aday;
-  }
-  return path.join(dir, `${kok}_${Date.now()}${ext}`);
-}
-
 /** Önceki oturumlardan (çökme) kalan bir günden eski geçici PDF'ler (%TEMP%\PDEfe\udf-yaklasik-*.pdf). */
 async function eskileriTemizle() {
   let adlar = [];
@@ -373,6 +361,8 @@ export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal, cik
   // ---------------------------------------------------- dönüştürme
   ipcMain.handle('udf:yaklasikDonustur', async (e, p) => {
     const { ogeler, istekId } = udfYaklasikParametreleri('udf:yaklasikDonustur', p);
+    // PDF hedefinin "yeni ad"ını arayüz seçer (bkz. kanal belgesi): bu kanal var olan PDF'in üzerine yazmaz gibi davranmasın
+    if (ogeler.some((o) => o.hedefBicim === 'pdf' && o.cakisma === 'yeniAd')) throw new Error('PDF hedefinde yeni ad bu kanalda seçilmez.');
     const gonderen = e.sender;
     const anahtar = istekId == null ? null : `${gonderen.id}:${istekId}`;
     const d = { istendi: false, durdur: null, cekirdekAnahtari: null };
@@ -394,8 +384,7 @@ export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal, cik
         const o = ogeler[k];
         ilerle((k / n) * pay, `${path.basename(o.yol)} çiziliyor…` + (n > 1 ? ` (${k + 1}/${n})` : ''));
         try {
-          // "Yeni belge olarak kaydet"te (0.2.7) var olan hedefe yazılmaz: yerine koyarken boş ad seçilir, onu denetlemek gerekmez
-          if (o.hedefBicim === 'pdf' && o.cakisma !== 'yeniAd') await hedefDenetle(o.hedef);
+          if (o.hedefBicim === 'pdf') await hedefDenetle(o.hedef);
           const veri = await udfDosyasiOku(o.yol);
           const { pdf, ozet } = await siraya(true, () => ciz(veri, path.parse(o.yol).name, d));
           const gecici = geciciYol();   // PDF hedefi de: hedefin yanına yalnızca yerine koyarken kopyalanır (yerineKoy)
@@ -447,11 +436,9 @@ export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal, cik
         const o = ogeler[c.k];
         if (gecIptal || d.istendi) { sonuclar[c.k] = hataSonucu(o, kodlu('iptal', 'İptal edildi.')); continue; }
         try {
-          const hedef = o.cakisma === 'yeniAd' ? bosAd(o.hedef) : o.hedef;   // ad yerine koyma anında seçilir (çekirdekteki gibi)
-          await yerineKoy(c.gecici, hedef, cekirdekBirak);
-          ciktiKaydet([hedef]);
-          sonuclar[c.k] = { yol: o.yol, hedef, hedefBicim: 'pdf', kaynakTur: 'udf', boyut: c.boyut, sayfa: c.sayfa, uyari: c.uyari, yaklasik: true,
-            ...(hedef !== o.hedef ? { istenenHedef: o.hedef } : {}) };
+          await yerineKoy(c.gecici, o.hedef, cekirdekBirak);
+          ciktiKaydet([o.hedef]);
+          sonuclar[c.k] = { yol: o.yol, hedef: o.hedef, hedefBicim: 'pdf', kaynakTur: 'udf', boyut: c.boyut, sayfa: c.sayfa, uyari: c.uyari, yaklasik: true };
         } catch (h) { sonuclar[c.k] = hataSonucu(o, h); }
       }
       const liste = sonuclar.map((s, k) => s || hataSonucu(ogeler[k], kodlu('hata', 'Dönüştürülemedi.')));
