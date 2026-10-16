@@ -410,10 +410,13 @@ print(json.dumps({"koyuP": sum(1 for v in a if v < 200), "koyuR": sum(1 for v in
     await donusturVeBekle();
     await evalJs(`delete window.__pdefeOtoYanit`);
     const sonucMetni = await evalJs(`document.querySelector('.donustur-sonuc')?.hidden === false ? document.querySelector('.donustur-sonuc').innerText : ''`);
+    // 0.2.8: satırın uyarısı adın altında yazmaz, ⚠ simgesinin ipucunda
+    const simgeler = await evalJs(`[...document.querySelectorAll('.donustur-sonuc li .uyari-simge')].map((e) => e.title)`);
     const uzunHedef = path.join(CIKTI, TIFF_VAR ? 'uzun.tif' : 'uzun.pdf');
     sonuc(`Birden çok dosya: ${TIFF_VAR ? 'UDF → TIFF ve ' : ''}UDF → PDF yazıldı, açılamayan belge hatasıyla sonuç listesinde`, fs.existsSync(uzunHedef) && fs.existsSync(path.join(CIKTI, 'tablolu.pdf'))
       && /2 dosya dönüştürüldü/.test(sonucMetni) && /dis_varlik\.udf/.test(sonucMetni) && /güvenlik nedeniyle/.test(sonucMetni), sonucMetni);
-    sonuc('Sonuç listesindeki her dönüştürülen dosyada "görünüm yaklaşık" uyarısı', (sonucMetni.match(/görünüm yaklaşık/g) || []).length === 2, sonucMetni);
+    sonuc('Sonuç listesindeki her dönüştürülen dosyada ⚠ ve ipucunda "UDF → …: … görünüm yaklaşık" (0.2.8; yazı olarak değil)', simgeler.length === 2
+      && simgeler.every((t) => /^UDF → (PDF|TIFF): /.test(t) && /görünüm yaklaşık/.test(t)) && !/görünüm yaklaşık/.test(sonucMetni), { simgeler, sonucMetni });
     if (TIFF_VAR) { const ti = tiffOzeti(uzunHedef); sonuc('UDF → TIFF: birden çok sayfa, 300 dpi (0.2.7: arayüzün varsayılanı İdeal)', ti.sayfa >= 2 && J(ti.dpi) === J([300, 300]), ti); }
     await ss('05-sonuc');
     await pencereKapat();

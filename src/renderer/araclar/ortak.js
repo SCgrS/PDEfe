@@ -1429,7 +1429,12 @@ export async function varsayilanProgramdaAc(baglam, yollar) {
  * @param {object} [s.baglam]   araç bağlamı ("Tümünü aç" için)
  * @param {string} s.baslik   başlık (HTML; çağıran kaçırır)
  * @param {'basari'|'uyari'} [s.tur]
- * @param {Array<{yol?:string, ad:string, ipucu?:string, uyari?:string, hata?:string}>} s.satirlar   ipucu: adın ipucu (verilmezse tam yol)
+ * 0.2.8 (kullanıcı isteği: "Böyle uyarıları kaldıralım. Dönüştürme sonucu ekranında uyarı olmasın. Sağlıklı dönüştüremediğini fark ettiğinde bir
+ * üçgen içinde ünlem uyarı simgesi olsun. Üstünde durunca hangi dönüşümse onu belirterek … uyarıyı tekrar edelim"): satırın uyarısı adın altında
+ * paragraf olarak yazılmaz; adın yanında ⚠ simgesi (üçgen içinde ünlem, uyarı renginde), uyarı simgenin ipucunda ve erişilebilir adında. Hata
+ * (dosya dönüştürülemedi) adın altında yazmaya devam eder.
+ * @param {Array<{yol?:string, ad:string, ipucu?:string, uyari?:string, hata?:string}>} s.satirlar   ipucu: adın ipucu (verilmezse tam yol); uyari:
+ *   ⚠ simgesinin ipucu (satırlara "\n" ile bölünebilir)
  * @param {boolean} [s.tek]   tek dosya düzeni (ad satır kırar); verilmezse tek satırda
  * @param {string} [s.dugmeler]  düğme satırının HTML'i (Klasörde göster…)
  * @param {string[]} [s.acilacaklar]  "Tümünü aç" / "Aç"ın açtığı dosyalar; boşsa düğme yok
@@ -1440,8 +1445,10 @@ export function sonucKutusuCiz(kap, { baglam = null, baslik, tur = 'basari', sat
   kap.hidden = false;
   const satir = (r) => {
     const ad = `<span class="ad"${r.ipucu || r.yol ? ` title="${kacis(r.ipucu || r.yol)}"` : ''}>${kacis(r.ad)}</span>`;
-    const ek = r.hata ? `<span class="hata-metin">${kacis(r.hata)}</span>` : r.uyari ? `<span class="uyari-metin">${kacis(r.uyari)}</span>` : '';
-    return `<li${r.hata ? ' class="hatali"' : ''}><span class="ad-satiri">${ad}</span>${ek}</li>`;
+    const simge = !r.hata && r.uyari
+      ? `<span class="uyari-simge" role="img" tabindex="0" aria-label="${kacis('Uyarı: ' + r.uyari.replace(/\s*\n\s*/g, ' '))}" title="${kacis(r.uyari)}">${UYARI_SVG}</span>` : '';
+    const ek = r.hata ? `<span class="hata-metin">${kacis(r.hata)}</span>` : '';
+    return `<li${r.hata ? ' class="hatali"' : r.uyari ? ' class="uyarili"' : ''}><span class="ad-satiri">${ad}${simge}</span>${ek}</li>`;
   };
   const acilacak = baglam ? acilacaklar.filter(Boolean) : [];
   const ac = !acilacak.length ? '' : acilacak.length === 1

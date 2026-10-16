@@ -1120,6 +1120,32 @@ def test_taranmis(c, k, ude_var):
           not resim and kel >= 0.9 and "tanıma" in (o.get("uyari") or ""), {"sözcük": round(kel, 3), "uyarı": o.get("uyari")})
 
 
+def test_dusen_resim(c, k):
+    """0.2.8 (kullanıcı isteği: uyarılarda "kaşe" geçmesin; arayüz uyarıyı sonuç satırının ⚠ simgesinin ipucunda kısa gösterir): yazının üstündeki
+    resim (imza) PDF → UDF'te alınmaz; uyarı sayısıyla ve kısa: "1 resim (imza, doğrulama kodu gibi) alınmadı: …"."""
+    r, _ = c.cagir("donusum_yetenekleri", {})
+    if not (r["donusumler"].get("pdf>udf") or {}).get("var"):
+        atlandi("PDF → UDF, alınmayan resim", "bu sürümde yok")
+        return
+    yol = os.path.join(k, "imzali_sayfa.pdf")
+    d = pymupdf.open()
+    pg = d.new_page(width=595, height=842)
+    for i in range(6):
+        pg.insert_text((72, 100 + 20 * i), "Satir %d: deneme metni, imzanin altinda kalan yazi." % (i + 1), fontsize=11)
+    im = Image.new("RGB", (160, 60), (255, 255, 255))
+    ImageDraw.Draw(im).line([(5, 50), (60, 10), (110, 45), (155, 8)], fill=(20, 20, 120), width=4)
+    b = io.BytesIO()
+    im.save(b, "PNG")
+    pg.insert_image(pymupdf.Rect(220, 105, 380, 165), stream=b.getvalue())   # yazı satırlarının üstünde (imza gibi)
+    d.save(yol)
+    d.close()
+    r, _ = donustur(c, [{"yol": yol, "hedef": os.path.join(k, "imzali_sayfa.udf"), "hedefBicim": "udf"}])
+    o = r["sonuclar"][0]
+    u = o.get("uyari") or ""
+    sonuc("yazının üstündeki resim alınmadı; uyarı kısa ve sayılı (\"1 resim (imza, doğrulama kodu gibi) alınmadı: …\"), \"kaşe\" yok",
+          "hata" not in o and u.startswith("1 resim (imza, doğrulama kodu gibi) alınmadı:") and "kaşe" not in u.lower() and len(u) <= 120, o.get("hata") or u)
+
+
 def test_derlem(c):
     """Gerçek belgelerle tur (PDEFE_UDF_DERLEM): UDF → PDF (UDE) → UDF → PDF (UDE); yalnızca sayılar."""
     kl = os.environ.get("PDEFE_UDF_DERLEM")
@@ -1197,9 +1223,13 @@ def main():
     testler += [lambda: test_imza_uyarisi(c, temiz_klasor("imza"), ude_var),
                 lambda: test_pdf_udf(c, temiz_klasor("pdf_udf"), ude_var), lambda: test_taranmis(c, temiz_klasor("taranmis"), ude_var),
                 lambda: test_ude_yok(c, g, k), lambda: test_json_kanali(exe, temiz_klasor("kanal")),
-                lambda: test_zip_bombasi(c, temiz_klasor("bomba"), ude_var), lambda: test_yetim_jvm(c, temiz_klasor("yetim"), ude_var)]
+                lambda: test_zip_bombasi(c, temiz_klasor("bomba"), ude_var), lambda: test_yetim_jvm(c, temiz_klasor("yetim"), ude_var),
+                lambda: test_dusen_resim(c, temiz_klasor("dusen_resim"))]
     if ude_var:
         testler += [lambda: test_derlem(c)]
+    # --yalniz dusen_resim (0.2.8): yalnızca bu test (UDE'li uzun turu beklemeden)
+    if "--yalniz" in sys.argv and sys.argv[sys.argv.index("--yalniz") + 1] == "dusen_resim":
+        testler = [lambda: test_dusen_resim(c, temiz_klasor("dusen_resim"))]
     for t in testler:
         try:
             t()

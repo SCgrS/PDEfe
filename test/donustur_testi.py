@@ -460,6 +460,14 @@ def test_kalite_notlari(c, g):
     sonuc("TIFF → Word notu: taranmış sayfa resim olarak (yazı tanıma yok)", "resim" in d["tiff>word"]["kalite"], d["tiff>word"]["kalite"])
     sonuc("görüntü → UDF notu: yazı tanıma, harf yanlışı", "tanın" in d["gorsel>udf"]["kalite"] and "harf" in d["gorsel>udf"]["kalite"],
           d["gorsel>udf"]["kalite"])
+    # 0.2.8 (kullanıcı isteği): notlarda "kaşe" geçmez; UDF ve Word notlarında tablolar da anılır
+    sonuc("hiçbir notta \"kaşe\" yok (0.2.8)", not any("kaşe" in (d.get(k, {}).get("kalite") or "").lower() for k in notlu),
+          {k: d[k]["kalite"] for k in notlu if "kaşe" in (d[k].get("kalite") or "").lower()})
+    tablolu = ["pdf>udf", "word>udf", "tiff>udf", "gorsel>udf", "pdf>word", "udf>word"]
+    sonuc("UDF ve Word notlarında tablolar anılıyor (0.2.8)", all("tablo" in (d.get(k, {}).get("kalite") or "") for k in tablolu),
+          {k: d.get(k, {}).get("kalite") for k in tablolu})
+    sonuc("PDF → UDF notu: \"Satır, sayfa düzeni ve tablolar UDF'de kayabilir; imza gibi resimler alınmayabilir.\"",
+          d["pdf>udf"]["kalite"] == "Satır, sayfa düzeni ve tablolar UDF'de kayabilir; imza gibi resimler alınmayabilir.", d["pdf>udf"]["kalite"])
     b, _ = c.cagir("donusum_bilgi", {"yol": g["etiketsiz_g4"], "genislik": 120})
     h = {x["bicim"]: x for x in b["hedefler"]}
     sonuc("satırın hedeflerinde de not (TIFF: Word ve UDF notlu, PDF notsuz)", h["word"].get("kalite") == d["tiff>word"]["kalite"]

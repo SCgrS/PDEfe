@@ -10,6 +10,8 @@
 //      düğmeler ortalı (getBoundingClientRect, ±1,5 px); küçük "Aç"lar yok; "Klasörde göster"in sağında "Tümünü aç" (tek dosyada "Aç"): ana sürecin
 //      dosya:varsayilanlaAc'ı (test örneğinde program açılmaz, istek test:diyalogKaydi'na düşer); 10'dan çok dosyada önce soru; açamazsa ileti;
 //      yalnızca araçların bu oturumda yazdığı dosyalar açılır.
+//   5) Sonuç satırında uyarı (madde 7): adın altında paragraf yok; uyarılı satırda adın yanında ⚠ (role="img", uyarı renginde), ipucu "<Kaynak> →
+//      <Hedef>: <kalite notu>" ve dosyaya özgü uyarılar; "(1)" adının notu adın ipucunda; kalite notlarında "kaşe" yok, tablolar var; gerçek PDF → UDF.
 // Girdiler test/ornek_pdf_uret.py ile test/cikti/s41/girdi altında üretilir (gerçek belge yok). Araçların çıktı klasörü test klasörüdür.
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9441 -Veri "$env:TEMP\pdefe-s41-9441" -Boyut "1280,1000" [-Olcek 1.25]
@@ -402,6 +404,86 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
     sonuc('4e) Ayır\'da Tümünü aç iki PDF\'i varsayılan programla açar; araç penceresi açık kalır', k.length === 2 && k.every((a) => /^Ayrılmış - Sayfa .*\.pdf$/.test(a))
       && (await evalJs(`!!document.querySelector('.ayir-pencere')`)), k);
     await araclariKapat(); await sekmeleriKapat();
+    await ciktiKlasoruAyarla(path.join(UI, 'cikti'));
+    await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);
+  }
+
+  // ------------------------------------------------------------ 5) Sonuçta uyarı paragrafı yok; ⚠ simgesi ve ipucu (madde 7)
+  if (bolum(5)) {
+    console.log('\n== 5) Sonuç satırında uyarı paragrafı yok; uyarılı satırda ⚠ ve ipucu "<Kaynak> → <Hedef>: …"; kalite notlarında "kaşe" yok, tablolar var');
+    await araclariKapat(); await sekmeleriKapat();
+    await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);
+    const klasor = yeniKlasor('uyari');
+    await ciktiKlasoruAyarla(klasor);
+    const pdf = ornekPdf('uyari-a.pdf', 2, 'Uyarı örneği'), pdf2 = ornekPdf('uyari-b.pdf', 1, 'Uyarısız örnek');
+    // Yazının üstünde imza gibi bir resim duran PDF (PDF → UDF'te alınmaz; çekirdek uyarır)
+    const imzali = path.join(GIRDI, 'imzali.pdf');
+    if (!fs.existsSync(imzali)) {
+      execFileSync(PY, ['-X', 'utf8', '-c', [
+        'import io, sys, pymupdf', 'from PIL import Image, ImageDraw',
+        'd = pymupdf.open(); pg = d.new_page(width=595, height=842)',
+        'for i in range(6): pg.insert_text((72, 100 + 20 * i), "Satir %d: deneme metni, imzanin altinda kalan yazi." % (i + 1), fontsize=11)',
+        'im = Image.new("RGB", (160, 60), (255, 255, 255)); ImageDraw.Draw(im).line([(5, 50), (60, 10), (110, 45), (155, 8)], fill=(20, 20, 120), width=4)',
+        'b = io.BytesIO(); im.save(b, "PNG"); pg.insert_image(pymupdf.Rect(220, 105, 380, 165), stream=b.getvalue())',
+        `d.save(${J(imzali)})`].join('\n')], { encoding: 'utf8' });
+    }
+    await evalJs(`(async () => { window.__s41d = await import('pdefe://app/src/renderer/araclar/donustur.js'); return true; })()`);
+    const A = 'window.__s41d.acikDonusturPenceresi()';
+    await evalJs(`(window.__pdefe.komutCalistir('arac.donustur', [${J(pdf)}, ${J(pdf2)}]), true)`);
+    await kosul(`!!${A} && ${A}.ogeler.length === 2 && !${A}.ogeler.some((o) => o.yukleniyor)`, 15000);
+    // Girdi satırının kalite notu (hedef UDF): "kaşe" yok, tablolar var
+    await evalJs(`(${A}.hedefSec(${A}.ogeler[0], 'udf'), ${A}.hedefSec(${A}.ogeler[1], 'udf'), true)`);
+    await bekle(200);
+    const kalite = await evalJs(`(() => { const e = document.querySelector('.donustur-oge .kalite'); return e.hidden ? '' : e.querySelector('.metin').textContent; })()`);
+    sonuc('5) Girdi satırında PDF → UDF kalite notu: "Satır, sayfa düzeni ve tablolar UDF\'de kayabilir; imza gibi resimler alınmayabilir." ("kaşe" yok)',
+      kalite === 'Satır, sayfa düzeni ve tablolar UDF\'de kayabilir; imza gibi resimler alınmayabilir.', kalite);
+    await evalJs(`(${A}.hedefSec(${A}.ogeler[1], 'word'), true)`);
+    await bekle(200);
+    const kaliteWord = await evalJs(`(() => { const e = document.querySelectorAll('.donustur-oge .kalite')[1]; return e.hidden ? '' : e.querySelector('.metin').textContent; })()`);
+    sonuc('5) PDF → Word kalite notunda tablolar: "Sayfa düzeni ve tablolar Word\'de birebir korunmayabilir."', kaliteWord === 'Sayfa düzeni ve tablolar Word\'de birebir korunmayabilir.', kaliteWord);
+    // Benzetilen sonuç: uyarılı UDF, uyarısız UDF, "(1)" adıyla kaydedilen JPG, hatalı satır
+    const UYARI = '4 resim (imza, doğrulama kodu gibi) alınmadı: UDF\'de resim yalnızca satırın içinde durabilir. Taranmış sayfaların yazısı yazı tanımayla çıkarıldı; harf yanlışları olabilir.';
+    const sonuclar = [
+      { yol: pdf, hedef: path.join(klasor, 'uyari-a.udf'), hedefBicim: 'udf', uyari: UYARI },
+      { yol: pdf2, hedef: path.join(klasor, 'uyari-b.docx'), hedefBicim: 'word' },
+      { yol: pdf2, hedef: path.join(klasor, 'uyari-b (1).jpg'), hedefBicim: 'gorsel', istenenHedef: path.join(klasor, 'uyari-b.jpg') },
+      { yol: path.join(klasor, 'Bozuk.pdf'), hedef: path.join(klasor, 'Bozuk.udf'), hedefBicim: 'udf', hata: 'Dosya açılamadı.', kod: 'hata' },
+    ];
+    await evalJs(`(async () => { await ${A}._sonucGoster(${J(sonuclar)}, { tek: false }); return true; })()`);
+    const durum = () => evalJs(`(() => { const s = document.querySelector('.donustur-sonuc'); if (!s || s.hidden) return null; const k = window.__s41kutu;
+      return { kutu: k(s), metin: s.innerText, ipuclari: [...s.querySelectorAll('[title]')].map((e) => e.title).join('\\n'),
+        satirlar: [...s.querySelectorAll('li')].map((li) => { const u = li.querySelector('.uyari-simge'); const a = li.querySelector('.ad-satiri').getBoundingClientRect();
+          return { ad: li.querySelector('.ad').textContent, metin: li.innerText.trim(), adIpucu: li.querySelector('.ad').title, simge: !!u, ipucu: u?.title || '', ariaAd: u?.getAttribute('aria-label') || '',
+            rol: u?.getAttribute('role') || '', renk: u ? getComputedStyle(u).color : '', ucgen: !!u?.querySelector('svg path[d^="M10 3"]'), w: u ? k(u).w : 0, orta: a.left + a.width / 2,
+            simgeAdYaninda: u ? Math.abs(k(u).ortaY - k(li.querySelector('.ad')).ortaY) < 3 && k(u).sol >= k(li.querySelector('.ad')).sag : null }; }),
+        paragraf: s.querySelectorAll('.uyari-metin').length }; })()`);
+    let d = await durum();
+    await ss('05-uyari-simgesi');
+    const r0 = d?.satirlar[0];
+    sonuc('5) Sonuçta uyarı paragrafı yok: satırlarda yalnız ad (hatalı satırda hata metni)', !!d && d.paragraf === 0 && d.satirlar.slice(0, 3).every((x) => x.metin === x.ad)
+      && d.satirlar[3].metin === 'Bozuk.pdf\nDosya açılamadı.' && !/resim|yazı tanıma/.test(d.metin), d?.satirlar.map((x) => x.metin));
+    sonuc('5) Uyarılı satırda adın yanında ⚠ (üçgen içinde ünlem, 16 px, role="img"); uyarısız, yalnız yeni adlı ve hatalı satırlarda simge yok', !!r0 && r0.simge && r0.ucgen && r0.rol === 'img'
+      && yakin(r0.w, 16, 0.5) && r0.simgeAdYaninda && !d.satirlar[1].simge && !d.satirlar[2].simge && !d.satirlar[3].simge, d?.satirlar.map((x) => [x.ad, x.simge, x.w]));
+    const BEKLENEN = 'PDF → UDF: Satır, sayfa düzeni ve tablolar UDF\'de kayabilir; imza gibi resimler alınmayabilir.\n4 resim (imza, doğrulama kodu gibi) alınmadı: UDF\'de resim yalnızca satırın içinde durabilir.\nTaranmış sayfaların yazısı yazı tanımayla çıkarıldı; harf yanlışları olabilir.';
+    sonuc('5) ⚠ ipucu "PDF → UDF: <kalite notu>" ve alt satırlarda dosyanın uyarıları; erişilebilir adı "Uyarı: …"', r0?.ipucu === BEKLENEN && r0.ariaAd === 'Uyarı: ' + BEKLENEN.replace(/\n/g, ' '), { ipucu: r0?.ipucu, aria: r0?.ariaAd });
+    const tema = await evalJs('document.documentElement.dataset.tema');
+    sonuc(`5) Simge uyarı renginde (${tema === 'koyu' ? 'koyu tema #ffc83d' : 'açık tema #b35c00'})`, (tema === 'koyu' ? /rgb\(255, 200, 61\)/ : /rgb\(179, 92, 0\)/).test(r0?.renk || ''), { tema, renk: r0?.renk });
+    sonuc('5) Yeni adla kaydedilen dosyanın notu adın ipucunda ("Aynı adlı dosyalar vardı…"), simge yok', /Aynı adlı dosyalar vardı; onlara dokunulmadı, yeni adla kaydedildi\./.test(d?.satirlar[2].adIpucu || '') && !d.satirlar[2].simge, d?.satirlar[2]);
+    sonuc('5) Sonuç kutusunda (yazılarda ve ipuçlarında) "kaşe" geçmiyor; ⚠\'lı satır da ortalı', !/kaşe/i.test((d?.metin || '') + (d?.ipuclari || '')) && yakin(r0?.orta, d?.kutu.ortaX, 1.5), { orta: r0?.orta, kutu: d?.kutu.ortaX });
+    // Gerçek dönüştürme: yazının üstündeki resim alınmadı; ⚠ ipucunda çekirdeğin kısa uyarısı
+    await evalJs(`(document.querySelector('.donustur-temizle').click(), ${A}.dosyaEkle([${J(imzali)}]), true)`);
+    await kosul(`${A}.ogeler.length === 1 && !${A}.ogeler[0].yukleniyor`, 15000);
+    await evalJs(`(${A}.hedefSec(${A}.ogeler[0], 'udf'), true)`);
+    await bekle(300);
+    await evalJs(`(document.querySelector('.donustur-pencere .arac-dugmeler .birincil').click(), true)`);
+    await kosul(`!document.querySelector('.donustur-sonuc').hidden || !!document.querySelector('.donustur-pencere .arac-hata:not(:empty)')`, 60000);
+    await bekle(300);
+    d = await durum();
+    await ss('05-uyari-gercek');
+    sonuc('5) Gerçek PDF → UDF (yazının üstünde imza resmi): ⚠ ipucu "PDF → UDF: … \\n1 resim (imza, doğrulama kodu gibi) alınmadı: …"; paragraf yok', !!d && d.satirlar.length === 1
+      && d.satirlar[0].simge && d.satirlar[0].ipucu.startsWith('PDF → UDF: Satır, sayfa düzeni ve tablolar UDF\'de kayabilir') && /\n1 resim \(imza, doğrulama kodu gibi\) alınmadı: /.test(d.satirlar[0].ipucu)
+      && d.paragraf === 0 && d.satirlar[0].metin === 'imzali.udf' && !/kaşe/i.test(d.ipuclari), d?.satirlar);
+    await araclariKapat();
     await ciktiKlasoruAyarla(path.join(UI, 'cikti'));
     await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);
   }

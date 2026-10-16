@@ -145,7 +145,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await bekle(400);
   };
   const sonucKutusu = () => evalJs(`(() => { const s = document.querySelector('.donustur-sonuc'); return s && !s.hidden ? { baslik: s.querySelector('.arac-sonuc-baslik').innerText,
-    satirlar: [...s.querySelectorAll('li')].map((l) => ({ ad: l.querySelector('.ad').textContent, ac: !!l.querySelector('[data-ac]'), uyari: l.querySelector('.uyari-metin')?.textContent || '' })),
+    satirlar: [...s.querySelectorAll('li')].map((l) => ({ ad: l.querySelector('.ad').textContent, ac: !!l.querySelector('[data-ac]'), uyari: l.querySelector('.uyari-simge')?.title || '' })),
+    tumunuAc: s.querySelector('.arac-sonuc-ac')?.textContent || '',
     metin: s.innerText, goster: s.querySelector('.donustur-goster')?.textContent || '', tek: s.classList.contains('arac-sonuc-tek') } : null; })()`);
   const ciktilar = () => (fs.existsSync(CIKTI) ? fs.readdirSync(CIKTI).sort() : []);
   const bolumler = (process.env.BOLUM || '1,2,3,4,5,6,7,8').split(',').map((s) => s.trim());
@@ -228,8 +229,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     const h2 = path.join(CIKTI, 'Ekran görüntüsü.pdf');
     const o2 = fs.existsSync(h2) ? pdfOzeti(h2) : null;
     const sk = await sonucKutusu();
-    sonuc('İki görüntü → iki PDF; dpi etiketsiz PNG: yatay sayfa, uzun kenar A4\'ün uzun kenarı (841,9 pt); sonuç listesinde iki satır, Aç\'lar',
-      fs.existsSync(h1) && !!o2 && o2.sayfa === 1 && Math.abs(o2.olcu[0][0] - 841.9) <= 1.5 && o2.olcu[0][1] < o2.olcu[0][0] && sk?.satirlar.length === 2 && sk.satirlar.every((x) => x.ac)
+    sonuc('İki görüntü → iki PDF; dpi etiketsiz PNG: yatay sayfa, uzun kenar A4\'ün uzun kenarı (841,9 pt); sonuç listesinde iki satır, "Tümünü aç" (0.2.8; satırlarda Aç yok)',
+      fs.existsSync(h1) && !!o2 && o2.sayfa === 1 && Math.abs(o2.olcu[0][0] - 841.9) <= 1.5 && o2.olcu[0][1] < o2.olcu[0][0] && sk?.satirlar.length === 2 && sk.satirlar.every((x) => !x.ac) && sk.tumunuAc === 'Tümünü aç'
       && /2 dosya dönüştürüldü/.test(sk.baslik), { o2, sk });
     await pencereKapat();
   }
@@ -487,11 +488,12 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
       const k = e.querySelector('.kalite'); return k.hidden ? '' : k.querySelector('.metin').textContent; })()`);
     const D = YET?.donusumler || {};
     const UDF = 'Karar örneği.udf', TIF = 'Tarama örneği.tif', JPG = 'Taranmış dilekçe.jpg', PDF = 'Dilekçe örneği.pdf';
-    sonuc('Varsayılan hedeflerde: UDF → PDF, TIFF → PDF, görüntü → PDF notsuz; PDF → UDF\'de not ("Satır ve sayfa düzeni UDF\'de kayabilir; …")', (await not(UDF)) === '' && (await not(TIF)) === ''
-      && (await not(JPG)) === '' && (await not(PDF)) === 'Satır ve sayfa düzeni UDF\'de kayabilir; imza, kaşe gibi resimler alınmayabilir.', [await not(UDF), await not(TIF), await not(JPG), await not(PDF)]);
+    // 0.2.8 (kullanıcı isteği): notlarda "kaşe" yok, UDF ve Word notlarında tablolar
+    sonuc('Varsayılan hedeflerde: UDF → PDF, TIFF → PDF, görüntü → PDF notsuz; PDF → UDF\'de not ("Satır, sayfa düzeni ve tablolar UDF\'de kayabilir; …")', (await not(UDF)) === '' && (await not(TIF)) === ''
+      && (await not(JPG)) === '' && (await not(PDF)) === 'Satır, sayfa düzeni ve tablolar UDF\'de kayabilir; imza gibi resimler alınmayabilir.', [await not(UDF), await not(TIF), await not(JPG), await not(PDF)]);
     if (D['udf>word']?.var) {
       await hedefTikla(UDF, 'word');
-      sonuc('UDF seçiliyken Word\'e tıklanınca hemen satırın altında not: "Sayfa düzeni Word\'de birebir korunmayabilir."', (await not(UDF)) === 'Sayfa düzeni Word\'de birebir korunmayabilir.', await not(UDF));
+      sonuc('UDF seçiliyken Word\'e tıklanınca hemen satırın altında not: "Sayfa düzeni ve tablolar Word\'de birebir korunmayabilir."', (await not(UDF)) === 'Sayfa düzeni ve tablolar Word\'de birebir korunmayabilir.', await not(UDF));
       await ss('07-kalite-udf-word');
       await hedefTikla(UDF, 'pdf');
       sonuc('UDF → PDF\'e dönülünce not kalkar', (await not(UDF)) === '', await not(UDF));
@@ -501,7 +503,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
       sonuc('TIFF → Word: "Taranmış sayfalar Word\'e resim olarak geçer; yazıları düzenlenemez."', (await not(TIF)) === 'Taranmış sayfalar Word\'e resim olarak geçer; yazıları düzenlenemez.', await not(TIF));
     } else atlandi('TIFF → Word notu', 'TIFF → Word bu bilgisayarda yapılamıyor');
     await hedefTikla(JPG, 'udf');
-    sonuc('Görüntü → UDF: "Yazılar görüntüden tanınarak çıkarılır; …"', (await not(JPG)) === 'Yazılar görüntüden tanınarak çıkarılır; harf yanlışları ve düzen kayması olabilir.', await not(JPG));
+    sonuc('Görüntü → UDF: "Yazılar görüntüden tanınarak çıkarılır; …"', (await not(JPG)) === 'Yazılar görüntüden tanınarak çıkarılır; harf yanlışları olabilir, düzen ve tablolar kayabilir.', await not(JPG));
     await hedefTikla(PDF, 'tiff');
     const pdfTiff = await not(PDF);
     await hedefTikla(PDF, 'gorsel');

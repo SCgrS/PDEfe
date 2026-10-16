@@ -190,7 +190,8 @@ print(json.dumps(u.yaz(${J(path.join(GIRDI, 'Dilekçe.udf'))})))`);
   }
 
   /** Sonuç kutusunun satırları: [{ ad, uyari }] */
-  const sonucSatirlari = () => evalJs(`[...document.querySelectorAll('.donustur-sonuc li')].map((e) => ({ ad: e.querySelector('.ad')?.textContent, uyari: e.querySelector('.uyari-metin')?.textContent || '' }))`);
+  // 0.2.8: satırın uyarısı adın altında yazmaz, ⚠ simgesinin ipucunda; "yeni adla kaydedildi" notu adın ipucunda (ipucu)
+  const sonucSatirlari = () => evalJs(`[...document.querySelectorAll('.donustur-sonuc li')].map((e) => ({ ad: e.querySelector('.ad')?.textContent, uyari: e.querySelector('.uyari-simge')?.title || '', ipucu: e.querySelector('.ad')?.title || '' }))`);
 
   // ------------------------------------------------------------ 3) JPG: sayfa sayısı bilinmezken var olan "Sayfa n" dosyaları ezilmez
   if (bolum(3)) {
@@ -210,7 +211,7 @@ print(json.dumps(u.yaz(${J(path.join(GIRDI, 'Dilekçe.udf'))})))`);
       && !d.includes('W - Sayfa 1.jpg'), { soru, dosyalar: d });
     sonuc('3) Sayfalar ilk boş "(1)" adıyla yazıldı', [1, 2, 3].every((n) => d.includes(`W (1) - Sayfa ${n}.jpg`)), d);
     const satirlar = await sonucSatirlari();
-    sonuc('3) Sonuçta yazılan adlar ve "yeni adla kaydedildi" notu', J(satirlar.map((x) => x.ad)) === J([1, 2, 3].map((n) => `W (1) - Sayfa ${n}.jpg`)) && /yeni adla kaydedildi/.test(satirlar[0]?.uyari || ''),
+    sonuc('3) Sonuçta yazılan adlar ve "yeni adla kaydedildi" notu', J(satirlar.map((x) => x.ad)) === J([1, 2, 3].map((n) => `W (1) - Sayfa ${n}.jpg`)) && /yeni adla kaydedildi/.test(satirlar[0]?.ipucu || ''),
       satirlar);
     await araclariKapat(); await sekmeleriKapat();
   }

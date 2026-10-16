@@ -453,15 +453,18 @@ _HEDEF_ADLARI = dict(_TUR_ADLARI, gorsel="JPG")   # hedef olarak görüntü JPG'
 # 0.2.7 (madde 10): sonucu kaynağından belirgin biçimde farklı olabilecek dönüştürmelerin kısa notu ("kaynak>hedef"; arayüz hedef seçilince
 # satırın altında gösterir). Zincirlerde (ör. udf>word = udf>pdf + pdf>word) not bütün yolu anlatır. UDF → PDF / TIFF / JPG ve Word → PDF
 # kaynağın kendi programıyla (UDE, Word) çizildiği için notsuz; TIFF / görüntü → PDF kayıpsız. Word → … LibreOffice'le yapılıyorsa ek not.
+# 0.2.8 (kullanıcı isteği: "Kaşe diye bir şey kalmadı bu arada, kaşe kelimesini uyarılardan çıkartalım. Tablo kelimesini ekleyelim bi yerlere o da
+# kayıyor sanırım"): UDF ve Word notlarında "kaşe" yok, tablolar anılıyor. Sonuç listesinde (renderer, araclar/donustur.js) uyarılı satırın ⚠
+# simgesinin ipucu bu notu dönüşümün adıyla yineler.
 KALITE_NOTLARI = {
-    "pdf>word": "Sayfa düzeni Word'de birebir korunmayabilir.",
-    "udf>word": "Sayfa düzeni Word'de birebir korunmayabilir.",
+    "pdf>word": "Sayfa düzeni ve tablolar Word'de birebir korunmayabilir.",
+    "udf>word": "Sayfa düzeni ve tablolar Word'de birebir korunmayabilir.",
     "tiff>word": "Taranmış sayfalar Word'e resim olarak geçer; yazıları düzenlenemez.",
     "gorsel>word": "Görüntü Word'e resim olarak geçer; yazısı düzenlenemez.",
-    "pdf>udf": "Satır ve sayfa düzeni UDF'de kayabilir; imza, kaşe gibi resimler alınmayabilir.",
-    "word>udf": "Satır ve sayfa düzeni UDF'de kayabilir; imza, kaşe gibi resimler alınmayabilir.",
-    "tiff>udf": "Yazılar görüntüden tanınarak çıkarılır; harf yanlışları ve düzen kayması olabilir.",
-    "gorsel>udf": "Yazılar görüntüden tanınarak çıkarılır; harf yanlışları ve düzen kayması olabilir.",
+    "pdf>udf": "Satır, sayfa düzeni ve tablolar UDF'de kayabilir; imza gibi resimler alınmayabilir.",
+    "word>udf": "Satır, sayfa düzeni ve tablolar UDF'de kayabilir; imza gibi resimler alınmayabilir.",
+    "tiff>udf": "Yazılar görüntüden tanınarak çıkarılır; harf yanlışları olabilir, düzen ve tablolar kayabilir.",
+    "gorsel>udf": "Yazılar görüntüden tanınarak çıkarılır; harf yanlışları olabilir, düzen ve tablolar kayabilir.",
 }
 LIBREOFFICE_NOTU = "Bu bilgisayarda Word yok: belge LibreOffice'le çevrilir, düzeni Word'dekinden biraz farklı olabilir."
 

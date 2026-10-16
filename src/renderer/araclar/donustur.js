@@ -1051,6 +1051,24 @@ export class DonusturPenceresi {
     return is;
   }
 
+  /**
+   * Sonuç satırının ⚠ ipucu (0.2.8, kullanıcı isteği: "Sağlıklı dönüştüremediğini fark ettiğinde bir üçgen içinde ünlem uyarı simgesi olsun. Üstünde
+   * durunca hangi dönüşümse onu belirterek yukarıdaki verdiği uyarıyı tekrar edelim"): yalnızca dosyaya özgü bir uyarı varsa (çekirdeğin uyarısı:
+   * alınmayan resimler, yazı tanıma, yorumlar…; UDF'nin yaklaşık çizimi; önceki dönüştürmeden kalan sayfalar) "<Kaynak> → <Hedef>: <girdi satırının
+   * kalite notu>" ve alt satırlarda o uyarılar, her cümle bir satır; yoksa '' (simge yok). Kalite notu tek başına simge çıkarmaz: her dönüştürmede
+   * aynıdır, girdi satırında hedef seçilince zaten yazar.
+   */
+  _sonucUyarisi(r, ozeller) {
+    const ozel = ozeller.filter(Boolean).join(' ').trim();
+    if (!ozel) return '';
+    const o = this.ogeler.find((x) => yolAyni(x.yol, r.yol));
+    const kaynak = TUR_ADI[o?.tur || r.kaynakTur] || uzanti(r.yol).toUpperCase() || 'Dosya';
+    const hedef = BICIM[r.hedefBicim]?.ad || '';
+    const kalite = o ? this._kaliteNotu(o, r.hedefBicim) : '';
+    const satirlar = [kalite, ...ozel.split(/(?<=[.!?])\s+(?=[A-ZÇĞİÖŞÜ0-9"“(])/u)].filter(Boolean);
+    return `${kaynak} → ${hedef}: ${satirlar.join('\n')}`;
+  }
+
   /** Sonuç: tek çıktı PDF ise sekmede açılır ve pencere kapanır; değilse pencerede sonuç listesi. Döner: false (yeniden denenmez). */
   async _sonucGoster(sonuclar, { tek }) {
     const { baglam } = this;
@@ -1079,14 +1097,15 @@ export class DonusturPenceresi {
     for (const r of sonuclar) {
       if (r.hata) { satirlar.push({ yol: r.yol, ad: dosyaAdi(r.yol), hata: r.hata }); continue; }
       const dosyalar = Array.isArray(r.hedefler) && r.hedefler.length ? r.hedefler : [r.hedef];
-      // Çekirdek var olan dosyalar yüzünden "(1)" adını seçtiyse (istenenHedef; 0.2.7 inceleme) ilk satırda söylenir
-      const yeniAd = r.istenenHedef ? YENI_AD_NOTU : '';
-      // "Üzerine yaz"da önceki, daha uzun dönüştürmeden kalan sayfalar (çekirdeğin kalanlar'ı) ilk satırda söylenir
+      // Çekirdek var olan dosyalar yüzünden "(1)" adını seçtiyse (istenenHedef; 0.2.7 inceleme): 0.2.8'den beri adın ipucunda (bir uyarı değil)
+      const ipucu = r.istenenHedef ? `${dosyalar[0]}\n${YENI_AD_NOTU}` : '';
+      // "Üzerine yaz"da önceki, daha uzun dönüştürmeden kalan sayfalar (çekirdeğin kalanlar'ı) ilk satırın uyarısında
       const kalanlar = Array.isArray(r.kalanlar) ? r.kalanlar : [];
       const kalan = !kalanlar.length ? '' : kalanlar.length === 1
         ? `Önceki bir dönüştürmeden kalan "${dosyaAdi(kalanlar[0])}" klasörde duruyor; bu belgenin sayfası değil.`
         : `Önceki bir dönüştürmeden kalan ${sayiMetni(kalanlar.length)} sayfa dosyası ("${dosyaAdi(kalanlar[0])}" … "${dosyaAdi(kalanlar.at(-1))}") klasörde duruyor; bu belgenin sayfaları değil.`;
-      dosyalar.forEach((y, i) => satirlar.push({ yol: y, ad: dosyaAdi(y), uyari: i === 0 ? [r.uyari, yeniAd, kalan].filter(Boolean).join(' ') : '' }));
+      const uyari = this._sonucUyarisi(r, [r.uyari, kalan]);
+      dosyalar.forEach((y, i) => satirlar.push({ yol: y, ad: dosyaAdi(y), ...(i === 0 ? { uyari, ...(ipucu ? { ipucu } : {}) } : {}) }));
     }
     const dosyaSayisi = (r) => (Array.isArray(r.hedefler) && r.hedefler.length ? r.hedefler.length : 1);
     const jpgDosyasi = basarili.length === 1 && dosyaSayisi(basarili[0]) > 1 ? ` · ${sayiMetni(dosyaSayisi(basarili[0]))} görüntü dosyası` : '';

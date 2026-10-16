@@ -1075,7 +1075,7 @@ def pdf_udf(kaynak, cikti, secenekler, ilerleme, baglam):
             uyarilar.append("%d taranmış sayfanın yazısı tanınamadı (bu bilgisayarda yazı tanıyıcı yok): o sayfalar resim olarak kondu."
                             % tanima_yok)
         elif any(s.tanindi for s in sayfalar):
-            uyarilar.append("Taranmış sayfaların yazısı yazı tanıma ile çıkarıldı; yanlış okunan harfler olabilir.")
+            uyarilar.append("Taranmış sayfaların yazısı yazı tanımayla çıkarıldı; harf yanlışları olabilir.")
         ilerleme(0.95, "Kaydediliyor")
         with zipfile.ZipFile(cikti, "w", zipfile.ZIP_DEFLATED) as z:
             z.writestr("content.xml", sonuc["xml"].encode("utf-8"))
@@ -1191,8 +1191,8 @@ def _udf_kur(sayfalar, uyarilar):
                 s.x1 = max(p.x1 for p in s.parcalar)
     dusen = sum(sf.dusen for sf in sayfalar)
     if dusen:
-        uyarilar.append("%d resim yazının üstünde ya da yanında duruyordu (imza, kaşe, doğrulama kodu gibi); UYAP Doküman Editörü'nde "
-                        "resim yalnızca satırın içinde durabildiği için alınmadı." % dusen)
+        # 0.2.8 (kullanıcı isteği): kısa; "kaşe" geçmez (arayüz uyarıyı satırın ⚠ simgesinin ipucunda gösterir)
+        uyarilar.append("%d resim (imza, doğrulama kodu gibi) alınmadı: UDF'de resim yalnızca satırın içinde durabilir." % dusen)
 
     # Gövde öğeleri: paragraflar (sayfalar arasında süren tek parça) ve resimler, kaynağın sırasıyla
     satirlar = sorted(govde, key=lambda s: (s.sayfa, s.y, s.x0))
