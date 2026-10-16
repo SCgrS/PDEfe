@@ -5,7 +5,7 @@ kullanılmaz); çıktılar test/cikti/donustur altında.
 Çalıştırma:  .venv\\Scripts\\python.exe test\\donustur_testi.py [--exe core\\dist\\pdefe-core\\pdefe-core.exe] [--hizli]
 --exe: yöntemler paketlenmiş çekirdek üzerinden JSON-RPC ile çağrılır (modülün içine bakan denetimler atlanır).
 --hizli: 150 sayfalık akış ve bellek ölçümü atlanır.
-Denetlenenler: imzadan tür tespiti; MuPDF'e yalnızca PDF; TIFF → PDF sayfa ölçüsü (±1 pt), filtre (G4 / Flate), kendi dpi'ında piksel
+Denetlenenler: imzadan tür tespiti; MuPDF'e yalnızca PDF; TIFF → PDF sayfa ölçüsü (0.2.9: A4'e sığan ölçü, ±1 pt), filtre (G4 / Flate), kendi pikselinde
 eşitliği, siyah piksel sayısı (polarite; pdf.js de aynı çözer); PDF → TIFF kare sayısı, G4, dpi etiketi, taranmış sayfada gidiş-dönüş,
 yazı tanıma F1 ≥ 0,97 (Windows'un tanıyıcısı varsa); 150 sayfada süre ve tepe bellek; iptal (iş başlamadan, ortasında, toplu işte, çekirdek
 kapanırken), iptal bayrağının ertelenmiş işte korunması; kilitli / salt okunur hedef; parametre denetimi; zip bombası; dış süreç.
@@ -574,14 +574,16 @@ def test_mupdf_yalnizca_pdf(c):
 def test_tiff_pdf(c, g):
     print("— TIFF → PDF")
     k = temiz_klasor("tiff_pdf")
-    a4_200 = (1654 * 72 / 200, 2339 * 72 / 200)   # 595,44 × 842,04 pt
+    # 0.2.9: sayfa karenin oranıyla A4'e sığan ölçüde (0.2.6–0.2.8'de taramanın gerçek ölçüsü: 200 dpi A4 595,44 × 842,04, Letter 612 × 792,
+    # küçük görsel 72 dpi 300 × 200 pt)
+    a4_200 = a4_beklenen(1654, 2339)   # 595,28 × 841,81 pt
     vakalar = [
         ("etiketsiz G4 MinIsBlack", g["etiketsiz_g4"], g["kareler_g4"], [a4_200] * 3, None),
         ("WhiteIsZero sıkıştırmasız", g["beyaz_sifir"], [g["beyaz_kare"]], [a4_200], None),
         ("8 satırlık şeritli G4", g["serit8"], [g["serit_kare"]], [a4_200], None),
         ("cm birimli etiket (200 dpi)", g["cm_etiketli"], [g["cm_kare"]], [a4_200], None),
-        ("etiketli Letter RGBA LZW 150 dpi", g["letter_rgba"], None, [(612, 792)], ["/FlateDecode"]),
-        ("küçük görsel (72 dpi)", g["kucuk"], None, [(300, 200)], ["/FlateDecode"]),
+        ("etiketli Letter RGBA LZW 150 dpi", g["letter_rgba"], None, [a4_beklenen(1275, 1650)], ["/FlateDecode"]),
+        ("küçük görsel (300 × 200 piksel): yatay A4'e büyür", g["kucuk"], None, [a4_beklenen(300, 200)], ["/FlateDecode"]),
     ]
     g4_sayfa = 0
     for ad, tif, kareler, olculer, filtreler in vakalar:
@@ -608,13 +610,13 @@ def test_tiff_pdf(c, g):
     hedef = os.path.join(k, "letter_rgba_lzw.pdf")
     beklenen = Image.alpha_composite(Image.new("RGBA", g["rgba"].size, (255, 255, 255, 255)), g["rgba"]).convert("RGB")
     sonuc("TIFF → PDF RGBA: saydamlık beyaza bindirilmiş, pikseller aynı", ayni(pdf_sayfa_goruntusu(hedef, 0, 1275, 1650, renkli=True), beklenen))
-    # Değişken ölçülü tarama: dosya başına tek dpi (ortanca, 250), her sayfa kendi pikselinin ölçüsünde
+    # Değişken ölçülü tarama (elle beslenen): her sayfa kendi oranıyla A4'e sığar (0.2.9; 0.2.6–0.2.8'de dosya başına tek dpi, gerçek ölçü)
     hedef = os.path.join(k, "degisken_250.pdf")
     donustur(c, [{"yol": g["degisken"], "hedef": hedef, "hedefBicim": "pdf"}])
     oz = pdf_ozeti(hedef)
-    beklenen = [(w * 72 / 250, h * 72 / 250) for w, h in g["degisken_olculer"]]
-    sonuc("değişken ölçülü tarama: 250 dpi, sayfalar gerçek ölçüde", all(abs(p["g"] - b[0]) < 0.05 and abs(p["y"] - b[1]) < 0.05
-                                                                         for p, b in zip(oz, beklenen)), [(round(p["g"], 1), round(p["y"], 1)) for p in oz])
+    beklenen = [a4_beklenen(w, h) for w, h in g["degisken_olculer"]]
+    sonuc("değişken ölçülü tarama: her sayfa kendi oranıyla A4'e sığar", len(oz) == 3 and all(abs(p["g"] - b[0]) < 0.05 and abs(p["y"] - b[1]) < 0.05
+                                                                                         for p, b in zip(oz, beklenen)), [(round(p["g"], 1), round(p["y"], 1)) for p in oz])
     # Yön 6: dik sayfa, görsel çevrilmiş
     hedef = os.path.join(k, "yon6.pdf")
     donustur(c, [{"yol": g["yon6"], "hedef": hedef, "hedefBicim": "pdf"}])
@@ -629,13 +631,14 @@ def test_tiff_pdf(c, g):
     filtreler = [p["filtre"] for p in oz]
     sonuc("karışık sayfalı TIFF: 1 bit (küçüğü), renkli, gri, gürültülü (Flate küçük)",
           filtreler == [[kucuk_filtre(g["karisik_kareler"][0])], ["/FlateDecode"], ["/FlateDecode"], ["/FlateDecode"]]
-          and abs(oz[1]["g"] - 612) <= 1 and abs(oz[2]["g"] - a4_200[0]) <= 1, (filtreler, [(round(p["g"]), round(p["y"])) for p in oz]))
+          and abs(oz[1]["y"] - a4_beklenen(1275, 1650)[1]) <= 1 and abs(oz[2]["g"] - a4_200[0]) <= 1, (filtreler, [(round(p["g"]), round(p["y"])) for p in oz]))
     kontrol = [ayni(pdf_sayfa_goruntusu(hedef, 0, 1654, 2339), g["karisik_kareler"][0]),
                ayni(pdf_sayfa_goruntusu(hedef, 1, 1275, 1650, renkli=True), g["karisik_kareler"][1]),
                ayni(pdf_sayfa_goruntusu(hedef, 2, 1654, 2339), g["karisik_kareler"][2]),
                ayni(pdf_sayfa_goruntusu(hedef, 3, 1654, 2339), g["gurultu"])]
     sonuc("karışık sayfalı TIFF: dört sayfa da kayıpsız", all(kontrol), kontrol)
-    sonuc("sonuçta sayfa, dpi ve G4 sayfa sayısı", r["sonuclar"][0].get("sayfa") == 4 and r["sonuclar"][0].get("dpi") == 200
+    sonuc("sonuçta sayfa, ilk sayfanın çözünürlüğü (A4'e sığan sayfada ≈200) ve G4 sayfa sayısı", r["sonuclar"][0].get("sayfa") == 4
+          and abs((r["sonuclar"][0].get("dpi") or 0) - 1654 * 72 / A4[0]) < 0.1 and "dpiKaynagi" not in r["sonuclar"][0]
           and r["sonuclar"][0].get("g4Sayfa") == sum(1 for f in filtreler if f == ["/CCITTFaxDecode"]), r["sonuclar"][0])
     sonuc("geçici dosya kalmadı", not gecici_kalintilar(k), gecici_kalintilar(k))
     # pdf.js de aynı polariteyle çözer (PDEfe sayfayı pdf.js ile çizer)
@@ -644,8 +647,8 @@ def test_tiff_pdf(c, g):
                    (os.path.join(k, "karisik.pdf"), 4, siyah(g["gurultu"]))])
     # donusum_bilgi: sayfa sayısı, dpi, ön izleme
     r, _ = c.cagir("donusum_bilgi", {"yol": g["etiketsiz_g4"], "genislik": 180})
-    sonuc("donusum_bilgi TIFF: 3 sayfa, 200 dpi (A4 kuralı), ön izleme, ilk sayfanın ölçüsü",
-          r["tur"] == "tiff" and r["sayfa"] == 3 and r["dpi"] == 200 and r["dpiKaynagi"] == "a4" and r["pngGenislik"] == 180
+    sonuc("donusum_bilgi TIFF: 3 sayfa, ≈200 dpi (A4'e sığan sayfada), ön izleme, ilk sayfanın ölçüsü",
+          r["tur"] == "tiff" and r["sayfa"] == 3 and abs(r["dpi"] - 200) < 0.2 and "dpiKaynagi" not in r and r["pngGenislik"] == 180
           and abs(r["genislik"] - a4_200[0]) < 0.1 and [h["bicim"] for h in r["hedefler"]][:1] == ["pdf"]
           and "tiff" not in [h["bicim"] for h in r["hedefler"]], {a: r[a] for a in r if a != "png"})
     r, _ = c.cagir("donusum_bilgi", {"yol": g["metin_pdf"]})
@@ -742,8 +745,9 @@ def test_pdf_tiff(c, g):
     donus = os.path.join(k, "karisik_renkli.tif")
     donustur(c, [{"yol": ara, "hedef": donus, "hedefBicim": "tiff", "secenekler": {"renk": "renkli"}}])
     kareler = kare_listesi(donus)
-    sonuc("renkli gidiş-dönüş: 150 dpi sayfa 150 dpi, pikseller aynı", ayni(kareler[1][0], g["karisik_kareler"][1])
-          and tuple(round(float(v)) for v in kareler[1][1]["dpi"]) == (150, 150), [kr.size for kr, _, _ in kareler])
+    # 0.2.9: Letter sayfası A4'e sığan ölçüde (210 mm genişlik): çözünürlüğü 1275 piksel / 8,27 inç ≈ 154 dpi, piksel sayısı değişmez
+    sonuc("renkli gidiş-dönüş: Letter sayfası kendi pikselinde (A4'e sığan sayfada ≈154 dpi), pikseller aynı", ayni(kareler[1][0], g["karisik_kareler"][1])
+          and tuple(round(float(v)) for v in kareler[1][1]["dpi"]) == (round(1275 * 72 / A4[0]),) * 2, [(kr.size, inf.get("dpi")) for kr, inf, _ in kareler])
     # Yazı tanıma (Windows'un tanıyıcısı): 200 dpi ("Düşük") siyah-beyaz TIFF'te sözcük F1 ≥ 0,97
     f1 = tanima_f1(kaynak, os.path.join(k, "metinli_200.tif"))
     if f1 is None:
@@ -859,7 +863,7 @@ def test_akis(c):
     sonuc("TIFF → PDF 150 sayfa: tepe bellek < 200 MB", olcu["tepe"] < 200 and len(oz) == 150,
           "tepe %.0f MB (başta %.0f), %.1f sn, %d sayfa, %.1f MB (TIFF %.1f MB)" % (olcu["tepe"], olcu["once"], olcu["sure"], len(oz),
                                                                                  s.get("boyut", 0) / 2**20, os.path.getsize(tif) / 2**20))
-    sonuc("TIFF → PDF 150 sayfa: bütün sayfalar G4, A4", all(p["filtre"] == ["/CCITTFaxDecode"] and abs(p["g"] - 595.44) < 0.1 for p in oz))
+    sonuc("TIFF → PDF 150 sayfa: bütün sayfalar G4, A4", all(p["filtre"] == ["/CCITTFaxDecode"] and abs(p["g"] - A4[0]) < 0.1 for p in oz))
     hedef2 = os.path.join(k, "akis_150.tif")
     olcu = tepe_olc("bicim_donustur", {"ogeler": [{"yol": hedef, "hedef": hedef2, "hedefBicim": "tiff"}]})
     with Image.open(hedef2) as im:
@@ -1228,9 +1232,9 @@ def test_gorsel_imza(c, gg):
     hedefler = [h["bicim"] for h in r["hedefler"]]
     sonuc("görüntünün hedefleri PDF, UDF, Word, TIFF (görüntü değil)", hedefler == ["pdf", "udf", "word", "tiff"]
           and next(h for h in r["hedefler"] if h["bicim"] == "pdf")["var"], r["hedefler"])
-    sonuc("donusum_bilgi görüntü: sayfa 1, ölçü (300 dpi etiket → A4), küçük resim", r["sayfa"] == 1 and abs(r["genislik"] - A4[0]) < 1
-          and abs(r["yukseklik"] - A4[1]) < 1 and r["dpi"] == 300 and r["dpiKaynagi"] == "etiket" and r["pngGenislik"] == 160
-          and r["pikselGenislik"] == 2480, {x: r.get(x) for x in ("sayfa", "genislik", "yukseklik", "dpi", "dpiKaynagi", "pngGenislik")})
+    sonuc("donusum_bilgi görüntü: sayfa 1, ölçü (A4 tarama → A4), sayfadaki çözünürlük, küçük resim", r["sayfa"] == 1 and abs(r["genislik"] - A4[0]) < 1
+          and abs(r["yukseklik"] - A4[1]) < 1 and abs(r["dpi"] - 300) < 0.2 and "dpiKaynagi" not in r and r["pngGenislik"] == 160
+          and r["pikselGenislik"] == 2480, {x: r.get(x) for x in ("sayfa", "genislik", "yukseklik", "dpi", "pngGenislik")})
     r, _ = c.cagir("donusum_bilgi", {"yol": gg["jpg_yon6"], "genislik": 120})
     sonuc("donusum_bilgi EXIF yönlü JPEG: görünen yönde dik ölçü ve küçük resim", r["pikselGenislik"] == 1654 and r["pikselYukseklik"] == 2339
           and r["pngYukseklik"] > r["pngGenislik"] and r["yukseklik"] > r["genislik"], {x: r.get(x) for x in ("pikselGenislik", "genislik", "pngGenislik", "pngYukseklik")})
@@ -1261,22 +1265,23 @@ def _gomulu_gorsel(yol):
 def test_gorsel_pdf(c, gg):
     print("— Görüntü → PDF")
     k = temiz_klasor("gorsel_pdf")
+    # 0.2.9: sayfa her durumda görüntünün oranıyla A4'e sığan ölçüde (0.2.7–0.2.8'de dpi etiketi ya da A4 kuralı; dpiKaynagi kalktı)
     vakalar = [
-        # ad, girdi, (genişlik pt, yükseklik pt), dpi kaynağı, gömme
-        ("300 dpi etiketli PNG (A4)", "png300", A4, "etiket", "kayipsiz"),
-        ("etiketsiz PNG: uzun kenar A4 (150 dpi)", "png_etiketsiz", (1240 * 72 / 150.0, 1754 * 72 / 150.0), "a4", "kayipsiz"),
-        ("96 dpi ekran görüntüsü: etiket sayılmaz, A4 kuralı", "ekran", (A4[1], 1080 * A4[1] / 1920), "a4", "kayipsiz"),
-        ("200 dpi JPEG: olduğu gibi gömülü", "jpg200", (1654 * 72 / 200.0, 2339 * 72 / 200.0), "etiket", "ozgun"),
-        ("EXIF yönü 6 JPEG: dik sayfa, olduğu gibi gömülü", "jpg_yon6", (1654 * 72 / 200.0, 2339 * 72 / 200.0), "etiket", "ozgun"),
-        ("72 dpi telefon fotoğrafı: A4 kuralı (yatay)", "jpg72", (A4[1], 1512 * A4[1] / 2016), "a4", "ozgun"),
-        ("küçük görüntü: 72 dpi", "kucuk", (300.0, 200.0), "varsayilan", "kayipsiz"),
-        ("BMP: kayıpsız", "bmp", (827 * A4[1] / 1169, A4[1]), "a4", "kayipsiz"),
-        ("kayıplı WEBP: JPEG 92", "webp", (827 * A4[1] / 1169, A4[1]), "a4", "jpeg"),
-        ("kayıpsız WEBP: kayıpsız", "webp_kayipsiz", (827 * A4[1] / 1169, A4[1]), "a4", "kayipsiz"),
-        ("hareketli GIF: ilk kare", "gif", (600 * A4[1] / 848, A4[1]), "a4", "kayipsiz"),
+        # ad, girdi, (genişlik pt, yükseklik pt), gömme
+        ("300 dpi etiketli PNG (A4)", "png300", a4_beklenen(2480, 3508), "kayipsiz"),
+        ("etiketsiz PNG (A4 oranı)", "png_etiketsiz", a4_beklenen(1240, 1754), "kayipsiz"),
+        ("96 dpi ekran görüntüsü: yatay A4", "ekran", a4_beklenen(1920, 1080), "kayipsiz"),
+        ("200 dpi JPEG: olduğu gibi gömülü", "jpg200", a4_beklenen(1654, 2339), "ozgun"),
+        ("EXIF yönü 6 JPEG: dik sayfa, olduğu gibi gömülü", "jpg_yon6", a4_beklenen(1654, 2339), "ozgun"),
+        ("72 dpi telefon fotoğrafı: yatay A4 (280 × 210 mm)", "jpg72", a4_beklenen(2016, 1512), "ozgun"),
+        ("küçük görüntü (300 × 200 piksel): yatay A4'e büyür", "kucuk", a4_beklenen(300, 200), "kayipsiz"),
+        ("BMP: kayıpsız", "bmp", a4_beklenen(827, 1169), "kayipsiz"),
+        ("kayıplı WEBP: JPEG 92", "webp", a4_beklenen(827, 1169), "jpeg"),
+        ("kayıpsız WEBP: kayıpsız", "webp_kayipsiz", a4_beklenen(827, 1169), "kayipsiz"),
+        ("hareketli GIF: ilk kare", "gif", a4_beklenen(600, 848), "kayipsiz"),
     ]
     if "avif" in gg:
-        vakalar.append(("AVIF: JPEG 92", "avif", (827 * A4[1] / 1169, A4[1]), "a4", "jpeg"))
+        vakalar.append(("AVIF: JPEG 92", "avif", a4_beklenen(827, 1169), "jpeg"))
     ogeler = [{"yol": gg[v[1]], "hedef": os.path.join(k, v[1] + ".pdf"), "hedefBicim": "pdf"} for v in vakalar]
     r, il = donustur(c, ogeler)
     sonuc("%d görüntü tek istekte PDF'e: hepsi başarılı" % len(ogeler), r["basarili"] == len(ogeler),
@@ -1284,12 +1289,12 @@ def test_gorsel_pdf(c, gg):
     for v, o in zip(vakalar, r["sonuclar"]):
         if "hata" in o:
             continue
-        ad, anahtar, olcu, kaynak, gomme = v
+        ad, anahtar, olcu, gomme = v
         oz = pdf_ozeti(o["hedef"])
-        sonuc("%s: 1 sayfa %.1f × %.1f pt, dpi kaynağı %s, gömme %s" % (ad, olcu[0], olcu[1], kaynak, gomme),
-              len(oz) == 1 and abs(oz[0]["g"] - olcu[0]) < 1 and abs(oz[0]["y"] - olcu[1]) < 1 and o.get("dpiKaynagi") == kaynak
+        sonuc("%s: 1 sayfa %.1f × %.1f pt, gömme %s" % (ad, olcu[0], olcu[1], gomme),
+              len(oz) == 1 and abs(oz[0]["g"] - olcu[0]) < 0.05 and abs(oz[0]["y"] - olcu[1]) < 0.05 and "dpiKaynagi" not in o
               and o.get("gomme") == gomme and o.get("sayfa") == 1 and o.get("kaynakTur") == "gorsel",
-              (round(oz[0]["g"], 1), round(oz[0]["y"], 1), o.get("dpiKaynagi"), o.get("gomme")))
+              (round(oz[0]["g"], 1), round(oz[0]["y"], 1), o.get("dpi"), o.get("gomme")))
     # Kayıpsız: PNG kendi çözünürlüğünde piksel piksel aynı
     yol = os.path.join(k, "png_etiketsiz.pdf")
     if os.path.exists(yol):
@@ -1321,6 +1326,126 @@ def test_gorsel_pdf(c, gg):
         kr = kare_listesi(os.path.join(k, "zincir.tif"))
         sonuc("görüntü → TIFF: 1 kare, gri, 150 dpi kalır (taranmış sayfa kendi çözünürlüğünde)", len(kr) == 1 and kr[0][0].mode == "L"
               and tuple(round(float(v)) for v in kr[0][1].get("dpi", (0, 0))) == (150, 150), [(x[0].mode, x[0].size, x[1].get("dpi")) for x in kr])
+    sonuc("geçici dosya kalmadı", not gecici_kalintilar(k), gecici_kalintilar(k))
+
+
+# ---------------------------------------------------------------- 0.2.9: görüntü sayfası A4'e sığar
+def a4_beklenen(g, y):
+    """0.2.9'un kuralı (testin kendi hesabı): görünen en / boy oranı korunarak A4'e sığan en büyük sayfa (pt). Dikey ya da kare görüntü
+    595,276 × 841,89'luk kutuya, yatay görüntü 841,89 × 595,276'lık kutuya."""
+    kg, ky = (A4[1], A4[0]) if g > y else A4
+    k = min(kg / float(g), ky / float(y))
+    return g * k, y * k
+
+
+def mm(pt):
+    return round(pt * 25.4 / 72.0, 1)
+
+
+def a4_girdileri():
+    """0.2.9 ölçüm girdileri (yapay): (ad, yol, görünen en ve boy (oran için), beklenen mm, JPEG olduğu gibi gömülmeli mi, 1 bit kare | None)."""
+    k = os.path.join(GIRDI, "a4")
+    shutil.rmtree(k, ignore_errors=True)
+    os.makedirs(k)
+
+    def yol(ad):
+        return os.path.join(k, ad)
+    vakalar = []
+    renkli_evrak(1500, 2000, 201).save(yol("dikey_3x4.jpg"), quality=85, dpi=(72, 72))
+    vakalar.append(("dikey 3:4 fotoğraf (72 dpi JPEG)", yol("dikey_3x4.jpg"), (1500, 2000), (210.0, 280.0), True, None))
+    renkli_evrak(2000, 1500, 202).save(yol("yatay_4x3.jpg"), quality=85, dpi=(72, 72))
+    vakalar.append(("yatay 4:3 fotoğraf (72 dpi JPEG)", yol("yatay_4x3.jpg"), (2000, 1500), (280.0, 210.0), True, None))
+    renkli_evrak(2480, 3508, 203).save(yol("a4_300.png"), dpi=(300, 300))
+    vakalar.append(("A4 tarama 300 dpi etiketli PNG", yol("a4_300.png"), (2480, 3508), (210.0, 297.0), False, None))
+    kare = metin_karesi(1654, 2339, 204)
+    tiff_yaz(yol("a4_200_etiketsiz.tif"), [(kare, {"compression": "group4"})])
+    vakalar.append(("A4 tarama 200 dpi etiketsiz G4 TIFF", yol("a4_200_etiketsiz.tif"), (1654, 2339), (210.0, 297.0), False, kare))
+    kare2 = metin_karesi(1654, 2339, 205)
+    tiff_yaz(yol("a4_200_etiketli.tif"), [(kare2, {"compression": "group4", "dpi": (200, 200)})])
+    vakalar.append(("A4 tarama 200 dpi etiketli G4 TIFF", yol("a4_200_etiketli.tif"), (1654, 2339), (210.0, 297.0), False, kare2))
+    tiff_yaz(yol("letter_150.tif"), [(renkli_evrak(1275, 1650, 206), {"compression": "tiff_lzw", "dpi": (150, 150)})])
+    vakalar.append(("Letter TIFF 150 dpi", yol("letter_150.tif"), (1275, 1650), (210.0, 271.8), False, None))
+    renkli_evrak(500, 500, 207).save(yol("kare.png"))
+    vakalar.append(("kare PNG (dikey sayılır)", yol("kare.png"), (500, 500), (210.0, 210.0), False, None))
+    Image.new("RGB", (40, 20), (90, 160, 220)).save(yol("cok_kucuk.png"))
+    vakalar.append(("çok küçük görüntü (40 × 20 piksel): büyür", yol("cok_kucuk.png"), (40, 20), (297.0, 148.5), False, None))
+    Image.new("L", (8000, 6000), 200).save(yol("cok_buyuk.jpg"), quality=70, dpi=(300, 300))
+    vakalar.append(("çok büyük görüntü (8000 × 6000, 300 dpi): küçülür", yol("cok_buyuk.jpg"), (8000, 6000), (280.0, 210.0), True, None))
+    exif = Image.Exif()
+    exif[0x0112] = 6
+    renkli_evrak(1500, 2000, 208).transpose(Image.Transpose.ROTATE_90).save(yol("exif6.jpg"), quality=85, exif=exif.tobytes())
+    vakalar.append(("EXIF 90° döndürülmüş JPEG (yatay saklanmış, dik görünür)", yol("exif6.jpg"), (1500, 2000), (210.0, 280.0), True, None))
+    renkli_evrak(600, 900, 209).save(yol("kucuk_600dpi.jpg"), quality=85, dpi=(600, 600))
+    vakalar.append(("600 dpi etiketli küçük fotoğraf: etiket ölçüyü belirlemez", yol("kucuk_600dpi.jpg"), (600, 900), (198.0, 297.0), True, None))
+    tiff_yaz(yol("faks_204x98.tif"), [(metin_karesi(1728, 1145, 210), {"compression": "group4", "dpi": (204, 98)})])
+    vakalar.append(("faks taraması 204 × 98 dpi: oran çözünürlükle", yol("faks_204x98.tif"), (1728 / 204.0, 1145 / 98.0), (210.0, 289.7), False, None))
+    return vakalar
+
+
+def test_a4_olcusu(c):
+    """0.2.9 (kullanıcı isteği: "görüntülerin A4 boyutunda kalmasını sağlayalım… dikeyse dikey, yataysa yatay A4"): görüntü → PDF ve TIFF → PDF'te
+    sayfa görüntünün kendisidir, oranı korunarak A4'e sığan en büyük ölçüde (beyaz kenar yok); küçük görüntü büyür, büyük küçülür; dpi etiketi
+    ölçüyü belirlemez (yalnızca yatay ve dikey çözünürlük farklıysa oranı); JPEG baytları ve G4 verisi değişmeden gömülür."""
+    print("— 0.2.9: görüntü sayfası A4'e sığar")
+    k = temiz_klasor("a4")
+    vakalar = a4_girdileri()
+    ogeler = [{"yol": v[1], "hedef": os.path.join(k, os.path.splitext(os.path.basename(v[1]))[0] + ".pdf"), "hedefBicim": "pdf"} for v in vakalar]
+    r, _ = donustur(c, ogeler)
+    sonuc("%d görüntü / TIFF tek istekte PDF'e: hepsi başarılı" % len(ogeler), r["basarili"] == len(ogeler),
+          [(o["yol"], o.get("hata")) for o in r["sonuclar"] if "hata" in o])
+    g4 = None
+    if not c.exe:
+        from islemler import donustur as dmod   # noqa: E402 (CORE yolda)
+        g4 = dmod._g4_kodla
+    for (ad, yol, gorunen, beklenen_mm, jpeg_aynen, kare), o in zip(vakalar, r["sonuclar"]):
+        if "hata" in o:
+            continue
+        oz = pdf_ozeti(o["hedef"])
+        bg, by = a4_beklenen(*gorunen)
+        olcu_mm = (mm(oz[0]["g"]), mm(oz[0]["y"])) if oz else None
+        sonuc("%s: sayfa %.1f × %.1f mm (oran korunur, A4'e sığar)" % (ad, beklenen_mm[0], beklenen_mm[1]),
+              len(oz) == 1 and abs(oz[0]["g"] - bg) < 0.01 and abs(oz[0]["y"] - by) < 0.01 and olcu_mm == beklenen_mm
+              and max(oz[0]["g"], oz[0]["y"]) <= A4[1] + 1e-3 and min(oz[0]["g"], oz[0]["y"]) <= A4[0] + 1e-3,   # PDF'te ölçü 32 bit kayan nokta
+              (olcu_mm, round(oz[0]["g"], 3) if oz else None, round(oz[0]["y"], 3) if oz else None))
+        d = pymupdf.open(o["hedef"], filetype="pdf")
+        try:
+            pg = d[0]
+            kutu = pymupdf.Rect(pg.get_image_info()[0]["bbox"])
+            x = pg.get_images(full=True)[0][0]
+            ham, filtre = d.xref_stream_raw(x), d.xref_get_key(x, "Filter")[1]
+            px = (int(d.xref_get_key(x, "Width")[1]), int(d.xref_get_key(x, "Height")[1]))
+        finally:
+            d.close()
+        sonuc("%s: görüntü sayfayı kaplar (beyaz kenar yok)" % ad, max(abs(a - b) for a, b in zip(kutu, pymupdf.Rect(0, 0, oz[0]["g"], oz[0]["y"]))) < 0.01,
+              tuple(round(v, 2) for v in kutu))
+        if jpeg_aynen:
+            with open(yol, "rb") as f:
+                ozgun = f.read()
+            sonuc("%s: JPEG olduğu gibi gömülü (yeniden kodlanmadı)" % ad, filtre == "/DCTDecode" and ham == ozgun, (filtre, len(ham), len(ozgun)))
+        elif kare is not None:
+            beklenen_g4 = g4(kare)[0] if g4 else None
+            esit = ayni(pdf_sayfa_goruntusu(o["hedef"], 0, kare.width, kare.height), kare)
+            sonuc("%s: 1 bit kare kayıpsız (%s; pikseller aynı%s)" % (ad, filtre.strip("/"), ", G4 verisi aynı" if beklenen_g4 is not None else ""),
+                  esit and px == kare.size and (beklenen_g4 is None or filtre != "/CCITTFaxDecode" or ham == beklenen_g4),
+                  (filtre, px, esit))
+        else:
+            sonuc("%s: pikseller yeniden örneklenmedi (%d × %d)" % (ad, px[0], px[1]), px == Image.open(yol).size, px)
+    # donusum_bilgi: satırın sayfa ölçüsü de aynı kural (görüntü ve TIFF'in ilk sayfası); dpi etiketinin kaynağı artık yok
+    for i in (0, 5):
+        ad, yol, gorunen = vakalar[i][:3]
+        b, _ = c.cagir("donusum_bilgi", {"yol": yol, "genislik": 120})
+        bg, by = a4_beklenen(*gorunen)
+        sonuc("donusum_bilgi %s: sayfa ölçüsü A4'e sığan ölçü" % ad, abs(b["genislik"] - round(bg, 2)) < 0.02 and abs(b["yukseklik"] - round(by, 2)) < 0.02
+              and "dpiKaynagi" not in b, {x: b.get(x) for x in ("genislik", "yukseklik", "dpi", "dpiKaynagi")})
+    # Görüntü → TIFF (PDF üzerinden): sayfa A4'e sığan ölçüde, taranmış sayfa kendi pikselinde kalır (yeniden örneklenmez)
+    r, _ = donustur(c, [{"yol": vakalar[0][1], "hedef": os.path.join(k, "zincir.tif"), "hedefBicim": "tiff", "secenekler": {"renk": "gri"}}])
+    if "hata" not in r["sonuclar"][0]:
+        kr = kare_listesi(os.path.join(k, "zincir.tif"))
+        dpi = tuple(float(v) for v in kr[0][1].get("dpi", (0, 0)))
+        sonuc("görüntü → TIFF: 1 kare, piksel sayısı aynı (1500 × 2000), dpi A4'e sığan sayfanın (≈181,4)", len(kr) == 1 and kr[0][0].size == (1500, 2000)
+              and abs(dpi[0] - 1500 * 72 / A4[0]) < 0.1, (kr[0][0].size, dpi))
+    else:
+        sonuc("görüntü → TIFF zinciri", False, r["sonuclar"][0])
     sonuc("geçici dosya kalmadı", not gecici_kalintilar(k), gecici_kalintilar(k))
 
 
@@ -1767,7 +1892,8 @@ def main():
                ("tiff_pdf", lambda: test_tiff_pdf(c, g)), ("pdf_tiff", lambda: test_pdf_tiff(c, g)), ("iptal", lambda: test_iptal(c, g)),
                ("hedef_erisim", lambda: test_hedef_erisim(c, g)), ("parametreler", lambda: test_parametreler(c, g)), ("zip_bombasi", lambda: test_zip_bombasi(c)),
                ("dis_surec", lambda: test_dis_surec(c)), ("zincir", lambda: test_zincir(c, g)), ("surec", lambda: test_surec(exe, g)),
-               ("gorsel_imza", lambda: test_gorsel_imza(c, gg)), ("gorsel_pdf", lambda: test_gorsel_pdf(c, gg)), ("gri16", lambda: test_gri16(c)),
+               ("gorsel_imza", lambda: test_gorsel_imza(c, gg)), ("gorsel_pdf", lambda: test_gorsel_pdf(c, gg)), ("a4_olcusu", lambda: test_a4_olcusu(c)),
+               ("gri16", lambda: test_gri16(c)),
                ("pdf_jpg", lambda: test_pdf_jpg(c, g)), ("cakisma", lambda: test_cakisma(c, g)), ("kalan_sayfalar", lambda: test_kalan_sayfalar(c, g)), ("ayni_istekte_ad", lambda: test_ayni_istekte_ad(c, g)), ("bayat_gecici", lambda: test_bayat_gecici(c, g)), ("mupdf_kilidi", lambda: test_mupdf_kilidi(c, g)), ("kalite_notlari", lambda: test_kalite_notlari(c, g)),
                ("tahmin", lambda: test_tahmin(c, g, gg)), ("tahmin_kapanis", lambda: test_tahmin_kapanis(c))]
     if not exe:

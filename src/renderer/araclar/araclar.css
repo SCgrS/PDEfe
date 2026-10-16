@@ -326,9 +326,7 @@ html[data-tema="koyu"] .birlestir-oge .bilgi .neden.yaklasik { color: #ffd98a; }
 .birlestir-oge .bilgi .ozet .tur { font-weight: 600; letter-spacing: 0.3px; }
 .birlestir-oge .bilgi .ayarlar { display: flex; gap: 6px 14px; align-items: center; flex-wrap: wrap; font-size: 12px; margin-top: 2px; }
 .birlestir-oge .bilgi .ayarlar label { display: inline-flex; align-items: center; gap: 6px; color: var(--metin-soluk); }
-.birlestir-oge .bilgi .ayarlar .gorsel-ayar { display: inline-flex; gap: 14px; align-items: center; }
-.birlestir-oge .bilgi .ayarlar select, .birlestir-oge .bilgi .ayarlar input { height: 26px; font-size: 12px; color: var(--metin); }
-.birlestir-oge .bilgi .ayarlar input[type="number"] { width: 56px; }
+.birlestir-oge .bilgi .ayarlar select { height: 26px; font-size: 12px; color: var(--metin); }
 .birlestir-oge .bilgi .ayarlar .tahmin { color: var(--metin-soluk); font-variant-numeric: tabular-nums; }
 .birlestir-oge .bilgi .ayarlar .tahmin.ozel { color: var(--vurgu); }
 .birlestir-oge .bilgi .hata { color: #d13438; font-size: 12px; align-self: flex-start; }

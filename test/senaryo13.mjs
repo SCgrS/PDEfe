@@ -3,7 +3,7 @@
 // sürükleyerek alan seçimi (gerçek fare: canlı seçim, Ctrl ile ekleme, kenarda otomatik kaydırma, Esc, düz tıklama, kartla sıralama),
 // "Yeni belge olarak kaydet" (notlar/bağlantılar/yer imleri, bekleyen not sorusu) ve "Üzerine yaz" (kayıt, Ctrl+Z, yeniden kayıt);
 // Ayır "Üzerine yaz" (tek dosya kuralı canlı, seçili sayfalar ve tek aralık, sekmenin yenilenmesi, bekleyen değişiklik soruları);
-// Birleştir: varsayılan "Orijinal" (kenar alanı gizli, çıktıda kenar boşluğu yok), "A4'e sığdır"da kenar alanı.
+// Birleştir: görüntü sayfası kenarsız (0.2.9'dan beri satırda sayfa seçimi ve kenar ayarı yok; sayfa A4'e sığan ölçüde).
 // 0.1.25: varsayılan adlar "Düzenlenmiş", "Birleşik" (0.1.26'dan "Birleştirilmiş"; klasörde varsa "(2)"; hedef addan okunur); Ayır'da
 // "Seçili sayfaları çıkart" yerine Sayfa aralıklarına göre + Tek dosya, "Her N sayfada bir" yok (6. bölüm).
 // 0.1.13: araç pencerelerinin alt şeridindeki fare/tuş ipucu kalktı (F1 "Kısayollar" penceresine taşındı; 3. bölüm), araçlardaki
@@ -494,9 +494,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     await pencereKapat();
   }
 
-  // ------------------------------------------------------------ 7) Birleştir: varsayılan Orijinal, kenarsız
+  // ------------------------------------------------------------ 7) Birleştir: kenarsız görüntü sayfası (0.2.9: sayfa seçimi yok, A4'e sığar)
   if (bolum(7)) {
-    console.log('\n== 7) Görüntü birleştir: Orijinal');
+    console.log('\n== 7) Görüntü birleştir: sayfa seçimi yok, kenarsız, A4\'e sığan sayfa');
     await sekmeleriKapat();
     const gorseller = py(`from PIL import Image, ImageDraw
 k = ${J(GORSEL)}
@@ -514,22 +514,14 @@ cerceve((4032, 3024), t=24).save(y["exif"], quality=90, exif=e.tobytes())
 print(json.dumps(y))`);
     await evalJs(`window.__pdefe.komutCalistir('arac.gorselBirlestir', ${J(Object.values(gorseller))})`);
     await kosul(`document.querySelectorAll('.birlestir-oge').length === 4 && !document.querySelector('.birlestir-oge.yukleniyor')`, 15000);
-    const kenarGorunur = () => evalJs(`[...document.querySelectorAll('.birlestir-oge')].map((o) => !o.querySelector('.oge-kenar-alani').hidden)`);
-    const sayfaSecimi = (deger) => evalJs(`(() => { for (const s of document.querySelectorAll('.oge-sayfa-boyutu')) { s.value = ${J(deger)}; s.dispatchEvent(new Event('change', { bubbles: true })); } })()`);
-    const secimler = await evalJs(`[...document.querySelectorAll('.oge-sayfa-boyutu')].map((s) => s.value + ':' + s.selectedOptions[0].textContent)`);
-    const secenekAdlari = await evalJs(`[...document.querySelector('.oge-sayfa-boyutu').options].map((o) => o.textContent)`);
-    sonuc('Orijinal (varsayılan): kenar ayarı gizli, seçenekler "A4\'e sığdır" / "Orijinal" ("boyut" yok)',
-      J(await kenarGorunur()) === J([false, false, false, false]) && secimler.every((x) => x === 'orijinal:Orijinal') && J(secenekAdlari) === J(["A4'e sığdır", 'Orijinal']),
-      { secimler, secenekAdlari });
-    await sayfaSecimi('a4');
-    sonuc('A4\'e sığdır: kenar ayarı görünür', J(await kenarGorunur()) === J([true, true, true, true]));
-    await sayfaSecimi('orijinal');
+    // 0.2.9 (kullanıcı isteği): satırdaki "Sayfa" seçimi (A4'e sığdır / Orijinal) ve "Kenar" kutusu kalktı
+    const ayarlar = await evalJs(`[...document.querySelectorAll('.birlestir-oge')].map((o) => ({ sayfa: !!o.querySelector('.oge-sayfa-boyutu'), kenar: !!o.querySelector('.oge-kenar, .oge-kenar-alani'), kalite: !!o.querySelector('.oge-kalite') }))`);
+    sonuc('Satırlarda sayfa seçimi ve kenar ayarı yok, kalite seçimi var', ayarlar.length === 4 && ayarlar.every((a) => !a.sayfa && !a.kenar && a.kalite), ayarlar);
     // Döndürülmüş öğe: ikinci görsel (PNG) sağa döndürülür
     await evalJs(`document.querySelectorAll('.birlestir-oge')[1].querySelector('[data-komut="saga"]').click()`);
-    sonuc('Orijinal: kenar ayarı gizli', J(await kenarGorunur()) === J([false, false, false, false]));
     await kosul(`!document.querySelector('.birlestir-kalite-secim .boyut.bekliyor') && [...document.querySelectorAll('.birlestir-oge .tahmin')].every((t) => /tahmin: \\d/.test(t.textContent))`, 20000);
-    await ss('07-gorsel-orijinal-koyu');
-    await tema('acik'); await ss('07-gorsel-orijinal-acik'); await tema('koyu');
+    await ss('07-gorsel-koyu');
+    await tema('acik'); await ss('07-gorsel-acik'); await tema('koyu');
     if (!(await evalJs(`document.querySelector('.birlestir-pencere .arac-klasor-cip').dataset.klasor === ${J(CIKTI)}`))) throw new Error('çıktı klasörü test klasörü değil');
     const hedef = await yeniBelgeHedefi();   // "Birleştirilmiş" (0.1.25'te "Birleşik")
     await evalJs(`document.querySelector('.arac-dugmeler [data-id="birlestir"]').click()`);
@@ -545,9 +537,11 @@ for pg in d:
     sonuc.append({"sayfa": [round(pg.rect.width, 2), round(pg.rect.height, 2)], "px": [w, h], "kutuAyni": max(abs(a - b) for a, b in zip(bbox, pg.rect)) < 1e-3,
                   "beyaz": sum(1 for p in kenar if min(p) >= 235), "fark": max(max(abs(p[i] - (200, 30, 30)[i]) for i in range(3)) for p in kenar)})
 print(json.dumps(sonuc))`);
-    const beklenen = [[1200, 900], [480, 640], [500, 400], [726, 968]];
-    sonuc('birleştirilmiş PDF: sayfa = görsel, kenarlarda beyaz yok (JPEG, döndürülmüş PNG, saydam PNG, EXIF fotoğraf)',
-      kontrol.length === 4 && kontrol.every((s, i) => J(s.sayfa) === J(beklenen[i]) && s.kutuAyni && s.beyaz === 0 && s.fark <= 60), kontrol);
+    // 0.2.9: sayfa görselin kendisi, oranı korunarak A4'e sığan ölçüde (yatay 1200 × 900 → 793,7 × 595,28; döndürülmüş 640 × 480 PNG dikey;
+    // 500 × 400 → 744,1 × 595,28; EXIF 6 fotoğraf 3024 × 4032 dikey)
+    const beklenen = [[793.7, 595.28], [595.28, 793.7], [744.09, 595.28], [595.28, 793.7]];
+    sonuc('birleştirilmiş PDF: sayfa = görsel, A4\'e sığan ölçüde, kenarlarda beyaz yok (JPEG, döndürülmüş PNG, saydam PNG, EXIF fotoğraf)',
+      kontrol.length === 4 && kontrol.every((s, i) => Math.abs(s.sayfa[0] - beklenen[i][0]) <= 0.02 && Math.abs(s.sayfa[1] - beklenen[i][1]) <= 0.02 && s.kutuAyni && s.beyaz === 0 && s.fark <= 60), kontrol);
   }
 
   // ------------------------------------------------------------ 8) Sayfaları düzenle: artımlı döndürme ve yapısal kayıttan sonra yeni belge

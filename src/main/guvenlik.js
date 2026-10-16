@@ -399,16 +399,15 @@ const BIRLESTIR_TURLERI = new Set(['pdf', 'gorsel', 'udf', 'word']);
 
 /**
  * udf:yaklasikBirlestir'in (0.2.7, UYAP Doküman Editörü yokken Birleştir'deki UDF) bir öğesi: çekirdeğin birlestir öğesinin bilinen alanları
- * (yol mutlak; tur pdf | gorsel | udf | word; kalite bilinen seviye ya da yok; sayfaBoyutu a4 | orijinal; kenar 0–50 mm; dondurme 0 / 90 / 180 /
- * 270) ve yaklasik (yalnızca UDF'de: ana süreç çizer, çekirdeğe geçici PDF olarak verir). Bilinmeyen alanlar atılır; uymayan öğede hata.
+ * (yol mutlak; tur pdf | gorsel | udf | word; kalite bilinen seviye ya da yok; dondurme 0 / 90 / 180 / 270) ve yaklasik (yalnızca UDF'de: ana
+ * süreç çizer, çekirdeğe geçici PDF olarak verir). Bilinmeyen alanlar atılır; uymayan öğede hata. 0.2.9: görüntü sayfası her durumda A4'e
+ * sığan ölçüde (çekirdeğin a4_sayfa_olcusu); 0.2.8'in sayfaBoyutu (a4 | orijinal) ve kenar alanları da bilinmeyen alan gibi atılır.
  */
 function birlestirOgesi(o) {
   if (!o || typeof o !== 'object' || Array.isArray(o) || !mutlakYol(o.yol)) throw izinYok();
   const s = { yol: o.yol };
   if (o.tur != null) { if (!BIRLESTIR_TURLERI.has(o.tur)) throw izinYok(); s.tur = o.tur; }
   if (o.kalite != null) { if (!BIRLESTIR_KALITELERI.has(o.kalite)) throw izinYok(); s.kalite = o.kalite; }
-  if (o.sayfaBoyutu != null) { if (o.sayfaBoyutu !== 'a4' && o.sayfaBoyutu !== 'orijinal') throw izinYok(); s.sayfaBoyutu = o.sayfaBoyutu; }
-  if (o.kenar != null) { const k = Number(o.kenar); if (!Number.isFinite(k) || k < 0 || k > 50) throw izinYok(); s.kenar = k; }
   if (o.dondurme != null) { if (![0, 90, 180, 270].includes(o.dondurme)) throw izinYok(); s.dondurme = o.dondurme; }
   if (o.yaklasik === true) { if (s.tur !== 'udf') throw izinYok(); s.yaklasik = true; }
   return s;

@@ -182,8 +182,12 @@ try {
   kontrol('yaklasikBirlestir: .bat hedef, göreli hedef ve göreli yol reddedilir', yp('udf:yaklasikBirlestir', { ogeler: [bo('a.udf', { tur: 'udf', yaklasik: true })], hedef: path.join(K, 'x.bat') }) === null
     && yp('udf:yaklasikBirlestir', { ogeler: [bo('a.udf', { tur: 'udf', yaklasik: true })], hedef: 'x.pdf' }) === null
     && yp('udf:yaklasikBirlestir', { ogeler: [{ yol: 'a.udf', tur: 'udf', yaklasik: true }], hedef: bh }) === null);
-  kontrol('yaklasikBirlestir: bilinmeyen tür, kalite, döndürme, sayfa boyutu ve 51 mm kenar reddedilir', [{ tur: 'exe' }, { kalite: 'en iyi' }, { dondurme: 45 }, { sayfaBoyutu: 'A3' }, { kenar: 51 }]
+  kontrol('yaklasikBirlestir: bilinmeyen tür, kalite ve döndürme reddedilir', [{ tur: 'exe' }, { kalite: 'en iyi' }, { dondurme: 45 }]
     .every((ek) => yp('udf:yaklasikBirlestir', { ogeler: [bo('a.udf', { tur: 'udf', yaklasik: true }), bo('b.jpg', ek)], hedef: bh }) === null));
+  // 0.2.9: Birleştir'in sayfa boyutu seçimi kalktı (görüntü sayfası A4'e sığar); eski sayfaBoyutu / kenar alanları çekirdeğe geçmez, istek reddedilmez
+  const b3 = yp('udf:yaklasikBirlestir', { ogeler: [bo('a.udf', { tur: 'udf', yaklasik: true }), bo('b.jpg', { tur: 'gorsel', sayfaBoyutu: 'A3', kenar: 51 })], hedef: bh });
+  kontrol('yaklasikBirlestir (0.2.9): eski sayfaBoyutu ve kenar atılır', b3?.ogeler?.length === 2 && JSON.stringify(b3.ogeler[1]) === JSON.stringify({ yol: path.join(K, 'b.jpg'), tur: 'gorsel' })
+    && JSON.stringify(b2?.ogeler?.[1]) === JSON.stringify({ yol: path.join(K, 'b.jpg'), tur: 'gorsel' }), [b3?.ogeler, b2?.ogeler?.[1]]);
   // "Üzerine yaz" (0.2.7 inceleme): hedef listedeki açık PDF'tir; çekirdeğin birlestir'i bütün girdileri okuduktan sonra yazar (kural onunkiyle aynı).
   // Yaklaşık çizilen UDF'nin kendisi hedef olamaz (UDF'nin yerine PDF yazılırdı)
   const uz = yp('udf:yaklasikBirlestir', { ogeler: [bo('Birlesik.PDF', { tur: 'pdf' }), bo('a.udf', { tur: 'udf', yaklasik: true })], hedef: bh });

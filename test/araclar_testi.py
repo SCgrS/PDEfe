@@ -466,12 +466,12 @@ def test_gorsel_bilgi(c, g):
 
 def test_boyut_tahmini(c, g):
     for kalite in ("orijinal", "yuksek", "orta", "dusuk"):
-        r, _ = c.cagir("boyut_tahmini", {"oge": {"yol": g["jpeg_exif"], "tur": "gorsel", "kalite": kalite, "sayfaBoyutu": "a4"}})
+        r, _ = c.cagir("boyut_tahmini", {"oge": {"yol": g["jpeg_exif"], "tur": "gorsel", "kalite": kalite}})
         kaydet_sonuc("boyut_tahmini", "jpeg %s" % kalite, r["boyut"] > 0, mb(r["boyut"]))
     r, _ = c.cagir("boyut_tahmini", {"oge": {"yol": GORSELLI, "tur": "pdf", "kalite": "dusuk"}})
     kaydet_sonuc("boyut_tahmini", "fdsafsd.pdf dusuk", 0 < r["boyut"] < os.path.getsize(GORSELLI), mb(r["boyut"]))
     # Renderer biçimi: çoğul ogeler + genel 'kalite'; bozuk öğe yalnızca kendi hatasını alır
-    ogeler = [{"yol": g["jpeg_exif"], "tur": "gorsel", "sayfaBoyutu": "a4"}, {"yol": GORSELLI, "tur": "pdf"},
+    ogeler = [{"yol": g["jpeg_exif"], "tur": "gorsel"}, {"yol": GORSELLI, "tur": "pdf"},
               {"yol": g["webp"], "tur": "gorsel", "kalite": "orijinal"}, {"yol": os.path.join(CIKTI, "yok.png"), "tur": "gorsel"}]
     r, il = c.cagir("boyut_tahmini", {"ogeler": ogeler, "kalite": "dusuk", "istek": 7})
     L = r["ogeler"]
@@ -485,13 +485,13 @@ def test_birlestir(c, g):
     hedef = os.path.join(CIKTI, "birlestir_karisik.pdf")
     ogeler = [
         {"yol": NOTLU, "tur": "pdf", "kalite": "orijinal"},
-        {"yol": g["jpeg_exif"], "tur": "gorsel", "kalite": "orta", "sayfaBoyutu": "a4", "kenar": 28},
-        {"yol": g["png_saydam"], "tur": "gorsel", "kalite": "orijinal", "sayfaBoyutu": "orijinal", "kenar": 0},
-        {"yol": g["tiff_coklu"], "tur": "gorsel", "kalite": "dusuk", "sayfaBoyutu": "a4"},
-        {"yol": g["webp"], "tur": "gorsel", "sayfaBoyutu": "a4", "dondurme": 90},
-        {"yol": g["bmp"], "tur": "gorsel", "kalite": "yuksek", "sayfaBoyutu": "a4"},
-        {"yol": g["gif"], "tur": "gorsel", "kalite": "orijinal", "sayfaBoyutu": "orijinal", "kenar": 20},
-        {"yol": g["bitonal"], "tur": "gorsel", "kalite": "orta", "sayfaBoyutu": "a4"},
+        {"yol": g["jpeg_exif"], "tur": "gorsel", "kalite": "orta"},
+        {"yol": g["png_saydam"], "tur": "gorsel", "kalite": "orijinal"},
+        {"yol": g["tiff_coklu"], "tur": "gorsel", "kalite": "dusuk"},
+        {"yol": g["webp"], "tur": "gorsel", "dondurme": 90},
+        {"yol": g["bmp"], "tur": "gorsel", "kalite": "yuksek"},
+        {"yol": g["gif"], "tur": "gorsel", "kalite": "orijinal"},
+        {"yol": g["bitonal"], "tur": "gorsel", "kalite": "orta"},
         {"yol": YERIMLI, "tur": "pdf", "kalite": "dusuk", "dondurme": 90},
         {"yol": YATAY, "tur": "pdf"},
     ]
@@ -502,7 +502,7 @@ def test_birlestir(c, g):
     n_notlu = belge_ozet(NOTLU)
     n_yer = belge_ozet(YERIMLI)
     beklenen_sayfa = n_notlu["sayfa"] + 1 + 1 + 3 + 1 + 1 + 1 + 1 + n_yer["sayfa"] + 3
-    # 2. görsel sayfası (jpeg exif, dikey 3000x4000 → dikey A4)
+    # 2. görsel sayfası (jpeg exif, dikey 3000x4000 → dikey, A4'e sığan 210 × 280 mm; 0.2.9)
     s_jpeg = d[n_notlu["sayfa"]].rect
     s_png = d[n_notlu["sayfa"] + 1].rect
     s_webp = d[n_notlu["sayfa"] + 5].rect
@@ -513,9 +513,10 @@ def test_birlestir(c, g):
     toc_min = min((s for _, _, s in toc), default=0)
     yer_rot = d[n_notlu["sayfa"] + 9].rotation
     d.close()
-    ok = (oz["sayfa"] == beklenen_sayfa and oz["not"] == n_notlu["not"] and round(s_jpeg.width) == 595
-          and round(s_png.width) == 800 and round(s_png.height) == 600 and s_bmp.width > s_bmp.height
-          and s_webp.width < s_webp.height and jpeg_px[1] <= 2200 and len(toc) == n_yer["toc"]
+    # 0.2.9: görüntü sayfaları A4'e sığan ölçüde (800 × 600 saydam PNG → 280 × 210 mm, 794 × 595 pt); "Orta" 200 dpi: 280 mm → 2204 piksel
+    ok = (oz["sayfa"] == beklenen_sayfa and oz["not"] == n_notlu["not"] and round(s_jpeg.width) == 595 and round(s_jpeg.height) == 794
+          and round(s_png.width) == 794 and round(s_png.height) == 595 and s_bmp.width > s_bmp.height
+          and s_webp.width < s_webp.height and jpeg_px[1] <= 2205 and len(toc) == n_yer["toc"]
           and toc_min == n_notlu["sayfa"] + 10 and yer_rot == 90)
     kaydet_sonuc("birlestir", "10 öğe (pdf+7 görsel)", ok,
                  "sayfa=%d/%d not=%d jpeg→%dx%d px png sayfası=%dx%d webp(90°) sayfası=%dx%d toc=%d (ilk sayfa %d) yerimli rot=%d %s %.2fs"
@@ -558,10 +559,10 @@ def test_birlestir_uzerine(c):
 
 
 def test_birlestir_tiff(c):
-    """Görüntü / PDF birleştir "Orijinal boyut"ta TIFF sayfası taramanın gerçek ölçüsünde (0.2.6): çözünürlük etiketi geçerliyse onunla,
-    etiketsizse A4 kuralıyla (uzun kenar A4'ün uzun kenarı; donustur.tiff_dpi_coz). 0.2.5'e dek 72 dpi sayılıyordu: etiketsiz 200 dpi A4
-    tarama 1654 × 2339 pt'lik (58 × 82 cm) sayfa oluyordu. Öteki görsellerin ölçüsü değişmez (72 dpi etiketli fotoğraf, PNG). Çok sayfalı
-    TIFF kare kare çözülür: 150 sayfada birleştirmenin ve dört düzeyli boyut tahmininin tepe belleği düşük (0.2.5'te 1,17 GB)."""
+    """Birleştir'de TIFF sayfası (0.2.9): karenin oranıyla A4'e sığan ölçüde (araclar.a4_sayfa_olcusu; 0.2.6–0.2.8'de "Orijinal"de
+    taramanın gerçek ölçüsü: etiket ya da A4 kuralı; 0.2.5'e dek 72 dpi: etiketsiz 200 dpi A4 tarama 58 × 82 cm'lik sayfa oluyordu). Öteki
+    görseller de aynı kuralla (72 dpi etiketli fotoğraf). Çok sayfalı TIFF kare kare çözülür: 150 sayfada birleştirmenin ve dört düzeyli
+    boyut tahmininin tepe belleği düşük (0.2.5'te 1,17 GB)."""
     from PIL import Image, ImageDraw, TiffImagePlugin
     klasor = os.path.join(CIKTI, "birlestir_tiff")
     shutil.rmtree(klasor, ignore_errors=True)
@@ -588,11 +589,11 @@ def test_birlestir_tiff(c):
     foto = os.path.join(klasor, "foto_72dpi.jpg")
     Image.new("RGB", (3000, 4000), (180, 120, 60)).save(foto, quality=85, dpi=(72, 72))
     vakalar = [({"yol": etiketsiz}, [(595, 842), (595, 842)], "etiketsiz 200 dpi G4 → A4"),
-               ({"yol": letter}, [(612, 792)], "150 dpi etiketli Letter"),
-               ({"yol": letter, "dondurme": 90}, [(792, 612)], "150 dpi Letter 90° döndürülmüş"),
-               ({"yol": kucuk}, [(300, 200)], "küçük TIFF (A4 kuralı 50 dpi'den az: 72 dpi)"),
-               ({"yol": foto}, [(720, 960)], "72 dpi etiketli fotoğraf (eski kural, değişmedi)")]
-    ogeler = [dict({"tur": "gorsel", "kalite": "orijinal", "sayfaBoyutu": "orijinal"}, **o) for o, _, _ in vakalar]
+               ({"yol": letter}, [(595, 770)], "150 dpi etiketli Letter → 210 × 271,8 mm"),
+               ({"yol": letter, "dondurme": 90}, [(770, 595)], "150 dpi Letter 90° döndürülmüş → yatay"),
+               ({"yol": kucuk}, [(842, 561)], "küçük TIFF (300 × 200 piksel) → yatay A4'e büyür"),
+               ({"yol": foto}, [(595, 794)], "72 dpi etiketli fotoğraf → 210 × 280 mm")]
+    ogeler = [dict({"tur": "gorsel", "kalite": "orijinal"}, **o) for o, _, _ in vakalar]
     hedef = os.path.join(klasor, "tiff_orijinal.pdf")
     c.cagir("birlestir", {"ogeler": ogeler, "hedef": hedef, "genelKalite": "orijinal"})
     d = pymupdf.open(hedef)
@@ -603,13 +604,13 @@ def test_birlestir_tiff(c):
         gercek = olculer[i:i + len(beklenen)]
         i += len(beklenen)
         kaydet_sonuc("birlestir/tiff ölçü", ad, gercek == beklenen, "sayfa %s, beklenen %s" % (gercek, beklenen))
-    # A4'e sığdır değişmedi
+    # 0.2.8'in "A4'e sığdır"ı (beyaz A4 sayfa) kalktı: eski alan yok sayılır, sayfa yine A4'e sığan ölçüde
     hedef = os.path.join(klasor, "tiff_a4.pdf")
     c.cagir("birlestir", {"ogeler": [{"yol": letter, "tur": "gorsel", "sayfaBoyutu": "a4", "kenar": 0}], "hedef": hedef, "genelKalite": "orijinal"})
     d = pymupdf.open(hedef)
     a4 = (round(d[0].rect.width), round(d[0].rect.height))
     d.close()
-    kaydet_sonuc("birlestir/tiff ölçü", "A4'e sığdır (değişmedi)", a4 == (595, 842), "sayfa %s" % (a4,))
+    kaydet_sonuc("birlestir/tiff ölçü", "eski sayfaBoyutu a4 yok sayılır", a4 == (595, 770), "sayfa %s" % (a4,))
     # 150 sayfa: kare kare çözülür, tepe bellek
     akis = os.path.join(klasor, "akis_150.tif")
     with TiffImagePlugin.AppendingTiffWriter(akis, new=True) as tf:
@@ -620,7 +621,7 @@ def test_birlestir_tiff(c):
     with open(betik, "w", encoding="utf-8") as f:
         f.write(TEPE_BETIGI)
     hedef = os.path.join(klasor, "akis_150.pdf")
-    oge = {"yol": akis, "tur": "gorsel", "kalite": "orijinal", "sayfaBoyutu": "orijinal"}
+    oge = {"yol": akis, "tur": "gorsel", "kalite": "orijinal"}
     for ad, yontem, params in (("150 sayfa birleştirme (orijinal)", "birlestir", {"ogeler": [oge], "hedef": hedef}),
                                ("150 sayfa boyut tahmini (dört düzey)", "tahmin", {"oge": oge})):
         p = subprocess.run([sys.executable, "-X", "utf8", betik, os.path.join(KOK, "core"), yontem, json.dumps(params)], capture_output=True,
@@ -851,10 +852,11 @@ def test_sayfalar_yeni_belge(c):
 
 
 def test_gorsel_orijinal_kenarsiz(c):
-    """Görüntü / PDF birleştir "Orijinal boyut": sayfa görselin kendisidir, kenar boşluğu (verilen kenar yok sayılır) ve yuvarlamadan
-    kıl payı beyaz çizgi yoktur. Sayfa 72 dpi'de (%100) çizilir: dört kenarın bütün pikselleri görselin çerçeve rengindedir.
-    JPEG (olduğu gibi gömülen ve yeniden kodlanan), PNG (saydamlıksız ve saydam), döndürülmüş öğe ve EXIF'le döndürülmüş fotoğraf.
-    A4'e sığdır ise kenarı korur (kenarlar beyaz)."""
+    """Birleştir'in görüntü sayfası kenarsızdır (0.1.x'te "Orijinal boyut" için; 0.2.9'dan beri her görüntüde): sayfa görselin kendisidir,
+    oranı korunarak A4'e sığan ölçüde; kenar boşluğu (eski kenar alanı yok sayılır) ve kıl payı beyaz çizgi yoktur. Sayfa 72 dpi'de (%100)
+    çizilir: dört kenarın bütün pikselleri görselin çerçeve rengindedir (kesirli ölçüde son kısmi piksel de). JPEG (olduğu gibi gömülen ve
+    yeniden kodlanan), PNG (saydamlıksız ve saydam), döndürülmüş öğe ve EXIF'le döndürülmüş fotoğraf. 0.2.8'in "A4'e sığdır"ı (beyaz A4
+    sayfa, kenar boşluklu) kalktı: eski sayfaBoyutu a4 + kenar 20 de kenarsız."""
     from PIL import Image, ImageDraw
     klasor = os.path.join(CIKTI, "gorsel_orijinal")
     shutil.rmtree(klasor, ignore_errors=True)
@@ -881,22 +883,23 @@ def test_gorsel_orijinal_kenarsiz(c):
     exif = Image.Exif()
     exif[0x0112] = 6
     cerceveli((4032, 3024), kalinlik=24).save(yollar["exif"], quality=90, exif=exif.tobytes())
-    # (öğe, beklenen sayfa ölçüsü pt; None: A4)
+    # (öğe, görünen en ve boy (beklenen sayfa: A4'e sığan ölçü), ad)
     vakalar = [
         ({"yol": yollar["jpeg"], "kalite": "orijinal"}, (1200, 900), "JPEG olduğu gibi"),
         ({"yol": yollar["jpeg"], "kalite": "orta"}, (1200, 900), "JPEG yeniden kodlanmış"),
         ({"yol": yollar["png"], "kalite": "orijinal"}, (640, 480), "PNG"),
         ({"yol": yollar["png_saydam"], "kalite": "orijinal"}, (500, 400), "PNG saydam"),
         ({"yol": yollar["png_dondur"], "kalite": "orijinal", "dondurme": 90}, (200, 300), "PNG 90° döndürülmüş"),
-        ({"yol": yollar["exif"], "kalite": "orijinal"}, (726, 968), "EXIF 6 fotoğraf (300 dpi)"),
-        ({"yol": yollar["png"], "kalite": "orijinal", "sayfaBoyutu": "a4"}, None, "A4'e sığdır (kenar 20)"),
+        ({"yol": yollar["exif"], "kalite": "orijinal"}, (3024, 4032), "EXIF 6 fotoğraf"),
+        ({"yol": yollar["png"], "kalite": "orijinal", "sayfaBoyutu": "a4", "kenar": 20}, (640, 480), "eski A4'e sığdır (kenar 20) de kenarsız"),
     ]
-    ogeler = [dict({"tur": "gorsel", "sayfaBoyutu": "orijinal", "kenar": 20}, **o) for o, _, _ in vakalar]
+    ogeler = [dict({"tur": "gorsel"}, **o) for o, _, _ in vakalar]
     hedef = os.path.join(klasor, "orijinal_boyut.pdf")
     c.cagir("birlestir", {"ogeler": ogeler, "hedef": hedef, "genelKalite": "orijinal"})
     d = pymupdf.open(hedef)
     try:
-        for i, (_, beklenen, ad) in enumerate(vakalar):
+        for i, (_, gorunen, ad) in enumerate(vakalar):
+            beklenen = a4_beklenen(*gorunen)
             pg = d[i]
             pix = pg.get_pixmap(alpha=False)   # 72 dpi: 1 pt = 1 piksel
             w, h = pix.width, pix.height
@@ -906,21 +909,144 @@ def test_gorsel_orijinal_kenarsiz(c):
             beyaz = sum(1 for p in kenar if min(p) >= 235)
             bbox = pymupdf.Rect(pg.get_image_info()[0]["bbox"])
             olcu = (round(pg.rect.width, 3), round(pg.rect.height, 3))
-            if beklenen is None:
-                ok = beyaz == len(kenar) and bbox.x0 >= 20 and pg.rect.contains(bbox)
-                ayrinti = "sayfa=%s görsel=%s kenar pikselleri beyaz=%d/%d" % (olcu, tuple(round(v, 1) for v in bbox), beyaz, len(kenar))
-            else:
-                ok = (olcu == beklenen and (w, h) == beklenen and max(abs(a - b) for a, b in zip(bbox, pg.rect)) < 1e-3
-                      and beyaz == 0 and fark <= 60)
-                ayrinti = "sayfa=%s px=%dx%d görsel kutusu=sayfa:%s kenar pikselleri beyaz=%d/%d çerçeveden en büyük fark=%d" % (
-                    olcu, w, h, max(abs(a - b) for a, b in zip(bbox, pg.rect)) < 1e-3, beyaz, len(kenar), fark)
+            ok = (abs(pg.rect.width - beklenen[0]) < 0.01 and abs(pg.rect.height - beklenen[1]) < 0.01
+                  and max(abs(a - b) for a, b in zip(bbox, pg.rect)) < 1e-3 and beyaz == 0 and fark <= 60)
+            ayrinti = "sayfa=%s beklenen=%s px=%dx%d görsel kutusu=sayfa:%s kenar pikselleri beyaz=%d/%d çerçeveden en büyük fark=%d" % (
+                olcu, tuple(round(v, 3) for v in beklenen), w, h, max(abs(a - b) for a, b in zip(bbox, pg.rect)) < 1e-3, beyaz, len(kenar), fark)
             kaydet_sonuc("birlestir/orijinal", ad, ok, ayrinti)
     finally:
         d.close()
-    # Boyut tahmini orijinal boyutta kenara bakmaz (arayüz kenarı gizler; eski değer tahmini değiştirmemeli)
-    t0, _ = c.cagir("boyut_tahmini", {"oge": {"yol": yollar["png"], "tur": "gorsel", "kalite": "orijinal", "sayfaBoyutu": "orijinal", "kenar": 0}})
-    t1, _ = c.cagir("boyut_tahmini", {"oge": {"yol": yollar["png"], "tur": "gorsel", "kalite": "orijinal", "sayfaBoyutu": "orijinal", "kenar": 25}})
+    # Boyut tahmini kenara bakmaz (0.2.9: kenar alanı kalktı; eski değer tahmini değiştirmemeli)
+    t0, _ = c.cagir("boyut_tahmini", {"oge": {"yol": yollar["png"], "tur": "gorsel", "kalite": "orijinal", "kenar": 0}})
+    t1, _ = c.cagir("boyut_tahmini", {"oge": {"yol": yollar["png"], "tur": "gorsel", "kalite": "orijinal", "kenar": 25}})
     kaydet_sonuc("boyut_tahmini/orijinal", "kenar 0 ve 25", t0["boyut"] == t1["boyut"] and t0["ozet"] == t1["ozet"], "%d / %d bayt" % (t0["boyut"], t1["boyut"]))
+
+
+def a4_beklenen(g, y):
+    """0.2.9'un kuralı (testin kendi hesabı): görünen en / boy oranı korunarak A4'e sığan en büyük sayfa (pt). Dikey ya da kare görüntü
+    595,276 × 841,89'luk kutuya, yatay görüntü 841,89 × 595,276'lık kutuya."""
+    kg, ky = (841.890, 595.276) if g > y else (595.276, 841.890)
+    k = min(kg / float(g), ky / float(y))
+    return g * k, y * k
+
+
+def test_birlestir_a4(c):
+    """0.2.9 (kullanıcı isteği: "Görüntü dosya formatlarını birleştirirken… görüntülerin A4 boyutunda kalmasını sağlayalım… görüntü
+    birleştirirken sayfa seçeneğini kaldıralım"): Birleştir'de her görüntü sayfası görüntünün kendisidir, oranı korunarak A4'e sığan en büyük
+    ölçüde (dikey ya da kare 210 × 297 mm'lik kutuya, yatay 297 × 210 mm'lik kutuya); beyaz kenar yok. Satırın döndürmesinden sonraki yönle.
+    Eski sayfaBoyutu / kenar alanları yok sayılır. "Orijinal"de JPEG baytları aynen; kalite seviyeleri A4'e sığan sayfanın ölçüsüne göre
+    küçültür. PDF öğesinin sayfası değişmez. Boyut tahmini aynı ölçüyle (sayfaBoyutu / kenar tahmini değiştirmez) ve çıktıya yakın."""
+    from PIL import Image, ImageDraw, TiffImagePlugin
+    klasor = os.path.join(CIKTI, "birlestir_a4")
+    shutil.rmtree(klasor, ignore_errors=True)
+    os.makedirs(klasor)
+    CERCEVE = (200, 30, 30)
+
+    def cerceveli(boyut, kip="RGB", kalinlik=8):
+        im = Image.new(kip, boyut, CERCEVE)
+        ImageDraw.Draw(im).rectangle((kalinlik, kalinlik, boyut[0] - 1 - kalinlik, boyut[1] - 1 - kalinlik), fill=(40, 90, 200))
+        return im
+
+    y = {}
+    y["dikey"] = os.path.join(klasor, "dikey_3x4.jpg")
+    cerceveli((1500, 2000)).save(y["dikey"], quality=90, dpi=(72, 72))
+    y["yatay"] = os.path.join(klasor, "yatay_4x3.png")
+    cerceveli((1200, 900)).save(y["yatay"])
+    y["kare"] = os.path.join(klasor, "kare.png")
+    cerceveli((300, 300)).save(y["kare"])
+    y["kucuk"] = os.path.join(klasor, "kucuk.png")
+    cerceveli((40, 20), kalinlik=2).save(y["kucuk"])
+    y["exif"] = os.path.join(klasor, "exif6.jpg")
+    exif = Image.Exif()
+    exif[0x0112] = 6
+    cerceveli((2000, 1500), kalinlik=24).save(y["exif"], quality=90, exif=exif.tobytes())
+    y["tiff"] = os.path.join(klasor, "a4_200.tif")
+    tarama = Image.new("1", (1654, 2339), 1)
+    ImageDraw.Draw(tarama).rectangle((0, 0, 1653, 2338), outline=0, width=6)
+    letter = Image.new("RGB", (1275, 1650), CERCEVE)
+    with TiffImagePlugin.AppendingTiffWriter(y["tiff"], new=True) as tf:
+        tarama.save(tf, format="TIFF", compression="group4")
+        tf.newFrame()
+        letter.save(tf, format="TIFF", compression="tiff_lzw", dpi=(150, 150))
+        tf.newFrame()
+    pdf = os.path.join(klasor, "yatay_belge.pdf")
+    d = pymupdf.open()
+    d.new_page(width=700, height=400).insert_text((72, 72), "Deneme", fontsize=14)
+    d.save(pdf)
+    d.close()
+    # (öğe, beklenen sayfalar (görünen en, boy), ad)
+    vakalar = [
+        ({"yol": y["dikey"]}, [(1500, 2000)], "dikey 3:4 JPEG → 210 × 280 mm"),
+        ({"yol": y["yatay"]}, [(1200, 900)], "yatay 4:3 PNG → 280 × 210 mm"),
+        ({"yol": y["dikey"], "dondurme": 90}, [(2000, 1500)], "dikey JPEG sağa döndürülmüş → yatay 280 × 210 mm"),
+        ({"yol": y["kare"]}, [(300, 300)], "kare → 210 × 210 mm"),
+        ({"yol": y["kucuk"]}, [(40, 20)], "çok küçük görüntü büyür → 297 × 148,5 mm"),
+        ({"yol": y["exif"]}, [(1500, 2000)], "EXIF 6 fotoğraf (dik görünür) → 210 × 280 mm"),
+        ({"yol": y["tiff"]}, [(1654, 2339), (1275, 1650)], "TIFF: A4 tarama + Letter 150 dpi"),
+        ({"yol": y["yatay"], "sayfaBoyutu": "a4", "kenar": 20}, [(1200, 900)], "eski sayfaBoyutu a4 + kenar 20 yok sayılır"),
+        ({"yol": y["kare"], "sayfaBoyutu": "orijinal"}, [(300, 300)], "eski sayfaBoyutu orijinal yok sayılır"),
+    ]
+    ogeler = [dict({"tur": "gorsel", "kalite": "orijinal"}, **o) for o, _, _ in vakalar] + [{"yol": pdf, "tur": "pdf"}]
+    hedef = os.path.join(klasor, "birlesik.pdf")
+    r, _ = c.cagir("birlestir", {"ogeler": ogeler, "hedef": hedef, "genelKalite": "orijinal"})
+    d = pymupdf.open(hedef)
+    try:
+        i = 0
+        for oge, sayfalar, ad in vakalar:
+            for gorunen in sayfalar:
+                pg = d[i]
+                i += 1
+                bg, by = a4_beklenen(*gorunen)
+                bbox = pymupdf.Rect(pg.get_image_info()[0]["bbox"])
+                # 72 dpi'de (1 pt = 1 piksel) sayfanın tamamen içindeki dört kenar satırı / sütunu: beyaz yok (kesirli ölçüde son kısmi piksel
+                # sayfanın dışına taşar, sayılmaz)
+                pix = pg.get_pixmap(alpha=False)
+                w, h = int(pg.rect.width), int(pg.rect.height)
+                kenar = [pix.pixel(x, 0) for x in range(w)] + [pix.pixel(x, h - 1) for x in range(w)] \
+                    + [pix.pixel(0, yy) for yy in range(h)] + [pix.pixel(w - 1, yy) for yy in range(h)]
+                beyaz = sum(1 for p in kenar if min(p) >= 235)
+                ok = (abs(pg.rect.width - bg) < 0.01 and abs(pg.rect.height - by) < 0.01 and max(abs(a - b) for a, b in zip(bbox, pg.rect)) < 1e-3
+                      and beyaz == 0)
+                kaydet_sonuc("birlestir/A4", ad, ok, "sayfa=%.2f × %.2f pt (%.1f × %.1f mm), beklenen %.2f × %.2f, kutu=sayfa:%s, kenarda beyaz=%d"
+                             % (pg.rect.width, pg.rect.height, pg.rect.width * 25.4 / 72, pg.rect.height * 25.4 / 72, bg, by,
+                                max(abs(a - b) for a, b in zip(bbox, pg.rect)) < 1e-3, beyaz))
+        son = d[i]
+        kaydet_sonuc("birlestir/A4", "PDF öğesi kendi ölçüsünde", (round(son.rect.width), round(son.rect.height)) == (700, 400) and d.page_count == i + 1,
+                     "sayfa=%s, toplam %d" % ((round(son.rect.width), round(son.rect.height)), d.page_count))
+        # Orijinal: JPEG baytları aynen (dikey ve EXIF 6)
+        for no, anahtar in ((0, "dikey"), (5, "exif")):
+            with open(y[anahtar], "rb") as f:
+                aynen = d.xref_stream_raw(d[no].get_images(full=True)[0][0]) == f.read()
+            kaydet_sonuc("birlestir/A4", "%s: JPEG aynen gömülü" % anahtar, aynen, "aynen=%s" % aynen)
+    finally:
+        d.close()
+    # Kalite seviyesi A4'e sığan sayfanın ölçüsüne göre küçültür: 4000 × 3000 fotoğraf "Orta"da (200 dpi) 280 × 210 mm → 2205 × 1654 piksel
+    buyuk = os.path.join(klasor, "buyuk.jpg")
+    Image.merge("RGB", [Image.effect_noise((4000, 3000), 40)] * 3).save(buyuk, quality=95)   # gürültülü: "Orta"da yeniden kodlanınca küçülür
+    hedef2 = os.path.join(klasor, "orta.pdf")
+    c.cagir("birlestir", {"ogeler": [{"yol": buyuk, "tur": "gorsel", "kalite": "orta"}], "hedef": hedef2})
+    d = pymupdf.open(hedef2)
+    try:
+        x = d[0].get_images(full=True)[0]
+        olcu, px = (round(d[0].rect.width, 2), round(d[0].rect.height, 2)), (x[2], x[3])
+    finally:
+        d.close()
+    bg, by = a4_beklenen(4000, 3000)
+    kaydet_sonuc("birlestir/A4", "Orta: A4'e sığan sayfada 200 dpi", abs(olcu[0] - bg) < 0.01 and abs(px[0] - bg / 72 * 200) <= 2 and abs(px[1] - by / 72 * 200) <= 2,
+                 "sayfa=%s piksel=%s" % (olcu, px))
+    # Boyut tahmini: aynı kural, sayfaBoyutu / kenar sonucu değiştirmez, tahmin ≈ çıktı
+    t0, _ = c.cagir("boyut_tahmini", {"oge": {"yol": y["yatay"], "tur": "gorsel", "kalite": "orijinal"}})
+    t1, _ = c.cagir("boyut_tahmini", {"oge": {"yol": y["yatay"], "tur": "gorsel", "kalite": "orijinal", "sayfaBoyutu": "a4", "kenar": 25}})
+    t2, _ = c.cagir("boyut_tahmini", {"oge": {"yol": y["yatay"], "tur": "gorsel", "kalite": "orijinal", "sayfaBoyutu": "orijinal", "kenar": 0}})
+    kaydet_sonuc("boyut_tahmini/A4", "sayfaBoyutu / kenar yok sayılır", t0["boyut"] == t1["boyut"] == t2["boyut"] and t0["ozet"] == t1["ozet"] == t2["ozet"],
+                 "%d / %d / %d bayt" % (t0["boyut"], t1["boyut"], t2["boyut"]))
+    ogeler = [{"yol": y[k], "tur": "gorsel"} for k in ("dikey", "yatay", "kare", "tiff")]
+    t, _ = c.cagir("boyut_tahmini", {"ogeler": ogeler, "kalite": "orijinal"})
+    hedef3 = os.path.join(klasor, "tahmin.pdf")
+    r3, _ = c.cagir("birlestir", {"ogeler": ogeler, "hedef": hedef3, "genelKalite": "orijinal"})
+    # Düz renkli küçük PNG'ler birlikte kaydedilince tek tek ölçüldüklerinden küçük çıkıyor (tahmin %8 büyük; 0.2.8'de de aynı): pay %10
+    kaydet_sonuc("boyut_tahmini/A4", "tahmin ≈ çıktı (4 öğe, %10)", abs(t["toplam"] - r3["boyut"]) <= max(4096, 0.1 * r3["boyut"]),
+                 "tahmin %d, çıktı %d bayt" % (t["toplam"], r3["boyut"]))
 
 
 def test_kalite_buyutmez(c):
@@ -958,17 +1084,16 @@ def test_kalite_buyutmez(c):
     yol_foto = os.path.join(klasor, "foto.png")
     foto.save(yol_foto)
     for yol, ad, kayipli_kucultmeli in ((yol_jpeg, "JPEG q60", False), (yol_ekran, "ekran PNG", False), (yol_foto, "fotoğraf PNG", True)):
-        for sb in ("orijinal", "a4"):
-            b = {}
-            for kalite in ("orijinal", "yuksek", "orta", "dusuk"):
-                r, _ = c.cagir("boyut_tahmini", {"oge": {"yol": yol, "tur": "gorsel", "kalite": kalite, "sayfaBoyutu": sb, "kenar": 10}})
-                b[kalite] = r["boyut"]
-            ok = all(b[k] <= b["orijinal"] for k in ("yuksek", "orta", "dusuk"))
-            if kayipli_kucultmeli:
-                ok = ok and b["yuksek"] < b["orijinal"] and b["dusuk"] <= b["orta"] <= b["yuksek"]
-            kaydet_sonuc("birlestir/kalite", "%s, sayfa %s" % (ad, sb), ok, " ".join("%s=%d" % (k, v) for k, v in b.items()))
+        b = {}
+        for kalite in ("orijinal", "yuksek", "orta", "dusuk"):
+            r, _ = c.cagir("boyut_tahmini", {"oge": {"yol": yol, "tur": "gorsel", "kalite": kalite}})
+            b[kalite] = r["boyut"]
+        ok = all(b[k] <= b["orijinal"] for k in ("yuksek", "orta", "dusuk"))
+        if kayipli_kucultmeli:
+            ok = ok and b["yuksek"] < b["orijinal"] and b["dusuk"] <= b["orta"] <= b["yuksek"]
+        kaydet_sonuc("birlestir/kalite", "%s (A4'e sığan sayfa)" % ad, ok, " ".join("%s=%d" % (k, v) for k, v in b.items()))
     # Yüksek: JPEG baytları aynen gömülür; tahmin çıktıyla uyuşur
-    ogeler = [{"yol": y, "tur": "gorsel", "sayfaBoyutu": "orijinal"} for y in (yol_jpeg, yol_ekran, yol_foto)]
+    ogeler = [{"yol": y, "tur": "gorsel"} for y in (yol_jpeg, yol_ekran, yol_foto)]
     t, _ = c.cagir("boyut_tahmini", {"ogeler": ogeler, "kalite": "yuksek"})
     hedef = os.path.join(klasor, "yuksek.pdf")
     r, _ = c.cagir("birlestir", {"ogeler": ogeler, "hedef": hedef, "genelKalite": "yuksek"})
@@ -987,7 +1112,7 @@ def test_gorsel_yonu(c):
     """Görüntü / PDF birleştir: EXIF yönlü telefon fotoğrafı (3, 6, 8) "Orijinal"de JPEG baytları aynen gömülür, dönüş PDF'te yapılır
     (önceden PNG'ye çevrilip kat kat büyüyordu); aynalı yön (2) çözülüp çevrilir. Arayüzün "Sağa döndür"ü (dondurme +90, önizlemede saat
     yönünde) çıktıda da saat yönünde (0.1.6'ya dek görseller tersine dönüyordu). Köşe işaretleri Pillow'un exif_transpose'u + saat
-    yönünde döndürmeyle karşılaştırılır; orijinal sayfa ve A4, Orijinal ve Orta kalite."""
+    yönünde döndürmeyle karşılaştırılır; Orijinal ve Orta kalite (0.2.9'dan beri sayfa seçimi yok: sayfa A4'e sığan ölçüde)."""
     from PIL import Image, ImageDraw, ImageOps
     klasor = os.path.join(CIKTI, "gorsel_yonu")
     shutil.rmtree(klasor, ignore_errors=True)
@@ -1020,10 +1145,9 @@ def test_gorsel_yonu(c):
             beklenen = gorunen.rotate(-dondurme, expand=True)   # saat yönünde
             bw, bh = beklenen.size
             bk = koseler(lambda x, y: beklenen.getpixel((x, y)), 0, 0, bw, bh, 6)
-            for sayfa, kalite in (("orijinal", "orijinal"), ("orijinal", "orta"), ("a4", "orijinal")):
-                hedef = os.path.join(klasor, "c_%s_%d_%s_%s.pdf" % (anahtar, dondurme, sayfa, kalite))
-                c.cagir("birlestir", {"ogeler": [{"yol": yol, "tur": "gorsel", "kalite": kalite, "sayfaBoyutu": sayfa, "kenar": 20,
-                                                   "dondurme": dondurme}], "hedef": hedef})
+            for kalite in ("orijinal", "orta"):
+                hedef = os.path.join(klasor, "c_%s_%d_%s.pdf" % (anahtar, dondurme, kalite))
+                c.cagir("birlestir", {"ogeler": [{"yol": yol, "tur": "gorsel", "kalite": kalite, "dondurme": dondurme}], "hedef": hedef})
                 d = pymupdf.open(hedef)
                 try:
                     pg = d[0]
@@ -1036,10 +1160,10 @@ def test_gorsel_yonu(c):
                     d.close()
                 beklenen_aynen = kalite == "orijinal" and anahtar in (1, 3, 6, 8)
                 ok = k == bk and abs(kutu.width / kutu.height - bw / bh) < 0.01 and (aynen == beklenen_aynen)
-                kaydet_sonuc("birlestir/yön", "%s %s°, %s sayfa, %s" % ("EXIF %s" % anahtar if anahtar != "png" else "PNG", dondurme, sayfa, kalite), ok,
+                kaydet_sonuc("birlestir/yön", "%s %s°, %s" % ("EXIF %s" % anahtar if anahtar != "png" else "PNG", dondurme, kalite), ok,
                              "köşeler %s beklenen %s, JPEG aynen=%s" % (k, bk, aynen))
     # Boyut: yön bilgili fotoğrafın "Orijinal" tahmini dosya boyutuna yakın (önceden PNG: kat kat büyük)
-    t, _ = c.cagir("boyut_tahmini", {"oge": {"yol": yollar[6], "tur": "gorsel", "kalite": "orijinal", "sayfaBoyutu": "orijinal"}})
+    t, _ = c.cagir("boyut_tahmini", {"oge": {"yol": yollar[6], "tur": "gorsel", "kalite": "orijinal"}})
     kaydet_sonuc("boyut_tahmini/yön", "EXIF 6 Orijinal ≈ dosya", t["boyut"] <= os.path.getsize(yollar[6]) + 2048,
                  "tahmin %d, dosya %d bayt" % (t["boyut"], os.path.getsize(yollar[6])))
 
@@ -1119,7 +1243,7 @@ def test_birlestir_belgeler(c, g):
                  and t["toplam"] == t["ogeler"][1]["boyut"], {"udf": t["ogeler"][0], "toplam": t["toplam"]})
     # Karışık birleştirme: PDF + UDF + görüntü + Word (öğede tür verilmeden: içerikten)
     hedef = os.path.join(klasor, "birlesik.pdf")
-    ogeler = [{"yol": YATAY}, {"yol": udf}, {"yol": g["bmp"], "sayfaBoyutu": "a4"}] + ([{"yol": docx_yol}] if word_var else [])
+    ogeler = [{"yol": YATAY}, {"yol": udf}, {"yol": g["bmp"]}] + ([{"yol": docx_yol}] if word_var else [])
     once = gecici_donustur_klasorleri()
     if not ude_var:
         try:
@@ -1216,6 +1340,7 @@ def main():
         ("boyut_tahmini", lambda: test_boyut_tahmini(c, g)),
         ("birlestir", lambda: test_birlestir(c, g)),
         ("birlestir/orijinal boyut", lambda: test_gorsel_orijinal_kenarsiz(c)),
+        ("birlestir/A4", lambda: test_birlestir_a4(c)),
         ("birlestir/kalite büyütmez", lambda: test_kalite_buyutmez(c)),
         ("birlestir/yön", lambda: test_gorsel_yonu(c)),
         ("birlestir/üzerine", lambda: test_birlestir_uzerine(c)),
@@ -1223,6 +1348,10 @@ def main():
         ("birlestir/belgeler", lambda: test_birlestir_belgeler(c, g)),
         ("dondur_kaydet", lambda: test_dondur_kaydet(c)),
     ]
+    # --yalniz ad1,ad2: yalnızca bu testler (yukarıdaki adlar: "birlestir/A4", "birlestir/tiff"…)
+    if "--yalniz" in sys.argv:
+        secilen = set(sys.argv[sys.argv.index("--yalniz") + 1].split(","))
+        testler = [x for x in testler if x[0] in secilen]
     for ad, f in testler:
         print("\n== %s" % ad)
         try:

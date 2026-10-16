@@ -15,11 +15,16 @@ Word'le ya da LibreOffice'le; donustur.pdf_e_cevir), sonra birleştirilir; yanı
 geçici PDF'ler iş bitince (çökmede sonraki çekirdek) silinir. UDE / Word yoksa istek o belgenin adıyla ve nedeniyle reddedilir (arayüz UDF'yi
 ana süreçte yaklaşık çizimle PDF'e çevirip PDF olarak verebilir). gorsel_bilgi UDF / Word için donusum_bilgi'nin bilgisini verir.
 
+Görüntü sayfası (0.2.9, Birleştir'de ve Format Değiştir'de tek kural: a4_sayfa_olcusu): sayfa görüntünün kendisidir, oranı korunarak A4'e
+sığan en büyük ölçüde (dikey ya da kare görüntü 210 × 297 mm'lik, yatay görüntü 297 × 210 mm'lik kutuya); beyaz kenar ya da beyaz A4 sayfa
+yok, pikseller yeniden örneklenmez. Öğenin eski sayfaBoyutu / kenar alanları yok sayılır.
+
 Üzerine yazma: yedek alınmaz; sonuç hedefin klasöründe geçici dosyaya yazılır ve os.replace ile atomik olarak yerine konur.
 Hedef başka bir programda kilitliyse özgün dosya değişmez ve hata iletisi KILITLI_METNI'ni, salt okunursa SALT_OKUNUR_METNI'ni içerir.
 """
 import hashlib
 import io
+import math
 import os
 import re
 import shutil
@@ -34,6 +39,7 @@ import pymupdf
 A4_GENISLIK = 595.276     # pt (210 mm)
 A4_YUKSEKLIK = 841.890    # pt (297 mm)
 PDF_EN_BUYUK_KENAR = 14400.0   # PDF sayfa sınırı (200 inç)
+DPI_EN_AZ, DPI_EN_COK = 50.0, 1200.0   # geçerli çözünürlük etiketi (0.2.9'dan beri yalnızca yatay / dikey oranı için; a4_sayfa_olcusu)
 
 # Küçültme seviyeleri: (dpi, JPEG kalitesi)
 SEVIYELER = {
@@ -868,56 +874,64 @@ def _gorsel_kodla(im, kalite_adi, hedef_px=None, orijinal_bayt=None, kaynak_alt_
     return buf.getvalue(), "jpeg", im.width, im.height
 
 
-def _gorsel_sayfa_olcusu(gen_px, yuk_px, sayfa_boyutu, kenar, dondurme, dpi_bilgisi=None):
-    """Görselin yerleşeceği sayfa (pt) ve görsel dikdörtgeni (pt). dondurme 90/270 ise görselin
-    görünen en/boyu yer değiştirir. Döner: (sayfa_g, sayfa_y, Rect).
-    'orijinal': sayfa görselin kendisidir; kenar boşluğu yoktur (kenar yalnızca A4'te kullanılır). Ölçü tam pt'ye yuvarlanır ve
-    görsel dikdörtgeni sayfa kutusunun aynısıdır: kesirli ölçüde sayfa ile görsel arasında kıl payı beyaz çizgi kalmaz (yuvarlama
-    görseli en çok yarım pt gerer; bkz. _gorsel_sayfasi_ekle).
-    dpi_bilgisi (0.2.6, yalnızca TIFF karesi): görselin (yatay, dikey) çözünürlüğü, donustur.tiff_dpi_coz'un kuralıyla (geçerli etiket ya da
-    A4 kuralı): sayfa taramanın gerçek ölçüsünde. Öteki görsellerde eski kural (72 dpi; uzun kenarı 2500 pikseli geçerse 300): 72 dpi
-    etiketli telefon fotoğrafının ölçüsü değişmesin. 0.2.5'e dek TIFF de 72 dpi sayılıyordu: etiketsiz 200 dpi A4 tarama 58 × 82 cm'lik
-    sayfa oluyordu (UYAP taramalarının çoğu etiketsiz)."""
-    kenar = max(0.0, float(kenar or 0))
-    gorunen_g, gorunen_y = (yuk_px, gen_px) if dondurme in (90, 270) else (gen_px, yuk_px)
-    if sayfa_boyutu == "orijinal":
-        if dpi_bilgisi:
-            xd, yd = (dpi_bilgisi[1], dpi_bilgisi[0]) if dondurme in (90, 270) else (dpi_bilgisi[0], dpi_bilgisi[1])
-            g_pt, y_pt = gorunen_g * 72.0 / xd, gorunen_y * 72.0 / yd
-        else:
-            # Piksel → pt: 72 dpi varsay; çok büyükse 300 dpi
-            dpi = 72.0
-            if max(gorunen_g, gorunen_y) > 2500:
-                dpi = 300.0
-            g_pt, y_pt = gorunen_g * 72.0 / dpi, gorunen_y * 72.0 / dpi
-        if max(g_pt, y_pt) > PDF_EN_BUYUK_KENAR:
-            oran = PDF_EN_BUYUK_KENAR / max(g_pt, y_pt)
-            g_pt, y_pt = g_pt * oran, y_pt * oran
-        g_pt, y_pt = float(max(1, round(g_pt))), float(max(1, round(y_pt)))
-        return g_pt, y_pt, pymupdf.Rect(0, 0, g_pt, y_pt)
-    # A4: görsel yatay ise sayfa da yatay
-    if gorunen_g > gorunen_y:
-        sayfa_g, sayfa_y = A4_YUKSEKLIK, A4_GENISLIK
+def gorunen_dpi(dpi, yon=1):
+    """Çözünürlük etiketi (yatay, dikey) görünen yönde: ikisi de geçerliyse (DPI_EN_AZ – DPI_EN_COK, sonlu) yön 5–8'de (görüntü 90 / 270
+    derece çevrilir) yer değiştirmiş hâliyle, değilse None. dpi: Pillow'un info['dpi']'ı ya da TIFF karesinin etiketi (dosyanın eksenlerinde)."""
+    try:
+        x, y = float(dpi[0]), float(dpi[1])
+    except (TypeError, ValueError, IndexError, KeyError):
+        return None
+    if not (math.isfinite(x) and math.isfinite(y) and DPI_EN_AZ <= x <= DPI_EN_COK and DPI_EN_AZ <= y <= DPI_EN_COK):
+        return None
+    return (y, x) if yon in (5, 6, 7, 8) else (x, y)
+
+
+def a4_sayfa_olcusu(g, y, dpi=None):
+    """Görüntü sayfasının ölçüsü (pt). 0.2.9 (kullanıcı isteği: "Görüntü dosya formatlarını birleştirirken veya PDF'e format dönüştürürken
+    görüntülerin A4 boyutunda kalmasını sağlayalım. Çözünürlükten bahsetmiyorum, boyuttan bahsediyorum"; "A4 sayfasını hiçbir durumda
+    göstermeyeceğiz. Max boyutlar A4 boyutunda olacak. Dikeyse dikey, yataysa yatay A4"): sayfa görüntünün kendisidir, oranı korunarak A4'e
+    sığan en büyük ölçüde. Dikey ya da kare görüntü 210 × 297 mm'lik kutuya, yatay görüntü 297 × 210 mm'lik kutuya; bir kenar A4'ün kenarına
+    eşittir, öbürü orana göre (≤). Küçük görüntü büyür, büyük küçülür: yalnızca sayfa ölçüsü, pikseller yeniden örneklenmez. Birleştir'in
+    (görüntü ve TIFF girdileri) ve Format Değiştir'in (görüntü → PDF, TIFF → PDF ve onların zincirleri) ortak kuralı; 0.2.8'e dek üç ayrı
+    kural vardı (Birleştir'de 72 / 300 dpi varsayımı ya da beyaz A4 sayfada kenar boşluğu, Format Değiştir'de dpi etiketi ya da uzun kenarı
+    A4'e oturtan dpi).
+    g, y: görünen yöndeki (EXIF yönü, Birleştir'de satırın döndürmesi uygulanmış) piksel ölçüsü. dpi: aynı yöndeki çözünürlük etiketi (gorunen_dpi)
+    ya da None; çözünürlük ölçüyü belirlemez, yalnızca yatay ve dikey çözünürlük farklıysa oranı (faks taraması 204 × 98 dpi: piksel oranıyla
+    sayfa yarı yarıya basık çıkardı). Döner: (sayfa_g, sayfa_y)."""
+    g, y = float(g), float(y)
+    if not (g > 0 and y > 0 and math.isfinite(g) and math.isfinite(y)):
+        return A4_GENISLIK, A4_YUKSEKLIK
+    d = gorunen_dpi(dpi) if dpi else None
+    if d and d[0] != d[1]:
+        g, y = g / d[0], y / d[1]
+    kutu_g, kutu_y = (A4_YUKSEKLIK, A4_GENISLIK) if g > y else (A4_GENISLIK, A4_YUKSEKLIK)
+    if kutu_g / g <= kutu_y / y:   # genişlik sınırlar: genişlik A4'ün kenarı (kayan nokta yuvarlaması kenarı aşmasın)
+        sg, sy = kutu_g, min(kutu_y, y * kutu_g / g)
     else:
-        sayfa_g, sayfa_y = A4_GENISLIK, A4_YUKSEKLIK
-    kenar = min(kenar, min(sayfa_g, sayfa_y) / 2 - 10)
-    ic_g, ic_y = sayfa_g - 2 * kenar, sayfa_y - 2 * kenar
-    oran = min(ic_g / gorunen_g, ic_y / gorunen_y)
-    g_pt, y_pt = gorunen_g * oran, gorunen_y * oran
-    x0 = (sayfa_g - g_pt) / 2
-    y0 = (sayfa_y - y_pt) / 2
-    return sayfa_g, sayfa_y, pymupdf.Rect(x0, y0, x0 + g_pt, y0 + y_pt)
+        sg, sy = min(kutu_g, g * kutu_y / y), kutu_y
+    return max(sg, 1.0), max(sy, 1.0)
 
 
-def _gorsel_sayfasi_ekle(doc, bayt, sayfa_g, sayfa_y, rect, dondurme):
-    """Görsel sayfasını belgenin sonuna ekler (birleştirme ve boyut tahmini aynı yolu kullanır). Orijinal boyutta görsel dikdörtgeni
-    sayfanın kendisidir: oran korunmaz, görsel sayfayı kenardan kenara doldurur (tam pt'ye yuvarlanmış sayfada oran korunsaydı
-    görsel bir yönde kıl payı küçülür, kenarda beyaz çizgi kalırdı). A4'te görsel oranı korunarak kutusuna yerleşir.
+def _gorsel_sayfa_olcusu(gen_px, yuk_px, dondurme, dpi=None):
+    """Birleştir'de görüntü karesinin sayfası (pt; 0.2.9): a4_sayfa_olcusu, satırın döndürmesinden sonraki yönle (dondurme 90 / 270: görünen
+    en ve boy, çözünürlük de yer değiştirir). gen_px, yuk_px: EXIF yönü uygulanmış karenin ölçüsü; dpi: aynı yöndeki çözünürlük etiketi ya da
+    None. Döner: (sayfa_g, sayfa_y); görüntü sayfayı kenardan kenara kaplar (_gorsel_sayfasi_ekle). 0.2.8'e dek satırda iki seçenek vardı:
+    "Orijinal" (varsayılan; TIFF taramanın gerçek ölçüsü, öteki görüntüler 72 dpi, uzun kenarı 2500 pikseli geçerse 300 dpi; tam pt'ye
+    yuvarlanırdı) ve "A4'e sığdır" (beyaz A4 sayfanın ortasında, kenar boşluklu)."""
+    if dondurme in (90, 270):
+        gen_px, yuk_px = yuk_px, gen_px
+        dpi = (dpi[1], dpi[0]) if dpi else None
+    return a4_sayfa_olcusu(gen_px, yuk_px, dpi)
+
+
+def _gorsel_sayfasi_ekle(doc, bayt, sayfa_g, sayfa_y, dondurme):
+    """Görsel sayfasını belgenin sonuna ekler (birleştirme, boyut tahmini ve Format Değiştir'in görüntü → PDF'i aynı yolu kullanır). Görsel
+    sayfanın kendisidir: kenardan kenara doldurur (sayfanın oranı görüntününkidir; çözünürlüğü yatay ve dikeyde farklı görüntüde piksel
+    oranından farklı, bkz. a4_sayfa_olcusu).
     dondurme saat yönündedir (arayüzün "Sağa döndür"ü +90, önizleme ve PDF /Rotate gibi); PyMuPDF'in rotate'i saat yönünün tersine
     döndürür (0.1.6'ya dek görseller önizlemenin tersine dönüyordu)."""
     pg = doc.new_page(width=sayfa_g, height=sayfa_y)
-    tam_sayfa = rect == pymupdf.Rect(0, 0, sayfa_g, sayfa_y)
-    pg.insert_image(rect, stream=bayt, rotate=(360 - dondurme) % 360, keep_proportion=not tam_sayfa)
+    pg.insert_image(pg.rect, stream=bayt, rotate=(360 - dondurme) % 360, keep_proportion=False)
     return pg
 
 
@@ -925,13 +939,13 @@ _cozulmus_gorseller = {}   # (yol, mtime, boyut) → (bicim, exif_yon, alt_ornek
 
 
 def _tiff_dpileri(im):
-    """TIFF'in karelerinin (yatay, dikey) çözünürlüğü, görünen yönde (donustur.tiff_dpi_coz; 0.2.6). Yalnızca kare başlıkları okunur;
-    görsel ilk karesine döner."""
+    """TIFF'in karelerinin görünen yöndeki çözünürlük etiketi (yatay, dikey) ya da None (gorunen_dpi; 0.2.9'dan beri yalnızca yatay / dikey
+    oranı için, a4_sayfa_olcusu; 0.2.6–0.2.8'de sayfa taramanın gerçek ölçüsündeydi). Yalnızca kare başlıkları okunur; görsel ilk karesine
+    döner."""
     from . import donustur
     olculer = donustur._tiff_olculeri(im)
-    dpiler = donustur.tiff_dpi_coz([(g, y, e) for g, y, e, _ in olculer])
     im.seek(0)
-    return [donustur._yona_gore_dpi(d, o[3])[:2] for d, o in zip(dpiler, olculer)]
+    return [gorunen_dpi(e, yon) for _, _, e, yon in olculer]
 
 
 class _SikiKareler:
@@ -960,8 +974,8 @@ class _SikiKareler:
 
 def _gorsel_kareleri(yol, onbellekli=False):
     """Görseli açıp düzleştirilmiş karelerini verir: (bicim, exif_yon, alt_ornekleme, kareler, dpiler); kareler [(kare_kipi, duz)];
-    alt_ornekleme JPEG'in renk alt örneklemesi (bkz. _gorsel_kodla), JPEG değilse -1; dpiler TIFF'te karelerin çözünürlüğü (sayfa ölçüsü
-    için, _gorsel_sayfa_olcusu), başka biçimde None.
+    alt_ornekleme JPEG'in renk alt örneklemesi (bkz. _gorsel_kodla), JPEG değilse -1; dpiler karelerin görünen yöndeki çözünürlük etiketi
+    ya da None (yalnızca yatay / dikey oranı için, _gorsel_sayfa_olcusu; TIFF'te kare başına, öteki biçimlerde tek kare).
     onbellekli: aynı görselin her kalite seviyesi için yeniden çözülmemesi için son iki görsel bellekte tutulur. Önbelleksiz (birleştirme)
     çok sayfalı TIFF'in kareleri sırayla çözülür (üreteç; 0.2.6)."""
     anahtar = None
@@ -984,10 +998,11 @@ def _gorsel_kareleri(yol, onbellekli=False):
             alt_ornekleme = JpegImagePlugin.get_sampling(im)
         except Exception:
             pass
-    dpiler = _tiff_dpileri(im) if _tiff_mi(im) else None
+    tiff = _tiff_mi(im)
+    dpiler = _tiff_dpileri(im) if tiff else [gorunen_dpi(im.info.get("dpi"), exif_yon)]
     if not onbellekli:
         kareler = ((kare.mode, _duzlestir(kare)) for kare in _kareler(im, akisli=True))
-    elif dpiler and len(dpiler) > 1:
+    elif tiff and len(dpiler) > 1:
         kareler = _SikiKareler((kare.mode, _duzlestir(kare)) for kare in _kareler(im, akisli=True))
     else:
         kareler = [(kare.mode, _duzlestir(kare)) for kare in _kareler(im)]
@@ -1000,16 +1015,13 @@ def _gorsel_kareleri(yol, onbellekli=False):
 
 
 def _gorsel_hazirla(oge, genel_kalite=None, onbellekli=False):
-    """Bir görsel öğesini PDF'e gömülecek karelere çevirir. Üreteç (0.2.6; önceden liste): kareler sırayla hazırlanır.
-    Verir: (bayt, sayfa_g, sayfa_y, rect, dondurme)"""
+    """Bir görsel öğesini PDF'e gömülecek karelere çevirir. Üreteç (0.2.6; önceden liste): kareler sırayla hazırlanır. Her karenin sayfası
+    A4'e sığan ölçüde (0.2.9, _gorsel_sayfa_olcusu); öğenin eski sayfaBoyutu / kenar alanları yok sayılır.
+    Verir: (bayt, sayfa_g, sayfa_y, dondurme)"""
     yol = _mutlak(oge.get("yol"))
     kalite = oge.get("kalite") or genel_kalite or "orijinal"
     if kalite not in GORSEL_KALITE and kalite != "orijinal":
         raise ValueError("Bilinmeyen kalite: %r" % (kalite,))
-    sayfa_boyutu = oge.get("sayfaBoyutu") or "a4"
-    if sayfa_boyutu not in ("a4", "orijinal"):
-        raise ValueError("Bilinmeyen sayfa boyutu: %r" % (sayfa_boyutu,))
-    kenar = float(oge.get("kenar") or 0)
     dondurme = _dondurme(oge.get("dondurme"))
     bicim, exif_yon, alt_ornekleme, kareler, dpiler = _gorsel_kareleri(yol, onbellekli)
     for sira, (kare_kipi, duz) in enumerate(kareler):
@@ -1021,19 +1033,18 @@ def _gorsel_hazirla(oge, genel_kalite=None, onbellekli=False):
             with open(yol, "rb") as f:
                 ozgun_jpeg = f.read()
         # duz EXIF'e göre çevrilmiş (görünen) karedir: sayfa ölçüsü ve yeniden kodlama onunla, özgün JPEG'e EXIF dönüşü de eklenir
-        sayfa_g, sayfa_y, rect = _gorsel_sayfa_olcusu(duz.width, duz.height, sayfa_boyutu, kenar, dondurme,
-                                                      dpiler[sira] if dpiler and sira < len(dpiler) else None)
+        sayfa_g, sayfa_y = _gorsel_sayfa_olcusu(duz.width, duz.height, dondurme, dpiler[sira] if dpiler and sira < len(dpiler) else None)
         if kalite == "orijinal":
             bayt = ozgun_jpeg if ozgun_jpeg is not None else _ozgun_png(duz)[0]
         else:
             dpi, _ = GORSEL_KALITE[kalite]
             # Görselin sayfadaki fiziksel boyutu (döndürme öncesi eksenlere göre)
-            yer_g, yer_y = (rect.height, rect.width) if dondurme in (90, 270) else (rect.width, rect.height)
+            yer_g, yer_y = (sayfa_y, sayfa_g) if dondurme in (90, 270) else (sayfa_g, sayfa_y)
             hedef_px = (int(yer_g / 72.0 * dpi), int(yer_y / 72.0 * dpi))
             bayt, _, _, _ = _gorsel_kodla(duz, kalite, hedef_px, kaynak_alt_ornekleme=alt_ornekleme)
-            bayt = _buyutmeyen(bayt, duz, bicim, ozgun_jpeg, sayfa_g, sayfa_y, rect, dondurme)
+            bayt = _buyutmeyen(bayt, duz, bicim, ozgun_jpeg, sayfa_g, sayfa_y, dondurme)
         kare_donusu = (EXIF_DONUSU[exif_yon] + dondurme) % 360 if ozgun_jpeg is not None and bayt is ozgun_jpeg else dondurme
-        yield bayt, sayfa_g, sayfa_y, rect, kare_donusu
+        yield bayt, sayfa_g, sayfa_y, kare_donusu
 
 
 # EXIF yönü → görünen görsele ulaşmak için saklanan pikselleri saat yönünde döndürme (Pillow exif_transpose ile denetlendi)
@@ -1053,21 +1064,21 @@ def _ozgun_png(duz):
     return k
 
 
-def _buyutmeyen(aday, duz, bicim, ozgun_jpeg, sayfa_g, sayfa_y, rect, dondurme):
+def _buyutmeyen(aday, duz, bicim, ozgun_jpeg, sayfa_g, sayfa_y, dondurme):
     """Kayıplı seviyenin sonucu özgün gösteriminden ("Orijinal"in gömeceğinden) küçük değilse özgün kullanılır: kalite hiç düşmez,
     dosya büyümez. Yeniden kodlama kaynaktan daha yüksek JPEG kalitesiyle bayt harcar (UYAP taraması q≈75 kaydedilmiş, "Yüksek"
     q90: 487 → 611 KB), ekran görüntüsü gibi az renkli görselde JPEG PNG'den büyüktür (0,09 → 0,33 MB). Karşılaştırma PDF'e gömülü
     boyutla: JPEG olduğu gibi, PNG MuPDF'in yeniden sıkıştırdığı hâliyle (_gomulu_gorsel_boyutu). Kayıplı biçimlerden (JPEG, HEIC)
     gelen ama dokunulmadan gömülemeyen görselde (aynalı EXIF yönü, CMYK) kayıpsız PNG hep çok büyüktür: karşılaştırılmaz."""
     def gomulu(b):
-        return len(b) if b[:2] == b"\xff\xd8" else _gomulu_gorsel_boyutu(b, sayfa_g, sayfa_y, rect, dondurme)
+        return len(b) if b[:2] == b"\xff\xd8" else _gomulu_gorsel_boyutu(b, sayfa_g, sayfa_y, dondurme)
     if ozgun_jpeg is not None:
         return ozgun_jpeg if len(ozgun_jpeg) <= gomulu(aday) else aday
     if bicim in KAYIPLI_BICIMLER:
         return aday
     # PNG'nin baytı ölçü değil: MuPDF çözüp yeniden sıkıştırır, gömülü hâli büyük de küçük de olabilir (ekran görüntüsü 0,12 → 0,09 MB)
     png = _ozgun_png(duz)[0]
-    return png if _gomulu_gorsel_boyutu(png, sayfa_g, sayfa_y, rect, dondurme) <= gomulu(aday) else aday
+    return png if _gomulu_gorsel_boyutu(png, sayfa_g, sayfa_y, dondurme) <= gomulu(aday) else aday
 
 
 def _oge_turu(oge):
@@ -1125,8 +1136,9 @@ def _pdf_ogesi_hazirla(oge, genel_kalite=None):
 
 # ---------------------------------------------------------------- 5) birlestir
 def y_birlestir(p):
-    """{ogeler:[{yol, tur?, kalite, sayfaBoyutu, kenar, dondurme}], hedef, genelKalite?|kalite?}
-    → {boyut, sayfa, yol, uyari?}. tur: 'pdf' | 'gorsel' | 'udf' | 'word' (verilmezse içerikten). UDF / Word öğesi varsa (0.2.7) yanıt
+    """{ogeler:[{yol, tur?, kalite, dondurme}], hedef, genelKalite?|kalite?}
+    → {boyut, sayfa, yol, uyari?}. tur: 'pdf' | 'gorsel' | 'udf' | 'word' (verilmezse içerikten). Görsel sayfası A4'e sığan ölçüde (0.2.9,
+    a4_sayfa_olcusu); 0.2.8'in sayfaBoyutu ('a4' | 'orijinal') ve kenar alanları gelirse yok sayılır. UDF / Word öğesi varsa (0.2.7) yanıt
     ertelenir: belgeler dönüştürme iş parçacığında geçici PDF'e çevrilir (ilerlemenin %0–60'ı), sonra birleştirilir (%60–100); belge PDF'e
     çevrilemezse (UDE / Word yok, açılamıyor) istek "<ad>: <neden>" iletisiyle reddedilir; dönüştürücünün uyarıları (ör. yorumlar alınmadı)
     sonucun uyari'sında, belgenin adıyla."""
@@ -1225,8 +1237,8 @@ def _birlestir_yap(ogeler, hedef, genel, ilerleme):
                 finally:
                     kaynak.close()
             else:
-                for bayt, sg, sy, rect, dondurme in _gorsel_hazirla(oge, genel):
-                    _gorsel_sayfasi_ekle(yeni, bayt, sg, sy, rect, dondurme)
+                for bayt, sg, sy, dondurme in _gorsel_hazirla(oge, genel):
+                    _gorsel_sayfasi_ekle(yeni, bayt, sg, sy, dondurme)
         if yeni.page_count == 0:
             raise ValueError("Sonuç belgede sayfa yok.")
         md = ilk_pdf or {}
@@ -1350,11 +1362,11 @@ def y_boyut_tahmini(p):
     return _oge_boyut_tahmini(oge, genel)
 
 
-_tahmin_onbellegi = {}       # (yol, mtime, boyut, tür, kalite, sayfaBoyutu, kenar, dondurme) → sonuç
+_tahmin_onbellegi = {}       # (yol, mtime, boyut, tür, kalite, dondurme) → sonuç
 _gorselsiz_pdf_boyutu = {}   # (yol, mtime, boyut) → (yeniden yazılmış boyut, sayfa): görsel içermeyen PDF (seviyeden bağımsız)
 _dosya_ozetleri = {}         # (yol, mtime, boyut) → dosya içeriğinin MD5 özeti
 _bos_sayfa_boyutlari = {}    # (genişlik, yükseklik) → boş tek sayfalık belgenin kayıtlı boyutu
-_gomulu_boyutlar = {}        # (görsel özeti, sayfa, kutu, döndürme) → JPEG dışı görselin PDF'teki boyutu (_gomulu_gorsel_boyutu)
+_gomulu_boyutlar = {}        # (görsel özeti, sayfa, döndürme) → JPEG dışı görselin PDF'teki boyutu (_gomulu_gorsel_boyutu)
 
 
 def _dosya_ozeti(yol, dosya):
@@ -1370,12 +1382,12 @@ def _dosya_ozeti(yol, dosya):
     return _dosya_ozetleri[dosya]
 
 
-def _gomulu_gorsel_boyutu(bayt, sayfa_g, sayfa_y, rect, dondurme):
+def _gomulu_gorsel_boyutu(bayt, sayfa_g, sayfa_y, dondurme):
     """JPEG dışı (PNG) görselin PDF'teki gerçek boyutu. MuPDF PNG'yi çözüp kendi sıkıştırmasıyla yazar; boyutu dosyanın
     ya da Pillow PNG'sinin boyutundan belirgin biçimde farklı olabilir (ölçüm: %25 küçükten %60 büyüğe). Birleştirmedeki gibi tek
     sayfalık belgeye eklenip kayıt boyutundan boş sayfanın boyutu çıkarılır. Aynı görsel (kayıplı seviyenin özgünle karşılaştırması
     ve tahmindeki ölçüm) bir kez ölçülür."""
-    anahtar = (hashlib.md5(bayt).digest(), len(bayt), round(sayfa_g, 1), round(sayfa_y, 1), tuple(round(v, 1) for v in rect), dondurme)
+    anahtar = (hashlib.md5(bayt).digest(), len(bayt), round(sayfa_g, 1), round(sayfa_y, 1), dondurme)
     if anahtar in _gomulu_boyutlar:
         return _gomulu_boyutlar[anahtar]
     olcu = (round(sayfa_g, 1), round(sayfa_y, 1))
@@ -1388,7 +1400,7 @@ def _gomulu_gorsel_boyutu(bayt, sayfa_g, sayfa_y, rect, dondurme):
             bos.close()
     d = pymupdf.open()
     try:
-        _gorsel_sayfasi_ekle(d, bayt, sayfa_g, sayfa_y, rect, dondurme)
+        _gorsel_sayfasi_ekle(d, bayt, sayfa_g, sayfa_y, dondurme)
         boyut = max(0, len(d.tobytes(**KAYIT_SECENEKLERI)) - _bos_sayfa_boyutlari[olcu])
     finally:
         d.close()
@@ -1413,9 +1425,8 @@ def _oge_boyut_tahmini(oge, genel):
     if tur in BELGE_TURLERI:   # 0.2.7: UDF / Word'ün PDF boyutu dönüştürmeden (UDE / Word) kestirilemez; toplama girmez
         return {"boyut": None, "tahmin": False, "tahminYok": True, "ozet": "belge:" + _dosya_ozeti(yol, dosya), "tekrar": 0,
                 "neden": "UDF'nin boyutu dönüştürülmeden kestirilemiyor." if tur == "udf" else "Word belgesinin boyutu dönüştürülmeden kestirilemiyor."}
-    sayfa_boyutu = oge.get("sayfaBoyutu") or "a4"
-    kenar = float(oge.get("kenar") or 0) if sayfa_boyutu != "orijinal" else 0.0   # orijinal boyutta kenar yok
-    anahtar = dosya + (tur, kalite) + ((sayfa_boyutu, kenar, _dondurme(oge.get("dondurme"))) if tur == "gorsel" else ())
+    # Görselde sayfanın yönü döndürmeye bağlı (0.2.9'dan beri sayfa A4'e sığan ölçüde; eski sayfaBoyutu / kenar alanları anahtara girmez)
+    anahtar = dosya + (tur, kalite) + ((_dondurme(oge.get("dondurme")),) if tur == "gorsel" else ())
     if anahtar in _tahmin_onbellegi:
         return dict(_tahmin_onbellegi[anahtar])
     if tur == "pdf":
@@ -1448,13 +1459,13 @@ def _oge_boyut_tahmini(oge, genel):
     else:
         toplam, sayfa = 0, 0
         h = hashlib.md5()
-        for bayt, sayfa_g, sayfa_y, rect, dondurme in _gorsel_hazirla(oge, genel, onbellekli=True):
+        for bayt, sayfa_g, sayfa_y, dondurme in _gorsel_hazirla(oge, genel, onbellekli=True):
             h.update(bayt)
             sayfa += 1
             if bayt[:2] == b"\xff\xd8":
                 toplam += len(bayt) + GORSEL_SAYFA_PAYI   # JPEG olduğu gibi gömülür
             else:
-                toplam += _gomulu_gorsel_boyutu(bayt, sayfa_g, sayfa_y, rect, dondurme) + GORSEL_SAYFA_PAYI
+                toplam += _gomulu_gorsel_boyutu(bayt, sayfa_g, sayfa_y, dondurme) + GORSEL_SAYFA_PAYI
         # Özet gömülecek baytlardan: aynı görsel aynı kaliteyle (aynı dosya ya da kopyası) çıktıda bir kez saklanır
         sonuc = {"boyut": toplam, "tahmin": True, "ozet": "gorsel:" + h.hexdigest(), "tekrar": TEKRAR_SAYFA_BAYT * sayfa}
     if len(_tahmin_onbellegi) > 400:

@@ -4,16 +4,19 @@
 // Word'ü Word'le; ilerlemenin %0–60'ı), sonra birleştirir. Editör yoksa UDF'ler ana sürecin yaklaşık çizimiyle (main/udfYaklasik.js,
 // udf:yaklasikBirlestir; satırda "görünüm yaklaşık"); Word (ya da LibreOffice) yoksa Word satırı soluk, nedeni satırda, birleştirmede atlanır.
 // Ana pencereye bırakılan PDF dışı belgeler bu aracı değil Format Değiştir'i açar (0.2.6 kuralı, değişmedi).
+// 0.2.9 (kullanıcı isteği: "Görüntü dosya formatlarını birleştirirken… görüntülerin A4 boyutunda kalmasını sağlayalım… görüntü birleştirirken
+// sayfa seçeneğini kaldıralım"): görüntü satırındaki "Sayfa" seçimi (A4'e sığdır / Orijinal) ve "Kenar … mm" kutusu kalktı. Her görüntü sayfası
+// görüntünün kendisidir, oranı korunarak A4'e sığan en büyük ölçüde, dikeyse dikey, yataysa yatay (çekirdeğin a4_sayfa_olcusu; beyaz kenar yok).
 // Girdi: Dosya ekle düğmesi, sürükle-bırak (pdefe.dosyaYolu), Ctrl+V / Panodan ekle / listede sağ tık Yapıştır (pano:icerik:
 // Gezgin'den kopyalanan dosyalar, ekran görüntüsü ya da tarayıcıdan kopyalanan görsel, metin olarak kopyalanmış dosya yolları;
 // ana süreçte Electron pano API'siyle okunur, görsel %TEMP%\PDEfe altına PNG olarak yazılır).
 // Çekirdek (core/islemler/araclar.py):
 //   gorsel_bilgi {yol, onizleme?} → {tur:'pdf'|'gorsel', sayfa, boyut, genislik, yukseklik, png(base64, küçük resim), bicim (görselde)} | UDF / Word
 //     (0.2.7): {tur:'udf'|'word', alt, boyut, sayfa (UDF'de editörün ön izlemesiyle), png? (UDF, onizleme: true), pdfeCevrilebilir, neden?}
-//   boyut_tahmini {oge:{yol, tur, kalite, sayfaBoyutu, kenar, dondurme}} → {boyut, tahmin, ozet, tekrar}   (öğe × kalite başına
+//   boyut_tahmini {oge:{yol, tur, kalite, dondurme}} → {boyut, tahmin, ozet, tekrar}   (öğe × kalite başına
 //     bir çağrı; çekirdek sonucu ve çözülmüş görseli önbellekte tutar). Aynı ozet'li öğeler (aynı dosya birden çok kez ya da
 //     kopyası) çıktıda bir kez saklanır: toplamlarda ilki boyut, sonrakiler yalnızca tekrar kadar sayılır.
-//   birlestir {ogeler:[{yol, tur, kalite, sayfaBoyutu, kenar, dondurme}], hedef, genelKalite} (ilerlemeli) → {boyut, sayfa}
+//   birlestir {ogeler:[{yol, tur, kalite, dondurme}], hedef, genelKalite} (ilerlemeli) → {boyut, sayfa}
 // Araç bir PDF açıkken açılırsa o PDF listenin başında gelir (0.1.25, kullanıcı isteği). Kaydetme öteki araçlardaki standart seçimdir
 // (ortak.js kayitSecimi; varsayılan ad "Birleştirilmiş", 0.1.25'te "Birleşik"): "Üzerine yaz" yalnızca araç bir PDF açıkken açıldıysa
 // ve o PDF listeden çıkarılmadıysa seçilebilir; birleşik sonuç o PDF'in yerine yazılır (çekirdek geçici dosya + os.replace; yedek yok,
@@ -193,7 +196,6 @@ export class BirlestirmePenceresi {
     });
     this.liste.addEventListener('click', (e) => this._tikla(e));
     this.liste.addEventListener('change', (e) => this._degisti(e));
-    this.liste.addEventListener('input', (e) => { if (e.target.matches('input[type=number]')) this._degisti(e); });
     // Seçili bir satırı sürüklemek seçilenlerin hepsini birlikte taşır
     this.sirala = suruklemeSiralama(this.liste, {
       ogeSecici: '.birlestir-oge', izgara: false, metinSecici: '.secilebilir',
@@ -465,7 +467,7 @@ export class BirlestirmePenceresi {
     // yaklasik (editör yok: ana süreç çizer), onizleniyor (küçük resim sonradan)
     const yeniler = kabul.map((yol) => ({
       kimlik: ++this.kimlikSayac, yol, ad: dosyaAdi(yol), tur: ilkTur(yol), alt: null, sayfa: null, boyut: null,
-      genislik: null, yukseklik: null, png: null, dondurme: 0, kalite: null, sayfaBoyutu: 'orijinal', kenar: 10, hata: null, yukleniyor: true,
+      genislik: null, yukseklik: null, png: null, dondurme: 0, kalite: null, hata: null, yukleniyor: true,
       cevrilemez: false, neden: null, yaklasik: false, onizleniyor: false, yaklasikIstek: null,
     }));
     const idx = konum == null ? this.ogeler.length : Math.max(0, Math.min(konum, this.ogeler.length));
@@ -676,12 +678,6 @@ export class BirlestirmePenceresi {
     if (!o) return;
     const t = e.target;
     if (t.matches('.oge-kalite')) { o.kalite = t.value || null; this._tahminleriYaz(); this.tahminGeciktir(); }
-    else if (t.matches('.oge-sayfa-boyutu')) {
-      o.sayfaBoyutu = t.value;
-      el.querySelector('.oge-kenar-alani').hidden = o.sayfaBoyutu === 'orijinal';
-      this._tahminleriYaz(); this.tahminGeciktir();
-    }
-    else if (t.matches('.oge-kenar')) { const v = parseFloat(t.value); o.kenar = Number.isFinite(v) ? Math.max(0, Math.min(50, v)) : 10; this._tahminleriYaz(); this.tahminGeciktir(); }
   }
 
   // ---------------------------------------------------------------- çizim
@@ -710,10 +706,6 @@ export class BirlestirmePenceresi {
         <div class="ayarlar">
           <label>Kalite <select class="arac-girdi oge-kalite"><option value="">Genel</option>${KALITELER.map((k) => `<option value="${k.id}">${k.ad}</option>`).join('')}</select></label>
           <span class="tahmin secilebilir"></span>
-          <span class="gorsel-ayar" hidden>
-            <label>Sayfa <select class="arac-girdi oge-sayfa-boyutu"><option value="a4">A4'e sığdır</option><option value="orijinal">Orijinal</option></select></label>
-            <label class="oge-kenar-alani">Kenar <input type="number" class="arac-girdi oge-kenar" min="0" max="50" step="1"> mm</label>
-          </span>
         </div>
         <span class="hata secilebilir" hidden></span>
       </div>
@@ -728,8 +720,6 @@ export class BirlestirmePenceresi {
       </div>
     </div>`);
     el.querySelector('.oge-kalite').value = o.kalite || '';
-    el.querySelector('.oge-sayfa-boyutu').value = o.sayfaBoyutu;
-    el.querySelector('.oge-kenar').value = String(o.kenar);
     return el;
   }
 
@@ -775,9 +765,6 @@ export class BirlestirmePenceresi {
     const hata = el.querySelector('.hata');
     hata.hidden = !o.hata; hata.textContent = o.hata || '';
     el.querySelector('.ayarlar').hidden = !!o.hata || !!o.cevrilemez;
-    el.querySelector('.gorsel-ayar').hidden = o.tur !== 'gorsel';
-    // "Orijinal"de (varsayılan) sayfa görselin kendisidir, kenar boşluğu yoktur: kenar yalnızca "A4'e sığdır"da ayarlanır
-    el.querySelector('.oge-kenar-alani').hidden = o.sayfaBoyutu === 'orijinal';
     el.querySelector('.oge-kalite').value = o.kalite || '';
     el.querySelector('.oge-kalite').querySelector('option[value=""]').textContent = `Genel (${KALITELER.find((k) => k.id === this.genelKalite)?.ad || ''})`;
     this._ogeTahminYaz(o, el);
@@ -799,15 +786,13 @@ export class BirlestirmePenceresi {
   }
 
   // ---------------------------------------------------------------- tahmin
-  /** Kalite hariç öğe parametresi: tahmin önbelleğinin anahtarı (PDF'te boyutu döndürme değiştirmez). */
+  /** Kalite hariç öğe parametresi: tahmin önbelleğinin anahtarı (PDF'te boyutu döndürme değiştirmez; görselde sayfanın yönü döndürmeyle
+   *  değişir). */
   _tahminAnahtari(o) {
     const p = { yol: o.yol, tur: o.tur };
-    if (o.tur === 'gorsel') { p.sayfaBoyutu = o.sayfaBoyutu; p.kenar = this._kenar(o); p.dondurme = o.dondurme; }
+    if (o.tur === 'gorsel') p.dondurme = o.dondurme;
     return JSON.stringify(p);
   }
-
-  /** Görselin kenar boşluğu: orijinal boyutta yok (çekirdek de kullanmaz; tahmin anahtarı kenara göre ayrılmasın). */
-  _kenar(o) { return o.sayfaBoyutu === 'orijinal' ? 0 : o.kenar; }
 
   /** Öğenin verilen kalitedeki tahmini: sayı | null (alınamadı) | undefined (henüz yok). */
   _tahmin(o, kalite) {
@@ -948,9 +933,7 @@ export class BirlestirmePenceresi {
 
   /** Çekirdeğin birlestir/boyut_tahmini öğe biçimi. kalite verilmezse etkin kalite (öğeye özel ya da genel). */
   _ogeParametresi(o, kalite = this.etkinKalite(o)) {
-    const p = { yol: o.yol, tur: o.tur, dondurme: o.dondurme, kalite };
-    if (o.tur === 'gorsel') { p.sayfaBoyutu = o.sayfaBoyutu; p.kenar = this._kenar(o); }
-    return p;
+    return { yol: o.yol, tur: o.tur, dondurme: o.dondurme, kalite };
   }
 
   // ---------------------------------------------------------------- birleştir

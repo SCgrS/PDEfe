@@ -11,8 +11,8 @@ Yöntemler (kaydol):
       alt türleri; dosya seçme süzgeci için), gorsel: {var (görüntü → PDF ve PDF → JPG), heic (HEIC / HEIF açılabiliyor mu), dpiler:
       [200, 300], varsayilanDpi: 300} (0.2.7)}
   donusum_bilgi {yol, genislik?=220} → {tur, alt, boyut, sayfa, hedefler: [{bicim, uzantilar, var, neden?, kalite?}], uyari?, png?,
-      pngGenislik?, pngYukseklik?, genislik?, yukseklik? (ilk sayfanın pt ölçüsü; görüntüde PDF'teki sayfanın), dpi? / dpiKaynagi? (TIFF ve
-      görüntü: 'etiket' | 'a4' | 'varsayilan'), pikselGenislik? / pikselYukseklik? / gorselBicimi? (görüntü, görünen yönde)}. Tür UZANTIDAN
+      pngGenislik?, pngYukseklik?, genislik?, yukseklik? (ilk sayfanın pt ölçüsü; TIFF ve görüntüde PDF'teki sayfanın: A4'e sığan ölçü), dpi?
+      (TIFF ve görüntü: o sayfadaki çözünürlüğü, piksel / inç), pikselGenislik? / pikselYukseklik? / gorselBicimi? (görüntü, görünen yönde)}. Tür UZANTIDAN
       DEĞİL DOSYANIN İÇERİĞİNDEN (tur_bul): 'pdf' | 'udf' | 'tiff' | 'word' | 'gorsel' | 'bilinmeyen'; alt: udf 'zip' | 'xml', word 'docx' |
       'docm' | 'doc' | 'rtf' | 'odt' | 'sifreli', tiff 'tiff' | 'bigtiff', gorsel 'jpeg' | 'png' | 'gif' | 'bmp' | 'webp' | 'avif' | 'heif'
       (HEIC / HEIF açıcısı yoksa hedefler yapılamaz, neden HEIF_YOK). Ön izleme yalnızca PDF (MuPDF), TIFF ve görüntü (Pillow) için; öteki
@@ -74,16 +74,16 @@ Dönüştürücü yazmak (UDF, Word modülleri): donusturucu_kaydet(kaynak, hede
   kapanis_kaydet(islev): çekirdek kapanırken (kapanirken) çağrılır (ör. boştaki dış süreçlerin kapatılması).
   Dönüştürme iş parçacığı yalnızca bu işler içindir: Windows'ta COM gerekirse (Word) CoInitialize(STA) bu iş parçacığında bir kez yapılabilir.
 
-TIFF → PDF: kayıpsız; sayfa ölçüsü taramanın gerçek ölçüsü (tiff_dpi_coz: etiket geçerliyse, 50–1200 dpi, onu; yoksa uzun kenarı A4'ün
-uzun kenarına oturtan dpi, standart değere %3 yakınsa ona yuvarlanır; etiketsiz karelerde dosya başına tek değer, ortanca: elle beslenen
-taramada ölçü sayfadan sayfaya değişir, sayfalar gerçeğini yansıtır). 1 bit karede sayfa başına CCITT G4 (tek şerit yeniden kodlanmış:
+TIFF → PDF: kayıpsız; her sayfa karenin kendisi, oranı korunarak A4'e sığan en büyük ölçüde (0.2.9, araclar.a4_sayfa_olcusu: dikey ya da
+kare kare 210 × 297 mm'lik, yatay kare 297 × 210 mm'lik kutuya; çözünürlük etiketi yalnızca yatay ve dikey çözünürlük farklıysa oranı
+belirler; 0.2.6–0.2.8'de sayfa taramanın gerçek ölçüsündeydi: etiket ya da uzun kenarı A4'e oturtan dpi). 1 bit karede sayfa başına CCITT G4 (tek şerit yeniden kodlanmış:
 UYAP taramaları 8 satırlık şeritli, PDF'e olduğu gibi kopyalanamaz) ya da Flate'ten küçüğü; gri / renkli kare PNG (MuPDF Flate yazar).
 Kareler sırayla okunur, yalnızca biri bellekte durur (150 sayfada tepe ~70 MB; Görüntü / PDF birleştir'in eski yolu 147 sayfada 1,16 GB).
 PDF → TIFF: tek dosyada çok sayfa (AppendingTiffWriter, sayfa sayfa); siyah-beyazda sabit eşik (ESIK, titreşimsiz: yazı tanıma ölçümü),
 G4; gri / renkli LZW; dpi etiketli. Tek tam sayfa görselden oluşan (taranmış) sayfa görselin kendi çözünürlüğünde çizilir (50–600 dpi):
 pikseller yeniden örneklenmez. Ölçümler PLAN.md "Revizyon 0.2.6".
-Görüntü → PDF (0.2.7): tek sayfa, görüntü sayfayı kaplar; sayfa ölçüsü gorsel_sayfa_olcusu (geçerli dpi etiketi, 100–1200; yoksa TIFF'in
-A4 kuralı), EXIF yönü uygulanır. Dokunulmadan gömülebilen JPEG olduğu gibi (yön PDF'te döndürülür), öteki kayıplı kaynak JPEG 92, kayıpsız
+Görüntü → PDF (0.2.7): tek sayfa, görüntü sayfayı kaplar; sayfa ölçüsü gorsel_sayfa_olcusu (0.2.9: A4'e sığan ölçü, TIFF'le aynı kural;
+0.2.7–0.2.8'de dpi etiketi ya da A4 kuralı), EXIF yönü uygulanır. Dokunulmadan gömülebilen JPEG olduğu gibi (yön PDF'te döndürülür), öteki kayıplı kaynak JPEG 92, kayıpsız
 kaynak PNG (_gorsel_gomulecek). Görüntü → UDF / Word / TIFF PDF üzerinden (UDF'de taranmış sayfa yazı tanımayla; Word'de resim olarak).
 PDF → JPG: sayfa başına JPEG; çatı geçici klasördeki 1.jpg, 2.jpg… dosyalarını sayfa_adlari'yla yerine koyar.
 """
@@ -106,7 +106,7 @@ import zlib
 import pymupdf
 
 from . import araclar
-from .araclar import KAYIT_SECENEKLERI, KILITLI_METNI, PDF_EN_BUYUK_KENAR, SALT_OKUNUR_METNI
+from .araclar import DPI_EN_AZ, DPI_EN_COK, KAYIT_SECENEKLERI, KILITLI_METNI, SALT_OKUNUR_METNI
 
 # ---------------------------------------------------------------- biçimler
 TURLER = ("pdf", "udf", "tiff", "word", "gorsel")
@@ -125,12 +125,9 @@ EN_FAZLA_ZIP_OGESI = 10_000
 EN_FAZLA_ZIP_ORANI = 200                  # 1 MB'tan büyük öğede açılmış / sıkıştırılmış (XML ~5–20 kat sıkışır)
 OLE2_TARAMA = 64 * 1024 * 1024            # eski Word (.doc) imzası için taranan en çok bayt
 
-# ---------------------------------------------------------------- TIFF ölçüleri
-DPI_EN_AZ, DPI_EN_COK = 50.0, 1200.0     # geçerli çözünürlük etiketi
-A4_UZUN_KENAR_INC = araclar.A4_YUKSEKLIK / 72.0   # 11,69 inç
-STANDART_DPI = (100, 150, 200, 240, 250, 300, 400, 600)
-STANDART_YAKINLIK = 0.03
-VARSAYILAN_DPI = 72.0                     # etiketsiz ve A4 kuralı 50 dpi'den az veriyorsa (küçük görsel): piksel = pt
+# ---------------------------------------------------------------- TIFF
+# Geçerli çözünürlük etiketi: araclar.DPI_EN_AZ – DPI_EN_COK (50–1200). 0.2.9'dan beri sayfa ölçüsü A4'e sığan ölçü (araclar.a4_sayfa_olcusu);
+# 0.2.6'nın dpi kuralı (etiketsiz karede uzun kenarı A4'e oturtan, standart değere yuvarlanan dpi; çok küçük görselde 72) kalktı
 EN_FAZLA_KARE_PIKSEL = 400_000_000        # araclar._pillow'un Image.MAX_IMAGE_PIXELS'ı; kare başına ayrıca denetlenir
 FLATE_DUZEYI = 6                          # 9 ölçümde ~%6 küçük, 10 kat yavaş
 
@@ -146,8 +143,6 @@ ONBELLEK_BOSALTMA = 8                     # PDF → TIFF: bu kadar sayfada bir M
                                           # orada kalıyor (sınırı 256 MB): 150 sayfalık taramada tepe 321 → 95 MB; her görsel bir kez çizilir
 
 # ---------------------------------------------------------------- görüntü (0.2.7)
-GORSEL_DPI_EN_AZ = 100.0                  # görüntünün çözünürlük etiketi bundan azsa (72, 96: fotoğraf makinesinin ve ekran görüntüsünün
-                                          # varsayılanı, taramanın gerçek çözünürlüğü değil) sayfa ölçüsü A4 kuralıyla (tiff_dpi_coz)
 JPG_DPILERI = TIFF_DPILERI                # PDF → JPG: "İdeal" 300, "Düşük" 200
 VARSAYILAN_JPG_DPI = 300
 JPG_KALITESI = 90                         # PDF → JPG
@@ -739,12 +734,10 @@ def _tiff_bilgi(yol, genislik):
     im = _tiff_ac(yol)
     try:
         olculer = _tiff_olculeri(im)
-        dpiler = tiff_dpi_coz([(g, y, e) for g, y, e, _ in olculer])
         im.seek(0)
         _kare_sinirla(im, 1)
         kare = _yon_uygula(im)
-        xd, yd, kaynak = _yona_gore_dpi(dpiler[0], olculer[0][3])
-        sg, sy = _tiff_sayfa_olcusu(kare.width, kare.height, xd, yd)
+        sg, sy = _kare_sayfasi(kare.width, kare.height, olculer[0])
         kucuk = kare.convert("L") if kare.mode == "1" else araclar._duzlestir(kare, exif=False)
         if kucuk.mode not in ("RGB", "L"):
             kucuk = kucuk.convert("RGB")
@@ -755,7 +748,7 @@ def _tiff_bilgi(yol, genislik):
             kucuk = kucuk.resize((genislik, max(1, int(round(kucuk.height * genislik / kucuk.width)))), Image.LANCZOS)
         buf = io.BytesIO()
         kucuk.save(buf, format="PNG", optimize=True)
-        return {"sayfa": len(olculer), "genislik": round(sg, 2), "yukseklik": round(sy, 2), "dpi": round(xd, 1), "dpiKaynagi": kaynak,
+        return {"sayfa": len(olculer), "genislik": round(sg, 2), "yukseklik": round(sy, 2), "dpi": _sayfa_dpi(kare.width, sg),
                 "png": base64.b64encode(buf.getvalue()).decode("ascii"), "pngGenislik": kucuk.width, "pngYukseklik": kucuk.height}
     finally:
         im.close()
@@ -1247,12 +1240,6 @@ def _yon_uygula(kare):
     return kare.transpose(islem) if islem is not None else kare
 
 
-def _yona_gore_dpi(dpi, yon):
-    """Kare 90 / 270 derece çevrilince (yön 5–8) yatay ve dikey çözünürlük yer değiştirir."""
-    xd, yd, kaynak = dpi
-    return (yd, xd, kaynak) if yon in (5, 6, 7, 8) else (xd, yd, kaynak)
-
-
 def _etiket_dpi(kare):
     """Karenin çözünürlük etiketi (x, y dpi) ya da None: birim inç (yoksa TIFF'in varsayılanı inç) ya da cm, ikisi de 50–1200."""
     t = getattr(kare, "tag_v2", None)
@@ -1274,33 +1261,15 @@ def _etiket_dpi(kare):
     return None
 
 
-def _standarda_yuvarla(d):
-    for s in STANDART_DPI:
-        if abs(d - s) <= STANDART_YAKINLIK * s:
-            return float(s)
-    return d
+def _kare_sayfasi(g_px, y_px, olcu):
+    """TIFF karesinin sayfası (pt): araclar.a4_sayfa_olcusu (0.2.9). g_px, y_px: görünen yöndeki (yön etiketi uygulanmış) ölçü; olcu:
+    _tiff_olculeri'nin satırı (genişlik, yükseklik, etiket dpi, yön)."""
+    return araclar.a4_sayfa_olcusu(g_px, y_px, araclar.gorunen_dpi(olcu[2], olcu[3]))
 
 
-def tiff_dpi_coz(kareler):
-    """Karelerin çözünürlüğü. kareler: [(genişlik px, yükseklik px, etiket (x, y) | None)] (etiket dosyadaki eksenlerle; ölçüden yalnızca uzun kenar).
-    Döner: [(x dpi, y dpi, kaynak)]; kaynak 'etiket' (geçerli etiket), 'a4' (etiketsiz: uzun kenar A4'ün uzun kenarı; dosyanın etiketsiz
-    karelerinin ortancası, standart değere %3 yakınsa o) ya da 'varsayilan' (A4 kuralı 50 dpi'den az veriyor: küçük görsel, 72 dpi).
-    UYAP taramalarının çoğu etiketsiz (okuyucular 1 dpi görüyor); piksel ölçüleri A4'ün 100–300 dpi karşılığı."""
-    tahminler = [max(g, y) / A4_UZUN_KENAR_INC for g, y, e in kareler if e is None and max(g, y) > 0]
-    ortak = None
-    if tahminler:
-        d = _standarda_yuvarla(statistics.median(tahminler))
-        ortak = (d, d, "a4") if d >= DPI_EN_AZ else (VARSAYILAN_DPI, VARSAYILAN_DPI, "varsayilan")
-    return [(float(e[0]), float(e[1]), "etiket") if e else (ortak or (VARSAYILAN_DPI, VARSAYILAN_DPI, "varsayilan")) for g, y, e in kareler]
-
-
-def _tiff_sayfa_olcusu(g_px, y_px, xd, yd):
-    """Karenin sayfa ölçüsü (pt); PDF'in sayfa sınırını (200 inç) aşarsa oranı korunarak küçülür."""
-    g, y = g_px * 72.0 / xd, y_px * 72.0 / yd
-    if max(g, y) > PDF_EN_BUYUK_KENAR:
-        oran = PDF_EN_BUYUK_KENAR / max(g, y)
-        g, y = g * oran, y * oran
-    return max(g, 1.0), max(y, 1.0)
+def _sayfa_dpi(g_px, sayfa_g):
+    """Görüntünün sayfadaki çözünürlüğü (piksel / inç; bilgi için, sonuçta ve donusum_bilgi'de)."""
+    return round(g_px * 72.0 / sayfa_g, 1) if sayfa_g else None
 
 
 def _tiff_ac(yol):
@@ -1379,14 +1348,14 @@ def _tiff_hazir():
     return True, None
 
 
-def _tiff_karesi_ekle(doc, im, i, olculer, dpiler, kilit):
-    """TIFF'in i. karesini belgenin sonuna sayfa olarak ekler (TIFF → PDF'in ve tahminin ortak yolu). kilit: MuPDF kilidi (bağlam). Döner:
-    kare G4 olarak gömüldüyse True."""
+def _tiff_karesi_ekle(doc, im, i, olculer, kilit):
+    """TIFF'in i. karesini belgenin sonuna sayfa olarak ekler (TIFF → PDF'in ve tahminin ortak yolu; sayfa A4'e sığan ölçüde, _kare_sayfasi).
+    kilit: MuPDF kilidi (bağlam). Döner: (kare G4 olarak gömüldüyse True, sayfadaki çözünürlüğü)."""
     im.seek(i)
     _kare_sinirla(im, i + 1)
     kare = _yon_uygula(im)
-    xd, yd, _ = _yona_gore_dpi(dpiler[i], olculer[i][3])
-    sg, sy = _tiff_sayfa_olcusu(kare.width, kare.height, xd, yd)
+    sg, sy = _kare_sayfasi(kare.width, kare.height, olculer[i])
+    dpi = _sayfa_dpi(kare.width, sg)
     if kare.mode == "1":
         g4 = _g4_kodla(kare)
         flate = zlib.compress(kare.tobytes(), FLATE_DUZEYI)
@@ -1394,14 +1363,14 @@ def _tiff_karesi_ekle(doc, im, i, olculer, dpiler, kilit):
         veri = g4[0] if ccitt else flate
         with kilit():
             _bit_sayfasi_ekle(doc, kare.width, kare.height, sg, sy, veri, ccitt, g4[1] if ccitt else True)
-        return ccitt
+        return ccitt, dpi
     duz = araclar._duzlestir(kare, exif=False)
     png = araclar._gorsel_kodla(duz, "orijinal")[0]
     del duz, kare
     with kilit():
         pg = doc.new_page(width=sg, height=sy)
         pg.insert_image(pg.rect, stream=png, keep_proportion=False)
-    return False
+    return False, dpi
 
 
 def _tiff_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
@@ -1410,13 +1379,14 @@ def _tiff_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
     try:
         olculer = _tiff_olculeri(im)
         n = len(olculer)
-        dpiler = tiff_dpi_coz([(g, y, e) for g, y, e, _ in olculer])
         with baglam.mupdf():
             doc = pymupdf.open()
-        g4_sayisi = 0
+        g4_sayisi, ilk_dpi = 0, None
         for i in range(n):
             ilerleme(i / n, "Sayfa %d/%d" % (i + 1, n))
-            g4_sayisi += 1 if _tiff_karesi_ekle(doc, im, i, olculer, dpiler, baglam.mupdf) else 0
+            g4, dpi = _tiff_karesi_ekle(doc, im, i, olculer, baglam.mupdf)
+            g4_sayisi += 1 if g4 else 0
+            ilk_dpi = dpi if i == 0 else ilk_dpi
         ilerleme(1.0, "Kaydediliyor…")
         with baglam.mupdf():
             try:
@@ -1424,8 +1394,7 @@ def _tiff_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
             except Exception:
                 pass
             doc.save(cikti, **KAYIT_SECENEKLERI)
-        return {"sayfa": n, "dpi": round(dpiler[0][0], 1) if dpiler else None, "dpiKaynagi": dpiler[0][2] if dpiler else None,
-                "g4Sayfa": g4_sayisi}
+        return {"sayfa": n, "dpi": ilk_dpi, "g4Sayfa": g4_sayisi}
     finally:
         if doc is not None:
             with baglam.mupdf():
@@ -1602,24 +1571,13 @@ def _exif_yonu(im):
 
 
 def gorsel_sayfa_olcusu(g_px, y_px, dpi_bilgisi, yon=1):
-    """Görüntünün PDF'teki sayfa ölçüsü ve çözünürlüğü (0.2.7). g_px, y_px: görünen yöndeki (EXIF yönü uygulanmış) piksel ölçüsü;
-    dpi_bilgisi: Pillow'un info['dpi']'ı (dosyanın eksenlerinde; yön 5–8'de eksenler yer değiştirir). Etiket geçerliyse (GORSEL_DPI_EN_AZ –
-    DPI_EN_COK; 72 ve 96 fotoğraf makinesinin ve ekran görüntüsünün varsayılanıdır, taramanın çözünürlüğü değil) o; değilse TIFF'in A4 kuralı
-    (tiff_dpi_coz: uzun kenar A4'ün uzun kenarı, standart değere %3 yakınsa ona yuvarlanır; çok küçük görüntü 72 dpi): taranmış ya da
-    fotoğraflanmış A4 evrak A4 boyunda çıkar. Döner: (sayfa_g pt, sayfa_y pt, x dpi, y dpi, kaynak 'etiket' | 'a4' | 'varsayilan')."""
-    xd = yd = None
-    try:
-        x, y = float(dpi_bilgisi[0]), float(dpi_bilgisi[1])
-        if math.isfinite(x) and math.isfinite(y) and GORSEL_DPI_EN_AZ <= x <= DPI_EN_COK and GORSEL_DPI_EN_AZ <= y <= DPI_EN_COK:
-            xd, yd = (y, x) if yon in (5, 6, 7, 8) else (x, y)
-    except (TypeError, ValueError, IndexError):
-        pass
-    if xd is not None:
-        kaynak = "etiket"
-    else:
-        xd, yd, kaynak = tiff_dpi_coz([(g_px, y_px, None)])[0]
-    sg, sy = _tiff_sayfa_olcusu(g_px, y_px, xd, yd)
-    return sg, sy, xd, yd, kaynak
+    """Görüntünün PDF'teki sayfa ölçüsü ve o sayfadaki çözünürlüğü (0.2.7; 0.2.9'dan beri araclar.a4_sayfa_olcusu: oranı korunarak A4'e sığan
+    en büyük ölçü, dikeyse dikey, yataysa yatay A4; çözünürlük etiketi yalnızca yatay ve dikey çözünürlük farklıysa oranı belirler. 0.2.7–
+    0.2.8'de geçerli dpi etiketi (100–1200) ya da uzun kenarı A4'ün uzun kenarına oturtan dpi). g_px, y_px: görünen yöndeki (EXIF yönü
+    uygulanmış) piksel ölçüsü; dpi_bilgisi: Pillow'un info['dpi']'ı (dosyanın eksenlerinde; yön 5–8'de eksenler yer değiştirir). Döner:
+    (sayfa_g pt, sayfa_y pt, x dpi, y dpi)."""
+    sg, sy = araclar.a4_sayfa_olcusu(g_px, y_px, araclar.gorunen_dpi(dpi_bilgisi, yon))
+    return sg, sy, _sayfa_dpi(g_px, sg), _sayfa_dpi(y_px, sy)
 
 
 def _webp_kayipli(yol):
@@ -1655,14 +1613,14 @@ def _gorsel_gomulecek(yol, im, duz, kare_kipi, yon, bicim):
 
 
 def _gorsel_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
-    """Görüntü → PDF (tek sayfa): sayfa ölçüsü gorsel_sayfa_olcusu, görüntü sayfayı kenardan kenara kaplar, EXIF yönü uygulanır. Hareketli
+    """Görüntü → PDF (tek sayfa): sayfa ölçüsü gorsel_sayfa_olcusu (A4'e sığan ölçü), görüntü sayfayı kenardan kenara kaplar, EXIF yönü uygulanır. Hareketli
     GIF / WEBP'de ilk kare (uyarıyla)."""
     ilerleme(0, "Görüntü okunuyor…")
     bayt, sg, sy, dondurme, r = _gorsel_sayfasi_hazirla(kaynak, baglam.alt, lambda: ilerleme(0.4, "PDF'e yazılıyor…"))
     with baglam.mupdf():
         doc = pymupdf.open()
         try:
-            araclar._gorsel_sayfasi_ekle(doc, bayt, sg, sy, pymupdf.Rect(0, 0, sg, sy), dondurme)
+            araclar._gorsel_sayfasi_ekle(doc, bayt, sg, sy, dondurme)
             try:
                 doc.set_metadata({"producer": "PDEfe", "creator": "PDEfe"})
             except Exception:
@@ -1689,21 +1647,21 @@ def _gorsel_sayfasi_hazirla(kaynak, alt, okundu=None):
             raise
         except Exception as e:
             raise OgeHatasi("bozuk", "Görüntü okunamadı (%s): %s" % (os.path.basename(kaynak), e))
-        sg, sy, xd, yd, dpi_kaynagi = gorsel_sayfa_olcusu(duz.width, duz.height, im.info.get("dpi"), yon)
+        sg, sy, xd, _ = gorsel_sayfa_olcusu(duz.width, duz.height, im.info.get("dpi"), yon)
         if okundu is not None:
             okundu()
         bayt, dondurme, gomme = _gorsel_gomulecek(kaynak, im, duz, kare_kipi, yon, bicim)
         del duz
     finally:
         im.close()
-    r = {"sayfa": 1, "dpi": round(xd, 1), "dpiKaynagi": dpi_kaynagi, "gomme": gomme}
+    r = {"sayfa": 1, "dpi": xd, "gomme": gomme}
     if kareler > 1:
         r["uyari"] = "Hareketli görüntünün yalnızca ilk karesi alındı."
     return bayt, sg, sy, dondurme, r
 
 
 def _gorsel_bilgi(yol, alt, genislik):
-    """donusum_bilgi'nin görüntü bölümü: sayfa 1, PDF'teki sayfa ölçüsü (pt), dpi, dpiKaynagi, pikselGenislik / pikselYukseklik (görünen
+    """donusum_bilgi'nin görüntü bölümü: sayfa 1, PDF'teki sayfa ölçüsü (pt; A4'e sığan ölçü), dpi (o sayfadaki), pikselGenislik / pikselYukseklik (görünen
     yönde), gorselBicimi, küçük resim (JPEG'de taslak çözümle: 12 MP fotoğrafta onda biri sürede)."""
     im = _gorsel_ac(yol, alt)
     try:
@@ -1713,7 +1671,7 @@ def _gorsel_bilgi(yol, alt, genislik):
         g, y = im.size
         if yon in (5, 6, 7, 8):
             g, y = y, g
-        sg, sy, xd, yd, kaynak = gorsel_sayfa_olcusu(g, y, im.info.get("dpi"), yon)
+        sg, sy, xd, _ = gorsel_sayfa_olcusu(g, y, im.info.get("dpi"), yon)
         _kare_sinirla(im, 1)
         kareler = getattr(im, "n_frames", 1) or 1
         if bicim == "JPEG":
@@ -1732,7 +1690,7 @@ def _gorsel_bilgi(yol, alt, genislik):
             kucuk = kucuk.resize((genislik, max(1, int(round(kucuk.height * genislik / kucuk.width)))), Image.LANCZOS)
         buf = io.BytesIO()
         kucuk.save(buf, format="PNG", optimize=True)
-        s = {"sayfa": 1, "genislik": round(sg, 2), "yukseklik": round(sy, 2), "dpi": round(xd, 1), "dpiKaynagi": kaynak,
+        s = {"sayfa": 1, "genislik": round(sg, 2), "yukseklik": round(sy, 2), "dpi": xd,
              "pikselGenislik": g, "pikselYukseklik": y, "gorselBicimi": bicim.lower(),
              "png": base64.b64encode(buf.getvalue()).decode("ascii"), "pngGenislik": kucuk.width, "pngYukseklik": kucuk.height}
         if kareler > 1:
@@ -1958,16 +1916,15 @@ def _ornek_belgesi(yol, tur, alt, k, kilit):
             im = _tiff_ac(yol)
             try:
                 olculer = _tiff_olculeri(im)
-                dpiler = tiff_dpi_coz([(g, y, e) for g, y, e, _ in olculer])
                 n = len(olculer)
                 for i in _ornek_sayfalar(n, k):
-                    _tiff_karesi_ekle(doc, im, i, olculer, dpiler, kilit)
+                    _tiff_karesi_ekle(doc, im, i, olculer, kilit)
             finally:
                 im.close()
             return doc, list(range(doc.page_count)), n
         bayt, sg, sy, dondurme, _ = _gorsel_sayfasi_hazirla(yol, alt)
         with kilit():
-            araclar._gorsel_sayfasi_ekle(doc, bayt, sg, sy, pymupdf.Rect(0, 0, sg, sy), dondurme)
+            araclar._gorsel_sayfasi_ekle(doc, bayt, sg, sy, dondurme)
         return doc, [0], 1
     except BaseException:
         with kilit():
