@@ -14,8 +14,10 @@
 // Görüntüler tek bir HTML dizesinde toplanmaz: her sayfa ana süreçte geçici iş klasörüne dosya olarak yazılır ve HTML yalnızca
 // <img src="s0001.jpg"> satırlarından oluşur. Böylece 756 sayfalık belgeler bile V8 dize sınırına (512 MB) ya da IPC ileti sınırına takılmaz.
 //
-// Hatırlananlar: yazıcı, harmanla, kâğıt, boyut, renk ve çift taraflı kalıcıdır (ayar 'yazdirma'); sayfa seçimi ve "Notları yazdır" yalnızca
-// oturum boyunca, kopya sayısı her pencerede 1'den başlar.
+// Hatırlananlar: yazıcı, harmanla, kâğıt, boyut, renk ve çift taraflı kalıcıdır (ayar 'yazdirma'); "Notları yazdır" yalnızca oturum boyunca,
+// kopya sayısı her pencerede 1'den başlar. Sayfa seçimi hatırlanmaz: pencere her açılışta Sayfalar = Tümü ile gelir (0.2.8, kullanıcı isteği:
+// "Yazdırma ekranındaki varsayılan ayar 'Tüm sayfalar' olsun her zaman. Bazen bir aralık seçince diğer PDF'lere de yansıyor"; 0.2.6–0.2.7'de
+// aralık ve "Geçerli sayfa" oturum boyunca hatırlanıyor, başka belgenin yazdırma penceresine de geçiyordu).
 //
 // Dışa verilen API:
 //   yazdir(baglam, belge)                          → Promise<void>
@@ -49,8 +51,8 @@ const SECENEKLER = {
 };
 const CIFT_TARAFLI_ADLARI = { yazici: 'Yazıcının ayarı', tek: 'Tek taraflı', uzun: 'Çift taraflı (uzun kenardan çevir)', kisa: 'Çift taraflı (kısa kenardan çevir)' };
 
-/** Oturum boyunca hatırlanan seçimler (pencere başına). */
-let sonSecenek = { aralik: 'tumu', aralikMetni: '', notlar: false };
+/** Oturum boyunca hatırlanan seçim (pencere başına): yalnızca "Notları yazdır". Sayfa seçimi her açılışta Tümü (0.2.8). */
+let sonSecenek = { notlar: false };
 let acikPencere = null;
 
 // ---------------------------------------------------------------- ana akış
@@ -137,7 +139,7 @@ export async function yazdir(baglam, belge) {
   try { kayitli = (await pdefe.cagir('ayar:al', 'yazdirma')) || {}; } catch { kayitli = {}; }
   const secenek = await secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre: gorunumSayisi !== toplam, boyutlar, kayitli });
   if (!secenek) return;
-  sonSecenek = { aralik: secenek.aralik, aralikMetni: secenek.aralikMetni, notlar: secenek.notlar };
+  sonSecenek = { notlar: secenek.notlar };
   if (!secenek.sistemPenceresi) {
     const kayit = { yazici: secenek.yazici, harmanla: secenek.harmanla, kagit: secenek.kagit, olcek: secenek.olcek, renk: secenek.renk, ciftTarafli: secenek.ciftTarafli };
     pdefe.cagir('ayar:koy', 'yazdirma', kayit).catch(() => {});
@@ -331,7 +333,7 @@ function secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre,
       const g = ortu.querySelector('[name="aralik"][value="gecerli"]');
       g.disabled = true; g.closest('label').classList.add('devre'); g.closest('label').title = 'Görünümdeki sayfa numarası dosyadakiyle eşleşmiyor olabilir.';
     }
-    radyoKoy('aralik', sonSecenek.aralik);
+    radyoKoy('aralik', 'tumu');   // 0.2.8: her açılışta Tümü (aralık ve "Geçerli sayfa" hatırlanmaz)
     radyoKoy('olcek', gecerliDeger('olcek', kayitli.olcek));
     radyoKoy('renk', gecerliDeger('renk', kayitli.renk));
     sec('kagit').value = gecerliDeger('kagit', kayitli.kagit);
@@ -339,7 +341,6 @@ function secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre,
     sec('harmanla').checked = kayitli.harmanla !== false;
     sec('notlar').checked = sonSecenek.notlar === true;   // varsayılan kapalı; oturumda açılırsa hatırlanır
     const aralikGirdi = sec('aralikMetni');
-    aralikGirdi.value = sonSecenek.aralikMetni || '';
     const hataEl = ortu.querySelector('.yazdir-hata');
     const yaziciSec = sec('yazici'), kopyaGirdi = sec('kopya'), harmanla = sec('harmanla'), ciftSec = sec('ciftTarafli');
     const yaziciBilgi = ortu.querySelector('.yazdir-yazici-bilgi'), ciftBilgi = ortu.querySelector('.yazdir-cift-bilgi');

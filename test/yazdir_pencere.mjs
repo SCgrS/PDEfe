@@ -11,7 +11,8 @@
 //   4) Yazdır: kaydedilen print() seçenekleri (deviceName, copies, collate, color, duplexMode, pageSize; pageRanges / landscape / dpi yok),
 //      gizli pencerede yüklenen sayfa sayısı, bildirim; "Yazıcının ayarı"nda duplexMode yok; Windows yazdırma penceresi bağlantısı (silent
 //      false, yazıcı ve kopya yok); hata iletisi ("Invalid deviceName" → "Yazıcı bulunamadı …")
-//   5) Hatırlama: yazıcı ve seçenekler kalıcı (ayar 'yazdirma'), kopya 1'den başlar, sayfa seçimi ve notlar oturumda; hatırlanan yazıcı
+//   5) Hatırlama: yazıcı ve seçenekler kalıcı (ayar 'yazdirma'), kopya 1'den başlar, notlar oturumda; sayfa seçimi hatırlanmaz (0.2.8,
+//      kullanıcı isteği: pencere her açılışta Tümü ile; aralık da "Geçerli sayfa" da, başka belgede de); hatırlanan yazıcı
 //      kaldırılmışsa varsayılan ve uyarı; hiç yazıcı yoksa Yazdır soluk, Windows penceresi bağlantısı kullanılabilir
 // Kullanım:
 //   $env:PDEFE_TEST_YAZICILAR = "1"; powershell -File test\baslat.ps1 -Port 9461 -Veri "$env:TEMP\pdefe-yz-9461"
@@ -220,13 +221,33 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tus }) {
 
   // ------------------------------------------------------------ 5) hatırlama
   await ac(); d = await durum();
-  sonuc('5) Yeniden açılınca: yazıcı, harmanla, renk, çift taraflı hatırlandı; kopya 1; sayfa seçimi "2-3" (oturum); notlar kapalı',
-    d.yazici === 'Lazer Yazıcı' && !d.harmanla && d.renk === 'siyahBeyaz' && d.cift === 'uzun' && d.kopya === '1' && d.aralik === 'aralik' && d.aralikMetni === '2-3' && !d.notlar && d.ozet === '2 sayfa', d);
+  sonuc('5) Yeniden açılınca: yazıcı, harmanla, renk, çift taraflı hatırlandı; kopya 1; sayfalar Tümü (0.2.8: "2-3" hatırlanmaz); notlar kapalı',
+    d.yazici === 'Lazer Yazıcı' && !d.harmanla && d.renk === 'siyahBeyaz' && d.cift === 'uzun' && d.kopya === '1' && d.aralik === 'tumu' && d.aralikMetni === '' && !d.notlar && d.ozet === '4 sayfa', d);
   await evalJs(`(() => { window.__yz.sec('yazici', 'Kat 2 Yazıcısı'); window.__yz.sec('ciftTarafli', 'yazici'); window.__yz.radyo('renk', 'renkli'); window.__yz.radyo('aralik', 'tumu'); return true; })()`);
   y = await yazdir();
   const s2 = y.kayit[0]?.secenek?.secenek || {};
   sonuc('5) "Yazıcının ayarı": duplexMode gönderilmez; renkli; 4 sayfa', y.kayit.length === 1 && !('duplexMode' in s2) && s2.color === true && s2.deviceName === 'Kat 2 Yazıcısı' && y.kayit[0].secenek.sayfaSayisi === 4, y.kayit);
   sonuc('5) Çevrim dışı yazıcıda bildirim kuyruğu söyler', /yazıcı çevrim dışı görünüyor; iş, yazıcı açılınca basılır/.test(y.bildirim), y.bildirim);
+  // 0.2.8 (kullanıcı isteği: "Yazdırma ekranındaki varsayılan ayar 'Tüm sayfalar' olsun her zaman. Bazen bir aralık seçince diğer PDF'lere de
+  // yansıyor"): "Geçerli sayfa" da hatırlanmaz; bir belgede yazdırılan aralık başka belgenin penceresine geçmez
+  await ac();
+  await evalJs(`(window.__yz.radyo('aralik', 'gecerli'), true)`); await bekle(300);
+  y = await yazdir();
+  sonuc('5) Geçerli sayfa yazdırıldı (1 sayfa)', y.kayit.length === 1 && y.kayit[0].secenek.sayfaSayisi === 1, y.kayit);
+  await ac(); d = await durum();
+  sonuc('5) "Geçerli sayfa"dan sonra yeniden açılınca Sayfalar: Tümü', d.aralik === 'tumu' && d.aralikMetni === '' && d.ozet === '4 sayfa', d);
+  await evalJs(`(() => { window.__yz.radyo('aralik', 'aralik'); const a = window.__yz.al('aralikMetni'); a.value = '2-3'; a.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+  await bekle(300);
+  y = await yazdir();
+  sonuc('5) Aralık "2-3" yazdırıldı (2 sayfa)', y.kayit.length === 1 && y.kayit[0].secenek.sayfaSayisi === 2, y.kayit);
+  const ORNEK2 = ORNEK.replace(/\.pdf$/, '-2.pdf');
+  fs.copyFileSync(ORNEK, ORNEK2);
+  await evalJs(`(async () => { await window.__pdefe.dosyaAc(${J(ORNEK2)}); return true; })()`);
+  await kosul(`window.__pdefe.aktif()?.yol === ${J(ORNEK2)} && !!window.__pdefe.aktif()?.gorunum?.sayfaSayisi`);
+  await bekle(500);
+  await ac(); d = await durum();
+  sonuc('5) Başka belgede de pencere Tümü ile açılır (önceki belgenin aralığı geçmez)', d.aralik === 'tumu' && d.aralikMetni === '' && d.ozet === '4 sayfa', d);
+  await kapat();
   // Hatırlanan yazıcı kaldırılmış
   await evalJs(`window.pdefe.cagir('test:yazicilar', ${J(SAHTE.filter((x) => x.ad !== 'Kat 2 Yazıcısı'))})`);
   await ac(); d = await durum();
