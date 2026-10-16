@@ -14,7 +14,7 @@
 //   5) Sonuç satırında uyarı (madde 7): adın altında paragraf yok; uyarılı satırda adın yanında ⚠ (role="img", uyarı renginde), ipucu "<Kaynak> →
 //      <Hedef>: <kalite notu>" ve dosyaya özgü uyarılar; "(1)" adının notu adın ipucunda; kalite notlarında "kaşe" yok, tablolar var; gerçek PDF → UDF.
 //   6) Alttaki bildirim (madde 11): Format Değiştir'de (PDF → UDF, PDF → JPG) ve Ayır'da sonuç pencerede gösterilince bildirim yok; görüntü → PDF
-//      sekmede kendiliğinden açılınca kısa bildirim "Dönüştürüldü: <ad>"; Birleştir'in (sekmede açılır) bildirimi duruyor.
+//      sekmede kendiliğinden açılınca kısa bildirim "Format değiştirildi: <ad>" (0.2.9; 0.2.8'de "Dönüştürüldü: <ad>"); Birleştir'in (sekmede açılır) bildirimi duruyor.
 // Girdiler test/ornek_pdf_uret.py ile test/cikti/s41/girdi altında üretilir (gerçek belge yok). Araçların çıktı klasörü test klasörüdür.
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9441 -Veri "$env:TEMP\pdefe-s41-9441" -Boyut "1280,1000" [-Olcek 1.25]
@@ -582,7 +582,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
     b = await bildirimler();
     sonuc('6b) PDF → JPG (3 dosya): sonuç pencerede, bildirim çıkmadı', fs.existsSync(path.join(klasor, 'bildirim - Sayfa 3.jpg')) && !b.length, b);
     await araclariKapat();
-    // c) Görüntü → PDF (tek PDF: sekmede kendiliğinden açılır): kısa bildirim "Dönüştürüldü: bildirim.pdf" (sayfa ve boyut yok)
+    // c) Görüntü → PDF (tek PDF: sekmede kendiliğinden açılır): kısa bildirim "Format değiştirildi: bildirim.pdf" (sayfa ve boyut yok; 0.2.9)
     await evalJs(`(window.__pdefe.komutCalistir('arac.donustur', [${J(png)}]), true)`);
     await kosul(`!!${A} && ${A}.ogeler.length === 1 && !${A}.ogeler[0].yukleniyor`, 15000);
     await evalJs(`(${A}.hedefSec(${A}.ogeler[0], 'pdf'), true)`);
@@ -591,7 +591,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
     await kosul(`!!window.__pdefe.aktif()?.gorunum?.sayfaSayisi`, 10000);
     b = await bildirimler();
     const akt = await evalJs(`window.__pdefe.aktif()?.yol || ''`);
-    sonuc('6c) Görüntü → PDF: sonuç sekmede açıldı, kısa bildirim "Dönüştürüldü: bildirim.pdf" (sayfa / KB yok)', path.basename(akt) === 'bildirim.pdf' && J(b) === J(['Dönüştürüldü: bildirim.pdf']), { akt, b });
+    sonuc('6c) Görüntü → PDF: sonuç sekmede açıldı, kısa bildirim "Format değiştirildi: bildirim.pdf" (sayfa / KB yok)', path.basename(akt) === 'bildirim.pdf' && J(b) === J(['Format değiştirildi: bildirim.pdf']), { akt, b });
     await sekmeleriKapat();
     // d) Ayır (iki dosya; sonuç pencerede): bildirim yok
     await evalJs(`(async () => { await window.__pdefe.dosyaAc(${J(pdf)}); return true; })()`);

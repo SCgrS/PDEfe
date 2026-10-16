@@ -396,7 +396,7 @@ print(json.dumps({"koyuP": sum(1 for v in a if v < 200), "koyuR": sum(1 for v in
     const p1 = fs.existsSync(hedef) ? pdfOzeti(hedef) : null;
     sonuc('Tek UDF → PDF: pencere kapanır, PDF sekmede açılır (A4, 2 sayfa)', !(await evalJs(`!!document.querySelector('.donustur-pencere')`)) && path.resolve(aktif || '.') === path.resolve(hedef)
       && p1?.sayfa === 2 && p1.olcu.every(A4), { aktif, hedef, p1: p1 && { sayfa: p1.sayfa, olcu: p1.olcu } });
-    sonuc('Bildirimde "görünüm yaklaşık" uyarısı', bl.some((b) => b.startsWith('Dönüştürüldü: ') && b.includes(UYARI)), bl);
+    sonuc('Bildirimde "görünüm yaklaşık" uyarısı', bl.some((b) => b.startsWith('Format değiştirildi: ') && b.includes(UYARI)), bl);   // 0.2.9: "Dönüştürüldü: " → "Format değiştirildi: "
     await sekmeleriKapat();
 
     // Birden çok dosya: UDF → TIFF, UDF → PDF ve açılamayan belge; sonuç listesinde uyarı

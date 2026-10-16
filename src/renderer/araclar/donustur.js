@@ -1079,8 +1079,9 @@ export class DonusturPenceresi {
       this.ilerleme.gizle();
       await this.pencere.kapat('tamam');
       // Sonuç kendiliğinden sekmede açılınca kısa bildirim (0.2.8: sayfa sayısı ve boyut yok, sonuç kutusundaki gibi; uyarı varsa onu da söyler:
-      // sonuç listesi gösterilmez). Pencerede sonuç listesi gösterilince bildirim yok (_sonucGoster'in sonu)
-      baglam.bildir(`Dönüştürüldü: ${dosyaAdi(r.hedef)}${r.uyari ? '. ' + r.uyari : ''}`, r.uyari ? 9000 : 4000);
+      // sonuç listesi gösterilmez). Pencerede sonuç listesi gösterilince bildirim yok (_sonucGoster'in sonu). 0.2.9 (kullanıcı isteği: "Format
+      // değiştirmenin beyaz uyarı yazısında dönüştürüldü yazıyor onu format değiştirildi olarak düzeltelim"): "Format değiştirildi: <ad>"
+      baglam.bildir(`Format değiştirildi: ${dosyaAdi(r.hedef)}${r.uyari ? '. ' + r.uyari : ''}`, r.uyari ? 9000 : 4000);
       await ciktiyiAc(baglam, r.hedef, { cikti: this.kayit.cikti });
       return false;
     }

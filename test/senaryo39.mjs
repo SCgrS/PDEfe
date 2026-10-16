@@ -267,7 +267,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
       && J(sk.satirlar.map((x) => x.ad)) === J(['Dilekçe örneği - Sayfa 1.jpg', 'Dilekçe örneği - Sayfa 2.jpg']) && sk.satirlar.every((x) => !x.ac) && !/KB|sayfa ·/.test(sk.metin)
       && sk.goster === 'Klasörde göster' && !sk.tek, sk);
     // 0.2.8 (kullanıcı isteği): sonuç pencerede gösterilince alttaki bildirim yok (yalnızca sonuç kendiliğinden açılınca)
-    sonuc('Bildirim yok (0.2.8; sonuç pencerede); Dönüştür soluk', !(await bildirimler()).some((b) => /^Dönüştürüldü/.test(b)) && (await donusturDevre()), await bildirimler());
+    sonuc('Bildirim yok (0.2.8; sonuç pencerede); Dönüştür soluk', !(await bildirimler()).some((b) => /^(Dönüştürüldü|Format değiştirildi)/.test(b)) && (await donusturDevre()), await bildirimler());
     await ss('03-pdf-jpg-sonuc');
     await kayit();
     await tikSecici('.donustur-sonuc .donustur-goster');
