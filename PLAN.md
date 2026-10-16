@@ -3585,6 +3585,42 @@ UYAP Doküman Editörü'ne dokunulmadı.
 - [x] Sürüm 0.2.9 (package.json, package-lock.json); CHANGELOG; docs/DOGRULAMA.md 44; README: Öne çıkanlar'da ve Araçlar'da Birleştir (dosyalardan tek PDF,
   görüntü sayfaları A4, satırlarda sayfa boyutu seçimi yok), TIFF → PDF, Görüntü → PDF, görüntüden yapılan UDF'nin A4 kâğıdı (son üçü düzeltme turunda).
 
+#### 0.2.9: ekran görüntüleri, paket ve son sınama
+- [x] **Ekran görüntüleri** (`README_OLCEK=2`, temiz veri klasörü, kurgusal belgeler `C:\Users\Public\Documents\PDEfe Örnek`'te, iş bitince silindi;
+  hepsine bakıldı, üst verileri boş): açılış ekranı (açık, koyu; Birleştir'in yeni açıklaması üç satırda, karolar eşit boyda), Araçlar, Birleştir (açık,
+  koyu; görünen ilk iki satır PDF ve UDF, değişen yalnızca kalite düğmelerindeki tahminler: görüntü sayfasının yeni ölçüsünden).
+- [x] **Paket** (HEAD 7cce8ec; `npm run cekirdek:derle` 26 sn, çekirdek ping OK, `_internal/lisanslar`'da 17 bileşen; `npx electron-builder --win --publish
+  never` 39 sn): PDEfe-Setup.exe 147.968.055 bayt (0.2.8'den +95 KB: lisans metinleri), SHA-256 `F45DFA1E…E589`, exe sürümü 0.2.9; resources'ta
+  LICENSE.txt ve THIRD_PARTY.md; İndirilenler'de `PDEfe-Setup-0.2.9.exe`. Kurucu çalıştırılmadı. Sonraki commit'ler (belgeler, README görüntüleri)
+  pakete girmeyen dosyalar. Paketli sınama (görünmeyen masaüstünde `release\win-unpacked\PDEfe.exe`): paket_duman 18/18 (sürüm 0.2.9), gercek_fare
+  `-Paketli` 9/9 ve `-Paketli -Bos` 9/9; paketli çekirdekle donustur_testi `--exe --hizli` 230/230, udf_donusum_testi `--exe` 129/129 (UDE ile; sahte
+  köprü denetimi dâhil), word_donusum_testi `--exe` 57/57 (gerçek Word'le; 0.2.8'de `PDEFE_WORD_YOK=1` ile 19/19).
+- [x] **Word'ün "Son kullanılanlar" listesi**: gerçek Word'lü sınamalardan (paketli ve geliştirme çekirdeği) önce ve sonra salt okunur WMI ile sayıldı:
+  127 kayıt, sahte ev yollu 21 (değişmedi; yeni bozulma yok). Sınamalar gerçek ev klasörüyle koşuldu (`ev_denetimi.ev_degistirilmis()` False).
+- [x] **Son regresyon** (kod 7cce8ec'teki gibi; her test kendi temiz örneğinde, sırayla, ekran dışında ya da görünmeyen masaüstünde): senaryo44 20/20 (%100
+  ve %125), senaryo41 52/52, senaryo42 34/34, senaryo43 31/31, senaryo37 64/64, senaryo38 64/64 (sahte yazıcılar), senaryo39 54/54, senaryo40 23/23 ve
+  udf_yaklasik 63/63 (`PDEFE_UDE_YOK=1`), senaryo26 64/64, senaryo17 43/43, senaryo36 59/59, kisayol_araclar 102/102, ortu_tiklama 164/164, arac_onizleme
+  24/24, gec_iptal 24/24, yazdir_pencere 47/47, mac_renderer 44/44, senaryo22 102/102, senaryo23 53/53, sekme_genislik 38/38, serit_olculeri 25/25,
+  hayalet_akicilik 5/5, kisayol_dosya 164/164, senaryo13 63/63, senaryo14 60/60, senaryo18 10/10, senaryo19 112/112 (aşağıda), senaryo20 52/52,
+  acilis_hizasi 10/10 (%100 ve %125). senaryo5, senaryo11 ve senaryo12 (eski, ölçütsüz betikler; yer tutucu örnek PDF'lerle) sonuna dek koştu: sayfa
+  düzeni kaydedildi, pano görüntüsü ve dosya Birleştir'e girdi, sonuç sekmede açıldı, "Pano görüntüsü" kopyası silindi. Node: guvenlik_birim 110/110,
+  güncelleme birim 84/84, cekirdek_iptal 7/7, pano_birim 6/6, yazdir_html_testi 90/90. Python (geliştirme çekirdeği): donustur_testi 265/265 (tam; "dış
+  süreç" süre denetimleri de geçti), udf_donusum_testi 142/142 (UDE ile), word_donusum_testi 85/85 (gerçek Word'le), guvenlik_testi 47/47,
+  mac_cekirdek_testi 14/14, mac_minos_testi 12/12, tanima_testi 61/61, kucuk_resim_testi 50/50, araclar_testi 144/146 ve kopyalama_testi 31/34 (aşağıda;
+  ikisi de `PDEFE_TEST_PDF_KLASORU` ile yer tutucu örneklerde).
+- [x] **Düşenler, f5a75de'yle karşılaştırma** (çalışma ağacı `%TEMP%`'te; node_modules ve .venv bağlantıları önce kaldırılarak silindi): senaryo19 toplu
+  koşumda 59. denetimden sonra çıktısız kesildi (node çıkış kodu 127; madde 1–4'ün sınamasında senaryo39 ve senaryo13'te de görülen); tek başına HEAD'de
+  üç kez 112/112, 0.2.8 ağacından başlatılan örnekte 112/112: kod gerilemesi değil. araclar_testi'nin iki Sıkıştır tahmini (`kucult_tahmin`: yer tutucu
+  belgelerde kesin hesap 5–6 sn, sınır 3 sn) ve kopyalama_testi'nin üç denetimi (1.5.6098.pdf'in 15–16. sayfası: beklentiler gerçek kanun metnine göre
+  yazılmış, yer tutucu belgede o metin yok) 0.2.8 çekirdeğiyle de aynı düşüyor: test verisinden. Gerileme yok; kod düzeltmesi ve yeniden derleme
+  gerekmedi.
+- [x] **Kişisel veri son tarama** (HEAD'deki 336 izlenen dosya ve 8d2f583..HEAD'in 137 commit iletisi; yalnızca sayılar): kullanıcının soyadı ve tam adı,
+  kullanıcı klasörü (kısa adı dâhil), büro adının parçaları, `Users\<ad>` yolları, marka adları 0; T.C. kimlik (sağlaması tutan), IBAN, telefon 0; e-posta
+  1 (package-lock.json'da bir npm paketinin kullanımdan kaldırılma iletisi); esas no kalıbı 3 (yer tutucu 2099/…). Commit iletilerinde 0.
+- [x] Temizlik: test örnekleri port üzerinden kapatıldı (kalan electron / PDEfe / pdefe-core / Word / Java süreci yok); `%TEMP%`'teki `pdefe-*` klasörleri,
+  karşılaştırma çalışma ağacı, `release\win-unpacked` ve `core\dist` silindi (`release\PDEfe-Setup.exe` 0.2.9). Gerçek Masaüstü'ne ve Belgeler'e dosya
+  yazılmadı (sınamalar boyunca değişen dosya yok). Kullanıcının PDEfe'sine, Word'üne ve UYAP Doküman Editörü'ne dokunulmadı.
+
 #### 0.2.9: sınama özeti (madde 1–4 ve düzeltme turu)
 - [x] Madde 1–4'ten sonra (her test kendi temiz örneğinde, ekran dışında ya da görünmeyen masaüstünde): senaryo44 20/20 (%100 ve %125), senaryo41 52/52,
   senaryo38 64/64, senaryo40 23/23, senaryo39 54/54, senaryo37 64/64, udf_yaklasik 63/63, senaryo13 63/63, senaryo26 64/64, senaryo42 32/32, senaryo43
