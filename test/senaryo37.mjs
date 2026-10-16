@@ -169,7 +169,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
       return { sayi: k.length, satirlar: satir.map((y) => r.filter((x) => Math.round(x.top) === y).length), komut: s.dataset.aracKomut, ad: s.querySelector('.araclar-ad').textContent,
         aciklama: s.querySelector('.araclar-aciklama').textContent, ipucu: s.title, renk: getComputedStyle(s).getPropertyValue('--renk').trim(), ikon: !!s.querySelector('svg rect') }; })()`);
     sonuc('Araçlar penceresi: altı karo 3 + 3; sonuncusu "Format Değiştir", açıklama, ipucu, simge ve turkuaz renk', karo.sayi === 6 && J(karo.satirlar) === J([3, 3])
-      && karo.komut === 'arac.donustur' && karo.ad === 'Format Değiştir' && karo.aciklama === 'PDF ↔ UDF, Word, TIFF, JPG' && /UDF, TIFF, Word ve görüntü/.test(karo.ipucu) && karo.ikon && !!karo.renk, karo);
+      && karo.komut === 'arac.donustur' && karo.ad === 'Format Değiştir' && karo.aciklama === 'PDF, UDF, Word, TIFF, JPG dosya formatlarını değiştirir' && /UDF, TIFF, Word ve görüntü/.test(karo.ipucu) && karo.ikon && !!karo.renk, karo);
     await ss('01-araclar-penceresi');
     // Belge yokken karo: Aç penceresi açılmaz, araç boş listeyle açılır
     await kayit();

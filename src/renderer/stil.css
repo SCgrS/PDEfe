@@ -457,7 +457,9 @@ html[data-tema="koyu"] .karsilama-ac-ikon { color: #0b1a2a; }
    ortak (.karsilama'daki değişkenler); biri değişirse öteki de değişir, PDF aç ikinci karoyla hizalı kalır */
 .karsilama-araclar { display: flex; flex-direction: column; gap: 8px; }
 .karsilama-araclar h2 { padding: 0 4px; }
-.karsilama-arac-izgara { display: grid; grid-template-columns: var(--karsilama-sutunlar); gap: var(--karsilama-aralik); }
+/* Satırlar eşit yükseklikte (0.2.8): Birleştir'in ve Format Değiştir'in açıklaması uzadı (kullanıcının yazdığı metinler); dar pencerede bir
+   satırın açıklaması üç satıra kırılınca o satırın karoları ötekilerden uzun kalıyordu. 1fr satırlar en uzun karonun yüksekliğini alır */
+.karsilama-arac-izgara { display: grid; grid-template-columns: var(--karsilama-sutunlar); grid-auto-rows: 1fr; gap: var(--karsilama-aralik); }
 .karsilama-arac {
   display: flex; align-items: center; gap: 12px; min-width: 0; padding: 13px 15px; text-align: left; cursor: default;
   background: var(--arka-yukseltilmis); color: var(--metin); border: 1px solid var(--kenar); border-radius: 10px;
@@ -516,9 +518,14 @@ html[data-tema="koyu"] .karsilama-arac[data-renk="turkuaz"] { --renk: #4fd1c5; }
 /* 0.2.6: altı araç iki satır ve karolar büyüdü (yukarıda); 1280×700'de 10 belgeyle 62 px taşıyordu. Alçak pencerede (yukarıdaki 860 px
    eşiği; bölümler arası orada 12 → 8) başlık ile kutu arası 8 → 6, karoların üst / alt iç boşluğu 13 → 9, son açılanların satırları
    46 → 38 px; simge ve yazı boyları değişmez. Bu kurallar asıllarından sonra gelmeli (aynı özgüllük) */
+/* 0.2.8: Birleştir'in ve Format Değiştir'in açıklaması iki satır oldu (kullanıcının yazdığı metinler); ikinci satırın karoları 70 → 84 px
+   uzadı, 1280×700'de 10 belgeyle 12 px taşıyordu. Alçak pencerede karoların üst / alt iç boşluğu 9 → 7, satırlar arası 10 → 6, açıklamanın
+   satır yüksekliği 1,35 → 1,3 (≈ 14 px); yazı boyları ve PDF aç'ın hizası (sütun aralığı) değişmez */
 @media (max-height: 860px) {
   .karsilama-araclar, .karsilama-son { gap: 6px; }
-  .karsilama-arac { padding-top: 9px; padding-bottom: 9px; }
+  .karsilama-arac { padding-top: 7px; padding-bottom: 7px; }
+  .karsilama-arac .karsilama-aciklama { line-height: 1.3; }
+  .karsilama-arac-izgara { row-gap: 6px; }
   .karsilama-oge { padding-top: 3px; padding-bottom: 3px; }
 }
 /* Satırdaki × yalnızca satırın üzerindeyken ya da satır klavyeyle seçiliyken görünür */

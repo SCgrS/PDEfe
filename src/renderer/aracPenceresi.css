@@ -11,12 +11,13 @@ html[data-tema="koyu"] .araclar-penceresi { box-shadow: 0 8px 28px rgba(0, 0, 0,
 @media (prefers-reduced-motion: reduce) { .araclar-penceresi { animation: none; } }
 
 .araclar-baslik { font-size: 14px; font-weight: 600; padding: 0 2px 10px; }
-/* Satırda 3 karo (dar pencerede 2); eksik kalan son satır pencereye ortalanır, sağda boş yer kalmaz (0.2.6'dan beri 6 karo: 3 + 3) */
-.araclar-izgara { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: calc(3 * 200px + 2 * 8px); }
-@media (max-width: 700px) { .araclar-izgara { width: calc(2 * 200px + 8px); } }
+/* Satırda 3 karo (dar pencerede 2; 0.2.6'dan beri 6 karo: 3 + 3, dar pencerede 2 + 2 + 2). 0.2.8: ızgara; satırlar eşit yükseklikte (1fr: en
+   uzun karonun yüksekliği; Birleştir'in ve Format Değiştir'in açıklaması iki satır oldu, dar pencerede satırlar farklı yükseklikteydi). Karo
+   sayısı sütun sayısının katı olmazsa son satır sola yaslanır (0.2.7'ye dek esnek kutuda ortalanıyordu; altı karoyla hiç olmuyor) */
+.araclar-izgara { display: grid; grid-template-columns: repeat(3, 200px); grid-auto-rows: 1fr; gap: 8px; }
+@media (max-width: 700px) { .araclar-izgara { grid-template-columns: repeat(2, 200px); } }
 
 .araclar-karo {
-  flex: 0 0 200px;
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; text-align: left;
   padding: 12px 12px 11px; border: 1px solid var(--kenar); border-radius: 8px; background: var(--arka); color: var(--metin);
   outline: none; cursor: default;
