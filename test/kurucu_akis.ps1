@@ -5,17 +5,21 @@
 # Bu PowerShell'den (Claude masaüstü MSIX paketinin içinden) başlatılan süreçler paketin görünümünü kullanır: HKCU yazımları paketin sanal
 # kovanına gider (Windows'un Yüklü uygulamalar listesinde görünmez); 2026-10-07'de kurulum klasörü (%LOCALAPPDATA%\Programs\KurucuSinama) ve
 # Başlat menüsü kısayolu ise gerçek klasörlere yazıldı. Kurulumun sonucu bu görünümden okunur (Get-ItemProperty, Test-Path), sızıntı iki
-# görünümde de aranır. Masaüstü gerçektir: masaüstü kısayolu sınanan adımlarda "Kurucu Sinama.lnk" kullanıcının masaüstüne kısa süreliğine
-# düşer, temizlikte silinir. Gerçek PDEfe'nin kayıtları ve dosyası sınamadan önce ve sonra salt okunur WMI ile (StdRegProv, CIM_DataFile;
+# görünümde de aranır. Masaüstü gerçektir: 0.2.9 denetiminden beri masaüstü kısayolunu oluşturan iki adım (E1 /S, C1 Onar) yalnızca
+# -MasaustuSina ile (o zaman "Kurucu Sinama.lnk" kullanıcının masaüstüne kısa süreliğine düşer, temizlikte silinir); varsayılan koşuda E1
+# "/S --no-desktop-shortcut", C1 kısayolsuz kurulumu onarır. Önceki, yarıda kalmış bir koşunun (PowerShell dışarıdan öldürülünce finally
+# çalışmaz) izleri başta temizlenir. Gerçek PDEfe'nin kayıtları ve dosyası sınamadan önce ve sonra salt okunur WMI ile (StdRegProv, CIM_DataFile;
 # paket dışından gerçek kovan) ve paket görünümünden okunur, aynı olmalı; deneme kopyasının izleri temizlikte iki görünümde de kalmamalı.
 # WMI Win32_Process Create burada kullanılmaz: WinstationDesktop'u uygulamıyor (2026-10-07 yoklaması: süreç Default masaüstünde açıldı),
 # arayüzlü kurucu kullanıcının ekranında açılırdı.
-# Kullanım: powershell -File test\kurucu_akis.ps1 -Cikti <klasör> [-Eski <90.0.1 kurucusu> -Yeni <90.0.2 kurucusu>]
+# Kullanım: powershell -File test\kurucu_akis.ps1 -Cikti <klasör> [-Eski <90.0.1 kurucusu> -Yeni <90.0.2 kurucusu>] [-MasaustuSina]
 #   -Eski / -Yeni verilmezse node test\kurucu_derle.mjs ile <Cikti>\derleme altına derlenir (proje dışı bir klasör verin).
+#   -MasaustuSina: /S'nin ve Onar'ın masaüstü kısayolu davranışı da sınanır (kısayol gerçek Masaüstü'ne kısa süreliğine düşer).
 param(
   [Parameter(Mandatory = $true)][string]$Cikti,
   [string]$Eski = "",
-  [string]$Yeni = ""
+  [string]$Yeni = "",
+  [switch]$MasaustuSina
 )
 $ErrorActionPreference = 'Stop'
 $kok = Split-Path -Parent $PSScriptRoot
@@ -169,8 +173,7 @@ Yaz '0. ön görüntü'
 $onGoruntu = Gercek-Pdefe-Goruntusu
 foreach ($k in $onGoruntu.Keys) { Yaz "         $k = $($onGoruntu[$k])" }
 $onIzler = Deneme-Izleri
-Denetle 'deneme kopyasının izi yok (başlamadan)' ($onIzler.Count -eq 0) ($onIzler -join '; ')
-if ($onIzler.Count -gt 0) { throw 'Önceki bir sınamanın izleri var; temizlenmeden başlanmaz.' }
+if ($onIzler.Count -gt 0) { Yaz "         önceki bir sınamanın izleri var (yarıda kalmış koşu; sihirbaz masaüstü kurulunca temizlenir): $($onIzler -join '; ')" }
 
 $kaynak = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot 'kurucu_surucu.cs'), [System.Text.Encoding]::UTF8)
 Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition $kaynak
@@ -284,6 +287,23 @@ function Sessiz-Kur([string]$exe, [string]$arg) {
 function Gecici-Kisayol-Sil {
   if (Test-Path -LiteralPath $masaustuKisayolu) { Remove-Item -LiteralPath $masaustuKisayolu -Force }
 }
+# Deneme kopyasının kalıntıları: kayıtlıysa kendi sessiz kaldırıcısı (görünmeyen masaüstünde), sonra kısayollar ve klasörler. Sınamanın sonunda
+# (finally) ve 0.2.9 denetiminden beri başında (önceki koşu yarıda kaldıysa) çalışır. .pdf varsayılanını geri yazmak finally'nin işi (ön görüntü)
+function Kalintilari-Temizle {
+  $sessiz = Paket-Deger "$KALDIR_ANAHTARI\$DENEME_GUID" 'QuietUninstallString'
+  if ($sessiz -ne '<yok>') {
+    $kaldirici = [KurucuSurucu]::Baslat($sessiz, $env:TEMP)
+    # Kaldırıcı kendini %TEMP%'e kopyalayıp yeniden başlatır, ilk süreç hemen döner: kayıt kalkana dek beklenir
+    $son = [DateTime]::Now.AddSeconds(120)
+    while ((Paket-Anahtar-Var "$KALDIR_ANAHTARI\$DENEME_GUID") -and [DateTime]::Now -lt $son) { Start-Sleep -Milliseconds 500 }
+    Start-Sleep -Seconds 2
+    Yaz "         sessiz kaldırma: $sessiz"
+  }
+  if (Test-Path -LiteralPath $guncelleyiciKlasoru) { Remove-Item -LiteralPath $guncelleyiciKlasoru -Recurse -Force }
+  Gecici-Kisayol-Sil
+  if (Test-Path -LiteralPath $baslatKisayolu) { Remove-Item -LiteralPath $baslatKisayolu -Force }
+  if (Test-Path -LiteralPath $denemeKlasoru) { Remove-Item -LiteralPath $denemeKlasoru -Recurse -Force }
+}
 # Kurulu sürüm sayfasında Kaldır seçildi ve kurucu kapandı: deneme kopyasının kendi kaldırıcısı aynı (görünmeyen) masaüstünde açılır;
 # hoş geldiniz → Kaldırılıyor → bitiş. Sonunda kayıt, klasör ve kısayollar kalmamalı.
 function Kaldiriciyi-Sur([int]$kurucu, [string]$goruntu) {
@@ -316,6 +336,12 @@ function Kaldiriciyi-Sur([int]$kurucu, [string]$goruntu) {
 
 $durum = [KurucuSurucu]::MasaKur('PDEfeKurucu' + $PID)
 if ($durum -ne 'tamam') { throw $durum }
+if ($onIzler.Count -gt 0) {
+  Kalintilari-Temizle
+  $onIzler = Deneme-Izleri
+}
+Denetle 'deneme kopyasının izi yok (başlamadan; önceki koşudan kalanlar temizlendikten sonra)' ($onIzler.Count -eq 0) ($onIzler -join '; ')
+if ($onIzler.Count -gt 0) { [KurucuSurucu]::MasaKapat(); throw 'Önceki bir sınamanın izleri temizlenemedi; temizlenmeden başlanmaz.' }
 try {
   # -------------------------------------------------------------- A1. kurulu değil: ilk sayfa lisans, İptal
   Yaz 'A1. kurulu değil (90.0.2): ilk sayfa lisans, İptal'
@@ -390,14 +416,21 @@ try {
   Denetle '.pdf varsayılanı değişmedi, Varsayılan Programlar kaydı deneme adıyla' ($d.Pdf -eq $onGoruntu['paket Classes\.pdf'] -and $d.Kayit -eq 'Software\KurucuSinama\Capabilities') "«$($d.Pdf)» «$($d.Kayit)»"
 
   # -------------------------------------------------------------- E1. /S (elle sessiz kurulum): pencere yok, masaüstü kısayolu oluşur (bugünkü gibi)
-  Yaz 'E1. 90.0.2 kurulu, 90.0.2 /S'
-  $r = Sessiz-Kur $Yeni '/S'
+  # 0.2.9 denetimi: masaüstü kısayolu gerçek Masaüstü'ne düştüğü için yalnızca -MasaustuSina ile; varsayılan koşu --no-desktop-shortcut verir
+  if ($MasaustuSina) {
+    Yaz 'E1. 90.0.2 kurulu, 90.0.2 /S'
+    $r = Sessiz-Kur $Yeni '/S'
+  } else {
+    Yaz 'E1. 90.0.2 kurulu, 90.0.2 /S --no-desktop-shortcut (masaüstü kısayolu yalnızca -MasaustuSina ile sınanır)'
+    $r = Sessiz-Kur $Yeni '/S --no-desktop-shortcut'
+  }
   $d = Deneme-Durumu; Durum-Yaz $d
   Denetle "pencere açılmadı, çıkış 0 ($($r.Sure) sn)" ($r.Kod -eq 0 -and $r.Pencereler.Count -eq 0) "çıkış $($r.Kod); pencereler: $($r.Pencereler -join ', ')"
-  Denetle '/S bugünkü gibi: sürüm aynı, masaüstü kısayolu oluşturuldu' ($d.Surum -eq '90.0.2' -and $d.Masaustu -and $d.Baslat)
+  if ($MasaustuSina) { Denetle '/S bugünkü gibi: sürüm aynı, masaüstü kısayolu oluşturuldu' ($d.Surum -eq '90.0.2' -and $d.Masaustu -and $d.Baslat) }
+  else { Denetle '/S --no-desktop-shortcut: sürüm aynı, masaüstü kısayolu yok, Başlat kısayolu var' ($d.Surum -eq '90.0.2' -and -not $d.Masaustu -and $d.Baslat) }
 
-  # -------------------------------------------------------------- C1. aynı sürüm: Onar (masaüstü kısayolu korunur)
-  Yaz 'C1. 90.0.2 kurulu (masaüstü kısayolu var), 90.0.2: Onar'
+  # -------------------------------------------------------------- C1. aynı sürüm: Onar (masaüstü kısayolunun durumu korunur)
+  Yaz "C1. 90.0.2 kurulu (masaüstü kısayolu $(if ($MasaustuSina) { 'var' } else { 'yok' })), 90.0.2: Onar"
   $p = Kurucu-Baslat $Yeni
   $w = Sihirbaz-Bekle -surec $p
   $s = Sayfa-Oku $w.Hwnd
@@ -409,7 +442,7 @@ try {
   Denetle 'doğrudan kurulum ve bitiş' (($g -join '|') -match '^Kurul[^|]*(\|Kurul[^|]*)*\|bitiş$') ($g -join ' → ')
   Bitir $p $w.Hwnd
   $d = Deneme-Durumu; Durum-Yaz $d
-  Denetle 'onarıldı: sürüm aynı, masaüstü ve Başlat kısayolları korundu' ($d.Surum -eq '90.0.2' -and $d.Exe -eq '90.0.2' -and $d.Masaustu -and $d.Baslat)
+  Denetle "onarıldı: sürüm aynı, masaüstü kısayolunun durumu ($(if ($MasaustuSina) { 'var' } else { 'yok' })) ve Başlat kısayolu korundu" ($d.Surum -eq '90.0.2' -and $d.Exe -eq '90.0.2' -and $d.Masaustu -eq [bool]$MasaustuSina -and $d.Baslat)
 
   # -------------------------------------------------------------- C2. aynı sürüm: Kaldır (PDEfe'nin kendi kaldırıcısı)
   Yaz 'C2. 90.0.2 kurulu, 90.0.2: Kaldır'
@@ -509,20 +542,8 @@ try {
     Yaz "         .pdf varsayılanı deneme ProgId'sinde kalmıştı ($an): ön görüntüdeki «$once» geri yazıldı (paket görünümü)"
   }
   Pdf-Varsayilani-Geri 'kaldırmadan önce'
-  $sessiz = Paket-Deger "$KALDIR_ANAHTARI\$DENEME_GUID" 'QuietUninstallString'
-  if ($sessiz -ne '<yok>') {
-    $kaldirici = [KurucuSurucu]::Baslat($sessiz, $env:TEMP)
-    # Kaldırıcı kendini %TEMP%'e kopyalayıp yeniden başlatır, ilk süreç hemen döner: kayıt kalkana dek beklenir
-    $son = [DateTime]::Now.AddSeconds(120)
-    while ((Paket-Anahtar-Var "$KALDIR_ANAHTARI\$DENEME_GUID") -and [DateTime]::Now -lt $son) { Start-Sleep -Milliseconds 500 }
-    Start-Sleep -Seconds 2
-    Yaz "         sessiz kaldırma: $sessiz"
-  }
+  Kalintilari-Temizle
   [KurucuSurucu]::MasaKapat()
-  if (Test-Path -LiteralPath $guncelleyiciKlasoru) { Remove-Item -LiteralPath $guncelleyiciKlasoru -Recurse -Force }
-  Gecici-Kisayol-Sil
-  if (Test-Path -LiteralPath $baslatKisayolu) { Remove-Item -LiteralPath $baslatKisayolu -Force }
-  if (Test-Path -LiteralPath $denemeKlasoru) { Remove-Item -LiteralPath $denemeKlasoru -Recurse -Force }
   Pdf-Varsayilani-Geri 'kaldırmadan sonra'
 }
 
