@@ -957,8 +957,8 @@ Format Değiştir
    sayfalık bir PDF'i JPG'ye çevirin. Her üçünde başlık, dosya adları, Klasörde göster ve sağındaki düğme kutunun ortasında olmalı; satırlarda
    küçük "Aç" düğmesi olmamalı. Tek dosyada düğmenin adı "Aç", birden çok dosyada "Tümünü aç".
 5. **Tümünü aç gerçek programlarla.** Bir PDF'i UDF'ye çevirip Aç'a basın: belge UYAP Doküman Editörü'nde açılmalı. Bir PDF'i Word'e çevirince
-   Word'de, JPG'yi fotoğraf görüntüleyicide açmalı; UDF → PDF'te PDF bilgisayarın PDF programında açılmalı (PDEfe varsayılan PDF görüntüleyiciyse
-   PDEfe'nin yeni penceresinde). 12 sayfalık bir PDF'i JPG'ye çevirip Tümünü aç'a basın: önce "12 dosya açılsın mı?" sorulmalı. Ofiste UYAP
+   Word'de, JPG'yi fotoğraf görüntüleyicide açmalı. İki UDF'yi birlikte PDF'e çevirip Tümünü aç'a basın: PDF'ler bilgisayarın PDF programında
+   açılmalı (PDEfe varsayılan PDF görüntüleyiciyse PDEfe'nin yeni penceresinde; tek PDF sonucu zaten sekmede açılır). 12 sayfalık bir PDF'i JPG'ye çevirip Tümünü aç'a basın: önce "12 dosya açılsın mı?" sorulmalı. Ofiste UYAP
    Doküman Editörü kurulu değilse bir UDF sonucunda Aç'a basın ve ne olduğunu not edin (Windows'un "Bu dosyayı nasıl açmak istiyorsunuz?"
    penceresi çıkabilir).
 6. **⚠ simgesi.** İmzalı ya da karekodlu bir PDF'i ve taranmış bir PDF'i UDF'ye çevirin: sonuç listesinde uyarı paragrafı olmamalı; dosyanın

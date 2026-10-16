@@ -3369,6 +3369,31 @@ Altı bulgu (ikisi aynı); dördü düzeltildi, biri doğrulanamadı (açık kon
 - [x] README'deki "Logolu, kaşeli sayfalar" (Görünüm) ve "yazı, kaşe ve antet" (Taranmış belgede seçim) dönüştürme uyarısı değil, taranmış belgelerin içeriğini
   anlatıyor; değişmedi.
 
+#### 0.2.8: ekran görüntüleri, paket ve son sınama
+- [x] **Ekran görüntüleri** (`README_OLCEK=2`, temiz veri klasörü, kurgusal belgeler `C:\Users\Public\Documents\PDEfe Örnek`'te, iş bitince silindi;
+  hepsine bakıldı): açılış ekranı (açık, koyu; yeni açıklamalar, eşit karolar), Araçlar, Format Değiştir (Kaydet'te yalnızca klasör ve Değiştir;
+  kalite notunda tablolar, "kaşe" yok). Birleştir yeniden çekildi, öncekiyle bayt bayt aynıydı: değiştirilmedi.
+- [x] **Paket** (HEAD 08c2867; `npm run cekirdek:derle` 31 sn, çekirdek ping OK; `npx electron-builder --win --publish never`): PDEfe-Setup.exe
+  147.872.886 bayt (0.2.7'den +7,5 KB), SHA-256 `740452C3…0874`, exe sürümü 0.2.8; İndirilenler'de `PDEfe-Setup-0.2.8.exe`. Kurucu çalıştırılmadı.
+  Paketli sınama (görünmeyen masaüstünde `release\win-unpacked\PDEfe.exe`): paket_duman 18/18 (sürüm 0.2.8), gercek_fare `-Paketli` 9/9 ve `-Paketli
+  -Bos` 9/9; paketli çekirdekle donustur_testi `--exe --hizli` 187/187, udf_donusum_testi `--exe` 119/119 (UDE ile), word_donusum_testi `--exe` 19/19
+  (`PDEFE_WORD_YOK=1`). Sonra `release\win-unpacked` ve `core\dist` silindi.
+- [x] **Son regresyon** (HEAD 08c2867; her test kendi temiz örneğinde, sırayla): senaryo41 52/52, senaryo42 32/32, senaryo43 31/31, senaryo37 64/64,
+  senaryo38 64/64 (sahte yazıcılar), senaryo39 54/54 (görünmeyen masaüstü), senaryo40 23/23 ve udf_yaklasik 63/63 (`PDEFE_UDE_YOK=1`), senaryo26 64/64,
+  senaryo17 43/43, senaryo36 59/59, kisayol_araclar 102/102, ortu_tiklama 164/164, arac_onizleme 24/24, gec_iptal 20/20, yazdir_pencere 47/47,
+  mac_renderer 44/44, senaryo22 102/102, senaryo23 53/53 (aşağıda), sekme_genislik 38/38, serit_olculeri 25/25, hayalet_akicilik 7/7 (belge ve boş sekme
+  turunda ortanca ~17,7 ms, %95 ~18,2 ms), kisayol_dosya 164/164, senaryo13 65/65, senaryo14 60/60, senaryo18 10/10, senaryo19 112/112, senaryo20 52/52,
+  acilis_hizasi 10/10. Node: guvenlik_birim 109/109, güncelleme birim 84/84, cekirdek_iptal 7/7. Python (geliştirme çekirdeği): donustur_testi 216/217
+  (aşağıda), udf_donusum_testi 133/133 (UDE ile), word_donusum_testi 32/32 (`PDEFE_WORD_YOK=1`), guvenlik_testi 47/47, mac_cekirdek_testi 14/14.
+- [x] **Düşenler, 213dce0'la karşılaştırma** (çalışma ağacı, bağlantılar önce kaldırılarak silindi): senaryo23 ilk koşumda 24. denetimden sonra takıldı
+  (betik, son belgesi başka pencereye taşınıp kapanan pencerede `sekmeyiTasi`'nın yanıtını bekliyordu; belgeli sekmenin bu yolu 0.2.8'de değişmedi); tek
+  başına iki kez 53/53, 0.2.7 ağacında da iki kez 53/53: testin ara sıra görülen zamanlama sorunu. donustur_testi "dış süreç: süre dolunca öldürülür"
+  (sınır 5 sn; 1 sn süreli dış süreç 4,2–5,1 sn'de öldürülüyor): 0.2.8'de tek başına 3/3, 0.2.7 ağacında 1/3 (4,9–5,2 sn): bu bilgisayarın hızından, kod
+  değişmedi. Gerileme yok; kod düzeltmesi ve yeniden derleme gerekmedi.
+- [x] araclar_testi koşulmadı: istediği test belgeleri (`Desktop\PDF DENEME`) bu bilgisayarda yok; çekirdeğin araçları (araclar.py) 0.2.8'de değişmedi.
+- [x] Temizlik: test örnekleri port üzerinden kapatıldı (kalan electron / PDEfe süreci yok); %TEMP%'teki `pdefe-*` test veri klasörleri (bu revizyonun
+  gruplarından kalan 65 klasör) ve karşılaştırma çalışma ağaçları silindi. Kullanıcının PDEfe'sine, Word'üne ve UYAP Doküman Editörü'ne dokunulmadı.
+
 #### 0.2.8: sınama özeti (gruplar ve inceleme turu)
 - [x] Arayüz (her test kendi temiz örneğinde, ekran dışında ya da görünmeyen masaüstünde): senaryo41 52/52 (%100, koyu tema; inceleme turundan
   sonra) ve 39/39 (%125, açık tema), senaryo42 32/32 (inceleme turundan sonra), senaryo43 31/31, senaryo38 64/64 (sahte yazıcılarla) ve 27/27 (%125), senaryo37 64/64 (Word dönüştürmesi `S37_WORD` olmadan atlandı),
@@ -3384,4 +3409,5 @@ Altı bulgu (ikisi aynı); dördü düzeltildi, biri doğrulanamadı (açık kon
   - Ayır'ın "Tümünü aç"ı parçaları PDEfe'de açıyor (inceleme turunun kararı); kullanıcı varsayılan programı isterse bir satırla değişir.
   - Gerçek bellek ve ağ klasörüyle kalıcı çıktı klasörü denenmedi (ağ klasörü var olmayan bir adresle benzetildi).
   - Mac'te denenmedi (mac_renderer'ın darwin çerçevesinde "Finder'da göster", "Tümünü aç" ve çıktı klasörü yolları doğru).
+  - Paketli çekirdekte Word → PDF gerçek Word'le denenmedi (`PDEFE_WORD_YOK=1`; Word yolu 0.2.8'de değişmedi). Kurucu bu bilgisayara kurulmadı.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 43.
