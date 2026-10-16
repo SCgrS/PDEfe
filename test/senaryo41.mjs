@@ -2,6 +2,8 @@
 //   1) Karo açıklamaları (madde 1 ve 5): Format Değiştir "PDF, UDF, Word, TIFF, JPG dosya formatlarını değiştirir", Birleştir "Birleştirir,
 //      farklı dosya formatlarıyla çalışabilir" (açılış ekranı, Araçlar penceresi). Açılış ekranında (1280, 1000, 800 ve 704 px genişlikte) ve
 //      Araçlar penceresinde (geniş ve dar pencerede) bütün karolar aynı yükseklikte.
+//   2) İdeal / Düşük'ün yanındaki yaklaşık boyut (madde 2): TIFF / JPG hedefi seçilince, renk değişince ve hesaplama sürerken düğmelerin
+//      genişliği değişmez (ResizeObserver kaydı), "hesaplanıyor…" yazısı görünmez; hesaplanırken önceki değer soluk kalır.
 // Girdiler test/ornek_pdf_uret.py ile test/cikti/s41/girdi altında üretilir (gerçek belge yok). Araçların çıktı klasörü test klasörüdür.
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9441 -Veri "$env:TEMP\pdefe-s41-9441" -Boyut "1280,1000" [-Olcek 1.25]
@@ -123,6 +125,68 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
       await kosul(`document.querySelector('#araclar-penceresi').hidden`, 3000);
     }
     await genislik(0);
+  }
+
+  // ------------------------------------------------------------ 2) İdeal / Düşük'ün tahmini: düzen kaymaz (madde 2)
+  if (bolum(2)) {
+    console.log('\n== 2) İdeal / Düşük: tahmin hesaplanırken düğmeler genişleyip daralmaz, "hesaplanıyor…" yazısı yok');
+    await araclariKapat(); await sekmeleriKapat();
+    const pdf = ornekPdf('tahmin.pdf', 3, 'Tahmin örneği');
+    await evalJs(`(async () => { window.__s41d = await import('pdefe://app/src/renderer/araclar/donustur.js'); return true; })()`);
+    const A = 'window.__s41d.acikDonusturPenceresi()';
+    await evalJs(`(window.__pdefe.komutCalistir('arac.donustur', [${J(pdf)}]), true)`);
+    await kosul(`!!${A} && ${A}.ogeler.length === 1 && !${A}.ogeler[0].yukleniyor`, 15000);
+    await bekle(400);
+    /** Gözlemi başlatır: düğmelerin genişliği ve .boyut metni her değişiklikte kaydedilir (bölüm görünürken). */
+    const gozle = () => evalJs(`(() => {
+      window.__s41olc = []; const t0 = performance.now();
+      const kaydet = () => { const s = document.querySelector('.donustur-secenekler'); if (s.hidden) return; const d = [...document.querySelectorAll('.donustur-dpi-secim > button')];
+        window.__s41olc.push({ t: Math.round(performance.now() - t0), w: d.map((b) => Math.round(b.getBoundingClientRect().width * 10) / 10), metin: d.map((b) => b.querySelector('.boyut').textContent),
+          bekliyor: d.map((b) => b.querySelector('.boyut').classList.contains('bekliyor')), bolumH: Math.round(s.getBoundingClientRect().height) }); };
+      window.__s41RO?.disconnect(); window.__s41MO?.disconnect();
+      window.__s41RO = new ResizeObserver(kaydet); for (const b of document.querySelectorAll('.donustur-dpi-secim > button, .donustur-secenekler')) window.__s41RO.observe(b);
+      window.__s41MO = new MutationObserver(kaydet); window.__s41MO.observe(document.querySelector('.donustur-secenekler'), { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['hidden', 'class'] });
+      kaydet(); return true; })()`);
+    const bitti = () => kosul(`(() => { const b = [...document.querySelectorAll('.donustur-dpi-secim .boyut')]; return b.length === 2 && b.every((x) => !x.classList.contains('bekliyor') && /^ · [\\d.,]+ (KB|MB)$/.test(x.textContent)); })()`, 30000);
+    const ozet = async () => { await bekle(300); const o = await evalJs('window.__s41olc'); return {
+      kayit: o.length, wler: [...new Set(o.map((x) => J(x.w)))], hesaplaniyor: o.some((x) => x.metin.some((m) => /hesaplan/i.test(m))), bos: o.some((x) => x.metin.some((m) => m === '')),
+      son: o.at(-1), bolumH: [...new Set(o.map((x) => x.bolumH))] }; };
+    const sabit = (z) => z.wler.length === 1 && JSON.parse(z.wler[0]).every((w) => w > 0);
+    // TIFF hedefi seçilir (bölüm görünür olur)
+    await gozle();
+    await evalJs(`(${A}.hedefSec(${A}.ogeler[0], 'tiff'), true)`);
+    await bitti();
+    let z = await ozet();
+    sonuc('2) TIFF seçilince: düğmelerin genişliği bölüm göründüğü andan değer gelene dek hiç değişmedi', sabit(z), z);
+    sonuc('2) "hesaplanıyor…" yazısı hiç görünmedi; sonunda "· N KB / MB"', !z.hesaplaniyor && /^ · [\d.,]+ (KB|MB)$/.test(z.son?.metin?.[0] || ''), { hesaplaniyor: z.hesaplaniyor, son: z.son });
+    sonuc('2) İki düğme aynı genişlikte; seçenekler bölümünün yüksekliği değişmedi', !!z.son && yakin(z.son.w[0], z.son.w[1], 0.5) && z.bolumH.length === 1, { w: z.son?.w, bolumH: z.bolumH });
+    await ss('02-tahmin-tiff');
+    // Renk değişince yeniden hesaplanır: eski değer soluk kalır (boşalmaz, "…" olmaz), genişlik değişmez
+    const onceki = z.son.metin;
+    await gozle();
+    await evalJs(`(document.querySelector('.donustur-renk-secim > button[data-id="renkli"]').click(), true)`);
+    await kosul(`(() => { const b = document.querySelector('.donustur-dpi-secim > button[data-id="300"] .boyut'); return !b.classList.contains('bekliyor') && b.textContent !== ${J(onceki[0])}; })()`, 30000);
+    await bitti();
+    z = await ozet();
+    const ara = (await evalJs('window.__s41olc')).filter((x) => x.bekliyor.some(Boolean));
+    sonuc('2) Renk değişince: hesaplanırken önceki değer soluk kaldı (boş ya da "…" olmadı), sonra yeni değer; genişlik değişmedi', sabit(z) && !z.bos && ara.length > 0
+      && ara.every((x) => J(x.metin) === J(onceki)) && J(z.son.metin) !== J(onceki), { z, ara: ara.slice(0, 3) });
+    // Renk değişip 200 ms içinde eski hâline dönünce (aynı istek) bekleme durumunda kalmaz, değer aynı
+    const simdiki = z.son.metin;
+    await evalJs(`(document.querySelector('.donustur-renk-secim > button[data-id="gri"]').click(), document.querySelector('.donustur-renk-secim > button[data-id="renkli"]').click(), true)`);
+    await bekle(800);
+    const geri = await evalJs(`[...document.querySelectorAll('.donustur-dpi-secim .boyut')].map((b) => ({ m: b.textContent, b: b.classList.contains('bekliyor') }))`);
+    sonuc('2) Renk değişip 200 ms içinde geri dönünce: değer yerinde, bekleme durumunda kalmadı', geri.every((x) => !x.b) && J(geri.map((x) => x.m)) === J(simdiki), { geri, simdiki });
+    // JPG hedefi: aynı
+    await evalJs(`(${A}.hedefSec(${A}.ogeler[0], 'udf'), true)`);
+    await bekle(600);
+    await gozle();
+    await evalJs(`(${A}.hedefSec(${A}.ogeler[0], 'gorsel'), true)`);
+    await bitti();
+    z = await ozet();
+    sonuc('2) JPG seçilince: düğmelerin genişliği değişmedi, "hesaplanıyor…" yok', sabit(z) && !z.hesaplaniyor, z);
+    await evalJs(`(window.__s41RO?.disconnect(), window.__s41MO?.disconnect(), true)`);
+    await araclariKapat();
   }
 
   const hatalar = await evalJs('window.__hatalar || []');

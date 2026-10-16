@@ -181,10 +181,11 @@ export class DonusturPenceresi {
     this.renkSecim = segmentliSecim({
       etiket: 'Renk', deger: tiffSecimi.renk, sinif: 'donustur-renk-secim',
       secenekler: [{ id: 'sb', etiket: 'Siyah beyaz', baslik: 'En küçük dosya' }, { id: 'gri', etiket: 'Gri' }, { id: 'renkli', etiket: 'Renkli' }],
-      degisti: (id) => { tiffSecimi.renk = id; this._ayarDegisti(); this.tahminGeciktir(); },   // TIFF'in boyutu renge bağlı
+      degisti: (id) => { tiffSecimi.renk = id; this._ayarDegisti(); this._tahminIste(); },   // TIFF'in boyutu renge bağlı
     });
     // "İdeal" / "Düşük"ün yaklaşık boyutu (0.2.7): dosyalar, hedefler ya da renk değişince yeniden (önceki istek iptal)
     this._tahmin = null;
+    this._tahminSonuc = null;   // son biten tahminin sonucu (bekleme durumundan geri dönmek için; _tahminAl)
     this._tahminSayac = 0;
     this.tahminGeciktir = geciktir(() => this._tahminAl(), 200);
     govde.querySelector('.donustur-renk').replaceWith(this.renkSecim.el);
@@ -670,7 +671,30 @@ export class DonusturPenceresi {
     }
     this._jpgNotuYaz();
     this._dugmeGuncelle();
-    if (!this.seceneklerEl.hidden || this._tahmin) this.tahminGeciktir();
+    if (!this.seceneklerEl.hidden || this._tahmin) this._tahminIste();
+  }
+
+  /** Tahminin istekleri (dönüştürülecek satırlardan TIFF hedefliler seçili renkle, JPG hedefliler) ve anahtarı (aynı istek yeniden sorulmaz). */
+  _tahminIstekleri() {
+    const d = this._donusecekler();
+    const istekler = [];
+    const tiff = d.filter((o) => o.hedefBicim === 'tiff').map((o) => o.yol), jpg = d.filter((o) => o.hedefBicim === 'gorsel').map((o) => o.yol);
+    if (tiff.length) istekler.push({ yollar: tiff, hedefBicim: 'tiff', renk: tiffSecimi.renk });
+    if (jpg.length) istekler.push({ yollar: jpg, hedefBicim: 'gorsel' });
+    return { istekler, anahtar: JSON.stringify(istekler) };
+  }
+
+  /**
+   * Tahmini yeniler (200 ms gecikmeyle). 0.2.8 (kullanıcı isteği: "TIFF ve JPEG seçiliyken İdeal ve Düşük seçeneklerinde bir anlık büyük yatay bir
+   * buton gibi bir şey olup kayboluyor"; ölçüldü: hedef seçilince düğmeler 200 ms "İdeal" / "Düşük" genişliğinde (57 / 64 px), sonra " · hesaplanıyor…"
+   * ile 149 / 156 px, yanıt gelince " · 67 KB" ile 99 / 106 px; ön bellekten gelen yanıtta "hesaplanıyor…" 2 ms görünüyordu): istek değişecekse
+   * bekleme durumu hemen kurulur (önceki değer soluk kalır, yoksa "…"), düğmelerin en küçük genişliği değeri de alır (araclar.css): genişlik
+   * hesaplama boyunca ve yanıt gelince değişmez.
+   */
+  _tahminIste() {
+    const { istekler, anahtar } = this._tahminIstekleri();
+    if (istekler.length && anahtar !== this._tahminAnahtari && !this._tahmin?.bekliyor) { this._tahmin = { bekliyor: true }; this._tahminYaz(); }
+    this.tahminGeciktir();
   }
 
   /**
@@ -680,18 +704,18 @@ export class DonusturPenceresi {
    */
   async _tahminAl() {
     if (!this.pencere || this.pencere.kapali) return;
-    const d = this._donusecekler();
-    const istekler = [];
-    const tiff = d.filter((o) => o.hedefBicim === 'tiff').map((o) => o.yol), jpg = d.filter((o) => o.hedefBicim === 'gorsel').map((o) => o.yol);
-    if (tiff.length) istekler.push({ yollar: tiff, hedefBicim: 'tiff', renk: tiffSecimi.renk });
-    if (jpg.length) istekler.push({ yollar: jpg, hedefBicim: 'gorsel' });
-    const anahtar = JSON.stringify(istekler);
-    if (anahtar === this._tahminAnahtari) return;   // aynı istek: sonucu gösteriliyor ya da sürüyor
+    const { istekler, anahtar } = this._tahminIstekleri();
+    if (anahtar === this._tahminAnahtari) {
+      // Aynı istek: sonucu gösteriliyor ya da sürüyor. Bekleme durumu _tahminIste'de kurulmuş, istek sonra eski hâline dönmüşse (ör. hedef
+      // TIFF → UDF → TIFF, 200 ms içinde) eski sonuç geri yazılır
+      if (this._tahmin?.bekliyor && !this._tahminSuren) { this._tahmin = this._tahminSonuc; this._tahminYaz(); }
+      return;
+    }
     this._tahminAnahtari = anahtar;
     const sayac = ++this._tahminSayac;
     try { this._tahminSuren?.iptal?.(); } catch { /* yok say */ }
     this._tahminSuren = null;
-    if (!istekler.length) { this._tahmin = null; this._tahminYaz(); return; }
+    if (!istekler.length) { this._tahmin = this._tahminSonuc = null; this._tahminYaz(); return; }
     this._tahmin = { bekliyor: true };
     this._tahminYaz();
     const t = { ideal: 0, dusuk: 0, eksik: [], tahminli: 0 };
@@ -706,16 +730,19 @@ export class DonusturPenceresi {
         t.eksik.push(...(Array.isArray(r?.eksik) ? r.eksik : []));
         t.tahminli += (Array.isArray(r?.ogeler) ? r.ogeler : []).filter((x) => !x.tahminYok).length;
       }
-      this._tahmin = t;
+      this._tahmin = this._tahminSonuc = t;
     } catch (e) {
       if (sayac !== this._tahminSayac || this.pencere.kapali) return;
-      this._tahmin = { hata: hataMetni(e) };
+      this._tahmin = this._tahminSonuc = { hata: hataMetni(e) };
       this._tahminAnahtari = null;   // sonraki değişiklikte yeniden denensin
     } finally { if (sayac === this._tahminSayac) this._tahminSuren = null; }
     this._tahminYaz();
   }
 
-  /** Çözünürlük düğmelerinde yaklaşık boyut (Birleştir'in kalite düğmelerindeki biçim: "İdeal · 1,20 MB"). */
+  /**
+   * Çözünürlük düğmelerinde yaklaşık boyut (Birleştir'in kalite düğmelerindeki biçim: "İdeal · 1,20 MB"). Hesaplanırken (0.2.8) önceki değer
+   * soluk kalır, değer yoksa soluk "…" (0.2.7'de " · hesaplanıyor…"; düğmeyi bir an iki katı genişletiyordu); "hesaplanıyor" ipucunda.
+   */
   _tahminYaz() {
     const t = this._tahmin;
     for (const c of COZUNURLUKLER) {
@@ -724,13 +751,18 @@ export class DonusturPenceresi {
       if (!b) continue;
       b.classList.toggle('bekliyor', !!t?.bekliyor);
       const not = t?.eksik?.length ? `\n${BELGE_TAHMIN_NOTU}` : '';
-      if (!t || t.bekliyor || t.hata || !t.tahminli) {
-        b.textContent = t?.bekliyor ? ' · hesaplanıyor…' : '';
+      if (t?.bekliyor) {
+        if (!b.dataset.deger) b.textContent = ' · …';
+        d.title = `${c.baslik}\nBoyut hesaplanıyor…`;
+        continue;
+      }
+      if (!t || t.hata || !t.tahminli) {
+        b.textContent = ''; b.dataset.deger = '';
         d.title = `${c.baslik}${t?.hata ? `\nBoyut tahmin edilemedi: ${t.hata}` : not}`;
         continue;
       }
       const metin = `${t.eksik.length ? '≥ ' : ''}${boyutMetni(t[c.anahtar])}`;
-      b.textContent = ` · ${metin}`;
+      b.textContent = ` · ${metin}`; b.dataset.deger = metin;
       d.title = `${c.baslik}\nTahminî boyut: ${metin}${not}`;
     }
   }

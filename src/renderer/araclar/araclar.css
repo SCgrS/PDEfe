@@ -420,11 +420,13 @@ html[data-tema="koyu"] .donustur-oge .hata { color: #ff8c8c; }
 .donustur-secenek-satiri[hidden] { display: none; }   /* Renk yalnızca TIFF hedefinde (0.2.7: JPG'de yalnızca çözünürlük) */
 .donustur-secenek-ad { min-width: 82px; color: var(--metin-soluk); }
 .donustur-secenekler .arac-segmentli > button { padding: 4px 14px; }
-/* "İdeal" / "Düşük"ün yanında yaklaşık boyut (0.2.7; Birleştir'in kalite düğmelerindeki gibi) */
-.donustur-dpi-secim > button { font-variant-numeric: tabular-nums; }
+/* "İdeal" / "Düşük"ün yanında yaklaşık boyut (0.2.7; Birleştir'in kalite düğmelerindeki gibi). 0.2.8 (kullanıcı isteği: "bir anlık büyük yatay
+   bir buton gibi bir şey olup kayboluyor"): düğmelerin en küçük genişliği "Düşük · 99,99 MB"ı alır (13 px yazıda ~127 px), ikisi eşit; boyut
+   gelmeden, hesaplanırken ve gelince genişlik değişmez. Hesaplanırken önceki değer (yoksa "…") soluk; "hesaplanıyor…" yazısı kalktı */
+.donustur-dpi-secim > button { font-variant-numeric: tabular-nums; min-width: 9.8em; }
 .donustur-dpi-secim .boyut { font-weight: 400; color: var(--metin-soluk); }
 .donustur-dpi-secim .secili .boyut { color: var(--metin); }
-.donustur-dpi-secim .boyut.bekliyor { font-style: italic; }
+.donustur-dpi-secim .boyut.bekliyor { opacity: 0.5; }
 .arac-cikti.yalniz-klasor .arac-klasor-cip { max-width: 420px; }
 .donustur-sonuc { flex-shrink: 0; }
 .donustur-sonuc[hidden] { display: none; }

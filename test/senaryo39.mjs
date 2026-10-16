@@ -355,7 +355,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);
     const dugmeler = () => evalJs(`[...document.querySelectorAll('.donustur-dpi-secim > button')].map((b) => ({ id: b.dataset.id, ad: b.querySelector('.ad').textContent,
       boyut: b.querySelector('.boyut').textContent, secili: b.classList.contains('secili'), ipucu: b.title }))`);
-    const tahminBitti = (sure = 30000) => kosul(`(() => { const b = [...document.querySelectorAll('.donustur-dpi-secim .boyut')]; return b.length && b.every((x) => !/hesaplanıyor/.test(x.textContent)); })()`, sure);
+    // 0.2.8: hesaplanırken "hesaplanıyor…" yazmaz (önceki değer ya da "…" soluk: .bekliyor sınıfı)
+    const tahminBitti = (sure = 30000) => kosul(`(() => { const b = [...document.querySelectorAll('.donustur-dpi-secim .boyut')]; return b.length && b.every((x) => !x.classList.contains('bekliyor') && !/hesaplanıyor/.test(x.textContent)); })()`, sure);
     /** " · 1,20 MB" / " · ≥ 356 KB" → bayt */
     const bayt = (s) => { const m = /([\d.,]+)\s*(KB|MB)/.exec(s || ''); if (!m) return null; const n = parseFloat(m[1].replace(/\./g, '').replace(',', '.')); return m[2] === 'MB' ? n * 1048576 : n * 1024; };
     const yakin = (a, b, oran = 0.1) => a > 0 && b > 0 && Math.abs(a - b) / b <= oran;
@@ -373,7 +374,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     // Renk değişince yeniden hesaplanır
     const sb = bayt(D[0].boyut);
     await tikSecici('.donustur-renk-secim > button[data-id="gri"]');
-    await kosul(`(() => { const b = document.querySelector('.donustur-dpi-secim > button[data-id="300"] .boyut').textContent; return !!b && !/hesaplanıyor/.test(b) && b !== ${J(D[0].boyut)}; })()`, 30000);
+    await kosul(`(() => { const e = document.querySelector('.donustur-dpi-secim > button[data-id="300"] .boyut'), b = e.textContent; return !!b && !e.classList.contains('bekliyor') && b !== ${J(D[0].boyut)}; })()`, 30000);
     D = await dugmeler();
     sonuc('Renk "Gri" seçilince boyut yeniden hesaplanır (siyah beyazdan büyük)', bayt(D[0].boyut) > sb, { sb: D[0].boyut });
     // Dönüştürmenin gerçek boyutu tahmine yakın; İdeal 300 dpi
