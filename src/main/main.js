@@ -424,6 +424,10 @@ function ipcKur(ipcMain) {
   // Gezgin'in CF_HDROP listesi 'text/uri-list' (file:/// URI'leri), bit eşlem (ekran görüntüsü, tarayıcıdan kopyalanan görsel) 'image/png' gelir.
   // Görüntü / PDF birleştir'in Ctrl+V / Yapıştır'ı: tek çağrıda dosyalar, yoksa görsel (geçici PNG'ye yazılır), yoksa metindeki dosya yolları
   ipcMain.handle('pano:icerik', async () => {
+    // Test örneğinde kuyruktaki yanıt (0.2.9 denetimi: senaryo11 / 12 kullanıcının gerçek panosuna görüntü koyuyordu): { tur: 'gorsel', dosya }
+    // gerçek panodaki görüntü gibi geçici PNG'ye yazılır; öteki yanıtlar ({ tur: 'dosyalar', dosyalar } …) olduğu gibi döner. Kuyruk boşsa gerçek pano
+    const sahte = testDiyalog ? testDiyalog('pano:icerik', {}, null) : null;
+    if (sahte) return sahte.tur === 'gorsel' && sahte.dosya ? { tur: 'gorsel', ...(await panoGorseliniYaz(await fs.promises.readFile(sahte.dosya))) } : sahte;
     const ogeler = await panoOgeleri();
     const dosyalar = await panoDosyalari(ogeler);
     if (dosyalar.length) return { tur: 'dosyalar', dosyalar };
