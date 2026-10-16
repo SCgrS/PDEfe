@@ -934,3 +934,60 @@ Kurulu sürüm ve Mac
     deneyin.
 20. **Mac** (elinizde varsa). Format Değiştir'de görüntü → PDF ve PDF → JPG; sonuçta "Finder'da göster". Birleştir'de UDF (UYAP Doküman Editörü
     yoksa yaklaşık çizimle) ve LibreOffice kuruluysa Word belgesi.
+
+## 43. 0.2.8: otomatik testlerin sınayamadıkları
+Ekran dışındaki ve görünmeyen masaüstündeki test örneğinde, üretilmiş örnek belgelerle ve %100 / %125 ölçekte sınandı. "Tümünü aç" test
+örneğinde gerçek programı açmadan sınandı (hangi dosyaların açılacağı kaydedildi); boş sekmenin sürüklenmesi görünmeyen masaüstünde gerçek
+Windows fare iletileriyle de; ulaşılamayan ağ klasörü ev bilgisayarında var olmayan bir ağ adresiyle. Gerçek varsayılan programlarla açma (UYAP
+Doküman Editörü, Word, fotoğraf görüntüleyici), gerçek bellek ve ağ klasörü, gerçek yazıcı, kurulu (paketli) sürüm ve Mac denenmedi. Denemeleri
+belgelerin **kopyalarıyla** yapın.
+
+Açılış ekranı ve Araçlar
+1. **Açıklamalar.** Açılış ekranında ve Araçlar penceresinde Format Değiştir'in karosunda "PDF, UDF, Word, TIFF, JPG dosya formatlarını
+   değiştirir", Birleştir'inkinde "Birleştirir, farklı dosya formatlarıyla çalışabilir" yazmalı; altı karo aynı boyda olmalı. Pencereyi
+   daraltıp alçaltın: karolar yine eşit kalmalı, son açılanlar listesi sığmalı.
+
+Format Değiştir
+2. **İdeal / Düşük.** Çok sayfalı bir PDF ekleyip hedefi TIFF, sonra JPG yapın: İdeal ve Düşük düğmeleri bir an genişleyip daralmamalı; boyut
+   hesaplanırken önceki değer soluk durmalı, "hesaplanıyor" yazısı çıkmamalı. TIFF'te rengi değiştirince de aynı.
+3. **Kaydet bölümü.** Tek dosyada yalnızca dosya adı, klasör ve Değiştir olmalı; "Yeni belge olarak kaydet | Üzerine yaz" ve "Dönüştürülen dosya
+   her zaman yeni dosya olarak kaydedilir." yazısı olmamalı. Birden çok dosyada "Dosyalar girdilerin adıyla kaydedilir…" açıklaması olmamalı. Ad
+   kutusuna var olan bir dosyanın adını yazınca "zaten var" sorusu yine çıkmalı.
+4. **Sonuç kutusu ortalı.** Bir PDF'i Word'e çevirin; sonra bir UDF, bir Word belgesi ve bir PDF'i birlikte (karışık hedeflerle) çevirin; sonra 3
+   sayfalık bir PDF'i JPG'ye çevirin. Her üçünde başlık, dosya adları, Klasörde göster ve sağındaki düğme kutunun ortasında olmalı; satırlarda
+   küçük "Aç" düğmesi olmamalı. Tek dosyada düğmenin adı "Aç", birden çok dosyada "Tümünü aç".
+5. **Tümünü aç gerçek programlarla.** Bir PDF'i UDF'ye çevirip Aç'a basın: belge UYAP Doküman Editörü'nde açılmalı. Bir PDF'i Word'e çevirince
+   Word'de, JPG'yi fotoğraf görüntüleyicide açmalı; UDF → PDF'te PDF bilgisayarın PDF programında açılmalı (PDEfe varsayılan PDF görüntüleyiciyse
+   PDEfe'nin yeni penceresinde). 12 sayfalık bir PDF'i JPG'ye çevirip Tümünü aç'a basın: önce "12 dosya açılsın mı?" sorulmalı. Ofiste UYAP
+   Doküman Editörü kurulu değilse bir UDF sonucunda Aç'a basın ve ne olduğunu not edin (Windows'un "Bu dosyayı nasıl açmak istiyorsunuz?"
+   penceresi çıkabilir).
+6. **⚠ simgesi.** İmzalı ya da karekodlu bir PDF'i ve taranmış bir PDF'i UDF'ye çevirin: sonuç listesinde uyarı paragrafı olmamalı; dosyanın
+   adının yanında ⚠ çıkmalı, üstüne gelince "PDF → UDF: …" ile başlayan uyarı ve altında alınmayan resimler ya da yazı tanıma yazmalı. Sorunsuz
+   bir PDF → Word'de ⚠ çıkmamalı. Hiçbir notta "kaşe" geçmemeli; UDF ve Word notlarında tablolar anılmalı.
+7. **Bildirim.** Bir UDF'yi PDF'e çevirin (tek dosya): PDF sekmede açılmalı, altta kısa "Dönüştürüldü: <ad>" çıkmalı. Bir PDF'i Word'e, birden
+   çok dosyayı ya da JPG'yi çevirince altta beyaz bildirim çıkmamalı.
+
+Ayır
+8. **Tümünü aç.** Bir PDF'i üç parçaya ayırın: sonuç ortalı olmalı; Tümünü aç'a basınca araç kapanmalı, ilk parça önde, öbürleri yeni sekmelerde
+   PDEfe'de açılmalı. Tek parçada düğmenin adı "Aç".
+
+Bütün araçlar
+9. **Kayıt klasörü.** Sıkıştır'da Değiştir ile Masaüstü dışında bir klasör seçip sıkıştırın. Sonra Döndür, Ayır, Birleştir ve Format Değiştir'i
+   açın: aynı klasör önerilmeli. PDEfe'yi kapatıp açın: yine o klasör. Ayarlar › Kaydetme › "Araçların çıktı klasörü"nde görünmeli; Temizle'ye
+   basınca araçlar yine Masaüstü'nü önermeli. Bir araçta yalnızca dosya adını değiştirmek klasörü değiştirmemeli.
+10. **Bulunamayan klasör.** Bir USB bellekteki klasörü seçip belleği çıkarın: araçlar Masaüstü'nü önermeli, Ayarlar'da "Bu klasör bulunamadı;
+    yerine Masaüstü kullanılır." yazmalı. Belleği takınca o klasör yine önerilmeli. Ofiste bir ağ klasörü seçip ağ bağlantısı yokken bir araç
+    açın: PDEfe donmamalı, birkaç saniye içinde Masaüstü önerilmeli.
+
+Sekmeler ve yazdırma
+11. **Boş sekmeyi ayırma.** Yeni boş sekme açıp (`Ctrl+T` ya da +) gerçek fareyle sekme çubuğunun dışına sürükleyin: yeni pencere açılış
+    ekranıyla açılmalı. Boş sekmeyi başka bir PDEfe penceresinin sekme çubuğuna bırakın: oraya geçmeli. Sağ tık › Pencereye ayır da çalışmalı
+    (pencerenin tek sekmesinde soluk).
+12. **Yazdırmada Tümü.** Bir belgede `Ctrl+P` › Sayfalar'da "2-3" yazıp yazdırın (ya da Microsoft Print to PDF'e). Başka bir belgede ve aynı
+    belgede yeniden `Ctrl+P`: Sayfalar "Tümü" olmalı; yazıcı ve kâğıt seçimi hatırlanmalı.
+
+Güncelleme, kurulu sürüm ve Mac
+13. **Güncelleme.** Ayarlar › Güncelleme'de "Güncellemeleri otomatik denetle (iki günde bir)" yazmalı.
+14. **Kurulu sürüm.** 0.2.8 kurulduktan sonra kurulu PDEfe'de bir kez Format Değiştir'in Tümünü aç'ını, kayıt klasörünü ve boş sekme ayırmayı
+    deneyin.
+15. **Mac** (elinizde varsa). Format Değiştir'in sonucunda "Finder'da göster" ve "Tümünü aç"; kayıt klasörünün Değiştir'le hatırlanması.

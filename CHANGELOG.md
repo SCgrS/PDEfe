@@ -3,6 +3,39 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.2.8 — 2026-10-16
+
+### Açılış ekranı ve Araçlar
+- **Yeni açıklamalar:** Format Değiştir'in karosunda "PDF, UDF, Word, TIFF, JPG dosya formatlarını değiştirir", Birleştir'inkinde "Birleştirir, farklı dosya formatlarıyla çalışabilir". Açılış ekranında ve Araçlar penceresinde bütün karolar artık aynı boyda.
+
+### Format Değiştir
+- **İdeal / Düşük düğmeleri genişleyip daralmıyor.** TIFF ya da JPG seçilince düğmeler bir an "hesaplanıyor…" yazısıyla genişleyip sonra daralıyordu. Artık sabit genişlikte; boyut hesaplanırken önceki değer soluk durur, "hesaplanıyor" yazısı çıkmaz.
+- **Kaydet bölümü sadeleşti:** "Yeni belge olarak kaydet | Üzerine yaz" seçimi, altındaki "Dönüştürülen dosya her zaman yeni dosya olarak kaydedilir." yazısı ve birden çok dosyadaki "Dosyalar girdilerin adıyla kaydedilir…" açıklaması kalktı; yalnızca dosya adı, klasör ve **Değiştir** kaldı. Davranış aynı: dönüştürülen dosya her zaman ayrı bir dosyadır, aynı adlı dosya varsa soru yine sorulur.
+- **Sonuç kutusu her durumda ortalı:** başlık, dosya adları ve düğmeler; birden çok dosyada, karışık türlerde ve JPG'nin sayfa dosyalarında da. Satırlardaki küçük **Aç** düğmeleri kalktı.
+- **Tümünü aç:** **Klasörde göster**'in sağındaki **Tümünü aç** (tek dosyada **Aç**) dönüştürülen dosyaları bilgisayarın kendi programıyla açar: UDF'yi UYAP Doküman Editörü, Word belgesini Word, PDF'i bilgisayarın PDF programı. 10'dan çok dosyada önce sorar; bir kerede en çok 100 dosya açılır. Açılamayan dosya adıyla ve nedeniyle söylenir. Yalnızca PDEfe'nin araçlarının oluşturduğu dosyalar açılabilir.
+- **Sonuçta uyarı paragrafı yok:** sağlıklı dönüştürülemediği fark edilen dosyanın adının yanında ⚠ simgesi çıkar. Üstüne gelince dönüşümün adıyla uyarı yazar, örneğin "PDF → UDF: Satır, sayfa düzeni ve tablolar UDF'de kayabilir; imza gibi resimler alınmayabilir." ve altında o dosyaya özgü olanlar ("3 resim (imza, doğrulama kodu gibi) alınmadı…", "Taranmış sayfaların yazısı yazı tanımayla çıkarıldı; harf yanlışları olabilir."). Dönüştürülemeyen dosyanın nedeni eskisi gibi adının altında yazar.
+- **Kalite notlarında "kaşe" yok, tablolar var:** PDF ya da Word → UDF "Satır, sayfa düzeni ve tablolar UDF'de kayabilir; imza gibi resimler alınmayabilir."; PDF ya da UDF → Word "Sayfa düzeni ve tablolar Word'de birebir korunmayabilir."; TIFF ya da görüntü → UDF "Yazılar görüntüden tanınarak çıkarılır; harf yanlışları olabilir, düzen ve tablolar kayabilir."
+- **Alttaki beyaz bildirim yalnızca sonuç kendiliğinden açılınca çıkar.** Sonucu pencerede gördüğünüz durumlarda (UDF, Word, TIFF, JPG, birden çok dosya) bildirim yok. Tek PDF sonucu sekmede açılınca kısa "Dönüştürüldü: <ad>" (sayfa sayısı ve KB yazmaz).
+
+### Ayır
+- Sonuç kutusu Format Değiştir'inkiyle aynı düzende: ortalı, **Klasörde göster** ve **Tümünü aç** (tek dosyada **Aç**). Ayır'da **Tümünü aç** parçaları PDEfe'de açar: araç kapanır, ilk parça önde, öbürleri yeni sekmelerde (0.2.7'deki "İlkini yeni sekmede aç" düğmesinin ve "Hepsini aç" kutusunun yerine). 10'dan çok parçada önce sorar; bir kerede en çok 50 parça açılır. Birden çok dosyalı sonuçta alttaki "N dosya oluşturuldu." bildirimi çıkmaz.
+
+### Bütün araçlar: kayıt klasörü
+- **Bir araçta Değiştir ile seçilen klasör hatırlanır.** Bundan sonra bütün araçlar (Sıkıştır, Sayfaları düzenle, Döndür, Ayır, Birleştir, Format Değiştir) o klasörü önerir, PDEfe kapatılıp açılsa da, yeniden değiştirilene dek. Klasör Ayarlar › Kaydetme › "Araçların çıktı klasörü"nde görünür; oradan da değiştirilir ya da **Temizle** ile Masaüstü'ne döner. Yalnızca dosya adını değiştirmek klasörü değiştirmez.
+- Klasör bulunamazsa (silinmiş, takılı olmayan bellek, ulaşılamayan ağ klasörü) araçlar Masaüstü'nü önerir, Ayarlar'da "Bu klasör bulunamadı; yerine Masaüstü kullanılır." yazar. Ayar silinmez: klasör geri gelince yine kullanılır. Ulaşılamayan ağ klasöründe PDEfe donmaz.
+
+### Sekmeler ve pencereler
+- **Boş "Yeni sekme" de pencereye ayrılıyor.** Sekme çubuğunun dışına sürüklenince yeni pencerede açılış ekranıyla açılır, başka bir PDEfe penceresinin sekme çubuğuna bırakılınca oraya geçer. Sağ tıktaki **Pencereye ayır** da boş sekmede çalışır.
+
+### Yazdırma
+- **Yazdırma penceresi her açılışta "Tümü" ile gelir.** Bir belgede seçilen sayfa aralığı ya da "Geçerli sayfa" artık başka belgeye ve aynı belgenin sonraki yazdırmasına geçmiyor. Yazıcı, kâğıt, boyut, renk, çift taraflı gibi seçimler eskisi gibi hatırlanır.
+
+### Güncelleme
+- **Güncellemeler iki günde bir denetleniyor** (önceden haftada bir). Ayarlar › Güncelleme'de de öyle yazar.
+
+### README
+- Araç açıklamaları, sonuç kutusundaki **Tümünü aç** ve ⚠ simgesi, araçların kalıcı kayıt klasörü, boş sekmenin pencereye ayrılması, yazdırmada her açılışta Tümü ve iki günde bir güncelleme denetimi eklendi; açılış ekranı, Araçlar ve Format Değiştir görüntüleri yenilendi.
+
 ## 0.2.7 — 2026-10-16
 
 ### Araç adları

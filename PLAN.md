@@ -3188,3 +3188,200 @@ Her bulgu önce yeniden üretildi ya da kod izlendi; gerçekse önce düşen tes
     masaüstü klasörüyle çalışacak biçimde değiştirilebilir.
   - Kurulu (paketli) sürümde arayüz denenmedi (paketli çekirdekle Python testleri geçti).
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 42.
+
+### Revizyon 0.2.8 (2026-10-16, kullanıcı istekleri: araç açıklamaları; İdeal / Düşük titremesi; Format Değiştir'in Kaydet bölümü; ortalı sonuç kutusu ve "Tümünü aç"; uyarı yerine ⚠; bildirimler; kalıcı çıktı klasörü; güncelleme sıklığı; yazdırmada Tümü; boş sekmeyi ayırma)
+Ayrıntı: CHANGELOG.md. Kullanıcının 14 maddelik isteği (bir Word belgesi ve üç ekran görüntüsü; özet): (1) Format Değiştir'in açıklaması "PDF, UDF,
+Word, TIFF, JPG dosya formatlarını değiştirir"; (2) TIFF / JPEG seçiliyken İdeal ve Düşük'te bir an "büyük yatay bir buton gibi bir şey olup
+kayboluyor"; (3, 6) "Klasörde göster" bazen ortalı değil (birden çok dosya türünde, PDF / UDF'de, JPG çıktısında); (4) birden çok dosyada da başlık,
+yazılar ve düğme ortalı olsun, küçük Aç'lar kalksın, "Klasörde göster"in sağına "Tümünü aç" (tek dosyada "Aç"), basınca varsayılan uygulamayla
+açsın; (5) Birleştir'in açıklaması "birleştirir, farklı dosya formatlarıyla çalışabilir"; (7) sonuç ekranında uyarı paragrafı olmasın, sağlıklı
+dönüştürülemediği fark edilince üçgen içinde ünlem, üstünde durunca dönüşümün adıyla uyarı; "kaşe" kelimesi uyarılardan çıksın, tablolar anılsın;
+(8) bütün araçlarda kayıt yeri bir kez değiştirilince yeniden değiştirilene dek aynı yer; (9) Format Değiştir'deki "Yeni belge olarak kaydet |
+Üzerine yaz" seçimi ve "Dönüştürülen dosya her zaman yeni dosya olarak kaydedilir." yazısı kalksın; (10) birden çok dosyadaki "Dosyalar girdilerin
+adıyla kaydedilir…" açıklaması kalksın; (11) alttaki beyaz bildirim yalnızca sonuç kendiliğinden açılınca; (12) güncelleme denetimi iki günde bir;
+(13) yazdırma penceresinin varsayılanı her zaman "Tüm sayfalar" (seçilen aralık başka PDF'lere yansıyordu); (14) boş "Yeni sekme" de pencereye
+ayrılsın. Gönderme, etiket ve sürüm yayımı yok: yalnızca yerel commit'ler.
+Düzen: iki grup aynı çalışma ağacında, sırayla: araç pencereleri (madde 1–7, 9–11), genel maddeler (8, 12–14); sonra bağımsız inceleme ve düzeltme
+turu; belgeler, paket ve son sınama. Her madde ayrı commit'ler, önce düşen testlerle ("önce düşen" denetimler önceki HEAD'in çalışma ağacından
+başlatılan örnekte). Electron yalnızca ekran dışındaki (`test/baslat.ps1`) ya da görünmeyen masaüstündeki (`test/baslat_gizli.ps1`) örnekte
+başlatıldı; "Tümünü aç" sınamalarında gerçek program açılmadı (test kaydı); kullanıcının açık PDEfe'sine, Word'üne ve UYAP Doküman Editörü'ne
+dokunulmadı.
+
+#### 0.2.8: karo açıklamaları ve eşit karolar (madde 1 ve 5)
+- [x] **Karar** (aracPenceresi.js ARACLAR; Araçlar penceresi ve açılış ekranı aynı listeyi gösterir): ikisi de kullanıcının yazdığı gibi; Birleştir'de
+  yalnızca ilk harf büyük ("Birleştirir, farklı dosya formatlarıyla çalışabilir"). İpuçları (title) değişmedi.
+- [x] **Eşit karolar**: iki açıklama da iki satıra kırılıyor. Açılış ekranı (stil.css): `.karsilama-arac-izgara { grid-auto-rows: 1fr }`, bütün satırlar en
+  uzun karonun yüksekliğinde (0.2.7'de 1280 px'te birinci satır 84, ikinci 70 px; şimdi hepsi 84). Araçlar penceresi (aracPenceresi.css): esnek kutu →
+  ızgara (3 × 200 px; dar pencerede 2 × 200), `grid-auto-rows: 1fr`, genişlik aynı (616 px). Alçak pencerede (≤ 860 px) ikinci satırın uzaması 1280 × 700'de
+  10 belgeyle 12 px taşıma yapıyordu (senaryo20): karoların üst / alt iç boşluğu 9 → 7, satırlar arası 10 → 6 px, açıklamanın satır yüksekliği 1,35 → 1,3.
+- [x] **Seçilmeyen yollar**: açıklamaları kısaltmak (kullanıcı metni yazdı); yazıyı küçültüp tek satıra sığdırmak; esnek kutuda JS ile yükseklik eşitlemek.
+- [x] **Ölçüm**: açılış ekranı 1280 px'te 6 × 83,8 px (önce 3 × 83,8 + 3 × 70); 704 px'te 6 × 100,6; Araçlar penceresi 6 × 130 px (önce ikinci satır 114).
+- [x] **Testler**: senaryo41 1. bölüm (yeni; eski kodla 8 denetimin 5'i HATA); senaryo37 1. bölüm beklentisi; senaryo20 52/52 (alçak pencere düzeltmesinden önce
+  48/52); acilis_hizasi 10/10 ("PDF aç kartlardan ≥ 10 px yüksek" ölçütü 760 px'te 4 px: açıklama orada üç satıra kırılır, kartlar 87, PDF aç 94 px; gerekçe
+  testte). senaryo19'un "PDF aç ≥ 1,2 × kart" ölçütü (0.2.6'dan beri düşüyordu, 0.2.7'nin açık konusu) dar pencerede 1,05 ×'e indi (oran ~1,03–1,13).
+
+#### 0.2.8: İdeal / Düşük'te bir an görünen geniş düğme (madde 2)
+- [x] **Kök neden** (ResizeObserver ve MutationObserver kaydı, 3 sayfalık PDF, 1280 px): TIFF seçilince düğmeler 0–215 ms "İdeal" / "Düşük" genişliğinde
+  (56,7 / 63,8 px; tahmin 200 ms gecikmeyle istenir), sonra " · hesaplanıyor…" ile 148,8 / 155,9 px (bölümlü seçim ~125 → ~310 px), yanıt gelince " · 67 KB"
+  ile 99,2 / 106,3 px. JPG'de ve renk değişince aynı. Kullanıcının gördüğü bu genişleyip daralma.
+- [x] **Karar** (donustur.js, araclar.css): iki düğmenin en küçük genişliği "Düşük · 99,99 MB"ı alır (9,8em ≈ 127 px), ikisi eşit; değer yokken, hesaplanırken
+  ve gelince genişlik aynı. "hesaplanıyor…" yazısı kalktı: hesaplanırken önceki değer soluk kalır (yoksa soluk "…"), "Boyut hesaplanıyor…" ipucunda. Bekleme
+  durumu istek değiştiği anda kurulur; istek 200 ms içinde eski hâline dönerse (renk değişip geri) önceki sonuç geri yazılır.
+- [x] **Seçilmeyen yollar**: yalnızca "hesaplanıyor"u kısaltmak (düğme yine iki kez boyut değiştirirdi); değere sabit genişlik (kısa değerde boşluk);
+  tahmini gecikmesiz istemek (her tıklamada çekirdeğe istek).
+- [x] **Testler**: senaryo41 2. bölüm (eski kodla 5 HATA); senaryo39 4. bölüm (bekleme `.bekliyor` sınıfıyla) 8/8.
+
+#### 0.2.8: Format Değiştir'in Kaydet bölümü (madde 9 ve 10)
+- [x] **Karar**: ortak.js `kayitSecimi`'ne `kipSecimi: false`: seçim sayfaya konmaz, kısıt yazısı gösterilmez; iç durum ("yeni"), ad önerisi, "zaten var"
+  sorusu (Üzerine yaz | Yeni belge olarak kaydet | Vazgeç) ve kilit soruları aynı. Yalnızca Format Değiştir kullanıyor; öbür araçlarda seçim duruyor.
+  Çok dosyadaki açıklama kalktı (davranış aynı). Birden çok dosyada JPG hedefi varken yalnızca "Çok sayfalı belgenin her sayfası ayrı bir JPG dosyası
+  olur." kalır (kullanıcı yalnızca ilk cümleyi alıntıladı).
+- [x] **Seçilmeyen yollar**: seçimi CSS'le gizlemek (`.arac-segmentli`'nin display kuralı `hidden`ı eziyordu; ekran okuyucuda da kalırdı); JPG cümlesini de
+  kaldırmak.
+- [x] **Testler**: senaryo41 3. bölüm (eski kodla 3 HATA); senaryo37 5. bölüm, senaryo26 2. bölüm, senaryo39 3. bölüm beklentileri güncellendi.
+
+#### 0.2.8: sonuç kutusu ortalı; küçük Aç'lar yerine "Tümünü aç" / "Aç" (madde 3, 4, 6)
+- [x] **Kök neden**: 0.2.7'de yalnızca tek dosyalı sonuç ortalıydı (`.arac-sonuc-tek`); birden çok dosya (karışık türler, JPG'nin sayfa dosyaları) sola dayalı
+  listeydi, Aç'lar sağda sabit sütunda. Ölçüm (1280 px, kutunun ortası 632 px): başlığın ortası 379 px, satırlar ~621 px (sol girintili), düğme solda.
+- [x] **Karar** (ortak.js `sonucKutusuCiz`): tek ve çok dosyada başlık, her satır ve düğme satırı ortalı; satırlardaki Aç'lar ve Aç sütunu kalktı. Çok dosyada
+  yalnızca liste kaydırılır (en çok 168 px; başlık ve düğmeler hep görünür), kaydırma çubuğunun yeri iki yanda ayrılır (`scrollbar-gutter: stable
+  both-edges`): çubuk çıkınca satırlar yine başlıkla aynı ortada. Uzun ad "…" ile kısalır (tam yol ipucunda); tek dosyada satır kırar.
+- [x] **"Tümünü aç"** (tek dosyada "Aç"), "Klasörde göster"in sağında: ortak.js `varsayilanProgramdaAc` → ana süreç `dosya:varsayilanlaAc` → `shell.openPath`
+  (Windows / macOS'un varsayılan programı). 10'dan çok dosyada önce "N dosya açılsın mı?" (Aç | Vazgeç); 100'den çoğunda ilk 100. Açılamayan dosyalar mesaj
+  kutusunda adlarıyla ve nedeniyle (dosya bulunamadı / bu türü açan program yok; UDF'de "UYAP Doküman Editörü kuruluysa onunla açılır"). Düğme açarken soluk.
+- [x] **Güvenlik** (main.js, guvenlik.js `aracCiktiKaydi`, preload izin listesi, `guvenliIpc`, udfYaklasik.js): yalnızca araçların bu oturumda yazdığı çıktılar
+  açılır (`dosya:sil`'in deseni): bicim_donustur'un hatasız öğelerinin hedef / hedefler'i, ayir'in dosyalar'ı, birlestir'in yolu ve UDE yokken ana sürecin
+  yazdığı yaklaşık PDF; uzantı .pdf / .udf / .tif / .tiff / .docx / .jpg / .jpeg; mutlak yol, en çok 100 (`acilacakYollar`). Başka dosya, .exe / .lnk açılmaz.
+  Test örneğinde program açılmaz (testDiyalog kaydı; kuyruktan programın hata iletisi verilebilir).
+- [x] **Ayır** aynı bileşen; düğme parçaları PDEfe'de açar (inceleme turu, aşağıda).
+- [x] **Seçilmeyen yollar**: Format Değiştir'in sonuçlarını PDEfe'de açmak (kullanıcı "varsayılan uygulamayla" dedi; UDF / Word / TIFF / JPG'yi PDEfe açamaz);
+  her satırın Aç'ını korumak (kullanıcı kaldırmak istedi); ortalı blok + sola dayalı satırlar (farklı uzunluktaki adlarda ortalı görünmüyor); kaydı ana
+  süreçte tutmadan arayüzün verdiği yolu açmak (arayüzde kod çalışırsa her dosya / program açılabilirdi).
+- [x] **Testler**: senaryo41 4. bölüm (eski kodla 4 HATA, sonra betik durdu: düğme yok): tek Word, karışık liste, gerçek PDF → UDF × 2, program hatası iletisi,
+  silinmiş dosya, izinsiz yollar, göreli yol, tek "Aç", 12 sayfalık JPG'de kaydırılan liste ve soru, Ayır. guvenlik_birim'e 5 denetim. senaryo38 2. ve 5.
+  bölüm, senaryo37 6. bölüm, mac_renderer güncellendi.
+
+#### 0.2.8: sonuçta uyarı paragrafı yerine ⚠; notlarda "kaşe" yok, tablolar var (madde 7)
+- [x] **Karar** (ortak.js `sonucKutusuCiz`): satırın uyarısı adın altında yazmaz; adın yanında ⚠ (Kaydet bölümündeki uyarı notunun simgesi, 16 px; açık temada
+  #b35c00, koyu temada #ffc83d), `role="img"`, `tabindex="0"` (klavyeyle odaklanır), `aria-label` "Uyarı: …", ipucu uyarının kendisi. Hata (dosya
+  dönüştürülemedi) adın altında yazmaya devam eder (neden görünmeli).
+- [x] **Ne zaman ⚠** (donustur.js `_sonucUyarisi`): yalnızca dosyaya özgü bir uyarı varsa ("fark ettiğinde"): çekirdeğin uyarısı (alınmayan resimler, yazı
+  tanıma, alınmayan yorumlar, yazıcı yolu…), UDF'nin yaklaşık çizimi, önceki dönüştürmeden kalan JPG sayfaları. İpucu "<Kaynak> → <Hedef>: <kalite notu>" ve
+  alt satırlarda o uyarılar. Kalite notu tek başına simge çıkarmaz (her dönüştürmede aynı; hedef seçilince girdi satırında zaten yazıyor). "Aynı adlı
+  dosyalar vardı; … yeni adla kaydedildi." uyarı değil, bilgi: adın ipucunda.
+- [x] **Metinler** (core/islemler/donustur.py KALITE_NOTLARI, udf_yaz.py): PDF / Word → UDF "Satır, sayfa düzeni ve tablolar UDF'de kayabilir; imza gibi resimler
+  alınmayabilir."; PDF / UDF → Word "Sayfa düzeni ve tablolar Word'de birebir korunmayabilir."; TIFF / görüntü → UDF "Yazılar görüntüden tanınarak
+  çıkarılır; harf yanlışları olabilir, düzen ve tablolar kayabilir."; alınmayan resim "N resim (imza, doğrulama kodu gibi) alınmadı: UDF'de resim yalnızca
+  satırın içinde durabilir." (önceden iki satırlık, "kaşe"li); yazı tanıma "Taranmış sayfaların yazısı yazı tanımayla çıkarıldı; harf yanlışları
+  olabilir.". Kod yorumlarındaki "kaşe" (iç açıklama) değişmedi.
+- [x] **Seçilmeyen yollar**: kalite notu olan her satırda ⚠ (PDF → Word'ün her sonucunda simge olurdu); uyarıyı tıklayınca açılan kutuda göstermek (ipucu
+  istendi); "(1)" notunu ⚠'ye koymak (sorun değil, bilgi); çekirdek uyarılarını arayüzde eşlemeyle kısaltmak (kırılgan).
+- [x] **Testler**: senaryo41 5. bölüm (eski kodla 2 HATA, sonra betik durdu); donustur_testi `kalite_notlari` +3 denetim (eski çekirdekle 3 HATA);
+  udf_donusum_testi `dusen_resim` (yeni; eski çekirdekle HATA); senaryo39, senaryo40 ve udf_yaklasik (⚠ ipucunda "görünüm yaklaşık") güncellendi.
+
+#### 0.2.8: alttaki bildirim yalnızca sonuç kendiliğinden açılınca (madde 11)
+- [x] **Karar**: Format Değiştir'de sonuç pencerede gösterilince bildirim yok (0.2.7'de "Dönüştürüldü: ad" / "N dosya dönüştürüldü." / "Dönüştürüldü: N görüntü
+  dosyası"). Tek PDF sonucu sekmede açılınca kısa "Dönüştürüldü: <ad>" (0.2.7'deki "· N sayfa · N KB" kalktı; 0.2.7'nin açık konusu kapandı); uyarısı varsa
+  sonuna eklenir (o durumda sonuç listesi yok). Ayır'da çok dosyalı sonuç kutusu gösterilince "N dosya oluşturuldu." kalktı; "Üzerine yaz"da belge sekmede
+  açılır, bildirimi kaldı. Birleştir sonucu her zaman sekmede açar: bildirimi değişmedi (boyutu yazıyor; UYAP'a yüklemede önemli). Değişmeyenler: iptal,
+  geç iptal ("İptal edilemeden tamamlandı: …"), hatalar, araç içi bilgiler ("Dosya zaten listede.").
+- [x] **Seçilmeyen yollar**: Birleştir'in bildirimini kısaltmak (kullanıcı yalnızca "otomatik açılmayanlarda çıkmasın" dedi); geç iptal bildirimini kaldırmak.
+- [x] **Testler**: senaryo41 6. bölüm (eski kodla 4 HATA); senaryo37 6. bölüm ve senaryo39 3. bölüm beklentileri.
+
+#### 0.2.8: araçlarda seçilen klasör hep kullanılır (madde 8)
+- [x] **Karar** (ortak.js): `ciktiSecici`'ye `klasorSecildi` geri çağrısı; `kayitSecimi` onu `ciktiKlasorunuHatirla(baglam, klasor)` ile bağlar. Değiştir'de
+  kaydetme penceresinde (ad + klasör) ya da birden çok dosyada klasör seçme penceresinde seçilen klasör ve klasör bilinmediğinde işlemden önce sorulan
+  klasör Ayarlar'daki "Araçların çıktı klasörü" (`ciktiKlasoru`) olur: `baglam.ayarKoy` → ana süreç 'ayar:koy' (öteki pencereler 'ayar:degisti' ile alır,
+  electron-store'da kalır). Bütün araçlar aynı `kayitSecimi`'ni kullandığı için hepsinde geçerli. Klasör ayardakiyle aynıysa yazılmaz. Ayardaki klasör
+  yoksa araçlar Masaüstü'nü önerir, ayar silinmez (çıkarılabilir disk takılınca yine kullanılır).
+- [x] **Ayarlar › Kaydetme**: açıklama "… Bir araçta Değiştir ile başka bir klasör seçilince burası da o klasör olur; bütün araçlar, yeniden değiştirilene
+  dek onu kullanır. Boşsa ya da klasör bulunamazsa Masaüstü kullanılır."; klasör yoksa yolun altında uyarı renginde "Bu klasör bulunamadı; yerine Masaüstü
+  kullanılır." (ayarlar.css `.ayar-yol-not`). Seç / Temizle aynı. Ek: `bilinenKlasorler`'in boş yanıtı da {} sayılıyor (Mac çerçeve testinde null yanıt
+  `varsayilanCiktiKlasoru`'nu düşürüyordu).
+- [x] **Seçilmeyen yollar**: araç başına ayrı klasör (kullanıcı "tüm araçlar için … hep aynı yere"); yalnızca oturum boyunca (kullanıcı "tekrar değiştirilene
+  kadar"); klasör yoksa ayarı silmek (takılı olmayan disk kaybolurdu); belgenin "Farklı kaydet"ini de bağlamak (araç değil).
+- [x] **Testler**: senaryo42 (yeni; eski kodla 16 HATA / 22): Masaüstü varsayılanı, vazgeç / yalnızca ad, Sıkıştır → Döndür / Sayfaları düzenle / Sıkıştır,
+  Format Değiştir (klasör seçme) → Ayır / Birleştir, Ayarlar kartı, silinen klasör ve not, işlemden önce sorulan klasör, Masaüstü'ne dosya yazılmadığı.
+  mac_renderer'a macOS ve Windows yollarıyla 4 denetim.
+- [x] **Not**: ilk "önce düşen" koşumda betiğin araç kapatma yardımcısı Birleştir'in "kaydedilmemiş" sorusuna Kaydet dedi; eski kod Masaüstü'nü önerdiği için
+  gerçek Masaüstü'ne bir test belgesi yazıldı, Geri Dönüşüm Kutusu'na gönderildi. Betik artık "Kaydetme" diyor ve Masaüstü'ne dosya yazılmadığını denetliyor.
+
+#### 0.2.8: güncelleme denetimi iki günde bir (madde 12)
+- [x] **Karar**: `src/main/guncelleme.js` `DENETIM_ARALIGI_MS` 7 → 2 gün. Gerisi aynı: açılışta sırası geldiyse (pencere gösterildikten 6 sn sonra), PDEfe
+  açık kalırsa saatlik bakışta süre dolunca; sunucudan yanıt alınmazsa süre başlamaz; elle denetim süreye bakmaz; bekleyen / yarım indirme sonraki açılışta
+  süreye bakılmadan bir kez denetlenir (0.2.5). Ayarlar › Güncelleme: "Güncellemeleri otomatik denetle (iki günde bir)".
+- [x] **Seçilmeyen yollar**: her açılışta denetlemek (istek iki gün); süreyi ayara bağlamak (istenmedi).
+- [x] **Testler**: test/guncelleme-e2e/birim.mjs 84/84 (gün beklentileri iki güne çevrildi, "3 gün: sıra geldi" eklendi; eski kodla 8 HATA); senaryo14 (eski
+  kodla 1 HATA); mac_renderer'daki Windows açıklaması.
+
+#### 0.2.8: yazdırma penceresi her açılışta "Tümü" (madde 13)
+- [x] **Kök neden**: `src/renderer/yazdir.js` `sonSecenek` (modül düzeyinde, pencere başına) son yazdırmanın aralığını ve aralık metnini oturum boyunca
+  tutuyor, sonraki her açılışta (başka belgede de) onu seçiyordu.
+- [x] **Karar**: Sayfalar her açılışta Tümü; aralık metni boş; "Geçerli sayfa" da hatırlanmaz. Kalıcı seçimler (yazıcı, harmanla, kâğıt, boyut, renk, çift
+  taraflı; ayar `yazdirma`) aynı. "Notları yazdır" oturum boyunca hatırlanmaya devam ediyor (kullanıcı yalnızca sayfa seçimini sordu); kopya her açılışta 1.
+- [x] **Seçilmeyen yollar**: aralığı belge başına hatırlamak (kullanıcı "her zaman" Tümü istedi); "Notları yazdır"ı da sıfırlamak (istenmedi).
+- [x] **Testler**: yazdir_pencere 5. bölüm ("2-3" yazdırıldıktan sonra Tümü, "Geçerli sayfa"dan sonra Tümü, başka belgede Tümü; eski kodla 4 HATA).
+
+#### 0.2.8: boş "Yeni sekme" pencereye ayrılır (madde 14)
+- [x] **Kök neden**: 0.1.19'dan beri yalnızca belge sekmesi ayrılabiliyordu: `ayrilabilir` açılış sekmesine false, sağ tıkta "Pencereye ayır" açılış
+  sekmesinde devre dışı, `tasimaEngeli` "Açılış sekmesi pencereye ayrılamaz." diyordu; sekme çubukta kalıp imleci yatayda izliyordu.
+- [x] **Karar** (`src/renderer/uygulama.js`, `src/main/pencereler.js`): açılış sekmesi belgeli sekmenin yolundan taşınır. Sürüklemede ön izleme (hayalet)
+  penceresi açılış sekmesi için de açılır: ad "Yeni sekme", sayfa görüntüsü yok (240 px). `sekmeyiTasi` açılış sekmesini `bosSekmeyiTasi`'ya verir: paket
+  yalnızca `{ surum: 1, baslangic: true }`, ana süreç 'sekme:tasi' aynı. Hedefte `bosSekmeyiAl`: yeni pencerede pencerenin kendi açılış sekmesi ayrılan
+  sekmedir; var olan pencereye bırakılan sekme bırakıldığı yere yeni açılış sekmesi olarak eklenir ve etkin olur (öteki açılış sekmeleri kalır: kullanıcı
+  taşımanın olduğunu görsün). Kaynak pencere belgeli sekmedeki kurallarla (tek sekmesi boş yere bırakılınca pencere kendisi taşınır; başka pencereye
+  taşınınca kapanır). Sağ tık › "Pencereye ayır" açılış sekmesinde de etkin; pencerenin tek sekmesinde devre dışı. Yeni IPC kanalı yok.
+- [x] **Seçilmeyen yollar**: boş sekmeyi hedefte tek açılış sekmesinin yerine koymak (hedef değişmemiş görünürdü); ön izlemede açılış ekranının küçük
+  görüntüsü (gereksiz iş); ayrı bir "boş pencere aç" komutu (istek sürükleyip ayırmaktı).
+- [x] **Testler**: senaryo43 (yeni, 31 denetim; eski kodla 3 HATA ve betik durdu): menü, menüyle ayırma, sürükleme (eşik, ön izleme, imleci izleme, bırakma),
+  Esc, belgeli ve belgesiz pencereye bırakma, tek boş sekmeli pencerenin taşınması ve kapanması. senaryo22 ve senaryo23'te boş sekmenin ayrılmadığını
+  bekleyen üç denetim yeni davranışa çevrildi. hayalet_akicilik'e boş sekme turu (ortanca ~17,8 ms, %95 ~18,3 ms; belge turuyla aynı). gercek_fare'ye `-Bos`
+  kipi (görünmeyen masaüstünde gerçek Windows fare iletileri; eski kodla 5 HATA).
+
+#### 0.2.8: bağımsız inceleme ve düzeltme turu
+Altı bulgu (ikisi aynı); dördü düzeltildi, biri doğrulanamadı (açık konu).
+- [x] **Ağdaki çıktı klasörüne ulaşılamayınca uygulama donuyordu** (orta): klasör ulaşılamayan bir ağ paylaşımındaysa araç ya da Ayarlar › Kaydetme açılınca
+  ana süreç `fs.existsSync` ile 20–42 sn bekliyor, bütün pencereler ve IPC kilitleniyordu (senaryo42 7. bölümü eski kodda: `ayar:al` 42.083 ms). `dosya:varMi`
+  eş zamansız (`fs.promises.access`), aynı yolun süren denetimi paylaşılıyor; renderer'da `klasorVarMi(pdefe, yol, 1500)`: 1,5 sn içinde yanıt yoksa klasör yok
+  sayılır (araç Masaüstü'nü önerir, kart "bulunamadı" der, ayar silinmez). Seçilmeyen: yeni bir `dosya:klasorVarMi` kanalı (yeni IPC; renderer'daki zaman
+  aşımı yetiyor); `dosya:varMi`'nin kendisine zaman aşımı ("zaten var" denetimi yanlış "yok" alırsa dosyanın üzerine yazılabilirdi). Test: senaryo42 7. bölüm
+  (her çalıştırmada başka 10.255.255.x adresi).
+- [x] **Yalnızca adı değiştiren Değiştir kalıcı ayarı Masaüstü'ne çeviriyordu** (düşük): ayardaki klasör yokken araç Masaüstü'nü önerir; yalnızca ad değişince
+  ayar Masaüstü oluyordu. `klasorSecildi` yalnızca klasör açılmadan öncekinden farklıysa çağrılır. Bilinçli sonuç: klasör yokken Masaüstü bilerek seçilse de
+  ayar değişmez (ad değişikliğinden ayırt edilemiyor; kalıcı Masaüstü için Ayarlar'da Temizle). senaryo42 5. ve 7. bölüm.
+- [x] **Başka pencerede açık Ayarlar eski çıktı klasörünü gösteriyordu** (düşük): `ayarlarPenceresiniGuncelle` yalnızca `select[data-ayar]`'ları yeniliyordu.
+  Bölüm başına `guncelleyiciler` (anahtar → işlev); Kaydetme bölümü `ciktiKlasoru` için `yolGoster`'i kaydeder. senaryo42 8. bölüm.
+- [x] **Ayır'ın sonuçları PDEfe'de açılamıyordu** (düşük): 0.2.8'in ilk hâlinde Ayır'ın "Tümünü aç"ı parçaları varsayılan PDF programına gönderiyordu, 0.2.7'deki
+  "Yeni sekmede aç" ve "Hepsini aç" kalkmıştı; kullanıcının "varsayılan uygulamayla" isteği Format Değiştir içindi ("Word dönüştürmede vs"). Düzen aynı kaldı;
+  Ayır'da düğme parçaları PDEfe'de açar: araç kapanır, ilk parça önde, öbürleri arkada yeni sekmelerde; 10'dan çok parçada önce sorulur ("N belge PDEfe'de
+  açılsın mı?"), bir kerede en çok 50 (0.2.7'nin sınırı). `sonucKutusuCiz`'e `ac` ve `acIpucu`. senaryo41 4e.
+- [ ] **Windows'ta türü açan program yokken** (düşük, doğrulanamadı; düzeltme yok): UYAP Doküman Editörü yokken "Tümünü aç" her UDF için Windows'un "Bu
+  dosyayı nasıl açmak istiyorsunuz?" penceresini açabilir, PDEfe'nin "program bulunamadı" iletisi çıkmaz (bu bilgisayarda `HKCR\Unknown\shell`'in varsayılan
+  fiili `openas`; `shell.openPath` büyük olasılıkla başarı döner). Gerçek sınama ilişkisiz bir türde gerçek kabuğu çalıştırmayı (kullanıcının ekranında
+  pencere) gerektirir; güvenilir ön denetim `AssocQueryString` ister (Electron'da yok). Kullanıcının iki bilgisayarında da editör kurulu: DOGRULAMA 43.
+- [x] **Kapsam dışı not**: `metindekiYollar` (pano, `fs.statSync`) ve `udfYaklasik.js bosAd` (`fs.existsSync`) da eş zamanlı; ilki panodaki yol listesinde,
+  ikincisi yalnızca klasör erişilebilirken çalışıyor.
+
+#### 0.2.8: belgeler
+- [x] Sürüm 0.2.8 (package.json, package-lock.json); CHANGELOG; docs/DOGRULAMA.md 43; README: Sekmeler ve pencereler (boş sekme), Araçlar (Ayır'ın Tümünü
+  aç, kalıcı kayıt klasörü), Format Değiştir (PDF → UDF / Word notları, sonuç kutusu, ⚠, Tümünü aç), Yazdırma (her açılışta Tümü), Ayarlar (çıktı
+  klasörü), Güncelleme ve Verileriniz (iki günde bir).
+- [x] README'deki "Logolu, kaşeli sayfalar" (Görünüm) ve "yazı, kaşe ve antet" (Taranmış belgede seçim) dönüştürme uyarısı değil, taranmış belgelerin içeriğini
+  anlatıyor; değişmedi.
+
+#### 0.2.8: sınama özeti (gruplar ve inceleme turu)
+- [x] Arayüz (her test kendi temiz örneğinde, ekran dışında ya da görünmeyen masaüstünde): senaryo41 52/52 (%100, koyu tema; inceleme turundan
+  sonra) ve 39/39 (%125, açık tema), senaryo42 32/32 (inceleme turundan sonra), senaryo43 31/31, senaryo38 64/64 (sahte yazıcılarla) ve 27/27 (%125), senaryo37 64/64 (Word dönüştürmesi `S37_WORD` olmadan atlandı),
+  senaryo39 54/54, senaryo40 23/23 ve udf_yaklasik 63/63 (`PDEFE_UDE_YOK=1`), senaryo14 60/60, yazdir_pencere 47/47, mac_renderer 44/44, senaryo17 43/43,
+  senaryo26 64/64, senaryo22 102/0, senaryo23 53/0, hayalet_akicilik 5/5, gercek_fare 9/9 ve `-Bos` 9/9, kisayol_araclar 102/102, ortu_tiklama 164/164,
+  arac_onizleme 24/24, senaryo19 112/112, gec_iptal 20/20, senaryo13 65/65, kisayol_dosya 164/164, sekme_genislik 38/38, senaryo20 52/52, acilis_hizasi 10/10.
+- [x] Node / Python: guvenlik_birim 109, güncelleme birim 84/84; donustur_testi 216/217 (tek HATA "dış süreç: süre dolunca öldürülür" 5,5 sn > 5 sn, arayüz
+  testleriyle aynı anda koşulurken; tek başına 3/3), udf_donusum_testi 133/133 (UDE ile).
+- [ ] **Açık konular**:
+  - "Tümünü aç" gerçek varsayılan programlarla denenmedi (test örneğinde program açılmaz): UDF → UYAP Doküman Editörü, Word, JPG, PDF; DOGRULAMA 43.
+    Editörsüz bilgisayarda UDF için Windows'un "Birlikte aç" penceresi (inceleme turu, yukarıda).
+  - Birleştir'in sekmede açılınca çıkan bildirimi değişmedi (boyutu yazıyor); kullanıcı isterse kısaltılır.
+  - Ayır'ın "Tümünü aç"ı parçaları PDEfe'de açıyor (inceleme turunun kararı); kullanıcı varsayılan programı isterse bir satırla değişir.
+  - Gerçek bellek ve ağ klasörüyle kalıcı çıktı klasörü denenmedi (ağ klasörü var olmayan bir adresle benzetildi).
+  - Mac'te denenmedi (mac_renderer'ın darwin çerçevesinde "Finder'da göster", "Tümünü aç" ve çıktı klasörü yolları doğru).
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 43.

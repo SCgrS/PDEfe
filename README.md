@@ -63,7 +63,7 @@ Word, TIFF ve görüntü dosyaları bırakılınca Format Değiştir açılır. 
   yeniden açılınca kalınan sayfadan devam edilir.
 - **Sağ tık:** Sekmede sağ tıkla belge kaydedilir, yazdırılır, pencereye ayrılır, klasörde gösterilir ya da dosya olarak kopyalanır.
 - **Pencereler:** Sekme, sekme çubuğunun dışına sürüklenince kendi penceresinde açılır. Başka bir PDEfe penceresine bırakılınca oraya
-  geçer. Notlar ve geri al geçmişi sekmeyle birlikte taşınır. Bir araç penceresi açıkken Gezgin'den açılan belge yeni bir pencerede,
+  geçer. Notlar ve geri al geçmişi sekmeyle birlikte taşınır. Boş "Yeni sekme" de ayrılır; yeni pencere açılış ekranıyla açılır. Bir araç penceresi açıkken Gezgin'den açılan belge yeni bir pencerede,
   önde açılır; araç arkadaki pencerede açık kalır.
 - **Kapatma:** Birden çok sekmeli pencere kapatılırken yalnızca geçerli sekmenin mi, bütün sekmelerin mi kapanacağı sorulur. Seçim
   hatırlanabilir. Kaydedilmemiş belge varsa kaydetmek isteyip istemediğiniz sorulur.
@@ -138,7 +138,8 @@ Araçlar, araç çubuğundaki **Araçlar** düğmesinden ya da açılış ekran�
   kopyala düğmesi sayfanın kopyasını hemen sağına ekler; `Ctrl+C` / `Ctrl+V` ve sağ tık menüsü de var. Boş sayfa ya da başka PDF'ten
   sayfa eklenir.
 - **Döndür:** Tüm sayfalar, geçerli sayfa ya da bir aralık döndürülür.
-- **Ayır:** Belge sayfa aralıklarına göre (örneğin `1-3, 4-10`) ya da her sayfa ayrı olacak şekilde ayrılır.
+- **Ayır:** Belge sayfa aralıklarına göre (örneğin `1-3, 4-10`) ya da her sayfa ayrı olacak şekilde ayrılır. Sonuçtaki **Tümünü aç**
+  parçaları PDEfe'de yeni sekmelerde açar.
 - **Birleştir:** PDF, görüntü (JPG, PNG, BMP, GIF, WEBP), TIFF, UDF ve Word dosyaları listedeki sırayla tek PDF'te birleşir; sonuç
   sekmede açılır. Dosyalar sürüklenerek ya da panodan eklenir. UYAP taramaları (TIFF) gerçek ölçüsünde, A4 olarak eklenir. UDF ve Word
   belgeleri önce PDF'e çevrilir (aşağıda, Format Değiştir'in gereksinimleri); Word belgesinin sayfa sayısı ve boyutu birleştirmeden önce
@@ -148,6 +149,10 @@ Araçlar, araç çubuğundaki **Araçlar** düğmesinden ya da açılış ekran�
 Her araç sonucu yeni belge olarak kaydeder ya da istenirse özgün dosyanın üzerine yazar (Format Değiştir özgün dosyaya dokunmaz, her
 zaman ayrı bir dosya oluşturur). Kaydedilecek ad var olan bir dosyanın adıysa sorulur: **Üzerine yaz**, **Yeni belge olarak kaydet**
 (varsayılan; adına "(1)" eklenir, var olan dosya değişmez) ya da **Vazgeç**.
+
+Kayıt klasörü bir araçta **Değiştir** ile değiştirilince bütün araçlar, yeniden değiştirilene dek o klasörü önerir (PDEfe kapatılıp açılsa
+da). Klasör Ayarlar › Kaydetme › "Araçların çıktı klasörü"nde görünür, **Temizle** ile Masaüstü'ne döner. Klasör bulunamazsa (ör. takılı
+olmayan bellek) Masaüstü önerilir; klasör geri gelince yine kullanılır.
 
 <p align="center">
   <img src="docs/ekran-sikistir.png" width="90%" alt="Sıkıştır: üç seviye ve tahminî boyutlar">
@@ -176,11 +181,11 @@ dönüştürmede (örneğin UDF → Word, TIFF → Word) hedef seçilince satır
   kırılır, sonuç editörün "Yazdır → PDF" çıktısıyla aynıdır. Sayfa her zaman A4, yazı tipleri PDF'e gömülü, antetin çevresinde gri
   çerçeve yok, sayfa numarası seçilebilir. Antet editörün yazdırmasındaki gibi çıkar. E-imza ve yorumlar PDF'e taşınmaz.
 - **PDF → UDF:** Düzenlenebilir UDF. Paragraflar, kenar boşlukları, üst ve alt bilgi, antet ve çizgili tablolar alınır; sayfa numarası
-  editörün kendi numarası olur. Taranmış sayfa yazı tanımayla düzenlenebilir yazıya çevrilir. İmza, kaşe gibi yazının yanında duran
-  resimler alınmaz; sonuçta söylenir.
+  editörün kendi numarası olur. Taranmış sayfa yazı tanımayla düzenlenebilir yazıya çevrilir. Satır, sayfa düzeni ve tablolar
+  kayabilir. İmza gibi yazının üstünde ya da yanında duran resimler alınmaz; sonuçta dosyanın yanındaki ⚠ simgesi bunu söyler.
 - **Word → PDF:** Word'ün kendisiyle; görünmeyen, ayrı bir Word kullanılır, açık Word'ünüze dokunulmaz. Belgenin yazar adı PDF'e geçmez.
   .docx, .doc, .rtf ve .odt dönüştürülür.
-- **PDF → Word:** Metni düzenlenebilir .docx. Taranmış sayfalar resim olarak aktarılır.
+- **PDF → Word:** Metni düzenlenebilir .docx. Taranmış sayfalar resim olarak aktarılır. Sayfa düzeni ve tablolar birebir korunmayabilir.
 - **TIFF → PDF:** Kayıpsız; UYAP taramaları doğru ölçüde (A4) ve çoğunlukla TIFF'ten küçük. **PDF → TIFF:** Tek dosyada çok sayfa,
   siyah beyaz, gri ya da renkli.
 - **Görüntü → PDF:** JPG, PNG, BMP, GIF ve WEBP. Taranmış görüntü, tarayıcının yazdığı çözünürlükle gerçek boyutunda sayfa olur;
@@ -204,12 +209,17 @@ Birleştir'deki UDF ve Word belgeleri için de aynı gereksinimler geçerlidir.
 Dönüştürülen dosya her zaman ayrı bir dosyadır; özgün dosya değişmez. Önerilen ad klasörde varsa adına "(2)" eklenir; var olan bir
 dosyanın adını kendiniz seçerseniz üzerine yazmadan önce sorulur. İptal edilirse hiçbir dosya yazılmaz.
 
+Dönüştürmeden sonra sonuç kutusunda dosyalar listelenir. **Klasörde göster** klasörü açar; **Tümünü aç** (tek dosyada **Aç**) dosyaları
+bilgisayarın kendi programıyla açar: UDF'yi UYAP Doküman Editörü, Word belgesini Word. Sağlıklı dönüştürülemediği fark edilen dosyanın
+yanında ⚠ simgesi çıkar; üstüne gelince ne olduğu yazar (örneğin alınmayan resimler, yazı tanımayla çıkarılan sayfalar).
+
 ### Yazdırma ve PDF'i kopyala
 
 - **Yazdır** (`Ctrl+P`, araç çubuğunda Kaydet'in yanındaki düğme ya da sağ tık): PDEfe'nin kendi penceresinde yazıcı, kopya ve harmanlama,
   sayfalar (tümü, geçerli sayfa, aralık), kâğıt, boyut (sayfaya sığdır, gerçek boyut), renkli ya da siyah beyaz, tek ya da çift taraflı
   seçilir. Sağda sayfanın kâğıda nasıl basılacağı büyük olarak görünür. **Yazıcı tercihleri** yazıcının kendi ayarlarını açar. Son
-  seçilen yazıcı ve seçenekler hatırlanır. Türkçe karakterler ekrandaki gibi çıkar.
+  seçilen yazıcı, kâğıt, renk ve çift taraflı gibi seçenekler hatırlanır; sayfa seçimi her açılışta **Tümü**dür. Türkçe karakterler
+  ekrandaki gibi çıkar.
 - **PDF'i kopyala:** Belge dosya olarak panoya kopyalanır. UYAP'a, e-postaya ya da bir klasöre `Ctrl+V` ile yapıştırılır.
 
 ![Yazdır penceresi: yazıcı, kopya, sayfalar, kâğıt, renk, çift taraflı ve sayfanın ön izlemesi](docs/ekran-yazdir.png)
@@ -217,8 +227,8 @@ dosyanın adını kendiniz seçerseniz üzerine yazmadan önce sorulur. İptal e
 ### Ayarlar
 
 Ayarlar `Ctrl+,` ile ya da araç çubuğundaki dişliyle açılır. Tema, açılış düzeni, not renkleri, otomatik kaydetme ve güncelleme buradan
-değiştirilir. PDEfe buradan varsayılan PDF görüntüleyici de yapılır. **Kaydetme** bölümünde UYAP Doküman Editörü'nün bulunduğu yer ve
-sürümü görünür; editör kendiliğinden bulunamazsa klasörü buradan seçilir.
+değiştirilir. PDEfe buradan varsayılan PDF görüntüleyici de yapılır. **Kaydetme** bölümünde araçların çıktı klasörü ile UYAP Doküman
+Editörü'nün bulunduğu yer ve sürümü görünür; editör kendiliğinden bulunamazsa klasörü buradan seçilir.
 
 ![Ayarlar › Açılış ve düzen: sayfa düzeni ve Pencereyi kapatırken](docs/ekran-ayarlar.png)
 
@@ -226,7 +236,7 @@ sürümü görünür; editör kendiliğinden bulunamazsa klasörü buradan seçi
 
 ## Güncelleme
 
-PDEfe haftada bir yeni sürüm olup olmadığına bakar. Yeni sürüm varsa pencerenin üstünde şerit çıkar. Windows'ta **Güncelle**'ye basmak
+PDEfe iki günde bir yeni sürüm olup olmadığına bakar. Yeni sürüm varsa pencerenin üstünde şerit çıkar. Windows'ta **Güncelle**'ye basmak
 yeter. PDEfe yeni sürümü kurup kendiliğinden yeniden açılır. macOS'ta **İndir** yeni dosyayı indirir, kurulumdaki gibi Uygulamalar'a
 sürüklenir. Sürüm notları [CHANGELOG.md](CHANGELOG.md) dosyasındadır.
 
@@ -242,7 +252,7 @@ Windows'ta **Ayarlar › Uygulamalar › Yüklü uygulamalar › PDEfe › Kald�
 
 Bütün işlemler bilgisayarınızda yapılır. Belgeleriniz hiçbir yere gönderilmez, telemetri yoktur. Dosya dönüştürme de bilgisayarınızda
 yapılır: UYAP Doküman Editörü ve Word pencere açılmadan kullanılır, ayarlarına ve açık belgelerine dokunulmaz. PDEfe internete yalnızca yeni
-sürüm denetimi için haftada bir GitHub'a istek gönderir. Güncelleme denetimi Ayarlar'dan kapatılabilir (önerilmez).
+sürüm denetimi için iki günde bir GitHub'a istek gönderir. Güncelleme denetimi Ayarlar'dan kapatılabilir (önerilmez).
 
 ## Üçüncü taraf projeler
 
