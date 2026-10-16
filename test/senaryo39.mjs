@@ -246,7 +246,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await kosul(`${A}.kayit.cikti.ad() === 'Dilekçe örneği.jpg'`, 5000);
     const k = await evalJs(`(() => { const p = document.querySelector('.donustur-pencere'); const a = ${A};
       return { ad: a.kayit.cikti.ad(), adGizli: p.querySelector('.arac-kayit-yeni .arac-cikti-ad').hidden, not: p.querySelector('.donustur-jpg-adlari').hidden ? '' : p.querySelector('.donustur-jpg-adlari').textContent,
-        adlar: !p.querySelector('.donustur-adlar').hidden, secenek: !p.querySelector('.donustur-secenekler').hidden, baslik: p.querySelector('.donustur-secenekler .arac-bolum-baslik').textContent,
+        adlar: !p.querySelector('.donustur-coklu-jpg').hidden, secenek: !p.querySelector('.donustur-secenekler').hidden, baslik: p.querySelector('.donustur-secenekler .arac-bolum-baslik').textContent,
         renk: !p.querySelector('.donustur-renk-satiri').hidden, secenekNotu: p.querySelector('.donustur-secenek-notu').textContent }; })()`);
     sonuc('JPG hedefi (tek girdi): ad kutusu görünür ("Dilekçe örneği"), altında sayfa dosyalarının adları; "JPG seçenekleri", renk satırı yok', k.ad === 'Dilekçe örneği.jpg' && !k.adGizli
       && k.not === 'Her sayfa ayrı bir JPG dosyası olur: "Dilekçe örneği - Sayfa 1.jpg" … "Dilekçe örneği - Sayfa 2.jpg".' && !k.adlar && k.secenek && k.baslik === 'JPG seçenekleri' && !k.renk
@@ -316,7 +316,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await aracAc([G.pdf2, G.pdf1]);
     for (const ad of ['Dilekçe örneği.pdf', 'Tek sayfa.pdf']) await hedefTikla(ad, 'gorsel');
     await bekle(300);
-    const adlarNotu = await evalJs(`(() => { const e = document.querySelector('.donustur-adlar'); return e.hidden ? '' : e.textContent; })()`);
+    const adlarNotu = await evalJs(`(() => { const e = document.querySelector('.donustur-coklu-jpg'); return e.hidden ? '' : e.textContent; })()`);
     await donusturVeBekle();
     const yeniler = ciktilar().filter((a) => !once.has(a));
     sonuc('Birden çok girdi → JPG: var olan adlarda "(2)" ("Dilekçe örneği (2) - Sayfa 1.jpg", "… - Sayfa 2.jpg", "Tek sayfa (2).jpg"); not her sayfanın ayrı dosya olduğunu söyler',

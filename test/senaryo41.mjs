@@ -4,6 +4,8 @@
 //      Araçlar penceresinde (geniş ve dar pencerede) bütün karolar aynı yükseklikte.
 //   2) İdeal / Düşük'ün yanındaki yaklaşık boyut (madde 2): TIFF / JPG hedefi seçilince, renk değişince ve hesaplama sürerken düğmelerin
 //      genişliği değişmez (ResizeObserver kaydı), "hesaplanıyor…" yazısı görünmez; hesaplanırken önceki değer soluk kalır.
+//   3) Format Değiştir'in Kaydet bölümü (madde 9 ve 10): "Yeni belge olarak kaydet | Üzerine yaz" seçimi, "Dönüştürülen dosya her zaman yeni dosya
+//      olarak kaydedilir." ve "Dosyalar girdilerin adıyla kaydedilir…" yazıları yok; "zaten var" sorusu duruyor; Sıkıştır'da seçim duruyor.
 // Girdiler test/ornek_pdf_uret.py ile test/cikti/s41/girdi altında üretilir (gerçek belge yok). Araçların çıktı klasörü test klasörüdür.
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9441 -Veri "$env:TEMP\pdefe-s41-9441" -Boyut "1280,1000" [-Olcek 1.25]
@@ -187,6 +189,68 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
     sonuc('2) JPG seçilince: düğmelerin genişliği değişmedi, "hesaplanıyor…" yok', sabit(z) && !z.hesaplaniyor, z);
     await evalJs(`(window.__s41RO?.disconnect(), window.__s41MO?.disconnect(), true)`);
     await araclariKapat();
+    await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);
+  }
+
+  // ------------------------------------------------------------ 3) Format Değiştir'in Kaydet bölümü (madde 9 ve 10)
+  if (bolum(3)) {
+    console.log('\n== 3) Format Değiştir\'in Kaydet bölümü: seçim ve açıklama yazıları yok; "zaten var" sorusu duruyor; öbür araçlarda seçim duruyor');
+    await araclariKapat(); await sekmeleriKapat();
+    const klasor = yeniKlasor('kaydet');
+    await ciktiKlasoruAyarla(klasor);
+    const pdf = ornekPdf('kaydet.pdf', 2, 'Kaydet örneği'), pdf2 = ornekPdf('kaydet2.pdf', 1, 'İkinci örnek');
+    await evalJs(`(async () => { window.__s41d = await import('pdefe://app/src/renderer/araclar/donustur.js'); return true; })()`);
+    const A = 'window.__s41d.acikDonusturPenceresi()';
+    // Hedef seçimleri hatırlanır (ayar donusturme): önceki bölümün JPG seçimi kalmasın
+    await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);
+    await evalJs(`(window.__pdefe.komutCalistir('arac.donustur', [${J(pdf)}]), true)`);
+    await kosul(`!!${A} && ${A}.ogeler.length === 1 && !${A}.ogeler[0].yukleniyor`, 15000);
+    await evalJs(`${A}.kayit.hazir.then(() => true)`);
+    await evalJs(`(${A}.hedefSec(${A}.ogeler[0], 'udf'), true)`);
+    await kosul(`${A}.kayit.cikti.ad() === 'kaydet.udf'`, 5000);
+    const durum = () => evalJs(`(() => { const p = document.querySelector('.donustur-pencere'), b = p.querySelector('.donustur-kayit');
+      const gorunur = [...b.querySelectorAll('*')].filter((e) => !e.closest('[hidden]') && e.getBoundingClientRect().height > 0);
+      return { metin: b.innerText, secim: !!b.querySelector('.arac-kayit-secim, .arac-segmentli'), dugmeler: gorunur.filter((e) => e.matches('button')).map((e) => e.textContent.trim()),
+        aciklamalar: gorunur.filter((e) => e.matches('.arac-aciklama')).map((e) => e.textContent), ad: b.querySelector('.arac-kayit-yeni .arac-cikti-ad').value,
+        adGizli: b.querySelector('.arac-kayit-yeni .arac-cikti-ad').hidden, hedef: ${A}.kayit.hedef() }; })()`);
+    let d = await durum();
+    await ss('03-kaydet-tek');
+    sonuc('3) Tek dosya: "Yeni belge olarak kaydet | Üzerine yaz" seçimi ve "Dönüştürülen dosya her zaman…" yazısı yok; ad + klasör + Değiştir var', !d.secim
+      && !/Yeni belge olarak kaydet|Üzerine yaz|her zaman yeni dosya/.test(d.metin) && !d.aciklamalar.length && d.ad === 'kaydet' && !d.adGizli
+      && d.dugmeler.length === 2 && d.dugmeler[1] === 'Değiştir' && /^Kaydet\s*$/m.test(d.metin), d);
+    // Birden çok dosya: "Dosyalar girdilerin adıyla kaydedilir…" açıklaması yok
+    await evalJs(`(${A}.dosyaEkle([${J(pdf2)}]), true)`);
+    await kosul(`${A}.ogeler.length === 2 && !${A}.ogeler.some((o) => o.yukleniyor)`, 15000);
+    await bekle(300);
+    d = await durum();
+    await ss('03-kaydet-coklu');
+    sonuc('3) Birden çok dosya: "Dosyalar girdilerin adıyla kaydedilir. Var olan dosyaların üzerine yazılmaz…" açıklaması yok; klasör + Değiştir var', !d.secim
+      && !/girdilerin adıyla|üzerine yazılmaz|"\(2\)" eklenir/.test(d.metin) && !d.aciklamalar.length && d.adGizli && d.dugmeler.includes('Değiştir'), d);
+    // JPG hedefi (birden çok dosya): yalnız "her sayfası ayrı bir JPG dosyası olur" cümlesi
+    await evalJs(`(${A}.hedefSec(${A}.ogeler[0], 'gorsel'), true)`);
+    await bekle(300);
+    d = await durum();
+    sonuc('3) Birden çok dosyada JPG hedefi: yalnız "Çok sayfalı belgenin her sayfası ayrı bir JPG dosyası olur." cümlesi', J(d.aciklamalar) === J(['Çok sayfalı belgenin her sayfası ayrı bir JPG dosyası olur.']), d.aciklamalar);
+    // Tek dosyaya dönülür; var olan adla "zaten var" sorusu (Üzerine yaz | Yeni belge olarak kaydet | Vazgeç) yine sorulur
+    await evalJs(`(${A}.sil(${A}.ogeler[1]), ${A}.hedefSec(${A}.ogeler[0], 'udf'), true)`);
+    await kosul(`${A}.kayit.cikti.ad() === 'kaydet.udf'`, 5000);
+    fs.writeFileSync(path.join(klasor, 'Var olan.udf'), 'eski');
+    await evalJs(`(${A}.kayit.cikti.ayarla(${J(klasor)}, 'Var olan', { elle: true }), true)`);
+    const soru = await evalJs(`(async () => { const p = ${A}; const o = { secim: 2 }; window.__pdefeOtoYanit = o; let s; try { s = await p.kayit.denetle(); } finally { delete window.__pdefeOtoYanit; }
+      return { sonuc: s, mesaj: o.son?.mesaj, dugmeler: o.son?.dugmeler }; })()`);
+    sonuc('3) "Zaten var" sorusu duruyor: "… zaten var." (Üzerine yaz | Yeni belge olarak kaydet | Vazgeç); Vazgeç işlemi durdurur', soru.mesaj === '"Var olan.udf" zaten var.'
+      && J(soru.dugmeler) === J(['Üzerine yaz', 'Yeni belge olarak kaydet', 'Vazgeç']) && soru.sonuc === 'vazgec', soru);
+    await araclariKapat();
+    // Öbür araçlarda seçim duruyor (Sıkıştır)
+    await evalJs(`(async () => { await window.__pdefe.dosyaAc(${J(pdf)}); return true; })()`);
+    await kosul(`!!window.__pdefe.aktif()?.gorunum?.sayfaSayisi`);
+    await evalJs(`(window.__pdefe.komutCalistir('arac.kucult'), true)`);
+    await kosul(`!!document.querySelector('.kucult-pencere .arac-kayit-secim')`, 5000);
+    const kucult = await evalJs(`[...document.querySelectorAll('.kucult-pencere .arac-kayit-secim > button')].map((b) => b.textContent)`);
+    sonuc('3) Sıkıştır\'da "Yeni belge olarak kaydet | Üzerine yaz" seçimi yerinde', J(kucult) === J(['Yeni belge olarak kaydet', 'Üzerine yaz']), kucult);
+    await araclariKapat(); await sekmeleriKapat();
+    await ciktiKlasoruAyarla(path.join(UI, 'cikti'));
+    await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);
   }
 
   const hatalar = await evalJs('window.__hatalar || []');

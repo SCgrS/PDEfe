@@ -14,10 +14,10 @@
 // Seçenekler yalnızca TIFF ve (0.2.7) JPG hedefinde: Çözünürlük İdeal / Düşük (0.2.7: 300 / 200 dpi, yanlarında yaklaşık boyut; 0.2.6'da "200
 // dpi" / "300 dpi", varsayılan 200), Renk Siyah beyaz / Gri / Renkli (yalnızca TIFF; varsayılan İdeal, siyah beyaz; PDEfe açık kaldıkça
 // hatırlanır); bütün TIFF ve JPG hedeflerine uygulanır.
-// Kaydet: öteki araçlardaki standart seçim (ortak.js kayitSecimi). Tek dosyada klasör ve ad (girdinin adı + yeni uzantı; klasörde varsa
+// Kaydet: öteki araçlardaki standart dosya satırı (ortak.js kayitSecimi). Tek dosyada klasör ve ad (girdinin adı + yeni uzantı; klasörde varsa
 // "(2)"), birden çok dosyada yalnızca klasör (adlar girdilerin adı; var olan dosyanın üzerine yazılmaz, "(2)" eklenir). Varsayılan klasör
-// öteki araçlarla aynı kural (Ayarlar › Kaydetme'deki çıktı klasörü, yoksa Masaüstü). "Üzerine yaz" soluk: dönüştürülen dosya her zaman
-// yeni dosyadır.
+// öteki araçlarla aynı kural (Ayarlar › Kaydetme'deki çıktı klasörü, yoksa Masaüstü). Dönüştürülen dosya her zaman yeni dosyadır: 0.2.8'den
+// beri "Yeni belge olarak kaydet | Üzerine yaz" seçimi ve açıklama yazıları yok (kullanıcı isteği; 0.2.7'de "Üzerine yaz" soluktu).
 // Çekirdek (core/islemler/donustur.py, udf.py; parametreleri ana süreç de denetler: main/guvenlik.js donusumParametreleri):
 //   donusum_yetenekleri {} → {donusumler: {"udf>pdf": {var, neden?}, …}, udf: {var, neden?, ude: {var, yol, surum, kaynak}, java}, word, …}
 //   donusum_bilgi {yol, genislik, onizleme} → {tur, alt, boyut, sayfa, hedefler: [{bicim, var, neden?}], uyari?, png?, onizlemeUyarisi?, acilmadi?}
@@ -190,19 +190,20 @@ export class DonusturPenceresi {
     this.tahminGeciktir = geciktir(() => this._tahminAl(), 200);
     govde.querySelector('.donustur-renk').replaceWith(this.renkSecim.el);
 
-    // Kaydetme: öteki araçlardaki standart seçim; "Üzerine yaz" hiç seçilemez (belge yok), nedeni altında
-    this.kayit = kayitSecimi({
-      baglam: this.baglam, belge: null, ad: 'Dönüştürülmüş', uzanti: 'pdf', diyalogBasligi: 'Dönüştürülen dosya',
-      belgesizNeden: 'Dönüştürülen dosya her zaman yeni dosya olarak kaydedilir.',
-    });
+    // Kaydetme: öteki araçlardaki standart dosya satırı (ad, klasör, Değiştir). Dönüştürülen dosya her zaman yeni dosyadır: 0.2.8'den beri (kullanıcı
+    // isteği: "bu kısmı Format Değiştir aracından tamamen kaldıralım") "Yeni belge olarak kaydet | Üzerine yaz" seçimi ve altındaki "Dönüştürülen dosya
+    // her zaman yeni dosya olarak kaydedilir." yazısı yok (0.2.7'de "Üzerine yaz" soluktu). "Zaten var" sorusu sorulur (kayitSecimi.denetle)
+    this.kayit = kayitSecimi({ baglam: this.baglam, belge: null, ad: 'Dönüştürülmüş', uzanti: 'pdf', diyalogBasligi: 'Dönüştürülen dosya', kipSecimi: false });
     const kayitBolumu = govde.querySelector('.donustur-kayit');
     kayitBolumu.append(this.kayit.el);
     // Kaydet bölümünde ad, klasör ya da kayıt biçimi değişince Dönüştür yeniden etkin olabilir (0.2.7; _dugmeGuncelle)
     this.kayit.onDegisti(() => this._dugmeGuncelle());
-    this.adlarEl = oge('<div class="arac-aciklama donustur-adlar" hidden>Dosyalar girdilerin adıyla kaydedilir. Var olan dosyaların üzerine yazılmaz; aynı adlı dosya varsa ada "(2)" eklenir.<span class="jpg-notu" hidden> Çok sayfalı belgenin her sayfası ayrı bir JPG dosyası olur.</span></div>');
+    // Birden çok dosyada JPG hedefi varken tek cümle (0.2.8: "Dosyalar girdilerin adıyla kaydedilir. Var olan dosyaların üzerine yazılmaz; aynı adlı
+    // dosya varsa ada "(2)" eklenir." açıklaması kullanıcı isteğiyle kalktı: "Bu açıklamaya da gerek yok"; davranış aynı)
+    this.cokluJpgNotEl = oge('<div class="arac-aciklama donustur-coklu-jpg" hidden>Çok sayfalı belgenin her sayfası ayrı bir JPG dosyası olur.</div>');
     // Tek girdinin JPG hedefi (0.2.7): ad dosya adlarının ortak başıdır; çok sayfalı belgede "<ad> - Sayfa 1.jpg"…
     this.jpgNotEl = oge('<div class="arac-aciklama donustur-jpg-adlari" hidden></div>');
-    kayitBolumu.append(this.adlarEl, this.jpgNotEl);
+    kayitBolumu.append(this.cokluJpgNotEl, this.jpgNotEl);
     this.kayit.onDegisti(() => this._jpgNotuYaz());
 
     govde.querySelector('.donustur-ekle').addEventListener('click', () => this.dosyaSec());
@@ -663,8 +664,7 @@ export class DonusturPenceresi {
     this._jpgTek = !coklu && ilk?.hedefBicim === 'gorsel';
     this.kayit.cokluAyarla(coklu || this._jpgTek);
     this.kayit.klasorKipi(coklu);
-    this.adlarEl.hidden = !coklu;
-    this.adlarEl.querySelector('.jpg-notu').hidden = !jpgVar;
+    this.cokluJpgNotEl.hidden = !coklu || !jpgVar;
     if (!coklu && ilk) {
       this.kayit.adAyarla(adGovdesi(ilk.ad) || 'Dönüştürülmüş');
       this.kayit.uzantiAyarla(BICIM[ilk.hedefBicim]?.uzanti || 'pdf');

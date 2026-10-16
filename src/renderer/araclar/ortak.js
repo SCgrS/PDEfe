@@ -945,6 +945,8 @@ const BILGI_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" c
  * @param {boolean} [s.geriAlinabilir]  "Üzerine yaz" sonucu Ctrl+Z ile geri alınabiliyor mu (varsayılan: hayır → uyarı)
  * @param {string} [s.belgesizNeden]   belge yokken "Üzerine yaz"ın altında yazan neden
  * @param {string} [s.uzanti]          çıktının uzantısı (varsayılan 'pdf'; 0.2.6 Dosya Formatını Değiştir: 'udf' | 'tif' | 'docx' de)
+ * @param {boolean} [s.kipSecimi]      false (0.2.8, Format Değiştir): "Yeni belge olarak kaydet | Üzerine yaz" seçimi ve altındaki kısıt yazısı
+ *   gösterilmez; kayıt her zaman yeni belgedir (belge verilmez). "Zaten var" sorusu (denetle) değişmez
  * 0.2.6: uzantiAyarla(uz) ve adAyarla(ad) varsayılan adı yeni uzantı / yeni temel adla yeniden önerir (elle değiştirilmiş ad kalır, uzantısı
  * değişir); klasorKipi(true) birden çok dosyada ad kutusunu gizler (cokluAyarla(true) ile birlikte; adları araç verir).
  * @returns {{el:HTMLElement, kip:()=>string, kipAyarla:(k:string)=>void, hedef:()=>string, uzerineMi:()=>boolean, cikti:object,
@@ -952,7 +954,7 @@ const BILGI_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" c
  *   uzerineKullanilabilir:(evet:boolean, neden?:string)=>void, cokluAyarla:(evet:boolean)=>void, coklu:()=>boolean, onDegisti:(cb)=>void,
  *   uzantiAyarla:(uz:string)=>void, adAyarla:(ad:string)=>void, klasorKipi:(evet:boolean)=>void}}
  */
-export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', kip = 'yeni', diyalogBasligi = 'Yeni belge olarak kaydet', geriAlinabilir = false, belgesizNeden = '', uzanti: uz = 'pdf' }) {
+export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', kip = 'yeni', diyalogBasligi = 'Yeni belge olarak kaydet', geriAlinabilir = false, belgesizNeden = '', uzanti: uz = 'pdf', kipSecimi = true }) {
   const el = oge(`<div class="arac-kayit">
       <div class="arac-kayit-kip"></div>
       <div class="arac-kayit-kisit arac-aciklama" hidden></div>
@@ -994,7 +996,10 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
     ],
     degisti: () => { goster(); bildir(); },
   });
-  el.querySelector('.arac-kayit-kip').replaceWith(secim.el);
+  // 0.2.8 (kullanıcı isteği, Format Değiştir: "Yeni belge olarak kaydet | Üzerine yaz" seçimi ve altındaki yazı "tamamen kalksın"): seçim sayfaya
+  // konmaz, iç durumu ("yeni") ve öteki işlevler aynı
+  if (kipSecimi) el.querySelector('.arac-kayit-kip').replaceWith(secim.el);
+  else el.querySelector('.arac-kayit-kip').remove();
   /** Üzerine yazmada dosya satırının yerinde yazılacak dosya (soluk) ve not durur; satır kaybolmaz. */
   function goster() {
     const uzerine = secim.deger() === 'uzerine';
@@ -1010,7 +1015,7 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
     secim.etkin('uzerine', evet);
     secim.dugme('uzerine').title = evet ? uzerineIpucu : neden;
     kisitEl.textContent = evet ? '' : neden;
-    kisitEl.hidden = evet || !neden;
+    kisitEl.hidden = evet || !neden || !kipSecimi;
     if (!evet && secim.deger() === 'uzerine') kipAyarla('yeni');
   }
   if (!belge) uzerineKullanilabilir(false);

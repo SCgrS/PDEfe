@@ -110,8 +110,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
   const kayitDurumu = () => evalJs(`(() => { const a = ${A}; const p = document.querySelector('.donustur-pencere'); const k = p.querySelector('.arac-kayit');
     const adEl = k.querySelector('.arac-kayit-yeni .arac-cikti-ad');
     return { ad: adEl.value, adGizli: adEl.hidden, klasor: k.querySelector('.arac-kayit-yeni .arac-klasor-cip').dataset.klasor, cikti: a.kayit.cikti.ad(), coklu: a.kayit.coklu(),
-      uzerineDevre: k.querySelector('.arac-kayit-secim > button[data-id="uzerine"]').disabled, yeniSecili: k.querySelector('.arac-kayit-secim > button[data-id="yeni"]').classList.contains('secili'),
-      kisit: k.querySelector('.arac-kayit-kisit').hidden ? '' : k.querySelector('.arac-kayit-kisit').textContent, adlar: !p.querySelector('.donustur-adlar').hidden,
+      secim: !!k.querySelector('.arac-kayit-secim'), kayitMetni: p.querySelector('.donustur-kayit').innerText,
+      kisit: k.querySelector('.arac-kayit-kisit').hidden ? '' : k.querySelector('.arac-kayit-kisit').textContent, cokluJpg: !p.querySelector('.donustur-coklu-jpg').hidden,
       degistirIpucu: k.querySelector('.arac-kayit-yeni .arac-cikti-degistir').title, secenekler: !p.querySelector('.donustur-secenekler').hidden,
       donusturDevre: p.querySelector('.arac-dugmeler .birincil').disabled }; })()`);
   const donusturBas = () => tikSecici('.donustur-pencere .arac-dugmeler .birincil');
@@ -356,9 +356,10 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
     await aracAc([G.tiff]);
     await kosul(`${A}.kayit.cikti.ad() === 'Tarama örneği (2).pdf'`, 5000);
     let k = await kayitDurumu();
-    sonuc('Tek dosya: ad girdinin adı, uzantı hedefin (.pdf); klasörde aynı ad varsa "(2)"', k.cikti === 'Tarama örneği (2).pdf' && k.ad === 'Tarama örneği (2)' && !k.adGizli && !k.coklu && !k.adlar, k);
-    sonuc('"Üzerine yaz" seçilemez, "Yeni belge olarak kaydet" seçili; altında "Dönüştürülen dosya her zaman yeni dosya olarak kaydedilir."', k.uzerineDevre && k.yeniSecili
-      && k.kisit === 'Dönüştürülen dosya her zaman yeni dosya olarak kaydedilir.', k);
+    sonuc('Tek dosya: ad girdinin adı, uzantı hedefin (.pdf); klasörde aynı ad varsa "(2)"', k.cikti === 'Tarama örneği (2).pdf' && k.ad === 'Tarama örneği (2)' && !k.adGizli && !k.coklu && !k.cokluJpg, k);
+    // 0.2.8 (kullanıcı isteği): "Yeni belge olarak kaydet | Üzerine yaz" seçimi ve altındaki "Dönüştürülen dosya her zaman…" yazısı yok
+    sonuc('Kaydet bölümünde "Yeni belge olarak kaydet | Üzerine yaz" seçimi ve "Dönüştürülen dosya her zaman yeni dosya olarak kaydedilir." yazısı yok (0.2.8)', !k.secim && k.kisit === ''
+      && !/Üzerine yaz|Yeni belge olarak kaydet|her zaman yeni dosya/.test(k.kayitMetni), k);
     // Hedef UDF → uzantı .udf (önerilen ad yeniden aranır: Tarama örneği.udf yok)
     await tikSecici('.donustur-oge .donustur-hedef-secim > button[data-id="udf"]');
     await kosul(`${A}.kayit.cikti.ad() === 'Tarama örneği.udf'`, 5000);
@@ -380,7 +381,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
     await kosul(`!document.querySelector('.donustur-oge.yukleniyor')`, 15000);
     await bekle(300);
     k = await kayitDurumu();
-    sonuc('Birden çok dosya: ad kutusu gizli, klasör çipi ve Değiştir kalır; "girdilerin adıyla … (2)" notu görünür', k.coklu && k.adGizli && k.adlar && k.klasor === CIKTI && /klasörü seçin/.test(k.degistirIpucu), k);
+    sonuc('Birden çok dosya: ad kutusu gizli, klasör çipi ve Değiştir kalır; "girdilerin adıyla … (2)" açıklaması yok (0.2.8)', k.coklu && k.adGizli && !k.cokluJpg && !/girdilerin adıyla|eklenir/.test(k.kayitMetni)
+      && k.klasor === CIKTI && /klasörü seçin/.test(k.degistirIpucu), k);
     await yanitla('dosya:klasorSec', [null]);
     await tikSecici('.donustur-pencere .arac-kayit-yeni .arac-cikti-degistir');
     const kk = (await kayit()).filter((x) => x.kanal === 'dosya:klasorSec' || x.kanal === 'dosya:kaydetDiyalog');
@@ -389,7 +391,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
     // Bir satır çıkarılınca tek dosyaya döner
     await tikSecici(`[...document.querySelectorAll('.donustur-oge')].at(-1).querySelector('[data-komut="sil"]')`);
     k = await kayitDurumu();
-    sonuc('Satır çıkarılınca tek dosya: ad kutusu yeniden görünür', !k.coklu && !k.adGizli && !k.adlar, k);
+    sonuc('Satır çıkarılınca tek dosya: ad kutusu yeniden görünür', !k.coklu && !k.adGizli && !k.cokluJpg, k);
     await pencereKapat();
     // TIFF hedefinde süzgeç: PDF girdisi, hedef TIFF
     await aracAc([G.pdf]);

@@ -110,7 +110,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
       ad: satir.querySelector('.arac-cikti-ad').value, adDevre: satir.querySelector('.arac-cikti-ad').disabled,
       klasor: satir.querySelector('.arac-klasor-cip').dataset.klasor, cip: satir.querySelector('.arac-klasor-cip .ad').textContent,
       degistirDevre: satir.querySelector('.arac-cikti-degistir').disabled,
-      baslikKutu: baslik ? kutu(baslik) : null, secimKutu: kutu(k.querySelector('.arac-kayit-secim')), satirKutu: kutu(satir),
+      baslikKutu: baslik ? kutu(baslik) : null, secimKutu: k.querySelector('.arac-kayit-secim') ? kutu(k.querySelector('.arac-kayit-secim')) : null, satirKutu: kutu(satir),
     };
   })()`);
   const kipSec = (id) => tikSecici(`.arac-pencere .arac-kayit-secim > button[data-id="${id}"]`);
@@ -201,15 +201,15 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
       if (komut === 'arac.gorselBirlestir') await diyalogYanitla([{ secim: 1 }]);
       await pencereKapat();
     }
-    // 0.2.6: Format Değiştir aynı düzende; açık PDF ilk girdi, önerilen ad girdinin adı (uzantısı hedefin: .udf), "Üzerine yaz"
-    // seçilemez, nedeni seçimin altında (dönüştürülen dosya her zaman yeni dosya)
+    // 0.2.6: Format Değiştir aynı düzende; açık PDF ilk girdi, önerilen ad girdinin adı (uzantısı hedefin: .udf). 0.2.8 (kullanıcı isteği):
+    // "Yeni belge olarak kaydet | Üzerine yaz" seçimi ve altındaki "Dönüştürülen dosya her zaman…" yazısı yok; Kaydet başlığının altında dosya satırı
     await aracAc('arac.donustur', 'donustur-pencere');
     await kosul(`document.querySelector('.donustur-pencere .arac-kayit-yeni .arac-cikti-ad')?.value === 'zengin_a'`, 8000);
     const dn = await kayitDurumu();
-    const dnSirali = dn.baslikKutu && dn.baslikKutu.y < dn.secimKutu.y && dn.secimKutu.y + dn.secimKutu.h <= dn.satirKutu.y && Math.abs(dn.secimKutu.x - dn.satirKutu.x) <= 2;
-    sonuc('donustur-pencere: Kaydet başlığı, altında seçim, kısıt satırı, ad + klasör + Değiştir; önerilen ad girdinin adı; Üzerine yaz seçilemez, nedeni altında',
-      dn.sonraki && J(dn.sira) === J(['arac-segmentli', 'arac-kayit-kisit', 'arac-kayit-yeni', 'arac-kayit-sabit', 'arac-kayit-uzerine']) && dnSirali
-      && dn.secenekler[0].secili && dn.secenekler[1].devre && dn.kisit === 'Dönüştürülen dosya her zaman yeni dosya olarak kaydedilir.'
+    const dnSirali = dn.baslikKutu && dn.baslikKutu.y < dn.satirKutu.y && Math.abs(dn.baslikKutu.x - dn.satirKutu.x) <= 2;
+    sonuc('donustur-pencere: Kaydet başlığının altında ad + klasör + Değiştir; önerilen ad girdinin adı; Yeni belge / Üzerine yaz seçimi ve kısıt yazısı yok (0.2.8)',
+      dn.sonraki && J(dn.sira) === J(['arac-kayit-kisit', 'arac-kayit-yeni', 'arac-kayit-sabit', 'arac-kayit-uzerine']) && dnSirali
+      && !dn.secenekler.length && dn.secimKutu === null && dn.kisit === '' && dn.yeniGorunur && !dn.sabitGorunur && !dn.notGorunur
       && dn.ad === 'zengin_a' && dn.klasor === CIKTI && !dn.adDevre, dn);
     await ss('02-donustur-pencere-yeni');
     await pencereKapat();
