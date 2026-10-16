@@ -187,9 +187,12 @@ export default async function (surucu) {
       const enYuksek = Math.max(...o.kartlar.map((c) => c.h)), enGenis = Math.max(...o.kartlar.map((c) => c.w)), kartAlan = Math.max(...o.kartlar.map((c) => c.w * c.h));
       // 0.2.3 (kullanıcı isteği: "biraz daha küçük olsun", sağ kenarı ikinci karonun sağ kenarında): yükseklik 1,3 → 1,2 kat, genişlik iki
       // karo (ızgara iki ve daha çok sütunluyken; hizanın kendisi test/acilis_hizasi.mjs'te). 0.2.6 (kullanıcı isteği: araçlar 3 × 2, karolar
-      // "hafif büyüt"): karolar büyüdü, PDF aç değişmedi; yükseklik oranı 1,13 → ölçüt 1,1 kat, alan oranı 2,31 → ölçüt 2,2
-      sonuc(`[${gen}px] PDF aç düğmesi araç kartlarından belirgin büyük (yükseklik ≥ 1.1× en yüksek kart, alan ≥ 2.2×, iki kart kadar geniş, yazı büyük)`,
-        o.acAd === 'PDF aç' && o.ac.h >= 1.1 * enYuksek && o.ac.w * o.ac.h >= 2.2 * kartAlan && o.ac.w >= 2 * enGenis && o.acYazi > o.aracYazi,
+      // "hafif büyüt"): karolar büyüdü, PDF aç değişmedi; yükseklik oranı 1,13 → ölçüt 1,1 kat, alan oranı 2,31 → ölçüt 2,2. 0.2.8 (kullanıcı
+      // isteği: Birleştir'in ve Format Değiştir'in açıklaması uzadı): dar pencerede (700 px) bir açıklama üç satıra kırılır, eşit yükseklikteki kartlar
+      // 87 px (PDF aç 94 px, oran 1,08): orada yükseklik ölçütü 1,05 kat; geniş pencerede 1,1 kaldı
+      const yukseklikOrani = gen < 1000 ? 1.05 : 1.1;
+      sonuc(`[${gen}px] PDF aç düğmesi araç kartlarından belirgin büyük (yükseklik ≥ ${yukseklikOrani}× en yüksek kart, alan ≥ 2.2×, iki kart kadar geniş, yazı büyük)`,
+        o.acAd === 'PDF aç' && o.ac.h >= yukseklikOrani * enYuksek && o.ac.w * o.ac.h >= 2.2 * kartAlan && o.ac.w >= 2 * enGenis && o.acYazi > o.aracYazi,
         { ac: o.ac, enYuksek, enGenis, oran: +(o.ac.h / enYuksek).toFixed(2), alanOrani: +((o.ac.w * o.ac.h) / kartAlan).toFixed(2), acYazi: o.acYazi, aracYazi: o.aracYazi });
       bilgi(`${gen}px: PDF aç ${o.ac.w}×${o.ac.h}, en büyük kart ${enGenis}×${enYuksek}`);
       // 0.1.14: sürükle-bırak bilgisi ayrı satır değil, PDF aç düğmesinin açıklamasında
