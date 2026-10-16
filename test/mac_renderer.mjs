@@ -195,6 +195,47 @@ export default async function ({ evalJs }) {
   sonuc('Araç sorusu (macOS): yazılamayan dosyada Kilitli işareti ve Paylaşma ve İzinler söyleniyor', !kilitli.length && /Paylaşma ve İzinler/.test(hataSorusu.mac.okunamadi?.ayrinti || ''),
     kilitli.map((ad) => hataSorusu.mac[ad]?.ayrinti));
 
+  // ---------------------------------------------------------------- Araçların çıktı klasörü (0.2.8, araclar/ortak.js ciktiKlasorunuHatirla)
+  // Değiştir ile seçilen klasör (kaydetme penceresinde ad ve klasör, birden çok dosyada klasör seçme penceresi) Ayarlar'daki çıktı klasörüne
+  // yazılır; macOS yollarında da klasör eğik bölüden kesilir. Ayardaki klasör yoksa önerilmez
+  const ciktiKlasoru = await evalJs(`(async () => { ${ORTAM}
+    const sonuc = {};
+    for (const mac of [true, false]) {
+      const o = ortam(mac), { kayitSecimi } = await o.yukle('araclar/ortak.js');
+      const Y = mac ? { arsiv: '/Volumes/Arsiv', secilen: '/Volumes/Yeni Klasor/Hedef.pdf', yeni: '/Volumes/Yeni Klasor', coklu: '/Volumes/Coklu' }
+        : { arsiv: 'D:\\\\Arsiv', secilen: 'D:\\\\Yeni Klasor\\\\Hedef.pdf', yeni: 'D:\\\\Yeni Klasor', coklu: 'D:\\\\Coklu' };
+      const ayar = { ciktiKlasoru: Y.arsiv }, yazilan = [];
+      let arsivVar = true;
+      const baglam = {
+        pdefe: { cagir: async (kanal, a) => (kanal === 'dosya:varMi' ? a === Y.arsiv && arsivVar : kanal === 'dosya:kaydetDiyalog' ? Y.secilen : kanal === 'dosya:klasorSec' ? Y.coklu : {}) },
+        ayar: () => ayar, ayarKoy: async (k, v) => { yazilan.push([k, v]); ayar[k] = v; }, bildir: () => {}, mesajKutusu: async () => ({ secim: 0 }),
+      };
+      const k = kayitSecimi({ baglam, belge: null, ad: 'Belge' });
+      await k.hazir;
+      const r = sonuc[mac ? 'mac' : 'win'] = { ilk: k.cikti.klasor() };
+      k.cikti.el.querySelector('.arac-cikti-degistir').click();
+      await new Promise((c) => setTimeout(c, 60));
+      r.tek = { klasor: k.cikti.klasor(), yazilan: [...yazilan] };
+      k.cokluAyarla(true); k.klasorKipi(true);
+      k.cikti.el.querySelector('.arac-cikti-degistir').click();
+      await new Promise((c) => setTimeout(c, 60));
+      r.coklu = { klasor: k.cikti.klasor(), yazilan: [...yazilan] };
+      ayar.ciktiKlasoru = Y.arsiv; arsivVar = false;
+      const k2 = kayitSecimi({ baglam, belge: null, ad: 'Belge' });
+      await k2.hazir;
+      r.yok = k2.cikti.klasor();
+      r.Y = Y;
+    }
+    return sonuc;
+  })()`);
+  for (const [ad, r] of Object.entries(ciktiKlasoru)) {
+    const Y = r.Y;
+    sonuc(`Çıktı klasörü (${ad === 'mac' ? 'macOS' : 'Windows'}): ayardaki klasör önerilir; Değiştir'de seçilen klasör ("${Y.yeni}") ayara yazılır`,
+      r.ilk === Y.arsiv && r.tek.klasor === Y.yeni && J(r.tek.yazilan) === J([['ciktiKlasoru', Y.yeni]]), r);
+    sonuc(`Çıktı klasörü (${ad === 'mac' ? 'macOS' : 'Windows'}): birden çok dosyada klasör seçme penceresinden seçilen klasör de yazılır; ayardaki klasör yoksa önerilmez`,
+      r.coklu.klasor === Y.coklu && J(r.coklu.yazilan) === J([['ciktiKlasoru', Y.yeni], ['ciktiKlasoru', Y.coklu]]) && r.yok !== Y.arsiv, r);
+  }
+
   // ---------------------------------------------------------------- Format Değiştir (0.2.6, araclar/donustur.js)
   // Satırın sağ tık menüsünde ve sonuç listesinde macOS'ta "Finder'da göster", Windows'ta "Klasörde göster"; kilitli dosya sorusunun örnek
   // programı çıktının türüne göre (Windows'ta UDF'de "UYAP Doküman Editörü'nde"; PDF'te eskisi gibi "bir PDF okuyucuda", yukarıda)
@@ -266,8 +307,8 @@ export default async function ({ evalJs }) {
     }
     return sonuc;
   })()`);
-  sonuc('Ayarlar › Güncelleme (Windows): açıklama ve "Şimdi denetle"nin düğmesi (Güncelle) eskisi gibi',
-    ayarGuncelleme.win.aciklama === 'Haftada bir, açılışta ya da PDEfe açık kalıyorsa gün içinde arka planda yeni sürüme bakılır; internet yoksa sonra yeniden denenir. Yeni sürüm varsa pencerenin üstünde bir şerit görünür; Güncelle\'ye tek tıkla indirilir, kurulur ve PDEfe yeniden açılır.'
+  sonuc('Ayarlar › Güncelleme (Windows): açıklama (0.2.8: iki günde bir) ve "Şimdi denetle"nin düğmesi (Güncelle) eskisi gibi',
+    ayarGuncelleme.win.aciklama === 'İki günde bir, açılışta ya da PDEfe açık kalıyorsa gün içinde arka planda yeni sürüme bakılır; internet yoksa sonra yeniden denenir. Yeni sürüm varsa pencerenin üstünde bir şerit görünür; Güncelle\'ye tek tıkla indirilir, kurulur ve PDEfe yeniden açılır.'
     && ayarGuncelleme.win.dugme === 'Güncelle', ayarGuncelleme.win);
   sonuc('Ayarlar › Güncelleme (macOS): açıklama İndir\'i ve Uygulamalar\'a sürüklemeyi anlatıyor ("tek tıkla kurulur" yok), düğme İndir',
     /İndir'e basınca yeni sürüm tarayıcıda iner/.test(ayarGuncelleme.mac.aciklama) && /Uygulamalar klasörüne sürükle/.test(ayarGuncelleme.mac.aciklama)

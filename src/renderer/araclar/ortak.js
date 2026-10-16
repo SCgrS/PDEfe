@@ -678,18 +678,31 @@ export function suruklemeKalintisi(kap) { return kap.__suruklemeBitti && Date.no
 let _klasorlerSozu = null;
 /** Bilinen klasörler (ana süreç app.getPath): {masaustu, belgeler, indirilenler, ev}. Bir kez sorulur. */
 export function bilinenKlasorler(pdefe) {
-  if (!_klasorlerSozu) _klasorlerSozu = pdefe.cagir('uygulama:klasorler').catch(() => ({}));
+  if (!_klasorlerSozu) _klasorlerSozu = pdefe.cagir('uygulama:klasorler').then((k) => k || {}, () => ({}));   // boş yanıt da {} (0.2.8)
   return _klasorlerSozu;
 }
 
 /**
- * Araçların yeni belge çıktıları için varsayılan klasör: Ayarlar › Kaydetme "Çıktı klasörü" doluysa ve varsa o,
- * yoksa kullanıcının Masaüstü.
+ * Araçların yeni belge çıktıları için varsayılan klasör: Ayarlar › Kaydetme "Araçların çıktı klasörü" doluysa ve klasör varsa o, yoksa
+ * kullanıcının Masaüstü. 0.2.8'den beri herhangi bir araçta Değiştir ile seçilen klasör de bu ayara yazılır (ciktiKlasorunuHatirla).
  */
 export async function varsayilanCiktiKlasoru(baglam) {
   const ayarKlasoru = baglam.ayar?.()?.ciktiKlasoru;
   if (ayarKlasoru) { try { if (await baglam.pdefe.cagir('dosya:varMi', ayarKlasoru)) return ayarKlasoru; } catch { /* Masaüstü */ } }
   return (await bilinenKlasorler(baglam.pdefe)).masaustu || '';
+}
+
+/**
+ * Kullanıcının bir araçta seçtiği kayıt klasörü (0.2.8, kullanıcı isteği: "dosyanın kaydedileceği yeri bir kez değiştirince hep aynı yere
+ * kaydetsin, tekrar değiştirilene kadar"): Ayarlar'daki "Araçların çıktı klasörü" olur; bütün araçlar, öteki pencereler (ana süreç 'ayar:degisti')
+ * ve sonraki açılışlar onu önerir. Klasör ayardakiyle aynıysa (ayar boşken Masaüstü) yazılmaz: yalnızca adı değiştiren Değiştir ayarı
+ * değiştirmez. Ayardaki klasör artık yoksa (araçlar Masaüstü'nü önerirken) seçilen Masaüstü de yazılır.
+ */
+export async function ciktiKlasorunuHatirla(baglam, klasor) {
+  if (!klasor || typeof baglam?.ayarKoy !== 'function') return;
+  const simdiki = baglam.ayar?.()?.ciktiKlasoru || '';
+  if (simdiki ? yolAyni(simdiki, klasor) : yolAyni(klasor, (await bilinenKlasorler(baglam.pdefe)).masaustu || '')) return;
+  try { await baglam.ayarKoy('ciktiKlasoru', klasor); } catch (e) { console.warn('[araçlar] çıktı klasörü kaydedilemedi', e); }
 }
 
 /** Çipte gösterilecek kısa klasör adı: Masaüstü / Belgeler / İndirilenler ya da klasörün kendi adı. */
@@ -749,11 +762,12 @@ function uzantiDeseniAl(uz) {
  * ad ya da klasör değişince ikisi de sıfırlanır.
  * 0.2.6 (Dosya Formatını Değiştir): uzantiAyarla(uz) çıktının uzantısını değiştirir (kutudaki ad olduğu gibi kalır); klasorKipi(true) ad
  * kutusunu gizler, Değiştir yalnızca klasör seçtirir (birden çok dosya: adları araç verir).
+ * 0.2.8: klasorSecildi(klasor) Değiştir'de klasör (ya da klasör ve ad) seçilince çağrılır (kayitSecimi onu Ayarlar'daki çıktı klasörüne yazar).
  * @returns {{el:HTMLElement, yol:()=>string, klasor:()=>string, ad:()=>string, ayarla:(klasor:string|null, ad:string|null, s?:{elle?:boolean})=>void,
  *   onDegisti:(cb)=>void, elleDegisti:()=>boolean, onayli:(yol:string)=>boolean, onayla:(yol:string)=>void, onaylandi:(yol:string)=>boolean,
  *   uzantiAyarla:(uz:string)=>void, uzanti:()=>string, klasorKipi:(evet:boolean)=>void}}
  */
-export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasligi = 'Farklı kaydet' }) {
+export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasligi = 'Farklı kaydet', klasorSecildi = null }) {
   const el = oge(`<div class="arac-cikti">
       <input type="text" class="arac-girdi arac-cikti-ad" spellcheck="false" aria-label="Dosya adı" title="Dosya adı">
       <span class="arac-cikti-konum">konum</span>
@@ -797,6 +811,7 @@ export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasl
       // Klasör seçimi adı "elle" saymaz: tek dosyaya dönülünce önerilen ad (kalan dosyanın adı) seçilen klasörde yeniden aranır (0.2.6)
       onayliYol = null; aracOnayi = null;
       yaz(); bildir();
+      klasorSecildi?.(k);
       return;
     }
     const secilen = await pdefe.cagir('dosya:kaydetDiyalog', {
@@ -811,6 +826,7 @@ export function ciktiSecici({ pdefe, klasor, ad, uzanti: uz = 'pdf', diyalogBasl
     govdeYaz(dosyaAdi(secilen));
     elle = true; onayliYol = secilen; aracOnayi = null;
     yaz(); bildir();
+    klasorSecildi?.(mevcutKlasor);
   });
   return {
     el,
@@ -924,8 +940,9 @@ const BILGI_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" c
  * Ayır, Görüntü / PDF birleştir) aynı biçimde, aynı sırayla ve aynı varsayılanla ("Yeni belge olarak kaydet") kullanır: aracın "Kaydet"
  * başlığının altında bu seçim, (varsa) kısıt satırı, dosya satırı (ad + klasör çipi + Değiştir) ve üzerine yazma notu (0.1.25, kullanıcı
  * isteği: her araçta fotoğraftaki düzen).
- *  - Yeni belge: varsayılan klasör varsayilanCiktiKlasoru (Masaüstü), varsayılan ad aracın verdiği ad ("Sıkıştırılmış", "Ayrılmış"…;
- *    0.1.25'e dek "<özgün ad> (<ek>)"; klasörde varsa "(2)"…).
+ *  - Yeni belge: varsayılan klasör varsayilanCiktiKlasoru (Ayarlar'daki çıktı klasörü, yoksa Masaüstü), varsayılan ad aracın verdiği ad
+ *    ("Sıkıştırılmış", "Ayrılmış"…; 0.1.25'e dek "<özgün ad> (<ek>)"; klasörde varsa "(2)"…). Değiştir ile (ya da işlemden önce sorulan
+ *    pencerede) seçilen klasör Ayarlar'daki çıktı klasörü olur (0.2.8, ciktiKlasorunuHatirla): bütün araçlar sonra onu önerir.
  *  - Üzerine yaz: sonuç özgün dosyaya yazılır, yedek alınmaz. Dosya satırı kaybolmaz: yazılacak dosyanın adı ve klasörüyle soluk
  *    (değiştirilemez) görünür. Altındaki not sonucun geri alınıp alınamayacağını söyler: geriAlinabilir araç (Döndür, Sayfaları
  *    düzenle) sonucu sekmedeki belgeye geri alınabilir komut olarak uygulayıp normal kayıt yoluyla kaydeder (Ctrl+Z), not sade bilgidir;
@@ -969,7 +986,7 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
   let coklu = false;            // birden çok dosya (Ayır): ad dosya adlarının ortak başı
   let yalnizKlasor = false;     // klasorKipi (0.2.6): ad kutusu gizli, adları araç verir
   let uzerineIzinli = !!belge;  // "Üzerine yaz" seçilebilir mi (uzerineKullanilabilir)
-  const cikti = ciktiSecici({ pdefe: baglam.pdefe, klasor: '', ad: oneriAd(), uzanti: uz, diyalogBasligi });
+  const cikti = ciktiSecici({ pdefe: baglam.pdefe, klasor: '', ad: oneriAd(), uzanti: uz, diyalogBasligi, klasorSecildi: (k) => ciktiKlasorunuHatirla(baglam, k) });
   cikti.onDegisti(bildir);
   const yeniEl = el.querySelector('.arac-kayit-yeni');
   yeniEl.append(cikti.el);
@@ -1088,6 +1105,7 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
         const k = await baglam.pdefe.cagir('dosya:klasorSec', { baslik: diyalogBasligi }).catch(() => null);
         if (!k) return 'vazgec';
         cikti.ayarla(k, null, { elle: true });
+        await ciktiKlasorunuHatirla(baglam, k);   // 0.2.8: seçilen klasör sonraki kayıtlarda da önerilir
       }
       if (coklu) return 'devam';   // dosya adlarını ve var olan dosyaları araç kendisi yönetir
       if (!(await varOlanaYazmaSor(baglam, cikti, cikti.yol()))) return 'vazgec';

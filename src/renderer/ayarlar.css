@@ -93,6 +93,10 @@
 .ayar-renk.secili { border-color: var(--metin); }
 .ayar-renk:focus-visible { outline: 2px solid var(--vurgu); outline-offset: 2px; }
 .ayar-yol { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: text; }
+/* Araçların çıktı klasörü bulunamadı (0.2.8): yolun altında uyarı renginde not; kutu dar kartta yolu kısaltabilsin diye min-width 0 */
+.ayar-yol-kutu { min-width: 0; }
+.ayar-yol-not { font-size: 12px; margin-top: 2px; color: #9d5d00; }
+html[data-tema="koyu"] .ayar-yol-not { color: #fce100; }
 /* UYAP Doküman Editörü'nün durumu (0.2.6): bulunan yol ve sürüm, Java, neden; satır satır */
 .ayar-ude-durum { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 12px; }
 .ayar-sonuc { padding: 8px 4px; font-size: 12px; }

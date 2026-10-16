@@ -417,6 +417,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
     await kosul(`${A}.ogeler.length === 2 && !document.querySelector('.donustur-oge.yukleniyor')`, 15000);
     await bekle(300);
     const baskaKlasor = path.join(UI, 'baska-klasor');
+    fs.rmSync(baskaKlasor, { recursive: true, force: true });   // önceki koşumdan kalan dosya önerilen adı "(2)"ye çevirmesin
     fs.mkdirSync(baskaKlasor, { recursive: true });
     await yanitla('dosya:klasorSec', [baskaKlasor]);
     await tikSecici('.donustur-pencere .arac-kayit-yeni .arac-cikti-degistir');
@@ -427,7 +428,10 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
     sonuc('Çok dosyada klasör seçilip tek dosyaya dönülünce: ad kalan dosyanın adı ("Dilekçe örneği" + hedefin uzantısı), seçilen klasör kalır', /^Dilekçe örneği\.(udf|tif)$/.test(tekDurum.ad)
       && path.resolve(tekDurum.klasor) === path.resolve(baskaKlasor) && J(tekDurum.kalan) === J(['Dilekçe örneği.pdf']), tekDurum);
     await pencereKapat();
-    await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);
+    // 0.2.8 (kullanıcı isteği): Değiştir ile seçilen klasör Ayarlar'daki çıktı klasörü olur (senaryo42); sonraki bölümler yine test klasörüne yazar
+    const ayardaki = await evalJs(`window.pdefe.cagir('ayar:al', 'ciktiKlasoru')`);
+    sonuc('Değiştir ile seçilen klasör Ayarlar\'daki çıktı klasörü oldu (0.2.8)', path.resolve(ayardaki || '.') === path.resolve(baskaKlasor), ayardaki);
+    await evalJs(`(async () => { for (const [k, v] of Object.entries({ ciktiKlasoru: ${J(CIKTI)}, donusturme: {} })) { await window.pdefe.cagir('ayar:koy', k, v); window.__pdefe.ayar()[k] = v; } return true; })()`);
     fs.rmSync(path.join(CIKTI, 'Tarama örneği.pdf'), { force: true });
   }
 

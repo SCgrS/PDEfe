@@ -393,20 +393,29 @@ function bolumKaydetme(k) {
     baslik: 'Otomatik kaydet', aciklama: 'Notlar ve döndürme kısa bir gecikmeyle dosyaya yazılır; dosya başka bir programda (UYAP ya da başka bir PDF okuyucu) açıldığında değişiklikler görünür. Geri al yine çalışır.',
     kontrol: anahtar(!!a.otomatikKaydet, (v) => degistir('otomatikKaydet', v)),
   }));
+  // 0.2.8 (kullanıcı isteği: "dosyanın kaydedileceği yeri bir kez değiştirince hep aynı yere kaydetsin, tekrar değiştirilene kadar"): bir araçta
+  // Değiştir ile seçilen klasör de bu ayara yazılır (araclar/ortak.js ciktiKlasorunuHatirla). Ayardaki klasör artık yoksa araçlar Masaüstü'nü
+  // önerir; yolun altında bunu söyleyen not çıkar (ayar silinmez: çıkarılabilir disk yeniden takılınca klasör yine kullanılır)
   const yolEl = el('div', { class: 'ayar-yol' }, a.ciktiKlasoru || 'Masaüstü');
-  yolEl.classList.toggle('soluk', !a.ciktiKlasoru);
+  const notEl = el('div', { class: 'ayar-yol-not', hidden: '' }, 'Bu klasör bulunamadı; yerine Masaüstü kullanılır.');
   const sec = el('button', { class: 'ikincil', type: 'button' }, 'Seç');
   const temizle = el('button', { class: 'ikincil', type: 'button' }, 'Temizle');
-  temizle.disabled = !a.ciktiKlasoru;
+  let denetimNo = 0;
+  const yolGoster = (yol) => {
+    yolEl.textContent = yol || 'Masaüstü'; yolEl.classList.toggle('soluk', !yol); temizle.disabled = !yol; notEl.hidden = true;
+    const n = ++denetimNo;
+    if (yol) acik?.baglam.pdefe.cagir('dosya:varMi', yol).then((v) => { if (n === denetimNo) notEl.hidden = !!v; }).catch(() => {});
+  };
+  yolGoster(a.ciktiKlasoru);
   sec.addEventListener('click', async () => {
     const yol = await acik.baglam.pdefe.cagir('dosya:klasorSec', { baslik: 'Çıktı klasörü seç', varsayilan: ayarlar().ciktiKlasoru || undefined });
     if (!yol || !acik) return;
-    degistir('ciktiKlasoru', yol); yolEl.textContent = yol; yolEl.classList.remove('soluk'); temizle.disabled = false;
+    degistir('ciktiKlasoru', yol); yolGoster(yol);
   });
-  temizle.addEventListener('click', () => { degistir('ciktiKlasoru', ''); yolEl.textContent = 'Masaüstü'; yolEl.classList.add('soluk'); temizle.disabled = true; });
+  temizle.addEventListener('click', () => { degistir('ciktiKlasoru', ''); yolGoster(''); });
   k.append(kart({
-    baslik: 'Araçların çıktı klasörü', aciklama: 'Araçların (Sıkıştır, Sayfaları düzenle, Döndür, Ayır, Birleştir, Format Değiştir) yeni belge olarak kaydettiği dosyalar için önerilen klasör; araç penceresinde değiştirilebilir. Boşsa Masaüstü kullanılır.',
-    kontrol: el('div', { class: 'ayar-yanyana' }, [sec, temizle]), alt: yolEl,
+    baslik: 'Araçların çıktı klasörü', aciklama: 'Araçların (Sıkıştır, Sayfaları düzenle, Döndür, Ayır, Birleştir, Format Değiştir) yeni belge olarak kaydettiği dosyaların klasörü. Bir araçta Değiştir ile başka bir klasör seçilince burası da o klasör olur; bütün araçlar, yeniden değiştirilene dek onu kullanır. Boşsa ya da klasör bulunamazsa Masaüstü kullanılır.',
+    kontrol: el('div', { class: 'ayar-yanyana' }, [sec, temizle]), alt: el('div', { class: 'ayar-yol-kutu' }, [yolEl, notEl]),
   }));
   k.append(el('h3', {}, 'Format Değiştir'));
   udeKarti(k);
