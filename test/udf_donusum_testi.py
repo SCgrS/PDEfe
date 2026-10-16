@@ -1121,6 +1121,33 @@ def test_taranmis(c, k, ude_var):
           not resim and kel >= 0.9 and "tanıma" in (o.get("uyari") or ""), {"sözcük": round(kel, 3), "uyarı": o.get("uyari")})
 
 
+def test_yazisiz_tarama(c, k):
+    """0.2.9 denetimi: tanıyıcı çalışıp yazı bulamazsa (fotoğraf, boş tarama, yalnızca imza ya da mühür içeren sayfa) uyarı "yazı bulunamadı"
+    der; "bu bilgisayarda yazı tanıyıcı yok" yalnızca tanıyıcı gerçekten yokken. Aynı istekteki yazılı tarama tanınıyorsa tanıyıcı vardır."""
+    r, _ = c.cagir("donusum_yetenekleri", {})
+    if not (r["donusumler"].get("pdf>udf") or {}).get("var"):
+        atlandi("yazısız taranmış sayfa → UDF", "bu sürümde yok")
+        return
+    yazili, _ = taranmis_pdf(os.path.join(k, "yazili.pdf"))
+    yazisiz = os.path.join(k, "yazisiz.pdf")
+    d = pymupdf.open()
+    pg = d.new_page(width=595.28, height=841.89)
+    b = io.BytesIO()
+    Image.new("L", (1654, 2339), 250).save(b, "PNG")
+    pg.insert_image(pg.rect, stream=b.getvalue())
+    d.save(yazisiz)
+    d.close()
+    r, _ = donustur(c, [{"yol": yazili, "hedef": os.path.join(k, "yazili.udf"), "hedefBicim": "udf"},
+                        {"yol": yazisiz, "hedef": os.path.join(k, "yazisiz.udf"), "hedefBicim": "udf"}])
+    o1, o2 = r["sonuclar"]
+    u1, u2 = o1.get("uyari") or "", o2.get("uyari") or ""
+    if "tanınamadı" in u1 or "tanıma" not in u1:
+        sonuc("tanıyıcı yok: yazısız taramada da \"… tanınamadı (bu bilgisayarda yazı tanıyıcı yok)\"", "hata" not in o2 and "yazı tanıyıcı yok" in u2, u2)
+        return
+    sonuc("tanıyıcı varken yazısız tarama: \"1 taranmış sayfada yazı bulunamadı\", \"yazı tanıyıcı yok\" denmiyor",
+          "hata" not in o2 and "1 taranmış sayfada yazı bulunamadı" in u2 and "tanıyıcı yok" not in u2 and "tanınamadı" not in u2, {"yazılı": u1, "yazısız": u2})
+
+
 def kagitli_pdf(yol, W, H):
     """Tek sayfalık yazılı PDF (verilen ölçüde; kâğıt kuralının denetimi: gerçek A5 / Letter belgenin kâğıdı korunur)."""
     d = pymupdf.open()
@@ -1273,13 +1300,15 @@ def main():
                 lambda: test_pdf_udf(c, temiz_klasor("pdf_udf"), ude_var), lambda: test_taranmis(c, temiz_klasor("taranmis"), ude_var),
                 lambda: test_ude_yok(c, g, k), lambda: test_json_kanali(exe, temiz_klasor("kanal")),
                 lambda: test_zip_bombasi(c, temiz_klasor("bomba"), ude_var), lambda: test_yetim_jvm(c, temiz_klasor("yetim"), ude_var),
-                lambda: test_dusen_resim(c, temiz_klasor("dusen_resim")), lambda: test_gorsel_kagit(c, temiz_klasor("gorsel_kagit"))]
+                lambda: test_dusen_resim(c, temiz_klasor("dusen_resim")), lambda: test_gorsel_kagit(c, temiz_klasor("gorsel_kagit")),
+                lambda: test_yazisiz_tarama(c, temiz_klasor("yazisiz_tarama"))]
     if ude_var:
         testler += [lambda: test_derlem(c)]
     # --yalniz ad1,ad2 (0.2.8; 0.2.9'da birden çok ad): yalnızca UDE gerektirmeyen bu testler (UDE'li uzun turu beklemeden)
     yalnizlar = {"dusen_resim": lambda: test_dusen_resim(c, temiz_klasor("dusen_resim")),
                  "gorsel_kagit": lambda: test_gorsel_kagit(c, temiz_klasor("gorsel_kagit")),
-                 "taranmis": lambda: test_taranmis(c, temiz_klasor("taranmis"), ude_var)}
+                 "taranmis": lambda: test_taranmis(c, temiz_klasor("taranmis"), ude_var),
+                 "yazisiz_tarama": lambda: test_yazisiz_tarama(c, temiz_klasor("yazisiz_tarama"))}
     if "--yalniz" in sys.argv:
         testler = [yalnizlar[a] for a in sys.argv[sys.argv.index("--yalniz") + 1].split(",") if a in yalnizlar]
     for t in testler:

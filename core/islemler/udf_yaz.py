@@ -1057,7 +1057,7 @@ def pdf_udf(kaynak, cikti, secenekler, ilerleme, baglam):
         if n == 0:
             raise OgeHatasi("bozuk", "Belgede sayfa yok: %s" % ad)
         sayfalar = []
-        tanima_yok = 0
+        tanima_yok = yazi_yok = 0   # tanınamayan (tanıyıcı yok ya da çalışmadı: _tani None) / tanıyıcının yazı bulamadığı ([]) sayfalar
         for i in range(n):
             ilerleme(0.8 * i / n, "Sayfa %d/%d okunuyor" % (i + 1, n))
             with kilit:
@@ -1070,7 +1070,10 @@ def pdf_udf(kaynak, cikti, secenekler, ilerleme, baglam):
                     sf.tanindi = True
                     sf.gorseller = []   # tarama ve üstündeki küçük görseller (kaşe) tanınan yazının yerine geçmez
                 else:
-                    tanima_yok += 1
+                    if satirlar is None:
+                        tanima_yok += 1
+                    else:
+                        yazi_yok += 1
                     with kilit:
                         olcek = araclar._cekirdek().olcek_sinirla(sf.g, sf.y, TARAMA_DPI / 72.0)
                         pix = pg.get_pixmap(matrix=pymupdf.Matrix(olcek, olcek), alpha=False, annots=True)
@@ -1082,11 +1085,15 @@ def pdf_udf(kaynak, cikti, secenekler, ilerleme, baglam):
             sayfalar.append(sf)
         ilerleme(0.85, "Paragraflar kuruluyor")
         sonuc = _udf_kur(sayfalar, uyarilar)
+        # 0.2.9 denetimi: tanıyıcı çalışıp yazı bulamadıysa (fotoğraf, boş tarama, yalnızca imza ya da mühür) "tanıyıcı yok" denmez
         if tanima_yok:
-            uyarilar.append("%d taranmış sayfanın yazısı tanınamadı (bu bilgisayarda yazı tanıyıcı yok): o sayfalar resim olarak kondu."
-                            % tanima_yok)
+            from . import yazi_tanima as yt
+            uyarilar.append("%d taranmış sayfanın yazısı tanınamadı%s: o sayfalar resim olarak kondu."
+                            % (tanima_yok, " (bu bilgisayarda yazı tanıyıcı yok)" if yt._motor is False else ""))
         elif any(s.tanindi for s in sayfalar):
             uyarilar.append("Taranmış sayfaların yazısı yazı tanımayla çıkarıldı; harf yanlışları olabilir.")
+        if yazi_yok:
+            uyarilar.append("%d taranmış sayfada yazı bulunamadı: %s resim olarak kondu." % (yazi_yok, "sayfa" if yazi_yok == 1 else "sayfalar"))
         ilerleme(0.95, "Kaydediliyor")
         with zipfile.ZipFile(cikti, "w", zipfile.ZIP_DEFLATED) as z:
             z.writestr("content.xml", sonuc["xml"].encode("utf-8"))
