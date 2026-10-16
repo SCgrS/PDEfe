@@ -17,6 +17,7 @@
 // 0.2.6: Kısayollar listesi uzadığı için ekran-kisayollar 1280×900 pencerede çekilir (1280×800'de alt satırlar kesiliyordu): ikinci örnek
 // baslat.ps1 -Boyut "1280,900" ile açılır, $env:GORUNTU="kisayollar". Format Değiştir (ekran-donustur) kurgusal UDF / TIFF / Word
 // girdilerle (readme_ornek_uret.py); UDF'nin küçük resmi bilgisayardaki UYAP Doküman Editörü'yle çizilir.
+// 0.2.7: araç adları "Birleştir" ve "Format Değiştir"; Birleştir'in listesinde UDF, Word ve TIFF de (BIRLESTIRILECEK).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -29,6 +30,9 @@ const Y = (ad) => path.join(ORNEK, ad);
 const DILEKCE = 'Dava dilekçesi.pdf', TMK = 'Türk Medeni Kanunu.pdf', TTK = 'Türk Ticaret Kanunu.pdf', TARANMIS = 'Taranmış dilekçe.pdf';
 /** Format Değiştir'in girdileri (0.2.6; readme_ornek_uret.py donusturme_ornekleri: kurgusal UDF, taranmış evrak, Word) */
 const DONUSTURULECEK = ['Cevap dilekçesi.udf', 'Taranmış evrak.tif', 'Bilirkişi raporu.docx'];
+/** Birleştir'e eklenenler (açık dilekçenin arkasına). 0.2.7: UDF ve Word de birleştirilir; UDF ikinci satırda görünsün diye ilk sırada
+ *  (önceden Makbuz.png, Dilekçe sayfa 2.jpg, Taranmış dilekçe.pdf). */
+const BIRLESTIRILECEK = ['Cevap dilekçesi.udf', 'Makbuz.png', 'Bilirkişi raporu.docx', 'Taranmış evrak.tif'];
 
 const TAMAM = Symbol('istenen görüntüler çekildi');
 
@@ -335,11 +339,11 @@ async function calis({ evalJs, ekranGoruntusu, bekle, fare, tikla, surukle, yaz,
 
   // Birleştir (açık dilekçe + görseller + taranmış)
   await sec(DILEKCE);
-  await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'dosya:acDiyalog', [${J([Y('Makbuz.png'), Y('Dilekçe sayfa 2.jpg'), Y(TARANMIS)])}])`);
+  await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'dosya:acDiyalog', [${J(BIRLESTIRILECEK.map(Y))}])`);
   await komut('arac.gorselBirlestir'); await kosul(`!!document.querySelector('.arac-pencere')`, 5000);
   await bekle(800);
   await evalJs(`(() => { const d = [...document.querySelectorAll('.arac-pencere button')].find((x) => /Dosya ekle|Ekle/.test(x.textContent)); d?.click(); return !!d; })()`);
-  await bekle(5000);
+  await bekle(9000);   // 0.2.7: UDF'nin küçük resmi UYAP Doküman Editörü'yle
   await evalJs(`(document.querySelector('.birlestir-liste').scrollTop = 0, document.activeElement?.blur(), true)`); await bekle(400);
   if (iste('birlestir')) await ss('birlestir');
   await hepsiniTemizle();
@@ -419,11 +423,11 @@ async function calis({ evalJs, ekranGoruntusu, bekle, fare, tikla, surukle, yaz,
   // Açık temadakilerle aynı kurgu (README'de yan yana); sayfa koyulaştırılmaz (koyu temanın varsayılanı). Birleştir açık temadaki gibi
   // notlu (kaydedilmemiş) belgelerle; ana görünüm için belgeler kaydedilmeden kapatılıp aynı sırayla yeniden açılır (açık temadaki gibi temiz).
   await sec(DILEKCE);
-  await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'dosya:acDiyalog', [${J([Y('Makbuz.png'), Y('Dilekçe sayfa 2.jpg'), Y(TARANMIS)])}])`);
+  await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'dosya:acDiyalog', [${J(BIRLESTIRILECEK.map(Y))}])`);
   await komut('arac.gorselBirlestir'); await kosul(`!!document.querySelector('.arac-pencere')`, 5000);
   await bekle(800);
   await evalJs(`(() => { const d = [...document.querySelectorAll('.arac-pencere button')].find((x) => /Dosya ekle|Ekle/.test(x.textContent)); d?.click(); return !!d; })()`);
-  await bekle(5000);
+  await bekle(9000);   // 0.2.7: UDF'nin küçük resmi UYAP Doküman Editörü'yle
   await evalJs(`(document.querySelector('.birlestir-liste').scrollTop = 0, document.activeElement?.blur(), true)`); await bekle(400);
   if (iste('birlestir-koyu')) await ss('birlestir-koyu');
   await hepsiniTemizle();

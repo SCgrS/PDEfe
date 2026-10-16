@@ -3147,6 +3147,12 @@ Her bulgu önce yeniden üretildi ya da kod izlendi; gerçekse önce düşen tes
 #### 0.2.7: belgeler
 - [x] Sürüm 0.2.7 (package.json, package-lock.json); CHANGELOG; docs/DOGRULAMA.md 42; README: giriş, Öne çıkanlar, Açılış ekranı, Sekmeler ve
   pencereler, Araçlar (Birleştir), Format Değiştir (görüntü → PDF, PDF → JPG, İdeal / Düşük, "zaten var" sorusu, gereksinimler); ekran görüntüleri.
+- [x] **Ekran görüntüleri** (`README_OLCEK=2`, temiz veri klasörü, kurgusal yazar adı, belgeler `C:\Users\Public\Documents\PDEfe Örnek`'te, iş
+  bitince silindi; hepsine tek tek bakıldı): açılış ekranı (açık, koyu), Araçlar, Birleştir (açık, koyu), Format Değiştir (ilk satırın altında
+  kalite notu, hedeflerde JPG), Yazdır (eşit düğmeler), Kısayollar (1280 × 900; bölüm başlığı "Birleştir"). `test/readme_goruntuleri.mjs`'te
+  Birleştir'in listesi artık UDF, PNG, Word ve TIFF (`BIRLESTIRILECEK`; UDF ikinci satırda, küçük resmi UYAP Doküman Editörü'yle; özet "en az 6
+  sayfa", kalite düğmelerinde "≥"). Bilinen: Birleştir'de önerilen ad "Birleştirilmiş (3)" (görüntünün çekildiği bilgisayarın Masaüstü'nde aynı
+  adlı dosyalar var; 0.2.6'da "(2)").
 
 #### 0.2.7: sınama özeti
 - [x] Python (çekirdek): donustur_testi 214/214 (akış dâhil), udf_donusum_testi 132/132, word_donusum_testi 32/32 (`PDEFE_WORD_YOK=1`), araclar_testi
