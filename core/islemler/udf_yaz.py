@@ -1027,11 +1027,22 @@ class _Yazici:
 
 
 # ---------------------------------------------------------------- dönüştürme
+def _a4e_sigar(W, H):
+    """Sayfa (yönüyle) A4'e sığıyor mu (3 pt pay): görüntü ve TIFF sayfaları 0.2.9'dan beri A4'e sığan en büyük ölçüde."""
+    g, y = (H, W) if W > H + 1 else (W, H)
+    return g <= KAGITLAR[0][1] + 3 and y <= KAGITLAR[0][2] + 3
+
+
 def _sayfa_bicimi(W, H):
-    """(mediaSizeName, yön, kâğıt): kâğıt ölçüsü UDE'nin kodlarından en yakını; yatay 0, dikey 1."""
+    """(mediaSizeName, yön, kâğıt): kâğıt ölçüsü UDE'nin kodlarından en yakını; yatay 0, dikey 1. 0.2.9 denetimi: sayfa hiçbir kâğıtla 3 pt
+    içinde tutmuyor ama A4'e sığıyorsa A4 (sayfa A4'ün sol üstünde, küçültülmeden). Görüntünün A4'e sığan sayfasında (4:3 fotoğraf 793,7 ×
+    595,3 pt) "en yakın" Letter (kısa kenarı A4'ünkünü aşar), kare görüntüde A5 (görüntü yarı boya inerdi) çıkıyordu; gerçek A5, B5, Letter
+    belgeler kendi kâğıtlarında kalır."""
     yatay = W > H + 1
     g, y = (H, W) if yatay else (W, H)
     en = min(KAGITLAR, key=lambda k: abs(k[1] - g) + abs(k[2] - y))
+    if (abs(en[1] - g) > 3 or abs(en[2] - y) > 3) and _a4e_sigar(W, H):
+        en = KAGITLAR[0]
     return en[0], (0 if yatay else 1), en
 
 
@@ -1375,7 +1386,13 @@ def _udf_kur(sayfalar, uyarilar):
     xml = (ONSOZ + "<content><![CDATA[" + "".join(yz.havuz) + "]]></content><properties>" + pf + zemin +
            "</properties>\n<elements resolver=\"hvl-default\" >\n" + "\n".join(yz.xml) + "\n</elements>" + STILLER + "\n</template>\n")
     if abs(kagit[1] - min(W, H)) > 3 or abs(kagit[2] - max(W, H)) > 3:
-        uyarilar.append("Sayfa ölçüsü (%d × %d pt) UYAP Doküman Editörü'nün kâğıtlarından en yakınına çevrildi." % (round(W), round(H)))
+        # A4'e sığan sayfa A4'e konduysa (_sayfa_bicimi): yalnızca resim olan sayfalarda (görüntü, TIFF, tarama) kayan bir şey yok, uyarı
+        # gerekmez; yazılı sayfada yazı alanı kâğıda göre genişleyebilir
+        if kagit is KAGITLAR[0] and _a4e_sigar(W, H):
+            if not all(sf.taranmis for sf in sayfalar):
+                uyarilar.append("Sayfa ölçüsü (%d × %d pt) UYAP Doküman Editörü'nün kâğıtlarında yok; belge A4 kâğıda kondu." % (round(W), round(H)))
+        else:
+            uyarilar.append("Sayfa ölçüsü (%d × %d pt) UYAP Doküman Editörü'nün kâğıtlarından en yakınına çevrildi." % (round(W), round(H)))
     return {"xml": xml, "paragraf": paragraf_say}
 
 

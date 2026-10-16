@@ -13,7 +13,8 @@ aynı, düz XML (zip'siz) UDF, yatay sayfa, tablo, satır konumları yazıcı yo
 klasörlerinin değişmemesi, geçici ev klasörlerinin silinmesi; zip bombası (köprüye yeniden paketlenmiş kopya), çekirdek çizim sürerken
 çökünce JVM'in sonlanması ve kalıntıların sonraki çekirdekte silinmesi. PDF → UDF: content.xml'in yapısı (format_id 1.8, ofsetler, tam
 punto, "]]>" (iki biçimli parçaya bölünmüşü de), BMP dışı karakter, yatay sayfa), UDE'nin açması, sözcük benzerliği, sayfa sayısı, üst / alt
-bilgi ve sayfa numarası ("Bölüm N" başlıkları sayfa numarası sayılmaz), yalnızca tablodan oluşan belge, taranmış sayfa.
+bilgi ve sayfa numarası ("Bölüm N" başlıkları sayfa numarası sayılmaz), yalnızca tablodan oluşan belge, taranmış sayfa; görüntü ve TIFF →
+UDF'te kâğıt A4 (0.2.9; gerçek A5 / Letter belge kendi kâğıdında).
 """
 import base64
 import difflib
@@ -1120,6 +1121,54 @@ def test_taranmis(c, k, ude_var):
           not resim and kel >= 0.9 and "tanıma" in (o.get("uyari") or ""), {"sözcük": round(kel, 3), "uyarı": o.get("uyari")})
 
 
+def kagitli_pdf(yol, W, H):
+    """Tek sayfalık yazılı PDF (verilen ölçüde; kâğıt kuralının denetimi: gerçek A5 / Letter belgenin kâğıdı korunur)."""
+    d = pymupdf.open()
+    pg = d.new_page(width=W, height=H)
+    for i in range(8):
+        pg.insert_text((50, 80 + 18 * i), "Satir %d: kagit olcusu denemesi icin ornek metin." % (i + 1), fontsize=11)
+    d.save(yol)
+    d.close()
+    return yol
+
+
+def test_gorsel_kagit(c, k):
+    """0.2.9 denetimi: görüntü ve TIFF → UDF'te UDF'nin kâğıdı A4 (dikey görüntüde dikey, yatayda yatay; kare dikey). 0.2.9'dan beri görüntünün
+    PDF sayfası A4'e sığan en büyük ölçüde (4:3 fotoğrafta 793,7 × 595,3 pt); UDE'nin kâğıtlarından "en yakını" seçilince Letter (kısa kenarı
+    A4'ünkünü aşar), kare görüntüde A5 çıkıyordu. Gerçek A5 ve Letter PDF'lerin kâğıdı değişmez. Görüntüde sayfa ölçüsü uyarısı çıkmaz (sayfa
+    A4'e sığıyor, kâğıt A4: küçültülen ya da kesilen bir şey yok)."""
+    r, _ = c.cagir("donusum_yetenekleri", {})
+    if not (r["donusumler"].get("pdf>udf") or {}).get("var"):
+        atlandi("görüntü → UDF kâğıdı", "bu sürümde yok")
+        return
+    girdiler = {}
+    for ad, (g, y), dpi in (("foto_4x3", (4000, 3000), None), ("foto_3x4", (3000, 4000), None), ("foto_72dpi", (1600, 1200), (72, 72)),
+                            ("kare", (1200, 1200), None), ("foto_16x9", (1920, 1080), None)):
+        yol = os.path.join(k, ad + ".jpg")
+        Image.new("RGB", (g, y), (205, 210, 215)).save(yol, quality=80, **({"dpi": dpi} if dpi else {}))
+        girdiler[ad] = yol
+    girdiler["letter_tiff"] = os.path.join(k, "letter_tiff.tif")   # Letter tarama (300 dpi): A4'e sığan sayfası 595,3 × 770,4 pt
+    Image.new("1", (2550, 3300), 1).save(girdiler["letter_tiff"], compression="group4", dpi=(300, 300))
+    girdiler["a5_pdf"] = kagitli_pdf(os.path.join(k, "a5_pdf.pdf"), 419.53, 595.28)
+    girdiler["letter_pdf"] = kagitli_pdf(os.path.join(k, "letter_pdf.pdf"), 612.0, 792.0)
+    beklenen = {"foto_4x3": ("1", "0"), "foto_3x4": ("1", "1"), "foto_72dpi": ("1", "0"), "kare": ("1", "1"), "foto_16x9": ("1", "0"),
+                "letter_tiff": ("1", "1"), "a5_pdf": ("2", "1"), "letter_pdf": ("3", "1")}
+    adlar = {"1": "A4", "2": "A5", "3": "Letter", "4": "B5", "5": "Legal", "6": "Executive"}
+    r, _ = donustur(c, [{"yol": y, "hedef": os.path.join(k, a + ".udf"), "hedefBicim": "udf"} for a, y in girdiler.items()])
+    for o in r["sonuclar"]:
+        a = os.path.splitext(os.path.basename(o["hedef"]))[0]
+        b = beklenen[a]
+        ad = "%s → UDF: kâğıt %s %s" % (a, adlar[b[0]], "yatay" if b[1] == "0" else "dikey")
+        if "hata" in o:
+            sonuc(ad, False, o["hata"])
+            continue
+        pf = ET.fromstring(udf_xml(o["hedef"]).encode("utf-8")).find("properties/pageFormat").attrib
+        bulunan = (pf.get("mediaSizeName"), pf.get("paperOrientation"))
+        uyari = o.get("uyari") or ""
+        sonuc(ad + ", sayfa ölçüsü uyarısı yok", bulunan == b and "Sayfa ölçüsü" not in uyari,
+              {"kâğıt": "%s %s" % (adlar.get(bulunan[0], bulunan[0]), "yatay" if bulunan[1] == "0" else "dikey"), "uyarı": uyari})
+
+
 def test_dusen_resim(c, k):
     """0.2.8 (kullanıcı isteği: uyarılarda "kaşe" geçmesin; arayüz uyarıyı sonuç satırının ⚠ simgesinin ipucunda kısa gösterir): yazının üstündeki
     resim (imza) PDF → UDF'te alınmaz; uyarı sayısıyla ve kısa: "1 resim (imza, doğrulama kodu gibi) alınmadı: …"."""
@@ -1224,12 +1273,15 @@ def main():
                 lambda: test_pdf_udf(c, temiz_klasor("pdf_udf"), ude_var), lambda: test_taranmis(c, temiz_klasor("taranmis"), ude_var),
                 lambda: test_ude_yok(c, g, k), lambda: test_json_kanali(exe, temiz_klasor("kanal")),
                 lambda: test_zip_bombasi(c, temiz_klasor("bomba"), ude_var), lambda: test_yetim_jvm(c, temiz_klasor("yetim"), ude_var),
-                lambda: test_dusen_resim(c, temiz_klasor("dusen_resim"))]
+                lambda: test_dusen_resim(c, temiz_klasor("dusen_resim")), lambda: test_gorsel_kagit(c, temiz_klasor("gorsel_kagit"))]
     if ude_var:
         testler += [lambda: test_derlem(c)]
-    # --yalniz dusen_resim (0.2.8): yalnızca bu test (UDE'li uzun turu beklemeden)
-    if "--yalniz" in sys.argv and sys.argv[sys.argv.index("--yalniz") + 1] == "dusen_resim":
-        testler = [lambda: test_dusen_resim(c, temiz_klasor("dusen_resim"))]
+    # --yalniz ad1,ad2 (0.2.8; 0.2.9'da birden çok ad): yalnızca UDE gerektirmeyen bu testler (UDE'li uzun turu beklemeden)
+    yalnizlar = {"dusen_resim": lambda: test_dusen_resim(c, temiz_klasor("dusen_resim")),
+                 "gorsel_kagit": lambda: test_gorsel_kagit(c, temiz_klasor("gorsel_kagit")),
+                 "taranmis": lambda: test_taranmis(c, temiz_klasor("taranmis"), ude_var)}
+    if "--yalniz" in sys.argv:
+        testler = [yalnizlar[a] for a in sys.argv[sys.argv.index("--yalniz") + 1].split(",") if a in yalnizlar]
     for t in testler:
         try:
             t()
