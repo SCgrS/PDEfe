@@ -3411,3 +3411,197 @@ Altı bulgu (ikisi aynı); dördü düzeltildi, biri doğrulanamadı (açık kon
   - Mac'te denenmedi (mac_renderer'ın darwin çerçevesinde "Finder'da göster", "Tümünü aç" ve çıktı klasörü yolları doğru).
   - Paketli çekirdekte Word → PDF gerçek Word'le denenmedi (`PDEFE_WORD_YOK=1`; Word yolu 0.2.8'de değişmedi). Kurucu bu bilgisayara kurulmadı.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 43.
+
+### Revizyon 0.2.9 (2026-10-16, kullanıcı istekleri: görüntüler A4 boyutunda, Birleştir'de sayfa seçeneği yok; Birleştir'in açıklaması; Format Değiştir'in bildirimi ve Dönüştür düğmesi; 0.2.6–0.2.8 değişikliklerinin kod ve kişisel veri denetimi)
+Ayrıntı: CHANGELOG.md. Kullanıcının beş maddelik isteği (özet): (1) "Görüntü dosya formatlarını birleştirirken veya PDF'e format dönüştürürken
+görüntülerin A4 boyutunda kalmasını sağlayalım. Çözünürlükten bahsetmiyorum, boyuttan bahsediyorum. Bunu sağlayacağımız için … görüntü
+birleştirirken sayfa seçeneğini kaldıralım."; açıklaması: "A4 sayfasını hiçbir durumda göstermeyeceğiz. Max boyutlar A4 boyutunda olacak. Dikeyse
+dikey, yataysa yatay A4."; (2) Birleştir'in açıklaması "Dosyalardan tek PDF oluşturur, farklı dosya formatlarıyla çalışabilir"; (3) Format
+Değiştir'in beyaz bildiriminde "Dönüştürüldü" yerine "Format değiştirildi"; (4) işlem sürerken Dönüştür düğmesi etkin görünüyor, soluk olsun;
+(5) PDEfe-Test'teki bütün değişikliklerle birlikte kodların denetlenmesi, anormal bir şey olup olmadığının sınanması, kişisel veri denetimi.
+Gönderme, etiket ve sürüm yayımı yok: yalnızca yerel commit'ler (asıl depo 0.2.5'te; 0.2.6–0.2.8 yalnızca bu bilgisayarda ve gizli PDEfe-Test'te).
+Düzen: madde 1–4 tek grup, aynı çalışma ağacında sırayla; madde 5 için dört bölümlü bağımsız denetim (çekirdek; renderer ve ana süreç; testler ve
+belgeler; kişisel veri). Kapsam `git diff 8d2f583..HEAD` (0.2.5 → 0.2.9'un ilk dört maddesi), aradaki bütün commit'ler ve HEAD'deki bütün izlenen
+dosyalar. Sonra bulguların düzeltmesi; belgeler, paket ve son sınama. Her madde ayrı commit'ler, önce düşen testlerle. Electron yalnızca ekran
+dışındaki (`test/baslat.ps1`) ya da görünmeyen masaüstündeki (`test/baslat_gizli.ps1`) örnekte başlatıldı; kullanıcının PDEfe'sine, Word'üne ve
+UYAP Doküman Editörü'ne dokunulmadı.
+
+#### 0.2.9: görüntü sayfaları A4'e sığan ölçüde; Birleştir'de sayfa seçeneği yok (madde 1)
+- [x] **Kök neden (0.2.8)**: üç ayrı kural vardı. Birleştir "Orijinal" (varsayılan): TIFF karesi 0.2.6'nın dpi kuralıyla (geçerli etiket ya da uzun
+  kenarı A4'ün uzun kenarı), öteki görüntüler 72 dpi (uzun kenarı 2500 pikseli geçerse 300 dpi): 4032 × 3024 telefon fotoğrafı 34 × 26 cm, 1200 × 900
+  ekran görüntüsü 42 × 32 cm, 300 × 200 piksellik görüntü 10,6 × 7,1 cm. Birleştir "A4'e sığdır": beyaz A4 sayfa, kenar boşluğu (varsayılan 10 mm),
+  görüntü ortada. Format Değiştir görüntü → PDF (0.2.7): dpi etiketi 100–1200 ise o (Letter boyunda 150 dpi tarama 21,6 × 27,9 cm, 600 dpi küçük
+  fotoğraf küçücük sayfa), yoksa uzun kenarı A4'e oturtan dpi; çok küçük görüntü 72 dpi. TIFF → PDF (0.2.6): geçerli etiket (50–1200) ya da A4 kuralı.
+- [x] **Karar** (tek ortak işlev `core/islemler/araclar.py` `a4_sayfa_olcusu(g, y, dpi=None)`): her görüntü sayfası görüntünün kendisidir (beyaz kenar
+  ya da beyaz A4 sayfa yok); ölçüsü görüntünün oranı korunarak A4'e sığan en büyük ölçü: dikey ya da kare görüntü 210 × 297 mm'lik kutuya, yatay
+  görüntü 297 × 210 mm'lik kutuya. Bir kenar A4'ün kenarına eşit, öbürü orana göre (≤). Küçük görüntü büyür, büyük küçülür: yalnızca sayfa ölçüsü;
+  pikseller yeniden örneklenmez, yeniden kodlanmaz (JPEG baytları olduğu gibi, 1 bit TIFF G4 / Flate kayıpsız). Dikey / yatay, EXIF yönü (ve
+  Birleştir'de satırın döndürmesi) uygulandıktan sonraki görünen ölçüyle; kare dikey sayılır. Oran piksel oranıdır; yalnızca yatay ve dikey çözünürlük
+  etiketi farklıysa (faks taraması 204 × 98 dpi gibi; ikisi de 50–1200) piksel / dpi oranı (yoksa sayfa yarı yarıya basık çıkardı). Kullanıcıya
+  "A4 sayfasını hiçbir durumda göstermeyeceğiz" böyle yorumlandığı söylendi: beyaz A4 sayfa yok, sayfa görüntünün kendisi, en büyük ölçüsü A4.
+- [x] **Kapsam**: Birleştir'in görüntü ve TIFF girdileri; Format Değiştir'de görüntü → PDF ve TIFF → PDF; bunların zincirleri (görüntü / TIFF → UDF,
+  Word, TIFF, JPG PDF üzerinden; JPG / TIFF hedefinde taranmış sayfa kendi çözünürlüğünde kaldığı için piksel sayısı değişmez). PDF, UDF ve Word
+  girdileri kendi sayfa ölçülerini korur. Örnekler: 3:4 fotoğraf 210 × 280 mm, 4:3 fotoğraf 280 × 210, A4 taramalar 210 × 297 (2480 × 3508 tarama
+  209,97 × 297 mm; yuvarlanınca A4), Letter tarama 210 × 271,8, kare 210 × 210.
+- [x] **Kaldırılanlar**: Birleştir satırındaki "Sayfa" seçimi (A4'e sığdır / Orijinal) ve "Kenar … mm" kutusu (`gorselBirlestir.js`, araclar.css);
+  çekirdekte `sayfaBoyutu` / `kenar` (gelirse yok sayılır), 0.2.6'nın TIFF dpi kuralı (`tiff_dpi_coz`, standart değere yuvarlama, 72 dpi varsayımı),
+  görüntünün dpi etiketi kuralı (`GORSEL_DPI_EN_AZ`). Ana süreç (guvenlik.js `birlestirOgesi`) bu iki alanı artık çekirdeğe geçirmez (bilinmeyen alan
+  gibi atılır; eski değer zararsız).
+- [x] **Ayar**: sayfa boyutu kalıcı bir ayar değildi (satır başına, her eklemede "Orijinal"); `ayarlar.json`'da anahtarı yok, KALDIRILAN_ANAHTARLAR'a
+  eklenecek bir şey çıkmadı.
+- [x] **Sonuç bilgisi**: TIFF → PDF ve görüntü → PDF sonucundaki ve donusum_bilgi'deki `dpi` artık sayfanın gerçek çözünürlüğü (piksel / sayfa inçi,
+  ilk sayfa); `dpiKaynagi` kalktı (arayüzde kullanılmıyordu).
+- [x] **Kalite seviyeleri** (Birleştir'de Yüksek / Orta / Düşük) eskisi gibi sayfadaki fiziksel ölçüye göre küçültür; sayfa artık A4'e sığan ölçü.
+  Boyut tahmini aynı işlevle (ön bellek anahtarında sayfa boyutu ve kenar yok; görüntüde döndürme var: sayfanın yönü değişir).
+- [x] **Görüntüden ve TIFF'ten yapılan UDF'nin kâğıdı A4** (denetimin bulgusu 1, aşağıda): yatay A4'e sığan sayfayı `udf_yaz` UYAP Doküman Editörü'nün
+  kâğıtlarından "en yakını" sayıp Letter ya da A5 seçiyordu.
+- [x] **Seçilmeyen yollar**: A4'e çok yakın oranlı taramayı tam A4'e "yapıştırmak" (oran bozulurdu; kullanıcı oran korunsun dedi); dpi etiketine göre
+  gerçek ölçü (kullanıcı "çözünürlükten bahsetmiyorum" dedi); Birleştir'de beyaz A4 sayfayı seçenek olarak bırakmak (kullanıcı seçeneğin kalkmasını
+  istedi).
+- [x] **Testler**: donustur_testi `a4_olcusu` (yeni, 12 girdi: 3:4, 4:3, A4 taramalar, Letter, kare, çok küçük ve çok büyük, EXIF 90°, faks; JPEG ve G4
+  verisi aynı) eski kodla 26/41 (15 HATA); araclar_testi birlestir/A4 (yeni) eski kodla 3/16; guvenlik_birim'e bir denetim (eski guvenlik.js'le HATA);
+  eski beklentiler yeni kurala göre (araclar_testi, donustur_testi, senaryo13 7. bölüm, senaryo39 2. bölüm: etiketsiz 1654 × 1240 PNG 794,1 × 595,3 pt).
+
+#### 0.2.9: Birleştir'in açıklaması (madde 2)
+- [x] **Karar** (aracPenceresi.js ARACLAR; Araçlar penceresi ve açılış ekranı aynı listeyi gösterir): "Dosyalardan tek PDF oluşturur, farklı dosya
+  formatlarıyla çalışabilir" (kullanıcının yazdığı gibi; 0.2.8'de "Birleştirir, farklı dosya formatlarıyla çalışabilir"). İpucu (title) değişmedi.
+  Karolar eşit yükseklikte kalır (0.2.8 kuralı).
+- [x] **Sonuç**: metin açılış ekranının üç sütununda (karoda yazıya ~181 px) üç satıra kırılıyor (iki satıra sığması için ~225 px gerekirdi; sütun 820 px
+  kullanıcının 0.2.6 kararı). Araçlar penceresinde de üç satır, karolar 130 px (değişmedi). Eşit yükseklikteki karolar bir satır uzadı: alçak pencerede
+  (≤ 860 px) 1280 × 700'de 10 belgeyle 30 px taşıyordu (senaryo20 48/52). Karar (stil.css, yalnızca alçak pencere): karoların üst / alt iç boşluğu
+  7 → 5, açıklamanın satır yüksekliği 1,3 → 1,2, son açılanların satırları 38 → 34 px (≈ 35 px kazanç); yazı boyları, sütunlar, PDF aç değişmedi.
+  Sonra senaryo20 52/52.
+- [x] **Ölçütler**: kartlar alçak pencerede 79 px, PDF aç 86 px: acilis_hizasi'nin "PDF aç kartlardan ≥ 10 px yüksek" payı her genişlikte 4 px,
+  senaryo19'un "PDF aç ≥ 1,1 × kart" ölçütü her genişlikte 1,05 (oran 1,09; alan oranı 2,2 kaldı). Yüksek pencerede karolar ~100 px, PDF aç 86 px.
+- [x] **Seçilmeyen yollar**: açıklamayı kısaltmak ya da iki satırda kesmek (kullanıcı metni yazdı); yazı boyunu küçültmek; sütunu genişletmek;
+  karoları satır başına eşitlemek (0.2.8'in "bütün karolar aynı boyda" kararı).
+
+#### 0.2.9: "Format değiştirildi: <ad>" (madde 3)
+- [x] **Karar** (donustur.js `_sonucGoster`): sonuç sekmede kendiliğinden açılınca alttaki beyaz bildirim "Format değiştirildi: <ad>" (0.2.8'de
+  "Dönüştürüldü: <ad>"); uyarı varsa ardından. Pencere içindeki sonuç kutusunun başlığı ("Dosya dönüştürüldü") ve iptal / hata bildirimleri
+  kullanıcının isteğinde yok: değişmedi.
+- [x] **Testler**: senaryo41 6c, senaryo37 6. bölüm ve udf_yaklasik'in beklentisi yeni metin; senaryo39'un "bildirim yok" denetimi iki metne de bakıyor.
+
+#### 0.2.9: Dönüştür işlem sürerken soluk (madde 4)
+- [x] **Kök neden**: `_donusturBir` düğmeyi (`_durumGuncelle` → `_dugmeGuncelle`) IslemIlerleme.calistir başlamadan, `calisiyor` henüz false iken
+  güncelliyordu: düğme etkin göründü; işlem boyunca başka güncelleme gelmediğinden etkin kaldı (ikinci basış `_suruyor` yüzünden bir şey yapmıyordu).
+  Pencerenin gövdesi `.mesgul`le soluyor, alt şeritteki düğme soluklaşmıyordu.
+- [x] **Karar**: `_dugmeGuncelle` `_suruyor`'a da bakar (Dönüştür'e basıldığı andan iş bitene dek: "zaten var" sorusu, dönüştürme, sonuç);
+  `donustur()` başında düğme hemen soluk. Bitince `_durumGuncelle` 0.2.7'nin kuralını uygular (başarılı dönüştürmeden sonra bir şey değişene dek soluk;
+  hiçbir dosya dönüşmediyse etkin).
+- [x] **Testler**: senaryo44 (yeni; 0.2.9'un dört maddesi: Birleştir'in açıklaması ve eşit karolar, satırda Sayfa / Kenar yok ve görüntü sayfaları A4'e
+  sığan ölçüde, "Format değiştirildi" bildirimi, Dönüştür'ün işlem boyunca soluk kaldığı: her 15 ms'de ve her öznitelik değişiminde kayıt); eski
+  arayüzle 20 denetimin 6'sı HATA, sonra 20/20 (%100 ve %125 ölçek).
+
+#### 0.2.9: kod ve kişisel veri denetimi (madde 5)
+- [x] **Yöntem**: dört bağımsız bölüm (çekirdek; renderer ve ana süreç; testler ve belgeler; kişisel veri). Kod okuma, deneyler (eski ve yeni
+  çekirdekle aynı girdiler, 0.2.8 çalışma ağacıyla karşılaştırma), testleri koşma, kalıp aramaları (kullanıcı ve büro adı, kullanıcı klasörü,
+  `Users\<ad>` yolları, e-posta, telefon, T.C. kimlik, IBAN, esas no kalıpları, gerçek belge adları, marka adları), commit iletileri ve yazar
+  bilgileri, depodaki PNG / PDF / jar dosyalarının üst verisi. Kişisel değerler rapora yazılmadı (yalnızca dosya:satır ve tür).
+- [x] **Sonuç**: 23 bulgu (ikisi yüksek, dördü orta, 17'si düşük). Her bulgu önce yeniden doğrulandı (deneyle ya da kod izlenerek); 21 commit'te
+  düzeltildi (`6e25ffa` … `d0614f9`, aşağıda). Kişisel veri: HEAD'deki izlenen dosyalarda ve commit iletilerinde kullanıcının ya da büronun adı,
+  kullanıcı adı, kişisel yol, e-posta, telefon, kimlik / IBAN numarası, gerçek belge adı ya da metni, esas numarası, marka adı bulunmadı. Bulunanlar:
+  büronun yazıcısının model adı (kişisel veri sayılmaz; değiştirildi, geçmişteki üç commit'te kalıyor), geliştiricinin iki gizli projesinin iç dosya
+  yolları (değiştirildi), UDF çizim motorunun kaynağı olarak eklentinin adı (lisans atfı; kullanıcıya soruluyor). Kişisel veri depoda değil
+  kullanıcının kayıt defterinde bozulmuştu: eski sınamalar Word'ün "Son kullanılanlar" listesini bozuyordu (bulgu 2).
+- [x] **1. Görüntü / TIFF → UDF'te kâğıt A4 değildi** (yüksek, 0.2.9'un madde 1'inden gerileme; `6e25ffa`): denetimin deneyinde (0.2.8 ve HEAD
+  çekirdeği) 4:3 ve 3:4 fotoğraf, 72 dpi 4:3 → Letter; kare → A5; 16:9 ve A4 tarama → A4. Kök neden: görüntünün PDF sayfası A4'e sığan en büyük ölçüde
+  (793,7 × 595,3 pt); `udf_yaz._sayfa_bicimi` UDE'nin kâğıtlarından |Δg| + |Δy| ile en yakınını seçiyordu (Letter 18,4 < A4 48,2). Karar: sayfa hiçbir
+  UDE kâğıdıyla 3 pt içinde tutmuyor ama (yönüyle) A4'e sığıyorsa kâğıt A4 (`_a4e_sigar`). Gerçek A5 / B5 / Letter belgeler kendi kâğıdında. Yalnızca
+  resim olan sayfalarda (görüntü, TIFF, tarama; `sf.taranmis`) sayfa ölçüsü uyarısı yok; yazılı sayfada "… kâğıtlarında yok; belge A4 kâğıda kondu".
+  Seçilmeyen: kâğıdı yalnız görüntü / TIFF zincirinde A4 yapmak (görüntünün PDF'i sonra PDF → UDF'e verilince yine Letter olurdu); sağ kenarı kâğıt
+  genişliğine göre yeniden hesaplamak (tam tutan kâğıtlarda da kenarlar değişirdi). Test: `udf_donusum_testi --yalniz gorsel_kagit` (yeni) önce
+  10/16 (6 HATA), sonra 16/16; foto_4x3, kare ve Letter TIFF UDF'leri UDE 5.4.20 ile PDF'e çevrildi: 841,9 × 595,3 / 595,3 × 841,9 pt.
+- [x] **2. Sınamalar Word'ün "Son kullanılanlar" listesini bozuyordu** (yüksek; `58ff6d0`): salt okunur WMI ile yalnızca sayıldı: Word'ün gerçek
+  HKCU listesinde 127 kaydın 21'i sahte ev yollu (17'si `%TEMP%\pdefe-sahte-ev`, 2024-09 – 2026-09-27; 4'ü 0.2.9 uygulamasının scratch'teki sahte
+  evi: ikisi File MRU, ikisi Place MRU). Dosya adları yazılmadı. Kök neden: notlardaki sınama düzeni eski testler için USERPROFILE'ı sahte eve
+  çevirtiyordu; Word bu ortamla başlayınca listeyi o yollarla yeniden yazıyor. Karar: `test/ev_denetimi.py` (yeni: `ornek_klasoru()`,
+  `ev_degistirilmis()`, `word_icin_denetle()`: ev değişmişse PDEFE_WORD_YOK=1 ve uyarı); araclar_testi, kopyalama_testi, senaryo13 örnek klasörünü
+  PDEFE_TEST_PDF_KLASORU'ndan alır; araclar_testi ve word_donusum_testi sahte evde Word'ü başlatmaz; `baslat.ps1` / `baslat_gizli.ps1` USERPROFILE'da
+  NTUSER.DAT yoksa örneğe PDEFE_WORD_YOK=1 verir; notlarda "USERPROFILE'ı değiştirme". Seçilmeyen: 21 kaydı düzeltmek (paket dışı kayıt yazımı:
+  kullanıcı onayı gerekir, soruluyor); çekirdekte Word'den önce ortamı düzeltmek (sahte evle çekirdeği yalnızca sınamalar çalıştırıyor). Test:
+  ev_denetimi sahte evde True / PDEFE_WORD_YOK=1, gerçek evde False; araclar_testi 144/146 (iki Sıkıştır tahmini yer tutucu belgeye bağlı),
+  kopyalama_testi 31/31; MRU sayıları düzeltme turunun başında ve sonunda aynı.
+- [x] **3. Test örneklerinde Masaüstü yönlendirilmiyordu** (orta; `28332cf`): çıktı klasörü ayarı boşken araçlar Masaüstü'ne yazar; bir betik ayarı
+  boşaltıp sonraki betik açık bir aracı "Kaydet"le kapatınca çıktı gerçek Masaüstü'ne düşebiliyordu (0.2.8 sınamasında oldu). Karar: test örneğinde
+  (PDEFE_VERI_KLASORU) desktop / documents / downloads → `<veri>\test-klasorleri\{Masaustu,Belgeler,Indirilenler}` (gelistirme.js); senaryo42'ye
+  "0)" denetimi ve gerçek Masaüstü sayımı; senaryo5 sonunda kalıcı `__pdefeOtoYanit`'ı siler. Kurulu PDEfe'de değişiklik yok. Test: senaryo42 eski
+  gelistirme.js ile "0)" HATA, yenisiyle 34/34.
+- [x] **4. Format Değiştir'de PDEfe'de açık hedef PDF'e yerine koyma yarışı** (orta; `cf31cc4`): `_yerine_koy_oge` hedefi ön bellekten bırakıp kilidin
+  dışında yerine koyuyordu; arada küçük resim isteği dosyayı yeniden açınca "Dosya yazılamadı" hatası. Karar: `_onbellekten_birak` ve `_yerine_koy`
+  aynı `with _mupdf_kilidi():` içinde (Birleştir'deki gibi). Test: donustur_testi `yerine_koy_yarisi` (yeni; 30 deneme) eski çekirdekle 6/30, yeniyle 30/30.
+- [x] **5. Yazısız taramada "yazı tanıyıcı yok"** (düşük; `b63761f`): `_tani` None (tanıyıcı yok / çalışmadı) ve [] (yazı yok) ayrı; [] → "N taranmış
+  sayfada yazı bulunamadı: sayfa(lar) resim olarak kondu."; "(bu bilgisayarda yazı tanıyıcı yok)" yalnızca tanıyıcı gerçekten yokken. Test:
+  `udf_donusum_testi --yalniz yazisiz_tarama` (yeni): önce HATA, sonra OK.
+- [x] **6. Dış süreci öldürmek taskkill'i bekliyordu** (düşük; `17821d8`): bu bilgisayarda taskkill tek süreçte bile 5–7 sn. Karar: `Baglam.dis_surec`
+  süreci KILL_ON_JOB_CLOSE iş nesnesine bağlar (`donustur.ise_bagla`); `_surec_oldur(p, is_)` önce `TerminateJobObject`, taskkill yalnızca iş nesnesi
+  yoksa; udf.py'nin kopya yardımcıları kalktı (JVM de aynı yolla). Test: dis_surec + "alt süreciyle birlikte öldürülür": eski çekirdekle 1/4
+  (7–8 sn), yeniyle 4/4 (0,8–2,1 sn).
+- [x] **7. Format Değiştir'de geç iptal bildirimi eziliyordu** (düşük; `fe02483`): "İptal edilemeden tamamlandı" bildirimini hemen ardından gelen
+  "Format değiştirildi" siliyordu. Karar: `_sonucGoster(sonuclar, { tek, onBildirim })`; geç iptal dalı kendi bildirimini vermez. Test: gec_iptal.mjs
+  Format Değiştir vakası (yeni) eski arayüzle HATA, yenisiyle 24/24.
+- [x] **8. udfYaklasik.js'te ulaşılamayan "yeni ad" dalı** (düşük; `4080e48`): eş zamanlı `fs.existsSync` kullanan `bosAd` ve PDF hedefindeki yeniAd
+  dalı kalktı; PDF + yeniAd isteği reddedilir. Test: udf_yaklasik 63/63, senaryo40 2. bölüm 6/6.
+- [x] **9. Kopya işlevler** (düşük; `65ad050`): `ortak.js yaklasikIptal(pdefe, ogeler)`; "(n)" kuralı tek üreteç `numaraliGovdeler(govde)`. Davranış
+  değişmedi.
+- [x] **10. LibreOffice'in geçici profili silinmiyordu** (düşük; `6c6a854`): profil adı "pdefe-donustur-<pid>-libreoffice-…" (çekirdeğin açılış
+  temizliği tanır); eski "pdefe-libreoffice-…" bir günden eskiyse silinir. LibreOffice bu bilgisayarda yok: profil adı ve temizlik sınandı. Test:
+  `lo_profili` (yeni) eski 2/4, yeni 4/4.
+- [x] **11. Word → PDF'te dış şablon** (düşük, güvenlik; `d52ea95`): kod okumayla doğrulandı (Word çalıştırılmadı, ağ isteği yeniden üretilmedi).
+  Karar: `_dis_sablonu_kaldir(kopya, alt)`: Word'e verilen kopyada .docx / .docm'un attachedTemplate ilişkileri ve öğeleri kalkar (öteki parçalar bayt
+  bayt aynı; hata olursa kopya değişmez); RTF'te şablon grubu. **Bilinçli kabul**: bağlı resim (INCLUDEPICTURE / r:link), OLE bağlantısı, .doc ve
+  .odt'nin dış başvuruları kalır (kaldırmak belgeyi bozabilir; Word çalıştırılmadan sınanamaz). Test: `test_dis_sablon` (yeni; Word adımı kopyayı
+  yakalayan sahte) eski 3/5, yeni 5/5.
+- [x] **12. Kullanılmayan içe aktarmalar ve boş kaydol işlevleri** (düşük; `03e0c8a`): udf.py base64, word.py subprocess, pdefe_core.py io; udf / word
+  / pdf_word'deki boş `kaydol`.
+- [x] **13. PDEFE_UDE_KOPRU paketli çekirdekte okunuyordu** (düşük, güvenlik; `413f55e`): kullanıcının ortamına yazabilen bir program her UDF
+  dönüştürmesinde kendi jar'ını UDE'nin Java'sıyla çalıştırtabilirdi. Karar: paketli çekirdek değişkeni okumaz; adaylar resources/ude-kopru ve derleme
+  düzeni (core/dist → core/ude_kopru). Seçilmeyen: ana süreçte süzmek (çekirdeği doğrudan başlatan program yine verebilirdi). Test: benzetim (sys.frozen)
+  eski kod sahte jar'ı seçiyor, yenisi seçmiyor; `test_sahte_kopru` (--exe).
+- [x] **14. Lisans metinleri pakette yoktu; THIRD_PARTY eksik / eski** (orta + iki düşük; `9a5edd2`): spec `_lisans_dosyalari` →
+  `_internal/lisanslar/<ad>/` (17 bileşen, 35 dosya); electron-builder win ve mac: LICENSE → resources/LICENSE.txt, THIRD_PARTY.md. THIRD_PARTY:
+  lisansların yerleri, typing_extensions 4.16.0 (PSF-2.0), Electron 44.5.1 / Chromium 152.0.7977.130 / V8 15.2.124.28; yayim.yml'de
+  typing_extensions==4.16.0. Mac paketi CI'da denetlenmeli.
+- [x] **15. CI jar denetimi** (düşük; `7e303ec`): yayim.yml Windows ve Mac paketleme işlerinde `node build/ude-kopru-derle.mjs --denetle` (Javasız;
+  kaynak özeti tutmazsa iş durur).
+- [x] **16. Depo kökündeki boş klasör** (düşük): 0.2.8 belge adımının scratch denemesinden kalan, git dışı boş klasörler silindi; depoda düzeltilecek yok.
+- [x] **17. Gizli projelerin iç yolları** (düşük; `30e8afe`): udf_yaz.py, word.py, udf_donusum_testi.py, udf-motoru.js yorumlarındaki iç dosya yolları ve
+  bilgi kaynağı anmaları genel söyleyişe çevrildi. UDF çizim motorunun kaynağı olarak eklentinin adı lisans atfında (THIRD_PARTY.md,
+  src/udf-cizim/LICENSE.txt), PLAN'da, iki kod yorumunda ve bir commit iletisinde kalıyor: kullanıcıya soruluyor.
+- [x] **18. README / DOGRULAMA** (orta, belge; `6c8df8e`): README'nin Birleştir, TIFF → PDF ve Görüntü → PDF maddeleri yeni ölçüye göre; PDF → UDF'e
+  "görüntü / TIFF'ten yapılan UDF'nin kâğıdı A4"; DOGRULAMA 14/6 ve 43/7'ye "0.2.9'da değişti" notu.
+- [x] **19. kurucu_akis.ps1 gerçek Masaüstü'ne kısayol düşürüyordu** (düşük; `1495d90`): masaüstü kısayolunu sınayan iki adım (E1 /S, C1 Onar) yalnızca
+  `-MasaustuSina` ile; varsayılan E1 "/S --no-desktop-shortcut"; önceki koşunun izleri başta temizlenir (`Kalintilari-Temizle`). Test: görünmeyen
+  masaüstünde 57 denetim, hepsi TAMAM; masaüstü kısayolu hiç oluşmadı.
+- [x] **20. Yazıcının model adı** (düşük, kişisel veri sayılmaz; `0444c4c`): sahte listede ve testlerde "Lazer Yazıcı" (Türkçe sıralamada aynı yer),
+  macOS kuyruk adı "Lazer_Yazici", markalı örnek "Bina X"; PLAN / DOGRULAMA "ofisteki yazıcı". Geçmişteki üç commit'te kalıyor (yeniden yazılmadı:
+  kullanıcıya soruluyor). Test: yazdir_html_testi 90/90, yazdir_pencere 47/47, mac_renderer 44/44.
+- [x] **21. senaryo11 / 12 gerçek panoyu değiştiriyordu** (düşük; `e3174d0`): main.js test örneğinde `pano:icerik`'i kuyruktan yanıtlar ({ tur: 'gorsel',
+  dosya } → geçici PNG; kuyruk boşsa gerçek pano); betikler görüntüyü kendisi üretir, sonda "Pano görüntüsü" kopyasını siler. Kurulu PDEfe'de
+  değişiklik yok.
+- [x] **Yazım** (`396a5b0`, `d0614f9`): donustur.py belgesinde "kare kare" yerine açık söyleyiş; yayim.yml yorumunda "Javasız".
+
+#### 0.2.9: belgeler
+- [x] Sürüm 0.2.9 (package.json, package-lock.json); CHANGELOG; docs/DOGRULAMA.md 44; README: Öne çıkanlar'da ve Araçlar'da Birleştir (dosyalardan tek PDF,
+  görüntü sayfaları A4, satırlarda sayfa boyutu seçimi yok), TIFF → PDF, Görüntü → PDF, görüntüden yapılan UDF'nin A4 kâğıdı (son üçü düzeltme turunda).
+
+#### 0.2.9: sınama özeti (madde 1–4 ve düzeltme turu)
+- [x] Madde 1–4'ten sonra (her test kendi temiz örneğinde, ekran dışında ya da görünmeyen masaüstünde): senaryo44 20/20 (%100 ve %125), senaryo41 52/52,
+  senaryo38 64/64, senaryo40 23/23, senaryo39 54/54, senaryo37 64/64, udf_yaklasik 63/63, senaryo13 63/63, senaryo26 64/64, senaryo42 32/32, senaryo43
+  31/31, kisayol_araclar 102/102, arac_onizleme 24/24, ortu_tiklama 164/164, gec_iptal 20/20, mac_renderer 44/44, senaryo19 112/112, senaryo20 52/52,
+  acilis_hizasi 10/10 (%100 ve %125), senaryo14 60/60, kisayol_dosya 164/164, sekme_genislik 38/38. Python: donustur_testi 256/258 (iki "dış süreç" süre
+  denetimi yük altında 5,1–5,4 sn; 0.2.8'de de bilinen, düzeltme turunda giderildi), araclar_testi 145/146 (Sıkıştır tahmini yer tutucu belge),
+  guvenlik_testi 47/47, mac_cekirdek 14/14, tanima 61/61, kucuk_resim 50/50, udf_donusum 133/133, word_donusum (PDEFE_WORD_YOK=1) 32/32; guvenlik_birim
+  ve güncelleme birim geçti.
+- [x] Düzeltme turundan sonra: donustur_testi --hizli 262/262, udf_donusum_testi 142/142 (UDE ile), word_donusum_testi (PDEFE_WORD_YOK=1) 37/37,
+  guvenlik_testi 47/47, guvenlik_birim ve pano_birim geçti; paket (`--dir`): paket_duman 18/18, donustur --exe 230/230, udf --exe 129/129, word --exe
+  19/19. Word'ün "Son kullanılanlar" sayıları başta ve sonda aynı.
+- [ ] **Açık konular**:
+  - Word'ün "Son kullanılanlar" listesindeki 21 bozuk kayıt (17 eski, 4 bu revizyonun uygulamasından): düzeltmek (sahte yolu gerçek profil yoluna
+    çevirmek; paket dışı kayıt yazımı) ya da kullanıcının Word'de listeden kaldırması: kullanıcıya soruluyor.
+  - UDF çizim motorunun kaynağı olarak eklentinin adı herkese açık depoda (lisans atfı) kalsın mı: kullanıcıya soruluyor.
+  - Geçmişteki yazıcı model adı (üç commit): bırakılsın mı, asıl depoya göndermeden önce geçmiş mi temizlensin: kullanıcıya soruluyor.
+  - Gerçek telefon fotoğrafları ve taramalarla, kâğıda yazdırarak denenmedi; Word → PDF'te dış şablonun kaldırılması gerçek Word'le ve ağ isteğiyle
+    denenmedi; LibreOffice bu bilgisayarda yok; Mac'te denenmedi (lisans dosyaları Mac paketinde CI'da denetlenmeli); test örneğinde Masaüstü
+    yönlendirmesi gerçek Masaüstü'ne yazdırılarak yeniden üretilmedi.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 44.

@@ -993,3 +993,48 @@ Güncelleme, kurulu sürüm ve Mac
 14. **Kurulu sürüm.** 0.2.8 kurulduktan sonra kurulu PDEfe'de bir kez Format Değiştir'in Tümünü aç'ını, kayıt klasörünü ve boş sekme ayırmayı
     deneyin.
 15. **Mac** (elinizde varsa). Format Değiştir'in sonucunda "Finder'da göster" ve "Tümünü aç"; kayıt klasörünün Değiştir'le hatırlanması.
+
+## 44. 0.2.9: otomatik testlerin sınayamadıkları
+Ekran dışındaki ve görünmeyen masaüstündeki test örneğinde, üretilmiş örnek görüntü, TIFF, UDF ve Word belgeleriyle sınandı; sayfa ölçüleri
+oluşan PDF'lerden ölçüldü (dikey ve yatay fotoğraf, ekran görüntüsü, A4 ve Letter boyunda tarama, kare, çok küçük ve çok büyük görüntü, yan
+çekilmiş fotoğraf, faks taraması). Görüntüden ve TIFF'ten yapılan UDF'ler ev bilgisayarındaki UYAP Doküman Editörü 5.4.20 ile PDF'e çevrilip
+kâğıtları ölçüldü. Paketlenmiş sürüm görünmeyen masaüstünde sınandı, bilgisayara kurulmadı. Gerçek telefon fotoğrafları ve taramalar, kâğıda
+yazdırma, açık Word'ünüz ve UYAP Doküman Editörü'nüzle birlikte kullanım, ofis bilgisayarı ve Mac denenmedi. Denemeleri belgelerin
+**kopyalarıyla** yapın.
+
+Birleştir ve Format Değiştir: görüntüler A4 boyutunda
+1. **Birleştir'de sayfa seçeneği yok.** Birleştir'e bir telefon fotoğrafı ekleyin: satırda "Sayfa" seçimi ve "Kenar … mm" kutusu olmamalı;
+   yalnızca Kalite ve tahminî boyut.
+2. **Görüntü sayfaları A4'e sığan ölçüde.** Birleştir'e dikey ve yatay birer telefon fotoğrafı, bir ekran görüntüsü, küçük bir görüntü (ör.
+   imzanın görüntüsü), bir UYAP taraması (TIFF) ve bir PDF ekleyip birleştirin. Başka bir PDF okuyucunun belge özelliklerinde sayfaların boyutuna
+   bakın: görüntü sayfalarında beyaz kenar olmamalı; dikey görüntüde sayfanın genişliği 21 cm ya da yüksekliği 29,7 cm, yatay görüntüde genişliği
+   29,7 cm ya da yüksekliği 21 cm olmalı, hiçbir kenar A4'ü aşmamalı. UYAP taraması tam A4 (21 × 29,7 cm). Küçük görüntü sayfayı doldurmalı
+   (büyütüldüğü için pikselli görünebilir); fotoğrafın keskinliği değişmemeli. PDF'in sayfaları kendi ölçüsünde kalmalı.
+3. **Döndürülen görüntü.** Birleştir'de yatay bir fotoğrafı satırdaki döndürme düğmesiyle döndürüp birleştirin: sayfa dikey A4'e sığmalı.
+4. **Format Değiştir'de görüntü → PDF ve TIFF → PDF.** Aynı görüntüleri ve TIFF'i PDF'e çevirin: sayfalar 2. maddedeki gibi olmalı. Telefon
+   yan tutularak çekilmiş fotoğraf doğru yönde ve yatay sayfada olmalı.
+5. **Yazdırma.** Bu PDF'lerden birini A4 kâğıda "Sayfaya sığdır" ile yazdırın: görüntü kâğıda kesilmeden sığmalı.
+6. **Görüntü → UDF.** Bir fotoğrafı ve bir TIFF'i UDF'ye çevirip UYAP Doküman Editörü'nde açın: kâğıt A4 olmalı (Letter ya da A5 değil).
+   Fotoğrafta yazı yoksa ⚠ ipucunda "taranmış sayfada yazı bulunamadı" yazmalı, "yazı tanıyıcı yok" yazmamalı.
+
+Açılış ekranı ve Format Değiştir
+7. **Birleştir'in açıklaması.** Açılış ekranında ve Araçlar penceresinde Birleştir'in karosunda "Dosyalardan tek PDF oluşturur, farklı dosya
+   formatlarıyla çalışabilir" yazmalı; altı karo aynı boyda olmalı. Pencereyi alçaltın (ör. ekranın yarısı kadar): son açılanlar listesi
+   kaydırmadan sığmalı.
+8. **Bildirim.** Bir UDF'yi PDF'e çevirin (tek dosya): PDF sekmede açılınca altta "Format değiştirildi: <ad>" çıkmalı ("Dönüştürüldü" değil).
+9. **Dönüştür düğmesi.** Çok sayfalı bir Word belgesini ya da UDF'yi PDF'e çevirin: Dönüştür'e bastığınız andan iş bitene dek düğme soluk
+   olmalı, basınca bir şey olmamalı. Aynı adlı dosya varken çıkan soruda da soluk. İş bitince de soluk; hedefi ya da dosyayı değiştirince
+   yeniden etkin.
+10. **Açık PDF'in üzerine yazma.** Bir görüntüyü PDF'e çevirin (sonuç sekmede açılır). Aynı görüntüyü yeniden ekleyip Değiştir ile adı o PDF'in
+    adı yapın, sorulunca **Üzerine yaz** deyin: "Dosya yazılamadı" hatası çıkmamalı.
+11. **İptal.** Bir UDF'yi PDF'e çevirirken (UYAP Doküman Editörü'yle) İptal'e basın: bir iki saniye içinde durmalı.
+12. **Şablona bağlı Word belgesi** (elinizde varsa). Başka bir kurumda hazırlanmış, şablona bağlı bir Word belgesini PDF'e çevirin: dönüştürme
+    eskisinden uzun sürmemeli, PDF'in görünümü Word'dekiyle aynı olmalı.
+
+Kurulu sürüm, Word ve Mac
+13. **Kurulu sürüm.** 0.2.9 kurulduktan sonra kurulu PDEfe'de Birleştir'i ve görüntü → PDF'i bir kez deneyin. PDEfe'nin kurulu klasöründeki
+    `resources` klasöründe LICENSE.txt ve THIRD_PARTY.md olmalı.
+14. **Word'ün Son kullanılanlar listesi.** Word'de Dosya › Aç › Son kullanılanlar'da Masaüstü'nüzdeki ya da Belgeler'inizdeki bir belge
+    açılmıyorsa ("bulunamadı") söyleyin: eski sınamalar bu listedeki bazı yolları bozmuştu (0.2.9'da düzeldi). İki bilgisayarda da bakın.
+15. **Mac** (elinizde varsa). Birleştir'de ve görüntü → PDF'te görüntü sayfalarının A4'e sığan ölçüsü; uygulamanın Resources klasöründe
+    LICENSE.txt ve THIRD_PARTY.md.

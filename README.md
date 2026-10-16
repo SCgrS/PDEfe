@@ -33,7 +33,8 @@ JPG'ye) dönüştürebilirsiniz.
 - **Sekmeler ve pencereler:** Birden çok PDF tek pencerede açılır. Sekme sürüklenerek kendi penceresine ayrılır.
 - **Temiz kopyalama:** Satırlar paragraf olarak birleşir, tireler kalkar. Metin UYAP Doküman Editörü'ne ve Word'e düzgün yapışır.
 - **Araçlar:** Sıkıştır, Sayfaları düzenle, Döndür, Ayır, Birleştir, Format Değiştir.
-- **Birleştir:** PDF, görüntü, TIFF, UDF ve Word dosyaları listedeki sırayla tek PDF olur.
+- **Birleştir:** Dosyalardan tek PDF oluşturur: PDF, görüntü, TIFF, UDF ve Word dosyaları listedeki sırayla birleşir, görüntü sayfaları A4
+  boyutunda olur.
 - **Format Değiştir:** UDF, Word, TIFF ve görüntü ↔ PDF; PDF'in her sayfası JPG olarak da kaydedilir. UDF, UYAP Doküman Editörü'nün kendi
   sayfa düzeniyle PDF olur; PDF düzenlenebilir UDF'ye çevrilir.
 - **Yazdırma:** PDEfe'nin kendi penceresinde yazıcı, kâğıt, renk ve çift taraflı seçilir; sayfanın kâğıda nasıl basılacağı önceden görünür.
@@ -142,9 +143,9 @@ Araçlar, araç çubuğundaki **Araçlar** düğmesinden ya da açılış ekran�
   parçaları PDEfe'de yeni sekmelerde açar.
 - **Birleştir:** PDF, görüntü (JPG, PNG, BMP, GIF, WEBP), TIFF, UDF ve Word dosyaları listedeki sırayla tek PDF'te birleşir; sonuç
   sekmede açılır. Dosyalar sürüklenerek ya da panodan eklenir. Görüntü ve TIFF sayfaları A4 boyutunda eklenir: oranı korunarak A4'e sığan
-  en büyük ölçüde (dikey görüntü dikey, yatay görüntü yatay A4'ün içine), beyaz kenar eklenmeden; çözünürlükleri değişmez. UDF ve Word
-  belgeleri önce PDF'e çevrilir (aşağıda, Format Değiştir'in gereksinimleri); Word belgesinin sayfa sayısı ve boyutu birleştirmeden önce
-  bilinmez.
+  en büyük ölçüde (dikey görüntü dikey, yatay görüntü yatay A4'ün içine), beyaz kenar eklenmeden; çözünürlükleri değişmez. Bu yüzden
+  satırlarda sayfa boyutu seçimi yoktur. UDF ve Word belgeleri önce PDF'e çevrilir (aşağıda, Format Değiştir'in gereksinimleri); Word
+  belgesinin sayfa sayısı ve boyutu birleştirmeden önce bilinmez.
 - **Format Değiştir:** UDF, Word, TIFF ve görüntü dosyalarını PDF'e, PDF'leri bunlara ve JPG'ye dönüştürür (aşağıda).
 
 Her araç sonucu yeni belge olarak kaydeder ya da istenirse özgün dosyanın üzerine yazar (Format Değiştir özgün dosyaya dokunmaz, her

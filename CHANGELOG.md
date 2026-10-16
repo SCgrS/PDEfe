@@ -3,6 +3,36 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.2.9 — 2026-10-16
+
+### Birleştir ve Format Değiştir: görüntüler A4 boyutunda
+- **Görüntü ve TIFF sayfaları A4 boyutunda.** Birleştir'de ve Format Değiştir'de (görüntü → PDF, TIFF → PDF ve bunlardan yapılan UDF, Word, TIFF, JPG) her görüntü sayfası görüntünün kendisidir: oranı korunarak A4'e sığan en büyük ölçüde, dikey görüntü dikey A4'ün (21 × 29,7 cm), yatay görüntü yatay A4'ün (29,7 × 21 cm) içine. Bir kenar A4'ün kenarı kadar, öbürü görüntünün oranına göre; beyaz kenar ya da beyaz A4 sayfa eklenmez. Küçük görüntü büyür, büyüğü küçülür. Yalnızca sayfanın ölçüsü değişir: çözünürlük ve kalite aynı kalır (JPEG olduğu gibi, taramalar kayıpsız). Telefon fotoğrafında yön düzeltildikten sonra bakılır; kare görüntü dikey sayılır. Örnekler: 4:3 fotoğraf 28 × 21 cm, UYAP'ın A4 taraması tam A4, Letter boyunda tarama 21 × 27,2 cm. PDF, UDF ve Word dosyaları kendi sayfa ölçüleriyle kalır.
+- **Birleştir'de sayfa seçeneği kalktı:** görüntü satırındaki "Sayfa" seçimi (A4'e sığdır / Orijinal) ve "Kenar … mm" kutusu yok; sayfa ölçüsü her zaman yukarıdaki kural. Boyut tahminleri de bu ölçüye göre.
+- **Görüntüden ve TIFF'ten yapılan UDF A4 kâğıtta** (fotoğrafta, kare görüntüde ve Letter boyunda taramada da). Gerçek A5, B5 ya da Letter belgeler kendi kâğıdında kalır.
+
+### Açılış ekranı ve Araçlar
+- **Birleştir'in açıklaması:** "Dosyalardan tek PDF oluşturur, farklı dosya formatlarıyla çalışabilir". Karolar yine aynı boyda; alçak pencerede açılış ekranı kaydırmadan sığar.
+
+### Format Değiştir
+- **Bildirim "Format değiştirildi: <ad>":** sonuç sekmede kendiliğinden açılınca alttaki beyaz bildirim artık "Dönüştürüldü: …" demiyor.
+- **Dönüştür düğmesi işlem sürerken soluk:** basıldığı andan iş bitene dek ("zaten var" sorusu ve dönüştürme dâhil) soluk ve tıklanamaz. İş bitince eskisi gibi: başarılı dönüştürmeden sonra bir şey değişene dek soluk kalır.
+- **Geç iptalin bildirimi kaybolmuyor:** var olan bir dosyanın üzerine yazılırken İptal'e basıldığında dönüştürme çoktan bitmişse çıkan "İptal edilemeden tamamlandı: …" bildirimi artık hemen silinmiyor.
+- **PDEfe'de açık bir PDF'in üzerine yazarken hata yok:** hedef PDF bir sekmede açıkken "Üzerine yaz" bazen "Dosya yazılamadı; başka bir programda açık olabilir" diyordu.
+- **İptal beklemeden işliyor:** UYAP Doküman Editörü'yle ya da LibreOffice'le dönüştürürken İptal ve süre aşımı artık birkaç saniye beklemiyor.
+- **Yazısız taramada doğru uyarı:** PDF ya da görüntü → UDF'te yazı bulunamayan taranmış sayfa (fotoğraf, boş sayfa, yalnızca imza) için "bu bilgisayarda yazı tanıyıcı yok" değil, "1 taranmış sayfada yazı bulunamadı: sayfa resim olarak kondu." yazar.
+- **Word → PDF'te uzak şablon aranmıyor:** başka bir sunucudaki şablona bağlı bir Word belgesi dönüştürülürken Word o sunucuya bağlanmaya çalışmıyor (açılış beklemiyor, karşı tarafa iz gitmiyor). Belgenin kendisi değişmez.
+- LibreOffice'in geçici klasörü, PDEfe dönüştürürken beklenmedik biçimde kapansa da sonraki açılışta silinir.
+
+### Güvenlik ve lisanslar
+- Kurulu PDEfe, sınamalar için olan bir ortam değişkeniyle başka bir UYAP Doküman Editörü köprüsü çalıştırmaz.
+- Kurulum paketinde (Windows ve Mac) PDEfe'nin lisansı (LICENSE.txt), üçüncü taraf listesi (THIRD_PARTY.md) ve Python bileşenlerinin lisans metinleri var.
+
+### Kod ve kişisel veri denetimi
+- 0.2.5'ten bu yana yapılan bütün değişiklikler (kod, testler, belgeler) denetlendi, depodaki bütün dosyalarda kişisel veri arandı. Kişisel veri bulunmadı; testlerdeki bir yazıcının model adı ve kod yorumlarındaki başka projelere ait dosya yolları genel adlarla değiştirildi. Bulunan hatalar bu sürümde düzeltildi (yukarıdakiler). Sınamalar artık kullanıcının Masaüstü'ne, panosuna ve Word'ün "Son kullanılanlar" listesine dokunmuyor.
+
+### README
+- Birleştir'in açıklaması ve görüntü sayfalarının A4'e sığan ölçüsü (Birleştir, TIFF → PDF, Görüntü → PDF, görüntüden yapılan UDF'nin A4 kâğıdı) yazıldı; açılış ekranı, Araçlar ve Birleştir görüntüleri yenilendi.
+
 ## 0.2.8 — 2026-10-16
 
 ### Açılış ekranı ve Araçlar
