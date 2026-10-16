@@ -2,8 +2,8 @@
 // (araclar/gorselBirlestir.js):
 //   1) Görüntü girdileri (madde 3): satırda tür "Görüntü (JPG)" / "Görüntü (PNG)", piksel ölçüsü, küçük resim; hedefler PDF, UDF, Word, TIFF
 //      (kendi türü yok), varsayılan PDF; Dosya ekle süzgecinde görüntüler; boş listede "görüntü".
-//   2) Görüntü → PDF (gerçek dönüşüm): 300 dpi etiketli taranmış JPG → A4 dikey (sonuç sekmede açılır); dpi etiketsiz PNG → uzun kenar A4'ün
-//      uzun kenarı; iki görüntü birlikte → iki PDF, sonuç listesi.
+//   2) Görüntü → PDF (gerçek dönüşüm): 300 dpi etiketli taranmış JPG → A4 dikey (sonuç sekmede açılır); dpi etiketsiz yatay PNG → yatay, A4'e
+//      sığan ölçüde (0.2.9; 0.2.7–0.2.8'de uzun kenarı A4'ün uzun kenarı); iki görüntü birlikte → iki PDF, sonuç listesi.
 //   3) PDF → JPG (madde 3): JPG hedefinde ad kutusu kalır (ad dosyaların ortak başı), altında adların notu, "JPG seçenekleri" (renk satırı yok);
 //      iki sayfalı PDF → "<ad> - Sayfa 1.jpg", "<ad> - Sayfa 2.jpg" (seçilen çözünürlükte piksel ölçüsü ve dpi etiketi), tek sayfalı → "<ad>.jpg";
 //      sonuçta her dosya bir satır, Aç yok, KB / sayfa yok, Klasörde göster; dosyalar varken "zaten var" sorusu (Üzerine yaz | Yeni belge
@@ -222,15 +222,15 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     sonuc('300 dpi etiketli taranmış JPG → PDF: tek sayfa, A4 dikey, tek resim; sonuç sekmede açıldı, pencere kapandı', !!o1 && o1.sayfa === 1 && A4(o1.olcu[0]) && o1.resim === 1
       && !!akt && path.resolve(akt) === path.resolve(h1) && !(await evalJs(`!!document.querySelector('.donustur-pencere')`)), { o1, akt });
     await sekmeleriKapat();
-    // İki görüntü birlikte: sonuç listesi; dpi etiketsiz PNG'nin uzun kenarı A4'ün uzun kenarı
+    // İki görüntü birlikte: sonuç listesi; dpi etiketsiz 1654 × 1240 PNG yatay, A4'e sığan ölçüde (0.2.9: 297 × 210 mm'lik kutuda 280,1 × 210 mm)
     fs.rmSync(h1, { force: true });
     await aracAc([G.jpg, G.png]);
     await donusturVeBekle();
     const h2 = path.join(CIKTI, 'Ekran görüntüsü.pdf');
     const o2 = fs.existsSync(h2) ? pdfOzeti(h2) : null;
     const sk = await sonucKutusu();
-    sonuc('İki görüntü → iki PDF; dpi etiketsiz PNG: yatay sayfa, uzun kenar A4\'ün uzun kenarı (841,9 pt); sonuç listesinde iki satır, "Tümünü aç" (0.2.8; satırlarda Aç yok)',
-      fs.existsSync(h1) && !!o2 && o2.sayfa === 1 && Math.abs(o2.olcu[0][0] - 841.9) <= 1.5 && o2.olcu[0][1] < o2.olcu[0][0] && sk?.satirlar.length === 2 && sk.satirlar.every((x) => !x.ac) && sk.tumunuAc === 'Tümünü aç'
+    sonuc('İki görüntü → iki PDF; dpi etiketsiz PNG: yatay sayfa, A4\'e sığan ölçüde (794,1 × 595,3 pt); sonuç listesinde iki satır, "Tümünü aç" (0.2.8; satırlarda Aç yok)',
+      fs.existsSync(h1) && !!o2 && o2.sayfa === 1 && Math.abs(o2.olcu[0][0] - 1654 * 595.276 / 1240) <= 0.2 && Math.abs(o2.olcu[0][1] - 595.276) <= 0.2 && sk?.satirlar.length === 2 && sk.satirlar.every((x) => !x.ac) && sk.tumunuAc === 'Tümünü aç'
       && /2 dosya dönüştürüldü/.test(sk.baslik), { o2, sk });
     await pencereKapat();
   }
