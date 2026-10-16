@@ -57,8 +57,12 @@ const sekmeler = new SekmeCubugu({
   cubuk: $('#sekme-cubugu'), liste: $('#sekme-liste'), onceki: $('#sekme-onceki'), sonraki: $('#sekme-sonraki'),
   acilir: $('#sekme-acilir'), secici: $('#sekme-secici'), belgeListesi: $('#belge-listesi'),
   aramaSay: (id, sorgu, secenek) => arama.belgedeSay(belgeler.get(id), sorgu, secenek),   // arama aşağıda kurulur; çağrı anında hazırdır. secenek: { iptal }
-  // Sekme çubuğun dışına sürüklenince ayrılabilir mi: yüklenmiş belge sekmesi (açılış sekmesi ayrılmaz), süren taşıma ve açık pencere yok
-  ayrilabilir: (id) => { const b = belgeler.get(id); return !!b && !tasimaEngeli(b, { kayitHaric: true }); },
+  // Sekme çubuğun dışına sürüklenince ayrılabilir mi: yüklenmiş belge sekmesi ya da açılış sekmesi ("Yeni sekme"; 0.2.8, kullanıcı isteği:
+  // "Yeni sekmeleri tutup ayıramıyorum yeni pencereye"; 0.1.19–0.2.7 açılış sekmesi ayrılmıyordu), süren taşıma ve açık pencere yok
+  ayrilabilir: (id) => {
+    if (baslangicSekmeleri.has(id)) return !tasimaEngeli(null, { bos: true });
+    const b = belgeler.get(id); return !!b && !tasimaEngeli(b, { kayitHaric: true });
+  },
 });
 const panel = new SolPanel({
   panel: $('#sol-panel'), tutamac: $('#panel-tutamac'), sayfalar: $('#panel-sayfalar'), icindekiler: $('#panel-icindekiler'),
@@ -580,14 +584,14 @@ function tasimaBaslat() {
 /** Pencere kapanıyor ya da kapatmak için izin soruluyor mu (kapatma isteği, güncelleme kurulumu): bu sırada sekme alınmaz, verilmez. */
 const kapanisSuruyor = () => _kapanis || _kapaniyor || !!_kapatmaIzni;
 
-/** Sekme şu an başka pencereye taşınamıyorsa nedeni (kullanıcıya bildirilir), taşınabiliyorsa ''. b: belge (açılış sekmesinde yok).
- *  kayitHaric: süren kayda bakılmaz (sürükleme başında: kayıt sekme bırakılana dek biter; bırakılınca sekmeyiTasi bekler). */
-function tasimaEngeli(b, { kayitHaric = false } = {}) {
-  if (!b) return 'Açılış sekmesi pencereye ayrılamaz.';
-  if (tasimaSuruyor || b.tasiniyor) return 'Bir sekme taşınıyor; bitince yeniden deneyin.';
-  if (!belgeler.has(b.id) || !b.gorunum.hazir) return 'Belge henüz açılıyor; açılınca yeniden deneyin.';
+/** Sekme şu an başka pencereye taşınamıyorsa nedeni (kullanıcıya bildirilir), taşınabiliyorsa ''. b: belge; bos: açılış sekmesi (0.2.8;
+ *  belgesi yok, b null). kayitHaric: süren kayda bakılmaz (sürükleme başında: kayıt sekme bırakılana dek biter; bırakılınca sekmeyiTasi bekler). */
+function tasimaEngeli(b, { kayitHaric = false, bos = false } = {}) {
+  if (!b && !bos) return 'Sekme bulunamadı.';
+  if (tasimaSuruyor || b?.tasiniyor) return 'Bir sekme taşınıyor; bitince yeniden deneyin.';
+  if (b && (!belgeler.has(b.id) || !b.gorunum.hazir)) return 'Belge henüz açılıyor; açılınca yeniden deneyin.';
   // Kilit altında süren kayıt beklenmez: başarısız olursa sorusu (Belge kaydedilemedi) taşıma kilidinin altında kalırdı
-  if (b.kaydediliyor && !kayitHaric) return 'Belge kaydediliyor; bitince yeniden deneyin.';
+  if (b?.kaydediliyor && !kayitHaric) return 'Belge kaydediliyor; bitince yeniden deneyin.';
   if (kurulumKilidi || kapanisSuruyor()) return 'Pencere kapanmak üzere; sekme taşınamaz.';
   if (ortuAcik()) return 'Önce açık pencereyi kapatın.';
   return '';
@@ -640,6 +644,7 @@ async function sekmePaketi(b) {
  * (sekmenin bırakıldığı yerde) | { tur: 'pencere', pencere, x } (var olan pencere; x: sekme çubuğunda bırakıldığı yer). Döner: taşındı mı.
  */
 async function sekmeyiTasi(id, hedef) {
+  if (baslangicSekmeleri.has(id)) return bosSekmeyiTasi(id, hedef);   // 0.2.8: açılış sekmesi ("Yeni sekme")
   let b = belgeler.get(id);
   // Süren kayıt pencere kilitlenmeden önce beklenir: başarısız olursa sorusu yanıtlanabilsin. Beklerken sekme kapatılmış olabilir
   if (b?.kaydediliyor && b.kayitSozu && !girdiKilitli()) { await b.kayitSozu; b = belgeler.get(id); if (!b) return false; }
@@ -664,11 +669,58 @@ async function sekmeyiTasi(id, hedef) {
   } finally { bitti(); }
 }
 
+/**
+ * Açılış sekmesini ("Yeni sekme") başka pencereye taşır (0.2.8, kullanıcı isteği: "Yeni sekmeleri (boş 'Yeni sekme') tutup ayıramıyorum yeni
+ * pencereye"): taşınacak durumu yoktur, paket yalnızca türünü söyler ({ surum: 1, baslangic: true }); hedef pencere onu açılış sekmesi olarak
+ * kurar (yeni pencere zaten açılış ekranıyla açılır; bosSekmeyiAl). Belgeli sekmedeki kurallar: tek sekmesi boş yere bırakılan pencere
+ * kendisi taşınır (disariBirakildi, pencere:tasi); tek sekmesi başka pencereye taşınan pencere kapanır; başka sekmeleri varsa yalnızca bu
+ * sekme kalkar (belgesiz pencerede öteki açılış sekmeleri de kalır). Döner: taşındı mı.
+ */
+async function bosSekmeyiTasi(id, hedef) {
+  const engel = tasimaEngeli(null, { bos: true });
+  if (engel) { bildir(engel); return false; }
+  const bitti = tasimaBaslat();
+  try {
+    const r = await pdefe.cagir('sekme:tasi', { surum: 1, baslangic: true }, hedef);
+    if (!r?.tamam) throw new Error(r?.hata || 'Hedef pencere sekmeyi açamadı.');
+    if (sekmeler.sekmeler.length < 2) kapanisiOnayla();   // pencerenin tek sekmesiydi: pencere boş kalmaz, kapanır
+    else baslangicSekmesiniKapat(id);
+    return true;
+  } catch (e) {
+    console.error('Sekme taşınamadı', e);
+    bildir('Sekme taşınamadı: ' + hataMetni(e), 6000);
+    return false;
+  } finally { bitti(); }
+}
+
+/** Başka pencereden taşınan açılış sekmesini kurar (0.2.8; sekmeyiAl'ın açılış sekmesi yolu). Yeni açılan pencerede (yeni) ayrılan sekme
+ *  pencerenin zaten açık olan açılış sekmesidir. Var olan pencereye bırakılan sekme bırakıldığı yere (x; yoksa sona) yeni açılış sekmesi
+ *  olarak eklenir ve etkin olur; pencerenin öteki açılış sekmeleri kalır (belge gibi tek açılış sekmesinin yerini almaz: ikisi de boş).
+ *  onayla false dönerse (ana süreç artık beklemiyor) eklenen sekme kaldırılır. */
+async function bosSekmeyiAl({ x = null, yeni = false } = {}, onayla = null) {
+  if (girdiKilitli() || ortuAcik()) throw new Error('Hedef pencere meşgul.');
+  if (kapanisSuruyor()) throw new Error('Hedef pencere kapanıyor.');
+  let id = yeni ? tekAcilisSekmesi() : null;
+  const eklendi = !id;
+  if (eklendi) {
+    id = 'y' + (++baslangicSayac);
+    baslangicSekmeleri.add(id);
+    sekmeler.ekle({ id, ad: 'Yeni sekme', yol: '', baslangic: true, once: x != null ? sekmeler.birakmaYeri(x) : null });
+  }
+  if (onayla && !(await onayla())) {
+    if (eklendi) baslangicSekmesiniKapat(id);
+    throw new Error('Sekme zamanında açılamadı.');
+  }
+  await sekmeSec(id);
+  return true;
+}
+
 /** Başka pencereden taşınan sekmeyi kurar (sekmePaketi'nin verdiği paket). x: sekme çubuğunda bırakıldığı yer (pencere içi; yoksa sona
  *  eklenir). onayla: sekme kurulunca ana sürece bildirir; false dönerse ana süreç artık beklemiyordur (süresi doldu, sekme kaynak
  *  pencerede kaldı) ve burada kurulan sekme kaldırılır. Açılamazsa hata fırlatır; sekme kaynak pencerede kalır. Kurulurken pencere
  *  girdi almaz (yarım kurulmuş sekme kapatılırsa anlık kopyası silinirdi; o kopya taşıma bitene dek kaynak pencerenindir). */
-async function sekmeyiAl(paket, { x = null } = {}, onayla = null) {
+async function sekmeyiAl(paket, { x = null, yeni = false } = {}, onayla = null) {
+  if (paket?.surum === 1 && paket.baslangic === true) return bosSekmeyiAl({ x, yeni }, onayla);   // 0.2.8: açılış sekmesi
   if (!paket || paket.surum !== 1 || !paket.yol || !paket.gorunum) throw new Error('Sekme verisi okunamadı.');
   if (girdiKilitli() || ortuAcik()) throw new Error('Hedef pencere meşgul.');
   if (kapanisSuruyor()) throw new Error('Hedef pencere kapanıyor.');
@@ -749,12 +801,13 @@ function sekmeOnizlemesi(b) {
 
 let _surukleYeri = null;   // { tutma, sekmeYeri }: sekmenin tutulduğu nokta ve yeni pencerede ilk sekmenin duracağı yer (pencere içi)
 sekmeler.addEventListener('ayrildi', (e) => {
-  const b = belgeler.get(e.detail.id);
-  if (!b) return;
+  const b = belgeler.get(e.detail.id), bos = baslangicSekmeleri.has(e.detail.id);
+  if (!b && !bos) return;
   const liste = $('#sekme-liste').getBoundingClientRect();
   _surukleYeri = { tutma: e.detail.tutma, sekmeYeri: { x: Math.round(liste.left + 2), y: Math.round(liste.top + 4) } };
-  // Ön izlemede ad sekmedeki gibi ".pdf"siz (0.2.6; adlar.js)
-  pdefe.gonder('sekme:surukleBasla', { ad: uzantisiz(b.ad), koyu: koyuMu(), ...sekmeOnizlemesi(b), ..._surukleYeri });
+  // Ön izlemede ad sekmedeki gibi ".pdf"siz (0.2.6; adlar.js). Açılış sekmesinde (0.2.8) sayfa görüntüsü yok: yalnızca "Yeni sekme" başlığı
+  const onizleme = b ? sekmeOnizlemesi(b) : { genislik: ONIZLEME_GENISLIK, yukseklik: ONIZLEME_BASLIK, onizleme: '' };
+  pdefe.gonder('sekme:surukleBasla', { ad: b ? uzantisiz(b.ad) : 'Yeni sekme', koyu: koyuMu(), ...onizleme, ..._surukleYeri });
   surukleCaniDurdur();
   _surukleCan = setInterval(() => pdefe.gonder('sekme:surukleCan'), 500);
 });
@@ -1840,18 +1893,18 @@ sekmeler.addEventListener('sagTik', async (e) => {
   // Kapat da (o sekme kapatılmaz)
   const id = e.detail.id; const b = belgeler.get(id); if (!b && !baslangicSekmeleri.has(id)) return;
   // Pencereye ayır (0.1.19, kullanıcı isteği): sekme kendi penceresinde açılır. Pencerenin tek sekmesinde (ayrılacak başka sekme yok)
-  // ve açılış sekmesinde devre dışı. Kaydet (0.2.1, kullanıcı isteği): sağ tıklanan sekmenin belgesini kaydeder (etkin sekme olmasa da;
+  // devre dışı; 0.2.8'den beri açılış sekmesinde de etkin (yeni pencere açılış ekranıyla açılır), önceden devre dışıydı. Kaydet (0.2.1, kullanıcı isteği): sağ tıklanan sekmenin belgesini kaydeder (etkin sekme olmasa da;
   // birden çok sekme kapatılırken kaydetme de böyle çalışır); kaydedilecek değişiklik yokken devre dışı. Yazdır (0.2.6, kullanıcı isteği)
   // Kaydet'in hemen altında: arka plandaki sekmede önce o sekmeye geçilir (belgeyiYazdir); açılış sekmesinde ve taşınan sekmede devre dışı
   const secim = await pdefe.cagir('menu:popup', [
     { id: 'kapat', etiket: 'Kapat', devre: tekAcilisSekmesi() === id }, { id: 'digerleri', etiket: 'Diğerlerini kapat', devre: sekmeler.sekmeler.length < 2 },
     { id: 'sagdakiler', etiket: 'Sağdakileri kapat', devre: sekmeler.sekmeler.findIndex((s) => s.id === id) >= sekmeler.sekmeler.length - 1 },
     { ayirici: true }, { id: 'kaydet', etiket: 'Kaydet', devre: !kaydedilecekVar(b) }, { id: 'yazdir', etiket: 'Yazdır', devre: !b || !!b.tasiniyor },
-    { ayirici: true }, { id: 'ayir', etiket: 'Pencereye ayır', devre: !b || sekmeler.sekmeler.length < 2 },
+    { ayirici: true }, { id: 'ayir', etiket: 'Pencereye ayır', devre: sekmeler.sekmeler.length < 2 },
     { ayirici: true }, { id: 'klasor', etiket: 'Klasörde göster', devre: !b }, { id: 'yol', etiket: 'Yolu kopyala', devre: !b },
     { id: 'pdf', etiket: 'PDF\'i kopyala', devre: !b },   // 0.1.21 (kullanıcı isteği): dosyanın kendisi panoya (araç çubuğundaki kopyala düğmesi gibi)
   ]);
-  if (secim === 'ayir') { if (belgeler.has(id) && sekmeler.sekmeler.length > 1) await sekmeyiTasi(id, { tur: 'yeni' }); return; }
+  if (secim === 'ayir') { if ((belgeler.has(id) || baslangicSekmeleri.has(id)) && sekmeler.sekmeler.length > 1) await sekmeyiTasi(id, { tur: 'yeni' }); return; }
   if (secim === 'kapat') sekmeKapat(id);
   else if (secim === 'digerleri') await sekmeleriKapat(sekmeler.sekmeler.filter((s) => s.id !== id).map((s) => s.id));
   else if (secim === 'sagdakiler') { const i = sekmeler.sekmeler.findIndex((s) => s.id === id); await sekmeleriKapat(sekmeler.sekmeler.slice(i + 1).map((s) => s.id)); }

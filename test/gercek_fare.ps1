@@ -4,10 +4,11 @@
 # Denetlenenler: önizleme penceresi gösterilince fare yakalaması ve etkin pencere kaynak pencerede kalır (kalmazsa sürükleme kesilir, sekme
 # hiç ayrılamazdı), tutulan sekme ayrılmış kalır, bırakınca yakalama kalkar, belge yeni pencerede açılır ve o pencere etkinleşir.
 # senaryo22.mjs aynı akışı CDP fare olaylarıyla sınar; onlar tarayıcı sürecinin girdi yolunu ve fare yakalamasını atlar.
-# Kullanım:  powershell -File test\gercek_fare.ps1 [-Port 9480] [-TutmaMs 3000] [-Paketli <PDEfe.exe>]      (çıkış kodu: 0 hepsi geçti, 1 hata)
+# Kullanım:  powershell -File test\gercek_fare.ps1 [-Port 9480] [-TutmaMs 3000] [-Paketli <PDEfe.exe>] [-Bos]      (çıkış kodu: 0 hepsi geçti, 1 hata)
+# -Bos (0.2.8): belgeli sekme yerine boş "Yeni sekme" sürüklenir (dördüncü sekme); yeni pencerede açılış ekranı, kaynakta üç belge kalır.
 # -Paketli: geliştirme örneği yerine paketli sürüm sınanır (ör. release\win-unpacked\PDEfe.exe; yayımdan önce paketin açıldığını, sekmenin
 # ayrıldığını görmek için).
-param([int]$Port = 9480, [int]$TutmaMs = 3000, [string]$Paketli = "")
+param([int]$Port = 9480, [int]$TutmaMs = 3000, [string]$Paketli = "", [switch]$Bos)
 $ErrorActionPreference = 'Stop'
 $kok = Split-Path -Parent $PSScriptRoot
 Set-Location $kok
@@ -28,7 +29,7 @@ function Denetle([string]$ad, [bool]$tamam, [string]$ayrinti = '') {
   if ($tamam) { Write-Output "OK   $ad" } else { $script:hatalar++; Write-Output "HATA $ad $ayrinti" }
 }
 try {
-  $env:PDEFE_CDP_PORT = "$Port"; $env:PDEFE_GF_KLASOR = $klasor
+  $env:PDEFE_CDP_PORT = "$Port"; $env:PDEFE_GF_KLASOR = $klasor; $env:PDEFE_GF_BOS = $(if ($Bos) { '1' } else { '' })
   $env:PDEFE_GF_ADIM = 'hazirla'
   & node test\surucu.mjs betik test\gercek_fare.mjs
   $v = Get-Content (Join-Path $klasor 'nokta.json') -Raw | ConvertFrom-Json
@@ -87,7 +88,11 @@ public static class GizliYardimci {
   Denetle 'Bırakıldıktan sonra iki uygulama penceresi görünür, önizleme gizli' ((@($fare | Where-Object { $_ -match '\[birakildiktan sonra\].*tur=pencere gorunur=True' }).Count -eq 2) -and [bool]($fare | Where-Object { $_ -match '\[birakildiktan sonra\].*tur=onizleme gorunur=False' }))
   $domMetni = $domSatirlari -join "`n"
   Denetle 'Sekme çubuktan ayrıldı, pencere odağını korudu' ($domMetni -match '"ayrildi":true[^\n]*"odak":true')
-  Denetle 'Belge yeni pencerede açıldı, kaynakta iki sekme kaldı' (($domMetni -match 'pencere \{"sekmeler":\["c\.pdf"\],"odak":true') -and ($domMetni -match 'pencere \{"sekmeler":\["a\.pdf","b\.pdf"\]'))
+  if ($Bos) {
+    Denetle 'Boş sekme yeni pencerede açıldı, kaynakta üç belge kaldı' (($domMetni -match 'pencere \{"sekmeler":\["Yeni sekme"\],"odak":true') -and ($domMetni -match 'pencere \{"sekmeler":\["a\.pdf","b\.pdf","c\.pdf"\]'))
+  } else {
+    Denetle 'Belge yeni pencerede açıldı, kaynakta iki sekme kaldı' (($domMetni -match 'pencere \{"sekmeler":\["c\.pdf"\],"odak":true') -and ($domMetni -match 'pencere \{"sekmeler":\["a\.pdf","b\.pdf"\]'))
+  }
 } finally {
   $ErrorActionPreference = 'SilentlyContinue'
   if ($yardimci -gt 0) { Stop-Process -Id $yardimci -Force -ErrorAction SilentlyContinue }

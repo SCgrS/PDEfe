@@ -1,7 +1,8 @@
 // Gerçek girdiyle sekme ayırma (0.1.19): test/gercek_fare.ps1'in sürücü adımları. CDP fare olayları tarayıcı sürecinin girdi yolunu ve
 // fare yakalamasını atlar; burada fare iletilerini görünmeyen masaüstündeki yardımcı (fare_gonder.ps1) gönderir, bu betik yalnızca
 // belgeleri açar ve DOM'u izler. Adım PDEFE_GF_ADIM ile seçilir:
-//   hazirla  PDEFE_GF_KLASOR'daki a.pdf, b.pdf, c.pdf açılır; etkin sekmenin tutulacağı nokta PDEFE_GF_KLASOR\nokta.json'a yazılır
+//   hazirla  PDEFE_GF_KLASOR'daki a.pdf, b.pdf, c.pdf açılır; etkin sekmenin tutulacağı nokta PDEFE_GF_KLASOR\nokta.json'a yazılır.
+//            PDEFE_GF_BOS=1 (0.2.8): ardından boş bir "Yeni sekme" açılır, tutulan sekme odur (boş sekme de pencereye ayrılır)
 //   izle     PDEFE_GF_SURE ms boyunca ilk pencerenin durumu örneklenir (değişince yazılır); sonunda pencereler listelenir
 // Kullanım: powershell -File test\gercek_fare.ps1
 import fs from 'node:fs';
@@ -16,6 +17,7 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
   hedefSec(ilk);
   if (adim === 'hazirla') {
     await evalJs(`(async () => { const p = window.__pdefe; for (const ad of ['a.pdf', 'b.pdf', 'c.pdf']) await p.dosyaAc(${J(K + path.sep)} + ad); await new Promise((r) => setTimeout(r, 1500)); return true; })()`);
+    if (process.env.PDEFE_GF_BOS === '1') await evalJs(`(async () => { window.__pdefe.komutCalistir('sekme.yeni'); await new Promise((r) => setTimeout(r, 800)); return true; })()`);
     const v = await evalJs(`(() => { const r = document.querySelector('.sekme.aktif').getBoundingClientRect(); return { x: Math.round(r.left + 40), y: Math.round(r.top + 15), dpr: devicePixelRatio, ic: innerHeight, sekmeler: window.__pdefe.sekmeler.sekmeler.map((s) => s.ad), odak: document.hasFocus() }; })()`);
     fs.writeFileSync(path.join(K, 'nokta.json'), J(v));
     console.log('hazır', J(v));

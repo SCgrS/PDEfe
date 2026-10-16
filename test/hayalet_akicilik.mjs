@@ -11,6 +11,7 @@
 //   $env:PDEFE_CDP_PORT=9481; $env:PDEFE_HA_PID=<PID>; node test\surucu.mjs betik test\hayalet_akicilik.mjs
 //   powershell -File test\durdur.ps1 -SurecId <PID>
 // Ek: $env:HA_SURE (ms, varsayılan 3000), $env:HA_TEKRAR (varsayılan 2: ilk sürükleme ön izleme penceresini kurar, sonrakiler yeniden kullanır).
+// 0.2.8: belge turlarından sonra bir tur da boş sekmeyle ("Yeni sekme"; artık o da pencereye ayrılır): ön izlemesi yalnızca başlık, aynı ölçütler.
 // Sonuçlar test/cikti/hayalet/sonuc-<zaman>.json'a da yazılır. Ekran dışındaki örnekte ön izleme de ekran dışındadır (kişinin ekranına çıkmaz).
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -79,8 +80,11 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
   await bekle(800);
   const pencere = (await ana('test:pencereler')).find((p) => p.yollar.length === 3) || (await ana('test:pencereler'))[0];
   const tumOlcumler = [];
-  for (let tur = 1; tur <= TEKRAR; tur++) {
-    const yer = await evalJs(`(() => { const s = window.__pdefe.sekmeler.sekmeler.find((x) => x.ad === 'c.pdf'); const r = s.el.getBoundingClientRect(); const c = document.querySelector('#sekme-cubugu').getBoundingClientRect(); return { x: Math.round(r.left + 40), y: Math.round(r.top + r.height / 2), alt: c.bottom }; })()`);
+  const turlar = [...Array.from({ length: TEKRAR }, () => false), true];   // true: boş sekme turu (0.2.8)
+  for (let tur = 1; tur <= turlar.length; tur++) {
+    const bos = turlar[tur - 1];
+    if (bos) { await evalJs(`(window.__pdefe.komutCalistir('sekme.yeni'), true)`); await bekle(500); }
+    const yer = await evalJs(`(() => { const ss = window.__pdefe.sekmeler.sekmeler; const s = ${bos} ? ss.at(-1) : ss.find((x) => x.ad === 'c.pdf'); const r = s.el.getBoundingClientRect(); const c = document.querySelector('#sekme-cubugu').getBoundingClientRect(); return { id: s.id, x: Math.round(r.left + 40), y: Math.round(r.top + r.height / 2), alt: c.bottom }; })()`);
     const g = await girdi(ilk);
     // Dış izleyici (pencerenin ekrandaki yeri): sürüklemeden önce başlar, derlenmesi ~1-2 sn
     let izleyici = null, izDosya = null;
@@ -104,6 +108,7 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
     await ana('test:imlecYolu', null);
     await g.esc(); await bekle(300); await g.birak(yer.x + 30, yer.alt + 120); g.kapat();
     await bekle(400);
+    if (bos) await evalJs(`(async () => { window.__pdefe.sekmeler.dispatchEvent(new CustomEvent('kapat', { detail: { id: ${J(yer.id)} } })); await new Promise((r) => setTimeout(r, 200)); return true; })()`);
     let dis = null;
     if (izleyici) {
       const t0 = Date.now(); while (Date.now() - t0 < SURE + 8000 && !/^BITTI/.test(fs.readFileSync(izDosya, 'utf8'))) await bekle(200);
@@ -118,9 +123,9 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
     const konum = ozet(araliklar(o.konumlar.map((k) => k.t)));
     const tasima = ozet(o.konumlar.map((k) => k.sure));
     const gosterim = o.gosterim?.gorunur != null ? Math.round(o.gosterim.gorunur - o.gosterim.istek) : null;
-    const kayit = { tur, gorundu: !!gorundu, adimAraligi: adim, konumAraligi: konum, tasimaSuresi: tasima, disAralik: dis, gosterimMs: gosterim };
+    const kayit = { tur, bos, gorundu: !!gorundu, adimAraligi: adim, konumAraligi: konum, tasimaSuresi: tasima, disAralik: dis, gosterimMs: gosterim };
     tumOlcumler.push(kayit);
-    console.log(`\n== Tur ${tur}${tur === 1 ? ' (ön izleme penceresi kuruluyor)' : ' (pencere yeniden kullanılıyor)'}`);
+    console.log(`\n== Tur ${tur}${bos ? ' (boş sekme, 0.2.8)' : tur === 1 ? ' (ön izleme penceresi kuruluyor)' : ' (pencere yeniden kullanılıyor)'}`);
     console.log('adım aralığı (ms)      ', J(adim));
     console.log('konum değişimi (ms)    ', J(konum));
     console.log('yer değiştirme süresi  ', J(tasima));
@@ -128,13 +133,15 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
     console.log('gösterilme (ms)        ', gosterim);
   }
   fs.writeFileSync(path.join(K, `sonuc-${new Date().toISOString().replace(/\D/g, '').slice(0, 14)}.json`), J(tumOlcumler, null, 1));
-  // Ölçütler (0.2.7 düzeltmesinden sonra): ekran tazelemesine bağlı adımlar ~16,7 ms aralıkla, düzenli
-  const son = tumOlcumler.at(-1);
-  sonuc('Ön izleme sürükleyince göründü', tumOlcumler.every((x) => x.gorundu));
-  sonuc('Konum güncellemeleri düzenli: ortanca 14–19 ms, %95 ≤ 22 ms, 25 ms\'den uzun aralık yok denecek kadar az (≤ %2)',
-    son.konumAraligi.ortanca >= 14 && son.konumAraligi.ortanca <= 19 && son.konumAraligi.p95 <= 22 && son.konumAraligi.uzun25 <= Math.ceil(son.konumAraligi.n * 0.02), son.konumAraligi);
-  if (son.disAralik) sonuc('Dışarıdan görülen hareket de düzenli: %95 ≤ 22 ms', son.disAralik.aralik.p95 <= 22 && son.disAralik.aralik.n >= SURE / 25, son.disAralik);
-  sonuc('Yer değiştirme kısa: %95 ≤ 4 ms', son.tasimaSuresi.p95 <= 4, son.tasimaSuresi);
+  // Ölçütler (0.2.7 düzeltmesinden sonra): ekran tazelemesine bağlı adımlar ~16,7 ms aralıkla, düzenli. Son belge turu ve boş sekme turu (0.2.8)
+  sonuc('Ön izleme sürükleyince göründü (belge ve boş sekme)', tumOlcumler.every((x) => x.gorundu), tumOlcumler.map((x) => [x.tur, x.bos, x.gorundu]));
+  for (const son of [tumOlcumler.filter((x) => !x.bos).at(-1), tumOlcumler.find((x) => x.bos)]) {
+    const ad = son.bos ? 'Boş sekme' : 'Belge';
+    sonuc(`${ad}: konum güncellemeleri düzenli: ortanca 14–19 ms, %95 ≤ 22 ms, 25 ms'den uzun aralık yok denecek kadar az (≤ %2)`,
+      son.konumAraligi.ortanca >= 14 && son.konumAraligi.ortanca <= 19 && son.konumAraligi.p95 <= 22 && son.konumAraligi.uzun25 <= Math.ceil(son.konumAraligi.n * 0.02), son.konumAraligi);
+    if (son.disAralik) sonuc(`${ad}: dışarıdan görülen hareket de düzenli: %95 ≤ 22 ms`, son.disAralik.aralik.p95 <= 22 && son.disAralik.aralik.n >= SURE / 25, son.disAralik);
+    sonuc(`${ad}: yer değiştirme kısa: %95 ≤ 4 ms`, son.tasimaSuresi.p95 <= 4, son.tasimaSuresi);
+  }
   console.log(`\n${denetim} denetim; ${hataSayisi ? hataSayisi + ' HATA' : 'hepsi geçti'}`);
   await evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); return true; })()`);
   if (hataSayisi) process.exitCode = 1;

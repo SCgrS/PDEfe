@@ -1,10 +1,11 @@
 // Senaryo 22 (0.1.19, kullanıcı isteği): birden çok pencere ve sekmenin pencereler arasında taşınması.
-//   - sekmede sağ tık › Pencereye ayır (tek sekmede ve açılış sekmesinde devre dışı); yeni pencerenin yeri, başlığı, sayfa ve yakınlaştırma
+//   - sekmede sağ tık › Pencereye ayır (tek sekmede devre dışı; 0.2.8'den beri açılış sekmesinde de etkin, ayrıntısı senaryo43); yeni
+//     pencerenin yeri, başlığı, sayfa ve yakınlaştırma
 //   - sekmeyle birlikte taşınanlar: kaydedilmemiş notlar, sayfa değişiklikleri, geri al / yinele geçmişi, anlık kopya; taşınan belge,
 //     aynı işlemlerin yapıldığı ama taşınmayan eş belgeyle adım adım karşılaştırılır (geri al, yinele, kaydet, diskteki sonuç)
 //   - sekmeyi çubuğun dışına sürükleme (gerçek fare olayları CDP'den): eşik, önizleme penceresi, çubuğa geri takılma, Esc, boş yere
 //     bırakınca yeni pencere (sekme imlecin altında), başka pencerenin çubuğuna bırakma (bırakma işareti, sıra), belgesiz pencereye
-//     bırakma, tek sekmeli pencerenin taşınması / kapanması, açılış sekmesinin ayrılmaması
+//     bırakma, tek sekmeli pencerenin taşınması / kapanması, açılış sekmesinin de ayrılması (0.2.8; Esc ile yerine döner)
 //   - dosya yalnızca bir pencerede açık: başka pencerede açık dosya orada gösterilir (arayüzden ve Gezgin'den / ikinci örnekten)
 //   - ayarların pencereler arasında eşitlenmesi; meşgul hedef pencere; pencere kapatma, Çıkış ve güncelleme öncesi izin
 //   - kilitler: kaydedilmekte olan belge taşınmaz, kapanmakta olan pencere sekme almaz, güncellemeye izin veren pencere girdi almaz,
@@ -152,7 +153,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
     J(menu) === J(['Kapat', 'Diğerlerini kapat', 'Sağdakileri kapat', '-', 'Kaydet (devre dışı)', 'Yazdır', '-', 'Pencereye ayır', '-', 'Klasörde göster', 'Yolu kopyala', 'PDF\'i kopyala']), menu);   // PDF'i kopyala: 0.1.21, Kaydet: 0.2.1, Yazdır: 0.2.6
   await evalJs(`(window.__pdefe.komutCalistir('sekme.yeni'), true)`); await bekle(200);
   menu = await sagTik('Yeni sekme', null);
-  sonuc('Açılış sekmesinde "Pencereye ayır" devre dışı', menu?.includes('Pencereye ayır (devre dışı)'), menu);
+  sonuc('Açılış sekmesinde de "Pencereye ayır" etkin (0.2.8; önceden devre dışı)', menu?.includes('Pencereye ayır') && !menu.includes('Pencereye ayır (devre dışı)'), menu);
   await evalJs(`(async () => { const s = window.__pdefe.sekmeler.sekmeler.find((x) => x.ad === 'Yeni sekme'); window.__pdefe.sekmeler.dispatchEvent(new CustomEvent('kapat', { detail: { id: s.id } })); await new Promise((r) => setTimeout(r, 200)); return true; })()`);
 
   // ---------------------------------------------------------------- 2) menüyle ayırma: yeni pencere, sayfa ve yakınlaştırma
@@ -338,13 +339,17 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
   sonuc('Esc: ayrılmış sekme yerine döndü, önizleme kalktı', sinif['d.pdf'] === '' && (await ana('test:hayalet')).gorunur === false && J(await sekmeAdlari()) === J(['b.pdf', 'd.pdf', 'c.pdf']), sinif);
   await g.birak(yer.x + 20, cb.alt + 80); await bekle(400);
   sonuc('Esc\'ten sonra bırakmak bir şey yapmaz (yeni pencere yok, sekme askıda değil)', (await yenile()).length === kimlikler.length && !(await evalJs(`!!document.querySelector('.sekme.askida')`)));
-  // Açılış sekmesi ayrılmaz
+  // Açılış sekmesi de ayrılır (0.2.8, kullanıcı isteği; bırakma, menü ve tek sekmeli pencere senaryo43'te): Esc ile yerine döner
   await evalJs(`(window.__pdefe.komutCalistir('sekme.yeni'), true)`); await bekle(300);
   yer = await sekmeYeri('Yeni sekme');
-  await g.bas(yer.x, yer.y); await g.git(yer.x, yer.y, yer.x - 60, cb.alt + 90); await bekle(300);
+  await g.bas(yer.x, yer.y); await g.git(yer.x, yer.y, yer.x - 60, cb.alt + 90);
+  const bosOnizleme = await kosul(`window.pdefe.cagir('test:hayalet').then((h) => !!h && h.gorunur && h.icerik?.ad === 'Yeni sekme')`, 4000);
   sinif = await sekmeSiniflari();
-  sonuc('Açılış sekmesi çubuğun dışına sürüklenince ayrılmaz (çubukta kalır, önizleme yok)', sinif['Yeni sekme'].includes('tasiniyor') && !sinif['Yeni sekme'].includes('ayrildi') && (await ana('test:hayalet')).gorunur === false, sinif);
+  sonuc('Açılış sekmesi de çubuğun dışına sürüklenince ayrılır, önizlemesi "Yeni sekme" (0.2.8; önceden çubukta kalıyordu)', sinif['Yeni sekme'].includes('ayrildi') && !!bosOnizleme, sinif);
+  await g.esc(); await bekle(400);
   await g.birak(yer.x - 60, cb.alt + 90); await bekle(400);
+  sinif = await sekmeSiniflari();
+  sonuc('Esc: açılış sekmesi yerine döndü, önizleme kalktı, yeni pencere yok', !/ayrildi|tasiniyor|askida/.test(sinif['Yeni sekme']) && (await ana('test:hayalet')).gorunur === false && (await yenile()).length === kimlikler.length, sinif);
   await evalJs(`(async () => { const s = window.__pdefe.sekmeler.sekmeler.find((x) => x.ad === 'Yeni sekme'); window.__pdefe.sekmeler.dispatchEvent(new CustomEvent('kapat', { detail: { id: s.id } })); await new Promise((r) => setTimeout(r, 200)); return true; })()`);
   // Boş yere bırak: yeni pencere, ilk sekmesi imlecin altında. "Boş yer": hiçbir PDEfe penceresinin kaplamadığı bir nokta (test
   // pencereleri ekranın solunda, y ≥ 0'da; nokta onların üstünde seçilir ki yeni pencere de ekran dışında kalsın)

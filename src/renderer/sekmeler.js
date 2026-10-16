@@ -157,7 +157,8 @@ export class SekmeCubugu extends EventTarget {
   // olayı verilir (uygulama.js imleci izleyen önizlemeyi gösterir). Çubuğa geri gelince sekme imlecin altında yerine takılır
   // ('geriTakildi'), sıralama sürer. Dışarıda bırakılınca ('disariBirakildi') sıra değişmez; sekme, uygulama onu başka pencereye
   // taşıyana (kaldir) ya da vazgeçene (askidanCikar) dek çubukta gizli kalır. Esc ve odak kaybı ayrılmış sekmeyi de yerine döndürür.
-  // Yalnızca ayrilabilir(id)'nin izin verdiği sekmeler ayrılır (açılış sekmesi ayrılmaz: çubukta kalır, imleci yatayda izler).
+  // Yalnızca ayrilabilir(id)'nin izin verdiği sekmeler ayrılır (öteki sekme çubukta kalır, imleci yatayda izler); 0.2.8'den beri açılış
+  // sekmesi ("Yeni sekme") de ayrılır (uygulama.js bosSekmeyiTasi), 0.1.19–0.2.7 ayrılmıyordu.
 
   /** Sol tuşla basış: sürükleme henüz başlamaz; 5 px'ten çok çekilince başlar (tıklama sekmeyi seçmekle kalır). */
   surukleHazirla(e, el, id = null) {

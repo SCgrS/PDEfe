@@ -130,7 +130,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
   d = await durum();
   sonuc('Belgesiz pencerede Ctrl+T (sekme.yeni) de yeni boş sekme açar', J(d.sekmeler) === J(['Yeni sekme', 'Yeni sekme', 'Yeni sekme', 'Yeni sekme']) && d.aktif === d.idler[3], d);
   m = await sagTik('Yeni sekme', null);
-  sonuc('Birden çok açılış sekmesinde sağ tık: Kapat etkin, Pencereye ayır devre dışı', m.menu && m.menu.includes('Kapat') && m.menu.includes('Pencereye ayır (devre dışı)'), m.menu);
+  // 0.2.8 (kullanıcı isteği): açılış sekmesi de pencereye ayrılır (senaryo43); önceden "Pencereye ayır" burada devre dışıydı
+  sonuc('Birden çok açılış sekmesinde sağ tık: Kapat ve Pencereye ayır etkin (0.2.8)', m.menu && m.menu.includes('Kapat') && m.menu.includes('Pencereye ayır') && !m.menu.includes('Pencereye ayır (devre dışı)'), m.menu);
   // Ctrl+W etkin açılış sekmesini kapatır (pencere kapanmaz); son kullanılan sekmeye dönülür
   const ucuncu = d.idler[2];
   await evalJs(`window.__pdefe.komutCalistir('sekme.kapat')`); await bekle(300);

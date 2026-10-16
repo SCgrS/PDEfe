@@ -13,7 +13,8 @@
 //                                                    cikis: istek Çıkış'tan (cik) geliyor, "geçerli sekme / tüm sekmeler" sorulmaz (0.2.2)
 //   'pencere:izinIste'    istekId                    başka pencere uygulamayı kapatacak (güncelleme kurulumu): kaydedilmemişleri sor → 'yanit'
 //   'pencere:izinBitti'                              kurulumdan vazgeçildi ya da kurulum başlatılamadı: izin verirken kilitlenen pencere açılır
-//   'sekme:al'            istekId, paket, { x }      taşınan sekmeyi aç (x: bırakılan yerin pencere içi yatay konumu ya da null) → 'yanit'
+//   'sekme:al'            istekId, paket, { x, yeni } taşınan sekmeyi aç (x: bırakılan yerin pencere içi yatay konumu ya da null; yeni: sekme için
+//                                                    açılan yeni pencere; paket { surum, baslangic: true }: açılış sekmesi, 0.2.8) → 'yanit'
 //   'sekme:bant'          istekId                    sekme bırakılabilecek alan (pencere içi dikdörtgen) → 'yanit'
 //   'sekme:disSurukle'    { x, y } | null            başka pencerenin sekmesi bu pencerenin şeridi üzerinde sürükleniyor / ayrıldı
 import { BrowserWindow, screen, shell } from 'electron';
@@ -675,7 +676,8 @@ export function pencereleriKur(b) {
       }
       let zaman = null;
       await Promise.race([k.hazirSozu, new Promise((_c, reddet) => { zaman = setTimeout(() => reddet(new Error('Yeni pencere açılamadı.')), HAZIR_BEKLEME_MS); })]).finally(() => clearTimeout(zaman));
-      const r = await rendererdanIste(k, 'sekme:al', paket, { x: hedef?.tur === 'pencere' ? hedef.x ?? null : null });
+      // yeni (0.2.8): açılış sekmesi ('Yeni sekme') taşınırken yeni pencerenin kendi açılış sekmesi ayrılan sekmedir (renderer bosSekmeyiAl)
+      const r = await rendererdanIste(k, 'sekme:al', paket, { x: hedef?.tur === 'pencere' ? hedef.x ?? null : null, yeni });
       if (!r?.tamam) throw new Error(r?.hata || 'Sekme hedef pencerede açılamadı.');
       if (yeni) pencereyiGoster(k);
       odakla(k);
