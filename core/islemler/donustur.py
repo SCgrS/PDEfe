@@ -630,6 +630,7 @@ class Baglam:
         bayrak = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
         p = subprocess.Popen(komut, stdin=subprocess.PIPE if girdi is not None else subprocess.DEVNULL, stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE, env=ortam, cwd=klasor, creationflags=bayrak)
+        is_ = ise_bagla(p)   # Windows: alt süreçleriyle birlikte iş nesnesinde (öldürme anında; çekirdek çökerse de sonlanır)
         bas = time.monotonic()
         veri = girdi
         try:
@@ -643,14 +644,47 @@ class Baglam:
                     if sure is not None and time.monotonic() - bas > sure:
                         raise TimeoutError("%s %d saniyede bitmedi." % (os.path.basename(str(komut[0])), sure))
         except BaseException:
-            _surec_oldur(p)
+            _surec_oldur(p, is_)
             raise
+        finally:
+            is_kapat(is_)   # KILL_ON_JOB_CLOSE: program bittiyse ondan kalan alt süreçler de sonlanır
 
 
-def _surec_oldur(p):
-    if p.poll() is not None:
+def ise_bagla(p):
+    """Windows'ta süreci "kapanınca sonlandır" (KILL_ON_JOB_CLOSE) iş nesnesine bağlar; başlattığı alt süreçler de iş nesnesine girer
+    (udf.py'nin JVM'i, dış süreçler: LibreOffice). Döner: iş nesnesi tutamacı ya da None (Windows değil ya da bağlanamadı)."""
+    if os.name != "nt":
+        return None
+    try:
+        from . import word
+        return word._is_nesnesi_kur(int(p._handle))
+    except Exception as e:
+        print("[donustur] süreç iş nesnesine bağlanamadı: %r" % e, file=sys.stderr)
+        return None
+
+
+def is_kapat(j):
+    if j:
+        try:
+            from . import word
+            word._w32().k32.CloseHandle(j)
+        except Exception:
+            pass
+
+
+def _surec_oldur(p, is_=None):
+    """Süreci alt süreçleriyle birlikte öldürür. 0.2.9 denetimi: önce iş nesnesi (TerminateJobObject, anında); taskkill /T yalnızca iş
+    nesnesi yoksa (bu bilgisayarda tek süreçte bile 5–7 sn sürüyordu: iptal ve süre aşımı o kadar gecikiyor, kapanış bütçesini yiyordu)."""
+    if p.poll() is not None and not is_:
         return
-    if os.name == "nt":
+    sonlandi = False
+    if is_:
+        try:
+            from . import word
+            sonlandi = bool(word._w32().k32.TerminateJobObject(is_, 1))
+        except Exception:
+            sonlandi = False
+    if not sonlandi and os.name == "nt" and p.poll() is None:
         try:
             subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True, timeout=10,
                            creationflags=subprocess.CREATE_NO_WINDOW)

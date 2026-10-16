@@ -1160,6 +1160,28 @@ def test_dis_surec(c):
         import pdefe_core
         sonuc("dış süreç: iptalde öldürülür (IptalEdildi)", isinstance(e, pdefe_core.IptalEdildi) and time.time() - t < 5,
               "%.1f sn %s" % (time.time() - t, type(e).__name__))
+    # 0.2.9 denetimi: alt süreçleriyle birlikte, beklemeden öldürülür (Windows'ta iş nesnesiyle; taskkill yalnızca yedek)
+    from islemler.udf import _surec_yasiyor
+    b = d.Baglam(None, d._Ilerleme({}))
+    torun_dosyasi = os.path.join(CIKTI, "dis_surec_torun.txt")
+    if os.path.exists(torun_dosyasi):
+        os.remove(torun_dosyasi)
+    betik = ("import subprocess, sys, time; p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']); "
+             "open(sys.argv[1], 'w').write(str(p.pid)); time.sleep(60)")
+    t = time.time()
+    try:
+        b.dis_surec([sys.executable, "-c", betik, torun_dosyasi], sure=2)
+    except TimeoutError:
+        pass
+    sure = time.time() - t
+    try:
+        with open(torun_dosyasi) as f:
+            torun = int(f.read())
+    except (OSError, ValueError):
+        torun = None
+    time.sleep(0.3)
+    sonuc("dış süreç: süre dolunca alt süreciyle birlikte öldürülür (< 4 sn)", torun is not None and not _surec_yasiyor(torun) and sure < 4,
+          "%.1f sn, torun %s" % (sure, "yok" if torun is None else ("yaşıyor" if _surec_yasiyor(torun) else "sonlandı")))
 
 
 def test_zincir(c, g):
