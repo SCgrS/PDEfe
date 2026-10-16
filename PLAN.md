@@ -2272,7 +2272,7 @@ denemenin deney betiği olağan masaüstünde başlatılınca kullanıcının ek
   `test/yazdir_html_testi.mjs` 0.2.0'dan beri "window is not defined" ile düşüyordu (yazdir.js DOM'a bağlı modülleri yüklüyor): saf işlevler DOM'suz
   modüllere taşındı, test onarıldı ve genişledi.
 - [x] **Test örneği yazıcıya gitmez** (gelistirme.js `testDiyalog`): print çağrısı ve tercihler `test:diyalogKaydi`'na düşer, yanıtı test kuyruğundan;
-  `PDEFE_TEST_YAZICILAR` ("1": yerleşik sahte liste — çift taraflı basan varsayılan "Lazer Yazıcı", dosyaya yazan "Microsoft Print to PDF", çevrim
+  `PDEFE_TEST_YAZICILAR` ("1": yerleşik sahte liste — çift taraflı basan varsayılan "Lazer Yazıcı" (0.2.9 denetimine dek ofisteki yazıcının model adıydı), dosyaya yazan "Microsoft Print to PDF", çevrim
   dışı bir yazıcı —, ya da JSON) ve `test:yazicilar` sahte liste verir (README görüntüsünde bilgisayarın yazıcı adları olmasın);
   `PDEFE_TEST_GERCEK_YAZDIR=1` yalnızca görünmeyen masaüstündeki örnekte gerçek yazdırmayı açar.
 - [x] **Seçilmeyen yollar**: "Çıktıyı Farklı Kaydet" kutusunu öne getirmek (Electron'da yabancı pencereye erişim yok; her yazdırmada PowerShell +
