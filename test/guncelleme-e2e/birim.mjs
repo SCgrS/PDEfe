@@ -1,8 +1,8 @@
 // Ana süreç güncelleme mantığının (src/main/guncelleme.js) birim denemesi: sahte electron-updater, sahte ayar deposu, sahte saat, Electron'suz.
 // Kullanım (depo kökünden): node test/guncelleme-e2e/birim.mjs      çıkış kodu: hata varsa 1
-// Kapsam: haftalık denetim (ilk açılış, 7 gün, saat geri alınması), başarısız otomatik denetimin süreyi başlatmaması, elle denetimin süreyi
-// başlatması, açık kalan uygulamada saatlik bakış, bekleyen (indirilip kurulmamış) sürümün sonraki açılışta bir kez denetlenmesi, elle
-// denetimin indirme/hazır aşamasını bildirmesi, Türkçe hata metinleri, tek quitAndInstall. 0.2.5: indirme başlayınca bekleyen kaydı (yarım
+// Kapsam: iki günde bir denetim (0.2.8; önceden haftada bir: ilk açılış, 2 gün, saat geri alınması), başarısız otomatik denetimin süreyi
+// başlatmaması, elle denetimin süreyi başlatması, açık kalan uygulamada saatlik bakış, bekleyen (indirilip kurulmamış) sürümün sonraki
+// açılışta bir kez denetlenmesi, elle denetimin indirme/hazır aşamasını bildirmesi, Türkçe hata metinleri, tek quitAndInstall. 0.2.5: indirme başlayınca bekleyen kaydı (yarım
 // kalan indirme sonraki açılışta yeniden önerilir), bağlantı kopunca bekleyen kalır ve Yeniden dene, donmuş indirmenin bekçisi (jetonla
 // kesilir; ilerleyen yavaş indirme kesilmez; jeton sınıfı yoksa eskisi gibi), önbellek temizliği (yarım dosyalar, kurulmuş sürümün kurucusu).
 import { EventEmitter } from 'node:events';
@@ -16,13 +16,14 @@ function kontrol(ad, kosul, ek = '') {
 }
 const GUN = 24 * 3600 * 1000, T0 = Date.UTC(2026, 8, 23, 9, 0, 0);
 
-// ---- haftalık sıra (yalnızca sirasiGeldiMi / acilisDenetimi)
+// ---- denetim sırası (yalnızca sirasiGeldiMi / acilisDenetimi); 0.2.8 (kullanıcı isteği): iki günde bir, önceden haftada bir
 {
   const al = (o) => (k) => o[k];
-  kontrol('7 gün = DENETIM_ARALIGI_MS', DENETIM_ARALIGI_MS === 7 * GUN);
+  kontrol('2 gün = DENETIM_ARALIGI_MS (0.2.8)', DENETIM_ARALIGI_MS === 2 * GUN);
   kontrol('hiç denetlenmemiş: sıra geldi', sirasiGeldiMi(al({}), T0));
-  kontrol('6 gün 23 saat: sıra gelmedi', !sirasiGeldiMi(al({ [AYAR_SON_DENETIM]: T0 }), T0 + 7 * GUN - 3600e3));
-  kontrol('7 gün: sıra geldi', sirasiGeldiMi(al({ [AYAR_SON_DENETIM]: T0 }), T0 + 7 * GUN));
+  kontrol('1 gün 23 saat: sıra gelmedi', !sirasiGeldiMi(al({ [AYAR_SON_DENETIM]: T0 }), T0 + 2 * GUN - 3600e3));
+  kontrol('2 gün: sıra geldi', sirasiGeldiMi(al({ [AYAR_SON_DENETIM]: T0 }), T0 + 2 * GUN));
+  kontrol('3 gün: sıra geldi (önceden haftayı bekliyordu)', sirasiGeldiMi(al({ [AYAR_SON_DENETIM]: T0 }), T0 + 3 * GUN));
   kontrol('saat geri alınmış (son denetim gelecekte): sıra geldi', sirasiGeldiMi(al({ [AYAR_SON_DENETIM]: T0 + GUN }), T0));
   kontrol('bozuk zaman: sıra geldi', sirasiGeldiMi(al({ [AYAR_SON_DENETIM]: 'dün' }), T0));
   const depo = new Map([[AYAR_SON_DENETIM, T0], ['bekleyenGuncelleme', '0.9.1']]);
@@ -72,18 +73,18 @@ function kurulum({ surum = '0.9.0', ayar = {}, ilkOrnek = true, simdi = T0, baki
 async function otomatik(k) { k.g.pencereGosterildi(); await bekle(120); k.g.durdur(); }
 const ayar = (k) => JSON.stringify({ son: k.depo.get(AYAR_SON_DENETIM), bekleyen: k.depo.get('bekleyenGuncelleme') });
 
-// Haftalık otomatik denetim: ilk açılış, hafta dolmadan / dolunca, başarısız denetim süreyi başlatmaz
+// İki günde bir otomatik denetim: ilk açılış, iki gün dolmadan / dolunca, başarısız denetim süreyi başlatmaz
 {
   const k1 = kurulum({ ayar: {} });
   await otomatik(k1);
   kontrol('ilk açılış (hiç denetlenmemiş) denetler, zamanı yazar', k1.au.kayit.denetim === 1 && k1.depo.get(AYAR_SON_DENETIM) === T0, ayar(k1));
   kontrol('ilk açılışta şerit olayı (guncelleme:var)', k1.giden.some(([x]) => x === 'guncelleme:var'));
-  const k2 = kurulum({ ayar: k1.ayar(), simdi: T0 + 3 * GUN });
+  const k2 = kurulum({ ayar: k1.ayar(), simdi: T0 + GUN });
   await otomatik(k2);
-  kontrol('3 gün sonra açılış denetlemez', k2.au.kayit.denetim === 0 && k2.depo.get(AYAR_SON_DENETIM) === T0, ayar(k2));
-  const k3 = kurulum({ ayar: k1.ayar(), simdi: T0 + 7 * GUN + 60e3 });
+  kontrol('1 gün sonra açılış denetlemez', k2.au.kayit.denetim === 0 && k2.depo.get(AYAR_SON_DENETIM) === T0, ayar(k2));
+  const k3 = kurulum({ ayar: k1.ayar(), simdi: T0 + 2 * GUN + 60e3 });
   await otomatik(k3);
-  kontrol('7 gün sonra açılış denetler, süre yeniden başlar', k3.au.kayit.denetim === 1 && k3.depo.get(AYAR_SON_DENETIM) === T0 + 7 * GUN + 60e3, ayar(k3));
+  kontrol('2 gün sonra açılış denetler, süre yeniden başlar', k3.au.kayit.denetim === 1 && k3.depo.get(AYAR_SON_DENETIM) === T0 + 2 * GUN + 60e3, ayar(k3));
   // ağ yok: süre başlamaz, sonraki açılış yeniden dener
   const k4 = kurulum({ ayar: k1.ayar(), simdi: T0 + 8 * GUN });
   k4.au.s.denetimHatasi = () => new Error('net::ERR_INTERNET_DISCONNECTED');
@@ -125,25 +126,25 @@ const ayar = (k) => JSON.stringify({ son: k.depo.get(AYAR_SON_DENETIM), bekleyen
   kontrol('elle denetim zamanı yazar', k.depo.get(AYAR_SON_DENETIM) === T0 + 5 * GUN, ayar(k));
   const d = await k.cagir('guncelleme:durum');
   kontrol('durum.sonDenetim', d.sonDenetim === T0 + 5 * GUN, JSON.stringify(d));
-  const k2 = kurulum({ ayar: k.ayar(), simdi: T0 + 8 * GUN });
+  const k2 = kurulum({ ayar: k.ayar(), simdi: T0 + 6 * GUN });
   await otomatik(k2);
-  kontrol('elle denetimden 3 gün sonra açılış denetlemez', k2.au.kayit.denetim === 0);
+  kontrol('elle denetimden 1 gün sonra açılış denetlemez', k2.au.kayit.denetim === 0);
   k2.au.s.denetimHatasi = () => new Error('getaddrinfo ENOTFOUND github.com');
   const r2 = await k2.cagir('guncelleme:denetle');
   kontrol('başarısız elle denetim zamanı değiştirmez', r2.durum === 'hata' && k2.depo.get(AYAR_SON_DENETIM) === T0 + 5 * GUN);
 }
 
-// Açık kalan uygulama: saatlik bakış hafta dolunca denetler; indirilmiş sürüm beklerken denetlemez
+// Açık kalan uygulama: saatlik bakış iki gün dolunca denetler; indirilmiş sürüm beklerken denetlemez
 {
   const k = kurulum({ ayar: { [AYAR_SON_DENETIM]: T0 }, simdi: T0 + GUN, bakisAraligiMs: 25 });
   k.g.pencereGosterildi();
   await bekle(120);
-  kontrol('bakış: hafta dolmadan denetim yok', k.au.kayit.denetim === 0);
-  k.saat.simdi = T0 + 7 * GUN + 1;
+  kontrol('bakış: iki gün dolmadan denetim yok', k.au.kayit.denetim === 0);
+  k.saat.simdi = T0 + 2 * GUN + 1;
   await bekle(120);
-  kontrol('bakış: hafta dolunca bir kez denetler', k.au.kayit.denetim === 1 && k.depo.get(AYAR_SON_DENETIM) === T0 + 7 * GUN + 1, ayar(k));
+  kontrol('bakış: iki gün dolunca bir kez denetler', k.au.kayit.denetim === 1 && k.depo.get(AYAR_SON_DENETIM) === T0 + 2 * GUN + 1, ayar(k));
   await bekle(120);
-  kontrol('bakış: aynı hafta içinde yeniden denetlemez', k.au.kayit.denetim === 1);
+  kontrol('bakış: sonraki iki gün dolmadan yeniden denetlemez', k.au.kayit.denetim === 1);
   await k.cagir('guncelleme:indir');   // kullanıcı indirdi, kurmadı
   k.saat.simdi = T0 + 15 * GUN;
   await bekle(120);
@@ -157,9 +158,9 @@ const ayar = (k) => JSON.stringify({ son: k.depo.get(AYAR_SON_DENETIM), bekleyen
   const k = kurulum({ ayar: { [AYAR_SON_DENETIM]: T0 }, simdi: T0 + GUN, bakisAraligiMs: 25 });
   k.g.pencereGosterildi();
   k.app.emit('before-quit', { preventDefault() {} });   // main.js çıkışı engelledi, kullanıcı Vazgeç dedi
-  k.saat.simdi = T0 + 7 * GUN + 1;
+  k.saat.simdi = T0 + 2 * GUN + 1;
   await bekle(120);
-  kontrol('vazgeçilen çıkıştan sonra saatlik bakış sürer, hafta dolunca denetler', k.au.kayit.denetim === 1, JSON.stringify(k.au.kayit));
+  kontrol('vazgeçilen çıkıştan sonra saatlik bakış sürer, iki gün dolunca denetler', k.au.kayit.denetim === 1, JSON.stringify(k.au.kayit));
   k.app.emit('will-quit', { preventDefault() {} });
   k.saat.simdi = T0 + 15 * GUN;
   await bekle(120);
@@ -169,9 +170,9 @@ const ayar = (k) => JSON.stringify({ son: k.depo.get(AYAR_SON_DENETIM), bekleyen
 
 // Bekleyen (indirilip kurulmamış) sürüm sonraki açılışta bir kez denetlenir
 {
-  const k = kurulum({ ayar: { [AYAR_SON_DENETIM]: T0 }, simdi: T0 + GUN });   // hafta dolmadı
+  const k = kurulum({ ayar: { [AYAR_SON_DENETIM]: T0 }, simdi: T0 + GUN });   // iki gün dolmadı
   await otomatik(k);
-  kontrol('hafta dolmadan açılış denetlemez', k.au.kayit.denetim === 0);
+  kontrol('iki gün dolmadan açılış denetlemez', k.au.kayit.denetim === 0);
   await k.cagir('guncelleme:denetle');
   await k.cagir('guncelleme:indir');   // kullanıcı Güncelle'ye bastı, sonra Vazgeç (kur çağrılmadı), PDEfe kapatıldı
   kontrol('indirilince bekleyenGuncelleme yazıldı', k.depo.get('bekleyenGuncelleme') === '0.9.1', ayar(k));
@@ -187,7 +188,7 @@ const ayar = (k) => JSON.stringify({ son: k.depo.get(AYAR_SON_DENETIM), bekleyen
   k4.au.s.denetimHatasi = () => new Error('getaddrinfo ENOTFOUND github.com');
   await otomatik(k4);
   kontrol('bekleyen + ağ yok: bekleyen kalır', k4.depo.get('bekleyenGuncelleme') === '0.9.1', ayar(k4));
-  // bekleyen sürüm kuruldu: bekleyen silinir, hafta dolmadığı için denetlenmez
+  // bekleyen sürüm kuruldu: bekleyen silinir, iki gün dolmadığı için denetlenmez
   const k5 = kurulum({ surum: '0.9.1', ayar: k.ayar(), simdi: T0 + 2 * GUN });
   await otomatik(k5);
   kontrol('bekleyen sürüm kurulunca kayıt silinir, denetim yok', k5.depo.get('bekleyenGuncelleme') === '' && k5.au.kayit.denetim === 0, ayar(k5));
@@ -269,7 +270,7 @@ const ayar = (k) => JSON.stringify({ son: k.depo.get(AYAR_SON_DENETIM), bekleyen
 
 // ---- 0.2.5: yarım kalan indirme, donmuş indirme, önbellek temizliği
 {
-  // İndirme başlayınca bekleyen yazılır: PDEfe indirme sürerken kapatılırsa sonraki açılış (hafta dolmadan) denetler, şerit yeniden görünür
+  // İndirme başlayınca bekleyen yazılır: PDEfe indirme sürerken kapatılırsa sonraki açılış (iki gün dolmadan) denetler, şerit yeniden görünür
   const k = kurulum({ ayar: { [AYAR_SON_DENETIM]: T0 } });
   k.au.s.indirmeMs = 400;
   await k.cagir('guncelleme:denetle');

@@ -36,7 +36,7 @@ function surumKarsilastir(a, b) {
 }
 
 /**
- * Geliştirme örneğinde güncelleme şeridini ve haftalık denetimi denemek için electron-updater yerine geçen sahte güncelleyici
+ * Geliştirme örneğinde güncelleme şeridini ve otomatik denetimi denemek için electron-updater yerine geçen sahte güncelleyici
  * (PDEFE_TEST_GUNCELLEME verilmişse; paketli uygulamada ve değişken yokken null). Ağa çıkmaz, hiçbir şey kurmaz, uygulamayı kapatmaz.
  * Senaryo 'test:guncellemeSenaryosu' ile değiştirilir: { surum, hata: null|'denetim'|'indirme'|'kurulum'|'donma', hataMesaji?, sureMs }
  * (hataMesaji: electron-updater'ın vereceği ileti; verilmezse ağ ya da spawn hatası; donma (0.2.5): indirme %30'da veri gelmeden durur,

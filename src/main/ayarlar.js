@@ -34,8 +34,8 @@ export const VARSAYILANLAR = {
   // sürecin klasör seçme penceresinden (ayar:udeKlasoruSec) yazılır, arayüz yalnızca null yapabilir: çekirdek bu klasördeki Java'yı çalıştırır
   udeYolu: null,
   // Kopyalama ayarı (temizMetin) 0.1.12'de kalktı: kopyalama her zaman temiz metin
-  // Güncelleme: haftada bir otomatik denetle. Son denetimin zamanı (sonDenetimZamani) main/guncelleme.js'te; varsayılanı yoktur,
-  // "Varsayılanlara dön" ona dokunmaz.
+  // Güncelleme: iki günde bir otomatik denetle (0.2.8; önceden haftada bir). Son denetimin zamanı (sonDenetimZamani) main/guncelleme.js'te;
+  // varsayılanı yoktur, "Varsayılanlara dön" ona dokunmaz.
   otoGuncelle: true,
   // Durum
   sonDosyalar: [],

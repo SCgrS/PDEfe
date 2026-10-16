@@ -476,9 +476,9 @@ function bolumGuncelleme(k) {
   const a = ayarlar();
   const sonDenetim = el('div', { class: 'soluk' }, '');
   k.append(kart({
-    baslik: 'Güncellemeleri otomatik denetle (haftada bir)',
+    baslik: 'Güncellemeleri otomatik denetle (iki günde bir)',   // 0.2.8 (kullanıcı isteği): önceden haftada bir
     // macOS (0.2.1): yeni sürüm tek tıkla kurulmaz; şeritteki İndir paketi tarayıcıda indirir, kurulum kullanıcıda (renderer/guncelleme.js)
-    aciklama: 'Haftada bir, açılışta ya da PDEfe açık kalıyorsa gün içinde arka planda yeni sürüme bakılır; internet yoksa sonra yeniden denenir. ' + (MAC
+    aciklama: 'İki günde bir, açılışta ya da PDEfe açık kalıyorsa gün içinde arka planda yeni sürüme bakılır; internet yoksa sonra yeniden denenir. ' + (MAC
       ? 'Yeni sürüm varsa pencerenin üstünde bir şerit görünür; İndir\'e basınca yeni sürüm tarayıcıda iner, PDEfe\'den çıkıp inen dosyadaki PDEfe\'yi Uygulamalar klasörüne sürükleyerek kurarsınız.'
       : 'Yeni sürüm varsa pencerenin üstünde bir şerit görünür; Güncelle\'ye tek tıkla indirilir, kurulur ve PDEfe yeniden açılır.'),
     kontrol: anahtar(a.otoGuncelle !== false, (v) => degistir('otoGuncelle', v)),

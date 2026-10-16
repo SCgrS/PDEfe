@@ -1,17 +1,17 @@
 // Otomatik güncelleme (electron-updater, GitHub Releases: SCgrS/PDEfe → latest.yml + PDEfe-Setup.exe).
 //
-// Otomatik denetim haftada bir yapılır (0.1.8; önceden 10 açılışta bir): son başarılı denetimden (sonDenetimZamani) bu yana 7 gün
-// geçtiyse açılışta, pencere gösterildikten ACILIS_GECIKMESI_MS sonra, arka planda; PDEfe günlerce açık kalırsa saatte bir bakılır ve
-// süre dolunca yine denetlenir. Hiç denetlenmemişse (kurulumdan ya da 0.1.7 ve öncesinden sonraki ilk açılış) hemen denetlenir.
+// Otomatik denetim iki günde bir yapılır (0.2.8, kullanıcı isteği; 0.1.8–0.2.7 haftada bir, önceden 10 açılışta bir): son başarılı
+// denetimden (sonDenetimZamani) bu yana 2 gün geçtiyse açılışta, pencere gösterildikten ACILIS_GECIKMESI_MS sonra, arka planda; PDEfe
+// günlerce açık kalırsa saatte bir bakılır ve süre dolunca yine denetlenir. Hiç denetlenmemişse (kurulumdan ya da 0.1.7 ve öncesinden sonraki ilk açılış) hemen denetlenir.
 // Ağ hatası sessizce geçilir ve süreyi başlatmaz: sunucudan yanıt alınamazsa (ağ yok, sunucu hatası) bir sonraki açılışta ya da en geç
 // bir saat sonra yeniden denenir. Ayarlar › Güncelleme'deki otoGuncelle kapalıysa otomatik denetim yapılmaz. Elle denetim (Yardım ›
-// Güncellemeleri denetle, Ayarlar) süreye bakmaz; başarılıysa haftalık süre ondan başlar. Saat geri alınmışsa (son denetim gelecekte)
+// Güncellemeleri denetle, Ayarlar) süreye bakmaz; başarılıysa iki günlük süre ondan başlar. Saat geri alınmışsa (son denetim gelecekte)
 // denetlenir. Süre yalnızca uygulamanın gerçek başlangıcında (tek örnek) izlenir.
 // İndirilip kurulmamış sürüm (kaydedilmemiş belge sorusunda Vazgeç, sonra PDEfe kapatıldı) bekleyenGuncelleme'de tutulur: sonraki
 // açılışta süreye bakılmadan bir kez denetlenir, şerit yeniden görünür; paket önbellekte olduğundan Güncelle yeniden indirmeden kurar.
 // 0.2.5: indirmesi başlayan sürüm de oraya yazılır. İndirme yarıda kalırsa (PDEfe kapatıldı, bağlantı koptu) sonraki açılışta şerit yeniden
-// görünür; önceden bir haftalık denetim sırasını bekliyordu. electron-updater yarım indirmeyi sürdürmez: yeniden indirmede baştan başlar
-// (önbellekte önceki sürümün kurucusu varsa yalnızca değişen bloklar iner). Yarım kalan geçici dosya ("temp-…") ve kurulmuş sürümün
+// görünür; önceden bir sonraki denetim sırasını (o zaman bir hafta) bekliyordu. electron-updater yarım indirmeyi sürdürmez: yeniden
+// indirmede baştan başlar (önbellekte önceki sürümün kurucusu varsa yalnızca değişen bloklar iner). Yarım kalan geçici dosya ("temp-…") ve kurulmuş sürümün
 // önbellekte kalan kurucusu açılışta silinir (önbellekTemizle; değişen blokların karşılaştırıldığı installer.exe ve current.blockmap kalır).
 // İndirme sırasında INDIRME_BEKLEME_MS boyunca hiç veri gelmezse (bağlantı hata vermeden donmuş) indirme kesilir ve hata olarak bildirilir:
 // Electron'un ağ isteğinde electron-updater'ın zaman aşımı çalışmıyor, şerit "indiriliyor %N"de sonsuza dek kalabiliyordu.
@@ -48,7 +48,7 @@ const AYAR_OTO = 'otoGuncelle';
 export const AYAR_SON_DENETIM = 'sonDenetimZamani';   // son başarılı (sunucudan yanıt alınan) denetimin zamanı, ms
 // İndirilmeye başlanmış (0.2.5) ya da indirilip kurulmamış sürüm ('' yok): sonraki açılışta süreye bakılmadan denetlenir
 const AYAR_BEKLEYEN = 'bekleyenGuncelleme';
-export const DENETIM_ARALIGI_MS = 7 * 24 * 3600 * 1000;   // haftada bir
+export const DENETIM_ARALIGI_MS = 2 * 24 * 3600 * 1000;   // iki günde bir (0.2.8; önceden haftada bir)
 const BAKIS_ARALIGI_MS = 3600 * 1000;            // açık kalan PDEfe'de sürenin dolup dolmadığına saatte bir bakılır
 const ACILIS_GECIKMESI_MS = 6000;                // pencere gösterildikten sonra
 const KURULUM_BEKLEME_MS = 30000;                // kurulum bu sürede uygulamayı kapatmazsa başlatılamamış sayılır
@@ -59,7 +59,7 @@ export const DONMUS_INDIRME = 'İndirme ilerlemiyor; internet bağlantısını d
 /** Son başarılı denetimin zamanı (ms); hiç yoksa ya da bozuksa 0. */
 function sonDenetim(ayarAl) { const n = Number(ayarAl(AYAR_SON_DENETIM)); return Number.isFinite(n) && n > 0 ? n : 0; }
 
-/** Haftalık otomatik denetimin sırası geldi mi: hiç denetlenmemiş, son denetimden bu yana DENETIM_ARALIGI_MS geçmiş ya da saat geri alınmış. */
+/** Otomatik denetimin (iki günde bir) sırası geldi mi: hiç denetlenmemiş, son denetimden bu yana DENETIM_ARALIGI_MS geçmiş ya da saat geri alınmış. */
 export function sirasiGeldiMi(ayarAl, simdi = Date.now()) {
   const son = sonDenetim(ayarAl);
   return !son || son > simdi || simdi - son >= DENETIM_ARALIGI_MS;
@@ -67,7 +67,7 @@ export function sirasiGeldiMi(ayarAl, simdi = Date.now()) {
 
 /**
  * Açılışta otomatik denetim gerekip gerekmediğini döndürür (ayarları değiştirmez; bekleyen sürüm kurulmuşsa yalnızca onun kaydı silinir):
- * haftalık sıra geldiyse (sirasiGeldiMi) ya da bekleyen (indirmesi başlamış ya da indirilip kurulmamış) sürüm varsa. Süreyi, sunucudan yanıt
+ * denetim sırası geldiyse (sirasiGeldiMi) ya da bekleyen (indirmesi başlamış ya da indirilip kurulmamış) sürüm varsa. Süreyi, sunucudan yanıt
  * alan denetim başlatır (sonDenetimZamani); sunucuya ulaşılamayan açılışta süre başlamaz, sonraki açılışta (ya da saatlik bakışta) yeniden
  * denenir. kuruldu: bekleyen sürüm bu açılışın sürümü (güncelleme kurulmuş; önbellekteki kurucusu silinebilir).
  */
@@ -162,13 +162,13 @@ const hataAyrintisi = (e) => String((e && (e.stack || e.message)) || e).split('\
  * @param {(surum: string) => Promise<boolean>} [p.tarayiciIndir]  verilirse (macOS, 0.2.0: imzasız uygulama kendini güncelleyemez) indirme
  *   bulunan sürümün paketini tarayıcıda açar; 'guncelleme:indir' { tamam, tarayicida: true } döner, kurulum kullanıcıya kalır
  * @param {number} [p.acilisGecikmesiMs]      otomatik denetimin pencere gösterildikten sonraki gecikmesi (birim denemesi kısaltır)
- * @param {number} [p.bakisAraligiMs]         açık kalan uygulamada haftalık sıranın denetlendiği aralık (birim denemesi kısaltır)
+ * @param {number} [p.bakisAraligiMs]         açık kalan uygulamada denetim sırasının denetlendiği aralık (birim denemesi kısaltır)
  * @param {number} [p.kurulumBeklemeMs]       kurulum uygulamayı bu sürede kapatmazsa başlatılamamış sayılır (birim denemesi kısaltır)
  * @param {Function} [p.IptalJetonu]           electron-updater'ın CancellationToken sınıfı (0.2.5): donmuş indirmeyi kesmek için; yoksa kesilmez
  * @param {number} [p.indirmeBeklemeMs]       indirme bu süre hiç ilerlemezse kesilir (birim denemesi kısaltır)
  * @param {number[]} [p.temizlikYeniden]      açılış temizliğinde silinemeyen dosyanın yeniden deneme aralıkları, ms (birim denemesi kısaltır)
  * @param {object} [p.temizlikFs]             temizliğin dosya işlemleri (readdir, rm; birim denemesi kilitli dosyayı taklit eder); yoksa node:fs/promises
- * @param {() => number} [p.saat]              şimdiki zaman, ms (birim denemesi haftayı ileri sarar)
+ * @param {() => number} [p.saat]              şimdiki zaman, ms (birim denemesi günleri ileri sarar)
  * @returns {{ denetle: (elle?: boolean) => Promise<object>, pencereGosterildi: () => void, durdur: () => void, temizlik: Promise<string[]> }}
  */
 export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPackaged, ilkOrnek = true, pencereyeGonder, ayarAl, ayarKoy, kapatmayaHazirla, kapatmaIptal,
@@ -230,7 +230,7 @@ export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPack
   });
 
   // ---- denetim
-  /** Sunucudan yanıt alınan (yeni sürüm var ya da güncel) denetim haftalık süreyi başlatır; otomatik ya da elle, fark etmez. */
+  /** Sunucudan yanıt alınan (yeni sürüm var ya da güncel) denetim iki günlük süreyi başlatır; otomatik ya da elle, fark etmez. */
   const denetimYapildi = () => { if (ilkOrnek) { try { ayarKoy(AYAR_SON_DENETIM, saat()); } catch (e) { console.error('[güncelleme] denetim zamanı yazılamadı:', e); } } };
 
   /** Döner: {durum:'var'|'yok'|'hata', asama?, surum, mevcut, mesaj, sunucu?}; sunucu: bu çağrıda sunucudan yanıt alındı. */
@@ -335,7 +335,7 @@ export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPack
     bulunan: durum.bulunan, hazir: durum.hazir, sonDenetim: sonDenetim(ayarAl),
   }));
 
-  // ---- haftalık otomatik denetim: açılışta sırası geldiyse (ya da bekleyen sürüm varsa), açık kalan uygulamada saatte bir bakılarak
+  // ---- iki günde bir otomatik denetim: açılışta sırası geldiyse (ya da bekleyen sürüm varsa), açık kalan uygulamada saatte bir bakılarak
   let acilis = null;
   if (ilkOrnek) {
     try { acilis = acilisDenetimi({ ayarAl, ayarKoy, surum: mevcut, simdi: saat() }); }

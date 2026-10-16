@@ -490,7 +490,7 @@ function hayaletiYokEt() {
  * @param {(anahtar: string) => any} b.ayarAl
  * @param {(anahtar: string, deger: any) => void} b.ayarKoy
  * @param {() => boolean} b.temaKoyuMu
- * @param {() => void} [b.pencereGosterildi]   bir pencere ilk kez gösterilince (haftalık güncelleme denetimi)
+ * @param {() => void} [b.pencereGosterildi]   bir pencere ilk kez gösterilince (otomatik güncelleme denetimi)
  * @param {(d: {yollar: string[], anliklar: string[]}) => void} [b.dosyalariBirak]   kapanan pencerenin çekirdekte açık dosyaları bırakılır,
  *   anlık kopyaları silinir
  */
