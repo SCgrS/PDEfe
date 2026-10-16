@@ -99,7 +99,7 @@ jobs:
         run: npm ci
 
       # UDE köprüsünün jar'ı depoda hazır gelir (paketlemede Java gerekmez). 0.2.9 denetimi: UdeKopru.java değişip jar yeniden derlenmezse eski
-      # jar paketlenirdi (tutarlılığı yalnızca yerel test denetliyordu). --denetle Java'sız: jar'daki kaynak özeti kaynağınkiyle aynı değilse durur
+      # jar paketlenirdi (tutarlılığı yalnızca yerel test denetliyordu). --denetle Javasız: jar'daki kaynak özeti kaynağınkiyle aynı değilse durur
       - name: UDE köprüsünün jar'ı kaynakla tutarlı mı
         run: node build/ude-kopru-derle.mjs --denetle
 
