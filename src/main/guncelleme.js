@@ -108,12 +108,15 @@ function notlariDuzlestir(notlar) {
   if (Array.isArray(notlar)) {
     return notlar.map((n) => `${n.version ? n.version + '\n' : ''}${notlariDuzlestir(n.note)}`).join('\n\n');
   }
-  return String(notlar)
+  let metin = String(notlar)
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|li|h[1-6]|div|tr)>/gi, '\n')
-    .replace(/<li[^>]*>/gi, '• ')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/<li[^>]*>/gi, '• ');
+  // Etiket silme metin değişmeyene dek yinelenir: tek geçiş iç içe etiketlerden ("<scr<b>ipt>") yeni bir etiket bırakabilir
+  for (let onceki = null; onceki !== metin;) { onceki = metin; metin = metin.replace(/<[^>]+>/g, ''); }
+  // &amp; en son çözülür; önce çözülse "&amp;lt;" önce "&lt;", sonra "<" olurdu (çift çözme)
+  return metin
+    .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }

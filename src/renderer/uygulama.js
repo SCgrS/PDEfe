@@ -1837,7 +1837,7 @@ sayfaKutusuBagla($('#sayfa-kutusu'), {
 });
 $('#zoom-kutusu').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
-    const v = parseFloat(String(e.target.value).replace('%', '').replace(',', '.'));
+    const v = parseFloat(String(e.target.value).replace(/%/g, '').replace(/,/g, '.'));
     if (v > 0) aktif()?.gorunum.zoomAyarla(v / 100);
     e.target.blur(); aktif()?.gorunum.kaydirici.focus();
   }
