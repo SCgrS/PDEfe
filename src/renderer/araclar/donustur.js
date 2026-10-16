@@ -785,12 +785,15 @@ export class DonusturPenceresi {
    * sonra yeni bir şey eklenmediği veya herhangi bir ayar değiştirilmediği sürece Dönüştür tuşu tekrar aktif olmasın"): başarılı bir
    * dönüştürmeden sonra da soluk; dosya eklenince ya da çıkarılınca, liste temizlenince, bir satırın hedefi ya da TIFF seçenekleri değişince
    * (_sonImza silinir) ya da Kaydet bölümünde ad, klasör veya kayıt biçimi değişince (imza farklı) yeniden etkin.
+   * 0.2.9 (kullanıcı isteği: "Format değiştirme işlem sürerken Dönüştür tuşu aktif gibi gözüküyor; onu deaktif şekilde yapalım"): Dönüştür'e
+   * basıldığı andan iş bitene dek (_suruyor: "zaten var" sorusu, dönüştürme, sonuç) soluk. Önceden düğme dönüştürme başlamadan, ilerleme henüz
+   * çalışmıyorken güncelleniyor (_donusturBir'deki _durumGuncelle), işlem boyunca etkin kalıyordu; ikinci basış bir şey yapmıyordu.
    */
   _dugmeGuncelle() {
     if (!this.pencere || this.pencere.kapali) return;
     const donusecek = this._donusecekler();
     const yapildi = !!this._sonImza && this._imza() === this._sonImza;
-    this.pencere.dugmeAyarla('donustur', { devre: !donusecek.length || this.ogeler.some((o) => o.yukleniyor) || this.ilerleme.calisiyor || yapildi });
+    this.pencere.dugmeAyarla('donustur', { devre: !donusecek.length || this.ogeler.some((o) => o.yukleniyor) || this.ilerleme.calisiyor || this._suruyor || yapildi });
   }
 
   /** Dönüştürmenin girdileri ve ayarları: dönüştürülecek dosyalar ve hedefleri, TIFF seçenekleri (TIFF hedefi varsa), kayıt biçimi ve
@@ -810,6 +813,7 @@ export class DonusturPenceresi {
   async donustur() {
     if (this.ilerleme.calisiyor || this._suruyor) return;
     this._suruyor = true;
+    this._dugmeGuncelle();   // 0.2.9: basıldığı anda soluk, iş bitene dek (finally'deki _durumGuncelle 0.2.7'nin kuralını uygular)
     try {
       while (!this.pencere.kapali && await this._donusturBir());
     } finally { this._suruyor = false; if (!this.pencere.kapali) this._durumGuncelle(); }
