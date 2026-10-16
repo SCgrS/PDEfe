@@ -267,6 +267,10 @@ PDEfe şu açık kaynak projeler üzerine kuruludur: Electron, PDF.js, PyMuPDF /
 PDEfe, açık kaynak projelerin emeği üzerine kuruldu. Sayfaları çizen PDF.js için Mozilla'ya, belgeleri işleyen MuPDF ve
 PyMuPDF için Artifex'e, uygulamanın çatısı Electron'un geliştiricilerine ve adı burada geçmeyen bütün katkıcılara teşekkür ederim.
 
+UYAP Doküman Editörü kurulu olmayan bilgisayarlarda UDF belgelerini çizen motor, [legaluga-uyap-ui](https://github.com/hasanimer/legaluga-uyap-ui)
+projesinin UDF okuyucusundan türetildi (MIT lisansı; lisans metni ve telif bildirimi `src/udf-cizim/LICENSE.txt` dosyasında). Bu emek için
+geliştiricisine ayrıca teşekkür ederim.
+
 ---
 
 Soru ve geri bildirimler için: [x.com/CgrShn](https://x.com/CgrShn)
