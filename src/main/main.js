@@ -84,6 +84,9 @@ function donusumSonrasi(vardi, sonuc) {
 // bunları açar
 const aracCiktilari = aracCiktiKaydi();
 
+// dosya:varMi'nin süren denetimleri (0.2.8): yol → söz. Aynı yola gelen istekler süren denetimi bekler
+const surenVarMiDenetimleri = new Map();
+
 /**
  * Denetlenmiş parametrelerle çekirdek çağrısı; bicim_donustur'da oluşturulan dosyalar kaydedilir (dosya:sil), araçların yazdığı dosyalar da
  * (0.2.8, dosya:varsayilanlaAc). hazirla(): denetlenmiş parametreleri veren söz (guvenlik.js cekirdekParametreleri). Denetim ve hedef klasörlerin
@@ -453,7 +456,18 @@ function ipcKur(ipcMain) {
     catch { return { var: false }; }
   });
 
-  ipcMain.handle('dosya:varMi', (_e, yol) => fs.existsSync(yol));
+  // Eş zamansız (0.2.8): ağdaki bir klasöre (\\sunucu\paylaşım) ulaşılamıyorsa (sunucu kapalı, VPN yok) Windows'un yanıtı 20–40 sn sürer;
+  // fs.existsSync bu sürede ana süreci, yani bütün pencereleri ve bütün IPC'yi kilitliyordu (araç açılırken ayardaki çıktı klasörü denetlenir).
+  // Aynı yolun süren denetimi paylaşılır: art arda açılan araçlar her biri için bir iş parçacığını 40 sn bekletmesin
+  ipcMain.handle('dosya:varMi', (_e, yol) => {
+    if (typeof yol !== 'string' || !yol) return false;
+    let soz = surenVarMiDenetimleri.get(yol);
+    if (!soz) {
+      soz = fs.promises.access(yol).then(() => true, () => false).finally(() => surenVarMiDenetimleri.delete(yol));
+      surenVarMiDenetimleri.set(yol, soz);
+    }
+    return soz;
+  });
 
   // Yerel mesaj kutusu. Arayüz artık kendi mesaj kutusunu kullanır (renderer/mesajKutusu.js: aynı seçenekler, dışına tıklayınca kapanır);
   // bu kanalı yalnızca test kancası (window.__pdefeYerelKutu; test kuyruğuyla yanıtlanan senaryolar) kullanır.

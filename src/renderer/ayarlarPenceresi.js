@@ -25,6 +25,7 @@ import { ortuTiklamasiBagla } from './ortu.js';
 import { mesajKutusu } from './mesajKutusu.js';
 import { MAC, SISTEM } from './platform.js';
 import { kisayolTablolariHtml } from './kisayolListesi.js';
+import { klasorVarMi } from './araclar/ortak.js';
 
 export const DURUM_ANAHTARLARI = new Set(['sonDosyalar', 'sayfaKonumlari', 'pencere', 'solPanelGenislik', 'solPanelAcik', 'solPanelSekme', 'menuCubugu', 'yazdirma', 'donusturme']);
 
@@ -404,7 +405,8 @@ function bolumKaydetme(k) {
   const yolGoster = (yol) => {
     yolEl.textContent = yol || 'Masaüstü'; yolEl.classList.toggle('soluk', !yol); temizle.disabled = !yol; notEl.hidden = true;
     const n = ++denetimNo;
-    if (yol) acik?.baglam.pdefe.cagir('dosya:varMi', yol).then((v) => { if (n === denetimNo) notEl.hidden = !!v; }).catch(() => {});
+    // Araçlarla aynı denetim (klasorVarMi): ulaşılamayan ağ klasöründe not kısa sürede çıkar, araçlar da o sürede Masaüstü'ne düşer
+    if (yol && acik) klasorVarMi(acik.baglam.pdefe, yol).then((v) => { if (n === denetimNo) notEl.hidden = v; });
   };
   yolGoster(a.ciktiKlasoru);
   sec.addEventListener('click', async () => {

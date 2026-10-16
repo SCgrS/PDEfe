@@ -683,12 +683,29 @@ export function bilinenKlasorler(pdefe) {
 }
 
 /**
+ * Ayardaki çıktı klasörünün denetimi en çok bu kadar beklenir (ms; 0.2.8 inceleme): klasör ulaşılamayan bir ağ paylaşımındaysa (sunucu kapalı,
+ * VPN yok) Windows'un yanıtı 20–40 sn sürer. Süre dolunca klasör yok sayılır, araçlar Masaüstü'nü önerir (ayar silinmez).
+ */
+export const KLASOR_DENETIM_SURESI = 1500;
+
+/** Klasör var mı (ana süreç dosya:varMi); yanıt süre içinde gelmezse ya da denetlenemezse false. Araçlar ve Ayarlar › Kaydetme kartı. */
+export function klasorVarMi(pdefe, yol, sure = KLASOR_DENETIM_SURESI) {
+  if (!yol) return Promise.resolve(false);
+  let zaman = null;
+  return Promise.race([
+    Promise.resolve().then(() => pdefe.cagir('dosya:varMi', yol)).then((v) => !!v, () => false),
+    new Promise((coz) => { zaman = setTimeout(() => coz(false), sure); }),
+  ]).finally(() => clearTimeout(zaman));
+}
+
+/**
  * Araçların yeni belge çıktıları için varsayılan klasör: Ayarlar › Kaydetme "Araçların çıktı klasörü" doluysa ve klasör varsa o, yoksa
  * kullanıcının Masaüstü. 0.2.8'den beri herhangi bir araçta Değiştir ile seçilen klasör de bu ayara yazılır (ciktiKlasorunuHatirla).
+ * Ayardaki klasöre kısa sürede ulaşılamazsa da Masaüstü (klasorVarMi).
  */
 export async function varsayilanCiktiKlasoru(baglam) {
   const ayarKlasoru = baglam.ayar?.()?.ciktiKlasoru;
-  if (ayarKlasoru) { try { if (await baglam.pdefe.cagir('dosya:varMi', ayarKlasoru)) return ayarKlasoru; } catch { /* Masaüstü */ } }
+  if (ayarKlasoru && await klasorVarMi(baglam.pdefe, ayarKlasoru)) return ayarKlasoru;
   return (await bilinenKlasorler(baglam.pdefe)).masaustu || '';
 }
 

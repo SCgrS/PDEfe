@@ -8,6 +8,9 @@
 //   4) Ayarlar › Kaydetme: kart seçilen klasörü gösterir, açıklama yeni davranışı anlatır.
 //   5) Klasör silinince araçlar Masaüstü'ne düşer (ayar silinmez); Ayarlar kartı klasörün bulunamadığını söyler. Yeniden seçilince düzelir.
 //   6) Klasör seçilmemişken (varsayılan klasör bilinmiyor) işlemden önce sorulan klasör de ayara yazılır.
+//   7) Ayardaki klasör ulaşılamayan bir ağ paylaşımında (sunucu kapalı, VPN yok; Windows'un yanıtı 20–40 sn sürer): denetim sürerken ana süreç
+//      yanıt verir (uygulama donmaz); araç ve Ayarlar kartı kısa sürede Masaüstü'ne düşer. Yanıt vermeyen adres özel ağ aralığındandır
+//      (10.255.255.x); her çalıştırmada başka adres seçilir (Windows olumsuz sonucu kısa süre önbellekte tutar).
 // Kullanım:
 //   powershell -File test\baslat.ps1 -Port 9442 -Veri "$env:TEMP\pdefe-s42-9442"
 //   $env:PDEFE_CDP_PORT=9442; node test\surucu.mjs betik test\senaryo42.mjs
@@ -67,10 +70,12 @@ export default async function ({ evalJs, bekle }) {
     await kosul(`!!document.querySelector('.${sinif}')`, 8000);
     return klasor(sinif);
   };
-  const ayarlarKarti = async () => {
+  // notBekle (ms): kartın "bulunamadı" notu o süre içinde çıkana dek beklenir (7: ağ klasörü)
+  const ayarlarKarti = async ({ notBekle = 0 } = {}) => {
     await evalJs(`(window.__pdefe.komutCalistir('duzen.ayarlar', 'kaydetme'), true)`);
     await kosul(`!!document.querySelector('.ayarlar-ortusu')`);
     await bekle(500);
+    if (notBekle) await kosul(`(() => { const n = [...document.querySelectorAll('.ayarlar-icerik .ayar-kart')].find((x) => x.querySelector('.ayar-baslik')?.textContent === 'Araçların çıktı klasörü')?.querySelector('.ayar-yol-not'); return !!n && !n.hidden; })()`, notBekle);
     const k = await evalJs(`(() => { const k = [...document.querySelectorAll('.ayarlar-icerik .ayar-kart')].find((x) => x.querySelector('.ayar-baslik')?.textContent === 'Araçların çıktı klasörü');
       return k ? { aciklama: k.querySelector('.ayar-aciklama')?.textContent || '', yol: k.querySelector('.ayar-yol')?.firstChild?.textContent || '', soluk: k.querySelector('.ayar-yol')?.classList.contains('soluk'),
         not: (() => { const n = k.querySelector('.ayar-yol-not'); return n && !n.hidden && n.getBoundingClientRect().height > 0 ? n.textContent : ''; })() } : null; })()`);
@@ -195,6 +200,41 @@ export default async function ({ evalJs, bekle }) {
   })()`);
   a = await ayarlar();
   sonuc('6) Klasör sorulup "Klasör B" seçildi: işlem sürer, ayar "Klasör B"', d6.s === 'devam' && ayni(d6.klasor, B) && ayni(a.ana, B) && ayni(a.pencere, B), { d6, a });
+
+  // ------------------------------------------------------------ 7) Ağdaki klasöre ulaşılamıyor
+  console.log('\n== 7) Ayardaki klasör ulaşılamayan bir ağ paylaşımında: uygulama donmaz, araç ve Ayarlar kartı kısa sürede Masaüstü\'ne düşer');
+  const kullanilan = new Set();
+  const agYolu = () => {
+    let x;
+    do x = 2 + Math.floor(Math.random() * 250); while (kullanilan.has(x));
+    kullanilan.add(x);
+    return `\\\\10.255.255.${x}\\paylasim\\Ciktilar`;
+  };
+  // Ana süreç denetim sürerken yanıt veriyor mu: denetim başladıktan 50 ms sonra gönderilen küçük isteğin (ayar:al) süresi. Denetimin kendisi
+  // beklenmez (20–40 sn sürer)
+  const AG1 = agYolu();
+  const yanitSuresi = await evalJs(`(async () => {
+    window.pdefe.cagir('dosya:varMi', ${J(AG1)}).catch(() => {});
+    await new Promise((c) => setTimeout(c, 50));
+    const t0 = performance.now();
+    await window.pdefe.cagir('ayar:al', 'tema');
+    return Math.round(performance.now() - t0);
+  })()`);
+  sonuc('7) Ağ yolu denetlenirken ana süreç yanıt veriyor (küçük istek 500 ms\'den kısa)', yanitSuresi < 500, yanitSuresi);
+  const AG2 = agYolu();
+  await ayarYaz('ciktiKlasoru', AG2);
+  const t7 = Date.now();
+  k = await aracAc('arac.kucult', 'kucult-pencere');
+  const sure7 = Date.now() - t7;
+  a = await ayarlar();
+  sonuc('7) Sıkıştır 4 sn içinde Masaüstü\'nü öneriyor; ayar silinmedi', ayni(k, MASAUSTU) && sure7 < 4000 && ayni(a.ana, AG2), { k, sure7, a });
+  await araclariKapat();
+  const AG3 = agYolu();
+  await ayarYaz('ciktiKlasoru', AG3);
+  const t7b = Date.now();
+  kart = await ayarlarKarti({ notBekle: 4000 });
+  const sure7b = Date.now() - t7b;
+  sonuc('7) Ayarlar kartı yolu gösteriyor, 4 sn içinde "bulunamadı; yerine Masaüstü kullanılır" notu', kart && ayni(kart.yol, AG3) && /bulunamadı/.test(kart.not) && sure7b < 5000, { kart, sure7b });
 
   // Temizlik: ayar boş, belgeler kapalı
   await ayarYaz('ciktiKlasoru', '');
