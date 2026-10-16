@@ -1,0 +1,44 @@
+# CodeQL güvenlik taraması, gelişmiş kurulum (0.2.9). GitHub'ın varsayılan kurulumu test/ klasörünü de tarıyordu; ayar
+# .github/codeql/codeql-config.yml'de. Bu dosya asıl depoya gönderildiğinde depodaki varsayılan kurulum kapatılmalı
+# (iki kurulum birlikte çalışmaz):  gh api -X PATCH repos/SCgrS/PDEfe/code-scanning/default-setup -f state=not-configured
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "17 3 * * 1"   # her pazartesi 06.17 (Türkiye saati)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tara:
+    name: Tara (${{ matrix.dil }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        dil: [javascript-typescript, python, java-kotlin, actions]
+    steps:
+      - name: Depoyu al
+        uses: actions/checkout@v4
+
+      - name: CodeQL'i hazırla
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.dil }}
+          build-mode: none
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Tara
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.dil }}"

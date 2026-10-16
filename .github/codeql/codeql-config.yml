@@ -1,0 +1,5 @@
+# CodeQL ayarı (0.2.9). test/ klasörü taranmaz: oradaki betikler yalnızca geliştirme sınamaları içindir, kurulum paketine
+# girmez (electron-builder.yml "files" listesi). 2026-10-16'daki taramanın 168 uyarısının 165'i bu betiklerdendi.
+name: PDEfe CodeQL ayarı
+paths-ignore:
+  - test/**
