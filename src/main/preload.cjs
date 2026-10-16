@@ -6,7 +6,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const CAGRILAR = new Set([
   'ayar:al', 'ayar:koy', 'ayar:udeKlasoruSec', 'ayar:varsayilanlar', 'tema:sistemKoyu',
   'cekirdek:cagir', 'cekirdek:iptal',
-  'dosya:acDiyalog', 'dosya:kaydetDiyalog', 'dosya:klasorSec', 'dosya:oku', 'dosya:bilgi', 'dosya:varMi', 'dosya:sil',
+  'dosya:acDiyalog', 'dosya:kaydetDiyalog', 'dosya:klasorSec', 'dosya:oku', 'dosya:bilgi', 'dosya:varMi', 'dosya:sil', 'dosya:varsayilanlaAc',
   'guncelleme:denetle', 'guncelleme:durum', 'guncelleme:indir', 'guncelleme:kur',
   'kabuk:disAc', 'kabuk:klasorAc', 'kabuk:klasordeGoster', 'kabuk:varsayilanMi', 'kabuk:varsayilanUygulamalar',
   'menu:popup', 'mesaj:kutu',

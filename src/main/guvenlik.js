@@ -119,6 +119,35 @@ export function acilacakYollar(yollar) {
   return [...yollar];
 }
 
+/** Araçların yazdığı çıktı biçimleri (0.2.8, dosya:varsayilanlaAc): .pdf, .udf, .tif / .tiff, .docx, .jpg / .jpeg. */
+export const ARAC_CIKTI_UZANTILARI = /\.(pdf|udf|tiff?|docx|jpe?g)$/i;
+
+/**
+ * Araçların bu oturumda yazdığı çıktı dosyalarının kaydı (0.2.8; main.js). Araçların sonuç kutusundaki "Tümünü aç" / "Aç" (dosya:varsayilanlaAc)
+ * dosyayı Windows'un / macOS'un varsayılan programıyla açar (shell.openPath: .exe'yi de çalıştırır, .lnk'yi izler): arayüzde kod çalışsa bile
+ * yalnızca araçların bu oturumda yazdığı, çıktı uzantılı dosyalar açılabilsin. kaydet(yontem, params, sonuc): çekirdeğin sonucundaki yazılan
+ * dosyalar (bicim_donustur: hatasız öğelerin hedef / hedefler'i; ayir: dosyalar; birlestir: yol, yoksa istekteki hedef); ekle(yollar): ana sürecin
+ * kendi yazdıkları (UDF'nin yaklaşık çiziminde PDF hedefi). acilabilirMi(yol): mutlak yol, çıktı uzantısı ve kayıtta (büyük / küçük harf ayrımsız).
+ */
+export function aracCiktiKaydi() {
+  const kume = new Set();
+  const anahtar = (y) => path.resolve(y).toLowerCase();
+  const uygun = (y) => typeof y === 'string' && y.length > 0 && y.length <= 32767 && !y.includes('\0') && path.isAbsolute(y) && ARAC_CIKTI_UZANTILARI.test(y);
+  const ekle = (yollar) => { for (const y of Array.isArray(yollar) ? yollar : []) if (uygun(y)) kume.add(anahtar(y)); };
+  return {
+    ekle,
+    kaydet(yontem, params, sonuc) {
+      if (!sonuc || typeof sonuc !== 'object') return;
+      if (yontem === 'bicim_donustur') {
+        ekle((Array.isArray(sonuc.sonuclar) ? sonuc.sonuclar : []).filter((r) => r && !r.hata).flatMap((r) => (Array.isArray(r.hedefler) ? r.hedefler : [r.hedef])));
+      } else if (yontem === 'ayir') ekle(sonuc.dosyalar);
+      else if (yontem === 'birlestir') ekle([sonuc.yol ?? params?.hedef]);
+    },
+    acilabilirMi: (yol) => uygun(yol) && kume.has(anahtar(yol)),
+    get boyut() { return kume.size; },
+  };
+}
+
 /** Yol, anlık kopya klasöründeki bir anlık kopya mı (çekirdeğin adlandırması: 32 onaltılık karakter + .pdf). */
 export function anlikDosyasiMi(yol, anlikKlasor) {
   const y = String(yol || '');

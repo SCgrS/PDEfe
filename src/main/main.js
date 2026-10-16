@@ -13,7 +13,7 @@ import { yazdirmaKur } from './yazdir.js';
 import { udfYaklasikKur } from './udfYaklasik.js';
 import { guncellemeKur } from './guncelleme.js';
 import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla, menuCubugunuUygula, pencereSayisi } from './pencereler.js';
-import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, DENETLENEN_YONTEMLER, paketKlasoruMu, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasorleri, standartYaziTipleri, anlikDosyasiMi, ayarYazimiDenetle } from './guvenlik.js';
+import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, DENETLENEN_YONTEMLER, paketKlasoruMu, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasorleri, standartYaziTipleri, anlikDosyasiMi, ayarYazimiDenetle, aracCiktiKaydi, acilacakYollar } from './guvenlik.js';
 import electronUpdater from 'electron-updater';
 import { createRequire } from 'node:module';
 import { MacGuncelleyici, tarayicidaIndir } from './macGuncelleme.js';
@@ -79,19 +79,27 @@ function donusumSonrasi(vardi, sonuc) {
   }
 }
 
+// Araçların bu oturumda yazdığı çıktı dosyaları (0.2.8, kullanıcı isteği: sonuç kutusunda "Klasörde göster"in sağında "Tümünü aç" / "Aç",
+// dosyaları varsayılan uygulamayla açar; guvenlik.js aracCiktiKaydi): Format Değiştir, Ayır ve Birleştir'in yazdıkları. dosya:varsayilanlaAc yalnız
+// bunları açar
+const aracCiktilari = aracCiktiKaydi();
+
 /**
- * Denetlenmiş parametrelerle çekirdek çağrısı; bicim_donustur'da oluşturulan dosyalar kaydedilir (dosya:sil). hazirla(): denetlenmiş
- * parametreleri veren söz (guvenlik.js cekirdekParametreleri). Denetim ve hedef klasörlerin okunması çekirdeğin hazırlığıdır (cekirdek.cagir):
- * bu sürede gelen iptal kaybolmaz (0.2.7 inceleme; büyük ya da ağdaki klasörde okuma saniyeler sürebilir).
+ * Denetlenmiş parametrelerle çekirdek çağrısı; bicim_donustur'da oluşturulan dosyalar kaydedilir (dosya:sil), araçların yazdığı dosyalar da
+ * (0.2.8, dosya:varsayilanlaAc). hazirla(): denetlenmiş parametreleri veren söz (guvenlik.js cekirdekParametreleri). Denetim ve hedef klasörlerin
+ * okunması çekirdeğin hazırlığıdır (cekirdek.cagir): bu sürede gelen iptal kaybolmaz (0.2.7 inceleme; büyük ya da ağdaki klasörde okuma saniyeler
+ * sürebilir).
  */
 async function cekirdekDonusumCagir(yontem, hazirla, ilerleme, anahtar) {
-  let vardi = null;
+  let vardi = null, guvenliParametreler = null;
   const sonuc = await cekirdek.cagir(yontem, async () => {
     const guvenli = await hazirla();
+    guvenliParametreler = guvenli;
     vardi = await donusumOncesi(yontem, guvenli);
     return guvenli;
   }, ilerleme, anahtar);
   donusumSonrasi(vardi, sonuc);
+  aracCiktilari.kaydet(yontem, guvenliParametreler, sonuc);
   return sonuc;
 }
 
@@ -480,6 +488,26 @@ function ipcKur(ipcMain) {
 
   // Test örneğinde Gezgin açılmaz (bilgisayarı kullanan kişinin ekranı; 0.2.6, Dosya Formatını Değiştir'in sonuç listesi): istek kaydedilir
   ipcMain.handle('kabuk:klasordeGoster', (_e, yol) => { if (testDiyalog) return testDiyalog('kabuk:klasordeGoster', { yol }, true); shell.showItemInFolder(yol); return true; });
+  // Araçların sonuç kutusundaki "Tümünü aç" / "Aç" (0.2.8, kullanıcı isteği: "Varsayılan uygulamayla açsın basınca"): dosyalar Windows'un / macOS'un
+  // varsayılan programıyla açılır (UDF UYAP Doküman Editörü'nde, Word belgesi Word'de, PDF bilgisayarın PDF programında). Yalnızca araçların bu
+  // oturumda yazdığı çıktı dosyaları (aracCiktilari; guvenlik.js aracCiktiKaydi), en çok 100 yol (acilacakYollar). Test örneğinde program açılmaz:
+  // istek kaydedilir, yanıt test:diyalogYanitlari kuyruğundan (programın hata iletisi; varsayılan '' = açıldı).
+  // Döner: { acilan, hatalar: [{ yol, neden: 'izinsiz' | 'yok' | 'program', ileti? }] }
+  ipcMain.handle('dosya:varsayilanlaAc', async (_e, yollar) => {
+    const liste = acilacakYollar(yollar);
+    const hatalar = [];
+    let acilan = 0;
+    for (const yol of liste) {
+      if (!aracCiktilari.acilabilirMi(yol)) { hatalar.push({ yol, neden: 'izinsiz' }); continue; }
+      const st = await fs.promises.stat(yol).catch(() => null);
+      if (!st?.isFile()) { hatalar.push({ yol, neden: 'yok' }); continue; }
+      let ileti;
+      try { ileti = testDiyalog ? testDiyalog('dosya:varsayilanlaAc', { yol }, '') : await shell.openPath(yol); } catch (e) { ileti = e?.message || String(e); }
+      if (ileti) hatalar.push({ yol, neden: 'program', ileti: String(ileti) });
+      else acilan++;
+    }
+    return { acilan, hatalar };
+  });
   // Klasörü Gezgin'de açar (araç pencerelerindeki klasör çipi). Test örneğinde Gezgin açılmaz (bilgisayarı kullanan kişinin ekranı)
   // Yalnızca klasör: shell.openPath dosyayı varsayılan programıyla açar, exe'yi çalıştırır (0.1.23). macOS'ta uygulama paketi (.app) de
   // klasördür ve açılınca uygulama başlar: paket klasörü açılmaz (0.2.1, guvenlik.js paketKlasoruMu)
@@ -542,6 +570,7 @@ function ipcKur(ipcMain) {
     cekirdekCagir: (yontem, params, ilerleme, anahtar) => cekirdekDonusumCagir(yontem,
       () => cekirdekParametreleri(yontem, params, anlikKlasoru(), { udeYolu: ayarAl('udeYolu') }), ilerleme, anahtar ?? null),
     cekirdekIptal: (anahtar) => cekirdek.iptal(anahtar),
+    ciktiKaydet: (yollar) => aracCiktilari.ekle(yollar),   // 0.2.8: yaklaşık çizimin PDF hedefi (dosya:varsayilanlaAc)
   });
   ipcMain.handle('ayar:varsayilanlar', () => VARSAYILANLAR);
   yazdirmaKur({ ipcMain, BrowserWindow, pencereAl, testDiyalog, TEST });   // test örneğinde yazıcıya gitmez (yazdir.js)

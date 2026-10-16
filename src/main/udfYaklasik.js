@@ -301,11 +301,12 @@ async function eskileriTemizle() {
 /**
  * Kanalları kurar (main.js).
  * @param {{ ipcMain: { handle: Function }, KOK: string, cekirdekCagir: (yontem: string, params: object, ilerleme?: Function, anahtar?: string) => Promise<any>,
- *   cekirdekIptal: (anahtar: string) => Promise<boolean> }} p
+ *   cekirdekIptal: (anahtar: string) => Promise<boolean>, ciktiKaydet?: (yollar: string[]) => void }} p
  *   ipcMain: guvenliIpc sarmalayıcısı; cekirdekCagir: çekirdek çağrısı (parametreleri guvenlik.js cekirdekParametreleri'nden geçirerek);
- *   cekirdekIptal: o anahtarla çalışan çekirdek işini iptal eder.
+ *   cekirdekIptal: o anahtarla çalışan çekirdek işini iptal eder; ciktiKaydet (0.2.8): ana sürecin yazdığı PDF hedefi araçların çıktı kaydına
+ *   (sonuç kutusundaki "Tümünü aç"; çekirdeğin yazdıklarını main.js kendisi kaydeder).
  */
-export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal }) {
+export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal, ciktiKaydet = () => {} }) {
   sayfaKlasoru = path.join(KOK, 'src', 'udf-cizim');
   const isler = new Map();         // "<gönderen>:<istekId>" → denetim
   const denetimler = new Set();    // bütün süren işlerin denetimleri (kapanışta iptal)
@@ -448,6 +449,7 @@ export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal }) {
         try {
           const hedef = o.cakisma === 'yeniAd' ? bosAd(o.hedef) : o.hedef;   // ad yerine koyma anında seçilir (çekirdekteki gibi)
           await yerineKoy(c.gecici, hedef, cekirdekBirak);
+          ciktiKaydet([hedef]);
           sonuclar[c.k] = { yol: o.yol, hedef, hedefBicim: 'pdf', kaynakTur: 'udf', boyut: c.boyut, sayfa: c.sayfa, uyari: c.uyari, yaklasik: true,
             ...(hedef !== o.hedef ? { istenenHedef: o.hedef } : {}) };
         } catch (h) { sonuclar[c.k] = hataSonucu(o, h); }

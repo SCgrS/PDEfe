@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
-import { paketKlasoruMu, cekirdekParametreleri, udfIcerigiDenetle, udfDosyasiOku, udfYaklasikParametreleri, ayarYazimiDenetle, acilacakYollar } from '../src/main/guvenlik.js';
+import { paketKlasoruMu, cekirdekParametreleri, udfIcerigiDenetle, udfDosyasiOku, udfYaklasikParametreleri, ayarYazimiDenetle, acilacakYollar, aracCiktiKaydi } from '../src/main/guvenlik.js';
 
 const KOK = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const K = process.env.GUVENLIK_BIRIM_KLASORU || path.join(KOK, 'test', 'cikti', 'guvenlik_birim');
@@ -221,6 +221,36 @@ try {
   kontrol('yeniPenceredeAc: mutlak yollar geçer (kopyası döner)', JSON.stringify(yolSonucu([mutlak, mutlak + '.udf'])) === JSON.stringify([mutlak, mutlak + '.udf']));
   kontrol('yeniPenceredeAc: göreli yol, boş, NUL, dizi olmayan, boş dizi ve 100\'den çok yol reddedilir', yolSonucu(['Belge.pdf']) === 'red' && yolSonucu(['']) === 'red'
     && yolSonucu([mutlak + '\0x']) === 'red' && yolSonucu(mutlak) === 'red' && yolSonucu([]) === 'red' && yolSonucu([5]) === 'red' && yolSonucu(Array(101).fill(mutlak)) === 'red');
+
+  // ------------------------------------------------------------ dosya:varsayilanlaAc (0.2.8): araçların bu oturumda yazdığı çıktı dosyaları
+  const kayit = aracCiktiKaydi();
+  const y = (ad) => path.join(K, 'Cikti', ad);
+  kayit.kaydet('bicim_donustur', null, { sonuclar: [
+    { yol: y('a.pdf'), hedef: y('a.udf'), hedefBicim: 'udf' },
+    { yol: y('b.pdf'), hedef: y('b.jpg'), hedefBicim: 'gorsel', hedefler: [y('b - Sayfa 1.jpg'), y('b - Sayfa 2.jpg')] },
+    { yol: y('c.pdf'), hedef: y('c.docx'), hedefBicim: 'word', hata: 'Dönüştürülemedi.', kod: 'hata' },
+    { yol: y('d.udf'), hedef: y('d.pdf'), hedefBicim: 'pdf' },
+    { yol: y('e.pdf'), hedef: y('e.tif'), hedefBicim: 'tiff' },
+  ] });
+  kontrol('varsayilanlaAc: Format Değiştir\'in yazdığı UDF, JPG sayfaları, PDF ve TIFF açılabilir; büyük / küçük harf ayrımsız',
+    kayit.acilabilirMi(y('a.udf')) && kayit.acilabilirMi(y('b - Sayfa 1.jpg')) && kayit.acilabilirMi(y('b - Sayfa 2.jpg')) && kayit.acilabilirMi(y('d.pdf'))
+    && kayit.acilabilirMi(y('e.tif')) && kayit.acilabilirMi(y('A.UDF')));
+  kontrol('varsayilanlaAc: hatalı öğenin hedefi, JPG\'nin kök adı (sayfa dosyaları yazıldı) ve girdiler açılamaz',
+    !kayit.acilabilirMi(y('c.docx')) && !kayit.acilabilirMi(y('b.jpg')) && !kayit.acilabilirMi(y('a.pdf')) && !kayit.acilabilirMi(y('d.udf')));
+  kayit.kaydet('ayir', null, { dosyalar: [y('Ayrılmış - Sayfa 1-3.pdf'), y('Ayrılmış - Sayfa 4.pdf')] });
+  kayit.kaydet('birlestir', { hedef: y('Birleştirilmiş.pdf') }, { boyut: 10, sayfa: 2, yol: y('Birleştirilmiş.pdf') });
+  kayit.kaydet('birlestir', { hedef: y('Yolsuz sonuç.pdf') }, { boyut: 10, sayfa: 2 });
+  kayit.ekle([y('Yaklaşık.pdf')]);
+  kontrol('varsayilanlaAc: Ayır\'ın dosyaları, Birleştir\'in hedefi (sonuçtaki yol, yoksa istekteki hedef) ve ana sürecin yazdığı yaklaşık PDF açılabilir',
+    kayit.acilabilirMi(y('Ayrılmış - Sayfa 1-3.pdf')) && kayit.acilabilirMi(y('Ayrılmış - Sayfa 4.pdf')) && kayit.acilabilirMi(y('Birleştirilmiş.pdf'))
+    && kayit.acilabilirMi(y('Yolsuz sonuç.pdf')) && kayit.acilabilirMi(y('Yaklaşık.pdf')));
+  kayit.kaydet('bicim_donustur', null, { sonuclar: [{ yol: y('x.pdf'), hedef: y('Program.exe') }, { yol: y('x.pdf'), hedef: y('Kısayol.lnk') }, { yol: y('x.pdf'), hedef: 'göreli.pdf' }] });
+  kayit.ekle([y('Betik.bat'), 'C:', y('NUL\0.pdf'), 5, null]);
+  kayit.kaydet('kucult', { hedef: y('Sıkıştırılmış.pdf') }, { boyut: 1, yol: y('Sıkıştırılmış.pdf') });
+  kontrol('varsayilanlaAc: çıktı uzantısı olmayan (.exe, .lnk, .bat), göreli, NUL içeren yol ve başka yöntemlerin (kucult) dosyaları kaydedilmez',
+    !kayit.acilabilirMi(y('Program.exe')) && !kayit.acilabilirMi(y('Kısayol.lnk')) && !kayit.acilabilirMi('göreli.pdf') && !kayit.acilabilirMi(y('Betik.bat'))
+    && !kayit.acilabilirMi(y('NUL\0.pdf')) && !kayit.acilabilirMi(y('Sıkıştırılmış.pdf')) && !kayit.acilabilirMi(5) && kayit.boyut === 10, `kayıt ${kayit.boyut}`);
+  kontrol('varsayilanlaAc: kayıtta olmayan yol (başka klasördeki aynı ad) açılamaz', !kayit.acilabilirMi(path.join(K, 'Baska', 'a.udf')) && !kayit.acilabilirMi(y('f.pdf')));
 } finally {
   try { fs.rmSync(K, { recursive: true, force: true }); } catch { console.log('Not: ' + K + ' silinemedi.'); }
 }
