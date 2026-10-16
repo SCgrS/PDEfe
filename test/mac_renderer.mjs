@@ -215,6 +215,8 @@ export default async function ({ evalJs }) {
       const menu = w._listeMenusu({ target: satir }).filter((m) => !m.ayirici).map((m) => m.etiket);
       await w._sonucGoster([{ yol: '/Volumes/Arsiv/Belge.pdf', hedef: '/Volumes/Arsiv/Belge.udf', hedefBicim: 'udf', boyut: 10 }, { yol: '/Volumes/Arsiv/Belge.pdf', hedef: '/Volumes/Arsiv/Belge.tif', hedefBicim: 'tiff', boyut: 10 }], { tek: false });
       const goster = w.sonucEl.querySelector('.donustur-goster')?.textContent;
+      // 0.2.8: Finder'da / Klasörde göster'in sağında "Tümünü aç" (varsayılan programla); satırlarda küçük Aç yok
+      const tumunuAc = { dugmeler: [...w.sonucEl.querySelectorAll('.arac-sonuc-dugmeler button')].map((b) => b.textContent), kucukAc: w.sonucEl.querySelectorAll('[data-ac]').length };
       await w.pencere.kapat('tamam');
       const k = kayitSecimi({ baglam, belge: null, ad: 'Belge', uzanti: 'udf' });
       await k.hazir;
@@ -230,12 +232,15 @@ export default async function ({ evalJs }) {
       await kj.hazir;
       kj.cikti.ayarla('/Volumes/Arsiv', 'Hedef', { elle: true });
       await kj.hataSor(new Error('Dosya yazılamadı; başka bir programda açık: Hedef.jpg'));
-      sonuc[mac ? 'mac' : 'win'] = { menu, goster, ad: k.cikti.ad(), soru: sorular.at(-2)?.ayrinti || '', jpgSonuc, jpgAd: kj.cikti.ad(), jpgSoru: sorular.at(-1)?.ayrinti || '' };
+      sonuc[mac ? 'mac' : 'win'] = { menu, goster, tumunuAc, ad: k.cikti.ad(), soru: sorular.at(-2)?.ayrinti || '', jpgSonuc, jpgAd: kj.cikti.ad(), jpgSoru: sorular.at(-1)?.ayrinti || '' };
     }
     return sonuc;
   })()`);
   sonuc('Format Değiştir (macOS): satır menüsünde ve sonuçta "Finder\'da göster"', J(donustur.mac.menu) === J(['Finder\'da göster', 'Listeden çıkar']) && donustur.mac.goster === 'Finder\'da göster', donustur.mac);
   sonuc('Format Değiştir (Windows): satır menüsünde ve sonuçta "Klasörde göster"', J(donustur.win.menu) === J(['Klasörde göster', 'Listeden çıkar']) && donustur.win.goster === 'Klasörde göster', donustur.win);
+  sonuc('Format Değiştir sonucu (0.2.8): macOS\'ta "Finder\'da göster" + "Tümünü aç", Windows\'ta "Klasörde göster" + "Tümünü aç"; küçük Aç yok',
+    J(donustur.mac.tumunuAc?.dugmeler) === J(['Finder\'da göster', 'Tümünü aç']) && J(donustur.win.tumunuAc?.dugmeler) === J(['Klasörde göster', 'Tümünü aç']) && !donustur.mac.tumunuAc.kucukAc && !donustur.win.tumunuAc.kucukAc,
+    { mac: donustur.mac.tumunuAc, win: donustur.win.tumunuAc });
   sonuc('Kaydet bölümü UDF çıktısında ad "Hedef.udf"; kilitli dosya sorusu Windows\'ta "UYAP Doküman Editörü\'nde" der, macOS\'ta Finder\'ı anlatır',
     donustur.win.ad === 'Hedef.udf' && donustur.mac.ad === 'Hedef.udf' && /örneğin UYAP Doküman Editörü'nde\) açık olabilir/.test(donustur.win.soru) && /Finder/.test(donustur.mac.soru) && !/başka bir programda/.test(donustur.mac.soru), donustur);
   sonuc('Format Değiştir, JPG hedefi (0.2.7): sonuçta her sayfa bir satır; macOS\'ta "Finder\'da göster", Windows\'ta "Klasörde göster"', J(donustur.mac.jpgSonuc?.satir) === J(['Belge - Sayfa 1.jpg', 'Belge - Sayfa 2.jpg'])
