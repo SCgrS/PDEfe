@@ -1460,7 +1460,7 @@ export async function varsayilanProgramdaAc(baglam, yollar) {
  * kaldıralım. Klasörde göster'in sağına tümünü aç butonu gelsin (eğer dönüştürülen 1 evrak varsa Aç yazsın sadece). Varsayılan uygulamayla açsın";
  * "Jpg çıktıda ortalı değil klasörde göster butonu"): tek ve çok dosyada başlık, her satır ve düğmeler kutunun ortasında (0.2.7'de çok dosyada liste
  * sola dayalı, Aç'lar sağda sabit sütundaydı). Satırlardaki küçük "Aç"lar kalktı. Düğme satırında çağıranın düğmeleri (Klasörde göster), sağında
- * "Tümünü aç" (tek dosyada "Aç"): dosyalar varsayılan programlarıyla açılır (varsayilanProgramdaAc). Çok dosyada yalnızca liste kaydırılır (başlık ve
+ * "Tümünü aç" (tek dosyada "Aç"): dosyalar varsayılan programlarıyla açılır (varsayilanProgramdaAc; Ayır'da PDEfe'de, s.ac). Çok dosyada yalnızca liste kaydırılır (başlık ve
  * düğmeler görünür kalır; kaydırma çubuğunun yeri iki yanda ayrılır, satırlar ortada kalır); uzun ad "…" ile kısalır, tam yol ipucunda.
  * 0.2.8 (kullanıcı isteği: "Böyle uyarıları kaldıralım. Dönüştürme sonucu ekranında uyarı olmasın. Sağlıklı dönüştüremediğini fark ettiğinde bir
  * üçgen içinde ünlem uyarı simgesi olsun. Üstünde durunca hangi dönüşümse onu belirterek … uyarıyı tekrar edelim"): satırın uyarısı adın altında
@@ -1476,8 +1476,11 @@ export async function varsayilanProgramdaAc(baglam, yollar) {
  * @param {boolean} [s.tek]   tek dosya düzeni (ad satır kırar); verilmezse tek satırda
  * @param {string} [s.dugmeler]  düğme satırının HTML'i (Klasörde göster…)
  * @param {string[]} [s.acilacaklar]  "Tümünü aç" / "Aç"ın açtığı dosyalar; boşsa düğme yok
+ * @param {(yollar:string[]) => Promise<any>} [s.ac]  "Tümünü aç" / "Aç"ın işi; verilmezse dosyalar varsayılan programlarıyla açılır
+ *   (varsayilanProgramdaAc). Ayır parçaları PDEfe'de açar (0.2.8 inceleme: çıktısı hep PDF)
+ * @param {string} [s.acIpucu]  düğmenin ipucu (ac verildiyse; verilmezse "…bu türü açan programıyla açar")
  */
-export function sonucKutusuCiz(kap, { baglam = null, baslik, tur = 'basari', satirlar, tek = satirlar.length === 1, dugmeler = '', acilacaklar = [] }) {
+export function sonucKutusuCiz(kap, { baglam = null, baslik, tur = 'basari', satirlar, tek = satirlar.length === 1, dugmeler = '', acilacaklar = [], ac: acIsi = null, acIpucu = '' }) {
   const kok = String(kap.className || '').split(/\s+/).filter(Boolean)[0] || '';
   kap.className = `${kok} arac-sonuc ${tek ? 'arac-sonuc-tek' : 'arac-sonuc-liste'} arac-${tur}`;
   kap.hidden = false;
@@ -1489,16 +1492,16 @@ export function sonucKutusuCiz(kap, { baglam = null, baslik, tur = 'basari', sat
     return `<li${r.hata ? ' class="hatali"' : r.uyari ? ' class="uyarili"' : ''}><span class="ad-satiri">${ad}${simge}</span>${ek}</li>`;
   };
   const acilacak = baglam ? acilacaklar.filter(Boolean) : [];
-  const ac = !acilacak.length ? '' : acilacak.length === 1
-    ? '<button type="button" class="ikincil arac-sonuc-ac" title="Dosyayı bilgisayarınızın bu türü açan programıyla açar">Aç</button>'
-    : '<button type="button" class="ikincil arac-sonuc-ac" title="Dosyaların hepsini bilgisayarınızın o türü açan programlarıyla açar">Tümünü aç</button>';
+  const ipucu = kacis(acIpucu || (acilacak.length === 1 ? 'Dosyayı bilgisayarınızın bu türü açan programıyla açar'
+    : 'Dosyaların hepsini bilgisayarınızın o türü açan programlarıyla açar'));
+  const ac = !acilacak.length ? '' : `<button type="button" class="ikincil arac-sonuc-ac" title="${ipucu}">${acilacak.length === 1 ? 'Aç' : 'Tümünü aç'}</button>`;
   kap.innerHTML = `<div class="arac-sonuc-baslik">${baslik}</div><ul>${satirlar.map(satir).join('')}</ul>`
     + (dugmeler || ac ? `<div class="arac-satir arac-sonuc-dugmeler">${dugmeler}${ac}</div>` : '');
   const acDugmesi = kap.querySelector('.arac-sonuc-ac');
   acDugmesi?.addEventListener('click', async () => {
     if (acDugmesi.disabled) return;
     acDugmesi.disabled = true;
-    try { await varsayilanProgramdaAc(baglam, acilacak); } finally { acDugmesi.disabled = false; }
+    try { await (acIsi ? acIsi(acilacak) : varsayilanProgramdaAc(baglam, acilacak)); } finally { acDugmesi.disabled = false; }
   });
   return kap;
 }

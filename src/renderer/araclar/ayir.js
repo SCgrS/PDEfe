@@ -356,21 +356,51 @@ export class AyirPenceresi {
     this._sonImza = this._imza();   // 0.2.7: bir şey değişene dek Ayır soluk (_yapildi)
     // Sonuç kutusu (0.2.7; Format Değiştir'deki gibi, ortak.js sonucKutusuCiz): boyut ve sayfa sayısı yazılmaz (0.2.6'ya dek satırda ve başlıkta
     // vardı; ad sayfaları zaten söyler). 0.2.8 (Format Değiştir'deki kullanıcı isteğiyle aynı bileşen): tek ve çok dosyada ortalı, satırlardaki küçük
-    // "Aç"lar kalktı; düğmeler Klasörde göster ve "Tümünü aç" (tek dosyada "Aç"): dosyalar varsayılan programlarıyla açılır. 0.2.7'deki "Yeni
-    // sekmede aç" / "İlkini yeni sekmede aç" ve "Hepsini aç" kutusu kalktı (PDF'in varsayılan programı PDEfe ise belgeler yine PDEfe'de açılır)
+    // "Aç"lar kalktı; düğmeler Klasörde göster ve "Tümünü aç" (tek dosyada "Aç"). 0.2.7'deki "Yeni sekmede aç" / "İlkini yeni sekmede aç" ve
+    // "Hepsini aç" kutusu bu düğmede birleşti: Ayır'ın çıktısı hep PDF olduğundan parçalar varsayılan programda değil PDEfe'de açılır (0.2.8
+    // inceleme; kullanıcının "varsayılan uygulamayla açsın" isteği Format Değiştir'in UDF / Word / TIFF / JPG çıktıları içindi): _pdefedeAc
     const tek = dosyalar.length === 1;
     sonucKutusuCiz(this.sonucEl, {
       baglam, baslik: tek ? '<b>Dosya oluşturuldu</b>' : `<b>${sayiMetni(dosyalar.length)} dosya oluşturuldu</b>`,
       satirlar: dosyalar.map((d) => ({ yol: d.yol, ad: dosyaAdi(d.yol) })),
       dugmeler: `<button class="ikincil ayir-goster">${MAC ? 'Finder\'da göster' : 'Klasörde göster'}</button>`,
       acilacaklar: dosyalar.map((d) => d.yol),
+      ac: (yollar) => this._pdefedeAc(yollar),
+      acIpucu: tek ? 'Belgeyi PDEfe\'de yeni sekmede açar' : 'Belgelerin hepsini PDEfe\'de yeni sekmelerde açar (ilki önde)',
     });
     this.sonucEl.querySelector('.arac-sonuc-baslik').title = this.klasor || '';
     this.sonucEl.querySelector('.ayir-goster').addEventListener('click', () => baglam.pdefe.cagir('kabuk:klasordeGoster', dosyalar[0].yol));
     // 0.2.8 (Format Değiştir'deki kullanıcı isteğiyle aynı: bildirim yalnızca sonuç kendiliğinden açılınca): sonuç kutusu gösterilince bildirim yok
     // (0.2.7'de "N dosya oluşturuldu."); "Üzerine yaz"da belge sekmede yeniden açılır ve bildirim kalır (_uzerineYaz)
   }
+
+  /**
+   * Sonuç kutusundaki "Tümünü aç" / "Aç" (0.2.8 inceleme): parçalar PDEfe'de açılır (0.2.7'deki "İlkini yeni sekmede aç" ve "Hepsini aç" gibi).
+   * Araç kapanır, ilk parça bu pencerede önde, öbürleri arkada yeni sekmelerde. 10'dan çok parçada önce sorulur; bir kerede en çok 50 parça açılır.
+   */
+  async _pdefedeAc(yollar) {
+    const { baglam } = this;
+    let liste = (yollar || []).filter(Boolean);
+    if (!liste.length) return;
+    if (liste.length > PDEFEDE_SORULAN) {
+      const fazla = liste.length > PDEFEDE_EN_COK;
+      const { secim } = await baglam.mesajKutusu({
+        mesaj: fazla ? `${sayiMetni(liste.length)} belgenin ilk ${PDEFEDE_EN_COK} tanesi PDEfe'de açılsın mı?` : `${sayiMetni(liste.length)} belge PDEfe'de açılsın mı?`,
+        ayrinti: `Her belge bu pencerede ayrı bir sekmede açılır; araç penceresi kapanır.${fazla ? ` Bir kerede en çok ${PDEFEDE_EN_COK} belge açılır.` : ''}`,
+        dugmeler: ['Aç', 'Vazgeç'], varsayilan: 0, iptal: 1,
+      });
+      if (secim !== 0) return;
+      liste = liste.slice(0, PDEFEDE_EN_COK);
+    }
+    // Araç açıkken açılan belge yeni pencereye gider (0.2.7, uygulama.js dosyaAc): önce araç kapanır
+    await this.pencere.kapat('tamam');
+    for (let i = 0; i < liste.length; i++) await baglam.dosyaAc(liste[i], { arkaPlanda: i > 0 });
+  }
 }
+
+/** Ayır'ın "Tümünü aç"ı (0.2.8 inceleme): bundan çok parça açılacaksa önce sorulur; bir kerede en çok bu kadar parça açılır (0.2.7'deki gibi 50). */
+const PDEFEDE_SORULAN = 10;
+const PDEFEDE_EN_COK = 50;
 
 export function ayirAc(baglam) {
   const belge = baglam.aktif();

@@ -9,7 +9,8 @@
 //   4) Sonuç kutusu (madde 3, 4, 6): tek ve çok dosyada (Word, PDF + UDF karışık, uzun ad, hatalı satır, 12 sayfalık JPG, Ayır) başlık, satırlar ve
 //      düğmeler ortalı (getBoundingClientRect, ±1,5 px); küçük "Aç"lar yok; "Klasörde göster"in sağında "Tümünü aç" (tek dosyada "Aç"): ana sürecin
 //      dosya:varsayilanlaAc'ı (test örneğinde program açılmaz, istek test:diyalogKaydi'na düşer); 10'dan çok dosyada önce soru; açamazsa ileti;
-//      yalnızca araçların bu oturumda yazdığı dosyalar açılır.
+//      yalnızca araçların bu oturumda yazdığı dosyalar açılır. Ayır'da (0.2.8 inceleme; çıktısı hep PDF) Tümünü aç / Aç parçaları PDEfe'de açar:
+//      araç kapanır, ilk parça önde; 10'dan çok parçada önce soru.
 //   5) Sonuç satırında uyarı (madde 7): adın altında paragraf yok; uyarılı satırda adın yanında ⚠ (role="img", uyarı renginde), ipucu "<Kaynak> →
 //      <Hedef>: <kalite notu>" ve dosyaya özgü uyarılar; "(1)" adının notu adın ipucunda; kalite notlarında "kaşe" yok, tablolar var; gerçek PDF → UDF.
 //   6) Alttaki bildirim (madde 11): Format Değiştir'de (PDF → UDF, PDF → JPG) ve Ayır'da sonuç pencerede gösterilince bildirim yok; görüntü → PDF
@@ -47,6 +48,7 @@ const bilgi = (s) => console.log(`     · ${s}`);
 const KOSUM = Date.now().toString(36);
 const yeniKlasor = (ad) => { const k = path.join(UI, `${ad}-${KOSUM}`); fs.mkdirSync(k, { recursive: true }); return k; };
 const yakin = (a, b, pay = 0.5) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= pay;
+const ayni = (a, b) => !!a && String(a).toLowerCase() === String(b || '').toLowerCase();   // yol karşılaştırması (Windows: büyük/küçük harf)
 
 /** Örnek PDF (sayfa sayısı, başlık); var olanı yeniden üretmez. */
 function ornekPdf(ad, sayfa = 2, baslik = 'Deneme belgesi') {
@@ -399,12 +401,63 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
     await ss('04-ayir');
     sonuc('4e) Ayır (iki dosya): başlık, satırlar ve düğmeler ortalı; "Klasörde göster" ve "Tümünü aç"; küçük Aç ve "Hepsini aç" yok', ortali(o) && J(o.dugmeler) === J(['Klasörde göster', 'Tümünü aç'])
       && o.kucukAc === 0 && !(await evalJs(`!!document.querySelector('.ayir-hepsi-ac, .ayir-ilk-ac')`)), ozetle(o));
+    // 0.2.8 inceleme: Ayır'ın çıktısı hep PDF; Tümünü aç / Aç parçaları varsayılan programda değil PDEfe'de açar (0.2.7'deki "Yeni sekmede aç" /
+    // "Hepsini aç" gibi): araç kapanır, ilk parça önde, öbürleri arkada yeni sekmelerde
+    const ayirAcDurumu = () => evalJs(`(() => ({ yollar: [...window.__pdefe.belgeler.values()].map((b) => b.yol), aktif: window.__pdefe.aktif()?.yol || '',
+      pencere: !!document.querySelector('.ayir-pencere') }))()`);
+    const parcalar = (d) => d.yollar.map((y) => path.basename(y)).filter((a) => /^Ayrılmış - Sayfa .*\.pdf$/.test(a));
+    const ilkParca = await evalJs(`document.querySelector('.ayir-sonuc li .ad')?.title || ''`);
+    const ipucu4e = await evalJs(`document.querySelector('.ayir-sonuc .arac-sonuc-ac')?.title || ''`);
     await kayitOku();
     await evalJs(`(document.querySelector('.ayir-sonuc .arac-sonuc-ac').click(), true)`);
+    await kosul(`!document.querySelector('.ayir-pencere') && [...window.__pdefe.belgeler.values()].filter((b) => /Ayrılmış - Sayfa/.test(b.yol)).length === 2`, 10000);
+    await bekle(400);
+    k = (await kayitOku()).filter((x) => x.kanal === 'dosya:varsayilanlaAc');
+    let d4e = await ayirAcDurumu();
+    sonuc('4e) Ayır\'da Tümünü aç iki parçayı PDEfe\'de açar (varsayılan programa gitmez): araç kapanır, ilk parça önde, ipucu PDEfe\'yi söyler',
+      !k.length && !d4e.pencere && parcalar(d4e).length === 2 && !!ilkParca && ayni(d4e.aktif, ilkParca) && /PDEfe/.test(ipucu4e), { k: k.length, parcalar: parcalar(d4e), aktif: path.basename(d4e.aktif), ipucu4e });
+    await sekmeleriKapat();
+    // Tek parça: düğme "Aç"; parça PDEfe'de önde açılır
+    const ayirCalistir = async (aralik, beklenen) => {
+      await evalJs(`(async () => { await window.__pdefe.dosyaAc(${J(pdf12)}); return true; })()`);
+      await kosul(`!!window.__pdefe.aktif()?.gorunum?.sayfaSayisi`);
+      await evalJs(`(window.__pdefe.komutCalistir('arac.ayir'), true)`);
+      await kosul(`!!document.querySelector('.ayir-pencere .ayir-aralik')`);
+      await evalJs(`(() => { const a = document.querySelector('.ayir-pencere .ayir-aralik'); a.value = ${J(aralik)}; a.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+      await bekle(400);
+      await evalJs(`(document.querySelector('.ayir-pencere .arac-dugmeler .birincil').click(), true)`);
+      await kosul(`!document.querySelector('.ayir-sonuc').hidden && document.querySelectorAll('.ayir-sonuc li').length === ${beklenen}`, 20000);
+      await bekle(300);
+    };
+    await ayirCalistir('2-4', 1);
+    o = await kutu('.ayir-sonuc');
+    const tekParca = await evalJs(`document.querySelector('.ayir-sonuc li .ad')?.title || ''`);
+    await kayitOku();
+    await evalJs(`(document.querySelector('.ayir-sonuc .arac-sonuc-ac').click(), true)`);
+    await kosul(`!document.querySelector('.ayir-pencere') && (window.__pdefe.aktif()?.yol || '').toLowerCase() === ${J(tekParca.toLowerCase())}`, 10000);
+    await bekle(400);
+    k = (await kayitOku()).filter((x) => x.kanal === 'dosya:varsayilanlaAc');
+    d4e = await ayirAcDurumu();
+    sonuc('4e) Ayır (tek parça): sonuç ortalı, düğmeler "Klasörde göster" ve "Aç"; Aç parçayı PDEfe\'de önde açar, araç kapanır', ortali(o) && J(o?.dugmeler) === J(['Klasörde göster', 'Aç'])
+      && !k.length && !d4e.pencere && /^Ayrılmış.*\.pdf$/.test(path.basename(tekParca)) && d4e.yollar.filter((y) => ayni(y, tekParca)).length === 1 && ayni(d4e.aktif, tekParca),
+      { o: ozetle(o), k: k.length, tekParca: path.basename(tekParca), aktif: path.basename(d4e.aktif) });
+    await sekmeleriKapat();
+    // 10'dan çok parça: önce sorulur; Vazgeç'te hiçbiri açılmaz, araç açık kalır; Aç'ta hepsi açılır
+    await ayirCalistir('1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11', 11);
+    await evalJs(`(window.__s41oto = window.__pdefeOtoYanit = { secim: 1 }, true)`);
+    await evalJs(`(document.querySelector('.ayir-sonuc .arac-sonuc-ac').click(), true)`);
     await bekle(500);
-    k = (await kayitOku()).filter((x) => x.kanal === 'dosya:varsayilanlaAc').map((x) => path.basename(x.secenek.yol));
-    sonuc('4e) Ayır\'da Tümünü aç iki PDF\'i varsayılan programla açar; araç penceresi açık kalır', k.length === 2 && k.every((a) => /^Ayrılmış - Sayfa .*\.pdf$/.test(a))
-      && (await evalJs(`!!document.querySelector('.ayir-pencere')`)), k);
+    soru = await evalJs(`(() => { const o = window.__s41oto; return o?.son ? { mesaj: o.son.mesaj, dugmeler: o.son.dugmeler } : null; })()`);
+    d4e = await ayirAcDurumu();
+    sonuc('4e) Ayır (11 parça): Tümünü aç önce "11 belge PDEfe\'de açılsın mı?" (Aç | Vazgeç); Vazgeç: hiçbiri açılmaz, araç açık', soru?.mesaj === '11 belge PDEfe\'de açılsın mı?'
+      && J(soru.dugmeler) === J(['Aç', 'Vazgeç']) && !parcalar(d4e).length && d4e.pencere, { soru, parcalar: parcalar(d4e).length, pencere: d4e.pencere });
+    await evalJs(`(window.__s41oto = window.__pdefeOtoYanit = { secim: 0 }, true)`);
+    await evalJs(`(document.querySelector('.ayir-sonuc .arac-sonuc-ac').click(), true)`);
+    await kosul(`!document.querySelector('.ayir-pencere') && [...window.__pdefe.belgeler.values()].filter((b) => /Ayrılmış - Sayfa/.test(b.yol)).length === 11`, 20000);
+    await evalJs(`(delete window.__pdefeOtoYanit, true)`);
+    d4e = await ayirAcDurumu();
+    k = (await kayitOku()).filter((x) => x.kanal === 'dosya:varsayilanlaAc');
+    sonuc('4e) Ayır (11 parça) › Aç: on bir parça PDEfe\'de açıldı, varsayılan programa gitmedi', parcalar(d4e).length === 11 && !k.length && !d4e.pencere, { parcalar: parcalar(d4e).length, k: k.length });
     await araclariKapat(); await sekmeleriKapat();
     await ciktiKlasoruAyarla(path.join(UI, 'cikti'));
     await evalJs(`(async () => { await window.pdefe.cagir('ayar:koy', 'donusturme', {}); window.__pdefe.ayar().donusturme = {}; return true; })()`);
