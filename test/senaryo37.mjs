@@ -495,7 +495,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
     const yeni = ciktiDosyalari().filter((a) => !once.has(a));
     const s6 = await evalJs(`(() => { const s = document.querySelector('.donustur-sonuc'); return s && !s.hidden ? { metin: s.innerText, satir: s.querySelectorAll('li').length, ac: s.querySelectorAll('[data-ac]').length,
       goster: s.querySelector('.donustur-goster')?.textContent } : null; })()`);
-    const beklenen = UDE_VAR ? ['Düz biçim.pdf', 'Tarama örneği (2).pdf', 'Yanlış uzantı.udf'] : ['Tarama örneği (2).pdf', 'Yanlış uzantı.udf'];
+    // 0.2.6 (C2): UDE yokken de UDF yaklaşık çizimle PDF'e dönüşür; üç dosya da çıkar
+    const beklenen = ['Düz biçim.pdf', 'Tarama örneği (2).pdf', 'Yanlış uzantı.udf'];
     sonuc(`Birden çok dosya: adlar girdilerin adı, var olan adda "(2)" (${beklenen.join(', ')}); sonuç listesi, Klasörde göster, PDF'ler için Aç`, J(yeni.sort()) === J([...beklenen].sort()) && !!s6
       && s6.goster === 'Klasörde göster' && s6.ac === beklenen.filter((a) => a.endsWith('.pdf')).length && new RegExp(`${beklenen.length} dosya dönüştürüldü`).test(s6.metin), { yeni, s6 });
     await ss('06-coklu-sonuc');
