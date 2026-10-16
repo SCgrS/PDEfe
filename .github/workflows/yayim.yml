@@ -98,6 +98,11 @@ jobs:
       - name: Node bağımlılıkları
         run: npm ci
 
+      # UDE köprüsünün jar'ı depoda hazır gelir (paketlemede Java gerekmez). 0.2.9 denetimi: UdeKopru.java değişip jar yeniden derlenmezse eski
+      # jar paketlenirdi (tutarlılığı yalnızca yerel test denetliyordu). --denetle Java'sız: jar'daki kaynak özeti kaynağınkiyle aynı değilse durur
+      - name: UDE köprüsünün jar'ı kaynakla tutarlı mı
+        run: node build/ude-kopru-derle.mjs --denetle
+
       - name: Python 3.12
         uses: actions/setup-python@v5
         with:
@@ -277,6 +282,9 @@ jobs:
 
       - name: Node bağımlılıkları
         run: npm ci
+
+      - name: UDE köprüsünün jar'ı kaynakla tutarlı mı (bkz. Windows işi)
+        run: node build/ude-kopru-derle.mjs --denetle
 
       - name: Çekirdekleri al (arm64, x64)
         uses: actions/download-artifact@v4
