@@ -37,8 +37,9 @@ export const ARACLAR = [
   {
     // 0.2.7 (kullanıcı isteği): adı "Birleştir"; görüntülerin ve PDF'lerin yanında UDF, Word ve TIFF dosyaları da tek PDF'te birleşir.
     // 0.2.8 (kullanıcı isteği: "Birleştirme aracının açıklamasına birleştirir, farklı dosya formatlarıyla çalışabilir yazalım"): kullanıcının
-    // yazdığı gibi; açıklama iki satır olur (Format Değiştir'inki de), karolar eşit yükseklikte kalır (stil.css, aracPenceresi.css)
-    komut: 'arac.gorselBirlestir', ad: 'Birleştir', aciklama: 'Birleştirir, farklı dosya formatlarıyla çalışabilir', renk: 'pembe', belge: false,
+    // yazdığı gibi; açıklama iki satır olur (Format Değiştir'inki de), karolar eşit yükseklikte kalır (stil.css, aracPenceresi.css).
+    // 0.2.9 (kullanıcı isteği: "Birleştirme aracının açıklamasına Dosyalardan tek PDF oluşturur, farklı dosya formatlarıyla çalışabilir yazalım")
+    komut: 'arac.gorselBirlestir', ad: 'Birleştir', aciklama: 'Dosyalardan tek PDF oluşturur, farklı dosya formatlarıyla çalışabilir', renk: 'pembe', belge: false,
     ipucu: 'PDF, görüntü, UDF, Word ve TIFF dosyalarını birleştirerek tek bir PDF oluşturur',
     // Görüntü çerçevesi ve önünde artılı sayfa (sayfa dolgusu arkadaki çizgileri örter)
     ikon: '<rect x="2.5" y="3" width="11.5" height="9.5" rx="1.5"/><path d="m2.75 11 3.5-3.5 3 3 1.75-1.75 2.75 2.75"/><circle cx="10.25" cy="6.25" r="1"/><path class="dolgu" d="M10.25 9.25h6.5l4.25 4.25v8h-10.75z"/><path d="M16.75 9.25v4.25H21M15.6 15v4.5M13.35 17.25h4.5"/>',

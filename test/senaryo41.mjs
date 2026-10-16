@@ -1,6 +1,6 @@
 // Senaryo 41 (0.2.8, kullanıcı istekleri; araç pencereleri):
-//   1) Karo açıklamaları (madde 1 ve 5): Format Değiştir "PDF, UDF, Word, TIFF, JPG dosya formatlarını değiştirir", Birleştir "Birleştirir,
-//      farklı dosya formatlarıyla çalışabilir" (açılış ekranı, Araçlar penceresi). Açılış ekranında (1280, 1000, 800 ve 704 px genişlikte) ve
+//   1) Karo açıklamaları (madde 1 ve 5): Format Değiştir "PDF, UDF, Word, TIFF, JPG dosya formatlarını değiştirir", Birleştir "Dosyalardan tek
+//      PDF oluşturur, farklı dosya formatlarıyla çalışabilir" (0.2.9; 0.2.8'de "Birleştirir, …") (açılış ekranı, Araçlar penceresi). Açılış ekranında (1280, 1000, 800 ve 704 px genişlikte) ve
 //      Araçlar penceresinde (geniş ve dar pencerede) bütün karolar aynı yükseklikte.
 //   2) İdeal / Düşük'ün yanındaki yaklaşık boyut (madde 2): TIFF / JPG hedefi seçilince, renk değişince ve hesaplama sürerken düğmelerin
 //      genişliği değişmez (ResizeObserver kaydı), "hesaplanıyor…" yazısı görünmez; hesaplanırken önceki değer soluk kalır.
@@ -107,7 +107,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
     console.log('\n== 1) Karo açıklamaları; açılış ekranında ve Araçlar penceresinde karolar eşit yükseklikte');
     await araclariKapat(); await sekmeleriKapat();
     await kosul(`!document.querySelector('#baslangic').hidden`);
-    const BEKLENEN = { 'arac.gorselBirlestir': 'Birleştirir, farklı dosya formatlarıyla çalışabilir', 'arac.donustur': 'PDF, UDF, Word, TIFF, JPG dosya formatlarını değiştirir' };
+    const BEKLENEN = { 'arac.gorselBirlestir': 'Dosyalardan tek PDF oluşturur, farklı dosya formatlarıyla çalışabilir', 'arac.donustur': 'PDF, UDF, Word, TIFF, JPG dosya formatlarını değiştirir' };
     const acilis = () => evalJs(`[...document.querySelectorAll('.karsilama-arac')].map((k) => ({ komut: k.dataset.eylem, aciklama: k.querySelector('.karsilama-aciklama').textContent,
       h: Math.round(k.getBoundingClientRect().height * 10) / 10, ust: Math.round(k.getBoundingClientRect().top) }))`);
     let a = await acilis();

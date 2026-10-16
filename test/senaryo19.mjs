@@ -189,8 +189,10 @@ export default async function (surucu) {
       // karo (ızgara iki ve daha çok sütunluyken; hizanın kendisi test/acilis_hizasi.mjs'te). 0.2.6 (kullanıcı isteği: araçlar 3 × 2, karolar
       // "hafif büyüt"): karolar büyüdü, PDF aç değişmedi; yükseklik oranı 1,13 → ölçüt 1,1 kat, alan oranı 2,31 → ölçüt 2,2. 0.2.8 (kullanıcı
       // isteği: Birleştir'in ve Format Değiştir'in açıklaması uzadı): dar pencerede (700 px) bir açıklama üç satıra kırılır, eşit yükseklikteki kartlar
-      // 87 px (PDF aç 94 px, oran 1,08): orada yükseklik ölçütü 1,05 kat; geniş pencerede 1,1 kaldı
-      const yukseklikOrani = gen < 1000 ? 1.05 : 1.1;
+      // 87 px (PDF aç 94 px, oran 1,08): orada yükseklik ölçütü 1,05 kat; geniş pencerede 1,1 kaldı. 0.2.9 (kullanıcı isteği: Birleştir'in açıklaması
+      // "Dosyalardan tek PDF oluşturur, farklı dosya formatlarıyla çalışabilir"): açıklama her genişlikte üç satır; alçak pencerede kartlar 79 px (PDF aç
+      // 86 px, oran 1,09): ölçüt her genişlikte 1,05 kat (alan oranı 2,2 kaldı)
+      const yukseklikOrani = 1.05;
       sonuc(`[${gen}px] PDF aç düğmesi araç kartlarından belirgin büyük (yükseklik ≥ ${yukseklikOrani}× en yüksek kart, alan ≥ 2.2×, iki kart kadar geniş, yazı büyük)`,
         o.acAd === 'PDF aç' && o.ac.h >= yukseklikOrani * enYuksek && o.ac.w * o.ac.h >= 2.2 * kartAlan && o.ac.w >= 2 * enGenis && o.acYazi > o.aracYazi,
         { ac: o.ac, enYuksek, enGenis, oran: +(o.ac.h / enYuksek).toFixed(2), alanOrani: +((o.ac.w * o.ac.h) / kartAlan).toFixed(2), acYazi: o.acYazi, aracYazi: o.aracYazi });

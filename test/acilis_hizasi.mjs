@@ -125,8 +125,10 @@ export default async function ({ evalJs, bekle }) {
       sonuc(`[${w} px] PDF aç küçüldü: iç boşluk 16 / 20 px, simge kutusu 52 px, simge 30 px, ad 18 px; açıklama 13 px, metni aynı`,
         o.olcu.pt === '16px' && o.olcu.pl === '20px' && J(o.olcu.ikon) === J([52, 52]) && o.olcu.simge === 30 && o.olcu.ad === '18px' && o.olcu.aciklama === '13px' && o.olcu.metin === ACIKLAMA, o.olcu);
       // 0.2.8: Birleştir'in ve Format Değiştir'in açıklaması uzadı (kullanıcının yazdığı metinler); dar pencerede (760 px) bir açıklama üç satıra
-      // kırılır, eşit yükseklikteki kartlar 87 px olur (PDF aç 94 px). Geniş pencerede pay yine 10 px; dar pencerede PDF aç yalnızca kartlardan yüksek
-      const pay = w < 1000 ? 4 : 10;
+      // kırılır, eşit yükseklikteki kartlar 87 px olur (PDF aç 94 px). Geniş pencerede pay yine 10 px; dar pencerede PDF aç yalnızca kartlardan yüksek.
+      // 0.2.9: Birleştir'in açıklaması ("Dosyalardan tek PDF oluşturur, farklı dosya formatlarıyla çalışabilir", kullanıcının yazdığı metin) her genişlikte
+      // üç satır; alçak pencerede (bu ölçüm 800 px yükseklikte) kartlar 79 px, PDF aç 86 px. Pay her genişlikte 4 px
+      const pay = 4;
       sonuc(`[${w} px] PDF aç araç kartlarından yüksek (${o.ac.h.toFixed(1)} > ${enYuksekKart.toFixed(1)} + ${pay} px), 0.2.2'nin 110 px'inden alçak`, o.ac.h > enYuksekKart + pay && o.ac.h < 110, { ac: o.ac.h, kart: enYuksekKart });
       bilgi(`[${w} px] PDF aç ${o.ac.w.toFixed(1)} × ${o.ac.h.toFixed(1)}, ${o.sutun} sütun`);
       await ss(`acilis-${w}`);
