@@ -38,8 +38,8 @@ Word'e nasıl dokunulur (Windows):
   - Süre sınırları: başlatma BASLATMA_SURESI sn; belge CEVIRME_SURESI sn + sayfa başına SAYFA_SURESI sn (sayfa sayısı açılınca
     ComputeStatistics ile). İptal ya da süre aşımında YALNIZ bizim Word sürecimiz sonlandırılır (bekleyen COM çağrısı hemen hata döner).
     Word "meşgul" derse çağrı MESGUL_SURESI sn boyunca yeniden denenir.
-  - Hata iletileri Word'ün kendi (Word'ün diline göre değişen) açıklamasından değil koddan üretilir (_COM_HATALARI; UDF Antetcisi'nin
-    ölçtüğü kodlar).
+  - Hata iletileri Word'ün kendi (Word'ün diline göre değişen) açıklamasından değil koddan üretilir (_COM_HATALARI; Word'le
+    ölçülmüş kodlar).
 
 LibreOffice (Windows'ta Word yoksa; macOS'ta Word otomasyonu yok): soffice --headless --convert-to pdf, PDEfe'nin kendi geçici
 profiliyle (-env:UserInstallation; kullanıcının profiliyle aynı olsaydı istek açık LibreOffice'e devredilir, çıktı oluşmadan "başarılı"

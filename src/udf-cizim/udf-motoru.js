@@ -5,7 +5,7 @@
 // şablon verisi bölümleri büyük ölçüde korunuyor. Değişenler: sıkıştırılmamış content.xml, asılı girinti (Hanging),
 // sekme durağı hizası ve öncüsü, UYAP liste numaraları, tablo kenarlık türleri ve satır düzeyinde sütun genişlikleri,
 // üst/alt bilgide sayfa aralığı ve sayfa numarası, notlar (comments.xml), belge özellikleri, e-imza özeti denetimi,
-// yazdırma CSS'i. Kurallar belgeler/UDF-SARTNAMESI.md'de.
+// yazdırma CSS'i.
 //
 // Belge içeriği hiçbir zaman HTML olarak işlenmez: görünüm yalnız createElement, textContent ve tek tek verilen CSS
 // özellikleriyle kurulur; XML düğümleri sayfaya taşınmaz. Motor ağ isteği yapmaz.

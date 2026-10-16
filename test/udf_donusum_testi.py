@@ -169,7 +169,7 @@ def cumleler(tohum, n):
 
 
 class UdfYaz:
-    """Kişisel veri içermeyen sentetik UDF (UDF Antetcisi tools/ude-cizici/deneme_belgeleri.py'nin bilgisiyle)."""
+    """Kişisel veri içermeyen sentetik UDF (UDE'nin okuduğu biçimde)."""
 
     def __init__(self):
         self.havuz, self.uz, self.xml = [], 0, []

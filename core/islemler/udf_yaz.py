@@ -19,7 +19,7 @@ taşarsa onun altından); satır kutusunun altı sayfa yüksekliği − ⌊botto
 çizgisi ⌊headerFOffset⌋ + C, alt bilginin son satırının altı ⌊sayfa yüksekliği − footerFOffset⌋. Bu modelle kaynağın satır konumları
 UDE'de yeniden kurulur; alt kenar, kaynağın dolu sayfalarının UDE'de aynı satırda bitmesini sağlayacak biçimde seçilir (_sayfala).
 
-UDF kuralları (drive-udf-okuyucu belgeler/UDF-SARTNAMESI.md, UDF Antetcisi crates/udf-cekirdek): ön söz ve format_id 1.8 (yoksa UDE
+UDF kuralları (UDE'nin okuduğu biçim): ön söz ve format_id 1.8 (yoksa UDE
 açmıyor), metin havuzu tek CDATA (metinde "]]>" olursa UDE açamıyor: araya sıfır genişlikli boşluk konur), havuz ofsetleri UTF-16
 birimi ve belge sırasıyla (üst bilgi, gövde, alt bilgi), BMP dışı karakter (emoji) UDE'de yok: yerine U+FFFD; XML'de geçersiz denetim
 karakterleri atılır; paperOrientation 0 = yatay; bgImage payları tam sayı (UDE ondalığı okuyamıyor); paragraf satır sonuyla biter; resim
@@ -85,7 +85,7 @@ TABAN_TABLOSU = {
 # Bozuk ToUnicode eşlemeleri (Word 2010'un "Times New Roman TUR" hatası vb.; renderer metin.js BOZUK_GLIFLER ile aynı)
 BOZUK_GLIFLER = {chr(0x120): chr(0x130), chr(0x121): chr(0x15E), chr(0x122): chr(0x15F), chr(0x123): chr(0x15F), chr(0x201F): '"',
                  chr(0xFB01): "fi", chr(0xFB02): "fl", chr(0xAD): "", chr(0xA0): " "}
-# UDE'nin kâğıt kodları (mediaSizeName; UDF-SARTNAMESI §4): A4, A5, Letter, B5, Legal, Executive
+# UDE'nin kâğıt kodları (mediaSizeName): A4, A5, Letter, B5, Legal, Executive
 KAGITLAR = (("1", 595.28, 841.89), ("2", 419.53, 595.28), ("3", 612.0, 792.0), ("4", 515.91, 728.5), ("5", 612.0, 1008.0),
             ("6", 522.0, 756.0))
 GUZEL_KENARLAR = tuple(round(c * 72 / 2.54, 3) for c in (0.5, 0.75, 1.0, 1.25, 1.27, 1.5, 1.75, 2.0, 2.25, 2.5, 2.54, 3.0, 3.5, 4.0)) + \
