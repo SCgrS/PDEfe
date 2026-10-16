@@ -75,7 +75,7 @@ Dönüştürücü yazmak (UDF, Word modülleri): donusturucu_kaydet(kaynak, hede
   Dönüştürme iş parçacığı yalnızca bu işler içindir: Windows'ta COM gerekirse (Word) CoInitialize(STA) bu iş parçacığında bir kez yapılabilir.
 
 TIFF → PDF: kayıpsız; her sayfa karenin kendisi, oranı korunarak A4'e sığan en büyük ölçüde (0.2.9, araclar.a4_sayfa_olcusu: dikey ya da
-kare kare 210 × 297 mm'lik, yatay kare 297 × 210 mm'lik kutuya; çözünürlük etiketi yalnızca yatay ve dikey çözünürlük farklıysa oranı
+eni boyuna eşit kare 210 × 297 mm'lik, yatay kare 297 × 210 mm'lik kutuya; çözünürlük etiketi yalnızca yatay ve dikey çözünürlük farklıysa oranı
 belirler; 0.2.6–0.2.8'de sayfa taramanın gerçek ölçüsündeydi: etiket ya da uzun kenarı A4'e oturtan dpi). 1 bit karede sayfa başına CCITT G4 (tek şerit yeniden kodlanmış:
 UYAP taramaları 8 satırlık şeritli, PDF'e olduğu gibi kopyalanamaz) ya da Flate'ten küçüğü; gri / renkli kare PNG (MuPDF Flate yazar).
 Kareler sırayla okunur, yalnızca biri bellekte durur (150 sayfada tepe ~70 MB; Görüntü / PDF birleştir'in eski yolu 147 sayfada 1,16 GB).
