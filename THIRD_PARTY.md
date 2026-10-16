@@ -1,18 +1,20 @@
 # Üçüncü taraf bileşenler
 
-PDEfe aşağıdaki açık kaynak projeleri kullanır. Sürümler 0.1.0 için `package.json` / `package-lock.json`
-ve proje `.venv` ortamından okunmuştur; her bileşenin lisans metni kendi deposunda ve kurulum paketindeki
-`resources/app.asar` (Node paketleri) ile `pdefe-core.exe` (Python paketleri) içinde bulunur.
+PDEfe aşağıdaki açık kaynak projeleri kullanır. Sürümler `package.json` / `package-lock.json`, Electron'un kendisi ve proje `.venv`
+ortamından okunmuştur (son denetim 0.2.9). Her bileşenin lisans metni kendi deposunda ve kurulu uygulamada bulunur (bkz. "Lisans metinleri"):
+Node paketlerininki `resources/app.asar` içinde, Python bileşenlerininki `resources/pdefe-core/_internal/lisanslar/` altında (macOS'ta
+`Contents/Resources/pdefe-core-<mimari>/_internal/lisanslar/`), PDEfe'nin kendi lisansı ve bu liste `resources/LICENSE.txt` ve
+`resources/THIRD_PARTY.md`.
 
 PDEfe'nin kendisi **GNU AGPL-3.0** lisansıyla dağıtılır (bkz. `LICENSE`). Bunun nedeni PDF motoru olarak
 kullanılan MuPDF / PyMuPDF'in AGPL-3.0 olmasıdır; bu bileşenler için Artifex'ten ticari lisans alınmamıştır.
 
 | Bileşen | Sürüm | Lisans | Ne için | Bağlantı |
 | --- | --- | --- | --- | --- |
-| Electron | 44.4.0 | MIT | Uygulama çatısı (pencere, menü, IPC, paketleme) | https://github.com/electron/electron |
-| Chromium | 152.0.7977.78 | BSD-3-Clause (ve bileşenlerinin lisansları) | Electron içindeki tarayıcı motoru; arayüzü çizer | https://www.chromium.org/ |
+| Electron | 44.5.1 | MIT | Uygulama çatısı (pencere, menü, IPC, paketleme) | https://github.com/electron/electron |
+| Chromium | 152.0.7977.130 | BSD-3-Clause (ve bileşenlerinin lisansları) | Electron içindeki tarayıcı motoru; arayüzü çizer | https://www.chromium.org/ |
 | Node.js | 24.21.0 | MIT | Electron içindeki ana süreç çalışma zamanı | https://nodejs.org/ |
-| V8 | 15.2.124.19 | BSD-3-Clause | JavaScript motoru (Chromium/Node içinde) | https://v8.dev/ |
+| V8 | 15.2.124.28 | BSD-3-Clause | JavaScript motoru (Chromium/Node içinde) | https://v8.dev/ |
 | PDF.js (`pdfjs-dist`) | 6.3.289 | Apache-2.0 | Sayfa çizimi, metin katmanı, yer imleri (Mozilla) | https://github.com/mozilla/pdf.js |
 | PyMuPDF | 1.28.2 | AGPL-3.0 | `pdefe-core` çekirdeği: belge bilgisi, küçük resimler, notlar, kaydetme (Artifex) | https://github.com/pymupdf/PyMuPDF |
 | MuPDF | 1.28.2 | AGPL-3.0 | PyMuPDF'in altındaki PDF motoru (Artifex) | https://mupdf.com/ |
@@ -22,6 +24,7 @@ kullanılan MuPDF / PyMuPDF'in AGPL-3.0 olmasıdır; bu bileşenler için Artife
 | pdf2docx | 0.5.13, **değiştirilmiş kopya** (`core/ucuncu/pdf2docx`, lisansı yanında) | MIT (Artifex) | PDF → Word (0.2.6): düzenlenebilir .docx. Değişiklikler: opencv kaldırıldı (kontur ağacı, gri ton, döndürme numpy ve Pillow ile), stdout'a yazan ve süreci sonlandıran yerler düzeltildi, PDF yalnızca `filetype="pdf"` ile açılır; komut satırı ve tkinter arayüzü alınmadı (ayrıntı `core/ucuncu/__init__.py`) | https://github.com/ArtifexSoftware/pdf2docx |
 | UDF okuma ve çizim motoru (`src/udf-cizim/udf-motoru.js`) | Drive UDF Okuyucu 0.3.2'deki motorun kopyası; değişiklikler: yatay sayfada kenar boşluklarının döndürülmesi, UYAP erişim satırı | MIT (Drive UDF Okuyucu; motor legaluga-uyap-ui'nin `src/extension/udf.js` dosyasından türetilmiş, o da MIT) | UYAP Doküman Editörü bulunamadığında UDF → PDF'in yaklaşık çizimi (0.2.6): belge gizli bir pencerede çizilip PDF'e yazdırılır. İki lisans metni ve telif bildirimleri `src/udf-cizim/LICENSE.txt` dosyasında | https://github.com/hasanimer/legaluga-uyap-ui |
 | python-docx | 1.2.0 | MIT | pdf2docx'in .docx yazması (PDF → Word) | https://github.com/python-openxml/python-docx |
+| typing_extensions | 4.16.0 | PSF-2.0 | python-docx'in çalışma anındaki bağımlılığı (PDF → Word) | https://github.com/python/typing_extensions |
 | lxml | 6.1.3 | BSD-3-Clause; paketle gelen libxml2 ve libxslt MIT, zlib zlib lisansı, iconv LGPL-2.1 | python-docx'in XML işleme kitaplığı (PDF → Word) | https://github.com/lxml/lxml |
 | NumPy | 2.5.4 | BSD-3-Clause (ve bileşenleri: 0BSD, MIT, Zlib, CC0-1.0); paketle gelen OpenBLAS BSD-3-Clause, libgfortran GPL-3.0 GCC çalışma zamanı istisnasıyla | pdf2docx'in görüntü dizisi işlemleri (PDF → Word) | https://github.com/numpy/numpy |
 | comtypes | 1.4.17 | MIT | Yalnız Windows: Word → PDF (0.2.6) için bilgisayardaki Word'e COM ile erişim | https://github.com/enthought/comtypes |
@@ -56,8 +59,16 @@ koşullarına tabidir.
 
 ## Lisans metinleri
 
-- GNU AGPL-3.0: `LICENSE` (PDEfe, PyMuPDF, MuPDF)
-- MIT (UDF çizim motoru: Drive UDF Okuyucu ve legaluga-uyap-ui): `src/udf-cizim/LICENSE.txt`
-- MIT (pywinrt ve PyObjC dahil), Apache-2.0, BSD, PSF, HPND ve zlib lisans metinleri ilgili paketlerin dağıtım dosyalarında bulunur
-  (`node_modules/<paket>/LICENSE*`, Python paketlerinde `*.dist-info/licenses/`).
-- pdf2docx'in MIT lisansı değiştirilmiş kopyasının yanında: `core/ucuncu/pdf2docx/LICENSE`.
+Depoda ve kurulu uygulamada (Windows: kurulum klasöründeki `resources`; macOS: `PDEfe.app/Contents/Resources`):
+
+- GNU AGPL-3.0 (PDEfe, PyMuPDF, MuPDF): depoda `LICENSE`; kurulu uygulamada `resources/LICENSE.txt`, PyMuPDF'inki ayrıca
+  `pdefe-core/_internal/lisanslar/pymupdf/COPYING`.
+- Python bileşenleri (Pillow, fontTools, python-docx, typing_extensions, lxml ve paketle gelen kitaplıkları, NumPy ve bileşenleri, comtypes,
+  macOS'ta PyObjC) ve Python'un kendisi: kurulu uygulamada `pdefe-core/_internal/lisanslar/<bileşen>/` (çekirdek derlenirken her dağıtımın
+  `*.dist-info` lisans dosyalarından toplanır: `core/pdefe-core.spec`). pywinrt (`winrt-*`) dağıtımlarında lisans metni yok; lisansları
+  (MIT) `lisanslar/winrt-*/METADATA` dosyasında yazar, metin projenin deposunda.
+- pdf2docx'in MIT lisansı: depoda değiştirilmiş kopyasının yanında (`core/ucuncu/pdf2docx/LICENSE`), kurulu uygulamada
+  `pdefe-core/_internal/lisanslar/pdf2docx/LICENSE`.
+- MIT (UDF çizim motoru: Drive UDF Okuyucu ve legaluga-uyap-ui): `src/udf-cizim/LICENSE.txt` (kurulu uygulamada `resources/app.asar` içinde).
+- Node paketleri (Electron dışındakiler): `node_modules/<paket>/LICENSE*` (kurulu uygulamada `resources/app.asar` içinde); Electron'un ve
+  Chromium'un lisansları kurulum klasöründe `LICENSE.electron.txt` ve `LICENSES.chromium.html`.

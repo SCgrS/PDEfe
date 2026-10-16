@@ -63,6 +63,12 @@ win:
     # ude-kopru:derle); UDE'nin ve iText'in jar'ları pakete girmez, bilgisayardaki UDE'den çalışma anında gelir
     - from: core/ude_kopru/ude-kopru.jar
       to: ude-kopru/ude-kopru.jar
+    # Lisanslar (0.2.9 denetimi): PDEfe'nin AGPL-3.0 metni ve üçüncü taraf listesi kurulu klasörde de okunabilsin (app.asar'ın içindeki yetmez;
+    # Python bileşenlerinin lisansları pdefe-core/_internal/lisanslar altında: core/pdefe-core.spec)
+    - from: LICENSE
+      to: LICENSE.txt
+    - from: THIRD_PARTY.md
+      to: THIRD_PARTY.md
   target:
     - target: nsis
       arch:
@@ -138,6 +144,10 @@ mac:
       to: pdefe-core-x64
     - from: core/ude_kopru/ude-kopru.jar   # UDE köprüsü (iki mimaride aynı dosya; bkz. win.extraResources)
       to: ude-kopru/ude-kopru.jar
+    - from: LICENSE                        # lisanslar (0.2.9 denetimi; bkz. win.extraResources)
+      to: LICENSE.txt
+    - from: THIRD_PARTY.md
+      to: THIRD_PARTY.md
   # Finder'da "Birlikte aç" listesinde görünür; varsayılan uygulamayı kullanıcı Bilgi Al'dan seçer (Alternate: sistemin PDF görüntüleyicisinin
   # yerine kendiliğinden geçmez). Uzantıyla tanımlanır (CFBundleTypeExtensions): PDF'in sistem tür kimliğinde bir marka adı geçer
   fileAssociations:

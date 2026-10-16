@@ -91,6 +91,48 @@ else:
     except ImportError:
         print("UYARI: pyobjc Vision paketleri yok; çekirdek görsellerdeki yazıyı tanıyamayacak")
 
+# Lisans metinleri (0.2.9 denetimi): paketlenen her Python dağıtımının lisans dosyaları (dist-info'daki LICENSE / COPYING / NOTICE /
+# AUTHORS ve licenses/ altı; lisans dosyası olmayan dağıtımda METADATA), Python'un kendi LICENSE.txt'si ve PDEfe'ye alınan pdf2docx kopyasının
+# lisansı _internal/lisanslar/<dağıtım>/ altına (kurulu uygulamada resources/pdefe-core/_internal/lisanslar). MIT ve BSD bildirimin kopyayla
+# birlikte verilmesini istiyor; önceden pakette yalnızca numpy'ninkiler vardı (THIRD_PARTY.md "Lisans metinleri").
+import importlib.metadata as _metadata
+
+LISANS_DAGITIMLARI = ["pymupdf", "pillow", "fonttools", "python-docx", "lxml", "numpy", "typing_extensions", "comtypes",
+                      "winrt-runtime", "winrt-Windows.Foundation", "winrt-Windows.Foundation.Collections", "winrt-Windows.Globalization",
+                      "winrt-Windows.Graphics.Imaging", "winrt-Windows.Media.Ocr", "winrt-Windows.Storage.Streams",
+                      "pyobjc-core", "pyobjc-framework-Vision", "pyobjc-framework-Quartz", "pyobjc-framework-Cocoa", "pyobjc-framework-CoreML",
+                      "pillow_heif"]
+
+
+def _lisans_dosyalari(dagitim):
+    try:
+        d = _metadata.distribution(dagitim)
+    except _metadata.PackageNotFoundError:
+        return []
+    sonuc, metadata = [], None
+    for f in d.files or ():
+        parcalar = str(f).replace("\\", "/").split("/")
+        if not parcalar[0].endswith((".dist-info", ".egg-info")):
+            continue
+        ad = parcalar[-1].upper()
+        if parcalar[-1] == "METADATA":
+            metadata = f
+        if "licenses" in parcalar[1:-1] or any(k in ad for k in ("LICENSE", "LICENCE", "COPYING", "NOTICE", "AUTHORS")):
+            kaynak = str(f.locate())
+            if os.path.isfile(kaynak):
+                sonuc.append((kaynak, "/".join(["lisanslar", d.metadata["Name"]] + parcalar[1:-1])))
+    if not sonuc and metadata is not None and os.path.isfile(str(metadata.locate())):   # lisans metni yok (winrt-*): lisansı METADATA'da yazar
+        sonuc.append((str(metadata.locate()), "lisanslar/" + d.metadata["Name"]))
+    return sonuc
+
+
+lisanslar = [(os.path.join(KOK, "ucuncu", "pdf2docx", "LICENSE"), "lisanslar/pdf2docx")]
+if os.path.isfile(os.path.join(sys.base_prefix, "LICENSE.txt")):
+    lisanslar.append((os.path.join(sys.base_prefix, "LICENSE.txt"), "lisanslar/python"))
+for _d in LISANS_DAGITIMLARI:
+    lisanslar += _lisans_dosyalari(_d)
+veriler += lisanslar
+
 # Gereksiz büyük paketler dışarıda (numpy 0.2.6'dan beri gerekli: PDF → Word)
 haric = ["tkinter", "_tkinter", "matplotlib", "cv2", "scipy", "pandas", "IPython", "jupyter",
          "unittest", "pydoc_data", "test", "distutils", "setuptools", "pip", "pymupdf.mupdf-devel"]
