@@ -36,7 +36,6 @@ yukseklik (pageFormat'tan, pt), imzali, ve onizleme (varsayılan açık) ise UDE
 izleme iş parçacığından gelir, sonuç dosyanın değişme zamanı ve boyutuyla ön bellekte). bicim_donustur'da UDF → PDF seçenekleri: {kip:
 'otomatik' (varsayılan) | 'pdf' | 'yazici'}. Üç yöntem de istek parametresi udeYolu'nu (ya da null) alır: ayarlardaki yol.
 """
-import base64
 import collections
 import contextlib
 import json
@@ -1175,10 +1174,6 @@ def _udf_bilgi(yol, alt, genislik, p=None):
 def _yetenek():
     return yetenek()
 
-
-def kaydol(yontemler):
-    """Dönüştürücüler donustur'un çatısına modül yüklenirken kaydolur; burada yöntem eklenmez (donustur.kaydol ekler)."""
-    return None
 
 
 # PDF → UDF (düzenlenebilir): udf_yaz.py (UDE gerekmez)

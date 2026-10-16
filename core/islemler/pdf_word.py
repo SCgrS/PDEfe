@@ -218,10 +218,6 @@ def _iptaller():
     return (araclar._cekirdek().IptalEdildi, InterruptedError)
 
 
-def kaydol(yontemler):
-    """Dönüştürücü donustur'un çatısına modül yüklenirken kaydolur; burada yöntem eklenmez."""
-    return None
-
 
 donustur.donusturucu_kaydet("pdf", "word", _pdf_word, hazir)
 donustur.yetenek_kaydet("pdf_word", yetenek)

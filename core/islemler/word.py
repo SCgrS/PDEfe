@@ -58,7 +58,6 @@ import os
 import queue
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import threading
@@ -1016,10 +1015,6 @@ def kapanirken():
             shutil.rmtree(_lo_profil["klasor"], ignore_errors=True)
             _lo_profil["klasor"] = None
 
-
-def kaydol(yontemler):
-    """Dönüştürücü donustur'un çatısına modül yüklenirken kaydolur; burada yöntem eklenmez."""
-    return None
 
 
 donustur.donusturucu_kaydet("word", "pdf", _word_pdf, hazir)

@@ -8,7 +8,6 @@ Electron ana süreciyle stdin/stdout üzerinden satır başına bir JSON mesajı
 """
 import sys
 import os
-import io
 import json
 import base64
 import time
