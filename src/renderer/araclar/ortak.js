@@ -1376,34 +1376,85 @@ export async function degisiklikleriSor(baglam, belge, islemAdi, { yalnizKaydet 
 }
 
 // ---------------------------------------------------------------- sonuç kutusu
+/** "Tümünü aç" en çok bu kadar dosya açar (ana süreç dosya:varsayilanlaAc'ın sınırı: guvenlik.js acilacakYollar). */
+const EN_COK_ACILAN = 100;
+/** Bundan çok dosya açılacaksa önce sorulur (her biri kendi programında, çoğu zaman ayrı pencerede açılır; 30 sayfalık JPG çıktısı gibi). */
+const SORULAN_ACMA = 10;
+
 /**
- * Araç penceresindeki sonuç kutusu (0.2.7, kullanıcı isteği; Format Değiştir ve Ayır aynı düzende). Tek dosyada başlık, dosyanın adı, uyarı
- * ve düğmeler ortalı ("yazılar ve buton ortalı şekilde olsun"). Birden çok dosyada her satırda ad (uzunsa "…" ile kısalır, tam yol ipucunda)
- * ve sağda sabit sütunda Aç ("Aç butonları sabit bir yerde olsun, dosyanın ismine göre farklı yerlerde olabiliyor"); Aç'ı olmayan satırda
- * sütun boş kalır, uyarı ve hata adın altında. Boyut ve sayfa sayısı yazılmaz ("kilobayt ve sayfa bilgisini belirtmeye gerek yok"; 0.2.6'ya
- * dek her satırda ve başlıkta vardı).
+ * Dosyaları Windows'un / macOS'un varsayılan programıyla açar (0.2.8, sonuç kutusundaki "Tümünü aç" / "Aç"; ana süreç dosya:varsayilanlaAc yalnızca
+ * araçların bu oturumda yazdığı dosyaları açar). 10'dan çok dosyada önce sorar; 100'den çoğunda ilk 100'ü açar. Açılamayanları (dosya yok, bu türü
+ * açan program yok) bir mesaj kutusuyla adlarıyla söyler. Döner: açılan dosya sayısı.
+ */
+export async function varsayilanProgramdaAc(baglam, yollar) {
+  let liste = (yollar || []).filter((y) => typeof y === 'string' && y);
+  if (!liste.length) return 0;
+  if (liste.length > SORULAN_ACMA) {
+    const fazla = liste.length > EN_COK_ACILAN;
+    const { secim } = await baglam.mesajKutusu({
+      mesaj: fazla ? `${sayiMetni(liste.length)} dosyanın ilk ${EN_COK_ACILAN} tanesi açılsın mı?` : `${sayiMetni(liste.length)} dosya açılsın mı?`,
+      ayrinti: `Her dosya bilgisayarınızda o türü açan programla, çoğu zaman ayrı bir pencerede açılır.${fazla ? ` Bir kerede en çok ${EN_COK_ACILAN} dosya açılır.` : ''}`,
+      dugmeler: ['Aç', 'Vazgeç'], varsayilan: 0, iptal: 1,
+    });
+    if (secim !== 0) return 0;
+    liste = liste.slice(0, EN_COK_ACILAN);
+  }
+  let r;
+  try { r = await baglam.pdefe.cagir('dosya:varsayilanlaAc', liste); } catch (e) { r = { acilan: 0, hatalar: liste.map((yol) => ({ yol, neden: 'program', ileti: hataMetni(e) })) }; }
+  const hatalar = Array.isArray(r?.hatalar) ? r.hatalar : [];
+  if (hatalar.length) {
+    const adlar = hatalar.slice(0, 6).map((h) => `${dosyaAdi(h.yol)}: ${h.neden === 'yok' ? 'dosya bulunamadı (taşınmış ya da silinmiş olabilir)'
+      : h.neden === 'izinsiz' ? 'bu dosya PDEfe\'nin bu oturumda oluşturduğu dosyalardan değil'
+        : 'bu dosya türünü açan bir program bulunamadı ya da program dosyayı açamadı'}`).join('\n') + (hatalar.length > 6 ? `\nve ${sayiMetni(hatalar.length - 6)} dosya daha` : '');
+    // Türe göre ipucu: UDF'yi UYAP Doküman Editörü, Word belgesini Word açar
+    const udf = hatalar.some((h) => h.neden === 'program' && uzanti(h.yol) === 'udf'), word = hatalar.some((h) => h.neden === 'program' && uzanti(h.yol) === 'docx');
+    const ipucu = udf ? '\n\nUDF dosyaları UYAP Doküman Editörü kuruluysa onunla açılır.' : word ? '\n\nWord belgeleri Word ya da benzeri bir programla açılır.' : '';
+    await baglam.mesajKutusu({ tur: 'warning', mesaj: hatalar.length === 1 ? `"${dosyaAdi(hatalar[0].yol)}" açılamadı.` : `${sayiMetni(hatalar.length)} dosya açılamadı.`,
+      ayrinti: adlar + ipucu, dugmeler: ['Tamam'], varsayilan: 0, iptal: 0 });
+  }
+  return r?.acilan || 0;
+}
+
+/**
+ * Araç penceresindeki sonuç kutusu (0.2.7, kullanıcı isteği; Format Değiştir ve Ayır aynı düzende). Boyut ve sayfa sayısı yazılmaz ("kilobayt ve
+ * sayfa bilgisini belirtmeye gerek yok"; 0.2.6'ya dek her satırda ve başlıkta vardı).
+ * 0.2.8 (kullanıcı isteği: "Word dönüştürmede vs birden fazla şey dönüştürüldüğünde ortalı olsun bu buton ve yazılar. Küçük aç butonlarını tamamen
+ * kaldıralım. Klasörde göster'in sağına tümünü aç butonu gelsin (eğer dönüştürülen 1 evrak varsa Aç yazsın sadece). Varsayılan uygulamayla açsın";
+ * "Jpg çıktıda ortalı değil klasörde göster butonu"): tek ve çok dosyada başlık, her satır ve düğmeler kutunun ortasında (0.2.7'de çok dosyada liste
+ * sola dayalı, Aç'lar sağda sabit sütundaydı). Satırlardaki küçük "Aç"lar kalktı. Düğme satırında çağıranın düğmeleri (Klasörde göster), sağında
+ * "Tümünü aç" (tek dosyada "Aç"): dosyalar varsayılan programlarıyla açılır (varsayilanProgramdaAc). Çok dosyada yalnızca liste kaydırılır (başlık ve
+ * düğmeler görünür kalır; kaydırma çubuğunun yeri iki yanda ayrılır, satırlar ortada kalır); uzun ad "…" ile kısalır, tam yol ipucunda.
  * @param {HTMLElement} kap   sonuç kutusu (sınıfının ilki korunur: donustur-sonuc, ayir-sonuc)
  * @param {object} s
+ * @param {object} [s.baglam]   araç bağlamı ("Tümünü aç" için)
  * @param {string} s.baslik   başlık (HTML; çağıran kaçırır)
  * @param {'basari'|'uyari'} [s.tur]
- * @param {Array<{yol?:string, ad:string, ac?:boolean, uyari?:string, hata?:string}>} s.satirlar
- * @param {boolean} [s.tek]   tek dosya düzeni (ortalı); verilmezse tek satırda
+ * @param {Array<{yol?:string, ad:string, ipucu?:string, uyari?:string, hata?:string}>} s.satirlar   ipucu: adın ipucu (verilmezse tam yol)
+ * @param {boolean} [s.tek]   tek dosya düzeni (ad satır kırar); verilmezse tek satırda
  * @param {string} [s.dugmeler]  düğme satırının HTML'i (Klasörde göster…)
- * @param {(i:number)=>void} [s.ac]  satırın Aç'ı tıklanınca
- * @param {string} [s.acIpucu]
+ * @param {string[]} [s.acilacaklar]  "Tümünü aç" / "Aç"ın açtığı dosyalar; boşsa düğme yok
  */
-export function sonucKutusuCiz(kap, { baslik, tur = 'basari', satirlar, tek = satirlar.length === 1, dugmeler = '', ac = null, acIpucu = 'Aç' }) {
+export function sonucKutusuCiz(kap, { baglam = null, baslik, tur = 'basari', satirlar, tek = satirlar.length === 1, dugmeler = '', acilacaklar = [] }) {
   const kok = String(kap.className || '').split(/\s+/).filter(Boolean)[0] || '';
   kap.className = `${kok} arac-sonuc ${tek ? 'arac-sonuc-tek' : 'arac-sonuc-liste'} arac-${tur}`;
   kap.hidden = false;
-  const satir = (r, i) => {
-    const ad = `<span class="ad"${r.yol ? ` title="${kacis(r.yol)}"` : ''}>${kacis(r.ad)}</span>`;
-    const acSutunu = tek ? '' : `<span class="ac-sutun">${r.ac && !r.hata ? `<button type="button" class="donustur-baglanti" data-ac="${i}" title="${kacis(acIpucu)}">Aç</button>` : ''}</span>`;
+  const satir = (r) => {
+    const ad = `<span class="ad"${r.ipucu || r.yol ? ` title="${kacis(r.ipucu || r.yol)}"` : ''}>${kacis(r.ad)}</span>`;
     const ek = r.hata ? `<span class="hata-metin">${kacis(r.hata)}</span>` : r.uyari ? `<span class="uyari-metin">${kacis(r.uyari)}</span>` : '';
-    return `<li${r.hata ? ' class="hatali"' : ''}>${ad}${acSutunu}${ek}</li>`;
+    return `<li${r.hata ? ' class="hatali"' : ''}><span class="ad-satiri">${ad}</span>${ek}</li>`;
   };
-  kap.innerHTML = `<div class="arac-sonuc-baslik">${baslik}</div><ul>${satirlar.map(satir).join('')}</ul>${dugmeler ? `<div class="arac-satir arac-sonuc-dugmeler">${dugmeler}</div>` : ''}`;
-  if (ac) for (const d of kap.querySelectorAll('[data-ac]')) d.addEventListener('click', () => ac(+d.dataset.ac));
+  const acilacak = baglam ? acilacaklar.filter(Boolean) : [];
+  const ac = !acilacak.length ? '' : acilacak.length === 1
+    ? '<button type="button" class="ikincil arac-sonuc-ac" title="Dosyayı bilgisayarınızın bu türü açan programıyla açar">Aç</button>'
+    : '<button type="button" class="ikincil arac-sonuc-ac" title="Dosyaların hepsini bilgisayarınızın o türü açan programlarıyla açar">Tümünü aç</button>';
+  kap.innerHTML = `<div class="arac-sonuc-baslik">${baslik}</div><ul>${satirlar.map(satir).join('')}</ul>`
+    + (dugmeler || ac ? `<div class="arac-satir arac-sonuc-dugmeler">${dugmeler}${ac}</div>` : '');
+  const acDugmesi = kap.querySelector('.arac-sonuc-ac');
+  acDugmesi?.addEventListener('click', async () => {
+    if (acDugmesi.disabled) return;
+    acDugmesi.disabled = true;
+    try { await varsayilanProgramdaAc(baglam, acilacak); } finally { acDugmesi.disabled = false; }
+  });
   return kap;
 }
 

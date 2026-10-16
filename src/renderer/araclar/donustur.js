@@ -30,9 +30,9 @@
 // yapılabiliyorsa TIFF / Word hedefi) ana sürecin yaklaşık çizimiyle yapılır (main/udfYaklasik.js: gizli pencere + printToPDF; kanallar
 // udf:yaklasikBilgi, udf:yaklasikDonustur, udf:yaklasikIptal): satırda ve sonuçta "görünüm yaklaşık" uyarısı, küçük resim de bu çizimden.
 // Editör bulunduğu hâlde çekirdek bir UDF'yi "desteklenmiyor" diye dönüştüremezse o öğe yaklaşık çizimle yeniden denenir.
-// Sonuç: tek çıktı PDF ise sekmede açılır (ciktiyiAc) ve pencere kapanır; öbür durumlarda pencerede sonuç listesi (Ayır'daki gibi; PDF'ler
-// için Aç) ve Klasörde göster. Çekirdeğin uyarıları (yorumlar alınmadı, resimler alınmadı…) gösterilir; e-imza uyarısı 0.2.7'de kalktı
-// (kullanıcı isteği).
+// Sonuç: tek çıktı PDF ise sekmede açılır (ciktiyiAc) ve pencere kapanır; öbür durumlarda pencerede sonuç listesi (Ayır'daki gibi; 0.2.8'den
+// beri ortalı), Klasörde göster ve "Tümünü aç" / "Aç" (varsayılan programla; satırlardaki küçük "Aç"lar kalktı). Çekirdeğin uyarıları (yorumlar
+// alınmadı, resimler alınmadı…) gösterilir; e-imza uyarısı 0.2.7'de kalktı (kullanıcı isteği).
 import {
   pencereAc, pencereAcikMi, IslemIlerleme, kayitSecimi, boyutMetni, sayiMetni, kacis, hataMetni, dosyaAdi, klasorAdi, adGovdesi, uzanti, yolAyni,
   yolBirlestir, guvenliAd, oge, segmentliSecim, kilitliHataMi, ciktiyiAc, acikBelge, degisiklikleriSor, sonucKutusuCiz, yaklasikIstekId, yaklasikIlerlemeDinle,
@@ -1072,8 +1072,8 @@ export class DonusturPenceresi {
     }
     // En az bir dosya dönüştürüldüyse Dönüştür, bir şey değişene dek soluk kalır (0.2.7; _dugmeGuncelle). Hiçbiri olmadıysa yeniden denenebilir
     if (basarili.length) this._sonImza = this._imza();
-    // Sonuç kutusu (0.2.7, kullanıcı isteği; ortak.js sonucKutusuCiz): tek dosyada ortalı, birden çok dosyada Aç sabit sütunda; boyut ve
-    // sayfa sayısı yazılmaz. JPG hedefinde (0.2.7) oluşan her dosya bir satır (çok sayfada "<ad> - Sayfa n.jpg"), uyarı ilk satırında
+    // Sonuç kutusu (0.2.7, kullanıcı isteği; ortak.js sonucKutusuCiz): 0.2.8'den beri tek ve çok dosyada ortalı; boyut ve sayfa sayısı yazılmaz.
+    // JPG hedefinde (0.2.7) oluşan her dosya bir satır (çok sayfada "<ad> - Sayfa n.jpg"), uyarı ilk satırında
     const s = this.sonucEl;
     const satirlar = [];
     for (const r of sonuclar) {
@@ -1086,19 +1086,19 @@ export class DonusturPenceresi {
       const kalan = !kalanlar.length ? '' : kalanlar.length === 1
         ? `Önceki bir dönüştürmeden kalan "${dosyaAdi(kalanlar[0])}" klasörde duruyor; bu belgenin sayfası değil.`
         : `Önceki bir dönüştürmeden kalan ${sayiMetni(kalanlar.length)} sayfa dosyası ("${dosyaAdi(kalanlar[0])}" … "${dosyaAdi(kalanlar.at(-1))}") klasörde duruyor; bu belgenin sayfaları değil.`;
-      dosyalar.forEach((y, i) => satirlar.push({ yol: y, ad: dosyaAdi(y), ac: r.hedefBicim === 'pdf', uyari: i === 0 ? [r.uyari, yeniAd, kalan].filter(Boolean).join(' ') : '' }));
+      dosyalar.forEach((y, i) => satirlar.push({ yol: y, ad: dosyaAdi(y), uyari: i === 0 ? [r.uyari, yeniAd, kalan].filter(Boolean).join(' ') : '' }));
     }
     const dosyaSayisi = (r) => (Array.isArray(r.hedefler) && r.hedefler.length ? r.hedefler.length : 1);
     const jpgDosyasi = basarili.length === 1 && dosyaSayisi(basarili[0]) > 1 ? ` · ${sayiMetni(dosyaSayisi(basarili[0]))} görüntü dosyası` : '';
     const baslik = !basarili.length ? '<b>Hiçbir dosya dönüştürülemedi.</b>'
       : basarili.length === 1 && !hatali.length ? `<b>Dosya dönüştürüldü</b>${jpgDosyasi}`
         : `<b>${sayiMetni(basarili.length)} dosya dönüştürüldü</b>${hatali.length ? ` · ${sayiMetni(hatali.length)} dosya dönüştürülemedi` : ''}`;
+    // 0.2.8 (kullanıcı isteği): satırlardaki küçük "Aç"lar kalktı; Klasörde göster'in sağında "Tümünü aç" (tek dosyada "Aç") dönüştürülen bütün
+    // dosyaları (JPG'de bütün sayfa dosyaları) varsayılan programlarıyla açar (ortak.js varsayilanProgramdaAc)
     sonucKutusuCiz(s, {
-      baslik, tur: basarili.length ? 'basari' : 'uyari', tek: satirlar.length === 1, satirlar,
+      baglam, baslik, tur: basarili.length ? 'basari' : 'uyari', tek: satirlar.length === 1, satirlar,
       dugmeler: basarili.length ? `<button class="ikincil donustur-goster">${MAC ? 'Finder\'da göster' : 'Klasörde göster'}</button>` : '',
-      // 0.2.7: araç penceresi açıkken belge yeni pencerede önde açılır (uygulama.js dosyaAc), araç olduğu gibi kalır
-      acIpucu: 'Yeni pencerede aç',
-      ac: (i) => baglam.dosyaAc(satirlar[i].yol, { arkaPlanda: true }),
+      acilacaklar: basarili.flatMap((r) => (Array.isArray(r.hedefler) && r.hedefler.length ? r.hedefler : [r.hedef])),
     });
     s.querySelector('.donustur-goster')?.addEventListener('click', () => baglam.pdefe.cagir('kabuk:klasordeGoster', basarili[0].hedef));
     s.scrollIntoView({ block: 'nearest' });

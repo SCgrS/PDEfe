@@ -248,23 +248,23 @@ html[data-tema="koyu"] .arac-pencere .hata-metin, html[data-tema="koyu"] .kucult
 .ayir-dosya-kipi-secim > button { padding: 3px 12px; }
 .ayir-onizleme { max-height: 140px; overflow: auto; font-size: 12px; color: var(--metin-soluk); }
 .ayir-onizleme ul { margin: 4px 0 0; padding-left: 18px; }
-/* Sonuç kutusu (0.2.7, kullanıcı isteği; ortak.js sonucKutusuCiz): boyut ve sayfa sayısı yok. Tek dosyada her şey ortalı; birden çok dosyada
-   ad solda (uzunsa "…"), Aç sağda sabit sütunda, uyarı ve hata adın altında satırın tamamında */
-.arac-sonuc ul { margin: 4px 0 0; padding: 0; list-style: none; }
-.arac-sonuc li .uyari-metin { font-size: 12px; color: #7a3e00; }
+/* Sonuç kutusu (0.2.7, kullanıcı isteği; ortak.js sonucKutusuCiz): boyut ve sayfa sayısı yok. 0.2.8 (kullanıcı isteği: "birden fazla şey
+   dönüştürüldüğünde ortalı olsun bu buton ve yazılar"): tek ve çok dosyada başlık, her satır ve düğmeler ortalı; satırlardaki Aç sütunu kalktı.
+   Çok dosyada yalnızca liste kaydırılır (en çok 168 px; başlık ve düğmeler hep görünür); kaydırma çubuğunun yeri iki yanda ayrılır
+   (scrollbar-gutter: both-edges), satırlar çubuk çıkınca da başlıkla aynı ortada kalır. Uzun ad "…" ile kısalır (tek dosyada satır kırar) */
+.arac-sonuc { text-align: center; min-width: 0; }
+.arac-sonuc[hidden] { display: none; }
+.arac-sonuc ul { margin: 4px 0 0; padding: 0; list-style: none; min-width: 0; }
+.arac-sonuc li { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 2px 0; min-width: 0; }
+.arac-sonuc li .ad-satiri { display: inline-flex; align-items: center; justify-content: center; gap: 6px; max-width: 100%; min-width: 0; }
+.arac-sonuc li .ad { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arac-sonuc-tek li .ad { white-space: normal; overflow-wrap: anywhere; }
+.arac-sonuc li .uyari-metin { font-size: 12px; color: #7a3e00; overflow-wrap: anywhere; }
 html[data-tema="koyu"] .arac-sonuc li .uyari-metin { color: #ffd98a; }
-.arac-sonuc li .hata-metin { color: #d13438; font-size: 12px; }
+.arac-sonuc li .hata-metin { color: #d13438; font-size: 12px; overflow-wrap: anywhere; }
 html[data-tema="koyu"] .arac-sonuc li .hata-metin { color: #ff8c8c; }
-.arac-sonuc-dugmeler { margin-top: 8px; }
-.arac-sonuc-liste { max-height: 200px; overflow: auto; }
-.arac-sonuc-liste ul { padding-left: 18px; }
-.arac-sonuc-liste li { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 16px; align-items: baseline; padding: 2px 0; }
-.arac-sonuc-liste li .ad { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.arac-sonuc-liste li .ac-sutun { grid-column: 2; min-width: 24px; }
-.arac-sonuc-liste li .uyari-metin, .arac-sonuc-liste li .hata-metin { grid-column: 1 / -1; overflow-wrap: anywhere; }
-.arac-sonuc-tek { text-align: center; overflow-wrap: anywhere; }
-.arac-sonuc-tek li { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 2px 0; }
-.arac-sonuc-tek .arac-sonuc-dugmeler { justify-content: center; }
+.arac-sonuc-liste ul { max-height: 168px; overflow: auto; scrollbar-gutter: stable both-edges; }
+.arac-sonuc .arac-sonuc-dugmeler { margin-top: 8px; justify-content: center; }
 
 /* ---------- Görüntü / PDF birleştir ---------- */
 /* Satırdaki önizleme büyük (0.2.2, kullanıcı isteği; Sayfaları düzenle'deki gibi): --birlestir-resim önizleme kutusunun kenarı (0.2.1'e dek

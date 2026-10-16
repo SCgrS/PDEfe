@@ -117,7 +117,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
 
   // ------------------------------------------------------------ 2) Sonuç kutuları (Format Değiştir, Ayır)
   if (bolum(2)) {
-    console.log('\n== 2) Sonuç kutuları: tek dosyada ortalı, birden çok dosyada Aç sabit sütunda, boyut ve sayfa yok');
+    console.log('\n== 2) Sonuç kutuları: tek ve çok dosyada ortalı (0.2.8), boyut ve sayfa yok; küçük Aç\'lar yok (0.2.8, ayrıntı senaryo41 4. bölüm)');
     await araclariKapat(); await sekmeleriKapat();
     const pdf = ornekPdf('sonuc.pdf', 4, 'Sonuç örneği');
     await evalJs(`(window.__s38m = window.__s38m || {}, true)`);
@@ -128,20 +128,23 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
     const klasor = GIRDI;
     const kutu = () => evalJs(`(() => { const s = document.querySelector('.donustur-sonuc'); if (!s || s.hidden) return null; const k = window.__s38kutu;
       const satirlar = [...s.querySelectorAll('li')].map((li) => { const ad = li.querySelector('.ad'), ac = li.querySelector('[data-ac]');
-        return { ad: ad.textContent, adKutu: k(ad), kisaldi: ad.scrollWidth > ad.clientWidth + 1, ac: ac ? k(ac) : null, acSutun: k(li.querySelector('.ac-sutun')), uyari: li.querySelector('.uyari-metin')?.textContent || '', uyariKutu: k(li.querySelector('.uyari-metin')), hata: li.querySelector('.hata-metin')?.textContent || '' }; });
+        const as = li.querySelector('.ad-satiri') || ad; const ar = as.getBoundingClientRect();
+        return { ad: ad.textContent, adKutu: k(ad), adOrtaX: ar.left + ar.width / 2, kisaldi: ad.scrollWidth > ad.clientWidth + 1, ac: ac ? k(ac) : null, uyari: li.querySelector('.uyari-metin')?.textContent || '', uyariKutu: k(li.querySelector('.uyari-metin')), hata: li.querySelector('.hata-metin')?.textContent || '' }; });
+      const dg = [...s.querySelectorAll('.arac-sonuc-dugmeler button')];
       const baslik = s.querySelector('.arac-sonuc-baslik'), dugme = s.querySelector('.donustur-goster');
       const baslikMetin = document.createRange(); baslikMetin.selectNodeContents(baslik); const bm = baslikMetin.getBoundingClientRect();
       const adMetin = s.querySelector('li .ad'); const am = adMetin ? (() => { const r = document.createRange(); r.selectNodeContents(adMetin); return r.getBoundingClientRect(); })() : null;
       return { metin: s.innerText, sinif: s.className, kutu: k(s), baslikOrtaX: bm.left + bm.width / 2, adOrtaX: am ? am.left + am.width / 2 : null, dugme: dugme && k(dugme), satirlar,
-        hizalama: getComputedStyle(s).textAlign }; })()`);
+        hizalama: getComputedStyle(s).textAlign, dugmeler: dg.map((b) => b.textContent.trim()), dugmeOrtaX: dg.length ? (dg[0].getBoundingClientRect().left + dg.at(-1).getBoundingClientRect().right) / 2 : null,
+        kucukAc: s.querySelectorAll('[data-ac], .ac-sutun').length }; })()`);
     // Tek dosya (PDF olmayan çıktı; görüntüdeki gibi Word)
     await evalJs(`(async () => { const p = ${A}; await p._sonucGoster([{ yol: ${J(pdf)}, hedef: ${J(path.join(klasor, 'Birleştirilmiş (2).docx'))}, hedefBicim: 'word', boyut: 120832, sayfa: 4 }], { tek: true }); return true; })()`);
     let s = await kutu();
     await ss('02-tek-sonuc');
     sonuc('2) Tek dosya: başlık "Dosya dönüştürüldü", ad ve Klasörde göster; boyut ve sayfa sayısı yok', !!s && /^Dosya dönüştürüldü\s*$/m.test(s.metin) && s.satirlar.length === 1 && s.satirlar[0].ad === 'Birleştirilmiş (2).docx'
       && !!s.dugme && !/KB|MB|sayfa/.test(s.metin), s);
-    sonuc('2) Tek dosya: başlık, dosya adı ve düğme kutunun ortasında', !!s && s.hizalama === 'center' && yakin(s.baslikOrtaX, s.kutu.ortaX, 1.5) && yakin(s.adOrtaX, s.kutu.ortaX, 1.5) && yakin(s.dugme.ortaX, s.kutu.ortaX, 1.5),
-      s && { kutu: s.kutu.ortaX, baslik: s.baslikOrtaX, ad: s.adOrtaX, dugme: s.dugme?.ortaX });
+    sonuc('2) Tek dosya: başlık, dosya adı ve düğmeler ("Klasörde göster", "Aç"; 0.2.8) kutunun ortasında', !!s && s.hizalama === 'center' && yakin(s.baslikOrtaX, s.kutu.ortaX, 1.5) && yakin(s.adOrtaX, s.kutu.ortaX, 1.5)
+      && yakin(s.dugmeOrtaX, s.kutu.ortaX, 1.5) && JSON.stringify(s.dugmeler) === JSON.stringify(['Klasörde göster', 'Aç']), s && { kutu: s.kutu.ortaX, baslik: s.baslikOrtaX, ad: s.adOrtaX, dugme: s.dugmeOrtaX, dugmeler: s.dugmeler });
     // Birden çok dosya: kısa ve uzun adlar, PDF olmayan çıktı (Aç yok), uyarılı ve hatalı satır
     const uzun = 'Çok uzun bir dosya adı ' + 'uzun '.repeat(30) + 'son.pdf';
     const coklu = [
@@ -154,21 +157,15 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
     await evalJs(`(async () => { await ${A}._sonucGoster(${J(coklu)}, { tek: false }); return true; })()`);
     s = await kutu();
     await ss('02-coklu-sonuc');
-    const acler = s ? s.satirlar.filter((x) => x.ac).map((x) => x.ac) : [];
     sonuc('2) Birden çok dosya: başlıkta toplam boyut yok ("4 dosya dönüştürüldü · 1 dosya dönüştürülemedi"); satırlarda boyut ve sayfa yok', !!s
       && /^4 dosya dönüştürüldü · 1 dosya dönüştürülemedi$/m.test(s.metin) && !/KB|MB|toplam|\d sayfa/.test(s.metin), s?.metin);
-    sonuc('2) PDF satırlarında Aç (3), PDF olmayanda ve hatalıda yok', acler.length === 3 && !s.satirlar[3].ac && !s.satirlar[4].ac, s?.satirlar.map((x) => [x.ad.slice(0, 20), !!x.ac]));
-    sonuc('2) Aç düğmeleri aynı sütunda (sol kenarları eşit), adın uzunluğundan bağımsız', acler.length === 3 && acler.every((a) => yakin(a.sol, acler[0].sol, 0.5)), acler.map((a) => a.sol));
-    sonuc('2) Uzun ad "…" ile kısalır, Aç kutunun içinde kalır; Aç sütunu kutunun sağında', !!s && s.satirlar[2].kisaldi && acler.every((a) => a.sag <= s.kutu.sag) && acler[0].sol > s.kutu.ortaX,
-      s && { kisaldi: s.satirlar[2].kisaldi, ac: acler.map((a) => [a.sol, a.sag]), kutu: [s.kutu.sol, s.kutu.sag] });
-    sonuc('2) Uyarı adın altında, hata metni hatalı satırda', !!s && s.satirlar[1].uyari === 'Belgedeki bir ayrıntı aktarılmadı.' && s.satirlar[1].uyariKutu.ust >= s.satirlar[1].adKutu.alt - 0.5 && s.satirlar[4].hata === 'Dosya açılamadı.',
-      s?.satirlar[1]);
-    // Aç (yeni sekmede; dosya yoksa "bulunamadı" bildirimi) yerine: düğme ac işlevini satırın sırasıyla çağırır
-    await evalJs(`(() => { const p = ${A}; window.__s38acilan = []; p.__eskiDosyaAc = p.baglam.dosyaAc; p.baglam.dosyaAc = async (y, o) => { window.__s38acilan.push([y, o]); return null; }; return true; })()`);
-    await evalJs(`(document.querySelectorAll('.donustur-sonuc [data-ac]')[1].click(), true)`);
-    await bekle(200);
-    const acilan = await evalJs(`(() => { const p = ${A}; p.baglam.dosyaAc = p.__eskiDosyaAc; return window.__s38acilan; })()`);
-    sonuc('2) Aç tıklanan satırın dosyasını açar', acilan.length === 1 && path.resolve(acilan[0][0]) === path.resolve(coklu[1].hedef), acilan);
+    // 0.2.8 (kullanıcı isteği): küçük Aç'lar ve Aç sütunu kalktı; başlık, satırlar ve düğmeler ortalı; "Klasörde göster"in sağında "Tümünü aç"
+    sonuc('2) Satırlarda Aç yok (0.2.8); başlık, her satır ve düğmeler ("Klasörde göster", "Tümünü aç") kutunun ortasında', !!s && s.kucukAc === 0
+      && yakin(s.baslikOrtaX, s.kutu.ortaX, 1.5) && s.satirlar.every((x) => yakin(x.adOrtaX, s.kutu.ortaX, 1.5)) && yakin(s.dugmeOrtaX, s.kutu.ortaX, 1.5)
+      && JSON.stringify(s.dugmeler) === JSON.stringify(['Klasörde göster', 'Tümünü aç']), s && { kutu: s.kutu.ortaX, satirlar: s.satirlar.map((x) => x.adOrtaX), dugme: s.dugmeOrtaX, dugmeler: s.dugmeler });
+    sonuc('2) Uzun ad "…" ile kısalır, kutunun içinde kalır', !!s && s.satirlar[2].kisaldi && s.satirlar[2].adKutu.sag <= s.kutu.sag && s.satirlar[2].adKutu.sol >= s.kutu.sol,
+      s && { kisaldi: s.satirlar[2].kisaldi, ad: [s.satirlar[2].adKutu.sol, s.satirlar[2].adKutu.sag], kutu: [s.kutu.sol, s.kutu.sag] });
+    sonuc('2) Hata metni hatalı satırda', !!s && s.satirlar[4].hata === 'Dosya açılamadı.', s?.satirlar[4]);
     await araclariKapat();
     // Ayır: gerçek ayırma (iki dosya), sonra tek dosya
     const cikti = yeniKlasor('ayir');
@@ -182,9 +179,11 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
     await bekle(300);
     await evalJs(`(document.querySelector('.ayir-pencere .arac-dugmeler .birincil').click(), true)`);
     await kosul(`!document.querySelector('.ayir-sonuc').hidden && document.querySelectorAll('.ayir-sonuc li').length === 2`, 15000);
-    let a = await evalJs(`(() => { const s = document.querySelector('.ayir-sonuc'), k = window.__s38kutu; return { metin: s.innerText, sinif: s.className, ac: [...s.querySelectorAll('[data-ac]')].map((x) => k(x)), kutu: k(s) }; })()`);
+    let a = await evalJs(`(() => { const s = document.querySelector('.ayir-sonuc'), k = window.__s38kutu; return { metin: s.innerText, sinif: s.className, ac: s.querySelectorAll('[data-ac]').length, kutu: k(s),
+      satirlar: [...s.querySelectorAll('li .ad-satiri')].map((x) => k(x).ortaX), dugmeler: [...s.querySelectorAll('.arac-sonuc-dugmeler button')].map((b) => b.textContent.trim()) }; })()`);
     await ss('02-ayir-coklu');
-    sonuc('2) Ayır (iki dosya): "2 dosya oluşturuldu", her satırda Aç aynı sütunda; boyut ve sayfa yok', /^2 dosya oluşturuldu$/m.test(a.metin) && a.ac.length === 2 && yakin(a.ac[0].sol, a.ac[1].sol, 0.5)
+    sonuc('2) Ayır (iki dosya): "2 dosya oluşturuldu", satırlarda Aç yok, satırlar ortalı, "Klasörde göster" ve "Tümünü aç" (0.2.8); boyut ve sayfa yok', /^2 dosya oluşturuldu$/m.test(a.metin) && a.ac === 0
+      && a.satirlar.length === 2 && a.satirlar.every((x) => yakin(x, a.kutu.ortaX, 1.5)) && JSON.stringify(a.dugmeler) === JSON.stringify(['Klasörde göster', 'Tümünü aç'])
       && !/KB|MB|toplam|\d sayfa\b/.test(a.metin.replace(/Sayfa \d[-\d]*/g, '')) && /arac-sonuc-liste/.test(a.sinif), a);
     await evalJs(`(document.querySelector('.ayir-dosya-kipi-secim > button[data-id="tek"]').click(), true)`);
     await bekle(200);
@@ -438,21 +437,20 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
     await bekle(800);
     const bildirim = await evalJs(`document.querySelector('#bildirim')?.hidden === false ? document.querySelector('#bildirim').textContent : ''`);
     sonuc('5d) Araç penceresinin arkasında zaten açık belge: yeni pencere yok, "zaten açık" bildirimi', (await pencereler()).length === 2 && /pencere-a" bu pencerede zaten açık; araç penceresi kapanınca görünür/.test(bildirim), bildirim);
-    // e) Aracın sonuç listesindeki Aç: yeni pencerede (araç açık kalır)
-    await evalJs(`(async () => { const p = ${ARAC}; await p._sonucGoster([{ yol: ${J(A)}, hedef: ${J(E)}, hedefBicim: 'pdf' }, { yol: ${J(A)}, hedef: ${J(F)}, hedefBicim: 'pdf' }], { tek: false }); return true; })()`);
-    sonuc('5e) Sonuçtaki Aç\'ın ipucu "Yeni pencerede aç"', (await evalJs(`document.querySelector('.donustur-sonuc [data-ac]')?.title`)) === 'Yeni pencerede aç');
-    await evalJs(`(document.querySelectorAll('.donustur-sonuc [data-ac]')[0].click(), true)`);
+    // e) Araç açıkken arayüzden açılan belge (0.2.7'de sonuç listesindeki Aç; 0.2.8'de o küçük Aç'lar kalktı, "Tümünü aç" varsayılan programla açar:
+    // senaryo41): yeni pencerede (araç açık kalır)
+    await evalJs(`(window.__pdefe.dosyaAc(${J(E)}), true)`);
     const tE = Date.now(); while (Date.now() - tE < 10000 && !(await pencereYollari(P2)).includes(ad(E))) await bekle(200);
-    sonuc('5e) Sonuçtaki Aç belgeyi yeni pencerede açar; araç penceresi açık kalır', (await pencereYollari(P2)).includes(ad(E)) && !(await pencereYollari(ilk)).includes(ad(E))
+    sonuc('5e) Araç açıkken arayüzden açılan belge yeni pencerede; araç penceresi açık kalır', (await pencereYollari(P2)).includes(ad(E)) && !(await pencereYollari(ilk)).includes(ad(E))
       && (await evalJs(`!!document.querySelector('.donustur-pencere')`)), { p2: await pencereYollari(P2), ilk: await pencereYollari(ilk) });
     await ss('05-arac-acik');
     // f) Yeni pencere kapandıysa sonraki istek yine yeni bir pencere açar
     P(P2); await evalJs(`(window.pdefe.cagir('pencere:kapatOnayla', null), true)`);
     const tK = Date.now(); while (Date.now() - tK < 8000 && (await yenile()).includes(P2)) await bekle(200);
     P(ilk); await evalJs(`(window.pdefe.cagir('test:oneAl'), true)`);
-    await evalJs(`(document.querySelectorAll('.donustur-sonuc [data-ac]')[1].click(), true)`);
+    await evalJs(`(window.__pdefe.dosyaAc(${J(F)}), true)`);
     const P3 = await yeniPencereyiBekle([ilk]);
-    sonuc('5f) Yeni pencere kapandıktan sonra Aç yeniden yeni pencere açar', P3 != null && P3 !== P2 && J(await pencereYollari(P3)) === J([ad(F)]), { P3 });
+    sonuc('5f) Yeni pencere kapandıktan sonra açılan belge yeniden yeni pencerede', P3 != null && P3 !== P2 && J(await pencereYollari(P3)) === J([ad(F)]), { P3 });
     // g) Araç kapanınca belgeler yine bu pencerede açılır
     P(ilk); await araclariKapat();
     await evalJs(`(window.pdefe.cagir('test:oneAl'), true)`);

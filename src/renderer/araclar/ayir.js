@@ -354,26 +354,19 @@ export class AyirPenceresi {
     if (!dosyalar.length) { this.sonucEl.className = 'ayir-sonuc arac-uyari'; this.sonucEl.textContent = 'Hiç dosya oluşmadı.'; return; }
     if (this.pencere.kapali) return;
     this._sonImza = this._imza();   // 0.2.7: bir şey değişene dek Ayır soluk (_yapildi)
-    // Sonuç kutusu (0.2.7; Format Değiştir'deki gibi, ortak.js sonucKutusuCiz): tek dosyada ortalı, birden çok dosyada her satırda Aç sabit
-    // sütunda; boyut ve sayfa sayısı yazılmaz (0.2.6'ya dek satırda ve başlıkta vardı; ad sayfaları zaten söyler)
+    // Sonuç kutusu (0.2.7; Format Değiştir'deki gibi, ortak.js sonucKutusuCiz): boyut ve sayfa sayısı yazılmaz (0.2.6'ya dek satırda ve başlıkta
+    // vardı; ad sayfaları zaten söyler). 0.2.8 (Format Değiştir'deki kullanıcı isteğiyle aynı bileşen): tek ve çok dosyada ortalı, satırlardaki küçük
+    // "Aç"lar kalktı; düğmeler Klasörde göster ve "Tümünü aç" (tek dosyada "Aç"): dosyalar varsayılan programlarıyla açılır. 0.2.7'deki "Yeni
+    // sekmede aç" / "İlkini yeni sekmede aç" ve "Hepsini aç" kutusu kalktı (PDF'in varsayılan programı PDEfe ise belgeler yine PDEfe'de açılır)
     const tek = dosyalar.length === 1;
     sonucKutusuCiz(this.sonucEl, {
-      baslik: tek ? '<b>Dosya oluşturuldu</b>' : `<b>${sayiMetni(dosyalar.length)} dosya oluşturuldu</b>`,
-      satirlar: dosyalar.map((d) => ({ yol: d.yol, ad: dosyaAdi(d.yol), ac: true })),
-      dugmeler: `<button class="ikincil ayir-goster">${MAC ? 'Finder\'da göster' : 'Klasörde göster'}</button>
-        <button class="ikincil ayir-ilk-ac">${tek ? 'Yeni sekmede aç' : 'İlkini yeni sekmede aç'}</button>
-        ${tek ? '' : '<label><input type="checkbox" class="ayir-hepsi-ac"> Hepsini aç</label>'}`,
-      acIpucu: 'Yeni pencerede aç',   // 0.2.7: araç penceresi açıkken belge yeni pencerede önde açılır (uygulama.js dosyaAc)
-      ac: (i) => baglam.dosyaAc(dosyalar[i].yol, { arkaPlanda: true }),
+      baglam, baslik: tek ? '<b>Dosya oluşturuldu</b>' : `<b>${sayiMetni(dosyalar.length)} dosya oluşturuldu</b>`,
+      satirlar: dosyalar.map((d) => ({ yol: d.yol, ad: dosyaAdi(d.yol) })),
+      dugmeler: `<button class="ikincil ayir-goster">${MAC ? 'Finder\'da göster' : 'Klasörde göster'}</button>`,
+      acilacaklar: dosyalar.map((d) => d.yol),
     });
     this.sonucEl.querySelector('.arac-sonuc-baslik').title = this.klasor || '';
     this.sonucEl.querySelector('.ayir-goster').addEventListener('click', () => baglam.pdefe.cagir('kabuk:klasordeGoster', dosyalar[0].yol));
-    this.sonucEl.querySelector('.ayir-ilk-ac').addEventListener('click', async () => {
-      const hepsi = !!this.sonucEl.querySelector('.ayir-hepsi-ac')?.checked;
-      await this.pencere.kapat('tamam');
-      if (hepsi) { for (const d of dosyalar.slice(0, 50)) await baglam.dosyaAc(d.yol, { arkaPlanda: true }); if (dosyalar.length > 50) baglam.bildir('İlk 50 dosya açıldı.'); }
-      else await baglam.dosyaAc(dosyalar[0].yol, { arkaPlanda: false });
-    });
     baglam.bildir(`${dosyalar.length} dosya oluşturuldu.`);
   }
 }

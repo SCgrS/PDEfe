@@ -452,9 +452,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
     await donusturVeBekle();
     const hTif = path.join(CIKTI, 'Dilekçe örneği.tif');
     const o2 = fs.existsSync(hTif) ? tiffOzeti(hTif) : null;
-    const sonuc2 = await evalJs(`(() => { const s = document.querySelector('.donustur-sonuc'); return s && !s.hidden ? { metin: s.innerText, ac: s.querySelectorAll('[data-ac]').length, goster: s.querySelector('.donustur-goster')?.textContent } : null; })()`);
-    sonuc('PDF → TIFF (300 dpi, gri): tek dosyada 2 sayfa, dpi 300, gri; pencerede sonuç (Klasörde göster, PDF olmadığı için Aç yok)', !!o2 && o2.sayfa === 2 && J(o2.dpi) === J([300, 300]) && o2.kip === 'L'
-      && !!sonuc2 && /Dosya dönüştürüldü/.test(sonuc2.metin) && sonuc2.ac === 0 && sonuc2.goster === 'Klasörde göster', { o2, sonuc2 });
+    const sonuc2 = await evalJs(`(() => { const s = document.querySelector('.donustur-sonuc'); return s && !s.hidden ? { metin: s.innerText, ac: s.querySelectorAll('[data-ac]').length, goster: s.querySelector('.donustur-goster')?.textContent, acDugmesi: s.querySelector('.arac-sonuc-ac')?.textContent } : null; })()`);
+    sonuc('PDF → TIFF (300 dpi, gri): tek dosyada 2 sayfa, dpi 300, gri; pencerede sonuç (Klasörde göster ve Aç; 0.2.8: satırda küçük Aç yok)', !!o2 && o2.sayfa === 2 && J(o2.dpi) === J([300, 300]) && o2.kip === 'L'
+      && !!sonuc2 && /Dosya dönüştürüldü/.test(sonuc2.metin) && sonuc2.ac === 0 && sonuc2.goster === 'Klasörde göster' && sonuc2.acDugmesi === 'Aç', { o2, sonuc2 });
     await ss('06-pdf-tiff-sonuc');
     // Klasörde göster (test örneğinde Gezgin açılmaz, istek kaydedilir)
     await kayit();
@@ -496,22 +496,25 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
     await donusturVeBekle();
     const yeni = ciktiDosyalari().filter((a) => !once.has(a));
     const s6 = await evalJs(`(() => { const s = document.querySelector('.donustur-sonuc'); return s && !s.hidden ? { metin: s.innerText, satir: s.querySelectorAll('li').length, ac: s.querySelectorAll('[data-ac]').length,
-      goster: s.querySelector('.donustur-goster')?.textContent } : null; })()`);
+      goster: s.querySelector('.donustur-goster')?.textContent, tumunuAc: s.querySelector('.arac-sonuc-ac')?.textContent } : null; })()`);
     // 0.2.6 (C2): UDE yokken de UDF yaklaşık çizimle PDF'e dönüşür; üç dosya da çıkar
     const beklenen = ['Düz biçim.pdf', 'Tarama örneği (2).pdf', 'Yanlış uzantı.udf'];
-    sonuc(`Birden çok dosya: adlar girdilerin adı, var olan adda "(2)" (${beklenen.join(', ')}); sonuç listesi, Klasörde göster, PDF'ler için Aç`, J(yeni.sort()) === J([...beklenen].sort()) && !!s6
-      && s6.goster === 'Klasörde göster' && s6.ac === beklenen.filter((a) => a.endsWith('.pdf')).length && new RegExp(`${beklenen.length} dosya dönüştürüldü`).test(s6.metin), { yeni, s6 });
+    sonuc(`Birden çok dosya: adlar girdilerin adı, var olan adda "(2)" (${beklenen.join(', ')}); sonuç listesi, Klasörde göster ve Tümünü aç (0.2.8; satırlarda Aç yok)`, J(yeni.sort()) === J([...beklenen].sort()) && !!s6
+      && s6.goster === 'Klasörde göster' && s6.tumunuAc === 'Tümünü aç' && s6.ac === 0 && new RegExp(`${beklenen.length} dosya dönüştürüldü`).test(s6.metin), { yeni, s6 });
     await ss('06-coklu-sonuc');
     await evalJs(`window.__s37b.length = 0`);
-    // 0.2.7 (kullanıcı isteği): araç penceresi açıkken belge yeni pencerede önde açılır, araç olduğu gibi kalır. Komutlar bu pencereye
-    // gitsin (seçilmemiş hedef, CDP listesinin ilki, yeni pencere olabilir)
+    // 0.2.8 (kullanıcı isteği): sonuçtaki küçük Aç'lar kalktı; "Tümünü aç" dönüştürülen dosyaları varsayılan programlarıyla açar (test örneğinde program
+    // açılmaz, istek kaydedilir; ayrıntı senaryo41 4. bölüm). Komutlar bu pencereye gitsin (seçilmemiş hedef, CDP listesinin ilki, yeni pencere olabilir)
     const buHedef = (await hedefler())[0].id;
     hedefSec(buHedef);
     const buPencere = await evalJs(`window.pdefe.cagir('pencere:kimlik')`);
-    await tikSecici('.donustur-sonuc [data-ac]');
-    const acilan = await kosul(`window.pdefe.cagir('test:pencereler').then((l) => l.length === 2 && l.some((p) => p.id !== ${buPencere} && p.yollar.some((y) => /Tarama örneği \\(2\\)\\.pdf$|Düz biçim\\.pdf$/i.test(y))) && l.map((p) => ({ id: p.id, yollar: p.yollar })))`, 15000);
-    sonuc('Sonuçtaki Aç PDF\'i yeni pencerede açar (araç penceresi açık kalır; 0.2.7)', !!acilan && (await evalJs(`window.__pdefe.belgeler.size`)) === 0
-      && (await evalJs(`!!document.querySelector('.donustur-pencere')`)), acilan);
+    await kayit();
+    await tikSecici('.donustur-sonuc .arac-sonuc-ac');
+    await bekle(600);
+    const acilan = (await kayit()).filter((x) => x.kanal === 'dosya:varsayilanlaAc').map((x) => path.basename(x.secenek.yol)).sort();
+    sonuc('Tümünü aç dönüştürülen üç dosyayı varsayılan programla açar (araç penceresi açık kalır, PDEfe\'de sekme açılmaz; 0.2.8)', J(acilan) === J([...beklenen].sort())
+      && (await evalJs(`window.__pdefe.belgeler.size`)) === 0 && (await evalJs(`!!document.querySelector('.donustur-pencere')`)), acilan);
+    void buPencere;
     for (const h of await hedefler()) {
       hedefSec(h.id);
       let k = null; try { k = await evalJs(`window.pdefe ? window.pdefe.cagir('pencere:kimlik') : null`); } catch { /* yükleniyor */ }
