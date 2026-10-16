@@ -21,7 +21,10 @@ Word'e nasıl dokunulur (Windows):
   - Belge açılmadan önce: AutomationSecurity = 3 (makrolar kapalı; otomasyonla başlayan Word'de "düşük" ölçüldü, .docm makrosu
     çalışabilirdi), DisplayAlerts = 0, Visible = False, ScreenUpdating = False. Application.Options.* DEĞİŞTİRİLMEZ (kalıcıdır).
   - Girdi önce geçici klasöre doğru uzantıyla kopyalanır (yalnız içerik: "İnternetten indirildi" işareti taşınmaz, Korumalı Görünüm
-    açılmaz); Documents.Open(ConfirmConversions=False, ReadOnly=True, AddToRecentFiles=False, uydurma parola, Revert=False, Visible=False,
+    açılmaz). 0.2.9 denetimi: kopyadan dış şablon bağlantısı kaldırılır (_dis_sablonu_kaldir: .docx / .docm'da attachedTemplate ilişkisi ve
+    ayarlardaki öğesi, RTF'te \\*\\template grubu): Word belgeyi açarken uzak şablonu (\\\\sunucu\\… ya da http) aramasın; aramak hem
+    açılışı bekletir hem de karşı tarafa belgenin açıldığını ve UNC yolunda Windows oturumunun parola özetini gönderebilir. Bağlı resim (INCLUDEPICTURE),
+    OLE bağlantısı ve .doc / .odt'nin dış başvuruları kopyada kalır (bilinçli kabul: PLAN "Revizyon 0.2.9"). Documents.Open(ConfirmConversions=False, ReadOnly=True, AddToRecentFiles=False, uydurma parola, Revert=False, Visible=False,
     NoEncodingDialog=True). Uydurma parola: parolalı belgede görünmez parola penceresinde sonsuza dek beklenmesin, 5408 dönsün.
   - ExportAsFixedFormat(PDF, OptimizeFor = baskı, bütün belge, belge içeriği, IncludeDocProps = False, KeepIRM, CreateBookmarks =
     başlıklardan, DocStructureTags = True, BitmapMissingFonts = True, PDF/A değil). IncludeDocProps kapalı: belgenin yazar adı, şirketi
@@ -53,6 +56,7 @@ bicim_donustur sonucuna Word → PDF'te sayfa (PDF'in sayfa sayısı), motor ve 
 """
 import os
 import queue
+import re
 import shutil
 import subprocess
 import sys
@@ -60,6 +64,8 @@ import tempfile
 import threading
 import time
 import uuid
+import zipfile
+import xml.etree.ElementTree as ET
 
 import pymupdf
 
@@ -888,6 +894,77 @@ def _libreoffice_ile(soffice, kaynak, pdf, ilerleme, baglam, ad):
     raise OgeHatasi("hata", "LibreOffice belgeyi dönüştüremedi: %s" % ad)
 
 
+# ---------------------------------------------------------------- dış şablon (0.2.9 denetimi)
+_SABLON_TURU = re.compile(rb'\bType="[^"]*/attachedTemplate"')
+_ILISKI = re.compile(rb'<Relationship\b[^>]*?(?:/>|>\s*</Relationship>)')
+_SABLON_OGESI = re.compile(rb'<(?:[A-Za-z_][\w.\-]*:)?attachedTemplate\b[^>]*?/>')
+_RTF_SABLON = re.compile(rb'\{\\\*\\template\b[^{}]*\}')
+
+
+def _dis_sablonu_kaldir(yol, alt):
+    """Word'e verilecek kopyadan dış şablon bağlantısını kaldırır (bkz. modül belgesi). .docx / .docm: _rels altındaki attachedTemplate
+    ilişkileri ve kaynak parçadaki (word/settings.xml) attachedTemplate öğeleri; öteki parçalar bayt bayt aynı yazılır. RTF: {\\*\\template …}
+    grubu. Döner: kaldırılan bağlantı sayısı. Bir şey ters giderse kopya olduğu gibi kalır (dönüştürme yine yapılır)."""
+    try:
+        if alt == "rtf":
+            with open(yol, "rb") as f:
+                veri = f.read()
+            yeni, n = _RTF_SABLON.subn(b"", veri)
+            if n:
+                with open(yol, "wb") as f:
+                    f.write(yeni)
+            return n
+        if alt in ("docx", "docm"):
+            return _docx_sablonu_kaldir(yol)
+    except Exception as e:
+        print("[word] dış şablon bağlantısı kaldırılamadı: %r" % e, file=sys.stderr)
+    return 0
+
+
+def _docx_sablonu_kaldir(yol):
+    sinir = donustur.EN_FAZLA_ACIK_BOYUT
+    with zipfile.ZipFile(yol) as z:
+        bilgiler = z.infolist()
+        adlar = {b.filename for b in bilgiler}
+        degisen, sayi = {}, 0
+        for b in bilgiler:
+            if not b.filename.endswith(".rels") or "_rels/" not in b.filename:
+                continue
+            veri = donustur.zip_oku(z, b.filename, en_fazla=sinir)
+            if not _SABLON_TURU.search(veri):
+                continue
+            kalan = []
+
+            def ayikla(m):
+                if _SABLON_TURU.search(m.group(0)):
+                    kalan.append(1)
+                    return b""
+                return m.group(0)
+            degisen[b.filename] = _ILISKI.sub(ayikla, veri)
+            sayi += len(kalan)
+            klasor, ad = b.filename.rsplit("_rels/", 1)   # "word/_rels/settings.xml.rels" → kaynak parça "word/settings.xml"
+            kaynak = klasor + ad[:-len(".rels")]
+            if kaynak in adlar:
+                degisen[kaynak] = _SABLON_OGESI.sub(b"", degisen.get(kaynak) or donustur.zip_oku(z, kaynak, en_fazla=sinir))
+        if not degisen:
+            return 0
+        for veri in degisen.values():
+            ET.fromstring(veri)   # iyi biçimli kalmalı (değilse istisna: kopya değişmez)
+        gecici = yol + ".sablonsuz"
+        try:
+            with zipfile.ZipFile(gecici, "w") as h:
+                for b in bilgiler:
+                    h.writestr(b, degisen[b.filename] if b.filename in degisen else donustur.zip_oku(z, b.filename, en_fazla=sinir))
+        except BaseException:
+            try:
+                os.remove(gecici)
+            except OSError:
+                pass
+            raise
+    os.replace(gecici, yol)
+    return sayi
+
+
 # ---------------------------------------------------------------- dönüştürücü
 def _word_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
     ad = os.path.basename(kaynak)
@@ -906,6 +983,7 @@ def _word_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
         shutil.copyfile(kaynak, kopya)   # yalnız içerik (İnternet işareti ve öznitelikler taşınmaz)
     except PermissionError:
         raise PermissionError("Dosya okunamadı; %s: %s" % (araclar.KILITLI_METNI, ad))
+    _dis_sablonu_kaldir(kopya, alt)   # 0.2.9 denetimi: uzak şablon aranmasın (modül belgesi)
     pdf = os.path.join(klasor, "cikti.pdf")
     if m == "word":
         bilgi = _word_ile(kopya, pdf, ilerleme, ad)

@@ -270,6 +270,105 @@ def docx_yaz(yol, sayfalar, yazar="PDEfe Sınama Yazarı", baslik="Sınama Başl
         z.writestr("docProps/core.xml", ozellik)
 
 
+def temiz_klasor(ad):
+    k = os.path.join(CIKTI, ad)
+    shutil.rmtree(k, ignore_errors=True)
+    os.makedirs(k)
+    return k
+
+
+SABLON_HEDEFI = "file:///\\\\sunucu.invalid\\paylasim\\Sablon.dotm"   # uzak şablon (ağa çıkılmaz: test Word'ü çalıştırmaz)
+
+
+def sablonlu_docx(yol):
+    """docx_yaz'ın belgesi + dış şablon (settings.xml'de w:attachedTemplate, ilişkisi TargetMode External) + dış köprü (korunmalı)."""
+    docx_yaz(yol, [("Şablonlu belge", ["Bu belgenin şablonu uzak bir sunucuda."])], tablo=False)
+    with zipfile.ZipFile(yol) as z:
+        parcalar = [(b, z.read(b.filename)) for b in z.infolist()]
+    ayar = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:settings %s '
+            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:zoom w:percent="100"/>'
+            '<w:attachedTemplate r:id="rId1"/><w:defaultTabStop w:val="708"/></w:settings>') % W_NS
+    ayar_iliski = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                   '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" '
+                   'Target="%s" TargetMode="External"/></Relationships>') % _xml(SABLON_HEDEFI)
+    with zipfile.ZipFile(yol, "w", zipfile.ZIP_DEFLATED) as z:
+        for b, veri in parcalar:
+            if b.filename == "[Content_Types].xml":
+                veri = veri.replace(b"</Types>", b'<Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-'
+                                    b'officedocument.wordprocessingml.settings+xml"/></Types>')
+            if b.filename == "word/_rels/document.xml.rels":
+                veri = veri.replace(b"</Relationships>", b'<Relationship Id="rId9" Type="http://schemas.openxmlformats.org/officeDocument/2006/'
+                                    b'relationships/settings" Target="settings.xml"/><Relationship Id="rId10" Type="http://schemas.openxmlformats.org/'
+                                    b'officeDocument/2006/relationships/hyperlink" Target="https://example.invalid/" TargetMode="External"/>'
+                                    b'</Relationships>')
+            z.writestr(b.filename, veri)
+        z.writestr("word/settings.xml", ayar)
+        z.writestr("word/_rels/settings.xml.rels", ayar_iliski)
+    return yol
+
+
+def test_dis_sablon(k):
+    """0.2.9 denetimi: Word → PDF'te Word'e verilen kopyada dış şablon bağlantısı yok (Word belgeyi açarken uzak şablonu aramasın: bekleme,
+    açıldığının izi, UNC'de parola özeti). docx: attachedTemplate ilişkisi ve öğesi kalkar, dış köprü ve öteki parçalar aynı kalır, python-docx
+    belgeyi açar; RTF: {\\*\\template …} grubu kalkar. Word çalıştırılmaz: dönüştürücünün Word adımı yerine kopyayı yakalayan bir sahte kullanılır."""
+    print("— Dış şablon bağlantısı (0.2.9 denetimi)")
+    from islemler import donustur as D
+    from islemler import word as Wd
+    yol = sablonlu_docx(os.path.join(k, "sablonlu.docx"))
+    rtf = os.path.join(k, "sablonlu.rtf")
+    rtf_yaz(rtf, [("Şablonlu RTF", ["Bu RTF belgesinin şablonu uzak bir sunucuda."])])
+    with open(rtf, "rb") as f:
+        rtf_veri = f.read()
+    rtf_sablonlu = rtf_veri.replace(b"\\deff0", b"\\deff0{\\*\\template \\\\\\\\sunucu.invalid\\\\paylasim\\\\Sablon.dot}", 1)
+    with open(rtf, "wb") as f:
+        f.write(rtf_sablonlu)
+    gorulen = {}
+
+    def sahte_word_ile(kopya, pdf, ilerleme, ad):
+        with open(kopya, "rb") as f:
+            gorulen[os.path.splitext(kopya)[1]] = f.read()
+        d = pymupdf.open()
+        d.new_page()
+        d.save(pdf)
+        d.close()
+        return {}
+    eski_motor, eski_ile = Wd.motor, Wd._word_ile
+    Wd.motor, Wd._word_ile = (lambda: "word"), sahte_word_ile
+    try:
+        for kaynak, alt in ((yol, "docx"), (rtf, "rtf")):
+            b = D.Baglam(alt, D._Ilerleme({}))
+            try:
+                Wd._word_pdf(kaynak, os.path.join(k, "cikti_%s.pdf" % alt), {}, lambda *a: None, b)
+            finally:
+                b.temizle()
+    finally:
+        Wd.motor, Wd._word_ile = eski_motor, eski_ile
+    kopya = gorulen.get(".docx")
+    if kopya is None:
+        sonuc("docx: Word'e verilen kopya yakalandı", False, sorted(gorulen))
+        return
+    with zipfile.ZipFile(io.BytesIO(kopya)) as z, zipfile.ZipFile(yol) as asil:
+        ayar = z.read("word/settings.xml").decode("utf-8")
+        ayar_iliski = z.read("word/_rels/settings.xml.rels").decode("utf-8")
+        belge_iliski = z.read("word/_rels/document.xml.rels").decode("utf-8")
+        ayni = [a for a in asil.namelist() if a not in ("word/settings.xml", "word/_rels/settings.xml.rels") and asil.read(a) != z.read(a)]
+        adlar_ayni = z.namelist() == asil.namelist()
+    sonuc("docx: kopyada attachedTemplate öğesi ve ilişkisi yok, uzak yol geçmiyor", "attachedTemplate" not in ayar and "attachedTemplate" not in ayar_iliski
+          and "sunucu.invalid" not in ayar_iliski and "<w:zoom" in ayar and "defaultTabStop" in ayar, (ayar[-160:], ayar_iliski[-120:]))
+    sonuc("docx: dış köprü ilişkisi ve öteki parçalar bayt bayt aynı, parça listesi aynı", "example.invalid" in belge_iliski and not ayni and adlar_ayni, ayni)
+    try:
+        import docx as python_docx
+        python_docx.Document(io.BytesIO(kopya))
+        sonuc("docx: temizlenen kopya geçerli bir Word belgesi (python-docx açıyor)", True)
+    except Exception as e:  # noqa: BLE001
+        sonuc("docx: temizlenen kopya geçerli bir Word belgesi (python-docx açıyor)", False, repr(e))
+    with open(yol, "rb") as f:
+        sonuc("docx: kullanıcının dosyası değişmedi (yalnızca kopya)", b"attachedTemplate" in zipfile.ZipFile(f).read("word/settings.xml"))
+    r = gorulen.get(".rtf")
+    sonuc("RTF: kopyada \\*\\template grubu yok, belgenin geri kalanı aynı", r is not None and b"\\template" not in r and r == rtf_veri, (r or b"")[:120])
+
+
 def _rtf_kac(metin):
     return "".join(c if ord(c) < 128 and c not in "\\{}" else ("\\" + c if c in "\\{}" else "\\u%d?" % (ord(c) if ord(c) < 32768 else ord(c) - 65536))
                    for c in metin)
@@ -890,7 +989,7 @@ def main():
     testler += [lambda: test_word_yok(exe, g), lambda: test_pdf_word(c, g, word_var), lambda: test_pdf_word_iptal(c, g),
                 lambda: test_kanal(exe, g, word_var), lambda: test_zincir(c, g, exe)]
     if not exe:
-        testler += [test_kontur, test_bolge_agaci, test_dondurme]
+        testler += [test_kontur, test_bolge_agaci, test_dondurme, lambda: test_dis_sablon(temiz_klasor("dis_sablon"))]
     for t in testler:
         try:
             t()
