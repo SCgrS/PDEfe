@@ -1142,9 +1142,12 @@ def _yerine_koy_oge(oge, gecici, yazilan, kaynaklar, sayfa=None):
         # Aynı istekte önce yazılan bir öğenin dosyası (ör. onun "yeni ad"ı "X (1).tif" seçti): üzerine yazılmaz (0.2.7 inceleme; çok dosyalı
         # yoldaki gibi). Önceden o öğenin çıktısı sessizce kayboluyordu, iki sonuç da aynı dosyayı gösteriyordu
         raise OgeHatasi("gecersiz", "Dosya, bu dönüştürmedeki başka bir dosyanın yerine yazılamaz: %s" % os.path.basename(hedef))
+    # Hedef açık bir sekmenin PDF'i olabilir (Windows'ta açık tanıtıcı yer değiştirmeyi engeller): ön bellekten bırakma ve yerine koyma aynı
+    # kilidin içinde (0.2.9 denetimi). Arada arayüzün o PDF için istediği küçük resim / sayfa görüntüsü işçide dosyayı yeniden açıyor, yerine
+    # koyma "başka bir programda açık" hatasıyla düşüyordu (Birleştir de üçünü işçinin kilidi içinde yapar); os.replace kısa sürer
     with _mupdf_kilidi():
-        araclar._onbellekten_birak(hedef)   # hedef açık bir sekmenin PDF'i olabilir (Windows'ta açık tanıtıcı yer değiştirmeyi engeller)
-    araclar._yerine_koy(gecici, hedef)
+        araclar._onbellekten_birak(hedef)
+        araclar._yerine_koy(gecici, hedef)
     yazilan.add(_yol_anahtari(hedef))
     return [hedef], {}
 

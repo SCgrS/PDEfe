@@ -990,6 +990,59 @@ def test_surec(exe, g):
               "%s sn, %s" % (sure and round(sure, 1), os.listdir(k)))
 
 
+def test_yerine_koy_yarisi(exe):
+    """0.2.9 denetimi: hedef açık bir sekmenin PDF'iyken (arayüz o PDF'in küçük resmini istiyor) görüntü → PDF "Üzerine yaz". Ön bellekten
+    bırakma ile yerine koyma arasında işçi hedefi yeniden açarsa Windows'ta yerine koyma "başka bir programda açık" hatasıyla düşüyordu
+    (60 denemenin 36'sı). Dönüştürme sürerken hedefin küçük resmi aralıksız istenir; her deneme başarılı olmalı, geçici dosya kalmamalı."""
+    print("— Yerine koyma, açık hedefin küçük resmi istenirken (0.2.9 denetimi)")
+    if not WINDOWS:
+        atlandi("yerine koyma yarışı", "açık tanıtıcı yer değiştirmeyi yalnızca Windows'ta engeller")
+        return
+    k = temiz_klasor("yerine_koy_yarisi")
+    hedef = os.path.join(k, "acik.pdf")
+    d = pymupdf.open()
+    d.new_page()
+    d.save(hedef)
+    d.close()
+    gorsel = os.path.join(k, "yarisma.png")
+    Image.new("RGB", (400, 600), (10, 200, 10)).save(gorsel)
+    s = Surec(exe)
+    kilit = threading.Lock()
+    no = [100]
+
+    def gonder(yontem, params):
+        with kilit:
+            no[0] += 1
+            s.yaz({"id": no[0], "method": yontem, "params": params})
+            return no[0]
+    dur = threading.Event()
+
+    def akis():   # yanıtları beklemeden kuyrukta hep birkaç küçük resim isteği olsun
+        while not dur.is_set():
+            gonder("kucuk_resim", {"yol": hedef, "sayfa": 1, "genislik": 40})
+            time.sleep(0.002)
+    basarili, hatalar = 0, []
+    try:
+        for _ in range(30):
+            dur.clear()
+            t = threading.Thread(target=akis, daemon=True)
+            t.start()
+            kimlik = gonder("bicim_donustur", {"ogeler": [{"yol": gorsel, "hedef": hedef, "hedefBicim": "pdf"}]})
+            m, _ = s.bekle(lambda m, kimlik=kimlik: m.get("id") == kimlik and "progress" not in m, sure=60)
+            dur.set()
+            t.join()
+            o = ((m or {}).get("result") or {}).get("sonuclar", [{}])[0]
+            if o and "hata" not in o:
+                basarili += 1
+            else:
+                hatalar.append(str(o.get("hata") if o else m)[:160])
+    finally:
+        dur.set()
+        s.kapat()
+    sonuc("30 deneme: hedefin küçük resmi istenirken yerine koyma hep başarılı", basarili == 30, {"başarılı": basarili, "hatalar": hatalar[:3]})
+    sonuc("yarışta geçici dosya kalmadı", not gecici_kalintilar(k), gecici_kalintilar(k))
+
+
 def test_hedef_erisim(c, g):
     print("— Kilitli ve salt okunur hedef")
     if not WINDOWS:
@@ -1892,6 +1945,7 @@ def main():
                ("tiff_pdf", lambda: test_tiff_pdf(c, g)), ("pdf_tiff", lambda: test_pdf_tiff(c, g)), ("iptal", lambda: test_iptal(c, g)),
                ("hedef_erisim", lambda: test_hedef_erisim(c, g)), ("parametreler", lambda: test_parametreler(c, g)), ("zip_bombasi", lambda: test_zip_bombasi(c)),
                ("dis_surec", lambda: test_dis_surec(c)), ("zincir", lambda: test_zincir(c, g)), ("surec", lambda: test_surec(exe, g)),
+               ("yerine_koy_yarisi", lambda: test_yerine_koy_yarisi(exe)),
                ("gorsel_imza", lambda: test_gorsel_imza(c, gg)), ("gorsel_pdf", lambda: test_gorsel_pdf(c, gg)), ("a4_olcusu", lambda: test_a4_olcusu(c)),
                ("gri16", lambda: test_gri16(c)),
                ("pdf_jpg", lambda: test_pdf_jpg(c, g)), ("cakisma", lambda: test_cakisma(c, g)), ("kalan_sayfalar", lambda: test_kalan_sayfalar(c, g)), ("ayni_istekte_ad", lambda: test_ayni_istekte_ad(c, g)), ("bayat_gecici", lambda: test_bayat_gecici(c, g)), ("mupdf_kilidi", lambda: test_mupdf_kilidi(c, g)), ("kalite_notlari", lambda: test_kalite_notlari(c, g)),
