@@ -298,8 +298,8 @@ export default async function (surucu) {
     await sagTikl(`window.__pdefe.sekmeler.sekmeler.find((s) => s.ad === 'a.pdf').el.querySelector('.ad')`); await bekle(400);
     const menuA = (await kayit()).filter((k) => k.kanal === 'menu:popup').at(-1)?.secenek || [];
     const ogeDurum = (m) => Object.fromEntries(m.filter((o) => o.id).map((o) => [o.id, o.devre ? 'devre' : 'etkin']));
-    // 0.1.19: Pencereye ayır (açılış sekmesinde devre dışı; belge sekmesinde, pencerede başka sekme varken etkin)
-    sonuc('Açılış sekmesinde sağ tık: Klasörde göster / Yolu kopyala / Pencereye ayır devre dışı, Kapat ve Diğerlerini kapat etkin', J(ogeDurum(menuY)) === J({ kapat: 'etkin', digerleri: 'etkin', sagdakiler: 'devre', kaydet: 'devre', yazdir: 'devre', ayir: 'devre', klasor: 'devre', yol: 'devre', pdf: 'devre' }) && menuY.find((o) => o.id === 'klasor')?.etiket === 'Klasörde göster' && menuY.find((o) => o.id === 'yol')?.etiket === 'Yolu kopyala', menuY);
+    // 0.1.19: Pencereye ayır (belge sekmesinde, pencerede başka sekme varken etkin); 0.2.8'den beri açılış sekmesinde de etkin (senaryo43)
+    sonuc('Açılış sekmesinde sağ tık: Klasörde göster / Yolu kopyala devre dışı, Kapat, Diğerlerini kapat ve Pencereye ayır (0.2.8) etkin', J(ogeDurum(menuY)) === J({ kapat: 'etkin', digerleri: 'etkin', sagdakiler: 'devre', kaydet: 'devre', yazdir: 'devre', ayir: 'etkin', klasor: 'devre', yol: 'devre', pdf: 'devre' }) && menuY.find((o) => o.id === 'klasor')?.etiket === 'Klasörde göster' && menuY.find((o) => o.id === 'yol')?.etiket === 'Yolu kopyala', menuY);
     sonuc('Belge sekmesinde sağ tık: Klasörde göster / Yolu kopyala / Pencereye ayır / Yazdır etkin', ogeDurum(menuA).klasor === 'etkin' && ogeDurum(menuA).yol === 'etkin' && ogeDurum(menuA).ayir === 'etkin' && ogeDurum(menuA).yazdir === 'etkin', menuA);
     // Sağ tık menüsünden Kapat (açılış sekmesi) — test yanıtıyla; sonra yeniden aç
     await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'menu:popup', ['kapat'])`);
