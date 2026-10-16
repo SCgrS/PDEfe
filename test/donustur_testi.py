@@ -1790,6 +1790,38 @@ def test_bayat_gecici(c, g):
     sonuc("geçici klasör kalmadı", not gecici_kalintilar(k), gecici_kalintilar(k))
 
 
+def test_lo_profili(c):
+    """0.2.9 denetimi: LibreOffice'in geçici profil klasörü (Word → PDF, Word'süz Windows'ta ve macOS'ta) çekirdeğin pid'iyle adlanır
+    ("pdefe-donustur-<pid>-libreoffice-…"): çekirdek zorla kapanırsa kalan profil sonraki çekirdeğin kalintilari_temizle'siyle silinir (önceden
+    "pdefe-libreoffice-…" hiçbir temizliğin tanımadığı ön ekti). Eski adlı profil bir günden eskiyse o da silinir."""
+    if c.exe:
+        atlandi("LibreOffice profili", "exe kipinde modülün içi görülmüyor")
+        return
+    print("— LibreOffice'in geçici profili (0.2.9 denetimi)")
+    import tempfile
+    from islemler import donustur as d
+    from islemler import word as w
+    profil, ilk = w._lo_profil_klasoru()
+    try:
+        sonuc("profil klasörünün adı çekirdeğin pid'iyle (pdefe-donustur-<pid>-libreoffice-)",
+              os.path.basename(profil).startswith("%s%d-libreoffice-" % (d.GECICI_ONEKI, os.getpid())) and ilk, os.path.basename(profil))
+        kok = tempfile.gettempdir()
+        olu = 999999   # yaşayan bir süreç değil (Windows'ta pid'ler 4'ün katı ve bu kadar büyük değil)
+        kalinti = tempfile.mkdtemp(prefix="%s%d-libreoffice-" % (d.GECICI_ONEKI, olu), dir=kok)
+        os.makedirs(os.path.join(kalinti, "user"))
+        eski = tempfile.mkdtemp(prefix="pdefe-libreoffice-", dir=kok)
+        os.utime(eski, (time.time() - 3 * 86400, time.time() - 3 * 86400))
+        yeni_eski_ad = tempfile.mkdtemp(prefix="pdefe-libreoffice-", dir=kok)
+        d.kalintilari_temizle()
+        sonuc("ölü çekirdeğin profili silindi; çalışan çekirdeğinki kaldı", not os.path.exists(kalinti) and os.path.isdir(profil), (os.path.exists(kalinti), os.path.isdir(profil)))
+        sonuc("eski adlı (pdefe-libreoffice-) profil: bir günden eskisi silindi, yenisi kaldı", not os.path.exists(eski) and os.path.isdir(yeni_eski_ad),
+              (os.path.exists(eski), os.path.isdir(yeni_eski_ad)))
+        shutil.rmtree(yeni_eski_ad, ignore_errors=True)
+    finally:
+        w.kapanirken()
+    sonuc("çekirdek kapanınca profil silindi", not os.path.exists(profil))
+
+
 def test_mupdf_kilidi(c, g):
     """0.2.7 inceleme: PDF → TIFF, PDF → JPG ve İdeal / Düşük tahmininde sayfanın taranmış görselini ölçen MuPDF çağrıları (get_image_info:
     sayfanın içerik akışını çalıştırır) MuPDF kilidinin içinde. PyMuPDF iş parçacığı güvenli değil; işçi aynı anda başka sayfa çizebilir."""
@@ -1970,7 +2002,7 @@ def main():
                ("yerine_koy_yarisi", lambda: test_yerine_koy_yarisi(exe)),
                ("gorsel_imza", lambda: test_gorsel_imza(c, gg)), ("gorsel_pdf", lambda: test_gorsel_pdf(c, gg)), ("a4_olcusu", lambda: test_a4_olcusu(c)),
                ("gri16", lambda: test_gri16(c)),
-               ("pdf_jpg", lambda: test_pdf_jpg(c, g)), ("cakisma", lambda: test_cakisma(c, g)), ("kalan_sayfalar", lambda: test_kalan_sayfalar(c, g)), ("ayni_istekte_ad", lambda: test_ayni_istekte_ad(c, g)), ("bayat_gecici", lambda: test_bayat_gecici(c, g)), ("mupdf_kilidi", lambda: test_mupdf_kilidi(c, g)), ("kalite_notlari", lambda: test_kalite_notlari(c, g)),
+               ("pdf_jpg", lambda: test_pdf_jpg(c, g)), ("cakisma", lambda: test_cakisma(c, g)), ("kalan_sayfalar", lambda: test_kalan_sayfalar(c, g)), ("ayni_istekte_ad", lambda: test_ayni_istekte_ad(c, g)), ("bayat_gecici", lambda: test_bayat_gecici(c, g)), ("mupdf_kilidi", lambda: test_mupdf_kilidi(c, g)), ("lo_profili", lambda: test_lo_profili(c)), ("kalite_notlari", lambda: test_kalite_notlari(c, g)),
                ("tahmin", lambda: test_tahmin(c, g, gg)), ("tahmin_kapanis", lambda: test_tahmin_kapanis(c))]
     if not exe:
         testler.insert(6, ("iptal_bayragi", test_iptal_bayragi))

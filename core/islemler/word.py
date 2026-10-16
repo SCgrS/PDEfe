@@ -854,9 +854,11 @@ _lo_kilidi = threading.Lock()
 
 
 def _lo_profil_klasoru():
+    """LibreOffice'in PDEfe'ye ait geçici profili: (klasör, ilk mi). 0.2.9 denetimi: adı çekirdeğin pid'iyle ("pdefe-donustur-<pid>-libreoffice-…"):
+    çekirdek dönüştürürken çöker ya da zorla kapatılırsa kalan profil sonraki çekirdeğin donustur.kalintilari_temizle'siyle silinir."""
     with _lo_kilidi:
         if _lo_profil["klasor"] is None or not os.path.isdir(_lo_profil["klasor"]):
-            _lo_profil["klasor"] = tempfile.mkdtemp(prefix="pdefe-libreoffice-")
+            _lo_profil["klasor"] = tempfile.mkdtemp(prefix="%s%d-libreoffice-" % (donustur.GECICI_ONEKI, os.getpid()))
             return _lo_profil["klasor"], True
         return _lo_profil["klasor"], not os.listdir(_lo_profil["klasor"])
 

@@ -922,6 +922,7 @@ def _sil_hepsi(yol):
 # geçici klasörlerini siler (kalintilari_temizle).
 KAYIT_KLASORU = "pdefe-donustur-kayit"
 GECICI_ONEKI = "pdefe-donustur-"
+ESKI_LO_ONEKI = "pdefe-libreoffice-"   # 0.2.9'dan önceki LibreOffice profili (word._lo_profil_klasoru; pid'siz)
 _kayit_kilidi = threading.Lock()
 
 
@@ -946,7 +947,8 @@ def _kaydi_sil():
 
 def kalintilari_temizle(gun=1.0):
     """Çöken / zorla kapatılan çekirdeklerin (pid'i artık çalışmayan) kalıntıları: kayıttaki geçici dosyalar (adı o pid'in geçici adı
-    kalıbına uyuyorsa), pdefe-donustur-<pid>-* klasörleri ve pid'siz eski adlı geçici klasörlerden gun'den eskiler. Döner: silinen sayısı."""
+    kalıbına uyuyorsa), pdefe-donustur-<pid>-* klasörleri (0.2.9'dan beri LibreOffice'in profili de: pdefe-donustur-<pid>-libreoffice-*) ve
+    pid'siz eski adlı geçici klasörlerden (0.2.9'dan önceki pdefe-libreoffice-* dâhil) gun'den eskiler. Döner: silinen sayısı."""
     from .udf import _surec_yasiyor
     kok = tempfile.gettempdir()
     silinen = 0
@@ -988,7 +990,8 @@ def kalintilari_temizle(gun=1.0):
         adlar = []
     simdi = time.time()
     for ad in adlar:
-        if not ad.startswith(GECICI_ONEKI) or ad == KAYIT_KLASORU:
+        # 0.2.9'dan önceki LibreOffice profili "pdefe-libreoffice-…" (pid'siz; şimdi "pdefe-donustur-<pid>-libreoffice-…"): gun'den eskisi
+        if (not ad.startswith(GECICI_ONEKI) and not ad.startswith(ESKI_LO_ONEKI)) or ad == KAYIT_KLASORU:
             continue
         yol = os.path.join(kok, ad)
         m = re.match(re.escape(GECICI_ONEKI) + r"(\d+)-", ad)
