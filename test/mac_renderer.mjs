@@ -543,6 +543,30 @@ export default async function ({ evalJs }) {
       && r.bildirim === `Yazı kutusu kopyalandı; tıkladığınız yere ${k}V ile yapıştırılır.`, r);
   }
 
+  // ---------------------------------------------------------------- Açılış teması (ilkTema.js, 0.2.10)
+  // Ana süreç pencereyi kurarken etkin temayı komut satırıyla verir (pencereler.js additionalArguments, macOS'ta da), preload.cjs onu
+  // window.pdefe.ilkTema olarak açar; head'deki sıradan betik ilk çizimden önce html'e koyar. İki çerçevede aynı: 'koyu' / 'acik' uygulanır,
+  // yoksa (null) html'deki varsayılan kalır
+  const ilkTema = await evalJs(`(async () => { ${ORTAM}
+    const sonuc = {};
+    for (const mac of [true, false]) {
+      const o = ortam(mac), html = o.belge.documentElement, r = [];
+      for (const [ilk, onceki] of [['koyu', 'acik'], ['acik', 'koyu'], [null, 'acik'], ['gecersiz', 'koyu']]) {
+        o.pencere.pdefe.ilkTema = ilk; html.dataset.tema = onceki;
+        const s = o.belge.createElement('script'); s.src = 'pdefe://app/src/renderer/ilkTema.js';
+        await new Promise((c, d) => { s.onload = c; s.onerror = () => d(new Error('ilkTema.js yüklenemedi')); o.belge.head.append(s); });
+        r.push(html.dataset.tema); s.remove();
+      }
+      delete html.dataset.tema; delete o.pencere.pdefe.ilkTema;
+      sonuc[mac ? 'mac' : 'win'] = r;
+    }
+    return sonuc;
+  })()`);
+  for (const [ad, r] of [['macOS', ilkTema.mac], ['Windows', ilkTema.win]]) {
+    sonuc(`Açılış teması (${ad}): ilkTema.js ana sürecin verdiği temayı (koyu / açık) html'e koyar; yoksa ya da geçersizse varsayılan kalır`,
+      J(r) === J(['koyu', 'acik', 'acik', 'koyu']), r);
+  }
+
   await evalJs(`(() => { document.querySelector('#mac-cerceve')?.remove(); document.querySelector('#win-cerceve')?.remove(); return true; })()`);
   console.log(`\n${tamam} tamam, ${hata} hata`);
 }

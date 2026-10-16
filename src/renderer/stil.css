@@ -35,6 +35,11 @@ html[data-tema="koyu"] {
 }
 
 * { box-sizing: border-box; }
+/* Tema uygulanırken geçiş yok (0.2.10, kullanıcı şikâyeti: koyu temada açılışta PDF aç ve araç karoları bir an açık gri, yazıları okunmuyordu).
+   Karoların ve PDF aç'ın üzerine gelme geçişi (background-color 0.1 sn) tema değişince de çalışıyordu: zemin ve yazı hemen koyulaşırken
+   karolar beyazdan koyuya ~6 kare boyunca griden geçiyordu (açılışta ve tema düğmesine / Ayarlar'a basınca). Sınıf html'de açılışta vardır
+   (index.html) ve her tema değişiminde konur; yeni tema çizilince uygulama.js kaldırır, üzerine gelme geçişleri yine çalışır */
+html.tema-uygulaniyor, html.tema-uygulaniyor *, html.tema-uygulaniyor *::before, html.tema-uygulaniyor *::after { transition: none !important; }
 html, body { height: 100%; margin: 0; overflow: hidden; }
 body {
   font-family: var(--yazi);

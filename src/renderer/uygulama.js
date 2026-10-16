@@ -102,10 +102,31 @@ function ayarKoy(anahtar, deger) { ayar[anahtar] = deger; return pdefe.cagir('ay
 
 function koyuMu() { return ayar.tema === 'sistem' ? sistemKoyu : ayar.tema === 'koyu'; }
 
+/** Temayı uygular. 0.2.10: tema değişirken geçişler kapalı (html.tema-uygulaniyor, stil.css): karoların ve PDF aç'ın üzerine gelme geçişi
+ *  zemin koyulaşırken onları ~0,1 sn açık gri gösteriyordu. Açılışta sınıf html'de hazırdır (index.html) ve tema ilkTema.js'te ilk
+ *  çizimden önce konmuştur; burada ayarlarla doğrulanır, sınıf yeni tema çizilince kalkar (temaGecisleriniAc). */
 function temaUygula() {
-  document.documentElement.dataset.tema = koyuMu() ? 'koyu' : 'acik';
+  const html = document.documentElement, tema = koyuMu() ? 'koyu' : 'acik';
+  if (html.dataset.tema !== tema) { html.classList.add('tema-uygulaniyor'); html.dataset.tema = tema; }
+  if (html.classList.contains('tema-uygulaniyor')) temaGecisleriniAc();
   $('#dugme-tema').title = koyuMu() ? 'Koyu tema açık — açık temaya geç' : 'Açık tema açık — koyu temaya geç';   // düğme şu anki temanın simgesini gösterir (koyu: ay, açık: güneş)
   for (const b of belgeler.values()) { b.gorunum.koyuSayfaAyarla(koyuMu() && ayar.sayfayiKoyulastir); b.notlar?.hepsiniCiz(); }   // vurgu karışımı koyu sayfaya göre
+}
+
+/** Tema değişiminden sonra geçişleri yeniden açar: iki kare sonra (yeni temanın stili geçişsiz hesaplanıp çizildi) sınıf kalkar. Pencere
+ *  gizliyken kare çizilmez (requestAnimationFrame çalışmaz): yedek zamanlayıcı stili önce zorla hesaplatır, sonra kaldırır. Arka arkaya
+ *  değişimde son çağrınınki geçerlidir. */
+let _temaSirasi = 0;
+function temaGecisleriniAc() {
+  const sira = ++_temaSirasi;
+  const ac = () => {
+    if (sira !== _temaSirasi) return;   // bu arada tema yeniden uygulandı ya da öteki yol (kare / zamanlayıcı) kaldırdı
+    _temaSirasi++;
+    void document.documentElement.offsetHeight;   // yeni temanın stili geçişler kapalıyken hesaplansın
+    document.documentElement.classList.remove('tema-uygulaniyor');
+  };
+  requestAnimationFrame(() => requestAnimationFrame(ac));
+  setTimeout(ac, 500);
 }
 
 pdefe.dinle('tema:sistem', (koyu) => { sistemKoyu = koyu; temaUygula(); });

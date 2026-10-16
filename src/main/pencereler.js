@@ -156,12 +156,18 @@ export function pencereOlustur({ sinirlar = null, goster = true, dosyalar = [] }
     }
   }
   const menuGorunur = !!ayarAl('menuCubugu');
+  // Açılış teması (0.2.10, kullanıcı şikâyeti: koyu temada açılışta PDF aç ve araç karoları bir an açık gri, yazıları okunmuyordu). Arayüz
+  // temayı ayarları IPC ile sorup öğrendiği için ilk kareler açık temayla çiziliyor, pencere de ilk çizimde (ready-to-show) gösteriliyordu;
+  // tema sonradan gelince karoların 0,1 sn'lik renk geçişi beyazdan koyuya griden geçiyordu. Etkin tema (ayar ya da "Sistemi izle"de
+  // Windows / macOS teması) pencere kurulurken komut satırıyla verilir: preload.cjs okur, renderer/ilkTema.js sayfa çizilmeden html'e koyar.
+  // Pencerenin zemin rengi arayüzün zeminiyle (stil.css --arka) aynı: ilk çizimden önce ve boyut değişirken görünen alan
+  const koyu = temaKoyuMu();
   const pencere = new BrowserWindow({
     ...sinirlar,
     minWidth: 720, minHeight: 480,
     show: false,
     title: 'PDEfe',
-    backgroundColor: temaKoyuMu() ? '#1c1c1c' : '#f3f3f3',
+    backgroundColor: koyu ? '#202020' : '#f3f3f3',
     autoHideMenuBar: !menuGorunur,   // gizliyken Alt tuşu geçici gösterir (menuCubuguKur)
     icon: path.join(KOK, 'build', 'icon.png'),
     webPreferences: {
@@ -171,6 +177,7 @@ export function pencereOlustur({ sinirlar = null, goster = true, dosyalar = [] }
       nodeIntegration: false,
       spellcheck: false,
       backgroundThrottling: false,
+      additionalArguments: [`--pdefe-tema=${koyu ? 'koyu' : 'acik'}`],
     },
   });
   menuCubuguKur(pencere, menuGorunur);

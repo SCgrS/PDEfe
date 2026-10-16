@@ -1,8 +1,11 @@
 <!DOCTYPE html>
-<html lang="tr" data-tema="acik">
+<!-- Tema (0.2.10): data-tema ilk çizimden önce ilkTema.js'te ana sürecin verdiği temaya çevrilir; tema-uygulaniyor sınıfı yerleşene dek
+     geçişleri kapatır (stil.css), uygulama.js kaldırır -->
+<html lang="tr" data-tema="acik" class="tema-uygulaniyor">
 <head>
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' pdefe:; script-src 'self' pdefe:; style-src 'self' pdefe: 'unsafe-inline'; img-src 'self' pdefe: data: blob:; font-src 'self' pdefe: data:; worker-src 'self' pdefe: blob:; connect-src 'self' pdefe: blob: data:; object-src 'none'; base-uri 'none'; form-action 'none';">
+  <script src="ilkTema.js"></script>
   <title>PDEfe</title>
   <link rel="stylesheet" href="stil.css">
   <link rel="stylesheet" href="araclar/araclar.css">

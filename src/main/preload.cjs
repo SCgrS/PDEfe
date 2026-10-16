@@ -29,6 +29,10 @@ const DINLEMELER = new Set([
 ]);
 const testMi = (kanal) => typeof kanal === 'string' && kanal.startsWith('test:');
 const izinYok = (kanal) => new Error(`İzin verilmeyen kanal: ${kanal}`);
+// Açılış teması (0.2.10): ana süreç pencereyi kurarken etkin temayı komut satırıyla verir (pencereler.js additionalArguments). Arayüz
+// renderer/ilkTema.js ile onu ilk çizimden önce html'e koyar; ayarlar IPC ile gelince (uygulama.js temaUygula) aynı tema yeniden uygulanır
+const TEMA_ON_EKI = '--pdefe-tema=';
+const ilkTema = (process.argv || []).find((a) => typeof a === 'string' && a.startsWith(TEMA_ON_EKI))?.slice(TEMA_ON_EKI.length);
 
 contextBridge.exposeInMainWorld('pdefe', {
   cagir: (kanal, ...args) => (CAGRILAR.has(kanal) || testMi(kanal) ? ipcRenderer.invoke(kanal, ...args) : Promise.reject(izinYok(kanal))),
@@ -42,4 +46,6 @@ contextBridge.exposeInMainWorld('pdefe', {
   dosyaYolu: (dosya) => webUtils.getPathForFile(dosya),
   // İşletim sistemi (0.2.0): 'win32' | 'darwin'. Arayüz macOS'ta kısayolları ⌘ ile işler ve gösterir (renderer/platform.js)
   platform: process.platform,
+  // 'koyu' | 'acik' | null (komut satırında yoksa; arayüz o zaman ayarları bekler)
+  ilkTema: ilkTema === 'koyu' || ilkTema === 'acik' ? ilkTema : null,
 });

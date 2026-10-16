@@ -15,7 +15,7 @@
 //   PDEFE_TEST_GERCEK_YAZDIR  "1": test örneğinde de gerçekten yazdırılır (0.2.6, test/yazdir_gercek.mjs). Yalnızca görünmeyen masaüstündeki
 //                       örnekte (PDEFE_TEST_GIZLI_MASAUSTU=1): "Çıktıyı Farklı Kaydet" kutusu orada açılır, kişinin ekranına çıkmaz.
 // Paketli uygulamada hiçbiri okunmaz.
-import { app, BrowserWindow, Menu } from 'electron';
+import { app, BrowserWindow, Menu, nativeTheme } from 'electron';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -129,6 +129,13 @@ export function testDiyalogKur(ipcMain) {
     if (process.env.PDEFE_TEST_GIZLI_MASAUSTU !== '1' || !pencere) return { odak: pencere?.isFocused() ?? false, gizliMasaustu: false };
     pencere.focus(); e.sender.focus();
     return { odak: pencere.isFocused(), gizliMasaustu: true };
+  });
+  // İşletim sisteminin teması (0.2.10, test/tema_acilis.mjs): "Sistemi izle" ayarı Windows / macOS koyu ya da açıkken nasıl açılır ve sistem
+  // teması değişince ne olur, bilgisayarın ayarına dokunmadan. kaynak: 'dark' | 'light' | 'system' (nativeTheme.themeSource; yalnızca bu test
+  // örneğinde, 'updated' olayı main.js'teki gibi pencerelere 'tema:sistem' gönderir). Döner: shouldUseDarkColors
+  ipcMain.handle('test:sistemTemasi', (_e, kaynak) => {
+    if (['dark', 'light', 'system'].includes(kaynak)) nativeTheme.themeSource = kaynak;
+    return nativeTheme.shouldUseDarkColors;
   });
   // Uygulama menüsünün etiketleri (alt menüler iç içe): ayara bağlı öğeler (Dosya › Son açılanlar) sınanır
   const menuYapisi = (m) => (m ? m.items.map((o) => (o.submenu ? { etiket: o.label, alt: menuYapisi(o.submenu) } : o.label)) : null);
