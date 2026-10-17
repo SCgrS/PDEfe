@@ -20,6 +20,7 @@
 import { BrowserWindow, screen, shell } from 'electron';
 import path from 'node:path';
 import { disAdresMi, acilacakYollar } from './guvenlik.js';
+import { zamanYaz } from './acilisZamanlari.js';
 
 const HAZIR_BEKLEME_MS = 20000;      // yeni pencerenin arayüzü bu sürede hazır olmazsa taşıma vazgeçilir
 const ISTEK_BEKLEME_MS = 120000;     // renderer'dan beklenen yanıt (büyük belgenin açılması dahil)
@@ -191,9 +192,10 @@ export function pencereOlustur({ sinirlar = null, goster = true, dosyalar = [] }
   if (verilen) { try { pencere.setBounds(verilen); } catch { /* pencere bu arada kapandıysa */ } }
 
   pencere.loadURL('pdefe://app/src/renderer/index.html');
-  if (goster) pencere.once('ready-to-show', () => pencereyiGoster(k, buyut));
+  zamanYaz('pencereKuruldu', k.id);
+  if (goster) pencere.once('ready-to-show', () => { zamanYaz('gosterilecek', k.id); pencereyiGoster(k, buyut); });
   // Haftalık güncelleme denetimi ilk pencere göründükten birkaç saniye sonra başlar (yinelenen çağrıyı kendisi yok sayar)
-  pencere.once('show', () => bagimli.pencereGosterildi?.());
+  pencere.once('show', () => { zamanYaz('gosterildi', k.id); bagimli.pencereGosterildi?.(); });
   pencere.on('focus', () => oneAl(k));
   pencere.on('close', (e) => {
     if (!k.kapatOnayli && k.hazir) {
@@ -273,7 +275,7 @@ export function dosyalariAc(dosyalar) {
     son = k;
   }
   for (const [k, yollar] of gruplar) {
-    if (k.hazir) gonder(k, 'dosya:ac', yollar); else k.bekleyenDosyalar.push(...yollar);
+    if (k.hazir) { gonder(k, 'dosya:ac', yollar); zamanYaz('dosyaGonderildi', k.id); } else k.bekleyenDosyalar.push(...yollar);
   }
   return son;
 }
@@ -510,7 +512,8 @@ export function pencereleriKur(b) {
     const k = kayitAl(e);
     if (!k) return;
     k.hazir = true; k.coktu = false; k.kirli = false; k.hazirCoz();
-    if (k.bekleyenDosyalar.length) { gonder(k, 'dosya:ac', k.bekleyenDosyalar); k.bekleyenDosyalar = []; }
+    zamanYaz('arayuzHazir', k.id);
+    if (k.bekleyenDosyalar.length) { gonder(k, 'dosya:ac', k.bekleyenDosyalar); k.bekleyenDosyalar = []; zamanYaz('dosyaGonderildi', k.id); }
   });
   // Döner: yanıt bekleniyor muydu. Süresi dolmuş isteğin yanıtı false alır ('sekme:al': kaynak pencere sekmeyi geri almıştır, hedef de
   // kurduğu sekmeyi kaldırır; belge iki pencerede birden açık kalmaz)

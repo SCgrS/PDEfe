@@ -23,6 +23,9 @@ import { uzantisiz } from './adlar.js';
 import { TumSecim } from './tumSecim.js';
 import { MAC, birincil, tus, ipuclariniCevir, DOSYA_YONETICISI } from './platform.js';
 
+// Açılış zamanları (0.2.10): arayüzün adımları performance.mark('pdefe:…') ile yazılır; ölçüm betiği (test/acilis_hizi.mjs) CDP'den okur
+performance.mark('pdefe:moduller');
+let olcumSayac = 0;   // açılan her belgenin işaretlerinin numarası (detail)
 const $ = (s) => document.querySelector(s);
 const pdefe = window.pdefe;
 
@@ -216,6 +219,8 @@ async function dosyaAc(yol, secenek = {}) {
   // (Gezgin'den çift tıklama ve ikinci örnek, macOS'ta Finder, araç sonuçlarındaki Aç). Aracın kendi işi bu kurala girmez: üzerine yazılan
   // sekmeyi aynı yerde yeniden açma (yenile) ve başka pencerede yeniden yazılan dosyanın sekmesini yenileme (yazildi)
   const aracArkasinda = acikAracPenceresiVar() && !secenek.yenile && !secenek.yazildi;
+  const olcum = ++olcumSayac;
+  performance.mark('pdefe:dosyaAc', { detail: olcum });
   for (const b of belgeler.values()) if (yolAyni(b.yol, yol)) {
     const bos = acilistan ? aktifId : null;
     sekmeSec(b.id);
@@ -240,11 +245,13 @@ async function dosyaAc(yol, secenek = {}) {
   sekmeler.ekle({ id, ad, yol, once: yerine });
   if (yerine) { baslangicSekmeleri.delete(yerine); sekmeler.kaldir(yerine); aktifId = null; }
   if (!secenek.arkaPlanda || !aktifId) sekmeSec(id);
+  performance.mark('pdefe:sekmeAcildi', { detail: olcum });
 
   // Sekme yüklenirken kapatılabilir (0.2.1): kapatıldıysa (belgeler'de yok) çekirdeğe yeni istek gitmez, dosya son açılanlara eklenmez, hata
   // sorulmaz. Yoksa çekirdek dosyayı sekme kapandıktan (belge_birak) sonra yeniden açıp kilitli tutardı
   try {
     const { veri, boyut } = await pdefe.cagir('dosya:oku', yol);
+    performance.mark('pdefe:dosyaOkundu', { detail: olcum });
     if (!belgeler.has(id)) return null;
     belge.boyut = boyut;
     const sonSayfa = ayar.kaldigimSayfadanAc ? (ayar.sayfaKonumlari || {})[yol] : null;
@@ -254,11 +261,16 @@ async function dosyaAc(yol, secenek = {}) {
     const zoomModu = duzenIkiMi(genelDuzen()) ? 'sayfa' : ['genislik', 'sayfa', 'gercek'].includes(zoom) ? zoom : typeof zoom === 'number' ? 'serbest' : 'genislik';
     const olcek = typeof zoom === 'number' ? zoom / 100 : 1;
     gorunum.koyuSayfa = koyuMu() && ayar.sayfayiKoyulastir;
+    gorunum.addEventListener('sayfaCizildi', () => {
+      performance.mark('pdefe:ilkSayfa', { detail: olcum });
+      requestAnimationFrame(() => performance.mark('pdefe:ilkSayfaKare', { detail: olcum }));   // pencere gizliyken kare yok
+    }, { once: true });
     await gorunum.yukle(veri, {
       yol, duzen: genelDuzen(), kapakAyri: !!ayar.kapakAyri, zoomModu, olcek,
       sayfa: secenek.sayfa || sonSayfa || 1,
-      parolaIste: (neden) => parolaSor(ad, neden),
+      parolaIste: (neden) => parolaSor(ad, neden), olcum,
     });
+    performance.mark('pdefe:belgeYuklendi', { detail: olcum });
     if (!belgeler.has(id)) return null;
     cekirdek('belge_bilgi', { yol }).then((bilgi) => { belge.bilgi = bilgi; }).catch(() => {});
     // notSozu: notların dosyadan ilk okunması (sekme başka pencereye taşınmadan önce beklenir, bkz. sekmePaketi)
@@ -2405,11 +2417,13 @@ document.addEventListener('click', (e) => {
 // ---------------------------------------------------------------- başlat
 (async function baslat() {
   await ayarlariYukle();
+  performance.mark('pdefe:ayarlar');
   secimCubuguYenile();   // seçim mini çubuğunda kayıtlı vurgu rengi seçili görünsün (çubuk ayarlar yüklenmeden kuruluyor)
   // Pencere açılış sekmesiyle açılır (0.1.21): sekme çubuğu hiç kapanmaz. Açılırken verilen ya da başka pencereden gelen belge bu sekmenin
   // yerini alır (ana süreç belge göndermeden önce 'uygulama:hazir'ı bekler). Açılış sayfası son açılanları da listeler
   yeniSekme();
   pdefe.gonder('pencere:belgeler', []);   // arayüz yeniden yüklendiyse ana süreçteki açık belge kaydı bayat kalmasın
   pdefe.gonder('uygulama:hazir');
+  performance.mark('pdefe:hazir');
   window.__pdefe = { belgeler, aktif, dosyaAc, yollariAc, belgeKapat, sekmeSec, komutCalistir, ayar: () => ayar, panel, sekmeler, arama, temizMetin, sayfaTarifiUygula, sayfalariDondur, belgeKaydet, mesajKutusu, sekmeyiTasi, sekmePaketi, tasimaSuruyor: () => tasimaSuruyor, kilitli: () => girdiKilitli(), gecmisListesi, tumSecim };
 })();

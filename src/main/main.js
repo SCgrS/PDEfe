@@ -1,4 +1,5 @@
 // PDEfe ana süreç: tek örnek, pdefe:// protokolü, menü, IPC köprüsü. Pencereler (birden çok olabilir) pencereler.js'te.
+import { zamanYaz, zamanlariAl } from './acilisZamanlari.js';   // ilk: açılış zamanları öteki modüllerin yüklenmesinden önce başlar
 import { app, BrowserWindow, protocol, net, ipcMain, dialog, Menu, shell, nativeTheme, clipboard } from 'electron';
 import { TEST, testDiyalogKur, sahteGuncelleyiciKur } from './gelistirme.js';
 import path from 'node:path';
@@ -28,6 +29,7 @@ function iptalJetonuSinifi() {
   } catch (e) { console.warn('[güncelleme] CancellationToken bulunamadı:', e?.message || e); return null; }
 }
 
+zamanYaz('anaModul');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const KOK = app.getAppPath();                   // package.json'un bulunduğu kök
 const PAKETLI = app.isPackaged;
@@ -174,6 +176,7 @@ async function pdfVarsayilaniOku() {
 // Gezgin'de çift tıklanan PDF (ikinci örnek): bir pencerede zaten açıksa o pencerede, değilse en son etkin pencerede açılır (UDF, TIFF, Word:
 // o pencerenin Dosya Formatını Değiştir aracında)
 app.on('second-instance', (_e, argv, cwd) => {
+  zamanYaz('ikinciOrnek');
   const k = dosyalariAc(argvdenDosyalar(argv, cwd)) || etkinKayit();
   if (k) odakla(k);
 });
@@ -559,6 +562,7 @@ function ipcKur(ipcMain) {
   });
 
   // Pencere kanalları (tam ekran, başlık, kapatma, sekme taşıma) pencereler.js'te
+  ipcMain.handle('uygulama:acilisZamanlari', () => zamanlariAl());   // ölçüm betiği (test/acilis_hizi.mjs; acilisZamanlari.js)
   ipcMain.handle('uygulama:bilgi', () => ({ surum: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome, node: process.versions.node, paketli: PAKETLI, kok: KOK }));
   ipcMain.handle('uygulama:sonDosyalar', (e, liste) => {
     ayarKoy('sonDosyalar', liste);
@@ -596,6 +600,7 @@ function ipcKur(ipcMain) {
 
 // ---------- Yaşam döngüsü ----------
 app.whenReady().then(() => {
+  zamanYaz('hazir');
   // Önceki oturumlardan kalan anlık kopyalar (yapısal kayıtta özgün dosyanın kopyası; sekme kapanınca silinir, pencere kapatma ya da
   // çökmede kalır). Tek örnek kilidi bizdeyse başka örnek bunları kullanmıyordur: çekirdek başlamadan ve pencere açılmadan sil.
   if (kilit) { try { fs.rmSync(anlikKlasoru(), { recursive: true, force: true }); } catch { /* yok say */ } }
@@ -631,7 +636,8 @@ app.whenReady().then(() => {
   uygulamaMenusuKur();
   pencereOlustur({ dosyalar: [...argvdenDosyalar(process.argv, process.cwd()), ...acilisDosyalari.splice(0)] });
   pencerelerKuruldu = true;
-  cekirdek.baslat().catch((e) => console.error('[çekirdek] başlatılamadı:', e));
+  zamanYaz('pencereIstendi');
+  cekirdek.baslat().then(() => zamanYaz('cekirdekHazir')).catch((e) => console.error('[çekirdek] başlatılamadı:', e));
 });
 
 // Son pencere kapanınca uygulama kapanır; macOS'ta da (0.2.0: belge uygulaması, Dock'ta boş kalmasın; Dock'tan yeniden açılır)
