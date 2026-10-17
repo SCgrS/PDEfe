@@ -11,6 +11,30 @@ const yakinlastirmaTekerlegi = (e) => e.ctrlKey || (MAC && e.metaKey);
 const KAYNAK = new URL('../../node_modules/pdfjs-dist/', import.meta.url).href;
 pdfjs.GlobalWorkerOptions.workerSrc = KAYNAK + 'build/pdf.worker.min.mjs';
 
+// Önden başlatılan PDF.js işçisi (0.2.10, açılış hızı): pencere Gezgin'de çift tıklanan bir belgeyle açılıyorsa (preload.cjs
+// ilkBelgeBekleniyor) belgenin işçisi bu modül yüklenirken başlatılır; işçi betiğinin yüklenmesi ve derlenmesi (~50 ms) arayüzün kalan
+// açılışıyla (ayarlar, açılış sekmesi, dosyanın okunması) aynı anda yürür. İlk açılan belge onu alır (isciAl) ve kendi işçisi gibi
+// sahiplenir: belge kapanınca işçi de kapanır. Belge gelmezse (PDF değil; Format Değiştir'de açılan dosya) ISCI_BEKLEME_MS sonra kapatılır.
+// Belgeyle açılmayan pencerede işçi önceden kurulmaz (boştaki işçi ~7 MB).
+const ISCI_BEKLEME_MS = 15000;
+let hazirIsci = null;
+if (globalThis.window?.pdefe?.ilkBelgeBekleniyor) {
+  try {
+    hazirIsci = new pdfjs.PDFWorker();
+    setTimeout(() => { if (hazirIsci) { hazirIsci.destroy(); hazirIsci = null; } }, ISCI_BEKLEME_MS);
+  } catch (e) { console.warn('PDF.js işçisi önden başlatılamadı', e); hazirIsci = null; }
+}
+/** Önden başlatılan işçiyi (bir kez) verir; yoksa null (PDF.js belgeye kendi işçisini kurar). */
+function isciAl() { const w = hazirIsci; hazirIsci = null; return w && !w.destroyed ? w : null; }
+/** Yükleme görevine verilen işçiyi göreve sahiplendirir: görev kapanınca (destroy) işçi de kapanır, PDF.js'in kendi kurduğu işçi gibi.
+ *  Dayanılan PDF.js iç adı: PDFDocumentLoadingTask._worker (yoksa görevin destroy'u sarılır). */
+function isciyiSahiplendir(gorev, isci) {
+  if (!isci) return;
+  if ('_worker' in gorev && gorev._worker == null) { gorev._worker = isci; return; }
+  const ozgun = gorev.destroy.bind(gorev);
+  gorev.destroy = () => ozgun().finally(() => isci.destroy());
+}
+
 export const CSS_BIRIM = 96 / 72;        // 1 pt = 1.333 css px (PDF.js görüntüleyicisiyle aynı)
 const BOSLUK = 12;                        // sayfalar arası boşluk (px)
 const KENAR = 16;                         // kenar boşluğu (px)
@@ -272,7 +296,9 @@ export class Goruntuleyici extends EventTarget {
   // ------------------------------------------------------------ yükleme
   async yukle(veri, secenek = {}) {
     if (this.yok) throw new Error('Görünüm kapatıldı.');
-    const gorev = pdfjs.getDocument(belgeSecenekleri(veri, secenek.parola));
+    const isci = isciAl();
+    const gorev = pdfjs.getDocument({ ...belgeSecenekleri(veri, secenek.parola), ...(isci ? { worker: isci } : {}) });
+    isciyiSahiplendir(gorev, isci);
     // Girilen parola saklanır: sekme başka pencereye taşınınca orada yeniden sorulmaz (durumAl)
     this._parola = secenek.parola ?? null;
     if (secenek.parolaIste) gorev.onPassword = (cb, neden) => secenek.parolaIste(neden).then((p) => { this._parola = p; cb(p); }, () => cb(new Error('vazgeçildi')));
