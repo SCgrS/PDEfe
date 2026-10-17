@@ -8,7 +8,7 @@ Windows 11 (ve Windows 10) ile macOS için sade, tüm araçları ücretsiz, rekl
 Hukukçuların ve her gün onlarca PDF açan herkesin işini görmek için yazıldı. Belgeler sekmelerde açılır, metin kopyalandığında satır sonları
 ve tireler temizlenir. PDEfe ile PDF, görüntü, TIFF, UDF ve Word dosyalarını tek PDF'te birleştirebilir, PDF'leri ayırabilir ve
 döndürebilir, üzerlerine yazı ekleyebilir, boyutlarını küçültebilir, UDF, Word, TIFF ve görüntü dosyalarını PDF'e, PDF'leri de UDF, Word,
-TIFF ve JPG'ye, hatta bu dosya türlerinin kendi arasında da format dönüştürme yapabilir.
+TIFF ve JPG'ye, hatta bu dosya türlerini kendi aralarında da dönüştürebilirsiniz.
 
 <p align="center">
   <img src="docs/ekran-acilis-koyu.png" width="90%" alt="Açılış ekranı koyu temada">
