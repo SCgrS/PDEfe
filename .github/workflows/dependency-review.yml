@@ -1,0 +1,33 @@
+# Bağımlılık incelemesi: bir gönderi ya da çekme isteği bilinen güvenlik açığı olan bir kütüphane ekliyorsa ya da bir
+# kütüphaneyi açığı olan sürüme çeviriyorsa iş akışı başarısız olur. Karşılaştırmayı GitHub'ın bağımlılık grafiği yapar.
+# Yalnız o değişikliğin eklediklerine bakar; depoda zaten duran kütüphanelerde sonradan duyurulan açıkları Dependabot
+# uyarıları gösterir.
+name: Dependency Review
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  incele:
+    name: İncele
+    runs-on: ubuntu-latest
+    steps:
+      - name: Depoyu al
+        uses: actions/checkout@v7
+
+      - name: Bağımlılıkları incele
+        uses: actions/dependency-review-action@v5
+        with:
+          # Gönderide gönderiden önceki ve sonraki commit, çekme isteğinde isteğin tabanı ve ucu karşılaştırılır. Eylem
+          # bu iki girdiden biri doluysa olay türüne bakmadan onları kullanır; bu yüzden iki olay için de doldurulur.
+          base-ref: ${{ github.event.pull_request.base.sha || github.event.before }}
+          head-ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # OpenSSF puanı için dış hizmetlere (deps.dev, securityscorecards.dev) istek atılmaz; o hizmetlerdeki bir
+          # aksaklık incelemeyi düşürmesin.
+          show-openssf-scorecard: false

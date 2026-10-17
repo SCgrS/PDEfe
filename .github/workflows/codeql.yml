@@ -1,7 +1,9 @@
-# CodeQL güvenlik taraması, gelişmiş kurulum (0.2.9). GitHub'ın varsayılan kurulumu test/ klasörünü de tarıyordu; ayar
-# .github/codeql/codeql-config.yml'de. Bu dosya asıl depoya gönderildiğinde depodaki varsayılan kurulum kapatılmalı
-# (iki kurulum birlikte çalışmaz):  gh api -X PATCH repos/SCgrS/PDEfe/code-scanning/default-setup -f state=not-configured
-name: CodeQL
+# CodeQL güvenlik taraması, gelişmiş kurulum (0.2.9; 0.3.0'da öbür açık depolardaki "CodeQL Advanced" düzenine geçti). GitHub'ın
+# varsayılan kurulumu test/ klasörünü de tarıyordu; ayar .github/codeql/codeql-config.yml'de. İki kurulum birlikte çalışmaz; depodaki
+# varsayılan kurulum 0.3.0 gönderilmeden önce kapatıldı:
+#   gh api -X PATCH repos/SCgrS/PDEfe/code-scanning/default-setup -f state=not-configured
+# Varsayılan kurulumun dillerinden csharp yok: tek C# dosyası test/'te, taranmıyor (dil kodsuz kalınca CodeQL hata verir).
+name: CodeQL Advanced
 
 on:
   push:
@@ -29,7 +31,7 @@ jobs:
         dil: [javascript-typescript, python, java-kotlin, actions]
     steps:
       - name: Depoyu al
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: CodeQL'i hazırla
         uses: github/codeql-action/init@v4
@@ -42,3 +44,14 @@ jobs:
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.dil }}"
+
+      # Tarama uyarı bulsa da analiz adımı başarılı biter. Bu adım ana daldaki (çekme isteğinde o isteğin) açık CodeQL
+      # uyarılarını sayar ve varsa işi düşürür; böylece rozetteki "passing" açık uyarı olmadığı anlamına gelir. Yanlış
+      # alarm olan uyarı Security sekmesinden gerekçesiyle kapatılır (dismiss).
+      - name: Açık uyarı varsa başarısız ol
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sayi=$(gh api "repos/$GITHUB_REPOSITORY/code-scanning/alerts?state=open&tool_name=CodeQL&ref=$GITHUB_REF&per_page=100" --jq 'length')
+          echo "Açık CodeQL uyarısı: $sayi"
+          test "$sayi" -eq 0
