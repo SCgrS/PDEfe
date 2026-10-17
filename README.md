@@ -5,10 +5,10 @@
 
 Windows 11 (ve Windows 10) ile macOS için sade, tüm araçları ücretsiz, reklamsız bir **PDF görüntüleyici ve düzenleyici**.
 
-Hukukçuların ve her gün onlarca PDF açan herkesin işini görmek için yazıldı. Belgeler sekmelerde açılır, metin kopyalandığında satır
-sonları ve tireler temizlenir. PDEfe ile PDF, görüntü, TIFF, UDF ve Word dosyalarını tek PDF'te birleştirebilir, PDF'leri ayırabilir ve
-döndürebilir, üzerlerine yazı ekleyebilir, boyutlarını küçültebilir, UDF, Word, TIFF ve görüntü dosyalarını PDF'e (PDF'leri de onlara ve
-JPG'ye) dönüştürebilirsiniz.
+Hukukçuların ve her gün onlarca PDF açan herkesin işini görmek için yazıldı. Belgeler sekmelerde açılır, metin kopyalandığında satır sonları
+ve tireler temizlenir. PDEfe ile PDF, görüntü, TIFF, UDF ve Word dosyalarını tek PDF'te birleştirebilir, PDF'leri ayırabilir ve
+döndürebilir, üzerlerine yazı ekleyebilir, boyutlarını küçültebilir, UDF, Word, TIFF ve görüntü dosyalarını PDF'e, PDF'leri de UDF, Word,
+TIFF ve JPG'ye, hatta bu dosya türlerinin kendi arasında da format dönüştürme yapabilir.
 
 <p align="center">
   <img src="docs/ekran-acilis-koyu.png" width="90%" alt="Açılış ekranı koyu temada">
@@ -33,8 +33,8 @@ JPG'ye) dönüştürebilirsiniz.
 - **Sekmeler ve pencereler:** Birden çok PDF tek pencerede açılır. Sekme sürüklenerek kendi penceresine ayrılır.
 - **Temiz kopyalama:** Satırlar paragraf olarak birleşir, tireler kalkar. Metin UYAP Doküman Editörü'ne ve Word'e düzgün yapışır.
 - **Araçlar:** Sıkıştır, Sayfaları düzenle, Döndür, Ayır, Birleştir, Format Değiştir.
-- **Birleştir:** Dosyalardan tek PDF oluşturur: PDF, görüntü, TIFF, UDF ve Word dosyaları listedeki sırayla birleşir, görüntü sayfaları A4
-  boyutunda olur.
+- **Birleştir:** Dosyalardan tek PDF oluşturur: PDF, görüntü, TIFF, UDF ve Word dosyaları listedeki sırayla birleşir, görüntü sayfaları A4'e
+  sığan en büyük ölçüde, beyaz kenar eklenmeden konur.
 - **Format Değiştir:** UDF, Word, TIFF ve görüntü ↔ PDF; PDF'in her sayfası JPG olarak da kaydedilir. UDF, UYAP Doküman Editörü'nün kendi
   sayfa düzeniyle PDF olur; PDF düzenlenebilir UDF'ye çevrilir.
 - **Yazdırma:** PDEfe'nin kendi penceresinde yazıcı, kâğıt, renk ve çift taraflı seçilir; sayfanın kâğıda nasıl basılacağı önceden görünür.
@@ -189,8 +189,8 @@ dönüştürmede (örneğin UDF → Word, TIFF → Word) hedef seçilince satır
 - **Word → PDF:** Word'ün kendisiyle; görünmeyen, ayrı bir Word kullanılır, açık Word'ünüze dokunulmaz. Belgenin yazar adı PDF'e geçmez.
   .docx, .doc, .rtf ve .odt dönüştürülür.
 - **PDF → Word:** Metni düzenlenebilir .docx. Taranmış sayfalar resim olarak aktarılır. Sayfa düzeni ve tablolar birebir korunmayabilir.
-- **TIFF → PDF:** Kayıpsız; her sayfa A4'e sığan en büyük ölçüde (UYAP'ın A4 taramaları tam A4) ve çoğunlukla TIFF'ten küçük. **PDF → TIFF:** Tek dosyada çok sayfa,
-  siyah beyaz, gri ya da renkli.
+- **TIFF → PDF:** Kayıpsız; her sayfa A4'e sığan en büyük ölçüde (UYAP'ın A4 taramaları tam A4) ve çoğunlukla TIFF'ten küçük.
+- **PDF → TIFF:** Tek dosyada çok sayfa, siyah beyaz, gri ya da renkli.
 - **Görüntü → PDF:** JPG, PNG, BMP, GIF ve WEBP. Her görüntü A4 boyutunda sayfa olur: oranı korunarak A4'e sığan en büyük ölçüde (dikey
   görüntü dikey, yatay görüntü yatay A4'ün içine; küçük görüntü büyür, büyüğü küçülür), beyaz kenar eklenmeden; çözünürlüğü değişmez.
   Telefon fotoğrafının yönü düzeltilir. iPhone'un HEIC fotoğrafları açılamaz.
@@ -206,6 +206,7 @@ Gereksinimler:
 | UDF → PDF | UYAP Doküman Editörü ve kullandığı Java 8. Bulunamazsa UDF yine dönüştürülür, PDEfe'nin yaklaşık çizimiyle: satır ve sayfa kırılımları editördekinden farklı olabilir. Editörün yeri Ayarlar › Kaydetme'den gösterilebilir. |
 | Word → PDF | Windows'ta Word ya da LibreOffice, macOS'ta LibreOffice. |
 | PDF → UDF, PDF → Word, TIFF ↔ PDF, görüntü → PDF, PDF → JPG | Bir şey gerekmez. |
+| Taranmış sayfanın yazısı (taranmış belgede seçim; taranmış PDF, TIFF ya da görüntü → UDF) | Windows'ta Türkçe yazı tanıyıcı (Türkçe Windows'ta hazır gelir). Türkçesi yoksa başka bir dilin tanıyıcısı kullanılır, Türkçe harfler yanlış gelebilir; hiç yoksa taranmış yazı seçilemez, UDF'de sayfa resim olarak kalır. macOS'ta bir şey gerekmez. |
 
 Birleştir'deki UDF ve Word belgeleri için de aynı gereksinimler geçerlidir.
 
@@ -219,10 +220,11 @@ yanında ⚠ simgesi çıkar; üstüne gelince ne olduğu yazar (örneğin alın
 ### Yazdırma ve PDF'i kopyala
 
 - **Yazdır** (`Ctrl+P`, araç çubuğunda Kaydet'in yanındaki düğme ya da sağ tık): PDEfe'nin kendi penceresinde yazıcı, kopya ve harmanlama,
-  sayfalar (tümü, geçerli sayfa, aralık), kâğıt, boyut (sayfaya sığdır, gerçek boyut), renkli ya da siyah beyaz, tek ya da çift taraflı
-  seçilir. Sağda sayfanın kâğıda nasıl basılacağı büyük olarak görünür. **Yazıcı tercihleri** yazıcının kendi ayarlarını açar. Son
-  seçilen yazıcı, kâğıt, renk ve çift taraflı gibi seçenekler hatırlanır; sayfa seçimi her açılışta **Tümü**dür. Türkçe karakterler
-  ekrandaki gibi çıkar.
+  sayfalar (tümü, geçerli sayfa, aralık), kâğıt, boyut (sayfaya sığdır, gerçek boyut), renkli ya da siyah beyaz, tek ya da çift taraflı ve
+  notların basılıp basılmayacağı seçilir. Sağda sayfanın kâğıda nasıl basılacağı büyük olarak görünür. **Yazıcı tercihleri** yazıcının kendi
+  ayarlarını açar. Son seçilen yazıcı, kâğıt, renk ve çift taraflı gibi seçenekler hatırlanır; sayfa seçimi her açılışta **Tümü**dür. Türkçe
+  karakterler ekrandaki gibi çıkar. Microsoft Print to PDF gibi dosyaya yazan yazıcıda dosyanın kaydedileceği yer sorulur. Windows'un kendi
+  yazdırma penceresini isteyenler için pencerenin altında **Windows yazdırma penceresiyle yazdır** bağlantısı var (Mac'te macOS'unki).
 - **PDF'i kopyala:** Belge dosya olarak panoya kopyalanır. UYAP'a, e-postaya ya da bir klasöre `Ctrl+V` ile yapıştırılır.
 
 ![Yazdır penceresi: yazıcı, kopya, sayfalar, kâğıt, renk, çift taraflı ve sayfanın ön izlemesi](docs/ekran-yazdir.png)
@@ -239,9 +241,9 @@ Editörü'nün bulunduğu yer ve sürümü görünür; editör kendiliğinden bu
 
 ## Güncelleme
 
-PDEfe iki günde bir yeni sürüm olup olmadığına bakar. Yeni sürüm varsa pencerenin üstünde şerit çıkar. Windows'ta **Güncelle**'ye basmak
-yeter. PDEfe yeni sürümü kurup kendiliğinden yeniden açılır. macOS'ta **İndir** yeni dosyayı indirir, kurulumdaki gibi Uygulamalar'a
-sürüklenir. Sürüm notları [CHANGELOG.md](CHANGELOG.md) dosyasındadır.
+PDEfe iki günde bir yeni sürüm olup olmadığına bakar. Ayarlar › Güncelleme'deki **Şimdi denetle** ile hemen de bakılır. Yeni sürüm varsa
+pencerenin üstünde şerit çıkar. Windows'ta **Güncelle**'ye basmak yeter. PDEfe yeni sürümü kurup kendiliğinden yeniden açılır. macOS'ta
+**İndir** yeni dosyayı indirir, kurulumdaki gibi Uygulamalar'a sürüklenir. Sürüm notları [CHANGELOG.md](CHANGELOG.md) dosyasındadır.
 
 İndirme bitene dek PDEfe'yi kapatmayın. Kapatırsanız ya da internet bağlantısı koparsa indirme sonraki denemede baştan başlar; şerit
 PDEfe yeniden açılınca kendiliğinden yeniden çıkar. Kurulu sürümle aynı kalan kısımlar yeniden indirilmez. Kaydedilmemiş bir belgeniz
@@ -254,22 +256,23 @@ Windows'ta **Ayarlar › Uygulamalar › Yüklü uygulamalar › PDEfe › Kald�
 ## Verileriniz
 
 Bütün işlemler bilgisayarınızda yapılır. Belgeleriniz hiçbir yere gönderilmez, telemetri yoktur. Dosya dönüştürme de bilgisayarınızda
-yapılır: UYAP Doküman Editörü ve Word pencere açılmadan kullanılır, ayarlarına ve açık belgelerine dokunulmaz. PDEfe internete yalnızca yeni
-sürüm denetimi için iki günde bir GitHub'a istek gönderir. Güncelleme denetimi Ayarlar'dan kapatılabilir (önerilmez).
+yapılır: UYAP Doküman Editörü ve Word pencere açılmadan kullanılır, ayarlarına ve açık belgelerine dokunulmaz. Dönüştürülen belgeler Word'ün
+"Son kullanılanlar" listesine eklenmez. PDEfe internete yalnızca yeni sürüm denetimi için iki günde bir GitHub'a istek gönderir. Güncelleme
+denetimi Ayarlar'dan kapatılabilir (önerilmez).
 
 ## Üçüncü taraf projeler
 
-PDEfe şu açık kaynak projeler üzerine kuruludur: Electron, PDF.js, PyMuPDF / MuPDF, Python, pdf2docx, python-docx ve başkaları. Sürümler ve lisanslar
-[THIRD_PARTY.md](THIRD_PARTY.md) dosyasındadır.
+PDEfe şu açık kaynak projeler üzerine kuruludur: Electron, PDF.js, PyMuPDF / MuPDF, Python, pdf2docx, python-docx, legaluga-uyap-ui (UDF
+çizimi) ve başkaları. Sürümler ve lisanslar [THIRD_PARTY.md](THIRD_PARTY.md) dosyasındadır.
 
 ## Teşekkür
 
 PDEfe, açık kaynak projelerin emeği üzerine kuruldu. Sayfaları çizen PDF.js için Mozilla'ya, belgeleri işleyen MuPDF ve
 PyMuPDF için Artifex'e, uygulamanın çatısı Electron'un geliştiricilerine ve adı burada geçmeyen bütün katkıcılara teşekkür ederim.
 
-UYAP Doküman Editörü kurulu olmayan bilgisayarlarda UDF belgelerini çizen motor, [legaluga-uyap-ui](https://github.com/hasanimer/legaluga-uyap-ui)
-projesinin UDF okuyucusundan türetildi (MIT lisansı; lisans metni ve telif bildirimi `src/udf-cizim/LICENSE.txt` dosyasında). Bu emek için
-geliştiricisine ayrıca teşekkür ederim.
+UYAP Doküman Editörü kurulu olmayan bilgisayarlarda UDF belgelerini çizen motor,
+[legaluga-uyap-ui](https://github.com/hasanimer/legaluga-uyap-ui) projesinin UDF okuyucusundan türetildi (MIT lisansı; lisans metni ve telif
+bildirimi `src/udf-cizim/LICENSE.txt` dosyasında). Bu emek için Hasan İmer Akın'a buradan da teşekkür ederim.
 
 ---
 
