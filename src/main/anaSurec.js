@@ -3,12 +3,12 @@
 // yüklenir ('ready' bu modül bitmeden gelebilir; whenReady o zaman hemen çalışır).
 import { zamanYaz, zamanlariAl } from './acilisZamanlari.js';
 import { erkenOlaylariBagla } from './erkenOlaylar.js';
-import { app, BrowserWindow, protocol, net, ipcMain, dialog, Menu, shell, nativeTheme, clipboard } from 'electron';
+import { app, BrowserWindow, protocol, ipcMain, dialog, Menu, shell, nativeTheme, clipboard } from 'electron';
 import { TEST, testDiyalogKur, sahteGuncelleyiciKur } from './gelistirme.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { execFile } from 'node:child_process';
-import { pathToFileURL, fileURLToPath } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { ayarDeposu, tumAyarlar, ayarKoy, ayarAl, bekleyenYazimVar, VARSAYILANLAR } from './ayarlar.js';
 import { menuKur } from './menu.js';
 import { Cekirdek } from './cekirdek.js';
