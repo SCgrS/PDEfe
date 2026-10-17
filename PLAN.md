@@ -3777,13 +3777,36 @@ biraz daha hızlı açılmasını sağlayabilir miyiz bakalım." (Gezgin'de çif
 - [x] Sürüm 0.2.10 (package.json, package-lock.json); CHANGELOG; docs/DOGRULAMA.md 45. README değişmedi (görünür arayüz aynı).
 
 #### 0.2.10: paket ve son sınama
-- [ ] Paket ve son sınama (aşağıda doldurulacak).
+- [x] **Paket** (HEAD 8dce198; `npm run cekirdek:derle` 63 sn, çekirdek ping OK; `npx electron-builder --win --publish never` 2 dk): PDEfe-Setup.exe
+  147.979.464 bayt (0.2.9'dan +11 KB), SHA-256 `757A55DA…BF54`, exe sürümü 0.2.10; İndirilenler'de `PDEfe-Setup-0.2.10.exe`. Kurucu çalıştırılmadı.
+  Çekirdek (core/) 0.2.9'dan beri değişmedi. Sonraki commit (bu bölüm) pakete girmeyen bir dosya.
+- [x] **Paketli sınama** (görünmeyen masaüstünde `release\win-unpacked\PDEfe.exe`): paket_duman 18/18 (sürüm 0.2.10); acilis_davranis `--exe` 14/14;
+  acilis_saglamlik `--exe` 6/6 (1. ve 3. senaryo yalnızca geliştirme sürümünde); gercek_fare `-Paketli -Bos` 9/9; gercek_fare `-Paketli` yedi koşunun
+  altısında 9/9: ilk koşuda "Belge yeni pencerede açıldı, kaynakta iki sekme kaldı" denetimi bir kez düştü (sonraki beş koşu geçti), bir koşuda örnek
+  başlatılamadı (önceki koşunun örneği henüz kapanmamıştı; aynı veri klasörü). Paketli çekirdekle donustur_testi `--exe --hizli` 230/230,
+  udf_donusum_testi `--exe` 129/129 (UDE ile), word_donusum_testi `--exe` 19/19 (`PDEFE_WORD_YOK=1`; çekirdek değişmediği için Word açılmadı).
+- [x] **Son regresyon** (geliştirme sürümü; her test kendi temiz örneğinde, sırayla, ekran dışında ya da görünmeyen masaüstünde): acilis_saglamlik
+  14/14, ayarlar_okuma_birim 10/10, acilis_davranis 14/14, tema_acilis 47/47 (koyu ve "Sistemi izle"), acilis_hizasi 10/10 (%100 ve %125),
+  kisayol_gorunum 115/115, senaryo19 112/112, senaryo20 52/52, senaryo23 53/53, sekme_genislik 38/38, senaryo38 64/64 (sahte yazıcılar), senaryo14
+  60/60, senaryo32 21/21, senaryo33 12/12 (sahte güncelleyici), mac_renderer 46/46, panel_ilk_acilis 10/10, pencere_konumu 5/5 (ilk iki koşuda adımlar
+  arasında veri klasörü silinemedi: kapatılan örnek dosyaları henüz bırakmamıştı; madde 2'nin sınamasında da görülen); guvenlik_birim, pano_birim,
+  güncelleme birim geçti.
+- [x] **senaryo22, 0.2.9 ile karşılaştırma** (ea691db, `%TEMP%`'te çalışma ağacı; bağlantılar önce kaldırılarak silindi): HEAD'de üç koşu: 101/102
+  ("Çöken pencere: hazır değil, dosya kaydı boş" düştü), 27 ve 44 denetimden sonra takıldı (kod 13: sekmesi taşınan pencere kapanırken betiğin CDP
+  değerlendirmesi yanıtsız kalıyor). 0.2.9 kodunda üç koşu: 101/102 (aynı denetim), 99'dan sonra kesildi, 27'den sonra takıldı. Aynı tablo: 0.2.10'un
+  gerilemesi değil, betiğin bu ortamdaki kararsızlığı (0.2.9'un son sınamasında 102/102 idi).
+- [x] **Kişisel veri taraması** (ea691db..HEAD'in farkı ve 17 commit iletisi; yalnızca sayılar): marka adı, kullanıcı klasörü (kısa adı dâhil), soyadı,
+  büro adı, `Users\<ad>` yolları 0.
+- [x] Temizlik: test örnekleri kapatıldı (kalan electron / PDEfe / pdefe-core süreci yok); `%TEMP%`'teki `pdefe-*` klasörleri, karşılaştırma çalışma
+  ağaçları, `release\win-unpacked` ve `core\dist` silindi (`release\PDEfe-Setup.exe` 0.2.10). Sınamalar gerçek Masaüstü'ne ve Belgeler'e yazmadı.
+  Kullanıcının PDEfe'sine ve Word'üne dokunulmadı.
 
 #### 0.2.10: açık konular
 - [ ] Gerçek ekranda (kullanıcının masaüstünde) ölçülmedi: GPU kurulumu orada farklı olabilir; ölçüm bu bilgisayarda başka oturumların yükü altında
   yapıldı (mutlak sayılar oynak, karşılaştırmalar aynı koşuda).
-- [ ] senaryo22 ve senaryo23 madde 2'nin sınamasında 27. / 24. denetimden sonra takıldı; 0.2.10'un ilk commit'inde (8e9864d) de aynı yerde: bu işin
-  gerilemesi değil (aşağıdaki son sınamaya bakın).
+- [ ] senaryo22 bu ortamda kararsız (takılma, "Çöken pencere" denetimi): 0.2.9 kodunda da aynı (yukarıda); betiğin taşınan sekmenin penceresi
+  kapanırken yanıtsız kalan CDP değerlendirmesini zaman sınırıyla bırakması gerekir. senaryo23 madde 2'nin sınamasında 24. denetimde takılmıştı, son
+  sınamada 53/53. gercek_fare `-Paketli`'nin bir kez düşen denetimi yeniden üretilemedi.
 - [ ] Olağan kapatmada test örneğinin 15 sn içinde kapanmadığı koşular oldu (acilis_hizi'nin 16 koşusundan birkaçı; 0.2.9 ve 0.2.10'da aynı).
   Kapanma uzasa da artık çift tıklanan belge kaybolmuyor (inceleme bulgusu); kapanmanın kendisi ayrıca incelenmeli.
 - [ ] Mac CI koşulmadı (dal gönderme onayı gerekir). Mac'e dokunan: erkenOlaylar.js (open-file sırası), giriş, kapanırken gelen dosya (open-file).
