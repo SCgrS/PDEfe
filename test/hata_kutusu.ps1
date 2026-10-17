@@ -4,7 +4,8 @@
 # çalışır: örnek görünmeyen masaüstündeyse (test/acilis_baslat.ps1, baslat_gizli.ps1) betik kendini o masaüstünde yeniden başlatır, işi
 # oradan yapar ve sonucu yazar (pencere_kapat.ps1 gibi). Yalnızca verilen sürecin kutularına dokunur.
 # Kullanım:  powershell -NoProfile -ExecutionPolicy Bypass -File test\hata_kutusu.ps1 -Masaustu <ad> -SurecNo <pid> [-Tikla]
-# Çıktı: tek satır JSON { sayi, kutular: [{ baslik, metinler: [...] }], tiklandi }  ya da  { hata: "..." }
+# Çıktı: tek satır JSON { sayi, kutular: [{ baslik, metinler: [...] }], tiklandi, pencereler: [uygulama penceresi başlıkları] }  ya da
+# { hata: "..." }
 param([string]$Masaustu = '', [int]$SurecNo, [switch]$Tikla, [switch]$Icerde, [string]$Cikti = '')
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @"
@@ -29,14 +30,14 @@ public static class HataKutusu {
   [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool CreateProcess(string app, string cmd, IntPtr pa, IntPtr ta, bool miras, uint bayrak, IntPtr ortam, string klasor, ref STARTUPINFO si, out PROCESS_INFORMATION pi);
   [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
 
-  /** Bu masaüstünde sürecin görünür iletişim kutuları (#32770). */
-  public static List<IntPtr> Kutular(uint pid) {
+  /** Bu masaüstünde sürecin görünür pencereleri, sınıfına göre: "#32770" iletişim kutuları, "Chrome_WidgetWin_1" uygulama pencereleri. */
+  public static List<IntPtr> Pencereler(uint pid, string sinif) {
     var sonuc = new List<IntPtr>();
     EnumWindows((h, l) => {
       uint p; GetWindowThreadProcessId(h, out p);
       if (p != pid || !IsWindowVisible(h)) return true;
       var c = new StringBuilder(256); GetClassName(h, c, 256);
-      if (c.ToString() == "#32770") sonuc.Add(h);
+      if (c.ToString() == sinif) sonuc.Add(h);
       return true;
     }, IntPtr.Zero);
     return sonuc;
@@ -68,7 +69,7 @@ if ($Icerde) {
     Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
     $kutular = @()
     $tiklandi = $false
-    foreach ($h in [HataKutusu]::Kutular([uint32]$SurecNo)) {
+    foreach ($h in [HataKutusu]::Pencereler([uint32]$SurecNo, '#32770')) {
       $metinler = @()
       try {
         $oge = [System.Windows.Automation.AutomationElement]::FromHandle($h)
@@ -80,7 +81,9 @@ if ($Icerde) {
       $kutular += @{ baslik = [HataKutusu]::Baslik($h); metinler = @($metinler) }
       if ($Tikla) { $tiklandi = [HataKutusu]::Tamam($h) -or $tiklandi }
     }
-    $sonuc = @{ sayi = $kutular.Count; kutular = @($kutular); tiklandi = $tiklandi }
+    # Uygulama penceresi açıldı mı (başlıkları): hata kutusu açıkken hata ayıklama kapısı yanıt vermediği için pencereden bakılır
+    $pencereler = @([HataKutusu]::Pencereler([uint32]$SurecNo, 'Chrome_WidgetWin_1') | ForEach-Object { [HataKutusu]::Baslik($_) })
+    $sonuc = @{ sayi = $kutular.Count; kutular = @($kutular); tiklandi = $tiklandi; pencereler = $pencereler }
   } catch { $sonuc = @{ hata = "$_" } }
   [IO.File]::WriteAllText($Cikti, ($sonuc | ConvertTo-Json -Compress -Depth 5), (New-Object System.Text.UTF8Encoding $false))
   exit 0

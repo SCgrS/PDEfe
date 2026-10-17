@@ -4,7 +4,8 @@
 // ve onunla PDF.js'in ekran karesi bekleyen sayfa çizimi gecikiyordu (ölçüldü). Depo artık açılış bittikten sonra arka planda yüklenir
 // (anaSurec.js, ayarDeposu). O ana dek ayarlar ayarlar.json'un kopyasından okunur (varsayılanlar ve taşımalar uygulanmış: deponun yüklenince
 // yazacağıyla aynı); yazılanlar kopyaya yazılır ve sıraya girer, depo yüklenince sırasıyla dosyaya geçer. Çıkışta (anaSurec.js) depo
-// yüklenmemişse yüklenip sıradakiler yazılır. Değeri değişmeyen yazım (açılışta arayüzün aynı değeri yazması) sıraya girmez.
+// yüklenmemişse yüklenip sıradakiler yazılır. Değeri değişmeyen yazım (açılışta arayüzün aynı değeri yazması) sıraya girmez. Dosya
+// açılışta okunamıyorsa (başka bir program kilitlemiş) kopya alınmaz, depo hemen yüklenir (0.2.10 inceleme; kopyaAl).
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -75,28 +76,67 @@ const bekleyenYazimlar = [];   // depo yüklenmeden yazılanlar: [anahtar, değe
 /** Kopya üzerinde depo gibi işlem (taşımalar için): get / set / has / delete. */
 const kopyaErisimi = (o) => ({ get: (k) => o[k], set: (k, v) => { o[k] = v; }, has: (k) => k in o, delete: (k) => { delete o[k]; } });
 
-/** electron-store'un dosyası (name: 'ayarlar'): veri klasöründe ayarlar.json. Okunamazsa ya da bozuksa (clearInvalidConfig gibi) yalnızca
- *  varsayılanlar. Taşımalar kopyada da yapılır (yalnızca bellekte; dosyaya depo yüklenince yazılır). */
+// Ayar dosyası o an okunamıyorsa (yedekleme, eşitleme ya da virüs tarayıcısı paylaşımsız açmış) depo bu kadar kez, bu aralıkla denenir (~0,35 sn)
+const OKUMA_DENEMESI = 8, DENEME_ARALIGI_MS = 50;
+
+/** Eş zamanlı kısa bekleme (yalnızca ayar dosyası okunamazken; ana süreç zaten okumayı bekliyor). */
+function bekleEsZamanli(ms) {
+  try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); }
+  catch { const son = Date.now() + ms; while (Date.now() < son) { /* bekle */ } }
+}
+
+/** electron-store'un dosyası (name: 'ayarlar'): veri klasöründe ayarlar.json. Dosya yoksa ya da bozuksa (clearInvalidConfig gibi) yalnızca
+ *  varsayılanlar. Taşımalar kopyada da yapılır (yalnızca bellekte; dosyaya depo yüklenince yazılır). Dosya var ama okunamıyorsa kopya
+ *  alınmaz, depo hemen yüklenir (aşağıda): null döner, ayarlar depodan okunur. */
 function kopyaAl() {
   if (kopya) return kopya;
+  const yol = path.join(app.getPath('userData'), 'ayarlar.json');
+  let metin = null;
+  try { metin = fs.readFileSync(yol, 'utf8'); }
+  catch (e) {
+    if (e?.code !== 'ENOENT') {
+      // 0.2.10 inceleme: önceden her okuma hatası varsayılanlara düşüyordu. Arayüz son açılanları ve sayfa konumlarını bu kopyadan alıp
+      // bütünüyle yazdığı için kayıtlı listeler sonradan boşuyla üzerine yazılıyordu. Depo hemen yüklenir (0.2.9'daki gibi; kısa aralıklarla
+      // yeniden denenir); o da okuyamazsa açılış hatası ("PDEfe açılamadı", anaSurec.js), dosya değişmez
+      depoyuHemenYukle(yol);
+      return null;
+    }
+  }
   let dosya = {};
-  try {
-    const j = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'ayarlar.json'), 'utf8'));
-    if (j && typeof j === 'object' && !Array.isArray(j)) dosya = j;
-  } catch { /* yok ya da bozuk: varsayılanlar */ }
+  if (metin != null) {
+    try {
+      const j = JSON.parse(metin);
+      if (j && typeof j === 'object' && !Array.isArray(j)) dosya = j;
+    } catch { /* bozuk: depo da (clearInvalidConfig) varsayılanlarla başlar */ }
+  }
   kopya = structuredClone({ ...VARSAYILANLAR, ...dosya });
   tasimalariYap(kopyaErisimi(kopya));
   return kopya;
 }
 
+/** Ayar dosyası açılışta okunamadı: depo hemen yüklenir; yüklenemezse kullanıcıya dönük iletili hata (anaSurec.js acilisHatasi). */
+function depoyuHemenYukle(yol) {
+  try { ayarDeposu({ deneme: OKUMA_DENEMESI }); }
+  catch (e) {
+    const hata = new Error(`Ayar dosyası okunamadı: ${yol} (${e?.code || e?.message || e})`, { cause: e });
+    hata.kullaniciIletisi = 'Ayar dosyası okunamadı: başka bir program (yedekleme, eşitleme ya da virüs tarayıcısı) dosyayı kullanıyor olabilir. Biraz sonra PDEfe\'yi yeniden açın.';
+    throw hata;
+  }
+}
+
 /** Depoyu yükler (bir kez; eş zamanlı): taşımalar dosyaya yazılır, bekleyen yazımlar sırasıyla depoya geçer. electron-store yalnız ES
- *  modülüdür; require ile eş zamanlı yüklenir (Node'un require(esm) desteği): çıkışta beklemeden yüklenip yazılabilsin. */
-export function ayarDeposu() {
+ *  modülüdür; require ile eş zamanlı yüklenir (Node'un require(esm) desteği): çıkışta beklemeden yüklenip yazılabilsin. deneme: dosya
+ *  okunamazsa kaç kez denenir (DENEME_ARALIGI_MS arayla); son denemenin hatası fırlatılır. Yazılamayan bekleyen yazım sırada kalır. */
+export function ayarDeposu({ deneme = 1 } = {}) {
   if (ayarlar) return ayarlar;
   const { default: Store } = createRequire(import.meta.url)('electron-store');
-  const depo = new Store({ name: 'ayarlar', defaults: VARSAYILANLAR, clearInvalidConfig: true });
+  let depo = null;
+  for (let i = 1; !depo; i++) {
+    try { depo = new Store({ name: 'ayarlar', defaults: VARSAYILANLAR, clearInvalidConfig: true }); }
+    catch (e) { if (i >= deneme) throw e; bekleEsZamanli(DENEME_ARALIGI_MS); }
+  }
   tasimalariYap(depo);
-  for (const [anahtar, deger] of bekleyenYazimlar.splice(0)) depo.set(anahtar, deger);
+  while (bekleyenYazimlar.length) { const [anahtar, deger] = bekleyenYazimlar[0]; depo.set(anahtar, deger); bekleyenYazimlar.shift(); }
   ayarlar = depo;
   kopya = null;
   return depo;
@@ -149,15 +189,16 @@ function tasimalariYap(ayarlar) {
 }
 
 export function ayarAl(anahtar) {
-  if (ayarlar) return ayarlar.get(anahtar);
-  const v = kopyaAl()[anahtar];
+  const k = ayarlar ? null : kopyaAl();
+  if (!k) return ayarlar.get(anahtar);   // depo yüklü (ya da dosya okunamadığı için şimdi yüklendi)
+  const v = k[anahtar];
   return v && typeof v === 'object' ? structuredClone(v) : v;   // depo gibi her okumada ayrı nesne
 }
 /** Yazar. Depo henüz yüklenmediyse kopyaya yazılır ve sıraya girer (değeri değişmiyorsa girmez); depo yüklenince dosyaya geçer. */
 export function ayarKoy(anahtar, deger) {
-  if (ayarlar) { ayarlar.set(anahtar, deger); return; }
+  const k = ayarlar ? null : kopyaAl();
+  if (!k) { ayarlar.set(anahtar, deger); return; }
   if (deger === undefined) throw new TypeError('Use `delete()` to clear values');   // electron-store gibi
-  const k = kopyaAl();
   if (anahtar in k && JSON.stringify(k[anahtar]) === JSON.stringify(deger)) return;
   k[anahtar] = structuredClone(deger);
   bekleyenYazimlar.push([anahtar, structuredClone(deger)]);
@@ -165,4 +206,7 @@ export function ayarKoy(anahtar, deger) {
 /** Depo yüklenmeden yazılıp dosyaya geçmemiş değer var mı. */
 export function bekleyenYazimVar() { return bekleyenYazimlar.length > 0; }
 /** Bütün ayarlar (arayüzün 'ayar:al'ı). */
-export function tumAyarlar() { return ayarlar ? ayarlar.store : structuredClone(kopyaAl()); }
+export function tumAyarlar() {
+  const k = ayarlar ? null : kopyaAl();
+  return k ? structuredClone(k) : ayarlar.store;
+}

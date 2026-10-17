@@ -100,7 +100,8 @@ async function sayfa(port, sonZaman = Date.now() + 30000) {
   let h = null;
   while (!h) {
     if (Date.now() > sonZaman) return null;
-    try { h = (await (await fetch(`http://127.0.0.1:${port}/json`)).json()).find((x) => x.type === 'page' && /index\.html/.test(x.url)); } catch { /* henüz */ }
+    // Zaman sınırlı: hata kutusu açıkken ana iş parçacığı kutuyu bekler, hata ayıklama kapısı yanıt vermez
+    try { h = (await (await fetch(`http://127.0.0.1:${port}/json`, { signal: AbortSignal.timeout(1500) })).json()).find((x) => x.type === 'page' && /index\.html/.test(x.url)); } catch { /* henüz */ }
     if (!h) await bekle(80);
   }
   const ws = new WebSocket(h.webSocketDebuggerUrl);
@@ -175,19 +176,17 @@ try {
     const b = await baslaticiAc(PAKETLI ? {} : { PDEFE_VERI_KLASORU: veri });
     try {
       const a = await b.baslat(`${uygulamaArg(veri)}--remote-debugging-port=${PORT} "${pdf('taranmis')}"`, klasorAl());
-      // Ya pencere açılır (varsayılanlarla: kusur) ya da açılış hatası kutusu
+      // Beklenen: açılış hatası kutusu, uygulama penceresi yok. Kusur: pencere varsayılanlarla açılır (ayar deposu ~0,3 sn sonra okuyamayınca
+      // ayrıca ana süreç hata kutusu çıkar; kutu açıkken hata ayıklama kapısı yanıt vermez): pencere, kutuyla birlikte masaüstünden aranır
       let acildi = null, k = { sayi: 0 };
       const t0 = Date.now();
       while (Date.now() - t0 < 15000) {
         k = kutular(a.pid);
-        if (k.sayi > 0) break;
-        const s = await sayfa(PORT, Date.now() + 300);
-        if (s) {
-          acildi = await kosul(s, `window.pdefe.cagir('ayar:al').then((a) => ({ tema: a.tema, sonDosyalar: (a.sonDosyalar || []).length }))`, 3000).catch(() => null);
-          try { s.ws.close(); } catch { /* kapandı */ }
-          break;
-        }
+        if (k.pencereler?.length) acildi = { pencereler: k.pencereler };
+        if (acildi || k.sayi > 0) break;
+        await bekle(300);
       }
+      if (!acildi && k.sayi > 0) { await bekle(1500); const k2 = kutular(a.pid); if (k2.pencereler?.length) acildi = { pencereler: k2.pencereler }; }
       sonuc('2) Ayar dosyası okunamazken PDEfe varsayılanlarla açılmadı', acildi == null, acildi);
       sonuc('2) "PDEfe açılamadı" kutusu dosyanın okunamadığını söylüyor', k.sayi >= 1 && /PDEfe açılamadı/.test(metinler(k)) && /Ayar dosyası okunamadı/.test(metinler(k)), metinler(k) || k);
       if (k.sayi >= 1) kutular(a.pid, true);

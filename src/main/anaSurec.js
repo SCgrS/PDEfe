@@ -658,11 +658,20 @@ function arkaPlanYuklemeleriniZamanla(gosterildi) {
   if (gosterildi) { if (ilkGosterimZamanlandi) return; ilkGosterimZamanlandi = true; }
   const [depoMs, guncelleyiciMs] = gosterildi ? [DEPO_GECIKMESI_MS, GUNCELLEYICI_GECIKMESI_MS] : [ARKA_PLAN_EN_GEC_MS, ARKA_PLAN_EN_GEC_MS];
   clearTimeout(depoZamanlayici); clearTimeout(guncelleyiciZamanlayici);
-  depoZamanlayici = setTimeout(() => {
-    try { ayarDeposu(); zamanYaz('ayarDeposu'); }
-    catch (e) { process.emit('uncaughtException', e); }   // depo kurulamadı: önceden açılışta olduğu gibi ana süreç hata kutusu
-  }, depoMs);
+  depoZamanlayici = setTimeout(() => depoyuYukle(DEPO_YENIDEN_DENEME), depoMs);
   guncelleyiciZamanlayici = setTimeout(() => { if (!guncelleme) guncellemeyiKur().then(() => zamanYaz('guncellemeKuruldu')); }, guncelleyiciMs);
+}
+
+// Ayar dosyası o an okunamıyorsa (yedekleme, eşitleme ya da virüs tarayıcısı paylaşımsız açmış) depo bu kadar kez, bu aralıkla yeniden denenir
+const DEPO_YENIDEN_DENEME = 5, DEPO_YENIDEN_DENEME_MS = 1000;
+/** Ayar deposunu arka planda yükler. Yüklenemezse kalan kez yeniden dener (ayarlar bu arada kopyadan okunur, yazılanlar bekler: ayarlar.js);
+ *  hiç yüklenemezse eskisi gibi ana süreç hata kutusu, uygulama sürer (bekleyen yazımlar çıkışta yeniden denenir). */
+function depoyuYukle(kalan) {
+  try { ayarDeposu(); zamanYaz('ayarDeposu'); }
+  catch (e) {
+    if (kalan > 0) { depoZamanlayici = setTimeout(() => depoyuYukle(kalan - 1), DEPO_YENIDEN_DENEME_MS); return; }
+    process.emit('uncaughtException', e);
+  }
 }
 
 // ---------- Güncelleme (0.2.10: güncelleyici ilk pencere kurulduktan sonra yüklenir) ----------
@@ -723,7 +732,7 @@ app.on('will-quit', () => { ayarlariKaydet(); geciciKopyalariSil({ yazdirma: fal
 /** Ayar deposu yüklenmeden yazılanlar dosyaya geçer (çıkışta; 0.2.10, ayarlar.js). */
 function ayarlariKaydet() {
   if (!bekleyenYazimVar()) return;
-  try { ayarDeposu(); } catch (e) { console.error('[ayarlar] kaydedilemedi:', e); }
+  try { ayarDeposu({ deneme: 8 }); } catch (e) { console.error('[ayarlar] kaydedilemedi:', e); }   // dosya bir an kilitliyse kısa aralıklarla
 }
 
 // Bu modül yüklenmeden gelen ve bundan sonra gelecek dosya açma olayları (girişte dinleniyor)
