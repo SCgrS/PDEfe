@@ -218,7 +218,11 @@ try {
         await pencereyiKapat(s);
         // Son pencere kapandı; süreç 3 sn daha yaşıyor (kancayla). Bu arada Gezgin'de başka bir PDF'e çift tıklandı
         await bekle(400);
-        const ikinci = await b.baslat(`. "${pdf('taranmis-2')}"`, KOK);
+        // Adında boşluk ve Türkçe harf olan belge: yeniden başlatmanın komut satırı
+        const ikinciBelge = path.join(ORNEKLER, 'kapanırken açılan belge.pdf');
+        fs.copyFileSync(pdf('taranmis-2'), ikinciBelge);
+        silinecekler.push(ikinciBelge);
+        const ikinci = await b.baslat(`. "${ikinciBelge}"`, KOK);
         const c2 = await b.cikis(ikinci.pid, 3000);
         sonuc('3) İkinci süreç dosyayı kapanmakta olan örneğe iletip çıktı (kod 0)', !!c2 && c2.kod === 0, c2);
         if (!c2) zorla(ikinci.pid);
@@ -227,7 +231,7 @@ try {
         if (!c1) zorla(a.pid);
         s = await sayfa(PORT, Date.now() + 20000);
         yeniPid = portSureci(PORT);
-        const yeni = s ? await kosul(s, `(${BELGELER}).some((b) => /taranmis-2/.test(b.ad) && b.hazir) && ${BELGELER}`, 15000) : null;
+        const yeni = s ? await kosul(s, `(${BELGELER}).some((b) => /kapanırken açılan belge/.test(b.ad) && b.hazir) && ${BELGELER}`, 15000) : null;
         sonuc('3) Süreç çıkınca PDEfe çift tıklanan belgeyle yeniden açıldı (yalnızca o belge)', Array.isArray(yeni) && yeni.length === 1, yeni ?? 'yeniden açılmadı');
         if (s) {
           await pencereyiKapat(s);

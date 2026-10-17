@@ -184,8 +184,24 @@ async function pdfVarsayilaniOku() {
 function ikinciOrnek(argv, cwd) {
   const dosyalar = argvdenDosyalar(argv, cwd);
   if (!pencerelerKuruldu) { acilisDosyalari.push(...dosyalar); return; }
+  if (cikiliyor) { kapanirkenGeleniAc(dosyalar); return; }
   const k = dosyalariAc(dosyalar) || etkinKayit();
   if (k) odakla(k);
+}
+
+// Kapanış (0.2.10 inceleme): son pencere kapandıktan sonra süreç çıkana dek tek örnek kilidi bu süreçtedir (olağanda kısa; çekirdeğin ve
+// arayüz süreçlerinin kapanması uzarsa saniyeler). Bu arada Gezgin'de çift tıklanan PDF'in ikinci örneği dosyayı bu sürece iletip çıkıyor,
+// pencere kalmadığı için belge açılmıyor, hata da görünmüyordu. Artık süreç çıkınca PDEfe o dosyalarla yeniden başlatılır (app.relaunch:
+// yeni örnek bu süreç çıktıktan sonra başlar; kilidi erken bırakmak, yeni örneği kapanmakta olan sürecin Chromium profiliyle aynı anda
+// çalıştırırdı). Güncelleme kurulurken yeniden başlatılmaz: kurucu PDEfe'nin dosyalarını değiştiriyor, kurulumdan sonra kendisi açar
+let cikiliyor = false;              // son pencere kapandı, uygulama kapanıyor (window-all-closed)
+let kurulumIcinCikiliyor = false;   // güncelleme kuruluyor (guncelleme.js kapatmayaHazirla … kapatmaIptal)
+function kapanirkenGeleniAc(dosyalar) {
+  if (kurulumIcinCikiliyor) return;
+  // Komut satırının anahtarları (veri klasörü, geliştirme sürümünde uygulama klasörü…) korunur; ilk açılışın dosyaları yeniden açılmaz
+  const anahtarlar = process.argv.slice(1).filter((a) => a.startsWith('-') || !ACILAN_UZANTILAR.test(a));
+  app.relaunch({ args: [...anahtarlar, ...dosyalar] });
+  zamanYaz('kapanirkenGeldi', dosyalar.length);
 }
 
 // macOS (0.2.0): Finder'da çift tıklanan, "Birlikte aç"la ya da Dock simgesine bırakılarak açılan PDF komut satırında gelmez, bu olayla gelir
@@ -195,6 +211,7 @@ let pencerelerKuruldu = false;
 function finderdenAc(yol) {
   if (!ACILAN_UZANTILAR.test(String(yol || ''))) return;   // 0.2.6: UDF, TIFF, Word de (Dosya Formatını Değiştir)
   if (!pencerelerKuruldu) { acilisDosyalari.push(yol); return; }
+  if (cikiliyor) { kapanirkenGeleniAc([yol]); return; }   // 0.2.10: kapanırken açılan pencere kapanışla birlikte yok oluyordu
   const k = dosyalariAc([yol]);
   if (k) odakla(k); else pencereOlustur({ dosyalar: [yol] });
 }
@@ -712,8 +729,9 @@ async function guncellemeyiKur() {
       ...(sahte ? { indirmeBeklemeMs: sahte.indirmeBeklemeMs } : {}),
       // Kurulum uygulamayı kapatır: pencereler kaydedilmemiş değişiklikleri önceden sorduğu için (isteyen pencere kendininkini,
       // öteki pencereler 'pencere:digerlerindenIzinAl' ile) pencere kapatma yeniden sormasın
-      kapatmayaHazirla: () => kapatmaOnayiAyarla(true),
-      kapatmaIptal: () => kapatmaOnayiAyarla(false),
+      // (0.2.10: kurulum için kapanırken gelen dosya PDEfe'yi yeniden başlatmaz, kapanirkenGeleniAc)
+      kapatmayaHazirla: () => { kurulumIcinCikiliyor = true; kapatmaOnayiAyarla(true); },
+      kapatmaIptal: () => { kurulumIcinCikiliyor = false; kapatmaOnayiAyarla(false); },
     });
     if (ilkPencereGorundu) guncelleme.pencereGosterildi();
   } catch (e) { console.error('[güncelleme] kurulamadı:', e); }
@@ -722,10 +740,13 @@ async function guncellemeyiKur() {
 
 // Son pencere kapanınca uygulama kapanır; macOS'ta da (0.2.0: belge uygulaması, Dock'ta boş kalmasın; Dock'tan yeniden açılır)
 app.on('window-all-closed', () => {
+  cikiliyor = true;   // bundan sonra gelen dosyalar süreç çıkınca yeniden açılan PDEfe'de (kapanirkenGeleniAc)
   ayarlariKaydet();   // açılıştan hemen sonra kapatıldıysa (ayar deposu henüz yüklenmedi) bekleyen yazımlar (pencerenin yeri…) dosyaya
   cikisSerbest = true;
   cekirdek.durdur();
-  app.quit();
+  // Test kancası (yalnızca geliştirme sürümünde, PDEFE_TEST_CIKIS_BEKLEMESI): kapanma uzar, kapanırken gelen dosya sınanır
+  if (TEST.cikisBeklemesi > 0) setTimeout(() => app.quit(), TEST.cikisBeklemesi);
+  else app.quit();
 });
 app.on('will-quit', () => { ayarlariKaydet(); geciciKopyalariSil({ yazdirma: false }); });
 

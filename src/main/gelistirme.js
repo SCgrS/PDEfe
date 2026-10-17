@@ -14,6 +14,8 @@
 //                       "Lazer Yazıcı", dosyaya yazan, çevrim dışı), ya da JSON dizi [{ ad, varsayilan, ciftTarafli, cevrimDisi, dosyayaYazar }].
 //   PDEFE_TEST_GERCEK_YAZDIR  "1": test örneğinde de gerçekten yazdırılır (0.2.6, test/yazdir_gercek.mjs). Yalnızca görünmeyen masaüstündeki
 //                       örnekte (PDEFE_TEST_GIZLI_MASAUSTU=1): "Çıktıyı Farklı Kaydet" kutusu orada açılır, kişinin ekranına çıkmaz.
+//   PDEFE_TEST_CIKIS_BEKLEMESI  ms (0.2.10, test/acilis_saglamlik.mjs): son pencere kapandıktan sonra süreç bu kadar geç çıkar; kapanırken
+//                       Gezgin'de çift tıklanan PDF'in yolu (anaSurec.js window-all-closed) böyle sınanır.
 // Paketli uygulamada hiçbiri okunmaz.
 import { app, BrowserWindow, Menu, nativeTheme } from 'electron';
 import { EventEmitter } from 'node:events';
@@ -28,7 +30,8 @@ export const TEST = !app.isPackaged ? {
   guncellemeHata: process.env.PDEFE_TEST_GUNCELLEME_HATA || '',
   yazicilar: process.env.PDEFE_TEST_YAZICILAR || '',
   gercekYazdir: process.env.PDEFE_TEST_GERCEK_YAZDIR === '1' && process.env.PDEFE_TEST_GIZLI_MASAUSTU === '1',
-} : { veri: '', konum: [], boyut: [], guncelleme: '', guncellemeHata: '', yazicilar: '', gercekYazdir: false };
+  cikisBeklemesi: Math.max(0, Number(process.env.PDEFE_TEST_CIKIS_BEKLEMESI) || 0),
+} : { veri: '', konum: [], boyut: [], guncelleme: '', guncellemeHata: '', yazicilar: '', gercekYazdir: false, cikisBeklemesi: 0 };
 
 /** "1.2.3" karşılaştırması (yalnızca sayısal parçalar): a > b → 1, eşit → 0, küçük → -1. */
 function surumKarsilastir(a, b) {
