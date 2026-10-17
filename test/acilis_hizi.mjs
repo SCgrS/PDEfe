@@ -4,7 +4,8 @@
 //          sayfasının çizilmesine dek;
 //   sıcak: PDEfe açıkken ikinci örnek ("PDEfe.exe <başka pdf>"): ikinci sürecin başından açık PDEfe'nin belgeyi alıp ilk sayfasını
 //          çizmesine dek; ikinci sürecin ömrü de (işletim sisteminden).
-// Uygulama adımlarını kendisi yazar (ana süreç: src/main/acilisZamanlari.js, 'uygulama:acilisZamanlari'; arayüz: performance.mark 'pdefe:…');
+// Uygulama adımlarını kendisi yazar (ana süreç: src/main/acilisZamanlari.js, 'uygulama:acilisZamanlari'; arayüz: performance.mark 'pdefe:…',
+// 0.2.10 incelemesinden beri yalnızca --pdefe-olcum ile başlatılınca, src/renderer/olcum.js);
 // betik onları CDP ile okur, süreç başlatma anını başlatıcı (test/acilis_baslat.ps1) verir. Paketli sürüm görünmeyen ayrı bir masaüstünde
 // çalışır (ekrana pencere çıkmaz, odak çalınmaz); veri klasörü ayrıdır (--user-data-dir; kurulu PDEfe'nin ayarı ve tek örnek kilidi
 // paylaşılmaz). Bilgisayarın başka işleri ölçümü oynattığı için iki sürüm karşılaştırılırken ikisi aynı koşuda sırayla (her turda sıra
@@ -195,7 +196,7 @@ function sicakAdimlar(v, t0, cikis) {
 
 async function birAcilis(h, tur) {
   const pdf = path.join(ORNEKLER, tur + '.pdf'), pdf2 = path.join(ORNEKLER, tur + '-2.pdf');
-  const b = await baslat(h, `--remote-debugging-port=${h.port} --user-data-dir="${h.veri}" "${pdf}"`);
+  const b = await baslat(h, `--remote-debugging-port=${h.port} --pdefe-olcum --user-data-dir="${h.veri}" "${pdf}"`);
   const sonuc = { tur, pid: b.pid };
   try {
     const sonZaman = Date.now() + BEKLEME_MS;

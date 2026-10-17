@@ -17,10 +17,14 @@
 //                                                    açılan yeni pencere; paket { surum, baslangic: true }: açılış sekmesi, 0.2.8) → 'yanit'
 //   'sekme:bant'          istekId                    sekme bırakılabilecek alan (pencere içi dikdörtgen) → 'yanit'
 //   'sekme:disSurukle'    { x, y } | null            başka pencerenin sekmesi bu pencerenin şeridi üzerinde sürükleniyor / ayrıldı
-import { BrowserWindow, screen, shell } from 'electron';
+import { app, BrowserWindow, screen, shell } from 'electron';
 import path from 'node:path';
 import { disAdresMi, acilacakYollar } from './guvenlik.js';
 import { zamanYaz } from './acilisZamanlari.js';
+
+// Açılış zamanlarının ölçümü (0.2.10): PDEfe --pdefe-olcum ile başlatıldıysa (test/acilis_hizi.mjs, acilis_davranis.mjs) pencereler arayüzün
+// ölçüm işaretlerini de yazar (renderer/olcum.js); olağan kullanımda yazılmaz
+const OLCUM = app.commandLine.hasSwitch('pdefe-olcum');
 
 const HAZIR_BEKLEME_MS = 20000;      // yeni pencerenin arayüzü bu sürede hazır olmazsa taşıma vazgeçilir
 const ISTEK_BEKLEME_MS = 120000;     // renderer'dan beklenen yanıt (büyük belgenin açılması dahil)
@@ -179,8 +183,8 @@ export function pencereOlustur({ sinirlar = null, goster = true, dosyalar = [] }
       spellcheck: false,
       backgroundThrottling: false,
       // --pdefe-acilis-belgesi (0.2.10): pencere bir belgeyle açılıyor (Gezgin'de çift tıklanan PDF); arayüz belge gelene dek açılış ekranını
-      // göstermez (preload.cjs, renderer/ilkTema.js)
-      additionalArguments: [`--pdefe-tema=${koyu ? 'koyu' : 'acik'}`, ...(dosyalar.length ? ['--pdefe-acilis-belgesi'] : [])],
+      // göstermez (preload.cjs, renderer/ilkTema.js). --pdefe-olcum: ölçüm işaretleri (renderer/olcum.js)
+      additionalArguments: [`--pdefe-tema=${koyu ? 'koyu' : 'acik'}`, ...(dosyalar.length ? ['--pdefe-acilis-belgesi'] : []), ...(OLCUM ? ['--pdefe-olcum'] : [])],
     },
   });
   menuCubuguKur(pencere, menuGorunur);

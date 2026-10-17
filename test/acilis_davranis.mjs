@@ -7,7 +7,8 @@
 //      sayfa çizimi (sayfaya gitme) eskisi gibi kareyi bekler, kare gelince çizilir.
 //   5) Açılamayan belgeyle soğuk açılış: hata kutusu ve açılış ekranı görünür ('belge-bekleniyor' kalktı).
 // Örnek görünmeyen ayrı masaüstünde (test/acilis_baslat.ps1) başlar; ekrana pencere çıkmaz. Geliştirme örneği (varsayılan; veri klasörü
-// PDEFE_VERI_KLASORU) ya da paketli sürüm (--exe release\win-unpacked\PDEfe.exe; --user-data-dir).
+// PDEFE_VERI_KLASORU) ya da paketli sürüm (--exe release\win-unpacked\PDEfe.exe; --user-data-dir). Arayüzün ölçüm işaretleri için örnek
+// --pdefe-olcum ile başlar (src/renderer/olcum.js).
 // Kullanım: node test\acilis_davranis.mjs [--exe <PDEfe.exe>] [--port 9460]
 import fs from 'node:fs';
 import path from 'node:path';
@@ -96,7 +97,7 @@ fs.writeFileSync(path.join(VERI, 'ayarlar.json'), J({ tema: 'koyu', pencereKapat
 
 try {
   // ---------------------------------------------------------------- 1–3
-  const b = await baslat(`--remote-debugging-port=${PORT} "${path.join(ORNEKLER, 'kucuk.pdf')}"`);
+  const b = await baslat(`--remote-debugging-port=${PORT} --pdefe-olcum "${path.join(ORNEKLER, 'kucuk.pdf')}"`);
   let s = await sayfa();
   const ilk = await kosul(s, `(${ISARETLER}).some((m) => m.ad === 'ilkSayfa') && ${ISARETLER}`);
   sonuc('Belgeyle soğuk açılış: ilk sayfa çizildi', Array.isArray(ilk), ilk);
@@ -144,7 +145,7 @@ try {
   sonuc('Çıkıştan sonra ayarlar dosyada (pencerenin yeri yazıldı)', f2.yaziBoyutu === 15 && f2.pencere && Number.isFinite(f2.pencere.genislik), { yaziBoyutu: f2.yaziBoyutu, pencere: f2.pencere });
 
   // ---------------------------------------------------------------- 5) açılamayan belge
-  const b3 = await baslat(`--remote-debugging-port=${PORT} "${BOZUK}"`);
+  const b3 = await baslat(`--remote-debugging-port=${PORT} --pdefe-olcum "${BOZUK}"`);
   s = await sayfa();
   const kutu = await kosul(s, `(() => { const k = document.querySelector('.mesaj-kutusu'); return k ? { ileti: k.querySelector('.mesaj-ileti')?.textContent, sinif: document.documentElement.classList.contains('belge-bekleniyor'), baslangic: !document.querySelector('#baslangic').hidden, isaret: (${ISARETLER}).some((m) => m.ad === 'acilisEkrani') } : null; })()`);
   sonuc('Açılamayan belge: hata kutusu, açılış ekranı görünür, bekleme sınıfı kalktı', !!kutu && /açılamadı/.test(kutu.ileti || '') && kutu.sinif === false && kutu.baslangic && kutu.isaret, kutu);

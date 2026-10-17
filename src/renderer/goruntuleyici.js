@@ -4,6 +4,7 @@ import * as pdfjs from '../../node_modules/pdfjs-dist/build/pdf.min.mjs';
 import { keskinBaglam, KeskinTuvalFabrikasi, cizimGoreviHazirla, ETKILESIM_MS, etkilesimBildir, etkilesimBitir, keskinErtelenir, ertelenenSayisi, istenenSayisi, gorevSayaci, keskinHazirDinle, okumaSuruyor } from './keskinlik.js';
 import { anaHatSecenekleri, yaziTipiYukleyicisiniSar, yaziGoreviHazirla } from './yaziTipleri.js';
 import { MAC } from './platform.js';
+import { isaretle } from './olcum.js';
 
 /** Yakınlaştıran tekerlek olayı: Windows'ta Ctrl+tekerlek; macOS'ta (0.2.0) dokunmatik yüzeyde kıstırma (Ctrl'li gelir) ya da ⌘+tekerlek. */
 const yakinlastirmaTekerlegi = (e) => e.ctrlKey || (MAC && e.metaKey);
@@ -304,7 +305,7 @@ export class Goruntuleyici extends EventTarget {
     if (secenek.parolaIste) gorev.onPassword = (cb, neden) => secenek.parolaIste(neden).then((p) => { this._parola = p; cb(p); }, () => cb(new Error('vazgeçildi')));
     this.yuklemeGorevi = gorev;
     const belge = await kapanmadan(gorev.promise, this._kapanis.signal);
-    performance.mark('pdefe:pdfAcildi', { detail: secenek.olcum });   // açılış zamanları (0.2.10, uygulama.js)
+    isaretle('pdfAcildi', secenek.olcum);   // açılış zamanları (0.2.10, olcum.js; yalnızca ölçüm istenince)
     // Beklerken sekme kapatıldıysa (0.2.1): yokEt süren görevi bırakır ve bekleme biter; yine de çözüldüyse belge yok edilmiş görünümde
     // kurulmaz, görev bırakılır (işçisi pencere kapanana dek yaşamasın)
     if (this.yok) { try { gorev.destroy().catch(() => {}); } catch {} throw new Error('Görünüm kapatıldı.'); }
@@ -315,7 +316,7 @@ export class Goruntuleyici extends EventTarget {
     this.belgeler.set(yolAnahtari(this.yol), { yol: this.yol, belge: this.belge, gorev });
     const n = this.belge.numPages;
     const ilk = await kapanmadan(this.belge.getPage(1), this._kapanis.signal);
-    performance.mark('pdefe:ilkSayfaNesnesi', { detail: secenek.olcum });
+    isaretle('ilkSayfaNesnesi', secenek.olcum);
     const vp = ilk.getViewport({ scale: 1 });
     this.sayfalar = [];
     for (let i = 0; i < n; i++) {
@@ -334,7 +335,7 @@ export class Goruntuleyici extends EventTarget {
     // Genişliğe sığdırma belgenin baskın sayfa genişliğine göre (sigdirOlcek): ilk yerleşimden önce sayfa boyutları öğrenilir, belge
     // açıldıktan sonra ölçek sıçramasın. Çok sayfalı belgede ilk ILK_BOYUT_SAYISI sayfa beklenir, kalanlar arka planda.
     try { await this.boyutlariOgren(this.sayfalar.slice(1, ILK_BOYUT_SAYISI)); } catch (e) { if (this.yok) return this.belge; console.warn('Sayfa boyutları alınamadı', e); }
-    performance.mark('pdefe:boyutlar', { detail: secenek.olcum });
+    isaretle('boyutlar', secenek.olcum);
     if (this.yok) return this.belge;
     // Boyutu henüz öğrenilmeyen sayfalar ilk sayfanın değil öğrenilenlerin en sık boyutunu alır: ilk sayfası farklı (kapak, A3 ek) büyük
     // belgede baskın genişlik, ölçek ve kaydırma çubuğu baştan doğru olsun (yoksa arka plan yüklemesi bitince ölçek sıçrıyordu)

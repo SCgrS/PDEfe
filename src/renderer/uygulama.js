@@ -22,9 +22,11 @@ import { BaslangicEkrani } from './baslangic.js';
 import { uzantisiz } from './adlar.js';
 import { TumSecim } from './tumSecim.js';
 import { MAC, birincil, tus, ipuclariniCevir, DOSYA_YONETICISI } from './platform.js';
+import { OLCUM, isaretle } from './olcum.js';
 
-// Açılış zamanları (0.2.10): arayüzün adımları performance.mark('pdefe:…') ile yazılır; ölçüm betiği (test/acilis_hizi.mjs) CDP'den okur
-performance.mark('pdefe:moduller');
+// Açılış zamanları (0.2.10): arayüzün adımları yalnızca ölçüm istenince işaret olarak yazılır (olcum.js); ölçüm betiği (test/acilis_hizi.mjs)
+// CDP'den okur
+isaretle('moduller');
 let olcumSayac = 0;   // açılan her belgenin işaretlerinin numarası (detail)
 const $ = (s) => document.querySelector(s);
 const pdefe = window.pdefe;
@@ -220,7 +222,7 @@ async function dosyaAc(yol, secenek = {}) {
   // sekmeyi aynı yerde yeniden açma (yenile) ve başka pencerede yeniden yazılan dosyanın sekmesini yenileme (yazildi)
   const aracArkasinda = acikAracPenceresiVar() && !secenek.yenile && !secenek.yazildi;
   const olcum = ++olcumSayac;
-  performance.mark('pdefe:dosyaAc', { detail: olcum });
+  isaretle('dosyaAc', olcum);
   for (const b of belgeler.values()) if (yolAyni(b.yol, yol)) {
     const bos = acilistan ? aktifId : null;
     sekmeSec(b.id);
@@ -245,14 +247,14 @@ async function dosyaAc(yol, secenek = {}) {
   sekmeler.ekle({ id, ad, yol, once: yerine });
   if (yerine) { baslangicSekmeleri.delete(yerine); sekmeler.kaldir(yerine); aktifId = null; }
   if (!secenek.arkaPlanda || !aktifId) sekmeSec(id);
-  performance.mark('pdefe:sekmeAcildi', { detail: olcum });
+  isaretle('sekmeAcildi', olcum);
   acilisBeklemesiniBitir();   // belgenin sekmesi açıldı (pencere bu belgeyle açıldıysa açılış ekranı gizliydi)
 
   // Sekme yüklenirken kapatılabilir (0.2.1): kapatıldıysa (belgeler'de yok) çekirdeğe yeni istek gitmez, dosya son açılanlara eklenmez, hata
   // sorulmaz. Yoksa çekirdek dosyayı sekme kapandıktan (belge_birak) sonra yeniden açıp kilitli tutardı
   try {
     const { veri, boyut } = await pdefe.cagir('dosya:oku', yol);
-    performance.mark('pdefe:dosyaOkundu', { detail: olcum });
+    isaretle('dosyaOkundu', olcum);
     if (!belgeler.has(id)) return null;
     belge.boyut = boyut;
     const sonSayfa = ayar.kaldigimSayfadanAc ? (ayar.sayfaKonumlari || {})[yol] : null;
@@ -262,16 +264,18 @@ async function dosyaAc(yol, secenek = {}) {
     const zoomModu = duzenIkiMi(genelDuzen()) ? 'sayfa' : ['genislik', 'sayfa', 'gercek'].includes(zoom) ? zoom : typeof zoom === 'number' ? 'serbest' : 'genislik';
     const olcek = typeof zoom === 'number' ? zoom / 100 : 1;
     gorunum.koyuSayfa = koyuMu() && ayar.sayfayiKoyulastir;
-    gorunum.addEventListener('sayfaCizildi', () => {
-      performance.mark('pdefe:ilkSayfa', { detail: olcum });
-      requestAnimationFrame(() => performance.mark('pdefe:ilkSayfaKare', { detail: olcum }));   // pencere gizliyken kare yok
-    }, { once: true });
+    if (OLCUM) {
+      gorunum.addEventListener('sayfaCizildi', () => {
+        isaretle('ilkSayfa', olcum);
+        requestAnimationFrame(() => isaretle('ilkSayfaKare', olcum));   // pencere gizliyken kare yok
+      }, { once: true });
+    }
     await gorunum.yukle(veri, {
       yol, duzen: genelDuzen(), kapakAyri: !!ayar.kapakAyri, zoomModu, olcek,
       sayfa: secenek.sayfa || sonSayfa || 1,
       parolaIste: (neden) => parolaSor(ad, neden), olcum,
     });
-    performance.mark('pdefe:belgeYuklendi', { detail: olcum });
+    isaretle('belgeYuklendi', olcum);
     if (!belgeler.has(id)) return null;
     cekirdek('belge_bilgi', { yol }).then((bilgi) => { belge.bilgi = bilgi; }).catch(() => {});
     // notSozu: notların dosyadan ilk okunması (sekme başka pencereye taşınmadan önce beklenir, bkz. sekmePaketi)
@@ -570,7 +574,7 @@ async function sekmeleriKapat(idler) {
 
 function baslangicGoster() {
   $('#baslangic').hidden = false;
-  if (!document.documentElement.classList.contains('belge-bekleniyor')) performance.mark('pdefe:acilisEkrani');   // açılış zamanları (0.2.10)
+  if (!document.documentElement.classList.contains('belge-bekleniyor')) isaretle('acilisEkrani');   // açılış zamanları (0.2.10)
   belgeDurumuYaz(null);
   if (arama.acik) arama.kapat();   // aranacak belge kalmadı
   pdefe.cagir('pencere:baslik', '');
@@ -1668,7 +1672,7 @@ function acilisBeklemesiniBitir() {
   const html = document.documentElement;
   if (!html.classList.contains('belge-bekleniyor')) return;
   html.classList.remove('belge-bekleniyor');
-  if (!$('#baslangic').hidden) performance.mark('pdefe:acilisEkrani');   // belge gelmedi: açılış ekranı şimdi görünüyor (açılış zamanları)
+  if (!$('#baslangic').hidden) isaretle('acilisEkrani');   // belge gelmedi: açılış ekranı şimdi görünüyor (açılış zamanları)
 }
 if (document.documentElement.classList.contains('belge-bekleniyor')) setTimeout(acilisBeklemesiniBitir, ACILIS_BEKLEME_MS);
 pdefe.dinle('pencere:tamEkran', (acik) => document.body.classList.toggle('tam-ekran', acik));
@@ -2433,13 +2437,13 @@ document.addEventListener('click', (e) => {
 // ---------------------------------------------------------------- başlat
 (async function baslat() {
   await ayarlariYukle();
-  performance.mark('pdefe:ayarlar');
+  isaretle('ayarlar');
   secimCubuguYenile();   // seçim mini çubuğunda kayıtlı vurgu rengi seçili görünsün (çubuk ayarlar yüklenmeden kuruluyor)
   // Pencere açılış sekmesiyle açılır (0.1.21): sekme çubuğu hiç kapanmaz. Açılırken verilen ya da başka pencereden gelen belge bu sekmenin
   // yerini alır (ana süreç belge göndermeden önce 'uygulama:hazir'ı bekler). Açılış sayfası son açılanları da listeler
   yeniSekme();
   pdefe.gonder('pencere:belgeler', []);   // arayüz yeniden yüklendiyse ana süreçteki açık belge kaydı bayat kalmasın
   pdefe.gonder('uygulama:hazir');
-  performance.mark('pdefe:hazir');
+  isaretle('hazir');
   window.__pdefe = { belgeler, aktif, dosyaAc, yollariAc, belgeKapat, sekmeSec, komutCalistir, ayar: () => ayar, panel, sekmeler, arama, temizMetin, sayfaTarifiUygula, sayfalariDondur, belgeKaydet, mesajKutusu, sekmeyiTasi, sekmePaketi, tasimaSuruyor: () => tasimaSuruyor, kilitli: () => girdiKilitli(), gecmisListesi, tumSecim };
 })();
