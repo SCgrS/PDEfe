@@ -1038,3 +1038,37 @@ Kurulu sürüm, Word ve Mac
     açılmıyorsa ("bulunamadı") söyleyin: eski sınamalar bu listedeki bazı yolları bozmuştu (0.2.9'da düzeldi). İki bilgisayarda da bakın.
 15. **Mac** (elinizde varsa). Birleştir'de ve görüntü → PDF'te görüntü sayfalarının A4'e sığan ölçüsü; uygulamanın Resources klasöründe
     LICENSE.txt ve THIRD_PARTY.md.
+
+## 45. 0.2.10: otomatik testlerin sınayamadıkları
+Ekran dışındaki ve görünmeyen masaüstündeki test örneğinde sınandı; açılış hızı paketlenmiş sürümle, görünmeyen ayrı masaüstünde ve ayrı veri
+klasörüyle ölçüldü (bilgisayar o sırada başka işlerle meşguldü). Sizin ekranınızda, kendi ayarlarınızla ve ekran kartınızla denenmedi; ofis
+bilgisayarı ve Mac denenmedi. Paketlenmiş sürüm bilgisayara kurulmadı.
+
+Açılışta tema
+1. **Koyu temada açılış.** Koyu temadayken PDEfe'yi kapatıp yeniden açın (birkaç kez): açılış ekranında PDF aç kutusu ve araç karoları bir an bile
+   açık gri görünmemeli; ilk görünen kare koyu olmalı.
+2. **Yeni pencere.** Koyu temada bir sekmeye sağ tıklayıp Pencereye ayır'ı seçin (boş bir sekmeyle de deneyin): yeni pencerede açık ya da gri
+   kare görünmemeli.
+3. **Tema değiştirme.** Tema düğmesiyle ve Ayarlar › Görünüm › Tema ile açık ↔ koyu geçin: karolar zeminle birlikte anında değişmeli, griden
+   geçmemeli. Karoların üzerine gelince renk değiştirmesi eskisi gibi yumuşak olmalı.
+4. **Sistemi izle.** Tema "Sistemi izle"deyken Windows'u koyu moda alıp PDEfe'yi açın: baştan koyu açılmalı. PDEfe açıkken Windows'u açık moda
+   alın: PDEfe de açığa geçmeli.
+
+PDF'i doğrudan açmak
+5. **PDEfe kapalıyken.** Gezgin'de bir PDF'e çift tıklayın: pencere açılınca önce "PDF aç" ekranı görünmemeli, doğrudan belge gelmeli. Taranmış bir
+   UYAP belgesiyle de deneyin. Önceki sürüme göre biraz daha çabuk açılmalı.
+6. **PDEfe açıkken.** Başka bir PDF'e çift tıklayın: belge hızlıca aynı pencerede açılmalı. Görev Yöneticisi'nde fazladan bir PDEfe görünüp
+   saniyelerce kalmamalı.
+7. **Art arda.** PDEfe kapalıyken bir PDF'e çift tıklayıp hemen (pencere açılmadan) ikinci bir PDF'e çift tıklayın: ikisi de açılmalı.
+8. **Kapanırken.** PDEfe'yi kapatıp hemen ardından bir PDF'e çift tıklayın: PDEfe o belgeyle (yalnızca o belgeyle) açılmalı.
+9. **Açılamayan belge.** Bozuk bir PDF'e (ya da PDF olmayan bir dosyanın adını .pdf yapıp) çift tıklayın: "PDF açılamadı" iletisi ve açılış ekranı
+   görünmeli.
+
+Ayarlar ve güncelleme
+10. **Ayarlar kalıcı.** Ayarlar'dan bir şeyi (ör. yazı boyutu) değiştirip PDEfe'yi hemen kapatın ve yeniden açın: değişiklik durmalı. Pencerenin boyutu
+    ve yeri de. Son açılanlar listesi ve "Kaldığım sayfadan aç" eskisi gibi olmalı.
+11. **Güncelleme denetimi.** Ayarlar › Güncelleme › Şimdi denetle eskisi gibi çalışmalı.
+12. **Yakınlaştırma kutusu.** Araç çubuğundaki yakınlaştırma kutusuna "125%" ya da "87,5" yazıp Enter'a basın: belge o orana gelmeli.
+
+Mac (elinizde varsa)
+13. Finder'da bir PDF'e çift tıklayın (PDEfe kapalıyken ve açıkken): belge açılmalı; koyu temada açılış ekranı gri görünmemeli.

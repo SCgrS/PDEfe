@@ -3641,3 +3641,151 @@ UYAP Doküman Editörü'ne dokunulmadı.
     denenmedi; LibreOffice bu bilgisayarda yok; Mac'te denenmedi (lisans dosyaları Mac paketinde CI'da denetlenmeli); test örneğinde Masaüstü
     yönlendirmesi gerçek Masaüstü'ne yazdırılarak yeniden üretilmedi.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 44.
+
+### Revizyon 0.2.10 (2026-10-17, kullanıcı istekleri: açılışta tema parlaması; PDF'in doğrudan açılış hızı)
+Ayrıntı: CHANGELOG.md. Kullanıcının iki maddesi: (1) "Açılışta böyle bir şey oluyor anlık." (iki ekran görüntüsü: koyu temada açılış ekranı; ilk
+karede PDF aç ve altı araç karosu açık gri, açıklama yazıları neredeyse okunmuyor; bir an sonra karolar koyu); (2) "PDF'leri doğrudan açtığımızda da
+biraz daha hızlı açılmasını sağlayabilir miyiz bakalım." (Gezgin'de çift tıklama: PDEfe kapalıyken soğuk açılış, PDEfe açıkken ikinci örnek.) Ayrıca
+0.2.9'dan sonra yerelde kalan CodeQL düzeltmeleri (d68560e, ea691db) bu sürümde. Gönderme, etiket ve yayım yok: yalnızca yerel commit'ler (asıl depo
+0.2.5'te; 0.2.6+ yalnızca bu bilgisayarda ve gizli PDEfe-Test'te). Düzen: madde 1 ve madde 2 sırayla aynı çalışma ağacında, sonra bağımsız inceleme
+(dört bulgu, hepsi düzeltildi), belgeler ve paket. Electron yalnızca ekran dışındaki (`test/baslat.ps1`) ya da görünmeyen masaüstündeki
+(`test/baslat_gizli.ps1`, `test/acilis_baslat.ps1`) örnekte başlatıldı; kullanıcının PDEfe'sine dokunulmadı.
+
+#### 0.2.10: açılışta tema parlaması (madde 1)
+- [x] **Kök neden (ölçüldü)**: `index.html` `<html data-tema="acik">` ile başlıyordu; tema `uygulama.js`'te (ertelenen modül) üç ardışık IPC'den
+  (`ayar:al`, `ayar:varsayilanlar`, `tema:sistemKoyu`) sonra konuyordu. Açılış ekranının karoları modül yüklenirken kuruluyor, ilk kareler açık temayla
+  çiziliyordu. Ayrıca karoların ve PDF aç'ın üzerine gelme geçişi (`transition: … 0.1s`) tema değişince de çalışıyordu: gövde ve yazı hemen
+  koyulaşırken karo zemini ~100 ms beyazdan koyuya griden geçiyordu. Kullanıcının ilk görüntüsü tam bu ara kare (koyu temanın beyaz yazısı, karo zemini
+  ~rgb(133,133,133); ölçümde 165 ms'deki kare birebir aynı). Pencere ilk çizimde (ready-to-show) gösterildiği için ilk çizim açık temalıydı.
+- [x] **Ölçüm yöntemi** (0.2.9 kodu, geliştirme örneği, koyu tema): CDP `Page.addScriptToEvaluateOnNewDocument` ile her `requestAnimationFrame`'de
+  html'in teması ve gövdenin, ilk karonun, PDF aç'ın hesaplanan zemin rengi; `Page.startScreencast` karelerinde karo bölgesinin parlaklığı; yeni
+  pencere `Target.setAutoAttach { waitForDebuggerOnStart }` ile ilk karesinden; gerçek pencere görüntüsü PrintWindow ile. Yeniden yüklemede ve yeni
+  pencerede 3 tamamen açık + 2 açık temalı karolu + 6 gri geçiş karesi (karo 255 → 208 → 133 → 85 → 59 → 47 → 43); 0.2.10'da 0 yanlış kare (ilk kare
+  gövde #202020, karolar çizildikleri ilk karede #2b2b2b).
+- [x] **Karar**: (1) Tema ilk çizimden önce belli: ana süreç pencereyi kurarken etkin temayı (`temaKoyuMu()`: ayar ya da "Sistemi izle"de işletim
+  sisteminin teması) `webPreferences.additionalArguments` ile `--pdefe-tema=koyu|acik` verir; preload `window.pdefe.ilkTema` açar; `index.html`
+  head'inde stillerden önce yüklenen sıradan betik `ilkTema.js` onu `html[data-tema]`'ya koyar (CSP'ye uygun, dış betik). Ayarlar gelince
+  `temaUygula()` doğrular, farklıysa geçişsiz düzeltir. (2) Tema değişirken geçiş yok: `html.tema-uygulaniyor` sınıfında `transition: none`; sınıf
+  açılışta hazır, tema değişince konur, iki kare sonra (pencere gizliyse 500 ms'lik yedekle) kalkar; üzerine gelme geçişi sonra eskisi gibi.
+  (3) Pencerenin zemin rengi koyu temada `#202020` (arayüzün `--arka`'sı; önce `#1c1c1c`). (4) Test kancası `test:sistemTemasi`
+  (`nativeTheme.themeSource`; yalnızca geliştirme örneği): "Sistemi izle" bilgisayarın ayarına dokunmadan sınanır.
+- [x] **Seçilmeyen yollar**: preload'da `ipcRenderer.sendSync` (renderer ana süreci bekler, soğuk açılışta ilk çizimi geciktirirdi; bilinen sınır:
+  pencere kurulduktan sonra tema değişip sayfa yeniden yüklenirse ilk kareler kuruluştaki temayla, ayarlar gelince geçişsiz düzelir; kullanıcı yolunda
+  yeniden yükleme yok); `nativeTheme.themeSource` + `prefers-color-scheme` (başlık çubuğunu, yerel menüleri ve "Sistemi izle" okumasını da değiştirir,
+  bütün tema CSS'i yeniden yazılırdı); head'de satır içi betik (CSP gevşerdi); pencereyi `uygulama:hazir`'dan sonra göstermek (pencere geç açılırdı;
+  madde 2 hız istiyor); geçişleri tamamen kaldırmak.
+- [x] **Testler**: yeni `test/tema_acilis.mjs` (yeniden yükleme; her temada yeni pencere, debugger beklemesiyle ilk karesinden; Ayarlar › Tema, tema
+  düğmesi, sistem teması değişimi, arka arkaya iki değişim): koyu 47/47, açık 50/50, sistem 47/47; 0.2.9 kodunda düşüyor. mac_renderer'a ilkTema.js
+  (darwin ve win32: koyu, açık, yok, geçersiz). Paketli sürümde ilkTema 'koyu', yeniden yükleme ve yeni pencere 0 yanlış kare.
+
+#### 0.2.10: PDF'in doğrudan açılış hızı (madde 2)
+- [x] **Ölçüm yöntemi (depoda, yinelenebilir)**: uygulama adımlarını kendisi yazar: ana süreç `src/main/acilisZamanlari.js` (duvar saati;
+  `uygulama:acilisZamanlari`, paketli sürümde de; en çok 300 kayıt), arayüz `performance.mark('pdefe:…')` (inceleme bulgusundan sonra yalnızca
+  `--pdefe-olcum` ile, `src/renderer/olcum.js`). `test/acilis_hizi.mjs`: paketli PDEfe görünmeyen ayrı masaüstünde (`test/acilis_baslat.ps1`:
+  CreateProcess'ten hemen önceki an, GetProcessTimes ile süreç başlangıcı / çıkışı ve çıkış kodu), ayrı veri klasörü; soğuk açılış, 1,5 sn sonra ikinci
+  örnekle başka bir PDF, olağan kapatma; iki sürüm aynı koşuda sırayla (`--exe A,B`), ısınma açılışları (`--isinma`). Örnekler
+  `test/acilis_ornek_uret.py`: küçük (2 sayfa metin), taranmış (3 sayfa 200 dpi JPEG), büyük (410 sayfalık kanun metni; yoksa yer tutucu). Kök neden
+  için Chromium izi (`--trace-startup`, açık PDEfe'de CDP `Tracing.start`; betikler oturumun geçici klasöründeydi). Ölçüm sırasında başka oturumlar
+  işlemciyi %35–80 kullanıyordu: tek koşular oynak, karşılaştırmalar aynı koşuda sırayla, adım aralıkları her koşuda ayrı hesaplanıp ortancası.
+- [x] **Kök nedenler (ölçüldü)**: (1) İkinci örnek tam bir PDEfe açılışı yapıyordu: kilit main.js'in gövdesindeydi, ESM'de bütün içe aktarmalar
+  (electron-store, electron-updater, araç modülleri; ~130 ms) önce yükleniyordu; kilidi alamayınca `app.quit()` deniyordu ama `whenReady` yine
+  çalışıyor, pencere kuruluyor, çekirdek başlatılıyor, süreç 2,3–6 sn yaşayıp açık PDEfe'yle işlemciyi paylaşıyordu. (2) Soğuk açılışın tabanı GPU
+  sürecinin kurulumu (`eglInitialize`, ekran kartı sürücüsü, 350–400 ms): pencerenin ilk çizimi ve PDF.js'in sayfa çizimi onu bekliyor; Electron giriş
+  modülü bitene dek Chromium'un açılış görevlerini (GPU süreci dâhil) bekletiyordu. (3) Pencere geç kuruluyordu: electron-store (~50 ms) ve
+  electron-updater (~55 ms) pencereden önce yükleniyordu. (4) İlk sayfa ekran karesini bekliyordu (PDF.js ekran çiziminde ~15 ms'lik parçaları
+  requestAnimationFrame ile yürütür; kare pencere gösterilince gelir). (5) Küçük kalemler: `pdefe://` her dosyayı `net.fetch(file://)` ile ağ hizmeti
+  sürecinden geçiriyordu; PDF.js işçisi belge okunduktan sonra kuruluyordu. İlk sayfanın yolunda olmayanlar (ölçüldü): çekirdek (Python), güncelleme
+  denetimi, son açılanlar, küçük resimler, yazı tanıma, araç modülleri. 410 sayfalık kanunun ilk sayfası işçide yazı tiplerinin hazırlanmasını bekliyor
+  (gömülü olmayan Times yazıları; "Dengeli" yazı çizimi kararı): dokunulmadı.
+- [x] **Kararlar** (her biri ayrı commit, önce / sonra ölçüldü): (1) **Giriş ve ikinci örnek** (`src/main/main.js` yeni giriş, uygulama
+  `src/main/anaSurec.js` = eski main.js, `src/main/erkenOlaylar.js`): kilit hiçbir ağır modül yüklenmeden alınır; alamayan örnek `app.exit(0)` ile
+  hemen çıkar. anaSurec.js `setImmediate` ile Chromium'un açılış görevlerinden sonra, beklenmeden yüklenir (üst düzey await ve hemen başlayan dinamik
+  içe aktarma da ölçüldü: ikisi de GPU'yu bekletiyordu). 'ready'den önce gerekenler (veri klasörü, protokol ayrıcalıkları) girişte; bu arada gelen
+  'second-instance' ve macOS 'open-file' olayları sıraya girer. Yan kazanç: açılış sürerken çift tıklanan ikinci belge artık kaybolmuyor. (2) **Belgeyle
+  açılan pencerede açılış ekranı gizli** (`--pdefe-acilis-belgesi`, preload `ilkBelgeBekleniyor`, `html.belge-bekleniyor`): belgenin sekmesi açılınca,
+  açılamayınca, dosyalar işlenince ya da 10 sn sonra kalkar; önce ~17 ms görünüyordu. (3) **Ayar deposu ve güncelleyici açılışı bekletmiyor**
+  (`ayarlar.js`, `anaSurec.js`): ayarlar o ana dek ayarlar.json'un kopyasından okunur (varsayılanlar ve taşımalar uygulanmış); depo ilk pencere
+  gösterildikten 300 ms sonra (gösterilmezse 6 sn) `require(esm)` ile eş zamanlı yüklenir; yazılanlar sıraya girer, depo yüklenince dosyaya geçer;
+  çıkışta bekleyen varsa depo yüklenip yazılır. Güncelleyici gösterimden 1,5 sn sonra; güncelleme kanalları pencereden önce kurulup kurulmayı bekler.
+  (4) **İlk görünür sayfa ekran karesini beklemeden** (`goruntuleyici.js karesizBaslat`; PDF.js iç adları `_useRequestAnimationFrame`,
+  `_scheduleNext`; yoksa eskisi gibi): yeni açılan ve başka pencereye taşınan belgenin ilk görünür sayfası parçalarını ardı ardına yürütür, 300 ms'yi
+  aşarsa kalanlar kareyle; sonraki çizimler eskisi gibi. (5) **pdefe:// dosyaları doğrudan okunuyor** (`fs.promises.readFile`, yanıt aynı).
+  (6) **Belgeyle açılan pencerede PDF.js işçisi önden** (`isciAl / isciyiSahiplendir`): işçi modül yüklenirken başlar, ilk belge onu sahiplenir; belge
+  gelmezse 15 sn sonra kapanır.
+- [x] **Ölçüm** (önce = 0.2.9 + ölçüm, sonra = 0.2.10; paketli, görünmeyen masaüstü, 8 tekrar + 2 ısınma, ortanca, ms; soğukta süreç başından,
+  sıcakta ikinci sürecin başından):
+
+  | Belge | Yol | Adım | Önce | Sonra | Fark |
+  |---|---|---|---|---|---|
+  | küçük (2 s. metin) | soğuk | pencere kuruldu | 407 | 266 | −141 |
+  | | | pencere göründü | 872 | 726 | −146 |
+  | | | ilk sayfa çizildi | 919 | 743 | −176 |
+  | | sıcak | dosya açık PDEfe'ye ulaştı | 280 | 128 | −152 |
+  | | | ilk sayfa çizildi | 413 | 258 | −155 |
+  | | | ikinci sürecin ömrü | 3025 | 133 | −2892 |
+  | taranmış (3 s. JPEG) | soğuk | pencere göründü | 867 | 728 | −139 |
+  | | | ilk sayfa çizildi | 939 | 787 | −152 |
+  | | sıcak | ilk sayfa çizildi | 403 | 241 | −162 |
+  | büyük (410 s. kanun) | soğuk | ilk sayfa çizildi | 1095 | 952 | −143 |
+  | | sıcak | ilk sayfa çizildi | 661 | 486 | −175 |
+
+  Adım aralıkları: giriş modülünden pencereye 265 → 155; arayüz modülleri 81 → 65; dosya okundu → PDF açıldı (soğuk) 58 → 34; pencere göründükten
+  ilk sayfaya 50 → 17 (küçük), 64 → 53 (taranmış). Soğukta küçük ve taranmış belgede belge artık GPU'dan önce hazır: taban GPU sürecinin kurulumu.
+- [x] **Seçilmeyen yollar (ölçüldü ya da gerekçeli)**: V8 kod ön belleği (`codeCache`; kazanç yok, geri alındı); modulepreload (modül evresi −16 / −21 ms
+  ama ilkTema.js'in getirilmesiyle yarışıp html'i geciktirdi; geri alındı); açık PDEfe'de her belgeye önden işçi (pencere başına sürekli ~7 MB, 0.1.18
+  bellek kararlarına aykırı); tuval bağlamını önden kurmak (GPU hazır olmadan arayüzü bekletir); araç modüllerini tembel yüklemek; çekirdeğin tembel
+  içe aktarmaları (ilk sayfa çekirdeği beklemiyor); pencereyi GPU hazır olmadan göstermek (boş çerçeve, madde 1'e benzer bir geçiş); donanım
+  hızlandırmasını kapatmak (yazı çizimi ve kaydırma başarımı değişir); electron-store'u kendi depomuzla değiştirmek (ertelemek yetti).
+- [x] **Testler**: yeni `test/acilis_davranis.mjs` (gerçek süreçler; geliştirme ve paketli 14/14): açılış ekranı gizli, ikinci örnek 2 sn içinde kod
+  0 ve belgesi aynı pencerede, ayarlar taşınmış okunuyor, yazım ve çıkışta pencerenin yeri dosyada, kare yokken ilk sayfa çiziliyor ve sonraki sayfa
+  kareyi bekliyor, açılamayan belgede hata kutusu ve açılış ekranı.
+
+#### 0.2.10: bağımsız inceleme ve düzeltme turu
+- [x] İnceleme dört düşük önemli bulgu verdi; dördü de gerçek süreçlerle doğrulandı, önce düşen test, sonra düzeltme. Yeni `test/acilis_saglamlik.mjs`
+  (görünmeyen masaüstünde; hata kutuları `test/hata_kutusu.ps1` ile okunur ve Tamam'a basılır: kendini o masaüstünde başlatır, UI Automation) ve
+  `test/ayarlar_okuma_birim.mjs` (Electronsuz; 'electron' `node:module registerHooks` ile taklit, dosya `test/kilitle.py` ile kilitli). Önce 13
+  denetimden 8'i düşüyordu.
+- [x] **Uygulama modülü yüklenemezse penceresiz süreç kilidi tutuyordu**: yükleme hatası Electron'un varsayılan işleyicisine gidiyordu (kutu, süreç açık,
+  pencere yok, kilit onda): çift tıklanan her PDF'in ikinci örneği dosyayı ona iletip çıkıyordu (ölçüldü: 132 ms'de kod 0). Karar
+  (`src/main/acilisHatasi.js`; main.js ve anaSurec.js whenReady'de ilk pencereden önceki hata): kilit bırakılır, "PDEfe açılamadı" kutusu, Tamam'dan
+  sonra `app.exit(1)`. Kilit kutudan önce bırakılır: kutu açıkken çift tıklanan PDF'in süreci açılmayı kendisi dener. acilis_saglamlik 1) önce 1/4,
+  sonra 4/4.
+- [x] **Ayar dosyası açılışta okunamazsa kopya sessizce varsayılanlara düşüyordu**: dosya başka bir program tarafından paylaşımsız açıksa (EBUSY /
+  EPERM) PDEfe "Sistemi izle" ve boş son açılanlarla açılıyor, ilk açılan belge son açılanları ve sayfa konumlarını tek öğeyle üzerine yazıyordu.
+  Karar (`ayarlar.js`): yalnızca dosya yoksa ya da bozuksa varsayılanlar; öteki okuma hatalarında depo hemen yüklenir (0.2.9 gibi) ve 8 kez 50 ms arayla
+  denenir; yine okunamazsa "Ayar dosyası okunamadı…" iletisiyle "PDEfe açılamadı", dosyaya dokunulmaz. Arka plandaki depo yüklemesi 1 sn arayla 5 kez,
+  çıkıştaki yazım 8 kez yeniden dener; bekleyen yazımlar ancak depoya geçince sıradan düşer. ayarlar_okuma_birim önce 6/10, sonra 10/10; acilis_saglamlik
+  2) eski kodla 1/4, sonra 4/4. Seçilmeyen: yalnızca kopyanın okumasını yeniden denemek; varsayılanlarla açıp yazımları engellemek.
+- [x] **PDEfe kapanırken çift tıklanan PDF kayboluyordu** (0.2.9'da da vardı): son pencere kapandıktan sonra süreç çıkana dek kilit onda; gelen dosya
+  açılmıyordu. Karar (`anaSurec.js kapanirkenGeleniAc`): window-all-closed'dan sonra gelen dosyalar (ikinci örnek; macOS'ta open-file) için
+  `app.relaunch`: yeni PDEfe bu süreç çıktıktan sonra yalnızca o dosyalarla başlar (komut satırının anahtarları korunur); güncelleme kurulurken yapılmaz.
+  Seçilmeyen: incelemenin önerdiği kilidi window-all-closed'da bırakmak (yeni örnek kapanmakta olan sürecin Chromium profiliyle aynı anda çalışırdı).
+  Test kancası PDEFE_TEST_CIKIS_BEKLEMESI (yalnızca geliştirme sürümü): kapanmayı uzatır. acilis_saglamlik 3): kancalı eski kodda belge açılmıyor;
+  sonra 4/4 (adında boşluk ve Türkçe harf olan belgeyle). Mac'te denenmedi.
+- [x] **Ölçüm işaretleri üretimde birikiyordu**: her belge açılışında 9 performance.mark, hiç silinmiyordu. Karar (`src/renderer/olcum.js`): yalnızca
+  `--pdefe-olcum` ile başlatılınca yazılır (ana süreç pencereye additionalArguments ile iletir); acilis_hizi ve acilis_davranis bu anahtarla başlatır.
+  acilis_saglamlik 4): anahtarsız 0 işaret (önce 21), anahtarla var.
+
+#### 0.2.10: CodeQL düzeltmeleri (0.2.9'dan sonra, yerelde)
+- [x] GitHub'ın varsayılan CodeQL kurulumu asıl depoda (8d2f583) 168 uyarı verdi: 3'ü uygulama kodunda, 165'i test/'te. d68560e: yakınlaştırma kutusu
+  `replace('%')` → `/%/g` (virgül de); güncelleme notunu düzleştiren `notlariDuzlestir`'de etiket silme metin değişmeyene dek yinelenir, `&amp;` en
+  son çözülür. ea691db: gelişmiş kurulum (`.github/workflows/codeql.yml`; JS, Python, Java, actions; build-mode none) ve
+  `.github/codeql/codeql-config.yml` (`paths-ignore: test/**`). Asıl depoya gönderilince varsayılan kurulum kapatılmalı (iki kurulum birlikte
+  çalışmaz); iş akışının adı ve rozetler öbür depolardaki düzene uydurulacak ("CodeQL Advanced", Dependency Review).
+
+#### 0.2.10: belgeler
+- [x] Sürüm 0.2.10 (package.json, package-lock.json); CHANGELOG; docs/DOGRULAMA.md 45. README değişmedi (görünür arayüz aynı).
+
+#### 0.2.10: paket ve son sınama
+- [ ] Paket ve son sınama (aşağıda doldurulacak).
+
+#### 0.2.10: açık konular
+- [ ] Gerçek ekranda (kullanıcının masaüstünde) ölçülmedi: GPU kurulumu orada farklı olabilir; ölçüm bu bilgisayarda başka oturumların yükü altında
+  yapıldı (mutlak sayılar oynak, karşılaştırmalar aynı koşuda).
+- [ ] senaryo22 ve senaryo23 madde 2'nin sınamasında 27. / 24. denetimden sonra takıldı; 0.2.10'un ilk commit'inde (8e9864d) de aynı yerde: bu işin
+  gerilemesi değil (aşağıdaki son sınamaya bakın).
+- [ ] Olağan kapatmada test örneğinin 15 sn içinde kapanmadığı koşular oldu (acilis_hizi'nin 16 koşusundan birkaçı; 0.2.9 ve 0.2.10'da aynı).
+  Kapanma uzasa da artık çift tıklanan belge kaybolmuyor (inceleme bulgusu); kapanmanın kendisi ayrıca incelenmeli.
+- [ ] Mac CI koşulmadı (dal gönderme onayı gerekir). Mac'e dokunan: erkenOlaylar.js (open-file sırası), giriş, kapanırken gelen dosya (open-file).
+- [ ] Sürükleme ön izleme penceresinin (hayalet.html) teması bu işte incelenmedi.
+- [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 45.

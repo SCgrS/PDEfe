@@ -3,6 +3,29 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.2.10 — 2026-10-17
+
+### Açılışta tema
+- **Koyu temada açılış ekranı bir an açık gri görünmüyor:** PDEfe açılırken (ve yeni pencere açılınca) PDF aç kutusu ile araç karoları bir an açık gri zeminde, açıklama yazıları okunmaz görünüyordu. Artık tema ilk karede doğru: koyu temada karolar baştan koyu, açık temada baştan açık. "Sistemi izle"de Windows'un (macOS'ta sistemin) teması.
+- **Tema değiştirilince karolar zeminle birlikte anında değişiyor:** tema düğmesine ya da Ayarlar'dan temaya basınca karolar bir an griden geçmiyor. Üzerine gelince karoların renk değiştirmesi eskisi gibi.
+
+### PDF'i doğrudan açmak daha hızlı
+- **PDEfe açıkken çift tıklanan PDF daha çabuk açılıyor:** Gezgin'de bir PDF'e çift tıklayınca belge açık PDEfe'de yaklaşık 0,4 yerine 0,25 saniyede ilk sayfasıyla görünüyor. Çift tıklamanın arka planda başlattığı ikinci PDEfe süreci artık hemen kapanıyor; önceden 2–6 saniye yaşayıp açık PDEfe'yi yavaşlatıyordu.
+- **PDEfe kapalıyken çift tıklanan PDF daha erken açılıyor:** pencere ve ilk sayfa yaklaşık 0,15 saniye daha erken (ölçüm bilgisayarında 0,9 yerine 0,75 saniye). Taranmış belgenin ilk sayfası pencere göründükten hemen sonra çiziliyor.
+- **Belgeyle açılan pencerede açılış ekranı bir an görünmüyor:** pencere doğrudan belgeyle gelir. Belge açılamazsa hata iletisi ve açılış ekranı görünür.
+- PDEfe açılırken çift tıklanan ikinci PDF de açılıyor (önceden kaybolabiliyordu).
+
+### Sağlamlık
+- **PDEfe kapanırken çift tıklanan PDF kaybolmuyor:** son pencere kapandıktan sonra PDEfe tamamen kapanmadan bir PDF'e çift tıklanırsa PDEfe kapanınca o belgeyle yeniden açılır.
+- **PDEfe açılamazsa "PDEfe açılamadı" kutusu:** bozuk kurulum gibi bir nedenle açılamazsa kutu çıkar, Tamam'dan sonra PDEfe tamamen kapanır. Önceden arka planda penceresiz kalıyor, sonraki çift tıklamalarda hiçbir şey açılmıyordu.
+- **Ayar dosyası o an okunamazsa varsayılanlarla açılmıyor:** yedekleme, eşitleme ya da virüs tarayıcısı ayar dosyasını kullanıyorsa PDEfe kısa bir süre yeniden dener; olmazsa "Ayar dosyası okunamadı" der ve dosyaya dokunmaz. Önceden varsayılan temayla açılıp son açılanlar listesini ve kaldığınız sayfaları silebiliyordu.
+- Açılış adımlarının süre ölçümü yalnızca ölçüm istenince yapılıyor (önceden her belge açılışında küçük bir kayıt birikiyordu).
+
+### Kod denetimi (CodeQL)
+- Yakınlaştırma kutusuna yazılan değerdeki bütün "%" işaretleri ve virgüller doğru okunuyor (önceden yalnızca ilki).
+- Güncelleme notunu düz metne çeviren işlev iç içe etiketleri ve "&amp;" gibi kodları doğru temizliyor.
+- Otomatik kod taraması (CodeQL, gelişmiş kurulum) uygulama kodunu tarıyor, kurulum paketine girmeyen deneme betiklerini (test klasörü) taramıyor.
+
 ## 0.2.9 — 2026-10-16
 
 ### Birleştir ve Format Değiştir: görüntüler A4 boyutunda
