@@ -3812,3 +3812,11 @@ biraz daha hızlı açılmasını sağlayabilir miyiz bakalım." (Gezgin'de çif
 - [ ] Mac CI koşulmadı (dal gönderme onayı gerekir). Mac'e dokunan: erkenOlaylar.js (open-file sırası), giriş, kapanırken gelen dosya (open-file).
 - [ ] Sürükleme ön izleme penceresinin (hayalet.html) teması bu işte incelenmedi.
 - [ ] Kullanıcı doğrulaması: docs/DOGRULAMA.md 45.
+
+### Sürüm 0.3.0 (2026-10-17, kullanıcı isteği: 0.2.6–0.2.10'u asıl depoda 0.3.0 olarak yayımlamak)
+- [x] 0.2.6–0.2.10 yalnızca yerelde ve gizli deneme deposunda yayımlanmıştı; asıl depoya 0.2.5'ten sonra tek sürüm olarak gönderildi. Kod 0.2.10'la
+  aynı; değişen yalnızca sürüm numarası (package.json, package-lock.json) ve CHANGELOG'daki kısa özet (sürüm sayfasına giden bölüm). Ara sürümlerin
+  ayrıntılı notları CHANGELOG'da kendi başlıklarında kaldı.
+- [x] Göndermeden önce geçmiş temizlendi: 0.2.6–0.2.8 commit'lerindeki testlerde ofisteki yazıcının model adı geçiyordu (0.2.9'da HEAD'den
+  çıkarılmıştı); 161 commit'te genel adlarla ("Lazer Yazıcı") değiştirildi. Son ağaç aynı kaldı, 0.2.5'in devamı olarak gönderildi.
+- [x] CodeQL: gelişmiş kurulum (`.github/workflows/codeql.yml`) bu gönderimle asıl depoya geldi; depodaki varsayılan kurulum kapatıldı.

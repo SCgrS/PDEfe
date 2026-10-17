@@ -3,6 +3,23 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.3.0 — 2026-10-17
+
+0.2.5'ten sonraki bütün değişiklikler bu sürümde toplandı. Başlıcaları:
+
+- **Kendi yazdırma penceresi:** Araç çubuğunda ve sağ tık menüsünde Yazdır (`Ctrl+P`). Yazıcı, kopya, sayfalar, kâğıt, boyut, renk ve çift taraflı tek pencerede seçilir; sayfanın kâğıda nasıl basılacağı önceden görünür. Windows 11'in, seçilen kâğıdı ve çift taraflıyı bazen yok sayan yazdırma penceresi artık kullanılmıyor.
+- **Yeni araç: Format Değiştir.** UDF, Word, TIFF ve görüntü (JPG, PNG, BMP, GIF, WEBP) dosyaları PDF'e; PDF'ler UDF, Word, TIFF ve JPG'ye dönüştürülür. UDF, UYAP Doküman Editörü'nün kendi sayfa düzeniyle PDF olur (editör yoksa PDEfe'nin yaklaşık çizimiyle); PDF düzenlenebilir UDF'ye çevrilir. TIFF ve JPG'de İdeal / Düşük çözünürlük; sağlıklı dönüştürülemeyen dosyanın yanında ⚠ çıkar.
+- **Birleştir** (eski adıyla "Görüntü / PDF birleştir"): UDF ve Word belgeleri de birleştirilir. Görüntü ve TIFF sayfaları, oranı korunarak A4'e sığan en büyük ölçüde ve beyaz kenar eklenmeden konur.
+- **Bütün araçlarda:** Var olan bir dosyanın adıyla kaydederken **Yeni belge olarak kaydet** seçeneği (adına "(1)" eklenir). Seçilen kayıt klasörü kalıcı olarak hatırlanır (Ayarlar › Kaydetme). Ayır'da ve Format Değiştir'de **Tümünü aç**.
+- **Sayfa ve metin:** Sayfaları düzenle'de sayfa kopyalanır (kart düğmesi, `Ctrl+C` / `Ctrl+V`, sağ tık). `Ctrl+A` bütün sayfaların metnini seçer. Yazı kutusu kopyalanıp tıklanan yere yapıştırılır.
+- **Açılış ekranı:** Altı araç iki satırda. Koyu temada açılışta bir an görünen açık gri parlama giderildi.
+- **Pencereler ve sekmeler:** Bir araç penceresi açıkken açılan belge yeni pencerede, önde açılır. Boş sekme de pencereye ayrılır. Sekme adında ".pdf" yazmaz.
+- **Daha hızlı ve sağlam açılış:** Çift tıklanan PDF, açık PDEfe'de yaklaşık 0,25 saniyede görünür. PDEfe açılamazsa uyarı çıkar. Ayar dosyası o an okunamazsa ayarlar sıfırlanmaz.
+- **Güncelleme denetimi iki günde bir** (önceden haftada bir).
+- **Denetim:** Kodun tamamı ve kişisel veri denetlendi, otomatik kod taraması (CodeQL) eklendi. Kurulum paketinde lisans metinleri var.
+
+0.2.6–0.2.10 ara sürümleri ayrı yayımlanmadı; her birinin ayrıntılı notları CHANGELOG.md'de kendi başlığı altındadır.
+
 ## 0.2.10 — 2026-10-17
 
 ### Açılışta tema
