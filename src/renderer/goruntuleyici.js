@@ -150,6 +150,21 @@ function kapanmadan(soz, sinyal) {
   });
 }
 
+/** İlk görünür sayfanın kareyi beklemeden çizilmesi (0.2.10, tuvalCiz): PDF.js'in çizim görevi parçalarını mikro görevle ardı ardına
+ *  yürütür; çizim ILK_CIZIM_KARESIZ_MS'yi aşarsa kalan parçalar yine ekran karesiyle (arayüz uzun süre tepkisiz kalmasın). İç adlar yoksa
+ *  (pdfjs-dist yükseltmesi) bir şey yapılmaz: çizim eskisi gibi kareyle. */
+const ILK_CIZIM_KARESIZ_MS = 300;
+function karesizBaslat(gorev) {
+  const ic = gorev?._internalRenderTask;
+  if (!ic || typeof ic._useRequestAnimationFrame !== 'boolean' || typeof ic._scheduleNext !== 'function') return;
+  const bas = performance.now(), sonraki = ic._scheduleNext;
+  ic._useRequestAnimationFrame = false;
+  ic._scheduleNext = function () {
+    if (!this._useRequestAnimationFrame && performance.now() - bas > ILK_CIZIM_KARESIZ_MS) this._useRequestAnimationFrame = true;
+    return sonraki.call(this);
+  };
+}
+
 /** PDF.js belge yükleme seçenekleri (veri: dosyanın baytları). */
 const belgeSecenekleri = (veri, parola) => ({
   data: veri,
@@ -213,6 +228,7 @@ export class Goruntuleyici extends EventTarget {
     this.yok = false;
     this._kapanis = new AbortController();   // yokEt'te tetiklenir: süren yükleme beklemesi biter (kapanmadan)
     this.hazir = false;          // yukle / durumdanYukle bitince true
+    this._kareBeklemeden = false;       // belge yeni açıldı: ilk görünür sayfa ekran karesi beklemeden çizilir (0.2.10, tuvalCiz)
     this._tanimaBekleyen = new Set();   // görsellerindeki yazının tanınması bekleyen sayfa girdileri (tanimaIste)
     this._tanimaSuruyor = false;
     this._cizimZamanlayici = null;
@@ -268,6 +284,7 @@ export class Goruntuleyici extends EventTarget {
     if (this.yok) { try { gorev.destroy().catch(() => {}); } catch {} throw new Error('Görünüm kapatıldı.'); }
     this.belge = belge;
     if (anaHatCizimi) yaziTipiYukleyicisiniSar(this.belge);   // ilk sayfa çizilmeden önce
+    this._kareBeklemeden = true;
     this.yol = secenek.yol || null;
     this.belgeler.set(yolAnahtari(this.yol), { yol: this.yol, belge: this.belge, gorev });
     const n = this.belge.numPages;
@@ -370,6 +387,7 @@ export class Goruntuleyici extends EventTarget {
     }
     if (!ana) throw new Error('Taşınan sekmenin belgesi eksik.');
     this.yuklemeGorevi = ana.gorev; this.belge = ana.belge;
+    this._kareBeklemeden = true;   // taşınan sekmenin yeni penceresi de gösterilmeden çizebilsin (tuvalCiz)
     this.yol = durum.yol || null; this.anlik = durum.anlik || null; this._parola = durum.parola ?? null;
     // Aynı sayfanın döndürme kopyaları (geri al yığınında) kimliği paylaşır: bu oturumda eklenen notlar sayfayı kimliğiyle izler
     const kimlikler = new Map();
@@ -1247,6 +1265,14 @@ export class Goruntuleyici extends EventTarget {
       transform: [1, 0, 0, 1, -px, -py],
       annotationMode: pdfjs.AnnotationMode.DISABLE,
     })));   // görsel maskesi bölgesel tuvale kırpılır (keskinlik.js); yazının yönü her parçada denetlenir (yaziTipleri.js)
+    // Belge yeni açıldı (0.2.10, açılış hızı): ilk görünür sayfa ekran karesi beklemeden çizilir. PDF.js ekran çiziminde işlem listesini
+    // ~15 ms'lik parçalarla yürütür ve her parçadan sonra bir sonraki ekran karesini (requestAnimationFrame) bekler. Soğuk açılışta kare
+    // ancak pencere gösterilince (GPU süreci hazır olunca) gelir; ilk sayfanın parçaları ondan sonra kare kare yürüyordu (taranmış örnekte
+    // pencere göründükten ~230 ms sonra çizilmişti, ölçüldü). Bu çizimde parçalar ardı ardına yürür (PDF.js'in yazdırma çizimi gibi);
+    // bekleyen yazı tipi ve görüntü verisi yine gelince sürer. İlk görünür sayfa çizilince sonraki çizimler (kaydırma, yakınlaştırma) eskisi
+    // gibi kareyle: arayüz o sırada tepkisiz kalmasın. Ağır sayfada (çizimi ILK_CIZIM_KARESIZ_MS'yi aşan) kalan parçalar da kareyle yürür.
+    // Dayanılan PDF.js iç adları: InternalRenderTask._useRequestAnimationFrame, _scheduleNext
+    if (this._kareBeklemeden) karesizBaslat(gorev);
     s.gorev = gorev;
     try {
       await gorev.promise;
@@ -1332,6 +1358,7 @@ export class Goruntuleyici extends EventTarget {
       this.cizimUygula(s, c, { ...hedef, hizli: son.hizli, keskinlesir: son.keskinlesir, px: son.px, py: son.py, bolge: { x: son.px / dpr, y: son.py / dpr, w: c.width / dpr, h: c.height / dpr } });
       if (son.hizli) { if (keskinErtelenir()) this.keskinlestirPlanla(); else if (!okumaSuruyor()) setTimeout(() => this.keskinHazir(s), 0); }
       s.el.classList.remove('yukleniyor');
+      if (this._gorunurKume.has(s)) this._kareBeklemeden = false;   // ilk görünür sayfa çizildi (tuvalCiz)
       const j = this.idx(s);
       // Ek katmanlar (bağlantı, form alanı) ve not katmanı (sayfaCizildi) yalnızca sayfanın görünümü (ölçek, döndürme, piksel oranı,
       // koyuluk) değişince yeniden kurulur (0.2.3): aynı ölçekteki yeniden çizim (bölgesel çizimin kaydırılması, hızlı çizimin

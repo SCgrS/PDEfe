@@ -159,6 +159,8 @@ function sogukAdimlar(v, t0) {
     boyutlar: rel(ilkIsaret(I, 'boyutlar', 1)),
     ilkSayfa: rel(ilkSayfa),
     ilkSayfaKare: rel(ilkIsaret(I, 'ilkSayfaKare', 1)),
+    // İlk sayfanın ekranda görünebildiği an: çizildi ve pencere gösterildi (0.2.10'dan beri ilk sayfa pencere gösterilmeden de çizilebilir)
+    ilkSayfaGorunur: ilkSayfa != null && gosterildi != null ? rel(Math.max(ilkSayfa, gosterildi)) : null,
     gosterildi: rel(gosterildi),
     ilkBoya: rel(fcp),
     cekirdekHazir: rel(anaKayit(A, 'cekirdekHazir')),
