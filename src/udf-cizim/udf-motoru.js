@@ -418,10 +418,13 @@
     return { coz, satirOrnekleri };
   }
 
-  // Alan değerindeki HTML kalıntısı düz metne çevrilir; sonuç yalnız metin düğümü olarak kullanılır.
-  const htmlsiz = v => v.replace(/\r\n?/g, '\n').replace(/<\s*br\b[^>]*>/gi, '\n')
-    .replace(/<\s*\/\s*(p|div|tr|table|li)\s*>/gi, '\n').replace(/<[^>]*>/g, '')
-    .split('\n').map(x => x.trim()).filter(Boolean).join('\n');
+  // Alan değerindeki HTML kalıntısı düz metne çevrilir; sonuç yalnız metin düğümü olarak kullanılır. Etiketler değişmeyene dek
+  // silinir: "<scr<b>ipt>" gibi iç içe kalıntıdan tek geçişte "<script>" kalmasın (CodeQL, 0.3.0).
+  const htmlsiz = v => {
+    let s = v.replace(/\r\n?/g, '\n').replace(/<\s*br\b[^>]*>/gi, '\n').replace(/<\s*\/\s*(p|div|tr|table|li)\s*>/gi, '\n');
+    for (let onceki = null; onceki !== s;) { onceki = s; s = s.replace(/<[^>]*>/g, ''); }
+    return s.split('\n').map(x => x.trim()).filter(Boolean).join('\n');
+  };
 
   // ---------------------------------------------------------------- listeler
   // NumberType: NUMBER_TYPE_<NUMBER|CHAR_SMALL|CHAR_BIG|ROMAN_SMALL|ROMAN_BIG>_<DOT|PARANTHESE|D_PARANTHESE|TRE>.
