@@ -265,6 +265,11 @@ denetimi Ayarlar'dan kapatılabilir (önerilmez).
 PDEfe şu açık kaynak projeler üzerine kuruludur: Electron, PDF.js, PyMuPDF / MuPDF, Python, pdf2docx, python-docx, legaluga-uyap-ui (UDF
 çizimi) ve başkaları. Sürümler ve lisanslar [THIRD_PARTY.md](THIRD_PARTY.md) dosyasındadır.
 
+## Otomatik denetimler
+
+[![CodeQL Advanced](https://github.com/SCgrS/PDEfe/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/SCgrS/PDEfe/actions/workflows/codeql.yml)\
+[![Dependency Review](https://github.com/SCgrS/PDEfe/actions/workflows/dependency-review.yml/badge.svg?branch=main)](https://github.com/SCgrS/PDEfe/actions/workflows/dependency-review.yml)
+
 ## Teşekkür
 
 PDEfe, açık kaynak projelerin emeği üzerine kuruldu. Sayfaları çizen PDF.js için Mozilla'ya, belgeleri işleyen MuPDF ve
