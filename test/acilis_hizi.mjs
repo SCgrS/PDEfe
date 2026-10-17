@@ -14,8 +14,9 @@
 //   .venv\Scripts\python.exe test\acilis_ornek_uret.py            (örnek PDF'ler; test/cikti/acilis/pdf; yoksa betik kendisi üretir)
 //   node test\acilis_hizi.mjs [--exe release\win-unpacked\PDEfe.exe[,<öbür PDEfe.exe>]] [--etiketler önce,sonra]
 //                             [--turler kucuk,taranmis,buyuk] [--tekrar 5] [--sicaksiz] [--port 9450] [--cikti test\cikti\acilis\sonuc.json]
-//                             [--tema koyu]
-// Her türde önce bir ısınma açılışı yapılır (sayılmaz: dosyalar işletim sisteminin ön belleğine girsin, profil kurulsun). Sonuç: her adımın
+//                             [--tema koyu] [--isinma 2]
+// Her türde önce ısınma açılışları yapılır (sayılmaz: dosyalar işletim sisteminin ön belleğine girsin, profil ve V8 kod ön belleği kurulsun;
+// Chromium derlenmiş kodu bir betiğin ikinci yüklenişinde yazar). Sonuç: her adımın
 // ortancası, %90'ı, en azı ve en çoğu (ms). Gerçek "ilk açılış" (bilgisayar yeniden başladıktan sonra, diskten) bu yolla ölçülmez.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -31,6 +32,7 @@ const EXELER = arg('exe', path.join(KOK, 'release', 'win-unpacked', 'PDEfe.exe')
 const ETIKETLER = arg('etiketler', EXELER.length > 1 ? 'önce,sonra' : 'ölçüm').split(',').map((s) => s.trim());
 const TURLER = arg('turler', 'kucuk,taranmis,buyuk').split(',').map((s) => s.trim()).filter(Boolean);
 const TEKRAR = Math.max(1, parseInt(arg('tekrar', '5'), 10) || 5);
+const ISINMA = Math.max(0, parseInt(arg('isinma', '2'), 10) || 0);
 const SICAK = !bayrak('sicaksiz');
 const PORT = parseInt(arg('port', '9450'), 10);
 const CIKTI = arg('cikti', '');
@@ -257,7 +259,7 @@ function tablo(baslik, olcumlerHedefe) {
 const sonuclar = { hedefler: HEDEFLER.map(({ exe, etiket }) => ({ exe, etiket })), tarih: new Date().toISOString(), tekrar: TEKRAR, turler: {} };
 try {
   for (const tur of TURLER) {
-    for (const h of HEDEFLER) { console.log(`[${tur}] ${h.etiket}: ısınma…`); await birAcilis(h, tur); }
+    for (let i = 0; i < ISINMA; i++) for (const h of HEDEFLER) { console.log(`[${tur}] ${h.etiket}: ısınma ${i + 1}/${ISINMA}…`); await birAcilis(h, tur); }
     const olcumler = Object.fromEntries(HEDEFLER.map((h) => [h.etiket, []]));
     for (let i = 0; i < TEKRAR; i++) {
       const sira = i % 2 ? [...HEDEFLER].reverse() : HEDEFLER;   // sıra her turda değişir (ilk açılanın üstlendiği yük dengelensin)
