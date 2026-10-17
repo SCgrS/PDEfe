@@ -1,6 +1,15 @@
 // Kalıcı ayarlar (electron-store). Bütün varsayılanlar burada.
-import Store from 'electron-store';
+// 0.2.10 (açılış hızı): electron-store'un yüklenmesi (conf, ajv…; ~50 ms, bazen daha uzun) açılışta pencereyi bekletiyordu; pencereden
+// sonra yüklenince de arayüzün açılışıyla ana süreç için yarışıyordu: ana süreç o arada bloke olunca pencerenin gösterilmesi (ready-to-show)
+// ve onunla PDF.js'in ekran karesi bekleyen sayfa çizimi gecikiyordu (ölçüldü). Depo artık açılış bittikten sonra arka planda yüklenir
+// (anaSurec.js, ayarDeposu). O ana dek ayarlar ayarlar.json'un kopyasından okunur (varsayılanlar ve taşımalar uygulanmış: deponun yüklenince
+// yazacağıyla aynı); yazılanlar kopyaya yazılır ve sıraya girer, depo yüklenince sırasıyla dosyaya geçer. Çıkışta (anaSurec.js) depo
+// yüklenmemişse yüklenip sıradakiler yazılır. Değeri değişmeyen yazım (açılışta arayüzün aynı değeri yazması) sıraya girmez.
 import os from 'node:os';
+import fs from 'node:fs';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { app } from 'electron';
 
 // Gruplar Ayarlar penceresinin sekmeleriyle aynı sırada (renderer/ayarlarPenceresi.js).
 export const VARSAYILANLAR = {
@@ -58,48 +67,102 @@ export const VARSAYILANLAR = {
  *  geçerli sayfayı döndürür; 0.2.4: "Son kullanılan" yakınlaştırmanın kaydı). */
 const KALDIRILAN_ANAHTARLAR = ['sekmeleriHatirla', 'acikSekmeler', 'sekmeDegisimindeSor', 'sonGuncellemeDenetimi', 'acilisSayaci', 'sonDenetimAcilisi', 'sonDenetimSurumu', 'temizMetin', 'otomatikKaydetTasindi', 'dondurmeKapsami', 'sonZoom'];
 
-export const ayarlar = new Store({ name: 'ayarlar', defaults: VARSAYILANLAR, clearInvalidConfig: true });
-for (const anahtar of KALDIRILAN_ANAHTARLAR) { try { if (ayarlar.has(anahtar)) ayarlar.delete(anahtar); } catch (e) { console.warn('Eski ayar silinemedi', anahtar, e); } }
-// 0.2.4 (kullanıcı isteği): varsayılan yakınlaştırmanın "Son kullanılan" ve "Görünür alana sığdır" seçenekleri kalktı; onları seçmiş olan
-// kullanıcıda varsayılana (genişliğe sığdır) döner
-try {
-  if (['son', 'gorunur'].includes(ayarlar.get('varsayilanZoom'))) ayarlar.set('varsayilanZoom', VARSAYILANLAR.varsayilanZoom);
-} catch (e) { console.warn('Yakınlaştırma ayarı taşınamadı', e); }
-// Eski varsayılan vurgu rengi (#ffeb3b) bugünkü varsayılana (#ffd100) bir kez taşınır; kullanıcının seçtiği başka renk korunur. Taşıma
-// bayrakla bir kez yapılır: sonradan bilerek #ffeb3b seçen kullanıcının rengi her açılışta değişmesin
-try {
-  if (!ayarlar.get('vurguRengiTasindi')) {
-    if (String(ayarlar.get('vurguRengi') ?? '').toLowerCase() === '#ffeb3b') ayarlar.set('vurguRengi', VARSAYILANLAR.vurguRengi);
-    ayarlar.set('vurguRengiTasindi', true);
-  }
-} catch (e) { console.warn('Vurgu rengi taşınamadı', e); }
-// 0.1.12'de otomatik kaydetme varsayılan olarak kapandı (kullanıcı isteği: ilk kurulumda kapalı, kullanıcının kendi kurulumunda da
-// kapansın). Eski sürümlerin dosyasında yazılı duran true (0.1.4–0.1.11 varsayılanı) bir kez false olur; sonradan açan kullanıcının
-// seçimi korunur (bayrak). 0.1.4'ün tersi yöndeki taşımasının bayrağı (otomatikKaydetTasindi) yukarıda silinir
-try {
-  if (!ayarlar.get('otomatikKaydetKapatildi')) {
-    ayarlar.set('otomatikKaydet', false);
-    ayarlar.set('otomatikKaydetKapatildi', true);
-  }
-} catch (e) { console.warn('Otomatik kaydetme ayarı taşınamadı', e); }
-// 0.2.3, kullanıcı isteği ("ilk yükleme başlangıcında sayfalar kısmı açık olmasın. ilk yüklemede varsayılan olarak gizli açılsın. daha sonra
-// nasıl bırakıldıysa ayarı korunsun"): varsayılan zaten kapalıydı (solPanelAcik: false), F4 / düğme durumu yazıyordu; kullanıcının kendi
-// kurulumunda eskiden açık bırakılan panel kayıtlı kaldığı için açık geliyordu. Bu sürümle panel bir kez kapanır (bayrak:
-// solPanelKapatildi); sonra açılırsa açık kalır. Bayrak VARSAYILANLAR'da değil, "Varsayılanlara dön" ona dokunmaz (öteki taşıma bayrakları
-// gibi; solPanelAcik da DURUM_ANAHTARLARI'nda, o da sıfırlanmaz). Taşıma ana süreçte, ilk pencere açılmadan bir kez: sonradan açılan
-// pencereler (Pencereye ayır, yeni pencere) aynı kaydı okur
-try {
-  if (!ayarlar.get('solPanelKapatildi')) {
-    ayarlar.set('solPanelAcik', false);
-    ayarlar.set('solPanelKapatildi', true);
-  }
-} catch (e) { console.warn('Sol panel ayarı taşınamadı', e); }
-// 0.1.8'e dek "Kaldığım sayfadan aç" kapalıyken de sayfa konumları (dosya yollarıyla) yazılıyordu: kapalı ayarın kaydı silinir.
-// Son açılanlar için de aynı (ayar dosyası elle değiştirilmişse)
-try {
-  if (ayarlar.get('kaldigimSayfadanAc') === false && Object.keys(ayarlar.get('sayfaKonumlari') || {}).length) ayarlar.set('sayfaKonumlari', {});
-  if (ayarlar.get('sonAcilanlariHatirla') === false && (ayarlar.get('sonDosyalar') || []).length) ayarlar.set('sonDosyalar', []);
-} catch (e) { console.warn('Kapalı ayarların kayıtları silinemedi', e); }
+/** @type {import('electron-store').default|null} */
+let ayarlar = null;
+let kopya = null;              // depo yüklenene dek: ayarlar.json'un kopyası (varsayılanlar ve taşımalar uygulanmış)
+const bekleyenYazimlar = [];   // depo yüklenmeden yazılanlar: [anahtar, değer] (depo yüklenince sırasıyla yazılır)
 
-export function ayarAl(anahtar) { return ayarlar.get(anahtar); }
-export function ayarKoy(anahtar, deger) { ayarlar.set(anahtar, deger); }
+/** Kopya üzerinde depo gibi işlem (taşımalar için): get / set / has / delete. */
+const kopyaErisimi = (o) => ({ get: (k) => o[k], set: (k, v) => { o[k] = v; }, has: (k) => k in o, delete: (k) => { delete o[k]; } });
+
+/** electron-store'un dosyası (name: 'ayarlar'): veri klasöründe ayarlar.json. Okunamazsa ya da bozuksa (clearInvalidConfig gibi) yalnızca
+ *  varsayılanlar. Taşımalar kopyada da yapılır (yalnızca bellekte; dosyaya depo yüklenince yazılır). */
+function kopyaAl() {
+  if (kopya) return kopya;
+  let dosya = {};
+  try {
+    const j = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'ayarlar.json'), 'utf8'));
+    if (j && typeof j === 'object' && !Array.isArray(j)) dosya = j;
+  } catch { /* yok ya da bozuk: varsayılanlar */ }
+  kopya = structuredClone({ ...VARSAYILANLAR, ...dosya });
+  tasimalariYap(kopyaErisimi(kopya));
+  return kopya;
+}
+
+/** Depoyu yükler (bir kez; eş zamanlı): taşımalar dosyaya yazılır, bekleyen yazımlar sırasıyla depoya geçer. electron-store yalnız ES
+ *  modülüdür; require ile eş zamanlı yüklenir (Node'un require(esm) desteği): çıkışta beklemeden yüklenip yazılabilsin. */
+export function ayarDeposu() {
+  if (ayarlar) return ayarlar;
+  const { default: Store } = createRequire(import.meta.url)('electron-store');
+  const depo = new Store({ name: 'ayarlar', defaults: VARSAYILANLAR, clearInvalidConfig: true });
+  tasimalariYap(depo);
+  for (const [anahtar, deger] of bekleyenYazimlar.splice(0)) depo.set(anahtar, deger);
+  ayarlar = depo;
+  kopya = null;
+  return depo;
+}
+
+/** Eski sürümlerin kayıtlarını taşır (depo yüklenince ve kopyada; ayarlar: get / set / has / delete). Her taşıma bir kez (bayrak) ya da
+ *  yalnızca eski değer varken çalışır: kopyada yapılıp depoda yinelenmesi aynı sonucu verir. */
+function tasimalariYap(ayarlar) {
+  for (const anahtar of KALDIRILAN_ANAHTARLAR) { try { if (ayarlar.has(anahtar)) ayarlar.delete(anahtar); } catch (e) { console.warn('Eski ayar silinemedi', anahtar, e); } }
+  // 0.2.4 (kullanıcı isteği): varsayılan yakınlaştırmanın "Son kullanılan" ve "Görünür alana sığdır" seçenekleri kalktı; onları seçmiş olan
+  // kullanıcıda varsayılana (genişliğe sığdır) döner
+  try {
+    if (['son', 'gorunur'].includes(ayarlar.get('varsayilanZoom'))) ayarlar.set('varsayilanZoom', VARSAYILANLAR.varsayilanZoom);
+  } catch (e) { console.warn('Yakınlaştırma ayarı taşınamadı', e); }
+  // Eski varsayılan vurgu rengi (#ffeb3b) bugünkü varsayılana (#ffd100) bir kez taşınır; kullanıcının seçtiği başka renk korunur. Taşıma
+  // bayrakla bir kez yapılır: sonradan bilerek #ffeb3b seçen kullanıcının rengi her açılışta değişmesin
+  try {
+    if (!ayarlar.get('vurguRengiTasindi')) {
+      if (String(ayarlar.get('vurguRengi') ?? '').toLowerCase() === '#ffeb3b') ayarlar.set('vurguRengi', VARSAYILANLAR.vurguRengi);
+      ayarlar.set('vurguRengiTasindi', true);
+    }
+  } catch (e) { console.warn('Vurgu rengi taşınamadı', e); }
+  // 0.1.12'de otomatik kaydetme varsayılan olarak kapandı (kullanıcı isteği: ilk kurulumda kapalı, kullanıcının kendi kurulumunda da
+  // kapansın). Eski sürümlerin dosyasında yazılı duran true (0.1.4–0.1.11 varsayılanı) bir kez false olur; sonradan açan kullanıcının
+  // seçimi korunur (bayrak). 0.1.4'ün tersi yöndeki taşımasının bayrağı (otomatikKaydetTasindi) yukarıda silinir
+  try {
+    if (!ayarlar.get('otomatikKaydetKapatildi')) {
+      ayarlar.set('otomatikKaydet', false);
+      ayarlar.set('otomatikKaydetKapatildi', true);
+    }
+  } catch (e) { console.warn('Otomatik kaydetme ayarı taşınamadı', e); }
+  // 0.2.3, kullanıcı isteği ("ilk yükleme başlangıcında sayfalar kısmı açık olmasın. ilk yüklemede varsayılan olarak gizli açılsın. daha sonra
+  // nasıl bırakıldıysa ayarı korunsun"): varsayılan zaten kapalıydı (solPanelAcik: false), F4 / düğme durumu yazıyordu; kullanıcının kendi
+  // kurulumunda eskiden açık bırakılan panel kayıtlı kaldığı için açık geliyordu. Bu sürümle panel bir kez kapanır (bayrak:
+  // solPanelKapatildi); sonra açılırsa açık kalır. Bayrak VARSAYILANLAR'da değil, "Varsayılanlara dön" ona dokunmaz (öteki taşıma bayrakları
+  // gibi; solPanelAcik da DURUM_ANAHTARLARI'nda, o da sıfırlanmaz). Taşıma ana süreçte, arayüz ayarları okumadan önce bir kez: sonradan
+  // açılan pencereler (Pencereye ayır, yeni pencere) aynı kaydı okur
+  try {
+    if (!ayarlar.get('solPanelKapatildi')) {
+      ayarlar.set('solPanelAcik', false);
+      ayarlar.set('solPanelKapatildi', true);
+    }
+  } catch (e) { console.warn('Sol panel ayarı taşınamadı', e); }
+  // 0.1.8'e dek "Kaldığım sayfadan aç" kapalıyken de sayfa konumları (dosya yollarıyla) yazılıyordu: kapalı ayarın kaydı silinir.
+  // Son açılanlar için de aynı (ayar dosyası elle değiştirilmişse)
+  try {
+    if (ayarlar.get('kaldigimSayfadanAc') === false && Object.keys(ayarlar.get('sayfaKonumlari') || {}).length) ayarlar.set('sayfaKonumlari', {});
+    if (ayarlar.get('sonAcilanlariHatirla') === false && (ayarlar.get('sonDosyalar') || []).length) ayarlar.set('sonDosyalar', []);
+  } catch (e) { console.warn('Kapalı ayarların kayıtları silinemedi', e); }
+}
+
+export function ayarAl(anahtar) {
+  if (ayarlar) return ayarlar.get(anahtar);
+  const v = kopyaAl()[anahtar];
+  return v && typeof v === 'object' ? structuredClone(v) : v;   // depo gibi her okumada ayrı nesne
+}
+/** Yazar. Depo henüz yüklenmediyse kopyaya yazılır ve sıraya girer (değeri değişmiyorsa girmez); depo yüklenince dosyaya geçer. */
+export function ayarKoy(anahtar, deger) {
+  if (ayarlar) { ayarlar.set(anahtar, deger); return; }
+  if (deger === undefined) throw new TypeError('Use `delete()` to clear values');   // electron-store gibi
+  const k = kopyaAl();
+  if (anahtar in k && JSON.stringify(k[anahtar]) === JSON.stringify(deger)) return;
+  k[anahtar] = structuredClone(deger);
+  bekleyenYazimlar.push([anahtar, structuredClone(deger)]);
+}
+/** Depo yüklenmeden yazılıp dosyaya geçmemiş değer var mı. */
+export function bekleyenYazimVar() { return bekleyenYazimlar.length > 0; }
+/** Bütün ayarlar (arayüzün 'ayar:al'ı). */
+export function tumAyarlar() { return ayarlar ? ayarlar.store : structuredClone(kopyaAl()); }

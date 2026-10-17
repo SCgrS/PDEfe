@@ -9,7 +9,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { execFile } from 'node:child_process';
 import { pathToFileURL, fileURLToPath } from 'node:url';
-import { ayarlar, ayarKoy, ayarAl, VARSAYILANLAR } from './ayarlar.js';
+import { ayarDeposu, tumAyarlar, ayarKoy, ayarAl, bekleyenYazimVar, VARSAYILANLAR } from './ayarlar.js';
 import { menuKur } from './menu.js';
 import { Cekirdek } from './cekirdek.js';
 import { panoyaDosyaKopyala, panoyaMetinYaz } from './pano.js';
@@ -18,7 +18,6 @@ import { udfYaklasikKur } from './udfYaklasik.js';
 import { guncellemeKur } from './guncelleme.js';
 import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla, menuCubugunuUygula, pencereSayisi } from './pencereler.js';
 import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, DENETLENEN_YONTEMLER, paketKlasoruMu, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasorleri, standartYaziTipleri, anlikDosyasiMi, ayarYazimiDenetle, aracCiktiKaydi, acilacakYollar } from './guvenlik.js';
-import electronUpdater from 'electron-updater';
 import { createRequire } from 'node:module';
 import { MacGuncelleyici, tarayicidaIndir } from './macGuncelleme.js';
 
@@ -314,7 +313,8 @@ async function panoGorseliniYaz(png) {
 // ---------- IPC ----------
 /** ipcMain: guvenliIpc sarmalayıcısı (uygulamanın sayfası dışından gelen istek işlenmez); modüllere de o verilir. */
 function ipcKur(ipcMain) {
-  ipcMain.handle('ayar:al', (_e, anahtar) => (anahtar ? ayarAl(anahtar) : ayarlar.store));
+  // Ayar deposu gerektiğinde yüklenir (0.2.10, ayarlar.js): o ana dek ayarlar dosyanın kopyasından (taşımalar uygulanmış) okunur
+  ipcMain.handle('ayar:al', (_e, anahtar) => (anahtar ? ayarAl(anahtar) : tumAyarlar()));
   const MENU_AYARLARI = new Set(['varsayilanDuzen', 'kapakAyri', 'sonAcilanlariHatirla']);   // menüde görünen ayarlar
   // Ayarlar bütün pencerelerde ortaktır: değişiklik öteki pencerelere bildirilir ('ayar:degisti'; kendi kopyalarını güncelleyip uygularlar)
   ipcMain.handle('ayar:koy', (e, anahtar, deger) => {
@@ -614,7 +614,11 @@ app.whenReady().then(() => {
   pencereleriKur({
     ipcMain: ipc, KOK, onYukleme: path.join(__dirname, 'preload.cjs'), TEST, ayarAl, ayarKoy, temaKoyuMu,
     // Haftalık güncelleme denetimi: sırası geldiyse ilk pencere göründükten birkaç saniye sonra; uygulama açık kaldıkça saatte bir bakılır
-    pencereGosterildi: () => guncelleme?.pencereGosterildi(),
+    pencereGosterildi: () => {
+      ilkPencereGorundu = true;
+      guncelleme?.pencereGosterildi();
+      arkaPlanYuklemeleriniZamanla(true);
+    },
     // Kapanan pencerenin dosyaları: çekirdek önbelleğinden bırakılır (dosya tanıtıcısı kapanır), anlık kopyalar silinir. İstekler
     // çekirdekte sırayla işlenir; son pencere kapanıyorsa çekirdek bunları bitirip durur (window-all-closed)
     dosyalariBirak: ({ yollar = [], anliklar = [] } = {}) => {
@@ -622,12 +626,70 @@ app.whenReady().then(() => {
       for (const yol of anliklar) if (anlikDosyasiMi(yol, anlikKlasoru())) cekirdek.cagir('anlik_sil', { yol }).catch(() => {});
     },
   });
+  guncellemeKanallariniKur();
+  sahteGuncelleyici = sahteGuncelleyiciKur(ipc);   // yalnızca geliştirme örneğinde, PDEFE_TEST_GUNCELLEME ile (test kanalları hemen kurulu olsun)
+  uygulamaMenusuKur();
+  pencereOlustur({ dosyalar: [...argvdenDosyalar(process.argv, process.cwd()), ...acilisDosyalari.splice(0)] });
+  pencerelerKuruldu = true;
+  zamanYaz('pencereIstendi');
+  cekirdek.baslat().then(() => zamanYaz('cekirdekHazir')).catch((e) => console.error('[çekirdek] başlatılamadı:', e));
+  // Ayar deposu (electron-store, ~50 ms) ve güncelleyici (electron-updater, ~55 ms) açılış bittikten sonra yüklenir (0.2.10, açılış hızı):
+  // ikisi de pencereyi bekletiyordu; pencereden hemen sonra (ya da açılışta arayüzün ilk ayar yazımıyla) yüklenince de ana süreci arayüzün
+  // açılışı sürerken ~0,1 sn bloke ediyor, pencerenin gösterilmesini (ready-to-show) ve onunla ilk sayfayı geciktiriyordu (ölçüldü). İlk
+  // pencere gösterildikten DEPO_GECIKMESI_MS / GUNCELLEYICI_GECIKMESI_MS sonra; pencere gösterilmezse kurulduktan en geç ARKA_PLAN_EN_GEC_MS
+  // sonra. O ana dek ayarlar dosyanın kopyasından okunur, yazılanlar bekler, çıkışta yazılır (ayarlar.js); güncelleme kanalları kurulmayı
+  // bekler. Geliştirme sürümünde güncelleyici yüklenmez (sahte ya da kapalı): güncelleme sistemi hemen kurulur, sınamaların zamanlaması değişmez
+  if (!PAKETLI || sahteGuncelleyici) guncellemeyiKur();
+  arkaPlanYuklemeleriniZamanla(false);
+});
+
+const DEPO_GECIKMESI_MS = 300, GUNCELLEYICI_GECIKMESI_MS = 1500, ARKA_PLAN_EN_GEC_MS = 6000;
+let depoZamanlayici = null, guncelleyiciZamanlayici = null, ilkGosterimZamanlandi = false;
+/** Arka plan yüklemelerini zamanlar: gosterildi (ilk pencere gösterildi) ise kısa gecikmelerle, değilse (pencere kuruldu) en geç süreyle. */
+function arkaPlanYuklemeleriniZamanla(gosterildi) {
+  if (gosterildi) { if (ilkGosterimZamanlandi) return; ilkGosterimZamanlandi = true; }
+  const [depoMs, guncelleyiciMs] = gosterildi ? [DEPO_GECIKMESI_MS, GUNCELLEYICI_GECIKMESI_MS] : [ARKA_PLAN_EN_GEC_MS, ARKA_PLAN_EN_GEC_MS];
+  clearTimeout(depoZamanlayici); clearTimeout(guncelleyiciZamanlayici);
+  depoZamanlayici = setTimeout(() => {
+    try { ayarDeposu(); zamanYaz('ayarDeposu'); }
+    catch (e) { process.emit('uncaughtException', e); }   // depo kurulamadı: önceden açılışta olduğu gibi ana süreç hata kutusu
+  }, depoMs);
+  guncelleyiciZamanlayici = setTimeout(() => { if (!guncelleme) guncellemeyiKur().then(() => zamanYaz('guncellemeKuruldu')); }, guncelleyiciMs);
+}
+
+// ---------- Güncelleme (0.2.10: güncelleyici ilk pencere kurulduktan sonra yüklenir) ----------
+// Arayüzün güncelleme kanalları pencereden önce kurulur, güncelleme sistemi kurulana dek yanıt bekletilir: guncellemeKur kanallarını bu
+// eşleme üzerinden verir (ipcMain yerine). Güncelleme sistemi kurulamazsa kanal hata döner (önceden kanalı hiç yoktu)
+const GUNCELLEME_KANALLARI = ['guncelleme:denetle', 'guncelleme:indir', 'guncelleme:kur', 'guncelleme:durum'];
+const guncellemeIsleyicileri = new Map();
+let guncellemeKurulduCoz = null;
+const guncellemeKuruldu = new Promise((coz) => { guncellemeKurulduCoz = coz; });
+let ilkPencereGorundu = false;
+let sahteGuncelleyici = null, guncellemeKuruluyor = false;
+
+function guncellemeKanallariniKur() {
+  for (const kanal of GUNCELLEME_KANALLARI) {
+    ipc.handle(kanal, async (e, ...a) => {
+      await guncellemeKuruldu;
+      const f = guncellemeIsleyicileri.get(kanal);
+      if (!f) throw new Error('Güncelleme sistemi kurulamadı.');
+      return f(e, ...a);
+    });
+  }
+}
+
+/** Güncelleme sistemini kurar: Windows'ta electron-updater burada yüklenir. Pencere bu arada gösterildiyse açılış denetimi hemen zamanlanır. */
+async function guncellemeyiKur() {
+  if (guncellemeKuruluyor) return;
+  guncellemeKuruluyor = true;
   try {
-    const sahte = sahteGuncelleyiciKur(ipc);   // yalnızca geliştirme örneğinde, PDEFE_TEST_GUNCELLEME ile
+    const sahte = sahteGuncelleyici, etkin = PAKETLI || !!sahte;
+    // macOS (0.2.0): imzasız uygulama kendini güncelleyemez; yeni sürüm GitHub'ın sürüm akışından denetlenir, paket tarayıcıda indirilir
+    // (macGuncelleme.js). electron-updater yalnızca Windows'ta ve paketli sürümde yüklenir (autoUpdater erişimi platformun güncelleyicisini
+    // kurar; geliştirme sürümünde güncelleme kapalı)
+    const autoUpdater = sahte || (MAC ? new MacGuncelleyici(app.getVersion()) : etkin ? (await import('electron-updater')).default.autoUpdater : null);
     guncelleme = guncellemeKur({
-      // macOS (0.2.0): imzasız uygulama kendini güncelleyemez; yeni sürüm GitHub'ın sürüm akışından denetlenir, paket tarayıcıda indirilir
-      // (macGuncelleme.js). electron-updater yalnızca Windows'ta yüklenir (autoUpdater erişimi platformun güncelleyicisini kurar)
-      app, ipcMain: ipc, autoUpdater: sahte || (MAC ? new MacGuncelleyici(app.getVersion()) : electronUpdater.autoUpdater), etkin: PAKETLI || !!sahte,
+      app, ipcMain: { handle: (kanal, f) => guncellemeIsleyicileri.set(kanal, f) }, autoUpdater, etkin,
       tarayiciIndir: MAC && !sahte ? tarayicidaIndir : null, ilkOrnek: kilit, pencereyeGonder: herkese, ayarAl, ayarKoy,
       IptalJetonu: sahte ? sahte.IptalJetonu : MAC ? null : iptalJetonuSinifi(),
       ...(sahte ? { indirmeBeklemeMs: sahte.indirmeBeklemeMs } : {}),
@@ -636,21 +698,25 @@ app.whenReady().then(() => {
       kapatmayaHazirla: () => kapatmaOnayiAyarla(true),
       kapatmaIptal: () => kapatmaOnayiAyarla(false),
     });
+    if (ilkPencereGorundu) guncelleme.pencereGosterildi();
   } catch (e) { console.error('[güncelleme] kurulamadı:', e); }
-  uygulamaMenusuKur();
-  pencereOlustur({ dosyalar: [...argvdenDosyalar(process.argv, process.cwd()), ...acilisDosyalari.splice(0)] });
-  pencerelerKuruldu = true;
-  zamanYaz('pencereIstendi');
-  cekirdek.baslat().then(() => zamanYaz('cekirdekHazir')).catch((e) => console.error('[çekirdek] başlatılamadı:', e));
-});
+  finally { guncellemeKurulduCoz(); }
+}
 
 // Son pencere kapanınca uygulama kapanır; macOS'ta da (0.2.0: belge uygulaması, Dock'ta boş kalmasın; Dock'tan yeniden açılır)
 app.on('window-all-closed', () => {
+  ayarlariKaydet();   // açılıştan hemen sonra kapatıldıysa (ayar deposu henüz yüklenmedi) bekleyen yazımlar (pencerenin yeri…) dosyaya
   cikisSerbest = true;
   cekirdek.durdur();
   app.quit();
 });
-app.on('will-quit', () => geciciKopyalariSil({ yazdirma: false }));
+app.on('will-quit', () => { ayarlariKaydet(); geciciKopyalariSil({ yazdirma: false }); });
+
+/** Ayar deposu yüklenmeden yazılanlar dosyaya geçer (çıkışta; 0.2.10, ayarlar.js). */
+function ayarlariKaydet() {
+  if (!bekleyenYazimVar()) return;
+  try { ayarDeposu(); } catch (e) { console.error('[ayarlar] kaydedilemedi:', e); }
+}
 
 // Bu modül yüklenmeden gelen ve bundan sonra gelecek dosya açma olayları (girişte dinleniyor)
 erkenOlaylariBagla({ ikinciOrnek, dosyaAc: finderdenAc });
