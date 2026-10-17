@@ -65,7 +65,7 @@ let sayac = 0;
  * Yazdırma IPC işleyicilerini kurar.
  * @param {{ ipcMain: Electron.IpcMain, BrowserWindow: typeof Electron.BrowserWindow, pencereAl: (e: Electron.IpcMainInvokeEvent) => Electron.BrowserWindow|null,
  *   testDiyalog?: Function|null, TEST?: { yazicilar?: string, gercekYazdir?: boolean } }} p
- *   pencereAl: isteği gönderen uygulama penceresi (birden çok pencere olabilir); testDiyalog: test örneğinde yerel pencerelerin yerine (main.js)
+ *   pencereAl: isteği gönderen uygulama penceresi (birden çok pencere olabilir); testDiyalog: test örneğinde yerel pencerelerin yerine (anaSurec.js)
  */
 export function yazdirmaKur({ ipcMain, BrowserWindow, pencereAl, testDiyalog = null, TEST = {} }) {
   const test = testDiyalog ? { diyalog: testDiyalog, gercekYazdir: !!TEST.gercekYazdir, yazicilar: sahteYazicilariCoz(TEST.yazicilar) } : null;
@@ -203,7 +203,7 @@ async function yazicilariOku(wc) {
 function varsayilanYaziciOku() {
   return new Promise((coz) => {
     if (WIN) {
-      // reg.exe tam yoluyla: çıplak ad sürecin çalışma klasöründe aranabilirdi (main.js progIdOku ile aynı)
+      // reg.exe tam yoluyla: çıplak ad sürecin çalışma klasöründe aranabilirdi (anaSurec.js progIdOku ile aynı)
       execFile(path.join(SISTEM32, 'reg.exe'), ['query', 'HKCU\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Windows', '/v', 'Device'],
         { windowsHide: true, timeout: 5000 }, (hata, cikti) => coz(hata ? null : varsayilanYaziciCoz(cikti)));
     } else if (MAC) {

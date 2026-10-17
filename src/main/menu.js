@@ -15,7 +15,7 @@ export function menuKur({ komut, cik, sonDosyalar, duzen }) {
   const k = (id, veri) => (_oge, pencere) => komut(id, veri, pencere);
   const sonListe = sonDosyalar();
   const son = (sonListe || []).slice(0, 10);
-  // Sayfa düzeni işaretleri (araç çubuğundaki düzen menüsüyle aynı): ayar değişince menü yeniden kurulur (main.js uygulamaMenusuKur)
+  // Sayfa düzeni işaretleri (araç çubuğundaki düzen menüsüyle aynı): ayar değişince menü yeniden kurulur (anaSurec.js uygulamaMenusuKur)
   const dz = duzen?.() || {};
   const d = ['tek', 'surekli', 'iki', 'ikiSurekli'].includes(dz.duzen) ? dz.duzen : 'surekli';
   const iki = d === 'iki' || d === 'ikiSurekli', kaydirma = d === 'surekli' || d === 'ikiSurekli';
@@ -161,7 +161,7 @@ function macSablonu({ k, cik, sonListe, son, dz, iki, kaydirma }) {
         { label: 'Diğerlerini gizle', role: 'hideOthers' },
         { label: 'Tümünü göster', role: 'unhide' },
         { type: 'separator' },
-        // ⌘Q bütün pencereleri sırayla kapatır (her biri kaydedilmemiş belgelerini sorar); Dock'tan Çık da aynı yoldan (main.js before-quit)
+        // ⌘Q bütün pencereleri sırayla kapatır (her biri kaydedilmemiş belgelerini sorar); Dock'tan Çık da aynı yoldan (anaSurec.js before-quit)
         { label: 'PDEfe\'den çık', accelerator: 'Cmd+Q', click: () => cik() },
       ],
     },

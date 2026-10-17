@@ -132,7 +132,7 @@ export function testDiyalogKur(ipcMain) {
   });
   // İşletim sisteminin teması (0.2.10, test/tema_acilis.mjs): "Sistemi izle" ayarı Windows / macOS koyu ya da açıkken nasıl açılır ve sistem
   // teması değişince ne olur, bilgisayarın ayarına dokunmadan. kaynak: 'dark' | 'light' | 'system' (nativeTheme.themeSource; yalnızca bu test
-  // örneğinde, 'updated' olayı main.js'teki gibi pencerelere 'tema:sistem' gönderir). Döner: shouldUseDarkColors
+  // örneğinde, 'updated' olayı anaSurec.js'teki gibi pencerelere 'tema:sistem' gönderir). Döner: shouldUseDarkColors
   ipcMain.handle('test:sistemTemasi', (_e, kaynak) => {
     if (['dark', 'light', 'system'].includes(kaynak)) nativeTheme.themeSource = kaynak;
     return nativeTheme.shouldUseDarkColors;

@@ -195,6 +195,9 @@ async function birAcilis(h, tur) {
     const cdp = await sayfaBagla(h.port, sonZaman);
     const v = await belgeyiBekle(cdp, (I) => I.some((m) => m.ad === 'ilkSayfa' && m.no === 1), sonZaman);
     sonuc.soguk = sogukAdimlar(v, b.t0);
+    // Ham kayıtlar (ms, süreç başlatmadan): ana sürecin ve arayüzün bütün adımları, sonradan ayrıntılı bakmak için
+    sonuc.anaKayitlar = (v.ana?.kayitlar || []).map((k) => ({ ad: k.ad, t: yuvarla(k.t - b.t0), ...(k.ek !== undefined ? { ek: k.ek } : {}) }));
+    sonuc.arayuzIsaretleri = v.isaretler.map((m) => ({ ad: m.ad, t: yuvarla(m.t - b.t0), no: m.no }));
     if (SICAK) {
       await bekle(1500);   // açılışın arkasından gelen işler (çekirdek, küçük resimler) dinsin
       const b2 = await baslat(h, `--user-data-dir="${h.veri}" "${pdf2}"`);

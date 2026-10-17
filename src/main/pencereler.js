@@ -128,7 +128,7 @@ function menuCubuguKur(pencere, goster) {
   try { pencere.setAutoHideMenuBar(!goster); pencere.setMenuBarVisibility(!!goster); } catch { /* pencere kapandı */ }
 }
 
-/** Menü çubuğu ayarı bütün pencerelerde ortaktır (main.js ayar:koy). */
+/** Menü çubuğu ayarı bütün pencerelerde ortaktır (anaSurec.js ayar:koy). */
 export function menuCubugunuUygula(goster) { for (const k of kayitlar.values()) if (canli(k)) menuCubuguKur(k.pencere, goster); }
 
 // ---------------------------------------------------------------- pencere oluşturma

@@ -281,7 +281,7 @@ function sayfaDuzeniKartlari(k) {
 }
 
 const VARSAYILAN_ACIKLAMA = MAC
-  // macOS (0.2.0): varsayılan uygulama Finder'dan seçilir; uygulama bunu okuyamaz, düğme yok (main.js kabuk:varsayilanMi)
+  // macOS (0.2.0): varsayılan uygulama Finder'dan seçilir; uygulama bunu okuyamaz, düğme yok (anaSurec.js kabuk:varsayilanMi)
   ? 'PDF dosyalarına çift tıklayınca PDEfe\'de açılsın: Finder\'da bir PDF\'e sağ tıklayıp Bilgi Al\'ı seçin, "Birlikte aç" listesinden PDEfe\'yi seçin ve "Tümünü Değiştir"e basın.'
   : 'PDF dosyalarına çift tıklayınca PDEfe\'de açılsın. Windows "Varsayılan Uygulamalar" sayfası açılır; .pdf satırında PDEfe\'yi seçin. Kurulumsuz (geliştirme) çalıştırmada PDEfe listede görünmeyebilir.';
 const TIK_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="m6.3 10.2 2.5 2.5 5-5.2"/></svg>';

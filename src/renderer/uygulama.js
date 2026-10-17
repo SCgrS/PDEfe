@@ -78,7 +78,7 @@ const durum = new DurumCubugu({
 });
 // Geri alınacak adımlar (Geri al'ın ▾ düğmesi) ve kaydedilmemiş değişiklikler (durum çubuğu) listesi (0.2.2); bkz. geçmiş listeleri bölümü
 const gecmisListesi = new GecmisListesi();
-// Ctrl+A: belgenin bütün sayfalarının metni (0.2.6, tumSecim.js); kopyalanan metin panoya ana süreçte yazılır (main.js 'pano:metin')
+// Ctrl+A: belgenin bütün sayfalarının metni (0.2.6, tumSecim.js); kopyalanan metin panoya ana süreçte yazılır (anaSurec.js 'pano:metin')
 const tumSecim = new TumSecim({ cekirdek, bildir: (metin, sure) => bildir(metin, sure),
   panoyaYaz: (metin, yalnizcaPanodaysa) => pdefe.cagir('pano:metin', metin, { yalnizcaPanodaysa }) });
 

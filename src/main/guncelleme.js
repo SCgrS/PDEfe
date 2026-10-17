@@ -23,7 +23,7 @@
 // ("--updated --force-run"). O sürümlerden geçişte de sihirbaz görünmesin diye build/installer.nsh "--updated" ile başlatılan
 // kurucuyu kendisi sessize alır (customInit, SetSilent).
 //
-// Kullanım (main.js):
+// Kullanım (anaSurec.js):
 //   const guncelleme = guncellemeKur({ app, ipcMain, autoUpdater, pencereyeGonder, ayarAl, ayarKoy, ilkOrnek,
 //                                      kapatmayaHazirla: () => kapatmaOnayiAyarla(true), kapatmaIptal: () => kapatmaOnayiAyarla(false) });
 //   pencere.once('show', () => guncelleme.pencereGosterildi());   // açılış denetimi ve saatlik bakış buradan başlar
@@ -391,7 +391,7 @@ export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPack
 
   function durdur() { clearTimeout(zamanlayici); clearInterval(bakis); zamanlayici = null; bakis = null; }
   // will-quit: çıkış gerçekten sürüyor (bütün pencereler kapandı). before-quit değil: macOS'ta Dock › Çık ve oturum kapatma before-quit
-  // olarak gelir, main.js onu engelleyip pencereleri sorar; Vazgeç denince uygulama açık kalır, denetim de sürmeli (0.2.1)
+  // olarak gelir, anaSurec.js onu engelleyip pencereleri sorar; Vazgeç denince uygulama açık kalır, denetim de sürmeli (0.2.1)
   app.on('will-quit', durdur);
 
   return { denetle, pencereGosterildi, durdur, temizlik };

@@ -66,7 +66,7 @@ function secimCapada(aralik) {
 export class TumSecim {
   /**
    * cekirdek(yontem, params): çekirdek isteği (uygulama.js); panoyaYaz(metin, yalnizcaPanodaysa): ana süreçte panoya yazar, yazıldıysa true
-   * (main.js 'pano:metin'); bildir(metin, sure): kısa bildirim.
+   * (anaSurec.js 'pano:metin'); bildir(metin, sure): kısa bildirim.
    */
   constructor({ cekirdek, panoyaYaz, bildir }) {
     this.cekirdek = cekirdek; this.panoyaYaz = panoyaYaz; this.bildir = bildir;

@@ -26,7 +26,7 @@ export function uygulamaSayfasiMi(e) {
 }
 
 /** ipcMain'in yerine geçen sarmalayıcı (handle / on): uygulamanın sayfası dışından gelen istek işlenmez, handle reddedilir. Bütün
- *  modüllere ipcMain yerine bu verilir (main.js). */
+ *  modüllere ipcMain yerine bu verilir (anaSurec.js). */
 export function guvenliIpc(ipcMain) {
   return {
     handle(kanal, isleyici) {
@@ -123,7 +123,7 @@ export function acilacakYollar(yollar) {
 export const ARAC_CIKTI_UZANTILARI = /\.(pdf|udf|tiff?|docx|jpe?g)$/i;
 
 /**
- * Araçların bu oturumda yazdığı çıktı dosyalarının kaydı (0.2.8; main.js). Araçların sonuç kutusundaki "Tümünü aç" / "Aç" (dosya:varsayilanlaAc)
+ * Araçların bu oturumda yazdığı çıktı dosyalarının kaydı (0.2.8; anaSurec.js). Araçların sonuç kutusundaki "Tümünü aç" / "Aç" (dosya:varsayilanlaAc)
  * dosyayı Windows'un / macOS'un varsayılan programıyla açar (shell.openPath: .exe'yi de çalıştırır, .lnk'yi izler): arayüzde kod çalışsa bile
  * yalnızca araçların bu oturumda yazdığı, çıktı uzantılı dosyalar açılabilsin. kaydet(yontem, params, sonuc): çekirdeğin sonucundaki yazılan
  * dosyalar (bicim_donustur: hatasız öğelerin hedef / hedefler'i; ayir: dosyalar; birlestir: yol, yoksa istekteki hedef); ekle(yollar): ana sürecin
@@ -155,7 +155,7 @@ export function anlikDosyasiMi(yol, anlikKlasor) {
 }
 
 /** Hedef verilmezse yol'a (açık belgenin kendisine) yazan çekirdek yöntemleri (0.2.1); ayir yalnızca uzerine ile. Bu yöntemler hedefsiz
- *  de denetlenir (main.js cekirdek:cagir). */
+ *  de denetlenir (anaSurec.js cekirdek:cagir). */
 export const YOLA_YAZANLAR = new Set(['notlar_kaydet', 'yapisal_kaydet', 'sayfalar_uygula', 'kucult', 'dondur_kaydet', 'ayir']);
 
 /** Format Değiştir'in çekirdek yöntemleri (0.2.6, core/islemler/donustur.py; 0.2.7: donusum_tahmini): parametreleri her zaman denetlenir. */
@@ -165,7 +165,7 @@ export const DONUSUM_YONTEMLERI = new Set(['donusum_yetenekleri', 'donusum_bilgi
  *  ve birlestir'de UDF'yi editörle çevirir). Parametrelerin geri kalanı değişmez. */
 export const UDE_YOLLU_YONTEMLER = new Set(['gorsel_bilgi', 'birlestir']);
 
-/** Parametreleri hedef verilmese de denetlenen yöntemler (main.js cekirdek:cagir). */
+/** Parametreleri hedef verilmese de denetlenen yöntemler (anaSurec.js cekirdek:cagir). */
 export const DENETLENEN_YONTEMLER = new Set([...YOLA_YAZANLAR, ...DONUSUM_YONTEMLERI, ...UDE_YOLLU_YONTEMLER, 'anlik_sil']);
 
 /** bicim_donustur: hedef biçime göre izinli uzantılar (çekirdeğin HEDEF_UZANTILARI ile aynı; Word hedefi .docx; 0.2.7: görüntü hedefi JPG,
@@ -191,7 +191,7 @@ const izinYok = () => new Error('İzin verilmeyen istek.');
 const dolu = (s) => typeof s === 'string' && s.trim().length > 0 && !s.includes('\0');
 
 /**
- * ayar:koy (main.js): arayüzün yazabileceği ayar. Yalnızca bilinen üst düzey ayarlar (varsayilanlar: ayarlar.js VARSAYILANLAR; arayüz
+ * ayar:koy (anaSurec.js): arayüzün yazabileceği ayar. Yalnızca bilinen üst düzey ayarlar (varsayilanlar: ayarlar.js VARSAYILANLAR; arayüz
  * başkasını yazmaz) ve udeYolu yalnızca null (temizleme; klasörü yalnızca ana sürecin ayar:udeKlasoruSec penceresi yazar: çekirdek o
  * klasördeki Java'yı çalıştırır). Anahtar metin olmalı: electron-store (conf) nesne anahtarında bütün girdileri yazar ({ udeYolu: … }),
  * noktalı yolu iç içe alan sayar ('udeYolu.x' udeYolu'nu nesneye çevirir); ikisi de bu denetimi aşardı (0.2.6 incelemesi). Uymayan istekte
@@ -206,7 +206,7 @@ export function ayarYazimiDenetle(anahtar, deger, varsayilanlar) {
  * Dosya Formatını Değiştir'in parametreleri (0.2.6). Çekirdek de denetler; bu katman, arayüzde kod çalışsa bile çekirdeğin .bat / .cmd / .exe
  * gibi bir dosyaya yazmamasını ve kullanıcının seçmediği bir klasördeki programı çalıştırmamasını sağlar.
  *  - udeYolu: arayüzün verdiği yok sayılır; ana sürecin ayarındaki klasör (yalnızca ana sürecin klasör seçme penceresinden yazılır,
- *    main.js ayar:udeKlasoruSec) var olan bir klasörse o, değilse null (çekirdek UYAP Doküman Editörü'nü kendisi arar). Çekirdek bu
+ *    anaSurec.js ayar:udeKlasoruSec) var olan bir klasörse o, değilse null (çekirdek UYAP Doküman Editörü'nü kendisi arar). Çekirdek bu
  *    klasördeki Java'yı çalıştırır: arayüz başka bir klasörü gösterememeli.
  *  - donusum_bilgi: yol dolu bir metin, onizleme mantıksal değer, genislik 16–1024.
  *  - bicim_donustur: ogeler en çok 500 öğe; her öğede yol (okunacak girdi) ve hedef dolu metin, hedefBicim bilinen biçim ve hedefin

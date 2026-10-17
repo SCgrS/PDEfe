@@ -287,12 +287,12 @@ async function eskileriTemizle() {
 
 // ---------------------------------------------------------------- kurulum
 /**
- * Kanalları kurar (main.js).
+ * Kanalları kurar (anaSurec.js).
  * @param {{ ipcMain: { handle: Function }, KOK: string, cekirdekCagir: (yontem: string, params: object, ilerleme?: Function, anahtar?: string) => Promise<any>,
  *   cekirdekIptal: (anahtar: string) => Promise<boolean>, ciktiKaydet?: (yollar: string[]) => void }} p
  *   ipcMain: guvenliIpc sarmalayıcısı; cekirdekCagir: çekirdek çağrısı (parametreleri guvenlik.js cekirdekParametreleri'nden geçirerek);
  *   cekirdekIptal: o anahtarla çalışan çekirdek işini iptal eder; ciktiKaydet (0.2.8): ana sürecin yazdığı PDF hedefi araçların çıktı kaydına
- *   (sonuç kutusundaki "Tümünü aç"; çekirdeğin yazdıklarını main.js kendisi kaydeder).
+ *   (sonuç kutusundaki "Tümünü aç"; çekirdeğin yazdıklarını anaSurec.js kendisi kaydeder).
  */
 export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal, ciktiKaydet = () => {} }) {
   sayfaKlasoru = path.join(KOK, 'src', 'udf-cizim');
