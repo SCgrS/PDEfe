@@ -570,6 +570,7 @@ async function sekmeleriKapat(idler) {
 
 function baslangicGoster() {
   $('#baslangic').hidden = false;
+  if (!document.documentElement.classList.contains('belge-bekleniyor')) performance.mark('pdefe:acilisEkrani');   // açılış zamanları (0.2.10)
   belgeDurumuYaz(null);
   if (arama.acik) arama.kapat();   // aranacak belge kalmadı
   pdefe.cagir('pencere:baslik', '');
