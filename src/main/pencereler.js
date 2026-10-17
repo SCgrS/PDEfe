@@ -178,7 +178,9 @@ export function pencereOlustur({ sinirlar = null, goster = true, dosyalar = [] }
       nodeIntegration: false,
       spellcheck: false,
       backgroundThrottling: false,
-      additionalArguments: [`--pdefe-tema=${koyu ? 'koyu' : 'acik'}`],
+      // --pdefe-acilis-belgesi (0.2.10): pencere bir belgeyle açılıyor (Gezgin'de çift tıklanan PDF); arayüz belge gelene dek açılış ekranını
+      // göstermez (preload.cjs, renderer/ilkTema.js)
+      additionalArguments: [`--pdefe-tema=${koyu ? 'koyu' : 'acik'}`, ...(dosyalar.length ? ['--pdefe-acilis-belgesi'] : [])],
     },
   });
   menuCubuguKur(pencere, menuGorunur);

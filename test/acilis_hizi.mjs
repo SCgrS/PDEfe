@@ -139,6 +139,9 @@ function sogukAdimlar(v, t0) {
   const I = v.isaretler, A = v.ana, rel = (t) => (t == null ? null : t - t0);
   const fcp = v.boyalar.find((b) => b.ad === 'first-contentful-paint')?.t ?? null;
   const gosterildi = anaKayit(A, 'gosterildi'), hazir = ilkIsaret(I, 'hazir'), sekme = ilkIsaret(I, 'sekmeAcildi', 1), ilkSayfa = ilkIsaret(I, 'ilkSayfa', 1);
+  // Açılış ekranının görünür olduğu an: 0.2.10'dan beri pencere belgeyle açılırken ('belgeBekleniyor') açılış ekranı belgenin sekmesine dek
+  // gizlidir, gösterilirse 'acilisEkrani' yazılır; 0.2.9'da arayüz hazır olunca ('hazir') kuruluyordu
+  const acilisEkrani = I.some((m) => m.ad === 'belgeBekleniyor') ? ilkIsaret(I, 'acilisEkrani') : hazir;
   return {
     girisModulu: rel(anaKayit(A, 'acilisModulu')),
     anaModul: rel(anaKayit(A, 'anaModul')),
@@ -160,7 +163,7 @@ function sogukAdimlar(v, t0) {
     ilkBoya: rel(fcp),
     cekirdekHazir: rel(anaKayit(A, 'cekirdekHazir')),
     // Pencere göründükten sonra açılış ekranının (belgenin sekmesi açılana dek) ekranda kaldığı süre; görünmeden önce geçtiyse 0
-    acilisEkraniSuresi: gosterildi != null && hazir != null && sekme != null ? Math.max(0, sekme - Math.max(gosterildi, hazir)) : null,
+    acilisEkraniSuresi: gosterildi != null && sekme != null ? (acilisEkrani != null ? Math.max(0, sekme - Math.max(gosterildi, acilisEkrani)) : 0) : null,
     // Pencere göründükten belgenin ilk sayfası çizilene dek (görünmeden önce çizildiyse 0)
     gorunurBekleme: gosterildi != null && ilkSayfa != null ? Math.max(0, ilkSayfa - gosterildi) : null,
   };

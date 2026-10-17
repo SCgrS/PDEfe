@@ -246,6 +246,7 @@ async function dosyaAc(yol, secenek = {}) {
   if (yerine) { baslangicSekmeleri.delete(yerine); sekmeler.kaldir(yerine); aktifId = null; }
   if (!secenek.arkaPlanda || !aktifId) sekmeSec(id);
   performance.mark('pdefe:sekmeAcildi', { detail: olcum });
+  acilisBeklemesiniBitir();   // belgenin sekmesi açıldı (pencere bu belgeyle açıldıysa açılış ekranı gizliydi)
 
   // Sekme yüklenirken kapatılabilir (0.2.1): kapatıldıysa (belgeler'de yok) çekirdeğe yeni istek gitmez, dosya son açılanlara eklenmez, hata
   // sorulmaz. Yoksa çekirdek dosyayı sekme kapandıktan (belge_birak) sonra yeniden açıp kilitli tutardı
@@ -285,6 +286,7 @@ async function dosyaAc(yol, secenek = {}) {
       if (aktifId === id) sekmeSec(yerine);
     }
     belgeKapat(id, { zorla: true });
+    acilisBeklemesiniBitir();
     await mesajKutusu({ tur: 'error', mesaj: 'PDF açılamadı', ayrinti: `${ad}\n\n${hataMetni(e)}` });
     return null;
   }
@@ -1645,16 +1647,29 @@ function yeniPenceredeAc(yollar) {
 
 // secenek.yazildi: dosya başka bir pencerede (araç çıktısı olarak) yeniden yazıldı; burada açık sekmesi diskteki yeni hâliyle yenilenir
 pdefe.dinle('dosya:ac', async (yollar, secenek) => {
-  // Taşınmakta olan sekme yenilenmez, kapatılmaz: taşıma bitince dosya hangi penceredeyse orada işlenir (dosyaAc öteki pencereye sorar)
-  await tasimaBitmesiniBekle();
-  const { sekme, donustur } = secenek?.yazildi ? { sekme: yollar, donustur: [] } : acilacaklariAyir(yollar);
-  for (const y of sekme) {
-    const acik = secenek?.yazildi ? [...belgeler.values()].find((b) => yolAyni(b.yol, y)) : null;
-    if (acik) await yazilanSekmeyiYenile(acik); else await dosyaAc(y, { yazildi: !!secenek?.yazildi });
-  }
-  // UDF, TIFF, Word (komut satırı, macOS'ta Finder): Format Değiştir (0.2.6; başka araç açıksa yeni pencerede, 0.2.7)
-  if (donustur.length) donusturAracindaAc(donustur);
+  try {
+    // Taşınmakta olan sekme yenilenmez, kapatılmaz: taşıma bitince dosya hangi penceredeyse orada işlenir (dosyaAc öteki pencereye sorar)
+    await tasimaBitmesiniBekle();
+    const { sekme, donustur } = secenek?.yazildi ? { sekme: yollar, donustur: [] } : acilacaklariAyir(yollar);
+    for (const y of sekme) {
+      const acik = secenek?.yazildi ? [...belgeler.values()].find((b) => yolAyni(b.yol, y)) : null;
+      if (acik) await yazilanSekmeyiYenile(acik); else await dosyaAc(y, { yazildi: !!secenek?.yazildi });
+    }
+    // UDF, TIFF, Word (komut satırı, macOS'ta Finder): Format Değiştir (0.2.6; başka araç açıksa yeni pencerede, 0.2.7)
+    if (donustur.length) donusturAracindaAc(donustur);
+  } finally { acilisBeklemesiniBitir(); }   // belge başka pencerede açıldıysa ya da açılamadıysa açılış ekranı görünsün
 });
+
+/** Pencere bir belgeyle açıldıysa (0.2.10, ilkTema.js 'belge-bekleniyor') açılış ekranının gizlenmesini bitirir: belgenin sekmesi açıldı,
+ *  açılamadı ya da gelen dosyalar işlendi. Belge hiç gelmezse (ana süreç gönderemedi) en geç ACILIS_BEKLEME_MS sonra. */
+const ACILIS_BEKLEME_MS = 10000;
+function acilisBeklemesiniBitir() {
+  const html = document.documentElement;
+  if (!html.classList.contains('belge-bekleniyor')) return;
+  html.classList.remove('belge-bekleniyor');
+  if (!$('#baslangic').hidden) performance.mark('pdefe:acilisEkrani');   // belge gelmedi: açılış ekranı şimdi görünüyor (açılış zamanları)
+}
+if (document.documentElement.classList.contains('belge-bekleniyor')) setTimeout(acilisBeklemesiniBitir, ACILIS_BEKLEME_MS);
 pdefe.dinle('pencere:tamEkran', (acik) => document.body.classList.toggle('tam-ekran', acik));
 // Kapatma isteği yanıtsız bırakılmaz: Dosya › Çıkış pencereleri sırayla kapatır, vazgeçilen pencerede durur ('pencere:kapatVazgec').
 // Kapatma akışı sürerken gelen ikinci istek (× yeniden, Alt+F4, Çıkış) yalnızca açık soruyu gösterir; yanıtı süren akış verir (yoksa

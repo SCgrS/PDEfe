@@ -33,6 +33,8 @@ const izinYok = (kanal) => new Error(`İzin verilmeyen kanal: ${kanal}`);
 // renderer/ilkTema.js ile onu ilk çizimden önce html'e koyar; ayarlar IPC ile gelince (uygulama.js temaUygula) aynı tema yeniden uygulanır
 const TEMA_ON_EKI = '--pdefe-tema=';
 const ilkTema = (process.argv || []).find((a) => typeof a === 'string' && a.startsWith(TEMA_ON_EKI))?.slice(TEMA_ON_EKI.length);
+// Pencere bir belgeyle açılıyor (0.2.10, pencereler.js): açılış ekranı belge gelene dek gizli kalır (renderer/ilkTema.js)
+const ilkBelgeBekleniyor = (process.argv || []).includes('--pdefe-acilis-belgesi');
 
 contextBridge.exposeInMainWorld('pdefe', {
   cagir: (kanal, ...args) => (CAGRILAR.has(kanal) || testMi(kanal) ? ipcRenderer.invoke(kanal, ...args) : Promise.reject(izinYok(kanal))),
@@ -48,4 +50,5 @@ contextBridge.exposeInMainWorld('pdefe', {
   platform: process.platform,
   // 'koyu' | 'acik' | null (komut satırında yoksa; arayüz o zaman ayarları bekler)
   ilkTema: ilkTema === 'koyu' || ilkTema === 'acik' ? ilkTema : null,
+  ilkBelgeBekleniyor,
 });

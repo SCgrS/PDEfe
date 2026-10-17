@@ -7,4 +7,10 @@ performance.mark('pdefe:html');   // açılış zamanları (0.2.10, uygulama.js)
 (() => {
   const tema = window.pdefe && window.pdefe.ilkTema;
   if (tema === 'koyu' || tema === 'acik') document.documentElement.dataset.tema = tema;
+  // 0.2.10: pencere Gezgin'de çift tıklanan bir belgeyle açılıyor; açılış ekranı belgenin sekmesi açılana dek gizli (stil.css, uygulama.js
+  // acilisBeklemesiniBitir). Pencere artık arayüz hazır olmadan da görünebiliyor; açılış ekranı bir an görünüp belgeye dönmesin
+  if (window.pdefe && window.pdefe.ilkBelgeBekleniyor) {
+    document.documentElement.classList.add('belge-bekleniyor');
+    performance.mark('pdefe:belgeBekleniyor');   // açılış zamanları (uygulama.js)
+  }
 })();

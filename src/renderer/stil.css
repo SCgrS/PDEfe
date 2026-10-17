@@ -396,6 +396,8 @@ html.metin-seciliyor, html.metin-seciliyor * { cursor: text !important; }
   --karsilama-sutunlar: repeat(3, minmax(0, 1fr)); --karsilama-aralik: 10px;   /* araç ızgarası ve PDF aç'ın satırı (aşağıda) */
   grid-row: 2; justify-self: center; width: min(820px, 100%); display: flex; flex-direction: column; gap: 22px;
 }
+/* Pencere bir belgeyle açılırken (0.2.10, ilkTema.js) açılış ekranı belgenin sekmesi açılana dek görünmez */
+html.belge-bekleniyor #baslangic { visibility: hidden; }
 @container (max-width: 600px) { .karsilama { --karsilama-sutunlar: repeat(2, minmax(0, 1fr)); } }
 @container (max-width: 400px) { .karsilama { --karsilama-sutunlar: minmax(0, 1fr); } }
 .karsilama h2 { margin: 0; font-size: 13px; font-weight: 600; }
