@@ -219,9 +219,11 @@ function protokolKur() {
     const tam = path.normalize(path.join(KOK, goreli));
     if (!tam.startsWith(path.normalize(KOK))) return new Response('Yasak', { status: 403 });
     try {
-      const yanit = await net.fetch(pathToFileURL(tam).toString());
+      // Dosya doğrudan okunur (0.2.10, açılış hızı): net.fetch(file://) her istekte ağ hizmeti sürecine gidip gelir; arayüzün açılışında
+      // ~40 dosya (modüller, stiller, PDF.js ve işçisi) bu yoldan yükleniyor
+      const veri = await fs.promises.readFile(tam);
       const mime = MIME[path.extname(tam).toLowerCase()] || 'application/octet-stream';
-      return new Response(yanit.body, { status: yanit.status, headers: { 'content-type': mime, 'cache-control': 'no-cache' } });
+      return new Response(veri, { status: 200, headers: { 'content-type': mime, 'cache-control': 'no-cache' } });
     } catch (e) {
       return new Response('Bulunamadı: ' + goreli, { status: 404 });
     }
