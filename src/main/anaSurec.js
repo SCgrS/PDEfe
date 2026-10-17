@@ -3,6 +3,7 @@
 // yüklenir ('ready' bu modül bitmeden gelebilir; whenReady o zaman hemen çalışır).
 import { zamanYaz, zamanlariAl } from './acilisZamanlari.js';
 import { erkenOlaylariBagla } from './erkenOlaylar.js';
+import { acilisHatasi } from './acilisHatasi.js';
 import { app, BrowserWindow, protocol, ipcMain, dialog, Menu, shell, nativeTheme, clipboard } from 'electron';
 import { TEST, testDiyalogKur, sahteGuncelleyiciKur } from './gelistirme.js';
 import path from 'node:path';
@@ -643,6 +644,11 @@ app.whenReady().then(() => {
   // bekler. Geliştirme sürümünde güncelleyici yüklenmez (sahte ya da kapalı): güncelleme sistemi hemen kurulur, sınamaların zamanlaması değişmez
   if (!PAKETLI || sahteGuncelleyici) guncellemeyiKur();
   arkaPlanYuklemeleriniZamanla(false);
+}).catch((e) => {
+  // Açılış ilk pencereden önce hata verdiyse (ayar dosyası okunamadı…) penceresiz süreç kilidi tutarak açık kalmasın (0.2.10 inceleme):
+  // "PDEfe açılamadı" kutusu ve çıkış. Pencere açıldıysa eskisi gibi ana süreç hata kutusu, uygulama sürer
+  if (!pencereSayisi()) acilisHatasi(e);
+  else process.emit('uncaughtException', e);
 });
 
 const DEPO_GECIKMESI_MS = 300, GUNCELLEYICI_GECIKMESI_MS = 1500, ARKA_PLAN_EN_GEC_MS = 6000;

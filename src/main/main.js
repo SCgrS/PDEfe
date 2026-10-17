@@ -14,6 +14,7 @@ import './acilisZamanlari.js';   // ilk: açılış zamanları öteki modülleri
 import { app, protocol } from 'electron';
 import './gelistirme.js';        // test örneğinin veri klasörü (PDEFE_VERI_KLASORU) kilitten önce kurulur: kilit veri klasöründedir
 import { erkenOlaylariTut } from './erkenOlaylar.js';
+import { acilisHatasi } from './acilisHatasi.js';
 
 if (!app.requestSingleInstanceLock()) {
   app.exit(0);   // dosya açık örneğe iletildi; hazırlık (mesaj döngüsü) başlamadan çıkılır, pencere ve çekirdek kurulmaz
@@ -25,7 +26,7 @@ if (!app.requestSingleInstanceLock()) {
   erkenOlaylariTut(app);
   // Beklenmez (yukarıda) ve bir sonraki görevde başlar: giriş modülünün değerlendirmesinin hemen ardından (mikro görev olarak) başlayan
   // dinamik içe aktarma da modül ağacının tamamını Chromium'un açılışından önce yüklüyordu (ölçüldü). setImmediate'in görevi Chromium'un
-  // açılış görevlerinden (GPU sürecinin başlatılması dâhil) sonra çalışır. Yüklenemezse Electron'un ana süreç hata kutusu (üst düzey
-  // await'teki gibi)
-  setImmediate(() => import('./anaSurec.js').catch((e) => process.emit('uncaughtException', e)));
+  // açılış görevlerinden (GPU sürecinin başlatılması dâhil) sonra çalışır. Yüklenemezse "PDEfe açılamadı" kutusu ve çıkış (acilisHatasi.js:
+  // kilit bırakılır; Electron'un varsayılan hata kutusu penceresiz süreci kilitle birlikte açık bırakıyordu, 0.2.10 inceleme)
+  setImmediate(() => import('./anaSurec.js').catch(acilisHatasi));
 }
