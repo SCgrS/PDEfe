@@ -3947,3 +3947,114 @@ Kullanıcı: "Bu attığım dosyada yazıları bulmuyordu, bunu daha önce de ko
   tanımasıyla aynı sayı, 11 sayfada). Belge açılıp hemen 1. sayfadan aranınca ilk sonuç 8,7 sn'de (sözcüğün ilk geçtiği 19. sayfa), bütün
   belge 16,9 sn'de (arama sürerken her 300 ms'de kaydırılarak. Kaydırmadan 14,0 sn, ilk sonuç 6,8 sn). Olay döngüsünün en uzun gecikmesi
   69 ms, en uzun kare aralığı 89 ms (kaydırılan taranmış sayfaların çizimi). Seçili vurgu dikey okunan sözcüğün öğesiyle örtüştü.
+
+#### 0.3.1: form alanları (AcroForm)
+Kullanıcı: "tıklayarak işaretleme özelliğini getireceğiz mesela kutucuklu pdfler oluyor onlara." Kullanıcı kararı (aynı gün): Yalnızca form alanı
+olan PDF'lerde. Düz (basılı kutucuklu) PDF'e tıklayıp işaret koymak yapılmadı. XFA formları (bireysel başvuru formu) ayrı madde.
+- [x] **Kök neden**: Form alanları 0.3.0'a dek yalnızca görüntüydü. Çekirdek sayfanın bütün widget'larını tek saydam PNG olarak çiziyordu
+  (notlar.y_form_gorunum, fz_run_page_widgets), renderer onu sayfanın üstüne koyuyordu: Tıklanamıyor, yazılamıyor, değer kaydedilemiyordu.
+  Yazdırmada "Notları yazdır" kapalıyken (varsayılan) form alanları hiç basılmıyordu (get_pixmap annots=False).
+- [x] **Ölçüm: MuPDF'in ürettiği görünüm kullanılamaz** (PyMuPDF / MuPDF 1.28.2, Widget.update): Tek satırlı yazı alanında taban çizgisi
+  alanın altına düşüyor (22 pt'lik alanda Tm y = 32,4, yazının yalnız üst yarısı görünüyor), ortaya ya da sağa hizalı ve otomatik boylu (0)
+  alanda yazı kayıyor ya da hiç çizilmiyor, her alana bütün yazı tipini gömüyor (Nimbus Sans / Charis SIL / Nimbus Mono, ~55 KB). Türkçe
+  harfler orada doğru (CID yazı tipi, ToUnicode), çok satır ve tarak doğru. WinAnsi'deki Helvetica ile Ğ ğ İ ı Ş ş hiç yazılamaz.
+- [x] **Karar: görünümü PDEfe üretir** (core/islemler/formlar.py): Yazı alanı (tek ve çok satır, sözcük sarma, tarak hücreleri ve
+  çizgileri, parola yıldızları, sola / ortaya / sağa hiza, otomatik boy: tek satırda iç yükseklik / 1,35, sığmazsa küçülür, çok satırda 12'den
+  sığana dek), açılır liste (seçeneğin görünen adı), liste kutusu (satırlar /TI'dan, seçili satırın zemini), zemin ve kenarlık /MK ve /BS'den
+  (düz, kesik, kabartma, gömme, alt çizgi), /MK /R ile döndürülmüş alan (/Matrix). Yazı tipi FreeText'teki gibi Windows yazı tipinin GID koruyan
+  alt kümesi (notlar._font_yukle): /DA'daki yazı tipi Helvetica / Arial ve bilinmeyenler için Arial, Times için Times New Roman, Courier için
+  Courier New (dosyalar listesine eklendi), kalınlık adından. Türkçe harfler her okuyucuda doğru: Kaydedilen dosyada MuPDF'le widget'lar
+  sayfaya işlenince (bake) yazı aynen okunuyor, pdf.js görünümü çiziyor. Görünümü olmayan (ya da Off durumu olmayan) onay kutusu ve seçenek
+  düğmesine iki durumun görünümü üretilir (işaret /MK /CA'dan vektörle: ✓, ✕, ●, ◆, ■). NeedAppearances yazılmaz, dosyadaki değerine dokunulmaz.
+- [x] **Yazı tipi ve e-imza**: Gömülen yazı tipi sayfaya ve kataloğa yazılmaz (FreeText'te /PDEfeFonts ve sayfa kaynakları): Geçici belgede
+  kurulup (insert_font) pdf_graft_object ile kopyalanır. E-imzalı belgede artımlı kayıt yalnızca alanlara, widget'lara ve yeni görünüm ve
+  yazı tipi nesnelerine dokunur (sayfa ve katalog nesnesi artımlı bölüme girmez: testte ölçüldü). Daha önce gömülmüş alt küme (/PDEfeFonts ya
+  da önceki kayıtların form görünümlerindeki "PDEfeF" kaynakları, _pdefe_fontu_mu ile) yeniden kullanılır: İlk kayıtta dosya ~24 KB, ikincide ~1 KB
+  büyüyor. insert_font'un ToUnicode'u boşluk glifini U+00A0'a eşliyordu (Arial'da boşluk ve bölünmez boşluk aynı glif): Görünümden okunan
+  yazıda boşluklar bölünmez çıkıyordu, form yazı tiplerinde düzeltildi (FreeText'inkine dokunulmadı).
+- [x] **Değerler**: degerleri_uygula alan xref'iyle (alanın kendi nesnesi ya da çocuk widget'larının ebeveyni) /V yazar, liste kutusunda /I,
+  onay kutusu / seçenek düğmesinde widget'ların /AS'si (aynı durum adlı düğmeler birlikte), yazı ve listelerde görünüm. Salt okunur alan, imza
+  ve itme düğmesi değişmez, alana ait olmayan xref yok sayılır, yazılamayan açılır listede listede olmayan değer ve hiçbir widget'ta olmayan
+  durum adı yazılmaz, en çok uzunluk kesilir, tek satırda satır sonu boşluk olur. XFA paketli karma belgede değer yazılınca /XFA kaldırılır:
+  Başka okuyucular değeri XFA verisinden okur, AcroForm'a yazılanı göstermezdi (XFA verisini güncellemek seçilmedi, aşağıda). Parametreler
+  çekirdekte denetlenir (degerleri_dogrula: liste, en çok 2.000 değer, xref pozitif tamsayı, değer metin / metin listesi / boş, metin en çok
+  20.000 karakter, liste en çok 1.000 öğe; form_gorunum'un sayfa ve xrefler'i, yapisal_kaydet'in formlar'ı ayrıca). Yeni IPC kanalı yok.
+- [x] **Çizim** (form_gorunum, 0.3.0'daki tek PNG'nin yerine): Widget widget saydam PNG ve sayfanın oranı olarak kutusu (pdf_run_annot,
+  ekrandaki açıyla), onay kutusu ve seçenek düğmesinde öbür durumun görünümü de (/AS bellekte geçici değiştirilir: MuPDF görünümü çizim anında
+  /AS'den seçer). Kaydedilmemiş değerler dosyanın bellekteki ayrı bir kopyasına (çalışma belgesi, aynı değerlerle yeniden kullanılır, en çok 3)
+  yazılıp oradan çizilir: Ekrandaki görünüm kaydedilecek ve yazdırılacak görünümün aynısı. Çalışma belgeleri önbellek bırakılınca kapanır
+  (kayıt dosyayı yerine koymadan önce, belge_birak). Ölçüm: 20 widget'lı sayfa 2× ölçekte, öbür durumlarıyla 56 ms. İlk çizimde alan bilgisi
+  aynı istekle gelir (alanlar: true), görünüm değişince sayfa başına tek istek (0.2.3'ün _katmanAnahtari kuralı değişmedi: kaydirma_cizim 6.
+  bölüm). Tab başka sayfaya geçerken alan bilgisi form_alanlari'yla (görüntüsüz) alınır.
+- [x] **Denetimler** (src/renderer/formlar.js FormYoneticisi; görüntüleyici katmanı formKatmani / formBirak ile ona bırakır): Her widget'ın
+  görünümünün üstünde aynı kutuda saydam denetim: Yazı alanında input / textarea (en çok uzunluk, parola, tarakta eşit aralıklı yazı ve
+  hücre genişliğinde harf aralığı), yazılabilir açılır listede input + datalist, açılır listede görünmez select (sistemin listesi açılır),
+  onay kutusu / seçenek düğmesi / liste kutusu alanın kendisi (odaklanabilir). Yazı alanı düzenlenirken denetim görünür (alanın zemini, yazı
+  rengi, boyu, yazı tipi, hizası), görünüm gizli. Uygulanınca (Tab, Enter, alandan çıkmak) görünüm çekirdekten istenir, gelene dek denetim
+  görünür kalır (yazı kaybolup gelmez). Esc yazılanı atar. Onay kutusu ve seçenek düğmesinde tıklama öbür durumun görünümünü hemen koyar
+  (çekirdek beklenmez: çekirdek küçük resim çizerken yanıt yüzlerce ms gecikebilirdi). Liste kutusu odaklanınca satırları (görünümle aynı
+  satır yüksekliği ve ilk satır) kaydırılabilir bir örtüde gösterilir: Tıklama, Ctrl ile ekle / çıkar, Shift ile aralık, ↑ ↓ Home End,
+  Boşluk. Alanlar hafif mavi zeminle belli, üzerine gelince ve odakta belirgin, imleç yazı alanında metin, öbürlerinde el. Salt okunur alan,
+  imza ve düğme pasif (imleç ok, ipucu: "İmza alanı", "Düğme (PDEfe düğmelerin işlevini çalıştırmaz)"; alanın /TU'su varsa ipucu odur).
+  Katman metin ve bağlantı katmanının üstünde, notların altında. Denetim kutusu sayfanın görünüm dönüşümüyle (yakınlaştırma, sayfa ve görünüm
+  döndürmesi), yazı denetimi alanın yönünde döndürülür (sayfa açısı - /MK /R). Koyulaştırılmış sayfada form katmanı sayfayla birlikte ters
+  çevrilir (0.3.0'da form görüntüsü ters çevrilmiyordu: koyu sayfada beyaz kutular kalıyordu).
+- [x] **Klavye**: Tab / Shift+Tab sayfalar boyunca (sayfa içinde çekirdeğin sırası: sayfanın /Tabs'ı /R ya da /C ise konum, değilse /Annots
+  sırası), salt okunur, imza, düğme ve gizli alan atlanır, seçenek grubu sayfada tek durak (seçili olan, yoksa ilki), sondan başa döner,
+  başka sayfadaki alana gidilirken sayfa kayar ve katmanı beklenir. Boşluk onay kutusunu ve seçenek düğmesini değiştirir, seçenek grubunda
+  oklar seçer. Enter yazı alanını uygular (çok satırda yeni satır). Yazı alanında Ctrl+Z alanın kendi geri alması (öbür girdi kutuları gibi),
+  odak düğmede ya da belgedeyken belgenin geri alması.
+- [x] **Not araçları ve seçim (karar)**: Not, Yazı ya da Vurgu aracı seçiliyken alanlar tıklamayı almaz (gorunum.form-arac), tıklama aracındır:
+  Not ve yazı kutusu alanın üstüne de konabilir (alanın üstüne not koymak isteyen için), araç bırakılınca alanlar yeniden çalışır. Seçilmeyen:
+  Aracı alanın üstünde çalıştırmamak (kullanıcı aracı açıkça seçti, alanın üstüne not koyamazdı). Metin seçimi alanda başlamaz (metin.js
+  SECIM_DISI), başka yerden başlayan sürükleme alanların üstünden geçer. Sayfada alanın dışına basış odaktaki alanı bırakır (yazısı uygulanır).
+  Sayfanın sağ tık menüsü alanda açılmaz. Notlar alanların üstünde çizilir, sürüklenir.
+- [x] **Model ve komutlar**: Değer alan başına (aynı alanın başka sayfadaki widget'ı da yeni değeri gösterir). Kayıt nesnesi: kaynak dosya + alan
+  xref'i, dosyadaki değer (ilk görüşte), bu oturumdaki değer. Her uygulama bir komut: "Form: <alan adı>", ayrıntı "s. N" (Geri al / Yinele,
+  geri al ▾ listesi, durum çubuğundaki kaydedilmemiş değişiklikler listesi). Belge kirli (yığın ve fark), kapatırken kaydet sorusu, otomatik
+  kaydetme eskisi gibi (alan düzenlenirken beklenir). Açık yazı düzenlemesi kaydet, yazdır, araç, sekme kapatma, sekme değiştirme, sekme
+  taşıma ve pencere kapatma öncesinde uygulanır (uygulama.js duzenlemeleriUygula), odak alanda kalır. Sekme başka pencereye taşınınca kayıtlar
+  ve komut tarifleri ("form.deger", anahtarla) taşınır.
+- [x] **Kaydetme**: Yapısal değişiklik yoksa notlar_kaydet'e formlar ([{xref, deger}], artımlı: e-imza korunur). Sayfa yalnızca döndürüldüyse de
+  aynı artımlı kayıtta. Dosyada dolu olan bir yazı ya da liste alanının değeri değişince belge temiz (baştan) yazılır: Eski değer artımlı
+  kayıtta dosyanın önceki bölümünde kalırdı (0.1.23'teki not kararıyla aynı kural, e-imzalı belgede "Bu belge e-imzalı." sorusu, otomatik
+  kayıtta imza korunur). Boş alanı doldurmak, onay kutusu ve seçenek düğmesi bu kurala girmez. Yapısal kayıtta yapisal_kaydet'e kaynak dosyaya
+  göre gruplanmış formlar ([{yol, degerler}]): Değerler kaynak belgeye (bellekte, özgün dosya yerine anlık kopyaya) alan xref'iyle yazılır,
+  insert_pdf alanları sayfayla birlikte kopyalar. Yapısal modda kayıtlı değerler değişmez (notlardaki gibi her yapısal kayıt bütün farkı
+  yeniden yazar). Kayıttan sonra Sayfalar panelinin küçük resimleri yenilenir.
+- [x] **Yazdırma**: Form alanları her zaman basılır, "Notları yazdır"dan bağımsız (yazdırma kullanımıyla: /F Print bayrağı olmayan alan,
+  örneğin yazdırılmasın diye işaretlenmiş düğme, basılmaz), kaydedilmemiş değerleriyle (sayfa_goruntu formlar: çalışma belgesinden; ön izleme
+  de). Yalnızca form alanı değiştiyse kaydetme sorulmaz. Notlar da değiştiyse soru eskisi gibi, "Kaydetmeden yazdır"da form değerleri yine
+  basılır. Yapısal kayıttan sonra değişen alanlar (anlık kopyada) diskteki dosyaya eşlenemez: Önce kaydedilmeli (sayfa düzeni gibi). Görüntü
+  get_pixmap'teki gibi görüntü listesinden çizilir: Formsuz sayfada çıktı 0.3.0'ınkiyle piksel piksel aynı (sınandı). Yazdırma penceresinin
+  açıklaması: "Notları yazdır" kapalıyken notlar ve damgalar basılmaz. Form alanları her zaman basılır.
+- [x] **Seçilmeyen yollar**: Alanları HTML denetimiyle çizmek (tarayıcıların form katmanı gibi; dosyadaki görünüm, örneğin çarpı işaretli
+  kutucuk, PDEfe'nin çizimiyle yer değiştirirdi, kaydedilen dosya ekranda görünenden farklı görünürdü). MuPDF'in görünümü (yukarıda).
+  NeedAppearances true yazıp görünümü okuyucuya bırakmak (MuPDF tabanlı okuyucular bozuk üretir, bazıları hiç üretmez, e-imzalı belgede
+  katalog değişirdi). Tıklamada onay kutusunun görünümünü çekirdekten istemek (gecikme). Sayfanın tek PNG'sini değerlerle yeniden çizmek (her
+  değişiklikte bütün sayfa). Yazı tipini /PDEfeFonts'a kaydedip sayfaya koymak (e-imzalı belgede sayfa nesnesi değişirdi). XFA verisini
+  (datasets) güncellemek (alan ile veri arasındaki bağ SOM ifadeleriyle kurulur, XFA formları ayrı madde). Yapısal kayıtta aynı adlı alanları
+  birleştirmek (insert_pdf join_duplicates: başka belgelerden eklenen sayfaların "Text1" gibi aynı adlı alanları birleşirdi). PyMuPDF'in
+  varsayılanı (aynı adlı alan yeniden adlandırılır: "ad [135]") 0.3.0'daki gibi kaldı: Sayfası kopyalanan ya da sırası değişip ayrı parçalarda
+  kopyalanan çok widget'lı alan kaydedilen dosyada ayrı alanlara bölünür, değerleri korunur. JavaScript (biçimlendirme, hesaplama, doğrulama),
+  düğme eylemleri, form gönderme, imza atma (kullanıcı kararı: e-imza kalsın).
+- [x] **Bilinen sınırlar**: Yazı tipi Windows ve macOS yazı tipi klasöründen (FreeText gibi): Linux sürümü bunu ayrıca çözmeli. Zengin metinli
+  alan (/RV) düz metin yazılır. Alanın kendi gömülü yazı tipi kullanılmaz (Arial, Times New Roman, Courier New). Liste kutusunda örtüyü
+  kaydırmak /TI'yı değiştirmez. DoNotScroll ve DoNotSpellCheck bayrakları yok sayılır. İmzasız imza alanını MuPDF kendi işaretiyle ("SIGN")
+  çiziyor (0.3.0'da da: dosyada değil, yalnızca ekranda).
+- [x] **Sonraki görev (XFA) için**: Aynı kalıplar kullanılabilir: FormYoneticisi'nin kayıtları (anahtar, kayitli / deger), "form.deger"
+  komutu ve tarifi, fark / kayitAnligi / kaydedildi / kaynakYeniden, yazdirmaDegerleri; çekirdekte degerleri_dogrula, calisma_belgesi (dosyanın
+  değerli kopyası), yazdirma_pixmap. XFA'sız ya da karma belgede bu yol, dinamik XFA'da (AcroForm alanı yok) form katmanı kurulmaz.
+- [x] **Testler**: Yeni `test/form_alanlari_pdf_uret.py` (5 sayfalık alanlar.pdf: Bütün alan türleri, iki widget'lı alan, seçenek grubu,
+  /Rotate 90 sayfa, /MK /R 90 alan, alansız sayfa. imzali.pdf: /ByteRange'li sahte imza, /Contents imzalanan baytların SHA-256'sı. karma.pdf:
+  /XFA paketli), `test/form_olc.py` (değerler çekirdeğin okuduğu gibi, bake ile görünümdeki yazı, mürekkep ölçümü), `test/form_testi.py`
+  101/101 (çekirdek: alan bilgisi ve Tab sırası, değer denetimi, değerler ve görünümler, konumlar, Türkçe, yazı tipinin bir kez gömülmesi,
+  form_gorunum, çalışma belgesi, yazdırma görüntüsü ve Print bayrağı, formsuz sayfada piksel eşitliği, e-imzalı artımlı kayıt ve ByteRange
+  özeti, karma belge, yapısal kayıt, parametre denetimleri), `test/senaryo47.mjs` 75/75 (gerçek fare ve klavye: bütün alan türleri,
+  Tab sırası, geri al listeleri, kaydet ve MuPDF / pdf.js ile yeniden açma, pdf.js'in görünüm çizimi, not aracı, metin seçimi, görünüm ve sayfa
+  döndürme, /MK /R, koyu sayfa, %600, yapısal kayıt, e-imzalı belgede artımlı kayıt ve soru, karma belge, sekme taşıma).
+  `test/yazdir_gercek.mjs` 22/22 (yeni 9. bölüm: Microsoft Print to PDF çıktısında "Notları yazdır" kapalıyken form alanları ve kaydedilmemiş
+  değerler, kaydetme sorusu yok). Eski testler: guvenlik_testi 47/47 (form görünümü satırı yeni biçime), kaydirma_cizim 6. bölüm 8/8 (form
+  alanlı belgede istek sayısı ve katman), senaryo28 38/38, ortu_tiklama 164/164, kisayol_dosya 164/164, yazdir_pencere 61/61, mac_renderer 46/46,
+  kayit_sekme_panel 61/61, kose_notu_testi 49/49, yapisal_esleme_testi 13/13, mac_cekirdek_testi 14/14. not_testi bu bilgisayarda yer tutucu
+  belgeyle düşüyor (gerçek kanun metni ister, değişiklikten önce de).

@@ -1115,3 +1115,26 @@ Taranmış belgede Bul
 16. **Ofis bilgisayarında.** Aynı belgeyi ofiste deneyin: Sonuçlar bu bilgisayardakiyle aynı olmalı. Windows'ta Türkçe yazı tanıyıcı yoksa
     başka dilin tanıyıcısı kullanılır (Türkçe harfli sözcükler bulunmayabilir). Hiç tanıyıcı yoksa sayaç bitince "· taranmış sayfalar
     aranamadı" demeli.
+
+Form alanları (doldurulabilir PDF)
+17. **Kutucuklar ve yazı.** Elinizdeki doldurulabilir bir PDF'i (kutucuklu bir başvuru ya da dilekçe formu) açın: Alanlar açık mavi görünmeli,
+    üzerine gelince belirginleşmeli. Kutucuğa tıklayın: İşaret hemen çıkmalı, yeniden tıklayınca kalkmalı. Seçenek düğmelerinde yalnızca biri
+    seçili kalmalı. Yazı alanına Türkçe harflerle (İ, ı, Ğ, ğ, Ş, ş) yazın, Tab'a basın: Yazı alanda kalmalı, imleç sonraki alana geçmeli.
+18. **Tab ile gezinme.** Tab ve Shift+Tab ile formun bütün alanlarını dolaşın: Sıra formun düzenine uygun olmalı, başka sayfadaki alana
+    geçerken sayfa kaymalı, son alandan sonra ilk alana dönülmeli. Kutucukta Boşluk tuşu işaretlemeli.
+19. **Açılır liste ve liste kutusu.** Açılır listeye tıklayın: Seçenekler açılmalı, seçtiğiniz alanda görünmeli. Liste kutusunda bir satıra
+    tıklayın: Seçilmeli, alandan çıkınca seçim alanda görünmeli.
+20. **Geri al.** Birkaç alanı değiştirip Geri al'ın yanındaki ▾ listesine bakın: "Form: <alan adı>" adımları görünmeli, geri alınınca alanlar
+    eski hâline dönmeli. Durum çubuğundaki "Kaydedilmemiş değişiklikler" listesinde de görünmeli.
+21. **Kaydet ve başka okuyucuda aç.** Doldurduğunuz formu kaydedin, başka bir PDF okuyucuda açın: Bütün değerler (Türkçe harfler dâhil) aynı
+    görünmeli, alanlar orada da düzenlenebilmeli. PDEfe'de kapatıp yeniden açınca da değerler gelmeli.
+22. **E-imzalı form.** E-imzalı bir form varsa boş bir alanını doldurup kaydedin, başka bir PDF okuyucuda açın: İmza bozulmuş görünmemeli
+    (okuyucu "imzadan sonra form dolduruldu" diyebilir, bu beklenir). Dolu bir alanı değiştirip kaydedince PDEfe "Bu belge e-imzalı." diye
+    sormalı.
+23. **Yazdırma.** Formu kaydetmeden yazdırın ("Notları yazdır" kapalı): Kaydetme sorulmadan yazdırılmalı, kâğıtta yazdığınız değerler ve
+    işaretli kutucuklar çıkmalı.
+24. **Not aracıyla.** Not aracını seçip bir alanın üstüne tıklayın: Alan değişmemeli, oraya not konmalı. Aracı bırakınca alan yeniden çalışmalı.
+25. **Görünüm.** Formu yakınlaştırın (%400 ve üstü), döndürün, koyu temada sayfayı koyulaştırın: Alanlar ve yazdıklarınız yerinde kalmalı,
+    yazarken yazı alanın içinde görünmeli. Yazı boyu ve yazı tipi kaydedince görünenle aynı olmalı.
+26. **Bilinen sınır.** Formun düğmeleri (Gönder, Yazdır, Temizle gibi) ve hesaplama yapan alanlar PDEfe'de çalışmaz (düğmenin ipucu bunu
+    söyler). İmza alanına PDEfe'den imza atılamaz.

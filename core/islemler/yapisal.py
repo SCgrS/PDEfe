@@ -9,6 +9,7 @@ import shutil
 import pymupdf
 
 from . import notlar
+from . import formlar
 
 
 def _ayni_yol(a, b):
@@ -88,8 +89,10 @@ def _yerimlerini_tasi(yeni, esleme, ana_yol, belge_al):
 
 def y_yapisal_kaydet(p):
     """Sayfa tarifini ve not işlemlerini uygulayıp kaydeder.
-    p: {yol, hedef, tarif, anlikKlasor, anlik, islemler:[{islem, id, not:{...}, kaynak:{yol,sayfa}, xref}]}
+    p: {yol, hedef, tarif, anlikKlasor, anlik, islemler:[{islem, id, not:{...}, kaynak:{yol,sayfa}, xref}],
+        formlar: [{yol, degerler: [{xref, deger}]}] (0.3.1, isteğe bağlı)}
     Notlar: 'ekle' → not.sayfa yeni belgedeki konum; 'guncelle'/'sil' → kaynak sayfa + kaynak xref (konumsal eşleme).
+    Form değerleri kaynak belgeye (bellekte; kaynak dosya değişmez) alan xref'iyle yazılır, sayfa alanlarıyla birlikte kopyalanır.
     Bu çağrıda oluşturulan anlık kopya (ve yarım geçici dosya) hedef yazılmadan önce hata/iptal olursa silinir;
     p["anlik"] (önceden var olan kopya) ve başarılı yolda oluşan kopya korunur.
     Döner: {anlik, boyut, sayfa, xrefler}"""
@@ -98,6 +101,7 @@ def y_yapisal_kaydet(p):
     notlar.pdf_hedefi_denetle(hedef)         # yalnızca .pdf'e ya da var olan PDF'e (0.2.1)
     tarif = list(p.get("tarif") or [])
     islemler = list(p.get("islemler") or [])
+    form_gruplari = _form_gruplari(p.get("formlar"))
     anlik_klasor = p.get("anlikKlasor") or os.path.join(os.environ.get("TEMP", "."), "PDEfe", "anlik")
     ilerleme = p.get("_ilerleme") or (lambda *a: None)
     onbellek.hepsini_birak()
@@ -129,6 +133,7 @@ def y_yapisal_kaydet(p):
                 yk = (op.get("not") or {}).get("yanitKaynak")
                 if yk and yk.get("yol") and _ayni_yol(yk["yol"], yol):
                     op["not"] = dict(op["not"], yanitKaynak=dict(yk, yol=anlik))
+            form_gruplari = [(anlik if _ayni_yol(k, yol) else k, d) for k, d in form_gruplari]
         ilerleme(10, "Sayfalar düzenleniyor")
 
         acik = {}
@@ -139,6 +144,12 @@ def y_yapisal_kaydet(p):
             return acik[k]
 
         try:
+            # Form değerleri (0.3.1) kaynak belgelere: insert_pdf alanları değerleri ve görünümleriyle kopyalar. Tarifte geçmeyen kaynak açılmaz
+            tarif_yollari = {os.path.normcase(os.path.abspath(e["kaynak"]["yol"])) for e in tarif if e.get("kaynak")}
+            form_ortak = {}
+            for k, degerler in form_gruplari:
+                if os.path.normcase(os.path.abspath(k)) in tarif_yollari:
+                    formlar.degerleri_uygula(belge_al(k), degerler, form_ortak.setdefault(os.path.normcase(os.path.abspath(k)), {}))
             yeni, esleme = tarif_belgesi(tarif, belge_al)
             ana = anlik or yol
             _yerimlerini_tasi(yeni, esleme, ana, belge_al)
@@ -258,6 +269,23 @@ def y_yapisal_kaydet(p):
                 except OSError:
                     pass
         raise
+
+
+def _form_gruplari(formlar_p):
+    """yapisal_kaydet'in formlar parametresi: [{yol, degerler}] (en çok 64 kaynak, değerler formlar.degerleri_dogrula ile) → [(yol, degerler)].
+    Uymazsa ValueError."""
+    if formlar_p is None:
+        return []
+    if not isinstance(formlar_p, list) or len(formlar_p) > 64:
+        raise ValueError("Form değerleri geçersiz.")
+    sonuc = []
+    for g in formlar_p:
+        if not isinstance(g, dict) or not isinstance(g.get("yol"), str) or not g["yol"].strip() or "\0" in g["yol"]:
+            raise ValueError("Form değerleri geçersiz.")
+        degerler = formlar.degerleri_dogrula(g.get("degerler"))
+        if degerler:
+            sonuc.append((g["yol"], degerler))
+    return sonuc
 
 
 def _degistir(gecici, hedef, deneme=6):

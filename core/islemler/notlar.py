@@ -37,6 +37,9 @@ if MAC:
         ("Arial", False, True): "Arial Italic.ttf", ("Arial", True, True): "Arial Bold Italic.ttf",
         ("Times New Roman", False, False): "Times New Roman.ttf", ("Times New Roman", True, False): "Times New Roman Bold.ttf",
         ("Times New Roman", False, True): "Times New Roman Italic.ttf", ("Times New Roman", True, True): "Times New Roman Bold Italic.ttf",
+        # 0.3.1: Courier yazı tipli form alanlarının görünümü (islemler/formlar.py); yazı notunun yazı tipleri arasında yok
+        ("Courier New", False, False): "Courier New.ttf", ("Courier New", True, False): "Courier New Bold.ttf",
+        ("Courier New", False, True): "Courier New Italic.ttf", ("Courier New", True, True): "Courier New Bold Italic.ttf",
     }
 else:
     FONT_KLASORLERI = [os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")]
@@ -50,6 +53,9 @@ else:
         ("Times New Roman", False, True): "timesi.ttf", ("Times New Roman", True, True): "timesbi.ttf",
         ("Calibri", False, False): "calibri.ttf", ("Calibri", True, False): "calibrib.ttf",
         ("Calibri", False, True): "calibrii.ttf", ("Calibri", True, True): "calibriz.ttf",
+        # 0.3.1: Courier yazı tipli form alanlarının görünümü (islemler/formlar.py); yazı notunun yazı tipleri arasında yok
+        ("Courier New", False, False): "cour.ttf", ("Courier New", True, False): "courbd.ttf",
+        ("Courier New", False, True): "couri.ttf", ("Courier New", True, True): "courbi.ttf",
     }
 # Gömülecek glif dağarcığı: ASCII, Latin-1, Latin Genişletilmiş-A (Türkçe dahil), ƒ ˆ ˜, genel noktalama (satır / paragraf ayırıcıları
 # ve yön denetimleri hariç), € ₺ № ™, kesirler, oklar, matematik işaretleri. 0.2.1'de Latin Genişletilmiş-A tamamlandı, noktalama, oklar ve
@@ -1288,13 +1294,17 @@ def sayfa_dondurmeleri_uygula(doc, dondurmeler):
 def y_notlar_kaydet(p):
     """Değişiklik listesini uygular ve kaydeder.
     p: {yol, hedef, islemler: [{islem:'ekle'|'guncelle'|'sil', id, not:{...}}], artimli,
-        sayfaDondurmeleri: {"<1-tabanlı sayfa no>": 0|90|180|270} (isteğe bağlı, mutlak açı)}
-    Döndürmeler not işlemlerinden önce uygulanır (FreeText görünümü yeni açıya göre üretilir).
+        sayfaDondurmeleri: {"<1-tabanlı sayfa no>": 0|90|180|270} (isteğe bağlı, mutlak açı),
+        formlar: [{xref: alan xref'i, deger}] (0.3.1, isteğe bağlı: form alanlarının yeni değerleri, islemler/formlar.py)}
+    Döndürmeler not işlemlerinden önce uygulanır (FreeText görünümü yeni açıya göre üretilir). Form değerleri notlardan önce yazılır
+    (artımlı kayıtta yalnızca alanlar, widget'lar ve yeni görünüm akışları eklenir: e-imza korunur).
     Döner: {xrefler: {id: xref}, boyut, artimli, dondurmeler (yalnızca sayfaDondurmeleri verildiyse:
-    açısı değişen sayfa sayısı)}"""
+    açısı değişen sayfa sayısı), formlar (değeri yazılan alan sayısı)}"""
     from pdefe_core import onbellek  # döngüsel içe aktarma yerine çalışma zamanında
+    from . import formlar as form_alanlari
     yol, hedef = p["yol"], p.get("hedef") or p["yol"]
     islemler = p.get("islemler") or []
+    form_degerleri = form_alanlari.degerleri_dogrula(p.get("formlar"))
     sayfa_dondurmeleri = p.get("sayfaDondurmeleri")
     # temiz (0.1.23, güvenlik denetimi): artımlı kayıt eklemeyi dosyanın sonuna yazar; silinen ya da değiştirilen notun eski hâli
     # dosyanın önceki bölümünde kalır (ekranda görünmez, uygun bir araçla okunur). temiz verilince belge baştan yazılır, eski hâller
@@ -1312,6 +1322,7 @@ def y_notlar_kaydet(p):
         if artimli and doc.is_repaired:
             artimli = False   # onarılmış (bozuk xref'li) dosyaya artımlı yazılamaz; MuPDF FzErrorArgument verir (0.1.23)
         dondurmeler = sayfa_dondurmeleri_uygula(doc, sayfa_dondurmeleri)
+        form_sayisi = form_alanlari.degerleri_uygula(doc, form_degerleri) if form_degerleri else 0
         xrefler = {}
         for op in islemler:
             n = op.get("not") or {}
@@ -1353,7 +1364,7 @@ def y_notlar_kaydet(p):
                 os.remove(gecici)
             except OSError:
                 pass
-    sonuc = {"xrefler": xrefler, "boyut": os.path.getsize(hedef), "artimli": artimli}
+    sonuc = {"xrefler": xrefler, "boyut": os.path.getsize(hedef), "artimli": artimli, "formlar": form_sayisi}
     if sayfa_dondurmeleri is not None:
         sonuc["dondurmeler"] = dondurmeler
     return sonuc
@@ -1477,29 +1488,6 @@ def y_baglantilar(p):
     return {"baglantilar": sonuc}
 
 
-def y_form_gorunum(p):
-    """Sayfadaki form alanlarını (Widget) saydam PNG olarak çizer; alan yoksa None."""
-    from pdefe_core import onbellek, png_base64
-    doc = onbellek.al(p["yol"])
-    page = doc[int(p["sayfa"]) - 1]
-    if not any(True for _ in page.widgets()):
-        return {"png": None}
-    from pdefe_core import olcek_sinirla
-    olcek = olcek_sinirla(page.rect.width, page.rect.height, float(p.get("olcek", 1.0)))   # dev sayfa: piksel sınırı (0.1.23)
-    from pymupdf import mupdf
-    # dondurme: ekrandaki mutlak açı. fz_run_page_widgets diskteki /Rotate'i zaten uygular, yalnızca fark eklenir (aynı dosyaya
-    # kayıttan sonra disk taban+göreli açıyı taşır; görüntüleyicinin PDF.js tabanı bayattır). Verilmezse fark 0: eski davranış.
-    fark = (int(p.get("dondurme", page.rotation)) - page.rotation) % 360
-    mat = pymupdf.Matrix(olcek, olcek) * pymupdf.Matrix(fark)
-    irect = (page.rect * mat).irect          # döndürmede başlangıç noktası negatif olabilir; pixmap bunu taşır
-    pix = pymupdf.Pixmap(pymupdf.csRGB, irect, True)
-    mupdf.fz_clear_pixmap(pix.this)          # saydam siyah (clear_with alfayı 255 yapıyor)
-    dev = mupdf.fz_new_draw_device(mupdf.FzMatrix(), pix.this)
-    mupdf.fz_run_page_widgets(page.this, dev, mupdf.FzMatrix(mat.a, mat.b, mat.c, mat.d, mat.e, mat.f), mupdf.FzCookie())
-    mupdf.fz_close_device(dev)
-    return {"png": png_base64(pix), "genislik": pix.width, "yukseklik": pix.height}
-
-
 def y_imza_durumu(p):
     """Belgede PDF'e gömülü e-imza var mı (0.1.23): katalogdaki /SigFlags, değeri dolu imza alanı ya da dosyada imza sözlüğünün
     /ByteRange'i. Temiz (baştan) kayıt imzayı geçersiz kılacağı için arayüz bu durumda sorar."""
@@ -1533,4 +1521,3 @@ def kaydol(yontemler):
     yontemler["imza_durumu"] = y_imza_durumu
     yontemler["freetext_stil"] = y_freetext_stil
     yontemler["baglantilar"] = y_baglantilar
-    yontemler["form_gorunum"] = y_form_gorunum

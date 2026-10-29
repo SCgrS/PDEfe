@@ -77,10 +77,20 @@ class BelgeOnbellek:
                 kayit[0].close()
             except Exception:
                 pass
+        _calisma_birak(yol)
 
     def hepsini_birak(self):
         for yol in list(self.belgeler):
             self.birak(yol)
+        _calisma_birak(None)
+
+
+def _calisma_birak(yol):
+    """Form değerlerinin çalışma belgelerini de kapatır (0.3.1, islemler/formlar.py: dosyanın bellekteki kopyaları dosyayı açık tutar;
+    kayıt dosyayı yerine koymadan önce önbelleği bırakır)."""
+    formlar = sys.modules.get("islemler.formlar")
+    if formlar is not None:
+        formlar.birak(yol)
 
 
 onbellek = BelgeOnbellek()
@@ -240,13 +250,17 @@ def y_kucuk_resim(p):
 
 
 def y_sayfa_goruntu(p):
-    """Bir sayfanın tam çözünürlüklü görüntüsü (yazdırma için). notlar=False ise notsuz."""
-    doc = onbellek.al(p["yol"])
+    """Bir sayfanın tam çözünürlüklü görüntüsü (yazdırma için). notlar=False ise notsuz. Form alanları (0.3.1) her zaman basılır (yazdırma
+    kullanımıyla: /F Print'siz alan basılmaz); formlar: kaydedilmemiş form değerleri [{xref, deger}] (islemler/formlar.py), verilirse sayfa
+    bu değerlerin yazıldığı çalışma belgesinden çizilir. 0.3.0'a dek "Notları yazdır" kapalıyken form alanları da basılmıyordu."""
+    from islemler import formlar
+    degerler = formlar.degerleri_dogrula(p.get("formlar"))
+    doc = formlar.calisma_belgesi(p["yol"], degerler)
     pg = doc[int(p["sayfa"]) - 1]
     dpi = int(p.get("dpi", 200))
     # Ölçek tamsayı dpi'ye yuvarlanmaz: çok büyük sayfada (ör. /UserUnit) dpi 1'e inince bile sınır aşılırdı (0.1.23)
     olcek = olcek_sinirla(pg.rect.width, pg.rect.height, dpi / 72)
-    pix = pg.get_pixmap(matrix=pymupdf.Matrix(olcek, olcek), annots=bool(p.get("notlar", True)), alpha=False)
+    pix = formlar.yazdirma_pixmap(doc, pg, olcek, bool(p.get("notlar", True)))
     pix.set_dpi(max(1, round(72 * olcek)), max(1, round(72 * olcek)))   # görüntünün çözünürlük bilgisi önceki gibi (dpi ile çizimdeki)
     bicim = p.get("bicim", "png")
     veri = pix.tobytes("jpeg", jpg_quality=int(p.get("kalite", 90))) if bicim == "jpeg" else pix.tobytes("png")

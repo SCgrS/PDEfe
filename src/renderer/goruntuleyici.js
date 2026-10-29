@@ -312,12 +312,16 @@ function bosPdfBaytlari(w, h) {
 }
 
 export class Goruntuleyici extends EventTarget {
-  constructor(kok, { dosyaOku = null, cekirdek = null, baglantiIpucu = null } = {}) {
+  constructor(kok, { dosyaOku = null, cekirdek = null, baglantiIpucu = null, formKatmani = null, formBirak = null } = {}) {
     super();
     this.kok = kok;
     this.dosyaOku = dosyaOku;        // (yol) => Promise<Uint8Array>  (başka PDF'ten sayfa eklemek için)
     this.cekirdek = cekirdek;        // (yontem, params) => Promise  (görsel kutuları, bağlantılar, form alanları)
     this.baglantiIpucu = baglantiIpucu;   // (bağlantı, girdi) => metin | Promise<metin>  (iç bağlantının ipucu, uygulama.js)
+    // Form alanlarının katmanı (0.3.1, formlar.js FormYoneticisi): formKatmani(s, i, pdfSayfa, olcek, dondurme) görünüm değişince kurar,
+    // formBirak(s) katman silinmeden önce (odaktaki yazı uygulansın)
+    this.formKatmani = formKatmani;
+    this.formBirak = formBirak;
     this.yol = null;                 // sekmenin dosya yolu
     this.belgeler = new Map();       // yolAnahtari → {yol, belge, gorev}
     this.bosBelgeler = new Map();    // 'WxH' → {belge, gorev}
@@ -709,7 +713,7 @@ export class Goruntuleyici extends EventTarget {
     const k = this.girdiOlustur(s.bos ? { bos: true, w: s.pt.w, h: s.pt.h } : { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa }, dondurme, s.pt);
     k.kimlik = s.kimlik;   // kopya aynı sayfadır: bu oturumda eklenen notlar döndürmeden sonra da sayfasında kalır (notlar.sayfalarDegisti)
     k.sayfaSozu = s.sayfaSozu; k.pdfSayfa = s.pdfSayfa; k.metinSozu = s.metinSozu;
-    k.baglantilar = s.baglantilar; k.gorselKutulari = s.gorselKutulari; k.icerikKutusu = s.icerikKutusu; k.formYok = s.formYok;
+    k.baglantilar = s.baglantilar; k.gorselKutulari = s.gorselKutulari; k.icerikKutusu = s.icerikKutusu; k.formYok = s.formYok; k.formAlanlari = s.formAlanlari;
     // Tanınan yazı döndürülmemiş sayfa düzleminde: döndürülmüş kopyada da geçerli (0.3.1; süren istek kopyaya geçmez, gerekirse yeniden istenir)
     if (s.tanima) k.tanima = s.tanima;
     k.tanimaAday = s.tanimaAday;
@@ -748,6 +752,7 @@ export class Goruntuleyici extends EventTarget {
     // Seçimin uğradığı sayfanın metin katmanı tutulur: çok sayfalı seçimde çapanın katmanı boşaltılırsa seçim bozulur, arada kalanlar kopyada eksik kalırdı
     const metinKalir = !!s.textLayer && s.el.isConnected && secimdeMi(s.el.querySelector(':scope > .textLayer'));
     if (s.textLayer && !metinKalir) { s.textLayer.cancel(); s.textLayer = null; }
+    if (katmanVar && this.formBirak) { try { this.formBirak(s); } catch (e) { console.warn('Form katmanı', e); } }
     if (katmanVar) for (const k of s.el.querySelectorAll(metinKalir ? '.baglanti-katmani, .form-katmani' : '.textLayer, .baglanti-katmani, .form-katmani')) k.remove();
     if (!metinKalir) s.metinOlcek = 0;
     s.el.classList.remove('yukleniyor');
@@ -1601,19 +1606,10 @@ export class Goruntuleyici extends EventTarget {
       }
       s.el.insertBefore(katman, s.notKatmani);
     }
-    // Form alanları (yakınlaştırmaya göre yeniden çizilir)
-    if (s.formYok) return;
-    try {
-      const dpr = window.devicePixelRatio || 1;
-      // dondurme: ekrandaki mutlak açı; çekirdek diskteki /Rotate'ten farkını uygular (PNG kutuyla aynı yönde ve oranda gelir, %100 gerilir)
-      const r = await this.cekirdek('form_gorunum', { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa, olcek: Math.min(6, olcek * CSS_BIRIM * dpr), dondurme });
-      if (!r || !r.png) { s.formYok = true; return; }
-      if (this.yok || s.cizim?.olcek !== olcek) return;
-      s.el.querySelector('.form-katmani')?.remove();
-      const img = document.createElement('img');
-      img.className = 'form-katmani'; img.src = 'data:image/png;base64,' + r.png; img.draggable = false;
-      s.el.insertBefore(img, s.el.querySelector('.textLayer') || s.notKatmani);
-    } catch { s.formYok = true; }
+    // Form alanları (yakınlaştırmaya göre yeniden çizilir). 0.3.1: widget widget görünüm ve üstünde denetimler (formlar.js); 0.3.0'a dek
+    // bütün widget'lar tek saydam PNG'ydi (tıklanamıyordu). dondurme: ekrandaki mutlak açı; çekirdek diskteki /Rotate'ten farkını uygular
+    if (s.formYok || !this.formKatmani) return;
+    try { await this.formKatmani(s, i, pdfSayfa, olcek, dondurme); } catch (e) { console.warn('Form katmanı', e); }
   }
 
   /** PDF.js metin katmanı (dondurme: mutlak, çizimdeki toplamDondurme; TextLayer bunu data-main-rotation olarak yazar). */

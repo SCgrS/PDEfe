@@ -11,6 +11,8 @@
 //   7) Kaydetme kutusunda Vazgeç: dosya yazılmaz, "Yazdırma vazgeçildi."
 //   8) Kâğıt hiç seçilmemiş (kayıt yok, 0.3.1): pencere A4 ile açılır, kâğıda dokunmadan aralık "2,4": iki sayfa da A4 dikey, yatay sayfa
 //      döndürülmüş, A5 sayfa A4'e büyütülmüş ("Belgeye göre" olsaydı kâğıtlar karışık olurdu)
+//   9) Form alanlı belge (0.3.1, test/form_alanlari_pdf_uret.py): "Notları yazdır" kapalıyken form alanları basılır; kaydedilmemiş yazı ve
+//      onay kutusu değeri, kaydetme sorulmadan basılır (yalnızca form alanı değişti)
 // Kaydetme kutusunun PDEfe penceresinin önünde açıldığı da yazılır (bilgi; görünmeyen masaüstündeki sıra).
 // Kullanım:
 //   $env:PDEFE_TEST_GERCEK_YAZDIR = "1"; powershell -File test\baslat_gizli.ps1 -Port 9471 -Veri "$env:TEMP\pdefe-yzg-9471"
@@ -178,6 +180,29 @@ export default async function ({ evalJs, bekle }) {
     { kose: s8.map(koseler), mor: s8.map((s) => s.mor) });
   const k8 = await evalJs(`window.pdefe.cagir('ayar:al', 'yazdirma')`);
   sonuc('8) Kâğıt "seçilmedi" diye kaydedildi', k8?.kagit === 'A4' && k8?.kagitSecildi === false, k8);
+  await evalJs(`window.pdefe.cagir('ayar:koy', 'yazdirma', {})`);
+
+  // ------------------------------------------------------------ 9) form alanları (0.3.1): "Notları yazdır" kapalıyken de, kaydedilmemiş değerle
+  const FORM_KLASOR = path.join(UI, `form-${Date.now().toString(36)}`);
+  const formOzet = JSON.parse(execFileSync(PY, ['-X', 'utf8', path.join(KOK, 'test', 'form_alanlari_pdf_uret.py'), FORM_KLASOR], { encoding: 'utf8' }).trim().split(/\r?\n/).pop());
+  const FORM = path.join(FORM_KLASOR, 'alanlar.pdf');
+  await evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); await p.dosyaAc(${J(FORM)}); return true; })()`);
+  await kosul(`!!window.__pdefe.aktif()?.gorunum?.sayfalar?.[0]?._formOgeler?.size`, 15000);
+  const r9a = await yazdir('form-bos', { aralik: '1', kagit: 'A4' });
+  // Kaydedilmemiş değerler (yalnızca form alanı değişti: kaydetme sorulmamalı; soru açılırsa Vazgeç döner ve yazdırılmaz)
+  await evalJs(`(() => { const b = window.__pdefe.aktif(), f = b.formlar; for (const k of f.alanlar.values()) { if (k.ad === 'ad') f.degistir(k, ${J('İĞŞÇÖÜ ığşçöü')}, 1); if (k.ad === 'onay1') f.degistir(k, 'Yes', 1); } window.__pdefeOtoYanit = { secim: 2 }; return b.degisti; })()`);
+  const r9b = await yazdir('form-degerli', { aralik: '1', kagit: 'A4' });
+  const soru9 = await evalJs(`(() => { const s = window.__pdefeOtoYanit?.son?.mesaj || null; delete window.__pdefeOtoYanit; return s; })()`);
+  sonuc('9) Yalnızca form alanı değişmişken kaydetme sorulmadan yazdırıldı', !soru9 && !!r9b.olcu, soru9);
+  const ad9 = formOzet.alanlar.find((o) => o.ad === 'onay1');
+  const murekkep = (pdf, kutu) => JSON.parse(execFileSync(PY, ['-X', 'utf8', path.join(KOK, 'test', 'form_olc.py'), pdf, '--murekkep', '1', kutu.join(',')], { encoding: 'utf8' })).murekkep;
+  // Kâğıt ve sayfa A4: sığdırılan sayfa kâğıdı neredeyse tam kaplar; alanların çevresinden geniş bir pay (yazıcının kenar boşluğu)
+  const adKutu = [150, 55, 490, 110], onayKutu = [155, 400, 200, 445];
+  const once9 = r9a.dosya ? { ad: murekkep(path.join(UI, '9-form-bos.pdf'), adKutu), onay: murekkep(path.join(UI, '9-form-bos.pdf'), onayKutu) } : null;
+  const sonra9 = r9b.dosya ? { ad: murekkep(path.join(UI, '10-form-degerli.pdf'), adKutu), onay: murekkep(path.join(UI, '10-form-degerli.pdf'), onayKutu) } : null;
+  sonuc('9) Notları yazdır kapalıyken form alanları basıldı (alan kenarlıkları)', !!once9 && once9.ad > 300 && once9.onay > 50, { once9, ad9: ad9?.xref });
+  sonuc('9) Kaydedilmemiş yazı ve onay kutusu değeri basıldı', !!once9 && !!sonra9 && sonra9.ad > once9.ad + 300 && sonra9.onay > once9.onay + 40, { once9, sonra9 });
+  await evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); return true; })()`);
   await evalJs(`window.pdefe.cagir('ayar:koy', 'yazdirma', {})`);
 
   const hatalar = await evalJs(`(window.__hatalar || []).slice(0, 5)`);

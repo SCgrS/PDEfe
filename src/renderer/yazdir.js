@@ -7,8 +7,10 @@
 // (macOS'un) yazdırma penceresi alttaki bağlantıyla yedek yol olarak durur.
 //
 // Sayfalar görüntü olarak basıldığından Türkçe karakterler ve gömülü olmayan fontlar ekranda göründüğü gibi çıkar; yazıcı sürücüsünün font
-// eşlemesine bağımlılık yoktur. "Notları yazdır" varsayılan kapalıdır; kapalıyken çekirdek sayfayı get_pixmap(annots=False) ile yalnızca
-// içerikten çizer, bu yüzden notlar, damgalar ve form alanları (widget) da basılmaz. Ön izleme de aynı çekirdek yöntemiyle (sayfa_goruntu,
+// eşlemesine bağımlılık yoktur. "Notları yazdır" varsayılan kapalıdır; kapalıyken çekirdek notları ve damgaları çizmez. Form alanları
+// (widget) 0.3.1'den beri her zaman basılır (yazdırma kullanımıyla: Print bayrağı olmayan alan basılmaz; 0.3.0'a dek "Notları yazdır"
+// kapalıyken basılmıyordu), kaydedilmemiş form değerleri de (formlar.js yazdirmaDegerleri; çekirdek değerleri belgenin bellekteki
+// kopyasına yazıp çizer): Yalnızca form alanı değiştiyse kaydetme sorulmaz. Ön izleme de aynı çekirdek yöntemiyle (sayfa_goruntu,
 // notlar seçimiyle) çizilir; küçük resim (kucuk_resim) her zaman notlu çizdiği için kullanılmaz.
 //
 // Görüntüler tek bir HTML dizesinde toplanmaz: her sayfa ana süreçte geçici iş klasörüne dosya olarak yazılır ve HTML yalnızca
@@ -23,7 +25,8 @@
 // Dışa verilen API:
 //   yazdir(baglam, belge)                          → Promise<void>
 //     baglam = { cekirdek, pdefe, mesajKutusu, bildir, kaydet(belge), ayar?: () => ayarlar }
-//     belge  = { yol, ad, degisti, kaydediliyor?, gorunum: { gecerli, sayfaSayisi, yapisalKirli?() } }
+//     belge  = { yol, ad, degisti, kaydediliyor?, gorunum: { gecerli, sayfaSayisi, yapisalKirli?() }, notlar?: { kirli },
+//                formlar?: { yazdirmaDegerleri(yol) } }
 //   sayfaAraligiCoz, yazdirmaHtmlOlustur           → yazdirYerlesim.js'ten (saf işlevler, Node'da sınanır)
 import { ayarlarPenceresiKapat } from './ayarlarPenceresi.js';
 import { ortuTiklamasiBagla } from './ortu.js';
@@ -84,9 +87,12 @@ export async function yazdir(baglam, belge) {
     return;
   }
 
-  // 2) Kaydedilmemiş değişiklik: yazdırma dosyadaki hâlden yapılır
-  if (belge.degisti) {
-    const yapisal = yapisalKirliMi(belge);
+  // 2) Kaydedilmemiş değişiklik: yazdırma dosyadaki hâlden yapılır. Form alanlarının kaydedilmemiş değerleri (0.3.1) dosyaya eşlenebiliyorsa
+  //    yine basılır: yalnızca form alanı değiştiyse sorulmaz. Eşlenemiyorsa (sayfa düzeni kaydedildikten sonra değişen alanlar anlık kopyada)
+  //    sayfa düzeni gibi önce kaydedilmeli
+  const form = formDegerleri(belge);
+  if (belge.degisti && !(form.tamam && !yapisalKirliMi(belge) && !belge.notlar?.kirli)) {
+    const yapisal = yapisalKirliMi(belge) || !form.tamam;
     const otomatik = !yapisal && !!baglam.ayar?.()?.otomatikKaydet;
     let secim;
     if (otomatik) {
@@ -94,14 +100,16 @@ export async function yazdir(baglam, belge) {
     } else if (yapisal) {
       ({ secim } = await mesajKutusu({
         mesaj: 'Yazdırmadan önce kaydedilmesi gerekiyor',
-        ayrinti: `"${belge.ad}" belgesinde sayfa yapısı değişti (sayfa ekleme, silme, sıralama ya da döndürme). Yazdırma dosyanın diskteki hâlinden yapılır; kaydetmeden yazdırılırsa eski sayfa düzeni basılır.`,
+        ayrinti: yapisalKirliMi(belge)
+          ? `"${belge.ad}" belgesinde sayfa yapısı değişti (sayfa ekleme, silme, sıralama ya da döndürme). Yazdırma dosyanın diskteki hâlinden yapılır; kaydetmeden yazdırılırsa eski sayfa düzeni basılır.`
+          : `"${belge.ad}" belgesinin sayfa düzeni kaydedildikten sonra form alanları değişti. Yazdırma dosyanın diskteki hâlinden yapılır. Kaydetmeden yazdırılırsa bu değişiklikler basılmaz.`,
         dugmeler: ['Kaydet ve yazdır', 'Vazgeç'], varsayilan: 0, iptal: 1,
       }));
       if (secim !== 0) return;
     } else {
       ({ secim } = await mesajKutusu({
         mesaj: 'Yazdırmadan önce kaydedilsin mi?',
-        ayrinti: `"${belge.ad}" belgesinde kaydedilmemiş değişiklikler var. Yazdırma, dosyanın diskteki hâlinden yapılır; kaydetmezseniz yeni notlar çıktıda görünmez.`,
+        ayrinti: `"${belge.ad}" belgesinde kaydedilmemiş değişiklikler var. Yazdırma, dosyanın diskteki hâlinden yapılır; kaydetmezseniz yeni notlar çıktıda görünmez. Form alanlarına yazılanlar her durumda basılır.`,
         dugmeler: ['Kaydet ve yazdır', 'Kaydetmeden yazdır', 'Vazgeç'], varsayilan: 0, iptal: 2,
       }));
       if (secim === 2) return;
@@ -141,7 +149,8 @@ export async function yazdir(baglam, belge) {
   // 4) Seçenekler
   let kayitli = {};
   try { kayitli = (await pdefe.cagir('ayar:al', 'yazdirma')) || {}; } catch { kayitli = {}; }
-  const secenek = await secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre: gorunumSayisi !== toplam, boyutlar, kayitli });
+  const formlar = formDegerleri(belge).degerler;   // kaydedildiyse artık boş
+  const secenek = await secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre: gorunumSayisi !== toplam, boyutlar, kayitli, formlar });
   if (!secenek) return;
   sonSecenek = { notlar: secenek.notlar };
   if (!secenek.sistemPenceresi) {
@@ -183,7 +192,7 @@ export async function yazdir(baglam, belge) {
       ilerleme.guncelle((i / sayfaNolari.length) * 100, `Sayfa ${no} hazırlanıyor (${i + 1}/${sayfaNolari.length}${toplamBayt ? ' · ' + mb(toplamBayt) + ' MB' : ''})`);
       let r;
       try {
-        r = await cekirdek('sayfa_goruntu', { yol: belge.yol, sayfa: no, dpi: DPI, notlar: !!secenek.notlar, bicim: 'jpeg', kalite: JPEG_KALITE });
+        r = await cekirdek('sayfa_goruntu', { yol: belge.yol, sayfa: no, dpi: DPI, notlar: !!secenek.notlar, bicim: 'jpeg', kalite: JPEG_KALITE, ...(formlar.length ? { formlar } : {}) });
       } catch (e) {
         if (ilerleme.iptal) { await vazgec(); return; }
         throw new Error(`Sayfa ${no} hazırlanamadı: ${cekirdekHataMetni(e)}`);
@@ -228,6 +237,11 @@ export async function yazdir(baglam, belge) {
 }
 
 /** Görünümde kaydedilmemiş yapısal değişiklik (sayfa ekleme/silme/sıralama) var mı? */
+/** Kaydedilmemiş form değerleri (0.3.1, formlar.js): { degerler: [{xref, deger}] (belgenin dosyasına yazılabilenler), tamam }. */
+function formDegerleri(belge) {
+  try { return belge.formlar?.yazdirmaDegerleri?.(belge.yol) || { degerler: [], tamam: true }; } catch { return { degerler: [], tamam: true }; }
+}
+
 function yapisalKirliMi(belge) {
   try { return typeof belge.gorunum?.yapisalKirli === 'function' && !!belge.gorunum.yapisalKirli(); } catch { return false; }
 }
@@ -260,7 +274,7 @@ function acilisKagidi(kayitli) { return kayitli?.kagitSecildi === true ? gecerli
  * Yazdırma penceresi. Yazdır'la { aralik, aralikMetni, sayfalar, yazici, yaziciAdi, kopya, harmanla, kagit, kagitSecildi, olcek, renk, ciftTarafli,
  * notlar, sistemPenceresi, dosyayaYazar, cevrimDisi }, Vazgeç / Esc / dışarı tıklamayla null döner.
  */
-function secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre, boyutlar, kayitli }) {
+function secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre, boyutlar, kayitli, formlar = [] }) {
   const { pdefe, cekirdek } = baglam;
   return new Promise((coz) => {
     const ortu = document.createElement('div');
@@ -317,7 +331,7 @@ function secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre,
       </div>
       <div class="yazdir-cift-bilgi soluk" hidden></div>
       <label class="yazdir-notlar"><input type="checkbox" name="notlar"> Notları yazdır</label>
-      <p class="soluk yazdir-aciklama">Sayfalar görüntü olarak basılır; Türkçe karakterler ekranda göründüğü gibi çıkar. "Notları yazdır" kapalıyken notlar, damgalar ve form alanları basılmaz.</p>
+      <p class="soluk yazdir-aciklama">Sayfalar görüntü olarak basılır; Türkçe karakterler ekranda göründüğü gibi çıkar. "Notları yazdır" kapalıyken notlar ve damgalar basılmaz. Form alanları her zaman basılır.</p>
     </div>
     <div class="yazdir-onizleme" aria-label="Ön izleme">
       <div class="yazdir-onizleme-alan"><div class="yazdir-kagit"><img class="yazdir-onizleme-sayfa" alt="" draggable="false"></div><div class="yazdir-onizleme-durum soluk" hidden></div></div>
@@ -533,7 +547,7 @@ function secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre,
       const benim = ++sira;
       let soz = bekleyen.get(anahtar);
       if (!soz) {
-        soz = cekirdek('sayfa_goruntu', { yol: belge.yol, sayfa: no, dpi, notlar, bicim: 'jpeg', kalite: ONIZLEME_KALITE }).then((r) => {
+        soz = cekirdek('sayfa_goruntu', { yol: belge.yol, sayfa: no, dpi, notlar, bicim: 'jpeg', kalite: ONIZLEME_KALITE, ...(formlar.length ? { formlar } : {}) }).then((r) => {
           if (!r?.veri) throw new Error('Görüntü alınamadı.');
           const k = { url: `data:image/${r.bicim === 'png' ? 'png' : 'jpeg'};base64,${r.veri}`, genislikPt: r.genislikPt, yukseklikPt: r.yukseklikPt };
           onbellek.set(anahtar, k);

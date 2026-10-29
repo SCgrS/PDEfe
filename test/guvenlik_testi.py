@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "core"))
 
 import pymupdf  # noqa: E402
 import pdefe_core  # noqa: E402
-from islemler import notlar, yapisal  # noqa: E402
+from islemler import formlar, notlar, yapisal  # noqa: E402
 
 CIKTI = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cikti", "guvenlik")
 os.makedirs(CIKTI, exist_ok=True)
@@ -215,8 +215,10 @@ r = pdefe_core.y_sayfa_goruntu({"yol": dev, "sayfa": 1, "dpi": 600, "bicim": "jp
 sonuc("yazdırma görüntüsü: dev sayfa sınırı aşmaz", r["genislik"] * r["yukseklik"] <= pdefe_core.EN_FAZLA_PIKSEL * 1.01, (r["genislik"], r["yukseklik"]))
 r = pdefe_core.y_kucuk_resim({"yol": dev, "sayfa": 2, "genislik": 160})
 sonuc("küçük resim: 1 pt genişliğindeki uzun sayfa sınırı aşmaz", r["genislik"] * r["yukseklik"] <= pdefe_core.EN_FAZLA_PIKSEL * 1.01, (r["genislik"], r["yukseklik"]))
-r = notlar.y_form_gorunum({"yol": dev, "sayfa": 1, "olcek": 6})
-sonuc("form görünümü: dev sayfa sınırı aşmaz", r.get("png") and r["genislik"] * r["yukseklik"] <= pdefe_core.EN_FAZLA_PIKSEL * 1.01, (r.get("genislik"), r.get("yukseklik")))
+# 0.3.1: form katmanı widget widget (formlar.y_form_gorunum); widget görüntüleri sınırlanmış ölçekle, sayfa çerçevesine kırpılarak çizilir
+r = formlar.y_form_gorunum({"yol": dev, "sayfa": 1, "olcek": 6})
+piksel = sum(pymupdf.Pixmap(__import__("base64").b64decode(w["png"])).width * pymupdf.Pixmap(__import__("base64").b64decode(w["png"])).height for w in r["widgetlar"])
+sonuc("form görünümü: dev sayfa sınırı aşmaz", r["widgetlar"] and piksel <= pdefe_core.EN_FAZLA_PIKSEL * 1.01, piksel)
 sonuc("dev sayfa çizimleri makul sürede biter", time.time() - t0 < 60, round(time.time() - t0, 1))
 pdefe_core.onbellek.hepsini_birak()
 # /UserUnit: sayfa ölçüsü katlanır (MuPDF rect'e yansıtır); yazdırmada dpi 1'e inse bile sınır aşılmamalı

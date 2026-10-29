@@ -6,6 +6,7 @@ import { DurumCubugu, boyutMetni, sayfaKutusuBagla, sayfaKutusuYaz } from './dur
 import { Arama } from './arama.js';
 import { temizMetin, sayfaMetinleriniBirlestir, secimDikdortgenleri, satirlaraBirlestir, paragrafSec, secimHamMetni, secimYapiliMetni, surukleSecimiBagla } from './metin.js';
 import { NotYoneticisi, VURGU_RENKLERI, YAZI_PANO_TURU, yaziVerisiDogrula } from './notlar.js';
+import { FormYoneticisi } from './formlar.js';
 import { KomutYigini, Komut, sayfaFarki, sayfaFarkiOzeti, sayfaListesi } from './komutlar.js';
 import { GecmisListesi } from './gecmisListesi.js';
 import { ayarlarPenceresiAc, ayarlarPenceresiKapat, ayarlarPenceresiniGuncelle } from './ayarlarPenceresi.js';
@@ -169,9 +170,14 @@ function belgeOlustur(yol) {
   el.className = 'gorunum';
   el.hidden = true;
   $('#gorunumler').append(el);
-  const gorunum = new Goruntuleyici(el, { dosyaOku: async (y) => (await pdefe.cagir('dosya:oku', y)).veri, cekirdek, baglantiIpucu: (l, s) => baglantiIpucu(gorunum, l, s) });
+  // Form alanlarının katmanı (0.3.1): görüntüleyici çizerken belgenin form yöneticisine (aşağıda kurulur) verir
+  let belge = null;
+  const gorunum = new Goruntuleyici(el, {
+    dosyaOku: async (y) => (await pdefe.cagir('dosya:oku', y)).veri, cekirdek, baglantiIpucu: (l, s) => baglantiIpucu(gorunum, l, s),
+    formKatmani: (...a) => belge?.formlar?.katmanKur(...a), formBirak: (s) => belge?.formlar?.katmanBirak(s),
+  });
   // diskDondurme: yüklenen dosyaya (gorunum.yol) artımlı kayıtla işlenmiş göreli döndürmeler, kaynak sayfa no → açı (bkz. yapisalTarif)
-  const belge = { id, yol, ad: dosyaAdi(yol), el, gorunum, degisti: false, boyut: 0, bilgi: null, diskDondurme: {} };
+  belge = { id, yol, ad: dosyaAdi(yol), el, gorunum, degisti: false, boyut: 0, bilgi: null, diskDondurme: {} };
   belgeler.set(id, belge);
   gorunum.addEventListener('sayfa', (e) => { if (aktifId === id) { sayfaGoster(belge); } sayfaKonumuKaydet(belge); gizlenenNotuBirak(belge); });
   gorunum.addEventListener('zoom', (e) => { if (aktifId === id) zoomGoster(belge); });
@@ -183,7 +189,9 @@ function belgeOlustur(yol) {
   belge.notlar = new NotYoneticisi({ belge, cekirdek, ayar: () => ayar, yigin: belge.yigin, alan: $('#belge-alani') });
   belge.yigin.addEventListener('degisti', () => kirliGuncelle(belge));
   belge.notlar.addEventListener('degisti', () => { kirliGuncelle(belge); if (aktifId === id) panel.yorumlariYenile(); });
-  belge.notlar.addEventListener('arac', (e) => { if (aktifId === id) aracDugmeleriniGuncelle(e.detail.arac); });
+  belge.notlar.addEventListener('arac', (e) => { belge.formlar.aracDegisti(e.detail.arac); if (aktifId === id) aracDugmeleriniGuncelle(e.detail.arac); });
+  belge.formlar = new FormYoneticisi({ belge, yigin: belge.yigin });
+  belge.formlar.addEventListener('degisti', () => kirliGuncelle(belge));
   // Yazı düzenleyicisi açılınca, kapanınca ve geçmişi değişince Geri al / Yinele düğmeleri; kapanınca beklettiği otomatik kayıt yeniden kurulur
   belge.notlar.addEventListener('duzenleyici', () => { if (!belge.notlar.duzenleyici && belge.degisti) kirliGuncelle(belge); else if (aktifId === id) geriAlDugmeleriniGuncelle(belge); kirliBildir(); });
   belge.notlar.addEventListener('uyari', (e) => { if (aktifId === id) bildir(e.detail.metin, 6000); });
@@ -206,7 +214,7 @@ function belgeleriBildir() {
  *  Açık yazı kutusu da sayılır: yazılan metin kapatmada not olur (kapatmayaIzinAl), yazarken her harfte olay gelmez. Durum değişince çağrılır. */
 let _bildirilenKirli = false;
 function kirliBildir() {
-  const kirli = [...belgeler.values()].some((b) => b.degisti || !!b.notlar?.duzenleyici);
+  const kirli = [...belgeler.values()].some((b) => b.degisti || !!b.notlar?.duzenleyici || !!b.formlar?.duzenleniyor());
   if (kirli === _bildirilenKirli) return;
   _bildirilenKirli = kirli;
   pdefe.gonder('pencere:kirli', kirli);
@@ -311,7 +319,7 @@ async function sekmeSec(id) {
   if (aktifId && aktifId !== id) {
     const eski = belgeler.get(aktifId);
     if (eski) {
-      eski.notlar?.balonKapat(); eski.notlar?.notCubuguKapat(); eski.notlar?.duzenleyiciBitir(true);
+      eski.notlar?.balonKapat(); eski.notlar?.notCubuguKapat(); duzenlemeleriUygula(eski);
       eski.gorunum.gizlenecek();            // sayfa içi konum: arka plandaki sekme başka pencereye taşınırsa orada aynı yerde açılsın
       eski.el.hidden = true;
       eski.gorunum.arkaPlanaAlindi();       // görünür sayfalar dışındaki tuvaller bırakılır (gizli sekme bellek tutmasın)
@@ -349,17 +357,24 @@ function belgeDurumuYaz(b) {
   aracDugmeleriniGuncelle(b?.notlar?.arac || null);
 }
 
+/** Açık yazı düzenlemesini (not yazısı, 0.3.1: form alanı) uygular: kaydet, yazdır, kapat, sekme değiştirme ve taşıma yazılan metinle
+ *  çalışsın. Form alanında düzenleme sürer (odak alanda kalır). */
+function duzenlemeleriUygula(b) {
+  b?.notlar?.duzenleyiciBitir(true);
+  b?.formlar?.duzenlemeyiUygula();
+}
+
 function kirliGuncelle(b) {
-  b.degisti = !!(b.yigin?.kirli || b.gorunum.yapisalKirli() || (!b.gorunum.anlik && b.notlar?.kirli));
+  b.degisti = !!(b.yigin?.kirli || b.gorunum.yapisalKirli() || (!b.gorunum.anlik && (b.notlar?.kirli || b.formlar?.kirli)));
   sekmeler.guncelle(b.id, { degisti: b.degisti });
   kirliBildir();
   if (aktifId === b.id) { durum.degisiklikYaz(b.degisti); geriAlDugmeleriniGuncelle(b); gecmisListesi.yenile(); }   // açık geçmiş listesi güncel kalsın
   $('#arac-cubugu [data-komut="dosya.kaydet"]').disabled = !aktif()?.degisti;
-  // Yazı düzenlenirken otomatik kayıt beklenir (kayıt düzenlemeyi uygulayıp kutuyu yazarken kapatırdı); düzenleme bitince not
+  // Yazı (not ya da 0.3.1: form alanı) düzenlenirken otomatik kayıt beklenir (kayıt düzenlemeyi uygulayıp kutuyu yazarken kapatırdı); düzenleme bitince not
   // değişikliği kirliGuncelle'yi yeniden çağırır. Otomatik kayıt başarısız olduysa (dosya başka programda açık) elle kaydedilene dek durur
   // (Zamanlayıcı dolunca ayar yeniden okunur: arada Ayarlar'dan kapatılmış olabilir)
   // Başka pencereye taşınmakta olan sekme (b.tasiniyor) kaydedilmez: durumu paketlendi, kayıt hedef pencerenin işidir
-  if (ayar.otomatikKaydet && b.degisti && !b._otoKayitDurdu && !b.tasiniyor) { clearTimeout(b._otoKayit); b._otoKayit = setTimeout(() => { if (ayar.otomatikKaydet && b.degisti && belgeler.has(b.id) && !b.notlar?.duzenleyici && !b.tasiniyor) belgeKaydet(b, false, true); }, 1500); }
+  if (ayar.otomatikKaydet && b.degisti && !b._otoKayitDurdu && !b.tasiniyor) { clearTimeout(b._otoKayit); b._otoKayit = setTimeout(() => { if (ayar.otomatikKaydet && b.degisti && belgeler.has(b.id) && !b.notlar?.duzenleyici && !b.formlar?.duzenleniyor() && !b.tasiniyor) belgeKaydet(b, false, true); }, 1500); }
 }
 
 /** Kaydırmasız (tek/iki) düzende sayfa çevrilince artık gösterilmeyen sayfadaki not bırakılır: açık yazı düzenleyicisi kaydedilip
@@ -394,7 +409,7 @@ async function belgeKapat(id, secenek = {}) {
   const b = belgeler.get(id);
   if (!b) return true;
   if (b.tasiniyor) return false;      // sekme başka pencereye geçiyor ya da oradan kuruluyor: durumu paketlendi, kapatılmaz
-  b.notlar?.duzenleyiciBitir(true);   // açık yazı düzenlemesi uygulanır: yazılan metin kaydetme sorusunda sayılsın
+  duzenlemeleriUygula(b);   // açık yazı (not ya da form alanı) düzenlemesi uygulanır: yazılan metin kaydetme sorusunda sayılsın
   // Süren kayıt yarıda kesilmesin (anlık kopya silinir, 'Kaydet' kaydediliyor koruması yüzünden sessizce false dönerdi); bitince degisti yeniden değerlendirilir
   await kayitBitmesiniBekle(b);
   if (!belgeler.has(id)) return true;   // beklerken başka yoldan kapatılmış
@@ -566,7 +581,7 @@ function kapanisiOnayla() {
 async function sekmeleriKapat(idler) {
   for (const id of idler) if (baslangicSekmeleri.has(id)) baslangicSekmesiniKapat(id);   // açılış sekmesinde kaydedilecek bir şey yok
   const liste = idler.map((id) => belgeler.get(id)).filter(Boolean);
-  for (const b of liste) b.notlar?.duzenleyiciBitir(true);
+  for (const b of liste) duzenlemeleriUygula(b);
   for (const b of liste) if (belgeler.has(b.id)) await kayitBitmesiniBekle(b);   // süren kayıt bitince degisti kesinleşir
   for (const b of liste) if (belgeler.has(b.id) && !b.degisti) await belgeKapat(b.id);
   for (const b of liste) if (belgeler.has(b.id) && !(await belgeKapat(b.id))) break;
@@ -642,7 +657,8 @@ function tasimaEngeli(b, { kayitHaric = false, bos = false } = {}) {
  *  (0.2.2) da taşınır: işlemin yapıldığı andaki sayfayı söyler, hedefte yeniden hesaplanmaz. */
 function komutDisari(b, k, girdiNo) {
   const t = k.tanim;
-  const v = t?.tur === 'sayfalar' ? { tur: 'sayfalar', ad: k.ad, eski: t.eski.map(girdiNo), yeni: t.yeni.map(girdiNo) } : b.notlar.komutDisari(k);
+  const v = t?.tur === 'sayfalar' ? { tur: 'sayfalar', ad: k.ad, eski: t.eski.map(girdiNo), yeni: t.yeni.map(girdiNo) }
+    : typeof t?.tur === 'string' && t.tur.startsWith('form.') ? b.formlar.komutDisari(k) : b.notlar.komutDisari(k);
   if (v && k.ayrinti) v.ayrinti = k.ayrinti;
   return v;
 }
@@ -653,7 +669,8 @@ function komutIceri(b, veri, girdiAl, notBul) {
   if (veri?.tur === 'sayfalar') {
     const eski = (veri.eski || []).map(girdiAl), yeni = (veri.yeni || []).map(girdiAl);
     k = eski.every(Boolean) && yeni.every(Boolean) ? sayfaKomutu(b, veri.ad, eski, yeni) : null;
-  } else k = b.notlar.komutIceri(veri, notBul);
+  } else if (typeof veri?.tur === 'string' && veri.tur.startsWith('form.')) k = b.formlar.komutIceri(veri);
+  else k = b.notlar.komutIceri(veri, notBul);
   if (k && typeof veri.ayrinti === 'string') k.ayrinti = veri.ayrinti;
   return k;
 }
@@ -663,6 +680,7 @@ function komutIceri(b, veri, girdiAl, notBul) {
 async function sekmePaketi(b) {
   const g = b.gorunum, n = b.notlar;
   n.balonKapat(); n.notCubuguKapat(); n.duzenleyiciBitir(true);   // yazılan metin pakete girsin; seçili araç ve seçim taşınmaz
+  b.formlar?.duzenlemeyiUygula();
   await kayitBitmesiniBekle(b);                                     // süren kayıt bitsin; bekleyen otomatik kayıt iptal
   await (b._dondurme || Promise.resolve()).catch(() => {});          // sırada bekleyen döndürme
   await b.notSozu;                                                  // notların dosyadan ilk okunması
@@ -675,6 +693,7 @@ async function sekmePaketi(b) {
     surum: 1, yol: b.yol, ad: b.ad, boyut: b.boyut, diskDondurme: { ...b.diskDondurme }, otoKayitDurdu: !!b._otoKayitDurdu, degisti: !!b.degisti,
     gorunum,
     notlar: n.durumAl(girdiNo, b.yigin.yigin.flatMap((k) => n.komutNotlari(k))),
+    formlar: b.formlar.durumAl(),
     // Tarifi olmayan komut varsa geri al geçmişi taşınmaz (belge ve kaydedilmemiş değişiklikler yine taşınır)
     yigin: komutlar.every(Boolean) ? { komutlar, konum: b.yigin.konum, kayitKonumu: b.yigin.kayitKonumu } : null,
   };
@@ -786,6 +805,7 @@ async function sekmeyiAl(paket, { x = null, yeni = false } = {}, onayla = null) 
     const girdiAl = await gorunum.durumdanYukle(paket.gorunum, { duzen: genelDuzen(), kapakAyri: !!ayar.kapakAyri });
     if (!girdiAl || !belgeler.has(id)) throw new Error('Sekme açılırken kapatıldı.');
     const notBul = belge.notlar.durumdanYukle(paket.notlar || {}, girdiAl);
+    belge.formlar.durumdanYukle(paket.formlar || {});
     const y = paket.yigin;
     const komutlar = y ? y.komutlar.map((v) => komutIceri(belge, v, girdiAl, notBul)) : null;
     // Geri al geçmişi kurulamadıysa boş yığın: belge kaydedilmemiş değişiklik taşıyorsa kayıt konumu yok (-1), belge kirli kalır
@@ -982,7 +1002,7 @@ async function belgeKaydet(b, farkli = false, sessiz = false, { oneAl = false } 
 
 /** belgeKaydet'in yazma adımı; hata fırlatır. Vazgeçilirse false, yazılırsa (ya da yazılacak değişiklik yoksa) true. */
 async function kayitYaz(b, farkli, sessiz, oneAl = false) {
-  b.notlar?.duzenleyiciBitir(true);
+  duzenlemeleriUygula(b);
   let hedef = b.yol;
   if (farkli) {
     // Hedef bu pencerede ya da başka bir PDEfe penceresinde açık bir belgenin dosyasıysa yazılmaz (0.2.1): o sekme diskteki yeni içeriği
@@ -1002,8 +1022,10 @@ async function kayitYaz(b, farkli, sessiz, oneAl = false) {
     }
   } else if (!b.degisti) { if (!sessiz) bildir('Kaydedilecek değişiklik yok.'); return true; }
   const islemler = b.notlar ? b.notlar.fark() : [];
+  // Form alanlarının değerleri (0.3.1): dosyadakinden farklı olanlar
+  const formFarki = b.formlar ? b.formlar.fark() : [];
   // Gönderilen durum şimdi saptanır: kayıt sürerken yapılan değişiklikler (ör. yeni not) kayıt bitince kaydedilmiş sayılmasın
-  const yiginKonumu = b.yigin?.konum, yiginKomutu = b.yigin?.geriAlinacak, notAnligi = b.notlar?.kayitAnligi();
+  const yiginKonumu = b.yigin?.konum, yiginKomutu = b.yigin?.geriAlinacak, notAnligi = b.notlar?.kayitAnligi(), formAnligi = b.formlar?.kayitAnligi();
   const g = b.gorunum;
   const tarif = g.tarif(), tarifAnligi = g.tarifJson();
   const yapisal = g.yapisalKirli() || !!g.anlik;
@@ -1013,8 +1035,15 @@ async function kayitYaz(b, farkli, sessiz, oneAl = false) {
   let r;
   if (yapisal && !yalnizDondurme) {
     const anlikKlasor = (await pdefe.cagir('uygulama:veriKlasoru')) + (MAC ? '/anlik' : '\\anlik');
-    r = await cekirdek('yapisal_kaydet', { yol: b.yol, hedef, tarif: yapisalTarif(b, tarif), anlikKlasor, anlik: g.anlik, islemler }, (i) => durum.mesajYaz(`Kaydediliyor… %${i.yuzde} ${i.mesaj || ''}`, 0));
-    if (r.anlik && !g.anlik) { g.anlik = r.anlik; g.kaynakYeniden(b.yol, r.anlik); b.notlar?.kaynakYeniden(b.yol, r.anlik); }
+    // Form değerleri kaynak dosyalarına göre gruplanır: çekirdek her kaynağa (özgün dosya yerine anlık kopyaya) yazıp sayfayla kopyalar
+    const formlar = [];
+    for (const f of formFarki) {
+      let grup = formlar.find((x) => yolAyni(x.yol, f.yol));
+      if (!grup) formlar.push(grup = { yol: f.yol, degerler: [] });
+      grup.degerler.push({ xref: f.xref, deger: f.deger });
+    }
+    r = await cekirdek('yapisal_kaydet', { yol: b.yol, hedef, tarif: yapisalTarif(b, tarif), anlikKlasor, anlik: g.anlik, islemler, ...(formlar.length ? { formlar } : {}) }, (i) => durum.mesajYaz(`Kaydediliyor… %${i.yuzde} ${i.mesaj || ''}`, 0));
+    if (r.anlik && !g.anlik) { g.anlik = r.anlik; g.kaynakYeniden(b.yol, r.anlik); b.notlar?.kaynakYeniden(b.yol, r.anlik); b.formlar?.kaynakYeniden(b.yol, r.anlik); }
     // Yapısal modda notların kayıtlı temeli anlık kopyadaki durumdur; yalnızca konumlar güncellenir
     g.yapisalKaydedildi();
     b.yigin?.kaydedildi(yiginKonumu, yiginKomutu);
@@ -1022,11 +1051,13 @@ async function kayitYaz(b, farkli, sessiz, oneAl = false) {
   } else {
     // Kayıtlı bir not silindi ya da değiştiyse belge temiz (baştan) yazılır: artımlı kayıtta eski hâli dosyada kalırdı (temizKayitKarari)
     // (Farklı kaydet'te aynı dosya seçilirse de: çekirdek aynı dosyaya artımlı yazar)
-    const temiz = yolAyni(hedef, b.yol) && islemler.some((op) => op.islem === 'sil' || op.islem === 'guncelle') ? await temizKayitKarari(b, sessiz, oneAl) : false;
+    // 0.3.1: Dosyada dolu olan bir yazı / liste alanının değeri değişince de (eski değer artımlı kayıtta dosyanın önceki bölümünde kalırdı)
+    const temiz = yolAyni(hedef, b.yol) && (islemler.some((op) => op.islem === 'sil' || op.islem === 'guncelle') || b.formlar?.eskiDegerKalir()) ? await temizKayitKarari(b, sessiz, oneAl) : false;
     if (temiz === null) { durum.mesajYaz(''); return false; }
     // Döndürmesi son kayıttakinden farklı sayfaların mutlak açıları notlardan önce uygulanır; aynı dosyaya artımlı yazılır
     const sayfaDondurmeleri = yalnizDondurme ? await sayfaDondurmeleriHesapla(g, tarif, tarifAnligi) : null;
-    r = await cekirdek('notlar_kaydet', { yol: b.yol, hedef, islemler, artimli: true, ...(temiz ? { temiz: true } : {}), ...(sayfaDondurmeleri ? { sayfaDondurmeleri } : {}) });
+    const formlar = formFarki.map(({ xref, deger }) => ({ xref, deger }));
+    r = await cekirdek('notlar_kaydet', { yol: b.yol, hedef, islemler, artimli: true, ...(temiz ? { temiz: true } : {}), ...(sayfaDondurmeleri ? { sayfaDondurmeleri } : {}), ...(formlar.length ? { formlar } : {}) });
     if (yalnizDondurme) {
       g.yapisalKaydedildi();
       if (g.tarifJson() !== tarifAnligi) g.kayitliTarif = tarifAnligi;   // kayıt sürerken yapılan sayfa değişikliği kirli kalsın
@@ -1041,11 +1072,14 @@ async function kayitYaz(b, farkli, sessiz, oneAl = false) {
       const eski = g.yol, kayitli = JSON.parse(g.kayitliTarif), ek = yolAnahtari(eski) + '#', yk = yolAnahtari(hedef) + '#';
       b.diskDondurme = {};
       for (const t of tarif) if (t.kaynak && yolAyni(t.kaynak.yol, eski)) b.diskDondurme[t.kaynak.sayfa] = t.dondurme || 0;
-      g.kaynakYeniden(eski, hedef); b.notlar?.kaynakYeniden(eski, hedef); g.yol = hedef;
+      g.kaynakYeniden(eski, hedef); b.notlar?.kaynakYeniden(eski, hedef); b.formlar?.kaynakYeniden(eski, hedef); g.yol = hedef;
       // kaynakYeniden kayitliTarif'e şimdiki tarifi yazar; kayıt sürerken yapılan sayfa değişikliği kirli kalsın
       g.kayitliTarif = JSON.stringify(kayitli.map(([k, d]) => [typeof k === 'string' && k.startsWith(ek) ? yk + k.slice(ek.length) : k, d]));
     }
     b.notlar?.kaydedildi(r.xrefler, notAnligi);
+    // Form değerleri dosyaya yazıldıysa dosyadaki değer artık onlar. Farklı kaydet'te görünüm yeni dosyaya bağlanmadıysa (yapısal
+    // Farklı kaydet'ten sonra) alanlar eski kaynağındadır, kayıtlı değer değişmez
+    if (yolAyni(hedef, b.yol) || (g.yol && yolAyni(hedef, g.yol))) b.formlar?.kaydedildi(formAnligi);
     b.yigin?.kaydedildi(yiginKonumu, yiginKomutu);
     b.boyut = r.boyut;
   }
@@ -1063,7 +1097,7 @@ async function kayitYaz(b, farkli, sessiz, oneAl = false) {
   durum.mesajYaz(sessiz ? 'Otomatik kaydedildi' : 'Kaydedildi' + (r.artimli ? '' : ' (tam yazım)'));
   cekirdek('belge_birak', { yol: b.yol }).catch(() => {});
   panel.yorumlariYenile();
-  if (islemler.length) panel.kucukResimleriYenile(b.id);   // Sayfalar'ın küçük resimleri kaydedilen notları göstersin (0.2.1)
+  if (islemler.length || formFarki.length) panel.kucukResimleriYenile(b.id);   // Sayfalar'ın küçük resimleri kaydedilen notları ve form değerlerini göstersin (0.2.1)
   return true;
 }
 
@@ -1607,7 +1641,7 @@ const DUZENLEMEYI_UYGULAYAN = /^(arac\.|dosya\.(kaydet|farkliKaydet|yazdir)$|sek
 function komutCalistir(id, veri) {
   const f = komutlar[id];
   if (!f) { console.warn('Bilinmeyen komut', id); return; }
-  if (DUZENLEMEYI_UYGULAYAN.test(id)) aktif()?.notlar?.duzenleyiciBitir(true);
+  if (DUZENLEMEYI_UYGULAYAN.test(id)) duzenlemeleriUygula(aktif());
   try { const r = f(veri); if (r && r.catch) r.catch((e) => { console.error(e); bildir('Hata: ' + hataMetni(e)); }); }
   catch (e) { console.error(e); bildir('Hata: ' + hataMetni(e)); }
 }
@@ -1824,7 +1858,7 @@ function kapatmayaIzinAl({ degismeyenleriKapat = false } = {}) {
     gecmisListesi.kapat();   // kaydetme soruları ve sekme geçişleri listenin belgesini değiştirir (0.2.2)
     // Araç penceresi belgenin önünde açıktır ve belgeye bağlıdır (Sayfaları düzenle kaydederken sekmeye yazabilir): önce o
     if (!(await aracPencereleriniKapat())) return false;
-    for (const b of belgeler.values()) b.notlar?.duzenleyiciBitir(true);   // açık yazı düzenlemesi kaydetme sorusunda sayılsın
+    for (const b of belgeler.values()) duzenlemeleriUygula(b);   // açık yazı düzenlemesi kaydetme sorusunda sayılsın
     const vazgecildi = () => { for (const x of belgeler.values()) if (x.degisti) kirliGuncelle(x); return false; };   // kapanmıyor: iptal edilen otomatik kayıtlar yeniden kurulsun
     for (const b of [...belgeler.values()]) if (belgeler.has(b.id)) await kayitBitmesiniBekle(b);
     if (degismeyenleriKapat && [...belgeler.values()].some((b) => b.degisti)) {
