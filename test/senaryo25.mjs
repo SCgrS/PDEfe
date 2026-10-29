@@ -165,7 +165,7 @@ export default async function ({ evalJs, bekle, tikla, surukle, ekranGoruntusu }
   sonuc('Sayfayı sığdırınca tanınan yazı yine yerinde', tc1b && Math.abs(tc1b.sol - 180 / 595) < 0.012 && tc1b.ust > 0.10 && tc1b.ust < 0.125, tc1b);
   await evalJs(`window.__pdefe.komutCalistir('gorunum.zoom', 'genislik'), 1`);
 
-  // Bul tanınan yazıyı aramaz, PDF metnini bulur ve vurgular (öğe sırası bozulmadı)
+  // Bul PDF metnini bulur ve vurgular (öğe sırası bozulmadı). Tanınan yazıda da arar (0.3.1): senaryo46
   await evalJs(`window.__pdefe.komutCalistir('duzen.bul', 'Yalnızca'), 1`);
   await kosul(`!!document.querySelector('.textLayer .highlight')`, 8000);
   const vurgu = await evalJs(`[...document.querySelectorAll('.textLayer .highlight')].map((e) => e.textContent)`);

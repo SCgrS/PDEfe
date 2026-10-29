@@ -12,6 +12,10 @@
 #                 1) saat yönünün tersine 90° (yazı aşağıdan yukarı okunur)  2) 180° (ters)  3) saat yönünde 90° (yukarıdan aşağı)
 #                 4) yazısız görsel (yumuşak geçişli gri): hiçbir yönde yazı bulunmamalı
 #                 5) dik taranmış kaşe (az sözcük): dik okunmalı, yön değişmemeli
+#   arama.pdf     Bul'un taranmış sayfalarda araması (0.3.1, test/senaryo46.mjs): 12 sayfa, aranan sözcük ARANAN (ARAMA_BEKLENEN'deki
+#                 sayfalarda, toplam 10 kez): 1) PDF metni (1)  2) taranmış (1)  3) taranmış, yok  4) taranmış (2)  5) taranmış, /Rotate 90 (1)
+#                 6) yan taranmış, /Rotate yok (1)  7) PDF metni, yok  8) karışık: PDF metni (1) + kaşe görseli (1)  9) taranmış, yok
+#                 10) taranmış (1)  11) ters taranmış (1)  12) taranmış, yok
 import io
 import os
 import sys
@@ -37,8 +41,8 @@ def yazi_ekle(sayfa, satirlar, x, y, boy=13, aralik=22, gorunmez=False):
         sayfa.insert_text((x, y + i * aralik), s, fontsize=boy, fontname="F0", render_mode=3 if gorunmez else 0)
 
 
-def kaynak_sayfa(gorunmez=False, hedef=None):
-    """Taranacak içeriğin PDF metniyle yazıldığı sayfa (hedef verilirse ona, verilmezse geçici belgeye)."""
+def kaynak_sayfa(gorunmez=False, hedef=None, ek=()):
+    """Taranacak içeriğin PDF metniyle yazıldığı sayfa (hedef verilirse ona, verilmezse geçici belgeye). ek: imzanın altına eklenen satırlar."""
     doc = None
     if hedef is None:
         doc = pymupdf.open()
@@ -47,11 +51,13 @@ def kaynak_sayfa(gorunmez=False, hedef=None):
     yazi_ekle(hedef, [BASLIK], 180, 110, boy=16, gorunmez=gorunmez)
     yazi_ekle(hedef, GOVDE, 72, 170, gorunmez=gorunmez)
     yazi_ekle(hedef, ["İstanbul, 01.10.2026", "Müdür Yardımcısı"], 330, 300, gorunmez=gorunmez)
+    if ek:
+        yazi_ekle(hedef, list(ek), 72, 380, gorunmez=gorunmez)
     return doc, hedef
 
 
-def taranmis_png(dondur=0):
-    doc, sayfa = kaynak_sayfa()
+def taranmis_png(dondur=0, ek=()):
+    doc, sayfa = kaynak_sayfa(ek=ek)
     pix = sayfa.get_pixmap(dpi=200, colorspace=pymupdf.csGRAY)
     png = pix.tobytes("png")
     doc.close()
@@ -63,11 +69,11 @@ def taranmis_png(dondur=0):
     return png
 
 
-def kase_png():
+def kase_png(satirlar=KASE):
     doc = pymupdf.open()
     s = doc.new_page(width=200, height=70)
     s.draw_rect(pymupdf.Rect(4, 4, 196, 66), color=(0, 0, 0), width=1.5)
-    yazi_ekle(s, KASE, 30, 30, boy=15, aralik=22)
+    yazi_ekle(s, satirlar, 30, 30, boy=15, aralik=22)
     png = s.get_pixmap(dpi=200, colorspace=pymupdf.csGRAY).tobytes("png")
     doc.close()
     return png
@@ -104,6 +110,7 @@ def uret(klasor):
     doc.close()
     print("Üretildi:", yol)
     uret_yan(klasor)
+    uret_arama(klasor)
 
 
 # Yan / ters taranmış sayfalarda dik içeriğin (595×842 pt) bir noktasının sayfadaki yeri (yan.pdf'in sayfa boyutlarıyla); testler
@@ -135,6 +142,47 @@ def uret_yan(klasor):
     s = doc.new_page(width=595, height=842)
     s.insert_image(pymupdf.Rect(72, 200, 272, 270), stream=kase_png())
     yol = os.path.join(klasor, "yan.pdf")
+    doc.save(yol, garbage=3, deflate=True)
+    doc.close()
+    print("Üretildi:", yol)
+
+
+ARANAN = "tutanak"
+ARAMA_BEKLENEN = {1: 1, 2: 1, 4: 2, 5: 1, 6: 1, 8: 2, 10: 1, 11: 1}   # sayfa → eşleşme sayısı (senaryo46 da bunu okur)
+ARAMA_TARANMIS = [2, 3, 4, 5, 6, 8, 9, 10, 11, 12]                  # görselinde tanınacak yazı olan sayfalar
+
+
+def uret_arama(klasor):
+    doc = pymupdf.open()
+    bir = ["Tutanak örneği dosyadadır."]
+    iki = ["Tutanak örneği dosyadadır.", "Haciz tutanağının ikinci tutanak sayfası."]
+
+    def taranmis(dondur=0, ek=(), rotate=0):
+        yatay = dondur % 180 != 0
+        s = doc.new_page(width=842 if yatay else 595, height=595 if yatay else 842)
+        s.insert_image(s.rect, stream=taranmis_png(dondur, ek))
+        if rotate:
+            s.set_rotation(rotate)
+
+    def metinli(satirlar):
+        s = doc.new_page(width=595, height=842)
+        yazi_ekle(s, satirlar, 72, 100)
+        return s
+
+    metinli(["Birinci sayfa yalnızca PDF metnidir.", "Aranan tutanak bu sayfada PDF metninde."])   # 1
+    taranmis(ek=bir)                                                                            # 2
+    taranmis()                                                                                  # 3
+    taranmis(ek=iki)                                                                            # 4
+    taranmis(dondur=90, ek=bir, rotate=90)                                                      # 5: ekranda düz
+    taranmis(dondur=90, ek=bir)                                                                 # 6: yazı ekranda yan
+    metinli(["Yedinci sayfa da yalnızca PDF metnidir."])                                       # 7
+    s8 = metinli(["Karışık sayfa: PDF metninde tutanak var.", "Aşağıdaki kaşe bir görseldir."])  # 8
+    s8.insert_image(pymupdf.Rect(72, 200, 272, 270), stream=kase_png(["TUTANAK ASLI", "Zabıt Kâtibi"]))
+    taranmis()                                                                                  # 9
+    taranmis(ek=bir)                                                                            # 10
+    taranmis(dondur=180, ek=bir)                                                                # 11: ters
+    taranmis()                                                                                  # 12
+    yol = os.path.join(klasor, "arama.pdf")
     doc.save(yol, garbage=3, deflate=True)
     doc.close()
     print("Üretildi:", yol)

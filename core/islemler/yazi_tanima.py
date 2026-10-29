@@ -52,6 +52,7 @@ EGIK = 1.0                     # derece; tanıyıcının ölçtüğü eğim bund
 BLOK_TABANI = 1_000_000        # tanınan satırların PyMuPDF blok numarası: satır başına bir blok, sayfanın bloklarından ayrı
 ONBELLEK_SAYFA = 400
 BEKLEME = 30                   # sn; metin_sec tanımayı en çok bu kadar bekler
+ADAY_EN_COK = 200              # tanima_sayfalari bir istekte en çok bu kadar sayfaya bakar (renderer 50'şer sorar)
 # Yazının yönü (0.2.4, _yonlu_tani; ölçüm PLAN.md "Revizyon 0.2.4"): sonuçta en az YON_YETERLI makul sözcük varsa ve sözcüklerin en az
 # YON_ORAN'ı makulse yazı o yönde okunmuş sayılır. Dik okunuş yetmezse öteki yönler denenir; net puanı (makul eksi makul olmayan
 # sözcük) dik okunuşunkinden en az YON_FARK fazla, makul sözcüğü en az YON_EN_AZ olan en yüksek puanlı yön seçilir. Ters okunan yazı
@@ -136,9 +137,20 @@ def bitmesini_bekle(sure=10):
     bitti.wait(sure)
 
 
+def _tanimasiz():
+    """Tanıyıcının olmadığı önceden biliniyor mu (0.3.1): Bu platformda tanıyıcı yok (Linux) ya da daha önce açılamadı. Geliştirme
+    sürümünde PDEFE_TANIMA_YOK=1 tanıyıcıyı yok sayar: Tanıyıcısız yol Windows'ta da sınansın (test/senaryo46.mjs). Paketli çekirdek
+    bu değişkeni okumaz."""
+    if os.environ.get("PDEFE_TANIMA_YOK") == "1" and not getattr(sys, "frozen", False):
+        return True
+    return _motor is False or not (MAC or sys.platform == "win32")
+
+
 def _motor_al():
     """Tanıyıcı (yalnızca tanıma iş parçacığında): Türkçe, yoksa kullanıcının dil listesinden; hiçbiri yoksa None."""
     global _motor
+    if _motor is None and _tanimasiz():
+        _motor = False
     if _motor is None and MAC:
         try:
             _motor = _AppleTaniyici()
@@ -525,7 +537,7 @@ def y_ocr_sayfa(p):
     k = _onbellekten(anahtar)
     if k is not None:
         return {"satirlar": k["satirlar"]}
-    if _motor is False:
+    if _tanimasiz():
         return {"satirlar": [], "desteklenmiyor": True}
     pg = onbellek.al(yol)[sayfa - 1]
     sayfa_sozcukleri = pg.get_text("words")
@@ -537,6 +549,29 @@ def y_ocr_sayfa(p):
     return Ertelenmis(lambda bitir: _calistir(lambda dongu: _tamamla(anahtar, hazirlik, dongu), bitir))
 
 
+def y_tanima_sayfalari(p):
+    """Bul'un taranmış sayfalarda araması için (0.3.1): verilen sayfalardan (1'den başlayan numaralar, en çok ADAY_EN_COK) görsellerinde
+    tanınacak yazı olabilenler, {"sayfalar": [...], "desteklenmiyor": bool}. Ölçüt ocr_sayfa'nınkiyle aynı (_bolgeler: sayfanın sözcüklerinin
+    kaplamadığı, yeterince büyük görsel). Tanıma yapılmaz: Bul yalnızca bu sayfalar için ocr_sayfa ister ve ancak onlar tanınınca
+    "Bulunamadı" der. Sözcükler yalnızca görseli aday olan sayfada okunur (metinli 410 sayfalık belgede görsel bilgisi ~0,9 sn sürüyor:
+    renderer sayfaları parça parça sorar, işçi küçük resimlere ve kopyalamaya arada yanıt verir). desteklenmiyor: tanıyıcının olmadığı
+    biliniyor (_tanimasiz)."""
+    from pdefe_core import onbellek
+    sayfalar = p.get("sayfalar")
+    if not isinstance(sayfalar, list) or len(sayfalar) > ADAY_EN_COK or not all(type(s) is int for s in sayfalar):
+        raise ValueError("Geçersiz sayfa listesi.")
+    doc = onbellek.al(p["yol"])
+    secilen = []
+    for sayfa in sayfalar:
+        if not 1 <= sayfa <= doc.page_count:
+            raise ValueError("Geçersiz sayfa: %d" % sayfa)
+        pg = doc[sayfa - 1]
+        gorseller = pg.get_image_info()
+        if _bolgeler(pg, [], gorseller) and _bolgeler(pg, pg.get_text("words"), gorseller):
+            secilen.append(sayfa)
+    return {"sayfalar": secilen, "desteklenmiyor": _tanimasiz()}
+
+
 def sozcukler(doc, yol, sayfa, kutular=None):
     """metin_sec için sayfanın görsellerinde tanınan sözcükler (PyMuPDF get_text("words") biçiminde). Önbellekte yoksa tanınır ve
     beklenir (renderer metin katmanını kurarken istediği için çoğunlukla önbellektedir). kutular (seçim, döndürülmemiş düzlemde)
@@ -545,7 +580,7 @@ def sozcukler(doc, yol, sayfa, kutular=None):
         anahtar = _anahtar(yol, sayfa)
         k = _onbellekten(anahtar)
         if k is None:
-            if _motor is False:
+            if _tanimasiz():
                 return []
             pg = doc[int(sayfa) - 1]
             sayfa_sozcukleri = pg.get_text("words")
@@ -584,3 +619,4 @@ def satir_yonleri(yol, sayfa):
 
 def kaydol(yontemler):
     yontemler["ocr_sayfa"] = y_ocr_sayfa
+    yontemler["tanima_sayfalari"] = y_tanima_sayfalari

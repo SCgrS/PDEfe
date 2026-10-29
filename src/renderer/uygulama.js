@@ -176,7 +176,7 @@ function belgeOlustur(yol) {
   gorunum.addEventListener('sayfa', (e) => { if (aktifId === id) { sayfaGoster(belge); } sayfaKonumuKaydet(belge); gizlenenNotuBirak(belge); });
   gorunum.addEventListener('zoom', (e) => { if (aktifId === id) zoomGoster(belge); });
   gorunum.addEventListener('metinKatmani', (e) => arama.katmanCizildi(gorunum, e.detail.sayfa));
-  gorunum.addEventListener('sayfalar', () => { arama.belgeUnut(gorunum); tumSecim.duzenDegisti(belge); if (aktifId === id) { sayfaGoster(belge); panel.belgeAyarla(belge); } kirliGuncelle(belge); });
+  gorunum.addEventListener('sayfalar', () => { arama.duzenDegisti(gorunum); tumSecim.duzenDegisti(belge); if (aktifId === id) { sayfaGoster(belge); panel.belgeAyarla(belge); } kirliGuncelle(belge); });
   gorunum.addEventListener('baglanti', (e) => baglantiyaGit(belge, e.detail));
   metinOlaylariBagla(belge);
   belge.yigin = new KomutYigini();

@@ -215,5 +215,41 @@ for aci in (0, 90, 180, 270):
 ref.close()
 d.close()
 
+# ---------------------------------------------------------------- 7. Bul'un tanınacak sayfaları (0.3.1, tanima_sayfalari)
+# Ölçüt ocr_sayfa'nınkiyle aynı: Önceden tanınmış sayfanın (4) görünmez yazısı görselin %15'inden azını kaplıyor, sayfa tanınır ama
+# tanınan sözcükleri PDF metniyle örtüştüğü için atılır (senaryo25)
+r = yt.y_tanima_sayfalari({"yol": ornek, "sayfalar": [1, 2, 3, 4, 5]})
+sonuc("tanima_sayfalari: taranmış, yan çevrilmiş, önceden tanınmış ve kaşeli sayfa; görselsiz sayfa değil", r["sayfalar"] == [1, 2, 4, 5]
+      and r["desteklenmiyor"] is False, r)
+r = yt.y_tanima_sayfalari({"yol": yan, "sayfalar": [5, 1, 3]})
+sonuc("tanima_sayfalari: verilen sırayla, yalnızca istenen sayfalar", r["sayfalar"] == [5, 1, 3], r)
+for ad, p in {"liste değil": {"sayfalar": 3}, "mantıksal değer": {"sayfalar": [True]}, "ondalık": {"sayfalar": [1.0]},
+              "0. sayfa": {"sayfalar": [0]}, "olmayan sayfa": {"sayfalar": [6]}, "çok sayfa": {"sayfalar": [1] * (yt.ADAY_EN_COK + 1)}}.items():
+    try:
+        yt.y_tanima_sayfalari({"yol": ornek, **p})
+        sonuc("tanima_sayfalari reddeder: %s" % ad, False, "kabul edildi")
+    except ValueError:
+        sonuc("tanima_sayfalari reddeder: %s" % ad, True)
+uzun = os.path.join(CIKTI, "metinli_200.pdf")
+d = pymupdf.open()
+for i in range(200):
+    s = d.new_page(width=595, height=842)
+    s.insert_font(fontname="F0", fontfile=YAZI)
+    for j in range(40):
+        s.insert_text((72, 60 + j * 18), "Sayfa %d satır %d: metinli belgenin uzunca bir satırı burada sürüyor." % (i + 1, j + 1), fontsize=10, fontname="F0")
+    if i % 50 == 0:   # küçük simge: tanınmaz
+        s.insert_image(pymupdf.Rect(500, 20, 520, 40), stream=kase_png(["x"]))
+d.save(uzun)
+d.close()
+t = time.time()
+r = yt.y_tanima_sayfalari({"yol": uzun, "sayfalar": list(range(1, 201))})
+sure = time.time() - t
+sonuc("tanima_sayfalari: metinli 200 sayfa (küçük simgeli) aday değil, %.2f sn (< 2)" % sure, r["sayfalar"] == [] and sure < 2, (r, sure))
+os.environ["PDEFE_TANIMA_YOK"] = "1"
+sonuc("PDEFE_TANIMA_YOK=1: tanıyıcı yok sayılır (geliştirme sürümü)", yt.y_tanima_sayfalari({"yol": ornek, "sayfalar": [1]})["desteklenmiyor"] is True
+      and yt._tanimasiz(), None)
+del os.environ["PDEFE_TANIMA_YOK"]
+sonuc("değişken kalkınca tanıyıcı yine var", yt._tanimasiz() is False, None)
+
 print("\nSonuç: %d/%d geçti%s." % (toplam - hata, toplam, ", %d HATA" % hata if hata else ""))
 sys.exit(1 if hata else 0)

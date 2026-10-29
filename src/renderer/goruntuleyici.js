@@ -157,6 +157,99 @@ function tanimaOgeleri(satirlar, view) {
   return ogeler;
 }
 
+/** Metin katmanının ve Bul'un öğe listesi: PDF.js metni, ardından girdinin görsellerinde tanınan sözcükler (0.1.24; Bul 0.3.1). PDF'in
+ *  öğeleri yerinde kalır: arama vurgusu öğe sırasıyla eşlenir. Tanınan sözcük yoksa icerik'in kendisi. */
+function katmanIcerigi(icerik, s, view) {
+  const tanima = s.tanima?.satirlar.length ? tanimaOgeleri(s.tanima.satirlar, view) : null;
+  return tanima?.length ? { ...icerik, items: [...icerik.items, ...tanima], styles: { ...icerik.styles, [TANIMA_YAZI]: tanimaStili() } } : icerik;
+}
+
+// ---------------------------------------------------------------- tanıma kuyruğu (0.3.1)
+/**
+ * Görsellerdeki yazının tanınması bu penceredeki bütün görüntüleyiciler için tek kuyrukta (0.1.24'te her sekmenin kendi kuyruğu vardı):
+ * Bul taranmış sayfaları da tanıtır, çekirdekte tek tanıma iş parçacığı var. Sayfa girdisi başına tek kayıt { g, s, gorunur, aramalar,
+ * soz, coz }: Aynı sayfayı metin katmanı da Bul da isterse tek istek gider, ikisi aynı sonucu bekler (s.tanima: undefined istenmedi,
+ * null istendi, { satirlar } tanındı). Sıra: Önce metin katmanı kurulu (görünür) sayfalar, gösterilen sekmeninkiler önce, her birinde
+ * geçerli sayfaya en yakın. Sonra Bul'un istedikleri, istendikleri sırayla. Katmanı boşaltılan ve hiçbir aramanın istemediği sayfa
+ * kuyruktan düşer, yeniden istenince yine sıraya girer. Çekirdekte aynı anda en çok TANIMA_ESZAMANLI istek: Biri tanınırken işçi
+ * sıradakinin bölgelerini çizer (39 sayfalık taranmış belgede sayfa başına çizim ~70 ms, tanıma ~410 ms ölçüldü).
+ */
+const TANIMA_ESZAMANLI = 2;
+const ADAY_PARCA = 50;             // tanimaAdaylari: çekirdeğe tek istekte sorulan sayfa sayısı (yazi_tanima.py ADAY_EN_COK)
+const tanimaSirasi = new Map();    // girdi → kayıt (sırada)
+const tanimaSuren = new Map();     // girdi → kayıt (çekirdekte)
+
+/** Çekirdek yazı tanıyıcısını bulamadı mı (Bul sayaçta söyler). */
+export const tanimaYokMu = () => tanimaYok;
+
+function tanimaKaydi(g, s) {
+  let k = tanimaSirasi.get(s) || tanimaSuren.get(s);
+  if (!k) {
+    let coz;
+    const soz = new Promise((c) => { coz = c; });
+    k = { g, s, gorunur: false, aramalar: new Set(), soz, coz };
+    s.tanima = null;   // istendi
+    tanimaSirasi.set(s, k);
+  }
+  return k;
+}
+
+/** Sıradaki kaydı bırakır: Sayfa yeniden istenebilir, bekleyen null alır. */
+function tanimaDusur(k) {
+  tanimaSirasi.delete(k.s);
+  if (k.s.tanima === null) k.s.tanima = undefined;
+  k.coz(null);
+}
+
+function tanimaSec() {
+  let gorunur = null, puan = Infinity, arama = null;
+  for (const k of tanimaSirasi.values()) {
+    const { g, s } = k;
+    if (g.yok || tanimaYok) { tanimaDusur(k); continue; }
+    if (k.gorunur && (!s.textLayer || g.idx(s) < 0)) k.gorunur = false;
+    if (!k.gorunur && !k.aramalar.size) { tanimaDusur(k); continue; }
+    if (k.gorunur) {
+      // Gizli sekmenin (kaydırıcısı ölçülemez) görünür sayfaları gösterilen sekmeninkilerden sonra
+      const p = (g.kaydirici.clientHeight ? 0 : 1e9) + Math.abs(g.idx(s) + 1 - g.gecerli);
+      if (p < puan) { puan = p; gorunur = k; }
+    } else if (!arama) arama = k;
+  }
+  return gorunur || arama;
+}
+
+function tanimaSur() {
+  while (tanimaSuren.size < TANIMA_ESZAMANLI) {
+    const k = tanimaSec();
+    if (!k) return;
+    tanimaSirasi.delete(k.s);
+    tanimaSuren.set(k.s, k);
+    tanimaCalistir(k);
+  }
+}
+
+async function tanimaCalistir(k) {
+  const { g, s } = k;
+  try {
+    const r = await g.cekirdek('ocr_sayfa', { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa });
+    if (r?.desteklenmiyor) tanimaYok = true;
+    s.tanima = { satirlar: Array.isArray(r?.satirlar) ? r.satirlar : [] };
+  } catch (e) {
+    console.warn('Görseldeki yazı tanınamadı', e);
+    s.tanima = { satirlar: [] };
+  }
+  tanimaSuren.delete(s);
+  k.coz(s.tanima);
+  if (s.tanima.satirlar.length && !g.yok) g._tanimaKatmanaEkle(s);
+  tanimaSur();
+}
+
+/** Bul'un bir aramasının istediği, henüz başlamamış tanımaları bırakır (arama kapandı ya da aranan değişti). Başlamış olanlar biter,
+ *  sonuçları girdide kalır. */
+export function tanimaBirak(istek) {
+  for (const k of tanimaSirasi.values()) if (k.aramalar.delete(istek) && !k.aramalar.size && !k.gorunur) tanimaDusur(k);
+  for (const k of tanimaSuren.values()) k.aramalar.delete(istek);
+}
+
 /** PDF.js sayfa nesnesinin taban döndürmesi (sayfa sözlüğündeki /Rotate, 0/90/180/270); sayfa nesnesi yoksa 0. */
 const tabanAl = (pdfSayfa) => aciyaIndir(pdfSayfa?.rotate || 0);
 
@@ -255,8 +348,6 @@ export class Goruntuleyici extends EventTarget {
     this._kapanis = new AbortController();   // yokEt'te tetiklenir: süren yükleme beklemesi biter (kapanmadan)
     this.hazir = false;          // yukle / durumdanYukle bitince true
     this._kareBeklemeden = false;       // belge yeni açıldı: ilk görünür sayfa ekran karesi beklemeden çizilir (0.2.10, tuvalCiz)
-    this._tanimaBekleyen = new Set();   // görsellerindeki yazının tanınması bekleyen sayfa girdileri (tanimaIste)
-    this._tanimaSuruyor = false;
     this._cizimZamanlayici = null;
     this._boyutZamanlayici = null;
 
@@ -619,6 +710,9 @@ export class Goruntuleyici extends EventTarget {
     k.kimlik = s.kimlik;   // kopya aynı sayfadır: bu oturumda eklenen notlar döndürmeden sonra da sayfasında kalır (notlar.sayfalarDegisti)
     k.sayfaSozu = s.sayfaSozu; k.pdfSayfa = s.pdfSayfa; k.metinSozu = s.metinSozu;
     k.baglantilar = s.baglantilar; k.gorselKutulari = s.gorselKutulari; k.icerikKutusu = s.icerikKutusu; k.formYok = s.formYok;
+    // Tanınan yazı döndürülmemiş sayfa düzleminde: döndürülmüş kopyada da geçerli (0.3.1; süren istek kopyaya geçmez, gerekirse yeniden istenir)
+    if (s.tanima) k.tanima = s.tanima;
+    k.tanimaAday = s.tanimaAday;
     return k;
   }
 
@@ -1540,10 +1634,8 @@ export class Goruntuleyici extends EventTarget {
     s.el.insertBefore(katman, s.notKatmani);
     const icerik = await this.metinIcerigi(i);
     if (this.yok || s.el.querySelector('.textLayer') !== katman) return;
-    // Görsellerde tanınan sözcükler (0.1.24) PDF'in metninin ardına eklenir: arama vurgusu öğe sırasıyla eşlenir, PDF'in öğeleri yerinde kalır
-    const tanima = s.tanima?.satirlar.length ? tanimaOgeleri(s.tanima.satirlar, pdfSayfa.view) : null;
-    const kaynak = tanima?.length ? { ...icerik, items: [...icerik.items, ...tanima], styles: { ...icerik.styles, [TANIMA_YAZI]: tanimaStili() } } : icerik;
-    const tl = new pdfjs.TextLayer({ textContentSource: kaynak, container: katman, viewport });
+    // Görsellerde tanınan sözcükler (0.1.24) PDF'in metninin ardına eklenir (katmanIcerigi; Bul aynı listede arar, aramaOgeleri)
+    const tl = new pdfjs.TextLayer({ textContentSource: katmanIcerigi(icerik, s, pdfSayfa.view), container: katman, viewport });
     s.textLayer = tl; s.metinOlcek = olcek; s.metinDondurme = dondurme;
     await tl.render();
     if (s.textLayer !== tl) return;
@@ -1558,41 +1650,69 @@ export class Goruntuleyici extends EventTarget {
   // ------------------------------------------------------------ görsellerdeki yazı (0.1.24)
   /**
    * Metin katmanı kurulan sayfanın görsellerindeki yazı çekirdekte tanınır (core/islemler/yazi_tanima.py: Windows'un yazı tanıyıcısı);
-   * tanınan sözcükler katmana eklenir, PDF'in kendi metni gibi seçilir ve kopyalanır (Bul onları aramaz). Görseli olmayan sayfa çekirdekte
-   * hemen boş döner. Aynı anda tek istek: sıradaki, geçerli sayfaya en yakın bekleyen sayfa; katmanı boşaltılan (kaydırılıp geçilen) sayfa
-   * kuyruktan düşer, yeniden görününce istenir. Sonuç girdide (s.tanima) kalır: katman yeniden kurulunca yeniden istenmez.
+   * tanınan sözcükler katmana eklenir, PDF'in kendi metni gibi seçilir, kopyalanır ve Bul'da aranır (0.3.1). Görseli olmayan sayfa
+   * çekirdekte hemen boş döner. İstek pencerenin tanıma kuyruğuna görünür sayfa olarak girer (tanimaSec; Bul'un istediği sayfa zaten
+   * sıradaysa öne geçer). Katmanı boşaltılan (kaydırılıp geçilen) sayfa kuyruktan düşer, yeniden görününce istenir. Sonuç girdide
+   * (s.tanima) kalır: Katman yeniden kurulunca yeniden istenmez.
    */
   tanimaIste(s) {
-    if (tanimaYok || !this.cekirdek || s.bos || s.tanima !== undefined || this.yok) return;
-    s.tanima = null;   // istendi
-    this._tanimaBekleyen.add(s);
-    this._tanimaSur();
+    if (tanimaYok || !this.cekirdek || s.bos || s.tanima || this.yok) return;
+    tanimaKaydi(this, s).gorunur = true;
+    tanimaSur();
   }
 
-  async _tanimaSur() {
-    if (this._tanimaSuruyor || this.yok) return;
-    let s = null, uzaklik = Infinity;
-    for (const x of this._tanimaBekleyen) {
-      const i = this.sayfalar.indexOf(x);
-      if (i < 0 || !x.textLayer || tanimaYok) { this._tanimaBekleyen.delete(x); if (x.tanima === null) x.tanima = undefined; continue; }
-      const d = Math.abs(i + 1 - this.gecerli);
-      if (d < uzaklik) { uzaklik = d; s = x; }
+  /** Bul için (0.3.1): Girdinin görsellerindeki yazının tanınmasını bekler. istek: Bul'un o aramaya özgü nesnesi (tanimaBirak ile
+   *  bırakılır). Döner: s.tanima ({ satirlar }) ya da null (istek bırakıldı, görüntüleyici kapandı ya da tanıyıcı yok). */
+  tanimaBekle(s, istek) {
+    if (s.tanima) return Promise.resolve(s.tanima);
+    if (tanimaYok || !this.cekirdek || s.bos || this.yok) return Promise.resolve(null);
+    const k = tanimaKaydi(this, s);
+    k.aramalar.add(istek);
+    tanimaSur();
+    return k.soz;
+  }
+
+  /**
+   * Bul için (0.3.1): Girdilerden görsellerinde tanınacak yazı olabilecekler, verilen sırayla ve parça parça (async üreteç, her parça bir
+   * dizi). Ölçüt çekirdekte (tanima_sayfalari, ocr_sayfa'nınkiyle aynı), sonuç girdide (s.tanimaAday) kalır. Tanınmış ve yazı bulunmuş
+   * girdiler de döner. Çekirdeğe tek istekte bir dosyanın en çok ADAY_PARCA sayfası sorulur: Metinli büyük belgede de işçi uzun süre
+   * tutulmaz, Bul'un ilk tanıması ilk parçadan sonra başlar. Çekirdek tanıyıcı olmadığını bildirirse tanimaYok.
+   */
+  async *tanimaAdaylari(girdiler) {
+    for (let i = 0; i < girdiler.length; i += ADAY_PARCA) {
+      const parca = girdiler.slice(i, i + ADAY_PARCA).filter((s) => !s.bos && s.kaynak);
+      const sorulacak = new Map();   // yolAnahtari → { yol, liste: o dosyanın sorulacak girdileri }
+      for (const s of parca) {
+        if (s.tanimaAday !== undefined || s.tanima) continue;
+        const a = yolAnahtari(s.kaynak.yol);
+        if (!sorulacak.has(a)) sorulacak.set(a, { yol: s.kaynak.yol, liste: [] });
+        sorulacak.get(a).liste.push(s);
+      }
+      for (const { yol, liste } of sorulacak.values()) {
+        if (this.yok || !this.cekirdek) return;
+        try {
+          const r = await this.cekirdek('tanima_sayfalari', { yol, sayfalar: [...new Set(liste.map((s) => s.kaynak.sayfa))] });
+          if (r?.desteklenmiyor) tanimaYok = true;
+          const adaylar = new Set(Array.isArray(r?.sayfalar) ? r.sayfalar : []);
+          for (const s of liste) if (s.kaynak.yol === yol) s.tanimaAday = adaylar.has(s.kaynak.sayfa);
+        } catch (e) {
+          console.warn('Tanınacak sayfalar alınamadı', e);
+          for (const s of liste) s.tanimaAday = false;
+        }
+      }
+      if (this.yok) return;
+      yield parca.filter((s) => (s.tanima ? s.tanima.satirlar.length > 0 : s.tanimaAday === true));
     }
-    if (!s) return;
-    this._tanimaBekleyen.delete(s);
-    this._tanimaSuruyor = true;
-    try {
-      const r = await this.cekirdek('ocr_sayfa', { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa });
-      if (r?.desteklenmiyor) tanimaYok = true;
-      s.tanima = { satirlar: Array.isArray(r?.satirlar) ? r.satirlar : [] };
-      if (s.tanima.satirlar.length) this._tanimaKatmanaEkle(s);
-    } catch (e) {
-      console.warn('Görseldeki yazı tanınamadı', e);
-      s.tanima = { satirlar: [] };
-    } finally {
-      this._tanimaSuruyor = false;
-      this._tanimaSur();
-    }
+  }
+
+  /** Bul'un sayfa metni için (0.3.1, arama.js sayfaMetni): Metin katmanının kurulduğu öğe listesi (katmanIcerigi: PDF.js metni, ardından
+   *  tanınmışsa görsellerdeki sözcükler). Döner: { items, pdfOgeSayisi, tanima } (tanima: kullanılan sonuç, tanınmamışsa null). */
+  async aramaOgeleri(i) {
+    const s = this.sayfalar[i], icerik = await this.metinIcerigi(i);
+    const tanima = s.tanima || null;
+    if (!tanima?.satirlar.length) return { items: icerik.items, pdfOgeSayisi: icerik.items.length, tanima };
+    const p = s.pdfSayfa || await s.sayfaSozu;
+    return { items: katmanIcerigi(icerik, s, p.view).items, pdfOgeSayisi: icerik.items.length, tanima };
   }
 
   /** Tanınan sözcükler gelince sayfanın metin katmanı yeniden kurulur (PDF.js katmanına öğe eklenemiyor). Katmanda seçim varsa seçim
@@ -1913,6 +2033,7 @@ export class Goruntuleyici extends EventTarget {
     window.removeEventListener('pointerup', this._cubukBirak); document.removeEventListener('keydown', this._tusGirdisi, true);
     this._keskinHazirBirak?.();
     this._gorunurKume = new Set(); this._onKuyruk = [];
+    for (const k of tanimaSirasi.values()) if (k.g === this) tanimaDusur(k);   // sıradaki tanımaları (görünür ya da Bul'un) bırak
     for (let i = 0; i < this.sayfalar.length; i++) this.sayfaBosalt(i);
     // Süren yükleme (0.2.1): görev belge yüklenene dek this.belgeler'de değildir; bırakılmazsa işçisi pencere kapanana dek yaşardı
     const gorevler = new Set([this.yuklemeGorevi, ...[...this.belgeler.values()].map((k) => k.gorev)].filter(Boolean));

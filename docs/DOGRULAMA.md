@@ -1098,3 +1098,20 @@ denendi. Sizin ekranınızda ve kendi ayarlarınızla denenmedi, ofis bilgisayar
 7. **Seçtiğiniz kâğıt hatırlanır.** Kâğıdı "Belgeye göre" ya da başka bir kâğıt yapıp yazdırın, sonra Yazdır'ı yeniden açın: Seçtiğiniz kâğıt
    gelmeli. PDEfe'yi kapatıp açınca da.
 8. **Gerçek yazıcıda.** Ofisteki yazıcıda A4 kâğıtla birkaç sayfa basın: Sayfalar kâğıda ortalı ve kesilmeden çıkmalı.
+
+Taranmış belgede Bul
+9. **Gönderdiğiniz taranmış belge.** Belgeyi açın, `Ctrl+F` ile belgede gördüğünüz bir sözcüğü arayın: Sayaçta "Tanınıyor 5/39" gibi bir
+   ilerleme görünmeli, bulunanlar geldikçe sayı artmalı ("1 / 3 · tanınıyor 20/39"), ilk bulunan sayfaya hemen gidilmeli, sözcüğün üstü
+   sarı vurgulanmalı. Bütün sayfalar tanınınca (bu bilgisayarda ~15 sn) sayaç "1 / N" demeli.
+10. **Arama sürerken.** Tanıma sürerken belgeyi kaydırın, Bul kutusuna yazın: Takılma olmamalı. Kaydırdığınız sayfalar önce tanınır.
+11. **Sonraki ve önceki.** `Enter` ya da `F3` sonraki, `Shift+Enter` ya da `Shift+F3` önceki eşleşmeye gitmeli, sondan başa dönmeli. Yan ya da ters
+    taranmış sayfadaki eşleşmede vurgu sözcüğün üstünde olmalı.
+12. **Bulunmayan sözcük.** Belgede olmayan bir sözcük arayın: "Bulunamadı" ancak sayaçtaki tanıma bitince görünmeli.
+13. **Karışık belge.** Hem yazılı hem taranmış sayfası olan bir belgede (ör. dilekçe ve taranmış ekleri tek PDF'te) arayın: Eşleşmeler iki tür
+    sayfada da bulunmalı, sayfa sırasıyla gezilmeli.
+14. **Yeniden arama.** Aynı belgede başka bir sözcük arayın: Tanınmış sayfalar yeniden beklenmemeli, sonuç hemen gelmeli.
+15. **Tanınmayan yazı.** Tanıyıcının okuyamadığı yazı (el yazısı, çok silik ya da küçük yazı, kaşe içindeki yazı) bulunmayabilir: Gördüğünüz ama
+    bulunmayan bir sözcük olursa bildirin, o sayfanın yazısını fareyle seçmeyi deneyin (seçilemiyorsa tanınmamıştır).
+16. **Ofis bilgisayarında.** Aynı belgeyi ofiste deneyin: Sonuçlar bu bilgisayardakiyle aynı olmalı. Windows'ta Türkçe yazı tanıyıcı yoksa
+    başka dilin tanıyıcısı kullanılır (Türkçe harfli sözcükler bulunmayabilir). Hiç tanıyıcı yoksa sayaç bitince "· taranmış sayfalar
+    aranamadı" demeli.

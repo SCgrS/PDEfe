@@ -1,6 +1,12 @@
 // Bul (Ctrl+F): belge alanının sağ üstünde küçük arama penceresi; Türkçe duyarlı arama,
-// tüm eşleşmeleri vurgulama, yer imi ve yorumlarda arama, tüm sekmelerde arama.
+// tüm eşleşmeleri vurgulama, yer imi ve yorumlarda arama, tüm sekmelerde arama. Taranmış sayfalarda tanınan yazıda da arar (0.3.1).
 import { glifDuzelt1e1, trKucuk } from './metin.js';
+import { tanimaBirak, tanimaYokMu } from './goruntuleyici.js';
+
+/** Sonuçların sırası (0.3.1): Belge (aramadaki sırası), tür (metin, yer imi, yorum), metinde sayfa ve konum. Yer imi ve yorumlar
+ *  eklendikleri sırada kalır (sıralama kararlı). Tanınan yazının eşleşmeleri sayfalar tanındıkça gelir, yerlerine girer. */
+const TUR_SIRASI = { metin: 0, yerimi: 1, yorum: 2 };
+const sonucSirasi = (a, b) => (a.sira - b.sira) || (TUR_SIRASI[a.tur] - TUR_SIRASI[b.tur]) || (a.tur === 'metin' ? (a.sayfa - b.sayfa) || (a.bas - b.bas) : 0);
 
 export class Arama extends EventTarget {
   constructor({ kutu, belgeAl, belgeler, sekmeSec, cekirdek }) {
@@ -12,9 +18,11 @@ export class Arama extends EventTarget {
     this.cekirdek = cekirdek;
     this.ayar = { tamSozcuk: false, buyukKucuk: false, yerimi: false, yorum: false, tumSekmeler: false };
     this.sorgu = '';
-    this.sonuclar = [];              // {belgeId, tur:'metin'|'yerimi'|'yorum', sayfa, bas, son, ...}
+    this.sonuclar = [];              // {belgeId, tur:'metin'|'yerimi'|'yorum', sira, sayfa, bas, son, girdi, ...} (sonucSirasi'yla sıralı)
     this.gecerli = -1;
     this.aramaSayac = 0;
+    this.tanima = null;              // son aramanın taranmış sayfaları {toplam, biten, yok} (_tanimaliAra; sayaç)
+    this.tanimaIstegi = null;        // son aramanın tanıma kuyruğundaki istek nesnesi (goruntuleyici.js tanimaBirak)
     this.aramaBelgeId = null;        // son aramanın başladığı (o an aktif) belge
     this.kaliciKapsam = null;        // ac() geçici kapsam verdiyse kullanıcının seçtiği tumSekmeler değeri (kapanınca geri yüklenir)
     this.metinOnbellek = new WeakMap();   // gorunum → Map(sayfa → {metin, items})
@@ -95,10 +103,18 @@ export class Arama extends EventTarget {
     this.acik = false;
     if (this.kaliciKapsam != null) { this.ayar.tumSekmeler = this.kaliciKapsam; this.kaliciKapsam = null; this.kapsamEsitle(); }   // geçici kapsamdan dön (bkz. ac)
     this.aramaSayac++;   // süren arama sonradan sayaca yazmasın
+    this.tanimaBirak();  // aramanın bekleyen tanımaları (başlamış olanlar biter, sonuçları sayfada kalır)
     this.vurgulariTemizle();
-    this.sonuclar = []; this.gecerli = -1; this.sorgu = ''; this.konumlar.clear();
-    this.sayac.textContent = ''; this.sayac.classList.remove('yok');
+    this.sonuclar = []; this.gecerli = -1; this.sorgu = ''; this.konumlar.clear(); this.tanima = null;
+    this.sayacTemizle();
     this.belgeAl()?.gorunum.kaydirici.focus();
+  }
+
+  sayacTemizle() { this.sayac.textContent = ''; this.sayac.title = ''; this.sayac.classList.remove('yok'); }
+
+  /** Son aramanın tanıma kuyruğunda bekleyen sayfalarını bırakır. */
+  tanimaBirak() {
+    if (this.tanimaIstegi) { tanimaBirak(this.tanimaIstegi); this.tanimaIstegi = null; }
   }
 
   /** Etkin sekme değişti (sekmeye geçildi, sekme kapandı, yeni belge açıldı). Kutu açık ve sorgu varken sonuçlar etkin belge için
@@ -113,9 +129,9 @@ export class Arama extends EventTarget {
     if (gs ? gs.belgeId === aktifId : this.aramaBelgeId === aktifId && this.girdi.value === this.sorgu) return;
     if (gs?.tur === 'metin') this.konumlar.set(gs.belgeId, { sorgu: this.sorgu, sayfa: gs.sayfa, bas: gs.bas });
     if (!aktif?.gorunum.belge) {
-      this.aramaSayac++; this.vurgulariTemizle();
-      this.sonuclar = []; this.gecerli = -1; this.aramaBelgeId = null; this.sorgu = '';
-      this.sayac.textContent = ''; this.sayac.classList.remove('yok');
+      this.aramaSayac++; this.tanimaBirak(); this.vurgulariTemizle();
+      this.sonuclar = []; this.gecerli = -1; this.aramaBelgeId = null; this.sorgu = ''; this.tanima = null;
+      this.sayacTemizle();
       return;
     }
     const k = this.konumlar.get(aktifId);
@@ -128,20 +144,29 @@ export class Arama extends EventTarget {
     return this.ayar.buyukKucuk ? s : trKucuk(s);
   }
 
+  /**
+   * Sayfanın aranan metni: Metin katmanının öğeleri (goruntuleyici.js aramaOgeleri: PDF metni, ardından tanınmışsa görsellerdeki yazı,
+   * 0.3.1). konumlar öğe başına (div: metin katmanındaki sırası, tanima: tanınan sözcük). Tanınan bölüm PDF metninden konumsuz bir satır
+   * sonuyla ayrılır (iki bölüme taşan eşleşme olmaz), tanimaBasi o bölümün başı. Önbellekteki kayıt sayfa sonradan tanınınca (girdinin
+   * s.tanima'sı değişti) yeniden kurulur.
+   */
   async sayfaMetni(gorunum, sayfa) {
     let m = this.metinOnbellek.get(gorunum);
     if (!m) { m = new Map(); this.metinOnbellek.set(gorunum, m); }
-    if (m.has(sayfa)) return m.get(sayfa);
-    const tc = await gorunum.metinIcerigi(sayfa - 1);
+    const girdi = gorunum.sayfalar[sayfa - 1];
+    const eski = m.get(sayfa);
+    if (eski && eski.girdi === girdi && eski.tanima === (girdi?.tanima || null)) return eski;
+    const { items, pdfOgeSayisi, tanima } = await gorunum.aramaOgeleri(sayfa - 1);
     const parcalar = [], konumlar = [];
-    let uz = 0;
-    tc.items.forEach((it, i) => {
+    let uz = 0, tanimaBasi = -1;
+    items.forEach((it, i) => {
+      if (i === pdfOgeSayisi) { if (uz) { parcalar.push('\n'); uz++; } tanimaBasi = uz; }
       const s = it.str + (it.hasEOL ? '\n' : '');
-      konumlar.push({ bas: uz, son: uz + it.str.length, div: i });
+      konumlar.push({ bas: uz, son: uz + it.str.length, div: i, tanima: i >= pdfOgeSayisi });
       parcalar.push(s); uz += s.length;
     });
-    const kayit = { metin: parcalar.join(''), konumlar };
-    m.set(sayfa, kayit);
+    const kayit = { metin: parcalar.join(''), konumlar, girdi, tanima, tanimaBasi: tanimaBasi < 0 ? uz : tanimaBasi };
+    if (gorunum.sayfalar[sayfa - 1] === girdi) m.set(sayfa, kayit);   // bu arada düzen değiştiyse önbelleğe yazılmaz
     return kayit;
   }
 
@@ -180,22 +205,28 @@ export class Arama extends EventTarget {
   }
 
   // ------------------------------------------------------------ arama
-  /** gitme: eşleşmeleri bulup vurgular ama hiçbirine gitmez (görünüm kaymaz; bkz. sekmeDegisti). hedef {belgeId, sayfa, bas}: arama
-   *  bitince bu eşleşme (hâlâ varsa ve bu arada başka eşleşmeye gidilmediyse) kaydırmadan geçerli yapılır. */
+  /** gitme: eşleşmeleri bulup vurgular ama hiçbirine gitmez (görünüm kaymaz; bkz. sekmeDegisti). hedef {belgeId, sayfa, bas} ya da
+   *  {belgeId, kimlik, bas} (sayfa girdisinin kimliğiyle, bkz. duzenDegisti): bu eşleşme (hâlâ varsa ve bu arada başka eşleşmeye
+   *  gidilmediyse) kaydırmadan geçerli yapılır.
+   *  Taranmış sayfalar (0.3.1): PDF metni sayfa sayfa aranırken görsellerinde yazı olan sayfalar tanınmak üzere sıraya girer (_tanimaliAra);
+   *  tanınan yazının eşleşmeleri sayfalar tanındıkça eklenir. Arama ancak bütün sayfalar tanınınca biter ("Bulunamadı" ondan sonra). */
   async ara(sorgu, yeniden = false, { gitme = false, hedef = null } = {}) {
     sorgu = sorgu || '';
     if (!yeniden && sorgu === this.sorgu) return;
     this.sorgu = sorgu;
     this.aramaBelgeId = this.belgeAl()?.id ?? null;
     const sayac = ++this.aramaSayac;
+    this.tanimaBirak();   // önceki aramanın bekleyen tanımaları
     this.vurgulariTemizle();
-    this.sonuclar = []; this.gecerli = -1;
-    if (!sorgu.trim()) { this.sayac.textContent = ''; this.sayac.classList.remove('yok'); return; }
+    this.sonuclar = []; this.gecerli = -1; this.tanima = null;
+    if (!sorgu.trim()) { this.sayacTemizle(); return; }
     const aktif = this.belgeAl();
-    if (!aktif) { this.sayac.textContent = ''; this.sayac.classList.remove('yok'); return; }
+    if (!aktif) { this.sayacTemizle(); return; }
     const belgeler = this.ayar.tumSekmeler ? [aktif, ...[...this.belgeler.values()].filter((b) => b !== aktif)] : [aktif];
-    this.sayac.textContent = 'aranıyor…'; this.sayac.classList.remove('yok');
-    let ilkGidildi = false;
+    this.sayac.textContent = 'aranıyor…'; this.sayac.title = ''; this.sayac.classList.remove('yok');
+    // İki kolun (PDF metni sırayla, tanınan yazı sayfalar tanındıkça) ortak durumu: aynı eşleşme bir kez eklenir, ilk bulunana bir kez gidilir
+    const d = { sayac, sorgu, gitme, ilkGidildi: false, eklenen: new Set(), sira: new Map(belgeler.map((b, i) => [b, i])) };
+    const tanimaBitti = this._tanimaliAra(belgeler, aktif, d).catch((e) => console.warn('Taranmış sayfalarda aranamadı', e));
     for (const b of belgeler) {
       const g = b.gorunum;
       const n = g.sayfaSayisi;
@@ -211,18 +242,11 @@ export class Arama extends EventTarget {
         try { kayit = await this.sayfaMetni(g, sayfa); } catch { continue; }
         if (sayac !== this.aramaSayac) return;
         if (g.yok) break;
-        const esl = this.eslesmeleriBul(kayit.metin, sorgu);
-        if (esl.length) {
-          const yeni = esl.map(([bas2, son]) => ({ belgeId: b.id, tur: 'metin', sayfa, bas: bas2, son }));
-          this.sonucEkle(yeni, b === aktif);
-          this.sayfayiVurgula(g, sayfa);
-          if (!ilkGidildi) { ilkGidildi = true; if (!gitme) { this.gecerli = this.sonuclar.indexOf(yeni[0]); this.gecerliyeGit(); } }
-          else if (this._yenidenNumarala) { this._yenidenNumarala = false; for (const s2 of g.sayfalar) if (s2.textLayer) this.sayfayiVurgula(g, s2.no); }
-          this.sayacYaz(true);
-        }
+        this._eslesmeEkle(b, sayfa, this.eslesmeleriBul(kayit.metin, sorgu), d);
         if (n > 40 && sayfa % 10 === 0) await new Promise((r) => setTimeout(r, 0));
       }
       if (g.yok) continue;   // kapanan belgenin yer imi/yorumuna bakılmaz
+      const sira2 = d.sira.get(b);
       // Yer imleri
       if (this.ayar.yerimi) {
         try {
@@ -230,43 +254,135 @@ export class Arama extends EventTarget {
           const duz = [];
           const gez = (l) => { for (const o of l || []) { duz.push(o); gez(o.items); } };
           gez(agac);
-          for (const o of duz) if (this.eslesmeleriBul(o.title || '', sorgu).length) this.sonucEkle([{ belgeId: b.id, tur: 'yerimi', baslik: o.title, dest: o.dest }], false);
+          for (const o of duz) if (this.eslesmeleriBul(o.title || '', sorgu).length) this.sonucEkle([{ belgeId: b.id, tur: 'yerimi', sira: sira2, baslik: o.title, dest: o.dest }]);
         } catch {}
       }
       // Yorumlar
       if (this.ayar.yorum) {
         try {
           const r = await this.cekirdek('notlar', { yol: b.yol });
-          for (const nt of r.notlar) if (this.eslesmeleriBul((nt.icerik || '') + ' ' + (nt.yazar || ''), sorgu).length) this.sonucEkle([{ belgeId: b.id, tur: 'yorum', sayfa: nt.sayfa, not: nt }], false);
+          for (const nt of r.notlar) if (this.eslesmeleriBul((nt.icerik || '') + ' ' + (nt.yazar || ''), sorgu).length) this.sonucEkle([{ belgeId: b.id, tur: 'yorum', sira: sira2, sayfa: nt.sayfa, not: nt }]);
         } catch {}
       }
       if (sayac !== this.aramaSayac) return;
     }
     if (sayac !== this.aramaSayac) return;
-    if (hedef && this.gecerli < 0) {
-      const i = this.sonuclar.findIndex((s) => s.tur === 'metin' && s.belgeId === hedef.belgeId && s.sayfa === hedef.sayfa && s.bas === hedef.bas);
-      const b = this.belgeler.get(hedef.belgeId);
-      if (i >= 0 && b) { this.gecerli = i; for (const s2 of b.gorunum.sayfalar) if (s2.textLayer) this.sayfayiVurgula(b.gorunum, s2.no); }
-    }
+    // PDF metni bitti: Tanınan sayfalar bekleniyor olabilir (sayaç ilerlemeyi gösterir)
+    this._hedefeDon(hedef);
+    this.sayacYaz(true);
+    await tanimaBitti;
+    if (sayac !== this.aramaSayac) return;
+    this._hedefeDon(hedef);
     this.sayacYaz(false);
     if (this.sonuclar.length && this.gecerli < 0 && !gitme) { this.gecerli = 0; this.gecerliyeGit(); }
   }
 
-  sonucEkle(yeni, sirala) {
-    const gecerliNesne = this.sonuclar[this.gecerli] || null, oncekiVar = this.sonuclar.length > 0;
-    this.sonuclar.push(...yeni);
-    if (sirala) this.sonuclar.sort((a, b) => (a.sayfa || 0) - (b.sayfa || 0) || (a.bas || 0) - (b.bas || 0));
-    if (gecerliNesne) this.gecerli = this.sonuclar.indexOf(gecerliNesne);
-    // Vurgu numaraları kaydıysa çizili sayfaların vurgularını yenile (gidilmemiş aramada da: bkz. ara gitme)
-    if (sirala && oncekiVar) this._yenidenNumarala = true;
+  /** Bir sayfanın metin eşleşmelerini ekler (iki koldan gelen aynı eşleşme bir kez: d.eklenen), vurgular, ilk bulunana gider (gitme değilse). */
+  _eslesmeEkle(b, sayfa, esl, d) {
+    const g = b.gorunum, girdi = g.sayfalar[sayfa - 1], yeni = [];
+    for (const [bas, son] of esl) {
+      const a = `${b.id}:${sayfa}:${bas}`;
+      if (d.eklenen.has(a)) continue;
+      d.eklenen.add(a);
+      yeni.push({ belgeId: b.id, tur: 'metin', sira: d.sira.get(b), sayfa, bas, son, girdi });
+    }
+    if (!yeni.length) return;
+    if (!this.sonucEkle(yeni)) this.sayfayiVurgula(g, sayfa);
+    if (!d.ilkGidildi) { d.ilkGidildi = true; if (!d.gitme) { this.gecerli = this.sonuclar.indexOf(yeni[0]); this.gecerliyeGit(); } }
+    this.sayacYaz(true);
   }
 
+  /**
+   * Taranmış sayfalarda arama (0.3.1): Görsellerinde tanınacak yazı olan sayfalar (goruntuleyici.js tanimaAdaylari) pencerenin tanıma
+   * kuyruğuna aramanın sırasıyla girer (etkin belgede geçerli sayfadan başlayarak; kuyrukta görünür sayfalar yine önce). Her sayfa
+   * tanındıkça tanınan bölümdeki eşleşmeler eklenir (PDF metnininkileri PDF metni kolu ekler). Sayaç ilerlemeyi gösterir ("Tanınıyor
+   * 12/39"). Daha önce tanınmış sayfalar beklenmez. Arama kapanınca ya da aranan değişince bekleyen tanımalar bırakılır (tanimaBirak),
+   * tanınmış olanlar sayfada kalır. Tanıyıcı yoksa (dil paketi, Linux) bu sayfalar aranmaz, sayaç bunu söyler.
+   */
+  async _tanimaliAra(belgeler, aktif, d) {
+    const istek = {}, t = { toplam: 0, biten: 0, yok: false }, bekleyen = [];
+    this.tanimaIstegi = istek; this.tanima = t;
+    for (const b of belgeler) {
+      const g = b.gorunum;
+      if (g.yok || !g.belge) continue;
+      const bas = b === aktif ? g.gecerli : 1;
+      const sira = [...g.sayfalar.slice(bas - 1), ...g.sayfalar.slice(0, bas - 1)];
+      try {
+        for await (const adaylar of g.tanimaAdaylari(sira)) {
+          if (d.sayac !== this.aramaSayac) return;
+          for (const s of adaylar) {
+            if (!s.tanima && tanimaYokMu()) { t.yok = true; continue; }
+            t.toplam++;
+            bekleyen.push(this._taninanAra(b, s, istek, d, t));
+          }
+          this.sayacYaz(true);
+        }
+      } catch (e) { console.warn('Taranmış sayfalarda aranamadı', e); }
+      if (d.sayac !== this.aramaSayac) return;
+    }
+    await Promise.all(bekleyen);
+  }
+
+  async _taninanAra(b, s, istek, d, t) {
+    const g = b.gorunum;
+    const r = await g.tanimaBekle(s, istek);
+    if (d.sayac !== this.aramaSayac) return;
+    t.biten++;
+    if (!r && tanimaYokMu()) t.yok = true;
+    const i = g.idx(s);
+    if (r?.satirlar.length && i >= 0 && !g.yok) {
+      let kayit = null;
+      try { kayit = await this.sayfaMetni(g, i + 1); } catch {}
+      if (d.sayac !== this.aramaSayac) return;
+      if (kayit && g.sayfalar[i] === s) this._eslesmeEkle(b, i + 1, this.eslesmeleriBul(kayit.metin, d.sorgu).filter(([bas]) => bas >= kayit.tanimaBasi), d);
+    }
+    this.sayacYaz(true);
+  }
+
+  /** Sekmeye dönünce ya da düzen değişince (gitme) önceki geçerli eşleşmeyi kaydırmadan yeniden geçerli yapar. */
+  _hedefeDon(hedef) {
+    if (!hedef || this.gecerli >= 0) return;
+    const i = this.sonuclar.findIndex((s) => s.tur === 'metin' && s.belgeId === hedef.belgeId && s.bas === hedef.bas
+      && (hedef.kimlik ? s.girdi?.kimlik === hedef.kimlik : s.sayfa === hedef.sayfa));
+    if (i >= 0 && this.belgeler.get(hedef.belgeId)) { this.gecerli = i; this._cizilenleriVurgula(); }
+  }
+
+  /** Sonuçları sıralı tutar (sonucSirasi; yeni kendi içinde sıralı): Sona eklenen sıralanmaz. Araya giren olunca sıralanır ve vurgu
+   *  numaraları kaydığı için çizili sayfaların hepsi yeniden vurgulanır (gidilmemiş aramada da: bkz. ara gitme). Döner: yeniden vurgulandı mı. */
+  sonucEkle(yeni) {
+    const gecerliNesne = this.sonuclar[this.gecerli] || null, son = this.sonuclar.at(-1);
+    this.sonuclar.push(...yeni);
+    const araya = !!son && sonucSirasi(son, yeni[0]) > 0;
+    if (araya) this.sonuclar.sort(sonucSirasi);
+    if (gecerliNesne) this.gecerli = this.sonuclar.indexOf(gecerliNesne);
+    if (araya) this._cizilenleriVurgula();
+    return araya;
+  }
+
+  /** Sonucu olan belgelerde metin katmanı kurulu sayfaların vurgularını yeniden işler. */
+  _cizilenleriVurgula() {
+    const idler = new Set(this.sonuclar.map((s) => s.belgeId));
+    for (const id of idler) {
+      const g = this.belgeler.get(id)?.gorunum;
+      if (g) for (const s of g.sayfalar) if (s.textLayer) this.sayfayiVurgula(g, s.no);
+    }
+  }
+
+  /** Sayaç: "3 / 12", "12 sonuç" (gidilmemiş), "aranıyor…", "Bulunamadı". Taranmış sayfalar tanınırken ilerleme ("Tanınıyor 12/39",
+   *  "3 / 12 · tanınıyor 12/39"); tanıyıcı olmadığı için aranamayan taranmış sayfa varsa arama bitince kısa bilgi. */
   sayacYaz(devam) {
-    const n = this.sonuclar.length;
-    if (!n) { this.sayac.textContent = devam ? 'aranıyor…' : 'Bulunamadı'; this.sayac.classList.toggle('yok', !devam); return; }
-    this.sayac.classList.remove('yok');
+    const n = this.sonuclar.length, t = this.tanima;
+    const taniniyor = !!t && t.biten < t.toplam;
+    let metin;
+    if (!n) metin = taniniyor ? `Tanınıyor ${t.biten}/${t.toplam}` : (devam ? 'aranıyor…' : 'Bulunamadı');
     // Henüz bir eşleşmeye gidilmediyse (sekme değişiminde yeniden bulundu) yalnızca sayı
-    this.sayac.textContent = (this.gecerli < 0 ? `${n} sonuç` : `${this.gecerli + 1} / ${n}`) + (devam ? '…' : '');
+    else metin = (this.gecerli < 0 ? `${n} sonuç` : `${this.gecerli + 1} / ${n}`) + (taniniyor ? ` · tanınıyor ${t.biten}/${t.toplam}` : (devam ? '…' : ''));
+    const eksik = !!t?.yok && !taniniyor && !devam;
+    if (eksik) metin += ' · taranmış sayfalar aranamadı';
+    this.sayac.textContent = metin;
+    this.sayac.classList.toggle('yok', !n && !devam && !taniniyor);
+    this.sayac.title = taniniyor ? 'Taranmış sayfalardaki yazı tanınıyor. Bulunanlar geldikçe eklenir.'
+      : (eksik ? 'Bu bilgisayarda yazı tanıyıcı olmadığı için taranmış sayfalardaki yazı aranamadı.' : '');
   }
 
   git(yon) {
@@ -343,8 +459,12 @@ export class Arama extends EventTarget {
         const k = kayit.konumlar[i];
         if (k.son <= r.bas) continue;
         if (k.bas >= r.son) break;
-        const bas = Math.max(r.bas, k.bas) - k.bas, son = Math.min(r.son, k.son) - k.bas;
+        const bas = Math.max(r.bas, k.bas) - k.bas;
+        let son = Math.min(r.son, k.son) - k.bas;
         if (son <= bas) continue;
+        // Tanınan sözcüğün öğesi ardındaki boşluğu da taşır ama genişliği sözcüğünkü (goruntuleyici.js tanimaOgeleri): sözcüğün sonuna
+        // dek uzanan vurgu boşluğu da kapsar, yoksa sözcüğün kutusundan boşluğun payı kadar kısa kalırdı (0.3.1)
+        if (k.tanima && son === k.son - k.bas - 1 && strs[k.div]?.[son] === ' ') son++;
         if (!parcalar.has(k.div)) parcalar.set(k.div, []);
         parcalar.get(k.div).push({ bas, son, idx });
       }
@@ -387,4 +507,17 @@ export class Arama extends EventTarget {
   }
 
   belgeUnut(g) { this.metinOnbellek.delete(g); }
+
+  /** Belgenin sayfa düzeni değişti (sayfa eklendi, silindi, taşındı, döndürüldü): metin önbelleği atılır. Bul açıksa ve bu belgede
+   *  aranıyorsa sonuçlar yeni sayfa numaralarıyla yeniden bulunur, görünüm kaymaz. Geçerli eşleşmenin sayfası taşındıysa (girdinin
+   *  kimliğiyle) yine geçerli olur (0.3.1; eskiden sonuçlar eski numaralarda kalıyor, vurgular siliniyordu). */
+  duzenDegisti(g) {
+    this.belgeUnut(g);
+    if (!this.acik || !this.sorgu.trim()) return;
+    const id = this.belgeIdOf(g);
+    if (id == null || (!this.ayar.tumSekmeler && id !== this.aramaBelgeId)) return;
+    const gs = this.sonuclar[this.gecerli];
+    const hedef = gs?.tur === 'metin' && gs.girdi ? { belgeId: gs.belgeId, kimlik: gs.girdi.kimlik, bas: gs.bas } : null;
+    this.ara(this.sorgu, true, { gitme: true, hedef });
+  }
 }

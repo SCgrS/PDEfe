@@ -1187,7 +1187,8 @@ varsayılan olarak gizli olsun, kopyalama simgesinin yanındaki bir işaretle a�
     çıkıyordu). Her satır ayrı bloktur, alt alta tam satırlar "satır başına blok" kuralıyla paragrafta birleşir. Önbellekte yoksa ve
     seçim tanınacak bir bölgeye değiyorsa tanır ve bekler; değmiyorsa beklemez.
   - Bul tanınan yazıyı aramaz (bilerek): tanıma yalnızca görünen sayfalarda yapılıyor; aranan sözcük tanınmış sayfada bulunup henüz
-    tanınmamışta bulunmazdı. Bütün belgede aramak için arka planda tanıma ileride düşünülebilir.
+    tanınmamışta bulunmazdı. Bütün belgede aramak için arka planda tanıma ileride düşünülebilir. (0.3.1'de değişti: Bul tanımayı bekler,
+    "Revizyon 0.3.1", taranmış belgede Bul.)
   - Tanınan yazı belgeye yazılmaz (görünmez yazı katmanı eklenmez): dosya değişmez, e-imza bozulmaz.
 - [x] **Döndürülmüş sayfada kopya sırası** (pdefe_core.py `y_metin_sec`, `_bos_paragraflar`). Kök neden: sözcükler ve seçim kutuları
   döndürülmemiş düzlemde; /Rotate 90 sayfada ekranda düz okunan yazı orada dikeydir, satırlar y'ye göre sıralanınca karışıyordu (PDF
@@ -3889,3 +3890,60 @@ Kullanıcı: "Daha önce Kullanıcı Yazıcı seçmemişse, varsayılan yazdırm
   A5 kâğıda ve sonraki açılışta "Belgeye göre", dokunmadan yazdırınca seçim kalır, Letter ve elle A4 hatırlanır, Windows penceresi yolu kaydı
   değiştirmez). `test/yazdir_gercek.mjs` 19/19 (görünmeyen masaüstünde Microsoft Print to PDF. Yeni 8. bölüm: Kayıt yokken kâğıda dokunmadan
   yatay ve A5 sayfa basılınca iki sayfa da A4 dikey, yatay sayfa döndürülmüş, A5 büyütülmüş). `test/mac_renderer.mjs` 46/46.
+
+#### 0.3.1: taranmış belgede Bul
+Kullanıcı: "Bu attığım dosyada yazıları bulmuyordu, bunu daha önce de konuşmuştuk … bunlardaki Ctrl+F'i çalışır hale getireceğiz." (gönderdiği
+39 sayfalık taranmış belge depoya girmez. 2026-10-21'deki inceleme ve önerilen tasarım ortak notlarda)
+- [x] **Kök neden**: Bul yalnızca PDF.js metninde arıyordu (`arama.js` `sayfaMetni` → `goruntuleyici.js` `metinIcerigi`). Görsellerdeki yazı
+  (0.1.24) yalnızca görünen sayfalarda tanınıp metin katmanına giriyordu, Bul onu bilerek aramıyordu (aranan sözcük tanınmış sayfada bulunup
+  tanınmamışta bulunmazdı). Belgenin hiçbir sayfasında yazı katmanı yok: Bul her sözcükte "Bulunamadı" diyordu.
+- [x] **Karar**: Bul, görselinde yazı olan sayfaların tanınmasını bekler ve tanınan yazıda da arar.
+  - Hangi sayfalar: Yeni çekirdek yöntemi `tanima_sayfalari` (yazi_tanima.py) verilen sayfalardan tanınacakları ocr_sayfa'nın ölçütüyle
+    (`_bolgeler`: sayfanın sözcüklerinin kaplamadığı, yeterince büyük görsel) söyler, tanımaz. Sözcükler yalnızca görseli aday olan sayfada okunur.
+    Renderer 50'şer sayfa sorar (bir istekte en çok 200, parametreler çekirdekte denetlenir, yöntem dosyaya yazmaz): Metinli 410 sayfalık
+    belgede görsel bilgisi ~0,9 sn sürüyor, işçi arada küçük resimlere ve kopyalamaya yanıt verir. Sonuç girdide (`s.tanimaAday`): Aynı belgede
+    ikinci arama çekirdeğe sormaz. Tanınacak sayfası olmayan belgede sayaç eskisi gibi.
+  - Tek kuyruk: Tanıma pencerenin bütün görüntüleyicileri için tek kuyrukta (goruntuleyici.js `tanimaKaydi`, `tanimaSec`, `tanimaSur`. 0.1.24'te
+    her sekmenin kendi kuyruğu vardı). Sayfa girdisi başına tek kayıt: Metin katmanı da Bul da isterse tek istek gider, ikisi aynı sonucu bekler
+    (`s.tanima`). Sıra: Önce görünür (metin katmanı kurulu) sayfalar, gösterilen sekmeninkiler önce, geçerli sayfaya en yakın. Sonra Bul'un
+    istedikleri, aramanın sırasıyla (etkin belgede geçerli sayfadan başlayarak). Çekirdekte aynı anda en çok 2 istek: Biri tanınırken işçi
+    sıradakinin bölgelerini çizer (ölçüm: Sayfa başına çizim ~70 ms, tanıma ~410 ms. Kullanıcının belgesi bu ölçümle tek istekle ~19 sn sürerdi, ikiyle 14 sn ölçüldü).
+  - Bırakma: Bul kapanınca, aranan değişince ya da sekme değişip yeniden aranınca o aramanın sıradaki tanımaları bırakılır (`tanimaBirak`,
+    görünür sayfanın isteği kalır). Çekirdekte süren en çok iki istek biter, sonucu girdide kalır: Yeniden aranınca tanınmışlar beklenmez.
+  - Arama ve vurgu metin katmanıyla aynı öğe listesinden (`katmanIcerigi`: PDF.js metni, ardından tanınan sözcükler, `aramaOgeleri`). Tanınan
+    bölüm PDF metninden konumsuz bir satır sonuyla ayrılır (iki bölüme taşan eşleşme olmaz). Önbellekteki sayfa metni sayfa tanınınca yeniden
+    kurulur. PDF metninin eşleşmeleri eskisi gibi hemen, tanınan yazınınkiler sayfalar tanındıkça eklenir (`_tanimaliAra`, `_taninanAra`), iki
+    koldan gelen aynı eşleşme bir kez sayılır. İlk bulunana hemen gidilir (eskisi gibi), sonradan gelenler sırasına girer, geçerli eşleşme
+    yerinde kalır, vurgu numaraları kayınca çizili sayfalar yeniden vurgulanır.
+  - Sonuçların sırası bir anahtarla (`sonucSirasi`: Belge, tür, sayfa, konum). Eski sıralama yalnızca etkin belgenin PDF metni eklenirken
+    doğruydu: Sonradan gelen tanınan eşleşme yer imi ve yorum sonuçlarını (sayfasız) başa taşırdı.
+  - Vurgu: Tanınan sözcüğün öğesi ardındaki boşluğu da taşır ama genişliği sözcüğünkü (0.1.24'ün seçim kararı). Sözcüğün sonuna dek uzanan
+    vurgu boşluğu da kapsar: Yoksa vurgu sözcüğün kutusundan boşluğun payı kadar kısa kalıyordu. Yan, ters ve döndürülmüş sayfada vurgu
+    öğeyle birlikte döner (0.2.4'ün dikey öğeleri).
+  - Sayaç: "Tanınıyor 12/39" (henüz sonuç yokken), "3 / 12 · tanınıyor 12/39", bitince "3 / 12" ya da "Bulunamadı" (ancak bütün sayfalar
+    tanınınca). Pay tanınmış, payda tanınacak sayfa sayısı (aramadan önce tanınmışlar da sayılır). İpucunda kısa açıklama.
+  - Tanıyıcı yoksa (Linux, tanıyıcısı açılamayan Windows): Taranmış sayfalar aranmaz, PDF metni eskisi gibi. Bitince sayaçta " · taranmış
+    sayfalar aranamadı", ipucu nedenini söyler. Tanınacak sayfası olmayan belgede bu bilgi çıkmaz. Çekirdekte `_tanimasiz` (Linux'ta
+    tanıyıcı hiç denenmez). Geliştirme sürümünde `PDEFE_TANIMA_YOK=1` bu yolu Windows'ta sınatır (paketli çekirdek okumaz, PDEFE_UDE_YOK gibi).
+  - Sayfa düzeni: Tanıma girdinin kaynağıyla (`s.kaynak`: dosya ve sayfa) istenir, sonuç girdide kalır: Eklenen, silinen, taşınan sayfada
+    doğru. Döndürülen sayfanın kopyası (girdiKopyala) tanınmış sonucu alır (sonuç döndürülmemiş düzlemde). Bul açıkken düzen değişince
+    (`duzenDegisti`) sonuçlar yeni numaralarla yeniden bulunur, görünüm kaymaz, geçerli eşleşme girdinin kimliğiyle yerinde kalır. Eskiden
+    sonuçlar eski numaralarda kalıyor, vurgular siliniyordu.
+- [x] **Seçilmeyen yollar**: Açılışta bütün belgeyi arka planda tanımak (aranmayan belgede işlemci). Her sayfa için ocr_sayfa'yı sorup
+  tanınacak mı anlamak (metinli 400 sayfalık belgede 400 istek: "Bulunamadı" saniyelerce gecikirdi). Adayları renderer'da PDF.js'in işlem
+  listesiyle bulmak (görselleri çözer, yavaş). Görseli olan her sayfayı aday saymak (`get_images` satır içi görselleri göstermiyor: Belirtim
+  belgesinde 21 sayfa, ölçüte göre 26). Tanınan yazıyı belgeye yazmak (aranabilir PDF olarak kaydet: Ayrı öneri, kullanıcı "öneriler kalsın"
+  dedi). "Açık belgeler" listesindeki eşleşme sayısının da tanımayı beklemesi (açık her belgenin taranmış sayfalarını tanıtırdı): Liste
+  yalnızca tanınmış sayfaları sayar. Ctrl+A ile kopyalamanın (`tumSecim.js`) kuyruğa katılması (kendi sırası ve iptali var, çekirdek aynı
+  sayfayı ikinci kez tanımaz).
+- [x] **Testler**: Yeni `test/senaryo46.mjs` 34/34 (örnek `test/tanima_pdf_uret.py`'nin yeni arama.pdf'i: PDF metinli, taranmış, /Rotate 90'lı,
+  yan ve ters taranmış, karışık sayfalar. Bütün eşleşmeler sayfa sırasında, sayaç ilerlemesi, arama sürerken "Bulunamadı" yok, sayfa başına tek
+  tanıma isteği, olay döngüsü gecikmesi, vurgunun sözcüğün çekirdekteki kutusuyla örtüşmesi, Enter / F3 / Shift ile gezinme, kapatınca ve
+  aranan değişince bırakma, "Bulunamadı" ancak bütün sayfalar tanınınca, seçenekler, sayfa düzeni değişince, başka belgeden eklenen ve
+  döndürülen sayfa, tüm sekmeler, tanıyıcısız ikinci örnek, yalnızca metinli belge). `test/tanima_testi.py` 72/72 (yeni 7. bölüm:
+  tanima_sayfalari'nın ölçütü, sırası, parametre denetimi, metinli 200 sayfada süre, PDEFE_TANIMA_YOK). Eski testler: senaryo25 30/30 (son
+  denetimin açıklaması güncellendi), senaryo31 25/25, tum_secim 52/52, ortu_tiklama 164/164, kisayol_dosya 164/164 (Bul denetimleri dâhil).
+  Yerelde (depoya girmez): Kullanıcının belgesinin kopyasında bir sayfanın tanınan yazısından seçilen 10 harfli bir sözcük: 11 sonuç (çekirdeğin
+  tanımasıyla aynı sayı, 11 sayfada). Belge açılıp hemen 1. sayfadan aranınca ilk sonuç 8,7 sn'de (sözcüğün ilk geçtiği 19. sayfa), bütün
+  belge 16,9 sn'de (arama sürerken her 300 ms'de kaydırılarak. Kaydırmadan 14,0 sn, ilk sonuç 6,8 sn). Olay döngüsünün en uzun gecikmesi
+  69 ms, en uzun kare aralığı 89 ms (kaydırılan taranmış sayfaların çizimi). Seçili vurgu dikey okunan sözcüğün öğesiyle örtüştü.
