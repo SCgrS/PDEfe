@@ -185,7 +185,7 @@ const notlar = await cagir('cekirdek:cagir', 'notlar', { yol: KAYIT });
 const yazi = (notlar?.notlar || notlar || []).find?.((n) => n.tur === 'FreeText');
 sonuc('yazı notu (varsayılan Arial) kaydedildi, Türkçe metin dosyada', kayit?.tip === 'Arial' && kayit?.degisti === false && yazi?.icerik === METIN, JSON.stringify({ kayit, yazi: yazi?.icerik }));
 const gorunum = await cagir('cekirdek:cagir', 'sayfa_metni', { yol: KAYIT, sayfa: 1 });
-sonuc('notun görünümünde Türkçe harfler (gömülü yazı tipi)', String(gorunum?.metin || '').normalize('NFC').includes(METIN.normalize('NFC')) || null,
+sonuc('notun görünümünde Türkçe harfler (gömülü yazı tipi)', String(gorunum?.metin || '').normalize('NFC').includes(METIN.normalize('NFC')),
   String(gorunum?.metin || '').slice(-120), false);
 await ekranGoruntusu('not.png');
 
