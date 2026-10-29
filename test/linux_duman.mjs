@@ -107,7 +107,10 @@ async function ekranGoruntusu(ad) {
 async function tus(key, code, vk, modifiers = 0) {
   for (const type of ['rawKeyDown', 'keyUp']) await gonder('Input.dispatchKeyEvent', { type, key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers });
 }
-const anaSurecler = () => calistir('pgrep', ['-a', '-f', `remote-debugging-port=${PORT}`]).cikti.split('\n').filter((s) => s && !/--type=/.test(s) && !/pgrep/.test(s));
+// Electron'un ana süreci: Chromium'un alt süreçleri (--type=…) ve AppImage çalışma ortamının kendi süreci (FUSE bağlamasını tutar, komut satırı
+// AppImage dosyasıyla başlar) sayılmaz
+const anaSurecler = () => calistir('pgrep', ['-a', '-f', `remote-debugging-port=${PORT}`]).cikti.split('\n')
+  .filter((s) => s && !/--type=/.test(s) && !/pgrep/.test(s) && s.split(' ')[1] !== APPIMAGE);
 
 // ---------------------------------------------------------------- 2) başlat (komut satırındaki PDF'le), tek örnek, menünün adres biçimi
 const acilis = Date.now();
