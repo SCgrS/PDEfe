@@ -38,6 +38,10 @@ if MAC:
         ("Times New Roman", False, False): "Times New Roman.ttf", ("Times New Roman", True, False): "Times New Roman Bold.ttf",
         ("Times New Roman", False, True): "Times New Roman Italic.ttf", ("Times New Roman", True, True): "Times New Roman Bold Italic.ttf",
     }
+elif sys.platform.startswith("linux"):
+    # Linux (0.3.1): dosyayı fontconfig seçer (_font_dosyasi → islemler/linux.py); klasörler yalnızca bilgi için
+    FONT_KLASORLERI = ["/usr/share/fonts", "/usr/local/share/fonts", os.path.expanduser("~/.local/share/fonts")]
+    FONT_DOSYALARI = {}
 else:
     FONT_KLASORLERI = [os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")]
     # (aile, kalın, italik) -> Windows font dosyası
@@ -103,7 +107,10 @@ def _pdf_tarih(ts=None):
 # ---------------------------------------------------------------- font gömme
 def _font_dosyasi(aile, kalin, italik):
     """Var olan en uygun font dosyası ve sahte italik gerekip gerekmediği: önce istenen aile, sonra Arial; italik yüz
-    bulunamazsa düz yüz eğilerek çizilir."""
+    bulunamazsa düz yüz eğilerek çizilir. Linux'ta (0.3.1) dosyayı fontconfig seçer (islemler/linux.py)."""
+    if sys.platform.startswith("linux"):
+        from .linux import yazi_tipi_dosyasi
+        return yazi_tipi_dosyasi(aile, kalin, italik)
     for a, i, sahte in ((aile, italik, False), ("Arial", italik, False), (aile, False, italik), ("Arial", False, italik)):
         dosya = FONT_DOSYALARI.get((a, bool(kalin), bool(i)))
         for klasor in FONT_KLASORLERI if dosya else ():

@@ -25,10 +25,11 @@ ANSI kod sayfasıyla okunur; Java, jar ve geçici klasör yolları da bu kod say
 UDE'yi bulmak (ude_bul): kullanıcının ayarlarda gösterdiği yol (istek parametresi udeYolu: UDE klasörü, exe ya da .ini dosyası, macOS'ta .app),
 .udf'nin ProgID kayıtlarının açma komutu (Windows'ta kullanıcının seçtiği program, HKCR / HKLM / HKCU \\.udf, bilinen ProgID'ler), kurulu
 programlar listesi (Uninstall, "Uyap Kelime İşlemci"), varsayılan klasör (C:\\Uyap\\Uyap Kelime Islemci); macOS'ta /Applications ve
-~/Applications altındaki UYAP uygulaması. Sınıf yolu UDE'nin .ini dosyasındaki "Class Path" (yoksa klasördeki bütün jar'lar). Java'yı bulmak
+~/Applications altındaki UYAP uygulaması; Linux'ta (0.3.1) uygulama menüsü kayıtlarının (.desktop) gösterdiği klasörler ve /opt,
+/usr/local, /usr/share, ev klasöründe adı UYAP'a benzeyen klasörler. Sınıf yolu UDE'nin .ini dosyasındaki "Class Path" (yoksa klasördeki bütün jar'lar). Java'yı bulmak
 (java_bul): UDE klasöründeki jre, Program Files[ (x86)]\\Java\\jre1.8* / jdk1.8*, Common Files\\Oracle\\Java\\javapath, JAVA_HOME,
 kayıt defterindeki JavaSoft, bilinen dağıtımlar (Adoptium, Zulu, Corretto, Microsoft, Liberica), PATH; macOS'ta Java eklentisinin JRE'si ve
-/Library/Java/JavaVirtualMachines. Sürümü 15'ten büyük olanlar elenir; 8 önce, sonra UDE'nin .ini dosyasındaki "Preferred versions" sırası.
+/Library/Java/JavaVirtualMachines; Linux'ta JAVA_HOME, /usr/lib/jvm ve PATH. Sürümü 15'ten büyük olanlar elenir; 8 önce, sonra UDE'nin .ini dosyasındaki "Preferred versions" sırası.
 
 Yöntemler (donustur'un çatısı üzerinden): donusum_yetenekleri'ne udf: {var (UDF → PDF yapılabilir mi), neden?, ude: {var, yol, surum},
 java: {var, yol, surum}, kip ('pdf' | 'yazici' | null), pdfdenUdf}; donusum_bilgi yanıtına UDF için alt ('zip' | 'xml'), genislik /
@@ -321,6 +322,62 @@ def _mac_adaylari():
     return adaylar
 
 
+UDE_ADI = re.compile(r"uyap|dok[uü]man|kelime", re.I)
+
+
+def _masaustu_komutlari(dosya):
+    """Linux uygulama menüsü kaydının (.desktop) gösterdiği yollar: Exec'teki program (bağlantı çözülerek) ve mutlak yollu argümanları
+    (java -jar /opt/…/editor.jar gibi), Path (çalışma klasörü). Ad ve Exec satırı UYAP'a benzemiyorsa boş liste."""
+    try:
+        with open(dosya, "r", encoding="utf-8", errors="replace") as f:
+            metin = f.read(16 * 1024)
+    except OSError:
+        return []
+    alanlar = {}
+    for satir in metin.splitlines():
+        if satir.startswith("[") and alanlar:
+            break   # yalnızca [Desktop Entry]
+        if "=" in satir:
+            k, v = satir.split("=", 1)
+            alanlar.setdefault(k.strip(), v.strip())
+    if not UDE_ADI.search(os.path.basename(dosya) + " " + alanlar.get("Name", "") + " " + alanlar.get("Exec", "")):
+        return []
+    yollar = []
+    parcalar = re.findall(r'"([^"]*)"|(\S+)', alanlar.get("Exec", ""))
+    for i, (tirnakli, duz) in enumerate(parcalar):
+        p = tirnakli or duz
+        if not p or p.startswith("%"):
+            continue
+        if i == 0 and not os.path.isabs(p):
+            p = shutil.which(p) or ""
+        if os.path.isabs(p):
+            yollar.append(os.path.dirname(os.path.realpath(p)) if os.path.isfile(p) else p)
+    if alanlar.get("Path"):
+        yollar.insert(0, alanlar["Path"])
+    return yollar
+
+
+def _linux_adaylari():
+    """Linux (0.3.1): UYAP uygulamasının olabileceği yerler: uygulama menüsü kayıtlarının (kullanıcının, /usr/local'ın, sistemin) gösterdiği
+    klasörler, /opt, /usr/local, /usr/share ve ev klasöründe adı UYAP'a benzeyen klasörler (_ude_klasoru içlerinde editor_lib.jar'ı arar)."""
+    adaylar = []
+    for kl in (os.path.expanduser("~/.local/share/applications"), "/usr/local/share/applications", "/usr/share/applications"):
+        try:
+            adlar = sorted(os.listdir(kl))
+        except OSError:
+            continue
+        for ad in adlar:
+            if ad.endswith(".desktop"):
+                adaylar += _masaustu_komutlari(os.path.join(kl, ad))
+    for kok in ("/opt", "/usr/local", "/usr/share", os.path.expanduser("~")):
+        try:
+            adlar = sorted(os.listdir(kok))
+        except OSError:
+            continue
+        adaylar += [os.path.join(kok, ad) for ad in adlar if UDE_ADI.search(ad)]
+    return adaylar
+
+
 def _ini_oku(klasor):
     """UDE'nin .ini dosyası (JSmooth / exe4j benzeri başlatıcı): {"Class Path": ..., "Preferred versions": ...}. 64 bitlik exe'ninki önce."""
     adaylar = []
@@ -419,6 +476,8 @@ def ude_bul(elle=None):
         adaylar.append((surucu + "\\Uyap\\Uyap Kelime Islemci", "varsayilan"))
     elif MAC:
         adaylar += [(k, "uygulamalar") for k in _mac_adaylari()]
+    else:
+        adaylar += [(k, "kurulum") for k in _linux_adaylari()]
     gorulen = set()
     for yol, kaynak in adaylar:
         anahtar = os.path.normcase(os.path.abspath(os.path.expanduser(yol)))
@@ -530,6 +589,15 @@ def _java_adaylari(ude):
     else:
         if os.environ.get("JAVA_HOME"):
             adaylar.append(os.path.join(os.environ["JAVA_HOME"], "bin", "java"))
+        # Linux (0.3.1): dağıtımların Java paketleri /usr/lib/jvm altında (Debian / Ubuntu: java-8-openjdk-amd64; PATH'teki java çoğunlukla
+        # 17 ya da 21, UDE'yi çalıştırmaz)
+        try:
+            jvm = sorted(os.listdir("/usr/lib/jvm"), key=_surum_sirasi, reverse=True)
+        except OSError:
+            jvm = []
+        for a in jvm:
+            adaylar.append(os.path.join("/usr/lib/jvm", a, "bin", "java"))
+            adaylar.append(os.path.join("/usr/lib/jvm", a, "jre", "bin", "java"))
         adaylar += [os.path.join(k, "java") for k in (os.environ.get("PATH") or "").split(os.pathsep) if k]
     return adaylar
 
@@ -669,7 +737,7 @@ def _yazi_tipi_klasorleri():
         k += ["/System/Library/Fonts", "/System/Library/Fonts/Supplemental", "/Library/Fonts", os.path.expanduser("~/Library/Fonts"),
               "/Applications/Microsoft Word.app/Contents/Resources/DFonts"]
     else:
-        k += ["/usr/share/fonts", "/usr/local/share/fonts", os.path.expanduser("~/.fonts")]
+        k += ["/usr/share/fonts", "/usr/local/share/fonts", os.path.expanduser("~/.local/share/fonts"), os.path.expanduser("~/.fonts")]
     return [x for x in k if os.path.isdir(x)]
 
 

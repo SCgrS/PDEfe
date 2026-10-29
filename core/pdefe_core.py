@@ -629,6 +629,15 @@ YONTEMLER = {
     "iptal": y_iptal,
 }
 
+# Linux (0.3.1): çekirdeğin başlattığı sistem programları (LibreOffice, Java, fc-match) PDEfe'nin paketlediği kitaplıklarla açılmasın
+# (LD_LIBRARY_PATH'ten PyInstaller'ın ve AppImage'ın klasörleri çıkarılır; islemler/linux.py)
+if sys.platform.startswith("linux"):
+    try:
+        from islemler import linux as _linux  # noqa: E402
+        _linux.ortami_temizle()
+    except ImportError:
+        pass
+
 # Araç modülleri (küçült, sayfalar, ayır, birleştir, notlar) ayrı dosyalarda kaydolur.
 try:
     from islemler import kaydol  # noqa: E402

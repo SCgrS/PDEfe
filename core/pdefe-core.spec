@@ -1,6 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
 """PyInstaller spec: pdefe-core (tek klasör: pdefe-core.exe + _internal; konsollu — stdio üzerinden JSON-RPC gerekli).
 macOS'ta (0.2.0) aynı spec pdefe-core + _internal üretir (o bilgisayarın mimarisi için); yazı tanıma için Vision bağları (pyobjc) toplanır.
+Linux'ta (0.3.1) de pdefe-core + _internal (x64, derlendiği dağıtımın glibc'si ve sonrası: CI'da Ubuntu 22.04); Linux'ta yazı tanıyıcı yok
+(çekirdek "desteklenmiyor" döner), Word otomasyonu yok (Word → PDF LibreOffice'le).
 
 Çıktı: core/dist/pdefe-core/pdefe-core.exe. Tek dosya (onefile) kullanılmaz: her açılışta ~70 MB'ı %TEMP%\\_MEI* altına açıyordu
 (~0,9 sn) ve süreç öldürülünce (kapanış, çökme, Windows kapanışı) açılan klasör silinmeden kalıyordu (0.1.17'de 151 klasör, 10 GB).
@@ -13,6 +15,7 @@ import sys
 from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 WINDOWS = sys.platform == "win32"
+MAC = sys.platform == "darwin"
 
 KOK = os.path.abspath(SPECPATH)            # core/
 if KOK not in sys.path:                    # collect_submodules("ucuncu") core/ altındaki paketi bulsun
@@ -34,6 +37,7 @@ gizli = [
     "islemler.udf_yaz",
     "islemler.word",
     "islemler.pdf_word",
+    "islemler.linux",          # 0.3.1: Linux'ta yazı notu fontu (fontconfig) ve dış programların ortamı; öteki sistemlerde de yüklenebilir
     "fontTools.subset",
     "fontTools.ttLib",
     "PIL",
@@ -78,7 +82,7 @@ if WINDOWS:
         gizli += ["comtypes", "comtypes.automation"]
     except ImportError:
         print("UYARI: comtypes yok; Word → PDF Word'le yapılamayacak (LibreOffice varsa onunla)")
-else:
+elif MAC:
     # macOS: Apple yazı tanıyıcısının Python bağları (0.2.0; pyobjc-framework-Vision, -Quartz, -Cocoa). Modüller işlev içinde yüklenir
     try:
         import objc, Vision, Quartz, Foundation  # noqa: F401,E401
