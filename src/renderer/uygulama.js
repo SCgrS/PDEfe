@@ -21,8 +21,9 @@ import { mesajKutusu as mesajKutusuAc, mesajKutusuAcik, mesajKutusuUyar, kaydetm
 import { BaslangicEkrani } from './baslangic.js';
 import { uzantisiz } from './adlar.js';
 import { TumSecim } from './tumSecim.js';
-import { MAC, LINUX, birincil, tus, ipuclariniCevir, DOSYA_YONETICISI } from './platform.js';
+import { MAC, birincil, tus, ipuclariniCevir, DOSYA_YONETICISI } from './platform.js';
 import { OLCUM, isaretle } from './olcum.js';
+import { LINUX } from './platform.js';   // 0.3.1: Linux'un dosya izni iletileri (belgeKaydet)
 
 // Açılış zamanları (0.2.10): arayüzün adımları yalnızca ölçüm istenince işaret olarak yazılır (olcum.js); ölçüm betiği (test/acilis_hizi.mjs)
 // CDP'den okur
