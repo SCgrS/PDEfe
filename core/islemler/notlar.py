@@ -1370,23 +1370,109 @@ def y_freetext_stil(p):
     return {"stil": stil, "icerik": icerik}
 
 
+# Açık hedef dizisinin sözcükleri: sayfa başvurusu ("12 0 R"), ad ("/XYZ"), sayı, null
+_HEDEF_SOZCUGU = re.compile(r"\d+\s+\d+\s+R|/[^\s/\[\]()<>{}%]+|[-+]?(?:\d+\.?\d*|\.\d+)|null")
+# PDEfe'nin dışında dosya ya da program açan eylemler: güvenlik nedeniyle açılmaz (renderer kısa bildirim gösterir)
+_DIS_EYLEMLER = {"GoToR", "GoToE", "Launch"}
+# Renderer'ın yürüttüğü adlandırılmış eylemler (PyMuPDF bunları kaynak dosyadaki sayfaya çevirir; renderer gösterilen sayfaya göre gider)
+_ADLI_EYLEMLER = {"NextPage", "PrevPage", "FirstPage", "LastPage"}
+
+
+def _acik_hedef(doc, deger):
+    """xref_get_key'in döndürdüğü (tür, değer) açık hedef dizisiyse {"tur", "p", "ref"} döner; değilse None.
+    p: türün parametreleri PDF kullanıcı uzayında (null → None); ref: sayfa başvurusu [num, gen] ya da sayfa dizini (0 tabanlı tam sayı).
+    Dizi dolaylı da olabilir ("15 0 R")."""
+    tur, metin = deger
+    if tur == "xref":
+        try:
+            metin = doc.xref_object(int(metin.split()[0]), compressed=True)
+        except Exception:
+            return None
+    elif tur != "array":
+        return None
+    metin = (metin or "").strip()
+    if not metin.startswith("[") or not metin.endswith("]"):
+        return None
+    s = _HEDEF_SOZCUGU.findall(metin[1:-1])
+    if len(s) < 2 or not s[1].startswith("/"):
+        return None
+    if s[0].endswith("R"):
+        n, g = s[0].split()[:2]
+        ref = [int(n), int(g)]
+    elif re.fullmatch(r"\d+", s[0]):
+        ref = int(s[0])
+    else:
+        return None
+    p = []
+    for v in s[2:]:
+        try:
+            f = None if v == "null" else float(v)
+        except ValueError:
+            continue
+        p.append(f if f is None or math.isfinite(f) else None)
+    return {"tur": s[1][1:], "p": p, "ref": ref}
+
+
 def y_baglantilar(p):
+    """Sayfanın bağlantıları (0.3.1'de genişledi). Her bağlantı: rect (döndürülmemiş sayfa koordinatı, sol üst köşe; renderer
+    view[0] + x, view[3] - y ile PDF noktasına çevirir) ve tur (PyMuPDF'in LINK_* türü), ayrıca biri:
+      uri    dış bağlantı (renderer süzer ve sorar)
+      eylem  adlandırılmış eylem (NextPage, PrevPage, FirstPage, LastPage; ötekiler katmana girmez): renderer gösterilen sayfaya göre yürütür
+      hedef  açık hedef {tur, p, ref} (PDF kullanıcı uzayı) ve sayfa (PyMuPDF'in çözdüğü kaynak sayfa, 1 tabanlı; çözemediyse yok)
+      ad     adlandırılmış hedefin adı (Names ağacı ya da /Dests sözlüğü; renderer PDF.js ile çözer) ve PyMuPDF çözebildiyse sayfa
+      dis    True: başka dosya ya da program (GoToR, GoToE, Launch); dosya: belirtilen dosya adı (bildirimde gösterilmez)
+    PyMuPDF'in "to" noktası kullanılmaz: açık hedefte döndürülmüş ve kaydırılmış sayfa koordinatında, adlandırılmış hedefte kullanıcı
+    uzayında gelir ve hedefin türünü (Fit, FitR) taşımaz; FitR'de (0, 0) olur. "from" kutusu da döndürülmüş sayfa koordinatındadır:
+    derotation_matrix ile döndürülmemiş koordinata çevrilir. Sonuçta NaN olmaz (JSON satırını bozardı)."""
     from pdefe_core import onbellek
     doc = onbellek.al(p["yol"])
     page = doc[int(p["sayfa"]) - 1]
+    geri = page.derotation_matrix
     sonuc = []
     for l in page.get_links():
-        r = l.get("from")
-        d = {"rect": [r.x0, r.y0, r.x1, r.y1], "tur": l.get("kind")}
-        if l.get("kind") == pymupdf.LINK_GOTO:
-            d["sayfa"] = l.get("page", -1) + 1
-            to = l.get("to")
-            if to is not None:
-                d["y"] = float(to.y)
-        elif l.get("kind") == pymupdf.LINK_URI:
+        r = pymupdf.Rect(l.get("from")) * geri
+        if not all(math.isfinite(v) for v in r):
+            continue
+        tur = l.get("kind")
+        d = {"rect": [r.x0, r.y0, r.x1, r.y1], "tur": tur}
+        x = l.get("xref") or 0
+        eylem = ""
+        if x:
+            try:
+                k = doc.xref_get_key(x, "A/S")
+                eylem = k[1][1:] if k[0] == "name" else ""
+            except Exception:
+                eylem = ""
+        sayfa = l.get("page", -1)
+        if eylem == "Named":
+            try:
+                k = doc.xref_get_key(x, "A/N")
+                ad = k[1][1:] if k[0] == "name" else ""
+            except Exception:
+                ad = ""
+            if ad in _ADLI_EYLEMLER:   # ötekiler (Print, GoBack, FullScreen…) katmana girmez
+                d["eylem"] = ad
+        elif tur == pymupdf.LINK_URI:
             d["uri"] = l.get("uri")
-        elif l.get("kind") == pymupdf.LINK_NAMED:
-            d["ad"] = l.get("name")
+        elif eylem in _DIS_EYLEMLER or tur in (pymupdf.LINK_GOTOR, pymupdf.LINK_LAUNCH):
+            d["dis"] = True
+            d["dosya"] = str(l.get("file") or "")
+        elif tur == pymupdf.LINK_NAMED:
+            if l.get("nameddest"):
+                d["ad"] = str(l.get("nameddest"))
+            if isinstance(sayfa, int) and sayfa >= 0:
+                d["sayfa"] = sayfa + 1
+        elif tur == pymupdf.LINK_GOTO:
+            h = None
+            if x:
+                try:
+                    h = _acik_hedef(doc, doc.xref_get_key(x, "Dest")) or _acik_hedef(doc, doc.xref_get_key(x, "A/D"))
+                except Exception:
+                    h = None
+            if h:
+                d["hedef"] = h
+            if isinstance(sayfa, int) and sayfa >= 0:
+                d["sayfa"] = sayfa + 1
         sonuc.append(d)
     return {"baglantilar": sonuc}
 

@@ -21,6 +21,7 @@ import { mesajKutusu as mesajKutusuAc, mesajKutusuAcik, mesajKutusuUyar, kaydetm
 import { BaslangicEkrani } from './baslangic.js';
 import { uzantisiz } from './adlar.js';
 import { TumSecim } from './tumSecim.js';
+import { baglantiHedefi, eylemSayfasi, gosterilenIndeks, hedefKonumu } from './hedefler.js';
 import { MAC, birincil, tus, ipuclariniCevir, DOSYA_YONETICISI } from './platform.js';
 import { OLCUM, isaretle } from './olcum.js';
 
@@ -168,7 +169,7 @@ function belgeOlustur(yol) {
   el.className = 'gorunum';
   el.hidden = true;
   $('#gorunumler').append(el);
-  const gorunum = new Goruntuleyici(el, { dosyaOku: async (y) => (await pdefe.cagir('dosya:oku', y)).veri, cekirdek });
+  const gorunum = new Goruntuleyici(el, { dosyaOku: async (y) => (await pdefe.cagir('dosya:oku', y)).veri, cekirdek, baglantiIpucu: (l, s) => baglantiIpucu(gorunum, l, s) });
   // diskDondurme: yüklenen dosyaya (gorunum.yol) artımlı kayıtla işlenmiş göreli döndürmeler, kaynak sayfa no → açı (bkz. yapisalTarif)
   const belge = { id, yol, ad: dosyaAdi(yol), el, gorunum, degisti: false, boyut: 0, bilgi: null, diskDondurme: {} };
   belgeler.set(id, belge);
@@ -1312,15 +1313,42 @@ async function disBaglantiAc(b, adres) {
   pdefe.cagir('kabuk:disAc', adres).catch(() => {});
 }
 
-function baglantiyaGit(b, l) {
+// İç bağlantılar (0.3.1, kullanıcı isteği: "tıklanabilir sayfa bölmeleri çalışmalı … içindekilere tıklayamıyorum"): açık ve adlandırılmış
+// hedefler hedefler.js'teki ortak yoldan (yer imleriyle aynı) çözülür; hedef kaynak dosyanın sayfasıdır, şimdiki yeri kaynak sayfasından
+// bulunur (sayfa silinmiş, sıralanmış belgede de). Adlandırılmış eylemler (Sonraki / Önceki / İlk / Son sayfa) bağlantının bulunduğu
+// sayfanın gösterilen numarasına göre yürür. Başka dosya ya da program açan bağlantılar (GoToR, Launch) güvenlik nedeniyle açılmaz.
+const DIS_DOSYA_BILDIRIMI = 'Bu bağlantı başka bir dosyayı ya da programı açtığı için güvenlik nedeniyle açılmadı.';
+
+/** İç bağlantının ipucu: hedefin gösterilen sayfası ("Sayfa N"). l: çekirdeğin bağlantısı, s: bağlantının bulunduğu girdi. */
+async function baglantiIpucu(g, l, s) {
+  if (l.dis) return 'Başka bir dosya ya da program (açılmaz)';
+  if (l.eylem) {
+    const no = eylemSayfasi(l.eylem, g.idx(s) + 1, g.sayfalar.length);
+    return no ? `Sayfa ${no}` : '';
+  }
+  const h = await baglantiHedefi(g, l, s.kaynak.yol);
+  if (!h) return 'Hedef bu belgede bulunamadı';
+  const i = gosterilenIndeks(g, s.kaynak.yol, h.sayfa);
+  return i >= 0 ? `Sayfa ${i + 1}` : 'Hedef sayfa bu belgede yok';
+}
+
+async function baglantiyaGit(b, l) {
   const g = b.gorunum;
   if (l.uri) { disBaglantiAc(b, l.uri); return; }
-  if (l.sayfa) {
-    // Bağlantının hedefi kaynak dosyadaki sayfa; geçerli konumunu bul
-    const i = g.sayfalar.findIndex((s) => !s.bos && yolAnahtari(s.kaynak.yol) === yolAnahtari(l.kaynakYol) && s.kaynak.sayfa === l.sayfa);
-    if (i >= 0) { g.sayfayaGit(i + 1, { y: l.y != null ? l.y : undefined }); g.kaydirici.focus(); }
-    else bildir('Bağlantının hedef sayfası bu belgede yok.');
+  if (l.dis) { bildir(DIS_DOSYA_BILDIRIMI); return; }
+  if (l.eylem) {
+    const no = eylemSayfasi(l.eylem, l.sayfaNo || g.gecerli, g.sayfalar.length);
+    if (no) { g.sayfayaGit(no); g.kaydirici.focus(); }
+    return;
   }
+  const h = await baglantiHedefi(g, l, l.kaynakYol);
+  if (!belgeler.has(b.id)) return;
+  if (!h) { bildir('Bağlantının hedefi bu belgede bulunamadı.'); return; }
+  const k = await hedefKonumu(g, l.kaynakYol, h);
+  if (!belgeler.has(b.id)) return;
+  if (!k) { bildir('Bağlantının hedef sayfası bu belgede yok.'); return; }
+  g.sayfayaGit(k.no, { y: k.y, x: k.x });
+  g.kaydirici.focus();
 }
 
 /** Geri al (geri=true) / yinele: yazı düzenlenirken düzenleyicinin metnini (araç çubuğu düğmesi odağı alsa da, Düzen menüsünden de),
@@ -1969,7 +1997,7 @@ sekmeler.addEventListener('sagTik', async (e) => {
 });
 
 // Panel olayları
-panel.addEventListener('sayfayaGit', (e) => { const b = aktif(); if (b) { b.gorunum.sayfayaGit(e.detail.sayfa, { y: e.detail.y }); b.gorunum.kaydirici.focus(); } });
+panel.addEventListener('sayfayaGit', (e) => { const b = aktif(); if (b) { b.gorunum.sayfayaGit(e.detail.sayfa, { y: e.detail.y, x: e.detail.x }); b.gorunum.kaydirici.focus(); } });
 panel.addEventListener('notaGit', (e) => { const b = aktif(); if (!b) return; const n = e.detail.not; if (n.id && b.notlar) b.notlar.notaGit(n.id); else b.gorunum.sayfayaGit(n.sayfa, { y: Math.max(0, n.rect[1] - 40) }); });
 panel.addEventListener('yerimiHedefiYok', () => bildir('Yer iminin hedef sayfası bu belgede yok.'));   // sayfası silinmiş (0.2.1)
 panel.addEventListener('genislik', (e) => ayarKoy('solPanelGenislik', Math.round(e.detail.genislik)));

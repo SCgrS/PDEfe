@@ -3820,3 +3820,51 @@ biraz daha hızlı açılmasını sağlayabilir miyiz bakalım." (Gezgin'de çif
 - [x] Göndermeden önce geçmiş temizlendi: 0.2.6–0.2.8 commit'lerindeki testlerde ofisteki yazıcının model adı geçiyordu (0.2.9'da HEAD'den
   çıkarılmıştı); 161 commit'te genel adlarla ("Lazer Yazıcı") değiştirildi. Son ağaç aynı kaldı, 0.2.5'in devamı olarak gönderildi.
 - [x] CodeQL: gelişmiş kurulum (`.github/workflows/codeql.yml`) bu gönderimle asıl depoya geldi; depodaki varsayılan kurulum kapatıldı.
+
+### Revizyon 0.3.1 (2026-10-29, kullanıcı istekleri: iç bağlantılar, ilk yazdırmada A4, taranmış belgede Bul, form alanları, XFA formları, Linux)
+Kullanıcının maddeleri ayrı commit'ler hâlinde. Sürüm numarası yayımda artar (package.json'a dokunulmadı), CHANGELOG yayımda yazılır. Electron
+yalnızca ekran dışındaki (`test/baslat.ps1`) ya da görünmeyen masaüstündeki örnekte başlatıldı. Kullanıcının gönderdiği belgeler yalnızca yerelde,
+kopyalarıyla denendi, depoya girmedi.
+
+#### 0.3.1: iç bağlantılar ve yer imleri
+Kullanıcı: "tıklanabilir sayfa bölmeleri çalışmalı. attığım … içindekilere tıklayamıyorum." (gönderdiği belge depoya girmez)
+- [x] **Kök neden (ölçüldü)**: Belgenin 2. sayfasındaki içindekiler satırları adlandırılmış hedefli bağlantılar (`/Dest (/s3)` gibi bir dizge,
+  hedefler Names ağacında). PyMuPDF bunları `LINK_NAMED` olarak verir, adı `nameddest` alanındadır. `y_baglantilar` adı olmayan `name` alanından
+  okuyordu (o alan adlandırılmış eylemde dolu), `ad` hep boş kalıyordu, renderer da yalnızca `uri` ve `sayfa`yı işliyordu. Bu bağlantılar katmana
+  hiç konmuyordu. Ölçümle çıkan öbür kusurlar: (1) PyMuPDF'in `from` kutusu döndürülmüş sayfa koordinatında geliyor, renderer onu döndürülmemiş
+  koordinat sayıyordu. Dosyasında `/Rotate` olan sayfada bağlantılar yanlış yerdeydi. (2) PyMuPDF'in `to` noktası tutarsız: Açık hedefte
+  döndürülmüş ve kaydırılmış (MediaBox başlangıcı) sayfa koordinatında, adlandırılmış hedefte PDF kullanıcı uzayında. Hedefin türünü taşımıyor,
+  FitR'de (0, 0), sol `null` olunca NaN. NaN çekirdeğin JSON satırını bozuyordu (ana süreç satırı atıyor, istek hiç yanıtlanmıyordu, o sayfanın
+  bağlantıları ve form katmanı hiç gelmiyordu). (3) Adlandırılmış eylemleri (NextPage…) MuPDF kaynak dosyadaki sayfaya çeviriyor, sıralanmış
+  belgede "sonraki sayfa" yanlış sayfaya giderdi. (4) Yer imleri (panel.js) konumu `s.pt.h - üst` ile hesaplıyordu. Bu, döndürülmüş ve MediaBox'ı
+  sıfırdan başlamayan sayfada yanlış, ayrıca yalnızca XYZ ve FitH işleniyordu.
+- [x] **Karar**: Çekirdek (`y_baglantilar`) hedefin ham bilgisini verir, konumu renderer PDF.js'in görünüm dönüşümüyle hesaplar. Kutu
+  `derotation_matrix` ile döndürülmemiş koordinata çevrilir. Bağlantı türleri: `uri` (değişmedi), `eylem` (yalnız NextPage, PrevPage, FirstPage,
+  LastPage, öbür adlandırılmış eylemler katmana girmez), `hedef` (açık hedef dizisi bağlantının `/Dest`'inden ya da `/A /D`'sinden okunur: Tür,
+  PDF kullanıcı uzayında parametreler, sayfa başvurusu, doğrudan ya da dolaylı), `ad` (adlandırılmış hedef), `dis` (GoToR, GoToE, Launch ve
+  PyMuPDF'in LINK_GOTOR / LINK_LAUNCH saydıkları), `sayfa` (PyMuPDF'in çözdüğü kaynak sayfa). Yeni ortak modül `src/renderer/hedefler.js`:
+  `hedefiCoz` (PDF.js `getDestination` + `getPageIndex`, ad ya da açık dizi), `hedefNoktasi` (XYZ: Sol üst, eksik olan sayfanın kenarı. FitH /
+  FitBH: Üst. FitR: Kutunun sol üstü. FitV / FitBV: Sol. Fit / FitB ve noktasız XYZ: Sayfanın başı), `hedefKonumu` (kaynak sayfanın şimdiki yeri,
+  nokta sayfanın o anki dönüşümüyle, yani dosyadaki /Rotate + kullanıcının döndürmesi + görünüm döndürmesiyle çevrilir), `baglantiHedefi`,
+  `eylemSayfasi`. Yer imleri ve bağlantılar aynı yoldan gider. Adlandırılmış hedefler PDF.js ile çözülür (PyMuPDF türü vermiyor), PDF.js bulamazsa
+  PyMuPDF'in sayfası, sayfanın başı. Açık hedefin sayfasını PyMuPDF çözemezse PDF.js sayfa başvurusundan ya da dizinden çözer. Adlandırılmış
+  eylemler bağlantının bulunduğu sayfanın gösterilen numarasına göre yürür (son sayfada "sonraki" kımıldamaz). Dış dosya / program: "Bu bağlantı
+  başka bir dosyayı ya da programı açtığı için güvenlik nedeniyle açılmadı." bildirimi. Çözülemeyen ad: "Bağlantının hedefi bu belgede
+  bulunamadı." Sayfası silinmiş hedef: "Bağlantının hedef sayfası bu belgede yok." (yer iminde eski ileti kaldı). İpucu "Sayfa N", hedefin şimdiki
+  numarası. Düzen değişebildiği için bağlantının üstüne gelince yenilenir (`Goruntuleyici` seçeneği `baglantiIpucu`). Hedef noktası pencerenin
+  üstüne gelir (sayfayaGit'in 8 px payı).
+- [x] **Yatay kaydırma kararı**: Noktanın yatay yeri yalnızca görünmüyorsa kaydırılır (sol kenara, 16 px payla). İlk denemede her zaman
+  kaydırılıyordu. Genişliğe sığdırılmış görünümde geniş (döndürülmüş) bir sayfa yatay kaydırma açtığı için ona giden bağlantıdan sonra bütün
+  sayfalar sola kaymış kalıyordu.
+- [x] **Seçilmeyen yollar**: Hedefteki yakınlaştırmayı (XYZ zoom, Fit'in "sayfaya sığdır"ı) uygulamak (bağlantıya tıklayınca görünümün ölçeği
+  değişirdi, görünüm yakınlaştırması kullanıcınındır). PyMuPDF'in `to` noktasını dönüştürüp kullanmak (türlere göre farklı koordinatta, FitR'de
+  kayıp). Çekirdekte Names ağacını yürüyüp adı ham diziye çevirmek (PDF.js zaten çözüyor. Dizge kodlamasını iki taraf farklı okursa PyMuPDF'in
+  sayfası kalır). Bağlantıları tümüyle PDF.js `getAnnotations` ile almak (çekirdekteki kutu, tür ve güvenlik ayrımı bir arada kalsın diye).
+  GoToR'deki dosyayı sorup açmak (0.1.23'ün güvenlik kararı: PDF'ten dosya ya da program açılmaz).
+- [x] **Testler**: Yeni `test/ic_baglanti_pdf_uret.py` (16 sayfa: Bütün hedef türleri, Names ağacı Kids / Limits ile, PDF 1.1 /Dests sözlüğü,
+  "/" ile başlayan ad, /Rotate 90 sayfa, MediaBox'ı [0 100 595 942] sayfa, adlandırılmış eylemler, GoToR, Launch, olmayan ad, dört yer imi) ve
+  `test/senaryo45.mjs` (gerçek fare tıklamasıyla, hedef noktasının pencere üstüne uzaklığını testin kendi döndürme hesabıyla denetler): 122/122.
+  Eski testler: senaryo24 38/38, senaryo6 (bağlantılar ve belirtim belgesi, çıktı aynı), kayit_sekme_panel 5. bölüm (yer imleri sayfa düzeni
+  değişince) 8/8. Yerelde (depoya girmez): Kullanıcının belgesinin kopyasında 2. sayfadaki içindekilerden 6 farklı satır doğru sayfaya gitti,
+  sayfanın üstü pencerenin 8 px altında. Belirtim belgesinde 61 adlandırılmış hedef tıklandı, hepsi PyMuPDF'in sayfasına (5'inde hedef noktası
+  sayfanın altına yakın olduğu için geçerli sayfa bir sonraki gösteriliyor, doğru).

@@ -1072,3 +1072,21 @@ Ayarlar ve güncelleme
 
 Mac (elinizde varsa)
 13. Finder'da bir PDF'e çift tıklayın (PDEfe kapalıyken ve açıkken): belge açılmalı; koyu temada açılış ekranı gri görünmemeli.
+
+## 46. 0.3.1: otomatik testlerin sınayamadıkları
+Ekran dışındaki test örneğinde, betikle üretilen deneme belgeleriyle sınandı. Gönderdiğiniz belgeler yalnızca bu bilgisayarda, kopyalarıyla
+denendi. Sizin ekranınızda ve kendi ayarlarınızla denenmedi, ofis bilgisayarı ve Mac denenmedi.
+
+İç bağlantılar ve yer imleri
+1. **Gönderdiğiniz belgenin içindekileri.** İçindekilerine tıklanamadığını söylediğiniz belgeyi açın, 2. sayfadaki içindekilerden birkaç satıra
+   tıklayın: Her satır kendi bölümünün sayfasına gitmeli, o sayfanın başı pencerenin üstünde görünmeli. Fare satırın üstündeyken el imleci ve
+   "Sayfa N" ipucu görünmeli.
+2. **Başka belgelerde.** İçindekileri tıklanabilir olan başka bir belge (ör. başlıklarına bağlantı verilerek PDF'e çevrilmiş bir dilekçe ya da kanun
+   metni) açıp içindekilerden tıklayın: Başlık pencerenin üstüne gelmeli.
+3. **Sayfa düzeni değişince.** Aynı belgede Sayfaları düzenle ile bir sayfayı silin ya da sayfaların sırasını değiştirin, sonra içindekilerden
+   tıklayın: Bölümün şimdiki yerine gitmeli, ipucundaki numara da şimdiki numara olmalı. Silinen sayfaya giden satırda "Bağlantının hedef sayfası
+   bu belgede yok." yazmalı.
+4. **Yer imleri.** Sol paneldeki İçindekiler sekmesinden yer imlerine tıklayın: Başlığın olduğu yere gitmeli. Yan ya da ters duran sayfaya giden
+   yer iminde de.
+5. **Başka dosyaya ya da programa bağlantı.** Elinizde böyle bir belge varsa bağlantıya tıklayın: Hiçbir şey açılmamalı, "güvenlik nedeniyle
+   açılmadı" bildirimi görünmeli.

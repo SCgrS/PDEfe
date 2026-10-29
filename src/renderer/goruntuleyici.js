@@ -219,11 +219,12 @@ function bosPdfBaytlari(w, h) {
 }
 
 export class Goruntuleyici extends EventTarget {
-  constructor(kok, { dosyaOku = null, cekirdek = null } = {}) {
+  constructor(kok, { dosyaOku = null, cekirdek = null, baglantiIpucu = null } = {}) {
     super();
     this.kok = kok;
     this.dosyaOku = dosyaOku;        // (yol) => Promise<Uint8Array>  (başka PDF'ten sayfa eklemek için)
     this.cekirdek = cekirdek;        // (yontem, params) => Promise  (görsel kutuları, bağlantılar, form alanları)
+    this.baglantiIpucu = baglantiIpucu;   // (bağlantı, girdi) => metin | Promise<metin>  (iç bağlantının ipucu, uygulama.js)
     this.yol = null;                 // sekmenin dosya yolu
     this.belgeler = new Map();       // yolAnahtari → {yol, belge, gorev}
     this.bosBelgeler = new Map();    // 'WxH' → {belge, gorev}
@@ -1490,13 +1491,18 @@ export class Goruntuleyici extends EventTarget {
       const katman = document.createElement('div');
       katman.className = 'baglanti-katmani';
       for (const l of s.baglantilar) {
-        if (!l.sayfa && !l.uri && !l.ad) continue;
+        // 0.3.1: adlandırılmış hedefler (ad), açık hedefler (hedef), adlandırılmış eylemler (eylem) ve açılmayan dış dosya / program
+        // bağlantıları (dis) da katmana girer; çekirdek eskiden adlandırılmış hedeflerin adını vermiyordu (içindekiler tıklanmıyordu)
+        if (!l.sayfa && !l.uri && !l.ad && !l.hedef && !l.dis && !l.eylem) continue;
         const a = px(l.rect[0], l.rect[1]), b = px(l.rect[2], l.rect[3]);
         const el = document.createElement('a');
         el.className = 'baglanti';
         el.style.cssText = `left:${Math.min(a[0], b[0])}px;top:${Math.min(a[1], b[1])}px;width:${Math.abs(b[0] - a[0])}px;height:${Math.abs(b[1] - a[1])}px`;
-        el.title = l.uri || (l.sayfa ? `Sayfa ${l.sayfa}` : '');
-        el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.dispatchEvent(new CustomEvent('baglanti', { detail: { ...l, kaynakYol: s.kaynak.yol } })); });
+        // İpucu: dış bağlantıda adres, iç bağlantıda hedefin şimdiki sayfa numarası (düzen değişebildiği için üstüne gelince yenilenir)
+        const ipucu = () => { if (this.baglantiIpucu) Promise.resolve(this.baglantiIpucu(l, s)).then((t) => { el.title = t || ''; }).catch(() => {}); };
+        el.title = l.uri || '';
+        if (!l.uri) { ipucu(); el.addEventListener('pointerenter', ipucu); }
+        el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.dispatchEvent(new CustomEvent('baglanti', { detail: { ...l, kaynakYol: s.kaynak.yol, sayfaNo: this.idx(s) + 1 } })); });
         katman.append(el);
       }
       s.el.insertBefore(katman, s.notKatmani);
