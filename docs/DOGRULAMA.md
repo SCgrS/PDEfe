@@ -1090,3 +1090,11 @@ denendi. Sizin ekranınızda ve kendi ayarlarınızla denenmedi, ofis bilgisayar
    yer iminde de.
 5. **Başka dosyaya ya da programa bağlantı.** Elinizde böyle bir belge varsa bağlantıya tıklayın: Hiçbir şey açılmamalı, "güvenlik nedeniyle
    açılmadı" bildirimi görünmeli.
+
+İlk yazdırmada A4
+6. **Kâğıt seçmediyseniz A4.** Bir belgeyi yazdırmak için Yazdır'ı açın, kâğıda dokunmayın: Kâğıt "A4" olmalı (daha önceki sürümlerde
+   yazdırdıysanız da, bu sürümde ilk açılışta). Yatay sayfalı ya da küçük sayfalı bir belgede ön izleme dikey A4 kâğıdı göstermeli, basılan
+   kâğıt da A4 olmalı.
+7. **Seçtiğiniz kâğıt hatırlanır.** Kâğıdı "Belgeye göre" ya da başka bir kâğıt yapıp yazdırın, sonra Yazdır'ı yeniden açın: Seçtiğiniz kâğıt
+   gelmeli. PDEfe'yi kapatıp açınca da.
+8. **Gerçek yazıcıda.** Ofisteki yazıcıda A4 kâğıtla birkaç sayfa basın: Sayfalar kâğıda ortalı ve kesilmeden çıkmalı.

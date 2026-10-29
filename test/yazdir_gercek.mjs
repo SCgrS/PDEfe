@@ -9,6 +9,8 @@
 //   5) Kâğıt A5: kâğıt 148 × 210 mm
 //   6) Gerçek boyut, kâğıt A4, aralık "4": A5 sayfa A4 kâğıtta büyütülmeden
 //   7) Kaydetme kutusunda Vazgeç: dosya yazılmaz, "Yazdırma vazgeçildi."
+//   8) Kâğıt hiç seçilmemiş (kayıt yok, 0.3.1): pencere A4 ile açılır, kâğıda dokunmadan aralık "2,4": iki sayfa da A4 dikey, yatay sayfa
+//      döndürülmüş, A5 sayfa A4'e büyütülmüş ("Belgeye göre" olsaydı kâğıtlar karışık olurdu)
 // Kaydetme kutusunun PDEfe penceresinin önünde açıldığı da yazılır (bilgi; görünmeyen masaüstündeki sıra).
 // Kullanım:
 //   $env:PDEFE_TEST_GERCEK_YAZDIR = "1"; powershell -File test\baslat_gizli.ps1 -Port 9471 -Veri "$env:TEMP\pdefe-yzg-9471"
@@ -100,11 +102,12 @@ export default async function ({ evalJs, bekle }) {
       al('kopya').value = String(s.kopya || 1); al('kopya').dispatchEvent(new Event('input', { bubbles: true }));
       al('harmanla').checked = s.harmanla !== false;
       if (s.aralik) { radyo('aralik', 'aralik'); al('aralikMetni').value = s.aralik; } else radyo('aralik', 'tumu');
-      al('kagit').value = s.kagit || 'belge'; al('kagit').dispatchEvent(new Event('change', { bubbles: true }));
+      if (s.kagitDokunma) s.kagitIlk = al('kagit').value;   // 0.3.1: kâğıda dokunulmaz, pencerenin açıldığı kâğıt döner
+      else { al('kagit').value = s.kagit || 'belge'; al('kagit').dispatchEvent(new Event('change', { bubbles: true })); }
       radyo('olcek', s.olcek || 'sigdir'); radyo('renk', s.renk || 'renkli');
       al('ciftTarafli').value = 'yazici';
       al('notlar').checked = !!s.notlar;
-      return true;
+      return s.kagitDokunma ? { kagitIlk: s.kagitIlk } : true;
     })()`);
     if (!kuruldu) return { kuruldu };
     const kutuSozu = kutuyuDoldur(cikti, { vazgec });
@@ -165,6 +168,18 @@ export default async function ({ evalJs, bekle }) {
   const r7 = await yazdir('vazgec', { aralik: '1' }, { vazgec: true });
   sonuc('7) Kaydetme kutusunda Vazgeç: dosya yok, "Yazdırma vazgeçildi.", iş bitti', r7.kutu?.sonuc === 'vazgecildi' && !r7.dosya && r7.bildirim === 'Yazdırma vazgeçildi.' && r7.bitti
     && !(await evalJs(`window.pdefe.cagir('yazdir:durum')`)).suruyor, r7);
+  // ------------------------------------------------------------ 8) kâğıt hiç seçilmemiş: A4 (0.3.1)
+  await evalJs(`window.pdefe.cagir('ayar:koy', 'yazdirma', {})`);
+  const r8 = await yazdir('a4-varsayilan', { kagitDokunma: true, aralik: '2,4' });
+  const s8 = r8.olcu?.sayfalar || [];
+  sonuc('8) Kayıt yokken pencere A4 kâğıtla açıldı', r8.kuruldu?.kagitIlk === 'A4', r8.kuruldu);
+  sonuc('8) Dokunmadan yazdırılınca iki sayfa da A4 dikey', r8.olcu?.sayfa === 2 && s8.every(A4), s8.map((s) => [s.g, s.y]));
+  sonuc('8) Yatay sayfa dikey A4\'e döndürülmüş (mor kare alt-sol), A5 sayfa A4\'e büyütülmüş', koseler(s8[0] || {}) === 'alt-sol' && koseler(s8[1] || {}) === 'alt-sağ' && s8[1]?.mor > s1[0]?.mor * 1.5,
+    { kose: s8.map(koseler), mor: s8.map((s) => s.mor) });
+  const k8 = await evalJs(`window.pdefe.cagir('ayar:al', 'yazdirma')`);
+  sonuc('8) Kâğıt "seçilmedi" diye kaydedildi', k8?.kagit === 'A4' && k8?.kagitSecildi === false, k8);
+  await evalJs(`window.pdefe.cagir('ayar:koy', 'yazdirma', {})`);
+
   const hatalar = await evalJs(`(window.__hatalar || []).slice(0, 5)`);
   sonuc('Sayfada hata yok', !hatalar?.length, hatalar);
 

@@ -15,6 +15,7 @@
 // <img src="s0001.jpg"> satırlarından oluşur. Böylece 756 sayfalık belgeler bile V8 dize sınırına (512 MB) ya da IPC ileti sınırına takılmaz.
 //
 // Hatırlananlar: yazıcı, harmanla, kâğıt, boyut, renk ve çift taraflı kalıcıdır (ayar 'yazdirma'); "Notları yazdır" yalnızca oturum boyunca,
+// kâğıt yalnızca kullanıcı onu bu pencerede kendisi seçtiyse (0.3.1, aşağıda acilisKagidi; yoksa A4),
 // kopya sayısı her pencerede 1'den başlar. Sayfa seçimi hatırlanmaz: pencere her açılışta Sayfalar = Tümü ile gelir (0.2.8, kullanıcı isteği:
 // "Yazdırma ekranındaki varsayılan ayar 'Tüm sayfalar' olsun her zaman. Bazen bir aralık seçince diğer PDF'lere de yansıyor"; 0.2.6–0.2.7'de
 // aralık ve "Geçerli sayfa" oturum boyunca hatırlanıyor, başka belgenin yazdırma penceresine de geçiyordu).
@@ -42,13 +43,16 @@ const EN_FAZLA_KOPYA = 99;
 const GEZINME_TUSLARI = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Delete', 'Backspace', 'Enter']);
 const ODAKLANABILIR = 'button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
 
-/** Kalıcı seçimlerin (ayar 'yazdirma') geçerli değerleri; ilki varsayılan. */
+/** Kalıcı seçimlerin (ayar 'yazdirma') geçerli değerleri (pencerede bu sırayla). */
 const SECENEKLER = {
   kagit: ['belge', ...KAGITLAR.map((k) => k.ad)],
   olcek: ['sigdir', 'gercek'],
   renk: ['renkli', 'siyahBeyaz'],
   ciftTarafli: ['yazici', 'tek', 'uzun', 'kisa'],
 };
+/** Kayıtlı değer yoksa ya da geçersizse kullanılan değer. Kâğıt A4 (0.3.1, kullanıcı isteği: "Daha önce kullanıcı yazıcı seçmemişse, varsayılan
+ *  yazdırma, ilk yazdırmada belgeye göre olmaması lazım, A4 olması lazım"; 0.2.6–0.3.0'da listenin ilki, "Belgeye göre"). */
+const VARSAYILANLAR = { kagit: 'A4', olcek: 'sigdir', renk: 'renkli', ciftTarafli: 'yazici' };
 const CIFT_TARAFLI_ADLARI = { yazici: 'Yazıcının ayarı', tek: 'Tek taraflı', uzun: 'Çift taraflı (uzun kenardan çevir)', kisa: 'Çift taraflı (kısa kenardan çevir)' };
 
 /** Oturum boyunca hatırlanan seçim (pencere başına): yalnızca "Notları yazdır". Sayfa seçimi her açılışta Tümü (0.2.8). */
@@ -141,7 +145,7 @@ export async function yazdir(baglam, belge) {
   if (!secenek) return;
   sonSecenek = { notlar: secenek.notlar };
   if (!secenek.sistemPenceresi) {
-    const kayit = { yazici: secenek.yazici, harmanla: secenek.harmanla, kagit: secenek.kagit, olcek: secenek.olcek, renk: secenek.renk, ciftTarafli: secenek.ciftTarafli };
+    const kayit = { yazici: secenek.yazici, harmanla: secenek.harmanla, kagit: secenek.kagit, kagitSecildi: !!secenek.kagitSecildi, olcek: secenek.olcek, renk: secenek.renk, ciftTarafli: secenek.ciftTarafli };
     pdefe.cagir('ayar:koy', 'yazdirma', kayit).catch(() => {});
     try { const a = baglam.ayar?.(); if (a) a.yazdirma = kayit; } catch { /* önemsiz */ }
   }
@@ -242,11 +246,18 @@ async function kaydetmeyiBekle(belge) {
 const OK_SOL = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 4-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
 const OK_SAG = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 4 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
 
-/** Kayıtlı değer geçerliyse o, değilse varsayılan (listenin ilki). */
-function gecerliDeger(ad, deger) { return SECENEKLER[ad].includes(deger) ? deger : SECENEKLER[ad][0]; }
+/** Kayıtlı değer geçerliyse o, değilse varsayılan (VARSAYILANLAR). */
+function gecerliDeger(ad, deger) { return SECENEKLER[ad].includes(deger) ? deger : VARSAYILANLAR[ad]; }
 
 /**
- * Yazdırma penceresi. Yazdır'la { aralik, aralikMetni, sayfalar, yazici, yaziciAdi, kopya, harmanla, kagit, olcek, renk, ciftTarafli,
+ * Pencerenin açılıştaki kâğıdı (kayitli: ayar 'yazdirma'). Kullanıcı kâğıdı yazdırma penceresinde kendisi değiştirdiyse (kagitSecildi;
+ * "Belgeye göre" dâhil) o seçim, değilse A4. 0.2.6–0.3.0 her yazdırmada o anki kâğıdı yazıyordu, kullanıcı hiç seçmediyse de "Belgeye göre":
+ * bayrağı olmayan eski kayıtta bir kez A4'e dönülür, kullanıcı başka bir kâğıt seçerse o hatırlanır.
+ */
+function acilisKagidi(kayitli) { return kayitli?.kagitSecildi === true ? gecerliDeger('kagit', kayitli.kagit) : VARSAYILANLAR.kagit; }
+
+/**
+ * Yazdırma penceresi. Yazdır'la { aralik, aralikMetni, sayfalar, yazici, yaziciAdi, kopya, harmanla, kagit, kagitSecildi, olcek, renk, ciftTarafli,
  * notlar, sistemPenceresi, dosyayaYazar, cevrimDisi }, Vazgeç / Esc / dışarı tıklamayla null döner.
  */
 function secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre, boyutlar, kayitli }) {
@@ -336,7 +347,10 @@ function secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre,
     radyoKoy('aralik', 'tumu');   // 0.2.8: her açılışta Tümü (aralık ve "Geçerli sayfa" hatırlanmaz)
     radyoKoy('olcek', gecerliDeger('olcek', kayitli.olcek));
     radyoKoy('renk', gecerliDeger('renk', kayitli.renk));
-    sec('kagit').value = gecerliDeger('kagit', kayitli.kagit);
+    sec('kagit').value = acilisKagidi(kayitli);
+    // Kâğıdı kullanıcı seçti mi (kalıcı: kayıttaki bayrak ya da bu pencerede değiştirdi). Programla atanan değer change olayı vermez
+    let kagitSecildi = kayitli.kagitSecildi === true;
+    sec('kagit').addEventListener('change', () => { kagitSecildi = true; });
     sec('ciftTarafli').value = gecerliDeger('ciftTarafli', kayitli.ciftTarafli);
     sec('harmanla').checked = kayitli.harmanla !== false;
     sec('notlar').checked = sonSecenek.notlar === true;   // varsayılan kapalı; oturumda açılırsa hatırlanır
@@ -566,7 +580,7 @@ function secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre,
         kapat({
           aralik, aralikMetni: aralikGirdi.value.trim(), sayfalar: r.sayfalar,
           yazici: ad, yaziciAdi: y?.gorunenAd || ad, kopya: kopyaDegeri(), harmanla: harmanla.checked,
-          kagit: sec('kagit').value, olcek: secili('olcek') || 'sigdir', renk: secili('renk') || 'renkli', ciftTarafli: ciftSec.value || 'yazici',
+          kagit: sec('kagit').value, kagitSecildi, olcek: secili('olcek') || 'sigdir', renk: secili('renk') || 'renkli', ciftTarafli: ciftSec.value || 'yazici',
           notlar: sec('notlar').checked, sistemPenceresi, dosyayaYazar: !!d.dosyayaYazar, cevrimDisi: !!d.cevrimDisi,
         });
       } finally { onaylaniyor = false; }

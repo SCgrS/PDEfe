@@ -3868,3 +3868,24 @@ Kullanıcı: "tıklanabilir sayfa bölmeleri çalışmalı. attığım … için
   değişince) 8/8. Yerelde (depoya girmez): Kullanıcının belgesinin kopyasında 2. sayfadaki içindekilerden 6 farklı satır doğru sayfaya gitti,
   sayfanın üstü pencerenin 8 px altında. Belirtim belgesinde 61 adlandırılmış hedef tıklandı, hepsi PyMuPDF'in sayfasına (5'inde hedef noktası
   sayfanın altına yakın olduğu için geçerli sayfa bir sonraki gösteriliyor, doğru).
+
+#### 0.3.1: ilk yazdırmada A4 kâğıt
+Kullanıcı: "Daha önce Kullanıcı Yazıcı seçmemişse, varsayılan yazdırma, ilk yazdırmada belgeye göre olmaması lazım, A4 olması lazım."
+- [x] **Kök neden**: `yazdir.js`'teki `SECENEKLER.kagit`'in ilki 'belge' ve `gecerliDeger` kayıtlı değer yoksa listenin ilkini veriyordu. Ayrıca
+  her yazdırmada pencerenin o anki kâğıdı kaydediliyordu: Kullanıcı kâğıda hiç dokunmadıysa da kayıtta 'belge' vardı, yani "Belgeye göre"
+  kullanıcının seçimi gibi hatırlanıyordu.
+- [x] **Karar**: Kâğıdı kullanıcı yazdırma penceresinde kendisi değiştirmedikçe varsayılan A4 (`VARSAYILANLAR.kagit`, `acilisKagidi`).
+  Kayda `kagitSecildi` bayrağı eklendi: Kâğıt seçimi `change` olayı verirse (kullanıcı seçti; programla atanan değer olay vermez) ya da kayıtta
+  bayrak zaten varsa true. Bayrak true ise kayıtlı kâğıt ("Belgeye göre" dâhil) hatırlanır, değilse pencere A4 ile açılır. Bayraksız eski kayıtta
+  (0.2.6–0.3.0) bir kez A4'e dönülür. Dokunmadan yazdırmak elle yapılmış seçimi silmez (bayrak kalır). Windows yazdırma penceresi yolu
+  seçimleri eskisi gibi kaydetmez. Ön izleme ve basılan iş aynı kâğıdı kullanır (yerleşim kuralı değişmedi: yatay ve /Rotate 90'lı sayfa dikey
+  A4'e döndürülür, küçük sayfa sığdırılınca büyür). Seçenek listesinin sırası değişmedi ("Belgeye göre (A4)" yine ilk satır).
+- [x] **Seçilmeyen yollar**: Listenin sırasını değiştirip A4'ü ilk yapmak (seçimin hatırlanması sorunu kalırdı: dokunmadan yazdırınca A4
+  "seçilmiş" sayılırdı, sonra kullanıcının seçmediği bir şey hatırlanırdı). Kullanıcının hiç yazıcı seçmemiş olmasına bakmak (istekte "yazıcı
+  seçmemişse" kâğıdı seçmemiş anlamında okundu: yazıcı seçimi kâğıdı belirlemiyor, varsayılan yazıcıda da ilk yazdırma A4 olmalı). Eski
+  kaydı ana süreçte bir kez dönüştürmek (renderer'daki bayrak denetimi yetiyor, ayar dosyasına dokunmadan).
+- [x] **Testler**: `test/yazdir_pencere.mjs` 61/61 (47 eski, varsayılanın ve kaydın beklentisi güncellendi. Yeni 6. bölüm: Kayıt yokken A4,
+  A5 sayfanın ön izlemesi A4'te, dokunmadan yazdırınca A4 ve "seçilmedi", bayraksız eski 'belge' kaydında A4, "Belgeye göre" seçilince A5 sayfa
+  A5 kâğıda ve sonraki açılışta "Belgeye göre", dokunmadan yazdırınca seçim kalır, Letter ve elle A4 hatırlanır, Windows penceresi yolu kaydı
+  değiştirmez). `test/yazdir_gercek.mjs` 19/19 (görünmeyen masaüstünde Microsoft Print to PDF. Yeni 8. bölüm: Kayıt yokken kâğıda dokunmadan
+  yatay ve A5 sayfa basılınca iki sayfa da A4 dikey, yatay sayfa döndürülmüş, A5 büyütülmüş). `test/mac_renderer.mjs` 46/46.

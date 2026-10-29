@@ -2,7 +2,8 @@
 // boş). PDEfe'nin kendi penceresi: yazıcı (sahte liste: PDEFE_TEST_YAZICILAR), kopya, sayfalar, kâğıt, boyut, renk, çift taraflı, notlar ve
 // büyük ön izleme; Yazdır'da Windows'un kutusu açılmadan seçilen yazıcıya (test örneğinde yazıcıya gitmez: test:diyalogKaydi 'yazdir:yazdir').
 //   1) Yazıcılar: sahte liste, varsayılan ("Lazer Yazıcı (varsayılan)") ön seçili, çevrim dışı yazıcı işaretli (durum arkadan gelir);
-//      varsayılan seçenekler (1 kopya, harmanla soluk, belgeye göre kâğıt, sığdır, renkli, yazıcının ayarı, notlar kapalı)
+//      varsayılan seçenekler (1 kopya, harmanla soluk, A4 kâğıt (0.3.1; listede "Belgeye göre (A4)" de var), sığdır, renkli, yazıcının ayarı,
+//      notlar kapalı)
 //   2) Ön izleme: kâğıt oranı (A4, A5, Letter), dikey / yatay / /Rotate 90'lı / A5 sayfanın kâğıttaki yeri ve oranı (sığdır, gerçek boyut),
 //      gezinme (◀ ▶, Page Up / Page Down, n / N), aralık ("2-3" → 1 / 2 (s. 2), hatalı aralık), kopya özeti, siyah beyaz (gri süzgeç),
 //      notlar aç / kapa (ön izlemede notun yeşil dolgusu)
@@ -14,6 +15,9 @@
 //   5) Hatırlama: yazıcı ve seçenekler kalıcı (ayar 'yazdirma'), kopya 1'den başlar, notlar oturumda; sayfa seçimi hatırlanmaz (0.2.8,
 //      kullanıcı isteği: pencere her açılışta Tümü ile; aralık da "Geçerli sayfa" da, başka belgede de); hatırlanan yazıcı
 //      kaldırılmışsa varsayılan ve uyarı; hiç yazıcı yoksa Yazdır soluk, Windows penceresi bağlantısı kullanılabilir
+//   6) Kâğıt (0.3.1, kullanıcı isteği: kullanıcı seçmemişse ilk yazdırmada "Belgeye göre" değil A4): kayıt yokken A4, dokunmadan yazdırınca
+//      A4 basılır ve kâğıt "seçilmedi" diye kaydedilir; 0.3.0'ın bayraksız "Belgeye göre" kaydında A4; kullanıcı "Belgeye göre"yi (ya da
+//      Letter'ı, A4'ü) seçince sonraki açılışta o; Windows penceresiyle yazdırma kaydı değiştirmez
 // Kullanım:
 //   $env:PDEFE_TEST_YAZICILAR = "1"; powershell -File test\baslat.ps1 -Port 9461 -Veri "$env:TEMP\pdefe-yz-9461"
 //   $env:PDEFE_CDP_PORT = 9461; node test\surucu.mjs betik test\yazdir_pencere.mjs
@@ -130,8 +134,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tus }) {
   sonuc('1) Pencere: başlık "Yazdır", belge adı ve sayfa sayısı', /ornek-.*\.pdf · 4 sayfa/.test(await evalJs(`document.querySelector('.yazdir-belge').textContent`)), await evalJs(`document.querySelector('.yazdir-belge').textContent`));
   sonuc('1) Yazıcılar: sahte liste sıralı, varsayılan ve çevrim dışı işaretli', J(d.yazicilar) === J(['Kat 2 Yazıcısı (çevrim dışı)', 'Lazer Yazıcı (varsayılan)', 'Microsoft Print to PDF']), d.yazicilar);
   sonuc('1) Varsayılan yazıcı ön seçili, Yazıcı tercihleri etkin', d.yazici === 'Lazer Yazıcı' && !d.tercihDevre && d.bilgi === '', d);
-  sonuc('1) Varsayılan seçenekler: 1 kopya (harmanla soluk), Tümü, belgeye göre (A4), sığdır, renkli, yazıcının ayarı, notlar kapalı',
-    d.kopya === '1' && d.harmanlaDevre && d.harmanla && d.aralik === 'tumu' && d.kagit === 'belge' && d.kagitBelge === 'Belgeye göre (A4)' && d.olcek === 'sigdir' && d.renk === 'renkli' && d.cift === 'yazici' && !d.notlar, d);
+  sonuc('1) Varsayılan seçenekler: 1 kopya (harmanla soluk), Tümü, A4 (listede "Belgeye göre (A4)"), sığdır, renkli, yazıcının ayarı, notlar kapalı',
+    d.kopya === '1' && d.harmanlaDevre && d.harmanla && d.aralik === 'tumu' && d.kagit === 'A4' && d.kagitBelge === 'Belgeye göre (A4)' && d.olcek === 'sigdir' && d.renk === 'renkli' && d.cift === 'yazici' && !d.notlar, d);
   sonuc('1) Windows yazdırma penceresi bağlantısı', d.sistem === 'Windows yazdırma penceresiyle yazdır', d.sistem);
   sonuc('1) Sayfa 1 / 4, ◀ soluk, ▶ etkin, özet "4 sayfa"', d.sayfaNo === '1 / 4' && d.onceki && !d.sonraki && d.ozet === '4 sayfa', d);
 
@@ -217,12 +221,12 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tus }) {
   sonuc('4) Gizli pencerede seçilen 2 sayfa yüklendi (A4 kâğıt)', J(y.kayit[0]?.secenek?.sayfa) === J({ sayfa: 2, gorsel: 2, kagit: '@page { size: 210mm 297mm; margin: 0px; }' }), y.kayit[0]?.secenek?.sayfa);
   sonuc('4) Bildirim: "Lazer Yazıcı" yazıcısına gönderildi: 2 sayfa × 2 kopya', y.bildirim === '"Lazer Yazıcı" yazıcısına gönderildi: 2 sayfa × 2 kopya', y.bildirim);
   const kayitli = await evalJs(`window.pdefe.cagir('ayar:al', 'yazdirma')`);
-  sonuc('4) Kalıcı seçimler yazıldı (yazıcı, harmanla, kâğıt, boyut, renk, çift taraflı)', J(kayitli) === J({ yazici: 'Lazer Yazıcı', harmanla: false, kagit: 'belge', olcek: 'sigdir', renk: 'siyahBeyaz', ciftTarafli: 'uzun' }), kayitli);
+  sonuc('4) Kalıcı seçimler yazıldı (yazıcı, harmanla, kâğıt ve elle seçildiği, boyut, renk, çift taraflı)', J(kayitli) === J({ yazici: 'Lazer Yazıcı', harmanla: false, kagit: 'belge', kagitSecildi: true, olcek: 'sigdir', renk: 'siyahBeyaz', ciftTarafli: 'uzun' }), kayitli);
 
   // ------------------------------------------------------------ 5) hatırlama
   await ac(); d = await durum();
-  sonuc('5) Yeniden açılınca: yazıcı, harmanla, renk, çift taraflı hatırlandı; kopya 1; sayfalar Tümü (0.2.8: "2-3" hatırlanmaz); notlar kapalı',
-    d.yazici === 'Lazer Yazıcı' && !d.harmanla && d.renk === 'siyahBeyaz' && d.cift === 'uzun' && d.kopya === '1' && d.aralik === 'tumu' && d.aralikMetni === '' && !d.notlar && d.ozet === '4 sayfa', d);
+  sonuc('5) Yeniden açılınca: yazıcı, harmanla, elle seçilen kâğıt (Belgeye göre), renk, çift taraflı hatırlandı; kopya 1; sayfalar Tümü (0.2.8: "2-3" hatırlanmaz); notlar kapalı',
+    d.yazici === 'Lazer Yazıcı' && !d.harmanla && d.kagit === 'belge' && d.renk === 'siyahBeyaz' && d.cift === 'uzun' && d.kopya === '1' && d.aralik === 'tumu' && d.aralikMetni === '' && !d.notlar && d.ozet === '4 sayfa', d);
   await evalJs(`(() => { window.__yz.sec('yazici', 'Kat 2 Yazıcısı'); window.__yz.sec('ciftTarafli', 'yazici'); window.__yz.radyo('renk', 'renkli'); window.__yz.radyo('aralik', 'tumu'); return true; })()`);
   y = await yazdir();
   const s2 = y.kayit[0]?.secenek?.secenek || {};
@@ -273,6 +277,66 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tus }) {
   await tus('Escape'); await bekle(200);
   sonuc('5) Esc kapatır, iş yok', !(await evalJs(`!!document.querySelector('.yazdir-ortusu')`)) && !(await evalJs(`window.pdefe.cagir('yazdir:durum')`)).suruyor);
   await evalJs(`window.pdefe.cagir('test:yazicilar', ${J(SAHTE)})`);
+  await evalJs(`window.pdefe.cagir('ayar:koy', 'yazdirma', {})`);
+
+  // ------------------------------------------------------------ 6) kâğıt: kullanıcı seçmedikçe A4 (0.3.1)
+  const A4_SAYFA = '@page { size: 210mm 297mm; margin: 0px; }', A5_SAYFA = '@page { size: 148mm 210mm; margin: 0px; }';
+  const kayitliKagit = async () => { const k = await evalJs(`window.pdefe.cagir('ayar:al', 'yazdirma')`); return { kagit: k?.kagit, kagitSecildi: k?.kagitSecildi }; };
+  /** Aralık "4" (tek A5 sayfa): "Belgeye göre" kâğıt A5 olurdu, A4'le ayrışır */
+  const aralik4 = async () => { await evalJs(`(() => { window.__yz.radyo('aralik', 'aralik'); const a = window.__yz.al('aralikMetni'); a.value = '4'; a.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`); await bekle(300); await goruntu(); };
+  await ac(); d = await durum();
+  sonuc('6) Kayıt yokken kâğıt A4', d.kagit === 'A4', d.kagit);
+  await aralik4(); d = await durum();
+  sonuc('6) Kayıt yokken A5 sayfanın ön izlemesi A4 kâğıtta (büyütülmüş)', d.kagit === 'A4' && yakin(d.kagitOlcu[0] / d.kagitOlcu[1], A4, 0.01) && yakin(d.gorselKutu[0] / d.kagitOlcu[0], 202 / 210, 0.01), d);
+  y = await yazdir();
+  sonuc('6) Dokunmadan yazdırınca A4 basılır (A5 sayfa)', y.kayit.length === 1 && y.kayit[0].secenek.sayfa?.kagit === A4_SAYFA && y.kayit[0].secenek.secenek?.pageSize === 'A4', y.kayit[0]?.secenek);
+  let kk = await kayitliKagit();
+  sonuc('6) Kâğıt "seçilmedi" diye kaydedildi', kk.kagit === 'A4' && kk.kagitSecildi === false, kk);
+  await ac(); d = await durum();
+  sonuc('6) Sonraki açılışta yine A4', d.kagit === 'A4', d.kagit);
+  await kapat();
+  // 0.3.0'ın kaydı: her yazdırmada o anki kâğıt (varsayılanı "Belgeye göre") bayraksız yazılıyordu
+  await evalJs(`window.pdefe.cagir('ayar:koy', 'yazdirma', { yazici: 'Lazer Yazıcı', harmanla: true, kagit: 'belge', olcek: 'sigdir', renk: 'renkli', ciftTarafli: 'yazici' })`);
+  await ac(); d = await durum();
+  sonuc('6) Bayraksız eski "Belgeye göre" kaydında A4', d.kagit === 'A4', d.kagit);
+  y = await yazdir();
+  kk = await kayitliKagit();
+  sonuc('6) Eski kayıttan sonra dokunmadan yazdırınca A4 kaydedildi, seçilmedi', kk.kagit === 'A4' && kk.kagitSecildi === false && y.kayit.length === 1, kk);
+  // Kullanıcı "Belgeye göre"yi seçer: sonraki açılışta o, A5 sayfa A5 kâğıda
+  await ac();
+  await evalJs(`(window.__yz.sec('kagit', 'belge'), true)`);
+  await aralik4();
+  y = await yazdir();
+  kk = await kayitliKagit();
+  sonuc('6) "Belgeye göre" seçilip yazdırıldı: A5 sayfa A5 kâğıda, seçim kaydedildi', y.kayit[0]?.secenek?.sayfa?.kagit === A5_SAYFA && kk.kagit === 'belge' && kk.kagitSecildi === true, { k: y.kayit[0]?.secenek?.sayfa, kk });
+  await ac(); d = await durum();
+  sonuc('6) Sonraki açılışta "Belgeye göre"', d.kagit === 'belge', d.kagit);
+  // Dokunmadan yazdırmak elle seçimi silmez
+  y = await yazdir();
+  kk = await kayitliKagit();
+  sonuc('6) Dokunmadan yazdırınca "Belgeye göre" seçimi kalır', kk.kagit === 'belge' && kk.kagitSecildi === true, kk);
+  // Letter, sonra yeniden A4 (elle): ikisi de hatırlanır
+  await ac();
+  await evalJs(`(window.__yz.sec('kagit', 'Letter'), true)`);
+  y = await yazdir();
+  await ac(); d = await durum();
+  sonuc('6) Letter seçilince sonraki açılışta Letter', d.kagit === 'Letter', d.kagit);
+  await evalJs(`(window.__yz.sec('kagit', 'A4'), true)`);
+  y = await yazdir();
+  kk = await kayitliKagit();
+  await ac(); d = await durum();
+  sonuc('6) A4 elle seçilince A4, seçildi diye kaydedildi', d.kagit === 'A4' && kk.kagit === 'A4' && kk.kagitSecildi === true, { d: d.kagit, kk });
+  await kapat();
+  // Windows yazdırma penceresi yolu seçimleri kaydetmez (0.2.6): kâğıt değiştirilip oradan yazdırılınca kayıt değişmez
+  await evalJs(`window.pdefe.cagir('ayar:koy', 'yazdirma', {})`);
+  await ac();
+  await evalJs(`(window.__yz.sec('kagit', 'A5'), true)`);
+  y = await yazdir('sistem');
+  kk = await kayitliKagit();
+  sonuc('6) Windows penceresiyle yazdırma: seçilen kâğıt (A5) basılır, kayıt değişmez', y.kayit[0]?.secenek?.secenek?.pageSize === 'A5' && kk.kagit === undefined, { s: y.kayit[0]?.secenek?.secenek, kk });
+  await ac(); d = await durum();
+  sonuc('6) Sonra yine A4', d.kagit === 'A4', d.kagit);
+  await kapat();
   await evalJs(`window.pdefe.cagir('ayar:koy', 'yazdirma', {})`);
 
   const hatalar = await evalJs(`(window.__hatalar || []).slice(0, 5)`);
