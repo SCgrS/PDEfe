@@ -24,7 +24,7 @@
 //   DURUM_ANAHTARLARI                     → "Varsayılanlara dön" ile sıfırlanmayan durum alanları.
 import { ortuTiklamasiBagla } from './ortu.js';
 import { mesajKutusu } from './mesajKutusu.js';
-import { MAC, SISTEM } from './platform.js';
+import { MAC, LINUX, SISTEM, YALNIZ_ORTAK_YAZI_TIPLERI } from './platform.js';
 import { kisayolTablolariHtml } from './kisayolListesi.js';
 import { klasorVarMi } from './araclar/ortak.js';
 
@@ -34,7 +34,7 @@ const VURGU_RENKLERI = [
   { ad: 'Sarı', hex: '#ffd100' }, { ad: 'Kırmızı', hex: '#ff6e6e' }, { ad: 'Turuncu', hex: '#ffb74d' },
   { ad: 'Yeşil', hex: '#7ee787' }, { ad: 'Mavi', hex: '#7cc4ff' }, { ad: 'Pembe', hex: '#ff9ad5' },
 ];
-const YAZI_TIPLERI = MAC ? ['Arial', 'Times New Roman'] : ['Segoe UI', 'Arial', 'Times New Roman', 'Calibri'];   // notlar.js ile aynı
+const YAZI_TIPLERI = YALNIZ_ORTAK_YAZI_TIPLERI ? ['Arial', 'Times New Roman'] : ['Segoe UI', 'Arial', 'Times New Roman', 'Calibri'];   // notlar.js ile aynı
 
 // Açılış ve düzen simgesi başlangıç ekranındaki PDF aç simgesiyle, Kaydetme'ninki araç çubuğundaki düğmeninkiyle aynı
 const BOLUMLER = [
@@ -194,8 +194,9 @@ function bolumGorunum(k) {
   k.append(kart({
     baslik: 'Yazı çizimi', aciklama: MAC
       ? 'Dengeli: yazılar keskin, kalın yazılar fazla koyulaşmadan çizilir; döndürülmüş sayfada harfler bozulmaz. macOS çizimi: bütün yazılar doğrudan macOS\'un çizimiyle; kalın yazılar daha koyu görünür. Değişiklik belgeler yeniden açılınca uygulanır.'
+      : LINUX ? 'Dengeli: Yazılar keskin, kalın yazılar fazla koyulaşmadan çizilir, döndürülmüş sayfada harfler bozulmaz. Linux çizimi: Bütün yazılar doğrudan sistemin çizimiyle, kalın yazılar daha koyu görünür. Değişiklik belgeler yeniden açılınca uygulanır.'
       : 'Dengeli: yazılar keskin, kalın yazılar fazla koyulaşmadan çizilir; döndürülmüş sayfada harfler bozulmaz. Windows ClearType: bütün yazılar doğrudan Windows\'un çizimiyle; kalın yazılar daha koyu görünür. Değişiklik belgeler yeniden açılınca uygulanır.',
-    kontrol: secimKutusu(a.yaziCizimi ?? 'anaHat', [['anaHat', 'Dengeli (önerilen)'], ['sistem', MAC ? 'macOS çizimi' : 'Windows ClearType']], (v) => degistir('yaziCizimi', v)),
+    kontrol: secimKutusu(a.yaziCizimi ?? 'anaHat', [['anaHat', 'Dengeli (önerilen)'], ['sistem', MAC ? 'macOS çizimi' : LINUX ? 'Linux çizimi' : 'Windows ClearType']], (v) => degistir('yaziCizimi', v)),
   }));
 }
 
@@ -283,6 +284,8 @@ function sayfaDuzeniKartlari(k) {
 const VARSAYILAN_ACIKLAMA = MAC
   // macOS (0.2.0): varsayılan uygulama Finder'dan seçilir; uygulama bunu okuyamaz, düğme yok (anaSurec.js kabuk:varsayilanMi)
   ? 'PDF dosyalarına çift tıklayınca PDEfe\'de açılsın: Finder\'da bir PDF\'e sağ tıklayıp Bilgi Al\'ı seçin, "Birlikte aç" listesinden PDEfe\'yi seçin ve "Tümünü Değiştir"e basın.'
+  // Linux (0.3.1): düğme PDEfe'yi uygulama menüsüne ekler ve PDF'lerin varsayılan programı yapar (main/linux.js; yalnız AppImage'da)
+  : LINUX ? 'PDF dosyalarına çift tıklayınca PDEfe\'de açılsın. Düğme PDEfe\'yi uygulama menüsüne ekler ve PDF\'lerin varsayılan programı yapar. AppImage dosyasını sonradan başka bir klasöre taşırsanız PDEfe\'yi bir kez açmanız yeter.'
   : 'PDF dosyalarına çift tıklayınca PDEfe\'de açılsın. Windows "Varsayılan Uygulamalar" sayfası açılır; .pdf satırında PDEfe\'yi seçin. Kurulumsuz (geliştirme) çalıştırmada PDEfe listede görünmeyebilir.';
 const TIK_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="m6.3 10.2 2.5 2.5 5-5.2"/></svg>';
 
@@ -294,7 +297,12 @@ function acilisKartlari(k) {
   // (pencere odağı) yeniden bakılır: orada yapılan seçim bölüm açıkken de görünsün
   const varsayilanDugme = el('button', { class: 'ikincil', type: 'button' }, 'Varsayılan PDF görüntüleyici yap');
   varsayilanDugme.hidden = true;
-  varsayilanDugme.addEventListener('click', () => pdefe.cagir('kabuk:varsayilanUygulamalar').catch((e) => console.error(e)));
+  // Linux'ta (0.3.1) iş PDEfe'de biter: sonuç hemen yazılır (Windows'ta Ayarlar uygulamasından dönünce, pencere odağında)
+  varsayilanDugme.addEventListener('click', () => pdefe.cagir('kabuk:varsayilanUygulamalar').then((r) => {
+    if (!LINUX) return;
+    if (r?.tamam) varsayilanYenile();
+    else aciklamaEl.textContent = 'Varsayılan yapılamadı. ' + (r?.hata || 'Beklenmeyen bir hata oluştu.');
+  }).catch((e) => console.error(e)));
   const zaten = el('span', { class: 'ayar-zaten-varsayilan', role: 'status' });
   zaten.innerHTML = TIK_SVG;
   zaten.append(el('span', {}, 'Zaten varsayılan'));
@@ -496,6 +504,7 @@ function bolumGuncelleme(k) {
     // macOS (0.2.1): yeni sürüm tek tıkla kurulmaz; şeritteki İndir paketi tarayıcıda indirir, kurulum kullanıcıda (renderer/guncelleme.js)
     aciklama: 'İki günde bir, açılışta ya da PDEfe açık kalıyorsa gün içinde arka planda yeni sürüme bakılır; internet yoksa sonra yeniden denenir. ' + (MAC
       ? 'Yeni sürüm varsa pencerenin üstünde bir şerit görünür; İndir\'e basınca yeni sürüm tarayıcıda iner, PDEfe\'den çıkıp inen dosyadaki PDEfe\'yi Uygulamalar klasörüne sürükleyerek kurarsınız.'
+      : LINUX ? 'Yeni sürüm varsa pencerenin üstünde bir şerit görünür. Güncelle\'ye basınca yeni sürüm indirilir, AppImage dosyası yenisiyle değişir ve PDEfe yeniden açılır.'
       : 'Yeni sürüm varsa pencerenin üstünde bir şerit görünür; Güncelle\'ye tek tıkla indirilir, kurulur ve PDEfe yeniden açılır.'),
     kontrol: anahtar(a.otoGuncelle !== false, (v) => degistir('otoGuncelle', v)),
     alt: sonDenetim,
@@ -527,7 +536,8 @@ function bolumGuncelleme(k) {
         sonuc.replaceChildren(el('span', {}, metin + ' '));
         if (guncelleme && asama !== 'indiriliyor') {
           // macOS'ta şeritteki gibi 'İndir' (paket tarayıcıda iner; 'hazir' aşaması Mac'te oluşmaz)
-          const g = el('button', { class: 'ikincil', type: 'button' }, asama === 'hazir' ? 'Kur ve yeniden başlat' : MAC ? 'İndir' : 'Güncelle');
+          // AppImage dışındaki Linux sürümünde de 'İndir' (0.3.1: ana süreç tarayicida bildirir, renderer/guncelleme.js)
+          const g = el('button', { class: 'ikincil', type: 'button' }, asama === 'hazir' ? 'Kur ve yeniden başlat' : MAC || guncelleme?.durum?.().tarayicida ? 'İndir' : 'Güncelle');
           g.addEventListener('click', () => { ayarlarPenceresiKapat(); guncelleme.guncelle(); });
           sonuc.append(g);
         }

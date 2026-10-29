@@ -2,7 +2,7 @@
 // araçlar (not, vurgu, metinle ilgili not, yazı), açılır balon (yazar, tarih, içerik; var olan yanıtlar salt okunur),
 // komut deseniyle geri al/yinele ve kaydetme farkı (diff).
 import { CSS_BIRIM, yolAnahtari } from './goruntuleyici.js';
-import { MAC, birincil } from './platform.js';
+import { MAC, birincil, YALNIZ_ORTAK_YAZI_TIPLERI } from './platform.js';
 import { Komut } from './komutlar.js';
 import { secimDikdortgenleri, secimMetinKutulari, satirlaraBirlestir, secimBaslangicSayfasi } from './metin.js';
 import { turAdi, balonTurAdi, tarihBicimle } from './panel.js';
@@ -16,12 +16,12 @@ export const VURGU_RENKLERI = [
   { ad: 'Sarı', hex: '#ffd100' }, { ad: 'Kırmızı', hex: '#ff6e6e' }, { ad: 'Turuncu', hex: '#ffb74d' },
   { ad: 'Yeşil', hex: '#7ee787' }, { ad: 'Mavi', hex: '#7cc4ff' }, { ad: 'Pembe', hex: '#ff9ad5' },
 ];
-// macOS'ta (0.2.0) Segoe UI ve Calibri yok: çekirdek o ailelerle yazılmış notu Arial'le gömer (core/islemler/notlar.py _font_dosyasi);
+// macOS'ta (0.2.0) ve Linux'ta (0.3.1) Segoe UI ve Calibri yok: çekirdek o ailelerle yazılmış notu Arial'le gömer (core/islemler/notlar.py _font_dosyasi);
 // ekranda da Arial'le gösterilir (yaziTipiCss)
-export const YAZI_TIPLERI = MAC ? ['Arial', 'Times New Roman'] : ['Segoe UI', 'Arial', 'Times New Roman', 'Calibri'];
-const VARSAYILAN_YAZI_TIPI = MAC ? 'Arial' : 'Segoe UI';
+export const YAZI_TIPLERI = YALNIZ_ORTAK_YAZI_TIPLERI ? ['Arial', 'Times New Roman'] : ['Segoe UI', 'Arial', 'Times New Roman', 'Calibri'];
+const VARSAYILAN_YAZI_TIPI = YALNIZ_ORTAK_YAZI_TIPLERI ? 'Arial' : 'Segoe UI';
 /** Yazı notunun CSS yazı tipi: macOS'ta bilgisayarda olmayan aile (Windows'ta yazılmış not) kaydedildiğinde olduğu gibi Arial'le görünür. */
-const yaziTipiCss = (tip) => (MAC && !YAZI_TIPLERI.includes(tip) ? `'${tip}', 'Arial'` : `'${tip}'`);
+const yaziTipiCss = (tip) => (YALNIZ_ORTAK_YAZI_TIPLERI && !YAZI_TIPLERI.includes(tip) ? `'${tip}', 'Arial'` : `'${tip}'`);
 // Yazı kutusu dolgu paleti (biçim çubuğundaki Dolgu rengi düğmesi): Dolgusuz, bu renkler ve Diğer renk (Windows renk seçicisi)
 const DOLGU_RENKLERI = [
   { ad: 'Beyaz', hex: '#ffffff' }, { ad: 'Açık sarı', hex: '#fff7c2' }, { ad: 'Sarı', hex: '#ffd100' }, { ad: 'Açık turuncu', hex: '#ffe0b2' },

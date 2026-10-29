@@ -27,7 +27,7 @@ import {
   degisiklikleriSor, yaklasikIstekId, yaklasikIlerlemeDinle, yaklasikIptal,
 } from './ortak.js';
 import { kaydetmedenCikisSorusu } from '../mesajKutusu.js';
-import { MAC, tus } from '../platform.js';
+import { MAC, LINUX, tus } from '../platform.js';
 
 /** Kalite seviyeleri (çekirdekteki GORSEL_KALITE ile aynı kimlikler). Açıklamalar teknik ayrıntı (çözünürlük, sıkıştırma türü) içermez. */
 export const KALITELER = [
@@ -679,7 +679,7 @@ export class BirlestirmePenceresi {
     this.liste.innerHTML = '';
     this.liste.classList.toggle('bos', !this.ogeler.length);
     if (!this.ogeler.length) {
-      this.liste.append(oge(`<div class="bos-mesaj"><b>Dosyaları buraya sürükleyin</b><span>ya da "Dosya ekle" düğmesini kullanın. ${MAC ? 'Finder\'dan' : 'Gezgin\'den'} kopyalanan dosyaları ve ekran görüntüsünü ${tus('Ctrl+V')} veya Yapıştır ile yapıştırabilirsiniz.</span><span class="soluk">PDF, JPG, PNG, BMP, GIF, TIFF, WEBP, UDF, Word (DOC, DOCX, RTF, ODT)</span></div>`));
+      this.liste.append(oge(`<div class="bos-mesaj"><b>Dosyaları buraya sürükleyin</b><span>ya da "Dosya ekle" düğmesini kullanın. ${MAC ? 'Finder\'dan' : LINUX ? 'Dosya yöneticisinden' : 'Gezgin\'den'} kopyalanan dosyaları ve ekran görüntüsünü ${tus('Ctrl+V')} veya Yapıştır ile yapıştırabilirsiniz.</span><span class="soluk">PDF, JPG, PNG, BMP, GIF, TIFF, WEBP, UDF, Word (DOC, DOCX, RTF, ODT)</span></div>`));
     }
     this.ogeler.forEach((o, i) => { const el = this._ogeOlustur(o); this.liste.append(el); this._ogeCiz(o, i); });
     this._uzerineDurumu();
