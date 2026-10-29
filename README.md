@@ -307,7 +307,7 @@ PyMuPDF için Artifex'e, uygulamanın çatısı Electron'un geliştiricilerine v
 
 UYAP Doküman Editörü kurulu olmayan bilgisayarlarda UDF belgelerini çizen motor,
 [legaluga-uyap-ui](https://github.com/hasanimer/legaluga-uyap-ui) projesinin UDF okuyucusundan türetildi (MIT lisansı, lisans metni ve telif
-bildirimi `src/udf-cizim/LICENSE.txt` dosyasında). Bu emek için Hasan İmer Akın'a buradan da teşekkür ederim.
+bildirimi `src/udf-cizim/LICENSE.txt` dosyasında). Bu emek için Hasan İmer Akın'a ([@hasanimer](https://github.com/hasanimer)) buradan da teşekkür ederim.
 
 ---
 
