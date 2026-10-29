@@ -1,5 +1,6 @@
-# PDEfe — electron-builder yapılandırması (Windows: NSIS kurulum sihirbazı, GitHub Releases yayımı; macOS: evrensel DMG, 0.2.0)
-# package.json'da "build" alanı YOK; electron-builder bu dosyayı okur (npm run dist / electron-builder --win / --mac --universal).
+# PDEfe — electron-builder yapılandırması (Windows: NSIS kurulum sihirbazı, GitHub Releases yayımı; macOS: evrensel DMG, 0.2.0; Linux:
+# AppImage, 0.3.1)
+# package.json'da "build" alanı YOK; electron-builder bu dosyayı okur (npm run dist / electron-builder --win / --mac --universal / --linux).
 
 appId: com.cgrshn.pdefe
 productName: PDEfe
@@ -169,3 +170,51 @@ dmg:
   artifactName: "PDEfe-Mac.${ext}"   # README'deki tek bağlantı: releases/latest/download/PDEfe-Mac.dmg
   format: ULFO                       # lzfse; macOS 10.11+
   writeUpdateInfo: false             # Mac güncellemesi tarayıcıdan indirilir (main/macGuncelleme.js), blockmap gerekmez
+
+# ---------------------------------------------------------------- Linux (0.3.1)
+# Tek dosya AppImage (x64): kurulum gerekmez, çalıştırma izni verilip açılır. Çekirdek (PyInstaller) Linux'ta derlenir; CI'da ubuntu-22.04
+# (glibc 2.35): Ubuntu 22.04, Debian 12, Fedora 36, Mint 21 ve sonrası açar. arm64 yok: kullanıcısı az, ikinci indirme bağlantısı ve ikinci
+# çekirdek derlemesi ister (eklenecekse CI'da ubuntu-22.04-arm ile, ayrı dosya PDEfe-Linux-arm64.AppImage). Güncelleme: electron-updater
+# AppImage'ı yenisiyle değiştirir (latest-linux.yml, blockmap AppImage'ın içinde); AppImage dışında (APPIMAGE yok) şerit "İndir"e düşer
+# (main/anaSurec.js guncellemeyiKur). .desktop kaydı AppImage'ın içindedir; menüye ve "Birlikte aç"a eklemeyi AppImage aracı (AppImageLauncher,
+# Gear Lever) ya da Ayarlar'daki "Varsayılan PDF görüntüleyici yap" (main/linux.js masaustuKaydiYaz) yapar.
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  icon: build/icon.png               # 512×512 → usr/share/icons/hicolor/512x512/apps/pdefe.png
+  executableName: pdefe              # .desktop adı (pdefe.desktop), package.json desktopName ve pencere sınıfı (StartupWMClass) aynı
+  syncDesktopName: true
+  category: Office;Viewer;
+  description: PDF görüntüleyici ve düzenleyici
+  mimeTypes:
+    - application/pdf                # .desktop MimeType; fileAssociations.mimeType verilmez (yeni bir MIME türü tanımlanırdı)
+  desktop:
+    entry:
+      GenericName: PDF görüntüleyici
+      Keywords: pdf;belge;udf;uyap;
+  artifactName: "PDEfe-Linux.${ext}"   # README'deki tek bağlantı: releases/latest/download/PDEfe-Linux.AppImage; sürümsüz ad güncellemede korunur
+  extraResources:
+    - from: core/dist/pdefe-core       # cekirdek.js paketliyken resources/pdefe-core/pdefe-core (bkz. win.extraResources)
+      to: pdefe-core
+    - from: core/ude_kopru/ude-kopru.jar
+      to: ude-kopru/ude-kopru.jar
+    - from: LICENSE
+      to: LICENSE.txt
+    - from: THIRD_PARTY.md
+      to: THIRD_PARTY.md
+  publish:                           # resources/app-update.yml (electron-updater) ve latest-linux.yml bundan; yükleme CI'da gh ile
+    provider: github
+    owner: SCgrS
+    repo: PDEfe
+    releaseType: draft
+
+appImage:
+  artifactName: "PDEfe-Linux.${ext}"
+
+# AppImage'ın çalışma ortamı: durağan (statik) çalışma ortamı. Eski ortam (0.0.0, FUSE 2) bilgisayarda libfuse2 ister; Ubuntu 22.04 ve sonrası onu
+# kurulu getirmiyor, AppImage çift tıklanınca hiç açılmıyordu. Durağan ortam kendi FUSE'unu taşır (fusermount3 yeterli). electron-builder'da
+# "beta" diye anılıyor: sorun çıkarsa "0.0.0"a dönülür, README'deki FUSE notu da libfuse2'yi söyler. Yalnız AppImage'ı etkiler
+toolsets:
+  appimage: "1.0.3"

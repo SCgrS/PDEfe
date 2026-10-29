@@ -3,12 +3,14 @@
 // (Finder, Mail, WhatsApp'ta ⌘V).
 import { spawn, execFile } from 'node:child_process';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 // Tam yol: çıplak ad sürecin çalışma klasöründe (çift tıklanan PDF'in klasörü) de aranabilirdi (0.1.12)
 const POWERSHELL = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
 
 export function panoyaDosyaKopyala(yol) {
   if (process.platform === 'darwin') return macPanoyaKopyala(yol);
+  if (process.platform === 'linux') return linuxPanoyaKopyala(yol);
   return new Promise((coz) => {
     const betik = `
 Add-Type -AssemblyName System.Windows.Forms
@@ -58,6 +60,40 @@ export async function panoyaMetinYaz(pano, metin, yalnizcaPanodaysa = null) {
     console.error('[pano] metin yazılamadı:', e?.message || e);
     return false;
   }
+}
+
+// Linux (0.3.1): dosya yöneticilerinin Kopyala'sı gibi panoya iki tür konur: text/uri-list (KDE Dolphin, Thunar, tarayıcılar, e-posta
+// programları) ve x-special/gnome-copied-files ("copy" satırı ve adres: GNOME Dosyalar, Nemo, Caja). Electron'un panosu ham türleri
+// "electron application/osclipboard;format=…" adıyla tek yazımda (bütün türler birlikte) koyar; düz metin olarak dosyanın yolu. Pano PDEfe'nin
+// penceresi açıkken X11'de / Wayland'da PDEfe'nindir: PDEfe kapanınca pano yöneticisi yoksa boşalır. Electron'un yazımı tutmazsa xclip ya da
+// wl-copy (tek tür: GNOME'unki)
+const OS_TURU = (t) => `electron application/osclipboard;format="${t}"`;
+export const LINUX_PANO_TURLERI = { uriList: OS_TURU('text/uri-list'), gnome: OS_TURU('x-special/gnome-copied-files') };
+
+/** Panoya yazılacak öğe: { tür: metin } (birim denemesi de kullanır). */
+export function linuxPanoOgesi(yol) {
+  const adres = pathToFileURL(yol).href;
+  return { 'text/plain': yol, [LINUX_PANO_TURLERI.uriList]: adres + '\r\n', [LINUX_PANO_TURLERI.gnome]: 'copy\n' + adres };
+}
+
+async function linuxPanoyaKopyala(yol) {
+  const { clipboard, ClipboardItem } = await import('electron');
+  const oge = linuxPanoOgesi(yol);
+  let hata = '';
+  try {
+    await clipboard.write([new ClipboardItem(oge)]);
+    if (await clipboard.has(LINUX_PANO_TURLERI.gnome) || await clipboard.has(LINUX_PANO_TURLERI.uriList)) return { tamam: true, hata: '' };
+    hata = 'Pano dosya türlerini almadı.';
+  } catch (e) { hata = e?.message || String(e); }
+  // Yedek: xclip (X11, XWayland) ya da wl-copy (Wayland); ikisi de arka planda kalıp panoyu PDEfe kapansa da tutar
+  const { calistir } = await import('./linux.js');
+  const gnome = oge[LINUX_PANO_TURLERI.gnome];
+  for (const [komut, args] of [process.env.WAYLAND_DISPLAY ? ['wl-copy', ['--type', 'x-special/gnome-copied-files']] : null,
+    ['xclip', ['-selection', 'clipboard', '-t', 'x-special/gnome-copied-files', '-i']]].filter(Boolean)) {
+    const r = await calistir(komut, args, { girdi: gnome, zaman: 5000 });
+    if (r.tamam) return { tamam: true, hata: '' };
+  }
+  return { tamam: false, hata: 'Dosya panoya konamadı. ' + hata };
 }
 
 function macPanoyaKopyala(yol) {

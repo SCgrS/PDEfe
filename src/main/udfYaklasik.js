@@ -49,7 +49,7 @@ const PDF_MS = 120_000;
 const ONBELLEK = 32;                             // küçük resim sonuçları
 const ESKI_GECICI_MS = 24 * 3600 * 1000;
 const CIZIM_PAYI = { tek: 95, zincir: 40 };      // yüzde: çizim (gerisi zincirde çekirdek, tekte yerine koyma)
-const MAC = process.platform === 'darwin';
+const POSIX = process.platform !== 'win32';     // macOS ve Linux (0.3.1'e dek yalnız macOS): rename üzerine yazılan dosyanın değil klasörün iznine bakar
 
 const iptalHatasi = () => Object.assign(new Error('İptal edildi.'), { iptal: true, kod: 'iptal' });
 const kodlu = (kod, ileti) => Object.assign(new Error(ileti), { kod });
@@ -253,7 +253,7 @@ async function hedefDenetle(hedef) {
 async function yerineKoy(gecici, hedef, cekirdekBirak) {
   const ad = path.basename(hedef);
   await cekirdekBirak(hedef);
-  if (MAC && await saltOkunurMu(hedef)) throw kodlu('salt_okunur', `Dosya yazılamadı; salt okunur: ${ad}`);   // rename klasörün iznine bakar
+  if (POSIX && await saltOkunurMu(hedef)) throw kodlu('salt_okunur', `Dosya yazılamadı; salt okunur: ${ad}`);   // rename klasörün iznine bakar
   const yan = hedefYaninda(hedef);
   try { await fs.promises.copyFile(gecici, yan, fs.constants.COPYFILE_EXCL); } catch (e) {
     await fs.promises.rm(yan, { force: true }).catch(() => {});

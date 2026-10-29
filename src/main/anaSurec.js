@@ -20,7 +20,8 @@ import { guncellemeKur } from './guncelleme.js';
 import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla, menuCubugunuUygula, pencereSayisi } from './pencereler.js';
 import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, DENETLENEN_YONTEMLER, paketKlasoruMu, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasorleri, standartYaziTipleri, anlikDosyasiMi, ayarYazimiDenetle, aracCiktiKaydi, acilacakYollar } from './guvenlik.js';
 import { createRequire } from 'node:module';
-import { MacGuncelleyici, tarayicidaIndir } from './macGuncelleme.js';
+import { MacGuncelleyici, tarayicidaIndir, MAC_PAKETI, LINUX_PAKETI } from './macGuncelleme.js';
+import { LINUX, appImageYolu, yenidenBaslatma, masaustuKaydiYaz, masaustuKaydiniTazele, pdfVarsayilaniOku as linuxPdfVarsayilaniOku } from './linux.js';
 
 /** electron-updater'ın indirmeyi kesmekte kullandığı CancellationToken sınıfı (0.2.5: donmuş indirmenin bekçisi, guncelleme.js). electron-updater
  *  onu dışa vermiyor; aynı sınıf olsun diye electron-updater'ın kendi bağımlılığından (builder-util-runtime) alınır. Bulunamazsa null: indirme
@@ -36,7 +37,7 @@ zamanYaz('anaModul');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const KOK = app.getAppPath();                   // package.json'un bulunduğu kök
 const PAKETLI = app.isPackaged;
-const MAC = process.platform === 'darwin';
+const MAC = process.platform === 'darwin';   // Linux (0.3.1): LINUX, linux.js; öteki dallarda Windows gibi
 
 // ---------- Tek örnek ----------
 // Kilidi giriş (main.js) aldı; ikinci örnek bu modülü hiç yüklemeden çıkar. Kilit yoksa (beklenmez) eskisi gibi kapanılır
@@ -147,8 +148,10 @@ const ACILAN_UZANTILAR = /\.(pdf|udf|tiff?|docx?|rtf|odt|jpe?g|png|bmp|gif|webp|
 
 function argvdenDosyalar(argv, cwd) {
   const sonuc = [];
-  for (const a of argv.slice(1)) {
+  for (let a of argv.slice(1)) {
     if (!a || a.startsWith('-') || a === '.') continue;
+    // Linux (0.3.1): AppImage'ın menü kaydı dosyaları adres olarak verir (Exec … %U: file:///ev/belge.pdf; boşluk ve Türkçe harf %-kodlu)
+    if (LINUX && /^file:\/\//i.test(a)) { try { a = fileURLToPath(a); } catch { continue; } }
     if (!ACILAN_UZANTILAR.test(a)) continue;
     const tam = path.isAbsolute(a) ? a : path.resolve(cwd || process.cwd(), a);
     if (fs.existsSync(tam)) sonuc.push(tam);
@@ -200,7 +203,7 @@ function kapanirkenGeleniAc(dosyalar) {
   if (kurulumIcinCikiliyor) return;
   // Komut satırının anahtarları (veri klasörü, geliştirme sürümünde uygulama klasörü…) korunur; ilk açılışın dosyaları yeniden açılmaz
   const anahtarlar = process.argv.slice(1).filter((a) => a.startsWith('-') || !ACILAN_UZANTILAR.test(a));
-  app.relaunch({ args: [...anahtarlar, ...dosyalar] });
+  app.relaunch(yenidenBaslatma([...anahtarlar, ...dosyalar]));   // Linux'ta AppImage dosyası (0.3.1, linux.js)
   zamanYaz('kapanirkenGeldi', dosyalar.length);
 }
 
@@ -280,7 +283,9 @@ async function panoTuru(ogeler, tur) {
 
 /** Gezgin'den kopyalanan dosyaların yolları (text/uri-list içindeki file:/// URI'leri; Türkçe ve boşluklu yollar dahil). */
 async function panoDosyalari(ogeler) {
-  const b = await panoTuru(ogeler, 'text/uri-list');
+  // Linux (0.3.1): GNOME'un dosya yöneticileri listeyi x-special/gnome-copied-files türünde de verir ("copy" satırı, sonra adresler)
+  const b = (await panoTuru(ogeler, 'text/uri-list'))
+    || (LINUX ? await panoTuru(ogeler, ogeler.flatMap((o) => o.types).find((t) => /gnome-copied-files|uri-list/i.test(t)) || '') : null);
   if (!b) return [];
   const yollar = [];
   for (const satir of (await b.text()).split(/\r?\n/)) {
@@ -439,12 +444,22 @@ function ipcKur(ipcMain) {
   });
   ipcMain.handle('uygulama:veriKlasoru', () => app.getPath('userData'));
   ipcMain.handle('uygulama:geciciKlasor', () => { const k = path.join(app.getPath('temp'), 'PDEfe'); fs.mkdirSync(k, { recursive: true }); return k; });
-  // macOS'ta varsayılan uygulama Finder'ın Bilgi Al penceresinden seçilir (Ayarlar yalnızca yolu anlatır): bu iki kanal orada iş yapmaz
-  ipcMain.handle('kabuk:varsayilanUygulamalar', () => (MAC ? false : shell.openExternal('ms-settings:defaultapps?registeredAppUser=PDEfe')));
+  // macOS'ta varsayılan uygulama Finder'ın Bilgi Al penceresinden seçilir (Ayarlar yalnızca yolu anlatır): bu iki kanal orada iş yapmaz.
+  // Linux'ta (0.3.1) PDEfe kendisi yapar: menü kaydını (~/.local/share/applications/pdefe.desktop, simgesiyle) yazar, xdg-mime ile PDF'lerin
+  // varsayılan programı olur (linux.js). Döner: { tamam, hata? } (AppImage dışında tamam false). Test örneğinde kayıt yazılmaz
+  ipcMain.handle('kabuk:varsayilanUygulamalar', async () => {
+    if (MAC) return false;
+    if (LINUX) {
+      if (testDiyalog) return testDiyalog('kabuk:varsayilanUygulamalar', {}, { tamam: true });
+      const simge = await fs.promises.readFile(path.join(KOK, 'build', 'icon.png')).catch(() => null);
+      return masaustuKaydiYaz({ simge });
+    }
+    return shell.openExternal('ms-settings:defaultapps?registeredAppUser=PDEfe');
+  });
   // .pdf'nin varsayılan uygulaması PDEfe mi (Ayarlar › Açılış ve düzen): { varsayilan: true | false | null (okunamadı), progId }.
   // Test örneğinde gerçek kayıt okunmaz; yanıt test:diyalogYanitlari kuyruğundan (varsayılan: okunamadı)
   ipcMain.handle('kabuk:varsayilanMi', async () => (testDiyalog ? testDiyalog('kabuk:varsayilanMi', {}, { varsayilan: null, progId: null })
-    : MAC ? { varsayilan: null, progId: null } : pdfVarsayilaniOku()));
+    : MAC ? { varsayilan: null, progId: null } : LINUX ? linuxPdfVarsayilaniOku() : pdfVarsayilaniOku()));
   // Panodaki dosyalar (Gezgin'den kopyalanan) ve görsel. Electron'un pano API'siyle ana süreçte okunur: önceki PowerShell
   // yolu (pano:dosyalar / pano:gorsel, kaldırıldı) her çağrıda süreç başlattığı için saniyeler sürüyor, Türkçe karakterli yolları da bozuyordu.
   // Electron 44'te clipboard yalnızca has/read/readText/write/writeText/clear sunar (readImage/readBuffer yok):
@@ -465,12 +480,13 @@ function ipcKur(ipcMain) {
     if (yollar.length) return { tur: 'dosyalar', dosyalar: yollar, metinden: true };
     return { tur: metin.trim() ? 'metin' : 'bos' };
   });
-  ipcMain.handle('uygulama:klasorler', () => {
+  ipcMain.handle('uygulama:klasorler', async () => {
     const al = (ad) => { try { return app.getPath(ad); } catch { return ''; } };
     // yaziTipleri: sistemin yazı tipi klasörü; yaziTipiDosyalari: gömülü olmayan standart fontların (Times, Helvetica, Courier) yerine
-    // okunan sistem fontlarının yolları (Windows'ta times.ttf…, macOS'ta Times New Roman.ttf…; renderer/yaziTipleri.js)
+    // okunan sistem fontlarının yolları (Windows'ta times.ttf…, macOS'ta Times New Roman.ttf…, Linux'ta fontconfig'in seçtikleri, 0.3.1:
+    // Liberation Serif…; renderer/yaziTipleri.js)
     return { masaustu: al('desktop'), belgeler: al('documents'), indirilenler: al('downloads'), ev: al('home'), yaziTipleri: yaziTipiKlasorleri()[0],
-      yaziTipiDosyalari: standartYaziTipleri() };
+      yaziTipiDosyalari: await standartYaziTipleri() };
   });
 
   // Yalnızca PDF belgeleri (başında %PDF- imzası) ve sistemin yazı tipi klasörlerindeki yazı tipleri okunur (0.1.23, guvenlik.js)
@@ -635,6 +651,8 @@ app.whenReady().then(() => {
     ipcMain: ipc, KOK, onYukleme: path.join(__dirname, 'preload.cjs'), TEST, ayarAl, ayarKoy, temaKoyuMu,
     // Haftalık güncelleme denetimi: sırası geldiyse ilk pencere göründükten birkaç saniye sonra; uygulama açık kaldıkça saatte bir bakılır
     pencereGosterildi: () => {
+      // Linux AppImage (0.3.1): PDEfe'nin yazdığı menü kaydı taşınmış AppImage'ın eski yolunu gösteriyorsa şimdiki yola çevrilir (linux.js)
+      if (LINUX && PAKETLI && kilit && !ilkPencereGorundu) setTimeout(() => { masaustuKaydiniTazele().catch(() => {}); }, 5000).unref?.();
       ilkPencereGorundu = true;
       guncelleme?.pencereGosterildi();
       arkaPlanYuklemeleriniZamanla(true);
@@ -712,6 +730,15 @@ function guncellemeKanallariniKur() {
   }
 }
 
+/** Linux AppImage (0.3.1): güncelleme kurulunca PDEfe'yi yeni AppImage'la yeniden başlatan işlev (guncelleme.js kur). electron-updater dosyayı
+ *  yerinde değiştirir; adında sürüm numarası varsa yeni dosya yeni adla yazılır ('appimage-filename-updated'). app.relaunch'ın süreci eski PDEfe
+ *  çıktıktan sonra başlar (tek örnek kilidi boşalmış olur). */
+function appImageYenidenBaslatici(guncelleyici) {
+  let yol = appImageYolu();
+  guncelleyici.on?.('appimage-filename-updated', (y) => { if (typeof y === 'string' && path.isAbsolute(y)) yol = y; });
+  return () => { if (yol) app.relaunch({ execPath: yol, args: [] }); };
+}
+
 /** Güncelleme sistemini kurar: Windows'ta electron-updater burada yüklenir. Pencere bu arada gösterildiyse açılış denetimi hemen zamanlanır. */
 async function guncellemeyiKur() {
   if (guncellemeKuruluyor) return;
@@ -720,12 +747,19 @@ async function guncellemeyiKur() {
     const sahte = sahteGuncelleyici, etkin = PAKETLI || !!sahte;
     // macOS (0.2.0): imzasız uygulama kendini güncelleyemez; yeni sürüm GitHub'ın sürüm akışından denetlenir, paket tarayıcıda indirilir
     // (macGuncelleme.js). electron-updater yalnızca Windows'ta ve paketli sürümde yüklenir (autoUpdater erişimi platformun güncelleyicisini
-    // kurar; geliştirme sürümünde güncelleme kapalı)
-    const autoUpdater = sahte || (MAC ? new MacGuncelleyici(app.getVersion()) : etkin ? (await import('electron-updater')).default.autoUpdater : null);
+    // kurar; geliştirme sürümünde güncelleme kapalı). Linux (0.3.1): AppImage'da electron-updater AppImage dosyasını yenisiyle değiştirir
+    // (latest-linux.yml); AppImage dışında (APPIMAGE yok: açılmış paket, elle kopyalanmış klasör) electron-updater hiçbir şey yapmaz, macOS'taki
+    // gibi sürüm akışına bakılır ve "İndir" yeni AppImage'ı tarayıcıda indirir
+    const linuxTarayicidan = LINUX && !appImageYolu();
+    const tarayicidan = MAC || linuxTarayicidan;
+    const autoUpdater = sahte || (tarayicidan ? new MacGuncelleyici(app.getVersion()) : etkin ? (await import('electron-updater')).default.autoUpdater : null);
+    // AppImage: kurulum dosyayı yerinde değiştirir; yeni AppImage eski PDEfe kapandıktan sonra başlatılır (guncelleme.js yenidenBaslat): hemen
+    // başlatılsaydı tek örnek kilidi kapanmakta olan eski süreçte olduğundan dosyayı ona iletip çıkacaktı
+    const yenidenBaslat = LINUX && !sahte && !tarayicidan && autoUpdater ? appImageYenidenBaslatici(autoUpdater) : null;
     guncelleme = guncellemeKur({
       app, ipcMain: { handle: (kanal, f) => guncellemeIsleyicileri.set(kanal, f) }, autoUpdater, etkin,
-      tarayiciIndir: MAC && !sahte ? tarayicidaIndir : null, ilkOrnek: kilit, pencereyeGonder: herkese, ayarAl, ayarKoy,
-      IptalJetonu: sahte ? sahte.IptalJetonu : MAC ? null : iptalJetonuSinifi(),
+      tarayiciIndir: tarayicidan && !sahte ? (surum) => tarayicidaIndir(surum, MAC ? MAC_PAKETI : LINUX_PAKETI) : null, ilkOrnek: kilit, pencereyeGonder: herkese, ayarAl, ayarKoy,
+      IptalJetonu: sahte ? sahte.IptalJetonu : tarayicidan ? null : iptalJetonuSinifi(), yenidenBaslat,
       ...(sahte ? { indirmeBeklemeMs: sahte.indirmeBeklemeMs } : {}),
       // Kurulum uygulamayı kapatır: pencereler kaydedilmemiş değişiklikleri önceden sorduğu için (isteyen pencere kendininkini,
       // öteki pencereler 'pencere:digerlerindenIzinAl' ile) pencere kapatma yeniden sormasın

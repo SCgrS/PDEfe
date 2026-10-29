@@ -36,6 +36,7 @@ import fs from 'node:fs';
 import { execFile, spawn } from 'node:child_process';
 import { app, shell } from 'electron';
 import { secenekleriHazirla, nedenTurkce, varsayilanYaziciCoz, lpstatCoz, yaziciListesiHazirla, yaziciDurumlariniCoz, dosyayaYazarMi } from './yazdirSecenek.js';
+import { sistemOrtami } from './linux.js';
 
 const EN_BUYUK_HTML_BAYT = 32 * 1024 * 1024;          // HTML artık yalnızca iskelet; 32 MB üstü bozukluk işaretidir
 const EN_BUYUK_SAYFA_BAYT = 64 * 1024 * 1024;         // tek sayfa görüntüsü (200 dpi A3 PNG bile 20 MB'ı geçmez)
@@ -95,6 +96,9 @@ export function yazdirmaKur({ ipcMain, BrowserWindow, pencereAl, testDiyalog = n
         surec.unref();
       } else if (MAC) {
         await shell.openExternal('x-apple.systempreferences:com.apple.Print-Scan-Settings.extension');
+      } else {
+        // Linux (0.3.1): yazıcı ayarlarının dağıtımdan bağımsız tek yeri CUPS'ın kendi sayfası (localhost:631; ad listeden doğrulandı)
+        await shell.openExternal(`http://localhost:631/printers/${encodeURIComponent(ad)}`);
       }
       return { basarili: true };
     } catch (h) {
@@ -199,17 +203,17 @@ async function yazicilariOku(wc) {
   return { yazicilar, varsayilan: yazicilar.find((y) => y.varsayilan)?.ad ?? null };
 }
 
-/** Varsayılan yazıcının adı: Windows'ta kayıt defterinden (~35 ms; Electron'un listesinde bu bilgi yok), macOS'ta lpstat -d. */
+/** Varsayılan yazıcının adı: Windows'ta kayıt defterinden (~35 ms; Electron'un listesinde bu bilgi yok), macOS'ta ve Linux'ta (0.3.1, CUPS)
+ *  lpstat -d. */
 function varsayilanYaziciOku() {
   return new Promise((coz) => {
     if (WIN) {
       // reg.exe tam yoluyla: çıplak ad sürecin çalışma klasöründe aranabilirdi (anaSurec.js progIdOku ile aynı)
       execFile(path.join(SISTEM32, 'reg.exe'), ['query', 'HKCU\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Windows', '/v', 'Device'],
         { windowsHide: true, timeout: 5000 }, (hata, cikti) => coz(hata ? null : varsayilanYaziciCoz(cikti)));
-    } else if (MAC) {
-      execFile('/usr/bin/lpstat', ['-d'], { timeout: 5000, env: { ...process.env, LANG: 'C', LC_ALL: 'C' } }, (hata, cikti) => coz(hata ? null : lpstatCoz(cikti)));
     } else {
-      coz(null);
+      // Linux'ta AppImage'ın kitaplık klasörü olmadan (sistemOrtami); lpstat yoksa (CUPS istemcisi kurulu değil) varsayılan bilinmez
+      execFile('/usr/bin/lpstat', ['-d'], { timeout: 5000, env: { ...(MAC ? process.env : sistemOrtami()), LANG: 'C', LC_ALL: 'C' } }, (hata, cikti) => coz(hata ? null : lpstatCoz(cikti)));
     }
   });
 }

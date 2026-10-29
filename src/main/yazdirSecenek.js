@@ -120,7 +120,8 @@ export function nedenTurkce(neden, platform = process.platform) {
   if (/invalid device ?name/i.test(neden)) return 'Yazıcı bulunamadı (kaldırılmış ya da adı değişmiş olabilir). Yazdırma penceresinden başka bir yazıcı seçin.';
   if (/no printers|printer not found|no valid printers|printer_not_found/i.test(neden)) {
     return platform === 'darwin' ? 'Kurulu yazıcı bulunamadı. Sistem Ayarları > Yazıcılar ve Tarayıcılar bölümünden bir yazıcı ekleyin.'
-      : 'Kurulu yazıcı bulunamadı. Windows Ayarlar > Yazıcılar ve tarayıcılar bölümünden bir yazıcı ekleyin.';
+      : platform === 'linux' ? 'Kurulu yazıcı bulunamadı. Sistem ayarlarının Yazıcılar bölümünden bir yazıcı ekleyin.'
+        : 'Kurulu yazıcı bulunamadı. Windows Ayarlar > Yazıcılar ve tarayıcılar bölümünden bir yazıcı ekleyin.';
   }
   if (/invalid printer settings|invalid settings|invalid_settings/i.test(neden)) return 'Yazıcı ayarları geçersiz. Kâğıt boyutu ya da çift taraflı seçeneği bu yazıcıda desteklenmiyor olabilir.';
   if (/print job failed|^failed$/i.test(neden)) return 'Yazdırma işi başarısız oldu. Yazıcının açık ve bağlı olduğundan emin olun.';
