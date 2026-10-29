@@ -354,7 +354,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await evalJs(`(() => { const g = document.getElementById('guncelleme-seridi'); g.textContent = 'Deneme şeridi'; g.hidden = false; return true; })()`);
     await kosul(`(() => { const g = document.getElementById('guncelleme-seridi').getBoundingClientRect(); return document.querySelector('.birlestir-pencere').getBoundingClientRect().top >= g.bottom + 7; })()`, 3000);
     let g = await gs();
-    sonuc('güncelleme şeridi görünürken pencere onun altında başlar (şerit araç çubuğunun altında)', g.gH > 0 && g.gUst === y.aracAlt && g.ust >= g.gAlt + 7 && g.ust <= g.gAlt + 9, { ...g, aracAlt: y.aracAlt });
+    // 0.3.1: şerit kart oldu, araç çubuğuyla arasında 8 px boşluk var
+    sonuc('güncelleme şeridi görünürken pencere onun altında başlar (şerit araç çubuğunun 8 px altında)', g.gH > 0 && g.gUst === y.aracAlt + 8 && g.ust >= g.gAlt + 7 && g.ust <= g.gAlt + 9, { ...g, aracAlt: y.aracAlt });
     await evalJs(`(() => { const g = document.getElementById('guncelleme-seridi'); g.textContent = ''; g.hidden = true; return true; })()`);
     await kosul(`document.querySelector('.birlestir-pencere').getBoundingClientRect().top <= document.getElementById('arac-cubugu').getBoundingClientRect().bottom + 9`, 3000);
     g = await gs();

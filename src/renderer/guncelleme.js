@@ -17,19 +17,69 @@ import { MAC } from './platform.js';
 
 const SURUMLER_URL = 'https://github.com/SCgrS/PDEfe/releases';
 
+// 0.3.1 (kullanıcı isteği: "güncelleme şeridini daha büyük ve belirgin yapalım"; üç örnekten C seçildi): Şerit iki satırlı bir kart.
+// Solda dairede durum simgesi, üstte kalın başlık (BASLIKLAR), altında eski metin, sağda büyük düğmeler ya da ilerleme çubuğu. Renkler
+// temanın vurgusundan, yeni renk değişkeni yok. Dar pencerede düğmeler ve çubuk metnin altına iner. Kartın çevresi 8/10/6 px boşluk.
+const SIMGE = (yol) => `url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'>${yol}</svg>")`;
 const STIL = `
-#guncelleme-seridi { flex-wrap: wrap; row-gap: 4px; font-size: 13px; min-height: 36px; box-sizing: border-box; }
-#guncelleme-seridi .metin { flex: 0 1 auto; min-width: 160px; }
-#guncelleme-seridi .dugmeler { display: flex; gap: 6px; align-items: center; margin-left: auto; }
-#guncelleme-seridi button { color: inherit; font: inherit; cursor: pointer; line-height: 1.2; }
+#guncelleme-seridi {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "simge baslik sag" "simge metin sag";
+  column-gap: 14px; row-gap: 1px; align-items: center; box-sizing: border-box;
+  margin: 8px 10px 6px; min-height: 66px; padding: 10px 14px 10px 12px; border-radius: 10px;
+  font-size: 14px; font-weight: 400; line-height: 1.35;
+  border: 1px solid color-mix(in srgb, var(--vurgu) 80%, #000);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22), 0 1px 3px rgba(0, 0, 0, 0.18);
+  position: relative; z-index: 2;
+  --serit-simge: ${SIMGE("<path d='M19.5 9.5A8 8 0 0 0 5.2 7.2'/><path d='M4.8 3.6v4.1h4.1'/><path d='M4.5 14.5a8 8 0 0 0 14.3 2.3'/><path d='M19.2 20.4v-4.1h-4.1'/>")};
+}
+html[data-tema="koyu"] #guncelleme-seridi { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.5); border-color: color-mix(in srgb, var(--vurgu) 70%, #fff); }
+#guncelleme-seridi[data-asama="indiriliyor"], #guncelleme-seridi[data-asama="tarayicida"] {
+  --serit-simge: ${SIMGE("<path d='M12 3.5v11'/><path d='m7 10 5 5 5-5'/><path d='M4.5 15.5v2.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2.5'/>")};
+}
+#guncelleme-seridi[data-asama="hazir"], #guncelleme-seridi[data-asama="onay"] {
+  --serit-simge: ${SIMGE("<circle cx='12' cy='12' r='8.6'/><path d='m8 12.3 2.8 2.8 5.4-5.6'/>")};
+}
+#guncelleme-seridi[data-asama="hata"] { --serit-simge: ${SIMGE("<path d='M12 3.8 21 19.6H3z'/><path d='M12 9.8v4.4'/><path d='M12 17.1v.1'/>")}; }
+#guncelleme-seridi::before { content: ''; grid-area: simge; width: 44px; height: 44px; border-radius: 50%; background: color-mix(in srgb, currentColor 16%, transparent); }
+#guncelleme-seridi::after {
+  content: ''; grid-area: simge; justify-self: center; align-self: center; width: 24px; height: 24px; background: currentColor;
+  -webkit-mask: var(--serit-simge) center / contain no-repeat; mask: var(--serit-simge) center / contain no-repeat;
+}
+#guncelleme-seridi .baslik { grid-area: baslik; align-self: end; font-size: 17px; font-weight: 700; line-height: 1.25; }
+#guncelleme-seridi .metin { grid-area: metin; align-self: start; min-width: 0; }
+#guncelleme-seridi .metin b.uyari { font-weight: 700; }
+#guncelleme-seridi .dugmeler { grid-area: sag; display: flex; gap: 10px; align-items: center; margin-left: 12px; }
+#guncelleme-seridi button { color: inherit; font: inherit; font-size: 15px; cursor: pointer; line-height: 1.2; min-height: 40px; padding: 8px 16px; border-radius: 8px; }
 #guncelleme-seridi button:hover:not(:disabled) { background: rgba(255,255,255,0.18); }
 #guncelleme-seridi button:disabled { opacity: 0.6; cursor: default; }
-#guncelleme-seridi button.birincil-serit { background: var(--vurgu-metin); color: var(--vurgu); border-color: var(--vurgu-metin); font-weight: 600; padding: 3px 14px; margin: 0; }
+#guncelleme-seridi button.birincil-serit {
+  background: var(--vurgu-metin); color: var(--vurgu); border-color: var(--vurgu-metin); margin: 0;
+  font-size: 16px; font-weight: 700; min-height: 42px; padding: 9px 26px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+}
 #guncelleme-seridi button.birincil-serit:hover:not(:disabled) { background: var(--vurgu-metin); filter: brightness(0.94); }
-#guncelleme-seridi button.baglanti-dugme { border-color: transparent; font-weight: 400; text-decoration: underline; text-underline-offset: 2px; padding: 3px 6px; }
-#guncelleme-seridi .ilerleme { flex: 1 1 160px; max-width: 360px; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.35); overflow: hidden; }
+#guncelleme-seridi button.baglanti-dugme { border-color: transparent; font-weight: 500; text-decoration: underline; text-underline-offset: 2px; padding: 8px 8px; }
+#guncelleme-seridi .ilerleme {
+  grid-area: sag; margin-left: 12px; width: clamp(160px, 26vw, 340px); height: 12px; border-radius: 6px; overflow: hidden;
+  background: color-mix(in srgb, currentColor 24%, transparent);
+}
 #guncelleme-seridi .ilerleme > i { display: block; height: 100%; width: 0; background: currentColor; transition: width .2s; }
+/* İndirme metni uzun: 1000 px'ten dar pencerede çubuk metnin altına iner (yoksa metnin son sözcüğü tek başına alt satıra kalıyor) */
+@media (max-width: 1000px) {
+  #guncelleme-seridi[data-asama="indiriliyor"] { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "simge baslik" "simge metin" ". sag"; }
+  #guncelleme-seridi[data-asama="indiriliyor"] .ilerleme { justify-self: stretch; width: auto; margin: 8px 0 2px; }
+}
+@media (max-width: 860px) {
+  #guncelleme-seridi { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "simge baslik" "simge metin" ". sag"; row-gap: 2px; }
+  #guncelleme-seridi .dugmeler { justify-self: end; margin: 8px 0 0; }
+  #guncelleme-seridi .ilerleme { justify-self: stretch; width: auto; margin: 8px 0 2px; }
+}
 `;
+
+/** Kartın üstündeki kalın başlık (0.3.1), aşamaya göre. Altındaki metin eskisi gibi. */
+const BASLIKLAR = {
+  var: 'Güncelleme var', indiriliyor: 'Güncelleme indiriliyor', onay: 'Güncelleme indirildi', kuruluyor: 'Güncelleme kuruluyor',
+  hazir: 'Güncelleme kurulmaya hazır', tarayicida: 'Güncelleme tarayıcıda iniyor', hata: 'Güncelleme yapılamadı',
+};
 
 /** Aşamalar: bos | var | indiriliyor | onay (indirildi, kaydedilmemiş belgeler soruluyor) | kuruluyor | hazir (indirildi, kurulum
  *  ertelendi) | hata */
@@ -124,6 +174,8 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce, kuru
       dugmeler.append(dugme('Yeniden dene', () => guncelle(), { sinif: 'birincil-serit' }), dahaSonra());
       serit.append(metin, dugmeler);
     }
+    const baslik = document.createElement('strong'); baslik.className = 'baslik'; baslik.textContent = BASLIKLAR[durum.asama] || '';
+    serit.prepend(baslik);
     serit.hidden = false;
   }
 
