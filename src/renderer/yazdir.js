@@ -333,7 +333,7 @@ function secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre,
       </div>
       <div class="yazdir-cift-bilgi soluk" hidden></div>
       <label class="yazdir-notlar"><input type="checkbox" name="notlar"> Notları yazdır</label>
-      <p class="soluk yazdir-aciklama">Sayfalar görüntü olarak basılır; Türkçe karakterler ekranda göründüğü gibi çıkar. "Notları yazdır" kapalıyken notlar ve damgalar basılmaz. Form alanları her zaman basılır.</p>
+      <p class="soluk yazdir-aciklama">Sayfalar görüntü olarak basılır. Türkçe karakterler ekranda göründüğü gibi çıkar. "Notları yazdır" kapalıyken notlar ve damgalar basılmaz. Form alanları her zaman basılır.</p>
     </div>
     <div class="yazdir-onizleme" aria-label="Ön izleme">
       <div class="yazdir-onizleme-alan"><div class="yazdir-kagit"><img class="yazdir-onizleme-sayfa" alt="" draggable="false"></div><div class="yazdir-onizleme-durum soluk" hidden></div></div>
