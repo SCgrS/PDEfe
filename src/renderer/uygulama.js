@@ -1273,7 +1273,7 @@ async function xfaKayitYaz(b, hedef, farkli, sessiz, oneAl = false) {
   durum.mesajYaz('Kaydediliyor…', 0);
   // Kendi dosyasına yazarken (Formu Kaydet'te aynı dosya seçilince de: "değiştirilsin mi" başka programın kaydını söylemez) dosya başka programda değiştiyse yazılmaz
   const damga = yolAyni(hedef, b.yol) && !b._damgaYoksay ? b.xfa.diskDamga : null;
-  const r = await b.xfa.kaydet(hedef, { imzayiKoru, hizli: !!sessiz, damga });
+  const r = await b.xfa.kaydet(hedef, { imzayiKoru, temiz: !!g.xfaBilgi?.eImzali && imzayiKoru === false, hizli: !!sessiz, damga });
   if (imzayiKoru && r?.imzaKorundu === false) bildir('E-imza korunamadı: Form baştan yazıldı, imza geçersiz görünür.', 8000);
   // Yazılan değerlerden biri dosyanın verisinde yoksa (PDF.js veri düğümü olmayan alanın değerini saklamaz) belge kaydedilmiş sayılmaz, kullanıcı yazısını başka yere alabilsin
   const eksik = r?.eksik?.length || 0;

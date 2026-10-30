@@ -1038,13 +1038,14 @@ def _dogrulanir_mi(aday, dogrula):
     try:
         dogrula(aday)
         return True
-    except notlar.YazmaHatasi:
+    except Exception as e:      # aday bırakılır, sıradaki denenir
+        print("[kayıt] aday yazım doğrulanamadı: %s" % e, file=sys.stderr)
         return False
 
 
 def y_xfa_kaydet(p):
     """PDF.js'in kaydettiği baytlardaki güncel XFA verisini hedefe yazar: Kullanım hakları imzası geçerliyse artımlı (imza kalır), değilse baştan. p: {veri (base64), hedef,
-    taban?: açılan dosyanın bayt sayısı (veri onunla başlar; artımlı bölüm onun üstüne), yol?: belgenin önceki dosyası (önbellekten bırakılır), imzayiKoru?: e-imzalı formda baytlar olduğu gibi yazılır (PDF.js'in artımlı
+    taban?: açılan dosyanın bayt sayısı (veri onunla başlar; artımlı bölüm onun üstüne), temiz?: kullanım hakları imzası korunmaz, baştan yazılır, yol?: belgenin önceki dosyası (önbellekten bırakılır), imzayiKoru?: e-imzalı formda baytlar olduğu gibi yazılır (PDF.js'in artımlı
     kaydı: imzalanan bölüm ve /Perms değişmez, alanların önceki değerleri dosyada kalır), beklenen?: arayüzün yazdığı metin değerleri (veri paketinde aranır),
     hizli?: kilitte uzun beklenmez (otomatik kayıt), damga?: hedefin beklenen içerik özeti (farklıysa dosya başka programda değişmiştir, yazılmaz: YazmaHatasi "degismis")}.
     Döner: {boyut, kullanimHakkiKaldirildi, eksik: veri paketinde bulunmayan beklenen değerlerin sıraları, damga: yazılanın içerik özeti,
@@ -1078,7 +1079,8 @@ def y_xfa_kaydet(p):
             # değiştirirdi: Onaylı (DocMDP) belgede izin verilmeyen değişiklik sayılır)
             cikti = girdi
         else:
-            hak_sonu = _hak_bolumu_sonu(doc, girdi)
+            # temiz: E-imzalı formda kullanıcı "Tamamen sil" dedi (önceki değerler dosyada kalmasın): Baştan yazılır
+            hak_sonu = None if p.get("temiz") is True else _hak_bolumu_sonu(doc, girdi)
             if hak_sonu:
                 # Kullanım hakları imzası korunur (0.3.1 kayıp avı, referans okuyucuda ölçüldü): İmza kaldırılınca okuyucu "bu forma yazılan verileri kaydedemezsiniz" diyordu, form iki
                 # programda kullanılırken orada yazılanlar kaydedilemiyordu. Açılan dosyanın üstüne tek artımlı bölüm, olmazsa PDF.js'in zinciri. İkisi de doğrulanamazsa (bozuk dosya) aşağıda

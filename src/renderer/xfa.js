@@ -530,17 +530,17 @@ export class XfaYoneticisi extends EventTarget {
   }
 
   /** Formu hedefe yazar (çekirdek xfa_kaydet: Atomik. Kullanım hakları imzalı formda artımlı, öbürlerinde baştan). imzayiKoru: e-imzalı formda PDF.js'in artımlı baytları olduğu
-   *  gibi yazılır (imza korunur, 0.3.1 inceleme). hizli: kilitte beklenmez (otomatik kayıt). Döner: çekirdeğin sonucu, konum ve komut: Yazılan durumun geri al
+   *  gibi yazılır (imza korunur, 0.3.1 inceleme). temiz: E-imzalı formda "Tamamen sil" seçildi, kullanım hakları imzası da korunmaz. hizli: kilitte beklenmez (otomatik kayıt). Döner: çekirdeğin sonucu, konum ve komut: Yazılan durumun geri al
    *  yığınındaki yeri. Baytlarla aynı anda alınır: Yapı işi ya da yeniden kurma beklenirken yapılan değişiklik kayıtlı sayılmasın, kayıt sürerken yazılan da. damga: Hedefin
    *  beklenen içerik özeti (dosya başka programda değiştiyse çekirdek yazmaz). */
-  async kaydet(hedef, { imzayiKoru = false, hizli = false, damga = null } = {}) {
+  async kaydet(hedef, { imzayiKoru = false, temiz = false, hizli = false, damga = null } = {}) {
     this.duzenlemeyiUygula();
     await this.bekle();
     if (this.yok) throw new Error('Sekme kapatıldı.');
     this.duzenlemeyiUygula();   // beklerken yazılan
     const konum = this.yigin.konum, komut = this.yigin.geriAlinacak, beklenen = this._beklenenDegerler();
     const veri = await this.g.xfaBaytlari();   // PDF.js değerleri çağrı anında alır
-    const r = await this.cekirdek('xfa_kaydet', { veri: base64Yaz(veri), hedef, yol: this.g.yol, beklenen, taban: this.g.xfaTaban || 0, ...(imzayiKoru ? { imzayiKoru: true } : {}), ...(hizli ? { hizli: true } : {}), ...(damga ? { damga } : {}) });
+    const r = await this.cekirdek('xfa_kaydet', { veri: base64Yaz(veri), hedef, yol: this.g.yol, beklenen, taban: this.g.xfaTaban || 0, ...(imzayiKoru ? { imzayiKoru: true } : {}), ...(temiz ? { temiz: true } : {}), ...(hizli ? { hizli: true } : {}), ...(damga ? { damga } : {}) });
     if (r?.damga) this.diskDamga = r.damga;
     return { ...r, konum, komut };
   }

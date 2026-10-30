@@ -618,6 +618,10 @@ s5 = bolum_ekle(d4, "En son yazı")
 k = xfa.y_xfa_kaydet({"veri": base64.b64encode(s5).decode(), "hedef": h, "taban": len(d4)})
 d5 = open(h, "rb").read()
 sonuc("oturum: Başka programın kaydının üstündeki eski kayıt atılır", d5[:len(s3)] == s3 and not bolumlerde(d5, "Sonraki yazı") and bolumlerde(d5, "En son yazı") and d5.count(b"%%EOF") == d4.count(b"%%EOF"), (d4.count(b"%%EOF"), d5.count(b"%%EOF")))
+# E-imzalı formda "Tamamen sil": Kullanım hakları imzası da korunmaz, eski değerler kalmaz
+k = xfa.y_xfa_kaydet({"veri": base64.b64encode(s5).decode(), "hedef": h, "taban": len(d4), "temiz": True})
+d6 = open(h, "rb").read()
+sonuc("oturum: temiz: Baştan yazılır, imza kalkar, tek bölüm, güncel yazı yerinde", k["kullanimHakkiKaldirildi"] and not hak_durumu(d6)["var"] and d6.count(b"%%EOF") == 1 and not bolumlerde(d6, "Sonraki yazı") and bolumlerde(d6, "En son yazı"), k)
 # Geçici klasörde yer yok: Dosyanın diski başka olabilir, kayıt düşmez
 def _yer_yok(*a, **k):
     raise OSError(28, "No space left on device")
