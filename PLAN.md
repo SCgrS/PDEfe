@@ -4251,3 +4251,35 @@ Xvfb), macOS'taki (0.2.0) düzenle. Dal gönderilmedi: İlk CI koşusu kullanıc
   UYARI), Electron 44'ün ham pano türleri (tutmazsa xclip yedeği, UYARI), cups-pdf'in AppArmor'la ~/PDF'e yazması (UYARI), Ctrl+F'nin xdotool'la
   menüye ulaşması, ubuntu-22.04 runner görüntüsünün ömrü (GitHub kaldırırsa çekirdeği eski glibc'li bir kapta derlemek gerekir).
 - [ ] Gerçek bir Linux masaüstünde elle deneme: docs/DOGRULAMA.md 46 › Linux.
+
+#### 0.3.1: kaldırıcı güncelleme önbelleğini siler
+Notlardaki bekleyen hata (2026-10-15'te ofiste görüldü, kullanıcı 2026-10-30'da "diğer bulduğun sorunları da düzelt" dedi): PDEfe kaldırılınca
+`%LOCALAPPDATA%\pdefe-updater` diskte kalıyordu.
+- [x] **Kök neden**: electron-builder'ın kurucusu kendini her kurulumda `%LOCALAPPDATA%\<paket adı>-updater\installer.exe`'ye kopyalar
+  (APP_INSTALLER_STORE_FILE: değişen blok indirmesinin karşılaştırdığı eski kurucu), electron-updater aynı klasöre `current.blockmap`'i ve
+  indirdiği kurucuyu (`pending\`) yazar. Kaldırıcının şablonu (app-builder-lib 26.15.3 uninstaller.nsh) bu klasöre hiç dokunmuyor. Uygulama
+  açıkken önbellek bilerek tutulur (0.2.5 onbellekTemizle yalnızca yarım indirmeyi ve kurulmuş sürümün kurucusunu siler), kaldırılınca
+  sahipsiz kalıyordu (~140 MB).
+- [x] **Karar** (build/installer.nsh madde 10): customUnInstall'da `${IfNot} ${isUpdated}` ile `RMDir /r "$LOCALAPPDATA\<önbellek>"`.
+  Güncellemede, onarmada ve eski sürüme dönmede yeni kurucu eski sürümün kaldırıcısını her zaman `--updated` ile çalıştırır (installUtil.nsh
+  uninstallOldVersion, `--delete-app-data` verilmedikçe): Önbellek kalır, o an çalışan kurucu `pending\`'de olabilir. Gerçek kaldırma (Windows
+  Ayarlar, kurulu sürüm sayfasının Kaldır'ı, sessiz kaldırma `/S`) `--updated` vermez. Herkes için kurulumda da kullanıcının klasörü (kurucunun
+  kopyalamasındaki gibi SetShellVarContext current). Silinemeyen dosya kaldırmayı durdurmaz (ClearErrors).
+- [x] **Klasörün adı** electron-builder'ın tanımından çıkarılır (`!searchreplace`: APP_INSTALLER_STORE_FILE'ın sonundaki "\installer.exe"
+  atılır). Gerçek derlemede `pdefe-updater` (package.json'daki ad + "-updater": appInfo.updaterCacheDirName. electron-updater aynı adı
+  app-update.yml'deki updaterCacheDirName'den okur, AppUpdater getOrCreateDownloadHelper). Kurucu sınamasında (paket adı kurucu-sinama)
+  `kurucu-sinama-updater`: Deneme kaldırıcısı gerçek PDEfe'nin önbelleğine dokunmaz, test/kurucu_sinama.nsh ad `pdefe-updater` olursa derlemeyi
+  durdurur. Tanım beklenen biçimde değilse ya da ad boşsa makensis durur (kaldırıcı `%LOCALAPPDATA%`'nın kendisini silmesin).
+- [x] **Seçilmeyen yollar**: Yolu sabit yazmak (deneme kaldırıcısı gerçek önbelleği silerdi, paket adı değişirse kayardı). customRemoveFiles
+  kancası (kurulum klasörünü silme yolunu, güncellemedeki atomik yeniden adlandırma dâhil, baştan yazmak gerekirdi). Önbelleği uygulamanın
+  silmesi (kaldırırken uygulama çalışmıyor). Kullanıcı ayarlarına (`%APPDATA%\PDEfe`) dokunmak: Bilerek kalır, yeniden kurulunca aynı ayarlarla
+  açılır (deleteAppDataOnUninstall false, değişmedi).
+- [x] **Testler**: `test/kurucu_akis.ps1` (deneme kurucuları 90.0.1 ve 90.0.2, görünmeyen masaüstü) hepsi TAMAM. Yeni denetimler: Kurucu kendini
+  önbelleğe kopyalıyor. Güncelle, Onar, Eski sürüme dön ve `--updated /S`'den sonra önbelleğe konan işaret dosyaları (`current.blockmap`,
+  `pending\` altında bir dosya) ve `installer.exe` yerinde (yeni kurucu `installer.exe`'yi yeniden yazdığı için yalnız ona bakmak yetmezdi).
+  Kurulu sürüm sayfasının Kaldır'ından (aynı ve eski sürüm, kendi kaldırıcısı) sonra klasör yok. Sessiz kaldırmadan sonra iz yok, gerçek
+  PDEfe'nin kayıtları ve `pdefe-updater\installer.exe`'si değişmedi. `test/kurucu_karsilastir.mjs` (v0.3.0 ile): Sessiz kurulum ve güncelleme
+  yolu aynı, kaldırıcıda yalnızca bu blok eklendi. Karşılaştırmaya bilerek yapılan değişikliklerin listesi eklendi (BEKLENEN_FARKLAR: Önceki
+  gövde aynı sırayla yerinde, eklenen her satır desene uyuyor, sonraki etiketle birlikte fark kalmaz). Koşulsuz silen ve fazladan satır
+  ekleyen deneme installer.nsh'lerinde yine FARK verdi.
+- [ ] Gerçek PDEfe'nin bir sonraki güncellemesi ve kaldırılması: docs/DOGRULAMA.md 46 › Kaldırma.

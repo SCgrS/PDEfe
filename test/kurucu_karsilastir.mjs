@@ -10,7 +10,10 @@
 // Kullanım (proje kökünden): node test/kurucu_karsilastir.mjs [--ref v0.2.2] [--yakalama <klasör>] [--nsh <yol>] [--ayrinti]
 //   --yakalama  test/kurucu_derle.mjs --yakala ile önceden yakalanmış kurucu.json / kaldirici.json (yoksa durdurulan bir deneme derlemesi yapılır)
 //   --nsh       çalışma ağacındaki yerine bu installer.nsh (karşılaştırmanın farkı yakaladığını sınamak için)
-// Çıkış: 0 aynı, 1 fark var, 2 hata.
+// Bilerek yapılan değişiklikler (BEKLENEN_FARKLAR, 0.3.1): Önceki sürümden bu yana kaldırıcıya eklenen kod. Fark yalnızca o gövdeye eklenen
+// tek bir bloksa (önceki gövdenin bütün satırları aynı sırayla yerinde) ve bloğun her satırı girdinin desenine uyuyorsa "BEKLENEN FARK"
+// yazılır, sayılmaz. Başka her değişiklik yine FARKLI. Önceki sürüm (--ref) değişikliği içeren bir etiket olunca fark kalmaz, girdi silinebilir.
+// Çıkış: 0 aynı (ya da yalnızca beklenen farklar), 1 fark var, 2 hata.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -113,7 +116,33 @@ function bolumAdlari(gunluk) {
   return new Set([...gunluk.matchAll(/^Section: "([^"]+)"/gm)].map((m) => m[1]));
 }
 
-function karsilastir(baslik, eski, yeni, adlar) {
+// tur: kurucu | kaldirici, ad: işlev / bölüm, satir: eklenen bloğun her satırının uyması gereken desen, gerekli: blokta bulunması gerekenler
+const BEKLENEN_FARKLAR = [
+  {
+    tur: 'kaldirici', ad: 'un.Uninstall',
+    neden: '0.3.1: Gerçek kaldırmada güncelleme önbelleği silinir (build/installer.nsh madde 10)',
+    satir: /^(Push: updated|Plugin command: TestParameter|Pop: \$R9|StrCmp "\$(R9|installMode)" "(true|all)" equal=\S*, nonequal=\S*|SetShellVarContext: (current|all)|RMDir: \/r "\$LOCALAPPDATA\\[a-z0-9.-]+-updater"|ClearErrors)$/,
+    gerekli: [/^RMDir: \/r "\$LOCALAPPDATA\\[a-z0-9.-]+-updater"$/, /^Plugin command: TestParameter$/],
+  },
+];
+
+/** Fark beklenen tek bir eklenen blok mu: Önceki gövde yeni gövdenin başı + sonu, aradaki satırlar desene uyuyor. Döner: eklenen satırlar ya da null. */
+function beklenenEklemeMi(beklenen, ea, eb) {
+  if (!beklenen || eb.length <= ea.length) return null;
+  let bas = 0;
+  while (bas < ea.length && ea[bas] === eb[bas]) bas++;
+  let son = 0;
+  while (son < ea.length - bas && ea[ea.length - 1 - son] === eb[eb.length - 1 - son]) son++;
+  if (bas + son !== ea.length) return null;
+  const eklenen = eb.slice(bas, eb.length - son);
+  if (!eklenen.every((s) => beklenen.satir.test(s))) return null;
+  if (!beklenen.gerekli.every((d) => eklenen.some((s) => d.test(s)))) return null;
+  return eklenen;
+}
+
+const beklenenler = [];
+
+function karsilastir(baslik, eski, yeni, adlar, tur) {
   let fark = 0;
   console.log(`${baslik}: ${adlar.length} işlev / bölüm`);
   for (const a of adlar) {
@@ -121,7 +150,13 @@ function karsilastir(baslik, eski, yeni, adlar) {
     if (!ea || !eb) { fark++; console.log(`  FARKLI ${a}: ${!ea ? 'önceki derlemede yok' : 'yeni derlemede yok'}`); continue; }
     const farklar = [];
     for (let i = 0; i < Math.max(ea.length, eb.length); i++) if (ea[i] !== eb[i]) farklar.push(i);
-    if (farklar.length) {
+    const beklenen = BEKLENEN_FARKLAR.find((b) => b.tur === tur && b.ad === a);
+    const eklenen = farklar.length ? beklenenEklemeMi(beklenen, ea, eb) : null;
+    if (eklenen) {
+      beklenenler.push(`${tur} ${a}`);
+      console.log(`  BEKLENEN FARK ${a}: ${eklenen.length} satır eklendi, başka değişiklik yok (${beklenen.neden})`);
+      if (ayrinti) for (const s of eklenen) console.log(`    + ${s}`);
+    } else if (farklar.length) {
       fark++;
       console.log(`  FARKLI ${a}: önceki ${ea.length}, yeni ${eb.length} satır`);
       for (const i of farklar.slice(0, 8)) console.log(`    ${i}: önceki «${ea[i] ?? ''}» | yeni «${eb[i] ?? ''}»`);
@@ -129,7 +164,7 @@ function karsilastir(baslik, eski, yeni, adlar) {
       console.log(`  AYNI   ${a} (${ea.length} satır)`);
     }
   }
-  if (!fark) console.log(`  hepsi AYNI (${adlar.reduce((t, a) => t + eski.govdeler.get(a).length, 0)} satır)`);
+  if (!fark) console.log(`  hepsi AYNI ya da beklenen (${adlar.reduce((t, a) => t + (eski.govdeler.get(a)?.length || 0), 0)} satır)`);
   return fark;
 }
 
@@ -173,15 +208,16 @@ try {
     let adlar;
     if (tur === 'kurucu') {
       adlar = [...new Set([...sessizKapanis(eski.govdeler, bolumler), ...sessizKapanis(yeni.govdeler, bolumler)])];
-      fark += karsilastir('kurucu, sessiz kipte çalışan kod (.onInit, bölümler ve çağırdıkları)', eski, yeni, adlar);
+      fark += karsilastir('kurucu, sessiz kipte çalışan kod (.onInit, bölümler ve çağırdıkları)', eski, yeni, adlar, tur);
     } else {
       adlar = [...new Set([...eski.govdeler.keys(), ...yeni.govdeler.keys()])];
-      fark += karsilastir('kaldırıcı, bütün işlevler ve bölümler', eski, yeni, adlar);
+      fark += karsilastir('kaldırıcı, bütün işlevler ve bölümler', eski, yeni, adlar, tur);
     }
     bilgi(tur, eski, yeni, adlar);
   }
   fs.rmSync(gecici, { recursive: true, force: true, maxRetries: 5 });
-  console.log(fark ? `SONUÇ: ${fark} FARK` : 'SONUÇ: sessiz kurulum, uygulama içi güncelleme ve kaldırıcı değişmedi');
+  const ek = beklenenler.length ? ` (yalnızca beklenen ${beklenenler.length} değişiklik: ${beklenenler.join(', ')})` : '';
+  console.log(fark ? `SONUÇ: ${fark} FARK` : `SONUÇ: sessiz kurulum, uygulama içi güncelleme ve kaldırıcı değişmedi${ek}`);
   process.exit(fark ? 1 : 0);
 } catch (h) {
   console.error(`HATA ${h.message}`);

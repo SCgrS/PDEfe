@@ -287,6 +287,23 @@ function Sessiz-Kur([string]$exe, [string]$arg) {
 function Gecici-Kisayol-Sil {
   if (Test-Path -LiteralPath $masaustuKisayolu) { Remove-Item -LiteralPath $masaustuKisayolu -Force }
 }
+# 0.3.1: Güncelleme önbelleği (build\installer.nsh madde 10: Gerçek kaldırmada silinir, --updated ile çalışan eski kaldırıcıda kalır). Kurucu
+# kendini her kurulumda <önbellek>\installer.exe'ye kopyalar: Güncellemeden sonra o dosyanın var olması eski kaldırıcının önbelleği silmediğini
+# göstermez. Bu yüzden önbelleğe electron-updater'ın bıraktığı türden iki işaret dosyası konur (current.blockmap, pending\ altında bir dosya):
+# Güncelleme, onarma ve eski sürüme dönmeden sonra yerinde olmalı, kaldırmadan sonra klasörün kendisi kalmamalı.
+function Onbellek-Isaretle {
+  New-Item -ItemType Directory -Force (Join-Path $guncelleyiciKlasoru 'pending') | Out-Null
+  [System.IO.File]::WriteAllText((Join-Path $guncelleyiciKlasoru 'current.blockmap'), 'kurucu sinamasi')
+  [System.IO.File]::WriteAllText((Join-Path $guncelleyiciKlasoru 'pending\isaret.txt'), 'kurucu sinamasi')
+}
+function Onbellek-Kaldi([string]$an) {
+  $isaret = (Test-Path -LiteralPath (Join-Path $guncelleyiciKlasoru 'current.blockmap')) -and (Test-Path -LiteralPath (Join-Path $guncelleyiciKlasoru 'pending\isaret.txt'))
+  $kurucu = Test-Path -LiteralPath (Join-Path $guncelleyiciKlasoru 'installer.exe')
+  Denetle "$($an): güncelleme önbelleği kaldı (işaret dosyaları yerinde, installer.exe var)" ($isaret -and $kurucu) "işaretler $isaret, installer.exe $kurucu"
+}
+function Onbellek-Silindi([string]$an) {
+  Denetle "$($an): güncelleme önbelleği (kurucu-sinama-updater) silindi" (-not (Test-Path -LiteralPath $guncelleyiciKlasoru)) $guncelleyiciKlasoru
+}
 # Deneme kopyasının kalıntıları: kayıtlıysa kendi sessiz kaldırıcısı (görünmeyen masaüstünde), sonra kısayollar ve klasörler. Sınamanın sonunda
 # (finally) ve 0.2.9 denetiminden beri başında (önceki koşu yarıda kaldıysa) çalışır. .pdf varsayılanını geri yazmak finally'nin işi (ön görüntü)
 function Kalintilari-Temizle {
@@ -331,6 +348,7 @@ function Kaldiriciyi-Sur([int]$kurucu, [string]$goruntu) {
   }
   $d = Deneme-Durumu; Durum-Yaz $d
   Denetle 'kaldırıldı: kayıt, klasör, kısayollar ve Varsayılan Programlar kaydı yok' ($d.Surum -eq '<yok>' -and $d.Exe -eq '<yok>' -and -not $d.Masaustu -and -not $d.Baslat -and $d.Kayit -eq '<yok>' -and -not (Paket-Anahtar-Var 'Software\KurucuSinama'))
+  Onbellek-Silindi 'kaldırıldı'
   Gecici-Kisayol-Sil
 }
 
@@ -375,6 +393,7 @@ try {
   Bitir $p $w.Hwnd 'akis-A2-bitis'
   $d = Deneme-Durumu; Durum-Yaz $d
   Denetle '90.0.1 kuruldu, masaüstü kısayolu yok, Başlat kısayolu var' ($d.Surum -eq '90.0.1' -and $d.Exe -eq '90.0.1' -and -not $d.Masaustu -and $d.Baslat)
+  Denetle 'kurucu kendini güncelleme önbelleğine kopyaladı (kurucu-sinama-updater\installer.exe)' (Test-Path -LiteralPath (Join-Path $guncelleyiciKlasoru 'installer.exe'))
   # Bilgi: paketin içinden kurulan deneme kopyası gerçek kovana / klasörlere yazdı mı (sanallaştırma bu oturumda açık mı)
   Yaz "         gerçek görünüm: Uninstall kaydı $(Gercek-Anahtar-Var "$KALDIR_ANAHTARI\$DENEME_GUID"), Programs\KurucuSinama $(Gercek-Klasor-Var $denemeKlasoru), Başlat kısayolu $((Gercek-Dosya $baslatKisayolu) -ne '<yok>')"
 
@@ -403,6 +422,7 @@ try {
 
   # -------------------------------------------------------------- B2. eski kurulu: Güncelle
   Yaz 'B2. 90.0.1 kurulu, 90.0.2: Güncelle'
+  Onbellek-Isaretle
   $p = Kurucu-Baslat $Yeni
   $w = Sihirbaz-Bekle -surec $p
   $s = Sayfa-Oku $w.Hwnd
@@ -413,6 +433,7 @@ try {
   Bitir $p $w.Hwnd
   $d = Deneme-Durumu; Durum-Yaz $d
   Denetle '90.0.2 kuruldu; masaüstü kısayolu yine yok; Başlat kısayolu var' ($d.Surum -eq '90.0.2' -and $d.Exe -eq '90.0.2' -and -not $d.Masaustu -and $d.Baslat)
+  Onbellek-Kaldi 'Güncelle'
   Denetle '.pdf varsayılanı değişmedi, Varsayılan Programlar kaydı deneme adıyla' ($d.Pdf -eq $onGoruntu['paket Classes\.pdf'] -and $d.Kayit -eq 'Software\KurucuSinama\Capabilities') "«$($d.Pdf)» «$($d.Kayit)»"
 
   # -------------------------------------------------------------- E1. /S (elle sessiz kurulum): pencere yok, masaüstü kısayolu oluşur (bugünkü gibi)
@@ -431,6 +452,7 @@ try {
 
   # -------------------------------------------------------------- C1. aynı sürüm: Onar (masaüstü kısayolunun durumu korunur)
   Yaz "C1. 90.0.2 kurulu (masaüstü kısayolu $(if ($MasaustuSina) { 'var' } else { 'yok' })), 90.0.2: Onar"
+  Onbellek-Isaretle
   $p = Kurucu-Baslat $Yeni
   $w = Sihirbaz-Bekle -surec $p
   $s = Sayfa-Oku $w.Hwnd
@@ -443,9 +465,11 @@ try {
   Bitir $p $w.Hwnd
   $d = Deneme-Durumu; Durum-Yaz $d
   Denetle "onarıldı: sürüm aynı, masaüstü kısayolunun durumu ($(if ($MasaustuSina) { 'var' } else { 'yok' })) ve Başlat kısayolu korundu" ($d.Surum -eq '90.0.2' -and $d.Exe -eq '90.0.2' -and $d.Masaustu -eq [bool]$MasaustuSina -and $d.Baslat)
+  Onbellek-Kaldi 'Onar'
 
   # -------------------------------------------------------------- C2. aynı sürüm: Kaldır (PDEfe'nin kendi kaldırıcısı)
   Yaz 'C2. 90.0.2 kurulu, 90.0.2: Kaldır'
+  Onbellek-Isaretle
   $p = Kurucu-Baslat $Yeni
   $w = Sihirbaz-Bekle -surec $p
   $s = Sayfa-Oku $w.Hwnd
@@ -472,6 +496,7 @@ try {
   $d = Deneme-Durumu
   Denetle 'Vazgeç: kurucu kapandı, 90.0.2 yerinde' ($kod -ge 0 -and $d.Surum -eq '90.0.2' -and $d.Exe -eq '90.0.2') "çıkış $kod"
   Yaz 'D2. 90.0.2 kurulu, 90.0.1: Eski sürüme dön'
+  Onbellek-Isaretle
   $p = Kurucu-Baslat $Eski
   $w = Sihirbaz-Bekle -surec $p
   $s = Sayfa-Oku $w.Hwnd
@@ -484,9 +509,11 @@ try {
   Bitir $p $w.Hwnd
   $d = Deneme-Durumu; Durum-Yaz $d
   Denetle 'eski sürüme dönüldü: 90.0.1, masaüstü kısayolu yine yok' ($d.Surum -eq '90.0.1' -and $d.Exe -eq '90.0.1' -and -not $d.Masaustu -and $d.Baslat)
+  Onbellek-Kaldi 'Eski sürüme dön'
 
   # -------------------------------------------------------------- D3. eski kurulu: Kaldır (0.2.3, onaylanan plandaki üçüncü seçenek)
   Yaz 'D3. 90.0.1 kurulu, 90.0.2: Kaldır'
+  Onbellek-Isaretle
   $p = Kurucu-Baslat $Yeni
   $w = Sihirbaz-Bekle -surec $p
   $s = Sayfa-Oku $w.Hwnd
@@ -506,10 +533,12 @@ try {
 
   # -------------------------------------------------------------- E2. uygulama içi güncelleme yolu: --updated /S
   Yaz 'E2. 90.0.1 kurulu, 90.0.2 --updated /S (uygulama içi güncellemenin komutu, --force-run olmadan)'
+  Onbellek-Isaretle
   $r = Sessiz-Kur $Yeni '--updated /S'
   $d = Deneme-Durumu; Durum-Yaz $d
   Denetle "pencere açılmadı, çıkış 0 ($($r.Sure) sn)" ($r.Kod -eq 0 -and $r.Pencereler.Count -eq 0) "çıkış $($r.Kod); pencereler: $($r.Pencereler -join ', ')"
   Denetle '90.0.2 kuruldu, KeepShortcuts true, masaüstü kısayolu yine yok, uygulama açılmadı' ($d.Surum -eq '90.0.2' -and $d.Exe -eq '90.0.2' -and $d.KeepShortcuts -eq 'true' -and -not $d.Masaustu -and $d.Baslat -and @(Get-Process -Name KurucuSinama -ErrorAction SilentlyContinue).Count -eq 0)
+  Onbellek-Kaldi '--updated /S'
 
   # -------------------------------------------------------------- F. bozuk kurulum: program dosyası silinmiş, Onar
   Yaz 'F. 90.0.2 kurulu ama KurucuSinama.exe yok, 90.0.2: Onar'

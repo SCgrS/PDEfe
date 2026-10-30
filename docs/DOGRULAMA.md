@@ -1192,3 +1192,8 @@ dağıtımınızda ve ekranınızda denenmedi. Elinizde bir Linux bilgisayar (Ub
     AppImage dosyasının adı ve yeri değişmemeli.
 47. **Taranmış belge.** Taranmış bir PDF'te yazı seçilemez (Linux'ta yazı tanıyıcı yok): PDEfe hata vermeden çalışmaya devam etmeli. Ctrl+F
     yalnızca PDF'in kendi yazısında arar, sayacın sonunda "taranmış sayfalar aranamadı" yazmalı.
+
+Kaldırma
+48. **Güncelleme önbelleği.** Bu sürümden sonraki ilk sürüm çıkınca şeritte Güncelle'ye basın: Güncelleme her zamanki gibi kurulmalı, PDEfe
+    yeni sürümle açılmalı. PDEfe'yi bir gün kaldırırsanız (Windows Ayarlar › Uygulamalar › PDEfe › Kaldır), Dosya Gezgini'nin adres çubuğuna
+    `%LOCALAPPDATA%\pdefe-updater` yazın: Klasör bulunamamalı (önceden eski kurulum dosyasıyla ~140 MB kalıyordu). Ayarlarınız bilerek kalır.

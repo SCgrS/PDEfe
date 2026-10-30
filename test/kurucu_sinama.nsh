@@ -27,3 +27,11 @@
 !endif
 
 !include "${PROJECT_DIR}\build\installer.nsh"
+
+; 0.3.1: Kaldırıcı güncelleme önbelleğini siler (build\installer.nsh madde 10). Deneme kaldırıcısı gerçek PDEfe'ninkini silmemeli.
+!ifndef PDEFE_GUNCELLEME_ONBELLEGI
+  !error "Kurucu sınamasında PDEFE_GUNCELLEME_ONBELLEGI tanımlı olmalı (build\installer.nsh): Önbelleği silme yolu sınanamazdı"
+!endif
+!if "${PDEFE_GUNCELLEME_ONBELLEGI}" == "pdefe-updater"
+  !error "Kurucu sınamasının güncelleme önbelleği pdefe-updater olamaz: Deneme kaldırıcısı gerçek PDEfe'nin önbelleğini silerdi"
+!endif

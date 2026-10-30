@@ -51,6 +51,11 @@
 ;      kanca değiştirilerek (customCheckAppRunning / customRemoveFiles) Türkçeleşebilirdi; bu kancalar güncelleme yolunu da değiştirdiği için
 ;      kullanılmadı. NSIS'in Türkçe dil dosyasındaki yazım hataları (kaldırıcının hoş geldiniz, Kaldırılıyor ve bitiş sayfaları, kurucunun
 ;      klasör sayfası) da aynı yolla düzeltilir; lisans sayfasının sığmayan "Kabul Ediyorum" düğmesi "Kabul et" oldu (customWelcomePage).
+;  10. Güncelleme önbelleği (0.3.1): Kaldırırken %LOCALAPPDATA%\pdefe-updater de silinir (kurucunun kendini kopyaladığı installer.exe,
+;      electron-updater'ın current.blockmap'i ve pending\ klasöründeki indirilmiş kurucu). Önceden kaldırılan PDEfe'den ~140 MB kalıyordu.
+;      Yalnızca gerçek kaldırmada: Güncelleme, onarma ve eski sürüme dönmede kurucu eski sürümün kaldırıcısını "--updated" ile çalıştırır
+;      (installUtil.nsh uninstallOldVersion), önbellek kalır (o an çalışan kurucu pending\'de olabilir, değişen blok indirmesi installer.exe'yi
+;      kullanır). Klasörün adı electron-builder'ın APP_INSTALLER_STORE_FILE tanımından çıkarılır (aşağıda PDEFE_GUNCELLEME_ONBELLEGI).
 ;
 ; Kodlama: UTF-8 (electron-builder makensis'i -INPUTCHARSET UTF8 ile çağırır).
 
@@ -60,6 +65,20 @@
 !define /ifndef PDEFE_KAYIT_ADI "PDEfe"
 !define /ifndef PDEFE_KAYIT_KOKU "Software\${PDEFE_KAYIT_ADI}"
 !define /ifndef PDEFE_PROGID "PDEfe.pdf"
+
+; 0.3.1 (madde 10): Güncelleme önbelleğinin klasör adı. electron-builder kurucunun kendi kopyasının yerini APP_INSTALLER_STORE_FILE olarak
+; tanımlar ("<paket adı küçük harfle>-updater\installer.exe", NsisTarget.js appInfo.updaterCacheDirName. electron-updater aynı
+; adı app-update.yml'deki updaterCacheDirName'den okur). Gerçek derlemede pdefe-updater, kurucu sınamasında (paket adı kurucu-sinama)
+; kurucu-sinama-updater: Deneme kaldırıcısı gerçek PDEfe'nin önbelleğine dokunmaz. Tanım yoksa (web kurucusu) kaldırıcı önbelleği silmez.
+!ifdef APP_INSTALLER_STORE_FILE
+  !searchreplace PDEFE_GUNCELLEME_ONBELLEGI "${APP_INSTALLER_STORE_FILE}" "\installer.exe" ""
+  !if "${PDEFE_GUNCELLEME_ONBELLEGI}" == "${APP_INSTALLER_STORE_FILE}"
+    !error "APP_INSTALLER_STORE_FILE \installer.exe ile bitmiyor (${APP_INSTALLER_STORE_FILE}): build\installer.nsh'teki güncelleme önbelleği gözden geçirilmeli"
+  !endif
+  !if "${PDEFE_GUNCELLEME_ONBELLEGI}" == ""
+    !error "Güncelleme önbelleğinin klasör adı boş: Kaldırıcı %LOCALAPPDATA% klasörünün kendisini silerdi"
+  !endif
+!endif
 !define /ifndef PDEFE_VARSAYILAN_URL "ms-settings:defaultapps?registeredAppUser=${PDEFE_KAYIT_ADI}"
 
 ; ---------------------------------------------------------------- Türkçe iletiler (madde 9)
@@ -772,5 +791,20 @@
   ${AndIf} $0 == "${PDEFE_PROGID}"
     DeleteRegValue SHELL_CONTEXT "Software\Classes\.pdf" ""
   ${EndIf}
+  ; Güncelleme önbelleği (madde 10): Yalnızca gerçek kaldırmada, "--updated" ile çalışan eski sürüm kaldırıcısında değil. electron-builder'ın
+  ; kurucusu gibi kullanıcının klasörüne (herkes için kurulumda da: "electron always uses per user app data"). Silinemeyen dosya kaldırmayı
+  ; durdurmaz.
+  !ifdef PDEFE_GUNCELLEME_ONBELLEGI
+    ${IfNot} ${isUpdated}
+      ${If} $installMode == "all"
+        SetShellVarContext current
+      ${EndIf}
+      RMDir /r "$LOCALAPPDATA\${PDEFE_GUNCELLEME_ONBELLEGI}"
+      ${If} $installMode == "all"
+        SetShellVarContext all
+      ${EndIf}
+      ClearErrors
+    ${EndIf}
+  !endif
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
 !macroend
