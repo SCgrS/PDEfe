@@ -781,6 +781,25 @@ def test_lo_sure_iptal():
         word.LO_SURE = eski
         b.temizle()
         shutil.rmtree(kl, ignore_errors=True)
+    # Geçici dosyaları %TEMP%'e değil işin klasörüne: Sonlandırılınca artık kalmasın
+    kl = tempfile.mkdtemp(prefix="pdefe-sinama-lo-")
+    stub = os.path.join(kl, "soffice.cmd")
+    kayit = os.path.join(kl, "temp.txt")
+    with open(stub, "w", encoding="ascii") as f:
+        f.write('@echo off\r\n> "%s" echo %%TEMP%%\r\n' % kayit)
+    il = donustur._Ilerleme({})
+    b = donustur.Baglam("docx", il)
+    try:
+        try:
+            word._libreoffice_ile(stub, os.path.join(GIRDI, AD_KOKU + ".docx"), os.path.join(kl, "c.pdf"), il.bildir, b, "k.docx")
+        except word._MotorHatasi:
+            pass
+        with open(kayit, encoding="mbcs") as f:
+            t = f.read().strip()
+        sonuc("LibreOffice'in %TEMP%'i işin klasöründe", t.lower().startswith(b.gecici_klasor().lower()), t)
+    finally:
+        b.temizle()
+        shutil.rmtree(kl, ignore_errors=True)
     # Geçerli olmayan çıktı: Program hiç PDF üretmedi
     kl = tempfile.mkdtemp(prefix="pdefe-sinama-lo-")
     stub = os.path.join(kl, "soffice.cmd")

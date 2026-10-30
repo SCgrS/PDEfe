@@ -1371,12 +1371,16 @@ def _libreoffice_ile(soffice, kaynak, pdf, ilerleme, baglam, ad):
     os.makedirs(klasor, exist_ok=True)
     beklenen = os.path.join(klasor, os.path.splitext(os.path.basename(kaynak))[0] + ".pdf")
     ilerleme(0.1, "LibreOffice ile çevriliyor…")
+    # Geçici dosyaları da işin klasörüne: Sonlandırılınca (iptal, kapanış, süre) %TEMP%'te lu*.tmp klasörü kalıyordu (0.3.1, ölçüldü)
+    gecici = os.path.join(klasor, "tmp")
+    os.makedirs(gecici, exist_ok=True)
+    ortam = dict(os.environ, TMP=gecici, TEMP=gecici, TMPDIR=gecici)
     for sira, suzgec in enumerate((LO_SUZGEC, "pdf")):
         profil = tempfile.mkdtemp(prefix="profil-%d-" % sira, dir=baglam.gecici_klasor())
         komut = [soffice, "-env:UserInstallation=" + pathlib.Path(profil).as_uri(), "--headless", "--invisible", "--norestore",
                  "--nologo", "--nodefault", "--nolockcheck", "--nofirststartwizard", "--convert-to", suzgec, "--outdir", klasor, kaynak]
         try:
-            _, cikti, hata = baglam.dis_surec(komut, sure=LO_SURE)
+            _, cikti, hata = baglam.dis_surec(komut, sure=LO_SURE, ortam=ortam)
         except TimeoutError:
             raise _MotorHatasi("libreoffice", "acilmadi", "süre doldu", kok=TimeoutError("LibreOffice belgeyi zamanında dönüştüremedi: %s" % ad)) from None
         except OSError as e:
