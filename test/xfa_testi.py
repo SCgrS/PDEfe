@@ -558,6 +558,74 @@ k = xfa.y_xfa_kaydet({"veri": base64.b64encode(HAKLI).decode(), "hedef": h})
 sonuc("imza: Taban yoksa baytlar olduğu gibi, imza yerinde", k.get("kullanimHakkiKorundu") and open(h, "rb").read() == HAKLI, k)
 k = xfa.y_xfa_kaydet({"veri": base64.b64encode(HAKLI).decode(), "hedef": h, "taban": len(HAKLI) - 7})
 sonuc("imza: Taban dosya sonuna denk gelmiyorsa baytlar olduğu gibi", k.get("kullanimHakkiKorundu") and open(h, "rb").read() == HAKLI, k)
+# Önceki oturumların kayıtları: Eski yazı dosyada kalmaz, imzalı bölüm ve başka programın kaydı kalır
+
+
+def bolum_ekle(b, metin, ek=None):
+    """b'nin üstüne, datasets'te Sehir ya da Metin değeri değişmiş artımlı bölüm (PDF.js'in kaydının yerine). ek: Başka bir nesneye de dokunur (başka programın kaydı)."""
+    d = pymupdf.open(stream=b, filetype="pdf")
+    pk = xfa._paketler(d)
+    v = xfa._paket(d, pk, "datasets")
+    y_ = re.sub(rb"<Metin\s*/>|<Metin>[^<]*</Metin>", ("<Metin>%s</Metin>" % metin).encode("utf-8"), v, count=1)
+    d.close()
+    c = xfa._hakla_yaz(b, y_, None)
+    if ek:
+        g = os.path.join(KAYIT, "ek.pdf")
+        open(g, "wb").write(c)
+        d = pymupdf.open(g, filetype="pdf")
+        d.set_metadata({"title": ek})
+        d.save(g, incremental=True, encryption=pymupdf.PDF_ENCRYPT_KEEP)
+        d.close()
+        c = open(g, "rb").read()
+    return c
+
+
+def bolumlerde(b, metin):
+    """Metin dosyanın herhangi bir bölümünün veri paketinde var mı (artımlı kayıtta eski hâl de okunabilir)."""
+    for m in re.finditer(rb"%%EOF[ \t\r\n]*", b):
+        d = pymupdf.open(stream=b[:m.end()], filetype="pdf")
+        try:
+            if metin.encode("utf-8") in xfa._paket(d, xfa._paketler(d), "datasets"):
+                return True
+        finally:
+            d.close()
+    return False
+
+
+h = os.path.join(KAYIT, "hakli-oturum.pdf")
+s1 = bolum_ekle(HAKLI, "Birinci oturumun yazısı")
+k = xfa.y_xfa_kaydet({"veri": base64.b64encode(s1).decode(), "hedef": h, "taban": len(HAKLI)})
+d1 = open(h, "rb").read()
+sonuc("oturum: İlk kayıt: Açılan baytlar aynı, yazı dosyada", k.get("kullanimHakkiKorundu") and d1[:len(HAKLI)] == HAKLI and bolumlerde(d1, "Birinci oturumun yazısı"), k)
+s2 = bolum_ekle(d1, "İkinci oturumun yazısı")
+k = xfa.y_xfa_kaydet({"veri": base64.b64encode(s2).decode(), "hedef": h, "taban": len(d1)})
+d2 = open(h, "rb").read()
+sonuc("oturum: İkinci kayıt: İmzalı bölüm aynı, eski yazı hiçbir bölümde yok, yeni yazı var, bölüm sayısı artmadı", k.get("kullanimHakkiKorundu") and d2[:len(HAKLI)] == HAKLI and hak_durumu(d2)["son"] and not hak_durumu(d2)["onarildi"]
+      and not bolumlerde(d2, "Birinci oturumun yazısı") and bolumlerde(d2, "İkinci oturumun yazısı") and d2.count(b"%%EOF") == d1.count(b"%%EOF"), (d1.count(b"%%EOF"), d2.count(b"%%EOF")))
+# Başka programın kaydı (yalnız veri değil, belge bilgisi de değişmiş): O bölüm atılmaz
+s3 = bolum_ekle(d2, "Başka programın yazısı", ek="Başka program")
+d = pymupdf.open(stream=s3, filetype="pdf")
+sonuc("oturum: Deneme bölümü başka nesneye de dokunuyor", d.metadata.get("title") == "Başka program", d.metadata)
+d.close()
+s4 = bolum_ekle(s3, "Sonraki yazı")
+k = xfa.y_xfa_kaydet({"veri": base64.b64encode(s4).decode(), "hedef": h, "taban": len(s3)})
+d4 = open(h, "rb").read()
+d = pymupdf.open(stream=d4, filetype="pdf")
+sonuc("oturum: Başka programın kaydı atılmaz, belge bilgisi yerinde, üstüne yazılır", d4[:len(s3)] == s3 and d.metadata.get("title") == "Başka program" and bolumlerde(d4, "Sonraki yazı"), len(d4))
+d.close()
+# Onların üstündeki PDEfe bölümleri yine atılır
+s5 = bolum_ekle(d4, "En son yazı")
+k = xfa.y_xfa_kaydet({"veri": base64.b64encode(s5).decode(), "hedef": h, "taban": len(d4)})
+d5 = open(h, "rb").read()
+sonuc("oturum: Başka programın kaydının üstündeki eski kayıt atılır", d5[:len(s3)] == s3 and not bolumlerde(d5, "Sonraki yazı") and bolumlerde(d5, "En son yazı") and d5.count(b"%%EOF") == d4.count(b"%%EOF"), (d4.count(b"%%EOF"), d5.count(b"%%EOF")))
+# Geçici klasörde yer yok: Dosyanın diski başka olabilir, kayıt düşmez
+def _yer_yok(*a, **k):
+    raise OSError(28, "No space left on device")
+
+
+with Yama(xfa.tempfile, "mkstemp", _yer_yok):
+    k = xfa.y_xfa_kaydet({"veri": base64.b64encode(HAKLI).decode(), "hedef": h, "taban": len(HAKLI)})
+sonuc("imza: Geçici klasörde yer yoksa kayıt düşmez, imza yerinde", k.get("kullanimHakkiKorundu") and open(h, "rb").read() == HAKLI, k)
 # Bozuk son xref: MuPDF onarır. İmzayı korumak kaydı düşürmemeli
 bozuk = re.sub(rb"startxref\s+\d+\s+%%EOF\s*$", b"startxref\n7\n%%EOF\n", HAKLI)
 sonuc("imza: Bozuk örnek onarılıyor", bozuk != HAKLI and hak_durumu(bozuk)["onarildi"], hak_durumu(bozuk))

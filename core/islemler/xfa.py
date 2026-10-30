@@ -957,12 +957,34 @@ def _hak_bolumu_sonu(doc, girdi):
     return None
 
 
+def _form_bolumlerini_at(taban, izinli, alt_sinir):
+    """Dosyanın sonundaki, yalnız form verisini ve şablonu değiştiren artımlı bölümleri (PDEfe'nin önceki oturumlarının kayıtları) atar, kalan baytları döner: Kullanım hakları imzalı
+    formda eski yazıların dosyada kalmaması için (0.3.1 kayıp avı: Baştan yazımın "girilen değerlerin eski hâlleri dosyada kalmaz" güvencesi imza varken de sürsün). Yeni kayıt bu değerlerin
+    güncelini yazar, atılan bölümlerde başka bir şey yoktur. Bölümde başka nesne varsa (başka programın kaydı: Örneğin yorum, belge bilgisi) orada durulur, ona dokunulmaz. İzinli sayılan
+    tek öbür nesne bölümün kendi çapraz başvuru akışıdır. alt_sinir: İmzanın kapsadığı bölümün sonu, altına inilmez."""
+    sonlar = [m.end() for m in re.finditer(rb"%%EOF(?:\r\n|\r|\n)?", taban)]
+    kes = len(taban)
+    for i in range(len(sonlar) - 1, 0, -1):
+        if sonlar[i] != kes or sonlar[i - 1] < alt_sinir:
+            break
+        bolum = taban[sonlar[i - 1]:sonlar[i]]
+        nesneler = list(re.finditer(rb"(?:^|[\r\n ])(\d+) \d+ obj\b", bolum))
+        if not nesneler:
+            break
+        baska = [m for m in nesneler if int(m.group(1)) not in izinli]
+        if len(baska) > 1 or (baska and not re.match(rb"\s*<<[^>]*?/Type\s*/XRef\b", bolum[baska[0].end():])):
+            break
+        kes = sonlar[i - 1]
+    return taban[:kes]
+
+
 def _hakla_yaz(taban, veri_paketi, sablon):
     """Açılan dosyanın baytlarına (taban) güncel veriyi ve şablonu tek artımlı bölümle ekler. Kullanım hakları imzası geçerli kalır, oturumdaki önceki kayıtların ve bölüm eklemelerin
-    ara hâlleri dosyaya girmez, dosya kayıt sayısıyla büyümez. PDF.js'in kaydettiği zincir her bölüm eklemede bütün veriyi yeniden taşıyor. Yapılamazsa None (arayan zinciri yazar)."""
-    fd, gecici = tempfile.mkstemp(prefix="pdefe-xfa-", suffix=".pdf")
-    doc = None
+    ara hâlleri dosyaya girmez, dosya kayıt sayısıyla büyümez. PDF.js'in kaydettiği zincir her bölüm eklemede bütün veriyi yeniden taşıyor. Yapılamazsa None (arayan zinciri yazar).
+    Geçici klasörde yer olmaması da kaydı düşürmez: Dosyanın diski başka olabilir."""
+    doc = gecici = None
     try:
+        fd, gecici = tempfile.mkstemp(prefix="pdefe-xfa-", suffix=".pdf")
         with os.fdopen(fd, "wb") as f:
             f.write(taban)
         doc = pymupdf.open(gecici, filetype="pdf")
@@ -984,10 +1006,11 @@ def _hakla_yaz(taban, veri_paketi, sablon):
     finally:
         if doc is not None and not doc.is_closed:
             doc.close()
-        try:
-            os.remove(gecici)
-        except OSError:
-            pass
+        if gecici:
+            try:
+                os.remove(gecici)
+            except OSError:
+                pass
 
 
 def _kayit_dogrulayici(paketler_veri, saf):
@@ -1062,9 +1085,15 @@ def y_xfa_kaydet(p):
                 # baştan yazılır: İmzayı korumak hiçbir zaman kaydı düşürmez
                 taban = p.get("taban")
                 uygun = isinstance(taban, int) and not isinstance(taban, bool) and hak_sonu <= taban <= len(girdi) and girdi[:taban].rstrip().endswith(b"%%EOF")
-                for aday in (_hakla_yaz(girdi[:taban], veri_paketi, _paket(doc, paketler, "template")) if uygun else None, girdi):
-                    if aday and _dogrulanir_mi(aday, dogrula):
-                        cikti = aday
+                sablon = _paket(doc, paketler, "template")
+                tabanlar = []
+                if uygun:
+                    kisa = _form_bolumlerini_at(girdi[:taban], {paketler.get("datasets"), paketler.get("template")}, hak_sonu)
+                    tabanlar = [kisa] if len(kisa) == taban else [kisa, girdi[:taban]]
+                for aday in [lambda t=t: _hakla_yaz(t, veri_paketi, sablon) for t in tabanlar] + [lambda: girdi]:
+                    c = aday()
+                    if c and _dogrulanir_mi(c, dogrula):
+                        cikti = c
                         sonuc["kullanimHakkiKorundu"] = True
                         break
         if cikti is None:
