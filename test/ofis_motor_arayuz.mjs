@@ -53,12 +53,14 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
   for (const k of [GIRDI, CIKTI, PNG]) fs.mkdirSync(k, { recursive: true });
   const docx = path.join(GIRDI, 'İş Bankası dilekçe ÇĞİÖŞÜ.docx');
   const pdfGirdi = path.join(GIRDI, 'ek.pdf');
+  const odt = path.join(GIRDI, 'Açık belge.odt');
   execFileSync(PY, ['-X', 'utf8', '-c', `
 import sys
 sys.path.insert(0, ${J(path.join(KOK, 'test'))}); sys.path.insert(0, ${J(path.join(KOK, 'core'))})
 import word_donusum_testi as W
 W.docx_yaz(${J(docx)}, [("Başlık %d Çığöşü" % (i + 1), W.paragraflar(70 + i, 5)) for i in range(2)])
 W.sentetik_pdf(${J(pdfGirdi)}, sayfa=1)
+W.odt_yaz(${J(odt)}, [("Başlık Çığöşü", W.paragraflar(72, 3))])
 `], { encoding: 'utf8' });
 
   await evalJs(`(async () => {
@@ -117,6 +119,21 @@ W.sentetik_pdf(${J(pdfGirdi)}, sayfa=1)
   }
   await evalJs(`(async () => { window.__pdefeOtoYanit = { secim: 0 }; try { const m = await import('pdefe://app/src/renderer/araclar/ortak.js'); if (m.acikAracPenceresiVar()) await m.aracPencereleriniKapat(); } catch (e) { console.warn(e); } finally { delete window.__pdefeOtoYanit; } return true; })()`);
   await kosul(`!document.querySelector('.arac-ortusu')`, 4000);
+
+  // ------------------------------------------------------------ .odt yalnız WPS varken: WPS açamıyor, verilmez (0.3.1, gerçek WPS'te ölçüldü)
+  if (BEKLENEN === 'wps') {
+    await evalJs(`window.__pdefe.komutCalistir('arac.donustur', ${J([odt])})`);
+    await kosul(`!!document.querySelector('.donustur-pencere')`, 5000);
+    await kosul(`!document.querySelector('.donustur-oge.yukleniyor')`, 20000);
+    await bekle(400);
+    const so = await satir();
+    await ss('01b-odt-satir');
+    const ph = so?.hedefler?.find((h) => h.id === 'pdf');
+    console.log(`     ODT: ${J({ hedef: ph, neden: so?.neden, hata: so?.hata })}`);
+    sonuc('ODT: PDF hedefi soluk, ipucunda WPS Office ve gerekenler, noktalı virgül yok', ph?.devre === true && /WPS Office/.test(ph.ipucu) && /LibreOffice/.test(ph.ipucu) && !/;/.test(ph.ipucu), ph);
+    await evalJs(`(async () => { window.__pdefeOtoYanit = { secim: 0 }; try { const m = await import('pdefe://app/src/renderer/araclar/ortak.js'); if (m.acikAracPenceresiVar()) await m.aracPencereleriniKapat(); } catch (e) { console.warn(e); } finally { delete window.__pdefeOtoYanit; } return true; })()`);
+    await kosul(`!document.querySelector('.arac-ortusu')`, 4000);
+  }
 
   // ------------------------------------------------------------ Ayarlar: Hangi program
   await evalJs(`window.__pdefe.komutCalistir('duzen.ayarlar', 'kaydetme')`);

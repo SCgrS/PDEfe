@@ -5,7 +5,7 @@ burada üretilir; çıktılar test/cikti/ofis_motor altında.
 Çalıştırma (görünmeyen masaüstünde: WPS ekrana pencere açabilir):
   .venv\\Scripts\\python.exe -X utf8 test\\ofis_motor_testi.py [--exe core\\dist\\pdefe-core\\pdefe-core.exe] [--wps-bildirim] [--word-benzetim]
 --exe: Paketli çekirdekle (modülün içine bakan bölümler atlanır). --wps-bildirim: WPS'in kurulum kilidi duruyorsa ön denetimi kapatıp gerçek WPS'in penceresini
-yakalar (yalnız görünmeyen masaüstünde çalıştırın). --word-benzetim: Word motorunu WPS'e yöneltir (yine görünmeyen masaüstünde). --wps-kullanici: F'de bakınız. Word burada BAŞLATILMAZ (Word'ün yolu test/word_donusum_testi.py'de). Kurulu olmayan motorun bölümü ATLANDI der.
+yakalar (yalnız görünmeyen masaüstünde çalıştırın). --word-benzetim: Word motorunu WPS'e yöneltir (yine görünmeyen masaüstünde). --wps-kullanici, --wps-sonlandirma: F'de bakınız. Word burada BAŞLATILMAZ (Word'ün yolu test/word_donusum_testi.py'de). Kurulu olmayan motorun bölümü ATLANDI der.
 
 Bölümler:
   A) Karar: Word.Application kaydı wps.exe'yi gösteriyorsa Word yok sayılır, sınama değişkenleri, ön bellek.
@@ -17,6 +17,7 @@ Bölümler:
      Birleştir, bozuk belge, kalıntı yok, açık LibreOffice süreçleri yerinde.
   F) WPS: Kurulum kilidi duruyorsa hiç başlatılmaz, LibreOffice'e düşülür. Kilit yoksa gerçek dönüştürme, .odt ve onarım penceresi, açık belgeli WPS (otomasyon örneğinde),
      --wps-kullanici ile dosya ilişkisinin komutuyla açılan belge (bu masaüstünde, WPS'in giriş penceresi görünür masaüstüne çıkabilir, bkz. PLAN "Gerçek WPS").
+     --wps-sonlandirma ile süren dönüştürmede iptal ve çekirdeğin kapanması (bizim WPS süreci iki kez sonlanır, gerekmedikçe çalıştırmayın).
   G) Motor yokken: Anlaşılır neden, Word'süz çalışan öbür türler (TIFF, JPG, PNG, BMP, GIF, WEBP, PDF), bozuk dosyalarda ham metin yok.
   H) Hata iletileri (motorsuz): Yazılamayan klasör işten önce ve temiz, olmayan sürücü, boş dosya, bozuk dosya, işletim sisteminin ham iletisi hiçbir yoldan gitmez, Birleştir'de hedef klasör.
 """
@@ -1135,7 +1136,7 @@ def wps_odt_bolumu(g):
             word._wps_ile(g["odt"], os.path.join(k, "c.pdf"), lambda *a: None, "a.odt")
             sonuc("gerçek onarım penceresi: Motor hatası", False, "WPS bu sürümde .odt açtı: Modül belgesi ve _turun_motorlari yeniden ölçülmeli")
         except word._MotorHatasi as e:
-            sonuc("gerçek onarım penceresi: Yakalandı (%.1f sn)" % (time.time() - t0), e.neden == "acilmadi" and e.ayrinti == word.WPS_PENCERE and time.time() - t0 < word.BILDIRIM_SURESI + 8, (e.neden, e.ayrinti))
+            sonuc("gerçek onarım penceresi: Yakalandı (%.1f sn)" % (time.time() - t0), e.neden == "acilmadi" and e.ayrinti == word.WPS_PENCERE and time.time() - t0 < word.BILDIRIM_SURESI + 6, (e.neden, e.ayrinti))
         sonuc("gerçek onarım penceresi: Bizim süreçler kapandı", wps_otomasyon_bitti_mi(once, 10), wps_otomasyon_surecleri())
     finally:
         if eski is None:
@@ -1153,6 +1154,90 @@ def wps_odt_bolumu(g):
             sonuc("WPS + LibreOffice: Sonraki DOCX yine WPS'le (motor sona alınmadı)", b.get("motor") == "wps" and os.path.isfile(hb), b)
         finally:
             s.kapat()
+
+
+def wps_ayar_bolumu():
+    """Gerçek WPS: Kendi örneğimiz bizim sayılır, gizlenir, makrolar kapanır, Quit iki süreci de kapatır."""
+    print("— F) WPS: Örneğin ayarları")
+    from islemler import word
+    once = wps_otomasyon_surecleri()
+    comtypes, _ = word._com()
+    comtypes.CoInitializeEx(comtypes.COINIT_APARTMENTTHREADED)
+    o = word._WpsOturumu(word.wps_bul()["progid"])
+    try:
+        o._baslat()
+        w = o._word
+        sonuc("yardımcılar açıkken örnek bizim", o._paylasimli is False and o.pid is not None, (o._paylasimli, o.pid))
+        sonuc("makrolar kapalı", o._makro_kapali is True and int(w.al("AutomationSecurity")) == word.MSO_AUTOMATION_FORCE_DISABLE, w.al("AutomationSecurity"))
+        sonuc("görünmez, ekran güncellenmiyor, uyarı yok", w.al("Visible") is False and w.al("ScreenUpdating") is False and int(w.al("DisplayAlerts")) == 0, (w.al("Visible"), w.al("ScreenUpdating"), w.al("DisplayAlerts")))
+        sonuc("Application.Name Word der, yol WPS'i gösterir", str(w.al("Name")) == "Microsoft Word" and "office6" in str(w.al("Path")).lower(), (w.al("Name"), w.al("Path")))
+        w = None
+    finally:
+        o._kapat(bekle=10)
+        comtypes.CoUninitialize()
+    sonuc("Quit: Bizim iki süreç kapandı", wps_otomasyon_bitti_mi(once, 10), wps_otomasyon_surecleri())
+
+
+def wps_sonlandirma_bolumu(g):
+    """Gerçek WPS, süren dönüştürme: İptal ve çekirdeğin kapanması. Bizim süreç sonlanır (iki kez), altındaki de gider, yardımcılar yerinde, sonraki iş çalışır."""
+    print("— F) WPS: İptal ve kapanış")
+    k = os.path.join(CIKTI, "wps_sonlandirma")
+    os.makedirs(k, exist_ok=True)
+    buyuk = os.path.join(k, "büyük belge.docx")
+    W.docx_yaz(buyuk, [("Başlık %d Çığöşü" % (i + 1), W.paragraflar(i, 4)) for i in range(300)], tablo=False)   # ~14 sn
+
+    def cevrilene_dek(s, sure=30):
+        s.sayac += 1
+        kimlik = s.sayac
+        h = os.path.join(k, "h%d.pdf" % s.p.pid)
+        s.p.stdin.write(json.dumps({"id": kimlik, "method": "bicim_donustur", "params": {"ogeler": [{"yol": buyuk, "hedef": h, "hedefBicim": "pdf"}]}}, ensure_ascii=False).encode("utf-8") + b"\n")
+        s.p.stdin.flush()
+        son = time.time() + sure
+        while time.time() < son:
+            m = s.satirlar.get(timeout=sure)
+            if m and m.get("id") == kimlik and "çevriliyor" in str((m.get("progress") or {}).get("mesaj")):
+                time.sleep(1)
+                return kimlik, h
+        raise RuntimeError("çevirme aşamasına gelinmedi")
+    once = wps_otomasyon_surecleri()
+    bulut = surec_say("wpscloudsvr.exe")
+    s = W.Surec(None, {"PDEFE_OFIS_MOTORU": "wps"})
+    try:
+        kimlik, h = cevrilene_dek(s)
+        t0 = time.time()
+        s.sayac += 1
+        s.p.stdin.write(json.dumps({"id": s.sayac, "method": "iptal", "params": {"id": kimlik}}).encode("utf-8") + b"\n")
+        s.p.stdin.flush()
+        yanit = None
+        while time.time() - t0 < 30:
+            m = s.satirlar.get(timeout=30)
+            if m and m.get("id") == kimlik and ("result" in m or "error" in m):
+                yanit = m
+                break
+        kisa = (yanit.get("error") or (yanit.get("result") or {}).get("sonuclar")) if yanit else None
+        print("     iptal yanıtı %.1f sn: %s" % (time.time() - t0, kisa))
+        sonuc("iptal: Yanıt geldi, PDF yazılmadı", yanit is not None and "pdefe-tmp" not in str(os.listdir(k)) and not os.path.exists(h), kisa)
+        sonuc("iptal: Bizim süreçler kapandı (%.1f sn)" % (time.time() - t0), wps_otomasyon_bitti_mi(once, 15), wps_otomasyon_surecleri())
+        sonuc("iptal: Arka plandaki bulut hizmeti yerinde", bulut <= surec_say("wpscloudsvr.exe"))
+        h2 = os.path.join(k, "sonra.pdf")
+        r = s.cagir("bicim_donustur", {"ogeler": [{"yol": g["docx"], "hedef": h2, "hedefBicim": "pdf"}]})
+        sonuc("iptalden sonra yeni dönüştürme", r.get("basarili") == 1 and r["sonuclar"][0].get("motor") == "wps", r)
+    finally:
+        s.kapat()
+    s = W.Surec(None, {"PDEFE_OFIS_MOTORU": "wps"})
+    cekirdek = s.p.pid
+    try:
+        _, h = cevrilene_dek(s)
+        t0 = time.time()
+        s.p.stdin.close()
+        s.p.wait(timeout=20)
+        sonuc("kapanış: Çekirdek süren işle kapandı (%.1f sn)" % (time.time() - t0), time.time() - t0 < 15, time.time() - t0)
+    finally:
+        if s.p.poll() is None:
+            s.p.kill()
+    sonuc("kapanış: Bizim süreçler kapandı", wps_otomasyon_bitti_mi(once, 15), wps_otomasyon_surecleri())
+    sonuc("kapanış: Arka plandaki bulut hizmeti yerinde", bulut <= surec_say("wpscloudsvr.exe"))
+    sonuc("kapanış: Geçici dosya ve klasör kalmadı", not os.path.exists(h) and "pdefe-tmp" not in str(os.listdir(k)) and not kalinti_klasorler(cekirdek), (os.listdir(k), kalinti_klasorler(cekirdek)))
 
 
 def wps_kullanici_bolumu(g):
@@ -1527,10 +1612,13 @@ def main():
         else:
             testler.append(lambda: motor_bolumu("wps", g, exe))
             if not exe:
+                testler.append(wps_ayar_bolumu)
                 testler.append(lambda: wps_odt_bolumu(g))
                 testler.append(lambda: wps_acik_belge_bolumu(g))
                 if "--wps-kullanici" in sys.argv:
                     testler.append(lambda: wps_kullanici_bolumu(g))
+                if "--wps-sonlandirma" in sys.argv:
+                    testler.append(lambda: wps_sonlandirma_bolumu(g))
     for t in testler:
         try:
             t()

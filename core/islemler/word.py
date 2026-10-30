@@ -78,8 +78,9 @@ WPS 12.2'de ölçüldü: Türkçe doğru, filigran yok, başlıktan yer imi var)
     kullanıcının ekranına pencere çıkmaz. Yalnız WPS varsa hedef soluktur, neden yazar (NEDEN_ODT).
   - Bozuk belgeyi sormadan yarım çevirir: document.xml'i ortadan kesilmiş .docx'te Open hata vermedi, PDF yazı ortasında bitti (ölçüldü, Word ve LibreOffice reddediyor). Bu yüzden .docx ve .docm'nin ana
     parçası WPS'e verilmeden önce XML olarak denetlenir (_docx_saglam_mi), bozuksa belge sorunu sayılır, kullanıcı eksik PDF almaz.
-  - Makro: AutomationSecurity yazılabiliyorsa 3. .docm kopyası motora makrosuz verilir (_makrosuz_kopya, LibreOffice'e de). Makro kapatılamıyorsa
+  - Makro: AutomationSecurity yazılabiliyorsa 3 (gerçek WPS'te yazıldı, okundu). .docm kopyası motora makrosuz verilir (_makrosuz_kopya, LibreOffice'e de). Makro kapatılamıyorsa
     içinde Macros kabı olan .doc WPS'e verilmez.
+  - Parolalı belge WPS'e gitmez (aşağıda). Ön denetimden kaçarsa da asılmaz: Word'ün parolaladığı .docx'te Open 1 sn'de 0x80004004 döndü, pencere açmadı (ölçüldü, motor hatası).
 
 LibreOffice (Word ve WPS yoksa ya da başlamazsa; macOS'ta ve Linux'ta tek motor): soffice --headless --convert-to pdf, resimleri küçültmeyen ve
 kayıpsız sıkıştıran süzgeç seçenekleriyle (7.4 ve sonrası; çıktı yoksa seçeneksiz yeniden). 0.3.1, Windows'ta ilk gerçek sınama (LibreOffice
@@ -133,7 +134,7 @@ MESGUL_SURESI = 30.0        # sn: "Word meşgul" (RPC_E_CALL_REJECTED) yeniden d
 ALGILAMA_ONBELLEK = 60.0    # sn: Word / LibreOffice algılamasının ön bellekte kaldığı süre
 LO_SURE = 180.0             # sn: LibreOffice'in bir belgesi (taze profil oluşturması dâhil, ~4 sn)
 SAGLIK_SURESI = 300.0       # sn: başlamayan motor bu süre boyunca sona alınır
-BILDIRIM_SURESI = 4.0       # sn: WPS başlarken ya da belge açılırken ekranda bu kadar duran küçük pencere bildirim sayılır
+BILDIRIM_SURESI = 2.0       # sn: WPS başlarken ya da belge açılırken ekranda bu kadar duran küçük pencere bildirim sayılır (kısa: Kullanıcının ekranında durmasın. Otomasyon örneği olağan işte hiç pencere açmıyor, 1500 sayfada da)
 BILDIRIM_KAPANMA = 5.0      # sn: bildirim penceresine WM_CLOSE'tan sonra sürecin kapanması beklenir, sonra yalnız o süreç sonlandırılır
 BILDIRIM_EN_GENIS, BILDIRIM_EN_YUKSEK = 1000, 800   # px: bundan büyük pencere bildirim sayılmaz (ana pencere)
 UYDURMA_PAROLA = "pdefe-parola-yok-7f3a"
