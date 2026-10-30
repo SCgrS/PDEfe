@@ -858,11 +858,14 @@ async function sekmeyiAl(paket, { x = null, yeni = false } = {}, onayla = null) 
     else belge.yigin.durumKoy([], 0, paket.degisti ? -1 : 0);
     if (onayla && !(await onayla())) throw new Error('Sekme zamanında açılamadı.');
     if (!belgeler.has(id)) throw new Error('Sekme açılırken kapatıldı.');
+    // Onaydan sonra kaynak pencere sekmesini kaldırır, belgenin tek kopyası buradadır: Son adımlardan birinin hatası sekmeyi kaldırmamalı (0.3.1 kayıp avı: Kaydedilmemiş yazı giderdi)
     belge.tasiniyor = false;
-    cekirdek('belge_bilgi', { yol: belge.yol }).then((bilgi) => { belge.bilgi = bilgi; }).catch(() => {});
     if (gorunum.xfa) belge.xfa.acildi(paket.xfaDamga ?? null);
-    kirliGuncelle(belge);
-    if (aktifId === id) { sayfaGoster(belge); zoomGoster(belge); durum.boyutYaz(belge.boyut); panel.belgeAyarla(belge); arama.sekmeDegisti(); xfaDugmeleriniGuncelle(belge); }
+    try {
+      cekirdek('belge_bilgi', { yol: belge.yol }).then((bilgi) => { belge.bilgi = bilgi; }).catch(() => {});
+      kirliGuncelle(belge);
+      if (aktifId === id) { sayfaGoster(belge); zoomGoster(belge); durum.boyutYaz(belge.boyut); panel.belgeAyarla(belge); arama.sekmeDegisti(); xfaDugmeleriniGuncelle(belge); }
+    } catch (e) { console.error('Taşınan sekmenin son adımı', e); }
     return belge;
   } catch (e) {
     if (belge && belgeler.has(belge.id)) belgeyiKaldir(belge, { devredildi: true });   // anlık kopya ve dosyalar kaynak pencerenindir
