@@ -1,0 +1,55 @@
+# PDEfe'nin Dosya Gezgini sağ tık eklentisi (0.3.1): "PDEfe ile dönüştür" ve "PDEfe ile birleştir" (IExplorerCommand, kabuk eklentisi).
+# Ayrıntı src/lib.rs'in baş yorumunda. Derleme: node build/sagtik-derle.mjs (cargo build --release, çıktı sagtik/dist/PDEfeSagTik.dll).
+# Sınama: cargo test --release (birim testleri ve tests/dll.rs: DLL'i LoadLibrary ile yükleyip gerçek kabuk öğeleriyle sınar).
+[package]
+name = "pdefe-sagtik"
+version = "0.0.0"            # PDEfe'nin sürümü package.json'da; DLL'in kendi sürümü yok (kurucu onu PDEfe'nin sürüm klasörüne koyar)
+edition = "2021"
+publish = false
+license = "AGPL-3.0-only"
+
+[lib]
+name = "pdefe_sagtik"
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+test = true
+
+[[test]]
+name = "dll"
+path = "tests/dll.rs"
+harness = false             # kendi main'i: sahte PDEfe olarak da çalışır (Invoke'un başlattığı süreç)
+
+[[test]]
+name = "menu"
+path = "tests/menu.rs"
+harness = false             # Gezgin'in menü kodu (shell32) ile kayıtlı fiiller; yalnızca test/sagtik_menu.ps1 çalıştırır
+
+[dependencies.windows]
+version = "=0.62.2"
+features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_System_Com",
+  "Win32_System_Environment",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Ole",
+  "Win32_System_SystemServices",
+  "Win32_System_Threading",
+  "Win32_Storage_FileSystem",
+  "Win32_Security",
+  "Win32_UI_Shell",
+  "Win32_UI_Shell_Common",
+  "Win32_UI_WindowsAndMessaging",
+]
+
+[dependencies.windows-core]
+version = "=0.62.2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+debug = false
+# panic = "unwind" (varsayılan) bilerek: Her COM yöntemi catch_unwind ile sarılır, panik Gezgin'e geçmez, yöntem E_UNEXPECTED döner.
+# "abort" seçilseydi kaçan bir panik Gezgin'i (ya da dosya penceresini açan programı) düşürürdü.

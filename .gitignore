@@ -9,6 +9,7 @@ build/pyinstaller-work/
 core/*.spec.bak
 core/build/
 core/dist/
+sagtik/target/
 dist/
 node_modules/
 release/

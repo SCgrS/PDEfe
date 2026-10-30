@@ -12,6 +12,10 @@
 # paket dışından gerçek kovan) ve paket görünümünden okunur, aynı olmalı; deneme kopyasının izleri temizlikte iki görünümde de kalmamalı.
 # WMI Win32_Process Create burada kullanılmaz: WinstationDesktop'u uygulamıyor (2026-10-07 yoklaması: süreç Default masaüstünde açıldı),
 # arayüzlü kurucu kullanıcının ekranında açılırdı.
+# 0.3.1: Sağ tık menüsü (build\installer.nsh madde 11): Deneme kurucusu fiilleri (KurucuSinama.Birlestir / .Donustur) ve sınama CLSID'lerini
+# HKCU'ya, DLL'i %LOCALAPPDATA%\KurucuSinama\SagTik\<sürüm>\'e yazar. Kayıt yazımı paketin sanal kovanına gitmiyorsa (Gezgin görürdü) sınama
+# başlamaz: Başta HKCU\Software\Classes'a işaret yazılıp gerçek kovanda (WMI) olmadığı kanıtlanır. Kayıtların değerleri test\sagtik_kayitlari.json'la
+# karşılaştırılır. Gezgin'in DLL'i yüklü tuttuğu durum, DLL bu PowerShell'e yüklenerek (LoadLibrary) benzetilir: güncelleme, onarma ve kaldırma.
 # Kullanım: powershell -File test\kurucu_akis.ps1 -Cikti <klasör> [-Eski <90.0.1 kurucusu> -Yeni <90.0.2 kurucusu>] [-MasaustuSina]
 #   -Eski / -Yeni verilmezse node test\kurucu_derle.mjs ile <Cikti>\derleme altına derlenir (proje dışı bir klasör verin).
 #   -MasaustuSina: /S'nin ve Onar'ın masaüstü kısayolu davranışı da sınanır (kısayol gerçek Masaüstü'ne kısa süreliğine düşer).
@@ -36,6 +40,25 @@ $denemeExe = Join-Path $denemeKlasoru 'KurucuSinama.exe'
 $masaustuKisayolu = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Kurucu Sinama.lnk'
 $baslatKisayolu = Join-Path ([Environment]::GetFolderPath('Programs')) 'Kurucu Sinama.lnk'
 $guncelleyiciKlasoru = Join-Path $env:LOCALAPPDATA 'kurucu-sinama-updater'
+# 0.3.1: sağ tık (test\kurucu_sinama.nsh, test\sagtik_kayitlari.json)
+$sagTikDuzen = Get-Content -LiteralPath (Join-Path $kok 'test\sagtik_kayitlari.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+$sagTikUst = Join-Path $env:LOCALAPPDATA 'KurucuSinama'
+$sagTikKok = Join-Path $sagTikUst 'SagTik'
+$sagTikRunOnce = 'KurucuSinama sağ tık temizliği'
+$RUNONCE = 'Software\Microsoft\Windows\CurrentVersion\RunOnce'
+function SagTik-Anahtarlari {
+  foreach ($f in $sagTikDuzen.fiiller) {
+    "Software\Classes\$($sagTikDuzen.fiilKoku)\$($sagTikDuzen.fiilOneki.kurucuSinamasi).$($f.ad)"
+    "Software\Classes\CLSID\$($f.sinamaClsid)"
+  }
+}
+# Gerçek PDEfe'nin sağ tık anahtarları (ön ve son görüntü)
+function SagTik-Gercek-Anahtarlari {
+  foreach ($f in $sagTikDuzen.fiiller) {
+    "Software\Classes\$($sagTikDuzen.fiilKoku)\$($sagTikDuzen.fiilOneki.gercek).$($f.ad)"
+    "Software\Classes\CLSID\$($f.clsid)\InprocServer32"
+  }
+}
 
 if (-not $Eski -or -not $Yeni) {
   foreach ($s in @('90.0.1', '90.0.2')) {
@@ -121,7 +144,10 @@ function Gercek-Pdefe-Goruntusu {
     $g["$gorunum Classes\PDEfe.pdf open"] = & $deger 'Software\Classes\PDEfe.pdf\shell\open\command' ''
     $g["$gorunum Classes\.pdf"] = & $deger 'Software\Classes\.pdf' ''
     $g["$gorunum Classes\.pdf\OpenWithProgids"] = & $degerler 'Software\Classes\.pdf\OpenWithProgids'
+    foreach ($a in SagTik-Gercek-Anahtarlari) { $g["$gorunum $a"] = & $degerler $a; $g["$gorunum $a (varsayılan)"] = & $deger $a '' }
+    $g["$gorunum RunOnce PDEfe sağ tık"] = & $deger $RUNONCE 'PDEfe sağ tık temizliği'
   }
+  $g['gercek LocalAppData\PDEfe\SagTik'] = [string](Gercek-Klasor-Var (Join-Path $env:LOCALAPPDATA 'PDEfe\SagTik'))
   $g['gercek Programs\PDEfe\PDEfe.exe'] = Gercek-Dosya (Join-Path $env:LOCALAPPDATA 'Programs\PDEfe\PDEfe.exe')
   $g['gercek pdefe-updater\installer.exe'] = Gercek-Dosya (Join-Path $env:LOCALAPPDATA 'pdefe-updater\installer.exe')
   $g['gercek masaüstü PDEfe.lnk'] = [string](Test-Path -LiteralPath (Join-Path ([Environment]::GetFolderPath('Desktop')) 'PDEfe.lnk'))
@@ -137,6 +163,14 @@ function Deneme-Izleri {
   if ((Gercek-Deger 'Software\RegisteredApplications' 'KurucuSinama') -ne '<yok>') { $izler.Add('gerçek kovan: RegisteredApplications\KurucuSinama') }
   if ((Paket-Deger 'Software\RegisteredApplications' 'KurucuSinama') -ne '<yok>') { $izler.Add('paket görünümü: RegisteredApplications\KurucuSinama') }
   if ((Gercek-Degerler 'Software\Classes\.pdf\OpenWithProgids') -match 'KurucuSinama') { $izler.Add('gerçek kovan: .pdf\OpenWithProgids\KurucuSinama.pdf') }
+  foreach ($a in SagTik-Anahtarlari) {
+    if (Gercek-Anahtar-Var $a) { $izler.Add("gerçek kovan: HKCU\$a") }
+    if (Paket-Anahtar-Var $a) { $izler.Add("paket görünümü: HKCU\$a") }
+  }
+  if ((Gercek-Deger $RUNONCE $sagTikRunOnce) -ne '<yok>') { $izler.Add("gerçek kovan: RunOnce\$sagTikRunOnce") }
+  if ((Paket-Deger $RUNONCE $sagTikRunOnce) -ne '<yok>') { $izler.Add("paket görünümü: RunOnce\$sagTikRunOnce") }
+  if (Gercek-Klasor-Var $sagTikUst) { $izler.Add("gerçek klasör: $sagTikUst") }
+  if (Test-Path -LiteralPath $sagTikUst) { $izler.Add("paket görünümü klasör: $sagTikUst") }
   if ((Paket-Degerler 'Software\Classes\.pdf\OpenWithProgids') -match 'KurucuSinama') { $izler.Add('paket görünümü: .pdf\OpenWithProgids\KurucuSinama.pdf') }
   foreach ($k in @($denemeKlasoru, $guncelleyiciKlasoru, (Join-Path $env:APPDATA 'KurucuSinama'))) {
     if (Gercek-Klasor-Var $k) { $izler.Add("gerçek klasör: $k") }
@@ -304,6 +338,53 @@ function Onbellek-Kaldi([string]$an) {
 function Onbellek-Silindi([string]$an) {
   Denetle "$($an): güncelleme önbelleği (kurucu-sinama-updater) silindi" (-not (Test-Path -LiteralPath $guncelleyiciKlasoru)) $guncelleyiciKlasoru
 }
+# 0.3.1: Sağ tık. Anahtarlar .NET ile okunur (adda * var: PowerShell'in kayıt sürücüsü onu joker sayabilir)
+function Paket-Kayit([string]$anahtar, [string]$ad) {
+  $a = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($anahtar)
+  if (-not $a) { return '<yok>' }
+  try { $v = $a.GetValue($ad, $null, 'DoNotExpandEnvironmentNames'); if ($null -eq $v) { return '<yok>' }; return [string]$v } finally { $a.Close() }
+}
+function SagTik-Dll([string]$surum) { return (Join-Path $sagTikKok "$surum\$($sagTikDuzen.dllAdi)") }
+# Kurulu sürümün sağ tık kaydı: değerler düzendeki gibi, DLL ve PDEfe-yolu.txt sürüm klasöründe, gerçek kovanda hiçbiri yok. $kalan: silinemeyen
+# (yüklü) eski sürüm klasörleri; başka sürüm klasörü olmamalı
+function SagTik-Kurulu([string]$an, [string]$surum, [string[]]$kalan = @()) {
+  $dll = SagTik-Dll $surum
+  $hatalar = New-Object System.Collections.Generic.List[string]
+  $dok = { param($v, $f) $v.Replace('{BASLIK}', $f.baslik).Replace('{CLSID}', $f.sinamaClsid).Replace('{EXE}', $denemeExe).Replace('{DLL}', $dll) }
+  foreach ($f in $sagTikDuzen.fiiller) {
+    $fiil = "Software\Classes\$($sagTikDuzen.fiilKoku)\$($sagTikDuzen.fiilOneki.kurucuSinamasi).$($f.ad)"
+    $clsid = "Software\Classes\CLSID\$($f.sinamaClsid)"
+    foreach ($p in $sagTikDuzen.fiilDegerleri.PSObject.Properties) { $b = & $dok $p.Value $f; $v = Paket-Kayit $fiil $p.Name; if ($v -ne $b) { $hatalar.Add("$fiil\$($p.Name) «$v» ≠ «$b»") } }
+    foreach ($p in $sagTikDuzen.clsidDegerleri.PSObject.Properties) { $n = if ($p.Name -eq '@') { '' } else { $p.Name }; $b = & $dok $p.Value $f; $v = Paket-Kayit $clsid $n; if ($v -ne $b) { $hatalar.Add("$clsid\$n «$v» ≠ «$b»") } }
+    foreach ($p in $sagTikDuzen.inprocDegerleri.PSObject.Properties) { $n = if ($p.Name -eq '@') { '' } else { $p.Name }; $b = & $dok $p.Value $f; $v = Paket-Kayit "$clsid\InprocServer32" $n; if ($v -ne $b) { $hatalar.Add("$clsid\InprocServer32\$n «$v» ≠ «$b»") } }
+    if (Gercek-Anahtar-Var $fiil) { $hatalar.Add("gerçek kovanda: $fiil") }
+    if (Gercek-Anahtar-Var $clsid) { $hatalar.Add("gerçek kovanda: $clsid") }
+  }
+  if (-not (Test-Path -LiteralPath $dll)) { $hatalar.Add("DLL yok: $dll") }
+  elseif ((Get-FileHash -LiteralPath $dll).Hash -ne (Get-FileHash -LiteralPath (Join-Path $denemeKlasoru "resources\sagtik\$($sagTikDuzen.dllAdi)")).Hash) { $hatalar.Add('DLL kurulum klasöründekinin aynısı değil') }
+  $yolDosyasi = Join-Path (Split-Path -Parent $dll) $sagTikDuzen.yolDosyasi
+  $bayt = if (Test-Path -LiteralPath $yolDosyasi) { [System.IO.File]::ReadAllBytes($yolDosyasi) } else { @() }
+  $yol = if ($bayt.Count -ge 2 -and $bayt[0] -eq 0xFF -and $bayt[1] -eq 0xFE) { [System.Text.Encoding]::Unicode.GetString($bayt, 2, $bayt.Count - 2) } else { '<BOM yok>' }
+  if ($yol -ne $denemeExe) { $hatalar.Add("PDEfe-yolu.txt «$yol» ≠ «$denemeExe»") }
+  $klasorler = @(if (Test-Path -LiteralPath $sagTikKok) { Get-ChildItem -LiteralPath $sagTikKok -Directory | ForEach-Object Name | Sort-Object })
+  $beklenen = @(@($surum) + $kalan | Sort-Object -Unique)
+  if (($klasorler -join ',') -ne ($beklenen -join ',')) { $hatalar.Add("sürüm klasörleri: $($klasorler -join ', ') (beklenen $($beklenen -join ', '))") }
+  Denetle "$($an): sağ tık kaydı $surum (fiiller, CLSID'ler, DLL, PDEfe-yolu.txt; gerçek kovanda yok)" ($hatalar.Count -eq 0) ($hatalar -join '; ')
+}
+function SagTik-Silindi([string]$an) {
+  $kalan = @(SagTik-Anahtarlari | Where-Object { Paket-Anahtar-Var $_ })
+  Denetle "$($an): sağ tık kayıtları, klasörü ve RunOnce yok" ($kalan.Count -eq 0 -and -not (Test-Path -LiteralPath $sagTikUst) -and (Paket-Deger $RUNONCE $sagTikRunOnce) -eq '<yok>') "kayıtlar: $($kalan -join ', '); klasör $(Test-Path -LiteralPath $sagTikUst); RunOnce «$(Paket-Deger $RUNONCE $sagTikRunOnce)»"
+}
+# Gezgin'in DLL'i yüklü tutması: DLL bu PowerShell'e yüklenir (silinemez, üzerine yazılamaz), sonra bırakılır
+Add-Type -TypeDefinition @"
+using System; using System.Runtime.InteropServices;
+public static class SagTikKilit {
+  [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern IntPtr LoadLibraryExW(string ad, IntPtr h, uint bayrak);
+  [DllImport("kernel32.dll")] static extern bool FreeLibrary(IntPtr h);
+  public static long Yukle(string yol) { return (long)LoadLibraryExW(yol, IntPtr.Zero, 0); }
+  public static bool Birak(long h) { return FreeLibrary((IntPtr)h); }
+}
+"@
 # Deneme kopyasının kalıntıları: kayıtlıysa kendi sessiz kaldırıcısı (görünmeyen masaüstünde), sonra kısayollar ve klasörler. Sınamanın sonunda
 # (finally) ve 0.2.9 denetiminden beri başında (önceki koşu yarıda kaldıysa) çalışır. .pdf varsayılanını geri yazmak finally'nin işi (ön görüntü)
 function Kalintilari-Temizle {
@@ -320,6 +401,11 @@ function Kalintilari-Temizle {
   Gecici-Kisayol-Sil
   if (Test-Path -LiteralPath $baslatKisayolu) { Remove-Item -LiteralPath $baslatKisayolu -Force }
   if (Test-Path -LiteralPath $denemeKlasoru) { Remove-Item -LiteralPath $denemeKlasoru -Recurse -Force }
+  # 0.3.1: sağ tık (kayıtlar yalnızca paket görünümünde; gerçek kovanda görülürse Deneme-Izleri bildirir, buradan silinmez)
+  foreach ($a in SagTik-Anahtarlari) { try { [Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree($a, $false) } catch { } }
+  $r = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($RUNONCE, $true)
+  if ($r) { try { $r.DeleteValue($sagTikRunOnce, $false) } finally { $r.Close() } }
+  if (Test-Path -LiteralPath $sagTikUst) { Remove-Item -LiteralPath $sagTikUst -Recurse -Force }
 }
 # Kurulu sürüm sayfasında Kaldır seçildi ve kurucu kapandı: deneme kopyasının kendi kaldırıcısı aynı (görünmeyen) masaüstünde açılır;
 # hoş geldiniz → Kaldırılıyor → bitiş. Sonunda kayıt, klasör ve kısayollar kalmamalı.
@@ -351,6 +437,16 @@ function Kaldiriciyi-Sur([int]$kurucu, [string]$goruntu) {
   Onbellek-Silindi 'kaldırıldı'
   Gecici-Kisayol-Sil
 }
+
+# 0.3.1: Deneme kurucusu sağ tık fiillerini HKCU\Software\Classes\*\shell'e yazar. Bu PowerShell'in kayıt yazımları paketin sanal kovanına
+# gitmiyorsa (Gezgin görürdü, deneme fiilleri kullanıcının menüsünde çıkardı) sınama başlamaz
+$isaret = "Software\Classes\$($sagTikDuzen.fiilKoku)\KurucuSinama.SanalKovanKaniti"
+$ia = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey($isaret); $ia.SetValue('isaret', '1'); $ia.Close()
+$sanalPaket = Paket-Anahtar-Var $isaret
+$sanalGercek = Gercek-Anahtar-Var $isaret
+[Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree($isaret, $false)
+Denetle "kayıt yazımı paketin sanal kovanına gidiyor (HKCU\$isaret paket görünümünde var, gerçek kovanda yok)" ($sanalPaket -and -not $sanalGercek) "paket $sanalPaket, gerçek $sanalGercek"
+if ($sanalGercek -or -not $sanalPaket) { throw 'HKCU yazımı gerçek kovana gidiyor ya da ölçülemedi: Deneme kurucusu Gezgin''in menüsüne yazardı, sınama başlamadı.' }
 
 $durum = [KurucuSurucu]::MasaKur('PDEfeKurucu' + $PID)
 if ($durum -ne 'tamam') { throw $durum }
@@ -394,6 +490,7 @@ try {
   $d = Deneme-Durumu; Durum-Yaz $d
   Denetle '90.0.1 kuruldu, masaüstü kısayolu yok, Başlat kısayolu var' ($d.Surum -eq '90.0.1' -and $d.Exe -eq '90.0.1' -and -not $d.Masaustu -and $d.Baslat)
   Denetle 'kurucu kendini güncelleme önbelleğine kopyaladı (kurucu-sinama-updater\installer.exe)' (Test-Path -LiteralPath (Join-Path $guncelleyiciKlasoru 'installer.exe'))
+  SagTik-Kurulu 'kuruldu' '90.0.1'
   # Bilgi: paketin içinden kurulan deneme kopyası gerçek kovana / klasörlere yazdı mı (sanallaştırma bu oturumda açık mı)
   Yaz "         gerçek görünüm: Uninstall kaydı $(Gercek-Anahtar-Var "$KALDIR_ANAHTARI\$DENEME_GUID"), Programs\KurucuSinama $(Gercek-Klasor-Var $denemeKlasoru), Başlat kısayolu $((Gercek-Dosya $baslatKisayolu) -ne '<yok>')"
 
@@ -421,8 +518,10 @@ try {
   Denetle 'İptal: kurucu kapandı, 90.0.1 yerinde' ($kod -ge 0 -and $d.Surum -eq '90.0.1' -and $d.Exe -eq '90.0.1') "çıkış $kod, sürüm $($d.Surum)"
 
   # -------------------------------------------------------------- B2. eski kurulu: Güncelle
-  Yaz 'B2. 90.0.1 kurulu, 90.0.2: Güncelle'
+  Yaz 'B2. 90.0.1 kurulu, 90.0.2: Güncelle (sağ tık DLL''i 90.0.1 yüklü, Gezgin gibi)'
   Onbellek-Isaretle
+  $kilit = [SagTikKilit]::Yukle((SagTik-Dll '90.0.1'))
+  Denetle 'sağ tık DLL''i (90.0.1) yüklendi' ($kilit -ne 0)
   $p = Kurucu-Baslat $Yeni
   $w = Sihirbaz-Bekle -surec $p
   $s = Sayfa-Oku $w.Hwnd
@@ -434,6 +533,9 @@ try {
   $d = Deneme-Durumu; Durum-Yaz $d
   Denetle '90.0.2 kuruldu; masaüstü kısayolu yine yok; Başlat kısayolu var' ($d.Surum -eq '90.0.2' -and $d.Exe -eq '90.0.2' -and -not $d.Masaustu -and $d.Baslat)
   Onbellek-Kaldi 'Güncelle'
+  SagTik-Kurulu 'Güncelle (eski DLL yüklü)' '90.0.2' @('90.0.1')
+  Denetle 'yüklü eski DLL''in PDEfe-yolu.txt''si de kaldı (eski DLL tıklanınca okur)' (Test-Path -LiteralPath (Join-Path $sagTikKok "90.0.1\$($sagTikDuzen.yolDosyasi)"))
+  [SagTikKilit]::Birak($kilit) | Out-Null
   Denetle '.pdf varsayılanı değişmedi, Varsayılan Programlar kaydı deneme adıyla' ($d.Pdf -eq $onGoruntu['paket Classes\.pdf'] -and $d.Kayit -eq 'Software\KurucuSinama\Capabilities') "«$($d.Pdf)» «$($d.Kayit)»"
 
   # -------------------------------------------------------------- E1. /S (elle sessiz kurulum): pencere yok, masaüstü kısayolu oluşur (bugünkü gibi)
@@ -449,10 +551,12 @@ try {
   Denetle "pencere açılmadı, çıkış 0 ($($r.Sure) sn)" ($r.Kod -eq 0 -and $r.Pencereler.Count -eq 0) "çıkış $($r.Kod); pencereler: $($r.Pencereler -join ', ')"
   if ($MasaustuSina) { Denetle '/S bugünkü gibi: sürüm aynı, masaüstü kısayolu oluşturuldu' ($d.Surum -eq '90.0.2' -and $d.Masaustu -and $d.Baslat) }
   else { Denetle '/S --no-desktop-shortcut: sürüm aynı, masaüstü kısayolu yok, Başlat kısayolu var' ($d.Surum -eq '90.0.2' -and -not $d.Masaustu -and $d.Baslat) }
+  SagTik-Kurulu '/S (eski DLL bırakıldıktan sonra: 90.0.1 klasörü silindi)' '90.0.2'
 
   # -------------------------------------------------------------- C1. aynı sürüm: Onar (masaüstü kısayolunun durumu korunur)
-  Yaz "C1. 90.0.2 kurulu (masaüstü kısayolu $(if ($MasaustuSina) { 'var' } else { 'yok' })), 90.0.2: Onar"
+  Yaz "C1. 90.0.2 kurulu (masaüstü kısayolu $(if ($MasaustuSina) { 'var' } else { 'yok' })), 90.0.2: Onar (aynı sürümün sağ tık DLL'i yüklü)"
   Onbellek-Isaretle
+  $kilit = [SagTikKilit]::Yukle((SagTik-Dll '90.0.2'))
   $p = Kurucu-Baslat $Yeni
   $w = Sihirbaz-Bekle -surec $p
   $s = Sayfa-Oku $w.Hwnd
@@ -466,10 +570,13 @@ try {
   $d = Deneme-Durumu; Durum-Yaz $d
   Denetle "onarıldı: sürüm aynı, masaüstü kısayolunun durumu ($(if ($MasaustuSina) { 'var' } else { 'yok' })) ve Başlat kısayolu korundu" ($d.Surum -eq '90.0.2' -and $d.Exe -eq '90.0.2' -and $d.Masaustu -eq [bool]$MasaustuSina -and $d.Baslat)
   Onbellek-Kaldi 'Onar'
+  SagTik-Kurulu 'Onar (DLL yüklü: kopyalanamadı, var olan kaldı)' '90.0.2'
+  [SagTikKilit]::Birak($kilit) | Out-Null
 
   # -------------------------------------------------------------- C2. aynı sürüm: Kaldır (PDEfe'nin kendi kaldırıcısı)
-  Yaz 'C2. 90.0.2 kurulu, 90.0.2: Kaldır'
+  Yaz 'C2. 90.0.2 kurulu, 90.0.2: Kaldır (sağ tık DLL''i yüklü)'
   Onbellek-Isaretle
+  $kilit = [SagTikKilit]::Yukle((SagTik-Dll '90.0.2'))
   $p = Kurucu-Baslat $Yeni
   $w = Sihirbaz-Bekle -surec $p
   $s = Sayfa-Oku $w.Hwnd
@@ -479,6 +586,20 @@ try {
   $kod = [KurucuSurucu]::Bekle($p, 10000)
   Denetle 'kurucu kapandı' ($kod -ge 0) "çıkış $kod"
   Kaldiriciyi-Sur $p 'akis-C2-kaldirici'
+  $kalanKayit = @(SagTik-Anahtarlari | Where-Object { Paket-Anahtar-Var $_ })
+  $runOnce = Paket-Deger $RUNONCE $sagTikRunOnce
+  $beklenenRunOnce = "`"$([Environment]::SystemDirectory)\cmd.exe`" /d /c rd /s /q `"$sagTikKok`" & rd `"$sagTikUst`""
+  Denetle 'Kaldır (DLL yüklü): sağ tık kayıtları silindi, yüklü DLL''in klasörü kaldı' ($kalanKayit.Count -eq 0 -and (Test-Path -LiteralPath (SagTik-Dll '90.0.2'))) ($kalanKayit -join ', ')
+  Denetle 'Kaldır (DLL yüklü): klasör bir sonraki oturum açılışında silinecek (HKCU RunOnce)' ($runOnce -ieq $beklenenRunOnce) "«$runOnce» ≠ «$beklenenRunOnce»"
+  [SagTikKilit]::Birak($kilit) | Out-Null
+  # Oturum açılışının yaptığı: RunOnce komutu çalışır, değer silinir
+  if ($runOnce -match '^"([^"]+)" (.*)$') {
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $Matches[1]; $psi.Arguments = $Matches[2]; $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true
+    [System.Diagnostics.Process]::Start($psi).WaitForExit(15000) | Out-Null
+    $r = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($RUNONCE, $true); if ($r) { $r.DeleteValue($sagTikRunOnce, $false); $r.Close() }
+  }
+  SagTik-Silindi 'Kaldır, sonra oturum açılışı (RunOnce komutu)'
 
   # -------------------------------------------------------------- D. daha yeni kurulu: Vazgeç / Eski sürüme dön
   Yaz 'D0. tohum: 90.0.2 /S --no-desktop-shortcut'
@@ -510,6 +631,7 @@ try {
   $d = Deneme-Durumu; Durum-Yaz $d
   Denetle 'eski sürüme dönüldü: 90.0.1, masaüstü kısayolu yine yok' ($d.Surum -eq '90.0.1' -and $d.Exe -eq '90.0.1' -and -not $d.Masaustu -and $d.Baslat)
   Onbellek-Kaldi 'Eski sürüme dön'
+  SagTik-Kurulu 'Eski sürüme dön' '90.0.1'
 
   # -------------------------------------------------------------- D3. eski kurulu: Kaldır (0.2.3, onaylanan plandaki üçüncü seçenek)
   Yaz 'D3. 90.0.1 kurulu, 90.0.2: Kaldır'
@@ -525,6 +647,7 @@ try {
   $kod = [KurucuSurucu]::Bekle($p, 10000)
   Denetle 'kurucu kapandı, kurmadı' ($kod -ge 0 -and (Deneme-Durumu).Exe -ne '90.0.2') "çıkış $kod"
   Kaldiriciyi-Sur $p 'akis-D3-kaldirici'
+  SagTik-Silindi 'Kaldır (DLL yüklü değil)'
   # E2 için 90.0.1 yeniden (masaüstü kısayolu yok, D2'den sonraki gibi)
   Yaz 'D4. tohum: 90.0.1 /S --no-desktop-shortcut'
   $r = Sessiz-Kur $Eski '/S --no-desktop-shortcut'
@@ -539,6 +662,7 @@ try {
   Denetle "pencere açılmadı, çıkış 0 ($($r.Sure) sn)" ($r.Kod -eq 0 -and $r.Pencereler.Count -eq 0) "çıkış $($r.Kod); pencereler: $($r.Pencereler -join ', ')"
   Denetle '90.0.2 kuruldu, KeepShortcuts true, masaüstü kısayolu yine yok, uygulama açılmadı' ($d.Surum -eq '90.0.2' -and $d.Exe -eq '90.0.2' -and $d.KeepShortcuts -eq 'true' -and -not $d.Masaustu -and $d.Baslat -and @(Get-Process -Name KurucuSinama -ErrorAction SilentlyContinue).Count -eq 0)
   Onbellek-Kaldi '--updated /S'
+  SagTik-Kurulu '--updated /S' '90.0.2'
 
   # -------------------------------------------------------------- F. bozuk kurulum: program dosyası silinmiş, Onar
   Yaz 'F. 90.0.2 kurulu ama KurucuSinama.exe yok, 90.0.2: Onar'

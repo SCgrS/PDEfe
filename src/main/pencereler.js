@@ -49,7 +49,8 @@ const HAYALET_BASLIK = 36, HAYALET_IMLEC_EN_ALT = HAYALET_BASLIK - 8;
 
 /** @typedef {{ pencere: BrowserWindow, wc: Electron.WebContents, id: number, hazir: boolean, hazirSozu: Promise<void>, hazirCoz: () => void,
  *    coktu: boolean, kapatOnayli: boolean, kapatBekleyen: ((kapandi: boolean) => void)|null, bekleyenDosyalar: string[], yollar: Set<string>,
- *    kirli: boolean, kapanisDosyalari: {yollar: string[], anliklar: string[]}|null, yeniPencere?: Kayit }} Kayit */
+ *    bekleyenAraclar: {arac: string, dosyalar: string[]}[], kirli: boolean, kapanisDosyalari: {yollar: string[], anliklar: string[]}|null,
+ *    yeniPencere?: Kayit }} Kayit */
 
 /** @type {Map<number, Kayit>} */
 const kayitlar = new Map();   // webContents.id → kayıt
@@ -139,9 +140,10 @@ export function menuCubugunuUygula(goster) { for (const k of kayitlar.values()) 
 /**
  * Yeni uygulama penceresi. sinirlar verilmezse kayıtlı pencere konumu ve boyutu (test örneğinde PDEFE_TEST_KONUM / BOYUT) kullanılır.
  * goster: false ise pencere gizli kurulur (taşınan sekme açılınca pencereyiGoster ile gösterilir). dosyalar: arayüz hazır olunca açılır.
+ * araclar (0.3.1, sağ tık): [{ arac: 'donustur' | 'birlestir', dosyalar }], arayüz hazır olunca o araçta açılır (aracIstegiAc).
  * @returns {Kayit}
  */
-export function pencereOlustur({ sinirlar = null, goster = true, dosyalar = [] } = {}) {
+export function pencereOlustur({ sinirlar = null, goster = true, dosyalar = [], araclar = [] } = {}) {
   const { TEST, KOK, onYukleme, ayarAl, ayarKoy, temaKoyuMu } = bagimli;
   let buyut = false;
   const verilen = sinirlar;
@@ -190,7 +192,8 @@ export function pencereOlustur({ sinirlar = null, goster = true, dosyalar = [] }
   menuCubuguKur(pencere, menuGorunur);
   /** @type {Kayit} */
   const k = { pencere, wc: pencere.webContents, id: pencere.webContents.id, hazir: false, hazirSozu: null, hazirCoz: null, coktu: false,
-    kapatOnayli: false, kapatBekleyen: null, bekleyenDosyalar: [...dosyalar], yollar: new Set(), kirli: false, kapanisDosyalari: null };
+    kapatOnayli: false, kapatBekleyen: null, bekleyenDosyalar: [...dosyalar], bekleyenAraclar: [...araclar], yollar: new Set(), kirli: false,
+    kapanisDosyalari: null };
   k.hazirSozu = new Promise((coz) => { k.hazirCoz = coz; });
   kayitlar.set(k.id, k);
   odakSirasi.push(k);   // gösterilince / etkinleşince öne geçer
@@ -284,6 +287,18 @@ export function dosyalariAc(dosyalar) {
     if (k.hazir) { gonder(k, 'dosya:ac', yollar); zamanYaz('dosyaGonderildi', k.id); } else k.bekleyenDosyalar.push(...yollar);
   }
   return son;
+}
+
+/**
+ * Sağ tık isteği (0.3.1; anaSurec.js, sagtik.js): Dosyalar en son etkin pencerenin Format Değiştir'inde ya da Birleştir'inde, verilen sırayla
+ * açılır (renderer/uygulama.js 'dosya:ac' { arac }; o pencerede başka bir araç açıksa yeni pencerede). Pencere yoksa yenisi açılır. Döner: isteğin
+ * gittiği pencerenin kaydı.
+ */
+export function aracIstegiAc({ arac, dosyalar }) {
+  const k = etkinKayit();
+  if (!k) return pencereOlustur({ araclar: [{ arac, dosyalar }] });
+  if (k.hazir) { gonder(k, 'dosya:ac', dosyalar, { arac }); zamanYaz('dosyaGonderildi', k.id); } else k.bekleyenAraclar.push({ arac, dosyalar });
+  return k;
 }
 
 // ---------------------------------------------------------------- kapatma
@@ -520,6 +535,7 @@ export function pencereleriKur(b) {
     k.hazir = true; k.coktu = false; k.kirli = false; k.hazirCoz();
     zamanYaz('arayuzHazir', k.id);
     if (k.bekleyenDosyalar.length) { gonder(k, 'dosya:ac', k.bekleyenDosyalar); k.bekleyenDosyalar = []; zamanYaz('dosyaGonderildi', k.id); }
+    for (const { arac, dosyalar } of k.bekleyenAraclar.splice(0)) gonder(k, 'dosya:ac', dosyalar, { arac });   // 0.3.1: sağ tık
   });
   // Döner: yanıt bekleniyor muydu. Süresi dolmuş isteğin yanıtı false alır ('sekme:al': kaynak pencere sekmeyi geri almıştır, hedef de
   // kurduğu sekmeyi kaldırır; belge iki pencerede birden açık kalmaz)
@@ -549,17 +565,20 @@ export function pencereleriKur(b) {
   // isteyen pencerede aracın arkasında açılmaz, onun biraz sağında ve altında açılan yeni pencerede önde açılır (araç olduğu gibi kalır).
   // Aynı pencereden sonraki istekler (art arda çift tıklanan belgeler, sonuç listesindeki öbür Aç) o yeni pencere açık kaldıkça oraya gider;
   // orada da bir araç açıksa o pencere de kendi yeni penceresini ister. Döner: true (açılıyor) | false
-  ipcMain.handle('pencere:yeniPenceredeAc', (e, yollar) => {
+  // 0.3.1: secenek { arac: 'donustur' | 'birlestir' }: sağ tık isteği (dosyalar o araçta; en çok sagtik.js EN_COK_DOSYA)
+  ipcMain.handle('pencere:yeniPenceredeAc', (e, yollar, secenek) => {
     const kaynak = kayitAl(e);
     if (!kaynak) return false;
-    const liste = acilacakYollar(yollar);
+    const arac = ['donustur', 'birlestir'].includes(secenek?.arac) ? secenek.arac : null;
+    const liste = acilacakYollar(yollar, arac ? 1000 : 100);
     const onceki = kaynak.yeniPencere;
     if (canli(onceki) && !onceki.coktu && onceki !== kaynak) {
-      if (onceki.hazir) gonder(onceki, 'dosya:ac', liste); else onceki.bekleyenDosyalar.push(...liste);
+      if (arac) { if (onceki.hazir) gonder(onceki, 'dosya:ac', liste, { arac }); else onceki.bekleyenAraclar.push({ arac, dosyalar: liste }); }
+      else if (onceki.hazir) gonder(onceki, 'dosya:ac', liste); else onceki.bekleyenDosyalar.push(...liste);
       odakla(onceki);
       return true;
     }
-    kaynak.yeniPencere = pencereOlustur({ sinirlar: ayirmaSinirlari(kaynak), dosyalar: liste });
+    kaynak.yeniPencere = pencereOlustur({ sinirlar: ayirmaSinirlari(kaynak), ...(arac ? { araclar: [{ arac, dosyalar: liste }] } : { dosyalar: liste }) });
     return true;
   });
   // Dosya başka bir pencerede açık mı (0.2.1; salt okunur, pencereye dokunmaz): Farklı kaydet başka pencerede açık belgenin üzerine yazmaz

@@ -1,5 +1,7 @@
 ﻿# Test örneği başlatır: ayrı veri klasörü, ekran dışı pencere, CDP portu. PID'yi yazar; CDP hazır olunca döner.
 # Kullanım:  powershell -File test\baslat.ps1 -Port 9311 [-Veri <klasör>] [-Konum "-2600,0"] [-Boyut "1280,900"] [-Tema koyu|acik|sistem] [-Olcek 1.25]
+# -EkDosya (0.3.1): her satırı ayrı bir komut satırı bağımsız değişkeni olan UTF-8 dosya (ör. "--donustur" ve dosya yolları; test/senaryo49.mjs).
+#   Değişkenler Windows'un kuralıyla tırnaklanır (boşluklu, Türkçe harfli yollar olduğu gibi gelir).
 # -Olcek: ekran ölçeği (cihaz piksel oranı; 1.25 = Windows'ta %125). Verilmezse ekranınki. -Boyut ölçekten bağımsızdır (CSS pikseli);
 # pencere ekranın çalışma alanından büyük olamadığı için ölçek büyüdükçe en büyük pencere küçülür (1920×1080 ekranda %150: 1280×688).
 # Durdurma:  powershell -File test\durdur.ps1 -SurecId <pid>    (yalnızca bu örneğin süreç ağacını kapatır)
@@ -10,7 +12,8 @@ param(
   [string]$Konum = "-2600,0",
   [string]$Boyut = "1280,900",
   [string]$Tema = "",
-  [string]$Olcek = ""
+  [string]$Olcek = "",
+  [string]$EkDosya = ""
 )
 $ErrorActionPreference = 'Stop'
 $kok = Split-Path -Parent $PSScriptRoot
@@ -35,6 +38,13 @@ $env:PDEFE_TEST_KONUM = $Konum
 $env:PDEFE_TEST_BOYUT = $Boyut
 $arguman = @('.', "--remote-debugging-port=$Port")
 if ($Olcek) { $arguman += "--force-device-scale-factor=$Olcek" }
+if ($EkDosya) {
+  # Start-Process bağımsız değişkenleri boşlukla birleştirir, tırnaklamaz: her biri burada tırnaklanır (tırnaktan önceki ters bölüler ikilenir)
+  foreach ($e in [System.IO.File]::ReadAllLines($EkDosya, [System.Text.Encoding]::UTF8)) {
+    if ($e -eq '') { continue }
+    $arguman += '"' + (($e -replace '(\\*)"', '$1$1\"') -replace '(\\+)$', '$1$1') + '"'
+  }
+}
 $p = Start-Process -FilePath $exe -ArgumentList $arguman -WorkingDirectory $kok -PassThru -WindowStyle Hidden
 for ($i = 0; $i -lt 60; $i++) {
   Start-Sleep -Milliseconds 500

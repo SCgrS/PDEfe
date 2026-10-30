@@ -37,6 +37,8 @@ kullanılan MuPDF / PyMuPDF'in AGPL-3.0 olmasıdır; bu bileşenler için Artife
 | pdf-lib | 1.17.1 | MIT | Yardımcı PDF işlemleri (JavaScript tarafı) | https://github.com/Hopding/pdf-lib |
 | NSIS | 3.0.4.1 (electron-builder'ın getirdiği sürüm) | zlib/libpng | Kurulum sihirbazı (`PDEfe-Setup.exe`) | https://nsis.sourceforge.io/ |
 | @electron/universal | electron-builder'ın getirdiği sürüm | MIT | macOS'ta (0.2.0) Apple işlemcili ve Intel paketlerinin tek evrensel uygulamada birleştirilmesi | https://github.com/electron/universal |
+| windows-rs (`windows`, `windows-core`, `windows-result`, `windows-strings`, `windows-link`; derlemede `windows-implement`, `windows-interface`) | 0.62.2 (`sagtik/Cargo.lock`) | MIT veya Apache-2.0 (Microsoft) | Yalnız Windows: Dosya Gezgini'nin sağ tık eklentisi `PDEfeSagTik.dll` (0.3.1; IExplorerCommand, `sagtik/`). DLL'e derlenerek girer | https://github.com/microsoft/windows-rs |
+| Rust standart kitaplığı | Rust 1.98 | MIT veya Apache-2.0 | Sağ tık eklentisinin dili (DLL'e derlenerek girer). DLL'e gömülen Microsoft C çalışma kitaplığı (statik CRT) Visual Studio'nun yeniden dağıtım koşullarına tabidir | https://www.rust-lang.org/ |
 
 ## Fontlar
 
@@ -70,5 +72,7 @@ Depoda ve kurulu uygulamada (Windows: kurulum klasöründeki `resources`; macOS:
 - pdf2docx'in MIT lisansı: depoda değiştirilmiş kopyasının yanında (`core/ucuncu/pdf2docx/LICENSE`), kurulu uygulamada
   `pdefe-core/_internal/lisanslar/pdf2docx/LICENSE`.
 - MIT (UDF çizim motoru: Drive UDF Okuyucu ve legaluga-uyap-ui): `src/udf-cizim/LICENSE.txt` (kurulu uygulamada `resources/app.asar` içinde).
+- Sağ tık eklentisinin Rust kitaplıkları (windows-rs, Rust standart kitaplığı; MIT veya Apache-2.0): metinleri projelerin depolarında ve
+  Cargo'nun indirdiği kaynakların yanında (`sagtik/Cargo.lock`'taki sürümler).
 - Node paketleri (Electron dışındakiler): `node_modules/<paket>/LICENSE*` (kurulu uygulamada `resources/app.asar` içinde); Electron'un ve
   Chromium'un lisansları kurulum klasöründe `LICENSE.electron.txt` ve `LICENSES.chromium.html`.

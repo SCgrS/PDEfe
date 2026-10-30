@@ -116,10 +116,10 @@ export async function paketKlasoruMu(yol) {
   return fs.promises.access(path.join(gercek, 'Contents', 'Info.plist')).then(() => true, () => false);
 }
 
-/** Yeni pencerede açılacak dosyalar (0.2.7, pencere:yeniPenceredeAc): en çok 100 mutlak yol (boş, çok uzun ya da NUL içeren yol yok).
- *  Pencere yalnızca yolları kendi arayüzüne verir; dosyalar orada olağan yoldan (dosya:oku, çekirdek) okunur. Geçersizse hata fırlatır. */
-export function acilacakYollar(yollar) {
-  if (!Array.isArray(yollar) || !yollar.length || yollar.length > 100) throw new Error('Geçersiz dosya listesi.');
+/** Yeni pencerede açılacak dosyalar (0.2.7, pencere:yeniPenceredeAc): en çok 100 (0.3.1: sağ tık isteğinde enCok, 1000) mutlak yol (boş,
+ *  çok uzun ya da NUL içeren yol yok). Pencere yalnızca yolları kendi arayüzüne verir; dosyalar orada olağan yoldan (dosya:oku, çekirdek) okunur. Geçersizse hata fırlatır. */
+export function acilacakYollar(yollar, enCok = 100) {
+  if (!Array.isArray(yollar) || !yollar.length || yollar.length > enCok) throw new Error('Geçersiz dosya listesi.');
   for (const y of yollar) {
     if (typeof y !== 'string' || !y || y.length > 32767 || y.includes('\0') || !path.isAbsolute(y)) throw new Error('Geçersiz dosya yolu.');
   }

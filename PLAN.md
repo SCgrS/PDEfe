@@ -4364,3 +4364,132 @@ Form alanlarının (5687b3a) "Bilinen sınırlar"ında kalan madde: Görünümü
   23/23.
 - [ ] **Linux'ta gerçek sınama yok** (bu bilgisayarda Linux yok): B bölümü ilk CI koşusunda (`gh workflow run yayim.yml --ref <dal> -f
   platform=linux`), gerçek masaüstünde docs/DOGRULAMA.md 46 › Linux.
+
+#### 0.3.1: sağ tıkta "PDEfe ile dönüştür" ve "PDEfe ile birleştir"
+Kullanıcı: "Dönüştürebildiği dosya türlerinde sağ klik yapılınca pdefe ile dönüştür yazsın, simgesi de gözüksün", "Eğer birleştirebildiği birden
+fazla dosya seçilirse sağ klikte PDEfe ile birleştir seçeneği çıksın simgesiyle yine", "tek bir dosya sağ tiklenirse birleştir çıkmasın. ama
+birden fazlada hem birleştir üstte altında dönüştür çıksın". Kullanıcıya önerilen tasarım onaylandı ("sağtık okey dediğin gibi yapalım").
+- [x] **Görünme kuralı** (iki sistemde aynı türler): Dönüştür = Format Değiştir'in Dosya ekle süzgecindeki türler (donustur.js GIRDI_UZANTILARI:
+  PDF, UDF, TIF, TIFF, DOC, DOCX, DOCM, RTF, ODT, JPG, JPEG, PNG, BMP, GIF, WEBP). Birleştir = Birleştir'inkiler (gorselBirlestir.js UZANTILAR, bugün
+  aynı küme, ayrı listeler: biri genişlerse öbürü kendiliğinden genişlemesin). HEIC / HEIF / AVIF yok (Format Değiştir'in süzgecinde de yoklar,
+  açıcısı pakette yok). Tek dosya: yalnız dönüştür. İki ve daha çok: üstte birleştir, altında dönüştür. Seçenek yalnızca seçilen öğelerin HEPSİ o
+  işin türündeyse görünür (klasör, desteklenmeyen tür ya da sanal öğe varsa görünmez). En çok 1000 öğe (Ctrl+A ile on binlerce öğe seçilebilir, PDEfe'nin
+  araçları bu kadarla rahat çalışmaz). Uzantı büyük / küçük harf ayırmaz.
+- [x] **Windows: kabuk eklentisi** (yeni `sagtik/`, Rust + windows-rs 0.62.2, `PDEfeSagTik.dll`, 252 KB): Her fiilin kendi CLSID'i olan
+  IExplorerCommand (ExplorerCommandHandler). GetState yalnızca öğelerin iki özniteliğine (dosya sisteminde mi, klasör mü: öğenin kimliğinde yazılı,
+  disk okunmaz) ve yolun uzantısına bakar, dosya açmaz (1000 öğede 2,4 ms). GetTitle ve GetIcon ("<PDEfe.exe>,0": uygulamanın simgesi. Yolu
+  okunamazsa E_NOTIMPL, Gezgin kayıttaki Icon'u kullanır). Invoke tek bir PDEfe süreci başlatır: `PDEfe.exe --donustur "<yol>" …`, Gezgin'in
+  verdiği sırayla. Komut satırı 30000 karakteri aşarsa (CreateProcessW 32767) yollar `%TEMP%\PDEfe\sagtik-<süreç>-<zaman>-<n>.txt` liste
+  dosyasıyla (`--dosya-listesi=`). CreateProcessW'de uygulama adı ayrıca verilir (çalışma klasöründeki başka bir PDEfe.exe çözülmez), çalışma
+  klasörü PDEfe'nin klasörü, AllowSetForegroundWindow (PDEfe öne gelebilsin). Bağımsız değişkenler Windows'un kuralıyla tırnaklanır (tırnaktan
+  önceki ve sondaki ters bölüler ikilenir): boşluklu, Türkçe harfli, &, %, ^, !, ' içeren yollar, ağ yolları (birim testi CommandLineToArgvW ile geri
+  okur).
+  - **PDEfe'nin yeri**: DLL'in yanındaki `PDEfe-yolu.txt` (kurucu yazar, UTF-16). Seçilmeyenler: kayıt defterinden okumak (sınama programı DLL'i
+    kaydetmeden yükleyemezdi, DLL HKCU mu HKLM mi bilmez), ortam değişkeni (Gezgin'in ortamına bağlı davranış).
+  - **Güvenlik** (DLL Gezgin'in ve dosya penceresi açan her programın içinde çalışır): Her COM yöntemi catch_unwind ile sarılır, panik FFI
+    sınırını geçmez (yöntem E_UNEXPECTED). panic=abort seçilmedi: kaçan bir panik Gezgin'i düşürürdü. DllMain, iş parçacığı, kilit yok. Canlı
+    nesne (fabrikalar dâhil) ve LockServer sayacı: DllCanUnloadNow sıfırda S_OK. C çalışma kitaplığı DLL'e gömülü (crt-static): yalnızca Windows'un
+    kendi DLL'lerine bağlı (build/sagtik-derle.mjs her derlemede PE başlığından denetler: dışa yalnız DllGetClassObject ve DllCanUnloadNow).
+    Bağımlılık yalnızca Microsoft'un windows-rs'i. Hata iletisi (PDEfe bulunamadı, başlatılamadı) MessageBox ile.
+  - **Sınama kimlikleri**: DLL gerçek iki CLSID'in yanında iki sınama CLSID'ini de tanır (aynı davranış). Kurucu sınaması ve menü sınaması
+    bunları kullanır: gerçek PDEfe'nin kayıtlarına yazılmaz, onlar silinmez.
+- [x] **Kayıt** (build/installer.nsh madde 11, SHELL_CONTEXT: kullanıcı kurulumunda HKCU, yönetici izni ve sertifika yok, düzen
+  `test/sagtik_kayitlari.json`): `Software\Classes\CLSID\{…}` (InprocServer32 = DLL, ThreadingModel Apartment) ve `Software\Classes\*\shell\
+  PDEfe.Birlestir`, `PDEfe.Donustur`: ExplorerCommandHandler, MUIVerb, Icon, CommandStateSync (GetState menü kurulurken çağrılsın, yoksa seçenek
+  seçime bakılmadan görünürdü), MultiSelectModel Player (seçim kaç öğe olursa olsun tek Invoke), NeverDefault (ilişkisi olmayan bir .tif'e çift
+  tıklanınca PDEfe ile dönüştür çalışmasın).
+  - **`*\shell` (bütün dosyalar)**: Karışık türlü seçimde (PDF + Word) Gezgin durağan fiilleri sağ tıklanan öğenin ilişkisinden alır.
+    SystemFileAssociations\<uzantı> ile seçenek bazı seçimlerde hiç kurulmazdı. Kural DLL'de (bütün öğeler). AppliesTo seçilmedi (yalnız sağ
+    tıklanan öğeye bakar, AQS sözcükleri dile göre değişebilir).
+  - **Sıra**: Gezgin bir anahtarın fiillerini adlarının sırasıyla dizer: Birlestir Donustur'un hemen üstünde. Position (Top / Bottom)
+    kullanılmadı: Seçenekler diğer programların fiilleriyle aynı bölümde. Sınamada (aşağıda) tek dosyada dönüştür varsayılan fiilin hemen altında,
+    iki dosyada birleştir ve dönüştür art arda.
+  - **DLL'in yeri**: `%LOCALAPPDATA%\PDEfe\SagTik\<sürüm>\` (kurulum klasöründe değil: Gezgin DLL'i açık tutar, güncellemede eski sürümün
+    kaldırıcısı kurulum klasörünü taşıyamaz, "Eski sürümün dosyaları kaldırılamadı" derdi). Kurucu DLL'i `resources\sagtik\`'ten kopyalar
+    (CopyFileW, arayüzsüz). Aynı sürümün DLL'i yüklüyse (Onar) kopyalanamaz, var olan kalır (aynı sürüm aynı DLL). Her kurulumda (güncellemede de)
+    kayıt yeniden yazılır. Eski sürüm klasörleri DLL'leri silinebiliyorsa (Gezgin'de yüklü değil) silinir: kurucuda ve PDEfe'nin açılışında
+    (src/main/sagtik.js eskiSagTikKlasorleriniSil, ilk pencereden 8 sn sonra, yalnız kurulu PDEfe'nin kendi veri klasörüyle çalışan örneğinde,
+    kayıttaki DLL'in klasörü hep kalır, kayıt okunamazsa hiçbiri silinmez). Yüklü eski DLL'in PDEfe-yolu.txt'si de kalır: Gezgin eski DLL'i
+    bırakana dek yeni menüler onu kullanabilir (COM yüklü DLL'i yeniden kullanır), tıklanınca onu okur.
+  - **Kaldırma**: Yalnızca gerçek kaldırmada (`${IfNot} ${isUpdated}`: güncellemede, onarmada ve eski sürüme dönmede yeni kurulum kaydı kendisi
+    yazar). Kayıtlar ve klasörler silinir. Yüklü DLL'in klasörü kalırsa bir sonraki oturum açılışında silinir (HKCU RunOnce, `cmd /d /c rd /s /q …`:
+    kayıtlar silindiği için Gezgin o oturumda DLL'i yüklemez. Bir an komut penceresi görünebilir). Herkes için kurulumda RunOnce yazılmaz.
+  - **Bilinen sınırlar**: Windows 11'in kısa menüsünde "Daha fazla seçenek göster"in altında (kısa menünün üstü imzalı paket ve kod imzalama
+    sertifikası ister, yapılmadı. Kullanıcının iki bilgisayarında tam menü açık). 32 bit programların dosya pencerelerinde görünmez (WOW64'te
+    HKCU\Software\Classes\CLSID ayrı görünüm, DLL 64 bit). ARM işlemcili Windows'ta Gezgin x64 DLL'i yükleyemeyebilir (PDEfe yalnız x64, denenmedi).
+    Eski bir sürüme (0.3.0) dönülürse kayıt 0.3.1'in DLL'iyle kalır: Menü 0.3.0'ı `--donustur`la açar (0.3.0 dosyaları sekmede / Format Değiştir'de
+    açar), 0.3.0'ın kaldırıcısı menüyü silmez. Yeniden 0.3.1+ kurulup kaldırılınca gider.
+  - Seçilmeyen yollar: Yalnızca kayıt (DLL'siz durağan fiil: tek dosyada birleştir gizlenemezdi, "Document" modeli her dosya için ayrı PDEfe
+    süreci başlatır, 15 dosyadan sonra seçenek kaybolur). Eski IContextMenu eklentisi (daha çok kod, sıra ve simge elle). Kısa menü için seyrek
+    paket (MSIX) ve sertifika (kullanıcıya söylendi, yapılmadı). DLL'i kurulum klasörüne koymak (yukarıda).
+- [x] **PDEfe'nin tarafı** (yeni src/main/sagtik.js, anaSurec.js ikinciOrnek ve açılış, pencereler.js aracIstegiAc, renderer/uygulama.js
+  aracIstegindeAc): `--donustur` / `--birlestir` komut satırındaki dosyaları sekmede değil Format Değiştir'de / Birleştir'de, verilen sırayla
+  açar (ilk örnekte ve ikinci örnekte, 'second-instance'). Araçlar Araçlar'dan açılıyormuş gibi açılır (komutCalistir 'arac.donustur' /
+  'arac.gorselBirlestir'), açık PDF ilk girdi olmaz. Format Değiştir açıksa dosyalar listesine eklenir (ana pencereye bırakılan dosyalardaki gibi).
+  Başka bir araç açıksa (Birleştir'de herhangi bir araç, açık Birleştir de) yeni pencerede (0.2.7'deki yeni pencere yolu, `pencere:yeniPenceredeAc`
+  araç isteğiyle, en çok 1000 yol). Uzantısı uygun olmayan, var olmayan ya da klasör olan atlanır, hiç dosya kalmazsa araç açılmaz. Kapanırken
+  gelen istek yeniden başlatmada kendi anahtarıyla taşınır (uzunsa kendi liste dosyasıyla), ilk açılışın sağ tık anahtarları taşınmaz.
+  - **Liste dosyası** yalnızca `%TEMP%\PDEfe\sagtik-<sayı>-<sayı>-<sayı>.txt` (gerçek yolu, kısa adlar çözülür), ilk satırı
+    `pdefe-dosya-listesi-1` ise okunur ve silinir. Başka yerdeki dosya okunmaz, silinmez: Komut satırı başka bir programdan da gelebilir.
+    Bir saatten eski okunmamış listeler açılışta silinir.
+  - Açık sekme XFA formuyken (0.3.1) Format Değiştir dosyalarla da kapalıydı ("XFA formlarında kullanılamaz"): Dosyayla açılınca formu girdi
+    almadığı için artık açılır (Gezgin'de çift tıklanan UDF'de de). Dosyasız açılış eskisi gibi kapalı.
+- [x] **macOS: Finder › Hızlı Eylemler** (src/main/sagtik.js): İki Automator iş akışı (`~/Library/Services/PDEfe ile birleştir.workflow`,
+  `PDEfe ile dönüştür.workflow`: Contents/Info.plist NSServices, document.wflow tek "Kabuk Betiği Çalıştır" eylemi, /bin/sh, girdiler bağımsız
+  değişken, Resources/workflowCustomImage.png: PDEfe'nin simgesi 64 px). Finder'da dosyalar seçiliyken (NSSendFileTypes public.data: klasörde
+  görünmez). DMG'den sürüklenerek kurulduğu için PDEfe açılışta kendisi kurar (ilk pencereden 8 sn sonra), uygulamanın yeri değişince yeniler,
+  içerik aynıysa dokunmaz, yazınca Hizmetler listesini tazeler (`pbs -update`). Kullanıcının sildiği Hızlı Eylem yeniden kurulmaz (kurulanlar
+  ayarda: macHizliEylemleri). DMG'nin salt okunur biriminden ya da karantinanın geçici kopyasından (AppTranslocation) açılan PDEfe yazmaz (o yol
+  kapanınca yok olur).
+  - **Betik**: Uygulamayı iş akışındaki yolda, yoksa Spotlight'ta paket kimliğiyle arar (Çöp Sepeti ve AppTranslocation hariç). Uzantısı uygun
+  dosyaları seçim sırasıyla `open -n -a <PDEfe.app> --args --donustur …` ile verir: Yeni süreç PDEfe açıksa dosyaları tek örnek kilidiyle ona
+  verip çıkar. `open --args` çalışan uygulamaya bağımsız değişken vermez, -n her seferinde yeni süreç başlatır. İkiliyi doğrudan çalıştırmak
+  seçilmedi: Uygulama Automator'ın süreci altında, onun gizlilik izinleriyle açılırdı. PDEfe bulunamazsa ya da uygun dosya yoksa hata kutusu
+  yerine anlaşılır ileti (osascript display alert, metinler bağımsız değişkenle: AppleScript koduna kullanıcı metni girmez).
+  - **Bilinen sınırlar** (Apple'ın): Hızlı Eylemler seçim sayısına ve türüne göre gizlenemez (kullanıcıya söylendi): tek dosyada da "birleştir",
+  desteklenmeyen dosyada da görünür (betik iletiyle durur). Sıra Finder'ın (adlara göre: birleştir üstte). PDF'in sistem tür kimliğinde marka adı
+  geçtiği için türler tek tek yazılmadı (public.data). Electron NSServices sağlayıcısını desteklemiyor, Finder Sync uzantısı imzalı uygulama
+  uzantısı ister (Apple geliştirici kimliği yok).
+- [x] **Linux**: Sağ tık yok (istenmedi, dosya yöneticileri farklı).
+- [x] **Derleme**: `build/sagtik-derle.mjs` (cargo build --release --locked → sagtik/dist/PDEfeSagTik.dll, PE denetimi, `--sina` cargo test),
+  `npm run sagtik:derle`, `yayim:hazirla` zincirinde. electron-builder.yml win.extraResources (DLL `resources\sagtik\`'e). CI'nın Windows işinde
+  derleme ve sınamalar (DLL, menü), macOS işinde Hızlı Eylemler. Cargo.lock depoda, derleme çıktısı .gitignore'da. THIRD_PARTY.md'de windows-rs ve
+  Rust standart kitaplığı.
+- [x] **Testler** (bu bilgisayar, Windows):
+  - `cargo test --release` (sagtik/): birim 6/6 (uzantı, görünme kuralı, CommandLineToArgvW ile geri okunan komut satırı, liste, PDEfe yolu
+    dosyası). `tests/dll.rs` 62/62: DLL kurucunun düzeninde deneme klasörüne kopyalanıp LoadLibrary ile yüklenir, DllGetClassObject →
+    IClassFactory → IExplorerCommand. Kurgusal dosyalardan kabuk öğesi dizileri (SHCreateShellItemArrayFromIDLists ve Gezgin'in yolu: klasör +
+    çocuk kimlikleri → IDataObject → dizi): tek dosya, iki dosya, büyük harfli uzantı, .txt, HEIC, karışık, adı .pdf ile biten klasör, klasörlü seçim,
+    sürücü kökü, 15 türün hepsi, 50, 1000 (2,4 ms) ve 1001 dosya. Başlık, simge, PDEfe-yolu.txt yokken E_NOTIMPL. Invoke sahte PDEfe'ye (sınama
+    programının kopyası, adında boşluk ve Türkçe harf): tek PDF, &, %, ^, !, ' ve Türkçe harfli 4 dosya, 50 dosya (tek süreç, sırayla), 300 uzun yol
+    (liste dosyası, sahte PDEfe okuyup siler), kural dışı seçimde başlatmaz. DllCanUnloadNow, LockServer, birleştirme isteği, bilinmeyen CLSID.
+  - `test/sagtik_menu.ps1` 15/15: **Gezgin'in menü kodu** (shell32, IShellFolder::GetUIObjectOf → IContextMenu::QueryContextMenu, klasik menü)
+    sınama fiilleri ve sınama CLSID'leriyle. Önce kanıt: Bu oturumda Claude'un içinden yazılan HKCU\Software\Classes paketin sanal kovanına
+    gidiyor (her anahtar yazıldıktan sonra WMI StdRegProv ile gerçek kovanda yok). Sonuç: tek PDF'te yalnız dönüştür, varsayılan fiilin hemen
+    altında, simgeli. İki dosyada "PDEfe ile birleştir" hemen "PDEfe ile dönüştür"ün üstünde, ikisi simgeli. .txt, PDF + .txt, PDF + klasör, klasör:
+    seçenek yok. 50 dosyada birleştir tıklaması tek süreç, 50 yol, sırayla. Sonda bütün sınama anahtarları silindi, iki görünümde de yok.
+  - `test/kurucu_akis.ps1` hepsi TAMAM (yeni sağ tık denetimleri, deneme kurucuları 90.0.1 / 90.0.2): Önce kayıt yazımının sanal kovana gittiği
+    kanıtlanır, değilse sınama başlamaz. Kurulum, Güncelle (90.0.1'in DLL'i bu PowerShell'e yüklüyken: yeni klasör kayıtlı, eski klasör
+    PDEfe-yolu.txt'siyle kaldı), /S (eski klasör DLL bırakılınca silindi), Onar (aynı sürümün DLL'i yüklüyken: var olan kaldı), Kaldır (DLL
+    yüklüyken: kayıtlar silindi, klasör kaldı, RunOnce komutu çalıştırılınca klasör gitti), Eski sürüme dön, Kaldır (yüklü değilken: iz yok),
+    `--updated /S`: Her adımda değerler düzendeki gibi, DLL kurulum klasöründekinin aynısı, PDEfe-yolu.txt doğru, gerçek kovanda hiçbiri yok.
+    Gerçek PDEfe'nin sağ tık kayıtları ve klasörü önce ve sonra aynı (yok). `test/kurucu_karsilastir.mjs` (v0.3.0 ile): Kurulum bölümünde ve
+    kaldırıcıda yalnızca beklenen bloklar (BEKLENEN_FARKLAR'a sağ tık girdileri, desene uymayan satırı yazar). `test/kurucu_koruma.mjs` 6/6.
+  - `test/sagtik_sinama.mjs` 46/46: Listelerin, CLSID'lerin, adların ve kayıt değerlerinin kaynaklar arasında aynılığı (kurallar.rs, lib.rs,
+    donustur.js, gorselBirlestir.js, anaSurec.js, installer.nsh, kurucu_sinama.nsh, sagtik.js, düzen). sagtik.js birimleri: komut satırı isteği
+    (sıra, göreli yol, atlananlar, 1000 sınırı), liste dosyası (okunmayanlar silinmez), eski DLL klasörleri (başka bir süreçte yüklü DLL'in klasörü
+    kalır, bırakılınca silinir). macOS Hızlı Eylem paketi Python plistlib ile okunur. Kabuk betiği Git Bash'in sh'ıyla, sahte open / osascript /
+    mdfind'la: sıra, uygun olmayanların atlanması, tırnak / $ / ` / Türkçe harf, tek dosyada birleştir, uygun dosya yoksa ileti, taşınan uygulama
+    Spotlight'la, silinmişse "PDEfe bulunamadı". Kurma ve yenileme geçici klasörde.
+  - `test/senaryo49.mjs` 23/23 (yeni, ekran dışı örnek): A) ikinci örnek (ana sürecin olayı ve GERÇEK ikinci Electron süreci, ~0,1 sn'de çıkar):
+    Format Değiştir ve Birleştir verilen sırayla, sekme yok, açık PDF girdi değil, açık Format Değiştir'e eklenir, açık Birleştir varken yeni
+    pencerede, .txt ve olmayan dosya atlanır, liste dosyası okunup silinir, başka klasördeki / başlığı ya da adı yanlış liste okunmaz ve silinmez,
+    XFA formu açıkken de açılır, anahtarsız komut satırı eskisi gibi. B) ilk örnek (`test/baslat.ps1 -EkDosya`, yeni): araç ilk pencerede, sırayla.
+  - Gerileme: senaryo37 8. bölüm 9/9, senaryo38 5. bölüm 10/10, mac_renderer 46/46, linux_renderer 23/23, kisayol_dosya 164/164, linux_birim,
+    guvenlik_birim, guncelleme-e2e/birim.
+- [ ] **Doğrulanamayanlar**: Gerçek Gezgin'de (Explorer.exe'nin kendi süreci, kullanıcının kayıtlarıyla) hiç denenmedi: Menü yalnızca bu
+  sınama programının içinde shell32'nin kodu ile kuruldu. Kullanıcının gerçek kovanına yazılmadı. Windows 11'in kısa menüsü, "Daha fazla seçenek
+  göster", Gezgin'in DLL'i ne zaman bıraktığı, 32 bit programların dosya pencereleri, ağ sürücüsü ve OneDrive dosyaları, ofis bilgisayarı
+  denenmedi. macOS'ta hiç denenmedi (bu bilgisayarda Mac yok): Finder'ın Hızlı Eylemler menüsünde görünmesi, simge, `open -n` ile açık PDEfe'ye
+  iletme, Dock'ta bir an ikinci simge görünüp görünmediği. CI'nın macOS işinde plutil, Hizmetler listesi ve automator'la uçtan uca deneme var
+  (ilk koşuda bakılacak). docs/DOGRULAMA.md 46 › Sağ tık.

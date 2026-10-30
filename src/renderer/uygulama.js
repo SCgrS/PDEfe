@@ -1727,7 +1727,9 @@ const DUZENLEMEYI_UYGULAYAN = /^(arac\.|dosya\.(kaydet|farkliKaydet|yazdir)$|sek
 function komutCalistir(id, veri) {
   const f = komutlar[id];
   if (!f) { console.warn('Bilinmeyen komut', id); return; }
-  if (XFA_KAPALI.has(id) && aktif()?.gorunum.xfa) { bildir(XFA_KAPALI_METNI); return; }
+  // Format Değiştir verilen dosyalarla açılınca (komut satırı, sağ tık, bırakılan dosya) açık XFA formunu girdi almaz: kapalı değil (0.3.1)
+  const dosyaylaDonustur = id === 'arac.donustur' && Array.isArray(veri) && veri.length > 0;
+  if (XFA_KAPALI.has(id) && aktif()?.gorunum.xfa && !dosyaylaDonustur) { bildir(XFA_KAPALI_METNI); return; }
   if (DUZENLEMEYI_UYGULAYAN.test(id)) duzenlemeleriUygula(aktif());
   try { const r = f(veri); if (r && r.catch) r.catch((e) => { console.error(e); bildir('Hata: ' + hataMetni(e)); }); }
   catch (e) { console.error(e); bildir('Hata: ' + hataMetni(e)); }
@@ -1793,10 +1795,27 @@ function donusturAracindaAc(yollar) {
 }
 
 /** Dosyaları yeni bir pencerede açar (0.2.7; araç penceresi açıkken). Ana süreç pencereyi bu pencerenin biraz sağında ve altında, önde
- *  açar; bu pencereden sonraki istekler (pencere açık kaldıkça) aynı pencereye gider. */
-function yeniPenceredeAc(yollar) {
-  pdefe.cagir('pencere:yeniPenceredeAc', yollar).then((r) => { if (!r) bildir('Yeni pencere açılamadı.'); })
+ *  açar; bu pencereden sonraki istekler (pencere açık kaldıkça) aynı pencereye gider. secenek { arac } (0.3.1): sağ tık isteği, yeni pencerede
+ *  o araçta açılır. */
+function yeniPenceredeAc(yollar, secenek = undefined) {
+  pdefe.cagir('pencere:yeniPenceredeAc', yollar, secenek).then((r) => { if (!r) bildir('Yeni pencere açılamadı.'); })
     .catch((e) => bildir('Yeni pencere açılamadı: ' + hataMetni(e)));
+}
+
+/** Sağ tık isteği (0.3.1; Gezgin'de ya da Finder'da "PDEfe ile dönüştür / birleştir", main/sagtik.js): Dosyalar Format Değiştir'de ya da
+ *  Birleştir'de, verilen sırayla açılır, araçlar Araçlar'dan açılıyormuş gibi (açık PDF ilk girdi olmaz). Format Değiştir açıksa dosyalar
+ *  listesine eklenir (ana pencereye bırakılan dosyalardaki gibi). Başka bir araç açıksa (Birleştir'de: herhangi bir araç, açık Birleştir de)
+ *  yeni pencerede: Açık aracın dosyalarına karışmasın. */
+function aracIstegindeAc(arac, yollar) {
+  const liste = (Array.isArray(yollar) ? yollar : []).filter((y) => typeof y === 'string' && y);
+  if (!liste.length) return;
+  if (arac === 'donustur') {
+    if (acikAracPenceresiVar() && !acikDonusturPenceresi()) yeniPenceredeAc(liste, { arac });
+    else komutCalistir('arac.donustur', liste);
+  } else if (arac === 'birlestir') {
+    if (acikAracPenceresiVar()) yeniPenceredeAc(liste, { arac });
+    else komutCalistir('arac.gorselBirlestir', liste);
+  }
 }
 
 // secenek.yazildi: dosya başka bir pencerede (araç çıktısı olarak) yeniden yazıldı; burada açık sekmesi diskteki yeni hâliyle yenilenir
@@ -1804,6 +1823,7 @@ pdefe.dinle('dosya:ac', async (yollar, secenek) => {
   try {
     // Taşınmakta olan sekme yenilenmez, kapatılmaz: taşıma bitince dosya hangi penceredeyse orada işlenir (dosyaAc öteki pencereye sorar)
     await tasimaBitmesiniBekle();
+    if (secenek?.arac) { aracIstegindeAc(secenek.arac, yollar); return; }   // 0.3.1: sağ tık (Format Değiştir / Birleştir)
     const { sekme, donustur } = secenek?.yazildi ? { sekme: yollar, donustur: [] } : acilacaklariAyir(yollar);
     for (const y of sekme) {
       const acik = secenek?.yazildi ? [...belgeler.values()].find((b) => yolAyni(b.yol, y)) : null;

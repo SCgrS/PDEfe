@@ -117,12 +117,37 @@ function bolumAdlari(gunluk) {
 }
 
 // tur: kurucu | kaldirici, ad: işlev / bölüm, satir: eklenen bloğun her satırının uyması gereken desen, gerekli: blokta bulunması gerekenler
+// 0.3.1 sağ tık (build/installer.nsh madde 11): Kurulumda ve kaldırmada sürüm klasörleri, kayıtlar. Ortak satırlar (eski sürüm klasörlerini silen döngü)
+const SAGTIK_DONGU = [
+  /Push: \$R[5-9]/, /Pop: \$R[5-9]/, /StrCpy \$R[5-9] "[^"]*" \(\) \(\)/, /ClearErrors/,
+  /FindFirst: spec="\$R6\\\*" handle=\$R9 output=\$R5/, /FindNext: handle=\$R9 output=\$R5/, /FindClose: \$R9/,
+  /StrCmp "\$R5" "(|\.|\.\.|\$R7)" equal=\S*, nonequal=\S*/, /IfFileExists: "[^"]*" \? ?\S* : ?\S*/,
+  /Delete: "\$R6\\\$R5\\PDEfeSagTik\.dll"/, /RMDir: \/r "\$R6\\\$R5"/, /Goto: _LogicLib_Label_N/,
+];
+const SAGTIK_FIIL = String.raw`\\Software\\Classes\\(?:CLSID\\\{[0-9A-F-]{36}\}(?:\\InprocServer32)?|\*\\shell\\[A-Za-z]+\.(?:Birlestir|Donustur))`;
+const desen = (parcalar) => new RegExp(`^(?:${parcalar.map((p) => (p instanceof RegExp ? p.source : p)).join('|')})$`);
 const BEKLENEN_FARKLAR = [
   {
+    tur: 'kurucu', ad: 'install',
+    neden: '0.3.1: Sağ tık menüsü: DLL sürüm klasörüne, PDEfe-yolu.txt, CLSID ve fiil kayıtları, eski sürüm klasörleri (build/installer.nsh madde 11)',
+    satir: desen([
+      ...SAGTIK_DONGU,
+      /CreateDirectory: "\$R6\\\$R7"/, /Plugin command: Call kernel32::CopyFileW\(w "\$INSTDIR\\resources\\sagtik\\PDEfeSagTik\.dll", w R8, i 0\) i \.R9/,
+      /FileOpen: \$R6\\\$R7\\PDEfe-yolu\.txt as w -> \$R9/, /IfErrors \?\S*:\S*/, /FileWriteWord: 0xFEFF->\$R9/, /FileWriteUTF16LE: \$INSTDIR\\[^>]+\.exe->\$R9/,
+      /FileClose: \$R9/, String.raw`WriteRegStr: SHELL_CONTEXT${SAGTIK_FIIL}\\[A-Za-z]*=.*`,
+    ]),
+    gerekli: [/ExplorerCommandHandler=\{[0-9A-F-]{36}\}$/, /\.Birlestir\\MultiSelectModel=Player$/, /\.Donustur\\CommandStateSync=$/, /CopyFileW/, /FileWriteUTF16LE/],
+  },
+  {
     tur: 'kaldirici', ad: 'un.Uninstall',
-    neden: '0.3.1: Gerçek kaldırmada güncelleme önbelleği silinir (build/installer.nsh madde 10)',
-    satir: /^(Push: updated|Plugin command: TestParameter|Pop: \$R9|StrCmp "\$(R9|installMode)" "(true|all)" equal=\S*, nonequal=\S*|SetShellVarContext: (current|all)|RMDir: \/r "\$LOCALAPPDATA\\[a-z0-9.-]+-updater"|ClearErrors)$/,
-    gerekli: [/^RMDir: \/r "\$LOCALAPPDATA\\[a-z0-9.-]+-updater"$/, /^Plugin command: TestParameter$/],
+    neden: '0.3.1: Gerçek kaldırmada güncelleme önbelleği (madde 10) ve sağ tık menüsünün kayıtları ve klasörleri (madde 11) silinir',
+    satir: desen([
+      /Push: updated/, /Plugin command: TestParameter/, /Pop: \$R9/, /StrCmp "\$(R9|installMode)" "(true|all)" equal=\S*, nonequal=\S*/,
+      /SetShellVarContext: (current|all)/, /RMDir: \/r "\$LOCALAPPDATA\\[a-z0-9.-]+-updater"/, ...SAGTIK_DONGU,
+      `DeleteRegKey: SHELL_CONTEXT${SAGTIK_FIIL}`, /RMDir: "\$R6"/, /RMDir: "\$LOCALAPPDATA\\[A-Za-z]+"/,
+      /WriteRegStr: HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce\\[^=]+="\$SYSDIR\\cmd\.exe" \/d \/c rd \/s \/q "\$R6" & rd "\$LOCALAPPDATA\\[A-Za-z]+"/,
+    ]),
+    gerekli: [/^RMDir: \/r "\$LOCALAPPDATA\\[a-z0-9.-]+-updater"$/, /^Plugin command: TestParameter$/, /^DeleteRegKey: .*\\CLSID\\\{/, /^DeleteRegKey: .*\.Donustur$/],
   },
 ];
 
@@ -135,7 +160,8 @@ function beklenenEklemeMi(beklenen, ea, eb) {
   while (son < ea.length - bas && ea[ea.length - 1 - son] === eb[eb.length - 1 - son]) son++;
   if (bas + son !== ea.length) return null;
   const eklenen = eb.slice(bas, eb.length - son);
-  if (!eklenen.every((s) => beklenen.satir.test(s))) return null;
+  const uymayan = eklenen.find((s) => !beklenen.satir.test(s));
+  if (uymayan != null) { console.log(`    (beklenen farkın desenine uymayan satır: «${uymayan}»)`); return null; }
   if (!beklenen.gerekli.every((d) => eklenen.some((s) => d.test(s)))) return null;
   return eklenen;
 }

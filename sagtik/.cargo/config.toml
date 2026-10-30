@@ -1,0 +1,7 @@
+# C çalışma kitaplığı DLL'in içine gömülür (crt-static): DLL vcruntime140.dll'e bağlı olmasın, Visual C++ yeniden dağıtılabilir paketi
+# kurulu olmayan bilgisayarda da Gezgin'e yüklenebilsin. Yalnız Windows'ta derlenir.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

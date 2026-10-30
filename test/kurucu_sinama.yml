@@ -3,7 +3,8 @@
 #    kısayol, süreç adı, tek örnek kilidi, ayar klasörü (%APPDATA%\<productName>) ve kurucu önbelleği (%LOCALAPPDATA%\<name>-updater) paylaşılmaz
 #  - fileAssociations ProgId ayrı (test\kurucu_sinama.nsh'teki PDEFE_PROGID ile aynı olmalı, gerçek PDEfe.pdf olamaz; test\kurucu_derle.mjs
 #    denetler, test\kurucu_koruma.mjs sınar); nsis.include test\kurucu_sinama.nsh
-#  - Python çekirdeği yok (win.extraResources yok, core\dist gerekmez): deneme uygulaması hiç açılmaz
+#  - Python çekirdeği yok (core\dist gerekmez): deneme uygulaması hiç açılmaz. win.extraResources'ta yalnızca sağ tık DLL'i (0.3.1; kurucu onu
+#    sürüm klasörüne kopyalar, test\kurucu_akis.ps1 sınar; gerçeğindeki girdinin aynısı olmalı, test\kurucu_derle.mjs denetler)
 #  - publish null (app-update.yml üretilmez), runAfterFinish false, compression store (hızlı derleme), differentialPackage false
 # test\kurucu_derle.mjs bu dosyanın nsis bölümünü electron-builder.yml'ninkiyle karşılaştırır (ayrılan alanlar dışında aynı olmalı).
 # Kullanım: node test\kurucu_derle.mjs --surum 90.0.1 --cikti <proje dışı klasör>
@@ -51,6 +52,9 @@ files:
   - "!**/{CHANGELOG.md,README.md,CODE_OF_CONDUCT.md,.github,.editorconfig,.eslintrc*,tsconfig.json}"
 
 win:
+  extraResources:
+    - from: sagtik/dist/PDEfeSagTik.dll
+      to: sagtik/PDEfeSagTik.dll
   target:
     - target: nsis
       arch:

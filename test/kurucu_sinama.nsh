@@ -5,6 +5,30 @@
 
 !define PDEFE_KAYIT_ADI "KurucuSinama"
 !define PDEFE_PROGID "KurucuSinama.pdf"   ; test\kurucu_sinama.yml → win.fileAssociations.name ile aynı (test\kurucu_derle.mjs denetler)
+; 0.3.1: Sağ tık menüsü (build\installer.nsh madde 11). Deneme fiilleri (KurucuSinama.Birlestir / .Donustur), DLL'in tanıdığı sınama CLSID'leri
+; (sagtik\src\lib.rs SINAMA_CLSID_*; test\sagtik_kayitlari.json sinamaClsid), ayrı DLL klasörü ve RunOnce değeri: Gerçek PDEfe'ninkilere
+; yazılmaz, onlar silinmez. Deneme kaydı HKCU'ya gider: test\kurucu_akis.ps1 kayıt yazımlarının Claude paketinin sanal kovanına gittiğini
+; (Gezgin'in görmediğini) sınamadan önce kanıtlar.
+!define PDEFE_SAGTIK_FIIL_ONEKI "KurucuSinama"
+!define PDEFE_SAGTIK_CLSID_DONUSTUR "{6F896873-46F5-4F6A-B082-BA2D345AA7DC}"
+!define PDEFE_SAGTIK_CLSID_BIRLESTIR "{757ACC1D-9BCB-4792-A3B4-3F5889A88808}"
+!define PDEFE_SAGTIK_UST_KLASOR "KurucuSinama"
+!define PDEFE_SAGTIK_RUNONCE "KurucuSinama sağ tık temizliği"
+!if "${PDEFE_SAGTIK_FIIL_ONEKI}" == "PDEfe"
+  !error "Kurucu sınamasının sağ tık fiilleri PDEfe.* olamaz: Deneme kurucusu gerçek PDEfe'nin menüsüne yazar, kaldırıcısı onu silerdi"
+!endif
+!if "${PDEFE_SAGTIK_CLSID_DONUSTUR}" == "{76052C3F-EA2F-47A3-88B2-A488CB6BC682}"
+  !error "Kurucu sınaması gerçek PDEfe'nin sağ tık CLSID'ini (dönüştür) kullanamaz"
+!endif
+!if "${PDEFE_SAGTIK_CLSID_BIRLESTIR}" == "{43D87927-34D2-4271-BEC3-81D132284579}"
+  !error "Kurucu sınaması gerçek PDEfe'nin sağ tık CLSID'ini (birleştir) kullanamaz"
+!endif
+!if "${PDEFE_SAGTIK_UST_KLASOR}" == "PDEfe"
+  !error "Kurucu sınamasının sağ tık klasörü %LOCALAPPDATA%\PDEfe olamaz: Deneme kaldırıcısı gerçek PDEfe'nin DLL'ini silerdi"
+!endif
+!if "${PDEFE_SAGTIK_RUNONCE}" == "PDEfe sağ tık temizliği"
+  !error "Kurucu sınamasının RunOnce değeri gerçek PDEfe'ninkiyle aynı olamaz"
+!endif
 
 !if "${PDEFE_PROGID}" == "PDEfe.pdf"
   !error "Kurucu sınamasının ProgId'si PDEfe.pdf olamaz: deneme kurucusu gerçek PDEfe'nin .pdf kaydına yazar, kaldırıcısı onu silerdi"

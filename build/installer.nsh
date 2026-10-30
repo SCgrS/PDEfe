@@ -56,6 +56,17 @@
 ;      Yalnızca gerçek kaldırmada: Güncelleme, onarma ve eski sürüme dönmede kurucu eski sürümün kaldırıcısını "--updated" ile çalıştırır
 ;      (installUtil.nsh uninstallOldVersion), önbellek kalır (o an çalışan kurucu pending\'de olabilir, değişen blok indirmesi installer.exe'yi
 ;      kullanır). Klasörün adı electron-builder'ın APP_INSTALLER_STORE_FILE tanımından çıkarılır (aşağıda PDEFE_GUNCELLEME_ONBELLEGI).
+;  11. Sağ tık menüsü (0.3.1): Dosya Gezgini'nde "PDEfe ile dönüştür" ve "PDEfe ile birleştir" (kabuk eklentisi sagtik\, IExplorerCommand;
+;      ayrıntı sagtik\src\lib.rs). Kurucu DLL'i ($INSTDIR\resources\sagtik\) sürüm adlı ayrı bir klasöre kopyalar:
+;      $LOCALAPPDATA\PDEfe\SagTik\<sürüm>\PDEfeSagTik.dll, yanına PDEfe-yolu.txt (PDEfe.exe'nin yolu, UTF-16). DLL kurulum klasöründe durmaz:
+;      Gezgin DLL'i açık tutar, güncellemede eski sürümün kaldırıcısı kurulum klasörünü taşıyamaz ("Eski sürümün dosyaları kaldırılamadı").
+;      Kayıt (SHELL_CONTEXT, kullanıcı kurulumunda HKCU, yönetici izni yok): Software\Classes\CLSID\{…} (InprocServer32, Apartment) ve
+;      Software\Classes\*\shell\PDEfe.Birlestir, PDEfe.Donustur (ExplorerCommandHandler, MUIVerb, Icon, CommandStateSync, MultiSelectModel
+;      Player, NeverDefault). Değerler test\sagtik_kayitlari.json'daki düzen. Gezgin fiilleri anahtar adının sırasıyla dizer: Birlestir
+;      Donustur'un üstünde (test\sagtik_menu.ps1 shell32'nin menüsüyle sınar). Her kurulumda (güncellemede de) yeniden yazılır; eski sürüm
+;      klasörleri DLL'leri silinebiliyorsa (Gezgin'de yüklü değilse) silinir, değilse sonraki kurulumda ya da PDEfe'nin açılışında
+;      (src\main\sagtik.js). Gerçek kaldırmada kayıtlar ve klasörler silinir; yüklü DLL'in klasörü kalırsa bir sonraki oturum açılışında silinir
+;      (HKCU RunOnce). "--updated" ile çalışan eski sürüm kaldırıcısı sağ tıka dokunmaz: Yeni kurulum kaydı kendisi yazar.
 ;
 ; Kodlama: UTF-8 (electron-builder makensis'i -INPUTCHARSET UTF8 ile çağırır).
 
@@ -80,6 +91,120 @@
   !endif
 !endif
 !define /ifndef PDEFE_VARSAYILAN_URL "ms-settings:defaultapps?registeredAppUser=${PDEFE_KAYIT_ADI}"
+
+; 0.3.1 (madde 11): Sağ tık menüsünün adları. Gerçek değerler sagtik\src\lib.rs (CLSID'ler), src\main\sagtik.js (klasör, CLSID) ve
+; test\sagtik_kayitlari.json ile aynı (test\sagtik_sinama.mjs karşılaştırır). Kurucu sınaması (test\kurucu_sinama.nsh) hepsini ayrı adlarla
+; tanımlar: Deneme kopyası gerçek PDEfe'nin fiillerine, CLSID'lerine, DLL klasörüne ve RunOnce değerine yazmaz, onları silmez.
+!define /ifndef PDEFE_SAGTIK_FIIL_ONEKI "PDEfe"
+!define /ifndef PDEFE_SAGTIK_CLSID_DONUSTUR "{76052C3F-EA2F-47A3-88B2-A488CB6BC682}"
+!define /ifndef PDEFE_SAGTIK_CLSID_BIRLESTIR "{43D87927-34D2-4271-BEC3-81D132284579}"
+!define /ifndef PDEFE_SAGTIK_UST_KLASOR "PDEfe"
+!define /ifndef PDEFE_SAGTIK_RUNONCE "PDEfe sağ tık temizliği"
+!define PDEFE_SAGTIK_KLASORU "${PDEFE_SAGTIK_UST_KLASOR}\SagTik"
+!define PDEFE_SAGTIK_DLL "PDEfeSagTik.dll"
+!define PDEFE_SAGTIK_YOL_DOSYASI "PDEfe-yolu.txt"
+!define PDEFE_SAGTIK_FIIL_KOKU "Software\Classes\*\shell"
+
+; Bir fiil: CLSID'i (DLL $R8) ve Software\Classes\*\shell\<önek>.<ad> anahtarı (test\sagtik_kayitlari.json fiilDegerleri)
+!macro pdefeSagTikFiil AD CLSID BASLIK
+  WriteRegStr SHELL_CONTEXT "Software\Classes\CLSID\${CLSID}" "" "${BASLIK}"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\CLSID\${CLSID}\InprocServer32" "" "$R8"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\CLSID\${CLSID}\InprocServer32" "ThreadingModel" "Apartment"
+  WriteRegStr SHELL_CONTEXT "${PDEFE_SAGTIK_FIIL_KOKU}\${PDEFE_SAGTIK_FIIL_ONEKI}.${AD}" "MUIVerb" "${BASLIK}"
+  WriteRegStr SHELL_CONTEXT "${PDEFE_SAGTIK_FIIL_KOKU}\${PDEFE_SAGTIK_FIIL_ONEKI}.${AD}" "Icon" "$INSTDIR\${APP_EXECUTABLE_FILENAME},0"
+  WriteRegStr SHELL_CONTEXT "${PDEFE_SAGTIK_FIIL_KOKU}\${PDEFE_SAGTIK_FIIL_ONEKI}.${AD}" "ExplorerCommandHandler" "${CLSID}"
+  ; GetState menü kurulurken çağrılsın (yoksa seçenek seçime bakılmadan görünürdü); seçim kaç öğe olursa olsun tek Invoke; çift tıklamanın
+  ; işi (varsayılan fiil) olmasın: ilişkisi olmayan bir .tif'e çift tıklanınca PDEfe ile dönüştür açılmasın
+  WriteRegStr SHELL_CONTEXT "${PDEFE_SAGTIK_FIIL_KOKU}\${PDEFE_SAGTIK_FIIL_ONEKI}.${AD}" "CommandStateSync" ""
+  WriteRegStr SHELL_CONTEXT "${PDEFE_SAGTIK_FIIL_KOKU}\${PDEFE_SAGTIK_FIIL_ONEKI}.${AD}" "MultiSelectModel" "Player"
+  WriteRegStr SHELL_CONTEXT "${PDEFE_SAGTIK_FIIL_KOKU}\${PDEFE_SAGTIK_FIIL_ONEKI}.${AD}" "NeverDefault" ""
+!macroend
+
+; Sürüm klasörlerini siler ($R6 altındaki, adı $R7 olmayanlar; $R7 boşsa hepsi). Klasör ancak içindeki DLL silinebildiyse silinir: Gezgin'in
+; yüklü tuttuğu DLL silinemez, o klasörün PDEfe-yolu.txt'si de kalır (yüklü eski DLL tıklanınca onu okur). $R5, $R9 kullanılır.
+!macro pdefeSagTikEskileriSil
+  ClearErrors
+  FindFirst $R9 $R5 "$R6\*"
+  ${DoWhile} $R5 != ""
+    ${If} $R5 != "."
+    ${AndIf} $R5 != ".."
+    ${AndIf} $R5 != $R7
+    ${AndIf} ${FileExists} "$R6\$R5\*.*"
+      Delete "$R6\$R5\${PDEFE_SAGTIK_DLL}"
+      ${IfNot} ${FileExists} "$R6\$R5\${PDEFE_SAGTIK_DLL}"
+        RMDir /r "$R6\$R5"
+      ${EndIf}
+    ${EndIf}
+    FindNext $R9 $R5
+  ${Loop}
+  FindClose $R9
+  ClearErrors
+!macroend
+
+; Kurulum (customInstall): DLL sürüm klasörüne, PDEfe'nin yolu, kayıtlar, eski sürüm klasörleri. DLL pakette yoksa (sağ tıksız derleme)
+; hiçbir şey yazılmaz. Aynı sürümün DLL'i Gezgin'de yüklüyse (Onar) kopyalanamaz, var olan kalır: Aynı sürümün DLL'i aynıdır.
+!macro pdefeSagTikKur
+  Push $R5
+  Push $R6
+  Push $R7
+  Push $R8
+  Push $R9
+  StrCpy $R6 "$LOCALAPPDATA\${PDEFE_SAGTIK_KLASORU}"
+  StrCpy $R7 "${VERSION}"
+  StrCpy $R8 "$R6\$R7\${PDEFE_SAGTIK_DLL}"
+  ${If} ${FileExists} "$INSTDIR\resources\sagtik\${PDEFE_SAGTIK_DLL}"
+    CreateDirectory "$R6\$R7"
+    System::Call 'kernel32::CopyFileW(w "$INSTDIR\resources\sagtik\${PDEFE_SAGTIK_DLL}", w R8, i 0) i .R9'
+    ${If} ${FileExists} "$R8"
+      ClearErrors
+      FileOpen $R9 "$R6\$R7\${PDEFE_SAGTIK_YOL_DOSYASI}" w
+      ${IfNot} ${Errors}
+        FileWriteWord $R9 0xFEFF
+        FileWriteUTF16LE $R9 "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+        FileClose $R9
+      ${EndIf}
+      !insertmacro pdefeSagTikFiil "Birlestir" "${PDEFE_SAGTIK_CLSID_BIRLESTIR}" "PDEfe ile birleştir"
+      !insertmacro pdefeSagTikFiil "Donustur" "${PDEFE_SAGTIK_CLSID_DONUSTUR}" "PDEfe ile dönüştür"
+      !insertmacro pdefeSagTikEskileriSil
+    ${EndIf}
+  ${EndIf}
+  ClearErrors
+  Pop $R9
+  Pop $R8
+  Pop $R7
+  Pop $R6
+  Pop $R5
+!macroend
+
+; Kaldırma (customUnInstall): Yalnızca gerçek kaldırmada ("--updated" ile çalışan eski sürüm kaldırıcısında değil: yeni kurulum kaydı yeniden
+; yazar, klasörleri o temizler). Silinemeyen (yüklü) DLL'in klasörü bir sonraki oturum açılışında silinir: HKCU RunOnce (kayıtlar silindiği
+; için Gezgin DLL'i o oturumda yüklemez). Herkes için kurulumda RunOnce yazılmaz (klasör ProgramData'da, kullanıcı oturumu silemez).
+!macro pdefeSagTikKaldir
+  ${IfNot} ${isUpdated}
+    Push $R5
+    Push $R6
+    Push $R7
+    Push $R9
+    DeleteRegKey SHELL_CONTEXT "${PDEFE_SAGTIK_FIIL_KOKU}\${PDEFE_SAGTIK_FIIL_ONEKI}.Birlestir"
+    DeleteRegKey SHELL_CONTEXT "${PDEFE_SAGTIK_FIIL_KOKU}\${PDEFE_SAGTIK_FIIL_ONEKI}.Donustur"
+    DeleteRegKey SHELL_CONTEXT "Software\Classes\CLSID\${PDEFE_SAGTIK_CLSID_BIRLESTIR}"
+    DeleteRegKey SHELL_CONTEXT "Software\Classes\CLSID\${PDEFE_SAGTIK_CLSID_DONUSTUR}"
+    StrCpy $R6 "$LOCALAPPDATA\${PDEFE_SAGTIK_KLASORU}"
+    StrCpy $R7 ""
+    !insertmacro pdefeSagTikEskileriSil
+    RMDir "$R6"
+    RMDir "$LOCALAPPDATA\${PDEFE_SAGTIK_UST_KLASOR}"
+    ${If} ${FileExists} "$R6\*.*"
+    ${AndIf} $installMode != "all"
+      WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\RunOnce" "${PDEFE_SAGTIK_RUNONCE}" '"$SYSDIR\cmd.exe" /d /c rd /s /q "$R6" & rd "$LOCALAPPDATA\${PDEFE_SAGTIK_UST_KLASOR}"'
+    ${EndIf}
+    ClearErrors
+    Pop $R9
+    Pop $R7
+    Pop $R6
+    Pop $R5
+  ${EndIf}
+!macroend
 
 ; ---------------------------------------------------------------- Türkçe iletiler (madde 9)
 ; customHeader, installer.nsi'de bütün içermelerden ve addLangs'ten (MUI_LANGUAGE "Turkish") sonra açılır: electron-builder'ın ileti
@@ -734,6 +859,9 @@
     ${EndIf}
   ${EndIf}
 
+  ; Sağ tık menüsü (madde 11)
+  !insertmacro pdefeSagTikKur
+
   ; Kabuğa ilişkilendirme değişikliğini bildir (SHCNE_ASSOCCHANGED)
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
 !macroend
@@ -806,5 +934,7 @@
       ClearErrors
     ${EndIf}
   !endif
+  ; Sağ tık menüsü (madde 11): yalnızca gerçek kaldırmada
+  !insertmacro pdefeSagTikKaldir
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
 !macroend

@@ -64,6 +64,10 @@ win:
     # ude-kopru:derle); UDE'nin ve iText'in jar'ları pakete girmez, bilgisayardaki UDE'den çalışma anında gelir
     - from: core/ude_kopru/ude-kopru.jar
       to: ude-kopru/ude-kopru.jar
+    # Sağ tık menüsünün kabuk eklentisi (0.3.1; sagtik/, npm run sagtik:derle → sagtik/dist/PDEfeSagTik.dll). Gezgin bu kopyayı yüklemez:
+    # Kurucu onu %LOCALAPPDATA%\PDEfe\SagTik\<sürüm>\'e kopyalayıp kaydeder (build/installer.nsh madde 11)
+    - from: sagtik/dist/PDEfeSagTik.dll
+      to: sagtik/PDEfeSagTik.dll
     # Lisanslar (0.2.9 denetimi): PDEfe'nin AGPL-3.0 metni ve üçüncü taraf listesi kurulu klasörde de okunabilsin (app.asar'ın içindeki yetmez;
     # Python bileşenlerinin lisansları pdefe-core/_internal/lisanslar altında: core/pdefe-core.spec)
     - from: LICENSE

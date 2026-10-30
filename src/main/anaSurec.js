@@ -4,7 +4,7 @@
 import { zamanYaz, zamanlariAl } from './acilisZamanlari.js';
 import { erkenOlaylariBagla } from './erkenOlaylar.js';
 import { acilisHatasi } from './acilisHatasi.js';
-import { app, BrowserWindow, protocol, ipcMain, dialog, Menu, shell, nativeTheme, clipboard } from 'electron';
+import { app, BrowserWindow, protocol, ipcMain, dialog, Menu, shell, nativeTheme, nativeImage, clipboard } from 'electron';
 import { TEST, testDiyalogKur, sahteGuncelleyiciKur } from './gelistirme.js';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -18,11 +18,12 @@ import { yazdirmaKur } from './yazdir.js';
 import { udfYaklasikKur } from './udfYaklasik.js';
 import { xfaDuzKur } from './xfaDuz.js';
 import { guncellemeKur } from './guncelleme.js';
-import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla, menuCubugunuUygula, pencereSayisi } from './pencereler.js';
+import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, aracIstegiAc, cik, kapatmaOnayiAyarla, menuCubugunuUygula, pencereSayisi } from './pencereler.js';
 import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, DENETLENEN_YONTEMLER, paketKlasoruMu, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasorleri, standartYaziTipleri, anlikDosyasiMi, ayarYazimiDenetle, aracCiktiKaydi, acilacakYollar } from './guvenlik.js';
 import { createRequire } from 'node:module';
 import { MacGuncelleyici, tarayicidaIndir, MAC_PAKETI, LINUX_PAKETI } from './macGuncelleme.js';
 import { LINUX, appImageYolu, yenidenBaslatma, masaustuKaydiYaz, masaustuKaydiniTazele, pdfVarsayilaniOku as linuxPdfVarsayilaniOku } from './linux.js';
+import { aracIstegi, sagTikAnahtariMi, istekArgumanlari, eskiSagTikKlasorleriniSil, macHizliEylemleriniKur, macUygulamaYolu } from './sagtik.js';
 
 /** electron-updater'ın indirmeyi kesmekte kullandığı CancellationToken sınıfı (0.2.5: donmuş indirmenin bekçisi, guncelleme.js). electron-updater
  *  onu dışa vermiyor; aynı sınıf olsun diye electron-updater'ın kendi bağımlılığından (builder-util-runtime) alınır. Bulunamazsa null: indirme
@@ -132,6 +133,26 @@ function geciciKopyalariSil({ yazdirma = true } = {}) {
   }
 }
 
+/** Sağ tık bakımı bu örnekte yapılır mı (0.3.1): kurulu PDEfe, kendi veri klasörüyle (geciciKopyalariSil'deki koşul), Windows ya da macOS. */
+function sagTikBakimiYapilir() {
+  return PAKETLI && kilit && (process.platform === 'win32' || MAC)
+    && path.resolve(app.getPath('userData')).toLowerCase() === path.resolve(app.getPath('appData'), 'PDEfe').toLowerCase();
+}
+
+/** Windows: eski sürümlerin sağ tık DLL klasörleri silinir. macOS: Finder'ın Hızlı Eylemleri kurulur / yenilenir (sagtik.js). */
+async function sagTikBakimi() {
+  if (process.platform === 'win32') {
+    const silinen = await eskiSagTikKlasorleriniSil();
+    if (silinen.length) console.log('[sağ tık] eski DLL klasörleri silindi:', silinen.join(', '));
+    return;
+  }
+  if (!MAC) return;
+  let simge = null;
+  try { simge = nativeImage.createFromBuffer(fs.readFileSync(path.join(KOK, 'build', 'icon.png'))).resize({ width: 64, height: 64, quality: 'best' }).toPNG(); } catch { /* simgesiz */ }
+  const r = await macHizliEylemleriniKur({ uygulama: macUygulamaYolu(), simge, ayarAl, ayarKoy });
+  if (r.yazilan.length) console.log('[sağ tık] Hızlı Eylemler yazıldı:', r.yazilan.join(', '));
+}
+
 // ---------- Yardımcılar ----------
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript',
@@ -186,6 +207,16 @@ async function pdfVarsayilaniOku() {
 // o pencerenin Dosya Formatını Değiştir aracında). İlk pencere kurulmadan geldiyse (0.2.10: açılış sürerken çift tıklanan ikinci belge) ilk
 // pencerede açılır; önceden pencere yokken gelen dosya kayboluyordu
 function ikinciOrnek(argv, cwd) {
+  // Sağ tık (0.3.1, sagtik.js): --donustur / --birlestir dosyaları Format Değiştir'de ya da Birleştir'de, verilen sırayla açar (en son etkin
+  // pencerede; sekmede açılmazlar)
+  const istek = aracIstegi(argv, cwd, ACILAN_UZANTILAR);
+  if (istek) {
+    if (!pencerelerKuruldu) { acilisAraclari.push(istek); return; }
+    if (cikiliyor) { kapanirkenGeleniAc(istek.dosyalar, istek); return; }
+    const k = aracIstegiAc(istek);
+    if (k) odakla(k);
+    return;
+  }
   const dosyalar = argvdenDosyalar(argv, cwd);
   if (!pencerelerKuruldu) { acilisDosyalari.push(...dosyalar); return; }
   if (cikiliyor) { kapanirkenGeleniAc(dosyalar); return; }
@@ -200,17 +231,20 @@ function ikinciOrnek(argv, cwd) {
 // çalıştırırdı). Güncelleme kurulurken yeniden başlatılmaz: kurucu PDEfe'nin dosyalarını değiştiriyor, kurulumdan sonra kendisi açar
 let cikiliyor = false;              // son pencere kapandı, uygulama kapanıyor (window-all-closed)
 let kurulumIcinCikiliyor = false;   // güncelleme kuruluyor (guncelleme.js kapatmayaHazirla … kapatmaIptal)
-function kapanirkenGeleniAc(dosyalar) {
+function kapanirkenGeleniAc(dosyalar, istek = null) {
   if (kurulumIcinCikiliyor) return;
-  // Komut satırının anahtarları (veri klasörü, geliştirme sürümünde uygulama klasörü…) korunur; ilk açılışın dosyaları yeniden açılmaz
-  const anahtarlar = process.argv.slice(1).filter((a) => a.startsWith('-') || !ACILAN_UZANTILAR.test(a));
-  app.relaunch(yenidenBaslatma([...anahtarlar, ...dosyalar]));   // Linux'ta AppImage dosyası (0.3.1, linux.js)
+  // Komut satırının anahtarları (veri klasörü, geliştirme sürümünde uygulama klasörü…) korunur; ilk açılışın dosyaları yeniden açılmaz, ilk
+  // açılışın sağ tık isteği de (0.3.1: --donustur, --birlestir, --dosya-listesi). Gelen sağ tık isteği kendi anahtarıyla taşınır
+  const anahtarlar = process.argv.slice(1).filter((a) => (a.startsWith('-') || !ACILAN_UZANTILAR.test(a)) && !sagTikAnahtariMi(a));
+  const yeni = istek ? istekArgumanlari(istek) : dosyalar;
+  app.relaunch(yenidenBaslatma([...anahtarlar, ...yeni]));   // Linux'ta AppImage dosyası (0.3.1, linux.js)
   zamanYaz('kapanirkenGeldi', dosyalar.length);
 }
 
 // macOS (0.2.0): Finder'da çift tıklanan, "Birlikte aç"la ya da Dock simgesine bırakılarak açılan PDF komut satırında gelmez, bu olayla gelir
 // (uygulama kapalıyken de: hazır olmadan önce). Açık uygulamada Windows'taki ikinci örnek gibi işlenir; pencere yoksa yenisi açılır.
 const acilisDosyalari = [];
+const acilisAraclari = [];   // 0.3.1: pencereler kurulmadan gelen sağ tık istekleri ({ arac, dosyalar }, sagtik.js)
 let pencerelerKuruldu = false;
 function finderdenAc(yol) {
   if (!ACILAN_UZANTILAR.test(String(yol || ''))) return;   // 0.2.6: UDF, TIFF, Word de (Dosya Formatını Değiştir)
@@ -656,6 +690,9 @@ app.whenReady().then(() => {
     pencereGosterildi: () => {
       // Linux AppImage (0.3.1): PDEfe'nin yazdığı menü kaydı taşınmış AppImage'ın eski yolunu gösteriyorsa şimdiki yola çevrilir (linux.js)
       if (LINUX && PAKETLI && kilit && !ilkPencereGorundu) setTimeout(() => { masaustuKaydiniTazele().catch(() => {}); }, 5000).unref?.();
+      // Sağ tık (0.3.1, sagtik.js): Windows'ta eski sürümlerin DLL klasörleri (kilidi kalktıysa), macOS'ta Finder'ın Hızlı Eylemleri (kurulur ya da
+      // uygulamanın yeri değiştiyse yenilenir). Yalnızca kurulu PDEfe'nin kendi veri klasörüyle çalışan örneğinde (test örneği dokunmaz)
+      if (!ilkPencereGorundu && sagTikBakimiYapilir()) setTimeout(() => { sagTikBakimi().catch((e) => console.warn('[sağ tık]', e?.message || e)); }, 8000).unref?.();
       ilkPencereGorundu = true;
       guncelleme?.pencereGosterildi();
       arkaPlanYuklemeleriniZamanla(true);
@@ -670,7 +707,12 @@ app.whenReady().then(() => {
   guncellemeKanallariniKur();
   sahteGuncelleyici = sahteGuncelleyiciKur(ipc);   // yalnızca geliştirme örneğinde, PDEFE_TEST_GUNCELLEME ile (test kanalları hemen kurulu olsun)
   uygulamaMenusuKur();
-  pencereOlustur({ dosyalar: [...argvdenDosyalar(process.argv, process.cwd()), ...acilisDosyalari.splice(0)] });
+  // Sağ tık (0.3.1): PDEfe --donustur / --birlestir ile açıldıysa komut satırının dosyaları sekmede değil araçta açılır (sagtik.js)
+  const ilkIstek = aracIstegi(process.argv, process.cwd(), ACILAN_UZANTILAR);
+  pencereOlustur({
+    dosyalar: [...(ilkIstek ? [] : argvdenDosyalar(process.argv, process.cwd())), ...acilisDosyalari.splice(0)],
+    araclar: [...(ilkIstek ? [ilkIstek] : []), ...acilisAraclari.splice(0)],
+  });
   pencerelerKuruldu = true;
   zamanYaz('pencereIstendi');
   cekirdek.baslat().then(() => zamanYaz('cekirdekHazir')).catch((e) => console.error('[çekirdek] başlatılamadı:', e));

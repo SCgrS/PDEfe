@@ -1,0 +1,21 @@
+{
+  "_aciklama": "Sağ tık menüsünün kayıt defteri düzeni (0.3.1). build/installer.nsh customInstall bunu yazar (gerçek adlar), test/kurucu_akis.ps1 deneme kurucusunun aynısını yazdığını denetler (deneme adları), test/sagtik_menu.ps1 menü sınaması için yazar (sınama adları), test/sagtik_sinama.mjs installer.nsh, sagtik/src/lib.rs ve sagtik/src/kurallar.rs ile karşılaştırır. Anahtarlar HKCU\\Software\\Classes altında. {DLL} DLL'in tam yolu, {EXE} PDEfe.exe'nin tam yolu, @ anahtarın varsayılan değeri.",
+  "fiilKoku": "*\\shell",
+  "fiiller": [
+    { "ad": "Birlestir", "baslik": "PDEfe ile birleştir", "clsid": "{43D87927-34D2-4271-BEC3-81D132284579}", "sinamaClsid": "{757ACC1D-9BCB-4792-A3B4-3F5889A88808}" },
+    { "ad": "Donustur", "baslik": "PDEfe ile dönüştür", "clsid": "{76052C3F-EA2F-47A3-88B2-A488CB6BC682}", "sinamaClsid": "{6F896873-46F5-4F6A-B082-BA2D345AA7DC}" }
+  ],
+  "fiilOneki": { "gercek": "PDEfe", "kurucuSinamasi": "KurucuSinama", "menuSinamasi": "PDEfeSinama" },
+  "fiilDegerleri": {
+    "MUIVerb": "{BASLIK}",
+    "Icon": "{EXE},0",
+    "ExplorerCommandHandler": "{CLSID}",
+    "CommandStateSync": "",
+    "MultiSelectModel": "Player",
+    "NeverDefault": ""
+  },
+  "clsidDegerleri": { "@": "{BASLIK}" },
+  "inprocDegerleri": { "@": "{DLL}", "ThreadingModel": "Apartment" },
+  "dllAdi": "PDEfeSagTik.dll",
+  "yolDosyasi": "PDEfe-yolu.txt"
+}

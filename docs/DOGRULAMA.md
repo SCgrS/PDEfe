@@ -1211,3 +1211,46 @@ Linux'ta formlar
     okuyucuda açın: Yazılar okunur ve alanın içinde olmalı, Türkçe harfler doğru görünmeli. Daktilo yazılı (Courier) alanlarda da.
 52. **XFA formu.** Bireysel başvuru formunu Linux'ta açın: Başlıklar ve etiketler tırnaklı (Times benzeri) değil, düz (Arial benzeri) bir yazı
     tipiyle görünmeli, Türkçe harfler doğru olmalı.
+
+Sağ tık: Dosya Gezgini (Windows)
+Menü bu bilgisayarda Gezgin'in menü kodu ile, sınama kayıtlarıyla ve kurgusal dosyalarla sınandı. Gerçek Gezgin'de, kendi kayıtlarınızla
+denenmedi: Bu sürümü kurduktan sonra:
+53. **Tek dosya.** Bir PDF'e sağ tıklayın (Windows 11'de "Daha fazla seçenek göster"e basın ya da Shift'e basılıyken sağ tıklayın): PDEfe'nin
+    simgesiyle "PDEfe ile dönüştür" görünmeli, "PDEfe ile birleştir" görünmemeli. Tıklayın: PDEfe açılmalı (kapalıysa da), Format Değiştir o
+    dosyayla açılmalı, PDF sekmede açılmamalı. Aynısını bir UDF, bir Word belgesi, bir JPG ve bir TIFF'le deneyin.
+54. **Birden çok dosya.** İki ya da daha çok PDF, UDF, Word ya da görüntü seçip sağ tıklayın: Üstte "PDEfe ile birleştir", hemen altında "PDEfe ile
+    dönüştür", ikisi de simgeli. Birleştir'e tıklayın: Birleştir bütün dosyalarla açılmalı (tek PDEfe penceresi). Dosyaların sırası Gezgin'in
+    PDEfe'ye verdiği sıradır: Beklediğiniz sıra değilse bildirin (Birleştir'de sürükleyerek değiştirebilirsiniz).
+55. **Görünmemesi gereken yerler.** Bir .txt ya da .zip dosyasına, bir klasöre, PDF ile birlikte bir .txt seçip ve PDF ile birlikte bir klasör
+    seçip sağ tıklayın: PDEfe seçenekleri hiç görünmemeli. Programla ilişkisi olmayan bir .webp ya da .tif'e çift tıklayın: PDEfe ile dönüştür
+    açılmamalı (Windows'un "Nasıl açmak istersiniz?" sorusu ya da o dosyanın programı).
+56. **Çok dosya.** Bir klasörde 50 PDF seçip "PDEfe ile birleştir"e basın: Tek PDEfe penceresi, Birleştir'de 50 dosya. 1000'den çok öğe seçilince
+    (Ctrl+A ile büyük bir klasör) seçenekler görünmez, menü bekletmeden açılmalı.
+57. **PDEfe açıkken.** PDEfe'de bir belge açıkken sağ tıkla dönüştürün: Format Değiştir açık pencerede, yalnızca seçtiğiniz dosyalarla açılmalı
+    (açık belge listeye girmemeli). Format Değiştir zaten açıksa dosyalar listesine eklenmeli. Birleştir ya da başka bir araç açıkken sağ tıkla
+    birleştirin: Yeni bir PDEfe penceresi açılmalı, açık aracın listesi değişmemeli.
+58. **Adlar.** Adında boşluk, Türkçe harf, kesme işareti ya da & olan dosyalarla, bir ağ sürücüsündeki ve OneDrive'daki dosyalarla deneyin:
+    Dosyalar araçta eksiksiz görünmeli.
+59. **Başka programların dosya pencereleri.** Word'de ya da tarayıcıda Aç penceresinde bir PDF'e sağ tıklayın: Seçenek görünebilir ve çalışmalı
+    (eski 32 bit programlarda görünmeyebilir).
+60. **Güncellemeden sonra.** Bu sürümden sonraki ilk güncelleme kurulunca sağ tık menüsü yine görünmeli ve çalışmalı. Güncelleme "Eski sürümün
+    dosyaları kaldırılamadı" dememeli. Adres çubuğuna `%LOCALAPPDATA%\PDEfe\SagTik` yazın: Bir süre sonra (PDEfe'yi açıp kapatınca ya da
+    yeniden başlatınca) yalnızca yeni sürümün klasörü kalmalı.
+61. **Kaldırınca.** PDEfe'yi bir gün kaldırırsanız sağ tıkta PDEfe seçenekleri hemen kalkmalı. `%LOCALAPPDATA%\PDEfe` klasörü hemen ya da
+    bilgisayarı yeniden açınca (oturum açılışında bir an komut penceresi görünebilir) silinmeli.
+62. **Ofis bilgisayarında.** Aynılarını ofiste deneyin.
+
+Sağ tık: Finder (macOS)
+Bu bilgisayarda Mac yok. Hızlı Eylem dosyaları ve betiği burada sınandı, GitHub'ın Mac makinesinde de denenecek. Bir Mac'te:
+63. **Kurulum.** PDEfe'yi DMG'den Uygulamalar'a sürükleyip bir kez açın, birkaç saniye bekleyin. Finder'da bir PDF'e sağ tıklayın › Hızlı
+    Eylemler: "PDEfe ile birleştir" ve "PDEfe ile dönüştür" PDEfe'nin simgesiyle görünmeli (görünmezse Hızlı Eylemler › Özelleştir'de
+    işaretli mi bakın, Mac'i yeniden başlatmadan bir dakika bekleyin). macOS sayıya göre gizletmediği için tek dosyada da "birleştir" görünür:
+    Tıklanınca Birleştir o dosyayla açılır.
+64. **Dönüştür ve birleştir.** PDEfe kapalıyken ve açıkken birkaç dosya seçip iki eylemi de deneyin: Araç seçilen dosyalarla açılmalı, açık
+    PDEfe'nin penceresinde. Dock'ta bir an ikinci bir PDEfe simgesi görünüp kayboluyorsa bildirin. İlk kullanımda macOS bir izin sorabilir
+    (Finder ya da Automator için): İzin verin.
+65. **Desteklenmeyen dosya.** Bir .zip ya da .txt'ye Hızlı Eylemler › PDEfe ile dönüştür deyin: "Bu dosyalar dönüştürülemiyor" iletisi görünmeli,
+    PDEfe açılmamalı.
+66. **Taşıma ve silme.** PDEfe'yi başka bir klasöre taşıyıp bir kez açın: Hızlı Eylemler yine çalışmalı. PDEfe'yi Çöp Sepeti'ne atıp Hızlı Eylem'i
+    deneyin: "PDEfe bulunamadı" iletisi görünmeli (hata kutusu değil). Hızlı Eylemleri istemezseniz Finder'da sağ tık › Hızlı Eylemler ›
+    Özelleştir'den kapatabilirsiniz. `~/Library/Services`'ten silerseniz PDEfe onları yeniden kurmaz.

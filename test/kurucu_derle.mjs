@@ -51,6 +51,11 @@ export function yapilandirmaFarklari() {
     if (gercekSiniflar.has(sinif.toLowerCase())) farklar.push(`win.fileAssociations.name gerçek PDEfe'nin ProgId'si (${sinif}): deneme kurucusu onun kaydına yazıp kaldırıcısı onu silerdi`);
     else if (nshSinif && sinif.toLowerCase() !== nshSinif.toLowerCase()) farklar.push(`win.fileAssociations.name (${sinif}) test/kurucu_sinama.nsh'teki PDEFE_PROGID'den (${nshSinif}) farklı`);
   }
+  // 0.3.1: Denemenin extraResources'ı yalnızca sağ tık DLL'i ve gerçeğindeki girdinin aynısı (kurucu onu kopyalayıp kaydeder)
+  const sagTik = (l) => (l || []).filter((r) => /PDEfeSagTik\.dll$/i.test(String(r?.from || r)));
+  if (!esit(sagTik(gercek.win.extraResources), deneme.win.extraResources) || sagTik(gercek.win.extraResources).length !== 1) {
+    farklar.push('win.extraResources: deneme yalnızca gerçeğindeki sağ tık DLL girdisini içermeli');
+  }
   for (const k of ['asar', 'electronLanguages', 'electronFuses', 'files', 'npmRebuild', 'nodeGypRebuild']) {
     if (!esit(gercek[k], deneme[k])) farklar.push(k);
   }

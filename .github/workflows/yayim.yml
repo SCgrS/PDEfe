@@ -156,6 +156,14 @@ jobs:
           Write-Host "Yanıt: $yanit"
           if (-not ($yanit -match '"result"')) { Write-Error "Çekirdek ping yanıtı vermedi."; exit 1 }
 
+      # 0.3.1: Dosya Gezgini'nin sağ tık menüsü (sagtik/, Rust; GitHub'ın Windows makinesinde rustup ve MSVC hazır). DLL sagtik/dist'e, oradan
+      # pakete (electron-builder.yml win.extraResources). Sınamalar: DLL'in birim testleri ve LoadLibrary'li sınaması (tests/dll.rs), tutarlılık ve
+      # src/main/sagtik.js'in birimleri, kayıtlı fiillerle Gezgin'in menü kodu (test/sagtik_menu.ps1: bu sanal makinede gerçek HKCU'ya yazar, siler)
+      - name: Sağ tık eklentisini derle ve sına
+        run: |
+          node build/sagtik-derle.mjs --sina
+          node test/sagtik_sinama.mjs --menu
+
       - name: Paketle ve taslak sürüme yükle (etiket)
         if: startsWith(github.ref, 'refs/tags/')
         env:
@@ -348,6 +356,12 @@ jobs:
       - name: Uygulamayı sına (Apple işlemcili)
         timeout-minutes: 10
         run: node test/mac_duman.mjs /Applications/PDEfe.app "$RUNNER_TEMP/ornekler" "$RUNNER_TEMP/duman"
+
+      # 0.3.1: Finder'ın Hızlı Eylemleri (sağ tık; src/main/sagtik.js). ~/Library/Services'e kurulur, plutil -lint, Hizmetler listesi, betik /bin/sh
+      # ile; automator ile sahte bir uygulama paketine kadar uçtan uca (bilgi)
+      - name: Hızlı Eylemleri sına (sağ tık)
+        timeout-minutes: 5
+        run: node test/sagtik_sinama.mjs --mac
 
       - name: Sınama çıktıları (ekran görüntüleri)
         if: always()
