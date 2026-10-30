@@ -12,6 +12,7 @@
 //  10  Bileşim (IME), sürükleyip bırakma, bölüm ekleme ve yeniden dizilme, salt okunur alan, tekerlek, yazıyla büyüyen alan (sınır yok, kâğıtta tamamı).
 //  11  Gerçek sağ tık menüsü (test kancasız örnekte, görünmeyen masaüstünde, test/menu_yakala.ps1): Menünün görüntüsü, öğelerin etkinliği, Tümünü seç, Yapıştır. Pano yalnız okunur: Kes ve Kopyala burada basılmaz (8. bölümde kancayla).
 //  12  Geri al ve yinele alanın kendi geçmişinden: Başka alana gitmez, komut yığınından geri alınan yazı katlanmaz, reddedilen bileşimin taşan hâline dönülmez, alandan çıkınca belge değişmiş sayılır. XFA ve düz form.
+//  13  Alanlar arası gerçek sürükleme (tarayıcının sürüklemesi yakalanır: Sürükleme sistemi görünmeyen masaüstünde çalışmaz): Sığmayan yazıda kaynak yerinde kalır, sığan yazı taşınır, aynı alanda taşıma.
 // Bütün koşum: powershell -File test\senaryo53_kos.ps1 (test kancalı örnek, ekran ölçeği %125 ve %150, kancasız örnek). Tek koşum (imleç ve odak için görünmeyen masaüstü, taze örnek: Yanıt kuyruğu ana süreçte):
 //   powershell -File test\baslat_gizli.ps1 -Port 9510 -Veri "$env:TEMP\pdefe-s53" -Boyut "1280,1000"   → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9510; [$env:BOLUM="1,4"]; node test\surucu.mjs betik test\senaryo53.mjs
@@ -170,7 +171,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, fare, yaz
   await new Promise((c, r) => { ws.onopen = c; ws.onerror = r; });
   let no = 0;
   const bekleyen = new Map();
-  ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id && bekleyen.has(d.id)) { bekleyen.get(d.id)(d); bekleyen.delete(d.id); } };
+  const olaylar = [];
+  ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id && bekleyen.has(d.id)) { bekleyen.get(d.id)(d); bekleyen.delete(d.id); } else if (d.method) olaylar.push(d); };
   const cdp = (method, params = {}) => new Promise((c) => { const i = ++no; bekleyen.set(i, c); ws.send(J({ id: i, method, params })); });
 
   /** Tuş basılı tutulur: Tekrarlı keyDown (autoRepeat), sonunda keyUp. */
@@ -1151,6 +1153,108 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, fare, yaz
     sonuc('12 Düz form: Yinelenir', (await fDeger('kisa')) === 'abc', await fDeger('kisa'));
     await tus('Tab'); await bekle(60);
     sonuc('12 Sayfada hata yok', !(await hatalar()).length);
+  }
+
+  // ================================================================== 13) alanlar arası sürükleme
+  if (bolum(13)) {
+    const y = kopya('surukle');
+    await ac(y);
+    await izle();
+    const UZUN = uzunYazi(3000);
+    await cdp('Input.setInterceptDrags', { enabled: true });
+    /** Seçili yazı fareyle sürüklenir, tarayıcının sürüklemesi yakalanıp aynı veriyle bırakılır. */
+    const tasi = async (x1, y1, x2, y2) => {
+      olaylar.length = 0;
+      await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x1, y: y1, button: 'none', buttons: 0 });
+      await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', x: x1, y: y1, button: 'left', buttons: 1, clickCount: 1 });
+      await bekle(30);
+      for (let i = 1; i <= 8; i++) { await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x1 + ((x2 - x1) * i) / 8, y: y1 + ((y2 - y1) * i) / 8, button: 'left', buttons: 1 }); await bekle(15); }
+      await bekle(60);
+      const o = olaylar.find((e) => e.method === 'Input.dragIntercepted');
+      if (o) {
+        const data = o.params.data;
+        await cdp('Input.dispatchDragEvent', { type: 'dragEnter', x: x2, y: y2, data });
+        await cdp('Input.dispatchDragEvent', { type: 'dragOver', x: x2, y: y2, data });
+        await bekle(20);
+        await cdp('Input.dispatchDragEvent', { type: 'drop', x: x2, y: y2, data });
+        await bekle(120);
+      }
+      await cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x2, y: y2, button: 'left', buttons: 0, clickCount: 1 });
+      await bekle(60);
+      return !!o;
+    };
+    const metniSec = (ad, a, b) => evalJs(`(async () => { const e = window.__s53.denetim(${J(ad)}); e.focus(); e.setSelectionRange(${a}, ${b}); e.scrollIntoView({ block: 'center' }); await window.__s53.bekle(80); const r = e.getBoundingClientRect(); const o = r.width / e.offsetWidth; return { x: r.left + (parseFloat(getComputedStyle(e).paddingLeft) + 12) * o, y: r.top + (parseFloat(getComputedStyle(e).paddingTop) + 7) * o }; })()`);
+    const yerSur = (ad) => evalJs(`(() => { const e = window.__s53.denetim(${J(ad)}); const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, sol: r.left + 3, ust: r.top + 8 }; })()`);
+    // Hedef dolu: Kaynak yerinde kalır, sığan kısım girer, uyarı
+    await tiklaAd('IkiSatir');
+    await yapistir(UZUN);
+    await bekle(20);
+    const dolu = (await d53('IkiSatir')).deger;
+    await bildirimler();
+    const KAYNAK = 'Sürüklenecek yazı burada duruyor ve kaybolmamalı';
+    await tiklaAd('UcSatir');
+    await yaz(KAYNAK);
+    let k = await metniSec('UcSatir', 0, KAYNAK.length);
+    let h = await yerSur('IkiSatir');
+    const oldu = await tasi(k.x, k.y, h.x, h.y);
+    sonuc('13 Tarayıcının sürüklemesi başladı', oldu);
+    let sa = await d53('UcSatir'), sb = await d53('IkiSatir'), bl = await bildirimler();
+    const giren = sb.deger.length - dolu.length;
+    sonuc('13 Dolu alana sürükleme: Kaynak yerinde kalır', sa.deger === KAYNAK, sa.deger);
+    sonuc('13 Dolu alana sürükleme: Hedef taşmaz, önceki yazısı yerinde', sinirTamam(sb, 2) && !sb.tasiyor && sb.uz >= dolu.length, { ...sb, deger: undefined });
+    sonuc('13 Dolu alana sürükleme: Uyarı bir kez, sayı doğru', bl.length === 1 && bl[0] === `Yazının tamamı bu alana sığmadı. ${Array.from(KAYNAK).length - giren} karakter alınmadı.`, { bl, giren });
+    // Sığmayan yazı bırakılan yere girer
+    await bosalt('Hucre10');
+    await bosalt('IkiSatir');
+    await tiklaAd('IkiSatir');
+    await yapistir(UZUN);
+    await bekle(20);
+    await tus('End', ['ctrl']);
+    for (let i = 0; i < 12; i++) await tus('Backspace');
+    const kisalmis = (await d53('IkiSatir')).deger;
+    await bildirimler();
+    k = await metniSec('UcSatir', 0, KAYNAK.length);
+    h = await yerSur('IkiSatir');
+    await tasi(k.x, k.y, h.sol, h.ust);
+    sb = await d53('IkiSatir');
+    await bildirimler();
+    sonuc('13 Kısmi bırakma: Bırakılan yerde (satırın başı), sonrası aynı', sb.deger.endsWith(kisalmis) && sb.uz > kisalmis.length && sinirTamam(sb, 2), { bas: sb.deger.slice(0, 20), uz: [sb.uz, kisalmis.length] });
+    sonuc('13 Kısmi bırakma: Kaynak yerinde', (await d53('UcSatir')).deger === KAYNAK, (await d53('UcSatir')).deger);
+    // Hücreli alana
+    k = await metniSec('UcSatir', 0, KAYNAK.length);
+    h = await yerSur('Hucre10');
+    await tasi(k.x, k.y, h.x, h.y);
+    sa = await d53('UcSatir'); sb = await d53('Hucre10'); bl = await bildirimler();
+    sonuc('13 Hücreli alana: Kaynak yerinde, hücre sayısı kadar', sa.deger === KAYNAK && Array.from(sb.deger).length === 10 && KAYNAK.startsWith(sb.deger) && bl.length === 1, { a: sa.deger, h: sb.deger, bl });
+    // Sığan yazı: Taşınır
+    await bosalt('TekKapali');
+    k = await metniSec('UcSatir', 0, 11);
+    h = await yerSur('TekKapali');
+    await tasi(k.x, k.y, h.x, h.y);
+    sa = await d53('UcSatir'); sb = await d53('TekKapali');
+    sonuc('13 Sığan yazı: Taşınır, uyarı yok', sa.deger === KAYNAK.slice(11) && sb.deger === KAYNAK.slice(0, 11) && !(await bildirimler()).length, { a: sa.deger, t: sb.deger });
+    // Aynı alanda taşıma: Yazı aynı kalır (sıra değişir), tek geri al
+    await bosalt('UcSatir');
+    await tiklaAd('UcSatir');
+    await yaz('Bir iki uc dort');
+    k = await metniSec('UcSatir', 0, 3);
+    const son = await evalJs(`(() => { const e = window.__s53.denetim('UcSatir'); const r = e.getBoundingClientRect(); const o = r.width / e.offsetWidth; return { x: r.left + 100 * o, y: r.top + (parseFloat(getComputedStyle(e).paddingTop) + 7) * o }; })()`);
+    await tasi(k.x, k.y, son.x, son.y);
+    sa = await d53('UcSatir');
+    const harfler = (t) => Array.from(t.replace(/ /g, '')).sort().join('');
+    sonuc('13 Aynı alanda taşıma: Harfler aynı, sözcük yer değiştirdi', harfler(sa.deger) === harfler('Bir iki uc dort') && sa.deger !== 'Bir iki uc dort' && !(await bildirimler()).length, sa.deger);
+    await tus('z', ['ctrl']); await bekle(20);
+    sonuc('13 Aynı alanda taşıma: Tek geri al', (await d53('UcSatir')).deger === 'Bir iki uc dort', (await d53('UcSatir')).deger);
+    // Kaynağı olmayan bırakma (başka programdan): Eskisi gibi sığan kısım
+    await bosalt('UcSatir');
+    const data = { items: [{ mimeType: 'text/plain', data: UZUN }], dragOperationsMask: 3 };
+    h = await yerSur('UcSatir');
+    for (const type of ['dragEnter', 'dragOver', 'drop']) await cdp('Input.dispatchDragEvent', { type, x: h.x, y: h.y, data });
+    await bekle(120);
+    sa = await d53('UcSatir'); bl = await bildirimler();
+    sonuc('13 Dışarıdan bırakma: Sığan kısım, 3 satır, uyarı bir kez', sa.satir === 3 && sa.sh <= sa.ch && UZUN.startsWith(sa.deger) && bl.length === 1, { ...sa, deger: undefined, bl });
+    await cdp('Input.setInterceptDrags', { enabled: false });
+    sonuc('13 Sayfada hata yok', !(await hatalar()).length);
   }
 
   ws.close();

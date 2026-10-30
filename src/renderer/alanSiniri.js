@@ -3,6 +3,7 @@
 //   - Yazma ve Enter: beforeinput. Sığmayan harf girmez, uyarı yok, alan dolunca yazma durur. Sığan yazı tarayıcının yolundan gider.
 //   - Yapıştırma, sürükleyip bırakma, tek seferde gelen uzun yazı (dikte): Sığan kısım girer, kalanı alınmaz, görünür uyarı kaç karakter alınmadığını bir kez söyler. Yazılan metnin
 //     ortasına da: Seçimin yerine sonraki metni taşırmayacak kadarı girer. Yazı execCommand'la girer: İmleç ve olaylar yazmadaki gibi.
+//   - Başka alandan sürükleme: Yazının tamamı sığmıyorsa kaynak yerinde kalır. Tarayıcı taşımada önce kaynağı siler: Sığmayan kısım iki alandan da giderdi.
 //   - IME ve bileşim: Olay iptal edilemez, bileşim bitince sığmıyorsa son sığan hâle döner.
 // Silme, seçim, gezinme serbest.
 //
@@ -153,6 +154,12 @@ export function alanaKoy(el, metin, { sigar = null, bildir = null } = {}) {
   return alinmayan;
 }
 
+/** Bırakılan noktanın alandaki yeri (katmanın dönüşümüyle de doğru). Bulunamazsa sonu. */
+function birakmaYeri(el, e) {
+  const c = document.caretPositionFromPoint?.(e.clientX, e.clientY);
+  return c?.offsetNode === el ? Math.min(c.offset, el.value.length) : el.value.length;
+}
+
 /**
  * Sınırı bir kapsayıcıdaki alanlara bağlar. ayar:
  *   alanBul(hedef) → yazı denetimi ya da null (olayın hedefi),
@@ -163,6 +170,7 @@ export function alanaKoy(el, metin, { sigar = null, bildir = null } = {}) {
 export function alanSiniriBagla(kok, { alanBul, sigar = null, bildir = null, kilitli = () => false, dolu = null }) {
   const anlik = new WeakMap();   // alan → { deger, bas, son }: Son eklemeden (ya da bileşimden) önceki hâl
   const anlikAl = (el) => anlik.set(el, { deger: el.value, bas: el.selectionStart, son: el.selectionEnd });
+  let surukleKaynagi = null;     // sürükleme bu kapsayıcıdaki bir alandan başladı
   const geriDon = (el) => {
     const a = anlik.get(el);
     if (!a || !sigar || sigar(el, el.value) || el.value.length <= a.deger.length) return;
@@ -178,6 +186,31 @@ export function alanSiniriBagla(kok, { alanBul, sigar = null, bildir = null, kil
     const metin = e.clipboardData?.getData('text/plain');
     if (!metin) return;
     e.preventDefault();
+    alanaKoy(el, metin, { sigar, bildir });
+  }, true);
+
+  // Sürükleyip bırakma: Sığmayacaksa karar tarayıcıya bırakılmaz. Tarayıcı başka alandan taşırken insertFromDrop'tan önce kaynağı siler, sığmayan kısım iki alandan da giderdi
+  kok.addEventListener('dragstart', (e) => { surukleKaynagi = alanBul(e.target); }, true);
+  kok.addEventListener('dragend', () => { surukleKaynagi = null; }, true);
+  kok.addEventListener('drop', (e) => {
+    const el = alanBul(e.target), kaynak = surukleKaynagi;
+    surukleKaynagi = null;
+    if (!el || e.defaultPrevented || el.readOnly || el.disabled) return;
+    if (kilitli()) { e.preventDefault(); return; }
+    const ham = e.dataTransfer?.getData('text/plain');
+    if (!ham) return;
+    const metin = girdiMetni(el, ham), yer = birakmaYeri(el, e);
+    const s = el.selectionStart ?? 0, b = el.selectionEnd ?? s;
+    const ayniAlan = kaynak === el && s !== b && !(MAC ? e.altKey : e.ctrlKey);   // aynı alanda taşıma (kopyalama tuşu basılı değil): Seçili yazı yerinden kalkar
+    let once = el.value.slice(0, yer), sonra = el.value.slice(yer);
+    if (ayniAlan) { const p = yer <= s ? yer : yer >= b ? yer - (b - s) : s, kalan = el.value.slice(0, s) + el.value.slice(b); once = kalan.slice(0, p); sonra = kalan.slice(p); }
+    const aday = once + metin + sonra;
+    if (aday.length <= enCokKarakter(el) && (!sigar || sigar(el, aday))) return;   // sığıyor: Tarayıcının yolu
+    e.preventDefault();
+    // Aynı alanda taşınan yazı sığmıyorsa yerinde kalır. Başka yerden geleni sığan kısmıyla alır, kaynak aynı kalır
+    if (ayniAlan) { bildir?.(alinmadiMetni(Array.from(metin).length)); return; }
+    if (document.activeElement !== el) el.focus({ preventScroll: true });
+    el.setSelectionRange(yer, yer);
     alanaKoy(el, metin, { sigar, bildir });
   }, true);
 
