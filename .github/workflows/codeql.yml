@@ -3,6 +3,7 @@
 # varsayılan kurulum 0.3.0 gönderilmeden önce kapatıldı:
 #   gh api -X PATCH repos/SCgrS/PDEfe/code-scanning/default-setup -f state=not-configured
 # Varsayılan kurulumun dillerinden csharp yok: tek C# dosyası test/'te, taranmıyor (dil kodsuz kalınca CodeQL hata verir).
+# rust (0.3.1): Dosya Gezgini'nin içine yüklenen sağ tık eklentisi (sagtik/). Tarama Linux'ta, derlemeden: Yalnız Windows'ta derlenen kodda ilk koşunun uyarılarına bakılır.
 name: CodeQL Advanced
 
 on:
@@ -28,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dil: [javascript-typescript, python, java-kotlin, actions]
+        dil: [javascript-typescript, python, java-kotlin, rust, actions]
     steps:
       - name: Depoyu al
         uses: actions/checkout@v7
