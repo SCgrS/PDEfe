@@ -12,6 +12,8 @@
 #   imzali.pdf   1 sayfa: yazı alanı, onay kutusu ve değerli imza alanı (/ByteRange'li imza sözlüğü; /Contents imzalanan baytların
 #                SHA-256'sı: Gerçek bir imza değil, artımlı kayıttan sonra imzalanan baytların değişmediğini sınamak için).
 #   karma.pdf    1 sayfa: AcroForm alanları + /XFA paketi (XFA'lı karma belge).
+#   haklar.pdf   1 sayfa: Dolu yazı alanı, imzalanmamış imza alanı (/SigFlags 1), kullanım hakları imzası (/Perms /UR3, /ByteRange taşır;
+#                sahte, gerçek imza değil). E-imzalı sayılmamalı, dolu alan değişince soru çıkmamalı, baştan yazımda UR3 kalkmalı.
 # Son satırda JSON özet: alanların adları, xref'leri, sayfaları, türleri ve dosyalardaki ilk değerleri.
 import hashlib
 import json
@@ -313,10 +315,25 @@ def karma_pdf(yol):
     return u.ozet
 
 
+def haklar_pdf(yol):
+    doc = pymupdf.open()
+    page = doc.new_page(width=A4[0], height=A4[1])
+    u = Uretici(doc)
+    etiket(page, 72, 50, "Kullanim hakli form (sahte imza, yer tutucu)", 14)
+    u.yazi(page, "kisi", (170, 70, 470, 92), deger="Eski")
+    u.imza(page, "imza", (170, 150, 400, 200))
+    u.acroform("/SigFlags 1")
+    ur3 = u.nesne("<</Type/Sig/Filter/Deneme.Imza/SubFilter/adbe.pkcs7.detached/ByteRange[0 10 20 30]/Contents<00>/Reference[<</TransformMethod/UR3/TransformParams<</Form[/FillIn]>>>>]>>")
+    doc.xref_set_key(doc.pdf_catalog(), "Perms", "<</UR3 %d 0 R>>" % ur3)
+    doc.save(yol, garbage=0, deflate=True)
+    return u.ozet
+
+
 if __name__ == "__main__":
     klasor = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "cikti", "form")
     os.makedirs(klasor, exist_ok=True)
     ozet = {"alanlar": alanlar_pdf(os.path.join(klasor, "alanlar.pdf")),
             "imzali": imzali_pdf(os.path.join(klasor, "imzali.pdf")),
-            "karma": karma_pdf(os.path.join(klasor, "karma.pdf"))}
+            "karma": karma_pdf(os.path.join(klasor, "karma.pdf")),
+            "haklar": haklar_pdf(os.path.join(klasor, "haklar.pdf"))}
     print(json.dumps(ozet, ensure_ascii=False))

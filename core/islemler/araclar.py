@@ -255,6 +255,8 @@ def _kaydet_sinirli(doc, hedef, en_fazla=None, once_kapat=(), **secenekler):
     _hedef_klasoru_hazirla(hedef)
     gecici = _gecici_yol(hedef)
     try:
+        from .notlar import kullanim_hakki_kaldir
+        kullanim_hakki_kaldir(doc)   # baştan yazılan belgede geçersizdir, okuyucu uyarı verirdi (0.3.1)
         doc.save(gecici, **secenekler)
         _kapat(doc)
         for d in once_kapat:
@@ -1530,6 +1532,8 @@ def y_dondur_kaydet(p):
         except Exception:   # ValueError / RuntimeError / mupdf FzError*
             # Onarılmış/bozuk xref'li belgelerde artımlı yazım yapılamaz: tam yazım (ayrı geçici dosyaya)
             artimli = False
+            from .notlar import kullanim_hakki_kaldir
+            kullanim_hakki_kaldir(doc)
             doc.save(gecici_tam, **YAPISAL_KAYIT)
             _kapat(doc)
             hazir = gecici_tam

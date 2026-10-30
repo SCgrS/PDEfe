@@ -59,7 +59,7 @@ p = xfa._paketler(d)
 veri = html.unescape(d.xref_stream(p["datasets"]).decode("utf-8"))   # PDF.js Türkçe harfleri &#x..; olarak yazar
 sablon = d.xref_stream(p["template"]).decode("utf-8")
 m = re.search(r'<field name="Mesaj"[^>]*>', sablon)
-print(json.dumps({"onarildi": d.is_repaired, "hak": xfa._kullanim_hakki_var(d), "saf": xfa._saf_mi(d, p), "veri": veri,
+print(json.dumps({"onarildi": d.is_repaired, "hak": xfa.notlar.kullanim_hakki_var(d), "saf": xfa._saf_mi(d, p), "veri": veri,
   "satir": len(re.findall(r"<Satir[ >/]", veri)), "mesaj": m.group(0) if m else None}, ensure_ascii=False))
 `;
 

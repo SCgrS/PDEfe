@@ -466,5 +466,105 @@ sonuc("yapısal kayıt: geçersiz formlar reddedilir", hata_verir(lambda: yapisa
 sonuc("notlar_kaydet: geçersiz formlar reddedilir", hata_verir(lambda: notlar.y_notlar_kaydet({"yol": y, "islemler": [], "formlar": [{"xref": -1, "deger": ""}]})))
 pdefe_core.onbellek.hepsini_birak()
 
+# ---------------------------------------------------------------- 6b. e-imza sayılmayanlar, kullanım hakları imzası (/Perms /UR3)
+print("— Kullanım hakları imzası")
+HAKLAR = os.path.join(CIKTI, "haklar.pdf")
+hx = {o["ad"]: o["xref"] for o in ozet["haklar"]}
+
+
+def imzali_mi(yol):
+    pdefe_core.onbellek.hepsini_birak()
+    r = notlar.y_imza_durumu({"yol": yol})["imzali"]
+    pdefe_core.onbellek.hepsini_birak()
+    return r
+
+
+def perms(yol, anahtar="Perms/UR3"):
+    d = pymupdf.open(yol)
+    t = d.xref_get_key(d.pdf_catalog(), anahtar)[0]
+    d.close()
+    return t
+
+
+sonuc("imza_durumu: Yalnız kullanım hakları imzalı form (dolaylı /UR3, imzalanmamış imza alanı, /SigFlags 1) imzalı değil", imzali_mi(HAKLAR) is False)
+y = kopya("haklar-dogrudan.pdf", HAKLAR)
+d = pymupdf.open(y)
+d.xref_set_key(d.pdf_catalog(), "Perms", "<</UR3<</Type/Sig/ByteRange[0 10 20 30]/Contents<00>>>>>")
+d.saveIncr()
+d.close()
+sonuc("imza_durumu: Doğrudan yazılmış /UR3 de imza sayılmaz", imzali_mi(y) is False)
+y = kopya("haklar-sigflags3.pdf", HAKLAR)
+d = pymupdf.open(y)
+d.xref_set_key(d.pdf_catalog(), "AcroForm/SigFlags", "3")
+d.saveIncr()
+d.close()
+sonuc("imza_durumu: /SigFlags 3 tek başına imza sayılmaz", imzali_mi(y) is False)
+# Gerçek imza kaçmamalı
+y = kopya("haklar-imzali.pdf", HAKLAR)
+d = pymupdf.open(y)
+s = d.get_new_xref()
+d.update_object(s, "<</Type/Sig/Filter/Deneme.Imza/ByteRange[0 1 2 3]/Contents<00>>>")
+d.xref_set_key(hx["imza"], "V", "%d 0 R" % s)
+d.saveIncr()
+d.close()
+sonuc("imza_durumu: Kullanım hakkının yanında dolu imza alanı: imzalı", imzali_mi(y) is True)
+y = kopya("haklar-docmdp.pdf", HAKLAR)
+d = pymupdf.open(y)
+d.xref_set_key(d.pdf_catalog(), "Perms", "<</DocMDP<</Type/Sig/Filter/Deneme.Imza/ByteRange[0 1 2 3]/Contents<00>>>>>")
+d.saveIncr()
+d.close()
+sonuc("imza_durumu: Onay imzası (/Perms /DocMDP): imzalı", imzali_mi(y) is True)
+y = kopya("haklar-sayfasiz.pdf", HAKLAR)
+d = pymupdf.open(y)
+s = d.get_new_xref()
+d.update_object(s, "<</Type/Sig/Filter/Deneme.Imza/ByteRange[0 1 2 3]/Contents<00>>>")
+a = d.get_new_xref()
+d.update_object(a, "<</FT/Sig/T(gizli)/V %d 0 R>>" % s)
+d.saveIncr()
+d.close()
+sonuc("imza_durumu: Sayfaya bağlı olmayan imza alanı: imzalı", imzali_mi(y) is True)
+y = kopya("haklar-dogrudan-v.pdf", HAKLAR)
+d = pymupdf.open(y)
+a = d.get_new_xref()
+d.update_object(a, "<</FT/Sig/T(ebeveyn)/V<</Type/Sig/ByteRange[0 1 2 3]/Contents<00>>>>>")
+d.saveIncr()
+d.close()
+sonuc("imza_durumu: Değeri doğrudan sözlük olan, sayfasız imza alanı: imzalı", imzali_mi(y) is True)
+
+# Kayıt yolları
+y = kopya("haklar-artimli.pdf", HAKLAR)
+pdefe_core.onbellek.hepsini_birak()
+r = notlar.y_notlar_kaydet({"yol": y, "islemler": [], "formlar": [{"xref": hx["kisi"], "deger": "Yeni"}]})
+sonuc("artımlı kayıt: Kullanım hakları imzası kalır (imzalanan baytlar değişmedi)", r["artimli"] and not r["kullanimHakkiKaldirildi"] and perms(y) != "null", r)
+y = kopya("haklar-temiz.pdf", HAKLAR)
+pdefe_core.onbellek.hepsini_birak()
+r = notlar.y_notlar_kaydet({"yol": y, "islemler": [], "temiz": True, "formlar": [{"xref": hx["kisi"], "deger": "Yeni"}]})
+d = pymupdf.open(y)
+sonuc("baştan yazım: Kullanım hakları imzası kalkar, /Perms yok, değer yazıldı", not r["artimli"] and r["kullanimHakkiKaldirildi"] and perms(y, "Perms") == "null"
+      and widget(d, "kisi")[0].field_value == "Yeni" and not d.is_repaired, r)
+d.close()
+sonuc("baştan yazım: Eski UR3 sözlüğü dosyada kalmaz", b"/ByteRange" not in open(y, "rb").read())
+y = kopya("haklar-farkli.pdf", HAKLAR)
+hedef = os.path.join(CIKTI, "haklar-farkli-hedef.pdf")
+pdefe_core.onbellek.hepsini_birak()
+r = notlar.y_notlar_kaydet({"yol": y, "hedef": hedef, "islemler": []})
+sonuc("başka dosyaya kayıt: Kullanım hakları imzası kalkar, kaynak aynen kalır", r["kullanimHakkiKaldirildi"] and perms(hedef, "Perms") == "null" and perms(y) != "null", r)
+y = kopya("haklar-docmdp-ur3.pdf", HAKLAR)
+d = pymupdf.open(y)
+d.xref_set_key(d.pdf_catalog(), "Perms", "<</UR3<</Type/Sig>>/DocMDP<</Type/Sig/Filter/Deneme.Imza/ByteRange[0 1 2 3]/Contents<00>>>>>")
+d.saveIncr()
+d.close()
+pdefe_core.onbellek.hepsini_birak()
+r = notlar.y_notlar_kaydet({"yol": y, "islemler": [], "temiz": True})
+sonuc("baştan yazım: DocMDP kalır, yalnız UR3 kalkar", r["kullanimHakkiKaldirildi"] and perms(y) == "null" and perms(y, "Perms/DocMDP") != "null", r)
+# Sıkıştır baştan yazar (aynı kök neden)
+from islemler import araclar  # noqa: E402
+y = kopya("haklar-sikistir.pdf", HAKLAR)
+hedef = os.path.join(CIKTI, "haklar-sikistir-hedef.pdf")
+pdefe_core.onbellek.hepsini_birak()
+r = araclar.y_kucult({"yol": y, "hedef": hedef, "seviye": "onerilen"})
+sonuc("Sıkıştır: Çıktıda kullanım hakları imzası yok, kaynak aynen kalır", perms(hedef, "Perms") == "null" and perms(y) != "null", r)
+pdefe_core.onbellek.hepsini_birak()
+
 print("\n%d denetim, %d hata" % (toplam, hata))
 sys.exit(1 if hata else 0)

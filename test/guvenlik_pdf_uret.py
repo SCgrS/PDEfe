@@ -1,7 +1,7 @@
 # Güvenlik testlerinin (test/senaryo24.mjs, test/guvenlik_testi.py) örnek PDF'lerini üretir (0.1.23).
 # Kullanım: .venv\Scripts\python.exe test\guvenlik_pdf_uret.py <çıktı klasörü>
 #   baglantili.pdf  dört dış bağlantı: https, mailto, büyük harfli FILE: (PyMuPDF bunu Launch değil URI sayar) ve search-ms:
-#   notlu.pdf, notlu-imzali-koru.pdf, notlu-imzali-sil.pdf  içeriği GIZLI olan bir not; son ikisi e-imzalı görünür (/SigFlags 3)
+#   notlu.pdf, notlu-imzali-koru.pdf, notlu-imzali-sil.pdf  içeriği GIZLI olan bir not; son ikisi e-imzalı görünür (imza alanı ve imza sözlüğü)
 import os
 import sys
 
@@ -30,7 +30,7 @@ GIZLI = "GIZLI-NOT-METNI-4711"
 
 
 def notlu(yol, imzali=False):
-    """Bir not (içeriği GIZLI) taşıyan belge. imzali: katalogda /AcroForm /SigFlags 3 (PDF'e gömülü e-imzası olan belge gibi görünür;
+    """Bir not (içeriği GIZLI) taşıyan belge. imzali: değeri dolu imza alanı (PDF'e gömülü e-imzası olan belge gibi görünür;
     gerçek imza yok, PDEfe'nin imza algılaması için yeter)."""
     doc = pymupdf.open()
     sayfa = doc.new_page(width=595, height=842)
@@ -39,8 +39,12 @@ def notlu(yol, imzali=False):
     a.set_info(title="Deneme Yazar")
     a.update()
     if imzali:
+        imza = doc.get_new_xref()
+        doc.update_object(imza, "<< /Type /Sig /Filter /Deneme.Imza /ByteRange [0 0 0 0] /Contents <00> >>")
+        alan = doc.get_new_xref()
+        doc.update_object(alan, "<< /FT /Sig /T (imza) /V %d 0 R >>" % imza)
         af = doc.get_new_xref()
-        doc.update_object(af, "<< /Fields [] /SigFlags 3 >>")
+        doc.update_object(af, "<< /Fields [%d 0 R] /SigFlags 3 >>" % alan)
         doc.xref_set_key(doc.pdf_catalog(), "AcroForm", "%d 0 R" % af)
     doc.save(yol)
     doc.close()

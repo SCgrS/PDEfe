@@ -13,7 +13,7 @@
 //   9) Not aracı seçiliyken alana tıklama not koyar (alan değişmez), araç bırakılınca alan çalışır. Metin seçimi alanın üstünden geçebilir.
 //  10) Görünüm döndürme, sayfa döndürme (kayıtla birlikte artımlı), koyu sayfa, %600: denetimler görünümlerle aynı yerde ve çalışır.
 //  11) Yapısal kayıt (sayfa silinmiş): değerler sayfayla kopyalanır.
-//  12) E-imzalı belge: artımlı kayıt, imzalanan baytlar değişmez (ByteRange'in özeti tutar), dolu alan değişince sorulur ("İmzayı koru").
+//  12) E-imzalı belge: artımlı kayıt, imzalanan baytlar değişmez (ByteRange'in özeti tutar), dolu alan değişince sorulur ("İmzayı koru"). Yalnız kullanım hakları imzalı formda sorulmaz.
 //  13) XFA'lı karma belge: AcroForm alanları çalışır, kayıtta değer yazılır.
 //  14) Sekmenin paketi (başka pencereye taşıma) form değerlerini ve komutlarını taşır; başka pencereye taşınan sekmede geri al çalışır.
 //  15) İnceleme düzeltmeleri: En çok uzunluğu olmayan alana 20.000 sınırı (çekirdeğin sınırı), yakınlaştırmanın katman isteği ile
@@ -515,6 +515,21 @@ export default async function ({ evalJs, bekle, tikla, yaz, tus, surukle, hedefS
     await evalJs(`delete window.__pdefeOtoYanit; true`);
     const son2 = fs.readFileSync(yol12);
     sonuc('12) Dolu alan değişince "Bu belge e-imzalı." sorulur; İmzayı koru: artımlı, imza baytları aynı', soru2 === 'Bu belge e-imzalı.' && son2.subarray(0, ilk.length).equals(ilk) && ozetTut(son2) && olc(yol12).alanlar.not === TURKCE + ' ek', soru2);
+    // Kullanım hakları imzası ve imzalanmamış imza alanı e-imza değildir (0.3.1): Dolu alan değişince soru çıkmaz, baştan yazılır, UR3 kalkar
+    const yolH = kopya('haklar-12.pdf', 'haklar.pdf');
+    await ac(yolH);
+    await tiklaAlan('kisi');
+    await s47(`(document.activeElement.select(), true)`);
+    await yaz('Yeni kişi');
+    await tus('Tab');
+    await bekle(150);
+    await evalJs(`window.__pdefeOtoYanit = { secim: 2 }; true`);   // soru çıkarsa Vazgeç: Kayıt olmaz, denetim düşer
+    await s47(`(async () => { await window.__pdefe.belgeKaydet(H.b()); return true; })()`);
+    const soruH = await evalJs(`window.__pdefeOtoYanit.son?.mesaj || null`);
+    await evalJs(`delete window.__pdefeOtoYanit; true`);
+    const mH = olc(yolH);
+    const hamH = fs.readFileSync(yolH);
+    sonuc('12) Kullanım hakları imzalı form: "e-imzalı" sorusu yok, değer yazıldı, kullanım hakları imzası kalktı', !soruH && mH.alanlar.kisi === 'Yeni kişi' && !hamH.includes('/UR3') && !hamH.includes('/ByteRange'), { soruH, alanlar: mH.alanlar });
   }
 
   // ------------------------------------------------------------ 13) XFA'lı karma belge

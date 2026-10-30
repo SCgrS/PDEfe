@@ -157,11 +157,6 @@ def saf_xfa_mi(doc):
         return False
 
 
-def _kullanim_hakki_var(doc):
-    kat = doc.pdf_catalog()
-    return doc.xref_get_key(kat, "Perms/UR3")[0] != "null" or doc.xref_get_key(kat, "Perms/UR")[0] != "null"
-
-
 def _e_imza_araliklari(doc):
     """Belgedeki e-imzaların imzalanan bayt aralıkları ([a, b, c, d] /ByteRange'ler): değeri dolu imza alanları (AcroForm /Fields ağacı.
     Saf XFA formunda yalnızca görünmez imza alanı olabilir: PDF.js Rect'i [0 0 0 0] olan imza alanlarını alan saymaz) ve onay imzası
@@ -194,20 +189,6 @@ def _e_imza_araliklari(doc):
     if tur == "array":
         gez(alanlar, 0)
     return araliklar
-
-
-def _kullanim_hakki_kaldir(doc):
-    """/Perms'teki kullanım hakları imzalarını (UR3, eski UR) kaldırır; /Perms'te başka bir şey kalmazsa (DocMDP yoksa) anahtar da gider.
-    Döner: kaldırıldı mı."""
-    if not _kullanim_hakki_var(doc):
-        return False
-    kat = doc.pdf_catalog()
-    if doc.xref_get_key(kat, "Perms/DocMDP")[0] != "null":
-        doc.xref_set_key(kat, "Perms/UR3", "null")
-        doc.xref_set_key(kat, "Perms/UR", "null")
-    else:
-        doc.xref_set_key(kat, "Perms", "null")
-    return True
 
 
 # ---------------------------------------------------------------- şablon
@@ -673,7 +654,7 @@ def y_xfa_bilgi(p):
     doc = onbellek.al(p["yol"])
     paketler = _paketler(doc)
     sablon = _paket(doc, paketler, "template")
-    sonuc = {"xfa": bool(paketler), "saf": _saf_mi(doc, paketler), "kullanimHakki": _kullanim_hakki_var(doc),
+    sonuc = {"xfa": bool(paketler), "saf": _saf_mi(doc, paketler), "kullanimHakki": notlar.kullanim_hakki_var(doc),
              "eImzali": bool(_e_imza_araliklari(doc)), "dugmeler": [], "sayfaNumaralari": [], "ekranda": [], "ornekler": {}}
     if sablon:
         kok, liste = _agac(sablon)
@@ -783,7 +764,7 @@ def y_xfa_kaydet(p):
             araliklar = _e_imza_araliklari(doc)
             koru = bool(araliklar) and _imzali_bolum_ayni(girdi, araliklar, p.get("yol") or hedef)
             sonuc["imzaKorundu"] = koru
-        kaldirildi = False if koru else _kullanim_hakki_kaldir(doc)
+        kaldirildi = False if koru else notlar.kullanim_hakki_kaldir(doc)
         for y in {hedef, p.get("yol") or hedef}:
             onbellek.birak(y)
         gecici = hedef + ".pdefe-tmp"

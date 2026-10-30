@@ -1306,7 +1306,7 @@ def y_notlar_kaydet(p):
     Döndürmeler not işlemlerinden önce uygulanır (FreeText görünümü yeni açıya göre üretilir). Form değerleri notlardan önce yazılır
     (artımlı kayıtta yalnızca alanlar, widget'lar ve yeni görünüm akışları eklenir: e-imza korunur).
     Döner: {xrefler: {id: xref}, boyut, artimli, dondurmeler (yalnızca sayfaDondurmeleri verildiyse:
-    açısı değişen sayfa sayısı), formlar (değeri yazılan alan sayısı)}"""
+    açısı değişen sayfa sayısı), formlar (değeri yazılan alan sayısı), kullanimHakkiKaldirildi (baştan yazımda /Perms /UR3 kalktı mı)}"""
     from pdefe_core import onbellek  # döngüsel içe aktarma yerine çalışma zamanında
     from . import formlar as form_alanlari
     yol, hedef = p["yol"], p.get("hedef") or p["yol"]
@@ -1315,7 +1315,7 @@ def y_notlar_kaydet(p):
     sayfa_dondurmeleri = p.get("sayfaDondurmeleri")
     # temiz (0.1.23, güvenlik denetimi): artımlı kayıt eklemeyi dosyanın sonuna yazar; silinen ya da değiştirilen notun eski hâli
     # dosyanın önceki bölümünde kalır (ekranda görünmez, uygun bir araçla okunur). temiz verilince belge baştan yazılır, eski hâller
-    # gider; şifreleme korunur. E-imzalı belgede imzayı geçersiz kılar: arayüz sorar (renderer/uygulama.js temizKayitKarari).
+    # gider; şifreleme korunur. E-imzalı belgede imzayı geçersiz kılar: arayüz sorar (renderer/uygulama.js temizKayitKarari). Dolu bir form alanı değişince de aynı.
     temiz = bool(p.get("temiz"))
     artimli = bool(p.get("artimli", True)) and not temiz and os.path.abspath(hedef) == os.path.abspath(yol)
     # Aynı dosyaya tam yazımda şifreleme (sahip parolası, izinler) korunur; 0.1.22'ye dek yedek tam yazım yolu onu düşürüyordu
@@ -1323,6 +1323,7 @@ def y_notlar_kaydet(p):
     onbellek.birak(yol)
     doc = belge_ac_yazmak_icin(yol)
     gecici = None
+    kaldirildi = False
     try:
         if doc.is_encrypted:
             raise PermissionError("Belge şifreli; kaydedilemiyor.")
@@ -1350,6 +1351,8 @@ def y_notlar_kaydet(p):
                 except (ValueError, RuntimeError, pymupdf.mupdf.FzErrorBase):
                     artimli = False
             if not artimli:
+                # Kullanım hakları imzası baştan yazılan belgede geçersizdir (0.3.1)
+                kaldirildi = kullanim_hakki_kaldir(doc)
                 gecici = hedef + ".pdefe-tmp"
                 if sifre_koru:
                     doc.save(gecici, garbage=1, deflate=True, encryption=pymupdf.PDF_ENCRYPT_KEEP)
@@ -1371,7 +1374,7 @@ def y_notlar_kaydet(p):
                 os.remove(gecici)
             except OSError:
                 pass
-    sonuc = {"xrefler": xrefler, "boyut": os.path.getsize(hedef), "artimli": artimli, "formlar": form_sayisi}
+    sonuc = {"xrefler": xrefler, "boyut": os.path.getsize(hedef), "artimli": artimli, "formlar": form_sayisi, "kullanimHakkiKaldirildi": kaldirildi}
     if sayfa_dondurmeleri is not None:
         sonuc["dondurmeler"] = dondurmeler
     return sonuc
@@ -1495,32 +1498,90 @@ def y_baglantilar(p):
     return {"baglantilar": sonuc}
 
 
-def y_imza_durumu(p):
-    """Belgede PDF'e gömülü e-imza var mı (0.1.23): katalogdaki /SigFlags, değeri dolu imza alanı ya da dosyada imza sözlüğünün
-    /ByteRange'i. Temiz (baştan) kayıt imzayı geçersiz kılacağı için arayüz bu durumda sorar."""
-    from pdefe_core import onbellek
-    yol = p["yol"]
-    doc = onbellek.al(yol)
-    try:
-        if doc.get_sigflags() > 0:
-            return {"imzali": True}
-    except Exception:
-        pass
-    for page in doc:
-        for w in page.widgets(types=[pymupdf.PDF_WIDGET_TYPE_SIGNATURE]):
-            if doc.xref_get_key(w.xref, "V")[0] != "null":
-                return {"imzali": True}
-    # Dosya parça parça (örtüşmeli) taranır: büyük taranmış belgede bütün dosya belleğe okunmasın. Okunamazsa hata: arayüz "bilinmiyor"
-    # sayar ve imzayı korur (artımlı kayıt)
-    aranan, parca, onceki = b"/ByteRange", 1 << 20, b""
+def _kullanim_hakki_xrefleri(doc):
+    """/Perms'teki kullanım hakları imzalarının (UR3, eski UR) nesne numaraları. Doğrudan (nesnesiz) sözlük yazılmışsa boş."""
+    kat = doc.pdf_catalog()
+    sonuc = set()
+    for anahtar in ("Perms/UR3", "Perms/UR"):
+        tur, deger = doc.xref_get_key(kat, anahtar)
+        if tur == "xref":
+            sonuc.add(int(deger.split()[0]))
+    return sonuc
+
+
+def _kullanim_hakki_sozlugu_mu(doc, x):
+    """Nesne kullanım hakları imzası mı: /Reference'taki /TransformMethod /UR3 ya da /UR. /Perms'ten düşmüş (başka programın artımlı kaydıyla
+    sahipsiz kalmış) sözlüğü de tanır."""
+    tur, deger = doc.xref_get_key(x, "Reference")
+    return tur == "array" and re.search(r"/TransformMethod\s*/UR3?\b", deger) is not None
+
+
+def kullanim_hakki_var(doc):
+    """Belgede kullanım hakları imzası var mı (/Perms /UR3, /UR). E-imza değildir: Formun ücretsiz okuyucuda doldurulup kaydedilebilmesi için
+    üreticinin koyduğu imzadır."""
+    kat = doc.pdf_catalog()
+    return doc.xref_get_key(kat, "Perms/UR3")[0] != "null" or doc.xref_get_key(kat, "Perms/UR")[0] != "null"
+
+
+def kullanim_hakki_kaldir(doc):
+    """/Perms'teki kullanım hakları imzalarını kaldırır, /Perms'te başka bir şey kalmazsa (DocMDP yoksa) anahtar da gider. Baştan yazımdan
+    hemen önce çağrılır: İmza belgenin özgün baytlarını kapsar, baştan yazılan belgede geçersizdir, geçersiz imzalı formda okuyucu
+    "genişletilmiş özellikler kullanılamıyor" uyarısı verir. Döner: kaldırıldı mı."""
+    if not kullanim_hakki_var(doc):
+        return False
+    kat = doc.pdf_catalog()
+    if doc.xref_get_key(kat, "Perms/DocMDP")[0] != "null":
+        doc.xref_set_key(kat, "Perms/UR3", "null")
+        doc.xref_set_key(kat, "Perms/UR", "null")
+    else:
+        doc.xref_set_key(kat, "Perms", "null")
+    return True
+
+
+def _dosyada_geciyor(yol, aranan):
+    """Baytlar dosyada geçiyor mu. Dosya parça parça (örtüşmeli) taranır: Büyük taranmış belgede bütün dosya belleğe okunmasın."""
+    parca, onceki = 1 << 20, b""
     with open(yol, "rb") as f:
         while True:
             blok = f.read(parca)
             if not blok:
-                return {"imzali": False}
+                return False
             if aranan in onceki + blok:
-                return {"imzali": True}
+                return True
             onceki = blok[-(len(aranan) - 1):]
+
+
+def y_imza_durumu(p):
+    """Belgede PDF'e gömülü e-imza var mı (0.1.23): Onay imzası (/Perms /DocMDP), değeri dolu imza alanı ya da imza sözlüğünün /ByteRange'i.
+    Temiz (baştan) kayıt imzayı geçersiz kılacağı için arayüz bu durumda sorar.
+    Sayılmayanlar (0.3.1): /SigFlags (imzalanmamış imza alanı olan formda da dolu) ve kullanım hakları imzası (/Perms /UR3, /UR: /ByteRange
+    taşır ama e-imza değildir). Bunlar e-imzalı sayılınca imzasız formda dolu bir alan değişince "Bu belge e-imzalı." sorusu çıkıyordu.
+    Okunamazsa hata: Arayüz "bilinmiyor" sayar ve imzayı korur (artımlı kayıt)."""
+    from pdefe_core import onbellek
+    yol = p["yol"]
+    doc = onbellek.al(yol)
+    if doc.xref_get_key(doc.pdf_catalog(), "Perms/DocMDP")[0] != "null":
+        return {"imzali": True}
+    for page in doc:
+        for w in page.widgets(types=[pymupdf.PDF_WIDGET_TYPE_SIGNATURE]):
+            if doc.xref_get_key(w.xref, "V")[0] != "null":
+                return {"imzali": True}
+    # Yukarıdakiler sayfaya bağlı olmayan imza alanını ve değeri ebeveyninde duran alanı görmez. Dosyada /ByteRange hiç geçmiyorsa (imzasız
+    # belgelerin çoğu) nesneler gezilmez
+    if not _dosyada_geciyor(yol, b"/ByteRange"):
+        return {"imzali": False}
+    kullanim = _kullanim_hakki_xrefleri(doc)
+    for x in range(1, doc.xref_length()):
+        if x in kullanim:
+            continue
+        try:
+            if doc.xref_get_key(x, "ByteRange")[0] != "null" and not _kullanim_hakki_sozlugu_mu(doc, x):
+                return {"imzali": True}
+            if doc.xref_get_key(x, "V/ByteRange")[0] != "null":
+                return {"imzali": True}
+        except Exception:   # bozuk nesne: İmza sayılmaz, öbür nesnelere bakılır
+            continue
+    return {"imzali": False}
 
 
 def kaydol(yontemler):

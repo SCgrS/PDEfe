@@ -1182,7 +1182,7 @@ async function hedefAcikMi(b, hedef) {
 }
 
 /**
- * Kayıtlı bir not silinip ya da değişip aynı dosyaya kaydedilirken belge temiz (baştan) mı yazılsın (0.1.23, güvenlik denetimi).
+ * Kayıtlı bir not silinip ya da değişip (0.3.1: dolu bir form alanı değişip) aynı dosyaya kaydedilirken belge temiz (baştan) mı yazılsın (0.1.23, güvenlik denetimi).
  * Artımlı kayıt değişikliği dosyanın sonuna ekler: notun eski hâli dosyanın önceki bölümünde kalır, ekranda görünmez ama uygun bir
  * araçla okunabilir. Temiz yazım eski hâlleri siler. E-imzalı belgede (PDF'e gömülü imza; çekirdek imza_durumu) temiz yazım imzayı
  * geçersiz kılar: sorulur, seçim belge kapanana dek hatırlanır; otomatik kayıtta sorulmaz, imza korunur.
@@ -1197,7 +1197,7 @@ async function temizKayitKarari(b, sessiz, oneAl = false) {
   if (oneAl) await soruIcinOneAl(b);
   const { secim } = await mesajKutusu({
     tur: 'warning', mesaj: 'Bu belge e-imzalı.',
-    ayrinti: 'Silinen ya da değiştirilen notun eski hâli, e-imzayı korumak için dosyanın içinde kalır: ekranda görünmez ama uygun bir araçla okunabilir.\n\nEski hâli tamamen silmek için belge baştan yazılır; o zaman e-imza geçersiz görünür.',
+    ayrinti: 'Silinen ya da değiştirilen notun, değiştirilen form alanının eski hâli, e-imzayı korumak için dosyanın içinde kalır: Ekranda görünmez ama uygun bir araçla okunabilir.\n\nEski hâli tamamen silmek için belge baştan yazılır. O zaman e-imza geçersiz görünür.',
     dugmeler: ['İmzayı koru', 'Tamamen sil', 'Vazgeç'], varsayilan: 0, iptal: 2,
   });
   if (secim !== 0 && secim !== 1) return null;
