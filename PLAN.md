@@ -4307,3 +4307,30 @@ Notlardaki bekleyen hata (2026-10-17, README önerileri sırasında bulundu, kul
   uzantısı .docm olan docx'in türleri). `test/word_donusum_testi.py` 88/88 (yeni test_docm: makrosuz .docm Word'le 3 sayfa, sözcük geri
   çağırma 1,0, geçici dosya yok). Makrolu (geçerli makro kodu olan) bir .docm burada üretilemedi (Word'ün güvenlik ayarına dokunulmadan):
   docs/DOGRULAMA.md 46.
+
+#### 0.3.1: taranmış PDF → JPG'de "Düşük" "İdeal"den büyük olmaz
+Notlardaki bekleyen hata (2026-10-17, ofiste ölçülmüş: 2 sayfalık taranmış dilekçe, İdeal 419 KB, Düşük 433 KB). İncelenmemişti.
+- [x] **Tahmin doğruydu, gerçek çıktı da büyüktü**: donusum_tahmini az sayfalı belgede dönüştürücünün kendi çizim ve kodlama yolunu kullanır
+  (5 sayfaya dek bütün sayfalar), kurgusal taramalarda tahmin gerçeğin baytı baytına aynısı.
+- [x] **Kök neden (ölçüldü, kurgusal taramalarla)**: PDF → JPG'de taranmış sayfa (sayfayı tek görsel kaplıyor) seçilenden düşük
+  çözünürlükteyse kendi çözünürlüğünde, yüksekse seçilene küçültülerek çizilir. Taramanın çözünürlüğü 200 dpi'nin biraz üstündeyse (201–208
+  dpi, A4 ölçüsünün yuvarlanmasından gelen 200,05 dpi de) İdeal (300) taramayı kendi çözünürlüğünde, yeniden örneklemeden çiziyor, Düşük (200)
+  görseli yalnızca %0,5–4 küçültüyordu. Piksel sayısı neredeyse aynı kalırken yeniden örnekleme yazının kenarlarını yumuşatıp ara tonlar
+  ekliyor, JPEG (kalite 90) büyüyordu: Kayıplı (JPEG 75) taramada 201–206 dpi'de Düşük İdeal'in 1,02–1,06 katı, kayıpsız taramada 200,05
+  dpi'de 1,05 katı. 210 dpi'den sonra küçültmenin kazancı ağır basıyor (225 dpi'de 0,82–0,90, 250'de 0,69–0,74, 300'de 0,51–0,68). JPEG
+  kalitesi ve renk alt örneklemesi iki çözünürlükte aynı, gri ve renkli taramada oranlar aynı (ölçüldü).
+- [x] **Karar** (donustur.py _jpg_sayfasi): Taranmış sayfanın çözünürlüğü seçilenden 1,25 katından azsa (JPG_KARSILASTIRMA_SINIRI) iki çizim
+  kodlanır (seçilen çözünürlük ve taramanın kendisi), küçüğü yazılır. İdeal 300 dpi'ye dek taramayı kendi çözünürlüğünde çizdiği için Düşük
+  hiçbir sayfada İdeal'den büyük olamaz. Sınırın üstünde ve taranmamış sayfada tek çizim (1,25 katta piksellerin %64'ü kalır, ölçülen JPEG
+  %69–74). Tahmin aynı işlevi kullanır, İdeal'in kodlanmış çizimi Düşük'te yeniden kullanılır (ek kodlama yok). Dönüştürmede yalnızca bu
+  aralıktaki taranmış sayfalar iki kez kodlanır (UYAP'ın 200 ve 300 dpi taramaları bu aralıkta değil). Seçilen yazılırsa dosyanın dpi'si 200,
+  taramanınki seçilirse taramanınki (ör. 204).
+- [x] **Seçilmeyen yollar**: Sabit pay (ör. tarama seçilenin %10 üstüne dek kendi çözünürlüğünde): 210–220 dpi'lik kayıpsız taramada %9–17'lik
+  kazancı atardı, içeriğe göre yine büyük çıkabilirdi. Düşük'te bütün sayfaları iki kez kodlamak (taranmamış sayfada 300 dpi çizim pahalı,
+  Düşük her zaman çok daha küçük). Küçültmeyi Pillow'a yaptırmak (denenmedi: Her yeniden örnekleme yazıyı yumuşatır, MuPDF'in notları da
+  çizdiği yoldan çıkılırdı).
+- [x] **Testler**: `test/donustur_testi.py` 277/277. Yeni üretici taranmis_pdf_uret (A4'ü kaplayan gri tarama, istenen dpi, JPEG ya da PNG,
+  yumuşak yazı ve kâğıt gürültüsü). test_tahmin'de 201, 204, 206, 200,05, 225, 300 ve 150 dpi'lik taramalar: Tahmin kesin ve gerçek çıktının
+  aynısı, Düşük ≤ İdeal (tahminde ve gerçekte), 225 dpi'de Düşük belirgin küçük, 150 dpi'de ikisi eşit. Değişiklikten önce 201 ve 204 dpi'lik
+  kayıplı taramada Düşük büyüktü (deney betiğiyle ölçüldü, depoya girmedi). Kullanıcının gönderdiği belgelerin kopyalarında (yalnızca sayılar):
+  Taranmış olanı 100 dpi (İdeal = Düşük), öbürlerinde değişiklik yok.

@@ -1202,3 +1202,6 @@ Format Değiştir
 49. **Makrolu Word belgesi (.docm).** Elinizde bir .docm varsa PDEfe'nin penceresine bırakın: Format Değiştir açılmalı, satırda türü "DOCM"
     görünmeli. PDF'e dönüştürün: PDF oluşmalı, belgenin makroları çalışmamalı (makro uyarısı ya da makronun açtığı bir pencere çıkmamalı).
     Ctrl+O ile de seçin: Sekmede "PDF açılamadı" değil, Format Değiştir açılmalı. Dosya ekle'nin süzgecinde .docm dosyaları görünmeli.
+50. **Taranmış PDF'ten JPG.** Ofiste İdeal 419 KB, Düşük 433 KB görünen taranmış dilekçeyi Format Değiştir'e ekleyip JPG'yi seçin: Düşük'ün
+    yanındaki boyut İdeal'inkinden büyük olmamalı (bu belgede ikisi eşit ya da Düşük biraz küçük görünebilir). Düşük'le dönüştürüp JPG'leri açın:
+    Yazı İdeal'deki kadar okunur olmalı.

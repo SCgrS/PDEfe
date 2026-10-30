@@ -148,6 +148,7 @@ ONBELLEK_BOSALTMA = 8                     # PDF → TIFF: bu kadar sayfada bir M
 JPG_DPILERI = TIFF_DPILERI                # PDF → JPG: "İdeal" 300, "Düşük" 200
 VARSAYILAN_JPG_DPI = 300
 JPG_KALITESI = 90                         # PDF → JPG
+JPG_KARSILASTIRMA_SINIRI = 1.25           # 0.3.1: taranmış sayfanın çözünürlüğü seçilenden bundan az büyükse iki çizimin küçüğü (_jpg_sayfasi)
 YENIDEN_KODLAMA_KALITESI = 92             # görüntü → PDF: olduğu gibi gömülemeyen kayıplı kaynak (HEIC, AVIF, kayıplı WEBP, CMYK JPEG)
 KAYIPLI_GORSELLER = ("JPEG", "MPO", "HEIF", "HEIC", "AVIF")
 HEIF_YOK = "HEIC / HEIF görüntüleri bu bilgisayarda açılamıyor; görüntüyü önce JPG ya da PNG olarak kaydedin."
@@ -1792,17 +1793,37 @@ def _jpg_dpi(secenekler):
     return dpi
 
 
-def _jpg_olcegi(pg, dpi):
-    """PDF → JPG'de sayfanın çizim ölçeği: seçilen dpi; tek görselden oluşan (taranmış) sayfada görselin kendi çözünürlüğü seçilenden
-    küçükse o (büyütmek yalnızca dosyayı büyütür; TIFF'ten farkı: seçilenden büyük tarama seçilene küçültülür, kullanıcı boyutu seçti)."""
-    t = _tarama_dpi(pg)
-    return (min(t, dpi) if t else dpi) / 72.0
+def _jpg_sayfasi(pg, dpi, kilit, hazir=None):
+    """PDF → JPG'nin bir sayfası: (JPEG baytları, dpi). Çizim ölçeği seçilen dpi. Tek görselden oluşan (taranmış) sayfada görselin kendi
+    çözünürlüğü seçilenden küçükse o (büyütmek yalnızca dosyayı büyütür. TIFF'ten farkı: Seçilenden büyük tarama seçilene küçültülür, kullanıcı
+    boyutu seçti). hazir: bu sayfanın kodlanmış çizimleri {ölçek: (bayt, dpi)} (boyut tahmini İdeal'in çizimini Düşük'te yeniden kullanır,
+    verilmezse yalnızca bu çağrının).
+    0.3.1 (ofiste ölçülen: 2 sayfalık taranmış dilekçede "Düşük" 433 KB, "İdeal" 419 KB): Çözünürlüğü seçilenin biraz üstünde olan taramada
+    (ör. 201–208 dpi'lik tarama, Düşük 200 dpi) Düşük görseli %0,5–4 küçültüyordu. Piksel sayısı neredeyse aynı kalırken yeniden örnekleme
+    yazının kenarlarını yumuşatıp ara tonlar ekliyor, JPEG'i büyütüyordu (kurgusal taramalarda %2–6). İdeal aynı taramayı kendi çözünürlüğünde,
+    yeniden örneklemeden çizer. Taranmış sayfanın çözünürlüğü seçilenden JPG_KARSILASTIRMA_SINIRI katından azsa iki çizim (seçilen ve kendi
+    çözünürlüğü) kodlanır, küçüğü alınır: Düşük hiçbir sayfada İdeal'den büyük olmaz. Sınırın üstünde küçültme belirgin kazanç verir (1,25 kat
+    çözünürlükte piksellerin %64'ü kalır, ölçülen JPEG %69–74), ikinci çizime gerek yok."""
+    hazir = {} if hazir is None else hazir
 
+    def kodla(olcek):
+        anahtar = round(olcek, 9)
+        if anahtar not in hazir:
+            sayfa, d = _sayfa_ciz(pg, olcek, "RGB", kilit)
+            buf = io.BytesIO()
+            sayfa.save(buf, format="JPEG", quality=JPG_KALITESI, optimize=True, dpi=(d, d))
+            del sayfa
+            hazir[anahtar] = (buf.getvalue(), d)
+        return hazir[anahtar]
 
-def _jpg_sayfasi(pg, dpi, kilit):
-    """PDF → JPG'nin bir sayfası: (görüntü, dpi, save seçenekleri)."""
-    sayfa, d = _sayfa_ciz(pg, lambda p: _jpg_olcegi(p, dpi), "RGB", kilit)
-    return sayfa, d, {"format": "JPEG", "quality": JPG_KALITESI, "optimize": True, "dpi": (d, d)}
+    with kilit():   # taranmış görselin çözünürlüğü MuPDF'e girer (0.2.7 inceleme)
+        t = _tarama_dpi(pg)
+    secilen = kodla((min(t, dpi) if t else dpi) / 72.0)
+    if t and dpi < t < dpi * JPG_KARSILASTIRMA_SINIRI:
+        kendi = kodla(t / 72.0)
+        if len(kendi[0]) <= len(secilen[0]):
+            return kendi
+    return secilen
 
 
 def _pdf_gorsel(kaynak, cikti, secenekler, ilerleme, baglam):
@@ -1821,10 +1842,11 @@ def _pdf_gorsel(kaynak, cikti, secenekler, ilerleme, baglam):
             ilerleme(i / n, "Sayfa %d/%d" % (i + 1, n))
             with baglam.mupdf():
                 pg = doc[i]
-            sayfa, d, kayit = _jpg_sayfasi(pg, dpi, baglam.mupdf)
-            sayfa.save(os.path.join(cikti, "%d.jpg" % (i + 1)), **kayit)
+            bayt, d = _jpg_sayfasi(pg, dpi, baglam.mupdf)
+            with open(os.path.join(cikti, "%d.jpg" % (i + 1)), "wb") as f:
+                f.write(bayt)
             dpiler.append(d)
-            del sayfa
+            del bayt
             if (i + 1) % ONBELLEK_BOSALTMA == 0:
                 with baglam.mupdf():
                     pymupdf.TOOLS.store_shrink(100)
@@ -2027,13 +2049,18 @@ def _oge_tahmini(yol, hedef, renk, il):
             with kilit():
                 pg = doc[no]
             onceki = None
+            jpg_cizimleri = {}   # JPG: bu sayfanın kodlanmış çizimleri (aynı ölçekteki çizim yeniden kodlanmaz, _jpg_sayfasi)
             for ad, dpi in TAHMIN_DPILERI:
+                if hedef != "tiff":
+                    toplam[ad] += len(_jpg_sayfasi(pg, dpi, kilit, jpg_cizimleri)[0])   # dönüştürücünün kendi seçimi (0.3.1)
+                    il(j / max(len(ornekler), 1))
+                    continue
                 with kilit():   # taranmış görselin çözünürlüğü MuPDF'e girer (0.2.7 inceleme)
-                    olcek = (_tiff_olcegi(pg, dpi) if hedef == "tiff" else _jpg_olcegi(pg, dpi))
+                    olcek = _tiff_olcegi(pg, dpi)
                 if onceki is not None and abs(olcek - onceki[0]) < 1e-9:
                     toplam[ad] += onceki[1]   # taranmış sayfa: iki çözünürlükte aynı çizim
                     continue
-                sayfa, d, kayit = _tiff_sayfasi(pg, dpi, renk, kilit) if hedef == "tiff" else _jpg_sayfasi(pg, dpi, kilit)
+                sayfa, d, kayit = _tiff_sayfasi(pg, dpi, renk, kilit)
                 buf = io.BytesIO()
                 sayfa.save(buf, **kayit)
                 del sayfa

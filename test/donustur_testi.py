@@ -331,6 +331,28 @@ def sentetik_pdf(yol, sayfa=3, tohum=7):
     return yol
 
 
+def taranmis_pdf_uret(yol, dpi, kodlama="jpeg", sayfa=2, tohum=40):
+    """0.3.1: Taranmış dilekçeye benzeyen PDF: her sayfa A4'ü kaplayan tek gri görsel (dpi çözünürlüğünde), yazı tarayıcıdaki gibi hafif
+    yumuşak, kâğıtta gürültü. kodlama 'jpeg' (kalite 75, taramaların çoğu gibi) ya da 'png' (kayıpsız). Gerçek belge kullanılmaz."""
+    from PIL import ImageFilter
+    g, h = int(round(A4[0] / 72.0 * dpi)), int(round(A4[1] / 72.0 * dpi))
+    doc = pymupdf.open()
+    for s in range(sayfa):
+        im = metin_karesi(g, h, tohum + s, kip="L").filter(ImageFilter.GaussianBlur(0.8))
+        r = random.Random(tohum + s)
+        px = im.load()
+        for _ in range(g * h // 40):
+            x, y = r.randrange(g), r.randrange(h)
+            px[x, y] = max(0, min(255, px[x, y] + r.randint(-40, 40)))
+        buf = io.BytesIO()
+        im.save(buf, format="JPEG", quality=75) if kodlama == "jpeg" else im.save(buf, format="PNG")
+        pg = doc.new_page(width=A4[0], height=A4[1])
+        pg.insert_image(pg.rect, stream=buf.getvalue())
+    doc.save(yol)
+    doc.close()
+    return yol
+
+
 def girdileri_uret():
     os.makedirs(GIRDI, exist_ok=True)
     g = {}
@@ -1958,6 +1980,20 @@ def test_tahmin(c, g, gg):
     r, _ = c.cagir("donusum_tahmini", {"yollar": [ara], "hedefBicim": "tiff"})
     sonuc("taranmış PDF → TIFF: İdeal = Düşük (tarama kendi çözünürlüğünde)", r.get("ideal") == r.get("dusuk") and r.get("ideal"),
           (r.get("ideal"), r.get("dusuk")))
+    # 0.3.1: Taranmış PDF → JPG. Çözünürlüğü 200 dpi'nin biraz üstündeki taramada "Düşük" "İdeal"den büyük çıkıyordu (ofiste ölçülen 433 / 419 KB):
+    # Düşük taramayı %0,5–4 küçültürken yeniden örnekleme JPEG'i büyütüyordu. Düşük artık iki çizimin (200 dpi ve taramanın kendisi) küçüğü
+    for dpi, kodlama in ((201, "jpeg"), (204, "jpeg"), (206, "png"), (200.05, "png"), (225, "png"), (300, "jpeg"), (150, "jpeg")):
+        yol = taranmis_pdf_uret(os.path.join(k, "tarama_%s_%s.pdf" % (str(dpi).replace(".", "_"), kodlama)), dpi, kodlama)
+        r, _ = c.cagir("donusum_tahmini", {"yollar": [yol], "hedefBicim": "gorsel"})
+        ideal, dusuk = gercek(yol, "gorsel", {"dpi": 300}), gercek(yol, "gorsel", {"dpi": 200})
+        sonuc("taranmış PDF (%s dpi, %s) → JPG: Düşük İdeal'den büyük değil (tahmin ve gerçek), tahmin kesin ve gerçeğin aynısı" % (dpi, kodlama),
+              r.get("tahmin") is False and ideal and dusuk and dusuk <= ideal and r.get("dusuk") <= r.get("ideal")
+              and r.get("ideal") == ideal and r.get("dusuk") == dusuk,
+              {"tahmin": (r.get("ideal"), r.get("dusuk")), "gerçek": (ideal, dusuk)})
+        if dpi == 225:
+            sonuc("taranmış PDF (225 dpi) → JPG: Düşük belirgin küçük (taramayı 200 dpi'ye küçültmek kazandırıyor)", dusuk < 0.95 * ideal, (ideal, dusuk))
+        if dpi == 150:
+            sonuc("taranmış PDF (150 dpi) → JPG: İdeal = Düşük (tarama kendi çözünürlüğünde)", ideal == dusuk, (ideal, dusuk))
     # Birden çok dosya, tahmin edilemeyenler
     udf = os.path.join(k, "belge.udf")
     with zipfile.ZipFile(udf, "w") as z:
