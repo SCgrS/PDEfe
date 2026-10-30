@@ -21,6 +21,7 @@
 // Not araçları: Not, Yazı ya da Vurgu aracı seçiliyken alanlar tıklamayı almaz (form-arac), tıklama aracındır (not ve yazı kutusu alanın
 // üstüne de konabilir; araç bırakılınca alanlar yeniden çalışır). Metin seçimi alanda başlamaz (metin.js SECIM_DISI), başka yerden başlayan
 // sürükleme alanların üstünden geçebilir. Notlar alanların üstünde çizilir.
+import { alanSiniriBagla } from './alanSiniri.js';
 import { CSS_BIRIM, yolAnahtari } from './goruntuleyici.js';
 import { Komut, sayfaListesi } from './komutlar.js';
 
@@ -44,7 +45,7 @@ export function degerEsit(a, b) {
 }
 
 export class FormYoneticisi extends EventTarget {
-  constructor({ belge, yigin }) {
+  constructor({ belge, yigin, bildir = null }) {
     super();
     this.belge = belge;
     this.g = belge.gorunum;
@@ -59,6 +60,12 @@ export class FormYoneticisi extends EventTarget {
       const a = document.activeElement;
       if (a?.closest?.('.form-alan') && this.g.kok.contains(a) && !e.target.closest?.('.form-alan')) a.blur();
     }, true);
+    // En çok karakter sayısı (MaxLen, tarak alanın hücreleri): Yapıştırılan yazının fazlası sessizce kesilmez, kaç karakter alınmadığı söylenir (alanSiniri.js). Alanın kutusuna
+    // sığma XFA formlarındaki gibi sınırlanmaz: Kullanıcının isteği XFA formu içindi (PLAN)
+    alanSiniriBagla(this.g.alan, {
+      alanBul: (h) => h?.closest?.('input.form-denetim, textarea.form-denetim') || null,
+      bildir,
+    });
   }
 
   anahtar(kayit) { return yolAnahtari(kayit.yol) + '#' + kayit.xref; }
@@ -224,6 +231,7 @@ export class FormYoneticisi extends EventTarget {
     }
     for (const x of kalan) { const o = s._formOgeler.get(x); o.img.remove(); o.el.remove(); s._formOgeler.delete(x); }
     s._formAnahtar = `${olcek}|${dondurme}|${dpr}`;
+    katman.style.setProperty('--ekran-olcegi', String(dpr));   // odak çerçevesi 1 ekran pikseli (stil.css)
     if (yenilenecek.length) this.gorunumYenile(s, yenilenecek);
   }
 
@@ -258,7 +266,8 @@ export class FormYoneticisi extends EventTarget {
     else if (a.tur === 'dugme') el.title = 'Düğme (PDEfe düğmelerin işlevini çalıştırmaz)';
     if (!etkin) { el.addEventListener('pointerdown', (e) => { if (e.button === 0) e.preventDefault(); }); return oge; }
     el.addEventListener('keydown', (e) => this.tus(oge, e));
-    el.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); });   // sayfanın sağ tık menüsü alanda açılmaz
+    // Yazı denetiminde sağ tık menüsü Kes, Kopyala, Yapıştır (uygulama.js alanMenusu), öbür alanlarda sayfanın menüsü açılmaz
+    el.addEventListener('contextmenu', (e) => { if (!e.target.matches?.('input.form-denetim, textarea.form-denetim')) { e.preventDefault(); e.stopPropagation(); } });
     if (a.tur === 'metin' || (a.tur === 'acilir' && a.duzenlenebilir)) {
       const d = document.createElement(a.tur === 'metin' && a.cokSatir ? 'textarea' : 'input');
       if (d.tagName === 'INPUT') d.type = a.tur === 'metin' && a.parola ? 'password' : 'text';
@@ -326,6 +335,7 @@ export class FormYoneticisi extends EventTarget {
     const pay = (bw + IC_PAY) * ptPx;
     if (a.tarak && a.enCok > 0) {
       // Tarak: Her harf kendi hücresinde (eşit aralıklı yazı tipiyle harf aralığı hücre genişliğine)
+      d.dataset.tarak = '1';   // yapıştırılan yazı sözcükte değil hücrede kesilir (alanSiniri.js)
       const hucre = dw / a.enCok, harf = 0.6 * boy;
       d.style.fontFamily = AILE_CSS['Courier New'];
       d.style.letterSpacing = Math.max(0, hucre - harf) + 'px';

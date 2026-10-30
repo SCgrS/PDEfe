@@ -321,22 +321,23 @@ html[data-tema="koyu"] #sekme-liste.siralaniyor .sekme.tasiniyor { box-shadow: 0
 .sayfa .baglanti:hover { background: rgba(0,103,192,0.12); outline: 1px solid rgba(0,103,192,0.5); }
 /* Form alanları (0.3.1, formlar.js): her widget'ın görünümü (çekirdekten) ve üstünde saydam denetim. Katman metin ve bağlantı katmanının
    üstünde, notların altında (notlar not-katmani'nin çocukları olarak z-index 3, DOM'da sonra). Koyulaştırılmış sayfada sayfa gibi ters
-   çevrilir. Alanlar hafif renkle belli, üzerine gelince ve odakta belirgin. Not aracı seçiliyken (form-arac) tıklama aracındır. */
+   çevrilir. Üstlerinde renkli işaret yok (0.3.1, XFA formlarındaki gibi): Alanın yeri imleçten anlaşılır (yazı alanında I, kutucukta el), odakta 1 ekran pikseli ince köşesiz çerçeve.
+   Kâğıda girmez: Basım çekirdeğin görünümünden. Not aracı seçiliyken (form-arac) tıklama aracındır. */
 .sayfa .form-katmani { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
 .koyu-sayfa .sayfa .form-katmani { filter: invert(1) hue-rotate(180deg); }
 .form-katmani img.form-gorunum { position: absolute; pointer-events: none; user-select: none; }
 .form-katmani img.form-gorunum:has(+ .form-alan.duzenleniyor) { visibility: hidden; }
-.form-katmani .form-alan { position: absolute; box-sizing: border-box; pointer-events: auto; background: rgba(0, 103, 192, 0.07); cursor: pointer; outline: none; }
+.form-katmani .form-alan { position: absolute; box-sizing: border-box; pointer-events: auto; cursor: pointer; outline: none; }
 .form-katmani .form-alan[data-tur="metin"] { cursor: text; }
-.form-katmani .form-alan.pasif { background: none; cursor: default; }
-.form-katmani .form-alan:not(.pasif):hover { background: rgba(0, 103, 192, 0.14); box-shadow: 0 0 0 1px rgba(0, 103, 192, 0.6); }
-.form-katmani .form-alan:not(.pasif):focus-within, .form-katmani .form-alan:not(.pasif):focus { box-shadow: 0 0 0 2px rgba(0, 103, 192, 0.85); }
-.form-katmani .form-alan.duzenleniyor { background: none; }
+.form-katmani .form-alan.pasif { cursor: default; }
+.form-katmani .form-alan:not(.pasif):focus-within, .form-katmani .form-alan:not(.pasif):focus { outline: calc(1px / var(--ekran-olcegi, 1)) solid #000; outline-offset: calc(-1px / var(--ekran-olcegi, 1)); }
 .gorunum.form-arac .form-katmani .form-alan { pointer-events: none; }
 .form-katmani .form-denetim { position: absolute; box-sizing: border-box; margin: 0; border: 0; border-radius: 0; outline: none; background: transparent;
   color: transparent; caret-color: transparent; resize: none; overflow: hidden; white-space: pre; line-height: 1.15; transform-origin: 50% 50%; }
 .form-katmani textarea.form-denetim { white-space: pre-wrap; overflow-wrap: break-word; overflow-y: hidden; }
 .form-katmani .form-alan.duzenleniyor .form-denetim { background: var(--form-zemin, #fff); color: var(--form-yazi, #000); caret-color: auto; }
+/* Düzenlenirken görünümün çerçevesi gizlidir, denetim zemini alanın çerçevesini örter: Çerçeve denetimin üstünde */
+.form-katmani .form-alan.duzenleniyor .form-denetim:focus { outline: calc(1px / var(--ekran-olcegi, 1)) solid #000; outline-offset: calc(-1px / var(--ekran-olcegi, 1)); }
 .form-katmani .form-alan.duzenleniyor textarea.form-denetim { overflow-y: auto; }
 .form-katmani select.form-denetim { opacity: 0; cursor: pointer; }
 .form-katmani .form-denetim::selection { background: rgba(0, 103, 192, 0.35); color: var(--form-yazi, #000); }

@@ -8,6 +8,8 @@ import { temizMetin, sayfaMetinleriniBirlestir, secimDikdortgenleri, satirlaraBi
 import { NotYoneticisi, VURGU_RENKLERI, YAZI_PANO_TURU, yaziVerisiDogrula } from './notlar.js';
 import { FormYoneticisi } from './formlar.js';
 import { XfaYoneticisi } from './xfa.js';
+import { alanaKoy } from './alanSiniri.js';
+import { alanSigar } from './xfaHtml.js';
 import { KomutYigini, Komut, sayfaFarki, sayfaFarkiOzeti, sayfaListesi } from './komutlar.js';
 import { GecmisListesi } from './gecmisListesi.js';
 import { ayarlarPenceresiAc, ayarlarPenceresiKapat, ayarlarPenceresiniGuncelle } from './ayarlarPenceresi.js';
@@ -193,7 +195,7 @@ function belgeOlustur(yol) {
   belge.yigin.addEventListener('degisti', () => kirliGuncelle(belge));
   belge.notlar.addEventListener('degisti', () => { kirliGuncelle(belge); if (aktifId === id) panel.yorumlariYenile(); });
   belge.notlar.addEventListener('arac', (e) => { belge.formlar.aracDegisti(e.detail.arac); if (aktifId === id) aracDugmeleriniGuncelle(e.detail.arac); });
-  belge.formlar = new FormYoneticisi({ belge, yigin: belge.yigin });
+  belge.formlar = new FormYoneticisi({ belge, yigin: belge.yigin, bildir: (m) => bildir(m, 6000) });
   belge.formlar.addEventListener('degisti', () => kirliGuncelle(belge));
   // Dinamik XFA formu (0.3.1): yalnızca görünüm belgeyi XFA kipinde açtıysa etkin (gorunum.xfa)
   belge.xfa = new XfaYoneticisi({
@@ -2496,6 +2498,8 @@ function metinOlaylariBagla(belge) {
     if (span && paragrafSec(span)) e.preventDefault();
   });
   alan.addEventListener('contextmenu', async (e) => {
+    const yaziAlani = e.target.closest?.(YAZI_DENETIMI);
+    if (yaziAlani) { e.preventDefault(); await alanMenusu(belge, yaziAlani); return; }
     const katman = e.target.closest('.textLayer, .xfaLayer');
     const sayfaEl = e.target.closest('.sayfa');
     const xfa = !!belge.gorunum.xfa;   // XFA formunda (0.3.1) not ve vurgu yok
@@ -2541,6 +2545,49 @@ function metinOlaylariBagla(belge) {
     else if (secim === 'not') { if (!(seciliVar && !tum && belge.notlar.secimeNotKoy())) belge.notlar.sayfayaNotKoy(+sayfaEl.dataset.sayfa - 1, e); }
   });
 }
+
+// Form alanının yazı denetimi (XFA katmanı, düz form alanı): Sağ tıkta kendi menüsü
+const YAZI_DENETIMI = '.xfaLayer input:not([type="checkbox"], [type="radio"]), .xfaLayer textarea, .form-alan input.form-denetim, .form-alan textarea.form-denetim';
+
+/**
+ * Form alanının sağ tık menüsü (0.3.1, kullanıcının onayladığı öneri: Sayfanın menüsünde Yapıştır hep, Kopyala seçili yazıda bile soluktu, Ctrl+C ve Ctrl+V çalışıyordu). Seçim varsa Kes ve Kopyala,
+ * panoda yazı varsa Yapıştır, yazısı varsa Tümünü seç. Salt okunur alanda Kes ve Yapıştır kapalı, parola alanında Kes ve Kopyala kapalı. Yapıştır alanın sınırından geçer (alanSiniri.js: Kâğıda sığan
+ * kısım girer, kalanı için uyarı). Pano ana süreçten: Menüden paste olayı doğmaz. Silme execCommand'la: Geri al çalışır.
+ */
+async function alanMenusu(belge, el) {
+  const xfaAlani = !!el.closest('.xfaLayer');
+  if (document.activeElement !== el) el.focus({ preventScroll: true });
+  const bas = el.selectionStart, son = el.selectionEnd, seciliYazi = el.value.slice(bas, son);
+  const yazilamaz = el.readOnly || el.disabled || !!belge.tasiniyor || (xfaAlani && !!belge.xfa?.mesgul);
+  const parola = el.type === 'password';
+  let pano = '';
+  try { pano = (await pdefe.cagir('pano:oku')) || ''; } catch { /* okunamadı: Yapıştır soluk */ }
+  const secim = await pdefe.cagir('menu:popup', [
+    { id: 'kes', etiket: 'Kes', devre: !seciliYazi || yazilamaz || parola },
+    { id: 'kopyala', etiket: 'Kopyala', devre: !seciliYazi || parola },
+    { id: 'yapistir', etiket: 'Yapıştır', devre: yazilamaz || !pano },
+    { ayirici: true },
+    { id: 'tumunuSec', etiket: 'Tümünü seç', devre: !el.value },
+    { ayirici: true },
+    { id: 'kaydet', etiket: 'Kaydet', devre: !kaydedilecekVar(belge) },
+    { id: 'yazdir', etiket: 'Yazdır', devre: !!belge.tasiniyor },
+  ]);
+  if (!secim || !belgeler.has(belge.id)) return;
+  if (secim === 'kaydet') { await belgeKaydet(belge); return; }
+  if (secim === 'yazdir') { await belgeyiYazdir(belge); return; }
+  if (!el.isConnected || (xfaAlani && belge.xfa?.mesgul && secim !== 'kopyala')) return;   // menü açıkken form yeniden dizildi
+  el.focus({ preventScroll: true });
+  el.setSelectionRange(bas, son);
+  if (secim === 'tumunuSec') el.select();
+  else if (secim === 'kopyala') await pdefe.cagir('pano:metin', panoSatirSonu(seciliYazi));
+  else if (secim === 'kes') {
+    await pdefe.cagir('pano:metin', panoSatirSonu(seciliYazi));
+    if (el.isConnected) { el.focus({ preventScroll: true }); el.setSelectionRange(bas, son); document.execCommand('delete'); }
+  } else if (secim === 'yapistir') alanaKoy(el, pano, { sigar: xfaAlani ? alanSigar : null, bildir: (m) => bildir(m, 6000) });
+}
+
+/** Panoya yazılan alan yazısının satır sonları: Windows'ta \r\n (tarayıcının kendi Kopyala'sı gibi, öbür programlar böyle bekler). */
+const panoSatirSonu = (m) => (MAC || LINUX ? m : m.replace(/\r?\n/g, '\r\n'));
 
 // ---------------------------------------------------------------- yazı kutusu kopyala-yapıştır (0.2.6)
 // Kopyalanan yazı kutusu panoya düz metin ve özel türle (YAZI_PANO_TURU, JSON) yazılır: Ctrl+V başka sekmede ve başka PDEfe penceresinde de
