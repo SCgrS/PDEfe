@@ -183,8 +183,9 @@ sayfası olan belgede iki tür sayfada da aranır. Linux'ta yalnızca PDF'in ken
   belgede okuyucu bunu izin verilmeyen değişiklik sayar. Dolu bir alan değiştirilince PDEfe sorar.
 - **Dinamik (XFA) formlar:** Bireysel başvuru formu gibi formlar "Please wait" sayfası yerine formun kendisiyle açılır, doldurulur. Formdaki
   düğmelerle bölüm eklenir ve silinir, sayfa numaraları yenilenir, Geri al eklenen bölümü de geri alır. Bu formlarda Not, Vurgu, Yazı ve sayfa döndürme
-  kapalıdır, Sıkıştır, Sayfaları düzenle, Döndür, Ayır ve Format Değiştir kullanılamaz, Birleştir bu formları almaz. Alana sığmayan yazı kırmızı çerçeveyle
-  işaretlenir, sığmayan kısım basılmaz.
+  kapalıdır, Sıkıştır, Sayfaları düzenle, Döndür, Ayır ve Format Değiştir kullanılamaz, Birleştir bu formları almaz. Form kâğıda basılmak için tasarlandığından
+  alana yalnız sığan yazı girer: Alan dolunca yazma durur, yapıştırılan yazının sığmayan kısmı alınmaz, kaç karakter alınmadığı söylenir. Başka bir programda yazılmış, alana sığmayan
+  yazı silinmez: Alan kırmızı çerçeveyle işaretlenir, kaydırılarak okunur, sığmayan kısmı basılmaz.
 - **Formu kaydetme:** `Ctrl+S` ve formdaki Formu Kaydet düğmesi alandan çıkılmamış yazıyı da alır. Kayıt yapılamazsa dosya bozulmaz, yazdıklarınız ekranda kalır. Dosya
   başka bir programda açıksa PDEfe programın adını söyler: **Yeniden dene**, **Farklı kaydet** ya da **Vazgeç**. Dosya başka bir programda değiştiyse üzerine sessizce yazmaz, sorar.
 - **Sınırlar:** Doldurulabilir PDF'lerde formun Gönder, Yazdır gibi düğmeleri çalışmaz. XFA formlarında ekle, sil, kaydet ve yazdır düğmeleri çalışır, Gönder ve
