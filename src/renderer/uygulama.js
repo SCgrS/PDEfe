@@ -1006,12 +1006,17 @@ async function belgeyiYazdir(b) {
 
 /** Belgeyi kaydeder. farkli=true ise yeni yol sorar. Başarılıysa true döner.
  *  Çağrı sürdükçe (Farklı kaydet diyaloğu ve hata sorusu dahil) b.kaydediliyor true'dur ve b.kayitSozu çağrı bitince çözülür
- *  (hiç reddedilmez); kapatma akışları onu bekler (kayitBitmesiniBekle). Bu arada gelen ikinci kaydetme false döner.
+ *  (hiç reddedilmez); kapatma akışları onu bekler (kayitBitmesiniBekle). Bu arada gelen ikinci kaydetme onu bekler, otomatik kayıt false döner.
  *  oneAl (sekme menüsündeki Kaydet): belge önde değilse sorusuz kayıtta öndeki sekme değişmez; e-imza ya da hata sorusu açılacaksa önce
  *  belgenin sekmesine geçilir. Kapatma akışlarında gerekmez: ilk soru (kaydetmedenCikisSorusu) belgenin adını verir. */
 async function belgeKaydet(b, farkli = false, sessiz = false, { oneAl = false } = {}) {
-  // Arka planda otomatik kayıt sürerken basılan Ctrl+S ya da Formu Kaydet kaybolmasın (0.3.1): O bitince kendisi kaydeder
-  if (b?.kaydediliyor && b._kayitSessiz && !sessiz) await b.kayitSozu;
+  // Süren kayıt sırasında basılan Ctrl+S ya da Formu Kaydet kaybolmasın (0.3.1 kayıp avı): Önceki kaydın baytları alındıktan sonra yazılan yazı dosyaya girmiyor, ikinci basış
+  // sessizce yok sayılıyordu. Süren kayıt bitince yeni yazı varsa kaydedilir. Kaydın hata sorusu açıkken gelen tuş beklemez: Vazgeç'ten sonra kayıt kendiliğinden yeniden başlardı
+  if (b?.kaydediliyor && !sessiz && !ortuAcik()) {
+    for (let s = b.kayitSozu; b.kaydediliyor; s = b.kayitSozu) { await s; if (s === b.kayitSozu) break; }
+    if (!belgeler.has(b.id) || b.kaydediliyor) return false;
+    if (!farkli && !b.degisti) { bildir(`"${b.ad}" kaydedildi.`, 3000); return true; }
+  }
   if (!b || b.kaydediliyor || b.tasiniyor) return false;   // tasiniyor: sekme başka pencereye geçiyor (bkz. sekmeyiTasi)
   let bitti;
   b.kaydediliyor = true;

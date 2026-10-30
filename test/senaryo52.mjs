@@ -14,11 +14,12 @@
 //  11 Gerçek kısayollar (yalnız görünmeyen masaüstünde, BOLUM=11): Ctrl+S, Ctrl+Z, Ctrl+P, Ctrl+W, pencere kapatma.
 //  12 Kullanım hakları imzalı form: İmza kalır, açılan baytlar değişmez, ara taslaklar dosyaya girmez, dosya kayıtla büyümez, bölüm ekleme, ikinci oturum, Farklı kaydet, sekme taşıma.
 //  13 Odak almadan gelen yazı (başka programdan sürükleyip bırakma): Alana girer, belge kirli olur, kayıt alır.
+//  14 Kayıt sürerken ikinci Ctrl+S, klavyeyle düğme, bölüm geçmişiyle sekme taşıma, taşımanın son adımının hatası, arka plandaki sekmenin kaydı, 5 MB yazı.
 // Kullanım (ekran dışı):
 //   powershell -File test\baslat.ps1 -Port 9620 -Veri "$env:TEMP\pdefe-s52" -Boyut "1280,900"   → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9620; $env:PDEFE_TEST_PID=<PID>; [$env:BOLUM="1,3"]; node test\surucu.mjs betik test\senaryo52.mjs
 //   powershell -File test\durdur.ps1 -SurecId <PID>
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -946,13 +947,14 @@ print(json.dumps({"hak": xfa.notlar.kullanim_hakki_var(d), "son": xfa._hak_bolum
     await ac(y);
     const c = await degerler(['Metin', 'BAd']);
     sonuc('12 Yeniden açınca değerler ve bölümler yerinde, temiz', J(c.Metin) === J([IKI, 'Yeni bölümün yazısı']) && c.BAd.length === 3 && !(await durum()).degisti, c);
-    // İkinci oturum: Açılan dosyanın üstüne
-    const iki = fs.readFileSync(y);
+    // İkinci oturum: Önceki oturumun kaydı yerine (eski yazı dosyada kalmaz), imzalı bölüm aynı
+    const iki = fs.readFileSync(y).length;
+    await alanaYaz('Metin', 0, 'İkinci oturumun yazısı');
     await alanaYaz('Sehir', 0, 'İkinci oturum');
     d = await kaydet();
     bayt = fs.readFileSync(y);
     o = olcHak(y);
-    sonuc('12 İkinci oturum: Önceki kaydın baytları değişmedi, imza yerinde', !d.kutu && bayt.subarray(0, iki.length).equals(iki) && o.hak && o.eof === 3 && v(y, 'form1/Baslik/Sehir')[0] === 'İkinci oturum', o);
+    sonuc('12 İkinci oturum: Eski yazının bölümü yerine yeni bölüm, imza yerinde, dosya büyümedi', !d.kutu && bayt.subarray(0, ilk.length).equals(ilk) && o.hak && o.eof === 2 && !o.onarildi && Math.abs(bayt.length - iki) < 400 && v(y, 'form1/Baslik/Sehir')[0] === 'İkinci oturum' && v(y, 'form1/Bolum/Metin')[0] === 'İkinci oturumun yazısı', { o, iki, boy: bayt.length });
     // 30 kayıt: Dosya büyümez
     const once = fs.statSync(y).size;
     for (let i = 0; i < 30; i++) { await alanaYaz('Sehir', 0, `Kayıt ${String(i).padStart(2, '0')}`); await kaydet(); }
@@ -1057,6 +1059,160 @@ print(json.dumps({"hak": xfa.notlar.kullanim_hakki_var(d), "son": xfa._hak_bolum
     sonuc('13 Sayfada hata yok', !(await hatalar()).length);
   }
 
+  // ================================================================== 14) kayıt üstüne kayıt, taşınan bölüm geçmişi, arka plandaki sekme, çok büyük yazı, taşımanın son adımı
+  if (bolum(14)) {
+    // Kayıt sürerken ikinci Ctrl+S: Bu arada yazılan da dosyaya girer
+    let y = kopya('cift-kayit');
+    await ac(y);
+    await geciktir(500, 'xfa_kaydet');
+    await alanaYaz('Metin', 0, 'İlk kayıtta');
+    await komut('dosya.kaydet');
+    await bekle(120);
+    await yaz(' ve kayıt sürerken yazılan');
+    await komut('dosya.kaydet');
+    await bekle(100);
+    let d = await kayitBitsin();
+    for (let i = 0; i < 60 && (await durum()).kaydediliyor; i++) await bekle(100);
+    await bekle(800);
+    d = await durum();
+    sonuc('14 Kayıt sürerken ikinci Ctrl+S: Yazılan dosyada, belge temiz, kaydedildi denir', !d.kutu && !d.degisti && v(y, 'form1/Bolum/Metin')[0] === 'İlk kayıtta ve kayıt sürerken yazılan' && /kaydedildi/.test(d.bildirim), { d, x: v(y, 'form1/Bolum/Metin') });
+    // İkinci basışta yeni yazı yoksa: Dosya bir kez yazılır, "değişiklik yok" denmez
+    await alanaYaz('Metin', 0, 'Tek kayıt');
+    await komut('dosya.kaydet');
+    await bekle(100);
+    await komut('dosya.kaydet');
+    for (let i = 0; i < 60 && (await durum()).kaydediliyor; i++) await bekle(100);
+    await bekle(300);
+    d = await durum();
+    sonuc('14 Yeni yazı yoksa ikinci basış "değişiklik yok" demez', !d.kutu && !d.degisti && /kaydedildi/.test(d.bildirim) && v(y, 'form1/Bolum/Metin')[0] === 'Tek kayıt', d);
+    // Klavyeyle düğme: Yazı alanda dururken Tab ve Boşluk
+    y = kopya('klavye-dugme');
+    await ac(y);
+    await tiklaAd('Metin', 0);
+    await yaz('Düğmeye klavyeyle geçilirken alandaki yazı');
+    await evalJs(`(() => { const x = window.__s52.b().xfa, k = document.querySelector('.gorunum:not([hidden]) [xfaname="MEkle"] button'); k.focus(); return document.activeElement === k; })()`);
+    await bekle(60);
+    await tus(' ');
+    await durgun();
+    const c = await degerler(['Metin']);
+    sonuc('14 Klavyeyle Ekle: Yazı yerinde, bölüm eklendi', c.Metin.length === 2 && c.Metin[0] === 'Düğmeye klavyeyle geçilirken alandaki yazı', c);
+    d = await durum();
+    sonuc('14 Klavyeyle Ekle: İki adım geri alınabilir', d.konum === 2, d);
+    // Bölüm ekleme geçmişi taşınır: Hedef pencerede geri al ve yinele, kayıt
+    y = kopya('tasi-yapi');
+    const y2 = kopya('tasi-yapi-kalan');
+    await ac(y2);
+    await ac(y, false);
+    await alanaYaz('Metin', 0, 'Bölümden önce');
+    await tus('Tab');
+    await tiklaAd('MEkle', 0);
+    await durgun();
+    await alanaYaz('Metin', 1, 'Yeni bölümde');
+    await tus('Tab');
+    await bekle(60);
+    const oncekiler = (await hedefler()).map((h) => h.id);
+    await evalJs(`(async () => { await window.__pdefe.sekmeyiTasi(window.__s52.b().id, { tur: 'yeni' }); return true; })()`);
+    let yeniP = null;
+    for (let i = 0; i < 50 && !yeniP; i++) { await bekle(200); yeniP = (await hedefler()).find((h) => !oncekiler.includes(h.id)); }
+    if (sonuc('14 Bölümlü sekme taşındı', !!yeniP)) {
+      const ilkHedef = (await hedefler()).find((h) => oncekiler.includes(h.id))?.id;
+      hedefSec(yeniP.id);
+      await bekle(1200);
+      await evalJs(YARDIMCI);
+      await evalJs(`(async () => { for (let i = 0; i < 80; i++) { if (document.querySelector('.gorunum:not([hidden]) .xfaLayer')) return true; await window.__s52.bekle(100); } return false; })()`);
+      d = await durum();
+      sonuc('14 Hedefte üç adım, kirli, iki bölüm', d.konum === 3 && d.yigin === 3 && d.degisti && (await degerler(['Metin'])).Metin.length === 2, d);
+      await dugmeTikla('dugme-geri-al'); await durgun();
+      await dugmeTikla('dugme-geri-al'); await durgun();
+      let m = await degerler(['Metin']);
+      sonuc('14 Hedefte iki kez geri al: Tek bölüm, ilk yazı yerinde', m.Metin.length === 1 && m.Metin[0] === 'Bölümden önce', m);
+      await dugmeTikla('dugme-yinele'); await durgun();
+      await dugmeTikla('dugme-yinele'); await durgun();
+      m = await degerler(['Metin']);
+      sonuc('14 Hedefte iki kez yinele: İki bölüm, yazılar yerinde', J(m.Metin) === J(['Bölümden önce', 'Yeni bölümde']), m);
+      d = await kaydet();
+      sonuc('14 Hedefte kayıt: Bölümler ve yazılar dosyada', !d.kutu && !d.degisti && J(v(y, 'form1/Bolum/Metin')) === J(['Bölümden önce', 'Yeni bölümde']), { d, x: v(y, 'form1/Bolum/Metin') });
+      // Taşımanın son adımı hata verse de sekme hedefte kalır. Hedef pencerenin panelini bozup kalan sekmeyi oraya taşırız: Kaynak yazıyı kaldırır, yazı hedefte durmalı
+      await evalJs(`(() => { window.__eskiPanel = window.__pdefe.panel.belgeAyarla; window.__pdefe.panel.belgeAyarla = () => { throw new Error('Deneme: Son adım'); }; return true; })()`);
+      const liste = await evalJs(`window.pdefe.cagir('test:pencereler')`);
+      const P2 = liste.find((x) => x.yollar.some((a) => a.toLowerCase().endsWith(path.basename(y).toLowerCase())))?.id;
+      hedefSec(ilkHedef);
+      await evalJs(YARDIMCI);
+      await alanaYaz('Metin', 0, 'Kaynakta yazıldı, taşındı');
+      await tus('Tab');
+      await bekle(60);
+      const tasindi = await evalJs(`(async () => { return await window.__pdefe.sekmeyiTasi(window.__s52.b().id, { tur: 'pencere', pencere: ${J(P2)}, x: null }); })()`);
+      hedefSec(yeniP.id);
+      await bekle(900);
+      await evalJs(`(async () => { for (let i = 0; i < 60; i++) { if (window.__pdefe.belgeler.size === 2) return true; await window.__s52.bekle(100); } return false; })()`);
+      const iki = await evalJs(`[...window.__pdefe.belgeler.values()].map((b) => ({ yol: b.yol, degisti: b.degisti }))`);
+      sonuc('14 Taşımanın son adımı hata verdi: Sekme hedefte, kirli', tasindi === true && iki.some((b) => b.yol === y2 && b.degisti), { tasindi, iki, liste });
+      await evalJs(`(() => { window.__pdefe.panel.belgeAyarla = window.__eskiPanel; return true; })()`);
+      await evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find((x) => x.yol === ${J(y2)}); if (b) { await p.sekmeSec(b.id); await window.__s52.bekle(300); await p.belgeKaydet(b); } return true; })()`);
+      await bekle(300);
+      sonuc('14 Hedefte kayıt yazıyı alır', v(y2, 'form1/Bolum/Metin')[0] === 'Kaynakta yazıldı, taşındı', v(y2, 'form1/Bolum/Metin'));
+      // İlk pencere son sekmesi gidince kapandı: Sınama bu pencerede sürer
+      await kapatHepsini();
+      hedefSec(null);
+      await evalJs(YARDIMCI);
+      await evalJs(`(() => { if (!window.__hatalar) { window.__hatalar = []; window.addEventListener('error', (e) => window.__hatalar.push('error: ' + e.message)); window.addEventListener('unhandledrejection', (e) => window.__hatalar.push('reject: ' + (e.reason?.message || e.reason))); } return true; })()`);
+    }
+    // Arka plandaki sekmeyi kaydetme (sekme menüsünün yolu)
+    const a1 = kopya('arka-1'), a2 = kopya('arka-2');
+    await ac(a1);
+    await alanaYaz('Metin', 0, 'Arka planda kalacak yazı');
+    await ac(a2, false);
+    await bekle(200);
+    const ak = await evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find((x) => x.yol === ${J(a1)}); const r = await p.belgeKaydet(b, false, false, { oneAl: true }); return { r, degisti: b.degisti, ad: p.aktif().yol }; })()`);
+    sonuc('14 Arka plandaki sekme kaydedildi, öndeki sekme değişmedi', ak.r === true && !ak.degisti && ak.ad === a2 && v(a1, 'form1/Bolum/Metin')[0] === 'Arka planda kalacak yazı', ak);
+    // Farklı kaydet'ten sonra bölüm ekleme, geri alma, kayıt: Yeni dosyaya yazılır, eski dosya dokunulmamış kalır
+    await kapatHepsini();
+    y = kopya('farkli-sonra');
+    await ac(y);
+    await alanaYaz('Metin', 0, 'Farklı kaydetten önce');
+    await tus('Tab');
+    const yeniAd = path.join(KLASOR, 'farklı sonra yeni.pdf');
+    await yanitla('dosya:kaydetDiyalog', [yeniAd]);
+    await komut('dosya.farkliKaydet');
+    d = await kayitBitsin();
+    await bekle(120);
+    const eskiOzet = ozet(y);
+    sonuc('14 Farklı kaydet: Sekme yeni dosyada', !d.kutu && !d.degisti && d.yol === yeniAd && v(yeniAd, 'form1/Bolum/Metin')[0] === 'Farklı kaydetten önce', d);
+    await tiklaAd('MEkle', 0);
+    await durgun();
+    await alanaYaz('Metin', 1, 'Yeni dosyanın ikinci bölümü');
+    await tus('Tab');
+    await dugmeTikla('dugme-geri-al'); await durgun();
+    await dugmeTikla('dugme-geri-al'); await durgun();
+    await dugmeTikla('dugme-yinele'); await durgun();
+    await alanaYaz('Metin', 1, 'Dalın yeni yazısı');
+    await tus('Tab');
+    d = await kaydet();
+    sonuc('14 Farklı kaydetten sonra Ekle, geri al, yinele, kayıt: Yeni dosyada, eski dosya aynı', !d.kutu && !d.degisti && J(v(yeniAd, 'form1/Bolum/Metin')) === J(['Farklı kaydetten önce', 'Dalın yeni yazısı']) && ozet(y) === eskiOzet, { d, x: v(yeniAd, 'form1/Bolum/Metin') });
+    await ac(yeniAd);
+    const fc = await degerler(['Metin']);
+    sonuc('14 Yeni dosya yeniden açılınca aynı', J(fc.Metin) === J(['Farklı kaydetten önce', 'Dalın yeni yazısı']) && !(await durum()).degisti, fc);
+    // Çok büyük yazı: 5 MB
+    y = kopya('bes-mb');
+    await ac(y);
+    let buyuk = '';
+    for (let i = 0; buyuk.length < 5000000; i++) buyuk += `${i}. paragraf: Kurgusal bir olay anlatımı, şğüıöç İĞÜŞÖÇ.\n`;
+    buyuk = buyuk.trimEnd();
+    await tiklaAd('Metin', 0);
+    // Input.insertText satır satır işler, 5 MB'ta dakikalar sürer: Değer doğrudan konur, bu bölümün sınadığı kayıt yolu
+    await evalJs(`(() => { const e = document.activeElement; e.value = ${J(buyuk)}; e.dispatchEvent(new Event('input', { bubbles: true })); return e.value.length; })()`);
+    let t0 = Date.now();
+    d = await kaydet();
+    const sure = Date.now() - t0;
+    bilgi(`5 MB kayıt ${sure} ms, dosya ${fs.statSync(y).size} bayt`);
+    sonuc('14 5 MB yazı: Kayıt, dosyada bayt bayt', !d.kutu && !d.degisti && v(y, 'form1/Bolum/Metin')[0] === buyuk, { kutu: d.kutu, degisti: d.degisti, boy: v(y, 'form1/Bolum/Metin')[0]?.length });
+    await ac(y);
+    const dom = (await degerler(['Metin'])).Metin[0];
+    sonuc('14 5 MB yazı: Yeniden açınca ekranda aynı, belge temiz', dom === buyuk && !(await durum()).degisti, dom?.length);
+    await kapatHepsini();
+    sonuc('14 Sayfada hata yok', !(await hatalar()).length);
+  }
+
   // ================================================================== 11) gerçek kısayollar (yalnız görünmeyen masaüstünde: baslat_gizli.ps1, BOLUM=11; son adım örneği kapatır)
   if (BOLUMLER.includes('11')) {
     await evalJs(`window.pdefe.cagir('test:odakla')`);
@@ -1079,6 +1235,44 @@ print(json.dumps({"hak": xfa.notlar.kullanim_hakki_var(d), "son": xfa._hak_bolum
     bilgi(`Ctrl+Z sonrası alan: ${await metinAlan()}`);
     await tusG('Y', ['control']);
     await bekle(60);
+    // Sayfayı yeniden yükleyebilecek tuşlar: Yazı yerinde, sayfa aynı sayfa
+    const yaziOnce = await metinAlan();
+    await evalJs(`(window.__yuklenmedi = 1, true)`);
+    for (const [k, m] of [['R', ['control']], ['F5', []], ['R', ['control', 'shift']], ['F5', ['control']], ['F5', ['shift']], ['Left', ['alt']], ['Right', ['alt']]]) await tusG(k, m, 200);
+    const h0 = (await hedefler())[0];
+    const ws0 = new WebSocket(h0.webSocketDebuggerUrl);
+    await new Promise((c, r) => { ws0.onopen = c; ws0.onerror = r; });
+    for (const type of ['mousePressed', 'mouseReleased']) { ws0.send(J({ id: 1, method: 'Input.dispatchMouseEvent', params: { type, x: 300, y: 300, button: 'back', buttons: type === 'mousePressed' ? 8 : 0, clickCount: 1 } })); await bekle(120); }
+    ws0.close();
+    await bekle(300);
+    sonuc('11 Yeniden yükleme tuşları ve fare geri düğmesi: Sayfa aynı, yazı yerinde', (await evalJs(`window.__yuklenmedi`)) === 1 && (await metinAlan()) === yaziOnce, { yeni: await metinAlan(), yaziOnce });
+    // Ctrl+V alana ulaşır (dikte programları da böyle yapıştırır). Gerçek panoya dokunulmaz, yapıştırma olayda durdurulur, içeriği okunmaz
+    await tiklaAd('Metin', 0);
+    await evalJs(`(() => { window.__yap = []; window.__yapDinle = (e) => { window.__yap.push(e.target.tagName); e.preventDefault(); e.stopImmediatePropagation(); }; document.addEventListener('paste', window.__yapDinle, true); return true; })()`);
+    await tusG('V', ['control'], 200);
+    const yap = await evalJs(`(document.removeEventListener('paste', window.__yapDinle, true), window.__yap)`);
+    sonuc('11 Ctrl+V alanın yapıştırmasına gider', J(yap) === J(['TEXTAREA']), yap);
+    // Kayıt hata sorusu açıkken Ctrl+S: Vazgeç'ten sonra kayıt kendiliğinden başlamaz
+    await tiklaAd('Metin', 0);
+    await yaz(' kilitliyken');
+    const kilit = spawn(PY, ['-I', path.join(KOK, 'test', 'kilit_tut.py'), y, '1'], { stdio: ['pipe', 'pipe', 'ignore'] });
+    await new Promise((c) => kilit.stdout.once('data', c));
+    await tusG('S', ['control'], 200);
+    d = await kutuBekle(9000);
+    sonuc('11 Kilitliyken Ctrl+S: Hata sorusu', d.kutu?.ileti === 'Belge kaydedilemedi', d);
+    await tusG('S', ['control'], 300);
+    await kutuBas('Vazgeç');
+    await bekle(700);
+    d = await durum();
+    sonuc('11 Soru açıkken Ctrl+S: Vazgeç\'ten sonra kayıt yeniden başlamaz', !d.kutu && !d.kaydediliyor && d.degisti, d);
+    kilit.stdin.end();
+    await new Promise((c) => kilit.once('exit', c));
+    await tusG('S', ['control'], 200);
+    d = await kayitBitsin();
+    await bekle(200);
+    d = await durum();
+    sonuc('11 Kilit kalkınca Ctrl+S: Yazı dosyada', !d.kutu && !d.degisti && v(y, 'form1/Bolum/Metin')[0].endsWith(' kilitliyken'), d);
+    await yaz(' kaydedilmedi');
     await tusG('P', ['control'], 900);
     d = await durum();
     sonuc('11 Ctrl+P: Soru çıkmaz (yazı düz PDF\'e girer)', !d.kutu, d);
@@ -1093,7 +1287,7 @@ print(json.dumps({"hak": xfa.notlar.kullanim_hakki_var(d), "son": xfa._hak_bolum
     // Pencere kapatma (X ve Alt+F4'ün yolu), alanda yazı
     await tiklaAd('Sehir', 0);
     await yaz('Pencere kapatılırken alanda');
-    await evalJs(`(window.close(), true)`);
+    evalJs(`window.pdefe.cagir('pencere:kapat')`).catch(() => {});   // pencere.close(): X ve Alt+F4'ün yolu. Sayfanın window.close()'u 'close' olayını vermez, sorusuz kapatır (yalnız sınamada var, uygulama kullanmaz)
     d = await kutuBekle();
     sonuc('11 Pencere kapatma: Kaydetme sorusu', /kaydedilmemiş değişiklikler/.test(d.kutu?.ileti || ''), d);
     await kutuBas('Kaydet');
