@@ -23,12 +23,14 @@
 // burada durur (uygulama.js belgeKaydet: Yeniden dene, Farklı kaydet).
 // Yazdırma ve Sayfalar panelinin küçük resimleri formun düz PDF'inden: Ana süreç formu gizli pencerede aynı
 // kurallarla çizip PDF'e çevirir (src/main/xfaDuz.js), yazdırma ve küçük resimler o dosyadan (çekirdek, olağan PDF gibi).
+import { alanSiniriBagla } from './alanSiniri.js';
 import { Komut, sayfaListesi } from './komutlar.js';
-import { alanTasiyor, combGuncelle, yolUyar } from './xfaHtml.js';
+import { alanSigar, alanTasiyor, combGuncelle, yolUyar } from './xfaHtml.js';
 
 const ALAN = 'input[data-xv], textarea[data-xv], select[data-xv]';
+const YAZI_ALANI = 'input[data-xv]:not([type="checkbox"], [type="radio"]), textarea[data-xv]';
 const DENETIM = 'input, textarea, select, button';
-const TASMA_ILETISI = 'Yazı bu alana sığmıyor, sığmayan kısım basılmaz. Yazıyı kısaltın ya da formda varsa düğmeyle yeni sayfa ekleyin.';
+const TASMA_ILETISI = 'Bu alandaki yazı alana sığmıyor, sığmayan kısım basılmaz. Yeni yazı eklemek için yazıyı kısaltın.';
 const KATMAN_BEKLEME_MS = 2500;  // Tab başka sayfaya geçerken o sayfanın XFA katmanı en çok bu kadar beklenir
 const YAPI_EYLEMLERI = new Set(['ekle', 'sil', 'gorunurluk']);
 const KOMUT_EYLEMLERI = { kaydet: 'dosya.kaydet', farkliKaydet: 'dosya.farkliKaydet', yazdir: 'dosya.yazdir' };
@@ -101,9 +103,12 @@ export class XfaYoneticisi extends EventTarget {
     alan.addEventListener('keydown', (e) => this._tus(e));
     alan.addEventListener('input', (e) => { const el = e.target?.closest?.(ALAN); if (el && this.etkin) { combGuncelle(el); this._tasmaGuncelle(el, true); this._yaziBildir(); } });
     alan.addEventListener('focusout', (e) => this._odakGitti(e));
-    // Form yeniden dizilirken alanlara yazılamaz (0.3.1 kayıp avı): Yeni form önceden alınan baytlardan kurulur, bu arada yazılan silinirdi. Fare zaten geçmez (xfa.css),
-    // klavyeyle (Tab'la) alana girilebiliyordu
-    alan.addEventListener('beforeinput', (e) => { if (this.mesgul && this.etkin && e.target?.closest?.(ALAN)) e.preventDefault(); }, true);
+    // Alana yalnız kâğıda sığan yazı girer (alanSiniri.js). Form yeniden dizilirken alanlara hiç yazılamaz (0.3.1 kayıp avı): Yeni form önceden alınan baytlardan kurulur, bu arada
+    // yazılan silinirdi. Fare zaten geçmez (xfa.css), klavyeyle (Tab'la) alana girilebiliyordu
+    alanSiniriBagla(alan, {
+      alanBul: (h) => { const el = h?.closest?.(YAZI_ALANI); return el && this.etkin ? el : null; },
+      sigar: alanSigar, bildir: (m) => this.bildir(m), kilitli: () => this.mesgul, dolu: (el) => this._doluBildir(el),
+    });
     this.g.addEventListener('xfaKatmani', (e) => this._katmanKuruldu(e.detail.katman));
     // Yakınlaştırınca odak çerçevesi yeni ölçekte ekran pikseline yeniden oturur
     this.g.addEventListener('xfaOlcek', (e) => { const a = document.activeElement; if (a?.matches?.(DENETIM) && e.detail.katman.contains(a)) this._odakCiz(a); });
@@ -127,6 +132,7 @@ export class XfaYoneticisi extends EventTarget {
   birak() {
     this.yok = true;
     clearTimeout(this._duzZaman);
+    this._gorunmeIzi?.disconnect();
     if (this.duz?.yol) this.anlikSil?.(this.duz.yol);
     this.duz = null;
   }
@@ -185,6 +191,7 @@ export class XfaYoneticisi extends EventTarget {
     if (e.target?.matches?.(DENETIM) && e.target.closest('.xfaLayer')) this._odakCiz(e.target);
     const el = e.target?.closest?.(ALAN);
     if (!el || !this.etkin || this._acik?.el === el) return;
+    this._doluSoylendi = false;
     // Seçenek düğmesine tıklanınca odak tıklamadan önce gelir: ilk değer grubun şimdiki seçimidir
     this._acik = { el, veri: el.dataset.xv, ilk: this._alanDegeri(el) };
   }
@@ -202,15 +209,42 @@ export class XfaYoneticisi extends EventTarget {
   }
 
   /**
-   * Yazı alana sığmıyor mu (0.3.1 kabul sınaması): Form betiksiz çalıştığı için alan sığmayan yazıyı da alır, kendi içinde kaydırır, ama basımda
-   * ve düz PDF'te alanın dışı sessizce kesilir (tasarım programının "kaydırmasız" alanlarında referans okuyucu yazmayı durdurur). Alan kırmızı
-   * çerçeveyle işaretlenir, sığmaz hâle geldiği an bir kez söylenir (bildir), yazdırma penceresi de söyler (duzPdf: tasan).
+   * Yazı alana sığmıyor mu: Yazı artık alana sığmadan girilemez (alanSiniri.js, kullanıcı: "bu metin çıktı alınmak üzere tasarlanmış unutma"), bu yalnız dosyada zaten sığmayan değerde olur (eski
+   * kayıt, başka program). Yazı silinmez, kesilmez, kaydedilirken korunur, ama basımda alanın dışı çıkmaz: Alan kırmızı çerçeveyle işaretlenir, okunabilsin diye kaydırılabilir (xfa.css),
+   * bir kez söylenir (bildir), yazdırma penceresi de söyler (duzPdf: tasan). Sığacak kadar silinince normal hâline döner.
    */
   _tasmaGuncelle(el, bildir = false) {
     const tasiyor = alanTasiyor(el);
     if (tasiyor === el.classList.contains('xfa-tasiyor')) return;
     el.classList.toggle('xfa-tasiyor', tasiyor);
-    if (tasiyor && bildir) this.bildir(TASMA_ILETISI);
+    if (!tasiyor) { el.scrollTop = 0; el.scrollLeft = 0; }   // kaydırılmış kalmasın: Sığan alan kaydırılamaz
+    if (tasiyor && bildir && !this._tasmaSoylendi) { this._tasmaSoylendi = true; this.bildir(TASMA_ILETISI); }
+  }
+
+  /** Alan doluyken harf basıldı. Sığan alanda yazma sessizce durur, sığmayan alanda neden yazılamadığı alana her girişte bir kez söylenir. */
+  _doluBildir(el) {
+    if (this._doluSoylendi || !el.classList.contains('xfa-tasiyor')) return;
+    this._doluSoylendi = true;
+    this.bildir(TASMA_ILETISI);
+  }
+
+  /** Katmanın alanlarının sığması denetlenir (yazı tipleri yüklenince: Ölçü yazı tipine bağlı). Arka plandaki sekmede ölçü yok: Sekme görününce yeniden. */
+  _tasmaDenetle(katman) {
+    document.fonts.ready.then(() => {
+      if (!katman.isConnected || this.yok) return;
+      if (!katman.getClientRects().length) { this._gorununceDenetle(); return; }
+      for (const el of katman.querySelectorAll(ALAN)) this._tasmaGuncelle(el, true);
+    }).catch(() => {});
+  }
+
+  _gorununceDenetle() {
+    if (this._gorunmeIzi) return;
+    this._gorunmeIzi = new ResizeObserver(() => {
+      if (this.yok || !this.g.kok.getClientRects().length) return;
+      this._gorunmeIzi.disconnect(); this._gorunmeIzi = null;
+      for (const k of this.g.alan.querySelectorAll('.xfaLayer')) this._tasmaDenetle(k);
+    });
+    this._gorunmeIzi.observe(this.g.kok);
   }
 
   /**
@@ -399,7 +433,7 @@ export class XfaYoneticisi extends EventTarget {
         d.title = 'Bu düğmenin işlevi PDEfe\'de çalışmıyor';
       }
     }
-    for (const el of katman.querySelectorAll(ALAN)) this._tasmaGuncelle(el);
+    this._tasmaDenetle(katman);
   }
 
   /** Öğenin XFA ad yolu (PDF.js'in xfaName'leri; sayfa kökünün adıyla başlar). */

@@ -126,6 +126,8 @@ function alanBicimle(alan, b, sarmal) {
   const d = altlar(alan, 'textarea')[0] || altlar(alan, 'input')[0], etiket = altlar(alan, 'label')[0];
   if (!d || !etiket) return;
   const ds = d.attributes.style || (d.attributes.style = {});
+  // Yüksekliği (tek satırda genişliği) şablonda yazılı olmayan alan yazıyla büyür: PDF.js formu dizerken değere göre büyütür, kâğıtta yazının tamamı çıkar. Sınır konmaz (alanSigar)
+  if (!((d.name === 'textarea' ? b.b : b.g) > 0)) d.attributes['data-xfa-buyur'] = '1';
   ds.letterSpacing = `${b.harfAraligi || 0}px`;
   if (YATAY_HIZA[m.hiza] && m.hiza !== 'left') ds.textAlign = YATAY_HIZA[m.hiza];
   if (m.hiza === 'justifyAll') ds.textAlignLast = 'justify';
@@ -135,7 +137,6 @@ function alanBicimle(alan, b, sarmal) {
   if (m.ust) ds.paddingTop = `${m.ust}px`;
   if (m.alt) ds.paddingBottom = `${m.alt}px`;
   if (m.girinti) ds.textIndent = `${m.girinti}px`;
-  if (m.kaydirmasiz) ds.scrollbarWidth = 'none';   // kaydırma çubuğu yazının genişliğini daraltıp satırları kâğıttakinden farklı kırıyordu
   // Hücreli alan (alanın iç genişliği şablondan: Yazı tipleri ve yerleşim beklenmez, gizli sekmede de doğru)
   const baslik = (etiket.children || []).find((c) => sinifVar(c, 'xfaCaption'));
   const yanBaslik = baslik ? (sinifVar(etiket, 'xfaLeft') || sinifVar(etiket, 'xfaRight') ? pikseller(baslik.attributes?.style?.width)[0] : 0) : 0;
@@ -187,17 +188,117 @@ export function xfaSigdir(kok) {
   }
 }
 
+// ------------------------------------------------------------ yazının alana sığması (kullanıcı: "bu metin çıktı alınmak üzere tasarlanmış unutma")
+// Form kâğıda basılır, kâğıtta kaydırma yok: Alana yalnız kâğıtta tam görünen yazı girer (src/renderer/alanSiniri.js, xfa.js). Hesap katmanın kendi
+// biriminde (1 katman pikseli = 1pt) ve katmanın dışındaki görünmez aynada: Katman CSS dönüşümüyle büyür, dönüşüm yerleşimi değiştirmez, yazı tipi
+// genişlikleri ekran ölçeğinden bağımsızdır (text-rendering: geometricPrecision, xfa.css. %100, %125, %150'de ölçüldü). Alanın kendisinde scrollHeight
+// ölçülmez: Değerini denemek için value yazmak tarayıcının geri al geçmişini siler, tam sayıya yuvarlar (39,34 ile 45 arasında fark yok ama 44,9 ile 45
+// arasında var), dikey ortalı alanda (field-sizing) alan yazısı kadardır. Satır sayısı aynadan, sınır alanın iç yüksekliğinden: Yalnız TAM sığan satırlar.
+const GENISLIK_PAYI = 0.05;       // ayna alandan bu kadar dar: Basımda ve başka ölçekte aynı yazı 1/64 piksellik yuvarlamayla bir satır fazla kırılmasın
+const YUKSEKLIK_PAYI = 0.02;      // tam katı olan alan (2 × 15 = 30): Hesaplanan yükseklik 1/64 piksel eksik olabilir
+const IMLEC_PAYI = 1;             // tek satırda imlecin yeri: Yazı tam genişlikteyken alan bir piksel kaymasın
+const TASMA_PAYI = 0.5;           // dosyadan gelen tek satırlık yazı bu kadar taşıyorsa görünüşte sığar, işaretlenmez
+const EN_DAR_HARF = 0.1;          // bir harfin en az genişliği (yazı boyunun katı): Bundan uzun yazı ölçülmez, sığmaz (5 MB'lık değer sayfayı bekletmesin)
+const AYNA_STILLERI = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fontStretch', 'fontVariantCaps', 'fontKerning', 'fontFeatureSettings', 'letterSpacing', 'wordSpacing',
+  'textTransform', 'textRendering', 'tabSize', 'wordBreak', 'overflowWrap', 'direction', 'textIndent', 'lineHeight'];
+
+let ayna = null;
+function aynaAl() {
+  if (ayna?.kap.isConnected) return ayna;
+  const kap = document.createElement('div');
+  kap.setAttribute('aria-hidden', 'true');
+  kap.style.cssText = 'position:fixed;left:-100000px;top:0;width:0;height:0;overflow:hidden;visibility:hidden;contain:strict;pointer-events:none;';
+  const cok = document.createElement('textarea');
+  cok.tabIndex = -1;
+  cok.style.cssText = 'display:block;box-sizing:content-box;margin:0;padding:0;border:0;resize:none;overflow:hidden;scrollbar-width:none;height:0;min-height:0;white-space:pre-wrap;';
+  const tek = document.createElement('span');
+  tek.style.cssText = 'position:absolute;left:0;top:0;white-space:pre;margin:0;padding:0;border:0;';
+  kap.append(cok, tek);
+  document.body.append(kap);
+  ayna = { kap, cok, tek, sahip: null };
+  return ayna;
+}
+
+/** Çok satırlı alanın ölçülecek yazısı: Tek boşluk satır sonunda asılı kalır (kâğıtta görünmez, satır eklemez), ama basılı tutulan Boşluk sonsuza dek
+ *  girerdi. Ardışık boşluklar bölünmez boşlukla ölçülür: Yer kaplar. */
+const olculecekYazi = (d) => (d.includes('  ') ? d.replace(/ {2,}/g, (m) => ' '.repeat(m.length - 1) + ' ') : d);
+
 /**
- * Alanın yazısı kutusuna sığmıyor mu (0.3.1 kabul sınaması): Çok satırlı alanda yükseklik, tek satırlıda genişlik. Tarayıcı sığmayan yazıyı
- * alanın içinde kaydırır, basımda ve düz PDF'te alanın dışı kesilir. TASMA_PAYI: Satır yüksekliğinin yuvarlanması (yazısız ve tek satırlık
- * alanda scrollHeight clientHeight'tan birkaç piksel büyük olabilir), yeni bir satırın boyundan küçük.
+ * Alanın yazı kutusu (katman pikseli = pt). Çizilmemiş alanda (arka plandaki sekme) null: Hesaplanan ölçüler yok.
+ * Döner: { cok, satir (en çok tam satır), yukseklik, aralik, genislik, enUzun (bundan uzun yazı sığmaz) }.
  */
-const TASMA_PAYI = 6;
+function alanKutusu(el) {
+  if (!el.getClientRects().length) return null;
+  const st = getComputedStyle(el), px = (v) => parseFloat(v) || 0;
+  const boy = px(st.fontSize) || 10, cok = el.tagName === 'TEXTAREA';
+  const genislik = px(st.width) - px(st.paddingLeft) - px(st.paddingRight) - px(st.borderLeftWidth) - px(st.borderRightWidth) - (cok ? 0 : px(st.textIndent));
+  if (!(genislik > 0)) return null;
+  const enAzHarf = Math.max(1, boy * EN_DAR_HARF);
+  if (!cok) return { cok, genislik, enUzun: Math.ceil(genislik / enAzHarf) + 1 };
+  // Dikey ortalı ya da alta yaslı alan yazısı kadardır (alanBicimle: field-sizing): Sınır onu saran kutunun yüksekliği
+  const kutu = st.fieldSizing === 'content' && el.parentElement ? getComputedStyle(el.parentElement) : st;
+  const yukseklik = px(kutu.height) - px(st.paddingTop) - px(st.paddingBottom) - px(st.borderTopWidth) - px(st.borderBottomWidth);
+  const aralik = px(st.lineHeight) || boy * 1.2;
+  const satir = Math.max(1, Math.floor((yukseklik + YUKSEKLIK_PAYI) / aralik));
+  return { cok, yukseklik, aralik, satir, genislik, enUzun: satir * (Math.ceil(genislik / enAzHarf) + 1) };
+}
+
+/** Aynayı alanın yazı biçimine getirir (alan değişince). */
+function aynaHazirla(el, kutu) {
+  const a = aynaAl();
+  if (a.sahip !== el) {
+    const st = getComputedStyle(el), hedef = kutu.cok ? a.cok : a.tek;
+    for (const k of AYNA_STILLERI) { const v = st[k]; if (v) hedef.style[k] = v; }
+    if (kutu.cok) hedef.style.width = `${kutu.genislik - GENISLIK_PAYI}px`;
+    a.sahip = el;
+  }
+  return a;
+}
+
+/** Yazı çok satırlı alanda kaç satır tutar (ayna, satır kırma alandaki gibi). */
+function satirSayisi(el, kutu, deger) {
+  const a = aynaHazirla(el, kutu);
+  a.cok.value = olculecekYazi(deger);
+  return Math.max(1, Math.round(a.cok.scrollHeight / kutu.aralik));
+}
+
+/** Tek satırlık yazının genişliği (katman pikseli, kesirli). */
+function yaziGenisligi(el, kutu, deger) {
+  const a = aynaHazirla(el, kutu);
+  a.tek.textContent = deger;
+  return a.tek.getBoundingClientRect().width;
+}
+
+/**
+ * Bu yazı alana tam sığar mı (yazılan her harf, yapıştırma, sürükleyip bırakma: alanSiniri.js). Çok satırlı alanda tam sığan satır sayısını, tek satırlıda
+ * genişliği geçmez, hücreli alanda hücre sayısını. Çizilmemiş, yazıyla büyüyen ve yazı alanı olmayan denetimde true.
+ */
+export function alanSigar(el, deger) {
+  if (el.hasAttribute('data-xfa-buyur')) return true;
+  const hucre = +el.getAttribute('data-xfa-comb');
+  if (hucre) return Array.from(deger).length <= hucre;
+  if (el.tagName !== 'TEXTAREA' && !(el.tagName === 'INPUT' && el.type === 'text')) return true;
+  const kutu = alanKutusu(el);
+  if (!kutu || !deger) return true;
+  if (deger.length > kutu.enUzun) return false;
+  if (kutu.cok) return satirSayisi(el, kutu, deger) <= kutu.satir;
+  return Array.from(deger).length <= 1 || yaziGenisligi(el, kutu, deger) + IMLEC_PAYI <= kutu.genislik;
+}
+
+/**
+ * Alanın şimdiki yazısı kutusuna sığmıyor mu: Yazı artık alana sığmadan girilemez, bu yalnız dosyada zaten sığmayan değerde olur (eski kayıt, başka program).
+ * Basımda alanın dışı kesilir: Alan işaretlenir (xfa.js _tasmaGuncelle), yazdırma penceresi söyler (cizim.js). Salt okunur alanda işaret yok: Kullanıcı düzeltemez.
+ */
 export function alanTasiyor(el) {
-  if (el.hasAttribute('data-xfa-comb')) return Array.from(el.value || '').length > +el.getAttribute('data-xfa-comb');
-  if (el.tagName === 'TEXTAREA') return !!el.value && el.scrollHeight > el.clientHeight + TASMA_PAYI;
-  if (el.tagName === 'INPUT' && el.type === 'text') return !!el.value && el.scrollWidth > el.clientWidth + 1;
-  return false;
+  if (!el.value || el.readOnly || el.disabled || el.hasAttribute('data-xfa-buyur')) return false;
+  const hucre = +el.getAttribute('data-xfa-comb');
+  if (hucre) return Array.from(el.value).length > hucre;
+  if (el.tagName !== 'TEXTAREA' && !(el.tagName === 'INPUT' && el.type === 'text')) return false;
+  const kutu = alanKutusu(el);
+  if (!kutu) return false;
+  if (el.value.length > kutu.enUzun) return true;
+  if (kutu.cok) return satirSayisi(el, kutu, el.value) > kutu.satir;
+  return yaziGenisligi(el, kutu, el.value) > kutu.genislik + TASMA_PAYI;
 }
 
 /** Çekirdeğin kaydı (yol, sayfaAlani) HTML'deki ad yoluna uyuyor mu. yol sayfa kökünün (sayfa alanının) adıyla başlar; sayfa alanındaki
@@ -260,10 +361,13 @@ export function sayfaHazirla(kok, { sayfaNo = 1, sayfaSayisi = 1, bilgi = null, 
     return { name: 'span', attributes: { 'data-xm': String(ogeler.length - 1) }, value: deger };
   };
   const sonuIsaretle = (bas) => { if (ogeler.length > bas) ogeler[ogeler.length - 1].sonu = true; };
-  const isle = (n, yol, ust = null) => {
+  const isle = (n, yol, ust = null, erisim = null) => {
     if (!n || typeof n !== 'object' || n.name === '#text') return;
     const a = n.attributes || (n.attributes = {});
     if (a.xmlns ? a.xmlns !== SVG_NS : !HTML_OGELERI.has(n.name)) return;   // PDF.js çizmez
+    // Şablonun access özniteliği: PDF.js yalnız sınıf koyar, alana yine yazılırdı. Üstteki alt formdan da gelir
+    if (sinifVar(n, 'xfaNonInteractive') || sinifVar(n, 'xfaDisabled')) erisim = 'kapali';
+    else if (sinifVar(n, 'xfaReadOnly') && erisim !== 'kapali') erisim = 'salt';
     if (baski) sinifCikar(n, 'xfaPrintOnly');
     if (typeof a.style?.fontFamily === 'string' && a.style.fontFamily.includes('PdfJS')) a.style.fontFamily = aileDuzelt(a.style.fontFamily);
     const ad = a.xfaName;
@@ -296,6 +400,9 @@ export function sayfaHazirla(kok, { sayfaNo = 1, sayfaSayisi = 1, bilgi = null, 
       }
     }
     if (ALAN_OGELERI.has(n.name)) {
+      const kutucuk = n.name === 'select' || a.type === 'checkbox' || a.type === 'radio';
+      if (erisim === 'kapali' || (erisim === 'salt' && kutucuk)) a.disabled = 'disabled';
+      else if (erisim === 'salt') a.readonly = 'readonly';
       if (!baski && a.dataId && !(n.name === 'input' && (a.type === 'checkbox' || a.type === 'radio'))) {
         ogeler.push({ tur: 'alan', veri: a.dataId, ilk: ilkDeger(n), sonu: true });
         a['data-xa'] = String(ogeler.length - 1);
@@ -311,11 +418,11 @@ export function sayfaHazirla(kok, { sayfaNo = 1, sayfaSayisi = 1, bilgi = null, 
         for (let i = 0; i < n.children.length; i++) {
           const c = n.children[i];
           if (c?.name === '#text' && typeof c.value === 'string' && c.value) n.children[i] = metinEkle(c.value);
-          else isle(c, y, n);
+          else isle(c, y, n, erisim);
         }
       }
     } else {
-      for (const c of n.children || []) isle(c, y, n);
+      for (const c of n.children || []) isle(c, y, n, erisim);
     }
     if (!baski && (ad || n.name === 'p')) sonuIsaretle(bas);
   };

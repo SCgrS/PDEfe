@@ -350,8 +350,20 @@
 .xfaLayer .xfa-comb-katman { position: absolute; inset: 0; display: flex; pointer-events: none; }
 .xfaLayer .xfa-comb-hucre { flex: 1 1 0; min-width: 0; text-align: center; white-space: pre; pointer-events: none; overflow: visible; }
 .xfaLayer .xfa-comb-cizgi { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-/* Yazısı alana sığmayan alan (xfa.js _tasmaGuncelle): Sığmayan kısım basılmaz. box-shadow: Kalınlığı yuvarlanmaz, yakınlaştırmayla büyümez */
+/* Alan kâğıt gibidir: Yalnız sığan yazı girer (alanSiniri.js, xfaHtml.js alanSigar), kaydırma ve kaydırma çubuğu yok. Çubuk yazının genişliğini daraltıp satırları kâğıttakinden farklı kırardı.
+   text-rendering: Yazı genişliği ekran ölçeğine ve yazı tipi ipuçlarına bağlı olmasın, ekranda ve kâğıtta aynı yerden kırılsın */
+.xfaLayer :is(input, textarea).xfaTextfield { text-rendering: geometricPrecision; scrollbar-width: none; }
+.xfaLayer textarea.xfaTextfield { overflow: hidden; }
+/* Dosyada zaten sığmayan yazı (xfa.js _tasmaGuncelle): Sığmayan kısım basılmaz. Okunabilsin diye kaydırılabilir. box-shadow: Kalınlığı yuvarlanmaz, yakınlaştırmayla büyümez */
 .xfaLayer .xfa-tasiyor { box-shadow: 0 0 0 calc(1.5px / var(--xfa-olcek, 1)) #d13438; }
+.xfaLayer textarea.xfaTextfield.xfa-tasiyor { overflow-y: auto; }
+/* Yazıyla büyüyen alan (şablonda yüksekliği yok, xfaHtml.js alanBicimle): Kâğıtta büyür, ekrandaki yeri form yeniden dizilene dek aynı: Yazı alanın içinde kaydırılır */
+.xfaLayer textarea.xfaTextfield[data-xfa-buyur] { overflow-y: auto; }
+/* Erişime kapalı alan (xfaHtml.js sayfaHazirla) soluk görünmez: Formda ve kâğıtta yazısı aynı */
+.xfaLayer :is(input, select, textarea):disabled { opacity: 1; }
+/* Çerçeve kat kat büyük kurulur, dönüşümle küçültülür (xfaHtml.js ince). Basımda dönüşümden önceki büyük kutu sayfanın altını geçip bölünüyordu, uzun alanların yan çizgileri yarıda kesiliyordu:
+   contain: size kutuyu bölünmez yapar */
+@media print { .xfaLayer .xfaBorder { contain: size; } }
 /* Form yeniden dizilirken (örnek ekleme / silme, geri al) katman tıklanmaz */
 .gorunum.xfa-mesgul .xfaLayer, .gorunum.xfa-mesgul .xfaLayer * { pointer-events: none !important; }
 .gorunum.xfa-mesgul .kaydirici { cursor: progress; }
