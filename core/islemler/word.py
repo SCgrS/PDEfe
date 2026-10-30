@@ -60,10 +60,13 @@ WPS 12.2'de ölçüldü: Türkçe doğru, filigran yok, başlıktan yer imi var)
     WPS'in kendi güncellemesinden sonra bu bilgisayarda ölçüldü). Önden denetim: WPS'in kendi kurulum mutex'leri (_wps_kurulum_suruyor, adlar
     ksolite.dll'den). Mutex'ler var olduğu sürece WPS hiç başlatılmaz, pencere çıkmaz.
   - Her belge için ayrı örnek: Son belge kapanınca süreç kendiliğinden kapanıyor, sonraki çağrılar düşüyor (ölçüldü).
-  - Kullanıcının açık WPS'ine dokunmamak: WPS tek süreçte çalışabilir, CoCreateInstance açık örneğe bağlanabilir. Çağrıdan önceki WPS süreçleri
-    kaydedilir. Yeni süreç (komut satırında /Automation) yoksa örnek kullanıcınındır ("paylaşımlı"): Süreç sonlandırılmaz, iş nesnesine konmaz,
-    Quit çağrılmaz, Visible ve ScreenUpdating değişmez, yalnız kendi belgemiz kapatılır. Asılı kalırsa çağrı terk edilir, sıradaki motora geçilir.
-  - Yeni süreç bizimse iş nesnesine bağlanır (çekirdek çökerse kapanır). İşin sonunda Quit, süre dolunca yalnız o süreç sonlandırılır, iş nesnesi
+  - Kullanıcının açık WPS'ine dokunmamak: WPS tek süreçte çalışabilir, CoCreateInstance açık örneğe bağlanabilir, /Automation ile başlayan süreç de işi açık
+    örneğe devredip kapanabilir ya da ona aracılık edebilir (gerçek WPS'le bu dallar sınanamadı: Kurulum kilidi). Bu yüzden örnek ancak dördü birden doğruysa bizimdir:
+    Çağrıdan önce hiçbir WPS programı açık değildi (WPS_AILESI), yeni süreç (komut satırında /Automation) bulundu, o süreç hâlâ yaşıyor, örnekte açık belge yok.
+    Değilse örnek kullanıcınındır ("paylaşımlı"): Quit çağrılmaz (Quit kullanıcının belgelerini kaydetmeden kapatırdı), Visible ve ScreenUpdating değişmez, yalnız kendi
+    belgemiz kapatılır, iki ayar geri alınır. Asılı kalırsa çağrı terk edilir, sıradaki motora geçilir. Bu arada bulunan yeni süreç yalnız asılı kalmada sonlandırılır (kullanıcının açık
+    programı o değildir, yukarıdaki listede önceden vardı), iş bitince iş nesnesinden serbest bırakılır.
+  - Örnek bizimse süreç iş nesnesine bağlanır (çekirdek çökerse kapanır). İşin sonunda Quit, süre dolunca yalnız o süreç sonlandırılır, iş nesnesi
     gevşetilir: WPS'in başlattığı yardımcılar (bulut hizmeti gibi) öldürülmez. Bu arada kullanıcının belgesi bizim örneğe düştüyse Word'deki gibi bırakılır.
   - Başlarken ya da belge açılırken ekranda küçük bir pencere BILDIRIM_SURESI sn durursa (lisans, oturum açma, güncelleme, ilk çalıştırma, onarım
     sorusu) pencereye WM_CLOSE gönderilir, motor başarısız sayılır. Ana pencere bu boyut süzgecine girmez.
@@ -130,6 +133,7 @@ MOTORLAR = ("word", "wps", "libreoffice")   # öncelik sırası
 MOTOR_ADI = {"word": "Word", "wps": "WPS Office", "libreoffice": "LibreOffice"}
 WPS_PROGIDLER = ("KWPS.Application", "WPS.Application")
 WPS_SURECLER = ("wps.exe", "wpsoffice.exe")
+WPS_AILESI = WPS_SURECLER + ("et.exe", "wpp.exe", "wpspdf.exe")   # kullanıcının açık WPS programı sayılanlar (wpscenter gibi arka plan hizmetleri sayılmaz)
 # WPS'in kurulum ve güncelleme kilitleri (ksolite.dll, wpsupdate.exe): Biri varsa WPS başlamaz, "aynı anda çalıştırılamaz" penceresi açar
 WPS_KURULUM_MUTEXLERI = ("Global\\wpssetup_C42D7A0A-2868-45FF-92EE-9B7AE7124588", "Global\\wpspatch_C42D7A0A-2868-45FF-92EE-9B7AE7124588",
                          "Global\\wps_diff_patch_C42D7A0A-2868-45FF-92EE-9B7AE7124588")
@@ -304,6 +308,11 @@ def word_pidleri():
 def wps_pidleri():
     """Çalışan WPS Office süreçleri (wpscenter gibi yardımcılar sayılmaz; sınamalar da kullanır): {kimlik: ebeveyn kimliği}."""
     return _surecler(WPS_SURECLER)
+
+
+def wps_ailesi():
+    """Çalışan WPS programları: Yazı, tablo, sunu, PDF. Biri açıksa COM örneği kullanıcınınki olabilir (_WpsOturumu._baslat)."""
+    return _surecler(WPS_AILESI)
 
 
 def surec_komutu(pid):
@@ -1082,15 +1091,18 @@ class _WpsOturumu(_WordOturumu):
         comtypes, a = _com()
         with self._kilit:
             self._onceki = set(wps_pidleri())
+        acik_program = bool(wps_ailesi())   # çağrıdan önce: Sonrasında yeni süreç de bu listeye girer
         self._paylasimli = self._makro_kapali = False
         self._pencere_ilk = None
         w = _Disp(comtypes.CoCreateInstance(comtypes.GUID.from_progid(self._progid), interface=a.IDispatch, clsctx=comtypes.CLSCTX_LOCAL_SERVER))
         bitis = time.monotonic() + 1.0
         while self.baslayan_bul() is None and time.monotonic() < bitis:
             time.sleep(0.05)
-        self._paylasimli = self.pid is None
         self._word = w
         self._ilk_sayi = self._belge_sayisi_ya_da_none() or 0
+        with self._kilit:
+            yeni_yasiyor = self.pid is not None and _canli_mi(self._surec)
+        self._paylasimli = acik_program or not yeni_yasiyor or self._ilk_sayi > 0   # bkz. modül belgesi: Kuşkuda örnek kullanıcınındır
         for ad, oznitelik in (("AutomationSecurity", "_ozgun_guvenlik"), ("DisplayAlerts", "_ozgun_uyari")):
             try:
                 setattr(self, oznitelik, int(_yinele(lambda: w.al(ad))))
@@ -1162,6 +1174,7 @@ class _WpsOturumu(_WordOturumu):
                     except comtypes.COMError:
                         pass
             self._word = None
+            self._tutamaclari_serbest()
             return
         if sayi is not None and sayi > self._ilk_sayi:   # kullanıcının belgesi bu sırada bizim örneğe düştü
             self._birak()
@@ -1173,6 +1186,16 @@ class _WpsOturumu(_WordOturumu):
                 pass
         self._word = None
         self._tutamaclari_birak(bekle)
+
+    def _tutamaclari_serbest(self):
+        """Paylaşımlı örnekte bulunan yeni süreç: Sonlandırılmaz, iş nesnesinden serbest bırakılır (çekirdek kapanınca da yaşar)."""
+        s, j = self._tutamaclari_al()
+        api = _w32()
+        if j:
+            _is_nesnesini_gevset(j)
+            api.k32.CloseHandle(j)
+        if s:
+            api.k32.CloseHandle(s)
 
     def _tutamaclari_birak(self, bekle=None):
         s, j = self._tutamaclari_al()

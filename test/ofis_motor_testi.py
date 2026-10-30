@@ -463,16 +463,18 @@ class SahteWps:
 class SahteOrtam:
     """_WpsOturumu'nun dış dünyası: Süreç listesi ve COM oluşturma. Süreçler zararsız Python süreçleridir, komut satırında /Automation."""
 
-    def __init__(self, word, uygulama, yeni_surec=True, kullanici_sureci=None, pencere=False):
+    def __init__(self, word, uygulama, yeni_surec=True, kullanici_sureci=None, pencere=False, acik_program=None, devreder=False):
         self.word, self.u, self.pencere = word, uygulama, pencere
+        self.acik_program, self.devreder = acik_program, devreder
         self.kullanici = kullanici_sureci
         self.bizim = None
         self.yeni_surec = yeni_surec
         self.olusturuldu = False
         import comtypes
         self.comtypes = comtypes
-        self.eski = (word.wps_pidleri, word._Disp, comtypes.CoCreateInstance, word._kucuk_pencereler, word._wps_kurulum_suruyor, word.motorlar)
+        self.eski = (word.wps_pidleri, word._Disp, comtypes.CoCreateInstance, word._kucuk_pencereler, word._wps_kurulum_suruyor, word.motorlar, word.wps_ailesi)
         word.wps_pidleri = self.pidler
+        word.wps_ailesi = lambda: {**self.pidler(), **({self.acik_program: 0} if self.acik_program else {})}
         word._Disp = lambda p: p
         comtypes.CoCreateInstance = self.olustur
         word._kucuk_pencereler = lambda pid: [0] if self.pencere and self.bizim and pid == self.bizim.pid else []
@@ -491,11 +493,14 @@ class SahteOrtam:
         self.olusturuldu = True
         if self.yeni_surec:
             self.bizim = kukla_surec()
+        if self.devreder:   # /Automation ile başlayan süreç işi açık örneğe devredip kapanır
+            self.bizim.kill()
+            self.bizim.wait(5)
         return self.u
 
     def kapat(self):
         w = self.word
-        w.wps_pidleri, w._Disp, self.comtypes.CoCreateInstance, w._kucuk_pencereler, w._wps_kurulum_suruyor, w.motorlar = self.eski
+        w.wps_pidleri, w._Disp, self.comtypes.CoCreateInstance, w._kucuk_pencereler, w._wps_kurulum_suruyor, w.motorlar, w.wps_ailesi = self.eski
         with w._oturum_kilidi:
             w._wps_oturum = None
         for p in (self.bizim,):
@@ -559,6 +564,36 @@ def test_wps_oturumu(g):
         sonuc("açık WPS: Görünürlük değişmedi", "Visible" not in u.yazilan and "ScreenUpdating" not in u.yazilan, u.yazilan)
         sonuc("açık WPS: Ayarlar geri alındı", u.kayit["DisplayAlerts"] == -1 and u.kayit["AutomationSecurity"] == 1, u.kayit)
         sonuc("açık WPS: Süreç yaşıyor", kullanici.poll() is None)
+    finally:
+        o.kapat()
+
+    # 2b) Yeni süreç çıktı ama örnek kullanıcınınki olabilir: Quit kullanıcının belgelerini kaydetmeden kapatırdı. Örnek ancak açık WPS programı yokken, yeni süreç yaşarken, belgesizse bizimdir
+    temizle()
+    u = SahteWps()
+    o = SahteOrtam(word, u, acik_program=424242)
+    try:
+        word._wps_ile(g["docx"], pdf, il, "x.docx")
+        time.sleep(0.3)
+        sonuc("açık program (et.exe), yeni süreç, belge yok: Quit yok, görünürlük değişmedi", u.quit == 0 and "Visible" not in u.yazilan and os.path.isfile(pdf), (u.quit, u.yazilan))
+        sonuc("açık program: Yeni süreç sonlandırılmadı, iş nesnesinden serbest", o.bizim.poll() is None and word._wps_oturum._is is None and word._wps_oturum.pid is None, (o.bizim.poll(), word._wps_oturum.pid))
+    finally:
+        o.kapat()
+    temizle()
+    u = SahteWps(ilk_belge=2)
+    o = SahteOrtam(word, u)
+    try:
+        word._wps_ile(g["docx"], pdf, il, "x.docx")
+        time.sleep(0.3)
+        sonuc("yeni süreç örnekte belge buldu: Quit yok, belgeler açık, görünürlük değişmedi", u.quit == 0 and u.belge_sayisi == 2 and "Visible" not in u.yazilan and u.kayit["DisplayAlerts"] == -1, (u.quit, u.belge_sayisi, u.yazilan))
+    finally:
+        o.kapat()
+    temizle()
+    u = SahteWps()
+    o = SahteOrtam(word, u, devreder=True)
+    try:
+        word._wps_ile(g["docx"], pdf, il, "x.docx")
+        time.sleep(0.3)
+        sonuc("yeni süreç devredip kapandı: Quit yok, görünürlük değişmedi", u.quit == 0 and "Visible" not in u.yazilan and os.path.isfile(pdf), (u.quit, u.yazilan))
     finally:
         o.kapat()
 
