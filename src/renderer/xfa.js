@@ -90,6 +90,7 @@ export class XfaYoneticisi extends EventTarget {
     this.sonGirdi = 0;                  // alana son yazılan an (otomatik kayıt yazı sürerken beklesin)
     this.surum = 0;                     // içeriğin sürümü (değer ya da yapı değişince artar): düz PDF'in güncelliği
     this.duz = null;                    // { yol, sayfa, surum }: son düz PDF (anlık klasörde)
+    this.diskDamga = null;              // bu formun bildiği dosyanın içerik özeti (çekirdek xfa_bilgi, xfa_kaydet): Dosya başka programda değişti mi
     this._duzSozu = null;
     this.yok = false;
     const alan = this.g.alan;
@@ -117,8 +118,9 @@ export class XfaYoneticisi extends EventTarget {
     this.g.kok.classList.toggle('xfa-mesgul', this._mesgul > 0);
   }
 
-  /** Belge açıldı (ya da taşındı). Düz PDF hemen hazırlanmaz: küçük resim istenince (kucukResimKaynagi) ya da yazdırılınca. */
-  acildi() { this.duz = null; }
+  /** Belge açıldı (ya da taşındı). Düz PDF hemen hazırlanmaz: küçük resim istenince (kucukResimKaynagi) ya da yazdırılınca. damga: Taşınan sekmede kaynak pencerenin bildiği
+   *  içerik özeti (taşıma dosyayı yeniden okumaz, çekirdeğin bugünkü özeti başka programın kaydını gizlerdi). Yoksa açılışta okunan. */
+  acildi(damga) { this.duz = null; this.diskDamga = damga !== undefined ? damga : (this.g.xfaBilgi?.damga ?? null); }
 
   /** Sekme kapanıyor: düz PDF silinir, bekleyen işler bırakılır. */
   birak() {
@@ -521,15 +523,17 @@ export class XfaYoneticisi extends EventTarget {
 
   /** Formu hedefe yazar (çekirdek xfa_kaydet: baştan yazım, kullanım hakları imzası kaldırılır, atomik). imzayiKoru: e-imzalı formda PDF.js'in artımlı baytları olduğu
    *  gibi yazılır (imza korunur, 0.3.1 inceleme). hizli: kilitte beklenmez (otomatik kayıt). Döner: çekirdeğin sonucu, konum ve komut: Yazılan durumun geri al
-   *  yığınındaki yeri. Baytlarla aynı anda alınır: Yapı işi ya da yeniden kurma beklenirken yapılan değişiklik kayıtlı sayılmasın, kayıt sürerken yazılan da. */
-  async kaydet(hedef, { imzayiKoru = false, hizli = false } = {}) {
+   *  yığınındaki yeri. Baytlarla aynı anda alınır: Yapı işi ya da yeniden kurma beklenirken yapılan değişiklik kayıtlı sayılmasın, kayıt sürerken yazılan da. damga: Hedefin
+   *  beklenen içerik özeti (dosya başka programda değiştiyse çekirdek yazmaz). */
+  async kaydet(hedef, { imzayiKoru = false, hizli = false, damga = null } = {}) {
     this.duzenlemeyiUygula();
     await this.bekle();
     if (this.yok) throw new Error('Sekme kapatıldı.');
     this.duzenlemeyiUygula();   // beklerken yazılan
     const konum = this.yigin.konum, komut = this.yigin.geriAlinacak, beklenen = this._beklenenDegerler();
     const veri = await this.g.xfaBaytlari();   // PDF.js değerleri çağrı anında alır
-    const r = await this.cekirdek('xfa_kaydet', { veri: base64Yaz(veri), hedef, yol: this.g.yol, beklenen, ...(imzayiKoru ? { imzayiKoru: true } : {}), ...(hizli ? { hizli: true } : {}) });
+    const r = await this.cekirdek('xfa_kaydet', { veri: base64Yaz(veri), hedef, yol: this.g.yol, beklenen, ...(imzayiKoru ? { imzayiKoru: true } : {}), ...(hizli ? { hizli: true } : {}), ...(damga ? { damga } : {}) });
+    if (r?.damga) this.diskDamga = r.damga;
     return { ...r, konum, komut };
   }
 

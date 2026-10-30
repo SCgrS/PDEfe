@@ -359,6 +359,26 @@ ET_DENEME = ('<xfa:datasets xmlns:xfa="%s"><xfa:data><a><b>Yazı &#xC;sayfa&#x1;
 sonuc("kayıt: Geçersiz karakter başvurulu veri okunur", xfa._veri_kok(ET_DENEME)[1].find("a/b").text == "Yazı  sayfa sonu <x> \U0001F600")
 sonuc("kayıt: Değer öznitelikte de bulunur, parçası da", xfa._eksik_degerler(ET_DENEME, ["öznitelik", "sonu <x>", "yok bu"]) == [2], xfa._eksik_degerler(ET_DENEME, ["öznitelik", "sonu <x>", "yok bu"]))
 
+# Dosya başka programda değişti (0.3.1 kayıp avı): Damga farklıysa yazılmaz
+h = yeni_hedef("damga.pdf")
+k_ = xfa.y_xfa_kaydet({"veri": KAYNAK, "hedef": h, "yol": h})
+sonuc("damga: Kayıt yazılanın özetini döner, dosyanın özetiyle aynı", k_["damga"] == notlar.dosya_damgasi(h) and len(k_["damga"]) == 64, k_)
+sonuc("damga: Aynıysa yazılır", xfa.y_xfa_kaydet({"veri": KAYNAK, "hedef": h, "yol": h, "damga": k_["damga"]})["damga"] == notlar.dosya_damgasi(h))
+with open(h, "ab") as f_:
+    f_.write(b"\n% baska programin kaydi\n")
+disaridan = open(h, "rb").read()
+try:
+    xfa.y_xfa_kaydet({"veri": KAYNAK, "hedef": h, "yol": h, "damga": k_["damga"]})
+    sonuc("damga: Farklıysa yazılmaz", False)
+except notlar.YazmaHatasi as e:
+    sonuc("damga: Farklıysa yazılmaz, dosya aynı, geçici dosya yok, iletisi anlaşılır", e.tur == "degismis" and "başka bir programda değişmiş" in str(e) and open(h, "rb").read() == disaridan and not gecici_yok() and not HAM.search(str(e)), str(e))
+sonuc("damga: Damgasız çağrı (Üzerine kaydet) yazar", xfa.y_xfa_kaydet({"veri": KAYNAK, "hedef": h, "yol": h})["damga"] == notlar.dosya_damgasi(h))
+h2_ = yeni_hedef("damga-yok.pdf")
+os.remove(h2_)
+sonuc("damga: Dosya yoksa karşılaştırılamaz, yazılır", xfa.y_xfa_kaydet({"veri": KAYNAK, "hedef": h2_, "yol": h2_, "damga": "0" * 64})["boyut"] > 0 and notlar.dosya_damgasi(os.path.join(os.path.dirname(h2_), "olmayan.pdf")) is None)
+bilgi_ = xfa.y_xfa_bilgi({"yol": h})
+sonuc("damga: xfa_bilgi saf formda dosyanın özetini verir", bilgi_["damga"] == notlar.dosya_damgasi(h), bilgi_.get("damga"))
+
 # Disk dolu: Geçici dosya yazılırken
 h = yeni_hedef("disk-dolu.pdf")
 t, i, ayni, temiz = kaydet_hatasi(h, [Yama(os, "fsync", fsync_hatasi(28))])

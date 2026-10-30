@@ -22,6 +22,7 @@ XFA katmanıyla dizer ve çizer (renderer/xfa.js). Çekirdeğin işi şablonu ok
 import base64
 import binascii
 import copy
+import hashlib
 import os
 import re
 import sys
@@ -754,7 +755,7 @@ def y_xfa_bilgi(p):
     """Belgenin XFA bilgisi. p: {yol}. Döner: {xfa: XFA paketi var mı, saf, kullanimHakki, eImzali (e-imza ya da onay imzası var mı:
     _e_imza_araliklari), dugmeler: [{yol, sayfaAlani, eylemler,
     desteklenmiyor}], sayfaNumaralari: [{tur: 'alan'|'cizim', yol, sayfaAlani, deger | paragraflar}], ekranda: [{yol, sayfaAlani}],
-    ornekler: {dugum: {yol, min, max, veri}}, alanlar: [_alan_bicimi]}. Yollar PDF.js HTML'inin ad yollarıdır (_html_yolu)."""
+    ornekler: {dugum: {yol, min, max, veri}}, alanlar: [_alan_bicimi], damga: saf formda dosyanın içerik özeti (xfa_kaydet)}. Yollar PDF.js HTML'inin ad yollarıdır (_html_yolu)."""
     from pdefe_core import onbellek
     doc = onbellek.al(p["yol"])
     paketler = _paketler(doc)
@@ -767,6 +768,7 @@ def y_xfa_bilgi(p):
     onbellek.tutma(p["yol"], sonuc["saf"])
     if sonuc["saf"]:
         onbellek.birak(p["yol"])
+        sonuc["damga"] = notlar.dosya_damgasi(p["yol"])
     return sonuc
 
 
@@ -900,7 +902,8 @@ def y_xfa_kaydet(p):
     """PDF.js'in kaydettiği baytları (güncel XFA verisi) hedefe baştan yazar, kullanım hakları imzasını kaldırır. p: {veri (base64), hedef,
     yol?: belgenin önceki dosyası (önbellekten bırakılır), imzayiKoru?: e-imzalı formda baytlar olduğu gibi yazılır (PDF.js'in artımlı
     kaydı: imzalanan bölüm ve /Perms değişmez, alanların önceki değerleri dosyada kalır), beklenen?: arayüzün yazdığı metin değerleri (veri paketinde aranır),
-    hizli?: kilitte uzun beklenmez (otomatik kayıt)}. Döner: {boyut, kullanimHakkiKaldirildi, eksik: veri paketinde bulunmayan beklenen değerlerin sıraları,
+    hizli?: kilitte uzun beklenmez (otomatik kayıt), damga?: hedefin beklenen içerik özeti (farklıysa dosya başka programda değişmiştir, yazılmaz: YazmaHatasi "degismis")}.
+    Döner: {boyut, kullanimHakkiKaldirildi, eksik: veri paketinde bulunmayan beklenen değerlerin sıraları, damga: yazılanın içerik özeti,
     imzaKorundu (imzayiKoru verildiyse: imzalanan bölüm diskteki dosyanınkiyle aynı çıktı mı; değilse belge baştan yazıldı)}. Yazılamazsa notlar.YazmaHatasi: Hedef
     bayt bayt aynı kalır."""
     from pdefe_core import onbellek, y_belge_birak
@@ -937,8 +940,13 @@ def y_xfa_kaydet(p):
     for y in {hedef, p.get("yol") or hedef}:
         y_belge_birak({"yol": y})
     onbellek.tutma(hedef, saf)
+    # Dosya bu form açıldıktan sonra başka bir programda kaydedildiyse (0.3.1 kayıp avı: Kullanıcı formu iki programda birden açık tutuyor) üzerine sessizce yazılmaz, orada
+    # yazılanlar kaybolurdu. Kullanıcı seçince arayüz damgasız yeniden çağırır
+    damga = p.get("damga")
+    if isinstance(damga, str) and notlar.dosya_damgasi(hedef) not in (None, damga):
+        raise notlar.YazmaHatasi("degismis", notlar.YAZMA_ILETILERI["degismis"])
     notlar.atomik_yaz(cikti, hedef, _kayit_dogrulayici(veri_paketi, saf), deneme=2 if p.get("hizli") else 6)
-    return dict(sonuc, boyut=os.path.getsize(notlar.uzun_yol(hedef)), kullanimHakkiKaldirildi=kaldirildi, eksik=eksik)
+    return dict(sonuc, boyut=os.path.getsize(notlar.uzun_yol(hedef)), kullanimHakkiKaldirildi=kaldirildi, eksik=eksik, damga=hashlib.sha256(cikti).hexdigest())
 
 
 def kaydol(yontemler):

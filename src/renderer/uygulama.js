@@ -738,6 +738,7 @@ async function sekmePaketi(b) {
     gorunum,
     notlar: n.durumAl(girdiNo, b.yigin.yigin.flatMap((k) => n.komutNotlari(k))),
     formlar: b.formlar.durumAl(),
+    xfaDamga: b.xfa?.diskDamga ?? null,
     // Tarifi olmayan komut varsa geri al geçmişi taşınmaz (belge ve kaydedilmemiş değişiklikler yine taşınır)
     yigin: komutlar.every(Boolean) ? { komutlar, konum: b.yigin.konum, kayitKonumu: b.yigin.kayitKonumu } : null,
   };
@@ -859,7 +860,7 @@ async function sekmeyiAl(paket, { x = null, yeni = false } = {}, onayla = null) 
     if (!belgeler.has(id)) throw new Error('Sekme açılırken kapatıldı.');
     belge.tasiniyor = false;
     cekirdek('belge_bilgi', { yol: belge.yol }).then((bilgi) => { belge.bilgi = bilgi; }).catch(() => {});
-    if (gorunum.xfa) belge.xfa.acildi();
+    if (gorunum.xfa) belge.xfa.acildi(paket.xfaDamga ?? null);
     kirliGuncelle(belge);
     if (aktifId === id) { sayfaGoster(belge); zoomGoster(belge); durum.boyutYaz(belge.boyut); panel.belgeAyarla(belge); arama.sekmeDegisti(); xfaDugmeleriniGuncelle(belge); }
     return belge;
@@ -1033,6 +1034,12 @@ async function belgeKaydet(b, farkli = false, sessiz = false, { oneAl = false } 
         if (sessiz && !farkli) {
           const ilk = !b._otoKayitDurdu;
           b._otoKayitDurdu = true;
+          // Dosya başka programda değişmiş: Yeniden denemek işe yaramaz, karar kullanıcının (Ctrl+S'te sorulur)
+          if (kayitHatasiTuru(hataMetni(e)) === 'degismis') {
+            durum.mesajYaz(`"${b.ad}" otomatik kaydedilmedi, dosya başka bir programda değişmiş`, 0);
+            if (ilk) bildir(tus(`"${b.ad}" otomatik kaydedilmedi: Dosya başka bir programda değişmiş. Değişiklikler PDEfe'de duruyor, Ctrl+S ile kaydederken ne yapacağınızı seçin.`), 9000);
+            return false;
+          }
           durum.mesajYaz(`"${b.ad}" otomatik kaydedilemedi, yeniden denenecek`, 0);
           // Kısayol platformun yazımıyla (0.2.1: macOS'ta ⌘S). macOS'ta dosyayı başka programlar kilitlemez: neden çoğunlukla yazma izni ya da
           // Finder'ın Kilitli işaretidir, kaydetmenin yolu Farklı kaydet
@@ -1049,18 +1056,20 @@ async function belgeKaydet(b, farkli = false, sessiz = false, { oneAl = false } 
         if (oneAl) await soruIcinOneAl(b);
         const yanit = await kayitHatasiSor(b, e, secilen.hedef || b.yol);
         if (yanit === 'yeniden') continue;
+        if (yanit === 'uzerine') { b._damgaYoksay = true; continue; }   // yalnız bu kayıt için (finally)
         if (yanit !== 'farkli') return false;
         farkli = true; sessiz = false; secilen.hedef = null;   // 'Farklı kaydet' aynı kaydın içinde: bekleyen kapatma akışı araya girmez
       }
     }
-  } finally { b.kaydediliyor = false; b._kayitSessiz = false; bitti(); }
+  } finally { b.kaydediliyor = false; b._kayitSessiz = false; b._damgaYoksay = false; bitti(); }
 }
 
 const OTO_YENIDEN_MS = 15000;   // başarısız otomatik kaydın yeniden denenme aralığı
 
-/** Kaydın neden yapılamadığı, çekirdeğin iletisinden (notlar.py YazmaHatasi; arayüze yalnızca ileti ulaşır): kilitli | saltOkunur | klasorYok | diskDolu | izinYok |
+/** Kaydın neden yapılamadığı, çekirdeğin iletisinden (notlar.py YazmaHatasi; arayüze yalnızca ileti ulaşır): degismis | kilitli | saltOkunur | klasorYok | diskDolu | izinYok |
  *  yolUzun | dogrulama | yazilamadi (nedeni bilinmiyor) | null (dosya erişimiyle ilgili değil). */
 function kayitHatasiTuru(m) {
+  if (/başka bir programda değişmiş/.test(m)) return 'degismis';
   if (/salt okunur/i.test(m)) return 'saltOkunur';
   if (/klasör bulunamadı/.test(m)) return 'klasorYok';
   if (/yer kalmadı/.test(m)) return 'diskDolu';
@@ -1072,13 +1081,23 @@ function kayitHatasiTuru(m) {
   return null;
 }
 
-/** "Belge kaydedilemedi" sorusu. Döner: 'yeniden' | 'farkli' | null (Vazgeç). Ham hata metni gösterilmez (Python [Errno], çift ters bölü: Kullanıcı ne yapacağını
+/** "Belge kaydedilemedi" sorusu. Döner: 'yeniden' | 'farkli' | 'uzerine' (dosya başka programda değişmişti, yine de yazılsın) | null (Vazgeç). Ham hata metni gösterilmez (Python [Errno], çift ters bölü: Kullanıcı ne yapacağını
  *  anlamıyordu, 0.3.1). Kilitleyen programın adı biliniyorsa söylenir (Windows Restart Manager, çekirdek kilit_sahipleri). XFA formunda her hatada Farklı kaydet önerilir:
  *  Yazılar başka yere kaydedilebilsin. */
 async function kayitHatasiSor(b, e, hedef) {
   const m = hataMetni(e), tur = kayitHatasiTuru(m), form = !!b.gorunum.xfa;
   const ham = /\[(Errno|WinError) |code=\d+|Traceback|\\\\/.test(m);
   const YENIDEN = 'Yeniden dene', FARKLI = 'Farklı kaydet', VAZGEC = 'Vazgeç';
+  // Dosya bu form açıldıktan sonra başka bir programda kaydedilmiş (0.3.1 kayıp avı): Üzerine yazmak orada yazılanları siler, karar kullanıcının
+  if (tur === 'degismis') {
+    const UZERINE = 'Üzerine kaydet';
+    const { secim } = await mesajKutusu({
+      tur: 'warning', mesaj: 'Dosya başka bir programda değişmiş',
+      ayrinti: 'Bu form PDEfe\'de açıldıktan sonra dosya başka bir programda kaydedilmiş. Üzerine kaydederseniz orada yazılanlar kaybolur.\n\nFarklı kaydet ile yeni bir ada kaydedip iki dosyayı karşılaştırabilirsiniz.\n\nDosyaya yazılmadı, yazdıklarınız PDEfe\'de duruyor.',
+      dugmeler: [FARKLI, UZERINE, VAZGEC], varsayilan: 0, iptal: 2,
+    });
+    return secim === 0 ? 'farkli' : secim === 1 ? 'uzerine' : null;
+  }
   let ayrinti, dugmeler;
   if (MAC || LINUX) {
     // macOS'ta (0.2.1) dosyayı başka programlar kilitlemez: yazılamayan dosyada neden çoğunlukla yazma izni ya da Finder'ın Kilitli
@@ -1239,7 +1258,9 @@ async function xfaKayitYaz(b, hedef, farkli, sessiz, oneAl = false) {
   const imzayiKoru = g.xfaBilgi?.eImzali ? await xfaImzaKarari(b, sessiz, oneAl) : false;
   if (imzayiKoru === null) return false;
   durum.mesajYaz('Kaydediliyor…', 0);
-  const r = await b.xfa.kaydet(hedef, { imzayiKoru, hizli: !!sessiz });
+  // Kendi dosyasına yazarken (Formu Kaydet'te aynı dosya seçilince de: "değiştirilsin mi" başka programın kaydını söylemez) dosya başka programda değiştiyse yazılmaz
+  const damga = yolAyni(hedef, b.yol) && !b._damgaYoksay ? b.xfa.diskDamga : null;
+  const r = await b.xfa.kaydet(hedef, { imzayiKoru, hizli: !!sessiz, damga });
   if (imzayiKoru && r?.imzaKorundu === false) bildir('E-imza korunamadı: Form baştan yazıldı, imza geçersiz görünür.', 8000);
   // Yazılan değerlerden biri dosyanın verisinde yoksa (PDF.js veri düğümü olmayan alanın değerini saklamaz) belge kaydedilmiş sayılmaz, kullanıcı yazısını başka yere alabilsin
   const eksik = r?.eksik?.length || 0;

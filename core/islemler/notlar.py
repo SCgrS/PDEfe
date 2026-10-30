@@ -1346,8 +1346,22 @@ YAZMA_ILETILERI = {
     "izin_yok": "Dosya yazılamadı, bu konuma yazma izni yok.",
     "yol_uzun": "Dosya yazılamadı, dosyanın yolu çok uzun.",
     "dogrulama": "Dosya yazılamadı, yazılan kopya doğrulanamadı.",
+    "degismis": "Dosya yazılmadı, dosya başka bir programda değişmiş.",     # renderer kayitHatasiTuru
     "bilinmeyen": "Dosya yazılamadı.",
 }
+
+
+def dosya_damgasi(yol):
+    """Dosyanın içeriğinin özeti (SHA-256; 0.3.1 kayıp avı): Dosya başka bir programda değişti mi. Değişme zamanı değil içerik: Yedekleme ya da virüs tarayıcının dokunması sorulmasın.
+    Okunamazsa (dosya yok, hiç paylaşımsız kilit) None: Karşılaştırılamaz, kayıt kendi hatasını verir."""
+    try:
+        h = hashlib.sha256()
+        with open(uzun_yol(yol), "rb") as f:
+            for parca in iter(lambda: f.read(1 << 20), b""):
+                h.update(parca)
+        return h.hexdigest()
+    except OSError:
+        return None
 
 
 def _yazma_hatasi_turu(e, hedef):

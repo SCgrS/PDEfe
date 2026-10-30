@@ -205,6 +205,181 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz, tus,
     sonuc('1 Sayfada hata yok', !(await hatalar()).length);
   }
 
+  // ================================================================== 2) dosya başka programda değişti
+  if (bolum(2)) {
+    const SORU = 'Dosya başka bir programda değişmiş';
+    const DIS = '<Metin>Başka programda yazılan uzun yazı</Metin>';
+    const hazirla = async (ad) => {
+      const y = kopya(ad);
+      await ac(y);
+      await alanaYaz('AdSoyad', 0, 'PDEfe yazısı');
+      await tus('Tab');
+      disKayit(y, '<Metin/>', DIS);
+      return y;
+    };
+    // Vazgeç
+    let y = await hazirla('dis-vazgec');
+    let once = ozet(y);
+    let d = await kaydet();
+    await goruntu('2-soru');
+    sonuc('2 Kayıt yazmaz, sorar: Farklı kaydet (birincil), Üzerine kaydet, Vazgeç', d.kutu?.ileti === SORU && J(d.kutu.dugmeler) === J(['Farklı kaydet', 'Üzerine kaydet', 'Vazgeç']) && !/\[Errno|\\\\/.test(d.kutu.ayrinti), d);
+    sonuc('2 Soru açıkken dosya aynı, öbür programın yazısı yerinde', ozet(y) === once && v(y, 'form1/Bolum/Metin')[0] === 'Başka programda yazılan uzun yazı');
+    await kutuBas('Vazgeç');
+    d = await durum();
+    sonuc('2 Vazgeç: Belge kirli, yazı yerinde, dosya aynı', d.degisti && !d.kutu && ozet(y) === once && (await degerler(['AdSoyad'])).AdSoyad[0] === 'PDEfe yazısı', d);
+    // Farklı kaydet
+    const yeni = path.join(KLASOR, 'farklı adla.pdf');
+    await yanitla('dosya:kaydetDiyalog', [yeni]);
+    d = await kaydet();
+    await kutuBas('Farklı kaydet');
+    d = await kayitBitsin();
+    await bekle(100);
+    sonuc('2 Farklı kaydet: Sekme yeni dosyada, temiz, kaydedildi denir', !d.kutu && !d.degisti && d.yol === yeni && /kaydedildi/.test(d.bildirim), d);
+    sonuc('2 Farklı kaydet: Yeni dosyada PDEfe yazısı, eski dosya aynı', v(yeni, 'form1/Baslik/AdSoyad')[0] === 'PDEfe yazısı' && ozet(y) === once);
+    await alanaYaz('Sehir', 0, 'Yeni dosyada devam');
+    d = await kaydet();
+    sonuc('2 Yeni dosyada sonraki kayıt sormaz', !d.kutu && !d.degisti && v(yeni, 'form1/Baslik/Sehir')[0] === 'Yeni dosyada devam', d);
+    // Üzerine kaydet
+    y = await hazirla('dis-uzerine');
+    d = await kaydet();
+    await kutuBas('Üzerine kaydet');
+    d = await kayitBitsin();
+    await bekle(100);
+    sonuc('2 Üzerine kaydet: Yazar, temiz', !d.kutu && !d.degisti && v(y, 'form1/Baslik/AdSoyad')[0] === 'PDEfe yazısı', d);
+    await alanaYaz('Sehir', 0, 'Sonraki');
+    d = await kaydet();
+    sonuc('2 Üzerine kaydet sonrası kayıt sormaz', !d.kutu && !d.degisti && v(y, 'form1/Baslik/Sehir')[0] === 'Sonraki', d);
+    // Üzerine kaydet seçimi yalnız o kayıt için
+    disKayit(y, '<Metin/>', DIS);
+    await alanaYaz('Sehir', 0, 'Yine');
+    d = await kaydet();
+    sonuc('2 Yeni dış kayıt yine sorulur', d.kutu?.ileti === SORU, d);
+    await kutuBas('Vazgeç');
+    // Formu Kaydet: Kaydetme penceresinde aynı dosya seçilince de
+    y = await hazirla('dis-formu-kaydet');
+    once = ozet(y);
+    await yanitla('dosya:kaydetDiyalog', [y]);
+    await tiklaAd('Kaydet', 0);
+    d = await kutuBekle();
+    sonuc('2 Formu Kaydet, aynı dosya: Sorulur, dosya aynı', d.kutu?.ileti === SORU && ozet(y) === once, d);
+    await kutuBas('Vazgeç');
+    // Başka dosya seçilirse sorulmaz (kullanıcı o dosyayı kaydetme penceresinde onayladı)
+    const baska = kopya('dis-baska-hedef');
+    await yanitla('dosya:kaydetDiyalog', [baska]);
+    await tiklaAd('Kaydet', 0);
+    d = await kayitBitsin();
+    await bekle(100);
+    sonuc('2 Formu Kaydet, başka dosya: Sormaz, yazar', !d.kutu && d.yol === baska && !d.degisti && v(baska, 'form1/Baslik/AdSoyad')[0] === 'PDEfe yazısı', d);
+    // Kapatma
+    y = await hazirla('dis-kapatma');
+    once = ozet(y);
+    await komut('sekme.kapat');
+    d = await kutuBekle();
+    await kutuBas('Kaydet');
+    d = await kutuBekle();
+    sonuc('2 Kapatma sorusunda Kaydet: Değişmiş sorusu çıkar', d.kutu?.ileti === SORU && ozet(y) === once, d);
+    await kutuBas('Vazgeç');
+    await bekle(200);
+    d = await durum();
+    sonuc('2 Vazgeç: Sekme açık, yazı yerinde, dosya aynı', d.belge === 1 && d.degisti && ozet(y) === once && (await degerler(['AdSoyad'])).AdSoyad[0] === 'PDEfe yazısı', d);
+    // Otomatik kayıt
+    y = kopya('dis-otomatik');
+    await ac(y);
+    await evalJs(`(window.__pdefe.ayar().otomatikKaydet = true, true)`);
+    await alanaYaz('AdSoyad', 0, 'Otomatik ilk');
+    await tus('Tab');
+    for (let i = 0; i < 80 && (await durum()).degisti; i++) await bekle(100);
+    sonuc('2 Otomatik kayıt olağan çalışıyor', !(await durum()).degisti && v(y, 'form1/Baslik/AdSoyad')[0] === 'Otomatik ilk');
+    disKayit(y, '<Metin/>', DIS);
+    once = ozet(y);
+    await alanaYaz('Sehir', 0, 'Otomatik ikinci');
+    await tus('Tab');
+    await bekle(2600);
+    d = await durum();
+    sonuc('2 Otomatik kayıt: Pencere yok, yazmaz, kirli, durum çubuğunda ve bildirimde söylenir', !d.kutu && d.degisti && ozet(y) === once && /değişmiş/.test(d.mesaj) && /değişmiş/.test(d.bildirim), d);
+    d = await kaydet();
+    sonuc('2 Otomatik kayıt durduktan sonra Ctrl+S sorar', d.kutu?.ileti === SORU, d);
+    await kutuBas('Üzerine kaydet');
+    d = await kayitBitsin();
+    await bekle(100);
+    sonuc('2 Üzerine kaydet: Yazar, otomatik kayıt olağana döner', !d.kutu && !d.degisti && v(y, 'form1/Baslik/Sehir')[0] === 'Otomatik ikinci', d);
+    await alanaYaz('Sehir', 0, 'Otomatik üçüncü');
+    await tus('Tab');
+    for (let i = 0; i < 80 && (await durum()).degisti; i++) await bekle(100);
+    sonuc('2 Sonraki otomatik kayıt yazar', !(await durum()).degisti && v(y, 'form1/Baslik/Sehir')[0] === 'Otomatik üçüncü');
+    await evalJs(`(window.__pdefe.ayar().otomatikKaydet = false, true)`);
+    // Kendi kaydı, dokunulmuş dosya, silinmiş dosya
+    y = kopya('dis-kendi');
+    await ac(y);
+    let soruYok = true;
+    for (let i = 0; i < 5; i++) { await alanaYaz('AdSoyad', 0, `Kendi kaydı ${i}`); d = await kaydet(); if (d.kutu) soruYok = false; }
+    sonuc('2 Kendi kaydından sonra sormaz (5 kez)', soruYok && v(y, 'form1/Baslik/AdSoyad')[0] === 'Kendi kaydı 4', d);
+    const simdi = new Date(Date.now() + 5000);
+    fs.utimesSync(y, simdi, simdi);
+    await alanaYaz('AdSoyad', 0, 'Dokunulduktan sonra');
+    d = await kaydet();
+    sonuc('2 Değişme zamanı değişti, içerik aynı: Sormaz', !d.kutu && v(y, 'form1/Baslik/AdSoyad')[0] === 'Dokunulduktan sonra', d);
+    fs.rmSync(y);
+    await alanaYaz('AdSoyad', 0, 'Silindikten sonra');
+    d = await kaydet();
+    sonuc('2 Dosya silinmiş: Sormaz, yazar', !d.kutu && fs.existsSync(y) && v(y, 'form1/Baslik/AdSoyad')[0] === 'Silindikten sonra', d);
+    // Bölüm eklenip dış kayıt: Baytlar değişti, soru yine doğru dosyaya göre
+    y = await hazirla('dis-ekle');
+    await tiklaAd('BEkle', 0);
+    await durgun();
+    once = ozet(y);
+    d = await kaydet();
+    sonuc('2 Bölüm eklendikten sonra da sorulur', d.kutu?.ileti === SORU && ozet(y) === once, d);
+    await kutuBas('Vazgeç');
+    // Sekme taşınınca: Damga da taşınır
+    y = await hazirla('dis-tasima');
+    once = ozet(y);
+    const oncekiler = (await hedefler()).map((h) => h.id);
+    await evalJs(`(async () => { await window.__pdefe.sekmeyiTasi(window.__s52.b().id, { tur: 'yeni' }); return true; })()`);
+    let yeniP = null;
+    for (let i = 0; i < 50 && !yeniP; i++) { await bekle(200); yeniP = (await hedefler()).find((h) => !oncekiler.includes(h.id)); }
+    sonuc('2 Sekme yeni pencereye taşındı', !!yeniP);
+    if (yeniP) {
+      hedefSec(yeniP.id);
+      await bekle(1200);
+      await evalJs(YARDIMCI);
+      await evalJs(`(async () => { for (let i = 0; i < 80; i++) { if (document.querySelector('.gorunum:not([hidden]) .xfaLayer')) return true; await window.__s52.bekle(100); } return false; })()`);
+      d = await kaydet();
+      sonuc('2 Taşınan sekmede de sorulur, dosya aynı', d.kutu?.ileti === SORU && ozet(y) === once, d);
+      await kutuBas('Üzerine kaydet');
+      d = await kayitBitsin();
+      await bekle(100);
+      sonuc('2 Taşınan sekmede Üzerine kaydet yazar', !d.kutu && !d.degisti && v(y, 'form1/Baslik/AdSoyad')[0] === 'PDEfe yazısı', d);
+      await evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); setTimeout(() => window.close(), 200); return true; })()`).catch(() => {});
+      hedefSec(null);
+      await bekle(800);
+      await evalJs(YARDIMCI);
+    }
+    sonuc('2 Sayfada hata yok', !(await hatalar()).length);
+  }
+
+  // ================================================================== 3) aynı dosya iki yazımla
+  if (bolum(3)) {
+    const y = kopya('iki yazim');
+    const y2 = y.replace(`${path.sep}cikti${path.sep}`, `${path.sep}..${path.sep}test${path.sep}cikti${path.sep}`);
+    await ac(y);
+    await ac(y2, false);
+    const n = await evalJs(`window.__pdefe.belgeler.size`);
+    bilgi(`Aynı dosya farklı yazımla ${n} sekmede açıldı`);
+    await alanaYaz('AdSoyad', 0, 'İkinci sekmenin yazısı');
+    let d = await kaydet();
+    sonuc('3 İkinci sekme kaydetti', !d.kutu && v(y, 'form1/Baslik/AdSoyad')[0] === 'İkinci sekmenin yazısı', d);
+    if (n === 2) {
+      await evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find((x) => x.yol === ${J(y)}); await p.sekmeSec(b.id); return true; })()`);
+      await bekle(200);
+      await alanaYaz('Sehir', 0, 'Birinci sekmenin yazısı');
+      const once = ozet(y);
+      d = await kaydet();
+      sonuc('3 Birinci sekmenin kaydı öbürünün yazısını silmez, sorar', d.kutu?.ileti === 'Dosya başka bir programda değişmiş' && ozet(y) === once && v(y, 'form1/Baslik/AdSoyad')[0] === 'İkinci sekmenin yazısı', d);
+      if (d.kutu) await kutuBas('Vazgeç');
+    }
+  }
+
   await kapatHepsini();
   console.log(`\n${denetim} denetim, ${hataSayisi} hata`);
   console.log(hataSayisi ? 'HATALAR VAR' : 'BÜTÜN DENETİMLER GEÇTİ');
