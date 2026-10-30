@@ -457,8 +457,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz, tus,
     d = await durum();
     sonuc('3) Kayıttan sonra yazmaya devam: Hemen kirli', d.degisti && !d.kaydetSoluk, d);
     await tus('Tab');
-    await evalJs(`(window.__pdefe.komutCalistir('duzen.geriAl'), true)`).catch(() => {});
-    await evalJs(`(window.__pdefe.aktif().yigin.geriAl(), true)`).catch(() => {});
+    await evalJs(`(window.__pdefe.komutCalistir('duzen.geriAl'), true)`);   // odaktaki alanın kendi geçmişi boş: Belgenin yığını (alanSiniri.js)
     await durgun();
     await bekle(100);
     let v = await H(`H.denetimler(H.katman(), 'AdSoyad')[0].value`);

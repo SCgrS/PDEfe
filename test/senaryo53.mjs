@@ -11,6 +11,7 @@
 //   9  Düz form alanında mavi işaret yok: Zemin saydam, odakta 1 ekran pikseli köşesiz çerçeve, imleç I ve el. Yazdırmaya girmez.
 //  10  Bileşim (IME), sürükleyip bırakma, bölüm ekleme ve yeniden dizilme, salt okunur alan, tekerlek, yazıyla büyüyen alan (sınır yok, kâğıtta tamamı).
 //  11  Gerçek sağ tık menüsü (test kancasız örnekte, görünmeyen masaüstünde, test/menu_yakala.ps1): Menünün görüntüsü, öğelerin etkinliği, Tümünü seç, Yapıştır. Pano yalnız okunur: Kes ve Kopyala burada basılmaz (8. bölümde kancayla).
+//  12  Geri al ve yinele alanın kendi geçmişinden: Başka alana gitmez, komut yığınından geri alınan yazı katlanmaz, reddedilen bileşimin taşan hâline dönülmez, alandan çıkınca belge değişmiş sayılır. XFA ve düz form.
 // Bütün koşum: powershell -File test\senaryo53_kos.ps1 (test kancalı örnek, ekran ölçeği %125 ve %150, kancasız örnek). Tek koşum (imleç ve odak için görünmeyen masaüstü, taze örnek: Yanıt kuyruğu ana süreçte):
 //   powershell -File test\baslat_gizli.ps1 -Port 9510 -Veri "$env:TEMP\pdefe-s53" -Boyut "1280,1000"   → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9510; [$env:BOLUM="1,4"]; node test\surucu.mjs betik test\senaryo53.mjs
@@ -1001,6 +1002,155 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, fare, yaz
     m = await gercekMenu('', 'duz-form', '', pf);
     sonuc('11 Düz form alanı: Gerçek menü açıldı', m.bulundu && 'Kes' in m.etkin && 'Yapıştır' in m.etkin && m.etkin['Tümünü seç'] === true, m);
     sonuc('11 Sayfada hata yok', !(await hatalar()).length);
+  }
+
+  // ================================================================== 12) geri al ve yinele: Alanın kendi geçmişi
+  if (bolum(12)) {
+    const y = kopya('gecmis');
+    await ac(y);
+    await izle();
+    const degerler = async (...a) => Object.fromEntries(await Promise.all(a.map(async (ad) => [ad, (await d53(ad)).deger])));
+    const odakAdi = () => evalJs(`document.activeElement?.closest?.('[xfaname]')?.getAttribute('xfaname') || ''`);
+    const kirli = () => evalJs(`!!window.__s53.b().degisti`);
+    // Başka alana gitmez (tarayıcının geçmişi çerçeve başına tektir: Yazı silinir, imleç oraya gider)
+    await tiklaAd('IkiSatir'); await yaz('birinci'); await tus('Tab');
+    await tiklaAd('UcSatir'); await yaz('ikinci'); await tus('Tab');
+    await tiklaAd('TekKapali');
+    await tus('z', ['ctrl']); await bekle(30);
+    let v = await degerler('IkiSatir', 'UcSatir', 'TekKapali');
+    sonuc('12 Boş alanda Ctrl+Z: Başka alanın yazısı silinmez, imleç yerinde', v.IkiSatir === 'birinci' && v.UcSatir === 'ikinci' && v.TekKapali === '' && (await odakAdi()) === 'TekKapali', { v, odak: await odakAdi() });
+    await tus('y', ['ctrl']); await bekle(30);
+    v = await degerler('IkiSatir', 'UcSatir', 'TekKapali');
+    sonuc('12 Boş alanda Ctrl+Y: Yazılar aynı', v.IkiSatir === 'birinci' && v.UcSatir === 'ikinci' && v.TekKapali === '', v);
+    // Komut yığınından geri al ve yinele, sonra başka alanda Ctrl+Z, Ctrl+Y: Yazı katlanmaz (programın yazdığı değer tarayıcının adımlarını bayat bırakıyordu)
+    const KATLANAN = 'Katlanmamalı';
+    await tiklaAd('TekKapali'); await yapistir(KATLANAN); await tus('Tab'); await bekle(30);
+    await evalJs(`(() => { document.activeElement?.blur?.(); window.__s53.g().kaydirici.focus(); window.__pdefe.komutCalistir('duzen.geriAl'); return true; })()`);
+    await evalJs(`window.__s53.durgun()`);
+    sonuc('12 Komut yığınından geri al: Alan boş', (await d53('TekKapali')).deger === '', (await d53('TekKapali')).deger);
+    await evalJs(`(window.__pdefe.komutCalistir('duzen.yinele'), true)`);
+    await evalJs(`window.__s53.durgun()`);
+    await tiklaAd('IkiSatir');
+    await tus('End', ['ctrl']);
+    for (const t of ['z', 'y', 'y', 'z', 'z', 'y']) { await tus(t, ['ctrl']); await bekle(15); }
+    v = await degerler('TekKapali', 'UcSatir');
+    sonuc('12 Komut yığınından sonra başka alanda Ctrl+Z, Ctrl+Y dizisi: Yazı katlanmaz, öbür alanlar aynı', v.TekKapali === KATLANAN && v.UcSatir === 'ikinci', v);
+    await tiklaAd('TekKapali');
+    for (const t of ['z', 'y', 'y', 'z', 'y']) { await tus(t, ['ctrl']); await bekle(15); }
+    sonuc('12 Aynı alanda bayat adım yok: Yazı katlanmaz', (await d53('TekKapali')).deger === KATLANAN, (await d53('TekKapali')).deger);
+    await bosalt('IkiSatir');
+    // Kendi geçmişi: Yazma, yapıştırma, silme adım adım geri gelir, yinelenir
+    await tiklaAd('IkiSatir');
+    await yaz('Bir');
+    await bekle(1600);   // yazma adımları birleşmesin
+    await yapistir(' iki');
+    await tus('Backspace');
+    let d = await d53('IkiSatir');
+    sonuc('12 Hazırlık', d.deger === 'Bir ik', d.deger);
+    await tus('z', ['ctrl']); await bekle(15);
+    sonuc('12 Geri al 1: Silme', (await d53('IkiSatir')).deger === 'Bir iki', (await d53('IkiSatir')).deger);
+    await tus('z', ['ctrl']); await bekle(15);
+    sonuc('12 Geri al 2: Yapıştırma', (await d53('IkiSatir')).deger === 'Bir', (await d53('IkiSatir')).deger);
+    await tus('z', ['ctrl']); await bekle(15);
+    sonuc('12 Geri al 3: Yazma', (await d53('IkiSatir')).deger === '', (await d53('IkiSatir')).deger);
+    await tus('y', ['ctrl']); await bekle(15); await tus('y', ['ctrl']); await bekle(15);
+    sonuc('12 Yinele 2 kez', (await d53('IkiSatir')).deger === 'Bir iki', (await d53('IkiSatir')).deger);
+    await tus('z', ['ctrl']); await bekle(15);
+    await tus('z', ['ctrl', 'shift']); await bekle(15);
+    sonuc('12 Ctrl+Shift+Z: Yinele', (await d53('IkiSatir')).deger === 'Bir iki', (await d53('IkiSatir')).deger);
+    await tus('Backspace');
+    await harfTut('x', 3);
+    await tus('y', ['ctrl']); await bekle(15);
+    sonuc('12 Yeni yazıdan sonra yinele boş', (await d53('IkiSatir')).deger === 'Bir ikxxx', (await d53('IkiSatir')).deger);
+    // Art arda yazma tek adım
+    await tus('z', ['ctrl']); await bekle(15);
+    sonuc('12 Art arda yazılan harfler tek adım', (await d53('IkiSatir')).deger === 'Bir ik', (await d53('IkiSatir')).deger);
+    // Depo aynı (kaydedilecek olan), komut menüden de
+    d = await d53('IkiSatir');
+    const depo = () => evalJs(`(() => { const e = window.__s53.denetim('IkiSatir'); return window.__s53.g().belge.annotationStorage.getRawValue(e.dataset.xv)?.value ?? null; })()`);
+    sonuc('12 Geri al değeri depoya da yazar', (await depo()) === d.deger, await depo());
+    await evalJs(`(window.__pdefe.komutCalistir('duzen.geriAl'), true)`); await bekle(30);
+    sonuc('12 Düzen menüsünden geri al alanda: Kendi geçmişi', (await d53('IkiSatir')).deger === 'Bir iki', (await d53('IkiSatir')).deger);
+    await evalJs(`(window.__pdefe.komutCalistir('duzen.yinele'), true)`); await bekle(30);
+    sonuc('12 Düzen menüsünden yinele alanda', (await d53('IkiSatir')).deger === 'Bir ik', (await d53('IkiSatir')).deger);
+    // Gerçek tuş yolu (tarayıcı sürecinin girdisi, menüye de ulaşır): Ctrl+Z ve Ctrl+Y alanda kalır
+    const gercekTus = async (k) => { await evalJs(`window.pdefe.cagir('test:tusGonder', ${J([{ type: 'keyDown', keyCode: k, modifiers: ['control'] }, { type: 'keyUp', keyCode: k, modifiers: ['control'] }])})`); await bekle(60); };
+    const once = (await d53('UcSatir')).deger;
+    await gercekTus('Z');
+    sonuc('12 Gerçek Ctrl+Z: Alanın kendi yazısı, öbür alan aynı', (await d53('IkiSatir')).deger === 'Bir iki' && (await d53('UcSatir')).deger === once, (await d53('IkiSatir')).deger);
+    await gercekTus('Y');
+    sonuc('12 Gerçek Ctrl+Y', (await d53('IkiSatir')).deger === 'Bir ik', (await d53('IkiSatir')).deger);
+    // Alandan çıkınca belge değişmiş sayılır: Son değişiklik geri al olsa da (tarayıcı change olayı vermez)
+    await tus('Tab'); await bekle(30);
+    await kaydet();
+    sonuc('12 Kaydet: Temiz', !(await kirli()) && veriOlc(y).IkiSatir?.[0] === 'Bir ik', veriOlc(y).IkiSatir);
+    await tiklaAd('IkiSatir');
+    await tus('z', ['ctrl']); await bekle(15);
+    await tus('Tab'); await bekle(30);
+    sonuc('12 Yalnız geri al yapılmış alandan çıkınca belge değişmiş', await kirli(), await kirli());
+    const yazi = (await d53('IkiSatir')).deger;
+    await kaydet();
+    sonuc('12 Geri alınan yazı dosyada', (veriOlc(y).IkiSatir?.[0] ?? '') === yazi && yazi !== 'Bir ik', { d: veriOlc(y).IkiSatir, yazi });
+    // Bileşim: Reddedilen taşan hâl geçmişte yok, bileşim sürerken kırmızı işaret ve bildirim yok
+    const UZUN = uzunYazi(3000);
+    await bosalt('IkiSatir');
+    await tiklaAd('IkiSatir');
+    await yapistir(UZUN);
+    await tus('End', ['ctrl']);
+    await bekle(20);
+    const dolu = (await d53('IkiSatir')).deger;
+    await bildirimler();
+    const BILESIM = 'bileşim yazısı '.repeat(30);
+    await cdp('Input.imeSetComposition', { text: BILESIM, selectionStart: 400, selectionEnd: 400 });
+    await bekle(30);
+    sonuc('12 Bileşim sürerken: Kırmızı işaret yok', !(await d53('IkiSatir')).tasiyor, (await d53('IkiSatir')).uz);
+    await cdp('Input.insertText', { text: BILESIM });
+    await bekle(50);
+    d = await d53('IkiSatir');
+    let bl = await bildirimler();
+    sonuc('12 Bileşim bitti: Son sığan hâl, depoda da, tek bildirim', d.deger === dolu && sinirTamam(d, 2) && bl.length === 1 && /alınmadı\.$/.test(bl[0]) && (await depo()) === dolu, { uz: d.uz, dolu: dolu.length, bl, depo: (await depo())?.length });
+    await tus('z', ['ctrl']); await bekle(15);
+    d = await d53('IkiSatir');
+    sonuc('12 Bileşimden sonra geri al: Taşan hâl yok, yapıştırmadan önceki hâl', d.deger === '' && !d.tasiyor, { uz: d.uz, tasiyor: d.tasiyor });
+    await tus('y', ['ctrl']); await bekle(15);
+    d = await d53('IkiSatir');
+    sonuc('12 Bileşimden sonra yinele: Taşan hâl yok, dolu hâl', d.deger === dolu && !d.tasiyor, { uz: d.uz, tasiyor: d.tasiyor });
+    await tus('y', ['ctrl']); await bekle(15);
+    d = await d53('IkiSatir');
+    sonuc('12 Bileşimden sonra ikinci yinele: Yazı aynı', d.deger === dolu && !d.tasiyor, { uz: d.uz, tasiyor: d.tasiyor });
+    await bildirimler();
+    // Dosyada sığmayan yazı: Silinir, geri alınır, geri alınan hâl yine işaretli, yazı aynı
+    await tiklaAd('DiskCok');
+    const disk0 = (await d53('DiskCok')).deger;
+    await tus('Backspace'); await tus('Backspace');
+    await tus('z', ['ctrl']); await bekle(15);
+    d = await d53('DiskCok');
+    sonuc('12 Dosyadaki sığmayan yazı: Silme geri alınır, işaret kalır', d.deger === disk0 && d.tasiyor, { uz: d.uz, disk: disk0.length });
+    await tus('Tab');
+    // Bölüm eklenince eski geçmiş düşer
+    await tiklaAd('YCok'); await yaz('Bölüm yazısı'); await tus('Tab'); await bekle(20);
+    await tiklaAd('SinirEkle'); await evalJs(`window.__s53.durgun()`); await bekle(250);
+    await tiklaAd('YCok');
+    for (const t of ['z', 'y', 'z']) { await tus(t, ['ctrl']); await bekle(15); }
+    sonuc('12 Form yeniden dizilince eski adımlar yok: Yazı aynı', (await d53('YCok')).deger === 'Bölüm yazısı', (await d53('YCok')).deger);
+    await tus('Tab');
+    // Düz form alanı
+    const duz = path.join(UI, 'alanlar.pdf');
+    await ac(duz, { katman: '.gorunum:not([hidden]) .form-alan[data-tur="metin"]' });
+    const fYer = (ad) => evalJs(`(async () => { const s = window.__s53.g().sayfalar[0]; for (let i = 0; i < 80 && !s._formOgeler?.size; i++) await window.__s53.bekle(50); const o = [...s._formOgeler.values()].find((x) => x.a.ad === ${J(ad)}); o.el.scrollIntoView({ block: 'center' }); await window.__s53.bekle(120); const r = o.el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+    const fDeger = (ad) => evalJs(`[...window.__s53.g().sayfalar[0]._formOgeler.values()].find((x) => x.a.ad === ${J(ad)}).denetim.value`);
+    let p = await fYer('ad'); await tikla(p.x, p.y); await bekle(60);
+    await tus('a', ['ctrl']); await yaz('Düz birinci'); await tus('Tab'); await bekle(60);
+    p = await fYer('kisa'); await tikla(p.x, p.y); await bekle(60);
+    await tus('z', ['ctrl']); await bekle(20);
+    sonuc('12 Düz form: Başka alanda Ctrl+Z birinci alanı silmez', (await fDeger('ad')) === 'Düz birinci', await fDeger('ad'));
+    await yaz('abc');
+    await tus('z', ['ctrl']); await bekle(20);
+    sonuc('12 Düz form: Kendi yazısı geri alınır', (await fDeger('kisa')) === '', await fDeger('kisa'));
+    await tus('y', ['ctrl']); await bekle(20);
+    sonuc('12 Düz form: Yinelenir', (await fDeger('kisa')) === 'abc', await fDeger('kisa'));
+    await tus('Tab'); await bekle(60);
+    sonuc('12 Sayfada hata yok', !(await hatalar()).length);
   }
 
   ws.close();

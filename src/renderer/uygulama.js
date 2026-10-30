@@ -8,7 +8,7 @@ import { temizMetin, sayfaMetinleriniBirlestir, secimDikdortgenleri, satirlaraBi
 import { NotYoneticisi, VURGU_RENKLERI, YAZI_PANO_TURU, yaziVerisiDogrula } from './notlar.js';
 import { FormYoneticisi } from './formlar.js';
 import { XfaYoneticisi } from './xfa.js';
-import { alanaKoy } from './alanSiniri.js';
+import { alanaKoy, alanDegisecek, alanGeriAl } from './alanSiniri.js';
 import { alanSigar } from './xfaHtml.js';
 import { KomutYigini, Komut, sayfaFarki, sayfaFarkiOzeti, sayfaListesi } from './komutlar.js';
 import { GecmisListesi } from './gecmisListesi.js';
@@ -1613,11 +1613,12 @@ async function baglantiyaGit(b, l) {
 }
 
 /** Geri al (geri=true) / yinele: yazı düzenlenirken düzenleyicinin metnini (araç çubuğu düğmesi odağı alsa da, Düzen menüsünden de),
- *  başka bir girdi kutusundaysa onun metnini, yoksa belgeyi. */
+ *  form alanındaysa alanın kendi geçmişini (alanSiniri.js, geri alınacak yazısı yoksa belgeyi), başka bir girdi kutusundaysa onun metnini, yoksa belgeyi. */
 function geriAlYinele(geri) {
   const b = aktif();
   const n = b?.notlar, d = n?.duzenleyici, odak = document.activeElement;
-  if (girdideMi() && !(d && (odak === d.el || d.bicim.contains(odak)))) { document.execCommand(geri ? 'undo' : 'redo'); return; }
+  if (odak?.matches?.(YAZI_DENETIMI)) { if (alanGeriAl(odak, geri)) return; }
+  else if (girdideMi() && !(d && (odak === d.el || d.bicim.contains(odak)))) { document.execCommand(geri ? 'undo' : 'redo'); return; }
   if (!b) return;
   if (d) { if (geri) n.duzenleyiciGeriAl(); else n.duzenleyiciYinele(); return; }
   // Bölüm ekleme ya da silme sürerken (0.3.1 kayıp avı): İşin baytları başında alındı, araya giren geri al ya da yinele yığın ile formu ayırır, yinelenen yazı kaybolurdu
@@ -1938,6 +1939,7 @@ function macGirdiKomutu(id) {
   if (!MAC || !MAC_GIRDI_KOMUTLARI[id] || !girdideMi()) return false;
   const d = aktif()?.notlar?.duzenleyici, odak = document.activeElement;
   if (d && id !== 'duzen.tumunuSec' && (odak === d.el || d.bicim.contains(odak))) return false;
+  if (id !== 'duzen.tumunuSec' && odak?.matches?.(YAZI_DENETIMI)) { alanGeriAl(odak, id === 'duzen.geriAl'); return true; }   // form alanı: Kendi geçmişi (alanSiniri.js)
   document.execCommand(MAC_GIRDI_KOMUTLARI[id]);
   return true;
 }
@@ -2582,7 +2584,7 @@ async function alanMenusu(belge, el) {
   else if (secim === 'kopyala') await pdefe.cagir('pano:metin', panoSatirSonu(seciliYazi));
   else if (secim === 'kes') {
     await pdefe.cagir('pano:metin', panoSatirSonu(seciliYazi));
-    if (el.isConnected) { el.focus({ preventScroll: true }); el.setSelectionRange(bas, son); document.execCommand('delete'); }
+    if (el.isConnected) { el.focus({ preventScroll: true }); el.setSelectionRange(bas, son); alanDegisecek(el, 'kes'); document.execCommand('delete'); }
   } else if (secim === 'yapistir') alanaKoy(el, pano, { sigar: xfaAlani ? alanSigar : null, bildir: (m) => bildir(m, 6000) });
 }
 

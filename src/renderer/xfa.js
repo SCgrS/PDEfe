@@ -101,7 +101,9 @@ export class XfaYoneticisi extends EventTarget {
     alan.addEventListener('change', (e) => this._degisti(e));
     alan.addEventListener('click', (e) => this._tik(e));
     alan.addEventListener('keydown', (e) => this._tus(e));
-    alan.addEventListener('input', (e) => { const el = e.target?.closest?.(ALAN); if (el && this.etkin) { combGuncelle(el); this._tasmaGuncelle(el, true); this._yaziBildir(); } });
+    // Bileşim sürerken yazı geçici olarak sığmayabilir, bitince alanSiniri.js kararını verir: Araya kırmızı işaret ve bildirim girmesin
+    alan.addEventListener('input', (e) => { const el = e.target?.closest?.(ALAN); if (el && this.etkin) { combGuncelle(el); if (!e.isComposing) this._tasmaGuncelle(el, true); this._yaziBildir(); } });
+    alan.addEventListener('compositionend', (e) => { const el = e.target?.closest?.(ALAN); if (el && this.etkin) this._tasmaGuncelle(el, true); });
     alan.addEventListener('focusout', (e) => this._odakGitti(e));
     // Alana yalnız kâğıda sığan yazı girer (alanSiniri.js). Form yeniden dizilirken alanlara hiç yazılamaz (0.3.1 kayıp avı): Yeni form önceden alınan baytlardan kurulur, bu arada
     // yazılan silinirdi. Fare zaten geçmez (xfa.css), klavyeyle (Tab'la) alana girilebiliyordu
@@ -201,11 +203,14 @@ export class XfaYoneticisi extends EventTarget {
     if (el && this.etkin) this._uygula(el);
   }
 
-  /** Alandan çıkınca yazının başı görünür (ekrandaki, basılacak olan): Uzun yazıda alan yazılan yere kaymış kalıyordu. */
+  /** Alandan çıkınca yazının başı görünür (ekrandaki, basılacak olan): Uzun yazıda alan yazılan yere kaymış kalıyordu. Son değişiklik alanın geri alıyla olduysa tarayıcı change olayı vermez
+   *  (programdan yazılan değer): Değer burada uygulanır, yoksa belge değişmemiş görünürdü. */
   _odakGitti(e) {
     this._odakCerceve?.remove();
     const el = e.target?.closest?.(ALAN);
-    if (el?.tagName === 'TEXTAREA' && this.etkin) el.scrollTop = 0;
+    if (!el || !this.etkin) return;
+    if (el.tagName === 'TEXTAREA') el.scrollTop = 0;
+    if (this._acik?.el === el && !this.mesgul) this._uygula(el);
   }
 
   /**
