@@ -1199,7 +1199,7 @@ def yazma_izni_yok(yol):
 
 
 def salt_okunursa_dur(gecici, hedef):
-    """macOS / Linux (0.2.1): hedefe yazma izni yoksa geçici dosya (verildiyse) silinir, SaltOkunurHatasi ("Dosya yazılamadı; salt okunur:
+    """macOS / Linux (0.2.1): hedefe yazma izni yoksa geçici dosya (verildiyse) silinir, SaltOkunurHatasi ("Dosya yazılamadı, salt okunur:
     <ad>"). os.replace (rename) üzerine yazılan dosyanın değil klasörün iznine bakar: salt okunur PDF sorusuz baştan yazılırdı, içindeki
     e-imza da sorulmadan bozulurdu. Windows'ta ReplaceFileW / os.replace salt okunur hedefi zaten reddeder; o yol değişmez."""
     if os.name == "nt" or not os.path.exists(hedef) or not yazma_izni_yok(hedef):
@@ -1209,7 +1209,7 @@ def salt_okunursa_dur(gecici, hedef):
             os.remove(gecici)
         except OSError:
             pass
-    raise SaltOkunurHatasi("Dosya yazılamadı; %s: %s" % (SALT_OKUNUR_METNI, os.path.basename(hedef)))
+    raise SaltOkunurHatasi("Dosya yazılamadı, %s: %s" % (SALT_OKUNUR_METNI, os.path.basename(hedef)))
 
 
 def dosyayi_yerine_koy(gecici, hedef, deneme=6):
@@ -1362,7 +1362,7 @@ def y_notlar_kaydet(p):
         except SaltOkunurHatasi:
             raise                                   # macOS: yazma izni yok; program kilidi değil (0.2.1)
         except PermissionError as e:
-            raise PermissionError("Dosya yazılamadı; başka bir programda açık olabilir. (%s)" % e)
+            raise PermissionError("Dosya yazılamadı, başka bir programda açık olabilir. (%s)" % e)
     finally:
         if doc is not None:
             doc.close()

@@ -1019,16 +1019,16 @@ async function belgeKaydet(b, farkli = false, sessiz = false, { oneAl = false } 
           // Kısayol platformun yazımıyla (0.2.1: macOS'ta ⌘S). macOS'ta dosyayı başka programlar kilitlemez: neden çoğunlukla yazma izni ya da
           // Finder'ın Kilitli işaretidir, kaydetmenin yolu Farklı kaydet. Windows'ta metin değişmedi
           bildir(tus(MAC
-            ? `"${b.ad}" otomatik kaydedilemedi: dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir. Değişiklikler PDEfe'de duruyor; Ctrl+S ile kaydedin ya da Ctrl+Shift+S ile başka bir adla kaydedin.`
+            ? `"${b.ad}" otomatik kaydedilemedi: Dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir. Değişiklikler PDEfe'de duruyor, Ctrl+S ile kaydedin ya da Ctrl+Shift+S ile başka bir adla kaydedin.`
             // Linux (0.3.1): macOS'taki gibi neden yazma iznidir
             : LINUX ? `"${b.ad}" otomatik kaydedilemedi. Dosyaya yazma izni olmayabilir. Değişiklikler PDEfe'de duruyor, Ctrl+Shift+S ile başka bir adla kaydedin.`
-              : `"${b.ad}" otomatik kaydedilemedi: dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Değişiklikler PDEfe'de duruyor; o programı kapatıp Ctrl+S ile kaydedin.`), 9000);
+              : `"${b.ad}" otomatik kaydedilemedi: Dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Değişiklikler PDEfe'de duruyor, o programı kapatıp Ctrl+S ile kaydedin.`), 9000);
           return false;
         }
         const kilitli = /açık olabilir|yazılamadı|okunamadı|Failed to open|Permission|EBUSY|EPERM/i.test(e.message || '');
         if (oneAl) await soruIcinOneAl(b);
         // macOS'ta (0.2.1) dosyayı başka programlar kilitlemez: yazılamayan dosyada neden çoğunlukla yazma izni ya da Finder'ın Kilitli
-        // işaretidir (çekirdek: "Dosya yazılamadı; salt okunur: …"); program kapatmak işe yaramaz. Windows'ta metin değişmedi
+        // işaretidir (çekirdek: "Dosya yazılamadı, salt okunur: …"); program kapatmak işe yaramaz. Windows'ta metin değişmedi
         const kilitAciklamasi = MAC
           ? 'Dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir: Finder\'da dosyayı seçip Dosya › Bilgi Al\'dan "Kilitli" işaretini ve Paylaşma ve İzinler bölümünü denetleyin ya da farklı bir adla kaydedin.\n\n'
           : LINUX ? 'Dosyaya yazma izni olmayabilir. Dosya yöneticisinde dosyaya sağ tıklayıp Özellikler › İzinler bölümünü denetleyin ya da farklı bir adla kaydedin.\n\n'

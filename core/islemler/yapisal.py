@@ -308,7 +308,7 @@ def _degistir(gecici, hedef, deneme=6):
         os.remove(gecici)
     except Exception:
         pass
-    raise PermissionError("Dosya yazılamadı; başka bir programda açık olabilir. (%s)" % son)
+    raise PermissionError("Dosya yazılamadı, başka bir programda açık olabilir. (%s)" % son)
 
 
 _ANLIK_ADI = re.compile(r"^[0-9a-f]{32}\.pdf$", re.IGNORECASE)

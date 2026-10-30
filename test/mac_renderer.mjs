@@ -166,7 +166,7 @@ export default async function ({ evalJs }) {
       await sor('yeniYazilamadi', 'Dosya yazılamadı');
       await sor('okunamadi', 'Dosya okunamadı; başka bir programda açık olabilir: Ek.pdf');
       k.kipAyarla('uzerine');
-      await sor('uzerineSaltOkunur', 'Dosya yazılamadı; salt okunur: Belge.pdf');
+      await sor('uzerineSaltOkunur', 'Dosya yazılamadı, salt okunur: Belge.pdf');
       await sor('uzerineYazilamadi', 'Dosya yazılamadı');
       k.kipAyarla('yeni'); k.cokluAyarla(true);
       await sor('coklu', 'Dosya yazılamadı');

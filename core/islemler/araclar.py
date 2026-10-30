@@ -240,8 +240,8 @@ def _yerine_koy(gecici, hedef):
     except PermissionError as e:
         # Salt okunur hedefe os.replace de erişim hatası verir; ileti kilitten ayrılır (dosyayı açık tutan program yok)
         if _salt_okunur_mu(hedef):
-            raise PermissionError("Dosya yazılamadı; %s: %s" % (SALT_OKUNUR_METNI, os.path.basename(hedef)))
-        raise PermissionError("Dosya yazılamadı; %s: %s (%s)" % (KILITLI_METNI, os.path.basename(hedef), e))
+            raise PermissionError("Dosya yazılamadı, %s: %s" % (SALT_OKUNUR_METNI, os.path.basename(hedef)))
+        raise PermissionError("Dosya yazılamadı, %s: %s (%s)" % (KILITLI_METNI, os.path.basename(hedef), e))
 
 
 def _kaydet_sinirli(doc, hedef, en_fazla=None, once_kapat=(), **secenekler):

@@ -101,7 +101,7 @@ export async function yazdir(baglam, belge) {
       ({ secim } = await mesajKutusu({
         mesaj: 'Yazdırmadan önce kaydedilmesi gerekiyor',
         ayrinti: yapisalKirliMi(belge)
-          ? `"${belge.ad}" belgesinde sayfa yapısı değişti (sayfa ekleme, silme, sıralama ya da döndürme). Yazdırma dosyanın diskteki hâlinden yapılır; kaydetmeden yazdırılırsa eski sayfa düzeni basılır.`
+          ? `"${belge.ad}" belgesinde sayfa yapısı değişti (sayfa ekleme, silme, sıralama ya da döndürme). Yazdırma dosyanın diskteki hâlinden yapılır. Kaydetmeden yazdırılırsa eski sayfa düzeni basılır.`
           : `"${belge.ad}" belgesinin sayfa düzeni kaydedildikten sonra form alanları değişti. Yazdırma dosyanın diskteki hâlinden yapılır. Kaydetmeden yazdırılırsa bu değişiklikler basılmaz.`,
         dugmeler: ['Kaydet ve yazdır', 'Vazgeç'], varsayilan: 0, iptal: 1,
       }));
@@ -109,7 +109,7 @@ export async function yazdir(baglam, belge) {
     } else {
       ({ secim } = await mesajKutusu({
         mesaj: 'Yazdırmadan önce kaydedilsin mi?',
-        ayrinti: `"${belge.ad}" belgesinde kaydedilmemiş değişiklikler var. Yazdırma, dosyanın diskteki hâlinden yapılır; kaydetmezseniz yeni notlar çıktıda görünmez. Form alanlarına yazılanlar her durumda basılır.`,
+        ayrinti: `"${belge.ad}" belgesinde kaydedilmemiş değişiklikler var. Yazdırma, dosyanın diskteki hâlinden yapılır. Kaydetmezseniz yeni notlar çıktıda görünmez. Form alanlarına yazılanlar her durumda basılır.`,
         dugmeler: ['Kaydet ve yazdır', 'Kaydetmeden yazdır', 'Vazgeç'], varsayilan: 0, iptal: 2,
       }));
       if (secim === 2) return;

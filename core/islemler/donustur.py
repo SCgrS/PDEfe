@@ -1047,12 +1047,12 @@ def _hedef_denetle(hedef):
     if not os.path.exists(hedef):
         return
     if araclar._salt_okunur_mu(hedef):
-        raise PermissionError("Dosya yazılamadı; %s: %s" % (SALT_OKUNUR_METNI, ad))
+        raise PermissionError("Dosya yazılamadı, %s: %s" % (SALT_OKUNUR_METNI, ad))
     try:
         with open(hedef, "r+b"):
             pass
     except PermissionError:
-        raise PermissionError("Dosya yazılamadı; %s: %s" % (KILITLI_METNI, ad))
+        raise PermissionError("Dosya yazılamadı, %s: %s" % (KILITLI_METNI, ad))
 
 
 def _hata_kodu(e):

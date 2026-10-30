@@ -337,8 +337,8 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
       await notEkle('salt-okunur.pdf', 'otomatik kayıt notu');
       const bildirim = await kosul(`(() => { const el = document.querySelector('#bildirim'); return !el.hidden && /otomatik kaydedilemedi/.test(el.textContent) ? el.textContent : ''; })()`, 15000);
       const beklenen = mac
-        ? '"salt-okunur.pdf" otomatik kaydedilemedi: dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir. Değişiklikler PDEfe\'de duruyor; ⌘S ile kaydedin ya da ⇧⌘S ile başka bir adla kaydedin.'
-        : '"salt-okunur.pdf" otomatik kaydedilemedi: dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Değişiklikler PDEfe\'de duruyor; o programı kapatıp Ctrl+S ile kaydedin.';
+        ? '"salt-okunur.pdf" otomatik kaydedilemedi: Dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir. Değişiklikler PDEfe\'de duruyor, ⌘S ile kaydedin ya da ⇧⌘S ile başka bir adla kaydedin.'
+        : '"salt-okunur.pdf" otomatik kaydedilemedi: Dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Değişiklikler PDEfe\'de duruyor, o programı kapatıp Ctrl+S ile kaydedin.';
       sonuc(`Otomatik kayıt hatası bildirildi (${mac ? 'macOS' : 'Windows'} metni)`, bildirim === beklenen, bildirim);
       const kutular = await mesajKutulari();
       sonuc('Otomatik kayıtta soru açılmadı', !kutular.length, kutular.map((k) => k.mesaj));

@@ -237,10 +237,10 @@ async function hedefDenetle(hedef) {
   let st = null;
   try { st = await fs.promises.stat(hedef); } catch { return; }
   if (st.isDirectory()) throw kodlu('gecersiz', `Hedef bir klasör: ${ad}`);
-  if (await saltOkunurMu(hedef)) throw kodlu('salt_okunur', `Dosya yazılamadı; salt okunur: ${ad}`);
+  if (await saltOkunurMu(hedef)) throw kodlu('salt_okunur', `Dosya yazılamadı, salt okunur: ${ad}`);
   let fh = null;
   try { fh = await fs.promises.open(hedef, 'r+'); } catch (e) {
-    if (kilitKodu(e)) throw kodlu('kilitli', `Dosya yazılamadı; başka bir programda açık olabilir: ${ad}`);
+    if (kilitKodu(e)) throw kodlu('kilitli', `Dosya yazılamadı, başka bir programda açık olabilir: ${ad}`);
   } finally { await fh?.close().catch(() => {}); }
 }
 
@@ -253,7 +253,7 @@ async function hedefDenetle(hedef) {
 async function yerineKoy(gecici, hedef, cekirdekBirak) {
   const ad = path.basename(hedef);
   await cekirdekBirak(hedef);
-  if (POSIX && await saltOkunurMu(hedef)) throw kodlu('salt_okunur', `Dosya yazılamadı; salt okunur: ${ad}`);   // rename klasörün iznine bakar
+  if (POSIX && await saltOkunurMu(hedef)) throw kodlu('salt_okunur', `Dosya yazılamadı, salt okunur: ${ad}`);   // rename klasörün iznine bakar
   const yan = hedefYaninda(hedef);
   try { await fs.promises.copyFile(gecici, yan, fs.constants.COPYFILE_EXCL); } catch (e) {
     await fs.promises.rm(yan, { force: true }).catch(() => {});
@@ -264,8 +264,8 @@ async function yerineKoy(gecici, hedef, cekirdekBirak) {
     for (let deneme = 0; ; deneme++) {
       try { await fs.promises.rename(yan, hedef); geciciler.delete(yan); return; } catch (e) {
         if (kilitKodu(e) && deneme < 2) { await new Promise((c) => setTimeout(c, 250)); continue; }
-        if (await saltOkunurMu(hedef)) throw kodlu('salt_okunur', `Dosya yazılamadı; salt okunur: ${ad}`);
-        if (kilitKodu(e)) throw kodlu('kilitli', `Dosya yazılamadı; başka bir programda açık olabilir: ${ad} (${e.code})`);
+        if (await saltOkunurMu(hedef)) throw kodlu('salt_okunur', `Dosya yazılamadı, salt okunur: ${ad}`);
+        if (kilitKodu(e)) throw kodlu('kilitli', `Dosya yazılamadı, başka bir programda açık olabilir: ${ad} (${e.code})`);
         throw kodlu('hata', `Dosya yazılamadı: ${ad} (${hataMetni(e)})`);
       }
     }
