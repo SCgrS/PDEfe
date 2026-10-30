@@ -432,21 +432,27 @@ class SahteBelgeler:
 
 
 class SahteWps:
-    """Application nesnesi: _Disp'in yerine."""
+    """Application nesnesi: _Disp'in yerine. Başlangıç değerleri gerçek WPS'ten (12.1.0.29162): Yeni otomasyon örneği görünmez, belgesiz, DisplayAlerts 0.
+    Kullanıcının açık örneği görünür, DisplayAlerts -2. Ana sayfası açık kullanıcı: Görünür, belgesiz (gorunur=True)."""
 
-    def __init__(self, ilk_belge=0, makro_yazilir=True, asili=None, kullanici_belgesi_duser=False):
+    def __init__(self, ilk_belge=0, makro_yazilir=True, asili=None, kullanici_belgesi_duser=False, gorunur=None, gorunurluk_okunmaz=False):
         self.belge_sayisi = ilk_belge
         self.makro_yazilir = makro_yazilir
         self.asili = asili
         self.kullanici_belgesi_duser = kullanici_belgesi_duser
         self.yazilan = {}
-        self.kayit = {"AutomationSecurity": 1, "DisplayAlerts": -1, "Visible": True, "ScreenUpdating": True, "Path": r"C:\Kingsoft\WPS Office\office6"}
+        kullanicinin = ilk_belge > 0 if gorunur is None else gorunur
+        self.gorunurluk_okunmaz = gorunurluk_okunmaz
+        self.kayit = {"AutomationSecurity": 1, "DisplayAlerts": -2 if kullanicinin else 0, "Visible": kullanicinin, "ScreenUpdating": True, "Path": r"C:\Kingsoft\WPS Office\office6"}
         self.quit = 0
         self.aktarim = 0
 
     def al(self, ad):
         if ad == "Documents":
             return SahteBelgeler(self)
+        if ad == "Visible" and self.gorunurluk_okunmaz:
+            import comtypes
+            raise comtypes.COMError(0x80020006, "okunamadı", None)
         return self.kayit.get(ad)
 
     def ver(self, ad, deger):
@@ -463,18 +469,17 @@ class SahteWps:
 class SahteOrtam:
     """_WpsOturumu'nun dış dünyası: Süreç listesi ve COM oluşturma. Süreçler zararsız Python süreçleridir, komut satırında /Automation."""
 
-    def __init__(self, word, uygulama, yeni_surec=True, kullanici_sureci=None, pencere=False, acik_program=None, devreder=False):
+    def __init__(self, word, uygulama, yeni_surec=True, kullanici_sureci=None, pencere=False, devreder=False):
         self.word, self.u, self.pencere = word, uygulama, pencere
-        self.acik_program, self.devreder = acik_program, devreder
+        self.devreder = devreder
         self.kullanici = kullanici_sureci
         self.bizim = None
         self.yeni_surec = yeni_surec
         self.olusturuldu = False
         import comtypes
         self.comtypes = comtypes
-        self.eski = (word.wps_pidleri, word._Disp, comtypes.CoCreateInstance, word._kucuk_pencereler, word._wps_kurulum_suruyor, word.motorlar, word.wps_ailesi)
+        self.eski = (word.wps_pidleri, word._Disp, comtypes.CoCreateInstance, word._kucuk_pencereler, word._wps_kurulum_suruyor, word.motorlar)
         word.wps_pidleri = self.pidler
-        word.wps_ailesi = lambda: {**self.pidler(), **({self.acik_program: 0} if self.acik_program else {})}
         word._Disp = lambda p: p
         comtypes.CoCreateInstance = self.olustur
         word._kucuk_pencereler = lambda pid: [0] if self.pencere and self.bizim and pid == self.bizim.pid else []
@@ -500,7 +505,7 @@ class SahteOrtam:
 
     def kapat(self):
         w = self.word
-        w.wps_pidleri, w._Disp, self.comtypes.CoCreateInstance, w._kucuk_pencereler, w._wps_kurulum_suruyor, w.motorlar, w.wps_ailesi = self.eski
+        w.wps_pidleri, w._Disp, self.comtypes.CoCreateInstance, w._kucuk_pencereler, w._wps_kurulum_suruyor, w.motorlar = self.eski
         with w._oturum_kilidi:
             w._wps_oturum = None
         for p in (self.bizim,):
@@ -562,20 +567,43 @@ def test_wps_oturumu(g):
         sonuc("açık WPS: Quit çağrılmadı", u.quit == 0, u.quit)
         sonuc("açık WPS: Kullanıcının iki belgesi açık", u.belge_sayisi == 2, u.belge_sayisi)
         sonuc("açık WPS: Görünürlük değişmedi", "Visible" not in u.yazilan and "ScreenUpdating" not in u.yazilan, u.yazilan)
-        sonuc("açık WPS: Ayarlar geri alındı", u.kayit["DisplayAlerts"] == -1 and u.kayit["AutomationSecurity"] == 1, u.kayit)
+        sonuc("açık WPS: Ayarlar geri alındı", u.kayit["DisplayAlerts"] == -2 and u.kayit["AutomationSecurity"] == 1, u.kayit)
         sonuc("açık WPS: Süreç yaşıyor", kullanici.poll() is None)
     finally:
         o.kapat()
 
-    # 2b) Yeni süreç çıktı ama örnek kullanıcınınki olabilir: Quit kullanıcının belgelerini kaydetmeden kapatırdı. Örnek ancak açık WPS programı yokken, yeni süreç yaşarken, belgesizse bizimdir
+    # 2b) Yardımcılar hep çalışır (gerçek WPS: wpscloudsvr'nin "wps.exe Run -Entry=…" süreçleri, ayrıca kullanıcının başka belgesi ayrı süreçte): Bunlar kuralı etkilemez.
+    # Eski kural "herhangi bir WPS programı açıksa örnek kullanıcınındır" diyordu: Her dönüştürme arkada iki wps.exe bırakıyordu. Örnek yeni süreçse, görünmezse, belgesizse bizimdir
     temizle()
+    yardimci = kukla_surec()
     u = SahteWps()
-    o = SahteOrtam(word, u, acik_program=424242)
+    o = SahteOrtam(word, u, kullanici_sureci=yardimci)
     try:
         word._wps_ile(g["docx"], pdf, il, "x.docx")
         time.sleep(0.3)
-        sonuc("açık program (et.exe), yeni süreç, belge yok: Quit yok, görünürlük değişmedi", u.quit == 0 and "Visible" not in u.yazilan and os.path.isfile(pdf), (u.quit, u.yazilan))
-        sonuc("açık program: Yeni süreç sonlandırılmadı, iş nesnesinden serbest", o.bizim.poll() is None and word._wps_oturum._is is None and word._wps_oturum.pid is None, (o.bizim.poll(), word._wps_oturum.pid))
+        sonuc("yardımcılar açıkken: Örnek bizim, gizlendi, Quit bir kez", u.quit == 1 and u.yazilan.get("Visible") == [False] and os.path.isfile(pdf), (u.quit, u.yazilan))
+        sonuc("yardımcılar açıkken: Quit'e uymayan yalnız bizim süreç sonlanır, yardımcı yaşar", _bitmesini_bekle(o.bizim, word.KAPANMA_BEKLE + 5) and yardimci.poll() is None, (o.bizim.poll(), yardimci.poll()))
+    finally:
+        o.kapat()
+        yardimci.kill()
+    # Kuşkuda kullanıcınındır: Görünür ama belgesiz (ana sayfası açık WPS), görünürlüğü okunamayan
+    temizle()
+    u = SahteWps(gorunur=True)
+    o = SahteOrtam(word, u)
+    try:
+        word._wps_ile(g["docx"], pdf, il, "x.docx")
+        time.sleep(0.3)
+        sonuc("yeni süreç, örnek görünür, belge yok: Quit yok, görünürlük değişmedi", u.quit == 0 and "Visible" not in u.yazilan and os.path.isfile(pdf), (u.quit, u.yazilan))
+        sonuc("örnek görünür: Yeni süreç sonlandırılmadı, iş nesnesinden serbest", o.bizim.poll() is None and word._wps_oturum._is is None and word._wps_oturum.pid is None, (o.bizim.poll(), word._wps_oturum.pid))
+    finally:
+        o.kapat()
+    temizle()
+    u = SahteWps(gorunurluk_okunmaz=True)
+    o = SahteOrtam(word, u)
+    try:
+        word._wps_ile(g["docx"], pdf, il, "x.docx")
+        time.sleep(0.3)
+        sonuc("görünürlük okunamadı: Quit yok, görünürlük değişmedi", u.quit == 0 and "Visible" not in u.yazilan and os.path.isfile(pdf), (u.quit, u.yazilan))
     finally:
         o.kapat()
     temizle()
@@ -584,7 +612,7 @@ def test_wps_oturumu(g):
     try:
         word._wps_ile(g["docx"], pdf, il, "x.docx")
         time.sleep(0.3)
-        sonuc("yeni süreç örnekte belge buldu: Quit yok, belgeler açık, görünürlük değişmedi", u.quit == 0 and u.belge_sayisi == 2 and "Visible" not in u.yazilan and u.kayit["DisplayAlerts"] == -1, (u.quit, u.belge_sayisi, u.yazilan))
+        sonuc("yeni süreç örnekte belge buldu: Quit yok, belgeler açık, görünürlük değişmedi", u.quit == 0 and u.belge_sayisi == 2 and "Visible" not in u.yazilan and u.kayit["DisplayAlerts"] == -2, (u.quit, u.belge_sayisi, u.yazilan))
     finally:
         o.kapat()
     temizle()
@@ -833,6 +861,19 @@ def surec_say(ad):
     return set(word._surecler((ad,)))
 
 
+def wps_otomasyon_surecleri():
+    """COM'un başlattığı WPS süreçleri (komutunda /Automation): Dönüştürme bitince kalmamalı. WPS'in hep çalışan yardımcılarında bu yok."""
+    from islemler import word
+    return {k for k in word.wps_pidleri() if "/automation" in word.surec_komutu(k).lower()}
+
+
+def wps_otomasyon_bitti_mi(once, sure=20):
+    t0 = time.time()
+    while wps_otomasyon_surecleri() - once and time.time() - t0 < sure:
+        time.sleep(0.25)
+    return not (wps_otomasyon_surecleri() - once)
+
+
 def pdf_denetle(ad, yol, s0, m, ayrinti=None):
     """Motorun ürettiği PDF: Sayfa, metin, üst veri."""
     doc = pymupdf.open(yol, filetype="pdf")
@@ -858,6 +899,8 @@ def motor_bolumu(m, g, exe):
     k = os.path.join(CIKTI, "motor_" + m)
     os.makedirs(k, exist_ok=True)
     onceki = surec_say("soffice.bin") if m == "libreoffice" else set()
+    wps_once = wps_otomasyon_surecleri() if m == "wps" else set()
+    bulut_once = surec_say("wpscloudsvr.exe") if m == "wps" else set()
     s = W.Surec(exe, {"PDEFE_OFIS_MOTORU": m})
     try:
         y = s.cagir("donusum_yetenekleri", {})
@@ -915,6 +958,9 @@ def motor_bolumu(m, g, exe):
     if m == "libreoffice":
         sonra = surec_say("soffice.bin")
         sonuc("daha önce açık LibreOffice süreçleri yerinde, yenisi kalmadı", onceki == sonra, (onceki, sonra))
+    if m == "wps":
+        sonuc("WPS: Bizim süreçler kalmadı (eski kural her dönüştürmede iki wps.exe bırakıyordu)", wps_otomasyon_bitti_mi(wps_once), wps_otomasyon_surecleri())
+        sonuc("WPS: Arka plandaki bulut hizmeti yerinde", bulut_once <= surec_say("wpscloudsvr.exe"), (bulut_once, surec_say("wpscloudsvr.exe")))
 
 
 # ---------------------------------------------------------------- F) WPS
@@ -1070,6 +1116,7 @@ def word_benzetim_bolumu(g, exe):
     k = os.path.join(CIKTI, "word_benzetim")
     os.makedirs(k, exist_ok=True)
     once = word.word_pidleri()
+    wps_once = wps_otomasyon_surecleri()
     s = W.Surec(exe, {"PDEFE_SINAMA_WORD_PROGID": "KWPS.Application", "PDEFE_OFIS_MOTORU": "word,libreoffice"})
     try:
         h = os.path.join(k, "a.pdf")
@@ -1079,6 +1126,7 @@ def word_benzetim_bolumu(g, exe):
         print("     %.1f sn" % (time.time() - t0))
         sonuc("Word motoru WPS'e düştü: LibreOffice ile bitti", "hata" not in s0 and s0.get("motor") == "libreoffice" and "Word" in (s0.get("uyari") or ""), s0)
         sonuc("Word motoru WPS'e düştü: Word başlatılmadı", word.word_pidleri() == once)
+        sonuc("Word motoru WPS'e düştü: Başlayan WPS kapandı", wps_otomasyon_bitti_mi(wps_once), wps_otomasyon_surecleri())
     finally:
         s.kapat()
 

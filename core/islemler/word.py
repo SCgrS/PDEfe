@@ -28,7 +28,7 @@ Word'e nasıl dokunulur (Windows):
   - Süreç, Caption'a verilen benzersiz etiketle FindWindowW("OpusApp", etiket) ile bulunur (bulunamazsa oluşturma öncesi / sonrası
     WINWORD.EXE süreç farkı, tek yeni süreç varsa); tutamacı açılır ve "kapanınca sonlandır" (KILL_ON_JOB_CLOSE) iş nesnesine bağlanır:
     PDEfe ya da çekirdek çökerse Word de kapanır. Süreç bulunamaz ya da bağlanamazsa belge Word'e hiç verilmez (_MotorHatasi, sıradaki motor).
-    Application.Path WPS'i gösteriyorsa (kayıt yanıltıcıysa) o örnek kapatılmaz: Kullanıcının açık WPS'i olabilir, yalnız başvuru bırakılır.
+    Application.Path WPS'i gösteriyorsa (kayıt yanıltıcıysa) belge verilmez. Örnek boşsa (görünmez, belgesiz) kapatılır: Başvuru bırakmak kapatmıyor, her dönüştürmede arkada iki wps.exe kalırdı (ölçüldü).
   - Belge açılmadan önce: AutomationSecurity = 3 (makrolar kapalı; otomasyonla başlayan Word'de "düşük" ölçüldü, .docm makrosu
     çalışabilirdi), DisplayAlerts = 0, Visible = False, ScreenUpdating = False. Application.Options.* DEĞİŞTİRİLMEZ (kalıcıdır).
   - Girdi önce geçici klasöre doğru uzantıyla kopyalanır (yalnız içerik: "İnternetten indirildi" işareti taşınmaz, Korumalı Görünüm
@@ -59,13 +59,16 @@ WPS 12.2'de ölçüldü: Türkçe doğru, filigran yok, başlıktan yer imi var)
   - WPS kurulum ya da güncelleme sürerken başlamaz, ekrana "aynı anda çalıştırılamaz" penceresi açar, COM 120 sn sonra hata döner (0x80080005,
     WPS'in kendi güncellemesinden sonra bu bilgisayarda ölçüldü). Önden denetim: WPS'in kendi kurulum mutex'leri (_wps_kurulum_suruyor, adlar
     ksolite.dll'den). Mutex'ler var olduğu sürece WPS hiç başlatılmaz, pencere çıkmaz.
-  - Her belge için ayrı örnek: Son belge kapanınca süreç kendiliğinden kapanıyor, sonraki çağrılar düşüyor (ölçüldü).
-  - Kullanıcının açık WPS'ine dokunmamak: WPS tek süreçte çalışabilir, CoCreateInstance açık örneğe bağlanabilir, /Automation ile başlayan süreç de işi açık
-    örneğe devredip kapanabilir ya da ona aracılık edebilir (gerçek WPS'le bu dallar sınanamadı: Kurulum kilidi). Bu yüzden örnek ancak dördü birden doğruysa bizimdir:
-    Çağrıdan önce hiçbir WPS programı açık değildi (WPS_AILESI), yeni süreç (komut satırında /Automation) bulundu, o süreç hâlâ yaşıyor, örnekte açık belge yok.
-    Değilse örnek kullanıcınındır ("paylaşımlı"): Quit çağrılmaz (Quit kullanıcının belgelerini kaydetmeden kapatırdı), Visible ve ScreenUpdating değişmez, yalnız kendi
-    belgemiz kapatılır, iki ayar geri alınır. Asılı kalırsa çağrı terk edilir, sıradaki motora geçilir. Bu arada bulunan yeni süreç yalnız asılı kalmada sonlandırılır (kullanıcının açık
-    programı o değildir, yukarıdaki listede önceden vardı), iş bitince iş nesnesinden serbest bırakılır.
+  - Her belge için ayrı örnek: Çağrı başına süreç, iş biter bitmez Quit (12.1.0.29162'de ölçüldü: Quit'ten 0,1 sn sonra iki süreç de gitti, belge başına ~2 sn). Eski ölçümde (12.2) son belge
+    kapanınca süreç kendiliğinden kapanıyor, sonraki çağrılar düşüyordu: Ayrı örnek iki sürümde de çalışır.
+  - Süreçler (12.1.0.29162'de gerçek WPS'le ölçüldü, PLAN "Gerçek WPS"): WPS'in arka plan yardımcıları oturum açılışından beri hep çalışır ve görünür pencereleri yoktur (wpscloudsvr.exe, wpscenter.exe, komutunda
+    "Run" olan wps.exe). Otomasyon: CoCreateInstance her çağrıda DcomLaunch'tan YENİ bir süreç başlatır (wps.exe /prometheus /wps /Automation -Embedding, altında /wps /from_prome), başka bir otomasyon örneği ya da
+    kullanıcının belge açık WPS'i varken de. Yeni örnekte Visible False, belge yok. Kullanıcının WPS'i (komutunda /Automation yok) ayrı süreçtir, COM'dan yalnız GetActiveObject bulur, burada hiç kullanılmaz:
+    Bizim örneğe Quit, onun belgesine (kaydedilmemiş değişiklik dâhil) dokunmadı. Quit'ten sonra WPS kendi wpsupdate.exe /from:ksoend'ini başlatır, pencere açmaz.
+  - Kullanıcının açık WPS'ine dokunmamak: Örnek ancak üçü birden doğruysa bizimdir: Yeni süreç (komut satırında /Automation) bulundu ve yaşıyor, örnek görünmez (Visible False), örnekte belge yok. Kuşkuda örnek
+    kullanıcınındır ("paylaşımlı": WPS'in başka bir sürümü işi açık örneğe devrederse): Quit çağrılmaz (Quit kullanıcının belgelerini kaydetmeden kapatırdı), Visible ve ScreenUpdating değişmez, yalnız kendi belgemiz
+    kapatılır, iki ayar geri alınır. Asılı kalırsa çağrı terk edilir, sıradaki motora geçilir. Bu arada bulunan yeni süreç yalnız asılı kalmada sonlandırılır, iş bitince iş nesnesinden serbest bırakılır.
+    "Başka bir WPS programı açık mı" diye bakılmaz: Yardımcılar hep açık olduğu için bu kural hiçbir örneği bizim saymıyor, her dönüştürme arkada iki wps.exe bırakıyordu (ölçüldü).
   - Örnek bizimse süreç iş nesnesine bağlanır (çekirdek çökerse kapanır). İşin sonunda Quit, süre dolunca yalnız o süreç sonlandırılır, iş nesnesi
     gevşetilir: WPS'in başlattığı yardımcılar (bulut hizmeti gibi) öldürülmez. Bu arada kullanıcının belgesi bizim örneğe düştüyse Word'deki gibi bırakılır.
   - Başlarken ya da belge açılırken ekranda küçük bir pencere BILDIRIM_SURESI sn durursa (lisans, oturum açma, güncelleme, ilk çalıştırma, onarım
@@ -133,7 +136,6 @@ MOTORLAR = ("word", "wps", "libreoffice")   # öncelik sırası
 MOTOR_ADI = {"word": "Word", "wps": "WPS Office", "libreoffice": "LibreOffice"}
 WPS_PROGIDLER = ("KWPS.Application", "WPS.Application")
 WPS_SURECLER = ("wps.exe", "wpsoffice.exe")
-WPS_AILESI = WPS_SURECLER + ("et.exe", "wpp.exe", "wpspdf.exe")   # kullanıcının açık WPS programı sayılanlar (wpscenter gibi arka plan hizmetleri sayılmaz)
 # WPS'in kurulum ve güncelleme kilitleri (ksolite.dll, wpsupdate.exe): Biri varsa WPS başlamaz, "aynı anda çalıştırılamaz" penceresi açar
 WPS_KURULUM_MUTEXLERI = ("Global\\wpssetup_C42D7A0A-2868-45FF-92EE-9B7AE7124588", "Global\\wpspatch_C42D7A0A-2868-45FF-92EE-9B7AE7124588",
                          "Global\\wps_diff_patch_C42D7A0A-2868-45FF-92EE-9B7AE7124588")
@@ -308,11 +310,6 @@ def word_pidleri():
 def wps_pidleri():
     """Çalışan WPS Office süreçleri (wpscenter gibi yardımcılar sayılmaz; sınamalar da kullanır): {kimlik: ebeveyn kimliği}."""
     return _surecler(WPS_SURECLER)
-
-
-def wps_ailesi():
-    """Çalışan WPS programları: Yazı, tablo, sunu, PDF. Biri açıksa COM örneği kullanıcınınki olabilir (_WpsOturumu._baslat)."""
-    return _surecler(WPS_AILESI)
 
 
 def surec_komutu(pid):
@@ -694,6 +691,15 @@ class _BaslatmaHatasi(Exception):
     pass
 
 
+def _wps_ornegi_bos_mu(w):
+    """Yeni WPS örneğinin ölçülmüş hâli: Görünmez, belgesiz. Okunamazsa ya da başka bir şeyse False (bkz. modül belgesi: Kuşkuda örnek kullanıcınındır)."""
+    comtypes, _ = _com()
+    try:
+        return _yinele(lambda: w.al("Visible")) is False and int(_yinele(lambda: w.al("Documents").al("Count"))) == 0
+    except (comtypes.COMError, OSError, TypeError, ValueError):
+        return False
+
+
 # ---------------------------------------------------------------- Word oturumu (STA iş parçacığı)
 class _Istek:
     def __init__(self, kaynak, pdf):
@@ -871,7 +877,12 @@ class _WordOturumu:
                 api.k32.CloseHandle(surec)
             if j:
                 api.k32.CloseHandle(j)
-            if yabanci:   # kullanıcının açık WPS'i olabilir: Kapatılmaz, yalnız başvuru bırakılır (son başvuru gidince kendi örneğimiz kapanır)
+            if yabanci:   # boşsa COM'un bizim için başlattığı yeni süreçtir: Kapatılır. Değilse kullanıcınındır, yalnız başvuru bırakılır
+                try:
+                    if _wps_ornegi_bos_mu(w):
+                        w.cagir("Quit", WD_DO_NOT_SAVE)
+                except comtypes.COMError:
+                    pass
                 w = None
             elif self._word is None:   # belge verilemeyecek Word kapatılır
                 try:
@@ -1091,7 +1102,6 @@ class _WpsOturumu(_WordOturumu):
         comtypes, a = _com()
         with self._kilit:
             self._onceki = set(wps_pidleri())
-        acik_program = bool(wps_ailesi())   # çağrıdan önce: Sonrasında yeni süreç de bu listeye girer
         self._paylasimli = self._makro_kapali = False
         self._pencere_ilk = None
         w = _Disp(comtypes.CoCreateInstance(comtypes.GUID.from_progid(self._progid), interface=a.IDispatch, clsctx=comtypes.CLSCTX_LOCAL_SERVER))
@@ -1099,10 +1109,10 @@ class _WpsOturumu(_WordOturumu):
         while self.baslayan_bul() is None and time.monotonic() < bitis:
             time.sleep(0.05)
         self._word = w
-        self._ilk_sayi = self._belge_sayisi_ya_da_none() or 0
         with self._kilit:
             yeni_yasiyor = self.pid is not None and _canli_mi(self._surec)
-        self._paylasimli = acik_program or not yeni_yasiyor or self._ilk_sayi > 0   # bkz. modül belgesi: Kuşkuda örnek kullanıcınındır
+        self._ilk_sayi = self._belge_sayisi_ya_da_none() or 0
+        self._paylasimli = not (yeni_yasiyor and _wps_ornegi_bos_mu(w))   # bkz. modül belgesi: Kuşkuda örnek kullanıcınındır
         for ad, oznitelik in (("AutomationSecurity", "_ozgun_guvenlik"), ("DisplayAlerts", "_ozgun_uyari")):
             try:
                 setattr(self, oznitelik, int(_yinele(lambda: w.al(ad))))
