@@ -348,7 +348,7 @@ export default async function ({ evalJs, bekle, tus }) {
       const d2 = ev2(`document.querySelector('#bul-sayac').textContent`);
       sonuc('Tanıyıcısız, taranmış sayfalı başka belgede PDF metni yine bulunur', /^1 \/ 1 · taranmış sayfalar aranamadı$/.test(d2), d2);
     } finally {
-      if (pid) execFileSync('powershell', ['-NoProfile', '-File', path.join(KOK, 'test', 'durdur.ps1'), '-SurecId', pid], { encoding: 'utf8' });
+      if (pid) execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(KOK, 'test', 'durdur.ps1'), '-SurecId', pid], { encoding: 'utf8' });
     }
     // Yalnızca metinli belgede bilgi yok (bu örnekte tanıyıcı var; tanıyıcısız örnekte de aday sayfa olmadığından bilgi çıkmaz)
     console.log('— 7b. Yalnızca metinli belgede');
