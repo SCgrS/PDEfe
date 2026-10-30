@@ -389,6 +389,7 @@ export class DonusturPenceresi {
       // Görüntünün görünen yöndeki piksel ölçüsü (0.2.7; satırın özetinde sayfa sayısı yerine)
       piksel: b?.pikselGenislik && b?.pikselYukseklik ? [b.pikselGenislik, b.pikselYukseklik] : null,
     });
+    if (b?.xfa) { o.hata = b.uyari; o.uyari = null; return; }   // XFA formu bu araçta kullanılamaz (0.3.1 kabul sınaması)
     if (o.tur === 'bilinmeyen') { o.hata = b?.uyari || 'Dosyanın biçimi tanınmadı. PDF, UDF, TIFF, Word ve görüntü (JPG, PNG…) dosyaları dönüştürülebilir.'; o.uyari = null; return; }
     if (!o.hedefBicim || o.hedefBicim === o.tur || !this._hedefDurumu(o, o.hedefBicim).var) o.hedefBicim = this._varsayilanHedef(o);
   }

@@ -1305,6 +1305,9 @@ def y_gorsel_bilgi(p):
         doc = _onbellek().al(yol)
         if doc.needs_pass:
             raise PermissionError("Belge parolayla korunuyor: %s" % os.path.basename(yol))
+        from . import xfa
+        if xfa.saf_xfa_mi(doc):
+            raise ValueError(xfa.ARAC_ILETISI)
         pg = doc[0]
         r = pg.rect
         from pdefe_core import olcek_sinirla
@@ -1554,7 +1557,11 @@ def y_sayfa_boyutlari(p):
     for pg in doc:
         r = pg.rect
         sayfalar.append({"genislik": round(r.width, 2), "yukseklik": round(r.height, 2), "dondurme": pg.rotation})
-    return {"sayfalar": sayfalar, "sayfa": doc.page_count}
+    sonuc = {"sayfalar": sayfalar, "sayfa": doc.page_count}
+    from . import xfa
+    if xfa.saf_xfa_mi(doc):
+        sonuc["xfa"] = xfa.ARAC_ILETISI   # Sayfaları düzenle'de başka PDF'ten sayfa eklerken: Bu sayfa formun kendisi değil
+    return sonuc
 
 
 # ---------------------------------------------------------------- 11) dosya_erisim

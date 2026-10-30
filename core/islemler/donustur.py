@@ -829,6 +829,12 @@ def y_donusum_bilgi(p):
     try:
         _girdi_denetle(yol, tur, alt)
         if tur == "pdf":
+            from . import xfa
+            if xfa.saf_xfa_mi(araclar._onbellekten_al(yol)):
+                sonuc.update(xfa=True, uyari=xfa.ARAC_ILETISI)
+                for h in sonuc["hedefler"]:
+                    h["var"], h["neden"] = False, xfa.ARAC_ILETISI
+                return sonuc
             sonuc.update(_pdf_bilgi(yol, genislik))
         elif tur == "tiff":
             sonuc.update(_tiff_bilgi(yol, genislik))

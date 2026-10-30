@@ -230,6 +230,25 @@ sonuc("veri: PDF olmayan reddedilir", hata_verir(lambda: xfa.y_xfa_degistir({"ve
 sonuc("veri: eksik reddedilir", hata_verir(lambda: xfa.y_xfa_kaydet({"hedef": hedef})))
 sonuc("düğüm: şablonda olmayan reddedilir", hata_verir(lambda: xfa.y_xfa_degistir({"veri": B64, "islemler": [{"tur": "ekle", "dugum": 999999}]})))
 sonuc("düğüm: alt form olmayan ekle reddedilir", hata_verir(lambda: xfa.y_xfa_degistir({"veri": B64, "islemler": [{"tur": "ekle", "dugum": mesaj["dugum"]}]})))
+# Araçların dosya ekleme yolu (0.3.1 kabul sınaması): XFA formu "lütfen bekleyin" sayfası olarak işlenmez, açıkça söylenir
+bilgi = pdefe_core.YONTEMLER["donusum_bilgi"]({"yol": XFA, "genislik": 64})
+sonuc("araç: Format Değiştir XFA formunu almaz (bütün hedefler kapalı, ileti)", bilgi.get("xfa") is True and bilgi["uyari"] == xfa.ARAC_ILETISI and not any(h["var"] for h in bilgi["hedefler"]), bilgi)
+try:
+    pdefe_core.YONTEMLER["gorsel_bilgi"]({"yol": XFA, "genislik": 64})
+    sonuc("araç: Birleştir XFA formunu almaz", False)
+except ValueError as e:
+    sonuc("araç: Birleştir XFA formunu almaz", str(e) == xfa.ARAC_ILETISI, str(e))
+sb = pdefe_core.YONTEMLER["sayfa_boyutlari"]({"yol": XFA})
+sonuc("araç: Sayfaları düzenle'de eklenecek belgede XFA işareti", sb.get("xfa") == xfa.ARAC_ILETISI and sb["sayfa"] == 1, sb)
+OLAGAN = os.path.join(CIKTI, "olagan.pdf")
+_d = pymupdf.open()
+_d.new_page()
+_d.save(OLAGAN)
+_d.close()
+sonuc("araç: Olağan PDF'te XFA işareti yok", "xfa" not in pdefe_core.YONTEMLER["donusum_bilgi"]({"yol": OLAGAN, "genislik": 64}) and "xfa" not in pdefe_core.YONTEMLER["sayfa_boyutlari"]({"yol": OLAGAN})
+      and pdefe_core.YONTEMLER["gorsel_bilgi"]({"yol": OLAGAN, "genislik": 64})["sayfa"] == 1)
+sonuc("araç: Bozuk paketli belge XFA sayılmaz", xfa.saf_xfa_mi(pymupdf.open(OLAGAN)) is False)
+
 sonuc("çekirdekte kayıtlı yöntemler", all(y in pdefe_core.YONTEMLER for y in ("xfa_bilgi", "xfa_degistir", "xfa_kaydet")))
 pdefe_core.onbellek.hepsini_birak()
 

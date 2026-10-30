@@ -578,6 +578,7 @@ export class SayfalarPenceresi {
   async _sayfaBoyutlari(yol) {
     try {
       const r = await this.baglam.cekirdek('sayfa_boyutlari', { yol });
+      if (r?.xfa) throw new Error(r.xfa);   // XFA formunun sayfaları eklenemez (0.3.1 kabul sınaması)
       const liste = r?.sayfalar || r;
       if (Array.isArray(liste) && liste.length) {
         return liste.map((s, i) => ({ no: s.no ?? s.sayfa ?? i + 1, genislik: s.genislik ?? s.w ?? A4.w, yukseklik: s.yukseklik ?? s.h ?? A4.h }));

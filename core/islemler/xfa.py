@@ -144,6 +144,19 @@ def _saf_mi(doc, paketler):
     return not (tur == "array" and re.search(r"\d+\s+0\s+R", deger))
 
 
+# Format Değiştir, Birleştir ve Sayfaları düzenle'nin dosya ekleme yolu XFA formu aldığında (0.3.1 kabul sınaması): MuPDF yalnızca belgenin
+# "lütfen bekleyin" sayfasını görür, araç o sayfayı işleyip "tamamlandı" diyordu (sağ tıktan gelen istekte görüldü).
+ARAC_ILETISI = "Bu dosya dinamik XFA formu, bu araçta kullanılamaz. Formu PDEfe'de açıp Yazdır ile PDF olarak kaydedebilirsiniz."
+
+
+def saf_xfa_mi(doc):
+    """Belge saf (dinamik) XFA formu mu. Okunamazsa (parolalı belge gibi) değil."""
+    try:
+        return _saf_mi(doc, _paketler(doc))
+    except Exception:
+        return False
+
+
 def _kullanim_hakki_var(doc):
     kat = doc.pdf_catalog()
     return doc.xref_get_key(kat, "Perms/UR3")[0] != "null" or doc.xref_get_key(kat, "Perms/UR")[0] != "null"

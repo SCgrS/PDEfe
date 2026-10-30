@@ -244,6 +244,23 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
     d = await durum();
     sonuc('Anahtarsız ikinci süreç: PDF eskisi gibi sekmede açılır, araç açılmaz', d.sekmeler.includes(ad(G.pdf())) && !d.donusturAcik && !d.birlestirAcik, d);
     await sekmeleriKapat();
+
+    // XFA formu (0.3.1 kabul sınaması): Araçlarda çalışamaz (MuPDF yalnızca "lütfen bekleyin" sayfasını görür), satırda açıkça söylenir
+    const XFA_KLASOR = path.join(GIRDI, 'xfa');
+    const xfaYol = JSON.parse(execFileSync(PY, ['-X', 'utf8', path.join(KOK, 'test', 'xfa_pdf_uret.py'), XFA_KLASOR], { encoding: 'utf8' }).trim().split(/\r?\n/).pop()).xfa;
+    const satirHatasi = (secici) => evalJs(`(() => { const k = document.querySelector(${J(secici)}); const dugme = [...k.querySelectorAll('button.birincil')].at(-1); return { hata: k.querySelector('.hata:not([hidden])')?.textContent || '', dugmeSoluk: dugme?.disabled, sayfa: k.querySelector('.ozet')?.textContent || '' }; })()`);
+    await ikinci(['--donustur', xfaYol]);
+    await satirlarBekle('donustur', 1);
+    await kosul(`!!document.querySelector('.donustur-pencere .hata:not([hidden])')`, 8000);
+    const dx = await satirHatasi('.donustur-pencere');
+    sonuc('XFA formu Format Değiştir\'de: Satırda XFA uyarısı, Dönüştür soluk', /XFA formu/.test(dx.hata) && dx.dugmeSoluk === true, dx);
+    await araclariKapat();
+    await ikinci(['--birlestir', xfaYol, G.pdf()]);
+    await satirlarBekle('birlestir', 2);
+    await kosul(`!!document.querySelector('.arac-pencere .hata:not([hidden])')`, 8000);
+    const bx = await satirHatasi('.arac-pencere');
+    sonuc('XFA formu Birleştir\'de: Satırda XFA uyarısı', /XFA formu/.test(bx.hata), bx);
+    await araclariKapat();
   }
 
   if (bolum.includes('B')) {
