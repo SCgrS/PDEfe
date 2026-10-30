@@ -1147,6 +1147,8 @@ class _WpsOturumu(_WordOturumu):
 
     def _kapat(self, bekle=None):
         comtypes, _ = _com()
+        with self._kilit:
+            self._onceki = None   # sonraki belgenin gözleyicisi bu süreci kendi başlattığı sanmasın
         if self._word is None:
             self._tutamaclari_birak()
             return

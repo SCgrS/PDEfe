@@ -519,7 +519,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
       && d.satirlar[3].metin === 'Bozuk.pdf\nDosya açılamadı.' && !/resim|yazı tanıma/.test(d.metin), d?.satirlar.map((x) => x.metin));
     sonuc('5) Uyarılı satırda adın yanında ⚠ (üçgen içinde ünlem, 16 px, role="img"); uyarısız, yalnız yeni adlı ve hatalı satırlarda simge yok', !!r0 && r0.simge && r0.ucgen && r0.rol === 'img'
       && yakin(r0.w, 16, 0.5) && r0.simgeAdYaninda && !d.satirlar[1].simge && !d.satirlar[2].simge && !d.satirlar[3].simge, d?.satirlar.map((x) => [x.ad, x.simge, x.w]));
-    const BEKLENEN = 'PDF → UDF: Satır, sayfa düzeni ve tablolar UDF\'de kayabilir. İmza gibi resimler alınmayabilir.\n4 resim (imza, doğrulama kodu gibi) alınmadı: UDF\'de resim yalnızca satırın içinde durabilir.\nTaranmış sayfaların yazısı yazı tanımayla çıkarıldı. Harf yanlışları olabilir.';
+    const BEKLENEN = 'PDF → UDF: Satır, sayfa düzeni ve tablolar UDF\'de kayabilir. İmza gibi resimler alınmayabilir.\n4 resim (imza, doğrulama kodu gibi) alınmadı: UDF\'de resim yalnızca satırın içinde durabilir.\nTaranmış sayfaların yazısı yazı tanımayla çıkarıldı.\nHarf yanlışları olabilir.';
     sonuc('5) ⚠ ipucu "PDF → UDF: <kalite notu>" ve alt satırlarda dosyanın uyarıları; erişilebilir adı "Uyarı: …"', r0?.ipucu === BEKLENEN && r0.ariaAd === 'Uyarı: ' + BEKLENEN.replace(/\n/g, ' '), { ipucu: r0?.ipucu, aria: r0?.ariaAd });
     const tema = await evalJs('document.documentElement.dataset.tema');
     sonuc(`5) Simge uyarı renginde (${tema === 'koyu' ? 'koyu tema #ffc83d' : 'açık tema #b35c00'})`, (tema === 'koyu' ? /rgb\(255, 200, 61\)/ : /rgb\(179, 92, 0\)/).test(r0?.renk || ''), { tema, renk: r0?.renk });

@@ -480,7 +480,7 @@ def test_kalite_notlari(c, g):
     sonuc("UDE / Word'ün kendi çizdiği ve kayıpsız dönüştürmelerde not yok", not any(d.get(k, {}).get("kalite") for k in notsuz),
           {k: d.get(k, {}).get("kalite") for k in notsuz if d.get(k, {}).get("kalite")})
     sonuc("TIFF → Word notu: taranmış sayfa resim olarak (yazı tanıma yok)", "resim" in d["tiff>word"]["kalite"], d["tiff>word"]["kalite"])
-    sonuc("görüntü → UDF notu: yazı tanıma, harf yanlışı", "tanın" in d["gorsel>udf"]["kalite"] and "harf" in d["gorsel>udf"]["kalite"],
+    sonuc("görüntü → UDF notu: yazı tanıma, harf yanlışı", "tanın" in d["gorsel>udf"]["kalite"] and "Harf" in d["gorsel>udf"]["kalite"],
           d["gorsel>udf"]["kalite"])
     # 0.2.8 (kullanıcı isteği): notlarda "kaşe" geçmez; UDF ve Word notlarında tablolar da anılır
     sonuc("hiçbir notta \"kaşe\" yok (0.2.8)", not any("kaşe" in (d.get(k, {}).get("kalite") or "").lower() for k in notlu),

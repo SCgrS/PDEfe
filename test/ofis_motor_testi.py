@@ -3,9 +3,9 @@
 burada üretilir; çıktılar test/cikti/ofis_motor altında.
 
 Çalıştırma (görünmeyen masaüstünde: WPS ekrana pencere açabilir):
-  .venv\\Scripts\\python.exe -X utf8 test\\ofis_motor_testi.py [--exe core\\dist\\pdefe-core\\pdefe-core.exe] [--wps-bildirim]
+  .venv\\Scripts\\python.exe -X utf8 test\\ofis_motor_testi.py [--exe core\\dist\\pdefe-core\\pdefe-core.exe] [--wps-bildirim] [--word-benzetim]
 --exe: Paketli çekirdekle (modülün içine bakan bölümler atlanır). --wps-bildirim: WPS'in kurulum kilidi duruyorsa ön denetimi kapatıp gerçek WPS'in penceresini
-yakalar (yalnız görünmeyen masaüstünde çalıştırın). Word burada BAŞLATILMAZ (Word'ün yolu test/word_donusum_testi.py'de). Kurulu olmayan motorun bölümü ATLANDI der.
+yakalar (yalnız görünmeyen masaüstünde çalıştırın). --word-benzetim: Word motorunu WPS'e yöneltir (yine görünmeyen masaüstünde). Word burada BAŞLATILMAZ (Word'ün yolu test/word_donusum_testi.py'de). Kurulu olmayan motorun bölümü ATLANDI der.
 
 Bölümler:
   A) Karar: Word.Application kaydı wps.exe'yi gösteriyorsa Word yok sayılır, sınama değişkenleri, ön bellek.
@@ -981,6 +981,50 @@ def wps_acik_belge_bolumu(g):
     sonuc("açık belge açık kaldı (belge sayısı aynı, adı aynı)", kutu.get("son") == kutu.get("ilk") and kutu.get("ad") == "acik_belge.docx", kutu)
 
 
+def kayit_kancasi_bolumu(g, exe):
+    """Word.Application WPS'e kayıtlıyken (kullanıcının bildirdiği durum, PDEFE_SINAMA_WORD_KOMUTU): Word sanılmaz, bir sonraki motor kullanılır, Word başlatılmaz."""
+    print("— E) Word.Application kaydı wps.exe'yi gösteriyor")
+    from islemler import word
+    if not (WINDOWS and word.libreoffice_bul()):
+        return atlandi("kayıt kancası", "LibreOffice gerekli")
+    k = os.path.join(CIKTI, "kayit_kancasi")
+    os.makedirs(k, exist_ok=True)
+    once = word.word_pidleri()
+    s = W.Surec(exe, {"PDEFE_SINAMA_WORD_KOMUTU": r'"C:\Program Files\Kingsoft\WPS Office\office6\wps.exe" /Automation', "PDEFE_OFIS_MOTORU": "word,libreoffice"})
+    try:
+        y = s.cagir("donusum_yetenekleri", {})
+        sonuc("kayıt WPS'te: Word yok sayılır, motor LibreOffice", y["word"]["word"]["var"] is False and y["word"]["motor"] == "libreoffice", y["word"])
+        h = os.path.join(k, "a.pdf")
+        r = donustur_(s, [{"yol": g["docx"], "hedef": h, "hedefBicim": "pdf"}])
+        s0 = r["sonuclar"][0]
+        sonuc("kayıt WPS'te: Dönüştürme başarılı, eski hata yok", "hata" not in s0 and os.path.isfile(h) and s0.get("motor") == "libreoffice", s0)
+        sonuc("kayıt WPS'te: Word başlatılmadı", word.word_pidleri() == once)
+    finally:
+        s.kapat()
+
+
+def word_benzetim_bolumu(g, exe):
+    """Kayda rağmen Word motoru WPS'e düşerse (PDEFE_SINAMA_WORD_PROGID=KWPS.Application): Word sanılmaz, kullanıcının WPS'i kapatılmaz, sıradaki motora geçilir. Görünmeyen masaüstünde."""
+    print("— E) Word motoru WPS'i başlatıyor (gerçek benzetim)")
+    from islemler import word
+    if not (word.wps_bul() and word.libreoffice_bul()):
+        return atlandi("gerçek benzetim", "WPS ve LibreOffice gerekli")
+    k = os.path.join(CIKTI, "word_benzetim")
+    os.makedirs(k, exist_ok=True)
+    once = word.word_pidleri()
+    s = W.Surec(exe, {"PDEFE_SINAMA_WORD_PROGID": "KWPS.Application", "PDEFE_OFIS_MOTORU": "word,libreoffice"})
+    try:
+        h = os.path.join(k, "a.pdf")
+        t0 = time.time()
+        r = donustur_(s, [{"yol": g["docx"], "hedef": h, "hedefBicim": "pdf"}], sure=240)
+        s0 = r["sonuclar"][0]
+        print("     %.1f sn" % (time.time() - t0))
+        sonuc("Word motoru WPS'e düştü: LibreOffice ile bitti", "hata" not in s0 and s0.get("motor") == "libreoffice" and "Word" in (s0.get("uyari") or ""), s0)
+        sonuc("Word motoru WPS'e düştü: Word başlatılmadı", word.word_pidleri() == once)
+    finally:
+        s.kapat()
+
+
 # ---------------------------------------------------------------- G) motor yok ve öbür türler
 def yoksuz_bolumu(g, exe):
     print("— G) Hiçbir motor yokken ve öbür dosya türleri")
@@ -1062,6 +1106,9 @@ def main():
     if not ev_degistirilmis():
         lo = word.libreoffice_bul()
         testler.append((lambda: motor_bolumu("libreoffice", g, exe)) if lo else (lambda: atlandi("LibreOffice", "kurulu değil")))
+        testler.append(lambda: kayit_kancasi_bolumu(g, exe))
+        if "--word-benzetim" in sys.argv:
+            testler.append(lambda: word_benzetim_bolumu(g, exe))
         wp = word.wps_bul() if WINDOWS else None
         if not wp:
             testler.append(lambda: atlandi("WPS Office", "kurulu değil"))
