@@ -177,14 +177,16 @@ sayfası olan belgede iki tür sayfada da aranır. Linux'ta yalnızca PDF'in ken
 ### Form doldurma
 
 - **Doldurulabilir PDF'ler:** Alanlar açık mavi görünür. Yazı alanına yazılır, kutucuk ve seçenek düğmesi tıklanır, listeden seçilir,
-  `Tab` ile sonraki alana geçilir. Değişiklikler `Ctrl+Z` ile geri alınır, `Ctrl+S` ile kaydedilir. Kaydedilen form başka PDF okuyucularında da
-  aynı görünür, oralarda da düzenlenebilir. Kaydetmeden de yazdırılır, kâğıtta yazdıklarınız çıkar.
-- **E-imzalı formlar:** Boş bir alanı doldurmak imzayı bozmaz. Dolu bir alan değiştirilince PDEfe sorar.
+  `Tab` ile sonraki alana geçilir. Değişiklikler `Ctrl+Z` ile geri alınır, `Ctrl+S` ile kaydedilir. Yazdıklarınız kaydedilen formda durur, başka PDF
+  okuyucularında da görünür. Kaydetmeden de yazdırılır, kâğıtta yazdıklarınız çıkar.
+- **E-imzalı formlar:** Boş bir alanı doldurmak imzalanan bölüme dokunmaz, okuyucu imzadan sonra doldurulduğunu gösterebilir. Değişikliğe kapalı onaylanmış
+  belgede okuyucu bunu izin verilmeyen değişiklik sayar. Dolu bir alan değiştirilince PDEfe sorar.
 - **Dinamik (XFA) formlar:** Bireysel başvuru formu gibi formlar "Please wait" sayfası yerine formun kendisiyle açılır, doldurulur. Formdaki
   düğmelerle bölüm eklenir ve silinir, sayfa numaraları yenilenir, Geri al eklenen bölümü de geri alır. Bu formlarda Not, Vurgu, Yazı ve sayfa döndürme
   kapalıdır, Sıkıştır, Sayfaları düzenle, Döndür, Ayır ve Format Değiştir kullanılamaz, Birleştir bu formları almaz. Alana sığmayan yazı kırmızı çerçeveyle
   işaretlenir, sığmayan kısım basılmaz.
-- **Sınırlar:** Formun Gönder, Yazdır gibi düğmeleri ve hesaplama yapan alanlar PDEfe'de çalışmaz. İmza alanına PDEfe'den imza atılamaz.
+- **Sınırlar:** Doldurulabilir PDF'lerde formun Gönder, Yazdır gibi düğmeleri çalışmaz. XFA formlarında ekle, sil, kaydet ve yazdır düğmeleri çalışır, Gönder ve
+  özel betikli düğmeler çalışmaz. Hesaplama yapan alanlar PDEfe'de çalışmaz. İmza alanına PDEfe'den imza atılamaz.
 
 ### Araçlar
 
@@ -283,13 +285,14 @@ yanında ⚠ simgesi çıkar. Üstüne gelince ne olduğu yazar (örneğin alın
 
 ### Sağ tıkla dönüştür ve birleştir
 
-Dosya yöneticisinde seçilen PDF, UDF, Word, TIFF ve görüntü dosyaları PDEfe'nin araçlarında, PDEfe kapalıysa da açılır. Başka türden bir dosya ya
-da klasör seçimdeyse seçenekler görünmez.
+Dosya yöneticisinde seçilen PDF, UDF, Word, TIFF ve görüntü dosyaları PDEfe'nin araçlarında, PDEfe kapalıysa da açılır.
 
 - **Windows:** Dosya Gezgini'nde tek dosyaya sağ tıklayınca PDEfe'nin simgesiyle **PDEfe ile dönüştür**, iki ya da daha çok dosyada üstte
-  **PDEfe ile birleştir**, altında **PDEfe ile dönüştür** görünür. Windows 11'de seçenekler **Daha fazla seçenek göster**'in altındadır.
+  **PDEfe ile birleştir**, altında **PDEfe ile dönüştür** görünür. Başka türden bir dosya ya da klasör seçimdeyse seçenekler görünmez. Windows 11'de seçenekler
+  **Daha fazla seçenek göster**'in altındadır.
 - **macOS:** Finder'da sağ tık › **Hızlı Eylemler**. PDEfe bir kez açılınca iki seçenek de görünür. macOS seçenekleri dosya sayısına göre
-  gizletmediği için tek dosyada da **PDEfe ile birleştir** görünür.
+  gizletmediği için tek dosyada da **PDEfe ile birleştir** görünür. Türe göre de gizletmez: Başka türden dosyalar alınmaz, hiçbiri uygun değilse PDEfe bunu
+  bir iletiyle söyler.
 
 Linux'ta bu seçenekler yok.
 
@@ -346,7 +349,7 @@ eklenmez. PDEfe internete yalnızca yeni sürüm denetimi için iki günde bir G
 
 PDEfe şu açık kaynak projeler üzerine kuruludur: Electron, PDF.js, PyMuPDF / MuPDF, Python, pdf2docx, python-docx, legaluga-uyap-ui (UDF
 çizimi) ve başkaları. Sürümler ve lisanslar [THIRD_PARTY.md](THIRD_PARTY.md) dosyasındadır. UYAP Doküman Editörü, Word, LibreOffice ve
-notlara gömülen yazı tipleri PDEfe ile dağıtılmaz, bilgisayarda kurulu olanlar kullanılır.
+notlara ve form alanlarına gömülen yazı tipleri PDEfe ile dağıtılmaz, bilgisayarda kurulu olanlar kullanılır.
 
 ## Otomatik denetimler
 
