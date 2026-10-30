@@ -3822,9 +3822,9 @@ biraz daha hızlı açılmasını sağlayabilir miyiz bakalım." (Gezgin'de çif
   çıkarılmıştı); 161 commit'te genel adlarla ("Lazer Yazıcı") değiştirildi. Son ağaç aynı kaldı, 0.2.5'in devamı olarak gönderildi.
 - [x] CodeQL: gelişmiş kurulum (`.github/workflows/codeql.yml`) bu gönderimle asıl depoya geldi; depodaki varsayılan kurulum kapatıldı.
 
-### Revizyon 0.3.1 (2026-10-29, kullanıcı istekleri: iç bağlantılar, ilk yazdırmada A4, taranmış belgede Bul, form alanları, XFA formları, Linux)
-Kullanıcının maddeleri ayrı commit'ler hâlinde. Sürüm numarası yayımda artar (package.json'a dokunulmadı), CHANGELOG yayımda yazılır. Electron
-yalnızca ekran dışındaki (`test/baslat.ps1`) ya da görünmeyen masaüstündeki örnekte başlatıldı. Kullanıcının gönderdiği belgeler yalnızca yerelde,
+### Revizyon 0.3.1 (2026-10-29 – 10-30, kullanıcı istekleri: güncelleme şeridi, iç bağlantılar, ilk yazdırmada A4, taranmış belgede Bul, form alanları, XFA formları, Linux, üç bekleyen hata, sağ tıkta dönüştür ve birleştir)
+Kullanıcının maddeleri ayrı commit'ler hâlinde. Sürüm numarası yayımda artar (package.json'a dokunulmadı), CHANGELOG'un 0.3.1 bölümü son sınamada
+yazıldı, tarihi yayım gününde düzeltilir. Electron yalnızca ekran dışındaki (`test/baslat.ps1`) ya da görünmeyen masaüstündeki örnekte başlatıldı. Kullanıcının gönderdiği belgeler yalnızca yerelde,
 kopyalarıyla denendi, depoya girmedi.
 
 #### 0.3.1: iç bağlantılar ve yer imleri
@@ -3876,7 +3876,7 @@ Kullanıcı: "Daha önce Kullanıcı Yazıcı seçmemişse, varsayılan yazdırm
   her yazdırmada pencerenin o anki kâğıdı kaydediliyordu: Kullanıcı kâğıda hiç dokunmadıysa da kayıtta 'belge' vardı, yani "Belgeye göre"
   kullanıcının seçimi gibi hatırlanıyordu.
 - [x] **Karar**: Kâğıdı kullanıcı yazdırma penceresinde kendisi değiştirmedikçe varsayılan A4 (`VARSAYILANLAR.kagit`, `acilisKagidi`).
-  Kayda `kagitSecildi` bayrağı eklendi: Kâğıt seçimi `change` olayı verirse (kullanıcı seçti; programla atanan değer olay vermez) ya da kayıtta
+  Kayda `kagitSecildi` bayrağı eklendi: Kâğıt seçimi `change` olayı verirse (kullanıcı seçti, programla atanan değer olay vermez) ya da kayıtta
   bayrak zaten varsa true. Bayrak true ise kayıtlı kâğıt ("Belgeye göre" dâhil) hatırlanır, değilse pencere A4 ile açılır. Bayraksız eski kayıtta
   (0.2.6–0.3.0) bir kez A4'e dönülür. Dokunmadan yazdırmak elle yapılmış seçimi silmez (bayrak kalır). Windows yazdırma penceresi yolu
   seçimleri eskisi gibi kaydetmez. Ön izleme ve basılan iş aynı kâğıdı kullanır (yerleşim kuralı değişmedi: yatay ve /Rotate 90'lı sayfa dikey
@@ -3978,7 +3978,7 @@ olan PDF'lerde. Düz (basılı kutucuklu) PDF'e tıklayıp işaret koymak yapıl
   durum adı yazılmaz, en çok uzunluk kesilir, tek satırda satır sonu boşluk olur. XFA paketli karma belgede değer yazılınca /XFA kaldırılır:
   Başka okuyucular değeri XFA verisinden okur, AcroForm'a yazılanı göstermezdi (XFA verisini güncellemek seçilmedi, aşağıda). Parametreler
   çekirdekte denetlenir (degerleri_dogrula: liste, en çok 2.000 değer, xref pozitif tamsayı, değer metin / metin listesi / boş, metin en çok
-  20.000 karakter, liste en çok 1.000 öğe; form_gorunum'un sayfa ve xrefler'i, yapisal_kaydet'in formlar'ı ayrıca). Yeni IPC kanalı yok.
+  20.000 karakter, liste en çok 1.000 öğe, form_gorunum'un sayfa ve xrefler'i, yapisal_kaydet'in formlar'ı ayrıca). Yeni IPC kanalı yok.
 - [x] **Çizim** (form_gorunum, 0.3.0'daki tek PNG'nin yerine): Widget widget saydam PNG ve sayfanın oranı olarak kutusu (pdf_run_annot,
   ekrandaki açıyla), onay kutusu ve seçenek düğmesinde öbür durumun görünümü de (/AS bellekte geçici değiştirilir: MuPDF görünümü çizim anında
   /AS'den seçer). Kaydedilmemiş değerler dosyanın bellekteki ayrı bir kopyasına (çalışma belgesi, aynı değerlerle yeniden kullanılır, en çok 3)
@@ -3986,7 +3986,7 @@ olan PDF'lerde. Düz (basılı kutucuklu) PDF'e tıklayıp işaret koymak yapıl
   (kayıt dosyayı yerine koymadan önce, belge_birak). Ölçüm: 20 widget'lı sayfa 2× ölçekte, öbür durumlarıyla 56 ms. İlk çizimde alan bilgisi
   aynı istekle gelir (alanlar: true), görünüm değişince sayfa başına tek istek (0.2.3'ün _katmanAnahtari kuralı değişmedi: kaydirma_cizim 6.
   bölüm). Tab başka sayfaya geçerken alan bilgisi form_alanlari'yla (görüntüsüz) alınır.
-- [x] **Denetimler** (src/renderer/formlar.js FormYoneticisi; görüntüleyici katmanı formKatmani / formBirak ile ona bırakır): Her widget'ın
+- [x] **Denetimler** (src/renderer/formlar.js FormYoneticisi, görüntüleyici katmanı formKatmani / formBirak ile ona bırakır): Her widget'ın
   görünümünün üstünde aynı kutuda saydam denetim: Yazı alanında input / textarea (en çok uzunluk, parola, tarakta eşit aralıklı yazı ve
   hücre genişliğinde harf aralığı), yazılabilir açılır listede input + datalist, açılır listede görünmez select (sistemin listesi açılır),
   onay kutusu / seçenek düğmesi / liste kutusu alanın kendisi (odaklanabilir). Yazı alanı düzenlenirken denetim görünür (alanın zemini, yazı
@@ -3995,7 +3995,7 @@ olan PDF'lerde. Düz (basılı kutucuklu) PDF'e tıklayıp işaret koymak yapıl
   (çekirdek beklenmez: çekirdek küçük resim çizerken yanıt yüzlerce ms gecikebilirdi). Liste kutusu odaklanınca satırları (görünümle aynı
   satır yüksekliği ve ilk satır) kaydırılabilir bir örtüde gösterilir: Tıklama, Ctrl ile ekle / çıkar, Shift ile aralık, ↑ ↓ Home End,
   Boşluk. Alanlar hafif mavi zeminle belli, üzerine gelince ve odakta belirgin, imleç yazı alanında metin, öbürlerinde el. Salt okunur alan,
-  imza ve düğme pasif (imleç ok, ipucu: "İmza alanı", "Düğme (PDEfe düğmelerin işlevini çalıştırmaz)"; alanın /TU'su varsa ipucu odur).
+  imza ve düğme pasif (imleç ok, ipucu: "İmza alanı", "Düğme (PDEfe düğmelerin işlevini çalıştırmaz)", alanın /TU'su varsa ipucu odur).
   Katman metin ve bağlantı katmanının üstünde, notların altında. Denetim kutusu sayfanın görünüm dönüşümüyle (yakınlaştırma, sayfa ve görünüm
   döndürmesi), yazı denetimi alanın yönünde döndürülür (sayfa açısı - /MK /R). Koyulaştırılmış sayfada form katmanı sayfayla birlikte ters
   çevrilir (0.3.0'da form görüntüsü ters çevrilmiyordu: koyu sayfada beyaz kutular kalıyordu).
@@ -4023,12 +4023,12 @@ olan PDF'lerde. Düz (basılı kutucuklu) PDF'e tıklayıp işaret koymak yapıl
   insert_pdf alanları sayfayla birlikte kopyalar. Yapısal modda kayıtlı değerler değişmez (notlardaki gibi her yapısal kayıt bütün farkı
   yeniden yazar). Kayıttan sonra Sayfalar panelinin küçük resimleri yenilenir.
 - [x] **Yazdırma**: Form alanları her zaman basılır, "Notları yazdır"dan bağımsız (yazdırma kullanımıyla: /F Print bayrağı olmayan alan,
-  örneğin yazdırılmasın diye işaretlenmiş düğme, basılmaz), kaydedilmemiş değerleriyle (sayfa_goruntu formlar: çalışma belgesinden; ön izleme
+  örneğin yazdırılmasın diye işaretlenmiş düğme, basılmaz), kaydedilmemiş değerleriyle (sayfa_goruntu formlar: çalışma belgesinden, ön izleme
   de). Yalnızca form alanı değiştiyse kaydetme sorulmaz. Notlar da değiştiyse soru eskisi gibi, "Kaydetmeden yazdır"da form değerleri yine
   basılır. Yapısal kayıttan sonra değişen alanlar (anlık kopyada) diskteki dosyaya eşlenemez: Önce kaydedilmeli (sayfa düzeni gibi). Görüntü
   get_pixmap'teki gibi görüntü listesinden çizilir: Formsuz sayfada çıktı 0.3.0'ınkiyle piksel piksel aynı (sınandı). Yazdırma penceresinin
   açıklaması: "Notları yazdır" kapalıyken notlar ve damgalar basılmaz. Form alanları her zaman basılır.
-- [x] **Seçilmeyen yollar**: Alanları HTML denetimiyle çizmek (tarayıcıların form katmanı gibi; dosyadaki görünüm, örneğin çarpı işaretli
+- [x] **Seçilmeyen yollar**: Alanları HTML denetimiyle çizmek (tarayıcıların form katmanı gibi, dosyadaki görünüm, örneğin çarpı işaretli
   kutucuk, PDEfe'nin çizimiyle yer değiştirirdi, kaydedilen dosya ekranda görünenden farklı görünürdü). MuPDF'in görünümü (yukarıda).
   NeedAppearances true yazıp görünümü okuyucuya bırakmak (MuPDF tabanlı okuyucular bozuk üretir, bazıları hiç üretmez, e-imzalı belgede
   katalog değişirdi). Tıklamada onay kutusunun görünümünü çekirdekten istemek (gecikme). Sayfanın tek PNG'sini değerlerle yeniden çizmek (her
@@ -4043,7 +4043,7 @@ olan PDF'lerde. Düz (basılı kutucuklu) PDF'e tıklayıp işaret koymak yapıl
   kaydırmak /TI'yı değiştirmez. DoNotScroll ve DoNotSpellCheck bayrakları yok sayılır. İmzasız imza alanını MuPDF kendi işaretiyle ("SIGN")
   çiziyor (0.3.0'da da: dosyada değil, yalnızca ekranda).
 - [x] **Sonraki görev (XFA) için**: Aynı kalıplar kullanılabilir: FormYoneticisi'nin kayıtları (anahtar, kayitli / deger), "form.deger"
-  komutu ve tarifi, fark / kayitAnligi / kaydedildi / kaynakYeniden, yazdirmaDegerleri; çekirdekte degerleri_dogrula, calisma_belgesi (dosyanın
+  komutu ve tarifi, fark / kayitAnligi / kaydedildi / kaynakYeniden, yazdirmaDegerleri, çekirdekte degerleri_dogrula, calisma_belgesi (dosyanın
   değerli kopyası), yazdirma_pixmap. XFA'sız ya da karma belgede bu yol, dinamik XFA'da (AcroForm alanı yok) form katmanı kurulmaz.
 - [x] **Testler**: Yeni `test/form_alanlari_pdf_uret.py` (5 sayfalık alanlar.pdf: Bütün alan türleri, iki widget'lı alan, seçenek grubu,
   /Rotate 90 sayfa, /MK /R 90 alan, alansız sayfa. imzali.pdf: /ByteRange'li sahte imza, /Contents imzalanan baytların SHA-256'sı. karma.pdf:
@@ -4200,7 +4200,7 @@ Xvfb), macOS'taki (0.2.0) düzenle. Dal gönderilmedi: İlk CI koşusu kullanıc
     (guncelleme.js `yenidenBaslat`). Kurulum başlatılamazsa yeniden başlatma kurulmaz. AppImage dışında (APPIMAGE yok: açılmış paket) macOS'taki
     gibi sürüm akışı ve "İndir" (PDEfe-Linux.AppImage tarayıcıda), arayüze 'guncelleme:var' ve 'guncelleme:durum'da `tarayicida`.
   - **Standart yazı tipleri** (PDF.js'in gömülü olmayan Times / Helvetica / Courier'si): fontconfig'e sorulur (12 fc-match, paralel, bir kez),
-    yalnız ölçüleri aynı eş (Liberation, Croscore, URW Nimbus, TeX Gyre; .ttf / .otf). `dosya:oku` Linux'ta yazı tipi köklerinin altını
+    yalnız ölçüleri aynı eş (Liberation, Croscore, URW Nimbus, TeX Gyre, .ttf / .otf). `dosya:oku` Linux'ta yazı tipi köklerinin altını
     (alt klasörler de) ve fontconfig'in verdiği dosyayı okur. Bulunamazsa PDF.js'in kendi yedeği.
   - **Varsayılan PDF programı**: AppImage kendini menüye eklemez. "Varsayılan PDF görüntüleyici yap" `~/.local/share/applications/pdefe.desktop`
     kaydını (simgesi `~/.local/share/icons/hicolor/512x512/apps/pdefe.png`, `TryExec`, PDEfe işareti `X-PDEfe-Kaydi=1`) yazar,
@@ -4223,23 +4223,23 @@ Xvfb), macOS'taki (0.2.0) düzenle. Dal gönderilmedi: İlk CI koşusu kullanıc
   kayıt: "başka bir programda açık" yerine Özellikler › İzinler), sistem adları ("Linux yazdırma penceresiyle yazdır", "Linux çizimi",
   "Dosya yöneticisinden"), Ayarlar'da varsayılan PDF (sonuç hemen yeniden okunur, yapılamazsa neden), güncelleme (AppImage dışında İndir ve
   elle değiştirme), yazdırma penceresi ("Yazıcı ayarları", CUPS). Yeni metinlerde noktalı virgül yok. Çakışma için goruntuleyici.js, arama.js'e
-  dokunulmadı; uygulama.js (iki ileti), yazdir.js (üç satır), notlar.js (üç satır ve içe aktarma) ve guncelleme.js'te yalnız bu satırlar.
+  dokunulmadı. uygulama.js (iki ileti), yazdir.js (üç satır), notlar.js (üç satır ve içe aktarma) ve guncelleme.js'te yalnız bu satırlar.
   `document.documentElement.dataset.platform` Linux'ta 'windows' kaldı (görünüm Windows'taki gibi).
 - [x] **CI** (yayim.yml `linux` işi, ubuntu-22.04): Python 3.12 ve çekirdeğin paketleri, `test/linux_cekirdek_testi.py` (kaynaktan),
   PyInstaller, `electron-builder --linux --x64 --publish never`, örnek belgeler (PDF, taranmış PDF, python-docx ile Word), `xvfb-run` altında
   `test/linux_duman.mjs`, etikette AppImage ile latest-linux.yml'in sınamadan sonra `gh release upload`'la taslak sürüme yüklenmesi. Sınama
   için sistem paketleri (AppImage'ın kendisi istemez): Xvfb, xdotool, xclip, xdg-utils, desktop-file-utils, Liberation ve DejaVu, CUPS ve
   cups-pdf (gerçek baskı ~/PDF'e), LibreOffice Writer, gerekirse fuse3. workflow_dispatch'te `platform=linux`. Windows ve macOS işlerinin
-  koşulları aynı anlamda yeniden yazıldı (`inputs.platform != 'mac'` yerine hepsi / windows; etikette hepsi çalışır); yayımlama üç paketi
+  koşulları aynı anlamda yeniden yazıldı (`inputs.platform != 'mac'` yerine hepsi / windows, etikette hepsi çalışır). Yayımlama üç paketi
   bekler, sürüm gövdesinde Linux bağlantısı, kısa kurulum ve SHA-256. Çıktılar 1 gün.
-- [x] **Seçilmeyen yollar**: .deb / .rpm / Flatpak / Snap (dağıtıma göre ayrı paket, depoya ya da mağazaya yükleme, ayrı güncelleme yolu;
+- [x] **Seçilmeyen yollar**: .deb / .rpm / Flatpak / Snap (dağıtıma göre ayrı paket, depoya ya da mağazaya yükleme, ayrı güncelleme yolu,
   AppImage tek dosya ve electron-updater'la kendini günceller). Linux'ta yazı tanıma (Tesseract'ı pakete katmak ~30 MB ve Türkçe veri ister,
   sistemdekini aramak dağıtıma bağlı: kullanıcı isterse ayrı madde). AppImage'ın eski FUSE 2 ortamı (libfuse2 ister, yukarıda).
   electron-updater'ın `isForceRunAfter`'ı (yeni AppImage tek örnek kilidine takılırdı, yukarıda). Snap / Flatpak LibreOffice'i geçici klasörü
   ev klasörüne taşıyarak desteklemek (Snap gizli klasörlere de erişmiyor, yol dağıtıma göre değişir). Electron'un `clipboard.writeBuffer`'ı
-  (Electron 44'te yok; tek türü yazardı).
+  (Electron 44'te yok, tek türü yazardı).
 - [x] **Testler (bu bilgisayar, Windows)**: Yeni `test/linux_cekirdek_testi.py` A bölümü 25/25 (ortam temizliği, fc-match yanıtı ve font seçimi
-  sahte fontconfig'le, .desktop'tan UDE, Snap / Flatpak eleme; B bölümü Linux'ta), yeni `test/linux_birim.mjs` 17/17 (Exec kaçışları, menü
+  sahte fontconfig'le, .desktop'tan UDE, Snap / Flatpak eleme, B bölümü Linux'ta), yeni `test/linux_birim.mjs` 17/17 (Exec kaçışları, menü
   kaydı, standart yazı tipleri, ortam, pano türleri), yeni `test/linux_renderer.mjs` 23/23 (ekran dışı test örneğinde gizli 'linux' ve 'win32'
   çerçeveleri), `test/guncelleme-e2e/birim.mjs` 88/88 (4'ü yeni: AppImage kurulumu ve yeniden başlatma, kurulum hatasında yeniden başlatma yok,
   tarayıcıdan indirme, Windows'ta `tarayicida` yok). Gerileme: `test/mac_renderer.mjs` 46/46, mac_cekirdek_testi 14/14, guvenlik_testi 47/47,
@@ -4571,3 +4571,12 @@ birden fazlada hem birleştir üstte altında dönüştür çıksın". Kullanıc
   test/xfa_pdf_uret.py görünmez sahte e-imzalı formu da üretir (xfa-imzali.pdf). oto_kayit_kilit'in ilk iki denetimi (kilitli dosyada otomatik
   kayıt 3,5 sn içinde durmuyor) değişiklikten önceki uygulama.js ile de aynı düşüyor, bu işle ilgisi yok. araclar_testi bu bilgisayarda çalışmıyor
   (kullanıcının deneme belgelerini ister), _onbellekten_birak form_testi'nde sınandı.
+
+#### 0.3.1: güncelleme şeridi
+Kullanıcı: "güncelleme şeridini daha büyük ve belirgin yapalım. bana göster eski yeni örnekle." Üç örnekten (şimdiki, B, C) kullanıcı C'yi seçti (`385c307`).
+- [x] **Karar** (src/renderer/guncelleme.js): İki satırlı kart. Solda dairede durum simgesi (güncelleme, indirme, hazır, hata), üstte 17 px kalın başlık
+  ("Güncelleme var", "Güncelleme indiriliyor", "Güncelleme kurulmaya hazır"…), altında eski metin aynen, sağda büyük düğmeler (ana düğme 42 px, öbürleri
+  40 px) ya da 12 px kalın ilerleme çubuğu. Yükseklik 36 → 66 px, renkler temanın vurgusundan (yeni renk değişkeni yok). Dar pencerede düğmeler ve çubuk
+  metnin altına iner (860 px, indirmede 1000 px).
+- [x] **Testler**: senaryo33 (şerit akışı), senaryo26 (şerit araç çubuğunun 8 px altında), serit_birlesim. Gerçek bir güncellemede elle: docs/DOGRULAMA.md
+  46 madde 74.

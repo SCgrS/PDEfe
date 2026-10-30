@@ -3,6 +3,19 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
+## 0.3.1 — 2026-10-30
+
+- **Form doldurma:** Doldurulabilir PDF'lerde yazı alanları, kutucuklar, seçenek düğmeleri ve listeler çalışır. Alanlar arasında `Tab` ile gezilir, değişiklikler geri alınır. Kaydedilen form başka PDF okuyucularında da aynı görünür. E-imzalı formda boş alanı doldurmak imzayı bozmaz. Form kaydedilmeden de yazdırılır.
+- **XFA formları:** Bireysel başvuru formu gibi dinamik formlar "Please wait" sayfası yerine formun kendisiyle açılır. Doldurulur, formdaki düğmelerle bölüm eklenip silinir, kaydedilir, yazdırılır.
+- **Taranmış belgede Bul:** `Ctrl+F` taranmış sayfaların yazısında da arar. Sayaçta tanımanın ilerlemesi görünür, bulunanlar geldikçe sayı artar. Tanınan sayfalar yeniden beklenmez.
+- **İç bağlantılar ve yer imleri:** İçindekiler satırları ve belge içi bağlantılar tıklanınca o yere gider, başlık pencerenin üstüne gelir. Döndürülmüş sayfada ve sayfaları silinmiş ya da sıralanmış belgede de doğru yere gider. Başka bir dosyayı ya da programı açan bağlantılar açılmaz.
+- **Yazdırma:** Kâğıt siz başkasını seçene dek A4'tür, önceki sürümlerden kalan "Belgeye göre" gelmez. Yazdırma penceresinde seçtiğiniz kâğıt hatırlanır.
+- **Sağ tıkla dönüştür ve birleştir:** Dosya Gezgini'nde PDF, UDF, Word, TIFF ve görüntü dosyalarına sağ tıklayınca **PDEfe ile dönüştür**, birden çok dosyada üstünde **PDEfe ile birleştir** çıkar (Windows 11'de **Daha fazla seçenek göster**'in altında). macOS'ta Finder'ın **Hızlı Eylemler** menüsünde.
+- **Format Değiştir:** Makrolu Word belgeleri (.docm) eklenir, makrolar çalıştırılmaz. Taranmış PDF → JPG'de **Düşük** artık **İdeal**'den büyük çıkmaz.
+- **Güncelleme şeridi:** Daha büyük ve belirgin, iki satırlı.
+- **Linux:** İlk Linux sürümü, tek dosya `PDEfe-Linux.AppImage` (64 bit). Kurulum gerekmez, kendini günceller. Yazı tanıyıcı olmadığından taranmış yazı seçilemez ve aranamaz.
+- **Kaldırma:** PDEfe kaldırılınca güncelleme önbelleği de silinir (önceden eski kurulum dosyasıyla ~140 MB kalıyordu).
+
 ## 0.3.0 — 2026-10-17
 
 0.2.5'ten sonraki bütün değişiklikler bu sürümde toplandı. Başlıcaları:

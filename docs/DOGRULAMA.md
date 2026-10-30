@@ -1272,3 +1272,8 @@ Bu bilgisayarda Mac yok. Hızlı Eylem dosyaları ve betiği burada sınandı, G
     `C:\Program Files\PDEfe SagTik\<sürüm>` altında olmalı, `C:\ProgramData\PDEfe` oluşmamalı, sağ tık çalışmalı.
 73. **Linux'ta PDF'i kopyala.** Sekmeye sağ tıklayıp PDF'i kopyala deyin: Bildirim beklemeden gelmeli (önceden xclip'e düşen bilgisayarda 5 sn
     sürüyordu), dosya yöneticisine yapıştırılabilmeli.
+
+Güncelleme şeridi
+74. **Görünüm.** Bu sürümden sonraki ilk sürüm çıkınca pencerenin üstündeki şeride bakın: İki satırlı, kalın başlıklı ("Güncelleme var") belirgin
+    bir kart olmalı, düğmeler büyük olmalı. İndirirken ilerleme çubuğu kalın görünmeli. Pencereyi daraltın: Düğmeler ve çubuk yazının altına inmeli,
+    yazı kesilmemeli. Açık ve koyu temada bakın.

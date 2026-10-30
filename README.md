@@ -50,8 +50,8 @@ macOS 13 ve sonrası, Apple işlemcili ve Intel Mac'ler.
    görüntüleyici yap**'a basın.
 
 Dosya çift tıklanınca açılmazsa bilgisayarda FUSE eksiktir: Dağıtımın `fuse3` paketini kurun ya da uçbirimde
-`./PDEfe-Linux.AppImage --appimage-extract-and-run` ile açın. Yazı notlarında Türkçe harfler için Liberation yazı tipleri gerekir (Ubuntu ve
-Linux Mint'te hazır gelir, yoksa dağıtımın `fonts-liberation` paketi).
+`./PDEfe-Linux.AppImage --appimage-extract-and-run` ile açın. Yazı notlarında ve form alanlarında Türkçe harfler için Liberation yazı tipleri
+gerekir (Ubuntu ve Linux Mint'te hazır gelir, yoksa dağıtımın `fonts-liberation` paketi).
 
 ## Öne çıkanlar
 
@@ -62,10 +62,13 @@ Linux Mint'te hazır gelir, yoksa dağıtımın `fonts-liberation` paketi).
   sığan en büyük ölçüde, beyaz kenar eklenmeden konur.
 - **Format Değiştir:** UDF, Word, TIFF ve görüntü ↔ PDF. PDF'in her sayfası JPG olarak da kaydedilir. UDF, UYAP Doküman Editörü'nün kendi
   sayfa düzeniyle PDF olur, PDF düzenlenebilir UDF'ye çevrilir.
+- **Sağ tıkla dönüştür ve birleştir:** Dosya Gezgini'nde ve Finder'da seçilen dosyalar sağ tıkla Format Değiştir'de ya da Birleştir'de açılır.
 - **Yazdırma:** PDEfe'nin kendi penceresinde yazıcı, kâğıt, renk ve çift taraflı seçilir. Sayfanın kâğıda nasıl basılacağı önceden görünür.
-- **Taranmış belgede seçim:** Taranmış sayfadaki yazı da fareyle seçilip kopyalanır. Bunu bilgisayarın kendi yazı tanıyıcısı çevrim dışı yapar.
-  Linux'ta yazı tanıyıcı olmadığından bu özellik yok.
+- **Taranmış belgede seçim ve arama:** Taranmış sayfadaki yazı da fareyle seçilip kopyalanır, `Ctrl+F` ile aranır. Bunu bilgisayarın kendi yazı
+  tanıyıcısı çevrim dışı yapar. Linux'ta yazı tanıyıcı olmadığından bu özellik yok.
 - **Arama:** Bütün açık belgelerin hepsinde birden tek tuşla arama yapılabilir.
+- **Form doldurma:** Doldurulabilir PDF'lerin alanları tıklanıp doldurulur. Bireysel başvuru formu gibi dinamik (XFA) formlar da açılır, bölüm
+  eklenip silinir.
 - **Standart PDF notları:** Vurgu, not ve yazı başka PDF okuyucularında da görünür, e-imzayı bozmaz.
 
 ## Ne yapar
@@ -103,6 +106,8 @@ Word, TIFF ve görüntü dosyaları bırakılınca Format Değiştir açılır. 
 - **Keskin ve akıcı:** Yazılar Windows'un ClearType çizimiyle keskin görünür. Logolu, kaşeli sayfalar bile kaydırırken ekrana net girer.
 - **Düzen:** Tek ya da iki sayfa, %25 ile %6400 arası yakınlaştırma, okuma modu (`Ctrl+H`) ve tam ekran (`F11`).
 - **Sol panel** (`F4`): Sayfaların küçük resimleri, İçindekiler ve Yorumlar. Panel sürüklenerek genişletilir.
+- **Bağlantılar:** Belgedeki içindekiler satırlarına, iç bağlantılara ve yer imlerine tıklanınca o yere gidilir, başlık pencerenin üstüne gelir.
+  Sayfalar silinip sıralansa da doğru yere gider. Başka bir dosyayı ya da programı açan bağlantılar güvenlik nedeniyle açılmaz.
 - **Koyu mod:** Sistem temasını izler ya da araç çubuğundaki ay / güneş düğmesiyle değişir. İstenirse sayfa da koyulaştırılır. Bu,
   yazdırmayı ve kaydetmeyi etkilemez.
 
@@ -135,6 +140,10 @@ macOS 13–15'te Türkçe harfler (ş, ğ, ı, İ) yanlış gelebilir.
 `Ctrl+F` ile aranır. İ/ı ayrımı doğrudur, tam sözcük ve büyük-küçük harf seçenekleri vardır. **Açık belgeler** (≡) listesindeki
 **Tüm belgelerde ara** kutusu her belgedeki eşleşme sayısını gösterir.
 
+Taranmış sayfalarda da aranır: Sayaçta tanımanın ilerlemesi görünür ("Tanınıyor 5/39"), bulunanlar geldikçe sayı artar, ilk bulunan sayfaya
+hemen gidilir. "Bulunamadı" ancak bütün sayfalar tanınınca yazar. Tanınan sayfalar aynı belgede yeniden beklenmez. Hem yazılı hem taranmış
+sayfası olan belgede iki tür sayfada da aranır. Linux'ta yalnızca PDF'in kendi yazısında aranır.
+
 <p align="center">
   <img src="docs/ekran-arama.png" width="90%" alt="Bul: Türkçe arama, eşleşme sayısı">
 </p>
@@ -164,6 +173,17 @@ macOS 13–15'te Türkçe harfler (ş, ğ, ı, İ) yanlış gelebilir.
   <img src="docs/ekran-geri-al.png" width="50%" alt="Geri al listesi: En üstteki üç adım birlikte geri alınacak">
   <img src="docs/ekran-kaydedilmemis.png" width="38%" alt="Kaydedilmemiş değişiklikler listesi ve Kaydet düğmesi">
 </p>
+
+### Form doldurma
+
+- **Doldurulabilir PDF'ler:** Alanlar açık mavi görünür. Yazı alanına yazılır, kutucuk ve seçenek düğmesi tıklanır, listeden seçilir,
+  `Tab` ile sonraki alana geçilir. Değişiklikler `Ctrl+Z` ile geri alınır, `Ctrl+S` ile kaydedilir. Kaydedilen form başka PDF okuyucularında da
+  aynı görünür, oralarda da düzenlenebilir. Kaydetmeden de yazdırılır, kâğıtta yazdıklarınız çıkar.
+- **E-imzalı formlar:** Boş bir alanı doldurmak imzayı bozmaz. Dolu bir alan değiştirilince PDEfe sorar.
+- **Dinamik (XFA) formlar:** Bireysel başvuru formu gibi formlar "Please wait" sayfası yerine formun kendisiyle açılır, doldurulur. Formdaki
+  düğmelerle bölüm eklenir ve silinir, sayfa numaraları yenilenir, Geri al eklenen bölümü de geri alır. Bu formlarda Not, Vurgu, Yazı ve sayfa döndürme
+  kapalıdır, Sıkıştır, Sayfaları düzenle, Döndür, Ayır ve Format Değiştir kullanılamaz.
+- **Sınırlar:** Formun Gönder, Yazdır gibi düğmeleri ve hesaplama yapan alanlar PDEfe'de çalışmaz. İmza alanına PDEfe'den imza atılamaz.
 
 ### Araçlar
 
@@ -215,8 +235,8 @@ da). Klasör **Ayarlar › Kaydetme**'de "Araçların çıktı klasörü" satır
 
 Dosyalar **Dosya ekle** ile ya da pencereye sürüklenerek eklenir, birden çok dosya birlikte dönüştürülür. Her satırda dosyanın küçük
 resmi, türü, sayfa sayısı ve hedef biçim (PDF, UDF, Word, TIFF, JPG) görünür. Bir PDF açıkken araç açılırsa o PDF listede hazırdır. UDF,
-Word, TIFF ve görüntü dosyaları PDEfe'nin penceresine bırakılınca ya da `Ctrl+O` ile seçilince de araç açılır. Kalitesi düşebilecek bir
-dönüştürmede (örneğin UDF → Word, TIFF → Word) hedef seçilince satırın altında kısa bir not çıkar.
+Word, TIFF ve görüntü dosyaları PDEfe'nin penceresine bırakılınca, `Ctrl+O` ile seçilince ya da dosya yöneticisinde sağ tıkla da araç açılır
+(aşağıda, Sağ tıkla dönüştür ve birleştir). Kalitesi düşebilecek bir dönüştürmede (örneğin UDF → Word, TIFF → Word) hedef seçilince satırın altında kısa bir not çıkar.
 
 <p align="center">
   <img src="docs/ekran-donustur.png" width="90%" alt="Format Değiştir: PDF → UDF, UDF → PDF, TIFF ve Word dosyaları">
@@ -249,7 +269,7 @@ Gereksinimler:
 | UDF → PDF | UYAP Doküman Editörü ve kullandığı Java 8. Bulunamazsa UDF yine dönüştürülür, PDEfe'nin yaklaşık çizimiyle: Satır ve sayfa kırılımları editördekinden farklı olabilir. Editörün yeri **Ayarlar › Kaydetme**'den gösterilebilir. |
 | Word → PDF | Windows'ta Word ya da LibreOffice, macOS'ta ve Linux'ta LibreOffice. Linux'ta dağıtımın kendi LibreOffice paketi gerekir, Snap ve Flatpak paketi kullanılamaz. |
 | PDF → UDF, PDF → Word, TIFF ↔ PDF, görüntü → PDF, PDF → JPG | Bir şey gerekmez. |
-| Taranmış sayfanın yazısı (taranmış belgede seçim ve taranmış PDF, TIFF ya da görüntü → UDF) | Windows'ta Türkçe yazı tanıyıcı (Türkçe Windows'ta hazır gelir). Türkçesi yoksa başka bir dilin tanıyıcısı kullanılır, Türkçe harfler yanlış gelebilir. Hiç yoksa taranmış yazı seçilemez, UDF'de sayfa resim olarak kalır. macOS'ta bir şey gerekmez. Linux'ta yazı tanıyıcı yok: Taranmış yazı seçilemez, UDF'de sayfa resim olarak kalır. |
+| Taranmış sayfanın yazısı (taranmış belgede seçim ve arama, taranmış PDF, TIFF ya da görüntü → UDF) | Windows'ta Türkçe yazı tanıyıcı (Türkçe Windows'ta hazır gelir). Türkçesi yoksa başka bir dilin tanıyıcısı kullanılır, Türkçe harfler yanlış gelebilir. Hiç yoksa taranmış yazı seçilemez ve aranamaz, UDF'de sayfa resim olarak kalır. macOS'ta bir şey gerekmez. Linux'ta yazı tanıyıcı yok: Taranmış yazı seçilemez ve aranamaz, UDF'de sayfa resim olarak kalır. |
 
 Birleştir'deki UDF ve Word belgeleri için de aynı gereksinimler geçerlidir.
 
@@ -260,12 +280,24 @@ Dönüştürmeden sonra sonuç kutusunda dosyalar listelenir. **Klasörde göste
 bilgisayarın kendi programıyla açar: UDF'yi UYAP Doküman Editörü, Word belgesini Word. Sağlıklı dönüştürülemediği fark edilen dosyanın
 yanında ⚠ simgesi çıkar. Üstüne gelince ne olduğu yazar (örneğin alınmayan resimler, yazı tanımayla çıkarılan sayfalar).
 
+### Sağ tıkla dönüştür ve birleştir
+
+Dosya yöneticisinde seçilen PDF, UDF, Word, TIFF ve görüntü dosyaları PDEfe'nin araçlarında, PDEfe kapalıysa da açılır. Başka türden bir dosya ya
+da klasör seçimdeyse seçenekler görünmez.
+
+- **Windows:** Dosya Gezgini'nde tek dosyaya sağ tıklayınca PDEfe'nin simgesiyle **PDEfe ile dönüştür**, iki ya da daha çok dosyada üstte
+  **PDEfe ile birleştir**, altında **PDEfe ile dönüştür** görünür. Windows 11'de seçenekler **Daha fazla seçenek göster**'in altındadır.
+- **macOS:** Finder'da sağ tık › **Hızlı Eylemler**. PDEfe bir kez açılınca iki seçenek de görünür. macOS seçenekleri dosya sayısına göre
+  gizletmediği için tek dosyada da **PDEfe ile birleştir** görünür.
+
+Linux'ta bu seçenekler yok.
+
 ### Yazdırma ve PDF'i kopyala
 
 - **Yazdır** (`Ctrl+P`, araç çubuğunda Kaydet'in yanındaki düğme ya da sağ tık): PDEfe'nin kendi penceresinde yazıcı, kopya ve harmanlama,
   sayfalar (tümü, geçerli sayfa, aralık), kâğıt, boyut (sayfaya sığdır, gerçek boyut), renkli ya da siyah beyaz, tek ya da çift taraflı ve
   notların basılıp basılmayacağı seçilir. Sağda sayfanın kâğıda nasıl basılacağı büyük olarak görünür. **Yazıcı tercihleri** yazıcının kendi
-  ayarlarını açar. Son seçilen yazıcı, kâğıt, renk ve çift taraflı gibi seçenekler hatırlanır. Sayfa seçimi her açılışta **Tümü**dür. Türkçe
+  ayarlarını açar. Kâğıt siz başkasını seçene dek A4'tür. Son seçilen yazıcı, kâğıt, renk ve çift taraflı gibi seçenekler hatırlanır. Sayfa seçimi her açılışta **Tümü**dür. Türkçe
   karakterler ekrandaki gibi çıkar. Microsoft Print to PDF gibi dosyaya yazan yazıcıda dosyanın kaydedileceği yer sorulur. Windows'un kendi
   yazdırma penceresini isteyenler için pencerenin altında **Windows yazdırma penceresiyle yazdır** bağlantısı var (macOS'ta ve Linux'ta sistemin
   kendi penceresi).
@@ -292,7 +324,7 @@ Editörü'nün bulunduğu yer ve sürümü görünür. Editör kendiliğinden bu
 ## Güncelleme
 
 PDEfe iki günde bir yeni sürüm olup olmadığına bakar. **Ayarlar › Güncelleme**'deki **Şimdi denetle** ile hemen de bakılır. Yeni sürüm
-varsa pencerenin üstünde şerit çıkar. Windows'ta **Güncelle**'ye basmak yeter. PDEfe yeni sürümü kurup kendiliğinden yeniden açılır.
+varsa pencerenin üstünde büyük bir şerit çıkar. Windows'ta **Güncelle**'ye basmak yeter. PDEfe yeni sürümü kurup kendiliğinden yeniden açılır.
 macOS'ta **İndir** yeni dosyayı indirir, kurulumdaki gibi Uygulamalar'a sürüklenir. Linux'ta **Güncelle** AppImage dosyasını yenisiyle
 değiştirir ve PDEfe'yi yeniden açar. Sürüm notları [CHANGELOG.md](CHANGELOG.md)
 dosyasındadır.
