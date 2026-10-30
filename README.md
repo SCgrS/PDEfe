@@ -176,9 +176,10 @@ sayfası olan belgede iki tür sayfada da aranır. Linux'ta yalnızca PDF'in ken
 
 ### Form doldurma
 
-- **Doldurulabilir PDF'ler:** Alanlar açık mavi görünür. Yazı alanına yazılır, kutucuk ve seçenek düğmesi tıklanır, listeden seçilir,
+- **Doldurulabilir PDF'ler:** Yazı alanına yazılır, kutucuk ve seçenek düğmesi tıklanır, listeden seçilir,
   `Tab` ile sonraki alana geçilir. Değişiklikler `Ctrl+Z` ile geri alınır, `Ctrl+S` ile kaydedilir. Yazdıklarınız kaydedilen formda durur, başka PDF
-  okuyucularında da görünür. Kaydetmeden de yazdırılır, kâğıtta yazdıklarınız çıkar.
+  okuyucularında da görünür. Kaydetmeden de yazdırılır, kâğıtta yazdıklarınız çıkar. Alanların üstünde işaret olmaz, seçili alanın çevresinde ince bir çerçeve görünür.
+- **Form alanında yazı:** Sağ tıkta **Kes**, **Kopyala**, **Yapıştır**, **Tümünü seç**, **Kaydet** ve **Yazdır** var. Karakter sınırı olan alanda fazlası alınmaz, kaç karakterin alınmadığı söylenir.
 - **E-imzalı formlar:** Boş bir alanı doldurmak imzalanan bölüme dokunmaz, okuyucu imzadan sonra doldurulduğunu gösterebilir. Değişikliğe kapalı onaylanmış
   belgede okuyucu bunu izin verilmeyen değişiklik sayar. Dolu bir alan değiştirilince PDEfe sorar.
 - **Dinamik (XFA) formlar:** Bireysel başvuru formu gibi formlar "Please wait" sayfası yerine formun kendisiyle açılır, doldurulur. Formdaki

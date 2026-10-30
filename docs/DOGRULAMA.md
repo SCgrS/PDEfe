@@ -1117,8 +1117,8 @@ Taranmış belgede Bul
     aranamadı" demeli.
 
 Form alanları (doldurulabilir PDF)
-17. **Kutucuklar ve yazı.** Elinizdeki doldurulabilir bir PDF'i (kutucuklu bir başvuru ya da dilekçe formu) açın: Alanlar açık mavi görünmeli,
-    üzerine gelince belirginleşmeli. Kutucuğa tıklayın: İşaret hemen çıkmalı, yeniden tıklayınca kalkmalı. Seçenek düğmelerinde yalnızca biri
+17. **Kutucuklar ve yazı.** Elinizdeki doldurulabilir bir PDF'i (kutucuklu bir başvuru ya da dilekçe formu) açın: Alanların üstünde mavi olmamalı (madde 109),
+    üzerine gelince de. Kutucuğa tıklayın: İşaret hemen çıkmalı, yeniden tıklayınca kalkmalı. Seçenek düğmelerinde yalnızca biri
     seçili kalmalı. Yazı alanına Türkçe harflerle (İ, ı, Ğ, ğ, Ş, ş) yazın, Tab'a basın: Yazı alanda kalmalı, imleç sonraki alana geçmeli.
 18. **Tab ile gezinme.** Tab ve Shift+Tab ile formun bütün alanlarını dolaşın: Sıra formun düzenine uygun olmalı, başka sayfadaki alana
     geçerken sayfa kaymalı, son alandan sonra ilk alana dönülmeli. Kutucukta Boşluk tuşu işaretlemeli.
