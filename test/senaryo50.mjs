@@ -580,7 +580,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz, tus,
       ['Dosya yazılamadı, bu konuma yazma izni yok.', /yazma izni yok/, ['Farklı kaydet', 'Yeniden dene', 'Vazgeç']],
       ['Dosya yazılamadı, klasör bulunamadı.', /klasörü bulunamadı/, ['Farklı kaydet', 'Yeniden dene', 'Vazgeç']],
       ['Çekirdek süreç beklenmedik biçimde kapandı.', /Dosya yazılamadı/, ['Yeniden dene', 'Farklı kaydet', 'Vazgeç']],
-      ["Dosya yazılamadı. ([Errno 28] No space: 'C:\\\\Users\\\\x\\\\a.pdf')", /Dosya yazılamadı/, ['Yeniden dene', 'Farklı kaydet', 'Vazgeç']],
+      ["Dosya yazılamadı. ([Errno 28] No space: 'D:\\\\Belgeler\\\\a.pdf')", /Dosya yazılamadı/, ['Yeniden dene', 'Farklı kaydet', 'Vazgeç']],
     ];
     for (const [ileti, metin, dugmeler] of VAKALAR) {
       await hataKoy(ileti);
