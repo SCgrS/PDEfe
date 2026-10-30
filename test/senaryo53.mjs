@@ -13,6 +13,7 @@
 //  11  Gerçek sağ tık menüsü (test kancasız örnekte, görünmeyen masaüstünde, test/menu_yakala.ps1): Menünün görüntüsü, öğelerin etkinliği, Tümünü seç, Yapıştır. Pano yalnız okunur: Kes ve Kopyala burada basılmaz (8. bölümde kancayla).
 //  12  Geri al ve yinele alanın kendi geçmişinden: Başka alana gitmez, komut yığınından geri alınan yazı katlanmaz, reddedilen bileşimin taşan hâline dönülmez, alandan çıkınca belge değişmiş sayılır. XFA ve düz form.
 //  13  Alanlar arası gerçek sürükleme (tarayıcının sürüklemesi yakalanır: Sürükleme sistemi görünmeyen masaüstünde çalışmaz): Sığmayan yazıda kaynak yerinde kalır, sığan yazı taşınır, aynı alanda taşıma.
+//  14  Sayı alanı: Yalnız kâğıda aynen çıkacak yazı girer (PDF.js değeri sayıya çevirir).
 // Bütün koşum: powershell -File test\senaryo53_kos.ps1 (test kancalı örnek, ekran ölçeği %125 ve %150, kancasız örnek). Tek koşum (imleç ve odak için görünmeyen masaüstü, taze örnek: Yanıt kuyruğu ana süreçte):
 //   powershell -File test\baslat_gizli.ps1 -Port 9510 -Veri "$env:TEMP\pdefe-s53" -Boyut "1280,1000"   → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9510; [$env:BOLUM="1,4"]; node test\surucu.mjs betik test\senaryo53.mjs
@@ -146,7 +147,7 @@ function uzunYazi(boy) {
   return s.slice(0, boy);
 }
 
-export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, fare, yaz, tus, hedefler }) {
+export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, fare, yaz, tus, tusHam, hedefler }) {
   process.on('unhandledRejection', (e) => { console.error(e); process.exit(1); });
   fs.mkdirSync(UI, { recursive: true });
   const oz = JSON.parse(execFileSync(PY, ['-X', 'utf8', path.join(KOK, 'test', 'xfa_pdf_uret.py'), UI], { encoding: 'utf8' }).trim().split(/\r?\n/).pop());
@@ -235,7 +236,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, fare, yaz
     await bosalt('IkiSatir');
     for (const ad of TEK_SATIRLI) {
       await tiklaAd(ad);
-      await harfTut('x', 150);
+      if (ad === 'Sayi') await tusTut('1', 'Digit1', 49, '1', 150); else await harfTut('x', 150);   // sayı alanı yalnız sayı alır (14. bölüm)
       d = await d53(ad);
       bilgi(`${ad} x basılı: ${d.uz} harf, genişlik ${d.sw}/${d.cw}`);
       sonuc(`1 ${ad}: Harf basılı: Yazma durur, genişliği geçmez, kaymaz`, d.uz > 5 && d.uz < 150 && d.sw <= d.cw && d.sl === 0 && !d.tasiyor, { ...d, deger: undefined });
@@ -291,7 +292,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, fare, yaz
       await bekle(20);
       const d = await d53(ad);
       const bl = await bildirimler();
-      sonuc(`2 ${ad}: 100.000 karakter: Genişliği geçmez, kaymaz, uyarı bir kez`, d.uz > 0 && d.sw <= d.cw && d.sl === 0 && !d.tasiyor && bl.length === 1 && /karakter alınmadı\.$/.test(bl[0]), { ...d, deger: undefined, bl });
+      // Sayı alanı yazıyı hiç almaz (14. bölüm)
+      sonuc(`2 ${ad}: 100.000 karakter: Genişliği geçmez, kaymaz, uyarı bir kez`, (ad === 'Sayi' ? d.uz === 0 : d.uz > 0) && d.sw <= d.cw && d.sl === 0 && !d.tasiyor && bl.length === 1 && /karakter alınmadı\.$/.test(bl[0]), { ...d, deger: undefined, bl });
     }
     // Tek seferde gelen uzun yazı (dikte, CDP Input.insertText): Aynı yol
     await tiklaAd('UcSatir');
@@ -861,9 +863,9 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, fare, yaz
     await birak(p.x, p.y, 'Kısa yazı');
     d = await d53('TekKapali');
     sonuc('10 Bırakma: Sığan yazı olduğu gibi, uyarı yok', d.deger === 'Kısa yazı' && !(await bildirimler()).length, d.deger);
-    p = await yer('Sayi');
+    p = await yer('TekSagda');
     await birak(p.x, p.y, UZUN);
-    d = await d53('Sayi');
+    d = await d53('TekSagda');
     bl = await bildirimler();
     sonuc('10 Tek satıra uzun bırakma: Genişliği geçmez', d.uz > 0 && d.sw <= d.cw && bl.length === 1, { ...d, deger: undefined, bl });
     // Yazıyla büyüyen alan (şablonda yüksekliği yok): Sınır yok, kâğıtta büyür, yazı eksiksiz
@@ -1255,6 +1257,50 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, fare, yaz
     sonuc('13 Dışarıdan bırakma: Sığan kısım, 3 satır, uyarı bir kez', sa.satir === 3 && sa.sh <= sa.ch && UZUN.startsWith(sa.deger) && bl.length === 1, { ...sa, deger: undefined, bl });
     await cdp('Input.setInterceptDrags', { enabled: false });
     sonuc('13 Sayfada hata yok', !(await hatalar()).length);
+  }
+
+  // ================================================================== 14) sayı alanı
+  if (bolum(14)) {
+    const y = kopya('sayi');
+    await ac(y);
+    await izle();
+    await tiklaAd('Sayi');
+    await yaz('abc');
+    let d = await d53('Sayi');
+    sonuc('14 Sayı alanı: Harf girmez', d.deger === '', d.deger);
+    await bildirimler();
+    await yapistir('12,50');
+    d = await d53('Sayi');
+    let bl = await bildirimler();
+    sonuc('14 Virgüllü yapıştırma: Hiç girmez (12 başka bir sayıdır), söylenir', d.deger === '' && bl.length === 1 && bl[0].includes(' 5 karakter'), { d: d.deger, bl });
+    await tus('a', ['ctrl']); await tus('Delete');
+    for (const [h, vk] of [['-', 189], ['1', 49], ['2', 50], ['.', 190], ['5', 53], ['a', 65]]) await tusHam({ key: h, code: '', vk });
+    d = await d53('Sayi');
+    sonuc('14 Tuşla: Eksi, sayı, nokta girer, harf girmez', d.deger === '-12.5', d.deger);
+    await tus('Tab');
+    await bosalt('Sayi');
+    await tiklaAd('Sayi');
+    await yapistir('1234567890123456789');
+    d = await d53('Sayi');
+    await bildirimler();
+    sonuc('14 15 haneden fazlası girmez: Kâğıtta bozulurdu', d.deger === '', d.deger);
+    await yapistir('123456789012345');
+    d = await d53('Sayi');
+    sonuc('14 15 hane girer', d.deger === '123456789012345' && !(await bildirimler()).length, d.deger);
+    await tus('Tab');
+    await tiklaAd('Tarih');
+    await yaz('30.10.2026');
+    await tus('Tab');
+    await bekle(30);
+    const dz = await evalJs(`(async () => { const r = await window.__s53.b().xfa.duzPdf(); return { yol: r.yol }; })()`);
+    const kd = path.join(UI, 'sayi-duz.pdf');
+    fs.copyFileSync(dz.yol, kd);
+    const metin = duzOlc(kd).flatMap((x) => x.satir.map((l) => l.t)).join(' ');
+    sonuc('14 Kâğıtta sayı aynı, tarih aynı', metin.includes('123456789012345') && metin.includes('30.10.2026'), metin.slice(0, 200));
+    await kaydet();
+    await ac(y);
+    sonuc('14 Yeniden açınca aynı', (await d53('Sayi')).deger === '123456789012345' && (await d53('Tarih')).deger === '30.10.2026', [(await d53('Sayi')).deger, (await d53('Tarih')).deger]);
+    sonuc('14 Sayfada hata yok', !(await hatalar()).length);
   }
 
   ws.close();

@@ -126,6 +126,7 @@ function alanBicimle(alan, b, sarmal) {
   const d = altlar(alan, 'textarea')[0] || altlar(alan, 'input')[0], etiket = altlar(alan, 'label')[0];
   if (!d || !etiket) return;
   const ds = d.attributes.style || (d.attributes.style = {});
+  if (m.sayisal) d.attributes['data-xfa-sayi'] = '1';   // alanSigar
   // Yüksekliği (tek satırda genişliği) şablonda yazılı olmayan alan yazıyla büyür: PDF.js formu dizerken değere göre büyütür, kâğıtta yazının tamamı çıkar. Sınır konmaz (alanSigar)
   if (!((d.name === 'textarea' ? b.b : b.g) > 0)) d.attributes['data-xfa-buyur'] = '1';
   ds.letterSpacing = `${b.harfAraligi || 0}px`;
@@ -198,6 +199,8 @@ const GENISLIK_PAYI = 0.05;       // ayna alandan bu kadar dar: Basımda ve baş
 const YUKSEKLIK_PAYI = 0.02;      // tam katı olan alan (2 × 15 = 30): Hesaplanan yükseklik 1/64 piksel eksik olabilir
 const IMLEC_PAYI = 1;             // tek satırda imlecin yeri: Yazı tam genişlikteyken alan bir piksel kaymasın
 const TASMA_PAYI = 0.5;           // dosyadan gelen tek satırlık yazı bu kadar taşıyorsa görünüşte sığar, işaretlenmez
+const SAYI_DESENI = /^-?\d*(?:\.\d*)?$/;   // sayı alanı (alanSigar)
+const SAYI_HANE = 15;                 // JavaScript sayısının kayıpsız taşıdığı hane
 const EN_DAR_HARF = 0.1;          // bir harfin en az genişliği (yazı boyunun katı): Bundan uzun yazı ölçülmez, sığmaz (5 MB'lık değer sayfayı bekletmesin)
 const AYNA_STILLERI = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fontStretch', 'fontVariantCaps', 'fontKerning', 'fontFeatureSettings', 'letterSpacing', 'wordSpacing',
   'textTransform', 'textRendering', 'tabSize', 'wordBreak', 'overflowWrap', 'direction', 'textIndent', 'lineHeight'];
@@ -274,6 +277,8 @@ function yaziGenisligi(el, kutu, deger) {
  * genişliği geçmez, hücreli alanda hücre sayısını. Çizilmemiş, yazıyla büyüyen ve yazı alanı olmayan denetimde true.
  */
 export function alanSigar(el, deger) {
+  // Sayı alanı: PDF.js formu dizerken değeri sayıya çevirir (parseFloat): Harf kâğıtta hiç çıkmıyordu, "12,50" 12 oluyordu, 16. haneden sonrası bozuluyordu (ölçüldü). Şablon alanı sayı alanı diye tanımlıyor: Yalnız kâğıda aynen çıkacak yazı girer
+  if (el.hasAttribute('data-xfa-sayi') && (!SAYI_DESENI.test(deger) || deger.replace(/\D/g, '').length > SAYI_HANE)) return false;
   if (el.hasAttribute('data-xfa-buyur')) return true;
   const hucre = +el.getAttribute('data-xfa-comb');
   if (hucre) return Array.from(deger).length <= hucre;

@@ -142,7 +142,8 @@ export function alanaKoy(el, metin, { sigar = null, bildir = null } = {}) {
   if (!m) return 0;
   const s = el.selectionStart ?? el.value.length, e = el.selectionEnd ?? s;
   const once = el.value.slice(0, s), sonra = el.value.slice(e);
-  const k = sigan(el, m, once, sonra, sigar ? (d) => sigar(el, d) : null);
+  let k = sigan(el, m, once, sonra, sigar ? (d) => sigar(el, d) : null);
+  if (k < m.length && el.hasAttribute('data-xfa-sayi')) k = 0;   // sayının bir kısmı başka bir sayıdır ("12,50" → 12): Hiç girmez, uyarı söyler
   if (k > 0) {
     if (document.activeElement !== el) el.focus({ preventScroll: true });
     alanDegisecek(el, 'yapistir');

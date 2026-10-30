@@ -515,7 +515,7 @@ def _alan_bicimi(d, kimlikler):
     paragraf biçimini (para) yalnızca zengin metne uygular, input ve textarea'ya uygulamaz, hücreli alanı (comb) çizmez, alanın yazı boyunu 0,99
     ile çarpar, alan zeminindeki renksiz dolguyu (beyaz) atlar. Arayüz bunları HTML'e kendisi koyar (renderer/xfaHtml.js alanBicimle). Değerler
     yalnızca sayı ya da sabit listeden: Şablonun yazısı arayüze geçmez. Döner: {yol, sayfaAlani, x, y, g, b (yerinden ayırt etmek için, pt),
-    boyut, harfAraligi, dolgu, metin (yazı alanıysa: hiza, dikey, satir, sol, sag, ust, alt, girinti, comb, kaydirmasiz)} ya da None (çizilmeyen alan)."""
+    boyut, harfAraligi, dolgu, metin (yazı alanıysa: hiza, dikey, satir, sol, sag, ust, alt, girinti, comb, kaydirmasiz, sayisal)} ya da None (çizilmeyen alan)."""
     if _oznitelik(d, "presence", kimlikler) in ("hidden", "inactive"):
         return None
     yol, sa = _html_yolu(d)
@@ -559,6 +559,8 @@ def _alan_bicimi(d, kimlikler):
                 metin["comb"] = hucre
         if _oznitelik(denetim, "vScrollPolicy", kimlikler) == "off":
             metin["kaydirmasiz"] = True
+        if denetim.ad == "numericEdit":
+            metin["sayisal"] = True
         sonuc["metin"] = metin
     return sonuc
 
