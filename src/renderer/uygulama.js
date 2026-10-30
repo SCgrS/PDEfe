@@ -1011,8 +1011,9 @@ async function belgeyiYazdir(b) {
  *  belgenin sekmesine geçilir. Kapatma akışlarında gerekmez: ilk soru (kaydetmedenCikisSorusu) belgenin adını verir. */
 async function belgeKaydet(b, farkli = false, sessiz = false, { oneAl = false } = {}) {
   // Süren kayıt sırasında basılan Ctrl+S ya da Formu Kaydet kaybolmasın (0.3.1 kayıp avı): Önceki kaydın baytları alındıktan sonra yazılan yazı dosyaya girmiyor, ikinci basış
-  // sessizce yok sayılıyordu. Süren kayıt bitince yeni yazı varsa kaydedilir. Kaydın hata sorusu açıkken gelen tuş beklemez: Vazgeç'ten sonra kayıt kendiliğinden yeniden başlardı
-  if (b?.kaydediliyor && !sessiz && !ortuAcik()) {
+  // sessizce yok sayılıyordu. Süren kayıt bitince yeni yazı varsa kaydedilir. Kaydın hata sorusu açıkken gelen tuş beklemez: Vazgeç'ten sonra kayıt kendiliğinden yeniden başlardı.
+  // Formu Kaydet'e iki kez basmak ikinci kaydetme penceresi açmaz: Elle başlatılan kayıt sürerken Farklı kaydet yok sayılır, yalnız otomatik kayıt beklenir
+  if (b?.kaydediliyor && !sessiz && !ortuAcik() && (!farkli || b._kayitSessiz)) {
     for (let s = b.kayitSozu; b.kaydediliyor; s = b.kayitSozu) { await s; if (s === b.kayitSozu) break; }
     if (!belgeler.has(b.id) || b.kaydediliyor) return false;
     if (!farkli && !b.degisti) { bildir(`"${b.ad}" kaydedildi.`, 3000); return true; }
