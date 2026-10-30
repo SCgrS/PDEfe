@@ -1307,3 +1307,10 @@ XFA formunun görünümü (referans okuyucuyla yan yana görüntü alınamadı: 
 93. **Çizgili alanlar.** Büyük açıklama alanlarına birkaç satır yazın: Satırlar arka plandaki çizgilerin üstünde gitmeli, aşağı indikçe kaymamalı. Referans okuyucuda aynı metinde satırların aynı yerden kırıldığına bakın (yazı tipi ve boyu aynı olmalı).
 94. **Çerçeveler.** Alan çerçeveleri ve kâğıttaki çizgiler önceki sürüme göre daha ince olmalı. Yazdırıp kâğıtta ya da PDF'te karşılaştırın.
 95. **Yazdırma.** Formu doldurup yazdırın: Ad Soyad ortalı, kutucuklu alanlar kutucuklu, zemin beyaz, seçili alanın çerçevesi yok. Referans okuyucunun yazdırdığıyla yan yana koyun: Sabit yazıların yazı tipi farklı olabilir (formun yazı tipi bilgisayarda yok), bunun dışında fark görürseniz söyleyin.
+
+Formda kayıp avı (Otomatik sınandı. Referans okuyucuyla birlikte kullanım ve gerçek pano yalnız sizde denenebilir)
+96. **Referans okuyucuda kaydedilebilirlik.** Özgün formu (daha önce PDEfe'de kaydedilmemiş olanı) PDEfe'de doldurup kaydedin, kapatın. Referans okuyucuda açın: Üstte "Bu forma yazılan verileri kaydedemezsiniz" şeridi çıkmamalı, yazılar yerinde olmalı. Orada bir alanı değiştirip kaydedin, kapatın, PDEfe'de açın: Değişiklik görünmeli. Bu denemeden önce eski derlemeyle kaydettiğiniz kopyalarda şerit çıkmaya devam eder, onlarda imza artık yok.
+97. **Bölüm ekledikten sonra.** Aynı denemeyi birkaç bölüm ekleyip yapın: Referans okuyucuda uyarı çıkmamalı, eklenen bölümler ve sayfa sayısı aynı olmalı.
+98. **İki programda sırayla.** Form iki programda açıkken referans okuyucuda bir şey yazıp kaydedin, sonra PDEfe'de yazıp Ctrl+S'e basın: "Dosya başka bir programda değişmiş" sorusu çıkmalı, Farklı kaydet önerilmeli, referans okuyucudaki yazı sessizce silinmemeli.
+99. **Dikte ve yapıştırma.** Form alanına dikte programınızla yazın, Word'den uzun bir yazı yapıştırın: Yazı alana girmeli, sekmede nokta çıkmalı. Ctrl+S'ten hemen sonra yazmaya devam edip yeniden Ctrl+S'e basın: İki yazı da kaydedilmeli.
+100. **Başka programdan sürükleme.** Word'den seçili yazıyı boş bir form alanına sürükleyin: Yazı alana girmeli, sekmede nokta çıkmalı, kaydedip yeniden açınca yerinde olmalı.
