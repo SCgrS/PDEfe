@@ -290,7 +290,7 @@ export class DonusturPenceresi {
   _yaklasikUyarisi(neden = null) {
     const n = neden || (this._udeYok() ? null : this.yetenekler?.udf?.neden);
     const bas = n ? String(n).trim().replace(/[.\s]+$/, '') : 'UYAP Doküman Editörü bulunamadı';
-    return `${bas}; görünüm yaklaşık (satır ve sayfa kırılımları editördekinden farklı olabilir).`;
+    return `${bas}, görünüm yaklaşık (satır ve sayfa kırılımları editördekinden farklı olabilir).`;
   }
 
   /** UDF satırının bu hedefi yaklaşık çizimle mi yapılır: { var: true, yaklasik: true } | { var: false, neden } (yaklaşık PDF'ten bu hedefe
@@ -626,7 +626,7 @@ export class DonusturPenceresi {
     kaliteEl.querySelector('.metin').textContent = kalite;
     // Uyarılar: çekirdeğin (açılamayan UDF, hareketli görüntünün ilk karesi…), uzantısı içeriğiyle uyuşmayan dosya
     const uyarilar = [];
-    if (!o.hata && o.uyari) uyarilar.push(o.uyari);
+    if (!o.hata && o.uyari && (durum.var || durum.neden !== o.uyari)) uyarilar.push(o.uyari);   // hedefin nedeniyle aynıysa satırda iki kez yazılmaz (bozuk görüntü, 0.3.1)
     if (!o.hata && o.acilmadi && o.onizlemeUyarisi) uyarilar.push(o.onizlemeUyarisi);
     const beklenen = UZANTI_TURU[uzanti(o.yol)];
     if (!o.hata && o.tur && TUR_ADI[o.tur] && beklenen && beklenen !== o.tur) uyarilar.push(`Dosyanın içeriği ${TUR_ADI[o.tur]} (uzantısı .${uzanti(o.yol)}).`);
@@ -1065,7 +1065,8 @@ export class DonusturPenceresi {
     const o = this.ogeler.find((x) => yolAyni(x.yol, r.yol));
     const kaynak = TUR_ADI[o?.tur || r.kaynakTur] || uzanti(r.yol).toUpperCase() || 'Dosya';
     const hedef = BICIM[r.hedefBicim]?.ad || '';
-    const kalite = o ? this._kaliteNotu(o, r.hedefBicim) : '';
+    // Word dışındaki programla çevrildiyse (r.motor) kalite notundaki "Bu bilgisayarda Word yok…" cümlesi sonucun kendi uyarısıyla aynı şeyi söylüyor (0.3.1)
+    const kalite = (o ? this._kaliteNotu(o, r.hedefBicim) || '' : '').replace(r.motor && r.motor !== 'word' ? /(?:^|\s)(?:Bu bilgisayarda Word yok|Word şu anda başlatılamıyor)\.[^.]*\./ : /$^/, '').trim();
     const satirlar = [kalite, ...ozel.split(/(?<=[.!?])\s+(?=[A-ZÇĞİÖŞÜ0-9"“(])/u)].filter(Boolean);
     return `${kaynak} → ${hedef}: ${satirlar.join('\n')}`;
   }

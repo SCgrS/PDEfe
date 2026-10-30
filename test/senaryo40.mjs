@@ -235,7 +235,7 @@ print(json.dumps(u.yaz(${J(path.join(GIRDI, 'Dilekçe.udf'))})))`);
     soru = await donustur(0);   // Üzerine yaz
     sonuc('4) Aynı adlı 2 sayfalık belge: "zaten var" sorusu kalan "Dilekce - Sayfa 3.jpg"ü ve silinmeyeceğini söyler',
       /zaten var\.$/.test(soru?.mesaj || '') && (soru?.ayrinti || '').includes('Klasörde önceki bir dönüştürmeden kalan "Dilekce - Sayfa 3.jpg" dosyası da var.')
-      && (soru?.ayrinti || '').includes('Bu belge 2 sayfa; üzerine yazılırsa o dosya silinmez'), soru);
+      && (soru?.ayrinti || '').includes('Bu belge 2 sayfa. Üzerine yazılırsa o dosya silinmez'), soru);
     sonuc('4) Üzerine yaz: Sayfa 1 ve 2 yenilendi, önceki Sayfa 3 değişmedi', !fs.readFileSync(path.join(k, 'Dilekce - Sayfa 1.jpg')).equals(birinciOnce)
       && fs.readFileSync(ucuncu).equals(once), dosyalar(k));
     const satirlar = await sonucSatirlari();

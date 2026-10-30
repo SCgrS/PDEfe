@@ -856,6 +856,8 @@ def y_donusum_bilgi(p):
     ertele = None
     try:
         _girdi_denetle(yol, tur, alt)
+        if tur == "word" and alt == "sifreli":   # 0.3.1: PDF'teki gibi satırda söylenir, kullanıcı Dönüştür'e basmadan görür
+            sonuc["uyari"] = "Belge parolayla korunuyor, dönüştürülemez."
         if tur == "pdf":
             from . import xfa
             if xfa.saf_xfa_mi(araclar._onbellekten_al(yol)):

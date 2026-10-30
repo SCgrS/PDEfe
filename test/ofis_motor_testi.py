@@ -1165,6 +1165,8 @@ def hata_iletileri_bolumu(g):
             f.write(b"bu pdf degil" * 50)
         s0 = donustur_(s, [{"yol": cop, "hedef": os.path.join(k, "x.tif"), "hedefBicim": "tiff"}])["sonuclar"][0]
         sonuc("uzantısı tanıdık içeriği değil: Bozuk olabilir der", s0.get("kod") == "taninmadi" and "bozuk olabilir" in s0.get("hata", ""), s0)
+        b = s.cagir("donusum_bilgi", {"yol": g["sifreli_doc"]})
+        sonuc("parolalı Word belgesi: Satırda söylenir", "parolayla" in (b.get("uyari") or "") and temiz_metin(b.get("uyari")), b.get("uyari"))
         bilinmez = os.path.join(k, "notlar.txt")
         with open(bilinmez, "wb") as f:
             f.write(b"duz metin")
