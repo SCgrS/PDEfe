@@ -99,6 +99,9 @@ export class XfaYoneticisi extends EventTarget {
     alan.addEventListener('keydown', (e) => this._tus(e));
     alan.addEventListener('input', (e) => { const el = e.target?.closest?.(ALAN); if (el && this.etkin) { combGuncelle(el); this._tasmaGuncelle(el, true); this._yaziBildir(); } });
     alan.addEventListener('focusout', (e) => this._odakGitti(e));
+    // Form yeniden dizilirken alanlara yazılamaz (0.3.1 kayıp avı): Yeni form önceden alınan baytlardan kurulur, bu arada yazılan silinirdi. Fare zaten geçmez (xfa.css),
+    // klavyeyle (Tab'la) alana girilebiliyordu
+    alan.addEventListener('beforeinput', (e) => { if (this.mesgul && this.etkin && e.target?.closest?.(ALAN)) e.preventDefault(); }, true);
     this.g.addEventListener('xfaKatmani', (e) => this._katmanKuruldu(e.detail.katman));
     // Yakınlaştırınca odak çerçevesi yeni ölçekte ekran pikseline yeniden oturur
     this.g.addEventListener('xfaOlcek', (e) => { const a = document.activeElement; if (a?.matches?.(DENETIM) && e.detail.katman.contains(a)) this._odakCiz(a); });
@@ -106,6 +109,8 @@ export class XfaYoneticisi extends EventTarget {
 
   get etkin() { return !!this.g.xfa && !this.yok; }
   get mesgul() { return this._mesgul > 0; }
+  /** Bölüm ekleme, silme ya da görünürlük işi sürüyor mu: Komutu henüz geri al yığınında değil, baytları işin başında alındı. */
+  get yapiSuruyor() { return !!this._yapiSozu; }
 
   _mesgulKoy(artir) {
     this._mesgul = Math.max(0, this._mesgul + (artir ? 1 : -1));
@@ -272,6 +277,7 @@ export class XfaYoneticisi extends EventTarget {
     const el = e.target?.closest?.(DENETIM);
     if (!el?.closest('.xfaLayer')) return;
     e.preventDefault();
+    if (this.mesgul) return;   // form yeniden diziliyor: Odak alana geçmesin, yazılan silinirdi
     this._tabGec(el, e.shiftKey ? -1 : 1).catch((err) => console.warn('XFA Tab', err));
   }
 

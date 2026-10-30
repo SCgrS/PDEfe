@@ -1357,6 +1357,8 @@ function yapisalTarif(b, tarif) {
  *  Kapatma akışları kullanır: kayıt yarıda kesilmez, bittikten sonra degisti yeniden değerlendirilir. */
 async function kayitBitmesiniBekle(b) {
   clearTimeout(b._otoKayit); b._otoKayit = null;
+  // Süren bölüm ekleme ya da silme de bitsin (0.3.1 kayıp avı): Komutu yığına girmeden belge temiz görünüyor, kapatma sorusu çıkmıyordu
+  if (b.xfa?.yapiSuruyor) { await b.xfa.bekle(); if (belgeler.has(b.id)) kirliGuncelle(b); clearTimeout(b._otoKayit); b._otoKayit = null; }
   if (!b.kaydediliyor) return;
   while (b.kaydediliyor) { durum.mesajYaz('Kaydediliyor…', 0); await b.kayitSozu; }
   if (durum.mesaj?.textContent === 'Kaydediliyor…') durum.mesajYaz('');   // kayıt kendi sonucunu yazmadıysa (ör. Farklı kaydet'ten vazgeçildi)
@@ -1581,6 +1583,8 @@ function geriAlYinele(geri) {
   if (girdideMi() && !(d && (odak === d.el || d.bicim.contains(odak)))) { document.execCommand(geri ? 'undo' : 'redo'); return; }
   if (!b) return;
   if (d) { if (geri) n.duzenleyiciGeriAl(); else n.duzenleyiciYinele(); return; }
+  // Bölüm ekleme ya da silme sürerken (0.3.1 kayıp avı): İşin baytları başında alındı, araya giren geri al ya da yinele yığın ile formu ayırır, yinelenen yazı kaybolurdu
+  if (b.xfa?.yapiSuruyor) { bildir('Form yeniden diziliyor. Bitince yeniden deneyin.'); return; }
   const k = geri ? b.yigin.geriAl() : b.yigin.yinele();
   if (k) durum.mesajYaz((geri ? 'Geri alındı: ' : 'Yinelendi: ') + k.ad);
 }
@@ -1660,6 +1664,7 @@ function kaydedilmemisAltYazisi(ogeler) {
 function topluGeriAl(b, n) {
   if (!b || aktif() !== b || !belgeler.has(b.id) || ortuAcik() || girdiKilitli()) return;
   if (b.kaydediliyor) { bildir('Kaydediliyor, lütfen bekleyin.'); return; }
+  if (b.xfa?.yapiSuruyor) { bildir('Form yeniden diziliyor. Bitince yeniden deneyin.'); return; }
   b.notlar?.duzenleyiciBitir(true);
   let son = null, sayi = 0;
   while (sayi < n) { const k = b.yigin.geriAl(); if (!k) break; son = k; sayi++; }
