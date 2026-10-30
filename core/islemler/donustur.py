@@ -205,10 +205,28 @@ def _zip_turu(yol):
             if mime.startswith(b"application/vnd.oasis.opendocument.text"):
                 return "word", "odt"
         if "word/document.xml" in adlar:
-            return "word", ("docm" if "word/vbaProject.bin" in adlar else "docx")
+            return "word", _word_zip_alt_turu(zf, adlar)
         if "content.xml" in adlar and b"<template" in zip_oku(zf, "content.xml", 64 * 1024, kes=True):
             return "udf", "zip"
     return None
+
+
+# Word'ün ana bölümünün türü ([Content_Types].xml). Word belgeyi uzantısına değil bu türe göre açar, uzantı türle uyuşmazsa açmaz.
+_MAKROLU_ANA_TUR = b"application/vnd.ms-word.document.macroenabled.main+xml"
+_DOCX_ANA_TUR = b"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"
+
+
+def _word_zip_alt_turu(zf, adlar):
+    """docx mi docm mi (0.3.1): Önce ana bölümün içerik türü, bulunamazsa word/vbaProject.bin. Önceden yalnız vbaProject.bin'e bakılıyordu:
+    Makrosuz kaydedilmiş .docm (makrolu tür, vbaProject.bin yok) docx sayılıp .docx uzantılı kopyayla Word'e verilince Word açmıyordu
+    (hata 0x800A141F). Dönüştürücü kopyanın uzantısını bu alt türden seçer (word.GIRDI_UZANTISI)."""
+    if "[Content_Types].xml" in adlar:
+        turler = zip_oku(zf, "[Content_Types].xml", 64 * 1024, kes=True).lower()
+        if _MAKROLU_ANA_TUR in turler:
+            return "docm"
+        if _DOCX_ANA_TUR in turler:
+            return "docx"
+    return "docm" if "word/vbaProject.bin" in adlar else "docx"
 
 
 def _ole2_turu(yol):
@@ -263,7 +281,7 @@ def tur_bul(yol):
     """Dosyanın türü içeriğinden (uzantıya bakılmaz): (tur, alt). tur 'pdf' | 'udf' | 'tiff' | 'word' | 'gorsel' | 'bilinmeyen'.
     Görüntü (0.2.7, _gorsel_imzasi): JPEG, PNG, GIF, BMP, WEBP, AVIF, HEIC / HEIF; TIFF ayrı tür (çok sayfalı tarama).
     PDF: ilk 1024 baytta '%PDF-' (MuPDF başta çöp kabul eder). TIFF: 'II*\\0' / 'MM\\0*' (BigTIFF '+'). Zip: mimetype ODF metni → odt,
-    word/document.xml → docx (vbaProject.bin varsa docm), content.xml'de <template → UDF. OLE2 → doc. '{\\rtf' → rtf. Düz XML'de
+    word/document.xml → docx (ana bölümün türü makroluysa ya da tür yokken vbaProject.bin varsa docm: _word_zip_alt_turu), content.xml'de <template → UDF. OLE2 → doc. '{\\rtf' → rtf. Düz XML'de
     <template → UDF (format 1.7'nin zip'siz biçimi). Kilitli dosyada PermissionError (KILITLI_METNI)."""
     araclar._dosya_var(yol)
     try:

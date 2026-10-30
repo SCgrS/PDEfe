@@ -503,6 +503,14 @@ def imza_ornekleri():
     o["udf_zip_adi_docx"] = (zip_yaz("aslinda_udf.docx", {"content.xml": udf_icerik}), "udf", "zip")
     o["docx_adi_udf"] = (zip_yaz("aslinda_docx.udf", {"[Content_Types].xml": "<Types/>", "word/document.xml": "<w:document/>"}), "word", "docx")
     o["docm"] = (zip_yaz("makrolu.docm", {"word/document.xml": "<w:document/>", "word/vbaProject.bin": "x"}), "word", "docm")
+    # 0.3.1: Tür önce ana bölümün içerik türünden. Makrosuz kaydedilmiş .docm'de vbaProject.bin yok, docx sayılınca Word açmıyordu
+    makrolu_tur = ('<Types><Override PartName="/word/document.xml" '
+                   'ContentType="application/vnd.ms-word.document.macroEnabled.main+xml"/></Types>')
+    docx_tur = ('<Types><Override PartName="/word/document.xml" '
+                'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>')
+    o["docm_makrosuz"] = (zip_yaz("makrosuz.docm", {"[Content_Types].xml": makrolu_tur, "word/document.xml": "<w:document/>"}), "word", "docm")
+    o["docm_adi_docx"] = (zip_yaz("aslinda_docm.docx", {"[Content_Types].xml": makrolu_tur, "word/document.xml": "<w:document/>"}), "word", "docm")
+    o["docx_adi_docm"] = (zip_yaz("aslinda_docx.docm", {"[Content_Types].xml": docx_tur, "word/document.xml": "<w:document/>"}), "word", "docx")
     o["odt"] = (zip_yaz("metin.odt", {"content.xml": "<office:document-content/>"}, ilk=("mimetype", "application/vnd.oasis.opendocument.text")),
                 "word", "odt")
     o["ods"] = (zip_yaz("tablo.ods", {"content.xml": "<office:document-content/>"}, ilk=("mimetype", "application/vnd.oasis.opendocument.spreadsheet")),

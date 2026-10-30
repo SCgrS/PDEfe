@@ -16,8 +16,9 @@ import donustur_testi as dt  # noqa: E402
 import udf_donusum_testi as ut  # noqa: E402
 
 
-def docx_yaz(yol, paragraflar):
-    """En küçük geçerli .docx (Word açar; çekirdek word/document.xml'den Word sayar)."""
+def docx_yaz(yol, paragraflar, makrolu=False):
+    """En küçük geçerli .docx (Word açar; çekirdek word/document.xml'den Word sayar). makrolu (0.3.1): Makrosuz kaydedilmiş .docm gibi
+    ana bölüm makrolu türde, vbaProject.bin yok (Word açar). Çekirdek türü içerik türünden docm sayar."""
     govde = "".join('<w:p><w:r><w:t xml:space="preserve">%s</w:t></w:r></w:p>' % p for p in paragraflar)
     belge = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
              '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>%s'
@@ -27,8 +28,9 @@ def docx_yaz(yol, paragraflar):
               '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
               '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
               '<Default Extension="xml" ContentType="application/xml"/>'
-              '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
-              '</Types>')
+              '<Override PartName="/word/document.xml" ContentType="%s"/>'
+              '</Types>') % ("application/vnd.ms-word.document.macroEnabled.main+xml" if makrolu
+                             else "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml")
     iliski = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
               '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
               '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
@@ -57,6 +59,7 @@ def main():
         u.paragraf(ut.METIN, aile="Arial", boy=11)
     g["udf_xml"] = u.yaz(os.path.join(k, "Düz biçim.udf"), duz_xml=True)
     g["docx"] = docx_yaz(os.path.join(k, "Word örneği.docx"), ["Deneme paragrafı; ğüşıöç İ.", "İkinci paragraf."])
+    g["docm"] = docx_yaz(os.path.join(k, "Makrolu örnek.docm"), ["Makrolu Word belgesi, ğüşıöç İ."], makrolu=True)
     with open(os.path.join(k, "notlar.txt"), "w", encoding="utf-8") as f:
         f.write("PDF, UDF, TIFF ya da Word değil.\n")
     g["txt"] = os.path.join(k, "notlar.txt")

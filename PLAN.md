@@ -4283,3 +4283,27 @@ Notlardaki bekleyen hata (2026-10-15'te ofiste görüldü, kullanıcı 2026-10-3
   gövde aynı sırayla yerinde, eklenen her satır desene uyuyor, sonraki etiketle birlikte fark kalmaz). Koşulsuz silen ve fazladan satır
   ekleyen deneme installer.nsh'lerinde yine FARK verdi.
 - [ ] Gerçek PDEfe'nin bir sonraki güncellemesi ve kaldırılması: docs/DOGRULAMA.md 46 › Kaldırma.
+
+#### 0.3.1: Format Değiştir makrolu Word belgesini (.docm) alır
+Notlardaki bekleyen hata (2026-10-17, README önerileri sırasında bulundu, kullanıcının kabul ettiği ".docm" eklemesi README'ye konmamıştı).
+- [x] **Kök neden**: Çekirdek .docm'yi dönüştürüyor (donustur.py GIRDI_UZANTILARI, word.py GIRDI_UZANTISI), Birleştir alıyordu
+  (gorselBirlestir.js WORD_UZANTILARI), ama Format Değiştir'in arayüz listelerinde (araclar/donustur.js DONUSTURULEN_UZANTILAR,
+  GIRDI_UZANTILARI, DOSYA_FILTRELERI'nin "Desteklenen dosyalar" ve "Word belgeleri" süzgeçleri) ve ana sürecin komut satırı / macOS open-file
+  süzgecinde (anaSurec.js ACILAN_UZANTILAR) yoktu. Dosya ekle'de görünmüyordu, Ctrl+O ile seçilen .docm sekmeye gidip "PDF açılamadı"
+  diyordu, ana pencereye bırakılan .docm yok sayılıyordu (sekme yalnızca .pdf alır), komut satırındaki .docm atılıyordu.
+- [x] **Karar**: donustur.js'te tek Word listesi (WORD_UZANTILARI: doc, docx, docm, rtf, odt, Birleştir'inkiyle aynı sıra), üç liste ondan.
+  ACILAN_UZANTILAR'a docm (yorumda listeyle aynı olması gerektiği yazılı). electron-builder'ın dosya ilişkilerine dokunulmadı (PDEfe yalnız
+  .pdf'i açar). README'nin Word → PDF cümlesine .docm ve "makrolar çalıştırılmaz" (Word örneğinde AutomationSecurity 3, değişmedi).
+- [x] **İkinci kök neden (sınarken bulundu)**: Çekirdek .docm'yi yalnız `word/vbaProject.bin`'den tanıyordu. Word'ün makrosuz kaydettiği
+  .docm'de bu öğe yok (ana bölüm yine makrolu türde): docx sayılıp `.docx` uzantılı kopyayla Word'e veriliyor, Word açmıyordu (hata
+  0x800A141F, kurgusal belgeyle ölçüldü). Word belgeyi uzantısına değil `[Content_Types].xml`'deki ana bölüm türüne göre açar, uyuşmazsa açmaz.
+  Tür artık önce oradan (donustur.py _word_zip_alt_turu: makrolu tür docm, docx türü docx), tür yoksa eskisi gibi vbaProject.bin. Uzantısı
+  .docx olan makrolu belge de docm kopyasıyla dönüştürülür (satırda "içeriği … uzantısı …" uyarısı çıkmaz: İkisi de Word).
+- [x] **Seçilmeyen yollar**: .dotx / .dotm şablonları (istenmedi, Birleştir de almıyor). Uzantıyı kopyaya kaynağın uzantısından vermek (tür
+  içerikten bulunuyor, uzantısı yanlış dosya da dönüşüyordu).
+- [x] **Testler**: `test/senaryo37.mjs` 67/67 (yeni: Dosya ekle süzgeçlerinde docm, araç kapalıyken ana pencereye bırakılan .docm araçta ve
+  PDF sekmede, Ctrl+O ile seçilen .docm araçta ve "PDF açılamadı" yok, komut satırındaki (ikinci örnek) .docm araçta. Girdi
+  `test/donustur_arayuz_uret.py`'de makrosuz .docm). `test/donustur_testi.py` 268/268 (yeni: makrosuz .docm, uzantısı .docx olan makrolu belge,
+  uzantısı .docm olan docx'in türleri). `test/word_donusum_testi.py` 88/88 (yeni test_docm: makrosuz .docm Word'le 3 sayfa, sözcük geri
+  çağırma 1,0, geçici dosya yok). Makrolu (geçerli makro kodu olan) bir .docm burada üretilemedi (Word'ün güvenlik ayarına dokunulmadan):
+  docs/DOGRULAMA.md 46.

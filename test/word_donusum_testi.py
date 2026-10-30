@@ -625,6 +625,38 @@ def test_word_pdf(c, g, exe):
         sonuc("Normal.dotm değişmedi", normal_dotm() == dotm)
 
 
+def makrosuz_docm(kaynak, hedef):
+    """0.3.1: Word'ün makrosuz kaydettiği .docm gibi: Ana bölüm makrolu türde, word/vbaProject.bin yok (geçerli makro kodu burada
+    üretilemiyor, Word'ün güvenlik ayarına dokunmadan)."""
+    with zipfile.ZipFile(kaynak) as z, zipfile.ZipFile(hedef, "w", zipfile.ZIP_DEFLATED) as h:
+        for b in z.infolist():
+            v = z.read(b.filename)
+            if b.filename == "[Content_Types].xml":
+                v = v.replace(b"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+                              b"application/vnd.ms-word.document.macroEnabled.main+xml")
+            h.writestr(b, v)
+    return hedef
+
+
+def test_docm(c, g):
+    """0.3.1: Makrosuz .docm. Önceden docx sayılıp .docx uzantılı kopyayla Word'e veriliyor, Word açmıyordu (hata 0x800A141F)."""
+    from islemler import donustur as dn
+    klasor = temiz_klasor("docm")
+    yol = makrosuz_docm(g["docx"], os.path.join(GIRDI, "makrosuz.docm"))
+    sonuc("makrosuz .docm: tür word / docm (ana bölümün içerik türünden)", dn.tur_bul(yol) == ("word", "docm"), dn.tur_bul(yol))
+    hedef = os.path.join(klasor, "makrosuz.pdf")
+    r, _ = donustur(c, [{"yol": yol, "hedef": hedef, "hedefBicim": "pdf"}])
+    s = r["sonuclar"][0]
+    if "hata" in s:
+        sonuc("Word → PDF makrosuz .docm", False, s)
+        return
+    o = pdf_ozeti(hedef)
+    gc = geri_cagirma(metin_sozcukleri([b for b, pler in g["sayfalar"] for b in [b] + pler]), pdf_sozcukleri(hedef))
+    sonuc("Word → PDF makrosuz .docm: 3 sayfa, motor word, sözcük geri çağırma ≥ 0,99", s.get("sayfa") == 3 and o["sayfa"] == 3
+          and s.get("motor") == "word" and gc >= 0.99, (s.get("sayfa"), o["sayfa"], s.get("motor"), round(gc, 4)))
+    sonuc("makrosuz .docm: geçici dosya kalmadı", not gecici_kalintilar(klasor), gecici_kalintilar(klasor))
+
+
 def parolali_docx_uret(kaynak, hedef):
     """Word'ün kendisiyle (ayrı, görünmez örnek) parola koruması: SaveAs2(Password). Yalnız modül kipinde."""
     from islemler import word
@@ -979,7 +1011,7 @@ def main():
     word_var = w.get("var") is True and w.get("motor") == "word"
     testler = []
     if word_var:
-        testler += [lambda: test_word_pdf(c, g, exe), lambda: test_parolali(c, g, exe), lambda: test_iptal(c, g)]
+        testler += [lambda: test_word_pdf(c, g, exe), lambda: test_docm(c, g), lambda: test_parolali(c, g, exe), lambda: test_iptal(c, g)]
         if not exe:
             testler.append(lambda: test_zaman_asimi(c, g))
         testler.append(lambda: test_cokme(exe, g))

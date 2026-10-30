@@ -230,7 +230,7 @@ dönüştürmede (örneğin UDF → Word, TIFF → Word) hedef seçilince satır
   kayabilir. İmza gibi yazının üstünde ya da yanında duran resimler alınmaz. Sonuçta dosyanın yanındaki ⚠ simgesi bunu söyler.
   Görüntüden ve TIFF'ten yapılan UDF'nin kâğıdı A4'tür.
 - **Word → PDF:** Word'ün kendisiyle. Görünmeyen, ayrı bir Word kullanılır, açık Word'ünüze dokunulmaz. Belgenin yazar adı PDF'e geçmez.
-  .docx, .doc, .rtf ve .odt dönüştürülür.
+  .docx, .docm, .doc, .rtf ve .odt dönüştürülür, makrolar çalıştırılmaz.
 - **PDF → Word:** Metni düzenlenebilir .docx. Taranmış sayfalar resim olarak aktarılır. Sayfa düzeni ve tablolar birebir korunmayabilir.
 - **TIFF → PDF:** Kayıpsız. Her sayfa A4'e sığan en büyük ölçüde (UYAP'ın A4 taramaları tam A4) ve çoğunlukla TIFF'ten küçük.
 - **PDF → TIFF:** Tek dosyada çok sayfa, siyah beyaz, gri ya da renkli.

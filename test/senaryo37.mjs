@@ -19,7 +19,7 @@
 //      çöp kutusuna gönderir (sınamada kaydedilir, gönderilmez), onaylanıp üzerine yazılan dosyayı bırakır; dönüştürme sürerken X sorar.
 //   8) Açma yolları: ana pencereye bırakılan PDF sekmede, UDF / TIFF / Word araçta açılır (araç açıksa listesine eklenir); Ctrl+O'nun
 //      süzgecinde desteklenen türler, seçilen UDF araçta; komut satırı (ikinci örnek, Gezgin'de "Birlikte aç") ve ana sürecin dosya:ac'ı;
-//      sürükleme örtüsü "Dosyaları bırakın".
+//      sürükleme örtüsü "Dosyaları bırakın". 0.3.1: Makrolu Word belgesi (.docm) bırakılınca, Ctrl+O ile ve komut satırından araçta açılır.
 //   9) Ayarlar › Kaydetme › Format Değiştir › "UYAP Doküman Editörü": bulunan editörün yolu, sürümü ve Java; "Klasörü seç…" (ana
 //      sürecin penceresi; editörün olmadığı klasör ayarı değiştirmez, nedeni yazar; editörün klasörü ayara yazılır), "Otomatik bul" ayarı
 //      temizler; çıktı klasörü kartının açıklamasında yeni araç.
@@ -228,9 +228,10 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
     await kosul(`document.querySelectorAll('.donustur-oge').length === 7 && !document.querySelector('.donustur-oge.yukleniyor')`, 20000);
     await bekle(600);
     const dk = (await kayit()).find((x) => x.kanal === 'dosya:acDiyalog');
-    sonuc('Dosya ekle: çoklu seçim, ilk süzgeç "Desteklenen dosyalar" (pdf, udf, tif, tiff, doc, docx, rtf, odt; 0.2.7: görüntüler), ayrıca tek tek ve Tüm dosyalar', dk?.secenek?.coklu === true
-      && dk.secenek.filtreler?.[0]?.name === 'Desteklenen dosyalar' && J(dk.secenek.filtreler[0].extensions) === J(['pdf', 'udf', 'tif', 'tiff', 'doc', 'docx', 'rtf', 'odt', 'jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp'])
-      && J(dk.secenek.filtreler.map((f) => f.name)) === J(['Desteklenen dosyalar', 'PDF belgeleri', 'UDF belgeleri', 'TIFF görüntüleri', 'Word belgeleri', 'Görüntüler', 'Tüm dosyalar']), dk?.secenek);
+    sonuc('Dosya ekle: çoklu seçim, ilk süzgeç "Desteklenen dosyalar" (pdf, udf, tif, tiff, doc, docx, docm, rtf, odt; 0.2.7: görüntüler; 0.3.1: docm), ayrıca tek tek ve Tüm dosyalar', dk?.secenek?.coklu === true
+      && dk.secenek.filtreler?.[0]?.name === 'Desteklenen dosyalar' && J(dk.secenek.filtreler[0].extensions) === J(['pdf', 'udf', 'tif', 'tiff', 'doc', 'docx', 'docm', 'rtf', 'odt', 'jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp'])
+      && J(dk.secenek.filtreler.map((f) => f.name)) === J(['Desteklenen dosyalar', 'PDF belgeleri', 'UDF belgeleri', 'TIFF görüntüleri', 'Word belgeleri', 'Görüntüler', 'Tüm dosyalar'])
+      && J(dk.secenek.filtreler.find((f) => f.name === 'Word belgeleri')?.extensions) === J(['doc', 'docx', 'docm', 'rtf', 'odt']), dk?.secenek);
     let S = await satirlar();
     const s = Object.fromEntries(S.map((x) => [x.ad, x]));
     const hedefIdleri = (x) => x.hedefler.map((h) => h.id).join(',');
@@ -643,6 +644,15 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
     await kosul(`document.querySelectorAll('.donustur-oge').length === 4 && !document.querySelector('.donustur-oge.yukleniyor')`, 15000);
     S = await satirlar();
     sonuc('Ana sürecin dosya:ac\'ı (UDF): açık aracın listesine eklenir, sekme açılmaz', S.length === 4 && S[3].ad === 'Düz biçim.udf' && (await evalJs(`window.__pdefe.belgeler.size`)) === 1, S.map((x) => x.ad));
+    // 0.3.1: Makrolu Word belgesi (.docm) araç kapalıyken ana pencereye bırakılınca da aracı açar (önceden yok sayılıyordu: Sekme yalnızca .pdf alır)
+    await pencereKapat();
+    await sekmeleriKapat();
+    await birak([G.docm, G.pdf]);
+    await kosul(`!!document.querySelector('.donustur-pencere') && document.querySelectorAll('.donustur-oge').length === 1 && !document.querySelector('.donustur-oge.yukleniyor')`, 15000);
+    await kosul(`window.__pdefe.belgeler.size === 1`, 8000);
+    S = await satirlar();
+    sonuc('0.3.1: Ana pencereye bırakılan .docm Format Değiştir\'de açılır (tür Word, DOCM), PDF sekmede', S.length === 1 && S[0].ad === 'Makrolu örnek.docm' && S[0].tur === 'word'
+      && /^DOCM/.test(S[0].ozet) && J(await evalJs(`[...window.__pdefe.belgeler.values()].map((b) => b.ad)`)) === J(['Dilekçe örneği.pdf']), S.map((x) => [x.ad, x.tur, x.ozet]));
     ws.close();
     await pencereKapat();
     await sekmeleriKapat();
@@ -659,6 +669,19 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
       && J(S.map((x) => x.ad)) === J(['Karar örneği.udf']) && J(await evalJs(`[...window.__pdefe.belgeler.values()].map((b) => b.ad)`)) === J(['Dilekçe örneği.pdf']), { ck: ck?.secenek, S: S.map((x) => x.ad) });
     await pencereKapat();
     await sekmeleriKapat();
+    // 0.3.1: Ctrl+O ile seçilen .docm araçta açılır (önceden sekmeye gidip "PDF açılamadı" diyordu), süzgeçlerde .docm
+    await yanitla('dosya:acDiyalog', [[G.docm]]);
+    await kayit();
+    await evalJs(`window.__pdefe.komutCalistir('dosya.ac')`);
+    await kosul(`!!document.querySelector('.donustur-pencere') && document.querySelectorAll('.donustur-oge').length === 1 && !document.querySelector('.donustur-oge.yukleniyor')`, 15000);
+    const ckm = (await kayit()).find((x) => x.kanal === 'dosya:acDiyalog');
+    S = await satirlar();
+    const ckmKutu = await evalJs(`document.querySelector('.mesaj-ortusu')?.textContent || ''`);
+    sonuc('0.3.1: Ctrl+O: süzgeçlerde .docm ("Desteklenen dosyalar", "Word belgeleri"); seçilen .docm araçta, sekme açılmaz, "PDF açılamadı" yok', !!ckm?.secenek?.filtreler?.[0]?.extensions?.includes('docm')
+      && !!ckm.secenek.filtreler.find((f) => f.name === 'Word belgeleri')?.extensions?.includes('docm') && J(S.map((x) => [x.ad, x.tur])) === J([['Makrolu örnek.docm', 'word']])
+      && (await evalJs(`window.__pdefe.belgeler.size`)) === 0 && !ckmKutu, { ck: ckm?.secenek, S, ckmKutu });
+    await pencereKapat();
+    await sekmeleriKapat();
     // Komut satırı: ikinci örnek (Gezgin'de "Birlikte aç" ya da PDEfe'nin simgesine bırakma) TIFF'i ilk örneğe verir, araç açılır. 0.2.7: ikinci
     // bir Electron başlatılmaz (olağan masaüstünde Electron başlatılmaz); ana sürecin 'second-instance' olayı test kancasıyla verilir
     const ikinci = await evalJs(`window.pdefe.cagir('test:uygulamaOlayi', 'second-instance', [${J(G.tiff)}])`);
@@ -666,6 +689,13 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
     S = await satirlar();
     sonuc('Komut satırı (ikinci örnek): TIFF ilk örneğin Format Değiştir aracında açılır, sekme açılmaz', ikinci && J(S.map((x) => x.ad)) === J(['Tarama örneği.tif'])
       && (await evalJs(`window.__pdefe.belgeler.size`)) === 0, { ikinci, S: S.map((x) => x.ad) });
+    await pencereKapat();
+    // 0.3.1: Komut satırındaki .docm (ana sürecin süzgeci, main/anaSurec.js ACILAN_UZANTILAR) araçta açılır. Önceden süzgeç onu atıyordu
+    const ikinciDocm = await evalJs(`window.pdefe.cagir('test:uygulamaOlayi', 'second-instance', [${J(G.docm)}])`);
+    await kosul(`!!document.querySelector('.donustur-pencere') && document.querySelectorAll('.donustur-oge').length === 1 && !document.querySelector('.donustur-oge.yukleniyor')`, 15000);
+    S = await satirlar();
+    sonuc('0.3.1: Komut satırı (ikinci örnek): .docm Format Değiştir aracında açılır, sekme açılmaz', ikinciDocm && J(S.map((x) => [x.ad, x.tur])) === J([['Makrolu örnek.docm', 'word']])
+      && (await evalJs(`window.__pdefe.belgeler.size`)) === 0, { ikinciDocm, S });
     await pencereKapat();
   }
 

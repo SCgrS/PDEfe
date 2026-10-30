@@ -1197,3 +1197,8 @@ Kaldırma
 48. **Güncelleme önbelleği.** Bu sürümden sonraki ilk sürüm çıkınca şeritte Güncelle'ye basın: Güncelleme her zamanki gibi kurulmalı, PDEfe
     yeni sürümle açılmalı. PDEfe'yi bir gün kaldırırsanız (Windows Ayarlar › Uygulamalar › PDEfe › Kaldır), Dosya Gezgini'nin adres çubuğuna
     `%LOCALAPPDATA%\pdefe-updater` yazın: Klasör bulunamamalı (önceden eski kurulum dosyasıyla ~140 MB kalıyordu). Ayarlarınız bilerek kalır.
+
+Format Değiştir
+49. **Makrolu Word belgesi (.docm).** Elinizde bir .docm varsa PDEfe'nin penceresine bırakın: Format Değiştir açılmalı, satırda türü "DOCM"
+    görünmeli. PDF'e dönüştürün: PDF oluşmalı, belgenin makroları çalışmamalı (makro uyarısı ya da makronun açtığı bir pencere çıkmamalı).
+    Ctrl+O ile de seçin: Sekmede "PDF açılamadı" değil, Format Değiştir açılmalı. Dosya ekle'nin süzgecinde .docm dosyaları görünmeli.

@@ -43,17 +43,22 @@ import { MAC } from '../platform.js';
 /** Görüntüler (0.2.7, kullanıcı isteği: "görüntüde yaptığı evrakları da PDF olarak kaydedebilelim"): Dosya ekle süzgecindekiler. HEIC / HEIF
  *  ve AVIF süzgeçte yok (HEIC'in açıcısı pakette yok); bırakılırsa ya da komut satırından gelirse satırda nedeni yazar. */
 export const GORSEL_UZANTILARI = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp'];
+/** Word belgeleri: Çekirdeğin dönüştürdükleri (core/islemler/donustur.py GIRDI_UZANTILARI, Birleştir'in listesi de aynı). 0.3.1: makrolu
+ *  .docm de (makroları çalıştırılmaz). Çekirdek .docm'yi dönüştürüyor, Birleştir alıyordu, ama bu listelerde yoktu: Dosya ekle süzgecinde
+ *  görünmüyor, ana pencereye bırakılan ya da Ctrl+O ile açılan .docm sekmeye gidip "PDF açılamadı" diyordu. */
+export const WORD_UZANTILARI = ['doc', 'docx', 'docm', 'rtf', 'odt'];
 /** PDF dışında, ana pencereye bırakılınca (komut satırı, Ctrl+O) sekmede değil bu araçta açılan uzantılar. Windows'ta .udf'nin dosya ilişkisi
- *  UYAP Doküman Editörü'nündür; PDEfe kurulumu bu uzantılara ilişki eklemez. 0.2.7: görüntüler de. */
-export const DONUSTURULEN_UZANTILAR = ['udf', 'tif', 'tiff', 'doc', 'docx', 'rtf', 'odt', ...GORSEL_UZANTILARI, 'avif', 'heic', 'heif'];
-const GIRDI_UZANTILARI = ['pdf', 'udf', 'tif', 'tiff', 'doc', 'docx', 'rtf', 'odt', ...GORSEL_UZANTILARI];
+ *  UYAP Doküman Editörü'nündür; PDEfe kurulumu bu uzantılara ilişki eklemez. 0.2.7: görüntüler de. Ana sürecin komut satırı ve macOS
+ *  open-file süzgeci (main/anaSurec.js ACILAN_UZANTILAR) aynı türleri almalı. */
+export const DONUSTURULEN_UZANTILAR = ['udf', 'tif', 'tiff', ...WORD_UZANTILARI, ...GORSEL_UZANTILARI, 'avif', 'heic', 'heif'];
+const GIRDI_UZANTILARI = ['pdf', 'udf', 'tif', 'tiff', ...WORD_UZANTILARI, ...GORSEL_UZANTILARI];
 /** Dosya ekle ve Ctrl+O (uygulama.js) süzgeçleri: ilki desteklenen bütün türler. */
 export const DOSYA_FILTRELERI = [
   { name: 'Desteklenen dosyalar', extensions: GIRDI_UZANTILARI },
   { name: 'PDF belgeleri', extensions: ['pdf'] },
   { name: 'UDF belgeleri', extensions: ['udf'] },
   { name: 'TIFF görüntüleri', extensions: ['tif', 'tiff'] },
-  { name: 'Word belgeleri', extensions: ['doc', 'docx', 'rtf', 'odt'] },
+  { name: 'Word belgeleri', extensions: WORD_UZANTILARI },
   { name: 'Görüntüler', extensions: GORSEL_UZANTILARI },
   { name: 'Tüm dosyalar', extensions: ['*'] },
 ];

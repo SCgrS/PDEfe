@@ -144,8 +144,8 @@ const MIME = {
 /** Komut satırından (Gezgin'de "Birlikte aç", PDEfe'nin simgesine bırakma) ve macOS'ta open-file olayıyla açılabilen dosyalar: PDF sekmede
  *  açılır; UDF, TIFF ve Word dosyaları (0.2.6) ve görüntüler (0.2.7: JPG, PNG…) Format Değiştir aracını açar (renderer/uygulama.js
  *  acilacaklariAyir; araclar/donustur.js DONUSTURULEN_UZANTILAR ile aynı). PDEfe kurulumu bu uzantılara dosya ilişkisi eklemez (.udf UYAP
- *  Doküman Editörü'nündür). */
-const ACILAN_UZANTILAR = /\.(pdf|udf|tiff?|docx?|rtf|odt|jpe?g|png|bmp|gif|webp|avif|heic|heif)$/i;
+ *  Doküman Editörü'nündür). 0.3.1: makrolu Word belgesi .docm de (araclar/donustur.js WORD_UZANTILARI). */
+const ACILAN_UZANTILAR = /\.(pdf|udf|tiff?|docx?|docm|rtf|odt|jpe?g|png|bmp|gif|webp|avif|heic|heif)$/i;
 
 function argvdenDosyalar(argv, cwd) {
   const sonuc = [];
