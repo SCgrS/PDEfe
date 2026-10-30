@@ -5,7 +5,7 @@ import { keskinBaglam, KeskinTuvalFabrikasi, cizimGoreviHazirla, ETKILESIM_MS, e
 import { anaHatSecenekleri, yaziTipiYukleyicisiniSar, yaziGoreviHazirla } from './yaziTipleri.js';
 import { MAC } from './platform.js';
 import { isaretle } from './olcum.js';
-import { sayfaHazirla, xfaSigdir } from './xfaHtml.js';
+import { sayfaHazirla, xfaAlanlariKur, xfaSigdir } from './xfaHtml.js';
 
 /** Yakınlaştıran tekerlek olayı: Windows'ta Ctrl+tekerlek; macOS'ta (0.2.0) dokunmatik yüzeyde kıstırma (Ctrl'li gelir) ya da ⌘+tekerlek. */
 const yakinlastirmaTekerlegi = (e) => e.ctrlKey || (MAC && e.metaKey);
@@ -1846,9 +1846,14 @@ export class Goruntuleyici extends EventTarget {
     this.kok.classList.toggle('koyu-sayfa', this.koyuSayfa);
     const gorunum = (o) => pdfSayfa.getViewport({ scale: o * CSS_BIRIM, rotation: dondurme }).clone({ dontFlip: true });
     s._xfaIstenen = olcek;
+    // Katmanın büyütmesi (CSS değişkeni): Odak çerçevesi ve taşma işareti yakınlaştırmayla kalınlaşmasın (xfa.css)
+    const olcekYaz = (k, o) => k.style.setProperty('--xfa-olcek', String(o * CSS_BIRIM));
     let katman = s.el.querySelector(':scope > .xfaLayer');
     if (katman) {
-      if (s.xfaOlcek !== olcek) { pdfjs.XfaLayer.update({ viewport: gorunum(olcek), div: katman }); s.xfaOlcek = olcek; }
+      if (s.xfaOlcek !== olcek) {
+        pdfjs.XfaLayer.update({ viewport: gorunum(olcek), div: katman }); s.xfaOlcek = olcek; olcekYaz(katman, olcek);
+        this.dispatchEvent(new CustomEvent('xfaOlcek', { detail: { katman } }));
+      }
       return;
     }
     if (s._xfaKuruluyor) return;
@@ -1861,6 +1866,8 @@ export class Goruntuleyici extends EventTarget {
       pdfjs.XfaLayer.render({ viewport: gorunum(olcek), div: katman, xfaHtml: kok, annotationStorage: this.belge.annotationStorage, linkService: this._xfaBaglantilari(), intent: 'display' });
       s.xfaOlcek = olcek;
       if (s._xfaIstenen !== olcek) { pdfjs.XfaLayer.update({ viewport: gorunum(s._xfaIstenen), div: katman }); s.xfaOlcek = s._xfaIstenen; }
+      olcekYaz(katman, s.xfaOlcek);
+      xfaAlanlariKur(katman);
       // Bilgisayarın yazı tipi formun ölçtüğünden genişse taşan yazılar küçültülür (yazı tipleri yüklenince; XFA_YAZI)
       document.fonts.ready.then(() => { if (katman.isConnected) xfaSigdir(katman); }).catch(() => {});
       s.xfaMetin = this._xfaMetni(katman, kok.__pdefe?.ogeler || []);
@@ -1892,7 +1899,7 @@ export class Goruntuleyici extends EventTarget {
     Object.assign(y.style, {
       left: el.offsetLeft + 'px', top: el.offsetTop + 'px', width: el.offsetWidth + 'px', height: el.offsetHeight + 'px',
       fontFamily: st.fontFamily, fontSize: st.fontSize, fontWeight: st.fontWeight, fontStyle: st.fontStyle, letterSpacing: st.letterSpacing,
-      textAlign: st.textAlign, paddingLeft: st.paddingLeft, paddingRight: st.paddingRight, paddingTop: cok ? st.paddingTop : '0',
+      textAlign: st.textAlign, textIndent: st.textIndent, paddingLeft: st.paddingLeft, paddingRight: st.paddingRight, paddingTop: cok ? st.paddingTop : '0',
       lineHeight: cok ? st.lineHeight : el.offsetHeight + 'px',
     });
     el.after(y);

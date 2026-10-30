@@ -7,7 +7,8 @@ Saf XFA belgede (katalogda /NeedsRendering, AcroForm'da /XFA paketleri, alan yok
 XFA katmanıyla dizer ve çizer (renderer/xfa.js). Çekirdeğin işi şablonu okumak ve paketleri yazmaktır:
 
 - xfa_bilgi: Şablondan arayüzün bilmesi gerekenler. Düğmeler ve tıklama betiklerinin tanınan eylemleri, tekrarlanabilir alt formlar (occur),
-  sayfa numarası alanları ("Sayfa n / N"), ekranda görünüp basılmayan öğeler (relevant="-print"), kullanım hakları imzası (/Perms /UR3).
+  sayfa numarası alanları ("Sayfa n / N"), ekranda görünüp basılmayan öğeler (relevant="-print"), kullanım hakları imzası (/Perms /UR3),
+  alanların PDF.js'in HTML'ine taşımadığı biçimleri (_alan_bicimi: Hizalama, satır aralığı, hücreli alan, tam yazı boyu, zemin).
   Betikler çalıştırılmaz (JavaScript yorumlayıcısı yok): Yalnızca form tasarım programının ürettiği eylem kalıpları tanınır (örnek ekle /
   sil, görünürlük, kaydet, yazdır). Tanınmayan betikli düğme "desteklenmiyor" döner.
 - xfa_degistir: Alt form örneği ekler ya da siler (datasets'te o alt formun veri grubu eklenir ya da silinir; PDF.js örnek sayısını
@@ -45,6 +46,11 @@ ADLI = {"subform", "field", "draw", "exclGroup", "area", "pageArea"}
 # Yapısında yürünen kapsayıcılar (öbürleri: biçim, değer, olay öğeleri)
 KAPSAYICI = {"subform", "subformSet", "area", "exclGroup", "pageSet", "pageArea", "field", "draw"}
 SAYDAM = {"subform", "subformSet", "area"}    # adsızsa SOM aramasında içinden geçilir
+METIN_UI = ("textEdit", "numericEdit", "dateTimeEdit", "passwordEdit")   # değeri yazı olan denetimler (PDF.js input ya da textarea çizer)
+OLCU = re.compile(r"^\s*(-?\d*\.?\d+)\s*(pt|mm|cm|in|px)?\s*$")
+OLCU_CARPAN = {None: 1.0, "pt": 1.0, "px": 1.0, "mm": 72 / 25.4, "cm": 72 / 2.54, "in": 72.0}   # birimsiz ölçü PDF.js'teki gibi pt
+YATAY_HIZALAR = ("left", "center", "right", "justify", "justifyAll", "radix")
+DIKEY_HIZALAR = ("top", "middle", "bottom")
 
 ET.register_namespace("xfa", VERI_NS)
 
@@ -465,10 +471,99 @@ def _dugme_mu(d):
     return d.ad == "field" and ui is not None and ui.cocuk("button") is not None
 
 
+def _olcu_pt(metin):
+    """XFA ölçüsü ("1mm", "15pt") → pt. Okunamazsa ya da yoksa None."""
+    m = OLCU.match(metin) if isinstance(metin, str) else None
+    return round(float(m.group(1)) * OLCU_CARPAN[m.group(2)], 3) if m else None
+
+
+def _proto(d, kimlikler):
+    """Düğümün use / usehref ile başvurduğu düğüm (yalnızca aynı şablondaki "#kimlik" biçimi). Yoksa None."""
+    hedef = d.oz.get("use") or d.oz.get("usehref") or ""
+    return kimlikler.get(hedef[1:]) if hedef.startswith("#") else None
+
+
+def _ozellik(d, ad, kimlikler):
+    """Düğümün ad adlı çocuğu. Yoksa başvurduğu düğümünki (protolar zinciri)."""
+    for _ in range(8):
+        if d is None:
+            return None
+        c = d.cocuk(ad)
+        if c is not None:
+            return c
+        d = _proto(d, kimlikler)
+    return None
+
+
+def _oznitelik(d, ad, kimlikler):
+    """Düğümün ad özniteliği. Yoksa başvurduğu düğümünki."""
+    for _ in range(8):
+        if d is None:
+            return None
+        if ad in d.oz:
+            return d.oz[ad]
+        d = _proto(d, kimlikler)
+    return None
+
+
+def _alan_bicimi(d, kimlikler):
+    """Alanın PDF.js'in HTML'ine taşımadığı biçimleri (0.3.1, kullanıcı: "ad soyad kısmı ... ortalı duruyor bizimkinde sola yatık"). PDF.js
+    paragraf biçimini (para) yalnızca zengin metne uygular, input ve textarea'ya uygulamaz, hücreli alanı (comb) çizmez, alanın yazı boyunu 0,99
+    ile çarpar, alan zeminindeki renksiz dolguyu (beyaz) atlar. Arayüz bunları HTML'e kendisi koyar (renderer/xfaHtml.js alanBicimle). Değerler
+    yalnızca sayı ya da sabit listeden: Şablonun yazısı arayüze geçmez. Döner: {yol, sayfaAlani, x, y, g, b (yerinden ayırt etmek için, pt),
+    boyut, harfAraligi, dolgu, metin (yazı alanıysa: hiza, dikey, satir, sol, sag, ust, alt, girinti, comb, kaydirmasiz)} ya da None (çizilmeyen alan)."""
+    if _oznitelik(d, "presence", kimlikler) in ("hidden", "inactive"):
+        return None
+    yol, sa = _html_yolu(d)
+    sonuc = {"yol": yol, "sayfaAlani": sa}
+    for anahtar, ad in (("x", "x"), ("y", "y"), ("g", "w"), ("b", "h")):
+        v = _olcu_pt(_oznitelik(d, ad, kimlikler))
+        if v is not None:
+            sonuc[anahtar] = v
+    yazi = _ozellik(d, "font", kimlikler)
+    if yazi is not None:
+        boyut = _olcu_pt(_oznitelik(yazi, "size", kimlikler) or "10pt")   # size yoksa 10pt (belirtim, PDF.js de öyle)
+        if boyut and boyut > 0:
+            sonuc["boyut"] = boyut
+        aralik = _olcu_pt(_oznitelik(yazi, "letterSpacing", kimlikler))
+        if aralik:
+            sonuc["harfAraligi"] = aralik
+    # Renksiz dolgu beyazdır (belirtim. Form tasarım programı beyazı yazmaz: <fill/>)
+    kenar = _ozellik(d, "border", kimlikler)
+    dolgu = _ozellik(kenar, "fill", kimlikler) if kenar is not None else None
+    if dolgu is not None and not dolgu.cocuklar and dolgu.oz.get("presence", "visible") == "visible" and kenar.oz.get("presence", "visible") == "visible":
+        sonuc["dolgu"] = True
+    ui = _ozellik(d, "ui", kimlikler)
+    denetim = next((c for c in (ui.cocuklar if ui is not None else []) if c.ad in METIN_UI), None)
+    if denetim is not None:
+        para = _ozellik(d, "para", kimlikler)
+        oku = lambda ad: _oznitelik(para, ad, kimlikler) if para is not None else None
+        metin = {"dikey": oku("vAlign") if oku("vAlign") in DIKEY_HIZALAR else "top"}    # belirtimde varsayılan üst
+        if oku("hAlign") in YATAY_HIZALAR:
+            metin["hiza"] = oku("hAlign")
+        for anahtar, ad in (("satir", "lineHeight"), ("sol", "marginLeft"), ("sag", "marginRight"), ("ust", "spaceAbove"), ("alt", "spaceBelow"), ("girinti", "textIndent")):
+            v = _olcu_pt(oku(ad))
+            if v:
+                metin[anahtar] = v
+        comb = _ozellik(denetim, "comb", kimlikler)
+        if comb is not None:
+            try:
+                hucre = int(_oznitelik(comb, "numberOfCells", kimlikler) or 0)
+            except ValueError:
+                hucre = 0
+            if 0 < hucre <= 200:
+                metin["comb"] = hucre
+        if _oznitelik(denetim, "vScrollPolicy", kimlikler) == "off":
+            metin["kaydirmasiz"] = True
+        sonuc["metin"] = metin
+    return sonuc
+
+
 def _sablon_bilgisi(kok, liste):
     """xfa_bilgi'nin şablondan çıkan bölümü."""
-    dugmeler, sayfa_alanlari, ekranda = [], [], []
+    dugmeler, sayfa_alanlari, ekranda, alanlar = [], [], [], []
     alan_turleri = {}        # id → sayfa betiği türü (gömülü alanlar için)
+    kimlikler = {d.oz["id"]: d for d in liste if d.oz.get("id")}
     proto_ici = set()
     for d in liste:
         if d.ad in ("proto", "variables"):
@@ -477,6 +572,9 @@ def _sablon_bilgisi(kok, liste):
         if d.no in proto_ici or d.ad not in KAPSAYICI:
             continue
         if d.ad == "field":
+            bicim = None if _dugme_mu(d) else _alan_bicimi(d, kimlikler)
+            if bicim:
+                alanlar.append(bicim)
             tur = _sayfa_betigi(d)
             if tur:
                 if d.oz.get("id"):
@@ -504,7 +602,7 @@ def _sablon_bilgisi(kok, liste):
             en_az, en_cok = _occur(d)
             yol, sa = _html_yolu(d)
             ornekler[str(d.no)] = {"yol": yol, "min": en_az, "max": en_cok, "veri": _veri_yolu(d) is not None}
-    return {"dugmeler": dugmeler, "sayfaNumaralari": sayfa_alanlari, "ekranda": ekranda, "ornekler": ornekler}
+    return {"dugmeler": dugmeler, "sayfaNumaralari": sayfa_alanlari, "ekranda": ekranda, "ornekler": ornekler, "alanlar": alanlar}
 
 
 # ---------------------------------------------------------------- parametreler
@@ -649,13 +747,13 @@ def y_xfa_bilgi(p):
     """Belgenin XFA bilgisi. p: {yol}. Döner: {xfa: XFA paketi var mı, saf, kullanimHakki, eImzali (e-imza ya da onay imzası var mı:
     _e_imza_araliklari), dugmeler: [{yol, sayfaAlani, eylemler,
     desteklenmiyor}], sayfaNumaralari: [{tur: 'alan'|'cizim', yol, sayfaAlani, deger | paragraflar}], ekranda: [{yol, sayfaAlani}],
-    ornekler: {dugum: {yol, min, max, veri}}}. Yollar PDF.js HTML'inin ad yollarıdır (_html_yolu)."""
+    ornekler: {dugum: {yol, min, max, veri}}, alanlar: [_alan_bicimi]}. Yollar PDF.js HTML'inin ad yollarıdır (_html_yolu)."""
     from pdefe_core import onbellek
     doc = onbellek.al(p["yol"])
     paketler = _paketler(doc)
     sablon = _paket(doc, paketler, "template")
     sonuc = {"xfa": bool(paketler), "saf": _saf_mi(doc, paketler), "kullanimHakki": notlar.kullanim_hakki_var(doc),
-             "eImzali": bool(_e_imza_araliklari(doc)), "dugmeler": [], "sayfaNumaralari": [], "ekranda": [], "ornekler": {}}
+             "eImzali": bool(_e_imza_araliklari(doc)), "dugmeler": [], "sayfaNumaralari": [], "ekranda": [], "ornekler": {}, "alanlar": []}
     if sablon:
         kok, liste = _agac(sablon)
         sonuc.update(_sablon_bilgisi(kok, liste))

@@ -131,7 +131,7 @@ export function xfaDuzKur({ ipcMain, KOK: kok, anlikKlasoru }) {
     let bilgi = null;
     if (p.bilgi != null) {
       if (typeof p.bilgi !== 'object' || Array.isArray(p.bilgi) || JSON.stringify(p.bilgi).length > EN_BUYUK_BILGI) throw new Error('Form bilgisi geçersiz.');
-      bilgi = { sayfaNumaralari: Array.isArray(p.bilgi.sayfaNumaralari) ? p.bilgi.sayfaNumaralari : [], ekranda: Array.isArray(p.bilgi.ekranda) ? p.bilgi.ekranda : [] };
+      bilgi = { sayfaNumaralari: Array.isArray(p.bilgi.sayfaNumaralari) ? p.bilgi.sayfaNumaralari : [], ekranda: Array.isArray(p.bilgi.ekranda) ? p.bilgi.ekranda : [], alanlar: Array.isArray(p.bilgi.alanlar) ? p.bilgi.alanlar : [] };
     }
     const tampon = Buffer.from(veri.buffer, veri.byteOffset, veri.byteLength);
     const is = sira.then(() => ciz(tampon, bilgi));

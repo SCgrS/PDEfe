@@ -22,7 +22,7 @@
 // kaldırılır (xfa_kaydet). Yazdırma ve Sayfalar panelinin küçük resimleri formun düz PDF'inden: Ana süreç formu gizli pencerede aynı
 // kurallarla çizip PDF'e çevirir (src/main/xfaDuz.js), yazdırma ve küçük resimler o dosyadan (çekirdek, olağan PDF gibi).
 import { Komut, sayfaListesi } from './komutlar.js';
-import { alanTasiyor, yolUyar } from './xfaHtml.js';
+import { alanTasiyor, combGuncelle, yolUyar } from './xfaHtml.js';
 
 const ALAN = 'input[data-xv], textarea[data-xv], select[data-xv]';
 const DENETIM = 'input, textarea, select, button';
@@ -32,6 +32,7 @@ const YAPI_EYLEMLERI = new Set(['ekle', 'sil', 'gorunurluk']);
 const KOMUT_EYLEMLERI = { kaydet: 'dosya.kaydet', farkliKaydet: 'dosya.farkliKaydet', yazdir: 'dosya.yazdir' };
 const DUZ_BEKLEME_MS = 2000;     // değişiklikten sonra küçük resimlerin düz PDF'i bu kadar beklenip yenilenir
 const AD_UZUNLUGU = 48;          // komut adındaki alan adının en çok karakteri (geri al listeleri)
+const INCE_KAT = 8;              // xfaHtml.js ince: Çerçevenin köşe yarıçapı bu kat büyük yazılı
 
 /** Değerin form verisine yazılan hâli. PDF.js formu dizerken değerin boş satırlarını atıyor (Text: split().filter(Boolean)): Paragraflar arasındaki
  *  boş satır düğmeye basınca, yazdırınca ve dosya yeniden açılınca kayboluyordu (0.3.1 kabul sınaması). Boş satıra bir boşluk konur, görünüşü aynı. */
@@ -86,9 +87,11 @@ export class XfaYoneticisi extends EventTarget {
     alan.addEventListener('change', (e) => this._degisti(e));
     alan.addEventListener('click', (e) => this._tik(e));
     alan.addEventListener('keydown', (e) => this._tus(e));
-    alan.addEventListener('input', (e) => { const el = e.target?.closest?.(ALAN); if (el && this.etkin) this._tasmaGuncelle(el, true); });
+    alan.addEventListener('input', (e) => { const el = e.target?.closest?.(ALAN); if (el && this.etkin) { combGuncelle(el); this._tasmaGuncelle(el, true); } });
     alan.addEventListener('focusout', (e) => this._odakGitti(e));
     this.g.addEventListener('xfaKatmani', (e) => this._katmanKuruldu(e.detail.katman));
+    // Yakınlaştırınca odak çerçevesi yeni ölçekte ekran pikseline yeniden oturur
+    this.g.addEventListener('xfaOlcek', (e) => { const a = document.activeElement; if (a?.matches?.(DENETIM) && e.detail.katman.contains(a)) this._odakCiz(a); });
   }
 
   get etkin() { return !!this.g.xfa && !this.yok; }
@@ -145,7 +148,7 @@ export class XfaYoneticisi extends EventTarget {
 
   _elemanaKoy(el, deger) {
     if (el.type === 'checkbox' || el.type === 'radio') el.checked = deger === el.getAttribute('xfaon');
-    else if (el.value !== deger) el.value = deger;
+    else if (el.value !== deger) { el.value = deger; combGuncelle(el); }
   }
 
   /** Komutun adındaki alan adı: alanın açıklaması (araç ipucu; PDF.js aria-label yapar), yoksa etiketi (caption), o da yoksa şablondaki adı.
@@ -160,6 +163,7 @@ export class XfaYoneticisi extends EventTarget {
   _sayfaNo(el) { return +el.closest('.sayfa')?.dataset.sayfa || 0; }
 
   _odak(e) {
+    if (e.target?.matches?.(DENETIM) && e.target.closest('.xfaLayer')) this._odakCiz(e.target);
     const el = e.target?.closest?.(ALAN);
     if (!el || !this.etkin || this._acik?.el === el) return;
     // Seçenek düğmesine tıklanınca odak tıklamadan önce gelir: ilk değer grubun şimdiki seçimidir
@@ -173,6 +177,7 @@ export class XfaYoneticisi extends EventTarget {
 
   /** Alandan çıkınca yazının başı görünür (ekrandaki, basılacak olan): Uzun yazıda alan yazılan yere kaymış kalıyordu. */
   _odakGitti(e) {
+    this._odakCerceve?.remove();
     const el = e.target?.closest?.(ALAN);
     if (el?.tagName === 'TEXTAREA' && this.etkin) el.scrollTop = 0;
   }
@@ -187,6 +192,52 @@ export class XfaYoneticisi extends EventTarget {
     if (tasiyor === el.classList.contains('xfa-tasiyor')) return;
     el.classList.toggle('xfa-tasiyor', tasiyor);
     if (tasiyor && bildir) this.bildir(TASMA_ILETISI);
+  }
+
+  /**
+   * Odaktaki denetimin çerçevesi (0.3.1, kullanıcı: "seçtiğim kutucuk çok kalın gözüküyor sanki şekli hatalı gibi"): Köşesiz, yakınlaştırmadan
+   * bağımsız 1 piksel, alanı büyütmez, çerçevesini aşmaz. Tarayıcının odak halkası kalın, yuvarlak ve katmanla büyüyordu, yazı alanının kenarına
+   * bindiği için boş alandaki imleci de örtüyordu (imleç yanıp sönmüyor gibi görünüyordu, ölçüldü). Çerçeve ayrı bir öğe: CSS'teki outline kalınlığı
+   * katmanın pikseline yuvarlanır, 2 kat yakınlaştırmada 2,7 piksel olur. Yazı alanında alanın çerçevesinin içinde, imlecin dışında durur (köşe
+   * yuvarlaklığını aşmayacak kadar içeride), başlıklı alanda, onay kutusunda ve düğmede denetimin çevresinde.
+   */
+  _odakCiz(el) {
+    const kap = el.closest('.xfaWrapper') || el.closest('.xfaField');
+    if (!kap) return;
+    if (getComputedStyle(kap).position === 'static') kap.style.position = 'relative';
+    const c = this._odakCerceve || (this._odakCerceve = document.createElement('span'));
+    c.className = 'xfa-odak';
+    const boy = (e) => { const st = getComputedStyle(e); return [parseFloat(st.width) || e.offsetWidth, parseFloat(st.height) || e.offsetHeight]; };   // offsetWidth tam sayıya yuvarlar
+    let x = 0, y = 0, [g, b] = boy(el);
+    for (let e = el; e && e !== kap; e = e.offsetParent) { x += e.offsetLeft; y += e.offsetTop; }
+    const alan = el.closest('.xfaField');
+    if (el.matches('textarea, select, input[type="text"]') && alan && !alan.querySelector('.xfaCaption')) {
+      const st = getComputedStyle(alan), sinir = kap.querySelector(':scope > .xfaBorder');
+      const yaricap = sinir ? parseFloat(getComputedStyle(sinir).borderTopLeftRadius) / INCE_KAT || 0 : 0;
+      const ic = (pay) => Math.max(0.293 * yaricap, 0.4 * (parseFloat(pay) || 0));
+      const sol = ic(st.paddingLeft), sag = ic(st.paddingRight), ust = ic(st.paddingTop), alt = ic(st.paddingBottom);
+      const [kg, kb] = boy(kap);
+      x = sol; y = ust; g = kg - sol - sag; b = kb - ust - alt;
+    } else {
+      // Onay kutusu ve seçenek düğmesi: PDF.js denetimi alanın boyunda kurar, işaret ortada çizilir. Çerçeve işaretin çevresinde (kare)
+      if (el.matches('input[type="checkbox"], input[type="radio"]')) {
+        const k = Math.min(g, b);
+        x += (g - k) / 2; y += (b - k) / 2; g = b = k;
+      } else { x -= 1; y -= 1; g += 2; b += 2; }
+    }
+    const koy = () => {
+      c.style.left = `${x}px`; c.style.top = `${y}px`;
+      c.style.setProperty('--g', String(g)); c.style.setProperty('--b', String(b));
+    };
+    koy();
+    kap.append(c);
+    // Ekran pikseline oturt: Katmanın kesirli konumu çizgiyi iki piksele yayıp bulanık ve kalın gösteriyordu
+    const r = c.getBoundingClientRect();
+    const olcek = parseFloat(getComputedStyle(c).getPropertyValue('--xfa-olcek')) || 1, d = window.devicePixelRatio || 1;
+    const oturt = (v) => Math.round(v * d) / d;
+    const sol = oturt(r.left), ust = oturt(r.top), sag = oturt(r.right), alt = oturt(r.bottom);
+    x += (sol - r.left) / olcek; y += (ust - r.top) / olcek; g = (sag - sol) / olcek; b = (alt - ust) / olcek;
+    koy();
   }
 
   // ------------------------------------------------------------ Tab sırası
@@ -220,7 +271,7 @@ export class XfaYoneticisi extends EventTarget {
     if (i < 0) return;
     const sira = this._tabSirasi(g.sayfalar[i].el.querySelector('.xfaLayer'));
     // Odak yalnızca imlecin satırını gösterir: Uzun alanın tamamı görünsün
-    const git = (x) => { x.focus(); x.scrollIntoView({ block: 'nearest', inline: 'nearest' }); };
+    const git = (x) => { x.focus(); x.scrollIntoView({ block: 'nearest', inline: 'nearest' }); this._odakCiz(x); };
     const hedef = sira[sira.indexOf(el) + yon];
     if (hedef) { git(hedef); return; }
     for (let k = 1; k <= n; k++) {

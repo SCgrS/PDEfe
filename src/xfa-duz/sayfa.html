@@ -16,6 +16,8 @@ html, body { margin: 0; padding: 0; background: #fff; color: #000; }
 .xfaTextfield, .xfaSelect { background: transparent !important; background-image: none !important; outline: none !important; }
 textarea.xfaTextfield { overflow: hidden; }
 .xfaSelect { appearance: none; text-indent: 1px; text-overflow: ""; }
+/* Hücreli alanda görünen harfler üstteki hücrelerde: input'un görünmez yazısı PDF'e iki kez girmesin */
+.xfa-comb { visibility: hidden !important; }
 </style>
 <script type="module" src="cizim.js"></script>
 </head>
