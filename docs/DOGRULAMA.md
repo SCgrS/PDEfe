@@ -1286,3 +1286,5 @@ Kabul sınamasının düzeltmeleri (gönderdiğiniz belgelerin kopyalarıyla pak
     görünmeli. Kâğıtta yalnızca alanın içine sığan kısım çıkar. Metni kısaltınca çerçeve kalkmalı.
 78. **Boş satır.** Çok satırlı bir alanda iki paragraf arasına boş satır koyun, Kaydet'e basıp formu kapatıp açın: Boş satır yerinde olmalı, yazdırınca da çıkmalı.
 79. **Araçlarda form.** Bireysel başvuru formuna Gezgin'de sağ tıklayıp PDEfe ile dönüştür deyin: Satırda kırmızıyla XFA uyarısı olmalı, Dönüştür soluk olmalı.
+80. **Kullanım hakları imzalı form.** Ücretsiz okuyucuda kaydedilebilen (genişletilmiş özellikli) bir formda dolu bir alanı değiştirip kaydedin, referans okuyucuda açın: PDEfe "Bu belge e-imzalı."
+    diye sormamalı, okuyucu "genişletilmiş özellikler kullanılamıyor" uyarısı vermemeli. Boş alanı doldurup kaydedince de aynı (bu yol artımlıdır, imza dosyada kalır).

@@ -4630,3 +4630,23 @@ adı alıp "üzerine yazılsın mı" sordu, sınamanın yöntemi): O adım test 
 - [x] **Testler**: senaryo46 43/43 (yeni 8. bölüm), senaryo48 69/69 (yeni 16. bölüm), senaryo49 25/25 (XFA formu araçlarda), xfa_testi 58/58, form_testi 109/109, donustur_testi 277/277, guvenlik_testi 47/47,
   tanima_testi 72/72, senaryo47 77/77, kisayol_dosya 164/164, kisayol_araclar 102/102, senaryo25 30/30, senaryo36 59/59, senaryo37 67/67, senaryo38 64/64, senaryo39 54/54, senaryo40 18/18, senaryo45 122/122, tum_secim 52/52,
   panel_kuyruk 42/42, ortu_tiklama 164/164, yazdir_pencere 61/61, yazdir_gercek 25/25, kayit_sekme_panel 61/61, senaryo24 38/38. Yerel kurucu bu düzeltmelerden önce derlendi, yenilenmeli.
+
+#### 0.3.1: Genişliğe sığdır sınaması (kod değişmedi)
+Kullanıcı: Kural (0.1.8'deki baskın genişlik) olduğu gibi kalır, "sadece güzel çalıştığını test edersin". Hata çıkmadı, uygulama kodu değişmedi.
+- [x] **Depodaki testler** (2026-10-30, ekran ölçeği 1, 1,25, 1,5): sigdirma_kararli 51/51 ve sigdirma_rastgele 420 örnekte 0 sorun, üç ölçekte de. Son kodla ölçek 1'de yeniden: Aynı sonuç.
+- [x] **Yerel inceleme betiği** (depoya girmedi, belgeler kurgusal görüntülerden Birleştir'le üretildi, ekran dışı örnek): 86/86 (ölçek 1 ve 1,25). Ölçek, PDF'teki sayfa genişliklerinden bağımsız hesaplanan beklenenle
+  karşılaştırıldı (%3 kümeleme, en kalabalık küme, eşitlikte ortancaya yakın olan). Dik ve yatay karışımlarında (1 + 5, 3 + 3, 5 + 1, 1 + 1, iki sıra) baskın kümenin en geniş sayfası görünür genişliği ±1 px dolduruyor,
+  daha genişler taşıyor, görünüm ortalı. On sayfalık karışık belgede ölçek kurala göre kaldı: Görünüm ve pencere boyutu, sekme değişimi, iki sayfa ve kaydırmasız düzen, döndürme, sayfa silme, sıralama ve ekleme (geri alma dâhil), Sayfaları düzenle, Döndür, Sıkıştır (yeni belge ve üzerine yazma), kayıt, yeni pencereye ayırma ve geri taşıma, tuşlar ve tekerlek.
+  Yalnız yakınlaştırma girdileri (Ctrl+tekerlek, Ctrl++ gibi) sığdırmadan çıkarıyor. İlk koşudaki 19 HATA betiğin kendi beklentisindendi (taşan görünümde sayfalar ortalanır, betik sol kenarı bekliyordu), betik düzeltildi.
+- [x] **Kabul sınamasında**: Adlandırılmış hedefli içindekiler Genişliğe sığdır'da da doğru yere gidiyor.
+
+#### 0.3.1: son düzeltmeler (eksiksizlik denetiminin bulguları)
+- [x] **E-imza algılama** (notlar.py `y_imza_durumu`): /SigFlags'e ve dosyadaki her /ByteRange'e bakıyordu. Yalnız kullanım hakları imzalı (/Perms /UR3) ya da imzalanmamış imza alanı olan formda dolu bir alan değişince "Bu belge e-imzalı." çıkıyordu (kurgusal
+  örnekte ölçüldü). Artık onay imzası (/Perms /DocMDP), değeri dolu imza alanı ve kullanım hakkı olmayan imza sözlüğü sayılır. Yanlış "imzasız" demesin diye dosyada /ByteRange geçiyorsa nesneler de gezilir: Sayfaya bağlı olmayan imza alanı ve değeri doğrudan sözlük olan alan
+  yakalanır, /Perms'ten düşmüş eski UR3 sözlüğü /Reference'tan tanınır. Sorunun metni form alanını da söyler. XFA yolu (`_e_imza_araliklari`) değişmedi.
+- [x] **Baştan yazımda kullanım hakları imzası** (`kullanim_hakki_kaldir`, xfa.py'den notlar.py'ye taşındı): Tamamen sil, dolu alan değişince temiz yazım, başka dosyaya kayıt, Sıkıştır ve Döndür'ün yedek yolu UR3'ü bırakıyordu (ölçüldü), referans okuyucu genişletilmiş özellikler
+  uyarısı verirdi (referans okuyucuda denenmedi, DOGRULAMA 46 madde 80). DocMDP kalır. Artımlı kayıtta UR3 kalır: İmzalanan baytlar değişmedi. Seçilmeyen: Değişikliğe kapalı onaylı belgede (DocMDP P=1) ve FieldMDP kilidinde PDEfe alanı doldurtur, soru sormaz. README artık bunu söylüyor, soru eklemek kullanıcının kararı.
+- [x] **Metin**: README ve CHANGELOG: "Başka okuyucuda aynı görünür, düzenlenebilir" ve "imzayı bozmaz" doğrulanmadığı için yumuşatıldı. XFA'da kaydet ve yazdır düğmesi çalışıyor. "Başka türden dosyada seçenekler görünmez" yalnız Windows'ta. Linux'un kendini güncellemesi hiç çalıştırılmadı: Sürüm notu ve sürüm gövdesi yalnız haber vermeyi söyler, README'deki Güncelle düğmesinin
+  tarifi kaldı (DOGRULAMA 46 madde 46 ilk gerçek güncellemede). THIRD_PARTY: Form alanı yazı tipleri, Linux, Cargo.lock'taki dört windows-rs kitaplığı. Sürüm gövdesi, THIRD_PARTY ve 0.3.1'de değişen arayüz iletilerinde noktalı virgül kalktı (daha eski iletiler bu işin dışında).
+- [x] **CodeQL**: Matrise rust (sagtik/). İlk koşuda Windows'a özgü kodun uyarılarına bakılacak.
+- [x] **Bırakılan, kullanıcının kararı**: Üç Linux commit'inin (f558867, 2df98da, d371165) gövdesinde noktalı virgül var. Düzeltmek geçmişi yeniden yazmak demek (b7ef252 birleştirmesi, bu dosyadaki commit özetleri değişir), yapılmadı.
