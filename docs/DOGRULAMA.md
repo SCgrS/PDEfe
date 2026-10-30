@@ -1288,3 +1288,13 @@ Kabul sınamasının düzeltmeleri (gönderdiğiniz belgelerin kopyalarıyla pak
 79. **Araçlarda form.** Bireysel başvuru formuna Gezgin'de sağ tıklayıp PDEfe ile dönüştür deyin: Satırda kırmızıyla XFA uyarısı olmalı, Dönüştür soluk olmalı.
 80. **Kullanım hakları imzalı form.** Ücretsiz okuyucuda kaydedilebilen (genişletilmiş özellikli) bir formda dolu bir alanı değiştirip kaydedin, referans okuyucuda açın: PDEfe "Bu belge e-imzalı."
     diye sormamalı, okuyucu "genişletilmiş özellikler kullanılamıyor" uyarısı vermemeli. Boş alanı doldurup kaydedince de aynı (bu yol artımlıdır, imza dosyada kalır).
+
+XFA formunun görünümü (referans okuyucuyla yan yana görüntü alınamadı: Düzeltmeler formun şablonuna dayanır, gözünüzle karşılaştırmanız gerekir)
+81. **Zemin.** Bireysel başvuru formunu PDEfe'de açın: Alanların üstünde mavi olmamalı. Tek satırlık alanlar beyaz, gri panelin üstünde görünmeli. Referans okuyucuda da beyaz mı bakın (orada alanları vurgula açıksa önce kapatın): Şablonda rengi yazılmayan dolgu beyaz sayıldı, okuyucuda farklıysa söyleyin.
+82. **Seçili alan.** Bir alana tıklayın: Çevresinde ince, köşeli, tek çizgilik çerçeve olmalı, alan büyümemeli, yuvarlak kenarın dışına taşmamalı. %50, %100, %200 ve Koyu sayfada bakın. Çerçevenin rengi ve yeri referans okuyucudakine yakın değilse söyleyin.
+83. **İmleç.** Boş bir alana tıklayın: İmleç görünmeli ve yanıp sönmeli. Yazı yazarken, yazının ortasına tıklayınca, çok satırlı alanda ve kimlik numarası alanında da yanıp sönmeli.
+84. **Hizalar.** İmza bölümündeki Ad Soyad alanına yazın: Ortada durmalı. Açıklama sayfasındaki tarih sütunu ortalı, ilk sayfadaki başka başvuru alanı iki yana yaslı olmalı. Öbür alanlar solda.
+85. **Hücreli alanlar.** Kimlik, MERSİS ve vergi numarası alanlarına yazın: Her rakam kendi kutucuğunun ortasında durmalı, kutucuk sayısından fazla yazılmamalı, kutucuk çizgileri görünmeli. Silme, geri al, yapıştırma ve Bul'u deneyin. Çizgilerin görünüşü referans okuyucudakine benziyor mu bakın.
+86. **Çizgili alanlar.** Büyük açıklama alanlarına birkaç satır yazın: Satırlar arka plandaki çizgilerin üstünde gitmeli, aşağı indikçe kaymamalı. Referans okuyucuda aynı metinde satırların aynı yerden kırıldığına bakın (yazı tipi ve boyu aynı olmalı).
+87. **Çerçeveler.** Alan çerçeveleri ve kâğıttaki çizgiler önceki sürüme göre daha ince olmalı. Yazdırıp kâğıtta ya da PDF'te karşılaştırın.
+88. **Yazdırma.** Formu doldurup yazdırın: Ad Soyad ortalı, kutucuklu alanlar kutucuklu, zemin beyaz, seçili alanın çerçevesi yok. Referans okuyucunun yazdırdığıyla yan yana koyun: Sabit yazıların yazı tipi farklı olabilir (formun yazı tipi bilgisayarda yok), bunun dışında fark görürseniz söyleyin.
