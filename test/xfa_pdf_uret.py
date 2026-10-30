@@ -15,6 +15,8 @@
 #             düğmesinin presence'ı hidden).
 #   Veri (datasets): boş değerler, bir Satir grubu. Katalogda sahte kullanım hakları imzası (/Perms /UR3; gerçek imza değil, kaydedilince
 #   kaldırıldığını sınamak için). AcroForm /DR'de gömülü olmayan Arial (PDF.js XFA yazı tiplerini buradan tanır).
+#   Ayrıca (0.3.1, kayıt sınaması: test/senaryo50.mjs): xfa-uzun.pdf. Başlık (AdSoyad, Sehir), tekrarlanabilir Basvurucu (min 1, max 20; BAd, çok satırlı BAdres,
+#   Ekle / Sil düğmeleri), tekrarlanabilir Bolum (min 1, max 20, her örnek bir sayfaya yakın; çok satırlı Metin, Ekle / Sil düğmeleri), Son (Formu Kaydet).
 # Son satırda JSON özet.
 import json
 import os
@@ -71,6 +73,31 @@ VERI = (f'<xfa:datasets xmlns:xfa="{VERI_NS}"><xfa:data><form1><Baslik><AdSoyad/
         '<Satir><Aciklama/></Satir><Son/></form1></xfa:data></xfa:datasets>')
 CONFIG = '<config xmlns="http://www.xfa.org/schema/xci/3.1/"><present><pdf><version>1.7</version><interactive>1</interactive></pdf></present></config>'
 
+SABLON_UZUN = f"""<template xmlns="{SABLON_NS}"><subform name="form1" layout="tb" locale="tr_TR" restoreState="auto">
+<pageSet><pageArea name="Sayfa1" id="Sayfa1"><contentArea x="15mm" y="15mm" w="180mm" h="255mm"/><medium stock="a4" short="210mm" long="297mm"/></pageArea></pageSet>
+<subform name="Baslik" w="180mm" h="24mm">
+<field name="AdSoyad" x="0mm" y="2mm" w="120mm" h="9mm"><ui><textEdit/></ui><font typeface="Arial" size="10pt"/><caption reserve="35mm"><value><text>Adı Soyadı</text></value></caption></field>
+<field name="Sehir" x="0mm" y="13mm" w="120mm" h="9mm"><ui><textEdit/></ui><font typeface="Arial" size="10pt"/><caption reserve="35mm"><value><text>Şehir</text></value></caption></field>
+</subform>
+<subform name="Basvurucu" w="180mm" h="48mm"><occur min="1" max="20"/>
+<field name="BAd" x="0mm" y="0mm" w="180mm" h="9mm"><ui><textEdit/></ui><font typeface="Arial" size="10pt"/><caption reserve="35mm"><value><text>Başvurucu</text></value></caption></field>
+<field name="BAdres" x="0mm" y="10mm" w="180mm" h="26mm"><ui><textEdit multiLine="1"/></ui><font typeface="Arial" size="9pt"/><caption placement="top" reserve="6mm"><value><text>Adres</text></value></caption></field>
+{dugme("BEkle", "140mm", "38mm", "40mm", "Başvurucu Ekle", eylem("BEkle", "this.resolveNode('form1._Basvurucu').addInstance(1);", "22222222-0000-0000-0000-000000000001"))}
+{dugme("BSil", "95mm", "38mm", "40mm", "Başvurucu Sil", eylem("BSil", "this.resolveNode('form1._Basvurucu').removeInstance(this.resolveNode('form1._Basvurucu').count - 1);", "22222222-0000-0000-0000-000000000002"))}
+</subform>
+<subform name="Bolum" w="180mm" h="200mm"><occur min="1" max="20"/>
+<field name="Metin" x="0mm" y="0mm" w="180mm" h="185mm"><ui><textEdit multiLine="1"/></ui><font typeface="Arial" size="10pt"/><caption placement="top" reserve="7mm"><value><text>Açıklama</text></value></caption></field>
+{dugme("MEkle", "140mm", "188mm", "40mm", "Bölüm Ekle", eylem("MEkle", "this.resolveNode('form1._Bolum').addInstance(1);", "22222222-0000-0000-0000-000000000003"))}
+{dugme("MSil", "95mm", "188mm", "40mm", "Bölüm Sil", eylem("MSil", "this.resolveNode('form1._Bolum').removeInstance(this.resolveNode('form1._Bolum').count - 1);", "22222222-0000-0000-0000-000000000004"))}
+</subform>
+<subform name="Son" w="180mm" h="14mm">
+{dugme("Kaydet", "140mm", "3mm", "40mm", "Formu Kaydet", eylem("Kaydet", 'app.execMenuItem("SaveAs");', "22222222-0000-0000-0000-000000000005"))}
+</subform>
+</subform></template>"""
+
+VERI_UZUN = (f'<xfa:datasets xmlns:xfa="{VERI_NS}"><xfa:data><form1><Baslik><AdSoyad/><Sehir/></Baslik>'
+             '<Basvurucu><BAd/><BAdres/></Basvurucu><Bolum><Metin/></Bolum><Son/></form1></xfa:data></xfa:datasets>')
+
 
 def akis(doc, veri):
     x = doc.get_new_xref()
@@ -81,11 +108,22 @@ def akis(doc, veri):
 
 def uret(klasor):
     os.makedirs(klasor, exist_ok=True)
+    yol = os.path.join(klasor, "xfa.pdf")
+    tpl, dat = form_yaz(yol, SABLON, VERI)
+    imzali = os.path.join(klasor, "xfa-imzali.pdf")
+    imzali_xfa(yol, imzali)
+    uzun = os.path.join(klasor, "xfa-uzun.pdf")
+    form_yaz(uzun, SABLON_UZUN, VERI_UZUN)
+    return {"xfa": yol, "xfaImzali": imzali, "xfaUzun": uzun, "paketler": {"sablon": tpl, "veri": dat}}
+
+
+def form_yaz(yol, sablon, veri):
+    """Saf XFA formunu yazar. Döner: (şablon paketinin xref'i, veri paketinin xref'i)."""
     doc = pymupdf.open()
     sayfa = doc.new_page(width=595, height=842)
     sayfa.insert_text((72, 100), "Please wait... (XFA form)", fontsize=14)
     bas = akis(doc, f'<xdp:xdp xmlns:xdp="{XDP_NS}" timeStamp="2026-10-30T00:00:00Z" uuid="00000000-0000-0000-0000-000000000000">')
-    cfg, tpl, dat = akis(doc, CONFIG), akis(doc, SABLON), akis(doc, VERI)
+    cfg, tpl, dat = akis(doc, CONFIG), akis(doc, sablon), akis(doc, veri)
     son = akis(doc, "</xdp:xdp>")
     tanim = doc.get_new_xref()
     doc.update_object(tanim, "<</Type/FontDescriptor/FontName/Arial/FontFamily(Arial)/Flags 32/FontBBox[-665 -325 2000 1006]/ItalicAngle 0"
@@ -104,12 +142,9 @@ def uret(klasor):
     doc.xref_set_key(kat, "AcroForm", f"{af} 0 R")
     doc.xref_set_key(kat, "NeedsRendering", "true")
     doc.xref_set_key(kat, "Perms", "<</UR3<</Type/Sig/Filter/PDEfe.Deneme/SubFilter/ETSI.CAdES.detached/ByteRange[0 0 0 0]/Contents<00>>>>>")
-    yol = os.path.join(klasor, "xfa.pdf")
     doc.save(yol, garbage=1, deflate=True)
     doc.close()
-    imzali = os.path.join(klasor, "xfa-imzali.pdf")
-    imzali_xfa(yol, imzali)
-    return {"xfa": yol, "xfaImzali": imzali, "paketler": {"sablon": tpl, "veri": dat}}
+    return tpl, dat
 
 
 def imzali_xfa(kaynak, yol):
