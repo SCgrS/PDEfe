@@ -19,7 +19,8 @@
 // Yeniden kurma ve değer koyma tek kuyrukta sırayla yürür (_kuyruk).
 //
 // Kaydetme: PDF.js'in kaydettiği baytlar (güncel XFA verisi) çekirdekte dosyaya baştan yazılır, kullanım hakları imzası (/Perms /UR3)
-// kaldırılır (xfa_kaydet). Yazdırma ve Sayfalar panelinin küçük resimleri formun düz PDF'inden: Ana süreç formu gizli pencerede aynı
+// kaldırılır (xfa_kaydet). Yazım atomiktir ve doğrulanır, başarısızlıkta özgün dosya aynı kalır, yazılanlar burada durur (uygulama.js belgeKaydet: Yeniden dene, Farklı kaydet).
+// Yazdırma ve Sayfalar panelinin küçük resimleri formun düz PDF'inden: Ana süreç formu gizli pencerede aynı
 // kurallarla çizip PDF'e çevirir (src/main/xfaDuz.js), yazdırma ve küçük resimler o dosyadan (çekirdek, olağan PDF gibi).
 import { Komut, sayfaListesi } from './komutlar.js';
 import { alanTasiyor, yolUyar } from './xfaHtml.js';
@@ -34,8 +35,14 @@ const DUZ_BEKLEME_MS = 2000;     // değişiklikten sonra küçük resimlerin d�
 const AD_UZUNLUGU = 48;          // komut adındaki alan adının en çok karakteri (geri al listeleri)
 
 /** Değerin form verisine yazılan hâli. PDF.js formu dizerken değerin boş satırlarını atıyor (Text: split().filter(Boolean)): Paragraflar arasındaki
- *  boş satır düğmeye basınca, yazdırınca ve dosya yeniden açılınca kayboluyordu (0.3.1 kabul sınaması). Boş satıra bir boşluk konur, görünüşü aynı. */
-const veriDegeri = (d) => (typeof d === 'string' && d.includes('\n') ? d.replace(/(^|\n)(?=\n)/g, '$1 ') : d);
+ *  boş satır düğmeye basınca, yazdırınca ve dosya yeniden açılınca kayboluyordu (0.3.1 kabul sınaması). Boş satıra bir boşluk konur, görünüşü aynı.
+ *  XML 1.0'da yazılamayan karakterler (Word'den ya da PDF'ten yapıştırılan yazıda sayfa sonu, satır sonu dışı denetim karakterleri, yarım vekil çift) temizlenir:
+ *  Dosyaya geçersiz başvuru olarak yazılıp formun verisini başka okuyucularda ve Ekle düğmesinde okunamaz yapıyordu (0.3.1 kayıt sınaması). */
+const veriDegeri = (d) => {
+  if (typeof d !== 'string') return d;
+  const temiz = d.toWellFormed().replace(/[\u000B\u000C]/g, '\n').replace(/[\u0000-\u0008\u000E-\u001F\uFFFE\uFFFF]/g, ' ');
+  return temiz.includes('\n') ? temiz.replace(/(^|\n)(?=\n)/g, '$1 ') : temiz;
+};
 
 /** Baytlar → base64 (çekirdeğe). Parça parça: String.fromCharCode'un argüman sınırı. */
 export function base64Yaz(b) {
@@ -75,8 +82,11 @@ export class XfaYoneticisi extends EventTarget {
     this.anlikSil = anlikSil;
     this._kuyruk = Promise.resolve();   // yeniden kurmalar ve değer koymalar sırayla
     this._acik = null;                  // odaktaki alan { el, veri, ilk }
-    this._siralar = new WeakMap();      // PDF.js belgesi → { kimlikler: [veri kimliği], siralar: Map(veri kimliği → sıra) }
+    this._siralar = new WeakMap();      // PDF.js belgesi → { kimlikler: [veri kimliği], siralar: Map(veri kimliği → sıra), metinler: Set(metin alanlarının veri kimliği) }
     this._mesgul = 0;
+    this._yapiSozu = null;              // süren yapı işi (bölüm ekleme / silme, görünürlük): bitince çözülür
+    this._yaziliyor = false;            // odaktaki alanda uygulanmamış yazı var mı (son bildirilen)
+    this.sonGirdi = 0;                  // alana son yazılan an (otomatik kayıt yazı sürerken beklesin)
     this.surum = 0;                     // içeriğin sürümü (değer ya da yapı değişince artar): düz PDF'in güncelliği
     this.duz = null;                    // { yol, sayfa, surum }: son düz PDF (anlık klasörde)
     this._duzSozu = null;
@@ -86,7 +96,7 @@ export class XfaYoneticisi extends EventTarget {
     alan.addEventListener('change', (e) => this._degisti(e));
     alan.addEventListener('click', (e) => this._tik(e));
     alan.addEventListener('keydown', (e) => this._tus(e));
-    alan.addEventListener('input', (e) => { const el = e.target?.closest?.(ALAN); if (el && this.etkin) this._tasmaGuncelle(el, true); });
+    alan.addEventListener('input', (e) => { const el = e.target?.closest?.(ALAN); if (el && this.etkin) { this._tasmaGuncelle(el, true); this._yaziBildir(); } });
     alan.addEventListener('focusout', (e) => this._odakGitti(e));
     this.g.addEventListener('xfaKatmani', (e) => this._katmanKuruldu(e.detail.katman));
   }
@@ -116,15 +126,16 @@ export class XfaYoneticisi extends EventTarget {
     const b = this.g.belge;
     let k = this._siralar.get(b);
     if (!k) {
-      const kimlikler = [], siralar = new Map();
+      const kimlikler = [], siralar = new Map(), metinler = new Set();
       const yuru = (n) => {
         if (!n || typeof n !== 'object') return;
         const v = n.attributes?.dataId;
         if (v && !siralar.has(v)) { siralar.set(v, kimlikler.length); kimlikler.push(v); }
+        if (v && (n.name === 'textarea' || (n.name === 'input' && n.attributes.type === 'text'))) metinler.add(v);
         for (const c of n.children || []) yuru(c);
       };
       yuru(b?.allXfaHtml);
-      k = { kimlikler, siralar };
+      k = { kimlikler, siralar, metinler };
       if (b) this._siralar.set(b, k);
     }
     return k;
@@ -253,9 +264,9 @@ export class XfaYoneticisi extends EventTarget {
     b.annotationStorage.setValue(veri, { value: veriDegeri(yeni) });   // PDF.js da yazar (input / change); seçimden sonra da aynı olsun
     if (this._acik?.veri === veri) this._acik.ilk = yeni;
     for (const x of this._ogeler(veri)) if (x !== el) this._elemanaKoy(x, yeni);   // aynı veriye bağlı öbür alanlar
-    if ((eski ?? '') === (yeni ?? '')) return false;
-    const sira = this._sira().siralar.get(veri);
-    if (sira == null) return false;
+    const sira = (eski ?? '') === (yeni ?? '') ? null : this._sira().siralar.get(veri);
+    if (sira == null) { this._yaziBildir(); return false; }
+    this._yaziliyor = false;   // komut bildirir (yığın değişti: kirliGuncelle)
     const k = this.degerKomutu({ sira, eski: eski ?? '', yeni, ad: `Form: ${this._alanAdi(el)}`, sayfa: this._sayfaNo(el) });
     this.yigin.calistir(k);
     return true;
@@ -297,6 +308,19 @@ export class XfaYoneticisi extends EventTarget {
     if (!this.etkin || !el?.matches?.(ALAN) || !this.g.alan.contains(el) || this._acik?.el !== el) return false;
     return this._alanDegeri(el) !== this._acik.ilk;
   }
+
+  /** Alana yazılıyor: Belge yazı sürerken de kaydedilmemiş görünsün (0.3.1 kayıt sınaması: Alandan çıkılana dek sekmede işaret yoktu, Kaydet düğmesi soluktu). Her
+   *  tuşta değil, durum değişince bildirilir. */
+  _yaziBildir() {
+    this.sonGirdi = performance.now();
+    const d = this.duzenleniyor();
+    if (d === this._yaziliyor) return;
+    this._yaziliyor = d;
+    this.dispatchEvent(new CustomEvent('degisti'));
+  }
+
+  /** Alana az önce yazıldı mı: Otomatik kayıt yazı sürerken beklesin, duraklayınca yazılan da kaydedilsin. */
+  yeniYaziliyor(ms) { return this.duzenleniyor() && performance.now() - this.sonGirdi < ms; }
 
   // ------------------------------------------------------------ düğmeler
   /** Katman kuruldu: betiği tanınmayan düğmeler işaretlenir (imleç ok, ipucu). */
@@ -346,6 +370,8 @@ export class XfaYoneticisi extends EventTarget {
    *  Döner: yapıldı mı (sınıra takıldıysa ya da değişecek bir şey yoksa false / true). */
   async yapiDegistir(ad, islemler) {
     if (this.mesgul || !this.etkin) return false;
+    let bitti;
+    this._yapiSozu = new Promise((c) => { bitti = c; });
     this._mesgulKoy(true);
     try {
       this.duzenlemeyiUygula();
@@ -365,7 +391,7 @@ export class XfaYoneticisi extends EventTarget {
       komut._atla = true;            // yığına girerken yeniden kurulmaz (az önce kuruldu)
       this.yigin.calistir(komut);
       return true;
-    } finally { this._mesgulKoy(false); }
+    } finally { this._mesgulKoy(false); this._yapiSozu = null; bitti(); }
   }
 
   yapiKomutu(t) {
@@ -409,24 +435,45 @@ export class XfaYoneticisi extends EventTarget {
   }
 
   // ------------------------------------------------------------ kaydetme, yazdırma, küçük resimler
-  /** Kuyruktaki yeniden kurmalar ve değer koymalar bitene dek bekler (sekme taşınırken: paketlenen baytlar ile geri al yığınının konumu
-   *  birbirini tutsun, 0.3.1 inceleme). Bekleme sürerken kuyruğa yeni iş girerse onu da bekler. */
+  /** Süren yapı işi (bölüm ekleme / silme), kuyruktaki yeniden kurmalar ve değer koymalar bitene dek bekler (sekme taşınırken ve kaydederken: Baytlar ile geri al
+   *  yığınının konumu birbirini tutsun, 0.3.1 inceleme). Bekleme sürerken yeni iş girerse onu da bekler. */
   async bekle() {
-    for (let k = this._kuyruk; ; k = this._kuyruk) { await k; if (k === this._kuyruk) return; }
+    for (;;) {
+      const k = this._kuyruk, y = this._yapiSozu;
+      await k; await y;
+      if (k === this._kuyruk && y === this._yapiSozu) return;
+    }
   }
 
   /** Güncel değerleriyle formun baytları (PDF.js saveDocument; açık düzenleme uygulanır, süren yeniden kurma beklenir). */
   async baytlar() {
     this.duzenlemeyiUygula();
-    await this._kuyruk;
+    await this.bekle();
     return this.g.xfaBaytlari();
   }
 
-  /** Formu hedefe yazar (çekirdek xfa_kaydet: baştan yazım, kullanım hakları imzası kaldırılır). imzayiKoru: e-imzalı formda PDF.js'in
-   *  artımlı baytları olduğu gibi yazılır (imza korunur, 0.3.1 inceleme). Döner: çekirdeğin sonucu. */
-  async kaydet(hedef, { imzayiKoru = false } = {}) {
-    const veri = await this.baytlar();
-    return this.cekirdek('xfa_kaydet', { veri: base64Yaz(veri), hedef, yol: this.g.yol, ...(imzayiKoru ? { imzayiKoru: true } : {}) });
+  /** Veriye yazılması beklenen metinler (çekirdek dosyada arar: PDF.js veri düğümü olmayan alanın değerini sessizce yazmaz). */
+  _beklenenDegerler() {
+    const depo = this.g.belge?.annotationStorage, c = [];
+    for (const v of this._sira().metinler) {
+      const d = depo?.getRawValue(v)?.value;
+      if (d && typeof d === 'string') c.push(d);
+    }
+    return c;
+  }
+
+  /** Formu hedefe yazar (çekirdek xfa_kaydet: baştan yazım, kullanım hakları imzası kaldırılır, atomik). imzayiKoru: e-imzalı formda PDF.js'in artımlı baytları olduğu
+   *  gibi yazılır (imza korunur, 0.3.1 inceleme). hizli: kilitte beklenmez (otomatik kayıt). Döner: çekirdeğin sonucu, konum ve komut: Yazılan durumun geri al
+   *  yığınındaki yeri. Baytlarla aynı anda alınır: Yapı işi ya da yeniden kurma beklenirken yapılan değişiklik kayıtlı sayılmasın, kayıt sürerken yazılan da. */
+  async kaydet(hedef, { imzayiKoru = false, hizli = false } = {}) {
+    this.duzenlemeyiUygula();
+    await this.bekle();
+    if (this.yok) throw new Error('Sekme kapatıldı.');
+    this.duzenlemeyiUygula();   // beklerken yazılan
+    const konum = this.yigin.konum, komut = this.yigin.geriAlinacak, beklenen = this._beklenenDegerler();
+    const veri = await this.g.xfaBaytlari();   // PDF.js değerleri çağrı anında alır
+    const r = await this.cekirdek('xfa_kaydet', { veri: base64Yaz(veri), hedef, yol: this.g.yol, beklenen, ...(imzayiKoru ? { imzayiKoru: true } : {}), ...(hizli ? { hizli: true } : {}) });
+    return { ...r, konum, komut };
   }
 
   /** Formun güncel değerleriyle düz PDF'i (yazdırma; küçük resimler). Döner: { yol, sayfa }. */

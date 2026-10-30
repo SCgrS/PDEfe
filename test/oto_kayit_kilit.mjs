@@ -24,14 +24,15 @@ export default async function ({ evalJs, bekle }) {
     "print('kilitlendi' if h != wintypes.HANDLE(-1).value else 'acilamadi %d' % ctypes.GetLastError(), flush=True)",
     'time.sleep(float(sys.argv[2]))', 'k.CloseHandle(h)',
   ].join('\n');
-  const kilit = spawn('.venv/Scripts/python.exe', ['-c', betik, PDF.replace(/\//g, '\\'), '10'], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const kilit = spawn('.venv/Scripts/python.exe', ['-c', betik, PDF.replace(/\//g, '\\'), '14'], { stdio: ['ignore', 'pipe', 'inherit'] });
   const bitti = new Promise((c) => kilit.once('exit', c));
   const ilkSatir = await new Promise((c) => kilit.stdout.once('data', (v) => c(String(v).trim())));
   dogrula(ilkSatir === 'kilitlendi', 'dosya yazmaya kapalı kilitlendi', ilkSatir);
   // Vurgu ekle (modelden, sayfa 1'in ilk satırları)
   const vurgu = () => evalJs(`(() => { const n = window.__pdefe.aktif().notlar; const s = n.g.sayfalar[0].pdfSayfa.view; n.ekle({ tur: 'Highlight', sayfa: 1, rect: [60, s[3] - 120, 300, s[3] - 100], quadKutular: [[60, s[3] - 120, 300, s[3] - 100]], quads: null, icerik: '', yazar: 'Test', renk: '#ffd100', opaklik: 0.4, konu: 'Vurgu' }); return 1; })()`);
   await vurgu();
-  await bekle(3500);
+  // Penceresiz kilitte (yardımcı süreç) çekirdek 5 sn yeniden dener: Bildirimi bekle
+  for (let i = 0; i < 40 && !(await evalJs(`!!window.__pdefe.aktif()._otoKayitDurdu`)); i++) await bekle(200);
   let d = await evalJs(`(() => { const b = window.__pdefe.aktif(); return { degisti: b.degisti, durdu: !!b._otoKayitDurdu, pencere: !!window.__pdefeOtoYanit.son, bildirim: document.querySelector('#bildirim')?.textContent || '' }; })()`);
   dogrula(d.durdu && d.degisti && !d.pencere, 'kilitli dosyada otomatik kayıt engelleyici pencere açmadan durur', JSON.stringify(d));
   dogrula(/otomatik kaydedilemedi/.test(d.bildirim), 'bildirim gösterilir', d.bildirim.slice(0, 80));

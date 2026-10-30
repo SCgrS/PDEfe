@@ -382,7 +382,7 @@ function duzenlemeleriUygula(b) {
 }
 
 function kirliGuncelle(b) {
-  b.degisti = !!(b.yigin?.kirli || b.gorunum.yapisalKirli() || (!b.gorunum.anlik && (b.notlar?.kirli || b.formlar?.kirli)));
+  b.degisti = !!(b.yigin?.kirli || b.gorunum.yapisalKirli() || (!b.gorunum.anlik && (b.notlar?.kirli || b.formlar?.kirli)) || b.xfa?.duzenleniyor());
   sekmeler.guncelle(b.id, { degisti: b.degisti });
   kirliBildir();
   if (aktifId === b.id) { durum.degisiklikYaz(b.degisti); geriAlDugmeleriniGuncelle(b); gecmisListesi.yenile(); }   // açık geçmiş listesi güncel kalsın
@@ -391,20 +391,27 @@ function kirliGuncelle(b) {
   // değişikliği kirliGuncelle'yi yeniden çağırır. Otomatik kayıt başarısız olduysa (dosya başka programda açık) elle kaydedilene dek durur
   // (Zamanlayıcı dolunca ayar yeniden okunur: arada Ayarlar'dan kapatılmış olabilir)
   // Başka pencereye taşınmakta olan sekme (b.tasiniyor) kaydedilmez: durumu paketlendi, kayıt hedef pencerenin işidir
-  if (ayar.otomatikKaydet && b.degisti && !b._otoKayitDurdu && !b.tasiniyor) otoKayitKur(b);
+  // 0.3.1: Durmuş otomatik kayıt kendi zamanlayıcısıyla yeniden dener (OTO_YENIDEN_MS), yeni değişiklik onu öne çekmez
+  if (ayar.otomatikKaydet && b.degisti && !b.tasiniyor) {
+    if (!b._otoKayitDurdu) otoKayitKur(b);
+    else if (!b._otoKayit) otoKayitKur(b, OTO_YENIDEN_MS);
+  }
 }
 
 /** Otomatik kaydın zamanlayıcısı (1,5 sn). Dolduğunda XFA formu yeniden diziliyorsa ya da bir form alanı düzenleniyorsa kayıt ertelenir,
  *  zamanlayıcı yeniden kurulur (0.3.1 inceleme: geri al / yinele sonrasında dizilim 1,5 sn'den uzun sürünce kayıt atlanıyor, bitince onu
  *  yeniden kuracak bir olay olmadığı için belge yeni bir değişikliğe dek kaydedilmiyordu; alanda Esc'le vazgeçilince de öyle). Not
- *  düzenleyicisi bitince kirliGuncelle'yi kendisi çağırır. */
-function otoKayitKur(b) {
+ *  düzenleyicisi bitince kirliGuncelle'yi kendisi çağırır. XFA alanına yazı sürerken beklenir, duraklayınca alandan çıkılmasa da kaydedilir: Kayıt
+ *  alanı kapatmaz, imleç yerinde kalır, tek alana yazılan uzun yazı alandan çıkılana dek korumasız kalmasın (0.3.1 kayıt sınaması).
+ *  Kayıt başarısız olduysa (dosya başka programda açık) OTO_YENIDEN_MS sonra yeniden dener. */
+function otoKayitKur(b, ms = 1500) {
   clearTimeout(b._otoKayit);
   b._otoKayit = setTimeout(() => {
-    if (!ayar.otomatikKaydet || !b.degisti || !belgeler.has(b.id) || b.tasiniyor || b._otoKayitDurdu) return;
-    if (b.formlar?.duzenleniyor() || b.xfa?.duzenleniyor() || b.xfa?.mesgul) { otoKayitKur(b); return; }
+    b._otoKayit = null;
+    if (!ayar.otomatikKaydet || !b.degisti || !belgeler.has(b.id) || b.tasiniyor) return;
+    if (b.formlar?.duzenleniyor() || b.xfa?.yeniYaziliyor(1500) || b.xfa?.mesgul || b.kaydediliyor) { otoKayitKur(b, ms); return; }
     if (!b.notlar?.duzenleyici) belgeKaydet(b, false, true);
-  }, 1500);
+  }, ms);
 }
 
 /** Kaydırmasız (tek/iki) düzende sayfa çevrilince artık gösterilmeyen sayfadaki not bırakılır: açık yazı düzenleyicisi kaydedilip
@@ -444,7 +451,7 @@ async function belgeKapat(id, secenek = {}) {
   await kayitBitmesiniBekle(b);
   if (!belgeler.has(id)) return true;   // beklerken başka yoldan kapatılmış
   if (b.degisti && !secenek.zorla) {
-    const { secim } = await mesajKutusu(kaydetmedenCikisSorusu(b.ad));
+    const { secim } = await mesajKutusu(kaydetmedenCikisSorusu(b.ad, { kayitHatali: !!b._sonKayitHatali, form: !!b.gorunum.xfa }));
     if (secim === 2) { if (belgeler.has(id)) kirliGuncelle(b); return false; }   // kapatılmadı: otomatik kayıt zamanlayıcısı yeniden kurulsun
     if (secim === 0 && !(await kapatirkenKaydet(b))) return false;
     await kayitBitmesiniBekle(b);   // soru açıkken başlamış olabilecek (otomatik) kayıt
@@ -727,7 +734,7 @@ async function sekmePaketi(b) {
   // Buradan sonra beklenmez: görünüm, notlar ve geri al yığını aynı andaki durumdan paketlenir
   const komutlar = b.yigin.yigin.map((k) => komutDisari(b, k, girdiNo));
   return {
-    surum: 1, yol: b.yol, ad: b.ad, boyut: b.boyut, diskDondurme: { ...b.diskDondurme }, otoKayitDurdu: !!b._otoKayitDurdu, degisti: !!b.degisti,
+    surum: 1, yol: b.yol, ad: b.ad, boyut: b.boyut, diskDondurme: { ...b.diskDondurme }, otoKayitDurdu: !!b._otoKayitDurdu, sonKayitHatali: !!b._sonKayitHatali, degisti: !!b.degisti,
     gorunum,
     notlar: n.durumAl(girdiNo, b.yigin.yigin.flatMap((k) => n.komutNotlari(k))),
     formlar: b.formlar.durumAl(),
@@ -830,7 +837,7 @@ async function sekmeyiAl(paket, { x = null, yeni = false } = {}, onayla = null) 
     const { id, gorunum } = belge;
     belge.tasiniyor = true;   // kurulana dek kaydedilmez, kapatılmaz
     if (paket.ad) belge.ad = paket.ad;
-    belge.boyut = paket.boyut || 0; belge.diskDondurme = { ...(paket.diskDondurme || {}) }; belge._otoKayitDurdu = !!paket.otoKayitDurdu;
+    belge.boyut = paket.boyut || 0; belge.diskDondurme = { ...(paket.diskDondurme || {}) }; belge._otoKayitDurdu = !!paket.otoKayitDurdu; belge._sonKayitHatali = !!paket.sonKayitHatali;
     belge.notSozu = Promise.resolve();
     // Pencerenin tek sekmesi açılış sekmesiyse (yeni açılan pencere dahil) onun yerini alır; açılamazsa belgeyiKaldir yenisini açar.
     // Birden çok açılış sekmesi varsa (0.1.22) onlar kalır, sekme bırakıldığı yere eklenir
@@ -999,53 +1006,132 @@ async function belgeyiYazdir(b) {
  *  oneAl (sekme menüsündeki Kaydet): belge önde değilse sorusuz kayıtta öndeki sekme değişmez; e-imza ya da hata sorusu açılacaksa önce
  *  belgenin sekmesine geçilir. Kapatma akışlarında gerekmez: ilk soru (kaydetmedenCikisSorusu) belgenin adını verir. */
 async function belgeKaydet(b, farkli = false, sessiz = false, { oneAl = false } = {}) {
+  // Arka planda otomatik kayıt sürerken basılan Ctrl+S ya da Formu Kaydet kaybolmasın (0.3.1): O bitince kendisi kaydeder
+  if (b?.kaydediliyor && b._kayitSessiz && !sessiz) await b.kayitSozu;
   if (!b || b.kaydediliyor || b.tasiniyor) return false;   // tasiniyor: sekme başka pencereye geçiyor (bkz. sekmeyiTasi)
   let bitti;
   b.kaydediliyor = true;
+  b._kayitSessiz = sessiz;
   b.kayitSozu = new Promise((coz) => { bitti = coz; });
+  const secilen = { hedef: null };   // Farklı kaydet'te seçilen dosya: Yeniden dene kaydetme penceresini yeniden açmaz
   try {
     for (;;) {
       try {
-        const sonuc = await kayitYaz(b, farkli, sessiz, oneAl);
-        if (sonuc && !sessiz) b._otoKayitDurdu = false;   // elle kayıt başarılı: otomatik kayıt yeniden çalışır
+        const sonuc = await kayitYaz(b, farkli, sessiz, oneAl, secilen);
+        if (sonuc) {
+          const durmustu = b._otoKayitDurdu;
+          b._otoKayitDurdu = false; b._sonKayitHatali = false;   // kayıt başarılı: otomatik kayıt olağan düzenine döner
+          if (durmustu && sessiz) bildir(`"${b.ad}" otomatik kaydedildi.`, 4000);
+        }
         return sonuc;
       } catch (e) {
         durum.mesajYaz('');
-        // Otomatik kayıt başarısız: her değişiklikte engelleyici hata penceresi açılmasın; bir kez bildirilir, otomatik kayıt elle
-        // kaydedilene dek durur (değişiklikler PDEfe'de kalır, sekme kaydedilmemiş görünür)
+        b._sonKayitHatali = true;   // kapatma sorusu söyler
+        console.warn('Kayıt başarısız', b.yol, e);
+        // Otomatik kayıt başarısız: Engelleyici hata penceresi açılmaz, bir kez bildirilir, durum çubuğunda görünür, kaydedildi denmez. Kendi zamanlayıcısıyla
+        // yeniden dener (0.3.1. Değişiklikler PDEfe'de kalır, sekme kaydedilmemiş görünür)
         if (sessiz && !farkli) {
+          const ilk = !b._otoKayitDurdu;
           b._otoKayitDurdu = true;
-          console.warn('Otomatik kayıt başarısız', b.yol, e);
+          durum.mesajYaz(`"${b.ad}" otomatik kaydedilemedi, yeniden denenecek`, 0);
           // Kısayol platformun yazımıyla (0.2.1: macOS'ta ⌘S). macOS'ta dosyayı başka programlar kilitlemez: neden çoğunlukla yazma izni ya da
-          // Finder'ın Kilitli işaretidir, kaydetmenin yolu Farklı kaydet. Windows'ta metin değişmedi
-          bildir(tus(MAC
+          // Finder'ın Kilitli işaretidir, kaydetmenin yolu Farklı kaydet
+          if (ilk) bildir(tus(MAC
             ? `"${b.ad}" otomatik kaydedilemedi: Dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir. Değişiklikler PDEfe'de duruyor, Ctrl+S ile kaydedin ya da Ctrl+Shift+S ile başka bir adla kaydedin.`
             // Linux (0.3.1): macOS'taki gibi neden yazma iznidir
             : LINUX ? `"${b.ad}" otomatik kaydedilemedi. Dosyaya yazma izni olmayabilir. Değişiklikler PDEfe'de duruyor, Ctrl+Shift+S ile başka bir adla kaydedin.`
-              : `"${b.ad}" otomatik kaydedilemedi: Dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Değişiklikler PDEfe'de duruyor, o programı kapatıp Ctrl+S ile kaydedin.`), 9000);
+              : kayitHatasiTuru(hataMetni(e)) === 'kilitli'
+                ? `"${b.ad}" otomatik kaydedilemedi: Dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Değişiklikler PDEfe'de duruyor, birazdan yeniden denenecek.`
+                : `"${b.ad}" otomatik kaydedilemedi. Değişiklikler PDEfe'de duruyor, Ctrl+Shift+S ile başka bir adla kaydedebilirsiniz.`), 9000);
+          otoKayitKur(b, OTO_YENIDEN_MS);
           return false;
         }
-        const kilitli = /açık olabilir|yazılamadı|okunamadı|Failed to open|Permission|EBUSY|EPERM/i.test(e.message || '');
         if (oneAl) await soruIcinOneAl(b);
-        // macOS'ta (0.2.1) dosyayı başka programlar kilitlemez: yazılamayan dosyada neden çoğunlukla yazma izni ya da Finder'ın Kilitli
-        // işaretidir (çekirdek: "Dosya yazılamadı, salt okunur: …"); program kapatmak işe yaramaz. Windows'ta metin değişmedi
-        const kilitAciklamasi = MAC
-          ? 'Dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir: Finder\'da dosyayı seçip Dosya › Bilgi Al\'dan "Kilitli" işaretini ve Paylaşma ve İzinler bölümünü denetleyin ya da farklı bir adla kaydedin.\n\n'
-          : LINUX ? 'Dosyaya yazma izni olmayabilir. Dosya yöneticisinde dosyaya sağ tıklayıp Özellikler › İzinler bölümünü denetleyin ya da farklı bir adla kaydedin.\n\n'
-            : 'Dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Onu kapatıp yeniden deneyin ya da farklı bir adla kaydedin.\n\n';
-        const { secim } = await mesajKutusu({ tur: 'error', mesaj: 'Belge kaydedilemedi', ayrinti: (kilitli ? kilitAciklamasi : '') + hataMetni(e), dugmeler: kilitli ? ['Farklı kaydet', 'Vazgeç'] : ['Tamam'], iptal: kilitli ? 1 : 0 });
-        if (!kilitli || secim !== 0) return false;
-        farkli = true; sessiz = false;   // 'Farklı kaydet' aynı kaydın içinde: bekleyen kapatma akışı araya girmez
+        const yanit = await kayitHatasiSor(b, e, secilen.hedef || b.yol);
+        if (yanit === 'yeniden') continue;
+        if (yanit !== 'farkli') return false;
+        farkli = true; sessiz = false; secilen.hedef = null;   // 'Farklı kaydet' aynı kaydın içinde: bekleyen kapatma akışı araya girmez
       }
     }
-  } finally { b.kaydediliyor = false; bitti(); }
+  } finally { b.kaydediliyor = false; b._kayitSessiz = false; bitti(); }
 }
 
-/** belgeKaydet'in yazma adımı; hata fırlatır. Vazgeçilirse false, yazılırsa (ya da yazılacak değişiklik yoksa) true. */
-async function kayitYaz(b, farkli, sessiz, oneAl = false) {
+const OTO_YENIDEN_MS = 15000;   // başarısız otomatik kaydın yeniden denenme aralığı
+
+/** Kaydın neden yapılamadığı, çekirdeğin iletisinden (notlar.py YazmaHatasi; arayüze yalnızca ileti ulaşır): kilitli | saltOkunur | klasorYok | diskDolu | izinYok |
+ *  yolUzun | dogrulama | yazilamadi (nedeni bilinmiyor) | null (dosya erişimiyle ilgili değil). */
+function kayitHatasiTuru(m) {
+  if (/salt okunur/i.test(m)) return 'saltOkunur';
+  if (/klasör bulunamadı/.test(m)) return 'klasorYok';
+  if (/yer kalmadı/.test(m)) return 'diskDolu';
+  if (/yazma izni/.test(m)) return 'izinYok';
+  if (/yolu çok uzun/.test(m)) return 'yolUzun';
+  if (/doğrulanamadı/.test(m)) return 'dogrulama';
+  if (/açık olabilir|okunamadı|Failed to open|EBUSY/i.test(m)) return 'kilitli';
+  if (/yazılamadı|Permission|EPERM/i.test(m)) return 'yazilamadi';
+  return null;
+}
+
+/** "Belge kaydedilemedi" sorusu. Döner: 'yeniden' | 'farkli' | null (Vazgeç). Ham hata metni gösterilmez (Python [Errno], çift ters bölü: Kullanıcı ne yapacağını
+ *  anlamıyordu, 0.3.1). Kilitleyen programın adı biliniyorsa söylenir (Windows Restart Manager, çekirdek kilit_sahipleri). XFA formunda her hatada Farklı kaydet önerilir:
+ *  Yazılar başka yere kaydedilebilsin. */
+async function kayitHatasiSor(b, e, hedef) {
+  const m = hataMetni(e), tur = kayitHatasiTuru(m), form = !!b.gorunum.xfa;
+  const ham = /\[(Errno|WinError) |code=\d+|Traceback|\\\\/.test(m);
+  const YENIDEN = 'Yeniden dene', FARKLI = 'Farklı kaydet', VAZGEC = 'Vazgeç';
+  let ayrinti, dugmeler;
+  if (MAC || LINUX) {
+    // macOS'ta (0.2.1) dosyayı başka programlar kilitlemez: yazılamayan dosyada neden çoğunlukla yazma izni ya da Finder'ın Kilitli
+    // işaretidir (çekirdek: "Dosya yazılamadı, salt okunur: …"); program kapatmak işe yaramaz
+    const aciklama = MAC
+      ? 'Dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir: Finder\'da dosyayı seçip Dosya › Bilgi Al\'dan "Kilitli" işaretini ve Paylaşma ve İzinler bölümünü denetleyin ya da farklı bir adla kaydedin.\n\n'
+      : 'Dosyaya yazma izni olmayabilir. Dosya yöneticisinde dosyaya sağ tıklayıp Özellikler › İzinler bölümünü denetleyin ya da farklı bir adla kaydedin.\n\n';
+    ayrinti = (tur || form ? aciklama : '') + (ham ? 'Dosya yazılamadı.' : m);
+    dugmeler = tur || form ? [FARKLI, VAZGEC] : ['Tamam'];
+  } else if (!tur && !form) {
+    ayrinti = ham ? 'Dosya yazılamadı.' : m;
+    dugmeler = ['Tamam'];
+  } else {
+    const kalan = `\n\nDosya değişmedi, ${form ? 'yazdıklarınız' : 'değişiklikler'} PDEfe'de duruyor.`;
+    if (tur === 'kilitli') {
+      let ad = '';
+      try { ad = (await cekirdek('kilit_sahipleri', { yol: hedef })).programlar?.[0] || ''; } catch { /* adı bilinmeden de sorulur */ }
+      ayrinti = (ad ? `Dosya "${ad}" programında açık.` : 'Dosya başka bir programda (örneğin bir PDF okuyucuda) açık.') + ' Orada kapatıp Yeniden dene\'ye basın ya da Farklı kaydet ile başka bir ada kaydedin.';
+      dugmeler = [YENIDEN, FARKLI, VAZGEC];
+    } else if (tur === 'saltOkunur') {
+      ayrinti = 'Dosya salt okunur. Farklı kaydet ile başka bir ada kaydedin ya da Özellikler penceresinden Salt okunur işaretini kaldırıp Yeniden dene\'ye basın.';
+      dugmeler = [FARKLI, YENIDEN, VAZGEC];
+    } else if (tur === 'klasorYok') {
+      ayrinti = 'Dosyanın klasörü bulunamadı. Silinmiş, taşınmış ya da ağ bağlantısı kesilmiş olabilir. Farklı kaydet ile başka bir yere kaydedin.';
+      dugmeler = [FARKLI, YENIDEN, VAZGEC];
+    } else if (tur === 'diskDolu') {
+      ayrinti = 'Diskte yer kalmadı. Yer açıp Yeniden dene\'ye basın ya da Farklı kaydet ile başka bir diske kaydedin.';
+      dugmeler = [YENIDEN, FARKLI, VAZGEC];
+    } else if (tur === 'izinYok') {
+      ayrinti = 'Bu konuma yazma izni yok. Farklı kaydet ile başka bir yere kaydedin.';
+      dugmeler = [FARKLI, YENIDEN, VAZGEC];
+    } else if (tur === 'yolUzun') {
+      ayrinti = 'Dosyanın yolu çok uzun. Farklı kaydet ile daha kısa bir yere kaydedin.';
+      dugmeler = [FARKLI, VAZGEC];
+    } else {
+      // Dosya erişimi dışındaki neden (ör. "Belge şifreli, kaydedilemiyor.") anlaşılırsa söylenir, iç hata (çekirdek düştü, PDF.js işçisi) söylenmez
+      const neden = tur === 'dogrulama' ? 'Yazılan kopya doğrulanamadı.' : tur === 'yazilamadi' || ham || /Çekirdek|Worker|Error|undefined/.test(m) ? 'Dosya yazılamadı.' : m;
+      ayrinti = neden + ' Yeniden dene\'ye basın ya da Farklı kaydet ile başka bir yere kaydedin.';
+      dugmeler = [YENIDEN, FARKLI, VAZGEC];
+    }
+    ayrinti += kalan;
+  }
+  const { secim } = await mesajKutusu({ tur: 'error', mesaj: 'Belge kaydedilemedi', ayrinti, dugmeler, varsayilan: 0, iptal: dugmeler.length - 1 });
+  return { [YENIDEN]: 'yeniden', [FARKLI]: 'farkli' }[dugmeler[secim]] || null;
+}
+
+/** belgeKaydet'in yazma adımı; hata fırlatır. Vazgeçilirse false, yazılırsa (ya da yazılacak değişiklik yoksa) true. secilen.hedef: Farklı kaydet'te seçilen dosya
+ *  (Yeniden dene aynı dosyaya yazar, pencere yeniden açılmaz). */
+async function kayitYaz(b, farkli, sessiz, oneAl = false, secilen = { hedef: null }) {
   duzenlemeleriUygula(b);
   let hedef = b.yol;
-  if (farkli) {
+  if (farkli && secilen.hedef) hedef = secilen.hedef;
+  else if (farkli) {
     // Hedef bu pencerede ya da başka bir PDEfe penceresinde açık bir belgenin dosyasıysa yazılmaz (0.2.1): o sekme diskteki yeni içeriği
     // değil eski hâlini gösterir, sonraki kaydı eski xref'lerle bozardı; aynı dosya iki sekmede açık kalırdı. Windows'ta çekirdek dosyayı
     // açık tuttuğu için yazım "başka bir programda açık olabilir" hatasıyla düşüyordu. Kullanıcı başka ad seçebilir
@@ -1061,6 +1147,7 @@ async function kayitYaz(b, farkli, sessiz, oneAl = false) {
       });
       if (secim !== 0) return false;
     }
+    secilen.hedef = hedef;
   } else if (!b.degisti) { if (!sessiz) bildir('Kaydedilecek değişiklik yok.'); return true; }
   if (b.gorunum.xfa) return xfaKayitYaz(b, hedef, farkli, sessiz, oneAl);
   const islemler = b.notlar ? b.notlar.fark() : [];
@@ -1151,11 +1238,12 @@ async function xfaKayitYaz(b, hedef, farkli, sessiz, oneAl = false) {
   // gibi sorulur, seçim belge kapanana dek hatırlanır, otomatik kayıtta imza korunur (0.3.1 inceleme: imzaya bakılmadan baştan yazılıyordu)
   const imzayiKoru = g.xfaBilgi?.eImzali ? await xfaImzaKarari(b, sessiz, oneAl) : false;
   if (imzayiKoru === null) return false;
-  const yiginKonumu = b.yigin?.konum, yiginKomutu = b.yigin?.geriAlinacak;
   durum.mesajYaz('Kaydediliyor…', 0);
-  const r = await b.xfa.kaydet(hedef, { imzayiKoru });
+  const r = await b.xfa.kaydet(hedef, { imzayiKoru, hizli: !!sessiz });
   if (imzayiKoru && r?.imzaKorundu === false) bildir('E-imza korunamadı: Form baştan yazıldı, imza geçersiz görünür.', 8000);
-  b.yigin?.kaydedildi(yiginKonumu, yiginKomutu);
+  // Yazılan değerlerden biri dosyanın verisinde yoksa (PDF.js veri düğümü olmayan alanın değerini saklamaz) belge kaydedilmiş sayılmaz, kullanıcı yazısını başka yere alabilsin
+  const eksik = r?.eksik?.length || 0;
+  if (!eksik) b.yigin?.kaydedildi(r?.konum, r?.komut);
   b.boyut = r?.boyut || b.boyut;
   if (farkli && !yolAyni(hedef, b.yol)) {
     const eski = g.yol;
@@ -1168,8 +1256,16 @@ async function xfaKayitYaz(b, hedef, farkli, sessiz, oneAl = false) {
   }
   kirliGuncelle(b);
   if (aktifId === b.id) durum.boyutYaz(b.boyut);
-  durum.mesajYaz(sessiz ? 'Otomatik kaydedildi' : 'Kaydedildi');
   cekirdek('belge_birak', { yol: b.yol }).catch(() => {});
+  if (eksik) {
+    durum.mesajYaz('');
+    b._sonKayitHatali = true;
+    if (!sessiz) await mesajKutusu({ tur: 'warning', mesaj: `${eksik} alanın yazısı dosyaya yazılamadı.`, ayrinti: 'Formun verisinde bu alanların yeri yok, PDEfe onları saklayamıyor. Öbür alanlar kaydedildi. Bu alanlardaki yazıları kopyalayıp başka bir yere alın.' });
+    return false;
+  }
+  durum.mesajYaz(sessiz ? 'Otomatik kaydedildi' : 'Kaydedildi');
+  // Formu Kaydet düğmesine ve Ctrl+S'e görünür yanıt (0.3.1, kullanıcı: "kaydetmiyor o buton galiba"): Durum çubuğundaki yazı gözden kaçıyordu
+  if (!sessiz) bildir(`"${b.ad}" kaydedildi.`, 3000);
   return true;
 }
 
@@ -2019,7 +2115,7 @@ function kapatmayaIzinAl({ degismeyenleriKapat = false } = {}) {
       await kayitBitmesiniBekle(b);
       if (!b.degisti) continue;
       sekmeSec(b.id);   // hangi belge için sorulduğu görünsün
-      const { secim } = await mesajKutusu(kaydetmedenCikisSorusu(b.ad));
+      const { secim } = await mesajKutusu(kaydetmedenCikisSorusu(b.ad, { kayitHatali: !!b._sonKayitHatali, form: !!b.gorunum.xfa }));
       if (secim === 2 || (secim === 0 && !(await kapatirkenKaydet(b)))) return vazgecildi();
     }
     // Sorular açıkken başlamış olabilecek kayıtlar da bitsin: kapanışta çekirdek durdurulur, yazma yarıda kalmasın
