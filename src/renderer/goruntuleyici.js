@@ -343,6 +343,7 @@ export class Goruntuleyici extends EventTarget {
     this.xfaBilgiAl = xfaBilgiAl;
     this.xfa = false;
     this.xfaBilgi = null;
+    this.xfaBaytSuresi = 60000;      // formun baytları en çok bu kadar beklenir (ms; xfaBaytlari)
     this.yol = null;                 // sekmenin dosya yolu
     this.belgeler = new Map();       // yolAnahtari → {yol, belge, gorev}
     this.bosBelgeler = new Map();    // 'WxH' → {belge, gorev}
@@ -1823,7 +1824,11 @@ export class Goruntuleyici extends EventTarget {
   async xfaBaytlari() {
     const depo = this.belge.annotationStorage;
     if (!depo.size) depo.setValue('pdefe-bos', { value: '' });
-    let veri = await this.belge.saveDocument();
+    // PDF.js işçisi durursa (0.3.1 kayıp avı) yanıt hiç gelmez: Kayıt ve pencere kapatma sonsuza dek askıda kalıyordu
+    let zaman;
+    const sure = new Promise((_, red) => { zaman = setTimeout(() => red(new Error('Formun verisi hazırlanamadı.')), this.xfaBaytSuresi); });
+    let veri;
+    try { veri = await Promise.race([this.belge.saveDocument(), sure]); } finally { clearTimeout(zaman); }
     // Zengin metinli değer: PDF.js yazarken XHTML ad alanını atıyor, değer okunamaz olurdu. Baytların her kullanımı (kayıt, bölüm ekleme, yazdırma, sekme taşıma) onarılmış hâli alır
     if (this.xfaBilgi?.zenginMetin && this.cekirdek) {
       const r = await this.cekirdek('xfa_zengin_onar', { veri: base64Yaz(veri) });

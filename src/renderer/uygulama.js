@@ -1070,6 +1070,7 @@ const OTO_YENIDEN_MS = 15000;   // başarısız otomatik kaydın yeniden denenme
  *  yolUzun | dogrulama | yazilamadi (nedeni bilinmiyor) | null (dosya erişimiyle ilgili değil). */
 function kayitHatasiTuru(m) {
   if (/başka bir programda değişmiş/.test(m)) return 'degismis';
+  if (/verisi hazırlanamadı/.test(m)) return 'hazirlanamadi';
   if (/salt okunur/i.test(m)) return 'saltOkunur';
   if (/klasör bulunamadı/.test(m)) return 'klasorYok';
   if (/yer kalmadı/.test(m)) return 'diskDolu';
@@ -1132,6 +1133,10 @@ async function kayitHatasiSor(b, e, hedef) {
     } else if (tur === 'yolUzun') {
       ayrinti = 'Dosyanın yolu çok uzun. Farklı kaydet ile daha kısa bir yere kaydedin.';
       dugmeler = [FARKLI, VAZGEC];
+    } else if (tur === 'hazirlanamadi') {
+      // PDF.js işçisi yanıt vermiyor (xfaBaytlari): Farklı kaydet de aynı baytları ister, işe yaramaz
+      ayrinti = 'Formun verisi hazırlanamadı. Yazdıklarınızı alanlardan kopyalayıp başka bir yere alın, sonra formu kapatıp yeniden açın.';
+      dugmeler = [YENIDEN, VAZGEC];
     } else {
       // Dosya erişimi dışındaki neden (ör. "Belge şifreli, kaydedilemiyor.") anlaşılırsa söylenir, iç hata (çekirdek düştü, PDF.js işçisi) söylenmez
       const neden = tur === 'dogrulama' ? 'Yazılan kopya doğrulanamadı.' : tur === 'yazilamadi' || ham || /Çekirdek|Worker|Error|undefined/.test(m) ? 'Dosya yazılamadı.' : m;

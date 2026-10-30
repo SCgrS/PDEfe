@@ -471,6 +471,31 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz, tus,
     sonuc('4 Sayfada hata yok', !(await hatalar()).length);
   }
 
+  // ================================================================== 5) PDF.js işçisi durursa
+  if (bolum(5)) {
+    const y = kopya('isci');
+    await ac(y);
+    await alanaYaz('AdSoyad', 0, 'İşçi ölünce yazılan');
+    const once = ozet(y);
+    await evalJs(`(() => { const g = window.__s52.g(); g.xfaBaytSuresi = 1500; g.yuklemeGorevi._worker.port.terminate(); return true; })()`);
+    let d = await kaydet();
+    d = await kutuBekle(5000);
+    await goruntu('5-isci');
+    sonuc('5 Kayıt askıda kalmaz: Pencere, Yeniden dene ve Vazgeç', d.kutu?.ileti === 'Belge kaydedilemedi' && J(d.kutu.dugmeler) === J(['Yeniden dene', 'Vazgeç']) && /hazırlanamadı/.test(d.kutu.ayrinti), d);
+    sonuc('5 Dosya aynı', ozet(y) === once);
+    await kutuBas('Vazgeç');
+    d = await durum();
+    sonuc('5 Vazgeç: Kirli, yazı alanda', d.degisti && !d.kaydediliyor && (await evalJs(`document.querySelector('.gorunum:not([hidden]) [xfaname="AdSoyad"] input').value`)) === 'İşçi ölünce yazılan', d);
+    await komut('sekme.kapat');
+    d = await kutuBekle();
+    sonuc('5 Kapatma sorusu "Son kayıt yapılamadı" der', /Son kayıt yapılamadı/.test(d.kutu?.ayrinti || ''), d);
+    await kutuBas('Kaydetme');
+    await bekle(400);
+    d = await durum();
+    sonuc('5 Kaydetme: Sekme kapanabilir, pencere askıda kalmaz', d.belge === 0, d);
+    await hatalar();
+  }
+
   await kapatHepsini();
   console.log(`\n${denetim} denetim, ${hataSayisi} hata`);
   console.log(hataSayisi ? 'HATALAR VAR' : 'BÜTÜN DENETİMLER GEÇTİ');
