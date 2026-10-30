@@ -17,15 +17,15 @@ const sonucSirasi = (a, b) => (a.sira - b.sira) || (TUR_SIRASI[a.tur] - TUR_SIRA
 /**
  * Aranan metnin düzenli ifadesi (q: normalle'nin çıktısı, 0.3.1 kabul sınaması). Sayfa metninde satır ve öbek sonları satır sonudur, tanıyıcı
  * noktalama işaretlerini ayrı sözcük verir ("Örnek :"): Kullanıcının gördüğü ve kopyaladığı metin ("Örnek:", satır sonuna taşan iki sözcük)
- * harfi harfine aranınca bulunmuyordu. Aranandaki boşluklar her tür boşluğa ve satır sonuna uyar. Harf ya da rakam ile noktalama işaretinin
- * arasında metinde boşluk olabilir. Eşleşmenin konumu sayfa metnindeki konumdur (normalle karakter sayısını değiştirmez).
+ * harfi harfine aranınca bulunmuyordu. Aranandaki boşluklar her tür boşluğa ve satır sonuna uyar. Noktalama işaretinin iki yanında metinde
+ * boşluk olabilir. Eşleşmenin konumu sayfa metnindeki konumdur (normalle karakter sayısını değiştirmez).
  */
 function aramaDeseni(q) {
   const harf = (c) => /[\p{L}\p{N}]/u.test(c);
   let desen = '', onceki = null;
   for (const c of q) {
     if (/\s/.test(c)) { if (onceki !== ' ') desen += '\\s+'; onceki = ' '; continue; }
-    if (onceki && onceki !== ' ' && harf(onceki) !== harf(c)) desen += '\\s*';
+    if (onceki && onceki !== ' ' && !(harf(onceki) && harf(c))) desen += '\\s*';
     desen += c.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
     onceki = c;
   }

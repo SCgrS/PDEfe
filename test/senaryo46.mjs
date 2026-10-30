@@ -348,10 +348,10 @@ export default async function ({ evalJs, bekle, tus }) {
     sonuc('PDF metninde satır sonuna taşan sözcükler (1. sayfa)', J(pdfTasan.map((s) => s.sayfa)) === J([1]), pdfTasan.map((s) => s.sayfa));
     // Eşleşme kuralları
     const k = await evalJs(`(() => { const A = window.__pdefe.arama, say = (m, q) => A.eslesmeleriBul(m, q).map((x) => m.slice(x[0], x[1]));
-      return { nokta: say('Örnek :\\n22 tamam ! son', 'Örnek:'), unlem: say('tamam ! son', 'tamam!'), tarih: say('no 12 . 34 . 5678 bitti', '12.34.5678'), bitisik: say('Örnek: 5', 'Örnek :'),
+      return { nokta: say('Örnek :\\n22 tamam ! son', 'Örnek:'), unlem: say('tamam ! son', 'tamam!'), tarih: say('no 12 . 34 . 5678 bitti', '12.34.5678'), iki: say('( ; ab', '(;ab'), bitisik: say('Örnek: 5', 'Örnek :'),
         ozel: say('a.b (c) [d] e*f', '(c) [d]'), yildiz: say('e*f', 'e*f'), bosSorgu: say('a b', '   '), sonBosluk: say('ab\\ncd', 'ab '), tek: say('aXb axb', 'x').length,
         ozelTek: say('a?b', '?').length }; })()`);
-    sonuc('Noktalama: "Örnek:" → "Örnek :", "tamam!" → "tamam !", "12.34.5678" → "12 . 34 . 5678"', J(k.nokta) === J(['Örnek :']) && J(k.unlem) === J(['tamam !']) && J(k.tarih) === J(['12 . 34 . 5678']), k);
+    sonuc('Noktalama: "Örnek:" → "Örnek :", "tamam!" → "tamam !", "12.34.5678" → "12 . 34 . 5678"', J(k.nokta) === J(['Örnek :']) && J(k.unlem) === J(['tamam !']) && J(k.tarih) === J(['12 . 34 . 5678']) && J(k.iki) === J(['( ; ab']), k);
     sonuc('Aranandaki boşluk metinde yoksa bulunmaz ("Örnek :" → "Örnek:"), düzenli ifade karakterleri düz aranır', J(k.bitisik) === J([]) && J(k.ozel) === J(['(c) [d]']) && J(k.yildiz) === J(['e*f']) && k.ozelTek === 1, k);
     sonuc('Yalnızca boşluk aranmaz, sondaki boşluk satır sonuna da uyar, büyük-küçük duyarsız', J(k.bosSorgu) === J([]) && J(k.sonBosluk) === J(['ab\n']) && k.tek === 2, k);
     await kapatTum();
