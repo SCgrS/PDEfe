@@ -379,6 +379,19 @@ sonuc("damga: Dosya yoksa karşılaştırılamaz, yazılır", xfa.y_xfa_kaydet({
 bilgi_ = xfa.y_xfa_bilgi({"yol": h})
 sonuc("damga: xfa_bilgi saf formda dosyanın özetini verir", bilgi_["damga"] == notlar.dosya_damgasi(h), bilgi_.get("damga"))
 
+# Sembolik bağ (0.3.1 kayıp avı): Bağın gösterdiği dosya yazılır, bağ kalır
+gercek_ = yeni_hedef("bag-gercek.pdf")
+bag_ = os.path.join(KAYIT, "bag.pdf")
+try:
+    os.symlink(gercek_, bag_)
+except OSError:
+    bag_ = None
+    print("     sembolik bağ kurulamadı (izin yok), denetim atlandı")
+if bag_:
+    xfa.y_xfa_kaydet({"veri": KAYNAK, "hedef": bag_, "yol": bag_})
+    sonuc("bağ: Bağ yerinde, asıl dosya yazıldı, geçici dosya yok", os.path.islink(bag_) and notlar.dosya_damgasi(gercek_) == notlar.dosya_damgasi(bag_) and not gecici_yok() and pymupdf.open(gercek_).is_repaired is False)
+    os.remove(bag_)
+
 # Zengin metinli değer (0.3.1 kayıp avı): PDF.js XHTML ad alanını atıyor, onarılır
 X_ = xfa.XHTML_NS.encode("ascii")
 bozuk_ = b'<xfa:datasets xmlns:xfa="u"><xfa:data><f><a><body><p>Bir</p><p>Iki</p></body></a><b> </b><c>yazi</c><body><x>grup</x></body><d k="v"><body><p/></body></d></f></xfa:data></xfa:datasets>'

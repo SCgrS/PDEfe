@@ -1429,8 +1429,11 @@ def _gecici_olustur(klasor):
 def atomik_yaz(veri, hedef, dogrula=None, deneme=6):
     """Baytları hedefe atomik yazar (0.3.1, kullanıcı: "bu kayıt mekanizmasında hiç sıkıntı olmamalı"): Hedefin klasöründe geçici dosya, diske boşaltılır (fsync),
     yeniden okunup karşılaştırılır, dogrula(okunan) varsa çağrılır (bozuksa YazmaHatasi fırlatmalı), sonra hedefin yerine konur. Her başarısızlıkta hedef bayt
-    bayt aynı kalır, geçici dosya kalmaz. Hata: YazmaHatasi (anlaşılır ileti), yanlışlıkla hedef silinmez."""
+    bayt aynı kalır, geçici dosya kalmaz. Hata: YazmaHatasi (anlaşılır ileti), yanlışlıkla hedef silinmez. Hedef sembolik bağsa bağın gösterdiği dosya yazılır (0.3.1 kayıp avı:
+    Yerine koyma bağın kendisini düz dosya yapıyor, asıl dosya eski kalıyordu)."""
     tam = os.path.abspath(hedef)
+    if os.path.islink(tam):
+        tam = os.path.realpath(tam)
     gecici = None
     try:
         gecici, fd = _gecici_olustur(os.path.dirname(tam))
