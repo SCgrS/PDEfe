@@ -1335,3 +1335,10 @@ Word belgesini çeviren program (LibreOffice gerçekten sınandı. WPS Office'in
 114. **Word'süz, WPS'siz, LibreOffice'li bilgisayar.** Art arda birkaç .docx, .doc, .rtf, .odt seçip PDF'e çevirin: Hepsi çevrilmeli (önceden ikinci belgede takılıyordu). LibreOffice'iniz açıkken de çevrilmeli, açık belgeniz etkilenmemeli.
 115. **Hiçbiri yokken.** Word, WPS ve LibreOffice yoksa Word satırında PDF soluk olmalı, üstüne gelince hangi programların gerektiği yazmalı. LibreOffice'i bu sırada kurarsanız PDEfe'yi kapatmadan satırı yeniden ekleyince hedef açılmalı.
 116. **Ayarlar.** Ayarlar › Kaydetme › Format Değiştir altında "Word belgeleri" kartı: Sıra ve "Kullanılacak program" yazmalı.
+
+Word belgesini çeviren program: Bağımsız sınamadan
+117. **WPS'te tablo ya da sunu açıkken.** WPS'te kaydetmeden bir tablo ya da sunu bırakın (yazı belgesi açık olmasın). PDEfe'de bir .docx'i PDF'e çevirin: WPS kapanmamalı, tablonuz yerinde kalmalı, PDF oluşmalı. Sekme çubuğunda kısa süre yeni bir sekme görünürse söyleyin.
+118. **Yazılamayan klasör.** Format Değiştir'de Değiştir ile yazma izniniz olmayan bir klasör seçin (örneğin `C:\\Program Files`), .docx → PDF: Hemen "Seçilen klasöre yazılamadı" sorusu çıkmalı, Başka adla kaydet çalışmalı. Çok dosyada satırlarda "Seçilen klasöre yazılamıyor…" yazmalı. Birleştir'de de aynı ileti.
+119. **Boş ve bozuk dosya.** 0 baytlık bir .docx: Satırda "Dosya boş (0 bayt)". Yarım inmiş bir dosya: "Dosyanın biçimi tanınmadı, dosya bozuk olabilir". İki durumda da Dönüştür soluk olmalı.
+120. **Birleştir'de birden çok Word belgesi.** Word'süz bilgisayarda iki .docx ve bir PDF birleştirin: Bildirimde tek cümle, başında "2 belge:".
+121. **Çıkarılmış USB.** Çıktı klasörü bir USB'deyken USB'yi çıkarıp dönüştürün: "Hedef klasör oluşturulamadı. Sürücü çıkarılmış…" yazmalı.

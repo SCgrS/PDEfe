@@ -62,7 +62,7 @@ const MOTOR_HATALARI = {
   xml: ['bozuk', 'Belge içeriği okunamadı (XML bozuk).'],
   dtd: ['guvensiz', 'Belge güvenlik nedeniyle dönüştürülmedi (izin verilmeyen XML tanımı).'],
   boyut: ['buyuk', 'Belge yaklaşık çizimin sınırından büyük.'],
-  belirsiz: ['guvensiz', 'UDF paketi birden çok içerik dosyası taşıyor; güvenlik nedeniyle dönüştürülmedi.'],
+  belirsiz: ['guvensiz', 'UDF paketi birden çok içerik dosyası taşıyor, güvenlik nedeniyle dönüştürülmedi.'],
   sure: ['zaman_asimi', 'Belge zamanında hazırlanamadı.'],
   bos: ['bozuk', 'Dosya boş.'],
 };
@@ -198,7 +198,7 @@ function sayfaSay(pdf) {
 function ozetUyarisi(ozet) {
   const u = [];
   const resim = Math.max(ozet.gosterilemeyenResim | 0, ozet.resimReddi | 0);
-  if (ozet.kesildi) u.push('Belge çok büyük ya da karmaşık; bir kısmı çizilemedi.');
+  if (ozet.kesildi) u.push('Belge çok büyük ya da karmaşık, bir kısmı çizilemedi.');
   if (resim) u.push(resim === 1 ? 'Bir resim çizilemedi.' : `${resim} resim çizilemedi.`);
   if (ozet.notSayisi > 0) u.push('Belgedeki yorumlar (açıklama notları) PDF\'e alınmadı.');
   return u.join(' ') || null;
