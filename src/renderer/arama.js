@@ -14,6 +14,24 @@ const SECILI_VURGU = '.textLayer .highlight.selected, .xfaLayer .highlight.selec
 
 const sonucSirasi = (a, b) => (a.sira - b.sira) || (TUR_SIRASI[a.tur] - TUR_SIRASI[b.tur]) || (a.tur === 'metin' ? (a.sayfa - b.sayfa) || (a.bas - b.bas) : 0);
 
+/**
+ * Aranan metnin düzenli ifadesi (q: normalle'nin çıktısı, 0.3.1 kabul sınaması). Sayfa metninde satır ve öbek sonları satır sonudur, tanıyıcı
+ * noktalama işaretlerini ayrı sözcük verir ("Örnek :"): Kullanıcının gördüğü ve kopyaladığı metin ("Örnek:", satır sonuna taşan iki sözcük)
+ * harfi harfine aranınca bulunmuyordu. Aranandaki boşluklar her tür boşluğa ve satır sonuna uyar. Harf ya da rakam ile noktalama işaretinin
+ * arasında metinde boşluk olabilir. Eşleşmenin konumu sayfa metnindeki konumdur (normalle karakter sayısını değiştirmez).
+ */
+function aramaDeseni(q) {
+  const harf = (c) => /[\p{L}\p{N}]/u.test(c);
+  let desen = '', onceki = null;
+  for (const c of q) {
+    if (/\s/.test(c)) { if (onceki !== ' ') desen += '\\s+'; onceki = ' '; continue; }
+    if (onceki && onceki !== ' ' && harf(onceki) !== harf(c)) desen += '\\s*';
+    desen += c.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+    onceki = c;
+  }
+  return new RegExp(desen, 'gu');
+}
+
 export class Arama extends EventTarget {
   constructor({ kutu, belgeAl, belgeler, sekmeSec, cekirdek }) {
     super();
@@ -180,13 +198,11 @@ export class Arama extends EventTarget {
   eslesmeleriBul(metin, sorgu) {
     const n = this.normalle(metin), q = this.normalle(sorgu);
     const sonuc = [];
-    if (!q) return sonuc;
-    let i = 0;
+    if (!q.trim()) return sonuc;
     const harf = (c) => c != null && /[\p{L}\p{N}]/u.test(c);
-    while ((i = n.indexOf(q, i)) !== -1) {
-      const bitis = i + q.length;
+    for (const m of n.matchAll(aramaDeseni(q))) {
+      const i = m.index, bitis = i + m[0].length;
       if (!this.ayar.tamSozcuk || (!harf(n[i - 1]) && !harf(n[bitis]))) sonuc.push([i, bitis]);
-      i = bitis;
     }
     return sonuc;
   }

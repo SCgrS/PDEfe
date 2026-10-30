@@ -13,6 +13,8 @@
 //   6) Tüm açık sekmelerde arama: iki belgenin tanınan yazısı da, etkin belge önce.
 //   7) Tanıyıcı yoksa (Linux gibi; ayrı örnek PDEFE_TANIMA_YOK=1 ile, betik kendisi başlatır ve kapatır): yalnızca PDF metni aranır,
 //      sayaç "· taranmış sayfalar aranamadı" der. Yalnızca metinli belgede bu bilgi çıkmaz.
+//   8) Birden çok sözcük (0.3.1 kabul sınaması): Satır sonuna taşan iki sözcük tanınan yazıda ve PDF metninde bulunur (vurgu iki satırda),
+//      fazladan boşluk fark etmez. Tanıyıcının ayırdığı noktalama işareti ("Örnek :") bitişik yazılınca ("Örnek:") bulunur.
 // Örnek PDF test/tanima_pdf_uret.py ile üretilir (betik kendisi çalıştırır; gerçek belge yok): test/cikti/s46/<koşum>/. Her bölüm kendi
 // kopyasını açar: çekirdeğin tanıma önbelleği dosya yoluna bağlı, kopya önceki bölümün tanımasını kullanmaz.
 // Kullanım (ekran dışı; 7. bölüm PDEFE_CDP_PORT + 1'de ikinci bir örnek açar):
@@ -318,6 +320,40 @@ export default async function ({ evalJs, bekle, tus }) {
     sonuc(`İki belgenin tanınan yazısı da: ${2 * TOPLAM} sonuç, önce etkin belgeninkiler (sayfa sırasıyla)`, ss.length === 2 * TOPLAM && ss.slice(0, TOPLAM).every((s) => s.belge === etkin)
       && J(ss.slice(0, TOPLAM).map((s) => s.sayfa)) === J(BEKLENEN_SAYFALAR) && J(ss.slice(TOPLAM).map((s) => s.sayfa)) === J(BEKLENEN_SAYFALAR), ss.map((s) => `${s.belge === etkin ? 'e' : 'o'}${s.sayfa}`).join(' '));
     await evalJs(`(() => { const c = document.querySelector('#bul-ayar-menu input[data-kapsam="belge"]'); c.checked = true; c.dispatchEvent(new Event('change')); return 1; })()`);
+    await kapatTum();
+  }
+
+  // ---------------------------------------------------------------- 8. Birden çok sözcük, boşluk ve noktalama (0.3.1 kabul sınaması)
+  if (bolum(8)) {
+    console.log('— 8. Birden çok sözcük');
+    const a12 = kopya('a12.pdf');
+    await ac(a12);
+    const ara = async (m) => { await bul(m); await bekle(100); await bitti(); return sonuclar(); };
+    // Tanınan yazıda: "… haczi kabil" satırın sonu, "malların …" sonraki satırın başı (tanima_pdf_uret.py GOVDE)
+    const ayni = await ara('haczi kabil');
+    sonuc(`Tanınan yazıda aynı satırda iki sözcük: ${DAIRESI.length} sayfa`, J(ayni.map((s) => s.sayfa)) === J(DAIRESI), ayni.map((s) => s.sayfa));
+    const tasan = await ara('kabil malların');
+    sonuc('Tanınan yazıda satır sonuna taşan iki sözcük: Aynı sayfalar', J(tasan.map((s) => s.sayfa)) === J(DAIRESI), tasan.map((s) => s.sayfa));
+    const buyuk = await ara('KABİL MALLARIN');
+    sonuc('Büyük harfle de (Türkçe İ / I)', J(buyuk.map((s) => s.sayfa)) === J(DAIRESI), buyuk.map((s) => s.sayfa));
+    const cift = await ara('kabil    malların');
+    sonuc('Fazladan boşluk fark etmez', J(cift.map((s) => s.sayfa)) === J(DAIRESI), cift.map((s) => s.sayfa));
+    await evalJs(`(async () => { const a = window.__pdefe.arama; await a.katmanBekle(window.__pdefe.aktif().gorunum, a.sonuclar[a.gecerli].sayfa); return 1; })()`);
+    await bekle(300);
+    const v = await evalJs(`(() => { const a = window.__pdefe.arama; const e = [...document.querySelectorAll('.textLayer .highlight[data-eslesme="' + a.gecerli + '"]')]; const r = e.map((x) => x.getBoundingClientRect());
+      return { parca: e.length, metin: e.map((x) => x.textContent.trim()), ikiSatir: r.length === 2 && Math.abs(r[1].top - r[0].top) > 5 }; })()`);
+    sonuc('Taşan eşleşmenin vurgusu iki satırda, iki sözcüğün üstünde', v.ikiSatir && J(v.metin.map((m) => m.toLocaleLowerCase('tr'))) === J(['kabil', 'malların']), v);
+    // PDF metninde (1. sayfanın iki satırı)
+    const pdfTasan = await ara('metnidir. Aranan tutanak');
+    sonuc('PDF metninde satır sonuna taşan sözcükler (1. sayfa)', J(pdfTasan.map((s) => s.sayfa)) === J([1]), pdfTasan.map((s) => s.sayfa));
+    // Eşleşme kuralları
+    const k = await evalJs(`(() => { const A = window.__pdefe.arama, say = (m, q) => A.eslesmeleriBul(m, q).map((x) => m.slice(x[0], x[1]));
+      return { nokta: say('Örnek :\\n22 tamam ! son', 'Örnek:'), unlem: say('tamam ! son', 'tamam!'), tarih: say('no 12 . 34 . 5678 bitti', '12.34.5678'), bitisik: say('Örnek: 5', 'Örnek :'),
+        ozel: say('a.b (c) [d] e*f', '(c) [d]'), yildiz: say('e*f', 'e*f'), bosSorgu: say('a b', '   '), sonBosluk: say('ab\\ncd', 'ab '), tek: say('aXb axb', 'x').length,
+        ozelTek: say('a?b', '?').length }; })()`);
+    sonuc('Noktalama: "Örnek:" → "Örnek :", "tamam!" → "tamam !", "12.34.5678" → "12 . 34 . 5678"', J(k.nokta) === J(['Örnek :']) && J(k.unlem) === J(['tamam !']) && J(k.tarih) === J(['12 . 34 . 5678']), k);
+    sonuc('Aranandaki boşluk metinde yoksa bulunmaz ("Örnek :" → "Örnek:"), düzenli ifade karakterleri düz aranır', J(k.bitisik) === J([]) && J(k.ozel) === J(['(c) [d]']) && J(k.yildiz) === J(['e*f']) && k.ozelTek === 1, k);
+    sonuc('Yalnızca boşluk aranmaz, sondaki boşluk satır sonuna da uyar, büyük-küçük duyarsız', J(k.bosSorgu) === J([]) && J(k.sonBosluk) === J(['ab\n']) && k.tek === 2, k);
     await kapatTum();
   }
 
