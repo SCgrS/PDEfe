@@ -10,7 +10,7 @@
 //  - Menü kaydı ve varsayılan PDF programı (masaustuKaydiYaz, pdfVarsayilaniOku): AppImage kendini menüye eklemez. Ayarlar'daki "Varsayılan
 //    PDF görüntüleyici yap" ~/.local/share/applications/pdefe.desktop kaydını (simgesiyle) yazar ve xdg-mime ile PDF'lerin varsayılan programı
 //    yapar. Kayıt PDEfe'nin işaretini taşır (X-PDEfe-Kaydi): AppImage taşınınca açılışta yeni yere çevrilir (masaustuKaydiniTazele).
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -50,6 +50,24 @@ export function calistir(komut, args, { zaman = 5000, girdi = null } = {}) {
       });
     } catch (e) { coz({ tamam: false, cikti: '', hata: e?.message || String(e) }); return; }
     if (girdi != null) { surec.stdin.on('error', () => {}); surec.stdin.end(girdi); }
+  });
+}
+
+/**
+ * Arka planda kalan programı çalıştırır (pano: xclip, wl-copy): { tamam, hata }. Bu programlar panoyu tutmak için çatallanır, ön süreç hemen
+ * çıkar. calistir'in execFile'ı ise çıktı akışlarının kapanmasını bekler, arka plandaki süreç devraldığı akışları açık tuttuğu için her
+ * kopyalama süre (5 sn) dolana dek bekliyordu (0.3.1 inceleme). Burada çıktı akışları bağlanmaz, ön süreç çıkınca döner (çıkış kodu 0: tamam).
+ */
+export function calistirArkada(komut, args, { zaman = 5000, girdi = null, olustur = spawn } = {}) {
+  return new Promise((coz) => {
+    let surec, zamanlayici = null, bitti = false;
+    const bitir = (r) => { if (bitti) return; bitti = true; clearTimeout(zamanlayici); coz(r); };
+    try { surec = olustur(komut, args, { env: sistemOrtami(), stdio: ['pipe', 'ignore', 'ignore'] }); } catch (e) { coz({ tamam: false, hata: e?.message || String(e) }); return; }
+    zamanlayici = setTimeout(() => { try { surec.kill(); } catch { /* çıkmış */ } bitir({ tamam: false, hata: 'Süre doldu.' }); }, zaman);
+    surec.on('error', (e) => bitir({ tamam: false, hata: e?.message || String(e) }));
+    surec.on('exit', (kod, sinyal) => bitir({ tamam: kod === 0, hata: kod === 0 ? '' : `Çıkış kodu ${kod ?? sinyal}.` }));
+    surec.stdin.on('error', () => {});
+    surec.stdin.end(girdi ?? undefined);
   });
 }
 

@@ -87,5 +87,40 @@ kontrol('XFA yazı tipleri: her kuralda Arial / Times New Roman\'dan sonra Liber
 kontrol('XFA yazı tipleri: Optima ve Myriad Pro\'da önce formun yazı tipi, sonra Segoe UI (Windows\'ta sıra değişmedi)', kurallar.filter((k) => /Optima|Myriad/.test(k.aile))
   .every((k) => k.adlar.findIndex((a) => /^Segoe ?UI/.test(a)) > 0 && k.adlar.findIndex((a) => /^Segoe ?UI/.test(a)) < k.adlar.findIndex((a) => /^Arial/.test(a))));
 
+// ---- 0.3.1 inceleme: Panonun yedek programları (xclip, wl-copy) çatallanır, arka plandaki süreç çıktı akışlarını açık tutar. calistir'in
+// execFile'ı akışların kapanmasını beklediği için her kopyalamada süre (5 sn) dolana dek bekliyordu. Sahte program: girdiyi dosyaya yazar, akışlarını
+// devralan bir alt süreci arka planda bırakıp hemen çıkar (Node ile, her sistemde)
+{
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { calistir, calistirArkada } = await import('../src/main/linux.js');
+  const klasor = fs.mkdtempSync(path.join(os.tmpdir(), 'pdefe-pano-'));
+  const cikti = path.join(klasor, 'pano.txt');
+  const betik = path.join(klasor, 'sahte-xclip.cjs');
+  fs.writeFileSync(betik, [
+    "const fs = require('fs'), { spawn } = require('child_process');",
+    'let girdi = "";',
+    "process.stdin.on('data', (p) => { girdi += p; });",
+    "process.stdin.on('end', () => {",
+    '  fs.writeFileSync(process.argv[2], girdi);',
+    "  spawn(process.execPath, ['-e', 'setTimeout(() => {}, 4000)'], { stdio: 'inherit', detached: true }).unref();",
+    '  process.exit(0);',
+    '});',
+  ].join('\n'));
+  let t = Date.now();
+  const yeni = await calistirArkada(process.execPath, [betik, cikti], { girdi: 'copy\nfile:///a.pdf', zaman: 3000 });
+  const yeniSure = Date.now() - t;
+  kontrol('Pano programı çatallanınca calistirArkada hemen döner, tamam, girdi verildi', yeni.tamam && yeniSure < 2000 && fs.readFileSync(cikti, 'utf8') === 'copy\nfile:///a.pdf', `${yeniSure} ms ${J(yeni)}`);
+  t = Date.now();
+  const eski = await calistir(process.execPath, [betik, cikti], { girdi: 'x', zaman: 3000 });
+  // Ön süreç 0 ile çıktığı için execFile süre dolunca da başarı der: Kullanıcı her kopyalamada süre kadar bekliyordu
+  kontrol('(karşılaştırma) calistir arka plandaki sürecin akışlarını süre dolana dek bekliyor', Date.now() - t >= 2500, `${Date.now() - t} ms ${J(eski)}`);
+  const yok = await calistirArkada(path.join(klasor, 'olmayan-program'), [], { girdi: 'x', zaman: 3000 });
+  kontrol('Olmayan program: tamam değil, fırlatmaz', !yok.tamam && !!yok.hata, J(yok));
+  const kod = await calistirArkada(process.execPath, ['-e', 'process.exit(3)'], { zaman: 3000 });
+  kontrol('Sıfırdan farklı çıkış kodu: tamam değil', !kod.tamam, J(kod));
+  setTimeout(() => { try { fs.rmSync(klasor, { recursive: true, force: true }); } catch { /* arka plandaki sahte süreç */ } }, 100).unref();
+}
+
 console.log(hata ? `${hata} denetim başarısız.` : 'Bütün denetimler geçti.');
 process.exit(hata ? 1 : 0);

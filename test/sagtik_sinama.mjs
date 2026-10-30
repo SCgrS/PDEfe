@@ -14,7 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  aracIstegi, istekArgumanlari, sagTikAnahtariMi, listeyiOku, eskiSagTikKlasorleriniSil, HIZLI_EYLEMLER, hizliEylemBetigi, hizliEylemDosyalari,
+  aracIstegi, istekArgumanlari, sagTikAnahtariMi, listeyiOku, eskiSagTikKlasorleriniSil, kayitliSurumKlasoru, HIZLI_EYLEMLER, hizliEylemBetigi, hizliEylemDosyalari,
   macHizliEylemleriniKur, macUygulamaYolu, ARAC_ANAHTARLARI, LISTE_ANAHTARI, LISTE_BASLIGI, SAGTIK_CLSID, SAGTIK_DLL, EN_COK_DOSYA,
 } from '../src/main/sagtik.js';
 
@@ -131,6 +131,8 @@ const nshTanim = (metin, ad) => (new RegExp(`^\\s*!define(?:\\s+/ifndef)?\\s+${a
   const cok = Array.from({ length: EN_COK_DOSYA + 5 }, () => a);
   r = aracIstegi(['pdefe', '--donustur', ...cok], k, ACILAN);
   sonuc(`En çok ${EN_COK_DOSYA} dosya`, r.dosyalar.length === EN_COK_DOSYA);
+  // 0.3.1 inceleme: Nesnenin prototip anahtarları araç anahtarı değil ("PDEfe.exe constructor belge.pdf" belgeyi açmalı)
+  sonuc('Prototip anahtarları (constructor, __proto__, toString) sağ tık isteği değil', ['constructor', '__proto__', 'toString', 'hasOwnProperty'].every((x) => aracIstegi(['pdefe', x, a], k, ACILAN) === null && !sagTikAnahtariMi(x)));
   sonuc('Sağ tık anahtarları yeniden başlatmada taşınmaz (sagTikAnahtariMi)', sagTikAnahtariMi('--donustur') && sagTikAnahtariMi('--Birlestir') && sagTikAnahtariMi(`${LISTE_ANAHTARI}x`) && !sagTikAnahtariMi('--remote-debugging-port=1') && !sagTikAnahtariMi(a));
   sonuc('istekArgumanlari: kısa istek komut satırında', J(istekArgumanlari({ arac: 'birlestir', dosyalar: [a, b] })) === J(['--birlestir', a, b]));
   const uzun = Array.from({ length: 400 }, (_, i) => path.join(k, `Çok uzun bir dosya adı, komut satırını doldurmak için ${i}.pdf`));
@@ -171,6 +173,24 @@ const nshTanim = (metin, ad) => (new RegExp(`^\\s*!define(?:\\s+/ifndef)?\\s+${a
   } else {
     sonuc('Kayıttaki (0.3.2) kalır, eskiler silinir', J(silinen.sort()) === J(['0.3.0', '0.3.1']) && J(varlar()) === J(['0.3.2']), { silinen, var: varlar() });
   }
+  // 0.3.1 inceleme: reg.exe yolu OEM kod sayfasıyla yazar, Türkçe harfli kullanıcı klasörünün harfleri bozuk gelir. Önceden yol bütünüyle
+  // karşılaştırılıyordu, tutmayınca kayıttaki sürümün klasörü de siliniyordu. Artık yalnızca sürüm klasörünün adı kullanılır
+  const bozuk = (s) => ['C:', 'Users', 'Kullan\uFFFDc\uFFFD', 'AppData', 'Local', 'PDEfe', 'SagTik', s, SAGTIK_DLL].join('\\');
+  const kabuk = ['C:', 'Windows', 'System32', 'shell32.dll'].join('\\');
+  sonuc('kayitliSurumKlasoru: bozuk harfli yoldan, tırnaklı yoldan sürüm klasörü, başka yolda null', kayitliSurumKlasoru(bozuk('0.3.2')) === '0.3.2'
+    && kayitliSurumKlasoru(`"${path.join(kok, '0.3.1', SAGTIK_DLL)}"`) === '0.3.1' && kayitliSurumKlasoru(kabuk) === null && kayitliSurumKlasoru(null) === null);
+  for (const s of ['0.3.1', '0.3.3']) {
+    fs.mkdirSync(path.join(kok, s), { recursive: true });
+    fs.writeFileSync(path.join(kok, s, SAGTIK_DLL), 'x');
+  }
+  silinen = await eskiSagTikKlasorleriniSil({ yerel, gecici: path.join(gecici, 'temp'), kayitli: async () => bozuk('0.3.2') });
+  sonuc('Kayıttaki yol bozuk harfli: kayıttaki sürümün klasörü (0.3.2) kalır, öbürleri silinir', J(silinen.sort()) === J(['0.3.1', '0.3.3']) && J(varlar()) === J(['0.3.2']), { silinen, var: varlar() });
+  fs.mkdirSync(path.join(kok, '0.3.3'), { recursive: true });
+  fs.writeFileSync(path.join(kok, '0.3.3', SAGTIK_DLL), 'x');
+  silinen = await eskiSagTikKlasorleriniSil({ yerel, gecici: path.join(gecici, 'temp'), kayitli: async () => bozuk('0.3.2'), surum: '0.3.3' });
+  sonuc('Çalışan PDEfe\'nin sürümünün klasörü de kalır', silinen.length === 0 && J(varlar()) === J(['0.3.2', '0.3.3']), { silinen, var: varlar() });
+  silinen = await eskiSagTikKlasorleriniSil({ yerel, gecici: path.join(gecici, 'temp'), kayitli: async () => kabuk });
+  sonuc('Kayıt PDEfe\'nin klasörünü göstermiyorsa hiçbir şey silinmez', silinen.length === 0 && J(varlar()) === J(['0.3.2', '0.3.3']), { silinen, var: varlar() });
   const eskiListe = path.join(gecici, 'temp', 'PDEfe', 'sagtik-9-9-9.txt');
   fs.writeFileSync(eskiListe, LISTE_BASLIGI);
   fs.utimesSync(eskiListe, new Date(Date.now() - 2 * 3600e3), new Date(Date.now() - 2 * 3600e3));

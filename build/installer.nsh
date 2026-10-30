@@ -101,6 +101,12 @@
 !define /ifndef PDEFE_SAGTIK_UST_KLASOR "PDEfe"
 !define /ifndef PDEFE_SAGTIK_RUNONCE "PDEfe sağ tık temizliği"
 !define PDEFE_SAGTIK_KLASORU "${PDEFE_SAGTIK_UST_KLASOR}\SagTik"
+; Herkes için kurulumda (HKLM kaydı) DLL klasörü Program Files'ta (0.3.1 inceleme): $LOCALAPPDATA orada C:\ProgramData'dır, standart
+; kullanıcılar ProgramData'da klasör açıp sahibi olabilir. Önceden açtığı sürüm klasörüne kurucunun koyduğu DLL'i ya da PDEfe-yolu.txt'yi
+; kendininkiyle değiştirip bütün kullanıcıların (yöneticiler dâhil) Gezgin'ine yükletebilir, tıklayana başka bir program açtırabilirdi.
+; Program Files'a yalnızca yöneticiler yazabilir. Kurulum klasörünün içinde değil: Gezgin DLL'i açık tutar, güncellemede eski kurulum klasörü
+; silinemezdi (kullanıcı kurulumundaki sürüm klasörü düzeniyle aynı nedenle)
+!define PDEFE_SAGTIK_HERKES_KLASORU "${PDEFE_SAGTIK_UST_KLASOR} SagTik"
 !define PDEFE_SAGTIK_DLL "PDEfeSagTik.dll"
 !define PDEFE_SAGTIK_YOL_DOSYASI "PDEfe-yolu.txt"
 !define PDEFE_SAGTIK_FIIL_KOKU "Software\Classes\*\shell"
@@ -141,6 +147,16 @@
   ClearErrors
 !macroend
 
+; DLL klasörlerinin kökü ($R6): Kullanıcı kurulumunda %LOCALAPPDATA%\PDEfe\SagTik, herkes için kurulumda Program Files'ta
+; (PDEFE_SAGTIK_HERKES_KLASORU)
+!macro pdefeSagTikKoku
+  ${If} $installMode == "all"
+    StrCpy $R6 "$PROGRAMFILES64\${PDEFE_SAGTIK_HERKES_KLASORU}"
+  ${Else}
+    StrCpy $R6 "$LOCALAPPDATA\${PDEFE_SAGTIK_KLASORU}"
+  ${EndIf}
+!macroend
+
 ; Kurulum (customInstall): DLL sürüm klasörüne, PDEfe'nin yolu, kayıtlar, eski sürüm klasörleri. DLL pakette yoksa (sağ tıksız derleme)
 ; hiçbir şey yazılmaz. Aynı sürümün DLL'i Gezgin'de yüklüyse (Onar) kopyalanamaz, var olan kalır: Aynı sürümün DLL'i aynıdır.
 !macro pdefeSagTikKur
@@ -149,7 +165,7 @@
   Push $R7
   Push $R8
   Push $R9
-  StrCpy $R6 "$LOCALAPPDATA\${PDEFE_SAGTIK_KLASORU}"
+  !insertmacro pdefeSagTikKoku
   StrCpy $R7 "${VERSION}"
   StrCpy $R8 "$R6\$R7\${PDEFE_SAGTIK_DLL}"
   ${If} ${FileExists} "$INSTDIR\resources\sagtik\${PDEFE_SAGTIK_DLL}"
@@ -165,6 +181,9 @@
       ${EndIf}
       !insertmacro pdefeSagTikFiil "Birlestir" "${PDEFE_SAGTIK_CLSID_BIRLESTIR}" "PDEfe ile birleştir"
       !insertmacro pdefeSagTikFiil "Donustur" "${PDEFE_SAGTIK_CLSID_DONUSTUR}" "PDEfe ile dönüştür"
+      ; Kaldırıcının bıraktığı oturum açılışı temizliği (pdefeSagTikKaldir) silinir (0.3.1 inceleme): Aynı oturumda yeniden kurulunca bir
+      ; sonraki oturum açılışında bütün SagTik klasörünü, yeni kurulumun DLL'iyle birlikte siliyordu, menü sessizce kayboluyordu
+      DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\RunOnce" "${PDEFE_SAGTIK_RUNONCE}"
       !insertmacro pdefeSagTikEskileriSil
     ${EndIf}
   ${EndIf}
@@ -178,7 +197,8 @@
 
 ; Kaldırma (customUnInstall): Yalnızca gerçek kaldırmada ("--updated" ile çalışan eski sürüm kaldırıcısında değil: yeni kurulum kaydı yeniden
 ; yazar, klasörleri o temizler). Silinemeyen (yüklü) DLL'in klasörü bir sonraki oturum açılışında silinir: HKCU RunOnce (kayıtlar silindiği
-; için Gezgin DLL'i o oturumda yüklemez). Herkes için kurulumda RunOnce yazılmaz (klasör ProgramData'da, kullanıcı oturumu silemez).
+; için Gezgin DLL'i o oturumda yüklemez). Yeniden kurulum bu değeri siler (pdefeSagTikKur). Herkes için kurulumda RunOnce yazılmaz (klasör
+; Program Files'ta, kullanıcı oturumu silemez): Kalan sürüm klasörünü bir sonraki herkes için kurulum siler.
 !macro pdefeSagTikKaldir
   ${IfNot} ${isUpdated}
     Push $R5
@@ -189,14 +209,15 @@
     DeleteRegKey SHELL_CONTEXT "${PDEFE_SAGTIK_FIIL_KOKU}\${PDEFE_SAGTIK_FIIL_ONEKI}.Donustur"
     DeleteRegKey SHELL_CONTEXT "Software\Classes\CLSID\${PDEFE_SAGTIK_CLSID_BIRLESTIR}"
     DeleteRegKey SHELL_CONTEXT "Software\Classes\CLSID\${PDEFE_SAGTIK_CLSID_DONUSTUR}"
-    StrCpy $R6 "$LOCALAPPDATA\${PDEFE_SAGTIK_KLASORU}"
+    !insertmacro pdefeSagTikKoku
     StrCpy $R7 ""
     !insertmacro pdefeSagTikEskileriSil
     RMDir "$R6"
-    RMDir "$LOCALAPPDATA\${PDEFE_SAGTIK_UST_KLASOR}"
-    ${If} ${FileExists} "$R6\*.*"
-    ${AndIf} $installMode != "all"
-      WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\RunOnce" "${PDEFE_SAGTIK_RUNONCE}" '"$SYSDIR\cmd.exe" /d /c rd /s /q "$R6" & rd "$LOCALAPPDATA\${PDEFE_SAGTIK_UST_KLASOR}"'
+    ${If} $installMode != "all"
+      RMDir "$LOCALAPPDATA\${PDEFE_SAGTIK_UST_KLASOR}"
+      ${If} ${FileExists} "$R6\*.*"
+        WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\RunOnce" "${PDEFE_SAGTIK_RUNONCE}" '"$SYSDIR\cmd.exe" /d /c rd /s /q "$R6" & rd "$LOCALAPPDATA\${PDEFE_SAGTIK_UST_KLASOR}"'
+      ${EndIf}
     ${EndIf}
     ClearErrors
     Pop $R9

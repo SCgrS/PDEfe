@@ -4493,3 +4493,81 @@ birden fazlada hem birleştir üstte altında dönüştür çıksın". Kullanıc
   denenmedi. macOS'ta hiç denenmedi (bu bilgisayarda Mac yok): Finder'ın Hızlı Eylemler menüsünde görünmesi, simge, `open -n` ile açık PDEfe'ye
   iletme, Dock'ta bir an ikinci simge görünüp görünmediği. CI'nın macOS işinde plutil, Hizmetler listesi ve automator'la uçtan uca deneme var
   (ilk koşuda bakılacak). docs/DOGRULAMA.md 46 › Sağ tık.
+
+#### 0.3.1: inceleme düzeltmeleri (iki bağımsız kod incelemesi)
+İki bağımsız inceleme (özellikler: renderer ve çekirdek, platform: kurulum ve tümleşme) 15 bulgu verdi. Her biri kodda doğrulandı, yeniden
+üretilebilenler önce eski kodla üretildi (ölçüm, çekirdek testi ya da ekran dışındaki örnekte senaryo), sonra düzeltildi. Hepsi gerçek çıktı.
+- [x] **1. Çok satırlı alanda uzun yazı çekirdeği kilitliyordu** (formlar.py _satirlar): Sarma her sözcükte satırın, sığmayan sözcüğü bölerken
+  her adımda parçanın tamamını yeniden ölçüyordu (font.text_length her ölçümde karakter karakter MuPDF'e gider). Ölçüm (alanlar.pdf, 10
+  puntoluk çok satırlı alan, boşluksuz yazı): 300 karakter 1,1 sn, 600 karakter 4,9 sn, 1.200 karakter 38 sn. Düzeltme: Karakterin 1 puntodaki
+  genişliği bir kez ölçülür, satırın genişliği soldan sağa toplanır (font.text_length'in toplama sırası: sonuç bayt bayt aynı), sığmayan sözcük
+  tek geçişte bölünür, sığacak ya da çizilecek satırlardan fazlası sarılmaz. Sonra 20.000 karakter 0,01 sn. Eski sarmayla 1.500 rastgele yazıda
+  (Türkçe harfler, sekme, satır sonu, glifi olmayan karakter, çok dar alan) satırlar aynı çıktı.
+- [x] **2. Uzun değer o dosyanın bütün form isteklerini düşürüyordu**: Çekirdek 20.000 karakterden uzun değeri reddediyor, renderer en çok
+  uzunluğu olmayan alana sınır koymuyordu (eski kodla senaryo47'de üretildi: "Form değeri çok uzun."). Düzeltme: Bütün yazı denetimlerinde
+  maxLength en çok 20.000 (formlar.js EN_UZUN_METIN, çekirdekle aynı), uygulanan değer de kesilir (dosyadaki değer daha uzunsa düzenlenince).
+  Çekirdeğin denetimi değişmedi.
+- [x] **3. E-imzalı XFA formu sorulmadan baştan yazılıyordu** (inceleme "olası" demişti, senaryo48'de doğrulandı): PDF.js Rect'i [0 0 0 0] olan
+  imza alanını alan saymadığı için görünmez e-imzalı dinamik form XFA kipinde açılıyor, xfa_kaydet imzaya bakmadan baştan yazıyordu. Düzeltme:
+  Çekirdek e-imzayı bulur (xfa_bilgi eImzali: değeri dolu imza alanının ya da /Perms /DocMDP'nin /ByteRange'i). Kullanım hakları imzası
+  sayılmaz. imza_durumu kullanılamazdı: UR3'ün /ByteRange'ini de imza sayar, kullanıcının bireysel başvuru formunda her kayıtta sorardı
+  (kopyasında eImzali false). Kayıtta notlardaki gibi "Bu form e-imzalı." sorulur: İmzayı koru, Tamamen sil, Vazgeç. Seçim belge kapanana dek
+  hatırlanır (notlarınkiyle ortak), otomatik kayıtta sorulmaz, imza korunur. İmza korunurken PDF.js'in artımlı kaydı olduğu gibi yazılır
+  (ölçüldü: PDF.js özgün baytların sonuna ekler, çekirdeğin bölüm eklemesi de artımlı). Kullanım hakları imzasına da dokunulmaz: Kaldırmak
+  kataloğu değiştirirdi, onaylı belgede izin verilmeyen değişiklik sayılır. İmzalanan bölüm diskteki dosyanınkiyle aynı değilse (çekirdek bir
+  yapı değişikliğini artımlı yazamadıysa) baştan yazılır, "E-imza korunamadı" bildirilir. Seçilmeyen: Her XFA kaydını artımlı yapmak (imzasız
+  formda alanların eski değerleri dosyada kalırdı, 0.3.1'in XFA kararı değişmedi). Referans okuyucuda denenmedi: docs/DOGRULAMA.md 46 madde 69.
+- [x] **4. Her alan geçişinde uzun açıklama yeniden üretiliyordu** (calisma_belgesi, kök neden 1'inki): Otomatik boylu alanda sarma 16 kez
+  yineleniyordu. Ölçüm (sözcüklü yazı): 3.000 karakter 4,8 sn, 8.000 karakter 11,8 sn, 20.000 karakter 29,7 sn. Sarma düzelince 20.000 karakter
+  0,02 sn. Seçilmeyen: Değer kümesi değişince belgeyi dosyadan yeniden açmak yerine yalnızca değişen değerleri önceki kopyaya uygulamak (geri
+  alınan değerin dosyadaki görünümü geri getirilemez, ekrandaki görünüm kaydedilecekten ayrılırdı). Ölçülen süre bunu gerektirmiyor.
+- [x] **5. Yakınlaştırma ile alandan çıkma yarışı** (formlar.js katmanKur / gorunumYenile): Yakınlaştırınca giden katman isteği alandan Tab ile
+  çıkmadan önceki değerle dönüp yeni görünümün üstüne yazıyor, yeni görünüm isteği anahtar değiştiği için atılıyordu (eski kodla senaryo47'de,
+  katman isteğinin yanıtı 800 ms geciktirilerek üretildi). Düzeltme: Her değer değişikliği sayılır (kayit._surum). Katman isteği döndüğünde
+  değeri istek gittikten sonra değişen alanın ekrandaki görünümü kalır (aynı yönde: kutusu sayfanın oranı), görünümü yeni ölçekte yeniden istenir.
+  Onay kutusunda tıklamayla konan görünüm de böylece korunur.
+- [x] **6. Form görünümünde bölünmez boşluk geri geliyordu**: Yazı notunun /PDEfeFonts'taki fontu (insert_font'un ToUnicode'u: boşluk → U+00A0)
+  form görünümünde yeniden kullanılıyordu (ölçüldü). Düzeltme: ToUnicode'u düzeltilmemiş font yeniden kullanılmaz (_tounicode_dogru_mu), form
+  görünümü düzeltilmiş kendi kopyasını bir kez gömer, sonraki kayıtlar onu bulur. Seçilmeyen: Yazı notunun fontunun ToUnicode'unu yerinde
+  düzeltmek (FreeText'e dokunmama kararı, e-imzalı belgede eski nesne değişirdi).
+- [x] **7. Önbellekten atılan dosyanın çalışma belgesi açık kalıyordu**: belge_birak ve araçların _onbellekten_birak'ı yalnızca önbellekte kaydı
+  olan yolu bırakıyordu. Düzeltme: İkisi de çalışma belgelerini her durumda bırakır (form_testi'nde 9 dosya açılıp kaydı atılan dosya taşındı).
+- [x] **8. Geri al sürerken sekme taşınınca form ile geri al yığını tutmuyordu** (eski kodla senaryo48'de üretildi: Pakette 2 satırlı form,
+  yığının konumu 0). Düzeltme: sekmePaketi XFA kuyruğunu bekler (XfaYoneticisi.bekle). Düğme işi sürerken (xfa.mesgul) taşıma reddedilir:
+  "Form yeniden diziliyor. Bitince yeniden deneyin."
+- [x] **9. Yeni örnek ilk örneğin içeriğinin bir parçasını taşıyordu** (xfa.py _bos_grup): Yalnızca öğelerin metni siliniyordu, iç öğelerin
+  ardındaki metin (zengin metinde " sonu") ve öznitelik değerleri (bağlı görselin href'i) kalıyordu. Düzeltme: XHTML içeriği silinir, ad alanı
+  olmayan öznitelikler boşaltılır (öğe kalır, alan veri düğümüne bağlanır), ardındaki metinler silinir. Ad alanlı öznitelikler (dataNode,
+  contentType) yapıdır, kalır.
+- [x] **10. Otomatik kayıt form dizilirken atlanıp yeniden kurulmuyordu**: Düzeltme: Zamanlayıcı dolduğunda form yeniden diziliyorsa ya da bir
+  alan düzenleniyorsa zamanlayıcı yeniden kurulur (uygulama.js otoKayitKur). Not düzenleyicisi bitince kirliGuncelle'yi eskisi gibi kendisi çağırır.
+- [x] **11. Türkçe harfli kullanıcı klasöründe güncel sağ tık DLL'i siliniyordu** (yüksek): reg.exe yolu OEM kod sayfasıyla yazıyor, utf8
+  okununca Türkçe harfler bozuk geliyor (bu bilgisayarda ölçüldü). Yol bütünüyle karşılaştırıldığı için kayıttaki sürümün klasörü eski sayılıp
+  siliniyordu. Düzeltme: Kayıttan yalnızca sürüm klasörünün adı alınır (…\SagTik\<sürüm>\PDEfeSagTik.dll, ASCII, kayitliSurumKlasoru), çıktı
+  latin1 okunur, çalışan PDEfe'nin sürümünün klasörü de kalır. Ad çıkarılamazsa hiçbir şey silinmez. Kayıt başka yerdeki bir klasörü gösteriyorsa
+  bu klasördeki aynı adlı da kalır (silmekten değil, korumaktan yana). Seçilmeyen: Kaydı reg export ya da PowerShell ile okumak (geçici dosya
+  ya da yavaş başlangıç, gereken yalnızca ASCII sürüm adı).
+- [x] **12. Kaldırıcının RunOnce temizliği yeniden kurulumu bozuyordu**: Düzeltme: pdefeSagTikKur RunOnce değerini siler. Deneme kurucusuyla
+  ölçüldü (kurucu_akis C2b): DLL yüklüyken kaldır → RunOnce yazıldı, aynı oturumda yeniden kur → RunOnce yok, kayıt ve DLL yerinde, yeniden
+  kaldır → RunOnce yeniden yazıldı. Testin kendi hatası da çıktı: `$runOnce` değişkeni `$RUNONCE` sabitinin üzerine yazıyordu (PowerShell'de değişken
+  adları büyük / küçük harf ayırmaz), C2'den sonraki bütün RunOnce denetimleri ve temizlik boşa gidiyordu. Düzeltildi (`$runOnceDegeri`).
+- [x] **13. Herkes için kurulumda DLL ProgramData'daydı** (yetki yükseltmesi): Standart kullanıcı C:\ProgramData'da sürüm klasörünü önceden
+  açıp sahibi olabiliyor, kurucunun koyduğu DLL'i ya da PDEfe-yolu.txt'yi değiştirebiliyordu (HKLM kaydı bütün kullanıcıların Gezgin'ine yükler).
+  Düzeltme: Herkes için kurulumda sürüm klasörleri Program Files\PDEfe SagTik\<sürüm>\ (yalnızca yöneticiler yazabilir). Kurulum klasörünün
+  içinde değil: Gezgin DLL'i tutar, güncelleme eski kurulum klasörünü silemezdi. Kaldırırken yüklü DLL'in klasörü kalır, sonraki herkes için
+  kurulum siler (RunOnce yazılmaz, eskisi gibi). Seçilmeyen: Herkes için kurulumda sağ tığı hiç kurmamak. Yönetici kurulumu bu bilgisayarda
+  sınanmadı (gerçek sisteme yazardı): Kurucu derlendi (makensis -WX), kullanıcı kurulumu kurucu_akis'te sınandı. docs/DOGRULAMA.md 46 madde 72.
+- [x] **14. Linux'ta pano yedeği her kopyalamada 5 sn bekliyordu**: xclip ve wl-copy çatallanır, arka plandaki süreç çıktı akışlarını açık tutar,
+  execFile onların kapanmasını bekler. Bulgudaki "başarısız sayılıyor" kısmı doğru değil: Ön süreç 0 ile çıktığı için execFile süre dolunca da
+  başarı der (sahte çatallanan programla ölçüldü). Düzeltme: linux.js calistirArkada (çıktı akışları bağlanmaz, ön süreç çıkınca döner). Linux'ta
+  denenmedi.
+- [x] **15. "constructor" bağımsız değişkeni sağ tık isteği sayılıyordu**: `in` prototip zincirine bakıyordu. Düzeltme: Object.hasOwn.
+- [x] **Testler**: form_testi 109/109 (yeni: önbellekten atılan dosyanın çalışma belgesi iki yoldan, 20.000 karakterlik boşluksuz ve otomatik
+  boylu yazı 2 sn sınırı, kısa yazının boyu, sarma kuralları, ToUnicode'u bozuk font), xfa_testi 53/53 (yeni: eImzali, imzayı koruyan kayıt,
+  tamamen sil, imzalanan bölüm değişmişken, imzasız form, yeni örneğin içeriği), senaryo47 77/77 (yeni 15. bölüm: uzunluk sınırı, yarış),
+  senaryo48 57/57 (yeni 14. bölüm: e-imzalı form, 15. bölüm: geri al sürerken paket, düğme işi sürerken taşıma, ertelenen otomatik kayıt),
+  sagtik_sinama 51/51 (yeni: prototip anahtarları, bozuk harfli kayıt yolu, çalışan sürümün klasörü), linux_birim (yeni: çatallanan pano
+  programı), pano_birim, kurucu_akis (C2b), guvenlik_testi 47/47, yapisal_esleme_testi 13/13, kose_notu_testi 49/49, kayit_sekme_panel 61/61.
+  test/xfa_pdf_uret.py görünmez sahte e-imzalı formu da üretir (xfa-imzali.pdf). oto_kayit_kilit'in ilk iki denetimi (kilitli dosyada otomatik
+  kayıt 3,5 sn içinde durmuyor) değişiklikten önceki uygulama.js ile de aynı düşüyor, bu işle ilgisi yok. araclar_testi bu bilgisayarda çalışmıyor
+  (kullanıcının deneme belgelerini ister), _onbellekten_birak form_testi'nde sınandı.

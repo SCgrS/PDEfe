@@ -85,12 +85,13 @@ async function linuxPanoyaKopyala(yol) {
     if (await clipboard.has(LINUX_PANO_TURLERI.gnome) || await clipboard.has(LINUX_PANO_TURLERI.uriList)) return { tamam: true, hata: '' };
     hata = 'Pano dosya türlerini almadı.';
   } catch (e) { hata = e?.message || String(e); }
-  // Yedek: xclip (X11, XWayland) ya da wl-copy (Wayland); ikisi de arka planda kalıp panoyu PDEfe kapansa da tutar
-  const { calistir } = await import('./linux.js');
+  // Yedek: xclip (X11, XWayland) ya da wl-copy (Wayland); ikisi de arka planda kalıp panoyu PDEfe kapansa da tutar (çatallanırlar: ön süreç
+  // çıkınca dönülür, calistirArkada)
+  const { calistirArkada } = await import('./linux.js');
   const gnome = oge[LINUX_PANO_TURLERI.gnome];
   for (const [komut, args] of [process.env.WAYLAND_DISPLAY ? ['wl-copy', ['--type', 'x-special/gnome-copied-files']] : null,
     ['xclip', ['-selection', 'clipboard', '-t', 'x-special/gnome-copied-files', '-i']]].filter(Boolean)) {
-    const r = await calistir(komut, args, { girdi: gnome, zaman: 5000 });
+    const r = await calistirArkada(komut, args, { girdi: gnome, zaman: 5000 });
     if (r.tamam) return { tamam: true, hata: '' };
   }
   return { tamam: false, hata: 'Dosya panoya konamadı. ' + hata };

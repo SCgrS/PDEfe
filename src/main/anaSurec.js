@@ -142,7 +142,7 @@ function sagTikBakimiYapilir() {
 /** Windows: eski sürümlerin sağ tık DLL klasörleri silinir. macOS: Finder'ın Hızlı Eylemleri kurulur / yenilenir (sagtik.js). */
 async function sagTikBakimi() {
   if (process.platform === 'win32') {
-    const silinen = await eskiSagTikKlasorleriniSil();
+    const silinen = await eskiSagTikKlasorleriniSil({ surum: app.getVersion() });
     if (silinen.length) console.log('[sağ tık] eski DLL klasörleri silindi:', silinen.join(', '));
     return;
   }

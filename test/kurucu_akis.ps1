@@ -587,13 +587,32 @@ try {
   Denetle 'kurucu kapandı' ($kod -ge 0) "çıkış $kod"
   Kaldiriciyi-Sur $p 'akis-C2-kaldirici'
   $kalanKayit = @(SagTik-Anahtarlari | Where-Object { Paket-Anahtar-Var $_ })
-  $runOnce = Paket-Deger $RUNONCE $sagTikRunOnce
+  # Değişkenin adı $RUNONCE sabitinden ayrı: PowerShell'de değişken adları büyük / küçük harf ayırmaz (önceden sabitin üzerine yazılıyor, sonraki
+  # bütün RunOnce denetimleri ve temizlik boşa gidiyordu)
+  $runOnceDegeri = Paket-Deger $RUNONCE $sagTikRunOnce
   $beklenenRunOnce = "`"$([Environment]::SystemDirectory)\cmd.exe`" /d /c rd /s /q `"$sagTikKok`" & rd `"$sagTikUst`""
   Denetle 'Kaldır (DLL yüklü): sağ tık kayıtları silindi, yüklü DLL''in klasörü kaldı' ($kalanKayit.Count -eq 0 -and (Test-Path -LiteralPath (SagTik-Dll '90.0.2'))) ($kalanKayit -join ', ')
-  Denetle 'Kaldır (DLL yüklü): klasör bir sonraki oturum açılışında silinecek (HKCU RunOnce)' ($runOnce -ieq $beklenenRunOnce) "«$runOnce» ≠ «$beklenenRunOnce»"
+  Denetle 'Kaldır (DLL yüklü): klasör bir sonraki oturum açılışında silinecek (HKCU RunOnce)' ($runOnceDegeri -ieq $beklenenRunOnce) "«$runOnceDegeri» ≠ «$beklenenRunOnce»"
+  # 0.3.1 inceleme: Oturum kapanmadan yeniden kurulursa RunOnce silinmeli (yoksa oturum açılışında yeni kurulumun DLL klasörünü de silerdi)
+  Yaz 'C2b. aynı oturumda (DLL hâlâ yüklü) 90.0.2 /S --no-desktop-shortcut: RunOnce silinir'
+  $r = Sessiz-Kur $Yeni '/S --no-desktop-shortcut'
+  Denetle "yeniden kuruldu ($($r.Sure) sn), RunOnce yok" ($r.Kod -eq 0 -and (Paket-Deger $RUNONCE $sagTikRunOnce) -eq '<yok>') "çıkış $($r.Kod); RunOnce «$(Paket-Deger $RUNONCE $sagTikRunOnce)»"
+  SagTik-Kurulu 'Kaldır sonra aynı oturumda yeniden kur' '90.0.2'
+  # Yeniden kaldır (DLL yine yüklü): RunOnce yeniden yazılır, aşağıda oturum açılışı benzetilir
+  $p = Kurucu-Baslat $Yeni
+  $w = Sihirbaz-Bekle -surec $p
+  $s = Sayfa-Oku $w.Hwnd
+  [KurucuSurucu]::Tikla($s.Secenekler[1].Hwnd) | Out-Null
+  Denetle 'İleri «Kaldır»' ((Sayfa-Oku $w.Hwnd).Ileri.Yazi -eq 'Kaldır') "«$((Sayfa-Oku $w.Hwnd).Ileri.Yazi)»"
+  [KurucuSurucu]::Dugme($w.Hwnd, 1) | Out-Null
+  $kod = [KurucuSurucu]::Bekle($p, 10000)
+  Denetle 'kurucu kapandı' ($kod -ge 0) "çıkış $kod"
+  Kaldiriciyi-Sur $p 'akis-C2b-kaldirici'
+  $runOnceDegeri = Paket-Deger $RUNONCE $sagTikRunOnce
+  Denetle 'Yeniden kaldır (DLL yüklü): RunOnce yeniden yazıldı' ($runOnceDegeri -ieq $beklenenRunOnce) "«$runOnceDegeri»"
   [SagTikKilit]::Birak($kilit) | Out-Null
   # Oturum açılışının yaptığı: RunOnce komutu çalışır, değer silinir
-  if ($runOnce -match '^"([^"]+)" (.*)$') {
+  if ($runOnceDegeri -match '^"([^"]+)" (.*)$') {
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $Matches[1]; $psi.Arguments = $Matches[2]; $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true
     [System.Diagnostics.Process]::Start($psi).WaitForExit(15000) | Out-Null

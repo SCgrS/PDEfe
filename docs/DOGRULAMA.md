@@ -1254,3 +1254,21 @@ Bu bilgisayarda Mac yok. Hızlı Eylem dosyaları ve betiği burada sınandı, G
 66. **Taşıma ve silme.** PDEfe'yi başka bir klasöre taşıyıp bir kez açın: Hızlı Eylemler yine çalışmalı. PDEfe'yi Çöp Sepeti'ne atıp Hızlı Eylem'i
     deneyin: "PDEfe bulunamadı" iletisi görünmeli (hata kutusu değil). Hızlı Eylemleri istemezseniz Finder'da sağ tık › Hızlı Eylemler ›
     Özelleştir'den kapatabilirsiniz. `~/Library/Services`'ten silerseniz PDEfe onları yeniden kurmaz.
+
+İnceleme düzeltmeleri
+İki bağımsız kod incelemesinin bulguları. Kurgusal belgelerle, ekran dışındaki test örneğinde ve deneme kurucusuyla sınandı.
+67. **Uzun yazı.** Doldurulabilir bir PDF'te çok satırlı bir alana (ör. açıklama) birkaç sayfalık bir metin, sonra boşluksuz uzun bir bağlantı
+    yapıştırıp Tab'a basın: PDEfe donmamalı, alanın görünümü hemen gelmeli. Başka alanlara geçmek, kaydetmek ve yazdırmak da beklemeden olmalı.
+68. **Yakınlaştırırken yazmak.** Bir alana yazıp hemen Ctrl+tekerlekle yakınlaştırın ve Tab'a basın: Alan yazdığınızı göstermeli. Onay
+    kutusunu işaretleyip hemen yakınlaştırın: İşaret kalmalı.
+69. **E-imzalı form.** Elinizde e-imzalı ya da onaylı (sertifikalı) bir XFA formu varsa açın, bir alanı değiştirip kaydedin: "Bu form e-imzalı."
+    sorulmalı. İmzayı koru deyip kaydettiğiniz dosyayı referans okuyucuda açın: İmza geçersiz görünmemeli (imzadan sonra değiştirilmiş görünebilir).
+    Tamamen sil derseniz imza geçersiz görünür. Bireysel başvuru formunda (e-imzasız) bu soru hiç çıkmamalı.
+70. **Sağ tık, güncellemeden sonra.** Bu sürümü kurup PDEfe'yi açın, 15 saniye bekleyip kapatın: Sağ tıkta PDEfe seçenekleri durmalı.
+    `%LOCALAPPDATA%\PDEfe\SagTik` klasöründe bu sürümün klasörü olmalı (Türkçe harfli kullanıcı klasöründe önceden siliniyordu).
+71. **Kaldırıp aynı oturumda yeniden kurmak.** Sağ tık menüsünü bir kez açın, PDEfe'yi kaldırın, bilgisayarı yeniden başlatmadan yeniden kurun,
+    sonra bilgisayarı yeniden başlatın: Sağ tıkta PDEfe seçenekleri yine görünmeli.
+72. **Herkes için kurulum (isteğe bağlı, yönetici hesabıyla).** `PDEfe-Setup.exe /allusers` ile kurun: Sağ tık DLL'i
+    `C:\Program Files\PDEfe SagTik\<sürüm>` altında olmalı, `C:\ProgramData\PDEfe` oluşmamalı, sağ tık çalışmalı.
+73. **Linux'ta PDF'i kopyala.** Sekmeye sağ tıklayıp PDF'i kopyala deyin: Bildirim beklemeden gelmeli (önceden xclip'e düşen bilgisayarda 5 sn
+    sürüyordu), dosya yöneticisine yapıştırılabilmeli.

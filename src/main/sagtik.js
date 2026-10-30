@@ -9,8 +9,9 @@
 // Başka yerdeki dosya okunmaz, silinmez: Komut satırı başka bir programdan da gelebilir.
 //
 // Windows: Kabuk eklentisi (sagtik/, Rust, IExplorerCommand), kaydı ve DLL'i kurucu yazar (build/installer.nsh madde 11). DLL kurulum klasöründe
-// değil %LOCALAPPDATA%\PDEfe\SagTik\<sürüm>\'de: Gezgin DLL'i açık tutar, güncellemede kurulum klasörü silinemezdi. Eski sürüm klasörleri
-// kilidi kalkınca silinir: kurucu ve PDEfe'nin açılışı (eskiSagTikKlasorleriniSil).
+// değil %LOCALAPPDATA%\PDEfe\SagTik\<sürüm>\'de (herkes için kurulumda Program Files\PDEfe SagTik\<sürüm>\'de): Gezgin DLL'i açık tutar,
+// güncellemede kurulum klasörü silinemezdi. Eski sürüm klasörleri kilidi kalkınca silinir: kurucu ve PDEfe'nin açılışı
+// (eskiSagTikKlasorleriniSil, yalnızca kullanıcı kurulumunun klasörleri).
 // macOS: Finder › Hızlı Eylemler (Automator iş akışları, ~/Library/Services). DMG'den sürüklenerek kurulduğu için PDEfe açılışta kendisi kurar ve
 // uygulamanın yeri değişince yeniler (macHizliEylemleriniKur). Apple seçim sayısına göre gizletmez: tek dosyada da "birleştir" görünür.
 import fs from 'node:fs';
@@ -28,10 +29,14 @@ export const EN_COK_DOSYA = 1000;
 const LISTE_ADI = /^sagtik-[0-9]+-[0-9]+-[0-9]+\.txt$/i;
 const LISTE_EN_BUYUK = 8 * 1024 * 1024;
 
+/** Araç anahtarı mı. Yalnızca nesnenin kendi anahtarları (0.3.1 inceleme: `in` prototip zincirine de bakıyordu, "constructor" ya da
+ *  "__proto__" bağımsız değişkeni sağ tık isteği sayılıyor, açılacak PDF açılmıyordu). */
+const aracAnahtariMi = (k) => Object.hasOwn(ARAC_ANAHTARLARI, k);
+
 /** Sağ tık isteğinin anahtarı mı (araç anahtarı ya da liste): yeniden başlatmada (anaSurec.js kapanirkenGeleniAc) taşınmaz. */
 export function sagTikAnahtariMi(a) {
   const k = String(a || '').toLowerCase();
-  return k in ARAC_ANAHTARLARI || k.startsWith(LISTE_ANAHTARI);
+  return aracAnahtariMi(k) || k.startsWith(LISTE_ANAHTARI);
 }
 
 /** Liste dosyalarının klasörü: %TEMP%\PDEfe (DLL GetTempPathW'nin altına yazar). Kısa (8.3) adlar ve bağlantılar çözülür. */
@@ -69,7 +74,7 @@ export function aracIstegi(argv, cwd, uzantilar, { varMi = (y) => { try { return
   for (const a of (Array.isArray(argv) ? argv : []).slice(1)) {
     if (typeof a !== 'string' || !a) continue;
     const k = a.toLowerCase();
-    if (k in ARAC_ANAHTARLARI) { arac ??= ARAC_ANAHTARLARI[k]; continue; }
+    if (aracAnahtariMi(k)) { arac ??= ARAC_ANAHTARLARI[k]; continue; }
     if (k.startsWith(LISTE_ANAHTARI)) { adaylar.push(...listeyiOku(a.slice(LISTE_ANAHTARI.length), { gecici })); continue; }
     if (a.startsWith('-') || a === '.') continue;
     adaylar.push(a);
@@ -108,24 +113,34 @@ export const SAGTIK_DLL = 'PDEfeSagTik.dll';
 /** "PDEfe ile dönüştür"ün CLSID'i (build/installer.nsh, sagtik/src/lib.rs). */
 export const SAGTIK_CLSID = '{76052C3F-EA2F-47A3-88B2-A488CB6BC682}';
 
-/** Kayıtlı DLL'in yolu (HKCU\Software\Classes\CLSID\{…}\InprocServer32); okunamazsa null. reg.exe tam yoluyla (anaSurec.js progIdOku gibi). */
+/** Kayıtlı DLL'in yolu (HKCU\Software\Classes\CLSID\{…}\InprocServer32); okunamazsa null. reg.exe tam yoluyla (anaSurec.js progIdOku gibi).
+ *  reg.exe yolu OEM kod sayfasıyla yazar: Türkçe harfli kullanıcı klasöründe yolun o harfleri bozuk gelir (0.3.1 inceleme, ölçüldü). Çıktı
+ *  latin1 okunur (her bayt bir harf, ASCII bölüm bozulmaz), kayıttan yalnızca sürüm klasörünün adı kullanılır (kayitliSurumKlasoru). */
 function kayitliDll() {
   const reg = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'reg.exe');
   return new Promise((coz) => {
-    execFile(reg, ['query', `HKCU\\Software\\Classes\\CLSID\\${SAGTIK_CLSID}\\InprocServer32`, '/ve'], { windowsHide: true, timeout: 5000 }, (hata, cikti) => {
+    execFile(reg, ['query', `HKCU\\Software\\Classes\\CLSID\\${SAGTIK_CLSID}\\InprocServer32`, '/ve'], { windowsHide: true, timeout: 5000, encoding: 'latin1' }, (hata, cikti) => {
       const m = !hata && /^\s*\(.*?\)\s+REG_(?:EXPAND_)?SZ\s+(.+?)\s*$/im.exec(String(cikti || ''));
       coz(m ? m[1] : null);
     });
   });
 }
 
+/** Kayıtlı DLL yolunun sürüm klasörü (…\SagTik\<sürüm>\PDEfeSagTik.dll'deki <sürüm>, küçük harfle); tutmazsa null. Yolun geri kalanı
+ *  karşılaştırılmaz: reg.exe'nin çıktısında ASCII dışındaki harfler bozuk gelir (kayitliDll). Kayıt başka bir klasörü gösteriyorsa bu
+ *  klasörde aynı adlı olan da kalır (silmekten değil, korumaktan yana yanılır). */
+export function kayitliSurumKlasoru(dll) {
+  const m = /[\\/]SagTik[\\/]([^\\/]+)[\\/]PDEfeSagTik\.dll"?$/i.exec(String(dll || '').trim());
+  return m ? m[1].toLowerCase() : null;
+}
+
 /**
- * Eski sürümlerin DLL klasörlerini siler (PDEfe'nin açılışında; kurucu da siler). Kayıttaki DLL'in klasörü kalır. Klasör ancak içindeki DLL
- * silinebildiyse silinir: Gezgin'in açık tuttuğu (yüklü) DLL silinemez, o klasörün PDEfe-yolu.txt'si de kalır (yüklü eski DLL tıklanınca onu
- * okur). Kayıt okunamazsa hiçbir şey silinmez. Bir saatten eski, okunmamış liste dosyaları da silinir (PDEfe açılamadıysa kalmışlardır).
+ * Eski sürümlerin DLL klasörlerini siler (PDEfe'nin açılışında; kurucu da siler). Kayıttaki DLL'in sürüm klasörü ve surum (çalışan PDEfe'nin
+ * sürümü) klasörü kalır. Klasör ancak içindeki DLL silinebildiyse silinir: Gezgin'in açık tuttuğu (yüklü) DLL silinemez, o klasörün
+ * PDEfe-yolu.txt'si de kalır (yüklü eski DLL tıklanınca onu okur). Kayıt okunamazsa ya da sürüm klasörü çıkarılamazsa hiçbir şey silinmez. Bir saatten eski, okunmamış liste dosyaları da silinir (PDEfe açılamadıysa kalmışlardır).
  * Döner: silinen klasörlerin adları.
  */
-export async function eskiSagTikKlasorleriniSil({ yerel = process.env.LOCALAPPDATA, gecici = os.tmpdir(), kayitli = kayitliDll } = {}) {
+export async function eskiSagTikKlasorleriniSil({ yerel = process.env.LOCALAPPDATA, gecici = os.tmpdir(), kayitli = kayitliDll, surum = null } = {}) {
   const silinen = [];
   try {
     const klasor = path.join(listeKlasoru(gecici));
@@ -139,12 +154,13 @@ export async function eskiSagTikKlasorleriniSil({ yerel = process.env.LOCALAPPDA
   const kok = path.join(yerel, SAGTIK_KLASORU);
   let adlar;
   try { adlar = fs.readdirSync(kok, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name); } catch { return silinen; }
-  const dll = await kayitli();
-  if (!dll) return silinen;
-  const tutulan = path.resolve(path.dirname(dll)).toLowerCase();
+  const kayittaki = kayitliSurumKlasoru(await kayitli());
+  if (!kayittaki) return silinen;
+  // Kayıttaki sürümün ve çalışan PDEfe'nin sürümünün klasörü kalır
+  const tutulan = new Set([kayittaki, ...(surum ? [String(surum).toLowerCase()] : [])]);
   for (const ad of adlar) {
     const k = path.join(kok, ad);
-    if (path.resolve(k).toLowerCase() === tutulan) continue;
+    if (tutulan.has(ad.toLowerCase())) continue;
     try { fs.rmSync(path.join(k, SAGTIK_DLL), { force: true }); } catch { continue; }   // Gezgin'de yüklü
     try { fs.rmSync(k, { recursive: true, force: true }); silinen.push(ad); } catch { /* sonra */ }
   }
