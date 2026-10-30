@@ -33,6 +33,10 @@ const KOMUT_EYLEMLERI = { kaydet: 'dosya.kaydet', farkliKaydet: 'dosya.farkliKay
 const DUZ_BEKLEME_MS = 2000;     // değişiklikten sonra küçük resimlerin düz PDF'i bu kadar beklenip yenilenir
 const AD_UZUNLUGU = 48;          // komut adındaki alan adının en çok karakteri (geri al listeleri)
 
+/** Değerin form verisine yazılan hâli. PDF.js formu dizerken değerin boş satırlarını atıyor (Text: split().filter(Boolean)): Paragraflar arasındaki
+ *  boş satır düğmeye basınca, yazdırınca ve dosya yeniden açılınca kayboluyordu (0.3.1 kabul sınaması). Boş satıra bir boşluk konur, görünüşü aynı. */
+const veriDegeri = (d) => (typeof d === 'string' && d.includes('\n') ? d.replace(/(^|\n)(?=\n)/g, '$1 ') : d);
+
 /** Baytlar → base64 (çekirdeğe). Parça parça: String.fromCharCode'un argüman sınırı. */
 export function base64Yaz(b) {
   let s = '';
@@ -246,7 +250,7 @@ export class XfaYoneticisi extends EventTarget {
     if (!veri || !b) return false;
     const yeni = this._alanDegeri(el);
     const eski = this._acik?.veri === veri ? this._acik.ilk : b.annotationStorage.getValue(veri, { value: yeni }).value;
-    b.annotationStorage.setValue(veri, { value: yeni });   // PDF.js da yazar (input / change); seçimden sonra da aynı olsun
+    b.annotationStorage.setValue(veri, { value: veriDegeri(yeni) });   // PDF.js da yazar (input / change); seçimden sonra da aynı olsun
     if (this._acik?.veri === veri) this._acik.ilk = yeni;
     for (const x of this._ogeler(veri)) if (x !== el) this._elemanaKoy(x, yeni);   // aynı veriye bağlı öbür alanlar
     if ((eski ?? '') === (yeni ?? '')) return false;
@@ -268,7 +272,7 @@ export class XfaYoneticisi extends EventTarget {
     this._kuyruk = this._kuyruk.then(() => {
       const b = this.g.belge, veri = this._sira().kimlikler[sira];
       if (!b || !veri) return;
-      b.annotationStorage.setValue(veri, { value: deger });
+      b.annotationStorage.setValue(veri, { value: veriDegeri(deger) });
       for (const el of this._ogeler(veri)) { this._elemanaKoy(el, deger); this._tasmaGuncelle(el); }
       if (this._acik?.veri === veri) this._acik.ilk = deger;
     }).catch((e) => console.warn('XFA alanı', e));

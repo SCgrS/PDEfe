@@ -531,6 +531,18 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz, tus,
     await yaz('Çok uzun bir ad soyad yazısı '.repeat(12));
     sonuc('16) Tek satırda genişliği aşan yazı işaretlenir', await s48(`H.denetim('AdSoyad').classList.contains('xfa-tasiyor')`));
     await tus('Tab');
+    // Boş satır: Yeniden dizilince, kaydedip yeniden açınca kalır (PDF.js değerin boş satırlarını atar)
+    await tiklaAd('Aciklama', 0);
+    await tus('a', ['ctrl']);
+    await yaz('Birinci paragraf\n\nİkinci paragraf');
+    await tus('Tab');
+    await tiklaAd('SatirSil', 1, 2);
+    await durgun();
+    const satirSayisi = async () => ((await deger('Aciklama', 0)) || '').split('\n').length;
+    sonuc('16) Boş satır: Düğmeden sonra (yeniden dizim) kaldı', (await satirSayisi()) === 3 && (await sayfaSayisi()) === 1, await deger('Aciklama', 0));
+    await evalJs(`(async () => { const b = window.__s48.b(); await window.__pdefe.belgeKaydet(b); return true; })()`);
+    await ac(yol16);
+    sonuc('16) Boş satır: Kaydedip yeniden açınca kaldı', (await satirSayisi()) === 3, await deger('Aciklama', 0));
   }
 
   const hatalar = await evalJs(`(window.__hatalar || []).slice(0, 8)`).catch(() => []);
