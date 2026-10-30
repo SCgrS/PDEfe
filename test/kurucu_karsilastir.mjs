@@ -122,7 +122,8 @@ const SAGTIK_DONGU = [
   /Push: \$R[5-9]/, /Pop: \$R[5-9]/, /StrCpy \$R[5-9] "[^"]*" \(\) \(\)/, /ClearErrors/,
   /FindFirst: spec="\$R6\\\*" handle=\$R9 output=\$R5/, /FindNext: handle=\$R9 output=\$R5/, /FindClose: \$R9/,
   /StrCmp "\$R5" "(|\.|\.\.|\$R7)" equal=\S*, nonequal=\S*/, /IfFileExists: "[^"]*" \? ?\S* : ?\S*/,
-  /Delete: "\$R6\\\$R5\\PDEfeSagTik\.dll"/, /RMDir: \/r "\$R6\\\$R5"/, /Goto: _LogicLib_Label_N/,
+  /Delete: "\$R6\\\$R5\\PDEfeSagTik\.dll"/, /RMDir: \/r "\$R6\\\$R5"/, /Goto: _LogicLib_(?:EndIf)?Label_N/,
+  /StrCmp "\$installMode" "all" equal=\S*, nonequal=\S*/,   // DLL klasörlerinin kökü: Herkes için kurulumda Program Files (inceleme 13)
 ];
 const SAGTIK_FIIL = String.raw`\\Software\\Classes\\(?:CLSID\\\{[0-9A-F-]{36}\}(?:\\InprocServer32)?|\*\\shell\\[A-Za-z]+\.(?:Birlestir|Donustur))`;
 const desen = (parcalar) => new RegExp(`^(?:${parcalar.map((p) => (p instanceof RegExp ? p.source : p)).join('|')})$`);
@@ -135,6 +136,7 @@ const BEKLENEN_FARKLAR = [
       /CreateDirectory: "\$R6\\\$R7"/, /Plugin command: Call kernel32::CopyFileW\(w "\$INSTDIR\\resources\\sagtik\\PDEfeSagTik\.dll", w R8, i 0\) i \.R9/,
       /FileOpen: \$R6\\\$R7\\PDEfe-yolu\.txt as w -> \$R9/, /IfErrors \?\S*:\S*/, /FileWriteWord: 0xFEFF->\$R9/, /FileWriteUTF16LE: \$INSTDIR\\[^>]+\.exe->\$R9/,
       /FileClose: \$R9/, String.raw`WriteRegStr: SHELL_CONTEXT${SAGTIK_FIIL}\\[A-Za-z]*=.*`,
+      /DeleteRegValue: HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce\\[^=]+/,   // kaldırıcının bıraktığı temizliği iptal eder (inceleme 12)
     ]),
     gerekli: [/ExplorerCommandHandler=\{[0-9A-F-]{36}\}$/, /\.Birlestir\\MultiSelectModel=Player$/, /\.Donustur\\CommandStateSync=$/, /CopyFileW/, /FileWriteUTF16LE/],
   },
