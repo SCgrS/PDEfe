@@ -2,8 +2,9 @@
 """Çekirdeğin dinamik XFA formları (0.3.1, core/islemler/xfa.py): şablon bilgisi (düğmelerin tanınan eylemleri, tanınmayan betik, sayfa
 numarası alanları, basılmayan öğeler, tekrarlanabilir alt formlar), SOM çözümü, örnek ekleme / silme (yeni örnek var olanın yapısıyla,
 değerleri boş; occur sınırları), görünürlük (şablonda presence, öbür baytlar aynı), artımlı yazım (girdi + ek), kaydetme (baştan yazım,
-kullanım hakları imzasının kaldırılması, DocMDP'nin kalması, MuPDF onarmadan açar), parametre denetimleri ve DTD / varlık reddi. Örnek
-test/xfa_pdf_uret.py ile test/cikti/xfa_testi altında üretilir (gerçek belge yok).
+kullanım hakları imzasının kaldırılması, DocMDP'nin kalması, MuPDF onarmadan açar), parametre denetimleri ve DTD / varlık reddi, atomik kayıt ve hata benzetimi
+(disk dolu, kilit, yerine koyma, doğrulama, salt okunur, klasör yok, uzun yol; özgün dosya bayt bayt aynı kalır). Örnek test/xfa_pdf_uret.py ile
+test/cikti/xfa_testi altında üretilir (gerçek belge yok).
 Kullanım: .venv\\Scripts\\python.exe test\\xfa_testi.py"""
 import base64
 import html
@@ -250,6 +251,206 @@ sonuc("araç: Olağan PDF'te XFA işareti yok", "xfa" not in pdefe_core.YONTEMLE
 sonuc("araç: Bozuk paketli belge XFA sayılmaz", xfa.saf_xfa_mi(pymupdf.open(OLAGAN)) is False)
 
 sonuc("çekirdekte kayıtlı yöntemler", all(y in pdefe_core.YONTEMLER for y in ("xfa_bilgi", "xfa_degistir", "xfa_kaydet")))
+
+# ------------------------------------------------------------ 7) kayıt: Atomik yazım, kilit, hata benzetimi (0.3.1, kullanıcı: "bu kayıt mekanizmasında hiç sıkıntı olmamalı")
+from islemler import notlar  # noqa: E402
+
+KAYIT = os.path.join(CIKTI, "kayit sınaması (1) ğüş")
+os.makedirs(KAYIT, exist_ok=True)
+KAYNAK = base64.b64encode(iki).decode()
+
+
+def yeni_hedef(ad):
+    h = os.path.join(KAYIT, ad)
+    shutil.copyfile(XFA, h)
+    return h
+
+
+def gecici_yok(k=KAYIT):
+    return [a for a in os.listdir(k) if a.endswith(".tmp") or "pdefe-tmp" in a]
+
+
+def hata_ile(f):
+    """f() fırlatan hata: (tür adı, ileti) ya da (None, None)."""
+    try:
+        f()
+    except Exception as e:
+        return type(e).__name__, str(e)
+    return None, None
+
+
+HAM = re.compile(r"\[(Errno|WinError) |code=\d+|\\\\|Traceback")
+
+
+class Yama:
+    """Bir modül özniteliğini (hata benzetimi) geçici değiştirir."""
+
+    def __init__(self, nesne, ad, deger):
+        self.nesne, self.ad, self.deger, self.vardi = nesne, ad, deger, hasattr(nesne, ad)
+
+    def __enter__(self):
+        self.eski = getattr(self.nesne, self.ad, None)
+        setattr(self.nesne, self.ad, self.deger)
+
+    def __exit__(self, *_):
+        if self.vardi:
+            setattr(self.nesne, self.ad, self.eski)
+        else:
+            delattr(self.nesne, self.ad)
+
+
+def kaydet_hatasi(h, yamalar=(), **ek):
+    """xfa_kaydet'i yamalarla çağırır: (hata iletisi, hedef aynı mı, geçici dosya yok mu)."""
+    once = open(h, "rb").read()
+    def calistir(kalan):
+        if not kalan:
+            xfa.y_xfa_kaydet(dict({"veri": KAYNAK, "hedef": h, "yol": h}, **ek))
+            return
+        with kalan[0]:
+            calistir(kalan[1:])
+    tur, ileti = hata_ile(lambda: calistir(list(yamalar)))
+    return tur, ileti, open(h, "rb").read() == once, not gecici_yok(os.path.dirname(h))
+
+
+def fsync_hatasi(kod):
+    def f(_fd):
+        raise OSError(kod, "benzetim")
+    return f
+
+
+# Başarılı kayıt: Doğrulama ve beklenen değerler
+h = yeni_hedef("basarili.pdf")
+d0 = pymupdf.open(stream=iki, filetype="pdf")
+veri_ = d0.xref_stream(xfa._paketler(d0)["datasets"]).decode("utf-8")
+d0.close()
+k7 = xfa.y_xfa_kaydet({"veri": KAYNAK, "hedef": h, "yol": h, "beklenen": []})
+sonuc("kayıt: Başarılı, geçici dosya yok, eksik yok", k7["eksik"] == [] and not gecici_yok() and k7["boyut"] == os.path.getsize(h), k7)
+k7b = xfa.y_xfa_kaydet({"veri": KAYNAK, "hedef": h, "yol": h, "beklenen": ["Veride olmayan yazı"]})
+sonuc("kayıt: Veride olmayan değer bildirilir, dosya yine yazılır", k7b["eksik"] == [0], k7b)
+sonuc("kayıt: Beklenen liste değilse yok sayılır", xfa.y_xfa_kaydet({"veri": KAYNAK, "hedef": h, "yol": h, "beklenen": "x"})["eksik"] == [])
+ET_DENEME = ('<xfa:datasets xmlns:xfa="%s"><xfa:data><a><b>Yazı &#xC;sayfa&#x1;sonu &lt;x&gt; &#x1F600;</b><c k="öznitelik"/></a></xfa:data></xfa:datasets>' % xfa.VERI_NS).encode("utf-8")
+sonuc("kayıt: Geçersiz karakter başvurulu veri okunur", xfa._veri_kok(ET_DENEME)[1].find("a/b").text == "Yazı  sayfa sonu <x> \U0001F600")
+sonuc("kayıt: Değer öznitelikte de bulunur, parçası da", xfa._eksik_degerler(ET_DENEME, ["öznitelik", "sonu <x>", "yok bu"]) == [2], xfa._eksik_degerler(ET_DENEME, ["öznitelik", "sonu <x>", "yok bu"]))
+
+# Disk dolu: Geçici dosya yazılırken
+h = yeni_hedef("disk-dolu.pdf")
+t, i, ayni, temiz = kaydet_hatasi(h, [Yama(os, "fsync", fsync_hatasi(28))])
+sonuc("hata: Disk dolu (ENOSPC): Anlaşılır ileti, özgün dosya aynı, geçici dosya yok", t == "YazmaHatasi" and "yer kalmadı" in i and not HAM.search(i) and ayni and temiz, (t, i, ayni, temiz))
+# Yerine koyma başarısız: Kalıcı kilit
+h = yeni_hedef("yerine-koyma.pdf")
+
+
+def kilitli_degistir(_h, _g):
+    raise PermissionError(32, "Dosya başka bir işlem tarafından kullanıldığından", _h)
+
+
+bekleme = []
+t, i, ayni, temiz = kaydet_hatasi(h, [Yama(notlar, "_replace_file", kilitli_degistir), Yama(notlar.time, "sleep", bekleme.append)])
+sonuc("hata: Yerine koyma başarısız: Kilit iletisi, ham hata yok, dosya aynı, geçici dosya yok", t == "YazmaHatasi" and "başka bir programda açık" in i and not HAM.search(i) and ayni and temiz, (t, i, ayni, temiz))
+sonuc("hata: Penceresiz kilitte yeniden denendi (6 deneme)", len(bekleme) == 5, bekleme)
+# Pencereli programın kilidinde beklenmez
+bekleme.clear()
+h = yeni_hedef("pencereli-kilit.pdf")
+t, i, ayni, temiz = kaydet_hatasi(h, [Yama(notlar, "_replace_file", kilitli_degistir), Yama(notlar.time, "sleep", bekleme.append),
+                                      Yama(notlar, "kilit_sahipleri", lambda _y: [{"pid": 1, "ad": "Okuyucu", "tur": 1}])])
+sonuc("hata: Pencereli programın kilidinde beklenmez", t == "YazmaHatasi" and not bekleme and ayni and temiz, (bekleme, t))
+with Yama(notlar, "kilit_sahipleri", lambda _y: [{"pid": 1, "ad": "Okuyucu", "tur": 1}, {"pid": os.getpid(), "ad": "Çekirdek", "tur": 5}]):
+    sonuc("kilit: y_kilit_sahipleri adları verir, çekirdeği saymaz", notlar.y_kilit_sahipleri({"yol": h}) == {"programlar": ["Okuyucu"]})
+
+# Yeniden okunan farklı: Disk yazdığını yazmadı
+h = yeni_hedef("okuma-farki.pdf")
+gercek_open = open
+
+
+def bozuk_open(y, kip="r", *a, **b):
+    f = gercek_open(y, kip, *a, **b)
+    if "rb" in kip and str(y).endswith(".tmp"):
+        import io
+        return io.BytesIO(f.read()[:-5])
+    return f
+
+
+t, i, ayni, temiz = kaydet_hatasi(h, [Yama(notlar, "open", bozuk_open)])
+sonuc("hata: Yeniden okunan kopya farklı: Doğrulanamadı, dosya aynı", t == "YazmaHatasi" and "doğrulanamadı" in i and ayni and temiz, (t, i, ayni, temiz))
+# Doğrulayıcı: Bozuk çıktı, başka veri, saf olmayan
+h = yeni_hedef("dogrulayici.pdf")
+once = open(h, "rb").read()
+t, i = hata_ile(lambda: notlar.atomik_yaz(b"bozuk pdf", h, xfa._kayit_dogrulayici(b"x", True)))
+sonuc("hata: Doğrulayıcı açılamayan kopyayı reddeder", t == "YazmaHatasi" and "doğrulanamadı" in i and open(h, "rb").read() == once and not gecici_yok(), (t, i))
+t, i = hata_ile(lambda: notlar.atomik_yaz(iki, h, xfa._kayit_dogrulayici(b"baska veri", True)))
+sonuc("hata: Doğrulayıcı başka veri paketini reddeder", t == "YazmaHatasi" and open(h, "rb").read() == once and not gecici_yok(), (t, i))
+t, i = hata_ile(lambda: notlar.atomik_yaz(iki, h, xfa._kayit_dogrulayici(paket(iki, "datasets").encode("utf-8"), False)))
+sonuc("hata: Doğrulayıcı saf XFA ölçütünü denetler", t == "YazmaHatasi" and open(h, "rb").read() == once, (t, i))
+t, i = hata_ile(lambda: notlar.atomik_yaz(iki, h, xfa._kayit_dogrulayici(paket(iki, "datasets").encode("utf-8"), True)))
+sonuc("kayıt: Doğrulayıcı sağlam kopyayı geçirir", t is None and open(h, "rb").read() == iki, (t, i))
+# Gerçek kilit (başka süreç)
+if os.name == "nt":
+    import time as zaman
+    for paylasim, ad in ((1, "yalnız okuma paylaşımlı"), (0, "paylaşımsız")):
+        h = yeni_hedef("kilit-%d.pdf" % paylasim)
+        once = open(h, "rb").read()
+        p = subprocess.Popen([sys.executable, "-I", os.path.join(KOK, "test", "kilit_tut.py"), h, str(paylasim)], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        p.stdout.readline()
+        sahip = notlar.y_kilit_sahipleri({"yol": h})
+        t0 = zaman.time()
+        t, i = hata_ile(lambda: xfa.y_xfa_kaydet({"veri": KAYNAK, "hedef": h, "yol": h, "hizli": True}))
+        sure = zaman.time() - t0
+        p.stdin.close()
+        p.wait(10)
+        sonuc("kilit (%s): Kilit iletisi, hızlı kayıt 2 sn altında, sahibi bulunur" % ad, t == "YazmaHatasi" and "başka bir programda açık" in i and not HAM.search(i) and sure < 2 and sahip["programlar"], (t, i, sure, sahip))
+        sonuc("kilit (%s): Dosya aynı, geçici dosya yok" % ad, open(h, "rb").read() == once and not gecici_yok(), gecici_yok())
+        k = xfa.y_xfa_kaydet({"veri": KAYNAK, "hedef": h, "yol": h})
+        sonuc("kilit (%s): Kilit kalkınca yazılır" % ad, k["boyut"] == os.path.getsize(h) and open(h, "rb").read() != once)
+    # Çekirdeğin kendi kilidi: Bilgi alındıktan sonra dosya açık kalmaz
+    h = yeni_hedef("kendi-kilit.pdf")
+    xfa.y_xfa_bilgi({"yol": h})
+    sonuc("kendi kilidi: xfa_bilgi'den sonra dosya açık değil", h not in pdefe_core.onbellek.belgeler and not notlar.kilit_sahipleri(h), notlar.kilit_sahipleri(h))
+    pdefe_core.YONTEMLER["belge_bilgi"]({"yol": h})
+    pdefe_core.onbellek.tutulmayanlari_birak()
+    sonuc("kendi kilidi: Sonraki istekten sonra da açık değil", not notlar.kilit_sahipleri(h), notlar.kilit_sahipleri(h))
+    pdefe_core.onbellek.al(h)
+    t, i = hata_ile(lambda: xfa.y_xfa_kaydet({"veri": KAYNAK, "hedef": h, "yol": h}))
+    sonuc("kendi kilidi: Önbellekte açık olsa da kayıt başarılı", t is None, (t, i))
+    # Salt okunur
+    h = yeni_hedef("salt.pdf")
+    os.chmod(h, 0o444)
+    bekleme = []
+    t, i, ayni, temiz = kaydet_hatasi(h, [Yama(notlar.time, "sleep", bekleme.append)])
+    os.chmod(h, 0o644)
+    sonuc("salt okunur: Anlaşılır ileti, beklenmez, dosya aynı", t == "YazmaHatasi" and notlar.SALT_OKUNUR_METNI in i and not bekleme and ayni and temiz and not HAM.search(i), (t, i, bekleme))
+    # Uzun yol (260 karakterden uzun)
+    uzun = KAYIT
+    while len(uzun) < 280:
+        uzun = os.path.join(uzun, "uzun klasör adı ğüş")
+    onek = "\\\\?\\" + os.path.abspath(uzun)
+    os.makedirs(onek, exist_ok=True)
+    h = os.path.join(uzun, "uzun (1).pdf")
+    k = xfa.y_xfa_kaydet({"veri": KAYNAK, "hedef": h})
+    sonuc("uzun yol: Yeni dosya yazıldı", os.path.exists(os.path.join(onek, "uzun (1).pdf")) and k["boyut"] > 0, k)
+    k = xfa.y_xfa_kaydet({"veri": base64.b64encode(GIRDI).decode(), "hedef": h, "yol": h})
+    sonuc("uzun yol: Üzerine yazıldı, geçici dosya yok", [a for a in os.listdir(onek)] == ["uzun (1).pdf"] and k["boyut"] > 0, os.listdir(onek))
+    shutil.rmtree("\\\\?\\" + os.path.abspath(os.path.join(KAYIT, "uzun klasör adı ğüş")), ignore_errors=True)   # Gezgin'in silemediği uzun yol kalmasın
+# Klasör yok
+t, i = hata_ile(lambda: xfa.y_xfa_kaydet({"veri": KAYNAK, "hedef": os.path.join(KAYIT, "olmayan klasör", "x.pdf")}))
+sonuc("klasör yok: Anlaşılır ileti", t == "YazmaHatasi" and "klasör bulunamadı" in i and not HAM.search(i), (t, i))
+# Hata türleri
+TURLER = [(OSError(28, "x"), "disk_dolu"), (PermissionError(32, "x", "y"), "kilitli"), (PermissionError(33, "x", "y"), "kilitli"), (FileNotFoundError(2, "x"), "klasor_yok")] if os.name == "nt" else [(OSError(28, "x"), "disk_dolu"), (FileNotFoundError(2, "x"), "klasor_yok"), (PermissionError(13, "x"), "izin_yok")]
+for e_, tur_ in TURLER:
+    sonuc("hata türü: %s → %s" % (e_, tur_), notlar.yazma_hatasi(e_, os.path.join(KAYIT, "yok.pdf")).tur == tur_ and not HAM.search(str(notlar.yazma_hatasi(e_, os.path.join(KAYIT, "yok.pdf")))))
+sonuc("hata türü: MuPDF iletisi", notlar.mupdf_yazma_hatasi(RuntimeError("code=2: cannot open file: No space left on device"), "x.pdf").tur == "disk_dolu" and notlar.mupdf_yazma_hatasi(RuntimeError("code=2: No such file or directory"), "x.pdf").tur == "klasor_yok" and notlar.mupdf_yazma_hatasi(RuntimeError("code=1: başka"), "x.pdf").tur == "bilinmeyen")
+# Öbür kayıt yolu: Notlar (ham hata yok)
+if os.name == "nt":
+    h = yeni_hedef("not-kilit.pdf")
+    p = subprocess.Popen([sys.executable, "-I", os.path.join(KOK, "test", "kilit_tut.py"), h, "1"], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    p.stdout.readline()
+    bekleme = []
+    with Yama(notlar.time, "sleep", bekleme.append):
+        t, i = hata_ile(lambda: notlar.y_notlar_kaydet({"yol": h, "hedef": h, "islemler": [], "temiz": True}))
+    p.stdin.close()
+    p.wait(10)
+    sonuc("notlar: Kilitli dosyada ham hata yok", t == "YazmaHatasi" and "başka bir programda açık" in i and not HAM.search(i), (t, i))
+    sonuc("çekirdekte kayıtlı: kilit_sahipleri", "kilit_sahipleri" in pdefe_core.YONTEMLER)
+
 pdefe_core.onbellek.hepsini_birak()
 
 print("\n%d denetim, %d hata" % (toplam, hata))

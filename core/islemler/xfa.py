@@ -15,13 +15,15 @@ XFA katmanıyla dizer ve çizer (renderer/xfa.js). Çekirdeğin işi şablonu ok
   baytlardır (girilen değerler datasets'te): Değerler korunur. Değişiklik artımlı yazılır, yalnızca eklenen bölüm döner.
 - xfa_kaydet: PDF.js'in kaydettiği baytları (güncel datasets) dosyaya baştan yazar (girilen değerlerin eski hâlleri dosyada kalmaz).
   Kullanım hakları imzası (/Perms /UR3) kaldırılır: İmza belgenin özgün baytlarını kapsar, değişen belgede geçersizdir. Geçersiz imzalı
-  belgeyi referans okuyucu "genişletilmiş özellikler artık kullanılamaz" uyarısıyla açar, imzasız belgeyi olağan form olarak açar.
+  belgeyi referans okuyucu "genişletilmiş özellikler artık kullanılamaz" uyarısıyla açar, imzasız belgeyi olağan form olarak açar. Yazım atomiktir
+  (notlar.atomik_yaz) ve doğrulanır: Başarısızlıkta özgün dosya bayt bayt aynı kalır (kullanıcı formlara çok uzun yazılar yazıyor).
 """
 import base64
 import binascii
 import copy
 import os
 import re
+import sys
 import tempfile
 import xml.etree.ElementTree as ET
 import xml.parsers.expat
@@ -553,9 +555,14 @@ def _yerel(etiket):
     return etiket.rsplit("}", 1)[-1] if isinstance(etiket, str) else ""
 
 
+# XML 1.0'da geçersiz karakter başvuruları (denetim karakterleri, vekil çiftler). Word'den ya da PDF'ten yapıştırılan yazıda sayfa sonu (\f) gelebilir: Başka bir
+# programın kaydettiği formda böyle bir başvuru varsa paket okunamıyor, Ekle düğmesi çalışmıyordu (arayüz kendi yazdıklarını zaten temizler, xfa.js veriDegeri)
+_GECERSIZ_BASVURU = re.compile(rb"&#(?:x0*(?:[0-8bBcCeEfF]|1[0-9a-fA-F]|[dD][89a-fA-F][0-9a-fA-F]{2}|[fF]{3}[eEfF])|0*(?:[0-8]|1[124-9]|2[0-9]|3[01]|5[5-6][0-9]{3}|6553[45]));")
+
+
 def _veri_kok(datasets):
     _guvenli_mi(datasets)
-    kok = ET.fromstring(datasets)
+    kok = ET.fromstring(_GECERSIZ_BASVURU.sub(b" ", datasets))
     veri = kok.find("{%s}data" % VERI_NS)
     if veri is None:
         veri = ET.SubElement(kok, "{%s}data" % VERI_NS)
@@ -659,6 +666,9 @@ def y_xfa_bilgi(p):
     if sablon:
         kok, liste = _agac(sablon)
         sonuc.update(_sablon_bilgisi(kok, liste))
+    onbellek.tutma(p["yol"], sonuc["saf"])
+    if sonuc["saf"]:
+        onbellek.birak(p["yol"])
     return sonuc
 
 
@@ -737,22 +747,69 @@ def _imzali_bolum_ayni(girdi, araliklar, yol):
     if son <= 0 or son > len(girdi) or not yol:
         return False
     try:
-        with open(yol, "rb") as f:
+        with open(notlar.uzun_yol(yol), "rb") as f:
             return f.read(son) == girdi[:son]
     except OSError:
         return False
 
 
+def _eksik_degerler(datasets, beklenen):
+    """Arayüzün yazdığı değerlerden veri paketinde olmayanların sırası: PDF.js veri düğümü olmayan alanın değerini saklamaz (bilinen sınır), böyle bir alan varsa
+    kullanıcı kaydın yazdığını sanmasın."""
+    if not beklenen:
+        return []
+    try:
+        _, veri = _veri_kok(datasets)
+    except (ET.ParseError, ValueError) as e:
+        print("[kayıt] veri paketi denetlenemedi: %s" % e, file=sys.stderr)     # denetim kaydı engellemez (paketi PDF.js yazdı, kendisi okuyor)
+        return []
+    metinler = {e.text for e in veri.iter() if e.text}
+    for e in veri.iter():
+        metinler.update(e.attrib.values())
+    butun = None
+    eksik = []
+    for i, d in enumerate(beklenen):
+        if d in metinler:
+            continue
+        if butun is None:
+            butun = "\n".join(metinler)
+        if d not in butun:      # başka bir değerin parçası olarak yazılmışsa (zengin metin) eksik sayılmaz: Yanlış uyarı kullanıcıyı kayıttan alıkoyardı
+            eksik.append(i)
+    return eksik
+
+
+def _kayit_dogrulayici(paketler_veri, saf):
+    """atomik_yaz'ın doğrulayıcısı: Yazılan kopya onarılmadan açılıyor, form yine saf XFA, veri paketi kaydedilmek istenenle bayt bayt aynı, XML'i geçerli."""
+    def dogrula(okunan):
+        try:
+            d = pymupdf.open(stream=okunan, filetype="pdf")
+        except Exception as e:
+            print("[kayıt] yazılan kopya açılamadı: %s" % e, file=sys.stderr)
+            raise notlar.YazmaHatasi("dogrulama", notlar.YAZMA_ILETILERI["dogrulama"])
+        try:
+            pk = _paketler(d)
+            sorun = ("onarıldı" if d.is_repaired else "şifre" if d.needs_pass else "paket yok" if not pk else "saf değil" if _saf_mi(d, pk) != saf
+                     else "veri farklı" if _paket(d, pk, "datasets") != paketler_veri else "")
+        finally:
+            d.close()
+        if sorun:
+            print("[kayıt] yazılan kopya: %s" % sorun, file=sys.stderr)
+            raise notlar.YazmaHatasi("dogrulama", notlar.YAZMA_ILETILERI["dogrulama"])
+    return dogrula
+
+
 def y_xfa_kaydet(p):
     """PDF.js'in kaydettiği baytları (güncel XFA verisi) hedefe baştan yazar, kullanım hakları imzasını kaldırır. p: {veri (base64), hedef,
     yol?: belgenin önceki dosyası (önbellekten bırakılır), imzayiKoru?: e-imzalı formda baytlar olduğu gibi yazılır (PDF.js'in artımlı
-    kaydı: imzalanan bölüm ve /Perms değişmez, alanların önceki değerleri dosyada kalır)}. Döner: {boyut, kullanimHakkiKaldirildi,
-    imzaKorundu (imzayiKoru verildiyse: imzalanan bölüm diskteki dosyanınkiyle aynı çıktı mı; değilse belge baştan yazıldı)}."""
-    from pdefe_core import onbellek
+    kaydı: imzalanan bölüm ve /Perms değişmez, alanların önceki değerleri dosyada kalır), beklenen?: arayüzün yazdığı metin değerleri (veri paketinde aranır),
+    hizli?: kilitte uzun beklenmez (otomatik kayıt)}. Döner: {boyut, kullanimHakkiKaldirildi, eksik: veri paketinde bulunmayan beklenen değerlerin sıraları,
+    imzaKorundu (imzayiKoru verildiyse: imzalanan bölüm diskteki dosyanınkiyle aynı çıktı mı; değilse belge baştan yazıldı)}. Yazılamazsa notlar.YazmaHatasi: Hedef
+    bayt bayt aynı kalır."""
+    from pdefe_core import onbellek, y_belge_birak
     hedef = p["hedef"]
     girdi = _baytlar(p.get("veri"))
+    beklenen = [d for d in (p.get("beklenen") or []) if isinstance(d, str)] if isinstance(p.get("beklenen"), list) else []
     doc = pymupdf.open(stream=girdi, filetype="pdf")
-    gecici = None
     sonuc = {}
     try:
         if doc.needs_pass:
@@ -764,41 +821,26 @@ def y_xfa_kaydet(p):
             araliklar = _e_imza_araliklari(doc)
             koru = bool(araliklar) and _imzali_bolum_ayni(girdi, araliklar, p.get("yol") or hedef)
             sonuc["imzaKorundu"] = koru
+        paketler = _paketler(doc)
+        veri_paketi = _paket(doc, paketler, "datasets")
+        saf = _saf_mi(doc, paketler)
+        eksik = _eksik_degerler(veri_paketi, beklenen)
         kaldirildi = False if koru else notlar.kullanim_hakki_kaldir(doc)
-        for y in {hedef, p.get("yol") or hedef}:
-            onbellek.birak(y)
-        gecici = hedef + ".pdefe-tmp"
-        sifreli = bool(doc.is_encrypted or doc.metadata.get("encryption"))
-        try:
-            if koru:
-                # E-imzayı korumak için (0.3.1 inceleme): Baytlar olduğu gibi. Kullanım hakları imzasına da dokunulmaz (onu kaldırmak kataloğu
-                # değiştirirdi: Onaylı (DocMDP) belgede izin verilmeyen değişiklik sayılır)
-                with open(gecici, "wb") as f:
-                    f.write(girdi)
-            elif sifreli:
-                doc.save(gecici, garbage=1, deflate=True, encryption=pymupdf.PDF_ENCRYPT_KEEP)
-            else:
-                doc.save(gecici, garbage=1, deflate=True)
-        except PermissionError as e:
-            raise PermissionError("Dosya yazılamadı, başka bir programda açık olabilir. (%s)" % e)
-        doc.close()
-        doc = None
-        try:
-            notlar.dosyayi_yerine_koy(gecici, hedef)
-        except notlar.SaltOkunurHatasi:
-            raise
-        except PermissionError as e:
-            raise PermissionError("Dosya yazılamadı, başka bir programda açık olabilir. (%s)" % e)
-        gecici = None
+        if koru:
+            # E-imzayı korumak için (0.3.1 inceleme): Baytlar olduğu gibi. Kullanım hakları imzasına da dokunulmaz (onu kaldırmak kataloğu
+            # değiştirirdi: Onaylı (DocMDP) belgede izin verilmeyen değişiklik sayılır)
+            cikti = girdi
+        else:
+            sifreli = bool(doc.is_encrypted or doc.metadata.get("encryption"))
+            cikti = doc.tobytes(garbage=1, deflate=True, encryption=pymupdf.PDF_ENCRYPT_KEEP if sifreli else pymupdf.PDF_ENCRYPT_NONE)
     finally:
-        if doc is not None:
-            doc.close()
-        if gecici and os.path.exists(gecici):
-            try:
-                os.remove(gecici)
-            except OSError:
-                pass
-    return dict(sonuc, boyut=os.path.getsize(hedef), kullanimHakkiKaldirildi=kaldirildi)
+        doc.close()
+    # Çekirdek dosyayı açık tutmasın: Kendi kilidi kayıt hatası olurdu (Windows'ta açık dosyanın yerine yenisi konamaz)
+    for y in {hedef, p.get("yol") or hedef}:
+        y_belge_birak({"yol": y})
+    onbellek.tutma(hedef, saf)
+    notlar.atomik_yaz(cikti, hedef, _kayit_dogrulayici(veri_paketi, saf), deneme=2 if p.get("hizli") else 6)
+    return dict(sonuc, boyut=os.path.getsize(notlar.uzun_yol(hedef)), kullanimHakkiKaldirildi=kaldirildi, eksik=eksik)
 
 
 def kaydol(yontemler):

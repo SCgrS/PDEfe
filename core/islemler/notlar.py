@@ -1212,33 +1212,243 @@ def salt_okunursa_dur(gecici, hedef):
     raise SaltOkunurHatasi("Dosya yazılamadı, %s: %s" % (SALT_OKUNUR_METNI, os.path.basename(hedef)))
 
 
+def uzun_yol(yol):
+    """Windows: Yol MAX_PATH sınırına yakınsa uzun yol ön ekli tam yol (0.3.1): Ağ klasöründe ya da iç içe klasörlerde 260 karakteri aşan yol ön ekle
+    açılır. Hedefin yanındaki geçici dosya da aynı ön ekle: Yol uzun diye kayıt yarıda kalmasın. Öbür platformlarda ve kısa yolda değişmez."""
+    if os.name != "nt":
+        return yol
+    tam = os.path.abspath(yol)
+    if len(tam) < 240 or tam.startswith("\\\\?\\"):
+        return tam
+    return "\\\\?\\UNC\\" + tam[2:] if tam.startswith("\\\\") else "\\\\?\\" + tam
+
+
+def kilit_sahipleri(yol):
+    """Dosyayı açık tutan süreçler (Windows Restart Manager; 0.3.1): [{pid, ad, tur}]. tur: 0 bilinmiyor, 1 ana penceresi var, 2 başka penceresi var, 3 hizmet,
+    4 Gezgin, 5 konsol, 1000 kritik. Başka platformda ya da sorgu başarısızsa []. Yalnızca okur, hiçbir sürece dokunmaz."""
+    if os.name != "nt":
+        return []
+    import ctypes
+    from ctypes import wintypes
+
+    class Zaman(ctypes.Structure):
+        _fields_ = [("alt", wintypes.DWORD), ("ust", wintypes.DWORD)]
+
+    class Surec(ctypes.Structure):
+        _fields_ = [("pid", wintypes.DWORD), ("baslama", Zaman)]
+
+    class Bilgi(ctypes.Structure):
+        _fields_ = [("Process", Surec), ("strAppName", ctypes.c_wchar * 256), ("strServiceShortName", ctypes.c_wchar * 64), ("ApplicationType", ctypes.c_int),
+                    ("AppStatus", wintypes.ULONG), ("TSSessionId", wintypes.DWORD), ("bRestartable", wintypes.BOOL)]
+
+    try:
+        rm = ctypes.WinDLL("rstrtmgr")
+        rm.RmStartSession.argtypes = [ctypes.POINTER(wintypes.DWORD), wintypes.DWORD, wintypes.LPWSTR]
+        rm.RmRegisterResources.argtypes = [wintypes.DWORD, wintypes.UINT, ctypes.POINTER(wintypes.LPCWSTR), wintypes.UINT, ctypes.c_void_p, wintypes.UINT, ctypes.c_void_p]
+        rm.RmGetList.argtypes = [wintypes.DWORD, ctypes.POINTER(wintypes.UINT), ctypes.POINTER(wintypes.UINT), ctypes.c_void_p, ctypes.POINTER(wintypes.DWORD)]
+        rm.RmEndSession.argtypes = [wintypes.DWORD]
+        oturum, anahtar = wintypes.DWORD(), ctypes.create_unicode_buffer(64)
+        if rm.RmStartSession(ctypes.byref(oturum), 0, anahtar):
+            return []
+        try:
+            dosyalar = (wintypes.LPCWSTR * 1)(os.path.abspath(yol))
+            if rm.RmRegisterResources(oturum, 1, dosyalar, 0, None, 0, None):
+                return []
+            sonuc = []
+            for boy in (16, 256):
+                gerekli, sayi, neden, dizi = wintypes.UINT(0), wintypes.UINT(boy), wintypes.DWORD(0), (Bilgi * boy)()
+                kod = rm.RmGetList(oturum, ctypes.byref(gerekli), ctypes.byref(sayi), dizi, ctypes.byref(neden))
+                if kod == 234:      # ERROR_MORE_DATA
+                    continue
+                if kod == 0:
+                    sonuc = [{"pid": dizi[i].Process.pid, "ad": dizi[i].strAppName or dizi[i].strServiceShortName, "tur": dizi[i].ApplicationType} for i in range(sayi.value)]
+                break
+            return sonuc
+        finally:
+            rm.RmEndSession(oturum)
+    except (OSError, AttributeError, ValueError):
+        return []
+
+
+def _baska_sahipler(yol):
+    """Dosyayı açık tutan öbür programlar (çekirdeğin ve PDEfe ana sürecinin kendisi sayılmaz)."""
+    return [s for s in kilit_sahipleri(yol) if s["pid"] not in (os.getpid(), os.getppid())]
+
+
+def y_kilit_sahipleri(p):
+    """Kilitli dosya sorusunun kilit sahipleri (0.3.1). p: {yol}. Döner: {programlar: [adlar]}."""
+    adlar = []
+    for s in _baska_sahipler(p["yol"]):
+        if s["ad"] and s["ad"] not in adlar:
+            adlar.append(s["ad"])
+    return {"programlar": adlar}
+
+
+def _salt_okunur_mu(yol):
+    """Windows: Dosyanın Salt okunur özniteliği açık mı."""
+    try:
+        return os.name == "nt" and bool(os.stat(yol).st_file_attributes & stat.FILE_ATTRIBUTE_READONLY)
+    except OSError:
+        return False
+
+
+def _beklemek_bosuna(yol):
+    """Kilit kısa sürmeyecek mi: Dosya salt okunur ya da bir programın penceresi onu açık tutuyor (kullanıcı formu iki programda açıp karşılaştırıyor). Virüs
+    tarayıcı, dizin oluşturucu ve eşitleme programı penceresizdir: Onlar için beklenir."""
+    return _salt_okunur_mu(yol) or any(s["tur"] in (1, 2, 4) for s in _baska_sahipler(yol))
+
+
 def dosyayi_yerine_koy(gecici, hedef, deneme=6):
     """Geçici dosyayı hedefin yerine koyar (0.1.23). Hedef varsa Windows'ta ReplaceFileW (yukarıda): os.replace yeni dosyanın yan
     akışlarını ve izinlerini bırakırdı; internetten indirilmiş PDF'in işareti kalkar, başka okuyucular onu korumalı görünümde açmazdı.
     macOS'ta aynı iş için önce öznitelikler aktarılır (_ozellikleri_aktar), sonra os.replace; yazma izni olmayan hedefe yazılmaz
-    (salt_okunursa_dur). Kısa süreli kilitlere (virüs tarayıcı, dizin oluşturucu, eşitleme) karşı birkaç kez dener; olmazsa geçici
-    dosyayı siler, Türkçe PermissionError."""
+    (salt_okunursa_dur). Kısa süreli kilitlere (virüs tarayıcı, dizin oluşturucu, eşitleme) karşı birkaç kez dener, kilit kısa sürmeyecekse
+    (0.3.1, _beklemek_bosuna) beklemez; olmazsa geçici dosyayı siler, PermissionError."""
     import gc
     son = None
     salt_okunursa_dur(gecici, hedef)
     if os.name != "nt" and os.path.exists(hedef):
         _ozellikleri_aktar(hedef, gecici)
+    g, h = uzun_yol(gecici), uzun_yol(hedef)
     for i in range(deneme):
         try:
-            if os.name == "nt" and os.path.exists(hedef):
-                _replace_file(os.path.abspath(hedef), os.path.abspath(gecici))
+            if os.name == "nt" and os.path.exists(h):
+                _replace_file(h, g)
             else:
-                os.replace(gecici, hedef)
+                os.replace(g, h)
             return
         except PermissionError as e:
             son = e
             gc.collect()
+            if i + 1 == deneme or _beklemek_bosuna(h):
+                break
             time.sleep(0.25 * (i + 1))
     try:
-        os.remove(gecici)
+        os.remove(g)
     except OSError:
         pass
     raise son
+
+
+class YazmaHatasi(PermissionError):
+    """Dosya yazılamadı (0.3.1). İleti kullanıcıya gösterilir: Ham hata metni ve dosya yolu içermez (stderr'e yazılır). Arayüz türü iletiden tanır (uygulama.js
+    kayitHatasiTuru). tur: kilitli | salt_okunur | klasor_yok | disk_dolu | izin_yok | yol_uzun | dogrulama | bilinmeyen."""
+
+    def __init__(self, tur, ileti):
+        super().__init__(ileti)
+        self.tur = tur
+
+
+YAZMA_ILETILERI = {
+    "kilitli": "Dosya yazılamadı, başka bir programda açık olabilir.",      # araclar.KILITLI_METNI ifadesi: renderer kilitli dosyayı bununla tanır
+    "klasor_yok": "Dosya yazılamadı, klasör bulunamadı.",
+    "disk_dolu": "Dosya yazılamadı, diskte yer kalmadı.",
+    "izin_yok": "Dosya yazılamadı, bu konuma yazma izni yok.",
+    "yol_uzun": "Dosya yazılamadı, dosyanın yolu çok uzun.",
+    "dogrulama": "Dosya yazılamadı, yazılan kopya doğrulanamadı.",
+    "bilinmeyen": "Dosya yazılamadı.",
+}
+
+
+def _yazma_hatasi_turu(e, hedef):
+    if isinstance(e, FileNotFoundError):
+        return "klasor_yok"
+    kod = (getattr(e, "winerror", None) or getattr(e, "errno", None)) if os.name == "nt" else getattr(e, "errno", None)
+    if os.name == "nt":
+        if kod in (28, 39, 112):        # ENOSPC, ERROR_HANDLE_DISK_FULL, ERROR_DISK_FULL
+            return "disk_dolu"
+        if kod in (206, 111):           # ERROR_FILENAME_EXCED_RANGE, ERROR_BUFFER_OVERFLOW
+            return "yol_uzun"
+        if kod in (2, 3):               # ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND
+            return "klasor_yok"
+        if kod in (32, 33, 1224, 1175, 1176, 1177):     # paylaşım ve kilit ihlali, eşlenmiş dosya, ReplaceFileW'nin hedefi kaldıramadığı durumlar
+            return "kilitli"
+        if kod in (5, 13) or isinstance(e, PermissionError):
+            if _salt_okunur_mu(uzun_yol(hedef)):
+                return "salt_okunur"
+            return "kilitli" if _baska_sahipler(hedef) else "izin_yok"
+        return "bilinmeyen"
+    return {28: "disk_dolu", 36: "yol_uzun", 63: "yol_uzun", 2: "klasor_yok", 13: "izin_yok", 1: "izin_yok", 30: "izin_yok"}.get(kod, "bilinmeyen")
+
+
+def yazma_hatasi(e, hedef):
+    """OSError → kullanıcıya gösterilecek YazmaHatasi (ham ileti stderr'e). Zaten anlaşılır olan hata olduğu gibi döner."""
+    if isinstance(e, (YazmaHatasi, SaltOkunurHatasi)):
+        return e
+    print("[kayıt] %s: %s" % (type(e).__name__, e), file=sys.stderr)
+    tur = _yazma_hatasi_turu(e, hedef)
+    if tur == "salt_okunur":
+        return YazmaHatasi(tur, "Dosya yazılamadı, %s: %s" % (SALT_OKUNUR_METNI, os.path.basename(hedef)))
+    return YazmaHatasi(tur, YAZMA_ILETILERI[tur])
+
+
+def mupdf_yazma_hatasi(e, hedef):
+    """MuPDF'in dosya yazarken verdiği hata (errno taşımaz, iletisinde sistemin metni): YazmaHatasi."""
+    metin = str(e)
+    print("[kayıt] MuPDF: %s" % metin, file=sys.stderr)
+    if "No space" in metin:
+        tur = "disk_dolu"
+    elif "No such file" in metin:
+        tur = "klasor_yok"
+    elif "Permission denied" in metin or "Access is denied" in metin:
+        return yazma_hatasi(PermissionError(13, "Permission denied"), hedef)
+    else:
+        tur = "bilinmeyen"
+    return YazmaHatasi(tur, YAZMA_ILETILERI[tur])
+
+
+_gecici_sayac = 0
+
+
+def _gecici_olustur(klasor):
+    """Hedefin klasöründe yeni geçici dosya (aynı birimde olsun: yerine koyma atomik): (yol, tanıtıcı). Ad kısa: Uzun dosya adının sonuna ek, ad sınırını aşardı."""
+    global _gecici_sayac
+    while True:
+        _gecici_sayac += 1
+        yol = os.path.join(klasor, ".pdefe-%d-%d.tmp" % (os.getpid(), _gecici_sayac))
+        try:
+            return yol, os.open(uzun_yol(yol), os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o666)
+        except FileExistsError:
+            continue
+
+
+def atomik_yaz(veri, hedef, dogrula=None, deneme=6):
+    """Baytları hedefe atomik yazar (0.3.1, kullanıcı: "bu kayıt mekanizmasında hiç sıkıntı olmamalı"): Hedefin klasöründe geçici dosya, diske boşaltılır (fsync),
+    yeniden okunup karşılaştırılır, dogrula(okunan) varsa çağrılır (bozuksa YazmaHatasi fırlatmalı), sonra hedefin yerine konur. Her başarısızlıkta hedef bayt
+    bayt aynı kalır, geçici dosya kalmaz. Hata: YazmaHatasi (anlaşılır ileti), yanlışlıkla hedef silinmez."""
+    tam = os.path.abspath(hedef)
+    gecici = None
+    try:
+        gecici, fd = _gecici_olustur(os.path.dirname(tam))
+        with os.fdopen(fd, "wb") as f:
+            f.write(veri)
+            f.flush()
+            os.fsync(f.fileno())
+        with open(uzun_yol(gecici), "rb") as f:
+            okunan = f.read()
+        if okunan != veri:
+            raise YazmaHatasi("dogrulama", YAZMA_ILETILERI["dogrulama"])
+        if dogrula:
+            dogrula(okunan)
+        dosyayi_yerine_koy(gecici, tam, deneme)
+        gecici = None
+        if os.name != "nt":     # yeni adın da diske geçmesi (kayıt ardından elektrik kesilirse): Elden geldiğince
+            try:
+                d = os.open(os.path.dirname(tam), os.O_RDONLY)
+                try:
+                    os.fsync(d)
+                finally:
+                    os.close(d)
+            except OSError:
+                pass
+    except OSError as e:
+        raise yazma_hatasi(e, hedef)
+    finally:
+        if gecici:
+            try:
+                os.remove(uzun_yol(gecici))
+            except OSError:
+                pass
 
 
 def belge_ac_yazmak_icin(yol):
@@ -1247,7 +1457,8 @@ def belge_ac_yazmak_icin(yol):
         return pymupdf.open(yol, filetype="pdf")   # yalnızca PDF (0.1.23; pdefe_core.BelgeOnbellek.al)
     except Exception as e:
         if os.path.exists(yol):
-            raise PermissionError("Dosya açılamadı; başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. (%s)" % e)
+            print("[kayıt] %s" % e, file=sys.stderr)
+            raise PermissionError("Dosya açılamadı; başka bir programda (örneğin bir PDF okuyucuda) açık olabilir.")
         raise FileNotFoundError("Dosya bulunamadı: %s" % yol)
 
 
@@ -1362,10 +1573,10 @@ def y_notlar_kaydet(p):
                 doc = None
                 dosyayi_yerine_koy(gecici, hedef)   # yan akışlar (internetten indirildi işareti), izinler korunur; kilitte yeniden dener
                 gecici = None
-        except SaltOkunurHatasi:
-            raise                                   # macOS: yazma izni yok; program kilidi değil (0.2.1)
-        except PermissionError as e:
-            raise PermissionError("Dosya yazılamadı, başka bir programda açık olabilir. (%s)" % e)
+        except OSError as e:
+            raise yazma_hatasi(e, hedef)            # anlaşılır ileti, ham hata metni kullanıcıya gitmez (0.3.1). macOS'ta yazma izni: SaltOkunurHatasi olduğu gibi
+        except (RuntimeError, pymupdf.mupdf.FzErrorBase) as e:
+            raise mupdf_yazma_hatasi(e, hedef)
     finally:
         if doc is not None:
             doc.close()
@@ -1588,6 +1799,7 @@ def y_imza_durumu(p):
 
 def kaydol(yontemler):
     yontemler["notlar_kaydet"] = y_notlar_kaydet
+    yontemler["kilit_sahipleri"] = y_kilit_sahipleri
     yontemler["imza_durumu"] = y_imza_durumu
     yontemler["freetext_stil"] = y_freetext_stil
     yontemler["baglantilar"] = y_baglantilar

@@ -5,6 +5,7 @@ import os
 import re
 import uuid
 import shutil
+import sys
 
 import pymupdf
 
@@ -122,7 +123,8 @@ def y_yapisal_kaydet(p):
             try:
                 shutil.copy2(yol, anlik)
             except OSError as e:           # yarım kopya dış blokta silinir
-                raise PermissionError("Dosya okunamadı; başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. (%s)" % e)
+                print("[kayıt] %s" % e, file=sys.stderr)
+                raise PermissionError("Dosya okunamadı; başka bir programda (örneğin bir PDF okuyucuda) açık olabilir.")
             for e in tarif:
                 if e.get("kaynak") and _ayni_yol(e["kaynak"]["yol"], yol):
                     e["kaynak"] = dict(e["kaynak"], yol=anlik)
@@ -244,7 +246,10 @@ def y_yapisal_kaydet(p):
 
             # 3) Kaydet
             gecici = hedef + ".pdefe-tmp"
-            yeni.save(gecici, garbage=3, deflate=True)
+            try:
+                yeni.save(gecici, garbage=3, deflate=True)
+            except (RuntimeError, pymupdf.mupdf.FzErrorBase) as e:
+                raise notlar.mupdf_yazma_hatasi(e, hedef)
             yeni.close()
             for d in acik.values():
                 d.close()
@@ -303,12 +308,14 @@ def _degistir(gecici, hedef, deneme=6):
         except PermissionError as e:
             son = e
             gc.collect()
+            if i + 1 == deneme or notlar._beklemek_bosuna(hedef):
+                break
             time.sleep(0.25 * (i + 1))
     try:
         os.remove(gecici)
     except Exception:
         pass
-    raise PermissionError("Dosya yazılamadı, başka bir programda açık olabilir. (%s)" % son)
+    raise notlar.yazma_hatasi(son, hedef)
 
 
 _ANLIK_ADI = re.compile(r"^[0-9a-f]{32}\.pdf$", re.IGNORECASE)

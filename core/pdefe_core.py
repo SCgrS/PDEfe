@@ -44,6 +44,7 @@ class BelgeOnbellek:
     def __init__(self, en_fazla=8):
         self.en_fazla = en_fazla
         self.belgeler = {}   # yol -> (doc, mtime, boyut, son_kullanim)
+        self.tutulmayanlar = set()   # istek bitince bırakılacak dosyalar (0.3.1: XFA formları, tutma)
 
     def al(self, yol):
         st = os.stat(yol)
@@ -83,6 +84,21 @@ class BelgeOnbellek:
         for yol in list(self.belgeler):
             self.birak(yol)
         _calisma_birak(None)
+
+    def tutma(self, yol, tutma=True):
+        """Bu dosya açık tutulmasın: Her istekten sonra bırakılır (0.3.1, XFA formu: Arayüz formu baytlarından dizer, dosyaya pek dönülmez. Kullanıcı aynı formu başka
+        programda da açık tutuyor: Çekirdeğin tanıtıcısı o programın kaydını engellerdi, Restart Manager kilit sahibi olarak PDEfe'yi gösterirdi)."""
+        anahtar = os.path.normcase(os.path.abspath(yol))
+        if tutma:
+            self.tutulmayanlar.add(anahtar)
+        else:
+            self.tutulmayanlar.discard(anahtar)
+
+    def tutulmayanlari_birak(self):
+        if self.tutulmayanlar:
+            for yol in list(self.belgeler):
+                if os.path.normcase(os.path.abspath(yol)) in self.tutulmayanlar:
+                    self.birak(yol)
 
 
 def _calisma_birak(yol):
@@ -747,6 +763,7 @@ def _isci(kuyruk):
             return
         with mupdf_kilidi:
             _istek_isle(istek)
+            onbellek.tutulmayanlari_birak()
 
 
 def main():
