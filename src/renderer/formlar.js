@@ -30,6 +30,9 @@ const OTOMATIK_BOY_KATI = 1.35;      // çekirdekle aynı (formlar.py): tek sat�
 const COK_SATIR_OTOMATIK = 12;
 const IC_PAY = 2;                     // pt
 const HEDEF_BEKLEME_MS = 4000;        // Tab başka sayfadaki alana giderken sayfanın form katmanı en çok bu kadar beklenir
+// Bir değerin en çok karakteri (çekirdekteki EN_UZUN_METIN): Daha uzun değeri çekirdek reddeder, o dosyanın bütün form istekleri (görünüm,
+// kayıt, yazdırma) hata verirdi (0.3.1 inceleme). En çok uzunluğu olmayan alana da bu sınır konur, uygulanan değer de kesilir
+const EN_UZUN_METIN = 20000;
 
 /** İki değer aynı mı (metin ya da metin listesi). */
 export function degerEsit(a, b) {
@@ -48,6 +51,7 @@ export class FormYoneticisi extends EventTarget {
     this.yigin = yigin;
     this.alanlar = new Map();     // anahtar (yolAnahtari#alan xref) → kayıt { yol, xref, ad, tur, kayitli, deger? }
     this._istek = 0;
+    this._degerSurumu = 0;        // her değer değişikliğinde artar (kayit._surum: alanın son değişikliği; görünüm yanıtı eskimiş mi)
     this.arac = null;
     // Sayfada alanın dışına basış odaktaki alanı bırakır (yazısı uygulanır): metin seçimi basışta varsayılanı engellediği için odak alanda
     // kalır, sonra yazılan alana giderdi
@@ -132,6 +136,7 @@ export class FormYoneticisi extends EventTarget {
 
   degerKoy(kayit, deger) {
     kayit.deger = structuredClone(deger);
+    kayit._surum = ++this._degerSurumu;
     this.alanGuncelle(kayit);
     this.dispatchEvent(new CustomEvent('degisti'));
   }
@@ -178,6 +183,7 @@ export class FormYoneticisi extends EventTarget {
     if (!g.cekirdek || s.bos || s.formYok) return;
     const dpr = window.devicePixelRatio || 1;
     const surum = s._formSurum = (s._formSurum || 0) + 1;
+    const degerSurumu = this._degerSurumu;
     const ilk = !s.formAlanlari;
     let r;
     try {
@@ -198,6 +204,8 @@ export class FormYoneticisi extends EventTarget {
     const vp = pdfSayfa.getViewport({ scale: olcek * CSS_BIRIM, rotation: dondurme });
     const gorunumler = new Map((r.widgetlar || []).map((w) => [w.xref, w]));
     const kalan = new Set(s._formOgeler.keys());
+    const ayniYon = s._formAnahtar?.split('|')[1] === String(dondurme);
+    const yenilenecek = [];
     for (const a of s.formAlanlari) {
       if (a.gizli) continue;
       kalan.delete(a.xref);
@@ -205,12 +213,18 @@ export class FormYoneticisi extends EventTarget {
       if (!oge) { oge = this.ogeKur(s, a); s._formOgeler.set(a.xref, oge); katman.append(oge.img, oge.el); }
       this.yerlestir(oge, vp, pdfSayfa.view, olcek * CSS_BIRIM);
       const w = gorunumler.get(a.xref);
-      if (w) this.gorunumKoy(oge, w);
-      else oge.img.hidden = true;
+      // Değeri istek gittikten sonra değişen alanın görünümü eskidir (0.3.1 inceleme: yakınlaştırınca giden istek, alandan Tab ile
+      // çıkmadan önceki değerle dönüp yeni görünümün üstüne yazıyordu, yeni görünüm isteği de anahtar değiştiği için atılıyordu). Ekrandaki
+      // görünümü kalır (aynı yönde: kutusu sayfanın oranı), yeni ölçekte yeniden istenir
+      const eski = (oge.kayit._surum || 0) > degerSurumu;
+      if (w && !(eski && oge.gorunum && ayniYon)) this.gorunumKoy(oge, w);
+      else if (!w) oge.img.hidden = true;
+      if (eski) yenilenecek.push(oge);
       this.denetimGuncelle(oge);
     }
     for (const x of kalan) { const o = s._formOgeler.get(x); o.img.remove(); o.el.remove(); s._formOgeler.delete(x); }
     s._formAnahtar = `${olcek}|${dondurme}|${dpr}`;
+    if (yenilenecek.length) this.gorunumYenile(s, yenilenecek);
   }
 
   /** Sayfanın form katmanı boşaltılıyor (Goruntuleyici.girdiBosalt): odaktaki yazı uygulanır (katman silinince yazılan kaybolmasın). */
@@ -249,7 +263,7 @@ export class FormYoneticisi extends EventTarget {
       const d = document.createElement(a.tur === 'metin' && a.cokSatir ? 'textarea' : 'input');
       if (d.tagName === 'INPUT') d.type = a.tur === 'metin' && a.parola ? 'password' : 'text';
       d.className = 'form-denetim'; d.spellcheck = false; d.autocomplete = 'off';
-      if (a.tur === 'metin' && a.enCok > 0) d.maxLength = a.enCok;
+      d.maxLength = a.tur === 'metin' && a.enCok > 0 ? Math.min(a.enCok, EN_UZUN_METIN) : EN_UZUN_METIN;
       if (a.tur === 'acilir') {
         const liste = document.createElement('datalist');
         liste.id = 'form-liste-' + Math.random().toString(36).slice(2);
@@ -343,6 +357,8 @@ export class FormYoneticisi extends EventTarget {
     let yeni = d.value;
     if (oge.a.tur === 'acilir') yeni = (oge.a.secenekler || []).find((o) => o[1] === yeni)?.[0] ?? yeni;
     else if (!oge.a.cokSatir) yeni = yeni.replace(/\r?\n/g, ' ');
+    // maxLength yalnızca yazılanı sınırlar: dosyadaki değer daha uzunsa denetimde öyle görünür, düzenlenince sınıra kesilir
+    if (yeni.length > EN_UZUN_METIN) yeni = yeni.slice(0, EN_UZUN_METIN).replace(/[\uD800-\uDBFF]$/, '');   // yarım vekil çift kalmasın
     return this.degistir(oge.kayit, yeni, this.sayfaNo(oge));
   }
 

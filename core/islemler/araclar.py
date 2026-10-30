@@ -106,6 +106,9 @@ def _onbellekten_birak(yol):
                 ayni = False
         if ayni:
             onb.birak(anahtar)
+    # Form değerlerinin çalışma belgeleri önbellekte kaydı olmasa da kapanır (0.3.1 inceleme: kaydı en_fazla sınırıyla atılan dosyanın
+    # çalışma belgesi dosyayı açık tutuyor, "Üzerine yaz" başka programda açık hatası veriyordu)
+    _cekirdek()._calisma_birak(yol)
 
 
 def _ilerleme(p):

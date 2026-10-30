@@ -290,6 +290,76 @@ try:
 except OSError:
     tasindi = False
 sonuc("belge_birak çalışma belgesini de kapatır (dosya taşınabildi)", tasindi and not any(k[0] == y for k in formlar._calisma))
+# 0.3.1 inceleme: Önbellek kaydı en_fazla sınırıyla atılmış dosyanın çalışma belgesi de bırakılır (belge_birak ve araçların bırakması)
+from islemler import araclar  # noqa: E402
+for ad, birak in (("calisma-lru.pdf", lambda y: pdefe_core.YONTEMLER["belge_birak"]({"yol": y})), ("calisma-lru2.pdf", araclar._onbellekten_birak)):
+    pdefe_core.onbellek.hepsini_birak()
+    y = kopya(ad)
+    fg({"yol": y, "sayfa": 1, "olcek": 1, "degerler": [{"xref": ad_xref["ad"], "deger": "lru"}]})
+    for i in range(pdefe_core.onbellek.en_fazla + 1):
+        pdefe_core.onbellek.al(kopya("lru-%d.pdf" % i))
+    kayitsiz = y not in pdefe_core.onbellek.belgeler and any(k[0] == y for k in formlar._calisma)
+    birak(y)
+    try:
+        os.replace(y, y + ".tasindi.pdf")
+        tasindi = True
+    except OSError:
+        tasindi = False
+    sonuc("önbellekten atılan dosyanın çalışma belgesi de bırakılır (%s)" % ad, kayitsiz and tasindi and not any(k[0] == y for k in formlar._calisma),
+          (kayitsiz, tasindi))
+pdefe_core.onbellek.hepsini_birak()
+
+# 0.3.1 inceleme: Uzun yazı (boşluksuz ve sözcüklü, otomatik boy) çekirdeği tutmaz. Önceden sarma her adımda satırı ve parçayı yeniden
+# ölçüyordu: Boşluksuz 1.200 karakter 38 sn, otomatik boylu 8.000 karakter 12 sn sürüyordu
+d = pymupdf.open(ALANLAR)
+t = time.time()
+formlar.degerleri_uygula(d, [{"xref": ad_xref["aciklama"], "deger": "x" * formlar.EN_UZUN_METIN}])
+sure = time.time() - t
+d.bake(annots=False, widgets=True)
+sonuc("boşluksuz %d karakter 2 sn'den kısa, görünümde başı var" % formlar.EN_UZUN_METIN, sure < 2 and "x" * 20 in d[0].get_text(), round(sure, 3))
+d.close()
+d = pymupdf.open(ALANLAR)
+da = d.xref_get_key(ad_xref["aciklama"], "DA")[1]
+d.xref_set_key(ad_xref["aciklama"], "DA", notlar._pdf_metin(re.sub(r"[\d.]+\s+Tf", "0 Tf", da.strip("()"))))
+uzun = ("deneme sözcük " * 2000)[:formlar.EN_UZUN_METIN]
+t = time.time()
+formlar.degerleri_uygula(d, [{"xref": ad_xref["aciklama"], "deger": uzun}])
+sure = time.time() - t
+akis = d.xref_stream(int(d.xref_get_key(ad_xref["aciklama"], "AP/N")[1].split()[0])).decode("latin-1")
+boy = float(re.search(r"BT /\S+ ([\d.]+) Tf", akis).group(1))
+d.bake(annots=False, widgets=True)
+sonuc("otomatik boylu çok satır, %d karakter: 2 sn'den kısa, en küçük boy, görünümde başı var" % len(uzun),
+      sure < 2 and boy == formlar.OTOMATIK_BOY_EN_AZ and "deneme sözcük deneme" in d[0].get_text(), (round(sure, 3), boy))
+d.close()
+# Kısa yazı otomatik boyda yine büyük yazılır (sınırlı sayım boyu değiştirmez)
+d = pymupdf.open(ALANLAR)
+d.xref_set_key(ad_xref["aciklama"], "DA", notlar._pdf_metin(re.sub(r"[\d.]+\s+Tf", "0 Tf", da.strip("()"))))
+formlar.degerleri_uygula(d, [{"xref": ad_xref["aciklama"], "deger": "Kısa"}])
+akis = d.xref_stream(int(d.xref_get_key(ad_xref["aciklama"], "AP/N")[1].split()[0])).decode("latin-1")
+sonuc("otomatik boylu çok satır, kısa yazı: 12 punto", float(re.search(r"BT /\S+ ([\d.]+) Tf", akis).group(1)) == formlar.COK_SATIR_OTOMATIK, akis[:200])
+d.close()
+# Sarma: sözcük sarma, sığmayan sözcük harf harf, satır sonundaki boşluk satırda, paragraflar
+genislik_1 = {c: 1.0 for c in "abcdefgh xy"}
+sonuc("sarma: sözcükler, bölünen sözcük, paragraf", formlar._satirlar("ab cd abcdefgh\nxy", 5.0, genislik_1.get, 1.0) == ["ab cd ", "abcde", "fgh", "xy"],
+      formlar._satirlar("ab cd abcdefgh\nxy", 5.0, genislik_1.get, 1.0))
+sonuc("sarma: en_cok satırda durur", formlar._satirlar("a b c d e f", 1.0, genislik_1.get, 1.0, 2) == ["a ", "b "])
+
+# 0.3.1 inceleme: Yazı notunun /PDEfeFonts'taki fontu (insert_font'un ToUnicode'u: boşluk → U+00A0) form görünümünde kullanılmaz
+y = kopya("notlu-font.pdf")
+d = pymupdf.open(y)
+_, altkume, _, _ = notlar._font_yukle("Arial", False, False)
+fx = d[0].insert_font(fontname="PDEfeDeneme", fontbuffer=altkume)
+d.xref_set_key(d.pdf_catalog(), "PDEfeFonts", "<</ArialR %d 0 R>>" % fx)
+d.saveIncr()
+d.close()
+d = pymupdf.open(y)
+formlar.degerleri_uygula(d, [{"xref": ad_xref["ad"], "deger": "bir iki üç"}])
+kullanilan = re.search(r"/PDEfeF\w+ (\d+) 0 R", d.xref_object(int(d.xref_get_key(next(o for o in ozet["alanlar"] if o["ad"] == "ad")["widgetlar"][0], "AP/N")[1].split()[0])))
+d.bake(annots=False, widgets=True)
+satir = next((s for s in d[0].get_text().splitlines() if "iki" in s), "")
+sonuc("notun ToUnicode'u bozuk fontu kullanılmadı, görünümde boşluklar olağan", kullanilan and int(kullanilan.group(1)) != fx and satir == "bir iki üç",
+      (kullanilan and kullanilan.group(1), fx, repr(satir)))
+d.close()
 
 # ---------------------------------------------------------------- 5. yazdırma görüntüsü
 sg = pdefe_core.y_sayfa_goruntu

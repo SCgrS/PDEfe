@@ -16,6 +16,8 @@
 //  12) E-imzalı belge: artımlı kayıt, imzalanan baytlar değişmez (ByteRange'in özeti tutar), dolu alan değişince sorulur ("İmzayı koru").
 //  13) XFA'lı karma belge: AcroForm alanları çalışır, kayıtta değer yazılır.
 //  14) Sekmenin paketi (başka pencereye taşıma) form değerlerini ve komutlarını taşır; başka pencereye taşınan sekmede geri al çalışır.
+//  15) İnceleme düzeltmeleri: En çok uzunluğu olmayan alana 20.000 sınırı (çekirdeğin sınırı), yakınlaştırmanın katman isteği ile
+//      alandan çıkmanın görünüm isteği yarışında widget yeni değeri gösterir.
 // Örnek PDF'ler test/form_alanlari_pdf_uret.py ile üretilir (betik kendisi çalıştırır; gerçek belge yok): test/cikti/s47/<koşum>/.
 // Kullanım (ekran dışı):
 //   powershell -File test\baslat.ps1 -Port 9310 -Veri "$env:TEMP\pdefe-s47-9310" -Boyut "1280,900"   → PID=… yazar
@@ -566,6 +568,47 @@ export default async function ({ evalJs, bekle, tikla, yaz, tus, surukle, hedefS
       hedefSec(null);
       await bekle(800);
     }
+  }
+
+  // ------------------------------------------------------------ 15) inceleme düzeltmeleri (0.3.1)
+  if (bolum(15)) {
+    const yol15 = kopya('alanlar-15.pdf');
+    await ac(yol15);
+    // En çok uzunluğu olmayan alana çekirdeğin sınırı (20.000) konur, daha uzun değer kesilir: Form istekleri hata vermez
+    const u = await s47(`(async () => {
+      const f = H.b().formlar, o = H.oge('aciklama'), k = H.oge('kisa');
+      o.denetim.focus(); o.denetim.value = 'x'.repeat(20005); f.uygula(o); o.denetim.blur();
+      await H.bekle(300);
+      let hata = '';
+      try { await H.g().cekirdek('form_gorunum', { yol: H.b().yol, sayfa: 1, olcek: 1, dondurme: 0, degerler: f.bekleyenler(H.b().yol), xrefler: [o.a.xref] }); } catch (e) { hata = String(e?.message || e); }
+      return { sinir: o.denetim.maxLength, kisa: k.denetim.maxLength, uzunluk: (H.deger('aciklama') || '').length, hata };
+    })()`);
+    sonuc('15) Uzunluk sınırı: en çok uzunluğu olmayan alanda 20.000, "kisa"da 5, uzun değer kesildi, görünüm alınabiliyor', u.sinir === 20000 && u.kisa === 5 && u.uzunluk === 20000 && !u.hata, u);
+    await evalJs(`(window.__pdefe.komutCalistir('duzen.geriAl'), true)`);
+    await bekle(300);
+    // Yarış: Yakınlaştırınca giden katman isteği (eski değerle) alandan Tab ile çıktıktan sonra dönüyor. Önceden widget eski değeri gösteriyordu
+    // (yeni görünüm isteği anahtar değiştiği için atılıyordu). Katman isteğinin yanıtı 800 ms geciktirilir
+    await tiklaAlan('ad', { sayfa: 1 });
+    await yaz('Yarış');
+    await s47(`(() => {
+      const g = H.g(), asil = g.cekirdek;
+      H._asil = asil;
+      g.cekirdek = (yontem, p, ...r) => { const s = asil.call(g, yontem, p, ...r); return yontem === 'form_gorunum' && !p.xrefler && !p.alanlar ? s.then((x) => new Promise((c) => setTimeout(() => c(x), 800))) : s; };
+      g.zoomAyarla(g.olcek * 1.25);
+      return true;
+    })()`);
+    await bekle(150);
+    await tus('Tab');
+    await bekle(2500);
+    const y = await s47(`(async () => {
+      const g = H.g(); g.cekirdek = H._asil;
+      const o = H.oge('ad', { sayfa: 1 }), s = o.s, c = s.cizim, f = H.b().formlar;
+      const r = await g.cekirdek('form_gorunum', { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa, olcek: Math.min(6, c.olcek * (96 / 72) * (window.devicePixelRatio || 1)), dondurme: c.dondurme,
+        degerler: f.bekleyenler(s.kaynak.yol), xrefler: [o.a.xref] });
+      const bek = r.widgetlar.find((w) => w.xref === o.a.xref);
+      return { deger: H.deger('ad'), ayni: !!bek && bek.png === o.gorunum?.png, anahtar: s._formAnahtar, olcek: c.olcek, bekliyor: o.el.classList.contains('bekliyor') };
+    })()`);
+    sonuc('15) Yakınlaştırma ile alan değişikliği yarışı: widget yeni değerin görünümünü gösteriyor (yeni ölçekte)', y.deger === 'Yarış' && y.ayni && !y.bekliyor, y);
   }
 
   const hatalar = await evalJs(`(window.__hatalar || []).slice(0, 8)`).catch(() => []);

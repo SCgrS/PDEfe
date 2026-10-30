@@ -591,6 +591,8 @@ def y_belge_birak(p):
     for anahtar in list(onbellek.belgeler):
         if anahtar == yol or os.path.normcase(os.path.abspath(anahtar)) == hedef:
             onbellek.birak(anahtar)
+    # Form değerlerinin çalışma belgeleri önbellekte kaydı olmasa da (kaydı en_fazla sınırıyla atılmış olabilir) kapanır (0.3.1 inceleme)
+    _calisma_birak(yol)
     return {"ok": True}
 
 

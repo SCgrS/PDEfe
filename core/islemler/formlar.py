@@ -521,8 +521,10 @@ def _form_fontu(doc, aile, kalin, fontlar):
     if "_gorunum_fontlari" not in fontlar:
         fontlar["_gorunum_fontlari"] = _gorunum_fontlari(doc)
     adaylar += fontlar["_gorunum_fontlari"]
+    # ToUnicode'u düzeltilmemiş aday (yazı notunun /PDEfeFonts'taki fontu: FreeText'inkine dokunulmadı) kullanılmaz: Görünümden okunan
+    # yazıda boşluklar yine bölünmez boşluk çıkardı (0.3.1 inceleme). Yerine düzeltilmiş kopyası bir kez gömülür, sonraki kayıtlar onu bulur
     for x in adaylar:
-        if 0 < x < doc.xref_length() and notlar._pdefe_fontu_mu(doc, x, altkume):
+        if 0 < x < doc.xref_length() and notlar._pdefe_fontu_mu(doc, x, altkume) and _tounicode_dogru_mu(doc, x, font):
             xref = x
             break
     if not xref:
@@ -540,6 +542,9 @@ def _form_fontu(doc, aile, kalin, fontlar):
     return fontlar[anahtar]
 
 
+_TOUNICODE_YANLISLARI = ((0x20, "00a0"), (0x2D, "00ad"))
+
+
 def _tounicode_duzelt(doc, fx, font):
     """insert_font'un ToUnicode'u boşluk glifini (Arial'da U+0020 ile U+00A0 aynı glif) bölünmez boşluğa, kısa çizgiyi yumuşak tireye
     eşliyor: görünümden kopyalanan ya da aranan yazıda boşluklar U+00A0 çıkıyordu. Tek glifli eşlemeler düzeltilir (bfchar)."""
@@ -549,12 +554,28 @@ def _tounicode_duzelt(doc, fx, font):
     tu = int(deger.split()[0])
     cmap = doc.xref_stream(tu).decode("latin-1")
     yeni = cmap
-    for kod, yanlis in ((0x20, "00a0"), (0x2D, "00ad")):
+    for kod, yanlis in _TOUNICODE_YANLISLARI:
         gid = font.has_glyph(kod)
         if gid:
             yeni = re.sub(r"<%04x>\s*<%s>" % (gid, yanlis), "<%04x> <%04x>" % (gid, kod), yeni, flags=re.IGNORECASE)
     if yeni != cmap:
         doc.update_stream(tu, yeni.encode("latin-1"))
+
+
+def _tounicode_dogru_mu(doc, fx, font):
+    """Gömülü fontun ToUnicode'unda _tounicode_duzelt'in düzelttiği yanlış eşlemeler yok mu (okunamazsa hayır: font yeniden gömülür)."""
+    try:
+        tur, deger = doc.xref_get_key(fx, "ToUnicode")
+        if tur != "xref":
+            return False
+        cmap = doc.xref_stream(int(deger.split()[0])).decode("latin-1")
+    except Exception:
+        return False
+    for kod, yanlis in _TOUNICODE_YANLISLARI:
+        gid = font.has_glyph(kod)
+        if gid and re.search(r"<%04x>\s*<%s>" % (gid, yanlis), cmap, flags=re.IGNORECASE):
+            return False
+    return True
 
 
 def _gorunum_fontlari(doc):
@@ -639,11 +660,21 @@ def _metin_gorunumu(doc, wobj, bilgi, deger, fontlar):
     ops, pay, bc, bw = _kenar_ops(w, h, bilgi)
     icw, ich = max(1.0, w - 2 * pay), max(1.0, h - 2 * pay)
 
-    def cizilen(s):
-        return "".join(notlar._cizilen(font, olcu, c) for c in s)
+    genislikler = {}
+
+    def ilerleme(c):
+        """Karakterin 1 puntodaki genişliği (bir kez ölçülür). Toplamı olc'yi verir: font.text_length da karakterlerin genişliğini soldan
+        sağa toplayıp yazı boyuyla çarpar, sonuç onunkiyle bayt bayt aynı (0.3.1 inceleme: her ölçüm MuPDF'e karakter karakter gidiyordu)."""
+        g = genislikler.get(c)
+        if g is None:
+            g = genislikler[c] = font.text_length(notlar._cizilen(font, olcu, c), fontsize=1)
+        return g
 
     def olc(s, boy):
-        return font.text_length(cizilen(s), fontsize=boy)
+        t = 0
+        for c in s:
+            t += ilerleme(c)
+        return t * boy
 
     def yaz(s, x, y, boy):
         return "1 0 0 1 %.2f %.2f Tm <%s> Tj" % (x, y, notlar._gid_hex(font, s, olcu)) if s else ""
@@ -677,11 +708,17 @@ def _metin_gorunumu(doc, wobj, bilgi, deger, fontlar):
         tarak = tur == "metin" and bilgi.get("tarak")
         if cok:
             genislik = max(1.0, icw - 2 * IC_PAY)
+            def satir_siniri(yukseklik, pay_):
+                adim = boy * (ust + alt)
+                return int(max(0.0, yukseklik) / adim) + pay_ if adim > 0 else None
+
             if not boy:
                 boy = COK_SATIR_OTOMATIK
-                while boy > OTOMATIK_BOY_EN_AZ and len(_satirlar(metin, genislik, lambda s: olc(s, boy))) * boy * (ust + alt) > ich - 2:
+                # Sığacak satır sayısı (+2: bölmedeki yuvarlama payı) aşılınca sayım durur: uzun yazıda her deneme yalnızca görünen kadarını sarar
+                while boy > OTOMATIK_BOY_EN_AZ and len(_satirlar(metin, genislik, ilerleme, boy, satir_siniri(ich - 2, 2))) * boy * (ust + alt) > ich - 2:
                     boy -= 0.5
-            satirlar = _satirlar(metin, genislik, lambda s: olc(s, boy))
+            # Çizilecek satırlardan fazlası sarılmaz (alanın altına düşen satırlar çizilmez)
+            satirlar = _satirlar(metin, genislik, ilerleme, boy, satir_siniri(h, 3))
             y = h - pay - IC_PAY / 2 - ust * boy
             for s in satirlar:
                 if y < pay - alt * boy:
@@ -728,31 +765,56 @@ def _metin_gorunumu(doc, wobj, bilgi, deger, fontlar):
     doc.xref_set_key(mupdf.pdf_to_num(wobj), "AP", "<</N %d 0 R>>" % ap)
 
 
-def _satirlar(metin, genislik, olc):
+def _satirlar(metin, genislik, ilerleme, boy, en_cok=None):
     """Çok satırlı yazının satırları: paragraflar (\\n) sözcük sözcük sarılır, sığmayan sözcük harf harf bölünür. Satır sonundaki boşluk
-    satırda kalır (hizada sayılmaz)."""
+    satırda kalır (hizada sayılmaz). ilerleme(c): karakterin 1 puntodaki genişliği, satırın genişliği soldan sağa toplanıp boy ile çarpılır
+    (font.text_length'in toplama sırası: sonuç onunla aynı). Her karakter bir kez toplanır (0.3.1 inceleme: önceden her sözcükte satırın, her
+    bölmede parçanın tamamı yeniden ölçülüyordu, boşluksuz uzun yazıda süre uzunluğun küpüyle büyüyor, 1.200 karakter 38 sn sürüyordu).
+    en_cok: bu kadar satır olunca durulur (sonrası çizilmez ya da sayılmaz)."""
     sonuc = []
     for paragraf in metin.split("\n"):
-        satir = ""
+        satir, toplam = "", 0
         for parca in re.findall(r"\S+|\s+", paragraf):
             if parca.isspace():
-                satir += parca if satir else ""
-                continue
-            if olc(satir + parca) <= genislik or not satir.strip():
-                if olc(satir + parca) <= genislik:
+                if satir:
                     satir += parca
-                    continue
-            if satir.strip():
+                    for c in parca:
+                        toplam += ilerleme(c)
+                continue
+            t = toplam
+            for c in parca:
+                t += ilerleme(c)
+            if t * boy <= genislik:
+                satir, toplam = satir + parca, t
+                continue
+            if satir:
                 sonuc.append(satir)
-                satir = ""
-            while olc(parca) > genislik and len(parca) > 1:     # tek başına sığmayan sözcük
-                k = len(parca) - 1
-                while k > 1 and olc(parca[:k]) > genislik:
-                    k -= 1
-                sonuc.append(parca[:k])
-                parca = parca[k:]
-            satir = parca
+                if en_cok is not None and len(sonuc) >= en_cok:
+                    return sonuc
+                satir, toplam = "", 0
+            # Tek başına sığmayan sözcük: sığan en uzun baş (en az bir harf) satır olur, kalanla sürer. Genişlikler eksi olmadığı için
+            # soldan toplamın sınırı ilk aştığı harf, sığan en uzun başın bittiği yerdir
+            bas, n = 0, len(parca)
+            while n - bas > 1:
+                t, j = 0, bas
+                while j < n:
+                    t2 = t + ilerleme(parca[j])
+                    if t2 * boy > genislik:
+                        break
+                    t, j = t2, j + 1
+                if j >= n:
+                    break
+                k = max(1, j - bas)
+                sonuc.append(parca[bas:bas + k])
+                if en_cok is not None and len(sonuc) >= en_cok:
+                    return sonuc
+                bas += k
+            satir, toplam = parca[bas:], 0
+            for c in satir:
+                toplam += ilerleme(c)
         sonuc.append(satir)
+        if en_cok is not None and len(sonuc) >= en_cok:
+            return sonuc
     return sonuc
 
 
