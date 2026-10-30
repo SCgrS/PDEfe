@@ -29,6 +29,7 @@ gizli = [
     "islemler.araclar",
     "islemler.yapisal",
     "islemler.yazi_tanima",
+    "islemler.xfa",            # dinamik XFA formları (0.3.1)
     "islemler.donustur",
     "islemler.udf",
     "islemler.udf_yaz",

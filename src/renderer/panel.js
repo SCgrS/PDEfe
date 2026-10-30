@@ -244,8 +244,16 @@ export class SolPanel extends EventTarget {
   /** Sayfanın önbellek anahtarı ve istenecek genişliği. Çekirdek sayfayı diskteki /Rotate ile çizer: kayıtla diske işlenmiş döndürme
    *  resimde vardır, anahtar ona göre ayrılır. */
   _resimAnahtari(b, s) {
-    const disk = diskDondurmesi(b, s);
-    return { disk, anahtar: (s.kaynak.yol + '#' + s.kaynak.sayfa).toLowerCase() + '#' + disk, istenen: this.istenenGenislik(b, s, disk) };
+    const k = this._resimKaynagi(b, s);
+    const disk = k === s.kaynak ? diskDondurmesi(b, s) : 0;
+    return { disk, kaynak: k, anahtar: k ? (k.yol + '#' + k.sayfa).toLowerCase() + '#' + disk : null, istenen: this.istenenGenislik(b, s, disk) };
+  }
+
+  /** Küçük resmin kaynağı: sayfanın kaynak dosyası ve sayfası. XFA formunda (0.3.1) formun düz PDF'i (xfa.js kucukResimKaynagi; MuPDF formun
+   *  sayfalarını görmez); düz PDF henüz hazır değilse null (yer tutucu kalır, hazır olunca küçük resimler yenilenir). */
+  _resimKaynagi(b, s) {
+    if (b.gorunum?.xfa) return b.xfa?.kucukResimKaynagi(s) || null;
+    return s.kaynak;
   }
 
   /** Gözlemci hücrenin görünen alanın payına girdiğini bildirdi: önbellekte yeterli resim varsa hemen konur (çekirdeğe gitmez), yoksa hücre
@@ -254,6 +262,7 @@ export class SolPanel extends EventTarget {
     const s = b.gorunum.sayfalar[+el.dataset.sayfa - 1];
     if (s && !s.bos) {
       const { anahtar, istenen } = this._resimAnahtari(b, s);
+      if (!anahtar) return;   // XFA formunun düz PDF'i hazır değil
       if (!(onbellek.get(anahtar)?.istenen >= istenen)) { this._kuyruk.set(el, { b, onbellek }); return; }
     }
     this.kucukResimYukle(b, +el.dataset.sayfa, el, onbellek);
@@ -305,12 +314,13 @@ export class SolPanel extends EventTarget {
       if (s.bos) { el.querySelector('.bos')?.classList.add('bos-sayfa'); return; }
       // Önbellekte sayfanın en büyük çözünürlüklü resmi durur: istenenden küçük değilse kullanılır (daralınca yeniden istenmez), küçükse
       // yeniden istenir.
-      const { disk, anahtar, istenen } = this._resimAnahtari(b, s);
+      const { disk, anahtar, istenen, kaynak } = this._resimAnahtari(b, s);
+      if (!anahtar) { cekirdektenSonra?.(); return; }   // XFA formunun düz PDF'i hazır değil: yer tutucu kalır
       const sira = el._istek = (el._istek || 0) + 1;   // hücrenin sonraki isteği öncekini geçersiz kılar: geç gelen düşük çözünürlük yenisini ezmesin
       let kayit = onbellek.get(anahtar);
       if (!kayit || kayit.istenen < istenen) {
         let r;
-        try { r = await this.cekirdek('kucuk_resim', { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa, genislik: istenen }); } finally { cekirdektenSonra?.(); }
+        try { r = await this.cekirdek('kucuk_resim', { yol: kaynak.yol, sayfa: kaynak.sayfa, genislik: istenen }); } finally { cekirdektenSonra?.(); }
         const src = kucukResimAdresi(r);
         kayit = { src, istenen, boy: src.length, zaman: ++this._kullanim };
         if (!(onbellek.get(anahtar)?.istenen >= istenen)) { onbellek.set(anahtar, kayit); this.bellegiSinirla(kayit); }

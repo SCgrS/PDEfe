@@ -90,6 +90,9 @@ export function yaziTipiYukleyicisiniSar(pdfBelge) {
   if (!proto || typeof proto.bind !== 'function') { console.warn('PDF.js yazı tipi yükleyicisi bulunamadı; standart dışı fontlar genel yedekle çizilir'); return; }
   const ozgun = proto.bind;
   proto.bind = async function (font) {
+    // XFA formunun yazı tipleri (0.3.1; PDF.js onları cssFontInfo'yla, formdaki adlarıyla kurar): FontFace kurulmaz, formun HTML'i yazı tipini
+    // adıyla bilgisayardan ya da xfa.css'teki benzerinden bulur (goruntuleyici.js XFA_YAZI)
+    if (font?.cssFontInfo) return ozgun.call(this, font);
     try {
       glifYollariniSar(font);
       if (font && !font.attached && !font.isType3Font) {

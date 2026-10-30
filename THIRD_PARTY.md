@@ -15,7 +15,7 @@ kullanılan MuPDF / PyMuPDF'in AGPL-3.0 olmasıdır; bu bileşenler için Artife
 | Chromium | 152.0.7977.130 | BSD-3-Clause (ve bileşenlerinin lisansları) | Electron içindeki tarayıcı motoru; arayüzü çizer | https://www.chromium.org/ |
 | Node.js | 24.21.0 | MIT | Electron içindeki ana süreç çalışma zamanı | https://nodejs.org/ |
 | V8 | 15.2.124.28 | BSD-3-Clause | JavaScript motoru (Chromium/Node içinde) | https://v8.dev/ |
-| PDF.js (`pdfjs-dist`) | 6.3.289 | Apache-2.0 | Sayfa çizimi, metin katmanı, yer imleri (Mozilla) | https://github.com/mozilla/pdf.js |
+| PDF.js (`pdfjs-dist`) | 6.3.289 | Apache-2.0 | Sayfa çizimi, metin katmanı, yer imleri, XFA formlarının dizimi ve katmanı (0.3.1; katmanın kuralları `web/pdf_viewer.css`'ten `src/renderer/xfa.css`'e alındı) (Mozilla) | https://github.com/mozilla/pdf.js |
 | PyMuPDF | 1.28.2 | AGPL-3.0 | `pdefe-core` çekirdeği: belge bilgisi, küçük resimler, notlar, kaydetme (Artifex) | https://github.com/pymupdf/PyMuPDF |
 | MuPDF | 1.28.2 | AGPL-3.0 | PyMuPDF'in altındaki PDF motoru (Artifex) | https://mupdf.com/ |
 | Python | 3.12.14 | PSF-2.0 | Çekirdek sürecinin dili (PyInstaller ile exe'ye gömülür) | https://www.python.org/ |

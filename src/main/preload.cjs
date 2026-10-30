@@ -18,6 +18,7 @@ const CAGRILAR = new Set([
   'uygulama:acilisZamanlari', 'uygulama:bilgi', 'uygulama:geciciKlasor', 'uygulama:klasorler', 'uygulama:sonDosyalar', 'uygulama:veriKlasoru',
   'yanit',
   'yazdir:hazirla', 'yazdir:sayfaEkle', 'yazdir:baslat', 'yazdir:iptal', 'yazdir:durum', 'yazdir:yazicilar', 'yazdir:yaziciDurumu', 'yazdir:tercihler',
+  'xfa:duzPdf',
 ]);
 const GONDERIMLER = new Set(['uygulama:hazir', 'pencere:belgeler', 'pencere:kirli', 'sekme:surukleBasla', 'sekme:surukleCan', 'sekme:surukleIptal', 'hayalet:kare']);
 const DINLEMELER = new Set([

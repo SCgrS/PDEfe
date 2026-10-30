@@ -4,6 +4,7 @@ from . import notlar
 from . import formlar
 from . import yapisal
 from . import yazi_tanima
+from . import xfa
 
 
 def kaydol(yontemler):
@@ -11,6 +12,7 @@ def kaydol(yontemler):
     formlar.kaydol(yontemler)
     yapisal.kaydol(yontemler)
     yazi_tanima.kaydol(yontemler)
+    xfa.kaydol(yontemler)   # dinamik XFA formları (0.3.1)
     try:
         from . import araclar
         araclar.kaydol(yontemler)

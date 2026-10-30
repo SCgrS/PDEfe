@@ -155,8 +155,8 @@ export function anlikDosyasiMi(yol, anlikKlasor) {
 }
 
 /** Hedef verilmezse yol'a (açık belgenin kendisine) yazan çekirdek yöntemleri (0.2.1); ayir yalnızca uzerine ile. Bu yöntemler hedefsiz
- *  de denetlenir (anaSurec.js cekirdek:cagir). */
-export const YOLA_YAZANLAR = new Set(['notlar_kaydet', 'yapisal_kaydet', 'sayfalar_uygula', 'kucult', 'dondur_kaydet', 'ayir']);
+ *  de denetlenir (anaSurec.js cekirdek:cagir). xfa_kaydet (0.3.1): XFA formunun kaydı (hedef her zaman verilir). */
+export const YOLA_YAZANLAR = new Set(['notlar_kaydet', 'yapisal_kaydet', 'sayfalar_uygula', 'kucult', 'dondur_kaydet', 'ayir', 'xfa_kaydet']);
 
 /** Format Değiştir'in çekirdek yöntemleri (0.2.6, core/islemler/donustur.py; 0.2.7: donusum_tahmini): parametreleri her zaman denetlenir. */
 export const DONUSUM_YONTEMLERI = new Set(['donusum_yetenekleri', 'donusum_bilgi', 'bicim_donustur', 'donusum_tahmini']);

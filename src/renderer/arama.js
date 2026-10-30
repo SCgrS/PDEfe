@@ -6,6 +6,12 @@ import { tanimaBirak, tanimaYokMu } from './goruntuleyici.js';
 /** Sonuçların sırası (0.3.1): Belge (aramadaki sırası), tür (metin, yer imi, yorum), metinde sayfa ve konum. Yer imi ve yorumlar
  *  eklendikleri sırada kalır (sıralama kararlı). Tanınan yazının eşleşmeleri sayfalar tanındıkça gelir, yerlerine girer. */
 const TUR_SIRASI = { metin: 0, yerimi: 1, yorum: 2 };
+/** Sayfanın vurgulanan metin katmanı: PDF.js TextLayer ya da XFA formunda (0.3.1) XFA katmanının öğeleri (goruntuleyici.js _xfaMetni:
+ *  aynı textDivs / textContentItemsStr biçiminde). Vurgu seçicisi ikisini de kapsar. */
+const katmanOf = (s) => s.textLayer || s.xfaMetin || null;
+const VURGU = '.textLayer .highlight, .xfaLayer .highlight';
+const SECILI_VURGU = '.textLayer .highlight.selected, .xfaLayer .highlight.selected';
+
 const sonucSirasi = (a, b) => (a.sira - b.sira) || (TUR_SIRASI[a.tur] - TUR_SIRASI[b.tur]) || (a.tur === 'metin' ? (a.sayfa - b.sayfa) || (a.bas - b.bas) : 0);
 
 export class Arama extends EventTarget {
@@ -155,7 +161,8 @@ export class Arama extends EventTarget {
     if (!m) { m = new Map(); this.metinOnbellek.set(gorunum, m); }
     const girdi = gorunum.sayfalar[sayfa - 1];
     const eski = m.get(sayfa);
-    if (eski && eski.girdi === girdi && eski.tanima === (girdi?.tanima || null)) return eski;
+    // XFA formunda (0.3.1) alanların değerleri de aranır: değerler değişebildiği için her aramada yeniden kurulur (vurgu kaydı okur)
+    if (eski && eski.girdi === girdi && eski.tanima === (girdi?.tanima || null) && !gorunum.xfa) return eski;
     const { items, pdfOgeSayisi, tanima } = await gorunum.aramaOgeleri(sayfa - 1);
     const parcalar = [], konumlar = [];
     let uz = 0, tanimaBasi = -1;
@@ -364,7 +371,7 @@ export class Arama extends EventTarget {
     const idler = new Set(this.sonuclar.map((s) => s.belgeId));
     for (const id of idler) {
       const g = this.belgeler.get(id)?.gorunum;
-      if (g) for (const s of g.sayfalar) if (s.textLayer) this.sayfayiVurgula(g, s.no);
+      if (g) for (const s of g.sayfalar) if (katmanOf(s)) this.sayfayiVurgula(g, s.no);
     }
   }
 
@@ -406,10 +413,10 @@ export class Arama extends EventTarget {
     if (this.belgeAl() !== b) this.sekmeSec(b.id);
     const g = b.gorunum;
     // Önceki seçili vurguyu kaldır
-    document.querySelectorAll('.textLayer .highlight.selected').forEach((e) => e.classList.remove('selected'));
+    document.querySelectorAll(SECILI_VURGU).forEach((e) => e.classList.remove('selected'));
     if (s.tur === 'metin') {
       const yer = g.yerlesim[s.sayfa - 1];
-      if (!yer || !g.sayfalar[s.sayfa - 1].textLayer) g.sayfayaGit(s.sayfa);
+      if (!yer || !katmanOf(g.sayfalar[s.sayfa - 1])) g.sayfayaGit(s.sayfa);
       // Metin katmanı çizilince vurgular yerleşir; sonra kaydır
       await this.katmanBekle(g, s.sayfa);
       const el = g.sayfalar[s.sayfa - 1].el.querySelector(`.highlight[data-eslesme="${this.sonuclar.indexOf(s)}"]`);
@@ -432,9 +439,9 @@ export class Arama extends EventTarget {
   katmanBekle(g, sayfa) {
     return new Promise((coz) => {
       const s = g.sayfalar[sayfa - 1];
-      if (s.textLayer && s.el.querySelector('.textLayer .highlight')) { coz(); return; }
+      if (katmanOf(s) && s.el.querySelector(VURGU)) { coz(); return; }
       let deneme = 0;
-      const t = setInterval(() => { if ((s.textLayer && s.el.querySelector('.textLayer .highlight')) || ++deneme > 40) { clearInterval(t); coz(); } }, 50);
+      const t = setInterval(() => { if ((katmanOf(s) && s.el.querySelector(VURGU)) || ++deneme > 40) { clearInterval(t); coz(); } }, 50);
     });
   }
 
@@ -442,11 +449,12 @@ export class Arama extends EventTarget {
   /** Sayfanın metin katmanına o sayfadaki eşleşmeleri işler (katman çizildiğinde de çağrılır). */
   async sayfayiVurgula(g, sayfa) {
     const s = g.sayfalar[sayfa - 1];
-    if (!s.textLayer) return;
+    const tl = katmanOf(s);
+    if (!tl) return;
     const kayit = this.metinOnbellek.get(g)?.get(sayfa);
     if (!kayit) return;
-    const divs = s.textLayer.textDivs;
-    const strs = s.textLayer.textContentItemsStr;
+    const divs = tl.textDivs;
+    const strs = tl.textContentItemsStr;
     if (!divs || !divs.length) return;
     // Temizle
     divs.forEach((d, i) => { if (d.querySelector('.highlight')) d.textContent = strs[i]; });
@@ -493,8 +501,9 @@ export class Arama extends EventTarget {
   vurgulariTemizle() {
     for (const b of this.belgeler.values()) {
       for (const s of b.gorunum.sayfalar) {
-        if (!s.textLayer) continue;
-        const divs = s.textLayer.textDivs, strs = s.textLayer.textContentItemsStr;
+        const tl = katmanOf(s);
+        if (!tl) continue;
+        const divs = tl.textDivs, strs = tl.textContentItemsStr;
         divs.forEach((d, i) => { if (d.querySelector('.highlight')) d.textContent = strs[i]; });
       }
     }

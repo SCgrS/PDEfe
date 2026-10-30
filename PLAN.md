@@ -4058,3 +4058,97 @@ olan PDF'lerde. Düz (basılı kutucuklu) PDF'e tıklayıp işaret koymak yapıl
   alanlı belgede istek sayısı ve katman), senaryo28 38/38, ortu_tiklama 164/164, kisayol_dosya 164/164, yazdir_pencere 61/61, mac_renderer 46/46,
   kayit_sekme_panel 61/61, kose_notu_testi 49/49, yapisal_esleme_testi 13/13, mac_cekirdek_testi 14/14. not_testi bu bilgisayarda yer tutucu
   belgeyle düşüyor (gerçek kanun metni ister, değişiklikten önce de).
+
+#### 0.3.1: XFA formları (bireysel başvuru formu)
+Kullanıcı: "Bireysel başvuru formunda açabilir hale getireceğiz. bb formunda sayfa ekleme tuşunun çalışabilir, tüm fonksiyonların çalışabilir
+haline gelmesi lazım." (gönderdiği form depoya girmez)
+- [x] **Kök neden (ölçüldü)**: Form saf dinamik XFA: Katalogda /NeedsRendering, AcroForm'da /XFA paketleri (şablon, veri, yapılandırma), /Fields
+  boş, kullanım hakları imzası (/Perms /UR3). Sayfaların hepsi şablondan dizilir: MuPDF ve 0.3.0'a dek PDEfe (PDF.js enableXfa: false) yalnızca
+  belgenin "lütfen bekleyin" sayfasını görüyordu. PDF.js (6.3.289) enableXfa ile formu saf XFA olarak 9 sayfa diziyor, alanları HTML girdi
+  olarak çiziyor, ama betik çalıştırmıyor: Örnek ekleme yok, "Sayfa n / N" boş, değerleri yalnızca veri düğümü olan alanlarda saklıyor.
+- [x] **Karar: XFA kipi.** Saf XFA belge (PDF.js isPureXfa, karma belge AcroForm yolunda kalır) PDF.js'in XFA katmanıyla çizilir
+  (goruntuleyici.js xfaKatmaniCiz, XfaLayer.render. Metin, bağlantı ve AcroForm katmanları kurulmaz). Katman bir kez kurulur, yakınlaştırınca
+  yalnızca dönüşümü değişir (odaktaki alan ve yazılan metin korunur), uzaklaşan sayfada silinir (alan odaktaysa kalır). XFA kuralları pdf.js'in
+  pdf_viewer.css'inden src/renderer/xfa.css'e alındı (Apache 2.0. pdf_viewer.css pakete girmiyor, metin katmanı kurallarıyla çakışır).
+  Koyulaştırılmış sayfada katman sayfayla ters çevrilir. Belgenin sayfa HTML'i bir kez hazırlanır (src/renderer/xfaHtml.js sayfaHazirla):
+  sayfa numaraları, Bul öğeleri, basımda gizlenecekler.
+- [x] **Yazı tipleri (ölçüldü)**: PDEfe belgeyi ana hat kipinde açar (disableFontFace). XFA HTML'i yazı tiplerini adlarıyla ister ("Optima",
+  "Myriad Pro", "Calibri"), FontFace olmayınca bütün yazı tarayıcının varsayılanıyla (Times) çiziliyor, başlık iki satıra iniyordu. FontFace
+  açılınca da düzelmedi: PDF.js'in belgeye gömülü yazı tiplerinden kurduğu FontFace'lerde harfler Unicode'da yok (ölçüm: "Optima" yazı tipiyle
+  ölçülen genişlik Times'ınkinin aynısı), ayrıca bilgisayardaki Calibri'yi gölgeliyor. Karar: XFA yazı tiplerine FontFace kurulmaz (yaziTipleri.js
+  yükleyicisi cssFontInfo'lu yazı tiplerini atlar, ana hat kipi kapalıysa form disableFontFace ile yeniden açılır), yazı tipi adıyla
+  bilgisayardan, yoksa xfa.css'teki benzerinden (Optima, Myriad Pro → Segoe UI, Minion Pro ve Turkish Times New Roman → Times New Roman) bulunur.
+  PDF.js'in kendi yedek adları ("Arial-PdfJS-XFA", "PdfJS-Fallback") gerçek ada çevrilir. Yerleşim PDF.js'in ölçüsüyle yapıldığı için taşan
+  yazı (zengin metin, alan etiketi) sığana dek en çok %20 küçültülür (xfaSigdir, zoom). Kullanıcının formunda bu yolla hiç taşma kalmadı.
+- [x] **Sayfa numaraları**: Çekirdek şablonda değeri xfa.layout.page / pageCount (FormCalc'ta $layout) betikli alanları bulur. Çizimin zengin
+  metnine gömülü (floating field) alanlarda PDF.js gömülen alanı hiç çizmez: Paragrafın metni çekirdeğin verdiği kalıptan ("Sayfa {sayfa} /
+  {toplam}") yeniden yazılır, tek satır (PDF.js genişliği numarasız ölçtü). Görünür alanda değeri yazılır.
+- [x] **Düğmeler** (core/islemler/xfa.py xfa_bilgi): Betik çalıştırılmaz (genel JavaScript, eval yok). Tıklama betiği satır satır form
+  tasarım programının ürettiği eylem kalıplarıyla eşlenir: resolveNode('…') / yalın SOM ile addInstance, removeInstance(… .count - 1) ve
+  removeInstance(n), presence = "…", app.execMenuItem("SaveAs" | "Save" | "Print"), xfa.host.print. xfa.form.recalculate, relayout, setFocus ve
+  eski sürüm koşulu yok sayılır. Bir satır bile tanınmazsa düğme desteklenmez (yarım çalıştırılmaz): Tıklayınca "… düğmesinin işlevi PDEfe'de
+  çalışmıyor.", imleç ok, ipucu. SOM: this / $, xfa.form…, kapsam araması (adsız alt formların içinden), parent, instanceManager, _Ad. Düğme
+  HTML'de PDF.js'in xfaName yoluyla (sayfa kökünün adıyla başlar) tanınır. Kullanıcının formunun 9 düğmesinin hepsi tanınıyor.
+- [x] **Örnek ekleme / silme**: PDF.js örnek sayısını veriden bağlar. Düğme: PDF.js formun güncel değerlerini veriye yazar (saveDocument),
+  çekirdek (xfa_degistir) o alt formun veri grubunu ekler ya da sonuncusunu siler (occur min / max, sınırda "Bu bölüm en çok N kez
+  eklenebilir." / "Bu bölümün son örneği silinemez.", hiçbir şey değişmez), değişikliği artımlı yazar ve yalnızca eklenen bölümü döner. PDF.js
+  formu yeni baytlarla yeniden dizer (xfaYenile: Geçerli sayfa ve sayfa içi konum kalır, sayfa sayısı değişebilir). Yeni grup var olan ilk
+  örneğin yapısında, değerleri boş (ölçüldü: Boş veri grubu eklenince PDF.js gruptaki alanlara veri düğümü kurmuyor, 24 alan kendi kimliğine
+  bağlanıp yazılan değer kayıtta ve yeniden dizilişte kayboluyordu). Görünürlük (presence) şablonda düğümün özniteliğiyle (başlangıç
+  etiketinin bayt konumundan, şablonun öbür baytları aynı): Kaydedilince de kalır. Bir düğmenin yapı eylemleri tek çekirdek çağrısında, tek
+  geri al adımı ("Form: <düğmenin yazısı>").
+- [x] **Değerler ve geri al**: Alan değişince (change, alandan çıkma, Enter) "Form: <alanın açıklaması ya da etiketi>", "s. N". Alan PDF.js'in
+  veri kimliğiyle değil belgedeki sırasıyla tutulur (bütün sayfaların HTML'inde veri kimliklerinin ilk görüldüğü sıra): Form yeniden dizilince
+  kimlikler değişir, sıra değişmez. Geri alma ters sırada gittiği için bir değer komutu her zaman oluşturulduğu yapıda uygulanır. Yapı komutu
+  önceki baytları ve çekirdeğin eklediği bölümü tutar (sonraki = önceki + ek). Yeniden kurma ve değer koyma tek kuyrukta sırayla (xfa.js
+  _kuyruk), yeniden kurulurken katman tıklanmaz. Kaydedilmemiş değişiklik sorusu, otomatik kaydetme, açık düzenlemenin uygulanması (kaydet,
+  yazdır, kapat, sekme değiştirme ve taşıma) AcroForm'daki gibi.
+- [x] **PDF.js hatası**: PDF.js'in XFA veri yazıcısı annotationStorage boşken (hiç alan değişmemişken) "Cannot read properties of null" ile
+  çöküyor. Depoya hiçbir veri kimliğine uymayan, yazımda yok sayılan bir kayıt konur (goruntuleyici.js xfaBaytlari).
+- [x] **Kaydetme** (xfa_kaydet): PDF.js'in kaydettiği baytlar (güncel veri) baştan yazılır (girilen değerlerin eski hâlleri dosyada kalmaz,
+  AcroForm'daki temiz yazım kuralı gibi), dosya yerine konur (dosyayi_yerine_koy). Kullanım hakları imzası kaldırılır (/Perms'te DocMDP varsa
+  yalnızca UR3 ve UR): İmza belgenin özgün baytlarını kapsar, değişen belgede geçersizdir. Geçersiz imzalı formu referans okuyucu "genişletilmiş
+  özellikler artık kullanılamaz" uyarısıyla açar, imzasız formu olağan form olarak açar ve doldurtur. Formun durum paketi (form) olduğu gibi
+  kalır (sağlama toplamı tutmayınca okuyucu onu yok sayar, formu veriden kurar). Farklı kaydet'te sekme yeni dosyaya geçer.
+- [x] **Yazdırma ve küçük resimler** (main/xfaDuz.js): MuPDF formun sayfalarını görmediği için formun düz PDF'i kullanılır: Ana süreç formun
+  güncel baytlarını gizli, yalıtılmış pencerede (udfYaklasik.js düzeni: Sandbox, ayrı bellek içi oturum, yalnızca izinli dosyalar) aynı
+  hazırlıkla çizer (src/xfa-duz), printToPDF (sayfa boyutları @page adlı sayfalarıyla formunki). Basımda ekranda görünüp basılmayan öğeler
+  (relevant="-print", formun düğmeleri) gizli, yalnızca basımda görünenler açık, alanların mavi zemini yok. Dosya anlık klasöründe. Yazdırma
+  penceresi ve basım ondan olağan PDF gibi, kaydetme sorulmaz (AcroForm değerleri gibi). Sayfalar panelinin ve sekme ön izlemesinin küçük
+  resimleri de ondan: Düz PDF ilk istenince hazırlanır, sonra değişiklikten 2 sn sonra yenilenir. Ölçüm: Kullanıcının 9 sayfalık formunda ~0,9 sn.
+- [x] **Bul**: Etiketler, düğme yazıları ve alanların şimdiki değerleri, katman çizilmeden (sayfanın HTML'inden, katmandaki öğelerle aynı
+  sırada). Vurgu metinde satır içi, alan değerinde alanın üstündeki saydam yazının içinde (input'un içi süslenemez). Görsel yazısı aranmaz.
+- [x] **XFA kipinde kapalı olanlar**: Not, Vurgu, Yazı, sayfa döndürme, Sıkıştır, Sayfaları düzenle, Döndür, Ayır, Format Değiştir, Tümünü seç
+  (belge düzeyinde, alanın içinde çalışır): Araç çubuğunda soluk, ipucu ve menüden / kısayoldan gelince "XFA formlarında kullanılamaz.".
+  Sağ tık menüsünde Yapıştır, Vurgula, Not ekle soluk. Birleştir açılır ama XFA formu ilk girdi olarak gelmez. Notlar okunmaz. Çekirdeğe
+  formun sayfaları için bağlantı, görsel kutusu, form alanı, görsel yazısı sorulmaz. Sekme başka pencereye formun güncel baytlarıyla ve geri al
+  geçmişiyle (yapı komutları dâhil) taşınır.
+- [x] **Seçilmeyen yollar**: Formu PDEfe'de dizmek (şablonun yerleşim kuralları PDF.js'te var). Değerleri veri kimliğiyle tutmak (yeniden
+  dizilince değişiyor). Yapı komutunda yalnızca veriyi saklayıp baytları çekirdekte yeniden kurmak (her geri almada 2 MB'lık özgün baytlar
+  çekirdeğe giderdi). Veriyi arayüzde PDF.js'in eklediği bölümden okumak (sıkıştırılmış, şifreli belgede şifreli, çekirdek PyMuPDF'le okuyor).
+  Görünürlüğü yalnızca ekranda tutmak (kaydedilince kaybolurdu) ya da formun durum paketine yazmak (sağlama toplamı). Betikleri yalıtılmış bir
+  JavaScript ortamında çalıştırmak (form nesne modeli yok, güvenlik). Yazdırmada katmanı arayüzde resme çevirmek (foreignObject'te yazı
+  tipleri yok). Artımlı kayıt (değerlerin eski hâlleri dosyada kalırdı, imza zaten geçersiz). Kullanım hakları imzasını bırakmak (okuyucu uyarı
+  verirdi).
+- [x] **Bilinen sınırlar**: Hesaplama, doğrulama, biçim (resim deseni), tarih seçici ve ekran üstü uyarı betikleri çalışmaz. Düğmede yalnızca
+  yukarıdaki kalıplar (ör. removeInstance(this.parent.index), setInstances, alan değeri yazan betikler desteklenmez). İç içe tekrarlanan alt
+  formda yeni örnek ilk örneğin iç örnek sayısını alır. Dosyanın verisinde grubu olup alanının düğümü olmayan alanın değeri saklanmaz (PDF.js
+  bağlamıyor. Tasarım programının formlarında veri tamdır, kullanıcının formunda bağlanmayan alan yok). Gömülü yazı tipleri kullanılmaz (benzer
+  yazı tipiyle çizilir). İmza alanı imzalanamaz. Linux ve macOS'ta Segoe UI yok: Optima / Myriad Pro Arial'la çizilir (taşan yazı küçülür).
+- [x] **Testler**: Yeni `test/xfa_pdf_uret.py` (saf dinamik XFA: Tekrarlanabilir alt form (min 1, max 3, her örnek bir sayfa) ve tasarım
+  programı kalıbında Ekle / Sil düğmeleri, yazı alanı, onay kutusu, açılır liste, çok satırlı alan, gömülü "Sayfa n / N", Formu Kaydet, tanınmayan
+  betik, görünürlük düğmesi, basılmayan düğmeler, sahte /Perms /UR3. XDP ad alanı adresi baytlarından kurulur: Depoda marka adı geçmez),
+  `test/xfa_testi.py` 46/46 (çekirdek: Bilgi, SOM, betik kalıpları, DTD reddi, ekle / sil / sınırlar, yeni grubun yapısı, görünürlük,
+  kaydetme, DocMDP, parametre denetimleri), `test/senaryo48.mjs` 48/48 (gerçek fare ve klavye: Açılış, alanlar, Ekle 2 kez ve sınır, Sil, geri al
+  / yinele, en az örnek, tanınmayan düğme, görünürlük, Bul, kaydet ve yeniden aç, Formu Kaydet düğmesi, düz PDF ve yazdırma penceresi,
+  yakınlaştırma ve kapatma sorusu, sekme taşıma, karma belge. Satır Ekle ~0,5 sn), `test/yazdir_gercek.mjs` 25/25 (yeni 10. bölüm: Microsoft Print
+  to PDF'te XFA formu: Kaydedilmemiş değer ve eklenen satır, 2 sayfa A4, düğmeler basılmadı). Eski testler: senaryo47 75/75, senaryo46 34/34,
+  senaryo45 122/122, senaryo25 30/30, senaryo31 25/25, tum_secim 52/52, kayit_sekme_panel 61/61, panel_kucuk_resim 93/93, ortu_tiklama 164/164,
+  kisayol_dosya 164/164, mac_renderer 46/46, yazdir_pencere 61/61, senaryo28 (hepsi geçti), senaryo24 38/38, guvenlik_birim, guvenlik_testi 47/47,
+  form_testi 101/101. kaydirma_cizim 34/35: "çok büyük bölgesel çizimde ön izleme" denetimi değişiklikten önceki commit'te de (worktree) düşüyor.
+  Yerelde (depoya girmez): Kullanıcının formunun kopyası 9 sayfa XFA kipinde (açılış ~0,3–0,8 sn), 9 düğme tanındı, iki alana yer tutucu
+  değer, Yeni Başvurucu Ekle (10 sayfa, ~0,9 sn, değerler yerinde), Yeni Temsilci Ekle (11), Açıklama Sayfası Ekle 4 kez (15) ve beşinci örnekte
+  sınır uyarısı, Sil (14), geri al ×3 (13) ve yinele ×3 (14), "Sayfa n / 14", Bul (etiketlerde 28 sonuç, alan değerinde 1), düz PDF 14 sayfa
+  (her sayfada "Sayfa n / 14", değerler var), kaydet: MuPDF onarmadan açıyor, kullanım hakları imzası yok, veride 2 başvurucu / 2 temsilci / 4
+  açıklama grubu ve değerler, yeniden açınca 14 sayfa ve değerler. 9 sayfanın ekran görüntüsüne bakıldı: Taşan yazı yok, Türkçe harfler, çerçeveler
+  ve döndürülmüş kenar başlıkları doğru, koyulaştırılmış sayfada okunuyor.

@@ -13,6 +13,8 @@
 //      döndürülmüş, A5 sayfa A4'e büyütülmüş ("Belgeye göre" olsaydı kâğıtlar karışık olurdu)
 //   9) Form alanlı belge (0.3.1, test/form_alanlari_pdf_uret.py): "Notları yazdır" kapalıyken form alanları basılır; kaydedilmemiş yazı ve
 //      onay kutusu değeri, kaydetme sorulmadan basılır (yalnızca form alanı değişti)
+//  10) Dinamik XFA formu (0.3.1, test/xfa_pdf_uret.py): kaydedilmemiş değer ve eklenen satır (2 sayfa) formun düz PDF'inden kaydetme
+//      sorulmadan basılır, A4; formun ekranda görünüp basılmayan düğmeleri basılmaz
 // Kaydetme kutusunun PDEfe penceresinin önünde açıldığı da yazılır (bilgi; görünmeyen masaüstündeki sıra).
 // Kullanım:
 //   $env:PDEFE_TEST_GERCEK_YAZDIR = "1"; powershell -File test\baslat_gizli.ps1 -Port 9471 -Veri "$env:TEMP\pdefe-yzg-9471"
@@ -202,6 +204,37 @@ export default async function ({ evalJs, bekle }) {
   const sonra9 = r9b.dosya ? { ad: murekkep(path.join(UI, '10-form-degerli.pdf'), adKutu), onay: murekkep(path.join(UI, '10-form-degerli.pdf'), onayKutu) } : null;
   sonuc('9) Notları yazdır kapalıyken form alanları basıldı (alan kenarlıkları)', !!once9 && once9.ad > 300 && once9.onay > 50, { once9, ad9: ad9?.xref });
   sonuc('9) Kaydedilmemiş yazı ve onay kutusu değeri basıldı', !!once9 && !!sonra9 && sonra9.ad > once9.ad + 300 && sonra9.onay > once9.onay + 40, { once9, sonra9 });
+  await evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); return true; })()`);
+  await evalJs(`window.pdefe.cagir('ayar:koy', 'yazdirma', {})`);
+
+  // ------------------------------------------------------------ 10) XFA formu (0.3.1, test/xfa_pdf_uret.py): formun düz PDF'inden
+  // Kaydedilmemiş değer ve eklenen örnek basılır (kaydetme sorulmaz), sayfa sayısı formunki, formun düğmeleri (relevant="-print") basılmaz
+  const XFA_KLASOR = path.join(UI, `xfa-${Date.now().toString(36)}`);
+  const xfaOzet = JSON.parse(execFileSync(PY, ['-X', 'utf8', path.join(KOK, 'test', 'xfa_pdf_uret.py'), XFA_KLASOR], { encoding: 'utf8' }).trim().split(/\r?\n/).pop());
+  await evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); await p.dosyaAc(${J(xfaOzet.xfa)}); return true; })()`);
+  await kosul(`!!document.querySelector('.gorunum:not([hidden]) .xfaLayer [xfaname="AdSoyad"] input')`, 15000);
+  const xfaHazir = await evalJs(`(async () => {
+    const b = window.__pdefe.aktif(), q = (s) => document.querySelector('.gorunum:not([hidden]) .xfaLayer ' + s);
+    const g = q('[xfaname="AdSoyad"] input'); g.focus(); g.value = ${J('İĞŞÇÖÜ ığşçöü')};
+    g.dispatchEvent(new Event('input', { bubbles: true })); g.dispatchEvent(new Event('change', { bubbles: true }));
+    q('[xfaname="SatirEkle"] button').click();
+    for (let i = 0; i < 100 && b.gorunum.sayfaSayisi < 2; i++) await new Promise((c) => setTimeout(c, 100));
+    await b.xfa._kuyruk;
+    window.__pdefeOtoYanit = { secim: 2 };
+    return { sayfa: b.gorunum.sayfaSayisi, degisti: b.degisti };
+  })()`);
+  sonuc('10) XFA formu: değer yazıldı, satır eklendi (2 sayfa), kaydedilmedi', xfaHazir.sayfa === 2 && xfaHazir.degisti, xfaHazir);
+  const r10 = await yazdir('xfa', { kagit: 'A4' });
+  const soru10 = await evalJs(`(() => { const s = window.__pdefeOtoYanit?.son?.mesaj || null; delete window.__pdefeOtoYanit; return s; })()`);
+  const s10 = r10.olcu?.sayfalar || [];
+  sonuc('10) XFA formu kaydetme sorulmadan basıldı: 2 sayfa, A4 dikey', !soru10 && r10.olcu?.sayfa === 2 && s10.every(A4), { soru10, olcu: r10.olcu });
+  if (r10.dosya) {
+    const cikti10 = path.join(UI, `${sayac}-xfa.pdf`);
+    const xfaMurekkep = (kutu) => JSON.parse(execFileSync(PY, ['-X', 'utf8', path.join(KOK, 'test', 'form_olc.py'), cikti10, '--murekkep', '1', kutu.join(',')], { encoding: 'utf8' })).murekkep;
+    // Kâğıt ve sayfa A4 (sığdırma ölçeği ~1): alanın değeri 50–135 mm × 27–36 mm, düğmeler 110–195 mm × 185–193 mm (şablon, 15 mm kenar)
+    const deger10 = xfaMurekkep([150, 78, 370, 100]), dugme10 = xfaMurekkep([320, 526, 550, 546]);
+    sonuc('10) Kaydedilmemiş değer basıldı, formun düğmeleri basılmadı', deger10 > 60 && dugme10 < 20, { deger10, dugme10 });
+  }
   await evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); return true; })()`);
   await evalJs(`window.pdefe.cagir('ayar:koy', 'yazdirma', {})`);
 

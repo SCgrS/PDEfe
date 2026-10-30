@@ -1138,3 +1138,27 @@ Form alanları (doldurulabilir PDF)
     yazarken yazı alanın içinde görünmeli. Yazı boyu ve yazı tipi kaydedince görünenle aynı olmalı.
 26. **Bilinen sınır.** Formun düğmeleri (Gönder, Yazdır, Temizle gibi) ve hesaplama yapan alanlar PDEfe'de çalışmaz (düğmenin ipucu bunu
     söyler). İmza alanına PDEfe'den imza atılamaz.
+
+XFA formları (Anayasa Mahkemesi bireysel başvuru formu gibi)
+27. **Açılış ve görünüm.** Bireysel başvuru formunu açın: "Please wait" yazısı değil formun 9 sayfası görünmeli. Sayfaları gezin: Yazılar
+    kutularından taşmamalı, Türkçe harfler doğru olmalı, alt bilgide "Sayfa n / 9" yazmalı. Yazı tipi formun özgün yazı tipine benzer bir
+    yazı tipidir (formun yazı tipi bu bilgisayarda yok). Referans okuyucudaki görünümle yan yana karşılaştırıp göze batan bir fark varsa bildirin.
+28. **Doldurma.** Birkaç alana Türkçe harflerle yazın, Tab ile geçin, çok satırlı açıklama alanına Enter'la birkaç satır yazın: Yazdıklarınız
+    yerinde kalmalı, Geri al'ın yanındaki ▾ listesinde "Form: <alanın adı>" adımları görünmeli.
+29. **Sayfa ekleme düğmeleri.** "Yeni Başvurucu Ekle", "Yeni Temsilci Ekle" ve "Açıklama Sayfası Ekle" düğmelerine basın: Yeni bölüm (yeni
+    sayfa) eklenmeli, önceden yazdıklarınız kaybolmamalı, sayfa numaraları yenilenmeli. Açıklama sayfası beşten fazla eklenemez: Beşinciden sonra
+    "Bu bölüm en çok 5 kez eklenebilir." demeli. "Son … Sil" düğmeleri son bölümü silmeli, tek bölüm kalınca "Bu bölümün son örneği silinemez."
+    demeli. Geri al eklenen ya da silinen bölümü geri getirmeli.
+30. **Formu Kaydet düğmesi.** Formun son sayfasındaki "Formu Kaydet"e basın: Farklı kaydet penceresi açılmalı.
+31. **Kaydet ve referans okuyucuda aç.** Doldurduğunuz, bölüm eklediğiniz formu kaydedin, referans okuyucuda açın: Hata ya da "genişletilmiş
+    özellikler artık kullanılamaz" uyarısı çıkmamalı, eklediğiniz bölümler ve değerler (Türkçe harfler dâhil) görünmeli, form orada da
+    doldurulabilmeli, bölüm eklenebilmeli. PDEfe'de kapatıp yeniden açınca da her şey yerinde olmalı.
+32. **Yazdırma.** Formu kaydetmeden yazdırın: Kaydetme sorulmamalı, ön izlemede ve kâğıtta yazdıklarınız ve eklediğiniz sayfalar çıkmalı, formun
+    düğmeleri (Ekle, Sil, Formu Kaydet) basılmamalı. Gerçek yazıcıda bir kez deneyin.
+33. **Bul ve Sayfalar paneli.** Ctrl+F ile formdaki bir başlığı ve bir alana yazdığınız bir sözcüğü arayın: Bulunmalı, vurgulanmalı. Sol paneldeki
+    Sayfalar'da formun sayfalarının küçük resimleri görünmeli (birkaç saniye içinde).
+34. **Kapalı işler.** Not, Vurgu, Yazı ve sayfa döndürme düğmeleri soluk olmalı. Araçlar'dan Sıkıştır, Sayfaları düzenle, Döndür, Ayır ya da Format
+    Değiştir seçilince "XFA formlarında kullanılamaz." demeli.
+35. **Başka XFA formları.** Elinizde başka kurumların doldurulabilir formları (ör. eski tip başvuru formları) varsa açın: Sayfalar görünmeli,
+    alanlar doldurulabilmeli. Düğmelerden çalışmayanlar "işlevi PDEfe'de çalışmıyor" der (hesaplama yapan alanlar ve özel betikli düğmeler
+    çalışmaz). Bunları bildirin.

@@ -7,6 +7,7 @@ import { Arama } from './arama.js';
 import { temizMetin, sayfaMetinleriniBirlestir, secimDikdortgenleri, satirlaraBirlestir, paragrafSec, secimHamMetni, secimYapiliMetni, surukleSecimiBagla } from './metin.js';
 import { NotYoneticisi, VURGU_RENKLERI, YAZI_PANO_TURU, yaziVerisiDogrula } from './notlar.js';
 import { FormYoneticisi } from './formlar.js';
+import { XfaYoneticisi } from './xfa.js';
 import { KomutYigini, Komut, sayfaFarki, sayfaFarkiOzeti, sayfaListesi } from './komutlar.js';
 import { GecmisListesi } from './gecmisListesi.js';
 import { ayarlarPenceresiAc, ayarlarPenceresiKapat, ayarlarPenceresiniGuncelle } from './ayarlarPenceresi.js';
@@ -175,6 +176,7 @@ function belgeOlustur(yol) {
   const gorunum = new Goruntuleyici(el, {
     dosyaOku: async (y) => (await pdefe.cagir('dosya:oku', y)).veri, cekirdek, baglantiIpucu: (l, s) => baglantiIpucu(gorunum, l, s),
     formKatmani: (...a) => belge?.formlar?.katmanKur(...a), formBirak: (s) => belge?.formlar?.katmanBirak(s),
+    xfaBilgiAl: (y) => cekirdek('xfa_bilgi', { yol: y }),   // XFA formunun şablon bilgisi (0.3.1, xfa.js)
   });
   // diskDondurme: yüklenen dosyaya (gorunum.yol) artımlı kayıtla işlenmiş göreli döndürmeler, kaynak sayfa no → açı (bkz. yapisalTarif)
   belge = { id, yol, ad: dosyaAdi(yol), el, gorunum, degisti: false, boyut: 0, bilgi: null, diskDondurme: {} };
@@ -192,6 +194,16 @@ function belgeOlustur(yol) {
   belge.notlar.addEventListener('arac', (e) => { belge.formlar.aracDegisti(e.detail.arac); if (aktifId === id) aracDugmeleriniGuncelle(e.detail.arac); });
   belge.formlar = new FormYoneticisi({ belge, yigin: belge.yigin });
   belge.formlar.addEventListener('degisti', () => kirliGuncelle(belge));
+  // Dinamik XFA formu (0.3.1): yalnızca görünüm belgeyi XFA kipinde açtıysa etkin (gorunum.xfa)
+  belge.xfa = new XfaYoneticisi({
+    belge, yigin: belge.yigin, cekirdek, bildir: (m) => bildir(m, 6000),
+    duzPdfAl: (veri, bilgi) => pdefe.cagir('xfa:duzPdf', { veri, bilgi }),
+    anlikSil: (y) => { cekirdek('belge_birak', { yol: y }).catch(() => {}); cekirdek('anlik_sil', { yol: y }).catch(() => {}); },
+  });
+  belge.xfa.addEventListener('degisti', () => kirliGuncelle(belge));
+  // Formun Kaydet / Farklı kaydet / Yazdır düğmeleri uygulamanın komutlarını çalıştırır (düğme etkin sekmede tıklanır)
+  belge.xfa.addEventListener('komut', (e) => { if (aktifId === id) komutCalistir(e.detail.komut); });
+  belge.xfa.addEventListener('duz', () => { if (aktifId === id) panel.kucukResimleriYenile(id); });
   // Yazı düzenleyicisi açılınca, kapanınca ve geçmişi değişince Geri al / Yinele düğmeleri; kapanınca beklettiği otomatik kayıt yeniden kurulur
   belge.notlar.addEventListener('duzenleyici', () => { if (!belge.notlar.duzenleyici && belge.degisti) kirliGuncelle(belge); else if (aktifId === id) geriAlDugmeleriniGuncelle(belge); kirliBildir(); });
   belge.notlar.addEventListener('uyari', (e) => { if (aktifId === id) bildir(e.detail.metin, 6000); });
@@ -214,7 +226,7 @@ function belgeleriBildir() {
  *  Açık yazı kutusu da sayılır: yazılan metin kapatmada not olur (kapatmayaIzinAl), yazarken her harfte olay gelmez. Durum değişince çağrılır. */
 let _bildirilenKirli = false;
 function kirliBildir() {
-  const kirli = [...belgeler.values()].some((b) => b.degisti || !!b.notlar?.duzenleyici || !!b.formlar?.duzenleniyor());
+  const kirli = [...belgeler.values()].some((b) => b.degisti || !!b.notlar?.duzenleyici || !!b.formlar?.duzenleniyor() || !!b.xfa?.duzenleniyor());
   if (kirli === _bildirilenKirli) return;
   _bildirilenKirli = kirli;
   pdefe.gonder('pencere:kirli', kirli);
@@ -288,7 +300,9 @@ async function dosyaAc(yol, secenek = {}) {
     if (!belgeler.has(id)) return null;
     cekirdek('belge_bilgi', { yol }).then((bilgi) => { belge.bilgi = bilgi; }).catch(() => {});
     // notSozu: notların dosyadan ilk okunması (sekme başka pencereye taşınmadan önce beklenir, bkz. sekmePaketi)
-    belge.notSozu = belge.notlar.yukle().catch((e2) => console.warn('Notlar yüklenemedi', e2));
+    // XFA formunda (0.3.1) notlar okunmaz: MuPDF'in gördüğü sayfa ("lütfen bekleyin") formun sayfası değildir, not araçları kapalı
+    if (gorunum.xfa) { belge.notSozu = Promise.resolve(); belge.xfa.acildi(); }
+    else belge.notSozu = belge.notlar.yukle().catch((e2) => console.warn('Notlar yüklenemedi', e2));
   } catch (e) {
     if (!belgeler.has(id)) return null;   // yüklenirken kapatıldı: görünüm yükleme görevini bıraktı (red bundan)
     console.error(e);
@@ -303,7 +317,7 @@ async function dosyaAc(yol, secenek = {}) {
     await mesajKutusu({ tur: 'error', mesaj: 'PDF açılamadı', ayrinti: `${ad}\n\n${hataMetni(e)}` });
     return null;
   }
-  if (aktifId === id) { duzenEsitle(belge); sayfaGoster(belge); zoomGoster(belge); durum.boyutYaz(belge.boyut); panel.belgeAyarla(belge); arama.sekmeDegisti(); }
+  if (aktifId === id) { duzenEsitle(belge); sayfaGoster(belge); zoomGoster(belge); durum.boyutYaz(belge.boyut); panel.belgeAyarla(belge); arama.sekmeDegisti(); xfaDugmeleriniGuncelle(belge); }
   sonDosyalaraEkle(yol);
   return belge;
 }
@@ -355,6 +369,7 @@ function belgeDurumuYaz(b) {
   $('#arac-cubugu [data-komut="dosya.yazdir"]').disabled = !b;
   geriAlDugmeleriniGuncelle(b);
   aracDugmeleriniGuncelle(b?.notlar?.arac || null);
+  xfaDugmeleriniGuncelle(b);
 }
 
 /** Açık yazı düzenlemesini (not yazısı, 0.3.1: form alanı) uygular: kaydet, yazdır, kapat, sekme değiştirme ve taşıma yazılan metinle
@@ -362,6 +377,7 @@ function belgeDurumuYaz(b) {
 function duzenlemeleriUygula(b) {
   b?.notlar?.duzenleyiciBitir(true);
   b?.formlar?.duzenlemeyiUygula();
+  b?.xfa?.duzenlemeyiUygula();
 }
 
 function kirliGuncelle(b) {
@@ -374,7 +390,7 @@ function kirliGuncelle(b) {
   // değişikliği kirliGuncelle'yi yeniden çağırır. Otomatik kayıt başarısız olduysa (dosya başka programda açık) elle kaydedilene dek durur
   // (Zamanlayıcı dolunca ayar yeniden okunur: arada Ayarlar'dan kapatılmış olabilir)
   // Başka pencereye taşınmakta olan sekme (b.tasiniyor) kaydedilmez: durumu paketlendi, kayıt hedef pencerenin işidir
-  if (ayar.otomatikKaydet && b.degisti && !b._otoKayitDurdu && !b.tasiniyor) { clearTimeout(b._otoKayit); b._otoKayit = setTimeout(() => { if (ayar.otomatikKaydet && b.degisti && belgeler.has(b.id) && !b.notlar?.duzenleyici && !b.formlar?.duzenleniyor() && !b.tasiniyor) belgeKaydet(b, false, true); }, 1500); }
+  if (ayar.otomatikKaydet && b.degisti && !b._otoKayitDurdu && !b.tasiniyor) { clearTimeout(b._otoKayit); b._otoKayit = setTimeout(() => { if (ayar.otomatikKaydet && b.degisti && belgeler.has(b.id) && !b.notlar?.duzenleyici && !b.formlar?.duzenleniyor() && !b.xfa?.duzenleniyor() && !b.xfa?.mesgul && !b.tasiniyor) belgeKaydet(b, false, true); }, 1500); }
 }
 
 /** Kaydırmasız (tek/iki) düzende sayfa çevrilince artık gösterilmeyen sayfadaki not bırakılır: açık yazı düzenleyicisi kaydedilip
@@ -433,6 +449,7 @@ function belgeyiKaldir(b, { devredildi = false } = {}) {
   const yollar = sekmeninYollari(b);   // görünüm yok edilmeden: başka PDF'ten eklenmiş sayfaların dosyaları da
   tumSecim.belgeKapandi(b);            // bütün belge metninin hazırlığı durur (çekirdek bırakılan dosyayı yeniden açmasın)
   b.notlar?.yokEt();
+  b.xfa?.birak();                      // XFA formunun düz PDF'i (anlık klasörde) silinir
   belgeler.delete(id);
   sekmeler.kaldir(id);
   panel.belgeUnut(id);
@@ -658,7 +675,8 @@ function tasimaEngeli(b, { kayitHaric = false, bos = false } = {}) {
 function komutDisari(b, k, girdiNo) {
   const t = k.tanim;
   const v = t?.tur === 'sayfalar' ? { tur: 'sayfalar', ad: k.ad, eski: t.eski.map(girdiNo), yeni: t.yeni.map(girdiNo) }
-    : typeof t?.tur === 'string' && t.tur.startsWith('form.') ? b.formlar.komutDisari(k) : b.notlar.komutDisari(k);
+    : typeof t?.tur === 'string' && t.tur.startsWith('form.') ? b.formlar.komutDisari(k)
+      : typeof t?.tur === 'string' && t.tur.startsWith('xfa.') ? b.xfa.komutDisari(k) : b.notlar.komutDisari(k);
   if (v && k.ayrinti) v.ayrinti = k.ayrinti;
   return v;
 }
@@ -670,6 +688,7 @@ function komutIceri(b, veri, girdiAl, notBul) {
     const eski = (veri.eski || []).map(girdiAl), yeni = (veri.yeni || []).map(girdiAl);
     k = eski.every(Boolean) && yeni.every(Boolean) ? sayfaKomutu(b, veri.ad, eski, yeni) : null;
   } else if (typeof veri?.tur === 'string' && veri.tur.startsWith('form.')) k = b.formlar.komutIceri(veri);
+  else if (typeof veri?.tur === 'string' && veri.tur.startsWith('xfa.')) k = b.xfa.komutIceri(veri);
   else k = b.notlar.komutIceri(veri, notBul);
   if (k && typeof veri.ayrinti === 'string') k.ayrinti = veri.ayrinti;
   return k;
@@ -681,6 +700,7 @@ async function sekmePaketi(b) {
   const g = b.gorunum, n = b.notlar;
   n.balonKapat(); n.notCubuguKapat(); n.duzenleyiciBitir(true);   // yazılan metin pakete girsin; seçili araç ve seçim taşınmaz
   b.formlar?.duzenlemeyiUygula();
+  b.xfa?.duzenlemeyiUygula();
   await kayitBitmesiniBekle(b);                                     // süren kayıt bitsin; bekleyen otomatik kayıt iptal
   await (b._dondurme || Promise.resolve()).catch(() => {});          // sırada bekleyen döndürme
   await b.notSozu;                                                  // notların dosyadan ilk okunması
@@ -815,8 +835,9 @@ async function sekmeyiAl(paket, { x = null, yeni = false } = {}, onayla = null) 
     if (!belgeler.has(id)) throw new Error('Sekme açılırken kapatıldı.');
     belge.tasiniyor = false;
     cekirdek('belge_bilgi', { yol: belge.yol }).then((bilgi) => { belge.bilgi = bilgi; }).catch(() => {});
+    if (gorunum.xfa) belge.xfa.acildi();
     kirliGuncelle(belge);
-    if (aktifId === id) { sayfaGoster(belge); zoomGoster(belge); durum.boyutYaz(belge.boyut); panel.belgeAyarla(belge); arama.sekmeDegisti(); }
+    if (aktifId === id) { sayfaGoster(belge); zoomGoster(belge); durum.boyutYaz(belge.boyut); panel.belgeAyarla(belge); arama.sekmeDegisti(); xfaDugmeleriniGuncelle(belge); }
     return belge;
   } catch (e) {
     if (belge && belgeler.has(belge.id)) belgeyiKaldir(belge, { devredildi: true });   // anlık kopya ve dosyalar kaynak pencerenindir
@@ -1021,6 +1042,7 @@ async function kayitYaz(b, farkli, sessiz, oneAl = false) {
       if (secim !== 0) return false;
     }
   } else if (!b.degisti) { if (!sessiz) bildir('Kaydedilecek değişiklik yok.'); return true; }
+  if (b.gorunum.xfa) return xfaKayitYaz(b, hedef, farkli, sessiz);
   const islemler = b.notlar ? b.notlar.fark() : [];
   // Form alanlarının değerleri (0.3.1): dosyadakinden farklı olanlar
   const formFarki = b.formlar ? b.formlar.fark() : [];
@@ -1098,6 +1120,31 @@ async function kayitYaz(b, farkli, sessiz, oneAl = false) {
   cekirdek('belge_birak', { yol: b.yol }).catch(() => {});
   panel.yorumlariYenile();
   if (islemler.length || formFarki.length) panel.kucukResimleriYenile(b.id);   // Sayfalar'ın küçük resimleri kaydedilen notları ve form değerlerini göstersin (0.2.1)
+  return true;
+}
+
+/** XFA formunun kaydı (0.3.1, kayitYaz'ın XFA yolu): PDF.js'in güncel verisi çekirdekte hedefe baştan yazılır, kullanım hakları imzası
+ *  kaldırılır (xfa.js kaydet, core/islemler/xfa.py xfa_kaydet). Notlar ve sayfa düzeni XFA kipinde değişmez. */
+async function xfaKayitYaz(b, hedef, farkli, sessiz) {
+  const g = b.gorunum;
+  const yiginKonumu = b.yigin?.konum, yiginKomutu = b.yigin?.geriAlinacak;
+  durum.mesajYaz('Kaydediliyor…', 0);
+  const r = await b.xfa.kaydet(hedef);
+  b.yigin?.kaydedildi(yiginKonumu, yiginKomutu);
+  b.boyut = r?.boyut || b.boyut;
+  if (farkli && !yolAyni(hedef, b.yol)) {
+    const eski = g.yol;
+    if (eski) { g.kaynakYeniden(eski, hedef); g.yol = hedef; }
+    b.yol = hedef; b.ad = dosyaAdi(hedef);
+    sekmeler.guncelle(b.id, { ad: b.ad, yol: hedef });
+    if (aktifId === b.id) pdefe.cagir('pencere:baslik', b.ad);
+    sonDosyalaraEkle(hedef);
+    belgeleriBildir();
+  }
+  kirliGuncelle(b);
+  if (aktifId === b.id) durum.boyutYaz(b.boyut);
+  durum.mesajYaz(sessiz ? 'Otomatik kaydedildi' : 'Kaydedildi');
+  cekirdek('belge_birak', { yol: b.yol }).catch(() => {});
   return true;
 }
 
@@ -1532,7 +1579,7 @@ const komutlar = {
   'not.arac': (arac) => { const b = aktif(); if (b) b.notlar.aracSec(arac); },
   'not.sil': () => aktif()?.notlar.silSecili(),
   'dosya.klasordeGoster': () => { const b = aktif(); if (b) pdefe.cagir('kabuk:klasordeGoster', b.yol); },
-  'dosya.yazdir': () => { const b = aktif(); if (!b) { bildir('Yazdırılacak belge yok.'); return; } return yazdir({ cekirdek, pdefe, mesajKutusu, bildir, kaydet: (belge) => belgeKaydet(belge), ayar: () => ayar }, b); },
+  'dosya.yazdir': () => { const b = aktif(); if (!b) { bildir('Yazdırılacak belge yok.'); return; } if (b.gorunum.xfa) return xfaYazdir(b); return yazdir({ cekirdek, pdefe, mesajKutusu, bildir, kaydet: (belge) => belgeKaydet(belge), ayar: () => ayar }, b); },
   // Pencerenin tek sekmesi açılış sekmesiyse (kapatılmaz) Ctrl+W pencereyi kapatır
   'sekme.kapat': () => { if (aktifId && tekAcilisSekmesi() !== aktifId) sekmeKapat(aktifId); else pdefe.cagir('pencere:kapat'); },
   'sekme.yeni': () => yeniSekme(),
@@ -1570,6 +1617,39 @@ const komutlar = {
   'yardim.hakkinda': () => ayarlarPenceresiAc(ayarlarBaglami(), { bolum: 'hakkinda' }),
 };
 
+/** XFA formunu yazdırır (0.3.1): formun güncel değerleriyle düz PDF'i hazırlanır (xfa.js duzPdf, gizli pencerede), yazdırma penceresi ve
+ *  basım o dosyadan olağan PDF gibi yapılır. Kaydetme sorulmaz (girilen değerler basılır, AcroForm alanlarındaki gibi). */
+async function xfaYazdir(b) {
+  if (b._xfaYazdiriliyor) return;
+  b._xfaYazdiriliyor = true;
+  try {
+    durum.mesajYaz('Form yazdırmaya hazırlanıyor…', 0);
+    let duz;
+    try { duz = await b.xfa.duzPdf(); } finally { durum.mesajYaz(''); }
+    if (!belgeler.has(b.id)) return;
+    const g = b.gorunum;
+    const vekil = { yol: duz.yol, ad: b.ad, degisti: false, kaydediliyor: false, gorunum: { gecerli: g.gecerli, sayfaSayisi: duz.sayfa || g.sayfaSayisi } };
+    await yazdir({ cekirdek, pdefe, mesajKutusu, bildir, kaydet: async () => true, ayar: () => ayar }, vekil);
+  } catch (e) {
+    console.error('XFA yazdırma', e);
+    await mesajKutusu({ tur: 'error', mesaj: 'Yazdırılamadı', ayrinti: hataMetni(e) });
+  } finally { b._xfaYazdiriliyor = false; }
+}
+
+/** XFA formunda (0.3.1) çalışmayan komutlar: notlar, sayfa döndürme ve sayfa düzenini ya da dosyanın yapısını değiştiren araçlar. Formun
+ *  sayfaları MuPDF'te yok: araçlar ve notlar belgenin "lütfen bekleyin" sayfasına uygulanırdı. Menüden ve kısayoldan gelen istekte kısa
+ *  açıklama; araç çubuğundaki düğmeler soluk (xfaDugmeleriniGuncelle). */
+const XFA_KAPALI = new Set(['not.arac', 'not.sil', 'gorunum.dondur', 'arac.kucult', 'arac.sayfalar', 'arac.dondurKaydet', 'arac.ayir', 'arac.donustur']);
+const XFA_KAPALI_METNI = 'XFA formlarında kullanılamaz.';
+
+function xfaDugmeleriniGuncelle(b) {
+  const xfa = !!b?.gorunum?.xfa;
+  for (const el of document.querySelectorAll('#not-araclari [data-arac], #arac-cubugu [data-komut="gorunum.dondur"]')) {
+    if (xfa) { if (!el.dataset.xfaIpucu) el.dataset.xfaIpucu = el.title; el.disabled = true; el.title = `${el.dataset.xfaIpucu}: ${XFA_KAPALI_METNI}`; }
+    else if (el.dataset.xfaIpucu != null) { el.disabled = false; el.title = el.dataset.xfaIpucu; delete el.dataset.xfaIpucu; }
+  }
+}
+
 /** Ayarlar penceresinin bağlamı (ayarlarPenceresi.js). sonTemizle: Açılış ve düzen › Listeyi temizle (menü ve başlangıç ekranı da güncellenir). */
 function ayarlarBaglami() {
   return { ayar: () => ayar, ayarKoy, uygula: ayarUygula, pdefe, varsayilanlar, cekirdek, guncelleme, sonTemizle: () => komutCalistir('dosya.sonTemizle') };
@@ -1580,7 +1660,9 @@ try {
   // cekirdek: araçların okuttuğu dosyalar kaydedilir, son araç penceresi kapanınca bırakılır (aracDosyalariniBirak)
   aracPenceresiKapaninca(aracDosyalariniBirak);
   Object.assign(komutlar, aracKomutlari({
-    aktif, cekirdek: aracCekirdek,
+    // XFA formu (0.3.1) araçlara açık belge olarak verilmez: Birleştir onu ilk girdi yapmasın (çekirdek formun sayfalarını görmez, "lütfen
+    // bekleyin" sayfasını birleştirirdi); belge isteyen araçlar XFA_KAPALI'yla zaten kapalı
+    aktif: () => { const b = aktif(); return b?.gorunum?.xfa ? null : b; }, cekirdek: aracCekirdek,
     iptal: (istekId) => pdefe.cagir('cekirdek:iptal', istekId),
     dosyaAc, kaydet: (b) => belgeKaydet(b), mesajKutusu, bildir, pdefe,
     belgeKapat: (id, secenek) => belgeKapat(id, secenek),   // sıkıştırma "üzerine yaz" sonrası sekmeyi kapatıp yeniden açmak için
@@ -1641,6 +1723,7 @@ const DUZENLEMEYI_UYGULAYAN = /^(arac\.|dosya\.(kaydet|farkliKaydet|yazdir)$|sek
 function komutCalistir(id, veri) {
   const f = komutlar[id];
   if (!f) { console.warn('Bilinmeyen komut', id); return; }
+  if (XFA_KAPALI.has(id) && aktif()?.gorunum.xfa) { bildir(XFA_KAPALI_METNI); return; }
   if (DUZENLEMEYI_UYGULAYAN.test(id)) duzenlemeleriUygula(aktif());
   try { const r = f(veri); if (r && r.catch) r.catch((e) => { console.error(e); bildir('Hata: ' + hataMetni(e)); }); }
   catch (e) { console.error(e); bildir('Hata: ' + hataMetni(e)); }
@@ -2174,7 +2257,10 @@ window.addEventListener('blur', () => { if (sekmeler.seciciAcik) sekmeler.secici
 
 async function kucukResimAl(b) {
   if (!b) return null;
-  try { const r = await cekirdek('kucuk_resim', { yol: b.yol, sayfa: 1, genislik: 220 }); return kucukResimAdresi(r); }   // 0.2.3: JPEG ya da PNG
+  // XFA formunda (0.3.1) ilk sayfa formun düz PDF'inden (çekirdek formun sayfalarını görmez; hazır değilse resimsiz)
+  const k = b.gorunum?.xfa ? b.xfa?.kucukResimKaynagi(b.gorunum.sayfalar[0]) : { yol: b.yol, sayfa: 1 };
+  if (!k) return null;
+  try { const r = await cekirdek('kucuk_resim', { yol: k.yol, sayfa: k.sayfa, genislik: 220 }); return kucukResimAdresi(r); }   // 0.2.3: JPEG ya da PNG
   catch { return null; }
 }
 
@@ -2190,6 +2276,9 @@ function belgeSecimMetni() {
 function tumunuSec() {
   if (girdideMi()) { document.execCommand('selectAll'); return; }
   const b = aktif(); if (!b) return;
+  // XFA formunda (0.3.1) bütün belge seçimi yok: metni çekirdekten sayfa sayfa alır, çekirdek formun sayfalarını görmez (alanın içinde
+  // Ctrl+A alanın metnini seçer, yukarıda)
+  if (b.gorunum.xfa) { bildir(XFA_KAPALI_METNI); return; }
   tumSecim.sec(b).catch((e) => console.warn('Tümünü seç', e));
 }
 
@@ -2204,8 +2293,9 @@ function metinOlaylariBagla(belge) {
     if (span && paragrafSec(span)) e.preventDefault();
   });
   alan.addEventListener('contextmenu', async (e) => {
-    const katman = e.target.closest('.textLayer');
+    const katman = e.target.closest('.textLayer, .xfaLayer');
     const sayfaEl = e.target.closest('.sayfa');
+    const xfa = !!belge.gorunum.xfa;   // XFA formunda (0.3.1) not ve vurgu yok
     if (!sayfaEl) return;
     e.preventDefault();
     const sec = window.getSelection();
@@ -2224,9 +2314,9 @@ function metinOlaylariBagla(belge) {
     const yapistirilir = !!pano && !belge.tasiniyor && panoMetniAyni(await pdefe.cagir('pano:oku'), pano.metin);
     const secim = await pdefe.cagir('menu:popup', [
       { id: 'kopyala', etiket: 'Kopyala', devre: !seciliVar && !yaziHedefi },
-      { id: 'yapistir', etiket: 'Yapıştır', devre: !yapistirilir },
-      { id: 'vurgula', etiket: 'Vurgula', devre: !seciliVar || tum },
-      { id: 'not', etiket: 'Not ekle' },
+      { id: 'yapistir', etiket: 'Yapıştır', devre: !yapistirilir || xfa },
+      { id: 'vurgula', etiket: 'Vurgula', devre: !seciliVar || tum || xfa },
+      { id: 'not', etiket: 'Not ekle', devre: xfa },
       { id: 'ara', etiket: 'Ara', devre: !seciliVar || tum },
       { ayirici: true },
       { id: 'tumunuSec', etiket: 'Tümünü seç' },

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<!-- XFA formunun düz PDF'i (0.3.1; yazdırma ve Sayfalar panelinin küçük resimleri): ana süreç (main/xfaDuz.js) bu sayfayı gizli, yalıtılmış
+     (sandbox), Node erişimi ve ön yükleme betiği olmayan bir pencerede açar, formun baytlarını executeJavaScript ile verir (cizim.js), sayfayı
+     webContents.printToPDF ile PDF'e çevirir. Sayfa ağa çıkmaz, başka sayfaya gidemez, yalnızca kendi dosyalarını ve PDF.js'i yükler. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src data: blob:; font-src data: blob:; connect-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+<title>XFA</title>
+<link rel="stylesheet" href="xfa.css">
+<style>
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+.xfa-sayfa { position: relative; overflow: hidden; break-after: page; background: #fff; }
+.xfa-sayfa:last-child { break-after: auto; }
+/* Basımda alanların ekrandaki mavi zemini ve odak çizgisi yok; yazı kutularında kaydırma çubuğu yok */
+.xfaTextfield, .xfaSelect { background: transparent !important; background-image: none !important; outline: none !important; }
+textarea.xfaTextfield { overflow: hidden; }
+.xfaSelect { appearance: none; text-indent: 1px; text-overflow: ""; }
+</style>
+<script type="module" src="cizim.js"></script>
+</head>
+<body>
+<main id="alan"></main>
+</body>
+</html>

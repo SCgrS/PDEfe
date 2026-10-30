@@ -16,6 +16,7 @@ import { Cekirdek } from './cekirdek.js';
 import { panoyaDosyaKopyala, panoyaMetinYaz } from './pano.js';
 import { yazdirmaKur } from './yazdir.js';
 import { udfYaklasikKur } from './udfYaklasik.js';
+import { xfaDuzKur } from './xfaDuz.js';
 import { guncellemeKur } from './guncelleme.js';
 import { pencereleriKur, pencereOlustur, pencereAl, kayitAl, etkinKayit, etkinPencere, herkese, digerlerine, odakla, dosyalariAc, cik, kapatmaOnayiAyarla, menuCubugunuUygula, pencereSayisi } from './pencereler.js';
 import { disAdresMi, guvenliIpc, gezinmeKorumasiKur, cekirdekParametreleri, DENETLENEN_YONTEMLER, paketKlasoruMu, pdfDosyasiMi, yaziTipiDosyasiMi, yaziTipiKlasorleri, standartYaziTipleri, anlikDosyasiMi, ayarYazimiDenetle, aracCiktiKaydi, acilacakYollar } from './guvenlik.js';
@@ -618,6 +619,8 @@ function ipcKur(ipcMain) {
     cekirdekIptal: (anahtar) => cekirdek.iptal(anahtar),
     ciktiKaydet: (yollar) => aracCiktilari.ekle(yollar),   // 0.2.8: yaklaşık çizimin PDF hedefi (dosya:varsayilanlaAc)
   });
+  // XFA formunun düz PDF'i (0.3.1; yazdırma ve küçük resimler): gizli pencerede çizilir, anlık klasörüne yazılır (xfaDuz.js)
+  xfaDuzKur({ ipcMain, KOK, anlikKlasoru });
   ipcMain.handle('ayar:varsayilanlar', () => VARSAYILANLAR);
   yazdirmaKur({ ipcMain, BrowserWindow, pencereAl, testDiyalog, TEST });   // test örneğinde yazıcıya gitmez (yazdir.js)
 }

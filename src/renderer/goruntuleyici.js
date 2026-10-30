@@ -5,6 +5,7 @@ import { keskinBaglam, KeskinTuvalFabrikasi, cizimGoreviHazirla, ETKILESIM_MS, e
 import { anaHatSecenekleri, yaziTipiYukleyicisiniSar, yaziGoreviHazirla } from './yaziTipleri.js';
 import { MAC } from './platform.js';
 import { isaretle } from './olcum.js';
+import { sayfaHazirla, xfaSigdir } from './xfaHtml.js';
 
 /** Yakınlaştıran tekerlek olayı: Windows'ta Ctrl+tekerlek; macOS'ta (0.2.0) dokunmatik yüzeyde kıstırma (Ctrl'li gelir) ya da ⌘+tekerlek. */
 const yakinlastirmaTekerlegi = (e) => e.ctrlKey || (MAC && e.metaKey);
@@ -283,17 +284,31 @@ function karesizBaslat(gorev) {
   };
 }
 
-/** PDF.js belge yükleme seçenekleri (veri: dosyanın baytları). */
-const belgeSecenekleri = (veri, parola) => ({
+/** PDF.js belge yükleme seçenekleri (veri: dosyanın baytları). xfa (0.3.1): sekmenin kendi belgesi saf XFA formuysa PDF.js formun
+ *  sayfalarını XFA şablonundan dizer (isPureXfa); XFA'sız ve karma (AcroForm alanlı) belgede seçeneğin etkisi yoktur. Başka belgeden eklenen
+ *  sayfalar XFA'sız açılır: Çekirdek onları MuPDF'in gördüğü sayfa olarak yazar. xfa === 'form': belge XFA formu olduğu bilinerek açılır
+ *  (XFA_YAZI). */
+const belgeSecenekleri = (veri, parola, xfa = false) => ({
   data: veri,
   cMapUrl: KAYNAK + 'cmaps/', cMapPacked: true,
   standardFontDataUrl: KAYNAK + 'standard_fonts/',
   wasmUrl: KAYNAK + 'wasm/', iccUrl: KAYNAK + 'iccs/',
-  enableXfa: false, isEvalSupported: false,
+  enableXfa: !!xfa, isEvalSupported: false,
   CanvasFactory: KeskinTuvalFabrikasi,       // PDF.js ara tuvalleri de keskin çizsin (keskinlik.js)
   password: parola,
   ...yaziSecenekleri(),
+  ...(xfa === 'form' ? XFA_YAZI : {}),
 });
+
+/**
+ * XFA formunun yazı tipleri (0.3.1): Formun HTML'i yazı tiplerini adlarıyla ("Optima", "Myriad Pro", "Calibri") kullanır. PDF.js'in o
+ * adlarla kurduğu FontFace'ler kullanılmaz (disableFontFace; yaziTipleri.js yükleyicisi de XFA yazı tiplerine FontFace kurmaz): Belgeye
+ * gömülü yazı tiplerinin PDF.js'in dönüştürdüğü hâlinde harfler (Unicode) yok, bütün yazı tarayıcının varsayılan yazı tipiyle (Times),
+ * formun ölçtüğünden geniş çiziliyor, başlıklar iki satıra iniyordu. Yazı tipi tarayıcıda adıyla bulunur: Bilgisayarda varsa kendisi
+ * (Calibri), yoksa xfa.css'teki benzeri (Optima, Myriad Pro → Segoe UI). Yerleşim PDF.js'in ölçüsüyle (belgedeki genişlikler) yapılır,
+ * taşan yazı xfaHtml.js xfaSigdir'le küçültülür. Ana hat kipi (varsayılan) bu seçeneği zaten verir; kapalıysa form bununla yeniden açılır.
+ */
+const XFA_YAZI = { disableFontFace: true };
 
 /** Boş sayfa için en küçük geçerli PDF (W×H pt). */
 function bosPdfBaytlari(w, h) {
@@ -312,7 +327,7 @@ function bosPdfBaytlari(w, h) {
 }
 
 export class Goruntuleyici extends EventTarget {
-  constructor(kok, { dosyaOku = null, cekirdek = null, baglantiIpucu = null, formKatmani = null, formBirak = null } = {}) {
+  constructor(kok, { dosyaOku = null, cekirdek = null, baglantiIpucu = null, formKatmani = null, formBirak = null, xfaBilgiAl = null } = {}) {
     super();
     this.kok = kok;
     this.dosyaOku = dosyaOku;        // (yol) => Promise<Uint8Array>  (başka PDF'ten sayfa eklemek için)
@@ -322,6 +337,11 @@ export class Goruntuleyici extends EventTarget {
     // formBirak(s) katman silinmeden önce (odaktaki yazı uygulansın)
     this.formKatmani = formKatmani;
     this.formBirak = formBirak;
+    // Saf XFA formu (0.3.1, renderer/xfa.js): sayfalar PDF.js'in XFA katmanıyla çizilir (xfaKatmaniCiz), metin, bağlantı ve form
+    // katmanları kurulmaz. xfaBilgiAl(yol): çekirdeğin şablon bilgisi (xfa_bilgi; sayfa numaraları, düğmeler), ilk çizimden önce alınır
+    this.xfaBilgiAl = xfaBilgiAl;
+    this.xfa = false;
+    this.xfaBilgi = null;
     this.yol = null;                 // sekmenin dosya yolu
     this.belgeler = new Map();       // yolAnahtari → {yol, belge, gorev}
     this.bosBelgeler = new Map();    // 'WxH' → {belge, gorev}
@@ -394,21 +414,33 @@ export class Goruntuleyici extends EventTarget {
   async yukle(veri, secenek = {}) {
     if (this.yok) throw new Error('Görünüm kapatıldı.');
     const isci = isciAl();
-    const gorev = pdfjs.getDocument({ ...belgeSecenekleri(veri, secenek.parola), ...(isci ? { worker: isci } : {}) });
+    let gorev = pdfjs.getDocument({ ...belgeSecenekleri(veri, secenek.parola, true), ...(isci ? { worker: isci } : {}) });
     isciyiSahiplendir(gorev, isci);
     // Girilen parola saklanır: sekme başka pencereye taşınınca orada yeniden sorulmaz (durumAl)
     this._parola = secenek.parola ?? null;
     if (secenek.parolaIste) gorev.onPassword = (cb, neden) => secenek.parolaIste(neden).then((p) => { this._parola = p; cb(p); }, () => cb(new Error('vazgeçildi')));
     this.yuklemeGorevi = gorev;
-    const belge = await kapanmadan(gorev.promise, this._kapanis.signal);
+    let belge = await kapanmadan(gorev.promise, this._kapanis.signal);
     isaretle('pdfAcildi', secenek.olcum);   // açılış zamanları (0.2.10, olcum.js; yalnızca ölçüm istenince)
     // Beklerken sekme kapatıldıysa (0.2.1): yokEt süren görevi bırakır ve bekleme biter; yine de çözüldüyse belge yok edilmiş görünümde
     // kurulmaz, görev bırakılır (işçisi pencere kapanana dek yaşamasın)
     if (this.yok) { try { gorev.destroy().catch(() => {}); } catch {} throw new Error('Görünüm kapatıldı.'); }
+    // Saf XFA formu (0.3.1): ana hat kipi kapalıysa form XFA_YAZI seçenekleriyle yeniden açılır (belgenin türü ancak açılınca bilinir).
+    // Baytlar PDF.js'ten geri alınır (ilk açılışta işçiye aktarıldı)
+    if (belge.isPureXfa && !yaziSecenekleri().disableFontFace) {
+      const veri2 = await kapanmadan(belge.getData(), this._kapanis.signal);
+      try { gorev.destroy().catch(() => {}); } catch {}
+      if (this.yok) throw new Error('Görünüm kapatıldı.');
+      gorev = pdfjs.getDocument(belgeSecenekleri(veri2, this._parola ?? undefined, 'form'));
+      this.yuklemeGorevi = gorev;
+      belge = await kapanmadan(gorev.promise, this._kapanis.signal);
+      if (this.yok) { try { gorev.destroy().catch(() => {}); } catch {} throw new Error('Görünüm kapatıldı.'); }
+    }
     this.belge = belge;
     if (anaHatCizimi) yaziTipiYukleyicisiniSar(this.belge);   // ilk sayfa çizilmeden önce
     this._kareBeklemeden = true;
     this.yol = secenek.yol || null;
+    await this._xfaKur(belge);
     this.belgeler.set(yolAnahtari(this.yol), { yol: this.yol, belge: this.belge, gorev });
     const n = this.belge.numPages;
     const ilk = await kapanmadan(this.belge.getPage(1), this._kapanis.signal);
@@ -468,7 +500,11 @@ export class Goruntuleyici extends EventTarget {
    */
   async durumAl() {
     const belgeler = [];
-    for (const kayit of this.belgeler.values()) belgeler.push({ yol: kayit.yol, ana: kayit.belge === this.belge, veri: await kayit.belge.getData() });
+    // XFA formunda (0.3.1) girilen değerler PDF.js'in annotationStorage'ındadır: formun baytları değerleriyle (saveDocument) taşınır
+    for (const kayit of this.belgeler.values()) {
+      const ana = kayit.belge === this.belge;
+      belgeler.push({ yol: kayit.yol, ana, veri: ana && this.xfa ? await this.xfaBaytlari() : await kayit.belge.getData() });
+    }
     const girdiler = [], sira = new Map(), kimlikler = new Map();
     const girdiNo = (s) => {
       let i = sira.get(s);
@@ -486,7 +522,7 @@ export class Goruntuleyici extends EventTarget {
       yol: this.yol, anlik: this.anlik, kayitliTarif: this.kayitliTarif, parola: this._parola ?? null,
       zoomModu: this.zoomModu, olcek: this.olcek, gecerli: this.gecerli, oran: konum.oran, kaydirmaSol: konum.sol,
       gorunumDondurme: this.gorunumDondurme, boyutlarEksik: !!this._boyutlarEksik,
-      girdiler, sayfalar: this.sayfalar.map(girdiNo), belgeler,
+      girdiler, sayfalar: this.sayfalar.map(girdiNo), belgeler, xfa: !!this.xfa,
     };
     return { durum, girdiNo };
   }
@@ -498,7 +534,7 @@ export class Goruntuleyici extends EventTarget {
   async durumdanYukle(durum, secenek = {}) {
     let ana = null;
     for (const b of durum.belgeler || []) {
-      const gorev = pdfjs.getDocument(belgeSecenekleri(b.veri, b.ana ? durum.parola ?? undefined : undefined));
+      const gorev = pdfjs.getDocument(belgeSecenekleri(b.veri, b.ana ? durum.parola ?? undefined : undefined, b.ana ? (durum.xfa ? 'form' : true) : false));
       let belge;
       try { belge = await gorev.promise; } catch (e) { try { gorev.destroy().catch(() => {}); } catch {} throw e; }
       // Beklerken sekme kapatıldıysa (yokEt belgeleri bıraktı) az önce yüklenen belge de bırakılır: işçisi açık kalmasın
@@ -512,6 +548,8 @@ export class Goruntuleyici extends EventTarget {
     this.yuklemeGorevi = ana.gorev; this.belge = ana.belge;
     this._kareBeklemeden = true;   // taşınan sekmenin yeni penceresi de gösterilmeden çizebilsin (tuvalCiz)
     this.yol = durum.yol || null; this.anlik = durum.anlik || null; this._parola = durum.parola ?? null;
+    await this._xfaKur(ana.belge);
+    if (this.yok) return null;
     // Aynı sayfanın döndürme kopyaları (geri al yığınında) kimliği paylaşır: bu oturumda eklenen notlar sayfayı kimliğiyle izler
     const kimlikler = new Map();
     const girdiler = (durum.girdiler || []).map((v) => {
@@ -606,6 +644,8 @@ export class Goruntuleyici extends EventTarget {
     el.append(katman);
     // kimlik: döndürme kopyalarının (girdiKopyala) paylaştığı kalıcı kimlik; notlar kaynakGirdi'yi bununla eşler
     const s = { no: 0, kimlik: {}, kaynak, bos: !!kaynak.bos, pt: { w: pt.w, h: pt.h }, dondurme: dondurme || 0, el, notKatmani: katman, canvas: null, hamCanvas: null, textLayer: null, cizim: null, hedef: null, gorev: null, sayfaSozu: null, pdfSayfa: null, metinOlcek: 0, baglantilar: null, gorselKutulari: null, icerikKutusu: null };
+    // XFA formunun sayfaları MuPDF'te yok (0.3.1): bağlantı, görsel kutusu, form alanı ve görsel yazısı çekirdeğe sorulmaz
+    if (this.xfa) { s.baglantilar = []; s.gorselKutulari = []; s.formYok = true; s.tanimaAday = false; }
     this._girdiler.add(new WeakRef(s));
     if (this._girdiler.size > this._budamaSiniri) {   // döndürdükçe küme sınırsız büyümesin
       for (const r of this._girdiler) if (!r.deref()) this._girdiler.delete(r);
@@ -659,7 +699,8 @@ export class Goruntuleyici extends EventTarget {
     return this.sayfalar.map((s) => (s.bos ? { kaynak: null, genislik: s.pt.w, yukseklik: s.pt.h, dondurme: s.dondurme } : { kaynak: { yol: s.kaynak.yol, sayfa: s.kaynak.sayfa }, dondurme: s.dondurme }));
   }
   tarifJson() { return JSON.stringify(this.tarif().map((t) => [t.kaynak ? yolAnahtari(t.kaynak.yol) + '#' + t.kaynak.sayfa : `bos${Math.round(t.genislik)}x${Math.round(t.yukseklik)}`, t.dondurme])); }
-  yapisalKirli() { return this.kayitliTarif != null && this.tarifJson() !== this.kayitliTarif; }
+  // XFA formunda (0.3.1) sayfa düzeni değişmez (sayfa işleri kapalı): sayfa sayısı formun örnekleriyle değişir, o değişiklik komut yığınındadır
+  yapisalKirli() { return !this.xfa && this.kayitliTarif != null && this.tarifJson() !== this.kayitliTarif; }
   yapisalKaydedildi() { this.kayitliTarif = this.tarifJson(); }
 
   /**
@@ -740,7 +781,7 @@ export class Goruntuleyici extends EventTarget {
   }
 
   /** Bir girdinin tuval/metin katmanı önbelleğini boşaltır (listede olmasa da). */
-  girdiBosalt(s) {
+  girdiBosalt(s, zorla = false) {
     clearTimeout(s._zaman); s._planli = false;
     s._katmanAnahtari = null;          // ek katmanlar aşağıda silinir: sonraki çizim onları ve not katmanını yeniden kurar (sayfaCiz)
     s.hedef = null;                    // süren çizim sonucunu bırakır
@@ -753,6 +794,9 @@ export class Goruntuleyici extends EventTarget {
     const metinKalir = !!s.textLayer && s.el.isConnected && secimdeMi(s.el.querySelector(':scope > .textLayer'));
     if (s.textLayer && !metinKalir) { s.textLayer.cancel(); s.textLayer = null; }
     if (katmanVar && this.formBirak) { try { this.formBirak(s); } catch (e) { console.warn('Form katmanı', e); } }
+    // XFA katmanı (0.3.1): odaktaki alan katmandaysa (yazılıyor) katman kalır, yoksa silinir (yeniden çizilince değerler PDF.js'ten gelir)
+    const xfaKatman = s.el.querySelector(':scope > .xfaLayer');
+    if (xfaKatman && (zorla || !xfaKatman.contains(document.activeElement))) { xfaKatman.remove(); s.xfaMetin = null; s.xfaOlcek = 0; }
     if (katmanVar) for (const k of s.el.querySelectorAll(metinKalir ? '.baglanti-katmani, .form-katmani' : '.textLayer, .baglanti-katmani, .form-katmani')) k.remove();
     if (!metinKalir) s.metinOlcek = 0;
     s.el.classList.remove('yukleniyor');
@@ -810,6 +854,9 @@ export class Goruntuleyici extends EventTarget {
   metinIcerigi(i) {
     const s = this.sayfalar[i];
     if (s.bos) return Promise.resolve({ items: [], styles: {} });
+    // XFA formunda (0.3.1) sayfanın metinleri ve alanların şimdiki değerleri, katmandaki öğelerle aynı sırada (xfaHtml.js); değerler
+    // değişebildiği için önbelleğe alınmaz
+    if (this.xfa) return this.xfaHtml(i).then((kok) => ({ items: this.xfaOgeleri(kok), styles: {} }));
     if (!s.metinSozu) s.metinSozu = this.sayfaAl(i).then((p) => p.getTextContent({ includeMarkedContent: false }));
     return s.metinSozu;
   }
@@ -1496,7 +1543,8 @@ export class Goruntuleyici extends EventTarget {
       const katmanAnahtari = `${hedef.olcek}|${dondurme}|${dpr}|${hedef.koyu}`;
       const yeniGorunum = s._katmanAnahtari !== katmanAnahtari;
       s._katmanAnahtari = katmanAnahtari;
-      if (!s.bos) {
+      if (this.xfa) this.xfaKatmaniCiz(j, pdfSayfa, hedef.olcek, dondurme).catch((e) => console.error('XFA katmanı', e));
+      else if (!s.bos) {
         this.metinKatmaniCiz(j, pdfSayfa, hedef.olcek, dondurme).catch((e) => console.error('Metin katmanı', e));
         if (yeniGorunum) this.ekKatmanlar(j, pdfSayfa, hedef.olcek, dondurme).catch((e) => console.warn('Ek katmanlar', e));
       }
@@ -1675,6 +1723,7 @@ export class Goruntuleyici extends EventTarget {
    * tutulmaz, Bul'un ilk tanıması ilk parçadan sonra başlar. Çekirdek tanıyıcı olmadığını bildirirse tanimaYok.
    */
   async *tanimaAdaylari(girdiler) {
+    if (this.xfa) return;   // XFA formunun sayfalarında görsel yazısı aranmaz (0.3.1; metinleri HTML'de)
     for (let i = 0; i < girdiler.length; i += ADAY_PARCA) {
       const parca = girdiler.slice(i, i + ADAY_PARCA).filter((s) => !s.bos && s.kaynak);
       const sorulacak = new Map();   // yolAnahtari → { yol, liste: o dosyanın sorulacak girdileri }
@@ -1705,6 +1754,7 @@ export class Goruntuleyici extends EventTarget {
    *  tanınmışsa görsellerdeki sözcükler). Döner: { items, pdfOgeSayisi, tanima } (tanima: kullanılan sonuç, tanınmamışsa null). */
   async aramaOgeleri(i) {
     const s = this.sayfalar[i], icerik = await this.metinIcerigi(i);
+    if (this.xfa) return { items: icerik.items, pdfOgeSayisi: icerik.items.length, tanima: null };
     const tanima = s.tanima || null;
     if (!tanima?.satirlar.length) return { items: icerik.items, pdfOgeSayisi: icerik.items.length, tanima };
     const p = s.pdfSayfa || await s.sayfaSozu;
@@ -1736,7 +1786,7 @@ export class Goruntuleyici extends EventTarget {
    */
   async metinKatmaniHazirla(i) {
     const s = this.sayfalar[i];
-    if (!s || s.bos || s.textLayer || s._metinHazirlik || !this.yerlesim[i] || this.yok) return false;
+    if (!s || s.bos || s.textLayer || s._metinHazirlik || !this.yerlesim[i] || this.yok || this.xfa) return false;
     s._metinHazirlik = true;
     try {
       const p = await this.sayfaAl(i);
@@ -1744,6 +1794,169 @@ export class Goruntuleyici extends EventTarget {
       await this.metinKatmaniCiz(i, p, this.olcek, this.toplamDondurme(s, tabanAl(p)));
       return !!s.textLayer;
     } finally { s._metinHazirlik = false; }
+  }
+
+  // ------------------------------------------------------------ XFA formları (0.3.1)
+  /** Belge saf XFA formuysa XFA kipini kurar (yukle, durumdanYukle): çekirdeğin şablon bilgisi ilk çizimden önce alınır (sayfa numaraları
+   *  ilk çizimde dolsun). Bilgi alınamazsa form yine çizilir (sayfa numarası alanları boş, düğmeler çalışmaz). */
+  async _xfaKur(belge) {
+    this.xfa = !!belge?.isPureXfa;
+    this.xfaBilgi = null;
+    if (!this.xfa || !this.xfaBilgiAl) return;
+    try { this.xfaBilgi = await this.xfaBilgiAl(this.yol); } catch (e) { console.warn('XFA bilgisi alınamadı', e); }
+  }
+
+  /** Sayfanın XFA HTML'i (PDF.js page.getXfa), xfaHtml.js sayfaHazirla ile bir kez hazırlanmış (sayfa numaraları, arama öğeleri). */
+  async xfaHtml(i) {
+    const s = this.sayfalar[i];
+    const p = await this.sayfaAl(i);
+    const kok = await p.getXfa();
+    if (!kok) return null;
+    sayfaHazirla(kok, { sayfaNo: s.kaynak.sayfa, sayfaSayisi: this.belge?.numPages || this.sayfalar.length, bilgi: this.xfaBilgi });
+    return kok;
+  }
+
+  /** XFA formunun güncel değerleriyle baytları (PDF.js saveDocument: değerler XFA verisine yazılır). PDF.js'in XFA veri yazıcısı
+   *  annotationStorage boşken (hiç alan değişmemişken) çöküyor ("Cannot read properties of null"): Depoya hiçbir veri kimliğine uymayan,
+   *  yazımda yok sayılan bir kayıt konur. */
+  async xfaBaytlari() {
+    const depo = this.belge.annotationStorage;
+    if (!depo.size) depo.setValue('pdefe-bos', { value: '' });
+    return this.belge.saveDocument();
+  }
+
+  /** XFA alanının şimdiki değeri (PDF.js annotationStorage; değişmediyse veriden gelen ilk değer). o: sayfaHazirla'nın alan öğesi. */
+  xfaDegeri(o) {
+    const v = this.belge?.annotationStorage.getValue(o.veri, { value: o.ilk })?.value;
+    return v == null ? '' : String(v);
+  }
+
+  /** Bul'un öğeleri (PDF.js TextContent biçiminde): metinler ve alanların değerleri. */
+  xfaOgeleri(kok) {
+    return (kok?.__pdefe?.ogeler || []).map((o) => ({ str: o.tur === 'alan' ? this.xfaDegeri(o) : o.str, hasEOL: !!o.sonu }));
+  }
+
+  /**
+   * Sayfanın XFA katmanı (metin katmanının yerinde; sayfaCiz her çizimde çağırır). Katman bir kez kurulur, yakınlaştırınca yalnızca dönüşümü
+   * değişir (odaktaki alan ve yazılan metin korunur). Bul için öğeler (s.xfaMetin: PDF.js TextLayer'ın textDivs / textContentItemsStr'ı gibi;
+   * arama.js) katmandaki numaralı öğelerden kurulur, alanın değeri için alanın üstünde saydam yazı (vurgu onun içinde).
+   */
+  async xfaKatmaniCiz(i, pdfSayfa, olcek, dondurme) {
+    const s = this.sayfalar[i];
+    this.kok.classList.toggle('koyu-sayfa', this.koyuSayfa);
+    const gorunum = (o) => pdfSayfa.getViewport({ scale: o * CSS_BIRIM, rotation: dondurme }).clone({ dontFlip: true });
+    s._xfaIstenen = olcek;
+    let katman = s.el.querySelector(':scope > .xfaLayer');
+    if (katman) {
+      if (s.xfaOlcek !== olcek) { pdfjs.XfaLayer.update({ viewport: gorunum(olcek), div: katman }); s.xfaOlcek = olcek; }
+      return;
+    }
+    if (s._xfaKuruluyor) return;
+    s._xfaKuruluyor = true;
+    try {
+      const kok = await this.xfaHtml(i);
+      if (!kok || this.yok || this.sayfalar[i] !== s || !s.el.isConnected || s.el.querySelector(':scope > .xfaLayer')) return;
+      katman = document.createElement('div');
+      s.el.insertBefore(katman, s.notKatmani);
+      pdfjs.XfaLayer.render({ viewport: gorunum(olcek), div: katman, xfaHtml: kok, annotationStorage: this.belge.annotationStorage, linkService: this._xfaBaglantilari(), intent: 'display' });
+      s.xfaOlcek = olcek;
+      if (s._xfaIstenen !== olcek) { pdfjs.XfaLayer.update({ viewport: gorunum(s._xfaIstenen), div: katman }); s.xfaOlcek = s._xfaIstenen; }
+      // Bilgisayarın yazı tipi formun ölçtüğünden genişse taşan yazılar küçültülür (yazı tipleri yüklenince; XFA_YAZI)
+      document.fonts.ready.then(() => { if (katman.isConnected) xfaSigdir(katman); }).catch(() => {});
+      s.xfaMetin = this._xfaMetni(katman, kok.__pdefe?.ogeler || []);
+      this.dispatchEvent(new CustomEvent('xfaKatmani', { detail: { sayfa: i + 1, katman } }));
+      this.dispatchEvent(new CustomEvent('metinKatmani', { detail: { sayfa: i + 1 } }));
+    } finally { s._xfaKuruluyor = false; }
+  }
+
+  /** Katmanın Bul öğeleri: numaralı metin span'ları ve alanların üstündeki saydam yazılar. textContentItemsStr her okunuşta alanların
+   *  şimdiki değeriyle kurulur (arama.js vurgularken onu okur; sayfaMetni'yle aynı değer). */
+  _xfaMetni(katman, ogeler) {
+    const divs = ogeler.map(() => null);
+    for (const el of katman.querySelectorAll('[data-xm]')) divs[+el.dataset.xm] = el;
+    for (const el of katman.querySelectorAll('[data-xa]')) divs[+el.dataset.xa] = this._alanYazisi(el);
+    const g = this;
+    return {
+      xfa: true,
+      textDivs: divs.map((d) => d || document.createElement('span')),   // çizilmeyen öğe: bağsız yer tutucu (numaralar kaymasın)
+      get textContentItemsStr() { return ogeler.map((o) => (o.tur === 'alan' ? g.xfaDegeri(o) : o.str)); },
+    };
+  }
+
+  /** Alanın üstünde, alanın yazı biçimiyle saydam yazı: Bul alanın değerindeki eşleşmeyi bunun içinde vurgular (input'un içi süslenemez). */
+  _alanYazisi(el) {
+    const y = document.createElement('span');
+    const cok = el.tagName === 'TEXTAREA';
+    y.className = 'xfa-alan-metni' + (cok ? ' cok-satir' : '');
+    const st = getComputedStyle(el);
+    Object.assign(y.style, {
+      left: el.offsetLeft + 'px', top: el.offsetTop + 'px', width: el.offsetWidth + 'px', height: el.offsetHeight + 'px',
+      fontFamily: st.fontFamily, fontSize: st.fontSize, fontWeight: st.fontWeight, fontStyle: st.fontStyle, letterSpacing: st.letterSpacing,
+      textAlign: st.textAlign, paddingLeft: st.paddingLeft, paddingRight: st.paddingRight, paddingTop: cok ? st.paddingTop : '0',
+      lineHeight: cok ? st.lineHeight : el.offsetHeight + 'px',
+    });
+    el.after(y);
+    return y;
+  }
+
+  /** XFA metnindeki bağlantılar (PDF.js XfaLayer'ın linkService'i): tıklanınca görünüm 'baglanti' olayı verir (uygulama.js dış bağlantıyı
+   *  sorarak açar), PDF.js'in kendi adres işlemesi kullanılmaz. */
+  _xfaBaglantilari() {
+    if (this._xfaBaglanti) return this._xfaBaglanti;
+    this._xfaBaglanti = {
+      addLinkAttributes: (a, url) => {
+        a.href = '#';
+        a.title = typeof url === 'string' ? url : '';
+        a.addEventListener('click', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          if (typeof url === 'string' && url) this.dispatchEvent(new CustomEvent('baglanti', { detail: { uri: url } }));
+        });
+      },
+    };
+    return this._xfaBaglanti;
+  }
+
+  /**
+   * XFA formunu yeni baytlarla yeniden kurar (renderer/xfa.js: örnek ekleme / silme, geri al / yinele): PDF.js formu yeniden dizer, sayfa
+   * sayısı değişebilir. Görünüm yerinde kalır (geçerli sayfa ve sayfa içi konum). veri: PDF.js baytları işçiye aktarır (ayrılır), kopyası
+   * verilmelidir. Bittiğinde 'sayfalar' olayı (Bul, Sayfalar paneli, kaydedilmemiş değişiklik).
+   */
+  async xfaYenile(veri) {
+    if (this.yok) throw new Error('Görünüm kapatıldı.');
+    const konum = !this.kaydirici.clientHeight && this._gizliKonum ? this._gizliKonum : { oran: this.sayfaIciOran(), sol: this.kaydirici.scrollLeft };
+    const gecerli = this.gecerli;
+    const gorev = pdfjs.getDocument(belgeSecenekleri(veri, this._parola ?? undefined, 'form'));
+    const birak = () => { try { gorev.destroy().catch(() => {}); } catch {} };
+    let belge;
+    try { belge = await kapanmadan(gorev.promise, this._kapanis.signal); } catch (e) { birak(); throw e; }
+    if (this.yok) { birak(); throw new Error('Görünüm kapatıldı.'); }
+    if (!belge.isPureXfa) { birak(); throw new Error('Form yeniden dizilemedi.'); }
+    if (anaHatCizimi) yaziTipiYukleyicisiniSar(belge);
+    let ilk;
+    try { ilk = await kapanmadan(belge.getPage(1), this._kapanis.signal); } catch (e) { birak(); throw e; }
+    const anahtar = yolAnahtari(this.yol), eski = this.belgeler.get(anahtar);
+    for (const s of this.sayfalar) { this.girdiBosalt(s, true); s.el.remove(); }
+    this.belge = belge; this.yuklemeGorevi = gorev;
+    this.belgeler.set(anahtar, { yol: this.yol, belge, gorev });
+    if (eski && eski.gorev !== gorev) { try { eski.gorev.destroy().catch(() => {}); } catch {} }
+    const vp = ilk.getViewport({ scale: 1 });
+    this.sayfalar = [];
+    for (let i = 0; i < belge.numPages; i++) {
+      const s = this.girdiOlustur({ yol: this.yol, sayfa: i + 1 }, 0, { w: vp.width, h: vp.height });
+      if (i === 0) { s.sayfaSozu = Promise.resolve(ilk); s.pdfSayfa = ilk; }
+      this.numaraVer(s, i + 1);
+      this.sayfalar.push(s);
+      this.alan.append(s.el);
+    }
+    try { await this.boyutlariOgren(this.sayfalar.slice(1)); } catch (e) { if (this.yok) throw e; console.warn('Sayfa boyutları alınamadı', e); }
+    if (this.yok) throw new Error('Görünüm kapatıldı.');
+    this.kayitliTarif = this.tarifJson();
+    this.gecerli = Math.min(Math.max(1, gecerli), this.sayfalar.length);
+    this.yerlesimHesapla(true);
+    this.sayfayaGit(this.gecerli, { oran: konum.oran || 0, aninda: true });
+    if (konum.sol) this.kaydirici.scrollLeft = konum.sol;
+    this.kaydirmaIsle();
+    this.dispatchEvent(new CustomEvent('sayfalar', { detail: { sayfa: this.sayfalar.length } }));
   }
 
   sayfaBosalt(i) { const s = this.sayfalar[i]; if (s) this.girdiBosalt(s); }
