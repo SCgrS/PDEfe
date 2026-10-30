@@ -15,7 +15,7 @@
 # 0.3.1: Sağ tık menüsü (build\installer.nsh madde 11): Deneme kurucusu fiilleri (KurucuSinama.Birlestir / .Donustur) ve sınama CLSID'lerini
 # HKCU'ya, DLL'i %LOCALAPPDATA%\KurucuSinama\SagTik\<sürüm>\'e yazar. Kayıt yazımı paketin sanal kovanına gitmiyorsa (Gezgin görürdü) sınama
 # başlamaz: Başta HKCU\Software\Classes'a işaret yazılıp gerçek kovanda (WMI) olmadığı kanıtlanır. Kayıtların değerleri test\sagtik_kayitlari.json'la
-# karşılaştırılır. Gezgin'in DLL'i yüklü tuttuğu durum, DLL bu PowerShell'e yüklenerek (LoadLibrary) benzetilir: güncelleme, onarma ve kaldırma.
+# karşılaştırılır. Gezgin'in DLL'i yüklü tuttuğu durum, DLL bu PowerShell'e yüklenerek (LoadLibrary) benzetilir: güncelleme, onarma, aynı sürüm üstüne --updated /S ve kaldırma.
 # Kullanım: powershell -File test\kurucu_akis.ps1 -Cikti <klasör> [-Eski <90.0.1 kurucusu> -Yeni <90.0.2 kurucusu>] [-MasaustuSina]
 #   -Eski / -Yeni verilmezse node test\kurucu_derle.mjs ile <Cikti>\derleme altına derlenir (proje dışı bir klasör verin).
 #   -MasaustuSina: /S'nin ve Onar'ın masaüstü kısayolu davranışı da sınanır (kısayol gerçek Masaüstü'ne kısa süreliğine düşer).
@@ -682,6 +682,25 @@ try {
   Denetle '90.0.2 kuruldu, KeepShortcuts true, masaüstü kısayolu yine yok, uygulama açılmadı' ($d.Surum -eq '90.0.2' -and $d.Exe -eq '90.0.2' -and $d.KeepShortcuts -eq 'true' -and -not $d.Masaustu -and $d.Baslat -and @(Get-Process -Name KurucuSinama -ErrorAction SilentlyContinue).Count -eq 0)
   Onbellek-Kaldi '--updated /S'
   SagTik-Kurulu '--updated /S' '90.0.2'
+
+  # -------------------------------------------------------------- E3. aynı sürüm üstüne --updated /S, Gezgin aynı sürüm klasöründeki DLL'i yüklü tutarken
+  # (yayımlanmamış ara derleme sürüm numarasını artırmadan kurulur: DLL kopyalanamaz, kurulum takılmamalı, hata vermemeli, var olan DLL ve kayıtlar yerinde kalmalı)
+  Yaz 'E3. 90.0.2 kurulu, 90.0.2 --updated /S (aynı sürümün sağ tık DLL''i yüklü)'
+  Onbellek-Isaretle
+  $kilit = [SagTikKilit]::Yukle((SagTik-Dll '90.0.2'))
+  Denetle 'sağ tık DLL''i (90.0.2) yüklendi' ($kilit -ne 0)
+  $dllOzetOnce = (Get-FileHash -LiteralPath (SagTik-Dll '90.0.2')).Hash
+  $dllSilinmez = $false
+  try { Remove-Item -LiteralPath (SagTik-Dll '90.0.2') -Force -ErrorAction Stop } catch { $dllSilinmez = $true }
+  Denetle 'yüklü DLL silinemiyor (kilit gerçek)' ($dllSilinmez -and (Test-Path -LiteralPath (SagTik-Dll '90.0.2')))
+  $r = Sessiz-Kur $Yeni '--updated /S'
+  $d = Deneme-Durumu; Durum-Yaz $d
+  Denetle "pencere açılmadı, takılmadı, çıkış 0 ($($r.Sure) sn)" ($r.Kod -eq 0 -and $r.Pencereler.Count -eq 0 -and $r.Sure -lt 120) "çıkış $($r.Kod); $($r.Sure) sn; pencereler: $($r.Pencereler -join ', ')"
+  Denetle '90.0.2 yerinde, KeepShortcuts true, masaüstü kısayolu yine yok, uygulama açılmadı' ($d.Surum -eq '90.0.2' -and $d.Exe -eq '90.0.2' -and $d.KeepShortcuts -eq 'true' -and -not $d.Masaustu -and $d.Baslat -and @(Get-Process -Name KurucuSinama -ErrorAction SilentlyContinue).Count -eq 0)
+  Denetle 'yüklü DLL aynen yerinde (hâlâ yüklenebiliyor), RunOnce yok' ((Get-FileHash -LiteralPath (SagTik-Dll '90.0.2')).Hash -eq $dllOzetOnce -and (Paket-Deger $RUNONCE $sagTikRunOnce) -eq '<yok>') "RunOnce «$(Paket-Deger $RUNONCE $sagTikRunOnce)»"
+  Onbellek-Kaldi '--updated /S (aynı sürüm)'
+  SagTik-Kurulu '--updated /S aynı sürüm (DLL yüklü: kopyalanamadı, var olan kaldı)' '90.0.2'
+  [SagTikKilit]::Birak($kilit) | Out-Null
 
   # -------------------------------------------------------------- F. bozuk kurulum: program dosyası silinmiş, Onar
   Yaz 'F. 90.0.2 kurulu ama KurucuSinama.exe yok, 90.0.2: Onar'
