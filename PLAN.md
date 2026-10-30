@@ -4336,8 +4336,8 @@ Notlardaki bekleyen hata (2026-10-17, ofiste ölçülmüş: 2 sayfalık taranmı
   Taranmış olanı 100 dpi (İdeal = Düşük), öbürlerinde değişiklik yok.
 
 #### 0.3.1: Linux'ta form alanlarının ve XFA formlarının yazı tipi
-Form alanlarının (5687b3a) "Bilinen sınırlar"ında kalan madde: Görünümün yazı tipi Windows ve macOS yazı tipi klasöründen, Linux sürümü ayrıca
-çözmeliydi. Linux dalı (70c56ac) ana dala birleşince (b7ef252) gözden geçirildi.
+Form alanlarının (d3075c8) "Bilinen sınırlar"ında kalan madde: Görünümün yazı tipi Windows ve macOS yazı tipi klasöründen, Linux sürümü ayrıca
+çözmeliydi. Linux dalı (5c6c6c7) ana dala birleşince (30ae0f6) gözden geçirildi.
 - [x] **Durum (koddan)**: formlar.py görünümün yazı tipini notlar._font_yukle ile alıyor, o da dosyayı notlar._font_dosyasi'ndan. Linux'ta
   _font_dosyasi zaten fontconfig'e soruyor (linux.yazi_tipi_dosyasi): Birleşmeden sonra form alanları da Linux'un seçimini kullanıyor, kodda
   ayrı bir dal gerekmedi. Eş tablosunda (linux.ESLER) formun üç ailesi var: Arial → Liberation Sans / Arimo, Times New Roman → Liberation Serif
@@ -4573,7 +4573,7 @@ birden fazlada hem birleştir üstte altında dönüştür çıksın". Kullanıc
   (kullanıcının deneme belgelerini ister), _onbellekten_birak form_testi'nde sınandı.
 
 #### 0.3.1: güncelleme şeridi
-Kullanıcı: "güncelleme şeridini daha büyük ve belirgin yapalım. bana göster eski yeni örnekle." Üç örnekten (şimdiki, B, C) kullanıcı C'yi seçti (`385c307`).
+Kullanıcı: "güncelleme şeridini daha büyük ve belirgin yapalım. bana göster eski yeni örnekle." Üç örnekten (şimdiki, B, C) kullanıcı C'yi seçti (`921113e`).
 - [x] **Karar** (src/renderer/guncelleme.js): İki satırlı kart. Solda dairede durum simgesi (güncelleme, indirme, hazır, hata), üstte 17 px kalın başlık
   ("Güncelleme var", "Güncelleme indiriliyor", "Güncelleme kurulmaya hazır"…), altında eski metin aynen, sağda büyük düğmeler (ana düğme 42 px, öbürleri
   40 px) ya da 12 px kalın ilerleme çubuğu. Yükseklik 36 → 66 px, renkler temanın vurgusundan (yeni renk değişkeni yok). Dar pencerede düğmeler ve çubuk
@@ -4585,7 +4585,7 @@ Kullanıcı: "güncelleme şeridini daha büyük ve belirgin yapalım. bana gös
 - [x] **Tam sınama (2026-10-30, bu bilgisayar, Windows)**: 114 takım, sayılan 4.878 denetim. Her takım temiz veri klasörlü kendi örneğinde (ekran dışı ya da görünmeyen
   masaüstü). Eski testlerin istediği Masaüstü örnekleri yok: Kurgusal yer tutucular (`PDEFE_TEST_PDF_KLASORU`), gerçek belge kullanılmadı.
 - [x] **0.3.1'in testlerini bozan iki şey düzeltildi, uygulama kodu değişmedi**: senaryo46'nın ikinci örneğini kapatan çağrıda -ExecutionPolicy Bypass yoktu, senaryo düşüyor,
-  örnek açık kalıyordu (`bca5e85`). kurucu_karsilastir'in beklenen fark desenleri inceleme düzeltmelerinin eklediği satırları tanımıyordu, "2 FARK" diyordu (`be72f2a`).
+  örnek açık kalıyordu (`81276f4`). kurucu_karsilastir'in beklenen fark desenleri inceleme düzeltmelerinin eklediği satırları tanımıyordu, "2 FARK" diyordu (`2d0eaae`).
   Sonra: Sessiz kurulum, uygulama içi güncelleme ve kaldırıcı v0.3.0 ile aynı, yalnızca beklenen 2 ekleme (install 62, un.Uninstall 53 satır).
 - [x] **Düşen ve 726484f'te aynı düşenler (0.3.1 ile ilgisi yok)**: senaryo2 (senaryo1'in aynı örnekte açtığı belgeyi bekliyor, tek başına çalışmaz), senaryo4 (eski not balonu
   öğesi yok), oto_kayit_kilit 5/7 (kilitli dosyada otomatik kayıt süresi içinde durmuyor), kurulum_bitis ("pencere bulunamadı", kurucunun sayfalarını kurulum_surum 88/88 ve
@@ -4595,7 +4595,7 @@ Kullanıcı: "güncelleme şeridini daha büyük ve belirgin yapalım. bana gös
   gerçek belge ister). Ölçüm araçları (kaydirma_olcum, acilis_hizi): Geçti / kaldı yok. S37_WORD ve S39_WORD bölümleri atlandı (Word yolu word_donusum_testi 88/88).
 - [x] **Belgeler**: README (form doldurma, XFA, taranmış belgede arama, iç bağlantılar, A4, sağ tık, Linux'ta form yazı tipi), CHANGELOG 0.3.1 (tarih yayım gününde düzeltilir),
   docs/DOGRULAMA.md 46 madde 74. TDK denetimi: README, CHANGELOG, bu bölüm ve DOGRULAMA 46, kalan öneriler dosya ve işlev adları.
-- [x] **Yerel kurucu** (`npm run yayim:hazirla`, 5e24a01'den, sürüm numarası 0.3.0 kaldı): Paketli duman 18/18, gercek_fare -Paketli 9/9. Ayrıca paketli çekirdekle kurgusal
+- [x] **Yerel kurucu** (`npm run yayim:hazirla`, b9e7841'den, sürüm numarası 0.3.0 kaldı): Paketli duman 18/18, gercek_fare -Paketli 9/9. Ayrıca paketli çekirdekle kurgusal
   belgelerde (depoya girmedi) 13/13: Form alanı yazma, görünüm ve kayıt, XFA'da bölüm ekleme, taranmış belgede Bul, iç bağlantı katmanı. Kurulmadı.
 
 #### 0.3.1: kabul sınaması (kullanıcının belgelerinin kopyalarıyla, paketli sürümde)
@@ -4649,7 +4649,7 @@ Kullanıcı: Kural (0.1.8'deki baskın genişlik) olduğu gibi kalır, "sadece g
 - [x] **Metin**: README ve CHANGELOG: "Başka okuyucuda aynı görünür, düzenlenebilir" ve "imzayı bozmaz" doğrulanmadığı için yumuşatıldı. XFA'da kaydet ve yazdır düğmesi çalışıyor. "Başka türden dosyada seçenekler görünmez" yalnız Windows'ta. Linux'un kendini güncellemesi hiç çalıştırılmadı: Sürüm notu ve sürüm gövdesi yalnız haber vermeyi söyler, README'deki Güncelle düğmesinin
   tarifi kaldı (DOGRULAMA 46 madde 46 ilk gerçek güncellemede). THIRD_PARTY: Form alanı yazı tipleri, Linux, Cargo.lock'taki dört windows-rs kitaplığı. Sürüm gövdesi, THIRD_PARTY ve 0.3.1'de değişen arayüz iletilerinde noktalı virgül kalktı (daha eski iletiler bu işin dışında).
 - [x] **CodeQL**: Matrise rust (sagtik/). İlk koşuda Windows'a özgü kodun uyarılarına bakılacak.
-- [x] **Bırakılan, kullanıcının kararı**: Üç Linux commit'inin (f558867, 2df98da, d371165) gövdesinde noktalı virgül var. Düzeltmek geçmişi yeniden yazmak demek (b7ef252 birleştirmesi, bu dosyadaki commit özetleri değişir), yapılmadı.
+- [x] **Bırakılan, kullanıcının kararı**: Üç Linux commit'inin (a771209, ba862cd, 42dad49) gövdesinde noktalı virgül var. Düzeltmek geçmişi yeniden yazmak demek (30ae0f6 birleştirmesi, bu dosyadaki commit özetleri değişir), yapılmadı.
 - [x] **Testler** (son kodla): form_testi 122/122 (13 yeni), guvenlik_testi 47/47, xfa_testi 58/58, donustur_testi --hizli 274/274, senaryo45 122/122, senaryo46 43/43, senaryo47 78/78, senaryo48 71/71, senaryo49 25/25, senaryo24 38/38, senaryo25 30/30, senaryo28, senaryo36 59/59,
   kayit_sekme_panel 61/61, yazdir_pencere 61/61, mac_renderer 46/46, linux_renderer 23/23, sigdirma_kararli 51/51, sigdirma_rastgele 420 örnekte 0 sorun. araclar_testi yer tutucu belgelerle 144/146, düşen ikisi önceki gibi büyük belgede tahmin bekleyen satırlar.
-- [x] **Yerel kurucu** (`npm run yayim:hazirla`, a7a933a'dan, sürüm numarası 0.3.0 kaldı): SHA-256 `29260bfdf079354685129804e17781e1132b00fc7e4679454a190ed9f71be8c3`. Paketli duman 18/18, gercek_fare -Paketli 9/9. Paketli çekirdekle kurgusal formda 3/3 (imza kararı, UR3 temizliği). Kurulmadı.
+- [x] **Yerel kurucu** (`npm run yayim:hazirla`, da0b4cf'dan, sürüm numarası 0.3.0 kaldı): SHA-256 `29260bfdf079354685129804e17781e1132b00fc7e4679454a190ed9f71be8c3`. Paketli duman 18/18, gercek_fare -Paketli 9/9. Paketli çekirdekle kurgusal formda 3/3 (imza kararı, UR3 temizliği). Kurulmadı.
