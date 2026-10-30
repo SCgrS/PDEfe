@@ -4,7 +4,8 @@
 # başı, config, template, datasets, xdp sonu), PDF'in kendi sayfası "lütfen bekleyin" yazısı.
 # Kullanım: .venv\Scripts\python.exe test\xfa_pdf_uret.py <klasör>
 # Çıktı (klasöre): xfa.pdf, xfa-imzali.pdf (aynı form, görünmez sahte e-imzayla: imzali_xfa), xfa-uzun.pdf (uzun yazı: test/senaryo50.mjs), xfa-bicim.pdf (alan biçimleri: BICIM_SABLON, test/senaryo51.mjs),
-#   xfa-hakli.pdf (xfa-uzun, biçimce doğru sahte kullanım hakları imzasıyla: hakli_xfa, test/senaryo52.mjs)
+#   xfa-hakli.pdf (xfa-uzun, biçimce doğru sahte kullanım hakları imzasıyla: hakli_xfa, test/senaryo52.mjs),
+#   xfa-sinir.pdf (alanın kâğıda sığması: SINIR_SABLON, test/senaryo53.mjs)
 #   Şablon: form1 (yukarıdan aşağı akış). Sayfa alanı "Sayfa1": alt bilgide "Sayfa n / N" (zengin metne gömülü, değeri xfa.layout.page /
 #   pageCount betikli iki gizli alan). Alt formlar:
 #     Baslik: başlık (Türkçe harfler), yazı alanı AdSoyad (araç ipucu "Adı ve soyadı"), onay kutusu Onay, açılır liste Sehir (Ankara,
@@ -155,6 +156,71 @@ BICIM_VERI = (f'<xfa:datasets xmlns:xfa="{VERI_NS}"><xfa:data><form1><Bicim>'
               + '</Bicim><Yinelenen><YOrtali/><YHucreli/><YCok/></Yinelenen></form1></xfa:data></xfa:datasets>')
 
 
+# ------------------------------------------------------------ Yazının alana sığması (0.3.1; test/senaryo53.mjs)
+# Kaydırmasız ve kaydırması açık, tek ve çok satırlı, satır aralığı yazılı ve yazısız, 2 satırlık, hücreli, en çok karakterli alanlar. Ölçüler testte de ayrı yazılı (SINIR_ALANLARI): Beklenen satır sayısı
+# şablondan okunmaz, iç yükseklik / satır aralığı ile hesaplanır.
+UZUN_DISK = ("Dosyada zaten duran ve alana sığmayan uzun yazı. " * 40).strip()
+
+
+def _sinir_alani(ad, x, y, w, h, ui, para="", kenar=1, yazi='<font typeface="Arial" size="11pt"/>', deger="", ek="", yan=1, baslik=""):
+    bosluk = f'<margin topInset="{kenar}mm" bottomInset="{kenar}mm" leftInset="{yan}mm" rightInset="{yan}mm"/>'
+    return (f'<field name="{ad}" x="{x}mm" y="{y}mm" w="{w}mm" h="{h}mm"{ek}><ui>{ui}</ui>{yazi}{bosluk}{para}{deger}{baslik}'
+            f'<border><edge><color value="153,153,153"/></edge><corner thickness="0.176mm" join="round" radius="1mm"><color value="153,153,153"/></corner><fill/></border>'
+            f'<assist><toolTip>{ad}</toolTip></assist></field>')
+
+
+SATIR15 = '<para lineHeight="15pt"/>'
+COMB10 = f'<textEdit hScrollPolicy="off">{COMB_KENAR}<comb numberOfCells="10"/></textEdit>'
+COMB11 = f'<textEdit hScrollPolicy="off">{COMB_KENAR}<comb numberOfCells="11"/></textEdit>'
+COMB16 = f'<textEdit hScrollPolicy="off">{COMB_KENAR}<comb numberOfCells="16"/></textEdit>'
+SINIR_ADLARI = ("IkiSatir", "UcSatir", "Kendi", "Yasli", "DikeyOrta", "Bosluklu", "UstBaslikli", "AcikCok", "AcikTek", "TekKapali", "YanBaslikli", "TekSagda", "Sinirli75", "Sinirli200", "Hucre10", "Hucre11", "Hucre16", "Sayi", "Tarih", "SaltOkunur", "DiskCok", "DiskTek", "DiskUzun", "Buyuyen")
+SINIR_SABLON = f"""<template xmlns="{SABLON_NS}"><subform name="form1" layout="tb" locale="tr_TR" restoreState="auto">
+<pageSet><pageArea name="Sayfa1" id="Sayfa1"><contentArea x="15mm" y="15mm" w="180mm" h="267mm"/><medium stock="a4" short="210mm" long="297mm"/></pageArea></pageSet>
+<subform name="Sinir" w="180mm" h="225mm">
+{_sinir_alani("IkiSatir", 0, 0, 170, 15.875, COK, SATIR15)}
+{_sinir_alani("UcSatir", 0, 17, 80, 20, COK, SATIR15)}
+{_sinir_alani("Kendi", 90, 17, 80, 30, COK)}
+{_sinir_alani("Yasli", 0, 39, 80, 20, COK, '<para hAlign="justify" lineHeight="15pt"/>')}
+{_sinir_alani("DikeyOrta", 90, 49, 80, 20, COK, '<para vAlign="middle" lineHeight="15pt"/>')}
+{_sinir_alani("Bosluklu", 0, 61, 80, 25, COK, '<para marginLeft="10pt" marginRight="5pt" spaceAbove="4pt" lineHeight="15pt"/>')}
+{_sinir_alani("UstBaslikli", 90, 71, 80, 25, COK, SATIR15, baslik='<caption placement="top" reserve="6mm"><value><text>Başlıklı</text></value></caption>')}
+{_sinir_alani("AcikCok", 0, 88, 80, 20, '<textEdit multiLine="1"/>', SATIR15)}
+{_sinir_alani("AcikTek", 90, 98, 80, 8, '<textEdit/>', ORTA)}
+{_sinir_alani("TekKapali", 90, 108, 80, 8, TEK, ORTA)}
+{_sinir_alani("YanBaslikli", 0, 110, 80, 9, TEK, ORTA, baslik='<caption reserve="25mm"><value><text>Yan başlıklı</text></value></caption>')}
+{_sinir_alani("TekSagda", 90, 118, 80, 8, TEK, '<para hAlign="right" vAlign="middle"/>')}
+{_sinir_alani("Sinirli75", 0, 128, 170, 8, TEK, ORTA, deger='<value><text maxChars="75"/></value>')}
+{_sinir_alani("Sinirli200", 0, 138, 80, 8, COK, ORTA, kenar=0, yazi='<font typeface="Arial"/>', deger='<value><text maxChars="200"/></value>')}
+{_sinir_alani("Hucre10", 90, 138, 40, 8, COMB10, ORTA)}
+{_sinir_alani("Hucre11", 0, 148, 80, 8, COMB11, ORTA)}
+{_sinir_alani("Hucre16", 90, 148, 80, 8, COMB16, ORTA)}
+{_sinir_alani("Sayi", 0, 158, 40, 8, '<numericEdit hScrollPolicy="off"><border presence="hidden"/><margin/></numericEdit>', ORTA)}
+{_sinir_alani("Tarih", 45, 158, 35, 8, '<dateTimeEdit hScrollPolicy="off"><border presence="hidden"/><margin/></dateTimeEdit>', ORTA)}
+{_sinir_alani("SaltOkunur", 90, 158, 80, 8, TEK, ORTA, ek=' access="readOnly"')}
+{_sinir_alani("DiskCok", 0, 168, 80, 15.875, COK, SATIR15)}
+{_sinir_alani("DiskTek", 90, 168, 80, 8, TEK, ORTA)}
+{_sinir_alani("DiskUzun", 90, 178, 80, 15.875, '<textEdit multiLine="1"/>', SATIR15)}
+<field name="Buyuyen" x="0mm" y="186mm" w="80mm" minH="10mm"><ui><textEdit multiLine="1"/></ui><font typeface="Arial" size="11pt"/><margin topInset="1mm" bottomInset="1mm" leftInset="1mm" rightInset="1mm"/><border><edge><color value="153,153,153"/></edge></border></field>
+{dugme("SinirEkle", "130mm", "205mm", "40mm", "Bölüm Ekle", eylem("SinirEkle", "this.resolveNode('form1._Yinelenen').addInstance(1);", "33333333-0000-0000-0000-000000000001"))}
+{dugme("SinirSil", "85mm", "205mm", "40mm", "Bölüm Sil", eylem("SinirSil", "this.resolveNode('form1._Yinelenen').removeInstance(this.resolveNode('form1._Yinelenen').count - 1);", "33333333-0000-0000-0000-000000000002"))}
+</subform>
+<subform name="Yinelenen" w="180mm" h="30mm"><occur min="1" max="3"/>
+{_sinir_alani("YCok", 0, 2, 170, 15.875, COK, SATIR15)}
+{_sinir_alani("YTek", 0, 20, 80, 8, TEK, ORTA)}
+</subform>
+<subform name="Cerceveli" w="180mm" h="105mm">
+{_sinir_alani("Uzun", 0, 2, 170, 100, COK, SATIR15)}
+</subform>
+<subform name="Son" w="180mm" h="12mm">
+{dugme("Kaydet", "140mm", "2mm", "40mm", "Formu Kaydet", eylem("Kaydet", 'app.execMenuItem("SaveAs");', "33333333-0000-0000-0000-000000000003"))}
+</subform>
+</subform></template>"""
+_SINIR_DEGERLER = {"SaltOkunur": "Salt okunur yazı", "DiskCok": UZUN_DISK, "DiskTek": UZUN_DISK, "DiskUzun": UZUN_DISK}
+SINIR_VERI = (f'<xfa:datasets xmlns:xfa="{VERI_NS}"><xfa:data><form1><Sinir>'
+              + "".join(f"<{a}>{_SINIR_DEGERLER[a]}</{a}>" if a in _SINIR_DEGERLER else f"<{a}/>" for a in SINIR_ADLARI)
+              + '</Sinir><Yinelenen><YCok/><YTek/></Yinelenen><Cerceveli><Uzun/></Cerceveli><Son/></form1></xfa:data></xfa:datasets>')
+
+
 def akis(doc, veri):
     x = doc.get_new_xref()
     doc.update_object(x, "<<>>")
@@ -203,12 +269,14 @@ def uret(klasor):
     form_yaz(uzun, SABLON_UZUN, VERI_UZUN)
     bicim = os.path.join(klasor, "xfa-bicim.pdf")
     form_yaz(bicim, BICIM_SABLON, BICIM_VERI, kullanim_hakki=False)
+    sinir = os.path.join(klasor, "xfa-sinir.pdf")
+    form_yaz(sinir, SINIR_SABLON, SINIR_VERI, kullanim_hakki=False)
     hakli = os.path.join(klasor, "xfa-hakli.pdf")
     gecici = os.path.join(klasor, "xfa-hakli-kaynak.pdf")
     form_yaz(gecici, SABLON_UZUN, VERI_UZUN, kullanim_hakki=False)
     hakli_xfa(gecici, hakli)
     os.remove(gecici)
-    return {"xfa": yol, "xfaImzali": imzali, "xfaUzun": uzun, "xfaBicim": bicim, "xfaHakli": hakli, "paketler": paketler}
+    return {"xfa": yol, "xfaImzali": imzali, "xfaUzun": uzun, "xfaBicim": bicim, "xfaHakli": hakli, "xfaSinir": sinir, "paketler": paketler}
 
 
 def hakli_xfa(kaynak, yol):

@@ -20,7 +20,7 @@
 //  15) Yeniden kurma sürerken (0.3.1 inceleme): Geri al'ın ardından sekme paketi kurulmanın bitmesini bekler (baytlar ve yığının
 //      konumu tutar), düğme işi sürerken sekme taşınmaz, otomatik kayıt dizilim bitince yapılır.
 //  16) Kabul sınaması: Tab sayfadaki sırayla (şablondaki sırayla değil), sayfa sonunda sonraki sayfaya; odaktaki düğmede Boşluk; yazısı alana
-//      sığmayan alan işaretlenir, söylenir, yazdırma penceresi uyarır.
+//      alana yalnız sığan yazı girer (ayrıntı senaryo53). Dosyada zaten sığmayan yazı işaretlenir, söylenir, yazdırma penceresi uyarır.
 // Örnek PDF test/xfa_pdf_uret.py ile üretilir (gerçek belge yok): test/cikti/s48/<koşum>/.
 // Kullanım (ekran dışı):
 //   powershell -File test\baslat.ps1 -Port 9310 -Veri "$env:TEMP\pdefe-s48-9310" -Boyut "1280,900"   → PID=… yazar
@@ -499,8 +499,13 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz, tus,
     await tus('a', ['ctrl']);
     await yaz(satirlar);
     await bekle(150);
+    const t0 = await tasma();
+    sonuc('16) Uzun yazı: Sığan kısmı girer, kaydırma ve işaret yok, kalanı söylenir', !t0.sinif && t0.st === 0 && t0.uz > 20 && t0.uz < satirlar.length && /karakter alınmadı/.test(t0.bildirim), t0);
+    // Dosyada zaten sığmayan yazı (başka program, eski kayıt): Elle girilemediği için değer doğrudan konur
+    await evalJs(`(() => { const e = document.activeElement; e.value = ${J(satirlar)}; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+    await bekle(150);
     const t1 = await tasma();
-    sonuc('16) Uzun yazı: Alan işaretlendi, sığmadığı söylendi', t1.sinif && /sığmıyor/.test(t1.bildirim) && t1.st > 0, t1);
+    sonuc('16) Sığmayan yazı: Alan işaretlendi, sığmadığı söylendi', t1.sinif && /sığmıyor/.test(t1.bildirim), t1);
     await tus('Tab');
     await bekle(200);
     const t2 = await tasma();
@@ -529,7 +534,10 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz, tus,
     sonuc('16) Tek satırda kısa yazı işaretlenmez', !(await s48(`H.denetim('AdSoyad').classList.contains('xfa-tasiyor')`)));
     await tus('a', ['ctrl']);
     await yaz('Çok uzun bir ad soyad yazısı '.repeat(12));
-    sonuc('16) Tek satırda genişliği aşan yazı işaretlenir', await s48(`H.denetim('AdSoyad').classList.contains('xfa-tasiyor')`));
+    const tek = await s48(`(() => { const d = H.denetim('AdSoyad'); return { sinif: d.classList.contains('xfa-tasiyor'), uz: d.value.length, sw: d.scrollWidth, cw: d.clientWidth }; })()`);
+    sonuc('16) Tek satırda uzun yazı: Genişliğe sığan kısmı girer, işaret yok', !tek.sinif && tek.uz > 7 && tek.uz < 300 && tek.sw <= tek.cw, tek);
+    await evalJs(`(() => { const e = document.activeElement; e.value = ${J('Çok uzun bir ad soyad yazısı '.repeat(12))}; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+    sonuc('16) Tek satırda dosyadan gelen sığmayan yazı işaretlenir', await s48(`H.denetim('AdSoyad').classList.contains('xfa-tasiyor')`));
     await tus('Tab');
     // Boş satır: Yeniden dizilince, kaydedip yeniden açınca kalır (PDF.js değerin boş satırlarını atar)
     await tiklaAd('Aciklama', 0);

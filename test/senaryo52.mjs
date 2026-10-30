@@ -128,7 +128,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz, tus,
     await evalJs(`(async () => { const b = await window.__pdefe.dosyaAc(${J(yol)}); for (let i = 0; i < 200 && !document.querySelector('.gorunum:not([hidden]) .xfaLayer'); i++) await window.__s52.bekle(50); b.gorunum.zoomModuAyarla('genislik'); await window.__s52.bekle(300); return true; })()`);
   };
   const tiklaAd = async (ad, i = 0) => { const p = await evalJs(`window.__s52.yer(${J(ad)}, ${i})`); if (!p) throw new Error('Öğe bulunamadı: ' + ad + ' ' + i); await tikla(p.x, p.y); await bekle(80); return p; };
-  const alanaYaz = async (ad, i, metin) => { await tiklaAd(ad, i); await tus('a', ['ctrl']); await tus('Delete'); if (metin) await yaz(metin); await bekle(30); };
+  // Alana sığmayan yazı artık elle girilemez (senaryo53). Bu sınamanın konusu kayıp: Dosyada duran sığmayan yazı da kaybolmamalı: Sığan kısmı alınınca kalanıyla değer doğrudan konur
+  const alanaYaz = async (ad, i, metin) => { await tiklaAd(ad, i); await tus('a', ['ctrl']); await tus('Delete'); if (metin) { await yaz(metin); await evalJs(`(() => { const e = document.activeElement, m = ${J(metin)}; if (e.value !== m.replace(/\\r\\n?/g, '\\n')) { e.value = m; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); } return e.value.length; })()`); } await bekle(30); };
   const komut = (k, v) => evalJs(`(window.__pdefe.komutCalistir(${J(k)}${v !== undefined ? ', ' + J(v) : ''}), true)`);
   const kayitBitsin = async (ms = 60000) => { await bekle(30); for (const t0 = Date.now(); Date.now() - t0 < ms; await bekle(40)) { const d = await durum(); if (!d.kaydediliyor || d.kutu) return d; } return durum(); };
   const kaydet = async () => { await komut('dosya.kaydet'); return kayitBitsin(); };

@@ -162,7 +162,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz, tus,
     return p;
   };
   /** Alana (i'inci örnek) tıklar, var olan yazıyı siler, metni yazar (alandan çıkmaz). */
-  const alanaYaz = async (ad, i, metin) => { await tiklaAd(ad, i); await tus('a', ['ctrl']); await tus('Delete'); await yaz(metin); await bekle(40); };
+  // Alana sığmayan yazı artık elle girilemez (senaryo53). Bu sınamanın konusu kaydın yolu: Dosyada duran sığmayan yazı da kaybolmamalı: Sığan kısmı alınınca kalanıyla değer doğrudan konur
+  const alanaYaz = async (ad, i, metin) => { await tiklaAd(ad, i); await tus('a', ['ctrl']); await tus('Delete'); await yaz(metin); await evalJs(`(() => { const e = document.activeElement, m = ${J(metin)}; if (e.value !== m.replace(/\\r\\n?/g, '\\n')) { e.value = m; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); } return e.value.length; })()`); await bekle(40); };
   const kutuBekle = async (ms = 15000) => { for (const t0 = Date.now(); Date.now() - t0 < ms; await bekle(60)) { const d = await durum(); if (d.kutu) return d; } return durum(); };
   const kutuBas = async (ad) => {
     const p = await evalJs(`(() => { const d = [...[...document.querySelectorAll('.mesaj-kutusu')].at(-1).querySelectorAll('.dugmeler button')].find((x) => x.textContent === ${J(ad)}); if (!d) return null; const r = d.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
@@ -367,8 +368,8 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz, tus,
     const sureler = [];
     // Bir sonraki kare de sayılır: Yazının ekrana gelmesi
     const KARE = `new Promise((c) => requestAnimationFrame(() => setTimeout(c, 0)))`;
+    // Sığmayan alanda harf girmez: Ölçü harfin reddi ve kare (alan yazıyı değiştirmez)
     for (let i = 0; i < 20; i++) { const t = performance.now(); await tus('x'); await evalJs(KARE); sureler.push(performance.now() - t); }
-    await tus('Backspace'); for (let i = 1; i < 20; i++) await tus('Backspace');
     sureler.sort((a, b) => a - b);
     bilgi(`tuş gecikmesi (20 tuş, ortanca / en çok): ${sureler[10].toFixed(0)} / ${sureler[19].toFixed(0)} ms`);
     sonuc('1) Dolu alanda yazma gecikmesi ortanca 150 ms altında', sureler[10] < 150, sureler);
