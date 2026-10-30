@@ -488,8 +488,8 @@ def test_kalite_notlari(c, g):
     tablolu = ["pdf>udf", "word>udf", "tiff>udf", "gorsel>udf", "pdf>word", "udf>word"]
     sonuc("UDF ve Word notlarında tablolar anılıyor (0.2.8)", all("tablo" in (d.get(k, {}).get("kalite") or "") for k in tablolu),
           {k: d.get(k, {}).get("kalite") for k in tablolu})
-    sonuc("PDF → UDF notu: \"Satır, sayfa düzeni ve tablolar UDF'de kayabilir; imza gibi resimler alınmayabilir.\"",
-          d["pdf>udf"]["kalite"] == "Satır, sayfa düzeni ve tablolar UDF'de kayabilir; imza gibi resimler alınmayabilir.", d["pdf>udf"]["kalite"])
+    sonuc("PDF → UDF notu: \"Satır, sayfa düzeni ve tablolar UDF'de kayabilir. İmza gibi resimler alınmayabilir.\"",
+          d["pdf>udf"]["kalite"] == "Satır, sayfa düzeni ve tablolar UDF'de kayabilir. İmza gibi resimler alınmayabilir.", d["pdf>udf"]["kalite"])
     b, _ = c.cagir("donusum_bilgi", {"yol": g["etiketsiz_g4"], "genislik": 120})
     h = {x["bicim"]: x for x in b["hedefler"]}
     sonuc("satırın hedeflerinde de not (TIFF: Word ve UDF notlu, PDF notsuz)", h["word"].get("kalite") == d["tiff>word"]["kalite"]
@@ -1821,35 +1821,29 @@ def test_bayat_gecici(c, g):
 
 
 def test_lo_profili(c):
-    """0.2.9 denetimi: LibreOffice'in geçici profil klasörü (Word → PDF, Word'süz Windows'ta ve macOS'ta) çekirdeğin pid'iyle adlanır
-    ("pdefe-donustur-<pid>-libreoffice-…"): çekirdek zorla kapanırsa kalan profil sonraki çekirdeğin kalintilari_temizle'siyle silinir (önceden
-    "pdefe-libreoffice-…" hiçbir temizliğin tanımadığı ön ekti). Eski adlı profil bir günden eskiyse o da silinir."""
+    """0.2.9 denetimi: LibreOffice'in geçici profili çekirdeğin pid'iyle adlanan klasörde: Çekirdek zorla kapanırsa kalan profil sonraki çekirdeğin
+    kalintilari_temizle'siyle silinir (önceden "pdefe-libreoffice-…" hiçbir temizliğin tanımadığı ön ekti). Eski adlı profil bir günden eskiyse o da silinir. 0.3.1: Profil her
+    dönüştürmeye taze ve işin geçici klasöründe (word._libreoffice_ile; gerçek dönüştürme test/ofis_motor_testi.py'de)."""
     if c.exe:
         atlandi("LibreOffice profili", "exe kipinde modülün içi görülmüyor")
         return
     print("— LibreOffice'in geçici profili (0.2.9 denetimi)")
     import tempfile
     from islemler import donustur as d
-    from islemler import word as w
-    profil, ilk = w._lo_profil_klasoru()
-    try:
-        sonuc("profil klasörünün adı çekirdeğin pid'iyle (pdefe-donustur-<pid>-libreoffice-)",
-              os.path.basename(profil).startswith("%s%d-libreoffice-" % (d.GECICI_ONEKI, os.getpid())) and ilk, os.path.basename(profil))
-        kok = tempfile.gettempdir()
-        olu = 999999   # yaşayan bir süreç değil (Windows'ta pid'ler 4'ün katı ve bu kadar büyük değil)
-        kalinti = tempfile.mkdtemp(prefix="%s%d-libreoffice-" % (d.GECICI_ONEKI, olu), dir=kok)
-        os.makedirs(os.path.join(kalinti, "user"))
-        eski = tempfile.mkdtemp(prefix="pdefe-libreoffice-", dir=kok)
-        os.utime(eski, (time.time() - 3 * 86400, time.time() - 3 * 86400))
-        yeni_eski_ad = tempfile.mkdtemp(prefix="pdefe-libreoffice-", dir=kok)
-        d.kalintilari_temizle()
-        sonuc("ölü çekirdeğin profili silindi; çalışan çekirdeğinki kaldı", not os.path.exists(kalinti) and os.path.isdir(profil), (os.path.exists(kalinti), os.path.isdir(profil)))
-        sonuc("eski adlı (pdefe-libreoffice-) profil: bir günden eskisi silindi, yenisi kaldı", not os.path.exists(eski) and os.path.isdir(yeni_eski_ad),
-              (os.path.exists(eski), os.path.isdir(yeni_eski_ad)))
-        shutil.rmtree(yeni_eski_ad, ignore_errors=True)
-    finally:
-        w.kapanirken()
-    sonuc("çekirdek kapanınca profil silindi", not os.path.exists(profil))
+    kok = tempfile.gettempdir()
+    olu = 999999   # yaşayan bir süreç değil (Windows'ta pid'ler 4'ün katı ve bu kadar büyük değil)
+    kalinti = tempfile.mkdtemp(prefix="%s%d-libreoffice-" % (d.GECICI_ONEKI, olu), dir=kok)
+    os.makedirs(os.path.join(kalinti, "user"))
+    eski = tempfile.mkdtemp(prefix="pdefe-libreoffice-", dir=kok)
+    os.utime(eski, (time.time() - 3 * 86400, time.time() - 3 * 86400))
+    yeni_eski_ad = tempfile.mkdtemp(prefix="pdefe-libreoffice-", dir=kok)
+    calisan = tempfile.mkdtemp(prefix="%s%d-" % (d.GECICI_ONEKI, os.getpid()), dir=kok)
+    d.kalintilari_temizle()
+    sonuc("ölü çekirdeğin profili silindi; çalışan çekirdeğinki kaldı", not os.path.exists(kalinti) and os.path.isdir(calisan), (os.path.exists(kalinti), os.path.isdir(calisan)))
+    sonuc("eski adlı (pdefe-libreoffice-) profil: bir günden eskisi silindi, yenisi kaldı", not os.path.exists(eski) and os.path.isdir(yeni_eski_ad),
+          (os.path.exists(eski), os.path.isdir(yeni_eski_ad)))
+    shutil.rmtree(yeni_eski_ad, ignore_errors=True)
+    shutil.rmtree(calisan, ignore_errors=True)
 
 
 def test_mupdf_kilidi(c, g):

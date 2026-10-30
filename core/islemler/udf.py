@@ -845,7 +845,7 @@ class _Oturum:
         """Bir iş gönderir, sonucunu bekler. Döner: sonuç satırı ({tamam: true, ...}); köprü hatası KopruHatasi(tur)."""
         for a in alanlar:
             if any(c in str(a) for c in "\t\r\n"):
-                raise OgeHatasi("gecersiz", "Dosya yolunda sekme ya da satır sonu var; dönüştürülemez.")
+                raise OgeHatasi("gecersiz", "Dosya yolunda sekme ya da satır sonu var, dönüştürülemez.")
         self.belge += 1
         no = str(self.belge)
         try:
@@ -1005,10 +1005,11 @@ def _kopru_girdisi(yol):
                                 break
                             kalan -= len(parca)
                             if kalan < 0:
-                                raise OgeHatasi("guvensiz", "Dosya açılınca çok büyüyor; güvenli açılamaz: %s" % os.path.basename(yol))
+                                raise OgeHatasi("guvensiz", "Dosya açılınca çok büyüyor, güvenli açılamaz: %s" % os.path.basename(yol))
                             yaz.write(parca)
         except (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError, RuntimeError) as e:
-            raise OgeHatasi("bozuk", "Dosya bozuk; açılamadı (%s): %s" % (os.path.basename(yol), e))
+            print("[udf] zip açılamadı: %s" % e, file=sys.stderr)
+            raise OgeHatasi("bozuk", "Dosya bozuk, açılamadı: %s" % os.path.basename(yol))
         yield kopya
     finally:
         _sil_klasor(klasor)
@@ -1095,7 +1096,7 @@ def _udf_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
                     if kip == "pdf" or not WINDOWS or e.tur in ("yukleme", "bos", "surum", "baslatma") or (e.tur == "olumcul" and "OutOfMemory" in str(e)):
                         raise
                     print("[udf] PDF kitaplığıyla çizilemedi, yazıcıya geçiliyor: %s" % e, file=sys.stderr)
-                    uyarilar.append("UYAP Doküman Editörü'nün PDF kitaplığı kullanılamadı; belge Windows'un PDF yazıcısıyla çizildi. Bazı sayfalar "
+                    uyarilar.append("UYAP Doküman Editörü'nün PDF kitaplığı kullanılamadı. Belge Windows'un PDF yazıcısıyla çizildi. Bazı sayfalar "
                                     "resim olarak çıkabilir (yazısı seçilemez).")
             if cizim is None:
                 if not WINDOWS:
@@ -1116,13 +1117,15 @@ def _udf_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
             raise OgeHatasi("desteklenmiyor", "Windows'un PDF yazıcısı (%s) bulunamadı." % VARSAYILAN_YAZICI)
         if e.tur == "olumcul" and "OutOfMemory" in str(e):
             raise MemoryError()
-        raise OgeHatasi("hata", "%s dönüştürülemedi: %s" % (ad, e))
+        print("[udf] %s: %r" % (ad, e), file=sys.stderr)
+        raise OgeHatasi("hata", "%s dönüştürülemedi." % ad)
     # Çıktının denetimi: PDF açılıyor mu, sayfa sayısı köprününkiyle aynı mı
     with baglam.mupdf():
         try:
             doc = pymupdf.open(cikti, filetype="pdf")
         except Exception as e:
-            raise OgeHatasi("hata", "Üretilen PDF açılamadı (%s): %s" % (ad, e))
+            print("[udf] üretilen PDF: %r" % e, file=sys.stderr)
+            raise OgeHatasi("hata", "Üretilen PDF açılamadı: %s" % ad)
         try:
             n = doc.page_count
             metinsiz = sum(1 for pg in doc if not pg.get_text("text").strip()) if cizim == "yazici" else 0

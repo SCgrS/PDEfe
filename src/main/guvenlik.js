@@ -279,7 +279,7 @@ const hataKodlu = (kod, ileti) => Object.assign(new Error(ileti), { kod });
 export function udfIcerigiDenetle(bayt) {
   if (!bayt || !bayt.length) throw hataKodlu('bozuk', 'Dosya boş.');
   const b = Buffer.isBuffer(bayt) ? bayt : Buffer.from(bayt.buffer, bayt.byteOffset, bayt.byteLength);
-  if (b.length > UDF_SINIRI.dosya) throw hataKodlu('buyuk', `Dosya çok büyük (${Math.round(b.length / MiB)} MB; en çok ${UDF_SINIRI.dosya / MiB} MB).`);
+  if (b.length > UDF_SINIRI.dosya) throw hataKodlu('buyuk', `Dosya çok büyük (${Math.round(b.length / MiB)} MB, en çok ${UDF_SINIRI.dosya / MiB} MB).`);
   if (b.length >= 4 && b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04) {
     const bozuk = () => hataKodlu('bozuk', 'Dosya açılamadı: bozuk ya da UDF değil.');
     if (b.length < 22) throw bozuk();
@@ -290,7 +290,7 @@ export function udfIcerigiDenetle(bayt) {
     if (eocd < 0 || b.readUInt16LE(eocd + 4) || b.readUInt16LE(eocd + 6) || b.readUInt16LE(eocd + 8) !== b.readUInt16LE(eocd + 10)) throw bozuk();
     const adet = b.readUInt16LE(eocd + 10), mdBoyut = b.readUInt32LE(eocd + 12), mdOfset = b.readUInt32LE(eocd + 16);
     if (adet === 0xffff || mdBoyut === 0xffffffff || mdOfset === 0xffffffff || mdOfset + mdBoyut > eocd) throw bozuk();
-    if (adet > UDF_SINIRI.girdi) throw hataKodlu('guvensiz', `UDF paketinde çok fazla öğe var (${adet}); güvenlik nedeniyle dönüştürülmedi.`);
+    if (adet > UDF_SINIRI.girdi) throw hataKodlu('guvensiz', `UDF paketinde çok fazla öğe var (${adet}), güvenlik nedeniyle dönüştürülmedi.`);
     let p = mdOfset, icerik = 0, toplam = 0;
     for (let k = 0; k < adet; k++) {
       if (p + 46 > mdOfset + mdBoyut || b.readUInt32LE(p) !== 0x02014b50) throw bozuk();
@@ -298,25 +298,25 @@ export function udfIcerigiDenetle(bayt) {
       const adUz = b.readUInt16LE(p + 28), ekUz = b.readUInt16LE(p + 30), notUz = b.readUInt16LE(p + 32);
       if (p + 46 + adUz + ekUz + notUz > mdOfset + mdBoyut) throw bozuk();
       const ad = b.toString(bayrak & 0x800 ? 'utf8' : 'latin1', p + 46, p + 46 + adUz).replace(/^(\.?\/)+/, '').toLowerCase();
-      if (bayrak & 1) throw hataKodlu('parolali', 'UDF paketi parolayla korunuyor; dönüştürülemez.');
+      if (bayrak & 1) throw hataKodlu('parolali', 'UDF paketi parolayla korunuyor, dönüştürülemez.');
       if (yontem !== 0 && yontem !== 8) throw bozuk();
       toplam += acik;
       if (ad === 'content.xml') {
         icerik++;
-        if (acik > UDF_SINIRI.icerik) throw hataKodlu('buyuk', `Belgenin içeriği çok büyük (açılınca ${Math.round(acik / MiB)} MB; en çok ${UDF_SINIRI.icerik / MiB} MB).`);
+        if (acik > UDF_SINIRI.icerik) throw hataKodlu('buyuk', `Belgenin içeriği çok büyük (açılınca ${Math.round(acik / MiB)} MB, en çok ${UDF_SINIRI.icerik / MiB} MB).`);
       }
-      if (toplam > UDF_SINIRI.acikToplam) throw hataKodlu('guvensiz', 'UDF paketi açılınca çok büyüyor; güvenlik nedeniyle dönüştürülmedi.');
+      if (toplam > UDF_SINIRI.acikToplam) throw hataKodlu('guvensiz', 'UDF paketi açılınca çok büyüyor, güvenlik nedeniyle dönüştürülmedi.');
       p += 46 + adUz + ekUz + notUz;
     }
     if (!icerik) throw hataKodlu('bozuk', 'UDF paketinde belge içeriği (content.xml) yok.');
-    if (icerik > 1) throw hataKodlu('guvensiz', 'UDF paketi birden çok içerik dosyası taşıyor; güvenlik nedeniyle dönüştürülmedi.');
+    if (icerik > 1) throw hataKodlu('guvensiz', 'UDF paketi birden çok içerik dosyası taşıyor, güvenlik nedeniyle dönüştürülmedi.');
     return 'zip';
   }
   let i = b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf ? 3 : 0;
   const utf16 = (b[0] === 0xff && b[1] === 0xfe) || (b[0] === 0xfe && b[1] === 0xff);
   while (!utf16 && i < b.length && i < 4096 && (b[i] === 0x20 || b[i] === 0x09 || b[i] === 0x0a || b[i] === 0x0d)) i++;
   if (!utf16 && b[i] !== 0x3c) throw hataKodlu('bozuk', 'Dosya bir UDF belgesi değil.');
-  if (b.length > UDF_SINIRI.icerik) throw hataKodlu('buyuk', `Belgenin içeriği çok büyük (${Math.round(b.length / MiB)} MB; en çok ${UDF_SINIRI.icerik / MiB} MB).`);
+  if (b.length > UDF_SINIRI.icerik) throw hataKodlu('buyuk', `Belgenin içeriği çok büyük (${Math.round(b.length / MiB)} MB, en çok ${UDF_SINIRI.icerik / MiB} MB).`);
   return 'xml';
 }
 
@@ -327,14 +327,14 @@ export async function udfDosyasiOku(yol) {
   const kilitli = (e) => /^(EBUSY|EPERM|EACCES)$/.test(e?.code || '');
   let st;
   try { st = await fs.promises.stat(yol); } catch (e) {
-    if (kilitli(e)) throw hataKodlu('kilitli', `Dosya okunamadı; başka bir programda açık olabilir: ${ad}`);
+    if (kilitli(e)) throw hataKodlu('kilitli', `Dosya okunamadı, başka bir programda açık olabilir: ${ad}`);
     throw hataKodlu('bulunamadi', `Dosya bulunamadı: ${ad}`);
   }
   if (!st.isFile()) throw hataKodlu('bozuk', 'Dosya bir UDF belgesi değil.');
-  if (st.size > UDF_SINIRI.dosya) throw hataKodlu('buyuk', `Dosya çok büyük (${Math.round(st.size / MiB)} MB; en çok ${UDF_SINIRI.dosya / MiB} MB).`);
+  if (st.size > UDF_SINIRI.dosya) throw hataKodlu('buyuk', `Dosya çok büyük (${Math.round(st.size / MiB)} MB, en çok ${UDF_SINIRI.dosya / MiB} MB).`);
   let veri;
   try { veri = await fs.promises.readFile(yol); } catch (e) {
-    if (kilitli(e)) throw hataKodlu('kilitli', `Dosya okunamadı; başka bir programda açık olabilir: ${ad}`);
+    if (kilitli(e)) throw hataKodlu('kilitli', `Dosya okunamadı, başka bir programda açık olabilir: ${ad}`);
     throw hataKodlu('hata', 'Dosya okunamadı: ' + (e?.message || e));
   }
   udfIcerigiDenetle(veri);

@@ -151,7 +151,7 @@ JPG_KALITESI = 90                         # PDF → JPG
 JPG_KARSILASTIRMA_SINIRI = 1.25           # 0.3.1: taranmış sayfanın çözünürlüğü seçilenden bundan az büyükse iki çizimin küçüğü (_jpg_sayfasi)
 YENIDEN_KODLAMA_KALITESI = 92             # görüntü → PDF: olduğu gibi gömülemeyen kayıplı kaynak (HEIC, AVIF, kayıplı WEBP, CMYK JPEG)
 KAYIPLI_GORSELLER = ("JPEG", "MPO", "HEIF", "HEIC", "AVIF")
-HEIF_YOK = "HEIC / HEIF görüntüleri bu bilgisayarda açılamıyor; görüntüyü önce JPG ya da PNG olarak kaydedin."
+HEIF_YOK = "HEIC / HEIF görüntüleri bu bilgisayarda açılamıyor. Görüntüyü önce JPG ya da PNG olarak kaydedin."
 
 YAZIM_PAYI = 95                           # yüzde: dönüştürme 0–95; yerine koyma bildirilmez
 
@@ -204,6 +204,9 @@ def _zip_turu(yol):
         if "mimetype" in adlar:
             mime = zip_oku(zf, "mimetype", 256, kes=True).strip()
             if mime.startswith(b"application/vnd.oasis.opendocument.text"):
+                # 0.3.1: Parolalı .odt: Her motor açamaz ya da parola bekler. Şifre bilgisi yalnız manifest'te, içerik şifreli (mimetype ve manifest düz durur)
+                if "META-INF/manifest.xml" in adlar and b"encryption-data" in zip_oku(zf, "META-INF/manifest.xml", 1 << 20, kes=True):
+                    return "word", "sifreli"
                 return "word", "odt"
         if "word/document.xml" in adlar:
             return "word", _word_zip_alt_turu(zf, adlar)
@@ -245,10 +248,32 @@ def _ole2_turu(yol):
             okunan += len(parca)
             pencere = onceki + parca
             for imza, tur in aranan.items():
-                if imza in pencere:
+                i = pencere.find(imza)
+                if i >= 0:
+                    if tur[1] == "doc" and _doc_parolali(f, okunan - len(pencere) + i):
+                        return "word", "sifreli"
                     return tur
             onceki = pencere[-pay:]
     return None
+
+
+def _doc_parolali(f, giris):
+    """Eski Word belgesi (.doc) parolalı mı (0.3.1, [MS-DOC] FIB: fEncrypted). giris: Dizindeki WordDocument girdisinin dosyadaki yeri. Girdinin 116. baytında akışın
+    ilk kesimi, 120. baytında boyutu; akışın başında FIB (imza 0xA5EC, 10. baytta bayraklar, 0x0100 parolalı). Küçük akış ayrı kapta durduğu için (4096 bayttan
+    küçük .doc olağan değil) okunmaz. Çözümlenemeyen dosya parolalı sayılmaz: Motor kendisi karar verir."""
+    try:
+        f.seek(0x1E)
+        kesim = 1 << int.from_bytes(f.read(2), "little")
+        f.seek(giris + 116)
+        ilk = int.from_bytes(f.read(4), "little")
+        boyut = int.from_bytes(f.read(8), "little")
+        if not 512 <= kesim <= 4096 or boyut < 4096 or ilk >= 0xFFFFFFFA:
+            return False
+        f.seek((ilk + 1) * kesim)
+        fib = f.read(12)
+        return len(fib) == 12 and fib[:2] == b"\xec\xa5" and bool(int.from_bytes(fib[10:12], "little") & 0x0100)
+    except (OSError, ValueError, OverflowError):
+        return False
 
 
 HEIF_MARKALARI = (b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis", b"hevm", b"hevs", b"mif1", b"msf1")
@@ -289,7 +314,7 @@ def tur_bul(yol):
         with open(yol, "rb") as f:
             bas = f.read(8192)
     except PermissionError:
-        raise PermissionError("Dosya okunamadı; %s: %s" % (KILITLI_METNI, os.path.basename(yol)))
+        raise PermissionError("Dosya okunamadı, %s: %s" % (KILITLI_METNI, os.path.basename(yol)))
     if bas[:4] in (b"II*\x00", b"MM\x00*"):
         return "tiff", "tiff"
     if bas[:4] in (b"II+\x00", b"MM\x00+"):
@@ -331,17 +356,18 @@ def zip_denetle(yol):
         with zipfile.ZipFile(yol) as zf:
             bilgiler = zf.infolist()
     except zipfile.BadZipFile as e:
-        raise OgeHatasi("bozuk", "Dosya bozuk; açılamadı (%s): %s" % (os.path.basename(yol), e))
+        print("[donustur] zip açılamadı: %s" % e, file=sys.stderr)
+        raise OgeHatasi("bozuk", "Dosya bozuk, açılamadı: %s" % os.path.basename(yol))
     ad = os.path.basename(yol)
     if len(bilgiler) > EN_FAZLA_ZIP_OGESI:
-        raise OgeHatasi("guvensiz", "Dosyada çok fazla parça var (%d); güvenli açılamaz: %s" % (len(bilgiler), ad))
+        raise OgeHatasi("guvensiz", "Dosyada çok fazla parça var (%d), güvenli açılamaz: %s" % (len(bilgiler), ad))
     toplam = 0
     for b in bilgiler:
         toplam += b.file_size
         if b.file_size > 1024 * 1024 and b.file_size > EN_FAZLA_ZIP_ORANI * max(b.compress_size, 1):
-            raise OgeHatasi("guvensiz", "Dosyanın bir parçası açılınca olağan dışı büyüyor; güvenli açılamaz: %s" % ad)
+            raise OgeHatasi("guvensiz", "Dosyanın bir parçası açılınca olağan dışı büyüyor, güvenli açılamaz: %s" % ad)
     if toplam > EN_FAZLA_ACIK_BOYUT:
-        raise OgeHatasi("guvensiz", "Dosya açılınca %s geçiyor; güvenli açılamaz: %s" % (_boyut_metni(EN_FAZLA_ACIK_BOYUT), ad))
+        raise OgeHatasi("guvensiz", "Dosya açılınca %s geçiyor, güvenli açılamaz: %s" % (_boyut_metni(EN_FAZLA_ACIK_BOYUT), ad))
 
 
 def _boyut_metni(bayt):
@@ -362,7 +388,7 @@ def zip_oku(zf, ad, en_fazla=EN_FAZLA_ACIK_BOYUT, kes=False):
                 if kes:
                     parcalar.append(parca[:len(parca) - (okunan - en_fazla)])
                     break
-                raise OgeHatasi("guvensiz", "Dosyanın bir parçası açılınca %s geçiyor; güvenli açılamaz." % _boyut_metni(en_fazla))
+                raise OgeHatasi("guvensiz", "Dosyanın bir parçası açılınca %s geçiyor, güvenli açılamaz." % _boyut_metni(en_fazla))
             parcalar.append(parca)
     return b"".join(parcalar)
 
@@ -468,31 +494,31 @@ _HEDEF_ADLARI = dict(_TUR_ADLARI, gorsel="JPG")   # hedef olarak görüntü JPG'
 
 # 0.2.7 (madde 10): sonucu kaynağından belirgin biçimde farklı olabilecek dönüştürmelerin kısa notu ("kaynak>hedef"; arayüz hedef seçilince
 # satırın altında gösterir). Zincirlerde (ör. udf>word = udf>pdf + pdf>word) not bütün yolu anlatır. UDF → PDF / TIFF / JPG ve Word → PDF
-# kaynağın kendi programıyla (UDE, Word) çizildiği için notsuz; TIFF / görüntü → PDF kayıpsız. Word → … LibreOffice'le yapılıyorsa ek not.
+# kaynağın kendi programıyla (UDE, Word) çizildiği için notsuz; TIFF / görüntü → PDF kayıpsız. Word → … WPS Office ya da LibreOffice ile yapılıyorsa ek not.
 # 0.2.8 (kullanıcı isteği: "Kaşe diye bir şey kalmadı bu arada, kaşe kelimesini uyarılardan çıkartalım. Tablo kelimesini ekleyelim bi yerlere o da
 # kayıyor sanırım"): UDF ve Word notlarında "kaşe" yok, tablolar anılıyor. Sonuç listesinde (renderer, araclar/donustur.js) uyarılı satırın ⚠
 # simgesinin ipucu bu notu dönüşümün adıyla yineler.
 KALITE_NOTLARI = {
     "pdf>word": "Sayfa düzeni ve tablolar Word'de birebir korunmayabilir.",
     "udf>word": "Sayfa düzeni ve tablolar Word'de birebir korunmayabilir.",
-    "tiff>word": "Taranmış sayfalar Word'e resim olarak geçer; yazıları düzenlenemez.",
-    "gorsel>word": "Görüntü Word'e resim olarak geçer; yazısı düzenlenemez.",
-    "pdf>udf": "Satır, sayfa düzeni ve tablolar UDF'de kayabilir; imza gibi resimler alınmayabilir.",
-    "word>udf": "Satır, sayfa düzeni ve tablolar UDF'de kayabilir; imza gibi resimler alınmayabilir.",
-    "tiff>udf": "Yazılar görüntüden tanınarak çıkarılır; harf yanlışları olabilir, düzen ve tablolar kayabilir.",
-    "gorsel>udf": "Yazılar görüntüden tanınarak çıkarılır; harf yanlışları olabilir, düzen ve tablolar kayabilir.",
+    "tiff>word": "Taranmış sayfalar Word'e resim olarak geçer. Yazıları düzenlenemez.",
+    "gorsel>word": "Görüntü Word'e resim olarak geçer. Yazısı düzenlenemez.",
+    "pdf>udf": "Satır, sayfa düzeni ve tablolar UDF'de kayabilir. İmza gibi resimler alınmayabilir.",
+    "word>udf": "Satır, sayfa düzeni ve tablolar UDF'de kayabilir. İmza gibi resimler alınmayabilir.",
+    "tiff>udf": "Yazılar görüntüden tanınarak çıkarılır. Harf yanlışları olabilir, düzen ve tablolar kayabilir.",
+    "gorsel>udf": "Yazılar görüntüden tanınarak çıkarılır. Harf yanlışları olabilir, düzen ve tablolar kayabilir.",
 }
-LIBREOFFICE_NOTU = "Bu bilgisayarda Word yok: belge LibreOffice'le çevrilir, düzeni Word'dekinden biraz farklı olabilir."
 
 
 def _kalite_notu(kaynak, hedef):
-    """Dönüştürmenin kalite notu ya da None (KALITE_NOTLARI; Word kaynağı LibreOffice'le çevriliyorsa LIBREOFFICE_NOTU eklenir)."""
+    """Dönüştürmenin kalite notu ya da None (KALITE_NOTLARI; Word kaynağı WPS Office ya da LibreOffice ile çevriliyorsa word.yetenek'in notu eklenir)."""
     notlar = [KALITE_NOTLARI[k] for k in ["%s>%s" % (kaynak, hedef)] if k in KALITE_NOTLARI]
     if kaynak == "word":
         islev = _YETENEKLER.get("word")
         try:
-            if islev is not None and (islev() or {}).get("motor") == "libreoffice":
-                notlar.append(LIBREOFFICE_NOTU)
+            motor_notu = (islev() or {}).get("not") if islev is not None else None
+            if motor_notu:
+                notlar.append(motor_notu)
         except Exception:
             pass
     return " ".join(notlar) or None
@@ -853,7 +879,8 @@ def y_donusum_bilgi(p):
             for h in sonuc["hedefler"]:
                 h["var"], h["neden"] = False, str(e)
     except Exception as e:
-        sonuc["uyari"] = "Dosya okunamadı: %s" % e
+        print("[donustur] donusum_bilgi: %r" % e, file=sys.stderr)
+        sonuc["uyari"] = "Dosya okunamadı."
     if ertele is None:
         return sonuc
 
@@ -1077,7 +1104,7 @@ def _hata_metni(e, ad):
         return str(e)
     if isinstance(e, MemoryError):
         return "Bellek yetmedi: %s" % ad
-    return "%s dönüştürülemedi: %s" % (ad, e or type(e).__name__)
+    return "%s dönüştürülemedi." % ad   # ham metin kullanıcıya gösterilmez: Günlükte (_isi_yap)
 
 
 def _ogeyi_donustur(oge, sira, il):
@@ -1114,7 +1141,11 @@ def _ogeyi_donustur(oge, sira, il):
             baglam.alt = alt if k == 0 else None
             r = d.islev(kaynak, cikti, oge["secenekler"], il.bildir, baglam)
             if isinstance(r, dict):
+                # 0.3.1: İki adımlı planda (Word → UDF) ilk adımın uyarısı (hangi programla çevrildiği) sonrakinin uyarısıyla silinmesin
+                uyarilar = [u for u in (bilgi.get("uyari"), r.get("uyari")) if u]
                 bilgi.update(r)
+                if uyarilar:
+                    bilgi["uyari"] = " ".join(uyarilar)
             uretti = (os.path.isdir(cikti) and bool(os.listdir(cikti))) if (son and coklu) else os.path.isfile(cikti)
             if not uretti:
                 raise OgeHatasi("hata", "Dönüştürme çıktı üretmedi: %s" % os.path.basename(oge["yol"]))
@@ -1351,7 +1382,8 @@ def _tiff_ac(yol):
     try:
         im = Image.open(yol)
     except Exception as e:
-        raise OgeHatasi("bozuk", "TIFF dosyası okunamadı (%s): %s" % (os.path.basename(yol), e))
+        print("[donustur] TIFF açılamadı: %r" % e, file=sys.stderr)
+        raise OgeHatasi("bozuk", "TIFF dosyası okunamadı: %s" % os.path.basename(yol))
     if (im.format or "").upper() != "TIFF":
         im.close()
         raise OgeHatasi("bozuk", "Dosya TIFF değil: %s" % os.path.basename(yol))
@@ -1617,7 +1649,7 @@ def _gorsel_alt_hazir(alt=None):
         except Exception:
             var = True
         if not var:
-            return False, "%s görüntüleri bu bilgisayarda açılamıyor; görüntüyü önce JPG ya da PNG olarak kaydedin." % alt.upper()
+            return False, "%s görüntüleri bu bilgisayarda açılamıyor. Görüntüyü önce JPG ya da PNG olarak kaydedin." % alt.upper()
     return True, None
 
 
@@ -1634,7 +1666,8 @@ def _gorsel_ac(yol, alt=None):
     try:
         return Image.open(yol)
     except Exception as e:
-        raise OgeHatasi("bozuk", "Görüntü okunamadı (%s): %s" % (os.path.basename(yol), e))
+        print("[donustur] görüntü açılamadı: %r" % e, file=sys.stderr)
+        raise OgeHatasi("bozuk", "Görüntü okunamadı: %s" % os.path.basename(yol))
 
 
 def _exif_yonu(im):
@@ -1720,7 +1753,8 @@ def _gorsel_sayfasi_hazirla(kaynak, alt, okundu=None):
         except (MemoryError, OgeHatasi):
             raise
         except Exception as e:
-            raise OgeHatasi("bozuk", "Görüntü okunamadı (%s): %s" % (os.path.basename(kaynak), e))
+            print("[donustur] görüntü açılamadı: %r" % e, file=sys.stderr)
+            raise OgeHatasi("bozuk", "Görüntü okunamadı: %s" % os.path.basename(kaynak))
         sg, sy, xd, _ = gorsel_sayfa_olcusu(duz.width, duz.height, im.info.get("dpi"), yon)
         if okundu is not None:
             okundu()
@@ -1773,7 +1807,8 @@ def _gorsel_bilgi(yol, alt, genislik):
     except (OgeHatasi, MemoryError):
         raise
     except Exception as e:
-        raise OgeHatasi("bozuk", "Görüntü okunamadı (%s): %s" % (os.path.basename(yol), e))
+        print("[donustur] görüntü açılamadı: %r" % e, file=sys.stderr)
+        raise OgeHatasi("bozuk", "Görüntü okunamadı: %s" % os.path.basename(yol))
     finally:
         im.close()
 
