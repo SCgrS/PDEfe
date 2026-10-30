@@ -380,6 +380,97 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz, tus,
     }
   }
 
+  // ================================================================== 4) zengin metinli değer
+  if (bolum(4)) {
+    const ZENGIN = '<CokOrtali xfa:contentType="text/html"><body xmlns="http://www.w3.org/1999/xhtml" xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xfa:APIVersion="Deneme:1.0" xfa:spec="2.1"><p style="font-weight:bold">Zengin birinci paragraf</p><p>Zengin ikinci paragraf</p></body></CokOrtali>';
+    const BEK = 'Zengin birinci paragraf\nZengin ikinci paragraf';
+    const hazirla = async (ad) => { const y = kopya(ad, oz.xfaBicim); disKayit(y, '<CokOrtali/>', ZENGIN); await ac(y); return y; };
+    let y = await hazirla('zengin');
+    sonuc('4 Açılışta zengin değer görünür', (await degerler(['CokOrtali'])).CokOrtali[0] === BEK, await degerler(['CokOrtali']));
+    // Başka alan değişir, kaydedilir, yeniden açılır
+    await alanaYaz('Solda', 0, 'Başka alan');
+    await tus('Tab');
+    let d = await kaydet();
+    let o = olc(y);
+    bilgi(`dosyadaki değer: ${o.ham.match(/<CokOrtali[\s\S]*?<\/CokOrtali>/)?.[0]}`);
+    sonuc('4 Kayıt: Zengin değer XHTML ad alanıyla dosyada', !d.kutu && /<CokOrtali[^>]*contentType="text\/html"[^>]*><body xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"/.test(o.ham) && o.ham.includes('Zengin ikinci paragraf') && !o.onarildi, o.ham.slice(0, 600));
+    await ac(y);
+    sonuc('4 Yeniden açınca zengin değer görünür, öbür alan da', J(await degerler(['CokOrtali', 'Solda'])) === J({ CokOrtali: [BEK], Solda: ['Başka alan'] }), await degerler(['CokOrtali', 'Solda']));
+    // İkinci tur: Kaydet, aç, kaydet
+    await alanaYaz('Solda', 0, 'İkinci tur');
+    await tus('Tab');
+    await kaydet();
+    await ac(y);
+    sonuc('4 İki kayıttan sonra da görünür', (await degerler(['CokOrtali'])).CokOrtali[0] === BEK);
+    // Bölüm ekleme ve geri alma
+    await tiklaAd('BicimEkle', 0);
+    await durgun();
+    sonuc('4 Bölüm Ekle: Zengin değer yerinde', (await degerler(['CokOrtali'])).CokOrtali[0] === BEK && (await degerler(['YOrtali'])).YOrtali.length === 2, await degerler(['CokOrtali', 'YOrtali']));
+    await dugmeTikla('dugme-geri-al');
+    await durgun();
+    sonuc('4 Geri al: Zengin değer yerinde', (await degerler(['CokOrtali'])).CokOrtali[0] === BEK && (await degerler(['YOrtali'])).YOrtali.length === 1);
+    // Yazdırma: Düz PDF'te yazı var
+    const duz = await evalJs(`(async () => (await window.__s52.b().xfa.duzPdf()).yol)()`);
+    const metin = execFileSync(PY, ['-X', 'utf8', '-I', '-c', 'import sys, pymupdf; sys.stdout.reconfigure(encoding="utf-8"); d = pymupdf.open(sys.argv[1]); print(" ".join(p.get_text() for p in d))', duz], { encoding: 'utf8' });
+    sonuc('4 Yazdırma: Düz PDF\'te zengin değer var', metin.includes('Zengin birinci') && metin.includes('Zengin ikinci'), metin.slice(0, 300));
+    // Sekme taşıma
+    const oncekiler = (await hedefler()).map((h) => h.id);
+    await evalJs(`(async () => { await window.__pdefe.sekmeyiTasi(window.__s52.b().id, { tur: 'yeni' }); return true; })()`);
+    let yeniP = null;
+    for (let i = 0; i < 50 && !yeniP; i++) { await bekle(200); yeniP = (await hedefler()).find((h) => !oncekiler.includes(h.id)); }
+    if (sonuc('4 Sekme yeni pencereye taşındı', !!yeniP)) {
+      hedefSec(yeniP.id);
+      await bekle(1200);
+      await evalJs(YARDIMCI);
+      await evalJs(`(async () => { for (let i = 0; i < 80; i++) { if (document.querySelector('.gorunum:not([hidden]) .xfaLayer')) return true; await window.__s52.bekle(100); } return false; })()`);
+      sonuc('4 Taşınan sekmede zengin değer görünür', (await degerler(['CokOrtali'])).CokOrtali[0] === BEK, await degerler(['CokOrtali']));
+      await evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); setTimeout(() => window.close(), 200); return true; })()`).catch(() => {});
+      hedefSec(null);
+      await bekle(800);
+      await evalJs(YARDIMCI);
+    }
+    // Alanın kendisi düzenlenir
+    y = await hazirla('zengin-duzenle');
+    await alanaYaz('CokOrtali', 0, 'Düz yazıyla değişti');
+    await tus('Tab');
+    d = await kaydet();
+    o = olc(y);
+    sonuc('4 Zengin alan düzenlendi: Düz metin, eski yazı dosyada yok', !d.kutu && o.degerler['form1/Bicim/CokOrtali'][0] === 'Düz yazıyla değişti' && !o.ham.includes('Zengin birinci'), o.ham.slice(0, 500));
+    await ac(y);
+    sonuc('4 Yeniden açınca düz yazı', (await degerler(['CokOrtali'])).CokOrtali[0] === 'Düz yazıyla değişti');
+    // Alan boşaltılır: Eski yazı geri gelmez
+    y = await hazirla('zengin-bosalt');
+    await alanaYaz('CokOrtali', 0, '');
+    await tus('Tab');
+    d = await kaydet();
+    o = olc(y);
+    sonuc('4 Boşaltıldı: Yazı dosyada yok, yer tutucu boşluk yok', !d.kutu && !o.ham.includes('Zengin') && /<CokOrtali(\/>|><\/CokOrtali>)/.test(o.ham), o.ham.slice(0, 500));
+    await ac(y);
+    sonuc('4 Boşaltıldı: Yeniden açınca boş, belge temiz', (await degerler(['CokOrtali'])).CokOrtali[0] === '' && !(await durum()).degisti);
+    // Geri alınabilir
+    y = await hazirla('zengin-geri');
+    await alanaYaz('CokOrtali', 0, '');
+    await tus('Tab');
+    await dugmeTikla('dugme-geri-al');
+    await durgun();
+    sonuc('4 Boşaltma geri alındı: Yazı yerinde', (await degerler(['CokOrtali'])).CokOrtali[0] === BEK, await degerler(['CokOrtali']));
+    d = await kaydet();
+    o = olc(y);
+    sonuc('4 Geri aldıktan sonra kayıt', o.ham.includes('Zengin birinci'), o.ham.slice(0, 500));
+    // Zengin değersiz formda boş değer gerçekten boş, boşluk konmaz
+    y = kopya('zengin-yok', oz.xfaBicim);
+    await ac(y);
+    await alanaYaz('Solda', 0, 'Yazı');
+    await tus('Tab');
+    await kaydet();
+    await alanaYaz('Solda', 0, '');
+    await tus('Tab');
+    await kaydet();
+    o = olc(y);
+    sonuc('4 Zengin değersiz form: Boş değer boş', /<Solda\/>/.test(o.ham), o.ham.slice(0, 300));
+    sonuc('4 Sayfada hata yok', !(await hatalar()).length);
+  }
+
   await kapatHepsini();
   console.log(`\n${denetim} denetim, ${hataSayisi} hata`);
   console.log(hataSayisi ? 'HATALAR VAR' : 'BÜTÜN DENETİMLER GEÇTİ');

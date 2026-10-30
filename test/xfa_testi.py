@@ -379,6 +379,31 @@ sonuc("damga: Dosya yoksa karşılaştırılamaz, yazılır", xfa.y_xfa_kaydet({
 bilgi_ = xfa.y_xfa_bilgi({"yol": h})
 sonuc("damga: xfa_bilgi saf formda dosyanın özetini verir", bilgi_["damga"] == notlar.dosya_damgasi(h), bilgi_.get("damga"))
 
+# Zengin metinli değer (0.3.1 kayıp avı): PDF.js XHTML ad alanını atıyor, onarılır
+X_ = xfa.XHTML_NS.encode("ascii")
+bozuk_ = b'<xfa:datasets xmlns:xfa="u"><xfa:data><f><a><body><p>Bir</p><p>Iki</p></body></a><b> </b><c>yazi</c><body><x>grup</x></body><d k="v"><body><p/></body></d></f></xfa:data></xfa:datasets>'
+onarilan_ = xfa._zengin_onar(bozuk_)
+sonuc("zengin: <body> ad alanını ve contentType'ı alır", b'<a xfa:contentType="text/html"><body xmlns="%s"><p>Bir</p>' % X_ in onarilan_ and b'<d k="v" xfa:contentType="text/html"><body xmlns="%s"><p/>' % X_ in onarilan_, onarilan_)
+sonuc("zengin: Tek boşluklu değer boşalır, öbür değerler aynı, adı body olan veri grubu aynı", b"<b></b>" in onarilan_ and b"<c>yazi</c>" in onarilan_ and b"<body><x>grup</x></body>" in onarilan_, onarilan_)
+sonuc("zengin: Onarılmış veri yeniden onarılınca aynı", xfa._zengin_onar(onarilan_) == onarilan_)
+sonuc("zengin: Var olan ad alanına ve özniteliğe dokunulmaz", xfa._zengin_onar(b'<a xfa:contentType="text/html"><body xmlns="%s" k="v"><p>x</p></body></a>' % X_) == b'<a xfa:contentType="text/html"><body xmlns="%s" k="v"><p>x</p></body></a>' % X_)
+et_ = xfa.ET.fromstring(onarilan_)
+yaz_ = xfa._xhtml_varsayilan(xfa.ET.tostring(et_, encoding="utf-8"))
+sonuc("zengin: ElementTree'den çıkan veride önek yok, <body> varsayılan ad alanıyla", b"xhtml:" not in yaz_ and b'<body xmlns="%s"><p>Bir</p>' % X_ in yaz_ and xfa._ZENGIN_DEGER.search(yaz_) is not None, yaz_)
+d0_ = pymupdf.open(XFA)
+pk_ = xfa._paketler(d0_)
+v0_ = d0_.xref_stream(pk_["datasets"])
+d0_.update_stream(pk_["datasets"], v0_.replace(b"<AdSoyad/>", b"<AdSoyad><body><p>Zengin</p></body></AdSoyad>"))
+b0_ = d0_.tobytes()
+d0_.close()
+r_ = xfa.y_xfa_zengin_onar({"veri": base64.b64encode(b0_).decode("ascii")})
+b1_ = b0_ + base64.b64decode(r_["ek"]) if r_.get("ek") else base64.b64decode(r_["veri"])
+d1_ = pymupdf.open(stream=b1_, filetype="pdf")
+sonuc("zengin: Onarım artımlı, belge onarılmadan açılır, değer ad alanıyla", bool(r_.get("ek")) and b1_.startswith(b0_) and not d1_.is_repaired and b'<body xmlns="%s"' % X_ in d1_.xref_stream(xfa._paketler(d1_)["datasets"]), list(r_))
+d1_.close()
+sonuc("zengin: Onarılacak bir şey yoksa ek boş", xfa.y_xfa_zengin_onar({"veri": KAYNAK}) == {"ek": ""})
+sonuc("zengin: Zengin değersiz formda bilgi yok, zenginli formda var", xfa.y_xfa_bilgi({"yol": XFA})["zenginMetin"] is False)
+
 # Disk dolu: Geçici dosya yazılırken
 h = yeni_hedef("disk-dolu.pdf")
 t, i, ayni, temiz = kaydet_hatasi(h, [Yama(os, "fsync", fsync_hatasi(28))])

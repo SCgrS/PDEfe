@@ -56,6 +56,7 @@ YATAY_HIZALAR = ("left", "center", "right", "justify", "justifyAll", "radix")
 DIKEY_HIZALAR = ("top", "middle", "bottom")
 
 ET.register_namespace("xfa", VERI_NS)
+ET.register_namespace("xhtml", XHTML_NS)     # _xhtml_varsayilan
 
 
 class _Dugum:
@@ -657,6 +658,8 @@ def _yerel(etiket):
 # XML 1.0'da geçersiz karakter başvuruları (denetim karakterleri, vekil çiftler). Word'den ya da PDF'ten yapıştırılan yazıda sayfa sonu (\f) gelebilir: Başka bir
 # programın kaydettiği formda böyle bir başvuru varsa paket okunamıyor, Ekle düğmesi çalışmıyordu (arayüz kendi yazdıklarını zaten temizler, xfa.js veriDegeri)
 _GECERSIZ_BASVURU = re.compile(rb"&#(?:x0*(?:[0-8bBcCeEfF]|1[0-9a-fA-F]|[dD][89a-fA-F][0-9a-fA-F]{2}|[fF]{3}[eEfF])|0*(?:[0-8]|1[124-9]|2[0-9]|3[01]|5[5-6][0-9]{3}|6553[45]));")
+# Zengin metinli değer: Veri düğümünün başlangıç etiketi ve hemen içindeki <body>, ardından paragraf (_zengin_onar)
+_ZENGIN_DEGER = re.compile(rb"<([^\s<>/!?]+)((?:\s[^<>]*?)?)>(\s*)<body((?:\s[^<>]*?)?)>(?=\s*<(?:[\w.-]+:)?p[\s>/])")
 
 
 def _veri_kok(datasets):
@@ -755,13 +758,15 @@ def y_xfa_bilgi(p):
     """Belgenin XFA bilgisi. p: {yol}. Döner: {xfa: XFA paketi var mı, saf, kullanimHakki, eImzali (e-imza ya da onay imzası var mı:
     _e_imza_araliklari), dugmeler: [{yol, sayfaAlani, eylemler,
     desteklenmiyor}], sayfaNumaralari: [{tur: 'alan'|'cizim', yol, sayfaAlani, deger | paragraflar}], ekranda: [{yol, sayfaAlani}],
-    ornekler: {dugum: {yol, min, max, veri}}, alanlar: [_alan_bicimi], damga: saf formda dosyanın içerik özeti (xfa_kaydet)}. Yollar PDF.js HTML'inin ad yollarıdır (_html_yolu)."""
+    ornekler: {dugum: {yol, min, max, veri}}, alanlar: [_alan_bicimi], damga: saf formda dosyanın içerik özeti (xfa_kaydet), zenginMetin: veride zengin metinli değer var mı
+    (_zengin_onar)}. Yollar PDF.js HTML'inin ad yollarıdır (_html_yolu)."""
     from pdefe_core import onbellek
     doc = onbellek.al(p["yol"])
     paketler = _paketler(doc)
     sablon = _paket(doc, paketler, "template")
     sonuc = {"xfa": bool(paketler), "saf": _saf_mi(doc, paketler), "kullanimHakki": notlar.kullanim_hakki_var(doc),
-             "eImzali": bool(_e_imza_araliklari(doc)), "dugmeler": [], "sayfaNumaralari": [], "ekranda": [], "ornekler": {}, "alanlar": []}
+             "eImzali": bool(_e_imza_araliklari(doc)), "zenginMetin": bool(_ZENGIN_DEGER.search(_paket(doc, paketler, "datasets") or b"")),
+             "dugmeler": [], "sayfaNumaralari": [], "ekranda": [], "ornekler": {}, "alanlar": []}
     if sablon:
         kok, liste = _agac(sablon)
         sonuc.update(_sablon_bilgisi(kok, liste))
@@ -815,23 +820,78 @@ def y_xfa_degistir(p):
         for bas, deger in sorted(duzeltmeler, reverse=True):
             _oznitelik_koy(sablon, bas, "presence", deger)
         if veri_degisti:
-            doc.update_stream(paketler["datasets"], ET.tostring(vkok, encoding="utf-8"))
+            doc.update_stream(paketler["datasets"], _xhtml_varsayilan(ET.tostring(vkok, encoding="utf-8")))
         if duzeltmeler:
             doc.update_stream(paketler["template"], bytes(sablon))
         if not veri_degisti and not duzeltmeler:
             return {"ek": "", "ornekler": ornekler}
-        if doc.can_save_incrementally():
-            doc.save(gecici, incremental=True, encryption=pymupdf.PDF_ENCRYPT_KEEP)
-            doc.close()
-            doc = None
-            with open(gecici, "rb") as f:
-                yeni = f.read()
-            if yeni[:len(girdi)] == girdi:
-                return {"ek": base64.b64encode(yeni[len(girdi):]).decode("ascii"), "ornekler": ornekler}
-            return {"veri": base64.b64encode(yeni).decode("ascii"), "ornekler": ornekler}
-        return {"veri": base64.b64encode(doc.tobytes(garbage=1, deflate=True)).decode("ascii"), "ornekler": ornekler}
+        return dict(_artimli_yaz(doc, gecici, girdi), ornekler=ornekler)
     finally:
-        if doc is not None:
+        if doc is not None and not doc.is_closed:
+            doc.close()
+        try:
+            os.remove(gecici)
+        except OSError:
+            pass
+
+
+def _xhtml_varsayilan(veri):
+    """ElementTree'nin yazdığı veride XHTML'i kökteki önekten <body>'nin varsayılan ad alanına çevirir (0.3.1 kayıp avı): PDF.js veri bölümünde öneki yok sayar, önekli zengin metin
+    değer sayılmıyor, bölüm ekleyince alan boş görünüyordu."""
+    if b"<xhtml:" not in veri:
+        return veri
+    veri = veri.replace(b' xmlns:xhtml="%s"' % XHTML_NS.encode("ascii"), b"", 1).replace(b"<xhtml:", b"<").replace(b"</xhtml:", b"</")
+    return re.sub(rb"<body(?=[\s>/])", b'<body xmlns="%s"' % XHTML_NS.encode("ascii"), veri)
+
+
+def _artimli_yaz(doc, gecici, girdi):
+    """Belgenin değişikliklerini geçici dosyaya (girdinin kopyası) artımlı yazar. Döner: {ek: girdinin sonuna eklenecek baytlar} ya da (artımlı yazılamayan belgede) {veri: bütün baytlar}."""
+    if doc.can_save_incrementally():
+        doc.save(gecici, incremental=True, encryption=pymupdf.PDF_ENCRYPT_KEEP)
+        doc.close()
+        with open(gecici, "rb") as f:
+            yeni = f.read()
+        if yeni[:len(girdi)] == girdi:
+            return {"ek": base64.b64encode(yeni[len(girdi):]).decode("ascii")}
+        return {"veri": base64.b64encode(yeni).decode("ascii")}
+    return {"veri": base64.b64encode(doc.tobytes(garbage=1, deflate=True)).decode("ascii")}
+
+
+def _zengin_onar(datasets):
+    """PDF.js'in yazdığı veri paketinde zengin metinli değerleri onarır (0.3.1 kayıp avı). PDF.js veriyi yazarken XHTML ad alanını ve xfa:contentType'ı atıyor: Başka bir programın
+    kaydettiği zengin metinli değer, o alana hiç dokunulmasa da ad alansız <body> olur, PDF.js (ölçüldü) ve büyük olasılıkla öbür okuyucular değeri okuyamaz, alan boş görünür. Yazı
+    dosyadadır ama kullanıcı kayboldu sanır. Bir de boş değerde (alan boşaltıldı) eski <body>'yi yazıyor: Arayüz boş yerine tek boşluk verir (xfa.js _veri), burada değer gerçekten boşalır."""
+    def duzelt(m):
+        ad, oz, bosluk, govde = m.groups()
+        if b"xmlns=" in govde:
+            return m.group(0)
+        if b"contentType=" not in oz:
+            oz += b' xfa:contentType="text/html"'
+        return b'<%s%s>%s<body xmlns="%s"%s>' % (ad, oz, bosluk, XHTML_NS.encode("ascii"), govde)
+    return _ZENGIN_DEGER.sub(duzelt, datasets).replace(b"> </", b"></")
+
+
+def y_xfa_zengin_onar(p):
+    """Zengin metinli değeri olan formda PDF.js'in baytlarını onarır (_zengin_onar). p: {veri (base64)}. Döner: {ek: girdinin sonuna eklenecek baytlar, onarılacak bir şey yoksa boş} ya da
+    (artımlı yazılamayan belgede) {veri: bütün baytlar}. E-imzalı formda imzalanan bölüm değişmez."""
+    girdi = _baytlar(p.get("veri"))
+    fd, gecici = tempfile.mkstemp(prefix="pdefe-xfa-", suffix=".pdf")
+    doc = None
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(girdi)
+        doc = pymupdf.open(gecici, filetype="pdf")
+        if doc.needs_pass:
+            raise PermissionError("Belge şifreli, form okunamıyor.")
+        paketler = _paketler(doc)
+        eski = _paket(doc, paketler, "datasets")
+        yeni = _zengin_onar(eski) if eski else eski
+        if yeni == eski:
+            return {"ek": ""}
+        doc.update_stream(paketler["datasets"], yeni)
+        return _artimli_yaz(doc, gecici, girdi)
+    finally:
+        if doc is not None and not doc.is_closed:
             doc.close()
         try:
             os.remove(gecici)
@@ -953,3 +1013,4 @@ def kaydol(yontemler):
     yontemler["xfa_bilgi"] = y_xfa_bilgi
     yontemler["xfa_degistir"] = y_xfa_degistir
     yontemler["xfa_kaydet"] = y_xfa_kaydet
+    yontemler["xfa_zengin_onar"] = y_xfa_zengin_onar

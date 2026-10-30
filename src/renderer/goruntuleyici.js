@@ -6,6 +6,7 @@ import { anaHatSecenekleri, yaziTipiYukleyicisiniSar, yaziGoreviHazirla } from '
 import { MAC } from './platform.js';
 import { isaretle } from './olcum.js';
 import { sayfaHazirla, xfaAlanlariKur, xfaSigdir } from './xfaHtml.js';
+import { base64Oku, base64Yaz } from './xfa.js';
 
 /** Yakınlaştıran tekerlek olayı: Windows'ta Ctrl+tekerlek; macOS'ta (0.2.0) dokunmatik yüzeyde kıstırma (Ctrl'li gelir) ya da ⌘+tekerlek. */
 const yakinlastirmaTekerlegi = (e) => e.ctrlKey || (MAC && e.metaKey);
@@ -1822,7 +1823,13 @@ export class Goruntuleyici extends EventTarget {
   async xfaBaytlari() {
     const depo = this.belge.annotationStorage;
     if (!depo.size) depo.setValue('pdefe-bos', { value: '' });
-    return this.belge.saveDocument();
+    let veri = await this.belge.saveDocument();
+    // Zengin metinli değer: PDF.js yazarken XHTML ad alanını atıyor, değer okunamaz olurdu. Baytların her kullanımı (kayıt, bölüm ekleme, yazdırma, sekme taşıma) onarılmış hâli alır
+    if (this.xfaBilgi?.zenginMetin && this.cekirdek) {
+      const r = await this.cekirdek('xfa_zengin_onar', { veri: base64Yaz(veri) });
+      if (r?.ek) { const e = base64Oku(r.ek), t = new Uint8Array(veri.length + e.length); t.set(veri, 0); t.set(e, veri.length); veri = t; } else if (r?.veri) veri = base64Oku(r.veri);
+    }
+    return veri;
   }
 
   /** XFA alanının şimdiki değeri (PDF.js annotationStorage; değişmediyse veriden gelen ilk değer). o: sayfaHazirla'nın alan öğesi. */

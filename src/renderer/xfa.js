@@ -320,7 +320,7 @@ export class XfaYoneticisi extends EventTarget {
     if (!veri || !b) return false;
     const yeni = this._alanDegeri(el);
     const eski = this._acik?.veri === veri ? this._acik.ilk : b.annotationStorage.getValue(veri, { value: yeni }).value;
-    b.annotationStorage.setValue(veri, { value: veriDegeri(yeni) });   // PDF.js da yazar (input / change); seçimden sonra da aynı olsun
+    b.annotationStorage.setValue(veri, { value: this._veri(yeni) });   // PDF.js da yazar (input / change); seçimden sonra da aynı olsun
     if (this._acik?.veri === veri) this._acik.ilk = yeni;
     for (const x of this._ogeler(veri)) if (x !== el) this._elemanaKoy(x, yeni);   // aynı veriye bağlı öbür alanlar
     const sira = (eski ?? '') === (yeni ?? '') ? null : this._sira().siralar.get(veri);
@@ -329,6 +329,13 @@ export class XfaYoneticisi extends EventTarget {
     const k = this.degerKomutu({ sira, eski: eski ?? '', yeni, ad: `Form: ${this._alanAdi(el)}`, sayfa: this._sayfaNo(el) });
     this.yigin.calistir(k);
     return true;
+  }
+
+  /** Değerin form verisine yazılan hâli. Zengin metinli değeri olan formda boş yerine tek boşluk (0.3.1 kayıp avı): PDF.js boş değerde eski XHTML'i yazıyor, boşaltılan yazı
+   *  dosyada kalıp geri gelirdi. Çekirdek onarırken boşluğu atar (xfa.py _zengin_onar). */
+  _veri(d) {
+    const v = veriDegeri(d);
+    return v === '' && this.g.xfaBilgi?.zenginMetin ? ' ' : v;
   }
 
   degerKomutu({ sira, eski, yeni, ad, sayfa }) {
@@ -342,7 +349,7 @@ export class XfaYoneticisi extends EventTarget {
     this._kuyruk = this._kuyruk.then(() => {
       const b = this.g.belge, veri = this._sira().kimlikler[sira];
       if (!b || !veri) return;
-      b.annotationStorage.setValue(veri, { value: veriDegeri(deger) });
+      b.annotationStorage.setValue(veri, { value: this._veri(deger) });
       for (const el of this._ogeler(veri)) { this._elemanaKoy(el, deger); this._tasmaGuncelle(el); }
       if (this._acik?.veri === veri) this._acik.ilk = deger;
     }).catch((e) => console.warn('XFA alanı', e));
@@ -516,7 +523,7 @@ export class XfaYoneticisi extends EventTarget {
     const depo = this.g.belge?.annotationStorage, c = [];
     for (const v of this._sira().metinler) {
       const d = depo?.getRawValue(v)?.value;
-      if (d && typeof d === 'string') c.push(d);
+      if (d && typeof d === 'string' && d.trim()) c.push(d);
     }
     return c;
   }
