@@ -2,9 +2,14 @@
 // kısayol yazıları Mac simgeleriyle (⇧⌘S) gösterilir, sistem adları (Windows / macOS, Gezgin / Finder) ona göre yazılır.
 // Kısayol eşlemesi ana süreçteki Mac menüsüyle (main/menu.js) ve sayfadaki tuş işleyicileriyle (uygulama.js) aynıdır: değiştirirken üçünü birden.
 
+// Linux (0.3.1): kısayollar ve davranış Windows'taki gibi (Ctrl); ayrılan yerler sistem adları, yazı notunun yazı tipleri (Segoe UI ve Calibri
+// yok, macOS'taki gibi Arial ve Times New Roman), dosya izinleriyle ilgili iletiler (dosyaları başka programlar kilitlemez) ve güncelleme
 export const MAC = window.pdefe?.platform === 'darwin';
-export const SISTEM = MAC ? 'macOS' : 'Windows';
-export const DOSYA_YONETICISI = MAC ? 'Finder' : 'Gezgin';
+export const LINUX = window.pdefe?.platform === 'linux';
+export const SISTEM = MAC ? 'macOS' : LINUX ? 'Linux' : 'Windows';
+export const DOSYA_YONETICISI = MAC ? 'Finder' : LINUX ? 'dosya yöneticisi' : 'Gezgin';
+/** Windows'un yazı tipleri (Segoe UI, Calibri) yok: yazı notunda yalnız Arial ve Times New Roman (renderer/notlar.js, core/islemler/notlar.py). */
+export const YALNIZ_ORTAK_YAZI_TIPLERI = MAC || LINUX;
 
 /** Kısayolun birincil değiştirici tuşu basılı mı: Windows'ta Ctrl, macOS'ta ⌘ (Ctrl'siz; Mac'te Ctrl+tık sağ tıktır). */
 export function birincil(e) { return MAC ? !!e.metaKey && !e.ctrlKey : !!e.ctrlKey; }

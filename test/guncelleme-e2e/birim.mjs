@@ -34,7 +34,7 @@ const GUN = 24 * 3600 * 1000, T0 = Date.UTC(2026, 8, 23, 9, 0, 0);
 }
 
 // ---- guncellemeKur
-function kurulum({ surum = '0.9.0', ayar = {}, ilkOrnek = true, simdi = T0, bakisAraligiMs = 1e9, kurulumBeklemeMs = 30000, IptalJetonu = null, indirmeBeklemeMs, yardimci = null, temizlikYeniden = [20, 40], temizlikFs = null } = {}) {
+function kurulum({ surum = '0.9.0', ayar = {}, ilkOrnek = true, simdi = T0, bakisAraligiMs = 1e9, kurulumBeklemeMs = 30000, IptalJetonu = null, indirmeBeklemeMs, yardimci = null, temizlikYeniden = [20, 40], temizlikFs = null, yenidenBaslat = null, tarayiciIndir = null } = {}) {
   const depo = new Map(Object.entries(ayar));
   const ipc = new Map();
   const giden = [];
@@ -62,7 +62,7 @@ function kurulum({ surum = '0.9.0', ayar = {}, ilkOrnek = true, simdi = T0, baki
   const saat = { simdi };
   const g = guncellemeKur({
     app, ipcMain: { handle: (k, f) => ipc.set(k, f) }, autoUpdater: au, etkin: true, ilkOrnek, acilisGecikmesiMs: 20, bakisAraligiMs, kurulumBeklemeMs,
-    IptalJetonu, ...(indirmeBeklemeMs != null ? { indirmeBeklemeMs } : {}), temizlikYeniden, temizlikFs,
+    IptalJetonu, ...(indirmeBeklemeMs != null ? { indirmeBeklemeMs } : {}), temizlikYeniden, temizlikFs, yenidenBaslat, tarayiciIndir,
     saat: () => saat.simdi,
     pencereyeGonder: (k, v) => giden.push([k, v]), ayarAl: (k) => depo.get(k), ayarKoy: (k, v) => depo.set(k, v),
     kapatmayaHazirla: () => sayac.kapatmayaHazirla++, kapatmaIptal: () => sayac.kapatmaIptal++,
@@ -405,6 +405,37 @@ const ayar = (k) => JSON.stringify({ son: k.depo.get(AYAR_SON_DENETIM), bekleyen
   kontrol('acilisDenetimi kurulmuş sürümü bildirir', acilisDenetimi({ ayarAl: () => '0.9.1', ayarKoy: () => {}, surum: '0.9.1', simdi: T0 }).kuruldu === true
     && acilisDenetimi({ ayarAl: (x) => (x === 'bekleyenGuncelleme' ? '0.9.2' : T0), ayarKoy: () => {}, surum: '0.9.1', simdi: T0 }).kuruldu === false);
   fs.rmSync(kok, { recursive: true, force: true });
+}
+
+// 0.3.1, Linux: AppImage'da kurulum dosyayı değiştirir (quitAndInstall(true, false)), yeniden başlatma bu süreç çıktıktan sonraya kurulur
+// (yenidenBaslat; anaSurec.js app.relaunch). Kurulum başlatılamazsa yeniden başlatma kurulmaz. AppImage dışında tarayıcıdan indirilir: arayüze
+// 'guncelleme:var' ve 'guncelleme:durum'da tarayicida bildirilir (şeritte "İndir"); Windows'ta bu alan yok
+{
+  let baslatma = 0;
+  const k = kurulum({ yenidenBaslat: () => baslatma++ });
+  await k.cagir('guncelleme:denetle'); await k.cagir('guncelleme:indir');
+  k.cagir('guncelleme:kur'); k.cagir('guncelleme:kur'); await bekle(10);
+  kontrol('AppImage: tek quitAndInstall(true, false), ardından bir kez yeniden başlatma', JSON.stringify(k.au.kayit.kurulum) === '[[true,false]]' && baslatma === 1,
+    `${JSON.stringify(k.au.kayit.kurulum)} yeniden başlatma=${baslatma}`);
+  let baslatma2 = 0;
+  const k2 = kurulum({ yenidenBaslat: () => baslatma2++ });
+  await k2.cagir('guncelleme:denetle'); await k2.cagir('guncelleme:indir');
+  k2.au.s.kurulumHatasi = () => Object.assign(new Error('APPIMAGE env is not defined'), { code: 'ERR_UPDATER_OLD_FILE_NOT_FOUND' });
+  k2.cagir('guncelleme:kur'); await bekle(10);
+  kontrol('AppImage: kurulum başlatılamazsa yeniden başlatma kurulmaz, hata bildirilir', baslatma2 === 0 && k2.sayac.kapatmaIptal === 1
+    && k2.giden.some(([x]) => x === 'guncelleme:hata'), `yeniden başlatma=${baslatma2}`);
+  const indirilen = [];
+  const k3 = kurulum({ tarayiciIndir: async (s) => { indirilen.push(s); return true; } });
+  await k3.cagir('guncelleme:denetle');
+  const olay = k3.giden.find(([x]) => x === 'guncelleme:var')?.[1];
+  const d3 = await k3.cagir('guncelleme:durum');
+  const ind3 = await k3.cagir('guncelleme:indir');
+  kontrol('tarayıcıdan indirme: guncelleme:var ve guncelleme:durum tarayicida, indir tarayıcıyı açar', olay?.tarayicida === true && d3.tarayicida === true
+    && ind3.tarayicida === true && JSON.stringify(indirilen) === '["0.9.1"]' && k3.au.kayit.indirme === 0, JSON.stringify({ olay, ind3, indirilen }));
+  const k4 = kurulum();
+  await k4.cagir('guncelleme:denetle');
+  kontrol('Windows: guncelleme:var ve guncelleme:durum\'da tarayicida yok', !('tarayicida' in (k4.giden.find(([x]) => x === 'guncelleme:var')?.[1] || {}))
+    && !('tarayicida' in (await k4.cagir('guncelleme:durum'))));
 }
 
 console.log(hata ? `${hata} denetim başarısız.` : 'Bütün denetimler geçti.');

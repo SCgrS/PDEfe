@@ -1162,3 +1162,33 @@ XFA formları (Anayasa Mahkemesi bireysel başvuru formu gibi)
 35. **Başka XFA formları.** Elinizde başka kurumların doldurulabilir formları (ör. eski tip başvuru formları) varsa açın: Sayfalar görünmeli,
     alanlar doldurulabilmeli. Düğmelerden çalışmayanlar "işlevi PDEfe'de çalışmıyor" der (hesaplama yapan alanlar ve özel betikli düğmeler
     çalışmaz). Bunları bildirin.
+
+Linux (AppImage)
+Bu bilgisayarda Linux yok. Paket GitHub'ın Ubuntu 22.04 makinesinde, ekransız (Xvfb) sınandı: Gerçek bir Linux masaüstünde, kendi
+dağıtımınızda ve ekranınızda denenmedi. Elinizde bir Linux bilgisayar (Ubuntu, Linux Mint, Fedora, Pardus) varsa:
+36. **Açılış.** README'deki bağlantıdan `PDEfe-Linux.AppImage`'ı indirin, sağ tık › Özellikler › İzinler'den çalıştırma izni verip çift tıklayın:
+    PDEfe açılmalı. Açılmazsa uçbirimde `./PDEfe-Linux.AppImage` yazıp çıkan iletiyi bana gönderin (FUSE eksikse
+    `./PDEfe-Linux.AppImage --appimage-extract-and-run` ile açılmalı).
+37. **Varsayılan PDF programı.** Ayarlar › Açılış ve düzen › Varsayılan PDF görüntüleyici yap'a basın: "Zaten varsayılan" görünmeli. Dosya
+    yöneticisinde bir PDF'e çift tıklayın (PDEfe kapalıyken ve açıkken): PDF PDEfe'de, açık PDEfe'nin penceresinde açılmalı. PDEfe uygulama
+    menüsünde simgesiyle görünmeli, açık pencere görev çubuğunda (dock) aynı simgeyle durmalı. Adında boşluk ve Türkçe harf olan bir PDF'le de.
+38. **AppImage'ı taşımak.** AppImage dosyasını başka bir klasöre taşıyıp bir kez açın, sonra bir PDF'e çift tıklayın: Yine PDEfe'de açılmalı.
+39. **Görünüm.** Bir UYAP belgesi açın: Yazılar keskin ve doğru yerde olmalı, Türkçe harfler (ş ğ ı İ) düzgün çizilmeli. Ayarlar › Görünüm'de
+    "Sistemi izle" teması sistemin koyu / açık temasıyla birlikte değişmeli.
+40. **Yazı notu.** Bir PDF'e Türkçe harfli yazı notu ekleyip kaydedin, PDEfe'yi kapatıp açın: Not aynı yazı tipiyle, aynı satır kırılımıyla
+    görünmeli. Aynı dosyayı başka bir PDF okuyucuda da açın.
+41. **Yazdırma.** Yazdır'da yazıcınız listede olmalı (varsayılan yazıcı işaretli). Bir sayfa yazdırın: Sayfa kâğıda ortalı ve kesilmeden çıkmalı. "Yazıcı ayarları"
+    tarayıcıda yazıcının sayfasını açmalı (açılmazsa söyleyin). "Linux yazdırma penceresiyle yazdır" sistemin yazdırma penceresini açmalı.
+42. **PDF'i kopyala.** Sekmeye sağ tıklayıp PDF'i kopyala deyin, dosya yöneticisinde bir klasöre yapıştırın: PDF kopyalanmalı. Bir e-posta ya da
+    mesajlaşma uygulamasına yapıştırmayı da deneyin. Birleştir'de dosya yöneticisinden kopyalanan dosyalar Ctrl+V ile eklenmeli.
+43. **Format Değiştir.** LibreOffice kuruluysa bir Word belgesini PDF'e çevirin: PDF oluşmalı, "LibreOffice ile dönüştürüldü" notu görünmeli.
+    UYAP Doküman Editörü Linux'a kuruluysa bir UDF'yi PDF'e çevirin, Ayarlar › Kaydetme'de editörün bulunup bulunmadığına bakın (bulunamazsa
+    kurulduğu klasörü bana söyleyin).
+44. **Klasörde göster, Aç.** Format Değiştir'in sonucundaki Klasörde göster dosya yöneticisini dosya seçili açmalı, Tümünü aç dosyaları kendi
+    programlarıyla açmalı.
+45. **Kısayollar.** Ctrl+F, Ctrl+S, Ctrl+P, Ctrl+T, Ctrl+W, Ctrl+Tab, Ctrl+tekerlek: Windows'taki gibi çalışmalı. Fare tekerleğiyle kaydırma ve
+    yakınlaştırma hızı rahatsız etmemeli (Linux'ta tekerlek adımı Windows'tan farklı gelebilir).
+46. **Güncelleme.** Linux paketinin çıktığı ilk sürümden sonraki sürüm yayımlanınca şeritte Güncelle'ye basın: PDEfe kapanıp yeni sürümle kendiliğinden açılmalı,
+    AppImage dosyasının adı ve yeri değişmemeli.
+47. **Taranmış belge.** Taranmış bir PDF'te yazı seçilemez (Linux'ta yazı tanıyıcı yok): PDEfe hata vermeden çalışmaya devam etmeli. Ctrl+F
+    yalnızca PDF'in kendi yazısında arar, sayacın sonunda "taranmış sayfalar aranamadı" yazmalı.

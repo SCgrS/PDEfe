@@ -2,7 +2,7 @@
 // yol yardımcıları, sürükleyerek sıralama, çıktı satırı (ad + klasör çipi), standart kaydetme seçimi
 // ("Yeni belge olarak kaydet" | "Üzerine yaz"), üzerine yazılan sekmeyi yenileme.
 // Bütün araçlar (kucult: Sıkıştır, sayfalar, ayir, gorselBirlestir, dondur, donustur: Dosya Formatını Değiştir) bu modülü kullanır.
-import { tus, MAC } from '../platform.js';
+import { tus, MAC, LINUX } from '../platform.js';
 
 // ---------------------------------------------------------------- metin ve biçim
 const TR_SAYI_2 = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1162,24 +1162,30 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
     // deneyin" işe yaramazdı. İletiler Finder'ın Bilgi Al penceresini anlatır (uygulama.js belgeKaydet'teki gibi); Windows metinleri değişmedi
     const finderda = 'Finder\'da dosyayı seçip Dosya › Bilgi Al\'dan';
     const kilitliMac = `${finderda} "Kilitli" işaretini kaldırıp ya da Paylaşma ve İzinler bölümünden yazma izni verip`;
+    // Linux (0.3.1): macOS'taki gibi dosyaları başka programlar kilitlemez, neden izinlerdir. Dosya yöneticisinin adı dağıtıma göre değişir
+    const izinlerde = 'Dosya yöneticisinde dosyaya sağ tıklayıp Özellikler › İzinler bölümünden';
     let mesaj, ayrinti, dugmeler, yanitlar;
     if (okunamadi) {
       mesaj = `"${hatadakiAd || ozgunAd || hedefAd}" okunamadı.`;
       ayrinti = MAC
         ? `Dosyayı okuma izni olmayabilir. Hiçbir dosya değiştirilmedi.\n\n${finderda} Paylaşma ve İzinler bölümünü denetleyip yeniden deneyin.`
-        : `Dosya ${programda}. Hiçbir dosya değiştirilmedi.\n\nDosyayı kullanan programı kapatıp yeniden deneyin.`;
+        : LINUX ? 'Dosyayı okuma izni olmayabilir. Hiçbir dosya değiştirilmedi.\n\nDosya yöneticisinde dosyaya sağ tıklayıp Özellikler › İzinler bölümünü denetleyip yeniden deneyin.'
+          : `Dosya ${programda}. Hiçbir dosya değiştirilmedi.\n\nDosyayı kullanan programı kapatıp yeniden deneyin.`;
       dugmeler = ['Yeniden dene', 'Vazgeç']; yanitlar = ['tekrar', 'vazgec'];
     } else if (!uzerine && coklu) {
       // Birden çok dosyada araç var olan dosyaların üzerine yazmaz (ada "(2)" ekler): yazılamayan, seçilen klasördür
       mesaj = 'Dosyalar kaydedilemedi.';
       ayrinti = MAC
         ? 'Seçilen klasöre yazılamadı; klasöre yazma izni olmayabilir ya da içindeki bir dosya kilitli olabilir. Var olan hiçbir dosya değiştirilmedi.\n\nBaşka bir klasör seçebilir ya da Finder\'da klasörün Bilgi Al penceresinden Paylaşma ve İzinler bölümünü denetleyip yeniden deneyebilirsiniz.'
+        : LINUX ? 'Seçilen klasöre yazılamadı. Klasöre ya da içindeki bir dosyaya yazma izni olmayabilir. Var olan hiçbir dosya değiştirilmedi.\n\nBaşka bir klasör seçebilir ya da dosya yöneticisinde klasöre sağ tıklayıp Özellikler › İzinler bölümünü denetleyerek yeniden deneyebilirsiniz.'
         : `Seçilen klasöre yazılamadı; klasör salt okunur olabilir ya da bir dosya ${programda}. Var olan hiçbir dosya değiştirilmedi.\n\nBaşka bir klasör seçebilir ya da yeniden deneyebilirsiniz.`;
       dugmeler = ['Yeniden dene', 'Vazgeç']; yanitlar = ['tekrar', 'vazgec'];
     } else if (uzerine) {
       mesaj = saltOkunur ? `"${hedefAd}" salt okunur olduğu için üzerine yazılamadı.` : `"${hedefAd}" dosyasının üzerine yazılamadı.`;
       if (MAC) {
         ayrinti = `${saltOkunur ? 'Dosyaya yazma izni yok ya da dosya kilitli.' : 'Dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir.'} Özgün dosya değiştirilmedi.\n\n${kilitliMac} yeniden deneyebilir ya da sonucu yeni bir belge olarak kaydedebilirsiniz.`;
+      } else if (LINUX) {
+        ayrinti = `${saltOkunur ? 'Dosyaya yazma izni yok.' : 'Dosyaya yazma izni olmayabilir.'} Özgün dosya değiştirilmedi.\n\n${izinlerde} yazma izni verip yeniden deneyebilir ya da sonucu yeni bir belge olarak kaydedebilirsiniz.`;
       } else {
         ayrinti = saltOkunur
           ? 'Dosyanın Salt okunur özniteliği açık. Özgün dosya değiştirilmedi.\n\nDosya Gezgini\'nde dosyanın Özellikler penceresinden Salt okunur işaretini kaldırıp yeniden deneyebilir ya da sonucu yeni bir belge olarak kaydedebilirsiniz.'
@@ -1190,6 +1196,8 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
       mesaj = saltOkunur ? `"${hedefAd}" salt okunur olduğu için kaydedilemedi.` : `"${hedefAd}" kaydedilemedi.`;
       if (MAC) {
         ayrinti = `${saltOkunur ? 'Aynı adlı var olan dosyaya yazma izni yok ya da dosya kilitli' : 'Aynı adlı var olan dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir'}; o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da ${kilitliMac} yeniden deneyebilirsiniz.`;
+      } else if (LINUX) {
+        ayrinti = `${saltOkunur ? 'Aynı adlı var olan dosyaya yazma izni yok' : 'Aynı adlı var olan dosyaya yazma izni olmayabilir'}, o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da ${izinlerde} yazma izni verip yeniden deneyebilirsiniz.`;
       } else {
         ayrinti = saltOkunur
           ? 'Aynı adlı var olan dosyanın Salt okunur özniteliği açık; o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da Salt okunur işaretini kaldırıp yeniden deneyebilirsiniz.'

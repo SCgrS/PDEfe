@@ -26,6 +26,7 @@ import { TumSecim } from './tumSecim.js';
 import { baglantiHedefi, eylemSayfasi, gosterilenIndeks, hedefKonumu } from './hedefler.js';
 import { MAC, birincil, tus, ipuclariniCevir, DOSYA_YONETICISI } from './platform.js';
 import { OLCUM, isaretle } from './olcum.js';
+import { LINUX } from './platform.js';   // 0.3.1: Linux'un dosya izni iletileri (belgeKaydet)
 
 // Açılış zamanları (0.2.10): arayüzün adımları yalnızca ölçüm istenince işaret olarak yazılır (olcum.js); ölçüm betiği (test/acilis_hizi.mjs)
 // CDP'den okur
@@ -1003,7 +1004,9 @@ async function belgeKaydet(b, farkli = false, sessiz = false, { oneAl = false } 
           // Finder'ın Kilitli işaretidir, kaydetmenin yolu Farklı kaydet. Windows'ta metin değişmedi
           bildir(tus(MAC
             ? `"${b.ad}" otomatik kaydedilemedi: dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir. Değişiklikler PDEfe'de duruyor; Ctrl+S ile kaydedin ya da Ctrl+Shift+S ile başka bir adla kaydedin.`
-            : `"${b.ad}" otomatik kaydedilemedi: dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Değişiklikler PDEfe'de duruyor; o programı kapatıp Ctrl+S ile kaydedin.`), 9000);
+            // Linux (0.3.1): macOS'taki gibi neden yazma iznidir
+            : LINUX ? `"${b.ad}" otomatik kaydedilemedi. Dosyaya yazma izni olmayabilir. Değişiklikler PDEfe'de duruyor, Ctrl+Shift+S ile başka bir adla kaydedin.`
+              : `"${b.ad}" otomatik kaydedilemedi: dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Değişiklikler PDEfe'de duruyor; o programı kapatıp Ctrl+S ile kaydedin.`), 9000);
           return false;
         }
         const kilitli = /açık olabilir|yazılamadı|okunamadı|Failed to open|Permission|EBUSY|EPERM/i.test(e.message || '');
@@ -1012,7 +1015,8 @@ async function belgeKaydet(b, farkli = false, sessiz = false, { oneAl = false } 
         // işaretidir (çekirdek: "Dosya yazılamadı; salt okunur: …"); program kapatmak işe yaramaz. Windows'ta metin değişmedi
         const kilitAciklamasi = MAC
           ? 'Dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir: Finder\'da dosyayı seçip Dosya › Bilgi Al\'dan "Kilitli" işaretini ve Paylaşma ve İzinler bölümünü denetleyin ya da farklı bir adla kaydedin.\n\n'
-          : 'Dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Onu kapatıp yeniden deneyin ya da farklı bir adla kaydedin.\n\n';
+          : LINUX ? 'Dosyaya yazma izni olmayabilir. Dosya yöneticisinde dosyaya sağ tıklayıp Özellikler › İzinler bölümünü denetleyin ya da farklı bir adla kaydedin.\n\n'
+            : 'Dosya başka bir programda (örneğin bir PDF okuyucuda) açık olabilir. Onu kapatıp yeniden deneyin ya da farklı bir adla kaydedin.\n\n';
         const { secim } = await mesajKutusu({ tur: 'error', mesaj: 'Belge kaydedilemedi', ayrinti: (kilitli ? kilitAciklamasi : '') + hataMetni(e), dugmeler: kilitli ? ['Farklı kaydet', 'Vazgeç'] : ['Tamam'], iptal: kilitli ? 1 : 0 });
         if (!kilitli || secim !== 0) return false;
         farkli = true; sessiz = false;   // 'Farklı kaydet' aynı kaydın içinde: bekleyen kapatma akışı araya girmez

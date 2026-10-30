@@ -2,8 +2,9 @@
 
 ### [⬇ Windows için indir (PDEfe-Setup.exe)](https://github.com/SCgrS/PDEfe/releases/latest/download/PDEfe-Setup.exe)
 ### [⬇ macOS için indir (PDEfe-Mac.dmg)](https://github.com/SCgrS/PDEfe/releases/latest/download/PDEfe-Mac.dmg)
+### [⬇ Linux için indir (PDEfe-Linux.AppImage)](https://github.com/SCgrS/PDEfe/releases/latest/download/PDEfe-Linux.AppImage)
 
-Windows 11 (ve Windows 10) ile macOS için sade, tüm araçları ücretsiz, reklamsız bir **PDF görüntüleyici ve düzenleyici**.
+Windows 11 (ve Windows 10), macOS ve Linux için sade, tüm araçları ücretsiz, reklamsız bir **PDF görüntüleyici ve düzenleyici**.
 
 Hukukçuların ve her gün onlarca PDF açan herkesin işini görmek için yazıldı. Belgeler sekmelerde açılır, metin kopyalandığında satır sonları
 ve tireler temizlenir. PDEfe ile PDF, görüntü, TIFF, UDF ve Word dosyalarını tek PDF'te birleştirebilir, PDF'leri ayırabilir ve
@@ -36,6 +37,22 @@ macOS 13 ve sonrası, Apple işlemcili ve Intel Mac'ler.
 3. macOS ilk açılışta uyarı verirse **Sistem Ayarları › Gizlilik ve Güvenlik**'te "PDEfe engellendi" satırındaki **Yine de Aç**'a basın.
    Uyarı, uygulama Apple'ın geliştirici kimliğiyle imzalı olmadığı için çıkar.
 
+### Linux
+
+64 bit (x64) Linux: Ubuntu 22.04, Debian 12, Fedora 36, Linux Mint 21 ve sonrası.
+
+1. Yukarıdaki bağlantıdan `PDEfe-Linux.AppImage` dosyasını indirin ve kalıcı bir yere (örneğin ev klasörünüzde bir `Uygulamalar` klasörüne)
+   taşıyın.
+2. Dosyaya çalıştırma izni verin: Dosyaya sağ tıklayıp **Özellikler › İzinler**'de **Programı çalıştırmaya izin ver**'i işaretleyin. Uçbirimde
+   `chmod +x PDEfe-Linux.AppImage` de olur.
+3. Dosyaya çift tıklayın. PDEfe kurulum gerektirmez, doğrudan açılır.
+4. PDF dosyalarına çift tıklayınca PDEfe'de açılması ve uygulama menüsünde görünmesi için **Ayarlar › Açılış ve düzen**'de **Varsayılan PDF
+   görüntüleyici yap**'a basın.
+
+Dosya çift tıklanınca açılmazsa bilgisayarda FUSE eksiktir: Dağıtımın `fuse3` paketini kurun ya da uçbirimde
+`./PDEfe-Linux.AppImage --appimage-extract-and-run` ile açın. Yazı notlarında Türkçe harfler için Liberation yazı tipleri gerekir (Ubuntu ve
+Linux Mint'te hazır gelir, yoksa dağıtımın `fonts-liberation` paketi).
+
 ## Öne çıkanlar
 
 - **Sekmeler ve pencereler:** Birden çok PDF tek pencerede açılır. Sekme sürüklenerek kendi penceresine ayrılır.
@@ -47,12 +64,13 @@ macOS 13 ve sonrası, Apple işlemcili ve Intel Mac'ler.
   sayfa düzeniyle PDF olur, PDF düzenlenebilir UDF'ye çevrilir.
 - **Yazdırma:** PDEfe'nin kendi penceresinde yazıcı, kâğıt, renk ve çift taraflı seçilir. Sayfanın kâğıda nasıl basılacağı önceden görünür.
 - **Taranmış belgede seçim:** Taranmış sayfadaki yazı da fareyle seçilip kopyalanır. Bunu bilgisayarın kendi yazı tanıyıcısı çevrim dışı yapar.
+  Linux'ta yazı tanıyıcı olmadığından bu özellik yok.
 - **Arama:** Bütün açık belgelerin hepsinde birden tek tuşla arama yapılabilir.
 - **Standart PDF notları:** Vurgu, not ve yazı başka PDF okuyucularında da görünür, e-imzayı bozmaz.
 
 ## Ne yapar
 
-Ekran görüntüleri Windows'ta alındı, macOS'ta görünüm aynıdır. Bütün kısayollar uygulamada `F1` ile açılan pencerede ve
+Ekran görüntüleri Windows'ta alındı, macOS'ta ve Linux'ta görünüm aynıdır. Bütün kısayollar uygulamada `F1` ile açılan pencerede ve
 **Ayarlar › Kısayollar**'da listelenir.
 
 ### Açılış ekranı
@@ -229,9 +247,9 @@ Gereksinimler:
 | Dönüştürme | Bilgisayarda gereken |
 |---|---|
 | UDF → PDF | UYAP Doküman Editörü ve kullandığı Java 8. Bulunamazsa UDF yine dönüştürülür, PDEfe'nin yaklaşık çizimiyle: Satır ve sayfa kırılımları editördekinden farklı olabilir. Editörün yeri **Ayarlar › Kaydetme**'den gösterilebilir. |
-| Word → PDF | Windows'ta Word ya da LibreOffice, macOS'ta LibreOffice. |
+| Word → PDF | Windows'ta Word ya da LibreOffice, macOS'ta ve Linux'ta LibreOffice. Linux'ta dağıtımın kendi LibreOffice paketi gerekir, Snap ve Flatpak paketi kullanılamaz. |
 | PDF → UDF, PDF → Word, TIFF ↔ PDF, görüntü → PDF, PDF → JPG | Bir şey gerekmez. |
-| Taranmış sayfanın yazısı (taranmış belgede seçim ve taranmış PDF, TIFF ya da görüntü → UDF) | Windows'ta Türkçe yazı tanıyıcı (Türkçe Windows'ta hazır gelir). Türkçesi yoksa başka bir dilin tanıyıcısı kullanılır, Türkçe harfler yanlış gelebilir. Hiç yoksa taranmış yazı seçilemez, UDF'de sayfa resim olarak kalır. macOS'ta bir şey gerekmez. |
+| Taranmış sayfanın yazısı (taranmış belgede seçim ve taranmış PDF, TIFF ya da görüntü → UDF) | Windows'ta Türkçe yazı tanıyıcı (Türkçe Windows'ta hazır gelir). Türkçesi yoksa başka bir dilin tanıyıcısı kullanılır, Türkçe harfler yanlış gelebilir. Hiç yoksa taranmış yazı seçilemez, UDF'de sayfa resim olarak kalır. macOS'ta bir şey gerekmez. Linux'ta yazı tanıyıcı yok: Taranmış yazı seçilemez, UDF'de sayfa resim olarak kalır. |
 
 Birleştir'deki UDF ve Word belgeleri için de aynı gereksinimler geçerlidir.
 
@@ -249,7 +267,8 @@ yanında ⚠ simgesi çıkar. Üstüne gelince ne olduğu yazar (örneğin alın
   notların basılıp basılmayacağı seçilir. Sağda sayfanın kâğıda nasıl basılacağı büyük olarak görünür. **Yazıcı tercihleri** yazıcının kendi
   ayarlarını açar. Son seçilen yazıcı, kâğıt, renk ve çift taraflı gibi seçenekler hatırlanır. Sayfa seçimi her açılışta **Tümü**dür. Türkçe
   karakterler ekrandaki gibi çıkar. Microsoft Print to PDF gibi dosyaya yazan yazıcıda dosyanın kaydedileceği yer sorulur. Windows'un kendi
-  yazdırma penceresini isteyenler için pencerenin altında **Windows yazdırma penceresiyle yazdır** bağlantısı var (Mac'te macOS'unki).
+  yazdırma penceresini isteyenler için pencerenin altında **Windows yazdırma penceresiyle yazdır** bağlantısı var (macOS'ta ve Linux'ta sistemin
+  kendi penceresi).
 - **PDF'i kopyala:** Belge dosya olarak panoya kopyalanır. UYAP'a, e-postaya ya da bir klasöre `Ctrl+V` ile yapıştırılır.
 
 <p align="center">
@@ -274,7 +293,8 @@ Editörü'nün bulunduğu yer ve sürümü görünür. Editör kendiliğinden bu
 
 PDEfe iki günde bir yeni sürüm olup olmadığına bakar. **Ayarlar › Güncelleme**'deki **Şimdi denetle** ile hemen de bakılır. Yeni sürüm
 varsa pencerenin üstünde şerit çıkar. Windows'ta **Güncelle**'ye basmak yeter. PDEfe yeni sürümü kurup kendiliğinden yeniden açılır.
-macOS'ta **İndir** yeni dosyayı indirir, kurulumdaki gibi Uygulamalar'a sürüklenir. Sürüm notları [CHANGELOG.md](CHANGELOG.md)
+macOS'ta **İndir** yeni dosyayı indirir, kurulumdaki gibi Uygulamalar'a sürüklenir. Linux'ta **Güncelle** AppImage dosyasını yenisiyle
+değiştirir ve PDEfe'yi yeniden açar. Sürüm notları [CHANGELOG.md](CHANGELOG.md)
 dosyasındadır.
 
 İndirme bitene dek PDEfe'yi kapatmayın. Kapatırsanız ya da internet bağlantısı koparsa indirme sonraki denemede baştan başlar. Şerit

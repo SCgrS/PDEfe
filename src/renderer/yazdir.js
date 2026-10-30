@@ -30,7 +30,7 @@
 //   sayfaAraligiCoz, yazdirmaHtmlOlustur           → yazdirYerlesim.js'ten (saf işlevler, Node'da sınanır)
 import { ayarlarPenceresiKapat } from './ayarlarPenceresi.js';
 import { ortuTiklamasiBagla } from './ortu.js';
-import { MAC, SISTEM } from './platform.js';
+import { MAC, LINUX, SISTEM } from './platform.js';
 import { secilenSayfalar, kagitSec, sayfaYerlesimi, yazdirmaHtmlOlustur, kagitEtiketi, ozetMetni, onizlemeDpi, KAGITLAR, kacis } from './yazdirYerlesim.js';
 
 export { sayfaAraligiCoz, yazdirmaHtmlOlustur } from './yazdirYerlesim.js';
@@ -281,8 +281,9 @@ function secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre,
     ortu.className = 'diyalog-ortusu yazdir-ortusu';
     const kagitSecenekleri = SECENEKLER.kagit.map((k) => `<option value="${k}">${k === 'belge' ? 'Belgeye göre' : k}</option>`).join('');
     const ciftSecenekleri = SECENEKLER.ciftTarafli.map((k) => `<option value="${k}">${CIFT_TARAFLI_ADLARI[k]}</option>`).join('');
-    const tercihEtiketi = MAC ? 'Yazıcı ayarları' : 'Yazıcı tercihleri';
-    const tercihIpucu = MAC ? 'Sistem Ayarları › Yazıcılar ve Tarayıcılar bölümünü açar.'
+    const tercihEtiketi = MAC || LINUX ? 'Yazıcı ayarları' : 'Yazıcı tercihleri';
+    // Linux (0.3.1): CUPS'ın yazıcı sayfası tarayıcıda (main/yazdir.js)
+    const tercihIpucu = MAC ? 'Sistem Ayarları › Yazıcılar ve Tarayıcılar bölümünü açar.' : LINUX ? 'Yazıcının CUPS sayfasını tarayıcıda açar (kâğıt kaynağı, baskı kalitesi gibi varsayılanlar).'
       : 'Yazıcının kendi ayarları (kâğıt kaynağı, baskı kalitesi, toner tasarrufu…). Orada yapılan değişiklik bu yazıcının varsayılanı olur; buradaki kâğıt, renk, kopya ve çift taraflı seçimi yine geçerlidir.';
     ortu.innerHTML = `
 <div class="diyalog yazdir-diyalog" role="dialog" aria-modal="true" aria-label="Yazdır">
@@ -398,6 +399,7 @@ function secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre,
       let metin = '', tur = '';
       if (yazicilar && !yazicilar.length) {
         metin = MAC ? 'Kurulu yazıcı yok. Sistem Ayarları › Yazıcılar ve Tarayıcılar bölümünden bir yazıcı ekleyin.'
+          : LINUX ? 'Kurulu yazıcı yok. Sistem ayarlarının Yazıcılar bölümünden bir yazıcı ekleyin.'
           : 'Kurulu yazıcı yok. Windows Ayarlar › Yazıcılar ve tarayıcılar bölümünden bir yazıcı ekleyin.';
         tur = 'uyari';
       } else if (d.cevrimDisi) { metin = 'Yazıcı çevrim dışı görünüyor; iş, yazıcı açılınca basılır.'; tur = 'uyari'; }

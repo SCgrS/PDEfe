@@ -108,6 +108,8 @@ import pymupdf
 from . import araclar
 from .araclar import DPI_EN_AZ, DPI_EN_COK, KAYIT_SECENEKLERI, KILITLI_METNI, SALT_OKUNUR_METNI
 
+LINUX = sys.platform.startswith("linux")
+
 # ---------------------------------------------------------------- biçimler
 TURLER = ("pdf", "udf", "tiff", "word", "gorsel")
 HEDEF_SIRASI = ("pdf", "udf", "word", "tiff", "gorsel")   # donusum_bilgi'nin hedefler listesinin sırası (aracın biçim seçimi)
@@ -628,8 +630,9 @@ class Baglam:
         """Dış programı penceresiz çalıştırır, iptale bakarak (0,25 sn'de bir) bitmesini bekler. Döner: (çıkış kodu, stdout, stderr)
         bayt. İptalde IptalEdildi, sure (sn) dolunca TimeoutError; ikisinde de süreç (Windows'ta alt süreçleriyle) öldürülür."""
         bayrak = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        # Linux (0.3.1): ayrı süreç grubu, öldürürken grubun hepsi (LibreOffice'in soffice'i kabuk betiğidir, asıl işi alt süreci soffice.bin yapar)
         p = subprocess.Popen(komut, stdin=subprocess.PIPE if girdi is not None else subprocess.DEVNULL, stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE, env=ortam, cwd=klasor, creationflags=bayrak)
+                             stderr=subprocess.PIPE, env=ortam, cwd=klasor, creationflags=bayrak, start_new_session=LINUX)
         is_ = ise_bagla(p)   # Windows: alt süreçleriyle birlikte iş nesnesinde (öldürme anında; çekirdek çökerse de sonlanır)
         bas = time.monotonic()
         veri = girdi
@@ -689,6 +692,12 @@ def _surec_oldur(p, is_=None):
             subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True, timeout=10,
                            creationflags=subprocess.CREATE_NO_WINDOW)
         except Exception:
+            pass
+    if LINUX:   # dis_surec ayrı süreç grubunda başlattı: grubun bütün süreçleri (0.3.1)
+        try:
+            import signal
+            os.killpg(p.pid, signal.SIGKILL)
+        except (OSError, AttributeError):
             pass
     try:
         p.kill()

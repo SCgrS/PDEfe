@@ -136,7 +136,8 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce, kuru
       metin.textContent = `PDEfe ${durum.surum} hazır${kullandiginiz()}.`;
       dugmeler.append(
         // macOS (0.2.0): yeni sürümün Mac paketi tarayıcıda iner, kullanıcı Uygulamalar klasörüne sürükler (main/macGuncelleme.js)
-        MAC ? dugme('İndir', () => guncelle(), { sinif: 'birincil-serit', baslik: 'Yeni sürümü tarayıcıda indir' })
+        // Linux (0.3.1): AppImage dışında çalışan PDEfe de tarayıcıdan indirir (ana süreç tarayicida bildirir)
+        MAC || durum.tarayicida ? dugme('İndir', () => guncelle(), { sinif: 'birincil-serit', baslik: 'Yeni sürümü tarayıcıda indir' })
           : dugme('Güncelle', () => guncelle(), { sinif: 'birincil-serit', baslik: 'İndir, kur ve PDEfe\'yi yeniden başlat' }),
         dugme('Sürüm notları', () => pdefe.cagir('kabuk:disAc', `${SURUMLER_URL}/tag/v${durum.surum}`).catch(() => {}), { sinif: 'baglanti-dugme', baslik: 'GitHub sürüm sayfasını aç' }),
         dahaSonra(),
@@ -164,9 +165,11 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce, kuru
       dugmeler.append(dugme('Kur ve yeniden başlat', () => guncelle(), { sinif: 'birincil-serit' }), dahaSonra());
       serit.append(metin, dugmeler);
     } else if (durum.asama === 'tarayicida') {
-      // Yalnızca macOS. Önce çıkılmalı (0.2.1): Finder açık uygulamanın yerine yenisini koymaz ("kullanımda"); yeni sürüm yerinde imzalı ve
+      // macOS (ve 0.3.1'den beri AppImage dışındaki Linux). Önce çıkılmalı (0.2.1): Finder açık uygulamanın yerine yenisini koymaz ("kullanımda"); yeni sürüm yerinde imzalı ve
       // karantinalı indiği için macOS ilk açılışta yeniden engelleyebilir (README "macOS" 3. adım)
-      metin.textContent = `PDEfe ${durum.surum} tarayıcıda iniyor. PDEfe'den çıkın (⌘Q), inen PDEfe-Mac dosyasını açıp PDEfe'yi Uygulamalar klasörüne sürükleyin (Değiştir), sonra PDEfe'yi açın. macOS açmayı engellerse: Sistem Ayarları › Gizlilik ve Güvenlik › Yine de Aç.`;
+      metin.textContent = MAC ? `PDEfe ${durum.surum} tarayıcıda iniyor. PDEfe'den çıkın (⌘Q), inen PDEfe-Mac dosyasını açıp PDEfe'yi Uygulamalar klasörüne sürükleyin (Değiştir), sonra PDEfe'yi açın. macOS açmayı engellerse: Sistem Ayarları › Gizlilik ve Güvenlik › Yine de Aç.`
+        // Linux (0.3.1), AppImage dışında: yeni AppImage eskisinin yerine elle konur
+        : `PDEfe ${durum.surum} tarayıcıda iniyor. PDEfe'den çıkın, inen PDEfe-Linux.AppImage dosyasını eskisinin yerine koyup çalıştırma izni verin (Özellikler › İzinler ya da chmod +x), sonra PDEfe'yi açın.`;
       dugmeler.append(dugme('Tamam', () => { durum.kapatildi = true; gizle(); }, { sinif: 'birincil-serit' }));
       serit.append(metin, dugmeler);
     } else if (durum.asama === 'hata') {
@@ -189,7 +192,7 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce, kuru
     akis = (async () => {
       try {
         if (!durum.indirildi) {   // indirilmiş paket (Vazgeç ya da kurulum hatasından sonra) yeniden indirilmez
-          if (!MAC) asama('indiriliyor', { yuzde: 0, aktarilan: 0, toplam: 0, hata: '' });   // macOS: tarayıcıda iner
+          if (!MAC && !durum.tarayicida) asama('indiriliyor', { yuzde: 0, aktarilan: 0, toplam: 0, hata: '' });   // macOS (Linux'ta AppImage dışı): tarayıcıda iner
           const r = await pdefe.cagir('guncelleme:indir');
           if (!r?.tamam) { asama('hata', { hata: `Güncelleme indirilemedi. ${r?.mesaj || 'İndirme tamamlanamadı.'}` }); return false; }
           if (r.tarayicida) { asama('tarayicida'); return false; }   // macOS: kurulum kullanıcıda
@@ -220,6 +223,7 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce, kuru
     if (b?.mevcut) durum.mevcut = b.mevcut;
     if (akis || SURUYOR.has(durum.asama)) return;
     if (b?.elle) durum.kapatildi = false;
+    if (b?.tarayicida) durum.tarayicida = true;
     asama('var', { surum: b?.surum || durum.surum });
   });
   pdefe.dinle('guncelleme:ilerleme', (p) => {
@@ -237,6 +241,7 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce, kuru
   pdefe.cagir('guncelleme:durum').then((d) => {
     if (!d) return;
     durum.mevcut = d.surum || durum.mevcut;
+    if (d.tarayicida) durum.tarayicida = true;
     if (akis || durum.asama !== 'bos') return;
     if (d.hazir) asama('hazir', { surum: d.hazir.surum, indirildi: true });
     else if (d.bulunan) asama('var', { surum: d.bulunan.surum });

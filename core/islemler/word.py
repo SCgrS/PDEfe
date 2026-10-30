@@ -44,8 +44,9 @@ Word'e nasıl dokunulur (Windows):
 LibreOffice (Windows'ta Word yoksa; macOS'ta Word otomasyonu yok): soffice --headless --convert-to pdf, PDEfe'nin kendi geçici
 profiliyle (-env:UserInstallation; kullanıcının profiliyle aynı olsaydı istek açık LibreOffice'e devredilir, çıktı oluşmadan "başarılı"
 dönerdi), resimleri küçültmeyen ve kayıpsız sıkıştıran süzgeç seçenekleriyle (7.4 ve sonrası; çıktı yoksa seçeneksiz yeniden). Yollar:
-UNO\\InstallPath (HKLM, HKCU, 32 bit görünüm), App Paths, Program Files, PATH; macOS'ta /Applications ve ~/Applications. Bu bilgisayarda
-LibreOffice yok: yol sınanmadı. İkisi de yoksa dönüştürme kapalıdır ("Word ya da LibreOffice gerekir").
+UNO\\InstallPath (HKLM, HKCU, 32 bit görünüm), App Paths, Program Files, PATH; macOS'ta /Applications ve ~/Applications; Linux'ta (0.3.1)
+/usr/bin, /usr/lib/libreoffice, /opt/libreoffice*, PATH (Snap ve Flatpak paketi alınmaz: /tmp'deki belgeyi göremiyor). Windows'ta ve macOS'ta
+sınanmadı (bu bilgisayarlarda LibreOffice yok); Linux'ta CI sınar (test/linux_cekirdek_testi.py). İkisi de yoksa dönüştürme kapalıdır ("Word ya da LibreOffice gerekir").
 
 Girdi: .docx, .docm (makro çalıştırılmaz), .doc, .rtf, .odt; tür içerikten (donustur.tur_bul). Parolalı .docx (OLE kabında
 EncryptedPackage) Word başlatılmadan reddedilir. Sınama ortam değişkeni: PDEFE_WORD_YOK=1 → Word ve LibreOffice bulunamamış sayılır
@@ -322,11 +323,23 @@ def libreoffice_bul():
                     os.path.expanduser("~/Applications/LibreOffice.app/Contents/MacOS/soffice")]
         adaylar.append(shutil.which("soffice"))
     else:
+        # Linux (0.3.1): dağıtımın paketi, libreoffice.org'un paketi (/opt/libreofficeX.Y), PATH. Snap ve Flatpak paketleri alınmaz: kendi
+        # kapalı alanlarında çalışıyor, PDEfe'nin geçici klasöründeki (/tmp) belgeyi ve profili göremiyorlar
+        import glob
+        adaylar += ["/usr/bin/soffice", "/usr/lib/libreoffice/program/soffice", "/usr/lib64/libreoffice/program/soffice"]
+        adaylar += sorted(glob.glob("/opt/libreoffice*/program/soffice"), reverse=True)
         adaylar += [shutil.which("soffice"), shutil.which("libreoffice")]
     for yol in adaylar:
-        if yol and os.path.isfile(yol):
+        if yol and os.path.isfile(yol) and not (not WINDOWS and not MAC and _kapali_alanda(yol)):
             return os.path.abspath(yol)
     return None
+
+
+def _kapali_alanda(yol):
+    """Linux: program bir Snap ya da Flatpak paketi mi (/snap/bin/libreoffice, /usr/bin/snap'e bağlantı, flatpak'ın dışa aktardığı)."""
+    gercek = os.path.realpath(yol)
+    return (yol.startswith(("/snap/", "/var/lib/snapd/", "/var/lib/flatpak/")) or "/flatpak/exports/" in yol
+            or os.path.basename(gercek) in ("snap", "flatpak") or gercek.startswith(("/snap/", "/var/lib/flatpak/")))
 
 
 _algilama = {"zaman": None, "word": None, "libreoffice": None}
@@ -366,6 +379,8 @@ def motor():
 
 
 NEDEN_YOK = "Word belgesini PDF'e çevirmek için bu bilgisayarda Word ya da LibreOffice gerekir; ikisi de bulunamadı."
+if not WINDOWS and not MAC:   # Linux (0.3.1): Word yok
+    NEDEN_YOK = "Word belgesini PDF'e çevirmek için bu bilgisayarda LibreOffice gerekir. LibreOffice bulunamadı (Snap ve Flatpak paketleri kullanılamıyor)."
 
 
 def hazir():

@@ -3,11 +3,14 @@
 // GitHub sağlayıcısının da okuduğu akış) en son sürüm okunur. Bulunan sürüm şeritte gösterilir; "İndir" yeni Mac paketini (PDEfe-Mac.dmg)
 // tarayıcıda indirir, kullanıcı PDEfe'yi Uygulamalar klasörüne sürükler (guncelleme.js tarayiciIndir, renderer/guncelleme.js).
 // guncellemeKur'a autoUpdater yerine verilir: electron-updater'ın kullanılan arayüzü (olaylar, checkForUpdates) kadarı.
+// Linux'ta (0.3.1) AppImage dışında çalışan PDEfe de bunu kullanır (electron-updater yalnız AppImage'ı günceller): "İndir" PDEfe-Linux.AppImage'ı
+// tarayıcıda indirir (anaSurec.js guncellemeyiKur).
 import { EventEmitter } from 'node:events';
 import { net, shell } from 'electron';
 
 export const DEPO_URL = 'https://github.com/SCgrS/PDEfe';
 export const MAC_PAKETI = 'PDEfe-Mac.dmg';
+export const LINUX_PAKETI = 'PDEfe-Linux.AppImage';   // electron-builder.yml linux.artifactName
 
 /** "1.2.10" > "1.2.9": sayısal bölümler soldan karşılaştırılır (ön ek v ve sürüm sonrası -… yok sayılır). */
 export function surumKarsilastir(a, b) {
@@ -56,12 +59,12 @@ export class MacGuncelleyici extends EventEmitter {
     }
   }
 
-  downloadUpdate() { return Promise.reject(new Error('macOS: güncelleme tarayıcıda indirilir (tarayiciIndir).')); }
+  downloadUpdate() { return Promise.reject(new Error('macOS / AppImage dışı Linux: güncelleme tarayıcıda indirilir (tarayiciIndir).')); }
 
-  quitAndInstall() { /* macOS'ta kullanılmaz */ }
+  quitAndInstall() { /* macOS'ta ve AppImage dışı Linux'ta kullanılmaz */ }
 }
 
-/** Sürümün Mac paketini varsayılan tarayıcıda indirir; tarayıcı açıldıysa true. */
-export function tarayicidaIndir(surum) {
-  return shell.openExternal(`${DEPO_URL}/releases/download/v${encodeURIComponent(surum)}/${MAC_PAKETI}`).then(() => true, () => false);
+/** Sürümün paketini (varsayılan: Mac paketi) varsayılan tarayıcıda indirir; tarayıcı açıldıysa true. */
+export function tarayicidaIndir(surum, paket = MAC_PAKETI) {
+  return shell.openExternal(`${DEPO_URL}/releases/download/v${encodeURIComponent(surum)}/${paket}`).then(() => true, () => false);
 }

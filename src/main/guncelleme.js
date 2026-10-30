@@ -162,8 +162,11 @@ const hataAyrintisi = (e) => String((e && (e.stack || e.message)) || e).split('\
  * @param {(anahtar: string, deger: any) => void} p.ayarKoy
  * @param {() => void} [p.kapatmayaHazirla]  quitAndInstall'dan önce çağrılır (pencerelerin kapatma onayı verilir: yeniden sormazlar)
  * @param {() => void} [p.kapatmaIptal]      kurulum başlatılamazsa çağrılır (onay geri alınır: pencere kapatma yine sorar)
- * @param {(surum: string) => Promise<boolean>} [p.tarayiciIndir]  verilirse (macOS, 0.2.0: imzasız uygulama kendini güncelleyemez) indirme
- *   bulunan sürümün paketini tarayıcıda açar; 'guncelleme:indir' { tamam, tarayicida: true } döner, kurulum kullanıcıya kalır
+ * @param {(surum: string) => Promise<boolean>} [p.tarayiciIndir]  verilirse (macOS, 0.2.0: imzasız uygulama kendini güncelleyemez; 0.3.1:
+ *   AppImage dışında çalışan Linux sürümü) indirme bulunan sürümün paketini tarayıcıda açar; 'guncelleme:indir' { tamam, tarayicida: true } döner,
+ *   kurulum kullanıcıya kalır. Arayüz bunu 'guncelleme:var' ve 'guncelleme:durum'daki tarayicida'dan bilir (şeritte "İndir")
+ * @param {() => void} [p.yenidenBaslat]     verilirse (Linux AppImage, 0.3.1) kurulum uygulamayı yeniden başlatmaz: quitAndInstall(true, false)
+ *   dosyayı değiştirir, ardından bu işlev çağrılır (anaSurec.js: app.relaunch ile yeni AppImage eski süreç çıktıktan sonra açılır)
  * @param {number} [p.acilisGecikmesiMs]      otomatik denetimin pencere gösterildikten sonraki gecikmesi (birim denemesi kısaltır)
  * @param {number} [p.bakisAraligiMs]         açık kalan uygulamada denetim sırasının denetlendiği aralık (birim denemesi kısaltır)
  * @param {number} [p.kurulumBeklemeMs]       kurulum uygulamayı bu sürede kapatmazsa başlatılamamış sayılır (birim denemesi kısaltır)
@@ -175,7 +178,7 @@ const hataAyrintisi = (e) => String((e && (e.stack || e.message)) || e).split('\
  * @returns {{ denetle: (elle?: boolean) => Promise<object>, pencereGosterildi: () => void, durdur: () => void, temizlik: Promise<string[]> }}
  */
 export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPackaged, ilkOrnek = true, pencereyeGonder, ayarAl, ayarKoy, kapatmayaHazirla, kapatmaIptal,
-  tarayiciIndir = null, acilisGecikmesiMs = ACILIS_GECIKMESI_MS, bakisAraligiMs = BAKIS_ARALIGI_MS, kurulumBeklemeMs = KURULUM_BEKLEME_MS,
+  tarayiciIndir = null, yenidenBaslat = null, acilisGecikmesiMs = ACILIS_GECIKMESI_MS, bakisAraligiMs = BAKIS_ARALIGI_MS, kurulumBeklemeMs = KURULUM_BEKLEME_MS,
   IptalJetonu = null, indirmeBeklemeMs = INDIRME_BEKLEME_MS, temizlikYeniden = TEMIZLIK_YENIDEN_MS, temizlikFs = null, saat = Date.now }) {
   const mevcut = app?.getVersion?.() || '';
   const gelistirmeSonucu = { durum: 'hata', mevcut, mesaj: 'Geliştirme sürümünde güncelleme yok.' };
@@ -247,7 +250,7 @@ export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPack
       const bilgi = sonuc.updateInfo || {};
       if (sonuc.isUpdateAvailable) {
         durum.bulunan = { surum: bilgi.version, notlar: notlariDuzlestir(bilgi.releaseNotes), tarih: bilgi.releaseDate || '' };
-        pencereyeGonder('guncelleme:var', { ...durum.bulunan, mevcut, elle });
+        pencereyeGonder('guncelleme:var', { ...durum.bulunan, mevcut, elle, ...(tarayiciIndir ? { tarayicida: true } : {}) });
         return { durum: 'var', asama: 'var', surum: bilgi.version, mevcut, mesaj: `PDEfe ${bilgi.version} hazır (kullandığınız: ${mevcut}).`, sunucu: true };
       }
       durum.bulunan = null;
@@ -317,8 +320,14 @@ export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPack
     try { kapatmayaHazirla?.(); } catch (e) { console.error('[güncelleme] kapatmayaHazirla:', e); }
     // Sessiz kurulum ve yeniden başlatma: bkz. başlık. Kurulum başlatılamazsa electron-updater 'error' olayını verir (yukarıda).
     setImmediate(() => {
-      try { autoUpdater.quitAndInstall(true, true); }
-      catch (e) { autoUpdater.emit?.('error', e); }
+      try {
+        if (!yenidenBaslat) { autoUpdater.quitAndInstall(true, true); return; }
+        // Linux AppImage (0.3.1): electron-updater yeni AppImage'ı hemen başlatırdı (isForceRunAfter); tek örnek kilidi henüz kapanmakta olan bu
+        // süreçte olduğundan yeni süreç çıkardı, PDEfe yeniden açılmazdı. Dosya değiştirilir, yeniden başlatma bu süreç çıktıktan sonraya kurulur.
+        // Kurulum başlatılamadıysa 'error' olayı (yukarıda) kuruluyor'u eşzamanlı olarak kapatmıştır
+        autoUpdater.quitAndInstall(true, false);
+        if (durum.kuruluyor && deneme === kurulumNo) yenidenBaslat();
+      } catch (e) { autoUpdater.emit?.('error', e); }
     });
     // Kurulum uygulamayı kapatır. Kapanmadıysa ve hata da gelmediyse başlatılamamıştır: aynı yoldan bildirilir (kapatmaIptal: kapatma
     // onayı geri alınır, izin verirken girdiye kilitlenen pencereler açılır; 0.1.19)
@@ -335,7 +344,7 @@ export function guncellemeKur({ app, ipcMain, autoUpdater, etkin = !!app?.isPack
   ipcMain.handle('guncelleme:kur', () => kur());
   ipcMain.handle('guncelleme:durum', () => ({
     paketli: true, surum: mevcut, denetleniyor: durum.denetleniyor, indiriliyor: durum.indiriliyor, kuruluyor: durum.kuruluyor,
-    bulunan: durum.bulunan, hazir: durum.hazir, sonDenetim: sonDenetim(ayarAl),
+    bulunan: durum.bulunan, hazir: durum.hazir, sonDenetim: sonDenetim(ayarAl), ...(tarayiciIndir ? { tarayicida: true } : {}),
   }));
 
   // ---- iki günde bir otomatik denetim: açılışta sırası geldiyse (ya da bekleyen sürüm varsa), açık kalan uygulamada saatte bir bakılarak

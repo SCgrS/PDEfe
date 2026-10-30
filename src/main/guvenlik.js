@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { LINUX, yaziTipiKokleri, izinliYaziTipiMi, standartYaziTipleri as linuxStandartYaziTipleri } from './linux.js';
 
 const MAC = process.platform === 'darwin';
 
@@ -56,9 +57,11 @@ export function gezinmeKorumasiKur(app) {
 
 // ---------------------------------------------------------------- dosya yolları
 /** Sistemin yazı tipi klasörleri (renderer/yaziTipleri.js gömülü olmayan standart yazı tiplerini buradan okur): Windows'ta Windows\Fonts;
- *  macOS'ta (0.2.0) sistemle gelen Arial / Times New Roman / Courier New'ün klasörü (Supplemental), sistem ve kullanıcı yazı tipleri. */
+ *  macOS'ta (0.2.0) sistemle gelen Arial / Times New Roman / Courier New'ün klasörü (Supplemental), sistem ve kullanıcı yazı tipleri; Linux'ta
+ *  (0.3.1) fontconfig'in kökleri (dosyalar alt klasörlerde; linux.js). */
 export function yaziTipiKlasorleri() {
   if (MAC) return ['/System/Library/Fonts/Supplemental', '/System/Library/Fonts', '/Library/Fonts', path.join(os.homedir(), 'Library', 'Fonts')];
+  if (LINUX) return yaziTipiKokleri();
   return [path.join(process.env.WINDIR || process.env.SystemRoot || 'C:\\Windows', 'Fonts')];
 }
 
@@ -71,17 +74,21 @@ const MAC_STANDART = {
   'courbi.ttf': 'Courier New Bold Italic.ttf',
 };
 
-/** Standart fontların bu sistemdeki tam yolları: { 'times.ttf': '<yol>', … } (uygulama:klasorler → renderer/yaziTipleri.js). */
+/** Standart fontların bu sistemdeki tam yolları: { 'times.ttf': '<yol>', … } (uygulama:klasorler → renderer/yaziTipleri.js). Linux'ta (0.3.1)
+ *  söz: fontconfig'e sorulur, bulunamayan anahtar yoktur (linux.js standartYaziTipleri). */
 export function standartYaziTipleri() {
+  if (LINUX) return linuxStandartYaziTipleri();
   const [klasor] = yaziTipiKlasorleri();
   return Object.fromEntries(Object.entries(MAC_STANDART).map(([win, mac]) => [win, path.join(klasor, MAC ? mac : win)]));
 }
 
 const ayniYol = (a, b) => path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
 
-/** Yol sistemin yazı tipi klasörlerinden birinde bir yazı tipi dosyası mı (alt klasör yok). */
+/** Yol sistemin yazı tipi klasörlerinden birinde bir yazı tipi dosyası mı (alt klasör yok; Linux'ta kökün altındaki her klasör ve fontconfig'in
+ *  verdiği dosya, linux.js izinliYaziTipiMi). */
 export function yaziTipiDosyasiMi(yol) {
   const y = String(yol || '');
+  if (LINUX) return !!y && izinliYaziTipiMi(y);
   return !!y && /\.(ttf|ttc|otf)$/i.test(y) && yaziTipiKlasorleri().some((k) => ayniYol(path.dirname(path.resolve(y)), k));
 }
 

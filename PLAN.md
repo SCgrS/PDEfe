@@ -4152,3 +4152,102 @@ haline gelmesi lazım." (gönderdiği form depoya girmez)
   (her sayfada "Sayfa n / 14", değerler var), kaydet: MuPDF onarmadan açıyor, kullanım hakları imzası yok, veride 2 başvurucu / 2 temsilci / 4
   açıklama grubu ve değerler, yeniden açınca 14 sayfa ve değerler. 9 sayfanın ekran görüntüsüne bakıldı: Taşan yazı yok, Türkçe harfler, çerçeveler
   ve döndürülmüş kenar başlıkları doğru, koyulaştırılmış sayfada okunuyor.
+
+#### 0.3.1: Linux sürümü (AppImage)
+Kullanıcı: "Linux için bir sürüm yapacağız bir de. AppImage olabilir gibi düşünmüşüz daha önce." Ayrı çalışma ağacında, `linux-0.3.1` dalında
+(main'in 726484f'inden). Bu bilgisayarda Linux yok (WSL ve Docker de kurulu değil): Linux'ta derleme ve sınama GitHub Actions'ta (ubuntu-22.04,
+Xvfb), macOS'taki (0.2.0) düzenle. Dal gönderilmedi: İlk CI koşusu kullanıcı onayı bekliyor.
+- [x] **Paket** (electron-builder.yml `linux`, `appImage`, `toolsets`): Tek dosya AppImage, x64, `PDEfe-Linux.AppImage` (README'deki sabit
+  `releases/latest/download` bağlantısı için sürümsüz ad. electron-updater adında sürüm olmayan dosyayı yerinde değiştirir). .desktop:
+  `pdefe.desktop` (`executableName`, package.json `desktopName`, Wayland app_id ve `StartupWMClass` aynı), `MimeType=application/pdf;`
+  (`linux.mimeTypes`: `fileAssociations.mimeType` yeni bir MIME türü tanımlardı), `Categories=Office;Viewer;`, simge build/icon.png (512).
+  Çekirdek, UDE köprüsü ve lisanslar `extraResources`'ta. `linux.publish` (github): AppImage'ın içinde `app-update.yml`, yanında
+  `latest-linux.yml` (blockmap AppImage'ın içinde gömülü).
+  - **arm64 yok** (gerekçe): Linux arm64 masaüstü az (Raspberry Pi, birkaç ARM dizüstü), ikinci indirme bağlantısı, ikinci çekirdek derlemesi
+    ve ikinci sınama ister. Eklenecekse CI'da `ubuntu-22.04-arm` (herkese açık depoda ücretsiz), ayrı dosya `PDEfe-Linux-arm64.AppImage`,
+    electron-updater için `latest-linux-arm64.yml`.
+  - **Durağan AppImage çalışma ortamı** (`toolsets.appimage: "1.0.3"`): Eski ortam (FUSE 2) bilgisayarda libfuse2 ister. Ubuntu 22.04 ve
+    sonrası onu kurulu getirmiyor, AppImage çift tıklanınca hiç açılmazdı. Durağan ortam kendi FUSE'unu taşır (fusermount3 yeter). electron-builder
+    bunu "beta" diye anıyor: CI'da FUSE'la gerçek bağlama sınanır, sorun çıkarsa `"0.0.0"`a dönülür ve README'deki not libfuse2'yi söyler.
+    AppRun `unshare -Ur` denemesiyle kullanıcı ad alanı yoksa (Ubuntu 24.04'ün AppArmor kısıtı) kendisi `--no-sandbox` ekler.
+  - **glibc**: Çekirdek (PyInstaller) derlendiği sistemin glibc'sini ister. ubuntu-22.04 (2.35): Ubuntu 22.04, Debian 12, Fedora 36, Mint 21
+    ve sonrası. ubuntu-latest daha yeni glibc'yle derlerdi.
+- [x] **Çekirdek** (core/pdefe-core.spec, yeni core/islemler/linux.py):
+  - Spec'te macOS dalı `else`'teydi (Linux'ta pyobjc aranıyordu): `elif MAC`. Linux'ta yazı tanıyıcı yok (winrt / Vision yok), çekirdek
+    "desteklenmiyor" döner, arayüz bunu zaten işliyordu (taranmış yazı seçilemez, UDF'de sayfa resim kalır).
+  - **Yazı notu fontu**: notlar.py Linux'ta da `C:\Windows\Fonts\arial.ttf` yolunu döndürüyordu (FreeText kaydı düşerdi). Dosyayı fontconfig
+    seçer (`fc-match aile:weight=…:slant=…`). Yalnız istenen aile ya da ölçüleri aynı eşi (Liberation, Arimo / Tinos / Cousine, Carlito:
+    Chromium'un da Linux'ta CSS ailesinin yerine koydukları) alınır, yoksa Arial'in eşi, o da yoksa fontconfig'in Arial için seçtiği TrueType
+    (DejaVu Sans). Yalnız .ttf (çekirdek CIDFontType2 olarak gömer). Arayüz Segoe UI ve Calibri'yi Linux'ta da macOS'taki gibi Arial'e düşürür:
+    ekranda görünen yazıyla kaydedilen yazı aynı. notlar.py'de yalnız `_font_dosyasi`'na iki satırlık dal (çakışma az olsun diye).
+  - **Dış programların ortamı**: PyInstaller ve AppRun LD_LIBRARY_PATH'in başına kendi klasörlerini koyar. Çekirdeğin başlattığı LibreOffice,
+    Java ve fc-match o kitaplıkları yükleyebilirdi. Çekirdek açılırken bu klasörler değişkenden çıkarılır (`ortami_temizle`, PyInstaller'ın
+    `LD_LIBRARY_PATH_ORIG`'i varsa o temel). Çekirdeğin kendisi etkilenmez: ld.so değişkeni süreç başlarken okur.
+  - **UYAP Doküman Editörü**: Linux'ta yalnız ayardaki klasör aranıyordu. Uygulama menüsü kayıtları (.desktop: Exec'teki program, mutlak yollu
+    argümanlar, Path), /opt, /usr/local, /usr/share ve ev klasöründe adı UYAP'a benzeyenler (`_ude_klasoru` editor_lib.jar'ı arar). Java için
+    /usr/lib/jvm. Gerçek bir Linux UDE kurulumunda denenmedi (DOGRULAMA).
+  - **LibreOffice**: /usr/bin, /usr/lib/libreoffice, /opt/libreoffice*, PATH. Snap ve Flatpak paketleri alınmaz (kapalı alanda /tmp'deki
+    belgeyi ve profili göremiyorlar). Linux'ta "Word yok" iletisi yalnız LibreOffice'i söyler. Dış süreç Linux'ta ayrı süreç grubunda, iptalde
+    grubun hepsi öldürülür (soffice kabuk betiği, asıl işi soffice.bin yapar).
+- [x] **Ana süreç** (yeni src/main/linux.js):
+  - Menü kaydından açılan dosyalar adres olarak gelir (`Exec=AppRun … %U`: `file:///…`, %-kodlu). argvdenDosyalar yola çevirir. Önceden yol
+    sanılıp bulunamıyor, çift tıklanan PDF açılmazdı.
+  - `app.relaunch` AppImage'da AppImage dosyasını başlatır: uygulamanın kendi yolu PDEfe kapanınca kalkan bağlama klasöründe (kapanırken gelen
+    dosya, güncelleme).
+  - **Güncelleme**: AppImage'da electron-updater (AppImageUpdater). Kök neden (kodla bulundu): `quitAndInstall(true, true)` yeni AppImage'ı
+    hemen başlatıyordu. Tek örnek kilidi kapanmakta olan eski süreçte olduğundan yeni süreç dosyayı ona iletip çıkacak, PDEfe yeniden
+    açılmayacaktı. Linux'ta `quitAndInstall(true, false)` dosyayı değiştirir, yeniden başlatma `app.relaunch` ile eski süreç çıktıktan sonra
+    (guncelleme.js `yenidenBaslat`). Kurulum başlatılamazsa yeniden başlatma kurulmaz. AppImage dışında (APPIMAGE yok: açılmış paket) macOS'taki
+    gibi sürüm akışı ve "İndir" (PDEfe-Linux.AppImage tarayıcıda), arayüze 'guncelleme:var' ve 'guncelleme:durum'da `tarayicida`.
+  - **Standart yazı tipleri** (PDF.js'in gömülü olmayan Times / Helvetica / Courier'si): fontconfig'e sorulur (12 fc-match, paralel, bir kez),
+    yalnız ölçüleri aynı eş (Liberation, Croscore, URW Nimbus, TeX Gyre; .ttf / .otf). `dosya:oku` Linux'ta yazı tipi köklerinin altını
+    (alt klasörler de) ve fontconfig'in verdiği dosyayı okur. Bulunamazsa PDF.js'in kendi yedeği.
+  - **Varsayılan PDF programı**: AppImage kendini menüye eklemez. "Varsayılan PDF görüntüleyici yap" `~/.local/share/applications/pdefe.desktop`
+    kaydını (simgesi `~/.local/share/icons/hicolor/512x512/apps/pdefe.png`, `TryExec`, PDEfe işareti `X-PDEfe-Kaydi=1`) yazar,
+    `update-desktop-database` ve `xdg-mime default pdefe.desktop application/pdf`. AppImage taşınırsa kayıt açılışta yeni yola çevrilir.
+    Durum `xdg-mime query default application/pdf` (AppImageLauncher'ın `appimagekit_…-pdefe.desktop`'ı da sayılır).
+  - **PDF'i kopyala**: Electron 44'ün panosuna tek yazımda (`clipboard.write([ClipboardItem])`) `text/uri-list` (KDE, tarayıcılar),
+    `x-special/gnome-copied-files` ("copy" ve adres: GNOME Dosyalar, Nemo, Caja) ve düz metin yol. Ham türler `electron application/osclipboard;
+    format=…` adıyla. Yazım tutmazsa xclip ya da wl-copy (tek tür). Panodan dosya yapıştırmada GNOME'un türü de okunur. Linux'ta pano PDEfe'nin
+    penceresindedir: pano yöneticisi yoksa PDEfe kapanınca boşalır.
+  - **Yazdırma**: `webContents.print` Linux'ta CUPS'a gider (değişmedi). Varsayılan yazıcı `lpstat -d` (macOS'taki gibi), "Yazıcı ayarları"
+    CUPS'ın yazıcı sayfasını (localhost:631) tarayıcıda açar, yazıcı yok iletisi Linux'a göre. Sistem programları AppImage'ın kitaplık klasörü
+    olmadan çalışır (`sistemOrtami`).
+  - Yaklaşık UDF çiziminde salt okunur denetimi macOS'taki gibi (rename klasörün iznine bakar). Yazı notunun varsayılan yazı tipi Arial.
+  - Değişmeyenler: Tek örnek (`requestSingleInstanceLock`, Windows'taki gibi argv), menü (Windows şablonu, `&` kısayolları GTK'da da),
+    kısayollar (Ctrl), Klasörde göster (`shell.showItemInFolder`: dosya yöneticisinin D-Bus arayüzü), varsayılan programla açma
+    (`shell.openPath`, xdg-open), Geri Dönüşüm Kutusu (`shell.trashItem`, GIO). Kurucuya özgü yerler (NSIS sayfaları, kurulu sürüm sayfası,
+    `query-session-end`) Linux'ta yok.
+- [x] **Arayüz** (platform.js `LINUX`, `YALNIZ_ORTAK_YAZI_TIPLERI`): Linux Windows dalına düşüyordu (kısayollar ve davranış için doğru).
+  Ayrılanlar: yazı notunun yazı tipleri (Arial, Times New Roman), dosya izni iletileri (araçların kayıt sorusu, belge kaydedilemedi, otomatik
+  kayıt: "başka bir programda açık" yerine Özellikler › İzinler), sistem adları ("Linux yazdırma penceresiyle yazdır", "Linux çizimi",
+  "Dosya yöneticisinden"), Ayarlar'da varsayılan PDF (sonuç hemen yeniden okunur, yapılamazsa neden), güncelleme (AppImage dışında İndir ve
+  elle değiştirme), yazdırma penceresi ("Yazıcı ayarları", CUPS). Yeni metinlerde noktalı virgül yok. Çakışma için goruntuleyici.js, arama.js'e
+  dokunulmadı; uygulama.js (iki ileti), yazdir.js (üç satır), notlar.js (üç satır ve içe aktarma) ve guncelleme.js'te yalnız bu satırlar.
+  `document.documentElement.dataset.platform` Linux'ta 'windows' kaldı (görünüm Windows'taki gibi).
+- [x] **CI** (yayim.yml `linux` işi, ubuntu-22.04): Python 3.12 ve çekirdeğin paketleri, `test/linux_cekirdek_testi.py` (kaynaktan),
+  PyInstaller, `electron-builder --linux --x64 --publish never`, örnek belgeler (PDF, taranmış PDF, python-docx ile Word), `xvfb-run` altında
+  `test/linux_duman.mjs`, etikette AppImage ile latest-linux.yml'in sınamadan sonra `gh release upload`'la taslak sürüme yüklenmesi. Sınama
+  için sistem paketleri (AppImage'ın kendisi istemez): Xvfb, xdotool, xclip, xdg-utils, desktop-file-utils, Liberation ve DejaVu, CUPS ve
+  cups-pdf (gerçek baskı ~/PDF'e), LibreOffice Writer, gerekirse fuse3. workflow_dispatch'te `platform=linux`. Windows ve macOS işlerinin
+  koşulları aynı anlamda yeniden yazıldı (`inputs.platform != 'mac'` yerine hepsi / windows; etikette hepsi çalışır); yayımlama üç paketi
+  bekler, sürüm gövdesinde Linux bağlantısı, kısa kurulum ve SHA-256. Çıktılar 1 gün.
+- [x] **Seçilmeyen yollar**: .deb / .rpm / Flatpak / Snap (dağıtıma göre ayrı paket, depoya ya da mağazaya yükleme, ayrı güncelleme yolu;
+  AppImage tek dosya ve electron-updater'la kendini günceller). Linux'ta yazı tanıma (Tesseract'ı pakete katmak ~30 MB ve Türkçe veri ister,
+  sistemdekini aramak dağıtıma bağlı: kullanıcı isterse ayrı madde). AppImage'ın eski FUSE 2 ortamı (libfuse2 ister, yukarıda).
+  electron-updater'ın `isForceRunAfter`'ı (yeni AppImage tek örnek kilidine takılırdı, yukarıda). Snap / Flatpak LibreOffice'i geçici klasörü
+  ev klasörüne taşıyarak desteklemek (Snap gizli klasörlere de erişmiyor, yol dağıtıma göre değişir). Electron'un `clipboard.writeBuffer`'ı
+  (Electron 44'te yok; tek türü yazardı).
+- [x] **Testler (bu bilgisayar, Windows)**: Yeni `test/linux_cekirdek_testi.py` A bölümü 25/25 (ortam temizliği, fc-match yanıtı ve font seçimi
+  sahte fontconfig'le, .desktop'tan UDE, Snap / Flatpak eleme; B bölümü Linux'ta), yeni `test/linux_birim.mjs` 17/17 (Exec kaçışları, menü
+  kaydı, standart yazı tipleri, ortam, pano türleri), yeni `test/linux_renderer.mjs` 23/23 (ekran dışı test örneğinde gizli 'linux' ve 'win32'
+  çerçeveleri), `test/guncelleme-e2e/birim.mjs` 88/88 (4'ü yeni: AppImage kurulumu ve yeniden başlatma, kurulum hatasında yeniden başlatma yok,
+  tarayıcıdan indirme, Windows'ta `tarayicida` yok). Gerileme: `test/mac_renderer.mjs` 46/46, mac_cekirdek_testi 14/14, guvenlik_testi 47/47,
+  donustur_testi 265/265, guvenlik_birim, pano_birim. electron-builder yapılandırması şemaya göre geçerli (validateConfiguration). Windows test
+  örneğinde standart yazı tipleri eskisi gibi (12 dosya).
+- [ ] **İlk CI koşusu** (dal gönderilince `gh workflow run yayim.yml --ref linux-0.3.1 -f platform=linux`): kaynaktan çekirdek testi (B
+  bölümü: fontconfig'le Türkçe yazı notu, izinler, salt okunur, ocr "desteklenmiyor", LibreOffice'le Word → PDF), PyInstaller, AppImage,
+  linux_duman.mjs. Bilinen riskler: durağan AppImage ortamının (beta) runner'da FUSE'la bağlanması (olmazsa sınama açılmış hâlden sürer,
+  UYARI), Electron 44'ün ham pano türleri (tutmazsa xclip yedeği, UYARI), cups-pdf'in AppArmor'la ~/PDF'e yazması (UYARI), Ctrl+F'nin xdotool'la
+  menüye ulaşması, ubuntu-22.04 runner görüntüsünün ömrü (GitHub kaldırırsa çekirdeği eski glibc'li bir kapta derlemek gerekir).
+- [ ] Gerçek bir Linux masaüstünde elle deneme: docs/DOGRULAMA.md 46 › Linux.
