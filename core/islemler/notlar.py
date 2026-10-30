@@ -1520,6 +1520,8 @@ def kullanim_hakki_var(doc):
     """Belgede kullanım hakları imzası var mı (/Perms /UR3, /UR). E-imza değildir: Formun ücretsiz okuyucuda doldurulup kaydedilebilmesi için
     üreticinin koyduğu imzadır."""
     kat = doc.pdf_catalog()
+    if kat <= 0:   # kataloğu okunamayan belge: Kayıt bu yüzden düşmesin
+        return False
     return doc.xref_get_key(kat, "Perms/UR3")[0] != "null" or doc.xref_get_key(kat, "Perms/UR")[0] != "null"
 
 
