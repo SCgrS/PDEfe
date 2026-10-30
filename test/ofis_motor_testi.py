@@ -1178,32 +1178,39 @@ def wps_ayar_bolumu():
     sonuc("Quit: Bizim iki süreç kapandı", wps_otomasyon_bitti_mi(once, 10), wps_otomasyon_surecleri())
 
 
-def wps_sonlandirma_bolumu(g):
-    """Gerçek WPS, süren dönüştürme: İptal ve çekirdeğin kapanması. Bizim süreç sonlanır (iki kez), altındaki de gider, yardımcılar yerinde, sonraki iş çalışır."""
-    print("— F) WPS: İptal ve kapanış")
+def _buyuk_belge():
+    """~14 sn süren belge (300 sayfa): İptal ve kapanış çevirme sürerken denenir."""
     k = os.path.join(CIKTI, "wps_sonlandirma")
     os.makedirs(k, exist_ok=True)
     buyuk = os.path.join(k, "büyük belge.docx")
-    W.docx_yaz(buyuk, [("Başlık %d Çığöşü" % (i + 1), W.paragraflar(i, 4)) for i in range(300)], tablo=False)   # ~14 sn
+    W.docx_yaz(buyuk, [("Başlık %d Çığöşü" % (i + 1), W.paragraflar(i, 4)) for i in range(300)], tablo=False)
+    return k, buyuk
 
-    def cevrilene_dek(s, sure=30):
-        s.sayac += 1
-        kimlik = s.sayac
-        h = os.path.join(k, "h%d.pdf" % s.p.pid)
-        s.p.stdin.write(json.dumps({"id": kimlik, "method": "bicim_donustur", "params": {"ogeler": [{"yol": buyuk, "hedef": h, "hedefBicim": "pdf"}]}}, ensure_ascii=False).encode("utf-8") + b"\n")
-        s.p.stdin.flush()
-        son = time.time() + sure
-        while time.time() < son:
-            m = s.satirlar.get(timeout=sure)
-            if m and m.get("id") == kimlik and "çevriliyor" in str((m.get("progress") or {}).get("mesaj")):
-                time.sleep(1)
-                return kimlik, h
-        raise RuntimeError("çevirme aşamasına gelinmedi")
+
+def _cevrilene_dek(s, k, buyuk, sure=30):
+    s.sayac += 1
+    kimlik = s.sayac
+    h = os.path.join(k, "h%d.pdf" % s.p.pid)
+    s.p.stdin.write(json.dumps({"id": kimlik, "method": "bicim_donustur", "params": {"ogeler": [{"yol": buyuk, "hedef": h, "hedefBicim": "pdf"}]}}, ensure_ascii=False).encode("utf-8") + b"\n")
+    s.p.stdin.flush()
+    son = time.time() + sure
+    while time.time() < son:
+        m = s.satirlar.get(timeout=sure)
+        if m and m.get("id") == kimlik and "çevriliyor" in str((m.get("progress") or {}).get("mesaj")):
+            time.sleep(1)
+            return kimlik, h
+    raise RuntimeError("çevirme aşamasına gelinmedi")
+
+
+def wps_iptal_bolumu(g):
+    """Gerçek WPS, süren dönüştürmede iptal: Bizim süreç sonlanır, altındaki de gider, yardımcılar yerinde, sonraki iş çalışır. Bir süreç sonlanır: --wps-sonlandirma."""
+    print("— F) WPS: İptal")
+    k, buyuk = _buyuk_belge()
     once = wps_otomasyon_surecleri()
     bulut = surec_say("wpscloudsvr.exe")
     s = W.Surec(None, {"PDEFE_OFIS_MOTORU": "wps"})
     try:
-        kimlik, h = cevrilene_dek(s)
+        kimlik, h = _cevrilene_dek(s, k, buyuk)
         t0 = time.time()
         s.sayac += 1
         s.p.stdin.write(json.dumps({"id": s.sayac, "method": "iptal", "params": {"id": kimlik}}).encode("utf-8") + b"\n")
@@ -1224,10 +1231,18 @@ def wps_sonlandirma_bolumu(g):
         sonuc("iptalden sonra yeni dönüştürme", r.get("basarili") == 1 and r["sonuclar"][0].get("motor") == "wps", r)
     finally:
         s.kapat()
+
+
+def wps_kapanis_bolumu():
+    """Gerçek WPS, süren dönüştürmede çekirdek kapanıyor (PDEfe kapatılıyor). Bir süreç sonlanır: --wps-sonlandirma."""
+    print("— F) WPS: Süren işle kapanış")
+    k, buyuk = _buyuk_belge()
+    once = wps_otomasyon_surecleri()
+    bulut = surec_say("wpscloudsvr.exe")
     s = W.Surec(None, {"PDEFE_OFIS_MOTORU": "wps"})
     cekirdek = s.p.pid
     try:
-        _, h = cevrilene_dek(s)
+        _, h = _cevrilene_dek(s, k, buyuk)
         t0 = time.time()
         s.p.stdin.close()
         s.p.wait(timeout=20)
@@ -1618,7 +1633,8 @@ def main():
                 if "--wps-kullanici" in sys.argv:
                     testler.append(lambda: wps_kullanici_bolumu(g))
                 if "--wps-sonlandirma" in sys.argv:
-                    testler.append(lambda: wps_sonlandirma_bolumu(g))
+                    testler.append(lambda: wps_iptal_bolumu(g))
+                    testler.append(wps_kapanis_bolumu)
     for t in testler:
         try:
             t()
