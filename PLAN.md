@@ -4105,7 +4105,7 @@ haline gelmesi lazım." (gönderdiği form depoya girmez)
   yazdır, kapat, sekme değiştirme ve taşıma) AcroForm'daki gibi.
 - [x] **PDF.js hatası**: PDF.js'in XFA veri yazıcısı annotationStorage boşken (hiç alan değişmemişken) "Cannot read properties of null" ile
   çöküyor. Depoya hiçbir veri kimliğine uymayan, yazımda yok sayılan bir kayıt konur (goruntuleyici.js xfaBaytlari).
-- [x] **Kaydetme** (xfa_kaydet): PDF.js'in kaydettiği baytlar (güncel veri) baştan yazılır (girilen değerlerin eski hâlleri dosyada kalmaz,
+- [x] **Kaydetme** (Sonradan değişti: Kayıt atomik, kullanım hakları imzalı formda artımlı ve imza kalır, bkz. aşağıda "XFA formunun kayıt mekanizması" ve "XFA formunda kayıp avı". Bu madde ilk karardır) (xfa_kaydet): PDF.js'in kaydettiği baytlar (güncel veri) baştan yazılır (girilen değerlerin eski hâlleri dosyada kalmaz,
   AcroForm'daki temiz yazım kuralı gibi), dosya yerine konur (dosyayi_yerine_koy). Kullanım hakları imzası kaldırılır (/Perms'te DocMDP varsa
   yalnızca UR3 ve UR): İmza belgenin özgün baytlarını kapsar, değişen belgede geçersizdir. Geçersiz imzalı formu referans okuyucu "genişletilmiş
   özellikler artık kullanılamaz" uyarısıyla açar, imzasız formu olağan form olarak açar ve doldurtur. Formun durum paketi (form) olduğu gibi

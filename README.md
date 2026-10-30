@@ -185,6 +185,8 @@ sayfası olan belgede iki tür sayfada da aranır. Linux'ta yalnızca PDF'in ken
   düğmelerle bölüm eklenir ve silinir, sayfa numaraları yenilenir, Geri al eklenen bölümü de geri alır. Bu formlarda Not, Vurgu, Yazı ve sayfa döndürme
   kapalıdır, Sıkıştır, Sayfaları düzenle, Döndür, Ayır ve Format Değiştir kullanılamaz, Birleştir bu formları almaz. Alana sığmayan yazı kırmızı çerçeveyle
   işaretlenir, sığmayan kısım basılmaz.
+- **Formu kaydetme:** `Ctrl+S` ve formdaki Formu Kaydet düğmesi alandan çıkılmamış yazıyı da alır. Kayıt yapılamazsa dosya bozulmaz, yazdıklarınız ekranda kalır. Dosya
+  başka bir programda açıksa PDEfe programın adını söyler: **Yeniden dene**, **Farklı kaydet** ya da **Vazgeç**. Dosya başka bir programda değiştiyse üzerine sessizce yazmaz, sorar.
 - **Sınırlar:** Doldurulabilir PDF'lerde formun Gönder, Yazdır gibi düğmeleri çalışmaz. XFA formlarında ekle, sil, kaydet ve yazdır düğmeleri çalışır, Gönder ve
   özel betikli düğmeler çalışmaz. Hesaplama yapan alanlar PDEfe'de çalışmaz. İmza alanına PDEfe'den imza atılamaz.
 

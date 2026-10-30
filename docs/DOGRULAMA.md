@@ -1314,3 +1314,6 @@ Formda kayıp avı (Otomatik sınandı. Referans okuyucuyla birlikte kullanım v
 98. **İki programda sırayla.** Form iki programda açıkken referans okuyucuda bir şey yazıp kaydedin, sonra PDEfe'de yazıp Ctrl+S'e basın: "Dosya başka bir programda değişmiş" sorusu çıkmalı, Farklı kaydet önerilmeli, referans okuyucudaki yazı sessizce silinmemeli.
 99. **Dikte ve yapıştırma.** Form alanına dikte programınızla yazın, Word'den uzun bir yazı yapıştırın: Yazı alana girmeli, sekmede nokta çıkmalı. Ctrl+S'ten hemen sonra yazmaya devam edip yeniden Ctrl+S'e basın: İki yazı da kaydedilmeli.
 100. **Başka programdan sürükleme.** Word'den seçili yazıyı boş bir form alanına sürükleyin: Yazı alana girmeli, sekmede nokta çıkmalı, kaydedip yeniden açınca yerinde olmalı.
+
+Bu kurucuyu kurarken
+101. **Aynı sürümün üstüne kurulum.** Dosya Gezgini'nde bir PDF'e sağ tıklayıp menüyü bir kez açın (Gezgin sağ tık eklentisini yükler), Gezgin'i kapatmadan bu kurucuyu kurun: Kurulum takılmamalı, hata vermemeli. Sonra aynı dosyada sağ tıklayın: PDEfe ile dönüştür yine çıkmalı ve Format Değiştir'i açmalı. Otomatik sınamada deneme kurucusuyla yapıldı, gerçek Gezgin'le yapılmadı.
