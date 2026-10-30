@@ -182,7 +182,8 @@ sayfası olan belgede iki tür sayfada da aranır. Linux'ta yalnızca PDF'in ken
 - **E-imzalı formlar:** Boş bir alanı doldurmak imzayı bozmaz. Dolu bir alan değiştirilince PDEfe sorar.
 - **Dinamik (XFA) formlar:** Bireysel başvuru formu gibi formlar "Please wait" sayfası yerine formun kendisiyle açılır, doldurulur. Formdaki
   düğmelerle bölüm eklenir ve silinir, sayfa numaraları yenilenir, Geri al eklenen bölümü de geri alır. Bu formlarda Not, Vurgu, Yazı ve sayfa döndürme
-  kapalıdır, Sıkıştır, Sayfaları düzenle, Döndür, Ayır ve Format Değiştir kullanılamaz.
+  kapalıdır, Sıkıştır, Sayfaları düzenle, Döndür, Ayır ve Format Değiştir kullanılamaz, Birleştir bu formları almaz. Alana sığmayan yazı kırmızı çerçeveyle
+  işaretlenir, sığmayan kısım basılmaz.
 - **Sınırlar:** Formun Gönder, Yazdır gibi düğmeleri ve hesaplama yapan alanlar PDEfe'de çalışmaz. İmza alanına PDEfe'den imza atılamaz.
 
 ### Araçlar

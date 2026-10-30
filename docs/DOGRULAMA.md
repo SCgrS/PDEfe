@@ -1277,3 +1277,12 @@ Güncelleme şeridi
 74. **Görünüm.** Bu sürümden sonraki ilk sürüm çıkınca pencerenin üstündeki şeride bakın: İki satırlı, kalın başlıklı ("Güncelleme var") belirgin
     bir kart olmalı, düğmeler büyük olmalı. İndirirken ilerleme çubuğu kalın görünmeli. Pencereyi daraltın: Düğmeler ve çubuk yazının altına inmeli,
     yazı kesilmemeli. Açık ve koyu temada bakın.
+
+Kabul sınamasının düzeltmeleri (gönderdiğiniz belgelerin kopyalarıyla paketli sürümde sınandı, gerçek ekranınızda denenmedi)
+75. **Bul'da birden çok sözcük.** Taranmış belgede bir satırın son sözcüğü ile sonraki satırın ilk sözcüğünü aralarında boşlukla arayın: Bulunmalı, vurgu iki satırda görünmeli.
+76. **Formda Tab.** Bireysel başvuru formunda bir alana tıklayıp Tab'a basın: Alanlar satır satır, soldan sağa gezilmeli, başka bölüme atlamamalı. Bu sıra işinize gelmezse söyleyin
+    (sütun sütun da olabilir). Tab bir düğmeye geldiğinde Boşluk ya da Enter düğmeye basmalı.
+77. **Uzun yazı.** Formun büyük açıklama alanlarından birine kutuya sığmayacak kadar uzun bir metin yapıştırın: Alan kırmızı çerçeve almalı, kısa bir uyarı çıkmalı, Yazdır penceresinin üstünde sarı uyarı
+    görünmeli. Kâğıtta yalnızca alanın içine sığan kısım çıkar. Metni kısaltınca çerçeve kalkmalı.
+78. **Boş satır.** Çok satırlı bir alanda iki paragraf arasına boş satır koyun, Kaydet'e basıp formu kapatıp açın: Boş satır yerinde olmalı, yazdırınca da çıkmalı.
+79. **Araçlarda form.** Bireysel başvuru formuna Gezgin'de sağ tıklayıp PDEfe ile dönüştür deyin: Satırda kırmızıyla XFA uyarısı olmalı, Dönüştür soluk olmalı.

@@ -4597,3 +4597,36 @@ Kullanıcı: "güncelleme şeridini daha büyük ve belirgin yapalım. bana gös
   docs/DOGRULAMA.md 46 madde 74. TDK denetimi: README, CHANGELOG, bu bölüm ve DOGRULAMA 46, kalan öneriler dosya ve işlev adları.
 - [x] **Yerel kurucu** (`npm run yayim:hazirla`, 5e24a01'den, sürüm numarası 0.3.0 kaldı): Paketli duman 18/18, gercek_fare -Paketli 9/9. Ayrıca paketli çekirdekle kurgusal
   belgelerde (depoya girmedi) 13/13: Form alanı yazma, görünüm ve kayıt, XFA'da bölüm ekleme, taranmış belgede Bul, iç bağlantı katmanı. Kurulmadı.
+
+#### 0.3.1: kabul sınaması (kullanıcının belgelerinin kopyalarıyla, paketli sürümde)
+Paketli sürüm (`electron-builder --win --dir`, görünmeyen masaüstü), gerçek fare ve klavye (CDP Input), ekran görüntüleri tek tek bakıldı. Belgeler (taranmış 39 sayfa,
+içindekilerli, dinamik XFA formu) yalnız kopyalarıyla kullanıldı, içerikleri depoya girmedi. Yerel Farklı kaydet kutusu paketli sürümde betikle doldurulamadı (kutu önerilen
+adı alıp "üzerine yazılsın mı" sordu, sınamanın yöntemi): O adım test kancalı geliştirme örneğinde, boşluklu ve Türkçe harfli yolla sınandı.
+- [x] **Bulgu 1, Bul: Satır ya da öbek sonuna taşan sözcükler bulunmuyordu** (taranmış belgede ve PDF metninde): Sayfa metninde satır sonu `\n`, aranan iki sözcük arasındaki boşluğa
+  uymuyordu. Çift boşluk da bulunmuyordu. Düzeltme (arama.js `aramaDeseni`): Aranandaki boşluklar her tür boşluğa ve satır sonuna uyar. Vurgu iki satıra da düşer.
+- [x] **Bulgu 2, Bul: Kopyalanan sözcüğün bir kısmı aranınca bulunmuyordu**: Tanıyıcı noktalamayı ayrı sözcük verir ("Örnek :"), kopyalama yakın duranları birleştirir ("Örnek:"). Belgede
+  kopyalanan 2.337 farklı sözcüğün 19'u Bul'da yoktu. Düzeltme: Noktalamanın iki yanında metinde boşluk olabilir. Sonra 0 eksik. Seçilmeyen: Dizini kopyalamanın
+  birleştirme kuralıyla kurmak (kopya metin çekirdekte satırların geometrisinden çıkar, Bul'un konum eşlemesi tanınan öğelere bağlı).
+- [x] **Bulgu 3, XFA formu araçlarda**: Sağ tıktan ya da Dosya ekle'den gelen form Format Değiştir ve Birleştir'de "1 sayfa" görünüyor, formun yerine "lütfen bekleyin" sayfası
+  işlenip "dönüştürüldü" deniyordu. Düzeltme: Çekirdek saf XFA'yı tanır (xfa.py `saf_xfa_mi`), satırda neden kullanılamadığı yazar, form işlenmez. Sayfaları düzenle'de sayfa eklerken de
+  aynı. Seçilmeyen: Araçların formun düz PDF'iyle çalışması (mümkün, `xfa:duzPdf` var, ama araçlara yeni bir girdi yolu: Karar kullanıcının).
+- [x] **Bulgu 4, XFA: Tab şablondaki sırayla gidiyordu**: Formun şablonunda sekme sırası tanımlı değil, PDF.js denetimleri şablon sırasıyla dizer, Tab aynı bölümün ortasından başka bölüme
+  atlıyordu. Düzeltme (xfa.js `_tabSirasi`, `_tabGec`): Sayfadaki yere göre satır satır, soldan sağa. Sayfa sonunda sonraki sayfanın ilk denetimi (katmanı yoksa beklenir), belge sonunda
+  başa döner, Shift+Tab geriye. Şablonda `traversal` olan formlarda da bu sıra geçerli (kullanıcının formunda yok, kurgusal örnekte de yok, ayrıca işlenmedi).
+- [x] **Bulgu 5, XFA: Odaktaki düğmede Boşluk sayfayı kaydırıyordu**: Belge kısayolu düğmeden önce davranıyordu. Enter çalışıyordu. Düzeltme: XFA düğmesindeyken Boşluk düğmenindir.
+- [x] **Bulgu 6, XFA: Alana sığmayan yazı basımda sessizce kesiliyordu**: Formun alanları kaydırmasız (`vScrollPolicy="off"`), alan yazıyı kendi içinde kaydırıyor, düz PDF ve kâğıtta yalnızca
+  alanın içi çıkıyordu. Düzeltme: Alan kırmızı çerçeve alır (xfa.css `.xfa-tasiyor`), sığmaz olduğu an bir kez bildirilir, yazdırma penceresi "N alandaki yazı alana sığmıyor" der (cizim.js
+  sayar), alandan çıkınca yazının başı görünür. Yazı kesilmez, dosyada kalır. Seçilmeyen: Yazmayı durdurmak (referans okuyucu öyle yapar): Karar kullanıcının.
+- [x] **Bulgu 7, XFA: Boş satırlar kayboluyordu**: PDF.js değeri okurken boş satırları atıyor (`split().filter(Boolean)`). Dosyada duruyordu, ama düğmeye basınca, yazdırınca ve yeniden açınca
+  ekranda ve kâğıtta yoktu. Düzeltme (xfa.js `veriDegeri`): Veriye yazılırken boş satıra bir boşluk konur. Başka programda doldurulmuş formdaki boş satırlar yine görünmez (PDF.js sınırı).
+- [x] **Sorunsuz çıkanlar** (gerçek belgelerle): Taranmış belgede ilk sonuç 3,4 sn, 39 sayfa 14,9 sn, en uzun kare 112 ms, tekerlek gecikmesi en çok 37 ms. Türkçe büyük / küçük harf, tanıma bitmeden
+  "Bulunamadı" yok, iptal, kapatıp açınca bekleme yok. İçindekilerde 36 satır dört yakınlaştırmada (%50, %100, %200, Genişliğe sığdır) doğru sayfa ve konum, kutular 1 px içinde, el imleci, ipucu.
+  Form 0,33 sn'de açılıyor, "Please wait" yok, 9 düğme, Ekle ~0,9 sn, 60 adım geri al ve yinele, kaydet ve yeniden aç, MuPDF onarmıyor, Print to PDF A4 ve düğmesiz, sekme taşıma ve geri getirme, otomatik kayıt,
+  özel karakterler. Kutucuk ve seçenek düğmesi %50, %100, %200, /Rotate 90 ve elle döndürülmüş sayfada, düz belgelerde 12 tıklama hiçbir şey koymadı. Yazdırma A4 ve hatırlama, sağ tık (ilk örnek, açık örnek,
+  araç açıkken yeni pencere, Türkçe harfli ve boşluklu yol), şerit (geniş ve dar), birleşik akış, e-imzalı örnekte imzalanan baytlar aynı.
+- [x] **Bilinen, düzeltilmedi**: Harf aralıklı başlıklar PDF.js metninde harf harf ("A M A Ç"): Bitişik yazınca bulunmaz (harfler arasına boşluk izni yanlış eşleşme getirirdi). Tablo hücreleri:
+  Kopyalamada yan yana çıkan iki hücre tanıyıcıda ayrı satırsa iki sözcüklü aramada bitişik sayılmaz, tek sözcük bulunur. Tek satırlık alanın başındaki boşluk yeniden dizilince düşer. Bölüm başlıklarının
+  çubukta 3 px kadar aşağıda durması (yazı tipi yedeğinin ölçüsü). Bağlantıdan geri dönüş (Alt+Sol) yok, Alt+Sol olağan yatay ok gibi davranıyor.
+- [x] **Testler**: senaryo46 43/43 (yeni 8. bölüm), senaryo48 69/69 (yeni 16. bölüm), senaryo49 25/25 (XFA formu araçlarda), xfa_testi 58/58, form_testi 109/109, donustur_testi 277/277, guvenlik_testi 47/47,
+  tanima_testi 72/72, senaryo47 77/77, kisayol_dosya 164/164, kisayol_araclar 102/102, senaryo25 30/30, senaryo36 59/59, senaryo37 67/67, senaryo38 64/64, senaryo39 54/54, senaryo40 18/18, senaryo45 122/122, tum_secim 52/52,
+  panel_kuyruk 42/42, ortu_tiklama 164/164, yazdir_pencere 61/61, yazdir_gercek 25/25, kayit_sekme_panel 61/61, senaryo24 38/38. Yerel kurucu bu düzeltmelerden önce derlendi, yenilenmeli.
