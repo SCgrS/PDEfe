@@ -434,6 +434,31 @@ function bolumKaydetme(k) {
   }));
   k.append(el('h3', {}, 'Format Değiştir'));
   udeKarti(k);
+  ofisKarti(k);
+}
+
+/**
+ * Word belgelerini çeviren program (0.3.1): Sıra Word, WPS Office, LibreOffice (çekirdekte word.py); ayar yok, yalnız hangisinin kullanılacağı söylenir (donusum_yetenekleri).
+ */
+function ofisKarti(k) {
+  const durum = el('div', { class: 'ayar-ude-durum soluk' }, 'Aranıyor…');
+  const kartEl = kart({
+    baslik: 'Word belgeleri',
+    aciklama: MAC || LINUX
+      ? 'Word belgeleri PDF\'e bilgisayardaki LibreOffice ile (pencere açılmadan) dönüştürülür. LibreOffice yoksa bu dönüştürme yapılamaz. PDF → Word için program gerekmez.'
+      : 'Word belgeleri PDF\'e bilgisayardaki programla (pencere açılmadan, açık belgelerinize dokunmadan) dönüştürülür. Sıra: Microsoft Word, WPS Office, LibreOffice. Biri başlamazsa sıradaki kullanılır, sonuçta hangisi olduğu söylenir. Hiçbiri yoksa bu dönüştürme yapılamaz. PDF → Word için program gerekmez.',
+    alt: durum,
+  });
+  k.append(kartEl);
+  (async () => {
+    let y = null;
+    try { y = await acik?.baglam.cekirdek?.('donusum_yetenekleri', {}); } catch (e) { console.warn('Word programı durumu alınamadı', e); }
+    if (!kartEl.isConnected) return;
+    const w = y?.word;
+    const satir = !y ? 'Durum alınamadı.' : w?.var ? `Kullanılacak program: ${w.motorAdi || w.motor}` : (w?.neden || 'Bu bilgisayarda Word belgesini çevirecek program bulunamadı.');
+    durum.replaceChildren(el('div', { class: 'ayar-yol' }, satir));
+    durum.className = `ayar-ude-durum ${w?.var ? 'soluk' : 'ayar-sonuc-hata'}`;
+  })();
 }
 
 /**

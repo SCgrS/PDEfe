@@ -1091,7 +1091,7 @@ def pdf_udf(kaynak, cikti, secenekler, ilerleme, baglam):
             uyarilar.append("%d taranmış sayfanın yazısı tanınamadı%s: o sayfalar resim olarak kondu."
                             % (tanima_yok, " (bu bilgisayarda yazı tanıyıcı yok)" if yt._motor is False else ""))
         elif any(s.tanindi for s in sayfalar):
-            uyarilar.append("Taranmış sayfaların yazısı yazı tanımayla çıkarıldı; harf yanlışları olabilir.")
+            uyarilar.append("Taranmış sayfaların yazısı yazı tanımayla çıkarıldı. Harf yanlışları olabilir.")
         if yazi_yok:
             uyarilar.append("%d taranmış sayfada yazı bulunamadı: %s resim olarak kondu." % (yazi_yok, "sayfa" if yazi_yok == 1 else "sayfalar"))
         ilerleme(0.95, "Kaydediliyor")
@@ -1397,7 +1397,7 @@ def _udf_kur(sayfalar, uyarilar):
         # gerekmez; yazılı sayfada yazı alanı kâğıda göre genişleyebilir
         if kagit is KAGITLAR[0] and _a4e_sigar(W, H):
             if not all(sf.taranmis for sf in sayfalar):
-                uyarilar.append("Sayfa ölçüsü (%d × %d pt) UYAP Doküman Editörü'nün kâğıtlarında yok; belge A4 kâğıda kondu." % (round(W), round(H)))
+                uyarilar.append("Sayfa ölçüsü (%d × %d pt) UYAP Doküman Editörü'nün kâğıtlarında yok. Belge A4 kâğıda kondu." % (round(W), round(H)))
         else:
             uyarilar.append("Sayfa ölçüsü (%d × %d pt) UYAP Doküman Editörü'nün kâğıtlarından en yakınına çevrildi." % (round(W), round(H)))
     return {"xml": xml, "paragraf": paragraf_say}

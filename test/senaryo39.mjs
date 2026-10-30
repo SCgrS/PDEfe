@@ -491,7 +491,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     const UDF = 'Karar örneği.udf', TIF = 'Tarama örneği.tif', JPG = 'Taranmış dilekçe.jpg', PDF = 'Dilekçe örneği.pdf';
     // 0.2.8 (kullanıcı isteği): notlarda "kaşe" yok, UDF ve Word notlarında tablolar
     sonuc('Varsayılan hedeflerde: UDF → PDF, TIFF → PDF, görüntü → PDF notsuz; PDF → UDF\'de not ("Satır, sayfa düzeni ve tablolar UDF\'de kayabilir; …")', (await not(UDF)) === '' && (await not(TIF)) === ''
-      && (await not(JPG)) === '' && (await not(PDF)) === 'Satır, sayfa düzeni ve tablolar UDF\'de kayabilir; imza gibi resimler alınmayabilir.', [await not(UDF), await not(TIF), await not(JPG), await not(PDF)]);
+      && (await not(JPG)) === '' && (await not(PDF)) === 'Satır, sayfa düzeni ve tablolar UDF\'de kayabilir. İmza gibi resimler alınmayabilir.', [await not(UDF), await not(TIF), await not(JPG), await not(PDF)]);
     if (D['udf>word']?.var) {
       await hedefTikla(UDF, 'word');
       sonuc('UDF seçiliyken Word\'e tıklanınca hemen satırın altında not: "Sayfa düzeni ve tablolar Word\'de birebir korunmayabilir."', (await not(UDF)) === 'Sayfa düzeni ve tablolar Word\'de birebir korunmayabilir.', await not(UDF));
@@ -501,10 +501,10 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     } else atlandi('UDF → Word notu', 'UDF → Word bu bilgisayarda yapılamıyor (not yalnızca yapılabilen hedefte)');
     if (D['tiff>word']?.var) {
       await hedefTikla(TIF, 'word');
-      sonuc('TIFF → Word: "Taranmış sayfalar Word\'e resim olarak geçer; yazıları düzenlenemez."', (await not(TIF)) === 'Taranmış sayfalar Word\'e resim olarak geçer; yazıları düzenlenemez.', await not(TIF));
+      sonuc('TIFF → Word: "Taranmış sayfalar Word\'e resim olarak geçer. Yazıları düzenlenemez."', (await not(TIF)) === 'Taranmış sayfalar Word\'e resim olarak geçer. Yazıları düzenlenemez.', await not(TIF));
     } else atlandi('TIFF → Word notu', 'TIFF → Word bu bilgisayarda yapılamıyor');
     await hedefTikla(JPG, 'udf');
-    sonuc('Görüntü → UDF: "Yazılar görüntüden tanınarak çıkarılır; …"', (await not(JPG)) === 'Yazılar görüntüden tanınarak çıkarılır; harf yanlışları olabilir, düzen ve tablolar kayabilir.', await not(JPG));
+    sonuc('Görüntü → UDF: "Yazılar görüntüden tanınarak çıkarılır; …"', (await not(JPG)) === 'Yazılar görüntüden tanınarak çıkarılır. Harf yanlışları olabilir, düzen ve tablolar kayabilir.', await not(JPG));
     await hedefTikla(PDF, 'tiff');
     const pdfTiff = await not(PDF);
     await hedefTikla(PDF, 'gorsel');

@@ -255,7 +255,8 @@ Word, TIFF ve görüntü dosyaları PDEfe'nin penceresine bırakılınca, `Ctrl+
   editörün kendi numarası olur. Taranmış sayfa yazı tanımayla düzenlenebilir yazıya çevrilir. Satır, sayfa düzeni ve tablolar
   kayabilir. İmza gibi yazının üstünde ya da yanında duran resimler alınmaz. Sonuçta dosyanın yanındaki ⚠ simgesi bunu söyler.
   Görüntüden ve TIFF'ten yapılan UDF'nin kâğıdı A4'tür.
-- **Word → PDF:** Word'ün kendisiyle. Görünmeyen, ayrı bir Word kullanılır, açık Word'ünüze dokunulmaz. Belgenin yazar adı PDF'e geçmez.
+- **Word → PDF:** Word'ün kendisiyle. Görünmeyen, ayrı bir Word kullanılır, açık Word'ünüze dokunulmaz. Word yoksa WPS Office, o da yoksa
+  LibreOffice kullanılır, sayfa düzeni biraz farklı olabilir. Sonuçta hangi programın kullanıldığı söylenir. Belgenin yazar adı PDF'e geçmez.
   .docx, .docm, .doc, .rtf ve .odt dönüştürülür, makrolar çalıştırılmaz.
 - **PDF → Word:** Metni düzenlenebilir .docx. Taranmış sayfalar resim olarak aktarılır. Sayfa düzeni ve tablolar birebir korunmayabilir.
 - **TIFF → PDF:** Kayıpsız. Her sayfa A4'e sığan en büyük ölçüde (UYAP'ın A4 taramaları tam A4) ve çoğunlukla TIFF'ten küçük.
@@ -273,7 +274,7 @@ Gereksinimler:
 | Dönüştürme | Bilgisayarda gereken |
 |---|---|
 | UDF → PDF | UYAP Doküman Editörü ve kullandığı Java 8. Bulunamazsa UDF yine dönüştürülür, PDEfe'nin yaklaşık çizimiyle: Satır ve sayfa kırılımları editördekinden farklı olabilir. Editörün yeri **Ayarlar › Kaydetme**'den gösterilebilir. |
-| Word → PDF | Windows'ta Word ya da LibreOffice, macOS'ta ve Linux'ta LibreOffice. Linux'ta dağıtımın kendi LibreOffice paketi gerekir, Snap ve Flatpak paketi kullanılamaz. |
+| Word → PDF | Windows'ta Word, WPS Office ya da LibreOffice, macOS'ta ve Linux'ta LibreOffice. Linux'ta dağıtımın kendi LibreOffice paketi gerekir, Snap ve Flatpak paketi kullanılamaz. |
 | PDF → UDF, PDF → Word, TIFF ↔ PDF, görüntü → PDF, PDF → JPG | Bir şey gerekmez. |
 | Taranmış sayfanın yazısı (taranmış belgede seçim ve arama, taranmış PDF, TIFF ya da görüntü → UDF) | Windows'ta Türkçe yazı tanıyıcı (Türkçe Windows'ta hazır gelir). Türkçesi yoksa başka bir dilin tanıyıcısı kullanılır, Türkçe harfler yanlış gelebilir. Hiç yoksa taranmış yazı seçilemez ve aranamaz, UDF'de sayfa resim olarak kalır. macOS'ta bir şey gerekmez. Linux'ta yazı tanıyıcı yok: Taranmış yazı seçilemez ve aranamaz, UDF'de sayfa resim olarak kalır. |
 
@@ -351,7 +352,7 @@ eklenmez. PDEfe internete yalnızca yeni sürüm denetimi için iki günde bir G
 ## Üçüncü taraf bileşenler
 
 PDEfe şu açık kaynak projeler üzerine kuruludur: Electron, PDF.js, PyMuPDF / MuPDF, Python, pdf2docx, python-docx, legaluga-uyap-ui (UDF
-çizimi) ve başkaları. Sürümler ve lisanslar [THIRD_PARTY.md](THIRD_PARTY.md) dosyasındadır. UYAP Doküman Editörü, Word, LibreOffice ve
+çizimi) ve başkaları. Sürümler ve lisanslar [THIRD_PARTY.md](THIRD_PARTY.md) dosyasındadır. UYAP Doküman Editörü, Word, WPS Office, LibreOffice ve
 notlara ve form alanlarına gömülen yazı tipleri PDEfe ile dağıtılmaz, bilgisayarda kurulu olanlar kullanılır.
 
 ## Otomatik denetimler

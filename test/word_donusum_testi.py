@@ -2,9 +2,10 @@
 """Word ↔ PDF testi (0.2.6; core/islemler/word.py, core/islemler/pdf_word.py, core/ucuncu/pdf2docx). Girdilerin hepsi burada üretilir
 (gerçek belge kullanılmaz; .docx / .rtf / .odt elle zip XML ile); çıktılar test/cikti/word_donusum altında.
 
-Çalıştırma:  .venv\\Scripts\\python.exe test\\word_donusum_testi.py [--exe core\\dist\\pdefe-core\\pdefe-core.exe]
+Çalıştırma:  .venv\\Scripts\\python.exe test\\word_donusum_testi.py [--exe core\\dist\\pdefe-core\\pdefe-core.exe] [--sonlandirmasiz]
 --exe: yöntemler paketlenmiş çekirdek üzerinden JSON-RPC ile çağrılır (modülün içine bakan denetimler atlanır).
-Word kurulu değilse Word → PDF denetimleri "ATLANDI" yazar (LibreOffice yolu bu bilgisayarda sınanmadı).
+Word kurulu değilse Word → PDF denetimleri "ATLANDI" yazar. WPS Office ve LibreOffice yolları test/ofis_motor_testi.py'de. Bu test yalnız Word'ü sınar
+(PDEFE_OFIS_MOTORU=word: Süre aşımında sıradaki motora düşülmesin).
 
 Word → PDF: sayfa sayısı, gömülü yazı tipleri, başlıklardan yer imleri, etiketli PDF, yazar / başlık PDF'e geçmiyor, sözcük geri çağırma;
 WINWORD süreç sayısı önce = sonra (kullanıcının Word'lerine dokunulmuyor), Normal.dotm değişmiyor, Word örneğinde makrolar kapalı
@@ -776,7 +777,7 @@ def test_word_yok(exe, g):
     try:
         y = s.cagir("donusum_yetenekleri", {})
         w = y.get("word") or {}
-        sonuc("Word yok benzetimi: word.var false, açıklama", w.get("var") is False and "Word ya da LibreOffice" in (w.get("neden") or ""), w)
+        sonuc("Word yok benzetimi: word.var false, açıklama", w.get("var") is False and "LibreOffice" in (w.get("neden") or ""), w)
         d = y.get("donusumler") or {}
         sonuc("Word yok benzetimi: word>pdf kapalı, pdf>word açık", d.get("word>pdf", {}).get("var") is False and
               d.get("pdf>word", {}).get("var") is True, (d.get("word>pdf"), d.get("pdf>word")))
@@ -1002,6 +1003,7 @@ def main():
             print("exe bulunamadı:", exe)
             return 2
     word_icin_denetle()   # 0.2.9 denetimi: USERPROFILE değiştirilmişse Word başlatılmaz (Word'ün "Son kullanılanlar" listesi bozulurdu)
+    os.environ["PDEFE_OFIS_MOTORU"] = "word"
     BASTA.update(word_surecleri())
     print("Girdiler üretiliyor…")
     g = girdileri_uret()
@@ -1011,10 +1013,14 @@ def main():
     word_var = w.get("var") is True and w.get("motor") == "word"
     testler = []
     if word_var:
-        testler += [lambda: test_word_pdf(c, g, exe), lambda: test_docm(c, g), lambda: test_parolali(c, g, exe), lambda: test_iptal(c, g)]
-        if not exe:
-            testler.append(lambda: test_zaman_asimi(c, g))
-        testler.append(lambda: test_cokme(exe, g))
+        testler += [lambda: test_word_pdf(c, g, exe), lambda: test_docm(c, g), lambda: test_parolali(c, g, exe)]
+        if "--sonlandirmasiz" in sys.argv:   # Word sürecini sonlandıran denetimler atlanır
+            atlandi("iptal, süre aşımı, çökme", "--sonlandirmasiz")
+        else:
+            testler.append(lambda: test_iptal(c, g))
+            if not exe:
+                testler.append(lambda: test_zaman_asimi(c, g))
+            testler.append(lambda: test_cokme(exe, g))
     else:
         atlandi("Word → PDF denetimleri", w.get("neden") or "Word yok (motor: %s)" % w.get("motor"))
     testler += [lambda: test_word_yok(exe, g), lambda: test_pdf_word(c, g, word_var), lambda: test_pdf_word_iptal(c, g),
