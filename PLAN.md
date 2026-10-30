@@ -4629,7 +4629,7 @@ adı alıp "üzerine yazılsın mı" sordu, sınamanın yöntemi): O adım test 
   çubukta 3 px kadar aşağıda durması (yazı tipi yedeğinin ölçüsü). Bağlantıdan geri dönüş (Alt+Sol) yok, Alt+Sol olağan yatay ok gibi davranıyor.
 - [x] **Testler**: senaryo46 43/43 (yeni 8. bölüm), senaryo48 69/69 (yeni 16. bölüm), senaryo49 25/25 (XFA formu araçlarda), xfa_testi 58/58, form_testi 109/109, donustur_testi 277/277, guvenlik_testi 47/47,
   tanima_testi 72/72, senaryo47 77/77, kisayol_dosya 164/164, kisayol_araclar 102/102, senaryo25 30/30, senaryo36 59/59, senaryo37 67/67, senaryo38 64/64, senaryo39 54/54, senaryo40 18/18, senaryo45 122/122, tum_secim 52/52,
-  panel_kuyruk 42/42, ortu_tiklama 164/164, yazdir_pencere 61/61, yazdir_gercek 25/25, kayit_sekme_panel 61/61, senaryo24 38/38. Yerel kurucu bu düzeltmelerden önce derlendi, yenilenmeli.
+  panel_kuyruk 42/42, ortu_tiklama 164/164, yazdir_pencere 61/61, yazdir_gercek 25/25, kayit_sekme_panel 61/61, senaryo24 38/38. Yerel kurucu bu düzeltmelerden önce derlendi, aşağıda yenilendi.
 
 #### 0.3.1: Genişliğe sığdır sınaması (kod değişmedi)
 Kullanıcı: Kural (0.1.8'deki baskın genişlik) olduğu gibi kalır, "sadece güzel çalıştığını test edersin". Hata çıkmadı, uygulama kodu değişmedi.
@@ -4650,3 +4650,6 @@ Kullanıcı: Kural (0.1.8'deki baskın genişlik) olduğu gibi kalır, "sadece g
   tarifi kaldı (DOGRULAMA 46 madde 46 ilk gerçek güncellemede). THIRD_PARTY: Form alanı yazı tipleri, Linux, Cargo.lock'taki dört windows-rs kitaplığı. Sürüm gövdesi, THIRD_PARTY ve 0.3.1'de değişen arayüz iletilerinde noktalı virgül kalktı (daha eski iletiler bu işin dışında).
 - [x] **CodeQL**: Matrise rust (sagtik/). İlk koşuda Windows'a özgü kodun uyarılarına bakılacak.
 - [x] **Bırakılan, kullanıcının kararı**: Üç Linux commit'inin (f558867, 2df98da, d371165) gövdesinde noktalı virgül var. Düzeltmek geçmişi yeniden yazmak demek (b7ef252 birleştirmesi, bu dosyadaki commit özetleri değişir), yapılmadı.
+- [x] **Testler** (son kodla): form_testi 122/122 (13 yeni), guvenlik_testi 47/47, xfa_testi 58/58, donustur_testi --hizli 274/274, senaryo45 122/122, senaryo46 43/43, senaryo47 78/78, senaryo48 71/71, senaryo49 25/25, senaryo24 38/38, senaryo25 30/30, senaryo28, senaryo36 59/59,
+  kayit_sekme_panel 61/61, yazdir_pencere 61/61, mac_renderer 46/46, linux_renderer 23/23, sigdirma_kararli 51/51, sigdirma_rastgele 420 örnekte 0 sorun. araclar_testi yer tutucu belgelerle 144/146, düşen ikisi önceki gibi büyük belgede tahmin bekleyen satırlar.
+- [x] **Yerel kurucu** (`npm run yayim:hazirla`, a7a933a'dan, sürüm numarası 0.3.0 kaldı): SHA-256 `29260bfdf079354685129804e17781e1132b00fc7e4679454a190ed9f71be8c3`. Paketli duman 18/18, gercek_fare -Paketli 9/9. Paketli çekirdekle kurgusal formda 3/3 (imza kararı, UR3 temizliği). Kurulmadı.
