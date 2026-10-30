@@ -3,7 +3,8 @@
 # tutucu). Form tasarım programının ürettiği formların yapısında: katalogda /NeedsRendering, AcroForm'da alan yok, /XFA paketleri (xdp
 # başı, config, template, datasets, xdp sonu), PDF'in kendi sayfası "lütfen bekleyin" yazısı.
 # Kullanım: .venv\Scripts\python.exe test\xfa_pdf_uret.py <klasör>
-# Çıktı (klasöre): xfa.pdf, xfa-imzali.pdf (aynı form, görünmez sahte e-imzayla: imzali_xfa), xfa-uzun.pdf (uzun yazı: test/senaryo50.mjs), xfa-bicim.pdf (alan biçimleri: BICIM_SABLON, test/senaryo51.mjs)
+# Çıktı (klasöre): xfa.pdf, xfa-imzali.pdf (aynı form, görünmez sahte e-imzayla: imzali_xfa), xfa-uzun.pdf (uzun yazı: test/senaryo50.mjs), xfa-bicim.pdf (alan biçimleri: BICIM_SABLON, test/senaryo51.mjs),
+#   xfa-hakli.pdf (xfa-uzun, biçimce doğru sahte kullanım hakları imzasıyla: hakli_xfa, test/senaryo52.mjs)
 #   Şablon: form1 (yukarıdan aşağı akış). Sayfa alanı "Sayfa1": alt bilgide "Sayfa n / N" (zengin metne gömülü, değeri xfa.layout.page /
 #   pageCount betikli iki gizli alan). Alt formlar:
 #     Baslik: başlık (Türkçe harfler), yazı alanı AdSoyad (araç ipucu "Adı ve soyadı"), onay kutusu Onay, açılır liste Sehir (Ankara,
@@ -202,7 +203,36 @@ def uret(klasor):
     form_yaz(uzun, SABLON_UZUN, VERI_UZUN)
     bicim = os.path.join(klasor, "xfa-bicim.pdf")
     form_yaz(bicim, BICIM_SABLON, BICIM_VERI, kullanim_hakki=False)
-    return {"xfa": yol, "xfaImzali": imzali, "xfaUzun": uzun, "xfaBicim": bicim, "paketler": paketler}
+    hakli = os.path.join(klasor, "xfa-hakli.pdf")
+    gecici = os.path.join(klasor, "xfa-hakli-kaynak.pdf")
+    form_yaz(gecici, SABLON_UZUN, VERI_UZUN, kullanim_hakki=False)
+    hakli_xfa(gecici, hakli)
+    os.remove(gecici)
+    return {"xfa": yol, "xfaImzali": imzali, "xfaUzun": uzun, "xfaBicim": bicim, "xfaHakli": hakli, "paketler": paketler}
+
+
+def hakli_xfa(kaynak, yol):
+    """0.3.1 kayıp avı: Kullanım hakları imzalı saf XFA formu (sahte imza, yer tutucu): /ByteRange dosyayı, /Contents dışında kapsar. Gerçek formlardaki gibi /Perms /UR3 ayrı nesne."""
+    import re
+    doc = pymupdf.open(kaynak)
+    icerik = 2 * 64
+    sig = doc.get_new_xref()
+    doc.update_object(sig, "<</Type/Sig/Filter/PDEfe.Deneme/SubFilter/adbe.pkcs7.detached/ByteRange[0 1111111111 1111111111 1111111111]/Contents<%s>"
+                           "/Reference[<</Type/SigRef/TransformMethod/UR3/TransformParams<</Type/TransformParams/V/2.2/Form[/FillIn]>>>>]>>" % ("0" * icerik))
+    doc.xref_set_key(doc.pdf_catalog(), "Perms", "<</UR3 %d 0 R>>" % sig)
+    doc.save(yol, garbage=0, deflate=False, no_new_id=True)
+    doc.close()
+    veri = bytearray(open(yol, "rb").read())
+    m_br = re.search(rb"/ByteRange\s*\[\s*0\s+1111111111\s+1111111111\s+1111111111\s*\]", veri)
+    m_ci = re.search(rb"/Contents\s*<0{%d}>" % icerik, veri)
+    if not m_br or not m_ci:
+        raise RuntimeError("İmza sözlüğünün yer tutucuları bulunamadı.")
+    a = m_ci.end() - icerik - 2
+    b = a + icerik + 2
+    yeni = b"/ByteRange[0 %010d %010d %010d]" % (a, b, len(veri) - b)
+    yeni += b" " * (m_br.end() - m_br.start() - len(yeni))
+    veri[m_br.start():m_br.end()] = yeni
+    open(yol, "wb").write(bytes(veri))
 
 
 def imzali_xfa(kaynak, yol):

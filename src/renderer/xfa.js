@@ -18,8 +18,9 @@
 // sıra değişmez (geri alma ters sırada gittiği için bir değer komutu, oluşturulduğu anki form yapısında geri alınır ya da yinelenir).
 // Yeniden kurma ve değer koyma tek kuyrukta sırayla yürür (_kuyruk).
 //
-// Kaydetme: PDF.js'in kaydettiği baytlar (güncel XFA verisi) çekirdekte dosyaya baştan yazılır, kullanım hakları imzası (/Perms /UR3)
-// kaldırılır (xfa_kaydet). Yazım atomiktir ve doğrulanır, başarısızlıkta özgün dosya aynı kalır, yazılanlar burada durur (uygulama.js belgeKaydet: Yeniden dene, Farklı kaydet).
+// Kaydetme: PDF.js'in kaydettiği baytlardaki güncel XFA verisi çekirdekte dosyaya yazılır (xfa_kaydet). Kullanım hakları imzalı (/Perms /UR3) formda açılan dosyanın üstüne artımlı,
+// imza geçerli kalır, form ücretsiz okuyucuda da kaydedilebilir. Öbür formlar baştan yazılır. Yazım atomiktir ve doğrulanır, başarısızlıkta özgün dosya aynı kalır, yazılanlar
+// burada durur (uygulama.js belgeKaydet: Yeniden dene, Farklı kaydet).
 // Yazdırma ve Sayfalar panelinin küçük resimleri formun düz PDF'inden: Ana süreç formu gizli pencerede aynı
 // kurallarla çizip PDF'e çevirir (src/main/xfaDuz.js), yazdırma ve küçük resimler o dosyadan (çekirdek, olağan PDF gibi).
 import { Komut, sayfaListesi } from './komutlar.js';
@@ -528,7 +529,7 @@ export class XfaYoneticisi extends EventTarget {
     return c;
   }
 
-  /** Formu hedefe yazar (çekirdek xfa_kaydet: baştan yazım, kullanım hakları imzası kaldırılır, atomik). imzayiKoru: e-imzalı formda PDF.js'in artımlı baytları olduğu
+  /** Formu hedefe yazar (çekirdek xfa_kaydet: Atomik. Kullanım hakları imzalı formda artımlı, öbürlerinde baştan). imzayiKoru: e-imzalı formda PDF.js'in artımlı baytları olduğu
    *  gibi yazılır (imza korunur, 0.3.1 inceleme). hizli: kilitte beklenmez (otomatik kayıt). Döner: çekirdeğin sonucu, konum ve komut: Yazılan durumun geri al
    *  yığınındaki yeri. Baytlarla aynı anda alınır: Yapı işi ya da yeniden kurma beklenirken yapılan değişiklik kayıtlı sayılmasın, kayıt sürerken yazılan da. damga: Hedefin
    *  beklenen içerik özeti (dosya başka programda değiştiyse çekirdek yazmaz). */
@@ -539,7 +540,7 @@ export class XfaYoneticisi extends EventTarget {
     this.duzenlemeyiUygula();   // beklerken yazılan
     const konum = this.yigin.konum, komut = this.yigin.geriAlinacak, beklenen = this._beklenenDegerler();
     const veri = await this.g.xfaBaytlari();   // PDF.js değerleri çağrı anında alır
-    const r = await this.cekirdek('xfa_kaydet', { veri: base64Yaz(veri), hedef, yol: this.g.yol, beklenen, ...(imzayiKoru ? { imzayiKoru: true } : {}), ...(hizli ? { hizli: true } : {}), ...(damga ? { damga } : {}) });
+    const r = await this.cekirdek('xfa_kaydet', { veri: base64Yaz(veri), hedef, yol: this.g.yol, beklenen, taban: this.g.xfaTaban || 0, ...(imzayiKoru ? { imzayiKoru: true } : {}), ...(hizli ? { hizli: true } : {}), ...(damga ? { damga } : {}) });
     if (r?.damga) this.diskDamga = r.damga;
     return { ...r, konum, komut };
   }

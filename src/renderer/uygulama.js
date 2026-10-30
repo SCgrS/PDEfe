@@ -1254,8 +1254,8 @@ async function kayitYaz(b, farkli, sessiz, oneAl = false, secilen = { hedef: nul
   return true;
 }
 
-/** XFA formunun kaydı (0.3.1, kayitYaz'ın XFA yolu): PDF.js'in güncel verisi çekirdekte hedefe baştan yazılır, kullanım hakları imzası
- *  kaldırılır (xfa.js kaydet, core/islemler/xfa.py xfa_kaydet). Notlar ve sayfa düzeni XFA kipinde değişmez. */
+/** XFA formunun kaydı (0.3.1, kayitYaz'ın XFA yolu): PDF.js'in güncel verisi çekirdekte hedefe yazılır: Kullanım hakları imzalı formda artımlı (imza kalır), öbürlerinde baştan
+ *  (xfa.js kaydet, core/islemler/xfa.py xfa_kaydet). Notlar ve sayfa düzeni XFA kipinde değişmez. */
 async function xfaKayitYaz(b, hedef, farkli, sessiz, oneAl = false) {
   const g = b.gorunum;
   // E-imzalı formda (görünmez imza alanı ya da onay imzası; kullanım hakları imzası sayılmaz) baştan yazım imzayı geçersiz kılar: notlardaki

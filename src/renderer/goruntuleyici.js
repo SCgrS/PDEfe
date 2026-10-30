@@ -415,6 +415,7 @@ export class Goruntuleyici extends EventTarget {
   // ------------------------------------------------------------ yükleme
   async yukle(veri, secenek = {}) {
     if (this.yok) throw new Error('Görünüm kapatıldı.');
+    this.xfaTaban = veri?.length || 0;   // açılan dosyanın boyu: Kullanım hakları imzalı formun kaydı bu baytların üstüne yazılır (xfa.py xfa_kaydet)
     const isci = isciAl();
     let gorev = pdfjs.getDocument({ ...belgeSecenekleri(veri, secenek.parola, true), ...(isci ? { worker: isci } : {}) });
     isciyiSahiplendir(gorev, isci);
@@ -524,7 +525,7 @@ export class Goruntuleyici extends EventTarget {
       yol: this.yol, anlik: this.anlik, kayitliTarif: this.kayitliTarif, parola: this._parola ?? null,
       zoomModu: this.zoomModu, olcek: this.olcek, gecerli: this.gecerli, oran: konum.oran, kaydirmaSol: konum.sol,
       gorunumDondurme: this.gorunumDondurme, boyutlarEksik: !!this._boyutlarEksik,
-      girdiler, sayfalar: this.sayfalar.map(girdiNo), belgeler, xfa: !!this.xfa,
+      girdiler, sayfalar: this.sayfalar.map(girdiNo), belgeler, xfa: !!this.xfa, xfaTaban: this.xfaTaban || 0,
     };
     return { durum, girdiNo };
   }
@@ -549,7 +550,7 @@ export class Goruntuleyici extends EventTarget {
     if (!ana) throw new Error('Taşınan sekmenin belgesi eksik.');
     this.yuklemeGorevi = ana.gorev; this.belge = ana.belge;
     this._kareBeklemeden = true;   // taşınan sekmenin yeni penceresi de gösterilmeden çizebilsin (tuvalCiz)
-    this.yol = durum.yol || null; this.anlik = durum.anlik || null; this._parola = durum.parola ?? null;
+    this.yol = durum.yol || null; this.anlik = durum.anlik || null; this._parola = durum.parola ?? null; this.xfaTaban = durum.xfaTaban || 0;
     await this._xfaKur(ana.belge);
     if (this.yok) return null;
     // Aynı sayfanın döndürme kopyaları (geri al yığınında) kimliği paylaşır: bu oturumda eklenen notlar sayfayı kimliğiyle izler

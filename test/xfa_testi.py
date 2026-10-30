@@ -536,6 +536,35 @@ if os.name == "nt":
     sonuc("notlar: Kilitli dosyada ham hata yok", t == "YazmaHatasi" and "başka bir programda açık" in i and not HAM.search(i), (t, i))
     sonuc("çekirdekte kayıtlı: kilit_sahipleri", "kilit_sahipleri" in pdefe_core.YONTEMLER)
 
+# ------------------------------------------------------------ kullanım hakları imzası (0.3.1 kayıp avı: Form iki programda kullanılırken öbürü kaydedebilsin)
+HAKLI = open(ozet["xfaHakli"], "rb").read()
+
+
+def hak_durumu(veri):
+    d = pymupdf.open(stream=veri, filetype="pdf")
+    try:
+        return {"son": xfa._hak_bolumu_sonu(d, veri), "var": xfa.notlar.kullanim_hakki_var(d), "onarildi": d.is_repaired}
+    finally:
+        d.close()
+
+
+sonuc("imza: Üretilen form biçimce doğru", hak_durumu(HAKLI)["son"] and hak_durumu(HAKLI)["var"], hak_durumu(HAKLI))
+h = os.path.join(KAYIT, "hakli-tabanli.pdf")
+shutil.copyfile(ozet["xfaHakli"], h)
+k = xfa.y_xfa_kaydet({"veri": base64.b64encode(HAKLI).decode(), "hedef": h, "taban": len(HAKLI)})
+y = open(h, "rb").read()
+sonuc("imza: Tabanla yazım, açılan baytlar aynı, imza yerinde, onarılmıyor", k.get("kullanimHakkiKorundu") and not k["kullanimHakkiKaldirildi"] and y[:len(HAKLI)] == HAKLI and hak_durumu(y)["son"] and not hak_durumu(y)["onarildi"], k)
+k = xfa.y_xfa_kaydet({"veri": base64.b64encode(HAKLI).decode(), "hedef": h})
+sonuc("imza: Taban yoksa baytlar olduğu gibi, imza yerinde", k.get("kullanimHakkiKorundu") and open(h, "rb").read() == HAKLI, k)
+k = xfa.y_xfa_kaydet({"veri": base64.b64encode(HAKLI).decode(), "hedef": h, "taban": len(HAKLI) - 7})
+sonuc("imza: Taban dosya sonuna denk gelmiyorsa baytlar olduğu gibi", k.get("kullanimHakkiKorundu") and open(h, "rb").read() == HAKLI, k)
+# Bozuk son xref: MuPDF onarır. İmzayı korumak kaydı düşürmemeli
+bozuk = re.sub(rb"startxref\s+\d+\s+%%EOF\s*$", b"startxref\n7\n%%EOF\n", HAKLI)
+sonuc("imza: Bozuk örnek onarılıyor", bozuk != HAKLI and hak_durumu(bozuk)["onarildi"], hak_durumu(bozuk))
+k = xfa.y_xfa_kaydet({"veri": base64.b64encode(bozuk).decode(), "hedef": h, "taban": len(bozuk)})
+y = open(h, "rb").read()
+sonuc("imza: Onarılan belgede baştan yazılır, kayıt düşmez, imza kalkar, form yerinde", k["kullanimHakkiKaldirildi"] and not k.get("kullanimHakkiKorundu") and not hak_durumu(y)["var"] and not hak_durumu(y)["onarildi"] and "Metin" in paket(y, "datasets"), k)
+
 pdefe_core.onbellek.hepsini_birak()
 
 print("\n%d denetim, %d hata" % (toplam, hata))

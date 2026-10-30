@@ -14,10 +14,10 @@ XFA katmanıyla dizer ve çizer (renderer/xfa.js). Çekirdeğin işi şablonu ok
 - xfa_degistir: Alt form örneği ekler ya da siler (datasets'te o alt formun veri grubu eklenir ya da silinir; PDF.js örnek sayısını
   veriden bağlar) ve düğümün görünürlüğünü değiştirir (şablonda presence özniteliği; kaydedilince de kalır). Girdi PDF.js'in kaydettiği
   baytlardır (girilen değerler datasets'te): Değerler korunur. Değişiklik artımlı yazılır, yalnızca eklenen bölüm döner.
-- xfa_kaydet: PDF.js'in kaydettiği baytları (güncel datasets) dosyaya baştan yazar (girilen değerlerin eski hâlleri dosyada kalmaz).
-  Kullanım hakları imzası (/Perms /UR3) kaldırılır: İmza belgenin özgün baytlarını kapsar, değişen belgede geçersizdir. Geçersiz imzalı
-  belgeyi referans okuyucu "genişletilmiş özellikler artık kullanılamaz" uyarısıyla açar, imzasız belgeyi olağan form olarak açar. Yazım atomiktir
-  (notlar.atomik_yaz) ve doğrulanır: Başarısızlıkta özgün dosya bayt bayt aynı kalır (kullanıcı formlara çok uzun yazılar yazıyor).
+- xfa_kaydet: PDF.js'in kaydettiği güncel datasets'i dosyaya yazar. Kullanım hakları imzası (/Perms /UR3) geçerli formda açılan dosyanın üstüne tek artımlı bölüm eklenir: İmza
+  özgün baytları kapsar, onlar değişmez, referans okuyucu form verisinin artımlı eklenmesine izin verir (ölçüldü: Uyarı yok, form orada kaydedilebilir kalır). İmzası olmayan
+  ya da baytlarla tutmayan formda baştan yazılır (girilen değerlerin eski hâlleri dosyada kalmaz). Yazım atomiktir (notlar.atomik_yaz) ve doğrulanır: Başarısızlıkta özgün
+  dosya bayt bayt aynı kalır (kullanıcı formlara çok uzun yazılar yazıyor).
 """
 import base64
 import binascii
@@ -170,7 +170,7 @@ def saf_xfa_mi(doc):
 def _e_imza_araliklari(doc):
     """Belgedeki e-imzaların imzalanan bayt aralıkları ([a, b, c, d] /ByteRange'ler): değeri dolu imza alanları (AcroForm /Fields ağacı.
     Saf XFA formunda yalnızca görünmez imza alanı olabilir: PDF.js Rect'i [0 0 0 0] olan imza alanlarını alan saymaz) ve onay imzası
-    (/Perms /DocMDP). Kullanım hakları imzası (/Perms /UR3, /UR) e-imza değildir, sayılmaz (kaydedilince zaten kaldırılır). 0.3.1 inceleme:
+    (/Perms /DocMDP). Kullanım hakları imzası (/Perms /UR3, /UR) e-imza değildir, sayılmaz (kaydı kendi yoluyla korunur: y_xfa_kaydet). 0.3.1 inceleme:
     XFA kaydı imzaya bakmadan baştan yazıyordu."""
     araliklar = []
 
@@ -938,6 +938,58 @@ def _eksik_degerler(datasets, beklenen):
     return eksik
 
 
+def _hak_bolumu_sonu(doc, girdi):
+    """Kullanım hakları imzasının (/Perms /UR3, /UR) kapsadığı bölümün sonu. İmza yoksa ya da baytlarla tutmuyorsa None: Belge baştan yazılmış (MuPDF artımlı yazamadıysa) imza artık
+    geçersizdir, ya da imza gerçek değildir."""
+    kat = doc.pdf_catalog()
+    if kat <= 0:
+        return None
+    for anahtar in ("Perms/UR3/ByteRange", "Perms/UR/ByteRange"):
+        tur, deger = doc.xref_get_key(kat, anahtar)
+        if tur != "array":
+            continue
+        s = [int(x) for x in re.findall(r"-?\d+", deger)]
+        if len(s) != 4 or s[0] != 0 or s[1] <= 0 or s[2] <= s[1] or s[3] < 0:
+            continue
+        son = s[2] + s[3]
+        if son <= len(girdi) and girdi[s[1]:s[1] + 1] == b"<" and girdi[s[2] - 1:s[2]] == b">":
+            return son
+    return None
+
+
+def _hakla_yaz(taban, veri_paketi, sablon):
+    """Açılan dosyanın baytlarına (taban) güncel veriyi ve şablonu tek artımlı bölümle ekler. Kullanım hakları imzası geçerli kalır, oturumdaki önceki kayıtların ve bölüm eklemelerin
+    ara hâlleri dosyaya girmez, dosya kayıt sayısıyla büyümez. PDF.js'in kaydettiği zincir her bölüm eklemede bütün veriyi yeniden taşıyor. Yapılamazsa None (arayan zinciri yazar)."""
+    fd, gecici = tempfile.mkstemp(prefix="pdefe-xfa-", suffix=".pdf")
+    doc = None
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(taban)
+        doc = pymupdf.open(gecici, filetype="pdf")
+        paketler = _paketler(doc)
+        if doc.needs_pass or doc.is_repaired or "datasets" not in paketler or not doc.can_save_incrementally():
+            return None
+        if _paket(doc, paketler, "datasets") != veri_paketi:
+            doc.update_stream(paketler["datasets"], veri_paketi)
+        if sablon and "template" in paketler and _paket(doc, paketler, "template") != sablon:
+            doc.update_stream(paketler["template"], sablon)
+        doc.save(gecici, incremental=True, encryption=pymupdf.PDF_ENCRYPT_KEEP)
+        doc.close()
+        with open(gecici, "rb") as f:
+            yeni = f.read()
+        return yeni if yeni[:len(taban)] == taban else None
+    except Exception as e:      # doğrudan zincir yazılır: Bu adım yalnızca dosyayı küçültür
+        print("[kayıt] artımlı yazılamadı: %s" % e, file=sys.stderr)
+        return None
+    finally:
+        if doc is not None and not doc.is_closed:
+            doc.close()
+        try:
+            os.remove(gecici)
+        except OSError:
+            pass
+
+
 def _kayit_dogrulayici(paketler_veri, saf):
     """atomik_yaz'ın doğrulayıcısı: Yazılan kopya onarılmadan açılıyor, form yine saf XFA, veri paketi kaydedilmek istenenle bayt bayt aynı, XML'i geçerli."""
     def dogrula(okunan):
@@ -958,9 +1010,18 @@ def _kayit_dogrulayici(paketler_veri, saf):
     return dogrula
 
 
+def _dogrulanir_mi(aday, dogrula):
+    """Aday baytlar kaydın doğrulamasından geçiyor mu (kaydı düşürmeden seçmek için)."""
+    try:
+        dogrula(aday)
+        return True
+    except notlar.YazmaHatasi:
+        return False
+
+
 def y_xfa_kaydet(p):
-    """PDF.js'in kaydettiği baytları (güncel XFA verisi) hedefe baştan yazar, kullanım hakları imzasını kaldırır. p: {veri (base64), hedef,
-    yol?: belgenin önceki dosyası (önbellekten bırakılır), imzayiKoru?: e-imzalı formda baytlar olduğu gibi yazılır (PDF.js'in artımlı
+    """PDF.js'in kaydettiği baytlardaki güncel XFA verisini hedefe yazar: Kullanım hakları imzası geçerliyse artımlı (imza kalır), değilse baştan. p: {veri (base64), hedef,
+    taban?: açılan dosyanın bayt sayısı (veri onunla başlar; artımlı bölüm onun üstüne), yol?: belgenin önceki dosyası (önbellekten bırakılır), imzayiKoru?: e-imzalı formda baytlar olduğu gibi yazılır (PDF.js'in artımlı
     kaydı: imzalanan bölüm ve /Perms değişmez, alanların önceki değerleri dosyada kalır), beklenen?: arayüzün yazdığı metin değerleri (veri paketinde aranır),
     hizli?: kilitte uzun beklenmez (otomatik kayıt), damga?: hedefin beklenen içerik özeti (farklıysa dosya başka programda değişmiştir, yazılmaz: YazmaHatasi "degismis")}.
     Döner: {boyut, kullanimHakkiKaldirildi, eksik: veri paketinde bulunmayan beklenen değerlerin sıraları, damga: yazılanın içerik özeti,
@@ -986,12 +1047,28 @@ def y_xfa_kaydet(p):
         veri_paketi = _paket(doc, paketler, "datasets")
         saf = _saf_mi(doc, paketler)
         eksik = _eksik_degerler(veri_paketi, beklenen)
-        kaldirildi = False if koru else notlar.kullanim_hakki_kaldir(doc)
+        dogrula = _kayit_dogrulayici(veri_paketi, saf)
+        kaldirildi = False
+        cikti = None
         if koru:
             # E-imzayı korumak için (0.3.1 inceleme): Baytlar olduğu gibi. Kullanım hakları imzasına da dokunulmaz (onu kaldırmak kataloğu
             # değiştirirdi: Onaylı (DocMDP) belgede izin verilmeyen değişiklik sayılır)
             cikti = girdi
         else:
+            hak_sonu = _hak_bolumu_sonu(doc, girdi)
+            if hak_sonu:
+                # Kullanım hakları imzası korunur (0.3.1 kayıp avı, referans okuyucuda ölçüldü): İmza kaldırılınca okuyucu "bu forma yazılan verileri kaydedemezsiniz" diyordu, form iki
+                # programda kullanılırken orada yazılanlar kaydedilemiyordu. Açılan dosyanın üstüne tek artımlı bölüm, olmazsa PDF.js'in zinciri. İkisi de doğrulanamazsa (bozuk dosya) aşağıda
+                # baştan yazılır: İmzayı korumak hiçbir zaman kaydı düşürmez
+                taban = p.get("taban")
+                uygun = isinstance(taban, int) and not isinstance(taban, bool) and hak_sonu <= taban <= len(girdi) and girdi[:taban].rstrip().endswith(b"%%EOF")
+                for aday in (_hakla_yaz(girdi[:taban], veri_paketi, _paket(doc, paketler, "template")) if uygun else None, girdi):
+                    if aday and _dogrulanir_mi(aday, dogrula):
+                        cikti = aday
+                        sonuc["kullanimHakkiKorundu"] = True
+                        break
+        if cikti is None:
+            kaldirildi = notlar.kullanim_hakki_kaldir(doc)
             sifreli = bool(doc.is_encrypted or doc.metadata.get("encryption"))
             cikti = doc.tobytes(garbage=1, deflate=True, encryption=pymupdf.PDF_ENCRYPT_KEEP if sifreli else pymupdf.PDF_ENCRYPT_NONE)
     finally:
@@ -1005,7 +1082,7 @@ def y_xfa_kaydet(p):
     damga = p.get("damga")
     if isinstance(damga, str) and notlar.dosya_damgasi(hedef) not in (None, damga):
         raise notlar.YazmaHatasi("degismis", notlar.YAZMA_ILETILERI["degismis"])
-    notlar.atomik_yaz(cikti, hedef, _kayit_dogrulayici(veri_paketi, saf), deneme=2 if p.get("hizli") else 6)
+    notlar.atomik_yaz(cikti, hedef, dogrula, deneme=2 if p.get("hizli") else 6)
     return dict(sonuc, boyut=os.path.getsize(notlar.uzun_yol(hedef)), kullanimHakkiKaldirildi=kaldirildi, eksik=eksik, damga=hashlib.sha256(cikti).hexdigest())
 
 
