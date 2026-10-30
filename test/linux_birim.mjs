@@ -74,14 +74,14 @@ const kurallar = [...css.matchAll(/@font-face\s*\{([^}]*)\}/g)].map((m) => ({
 }));
 const eslerYerinde = (k) => {
   const tirnakli = /Minion|Times/.test(k.aile);
-  const ek = k.kalin ? ' Bold' : k.italik ? ' Italic' : '';
+  const ek = `${k.kalin ? ' Bold' : ''}${k.italik ? ' Italic' : ''}`;
   const temel = tirnakli ? 'Times New Roman' : 'Arial';
   const esler = tirnakli ? [`Liberation Serif${ek}`, k.kalin ? 'Tinos Bold' : 'Tinos'] : [`Liberation Sans${ek}`, `Arimo${ek || ''}`];
-  const sonCare = tirnakli ? `DejaVu Serif${ek}` : `DejaVu Sans${k.italik ? ' Oblique' : ek}`;
+  const sonCare = tirnakli ? `DejaVu Serif${ek}` : `DejaVu Sans${k.kalin ? ' Bold' : ''}${k.italik ? ' Oblique' : ''}`;
   const i = k.adlar.indexOf(temel + ek);
   return i >= 0 && esler.every((e) => k.adlar.indexOf(e) > i) && k.adlar.at(-2) === sonCare;
 };
-kontrol('XFA yazı tipleri: 11 benzer kuralı (Optima, Myriad Pro, Minion Pro, Turkish Times New Roman)', kurallar.length === 11, J(kurallar.map((k) => k.aile)));
+kontrol('XFA yazı tipleri: 15 benzer kuralı (Calibri, Optima, Myriad Pro, Minion Pro, Turkish Times New Roman)', kurallar.length === 15, J(kurallar.map((k) => k.aile)));
 kontrol('XFA yazı tipleri: her kuralda Arial / Times New Roman\'dan sonra Liberation ve Arimo / Tinos, en sonda DejaVu', kurallar.every(eslerYerinde),
   J(kurallar.filter((k) => !eslerYerinde(k)).map((k) => [k.aile, k.kalin, k.italik])));
 kontrol('XFA yazı tipleri: Optima ve Myriad Pro\'da önce formun yazı tipi, sonra Segoe UI (Windows\'ta sıra değişmedi)', kurallar.filter((k) => /Optima|Myriad/.test(k.aile))

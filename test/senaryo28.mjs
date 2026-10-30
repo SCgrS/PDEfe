@@ -261,7 +261,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz }) {
     fs.chmodSync(c, 0o444);
     try {
       await mesajKutulari();
-      await kutuYanitla(1);   // Vazgeç
+      await kutuYanitla(2);   // Vazgeç (Farklı kaydet, Yeniden dene, Vazgeç)
       await sekmeSagTik('c.pdf', 'kaydet');
       await kosul(`(() => { const b = [...window.__pdefe.belgeler.values()].find((x) => x.ad === 'c.pdf'); return b && !b.kaydediliyor; })()`, 8000);
       kutular2 = await mesajKutulari();
