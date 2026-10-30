@@ -7,8 +7,8 @@
    açılırken bu klasörler değişkenden çıkarılır (PyInstaller özgün değeri LD_LIBRARY_PATH_ORIG'de saklıyorsa o temel alınır); bundan sonra
    başlatılan her program sistemin kitaplıklarıyla açılır. Çekirdeğin kendisi etkilenmez: Bağlayıcı (ld.so) değişkeni yalnızca süreç
    başlarken okur.
-2) Yazı notu fontu (yazi_tipi_dosyasi): Windows'taki Arial, Times New Roman, Calibri ve Segoe UI dosyalarının yerine fontconfig'in (fc-match)
-   seçtiği dosya. Yalnız istenen aile ya da ölçüleri onunla aynı tutulan eşi alınır (Liberation, Arimo / Tinos / Cousine, Carlito: Chromium'un
+2) Yazı notu ve form alanı fontu (yazi_tipi_dosyasi, form alanlarının görünümü de notlar._font_yukle'den, islemler/formlar.py): Windows'taki
+   Arial, Times New Roman, Calibri, Segoe UI ve (form alanında) Courier New dosyalarının yerine fontconfig'in (fc-match) seçtiği dosya. Yalnız istenen aile ya da ölçüleri onunla aynı tutulan eşi alınır (Liberation, Arimo / Tinos / Cousine, Carlito: Chromium'un
    da Linux'ta yerine koyduğu yazı tipleri). Arayüz notu CSS'teki aileyle gösterir (renderer/notlar.js yaziTipiCss: Segoe UI ve Calibri
    Linux'ta da Arial'e düşer, macOS'taki gibi): Ekrandaki yazıyla kaydedilen not aynı yazı tipiyle çizilsin. Eşi de yoksa fontconfig'in
    Arial için seçtiği TrueType dosyası (DejaVu Sans gibi) gömülür, Türkçe harfleri olsun yeter.
@@ -113,7 +113,7 @@ def yazi_tipi_dosyasi(aile, kalin, italik, calistir=None, var_mi=os.path.isfile)
                 secim = (f["dosya"], bool(italik) and not f["italik"])
                 break
     if secim is None:
-        raise FileNotFoundError("Yazı notu için yazı tipi bulunamadı. Liberation ya da DejaVu yazı tiplerini kurup yeniden deneyin.")
+        raise FileNotFoundError("Yazı notu ve form alanı için yazı tipi bulunamadı. Liberation ya da DejaVu yazı tiplerini kurup yeniden deneyin.")
     if calistir is None:
         _onbellek[anahtar] = secim
     return secim

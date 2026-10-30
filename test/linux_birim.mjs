@@ -1,7 +1,9 @@
 // Ana sürecin Linux yardımcılarının birim denemesi (0.3.1, src/main/linux.js ve pano.js'in Linux yarısı): Electron'suz, her sistemde koşar.
 // Menü kaydının Exec kaçışları (boşluk, tırnak, $, %, ters bölü), kaydın metni, fc-match yanıtının okunması ve standart yazı tiplerinin
-// seçimi (ölçüleri aynı eş, .ttf / .otf), sistem programlarının ortamı (AppImage'ın kitaplık klasörü çıkar), panoya konan türler.
+// seçimi (ölçüleri aynı eş, .ttf / .otf), sistem programlarının ortamı (AppImage'ın kitaplık klasörü çıkar), panoya konan türler, XFA
+// formlarının yazı tipi benzerlerinde Linux eşleri (renderer/xfa.css).
 // Kullanım (depo kökünden): node test/linux_birim.mjs      çıkış kodu: hata varsa 1
+import fs from 'node:fs';
 import { execArgumani, masaustuMetni, fcMatchCoz, standartaUygun, standartYaziTipleri, sistemOrtami } from '../src/main/linux.js';
 import { linuxPanoOgesi, LINUX_PANO_TURLERI } from '../src/main/pano.js';
 
@@ -61,6 +63,29 @@ kontrol('pano: text/uri-list (CRLF), x-special/gnome-copied-files ("copy" ve adr
   && p[LINUX_PANO_TURLERI.gnome] === 'copy\n' + p[LINUX_PANO_TURLERI.uriList].trim() && (!beklenen || p[LINUX_PANO_TURLERI.uriList] === beklenen + '\r\n'), J(p));
 kontrol('pano: türler Electron\'un ham tür adıyla', LINUX_PANO_TURLERI.gnome === 'electron application/osclipboard;format="x-special/gnome-copied-files"'
   && LINUX_PANO_TURLERI.uriList === 'electron application/osclipboard;format="text/uri-list"');
+
+// ---- XFA formlarının yazı tipi benzerleri (0.3.1, src/renderer/xfa.css): local() tam adla arar, fontconfig'in Arial → Liberation Sans
+// eşleştirmesine uğramaz. Linux'ta Arial ve Times New Roman yoksa ölçüleri aynı eşleri (Liberation, Arimo / Tinos), son çare DejaVu.
+// Windows ve macOS'ta önce gelenler (formun yazı tipi, Segoe UI, Arial / Times New Roman) değişmedi
+const css = fs.readFileSync(new URL('../src/renderer/xfa.css', import.meta.url), 'utf8');
+const kurallar = [...css.matchAll(/@font-face\s*\{([^}]*)\}/g)].map((m) => ({
+  aile: /font-family:\s*"([^"]+)"/.exec(m[1])?.[1], kalin: /font-weight:\s*700|font-family:\s*"[^"]*Bold"/.test(m[1]), italik: /font-style:\s*italic/.test(m[1]),
+  adlar: [...m[1].matchAll(/local\("([^"]+)"\)/g)].map((x) => x[1]),
+}));
+const eslerYerinde = (k) => {
+  const tirnakli = /Minion|Times/.test(k.aile);
+  const ek = k.kalin ? ' Bold' : k.italik ? ' Italic' : '';
+  const temel = tirnakli ? 'Times New Roman' : 'Arial';
+  const esler = tirnakli ? [`Liberation Serif${ek}`, k.kalin ? 'Tinos Bold' : 'Tinos'] : [`Liberation Sans${ek}`, `Arimo${ek || ''}`];
+  const sonCare = tirnakli ? `DejaVu Serif${ek}` : `DejaVu Sans${k.italik ? ' Oblique' : ek}`;
+  const i = k.adlar.indexOf(temel + ek);
+  return i >= 0 && esler.every((e) => k.adlar.indexOf(e) > i) && k.adlar.at(-2) === sonCare;
+};
+kontrol('XFA yazı tipleri: 11 benzer kuralı (Optima, Myriad Pro, Minion Pro, Turkish Times New Roman)', kurallar.length === 11, J(kurallar.map((k) => k.aile)));
+kontrol('XFA yazı tipleri: her kuralda Arial / Times New Roman\'dan sonra Liberation ve Arimo / Tinos, en sonda DejaVu', kurallar.every(eslerYerinde),
+  J(kurallar.filter((k) => !eslerYerinde(k)).map((k) => [k.aile, k.kalin, k.italik])));
+kontrol('XFA yazı tipleri: Optima ve Myriad Pro\'da önce formun yazı tipi, sonra Segoe UI (Windows\'ta sıra değişmedi)', kurallar.filter((k) => /Optima|Myriad/.test(k.aile))
+  .every((k) => k.adlar.findIndex((a) => /^Segoe ?UI/.test(a)) > 0 && k.adlar.findIndex((a) => /^Segoe ?UI/.test(a)) < k.adlar.findIndex((a) => /^Arial/.test(a))));
 
 console.log(hata ? `${hata} denetim başarısız.` : 'Bütün denetimler geçti.');
 process.exit(hata ? 1 : 0);

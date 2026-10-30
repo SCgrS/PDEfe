@@ -340,16 +340,18 @@
 .gorunum.xfa-mesgul .xfaLayer, .gorunum.xfa-mesgul .xfaLayer * { pointer-events: none !important; }
 .gorunum.xfa-mesgul .kaydirici { cursor: progress; }
 /* Bilgisayarda olmayan, formlarda sık geçen yazı tiplerinin benzerleri (goruntuleyici.js XFA_YAZI: PDF.js formun yazı tiplerine FontFace
-   kurmaz, tarayıcı yazı tipini formdaki adıyla arar). Varsa bilgisayardaki kendisi; yoksa genişlikleri yakın, Türkçe harfleri olan Windows
-   yazı tipi, o da yoksa (macOS) Arial / Times. */
-@font-face { font-family: "Optima"; src: local("Optima"), local("Segoe UI"), local("SegoeUI"), local("Arial"); }
-@font-face { font-family: "Optima"; font-weight: 700; src: local("Optima Bold"), local("Optima-Bold"), local("Segoe UI Bold"), local("SegoeUI-Bold"), local("Arial Bold"), local("Arial-BoldMT"); }
-@font-face { font-family: "Optima"; font-style: italic; src: local("Optima Italic"), local("Segoe UI Italic"), local("SegoeUI-Italic"), local("Arial Italic"); }
-@font-face { font-family: "Myriad Pro"; src: local("Myriad Pro"), local("MyriadPro-Regular"), local("Segoe UI"), local("SegoeUI"), local("Arial"); }
-@font-face { font-family: "Myriad Pro"; font-weight: 700; src: local("Myriad Pro Bold"), local("MyriadPro-Bold"), local("Segoe UI Bold"), local("SegoeUI-Bold"), local("Arial Bold"), local("Arial-BoldMT"); }
-@font-face { font-family: "Myriad Pro"; font-style: italic; src: local("Myriad Pro Italic"), local("MyriadPro-It"), local("Segoe UI Italic"), local("SegoeUI-Italic"), local("Arial Italic"); }
-@font-face { font-family: "Minion Pro"; src: local("Minion Pro"), local("MinionPro-Regular"), local("Times New Roman"), local("TimesNewRomanPSMT"); }
-@font-face { font-family: "Minion Pro"; font-weight: 700; src: local("Minion Pro Bold"), local("MinionPro-Bold"), local("Times New Roman Bold"), local("TimesNewRomanPS-BoldMT"); }
-@font-face { font-family: "Turkish Times New Roman"; src: local("Times New Roman"), local("TimesNewRomanPSMT"); }
-@font-face { font-family: "Turkish Times New Roman"; font-weight: 700; src: local("Times New Roman Bold"), local("TimesNewRomanPS-BoldMT"); }
-@font-face { font-family: "TurkishTimesNewRomanBold"; src: local("Times New Roman Bold"), local("TimesNewRomanPS-BoldMT"); }
+   kurmaz, tarayıcı yazı tipini formdaki adıyla arar). Varsa bilgisayardaki kendisi, yoksa genişlikleri yakın, Türkçe harfleri olan Windows
+   yazı tipi, o da yoksa (macOS) Arial / Times. 0.3.1, Linux: local() yazı tipini tam adıyla arar, fontconfig'in eşleştirmesine (Arial →
+   Liberation Sans) uğramaz. Arial ve Times New Roman kurulu değilse (çoğu dağıtımda) ölçüleri aynı eşleri (Liberation, Arimo / Tinos), son
+   çare DejaVu. Önceden hiçbiri bulunmayınca tarayıcının varsayılan (tırnaklı) yazı tipi çiziliyordu. Windows ve macOS'ta sıra değişmedi. */
+@font-face { font-family: "Optima"; src: local("Optima"), local("Segoe UI"), local("SegoeUI"), local("Arial"), local("Liberation Sans"), local("LiberationSans"), local("Arimo"), local("Arimo-Regular"), local("DejaVu Sans"), local("DejaVuSans"); }
+@font-face { font-family: "Optima"; font-weight: 700; src: local("Optima Bold"), local("Optima-Bold"), local("Segoe UI Bold"), local("SegoeUI-Bold"), local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("LiberationSans-Bold"), local("Arimo Bold"), local("Arimo-Bold"), local("DejaVu Sans Bold"), local("DejaVuSans-Bold"); }
+@font-face { font-family: "Optima"; font-style: italic; src: local("Optima Italic"), local("Segoe UI Italic"), local("SegoeUI-Italic"), local("Arial Italic"), local("Liberation Sans Italic"), local("LiberationSans-Italic"), local("Arimo Italic"), local("Arimo-Italic"), local("DejaVu Sans Oblique"), local("DejaVuSans-Oblique"); }
+@font-face { font-family: "Myriad Pro"; src: local("Myriad Pro"), local("MyriadPro-Regular"), local("Segoe UI"), local("SegoeUI"), local("Arial"), local("Liberation Sans"), local("LiberationSans"), local("Arimo"), local("Arimo-Regular"), local("DejaVu Sans"), local("DejaVuSans"); }
+@font-face { font-family: "Myriad Pro"; font-weight: 700; src: local("Myriad Pro Bold"), local("MyriadPro-Bold"), local("Segoe UI Bold"), local("SegoeUI-Bold"), local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("LiberationSans-Bold"), local("Arimo Bold"), local("Arimo-Bold"), local("DejaVu Sans Bold"), local("DejaVuSans-Bold"); }
+@font-face { font-family: "Myriad Pro"; font-style: italic; src: local("Myriad Pro Italic"), local("MyriadPro-It"), local("Segoe UI Italic"), local("SegoeUI-Italic"), local("Arial Italic"), local("Liberation Sans Italic"), local("LiberationSans-Italic"), local("Arimo Italic"), local("Arimo-Italic"), local("DejaVu Sans Oblique"), local("DejaVuSans-Oblique"); }
+@font-face { font-family: "Minion Pro"; src: local("Minion Pro"), local("MinionPro-Regular"), local("Times New Roman"), local("TimesNewRomanPSMT"), local("Liberation Serif"), local("LiberationSerif"), local("Tinos"), local("Tinos-Regular"), local("DejaVu Serif"), local("DejaVuSerif"); }
+@font-face { font-family: "Minion Pro"; font-weight: 700; src: local("Minion Pro Bold"), local("MinionPro-Bold"), local("Times New Roman Bold"), local("TimesNewRomanPS-BoldMT"), local("Liberation Serif Bold"), local("LiberationSerif-Bold"), local("Tinos Bold"), local("Tinos-Bold"), local("DejaVu Serif Bold"), local("DejaVuSerif-Bold"); }
+@font-face { font-family: "Turkish Times New Roman"; src: local("Times New Roman"), local("TimesNewRomanPSMT"), local("Liberation Serif"), local("LiberationSerif"), local("Tinos"), local("Tinos-Regular"), local("DejaVu Serif"), local("DejaVuSerif"); }
+@font-face { font-family: "Turkish Times New Roman"; font-weight: 700; src: local("Times New Roman Bold"), local("TimesNewRomanPS-BoldMT"), local("Liberation Serif Bold"), local("LiberationSerif-Bold"), local("Tinos Bold"), local("Tinos-Bold"), local("DejaVu Serif Bold"), local("DejaVuSerif-Bold"); }
+@font-face { font-family: "TurkishTimesNewRomanBold"; src: local("Times New Roman Bold"), local("TimesNewRomanPS-BoldMT"), local("Liberation Serif Bold"), local("LiberationSerif-Bold"), local("Tinos Bold"), local("Tinos-Bold"), local("DejaVu Serif Bold"), local("DejaVuSerif-Bold"); }

@@ -9,7 +9,10 @@
   ürettiği görünüm kullanılmaz: 1.28'de tek satırlı yazının taban çizgisi alanın altına düşüyor (yazının üst yarısı görünüyor), ortaya ve
   sağa hizalı ya da yazı boyu otomatik (0) alanda hiçbir şey çizilmiyor, her alan için bütün yazı tipini (~55 KB) gömüyor (ölçüm PLAN.md
   "Revizyon 0.3.1"). Yazı, FreeText'teki gibi Windows yazı tipinin GID koruyan alt kümesiyle (notlar._font_yukle) yazılır: Türkçe harfler
-  (İ Ğ Ş ı ğ ş) her okuyucuda doğru çıkar. Yazı tipi sayfaya ve kataloğa yazılmaz (e-imzalı belgede artımlı kayıt yalnızca alanlara ve
+  (İ Ğ Ş ı ğ ş) her okuyucuda doğru çıkar. Dosyayı notlar._font_dosyasi seçer: Windows'ta ve macOS'ta yazı tipi klasöründen, Linux'ta
+  fontconfig'in seçtiği aynı aile ya da ölçüleri aynı eşi (islemler/linux.py yazi_tipi_dosyasi: Arial → Liberation Sans / Arimo, Times New
+  Roman → Liberation Serif / Tinos, Courier New → Liberation Mono / Cousine, eşi yoksa Arial'in eşi, o da yoksa fontconfig'in seçtiği
+  TrueType). Türkçe harfler gömülen alt kümede (notlar.DAGARCIK). Yazı tipi sayfaya ve kataloğa yazılmaz (e-imzalı belgede artımlı kayıt yalnızca alanlara ve
   görünümlere dokunsun), daha önce gömülmüşse (/PDEfeFonts ya da önceki form görünümleri) yeniden kullanılır.
 - Kaydetme notlar.y_notlar_kaydet (artımlı) ve yapisal.y_yapisal_kaydet (kaynak belgeye uygulanıp sayfayla kopyalanır) içinde, yazdırma
   pdefe_core.y_sayfa_goruntu içinde aynı degerleri_uygula ile.

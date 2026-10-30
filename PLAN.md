@@ -4334,3 +4334,33 @@ Notlardaki bekleyen hata (2026-10-17, ofiste ölçülmüş: 2 sayfalık taranmı
   aynısı, Düşük ≤ İdeal (tahminde ve gerçekte), 225 dpi'de Düşük belirgin küçük, 150 dpi'de ikisi eşit. Değişiklikten önce 201 ve 204 dpi'lik
   kayıplı taramada Düşük büyüktü (deney betiğiyle ölçüldü, depoya girmedi). Kullanıcının gönderdiği belgelerin kopyalarında (yalnızca sayılar):
   Taranmış olanı 100 dpi (İdeal = Düşük), öbürlerinde değişiklik yok.
+
+#### 0.3.1: Linux'ta form alanlarının ve XFA formlarının yazı tipi
+Form alanlarının (5687b3a) "Bilinen sınırlar"ında kalan madde: Görünümün yazı tipi Windows ve macOS yazı tipi klasöründen, Linux sürümü ayrıca
+çözmeliydi. Linux dalı (70c56ac) ana dala birleşince (b7ef252) gözden geçirildi.
+- [x] **Durum (koddan)**: formlar.py görünümün yazı tipini notlar._font_yukle ile alıyor, o da dosyayı notlar._font_dosyasi'ndan. Linux'ta
+  _font_dosyasi zaten fontconfig'e soruyor (linux.yazi_tipi_dosyasi): Birleşmeden sonra form alanları da Linux'un seçimini kullanıyor, kodda
+  ayrı bir dal gerekmedi. Eş tablosunda (linux.ESLER) formun üç ailesi var: Arial → Liberation Sans / Arimo, Times New Roman → Liberation Serif
+  / Tinos, Courier New → Liberation Mono / Cousine. Eşi yoksa Arial'in eşi, o da yoksa fontconfig'in Arial için seçtiği TrueType (DejaVu Sans).
+  Türkçe harfler gömülen alt kümede (DAGARCIK). Değişen: Bulunamayan yazı tipinin iletisi form alanını da söylüyor ("Yazı notu ve form alanı
+  için yazı tipi bulunamadı…", önceden yalnız yazı notu), formlar.py ve linux.py'nin açıklamaları. Windows'ta ve macOS'ta değişiklik yok.
+  Arayüzde düzenlenirken alanın CSS ailesi (formlar.js AILE_CSS: Arial, Helvetica, sans-serif gibi) Chromium'un Linux'taki eşleştirmesiyle aynı
+  eşe düşüyor, değişmedi.
+- [x] **XFA (kök neden, koddan)**: xfa.css'teki benzer kuralları (Optima, Myriad Pro → Segoe UI → Arial, Minion Pro ve Turkish Times New Roman
+  → Times New Roman) yazı tipini `local()` ile tam adıyla arar. `local()` fontconfig'in Arial → Liberation Sans eşleştirmesine uğramaz: Arial'in
+  ve Times New Roman'ın kurulu olmadığı Linux'ta (dağıtımların çoğu) kural hiçbir yazı tipine bağlanmıyor, PDF.js'in XFA HTML'i tek aile
+  verdiği için yazı tarayıcının varsayılan (tırnaklı) yazı tipiyle çizilecekti. Karar: Her kuralın sonuna ölçüleri aynı eşler (Liberation Sans /
+  Arimo, Liberation Serif / Tinos, kalın ve italik yüzleriyle, tam ve PostScript adlarıyla), son çare DejaVu Sans / Serif. Windows ve macOS'ta
+  önce gelenler değişmedi (ilk bulunan alınır). Taşan yazı eskisi gibi en çok %20 küçültülür (DejaVu Arial'den geniş).
+- [x] **Seçilmeyen yollar**: formlar.py'ye kendi Linux dalını yazmak (notlar'ınkinin aynısı olurdu). XFA'da `local()` yerine ailenin adını
+  CSS'te yedek aile olarak vermek (PDF.js XFA HTML'inin font-family'sini her öğede değiştirmek gerekirdi).
+- [x] **Testler (bu bilgisayar, Windows)**: `test/linux_cekirdek_testi.py` A bölümü 37/37 (yeni 12: formun ailelerinin eş tablosunda olması,
+  sahte fontconfig'le Courier New → Liberation Mono, kalın, Cousine, eşi yoksa Arial'in eşi, Times → Liberation Serif. Linux benzetimi:
+  notlar'ın Linux dalı, sahte fontconfig ve test klasöründe Linux adlı TrueType kopyaları, Helvetica, Times, Courier ve kalın Courier alanlarının
+  görünümü fontconfig'in seçtiği dosyayla, Türkçe yazı sayfaya işlenince okunuyor, benzetimden sonra Windows'un seçimi eski hâlinde). B
+  bölümüne (yalnız Linux, CI) gerçek fontconfig'le form alanlarının görünümü ve fontu (aynı aile ya da ölçüleri aynı eşi) eklendi.
+  `test/linux_birim.mjs` (yeni 3: xfa.css'te 11 kural, her kuralda Arial / Times New Roman'dan sonra Liberation ve Arimo / Tinos, sonda DejaVu,
+  Windows sırası değişmedi). Gerileme: form_testi 101/101, xfa_testi 46/46, guvenlik_testi 47/47, senaryo48 48/48 (XFA, Windows), linux_renderer
+  23/23.
+- [ ] **Linux'ta gerçek sınama yok** (bu bilgisayarda Linux yok): B bölümü ilk CI koşusunda (`gh workflow run yayim.yml --ref <dal> -f
+  platform=linux`), gerçek masaüstünde docs/DOGRULAMA.md 46 › Linux.

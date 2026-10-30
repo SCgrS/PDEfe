@@ -1205,3 +1205,9 @@ Format Değiştir
 50. **Taranmış PDF'ten JPG.** Ofiste İdeal 419 KB, Düşük 433 KB görünen taranmış dilekçeyi Format Değiştir'e ekleyip JPG'yi seçin: Düşük'ün
     yanındaki boyut İdeal'inkinden büyük olmamalı (bu belgede ikisi eşit ya da Düşük biraz küçük görünebilir). Düşük'le dönüştürüp JPG'leri açın:
     Yazı İdeal'deki kadar okunur olmalı.
+
+Linux'ta formlar
+51. **Doldurulabilir PDF.** Linux'ta (AppImage) doldurulabilir bir PDF açın, yazı alanlarına Türkçe harflerle yazıp kaydedin, başka bir PDF
+    okuyucuda açın: Yazılar okunur ve alanın içinde olmalı, Türkçe harfler doğru görünmeli. Daktilo yazılı (Courier) alanlarda da.
+52. **XFA formu.** Bireysel başvuru formunu Linux'ta açın: Başlıklar ve etiketler tırnaklı (Times benzeri) değil, düz (Arial benzeri) bir yazı
+    tipiyle görünmeli, Türkçe harfler doğru olmalı.

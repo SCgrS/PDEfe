@@ -3,7 +3,10 @@
   A) Her sistemde koşan birim denetimleri (sahte girdilerle): dış programların ortamı (LD_LIBRARY_PATH'ten PyInstaller'ın ve AppImage'ın
      klasörleri çıkar), fc-match yanıtının okunması ve yazı notu fontunun seçimi (aynı aile ya da ölçüleri aynı eşi, yoksa Arial, son çare
      herhangi bir TrueType), UYAP Doküman Editörü'nün uygulama menüsü kaydından (.desktop) bulunması, Snap / Flatpak LibreOffice'in elenmesi.
-  B) Yalnız Linux'ta (CI: ubuntu-22.04, kaynaktan): fontconfig'le yazı notu fontu ve Türkçe harfli FreeText notunun kaydı, baştan yazılan
+     Form alanlarının yazı tipi (0.3.1): /DA'daki ailelerin eşleri (Courier New → Liberation Mono / Cousine, eşi yoksa Arial'inki) ve Linux
+     benzetimi (notlar'ın Linux dalı, sahte fontconfig, bu bilgisayarın TrueType'ları): Görünüm fontconfig'in seçtiği dosyayla, Türkçe yazı.
+  B) Yalnız Linux'ta (CI: ubuntu-22.04, kaynaktan): fontconfig'le yazı notu fontu ve Türkçe harfli FreeText notunun kaydı, form alanlarının
+     (Helvetica, Times, Courier, kalın Courier) görünümü ve fontları (aynı aile ya da ölçüleri aynı eşi), baştan yazılan
      kayıtta izinler, salt okunur dosyaya yazılmaması, yazı tanıyıcı yokken ocr_sayfa'nın "desteklenmiyor" demesi, LibreOffice varsa Word → PDF
      (Türkçe metin PDF'te), yoksa anlaşılır neden, UYAP Doküman Editörü yokken UDF yeteneğinin kapalı olması.
 Belgeler test/cikti/linux_cekirdek altında üretilir. Kullanım: python test/linux_cekirdek_testi.py  (Linux'ta: .venv/bin/python ya da CI'da python)"""
@@ -21,7 +24,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 import pymupdf  # noqa: E402
 import pdefe_core  # noqa: E402,F401  (yöntemler ve önbellek kurulur)
-from islemler import linux, notlar, udf, word  # noqa: E402
+from islemler import formlar, linux, notlar, udf, word  # noqa: E402
 import ornek_pdf_uret  # noqa: E402
 
 LINUX = sys.platform.startswith("linux")
@@ -136,6 +139,122 @@ for ad, tablo, var_mi in (
     except FileNotFoundError as e:
         sonuc("font seçimi: %s Türkçe hata" % ad, "yazı tipi bulunamadı" in str(e), e)
 
+
+# ---- form alanlarının yazı tipi (0.3.1, islemler/formlar.py): /DA'daki aile Linux'ta fontconfig'in eşine
+def form_pdf(yol):
+    """Dört yazı alanı: Helvetica, Times, Courier, kalın Courier (/DA'daki standart yazı tipleri). Görünümü PDEfe üretir."""
+    doc = pymupdf.open()
+    pg = doc.new_page()
+    for i, (ad, yazi) in enumerate(FORM_ALANLARI):
+        w = pymupdf.Widget()
+        w.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
+        w.field_name = ad
+        w.rect = pymupdf.Rect(72, 72 + 40 * i, 420, 96 + 40 * i)
+        w.text_font = yazi if yazi != "CoBo" else "Cour"
+        w.text_fontsize = 11
+        a = pg.add_widget(w)
+        if yazi == "CoBo":   # PyMuPDF kalın Courier'yi bilmiyor (Helvetica yazar): /DA elle
+            doc.xref_set_key(a.xref, "DA", "(0 0 0 rg /CoBo 11 Tf)")
+    doc.save(yol)
+    doc.close()
+    return yol
+
+
+FORM_ALANLARI = (("arial", "Helv"), ("times", "TiRo"), ("courier", "Cour"), ("courier_kalin", "CoBo"))
+FORM_AILELERI = {"arial": ("Arial", False), "times": ("Times New Roman", False), "courier": ("Courier New", False),
+                 "courier_kalin": ("Courier New", True)}
+FORM_DEGERI = "Şişli İğneada ÇĞİÖŞÜ çğıöşü"
+
+
+def form_doldur(yol):
+    """Alanlara Türkçe değer yazar (formlar.degerleri_uygula), kaydeder. Döner: (alan adı → widget xref, görünümler sayfaya işlenince okunan
+    yazı)."""
+    doc = pymupdf.open(yol)
+    xrefler = {w.field_name: w.xref for w in doc[0].widgets()}
+    formlar.degerleri_uygula(doc, formlar.degerleri_dogrula([{"xref": x, "deger": "%s %s" % (ad, FORM_DEGERI)} for ad, x in xrefler.items()]))
+    hedef = yol[:-4] + "_dolu.pdf"
+    doc.save(hedef)
+    doc.close()
+    d = pymupdf.open(hedef)
+    d.bake(annots=False, widgets=True)
+    metin = unicodedata.normalize("NFC", d[0].get_text())
+    d.close()
+    return xrefler, metin
+
+
+sonuc("form alanı aileleri (Helvetica, Times, Courier, Arial, bilinmeyen) Linux'un eş tablosunda", all(
+    formlar._yazi_ailesi(k, b)[0].lower() in linux.ESLER for k, b in (("Helv", "Helvetica"), ("TiRo", "Times-Roman"), ("Cour", "Courier"),
+                                                                      ("CoBo", "Courier-Bold"), ("F1", "ArialMT"), ("F2", "Bilinmeyen"))))
+TABLO_FORM = {**TABLO, **{
+    ("courier new", False, False): (LIB + "LiberationMono-Regular.ttf", "Liberation Mono", "80", "0"),
+    ("courier new", True, False): (LIB + "LiberationMono-Bold.ttf", "Liberation Mono", "200", "0"),
+    ("times new roman", False, False): (LIB + "LiberationSerif-Regular.ttf", "Liberation Serif", "80", "0"),
+}}
+COUSINE = "/usr/share/fonts/truetype/croscore/Cousine-Regular.ttf"
+for (aile, kalin), tablo, beklenen, ad in (
+        (("Courier New", False), TABLO_FORM, LIB + "LiberationMono-Regular.ttf", "Courier New → Liberation Mono"),
+        (("Courier New", True), TABLO_FORM, LIB + "LiberationMono-Bold.ttf", "kalın Courier New → Liberation Mono Bold"),
+        (("Courier New", False), {**TABLO, ("courier new", False, False): (COUSINE, "Cousine", "80", "0")}, COUSINE, "Courier New → Cousine"),
+        (("Courier New", False), TABLO, LIB + "LiberationSans-Regular.ttf", "Courier New'in eşi yoksa (fontconfig DejaVu verir) Arial'in eşi"),
+        (("Times New Roman", False), TABLO_FORM, LIB + "LiberationSerif-Regular.ttf", "Times New Roman → Liberation Serif")):
+    r = linux.yazi_tipi_dosyasi(aile, kalin, False, sahte_fc(tablo), var)
+    sonuc("form alanı fontu: " + ad, r == (beklenen, False), r)
+
+
+def sahte_ttf(ad, *adaylar):
+    """Bu bilgisayardaki ilk TrueType'ın (Windows, Linux, macOS adları) test klasöründeki Linux adlı kopyası: Sahte fontconfig'in gösterdiği
+    dosya gerçekten gömülsün ve Windows / macOS dalının seçeceği dosyadan ayırt edilsin. Kaynak yoksa None."""
+    kaynak = next((a for a in adaylar if os.path.isfile(a)), None)
+    if not kaynak:
+        return None
+    os.makedirs(os.path.join(CIKTI, "sahte_fontlar"), exist_ok=True)
+    hedef = os.path.join(CIKTI, "sahte_fontlar", ad)
+    shutil.copyfile(kaynak, hedef)
+    return hedef
+
+
+WF = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")
+MF = "/System/Library/Fonts/Supplemental/"
+SAHTE_DOSYALAR = {
+    ("arial", False): sahte_ttf("LiberationSans-Regular.ttf", os.path.join(WF, "arial.ttf"), LIB + "LiberationSans-Regular.ttf", MF + "Arial.ttf"),
+    ("times new roman", False): sahte_ttf("LiberationSerif-Regular.ttf", os.path.join(WF, "times.ttf"), LIB + "LiberationSerif-Regular.ttf",
+                                          MF + "Times New Roman.ttf"),
+    ("courier new", False): sahte_ttf("LiberationMono-Regular.ttf", os.path.join(WF, "cour.ttf"), LIB + "LiberationMono-Regular.ttf",
+                                      MF + "Courier New.ttf"),
+    ("courier new", True): sahte_ttf("LiberationMono-Bold.ttf", os.path.join(WF, "courbd.ttf"), LIB + "LiberationMono-Bold.ttf",
+                                     MF + "Courier New Bold.ttf"),
+}
+if not all(SAHTE_DOSYALAR.values()):
+    bilgi("Linux'taki seçimle form alanı görünümü atlandı", "bu bilgisayarda Arial / Times / Courier ya da Liberation TrueType dosyaları yok")
+else:
+    # Linux dalı bu bilgisayarda da (notlar._font_dosyasi sys.platform'a bakar: Yalnız notlar modülünün sys'i Linux gösterilir), fontconfig
+    # sahte (eşlerin adları, dosyalar test klasöründeki kopyalar): Alanların görünümü Linux'ta seçilecek dosyayla üretilir
+    import types
+    eski_sys, eski_calistir = notlar.sys, linux._calistir
+    tablo = {(a, k, False): (y, {"arial": "Liberation Sans", "times new roman": "Liberation Serif", "courier new": "Liberation Mono"}[a],
+                             "200" if k else "80", "0") for (a, k), y in SAHTE_DOSYALAR.items()}
+    notlar._font_onbellek.clear()
+    linux._onbellek.clear()
+    notlar.sys = types.SimpleNamespace(platform="linux")
+    linux._calistir = sahte_fc(tablo)
+    try:
+        xrefler, metin = form_doldur(form_pdf(os.path.join(CIKTI, "form_linux_benzetimi.pdf")))
+        secilen = {k: v[2] for k, v in notlar._font_onbellek.items()}
+        sonuc("Linux benzetimi: form alanlarının fontu fontconfig'in seçtiği dosya (Arial, Times, Courier, kalın Courier)", all(
+            secilen.get((FORM_AILELERI[ad][0], FORM_AILELERI[ad][1], False)) == SAHTE_DOSYALAR[(FORM_AILELERI[ad][0].lower(), FORM_AILELERI[ad][1])]
+            for ad, _ in FORM_ALANLARI), secilen)
+        for ad, _ in FORM_ALANLARI:
+            sonuc("Linux benzetimi: %s alanının görünümünde Türkçe yazı" % ad, ("%s %s" % (ad, FORM_DEGERI)) in metin, metin[:300])
+    except Exception as e:  # noqa: BLE001
+        sonuc("Linux benzetimi: form alanı görünümü", False, repr(e))
+    finally:
+        notlar.sys, linux._calistir = eski_sys, eski_calistir
+        notlar._font_onbellek.clear()
+        linux._onbellek.clear()
+        shutil.rmtree(os.path.join(CIKTI, "sahte_fontlar"), ignore_errors=True)
+    sonuc("Linux benzetiminden sonra bu bilgisayarın font seçimi eski hâlinde", notlar.sys is sys
+          and (LINUX or os.path.dirname(notlar._font_dosyasi("Arial", False, False)[0]) in notlar.FONT_KLASORLERI))
+
 # ---- UYAP Doküman Editörü: uygulama menüsü kaydı (.desktop) ve klasör
 gecici = tempfile.mkdtemp(prefix="pdefe-linux-testi-")
 try:
@@ -203,6 +322,20 @@ try:
     doc.close()
 except Exception as e:  # noqa: BLE001
     sonuc("yazı notu kaydı", False, repr(e))
+
+# ---- form alanlarının görünümü (gerçek fontconfig, 0.3.1)
+try:
+    notlar._font_onbellek.clear()
+    xrefler, metin = form_doldur(form_pdf(os.path.join(CIKTI, "form.pdf")))
+    for ad, _ in FORM_ALANLARI:
+        sonuc("form alanı %s: görünümde Türkçe yazı" % ad, ("%s %s" % (ad, FORM_DEGERI)) in metin, metin[:300])
+    for ad, (aile, kalin) in FORM_AILELERI.items():
+        yol = (notlar._font_onbellek.get((aile, kalin, False)) or (None, None, None))[2]
+        f = linux.fc_match(aile, kalin)
+        sonuc("form alanı %s: %s%s → %s (aynı aile ya da ölçüleri aynı eşi)" % (ad, aile, " kalın" if kalin else "", os.path.basename(yol or "-")),
+              bool(yol) and yol.endswith(".ttf") and bool(f) and f["dosya"] == yol and any(x in linux.ESLER[aile.lower()] for x in f["aileler"]), f)
+except Exception as e:  # noqa: BLE001
+    sonuc("form alanlarının görünümü", False, repr(e))
 
 # ---- baştan yazılan kayıtta izinler, salt okunur dosya
 pdf2 = os.path.join(CIKTI, "izin.pdf")
