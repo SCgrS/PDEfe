@@ -156,6 +156,61 @@ xfa.y_xfa_kaydet({"veri": base64.b64encode(mdp).decode(), "hedef": hedef2})
 d = pymupdf.open(hedef2)
 sonuc("kaydet: DocMDP kalır, yalnızca UR3 kalkar", d.xref_get_key(d.pdf_catalog(), "Perms/DocMDP")[0] != "null" and d.xref_get_key(d.pdf_catalog(), "Perms/UR3")[0] == "null")
 d.close()
+# 0.3.1 inceleme: Görünmez e-imzalı saf XFA formu. Kullanım hakları imzası e-imza sayılmaz
+IMZALI = ozet["xfaImzali"]
+IMZALI_B = open(IMZALI, "rb").read()
+sonuc("bilgi: kullanım hakları imzası e-imza sayılmaz, görünmez imza alanı sayılır",
+      not xfa.y_xfa_bilgi({"yol": XFA})["eImzali"] and xfa.y_xfa_bilgi({"yol": IMZALI})["eImzali"])
+br = next(v for v in ([int(x) for x in m] for m in re.findall(rb"/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]", IMZALI_B)) if v[1])   # UR3'ün [0 0 0 0]'ı değil
+
+
+def imza_tutuyor(veri):
+    """Sahte imzanın /Contents'i imzalanan baytların SHA-256'sı mı (form_testi'ndeki gibi)."""
+    import hashlib
+    a, b, c = br[1], br[2], br[3]
+    return len(veri) >= b + c and veri[a + 1:a + 65] == hashlib.sha256(veri[0:a] + veri[b:b + c]).hexdigest().encode()
+
+
+pdefe_core.onbellek.hepsini_birak()
+re_ek = xfa.y_xfa_degistir({"veri": base64.b64encode(IMZALI_B).decode(), "islemler": [{"tur": "ekle", "dugum": int(satir)}]})
+artimli = IMZALI_B + base64.b64decode(re_ek["ek"])                 # PDF.js'in kaydı gibi: özgün baytlar + ek
+sonuc("imzalı form: ekle artımlı (imzalanan bölüm aynen)", "ek" in re_ek and imza_tutuyor(artimli))
+hedef3 = os.path.join(CIKTI, "imzali-koru.pdf")
+shutil.copyfile(IMZALI, hedef3)
+k3 = xfa.y_xfa_kaydet({"veri": base64.b64encode(artimli).decode(), "hedef": hedef3, "yol": hedef3, "imzayiKoru": True})
+yazilan = open(hedef3, "rb").read()
+d = pymupdf.open(hedef3)
+sonuc("kaydet (imzayı koru): baytlar olduğu gibi, imza tutuyor, kullanım hakları imzası yerinde, iki Satir",
+      k3.get("imzaKorundu") is True and not k3["kullanimHakkiKaldirildi"] and yazilan == artimli and imza_tutuyor(yazilan)
+      and d.xref_get_key(d.pdf_catalog(), "Perms/UR3")[0] != "null" and not d.is_repaired
+      and len(re.findall(r"<Satir[ >/]", d.xref_stream(xfa._paketler(d)["datasets"]).decode())) == 2, k3)
+d.close()
+hedef4 = os.path.join(CIKTI, "imzali-temiz.pdf")
+shutil.copyfile(IMZALI, hedef4)
+k4 = xfa.y_xfa_kaydet({"veri": base64.b64encode(artimli).decode(), "hedef": hedef4, "yol": hedef4})
+sonuc("kaydet (tamamen sil): baştan yazılır, kullanım hakları imzası kalkar (imza artık tutmaz)",
+      "imzaKorundu" not in k4 and k4["kullanimHakkiKaldirildi"] and not imza_tutuyor(open(hedef4, "rb").read()), k4)
+# Çekirdek yapı değişikliğini artımlı yazamamış (imzalanan bölüm değişmiş): imza korunamaz, baştan yazılır
+bas = pymupdf.open(stream=artimli, filetype="pdf")
+yeniden = bas.tobytes(garbage=1, deflate=True)
+bas.close()
+hedef5 = os.path.join(CIKTI, "imzali-bozuk.pdf")
+shutil.copyfile(IMZALI, hedef5)
+k5 = xfa.y_xfa_kaydet({"veri": base64.b64encode(yeniden).decode(), "hedef": hedef5, "yol": hedef5, "imzayiKoru": True})
+sonuc("kaydet (imzayı koru, imzalanan bölüm değişmiş): imzaKorundu false, baştan yazıldı", k5.get("imzaKorundu") is False and k5["kullanimHakkiKaldirildi"], k5)
+k6 = xfa.y_xfa_kaydet({"veri": B64, "hedef": os.path.join(CIKTI, "imzasiz-koru.pdf"), "imzayiKoru": True})
+sonuc("kaydet (imzayı koru, imzasız form): imzaKorundu false, olağan kayıt", k6.get("imzaKorundu") is False and k6["kullanimHakkiKaldirildi"], k6)
+pdefe_core.onbellek.hepsini_birak()
+
+# 0.3.1 inceleme: Yeni örnek ilk örneğin zengin metninden ve öznitelik değerlerinden hiçbir şey taşımaz
+ilk = xfa.ET.fromstring('<Satir xmlns:xfa="%s"><Aciklama xfa:contentType="text/html"><body xmlns="http://www.w3.org/1999/xhtml"><p>Merhaba '
+                        '<span>dünya</span> sonu</p></body></Aciklama><Resim href="a.png" xfa:contentType="image/png">QUJD</Resim><Ic xfa:dataNode="dataGroup">'
+                        '<Not>x</Not> kuyruk </Ic></Satir>' % xfa.VERI_NS)
+bos = xfa.ET.tostring(xfa._bos_grup(ilk, "Satir"), encoding="unicode")
+sonuc("yeni örnek: zengin metin, öznitelik değeri ve iç öğe ardı metin geçmez, yapı (öğeler, contentType, dataNode) kalır",
+      not any(s in bos for s in ("Merhaba", "dünya", "sonu", "a.png", "QUJD", "kuyruk", ">x<"))
+      and all(s in bos for s in ("<Aciklama", "<Resim", 'href=""', "contentType=\"image/png\"", "<Not", 'dataNode="dataGroup"')), bos)
+
 duz = pymupdf.open()
 duz.new_page()
 duz_b = duz.tobytes()

@@ -325,6 +325,12 @@ export class XfaYoneticisi extends EventTarget {
   }
 
   // ------------------------------------------------------------ kaydetme, yazdırma, küçük resimler
+  /** Kuyruktaki yeniden kurmalar ve değer koymalar bitene dek bekler (sekme taşınırken: paketlenen baytlar ile geri al yığınının konumu
+   *  birbirini tutsun, 0.3.1 inceleme). Bekleme sürerken kuyruğa yeni iş girerse onu da bekler. */
+  async bekle() {
+    for (let k = this._kuyruk; ; k = this._kuyruk) { await k; if (k === this._kuyruk) return; }
+  }
+
   /** Güncel değerleriyle formun baytları (PDF.js saveDocument; açık düzenleme uygulanır, süren yeniden kurma beklenir). */
   async baytlar() {
     this.duzenlemeyiUygula();
@@ -332,10 +338,11 @@ export class XfaYoneticisi extends EventTarget {
     return this.g.xfaBaytlari();
   }
 
-  /** Formu hedefe yazar (çekirdek xfa_kaydet: baştan yazım, kullanım hakları imzası kaldırılır). Döner: çekirdeğin sonucu. */
-  async kaydet(hedef) {
+  /** Formu hedefe yazar (çekirdek xfa_kaydet: baştan yazım, kullanım hakları imzası kaldırılır). imzayiKoru: e-imzalı formda PDF.js'in
+   *  artımlı baytları olduğu gibi yazılır (imza korunur, 0.3.1 inceleme). Döner: çekirdeğin sonucu. */
+  async kaydet(hedef, { imzayiKoru = false } = {}) {
     const veri = await this.baytlar();
-    return this.cekirdek('xfa_kaydet', { veri: base64Yaz(veri), hedef, yol: this.g.yol });
+    return this.cekirdek('xfa_kaydet', { veri: base64Yaz(veri), hedef, yol: this.g.yol, ...(imzayiKoru ? { imzayiKoru: true } : {}) });
   }
 
   /** Formun güncel değerleriyle düz PDF'i (yazdırma; küçük resimler). Döner: { yol, sayfa }. */

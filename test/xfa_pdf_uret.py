@@ -3,7 +3,7 @@
 # tutucu). Form tasarım programının ürettiği formların yapısında: katalogda /NeedsRendering, AcroForm'da alan yok, /XFA paketleri (xdp
 # başı, config, template, datasets, xdp sonu), PDF'in kendi sayfası "lütfen bekleyin" yazısı.
 # Kullanım: .venv\Scripts\python.exe test\xfa_pdf_uret.py <klasör>
-# Çıktı (klasöre): xfa.pdf
+# Çıktı (klasöre): xfa.pdf, xfa-imzali.pdf (aynı form, görünmez sahte e-imzayla: imzali_xfa)
 #   Şablon: form1 (yukarıdan aşağı akış). Sayfa alanı "Sayfa1": alt bilgide "Sayfa n / N" (zengin metne gömülü, değeri xfa.layout.page /
 #   pageCount betikli iki gizli alan). Alt formlar:
 #     Baslik: başlık (Türkçe harfler), yazı alanı AdSoyad (araç ipucu "Adı ve soyadı"), onay kutusu Onay, açılır liste Sehir (Ankara,
@@ -107,7 +107,43 @@ def uret(klasor):
     yol = os.path.join(klasor, "xfa.pdf")
     doc.save(yol, garbage=1, deflate=True)
     doc.close()
-    return {"xfa": yol, "paketler": {"sablon": tpl, "veri": dat}}
+    imzali = os.path.join(klasor, "xfa-imzali.pdf")
+    imzali_xfa(yol, imzali)
+    return {"xfa": yol, "xfaImzali": imzali, "paketler": {"sablon": tpl, "veri": dat}}
+
+
+def imzali_xfa(kaynak, yol):
+    """0.3.1 inceleme: Görünmez e-imzalı saf XFA formu (sahte imza, yer tutucu). İmza alanının Rect'i [0 0 0 0]: PDF.js böyle alanı alan
+    saymaz, belge yine saf XFA'dır. /ByteRange dosyanın tamamını (/Contents dışında) kapsar, /Contents imzalanan baytların SHA-256'sı
+    (test/form_alanlari_pdf_uret.py imzali_pdf'teki gibi)."""
+    import hashlib
+    import re
+    doc = pymupdf.open(kaynak)
+    icerik = 2 * 64
+    sig = doc.get_new_xref()
+    doc.update_object(sig, "<</Type/Sig/Filter/Deneme.Imza/SubFilter/ETSI.CAdES.detached/ByteRange[0 1111111111 1111111111 1111111111]"
+                           "/Contents<%s>/M(D:20261030000000+03'00')>>" % ("0" * icerik))
+    alan = doc.get_new_xref()
+    doc.update_object(alan, "<</Type/Annot/Subtype/Widget/FT/Sig/T(Imza)/F 132/Rect[0 0 0 0]/P %d 0 R/V %d 0 R>>" % (doc[0].xref, sig))
+    doc.xref_set_key(doc[0].xref, "Annots", "[%d 0 R]" % alan)
+    af = int(doc.xref_get_key(doc.pdf_catalog(), "AcroForm")[1].split()[0])
+    doc.xref_set_key(af, "Fields", "[%d 0 R]" % alan)
+    doc.xref_set_key(af, "SigFlags", "3")
+    doc.save(yol, garbage=0, deflate=False, no_new_id=True)
+    doc.close()
+    veri = bytearray(open(yol, "rb").read())
+    m_br = re.search(rb"/ByteRange\s*\[\s*0\s+1111111111\s+1111111111\s+1111111111\s*\]", veri)
+    m_ci = re.search(rb"/Contents\s*<0{%d}>" % icerik, veri)
+    if not m_br or not m_ci:
+        raise RuntimeError("İmza sözlüğünün yer tutucuları bulunamadı.")
+    a = m_ci.end() - icerik - 2
+    b = a + icerik + 2
+    yeni = b"/ByteRange[0 %010d %010d %010d]" % (a, b, len(veri) - b)
+    yeni += b" " * (m_br.end() - m_br.start() - len(yeni))
+    veri[m_br.start():m_br.end()] = yeni
+    ozet = hashlib.sha256(bytes(veri[0:a]) + bytes(veri[b:])).hexdigest().encode()
+    veri[a + 1:a + 1 + icerik] = ozet + b"0" * (icerik - len(ozet))
+    open(yol, "wb").write(bytes(veri))
 
 
 if __name__ == "__main__":

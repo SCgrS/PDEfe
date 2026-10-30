@@ -31,10 +31,12 @@ import pymupdf
 from . import notlar
 
 VERI_NS = "http://www.xfa.org/schema/xfa-data/1.0/"
+XHTML_NS = "http://www.w3.org/1999/xhtml"       # zengin metinli alan değerinin içeriği
 EN_BUYUK_PAKET = 64 * 1024 * 1024       # şablon ve veri paketinin en büyük boyu (bayt)
 EN_BUYUK_VERI = 400 * 1024 * 1024       # base64 baytların en büyük boyu (karakter)
 EN_COK_ISLEM = 16
 EN_COK_ORNEK = 1000                     # occur max sınırsızken (-1) eklenebilecek en çok örnek (çekirdeği ve dizimi tutmasın)
+EN_COK_IMZA_ALANI = 5000                # e-imza ararken yürünen en çok AcroForm alanı (bozuk ya da kötü niyetli belge çekirdeği tutmasın)
 GORUNURLUKLER = ("visible", "hidden", "invisible", "inactive")
 ISLEM_TURLERI = ("ekle", "sil", "gorunurluk")
 
@@ -145,6 +147,40 @@ def _saf_mi(doc, paketler):
 def _kullanim_hakki_var(doc):
     kat = doc.pdf_catalog()
     return doc.xref_get_key(kat, "Perms/UR3")[0] != "null" or doc.xref_get_key(kat, "Perms/UR")[0] != "null"
+
+
+def _e_imza_araliklari(doc):
+    """Belgedeki e-imzaların imzalanan bayt aralıkları ([a, b, c, d] /ByteRange'ler): değeri dolu imza alanları (AcroForm /Fields ağacı.
+    Saf XFA formunda yalnızca görünmez imza alanı olabilir: PDF.js Rect'i [0 0 0 0] olan imza alanlarını alan saymaz) ve onay imzası
+    (/Perms /DocMDP). Kullanım hakları imzası (/Perms /UR3, /UR) e-imza değildir, sayılmaz (kaydedilince zaten kaldırılır). 0.3.1 inceleme:
+    XFA kaydı imzaya bakmadan baştan yazıyordu."""
+    araliklar = []
+
+    def aralik(tur, deger):
+        if tur != "array":
+            return
+        sayilar = [int(x) for x in re.findall(r"-?\d+", deger)]
+        if len(sayilar) == 4 and all(x >= 0 for x in sayilar):
+            araliklar.append(sayilar)
+
+    kat = doc.pdf_catalog()
+    aralik(*doc.xref_get_key(kat, "Perms/DocMDP/ByteRange"))
+    gorulen = set()
+
+    def gez(dizi, derinlik):
+        for x in [int(x) for x in re.findall(r"(\d+)\s+0\s+R", dizi or "")][:EN_COK_IMZA_ALANI]:
+            if x in gorulen or not 0 < x < doc.xref_length() or len(gorulen) >= EN_COK_IMZA_ALANI:
+                continue
+            gorulen.add(x)
+            tur, kids = doc.xref_get_key(x, "Kids")
+            if tur == "array" and derinlik < 10:
+                gez(kids, derinlik + 1)
+            aralik(*doc.xref_get_key(x, "V/ByteRange"))
+
+    tur, alanlar = doc.xref_get_key(kat, "AcroForm/Fields")
+    if tur == "array":
+        gez(alanlar, 0)
+    return araliklar
 
 
 def _kullanim_hakki_kaldir(doc):
@@ -535,13 +571,22 @@ def _veri_kok(datasets):
 def _bos_grup(ornek, ad):
     """Yeni örneğin veri grubu: var olan ilk örneğin yapısı, değerleri boş. PDF.js alanlara veri düğümü kurmaz: Düğümü olmayan alan
     kendi kimliğine bağlanır, yazılan değer veriye yazılmaz, kayıtta ve formun yeniden dizilişinde kaybolurdu (ölçüldü). Örnek yoksa boş
-    veri grubu."""
+    veri grubu. İlk örneğin hiçbir değeri yeni örneğe geçmez (0.3.1 inceleme): Zengin metinli değerin XHTML içeriği silinir (yalnızca
+    öğelerin metni silinince iç öğelerin ardındaki metin, ör. <p>Merhaba <span>dünya</span> sonu</p>'daki " sonu", yeni örneğe geçiyordu).
+    Değer taşıyan öznitelikler (ad alanı olmayanlar, ör. bağlı görselin href'i) boşaltılır, öğe kalır (alan yine veri düğümüne bağlanır).
+    Ad alanlı öznitelikler (XFA verisinin dataNode, contentType'ı) yapıdır, kalır."""
     if ornek is None:
         return ET.Element(ad, {"{%s}dataNode" % VERI_NS: "dataGroup"})
     yeni = copy.deepcopy(ornek)
+    for e in list(yeni.iter()):
+        for c in [c for c in e if isinstance(c.tag, str) and c.tag.startswith("{%s}" % XHTML_NS)]:
+            e.remove(c)
     for e in yeni.iter():
         e.text = None
-    yeni.tail = None
+        e.tail = None
+        for k in e.attrib:
+            if not k.startswith("{"):
+                e.attrib[k] = ""
     return yeni
 
 
@@ -607,7 +652,8 @@ def _oznitelik_koy(veri, bas, ad, deger):
 
 # ---------------------------------------------------------------- yöntemler
 def y_xfa_bilgi(p):
-    """Belgenin XFA bilgisi. p: {yol}. Döner: {xfa: XFA paketi var mı, saf, kullanimHakki, dugmeler: [{yol, sayfaAlani, eylemler,
+    """Belgenin XFA bilgisi. p: {yol}. Döner: {xfa: XFA paketi var mı, saf, kullanimHakki, eImzali (e-imza ya da onay imzası var mı:
+    _e_imza_araliklari), dugmeler: [{yol, sayfaAlani, eylemler,
     desteklenmiyor}], sayfaNumaralari: [{tur: 'alan'|'cizim', yol, sayfaAlani, deger | paragraflar}], ekranda: [{yol, sayfaAlani}],
     ornekler: {dugum: {yol, min, max, veri}}}. Yollar PDF.js HTML'inin ad yollarıdır (_html_yolu)."""
     from pdefe_core import onbellek
@@ -615,7 +661,7 @@ def y_xfa_bilgi(p):
     paketler = _paketler(doc)
     sablon = _paket(doc, paketler, "template")
     sonuc = {"xfa": bool(paketler), "saf": _saf_mi(doc, paketler), "kullanimHakki": _kullanim_hakki_var(doc),
-             "dugmeler": [], "sayfaNumaralari": [], "ekranda": [], "ornekler": {}}
+             "eImzali": bool(_e_imza_araliklari(doc)), "dugmeler": [], "sayfaNumaralari": [], "ekranda": [], "ornekler": {}}
     if sablon:
         kok, liste = _agac(sablon)
         sonuc.update(_sablon_bilgisi(kok, liste))
@@ -689,26 +735,53 @@ def y_xfa_degistir(p):
             pass
 
 
+def _imzali_bolum_ayni(girdi, araliklar, yol):
+    """Girdide e-imzaların kapsadığı baytlar (dosyanın başından son ByteRange'in sonuna dek) diskteki dosyanınkiyle aynı mı: PDF.js formu
+    artımlı kaydeder (değişen veri sona eklenir), imzalanan bölüm olduğu gibi kalır. Çekirdek bir yapı değişikliğini artımlı yazamadıysa
+    (xfa_degistir'in 'veri' yanıtı) bölüm değişmiştir, imza korunamaz."""
+    son = max(a[2] + a[3] for a in araliklar)
+    if son <= 0 or son > len(girdi) or not yol:
+        return False
+    try:
+        with open(yol, "rb") as f:
+            return f.read(son) == girdi[:son]
+    except OSError:
+        return False
+
+
 def y_xfa_kaydet(p):
     """PDF.js'in kaydettiği baytları (güncel XFA verisi) hedefe baştan yazar, kullanım hakları imzasını kaldırır. p: {veri (base64), hedef,
-    yol?: belgenin önceki dosyası (önbellekten bırakılır)}. Döner: {boyut, kullanimHakkiKaldirildi}."""
+    yol?: belgenin önceki dosyası (önbellekten bırakılır), imzayiKoru?: e-imzalı formda baytlar olduğu gibi yazılır (PDF.js'in artımlı
+    kaydı: imzalanan bölüm ve /Perms değişmez, alanların önceki değerleri dosyada kalır)}. Döner: {boyut, kullanimHakkiKaldirildi,
+    imzaKorundu (imzayiKoru verildiyse: imzalanan bölüm diskteki dosyanınkiyle aynı çıktı mı; değilse belge baştan yazıldı)}."""
     from pdefe_core import onbellek
     hedef = p["hedef"]
     girdi = _baytlar(p.get("veri"))
     doc = pymupdf.open(stream=girdi, filetype="pdf")
     gecici = None
+    sonuc = {}
     try:
         if doc.needs_pass:
             raise PermissionError("Belge şifreli, kaydedilemiyor.")
         if not _paketler(doc):
             raise ValueError("Belgede XFA formu yok.")
-        kaldirildi = _kullanim_hakki_kaldir(doc)
+        koru = False
+        if p.get("imzayiKoru") is True:
+            araliklar = _e_imza_araliklari(doc)
+            koru = bool(araliklar) and _imzali_bolum_ayni(girdi, araliklar, p.get("yol") or hedef)
+            sonuc["imzaKorundu"] = koru
+        kaldirildi = False if koru else _kullanim_hakki_kaldir(doc)
         for y in {hedef, p.get("yol") or hedef}:
             onbellek.birak(y)
         gecici = hedef + ".pdefe-tmp"
         sifreli = bool(doc.is_encrypted or doc.metadata.get("encryption"))
         try:
-            if sifreli:
+            if koru:
+                # E-imzayı korumak için (0.3.1 inceleme): Baytlar olduğu gibi. Kullanım hakları imzasına da dokunulmaz (onu kaldırmak kataloğu
+                # değiştirirdi: Onaylı (DocMDP) belgede izin verilmeyen değişiklik sayılır)
+                with open(gecici, "wb") as f:
+                    f.write(girdi)
+            elif sifreli:
                 doc.save(gecici, garbage=1, deflate=True, encryption=pymupdf.PDF_ENCRYPT_KEEP)
             else:
                 doc.save(gecici, garbage=1, deflate=True)
@@ -731,7 +804,7 @@ def y_xfa_kaydet(p):
                 os.remove(gecici)
             except OSError:
                 pass
-    return {"boyut": os.path.getsize(hedef), "kullanimHakkiKaldirildi": kaldirildi}
+    return dict(sonuc, boyut=os.path.getsize(hedef), kullanimHakkiKaldirildi=kaldirildi)
 
 
 def kaydol(yontemler):

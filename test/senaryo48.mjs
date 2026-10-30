@@ -15,6 +15,10 @@
 //  11) Yakınlaştırınca odaktaki alan ve yazılan metin korunur; kapatırken kaydedilmemiş değişiklik sorulur.
 //  12) Sekme başka pencereye taşınır: değerler, sayfa sayısı ve geri al geçmişi (yapı komutu dâhil) taşınır.
 //  13) Karma belge (XFA paketli, AcroForm alanlı) XFA kipine girmez, AcroForm yolunda kalır.
+//  14) Görünmez e-imzalı form (0.3.1 inceleme): Kaydederken sorulur. İmzayı koru: PDF.js'in artımlı kaydı yazılır (imzalanan baytlar ve
+//      kullanım hakları imzası yerinde), seçim hatırlanır. Tamamen sil: baştan yazılır. Vazgeç: dosya değişmez.
+//  15) Yeniden kurma sürerken (0.3.1 inceleme): Geri al'ın ardından sekme paketi kurulmanın bitmesini bekler (baytlar ve yığının
+//      konumu tutar), düğme işi sürerken sekme taşınmaz, otomatik kayıt dizilim bitince yapılır.
 // Örnek PDF test/xfa_pdf_uret.py ile üretilir (gerçek belge yok): test/cikti/s48/<koşum>/.
 // Kullanım (ekran dışı):
 //   powershell -File test\baslat.ps1 -Port 9310 -Veri "$env:TEMP\pdefe-s48-9310" -Boyut "1280,900"   → PID=… yazar
@@ -356,6 +360,102 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz, tus,
     await evalJs(`(async () => { await window.__pdefe.dosyaAc(${J(path.join(FORM, 'karma.pdf'))}); for (let i = 0; i < 100; i++) { if (window.__s48.g()?.sayfalar?.[0]?._formOgeler?.size) break; await window.__s48.bekle(100); } return true; })()`);
     const r = await s48(`({ xfa: H.g().xfa, alan: H.g().sayfalar[0]._formOgeler?.size || 0, katman: !!document.querySelector('.gorunum:not([hidden]) .xfaLayer') })`);
     sonuc('13) Karma belge XFA kipine girmedi, AcroForm alanları kuruldu', !r.xfa && r.alan > 0 && !r.katman, r);
+  }
+
+  // ------------------------------------------------------------ 14) e-imzalı form (0.3.1 inceleme)
+  if (bolum(14)) {
+    const imzaliKopya = (ad) => { const y = path.join(UI, ad); fs.copyFileSync(ozet.xfaImzali, y); return y; };
+    const ozgun = fs.readFileSync(ozet.xfaImzali);
+    // Sahte imza: /Contents imzalanan baytların SHA-256'sı (test/xfa_pdf_uret.py imzali_xfa); UR3'ün [0 0 0 0]'ı değil
+    const br = [...ozgun.toString('latin1').matchAll(/\/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]/g)].map((m) => m.slice(1).map(Number)).find((v) => v[1]);
+    const { createHash } = await import('node:crypto');
+    const imzaTutuyor = (veri) => {
+      const [, a, b, c] = br;
+      return veri.length >= b + c && veri.subarray(a + 1, a + 65).toString('latin1') === createHash('sha256').update(Buffer.concat([veri.subarray(0, a), veri.subarray(b, b + c)])).digest('hex');
+    };
+    const kaydetYanitla = (secim) => evalJs(`(async () => { const o = { secim: ${secim} }; window.__pdefeOtoYanit = o; const b = window.__s48.b(); const ok = await window.__pdefe.belgeKaydet(b); delete window.__pdefeOtoYanit; return { ok, degisti: b.degisti, soru: o.son?.mesaj || null }; })()`);
+    const yolK = imzaliKopya('imzali-koru.pdf');
+    await ac(yolK);
+    const r0 = await s48(`({ xfa: H.g().xfa, eImzali: !!H.g().xfaBilgi?.eImzali })`);
+    sonuc('14) Görünmez e-imzalı form XFA kipinde açıldı, e-imzalı tanındı', r0.xfa && r0.eImzali, r0);
+    await tiklaAd('AdSoyad');
+    await yaz(TURKCE);
+    await tus('Tab');
+    await bekle(200);
+    await tiklaAd('SatirEkle', 0);
+    await durgun();
+    const r1 = await kaydetYanitla(0);
+    const k1 = fs.readFileSync(yolK), o1 = olc(yolK);
+    sonuc('14) Kaydet: "Bu form e-imzalı." soruldu, İmzayı koru: imza tutuyor, özgün baytlar yerinde, kullanım hakları imzası kaldı',
+      r1.ok && !r1.degisti && r1.soru === 'Bu form e-imzalı.' && imzaTutuyor(k1) && k1.subarray(0, ozgun.length).equals(ozgun) && o1.hak && !o1.onarildi,
+      { ...r1, imza: imzaTutuyor(k1), onek: k1.subarray(0, ozgun.length).equals(ozgun), hak: o1.hak, onarildi: o1.onarildi });
+    sonuc('14) İmza korunarak kaydedilen veride değer ve 2 satır grubu', o1.veri.includes(TURKCE) && o1.satir === 2, { satir: o1.satir });
+    await tiklaAd('AdSoyad');
+    await tus('End');
+    await yaz(' 2');
+    await tus('Tab');
+    await bekle(200);
+    const r2 = await kaydetYanitla(2);
+    sonuc('14) İkinci kayıt: soru yeniden sorulmadı (seçim hatırlandı), imza tutuyor', r2.ok && !r2.soru && imzaTutuyor(fs.readFileSync(yolK)) && olc(yolK).veri.includes(TURKCE + ' 2'), r2);
+    const yolT = imzaliKopya('imzali-temiz.pdf');
+    await ac(yolT);
+    await tiklaAd('AdSoyad');
+    await yaz(TURKCE);
+    await tus('Tab');
+    await bekle(200);
+    const r3 = await kaydetYanitla(1);
+    const o3 = olc(yolT);
+    sonuc('14) Tamamen sil: form baştan yazıldı (imza tutmuyor), kullanım hakları imzası kaldırıldı, değer yerinde',
+      r3.ok && r3.soru === 'Bu form e-imzalı.' && !imzaTutuyor(fs.readFileSync(yolT)) && !o3.hak && o3.veri.includes(TURKCE), { ...r3, hak: o3.hak });
+    const yolV = imzaliKopya('imzali-vazgec.pdf');
+    await ac(yolV);
+    await tiklaAd('AdSoyad');
+    await yaz('x');
+    await tus('Tab');
+    await bekle(200);
+    const r4 = await kaydetYanitla(2);
+    sonuc('14) Vazgeç: kaydedilmedi, dosya değişmedi', !r4.ok && r4.degisti && fs.readFileSync(yolV).equals(ozgun), r4);
+  }
+
+  // ------------------------------------------------------------ 15) yeniden kurma sürerken sekme paketi ve otomatik kayıt (0.3.1 inceleme)
+  if (bolum(15)) {
+    const yol15 = kopya('inceleme15.pdf');
+    await ac(yol15);
+    await tiklaAd('SatirEkle', 0);
+    await durgun();
+    // Geri al'ın hemen ardından paket: Formun yeniden kurulması beklenir, paketteki baytlar ile yığının konumu birbirini tutar
+    const p = await s48(`(async () => {
+      window.__pdefe.komutCalistir('duzen.geriAl');
+      const paket = await window.__pdefe.sekmePaketi(H.b());
+      const veri = paket.gorunum.belgeler.find((x) => x.ana).veri;
+      let s = ''; for (let i = 0; i < veri.length; i += 8192) s += String.fromCharCode(...veri.subarray(i, i + 8192));
+      return { konum: paket.yigin.konum, b64: btoa(s) };
+    })()`);
+    const paketYol = path.join(UI, 'paket15.pdf');
+    fs.writeFileSync(paketYol, Buffer.from(p.b64, 'base64'));
+    const op = olc(paketYol);
+    sonuc('15) Geri al sürerken sekme paketi: yığının konumu 0, paketteki formda 1 satır grubu', p.konum === 0 && op.satir === 1, { konum: p.konum, satir: op.satir });
+    await durgun();
+    // Düğme işi sürerken taşıma reddedilir
+    const t = await s48(`(async () => {
+      const b = H.b(); b.xfa._mesgulKoy(true);
+      const tasindi = await window.__pdefe.sekmeyiTasi(b.id, { tur: 'yeni' });
+      const bildirim = H.bildirim(); b.xfa._mesgulKoy(false);
+      return { tasindi, bildirim };
+    })()`);
+    sonuc('15) Form yeniden dizilirken sekme taşınmaz: "Form yeniden diziliyor. Bitince yeniden deneyin."', !t.tasindi && t.bildirim === 'Form yeniden diziliyor. Bitince yeniden deneyin.', t);
+    // Otomatik kayıt: Zamanlayıcı dolarken form yeniden diziliyorsa kayıt ertelenir, dizilim bitince yapılır
+    await evalJs(`(() => { window.__pdefe.ayar().otomatikKaydet = true; return true; })()`);
+    await tiklaAd('AdSoyad');
+    await yaz('Oto');
+    await tus('Tab');
+    await s48(`(() => { const b = H.b(); b.xfa._mesgulKoy(true); setTimeout(() => b.xfa._mesgulKoy(false), 2500); return true; })()`);
+    await bekle(2000);
+    const o1 = await s48(`({ degisti: H.b().degisti })`);
+    await bekle(2500);
+    const o2 = await s48(`({ degisti: H.b().degisti })`);
+    await evalJs(`(() => { window.__pdefe.ayar().otomatikKaydet = false; return true; })()`);
+    sonuc('15) Otomatik kayıt dizilim sürerken ertelendi, bitince kaydedildi', o1.degisti && !o2.degisti && olc(yol15).veri.includes('Oto'), { o1, o2 });
   }
 
   const hatalar = await evalJs(`(window.__hatalar || []).slice(0, 8)`).catch(() => []);

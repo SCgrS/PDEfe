@@ -391,7 +391,20 @@ function kirliGuncelle(b) {
   // değişikliği kirliGuncelle'yi yeniden çağırır. Otomatik kayıt başarısız olduysa (dosya başka programda açık) elle kaydedilene dek durur
   // (Zamanlayıcı dolunca ayar yeniden okunur: arada Ayarlar'dan kapatılmış olabilir)
   // Başka pencereye taşınmakta olan sekme (b.tasiniyor) kaydedilmez: durumu paketlendi, kayıt hedef pencerenin işidir
-  if (ayar.otomatikKaydet && b.degisti && !b._otoKayitDurdu && !b.tasiniyor) { clearTimeout(b._otoKayit); b._otoKayit = setTimeout(() => { if (ayar.otomatikKaydet && b.degisti && belgeler.has(b.id) && !b.notlar?.duzenleyici && !b.formlar?.duzenleniyor() && !b.xfa?.duzenleniyor() && !b.xfa?.mesgul && !b.tasiniyor) belgeKaydet(b, false, true); }, 1500); }
+  if (ayar.otomatikKaydet && b.degisti && !b._otoKayitDurdu && !b.tasiniyor) otoKayitKur(b);
+}
+
+/** Otomatik kaydın zamanlayıcısı (1,5 sn). Dolduğunda XFA formu yeniden diziliyorsa ya da bir form alanı düzenleniyorsa kayıt ertelenir,
+ *  zamanlayıcı yeniden kurulur (0.3.1 inceleme: geri al / yinele sonrasında dizilim 1,5 sn'den uzun sürünce kayıt atlanıyor, bitince onu
+ *  yeniden kuracak bir olay olmadığı için belge yeni bir değişikliğe dek kaydedilmiyordu; alanda Esc'le vazgeçilince de öyle). Not
+ *  düzenleyicisi bitince kirliGuncelle'yi kendisi çağırır. */
+function otoKayitKur(b) {
+  clearTimeout(b._otoKayit);
+  b._otoKayit = setTimeout(() => {
+    if (!ayar.otomatikKaydet || !b.degisti || !belgeler.has(b.id) || b.tasiniyor || b._otoKayitDurdu) return;
+    if (b.formlar?.duzenleniyor() || b.xfa?.duzenleniyor() || b.xfa?.mesgul) { otoKayitKur(b); return; }
+    if (!b.notlar?.duzenleyici) belgeKaydet(b, false, true);
+  }, 1500);
 }
 
 /** Kaydırmasız (tek/iki) düzende sayfa çevrilince artık gösterilmeyen sayfadaki not bırakılır: açık yazı düzenleyicisi kaydedilip
@@ -666,6 +679,8 @@ function tasimaEngeli(b, { kayitHaric = false, bos = false } = {}) {
   if (b && (!belgeler.has(b.id) || !b.gorunum.hazir)) return 'Belge henüz açılıyor; açılınca yeniden deneyin.';
   // Kilit altında süren kayıt beklenmez: başarısız olursa sorusu (Belge kaydedilemedi) taşıma kilidinin altında kalırdı
   if (b?.kaydediliyor && !kayitHaric) return 'Belge kaydediliyor; bitince yeniden deneyin.';
+  // XFA formunda süren düğme işi (çekirdekte bölüm ekleme / silme) taşımayla yarışmasın (0.3.1 inceleme)
+  if (b?.xfa?.mesgul) return 'Form yeniden diziliyor. Bitince yeniden deneyin.';
   if (kurulumKilidi || kapanisSuruyor()) return 'Pencere kapanmak üzere; sekme taşınamaz.';
   if (ortuAcik()) return 'Önce açık pencereyi kapatın.';
   return '';
@@ -702,6 +717,7 @@ async function sekmePaketi(b) {
   n.balonKapat(); n.notCubuguKapat(); n.duzenleyiciBitir(true);   // yazılan metin pakete girsin; seçili araç ve seçim taşınmaz
   b.formlar?.duzenlemeyiUygula();
   b.xfa?.duzenlemeyiUygula();
+  await b.xfa?.bekle();                                             // XFA formunun süren yeniden kurulması (geri al / yinele) bitsin
   await kayitBitmesiniBekle(b);                                     // süren kayıt bitsin; bekleyen otomatik kayıt iptal
   await (b._dondurme || Promise.resolve()).catch(() => {});          // sırada bekleyen döndürme
   await b.notSozu;                                                  // notların dosyadan ilk okunması
@@ -1046,7 +1062,7 @@ async function kayitYaz(b, farkli, sessiz, oneAl = false) {
       if (secim !== 0) return false;
     }
   } else if (!b.degisti) { if (!sessiz) bildir('Kaydedilecek değişiklik yok.'); return true; }
-  if (b.gorunum.xfa) return xfaKayitYaz(b, hedef, farkli, sessiz);
+  if (b.gorunum.xfa) return xfaKayitYaz(b, hedef, farkli, sessiz, oneAl);
   const islemler = b.notlar ? b.notlar.fark() : [];
   // Form alanlarının değerleri (0.3.1): dosyadakinden farklı olanlar
   const formFarki = b.formlar ? b.formlar.fark() : [];
@@ -1129,11 +1145,16 @@ async function kayitYaz(b, farkli, sessiz, oneAl = false) {
 
 /** XFA formunun kaydı (0.3.1, kayitYaz'ın XFA yolu): PDF.js'in güncel verisi çekirdekte hedefe baştan yazılır, kullanım hakları imzası
  *  kaldırılır (xfa.js kaydet, core/islemler/xfa.py xfa_kaydet). Notlar ve sayfa düzeni XFA kipinde değişmez. */
-async function xfaKayitYaz(b, hedef, farkli, sessiz) {
+async function xfaKayitYaz(b, hedef, farkli, sessiz, oneAl = false) {
   const g = b.gorunum;
+  // E-imzalı formda (görünmez imza alanı ya da onay imzası; kullanım hakları imzası sayılmaz) baştan yazım imzayı geçersiz kılar: notlardaki
+  // gibi sorulur, seçim belge kapanana dek hatırlanır, otomatik kayıtta imza korunur (0.3.1 inceleme: imzaya bakılmadan baştan yazılıyordu)
+  const imzayiKoru = g.xfaBilgi?.eImzali ? await xfaImzaKarari(b, sessiz, oneAl) : false;
+  if (imzayiKoru === null) return false;
   const yiginKonumu = b.yigin?.konum, yiginKomutu = b.yigin?.geriAlinacak;
   durum.mesajYaz('Kaydediliyor…', 0);
-  const r = await b.xfa.kaydet(hedef);
+  const r = await b.xfa.kaydet(hedef, { imzayiKoru });
+  if (imzayiKoru && r?.imzaKorundu === false) bildir('E-imza korunamadı: Form baştan yazıldı, imza geçersiz görünür.', 8000);
   b.yigin?.kaydedildi(yiginKonumu, yiginKomutu);
   b.boyut = r?.boyut || b.boyut;
   if (farkli && !yolAyni(hedef, b.yol)) {
@@ -1182,6 +1203,26 @@ async function temizKayitKarari(b, sessiz, oneAl = false) {
   if (secim !== 0 && secim !== 1) return null;
   b.imzaSecimi = secim === 1 ? 'temiz' : 'koru';
   return secim === 1;
+}
+
+/**
+ * E-imzalı XFA formunun kaydı imzayı korusun mu (0.3.1 inceleme; temizKayitKarari'nın XFA karşılığı). İmza korunurken PDF.js'in artımlı
+ * kaydı olduğu gibi yazılır: Alanların önceki değerleri dosyada kalır. Tamamen silmek formu baştan yazar, imza geçersiz görünür. Seçim belge
+ * kapanana dek hatırlanır (notlardaki seçimle aynı), otomatik kayıtta sorulmaz, imza korunur. Döner: true (koru) | false (baştan yaz) |
+ * null (Vazgeç).
+ */
+async function xfaImzaKarari(b, sessiz, oneAl = false) {
+  if (b.imzaSecimi) return b.imzaSecimi === 'koru';
+  if (sessiz) return true;
+  if (oneAl) await soruIcinOneAl(b);
+  const { secim } = await mesajKutusu({
+    tur: 'warning', mesaj: 'Bu form e-imzalı.',
+    ayrinti: 'İmzayı korumak için formun yalnızca değişen verisi dosyanın sonuna eklenir. Alanların önceki değerleri dosyanın içinde kalır: Ekranda görünmez ama uygun bir araçla okunabilir.\n\nÖnceki değerleri tamamen silmek için form baştan yazılır. O zaman e-imza geçersiz görünür.',
+    dugmeler: ['İmzayı koru', 'Tamamen sil', 'Vazgeç'], varsayilan: 0, iptal: 2,
+  });
+  if (secim !== 0 && secim !== 1) return null;
+  b.imzaSecimi = secim === 1 ? 'temiz' : 'koru';
+  return secim === 0;
 }
 
 /** Kaydedilmemiş sayfa değişikliği yalnızca döndürme mi: anlık kopya yok; sayfalar sekmenin dosyasının sayfaları, eksiksiz,
