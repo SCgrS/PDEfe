@@ -72,7 +72,12 @@ WPS 12.2'de ölçüldü: Türkçe doğru, filigran yok, başlıktan yer imi var)
   - Örnek bizimse süreç iş nesnesine bağlanır (çekirdek çökerse kapanır). İşin sonunda Quit, süre dolunca yalnız o süreç sonlandırılır, iş nesnesi
     gevşetilir: WPS'in başlattığı yardımcılar (bulut hizmeti gibi) öldürülmez. Bu arada kullanıcının belgesi bizim örneğe düştüyse Word'deki gibi bırakılır.
   - Başlarken ya da belge açılırken ekranda küçük bir pencere BILDIRIM_SURESI sn durursa (lisans, oturum açma, güncelleme, ilk çalıştırma, onarım
-    sorusu) pencereye WM_CLOSE gönderilir, motor başarısız sayılır. Ana pencere bu boyut süzgecine girmez.
+    sorusu) pencereye WM_CLOSE gönderilir, motor başarısız sayılır, süreç kendiliğinden kapanır. Ana pencere bu boyut süzgecine girmez. Belgeyle ilgili pencereler alttaki
+    /wps /from_prome sürecindedir (ölçüldü), ikisine de bakılır. Başlarken çıkan pencere WPS'in sorunudur ('bildirim', motor 5 dk sona alınır). Belge açılırken çıkan o belgenindir ('acilmadi').
+  - .odt açılamaz (12.1.0.29162, asgari ve LibreOffice'in yazdığı belge, her Open biçimiyle ölçüldü): Ekrana "Dosya Bozulma İpuçları" penceresi çıkar, COM bekler. Bu yüzden .odt WPS'e hiç verilmez (_turun_motorlari),
+    kullanıcının ekranına pencere çıkmaz. Yalnız WPS varsa hedef soluktur, neden yazar (NEDEN_ODT).
+  - Bozuk belgeyi sormadan yarım çevirir: document.xml'i ortadan kesilmiş .docx'te Open hata vermedi, PDF yazı ortasında bitti (ölçüldü, Word ve LibreOffice reddediyor). Bu yüzden .docx ve .docm'nin ana
+    parçası WPS'e verilmeden önce XML olarak denetlenir (_docx_saglam_mi), bozuksa belge sorunu sayılır, kullanıcı eksik PDF almaz.
   - Makro: AutomationSecurity yazılabiliyorsa 3. .docm kopyası motora makrosuz verilir (_makrosuz_kopya, LibreOffice'e de). Makro kapatılamıyorsa
     içinde Macros kabı olan .doc WPS'e verilmez.
 
@@ -104,6 +109,7 @@ import threading
 import time
 import uuid
 import zipfile
+import zlib
 import xml.etree.ElementTree as ET
 
 import pymupdf
@@ -578,8 +584,18 @@ else:   # Linux (0.3.1): Word yok
     NEDEN_YOK = "Word belgesini PDF'e çevirmek için bu bilgisayarda LibreOffice gerekir. LibreOffice bulunamadı (Snap ve Flatpak paketleri kullanılamıyor)."
 
 
-def hazir():
-    return (True, None) if motor() else (False, NEDEN_YOK)
+NEDEN_ODT = "WPS Office .odt belgelerini açamıyor. Bu belgeyi çevirmek için Microsoft Word ya da LibreOffice gerekir."
+
+
+def _turun_motorlari(sira, alt):
+    """Motor sırasından bu türü işleyemeyenler çıkar: WPS .odt açamıyor, ekrana pencere çıkarıyor (bkz. modül belgesi)."""
+    return [m for m in sira if not (m == "wps" and alt == "odt")]
+
+
+def hazir(alt=None):
+    if _turun_motorlari(motor_sirasi(), alt):
+        return True, None
+    return False, NEDEN_ODT if alt == "odt" and motorlar()["wps"] else NEDEN_YOK
 
 
 def _motor_notu(m, mm):
@@ -590,14 +606,15 @@ def _motor_notu(m, mm):
     return "%s Belge %s ile çevrilir, düzeni Word'dekinden biraz farklı olabilir." % (on, MOTOR_ADI[m])
 
 
-def yetenek():
+def yetenek(alt=None):
     mm = motorlar()
-    m = motor()
+    sira = _turun_motorlari(motor_sirasi(), alt)
+    m = sira[0] if sira else None
     w, wp, lo = mm["word"], mm["wps"], mm["libreoffice"]
     s = {"var": m is not None, "motor": m, "motorAdi": MOTOR_ADI.get(m), "word": {"var": w is not None, "yol": w["yol"] if w else None},
          "wps": {"var": wp is not None, "yol": wp["yol"] if wp else None}, "libreoffice": {"var": lo is not None, "yol": lo}}
     if m is None:
-        s["neden"] = NEDEN_YOK
+        s["neden"] = hazir(alt)[1]
     not_ = _motor_notu(m, mm)
     if not_:
         s["not"] = not_
@@ -1070,14 +1087,14 @@ class _WpsOturumu(_WordOturumu):
             return None
 
     def gozle(self, istek):
-        """0,2 sn'de bir, çağıran iş parçacığından: Başlarken ve belge açılırken bizim sürecimizin ekranda küçük bir penceresi BILDIRIM_SURESI sn durursa
-        pencereye WM_CLOSE gönderir, True döner (motor başarısız). Paylaşımlı örnekte bakılmaz: Pencereler kullanıcınındır."""
+        """0,2 sn'de bir, çağıran iş parçacığından: Başlarken ve belge açılırken bizim sürecimizin ya da altındaki sürecin ekranda küçük bir penceresi BILDIRIM_SURESI sn durursa
+        pencereye WM_CLOSE gönderir, True döner (motor başarısız). Yalnız COM'un bizim için başlattığı süreçlere bakılır: Kullanıcının pencereleri onda değildir."""
         if istek.asama not in ("basliyor", "aciliyor"):
             return False
         kimlik = self.baslayan_bul()
         if kimlik is None:
             return False
-        pencereler = _kucuk_pencereler(kimlik)
+        pencereler = [h for p in [kimlik] + [k for k, e in wps_pidleri().items() if e == kimlik] for h in _kucuk_pencereler(p)]
         simdi = time.monotonic()
         if not pencereler:
             self._pencere_ilk = None
@@ -1339,6 +1356,9 @@ def _word_ile(kaynak, pdf, ilerleme, ad):
     return istek.sonuc or {}
 
 
+WPS_PENCERE = "küçük pencere"   # _MotorHatasi.ayrinti: Pencereye WM_CLOSE gönderildi, süreç kendiliğinden kapanmalı
+
+
 def _wps_ile(kaynak, pdf, ilerleme, ad, makro_riski=False):
     if _wps_kurulum_suruyor():   # WPS bu durumda ekrana pencere açar: Hiç başlatılmaz
         raise _MotorHatasi("wps", "kurulum")
@@ -1351,12 +1371,12 @@ def _wps_ile(kaynak, pdf, ilerleme, ad, makro_riski=False):
             oran, mesaj = _asama(istek.asama, "WPS Office")
             ilerleme(oran, mesaj)   # iptalde IptalEdildi
             if oturum.gozle(istek):
-                raise _MotorHatasi("wps", "bildirim", "küçük pencere")
+                raise _MotorHatasi("wps", "bildirim" if istek.asama == "basliyor" else "acilmadi", WPS_PENCERE)
             if time.monotonic() > istek.sinir:
                 raise _sure_doldu("wps", istek, ad)
     except BaseException as e:
         istek.vazgecildi = True
-        if not (isinstance(e, _MotorHatasi) and e.neden == "bildirim" and oturum.bizim_surec_bitti_mi(BILDIRIM_KAPANMA)):
+        if not (isinstance(e, _MotorHatasi) and e.ayrinti == WPS_PENCERE and oturum.bizim_surec_bitti_mi(BILDIRIM_KAPANMA)):
             oturum.oldur()   # yalnız bizim başlattığımız süreç; örnek kullanıcınınsa bir şey yapılmaz, çağrı terk edilir
         istek.bitti.wait(3)
         _wps_oturumunu_unut(oturum)
@@ -1530,6 +1550,30 @@ def _doc_makrolu(yol):
     return False
 
 
+def _docx_saglam_mi(yol):
+    """Ana parça (word/document.xml) iyi biçimli XML mi (parça parça, belleğe almadan). Denetlenemeyen durumda (parça yok, bilinmeyen kodlama, boyut sınırı) True: Karar motorun."""
+    from xml.parsers import expat
+    try:
+        with zipfile.ZipFile(yol) as z, z.open("word/document.xml") as f:
+            p = expat.ParserCreate()
+            okunan = 0
+            while True:
+                parca = f.read(1 << 20)
+                okunan += len(parca)
+                if okunan > donustur.EN_FAZLA_ACIK_BOYUT:
+                    return True
+                p.Parse(parca, not parca)
+                if not parca:
+                    return True
+    except expat.ExpatError as e:
+        return e.code == expat.errors.codes[expat.errors.XML_ERROR_UNKNOWN_ENCODING]
+    except KeyError:
+        return True
+    except (zipfile.BadZipFile, EOFError, OSError, RuntimeError, NotImplementedError, ValueError, zlib.error) as e:
+        print("[word] ana parça okunamadı: %r" % e, file=sys.stderr)
+        return False
+
+
 def _ust_veri_temizle(pdf, baglam):
     """WPS ve LibreOffice belgenin yazar adını ve başlığını PDF'e yazar (Word'de IncludeDocProps kapalı): Bilgi sözlüğü ve XMP silinir, dosya baştan yazılır
     (artımlı kayıtta eski değerler dosyada kalırdı). Yapılamazsa PDF olduğu gibi kalır, günlüğe yazılır."""
@@ -1557,6 +1601,7 @@ _ILETILER = {
     ("wps", "kurulum"): "WPS Office şu anda kuruluyor ya da güncelleniyor. Bitince yeniden deneyin.",
     ("wps", "bildirim"): "WPS Office açılırken bir uyarı gösterdi. WPS Office'i kendiniz açıp ekrandaki pencereyi kapatın, sonra yeniden deneyin.",
     ("wps", "baslamadi"): "WPS Office başlatılamadı. WPS Office'i kendiniz açıp ekrandaki pencereyi kapatın, sonra yeniden deneyin.",
+    ("wps", "acilmadi"): "WPS Office bu belgeyi açamadı, belge bozuk olabilir.",
     ("wps", "makro"): "Belgede makro var, WPS Office'te makrolar kapatılamadı.",
     ("word", "baslamadi"): "Word başlatılamadı. Word'ü kendiniz açıp ekrandaki pencereyi kapatın, sonra yeniden deneyin.",
     ("libreoffice", "baslamadi"): "LibreOffice başlatılamadı.",
@@ -1575,12 +1620,14 @@ def _basarisizlik(hatalar):
     return OgeHatasi("hata", " ".join(cumleler))
 
 
-def _motor_uyarisi(m, hatalar, mm):
+def _motor_uyarisi(m, hatalar, mm, alt=None):
     """Sonuçta söylenir: Hangi programla ve neden Word'le değil."""
     if m == "word":
         return None
     if hatalar:
         on = _ON_EKLER.get(hatalar[0].neden, "%s kullanılamadığı için") % MOTOR_ADI[hatalar[0].motor]
+    elif alt == "odt" and mm.get("wps") and not mm.get("word"):
+        on = "WPS Office .odt belgelerini açamadığı için"
     elif mm.get("word"):
         on = "Word şu anda başlatılamadığı için"
     elif m != "wps" and mm.get("wps"):
@@ -1595,6 +1642,8 @@ def _motorla_cevir(m, kopya, alt, pdf, ilerleme, baglam, ad):
         return _word_ile(kopya, pdf, ilerleme, ad)
     girdi = _makrosuz_kopya(kopya, alt, baglam.gecici_klasor())
     if m == "wps":
+        if alt in ("docx", "docm") and not _docx_saglam_mi(girdi):   # WPS eksik PDF üretirdi (modül belgesi)
+            raise OgeHatasi("bozuk", "Dosya bozuk görünüyor. Belgenin tamamı okunamıyor: %s" % ad)
         bilgi = _wps_ile(girdi, pdf, ilerleme, ad, makro_riski=alt == "doc" and _doc_makrolu(girdi))
     else:
         bilgi = _libreoffice_ile(motorlar()["libreoffice"], girdi, pdf, ilerleme, baglam, ad)
@@ -1610,9 +1659,9 @@ def _word_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
     uzanti = GIRDI_UZANTISI.get(alt)
     if uzanti is None:
         raise OgeHatasi("desteklenmiyor", "Bu Word dosyası dönüştürülemiyor: %s" % ad)
-    sira = motor_sirasi(tazele=True)   # program sonradan kurulduysa görülsün
+    sira = _turun_motorlari(motor_sirasi(tazele=True), alt)   # tazele: Program sonradan kurulduysa görülsün
     if not sira:
-        raise OgeHatasi("desteklenmiyor", NEDEN_YOK)
+        raise OgeHatasi("desteklenmiyor", hazir(alt)[1])
     klasor = baglam.gecici_klasor()
     kopya = os.path.join(klasor, "kaynak" + uzanti)
     try:
@@ -1652,7 +1701,7 @@ def _word_pdf(kaynak, cikti, secenekler, ilerleme, baglam):
             d.close()
     shutil.move(pdf, cikti)
     sonuc = {"sayfa": sayfa, "motor": kullanilan}
-    uyari = _motor_uyarisi(kullanilan, hatalar, motorlar())
+    uyari = _motor_uyarisi(kullanilan, hatalar, motorlar(), alt)
     if uyari:
         sonuc["uyari"] = uyari
     return sonuc

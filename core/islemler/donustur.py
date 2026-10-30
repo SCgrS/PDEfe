@@ -511,13 +511,13 @@ KALITE_NOTLARI = {
 }
 
 
-def _kalite_notu(kaynak, hedef):
+def _kalite_notu(kaynak, hedef, alt=None):
     """Dönüştürmenin kalite notu ya da None (KALITE_NOTLARI; Word kaynağı WPS Office ya da LibreOffice ile çevriliyorsa word.yetenek'in notu eklenir)."""
     notlar = [KALITE_NOTLARI[k] for k in ["%s>%s" % (kaynak, hedef)] if k in KALITE_NOTLARI]
     if kaynak == "word":
         islev = _YETENEKLER.get("word")
         try:
-            motor_notu = (islev() or {}).get("not") if islev is not None else None
+            motor_notu = (islev(alt) or {}).get("not") if islev is not None else None
             if motor_notu:
                 notlar.append(motor_notu)
         except Exception:
@@ -548,7 +548,7 @@ def _hedefler(tur, alt=None):
         oge = {"bicim": h, "uzantilar": list(HEDEF_UZANTILARI[h]), "var": ok}
         if neden:
             oge["neden"] = neden
-        kalite = _kalite_notu(tur, h)
+        kalite = _kalite_notu(tur, h, alt)
         if kalite:
             oge["kalite"] = kalite
         sonuc.append(oge)

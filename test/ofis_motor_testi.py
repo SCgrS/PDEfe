@@ -5,7 +5,7 @@ burada üretilir; çıktılar test/cikti/ofis_motor altında.
 Çalıştırma (görünmeyen masaüstünde: WPS ekrana pencere açabilir):
   .venv\\Scripts\\python.exe -X utf8 test\\ofis_motor_testi.py [--exe core\\dist\\pdefe-core\\pdefe-core.exe] [--wps-bildirim] [--word-benzetim]
 --exe: Paketli çekirdekle (modülün içine bakan bölümler atlanır). --wps-bildirim: WPS'in kurulum kilidi duruyorsa ön denetimi kapatıp gerçek WPS'in penceresini
-yakalar (yalnız görünmeyen masaüstünde çalıştırın). --word-benzetim: Word motorunu WPS'e yöneltir (yine görünmeyen masaüstünde). Word burada BAŞLATILMAZ (Word'ün yolu test/word_donusum_testi.py'de). Kurulu olmayan motorun bölümü ATLANDI der.
+yakalar (yalnız görünmeyen masaüstünde çalıştırın). --word-benzetim: Word motorunu WPS'e yöneltir (yine görünmeyen masaüstünde). --wps-kullanici: F'de bakınız. Word burada BAŞLATILMAZ (Word'ün yolu test/word_donusum_testi.py'de). Kurulu olmayan motorun bölümü ATLANDI der.
 
 Bölümler:
   A) Karar: Word.Application kaydı wps.exe'yi gösteriyorsa Word yok sayılır, sınama değişkenleri, ön bellek.
@@ -15,7 +15,8 @@ Bölümler:
   D) LibreOffice süre aşımı ve iptal: Yerine geçen .cmd ile (gerçek LibreOffice sonlandırılmaz).
   E) Her gerçek motor için (PDEFE_OFIS_MOTORU, ayrı çekirdek süreci): DOCX, DOCM, DOC, RTF, ODT → PDF (Türkçe ve boşluklu adlar), sayfa, sözcük geri çağırma, üst veri yok, zincirler (UDF, TIFF, JPG),
      Birleştir, bozuk belge, kalıntı yok, açık LibreOffice süreçleri yerinde.
-  F) WPS: Kurulum kilidi duruyorsa hiç başlatılmaz, LibreOffice'e düşülür. Kilit yoksa gerçek dönüştürme ve açık belgeli WPS.
+  F) WPS: Kurulum kilidi duruyorsa hiç başlatılmaz, LibreOffice'e düşülür. Kilit yoksa gerçek dönüştürme, .odt ve onarım penceresi, açık belgeli WPS (otomasyon örneğinde),
+     --wps-kullanici ile dosya ilişkisinin komutuyla açılan belge (bu masaüstünde, WPS'in giriş penceresi görünür masaüstüne çıkabilir, bkz. PLAN "Gerçek WPS").
   G) Motor yokken: Anlaşılır neden, Word'süz çalışan öbür türler (TIFF, JPG, PNG, BMP, GIF, WEBP, PDF), bozuk dosyalarda ham metin yok.
   H) Hata iletileri (motorsuz): Yazılamayan klasör işten önce ve temiz, olmayan sürücü, boş dosya, bozuk dosya, işletim sisteminin ham iletisi hiçbir yoldan gitmez, Birleştir'de hedef klasör.
 """
@@ -466,12 +467,15 @@ class SahteWps:
         self.quit += 1
 
 
+ALT_SUREC = 424242
+
+
 class SahteOrtam:
     """_WpsOturumu'nun dış dünyası: Süreç listesi ve COM oluşturma. Süreçler zararsız Python süreçleridir, komut satırında /Automation."""
 
-    def __init__(self, word, uygulama, yeni_surec=True, kullanici_sureci=None, pencere=False, devreder=False):
+    def __init__(self, word, uygulama, yeni_surec=True, kullanici_sureci=None, pencere=False, devreder=False, pencere_altta=False, baslarken=None):
         self.word, self.u, self.pencere = word, uygulama, pencere
-        self.devreder = devreder
+        self.devreder, self.pencere_altta, self.baslarken = devreder, pencere_altta, baslarken
         self.kullanici = kullanici_sureci
         self.bizim = None
         self.yeni_surec = yeni_surec
@@ -482,7 +486,7 @@ class SahteOrtam:
         word.wps_pidleri = self.pidler
         word._Disp = lambda p: p
         comtypes.CoCreateInstance = self.olustur
-        word._kucuk_pencereler = lambda pid: [0] if self.pencere and self.bizim and pid == self.bizim.pid else []
+        word._kucuk_pencereler = lambda pid: [0] if self.pencere and self.bizim and pid == (ALT_SUREC if self.pencere_altta else self.bizim.pid) else []
         word._wps_kurulum_suruyor = lambda: False
         word.motorlar = lambda tazele=False: {"word": None, "wps": {"yol": "x", "progid": "Scripting.Dictionary"}, "libreoffice": None}
 
@@ -492,12 +496,15 @@ class SahteOrtam:
             s[self.kullanici.pid] = 0
         if self.bizim and self.bizim.poll() is None:
             s[self.bizim.pid] = 0
+            s[ALT_SUREC] = self.bizim.pid   # gerçekte: /wps /from_prome, üstteki kapanınca o da kapanır
         return s
 
     def olustur(self, clsid, interface=None, clsctx=None):
         self.olusturuldu = True
         if self.yeni_surec:
             self.bizim = kukla_surec()
+        if self.baslarken:   # CoCreateInstance bir pencerede bekliyor
+            self.baslarken.wait(30)
         if self.devreder:   # /Automation ile başlayan süreç işi açık örneğe devredip kapanır
             self.bizim.kill()
             self.bizim.wait(5)
@@ -674,13 +681,46 @@ def test_wps_oturumu(g):
     try:
         try:
             word._wps_ile(g["docx"], pdf, il, "x.docx")
-            sonuc("küçük pencere: Motor hatası", False)
+            sonuc("belge açılırken küçük pencere: Motor hatası", False)
         except word._MotorHatasi as e:
-            sonuc("küçük pencere: Motor hatası", e.neden == "bildirim", e.neden)
+            sonuc("belge açılırken küçük pencere: Belgenin sorunu ('acilmadi')", e.neden == "acilmadi", e.neden)
         sonuc("küçük pencere: Yalnız bizim süreç sonlandı", _bitmesini_bekle(o.bizim) and kullanici.poll() is None)
     finally:
         word.BILDIRIM_SURESI, word.BILDIRIM_KAPANMA = es
         asili.set()
+        o.kapat()
+    # Pencere alttaki süreçte (/wps /from_prome, gerçek WPS'in onarım penceresi): Üstteki süreçte pencere yok, eski kod 60 sn bekliyordu
+    temizle()
+    asili = threading.Event()
+    u = SahteWps(asili=asili)
+    o = SahteOrtam(word, u, pencere=True, pencere_altta=True)
+    word.BILDIRIM_SURESI, word.BILDIRIM_KAPANMA = 0.5, 0.5
+    try:
+        t0 = time.time()
+        try:
+            word._wps_ile(g["docx"], pdf, il, "x.docx")
+            sonuc("alttaki süreçte pencere: Motor hatası", False)
+        except word._MotorHatasi as e:
+            sonuc("alttaki süreçte pencere: Yakalanır, süre beklenmez", e.neden == "acilmadi" and e.ayrinti == word.WPS_PENCERE and time.time() - t0 < 10, (e.neden, e.ayrinti, time.time() - t0))
+    finally:
+        word.BILDIRIM_SURESI, word.BILDIRIM_KAPANMA = es
+        asili.set()
+        o.kapat()
+    # Başlarken pencere (lisans, oturum açma): WPS'in sorunu
+    temizle()
+    baslarken = threading.Event()
+    u = SahteWps()
+    o = SahteOrtam(word, u, pencere=True, baslarken=baslarken)
+    word.BILDIRIM_SURESI, word.BILDIRIM_KAPANMA = 0.5, 0.5
+    try:
+        try:
+            word._wps_ile(g["docx"], pdf, il, "x.docx")
+            sonuc("başlarken küçük pencere: Motor hatası", False)
+        except word._MotorHatasi as e:
+            sonuc("başlarken küçük pencere: WPS'in sorunu ('bildirim')", e.neden == "bildirim", e.neden)
+    finally:
+        word.BILDIRIM_SURESI, word.BILDIRIM_KAPANMA = es
+        baslarken.set()
         o.kapat()
 
     # 6) Kullanıcının belgesi bu sırada bizim örneğe düştü: Bırakılır
@@ -767,6 +807,45 @@ def test_wps_oturumu(g):
         sonuc(".docx kopyası olduğu gibi", word._makrosuz_kopya(g["docx"], "docx", kl) == g["docx"])
     finally:
         shutil.rmtree(kl, ignore_errors=True)
+
+
+def test_tur_motorlari(g):
+    if not WINDOWS:
+        return atlandi("türe göre motor", "yalnız Windows")
+    print("— C) Türe göre motor: WPS .odt açamıyor, kırık .docx'i sormadan yarım çeviriyor (gerçek WPS'te ölçüldü)")
+    from islemler import word
+    sonuc("ODT: WPS sıradan çıkar", word._turun_motorlari(["word", "wps", "libreoffice"], "odt") == ["word", "libreoffice"])
+    for alt in ("docx", "docm", "doc", "rtf", None):
+        sonuc("%s: WPS sırada kalır" % alt, word._turun_motorlari(["wps", "libreoffice"], alt) == ["wps", "libreoffice"])
+    es = (word.motor_sirasi, word.motorlar)
+    try:
+        word.motor_sirasi = lambda tazele=False: ["wps"]
+        word.motorlar = lambda tazele=False: {"word": None, "wps": {"yol": "x", "progid": "y"}, "libreoffice": None}
+        ok, neden = word.hazir("odt")
+        sonuc("yalnız WPS, ODT: Hedef kapalı, nedeni WPS ve gerekenler", not ok and "WPS Office" in neden and "LibreOffice" in neden and temiz_metin(neden), neden)
+        sonuc("yalnız WPS, DOCX: Hedef açık", word.hazir("docx") == (True, None))
+        sonuc("yalnız WPS, alt tür verilmeden: Hedef açık", word.hazir() == (True, None))
+        y = word.yetenek("odt")
+        sonuc("yalnız WPS, ODT: Yetenek motorsuz", y["var"] is False and y["motor"] is None and y["neden"] == neden, y)
+        word.motor_sirasi = lambda tazele=False: ["wps", "libreoffice"]
+        word.motorlar = lambda tazele=False: {"word": None, "wps": {"yol": "x", "progid": "y"}, "libreoffice": "z"}
+        y = word.yetenek("odt")
+        sonuc("WPS + LibreOffice, ODT: Not LibreOffice'i söyler", y["motor"] == "libreoffice" and "LibreOffice" in (y.get("not") or "") and "WPS" not in (y.get("not") or ""), y)
+        sonuc("uyarı: ODT neden LibreOffice'le", "WPS Office .odt" in word._motor_uyarisi("libreoffice", [], word.motorlar(), "odt"))
+    finally:
+        word.motor_sirasi, word.motorlar = es
+    sonuc("sağlam .docx: Geçer", word._docx_saglam_mi(g["docx"]) is True)
+    sonuc("document.xml'i kesik .docx: Bozuk", word._docx_saglam_mi(g["bozuk_docx"]) is False)
+    sonuc("zip'i kesik: Bozuk", word._docx_saglam_mi(g["bozuk_zip"]) is False)
+    sonuc("ana parçası başka adda: Karar motorun", word._docx_saglam_mi(g["odt"]) is True)
+    k = tempfile.mkdtemp(prefix="pdefe-sinama-kodlama-")
+    try:
+        y = os.path.join(k, "k.docx")
+        with zipfile.ZipFile(y, "w") as z:
+            z.writestr("word/document.xml", '<?xml version="1.0" encoding="windows-1254"?><a>\xfe</a>'.encode("latin-1"))
+        sonuc("bilinmeyen XML kodlaması: Karar motorun", word._docx_saglam_mi(y) is True)
+    finally:
+        shutil.rmtree(k, ignore_errors=True)
 
 
 # ---------------------------------------------------------------- D) LibreOffice'in süresi ve iptali (yerine geçen .cmd)
@@ -910,7 +989,7 @@ def motor_bolumu(m, g, exe):
         b = s.cagir("donusum_bilgi", {"yol": g["docx"]})
         sonuc("satır bilgisi: DOCX, PDF hedefi var", b["tur"] == "word" and any(h["bicim"] == "pdf" and h["var"] for h in b["hedefler"]), b.get("hedefler"))
         # Bütün kaynak türleri: Ad Türkçe ve boşluklu. Art arda: LibreOffice'in profil sorunu ikinci belgede çıkıyordu
-        turler = [t for t in ("docx", "docm", "doc", "rtf", "odt") if t in g]
+        turler = [t for t in ("docx", "docm", "doc", "rtf", "odt") if t in g and not (m == "wps" and t == "odt")]
         if "doc" not in g:
             atlandi("DOC", "üretilemedi")
         t0 = time.time()
@@ -944,6 +1023,15 @@ def motor_bolumu(m, g, exe):
         h = os.path.join(k, "birlesik2.pdf")
         b = s.cagir("birlestir", {"ogeler": [{"yol": g["docx"], "tur": "word"}, {"yol": g["rtf"], "tur": "word"}], "hedef": h})
         sonuc("Birleştir: İki Word belgesinde aynı uyarı bir kez, belge sayısıyla", (b.get("uyari") or "").count("ile dönüştürüldü") == 1 and (b.get("uyari") or "").startswith("2 belge: "), b.get("uyari"))
+        if m == "wps":   # .odt WPS'e verilmez (F bölümünde neden): Hedef soluk, başlatılmaz
+            b = s.cagir("donusum_bilgi", {"yol": g["odt"]})
+            h0 = next((h for h in b["hedefler"] if h["bicim"] == "pdf"), {})
+            sonuc("ODT, yalnız WPS: PDF hedefi soluk, neden yazıyor", h0.get("var") is False and "WPS Office" in (h0.get("neden") or "") and temiz_metin(h0.get("neden")), h0)
+            once_ = wps_otomasyon_surecleri()
+            t0 = time.time()
+            r = donustur_(s, [{"yol": g["odt"], "hedef": os.path.join(k, "odt.pdf"), "hedefBicim": "pdf"}])
+            s0 = r["sonuclar"][0]
+            sonuc("ODT, yalnız WPS: Beklemeden ileti, WPS başlamadı", s0.get("kod") == "desteklenmiyor" and temiz_metin(s0.get("hata")) and time.time() - t0 < 5 and wps_otomasyon_surecleri() <= once_, s0)
         # Bozuk ve parolalı
         for ad, yol, kod in (("bozuk DOCX", g["bozuk_docx"], "bozuk"), ("parolalı DOC", g["sifreli_doc"], "parolali"), ("parolalı ODT", g["sifreli_odt"], "parolali")):
             t0 = time.time()
@@ -1029,6 +1117,139 @@ def wps_bildirim_bolumu(g):
             os.environ["PDEFE_OFIS_MOTORU"] = eski[1]
         word.motorlar(True)
         word._saglik.clear()
+
+
+def wps_odt_bolumu(g):
+    """Gerçek WPS: .odt'yi açamıyor, "Dosya Bozulma İpuçları" penceresi alttaki süreçte. Pencere yakalanır, süreç kendiliğinden kapanır, sonlandırma yok. Motorda bu yola girilmez, burada doğrudan çağrılır."""
+    print("— F) WPS: Belge açılırken pencere (.odt)")
+    from islemler import word
+    k = os.path.join(CIKTI, "wps_odt")
+    os.makedirs(k, exist_ok=True)
+    once = wps_otomasyon_surecleri()
+    eski = os.environ.get("PDEFE_OFIS_MOTORU")
+    os.environ["PDEFE_OFIS_MOTORU"] = "wps"
+    word.motorlar(True)
+    t0 = time.time()
+    try:
+        try:
+            word._wps_ile(g["odt"], os.path.join(k, "c.pdf"), lambda *a: None, "a.odt")
+            sonuc("gerçek onarım penceresi: Motor hatası", False, "WPS bu sürümde .odt açtı: Modül belgesi ve _turun_motorlari yeniden ölçülmeli")
+        except word._MotorHatasi as e:
+            sonuc("gerçek onarım penceresi: Yakalandı (%.1f sn)" % (time.time() - t0), e.neden == "acilmadi" and e.ayrinti == word.WPS_PENCERE and time.time() - t0 < word.BILDIRIM_SURESI + 8, (e.neden, e.ayrinti))
+        sonuc("gerçek onarım penceresi: Bizim süreçler kapandı", wps_otomasyon_bitti_mi(once, 10), wps_otomasyon_surecleri())
+    finally:
+        if eski is None:
+            os.environ.pop("PDEFE_OFIS_MOTORU", None)
+        else:
+            os.environ["PDEFE_OFIS_MOTORU"] = eski
+        word.motorlar(True)
+    if word.libreoffice_bul():
+        s = W.Surec(None, {"PDEFE_OFIS_MOTORU": "wps,libreoffice"})
+        try:
+            ha, hb = os.path.join(k, "a.pdf"), os.path.join(k, "b.pdf")
+            r = donustur_(s, [{"yol": g["odt"], "hedef": ha, "hedefBicim": "pdf"}, {"yol": g["docx"], "hedef": hb, "hedefBicim": "pdf"}])
+            a, b = r["sonuclar"]
+            sonuc("WPS + LibreOffice: ODT LibreOffice'le, nedeni yazıyor", a.get("motor") == "libreoffice" and "WPS Office .odt" in (a.get("uyari") or "") and os.path.isfile(ha), a)
+            sonuc("WPS + LibreOffice: Sonraki DOCX yine WPS'le (motor sona alınmadı)", b.get("motor") == "wps" and os.path.isfile(hb), b)
+        finally:
+            s.kapat()
+
+
+def wps_kullanici_bolumu(g):
+    """Gerçek WPS, kullanıcı gibi: Dosya ilişkisinin komutuyla belge açılır (bu masaüstünde), kaydedilmemiş değişiklik yapılır, PDEfe başka belgeyi çevirir. Belge açık, değişiklik duruyor,
+    süreç aynı, pencere aynı kalmalı. Sonra kaydetmeden kapatılır. Görünmeyen masaüstünde çalıştırın (--wps-kullanici)."""
+    print("— F) WPS: Kullanıcının açık belgesi")
+    from islemler import word
+    from ctypes import wintypes
+    k = os.path.join(CIKTI, "wps_kullanici")
+    os.makedirs(k, exist_ok=True)
+    kopya = os.path.join(k, "Kurgusal açık belge.docx")
+    shutil.copyfile(g["docx"], kopya)
+    wps = word.wps_bul()["yol"]
+    u32 = ctypes.WinDLL("user32")
+    islev = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    u32.EnumWindows.argtypes = [islev, wintypes.LPARAM]
+    u32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    u32.GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    u32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    u32.IsWindowVisible.argtypes = [wintypes.HWND]
+    u32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+    u32.GetForegroundWindow.restype = wintypes.HWND
+
+    def pencereler(pid):
+        b = []
+
+        def bak(h, _):
+            p = wintypes.DWORD(0)
+            u32.GetWindowThreadProcessId(h, ctypes.byref(p))
+            if p.value == pid and u32.IsWindowVisible(h):
+                c, t = ctypes.create_unicode_buffer(64), ctypes.create_unicode_buffer(256)
+                u32.GetClassNameW(h, c, 64)
+                u32.GetWindowTextW(h, t, 256)
+                b.append((h, c.value, t.value))
+            return True
+        u32.EnumWindows(islev(bak), 0)
+        return b
+    once = set(word.wps_pidleri())
+    p = subprocess.Popen([wps, "/prometheus", "/wps", kopya])
+    ana = None
+    for _ in range(60):
+        time.sleep(0.5)
+        ana = next((x for x in pencereler(p.pid) if x[1] == "OpusApp" and "Kurgusal" in x[2]), None)
+        if ana:
+            break
+    if not ana:
+        return atlandi("kullanıcının açık belgesi", "belge penceresi açılmadı")
+    time.sleep(3)
+    comtypes, a = word._com()
+    comtypes.CoInitializeEx(comtypes.COINIT_APARTMENTTHREADED)
+    from ctypes import oledll, byref
+    kutu = comtypes.POINTER(comtypes.IUnknown)()
+    oledll.oleaut32.GetActiveObject(byref(comtypes.GUID.from_progid("KWPS.Application")), None, byref(kutu))
+    w = word._Disp(kutu.QueryInterface(a.IDispatch))
+    d = None
+    try:
+        d = w.al("ActiveDocument")
+        sonuc("kullanıcı örneği: Belge açık, görünür", str(d.al("Name")) == os.path.basename(kopya) and w.al("Visible") is True, (d.al("Name"), w.al("Visible")))
+        d.al("Content").cagir("InsertAfter", " KAYDEDİLMEMİŞ DEĞİŞİKLİK")
+        sonuc("kullanıcı örneği: Değişiklik kaydedilmedi", d.al("Saved") is False, d.al("Saved"))
+        on_once = u32.GetForegroundWindow()
+        s = W.Surec(None, {"PDEFE_OFIS_MOTORU": "wps"})
+        try:
+            h = os.path.join(k, "sonuc.pdf")
+            r = donustur_(s, [{"yol": g["docx"], "hedef": h, "hedefBicim": "pdf"}, {"yol": g["rtf"], "hedef": os.path.join(k, "sonuc2.pdf"), "hedefBicim": "pdf"}])
+            sonuc("açık belge varken: İki belge çevrildi, ikisi de WPS'le", r.get("basarili") == 2 and all(x.get("motor") == "wps" for x in r["sonuclar"]), r)
+        finally:
+            s.kapat()
+        time.sleep(1)
+        sonuc("açık belge: Süreç yaşıyor, aynı pencere", p.poll() is None and any(x[0] == ana[0] for x in pencereler(p.pid)), pencereler(p.pid))
+        sonuc("açık belge: Belge açık, değişiklik duruyor, görünür", int(w.al("Documents").al("Count")) == 1 and d.al("Saved") is False and "KAYDEDİLMEMİŞ" in str(d.al("Content").al("Text")) and w.al("Visible") is True)
+        sonuc("açık belge: DisplayAlerts ve makro ayarı değişmedi", w.al("DisplayAlerts") != 0 and int(w.al("AutomationSecurity")) == 1, (w.al("DisplayAlerts"), w.al("AutomationSecurity")))
+        sonuc("açık belge: Kaydet sorusu çıkmadı", not [x for x in pencereler(p.pid) if x[1] == "#32770"], pencereler(p.pid))
+        sonuc("açık belge: Bu masaüstünde ön plandaki pencere değişmedi", u32.GetForegroundWindow() == on_once)
+        sonuc("açık belge: Bizim süreçler kalmadı", wps_otomasyon_bitti_mi(set(), 15), wps_otomasyon_surecleri())
+        with open(kopya, "rb") as f:
+            sonuc("açık belge: Dosyaya yazılmadı", b"KAYDED" not in f.read())
+    finally:
+        try:
+            if d is not None:
+                d.cagir("Close", 0)
+        except Exception as e:  # noqa: BLE001
+            print("UYARI açık belge kapatılamadı: %r" % e)
+        d = w = kutu = None
+        for _ in range(8):   # WM_CLOSE: Kipli pencere varsa önce o, sonra ana pencere. Sonlandırma yok
+            if p.poll() is not None or p.pid not in word.wps_pidleri():
+                break
+            for h0, c, t in pencereler(p.pid):
+                if c.startswith("Qt5QWindow"):
+                    u32.PostMessageW(h0, 0x0010, 0, 0)
+            time.sleep(1)
+            for h0, c, t in pencereler(p.pid):
+                if c == "OpusApp":
+                    u32.PostMessageW(h0, 0x0010, 0, 0)
+            time.sleep(2)
+        comtypes.CoUninitialize()
+    sonuc("açık belge: Sınama penceresi kapandı", p.pid not in word.wps_pidleri(), p.pid)
 
 
 def wps_acik_belge_bolumu(g):
@@ -1285,7 +1506,7 @@ def main():
     es = os.environ.pop("PDEFE_OFIS_MOTORU", None)
     testler = []
     if not exe:
-        testler += [test_tur, test_karar, lambda: test_sira(g), lambda: test_wps_oturumu(g), test_lo_sure_iptal]
+        testler += [test_tur, test_karar, lambda: test_sira(g), lambda: test_wps_oturumu(g), lambda: test_tur_motorlari(g), test_lo_sure_iptal]
     testler.append(lambda: yoksuz_bolumu(g, exe))
     if not exe:
         testler.append(lambda: hata_iletileri_bolumu(g))
@@ -1306,7 +1527,10 @@ def main():
         else:
             testler.append(lambda: motor_bolumu("wps", g, exe))
             if not exe:
+                testler.append(lambda: wps_odt_bolumu(g))
                 testler.append(lambda: wps_acik_belge_bolumu(g))
+                if "--wps-kullanici" in sys.argv:
+                    testler.append(lambda: wps_kullanici_bolumu(g))
     for t in testler:
         try:
             t()
