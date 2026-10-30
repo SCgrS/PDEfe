@@ -23,9 +23,10 @@ const GECMIS_KARAKTER = 4_000_000;  // alan başına geçmişin en çok karakter
 export const alinmadiMetni = (n) => `Yazının tamamı bu alana sığmadı. ${n.toLocaleString('tr-TR')} karakter alınmadı.`;
 
 /** Dışarıdan gelen yazının alana girecek hâli: Satır sonları tek biçimde, sayfa sonu ve dikey sekme satır sonu, öbür denetim karakterleri boşluk (forma böyle yazılır: xfa.js
- *  veriDegeri. Ölçü yazılacak hâlle yapılmazsa kâğıtta satır artardı). Tek satırlık alanda satır sonu boşluk (tarayıcının yapıştırması gibi). */
+ *  veriDegeri. Ölçü yazılacak hâlle yapılmazsa kâğıtta satır artardı). Satır ve paragraf ayırıcı ile NEL de satır sonu: Metin kutusu bunları tek satırda gösterir, PDF.js formu dizerken
+ *  satıra böler: Ekranda sığan yazı kâğıtta kesiliyordu (ölçüldü). Tek satırlık alanda satır sonu boşluk (tarayıcının yapıştırması gibi). */
 export function girdiMetni(el, metin) {
-  const m = String(metin ?? '').toWellFormed().replace(/\r\n?/g, '\n').replace(/[\u000B\u000C]/g, '\n').replace(/[\u0000-\u0008\u000E-\u001F￾￿]/g, ' ');
+  const m = String(metin ?? '').toWellFormed().replace(/\r\n?/g, '\n').replace(/[\u000B\u000C\u0085\u2028\u2029]/g, '\n').replace(/[\u0000-\u0008\u000E-\u001F\u0080-\u009F￾￿]/g, ' ');
   return el.tagName === 'TEXTAREA' ? m : m.replace(/\n/g, ' ');
 }
 

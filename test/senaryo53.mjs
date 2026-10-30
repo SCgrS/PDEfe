@@ -316,6 +316,19 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, fare, yaz
     d = await d53('UcSatir');
     bl = await bildirimler();
     sonuc('2 Windows satır sonu, sayfa sonu, denetim karakteri: 3 satır sınırına göre, kalanı söylenir', d.deger === 'A\nB\nC D' && d.satir === 3 && bl.length === 1 && bl[0].includes(' 4 karakter'), { d: d.deger, bl });
+    // Satır ve paragraf ayırıcı, NEL: Metin kutusu tek satırda gösterir, PDF.js formu dizerken satıra böler: Ölçü satır sonuyla, ekranda sığan kâğıtta kesilmez
+    await bosalt('UcSatir');
+    await tiklaAd('UcSatir');
+    await yapistir('Bir\u2028iki\u2029uc\u0085dort');
+    d = await d53('UcSatir');
+    bl = await bildirimler();
+    sonuc('2 Satır ve paragraf ayırıcı, NEL: Satır sonu sayılır, 3 satır sınırı, kalanı söylenir', d.deger === 'Bir\niki\nuc' && d.satir === 3 && bl.length === 1 && bl[0].includes(' 5 karakter'), { d: d.deger, bl });
+    await bosalt('TekKapali');
+    await tiklaAd('TekKapali');
+    await yapistir('tek\u2028satır\u2029alan\u0085yazı');
+    d = await d53('TekKapali');
+    sonuc('2 Tek satırlık alanda ayırıcılar boşluk', d.deger === 'tek satır alan yazı', d.deger);
+    await bildirimler();
     // Boşluksuz uzun sözcük: Sığdığı yerden
     await bosalt('IkiSatir');
     await tiklaAd('IkiSatir');
