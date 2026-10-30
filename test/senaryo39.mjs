@@ -242,7 +242,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     await aracAc([G.pdf2]);
     let S = await satirlar();
     sonuc('PDF\'in hedeflerinde JPG (son sırada), ipucunda "her sayfa ayrı dosya"', J(S[0]?.hedefler.map((h) => h.id)) === J(['udf', 'word', 'tiff', 'gorsel'])
-      && S[0].hedefler.at(-1).ad === 'JPG' && /JPG'ye dönüştür \(\.jpg; çok sayfalı belgede her sayfa ayrı dosya\)/.test(S[0].hedefler.at(-1).ipucu), S[0]?.hedefler);
+      && S[0].hedefler.at(-1).ad === 'JPG' && /JPG'ye dönüştür \(\.jpg, çok sayfalı belgede her sayfa ayrı dosya\)/.test(S[0].hedefler.at(-1).ipucu), S[0]?.hedefler);
     await hedefTikla('Dilekçe örneği.pdf', 'gorsel');
     await kosul(`${A}.kayit.cikti.ad() === 'Dilekçe örneği.jpg'`, 5000);
     const k = await evalJs(`(() => { const p = document.querySelector('.donustur-pencere'); const a = ${A};
@@ -562,7 +562,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
     sonuc('Satırlar sırayla: UDF, PDF, TIFF, Word, JPG; türler içerikten (udf, pdf, gorsel, word, gorsel)', J(S.map((x) => x.tur)) === J(['udf', 'pdf', 'gorsel', 'word', 'gorsel']), S.map((x) => [x.ad, x.tur]));
     sonuc(`UDF satırı: tür "UDF", küçük resim (${UDE_VAR ? 'editörün ön izlemesi' : 'yaklaşık çizim'}), sayfa sayısı; tahmin yok`, /^UDF · 1 sayfa/.test(u?.ozet || '') && u.resim === 'img' && u.tahmin === 'tahmin yok'
       && !u.cevrilemez && u.ayarlar, u);
-    if (!UDE_VAR) sonuc('UDE yok: UDF satırında "görünüm yaklaşık" uyarısı', /^UYAP Doküman Editörü bulunamadı; görünüm yaklaşık/.test(u?.neden || ''), u);
+    if (!UDE_VAR) sonuc('UDE yok: UDF satırında "görünüm yaklaşık" uyarısı', /^UYAP Doküman Editörü bulunamadı, görünüm yaklaşık/.test(u?.neden || ''), u);
     else sonuc('UDE var: UDF satırında uyarı yok', !u?.neden, u);
     if (WORD_VAR) sonuc('Word satırı: tür "DOCX", mavi yer tutucu ("DOCX"), sayfa sayısı yok, tahmin yok; çevrilebilir', /^DOCX · /.test(w?.ozet || '') && !/sayfa/.test(w.ozet) && w.resim === 'DOCX' && w.yerTur === 'word'
       && w.tahmin === 'tahmin yok' && !w.cevrilemez, w);
@@ -628,7 +628,7 @@ print(json.dumps([{"metin": " ".join(p.get_text().split())[:60], "resim": len(p.
     const bl = await bildirimler();
     sonuc(`Birleştirme: tek PDF, ${beklenen.length} sayfa, sıra listedeki gibi (UDF, PDF ×2, TIFF ×2${wordli ? ', Word' : ''}, JPG); sekmede açıldı`, !!o && o.length === beklenen.length
       && J(gercek) === J(beklenen.map((b) => (b === 'tif' || b === 'jpg' ? 'resim' : b))) && !!akt && path.resolve(akt) === path.resolve(hedef), { gercek, akt });
-    if (!UDE_VAR) sonuc('UDE yokken bildirimde UDF\'nin adıyla "görünüm yaklaşık"', bl.some((b) => /Karar örneği\.udf: UYAP Doküman Editörü bulunamadı; görünüm yaklaşık/.test(b)), bl);
+    if (!UDE_VAR) sonuc('UDE yokken bildirimde UDF\'nin adıyla "görünüm yaklaşık"', bl.some((b) => /Karar örneği\.udf: UYAP Doküman Editörü bulunamadı, görünüm yaklaşık/.test(b)), bl);
     else sonuc('Bildirim "Birleştirildi: Birleştirilmiş.pdf"', bl.some((b) => /^Birleştirildi: Birleştirilmiş\.pdf/.test(b)), bl);
     await sekmeleriKapat();
     await bKapat();

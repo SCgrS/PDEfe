@@ -33,7 +33,7 @@ const PY = path.join(KOK, '.venv', 'Scripts', 'python.exe');
 const PORT = process.env.PDEFE_CDP_PORT || '9222';
 const MASAUSTU = process.env.UY_MASAUSTU || '';
 const J = (x) => JSON.stringify(x);
-const UYARI = 'UYAP Doküman Editörü bulunamadı; görünüm yaklaşık (satır ve sayfa kırılımları editördekinden farklı olabilir).';
+const UYARI = 'UYAP Doküman Editörü bulunamadı, görünüm yaklaşık (satır ve sayfa kırılımları editördekinden farklı olabilir).';
 
 let hataSayisi = 0, denetim = 0;
 const sonuc = (ad, ok, ayrinti = '') => {
@@ -435,7 +435,7 @@ print(json.dumps({"koyuP": sum(1 for v in a if v < 200), "koyuR": sum(1 for v in
     const bl2 = await bildirimler();
     const yh = path.join(CIKTI, 'yorumlu.pdf');
     sonuc('Çekirdek "desteklenmiyor" dedi: PDF yaklaşık çizimle yazıldı, bildirimde çekirdeğin nedeni ve "görünüm yaklaşık"', fs.existsSync(yh)
-      && bl2.some((b) => b.includes('Bu bilgisayarda UYAP Doküman Editörü bulunamadı; görünüm yaklaşık') && b.includes('yorumlar')), bl2);
+      && bl2.some((b) => b.includes('Bu bilgisayarda UYAP Doküman Editörü bulunamadı, görünüm yaklaşık') && b.includes('yorumlar')), bl2);
     await sekmeleriKapat();
     await pencereKapat();
 

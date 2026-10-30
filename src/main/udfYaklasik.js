@@ -495,7 +495,7 @@ export function udfYaklasikKur({ ipcMain, KOK, cekirdekCagir, cekirdekIptal, cik
         await geciciYaz(gecici, pdf);
         geciciler_.push(gecici);
         const not = ozetUyarisi(ozet);
-        uyarilar.push(`${ad}: UYAP Doküman Editörü bulunamadı; görünüm yaklaşık.${not ? ' ' + not : ''}`);
+        uyarilar.push(`${ad}: UYAP Doküman Editörü bulunamadı, görünüm yaklaşık.${not ? ' ' + not : ''}`);
         const { yaklasik: _y, ...kalan } = o;
         hazir.push({ ...kalan, yol: gecici, tur: 'pdf' });
         j++;

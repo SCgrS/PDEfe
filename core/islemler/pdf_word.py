@@ -96,7 +96,8 @@ def hazir():
         if importlib.util.find_spec("ucuncu.pdf2docx") is None or importlib.util.find_spec("docx") is None:
             return False, "PDF → Word dönüştürücüsü bu sürümde eksik."
     except (ImportError, ValueError) as e:
-        return False, "PDF → Word dönüştürücüsü yüklenemedi: %s" % e
+        print("[pdf_word] dönüştürücü yüklenemedi: %r" % e, file=sys.stderr)
+        return False, "PDF → Word dönüştürücüsü yüklenemedi."
     return True, None
 
 

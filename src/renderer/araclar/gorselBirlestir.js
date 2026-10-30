@@ -31,11 +31,11 @@ import { MAC, LINUX, tus } from '../platform.js';
 
 /** Kalite seviyeleri (çekirdekteki GORSEL_KALITE ile aynı kimlikler). Açıklamalar teknik ayrıntı (çözünürlük, sıkıştırma türü) içermez. */
 export const KALITELER = [
-  { id: 'orijinal', ad: 'Orijinal', aciklama: 'Görseller olduğu gibi eklenir; kalite kaybı olmaz, dosya en büyüktür.' },
+  { id: 'orijinal', ad: 'Orijinal', aciklama: 'Görseller olduğu gibi eklenir, kalite kaybı olmaz, dosya en büyüktür.' },
   // Kayıplı seviyede sıkıştırınca küçülmeyen görsel (zaten sıkıştırılmış JPEG, ekran görüntüsü) olduğu gibi eklenir (çekirdek _buyutmeyen)
-  { id: 'yuksek', ad: 'Yüksek', aciklama: 'Baskıya uygun kalite; görseller hafifçe sıkıştırılır. Sıkıştırınca küçülmeyen görsel olduğu gibi eklenir.' },
+  { id: 'yuksek', ad: 'Yüksek', aciklama: 'Baskıya uygun kalite, görseller hafifçe sıkıştırılır. Sıkıştırınca küçülmeyen görsel olduğu gibi eklenir.' },
   { id: 'orta', ad: 'Orta', aciklama: 'Ekranda okuma ve paylaşım için iyi kalite, daha küçük dosya. Sıkıştırınca küçülmeyen görsel olduğu gibi eklenir.' },
-  { id: 'dusuk', ad: 'Düşük', aciklama: 'En küçük dosya; görsellerde belirgin kalite kaybı olabilir. Sıkıştırınca küçülmeyen görsel olduğu gibi eklenir.' },
+  { id: 'dusuk', ad: 'Düşük', aciklama: 'En küçük dosya, görsellerde belirgin kalite kaybı olabilir. Sıkıştırınca küçülmeyen görsel olduğu gibi eklenir.' },
 ];
 // HEIC / HEIF listede yok (0.2.1): çekirdeğin onları açan kütüphanesi (pillow_heif) pakette yok; listede görünüp eklenince hata veriyordu
 export const GORSEL_UZANTILAR = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'tif', 'tiff', 'webp'];
@@ -60,9 +60,9 @@ const KUCUK_RESIM_EN_AZ = 144;
 const KUTU_VARSAYILAN = 150;   // CSS değişkeni okunamazsa (araclar.css ile aynı)
 
 /** UDF ve Word satırlarının boyut tahmini (0.2.7): çekirdek de tahmin etmez (tahminYok). */
-const BELGE_TAHMIN_NOTU = 'UDF ve Word belgelerinin boyutu PDF\'e çevrilmeden kestirilemiyor; toplama katılmadı.';
+const BELGE_TAHMIN_NOTU = 'UDF ve Word belgelerinin boyutu PDF\'e çevrilmeden kestirilemiyor, toplama katılmadı.';
 /** UYAP Doküman Editörü yokken UDF satırındaki uyarı (Format Değiştir'deki söyleyiş). */
-const YAKLASIK_UYARISI = 'UYAP Doküman Editörü bulunamadı; görünüm yaklaşık (satır ve sayfa kırılımları editördekinden farklı olabilir).';
+const YAKLASIK_UYARISI = 'UYAP Doküman Editörü bulunamadı, görünüm yaklaşık (satır ve sayfa kırılımları editördekinden farklı olabilir).';
 
 /** Satırda görünen dosya türü: kullanıcının tanıdığı uzantı ("JPG", "PNG"; çekirdeğin bicim'i "JPEG" gibi teknik ad olabilir). */
 function bicimEtiketi(o) {
@@ -528,7 +528,7 @@ export class BirlestirmePenceresi {
       } else if (r?.tur === 'gorsel' && r.yol) {
         this.dosyaEkle([r.yol]);
       } else if (r?.tur === 'metin') {
-        this.baglam.bildir('Panoda metin var; eklenecek dosya ya da görüntü yok.', 3500);
+        this.baglam.bildir('Panoda metin var, eklenecek dosya ya da görüntü yok.', 3500);
       } else {
         this.baglam.bildir('Pano boş: eklenecek dosya ya da görüntü yok.', 3500);
       }
@@ -880,7 +880,7 @@ export class BirlestirmePenceresi {
     const ayni = this._oncekiAyni(o);
     const n = ayni ? this.ogeler.indexOf(ayni) + 1 : 0;
     t.textContent = `tahmin: ${boyutMetni(b)}${ayni ? ` · ${n}. satırla aynı içerik` : ''}`;
-    if (ayni) t.title = `${t.title ? t.title + '\n' : ''}Aynı içerik ${n}. satırda da var. PDF'te bir kez saklanır; bu satır toplam boyutu çok az artırır.`;
+    if (ayni) t.title = `${t.title ? t.title + '\n' : ''}Aynı içerik ${n}. satırda da var. PDF'te bir kez saklanır, bu satır toplam boyutu çok az artırır.`;
   }
 
   /** Öğe tahminleri, kalite düğmelerindeki toplamlar ve (öğelere özel kalite varsa) gerçek toplam. */
@@ -945,7 +945,7 @@ export class BirlestirmePenceresi {
   async _birlestirBir() {
     const { baglam } = this;
     // Birleştir düğmesi dosyalar okunurken devre dışıdır; kapatma sorusundaki Kaydet de buraya gelir: okuma bitmeden birleştirilmez
-    if (this.ogeler.some((o) => o.yukleniyor)) { baglam.bildir('Dosyalar hâlâ okunuyor; bitince yeniden deneyin.'); return false; }
+    if (this.ogeler.some((o) => o.yukleniyor)) { baglam.bildir('Dosyalar hâlâ okunuyor. Bitince yeniden deneyin.'); return false; }
     const ogeler = this.ogeler.filter((o) => !o.hata && !o.cevrilemez);
     if (this.ogeler.some((o) => o.hata) && !this.ogeler.some((o) => o.cevrilemez)) {
       const { secim } = await baglam.mesajKutusu({ mesaj: 'Bazı dosyalar okunamadı.', ayrinti: 'Okunamayan dosyalar atlanarak devam edilsin mi?', dugmeler: ['Atla ve devam et', 'Vazgeç'], varsayilan: 0, iptal: 1 });
@@ -964,7 +964,7 @@ export class BirlestirmePenceresi {
     // kayıtlı sürümle yapılır
     for (const b of this._kirliAcikBelgeler(ogeler)) {
       const yerineYazilacak = this.kayit.uzerineMi() && yolAyni(b.yol, this.belge?.yol);
-      const secenek = yerineYazilacak ? { aciklama: 'Birleştirme dosyadaki kayıtlı sürümle yapılır; üzerine yazıldıktan sonra belge yeni haliyle yeniden açılır ve kaydedilmemiş değişiklikler atılır.' } : {};
+      const secenek = yerineYazilacak ? { aciklama: 'Birleştirme dosyadaki kayıtlı sürümle yapılır. Üzerine yazıldıktan sonra belge yeni haliyle yeniden açılır ve kaydedilmemiş değişiklikler atılır.' } : {};
       if ((await degisiklikleriSor(baglam, b, 'Birleştirme', secenek)) === 'vazgec' || this.pencere.kapali) return false;
     }
     // Hedef listedeki bir dosyaysa var olan dosya sorusundan önce söylenir; ad, klasör, var olan dosya sorusu, kilit / salt okunur denetimi;
@@ -1029,7 +1029,7 @@ export class BirlestirmePenceresi {
   _hedefListeyleUygun(ogeler) {
     const uzerine = this.kayit.uzerineMi(), hedef = this.kayit.hedef();
     if (uzerine && !ogeler.some((o) => yolAyni(o.yol, hedef))) {
-      this.baglam.bildir(`"${dosyaAdi(hedef)}" listede olmadığı ya da okunamadığı için üzerine yazılamaz; yeni belge olarak kaydedin.`, 5000);
+      this.baglam.bildir(`"${dosyaAdi(hedef)}" listede olmadığı ya da okunamadığı için üzerine yazılamaz, yeni belge olarak kaydedin.`, 5000);
       return false;
     }
     if (!uzerine && this.ogeler.some((o) => yolAyni(o.yol, hedef))) {

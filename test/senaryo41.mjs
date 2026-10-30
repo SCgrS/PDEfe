@@ -523,7 +523,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle }) {
     sonuc('5) ⚠ ipucu "PDF → UDF: <kalite notu>" ve alt satırlarda dosyanın uyarıları; erişilebilir adı "Uyarı: …"', r0?.ipucu === BEKLENEN && r0.ariaAd === 'Uyarı: ' + BEKLENEN.replace(/\n/g, ' '), { ipucu: r0?.ipucu, aria: r0?.ariaAd });
     const tema = await evalJs('document.documentElement.dataset.tema');
     sonuc(`5) Simge uyarı renginde (${tema === 'koyu' ? 'koyu tema #ffc83d' : 'açık tema #b35c00'})`, (tema === 'koyu' ? /rgb\(255, 200, 61\)/ : /rgb\(179, 92, 0\)/).test(r0?.renk || ''), { tema, renk: r0?.renk });
-    sonuc('5) Yeni adla kaydedilen dosyanın notu adın ipucunda ("Aynı adlı dosyalar vardı…"), simge yok', /Aynı adlı dosyalar vardı; onlara dokunulmadı, yeni adla kaydedildi\./.test(d?.satirlar[2].adIpucu || '') && !d.satirlar[2].simge, d?.satirlar[2]);
+    sonuc('5) Yeni adla kaydedilen dosyanın notu adın ipucunda ("Aynı adlı dosyalar vardı…"), simge yok', /Aynı adlı dosyalar vardı\. Onlara dokunulmadı, yeni adla kaydedildi\./.test(d?.satirlar[2].adIpucu || '') && !d.satirlar[2].simge, d?.satirlar[2]);
     sonuc('5) Sonuç kutusunda (yazılarda ve ipuçlarında) "kaşe" geçmiyor; ⚠\'lı satır da ortalı', !/kaşe/i.test((d?.metin || '') + (d?.ipuclari || '')) && yakin(r0?.orta, d?.kutu.ortaX, 1.5), { orta: r0?.orta, kutu: d?.kutu.ortaX });
     // Gerçek dönüştürme: yazının üstündeki resim alınmadı; ⚠ ipucunda çekirdeğin kısa uyarısı
     await evalJs(`(document.querySelector('.donustur-temizle').click(), ${A}.dosyaEkle([${J(imzali)}]), true)`);

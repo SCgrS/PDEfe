@@ -286,7 +286,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, hedefler,
     const yh = (id) => u.hedefler.find((h) => h.id === id);
     sonuc('UDE yok: UDF satırının PDF hedefi yaklaşık çizimle seçilebilir (TIFF / Word, PDF\'ten dönüştürülebiliyorsa); satırda "görünüm yaklaşık" uyarısı ve "UYAP Doküman Editörü\'nün yerini göster" bağlantısı',
       !yh('pdf')?.devre && /görünüm yaklaşık/.test(yh('pdf')?.ipucu || '') && yh('tiff')?.devre === !YET?.donusumler?.['pdf>tiff']?.var && yh('word')?.devre === !WORD_VAR
-      && /^UYAP Doküman Editörü bulunamadı; görünüm yaklaşık/.test(u.neden) && u.bag === 'UYAP Doküman Editörü\'nün yerini göster', u);
+      && /^UYAP Doküman Editörü bulunamadı, görünüm yaklaşık/.test(u.neden) && u.bag === 'UYAP Doküman Editörü\'nün yerini göster', u);
     await ss('03-ude-yok');
     // Bağlantı: klasör seçtirir; seçilen klasörde UDE yoksa ayar değişmez
     const bosKlasor = path.join(UI, 'bos-klasor');

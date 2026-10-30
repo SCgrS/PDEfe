@@ -164,7 +164,7 @@ export default async function ({ evalJs }) {
       const sor = async (ad, ileti) => { sorular.length = 0; await k.hataSor(new Error(ileti)); r[ad] = sorular[0] || null; };
       await sor('yeniSaltOkunur', 'Dosya salt okunur');
       await sor('yeniYazilamadi', 'Dosya yazılamadı');
-      await sor('okunamadi', 'Dosya okunamadı; başka bir programda açık olabilir: Ek.pdf');
+      await sor('okunamadi', 'Dosya okunamadı, başka bir programda açık olabilir: Ek.pdf');
       k.kipAyarla('uzerine');
       await sor('uzerineSaltOkunur', 'Dosya yazılamadı, salt okunur: Belge.pdf');
       await sor('uzerineYazilamadi', 'Dosya yazılamadı');
@@ -175,12 +175,12 @@ export default async function ({ evalJs }) {
   })()`);
   const PROGRAMDA = 'başka bir programda (örneğin bir PDF okuyucuda) açık olabilir';
   const WIN_AYRINTI = {
-    yeniSaltOkunur: 'Aynı adlı var olan dosyanın Salt okunur özniteliği açık; o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da Salt okunur işaretini kaldırıp yeniden deneyebilirsiniz.',
-    yeniYazilamadi: `Aynı adlı var olan dosya ${PROGRAMDA}; o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da dosyayı kullanan programı kapatıp yeniden deneyebilirsiniz.`,
+    yeniSaltOkunur: 'Aynı adlı var olan dosyanın Salt okunur özniteliği açık, o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da Salt okunur işaretini kaldırıp yeniden deneyebilirsiniz.',
+    yeniYazilamadi: `Aynı adlı var olan dosya ${PROGRAMDA}, o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da dosyayı kullanan programı kapatıp yeniden deneyebilirsiniz.`,
     okunamadi: `Dosya ${PROGRAMDA}. Hiçbir dosya değiştirilmedi.\n\nDosyayı kullanan programı kapatıp yeniden deneyin.`,
     uzerineSaltOkunur: 'Dosyanın Salt okunur özniteliği açık. Özgün dosya değiştirilmedi.\n\nDosya Gezgini\'nde dosyanın Özellikler penceresinden Salt okunur işaretini kaldırıp yeniden deneyebilir ya da sonucu yeni bir belge olarak kaydedebilirsiniz.',
     uzerineYazilamadi: `Dosya ${PROGRAMDA}. Özgün dosya değiştirilmedi.\n\nDosyayı kullanan programı kapatıp yeniden deneyebilir ya da sonucu yeni bir belge olarak kaydedebilirsiniz.`,
-    coklu: `Seçilen klasöre yazılamadı; klasör salt okunur olabilir ya da bir dosya ${PROGRAMDA}. Var olan hiçbir dosya değiştirilmedi.\n\nBaşka bir klasör seçebilir ya da yeniden deneyebilirsiniz.`,
+    coklu: `Seçilen klasöre yazılamadı. Klasör salt okunur olabilir ya da bir dosya ${PROGRAMDA}. Var olan hiçbir dosya değiştirilmedi.\n\nBaşka bir klasör seçebilir ya da yeniden deneyebilirsiniz.`,
   };
   const winFark = Object.entries(WIN_AYRINTI).filter(([ad, a]) => hataSorusu.win[ad]?.ayrinti !== a).map(([ad]) => ad);
   sonuc('Araç sorusu (Windows): altı durumun açıklaması eskisi gibi', !winFark.length, winFark.map((ad) => ({ ad, ayrinti: hataSorusu.win[ad]?.ayrinti })));

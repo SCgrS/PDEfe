@@ -336,7 +336,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     await kosul(`document.querySelectorAll('.sayfalar-izgara > .sayfa-karti img').length >= 8`);
     await evalJs(`document.querySelector('.sayfalar-kayit .arac-kayit-secim [data-id="uzerine"]').click()`);
     const not_ = await evalJs(`(() => { const n = document.querySelector('.sayfalar-kayit .arac-kayit-uzerine'); return { gorunur: !n.hidden, sinif: n.className, metin: n.textContent.trim(), dugmeIpucu: document.querySelector('.arac-dugmeler [data-id="kaydet"]').title }; })()`);
-    sonuc('üzerine yaz notu: Ctrl+Z ile geri alınabilir (bilgi)', not_.gorunur && not_.sinif.includes('bilgi') && /Belgeye uygulanıp "zengin_b\.pdf" dosyasına kaydedilir; Ctrl\+Z ile geri alınabilir\./.test(not_.metin), not_);
+    sonuc('üzerine yaz notu: Ctrl+Z ile geri alınabilir (bilgi)', not_.gorunur && not_.sinif.includes('bilgi') && /Belgeye uygulanıp "zengin_b\.pdf" dosyasına kaydedilir, Ctrl\+Z ile geri alınabilir\./.test(not_.metin), not_);
     // 7. ve 8. sayfayı sil (alan seçimiyle: 2. satırın sağ ucundaki boşluktan), 1. sayfayı döndür
     // Başlangıç noktası ızgaranın görünen alanında (0.2.2: kartlar büyük, 2. satırın altı görünen alanın dışında kalabiliyor)
     const r = await evalJs(`(() => { const k = [...document.querySelectorAll('.sayfalar-izgara > .sayfa-karti')].map((x) => x.getBoundingClientRect()); const iz = document.querySelector('.sayfalar-izgara').getBoundingClientRect(); return { k7: [k[6].left, k[6].top], k8: [k[7].right, k[7].bottom], sag: iz.right - 20, alt: iz.bottom - 10 }; })()`);

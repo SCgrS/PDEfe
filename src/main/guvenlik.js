@@ -335,7 +335,7 @@ export async function udfDosyasiOku(yol) {
   let veri;
   try { veri = await fs.promises.readFile(yol); } catch (e) {
     if (kilitli(e)) throw hataKodlu('kilitli', `Dosya okunamadı, başka bir programda açık olabilir: ${ad}`);
-    throw hataKodlu('hata', 'Dosya okunamadı: ' + (e?.message || e));
+    throw hataKodlu('hata', `Dosya okunamadı: ${ad}`);
   }
   udfIcerigiDenetle(veri);
   return veri;

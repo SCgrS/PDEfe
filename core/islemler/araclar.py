@@ -22,6 +22,7 @@ yok, pikseller yeniden örneklenmez. Öğenin eski sayfaBoyutu / kenar alanları
 Üzerine yazma: yedek alınmaz; sonuç hedefin klasöründe geçici dosyaya yazılır ve os.replace ile atomik olarak yerine konur.
 Hedef başka bir programda kilitliyse özgün dosya değişmez ve hata iletisi KILITLI_METNI'ni, salt okunursa SALT_OKUNUR_METNI'ni içerir.
 """
+import errno
 import hashlib
 import io
 import math
@@ -30,6 +31,7 @@ import re
 import shutil
 import stat
 import sys
+import threading
 import time
 import base64
 
@@ -148,6 +150,8 @@ def _ayni_dosya(a, b):
 
 KILITLI_METNI = "başka bir programda açık olabilir"   # renderer bu ifadeyle kilitli dosya hatasını tanır
 SALT_OKUNUR_METNI = "salt okunur"                       # renderer bu ifadeyle salt okunur dosya hatasını tanır (kilitten ayrı ileti)
+# renderer bu ifadeyle hedef klasörün yazılamadığını tanır (0.3.1). İçinde SALT_OKUNUR_METNI var: Hata kodu salt_okunur, tek dosyada Başka adla kaydet sorulur
+KLASOR_YAZILAMADI_METNI = "Seçilen klasöre yazılamıyor, klasör salt okunur olabilir ya da yazma izniniz olmayabilir"
 
 
 def _salt_okunur_mu(yol):
@@ -163,6 +167,21 @@ def _salt_okunur_mu(yol):
         return bool(oznitelik & stat.FILE_ATTRIBUTE_READONLY)
     from .notlar import yazma_izni_yok
     return not (st.st_mode & stat.S_IWUSR) or yazma_izni_yok(yol)
+
+
+def os_hatasi_metni(e, ad=None):
+    """İşletim sisteminin ham iletisinin ("[WinError 5] Erişim engellendi: 'C:\\…\\x.pdefe-tmp'") yerine kullanıcıya gidecek metin (0.3.1). Ham ileti
+    geçici dosya adı ve tam yol taşır, ne yapılacağını söylemez: Günlükte kalır."""
+    if ad is None:
+        ad = os.path.basename(e.filename) if isinstance(e.filename, str) else ""
+    son = ": %s" % ad if ad else ""
+    if e.errno == errno.ENOSPC:
+        return "Diskte yeterli yer yok%s" % son
+    if isinstance(e, PermissionError):
+        return "Dosyaya erişilemedi, %s%s" % (KILITLI_METNI, son)
+    if isinstance(e, FileNotFoundError):
+        return "Dosya ya da klasör bulunamadı%s" % son
+    return "Dosya işlemi yapılamadı%s" % son
 
 
 def _kilitli_mi(yol):
@@ -183,7 +202,7 @@ def _onbellekten_al(yol):
         return _onbellek().al(yol)
     except Exception:
         if _kilitli_mi(yol):
-            raise PermissionError("Dosya okunamadı; %s: %s" % (KILITLI_METNI, os.path.basename(yol)))
+            raise PermissionError("Dosya okunamadı, %s: %s" % (KILITLI_METNI, os.path.basename(yol)))
         raise
 
 
@@ -194,14 +213,15 @@ def _pdf_ac(yol):
         doc = pymupdf.open(yol, filetype="pdf")   # yalnızca PDF (0.1.23; pdefe_core.BelgeOnbellek.al)
     except Exception as e:
         if _kilitli_mi(yol):
-            raise PermissionError("Dosya okunamadı; %s: %s" % (KILITLI_METNI, os.path.basename(yol)))
-        raise ValueError("PDF açılamadı (%s): %s" % (os.path.basename(yol), e))
+            raise PermissionError("Dosya okunamadı, %s: %s" % (KILITLI_METNI, os.path.basename(yol)))
+        print("[araclar] PDF açılamadı: %r" % (e,), file=sys.stderr)
+        raise ValueError("PDF açılamadı, dosya bozuk olabilir: %s" % os.path.basename(yol))
     if not doc.is_pdf:
         doc.close()
         raise ValueError("Dosya PDF değil: %s" % os.path.basename(yol))
     if doc.needs_pass:
         doc.close()
-        raise PermissionError("Belge parolayla korunuyor; işlem yapılamıyor: %s" % os.path.basename(yol))
+        raise PermissionError("Belge parolayla korunuyor, işlem yapılamıyor: %s" % os.path.basename(yol))
     return doc
 
 
@@ -224,7 +244,26 @@ def _hedef_klasoru_hazirla(hedef):
         try:
             os.makedirs(klasor, exist_ok=True)
         except OSError as e:
-            raise OSError("Hedef klasör oluşturulamadı: %s (%s)" % (klasor, e))
+            print("[araclar] hedef klasör: %r" % (e,), file=sys.stderr)
+            raise OSError("Hedef klasör oluşturulamadı. Sürücü çıkarılmış ya da yazma izniniz olmayabilir: %s" % klasor) from None
+
+
+def hedef_klasoru_yazilabilir(hedef):
+    """Hedefin klasörüne dosya yazılabiliyor mu (0.3.1, uzun işten ÖNCE): Klasöre yazma izni yoksa MuPDF, Pillow ya da dönüştürücü ancak iş bitince düşüyor ve
+    ham ileti veriyordu. Salt okunur özniteliği klasörde bir şey söylemediği için (Windows'ta klasörün özniteliği yazmayı engellemez) denemenin kendisi: Boş dosya açılır, silinir.
+    Yazma izni dışındaki hatalar burada yok sayılır: Yazarken yine görülür."""
+    klasor = os.path.dirname(hedef) or "."
+    deneme = os.path.join(klasor, ".pdefe-yazma-%d-%d.tmp" % (os.getpid(), threading.get_ident()))
+    try:
+        os.close(os.open(deneme, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+    except PermissionError:
+        raise PermissionError("%s: %s" % (KLASOR_YAZILAMADI_METNI, os.path.basename(klasor.rstrip("\\/")) or klasor)) from None
+    except OSError:
+        return
+    try:
+        os.remove(deneme)
+    except OSError:
+        pass
 
 
 def _yerine_koy(gecici, hedef):
@@ -241,7 +280,8 @@ def _yerine_koy(gecici, hedef):
         # Salt okunur hedefe os.replace de erişim hatası verir; ileti kilitten ayrılır (dosyayı açık tutan program yok)
         if _salt_okunur_mu(hedef):
             raise PermissionError("Dosya yazılamadı, %s: %s" % (SALT_OKUNUR_METNI, os.path.basename(hedef)))
-        raise PermissionError("Dosya yazılamadı, %s: %s (%s)" % (KILITLI_METNI, os.path.basename(hedef), e))
+        print("[araclar] yerine koyma: %r" % (e,), file=sys.stderr)
+        raise PermissionError("Dosya yazılamadı, %s: %s" % (KILITLI_METNI, os.path.basename(hedef)))
 
 
 def _kaydet_sinirli(doc, hedef, en_fazla=None, once_kapat=(), **secenekler):
@@ -253,6 +293,7 @@ def _kaydet_sinirli(doc, hedef, en_fazla=None, once_kapat=(), **secenekler):
     sonra doc'u ve once_kapat belgelerini kullanmamalı."""
     hedef = _mutlak(hedef, "hedef")
     _hedef_klasoru_hazirla(hedef)
+    hedef_klasoru_yazilabilir(hedef)
     gecici = _gecici_yol(hedef)
     try:
         from .notlar import kullanim_hakki_kaldir
@@ -564,7 +605,7 @@ def y_sayfalar_uygula(p):
     pdf_hedefi_denetle(hedef)               # yalnızca .pdf'e ya da var olan PDF'e (0.2.1)
     tarif = p.get("tarif")
     if not isinstance(tarif, list) or not tarif:
-        raise ValueError("Sayfa tarifi boş; en az bir sayfa gerekli.")
+        raise ValueError("Sayfa tarifi boş. En az bir sayfa gerekli.")
     # Kaynaklar diskten taze açılır ve iş bitince kapatılır (0.2.1): önceden paylaşılan önbellekten alınıyordu; önbellek en çok 8
     # belge tuttuğundan 9. ayrı kaynak açılınca bu işin ilk kaynağı kapanıyor, kayıt "document closed" hatasıyla düşüyordu
     kaynaklar = {}     # normalize yol → doc
@@ -748,7 +789,7 @@ def y_ayir(p):
         ilerleme(int(100 * i / toplam), "%d/%d dosya yazılıyor" % (i + 1, toplam))
         hedef = os.path.join(klasor, dosya_adi + ".pdf") if uzerine_yaz else _benzersiz_yol(klasor, dosya_adi)
         if _ayni_dosya(hedef, yol):
-            raise ValueError("Ayrılan dosya özgün dosyanın yerine yazılamaz; bunun için \"Üzerine yaz\" seçilmeli.")
+            raise ValueError("Ayrılan dosya özgün dosyanın yerine yazılamaz. Bunun için \"Üzerine yaz\" seçilmeli.")
         if uzerine_yaz and os.path.exists(hedef):
             _onbellekten_birak(hedef)
         _parca_yaz(doc, gruplar, hedef, toc)
@@ -773,7 +814,7 @@ def _heic_hazirla(yol):
             import pillow_heif
             pillow_heif.register_heif_opener()
         except ImportError:
-            raise ValueError("HEIC/HEIF görselleri için 'pillow_heif' kütüphanesi kurulu değil; "
+            raise ValueError("HEIC/HEIF görselleri için 'pillow_heif' kütüphanesi kurulu değil. "
                              "görseli önce JPG ya da PNG'ye çevirin: %s" % os.path.basename(yol))
 
 
@@ -787,7 +828,8 @@ def _gorsel_ac(yol):
         im.load()
         return im
     except Exception as e:
-        raise ValueError("Görsel açılamadı (%s): %s" % (os.path.basename(yol), e))
+        print("[araclar] görsel açılamadı: %r" % (e,), file=sys.stderr)
+        raise ValueError("Görsel açılamadı, dosya bozuk olabilir: %s" % os.path.basename(yol))
 
 
 def _tiff_mi(im):
@@ -1176,7 +1218,7 @@ def _belgeli_birlestir(p, ogeler, turler, hedef, genel, ilerleme):
     def is_():
         klasor = donustur.gecici_klasor_ac()
         try:
-            hazir, uyarilar, j = [], [], 0
+            hazir, uyarilar, j = [], {}, 0
             for i, (oge, tur) in enumerate(zip(ogeler, turler)):
                 if tur not in BELGE_TURLERI:
                     hazir.append(oge)
@@ -1191,16 +1233,16 @@ def _belgeli_birlestir(p, ogeler, turler, hedef, genel, ilerleme):
                 try:
                     r = donustur.pdf_e_cevir(yol, cikti, il)
                 except donustur.OgeHatasi as e:
-                    raise ValueError("%s: %s" % (ad, e))
+                    raise ValueError(str(e) if ad in str(e) else "%s: %s" % (ad, e))
                 if r.get("uyari"):
-                    uyarilar.append("%s: %s" % (ad, r["uyari"]))
+                    uyarilar.setdefault(r["uyari"], []).append(ad)
                 hazir.append(dict(oge, yol=cikti, tur="pdf"))
                 j += 1
             birlesim = lambda y, m="": ilerleme(BELGE_DONUSUM_PAYI + int(y * (100 - BELGE_DONUSUM_PAYI) / 100.0), m)   # noqa: E731
             with _cekirdek().mupdf_kilidi:
                 sonuc = _birlestir_yap(hazir, hedef, genel, birlesim)
-            if uyarilar:
-                sonuc["uyari"] = " ".join(uyarilar)
+            if uyarilar:   # aynı uyarı (hangi programla çevrildiği) belge başına yinelenmez (0.3.1: 5 Word belgesinde bildirim beş kez aynı cümleydi)
+                sonuc["uyari"] = " ".join("%s: %s" % (adlar[0] if len(adlar) == 1 else "%d belge" % len(adlar), u) for u, adlar in uyarilar.items())
             return sonuc
         finally:
             shutil.rmtree(klasor, ignore_errors=True)
@@ -1494,10 +1536,10 @@ def y_dondur_kaydet(p):
     hedef = _mutlak(p.get("hedef") or yol, "hedef")
     derece = _dondurme(p.get("derece"))
     if derece == 0:
-        raise ValueError("Döndürme derecesi 0; yapılacak bir şey yok.")
+        raise ValueError("Döndürme derecesi 0, yapılacak bir şey yok.")
     _dosya_var(yol)
     if _kilitli_mi(yol):
-        raise PermissionError("Dosya okunamadı; %s: %s" % (KILITLI_METNI, os.path.basename(yol)))
+        raise PermissionError("Dosya okunamadı, %s: %s" % (KILITLI_METNI, os.path.basename(yol)))
     _onbellekten_birak(yol)
     if os.path.exists(hedef):
         _onbellekten_birak(hedef)

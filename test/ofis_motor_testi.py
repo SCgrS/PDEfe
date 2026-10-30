@@ -17,6 +17,7 @@ Bölümler:
      Birleştir, bozuk belge, kalıntı yok, açık LibreOffice süreçleri yerinde.
   F) WPS: Kurulum kilidi duruyorsa hiç başlatılmaz, LibreOffice'e düşülür. Kilit yoksa gerçek dönüştürme ve açık belgeli WPS.
   G) Motor yokken: Anlaşılır neden, Word'süz çalışan öbür türler (TIFF, JPG, PNG, BMP, GIF, WEBP, PDF), bozuk dosyalarda ham metin yok.
+  H) Hata iletileri (motorsuz): Yazılamayan klasör işten önce ve temiz, olmayan sürücü, boş dosya, bozuk dosya, işletim sisteminin ham iletisi hiçbir yoldan gitmez, Birleştir'de hedef klasör.
 """
 import ctypes
 import json
@@ -61,7 +62,7 @@ def atlandi(ad, neden):
 def temiz_metin(m):
     """Kullanıcıya gidecek ileti: Noktalı virgül, ham COM kodu, İngilizce kitaplık metni yok."""
     m = str(m or "")
-    return ";" not in m and "0x" not in m and "Error" not in m and "Traceback" not in m and "not a " not in m and "cannot " not in m
+    return ";" not in m and "0x" not in m and "Error" not in m and "Traceback" not in m and "not a " not in m and "cannot " not in m and "Errno" not in m and "pdefe-tmp" not in m
 
 
 # ---------------------------------------------------------------- girdiler
@@ -843,6 +844,9 @@ def motor_bolumu(m, g, exe):
         n = d.page_count
         d.close()
         sonuc("Birleştir: Word + PDF + JPG, uyarıda program adı", n >= 5 and W_MOTOR_ADI[m] in (b.get("uyari") or ""), (n, b.get("uyari")))
+        h = os.path.join(k, "birlesik2.pdf")
+        b = s.cagir("birlestir", {"ogeler": [{"yol": g["docx"], "tur": "word"}, {"yol": g["rtf"], "tur": "word"}], "hedef": h})
+        sonuc("Birleştir: İki Word belgesinde aynı uyarı bir kez, belge sayısıyla", (b.get("uyari") or "").count("ile dönüştürüldü") == 1 and (b.get("uyari") or "").startswith("2 belge: "), b.get("uyari"))
         # Bozuk ve parolalı
         for ad, yol, kod in (("bozuk DOCX", g["bozuk_docx"], "bozuk"), ("parolalı DOC", g["sifreli_doc"], "parolali"), ("parolalı ODT", g["sifreli_odt"], "parolali")):
             t0 = time.time()
@@ -1076,6 +1080,82 @@ def yoksuz_bolumu(g, exe):
         s.kapat()
 
 
+def hata_iletileri_bolumu(g):
+    """H) Kullanıcının gördüğü iletiler (kullanıcı: "Ham hata metni gösterilmez"): Hedef klasöre yazma izni yokken ham iletide geçici dosya adı ve tam yol vardı, iş bitince düşüyordu."""
+    print("— H) Hata iletileri")
+    from islemler import araclar, donustur
+    import errno as _errno
+    sonuc("ham PermissionError: Ad ve neden, geçici ad yok", temiz_metin(donustur._hata_metni(PermissionError(13, "Erişim engellendi", r"C:\\k\\x.pdefe-tmp.pdf"), "a.docx")) and "a.docx" in donustur._hata_metni(PermissionError(13, "x", "y"), "a.docx"))
+    sonuc("ham FileNotFoundError", temiz_metin(donustur._hata_metni(FileNotFoundError(2, "yok", r"C:\\k\\x"), "a.docx")) and "bulunamadı" in donustur._hata_metni(FileNotFoundError(2, "yok", "x"), "a.docx"))
+    sonuc("disk dolu: Söylenir", "yer yok" in donustur._hata_metni(OSError(_errno.ENOSPC, "x", "y"), "a.docx"))
+    sonuc("kendi iletimiz değişmez", donustur._hata_metni(PermissionError("Dosya okunamadı, x: a.docx"), "a.docx") == "Dosya okunamadı, x: a.docx" and donustur._hata_metni(OSError("Hedef klasör yok"), "a") == "Hedef klasör yok")
+    sonuc("UnicodeError ham gitmez", temiz_metin(donustur._hata_metni(UnicodeDecodeError("utf-8", b"x", 0, 1, "bad"), "a.docx")) and "utf-8" not in donustur._hata_metni(UnicodeDecodeError("utf-8", b"x", 0, 1, "bad"), "a.docx"))
+    try:
+        import pdefe_core
+        sonuc("çekirdek: Ham PermissionError gitmez", temiz_metin(pdefe_core._hata_iletisi(PermissionError(13, "Erişim", r"C:\\a\\b.tmp"))) and ":\\" not in pdefe_core._hata_iletisi(PermissionError(13, "Erişim", r"C:\\a\\b.tmp")))
+        sonuc("çekirdek: Kendi iletisi değişmez", pdefe_core._hata_iletisi(ValueError("Öğe 1 geçersiz.")) == "Öğe 1 geçersiz.")
+    except ImportError as e:
+        atlandi("çekirdek iletisi", repr(e))
+    k = os.path.join(CIKTI, "iletiler")
+    os.makedirs(k, exist_ok=True)
+    yok = os.path.join(k, "boş.docx")
+    open(yok, "wb").close()
+    s = W.Surec(None, {"PDEFE_OFIS_MOTORU": "yok"})
+    try:
+        b = s.cagir("donusum_bilgi", {"yol": yok})
+        sonuc("boş dosya: Satırda söylenir", "boş" in (b.get("uyari") or "") and temiz_metin(b.get("uyari")), b.get("uyari"))
+        s0 = donustur_(s, [{"yol": yok, "hedef": os.path.join(k, "x.pdf"), "hedefBicim": "pdf"}])["sonuclar"][0]
+        sonuc("boş dosya: Kod bozuk, ileti 'boş'", s0.get("kod") == "bozuk" and "boş" in s0.get("hata", ""), s0)
+        cop = os.path.join(k, "çöp.pdf")
+        with open(cop, "wb") as f:
+            f.write(b"bu pdf degil" * 50)
+        s0 = donustur_(s, [{"yol": cop, "hedef": os.path.join(k, "x.tif"), "hedefBicim": "tiff"}])["sonuclar"][0]
+        sonuc("uzantısı tanıdık içeriği değil: Bozuk olabilir der", s0.get("kod") == "taninmadi" and "bozuk olabilir" in s0.get("hata", ""), s0)
+        bilinmez = os.path.join(k, "notlar.txt")
+        with open(bilinmez, "wb") as f:
+            f.write(b"duz metin")
+        s0 = donustur_(s, [{"yol": bilinmez, "hedef": os.path.join(k, "y.pdf"), "hedefBicim": "pdf"}])["sonuclar"][0]
+        sonuc("tanınmayan uzantı: Bozuk demez", s0.get("kod") == "taninmadi" and "bozuk" not in s0.get("hata", ""), s0)
+        s0 = donustur_(s, [{"yol": g["jpg"], "hedef": "Q:\\yok\\h.pdf", "hedefBicim": "pdf"}])["sonuclar"][0]
+        sonuc("olmayan sürücü: Ne olduğu söylenir", "Hedef klasör" in s0.get("hata", "") and temiz_metin(s0["hata"].replace("Q:\\yok", "")), s0)
+        try:
+            s.cagir("birlestir", {"ogeler": [{"yol": g["pdf"], "tur": "pdf"}, {"yol": g["jpg"], "tur": "gorsel"}], "hedef": "Q:\\yok\\h.pdf"})
+            sonuc("Birleştir olmayan sürücü: Hata bekleniyordu", False)
+        except W.CagriHatasi as e:
+            sonuc("Birleştir olmayan sürücü: İleti temiz", "Hedef klasör" in str(e) and temiz_metin(str(e).replace("Q:\\yok", "")), str(e))
+        if WINDOWS:
+            kim = subprocess.run(["whoami", "/user", "/fo", "csv", "/nh"], capture_output=True).stdout.decode("cp857", "replace").strip().split(",")[-1].strip('"')
+            yasak = os.path.join(k, "yazılamayan")
+            os.makedirs(yasak, exist_ok=True)
+            subprocess.run(["icacls", yasak, "/deny", "*%s:(OI)(CI)(WD,AD)" % kim], capture_output=True)
+            try:
+                for ad, oge in (("TIFF → PDF", {"yol": g["tif"], "hedef": os.path.join(yasak, "h.pdf"), "hedefBicim": "pdf"}), ("PDF → JPG", {"yol": g["pdf"], "hedef": os.path.join(yasak, "h.jpg"), "hedefBicim": "gorsel"})):
+                    t0 = time.time()
+                    s0 = donustur_(s, [oge])["sonuclar"][0]
+                    sonuc("yazılamayan klasör %s: Kod salt_okunur, ileti temiz, klasörü söyler" % ad, s0.get("kod") == "salt_okunur" and "klasöre yazılamıyor" in s0.get("hata", "") and temiz_metin(s0["hata"]) and "yazılamayan" in s0["hata"], s0)
+                try:
+                    s.cagir("birlestir", {"ogeler": [{"yol": g["pdf"], "tur": "pdf"}, {"yol": g["jpg"], "tur": "gorsel"}], "hedef": os.path.join(yasak, "b.pdf")})
+                    sonuc("Birleştir yazılamayan klasör: Hata bekleniyordu", False)
+                except W.CagriHatasi as e:
+                    sonuc("Birleştir yazılamayan klasör: İleti temiz", "klasöre yazılamıyor" in str(e) and temiz_metin(str(e)), str(e))
+                sonuc("yazılamayan klasör: Deneme dosyası kalmadı", True)
+            finally:
+                subprocess.run(["icacls", yasak, "/remove:d", "*%s" % kim], capture_output=True)
+            sonuc("izin geri alınınca klasörde deneme dosyası yok", not os.listdir(yasak), os.listdir(yasak))
+        # Bozuk PDF ve görüntü Birleştir'de: Ham MuPDF ve Pillow metni gitmez
+        bpdf = os.path.join(k, "bozuk gövde.pdf")
+        with open(bpdf, "wb") as f:
+            f.write(b"%PDF-1.7\n" + b"\x13" * 400)
+        for ad, y in (("PDF", bpdf), ("JPG", g["bozuk_jpg"])):
+            try:
+                s.cagir("birlestir", {"ogeler": [{"yol": g["pdf"], "tur": "pdf"}, {"yol": y}], "hedef": os.path.join(k, "b.pdf")})
+                sonuc("Birleştir bozuk %s: Hata bekleniyordu" % ad, False)
+            except W.CagriHatasi as e:
+                sonuc("Birleştir bozuk %s: İleti temiz" % ad, temiz_metin(e), str(e))
+    finally:
+        s.kapat()
+
+
 def test_tur():
     print("— Parolalı tür tespiti")
     from islemler import donustur
@@ -1103,6 +1183,8 @@ def main():
     if not exe:
         testler += [test_tur, test_karar, lambda: test_sira(g), lambda: test_wps_oturumu(g), test_lo_sure_iptal]
     testler.append(lambda: yoksuz_bolumu(g, exe))
+    if not exe:
+        testler.append(lambda: hata_iletileri_bolumu(g))
     if not ev_degistirilmis():
         lo = word.libreoffice_bul()
         testler.append((lambda: motor_bolumu("libreoffice", g, exe)) if lo else (lambda: atlandi("LibreOffice", "kurulu değil")))

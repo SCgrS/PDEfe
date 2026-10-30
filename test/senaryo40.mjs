@@ -184,7 +184,7 @@ print(json.dumps(u.yaz(${J(path.join(GIRDI, 'Dilekçe.udf'))})))`);
       sonuc('2) Açık PDF birleşik hâliyle yazıldı (2 + UDF sayfası; ilk sayfalar PDF\'in, sonra UDF\'nin metni)', sayfa.length >= 3 && /DENEME D/.test(sayfa[2] || ''), sayfa);
       sonuc('2) Sekme yeni hâliyle yeniden açıldı (aynı sekme, yeni sayfa sayısı)', path.resolve(sekme.yol || '') === path.resolve(acik) && sekme.sayfa === sayfa.length && sekme.sekme === 1, sekme);
       sonuc('2) Bildirim "Birleştirildi ve üzerine yazıldı", UDF\'nin adıyla "görünüm yaklaşık"', bildirim.some((b) => /^Birleştirildi ve üzerine yazıldı: Açık belge\.pdf/.test(b)
-        && /Dilekçe\.udf: UYAP Doküman Editörü bulunamadı; görünüm yaklaşık/.test(b)), bildirim);
+        && /Dilekçe\.udf: UYAP Doküman Editörü bulunamadı, görünüm yaklaşık/.test(b)), bildirim);
       await araclariKapat(); await sekmeleriKapat();
     }
   }

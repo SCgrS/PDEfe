@@ -106,11 +106,11 @@ const iptalHatasi = () => Object.assign(new Error('İşlem iptal edildi.'), { ip
 const tiffSecimi = { dpi: 300, renk: 'sb' };
 const COZUNURLUKLER = [
   { id: '300', ad: 'İdeal', anahtar: 'ideal', baslik: 'Standart çözünürlük: yazılar ve resimler keskin' },
-  { id: '200', ad: 'Düşük', anahtar: 'dusuk', baslik: 'Daha küçük dosya; yazılı belgeler için yeterli' },
+  { id: '200', ad: 'Düşük', anahtar: 'dusuk', baslik: 'Daha küçük dosya, yazılı belgeler için yeterli' },
 ];
 /** Çekirdek var olan dosyalar yüzünden ilk boş "(1)" adını seçti (sonucun istenenHedef'i; 0.2.7 inceleme). */
-const YENI_AD_NOTU = 'Aynı adlı dosyalar vardı; onlara dokunulmadı, yeni adla kaydedildi.';
-const BELGE_TAHMIN_NOTU = 'UDF ve Word dosyalarının boyutu dönüştürülmeden kestirilemiyor; toplama katılmadı.';
+const YENI_AD_NOTU = 'Aynı adlı dosyalar vardı. Onlara dokunulmadı, yeni adla kaydedildi.';
+const BELGE_TAHMIN_NOTU = 'UDF ve Word dosyalarının boyutu dönüştürülmeden kestirilemiyor, toplama katılmadı.';
 const KUCUK_RESIM_EN_AZ = 120;
 const KUTU_VARSAYILAN = 120;   // araclar.css --donustur-resim
 
@@ -249,7 +249,7 @@ export class DonusturPenceresi {
 
   async _kapatmaIzni() {
     if (!this.ilerleme.calisiyor) return true;
-    const { secim } = await this.baglam.mesajKutusu({ mesaj: 'Dönüştürme sürüyor.', ayrinti: 'Pencereyi kapatırsanız işlem iptal edilir; dönüştürülmekte olan dosyalar kaydedilmez.', dugmeler: ['İptal et ve kapat', 'Sürdür'], varsayilan: 1, iptal: 1 });
+    const { secim } = await this.baglam.mesajKutusu({ mesaj: 'Dönüştürme sürüyor.', ayrinti: 'Pencereyi kapatırsanız işlem iptal edilir, dönüştürülmekte olan dosyalar kaydedilmez.', dugmeler: ['İptal et ve kapat', 'Sürdür'], varsayilan: 1, iptal: 1 });
     if (secim !== 0) return false;
     this.ilerleme.iptalIste();
     return true;
@@ -603,8 +603,8 @@ export class DonusturPenceresi {
         const d = this._hedefDurumu(o, b.id);
         o.secim.etkin(b.id, d.var && !this.ilerleme.calisiyor);
         const dg = o.secim.dugme(b.id);
-        const ek = b.id === 'gorsel' ? '; çok sayfalı belgede her sayfa ayrı dosya' : '';
-        if (dg) { dg.title = d.var ? `${b.yonelme} dönüştür (.${b.uzanti}${ek})${d.yaklasik ? '; görünüm yaklaşık' : ''}` : d.neden; dg.classList.toggle('yapilamaz', !d.var); }
+        const ek = b.id === 'gorsel' ? ', çok sayfalı belgede her sayfa ayrı dosya' : '';
+        if (dg) { dg.title = d.var ? `${b.yonelme} dönüştür (.${b.uzanti}${ek})${d.yaklasik ? ', görünüm yaklaşık' : ''}` : d.neden; dg.classList.toggle('yapilamaz', !d.var); }
       }
       if (o.hedefBicim) o.secim.sec(o.hedefBicim);
     }
@@ -653,7 +653,7 @@ export class DonusturPenceresi {
     this.seceneklerEl.querySelector('.donustur-renk-satiri').hidden = !tiffVar;
     // TIFF'te taranmış sayfa kendi çözünürlüğünde; JPG'de seçilenden düşükse büyütülmez (seçilenden yüksekse seçilene küçülür: boyut seçimi)
     this.seceneklerEl.querySelector('.donustur-secenek-notu').textContent = tiffVar ? 'Taranmış sayfalar kendi çözünürlüğünde kalır.'
-      : 'Taranmış sayfalar büyütülmez; düşük çözünürlüklü tarama kendi çözünürlüğünde kalır.';
+      : 'Taranmış sayfalar büyütülmez. Düşük çözünürlüklü tarama kendi çözünürlüğünde kalır.';
     // Tek dosyada önerilen ad girdinin adı + yeni uzantı; birden çok dosyada adları araç verir
     const adaylar = donusecek.length ? donusecek : this.ogeler.filter((o) => !o.hata && o.tur && o.hedefBicim);
     const coklu = adaylar.length > 1;
@@ -884,7 +884,7 @@ export class DonusturPenceresi {
     const liste = olanlar.slice(0, 3).map((a) => `"${a}"`).join(', ') + (olanlar.length > 3 ? ` ve ${sayiMetni(olanlar.length - 3)} dosya daha` : '');
     const kalanNotu = !fazla.length ? ''
       : `\n\nKlasörde önceki bir dönüştürmeden kalan ${fazla.length === 1 ? `"${fazla[0]}" dosyası` : `${sayiMetni(fazla.length)} sayfa dosyası ("${fazla[0]}" … "${fazla.at(-1)}")`} da var. `
-        + `Bu belge ${sayiMetni(o.sayfa)} sayfa; üzerine yazılırsa ${fazla.length === 1 ? 'o dosya' : 'o dosyalar'} silinmez, yeni sayfalarla aynı ad dizisinde kalır.`;
+        + `Bu belge ${sayiMetni(o.sayfa)} sayfa. Üzerine yazılırsa ${fazla.length === 1 ? 'o dosya' : 'o dosyalar'} silinmez, yeni sayfalarla aynı ad dizisinde kalır.`;
     const { secim } = await baglam.mesajKutusu({
       tur: 'warning', mesaj: olanlar.length === 1 ? `"${olanlar[0]}" zaten var.` : `${liste} zaten var.`,
       ayrinti: `${klasor}\n\nVar olan dosyaların yerine kaydedilsin mi?${yeni ? ` Yeni belge olarak kaydedilirse adı "${yeni}"${o.sayfa > 1 ? ' (ve sonraki sayfalar)' : ''} olur.` : ''}${kalanNotu}`,
@@ -909,7 +909,7 @@ export class DonusturPenceresi {
   /** Bir dönüştürme denemesi; yeniden denenecekse true döner. */
   async _donusturBir() {
     const { baglam } = this;
-    if (this.ogeler.some((o) => o.yukleniyor)) { baglam.bildir('Dosyalar hâlâ okunuyor; bitince yeniden deneyin.'); return false; }
+    if (this.ogeler.some((o) => o.yukleniyor)) { baglam.bildir('Dosyalar hâlâ okunuyor. Bitince yeniden deneyin.'); return false; }
     const hazir = this._donusecekler();
     if (!hazir.length) { baglam.bildir('Dönüştürülebilecek dosya yok.'); return false; }
     const disarida = this.ogeler.filter((o) => !hazir.includes(o));
@@ -961,7 +961,7 @@ export class DonusturPenceresi {
     } catch (e) {
       this.ilerleme.gizle();
       if (e.iptal && e.sonuc) { sonuc = e.sonuc; gecIptal = true; }
-      else if (e.iptal) { baglam.bildir('Dönüştürme iptal edildi; hiçbir dosya kaydedilmedi.', 4000); return false; }
+      else if (e.iptal) { baglam.bildir('Dönüştürme iptal edildi, hiçbir dosya kaydedilmedi.', 4000); return false; }
       else { if (!this.pencere.kapali) this.pencere.hataGoster('Dönüştürme başarısız: ' + hataMetni(e)); return false; }
     } finally {
       if (!this.pencere.kapali) {
@@ -1113,8 +1113,8 @@ export class DonusturPenceresi {
       // "Üzerine yaz"da önceki, daha uzun dönüştürmeden kalan sayfalar (çekirdeğin kalanlar'ı) ilk satırın uyarısında
       const kalanlar = Array.isArray(r.kalanlar) ? r.kalanlar : [];
       const kalan = !kalanlar.length ? '' : kalanlar.length === 1
-        ? `Önceki bir dönüştürmeden kalan "${dosyaAdi(kalanlar[0])}" klasörde duruyor; bu belgenin sayfası değil.`
-        : `Önceki bir dönüştürmeden kalan ${sayiMetni(kalanlar.length)} sayfa dosyası ("${dosyaAdi(kalanlar[0])}" … "${dosyaAdi(kalanlar.at(-1))}") klasörde duruyor; bu belgenin sayfaları değil.`;
+        ? `Önceki bir dönüştürmeden kalan "${dosyaAdi(kalanlar[0])}" klasörde duruyor, bu belgenin sayfası değil.`
+        : `Önceki bir dönüştürmeden kalan ${sayiMetni(kalanlar.length)} sayfa dosyası ("${dosyaAdi(kalanlar[0])}" … "${dosyaAdi(kalanlar.at(-1))}") klasörde duruyor, bu belgenin sayfaları değil.`;
       const uyari = this._sonucUyarisi(r, [r.uyari, kalan]);
       dosyalar.forEach((y, i) => satirlar.push({ yol: y, ad: dosyaAdi(y), ...(i === 0 ? { uyari, ...(ipucu ? { ipucu } : {}) } : {}) }));
     }

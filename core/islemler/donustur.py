@@ -411,7 +411,8 @@ class _Donusturucu:
         try:
             sonuc = self._hazir(alt=alt) if _parametre_adi_var(self._hazir, "alt") else self._hazir()
         except Exception as e:   # hazırlık denetimi bozuksa dönüştürme kapalı görünür, çekirdek düşmez
-            return False, "Denetlenemedi: %s" % e
+            print("[donustur] hazırlık denetimi: %r" % e, file=sys.stderr)
+            return False, "Bu dönüştürme bu bilgisayarda denetlenemedi."
         if isinstance(sonuc, tuple):
             return bool(sonuc[0]), (sonuc[1] if len(sonuc) > 1 else None)
         return bool(sonuc), None
@@ -799,14 +800,15 @@ def y_donusum_yetenekleri(p):
         try:
             sonuc[ad] = islev()
         except Exception as e:
-            sonuc[ad] = {"var": False, "neden": "Denetlenemedi: %s" % e}
+            print("[donustur] yetenek denetimi (%s): %r" % (ad, e), file=sys.stderr)
+            sonuc[ad] = {"var": False, "neden": "Bu dönüştürme bu bilgisayarda denetlenemedi."}
     return sonuc
 
 
 def _pdf_bilgi(yol, genislik):
     doc = araclar._onbellekten_al(yol)   # yalnızca PDF (filetype="pdf"); işçi iş parçacığında (MuPDF kilidi işçide)
     if doc.needs_pass:
-        return {"sayfa": None, "uyari": "Belge parolayla korunuyor; dönüştürülemez."}
+        return {"sayfa": None, "uyari": "Belge parolayla korunuyor, dönüştürülemez."}
     if doc.page_count == 0:
         return {"sayfa": 0, "uyari": "Belgede sayfa yok."}
     pg = doc[0]
@@ -849,7 +851,7 @@ def y_donusum_bilgi(p):
     tur, alt = tur_bul(yol)
     sonuc = {"tur": tur, "alt": alt, "boyut": os.path.getsize(yol), "sayfa": None, "hedefler": _hedefler(tur, alt)}
     if tur == "bilinmeyen":
-        sonuc["uyari"] = "Dosyanın biçimi tanınmadı. PDF, UDF, TIFF, Word ve görüntü (JPG, PNG…) dosyaları dönüştürülebilir."
+        sonuc["uyari"] = _taninmadi_uyarisi(yol)
         return sonuc
     ertele = None
     try:
@@ -1066,6 +1068,34 @@ def kalintilari_temizle(gun=1.0):
     return silinen
 
 
+def _uzantisi_taninir(yol):
+    uzanti = os.path.splitext(yol)[1].lower()
+    return any(uzanti in u for u in GIRDI_UZANTILARI.values())
+
+
+def _bos_mu(yol):
+    try:
+        return os.path.getsize(yol) == 0
+    except OSError:
+        return False
+
+
+def _taninmadi_uyarisi(yol):
+    """Satırdaki neden (0.3.1): Boş dosya ve uzantısı tanıdık ama içeriği değil (yarım inmiş, bozuk) dosya "biçimi tanınmadı"dan ayrılır, kullanıcı ne olduğunu anlasın."""
+    if _bos_mu(yol):
+        return "Dosya boş (0 bayt), dönüştürülemez."
+    if _uzantisi_taninir(yol):
+        return "Dosyanın biçimi tanınmadı, dosya bozuk olabilir. PDF, UDF, TIFF, Word ve görüntü (JPG, PNG…) dosyaları dönüştürülebilir."
+    return "Dosyanın biçimi tanınmadı. PDF, UDF, TIFF, Word ve görüntü (JPG, PNG…) dosyaları dönüştürülebilir."
+
+
+def taninmadi_hatasi(yol):
+    ad = os.path.basename(yol)
+    if _bos_mu(yol):
+        return OgeHatasi("bozuk", "Dosya boş (0 bayt): %s" % ad)
+    return OgeHatasi("taninmadi", ("Dosyanın biçimi tanınmadı, dosya bozuk olabilir: %s" if _uzantisi_taninir(yol) else "Dosyanın biçimi tanınmadı: %s") % ad)
+
+
 def _hedef_denetle(hedef):
     """Var olan hedef yazılabilir mi (uzun dönüştürmeden ÖNCE): klasörse, salt okunursa ya da başka programda açıksa hata."""
     ad = os.path.basename(hedef)
@@ -1100,7 +1130,13 @@ def _hata_kodu(e):
 
 
 def _hata_metni(e, ad):
-    if isinstance(e, (OgeHatasi, PermissionError, FileNotFoundError, TimeoutError, ValueError)) and str(e):
+    if isinstance(e, OSError) and e.errno is not None:   # işletim sisteminin ham iletisi (geçici dosya adı, tam yol): Günlükte (0.3.1)
+        print("[donustur] %s: %r" % (ad, e), file=sys.stderr)
+        return araclar.os_hatasi_metni(e, ad)
+    if isinstance(e, UnicodeError):
+        print("[donustur] %s: %r" % (ad, e), file=sys.stderr)
+        return "%s dönüştürülemedi." % ad
+    if isinstance(e, (OgeHatasi, OSError, TimeoutError, ValueError)) and str(e):
         return str(e)
     if isinstance(e, MemoryError):
         return "Bellek yetmedi: %s" % ad
@@ -1112,7 +1148,7 @@ def _ogeyi_donustur(oge, sira, il):
     iptalde geçici dosyalar silinir."""
     tur, alt = tur_bul(oge["yol"])
     if tur == "bilinmeyen":
-        raise OgeHatasi("taninmadi", "Dosyanın biçimi tanınmadı: %s" % os.path.basename(oge["yol"]))
+        raise taninmadi_hatasi(oge["yol"])
     _girdi_denetle(oge["yol"], tur, alt)
     plan = _plan(tur, oge["hedefBicim"])
     ok, neden = _plan_hazir(plan, alt)
@@ -1125,6 +1161,7 @@ def _ogeyi_donustur(oge, sira, il):
     elif os.path.isdir(oge["hedef"]):
         raise OgeHatasi("gecersiz", "Hedef bir klasör: %s" % os.path.basename(oge["hedef"]))
     araclar._hedef_klasoru_hazirla(oge["hedef"])
+    araclar.hedef_klasoru_yazilabilir(oge["hedef"])   # 0.3.1: Yazılamayan klasör uzun dönüştürmeden önce anlaşılır
     gecici = _gecici_cikti(oge["hedef"], sira, klasor=coklu)
     baglam = Baglam(alt, il)
     bilgi = {"kaynakTur": tur}
@@ -1936,7 +1973,7 @@ def pdf_e_cevir(yol, cikti, il):
     tur, alt = tur_bul(yol)
     ad = os.path.basename(yol)
     if tur == "bilinmeyen":
-        raise OgeHatasi("taninmadi", "Dosyanın biçimi tanınmadı: %s" % ad)
+        raise taninmadi_hatasi(yol)
     if tur == "pdf":
         raise OgeHatasi("ayni_bicim", "Dosya zaten PDF: %s" % ad)
     _girdi_denetle(yol, tur, alt)

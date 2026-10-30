@@ -1018,17 +1018,17 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
   const uzerineMetin = notEl.querySelector('.metin');
   if (belge) {
     sabit.yaz(belge.yol);
-    if (geriAlinabilir) uzerineMetin.textContent = tus(`Belgeye uygulanıp "${ozgunAd}" dosyasına kaydedilir; Ctrl+Z ile geri alınabilir.`);
+    if (geriAlinabilir) uzerineMetin.textContent = tus(`Belgeye uygulanıp "${ozgunAd}" dosyasına kaydedilir, Ctrl+Z ile geri alınabilir.`);
     else uzerineMetin.append(Object.assign(document.createElement('b'), { textContent: 'Geri alınamaz:' }), ` sonuç "${ozgunAd}" dosyasının yerine yazılır, yedek alınmaz.`);
     notEl.title = belge.yol;
   }
   const uzerineIpucu = !belge ? ''
-    : geriAlinabilir ? tus(`Değişiklik açık belgeye uygulanıp "${ozgunAd}" dosyasına kaydedilir; Ctrl+Z ile geri alınabilir`)
-      : `Sonuç "${ozgunAd}" dosyasının yerine kaydedilir; yedek alınmaz, geri alınamaz`;
+    : geriAlinabilir ? tus(`Değişiklik açık belgeye uygulanıp "${ozgunAd}" dosyasına kaydedilir, Ctrl+Z ile geri alınabilir`)
+      : `Sonuç "${ozgunAd}" dosyasının yerine kaydedilir. Yedek alınmaz, geri alınamaz`;
   const secim = segmentliSecim({
     etiket: 'Kayıt biçimi', deger: belge ? kip : 'yeni', sinif: 'arac-kayit-secim',
     secenekler: [
-      { id: 'yeni', etiket: 'Yeni belge olarak kaydet', baslik: 'Sonuç ayrı bir PDF dosyası olarak kaydedilir; özgün dosya değişmez' },
+      { id: 'yeni', etiket: 'Yeni belge olarak kaydet', baslik: 'Sonuç ayrı bir PDF dosyası olarak kaydedilir, özgün dosya değişmez' },
       { id: 'uzerine', etiket: 'Üzerine yaz', baslik: uzerineIpucu },
     ],
     degisti: () => { goster(); bildir(); },
@@ -1172,13 +1172,18 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
         : LINUX ? 'Dosyayı okuma izni olmayabilir. Hiçbir dosya değiştirilmedi.\n\nDosya yöneticisinde dosyaya sağ tıklayıp Özellikler › İzinler bölümünü denetleyip yeniden deneyin.'
           : `Dosya ${programda}. Hiçbir dosya değiştirilmedi.\n\nDosyayı kullanan programı kapatıp yeniden deneyin.`;
       dugmeler = ['Yeniden dene', 'Vazgeç']; yanitlar = ['tekrar', 'vazgec'];
+    } else if (!uzerine && !coklu && /klasöre yazılamıyor/i.test(m)) {
+      // Çekirdek KLASOR_YAZILAMADI_METNI (0.3.1): Yazılamayan dosya değil klasör. "Salt okunur olduğu için" ya da "aynı adlı dosya" demek yanlış olurdu
+      mesaj = 'Seçilen klasöre yazılamadı.';
+      ayrinti = 'Klasöre yazma izniniz olmayabilir ya da klasör salt okunur olabilir. Hiçbir dosya değiştirilmedi.\n\nSonucu başka bir klasöre kaydedebilir ya da yeniden deneyebilirsiniz.';
+      dugmeler = ['Başka adla kaydet', 'Yeniden dene', 'Vazgeç']; yanitlar = ['baskaAd', 'tekrar', 'vazgec'];
     } else if (!uzerine && coklu) {
       // Birden çok dosyada araç var olan dosyaların üzerine yazmaz (ada "(2)" ekler): yazılamayan, seçilen klasördür
       mesaj = 'Dosyalar kaydedilemedi.';
       ayrinti = MAC
-        ? 'Seçilen klasöre yazılamadı; klasöre yazma izni olmayabilir ya da içindeki bir dosya kilitli olabilir. Var olan hiçbir dosya değiştirilmedi.\n\nBaşka bir klasör seçebilir ya da Finder\'da klasörün Bilgi Al penceresinden Paylaşma ve İzinler bölümünü denetleyip yeniden deneyebilirsiniz.'
+        ? 'Seçilen klasöre yazılamadı. Klasöre yazma izni olmayabilir ya da içindeki bir dosya kilitli olabilir. Var olan hiçbir dosya değiştirilmedi.\n\nBaşka bir klasör seçebilir ya da Finder\'da klasörün Bilgi Al penceresinden Paylaşma ve İzinler bölümünü denetleyip yeniden deneyebilirsiniz.'
         : LINUX ? 'Seçilen klasöre yazılamadı. Klasöre ya da içindeki bir dosyaya yazma izni olmayabilir. Var olan hiçbir dosya değiştirilmedi.\n\nBaşka bir klasör seçebilir ya da dosya yöneticisinde klasöre sağ tıklayıp Özellikler › İzinler bölümünü denetleyerek yeniden deneyebilirsiniz.'
-        : `Seçilen klasöre yazılamadı; klasör salt okunur olabilir ya da bir dosya ${programda}. Var olan hiçbir dosya değiştirilmedi.\n\nBaşka bir klasör seçebilir ya da yeniden deneyebilirsiniz.`;
+        : `Seçilen klasöre yazılamadı. Klasör salt okunur olabilir ya da bir dosya ${programda}. Var olan hiçbir dosya değiştirilmedi.\n\nBaşka bir klasör seçebilir ya da yeniden deneyebilirsiniz.`;
       dugmeler = ['Yeniden dene', 'Vazgeç']; yanitlar = ['tekrar', 'vazgec'];
     } else if (uzerine) {
       mesaj = saltOkunur ? `"${hedefAd}" salt okunur olduğu için üzerine yazılamadı.` : `"${hedefAd}" dosyasının üzerine yazılamadı.`;
@@ -1195,13 +1200,13 @@ export function kayitSecimi({ baglam, belge = null, ad: varsayilanAd = 'Belge', 
     } else {
       mesaj = saltOkunur ? `"${hedefAd}" salt okunur olduğu için kaydedilemedi.` : `"${hedefAd}" kaydedilemedi.`;
       if (MAC) {
-        ayrinti = `${saltOkunur ? 'Aynı adlı var olan dosyaya yazma izni yok ya da dosya kilitli' : 'Aynı adlı var olan dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir'}; o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da ${kilitliMac} yeniden deneyebilirsiniz.`;
+        ayrinti = `${saltOkunur ? 'Aynı adlı var olan dosyaya yazma izni yok ya da dosya kilitli' : 'Aynı adlı var olan dosyaya yazma izni olmayabilir ya da dosya kilitli olabilir'}, o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da ${kilitliMac} yeniden deneyebilirsiniz.`;
       } else if (LINUX) {
         ayrinti = `${saltOkunur ? 'Aynı adlı var olan dosyaya yazma izni yok' : 'Aynı adlı var olan dosyaya yazma izni olmayabilir'}, o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da ${izinlerde} yazma izni verip yeniden deneyebilirsiniz.`;
       } else {
         ayrinti = saltOkunur
-          ? 'Aynı adlı var olan dosyanın Salt okunur özniteliği açık; o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da Salt okunur işaretini kaldırıp yeniden deneyebilirsiniz.'
-          : `Aynı adlı var olan dosya ${programda}; o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da dosyayı kullanan programı kapatıp yeniden deneyebilirsiniz.`;
+          ? 'Aynı adlı var olan dosyanın Salt okunur özniteliği açık, o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da Salt okunur işaretini kaldırıp yeniden deneyebilirsiniz.'
+          : `Aynı adlı var olan dosya ${programda}, o dosya değiştirilmedi.\n\nSonucu başka bir adla kaydedebilir ya da dosyayı kullanan programı kapatıp yeniden deneyebilirsiniz.`;
       }
       dugmeler = ['Başka adla kaydet', 'Yeniden dene', 'Vazgeç']; yanitlar = ['baskaAd', 'tekrar', 'vazgec'];
     }
@@ -1278,7 +1283,7 @@ export async function varOlanaYazmaSor(baglam, cikti, hedef) {
   if (!(await baglam.pdefe.cagir('dosya:varMi', hedef))) return true;
   const sekme = !acik ? ''
     : acik.degisti ? '\n\nDosya PDEfe\'de açık ve kaydedilmemiş değişiklikleri var: kayıttan sonra sekmesi yeni haliyle yeniden açılır, bu değişiklikler atılır.'
-      : '\n\nDosya PDEfe\'de açık; kayıttan sonra sekmesi yeni haliyle yeniden açılır.';
+      : '\n\nDosya PDEfe\'de açık, kayıttan sonra sekmesi yeni haliyle yeniden açılır.';
   const yeniAd = cikti?.ayarla ? await numaraliAdBul(baglam.pdefe, klasorAdi(hedef), dosyaAdi(hedef)).catch(() => null) : null;
   if (!yeniAd) {
     const { secim } = await baglam.mesajKutusu({ tur: 'warning', mesaj: `"${dosyaAdi(hedef)}" zaten var.`, ayrinti: `${hedef}\n\nVar olan dosyanın yerine kaydedilsin mi?${sekme}`, dugmeler: ['Üzerine yaz', 'Vazgeç'], varsayilan: 1, iptal: 1 });
@@ -1342,7 +1347,7 @@ export async function ciktiyiAc(baglam, hedef, { cikti, soruAyrintisi } = {}) {
   // yazildi: hedef başka bir PDEfe penceresinde açıksa oradaki sekmesi diskteki yeni hâliyle yenilenir (uygulama.js dosyaAc)
   if (r === 'yok') { await baglam.dosyaAc(hedef, { arkaPlanda: false, yazildi: true }); return true; }
   if (r) return true;
-  baglam.bildir(`"${acik.ad}" sekmesi dosyanın önceki halini gösteriyor; notlarda değişiklik yapmadan önce sekmeyi kapatıp yeniden açın.`, 8000);
+  baglam.bildir(`"${acik.ad}" sekmesi dosyanın önceki hâlini gösteriyor. Notlarda değişiklik yapmadan önce sekmeyi kapatıp yeniden açın.`, 8000);
   return false;
 }
 

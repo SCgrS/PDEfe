@@ -1065,7 +1065,7 @@ def _koseli_notu_tasi(doc, page, a, rect):
         doc.xref_set_key(a.xref, anahtar, _pdf_dizi_yaz(_noktalari_kaydir(dizi, ux, uy)))
     yeni = a.rect
     if abs(yeni.x0 - float(rect[0])) > 0.01 or abs(yeni.y0 - float(rect[1])) > 0.01:
-        raise ValueError("Not taşınamadı (%s); belge kaydedilmedi." % a.type[1])
+        raise ValueError("Not taşınamadı (%s), belge kaydedilmedi." % a.type[1])
 
 
 def not_guncelle(doc, page, n):
@@ -1087,7 +1087,7 @@ def not_guncelle(doc, page, n):
             # rect (arayüz her güncellemede gönderir) yok sayılır
             r = a.rect
             if max(abs(r.x0 - n["rect"][0]), abs(r.y0 - n["rect"][1])) > 0.01:
-                raise ValueError("Not taşınamadı (%s); belge kaydedilmedi." % tur)
+                raise ValueError("Not taşınamadı (%s), belge kaydedilmedi." % tur)
     if n.get("renk") and tur in ("Highlight", "Text", "Underline", "StrikeOut", "Squiggly", "Square", "Circle", "Line", "Ink"):
         a.set_colors(stroke=_renk(n["renk"]))
     if n.get("opaklik") is not None:
@@ -1475,7 +1475,7 @@ def belge_ac_yazmak_icin(yol):
     except Exception as e:
         if os.path.exists(yol):
             print("[kayıt] %s" % e, file=sys.stderr)
-            raise PermissionError("Dosya açılamadı; başka bir programda (örneğin bir PDF okuyucuda) açık olabilir.")
+            raise PermissionError("Dosya açılamadı, başka bir programda (örneğin bir PDF okuyucuda) açık olabilir.")
         raise FileNotFoundError("Dosya bulunamadı: %s" % yol)
 
 
@@ -1506,7 +1506,7 @@ def sayfa_dondurmeleri_dogrula(doc, dondurmeler):
         except (TypeError, ValueError, OverflowError):
             aci = None
         if aci not in (0, 90, 180, 270):
-            raise ValueError("Sayfa döndürmesi geçersiz: %d. sayfa için açı %s; yalnızca 0, 90, 180 ya da 270 olabilir." % (no, deger))
+            raise ValueError("Sayfa döndürmesi geçersiz: %d. sayfa için açı %s. Yalnızca 0, 90, 180 ya da 270 olabilir." % (no, deger))
         if no - 1 in sonuc and sonuc[no - 1] != aci:
             raise ValueError("Sayfa döndürmesi geçersiz: %d. sayfa için birden çok açı verildi." % no)
         sonuc[no - 1] = aci
@@ -1554,7 +1554,7 @@ def y_notlar_kaydet(p):
     kaldirildi = False
     try:
         if doc.is_encrypted:
-            raise PermissionError("Belge şifreli; kaydedilemiyor.")
+            raise PermissionError("Belge şifreli, kaydedilemiyor.")
         if artimli and doc.is_repaired:
             artimli = False   # onarılmış (bozuk xref'li) dosyaya artımlı yazılamaz; MuPDF FzErrorArgument verir (0.1.23)
         dondurmeler = sayfa_dondurmeleri_uygula(doc, sayfa_dondurmeleri)

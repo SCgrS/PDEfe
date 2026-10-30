@@ -712,6 +712,16 @@ def ilerleme_yap(istek_id):
 IPTAL_YANITI = {"code": -32800, "message": "İşlem iptal edildi."}
 
 
+def _hata_iletisi(e):
+    """İstemciye gidecek ileti (0.3.1): İşletim sisteminin ve MuPDF'in ham iletisi (İngilizce, tam yol, geçici dosya adı) kullanıcıya gösterilmez, yanıtın data'sında kalır."""
+    if isinstance(e, OSError) and e.errno is not None:
+        from islemler import araclar
+        return araclar.os_hatasi_metni(e)
+    if type(e).__module__.split(".")[0] in ("pymupdf", "mupdf", "fitz"):
+        return "PDF işlenemedi, dosya bozuk olabilir."
+    return str(e)
+
+
 def _istek_isle(istek):
     istek_id = istek.get("id")
     yontem = istek.get("method")
@@ -735,7 +745,7 @@ def _istek_isle(istek):
     except IptalEdildi:
         yaz_guvenli({"id": istek_id, "error": dict(IPTAL_YANITI)})
     except Exception as e:
-        yaz_guvenli({"id": istek_id, "error": {"code": -32000, "message": str(e), "data": traceback.format_exc()}})
+        yaz_guvenli({"id": istek_id, "error": {"code": -32000, "message": _hata_iletisi(e), "data": traceback.format_exc()}})
     finally:
         if not ertelendi:
             with _iptal_kilidi:
@@ -749,7 +759,7 @@ def _ertelenmis_yanit(istek_id, sonuc, hata):
         elif isinstance(hata, (IptalEdildi, InterruptedError)):
             yaz_guvenli({"id": istek_id, "error": dict(IPTAL_YANITI)})
         else:
-            yaz_guvenli({"id": istek_id, "error": {"code": -32000, "message": str(hata),
+            yaz_guvenli({"id": istek_id, "error": {"code": -32000, "message": _hata_iletisi(hata),
                                                    "data": "".join(traceback.format_exception(hata))}})
     finally:
         with _iptal_kilidi:
