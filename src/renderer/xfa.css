@@ -336,6 +336,8 @@
 .xfaLayer .xfa-alan-metni .highlight { opacity: 0.55; }
 /* Düğmeler: işlevi PDEfe'de çalışan düğmede el imleci, çalışmayanda (betiği tanınmadı) ok */
 .xfaLayer .xfaButton.xfa-desteklenmiyor { cursor: default; }
+/* Yazısı alana sığmayan alan (xfa.js _tasmaGuncelle): Sığmayan kısım basılmaz */
+.xfaLayer .xfa-tasiyor { outline: 2px solid #d13438 !important; outline-offset: -1px; }
 /* Form yeniden dizilirken (örnek ekleme / silme, geri al) katman tıklanmaz */
 .gorunum.xfa-mesgul .xfaLayer, .gorunum.xfa-mesgul .xfaLayer * { pointer-events: none !important; }
 .gorunum.xfa-mesgul .kaydirici { cursor: progress; }

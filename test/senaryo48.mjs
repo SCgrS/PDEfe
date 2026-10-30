@@ -19,6 +19,8 @@
 //      kullanım hakları imzası yerinde), seçim hatırlanır. Tamamen sil: baştan yazılır. Vazgeç: dosya değişmez.
 //  15) Yeniden kurma sürerken (0.3.1 inceleme): Geri al'ın ardından sekme paketi kurulmanın bitmesini bekler (baytlar ve yığının
 //      konumu tutar), düğme işi sürerken sekme taşınmaz, otomatik kayıt dizilim bitince yapılır.
+//  16) Kabul sınaması: Tab sayfadaki sırayla (şablondaki sırayla değil), sayfa sonunda sonraki sayfaya; odaktaki düğmede Boşluk; yazısı alana
+//      sığmayan alan işaretlenir, söylenir, yazdırma penceresi uyarır.
 // Örnek PDF test/xfa_pdf_uret.py ile üretilir (gerçek belge yok): test/cikti/s48/<koşum>/.
 // Kullanım (ekran dışı):
 //   powershell -File test\baslat.ps1 -Port 9310 -Veri "$env:TEMP\pdefe-s48-9310" -Boyut "1280,900"   → PID=… yazar
@@ -456,6 +458,79 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz, tus,
     const o2 = await s48(`({ degisti: H.b().degisti })`);
     await evalJs(`(() => { window.__pdefe.ayar().otomatikKaydet = false; return true; })()`);
     sonuc('15) Otomatik kayıt dizilim sürerken ertelendi, bitince kaydedildi', o1.degisti && !o2.degisti && olc(yol15).veri.includes('Oto'), { o1, o2 });
+  }
+
+  // ------------------------------------------------------------ 16) Tab sırası, Boşluk, sığmayan yazı (0.3.1 kabul sınaması)
+  if (bolum(16)) {
+    const yol16 = kopya('tab.pdf');
+    await ac(yol16);
+    await evalJs(`(window.__s48.odakAdi = () => { const e = document.activeElement; if (!e?.closest?.('.xfaLayer')) return null; return e.closest('[xfaname]')?.getAttribute('xfaname') || e.tagName; }, true)`);
+    const odak = () => evalJs(`window.__s48.odakAdi()`);
+    // Şablonda düğmeler sağdan sola (Satır Ekle, Son Satırı Sil, Kaydet, Mesaj, Gizle), sekme sırası tanımlı değil: Tab sayfadaki yere göre
+    await tiklaAd('AdSoyad');
+    const ileri = [];
+    for (let i = 0; i < 9; i++) { await tus('Tab'); await bekle(60); ileri.push(await odak()); }
+    const BEKLENEN_SIRA = ['Onay', 'Sehir', 'Aciklama', 'SatirSil', 'SatirEkle', 'Gizle', 'Mesaj', 'Kaydet', 'AdSoyad'];
+    sonuc('16) Tab sayfadaki sırayla (satır satır, soldan sağa), sonda başa döner', J(ileri) === J(BEKLENEN_SIRA), ileri);
+    const geri = [];
+    for (let i = 0; i < 3; i++) { await tus('Tab', ['shift']); await bekle(60); geri.push(await odak()); }
+    sonuc('16) Shift+Tab geriye (baştan sona döner)', J(geri) === J(['Kaydet', 'Mesaj', 'Gizle']), geri);
+    // Boşluk ve Enter düğmede: Sayfa kaymaz, düğme çalışır
+    await evalJs(`(() => { window.__s48.denetim('SatirEkle', 0).focus(); return true; })()`);
+    const st0 = await s48(`H.g().kaydirici.scrollTop`);
+    await tus(' ');
+    await durgun();
+    sonuc('16) Odaktaki düğmede Boşluk düğmeye basar (2 sayfa), sayfa aşağı kaymaz', (await sayfaSayisi()) === 2 && (await s48(`H.g().kaydirici.scrollTop`)) === st0, { n: await sayfaSayisi(), st0, st: await s48(`H.g().kaydirici.scrollTop`) });
+    // Sayfa sonunda Tab: Sonraki sayfanın ilk denetimi (katmanı kurulmamışsa kurulur, görünür olur)
+    await evalJs(`(async () => { const g = window.__s48.g(); g.zoomAyarla(3, null, 'serbest'); await window.__s48.bekle(600); g.sayfayaGit(1); await window.__s48.bekle(400);
+      for (const s of g.sayfalar.slice(1)) g.girdiBosalt(s, true); window.__s48.denetim('SatirEkle', 0).focus(); return true; })()`);
+    await bekle(100);
+    await tus('Tab');
+    const g2 = await evalJs(`(async () => { for (let i = 0; i < 60 && window.__s48.odakAdi() !== 'Aciklama'; i++) await window.__s48.bekle(50); const e = document.activeElement, g = window.__s48.g();
+      const r = e.getBoundingClientRect(), k = g.kaydirici.getBoundingClientRect(); return { ad: window.__s48.odakAdi(), sayfa: g.sayfalar.findIndex((s) => s.el.contains(e)) + 1, gorunur: r.bottom > k.top && r.top < k.bottom }; })()`);
+    sonuc('16) Sayfa sonunda Tab: Sonraki sayfanın ilk denetimi, katmanı beklenir, görünür', g2.ad === 'Aciklama' && g2.sayfa === 2 && g2.gorunur, g2);
+    await evalJs(`(async () => { const g = window.__s48.g(); await g.zoomModuAyarla('genislik'); await window.__s48.bekle(500); g.sayfayaGit(1); await window.__s48.bekle(400); return true; })()`);
+    // Sığmayan yazı
+    const satirlar = Array.from({ length: 80 }, (_, i) => `Uzun açıklama satırı ${i + 1}`).join('\n');
+    const tasma = () => s48(`(() => { const d = H.denetim('Aciklama', 0); return { sinif: d.classList.contains('xfa-tasiyor'), st: d.scrollTop, bildirim: H.bildirim(), uz: d.value.length }; })()`);
+    await tiklaAd('Aciklama', 0);
+    await yaz('Kısa yazı');
+    sonuc('16) Kısa yazı: Alan işaretlenmez', !(await tasma()).sinif, await tasma());
+    await tus('a', ['ctrl']);
+    await yaz(satirlar);
+    await bekle(150);
+    const t1 = await tasma();
+    sonuc('16) Uzun yazı: Alan işaretlendi, sığmadığı söylendi', t1.sinif && /sığmıyor/.test(t1.bildirim) && t1.st > 0, t1);
+    await tus('Tab');
+    await bekle(200);
+    const t2 = await tasma();
+    sonuc('16) Alandan çıkınca yazının başı görünür, işaret kalır', t2.sinif && t2.st === 0, t2);
+    // Yazdırma penceresi
+    await evalJs(`(window.__pdefe.komutCalistir('dosya.yazdir'), true)`);
+    const u = await evalJs(`(async () => { for (let i = 0; i < 100 && !document.querySelector('.yazdir-diyalog'); i++) await window.__s48.bekle(100); await window.__s48.bekle(300); const e = document.querySelector('.yazdir-uyari'); return e && !e.hidden ? e.textContent : ''; })()`);
+    sonuc('16) Yazdırma penceresi sığmayan alanı söyler', u === '1 alandaki yazı alana sığmıyor. Sığmayan kısım basılmaz.', u);
+    await tus('Escape');
+    await bekle(400);
+    // Geri alınınca işaret kalkar, yazdırma uyarısı yok
+    await evalJs(`(() => { window.__s48.g().kaydirici.focus(); window.__pdefe.komutCalistir('duzen.geriAl'); return true; })()`);
+    await durgun();
+    await bekle(200);
+    const t3 = await tasma();
+    sonuc('16) Geri alınınca işaret kalktı', !t3.sinif && t3.uz < 20, t3);
+    await evalJs(`(window.__pdefe.komutCalistir('dosya.yazdir'), true)`);
+    const u2 = await evalJs(`(async () => { for (let i = 0; i < 100 && !document.querySelector('.yazdir-diyalog'); i++) await window.__s48.bekle(100); await window.__s48.bekle(300); const e = document.querySelector('.yazdir-uyari'); return e && !e.hidden ? e.textContent : ''; })()`);
+    sonuc('16) Sığan yazıda yazdırma uyarısı yok', u2 === '', u2);
+    await tus('Escape');
+    await bekle(300);
+    // Tek satırlık alan: Genişliği aşan yazı, kısa yazı
+    await tiklaAd('AdSoyad');
+    await tus('a', ['ctrl']);
+    await yaz('Kısa ad');
+    sonuc('16) Tek satırda kısa yazı işaretlenmez', !(await s48(`H.denetim('AdSoyad').classList.contains('xfa-tasiyor')`)));
+    await tus('a', ['ctrl']);
+    await yaz('Çok uzun bir ad soyad yazısı '.repeat(12));
+    sonuc('16) Tek satırda genişliği aşan yazı işaretlenir', await s48(`H.denetim('AdSoyad').classList.contains('xfa-tasiyor')`));
+    await tus('Tab');
   }
 
   const hatalar = await evalJs(`(window.__hatalar || []).slice(0, 8)`).catch(() => []);

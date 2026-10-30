@@ -142,9 +142,10 @@ export async function yazdir(baglam, belge) {
   if (!toplam) { bildir?.('Belgede yazdırılacak sayfa yok.'); return; }
   const gorunumSayisi = Number(belge.gorunum?.sayfaSayisi) || toplam;
   const gecerli = Math.min(Math.max(1, Number(belge.gorunum?.gecerli) || 1), toplam);
-  const uyari = gorunumSayisi !== toplam
+  // belge.uyari: XFA formunda yazısı alana sığmayan alanlar (uygulama.js xfaYazdir)
+  const uyari = belge.uyari || (gorunumSayisi !== toplam
     ? `Görünümde ${gorunumSayisi} sayfa var, dosyada ${toplam}. Yazdırma dosyadaki sayfa düzeniyle yapılır.`
-    : '';
+    : '');
 
   // 4) Seçenekler
   let kayitli = {};

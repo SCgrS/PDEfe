@@ -22,9 +22,12 @@
 // kaldırılır (xfa_kaydet). Yazdırma ve Sayfalar panelinin küçük resimleri formun düz PDF'inden: Ana süreç formu gizli pencerede aynı
 // kurallarla çizip PDF'e çevirir (src/main/xfaDuz.js), yazdırma ve küçük resimler o dosyadan (çekirdek, olağan PDF gibi).
 import { Komut, sayfaListesi } from './komutlar.js';
-import { yolUyar } from './xfaHtml.js';
+import { alanTasiyor, yolUyar } from './xfaHtml.js';
 
 const ALAN = 'input[data-xv], textarea[data-xv], select[data-xv]';
+const DENETIM = 'input, textarea, select, button';
+const TASMA_ILETISI = 'Yazı bu alana sığmıyor, sığmayan kısım basılmaz. Yazıyı kısaltın ya da formda varsa düğmeyle yeni sayfa ekleyin.';
+const KATMAN_BEKLEME_MS = 2500;  // Tab başka sayfaya geçerken o sayfanın XFA katmanı en çok bu kadar beklenir
 const YAPI_EYLEMLERI = new Set(['ekle', 'sil', 'gorunurluk']);
 const KOMUT_EYLEMLERI = { kaydet: 'dosya.kaydet', farkliKaydet: 'dosya.farkliKaydet', yazdir: 'dosya.yazdir' };
 const DUZ_BEKLEME_MS = 2000;     // değişiklikten sonra küçük resimlerin düz PDF'i bu kadar beklenip yenilenir
@@ -78,6 +81,9 @@ export class XfaYoneticisi extends EventTarget {
     alan.addEventListener('focusin', (e) => this._odak(e));
     alan.addEventListener('change', (e) => this._degisti(e));
     alan.addEventListener('click', (e) => this._tik(e));
+    alan.addEventListener('keydown', (e) => this._tus(e));
+    alan.addEventListener('input', (e) => { const el = e.target?.closest?.(ALAN); if (el && this.etkin) this._tasmaGuncelle(el, true); });
+    alan.addEventListener('focusout', (e) => this._odakGitti(e));
     this.g.addEventListener('xfaKatmani', (e) => this._katmanKuruldu(e.detail.katman));
   }
 
@@ -161,6 +167,79 @@ export class XfaYoneticisi extends EventTarget {
     if (el && this.etkin) this._uygula(el);
   }
 
+  /** Alandan çıkınca yazının başı görünür (ekrandaki, basılacak olan): Uzun yazıda alan yazılan yere kaymış kalıyordu. */
+  _odakGitti(e) {
+    const el = e.target?.closest?.(ALAN);
+    if (el?.tagName === 'TEXTAREA' && this.etkin) el.scrollTop = 0;
+  }
+
+  /**
+   * Yazı alana sığmıyor mu (0.3.1 kabul sınaması): Form betiksiz çalıştığı için alan sığmayan yazıyı da alır, kendi içinde kaydırır, ama basımda
+   * ve düz PDF'te alanın dışı sessizce kesilir (tasarım programının "kaydırmasız" alanlarında referans okuyucu yazmayı durdurur). Alan kırmızı
+   * çerçeveyle işaretlenir, sığmaz hâle geldiği an bir kez söylenir (bildir), yazdırma penceresi de söyler (duzPdf: tasan).
+   */
+  _tasmaGuncelle(el, bildir = false) {
+    const tasiyor = alanTasiyor(el);
+    if (tasiyor === el.classList.contains('xfa-tasiyor')) return;
+    el.classList.toggle('xfa-tasiyor', tasiyor);
+    if (tasiyor && bildir) this.bildir(TASMA_ILETISI);
+  }
+
+  // ------------------------------------------------------------ Tab sırası
+  /** Katmanın odaklanabilen denetimleri, sayfadaki yerlerine göre: Satır satır, soldan sağa. PDF.js denetimleri şablondaki sırayla dizer,
+   *  şablonda sekme sırası tanımlı değilse (traversal) bu sıra sayfadaki yerle ilgisiz olabilir: Tab başka bölüme atlıyordu (0.3.1 kabul
+   *  sınaması). Tepeleri alan boyunun yarısından yakın olanlar aynı satırdır. */
+  _tabSirasi(katman) {
+    const ogeler = [...katman.querySelectorAll(DENETIM)].filter((el) => !el.disabled && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden')
+      .map((el) => ({ el, r: el.getBoundingClientRect() })).sort((a, b) => a.r.top - b.r.top);
+    const satirlar = [];
+    for (const o of ogeler) {
+      const s = satirlar.at(-1);
+      if (s && o.r.top - s.top < Math.min(s.boy, o.r.height) / 2) s.ogeler.push(o);
+      else satirlar.push({ top: o.r.top, boy: o.r.height, ogeler: [o] });
+    }
+    return satirlar.flatMap((s) => s.ogeler.sort((a, b) => a.r.left - b.r.left)).map((o) => o.el);
+  }
+
+  _tus(e) {
+    if (e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey || !this.etkin) return;
+    const el = e.target?.closest?.(DENETIM);
+    if (!el?.closest('.xfaLayer')) return;
+    e.preventDefault();
+    this._tabGec(el, e.shiftKey ? -1 : 1).catch((err) => console.warn('XFA Tab', err));
+  }
+
+  /** Sonraki ya da önceki denetim. Sayfanın sonunda sonraki sayfanın ilk denetimi (katmanı yoksa sayfaya gidilip beklenir), belgenin sonunda
+   *  başa döner. Denetimi olmayan sayfa atlanır. */
+  async _tabGec(el, yon) {
+    const g = this.g, n = g.sayfalar.length, i = g.sayfalar.findIndex((s) => s.el.contains(el));
+    if (i < 0) return;
+    const sira = this._tabSirasi(g.sayfalar[i].el.querySelector('.xfaLayer'));
+    // Odak yalnızca imlecin satırını gösterir: Uzun alanın tamamı görünsün
+    const git = (x) => { x.focus(); x.scrollIntoView({ block: 'nearest', inline: 'nearest' }); };
+    const hedef = sira[sira.indexOf(el) + yon];
+    if (hedef) { git(hedef); return; }
+    for (let k = 1; k <= n; k++) {
+      const katman = await this._katmanBekle((i + yon * k + n * k) % n);
+      if (document.activeElement !== el || this.yok) return;   // beklerken odak başka yere geçti
+      const liste = katman ? this._tabSirasi(katman) : [];
+      if (liste.length) { git(yon > 0 ? liste[0] : liste.at(-1)); return; }
+    }
+  }
+
+  /** Sayfanın (dizin) XFA katmanı; yoksa sayfaya gidilir, kurulması beklenir. Süre dolarsa null. */
+  async _katmanBekle(i) {
+    const s = this.g.sayfalar[i];
+    const hazir = () => s?.el.querySelector('.xfaLayer');
+    if (hazir()) return hazir();
+    this.g.sayfayaGit(i + 1);
+    for (const t0 = performance.now(); performance.now() - t0 < KATMAN_BEKLEME_MS;) {
+      await new Promise((c) => setTimeout(c, 50));
+      if (hazir()) return hazir();
+    }
+    return null;
+  }
+
   /** Alanın yazılan değerini uygular (komut). Döner: değer değişti mi. */
   _uygula(el) {
     const veri = el.dataset.xv, b = this.g.belge;
@@ -190,7 +269,7 @@ export class XfaYoneticisi extends EventTarget {
       const b = this.g.belge, veri = this._sira().kimlikler[sira];
       if (!b || !veri) return;
       b.annotationStorage.setValue(veri, { value: deger });
-      for (const el of this._ogeler(veri)) this._elemanaKoy(el, deger);
+      for (const el of this._ogeler(veri)) { this._elemanaKoy(el, deger); this._tasmaGuncelle(el); }
       if (this._acik?.veri === veri) this._acik.ilk = deger;
     }).catch((e) => console.warn('XFA alanı', e));
     this._degisiklikBildir();
@@ -225,6 +304,7 @@ export class XfaYoneticisi extends EventTarget {
         d.title = 'Bu düğmenin işlevi PDEfe\'de çalışmıyor';
       }
     }
+    for (const el of katman.querySelectorAll(ALAN)) this._tasmaGuncelle(el);
   }
 
   /** Öğenin XFA ad yolu (PDF.js'in xfaName'leri; sayfa kökünün adıyla başlar). */
@@ -357,7 +437,7 @@ export class XfaYoneticisi extends EventTarget {
       if (!r?.yol) throw new Error('Formun yazdırılacak hâli hazırlanamadı.');
       if (this.yok) { this.anlikSil?.(r.yol); throw new Error('Sekme kapatıldı.'); }
       const eski = this.duz;
-      this.duz = { yol: r.yol, sayfa: r.sayfa, surum: this.surum === surum ? surum : -1 };
+      this.duz = { yol: r.yol, sayfa: r.sayfa, tasan: r.tasan || 0, surum: this.surum === surum ? surum : -1 };
       if (eski?.yol && eski.yol !== r.yol) this.anlikSil?.(eski.yol);
       this.dispatchEvent(new CustomEvent('duz'));
       return this.duz;

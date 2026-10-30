@@ -3,7 +3,7 @@
 // (xfaHtml.js sayfaHazirla: sayfa numaraları; basımda görünmeyen düğmeler gizli, yalnızca basımda görünenler açık). Yazı tipleri ve görseller
 // yüklenince döner, ana süreç sayfayı printToPDF ile PDF'e çevirir.
 import * as pdfjs from './pdfjs/pdf.min.mjs';
-import { sayfaHazirla, xfaSigdir } from './xfaHtml.js';
+import { alanTasiyor, sayfaHazirla, xfaSigdir } from './xfaHtml.js';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL('./pdfjs/pdf.worker.min.mjs', import.meta.url).href;
 const KAYNAK = new URL('./pdfjs/', import.meta.url).href;
@@ -62,7 +62,9 @@ async function ciz(bilgi) {
   await bekle(50);
   await document.fonts.ready;
   xfaSigdir(alan);   // ekrandaki gibi: taşan yazılar küçültülür
-  return { tamam: true, sayfa: n };
+  // Yazısı alanına sığmayanlar (basımda kesilir, yazdırma penceresi söyler)
+  const tasan = [...alan.querySelectorAll('input, textarea')].filter(alanTasiyor).length;
+  return { tamam: true, sayfa: n, tasan };
 }
 
 window.xfaDuz = {

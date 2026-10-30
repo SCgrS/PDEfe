@@ -1673,7 +1673,8 @@ async function xfaYazdir(b) {
     try { duz = await b.xfa.duzPdf(); } finally { durum.mesajYaz(''); }
     if (!belgeler.has(b.id)) return;
     const g = b.gorunum;
-    const vekil = { yol: duz.yol, ad: b.ad, degisti: false, kaydediliyor: false, gorunum: { gecerli: g.gecerli, sayfaSayisi: duz.sayfa || g.sayfaSayisi } };
+    const vekil = { yol: duz.yol, ad: b.ad, degisti: false, kaydediliyor: false, gorunum: { gecerli: g.gecerli, sayfaSayisi: duz.sayfa || g.sayfaSayisi },
+      uyari: duz.tasan ? `${duz.tasan} alandaki yazı alana sığmıyor. Sığmayan kısım basılmaz.` : '' };
     await yazdir({ cekirdek, pdefe, mesajKutusu, bildir, kaydet: async () => true, ayar: () => ayar }, vekil);
   } catch (e) {
     console.error('XFA yazdırma', e);
@@ -2310,7 +2311,8 @@ document.addEventListener('keydown', (e) => {
     case 'PageUp': e.preventDefault(); if (g.surekli()) g.oncekiSayfa(); else g.dikeyKaydir(-(g.kaydirici.clientHeight - 40)); break;
     case 'Home': e.preventDefault(); if (birincil(e)) g.belgeBasi(); else g.sayfayaGit(1); break;
     case 'End': e.preventDefault(); if (birincil(e)) g.belgeSonu(); else g.sayfayaGit(g.sayfaSayisi); break;
-    case ' ': e.preventDefault(); g.dikeyKaydir((e.shiftKey ? -1 : 1) * (g.kaydirici.clientHeight - 40)); break;
+    case ' ': if (e.target?.closest?.('.xfaLayer button')) break;   // XFA formunun odaktaki düğmesi: Boşluk düğmeye basar (0.3.1 kabul sınaması)
+      e.preventDefault(); g.dikeyKaydir((e.shiftKey ? -1 : 1) * (g.kaydirici.clientHeight - 40)); break;
     default: break;
   }
 });

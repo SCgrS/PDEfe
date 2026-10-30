@@ -115,7 +115,7 @@ async function ciz(veri, bilgi) {
     const pdf = await sureli(wc.printToPDF({ preferCSSPageSize: true, printBackground: true, displayHeaderFooter: false, generateTaggedPDF: false,
       generateDocumentOutline: false, margins: { top: 0, bottom: 0, left: 0, right: 0 } }), kesinti, PDF_MS, 'PDF zamanında üretilemedi.');
     if (!pdf?.length) throw new Error('PDF üretilemedi.');
-    return { pdf: Buffer.from(pdf), sayfa: r.sayfa };
+    return { pdf: Buffer.from(pdf), sayfa: r.sayfa, tasan: r.tasan || 0 };
   } finally {
     try { if (!pencere.isDestroyed()) pencere.destroy(); } catch { /* yok say */ }
   }
@@ -142,6 +142,6 @@ export function xfaDuzKur({ ipcMain, KOK: kok, anlikKlasoru }) {
     await fs.promises.mkdir(klasor, { recursive: true });
     const yol = path.join(klasor, crypto.randomBytes(16).toString('hex') + '.pdf');
     await fs.promises.writeFile(yol, sonuc.pdf, { flag: 'wx' });
-    return { yol, sayfa: sonuc.sayfa, boyut: sonuc.pdf.length };
+    return { yol, sayfa: sonuc.sayfa, boyut: sonuc.pdf.length, tasan: sonuc.tasan };
   });
 }

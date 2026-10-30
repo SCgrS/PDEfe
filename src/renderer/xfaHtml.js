@@ -38,6 +38,18 @@ export function xfaSigdir(kok) {
   }
 }
 
+/**
+ * Alanın yazısı kutusuna sığmıyor mu (0.3.1 kabul sınaması): Çok satırlı alanda yükseklik, tek satırlıda genişlik. Tarayıcı sığmayan yazıyı
+ * alanın içinde kaydırır, basımda ve düz PDF'te alanın dışı kesilir. TASMA_PAYI: Satır yüksekliğinin yuvarlanması (yazısız ve tek satırlık
+ * alanda scrollHeight clientHeight'tan birkaç piksel büyük olabilir), yeni bir satırın boyundan küçük.
+ */
+const TASMA_PAYI = 6;
+export function alanTasiyor(el) {
+  if (el.tagName === 'TEXTAREA') return !!el.value && el.scrollHeight > el.clientHeight + TASMA_PAYI;
+  if (el.tagName === 'INPUT' && el.type === 'text') return !!el.value && el.scrollWidth > el.clientWidth + 1;
+  return false;
+}
+
 /** Çekirdeğin kaydı (yol, sayfaAlani) HTML'deki ad yoluna uyuyor mu. yol sayfa kökünün (sayfa alanının) adıyla başlar; sayfa alanındaki
  *  düğümün kaydı da onunla başlar, içerikteki düğümünki kök alt formla (HTML'de sayfa kökünün içinde). */
 export function yolUyar(kayit, yol) {
