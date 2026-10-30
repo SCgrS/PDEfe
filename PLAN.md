@@ -4580,3 +4580,20 @@ Kullanıcı: "güncelleme şeridini daha büyük ve belirgin yapalım. bana gös
   metnin altına iner (860 px, indirmede 1000 px).
 - [x] **Testler**: senaryo33 (şerit akışı), senaryo26 (şerit araç çubuğunun 8 px altında), serit_birlesim. Gerçek bir güncellemede elle: docs/DOGRULAMA.md
   46 madde 74.
+
+#### 0.3.1: son sınama, belgeler ve yerel kurucu
+- [x] **Tam sınama (2026-10-30, bu bilgisayar, Windows)**: 114 takım, sayılan 4.878 denetim. Her takım temiz veri klasörlü kendi örneğinde (ekran dışı ya da görünmeyen
+  masaüstü). Eski testlerin istediği Masaüstü örnekleri yok: Kurgusal yer tutucular (`PDEFE_TEST_PDF_KLASORU`), gerçek belge kullanılmadı.
+- [x] **0.3.1'in testlerini bozan iki şey düzeltildi, uygulama kodu değişmedi**: senaryo46'nın ikinci örneğini kapatan çağrıda -ExecutionPolicy Bypass yoktu, senaryo düşüyor,
+  örnek açık kalıyordu (`bca5e85`). kurucu_karsilastir'in beklenen fark desenleri inceleme düzeltmelerinin eklediği satırları tanımıyordu, "2 FARK" diyordu (`be72f2a`).
+  Sonra: Sessiz kurulum, uygulama içi güncelleme ve kaldırıcı v0.3.0 ile aynı, yalnızca beklenen 2 ekleme (install 62, un.Uninstall 53 satır).
+- [x] **Düşen ve 726484f'te aynı düşenler (0.3.1 ile ilgisi yok)**: senaryo2 (senaryo1'in aynı örnekte açtığı belgeyi bekliyor, tek başına çalışmaz), senaryo4 (eski not balonu
+  öğesi yok), oto_kayit_kilit 5/7 (kilitli dosyada otomatik kayıt süresi içinde durmuyor), kurulum_bitis ("pencere bulunamadı", kurucunun sayfalarını kurulum_surum 88/88 ve
+  kurucu_akis 87/87 sınıyor). Yer tutucudan: kopyalama_testi 31/34 (gerçek belgenin metni), araclar_testi 144/146 (büyük belgede tahmin bekliyor).
+- [x] **Koşulamayanlar**: mac_duman, linux_duman, sagtik_sinama --mac ve linux_cekirdek_testi B bölümü (Mac ya da Linux ister, CI'da koşar, Linux işi hiç koşmadı).
+  guncelleme-e2e/senaryo.mjs (zamanlanmış görevle gerçek oturumda deneme uygulaması kurar, bu sınamada gerçek sisteme yazılmadı, birim.mjs 88/88). secim_bloklar (git dışı,
+  gerçek belge ister). Ölçüm araçları (kaydirma_olcum, acilis_hizi): Geçti / kaldı yok. S37_WORD ve S39_WORD bölümleri atlandı (Word yolu word_donusum_testi 88/88).
+- [x] **Belgeler**: README (form doldurma, XFA, taranmış belgede arama, iç bağlantılar, A4, sağ tık, Linux'ta form yazı tipi), CHANGELOG 0.3.1 (tarih yayım gününde düzeltilir),
+  docs/DOGRULAMA.md 46 madde 74. TDK denetimi: README, CHANGELOG, bu bölüm ve DOGRULAMA 46, kalan öneriler dosya ve işlev adları.
+- [x] **Yerel kurucu** (`npm run yayim:hazirla`, 5e24a01'den, sürüm numarası 0.3.0 kaldı): Paketli duman 18/18, gercek_fare -Paketli 9/9. Ayrıca paketli çekirdekle kurgusal
+  belgelerde (depoya girmedi) 13/13: Form alanı yazma, görünüm ve kayıt, XFA'da bölüm ekleme, taranmış belgede Bul, iç bağlantı katmanı. Kurulmadı.
