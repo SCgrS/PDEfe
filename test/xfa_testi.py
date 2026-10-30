@@ -250,6 +250,33 @@ sonuc("araç: Olağan PDF'te XFA işareti yok", "xfa" not in pdefe_core.YONTEMLE
       and pdefe_core.YONTEMLER["gorsel_bilgi"]({"yol": OLAGAN, "genislik": 64})["sayfa"] == 1)
 sonuc("araç: Bozuk paketli belge XFA sayılmaz", xfa.saf_xfa_mi(pymupdf.open(OLAGAN)) is False)
 
+# ------------------------------------------------------------ alan biçimleri (kullanıcı: "ad soyad kısmı ... ortalı duruyor bizimkinde sola yatık")
+bi = xfa.y_xfa_bilgi({"yol": ozet["xfaBicim"]})
+ab = {}
+for a in bi["alanlar"]:
+    ab.setdefault(a["yol"][-1], []).append(a)
+tek = lambda ad: ab[ad][0]
+met = lambda ad: tek(ad).get("metin", {})
+sonuc("biçim: Ortalı, sağa hizalı, hizasız", met("Ortali").get("hiza") == "center" and met("Sagda").get("hiza") == "right" and "hiza" not in met("Solda"), [met(a) for a in ("Ortali", "Sagda", "Solda")])
+sonuc("biçim: Dikey hiza: Şablondaki, yoksa üst", met("Ortali")["dikey"] == "middle" and met("Ustte")["dikey"] == "top" and met("Altta")["dikey"] == "bottom", [met(a)["dikey"] for a in ("Ortali", "Ustte", "Altta")])
+sonuc("biçim: Çok satırlı alanda hiza ve satır aralığı", met("CokOrtali").get("hiza") == "center" and met("CokIki").get("hiza") == "justify" and met("CokSatir").get("satir") == 15 and met("CokIki").get("satir") == 15, [met(a) for a in ("CokOrtali", "CokIki", "CokSatir")])
+sonuc("biçim: Kaydırmasız alan", met("CokSatir").get("kaydirmasiz") is True and "kaydirmasiz" not in met("Solda"))
+sonuc("biçim: Hücreli alan", met("Hucreli").get("comb") == 11 and met("HucreliHarf").get("comb") == 8 and "comb" not in met("Solda"), met("Hucreli"))
+sonuc("biçim: Yazı boyu tam, size yoksa 10pt, harf aralığı", tek("Solda")["boyut"] == 10 and tek("CokDikey")["boyut"] == 10 and tek("Harfli")["boyut"] == 9 and tek("Harfli").get("harfAraligi") == 1, [tek(a).get("boyut") for a in ("Solda", "CokDikey", "Harfli")])
+sonuc("biçim: Paragraf boşlukları (pt)", met("Bosluklu").get("sol") == 10 and met("Bosluklu").get("sag") == 5 and met("Bosluklu").get("ust") == 4, met("Bosluklu"))
+sonuc("biçim: Renksiz dolgu işaretli, renkli ve dolgusuz değil", tek("Solda").get("dolgu") is True and "dolgu" not in tek("Renkli") and "dolgu" not in tek("Zeminsiz"), [tek(a).get("dolgu") for a in ("Solda", "Renkli", "Zeminsiz")])
+sonuc("biçim: Yer ve boyut pt", abs(tek("Solda")["g"] - 80 * 72 / 25.4) < 0.01 and abs(tek("Solda")["b"] - 8 * 72 / 25.4) < 0.01, tek("Solda"))
+sonuc("biçim: Aynı adlı iki alan ayrı kayıt, kendi hizası, kendi yeri", [a["metin"].get("hiza") for a in ab["Cift"]] == ["center", "right"] and ab["Cift"][0]["x"] != ab["Cift"][1]["x"], ab.get("Cift"))
+sonuc("biçim: Onay kutusu kayıtlı, yazı biçimi yok", "metin" not in tek("Onay") and tek("Onay")["boyut"] == 10, tek("Onay"))
+sonuc("biçim: Düğmeler alan biçimine girmez", "BicimEkle" not in ab)
+sonuc("biçim: Gizli alanlar (HTML'de yok) girmez", not any(a["yol"][-1] in ("SayfaNo", "SayfaSayisi") for a in b["alanlar"]) and any(a["yol"][-1] == "AdSoyad" for a in b["alanlar"]), [a["yol"][-1] for a in b["alanlar"]])
+kp, lp = xfa._agac(b'''<template><subform name="k"><proto><field id="o" w="10mm" h="5mm"><ui><textEdit/></ui><font size="8pt"/><para hAlign="right"/></field></proto>
+<field name="A" use="#o"/><field name="B" usehref="#o" h="6mm"><para hAlign="center" vAlign="bogus" lineHeight="x"/></field><field name="C"><ui><textEdit><comb numberOfCells="9999"/></textEdit></ui><para hAlign="&lt;script&gt;"/></field></subform></template>''')
+tp = {a["yol"][-1]: a for a in xfa._sablon_bilgisi(kp, lp)["alanlar"]}
+sonuc("biçim: Prototip (use, usehref): Eksik özellik başvurulan alandan", tp["A"]["metin"].get("hiza") == "right" and tp["A"]["boyut"] == 8 and tp["B"]["metin"].get("hiza") == "center" and tp["B"]["b"] == round(6 * 72 / 25.4, 3), tp)
+sonuc("biçim: Geçersiz değerler alınmaz (dikey üst, hiza ve satır yok, 200'den çok hücre yok)", tp["B"]["metin"]["dikey"] == "top" and "satir" not in tp["B"]["metin"] and "comb" not in tp["C"]["metin"] and "hiza" not in tp["C"]["metin"], tp)
+sonuc("biçim: Ölçüler", xfa._olcu_pt("1mm") == round(72 / 25.4, 3) and xfa._olcu_pt("15pt") == 15 and xfa._olcu_pt("1in") == 72 and xfa._olcu_pt("1cm") == round(72 / 2.54, 3) and xfa._olcu_pt("x") is None and xfa._olcu_pt(None) is None)
+
 sonuc("çekirdekte kayıtlı yöntemler", all(y in pdefe_core.YONTEMLER for y in ("xfa_bilgi", "xfa_degistir", "xfa_kaydet")))
 
 # ------------------------------------------------------------ 7) kayıt: Atomik yazım, kilit, hata benzetimi (0.3.1, kullanıcı: "bu kayıt mekanizmasında hiç sıkıntı olmamalı")
