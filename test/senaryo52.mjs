@@ -11,6 +11,9 @@
 //   8 Çekirdek öldürülünce: Kayıttan önce, kayıt sürerken, Ekle sürerken.
 //   9 Rastgele işlem dizisi (tohumlu): Yazma, Ekle, Sil, Geri al, Yinele, Kaydet, yakınlaştırma, sekme değişimi, yeniden açma. Her adımda ekran bir modelle, her kayıtta dosya aynı modelle karşılaştırılır.
 //  10 Oturum sonu: Alandan çıkılmamış yazı oturumun bitmesini engeller, soru açılır (test/oturum_sonu.ps1, yalnız bu örneğin penceresi).
+//  11 Gerçek kısayollar (yalnız görünmeyen masaüstünde, BOLUM=11): Ctrl+S, Ctrl+Z, Ctrl+P, Ctrl+W, pencere kapatma.
+//  12 Kullanım hakları imzalı form: İmza kalır, açılan baytlar değişmez, ara taslaklar dosyaya girmez, dosya kayıtla büyümez, bölüm ekleme, ikinci oturum, Farklı kaydet, sekme taşıma.
+//  13 Odak almadan gelen yazı (başka programdan sürükleyip bırakma): Alana girer, belge kirli olur, kayıt alır.
 // Kullanım (ekran dışı):
 //   powershell -File test\baslat.ps1 -Port 9620 -Veri "$env:TEMP\pdefe-s52" -Boyut "1280,900"   → PID=… yazar
 //   $env:PDEFE_CDP_PORT=9620; $env:PDEFE_TEST_PID=<PID>; [$env:BOLUM="1,3"]; node test\surucu.mjs betik test\senaryo52.mjs
@@ -494,6 +497,612 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz, tus,
     d = await durum();
     sonuc('5 Kaydetme: Sekme kapanabilir, pencere askıda kalmaz', d.belge === 0, d);
     await hatalar();
+  }
+
+  // ================================================================== 6) zor metinler
+  if (bolum(6)) {
+    const harfler = (s) => String(s ?? '').replace(/[\s ﻿]/gu, '');
+    const ZOR = {
+      'tek satır': 'tek satır',
+      'iki satır': 'iki\nsatır',
+      'başta boş satır': '\n\nbaşta iki boş satır',
+      'sonda boş satır': 'sonda boş satır\n\n',
+      'ortada boş satır': 'ortada\n\n\nüç satır sonu',
+      sekme: 'sekme\tiçinde\t\tiki',
+      'satır ayırıcı': 'satır ayırıcı sonra',
+      'paragraf ayırıcı': 'paragraf ayırıcı sonra',
+      'sıfır genişlik': 'sıfır genişlik​ve‍ birleştirici',
+      'NEL ve DEL': 'NEL\u0085karakteri ve DEL\u007f',
+      'XML işaretleri': '< > & " \' ]]> <!-- --> &amp; &#xA; &#10; <b>x</b> <?pi?> %PDF endstream',
+      'vekil çift': 'vekil 😀👩‍⚖️𝒜 ve 日本語',
+      'yalnız boşluk satırı': 'yalnız boşluk satırı\n   \nsonra',
+      'sağdan sola': 'ٱلْعَرَبِيَّة ve עברית',
+      'baş ve son boşluk': '   baş ve son boşluk   ',
+      'çift boşluk': 'çift  boşluk   üç    dört',
+      uzun: 'çokuzunsözcük'.repeat(4000),
+      'NBSP ve BOM': '﻿ NBSP başta ve ortada',
+    };
+    for (const [ad, m] of Object.entries(ZOR)) {
+      const y = kopya('zor');
+      await ac(y);
+      await alanaYaz('Metin', 0, m);
+      const dom0 = await evalJs(`document.querySelector('.gorunum:not([hidden]) [xfaname="Metin"] textarea').value`);
+      let d = await kaydet();
+      const o1 = v(y, 'form1/Bolum/Metin')?.[0];
+      await ac(y);
+      const dom1 = (await degerler(['Metin'])).Metin[0];
+      await tiklaAd('MEkle', 0);
+      await durgun();
+      const dom2 = (await degerler(['Metin'])).Metin[0];
+      await tiklaAd('AdSoyad', 0);
+      await yaz('x');
+      await tus('Tab');
+      await kaydet();
+      const o2 = v(y, 'form1/Bolum/Metin')?.[0];
+      await ac(y);
+      const c3 = await degerler(['Metin']);
+      const h = harfler(dom0);
+      sonuc(`6 ${ad}: Kayıt, açılış, Ekle, ikinci kayıt: Yazı aynı (bilinen sınır: Boşluk ve satır sonu)`, !d.kutu && !d.degisti && harfler(o1) === h && harfler(dom1) === h && harfler(dom2) === h && harfler(o2) === h && harfler(c3.Metin[0]) === h && c3.Metin.length === 2,
+        { dom0: dom0.slice(0, 40), o1: String(o1).slice(0, 40), dom1: String(dom1).slice(0, 40), dom2: String(dom2).slice(0, 40), o2: String(o2).slice(0, 40), c3: String(c3.Metin[0]).slice(0, 40), n: c3.Metin.length, d: d.kutu });
+    }
+    // Yarım vekil, denetim karakteri, kod dışı karakter: Temizlenir, kalan yazı yerinde, XML geçerli
+    const y = kopya('zor-denetim');
+    await ac(y);
+    await alanaYaz('Metin', 0, 'yarım \ud83d son \u0001\u0007 sayfa\u000csonu ￾ bitti');
+    const d = await kaydet();
+    const o = olc(y);
+    sonuc('6 Denetim karakterleri: Dosyanın XML\'i geçerli, yazı yerinde', !d.kutu && !o.onarildi && /yarım .* son .*sayfa\nsonu .*bitti/s.test(o.degerler['form1/Bolum/Metin'][0]), o.degerler['form1/Bolum/Metin']);
+    // Yazı dışı denetimler: Onay kutusu, seçenek düğmesi kaydedilir, yeniden açınca yerinde
+    const y6 = kopya('secim', oz.xfaBicim);
+    await ac(y6);
+    const sec = (ad) => evalJs(`(() => { const e = document.querySelector('.gorunum:not([hidden]) [xfaname="${ad}"] input'); return { c: e.checked, v: e.value }; })()`);
+    await tiklaAd('Onay', 0);
+    await tiklaAd('SecimB', 0);
+    await bekle(60);
+    const d6 = await kaydet();
+    const ds = olc(y6).ham;
+    sonuc('6 Onay kutusu ve seçenek düğmesi dosyada', !d6.kutu && !d6.degisti && /<Onay>[^<]+<\/Onay>/.test(ds) && /<Secim>[^<]+<\/Secim>/.test(ds), { d6, ds: ds.slice(0, 500) });
+    await ac(y6);
+    const s1 = await sec('Onay'), s2 = await sec('SecimB'), s3 = await sec('SecimA');
+    sonuc('6 Yeniden açınca işaretler yerinde', s1.c && s2.c && !s3.c, { s1, s2, s3 });
+    await tiklaAd('BicimEkle', 0);
+    await durgun();
+    sonuc('6 Bölüm ekleyince işaretler yerinde', (await sec('Onay')).c && (await sec('SecimB')).c);
+    sonuc('6 Sayfada hata yok', !(await hatalar()).length);
+  }
+
+  // ================================================================== 7) alan odaktayken
+  if (bolum(7)) {
+    const metinAlan = () => evalJs(`document.querySelector('.gorunum:not([hidden]) [xfaname="Metin"] textarea')?.value`);
+    const cdp = async (method, params = {}) => { const h = (await hedefler())[0]; const ws = new WebSocket(h.webSocketDebuggerUrl); await new Promise((c, r) => { ws.onopen = c; ws.onerror = r; }); const s = await new Promise((c) => { ws.onmessage = (m) => { const x = JSON.parse(m.data); if (x.id === 1) c(x); }; ws.send(J({ id: 1, method, params })); }); ws.close(); return s; };
+    // Yakınlaştırma
+    let y = kopya('odak-zoom');
+    await ac(y);
+    await tiklaAd('Metin', 0);
+    await yaz('Bir');
+    await komut('gorunum.yakinlastir'); await bekle(400);
+    let d = await durum();
+    sonuc('7 Yakınlaştırınca alan odakta, yazı yerinde, kirli', d.odak === 'TEXTAREA' && d.degisti && (await metinAlan()) === 'Bir', d);
+    await yaz(' iki');
+    await komut('gorunum.zoom', 'sayfa'); await bekle(400);
+    await yaz(' üç');
+    await komut('gorunum.zoom', 'gercek'); await bekle(400);
+    await yaz(' dört');
+    await goruntu('7-zoom');
+    d = await kaydet();
+    sonuc('7 Yakınlaştırmalar arasında yazılanların hepsi dosyada, imleç yerinde', !d.kutu && !d.degisti && d.odak === 'TEXTAREA' && v(y, 'form1/Bolum/Metin')[0] === 'Bir iki üç dört', { d, x: v(y, 'form1/Bolum/Metin') });
+    // Sayfa düzeni
+    for (const duzen of ['iki', 'tek']) {
+      await tiklaAd('Metin', 0);
+      await yaz(` ${duzen}`);
+      await komut('gorunum.duzen', duzen); await bekle(500);
+      d = await kaydet();
+      sonuc(`7 Düzen ${duzen}: Yazı dosyada`, !d.kutu && !d.degisti && v(y, 'form1/Bolum/Metin')[0].endsWith(` ${duzen}`), { d, x: v(y, 'form1/Bolum/Metin') });
+    }
+    // Kaydırmasız düzende sayfa çevirme: Alan gizlenir, yazı uygulanır
+    y = kopya('odak-cevirme');
+    await ac(y);
+    await tiklaAd('MEkle', 0);
+    await durgun();
+    await komut('gorunum.kaydirma'); await bekle(500);
+    await tiklaAd('Sehir', 0);
+    await yaz('Çevirmeden önce');
+    await komut('gorunum.sonrakiSayfa'); await bekle(600);
+    d = await durum();
+    sonuc('7 Kaydırmasız düzende sayfa çevrilince kirli kalır', d.degisti, d);
+    d = await kaydet();
+    sonuc('7 Kaydırmasız düzende kayıt yazıyı alır', !d.kutu && v(y, 'form1/Baslik/Sehir')[0] === 'Çevirmeden önce', { d, x: v(y, 'form1/Baslik/Sehir') });
+    await komut('gorunum.kaydirma'); await bekle(300);
+    // Sekme değiştirip dönme
+    const y1 = kopya('odak-sekme-1'), y2 = kopya('odak-sekme-2');
+    await ac(y1); await ac(y2, false);
+    const sec = (yol) => evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find((x) => x.yol === ${J(yol)}); await p.sekmeSec(b.id); return true; })()`);
+    await sec(y1); await bekle(300);
+    await alanaYaz('Metin', 0, 'Sekme değişmeden yazılan');
+    await sec(y2); await bekle(400);
+    d = await evalJs(`[...window.__pdefe.belgeler.values()].map((b) => [b.yol === ${J(y1)}, b.degisti])`);
+    sonuc('7 Öbür sekmeye geçince ilk sekme kirli', d.find((x) => x[0])[1] === true && d.find((x) => !x[0])[1] === false, d);
+    await sec(y1); await bekle(400);
+    sonuc('7 Dönünce yazı yerinde', (await degerler(['Metin'])).Metin[0] === 'Sekme değişmeden yazılan');
+    d = await kaydet();
+    sonuc('7 Kayıt yazıyı alır', !d.kutu && !d.degisti && v(y1, 'form1/Bolum/Metin')[0] === 'Sekme değişmeden yazılan', d);
+    // Sekmeyi yeni pencereye taşıma: Yazı ve geri al geçmişi
+    y = kopya('odak-tasi');
+    await ac(y);
+    await alanaYaz('Sehir', 0, 'Önceki adım'); await tus('Tab');
+    await alanaYaz('Metin', 0, 'Taşınırken alanda kalan yazı');
+    const oncekiler = (await hedefler()).map((h) => h.id);
+    await evalJs(`(async () => { await window.__pdefe.sekmeyiTasi(window.__s52.b().id, { tur: 'yeni' }); return true; })()`);
+    let yeniP = null;
+    for (let i = 0; i < 50 && !yeniP; i++) { await bekle(200); yeniP = (await hedefler()).find((h) => !oncekiler.includes(h.id)); }
+    if (sonuc('7 Sekme taşındı', !!yeniP)) {
+      hedefSec(yeniP.id);
+      await bekle(1200);
+      await evalJs(YARDIMCI);
+      await evalJs(`(async () => { for (let i = 0; i < 80; i++) { if (document.querySelector('.gorunum:not([hidden]) .xfaLayer')) return true; await window.__s52.bekle(100); } return false; })()`);
+      d = await durum();
+      sonuc('7 Hedef pencerede yazı, kirli, iki komut', d.degisti && d.konum === 2 && (await degerler(['Metin'])).Metin[0] === 'Taşınırken alanda kalan yazı', d);
+      await dugmeTikla('dugme-geri-al');
+      await durgun();
+      sonuc('7 Hedef pencerede Geri al: Son yazı gider, önceki kalır', (await degerler(['Metin'])).Metin[0] === '' && (await degerler(['Sehir'])).Sehir[0] === 'Önceki adım');
+      await dugmeTikla('dugme-yinele');
+      await durgun();
+      d = await kaydet();
+      sonuc('7 Hedef pencerede kayıt yazıyı alır', !d.kutu && !d.degisti && v(y, 'form1/Bolum/Metin')[0] === 'Taşınırken alanda kalan yazı' && v(y, 'form1/Baslik/Sehir')[0] === 'Önceki adım', d);
+      await evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); setTimeout(() => window.close(), 200); return true; })()`).catch(() => {});
+      hedefSec(null);
+      await bekle(800);
+      await evalJs(YARDIMCI);
+    }
+    // Aynı dosyayı ikinci kez açma: Sekmesi seçilir, yazı yerinde
+    y = kopya('odak-ikinci-kez');
+    await ac(y);
+    await alanaYaz('Metin', 0, 'İkinci kez açılmadan yazılan');
+    await ac(y, false);
+    d = await durum();
+    sonuc('7 Aynı dosyayı ikinci kez açma: Yeni sekme yok, yazı yerinde, kirli', d.belge === 1 && d.degisti && (await degerler(['Metin'])).Metin[0] === 'İkinci kez açılmadan yazılan', d);
+    // IME dizgisi sürerken kayıt
+    y = kopya('odak-ime');
+    await ac(y);
+    await tiklaAd('Metin', 0);
+    await yaz('başlangıç ');
+    await cdp('Input.imeSetComposition', { text: 'şe', selectionStart: 2, selectionEnd: 2 });
+    await bekle(60);
+    d = await kaydet();
+    const ara = v(y, 'form1/Bolum/Metin')[0];
+    await cdp('Input.imeSetComposition', { text: 'şey', selectionStart: 3, selectionEnd: 3 });
+    await cdp('Input.insertText', { text: 'şey' });
+    await bekle(80);
+    const d2 = await durum();
+    sonuc('7 IME dizgisi sürerken kayıt yazıyı almaz sanılmaz: Dizgi bitince belge yine kirli', !d.kutu && ara === 'başlangıç şe' && d2.degisti, { ara, d2 });
+    d = await kaydet();
+    sonuc('7 Dizgi bitince kayıt tam yazıyı alır', !d.kutu && !d.degisti && v(y, 'form1/Bolum/Metin')[0] === 'başlangıç şey', v(y, 'form1/Bolum/Metin'));
+    // Gerçek tuşlar: Kısayollara gitmez
+    y = kopya('odak-tuslar');
+    await ac(y);
+    await tiklaAd('Metin', 0);
+    for (const t of ['a', ' ', 'b', 'c', 'f', 'h', 'n', '1', '0', '+', '-']) await tus(t);
+    await tusHam({ key: 'ş', code: 'Semicolon', vk: 0xBA });
+    await tusHam({ key: 'ı', code: 'KeyI', vk: 0x49 });
+    sonuc('7 Gerçek tuşlar alana yazar', (await metinAlan()) === 'a bcfhn10+-şı', await metinAlan());
+    await tus('Escape');
+    await bekle(60);
+    d = await durum();
+    sonuc('7 Esc yazıyı silmez, kirli', d.degisti && (await metinAlan()) === 'a bcfhn10+-şı', d);
+    // Kapatma sorusunda Vazgeç: Odak alana döner, yazmaya devam
+    await komut('sekme.kapat');
+    d = await kutuBekle();
+    sonuc('7 Alan odaktayken sekme kapatma: Soru', /kaydedilmemiş değişiklikler/.test(d.kutu?.ileti || ''), d);
+    await kutuBas('Vazgeç');
+    await bekle(120);
+    await yaz(' sonra');
+    await bekle(60);
+    sonuc('7 Vazgeç: Odak alanda, yazmaya devam', (await metinAlan()) === 'a bcfhn10+-şı sonra', await metinAlan());
+    // Yazdırma penceresi açılıp kapanınca yazı yerinde
+    await komut('dosya.yazdir');
+    for (let i = 0; i < 100 && !(await evalJs(`!!document.querySelector('.yazdir-pencere, #yazdir-pencere, .yazdir')`)); i++) await bekle(100);
+    await tus('Escape');
+    await bekle(400);
+    d = await kaydet();
+    sonuc('7 Yazdırmadan sonra kayıt yazıyı alır', !d.kutu && !d.degisti && v(y, 'form1/Bolum/Metin')[0] === 'a bcfhn10+-şı sonra', { d, x: v(y, 'form1/Bolum/Metin') });
+    sonuc('7 Sayfada hata yok', !(await hatalar()).length);
+  }
+
+  // ================================================================== 8) çekirdek öldürülünce
+  if (bolum(8)) {
+    const PID = process.env.PDEFE_TEST_PID;
+    const oldur = () => execFileSync('powershell', ['-NoProfile', '-Command', `
+      $h = Get-CimInstance Win32_Process; $set = @(${PID}); for ($i = 0; $i -lt 6; $i++) { $set += ($h | Where-Object { $set -contains $_.ParentProcessId } | ForEach-Object ProcessId); $set = $set | Select-Object -Unique };
+      $h | Where-Object { ($set -contains $_.ProcessId) -and $_.Name -eq 'python.exe' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue; $_.ProcessId }`], { encoding: 'utf8' }).trim();
+    const y = kopya('cekirdek');
+    await ac(y);
+    await alanaYaz('AdSoyad', 0, 'Çekirdek ölmeden yazıldı');
+    sonuc('8 Çekirdek bulundu, öldürüldü', !!oldur());
+    await bekle(300);
+    let d = await kaydet();
+    if (d.kutu) { await kutuBas('Yeniden dene'); d = await kayitBitsin(); }
+    await bekle(200);
+    sonuc('8 Kayıttan önce öldü: Kayıt yine yazar', !d.kutu && !d.degisti && v(y, 'form1/Baslik/AdSoyad')[0] === 'Çekirdek ölmeden yazıldı', d);
+    // Kayıt sürerken
+    await alanaYaz('Sehir', 0, 'Kayıt sürerken ölecek');
+    await geciktir(400, 'xfa_kaydet');
+    const once = ozet(y);
+    await komut('dosya.kaydet');
+    await bekle(100);
+    oldur();
+    d = await kayitBitsin();
+    await bekle(200);
+    d = await durum();
+    if (d.kutu) {
+      sonuc('8 Kayıt sürerken öldü: Pencere, ham hata yok, dosya aynı ya da tam yazılmış', !/\[Errno|Traceback|\\\\/.test(d.kutu.ayrinti) && (ozet(y) === once || v(y, 'form1/Baslik/Sehir')[0] === 'Kayıt sürerken ölecek'), d);
+      await kutuBas('Yeniden dene');
+      d = await kayitBitsin();
+      await bekle(200);
+    }
+    sonuc('8 Kayıt sürerken öldü: Sonunda yazı dosyada, temiz', !d.kutu && !d.degisti && v(y, 'form1/Baslik/Sehir')[0] === 'Kayıt sürerken ölecek', d);
+    // Ekle sürerken
+    await alanaYaz('Metin', 0, 'Ekle sürerken korunacak');
+    await tus('Tab');
+    await geciktir(300, 'xfa_degistir');
+    await tiklaAd('MEkle', 0);
+    oldur();
+    await durgun();
+    await bekle(300);
+    d = await durum();
+    const c = await degerler(['Metin']);
+    sonuc('8 Ekle sürerken öldü: Yazı yerinde, form çalışıyor', c.Metin[0] === 'Ekle sürerken korunacak' && d.kutu === null, { c, d });
+    if (c.Metin.length === 1) { await tiklaAd('MEkle', 0); await durgun(); }
+    sonuc('8 Yeniden denenen Ekle çalışır', (await degerler(['Metin'])).Metin.length === 2);
+    d = await kaydet();
+    sonuc('8 Kayıt yazıyı ve bölümü alır', !d.kutu && !d.degisti && v(y, 'form1/Bolum/Metin')[0] === 'Ekle sürerken korunacak' && v(y, 'form1/Bolum/Metin').length === 2, d);
+    await hatalar();
+  }
+
+  // ================================================================== 9) rastgele işlem dizisi, modelle karşılaştırma
+  if (bolum(9)) {
+    const ALANLAR = ['AdSoyad', 'Sehir', 'BAd', 'BAdres', 'Metin'];
+    const normal = (s) => String(s ?? '').replace(/(^|\n) (?=\n)/g, '$1');   // boş satır dosyada bir boşluklu satırdır (xfa.js veriDegeri)
+    for (const tohum of TOHUMLAR) {
+      const r = rastgeleUret(tohum);
+      const y = kopya(`rastgele-${tohum}`), y2 = kopya(`rastgele-${tohum}-ikinci`);
+      await ac(y);
+      let m = { AdSoyad: '', Sehir: '', B: [['', '']], M: [''] };
+      const kopyala = (s) => JSON.parse(J(s));
+      let gecmis = [], ileri = [], kayitli = kopyala(m), kayitKonum = 0, bekleyen = null;
+      const degistir = (f) => { gecmis.push(kopyala(m)); ileri = []; f(m); };
+      const domBeklenen = () => ({ AdSoyad: [m.AdSoyad], Sehir: [m.Sehir], BAd: m.B.map((x) => x[0]), BAdres: m.B.map((x) => x[1]), Metin: m.M });
+      const dosyaBeklenen = (s) => ({ AdSoyad: s.AdSoyad, Sehir: s.Sehir, BAd: s.B.map((x) => x[0]), BAdres: s.B.map((x) => x[1]), Metin: s.M });
+      const metinUret = (cok) => {
+        const sozcuk = () => r.sec(['mahkeme', 'başvurucu', 'ığşçöü', 'İĞŞÇÖÜ', 'hak', 'ihlal', '< > &', '"tırnak"', '😀', '12345', 'yargılama']);
+        let s = Array.from({ length: 1 + r.n(6) }, sozcuk).join(' ');
+        if (cok && r.olasi(0.4)) s += '\n' + Array.from({ length: 1 + r.n(5) }, sozcuk).join(' ');
+        if (cok && r.olasi(0.2)) s += '\n\n' + Array.from({ length: 1 + r.n(5) }, sozcuk).join(' ');
+        if (cok && r.olasi(0.1)) { const parca = s + '\n'; s = parca.repeat(Math.ceil(8000 / parca.length)).trimEnd(); }
+        return s;
+      };
+      const izler = [];
+      let bozuk = false;
+      for (let i = 0; i < TUR && !bozuk; i++) {
+        const secenek = r.n(100);
+        let is = '';
+        if (secenek < 40) {
+          const hedefler_ = [['AdSoyad', 0, false], ['Sehir', 0, false], ...m.B.flatMap((_, k) => [['BAd', k, false], ['BAdres', k, true]]), ...m.M.map((_, k) => ['Metin', k, true])];
+          const [ad, k, cok] = r.sec(hedefler_);
+          const metin = r.olasi(0.1) ? '' : metinUret(cok);
+          const onceki = ad === 'AdSoyad' ? m.AdSoyad : ad === 'Sehir' ? m.Sehir : ad === 'BAd' ? m.B[k][0] : ad === 'BAdres' ? m.B[k][1] : m.M[k];
+          if (bekleyen === `${ad}:${k}`) { await tus('Tab'); await bekle(20); bekleyen = null; }
+          await alanaYaz(ad, k, metin);
+          is = `yaz ${ad}[${k}] (${metin.length})`;
+          if (metin !== onceki) {
+            degistir((s) => { if (ad === 'AdSoyad') s.AdSoyad = metin; else if (ad === 'Sehir') s.Sehir = metin; else if (ad === 'BAd') s.B[k][0] = metin; else if (ad === 'BAdres') s.B[k][1] = metin; else s.M[k] = metin; });
+            if (r.olasi(0.7)) { await tus('Tab'); await bekle(20); } else bekleyen = `${ad}:${k}`;
+          } else { await tus('Tab'); await bekle(20); }
+        } else if (secenek < 50) {
+          if (m.B.length < 4) { await tiklaAd('BEkle', r.n(m.B.length)); bekleyen = null; await durgun(); degistir((s) => s.B.push(['', ''])); is = 'BEkle'; }
+        } else if (secenek < 58) {
+          await tiklaAd('BSil', r.n(m.B.length)); bekleyen = null; await durgun();
+          if (m.B.length > 1) degistir((s) => s.B.pop());
+          is = 'BSil';
+        } else if (secenek < 66) {
+          if (m.M.length < 4) { await tiklaAd('MEkle', r.n(m.M.length)); bekleyen = null; await durgun(); degistir((s) => s.M.push('')); is = 'MEkle'; }
+        } else if (secenek < 72) {
+          await tiklaAd('MSil', r.n(m.M.length)); bekleyen = null; await durgun();
+          if (m.M.length > 1) degistir((s) => s.M.pop());
+          is = 'MSil';
+        } else if (secenek < 80) {
+          if (gecmis.length) { await dugmeTikla('dugme-geri-al'); bekleyen = null; await durgun(); ileri.push(kopyala(m)); m = gecmis.pop(); is = 'geri al'; }
+        } else if (secenek < 85) {
+          if (ileri.length) {
+            if (bekleyen) { await tus('Tab'); await bekle(20); bekleyen = null; }
+            await dugmeTikla('dugme-yinele'); await durgun(); gecmis.push(kopyala(m)); m = ileri.pop(); is = 'yinele';
+          }
+        } else if (secenek < 91) {
+          const d = await kaydet();
+          bekleyen = null;
+          is = 'kaydet';
+          kayitli = kopyala(m); kayitKonum = gecmis.length;
+          await bekle(50);
+          const o = olc(y);
+          const dosya = { AdSoyad: o.degerler['form1/Baslik/AdSoyad'][0], Sehir: o.degerler['form1/Baslik/Sehir'][0], BAd: o.degerler['form1/Basvurucu/BAd'], BAdres: o.degerler['form1/Basvurucu/BAdres'], Metin: o.degerler['form1/Bolum/Metin'] };
+          const bek = dosyaBeklenen(m);
+          const esit = (a, b) => Array.isArray(a) ? a.length === b.length && a.every((x, j) => normal(x) === normal(b[j])) : normal(a) === normal(b);
+          if (d.kutu || d.degisti || o.onarildi || !o.saf || !Object.keys(bek).every((a) => esit(dosya[a], bek[a]))) { bozuk = !sonuc(`9 tohum ${tohum} adım ${i}: Kayıt ile dosya model gibi`, false, { d, dosya, bek, izler: izler.slice(-8) }); }
+        } else if (secenek < 94) {
+          await komut(r.olasi(0.5) ? 'gorunum.yakinlastir' : 'gorunum.uzaklastir'); await bekle(200); is = 'yakınlaştır';
+        } else if (secenek < 97) {
+          if (bekleyen) { await tus('Tab'); await bekle(20); bekleyen = null; }
+          await ac(y2, false); await bekle(150);
+          await evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find((x) => x.yol === ${J(y)}); await p.sekmeSec(b.id); return true; })()`);
+          await bekle(200); is = 'sekme değiştir';
+        } else {
+          // Kapatıp yeniden açma: Kirliyse soru (Kaydetme ya da Kaydet)
+          await bekle(30);
+          const d0 = await durum();
+          is = 'yeniden aç';
+          if (d0.degisti) {
+            await komut('sekme.kapat');
+            const d = await kutuBekle();
+            const kaydetSec = r.olasi(0.5);
+            await kutuBas(kaydetSec ? 'Kaydet' : 'Kaydetme');
+            await bekle(300);
+            for (let t = 0; t < 100 && (await evalJs(`[...window.__pdefe.belgeler.values()].some((b) => b.yol === ${J(y)})`)); t++) await bekle(100);
+            if (kaydetSec) kayitli = kopyala(m); else m = kopyala(kayitli);
+            is += kaydetSec ? ' (Kaydet)' : ' (Kaydetme)';
+            if (!d.kutu) sonuc(`9 tohum ${tohum} adım ${i}: Kirli belgede soru`, false, d);
+          } else {
+            await evalJs(`(async () => { const p = window.__pdefe; const b = [...p.belgeler.values()].find((x) => x.yol === ${J(y)}); if (b) await p.belgeKapat(b.id); return true; })()`);
+            m = kopyala(kayitli);   // temizse dosyadaki hâldir
+          }
+          bekleyen = null;
+          await ac(y, false);
+          gecmis = []; ileri = []; kayitKonum = 0;
+        }
+        if (!is) continue;
+        izler.push(`${i}:${is}`);
+        if (bozuk) break;
+        await bekle(30);
+        const dom = await degerler(ALANLAR);
+        const bek = domBeklenen();
+        const esit = ALANLAR.every((a) => dom[a].length === bek[a].length && dom[a].every((x, j) => normal(x) === normal(bek[a][j])));
+        if (!esit) { bozuk = !sonuc(`9 tohum ${tohum} adım ${i} (${is}): Ekran model gibi`, false, { dom, bek, izler: izler.slice(-10), durum: await durum(), yigin: await evalJs(`window.__s52.b().yigin.yigin.map((k) => k.ad)`), gecmis: gecmis.length }); await goruntu(`9-tohum${tohum}-adim${i}`); }
+        const d = await durum();
+        if (!bekleyen && !bozuk) {
+          if (d.konum !== gecmis.length) { bozuk = !sonuc(`9 tohum ${tohum} adım ${i} (${is}): Geri al yığını model gibi`, false, { konum: d.konum, model: gecmis.length, izler: izler.slice(-10) }); }
+          else if (d.degisti !== (gecmis.length !== kayitKonum && J(m) !== '')) {
+            if (d.degisti !== (d.konum !== d.kayit)) bozuk = !sonuc(`9 tohum ${tohum} adım ${i} (${is}): Kirli işareti yığınla tutarlı`, false, d);
+          }
+        }
+      }
+      if (!bozuk) {
+        // Son: Kaydet, kapat, aç: Dosya ve ekran son modelle aynı
+        await kaydet();
+        await ac(y);
+        const dom = await degerler(ALANLAR), bek = domBeklenen();
+        const esit = ALANLAR.every((a) => dom[a].length === bek[a].length && dom[a].every((x, j) => normal(x).trim() === normal(bek[a][j]).trim()));
+        sonuc(`9 tohum ${tohum}: ${izler.length} adım, son kayıt ve yeniden açılış model gibi`, esit, { dom, bek, izler: izler.slice(-10) });
+      }
+      bilgi(`tohum ${tohum}: ${izler.join(', ').slice(0, 500)}`);
+      await kapatHepsini();
+    }
+    sonuc('9 Sayfada hata yok', !(await hatalar()).length);
+  }
+
+  // ================================================================== 10) oturum sonu
+  if (bolum(10)) {
+    const PID = process.env.PDEFE_TEST_PID;
+    const ileti = () => execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(KOK, 'test', 'oturum_sonu.ps1'), '-SurecId', String(PID)], { encoding: 'utf8' }).split(/\r?\n/).filter((s) => s.trim().startsWith('{')).map((s) => JSON.parse(s));
+    const y = kopya('oturum');
+    await ac(y);
+    await tiklaAd('AdSoyad', 0);
+    let r = ileti();
+    sonuc('10 Yazı yokken oturum sonu engellenmez', r.length === 1 && r[0].sonuc === 1, r);
+    await yaz('Oturum kapanırken alanda kalan yazı');
+    await bekle(300);
+    r = ileti();
+    sonuc('10 Alandan çıkılmamış yazı oturum sonunu engeller', r.length === 1 && r[0].sonuc === 0, r);
+    let d = await kutuBekle();
+    sonuc('10 Kaydetme sorusu açılır', /kaydedilmemiş değişiklikler/.test(d.kutu?.ileti || ''), d);
+    await kutuBas('Vazgeç');
+    await bekle(400);
+    d = await durum();
+    sonuc('10 Vazgeç: Yazı yerinde, kirli', d.degisti && d.belge === 1 && (await degerler(['AdSoyad'])).AdSoyad[0] === 'Oturum kapanırken alanda kalan yazı', d);
+  }
+
+  // ================================================================== 12) kullanım hakları imzalı form: İmza kalır, dosya büyümez
+  if (bolum(12)) {
+    const y = kopya('hakli', oz.xfaHakli);
+    const ilk = fs.readFileSync(y);
+    const olcHak = (pdf) => JSON.parse(execFileSync(PY, ['-X', 'utf8', '-I', '-c', `
+import json, re, sys
+sys.path.insert(0, r"${path.join(KOK, 'core').replace(/\\/g, '\\\\')}")
+import pymupdf
+from islemler import xfa
+b = open(sys.argv[1], "rb").read()
+d = pymupdf.open(stream=b, filetype="pdf")
+print(json.dumps({"hak": xfa.notlar.kullanim_hakki_var(d), "son": xfa._hak_bolumu_sonu(d, b), "onarildi": d.is_repaired, "eof": b.count(b"%%EOF")}))
+`, pdf], { encoding: 'utf8' }));
+    await ac(y);
+    const BIR = 'Birinci taslakta yazılan gizli cümle', IKI = 'İkinci hâl';
+    await alanaYaz('Metin', 0, BIR);
+    let d = await kaydet();
+    let o = olcHak(y);
+    let bayt = fs.readFileSync(y);
+    sonuc('12 Kayıt: Açılan baytlar değişmedi, imza yerinde, onarılmadan açılıyor, temiz', !d.kutu && !d.degisti && bayt.subarray(0, ilk.length).equals(ilk) && o.hak && o.son && !o.onarildi && v(y, 'form1/Bolum/Metin')[0] === BIR, { d, o });
+    const boy1 = bayt.length;
+    await alanaYaz('Metin', 0, IKI);
+    d = await kaydet();
+    bayt = fs.readFileSync(y);
+    o = olcHak(y);
+    sonuc('12 İkinci kayıt: Yine tek artımlı bölüm, ilk taslak dosyada yok', !d.kutu && bayt.subarray(0, ilk.length).equals(ilk) && o.eof === 2 && v(y, 'form1/Bolum/Metin')[0] === IKI && bayt.length <= boy1 + 200, { o, boy1, boy: bayt.length });
+    // Bölüm ekleme: Zincir yazılmaz
+    await tiklaAd('MEkle', 0); await durgun();
+    await tiklaAd('BEkle', 0); await durgun();
+    await tiklaAd('BEkle', 0); await durgun();
+    await alanaYaz('Metin', 1, 'Yeni bölümün yazısı');
+    d = await kaydet();
+    bayt = fs.readFileSync(y);
+    o = olcHak(y);
+    sonuc('12 Bölüm eklendikten sonra: İmza yerinde, tek artımlı bölüm, değerler dosyada', !d.kutu && !d.degisti && bayt.subarray(0, ilk.length).equals(ilk) && o.hak && o.eof === 2 && !o.onarildi && J(v(y, 'form1/Bolum/Metin')) === J([IKI, 'Yeni bölümün yazısı']) && v(y, 'form1/Basvurucu/BAd').length === 3, { o, m: v(y, 'form1/Bolum/Metin') });
+    await ac(y);
+    const c = await degerler(['Metin', 'BAd']);
+    sonuc('12 Yeniden açınca değerler ve bölümler yerinde, temiz', J(c.Metin) === J([IKI, 'Yeni bölümün yazısı']) && c.BAd.length === 3 && !(await durum()).degisti, c);
+    // İkinci oturum: Açılan dosyanın üstüne
+    const iki = fs.readFileSync(y);
+    await alanaYaz('Sehir', 0, 'İkinci oturum');
+    d = await kaydet();
+    bayt = fs.readFileSync(y);
+    o = olcHak(y);
+    sonuc('12 İkinci oturum: Önceki kaydın baytları değişmedi, imza yerinde', !d.kutu && bayt.subarray(0, iki.length).equals(iki) && o.hak && o.eof === 3 && v(y, 'form1/Baslik/Sehir')[0] === 'İkinci oturum', o);
+    // 30 kayıt: Dosya büyümez
+    const once = fs.statSync(y).size;
+    for (let i = 0; i < 30; i++) { await alanaYaz('Sehir', 0, `Kayıt ${String(i).padStart(2, '0')}`); await kaydet(); }
+    const sonra = fs.statSync(y).size;
+    sonuc('12 Aynı oturumda 30 kayıt: Dosya büyümez', sonra <= once + 200 && v(y, 'form1/Baslik/Sehir')[0] === 'Kayıt 29', { once, sonra });
+    // Farklı kaydet: Yeni dosyada da imza
+    const yeni = path.join(KLASOR, 'hakli farklı.pdf');
+    await yanitla('dosya:kaydetDiyalog', [yeni]);
+    await alanaYaz('Sehir', 0, 'Farklı adla');
+    await komut('dosya.farkliKaydet');
+    d = await kayitBitsin();
+    await bekle(120);
+    o = olcHak(yeni);
+    sonuc('12 Farklı kaydet: Yeni dosyada imza ve değer', !d.kutu && d.yol === yeni && o.hak && o.son && v(yeni, 'form1/Baslik/Sehir')[0] === 'Farklı adla', { d, o });
+    // Sekme taşıma: Taban taşınır
+    const oncekiler = (await hedefler()).map((h) => h.id);
+    const y3 = kopya('hakli-tasi', oz.xfaHakli), ilk3 = fs.readFileSync(y3);
+    await ac(y3);
+    await alanaYaz('Metin', 0, 'Taşınmadan önce');
+    await tus('Tab');
+    await evalJs(`(async () => { await window.__pdefe.sekmeyiTasi(window.__s52.b().id, { tur: 'yeni' }); return true; })()`);
+    let yeniP = null;
+    for (let i = 0; i < 50 && !yeniP; i++) { await bekle(200); yeniP = (await hedefler()).find((h) => !oncekiler.includes(h.id)); }
+    if (sonuc('12 Sekme taşındı', !!yeniP)) {
+      hedefSec(yeniP.id);
+      await bekle(1200);
+      await evalJs(YARDIMCI);
+      await evalJs(`(async () => { for (let i = 0; i < 80; i++) { if (document.querySelector('.gorunum:not([hidden]) .xfaLayer')) return true; await window.__s52.bekle(100); } return false; })()`);
+      d = await kaydet();
+      o = olcHak(y3);
+      sonuc('12 Taşınan sekmede kayıt: İmza yerinde, tek artımlı bölüm', !d.kutu && !d.degisti && fs.readFileSync(y3).subarray(0, ilk3.length).equals(ilk3) && o.eof === 2 && v(y3, 'form1/Bolum/Metin')[0] === 'Taşınmadan önce', { d, o });
+      await evalJs(`(async () => { const p = window.__pdefe; for (const id of [...p.belgeler.keys()]) await p.belgeKapat(id, { zorla: true }); setTimeout(() => window.close(), 200); return true; })()`).catch(() => {});
+      hedefSec(null);
+      await bekle(800);
+      await evalJs(YARDIMCI);
+    }
+    // İmzası biçimce yanlış form (kurgusal xfa.pdf): Baştan yazılır, imza kalkar
+    const y4 = kopya('hakli-degil', oz.xfa);
+    await ac(y4);
+    await alanaYaz('AdSoyad', 0, 'Yazı');
+    d = await kaydet();
+    o = olcHak(y4);
+    sonuc('12 Baytlarla tutmayan imza: Baştan yazılır, imza kalkar', !d.kutu && !o.hak && !o.onarildi, o);
+    sonuc('12 Sayfada hata yok', !(await hatalar()).length);
+  }
+
+  // ================================================================== 13) odak almadan gelen yazı: Sürükleyip bırakma
+  if (bolum(13)) {
+    const cdpBirak = async (x, y, metin) => {
+      const h = (await hedefler())[0];
+      const ws = new WebSocket(h.webSocketDebuggerUrl);
+      await new Promise((c, r) => { ws.onopen = c; ws.onerror = r; });
+      let no = 0;
+      const gonder = (method, params) => new Promise((c) => { const i = ++no; const f = (m) => { const v = JSON.parse(m.data); if (v.id === i) { ws.removeEventListener('message', f); c(v); } }; ws.addEventListener('message', f); ws.send(J({ id: i, method, params })); });
+      const data = { items: [{ mimeType: 'text/plain', data: metin }], dragOperationsMask: 3 };
+      await gonder('Input.dispatchDragEvent', { type: 'dragEnter', x, y, data });
+      await gonder('Input.dispatchDragEvent', { type: 'dragOver', x, y, data });
+      const r = await gonder('Input.dispatchDragEvent', { type: 'drop', x, y, data });
+      ws.close();
+      return r;
+    };
+    const alanDegeri = (ad, i = 0) => evalJs(`window.__s52.denetimler(document.querySelector('.gorunum:not([hidden])'), ${J(ad)})[${i}]?.value`);
+    // Odaksız alana bırakma
+    let y = kopya('birak');
+    await ac(y);
+    await tiklaAd('Sehir', 0);
+    await tus('Tab');
+    let p = await evalJs(`window.__s52.yer('Metin', 0)`);
+    const r = await cdpBirak(p.x, p.y, 'Başka programdan sürüklenen yazı');
+    await bekle(200);
+    let d = await durum();
+    bilgi(`bırakma: ${J(r.error || 'hata yok')}, alan: ${await alanDegeri('Metin')}, odak: ${d.odak}/${d.odakAd}`);
+    sonuc('13 Bırakılan yazı alanda', (await alanDegeri('Metin')) === 'Başka programdan sürüklenen yazı', await alanDegeri('Metin'));
+    sonuc('13 Bırakınca belge kirli', d.degisti, d);
+    await tiklaAd('Sehir', 0);
+    await bekle(60);
+    d = await durum();
+    sonuc('13 Başka alana geçince belge kirli, geri alınabilir', d.degisti && d.konum >= 1, d);
+    d = await kaydet();
+    sonuc('13 Kayıt bırakılan yazıyı alır', !d.kutu && !d.degisti && v(y, 'form1/Bolum/Metin')[0] === 'Başka programdan sürüklenen yazı', { d, x: v(y, 'form1/Bolum/Metin') });
+    // Alanda yazı dururken başka alana bırakma: İkisi de kalır
+    y = kopya('birak-iki');
+    await ac(y);
+    await tiklaAd('Sehir', 0);
+    await yaz('Şehre yazılan');
+    await tiklaAd('Sehir', 0);
+    p = await evalJs(`window.__s52.yer('Metin', 0)`);
+    await cdpBirak(p.x, p.y, 'Yanına bırakılan');
+    await bekle(200);
+    d = await kaydet();
+    sonuc('13 Alanda yazı dururken bırakma: İkisi de dosyada', !d.kutu && !d.degisti && v(y, 'form1/Baslik/Sehir')[0] === 'Şehre yazılan' && v(y, 'form1/Bolum/Metin')[0] === 'Yanına bırakılan', { d, s: v(y, 'form1/Baslik/Sehir'), m: v(y, 'form1/Bolum/Metin') });
+    // Bırakılan yazı kapatma sorusunu çıkarır
+    y = kopya('birak-kapat');
+    await ac(y);
+    p = await evalJs(`window.__s52.yer('Metin', 0)`);
+    await cdpBirak(p.x, p.y, 'Kapatılırken sorulacak yazı');
+    await bekle(200);
+    await komut('sekme.kapat');
+    d = await kutuBekle(3000);
+    sonuc('13 Bırakılan yazı: Kapatırken sorulur', /kaydedilmemiş değişiklikler/.test(d.kutu?.ileti || ''), d);
+    if (d.kutu) await kutuBas('Kaydetme');
+    sonuc('13 Sayfada hata yok', !(await hatalar()).length);
+  }
+
+  // ================================================================== 11) gerçek kısayollar (yalnız görünmeyen masaüstünde: baslat_gizli.ps1, BOLUM=11; son adım örneği kapatır)
+  if (BOLUMLER.includes('11')) {
+    await evalJs(`window.pdefe.cagir('test:odakla')`);
+    const G = (olaylar) => evalJs(`window.pdefe.cagir('test:tusGonder', ${J(olaylar)})`);
+    const tusG = async (keyCode, mods = [], sonra = 300) => { await G([{ type: 'keyDown', keyCode, modifiers: mods }, { type: 'keyUp', keyCode, modifiers: mods }]); await bekle(sonra); };
+    const metinAlan = () => evalJs(`document.querySelector('.gorunum:not([hidden]) [xfaname="Metin"] textarea')?.value`);
+    const y = kopya('kisayol');
+    await ac(y);
+    await tiklaAd('Metin', 0);
+    await yaz('Ctrl+S ile kaydedilen');
+    await tusG('S', ['control']);
+    let d = await kayitBitsin();
+    await bekle(150);
+    d = await durum();
+    sonuc('11 Ctrl+S: Alandan çıkmadan yazı dosyada, imleç alanda, kaydedildi denir', !d.kutu && !d.degisti && d.odak === 'TEXTAREA' && /kaydedildi/.test(d.bildirim) && v(y, 'form1/Bolum/Metin')[0] === 'Ctrl+S ile kaydedilen', d);
+    await yaz(' ve devam');
+    await bekle(60);
+    await tusG('Z', ['control']);
+    await bekle(60);
+    bilgi(`Ctrl+Z sonrası alan: ${await metinAlan()}`);
+    await tusG('Y', ['control']);
+    await bekle(60);
+    await tusG('P', ['control'], 900);
+    d = await durum();
+    sonuc('11 Ctrl+P: Soru çıkmaz (yazı düz PDF\'e girer)', !d.kutu, d);
+    await tusG('Escape', [], 400);
+    await tusG('W', ['control'], 400);
+    d = await kutuBekle();
+    sonuc('11 Ctrl+W: Kaydetme sorusu', /kaydedilmemiş değişiklikler/.test(d.kutu?.ileti || ''), d);
+    await kutuBas('Vazgeç');
+    await bekle(200);
+    d = await durum();
+    sonuc('11 Vazgeç: Sekme açık', d.belge === 1 && d.degisti, d);
+    // Pencere kapatma (X ve Alt+F4'ün yolu), alanda yazı
+    await tiklaAd('Sehir', 0);
+    await yaz('Pencere kapatılırken alanda');
+    await evalJs(`(window.close(), true)`);
+    d = await kutuBekle();
+    sonuc('11 Pencere kapatma: Kaydetme sorusu', /kaydedilmemiş değişiklikler/.test(d.kutu?.ileti || ''), d);
+    await kutuBas('Kaydet');
+    await bekle(1500);
+    sonuc('11 Kaydet: Alandaki yazı dosyada', v(y, 'form1/Baslik/Sehir')[0] === 'Pencere kapatılırken alanda', v(y, 'form1/Baslik/Sehir'));
+    console.log(`\n${denetim} denetim, ${hataSayisi} hata`);
+    console.log(hataSayisi ? 'HATALAR VAR' : 'BÜTÜN DENETİMLER GEÇTİ');
+    if (hataSayisi) process.exitCode = 1;
+    return;
   }
 
   await kapatHepsini();
