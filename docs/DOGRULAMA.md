@@ -1317,3 +1317,12 @@ Formda kayıp avı (Otomatik sınandı. Referans okuyucuyla birlikte kullanım v
 
 Bu kurucuyu kurarken
 101. **Aynı sürümün üstüne kurulum.** Dosya Gezgini'nde bir PDF'e sağ tıklayıp menüyü bir kez açın (Gezgin sağ tık eklentisini yükler), Gezgin'i kapatmadan bu kurucuyu kurun: Kurulum takılmamalı, hata vermemeli. Sonra aynı dosyada sağ tıklayın: PDEfe ile dönüştür yine çıkmalı ve Format Değiştir'i açmalı. Otomatik sınamada deneme kurucusuyla yapıldı, gerçek Gezgin'le yapılmadı.
+
+Word belgesini çeviren program (LibreOffice gerçekten sınandı. WPS Office'in kurulum kilidi durduğu için gerçek WPS'le belge çevrilemedi)
+102. **WPS'li bilgisayar.** Bilgisayarınızı yeniden başlatın, WPS'i bir kez kendiniz açıp kapatın (uyarı çıkmamalı). PDEfe'de Format Değiştir › bir .docx › PDF: PDF oluşmalı, altta "Word ... WPS Office ile dönüştürüldü" yazmalı. Ekrana WPS penceresi gelmemeli. PDF'te Türkçe harfler doğru, yazar adı yok olmalı (Belge özellikleri).
+103. **WPS'te başka belge açıkken.** WPS'te kendi belgenizi açın, kaydetmeden bırakın. PDEfe'de başka bir .docx'i PDF'e çevirin: PDF oluşmalı, WPS'teki belgeniz açık ve yazdıklarınız yerinde kalmalı, WPS kapanmamalı.
+104. **WPS güncellenirken.** WPS "Kurulum, yükseltme veya dizin taşıma işlemi devam ediyor" diyorsa PDEfe'de .docx → PDF: LibreOffice kuruluysa onunla çevrilmeli, uyarıda söylenmeli. Değilse "WPS Office şu anda kuruluyor ya da güncelleniyor" iletisi çıkmalı. İki durumda da ekrana WPS penceresi gelmemeli, PDEfe beklememeli.
+105. **Word'lü bilgisayar.** Word kurulu bilgisayarda aynı dönüştürme önceki gibi olmalı: Altta WPS ya da LibreOffice yazmamalı. Word'ünüz açıkken de belgeleriniz kapanmamalı.
+106. **Word'süz, WPS'siz, LibreOffice'li bilgisayar.** Art arda birkaç .docx, .doc, .rtf, .odt seçip PDF'e çevirin: Hepsi çevrilmeli (önceden ikinci belgede takılıyordu). LibreOffice'iniz açıkken de çevrilmeli, açık belgeniz etkilenmemeli.
+107. **Hiçbiri yokken.** Word, WPS ve LibreOffice yoksa Word satırında PDF soluk olmalı, üstüne gelince hangi programların gerektiği yazmalı. LibreOffice'i bu sırada kurarsanız PDEfe'yi kapatmadan satırı yeniden ekleyince hedef açılmalı.
+108. **Ayarlar.** Ayarlar › Kaydetme › Format Değiştir altında "Word belgeleri" kartı: Sıra ve "Kullanılacak program" yazmalı.

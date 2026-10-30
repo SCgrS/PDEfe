@@ -54,11 +54,10 @@ iText 2.1.7 dâhil) yalnızca çalışma anında, bilgisayardaki kurulumdan kull
 paketine girmez. Paketteki `resources/ude-kopru/ude-kopru.jar` PDEfe'nin kendi kodudur (AGPL-3.0, kaynağı `core/ude_kopru/src`): UDE'nin ve
 iText'in sınıflarına yalnızca yansımayla (reflection) erişir, onların bayt kodunu içermez ve çözmez.
 
-## Microsoft Word ve LibreOffice (Word → PDF, 0.2.6)
+## Microsoft Word, WPS Office ve LibreOffice (Word → PDF, 0.2.6, WPS Office 0.3.1)
 
-Word → PDF dönüştürmesi bilgisayarda kurulu Microsoft Word'ü (Windows) ya da Word yoksa, macOS'ta ve Linux'ta kurulu LibreOffice'i yalnızca
-çalışma anında, görünmez bir örnekle kullanır. Word ve LibreOffice PDEfe ile dağıtılmaz, depoya ve kurulum paketine girmez, kendi lisans
-koşullarına tabidir.
+Word → PDF dönüştürmesi bilgisayarda kurulu Microsoft Word'ü ya da Word yoksa WPS Office'i (Windows), onlar da yoksa, macOS'ta ve Linux'ta kurulu LibreOffice'i
+yalnızca çalışma anında, görünmez bir örnekle kullanır. Bu programlar PDEfe ile dağıtılmaz, depoya ve kurulum paketine girmez, kendi lisans koşullarına tabidir.
 
 ## Lisans metinleri
 
