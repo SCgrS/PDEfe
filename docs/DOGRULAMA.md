@@ -1355,3 +1355,6 @@ WPS Office, gerçek WPS'le sınandı (WPS 12.1, görünmeyen masaüstünde, bir 
 128. **Bozuk belge.** Yarım kalmış bir .docx: Pencere çıkmadan "Dosya bozuk görünüyor. Belgenin tamamı okunamıyor" yazmalı, eksik PDF oluşmamalı. Yarım kalmış bir .rtf: WPS'in "Dosya açılamıyor" penceresi en çok 2-3 sn görünüp kendiliğinden kapanmalı, PDEfe "WPS Office bu belgeyi açamadı, belge bozuk olabilir" demeli.
 129. **İptal ve kapatma.** Çok sayfalı bir .docx çevrilirken İptal: En çok birkaç saniyede durmalı, PDF oluşmamalı, WPS'teki kendi belgeniz yerinde kalmalı. Aynı anda PDEfe'yi kapatın: PDEfe kapanmalı, `wps.exe` sayısı eskisine dönmeli.
 130. **WPS'in giriş penceresi.** "Kullanıcı Girişi" penceresi WPS'i kendiniz açarken çıkabilir, PDEfe bunu açmaz (sınamada yalnız WPS'in Tablo'su açılınca çıktı). Yalnız dönüştürme sırasında çıkarsa söyleyin.
+
+Arayüz metinleri (otomatik tarandı, cümlelerin okunuşu sizde)
+131. **Metinler.** Ayarlar'ın bütün sekmelerini, Yazdır'ı, Sayfaları düzenle'yi, Sıkıştır'ı, Ayır'ı ve kurucunun kurulu sürüm sayfasını açın, üstüne gelince çıkan ipuçlarına da bakın: Noktalı virgül görünmemeli, iki noktadan sonra büyük harf gelmeli. Noktayla bölünen cümlelerden kulağınıza kopuk gelen olursa söyleyin.
