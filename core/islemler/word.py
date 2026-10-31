@@ -59,7 +59,7 @@ WPS 12.2'de ölçüldü: Türkçe doğru, filigran yok, başlıktan yer imi var)
   - WPS kurulum ya da güncelleme sürerken başlamaz, ekrana "aynı anda çalıştırılamaz" penceresi açar, COM 120 sn sonra hata döner (0x80080005,
     WPS'in kendi güncellemesinden sonra bu bilgisayarda ölçüldü). Önden denetim: WPS'in kendi kurulum mutex'leri (_wps_kurulum_suruyor, adlar
     ksolite.dll'den). Mutex'ler var olduğu sürece WPS hiç başlatılmaz, pencere çıkmaz.
-  - Her belge için ayrı örnek: Çağrı başına süreç, iş biter bitmez Quit (12.1.0.29162'de ölçüldü: Quit'ten 0,1 sn sonra iki süreç de gitti, belge başına ~2 sn). Eski ölçümde (12.2) son belge
+  - Her belge için ayrı örnek: Belge başına bir süreç, iş biter bitmez Quit (12.1.0.29162'de ölçüldü: Quit'ten 0,1 sn sonra iki süreç de gitti, belge başına ~1 sn). Eski ölçümde (12.2) son belge
     kapanınca süreç kendiliğinden kapanıyor, sonraki çağrılar düşüyordu: Ayrı örnek iki sürümde de çalışır.
   - Süreçler (12.1.0.29162'de gerçek WPS'le ölçüldü, PLAN "Gerçek WPS"): WPS'in arka plan yardımcıları oturum açılışından beri hep çalışır ve görünür pencereleri yoktur (wpscloudsvr.exe, wpscenter.exe, komutunda
     "Run" olan wps.exe). Otomasyon: CoCreateInstance her çağrıda DcomLaunch'tan YENİ bir süreç başlatır (wps.exe /prometheus /wps /Automation -Embedding, altında /wps /from_prome), başka bir otomasyon örneği ya da
