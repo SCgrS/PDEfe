@@ -57,7 +57,7 @@ const hataMetni = (e) => (e && (e.message || String(e))) || 'Bilinmeyen hata';
 
 /** Motorun hata kodları (udf-motoru.js UdfHatasi) → çekirdeğin kodları ve PDEfe'nin iletileri (motorun iletileri tarayıcı eklentisi içindir). */
 const MOTOR_HATALARI = {
-  zip: ['bozuk', 'Dosya açılamadı: bozuk ya da UDF değil.'],
+  zip: ['bozuk', 'Dosya açılamadı: Bozuk ya da UDF değil.'],
   'content-xml-yok': ['bozuk', 'UDF paketinde belge içeriği (content.xml) yok.'],
   xml: ['bozuk', 'Belge içeriği okunamadı (XML bozuk).'],
   dtd: ['guvensiz', 'Belge güvenlik nedeniyle dönüştürülmedi (izin verilmeyen XML tanımı).'],

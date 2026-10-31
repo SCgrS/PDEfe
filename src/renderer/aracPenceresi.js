@@ -18,7 +18,7 @@ export const ARACLAR = [
   },
   {
     komut: 'arac.sayfalar', ad: 'Sayfaları düzenle', aciklama: 'Sıralar, siler, döndürür, sayfa ekler', renk: 'mavi', belge: true,
-    ipucu: 'Sayfaları sürükleyerek sıralayın; silin, döndürün, boş sayfa ya da başka PDF\'ten sayfa ekleyin',
+    ipucu: 'Sayfaları sürükleyerek sıralayın. Silin, döndürün, boş sayfa ya da başka PDF\'ten sayfa ekleyin',
     // 2×2 sayfa ızgarası, biri seçili
     ikon: '<rect x="3.5" y="2.75" width="7" height="8.25" rx="1.2"/><rect x="13.5" y="2.75" width="7" height="8.25" rx="1.2"/><rect x="3.5" y="13" width="7" height="8.25" rx="1.2"/><rect x="13.5" y="13" width="7" height="8.25" rx="1.2" fill="currentColor" fill-opacity=".3"/>',
   },
@@ -30,7 +30,7 @@ export const ARACLAR = [
   },
   {
     komut: 'arac.ayir', ad: 'Ayır', aciklama: 'Belgeyi dosyalara böler', renk: 'turuncu', belge: true,
-    ipucu: 'Belgeyi sayfa aralıklarına göre ayrı ayrı dosyalara ya da tek dosyaya ayırır; her sayfayı ayrı dosyaya da kaydedebilir',
+    ipucu: 'Belgeyi sayfa aralıklarına göre ayrı ayrı dosyalara ya da tek dosyaya ayırır. Her sayfayı ayrı dosyaya da kaydedebilir',
     // Kesik çizgiyle ayrılan iki sayfa
     ikon: '<rect x="2.75" y="3.75" width="6.75" height="16.5" rx="1.2"/><rect x="14.5" y="3.75" width="6.75" height="16.5" rx="1.2"/><path d="M12 2.5v19" stroke-dasharray="2.2 2.6"/>',
   },
@@ -51,7 +51,7 @@ export const ARACLAR = [
     // Word, TIFF, JPG"): iki satır; açılış ekranında ve Araçlar penceresinde bütün karolar en uzun karonun yüksekliğinde
     komut: 'arac.donustur', ad: 'Format Değiştir', aciklama: 'PDF, UDF, Word, TIFF, JPG dosya formatlarını değiştirir', renk: 'turkuaz', belge: false,
     // 0.2.7: görüntüler de (görüntü → PDF, PDF → JPG)
-    ipucu: 'UDF, TIFF, Word ve görüntü dosyalarını PDF\'e; PDF\'i UDF\'ye, Word\'e, TIFF\'e ya da JPG\'ye dönüştürür',
+    ipucu: 'UDF, TIFF, Word ve görüntü dosyalarını PDF\'e dönüştürür. PDF\'i UDF\'ye, Word\'e, TIFF\'e ya da JPG\'ye dönüştürür',
     // Çapraz duran iki sayfa ve aralarında birbirine dönen iki ok
     ikon: '<rect x="2.75" y="2.75" width="8" height="10.5" rx="1.2"/><rect x="13.25" y="10.75" width="8" height="10.5" rx="1.2"/><path d="M13.75 4.5h2.5a3 3 0 0 1 3 3v1.25"/><path d="m17.5 7.25 1.75 1.75L21 7.25"/><path d="M10.25 19.5h-2.5a3 3 0 0 1-3-3v-1.25"/><path d="m3 16.75 1.75-1.75 1.75 1.75"/>',
   },

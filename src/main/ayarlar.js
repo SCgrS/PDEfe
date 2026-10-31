@@ -119,7 +119,7 @@ function depoyuHemenYukle(yol) {
   try { ayarDeposu({ deneme: OKUMA_DENEMESI }); }
   catch (e) {
     const hata = new Error(`Ayar dosyası okunamadı: ${yol} (${e?.code || e?.message || e})`, { cause: e });
-    hata.kullaniciIletisi = 'Ayar dosyası okunamadı: başka bir program (yedekleme, eşitleme ya da virüs tarayıcısı) dosyayı kullanıyor olabilir. Biraz sonra PDEfe\'yi yeniden açın.';
+    hata.kullaniciIletisi = 'Ayar dosyası okunamadı: Başka bir program (yedekleme, eşitleme ya da virüs tarayıcısı) dosyayı kullanıyor olabilir. Biraz sonra PDEfe\'yi yeniden açın.';
     throw hata;
   }
 }

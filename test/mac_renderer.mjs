@@ -308,7 +308,7 @@ export default async function ({ evalJs }) {
     return sonuc;
   })()`);
   sonuc('Ayarlar › Güncelleme (Windows): açıklama (0.2.8: iki günde bir) ve "Şimdi denetle"nin düğmesi (Güncelle) eskisi gibi',
-    ayarGuncelleme.win.aciklama === 'İki günde bir, açılışta ya da PDEfe açık kalıyorsa gün içinde arka planda yeni sürüme bakılır; internet yoksa sonra yeniden denenir. Yeni sürüm varsa pencerenin üstünde bir şerit görünür; Güncelle\'ye tek tıkla indirilir, kurulur ve PDEfe yeniden açılır.'
+    ayarGuncelleme.win.aciklama === 'İki günde bir, açılışta ya da PDEfe açık kalıyorsa gün içinde arka planda yeni sürüme bakılır. İnternet yoksa sonra yeniden denenir. Yeni sürüm varsa pencerenin üstünde bir şerit görünür. Güncelle\'ye tek tıkla indirilir, kurulur ve PDEfe yeniden açılır.'
     && ayarGuncelleme.win.dugme === 'Güncelle', ayarGuncelleme.win);
   sonuc('Ayarlar › Güncelleme (macOS): açıklama İndir\'i ve Uygulamalar\'a sürüklemeyi anlatıyor ("tek tıkla kurulur" yok), düğme İndir',
     /İndir'e basınca yeni sürüm tarayıcıda iner/.test(ayarGuncelleme.mac.aciklama) && /Uygulamalar klasörüne sürükle/.test(ayarGuncelleme.mac.aciklama)
@@ -506,10 +506,10 @@ export default async function ({ evalJs }) {
     return sonuc;
   })()`);
   sonuc('Sayfaları düzenle (macOS): ⌘C / ⌘V seçili 2. sayfayı arkasına kopyalar (1 2 2 3), tuşlar engellenir; bildirim ve Kısayollar "⌘V", "⌘C / ⌘V"',
-    sayfalarPano.mac.c && sayfalarPano.mac.v && J(sayfalarPano.mac.sira) === '[1,2,2,3]' && J(sayfalarPano.mac.secili) === '[2]' && /eklemek için ⌘V\./.test(sayfalarPano.mac.bildirim)
+    sayfalarPano.mac.c && sayfalarPano.mac.v && J(sayfalarPano.mac.sira) === '[1,2,2,3]' && J(sayfalarPano.mac.secili) === '[2]' && /Eklemek için ⌘V\./.test(sayfalarPano.mac.bildirim)
     && sayfalarPano.mac.kisayol === '⌘C / ⌘V', sayfalarPano.mac);
   sonuc('Sayfaları düzenle (Windows): Ctrl+C / Ctrl+V aynı; bildirim ve Kısayollar "Ctrl+V", "Ctrl+C / Ctrl+V"', sayfalarPano.win.c && sayfalarPano.win.v
-    && J(sayfalarPano.win.sira) === '[1,2,2,3]' && J(sayfalarPano.win.secili) === '[2]' && /eklemek için Ctrl\+V\./.test(sayfalarPano.win.bildirim) && sayfalarPano.win.kisayol === 'Ctrl+C / Ctrl+V', sayfalarPano.win);
+    && J(sayfalarPano.win.sira) === '[1,2,2,3]' && J(sayfalarPano.win.secili) === '[2]' && /Eklemek için Ctrl\+V\./.test(sayfalarPano.win.bildirim) && sayfalarPano.win.kisayol === 'Ctrl+C / Ctrl+V', sayfalarPano.win);
 
   // ---------------------------------------------------------------- Yazı kutusu kopyala-yapıştır (notlar.js tikKaydet, kisayolListesi.js; 0.2.6)
   // Sağ tık › Yapıştır sağ tıklanan yere: macOS'ta sağ tık Ctrl+tıktır (button 0 + ctrlKey). Basışın yeri iki sistemde de kaydedilir (tikKaydet;
@@ -531,7 +531,7 @@ export default async function ({ evalJs }) {
       const html = kisayolTablolariHtml();
       sonuc[mac ? 'mac' : 'win'] = { bos: { girdi: bos?.girdi, nokta: bos?.nokta, notUstunde: bos?.notUstunde }, ustunde: ust?.notUstunde,
         kisayol: ['⌘C / ⌘V', 'Ctrl+C / Ctrl+V'].find((k) => html.includes('<kbd>' + k + '</kbd></td><td>Seçili yazı kutusunu kopyala / tıklanan yere yapıştır<')) || null,
-        bildirim: tus('Yazı kutusu kopyalandı; tıkladığınız yere Ctrl+V ile yapıştırılır.') };
+        bildirim: tus('Yazı kutusu kopyalandı. Tıkladığınız yere Ctrl+V ile yapıştırılır.') };
       sayfaEl.remove();
     }
     return sonuc;
@@ -540,7 +540,7 @@ export default async function ({ evalJs }) {
     const k = ad === 'macOS' ? '⌘' : 'Ctrl+';
     sonuc(`Yazı kutusu yapıştırma yeri (${ad}): Ctrl+tıkın yeri sayfa noktası olarak kaydedilir, yazının üzerindeki basış "notun üzerinde"; Kısayollar ve bildirim ${k}C / ${k}V`,
       r.bos.girdi === 'g1' && J(r.bos.nokta) === J([100, 200]) && r.bos.notUstunde === false && r.ustunde === true && r.kisayol === (ad === 'macOS' ? '⌘C / ⌘V' : 'Ctrl+C / Ctrl+V')
-      && r.bildirim === `Yazı kutusu kopyalandı; tıkladığınız yere ${k}V ile yapıştırılır.`, r);
+      && r.bildirim === `Yazı kutusu kopyalandı. Tıkladığınız yere ${k}V ile yapıştırılır.`, r);
   }
 
   // ---------------------------------------------------------------- Açılış teması (ilkTema.js, 0.2.10)

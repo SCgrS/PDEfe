@@ -54,7 +54,7 @@ const ACILIS_GECIKMESI_MS = 6000;                // pencere gösterildikten sonr
 const KURULUM_BEKLEME_MS = 30000;                // kurulum bu sürede uygulamayı kapatmazsa başlatılamamış sayılır
 const INDIRME_BEKLEME_MS = 60000;                // indirme bu süre hiç ilerlemezse kesilir (0.2.5)
 const TEMIZLIK_YENIDEN_MS = [3000, 10000, 30000]; // açılış temizliğinde silinemeyen dosya bu aralıklarla yeniden denenir (0.2.5)
-export const DONMUS_INDIRME = 'İndirme ilerlemiyor; internet bağlantısını denetleyip yeniden deneyin.';
+export const DONMUS_INDIRME = 'İndirme ilerlemiyor. İnternet bağlantısını denetleyip yeniden deneyin.';
 
 /** Son başarılı denetimin zamanı (ms); hiç yoksa ya da bozuksa 0. */
 function sonDenetim(ayarAl) { const n = Number(ayarAl(AYAR_SON_DENETIM)); return Number.isFinite(n) && n > 0 ? n : 0; }
@@ -135,15 +135,15 @@ export function hataMetni(e, indirme = false) {
   if (kod === 'ERR_UPDATER_INVALID_SIGNATURE') return 'Kurulum dosyasının imzası doğrulanamadı.';
   if (kod === 'ERR_UPDATER_ASSET_NOT_FOUND' || kod === 'ERR_UPDATER_ZIP_FILE_NOT_FOUND') return 'Kurulum dosyası sunucuda bulunamadı.';
   if (kod === 'ERR_CHECKSUM_MISMATCH' || /checksum mismatch/i.test(m)) return 'İndirilen dosyanın bütünlüğü doğrulanamadı.';
-  if (/ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ESOCKETTIMEDOUT|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|socket hang up|net::ERR/i.test(`${kod} ${m}`)) return 'Sunucuya ulaşılamadı; internet bağlantısını denetleyin.';
+  if (/ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ESOCKETTIMEDOUT|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|socket hang up|net::ERR/i.test(`${kod} ${m}`)) return 'Sunucuya ulaşılamadı. İnternet bağlantısını denetleyin.';
   if (/ENOSPC/i.test(`${kod} ${m}`)) return 'Diskte yeterli boş yer yok.';
   if (/No update filepath provided|No valid update available/i.test(m)) return 'İndirilen kurulum dosyası bulunamadı.';
   if (/\bspawn\b|EACCES|EPERM|EBUSY/i.test(`${kod} ${m}`)) return 'Kurulum dosyası başlatılamadı.';
-  if (kod === 'PDEFE_KURULUM_BASLAMADI') return 'Kurulum başlamadı; yeniden deneyin.';   // kur(): uygulama beklenen sürede kapanmadı
+  if (kod === 'PDEFE_KURULUM_BASLAMADI') return 'Kurulum başlamadı. Yeniden deneyin.';   // kur(): uygulama beklenen sürede kapanmadı
   if (http === 404) return indirme ? 'Kurulum dosyası sunucuda bulunamadı.' : 'Sürüm bilgisi bulunamadı (henüz yayımlanmış sürüm yok).';
-  if (http === 403 || http === 429) return 'Sunucu isteği şu an kabul etmiyor; biraz sonra yeniden deneyin.';
-  if (http >= 500 && http <= 599) return 'Sunucu şu an yanıt vermiyor; biraz sonra yeniden deneyin.';
-  return 'Beklenmeyen bir hata oluştu; biraz sonra yeniden deneyin.';
+  if (http === 403 || http === 429) return 'Sunucu isteği şu an kabul etmiyor. Biraz sonra yeniden deneyin.';
+  if (http >= 500 && http <= 599) return 'Sunucu şu an yanıt vermiyor. Biraz sonra yeniden deneyin.';
+  return 'Beklenmeyen bir hata oluştu. Biraz sonra yeniden deneyin.';
 }
 
 /** Hatanın ilk satırı (günlük için; kısa). */

@@ -133,7 +133,7 @@ export class DondurPenceresi {
       this.ilerleme.gizle();
       await this.pencere.kapat('tamam');
       // Var olan (bir sekmede açık) dosyanın üzerine yazıldıysa o sekme yeni haliyle yeniden açılır, yoksa yeni sekmede açılır
-      await ciktiyiAc(baglam, hedef, { cikti: this.kayit.cikti, soruAyrintisi: 'Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.' });
+      await ciktiyiAc(baglam, hedef, { cikti: this.kayit.cikti, soruAyrintisi: 'Belge diskteki yeni hâliyle yeniden açılırsa bu değişiklikler atılır.' });
       baglam.bildir(`${adet} ${yon} döndürüldü: ${dosyaAdi(hedef)}`, 4000);
     } catch (e) {
       this.ilerleme.gizle();
@@ -161,7 +161,7 @@ export class DondurPenceresi {
     if (!belge.gorunum?.sayfaSayisi || (belge.el && !belge.el.isConnected)) { this.pencere.hataGoster('Belge açık değil ya da henüz yüklenmedi.'); return false; }
     if ((await degisiklikleriSor(baglam, belge, 'Döndürme', {
       yalnizKaydet: true,
-      aciklama: 'Üzerine yazarken döndürme belgeye uygulanır ve belge kaydedilir; bu değişiklikler de dosyaya yazılır.',
+      aciklama: 'Üzerine yazarken döndürme belgeye uygulanır ve belge kaydedilir. Bu değişiklikler de dosyaya yazılır.',
     })) === 'vazgec') return false;
     if (this.pencere.kapali) return false;
     // "Kaydet ve devam et" belgeyi yeniden yüklemiş olabilir: sayfa sayısı ve seçim yeniden denetlenir
@@ -191,7 +191,7 @@ export class DondurPenceresi {
     }
     await this.pencere.kapat('tamam');
     const kaydedildi = await baglam.kaydet(belge);
-    baglam.bildir(kaydedildi ? `${adet} ${yon} döndürüldü ve kaydedildi.` : `${adet} ${yon} döndürüldü; kaydedilmedi.`, kaydedildi ? 3500 : 6000);
+    baglam.bildir(kaydedildi ? `${adet} ${yon} döndürüldü ve kaydedildi.` : `${adet} ${yon} döndürüldü, kaydedilmedi.`, kaydedildi ? 3500 : 6000);
     return false;
   }
 }

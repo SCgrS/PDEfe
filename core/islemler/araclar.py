@@ -774,7 +774,7 @@ def y_ayir(p):
     parcalar = []
     for i, parca in enumerate(verilen):
         if not isinstance(parca, dict) or not isinstance(parca.get("sayfalar"), list) or not parca["sayfalar"]:
-            raise ValueError("Parça %d geçersiz: sayfa listesi gerekli." % (i + 1))
+            raise ValueError("Parça %d geçersiz: Sayfa listesi gerekli." % (i + 1))
         ham = str(parca.get("ad") or "").strip()
         if not ham:
             raise ValueError("Parça %d için dosya adı gerekli." % (i + 1))

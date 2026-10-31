@@ -13,9 +13,9 @@ import {
  *  tahmini boyut; Görüntü / PDF birleştir'deki gibi teknik ayrıntı yok); çekirdek (core/islemler/araclar.py SEVIYELER)
  *  adlandırılmış seviyelerde kendi değerlerini kullanır, bu tablo onunla aynı tutulur. Kimlikler çekirdekle ortaktır. */
 export const SEVIYELER = {
-  asiri: { ad: 'Aşırı sıkıştırma', aciklama: 'En küçük dosya; görseller belirgin biçimde bulanıklaşır. E-posta ve arşiv için.', dpi: 96, kalite: 45 },
+  asiri: { ad: 'Aşırı sıkıştırma', aciklama: 'En küçük dosya. Görseller belirgin biçimde bulanıklaşır. E-posta ve arşiv için.', dpi: 96, kalite: 45 },
   onerilen: { ad: 'İdeal sıkıştırma', aciklama: 'İyi kalite, iyi sıkıştırma. Ekranda okuma ve paylaşım için uygundur.', dpi: 150, kalite: 72 },
-  dusuk: { ad: 'Düşük sıkıştırma', aciklama: 'Yüksek kalite; yalnızca gereksiz veriler atılır, görseller hafifçe sıkıştırılır.', dpi: 220, kalite: 88 },
+  dusuk: { ad: 'Düşük sıkıştırma', aciklama: 'Yüksek kalite. Yalnızca gereksiz veriler atılır, görseller hafifçe sıkıştırılır.', dpi: 220, kalite: 88 },
 };
 
 export class KucultPenceresi {
@@ -69,9 +69,9 @@ export class KucultPenceresi {
     this.pencere.el.addEventListener('kapandi', (e) => {
       if (!this.sekmeBayat) return;
       e.detail?.bekle?.((async () => {
-        const sonuc = await sekmeyiYenile(this.baglam, this.belge, { soruAyrintisi: 'Belge diskteki sıkıştırılmış haliyle yeniden açılırsa bu değişiklikler atılır.' }).catch(() => false);
+        const sonuc = await sekmeyiYenile(this.baglam, this.belge, { soruAyrintisi: 'Belge diskteki sıkıştırılmış hâliyle yeniden açılırsa bu değişiklikler atılır.' }).catch(() => false);
         if (sonuc) this.sekmeBayat = false;
-        else this.baglam.bildir('Açık sekme dosyanın sıkıştırılmadan önceki halini gösteriyor; notlarda değişiklik yapmadan önce sekmeyi kapatıp yeniden açın.', 8000);
+        else this.baglam.bildir('Açık sekme dosyanın sıkıştırılmadan önceki hâlini gösteriyor. Notlarda değişiklik yapmadan önce sekmeyi kapatıp yeniden açın.', 8000);
       })());
     });
     this.seviyeSec('onerilen');
@@ -129,7 +129,7 @@ export class KucultPenceresi {
     el.classList.remove('bekliyor', 'hata');
     if (hata) { el.classList.add('hata'); el.textContent = hata; return; }
     if (boyut == null) { el.classList.add('bekliyor'); el.textContent = mesaj || 'hesaplanıyor…'; return; }
-    el.innerHTML = `<b>${kacis(boyutMetni(boyut))}</b> · ${kacis(farkMetni(this.mevcutBoyut, boyut))}${this.ornekleme ? ' <span class="soluk" title="Büyük belge: ilk sayfalar örneklenerek tahmin edildi">≈</span>' : ''}`;
+    el.innerHTML = `<b>${kacis(boyutMetni(boyut))}</b> · ${kacis(farkMetni(this.mevcutBoyut, boyut))}${this.ornekleme ? ' <span class="soluk" title="Büyük belge: İlk sayfalar örneklenerek tahmin edildi">≈</span>' : ''}`;
   }
 
   /**
@@ -159,8 +159,8 @@ export class KucultPenceresi {
         else this._tahminYaz(id, b);
       }
       const notlar = [];
-      if (this.ornekleme) notlar.push('Büyük belge: tahminler ilk sayfalar örneklenerek hesaplandı (≈); gerçek sonuç biraz farklı olabilir.');
-      if (eksik) notlar.push('Bazı seviyeler için tahmin alınamadı; sıkıştırma yine de yapılabilir.');
+      if (this.ornekleme) notlar.push('Büyük belge: Tahminler ilk sayfalar örneklenerek hesaplandı (≈). Gerçek sonuç biraz farklı olabilir.');
+      if (eksik) notlar.push('Bazı seviyeler için tahmin alınamadı. Sıkıştırma yine de yapılabilir.');
       this.notEl.hidden = !notlar.length;
       this.notEl.textContent = notlar.join(' ');
     } catch (e) {
@@ -229,7 +229,7 @@ export class KucultPenceresi {
         // gönderiliyordu): sonuç kalır ve açılır, açık sekmesi yenilenir (Birleştir'deki gibi)
         await this.pencere.kapat('tamam');
         baglam.bildir(`İptal edilemeden tamamlandı: "${dosyaAdi(hedef)}" üzerine yazıldı.`, 6000);
-        await ciktiyiAc(baglam, hedef, { cikti: this.kayit.cikti, soruAyrintisi: 'Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.' });
+        await ciktiyiAc(baglam, hedef, { cikti: this.kayit.cikti, soruAyrintisi: 'Belge diskteki yeni hâliyle yeniden açılırsa bu değişiklikler atılır.' });
       } else if (e.iptal) {
         // İş yine de bittiyse (iptal geç ulaştı) ve işlemden önce olmayan yeni dosya oluştuysa çöp kutusuna gönder
         if (!uzerine && !hedefVardi && e.sonuc) { try { await baglam.pdefe.cagir('dosya:sil', hedef); } catch { /* yok say */ } }
@@ -260,8 +260,8 @@ export class KucultPenceresi {
     this.sonucEl.className = 'kucult-sonuc ' + (buyuk ? 'arac-uyari' : 'arac-basari');
     if (uzerine && yazilmadi) {
       // Çekirdek küçülmeyen sonucu yazmadı: özgün dosya olduğu gibi duruyor, sekme bayat değil
-      this.sonucEl.innerHTML = `<div><b>Dosya küçülmedi; özgün dosya değiştirilmedi.</b></div>
-        <div>Bu seviyeyle ulaşılan boyut: ${fark}. Belge zaten sıkıştırılmış olabilir ya da görsel içermiyor olabilir; daha güçlü bir seviye deneyebilirsiniz.</div>`;
+      this.sonucEl.innerHTML = `<div><b>Dosya küçülmedi. Özgün dosya değiştirilmedi.</b></div>
+        <div>Bu seviyeyle ulaşılan boyut: ${fark}. Belge zaten sıkıştırılmış olabilir ya da görsel içermiyor olabilir. Daha güçlü bir seviye deneyebilirsiniz.</div>`;
       return;
     }
     if (uzerine) {
@@ -273,12 +273,12 @@ export class KucultPenceresi {
       this.tahminlerEski = true;
       for (const id of Object.keys(SEVIYELER)) this._tahminYaz(id, null, 'yeniden sıkıştırmak için seçin');
       this.notEl.hidden = false;
-      this.notEl.textContent = 'Dosya sıkıştırıldı; tahminler önceki boyuta göreydi. Yeniden sıkıştırmak isterseniz bir seviye seçtiğinizde yeni boyuta göre hesaplanır.';
+      this.notEl.textContent = 'Dosya sıkıştırıldı. Tahminler önceki boyuta göreydi. Yeniden sıkıştırmak isterseniz bir seviye seçtiğinizde yeni boyuta göre hesaplanır.';
     }
     this.sonucEl.innerHTML = `<div><b>${buyuk ? 'Dosya küçülmedi.' : 'Sıkıştırma tamamlandı.'}</b> ${fark}</div>
       <div class="soluk kucult-sonuc-yol" title="${kacis(yol)}">${kacis(yol)}</div>
       ${buyuk ? '<div>Belge zaten sıkıştırılmış olabilir ya da görsel içermiyor olabilir. Daha güçlü bir seviye deneyebilir ya da sonucu silebilirsiniz.</div>' : ''}
-      ${uzerine ? `<div class="soluk">Açık sekme dosyanın önceki halini gösteriyor; ${this.sekmeBayat ? 'pencere kapanınca güncel haliyle yeniden açılır.' : 'güncel hali için sekmeyi kapatıp yeniden açın.'}</div>` : ''}
+      ${uzerine ? `<div class="soluk">Açık sekme dosyanın önceki hâlini gösteriyor. ${this.sekmeBayat ? 'Pencere kapanınca güncel hâliyle yeniden açılır.' : 'Güncel hâli için sekmeyi kapatıp yeniden açın.'}</div>` : ''}
       <div class="arac-satir kucult-sonuc-dugmeler">
         ${!uzerine ? '<button class="ikincil kucult-ac">Yeni sekmede aç</button>' : this.sekmeBayat ? '<button class="ikincil kucult-ac">Belgeyi yeniden aç</button>' : ''}
         <button class="ikincil kucult-goster">Klasörde göster</button>
@@ -290,7 +290,7 @@ export class KucultPenceresi {
         // Bayat sekme önce kapatılıp aynı sayfada yeniden açılır (kirliyse sorulur); sekmeBayat temizlendiği için pencerenin kapanışı yeniden açmaz
         if (!this.sekmeBayat) return;
         const sayfa = this.belge.gorunum?.gecerli || 1;
-        const r = await sekmeyiYenile(baglam, this.belge, { ac: false, soruAyrintisi: 'Belge diskteki sıkıştırılmış haliyle yeniden açılırsa bu değişiklikler atılır.' });
+        const r = await sekmeyiYenile(baglam, this.belge, { ac: false, soruAyrintisi: 'Belge diskteki sıkıştırılmış hâliyle yeniden açılırsa bu değişiklikler atılır.' });
         if (!r) return;
         this.sekmeBayat = false;
         await this.pencere.kapat('tamam');
@@ -300,7 +300,7 @@ export class KucultPenceresi {
       }
       await this.pencere.kapat('tamam');
       // Var olan (bir sekmede açık) dosyanın üzerine yazıldıysa o sekme yeni haliyle yeniden açılır
-      await ciktiyiAc(baglam, yol, { cikti: this.kayit.cikti, soruAyrintisi: 'Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.' });
+      await ciktiyiAc(baglam, yol, { cikti: this.kayit.cikti, soruAyrintisi: 'Belge diskteki yeni hâliyle yeniden açılırsa bu değişiklikler atılır.' });
       baglam.bildir(`Sıkıştırıldı · ${ozet}`, 5000);
     };
     this.sonucEl.querySelector('.kucult-ac')?.addEventListener('click', ac);

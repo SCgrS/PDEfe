@@ -436,7 +436,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, hedefler, hedefS
     await ana('test:uygulamaOlayi', 'second-instance', [A]);
     await bekle(800);
     const bildirim = await evalJs(`document.querySelector('#bildirim')?.hidden === false ? document.querySelector('#bildirim').textContent : ''`);
-    sonuc('5d) Araç penceresinin arkasında zaten açık belge: yeni pencere yok, "zaten açık" bildirimi', (await pencereler()).length === 2 && /pencere-a" bu pencerede zaten açık; araç penceresi kapanınca görünür/.test(bildirim), bildirim);
+    sonuc('5d) Araç penceresinin arkasında zaten açık belge: yeni pencere yok, "zaten açık" bildirimi', (await pencereler()).length === 2 && /pencere-a" bu pencerede zaten açık. Araç penceresi kapanınca görünür/.test(bildirim), bildirim);
     // e) Araç açıkken arayüzden açılan belge (0.2.7'de sonuç listesindeki Aç; 0.2.8'de o küçük Aç'lar kalktı, "Tümünü aç" varsayılan programla açar:
     // senaryo41): yeni pencerede (araç açık kalır)
     await evalJs(`(window.__pdefe.dosyaAc(${J(E)}), true)`);

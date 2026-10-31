@@ -1485,7 +1485,7 @@ def sayfa_dondurmeleri_dogrula(doc, dondurmeler):
     if dondurmeler is None:
         return []
     if not isinstance(dondurmeler, dict):
-        raise ValueError("Sayfa döndürmeleri geçersiz: sayfa numarası → açı sözlüğü bekleniyor.")
+        raise ValueError("Sayfa döndürmeleri geçersiz: Sayfa numarası → açı sözlüğü bekleniyor.")
     sonuc = {}
     for anahtar, deger in dondurmeler.items():
         try:

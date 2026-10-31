@@ -51,7 +51,7 @@ export function sayfaAraligiCoz(metin, toplam) {
       return { hata: `Geçersiz ifade: "${parca}". Örnek: 1-3,5` };
     }
     if (bas < 1 || son < 1) return { hata: 'Sayfa numaraları 1\'den başlar.' };
-    if (bas > toplam || son > toplam) return { hata: `Belgede ${toplam} sayfa var; ${Math.max(bas, son)} numaralı sayfa yok.` };
+    if (bas > toplam || son > toplam) return { hata: `Belgede ${toplam} sayfa var. ${Math.max(bas, son)} numaralı sayfa yok.` };
     if (bas > son) [bas, son] = [son, bas];
     for (let i = bas; i <= son; i++) kume.add(i);
   }

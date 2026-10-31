@@ -16,7 +16,7 @@ export function acilisHatasi(e) {
   console.error('[PDEfe] açılamadı:', e);
   // Kutu açıkken Gezgin'de çift tıklanan PDF bu sürece iletilip kaybolmasın: yeni süreç ilk örnek olur, açılmayı kendisi dener
   try { app.releaseSingleInstanceLock(); } catch { /* kilit yok */ }
-  const ozet = e?.kullaniciIletisi || 'PDEfe başlatılırken bir hata oluştu. PDEfe\'yi yeniden açmayı deneyin; sorun sürerse PDEfe\'yi yeniden kurun.';
+  const ozet = e?.kullaniciIletisi || 'PDEfe başlatılırken bir hata oluştu. PDEfe\'yi yeniden açmayı deneyin. Sorun sürerse PDEfe\'yi yeniden kurun.';
   // Ekran dışındaki test örneğinde (PDEFE_TEST_KONUM) kutu gösterilmez: Windows onu görünen ekrana açardı (gelistirme.js testDiyalogKur gibi)
   if (TEST.konum.length !== 2) {
     // showErrorBox 'ready'den önce de güvenli; kutu kapanana dek bekler

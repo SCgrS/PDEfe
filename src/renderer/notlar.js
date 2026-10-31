@@ -689,7 +689,7 @@ export class NotYoneticisi extends EventTarget {
         // Kayıt notu dosyadan silmiş ve çekirdek bu türü yeniden oluşturamıyorsa (EKLENEBILIR dışı: ek, damga, şekil) geri konmaz: ekranda
         // görünür ama kayıtta yazılmaz, belge temiz sayılırdı. Yanıtlar da konmaz (üstsüz kalıp bağımsız not olarak yazılırlardı).
         if (!this.kayitli.has(not.id) && !EKLENEBILIR.has(not.tur)) {
-          this.dispatchEvent(new CustomEvent('uyari', { detail: { metin: `${turAdi(not.tur)} kaydedilirken dosyadan silindi; bu tür not dosyaya geri yazılamadığı için silme geri alınamaz.` } }));
+          this.dispatchEvent(new CustomEvent('uyari', { detail: { metin: `${turAdi(not.tur)} kaydedilirken dosyadan silindi. Bu tür not dosyaya geri yazılamadığı için silme geri alınamaz.` } }));
           return;
         }
         this.modeleGeriKoy(not); for (const y of yanitlar) this.modeleGeriKoy(y); this.cizSayfa(not.sayfa);

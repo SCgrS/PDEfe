@@ -169,7 +169,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tus }) {
   sonuc('2) Aralık "2-3": 1 / 2 (s. 2), özet "2 sayfa", belgeye göre kâğıt A4', d.sayfaNo === '1 / 2 (s. 2)' && d.no === '2' && d.ozet === '2 sayfa' && d.kagitBelge === 'Belgeye göre (A4)', d);
   await evalJs(`(() => { const a = window.__yz.al('aralikMetni'); a.value = '9'; a.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
   await bekle(400); d = await durum();
-  sonuc('2) Hatalı aralık: ön izlemede hata, kâğıt gizli, sayfa "–"', /4 sayfa var; 9 numaralı sayfa yok/.test(d.onizlemeDurum) && d.kagitGizli && d.sayfaNo === '–' && d.ozet === '', d);
+  sonuc('2) Hatalı aralık: ön izlemede hata, kâğıt gizli, sayfa "–"', /4 sayfa var\. 9 numaralı sayfa yok/.test(d.onizlemeDurum) && d.kagitGizli && d.sayfaNo === '–' && d.ozet === '', d);
   await evalJs(`(() => { const a = window.__yz.al('aralikMetni'); a.value = '4'; a.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
   await bekle(400); await goruntu(); d = await durum();
   sonuc('2) Aralık "4" (tek A5 sayfa): belgeye göre kâğıt A5', d.kagitBelge === 'Belgeye göre (A5)' && yakin(d.kagitOlcu[0] / d.kagitOlcu[1], 148 / 210, 0.01) && d.sayfaNo === '1 / 1 (s. 4)', d);
@@ -231,7 +231,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tus }) {
   y = await yazdir();
   const s2 = y.kayit[0]?.secenek?.secenek || {};
   sonuc('5) "Yazıcının ayarı": duplexMode gönderilmez; renkli; 4 sayfa', y.kayit.length === 1 && !('duplexMode' in s2) && s2.color === true && s2.deviceName === 'Kat 2 Yazıcısı' && y.kayit[0].secenek.sayfaSayisi === 4, y.kayit);
-  sonuc('5) Çevrim dışı yazıcıda bildirim kuyruğu söyler', /yazıcı çevrim dışı görünüyor; iş, yazıcı açılınca basılır/.test(y.bildirim), y.bildirim);
+  sonuc('5) Çevrim dışı yazıcıda bildirim kuyruğu söyler', /yazıcı çevrim dışı görünüyor, iş yazıcı açılınca basılır/.test(y.bildirim), y.bildirim);
   // 0.2.8 (kullanıcı isteği: "Yazdırma ekranındaki varsayılan ayar 'Tüm sayfalar' olsun her zaman. Bazen bir aralık seçince diğer PDF'lere de
   // yansıyor"): "Geçerli sayfa" da hatırlanmaz; bir belgede yazdırılan aralık başka belgenin penceresine geçmez
   await ac();
@@ -255,7 +255,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tus }) {
   // Hatırlanan yazıcı kaldırılmış
   await evalJs(`window.pdefe.cagir('test:yazicilar', ${J(SAHTE.filter((x) => x.ad !== 'Kat 2 Yazıcısı'))})`);
   await ac(); d = await durum();
-  sonuc('5) Hatırlanan yazıcı kaldırılmış: varsayılan seçili, uyarı', d.yazici === 'Lazer Yazıcı' && /Son kullanılan yazıcı \("Kat 2 Yazıcısı"\) bulunamadı; varsayılan yazıcı seçildi/.test(d.bilgi) && d.bilgiUyari, d);
+  sonuc('5) Hatırlanan yazıcı kaldırılmış: varsayılan seçili, uyarı', d.yazici === 'Lazer Yazıcı' && /Son kullanılan yazıcı \("Kat 2 Yazıcısı"\) bulunamadı\. Varsayılan yazıcı seçildi/.test(d.bilgi) && d.bilgiUyari, d);
   // Yazdırma hatası: yazıcı tam o sırada kaldırıldı
   await evalJs(`window.pdefe.cagir('test:diyalogYanitlari', 'yazdir:yazdir', [{ basarili: false, neden: 'Invalid deviceName provided' }])`);
   await evalJs(`(window.__pdefeOtoYanit = { secim: 0, onay: false }, true)`);

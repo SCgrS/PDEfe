@@ -59,7 +59,7 @@ export class MacGuncelleyici extends EventEmitter {
     }
   }
 
-  downloadUpdate() { return Promise.reject(new Error('macOS / AppImage dışı Linux: güncelleme tarayıcıda indirilir (tarayiciIndir).')); }
+  downloadUpdate() { return Promise.reject(new Error('macOS / AppImage dışı Linux: Güncelleme tarayıcıda indirilir (tarayiciIndir).')); }
 
   quitAndInstall() { /* macOS'ta ve AppImage dışı Linux'ta kullanılmaz */ }
 }

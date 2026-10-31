@@ -265,7 +265,7 @@ export class TumSecim {
     if (is.iptal) return;
     const n = is.sayfalar.length;
     if (!yazildi) this.bildir('Bu arada başka bir şey kopyalandığı için belgenin metni panoya yazılmadı', 5000);
-    else if (is.hata) this.bildir(`Belgenin metni kopyalandı; ${is.hata} sayfanın metni alınamadı`, 5000);
+    else if (is.hata) this.bildir(`Belgenin metni kopyalandı. ${is.hata} sayfanın metni alınamadı`, 5000);
     else this.bildir(`Belgenin metni kopyalandı (${n} sayfa)`, 3000);
   }
 

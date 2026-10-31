@@ -99,7 +99,7 @@ export class AyirPenceresi {
       <div class="arac-bolum ayir-cikti-alani">
         <div class="arac-bolum-baslik">Kaydet</div>
         <div class="ayir-onizleme"></div>
-        <div class="arac-aciklama ayir-adlar" hidden>Var olan dosyaların üzerine yazılmaz; aynı adlı dosya varsa ada "(2)" eklenir.</div>
+        <div class="arac-aciklama ayir-adlar" hidden>Var olan dosyaların üzerine yazılmaz. Aynı adlı dosya varsa ada "(2)" eklenir.</div>
       </div>
       <div class="ayir-sonuc" hidden></div>
     </div>`);
@@ -112,8 +112,8 @@ export class AyirPenceresi {
     this.kipSecim = segmentliSecim({
       etiket: 'Dosya sayısı', deger: this.dosyaKipi, sinif: 'ayir-dosya-kipi-secim',
       secenekler: [
-        { id: 'ayri', etiket: 'Ayrı ayrı dosya', baslik: 'Yazılanların her biri ayrı bir dosya olur (örn. 1-3, 4-10: iki dosya)' },
-        { id: 'tek', etiket: 'Tek dosya', baslik: 'Yazılan sayfaların hepsi tek bir dosyada toplanır (örn. 1-3, 7: dört sayfalık bir dosya)' },
+        { id: 'ayri', etiket: 'Ayrı ayrı dosya', baslik: 'Yazılanların her biri ayrı bir dosya olur (örn. 1-3, 4-10: İki dosya)' },
+        { id: 'tek', etiket: 'Tek dosya', baslik: 'Yazılan sayfaların hepsi tek bir dosyada toplanır (örn. 1-3, 7: Dört sayfalık bir dosya)' },
       ],
       degisti: (id) => { this.dosyaKipi = id; if (this.mod !== 'aralik') this._modSec('aralik', false); else this.onizle(); },
     });
@@ -153,8 +153,8 @@ export class AyirPenceresi {
   async _kapatmaIzni() {
     if (!this.ilerleme.calisiyor) return true;
     const ayrinti = this.kayit.uzerineMi()
-      ? 'Pencereyi kapatırsanız işlem iptal edilir; dosyaya henüz yazılmadıysa özgün dosya değişmez.'
-      : 'Pencereyi kapatırsanız işlem iptal edilir; oluşmuş dosyalar kalır.';
+      ? 'Pencereyi kapatırsanız işlem iptal edilir. Dosyaya henüz yazılmadıysa özgün dosya değişmez.'
+      : 'Pencereyi kapatırsanız işlem iptal edilir. Oluşmuş dosyalar kalır.';
     const { secim } = await this.baglam.mesajKutusu({ mesaj: 'Ayırma sürüyor.', ayrinti, dugmeler: ['İptal et ve kapat', 'Sürdür'], varsayilan: 1, iptal: 1 });
     if (secim !== 0) return false;
     this.ilerleme.iptalIste();
@@ -193,7 +193,7 @@ export class AyirPenceresi {
       // Geri alınamaz: özgün dosyada nelerin kalacağı açıkça yazılır
       const p = parcalar[0], ad = kacis(dosyaAdi(this.belge.yol)), kalan = this.toplam - p.sayfalar.length;
       this.onizleme.innerHTML = kalan > 0
-        ? `<b>"${ad}"</b> dosyasında yalnızca ${sayiMetni(p.sayfalar.length)} sayfa kalır <span class="soluk">(${kacis(kisaListe(p.sayfalar))})</span>; diğer ${sayiMetni(kalan)} sayfa silinir.`
+        ? `<b>"${ad}"</b> dosyasında yalnızca ${sayiMetni(p.sayfalar.length)} sayfa kalır <span class="soluk">(${kacis(kisaListe(p.sayfalar))})</span>. Diğer ${sayiMetni(kalan)} sayfa silinir.`
         : `Bütün sayfalar seçili: <b>"${ad}"</b> aynı sayfalarla yeniden yazılır.`;
       this.pencere?.dugmeAyarla('ayir', { devre: this._yapildi() });
       return;
@@ -233,7 +233,7 @@ export class AyirPenceresi {
     // Sayfa numaraları sekmedeki gibidir: sekmede kaydedilmemiş sayfa silme / sıralama varsa dosyadakilerle uyuşmaz, önce kaydedilmeli
     // (üzerine yazmada yanlış sayfalar geri alınamaz biçimde kalırdı)
     const secenek = numaralarDosyaylaAyni(belge) ? {} : { yalnizKaydet: true, neden: NUMARA_UYUSMAZ };
-    if (this.kayit.uzerineMi()) secenek.aciklama = 'Ayırma dosyadaki kayıtlı sürüm üzerinde çalışır; üzerine yazıldıktan sonra belge yeni haliyle yeniden açılır ve kaydedilmemiş değişiklikler atılır.';
+    if (this.kayit.uzerineMi()) secenek.aciklama = 'Ayırma dosyadaki kayıtlı sürüm üzerinde çalışır. Üzerine yazıldıktan sonra belge yeni hâliyle yeniden açılır ve kaydedilmemiş değişiklikler atılır.';
     if ((await degisiklikleriSor(baglam, belge, 'Ayırma', secenek)) === 'vazgec') return false;
     if (this.pencere.kapali) return false;
     // Ad ve klasör; tek dosyada var olan dosya sorusu; yazılacak dosya (üzerine yazmada özgün dosya) kilitli ya da salt okunursa şimdi
@@ -251,7 +251,7 @@ export class AyirPenceresi {
       for (const p of parcalar.slice(0, 200)) { if (await baglam.pdefe.cagir('dosya:varMi', yolBirlestir(klasor, p.ad))) varOlanlar.push(p.ad); }
       if (this.pencere.kapali) return false;
       if (varOlanlar.length) {
-        const { secim } = await baglam.mesajKutusu({ mesaj: `${varOlanlar.length} dosya zaten var.`, ayrinti: varOlanlar.slice(0, 8).join('\n') + (varOlanlar.length > 8 ? `\nve ${varOlanlar.length - 8} dosya daha` : '') + '\n\nVar olanlar korunur; yeni dosyaların adına "(2)" eklenir. Devam edilsin mi?', dugmeler: ['Devam et', 'Vazgeç'], varsayilan: 0, iptal: 1 });
+        const { secim } = await baglam.mesajKutusu({ mesaj: `${varOlanlar.length} dosya zaten var.`, ayrinti: varOlanlar.slice(0, 8).join('\n') + (varOlanlar.length > 8 ? `\nve ${varOlanlar.length - 8} dosya daha` : '') + '\n\nVar olanlar korunur. Yeni dosyaların adına "(2)" eklenir. Devam edilsin mi?', dugmeler: ['Devam et', 'Vazgeç'], varsayilan: 0, iptal: 1 });
         if (secim !== 0 || this.pencere.kapali) return false;
       }
     }
@@ -296,9 +296,9 @@ export class AyirPenceresi {
       return;
     }
     const r = await sekmeyiYenile(this.baglam, acik, {
-      soruAyrintisi: 'Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.', sormadan: !!this.kayit.cikti.onaylandi?.(yol),
+      soruAyrintisi: 'Belge diskteki yeni hâliyle yeniden açılırsa bu değişiklikler atılır.', sormadan: !!this.kayit.cikti.onaylandi?.(yol),
     }).catch(() => false);
-    if (!r) this.baglam.bildir(`"${acik.ad}" sekmesi dosyanın önceki halini gösteriyor; notlarda değişiklik yapmadan önce sekmeyi kapatıp yeniden açın.`, 8000);
+    if (!r) this.baglam.bildir(`"${acik.ad}" sekmesi dosyanın önceki hâlini gösteriyor. Notlarda değişiklik yapmadan önce sekmeyi kapatıp yeniden açın.`, 8000);
   }
 
   /**
@@ -334,7 +334,7 @@ export class AyirPenceresi {
     const n = sonuc.ayrintilar?.[0]?.sayfa ?? parca.sayfalar.length;
     await this.pencere.kapat('tamam');
     // Sekme dosyanın önceki halini (eski xref'leri) tutuyor: diskteki yeni haliyle yeniden açılır
-    await ciktiyiAc(baglam, yol, { soruAyrintisi: 'Belge diskteki yeni haliyle (yalnızca ayrılan sayfalar) yeniden açılırsa bu değişiklikler atılır.' });
+    await ciktiyiAc(baglam, yol, { soruAyrintisi: 'Belge diskteki yeni hâliyle (yalnızca ayrılan sayfalar) yeniden açılırsa bu değişiklikler atılır.' });
     baglam.bildir(`"${dosyaAdi(yol)}" üzerine yazıldı: ${sayiMetni(n)} sayfa kaldı.`, 5000);
     return false;
   }
@@ -386,7 +386,7 @@ export class AyirPenceresi {
       const fazla = liste.length > PDEFEDE_EN_COK;
       const { secim } = await baglam.mesajKutusu({
         mesaj: fazla ? `${sayiMetni(liste.length)} belgenin ilk ${PDEFEDE_EN_COK} tanesi PDEfe'de açılsın mı?` : `${sayiMetni(liste.length)} belge PDEfe'de açılsın mı?`,
-        ayrinti: `Her belge bu pencerede ayrı bir sekmede açılır; araç penceresi kapanır.${fazla ? ` Bir kerede en çok ${PDEFEDE_EN_COK} belge açılır.` : ''}`,
+        ayrinti: `Her belge bu pencerede ayrı bir sekmede açılır. Araç penceresi kapanır.${fazla ? ` Bir kerede en çok ${PDEFEDE_EN_COK} belge açılır.` : ''}`,
         dugmeler: ['Aç', 'Vazgeç'], varsayilan: 0, iptal: 1,
       });
       if (secim !== 0) return;

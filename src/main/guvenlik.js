@@ -281,7 +281,7 @@ export function udfIcerigiDenetle(bayt) {
   const b = Buffer.isBuffer(bayt) ? bayt : Buffer.from(bayt.buffer, bayt.byteOffset, bayt.byteLength);
   if (b.length > UDF_SINIRI.dosya) throw hataKodlu('buyuk', `Dosya çok büyük (${Math.round(b.length / MiB)} MB, en çok ${UDF_SINIRI.dosya / MiB} MB).`);
   if (b.length >= 4 && b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04) {
-    const bozuk = () => hataKodlu('bozuk', 'Dosya açılamadı: bozuk ya da UDF değil.');
+    const bozuk = () => hataKodlu('bozuk', 'Dosya açılamadı: Bozuk ya da UDF değil.');
     if (b.length < 22) throw bozuk();
     let eocd = -1;
     for (let i = b.length - 22, alt = Math.max(0, b.length - 22 - 65535); i >= alt; i--) {

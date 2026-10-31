@@ -236,7 +236,7 @@
   !pragma warning push
   !pragma warning disable 6030
   ; Kurucunun ve kaldırıcının açık PDEfe sorusu (_CHECK_APP_RUNNING; Tamam'da PDEfe Stop-Process ile kapatılır, İptal'de işlem durur)
-  LangString appRunning ${LANG_TURKISH} "${PRODUCT_NAME} açık. Devam etmek için kapatılması gerekiyor.$\r$\n$\r$\nTamam'a basarsanız ${PRODUCT_NAME} kapatılır; kaydedilmemiş değişiklikler kaybolur. Belgelerinizi kaydetmek için İptal'e basın, sonra yeniden deneyin."
+  LangString appRunning ${LANG_TURKISH} "${PRODUCT_NAME} açık. Devam etmek için kapatılması gerekiyor.$\r$\n$\r$\nTamam'a basarsanız ${PRODUCT_NAME} kapatılır. Kaydedilmemiş değişiklikler kaybolur. Belgelerinizi kaydetmek için İptal'e basın, sonra yeniden deneyin."
   ; Türkçe Windows'ta MB_RETRYCANCEL düğmesi "Yeniden Dene" (0.2.2'ye dek "Tekrar'a tıklayın" diyordu)
   LangString appCannotBeClosed ${LANG_TURKISH} "${PRODUCT_NAME} kapatılamadı.$\r$\nLütfen ${PRODUCT_NAME}'yi elle kapatın, sonra Yeniden Dene'ye basın."
   LangString appClosing ${LANG_TURKISH} "${PRODUCT_NAME} kapatılıyor..."
@@ -536,7 +536,7 @@
       ; WinShell::UninstShortcut / UninstAppUserModelId ile görev çubuğu ve Başlat sabitlemesini de kaldırır (WinShell.dll'de
       ; IStartMenuPinnedList), kurucu kısayolları yeniden oluşturur. Masaüstü kısayolunun bugünkü durumu korunur (pdefeSurumBirak). 0.2.2'deki
       ; elle kurulumda da böyleydi; sessiz yolu değiştirmeden (--updated) keepShortcuts verilemiyor.
-      ${NSD_CreateLabel} 12u 36u -12u 11u "Ayarlarınız, masaüstü kısayolu ve kurulum klasörü korunur; doğrudan kurulur."
+      ${NSD_CreateLabel} 12u 36u -12u 11u "Ayarlarınız, masaüstü kısayolu ve kurulum klasörü korunur. Doğrudan kurulur."
       Pop $0
       ${NSD_CreateRadioButton} 0 50u 100% 12u "&Seçenekleri değiştirerek kur"
       Pop $pdefeSecenek2
@@ -556,7 +556,7 @@
       Pop $0
       ${NSD_CreateRadioButton} 0 58u 100% 12u "&Eski sürüme dön: ${PRODUCT_NAME} ${VERSION} kur"
       Pop $pdefeSecenek2
-      ${NSD_CreateLabel} 12u 70u -12u 26u "Ayarlarınız ve masaüstü kısayolu korunur. Yeni sürümde eklenen seçenekler eski sürümde görünmez; ${PRODUCT_NAME} güncellemeyi yeniden önerebilir."
+      ${NSD_CreateLabel} 12u 70u -12u 26u "Ayarlarınız ve masaüstü kısayolu korunur. Yeni sürümde eklenen seçenekler eski sürümde görünmez. ${PRODUCT_NAME} güncellemeyi yeniden önerebilir."
       Pop $0
     ${Else}
       ${If} $pdefeDurum == "bozuk"
@@ -564,7 +564,7 @@
         Pop $0
         ${NSD_CreateRadioButton} 0 24u 100% 12u "&Onar (yeniden kur)"
         Pop $pdefeSecenek1
-        ${NSD_CreateLabel} 12u 36u -12u 18u "${PRODUCT_NAME} ${VERSION} yeniden kurulur; ayarlarınız ve masaüstü kısayolu korunur."
+        ${NSD_CreateLabel} 12u 36u -12u 18u "${PRODUCT_NAME} ${VERSION} yeniden kurulur. Ayarlarınız ve masaüstü kısayolu korunur."
         Pop $0
       ${Else}
         ${If} $pdefeDurum == "bilinmiyor"
@@ -575,7 +575,7 @@
         Pop $0
         ${NSD_CreateRadioButton} 0 24u 100% 12u "&Onar (yeniden kur)"
         Pop $pdefeSecenek1
-        ${NSD_CreateLabel} 12u 36u -12u 18u "Program dosyaları yeniden yazılır; ayarlarınız ve masaüstü kısayolu korunur."
+        ${NSD_CreateLabel} 12u 36u -12u 18u "Program dosyaları yeniden yazılır. Ayarlarınız ve masaüstü kısayolu korunur."
         Pop $0
       ${EndIf}
       ${NSD_CreateRadioButton} 0 58u 100% 12u "&Kaldır"
@@ -589,7 +589,7 @@
     ; değişiklikler kaybolur. Kurulumun kapatacağı süreçlere bakılır (pdefeAcikMi).
     Call pdefeAcikMi
     ${If} $R1 == 0
-      ${NSD_CreateLabel} 0 104u 100% 30u "Dikkat: ${PRODUCT_NAME} şu anda açık. Devam etmeden önce belgelerinizi kaydedip ${PRODUCT_NAME}'yi kapatın; açık kalırsa kurulum onu kapatır ve kaydedilmemiş değişiklikler kaybolur."
+      ${NSD_CreateLabel} 0 104u 100% 30u "Dikkat: ${PRODUCT_NAME} şu anda açık. Devam etmeden önce belgelerinizi kaydedip ${PRODUCT_NAME}'yi kapatın. Açık kalırsa kurulum onu kapatır ve kaydedilmemiş değişiklikler kaybolur."
       Pop $0
     ${EndIf}
 
@@ -643,7 +643,7 @@
       ${Else}
         StrCpy $2 "Onar'ı"
       ${EndIf}
-      MessageBox MB_OK|MB_ICONSTOP "${PRODUCT_NAME}'nin kaldırıcısı bulunamadı. $2 seçip yeniden kurun (kaldırıcı da kurulur); sonra kurucuyu yeniden açıp Kaldır'ı seçebilirsiniz."
+      MessageBox MB_OK|MB_ICONSTOP "${PRODUCT_NAME}'nin kaldırıcısı bulunamadı. $2 seçip yeniden kurun (kaldırıcı da kurulur). Sonra kurucuyu yeniden açıp Kaldır'ı seçebilirsiniz."
       Return
     ${EndIf}
     ; Kurucunun ve kaldırıcının çalışma klasörü kurulum klasörü olmasın (kaldırıcı onu silecek)
@@ -700,7 +700,7 @@
     ${If} $pdefeKip != "ozel"
       Call pdefeAcikMi
       ${If} $R1 == 0
-        MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION|MB_DEFBUTTON2 "${PRODUCT_NAME} hâlâ açık. Tamam'a basarsanız kurulum ${PRODUCT_NAME}'yi kapatır; kaydedilmemiş değişiklikler kaybolur.$\r$\n$\r$\nBelgelerinizi kaydetmek için İptal'e basın, ${PRODUCT_NAME}'yi kapatın, sonra yeniden deneyin." IDOK pdefeAcikDevam
+        MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION|MB_DEFBUTTON2 "${PRODUCT_NAME} hâlâ açık. Tamam'a basarsanız kurulum ${PRODUCT_NAME}'yi kapatır. Kaydedilmemiş değişiklikler kaybolur.$\r$\n$\r$\nBelgelerinizi kaydetmek için İptal'e basın, ${PRODUCT_NAME}'yi kapatın, sonra yeniden deneyin." IDOK pdefeAcikDevam
         Abort
         pdefeAcikDevam:
       ${EndIf}
@@ -830,7 +830,7 @@
       ${NSD_Check} $pdefeMasaustuKutusu
     ${EndIf}
 
-    ${NSD_CreateLabel} 0 50u 100% 36u "Başlat menüsü kısayolu her zaman eklenir. .pdf dosyaları 'Birlikte aç' menüsünde PDEfe ile görünür; PDEfe'yi varsayılan PDF görüntüleyici yapma seçeneği kurulumun sonunda sunulur."
+    ${NSD_CreateLabel} 0 50u 100% 36u "Başlat menüsü kısayolu her zaman eklenir. .pdf dosyaları 'Birlikte aç' menüsünde PDEfe ile görünür. PDEfe'yi varsayılan PDF görüntüleyici yapma seçeneği kurulumun sonunda sunulur."
     Pop $0
 
     nsDialogs::Show

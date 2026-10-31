@@ -77,13 +77,13 @@ export async function yazdir(baglam, belge) {
   stilYukle();
 
   // 0) Süren bir kaydetme (otomatik kaydet) varsa bitmesini bekle: yarım yazılmış dosya okunmasın
-  if (!(await kaydetmeyiBekle(belge))) { bildir?.('Kaydetme bitmediği için yazdırılamadı; biraz sonra yeniden deneyin.'); return; }
+  if (!(await kaydetmeyiBekle(belge))) { bildir?.('Kaydetme bitmediği için yazdırılamadı. Biraz sonra yeniden deneyin.'); return; }
 
   // 1) Dosya diskte mi? (yazdırma dosyadaki hâlden yapılır)
   let diskteVar = true;
   try { diskteVar = await pdefe.cagir('dosya:varMi', belge.yol); } catch { diskteVar = true; /* denetlenemedi; çekirdek hatası yakalanır */ }
   if (!diskteVar) {
-    await mesajKutusu({ tur: 'error', mesaj: 'Yazdırılamadı', ayrinti: `"${belge.ad}" dosyası diskte bulunamadı; taşınmış ya da silinmiş olabilir. Önce "Farklı kaydet" ile yeni bir konuma kaydedin.` });
+    await mesajKutusu({ tur: 'error', mesaj: 'Yazdırılamadı', ayrinti: `"${belge.ad}" dosyası diskte bulunamadı. Taşınmış ya da silinmiş olabilir. Önce "Farklı kaydet" ile yeni bir konuma kaydedin.` });
     return;
   }
 
@@ -212,7 +212,7 @@ export async function yazdir(baglam, belge) {
     const ozet = ozetMetni(sayfalar.length, secenek.sistemPenceresi ? 1 : secenek.kopya);
     let asamaMetni;
     if (secenek.sistemPenceresi) asamaMetni = `${SISTEM} yazdırma penceresi açılıyor… (${sayfalar.length} sayfa, ${mb(toplamBayt)} MB)`;
-    else if (secenek.dosyayaYazar) asamaMetni = `"${secenek.yaziciAdi}" çıktıyı dosyaya kaydeder: kaydedileceği yer soruluyor. "Çıktıyı Farklı Kaydet" penceresi görünmüyorsa görev çubuğuna bakın.`;
+    else if (secenek.dosyayaYazar) asamaMetni = `"${secenek.yaziciAdi}" çıktıyı dosyaya kaydeder: Kaydedileceği yer soruluyor. "Çıktıyı Farklı Kaydet" penceresi görünmüyorsa görev çubuğuna bakın.`;
     else asamaMetni = `"${secenek.yaziciAdi}" yazıcısına gönderiliyor… (${ozet}, ${mb(toplamBayt)} MB)`;
     ilerleme.guncelle(100, asamaMetni);
     const isId = is;
@@ -225,7 +225,7 @@ export async function yazdir(baglam, belge) {
     ilerleme.kapat();
     if (sonuc?.basarili) {
       if (secenek.sistemPenceresi) bildir?.(`Yazıcıya gönderildi: ${sayfalar.length} sayfa`);
-      else bildir?.(`"${secenek.yaziciAdi}" yazıcısına gönderildi: ${ozet}${secenek.cevrimDisi ? ' (yazıcı çevrim dışı görünüyor; iş, yazıcı açılınca basılır)' : ''}`);
+      else bildir?.(`"${secenek.yaziciAdi}" yazıcısına gönderildi: ${ozet}${secenek.cevrimDisi ? ' (yazıcı çevrim dışı görünüyor, iş yazıcı açılınca basılır)' : ''}`);
     } else if (sonuc?.iptal || ilerleme.iptal) bildir?.('Yazdırma vazgeçildi.');
     else await mesajKutusu({ tur: 'error', mesaj: 'Yazdırılamadı', ayrinti: sonuc?.hata || 'Bilinmeyen hata' });
   } catch (e) {
@@ -285,7 +285,7 @@ function secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre,
     const tercihEtiketi = MAC || LINUX ? 'Yazıcı ayarları' : 'Yazıcı tercihleri';
     // Linux (0.3.1): CUPS'ın yazıcı sayfası tarayıcıda (main/yazdir.js)
     const tercihIpucu = MAC ? 'Sistem Ayarları › Yazıcılar ve Tarayıcılar bölümünü açar.' : LINUX ? 'Yazıcının CUPS sayfasını tarayıcıda açar (kâğıt kaynağı, baskı kalitesi gibi varsayılanlar).'
-      : 'Yazıcının kendi ayarları (kâğıt kaynağı, baskı kalitesi, toner tasarrufu…). Orada yapılan değişiklik bu yazıcının varsayılanı olur; buradaki kâğıt, renk, kopya ve çift taraflı seçimi yine geçerlidir.';
+      : 'Yazıcının kendi ayarları (kâğıt kaynağı, baskı kalitesi, toner tasarrufu…). Orada yapılan değişiklik bu yazıcının varsayılanı olur. Buradaki kâğıt, renk, kopya ve çift taraflı seçimi yine geçerlidir.';
     ortu.innerHTML = `
 <div class="diyalog yazdir-diyalog" role="dialog" aria-modal="true" aria-label="Yazdır">
   <div class="baslik">Yazdır</div>
@@ -346,7 +346,7 @@ function secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre,
     </div>
   </div>
   <div class="dugmeler yazdir-dugmeler">
-    <button type="button" class="yazdir-sistem" data-id="sistem" title="Yazıcı, kopya, renk ve çift taraflı ${kacis(SISTEM)}'un penceresinde seçilir; buradaki sayfa seçimi, kâğıt ve boyut geçerlidir.">${kacis(SISTEM)} yazdırma penceresiyle yazdır</button>
+    <button type="button" class="yazdir-sistem" data-id="sistem" title="Yazıcı, kopya, renk ve çift taraflı ${kacis(SISTEM)}'un penceresinde seçilir. Buradaki sayfa seçimi, kâğıt ve boyut geçerlidir.">${kacis(SISTEM)} yazdırma penceresiyle yazdır</button>
     <span class="yazdir-bosluk"></span>
     <button class="birincil" data-id="yazdir">Yazdır</button><button class="ikincil" data-id="iptal">Vazgeç</button>
   </div>
@@ -403,9 +403,9 @@ function secenekPenceresi(baglam, belge, { toplam, gecerli, uyari, gecerliDevre,
           : LINUX ? 'Kurulu yazıcı yok. Sistem ayarlarının Yazıcılar bölümünden bir yazıcı ekleyin.'
           : 'Kurulu yazıcı yok. Windows Ayarlar › Yazıcılar ve tarayıcılar bölümünden bir yazıcı ekleyin.';
         tur = 'uyari';
-      } else if (d.cevrimDisi) { metin = 'Yazıcı çevrim dışı görünüyor; iş, yazıcı açılınca basılır.'; tur = 'uyari'; }
-      else if (d.dosyayaYazar) metin = 'Bu yazıcı çıktıyı dosyaya kaydeder; Yazdır\'a basınca kaydedileceği yer sorulur.';
-      else if (kayitliBulunamadi && !yaziciElleSecildi) { metin = `Son kullanılan yazıcı ("${kayitliBulunamadi}") bulunamadı; ${yaziciAl(ad)?.varsayilan ? 'varsayılan yazıcı' : 'başka bir yazıcı'} seçildi.`; tur = 'uyari'; }
+      } else if (d.cevrimDisi) { metin = 'Yazıcı çevrim dışı görünüyor. İş, yazıcı açılınca basılır.'; tur = 'uyari'; }
+      else if (d.dosyayaYazar) metin = 'Bu yazıcı çıktıyı dosyaya kaydeder. Yazdır\'a basınca kaydedileceği yer sorulur.';
+      else if (kayitliBulunamadi && !yaziciElleSecildi) { metin = `Son kullanılan yazıcı ("${kayitliBulunamadi}") bulunamadı. ${yaziciAl(ad)?.varsayilan ? 'Varsayılan yazıcı' : 'Başka bir yazıcı'} seçildi.`; tur = 'uyari'; }
       yaziciBilgi.textContent = metin;
       yaziciBilgi.classList.toggle('uyari', tur === 'uyari');
       tercihDugme.disabled = !ad;
@@ -705,12 +705,12 @@ function hataMetni(e) {
 /** Çekirdek (PyMuPDF) hatalarını kullanıcıya Türkçe açıklar. */
 function cekirdekHataMetni(e) {
   const m = hataMetni(e);
-  if (/İşlem iptal edildi/i.test(m)) return 'işlem iptal edildi.';
-  if (/FileNotFoundError|WinError 2\b|WinError 3\b|No such file|bulunam/i.test(m)) return 'dosya diskte bulunamadı; taşınmış ya da silinmiş olabilir. Önce "Farklı kaydet" yapın.';
-  if (/PermissionError|WinError 32\b|WinError 5\b|Permission denied|erişim engellendi|başka bir işlem/i.test(m)) return 'dosyaya erişilemedi; başka bir program tarafından kilitlenmiş olabilir.';
-  if (/not in document|IndexError|out of range|page number/i.test(m)) return 'sayfa dosyada yok; dosya değişmiş olabilir. Belgeyi yeniden açıp deneyin.';
-  if (/cannot open|no objects found|not a PDF|Failed to open|FileDataError|damaged|broken/i.test(m)) return 'dosya açılamadı ya da bozuk.';
+  if (/İşlem iptal edildi/i.test(m)) return 'İşlem iptal edildi.';
+  if (/FileNotFoundError|WinError 2\b|WinError 3\b|No such file|bulunam/i.test(m)) return 'Dosya diskte bulunamadı. Taşınmış ya da silinmiş olabilir. Önce "Farklı kaydet" yapın.';
+  if (/PermissionError|WinError 32\b|WinError 5\b|Permission denied|erişim engellendi|başka bir işlem/i.test(m)) return 'Dosyaya erişilemedi. Başka bir program tarafından kilitlenmiş olabilir.';
+  if (/not in document|IndexError|out of range|page number/i.test(m)) return 'Sayfa dosyada yok. Dosya değişmiş olabilir. Belgeyi yeniden açıp deneyin.';
+  if (/cannot open|no objects found|not a PDF|Failed to open|FileDataError|damaged|broken/i.test(m)) return 'Dosya açılamadı ya da bozuk.';
   if (/Çekirdek çalışmıyor|Çekirdek süreç/i.test(m)) return 'PDF çekirdeği çalışmıyor. Uygulamayı yeniden başlatın.';
-  if (/MemoryError|out of memory/i.test(m)) return 'yeterli bellek yok. Daha az sayfa seçin.';
+  if (/MemoryError|out of memory/i.test(m)) return 'Yeterli bellek yok. Daha az sayfa seçin.';
   return m;
 }

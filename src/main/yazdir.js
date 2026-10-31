@@ -133,7 +133,7 @@ export function yazdirmaKur({ ipcMain, BrowserWindow, pencereAl, testDiyalog = n
     const is = aktif;
     const { is: id, sira, veri, bicim } = istek || {};
     if (!is || is.id !== id) return { basarili: false, hata: 'Yazdırma işi bulunamadı ya da iptal edildi.' };
-    if (is.asama !== 'hazirlik') return { basarili: false, hata: 'Yazdırma zaten başladı; sayfa eklenemez.' };
+    if (is.asama !== 'hazirlik') return { basarili: false, hata: 'Yazdırma zaten başladı. Sayfa eklenemez.' };
     if (!Number.isInteger(sira) || sira < 1 || sira > EN_FAZLA_SAYFA) return { basarili: false, hata: `Geçersiz sayfa sırası (1–${EN_FAZLA_SAYFA}).` };
     const uzanti = BICIM_UZANTI[String(bicim || 'jpeg').toLowerCase()];
     if (!uzanti) return { basarili: false, hata: 'Desteklenmeyen görüntü biçimi: ' + bicim };

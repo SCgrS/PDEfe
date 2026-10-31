@@ -188,14 +188,14 @@ function bolumGorunum(k) {
     kontrol: secimKutusu(a.tema ?? 'sistem', [['acik', 'Açık'], ['koyu', 'Koyu'], ['sistem', 'Sistemi izle']], (v) => degistir('tema', v)),
   }));
   k.append(kart({
-    baslik: 'Sayfayı da koyulaştır', aciklama: 'Koyu temada belge sayfaları da koyulaştırılır; görseller olduğu gibi kalır. Yazdırma ve kaydetme etkilenmez.',
+    baslik: 'Sayfayı da koyulaştır', aciklama: 'Koyu temada belge sayfaları da koyulaştırılır. Görseller olduğu gibi kalır. Yazdırma ve kaydetme etkilenmez.',
     kontrol: anahtar(!!a.sayfayiKoyulastir, (v) => degistir('sayfayiKoyulastir', v)),
   }));
   k.append(kart({
     baslik: 'Yazı çizimi', aciklama: MAC
-      ? 'Dengeli: yazılar keskin, kalın yazılar fazla koyulaşmadan çizilir; döndürülmüş sayfada harfler bozulmaz. macOS çizimi: bütün yazılar doğrudan macOS\'un çizimiyle; kalın yazılar daha koyu görünür. Değişiklik belgeler yeniden açılınca uygulanır.'
+      ? 'Dengeli: Yazılar keskin, kalın yazılar fazla koyulaşmadan çizilir. Döndürülmüş sayfada harfler bozulmaz. macOS çizimi: Bütün yazılar doğrudan macOS\'un çizimiyle. Kalın yazılar daha koyu görünür. Değişiklik belgeler yeniden açılınca uygulanır.'
       : LINUX ? 'Dengeli: Yazılar keskin, kalın yazılar fazla koyulaşmadan çizilir, döndürülmüş sayfada harfler bozulmaz. Linux çizimi: Bütün yazılar doğrudan sistemin çizimiyle, kalın yazılar daha koyu görünür. Değişiklik belgeler yeniden açılınca uygulanır.'
-      : 'Dengeli: yazılar keskin, kalın yazılar fazla koyulaşmadan çizilir; döndürülmüş sayfada harfler bozulmaz. Windows ClearType: bütün yazılar doğrudan Windows\'un çizimiyle; kalın yazılar daha koyu görünür. Değişiklik belgeler yeniden açılınca uygulanır.',
+      : 'Dengeli: Yazılar keskin, kalın yazılar fazla koyulaşmadan çizilir. Döndürülmüş sayfada harfler bozulmaz. Windows ClearType: Bütün yazılar doğrudan Windows\'un çizimiyle. Kalın yazılar daha koyu görünür. Değişiklik belgeler yeniden açılınca uygulanır.',
     kontrol: secimKutusu(a.yaziCizimi ?? 'anaHat', [['anaHat', 'Dengeli (önerilen)'], ['sistem', MAC ? 'macOS çizimi' : LINUX ? 'Linux çizimi' : 'Windows ClearType']], (v) => degistir('yaziCizimi', v)),
   }));
 }
@@ -218,8 +218,8 @@ function bolumAcilisVeDuzen(k) {
 // Pencereyi kapatırken (0.2.2, kullanıcı isteği: "ayarlardan değiştirilebilelim"): birden çok sekmeli pencerenin kapatma düğmesi. Sorudaki
 // "Bir daha sorma" da bu ayarı yazar; ayar pencerenin dışından değişince kart ayarlarPenceresiniGuncelle ile güncellenir
 const PENCERE_KAPATMA_ACIKLAMASI = MAC
-  ? 'Pencerede birden çok sekme açıkken pencerenin kırmızı kapatma düğmesine basılınca ne olacağı. Her seferinde sor: geçerli sekmenin mi, bütün sekmelerin mi kapatılacağı sorulur. Kaydedilmemiş değişiklikler her durumda sorulur. ⌘W yalnızca geçerli sekmeyi kapatır, ⌘Q PDEfe\'den çıkar.'
-  : 'Pencerede birden çok sekme açıkken pencerenin kapatma düğmesine (×) ya da Alt+F4\'e basılınca ne olacağı. Her seferinde sor: geçerli sekmenin mi, bütün sekmelerin mi kapatılacağı sorulur. Kaydedilmemiş değişiklikler her durumda sorulur. Ctrl+W yalnızca geçerli sekmeyi kapatır.';
+  ? 'Pencerede birden çok sekme açıkken pencerenin kırmızı kapatma düğmesine basılınca ne olacağı. Her seferinde sor: Geçerli sekmenin mi, bütün sekmelerin mi kapatılacağı sorulur. Kaydedilmemiş değişiklikler her durumda sorulur. ⌘W yalnızca geçerli sekmeyi kapatır, ⌘Q PDEfe\'den çıkar.'
+  : 'Pencerede birden çok sekme açıkken pencerenin kapatma düğmesine (×) ya da Alt+F4\'e basılınca ne olacağı. Her seferinde sor: Geçerli sekmenin mi, bütün sekmelerin mi kapatılacağı sorulur. Kaydedilmemiş değişiklikler her durumda sorulur. Ctrl+W yalnızca geçerli sekmeyi kapatır.';
 
 function pencereKartlari(k) {
   const a = ayarlar();
@@ -259,7 +259,7 @@ function sayfaDuzeniKartlari(k) {
     ['genislik', 'Genişliğe sığdır'], ['sayfa', 'Sayfayı sığdır'], ['gercek', 'Gerçek boyut'], ['yuzde', 'Yüzde'],
   ], (v) => { yuzde.hidden = v !== 'yuzde'; if (v === 'yuzde') { yuzdeYaz(); yuzde.focus(); yuzde.select(); } else degistir('varsayilanZoom', v); });
   const zoomKarti = kart({
-    baslik: 'Varsayılan yakınlaştırma', aciklama: 'Tek sayfa düzeninde belge açıldığında uygulanacak yakınlaştırma. İki sayfadan tek sayfaya geçerken de kullanılır; Gerçek boyut ya da yüzde seçiliyse tek sayfa genişliğe sığdırılır. İki sayfa düzeninde her zaman Sayfayı sığdır kullanılır.',
+    baslik: 'Varsayılan yakınlaştırma', aciklama: 'Tek sayfa düzeninde belge açıldığında uygulanacak yakınlaştırma. İki sayfadan tek sayfaya geçerken de kullanılır. Gerçek boyut ya da yüzde seçiliyse tek sayfa genişliğe sığdırılır. İki sayfa düzeninde her zaman Sayfayı sığdır kullanılır.',
     kontrol: el('div', { class: 'ayar-yanyana' }, [zoomSecim, yuzde]),
   });
   zoomKarti.dataset.hedef = 'varsayilanZoom';   // yakınlaştırma okunun "Varsayılanı ayarla"sı buraya gelir (ayaraGit)
@@ -267,11 +267,11 @@ function sayfaDuzeniKartlari(k) {
   // Sayfa düzeni: iki kontrol tek bir varsayilanDuzen değerine yazar; diğerinin güncel değeri ayarlardan okunur
   const duzen = duzenCoz(a.varsayilanDuzen ?? 'surekli');
   k.append(kart({
-    baslik: 'Tek ya da iki sayfa', aciklama: 'Sayfalar tek tek ya da yan yana ikişer gösterilir. Bütün sekmelerde kullanılır; araç çubuğundaki Sayfa düzeni düğmesinden de değiştirilebilir.',
+    baslik: 'Tek ya da iki sayfa', aciklama: 'Sayfalar tek tek ya da yan yana ikişer gösterilir. Bütün sekmelerde kullanılır. Araç çubuğundaki Sayfa düzeni düğmesinden de değiştirilebilir.',
     kontrol: secimKutusu(duzen.iki ? 'iki' : 'tek', [['tek', 'Tek sayfa'], ['iki', 'İki sayfa']], (v) => degistir('varsayilanDuzen', duzenBirlestir(v === 'iki', duzenCoz(ayarlar().varsayilanDuzen ?? 'surekli').kaydir))),
   }));
   k.append(kart({
-    baslik: 'Kaydırmayı etkinleştir', aciklama: 'Sayfalar alt alta kesintisiz kaydırılır; kapalıysa sayfa sayfa çevrilir. Bütün sekmelerde kullanılır; araç çubuğundan da değiştirilebilir.',
+    baslik: 'Kaydırmayı etkinleştir', aciklama: 'Sayfalar alt alta kesintisiz kaydırılır. Kapalıysa sayfa sayfa çevrilir. Bütün sekmelerde kullanılır. Araç çubuğundan da değiştirilebilir.',
     kontrol: anahtar(duzen.kaydir, (v) => degistir('varsayilanDuzen', duzenBirlestir(duzenCoz(ayarlar().varsayilanDuzen ?? 'surekli').iki, v))),
   }));
   k.append(kart({
@@ -286,7 +286,7 @@ const VARSAYILAN_ACIKLAMA = MAC
   ? 'PDF dosyalarına çift tıklayınca PDEfe\'de açılsın: Finder\'da bir PDF\'e sağ tıklayıp Bilgi Al\'ı seçin, "Birlikte aç" listesinden PDEfe\'yi seçin ve "Tümünü Değiştir"e basın.'
   // Linux (0.3.1): düğme PDEfe'yi uygulama menüsüne ekler ve PDF'lerin varsayılan programı yapar (main/linux.js; yalnız AppImage'da)
   : LINUX ? 'PDF dosyalarına çift tıklayınca PDEfe\'de açılsın. Düğme PDEfe\'yi uygulama menüsüne ekler ve PDF\'lerin varsayılan programı yapar. AppImage dosyasını sonradan başka bir klasöre taşırsanız PDEfe\'yi bir kez açmanız yeter.'
-  : 'PDF dosyalarına çift tıklayınca PDEfe\'de açılsın. Windows "Varsayılan Uygulamalar" sayfası açılır; .pdf satırında PDEfe\'yi seçin. Kurulumsuz (geliştirme) çalıştırmada PDEfe listede görünmeyebilir.';
+  : 'PDF dosyalarına çift tıklayınca PDEfe\'de açılsın. Windows "Varsayılan Uygulamalar" sayfası açılır. .pdf satırında PDEfe\'yi seçin. Kurulumsuz (geliştirme) çalıştırmada PDEfe listede görünmeyebilir.';
 const TIK_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="m6.3 10.2 2.5 2.5 5-5.2"/></svg>';
 
 function acilisKartlari(k) {
@@ -383,7 +383,7 @@ function bolumNotlar(k) {
 
   k.append(el('h3', {}, 'Yazı aracı'));
   k.append(kart({
-    baslik: 'Yazı tipi', aciklama: 'Belgeye gömülür; Türkçe karakterler korunur.',
+    baslik: 'Yazı tipi', aciklama: 'Belgeye gömülür. Türkçe karakterler korunur.',
     kontrol: secimKutusu(YAZI_TIPLERI.includes(a.yaziTipi) ? a.yaziTipi : YAZI_TIPLERI[0], YAZI_TIPLERI.map((t) => [t, t]), (v) => degistir('yaziTipi', v)),
   }));
   const boyut = el('input', { type: 'number', class: 'kutu ayar-sayi', min: '6', max: '72', step: '1', value: String(a.yaziBoyutu ?? 12) });
@@ -403,14 +403,14 @@ function bolumNotlar(k) {
 function bolumKaydetme(k) {
   const a = ayarlar();
   k.append(kart({
-    baslik: 'Otomatik kaydet', aciklama: 'Notlar ve döndürme kısa bir gecikmeyle dosyaya yazılır; dosya başka bir programda (UYAP ya da başka bir PDF okuyucu) açıldığında değişiklikler görünür. Geri al yine çalışır.',
+    baslik: 'Otomatik kaydet', aciklama: 'Notlar ve döndürme kısa bir gecikmeyle dosyaya yazılır. Dosya başka bir programda (UYAP ya da başka bir PDF okuyucu) açıldığında değişiklikler görünür. Geri al yine çalışır.',
     kontrol: anahtar(!!a.otomatikKaydet, (v) => degistir('otomatikKaydet', v)),
   }));
   // 0.2.8 (kullanıcı isteği: "dosyanın kaydedileceği yeri bir kez değiştirince hep aynı yere kaydetsin, tekrar değiştirilene kadar"): bir araçta
   // Değiştir ile seçilen klasör de bu ayara yazılır (araclar/ortak.js ciktiKlasorunuHatirla). Ayardaki klasör artık yoksa araçlar Masaüstü'nü
   // önerir; yolun altında bunu söyleyen not çıkar (ayar silinmez: çıkarılabilir disk yeniden takılınca klasör yine kullanılır)
   const yolEl = el('div', { class: 'ayar-yol' }, a.ciktiKlasoru || 'Masaüstü');
-  const notEl = el('div', { class: 'ayar-yol-not', hidden: '' }, 'Bu klasör bulunamadı; yerine Masaüstü kullanılır.');
+  const notEl = el('div', { class: 'ayar-yol-not', hidden: '' }, 'Bu klasör bulunamadı. Yerine Masaüstü kullanılır.');
   const sec = el('button', { class: 'ikincil', type: 'button' }, 'Seç');
   const temizle = el('button', { class: 'ikincil', type: 'button' }, 'Temizle');
   let denetimNo = 0;
@@ -429,7 +429,7 @@ function bolumKaydetme(k) {
   });
   temizle.addEventListener('click', () => { degistir('ciktiKlasoru', ''); yolGoster(''); });
   k.append(kart({
-    baslik: 'Araçların çıktı klasörü', aciklama: 'Araçların (Sıkıştır, Sayfaları düzenle, Döndür, Ayır, Birleştir, Format Değiştir) yeni belge olarak kaydettiği dosyaların klasörü. Bir araçta Değiştir ile başka bir klasör seçilince burası da o klasör olur; bütün araçlar, yeniden değiştirilene dek onu kullanır. Boşsa ya da klasör bulunamazsa Masaüstü kullanılır.',
+    baslik: 'Araçların çıktı klasörü', aciklama: 'Araçların (Sıkıştır, Sayfaları düzenle, Döndür, Ayır, Birleştir, Format Değiştir) yeni belge olarak kaydettiği dosyaların klasörü. Bir araçta Değiştir ile başka bir klasör seçilince burası da o klasör olur. Bütün araçlar, yeniden değiştirilene dek onu kullanır. Boşsa ya da klasör bulunamazsa Masaüstü kullanılır.',
     kontrol: el('div', { class: 'ayar-yanyana' }, [sec, temizle]), alt: el('div', { class: 'ayar-yol-kutu' }, [yolEl, notEl]),
   }));
   k.append(el('h3', {}, 'Format Değiştir'));
@@ -476,7 +476,7 @@ function udeKarti(k) {
   const sec = el('button', { class: 'ikincil', type: 'button' }, 'Klasörü seç…');
   const kartEl = kart({
     baslik: 'UYAP Doküman Editörü',
-    aciklama: 'UDF dosyaları PDF\'e bilgisayardaki UYAP Doküman Editörü\'yle (pencere açılmadan) dönüştürülür. Otomatik bul: kurulu editör kendiliğinden bulunur. Bulunamıyorsa ya da başka bir kurulum kullanılacaksa editörün klasörünü seçin. Editör yoksa UDF\'ler PDEfe\'nin yaklaşık çizimiyle dönüştürülür.',
+    aciklama: 'UDF dosyaları PDF\'e bilgisayardaki UYAP Doküman Editörü\'yle (pencere açılmadan) dönüştürülür. Otomatik bul: Kurulu editör kendiliğinden bulunur. Bulunamıyorsa ya da başka bir kurulum kullanılacaksa editörün klasörünü seçin. Editör yoksa UDF\'ler PDEfe\'nin yaklaşık çizimiyle dönüştürülür.',
     kontrol: el('div', { class: 'ayar-yanyana' }, [otomatik, sec]), alt: durum,
   });
   kartEl.dataset.hedef = 'udeYolu';
@@ -527,10 +527,10 @@ function bolumGuncelleme(k) {
   k.append(kart({
     baslik: 'Güncellemeleri otomatik denetle (iki günde bir)',   // 0.2.8 (kullanıcı isteği): önceden haftada bir
     // macOS (0.2.1): yeni sürüm tek tıkla kurulmaz; şeritteki İndir paketi tarayıcıda indirir, kurulum kullanıcıda (renderer/guncelleme.js)
-    aciklama: 'İki günde bir, açılışta ya da PDEfe açık kalıyorsa gün içinde arka planda yeni sürüme bakılır; internet yoksa sonra yeniden denenir. ' + (MAC
-      ? 'Yeni sürüm varsa pencerenin üstünde bir şerit görünür; İndir\'e basınca yeni sürüm tarayıcıda iner, PDEfe\'den çıkıp inen dosyadaki PDEfe\'yi Uygulamalar klasörüne sürükleyerek kurarsınız.'
+    aciklama: 'İki günde bir, açılışta ya da PDEfe açık kalıyorsa gün içinde arka planda yeni sürüme bakılır. İnternet yoksa sonra yeniden denenir. ' + (MAC
+      ? 'Yeni sürüm varsa pencerenin üstünde bir şerit görünür. İndir\'e basınca yeni sürüm tarayıcıda iner, PDEfe\'den çıkıp inen dosyadaki PDEfe\'yi Uygulamalar klasörüne sürükleyerek kurarsınız.'
       : LINUX ? 'Yeni sürüm varsa pencerenin üstünde bir şerit görünür. Güncelle\'ye basınca yeni sürüm indirilir, AppImage dosyası yenisiyle değişir ve PDEfe yeniden açılır.'
-      : 'Yeni sürüm varsa pencerenin üstünde bir şerit görünür; Güncelle\'ye tek tıkla indirilir, kurulur ve PDEfe yeniden açılır.'),
+      : 'Yeni sürüm varsa pencerenin üstünde bir şerit görünür. Güncelle\'ye tek tıkla indirilir, kurulur ve PDEfe yeniden açılır.'),
     kontrol: anahtar(a.otoGuncelle !== false, (v) => degistir('otoGuncelle', v)),
     alt: sonDenetim,
   }));
@@ -567,12 +567,12 @@ function bolumGuncelleme(k) {
           sonuc.append(g);
         }
       } else if (r.durum === 'yok') { sonuc.className = 'ayar-sonuc soluk'; sonuc.replaceChildren(r.mesaj || `PDEfe güncel${r.surum ? ` (${r.surum})` : ''}.`); }
-      else { sonuc.className = 'ayar-sonuc ayar-sonuc-hata'; sonuc.replaceChildren('Denetlenemedi. ' + (r.mesaj || 'Beklenmeyen bir hata oluştu; biraz sonra yeniden deneyin.')); }
+      else { sonuc.className = 'ayar-sonuc ayar-sonuc-hata'; sonuc.replaceChildren('Denetlenemedi. ' + (r.mesaj || 'Beklenmeyen bir hata oluştu. Biraz sonra yeniden deneyin.')); }
       sonDenetimYaz();
     } catch (e) {
       console.error('Güncelleme denetimi', e);
       sonuc.className = 'ayar-sonuc ayar-sonuc-hata';
-      sonuc.replaceChildren(/No handler registered/i.test(hataMetni(e)) ? 'Güncelleme denetimi bu sürümde kullanılamıyor.' : 'Denetlenemedi. Beklenmeyen bir hata oluştu; biraz sonra yeniden deneyin.');
+      sonuc.replaceChildren(/No handler registered/i.test(hataMetni(e)) ? 'Güncelleme denetimi bu sürümde kullanılamıyor.' : 'Denetlenemedi. Beklenmeyen bir hata oluştu. Biraz sonra yeniden deneyin.');
     } finally { dugme.disabled = false; }
   });
   k.append(kart({ baslik: 'Şimdi denetle', aciklama: 'GitHub\'daki PDEfe sürümlerine hemen bakılır.', kontrol: dugme }));

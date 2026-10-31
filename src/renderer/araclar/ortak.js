@@ -111,7 +111,7 @@ export function sayfaListesiCoz(metin, toplam) {
     const a = parseInt(m[1], 10);
     const b = m[2] ? parseInt(m[2], 10) : a;
     if (a < 1 || b < 1) return { sayfalar: [], hata: 'Sayfa numaraları 1\'den başlar.' };
-    if (a > toplam || b > toplam) return { sayfalar: [], hata: `Belgede ${toplam} sayfa var; "${p}" bu sınırı aşıyor.` };
+    if (a > toplam || b > toplam) return { sayfalar: [], hata: `Belgede ${toplam} sayfa var. "${p}" bu sınırı aşıyor.` };
     const [bas, son] = a <= b ? [a, b] : [b, a];
     for (let i = bas; i <= son; i++) sonuc.add(i);
   }
@@ -138,7 +138,7 @@ export function sayfaAraliklariCoz(metin, toplam) {
     } else return { araliklar: [], hata: `"${p}" anlaşılamadı. Örnek: 1-3, 4-10` };
     if (a > b) [a, b] = [b, a];
     if (a < 1) return { araliklar: [], hata: 'Sayfa numaraları 1\'den başlar.' };
-    if (b > toplam) return { araliklar: [], hata: `Belgede ${toplam} sayfa var; "${p}" bu sınırı aşıyor.` };
+    if (b > toplam) return { araliklar: [], hata: `Belgede ${toplam} sayfa var. "${p}" bu sınırı aşıyor.` };
     const sayfalar = [];
     for (let i = a; i <= b; i++) sayfalar.push(i);
     araliklar.push({ bas: a, son: b, sayfalar });
@@ -1282,8 +1282,8 @@ export async function varOlanaYazmaSor(baglam, cikti, hedef) {
   if (cikti?.onayli?.(hedef) && !acik?.degisti) return true;
   if (!(await baglam.pdefe.cagir('dosya:varMi', hedef))) return true;
   const sekme = !acik ? ''
-    : acik.degisti ? '\n\nDosya PDEfe\'de açık ve kaydedilmemiş değişiklikleri var: kayıttan sonra sekmesi yeni haliyle yeniden açılır, bu değişiklikler atılır.'
-      : '\n\nDosya PDEfe\'de açık, kayıttan sonra sekmesi yeni haliyle yeniden açılır.';
+    : acik.degisti ? '\n\nDosya PDEfe\'de açık ve kaydedilmemiş değişiklikleri var: Kayıttan sonra sekmesi yeni hâliyle yeniden açılır, bu değişiklikler atılır.'
+      : '\n\nDosya PDEfe\'de açık, kayıttan sonra sekmesi yeni hâliyle yeniden açılır.';
   const yeniAd = cikti?.ayarla ? await numaraliAdBul(baglam.pdefe, klasorAdi(hedef), dosyaAdi(hedef)).catch(() => null) : null;
   if (!yeniAd) {
     const { secim } = await baglam.mesajKutusu({ tur: 'warning', mesaj: `"${dosyaAdi(hedef)}" zaten var.`, ayrinti: `${hedef}\n\nVar olan dosyanın yerine kaydedilsin mi?${sekme}`, dugmeler: ['Üzerine yaz', 'Vazgeç'], varsayilan: 1, iptal: 1 });
@@ -1326,7 +1326,7 @@ export async function sekmeyiYenile(baglam, belge, { soruAyrintisi, ac = true, s
   if (!belge || (belge.el && !belge.el.isConnected)) return 'yok';
   if (typeof baglam.belgeKapat !== 'function') return false;
   if (belge.degisti && !sormadan) {
-    const { secim } = await baglam.mesajKutusu({ tur: 'warning', mesaj: `"${belge.ad}" belgesinde kaydedilmemiş değişiklikler var.`, ayrinti: soruAyrintisi || 'Belge diskteki güncel haliyle yeniden açılırsa bu değişiklikler atılır.', dugmeler: ['Değişiklikleri at ve yeniden aç', 'Vazgeç'], varsayilan: 1, iptal: 1 });
+    const { secim } = await baglam.mesajKutusu({ tur: 'warning', mesaj: `"${belge.ad}" belgesinde kaydedilmemiş değişiklikler var.`, ayrinti: soruAyrintisi || 'Belge diskteki güncel hâliyle yeniden açılırsa bu değişiklikler atılır.', dugmeler: ['Değişiklikleri at ve yeniden aç', 'Vazgeç'], varsayilan: 1, iptal: 1 });
     if (secim !== 0) return false;
   }
   const sayfa = belge.gorunum?.gecerli || 1;

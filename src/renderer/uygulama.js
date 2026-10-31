@@ -252,7 +252,7 @@ async function dosyaAc(yol, secenek = {}) {
     sekmeSec(b.id);
     if (bos) baslangicSekmesiniKapat(bos);
     // Belge bu pencerede zaten açık (aynı dosya iki pencerede açılamaz): sekmesi seçilir, araç kapanınca görünür
-    if (aracArkasinda) bildir(`"${uzantisiz(b.ad)}" bu pencerede zaten açık; araç penceresi kapanınca görünür.`, 6000);
+    if (aracArkasinda) bildir(`"${uzantisiz(b.ad)}" bu pencerede zaten açık. Araç penceresi kapanınca görünür.`, 6000);
     return b;
   }
   // Başka bir pencerede açıksa o pencere öne gelir ve sekmesine geçer; burada ikinci kez açılmaz (iki kopya birbirinin kaydını ezerdi).
@@ -684,13 +684,13 @@ const kapanisSuruyor = () => _kapanis || _kapaniyor || !!_kapatmaIzni;
  *  belgesi yok, b null). kayitHaric: süren kayda bakılmaz (sürükleme başında: kayıt sekme bırakılana dek biter; bırakılınca sekmeyiTasi bekler). */
 function tasimaEngeli(b, { kayitHaric = false, bos = false } = {}) {
   if (!b && !bos) return 'Sekme bulunamadı.';
-  if (tasimaSuruyor || b?.tasiniyor) return 'Bir sekme taşınıyor; bitince yeniden deneyin.';
-  if (b && (!belgeler.has(b.id) || !b.gorunum.hazir)) return 'Belge henüz açılıyor; açılınca yeniden deneyin.';
+  if (tasimaSuruyor || b?.tasiniyor) return 'Bir sekme taşınıyor. Bitince yeniden deneyin.';
+  if (b && (!belgeler.has(b.id) || !b.gorunum.hazir)) return 'Belge henüz açılıyor. Açılınca yeniden deneyin.';
   // Kilit altında süren kayıt beklenmez: başarısız olursa sorusu (Belge kaydedilemedi) taşıma kilidinin altında kalırdı
-  if (b?.kaydediliyor && !kayitHaric) return 'Belge kaydediliyor; bitince yeniden deneyin.';
+  if (b?.kaydediliyor && !kayitHaric) return 'Belge kaydediliyor. Bitince yeniden deneyin.';
   // XFA formunda süren düğme işi (çekirdekte bölüm ekleme / silme) taşımayla yarışmasın (0.3.1 inceleme)
   if (b?.xfa?.mesgul) return 'Form yeniden diziliyor. Bitince yeniden deneyin.';
-  if (kurulumKilidi || kapanisSuruyor()) return 'Pencere kapanmak üzere; sekme taşınamaz.';
+  if (kurulumKilidi || kapanisSuruyor()) return 'Pencere kapanmak üzere. Sekme taşınamaz.';
   if (ortuAcik()) return 'Önce açık pencereyi kapatın.';
   return '';
 }
@@ -964,8 +964,8 @@ pdefe.dinle('sekme:disSurukle', (nokta) => {
 async function yazilanSekmeyiYenile(b) {
   await sekmeSec(b.id);
   const r = await sekmeyiYenile({ mesajKutusu, dosyaAc, belgeKapat: (id, s) => belgeKapat(id, s) }, b,
-    { soruAyrintisi: 'Dosya başka bir pencerede yeniden yazıldı. Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.' }).catch(() => false);
-  if (!r) bildir(`"${b.ad}" sekmesi dosyanın önceki halini gösteriyor; notlarda değişiklik yapmadan önce sekmeyi kapatıp yeniden açın.`, 8000);
+    { soruAyrintisi: 'Dosya başka bir pencerede yeniden yazıldı. Belge diskteki yeni hâliyle yeniden açılırsa bu değişiklikler atılır.' }).catch(() => false);
+  if (!r) bildir(`"${b.ad}" sekmesi dosyanın önceki hâlini gösteriyor. Notlarda değişiklik yapmadan önce sekmeyi kapatıp yeniden açın.`, 8000);
 }
 
 /** Başka bir pencerede değişen ayarı bu pencereye uygular (ana süreç 'ayar:degisti' ile bildirir). Ayarlar bütün pencerelerde ortaktır;
@@ -2611,7 +2611,7 @@ function yaziKopyala(e, b, n) {
   e.clipboardData.setData(YAZI_PANO_TURU, JSON.stringify({ surum: 1, kimlik, ...disari }));
   const pano = yaziPanosu = { kimlik, veri, metin: veri.metin };
   if (kaynak) b.notlar.yaziVerisiTamamla(veri).then((v) => { pano.veri = v; }).catch(() => {});
-  bildir(tus('Yazı kutusu kopyalandı; tıkladığınız yere Ctrl+V ile yapıştırılır.'));
+  bildir(tus('Yazı kutusu kopyalandı. Tıkladığınız yere Ctrl+V ile yapıştırılır.'));
   return true;
 }
 

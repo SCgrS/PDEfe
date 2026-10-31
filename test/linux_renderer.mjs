@@ -138,13 +138,13 @@ export default async function ({ evalJs }) {
   })()`);
   sonuc('Ayarlar › Yazı çizimi (Linux): "Linux çizimi", Windows / ClearType yok, noktalı virgül yok',
     ayarlar.linux.cizim.secenekler.includes('Linux çizimi') && !/Windows|ClearType|;/.test(ayarlar.linux.cizim.aciklama + ayarlar.linux.cizim.secenekler.join(' ')), ayarlar.linux.cizim);
-  sonuc('Ayarlar › Yazı çizimi (Windows): "Windows ClearType" eskisi gibi', ayarlar.win.cizim.secenekler.includes('Windows ClearType') && /Windows ClearType: bütün yazılar/.test(ayarlar.win.cizim.aciklama), ayarlar.win.cizim);
+  sonuc('Ayarlar › Yazı çizimi (Windows): "Windows ClearType" eskisi gibi', ayarlar.win.cizim.secenekler.includes('Windows ClearType') && /Windows ClearType: Bütün yazılar/.test(ayarlar.win.cizim.aciklama), ayarlar.win.cizim);
   sonuc('Ayarlar › Güncelleme (Linux, AppImage): açıklama AppImage dosyasının yenisiyle değiştiğini söylüyor, düğme Güncelle',
     /AppImage dosyası yenisiyle değişir ve PDEfe yeniden açılır/.test(ayarlar.linux.appimage.aciklama) && !/;/.test(ayarlar.linux.appimage.aciklama.split('denenir. ')[1] || ';')
     && ayarlar.linux.appimage.dugme === 'Güncelle', ayarlar.linux.appimage);
   sonuc('Ayarlar › Güncelleme (Linux, AppImage dışında): düğme İndir', ayarlar.linux.tarayicida.dugme === 'İndir', ayarlar.linux.tarayicida);
   sonuc('Ayarlar › Güncelleme (Windows): açıklama ve düğme (Güncelle) eskisi gibi',
-    ayarlar.win.appimage.aciklama === 'İki günde bir, açılışta ya da PDEfe açık kalıyorsa gün içinde arka planda yeni sürüme bakılır; internet yoksa sonra yeniden denenir. Yeni sürüm varsa pencerenin üstünde bir şerit görünür; Güncelle\'ye tek tıkla indirilir, kurulur ve PDEfe yeniden açılır.'
+    ayarlar.win.appimage.aciklama === 'İki günde bir, açılışta ya da PDEfe açık kalıyorsa gün içinde arka planda yeni sürüme bakılır. İnternet yoksa sonra yeniden denenir. Yeni sürüm varsa pencerenin üstünde bir şerit görünür. Güncelle\'ye tek tıkla indirilir, kurulur ve PDEfe yeniden açılır.'
     && ayarlar.win.appimage.dugme === 'Güncelle', ayarlar.win.appimage);
 
   // ---------------------------------------------------------------- Ayarlar › Açılış ve düzen › Varsayılan PDF görüntüleyici

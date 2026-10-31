@@ -141,7 +141,7 @@ export class SayfalarPenceresi {
         ${dugme('sagaDondur', 'Seçilenleri sağa döndür', '<path d="M6.9 15.8A6.2 6.2 0 1 1 14.9 13.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M17.2 15.5 12.6 12.3 13.2 16.4z" fill="currentColor"/>')}
         ${dugme('sil', 'Seçilenleri sil (Delete)', '<path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11" fill="none" stroke="currentColor" stroke-width="1.4"/>')}
         <span class="ayrac"></span>
-        <button class="ikincil" data-komut="bosEkle" title="Seçili sayfanın arkasına boş sayfa ekler (boyut: önceki sayfa)">Boş sayfa ekle</button>
+        <button class="ikincil" data-komut="bosEkle" title="Seçili sayfanın arkasına boş sayfa ekler (boyut: Önceki sayfa)">Boş sayfa ekle</button>
         <button class="ikincil" data-komut="pdfEkle" title="Başka bir PDF'in sayfalarını seçili sayfanın arkasına ekler">PDF ekle</button>
         <span class="sayac"></span>
       </div>
@@ -207,8 +207,8 @@ export class SayfalarPenceresi {
   _kaydetIpucu() {
     const b = this.pencere.dugme('kaydet');
     if (b) b.title = this.kayit.uzerineMi()
-      ? 'Sayfa düzenini belgeye uygulayıp kaydeder; Ctrl+Z ile geri alınabilir'
-      : 'Sayfa düzenini yeni bir PDF dosyası olarak kaydeder; özgün dosya değişmez';
+      ? 'Sayfa düzenini belgeye uygulayıp kaydeder. Ctrl+Z ile geri alınabilir'
+      : 'Sayfa düzenini yeni bir PDF dosyası olarak kaydeder. Özgün dosya değişmez';
   }
 
   async _kapatmaIzni(sonuc) {
@@ -463,7 +463,7 @@ export class SayfalarPenceresi {
 
   sil(kimlikler) {
     if (!kimlikler.length) { this.baglam.bildir('Silinecek sayfayı seçin.'); return; }
-    if (kimlikler.length >= this.kartlar.length) { this.baglam.bildir('Bütün sayfalar silinemez; en az bir sayfa kalmalı.'); return; }
+    if (kimlikler.length >= this.kartlar.length) { this.baglam.bildir('Bütün sayfalar silinemez. En az bir sayfa kalmalı.'); return; }
     this._anlikGoruntuAl();
     const set = new Set(kimlikler);
     const ilkIdx = this.kartlar.findIndex((k) => set.has(k.kimlik));
@@ -499,7 +499,7 @@ export class SayfalarPenceresi {
     const secilen = this.kartlar.filter((k) => set.has(k.kimlik));
     if (!secilen.length) { this.baglam.bildir('Kopyalanacak sayfayı seçin.'); return false; }
     this.pano = secilen.map((k) => ({ ...k }));
-    if (!sessiz) this.baglam.bildir(tus(`${secilen.length} sayfa kopyalandı; eklemek için Ctrl+V.`));
+    if (!sessiz) this.baglam.bildir(tus(`${secilen.length} sayfa kopyalandı. Eklemek için Ctrl+V.`));
     return true;
   }
 
@@ -509,7 +509,7 @@ export class SayfalarPenceresi {
    * içerir; kayıt ve sekmenin görünümü bunu destekler), küçük resim aynı önbellekten gelir.
    */
   yapistir(idx = this._eklemeKonumu()) {
-    if (!this.pano?.length) { this.baglam.bildir(tus('Yapıştırılacak sayfa yok; önce sayfaları seçip Ctrl+C ile kopyalayın.')); return; }
+    if (!this.pano?.length) { this.baglam.bildir(tus('Yapıştırılacak sayfa yok. Önce sayfaları seçip Ctrl+C ile kopyalayın.')); return; }
     this._anlikGoruntuAl();
     const yeni = this.pano.map((k) => ({ ...k, kimlik: ++this.kimlikSayac }));
     this.kartlar.splice(Math.max(0, Math.min(idx, this.kartlar.length)), 0, ...yeni);
@@ -792,13 +792,13 @@ export class SayfalarPenceresi {
     const { belge } = this;
     const g = belge.gorunum;
     const yapisal = !!g?.anlik;
-    if (yapisal && g.yapisalKirli?.()) throw new Error('Sekmedeki sayfa düzeni kaydedilmedi; önce belgeyi kaydedin.');
+    if (yapisal && g.yapisalKirli?.()) throw new Error('Sekmedeki sayfa düzeni kaydedilmedi. Önce belgeyi kaydedin.');
     const sekme = g?.sayfalar || [];
     return this.kartlar.map((k) => {
       const s = k.sekme != null ? this.sekmeGirdileri[k.sekme] : null;
       if (s && yapisal) {
         const i = sekme.findIndex((x) => x.kimlik === s.kimlik);
-        if (i < 0) throw new Error('Belgenin sayfa düzeni bu pencere açıkken değişti; pencereyi kapatıp yeniden açın.');
+        if (i < 0) throw new Error('Belgenin sayfa düzeni bu pencere açıkken değişti. Pencereyi kapatıp yeniden açın.');
         return { kaynak: belge.yol, sayfa: i + 1, dondurme: aci(k.dondurme - (sekme[i].dondurme || 0)) };
       }
       if (k.bos) return { kaynak: null, sayfa: null, genislik: k.genislik, yukseklik: k.yukseklik, dondurme: aci(k.dondurme) };
@@ -846,7 +846,7 @@ export class SayfalarPenceresi {
       if (duzenKayitsiz || notKayitsiz) {
         const cevap = await degisiklikleriSor(baglam, belge, 'Sayfa düzenleme', duzenKayitsiz
           ? { yalnizKaydet: true, aciklama: 'Yeni belge dosyadaki kayıtlı sayfalardan oluşturulur.', neden: 'Sekmedeki sayfa düzeni kaydedilmediği için sayfalar dosyadakilerle eşleştirilemiyor.' }
-          : { aciklama: 'Yeni belge, burada düzenlediğiniz sayfa sırasıyla ve dosyadaki kayıtlı notlarla oluşturulur; kaydedilmemiş not değişiklikleri yeni belgeye girmez.' });
+          : { aciklama: 'Yeni belge, burada düzenlediğiniz sayfa sırasıyla ve dosyadaki kayıtlı notlarla oluşturulur. Kaydedilmemiş not değişiklikleri yeni belgeye girmez.' });
         if (cevap === 'vazgec' || this.pencere.kapali) return false;
       }
     }
@@ -859,7 +859,7 @@ export class SayfalarPenceresi {
     this.pencere.el.classList.add('mesgul');
     this.pencere.dugmeAyarla('kaydet', { devre: true });
     let kilit = null;
-    const soruAyrintisi = 'Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.';
+    const soruAyrintisi = 'Belge diskteki yeni hâliyle yeniden açılırsa bu değişiklikler atılır.';
     try {
       const sonuc = await this.ilerleme.calistir(baglam, 'sayfalar_uygula', { yol: belge.yol, hedef, tarif }, { baslangicMesaji: 'Kaydediliyor…' });
       this.ilerleme.gizle();
@@ -900,7 +900,7 @@ export class SayfalarPenceresi {
     if (!hazir()) { this.pencere.hataGoster('Belge açık değil ya da henüz yüklenmedi.'); return false; }
     if ((await degisiklikleriSor(baglam, belge, 'Sayfa düzenleme', {
       yalnizKaydet: true,
-      aciklama: 'Üzerine yazarken sayfa düzeni belgeye uygulanır ve belge kaydedilir; bu değişiklikler de dosyaya yazılır.',
+      aciklama: 'Üzerine yazarken sayfa düzeni belgeye uygulanır ve belge kaydedilir. Bu değişiklikler de dosyaya yazılır.',
     })) === 'vazgec') return false;
     if (this.pencere.kapali) return false;
     // "Kaydet ve devam et" sekmenin sayfalarını anlık kopyaya çevirmiş olabilir: tarif sekmedeki girdilerin güncel kaynağından kurulur
@@ -918,7 +918,7 @@ export class SayfalarPenceresi {
     }
     await this.pencere.kapat('tamam');
     const kaydedildi = await baglam.kaydet(belge);
-    baglam.bildir(kaydedildi ? tus(`Sayfa düzeni uygulandı ve kaydedildi: ${n} sayfa. Geri almak için Ctrl+Z.`) : `Sayfa düzeni uygulandı: ${n} sayfa; kaydedilmedi.`, kaydedildi ? 4000 : 6000);
+    baglam.bildir(kaydedildi ? tus(`Sayfa düzeni uygulandı ve kaydedildi: ${n} sayfa. Geri almak için Ctrl+Z.`) : `Sayfa düzeni uygulandı: ${n} sayfa, kaydedilmedi.`, kaydedildi ? 4000 : 6000);
     return false;
   }
 }

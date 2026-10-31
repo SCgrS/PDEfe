@@ -524,13 +524,13 @@ export class BirlestirmePenceresi {
       this.sonPanoSuresi = Math.round(performance.now() - t0);
       if (r?.tur === 'dosyalar') {
         const n = this.dosyaEkle(r.dosyalar);
-        if (!n && r.dosyalar.length) this.baglam.bildir('Panodaki dosyalar eklenemedi: yalnızca PDF, görüntü, UDF ve Word dosyaları eklenebilir.', 4000);
+        if (!n && r.dosyalar.length) this.baglam.bildir('Panodaki dosyalar eklenemedi: Yalnızca PDF, görüntü, UDF ve Word dosyaları eklenebilir.', 4000);
       } else if (r?.tur === 'gorsel' && r.yol) {
         this.dosyaEkle([r.yol]);
       } else if (r?.tur === 'metin') {
         this.baglam.bildir('Panoda metin var, eklenecek dosya ya da görüntü yok.', 3500);
       } else {
-        this.baglam.bildir('Pano boş: eklenecek dosya ya da görüntü yok.', 3500);
+        this.baglam.bildir('Pano boş: Eklenecek dosya ya da görüntü yok.', 3500);
       }
     } catch (e) {
       if (!this.pencere.kapali) this.pencere.hataGoster('Panodan eklenemedi: ' + hataMetni(e));
@@ -875,7 +875,7 @@ export class BirlestirmePenceresi {
     if (BELGE.has(o.tur)) { t.textContent = 'tahmin yok'; t.title = BELGE_TAHMIN_NOTU; return; }
     const b = this._tahmin(o, this.etkinKalite(o));
     if (b === null) { t.textContent = 'tahmin alınamadı'; t.title = this.tahminler.get(this._tahminAnahtari(o))?.hata[this.etkinKalite(o)] || ''; return; }
-    if (b === undefined) { t.textContent = 'tahmin: hesaplanıyor…'; return; }
+    if (b === undefined) { t.textContent = 'tahmin: Hesaplanıyor…'; return; }
     // Aynı içerik listede daha önce varsa PDF'te bir kez saklanır: toplam bu satır kadar büyümez
     const ayni = this._oncekiAyni(o);
     const n = ayni ? this.ogeler.indexOf(ayni) + 1 : 0;
@@ -964,7 +964,7 @@ export class BirlestirmePenceresi {
     // kayıtlı sürümle yapılır
     for (const b of this._kirliAcikBelgeler(ogeler)) {
       const yerineYazilacak = this.kayit.uzerineMi() && yolAyni(b.yol, this.belge?.yol);
-      const secenek = yerineYazilacak ? { aciklama: 'Birleştirme dosyadaki kayıtlı sürümle yapılır. Üzerine yazıldıktan sonra belge yeni haliyle yeniden açılır ve kaydedilmemiş değişiklikler atılır.' } : {};
+      const secenek = yerineYazilacak ? { aciklama: 'Birleştirme dosyadaki kayıtlı sürümle yapılır. Üzerine yazıldıktan sonra belge yeni hâliyle yeniden açılır ve kaydedilmemiş değişiklikler atılır.' } : {};
       if ((await degisiklikleriSor(baglam, b, 'Birleştirme', secenek)) === 'vazgec' || this.pencere.kapali) return false;
     }
     // Hedef listedeki bir dosyaysa var olan dosya sorusundan önce söylenir; ad, klasör, var olan dosya sorusu, kilit / salt okunur denetimi;
@@ -983,7 +983,7 @@ export class BirlestirmePenceresi {
     this.pencere.el.classList.add('mesgul');
     this.pencere.dugmeAyarla('birlestir', { devre: true });
     let kilit = null;
-    const soruAyrintisi = 'Belge diskteki yeni haliyle yeniden açılırsa bu değişiklikler atılır.';
+    const soruAyrintisi = 'Belge diskteki yeni hâliyle yeniden açılırsa bu değişiklikler atılır.';
     try {
       // Çekirdek sonucu: {boyut, sayfa, uyari?}. UYAP Doküman Editörü yokken UDF'ler ana süreçte yaklaşık çizilir (0.2.7: udf:yaklasikBirlestir;
       // ilerleme ve iptal aynı IslemIlerleme'de); UDF ve Word'ü editörle / Word'le çekirdek çevirir (ilerlemenin ilk %60'ı)

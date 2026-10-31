@@ -169,7 +169,7 @@ export default async function ({ evalJs, bekle, hedefler, hedefSec }) {
   let kart = await ayarlarKarti();
   sonuc('4) Kart "Klasör B"yi gösteriyor (soluk değil, not yok)', kart && ayni(kart.yol, B) && !kart.soluk && !kart.not, kart);
   sonuc('4) Açıklama: Değiştir ile seçilen klasör buraya yazılır, sonraki kayıtlarda bütün araçlar kullanır; yoksa Masaüstü',
-    /Değiştir/.test(kart?.aciklama) && /bütün araçlar/.test(kart?.aciklama) && /Masaüstü/.test(kart?.aciklama) && !/önerilen klasör; araç penceresinde değiştirilebilir/.test(kart?.aciklama), kart?.aciklama);
+    /Değiştir/.test(kart?.aciklama) && /Bütün araçlar/.test(kart?.aciklama) && /Masaüstü/.test(kart?.aciklama) && !/önerilen klasör; araç penceresinde değiştirilebilir/.test(kart?.aciklama), kart?.aciklama);
 
   // ------------------------------------------------------------ 5) Klasör silinince Masaüstü
   console.log('\n== 5) Klasör silinince araçlar Masaüstü\'ne düşer; Ayarlar kartı söyler; yeniden seçilince düzelir');

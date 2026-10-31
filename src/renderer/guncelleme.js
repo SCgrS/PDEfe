@@ -86,7 +86,7 @@ const BASLIKLAR = {
 const SURUYOR = new Set(['indiriliyor', 'onay', 'kuruluyor', 'hazir']);
 
 /** Beklenmeyen hata (ör. IPC çağrısı düştü): ayrıntı günlüğe, kullanıcıya kısa Türkçe ileti. */
-const BEKLENMEYEN_HATA = 'Beklenmeyen bir hata oluştu; biraz sonra yeniden deneyin.';
+const BEKLENMEYEN_HATA = 'Beklenmeyen bir hata oluştu. Biraz sonra yeniden deneyin.';
 
 function boyutMetni(b) {
   if (!b || b <= 0) return '';
@@ -158,7 +158,7 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce, kuru
       metin.textContent = `PDEfe ${durum.surum} indirildi.`;
       serit.append(metin);
     } else if (durum.asama === 'kuruluyor') {
-      metin.textContent = `PDEfe ${durum.surum} kuruluyor; uygulama kapanıp yeniden açılacak.`;
+      metin.textContent = `PDEfe ${durum.surum} kuruluyor. Uygulama kapanıp yeniden açılacak.`;
       serit.append(metin);
     } else if (durum.asama === 'hazir') {
       metin.textContent = `PDEfe ${durum.surum} indirildi${kullandiginiz()}. Kurmak için PDEfe kapanıp yeniden açılacak.`;
@@ -200,7 +200,7 @@ export function guncellemeSeridiKur({ pdefe, serit, bildir, kapatmadanOnce, kuru
         asama('onay');
         if (kapatmadanOnce && (await kapatmadanOnce()) === false) {
           asama('hazir');
-          bildir('Güncelleme ertelendi; indirilen sürüm saklandı.', 4000);
+          bildir('Güncelleme ertelendi. İndirilen sürüm saklandı.', 4000);
           return false;
         }
         asama('kuruluyor');

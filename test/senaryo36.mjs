@@ -154,7 +154,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla, yaz, tus,
       veri && veri.metin === 'Kopyalanacak yazı kutusu' && veri.yazi?.tip === 'Times New Roman' && veri.yazi.boyut === 16 && veri.yazi.renk === '#c00000' && veri.yazi.arka === '#fff7c2'
       && veri.egim === 0 && yakin(veri.wPt, KW, 0.01) && yakin(veri.hPt, KH, 0.01) && !('kaynak' in veri) && !('donus' in veri.yazi) && typeof veri.kimlik === 'string', veri);
     const bildirim = await evalJs(`(() => { const b = document.querySelector('#bildirim'); return b && !b.hidden ? b.textContent : null; })()`);
-    sonuc('Bildirim: "Yazı kutusu kopyalandı; tıkladığınız yere Ctrl+V ile yapıştırılır."', bildirim === 'Yazı kutusu kopyalandı; tıkladığınız yere Ctrl+V ile yapıştırılır.', bildirim);
+    sonuc('Bildirim: "Yazı kutusu kopyalandı. Tıkladığınız yere Ctrl+V ile yapıştırılır."', bildirim === 'Yazı kutusu kopyalandı. Tıkladığınız yere Ctrl+V ile yapıştırılır.', bildirim);
     // Metin seçiliyken metin kopyalanır (yazı seçili olsa da)
     const metinKopyasi = await evalJs(`(() => { const n = window.__s36.n(); n.sec(${J(kaynakId)}); const sp = window.__s36.b().gorunum.sayfalar[0].el.querySelector('.textLayer span[role="presentation"]');
       const r = document.createRange(); r.selectNodeContents(sp); getSelection().removeAllRanges(); getSelection().addRange(r);

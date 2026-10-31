@@ -926,10 +926,10 @@ def _ogeleri_hazirla(ogeler):
             raise ValueError("%s dosyasının uzantısı %s olmalı: %s" % (_HEDEF_ADLARI[bicim], " ya da ".join(uzantilar), os.path.basename(hedef)))
         secenekler = oge.get("secenekler") or {}
         if not isinstance(secenekler, dict):
-            raise ValueError("Öğe %d: seçenekler geçersiz." % (i + 1))
+            raise ValueError("Öğe %d: Seçenekler geçersiz." % (i + 1))
         cakisma = oge.get("cakisma") or "uzerineYaz"
         if cakisma not in CAKISMALAR:
-            raise ValueError("Öğe %d: bilinmeyen çakışma seçeneği: %r" % (i + 1, cakisma))
+            raise ValueError("Öğe %d: Bilinmeyen çakışma seçeneği: %r" % (i + 1, cakisma))
         anahtar = _yol_anahtari(hedef)
         if anahtar in hedefler:
             raise ValueError("Aynı hedef dosya iki kez verildi: %s" % os.path.basename(hedef))
@@ -1841,7 +1841,7 @@ def _gorsel_bilgi(yol, alt, genislik):
              "pikselGenislik": g, "pikselYukseklik": y, "gorselBicimi": bicim.lower(),
              "png": base64.b64encode(buf.getvalue()).decode("ascii"), "pngGenislik": kucuk.width, "pngYukseklik": kucuk.height}
         if kareler > 1:
-            s["uyari"] = "Hareketli görüntü: yalnızca ilk karesi dönüştürülür."
+            s["uyari"] = "Hareketli görüntü: Yalnızca ilk karesi dönüştürülür."
         return s
     except (OgeHatasi, MemoryError):
         raise

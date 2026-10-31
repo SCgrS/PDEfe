@@ -73,14 +73,14 @@ export default async function ({ evalJs, bekle, tikla }) {
   const t0 = Date.now();
   const s2 = await bekleSerit((s) => s.asama === 'hata', 15000);
   const sure = (Date.now() - t0) / 1000;
-  sonuc(`Donan indirme kesildi (${sure.toFixed(1)} sn): Türkçe ileti ve Yeniden dene`, s2.asama === 'hata' && s2.metin === 'Güncelleme indirilemedi. İndirme ilerlemiyor; internet bağlantısını denetleyip yeniden deneyin.'
+  sonuc(`Donan indirme kesildi (${sure.toFixed(1)} sn): Türkçe ileti ve Yeniden dene`, s2.asama === 'hata' && s2.metin === 'Güncelleme indirilemedi. İndirme ilerlemiyor. İnternet bağlantısını denetleyip yeniden deneyin.'
     && s2.dugmeler.some((d) => d.ad === 'Yeniden dene') && sure < 10, s2);
   sonuc('Sahte güncelleyici iptali gördü', (await kayit()).iptaller === 1, await kayit());
   // Bağlantı koptu
   await senaryo({ hata: 'indirme', sureMs: 1500 });
   await bas('Yeniden dene');
   const s3 = await bekleSerit((s) => s.asama === 'hata' && /Sunucuya/.test(s.metin), 10000);
-  sonuc('Bağlantı koptu: "Sunucuya ulaşılamadı; internet bağlantısını denetleyin." ve Yeniden dene', s3.metin === 'Güncelleme indirilemedi. Sunucuya ulaşılamadı; internet bağlantısını denetleyin.' && s3.dugmeler.some((d) => d.ad === 'Yeniden dene'), s3);
+  sonuc('Bağlantı koptu: "Sunucuya ulaşılamadı. İnternet bağlantısını denetleyin." ve Yeniden dene', s3.metin === 'Güncelleme indirilemedi. Sunucuya ulaşılamadı. İnternet bağlantısını denetleyin.' && s3.dugmeler.some((d) => d.ad === 'Yeniden dene'), s3);
 
   // ---------------------------------------------------------------- 3. Kaydedilmemiş belge: indirme bitince sorulur
   console.log('— Kaydedilmemiş belge');

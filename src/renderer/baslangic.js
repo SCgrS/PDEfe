@@ -63,7 +63,7 @@ export class BaslangicEkrani {
   <section class="karsilama-son" aria-label="Son açılanlar">
     <div class="karsilama-son-ust">
       <h2>Son açılanlar</h2>
-      <button type="button" class="karsilama-temizle" title="Son açılanlar listesini boşaltır; dosyalar silinmez">Listeyi temizle</button>
+      <button type="button" class="karsilama-temizle" title="Son açılanlar listesini boşaltır. Dosyalar silinmez">Listeyi temizle</button>
     </div>
     <ul id="son-dosyalar"></ul>
   </section>

@@ -322,7 +322,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     const yeni2 = ozet(hedef2);
     const ilk = await evalJs(`(() => { const b = [...window.__pdefe.belgeler.values()][0]; return { degisti: b.degisti, sayfa: b.gorunum.sayfaSayisi }; })()`);
     sonuc('bekleyen notta sorulur (Kaydet ve devam et / Kaydetmeden devam et / Vazgeç)',
-      sorular2.length === 1 && sorular2[0].secenek.dugmeler.length === 3 && /kaydedilmemiş not değişiklikleri yeni belgeye girmez/.test(sorular2[0].secenek.ayrinti), sorular2.map((s) => [s.secenek?.mesaj, s.secenek?.ayrinti, s.secenek?.dugmeler]));
+      sorular2.length === 1 && sorular2[0].secenek.dugmeler.length === 3 && /Kaydedilmemiş not değişiklikleri yeni belgeye girmez/.test(sorular2[0].secenek.ayrinti), sorular2.map((s) => [s.secenek?.mesaj, s.secenek?.ayrinti, s.secenek?.dugmeler]));
     sonuc('Kaydetmeden devam et: bekleyen not yeni belgede yok, sekme kirli kalır, "(2)" adı',
       path.basename(hedef2) === path.basename(hedef, '.pdf') + ' (2).pdf' && yeni2.sayfalar.length === 7 && yeni2.sayfalar[0].not.length === 2 && ilk.degisti && ilk.sayfa === 8, { not: yeni2.sayfalar.map((s) => s.not.length), ilk });
   }
@@ -413,7 +413,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, fare, tikla, sur
     await evalJs(`document.querySelector('.ayir-pencere .arac-kayit-secim [data-id="uzerine"]').click()`);
     d = await durum();
     sonuc('üzerine yaz: geri alınamaz uyarısı ve kalan sayfalar önizlemesi', d.kip === 'uzerine' && d.notSinif.includes('uyari') && /^Geri alınamaz: sonuç "zengin_c\.pdf" dosyasının yerine yazılır, yedek alınmaz\.$/.test(d.not)
-      && /"zengin_c\.pdf" dosyasında yalnızca 3 sayfa kalır \(2-4\); diğer 5 sayfa silinir\./.test(d.onizleme) && !d.adlar, d);
+      && /"zengin_c\.pdf" dosyasında yalnızca 3 sayfa kalır \(2-4\)\. Diğer 5 sayfa silinir\./.test(d.onizleme) && !d.adlar, d);
     await ss('06-ayir-uzerine-aralik-koyu');
     await mod('herSayfa');
     d = await durum();

@@ -1088,7 +1088,7 @@ def pdf_udf(kaynak, cikti, secenekler, ilerleme, baglam):
         # 0.2.9 denetimi: tanıyıcı çalışıp yazı bulamadıysa (fotoğraf, boş tarama, yalnızca imza ya da mühür) "tanıyıcı yok" denmez
         if tanima_yok:
             from . import yazi_tanima as yt
-            uyarilar.append("%d taranmış sayfanın yazısı tanınamadı%s: o sayfalar resim olarak kondu."
+            uyarilar.append("%d taranmış sayfanın yazısı tanınamadı%s: O sayfalar resim olarak kondu."
                             % (tanima_yok, " (bu bilgisayarda yazı tanıyıcı yok)" if yt._motor is False else ""))
         elif any(s.tanindi for s in sayfalar):
             uyarilar.append("Taranmış sayfaların yazısı yazı tanımayla çıkarıldı. Harf yanlışları olabilir.")

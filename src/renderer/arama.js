@@ -66,8 +66,8 @@ export class Arama extends EventTarget {
       <div class="ayar-menu" id="bul-ayar-menu" hidden>
         <label><input type="checkbox" data-ayar="tamSozcuk"> Yalnızca tam sözcükler</label>
         <label><input type="checkbox" data-ayar="buyukKucuk"> Büyük-küçük harf duyarlı</label>
-        <label><input type="checkbox" data-ayar="yerimi"> Yer imlerini dahil et</label>
-        <label><input type="checkbox" data-ayar="yorum"> Yorumları dahil et</label>
+        <label><input type="checkbox" data-ayar="yerimi"> Yer imlerini dâhil et</label>
+        <label><input type="checkbox" data-ayar="yorum"> Yorumları dâhil et</label>
         <hr style="border:none;border-top:1px solid var(--kenar);margin:2px 0">
         <label><input type="radio" name="bul-kapsam" data-kapsam="belge" checked> Geçerli belgede ara</label>
         <label><input type="radio" name="bul-kapsam" data-kapsam="tum"> Tüm açık sekmelerde ara</label>

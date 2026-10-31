@@ -226,7 +226,7 @@ const ayar = (k) => JSON.stringify({ son: k.depo.get(AYAR_SON_DENETIM), bekleyen
   kontrol('kurulum başladı: kapatmayaHazirla, henüz iptal yok', k.sayac.kapatmayaHazirla === 1 && k.sayac.kapatmaIptal === 0 && (await k.cagir('guncelleme:durum')).kuruluyor === true);
   await bekle(80);
   const olay = k.giden.find(([x]) => x === 'guncelleme:hata')?.[1];
-  kontrol('uygulama kapanmadı → kapatmaIptal, Türkçe ileti, kuruluyor değil', k.sayac.kapatmaIptal === 1 && olay?.mesaj === 'Güncelleme kurulamadı. Kurulum başlamadı; yeniden deneyin.' && (await k.cagir('guncelleme:durum')).kuruluyor === false, JSON.stringify(olay));
+  kontrol('uygulama kapanmadı → kapatmaIptal, Türkçe ileti, kuruluyor değil', k.sayac.kapatmaIptal === 1 && olay?.mesaj === 'Güncelleme kurulamadı. Kurulum başlamadı. Yeniden deneyin.' && (await k.cagir('guncelleme:durum')).kuruluyor === false, JSON.stringify(olay));
   k.cagir('guncelleme:kur'); await bekle(15);
   kontrol('yeniden kur → ikinci quitAndInstall', k.au.kayit.kurulum.length === 2, JSON.stringify(k.au.kayit.kurulum));
   // kurulum hatası bekçiden önce geldiyse bekçi ikinci kez bildirmez
@@ -248,15 +248,15 @@ const ayar = (k) => JSON.stringify({ son: k.depo.get(AYAR_SON_DENETIM), bekleyen
   const ornekler = [
     [Object.assign(new Error('New version 0.9.1 is not signed by the application owner: x'), { code: 'ERR_UPDATER_INVALID_SIGNATURE' }), 'Kurulum dosyasının imzası doğrulanamadı.'],
     [Object.assign(new Error('sha512 checksum mismatch, expected a, got b'), { code: 'ERR_CHECKSUM_MISMATCH' }), 'İndirilen dosyanın bütünlüğü doğrulanamadı.'],
-    [Object.assign(new Error('503 Service Unavailable\nHeaders: {}'), { statusCode: 503, code: 'HTTP_ERROR_503' }), 'Sunucu şu an yanıt vermiyor; biraz sonra yeniden deneyin.'],
-    [Object.assign(new Error('403 Forbidden\nHeaders: {}'), { statusCode: 403 }), 'Sunucu isteği şu an kabul etmiyor; biraz sonra yeniden deneyin.'],
+    [Object.assign(new Error('503 Service Unavailable\nHeaders: {}'), { statusCode: 503, code: 'HTTP_ERROR_503' }), 'Sunucu şu an yanıt vermiyor. Biraz sonra yeniden deneyin.'],
+    [Object.assign(new Error('403 Forbidden\nHeaders: {}'), { statusCode: 403 }), 'Sunucu isteği şu an kabul etmiyor. Biraz sonra yeniden deneyin.'],
     [Object.assign(new Error('No published versions on GitHub'), { code: 'ERR_UPDATER_NO_PUBLISHED_VERSIONS' }), 'Sürüm bilgisi bulunamadı (henüz yayımlanmış sürüm yok).'],
     [Object.assign(new Error('Cannot parse update info from latest.yml ... sha512: x, rawData: y'), { code: 'ERR_UPDATER_INVALID_UPDATE_INFO' }), 'Sürüm bilgisi okunamadı.'],
-    [new Error('net::ERR_CONNECTION_RESET'), 'Sunucuya ulaşılamadı; internet bağlantısını denetleyin.'],
+    [new Error('net::ERR_CONNECTION_RESET'), 'Sunucuya ulaşılamadı. İnternet bağlantısını denetleyin.'],
     [new Error('spawn EACCES'), 'Kurulum dosyası başlatılamadı.'],
     [new Error('ENOSPC: no space left on device, write'), 'Diskte yeterli boş yer yok.'],
-    [new Error('Something completely unexpected happened'), 'Beklenmeyen bir hata oluştu; biraz sonra yeniden deneyin.'],
-    ['düz dize', 'Beklenmeyen bir hata oluştu; biraz sonra yeniden deneyin.'],
+    [new Error('Something completely unexpected happened'), 'Beklenmeyen bir hata oluştu. Biraz sonra yeniden deneyin.'],
+    ['düz dize', 'Beklenmeyen bir hata oluştu. Biraz sonra yeniden deneyin.'],
   ];
   for (const [e, beklenen] of ornekler) kontrol(`hataMetni: ${String(e.message || e).slice(0, 40)}`, hataMetni(e) === beklenen, hataMetni(e));
   kontrol('hataMetni: indirme 404', hataMetni(Object.assign(new Error('404 Not Found'), { statusCode: 404 }), true) === 'Kurulum dosyası sunucuda bulunamadı.');
@@ -265,7 +265,7 @@ const ayar = (k) => JSON.stringify({ son: k.depo.get(AYAR_SON_DENETIM), bekleyen
   await k2.cagir('guncelleme:denetle');
   k2.au.s.indirmeHatasi = () => new Error('Unexpected end of JSON input');
   const r = await k2.cagir('guncelleme:indir');
-  kontrol('tanınmayan indirme hatası → Türkçe', r.tamam === false && r.mesaj === 'Beklenmeyen bir hata oluştu; biraz sonra yeniden deneyin.', JSON.stringify(r));
+  kontrol('tanınmayan indirme hatası → Türkçe', r.tamam === false && r.mesaj === 'Beklenmeyen bir hata oluştu. Biraz sonra yeniden deneyin.', JSON.stringify(r));
 }
 
 // ---- 0.2.5: yarım kalan indirme, donmuş indirme, önbellek temizliği
@@ -288,7 +288,7 @@ const ayar = (k) => JSON.stringify({ son: k.depo.get(AYAR_SON_DENETIM), bekleyen
   await k3.cagir('guncelleme:denetle');
   k3.au.s.indirmeHatasi = () => new Error('net::ERR_CONNECTION_RESET');
   const r3 = await k3.cagir('guncelleme:indir');
-  kontrol('bağlantı koptu: Türkçe ileti, bekleyen kalır', r3.tamam === false && r3.mesaj === 'Sunucuya ulaşılamadı; internet bağlantısını denetleyin.' && k3.depo.get('bekleyenGuncelleme') === '0.9.1', JSON.stringify(r3) + ' ' + ayar(k3));
+  kontrol('bağlantı koptu: Türkçe ileti, bekleyen kalır', r3.tamam === false && r3.mesaj === 'Sunucuya ulaşılamadı. İnternet bağlantısını denetleyin.' && k3.depo.get('bekleyenGuncelleme') === '0.9.1', JSON.stringify(r3) + ' ' + ayar(k3));
   k3.au.s.indirmeHatasi = null;
   const r3b = await k3.cagir('guncelleme:indir');
   kontrol('Yeniden dene: indirme tamamlanır', r3b.tamam === true && k3.au.kayit.indirme === 2, JSON.stringify(r3b));

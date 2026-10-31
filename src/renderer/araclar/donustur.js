@@ -105,7 +105,7 @@ const iptalHatasi = () => Object.assign(new Error('İşlem iptal edildi.'), { ip
 // çekirdeğin donusum_tahmini'nin yaklaşık boyutu (_tahminAl). 0.2.6'da varsayılan 200 dpi, düğmelerde "200 dpi" / "300 dpi" yazıyordu
 const tiffSecimi = { dpi: 300, renk: 'sb' };
 const COZUNURLUKLER = [
-  { id: '300', ad: 'İdeal', anahtar: 'ideal', baslik: 'Standart çözünürlük: yazılar ve resimler keskin' },
+  { id: '300', ad: 'İdeal', anahtar: 'ideal', baslik: 'Standart çözünürlük: Yazılar ve resimler keskin' },
   { id: '200', ad: 'Düşük', anahtar: 'dusuk', baslik: 'Daha küçük dosya, yazılı belgeler için yeterli' },
 ];
 /** Çekirdek var olan dosyalar yüzünden ilk boş "(1)" adını seçti (sonucun istenenHedef'i; 0.2.7 inceleme). */

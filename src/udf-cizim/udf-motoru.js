@@ -43,14 +43,14 @@
   });
 
   const ILETI = {
-    zip: 'Dosya açılamadı: bozuk ya da UDF değil.',
+    zip: 'Dosya açılamadı: Bozuk ya da UDF değil.',
     'content-xml-yok': 'UDF paketinde belge içeriği (content.xml) yok.',
     xml: 'Belge içeriği okunamadı (XML bozuk).',
     dtd: 'Belge güvenlik nedeniyle gösterilmedi (izin verilmeyen XML tanımı).',
-    boyut: 'Belge görüntüleyicinin sınırından büyük; dosyayı indirip UYAP Doküman Editörü ile açın.',
-    belirsiz: 'Paket birden çok içerik dosyası taşıyor; güvenlik nedeniyle gösterilmedi.',
-    desteklenmiyor: 'Tarayıcınız bu belgeyi açamıyor; Chrome’u güncelleyin.',
-    sure: 'Belge zamanında hazırlanamadı; dosyayı indirip UYAP Doküman Editörü ile açın.',
+    boyut: 'Belge görüntüleyicinin sınırından büyük. Dosyayı indirip UYAP Doküman Editörü ile açın.',
+    belirsiz: 'Paket birden çok içerik dosyası taşıyor. Güvenlik nedeniyle gösterilmedi.',
+    desteklenmiyor: 'Tarayıcınız bu belgeyi açamıyor. Chrome’u güncelleyin.',
+    sure: 'Belge zamanında hazırlanamadı. Dosyayı indirip UYAP Doküman Editörü ile açın.',
     bos: 'Dosya boş.'
   };
 
@@ -1172,7 +1172,7 @@
       if (r.red) {
         kutu.style.setProperty('min-width', pt(en));
         kutu.style.setProperty('min-height', pt(boy));
-        return resimGosterilemedi(kutu, r.red === 'buyuk' ? '[Resim gösterilemedi: çok büyük]' : '[Resim gösterilemedi]');
+        return resimGosterilemedi(kutu, r.red === 'buyuk' ? '[Resim gösterilemedi: Çok büyük]' : '[Resim gösterilemedi]');
       }
       kutu.style.setProperty('width', pt(en));
       kutu.style.setProperty('aspect-ratio', `${Math.round(en * 100) / 100} / ${Math.round(boy * 100) / 100}`);
@@ -1430,8 +1430,8 @@
       isler.push(() => {
         const n = E('div', 'udf-not');
         n.textContent = model.kesildi === 'sure'
-          ? 'Belgenin hazırlanması uzun sürdü; ilk bölüm gösteriliyor. Tamamı için dosyayı indirip UYAP Doküman Editörü ile açın.'
-          : 'Belge çok uzun ya da karmaşık; ilk bölüm gösteriliyor. Tamamı için dosyayı indirip UYAP Doküman Editörü ile açın.';
+          ? 'Belgenin hazırlanması uzun sürdü. İlk bölüm gösteriliyor. Tamamı için dosyayı indirip UYAP Doküman Editörü ile açın.'
+          : 'Belge çok uzun ya da karmaşık. İlk bölüm gösteriliyor. Tamamı için dosyayı indirip UYAP Doküman Editörü ile açın.';
         kok.append(n);
       });
     }

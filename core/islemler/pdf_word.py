@@ -205,7 +205,7 @@ def _pdf_word(kaynak, cikti, secenekler, ilerleme, baglam):
     uyarilar = []
     if taranmis:
         if len(taranmis) == n:
-            uyarilar.append("Belge taranmış: sayfalar resim olarak aktarıldı, metni Word'de düzenlenemez.")
+            uyarilar.append("Belge taranmış: Sayfalar resim olarak aktarıldı, metni Word'de düzenlenemez.")
         else:
             uyarilar.append("Taranmış sayfalar (%s) resim olarak aktarıldı, metinleri Word'de düzenlenemez." % _sayfa_listesi(taranmis))
     if atlanan:
