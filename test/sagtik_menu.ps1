@@ -13,6 +13,11 @@ $kok = Split-Path -Parent $PSScriptRoot
 $sagtik = Join-Path $kok 'sagtik'
 if (-not $Klasor) { $Klasor = Join-Path $env:TEMP "pdefe-sagtik-menu-$PID" }
 $CI = $env:GITHUB_ACTIONS -eq 'true'
+# Yükseltilmiş süreçte COM kullanıcı kovanındaki sınıfları yok sayar, GitHub'ın Windows makinesi yükseltilmiş çalışır: Kayıtlar orada HKLM'ye yazılır
+# (makine her işte yeniden kurulur). Gerçek kullanımda Gezgin yükseltilmemiş çalışır, kurucu HKCU'ya yazar.
+$yukseltilmis = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+$kayitKoku = if ($CI -and $yukseltilmis) { [Microsoft.Win32.Registry]::LocalMachine } else { [Microsoft.Win32.Registry]::CurrentUser }
+Write-Output "Kayıt kökü: $($kayitKoku.Name) (CI: $CI, yükseltilmiş: $yukseltilmis)"
 $HKCU = [uint32]2147483649
 $duzen = Get-Content -LiteralPath (Join-Path $kok 'test\sagtik_kayitlari.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 $onek = $duzen.fiilOneki.menuSinamasi
@@ -23,7 +28,7 @@ function Gercekte-Var([string]$anahtar) {
   return $r.ReturnValue -eq 0
 }
 function Paket-Var([string]$anahtar) {
-  $a = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($anahtar)
+  $a = $kayitKoku.OpenSubKey($anahtar)
   if ($a) { $a.Close(); return $true }
   return $false
 }
@@ -35,7 +40,7 @@ foreach ($f in $duzen.fiiller) {
 }
 function Temizle {
   foreach ($a in $anahtarlar) {
-    try { [Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree($a, $false) } catch { }
+    try { $kayitKoku.DeleteSubKeyTree($a, $false) } catch { }
   }
 }
 
@@ -47,11 +52,11 @@ foreach ($a in $anahtarlar) {
 # ------------------------------------------------------------------ 1. kanıt: yazım sanal kovana gidiyor
 if (-not $CI) {
   $isaret = "$siniflar\$($duzen.fiilKoku)\$onek.SanalKovanKaniti"
-  $a = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey($isaret)
+  $a = $kayitKoku.CreateSubKey($isaret)
   $a.SetValue('isaret', '1'); $a.Close()
   $paket = Paket-Var $isaret
   $gercek = Gercekte-Var $isaret
-  [Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree($isaret, $false)
+  $kayitKoku.DeleteSubKeyTree($isaret, $false)
   if ($gercek) { throw "HKCU yazımı gerçek kovana gitti (HKCU\$isaret, silindi): Menü sınaması yapılmadı." }
   if (-not $paket) { throw "Yazılan işaret paket görünümünde de yok: Ölçüm yapılamadı, menü sınaması yapılmadı." }
   Write-Output "Kanıt: HKCU\$isaret paket görünümünde vardı, gerçek kovanda (WMI) yoktu. Silindi."
@@ -80,7 +85,7 @@ try {
 
   # ------------------------------------------------------------------ 3. kayıtlar (her yazımdan sonra gerçek kovana bakılır)
   function Yaz([string]$anahtar, [hashtable]$degerler) {
-    $a = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey($anahtar)
+    $a = $kayitKoku.CreateSubKey($anahtar)
     foreach ($k in $degerler.Keys) { $a.SetValue($(if ($k -eq '@') { '' } else { $k }), [string]$degerler[$k], [Microsoft.Win32.RegistryValueKind]::String) }
     $a.Close()
     if (-not $CI -and (Gercekte-Var $anahtar)) {
