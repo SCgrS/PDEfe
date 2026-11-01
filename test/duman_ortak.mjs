@@ -61,7 +61,7 @@ const YARDIMCI = `window.__d = {
       el.scrollIntoView({ block: 'center', inline: 'center' });
       await this.bekle(150);
       const r = el.getBoundingClientRect();
-      return { x: r.left + r.width / 2, y: r.top + Math.min(r.height / 2, 30), l: r.left, t: r.top, w: r.width, h: r.height };
+      return { x: r.left + r.width / 2, y: Math.max(r.top + Math.min(r.height / 2, 30), 100), l: r.left, t: r.top, w: r.width, h: r.height };   // uzun alanın üstü pencerenin dışında kalabilir
     }
     return null;
   },
