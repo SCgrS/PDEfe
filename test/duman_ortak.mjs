@@ -164,7 +164,7 @@ const YARDIMCI = `window.__d = {
     k.textContent = metin;
     Object.assign(k.style, { position: 'fixed', left: '20px', top: '100px', zIndex: 99999, background: '#fff', color: '#000', whiteSpace: 'pre', lineHeight: '2', padding: '0 8px', fontFamily: st.fontFamily, fontSize: parseFloat(st.fontSize) * olcek + 'px', fontWeight: st.fontWeight, fontStyle: st.fontStyle, textRendering: 'geometricPrecision' });
     document.body.append(k);
-    const u = k.getBoundingClientRect(), g = Math.min(r.width * oran, innerWidth - r.left - 30), b = Math.min(r.height, parseFloat(st.lineHeight) * olcek * 1.8 + parseFloat(st.paddingTop) * olcek);   // çok satırlıda ilk satır
+    const u = k.getBoundingClientRect(), g = Math.min(r.width * oran, innerWidth - r.left - 30), b = Math.min(r.height, (parseFloat(st.lineHeight) || parseFloat(st.fontSize) * 1.2) * olcek * 1.8 + parseFloat(st.paddingTop) * olcek);   // çok satırlıda ilk satır
     return { olcek, alan: { x: r.left + ic, y: r.top + ic, width: g - 2 * ic, height: b - 2 * ic }, kopya: { x: u.left, y: u.top, width: u.width, height: u.height } };
   },
   kuculenler() { return [...document.querySelectorAll('${KATMAN} .xfaRich, ${KATMAN} .xfaCaption')].filter((e) => e.style.zoom).map((e) => e.style.zoom + ' ' + e.textContent.slice(0, 24)); },
