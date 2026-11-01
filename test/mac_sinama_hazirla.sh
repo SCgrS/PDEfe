@@ -18,9 +18,9 @@ du -sh /Applications/PDEfe.app
 set +e
 BASKI=/private/tmp/pdefe-baski
 mkdir -p "$BASKI" && chmod 777 "$BASKI"
-sudo sh -c "grep -q '^FileDevice' /etc/cups/cups-files.conf || echo 'FileDevice Yes' >> /etc/cups/cups-files.conf"
+sudo sh -c "sed -i '' '/^FileDevice/d' /etc/cups/cups-files.conf; echo 'FileDevice Yes' >> /etc/cups/cups-files.conf"
 sudo launchctl kickstart -k system/org.cups.cupsd
-sleep 3
+sleep 5
 sudo lpadmin -p PDEfe_Sinama -E -v "file://$BASKI/cikti.ps" -m drv:///sample.drv/generic.ppd
 sudo lpadmin -d PDEfe_Sinama
 lpstat -p -d

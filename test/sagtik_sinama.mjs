@@ -316,7 +316,9 @@ if (argv.has('--mac') && MAC) {
     sonuc(`macOS: ${e.ad} plutil -lint`, l.status === 0, l.stdout + l.stderr);
   }
   const dok = spawnSync('/System/Library/CoreServices/pbs', ['-dump_pboard'], { encoding: 'utf8' });
-  const listede = HIZLI_EYLEMLER.filter((e) => (dok.stdout || '').includes(e.ad));
+  // pbs Türkçe harfleri \Uxxxx diye yazar
+  const hizmetler = (dok.stdout || '').replace(/\\[Uu]([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16))).normalize('NFC');
+  const listede = HIZLI_EYLEMLER.filter((e) => hizmetler.includes(e.ad.normalize('NFC')));
   if (listede.length === HIZLI_EYLEMLER.length) sonuc('macOS: pbs Hizmetler listesinde ikisi de', true);
   else bilgi(`pbs -dump_pboard'da görünenler: ${listede.map((e) => e.ad).join(', ') || 'yok'} (Hizmetler listesi gecikmeli yenilenebilir)`);
   // Uçtan uca (bilgi): automator iş akışını çalıştırır; sahte uygulama paketi bağımsız değişkenlerini yazar
@@ -333,7 +335,9 @@ if (argv.has('--mac') && MAC) {
   const a = spawnSync('/usr/bin/automator', ['-i', girdi, is], { encoding: 'utf8', timeout: 60000 });
   for (let i = 0; i < 40 && !fs.existsSync(kayit); i++) await new Promise((c) => setTimeout(c, 250));
   const gelen = fs.existsSync(kayit) ? fs.readFileSync(kayit, 'utf8').split('\n').filter(Boolean) : null;
-  if (J(gelen) === J(['--donustur', girdi])) sonuc('macOS uçtan uca: automator → betik → open -n → uygulama bağımsız değişkenleri aldı', true);
+  // Automator yolu ayrışık (NFD) verir: Harf harf aynı değil, adı aynı. Finder'ın verdiği de böyle olabilir: Yol diskte aynı dosyayı gösterir
+  const nfc = (l) => l?.map((s) => s.normalize('NFC'));
+  if (J(nfc(gelen)) === J(nfc(['--donustur', girdi]))) sonuc('macOS uçtan uca: automator → betik → open -n → uygulama bağımsız değişkenleri aldı', true);
   else bilgi(`uçtan uca automator denemesi tutmadı (zorunlu değil): automator ${a.status} ${(a.stderr || '').slice(0, 300)}; gelen ${J(gelen)}`);
 }
 

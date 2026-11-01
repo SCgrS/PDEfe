@@ -350,7 +350,9 @@ if (secildi('Gerçek baskı')) {
       }
       if (!geldi || kutu) { sonuc(`Gerçek baskı ${ad}: Yazıcıya ulaştı`, false, `${String(kutu || 'dosya yok').replace(/\s+/g, ' ')} · kuyruk: ${kuyruk}`, false); return; }
       const kopya = path.join(CIKTI, `baski-${ad}.ps`);
-      fs.copyFileSync(BASKI, kopya);
+      // Dosyayı CUPS yazar, yalnız kendisi okur
+      calistir('/usr/bin/sudo', ['-n', '/bin/cp', BASKI, kopya]);
+      calistir('/usr/bin/sudo', ['-n', '/bin/chmod', '644', kopya]);
       const s = psOlc(kopya);
       sonuc(`Gerçek baskı ${ad}: ${sayfaBeklenen} sayfa A4 (595 × 842 pt)`, s.sayfa === sayfaBeklenen && Math.abs(s.g - 595) <= 3 && Math.abs(s.b - 842) <= 3, JSON.stringify(s), false);
     };
@@ -401,8 +403,10 @@ if (secildi('Hızlı Eylem')) {
     betikler[e.anahtar] = betik.cikti;
     sonuc(`Hızlı Eylem ${e.ad}: Betik bu uygulamanın yolunu taşıyor`, betik.ok && betik.cikti.trim() === hizliEylemBetigi(e, UYGULAMA).trim(), betik.hata || betik.cikti.split('\n')[1]);
   }
-  const hizmetler = calistir('/System/Library/CoreServices/pbs', ['-dump_pboard']).cikti;
-  sonuc('Hızlı Eylem: Hizmetler listesinde ikisi de (bilgi: Liste gecikmeli yenilenebilir)', HIZLI_EYLEMLER.every((e) => hizmetler.includes(e.ad)) ? true : null, HIZLI_EYLEMLER.filter((e) => hizmetler.includes(e.ad)).map((e) => e.ad).join(', ') || 'görünmedi');
+  // Hizmetler listesi (Finder'ın menüsünü bundan kurar): pbs Türkçe harfleri \Uxxxx diye yazar. Liste gecikmeli yenilenebilir
+  const hizmetler = () => calistir('/System/Library/CoreServices/pbs', ['-dump_pboard']).cikti.replace(/\\[Uu]([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16))).normalize('NFC');
+  const listede = await kosul(() => HIZLI_EYLEMLER.every((e) => hizmetler().includes(e.ad.normalize('NFC'))), 20000, 2000);
+  sonuc('Hızlı Eylem: Hizmetler listesinde ikisi de (bilgi)', listede ? true : null, listede ? '' : hizmetler().split('\n').filter((s) => /PDEfe/.test(s)).slice(0, 6).join(' | ') || 'görünmedi');
 
   const k = path.join(VERI, 'Deneme Klasörü ğ');
   fs.mkdirSync(k, { recursive: true });
