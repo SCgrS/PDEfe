@@ -158,13 +158,14 @@ const YARDIMCI = `window.__d = {
   kopyaKur(el, metin, ic = 0, oran = 1) {
     document.querySelector('.__kopya')?.remove();
     el.scrollIntoView({ block: 'center', inline: 'start' });
+    if (el.offsetHeight * (el.getBoundingClientRect().width / el.offsetWidth) > innerHeight / 3) { el.scrollIntoView({ block: 'start', inline: 'start' }); this.g().kaydirici.scrollTop -= 200; }   // uzun alan: İlk satır görünsün
     const st = getComputedStyle(el), r = el.getBoundingClientRect(), olcek = r.width / el.offsetWidth, k = document.createElement('div');
     k.className = '__kopya';
     k.textContent = metin;
     Object.assign(k.style, { position: 'fixed', left: '20px', top: '100px', zIndex: 99999, background: '#fff', color: '#000', whiteSpace: 'pre', lineHeight: '2', padding: '0 8px', fontFamily: st.fontFamily, fontSize: parseFloat(st.fontSize) * olcek + 'px', fontWeight: st.fontWeight, fontStyle: st.fontStyle, textRendering: 'geometricPrecision' });
     document.body.append(k);
-    const u = k.getBoundingClientRect(), g = Math.min(r.width * oran, innerWidth - r.left - 30);
-    return { olcek, alan: { x: r.left + ic, y: r.top + ic, width: g - 2 * ic, height: r.height - 2 * ic }, kopya: { x: u.left, y: u.top, width: u.width, height: u.height } };
+    const u = k.getBoundingClientRect(), g = Math.min(r.width * oran, innerWidth - r.left - 30), b = Math.min(r.height, parseFloat(st.lineHeight) * olcek * 1.8 + parseFloat(st.paddingTop) * olcek);   // çok satırlıda ilk satır
+    return { olcek, alan: { x: r.left + ic, y: r.top + ic, width: g - 2 * ic, height: b - 2 * ic }, kopya: { x: u.left, y: u.top, width: u.width, height: u.height } };
   },
   kuculenler() { return [...document.querySelectorAll('${KATMAN} .xfaRich, ${KATMAN} .xfaCaption')].filter((e) => e.style.zoom).map((e) => e.style.zoom + ' ' + e.textContent.slice(0, 24)); },
 };
@@ -801,7 +802,7 @@ export async function yeniOzellikleriSina(o) {
     await yazAlan('AdSoyad');
     await kesilme('XFA tek satır', `H.denetim('AdSoyad')`);
     await ekranGoruntusu('kesilme-xfa.png');
-    await degerlendir(`(() => { const e = window.__d.denetim('Sehir'); e.selectedIndex = 1; return e.value; })()`);
+    await degerlendir(`(() => { const e = window.__d.denetim('Sehir'); e.value = [...e.options].find((x) => x.text === 'İstanbul').value; return e.value; })()`);
     await kesilme('XFA açılır liste', `H.denetim('Sehir')`, 'İstanbul', { oran: 0.6 });
     await tiklaAd('Aciklama');
     await yazCdp(MET);
@@ -813,6 +814,8 @@ export async function yeniOzellikleriSina(o) {
     await belgeAc(y2, { xfa: true, z: 3 });
     await yazAlan('TekKapali');   // dikey ortalı
     await kesilme('XFA dikey ortalı', `H.denetim('TekKapali')`);
+    await yazAlan('IkiSatir');
+    await kesilme('XFA çok satır, 1 mm kenar boşluğu', `H.denetim('IkiSatir')`);
     const y3 = kopya('xfa-yazi.pdf');
     await belgeAc(y3, { xfa: true, z: 3 });
     for (let i = 0; i < 5; i++) {
