@@ -15,6 +15,7 @@ import sys
 import pymupdf
 
 ARIAL = ("/System/Library/Fonts/Supplemental/Arial.ttf" if sys.platform == "darwin"   # macOS (0.2.0)
+         else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf" if sys.platform.startswith("linux")   # Linux (0.3.1), CI'da fonts-liberation
          else os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "arial.ttf"))
 
 
