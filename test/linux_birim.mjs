@@ -86,6 +86,10 @@ kontrol('XFA yazı tipleri: her kuralda Arial / Times New Roman\'dan sonra Liber
   J(kurallar.filter((k) => !eslerYerinde(k)).map((k) => [k.aile, k.kalin, k.italik])));
 kontrol('XFA yazı tipleri: Optima ve Myriad Pro\'da önce formun yazı tipi, sonra Segoe UI (Windows\'ta sıra değişmedi)', kurallar.filter((k) => /Optima|Myriad/.test(k.aile))
   .every((k) => k.adlar.findIndex((a) => /^Segoe ?UI/.test(a)) > 0 && k.adlar.findIndex((a) => /^Segoe ?UI/.test(a)) < k.adlar.findIndex((a) => /^Arial/.test(a))));
+// 0.3.1, Linux sınaması: Tek satırlı denetimde Türkçe büyük harflerin üstü kesilmesin. Gerçek ölçüm test/duman_ortak.mjs "Harf kesilmesi" (CI). Kural yalnız Linux'ta, çok satırlı alanda yok (kâğıdın yerleşimi)
+kontrol('XFA tek satırlı denetim: Linux\'ta satır aralığı 1,4, yalnız .xfa-linux altında, textarea\'da yok', /\.xfa-linux \.xfaLayer :is\(input\.xfaTextfield, select\.xfaSelect\) \{ line-height: 1\.4 !important; \}/.test(css) && !/xfa-linux[^{}]*textarea[^{}]*\{[^}]*line-height/.test(css));
+const xfaHtml = fs.readFileSync(new URL('../src/renderer/xfaHtml.js', import.meta.url), 'utf8');
+kontrol('XFA tek satırlı denetim: .xfa-linux yalnız Linux\'ta, ön yüklemesiz sayfada da (navigator.platform)', /if \(\/Linux\/\.test\(globalThis\.navigator\?\.platform \|\| ''\)\) globalThis\.document\?\.documentElement\?\.classList\.add\('xfa-linux'\);/.test(xfaHtml));
 
 // ---- 0.3.1 inceleme: Panonun yedek programları (xclip, wl-copy) çatallanır, arka plandaki süreç çıktı akışlarını açık tutar. calistir'in
 // execFile'ı akışların kapanmasını beklediği için her kopyalamada süre (5 sn) dolana dek bekliyordu. Sahte program: girdiyi dosyaya yazar, akışlarını

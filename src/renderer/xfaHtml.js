@@ -107,6 +107,9 @@ function combKur(denetim, etiket, n, genislik, dikey, baslikGen = 0) {
   etiket.children.push(katman, ...cizgiler);
 }
 
+// Linux (0.3.1): Tek satırlı denetimlerin satır aralığı xfa.css'te ayrılır (.xfa-linux). platform.js kullanılmaz: Bu dosya düz PDF'i çizen gizli sayfada da yüklenir, orada ön yükleme yok
+if (/Linux/.test(globalThis.navigator?.platform || '')) globalThis.document?.documentElement?.classList.add('xfa-linux');
+
 /**
  * Alanı şablondaki biçimine getirir (HTML üzerinde, ekranda ve basımda aynı). b: çekirdeğin kaydı (xfa.py _alan_bicimi), sarmal: PDF.js'in alanın
  * çevresine koyduğu kutu. Değerler çekirdekten yalnızca sayı ya da sabit liste olarak gelir.
