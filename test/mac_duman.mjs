@@ -265,6 +265,7 @@ const fareGonder = (x, y, dugme = 'left') => {
     'olay(5, 0);', 'delay(0.05);', `olay(${bas}, ${no});`, 'delay(0.05);', `olay(${birak}, ${no});`, "'tamam';",
   ].join('\n')]);
 };
+const fareTasi = (x, y) => calistir('/usr/bin/osascript', ['-l', 'JavaScript', '-e', `ObjC.import('CoreGraphics'); $.CGEventPost(0, $.CGEventCreateMouseEvent(null, 5, { x: ${x}, y: ${y} }, 0)); 'tamam';`]);
 const pencereKonumu = () => degerlendir('({ sx: screenX, sy: screenY, gi: innerWidth, yi: innerHeight, yd: outerHeight, eg: screen.width, ey: screen.height, o: devicePixelRatio })');
 /** Gerçek fare çalışıyor mu (izin, koordinat): Sayfaya gerçek bir tıklama, sayfanın gördüğü noktadan ekran ile sayfa arasındaki fark. Çalışmıyorsa tıklamalar CDP'yle sürer. */
 async function fareyiDene() {
@@ -298,6 +299,8 @@ const gercekGirdi = {
       if (px < 1 || py < 1 || px >= h.eg - 1 || py >= h.ey - 1) return false;   // pencere ekrandan büyük: Bu tıklama CDP'yle
       if (!fareGonder(px, py, dugme).ok) return false;
       await bekle(120);
+      // Menü imlecin altında açılır, ilk öğe fareyle seçili görünür (görüntü: menu-kok.png): Ok tuşu ondan sonrakine geçerdi. İmleç çekilince ok tuşu ilk açık öğeden başlar (Linux'taki gibi)
+      if (dugme === 'right') { await bekle(450); fareTasi(h.sx + 4, h.sy + 4); await bekle(100); }
       return true;
     },
   }),
@@ -330,10 +333,16 @@ if (secildi('Gerçek baskı')) {
       await ekranGoruntusu(`baski-${ad}-pencere.png`);
       fs.rmSync(BASKI, { force: true });
       await degerlendir(`document.querySelector('.yazdir-diyalog [data-id=yazdir]').click(), true`);
-      const geldi = await kosul(() => fs.existsSync(BASKI) && fs.statSync(BASKI).size > 0, 60000, 1000);
+      const kutuMetni = () => degerlendir(`document.querySelector('.mesaj-kutusu')?.textContent || ''`);
+      const geldi = await kosul(async () => (fs.existsSync(BASKI) && fs.statSync(BASKI).size > 0) || (await kutuMetni()), 60000, 1000);
       await bekle(2500);
       const kuyruk = calistir('/usr/bin/lpstat', ['-W', 'all', '-o']).cikti.split('\n').slice(-3).join(' | ');
-      if (!geldi) { sonuc(`Gerçek baskı ${ad}: Yazıcıya ulaştı`, false, `dosya yok · kuyruk: ${kuyruk}`, false); return; }
+      const kutu = await kutuMetni();
+      if (kutu) {
+        await ekranGoruntusu(`baski-${ad}-hata.png`);
+        await degerlendir(`document.querySelector('.mesaj-kutusu button')?.click(), true`);
+      }
+      if (!geldi || kutu) { sonuc(`Gerçek baskı ${ad}: Yazıcıya ulaştı`, false, `${kutu || 'dosya yok'} · kuyruk: ${kuyruk}`, false); return; }
       const kopya = path.join(CIKTI, `baski-${ad}.pdf`);
       fs.copyFileSync(BASKI, kopya);
       try {
@@ -341,6 +350,28 @@ if (secildi('Gerçek baskı')) {
         sonuc(`Gerçek baskı ${ad}: ${sayfaBeklenen} sayfa A4 (595 × 842 pt)`, s.length === sayfaBeklenen && s.every((x) => Math.abs(x.g - 595) <= 3 && Math.abs(x.b - 842) <= 3), JSON.stringify(s.map((x) => [x.g, x.b])), false);
       } catch (e) { sonuc(`Gerçek baskı ${ad}: Yazıcıya giden dosya PDF`, false, `${e.message} · ilk baytlar ${JSON.stringify(fs.readFileSync(kopya).subarray(0, 20).toString('latin1'))}`, false); }
     };
+    // Yazıcıya doğrudan (yazdırma penceresi olmadan), adla ve adsız (varsayılan yazıcı). Sistemin kitaplığı adı tanıyor mu (Electron deviceName'i böyle doğrular)
+    const PIKSEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    const dogrudan = (yazici) => degerlendir(`(async () => {
+      const c = window.pdefe.cagir, h = await c('yazdir:hazirla');
+      if (!h?.is) return h;
+      await c('yazdir:sayfaEkle', { is: h.is, sira: 1, veri: ${JSON.stringify(PIKSEL)}, bicim: 'png' });
+      return c('yazdir:baslat', { is: h.is, html: '<!doctype html><html><body><h1>Deneme</h1></body></html>', secenekler: { yazici: ${JSON.stringify(yazici)}, sayfaBoyutu: 'A4' } });
+    })()`).catch((e) => ({ istisna: e.message }));
+    const kuyruklar = calistir('/usr/bin/lpstat', ['-p']).cikti.split('\n').map((s) => (/^printer (\S+)/.exec(s) || [])[1]).filter(Boolean);
+    const liste = await cagir('yazdir:yazicilar');
+    sonuc('Gerçek baskı: Yazıcı listesi (bilgi)', null, JSON.stringify({ kuyruklar, liste }));
+    const KUTUPHANE = ['import ctypes, sys', "c = ctypes.CDLL('/usr/lib/libcups.2.dylib')", 'c.cupsGetNamedDest.restype = ctypes.c_void_p', 'c.cupsLastErrorString.restype = ctypes.c_char_p',
+      'for ad in sys.argv[1:]:', "    d = c.cupsGetNamedDest(None, ad.encode(), None)", "    print(ad, 'bulundu' if d else 'yok', c.cupsLastErrorString().decode())"].join('\n');
+    const sistem = calistir('python', ['-c', KUTUPHANE, ...kuyruklar]);
+    sonuc('Gerçek baskı: cupsGetNamedDest (bilgi)', null, `${sistem.cikti} ${sistem.hata.slice(-200)}`);
+    for (const y of [...kuyruklar, '']) {
+      const r = await dogrudan(y);
+      await bekle(1500);
+      sonuc(`Gerçek baskı doğrudan, yazıcı "${y}" (bilgi)`, null, JSON.stringify(r));
+    }
+    const dosyalar = fs.readdirSync(path.dirname(BASKI));
+    sonuc('Gerçek baskı doğrudan: Yazılan dosyalar (bilgi)', null, dosyalar.map((d) => `${d} ${fs.statSync(path.join(path.dirname(BASKI), d)).size}`).join(', ') || 'yok');
     try {
       await baskiDene('a5', 'a5.pdf', 1);
       await kosul(() => degerlendir(`!document.querySelector('.yazdir-ortusu')`), 15000);
@@ -370,10 +401,17 @@ sonuc('çekirdek de kapandı (artık süreç yok)', !!(await kosul(() => !calist
 // Tek örnek kilidi veri klasörüne bağlı: Hızlı Eylem PDEfe'yi --user-data-dir'siz başlatır. Bu bölümde PDEfe de varsayılan veri klasörüyle açılır, gerçekteki gibi
 if (secildi('Hızlı Eylem')) {
   const servisler = path.join(os.homedir(), 'Library', 'Services');
+  sonuc('Hızlı Eylem: Başka veri klasörlü örnek kurmadı (sınama örneği dokunmaz)', !HIZLI_EYLEMLER.some((e) => fs.existsSync(path.join(servisler, `${e.ad}.workflow`))));
+  const basla2 = calistir('/usr/bin/open', ['-a', UYGULAMA, '--args', `--remote-debugging-port=${PORT_HIZLI}`]);
+  sonuc('Hızlı Eylem: PDEfe varsayılan veri klasörüyle açıldı', basla2.ok, basla2.hata);
+  await baglan(PORT_HIZLI);
+  await kosul(() => degerlendir('!!window.__pdefe'), 30000);
+  await gonder('Runtime.enable');
   const betikler = {};
   for (const e of HIZLI_EYLEMLER) {
     const k = path.join(servisler, `${e.ad}.workflow`, 'Contents');
-    sonuc(`Hızlı Eylem ${e.ad}: PDEfe açılınca ~/Library/Services'e kuruldu`, fs.existsSync(path.join(k, 'document.wflow')) && fs.existsSync(path.join(k, 'Info.plist')), k);
+    // PDEfe pencere göründükten 8 sn sonra kurar (anaSurec.js sagTikBakimi)
+    sonuc(`Hızlı Eylem ${e.ad}: PDEfe açılınca ~/Library/Services'e kuruldu`, !!(await kosul(() => fs.existsSync(path.join(k, 'document.wflow')) && fs.existsSync(path.join(k, 'Info.plist')), 30000, 500)), k);
     const lint = calistir('/usr/bin/plutil', ['-lint', path.join(k, 'Info.plist'), path.join(k, 'document.wflow')]);
     sonuc(`Hızlı Eylem ${e.ad}: plist geçerli (plutil -lint)`, lint.ok, lint.cikti + lint.hata);
     const betik = calistir('/usr/bin/plutil', ['-extract', 'actions.0.action.ActionParameters.COMMAND_STRING', 'raw', '-o', '-', path.join(k, 'document.wflow')]);
@@ -397,11 +435,6 @@ if (secildi('Hızlı Eylem')) {
   const surecSayisi = () => calistir('/usr/bin/pgrep', ['-x', 'PDEfe']).cikti.split('\n').filter(Boolean).length;
   const tekSurec = () => kosul(() => surecSayisi() === 1, 15000, 500);
 
-  const basla2 = calistir('/usr/bin/open', ['-a', UYGULAMA, '--args', `--remote-debugging-port=${PORT_HIZLI}`]);
-  sonuc('Hızlı Eylem: PDEfe varsayılan veri klasörüyle açıldı', basla2.ok, basla2.hata);
-  await baglan(PORT_HIZLI);
-  await kosul(() => degerlendir('!!window.__pdefe'), 30000);
-  await gonder('Runtime.enable');
   await bekle(1500);
   const sekme0 = await degerlendir('window.__pdefe.belgeler.size');
 

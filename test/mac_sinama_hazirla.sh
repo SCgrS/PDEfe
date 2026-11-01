@@ -22,6 +22,9 @@ sudo launchctl kickstart -k system/org.cups.cupsd
 sleep 3
 sudo lpadmin -p PDEfe_Sinama -E -v "file://$BASKI/cikti.pdf"
 sudo lpadmin -d PDEfe_Sinama
+# Karşılaştırma için sürücülü (PPD) kuyruk: Süzgeçsiz kuyrukla farkı "Gerçek baskı"nın bilgi satırlarında
+sudo lpadmin -p PDEfe_Surucu -E -v "file://$BASKI/surucu.ps" -m drv:///sample.drv/generic.ppd || sudo lpadmin -p PDEfe_Surucu -E -v "file://$BASKI/surucu.ps" -P /System/Library/Frameworks/ApplicationServices.framework/Versions/A/Frameworks/PrintCore.framework/Versions/A/Resources/Generic.ppd
+lpinfo -m 2>/dev/null | head -5
 lpstat -p -d
 if lpstat -p PDEfe_Sinama >/dev/null 2>&1; then
   echo "PDEFE_BASKI_DOSYASI=$BASKI/cikti.pdf" >> "$GITHUB_ENV"
