@@ -116,7 +116,9 @@ def duz_murekkep(d, metin):
             for l in b.get("lines", []):
                 t = "".join(x["text"] for x in l["spans"])
                 if metin in t:
-                    r = pymupdf.Rect(l["bbox"]) + (0, -1.5, 0, 1.5)
+                    # Dikey ölçü taban çizgisinden: Satır kutusu yazı tipine göre geniştir (Segoe UI), komşu satırın mürekkebi sayılırdı. İşaretli büyük harf ve ç, ş, ğ'nin kuyruğu bu aralıkta
+                    s = l["spans"][-1]
+                    r = pymupdf.Rect(l["bbox"][0], s["origin"][1] - 1.05 * s["size"], l["bbox"][2], s["origin"][1] + 0.28 * s["size"])
                     m = murekkep(p.get_pixmap(dpi=400, clip=r, colorspace=pymupdf.csGRAY))
                     sonuc.append({"t": t, "font": l["spans"][-1]["font"], "yuk": round(m["yuk"] * 72 / 400, 2)})
     return {"satirlar": sonuc}

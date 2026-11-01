@@ -17,6 +17,8 @@
 # macOS (0.2.0): Python çekirdeği mimariye özgüdür; Apple işlemcili (macos-15) ve Intel (macos-15-intel) makinelerde ayrı derlenir, ikisi
 # evrensel uygulamaya girer (electron-builder.yml mac). Apple geliştirici kimliği yok: uygulama yerinde (ad-hoc) imzalanır. Paket, Apple
 # işlemcili makinede Uygulamalar'a kopyalanıp test/mac_duman.mjs ile sınanır; elle çalıştırmada Intel ve macOS 26 makinelerinde de.
+# Elle çalıştırmada dakika tasarrufu (0.3.1): mac_ek_sinama=false Intel ve macOS 26'yı atlar. platform=mac-sina derlemez, dmg_calismasi'ndaki çalışmanın DMG'sini mac_makineleri'ndeki makinelerde sınar (sınama betiği değişince).
+# duman_bolumleri duman sınamasında yalnız o bölümleri koşar (ör. "XFA sınır,Sağ tık": test/duman_ortak.mjs, test/mac_duman.mjs).
 
 name: Derle ve yayımla
 
@@ -28,10 +30,26 @@ on:
       platform:
         description: Derlenecek platform
         type: choice
-        options: [hepsi, windows, mac, linux]
+        options: [hepsi, windows, mac, linux, mac-sina]
         default: hepsi
       cekirdek_calismasi:
         description: macOS çekirdeklerini bu çalışmanın (run id) çıktısından al; boşsa yeniden derlenir (dakika tasarrufu, 1 gün saklanır)
+        type: string
+        default: ""
+      mac_ek_sinama:
+        description: Derlemeden sonra Intel ve macOS 26 makinelerinde de sına
+        type: boolean
+        default: true
+      dmg_calismasi:
+        description: "platform=mac-sina: Bu çalışmanın (run id) DMG'si sınanır, derleme atlanır (1 gün saklanır)"
+        type: string
+        default: ""
+      mac_makineleri:
+        description: "platform=mac-sina: Makineler (JSON dizi)"
+        type: string
+        default: '["macos-15"]'
+      duman_bolumleri:
+        description: Duman sınamasında yalnız bu bölümler (virgülle), boşsa hepsi
         type: string
         default: ""
 
@@ -273,7 +291,7 @@ jobs:
 
   mac:
     name: macOS DMG (evrensel)
-    timeout-minutes: 35
+    timeout-minutes: 70
     needs: [taslak, mac-cekirdek]
     if: ${{ !failure() && !cancelled() && (needs.mac-cekirdek.result == 'success' || ((inputs.platform == 'hepsi' || inputs.platform == 'mac') && inputs.cekirdek_calismasi != '')) }}
     runs-on: macos-15
@@ -334,27 +352,27 @@ jobs:
           echo "mb=$mb" >> "$GITHUB_OUTPUT"
           echo "PDEfe-Mac.dmg: $mb MB, SHA-256 $sha"
 
+      # Sınamadan önce: Sınama düşerse de aynı DMG platform=mac-sina ile yeniden sınanabilir
+      - name: DMG'yi iş akışı çıktısı olarak sakla
+        uses: actions/upload-artifact@v4
+        with:
+          name: PDEfe-Mac
+          path: release/PDEfe-Mac.dmg
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Sınama için Python (örnek PDF'ler)
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Örnek PDF'leri üret
-        run: |
-          python -m pip install "pymupdf==1.28.2" "pillow==12.3.0"
-          mkdir -p "$RUNNER_TEMP/ornekler"
-          python -c "import sys; sys.path.insert(0, 'test'); import ornek_pdf_uret as o, tanima_pdf_uret as t; o.uret(sys.argv[1] + '/not.pdf', 2, 'Deneme belgesi', True); t.uret(sys.argv[1])" "$RUNNER_TEMP/ornekler"
-
-      - name: Uygulamalar'a kur (DMG'den)
-        run: |
-          hdiutil attach -nobrowse -mountpoint /Volumes/PDEfe release/PDEfe-Mac.dmg
-          ls -la /Volumes/PDEfe
-          ditto /Volumes/PDEfe/PDEfe.app /Applications/PDEfe.app
-          hdiutil detach /Volumes/PDEfe
-          du -sh /Applications/PDEfe.app
+      - name: Örnek belgeleri üret, Uygulamalar'a kur (DMG'den), sınama yazıcısı
+        run: bash test/mac_sinama_hazirla.sh release/PDEfe-Mac.dmg
 
       - name: Uygulamayı sına (Apple işlemcili)
-        timeout-minutes: 10
+        timeout-minutes: 40
+        env:
+          DUMAN_BOLUMLER: ${{ inputs.duman_bolumleri }}
         run: node test/mac_duman.mjs /Applications/PDEfe.app "$RUNNER_TEMP/ornekler" "$RUNNER_TEMP/duman"
 
       # 0.3.1: Finder'ın Hızlı Eylemleri (sağ tık; src/main/sagtik.js). ~/Library/Services'e kurulur, plutil -lint, Hizmetler listesi, betik /bin/sh
@@ -378,20 +396,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "${{ github.ref_name }}" release/PDEfe-Mac.dmg --repo "${{ github.repository }}" --clobber
 
-      - name: DMG'yi iş akışı çıktısı olarak sakla
-        uses: actions/upload-artifact@v4
-        with:
-          name: PDEfe-Mac
-          path: release/PDEfe-Mac.dmg
-          if-no-files-found: error
-          retention-days: 1
-
   # Elle çalıştırmada: aynı DMG Intel Mac'te ve en yeni macOS'ta da sınanır (sürüm derlemesinde atlanır; dakika tasarrufu)
   mac-sina:
     name: macOS sınama (${{ matrix.ad }})
-    timeout-minutes: 20
+    timeout-minutes: 60
     needs: mac
-    if: ${{ github.event_name == 'workflow_dispatch' && !failure() && !cancelled() && needs.mac.result == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && !failure() && !cancelled() && needs.mac.result == 'success' && inputs.mac_ek_sinama }}
     strategy:
       fail-fast: false
       matrix:
@@ -420,24 +430,77 @@ jobs:
         with:
           name: PDEfe-Mac
 
-      - name: Örnek PDF'leri üret, Uygulamalar'a kur
-        run: |
-          python -m pip install "pymupdf==1.28.2" "pillow==12.3.0"
-          mkdir -p "$RUNNER_TEMP/ornekler"
-          python -c "import sys; sys.path.insert(0, 'test'); import ornek_pdf_uret as o, tanima_pdf_uret as t; o.uret(sys.argv[1] + '/not.pdf', 2, 'Deneme belgesi', True); t.uret(sys.argv[1])" "$RUNNER_TEMP/ornekler"
-          hdiutil attach -nobrowse -mountpoint /Volumes/PDEfe PDEfe-Mac.dmg
-          ditto /Volumes/PDEfe/PDEfe.app /Applications/PDEfe.app
-          hdiutil detach /Volumes/PDEfe
+      - name: Örnek belgeleri üret, Uygulamalar'a kur, sınama yazıcısı
+        run: bash test/mac_sinama_hazirla.sh PDEfe-Mac.dmg
 
       - name: Uygulamayı sına
-        timeout-minutes: 10
+        timeout-minutes: 40
+        env:
+          DUMAN_BOLUMLER: ${{ inputs.duman_bolumleri }}
         run: node test/mac_duman.mjs /Applications/PDEfe.app "$RUNNER_TEMP/ornekler" "$RUNNER_TEMP/duman"
+
+      - name: Hızlı Eylemleri sına (sağ tık)
+        timeout-minutes: 5
+        run: node test/sagtik_sinama.mjs --mac
 
       - name: Sınama çıktıları (ekran görüntüleri)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: mac-sinama-${{ matrix.ad }}
+          path: ${{ runner.temp }}/duman
+          if-no-files-found: ignore
+          retention-days: 1
+
+  # Elle çalıştırmada, platform=mac-sina: Derleme yok, önceki çalışmanın DMG'si bu daldaki sınama betikleriyle sınanır (dakika tasarrufu: Yalnız sınama değiştiyse)
+  mac-dene:
+    name: macOS yeniden sınama (${{ matrix.runner }})
+    timeout-minutes: 60
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.platform == 'mac-sina' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: ${{ fromJSON(inputs.mac_makineleri || '["macos-15"]') }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Kaynağı al (sınama betikleri)
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: DMG'yi al
+        uses: actions/download-artifact@v4
+        with:
+          name: PDEfe-Mac
+          run-id: ${{ inputs.dmg_calismasi }}
+          github-token: ${{ github.token }}
+
+      - name: Örnek belgeleri üret, Uygulamalar'a kur, sınama yazıcısı
+        run: bash test/mac_sinama_hazirla.sh PDEfe-Mac.dmg
+
+      - name: Uygulamayı sına
+        timeout-minutes: 40
+        env:
+          DUMAN_BOLUMLER: ${{ inputs.duman_bolumleri }}
+        run: node test/mac_duman.mjs /Applications/PDEfe.app "$RUNNER_TEMP/ornekler" "$RUNNER_TEMP/duman"
+
+      - name: Hızlı Eylemleri sına (sağ tık)
+        timeout-minutes: 5
+        run: node test/sagtik_sinama.mjs --mac
+
+      - name: Sınama çıktıları (ekran görüntüleri)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-yeniden-${{ matrix.runner }}
           path: ${{ runner.temp }}/duman
           if-no-files-found: ignore
           retention-days: 1
@@ -535,6 +598,8 @@ jobs:
 
       - name: Uygulamayı sına (Xvfb)
         timeout-minutes: 20
+        env:
+          DUMAN_BOLUMLER: ${{ inputs.duman_bolumleri }}
         run: xvfb-run -a --server-args="-screen 0 1600x1000x24" node test/linux_duman.mjs release/PDEfe-Linux.AppImage "$RUNNER_TEMP/ornekler" "$RUNNER_TEMP/duman"
 
       - name: Sınama çıktıları (ekran görüntüleri, günlük)

@@ -7,8 +7,10 @@
 //   XFA          "Please wait" yerine form. Yazı, hiza, Enter ve harf basılı tutma, 100.000 karakter yapıştırma, tek satır, Bölüm Ekle ve Sil, kaydet, aç, düz PDF, yazdırma penceresi, Bul,
 //                yazı tipi yedeği (CDP'nin çizimde kullanılan yazı tipi bilgisi: Eksik harf başka yazı tipine düşer, görünür).
 //   Sağ tık      Form alanında Kes, Kopyala, Yapıştır (yerel menü: gerçek klavyeyle, o.menuTus verilmişse).
+//   Kısayol      Gerçek klavyeyle yapıştır (alan sınırı), geri al, yinele, tümünü seç, kopyala, kes (o.kisayol verilmişse: macOS'ta ⌘, menüden geçer).
 //   Kapatma      Formda değişiklikle kapatınca soru, sekme başka pencereye taşınınca değer ve kirli durum.
 // Her denetim sonuc(ad, ok, ayrıntı, zorunlu) ile, görüntüler çıktı klasörüne. Ölçü dosyadan bağımsız okunur: test/duman_olc.py. Örnekler: test/duman_ornekleri_uret.py.
+// o.bolumler verilirse yalnız o bölümler koşar (DUMAN_BOLUMLER, ör. "XFA sınır,Sağ tık": Mac dakikası pahalı, düzeltmeden sonra yalnız düşen bölüm yeniden koşulabilir).
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -184,8 +186,11 @@ const TUSLAR = { Tab: [9, 'Tab'], Enter: [13, 'Enter'], Escape: [27, 'Escape'], 
 /**
  * o: { sonuc(ad, ok, ayrinti, zorunlu), kosul(f, sure, aralik), bekle(ms), degerlendir(ifade), gonder(method, params), ekranGoruntusu(ad), cagir(kanal, ...a),
  *      ORNEKLER, CIKTI, VERI, platform: 'linux' | 'darwin', python?: Python programı, sonBelge?: Bitince etkin yapılacak dosya,
- *      gercekYaz?(metin), gercekTus?(...tuslar), gercekTekrar?(tus, kez), gercekTikla?(x, y, { dugme }), menuTus?(...tuslar): Sistemin gerçek klavyesi ve faresi (yoksa CDP),
- *      pdfKlasoru?: Gerçek baskının düştüğü klasör, ekranKok?(ad): Bütün ekranın görüntüsü (yerel menü CDP görüntüsüne girmez), yaziTipleri: aile → beklenen yazı tipi, formYazisi: Görünümde beklenen yazı tipi (düzenli ifade) }
+ *      gercekYaz?(metin): Sistemin gerçek klavyesi, Türkçe harflerle. gercekYazLatin?(metin): Yalnız ASCII harflerde (macOS'ta sistem klavyesinin karşılığı olmayan harf yazılamaz: Türkçe yazı CDP'yle),
+ *      gercekTus?(...tuslar), gercekTekrar?(tus, kez), kisayol?(harf, { shift }): Birincil tuşla kısayol (Linux'ta Ctrl, macOS'ta ⌘), gercekOdak?(): Pencereyi öne alır,
+ *      gercekTikla?(x, y, { dugme }): Gerçek fare (false dönerse o tıklama CDP'yle: Nokta ekranın dışında), menuTus?(...tuslar): Yerel menüde gerçek ok ve Enter,
+ *      pdfKlasoru?: Gerçek baskının düştüğü klasör, ekranKok?(ad): Bütün ekranın görüntüsü (yerel menü CDP görüntüsüne girmez), bolumler?: Yalnız koşacak bölümlerin adları,
+ *      yaziTipleri: aile → beklenen yazı tipi (RegExp olabilir: macOS'ta local() yazı tipini tam adıyla arar, Optima'nın düzü Arial'e, kalını Optima'ya düşebilir), formYazisi: Görünümde beklenen yazı tipi (düzenli ifade), duzYazisi: Düz PDF'te beklenen yazı tipleri (düzenli ifade) }
  */
 export async function yeniOzellikleriSina(o) {
   const { sonuc, kosul, bekle, gonder, ekranGoruntusu, cagir, ORNEKLER, CIKTI, VERI, platform } = o;
@@ -222,7 +227,7 @@ export async function yeniOzellikleriSina(o) {
     await gonder('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: dugme, buttons: bit, clickCount: 1 });
     await gonder('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: dugme, buttons: 0, clickCount: 1 });
   };
-  const tikla = async (x, y, secenek = {}) => { if (o.gercekTikla) await o.gercekTikla(x, y, secenek); else await tiklaCdp(x, y, secenek); await bekle(60); };
+  const tikla = async (x, y, secenek = {}) => { if (!o.gercekTikla || (await o.gercekTikla(x, y, secenek)) === false) await tiklaCdp(x, y, secenek); await bekle(60); };
 
   // ---- XFA ve form alanı
   const belgeAc = async (yol, { xfa = false, z = 1 } = {}) => degerlendir(`(async () => { const b = await window.__pdefe.dosyaAc(${J(yol)}); if (!b) return false; for (let i = 0; i < 200 && !document.querySelector(${J(xfa ? KATMAN : '.gorunum:not([hidden]) canvas')}); i++) await window.__d.bekle(50); ${xfa ? `b.gorunum.zoomAyarla(${z});` : ''} b.gorunum.sayfayaGit(1); await window.__d.bekle(500); return true; })()`);
@@ -250,8 +255,33 @@ export async function yeniOzellikleriSina(o) {
     if (v !== metin) { await degerlendir(`document.activeElement.select?.()`); await yazCdp(metin); await bekle(40); }
   };
 
+  /** Açılır listede seçimi bir sonrakine alır. macOS'ta ok tuşu listeyi sistem menüsü olarak açar (Chromium: PopsMenuByArrowKeys), CDP'nin tuşu o menüye ulaşmaz ve menü açık kalır: Gerçek klavyeyle
+   *  ya da (gerçek klavye yoksa, tuş ulaşmadıysa) olayıyla birlikte. */
+  const aciliriDegistir = async (ad) => {
+    await degerlendir(`window.__d.denetim(${J(ad)}).focus(), true`);
+    if (platform !== 'darwin') { await tusCdp('ArrowDown'); return; }
+    const sira = () => degerlendir(`window.__d.denetim(${J(ad)}).selectedIndex`);
+    const once = await sira();
+    if (o.menuTus) {
+      await o.menuTus('Down');
+      await bekle(700);
+      o.ekranKok?.('acilir-liste-kok.png');
+      await o.menuTus('Down', 'Return');
+      await bekle(400);
+      const sonra = await sira();
+      sonuc('Açılır liste: Sistem menüsünde gerçek ok ve Enter ile seçildi', sonra === once + 1, J({ once, sonra }));
+      if (sonra !== once) return;
+      await o.menuTus('Escape');
+      await bekle(300);
+    }
+    await degerlendir(`(() => { const e = window.__d.denetim(${J(ad)}); e.selectedIndex = ${once} + 1; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+  };
+
   await degerlendir(YARDIMCI);
+  const seciliBolumler = o.bolumler?.length ? new Set(o.bolumler) : null;
   const bolum = async (ad, f) => {
+    if (seciliBolumler && !seciliBolumler.has(ad)) { sonuc(`${ad}: Bu koşuda seçilmedi`, null, 'DUMAN_BOLUMLER'); return; }
+    await o.gercekOdak?.();
     await degerlendir(`window.__hatalar.length = 0`);
     try {
       await f();
@@ -334,7 +364,7 @@ export async function yeniOzellikleriSina(o) {
     await belgeAc(y);
     const ac = async () => {
       await degerlendir(`document.activeElement?.blur?.(); window.__d.g().kaydirici?.focus?.(); true`);
-      if (o.gercekTus && platform !== 'darwin') await o.gercekTus('ctrl+f'); else await komut('duzen.bul');
+      if (o.kisayol) await o.kisayol('f'); else await komut('duzen.bul');
       await kosul(() => degerlendir(`window.__pdefe.arama.acik && document.activeElement?.id === 'bul-girdi'`), 5000);
       await degerlendir(`document.getElementById('bul-girdi').select(), true`);
     };
@@ -364,9 +394,18 @@ export async function yeniOzellikleriSina(o) {
       const s = await kosul(async () => { const m = await sayac(); return /^\d+ \/ \d+$/.test(m) ? m : null; }, SURE, 500);
       const sure = Date.now() - t0, n = s ? +s.split('/')[1] : 0;
       sonuc(`Bul: Gerçek tanıyıcı taranmış sayfalarda buldu (PDF metninde 2, toplam ${n})`, n > 2, s || await sayac());
-      sonuc('Bul: 12 sayfalık belgede bütün eşleşmeler (10 sayfa, 11 eşleşme beklenir, tanıyıcıya bağlı)', n >= 10, s || '', false);
+      sonuc('Bul: 12 sayfalık belgede bütün eşleşmeler (8 sayfa, 10 eşleşme beklenir, tanıyıcıya bağlı)', n >= 10, s || '', false);
       sonuc(`Bul: Tanıma ${Math.round(sure / 1000)} sn (sınır ${YAVAS / 1000} sn)`, sure <= YAVAS, s || '', false);
+      const r = await degerlendir(`({ ipucu: document.getElementById('bul-sayac').title, secili: document.querySelectorAll('.textLayer .highlight.selected').length })`);
+      sonuc('Bul: Seçili vurgu metin katmanında, "aranamadı" yok', r.secili === 1 && !r.ipucu, J(r));
       await ekranGoruntusu('bul-tarama.png');
+      await tusCdp('Enter');
+      const s2 = await kosul(async () => { const m = await sayac(); return m.startsWith('2 / ') ? m : null; }, 5000);
+      sonuc('Bul: Enter sonraki eşleşmeye, taranmış sayfaya (2. sayfa)', !!s2 && !!(await kosul(() => H(`H.g().gecerli === 2`), 8000)), J({ s2, gecerli: await H(`H.g().gecerli`) }));
+      await bekle(1500);   // sayfa çizilsin, tanınan yazının vurgusu görünsün
+      await ekranGoruntusu('bul-tarama-2.png');
+      const ping = await cagir('cekirdek:cagir', 'ping', {});
+      sonuc('Bul: Çekirdek düşmedi', ping?.ok === true, J(ping));
     }
     await tusCdp('Escape');
     sonuc('Bul: Esc kapatır', !!(await kosul(() => degerlendir(`!window.__pdefe.arama.acik`), 3000)));
@@ -405,10 +444,10 @@ export async function yeniOzellikleriSina(o) {
     await formTikla('kisa');
     await bildirimler();
     const METIN = 'Beşten uzun yazı';
-    if (o.gercekTus && platform !== 'darwin') {
+    if (o.kisayol) {
       await cagir('pano:metin', METIN);
       await bekle(200);
-      await o.gercekTus('ctrl+v');
+      await o.kisayol('v');
     } else await yapistir(METIN);
     await bekle(200);
     const v = await degerlendir(`document.activeElement?.value`);
@@ -454,8 +493,7 @@ export async function yeniOzellikleriSina(o) {
     await tus('Tab');
     await bekle(150);
     await tiklaAd('Onay');
-    await degerlendir(`window.__d.denetim('Sehir').focus(), true`);
-    await tusCdp('ArrowDown');
+    await aciliriDegistir('Sehir');
     await tusCdp('Tab');
     await bekle(200);
     let r = await H(`({ ad: H.denetim('AdSoyad').value, onay: H.denetim('Onay').checked, sehir: H.denetim('Sehir').value, yigin: H.yigin(), degisti: H.b().degisti })`);
@@ -580,9 +618,9 @@ export async function yeniOzellikleriSina(o) {
       sonuc(`XFA sınır ${ad}: Tek satırlı alan genişlikte durur, kaymaz`, d.uz > 5 && d.uz < 110 && d.sw <= d.cw && d.sl === 0 && !d.tasiyor, J({ ...d, deger: undefined }));
       await bosalt(ad);
     }
-    if (o.gercekYaz) {
+    if (o.gercekYazLatin || o.gercekYaz) {
       await tiklaAd('UcSatir');
-      await o.gercekYaz('Satir sonu gelince yazi durur ve ekran kaymaz. '.repeat(14));
+      await (o.gercekYazLatin || o.gercekYaz)('Satir sonu gelince yazi durur ve ekran kaymaz. '.repeat(14));
       await bekle(300);
       d = await durum('UcSatir');
       sonuc('XFA sınır UcSatir: Gerçek klavyeyle uzun yazı: En çok 3 satır, kaydırma yok', d.satir <= 3 && d.sh <= d.ch && d.st === 0 && d.uz > 60, J({ ...d, deger: undefined }));
@@ -628,16 +666,16 @@ export async function yeniOzellikleriSina(o) {
     bl = await bildirimler();
     sonuc('XFA sınır Hucre10: Hücre sayısı kadar, kalanı söylenir', d.uz === 10 && bl.length === 1 && bl[0].includes(' 14 karakter'), J({ d: d.deger, bl }));
     degerler.Hucre10 = d.deger;
-    // Gerçek pano ve gerçek tuşla yapıştırma (Linux: Chromium'un kendi panosu üstünden X seçimi)
-    if (o.gercekTus && platform !== 'darwin') {
+    // Gerçek pano ve gerçek tuşla yapıştırma (Linux: Chromium'un kendi panosu üstünden X seçimi. macOS: ⌘V menüden geçer, role: paste)
+    if (o.kisayol) {
       await cagir('pano:metin', UZUN);
       await bekle(300);
       await tiklaAd('Kendi');
-      await o.gercekTus('ctrl+v');
+      await o.kisayol('v');
       await bekle(800);
       d = await durum('Kendi');
       bl = await bildirimler();
-      sonuc('XFA sınır Kendi: Gerçek pano ve gerçek Ctrl+V ile 100.000 karakter: Sığan kısım, kaydırma yok, uyarı alınmayan sayıyla', d.uz > 0 && d.sh <= d.ch && d.st === 0 && UZUN.startsWith(d.deger) && bl.length === 1 && bl[0] === alinmadi(say(UZUN) - say(d.deger)), J({ ...d, deger: undefined, bl }));
+      sonuc('XFA sınır Kendi: Gerçek pano ve gerçek yapıştırma kısayoluyla 100.000 karakter: Sığan kısım, kaydırma yok, uyarı alınmayan sayıyla', d.uz > 0 && d.sh <= d.ch && d.st === 0 && UZUN.startsWith(d.deger) && bl.length === 1 && bl[0] === alinmadi(say(UZUN) - say(d.deger)), J({ ...d, deger: undefined, bl }));
       degerler.Kendi = d.deger;
     }
     // Şablondaki hiza
@@ -753,12 +791,12 @@ export async function yeniOzellikleriSina(o) {
     };
     const AILELER = ['Calibri', 'Optima', 'Myriad Pro', 'Minion Pro', 'Turkish Times New Roman'];
     for (let i = 0; i < AILELER.length; i++) {
-      const beklenen = o.yaziTipleri[AILELER[i]];
+      const beklenen = o.yaziTipleri[AILELER[i]], uyar = (ad) => (beklenen instanceof RegExp ? beklenen.test(ad) : ad === beklenen);
       for (const [tur, ad] of [['düz', `YaziDuz${i}`], ['kalın', `YaziKalin${i}`], ['italik', `YaziItalik${i}`], ['zengin', `YaziZengin${i}`], ['alan', `YaziAlan${i}`]]) {
         const f = await fontlar(ad);
         const adlar = f.map((u) => `${u.yazi.slice(0, 16)} → ${u.fonts.map((x) => `${x.familyName} (${x.glyphCount})`).join(' + ')}`);
         // Eksik harf başka yazı tipine düşer: Listede beklenenden başka yazı tipi görünür. Alanda başlığın ve değerin ikisi de aynı aile
-        sonuc(`XFA yazı tipi ${AILELER[i]} ${tur}: ${beklenen}, eksik harf yok`, f.length > 0 && f.every((u) => u.fonts.length > 0 && u.fonts.every((x) => x.familyName === beklenen)), adlar.join(' | '));
+        sonuc(`XFA yazı tipi ${AILELER[i]} ${tur}: ${beklenen}, eksik harf yok`, f.length > 0 && f.every((u) => u.fonts.length > 0 && u.fonts.every((x) => uyar(x.familyName))), adlar.join(' | '));
       }
     }
     await gonder('CSS.disable');
@@ -794,7 +832,9 @@ export async function yeniOzellikleriSina(o) {
       };
       const a = await dene(k.alan, `kesilme-${ad}-alan.png`), b = await dene(k.kopya, `kesilme-${ad}-kopya.png`);
       await degerlendir(`document.querySelector('.__kopya')?.remove(), true`);
-      sonuc(`Harf kesilmesi ${ad}: İ, Ğ, Ü'nün üstü ve ç, ş, ğ'nin altı alanda da görünüyor`, a.yuk > 0 && b.yuk > 0 && b.yuk - a.yuk <= 1, J({ alan: a.yuk, kopya: b.yuk, olcek: k.olcek }));
+      // Pay yarım ekran pikseli (büyütmede 1 pikselden çok): Alan yazıyı kopyadan farklı yumuşatabilir, kesilen işaret büyütmede 5 piksel ve üstü
+      const dpr = (await degerlendir(`devicePixelRatio`)) || 1, pay = Math.max(1, Math.round(k.olcek * dpr * 0.5));
+      sonuc(`Harf kesilmesi ${ad}: İ, Ğ, Ü'nün üstü ve ç, ş, ğ'nin altı alanda da görünüyor`, a.yuk > 0 && b.yuk > 0 && b.yuk - a.yuk <= pay, J({ alan: a.yuk, kopya: b.yuk, olcek: k.olcek, dpr, pay }));
     };
     const yazAlan = async (ad, metin = MET) => { await tiklaAd(ad); await degerlendir(`(() => { const e = window.__d.denetim(${J(ad)}); e.focus(); e.select(); return true; })()`); await yazCdp(metin); await tusCdp('Tab'); await bekle(100); await degerlendir(`document.activeElement?.blur?.(), true`); await bekle(100); };
     const y = kopya('xfa.pdf');
@@ -875,9 +915,15 @@ export async function yeniOzellikleriSina(o) {
     const sonra = (await durum('UcSatir')).deger;
     sonuc('Sağ tık Kes (XFA): Yazı panoya ve alandan', v === 'Kopyalanacak' && sonra === METIN.slice(12), J({ v, sonra }));
     await sec(0, 0);
-    await menu('Down', 'Return');   // seçim yok: Kes ve Kopyala kapalı, ilk açık öğe Yapıştır
+    // Seçim yoksa Kes ve Kopyala kapalı, ilk açık öğe Yapıştır. macOS'ta sağ tık imlecin altındaki sözcüğü seçer (Chromium, sayfanın menüsünde de: tumSecim.js): Kes ve Kopyala açık, Yapıştır üçüncü, sözcüğün yerine girer
+    const p0 = await nokta();
+    await tikla(p0.x, p0.y, { dugme: 'right' });
+    await bekle(700);
+    const s0 = await degerlendir(`(() => { const e = window.__d.denetim('UcSatir'); return { bas: e.selectionStart, son: e.selectionEnd, deger: e.value }; })()`);
+    await o.menuTus(...(s0.bas !== s0.son ? ['Down', 'Down', 'Down'] : ['Down']), 'Return');
+    await bekle(500);
     const son = (await durum('UcSatir')).deger;
-    sonuc('Sağ tık Yapıştır (XFA): Panodaki yazı alana girdi', son.length === METIN.length && son.includes('Kopyalanacak'), J(son));
+    sonuc('Sağ tık Yapıştır (XFA): Panodaki yazı alana, seçimin yerine girdi', son === s0.deger.slice(0, s0.bas) + 'Kopyalanacak' + s0.deger.slice(s0.son), J({ son, s0 }));
     // Yapıştır alanın sınırından geçer: Uzun yazı sığdığı kadar, uyarıyla
     await bosalt('IkiSatir');
     const UZUN = uzunYazi(3000);
@@ -907,12 +953,84 @@ export async function yeniOzellikleriSina(o) {
     const bl2 = await bildirimler();
     sonuc('Sağ tık Yapıştır (düz form): En çok 5 karakter, uyarı', v2?.length > 0 && v2.length <= 5 && bl2.some((x) => x === alinmadi(16 - v2.length)), J({ v2, bl2 }));
     await degerlendir(`document.activeElement.select(), true`);
-    await tikla(pk.x, pk.y, { dugme: 'right' });
+    await tikla(pk.l + 8, pk.y, { dugme: 'right' });   // yazının üstünde: macOS'ta seçimin dışına sağ tık seçimi değiştirir
     await bekle(700);
     await o.menuTus('Down', 'Down', 'Return');
     await bekle(500);
     v = await pano();
     sonuc('Sağ tık Kopyala (düz form): Panoda', v === v2, J({ v, v2 }));
+  });
+
+  // ================================================================== gerçek klavyeyle kısayollar: Alan sınırı, geri al alanda kalır
+  await bolum('Kısayol', async () => {
+    if (!o.kisayol) { sonuc('Kısayol: Gerçek klavye', null, 'gerçek klavye yok'); return; }
+    const K = platform === 'darwin' ? '⌘' : 'Ctrl+', S = platform === 'darwin' ? '⇧⌘' : 'Ctrl+Shift+';
+    const sonDeger = (ad, kosulu, sure = 4000) => kosul(async () => { const d = await durum(ad); return kosulu(d) ? d : null; }, sure, 100);
+    const UZUN = uzunYazi(3000);
+    const y = kopya('xfa-sinir.pdf');
+    await belgeAc(y, { xfa: true });
+    await izle();
+    await cagir('pano:metin', UZUN);
+    await bekle(300);
+    await tiklaAd('IkiSatir');
+    await bildirimler();
+    await o.kisayol('v');
+    const dolu = await sonDeger('IkiSatir', (d) => d.uz > 0);
+    let bl = await bildirimler();
+    sonuc(`Kısayol ${K}V (XFA): Sığan kısım girer, 2 satır, kaydırma yok, uyarı bir kez`, !!dolu && sinirTamam(dolu, 2) && UZUN.startsWith(dolu.deger) && bl.length === 1 && bl[0] === alinmadi(Array.from(UZUN).length - Array.from(dolu.deger).length), J({ ...dolu, deger: undefined, bl }));
+    await o.kisayol('z');
+    let d = await sonDeger('IkiSatir', (x) => x.uz === 0);
+    sonuc(`Kısayol ${K}Z (XFA): Yapıştırma geri alındı`, !!d, J((await durum('IkiSatir')).uz));
+    await o.kisayol('z', { shift: true });
+    d = await sonDeger('IkiSatir', (x) => x.uz > 0);
+    sonuc(`Kısayol ${S}Z (XFA): Yinelendi, yazı aynı`, d?.deger === dolu?.deger, J(d?.uz));
+    await cagir('pano:metin', 'eski pano');
+    await bekle(200);
+    await o.kisayol('a');
+    await bekle(250);
+    const secim = await degerlendir(`(() => { const e = window.__d.denetim('IkiSatir'); return { bas: e.selectionStart, son: e.selectionEnd, uz: e.value.length }; })()`);
+    sonuc(`Kısayol ${K}A (XFA): Alanın yazısını seçer, belgenin metnini değil`, secim.bas === 0 && secim.son === secim.uz && secim.uz > 0, J(secim));
+    await o.kisayol('c');
+    await bekle(400);
+    let pano = String(await cagir('pano:oku')).replace(/\r\n/g, '\n');
+    sonuc(`Kısayol ${K}C (XFA): Seçili yazı gerçek panoda`, pano === dolu?.deger, J({ pano: pano.slice(0, 40), uz: pano.length }));
+    await cagir('pano:metin', 'eski pano');
+    await bekle(200);
+    await o.kisayol('a');
+    await bekle(250);
+    await o.kisayol('x');
+    d = await sonDeger('IkiSatir', (x) => x.uz === 0);
+    await bekle(300);
+    pano = String(await cagir('pano:oku')).replace(/\r\n/g, '\n');
+    sonuc(`Kısayol ${K}X (XFA): Yazı panoya ve alandan`, !!d && pano === dolu?.deger, J({ uz: d?.uz, pano: pano.slice(0, 40) }));
+    await o.kisayol('z');
+    d = await sonDeger('IkiSatir', (x) => x.uz > 0);
+    sonuc(`Kısayol ${K}Z (XFA): Kesme geri alındı`, d?.deger === dolu?.deger, J(d?.uz));
+    // Geri al alanda kalır: Boş alanda geri al başka alanın yazısına dokunmaz, imleç gitmez
+    await tiklaAd('UcSatir');
+    await yazCdp('Üçüncü alanın yazısı');
+    await tiklaAd('TekKapali');
+    await o.kisayol('z');
+    await bekle(300);
+    const kalan = await H(`({ uc: H.denetim('UcSatir').value, iki: H.denetim('IkiSatir').value, odak: document.activeElement === H.denetim('TekKapali') })`);
+    sonuc(`Kısayol ${K}Z (XFA): Boş alanda başka alanın yazısına dokunmaz, imleç yerinde`, kalan.uc === 'Üçüncü alanın yazısı' && kalan.iki === dolu?.deger && kalan.odak, J({ ...kalan, iki: kalan.iki.length }));
+    // Düz form alanı: Karakter sınırı, geri al
+    const y2 = kopya('alanlar.pdf');
+    await formAc(y2);
+    await izle();
+    await cagir('pano:metin', 'Beşten uzun yazı');
+    await bekle(200);
+    await formTikla('kisa');
+    await bildirimler();
+    await o.kisayol('v');
+    const v = await kosul(() => degerlendir(`document.activeElement?.value`), 4000, 100);
+    bl = await bildirimler();
+    sonuc(`Kısayol ${K}V (düz form): En çok 5 karakter, uyarı alınmayan sayıyla`, !!v && v.length <= 5 && 'Beşten uzun yazı'.startsWith(v) && bl.length === 1 && bl[0] === alinmadi(16 - v.length), J({ v, bl }));
+    await o.kisayol('z');
+    const bos = await kosul(async () => (await degerlendir(`document.activeElement?.value`)) === '', 4000, 100);
+    sonuc(`Kısayol ${K}Z (düz form): Yapıştırma geri alındı`, !!bos, J(await degerlendir(`document.activeElement?.value`)));
+    await tusCdp('Escape');
+    await ekranGoruntusu('kisayol.png');
   });
 
   // ================================================================== kapatma sorusu, sekme taşıma

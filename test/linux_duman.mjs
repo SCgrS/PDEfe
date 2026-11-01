@@ -206,6 +206,7 @@ const gercekGirdi = pencere ? {
   gercekTus: async (...tuslar) => { odakli('key', '--clearmodifiers', ...tuslar); },
   gercekTekrar: async (t, kez) => { odakli('key', '--clearmodifiers', '--repeat', String(kez), '--delay', '30', t); },
   gercekOdak: async () => { xdo('windowfocus', '--sync', pencere); },
+  kisayol: async (harf, { shift = false } = {}) => { odakli('key', '--clearmodifiers', `ctrl+${shift ? 'shift+' : ''}${harf}`); await bekle(150); },
   menuTus: async (...tuslar) => { xdo('key', '--delay', '150', ...tuslar); },
   gercekTikla: async (x, y, { dugme = 'left' } = {}) => {
     const g = Object.fromEntries(xdo('getwindowgeometry', '--shell', pencere).cikti.split('\n').map((s) => s.split('=')));
@@ -218,6 +219,7 @@ const carlito = !!calistir('fc-list', [':family=Carlito', 'family']).cikti;
 sonuc('Carlito kurulu mu (bilgi: Calibri\'nin eşi, yoksa Liberation Sans)', null, carlito ? 'kurulu' : 'kurulu değil');
 await yeniOzellikleriSina({
   sonuc, kosul, bekle, degerlendir, gonder, cagir, ekranGoruntusu, ORNEKLER, CIKTI, VERI, platform: 'linux', port: PORT, sonBelge: KAYIT, ...gercekGirdi,
+  bolumler: (process.env.DUMAN_BOLUMLER || '').split(',').map((s) => s.trim()).filter(Boolean),
   pdfKlasoru: varMi('lpstat') ? path.join(os.homedir(), 'PDF') : null,
   ekranKok: varMi('import') ? (ad) => calistir('import', ['-window', 'root', path.join(CIKTI, ad)]) : null,
   formYazisi: 'Liberation|Arimo',
