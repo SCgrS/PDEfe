@@ -155,7 +155,7 @@ const YARDIMCI = `window.__d = {
     return l;
   },
   /** Alandaki yazının kesilip kesilmediğini ölçmek için: Yazının aynı yazı tipinde, aynı büyüklükte, kesilmeyen kopyası (ekranda sabit). Döner: Alanın ve kopyanın görüntü kutuları. */
-  kopyaKur(el, metin, ic = 0, oran = 1) {
+  kopyaKur(el, metin, ic = 0, oran = 1, yukari = 0) {
     document.querySelector('.__kopya')?.remove();
     el.scrollIntoView({ block: 'center', inline: 'start' });
     if (el.offsetHeight * (el.getBoundingClientRect().width / el.offsetWidth) > innerHeight / 3) { el.scrollIntoView({ block: 'start', inline: 'start' }); this.g().kaydirici.scrollTop -= 200; }   // uzun alan: İlk satır görünsün
@@ -165,7 +165,7 @@ const YARDIMCI = `window.__d = {
     Object.assign(k.style, { position: 'fixed', left: '20px', top: '100px', zIndex: 99999, background: '#fff', color: '#000', whiteSpace: 'pre', lineHeight: '2', padding: '0 8px', fontFamily: st.fontFamily, fontSize: parseFloat(st.fontSize) * olcek + 'px', fontWeight: st.fontWeight, fontStyle: st.fontStyle, textRendering: 'geometricPrecision' });
     document.body.append(k);
     const u = k.getBoundingClientRect(), g = Math.min(r.width * oran, innerWidth - r.left - 30), b = Math.min(r.height, (parseFloat(st.lineHeight) || parseFloat(st.fontSize) * 1.2) * olcek * 1.8 + parseFloat(st.paddingTop) * olcek);   // çok satırlıda ilk satır
-    return { olcek, alan: { x: r.left + ic, y: r.top + ic, width: g - 2 * ic, height: b - 2 * ic }, kopya: { x: u.left, y: u.top, width: u.width, height: u.height } };
+    return { olcek, alan: { x: r.left + ic, y: r.top + ic - yukari, width: g - 2 * ic, height: b - 2 * ic + yukari }, kopya: { x: u.left, y: u.top, width: u.width, height: u.height } };
   },
   kuculenler() { return [...document.querySelectorAll('${KATMAN} .xfaRich, ${KATMAN} .xfaCaption')].filter((e) => e.style.zoom).map((e) => e.style.zoom + ' ' + e.textContent.slice(0, 24)); },
 };
@@ -783,8 +783,8 @@ export async function yeniOzellikleriSina(o) {
   // aynı yazı tipinde kesilmeyen kopyasınınkiyle karşılaştırılır (büyütülmüş ekran görüntüsünde, 1 piksel pay)
   await bolum('Harf kesilmesi', async () => {
     const MET = 'İĞÜŞÖÇ ğçşı';
-    const kesilme = async (ad, elIfade, metin = MET, { ic = 0, oran = 1 } = {}) => {
-      const k = await H(`(async () => { const el = ${elIfade}; const u = H.kopyaKur(el, ${J(metin)}, ${ic}, ${oran}); await H.bekle(250); return H.kopyaKur(el, ${J(metin)}, ${ic}, ${oran}); })()`);
+    const kesilme = async (ad, elIfade, metin = MET, { ic = 0, oran = 1, yukari = 0 } = {}) => {
+      const k = await H(`(async () => { const el = ${elIfade}; const u = H.kopyaKur(el, ${J(metin)}, ${ic}, ${oran}, ${yukari}); await H.bekle(250); return H.kopyaKur(el, ${J(metin)}, ${ic}, ${oran}, ${yukari}); })()`);
       await bekle(250);
       const dene = async (r, dosya) => {
         const g = await gonder('Page.captureScreenshot', { format: 'png', clip: { ...r, scale: 1 } });
@@ -809,13 +809,13 @@ export async function yeniOzellikleriSina(o) {
     await tusCdp('Tab');
     await bekle(100);
     await degerlendir(`document.activeElement?.blur?.(), true`);
-    await kesilme('XFA çok satır', `H.denetim('Aciklama')`);
+    await kesilme('XFA çok satır', `H.denetim('Aciklama')`, MET, { yukari: 8 });   // yazı alanın üst kenarını aşar (1 piksel kırpma payı): Kırpma kenarın üstünden başlar
     const y2 = kopya('xfa-sinir.pdf');
     await belgeAc(y2, { xfa: true, z: 3 });
     await yazAlan('TekKapali');   // dikey ortalı
     await kesilme('XFA dikey ortalı', `H.denetim('TekKapali')`);
     await yazAlan('IkiSatir');
-    await kesilme('XFA çok satır, 1 mm kenar boşluğu', `H.denetim('IkiSatir')`);
+    await kesilme('XFA çok satır, 1 mm kenar boşluğu', `H.denetim('IkiSatir')`, MET, { yukari: 8 });
     const y3 = kopya('xfa-yazi.pdf');
     await belgeAc(y3, { xfa: true, z: 3 });
     for (let i = 0; i < 5; i++) {

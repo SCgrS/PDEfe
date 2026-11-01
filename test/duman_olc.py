@@ -87,11 +87,13 @@ def duz_olc(d, on_ek):
     fontlar = set()
     for p in d:
         satirlar = []
-        for b in p.get_text("dict")["blocks"]:
+        for b in p.get_text("rawdict")["blocks"]:
             for l in b.get("lines", []):
-                t = "".join(x["text"] for x in l["spans"])
-                if t.strip():
-                    satirlar.append({"t": t, "x0": l["bbox"][0], "x1": l["bbox"][2], "y0": l["bbox"][1], "y1": l["bbox"][3]})
+                harfler = [h for x in l["spans"] for h in x["chars"]]
+                t = "".join(h["c"] for h in harfler)
+                dolu = [h for h in harfler if h["c"].strip()]   # satır sonundaki boşluk kutuya sayılmaz: İki yana hizalı satırda kenarı aşar, çizilmez
+                if dolu:
+                    satirlar.append({"t": t, "x0": min(h["bbox"][0] for h in dolu), "x1": max(h["bbox"][2] for h in dolu), "y0": l["bbox"][1], "y1": l["bbox"][3]})
         for f in p.get_fonts(full=True):
             fontlar.add(f[3].split("+")[-1])
         sayfalar.append({"g": p.rect.width, "b": p.rect.height, "satir": satirlar})
