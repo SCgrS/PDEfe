@@ -1358,3 +1358,10 @@ WPS Office, gerçek WPS'le sınandı (WPS 12.1, görünmeyen masaüstünde, bir 
 
 Arayüz metinleri (otomatik tarandı, cümlelerin okunuşu sizde)
 131. **Metinler.** Ayarlar'ın bütün sekmelerini, Yazdır'ı, Sayfaları düzenle'yi, Sıkıştır'ı, Ayır'ı ve kurucunun kurulu sürüm sayfasını açın, üstüne gelince çıkan ipuçlarına da bakın: Noktalı virgül görünmemeli, iki noktadan sonra büyük harf gelmeli. Noktayla bölünen cümlelerden kulağınıza kopuk gelen olursa söyleyin.
+
+Linux'ta 0.3.1'in yeni özellikleri (GitHub'ın Ubuntu 22.04 makinesinde, ekransız masaüstünde, paketli uygulamada gerçek klavye ve fareyle sınandı. Gerçek bir Linux masaüstünde bakılacaklar)
+132. **XFA formunda Türkçe büyük harfler.** Bireysel başvuru formunu açın, tek satırlı bir alana ve çok satırlı bir alanın ilk satırına `İĞÜŞÖÇ ğçş` yazın: İ'nin noktası, Ğ'nin ve Ü'nün işareti ekranda ve Yazdır'ın ön izlemesinde görünmeli (önceden kesiliyordu). %100 ve %150'de bakın. Ekran ölçeğiniz %100'den farklıysa onda da.
+133. **Sağ tık menüsü.** Form alanında yazı seçip sağ tıklayın: Menü imlecin yanında açılmalı, Kes, Kopyala, Yapıştır çalışmalı, kopyaladığınız yazı başka bir programa yapışmalı. Wayland oturumunda da deneyin (sınama X11'de yapıldı).
+134. **Kendi klavyeniz.** Türkçe Q ya da F klavyeyle alana, Bul kutusuna ve yazı notuna ş ğ ı İ yazın: Harfler doğru girmeli. Ctrl+C ve Ctrl+V başka programla çalışmalı. Giriş yöntemi (IBus, Fcitx) açıksa da.
+135. **Gerçek yazıcı.** Yeni kurulmuş PDEfe'de ilk kez Yazdır: Kâğıt A4 olmalı, A5 ya da yatay belgede de. Kendi yazıcınızda XFA formunu basın: Değerler ve son satır kâğıtta, düğmeler kâğıtta yok. Sınama sanal PDF yazıcısında yapıldı.
+136. **Yazı tipleri.** Carlito kurulu ve kurulu değilken (`fc-list | grep -i carlito`) bireysel başvuru formuna bakın: Taşan ya da eksik harf olmamalı, satırlar kutulara sığmalı. Liberation da yoksa (DejaVu'ya düşer) yazı geniş olur, küçülerek sığmalı, söyleyin.
