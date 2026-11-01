@@ -140,6 +140,32 @@ const YARDIMCI = `window.__d = {
     for (const el of document.querySelectorAll('${KATMAN} input[data-xv], ${KATMAN} textarea[data-xv]')) if (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1) l.push('alan: ' + el.value.slice(0, 40));
     return l;
   },
+  /** Yazısı doğrudan kendisinde olan öğeler ve denetimler işaretlenir: CDP'nin yazı tipi bilgisi (getPlatformFontsForNode) öğenin altında iki kat iner. */
+  yaziOgeleri(ad) {
+    const kok = this.alan(ad), l = [];
+    const yuru = (el) => {
+      if ([...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) || el.matches('input, textarea')) {
+        const k = 'fo' + (window.__foSayac = (window.__foSayac || 0) + 1);
+        el.setAttribute('data-fo', k);
+        l.push({ k, yazi: (el.value ?? el.textContent).slice(0, 40) });
+      }
+      for (const c of el.children) yuru(c);
+    };
+    if (kok) yuru(kok);
+    return l;
+  },
+  /** Alandaki yazının kesilip kesilmediğini ölçmek için: Yazının aynı yazı tipinde, aynı büyüklükte, kesilmeyen kopyası (ekranda sabit). Döner: Alanın ve kopyanın görüntü kutuları. */
+  kopyaKur(el, metin, ic = 0, oran = 1) {
+    document.querySelector('.__kopya')?.remove();
+    el.scrollIntoView({ block: 'center', inline: 'start' });
+    const st = getComputedStyle(el), r = el.getBoundingClientRect(), olcek = r.width / el.offsetWidth, k = document.createElement('div');
+    k.className = '__kopya';
+    k.textContent = metin;
+    Object.assign(k.style, { position: 'fixed', left: '20px', top: '100px', zIndex: 99999, background: '#fff', color: '#000', whiteSpace: 'pre', lineHeight: '2', padding: '0 8px', fontFamily: st.fontFamily, fontSize: parseFloat(st.fontSize) * olcek + 'px', fontWeight: st.fontWeight, fontStyle: st.fontStyle, textRendering: 'geometricPrecision' });
+    document.body.append(k);
+    const u = k.getBoundingClientRect(), g = Math.min(r.width * oran, innerWidth - r.left - 30);
+    return { olcek, alan: { x: r.left + ic, y: r.top + ic, width: g - 2 * ic, height: r.height - 2 * ic }, kopya: { x: u.left, y: u.top, width: u.width, height: u.height } };
+  },
   kuculenler() { return [...document.querySelectorAll('${KATMAN} .xfaRich, ${KATMAN} .xfaCaption')].filter((e) => e.style.zoom).map((e) => e.style.zoom + ' ' + e.textContent.slice(0, 24)); },
 };
 if (!window.__hatalar) { window.__hatalar = []; window.addEventListener('error', (e) => window.__hatalar.push('error: ' + e.message)); window.addEventListener('unhandledrejection', (e) => window.__hatalar.push('reject: ' + (e.reason?.message || e.reason))); }
@@ -245,7 +271,7 @@ export async function yeniOzellikleriSina(o) {
     await belgeAc(y);
     await komut('dosya.yazdir');
     const d = await kosul(() => degerlendir(`(() => { const d = document.querySelector('.yazdir-diyalog'), r = d?.querySelector('.yazdir-onizleme-sayfa'); return d && r?.naturalWidth > 0 ? { kagit: d.querySelector('[name=kagit]').value, ozet: d.querySelector('.yazdir-ozet')?.textContent, gen: r.naturalWidth, yuk: r.naturalHeight } : null; })()`), 20000);
-    sonuc('İlk yazdırma: Temiz veri klasöründe kâğıt A4 (A5 sayfalı belgede de, "Belgeye göre" değil)', d?.kagit === 'A4' && !kayit, J({ ...d, kayit }));
+    sonuc('İlk yazdırma: Temiz veri klasöründe kâğıt A4 (A5 sayfalı belgede de, "Belgeye göre" değil)', d?.kagit === 'A4' && !kayit?.kagit && !kayit?.kagitSecildi, J({ ...d, kayit }));
     await ekranGoruntusu('yazdir-ilk.png');
     const hazir = o.pdfKlasoru ? await kosul(() => degerlendir(`(() => { const d = document.querySelector('.yazdir-diyalog'); return d && d.querySelector('[name=yazici]').options.length > 0 && !d.querySelector('[data-id=yazdir]').disabled; })()`), 15000) : false;
     if (hazir) {
@@ -315,6 +341,7 @@ export async function yeniOzellikleriSina(o) {
     await ac();
     const t0 = Date.now();
     await yaz('tutanak');
+    await bekle(1200);   // arama yazmayı bekler: Önceki aramanın sayacı sayılmasın
     if (platform === 'linux') {
       const s = await kosul(async () => { const m = await sayac(); return /aranamadı$/.test(m) ? m : null; }, 30000);
       sonuc('Bul: PDF metninde iki eşleşme, sayaçta "taranmış sayfalar aranamadı"', s === '1 / 2 · taranmış sayfalar aranamadı', s || await sayac());
@@ -326,6 +353,7 @@ export async function yeniOzellikleriSina(o) {
       sonuc('Bul: Enter sonraki eşleşmeye (8. sayfa)', !!s2 && await kosul(() => H(`H.g().gecerli === 8`), 4000), J({ s2, gecerli: await H(`H.g().gecerli`) }));
       await ac();
       await yaz('örneği');   // yalnız taranmış sayfaların görselinde
+      await bekle(1200);
       const s3 = await kosul(async () => { const m = await sayac(); return /aranamadı$/.test(m) ? m : null; }, 30000);
       sonuc('Bul: Yalnız taranmış sayfada olan sözcük: Bulunamadı, nedeni sayaçta', s3 === 'Bulunamadı · taranmış sayfalar aranamadı', `${s3 || await sayac()} · kutuda: ${await degerlendir(`document.getElementById('bul-girdi').value`)}`);
       const ping = await cagir('cekirdek:cagir', 'ping', {});
@@ -499,8 +527,19 @@ export async function yeniOzellikleriSina(o) {
     const p = await kosul(() => degerlendir(`(() => { const d = document.querySelector('.yazdir-diyalog'), r = d?.querySelector('.yazdir-onizleme-sayfa'); return d && r?.naturalWidth > 0 ? { sayfa: d.querySelector('.yazdir-sayfa-no')?.textContent, ozet: d.querySelector('.yazdir-ozet')?.textContent, kagit: d.querySelector('[name=kagit]').value, uyari: d.querySelector('.yazdir-uyari')?.hidden ? '' : d.querySelector('.yazdir-uyari')?.textContent } : null; })()`), 20000);
     sonuc('XFA: Yazdırma penceresi açıldı, ön izleme, A4, uyarı yok', p?.kagit === 'A4' && !p?.uyari && /\b2\b/.test(p?.sayfa || ''), J(p));
     await ekranGoruntusu('xfa-yazdir.png');
-    await degerlendir(`document.querySelector('.yazdir-diyalog [data-id=iptal]')?.click(), true`);
-    await kosul(() => degerlendir(`!document.querySelector('.yazdir-ortusu')`), 10000);
+    const hazir = o.pdfKlasoru ? await kosul(() => degerlendir(`(() => { const d = document.querySelector('.yazdir-diyalog'); return d && d.querySelector('[name=yazici]').options.length > 0 && !d.querySelector('[data-id=yazdir]').disabled; })()`), 15000) : false;
+    if (hazir) {
+      const once = fs.existsSync(o.pdfKlasoru) ? fs.readdirSync(o.pdfKlasoru) : [];
+      await degerlendir(`document.querySelector('.yazdir-diyalog [data-id=yazdir]').click(), true`);
+      const yeni = await kosul(() => (fs.existsSync(o.pdfKlasoru) ? fs.readdirSync(o.pdfKlasoru).find((f) => !once.includes(f)) : null), 60000, 1000);
+      await bekle(2000);
+      const s = yeni ? olc('duz', path.join(o.pdfKlasoru, yeni), 'xfa-baski').sayfalar : [];
+      sonuc('XFA: Gerçek baskı: 2 sayfa A4', s.length === 2 && s.every((x) => Math.abs(x.g - 595) <= 3 && Math.abs(x.b - 842) <= 3), J({ yeni, boyut: s.map((x) => [x.g, x.b]) }));
+    } else {
+      sonuc('XFA: Gerçek baskı', null, 'yazıcı yok');
+      await degerlendir(`document.querySelector('.yazdir-diyalog [data-id=iptal]')?.click(), true`);
+    }
+    await kosul(() => degerlendir(`!document.querySelector('.yazdir-ortusu')`), 15000);
   });
 
   // ================================================================== XFA formu: Alanın sınırı
@@ -511,7 +550,7 @@ export async function yeniOzellikleriSina(o) {
     // Enter basılı: Beklenen satırda durur
     for (const a of COK_SATIRLI) {
       await tiklaAd(a.ad);
-      await enterTut(40);
+      await enterTut(12);
       await bekle(30);
       const d = await durum(a.ad);
       const b = beklenenSatir(a, d.lh);
@@ -529,15 +568,15 @@ export async function yeniOzellikleriSina(o) {
     }
     // Harf basılı: Çok satırlı ve tek satırlı alan
     await tiklaAd('IkiSatir');
-    await harfTut('x', 400);
+    await harfTut('x', 260);
     let d = await durum('IkiSatir');
-    sonuc('XFA sınır IkiSatir: Harf basılı: Yazma durur, 2 satır, kaydırma yok', sinirTamam(d, 2) && d.uz > 100 && d.uz < 400, J({ ...d, deger: undefined }));
+    sonuc('XFA sınır IkiSatir: Harf basılı: Yazma durur, 2 satır, kaydırma yok', sinirTamam(d, 2) && d.uz > 100 && d.uz < 260, J({ ...d, deger: undefined }));
     await bosalt('IkiSatir');
     for (const ad of ['TekKapali', 'TekSagda', 'YanBaslikli']) {
       await tiklaAd(ad);
-      await harfTut('x', 150);
+      await harfTut('x', 110);
       d = await durum(ad);
-      sonuc(`XFA sınır ${ad}: Tek satırlı alan genişlikte durur, kaymaz`, d.uz > 5 && d.uz < 150 && d.sw <= d.cw && d.sl === 0 && !d.tasiyor, J({ ...d, deger: undefined }));
+      sonuc(`XFA sınır ${ad}: Tek satırlı alan genişlikte durur, kaymaz`, d.uz > 5 && d.uz < 110 && d.sw <= d.cw && d.sl === 0 && !d.tasiyor, J({ ...d, deger: undefined }));
       await bosalt(ad);
     }
     if (o.gercekYaz) {
@@ -673,7 +712,9 @@ export async function yeniOzellikleriSina(o) {
 
   // ================================================================== XFA formu: Şablondaki biçimler
   await bolum('XFA biçim', async () => {
+    await bekle(8000);   // önceki bölümün bildirimi kapansın
     const y = kopya('xfa-bicim.pdf');
+    await izle();
     await belgeAc(y, { xfa: true });
     const hiza = async (ad) => (await durum(ad)).hiza;
     const h = { Solda: await hiza('Solda'), Ortali: await hiza('Ortali'), Sagda: await hiza('Sagda'), CokOrtali: await hiza('CokOrtali'), CokIki: await hiza('CokIki') };
@@ -687,6 +728,9 @@ export async function yeniOzellikleriSina(o) {
     await bekle(300);
     await ekranGoruntusu('xfa-bicim.png');
     sonuc('XFA biçim: Ortalı alandaki yazı yerinde', (await H(`H.denetim('Ortali').value`)) === 'Ortada yazı Şğı');
+    const t = await degerlendir(`[...document.querySelectorAll('${KATMAN} .xfa-tasiyor')].map((e) => e.closest('[xfaname]')?.getAttribute('xfaname'))`);
+    const bl = await bildirimler();
+    sonuc('XFA biçim: Kısa yazılar taşıyor sayılmadı, bildirim yok', !t.length && !bl.length, J({ t, bl }));
   });
 
   // ================================================================== XFA formu: Yazı tipi yedeği
@@ -696,20 +740,24 @@ export async function yeniOzellikleriSina(o) {
     await H(`H.bekle(800)`);
     await gonder('DOM.enable');
     await gonder('CSS.enable');
-    const fontlar = async (secici) => {
+    const fontlar = async (ad) => {
+      const ogeler = await degerlendir(`window.__d.yaziOgeleri(${J(ad)})`);
       const kok = (await gonder('DOM.getDocument', { depth: 0 })).result.root.nodeId;
-      const n = (await gonder('DOM.querySelector', { nodeId: kok, selector: secici })).result?.nodeId;
-      if (!n) return null;
-      return (await gonder('CSS.getPlatformFontsForNode', { nodeId: n })).result?.fonts || [];
+      const sonuclar = [];
+      for (const u of ogeler) {
+        const n = (await gonder('DOM.querySelector', { nodeId: kok, selector: `[data-fo="${u.k}"]` })).result?.nodeId;
+        sonuclar.push({ yazi: u.yazi, fonts: n ? (await gonder('CSS.getPlatformFontsForNode', { nodeId: n })).result?.fonts || [] : [] });
+      }
+      return sonuclar;
     };
     const AILELER = ['Calibri', 'Optima', 'Myriad Pro', 'Minion Pro', 'Turkish Times New Roman'];
     for (let i = 0; i < AILELER.length; i++) {
       const beklenen = o.yaziTipleri[AILELER[i]];
       for (const [tur, ad] of [['düz', `YaziDuz${i}`], ['kalın', `YaziKalin${i}`], ['italik', `YaziItalik${i}`], ['zengin', `YaziZengin${i}`], ['alan', `YaziAlan${i}`]]) {
-        const f = await fontlar(`${KATMAN} [xfaname="${ad}"]`);
-        const adlar = (f || []).map((x) => `${x.familyName} (${x.glyphCount})`);
+        const f = await fontlar(ad);
+        const adlar = f.map((u) => `${u.yazi.slice(0, 16)} → ${u.fonts.map((x) => `${x.familyName} (${x.glyphCount})`).join(' + ')}`);
         // Eksik harf başka yazı tipine düşer: Listede beklenenden başka yazı tipi görünür. Alanda başlığın ve değerin ikisi de aynı aile
-        sonuc(`XFA yazı tipi ${AILELER[i]} ${tur}: ${beklenen}, eksik harf yok`, !!f?.length && f.every((x) => x.familyName === beklenen), adlar.join(', '));
+        sonuc(`XFA yazı tipi ${AILELER[i]} ${tur}: ${beklenen}, eksik harf yok`, f.length > 0 && f.every((u) => u.fonts.length > 0 && u.fonts.every((x) => x.familyName === beklenen)), adlar.join(' | '));
       }
     }
     await gonder('CSS.disable');
@@ -727,6 +775,70 @@ export async function yeniOzellikleriSina(o) {
     sonuc('XFA yazı tipi: Düz PDF\'te Türkçe satırlar eksiksiz (5 aile, 4 çizim ve alan)', kac === 25 && d.tasan === 0, J({ kac, tasan: d.tasan, sayfa: d.sayfa }));
     sonuc('XFA yazı tipi: Düz PDF\'in yazı tipleri (bilgi)', null, m.fontlar.join(', '));
     sonuc('XFA yazı tipi: Düz PDF\'in yazı tipleri sistemin eşleri', m.fontlar.every((f) => new RegExp(o.duzYazisi).test(f)), m.fontlar.join(', '));
+  });
+
+  // ================================================================== Türkçe büyük harflerin üstü ve küçük harflerin altı kesilmiyor
+  // Tek satırlı denetimde tarayıcı yazıyı satır yüksekliğinde keser: Yazı tipinin harfleri satırdan yüksekse İ'nin noktası, Ğ'nin ve Ü'nün işareti kaybolur. Alandaki yazının mürekkep yüksekliği,
+  // aynı yazı tipinde kesilmeyen kopyasınınkiyle karşılaştırılır (büyütülmüş ekran görüntüsünde, 1 piksel pay)
+  await bolum('Harf kesilmesi', async () => {
+    const MET = 'İĞÜŞÖÇ ğçşı';
+    const kesilme = async (ad, elIfade, metin = MET, { ic = 0, oran = 1 } = {}) => {
+      const k = await H(`(async () => { const el = ${elIfade}; const u = H.kopyaKur(el, ${J(metin)}, ${ic}, ${oran}); await H.bekle(250); return H.kopyaKur(el, ${J(metin)}, ${ic}, ${oran}); })()`);
+      await bekle(250);
+      const dene = async (r, dosya) => {
+        const g = await gonder('Page.captureScreenshot', { format: 'png', clip: { ...r, scale: 1 } });
+        const y = path.join(CIKTI, dosya);
+        fs.writeFileSync(y, Buffer.from(g.result.data, 'base64'));
+        return pdfOlc('murekkep', y, null, o.python);
+      };
+      const a = await dene(k.alan, `kesilme-${ad}-alan.png`), b = await dene(k.kopya, `kesilme-${ad}-kopya.png`);
+      await degerlendir(`document.querySelector('.__kopya')?.remove(), true`);
+      sonuc(`Harf kesilmesi ${ad}: İ, Ğ, Ü'nün üstü ve ç, ş, ğ'nin altı alanda da görünüyor`, a.yuk > 0 && b.yuk > 0 && b.yuk - a.yuk <= 1, J({ alan: a.yuk, kopya: b.yuk, olcek: k.olcek }));
+    };
+    const yazAlan = async (ad, metin = MET) => { await tiklaAd(ad); await degerlendir(`(() => { const e = window.__d.denetim(${J(ad)}); e.focus(); e.select(); return true; })()`); await yazCdp(metin); await tusCdp('Tab'); await bekle(100); await degerlendir(`document.activeElement?.blur?.(), true`); await bekle(100); };
+    const y = kopya('xfa.pdf');
+    await belgeAc(y, { xfa: true, z: 3 });
+    await yazAlan('AdSoyad');
+    await kesilme('XFA tek satır', `H.denetim('AdSoyad')`);
+    await ekranGoruntusu('kesilme-xfa.png');
+    await degerlendir(`(() => { const e = window.__d.denetim('Sehir'); e.selectedIndex = 1; return e.value; })()`);
+    await kesilme('XFA açılır liste', `H.denetim('Sehir')`, 'İstanbul', { oran: 0.6 });
+    await tiklaAd('Aciklama');
+    await yazCdp(MET);
+    await tusCdp('Tab');
+    await bekle(100);
+    await degerlendir(`document.activeElement?.blur?.(), true`);
+    await kesilme('XFA çok satır', `H.denetim('Aciklama')`);
+    const y2 = kopya('xfa-sinir.pdf');
+    await belgeAc(y2, { xfa: true, z: 3 });
+    await yazAlan('TekKapali');   // dikey ortalı
+    await kesilme('XFA dikey ortalı', `H.denetim('TekKapali')`);
+    const y3 = kopya('xfa-yazi.pdf');
+    await belgeAc(y3, { xfa: true, z: 3 });
+    for (let i = 0; i < 5; i++) {
+      await yazAlan(`YaziAlan${i}`);
+      await kesilme(`XFA yazı tipi ${i}`, `H.denetim('YaziAlan${i}')`);
+    }
+    // Düz PDF'te aynı: Alan, aynı yazı tipindeki çizimle
+    const d = await degerlendir(`(async () => { const d = await window.__d.b().xfa.duzPdf(); return d.yol; })()`);
+    const duzYol = path.join(CIKTI, 'kesilme-duz.pdf');
+    fs.copyFileSync(d, duzYol);
+    const kac = pdfOlc('duz-murekkep', duzYol, YAZI_METNI, o.python).satirlar;
+    const alanlar = pdfOlc('duz-murekkep', duzYol, MET, o.python).satirlar;
+    sonuc('Harf kesilmesi düz PDF: Satırlar bulundu (bilgi)', null, J({ cizim: kac.length, alan: alanlar.length }));
+    const cizimYuk = (font) => Math.max(0, ...kac.filter((x) => x.font === font).map((x) => x.yuk));
+    for (const a of alanlar) {
+      const c = cizimYuk(a.font);
+      sonuc(`Harf kesilmesi düz PDF ${a.font}: Alanın yazısı çizimdeki kadar yüksek`, c > 0 && a.yuk >= c - 0.35, J({ alan: a.yuk, cizim: c }));
+    }
+    // Düz form alanı (düzenlenirken)
+    const y4 = kopya('alanlar.pdf');
+    await formAc(y4);
+    await H(`(H.g().zoomAyarla(3), H.bekle(700))`);
+    await formTikla('ad', { sayfa: 1 });
+    await yazCdp(MET);
+    await kesilme('düz form düzenlenirken', `document.activeElement`, MET, { ic: 3 });
+    await tusCdp('Escape');
   });
 
   // ================================================================== sağ tık: Kes, Kopyala, Yapıştır (yerel menü)

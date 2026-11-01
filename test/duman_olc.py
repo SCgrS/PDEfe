@@ -5,6 +5,8 @@
 #   form   Form alanları: Ad, tür, değer, /AS, görünümün yazı tipleri. Görünümler sayfaya işlenince (bake) okunan yazı. Sayfaların görüntüsü.
 #   xfa    XFA verisinin (datasets) yaprak değerleri: Ad → değerler.
 #   duz    Düz PDF: Sayfa boyutları, satırlar ve kutuları, yazı tipleri. Sayfaların görüntüsü.
+#   murekkep <png>            Görüntüdeki koyu piksellerin dikey yayılımı (yazının üstü kesilmiş mi).
+#   duz-murekkep <pdf> <metin>  Metni içeren satırların mürekkep yüksekliği.
 import json
 import re
 import sys
@@ -97,6 +99,32 @@ def duz_olc(d, on_ek):
     return {"sayfalar": sayfalar, "fontlar": sorted(fontlar)}
 
 
-KOMUTLAR = {"not": not_olc, "form": form_olc, "xfa": xfa_olc, "duz": duz_olc}
-belge = pymupdf.open(sys.argv[2], filetype="pdf")
-print(json.dumps(KOMUTLAR[sys.argv[1]](belge, sys.argv[3] if len(sys.argv) > 3 else ""), ensure_ascii=False))
+def murekkep(pix):
+    """Görüntüdeki koyu piksellerin dikey yayılımı (satır): Yazının üstü ya da altı kesilmiş mi."""
+    s, n, g, b = pix.samples, pix.n, pix.width, pix.height
+    satirlar = [y for y in range(b) if any(s[y * pix.stride + x * n] < 140 for x in range(g))]
+    return {"ust": satirlar[0], "alt": satirlar[-1], "yuk": satirlar[-1] - satirlar[0] + 1, "g": g, "b": b} if satirlar else {"yuk": 0, "g": g, "b": b}
+
+
+def duz_murekkep(d, metin):
+    """Düz PDF'te metni içeren satırların mürekkep yüksekliği (pt, 400 dpi'de ölçülür)."""
+    sonuc = []
+    for p in d:
+        for b in p.get_text("dict")["blocks"]:
+            for l in b.get("lines", []):
+                t = "".join(x["text"] for x in l["spans"])
+                if metin in t:
+                    r = pymupdf.Rect(l["bbox"]) + (0, -1.5, 0, 1.5)
+                    m = murekkep(p.get_pixmap(dpi=400, clip=r, colorspace=pymupdf.csGRAY))
+                    sonuc.append({"t": t, "font": l["spans"][-1]["font"], "yuk": round(m["yuk"] * 72 / 400, 2)})
+    return {"satirlar": sonuc}
+
+
+komut = sys.argv[1]
+if komut == "murekkep":   # <png>
+    print(json.dumps(murekkep(pymupdf.Pixmap(pymupdf.csGRAY, pymupdf.Pixmap(sys.argv[2])))))
+elif komut == "duz-murekkep":   # <pdf> <metin>
+    print(json.dumps(duz_murekkep(pymupdf.open(sys.argv[2], filetype="pdf"), sys.argv[3]), ensure_ascii=False))
+else:
+    KOMUTLAR = {"not": not_olc, "form": form_olc, "xfa": xfa_olc, "duz": duz_olc}
+    print(json.dumps(KOMUTLAR[komut](pymupdf.open(sys.argv[2], filetype="pdf"), sys.argv[3] if len(sys.argv) > 3 else ""), ensure_ascii=False))
