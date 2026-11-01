@@ -3,13 +3,15 @@
 // PDF açmayı, tek örneği, sayfa çizimini ve standart yazı tiplerini (fontconfig), çekirdeği (yazı tanıma Linux'ta "desteklenmiyor"), Bul'u,
 // Türkçe yazı notunun kaydını, yazdırma penceresini (cups-pdf kuruluysa gerçek yazdırmayı), PDF'i kopyala'yı ve panodan dosya yapıştırmayı
 // (xclip), varsayılan PDF programını (menü kaydı + xdg-mime), güncelleme durumunu, LibreOffice'le Word → PDF'i (paketli çekirdekten) ve
-// çıkışta çekirdeğin kapanmasını sınar. Ekran görüntüleri ve sonuç çıktı klasörüne.
-// Kullanım: xvfb-run -a node test/linux_duman.mjs <PDEfe-Linux.AppImage> <örnek klasörü: not.pdf, taranmis.pdf, [deneme.docx]> <çıktı klasörü>
+// çıkışta çekirdeğin kapanmasını sınar. 0.3.1'in yeni özellikleri (ilk yazdırmada A4, iç bağlantılar, Bul, düz form, XFA, sağ tık, kapatma sorusu) macOS'la ortak: test/duman_ortak.mjs.
+// Ekran görüntüleri ve sonuç çıktı klasörüne.
+// Kullanım: xvfb-run -a node test/linux_duman.mjs <PDEfe-Linux.AppImage> <örnek klasörü: not.pdf, taranmis.pdf, [deneme.docx], test/duman_ornekleri_uret.py'ninkiler> <çıktı klasörü>
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { pdfOlc, yeniOzellikleriSina } from './duman_ortak.mjs';
 
 const [APPIMAGE, ORNEKLER, CIKTI] = process.argv.slice(2).map((p) => p && path.resolve(p));
 if (!APPIMAGE || !ORNEKLER || !CIKTI) { console.error('Kullanım: node test/linux_duman.mjs <PDEfe-Linux.AppImage> <örnekler> <çıktı>'); process.exit(2); }
@@ -187,10 +189,44 @@ const kayit = await degerlendir(`(async () => {
 const notlar = await cagir('cekirdek:cagir', 'notlar', { yol: KAYIT });
 const yazi = (notlar?.notlar || notlar || []).find?.((n) => n.tur === 'FreeText');
 sonuc('yazı notu (varsayılan Arial) kaydedildi, Türkçe metin dosyada', kayit?.tip === 'Arial' && kayit?.degisti === false && yazi?.icerik === METIN, JSON.stringify({ kayit, yazi: yazi?.icerik }));
-const gorunum = await cagir('cekirdek:cagir', 'sayfa_metni', { yol: KAYIT, sayfa: 1 });
-sonuc('notun görünümünde Türkçe harfler (gömülü yazı tipi)', String(gorunum?.metin || '').normalize('NFC').includes(METIN.normalize('NFC')),
-  String(gorunum?.metin || '').slice(-120), false);
+// Notun görünümü: Sayfa metninde yok (çekirdeğin sayfa_metni yalnız sayfa içeriğini okur). Görünümden PyMuPDF'le okunur (linux_cekirdek_testi.py B bölümü gibi), görüntüsü çıktıda
+const gorunum = pdfOlc('not', KAYIT, path.join(CIKTI, 'not-kayitli'));
+const notG = gorunum.notlar.find((n) => n.icerik === METIN);
+sonuc('notun görünümünde Türkçe harfler (gömülü yazı tipi, görünümden okundu)', String(notG?.gorunum || '').normalize('NFC').includes(METIN.normalize('NFC')), JSON.stringify(gorunum.notlar));
+sonuc('notun görünümünün yazı tipi Arial\'in eşi (Liberation Sans)', (notG?.fontlar || []).some((f) => /Liberation\s*Sans|Arimo/i.test(f)), JSON.stringify(notG?.fontlar));
 await ekranGoruntusu('not.png');
+
+// ---------------------------------------------------------------- 6b) 0.3.1'in yeni özellikleri (macOS'la ortak denetimler: test/duman_ortak.mjs)
+// Klavye düzeni Türkçe (Türkçe Q): Harfler klavyeden gelir, xdotool tuş haritasını bozmaz. Fare de X sunucusundan: Tıklama gerçek pencereye, yerel menü gerçek klavyeyle
+if (varMi('setxkbmap')) sonuc('Türkçe klavye düzeni (setxkbmap tr)', calistir('setxkbmap', ['tr']).ok, '', false);
+const xdo = (...a) => calistir('xdotool', a);
+const odakli = (...a) => xdo('windowfocus', '--sync', pencere, ...a);
+const gercekGirdi = pencere ? {
+  gercekYaz: async (metin) => { odakli('type', '--clearmodifiers', '--delay', '20', metin); },
+  gercekTus: async (...tuslar) => { odakli('key', '--clearmodifiers', ...tuslar); },
+  gercekTekrar: async (t, kez) => { odakli('key', '--clearmodifiers', '--repeat', String(kez), '--delay', '30', t); },
+  gercekOdak: async () => { xdo('windowfocus', '--sync', pencere); },
+  menuTus: async (...tuslar) => { xdo('key', '--delay', '150', ...tuslar); },
+  gercekTikla: async (x, y, { dugme = 'left' } = {}) => {
+    const g = Object.fromEntries(xdo('getwindowgeometry', '--shell', pencere).cikti.split('\n').map((s) => s.split('=')));
+    const ic = await degerlendir('({ g: innerWidth, y: innerHeight, o: devicePixelRatio })');
+    const px = Math.round(+g.X + (+g.WIDTH - ic.g * ic.o) / 2 + x * ic.o), py = Math.round(+g.Y + (+g.HEIGHT - ic.y * ic.o) + y * ic.o);   // menü çubuğu varsa üstte
+    xdo('mousemove', '--sync', String(px), String(py), 'click', dugme === 'right' ? '3' : '1');
+  },
+} : {};
+const carlito = !!calistir('fc-list', [':family=Carlito', 'family']).cikti;
+sonuc('Carlito kurulu mu (bilgi: Calibri\'nin eşi, yoksa Liberation Sans)', null, carlito ? 'kurulu' : 'kurulu değil');
+await yeniOzellikleriSina({
+  sonuc, kosul, bekle, degerlendir, gonder, cagir, ekranGoruntusu, ORNEKLER, CIKTI, VERI, platform: 'linux', port: PORT, sonBelge: KAYIT, ...gercekGirdi,
+  pdfKlasoru: varMi('lpstat') ? path.join(os.homedir(), 'PDF') : null,
+  ekranKok: varMi('import') ? (ad) => calistir('import', ['-window', 'root', path.join(CIKTI, ad)]) : null,
+  formYazisi: 'Liberation|Arimo',
+  duzYazisi: carlito ? 'Liberation|Carlito' : 'Liberation',
+  yaziTipleri: { Calibri: carlito ? 'Carlito' : 'Liberation Sans', Optima: 'Liberation Sans', 'Myriad Pro': 'Liberation Sans', 'Minion Pro': 'Liberation Serif', 'Turkish Times New Roman': 'Liberation Serif' },
+});
+if (varMi('setxkbmap')) calistir('setxkbmap', ['us']);
+await degerlendir('document.activeElement?.blur?.(); true');
+await ekranGoruntusu('ozellikler-son.png');
 
 // ---------------------------------------------------------------- 7) yazdırma penceresi (cups-pdf kuruluysa gerçek yazdırma)
 await degerlendir(`window.__pdefe.komutCalistir('dosya.yazdir'); true`);

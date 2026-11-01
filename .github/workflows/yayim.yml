@@ -487,7 +487,7 @@ jobs:
       - name: Sınama için sistem paketleri
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q --no-install-recommends xvfb xauth xdotool xclip xdg-utils desktop-file-utils fontconfig fonts-liberation fonts-dejavu-core \
+          sudo apt-get install -y -q --no-install-recommends xvfb xauth xdotool xclip x11-xkb-utils imagemagick xdg-utils desktop-file-utils fontconfig fonts-liberation fonts-dejavu-core \
             cups cups-client cups-bsd printer-driver-cups-pdf libreoffice-writer
           command -v fusermount3 || command -v fusermount || sudo apt-get install -y -q --no-install-recommends fuse3
           sudo systemctl start cups || true
@@ -526,14 +526,15 @@ jobs:
           echo "mb=$mb" >> "$GITHUB_OUTPUT"
           echo "PDEfe-Linux.AppImage: $mb MB, SHA-256 $sha"
 
-      - name: Örnek belgeleri üret (PDF, taranmış PDF, Word)
+      - name: Örnek belgeleri üret (PDF, taranmış PDF, form alanları, XFA formları, iç bağlantılar, Word)
         run: |
           mkdir -p "$RUNNER_TEMP/ornekler"
           python -c "import sys; sys.path.insert(0, 'test'); import ornek_pdf_uret as o, tanima_pdf_uret as t; o.uret(sys.argv[1] + '/not.pdf', 2, 'Deneme belgesi', True); t.uret(sys.argv[1])" "$RUNNER_TEMP/ornekler"
+          python test/duman_ornekleri_uret.py "$RUNNER_TEMP/ornekler"
           python -c "import sys, docx; d = docx.Document(); d.add_heading('Deneme dilekçesi', 1); d.add_paragraph('Şişli İcra Dairesi: Borçlunun ığşİÇÖÜ harfli adresine tebligat yapılmıştır.'); d.save(sys.argv[1] + '/deneme.docx')" "$RUNNER_TEMP/ornekler"
 
       - name: Uygulamayı sına (Xvfb)
-        timeout-minutes: 12
+        timeout-minutes: 20
         run: xvfb-run -a --server-args="-screen 0 1600x1000x24" node test/linux_duman.mjs release/PDEfe-Linux.AppImage "$RUNNER_TEMP/ornekler" "$RUNNER_TEMP/duman"
 
       - name: Sınama çıktıları (ekran görüntüleri, günlük)
