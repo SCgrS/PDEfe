@@ -356,11 +356,12 @@
 .xfaLayer textarea.xfaTextfield { overflow: hidden; }
 /* Linux (0.3.1, Linux sınaması): Tek satırlı denetim yazıyı iç kutusunun yüksekliğinde keser, ekranda ve kâğıtta İ'nin noktası, Ğ'nin ve Ü'nün işareti kayboluyordu. Tarayıcı Linux'ta alt payı yuvarlarken üst paydan
    bir birim alır: 10 px'te taban çizgisi iç kutunun 8 px altında, Arial ölçülü yazı tiplerinde işaretli büyük harf 8,7 px (ölçüldü). 1,4: Üstte yer açılır, yazı yerinde kalır (denetim iç kutuyu ortalar). Denetimin
-   yüksekliği yüzdeyle verilirse tarayıcı iç kutunun satır aralığını yok sayar (ölçüldü): Bu yüzden yükseklik auto, aynı kutu min-height ve flex ile. Çok satırlı alanda dokunulmaz: Orada satır aralığı kâğıttaki
-   yerleşimdir. Windows ve macOS'ta bu pay yok, değişmedi (xfaHtml.js) */
+   yüksekliği yüzdeyle verilirse tarayıcı iç kutunun satır aralığını yok sayar (ölçüldü): Bu yüzden yükseklik auto, aynı kutu min-height ve flex ile. Çok satırlı alanda satır aralığı kâğıttaki yerleşimdir, değişmez:
+   Üst kenar boşluğu olmayan alanda ilk satır alanın kenarında kesiliyordu, 1 piksel kırpma payı (kaydırılan alanlarda değil: Sığan alan kaydırılmaz). Windows ve macOS'ta bu pay yok, değişmedi (xfaHtml.js) */
 .xfa-linux .xfaLayer :is(input.xfaTextfield, select.xfaSelect) { line-height: 1.4 !important; }
 .xfa-linux .xfaLayer :is(.xfaLeft, .xfaRight) > input.xfaTextfield:not([style*="height: auto"]) { height: auto !important; min-height: 100%; }
 .xfa-linux .xfaLayer :is(.xfaTop, .xfaBottom) > input.xfaTextfield:not([style*="height: auto"]) { height: auto !important; flex: 1 1 0; }
+.xfa-linux .xfaLayer textarea.xfaTextfield:not(.xfa-tasiyor, [data-xfa-buyur]) { overflow: clip; overflow-clip-margin: 1px; }
 /* Dosyada zaten sığmayan yazı (xfa.js _tasmaGuncelle): Sığmayan kısım basılmaz. Okunabilsin diye kaydırılabilir. box-shadow: Kalınlığı yuvarlanmaz, yakınlaştırmayla büyümez */
 .xfaLayer .xfa-tasiyor { box-shadow: 0 0 0 calc(1.5px / var(--xfa-olcek, 1)) #d13438; }
 .xfaLayer textarea.xfaTextfield.xfa-tasiyor { overflow-y: auto; }

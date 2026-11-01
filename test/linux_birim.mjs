@@ -89,6 +89,7 @@ kontrol('XFA yazı tipleri: Optima ve Myriad Pro\'da önce formun yazı tipi, so
 // 0.3.1, Linux sınaması: Tek satırlı denetimde Türkçe büyük harflerin üstü kesilmesin. Gerçek ölçüm test/duman_ortak.mjs "Harf kesilmesi" (CI). Kural yalnız Linux'ta, çok satırlı alanda yok (kâğıdın yerleşimi)
 kontrol('XFA tek satırlı denetim: Linux\'ta satır aralığı 1,4, yükseklik auto (yüzdede satır aralığı yok sayılır), yalnız .xfa-linux altında, textarea\'da yok', /\.xfa-linux \.xfaLayer :is\(input\.xfaTextfield, select\.xfaSelect\) \{ line-height: 1\.4 !important; \}/.test(css)
   && /\.xfa-linux \.xfaLayer :is\(\.xfaLeft, \.xfaRight\) > input\.xfaTextfield:not\(\[style\*="height: auto"\]\) \{ height: auto !important; min-height: 100%; \}/.test(css) && !/xfa-linux[^{}]*textarea[^{}]*\{[^}]*line-height/.test(css));
+kontrol('XFA çok satırlı alan: Linux\'ta ilk satır üst kenarda kesilmez, kaydırılan alanlarda kırpma yok', /\.xfa-linux \.xfaLayer textarea\.xfaTextfield:not\(\.xfa-tasiyor, \[data-xfa-buyur\]\) \{ overflow: clip; overflow-clip-margin: 1px; \}/.test(css));
 const xfaHtml = fs.readFileSync(new URL('../src/renderer/xfaHtml.js', import.meta.url), 'utf8');
 kontrol('XFA tek satırlı denetim: .xfa-linux yalnız Linux\'ta, ön yüklemesiz sayfada da (navigator.platform)', /if \(\/Linux\/\.test\(globalThis\.navigator\?\.platform \|\| ''\)\) globalThis\.document\?\.documentElement\?\.classList\.add\('xfa-linux'\);/.test(xfaHtml));
 
