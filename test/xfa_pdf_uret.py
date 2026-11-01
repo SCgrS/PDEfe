@@ -6,6 +6,7 @@
 # Çıktı (klasöre): xfa.pdf, xfa-imzali.pdf (aynı form, görünmez sahte e-imzayla: imzali_xfa), xfa-uzun.pdf (uzun yazı: test/senaryo50.mjs), xfa-bicim.pdf (alan biçimleri: BICIM_SABLON, test/senaryo51.mjs),
 #   xfa-hakli.pdf (xfa-uzun, biçimce doğru sahte kullanım hakları imzasıyla: hakli_xfa, test/senaryo52.mjs),
 #   xfa-sinir.pdf (alanın kâğıda sığması: SINIR_SABLON, test/senaryo53.mjs)
+#   xfa-yazi.pdf (bilgisayarda bulunmayabilen yazı tipleri: YAZI_SABLON, test/duman_ortak.mjs)
 #   Şablon: form1 (yukarıdan aşağı akış). Sayfa alanı "Sayfa1": alt bilgide "Sayfa n / N" (zengin metne gömülü, değeri xfa.layout.page /
 #   pageCount betikli iki gizli alan). Alt formlar:
 #     Baslik: başlık (Türkçe harfler), yazı alanı AdSoyad (araç ipucu "Adı ve soyadı"), onay kutusu Onay, açılır liste Sehir (Ankara,
@@ -221,6 +222,46 @@ SINIR_VERI = (f'<xfa:datasets xmlns:xfa="{VERI_NS}"><xfa:data><form1><Sinir>'
               + '</Sinir><Yinelenen><YCok/><YTek/></Yinelenen><Cerceveli><Uzun/></Cerceveli><Son/></form1></xfa:data></xfa:datasets>')
 
 
+# ------------------------------------------------------------ Yazı tipi yedeği (0.3.1; Linux ve macOS sınaması: test/duman_ortak.mjs)
+# Formlarda sık geçen, Linux'ta ve macOS'ta bulunmayan aileler (xfa.css'teki benzer kuralları). Her aile için çizim (düz, kalın, italik), zengin metin, başlıklı yazı alanı (başlık payı
+# dar: Yedek yazı tipinde taşarsa küçülmeli) ve çok satırlı alan. Değerler dosyada.
+YAZI_AILELERI = (("Calibri", "Calibri"), ("Optima", "Optima"), ("Myriad Pro", "MyriadPro"), ("Minion Pro", "MinionPro"), ("Turkish Times New Roman", "TurkishTimesNewRoman"))
+YAZI_METNI = "Şişli İğdır Çığ Öğüt ĞÜŞİÖÇ ğüşıöç"
+
+
+def _yazi_satiri(i, aile, y):
+    yazi = f'typeface="{aile}" size="10pt"'
+
+    def cizim(ek, ad, uy, ozel=""):
+        return f'<draw name="{ad}" x="0mm" y="{uy}mm" w="170mm" h="6mm"><ui><textEdit/></ui><value><text>{aile}{ek}: {YAZI_METNI}</text></value><font {yazi}{ozel}/></draw>'
+
+    zengin = (f'<draw name="YaziZengin{i}" x="0mm" y="{y + 15}mm" w="170mm" h="6mm"><ui><textEdit/></ui><value><exData contentType="text/html"><body xmlns="http://www.w3.org/1999/xhtml">'
+              f"<p style=\"font-family:'{aile}';font-size:10pt\">{aile} zengin: {YAZI_METNI}</p></body></exData></value></draw>")
+    alan = (f'<field name="YaziAlan{i}" x="0mm" y="{y + 21}mm" w="110mm" h="8mm"><ui>{TEK}</ui><font {yazi}/><margin leftInset="1mm" rightInset="1mm"/><para vAlign="middle"/>'
+            f'<caption reserve="42mm"><value><text>Başvurucunun Adı Soyadı Şğı</text></value></caption><border><edge><color value="153,153,153"/></edge></border></field>')
+    cok = (f'<field name="YaziCok{i}" x="115mm" y="{y + 21}mm" w="55mm" h="8mm"><ui>{COK}</ui><font typeface="{aile}" size="8pt"/><margin leftInset="1mm" rightInset="1mm"/>'
+           f'<border><edge><color value="153,153,153"/></edge></border></field>')
+    return cizim("", f"YaziDuz{i}", y) + cizim(" kalın", f"YaziKalin{i}", y + 5, ' weight="bold"') + cizim(" italik", f"YaziItalik{i}", y + 10, ' posture="italic"') + zengin + alan + cok
+
+
+YAZI_SABLON = (f'<template xmlns="{SABLON_NS}"><subform name="form1" layout="tb" locale="tr_TR" restoreState="auto">'
+               '<pageSet><pageArea name="Sayfa1" id="Sayfa1"><contentArea x="15mm" y="15mm" w="180mm" h="267mm"/><medium stock="a4" short="210mm" long="297mm"/></pageArea></pageSet>'
+               '<subform name="Yazi" w="180mm" h="175mm">' + "".join(_yazi_satiri(i, a[0], i * 34) for i, a in enumerate(YAZI_AILELERI)) + "</subform></subform></template>")
+YAZI_VERI = (f'<xfa:datasets xmlns:xfa="{VERI_NS}"><xfa:data><form1><Yazi>'
+             + "".join(f"<YaziAlan{i}>{YAZI_METNI}</YaziAlan{i}><YaziCok{i}>Şğı İ</YaziCok{i}>" for i in range(len(YAZI_AILELERI)))
+             + "</Yazi></form1></xfa:data></xfa:datasets>")
+
+
+def _dr_yazi(doc, ad, aile, agirlik=400, italik=0):
+    """AcroForm /DR'ye gömülü olmayan yazı tipi (PDF.js XFA yazı tiplerini buradan tanır)."""
+    tanim = doc.get_new_xref()
+    doc.update_object(tanim, f"<</Type/FontDescriptor/FontName/{ad}/FontFamily({aile})/Flags 32/FontBBox[-665 -325 2000 1006]/ItalicAngle {italik}"
+                             f"/Ascent 905/Descent -212/CapHeight 716/StemV 80/FontWeight {agirlik}>>")
+    yazi = doc.get_new_xref()
+    doc.update_object(yazi, f"<</Type/Font/Subtype/TrueType/BaseFont/{ad}/Encoding/WinAnsiEncoding/FontDescriptor {tanim} 0 R>>")
+    return yazi
+
+
 def akis(doc, veri):
     x = doc.get_new_xref()
     doc.update_object(x, "<<>>")
@@ -228,7 +269,7 @@ def akis(doc, veri):
     return x
 
 
-def form_yaz(yol, sablon, veri, kullanim_hakki=True):
+def form_yaz(yol, sablon, veri, kullanim_hakki=True, aileler=()):
     """Şablonu ve veriyi saf XFA formu olarak yazar. Döner: {sablon, veri} akışlarının nesne numaraları."""
     doc = pymupdf.open()
     sayfa = doc.new_page(width=595, height=842)
@@ -246,8 +287,12 @@ def form_yaz(yol, sablon, veri, kullanim_hakki=True):
     doc.update_object(yazi, f"<</Type/Font/Subtype/TrueType/BaseFont/Arial/Encoding/WinAnsiEncoding/FontDescriptor {tanim} 0 R>>")
     yazi_k = doc.get_new_xref()
     doc.update_object(yazi_k, f"<</Type/Font/Subtype/TrueType/BaseFont/Arial,Bold/Encoding/WinAnsiEncoding/FontDescriptor {tanim_k} 0 R>>")
+    ek = ""
+    for aile, ad in aileler:
+        ek += (f"/{ad} {_dr_yazi(doc, ad, aile)} 0 R/{ad}-Bold {_dr_yazi(doc, ad + ',Bold', aile, agirlik=700)} 0 R"
+               f"/{ad}-Italic {_dr_yazi(doc, ad + ',Italic', aile, italik=-12)} 0 R")
     af = doc.get_new_xref()
-    doc.update_object(af, f"<</Fields[]/DR<</Font<</Arial {yazi} 0 R/Arial-Bold {yazi_k} 0 R>>>>"
+    doc.update_object(af, f"<</Fields[]/DR<</Font<</Arial {yazi} 0 R/Arial-Bold {yazi_k} 0 R{ek}>>>>"
                           f"/XFA[(xdp:xdp) {bas} 0 R (config) {cfg} 0 R (template) {tpl} 0 R (datasets) {dat} 0 R (</xdp:xdp>) {son} 0 R]>>")
     kat = doc.pdf_catalog()
     doc.xref_set_key(kat, "AcroForm", f"{af} 0 R")
@@ -271,12 +316,14 @@ def uret(klasor):
     form_yaz(bicim, BICIM_SABLON, BICIM_VERI, kullanim_hakki=False)
     sinir = os.path.join(klasor, "xfa-sinir.pdf")
     form_yaz(sinir, SINIR_SABLON, SINIR_VERI, kullanim_hakki=False)
+    yazi = os.path.join(klasor, "xfa-yazi.pdf")
+    form_yaz(yazi, YAZI_SABLON, YAZI_VERI, kullanim_hakki=False, aileler=YAZI_AILELERI)
     hakli = os.path.join(klasor, "xfa-hakli.pdf")
     gecici = os.path.join(klasor, "xfa-hakli-kaynak.pdf")
     form_yaz(gecici, SABLON_UZUN, VERI_UZUN, kullanim_hakki=False)
     hakli_xfa(gecici, hakli)
     os.remove(gecici)
-    return {"xfa": yol, "xfaImzali": imzali, "xfaUzun": uzun, "xfaBicim": bicim, "xfaHakli": hakli, "xfaSinir": sinir, "paketler": paketler}
+    return {"xfa": yol, "xfaImzali": imzali, "xfaUzun": uzun, "xfaBicim": bicim, "xfaHakli": hakli, "xfaSinir": sinir, "xfaYazi": yazi, "paketler": paketler}
 
 
 def hakli_xfa(kaynak, yol):
