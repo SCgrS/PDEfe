@@ -310,14 +310,20 @@ await yeniOzellikleriSina({
   ekranKok: (ad) => calistir('/usr/sbin/screencapture', ['-x', path.join(CIKTI, ad)]),
   formYazisi: 'Arial',
   duzYazisi: 'Arial|Times|Optima',
-  // local() yazı tipini tam adıyla arar: Optima'nın düzünün tam adı "Optima Regular", "Optima" tutmaz, sıradaki Arial'e düşer. Kalını ve italiği "Optima Bold", "Optima Italic" tutar (xfa.css)
-  yaziTipleri: { Calibri: /^(Calibri|Arial)$/, Optima: /^(Optima|Arial)$/, 'Myriad Pro': /^Arial$/, 'Minion Pro': /^Times New Roman$/, 'Turkish Times New Roman': /^Times New Roman$/ },
+  // Optima macOS'ta var, kendisi çizilir (xfa.css). Calibri ve Myriad Pro yok (Office ya da Creative Cloud kuruluysa kendileri, sınama makinesinde yok), Minion Pro yok
+  yaziTipleri: { Calibri: /^(Calibri|Arial)$/, Optima: /^Optima$/, 'Myriad Pro': /^Arial$/, 'Minion Pro': /^Times New Roman$/, 'Turkish Times New Roman': /^Times New Roman$/ },
 });
 await degerlendir('document.activeElement?.blur?.(); true').catch(() => {});
 await ekranGoruntusu('ozellikler-son.png');
 
 // ---------------------------------------------------------------- 6d) gerçek baskı: Sınama yazıcısı dosyaya yazar (test/mac_sinama_hazirla.sh; kurulamadıysa atlanır). Sessiz yazdırmanın, yazıcı listesinin ve kâğıdın gerçek Mac'teki ilk denemesi (zorunlu değil)
+// Çıktı Genel PostScript sürücüsünden: Kâğıt ve sayfa sayısı PostScript'in başlığından. Süzgeçsiz kuyruk olmaz: Electron'un deviceName doğrulaması onu reddeder, cupsGetNamedDest bulsa da (ölçüldü: "Invalid deviceName")
 const BASKI = process.env.PDEFE_BASKI_DOSYASI;
+function psOlc(yol) {
+  const metin = fs.readFileSync(yol, 'latin1');
+  const k = /^%%(?:PageBoundingBox|BoundingBox|HiResBoundingBox):\s*0(?:\.0+)? 0(?:\.0+)? (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)/m.exec(metin) || /^%%DocumentMedia:\s*\S+ (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)/m.exec(metin) || /\/PageSize\s*\[\s*(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s*\]/.exec(metin);
+  return { sayfa: (metin.match(/^%%Page: /gm) || []).length, g: k ? +k[1] : 0, b: k ? +k[2] : 0, bas: metin.slice(0, 60).replace(/\s+/g, ' '), baslik: (metin.match(/^%%(?:Pages|BoundingBox|PageBoundingBox|DocumentMedia):.*$/gm) || []).slice(0, 6).join(' | ') };
+}
 if (secildi('Gerçek baskı')) {
   if (!BASKI) sonuc('Gerçek baskı', null, 'sınama yazıcısı kurulamadı');
   else {
@@ -342,37 +348,14 @@ if (secildi('Gerçek baskı')) {
         await ekranGoruntusu(`baski-${ad}-hata.png`);
         await degerlendir(`document.querySelector('.mesaj-kutusu button')?.click(), true`);
       }
-      if (!geldi || kutu) { sonuc(`Gerçek baskı ${ad}: Yazıcıya ulaştı`, false, `${kutu || 'dosya yok'} · kuyruk: ${kuyruk}`, false); return; }
-      const kopya = path.join(CIKTI, `baski-${ad}.pdf`);
+      if (!geldi || kutu) { sonuc(`Gerçek baskı ${ad}: Yazıcıya ulaştı`, false, `${String(kutu || 'dosya yok').replace(/\s+/g, ' ')} · kuyruk: ${kuyruk}`, false); return; }
+      const kopya = path.join(CIKTI, `baski-${ad}.ps`);
       fs.copyFileSync(BASKI, kopya);
-      try {
-        const s = pdfOlc('duz', kopya, path.join(CIKTI, `baski-${ad}`)).sayfalar;
-        sonuc(`Gerçek baskı ${ad}: ${sayfaBeklenen} sayfa A4 (595 × 842 pt)`, s.length === sayfaBeklenen && s.every((x) => Math.abs(x.g - 595) <= 3 && Math.abs(x.b - 842) <= 3), JSON.stringify(s.map((x) => [x.g, x.b])), false);
-      } catch (e) { sonuc(`Gerçek baskı ${ad}: Yazıcıya giden dosya PDF`, false, `${e.message} · ilk baytlar ${JSON.stringify(fs.readFileSync(kopya).subarray(0, 20).toString('latin1'))}`, false); }
+      const s = psOlc(kopya);
+      sonuc(`Gerçek baskı ${ad}: ${sayfaBeklenen} sayfa A4 (595 × 842 pt)`, s.sayfa === sayfaBeklenen && Math.abs(s.g - 595) <= 3 && Math.abs(s.b - 842) <= 3, JSON.stringify(s), false);
     };
-    // Yazıcıya doğrudan (yazdırma penceresi olmadan), adla ve adsız (varsayılan yazıcı). Sistemin kitaplığı adı tanıyor mu (Electron deviceName'i böyle doğrular)
-    const PIKSEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
-    const dogrudan = (yazici) => degerlendir(`(async () => {
-      const c = window.pdefe.cagir, h = await c('yazdir:hazirla');
-      if (!h?.is) return h;
-      await c('yazdir:sayfaEkle', { is: h.is, sira: 1, veri: ${JSON.stringify(PIKSEL)}, bicim: 'png' });
-      return c('yazdir:baslat', { is: h.is, html: '<!doctype html><html><body><h1>Deneme</h1></body></html>', secenekler: { yazici: ${JSON.stringify(yazici)}, sayfaBoyutu: 'A4' } });
-    })()`).catch((e) => ({ istisna: e.message }));
-    const kuyruklar = calistir('/usr/bin/lpstat', ['-p']).cikti.split('\n').map((s) => (/^printer (\S+)/.exec(s) || [])[1]).filter(Boolean);
-    const liste = await cagir('yazdir:yazicilar');
-    sonuc('Gerçek baskı: Yazıcı listesi (bilgi)', null, JSON.stringify({ kuyruklar, liste }));
-    const KUTUPHANE = ['import ctypes, sys', "c = ctypes.CDLL('/usr/lib/libcups.2.dylib')", 'c.cupsGetNamedDest.restype = ctypes.c_void_p', 'c.cupsLastErrorString.restype = ctypes.c_char_p',
-      'for ad in sys.argv[1:]:', "    d = c.cupsGetNamedDest(None, ad.encode(), None)", "    print(ad, 'bulundu' if d else 'yok', c.cupsLastErrorString().decode())"].join('\n');
-    const sistem = calistir('python', ['-c', KUTUPHANE, ...kuyruklar]);
-    sonuc('Gerçek baskı: cupsGetNamedDest (bilgi)', null, `${sistem.cikti} ${sistem.hata.slice(-200)}`);
-    for (const y of [...kuyruklar, '']) {
-      const r = await dogrudan(y);
-      await bekle(1500);
-      sonuc(`Gerçek baskı doğrudan, yazıcı "${y}" (bilgi)`, null, JSON.stringify(r));
-    }
-    const dosyalar = fs.readdirSync(path.dirname(BASKI));
-    sonuc('Gerçek baskı doğrudan: Yazılan dosyalar (bilgi)', null, dosyalar.map((d) => `${d} ${fs.statSync(path.join(path.dirname(BASKI), d)).size}`).join(', ') || 'yok');
     try {
+      sonuc('Gerçek baskı: Yazıcı listesi (bilgi)', null, JSON.stringify(await cagir('yazdir:yazicilar')));
       await baskiDene('a5', 'a5.pdf', 1);
       await kosul(() => degerlendir(`!document.querySelector('.yazdir-ortusu')`), 15000);
       await baskiDene('xfa', 'xfa.pdf', 1);
