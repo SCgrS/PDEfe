@@ -3,14 +3,14 @@
 Biçim: her sürüm için `## x.y.z — YYYY-AA-GG` başlığı; altındaki maddeler GitHub sürüm sayfasına
 otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 
-## 0.3.1 — 2026-10-30
+## 0.3.1 — 2026-11-02
 
 - **Form doldurma:** Doldurulabilir PDF'lerde yazı alanları, kutucuklar, seçenek düğmeleri ve listeler çalışır. Alanlar arasında `Tab` ile gezilir, değişiklikler geri alınır. Yazdıklarınız kaydedilen formda durur, başka PDF okuyucularında da görünür. E-imzalı formda boş alanı doldurmak imzalanan bölüme dokunmaz, okuyucu imzadan sonra doldurulduğunu gösterebilir. Form kaydedilmeden de yazdırılır.
 - **XFA formları:** Bireysel başvuru formu gibi dinamik formlar "Please wait" sayfası yerine formun kendisiyle açılır. Doldurulur, formdaki düğmelerle bölüm eklenip silinir, kaydedilir, yazdırılır. `Tab` alanlar arasında sayfadaki sırayla gezer. Alanlar formun şablonundaki biçimle görünür (hiza, satır aralığı, hücreli alanlar), üstlerinde mavi işaret olmaz, seçili alanın çerçevesi incedir, boş alanda da imleç yanıp söner. Format Değiştir ve Birleştir bu formları almaz, nedenini satırda söyler.
 - **Formda alana sığan yazı:** XFA formu kâğıda basılmak için tasarlandığından alana yalnız kâğıda sığan yazı girer: Alan dolunca yazma durur, kaydırma çubuğu çıkmaz, yarım satır görünmez. Yapıştırılan, sürüklenen ya da dikteyle gelen yazının sığan kısmı girer, kaç karakterin alınmadığı söylenir. Başka bir programda yazılmış, alana sığmayan yazı silinmez: Alan kırmızı çerçeve alır, yazı kaydırılarak okunur, yazdırma penceresi uyarır.
 - **Form alanlarında:** Karakter sınırı olan alanda fazlası sessizce kesilmez, kaç karakterin alınmadığı söylenir. Sağ tıkta **Kes**, **Kopyala**, **Yapıştır**, **Tümünü seç**, **Kaydet** ve **Yazdır** var. Düz PDF formlarında da alanların üstünde mavi işaret olmaz, seçili alanın çerçevesi incedir. `Ctrl+Z` yalnız bulunduğunuz alanı geri alır, başka alandaki yazıyı silmez.
 - **XFA formunun kaydı:** Kayıt önce yan dosyaya yazılır, doğrulanır, sonra dosyanın yerine konur: Kayıt yapılamazsa dosya bozulmaz, yazdıklarınız ekranda kalır. Formu Kaydet düğmesi ve `Ctrl+S` alandan çıkılmamış yazıyı da alır, başarılı kayıtta kısa bir bildirim çıkar. Son kayıt yapılamadıysa kapatma sorusu bunu söyler. Dosya başka bir programda değiştiyse PDEfe üzerine sessizce yazmaz, sorar. Kullanım hakları imzalı formlarda imza dosyada kalır.
-- **Kilitli dosya:** Kaydedilecek dosya başka bir programda açıksa (bütün belgelerde) anlaşılır bir pencere çıkar: Kilitleyen programın adı, **Yeniden dene**, **Farklı kaydet**, **Vazgeç**. Otomatik kaydetme pencere açmaz, kilit kalkınca kendisi yeniden dener.
+- **Kilitli dosya:** Kaydedilecek dosya başka bir programda açıksa (bütün belgelerde) anlaşılır bir pencere çıkar: Kilitleyen programın adı (Windows'ta), **Yeniden dene**, **Farklı kaydet**, **Vazgeç**. Otomatik kaydetme pencere açmaz, kilit kalkınca kendisi yeniden dener.
 - **Taranmış belgede Bul:** `Ctrl+F` taranmış sayfaların yazısında da arar. Sayaçta tanımanın ilerlemesi görünür, bulunanlar geldikçe sayı artar. Tanınan sayfalar yeniden beklenmez. Satır sonuna taşan sözcükler de bulunur (PDF metninde de).
 - **İç bağlantılar ve yer imleri:** İçindekiler satırları ve belge içi bağlantılar tıklanınca o yere gider, başlık pencerenin üstüne gelir. Döndürülmüş sayfada ve sayfaları silinmiş ya da sıralanmış belgede de doğru yere gider. Başka bir dosyayı ya da programı açan bağlantılar açılmaz.
 - **Yazdırma:** Kâğıt siz başkasını seçene dek A4'tür, önceki sürümlerden kalan "Belgeye göre" gelmez. Yazdırma penceresinde seçtiğiniz kâğıt hatırlanır.
@@ -20,6 +20,7 @@ otomatik olarak kopyalanır (`.github/workflows/yayim.yml`).
 - **Güncelleme şeridi:** Daha büyük ve belirgin, iki satırlı.
 - **Linux:** İlk Linux sürümü, tek dosya `PDEfe-Linux.AppImage` (64 bit). Kurulum gerekmez, yeni sürüm çıkınca şerit haber verir. Yazı tanıyıcı olmadığından taranmış yazı seçilemez ve aranamaz.
 - **Kaldırma:** PDEfe kaldırılınca güncelleme önbelleği de silinir (önceden eski kurulum dosyasıyla ~140 MB kalıyordu).
+- **Güvenlik:** Uygulamanın çatısı Electron, güvenlik yamasını içeren 44.9.1 sürümüne yükseltildi.
 
 ## 0.3.0 — 2026-10-17
 

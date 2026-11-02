@@ -1,7 +1,7 @@
 {
   "name": "pdefe",
   "productName": "PDEfe",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "PDEfe — Windows, macOS ve Linux için PDF görüntüleyici ve düzenleyici",
   "desktopName": "pdefe.desktop",
   "author": "Geliştirici: x.com/CgrShn",
