@@ -1066,7 +1066,9 @@ export class DonusturPenceresi {
     const kaynak = TUR_ADI[o?.tur || r.kaynakTur] || uzanti(r.yol).toUpperCase() || 'Dosya';
     const hedef = BICIM[r.hedefBicim]?.ad || '';
     // Word dışındaki programla çevrildiyse (r.motor) kalite notundaki "Bu bilgisayarda Word yok…" cümlesi sonucun kendi uyarısıyla aynı şeyi söylüyor (0.3.1)
-    const kalite = (o ? this._kaliteNotu(o, r.hedefBicim) || '' : '').replace(r.motor && r.motor !== 'word' ? /(?:^|\s)(?:Bu bilgisayarda Word yok|Word şu anda başlatılamıyor)\.[^.]*\./ : /$^/, '').trim();
+    let kalite = o ? this._kaliteNotu(o, r.hedefBicim) || '' : '';
+    if (r.motor && r.motor !== 'word') kalite = kalite.replace(/(?:^|\s)(?:Bu bilgisayarda Word yok|Word şu anda başlatılamıyor)\.[^.]*\./, '');
+    kalite = kalite.trim();
     const satirlar = [kalite, ...ozel.split(/(?<=[.!?])\s+(?=[A-ZÇĞİÖŞÜ0-9"“(])/u)].filter(Boolean);
     return `${kaynak} → ${hedef}: ${satirlar.join('\n')}`;
   }
