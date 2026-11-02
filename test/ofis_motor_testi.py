@@ -70,7 +70,7 @@ def temiz_metin(m):
 # ---------------------------------------------------------------- girdiler
 SAYFALAR = [("Başlık %d Çığöşü" % (i + 1), W.paragraflar(40 + i, 5)) for i in range(3)]
 OZGUN = W.metin_sozcukleri([b for b, pler in SAYFALAR for b in [b] + pler])
-AD_KOKU = "İş Bankası dilekçe ÇĞİÖŞÜ"
+AD_KOKU = "İş Barışı dilekçe ÇĞİÖŞÜ"
 
 
 def girdileri_uret():

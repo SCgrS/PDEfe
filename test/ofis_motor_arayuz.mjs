@@ -51,7 +51,7 @@ export default async function ({ evalJs, ekranGoruntusu, bekle, tikla }) {
 
   fs.rmSync(UI, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
   for (const k of [GIRDI, CIKTI, PNG]) fs.mkdirSync(k, { recursive: true });
-  const docx = path.join(GIRDI, 'İş Bankası dilekçe ÇĞİÖŞÜ.docx');
+  const docx = path.join(GIRDI, 'İş Barışı dilekçe ÇĞİÖŞÜ.docx');
   const pdfGirdi = path.join(GIRDI, 'ek.pdf');
   const odt = path.join(GIRDI, 'Açık belge.odt');
   execFileSync(PY, ['-X', 'utf8', '-c', `
@@ -99,7 +99,7 @@ W.odt_yaz(${J(odt)}, [("Başlık Çığöşü", W.paragraflar(72, 3))])
     await kosul(`!document.querySelector('.donustur-pencere') || !document.querySelector('.donustur-sonuc')?.hidden || !!document.querySelector('.donustur-pencere .arac-hata:not([hidden])') || !!document.querySelector('.mesaj-kutusu, .soru-kutusu, .mesaj-ortusu')`, 60000);
     await bekle(600);
     await ss('02-sonuc');
-    const hedef = path.join(CIKTI, 'İş Bankası dilekçe ÇĞİÖŞÜ.pdf');
+    const hedef = path.join(CIKTI, 'İş Barışı dilekçe ÇĞİÖŞÜ.pdf');
     if (BEKLENEN === 'wps-kilitli') {
       const m = await evalJs(`[document.querySelector('.donustur-sonuc')?.innerText, document.querySelector('.donustur-pencere .arac-hata')?.innerText, document.querySelector('.mesaj-kutusu, .soru-kutusu, .mesaj-ortusu')?.innerText, document.querySelector('.donustur-oge .hata')?.textContent].filter(Boolean).join(' | ')`);
       const ipucu = await evalJs(`[...document.querySelectorAll('.donustur-sonuc [title]')].map((e) => e.title).join(' ')`);
