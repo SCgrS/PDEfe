@@ -4,14 +4,14 @@
 ### [⬇ macOS için indir (PDEfe-Mac.dmg)](https://github.com/SCgrS/PDEfe/releases/latest/download/PDEfe-Mac.dmg)
 ### [⬇ Linux için indir (PDEfe-Linux.AppImage)](https://github.com/SCgrS/PDEfe/releases/latest/download/PDEfe-Linux.AppImage)
 
-https://github.com/user-attachments/assets/96bbb53e-9b29-4fa0-9b01-4fd3b54659a9
-
 Windows 11 (ve Windows 10), macOS ve Linux için sade, tüm araçları ücretsiz, reklamsız bir **PDF görüntüleyici ve düzenleyici**.
 
 Hukukçuların ve her gün onlarca PDF açan herkesin işini görmek için yazıldı. Belgeler sekmelerde açılır, metin kopyalandığında satır sonları
 ve tireler temizlenir. PDEfe ile PDF, görüntü, TIFF, UDF ve Word dosyalarını tek PDF'te birleştirebilir, PDF'leri ayırabilir ve
 döndürebilir, üzerlerine yazı ekleyebilir, boyutlarını küçültebilir, UDF, Word, TIFF ve görüntü dosyalarını PDF'e, PDF'leri de UDF, Word,
 TIFF ve JPG'ye, hatta bu dosya türlerini kendi aralarında da dönüştürebilirsiniz.
+
+https://github.com/user-attachments/assets/96bbb53e-9b29-4fa0-9b01-4fd3b54659a9
 
 <p align="center">
   <img src="docs/ekran-acilis-koyu.png" width="90%" alt="Açılış ekranı koyu temada">
