@@ -4,6 +4,8 @@
 ### [⬇ macOS için indir (PDEfe-Mac.dmg)](https://github.com/SCgrS/PDEfe/releases/latest/download/PDEfe-Mac.dmg)
 ### [⬇ Linux için indir (PDEfe-Linux.AppImage)](https://github.com/SCgrS/PDEfe/releases/latest/download/PDEfe-Linux.AppImage)
 
+https://github.com/user-attachments/assets/5541ed30-27f8-4e89-82bf-4cb6b40797ce
+
 Windows 11 (ve Windows 10), macOS ve Linux için sade, tüm araçları ücretsiz, reklamsız bir **PDF görüntüleyici ve düzenleyici**.
 
 Hukukçuların ve her gün onlarca PDF açan herkesin işini görmek için yazıldı. Belgeler sekmelerde açılır, metin kopyalandığında satır sonları
